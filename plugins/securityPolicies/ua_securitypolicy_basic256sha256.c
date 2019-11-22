@@ -572,10 +572,10 @@ clear_sp_basic256sha256(UA_SecurityPolicy *securityPolicy) {
     if(securityPolicy == NULL)
         return;
 
+    UA_ByteString_deleteMembers(&securityPolicy->localCertificate);
+
     if(securityPolicy->policyContext == NULL)
         return;
-
-    UA_ByteString_deleteMembers(&securityPolicy->localCertificate);
 
     /* delete all allocated members in the context */
     Basic256Sha256_PolicyContext *pc = (Basic256Sha256_PolicyContext *)
@@ -682,7 +682,7 @@ policyContext_newContext_sp_basic256sha256(UA_SecurityPolicy *securityPolicy,
 
     /* Add the system entropy source */
     mbedErr = mbedtls_entropy_add_source(&pc->entropyContext,
-                                         mbedtls_platform_entropy_poll, NULL, 0,
+                                         MBEDTLS_ENTROPY_POLL_METHOD, NULL, 0,
                                          MBEDTLS_ENTROPY_SOURCE_STRONG);
     if(mbedErr) {
         retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
@@ -861,7 +861,11 @@ UA_SecurityPolicy_Basic256Sha256(UA_SecurityPolicy *policy,
     policy->updateCertificateAndPrivateKey = updateCertificateAndPrivateKey_sp_basic256sha256;
     policy->clear = clear_sp_basic256sha256;
 
-    return policyContext_newContext_sp_basic256sha256(policy, localPrivateKey);
+    UA_StatusCode res = policyContext_newContext_sp_basic256sha256(policy, localPrivateKey);
+    if(res != UA_STATUSCODE_GOOD)
+        clear_sp_basic256sha256(policy);
+
+    return res;
 }
 
 #endif

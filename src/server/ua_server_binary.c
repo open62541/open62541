@@ -550,24 +550,21 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
 #endif
 
 #if UA_MULTITHREADING >= 100
-    /* If marked as async, the call request is not answered immediately, unless
-     * there is an error */
+    /* The call request might not be answered immediately */
     if(requestType == &UA_TYPES[UA_TYPES_CALLREQUEST]) {
-        responseHeader->serviceResult =
-            UA_AsyncOperationManager_createEntry(&server->asyncMethodManager, server,
-                                              &session->sessionId, channel->securityToken.channelId,
-                                              requestId, requestHeader->requestHandle,
-                                              UA_ASYNCOPERATIONTYPE_CALL,
-                                              (UA_UInt32)((const UA_CallRequest*)requestHeader)->methodsToCallSize);
-        if(responseHeader->serviceResult == UA_STATUSCODE_GOOD)
-            Service_CallAsync(server, session, channel, requestId,
-                              (const UA_CallRequest*)requestHeader, (UA_CallResponse*)responseHeader);
+        UA_Boolean finished = true;
+        UA_LOCK(server->serviceMutex);
+        Service_CallAsync(server, session, requestId, (const UA_CallRequest*)requestHeader,
+                          (UA_CallResponse*)responseHeader, &finished);
+        UA_UNLOCK(server->serviceMutex);
 
-        /* We got an error, so send response directly */
-        if(responseHeader->serviceResult != UA_STATUSCODE_GOOD)
-            return sendResponse(channel, requestId, requestHeader->requestHandle,
-                                responseHeader, responseType);
-        return UA_STATUSCODE_GOOD;
+        /* Async method calls remain. Don't send a response now */
+        if(!finished)
+            return UA_STATUSCODE_GOOD;
+
+        /* We are done here */
+        return sendResponse(channel, requestId, requestHeader->requestHandle,
+                            responseHeader, responseType);
     }
 #endif
 

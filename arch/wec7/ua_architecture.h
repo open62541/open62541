@@ -140,7 +140,6 @@ char *strerror(int errnum);
 #if UA_MULTITHREADING >= 100
 #error Multithreading unsupported
 #else
-#define UA_LOCK_TYPE_NAME
 #define UA_LOCK_TYPE(mutexName)
 #define UA_LOCK_TYPE_POINTER(mutexName)
 #define UA_LOCK_INIT(mutexName)

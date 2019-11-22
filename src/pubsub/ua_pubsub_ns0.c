@@ -143,7 +143,7 @@ onRead(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
                 UA_calloc(publishedDataSet->fieldSize, sizeof(UA_PublishedVariableDataType));
             size_t counter = 0;
             UA_DataSetField *field;
-            LIST_FOREACH(field, &publishedDataSet->fields, listEntry) {
+            TAILQ_FOREACH(field, &publishedDataSet->fields, listEntry) {
                 pvd[counter].attributeId = UA_ATTRIBUTEID_VALUE;
                 pvd[counter].publishedVariable = field->config.field.variable.publishParameters.publishedVariable;
                 //UA_NodeId_copy(&field->config.field.variable.publishParameters.publishedVariable, &pvd[counter].publishedVariable);

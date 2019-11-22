@@ -23,7 +23,7 @@
 #include "ua_connection_internal.h"
 #include "ua_securechannel_manager.h"
 #include "ua_session_manager.h"
-#include "ua_asyncoperation_manager.h"
+#include "ua_server_async.h"
 #include "ua_timer.h"
 #include "ua_util_internal.h"
 #include "ua_workqueue.h"
@@ -75,7 +75,7 @@ struct UA_Server {
     UA_SecureChannelManager secureChannelManager;
     UA_SessionManager sessionManager;
 #if UA_MULTITHREADING >= 100
-    UA_AsyncOperationManager asyncMethodManager;
+    UA_AsyncManager asyncManager;
 #endif
     UA_Session adminSession; /* Local access to the services (for startup and
                               * maintenance) uses this Session with all possible
@@ -192,17 +192,6 @@ UA_StatusCode
 writeWithSession(UA_Server *server, UA_Session *session,
                  const UA_WriteValue *value);
 
-#if UA_MULTITHREADING >= 100
-
-void
-UA_Server_InsertMethodResponse(UA_Server *server, const UA_UInt32 nRequestId,
-                               const UA_NodeId* nSessionId, const UA_UInt32 nIndex,
-                               const UA_CallMethodResult* response);
-void
-UA_Server_CallMethodResponse(UA_Server *server, void* data);
-
-#endif
-
 UA_StatusCode
 sendResponse(UA_SecureChannel *channel, UA_UInt32 requestId, UA_UInt32 requestHandle,
              UA_ResponseHeader *responseHeader, const UA_DataType *responseType);
@@ -223,16 +212,6 @@ UA_Server_processServiceOperations(UA_Server *server, UA_Session *session,
                                    size_t *responseOperations,
                                    const UA_DataType *responseOperationsType)
     UA_FUNC_ATTR_WARN_UNUSED_RESULT;
-
-UA_StatusCode
-UA_Server_processServiceOperationsAsync(UA_Server *server, UA_Session *session,
-                                        UA_ServiceOperation operationCallback,
-                                        void *context,
-                                        const size_t *requestOperations,
-                                        const UA_DataType *requestOperationsType,
-                                        size_t *responseOperations,
-                                        const UA_DataType *responseOperationsType)
-UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
 /******************************************/
 /* Internal function calls, without locks */

@@ -114,6 +114,9 @@ setDefaultConfig(UA_ServerConfig *conf) {
     if (!conf)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
+    if(conf->nodestore.context == NULL)
+        UA_Nodestore_HashMap(&conf->nodestore);
+
     /* --> Start setting the default static config <-- */
     conf->nThreads = 1;
     conf->logger = UA_Log_Stdout_;
@@ -149,6 +152,10 @@ setDefaultConfig(UA_ServerConfig *conf) {
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     UA_MdnsDiscoveryConfiguration_clear(&conf->discovery.mdns);
     conf->discovery.mdnsInterfaceIP = UA_STRING_NULL;
+# if !defined(UA_HAS_GETIFADDR)
+    conf->discovery.ipAddressList = NULL;
+    conf->discovery.ipAddressListSize = 0;
+# endif
 #endif
 
     /* Custom DataTypes */
@@ -226,9 +233,8 @@ setDefaultConfig(UA_ServerConfig *conf) {
 #endif
 
 #if UA_MULTITHREADING >= 100
-    conf->asyncOperationTimeout = 0;
     conf->maxAsyncOperationQueueSize = 0;
-    conf->asyncCallRequestTimeout = 120000; /* Call request Timeout in ms (2 minutes) */
+    conf->asyncOperationTimeout = 120000; /* Async Operation Timeout in ms (2 minutes) */
 #endif
 
     /* --> Finish setting the default static config <-- */
@@ -238,7 +244,11 @@ setDefaultConfig(UA_ServerConfig *conf) {
 
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_setBasics(UA_ServerConfig* conf) {
-    return setDefaultConfig(conf);
+    UA_StatusCode res = setDefaultConfig(conf);
+    UA_LOG_WARNING(&conf->logger, UA_LOGCATEGORY_USERLAND,
+                   "AcceptAll Certificate Verification. "
+                   "Any remote certificate will be accepted.");
+    return res;
 }
 
 static UA_StatusCode
@@ -406,7 +416,7 @@ UA_ServerConfig_setMinimalCustomBuffer(UA_ServerConfig *config, UA_UInt16 portNu
                                        const UA_ByteString *certificate,
                                        UA_UInt32 sendBufferSize,
                                        UA_UInt32 recvBufferSize) {
-    if (!config)
+    if(!config)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     UA_StatusCode retval = setDefaultConfig(config);
@@ -444,6 +454,10 @@ UA_ServerConfig_setMinimalCustomBuffer(UA_ServerConfig *config, UA_UInt16 portNu
         UA_ServerConfig_clean(config);
         return retval;
     }
+
+    UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
+                   "AcceptAll Certificate Verification. "
+                   "Any remote certificate will be accepted.");
 
     return UA_STATUSCODE_GOOD;
 }
@@ -615,11 +629,6 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
     if (retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    if(trustListSize == 0)
-        UA_LOG_WARNING(&conf->logger, UA_LOGCATEGORY_USERLAND,
-                       "No CA trust-list provided. "
-                       "Any remote certificate will be accepted.");
-
     retval = addDefaultNetworkLayers(conf, portNumber, 0, 0);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_clean(conf);
@@ -674,15 +683,20 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
     config->timeout = 5000;
     config->secureChannelLifeTime = 10 * 60 * 1000; /* 10 minutes */
 
-    config->logger.log = UA_Log_Stdout_log;
-    config->logger.context = NULL;
-    config->logger.clear = UA_Log_Stdout_clear;
+    if(!config->logger.log) {
+       config->logger.log = UA_Log_Stdout_log;
+       config->logger.context = NULL;
+       config->logger.clear = UA_Log_Stdout_clear;
+    }
 
     config->localConnectionConfig = UA_ConnectionConfig_default;
 
     /* Certificate Verification that accepts every certificate. Can be
      * overwritten when the policy is specialized. */
     UA_CertificateVerification_AcceptAll(&config->certificateVerification);
+    UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
+                   "AcceptAll Certificate Verification. "
+                   "Any remote certificate will be accepted.");
 
     /* With encryption enabled, the applicationUri needs to match the URI from
      * the certificate */

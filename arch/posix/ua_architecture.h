@@ -150,7 +150,6 @@ extern void * (*UA_globalRealloc)(void *ptr, size_t size);
 #if UA_MULTITHREADING >= 100
 #include <pthread.h>
 #define Sleep(x) sleep(x / 1000)
-#define UA_LOCK_TYPE_NAME pthread_mutex_t
 #define UA_LOCK_TYPE(mutexName) pthread_mutex_t mutexName; \
                                         pthread_mutexattr_t mutexName##_attr; \
                                         int mutexName##Counter;
@@ -168,7 +167,6 @@ extern void * (*UA_globalRealloc)(void *ptr, size_t size);
                              pthread_mutex_unlock(&mutexName);
 #define UA_LOCK_ASSERT(mutexName, num) UA_assert(mutexName##Counter == num);
 #else
-#define UA_LOCK_TYPE_NAME
 #define UA_LOCK_TYPE(mutexName)
 #define UA_LOCK_INIT(mutexName)
 #define UA_LOCK_DESTROY(mutexName)

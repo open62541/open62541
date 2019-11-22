@@ -662,7 +662,7 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_server_internal.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_services.h
                      ${PROJECT_SOURCE_DIR}/src/client/ua_client_internal.h
-					 ${PROJECT_SOURCE_DIR}/src/server/ua_asyncoperation_manager.h)
+					 ${PROJECT_SOURCE_DIR}/src/server/ua_server_async.h)
 
 # TODO: make client optional
 set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
@@ -882,7 +882,7 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     set(UA_FILE_TYPES_BSD ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.Types.bsd)
 else()
     if(NOT UA_FILE_NS0)
-        set(UA_FILE_NS0 ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.Minimal.xml)
+        set(UA_FILE_NS0 ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.Reduced.xml)
     endif()
     set(UA_FILE_NODESETS "${UA_FILE_NS0}")
 
@@ -1152,6 +1152,9 @@ GET_PROPERTY(ua_architecture_remove_definitions GLOBAL PROPERTY UA_ARCHITECTURE_
 if (NOT "${ua_architecture_remove_definitions}" STREQUAL "")
   string(REPLACE " " ";" ua_architecture_remove_definitions_list ${ua_architecture_remove_definitions})
   remove_definitions(${ua_architecture_remove_definitions_list})
+  foreach ( flag ${ua_architecture_remove_definitions} )
+      string(REPLACE "${flag}" "" CMAKE_C_FLAGS ${CMAKE_C_FLAGS})
+  endforeach()
 endif(NOT "${ua_architecture_remove_definitions}" STREQUAL "")
 
 GET_PROPERTY(ua_architecture_append_to_library GLOBAL PROPERTY UA_ARCHITECTURE_APPEND_TO_LIBRARY)

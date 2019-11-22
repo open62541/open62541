@@ -18,6 +18,11 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     UA_MdnsDiscoveryConfiguration_clear(&config->discovery.mdns);
     UA_String_clear(&config->discovery.mdnsInterfaceIP);
+# if !defined(UA_HAS_GETIFADDR)
+    if (config->discovery.ipAddressListSize) {
+        UA_free(config->discovery.ipAddressList);
+    }
+# endif
 #endif
 
     /* Custom DataTypes */
@@ -48,7 +53,7 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
     config->endpointsSize = 0;
 
     /* Nodestore */
-    if(config->nodestore.clear) {
+    if(config->nodestore.context && config->nodestore.clear) {
         config->nodestore.clear(config->nodestore.context);
         config->nodestore.context = NULL;
     }

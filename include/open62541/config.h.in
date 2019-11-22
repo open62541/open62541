@@ -105,6 +105,9 @@
 # endif
 #endif
 
+// specific architectures can undef this
+#define UA_HAS_GETIFADDR
+
 #include "${UA_ARCHITECTURE}/ua_architecture.h"
 
 #endif /* UA_CONFIG_H_ */

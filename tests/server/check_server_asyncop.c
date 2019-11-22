@@ -5,189 +5,256 @@
    not open a TCP port. */
 
 #include <open62541/server_config_default.h>
-
-#include "server/ua_services.h"
-#include "ua_server_internal.h"
+#include <open62541/server.h>
+#include <open62541/client.h>
+#include <open62541/client_config_default.h>
+#include <open62541/client_highlevel_async.h>
+#include <open62541/plugin/log_stdout.h>
+#include "testing_clock.h"
+#include "thread_wrapper.h"
 
 #include <check.h>
-#include <time.h>
-#include <signal.h>
-#include <stdlib.h>
 
-#include <open62541/plugin/log_stdout.h>
-#include <open62541/server.h>
-#include "testing_clock.h"
+UA_Boolean running;
+THREAD_HANDLE server_thread;
+static UA_Server *server;
+static size_t clientCounter;
 
-static UA_Server* globalServer;
-static UA_Session session;
-
-START_TEST(InternalTestingQueue) {
-    globalServer->config.asyncOperationTimeout = 2;
-    globalServer->config.maxAsyncOperationQueueSize = 5;
-    UA_UInt32 reqId = 1;
-
-    const UA_AsyncOperationRequest* pRequest = NULL;
-    void *pContext = NULL;
-    UA_AsyncOperationType type;
-    UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking queue: fetch from empty queue");
-    bool rv = UA_Server_getAsyncOperation(globalServer, &type, &pRequest, &pContext);
-    ck_assert_int_eq(rv, UA_FALSE);
-    
-    UA_CallMethodRequest* pRequest1 = UA_CallMethodRequest_new();
-    UA_CallMethodRequest_init(pRequest1);
-    UA_NodeId id = UA_NODEID_NUMERIC(1, 62540);
-    UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking queue: create request queue entry");
-    UA_StatusCode result = UA_Server_SetNextAsyncMethod(globalServer, reqId++, &id, 0, pRequest1);
-    ck_assert_int_eq(result, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(globalServer->asyncMethodManager.nMQCurSize, 1);
-
-    const UA_AsyncOperationRequest* pRequestWorker = NULL;
-    void *pContextWorker = NULL;
-    UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking queue: fetch from queue");
-    rv = UA_Server_getAsyncOperation(globalServer, &type, &pRequestWorker, &pContextWorker);
-    ck_assert_int_eq(rv, UA_TRUE);
-    ck_assert_int_eq(globalServer->asyncMethodManager.nMQCurSize, 0);
-        
-    UA_AsyncOperationResponse pResponse;
-    UA_CallMethodResult_init(&pResponse.callMethodResult);
-    UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking queue: set result to response queue");
-    UA_Server_setAsyncOperationResult(globalServer, &pResponse, pContextWorker);
-    UA_CallMethodResult_deleteMembers(&pResponse.callMethodResult);
-
-    UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking queue: fetch result from response queue");
-    struct AsyncMethodQueueElement* pResponseServer =
-        UA_Server_GetAsyncMethodResult(&globalServer->asyncMethodManager);
-    ck_assert_ptr_ne(pResponseServer, NULL);
-    UA_Server_DeleteMethodQueueElement(globalServer, pResponseServer);
-    
-    UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking queue: testing queue limit (%zu)", globalServer->config.maxAsyncOperationQueueSize);
-    UA_UInt32 i;
-    for (i = 0; i < globalServer->config.maxAsyncOperationQueueSize + 1; i++) {
-        UA_NodeId idTmp = UA_NODEID_NUMERIC(1, 62541);
-        UA_StatusCode resultTmp = UA_Server_SetNextAsyncMethod(globalServer, reqId++, &idTmp, 0, pRequest1);
-        if (i < globalServer->config.maxAsyncOperationQueueSize)
-            ck_assert_int_eq(resultTmp, UA_STATUSCODE_GOOD);
-        else
-            ck_assert_int_ne(resultTmp, UA_STATUSCODE_GOOD);
-    }
-    UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking queue: queue should not be empty");
-    UA_Server_CheckQueueIntegrity(globalServer,NULL);
-    ck_assert_int_ne(globalServer->asyncMethodManager.nMQCurSize, 0);
-    UA_fakeSleep((UA_Int32)(globalServer->config.asyncOperationTimeout + 1) * 1000);
-    UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking queue: empty queue caused by queue timeout (%ds)", (UA_Int32)globalServer->config.asyncOperationTimeout);
-    /* has to be done twice due to internal queue delete limit */
-    UA_Server_CheckQueueIntegrity(globalServer,NULL);
-    UA_Server_CheckQueueIntegrity(globalServer,NULL);
-    ck_assert_int_eq(globalServer->asyncMethodManager.nMQCurSize, 0);    
-    
-    UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking queue: adding one new entry to empty queue");
-    result = UA_Server_SetNextAsyncMethod(globalServer, reqId++, &id, 0, pRequest1);
-    ck_assert_int_eq(result, UA_STATUSCODE_GOOD);    
-    ck_assert_int_eq(globalServer->asyncMethodManager.nMQCurSize, 1);
-    UA_CallMethodRequest_delete(pRequest1);
+static UA_StatusCode
+methodCallback(UA_Server *serverArg,
+         const UA_NodeId *sessionId, void *sessionHandle,
+         const UA_NodeId *methodId, void *methodContext,
+         const UA_NodeId *objectId, void *objectContext,
+         size_t inputSize, const UA_Variant *input,
+         size_t outputSize, UA_Variant *output) {
+    return UA_STATUSCODE_GOOD;
 }
-END_TEST
 
-
-START_TEST(InternalTestingManager) {    
-    UA_Session_init(&session);
-    session.sessionId = UA_NODEID_NUMERIC(1, 62541);
-    UA_SecureChannel channel;
-    UA_SecureChannel_init(&channel);
-    UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking UA_AsyncOperationManager_createEntry: create CallRequests");
-    for (UA_Int32 i = 1; i < 7; i++) {
-        UA_StatusCode result =
-            UA_AsyncOperationManager_createEntry(&globalServer->asyncMethodManager, globalServer,
-                                              &session.sessionId, channel.securityToken.channelId,
-                                              i, i, UA_ASYNCOPERATIONTYPE_CALL, 1);
-        ck_assert_int_eq(result, UA_STATUSCODE_GOOD);
-    }
-    UA_fakeSleep(121000);
-    UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking UA_AsyncOperationManager_createEntry: empty CallRequest list");
-    UA_AsyncOperationManager_checkTimeouts(globalServer, &globalServer->asyncMethodManager);
-    ck_assert_int_eq(globalServer->asyncMethodManager.currentCount, 0);
+static void
+clientReceiveCallback(UA_Client *client, void *userdata,
+                      UA_UInt32 requestId, UA_CallResponse *cr) {
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "Received call response");
+    clientCounter++;
 }
-END_TEST
 
-START_TEST(InternalTestingPendingList) {
-    globalServer->config.asyncOperationTimeout = 2;
-    globalServer->config.maxAsyncOperationQueueSize = 5;
-
-    UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking PendingList");
-
-    struct AsyncMethodQueueElement* elem1 = (struct AsyncMethodQueueElement*)UA_calloc(1, sizeof(struct AsyncMethodQueueElement));
-    struct AsyncMethodQueueElement* elem2 = (struct AsyncMethodQueueElement*)UA_calloc(1, sizeof(struct AsyncMethodQueueElement));
-    struct AsyncMethodQueueElement* elem3 = (struct AsyncMethodQueueElement*)UA_calloc(1, sizeof(struct AsyncMethodQueueElement));
-
-    UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking PendingList: Adding 3 elements");
-    UA_Server_AddPendingMethodCall(globalServer, elem1);
-    UA_Server_AddPendingMethodCall(globalServer, elem2);
-    UA_Server_AddPendingMethodCall(globalServer, elem3);
-
-    UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking PendingList: check if element is found");
-    UA_Boolean bFound = UA_Server_IsPendingMethodCall(globalServer, elem2);
-    if (!bFound) {
-        ck_assert_int_eq(bFound, UA_TRUE);
-        UA_Server_RmvPendingMethodCall(globalServer, elem2);
-    }
-    UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking PendingList: remove remaining elements");
-    UA_Server_RmvPendingMethodCall(globalServer, elem1);
-    UA_Server_RmvPendingMethodCall(globalServer, elem3);
-    UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking PendingList: check if removed element is NOT found");
-    bFound = UA_Server_IsPendingMethodCall(globalServer, elem1);
-    if (!bFound) {
-        ck_assert_int_eq(bFound, UA_FALSE);
-        UA_Server_RmvPendingMethodCall(globalServer, elem1);
-    }
-
-    UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking PendingList: queue integrity");
-    UA_Server_AddPendingMethodCall(globalServer, elem1);
-    UA_Server_AddPendingMethodCall(globalServer, elem2);
-    UA_Server_AddPendingMethodCall(globalServer, elem3);
-    UA_fakeSleep((UA_Int32)(globalServer->config.asyncOperationTimeout + 1) * 1000);
-    UA_Server_CheckQueueIntegrity(globalServer, NULL);
-    ck_assert_ptr_eq(globalServer->asyncMethodManager.ua_method_pending_list.sqh_first,NULL);    
-
-    UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking PendingList: global removal/delete");
-    UA_Server_AddPendingMethodCall(globalServer, elem1);
+THREAD_CALLBACK(serverloop) {
+    while(running)
+        UA_Server_run_iterate(server, true);
+    return 0;
 }
-END_TEST
 
 static void setup(void) {
-    globalServer = UA_Server_new();
-    UA_ServerConfig *config = UA_Server_getConfig(globalServer);
+    clientCounter = 0;
+    running = true;
+    server = UA_Server_new();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
+    config->asyncOperationTimeout = 2000.0; /* 2 seconds */
+
+    UA_MethodAttributes methodAttr = UA_MethodAttributes_default;
+    methodAttr.executable = true;
+    methodAttr.userExecutable = true;
+
+    /* Synchronous Method */
+    UA_StatusCode res =
+        UA_Server_addMethodNode(server, UA_NODEID_STRING(1, "method"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASORDEREDCOMPONENT),
+                            UA_QUALIFIEDNAME(1, "method"),
+                            methodAttr, &methodCallback,
+                            0, NULL, 0, NULL, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    /* Asynchronous Method */
+    res = UA_Server_addMethodNode(server, UA_NODEID_STRING(1, "asyncMethod"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASORDEREDCOMPONENT),
+                            UA_QUALIFIEDNAME(1, "asyncMethod"),
+                            methodAttr, &methodCallback,
+                            0, NULL, 0, NULL, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    res = UA_Server_setMethodNodeAsync(server, UA_NODEID_STRING(1, "asyncMethod"), true);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_Server_run_startup(server);
+    THREAD_CREATE(server_thread, serverloop);
 }
 
 static void teardown(void) {    
-    UA_Server_delete(globalServer);
+    running = false;
+    THREAD_JOIN(server_thread);
+    UA_Server_run_shutdown(server);
+    UA_Server_delete(server);
 }
+
+START_TEST(Async_call) {
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig *clientConfig = UA_Client_getConfig(client);
+    UA_ClientConfig_setDefault(clientConfig);
+
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Stop the server thread. Iterate manually from now on */
+    running = false;
+    THREAD_JOIN(server_thread);
+
+    /* Call async method, then the sync method.
+     * The sync method returns first. */
+    retval = UA_Client_call_async(client,
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                  UA_NODEID_STRING(1, "asyncMethod"),
+                                  0, NULL, clientReceiveCallback, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = UA_Client_call_async(client,
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                  UA_NODEID_STRING(1, "method"),
+                                  0, NULL, clientReceiveCallback, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Receive the answer of the sync call */
+    ck_assert_uint_eq(clientCounter, 0);
+    UA_Server_run_iterate(server, true);
+    UA_Client_run_iterate(client, 0);
+    UA_Server_run_iterate(server, true);
+    UA_Client_run_iterate(client, 0);
+    ck_assert_uint_eq(clientCounter, 1);
+
+    /* Process the async method call for the server */
+    UA_AsyncOperationType aot;
+    const UA_AsyncOperationRequest *request;
+    void *context;
+    UA_Boolean haveAsync = UA_Server_getAsyncOperation(server, &aot, &request, &context);
+    ck_assert_uint_eq(haveAsync, true);
+    UA_AsyncOperationResponse response;
+    UA_CallMethodResult_init(&response.callMethodResult);
+    UA_Server_setAsyncOperationResult(server, &response, context);
+
+    /* Iterate and pick up the async response to be sent out */
+    UA_fakeSleep(1000);
+    UA_Server_run_iterate(server, true);
+
+    UA_fakeSleep(1000);
+    UA_Server_run_iterate(server, true);
+
+    /* Process async responses during 1s */
+    UA_Client_run_iterate(client, 0);
+    ck_assert_uint_eq(clientCounter, 2);
+
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
+START_TEST(Async_timeout) {
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig *clientConfig = UA_Client_getConfig(client);
+    UA_ClientConfig_setDefault(clientConfig);
+
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Stop the server thread. Iterate manually from now on */
+    running = false;
+    THREAD_JOIN(server_thread);
+
+    /* Call async method, then the sync method.
+     * The sync method returns first. */
+    retval = UA_Client_call_async(client,
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                  UA_NODEID_STRING(1, "asyncMethod"),
+                                  0, NULL, clientReceiveCallback, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* We expect to receive the timeout not yet*/
+    UA_Server_run_iterate(server, true);
+    UA_Client_run_iterate(client, 0);
+    ck_assert_uint_eq(clientCounter, 0);
+
+    UA_fakeSleep(1000 * 1.5);
+
+    /* We expect to receive the timeout not yet*/
+    UA_Server_run_iterate(server, true);
+    UA_Client_run_iterate(client, 0);
+    ck_assert_uint_eq(clientCounter, 0);
+
+    UA_fakeSleep(1000);
+
+    /* We expect to receive the timeout response */
+    UA_Server_run_iterate(server, true);
+    UA_Client_run_iterate(client, 0);
+    ck_assert_uint_eq(clientCounter, 1);
+
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
+/* Force a timeout when the operation is checked out with the worker */
+START_TEST(Async_timeout_worker) {
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig *clientConfig = UA_Client_getConfig(client);
+    UA_ClientConfig_setDefault(clientConfig);
+
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Stop the server thread. Iterate manually from now on */
+    running = false;
+    THREAD_JOIN(server_thread);
+
+    /* Call async method, then the sync method.
+     * The sync method returns first. */
+    retval = UA_Client_call_async(client,
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                  UA_NODEID_STRING(1, "asyncMethod"),
+                                  0, NULL, clientReceiveCallback, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Server_run_iterate(server, true);
+
+    /* Process the async method call for the server */
+    UA_AsyncOperationType aot;
+    const UA_AsyncOperationRequest *request;
+    void *context;
+    UA_Boolean haveAsync = UA_Server_getAsyncOperation(server, &aot, &request, &context);
+    ck_assert_uint_eq(haveAsync, true);
+    UA_AsyncOperationResponse response;
+    UA_CallMethodResult_init(&response.callMethodResult);
+
+    /* Force a timeout */
+    UA_fakeSleep(2500);
+    UA_Server_run_iterate(server, true);
+    UA_Client_run_iterate(client, 0);
+    ck_assert_uint_eq(clientCounter, 1);
+
+    /* Return the late response */
+    UA_Server_setAsyncOperationResult(server, &response, context);
+
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
 
 static Suite* method_async_suite(void) {
     /* set up unit test for internal data structures */
     Suite *s = suite_create("Async Method");
 
-    /* UA_Server_PendingList */
-    TCase* tc_pending = tcase_create("PendingList");
-    tcase_add_checked_fixture(tc_pending, setup, NULL);
-    tcase_add_test(tc_pending, InternalTestingPendingList);
-    suite_add_tcase(s, tc_pending);
-
-    /* UA_AsyncOperationManager */
-    TCase* tc_manager = tcase_create("AsyncMethodManager");
-    tcase_add_checked_fixture(tc_manager, NULL, NULL);
-    tcase_add_test(tc_manager, InternalTestingManager);
+    TCase* tc_manager = tcase_create("AsyncMethod");
+    tcase_add_checked_fixture(tc_manager, setup, teardown);
+    tcase_add_test(tc_manager, Async_call);
+    tcase_add_test(tc_manager, Async_timeout);
+    tcase_add_test(tc_manager, Async_timeout_worker);
     suite_add_tcase(s, tc_manager);
-    
-    /* UA_Server_MethodQueues */
-    TCase* tc_queue = tcase_create("AsyncMethodQueue");
-    tcase_add_checked_fixture(tc_queue, NULL, teardown);
-    tcase_add_test(tc_queue, InternalTestingQueue);
-    suite_add_tcase(s, tc_queue);    
     
     return s;
 }
-
 
 int main(void) {
     /* Unit tests for internal data structures for async methods */

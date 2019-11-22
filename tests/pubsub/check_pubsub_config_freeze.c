@@ -75,6 +75,21 @@ START_TEST(CreateAndLockConfiguration) {
     UA_WriterGroup *writerGroup = UA_WriterGroup_findWGbyId(server, writerGroup1);
     ck_assert(writerGroup->state == UA_PUBSUBSTATE_DISABLED);
 
+    UA_DataSetMetaDataType dataSetMetaDataType; 
+    UA_DataSetMetaDataType_init(&dataSetMetaDataType);
+    ck_assert(UA_Server_getPublishedDataSetMetaData(server, publishedDataSet1, &dataSetMetaDataType) == UA_STATUSCODE_GOOD);
+    UA_DataSetMetaDataType_deleteMembers(&dataSetMetaDataType);
+
+    UA_PublishedDataSetConfig publishedDataSetConfig;
+    memset(&publishedDataSetConfig, 0, sizeof(UA_PublishedDataSetConfig));
+    publishedDataSetConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS_TEMPLATE;
+    UA_DataSetMetaDataType metaDataType; 
+    UA_DataSetMetaDataType_init(&metaDataType);
+    publishedDataSetConfig.config.itemsTemplate.metaData = metaDataType;
+    publishedDataSetConfig.config.itemsTemplate.variablesToAddSize = 1;
+    publishedDataSetConfig.config.itemsTemplate.variablesToAdd = UA_PublishedVariableDataType_new();
+    UA_PublishedDataSetConfig_clear(&publishedDataSetConfig);
+
     UA_DataSetWriterConfig dataSetWriterConfig;
     memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
     dataSetWriterConfig.name = UA_STRING("DataSetWriter 1");
@@ -93,7 +108,7 @@ START_TEST(CreateAndLockConfiguration) {
     UA_PublishedDataSet *publishedDataSet = UA_PublishedDataSet_findPDSbyId(server, dataSetWriter->connectedDataSet);
     ck_assert(publishedDataSet->config.configurationFrozen == UA_TRUE);
     UA_DataSetField *dsf;
-    LIST_FOREACH(dsf ,&publishedDataSet->fields , listEntry){
+    TAILQ_FOREACH(dsf ,&publishedDataSet->fields , listEntry){
         ck_assert(dsf->config.configurationFrozen == UA_TRUE);
     }
     //set state to disabled and implicit unlock the configuration
@@ -157,7 +172,7 @@ START_TEST(CreateAndLockConfigurationWithExternalAPI) {
         UA_PublishedDataSet *publishedDataSet = UA_PublishedDataSet_findPDSbyId(server, dataSetWriter->connectedDataSet);
         ck_assert(publishedDataSet->config.configurationFrozen == UA_TRUE);
         UA_DataSetField *dsf;
-        LIST_FOREACH(dsf ,&publishedDataSet->fields , listEntry){
+        TAILQ_FOREACH(dsf ,&publishedDataSet->fields , listEntry){
             ck_assert(dsf->config.configurationFrozen == UA_TRUE);
         }
         //set state to disabled and implicit unlock the configuration
