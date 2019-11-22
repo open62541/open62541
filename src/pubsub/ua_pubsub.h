@@ -123,8 +123,7 @@ struct UA_WriterGroup{
     //internal fields
     LIST_ENTRY(UA_WriterGroup) listEntry;
     UA_NodeId identifier;
-    UA_NodeId linkedConnection;
-    UA_PubSubConnection *linkedConnectionPtr;
+    UA_PubSubConnection *linkedConnection;
     LIST_HEAD(UA_ListOfDataSetWriter, UA_DataSetWriter) writers;
     UA_UInt32 writersCount;
     UA_UInt64 publishCallbackId;

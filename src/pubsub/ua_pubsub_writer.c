@@ -173,8 +173,7 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
     if(!newWriterGroup)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    newWriterGroup->linkedConnection = currentConnectionContext->identifier;
-    newWriterGroup->linkedConnectionPtr = currentConnectionContext;
+    newWriterGroup->linkedConnection = currentConnectionContext;
     UA_PubSubManager_generateUniqueNodeId(server, &newWriterGroup->identifier);
     if(writerGroupIdentifier){
         UA_NodeId_copy(&newWriterGroup->identifier, writerGroupIdentifier);
@@ -210,8 +209,7 @@ UA_Server_removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup){
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
-    UA_PubSubConnection *connection =
-        UA_PubSubConnection_findConnectionbyId(server, wg->linkedConnection);
+    UA_PubSubConnection *connection = wg->linkedConnection;
     if(!connection)
         return UA_STATUSCODE_BADNOTFOUND;
 
@@ -240,7 +238,7 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId writ
     if(!wg)
         return UA_STATUSCODE_BADNOTFOUND;
     //PubSubConnection freezeCounter++
-    UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_findConnectionbyId(server, wg->linkedConnection);
+    UA_PubSubConnection *pubSubConnection =  wg->linkedConnection;;
     pubSubConnection->configurationFreezeCounter++;
     pubSubConnection->config->configurationFrozen = UA_TRUE;
     //WriterGroup freeze
@@ -357,7 +355,7 @@ UA_Server_unfreezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId wr
     //    return UA_STATUSCODE_BADCONFIGURATIONERROR;
     //}
     //PubSubConnection freezeCounter--
-    UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_findConnectionbyId(server, wg->linkedConnection);
+    UA_PubSubConnection *pubSubConnection =  wg->linkedConnection;;
     pubSubConnection->configurationFreezeCounter--;
     if(pubSubConnection->configurationFreezeCounter == 0){
         pubSubConnection->config->configurationFrozen = UA_FALSE;
@@ -1038,7 +1036,6 @@ UA_WriterGroup_clear(UA_Server *server, UA_WriterGroup *writerGroup) {
         UA_ByteString_deleteMembers(&writerGroup->bufferedMessage.buffer);
         UA_free(writerGroup->bufferedMessage.offsets);
     }
-    UA_NodeId_clear(&writerGroup->linkedConnection);
     UA_NodeId_clear(&writerGroup->identifier);
 }
 
@@ -1917,7 +1914,7 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     }
 
     /* Find the connection associated with the writer */
-    UA_PubSubConnection *connection = writerGroup->linkedConnectionPtr;
+    UA_PubSubConnection *connection = writerGroup->linkedConnection;
     if(!connection) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Publish failed. PubSubConnection invalid.");
