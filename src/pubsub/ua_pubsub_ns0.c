@@ -6,6 +6,7 @@
  * Copyright (c) 2019 Kalycito Infotech Private Limited
  */
 
+#include <open62541/types.h>
 #include "ua_pubsub_ns0.h"
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL /* conditional compilation */
@@ -749,7 +750,7 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup){
     //This code block must use a lock
     UA_NODESTORE_REMOVE(server, &writerGroup->identifier);
     retVal |= addPubSubObjectNode(server, wgName, writerGroup->identifier.identifier.numeric,
-                                  writerGroup->linkedConnection.identifier.numeric,
+                                  writerGroup->linkedConnection->identifier.identifier.numeric,
                                   UA_NS0ID_HASCOMPONENT, UA_NS0ID_WRITERGROUPTYPE);
     //End lock zone
     UA_NodeId keepAliveNode =

@@ -744,6 +744,10 @@ UA_NetworkMessage_calcSizeBinary(UA_NetworkMessage *p, UA_NetworkMessageOffsetBu
             size += UA_UInt32_calcSizeBinary(&p->groupHeader.groupVersion);
 
         if(p->groupHeader.networkMessageNumberEnabled) {
+            size += UA_UInt16_calcSizeBinary(&p->groupHeader.networkMessageNumber);
+        }
+
+        if(p->groupHeader.sequenceNumberEnabled){
             if(offsetBuffer){
                 size_t pos = offsetBuffer->offsetsSize;
                 if(!increaseOffsetArray(offsetBuffer))
@@ -755,10 +759,6 @@ UA_NetworkMessage_calcSizeBinary(UA_NetworkMessage *p, UA_NetworkMessageOffsetBu
                                      &p->groupHeader.sequenceNumber, &UA_TYPES[UA_TYPES_UINT16]);
                 offsetBuffer->offsets[pos].contentType = UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_SEQUENCENUMBER;
             }
-            size += UA_UInt16_calcSizeBinary(&p->groupHeader.networkMessageNumber);
-        }
-
-        if(p->groupHeader.sequenceNumberEnabled){
             size += UA_UInt16_calcSizeBinary(&p->groupHeader.sequenceNumber);
         }
     }
