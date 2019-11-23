@@ -43,8 +43,12 @@ struct timespec cycleStartDelay[MAX_MEASUREMENTS+1];
 struct timespec cycleDuration[MAX_MEASUREMENTS+1];
 size_t publisherMeasurementsCounter  = 0;
 
+/* The RT level of the publisher */
+//#define PUBSUB_RT_LEVEL UA_PUBSUB_RT_NONE
+//#define PUBSUB_RT_LEVEL UA_PUBSUB_RT_DIRECT_VALUE_ACCESS
+#define PUBSUB_RT_LEVEL UA_PUBSUB_RT_FIXED_SIZE
+
 /* The value to published */
-#define UA_ENABLE_STATICVALUESOURCE
 static UA_UInt64 publishValue = 62541;
 
 static UA_StatusCode
@@ -177,7 +181,8 @@ UA_PubSubManager_addRepeatedCallback(UA_Server *server,
     resultTimerCreate = timer_create(CLOCKID, &pubEvent, &pubEventTimer);
     if(resultTimerCreate != 0) {
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                       "Failed to create a system event with code %i", resultTimerCreate);
+                       "Failed to create a system event with code %s",
+                       strerror(errno));
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -280,7 +285,8 @@ addPubSubConfiguration(UA_Server* server) {
     counterValue.field.variable.promotedField = UA_FALSE;
     counterValue.field.variable.publishParameters.publishedVariable = counterNodePublisher;
     counterValue.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
-#ifdef UA_ENABLE_STATICVALUESOURCE
+
+#if (PUBSUB_RT_LEVEL == UA_PUBSUB_RT_FIXED_SIZE) || (PUBSUB_RT_LEVEL == UA_PUBSUB_RT_DIRECT_VALUE_ACCESS)
     counterValue.field.variable.staticValueSourceEnabled = true;
     UA_DataValue_init(&counterValue.field.variable.staticValueSource);
     UA_Variant_setScalar(&counterValue.field.variable.staticValueSource.value,
@@ -296,6 +302,7 @@ addPubSubConfiguration(UA_Server* server) {
     writerGroupConfig.publishingInterval = PUB_INTERVAL;
     writerGroupConfig.enabled = UA_FALSE;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
+    writerGroupConfig.rtLevel = PUBSUB_RT_LEVEL;
     UA_Server_addWriterGroup(server, connectionIdent,
                              &writerGroupConfig, &writerGroupIdent);
 
