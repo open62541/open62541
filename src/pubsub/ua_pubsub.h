@@ -16,6 +16,10 @@
 #include "open62541_queue.h"
 #include "ua_pubsub_networkmessage.h"
 
+#ifdef UA_ENABLE_PUBSUB_JIT
+#include <lightning.h>
+#endif
+
 _UA_BEGIN_DECLS
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
@@ -131,6 +135,12 @@ struct UA_WriterGroup{
     UA_PubSubState state;
     UA_NetworkMessageOffsetBuffer bufferedMessage;
     UA_UInt16 sequenceNumber; /* Increased after every succressuly sent message */
+
+    /* Jitted code for the message update */
+#ifdef UA_ENABLE_PUBSUB_JIT
+    void (*jitUpdate)(UA_NetworkMessageOffsetBuffer *message);
+    jit_state_t *jitState;
+#endif
 };
 
 UA_StatusCode
@@ -139,6 +149,11 @@ UA_WriterGroup *
 UA_WriterGroup_findWGbyId(UA_Server *server, UA_NodeId identifier);
 UA_StatusCode
 UA_WriterGroup_setPubSubState(UA_Server *server, UA_PubSubState state, UA_WriterGroup *writerGroup);
+#ifdef UA_ENABLE_PUBSUB_JIT
+UA_StatusCode
+UA_WriterGroup_generateJitUpdate(UA_WriterGroup *wg);
+#endif
+
 
 /**********************************************/
 /*               DataSetField                 */

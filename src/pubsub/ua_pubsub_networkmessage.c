@@ -11,7 +11,7 @@
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
-#include "ua_pubsub_networkmessage.h"
+#include "ua_pubsub.h"
 
 const UA_Byte NM_VERSION_MASK = 15;
 const UA_Byte NM_PUBLISHER_ID_ENABLED_MASK = 16;
@@ -77,6 +77,101 @@ UA_NetworkMessage_updateBufferedMessage(UA_NetworkMessageOffsetBuffer *buffer){
     }
     return rv;
 }
+
+#ifdef UA_ENABLE_PUBSUB_JIT
+UA_StatusCode
+UA_WriterGroup_generateJitUpdate(UA_WriterGroup *wg) {
+    init_jit(NULL);
+
+    jit_state_t *_jit = wg->jitState; /* The jit_ macros use this */
+    if(_jit)
+        jit_destroy_state();
+    wg->jitState = NULL;
+    wg->jitUpdate = NULL;
+
+    _jit = jit_new_state();
+
+    jit_name("Prolog");
+    jit_note("/src/pubsub/ua_pubsub_networkmessage.c", __LINE__);
+    jit_prolog();
+
+    /* Update the message in-situ */
+    UA_StatusCode rv = UA_STATUSCODE_GOOD;
+    UA_NetworkMessageOffsetBuffer *buffer = &wg->bufferedMessage;
+    for (size_t i = 0; i < buffer->offsetsSize; ++i) {
+        UA_Byte *bufPos = &buffer->buffer.data[buffer->offsets[i].offset];
+        UA_Variant *data = &buffer->offsets[i].offsetData.value.value->value;
+        switch(buffer->offsets[i].contentType) {
+            case UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE_SEQUENCENUMBER:
+            case UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_SEQUENCENUMBER:
+                jit_name("Encode SequenceNumber (sizeof==2)");
+                jit_note("/src/pubsub/ua_pubsub_networkmessage.c", __LINE__);
+                jit_ldi_s(JIT_R0, data->data);
+                jit_sti_s(bufPos, JIT_R0);
+                break;
+
+            case UA_PUBSUB_OFFSETTYPE_PAYLOAD_DATAVALUE:
+                return UA_STATUSCODE_BADNOTSUPPORTED;
+
+            case UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT:
+                /* Verify that we have a scalar of fixed length */
+                if(!UA_Variant_isScalar(&buffer->offsets[i].offsetData.value.value->value)) {
+                    rv = UA_STATUSCODE_BADNOTSUPPORTED;
+                    break;
+                }
+                if(data->type->typeKind > UA_DATATYPEKIND_STATUSCODE) {
+                    rv = UA_STATUSCODE_BADNOTSUPPORTED;
+                    break;
+                }
+                if(!data->type->overlayable) {
+                    rv = UA_STATUSCODE_BADNOTSUPPORTED;
+                    break;
+                }
+                if(data->type->memSize == 4) {
+                    jit_name("Encode Payload (sizeof==4)");
+                    jit_note("/src/pubsub/ua_pubsub_networkmessage.c", __LINE__);
+                    jit_ldi_ui(JIT_R0, data->data);
+                    jit_sti_i(bufPos, JIT_R0);
+                } else if(data->type->memSize == 8) {
+                    jit_name("Encode Payload (sizeof==8)");
+                    jit_note("/src/pubsub/ua_pubsub_networkmessage.c", __LINE__);
+                    jit_ldi_l(JIT_R0, data->data);
+                    jit_sti_l(bufPos, JIT_R0);
+                } else {
+                    rv = UA_STATUSCODE_BADNOTSUPPORTED;
+                    break;
+                }
+                break;
+
+            default:
+                rv = UA_STATUSCODE_BADNOTSUPPORTED;
+                break;
+        }
+    }
+
+    /* Increase the sequence number */
+    jit_name("Increase SequenceNumber");
+    jit_note("/src/pubsub/ua_pubsub_networkmessage.c", __LINE__);
+    jit_ldi_us(JIT_R0, &wg->sequenceNumber);
+    jit_addi(JIT_R0, JIT_R0, 1);
+    jit_sti_s(&wg->sequenceNumber, JIT_R0);
+
+    if(rv != UA_STATUSCODE_GOOD) {
+        jit_destroy_state();
+        return rv;
+    }
+
+    jit_name("Epilog");
+    jit_note("/src/pubsub/ua_pubsub_networkmessage.c", __LINE__);
+    jit_epilog();
+
+    wg->jitUpdate = (void (*)(UA_NetworkMessageOffsetBuffer *))(uintptr_t)jit_emit();
+    wg->jitState = _jit;
+    jit_clear_state();
+    jit_disassemble();
+    return UA_STATUSCODE_GOOD;
+}
+#endif
 
 UA_StatusCode
 UA_NetworkMessage_encodeBinary(const UA_NetworkMessage* src, UA_Byte **bufPos,
