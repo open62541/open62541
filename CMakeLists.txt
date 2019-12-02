@@ -8,7 +8,9 @@ endif()
 string(TOLOWER "${CMAKE_BUILD_TYPE}" BUILD_TYPE_LOWER_CASE)
 
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/tools/cmake")
-find_package(PythonInterp REQUIRED)
+find_package(Python
+             COMPONENTS Interpreter
+             REQUIRED)
 find_package(Git)
 include(AssignSourceGroup)
 include(GNUInstallDirs)
@@ -945,7 +947,7 @@ ua_generate_datatypes(
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.h
                           ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.c
         PRE_BUILD
-        COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_statuscode_descriptions.py
+        COMMAND ${Python_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_statuscode_descriptions.py
         ${UA_FILE_STATUSCODES} ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes
         DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_statuscode_descriptions.py
                 ${UA_FILE_STATUSCODES})
@@ -969,7 +971,7 @@ if (UA_ENABLE_AMALGAMATION)
     # single-file release
     add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.h
                        PRE_BUILD
-                       COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
+                       COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
                                ${OPEN62541_VER_COMMIT} ${CMAKE_CURRENT_BINARY_DIR}/open62541.h
                                ${exported_headers} ${default_plugin_headers} ${ua_architecture_headers}
                        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
@@ -977,7 +979,7 @@ if (UA_ENABLE_AMALGAMATION)
 
     add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.c
                        PRE_BUILD
-                       COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
+                       COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
                                ${OPEN62541_VER_COMMIT} ${CMAKE_CURRENT_BINARY_DIR}/open62541.c
                                ${internal_headers} ${lib_sources} ${default_plugin_sources} ${ua_architecture_sources}
                        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${internal_headers}

@@ -8,7 +8,6 @@ import sys
 
 if sys.version_info[0] >= 3:
     from nodeset_compiler.opaque_type_mapping import get_base_type_for_opaque as get_base_type_for_opaque_ns0
-    print("hello")
 else:
     from opaque_type_mapping import get_base_type_for_opaque as get_base_type_for_opaque_ns0
     # import opaque_type_mapping

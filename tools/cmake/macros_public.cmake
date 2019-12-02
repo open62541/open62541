@@ -54,7 +54,7 @@ function(ua_generate_nodeid_header)
     # Header containing defines for all NodeIds
     add_custom_command(OUTPUT ${UA_GEN_ID_OUTPUT_DIR}/${UA_GEN_ID_NAME}.h
         PRE_BUILD
-        COMMAND ${PYTHON_EXECUTABLE} ${open62541_TOOLS_DIR}/generate_nodeid_header.py
+        COMMAND ${Python_EXECUTABLE} ${open62541_TOOLS_DIR}/generate_nodeid_header.py
         ${UA_GEN_ID_FILE_CSV}  ${UA_GEN_ID_OUTPUT_DIR}/${UA_GEN_ID_NAME} ${UA_GEN_ID_ID_PREFIX}
         DEPENDS ${open62541_TOOLS_DIR}/generate_nodeid_header.py
         ${UA_GEN_ID_FILE_CSV})
@@ -182,7 +182,7 @@ function(ua_generate_datatypes)
         ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_handling.h
         ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_encoding_binary.h
         PRE_BUILD
-        COMMAND ${PYTHON_EXECUTABLE} ${open62541_TOOLS_DIR}/generate_datatypes.py
+        COMMAND ${Python_EXECUTABLE} ${open62541_TOOLS_DIR}/generate_datatypes.py
         --namespace=${UA_GEN_DT_NAMESPACE_IDX}
         ${SELECTED_TYPES_TMP}
         ${BSD_FILES_TMP}
@@ -341,7 +341,7 @@ function(ua_generate_nodeset)
     add_custom_command(OUTPUT ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.c
                        ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.h
                        PRE_BUILD
-                       COMMAND ${PYTHON_EXECUTABLE} ${open62541_TOOLS_DIR}/nodeset_compiler/nodeset_compiler.py
+                       COMMAND ${Python_EXECUTABLE} ${open62541_TOOLS_DIR}/nodeset_compiler/nodeset_compiler.py
                        ${GEN_INTERNAL_HEADERS}
                        ${GEN_NS0}
                        ${GEN_BIN_SIZE}
