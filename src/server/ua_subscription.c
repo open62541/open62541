@@ -130,10 +130,10 @@ detectValueChange(UA_MonitoredItem *mon, UA_DataValue *value,
 void UA_MoniteredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem) {
     UA_Subscription *sub = monitoredItem->subscription;
     if(monitoredItem->monitoredItemType != UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
-        UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
-                             "Subscription %u | MonitoredItem %i | "
-                             "Not a data change notification",
-                             sub->subscriptionID, monitoredItem->itemId);
+        UA_LOG_WARNING_SESSION(server->config.logger, sub->session,
+                               "Subscription %u | MonitoredItem %i | "
+                               "Not a data change notification",
+                               sub->subscriptionID, monitoredItem->itemId);
         return;
     }
 
@@ -428,9 +428,9 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
         ++sub->currentKeepAliveCount;
         if(sub->currentKeepAliveCount < sub->maxKeepAliveCount)
             return;
-        UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
-                             "Subscription %u | Sending a KeepAlive",
-                             sub->subscriptionID)
+        UA_LOG_INFO_SESSION(server->config.logger, sub->session,
+                            "Subscription %u | Sending a KeepAlive",
+                            sub->subscriptionID)
     }
 
     /* Check if the securechannel is valid */
@@ -443,16 +443,16 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
 
     /* Cannot publish without a response */
     if(!pre) {
-        UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
-                             "Subscription %u | Cannot send a publish response "
-                             "since the publish queue is empty", sub->subscriptionID)
+        UA_LOG_WARNING_SESSION(server->config.logger, sub->session,
+                               "Subscription %u | Cannot send a publish response "
+                               "since the publish queue is empty", sub->subscriptionID)
         if(sub->state != UA_SUBSCRIPTIONSTATE_LATE) {
             sub->state = UA_SUBSCRIPTIONSTATE_LATE;
         } else {
             ++sub->currentLifetimeCount;
             if(sub->currentLifetimeCount > sub->lifeTimeCount) {
-                UA_LOG_DEBUG_SESSION(server->config.logger, sub->session, "Subscription %u | "
-                                     "End of lifetime for subscription", sub->subscriptionID);
+                UA_LOG_WARNING_SESSION(server->config.logger, sub->session, "Subscription %u | "
+                                       "End of lifetime for subscription", sub->subscriptionID);
                 UA_Session_deleteSubscription(server, sub->session, sub->subscriptionID);
             }
         }
