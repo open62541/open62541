@@ -187,6 +187,12 @@ asym_decrypt_sp_basic256sha256(const UA_SecurityPolicy *securityPolicy,
 }
 
 static size_t
+asym_getLocalEncryptionKeyLength_sp_basic256sha256(const UA_SecurityPolicy *securityPolicy,
+                                                   const Basic256Sha256_ChannelContext *cc) {
+    return mbedtls_pk_get_len(&cc->policyContext->localPrivateKey) * 8;
+}
+
+static size_t
 asym_getRemoteEncryptionKeyLength_sp_basic256sha256(const UA_SecurityPolicy *securityPolicy,
                                                     const Basic256Sha256_ChannelContext *cc) {
     return mbedtls_pk_get_len(&cc->remoteCertificate.pk) * 8;
@@ -777,7 +783,8 @@ UA_SecurityPolicy_Basic256Sha256(UA_SecurityPolicy *policy,
     asym_encryptionAlgorithm->decrypt =
         (UA_StatusCode(*)(const UA_SecurityPolicy *, void *, UA_ByteString *))
             asym_decrypt_sp_basic256sha256;
-    asym_encryptionAlgorithm->getLocalKeyLength = NULL; // TODO: Write function
+    asym_encryptionAlgorithm->getLocalKeyLength =
+        (size_t (*)(const UA_SecurityPolicy *, const void *))asym_getLocalEncryptionKeyLength_sp_basic256sha256;
     asym_encryptionAlgorithm->getRemoteKeyLength =
         (size_t (*)(const UA_SecurityPolicy *, const void *))asym_getRemoteEncryptionKeyLength_sp_basic256sha256;
     asym_encryptionAlgorithm->getLocalBlockSize = NULL; // TODO: Write function
