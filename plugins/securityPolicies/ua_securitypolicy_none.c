@@ -152,6 +152,7 @@ UA_SecurityPolicy_None(UA_SecurityPolicy *policy,
 
     UA_SecurityPolicyEncryptionAlgorithm *sym_encryptionAlgorithm =
         &policy->symmetricModule.cryptoModule.encryptionAlgorithm;
+    sym_encryptionAlgorithm->uri = UA_STRING_NULL;
     sym_encryptionAlgorithm->encrypt = encrypt_none;
     sym_encryptionAlgorithm->decrypt = decrypt_none;
     sym_encryptionAlgorithm->getLocalKeyLength = length_none;
