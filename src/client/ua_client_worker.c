@@ -129,7 +129,9 @@ UA_StatusCode UA_Client_run_iterate(UA_Client *client, UA_UInt16 timeout) {
             /* Check for new data */
             retval = receiveServiceResponseAsync(client, NULL, NULL);
         } else {
-            retval = receivePacketAsync(client);
+            if (client->connection.state == UA_CONNECTION_ESTABLISHED) {
+                retval = receivePacketAsync(client);
+            }
         }
     }
 #ifdef UA_ENABLE_SUBSCRIPTIONS
@@ -143,5 +145,12 @@ UA_StatusCode UA_Client_run_iterate(UA_Client *client, UA_UInt16 timeout) {
          * done */
         UA_WorkQueue_manuallyProcessDelayed(&client->workQueue);
 #endif
+
+        /* Delete the secure channel messages if the channel is closed (may be
+         * caused by UA_Client_disconnect_async) */
+        if (client->channel.state == UA_SECURECHANNELSTATE_CLOSED) {
+            UA_SecureChannel_deleteMembers(&client->channel);
+        }
+
     return retval;
 }

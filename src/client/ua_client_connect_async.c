@@ -566,8 +566,9 @@ UA_Client_connect_iterate(UA_Client *client) {
     /* If server is not connected */
     if(client->connection.state == UA_CONNECTION_CLOSED) {
         client->connectStatus = UA_STATUSCODE_BADCONNECTIONCLOSED;
-        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_NETWORK,
-                     "No connection to server.");
+        /* No printing of status needed because UA_Client_run_iterate(client, 0)
+         * always returns the value and the user can decide how to print the
+         * value */
     }
 
     if(client->connectStatus != UA_STATUSCODE_GOOD) {
@@ -652,6 +653,8 @@ UA_Client_connect_async(UA_Client *client, const char *endpointUrl,
     client->currentlyOutStandingPublishRequests = 0;
 #endif
 
+    client->connectStatus = UA_STATUSCODE_GOOD;
+
     UA_NodeId_deleteMembers(&client->authenticationToken);
 
     /* Generate new local and remote key */
@@ -668,10 +671,29 @@ UA_Client_connect_async(UA_Client *client, const char *endpointUrl,
     return retval;
 }
 
+static void closeConnectionAsync(UA_Client *client) {
+    /* Close the TCP connection
+     * shutdown and close (in tcp.c) are already async*/
+    if (client->state >= UA_CLIENTSTATE_CONNECTED)
+        client->connection.close(&client->connection);
+    else
+        UA_Client_removeRepeatedCallback(client, client->connection.connectCallbackID);
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    // TODO REMOVE WHEN UA_SESSION_RECOVERY IS READY
+    /* We need to clean up the subscriptions */
+    UA_Client_Subscriptions_clean(client);
+#endif
+
+    setClientState(client, UA_CLIENTSTATE_DISCONNECTED);
+}
+
 /* Async disconnection */
 static void
 sendCloseSecureChannelAsync(UA_Client *client, void *userdata,
                              UA_UInt32 requestId, void *response) {
+    client->state = UA_CLIENTSTATE_SECURECHANNEL;
+
     UA_NodeId_deleteMembers (&client->authenticationToken);
     client->requestHandle = 0;
 
@@ -686,10 +708,14 @@ sendCloseSecureChannelAsync(UA_Client *client, void *userdata,
             channel, ++client->requestId, UA_MESSAGETYPE_CLO, &request,
             &UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST]);
     UA_SecureChannel_close(&client->channel);
-    UA_SecureChannel_deleteMembers(&client->channel);
+    /* Do not delete the secure channel members because UA_Client might be in
+     * UA_Client_run_iterate(client, 0) and processes the secure channel
+     * messages */
+
+    closeConnectionAsync(client);
 }
 
-static void
+static UA_StatusCode
 sendCloseSessionAsync(UA_Client *client, UA_UInt32 *requestId) {
     UA_CloseSessionRequest request;
     UA_CloseSessionRequest_init(&request);
@@ -698,7 +724,7 @@ sendCloseSessionAsync(UA_Client *client, UA_UInt32 *requestId) {
     request.requestHeader.timeoutHint = 10000;
     request.deleteSubscriptions = true;
 
-    UA_Client_sendAsyncRequest(
+    return UA_Client_sendAsyncRequest(
             client, &request, &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST],
             (UA_ClientAsyncServiceCallback) sendCloseSecureChannelAsync,
             &UA_TYPES[UA_TYPES_CLOSESESSIONRESPONSE], NULL, requestId);
@@ -709,23 +735,14 @@ UA_StatusCode
 UA_Client_disconnect_async(UA_Client *client, UA_UInt32 *requestId) {
     /* Is a session established? */
     if (client->state == UA_CLIENTSTATE_SESSION) {
-        client->state = UA_CLIENTSTATE_SESSION_DISCONNECTED;
-        sendCloseSessionAsync(client, requestId);
+      UA_StatusCode retval = sendCloseSessionAsync(client, requestId);
+
+      /* Do not close the TCP connection immediately but wait for the session
+       * close request to finish */
+      if (retval == UA_STATUSCODE_GOOD)
+        return retval;
     }
 
-    /* Close the TCP connection
-     * shutdown and close (in tcp.c) are already async*/
-    if (client->state >= UA_CLIENTSTATE_CONNECTED)
-        client->connection.close(&client->connection);
-    else
-        UA_Client_removeRepeatedCallback(client, client->connection.connectCallbackID);
-
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-// TODO REMOVE WHEN UA_SESSION_RECOVERY IS READY
-    /* We need to clean up the subscriptions */
-    UA_Client_Subscriptions_clean(client);
-#endif
-
-    setClientState(client, UA_CLIENTSTATE_DISCONNECTED);
+    closeConnectionAsync(client);
     return UA_STATUSCODE_GOOD;
 }

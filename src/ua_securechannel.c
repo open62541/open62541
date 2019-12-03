@@ -1012,6 +1012,9 @@ addChunkPayload(UA_SecureChannel *channel, UA_UInt32 requestId,
 static UA_StatusCode
 processMessage(UA_SecureChannel *channel, const UA_Message *message,
                void *application, UA_ProcessMessageCallback callback) {
+    if (channel->state == UA_SECURECHANNELSTATE_CLOSED)
+        return UA_STATUSCODE_BADCONNECTIONCLOSED;
+
     if(message->chunkPayloadsSize == 1) {
         /* No need to combine chunks */
         UA_ChunkPayload *cp = SIMPLEQ_FIRST(&message->chunkPayloads);
