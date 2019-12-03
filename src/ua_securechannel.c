@@ -1056,8 +1056,10 @@ UA_SecureChannel_processCompleteMessages(UA_SecureChannel *channel, void *applic
             break;
 
         /* Has the channel been closed (during the last message)? */
-        if(channel->state == UA_SECURECHANNELSTATE_CLOSED)
+        if(channel->state == UA_SECURECHANNELSTATE_CLOSED) {
+            retval = UA_STATUSCODE_BADDISCONNECT;
             break;
+        }
 
         /* Remove the current message before processing */
         TAILQ_REMOVE(&channel->messages, message, pointers);

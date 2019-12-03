@@ -1130,7 +1130,8 @@ UA_Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishRequ
     }
 
     if(response->responseHeader.serviceResult == UA_STATUSCODE_BADSESSIONIDINVALID) {
-        UA_Client_disconnect(client); /* TODO: This should be handled before the process callback */
+        UA_UInt32 reqId;
+        UA_Client_disconnect_async(client, &reqId);
         UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                        "Received BadSessionIdInvalid");
         return;
@@ -1209,14 +1210,16 @@ processPublishResponseAsync(UA_Client *client, void *userdata, UA_UInt32 request
     UA_PublishRequest *req = (UA_PublishRequest*)userdata;
     UA_PublishResponse *res = (UA_PublishResponse*)response;
 
-    /* Process the response */
-    UA_Client_Subscriptions_processPublishResponse(client, req, res);
+    if (client->channel.state == UA_SECURECHANNELSTATE_OPEN) {
+        /* Process the response */
+        UA_Client_Subscriptions_processPublishResponse(client, req, res);
+
+        /* Fill up the outstanding publish requests */
+        UA_Client_Subscriptions_backgroundPublish(client);
+    }
 
     /* Delete the cached request */
     UA_PublishRequest_delete(req);
-
-    /* Fill up the outstanding publish requests */
-    UA_Client_Subscriptions_backgroundPublish(client);
 }
 
 void
