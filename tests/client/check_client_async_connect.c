@@ -115,7 +115,12 @@ START_TEST(Client_no_connection) {
     client->connection.recv = UA_Client_recvTesting;
     //simulating unconnected server
     UA_Client_recvTesting_result = UA_STATUSCODE_BADCONNECTIONCLOSED;
-    retval = UA_Client_run_iterate(client, 0);
+    // first iterate until connection is made.  Only after connection is
+    // established, simulating unconnected server can work
+    while ((retval = UA_Client_run_iterate(client, 0)) == UA_STATUSCODE_GOOD) {
+        UA_comboSleep(20);
+    }
+
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONNECTIONCLOSED);
     UA_Client_disconnect(client);
     UA_Client_delete(client);
