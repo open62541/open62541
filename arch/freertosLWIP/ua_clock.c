@@ -11,11 +11,23 @@
 #include <open62541/types.h>
 #include <task.h>
 
+#ifdef UA_ARCHITECTURE_FREERTOSLWIP_POSIX_CLOCK
+
+UA_DateTime UA_DateTime_now(void) {
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (tv.tv_sec * UA_DATETIME_SEC) + (tv.tv_usec * UA_DATETIME_USEC) + UA_DATETIME_UNIX_EPOCH;
+}
+
+#else /* UA_ARCHITECTURE_FREERTOSLWIP_POSIX_CLOCK */
+
 /* The current time in UTC time */
 UA_DateTime UA_DateTime_now(void) {
   UA_DateTime microSeconds = ((UA_DateTime)xTaskGetTickCount()) * (1000000 / configTICK_RATE_HZ);
   return ((microSeconds / 1000000) * UA_DATETIME_SEC) + ((microSeconds % 1000000) * UA_DATETIME_USEC) + UA_DATETIME_UNIX_EPOCH;
 }
+
+#endif /* UA_ARCHITECTURE_FREERTOSLWIP_POSIX_CLOCK */
 
 /* Offset between local time and UTC time */
 UA_Int64 UA_DateTime_localTimeUtcOffset(void) {
