@@ -618,7 +618,7 @@ UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
             connection->connectCallbackID = 0;
             return UA_STATUSCODE_GOOD;
     }
-    if ((UA_Double) (UA_DateTime_nowMonotonic() - tcpConnection->connStart)
+    if ((UA_Double) (connStart - tcpConnection->connStart)
                     > tcpConnection->timeout* UA_DATETIME_MSEC ) {
             // connection timeout
             ClientNetworkLayerTCP_close(connection);
@@ -657,23 +657,43 @@ UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
     int error = UA_connect(clientsockfd, tcpConnection->server->ai_addr,
                     tcpConnection->server->ai_addrlen);
 
-    if ((error == -1) && (UA_ERRNO != UA_ERR_CONNECTION_PROGRESS)) {
-            ClientNetworkLayerTCP_close(connection);
-            UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_NETWORK,
-                           "Connection to  failed with error: %s", strerror(UA_ERRNO));
-            return UA_STATUSCODE_BADDISCONNECT;
+    if (!error) {
+        connection->state = UA_CONNECTION_ESTABLISHED;
+        return UA_STATUSCODE_GOOD;
+    }
+
+#ifdef UA_EISCONN
+    /* Check if connection is already established */
+    if ((error == -1) && (UA_ERRNO == UA_EISCONN)) {
+        connection->state = UA_CONNECTION_ESTABLISHED;
+        return UA_STATUSCODE_GOOD;
+    }
+#endif
+
+    int conn_in_progress = UA_ERRNO == UA_ERR_CONNECTION_PROGRESS
+#ifdef UA_ERR_CONNECTION_EALREADY
+        || UA_ERRNO == UA_ERR_CONNECTION_EALREADY;
+#else
+    ;
+#endif
+
+    if ((error == -1) && !conn_in_progress) {
+        ClientNetworkLayerTCP_close(connection);
+        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_NETWORK,
+                       "Connection to  failed with error: %s", strerror(UA_ERRNO));
+        return UA_STATUSCODE_BADDISCONNECT;
     }
 
     /* Use select to wait and check if connected */
-    if (error == -1 && (UA_ERRNO == UA_ERR_CONNECTION_PROGRESS)) {
+    if (error == -1 && conn_in_progress) {
         /* connection in progress. Wait until connected using select */
 
-        UA_UInt32 timeSinceStart = (UA_UInt32)
-            ((UA_Double) (UA_DateTime_nowMonotonic() - connStart) / UA_DATETIME_MSEC);
 #ifdef _OS9000
         /* OS-9 can't use select for checking write sockets.
          * Therefore, we need to use connect until success or failed
          */
+        UA_UInt32 timeSinceStart = (UA_UInt32)
+            ((UA_Double) (UA_DateTime_nowMonotonic() - connStart) / UA_DATETIME_MSEC);
         UA_UInt32 timeout_usec = (tcpConnection->timeout - timeSinceStart)
                         * 1000;
         int resultsize = 0;
@@ -698,11 +718,8 @@ UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
         fd_set fdset;
         FD_ZERO(&fdset);
         UA_fd_set(clientsockfd, &fdset);
-        UA_UInt32 timeout_usec = (tcpConnection->timeout - timeSinceStart)
-                        * 1000;
-        struct timeval tmptv = { (long int) (timeout_usec / 1000000),
-                        (int) (timeout_usec % 1000000) };
-
+        /* Do not block select because socket is polled iteratively by connection->connectCallbackID */
+        struct timeval tmptv = { 0, 0 };
         int resultsize = UA_select((UA_Int32) (clientsockfd + 1), NULL, &fdset,
         NULL, &tmptv);
 #endif
@@ -730,18 +747,12 @@ UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
                                         strerror(ret == 0 ? so_error : UA_ERRNO));
                         return UA_STATUSCODE_BADDISCONNECT;
                 }
-                /* wait until we try a again. Do not make this too small, otherwise the
-                 * timeout is somehow wrong */
-
-            } else {
-                connection->state = UA_CONNECTION_ESTABLISHED;
-                return UA_STATUSCODE_GOOD;
+                /* wait until we try a again. This is handled by
+                 * connection->connectCallbackID. Do not make this too small,
+                 * otherwise the timeout is somehow wrong */
             }
 #endif
         }
-    } else {
-        connection->state = UA_CONNECTION_ESTABLISHED;
-        return UA_STATUSCODE_GOOD;
     }
 
 #ifdef SO_NOSIGPIPE
@@ -908,6 +919,20 @@ UA_ClientConnectionTCP(UA_ConnectionConfig config, const UA_String endpointUrl,
 
         /* Non blocking connect */
         error = UA_connect(clientsockfd, server->ai_addr, (socklen_t)server->ai_addrlen);
+
+        /* Return if socket is connected */
+        if (error == 0) {
+          connection.state = UA_CONNECTION_ESTABLISHED;
+          return connection;
+        }
+
+#ifdef UA_EISCONN
+        /* Check if connection is already established */
+        if ((error == -1) && (UA_ERRNO == UA_EISCONN)) {
+            connection.state = UA_CONNECTION_ESTABLISHED;
+            return connection;
+        }
+#endif
 
         if ((error == -1) && (UA_ERRNO != UA_ERR_CONNECTION_PROGRESS)) {
             ClientNetworkLayerTCP_close(&connection);
