@@ -100,7 +100,7 @@ endfunction()
 #                   passed which will all combined to one resulting code.
 #   IMPORT_BSD      Combination of types array and path to the .bsd file containing additional type definitions referenced by
 #                   the FILES_BSD files. The value is separated with a hash sign, i.e.
-#                   'UA_TYPES#${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.Types.bsd'
+#                   'UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd'
 #                   Multiple files can be passed which will all be imported.
 #   [FILES_SELECTED] Optional path to a simple text file which contains a list of types which should be included in the generation.
 #                   The file should contain one type per line. Multiple files can be passed to this argument.
