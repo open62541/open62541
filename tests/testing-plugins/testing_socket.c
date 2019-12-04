@@ -78,7 +78,7 @@ createDummySocket(UA_ByteString *verificationBuffer) {
     sock.releaseSendBuffer = dummyReleaseSendBuffer;
     sock.activity = dummyActivity;
     sock.close = dummyClose;
-    sock.free = dummyFree;
+    sock.clean = dummyFree;
 
     return sock;
 }
