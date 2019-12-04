@@ -57,7 +57,7 @@ struct UA_Socket {
     UA_Boolean waitForWriteActivity;
 
     /**
-     * If set to true, the networkm manager will call the activity function if the socket is readable.
+     * If set to true, the network manager will call the activity function if the socket is readable.
      */
     UA_Boolean waitForReadActivity;
 
@@ -129,7 +129,7 @@ struct UA_Socket {
      *
      * \param socket the socket to perform the operation on.
      */
-    UA_StatusCode (*free)(UA_Socket *socket);
+    UA_StatusCode (*clean)(UA_Socket *socket);
 
     /**
      * This function can be called to process data pending on the socket.
@@ -187,13 +187,37 @@ struct UA_Socket {
 
 
 /**
- * Configuration parameters for sockets created at startup.
+ * Common configuration parameters for sockets created at startup.
+ * The client sockets and listener sockets have some specific additional parameters.
+ * Theses structs mainly exist to reduce the amount of parameters that need to be passed in a call.
  */
 struct UA_SocketConfig {
     UA_UInt32 recvBufferSize;
     UA_UInt32 sendBufferSize;
     UA_UInt16 port;
     UA_NetworkManager *networkManager;
+};
+
+struct UA_ClientSocketConfig {
+    UA_SocketConfig baseConfig;
+
+    UA_UInt32 timeout;
+
+    /**
+     * This function is called by the client to create the configured client sockets.
+     * \param application This is usually the client. It can be accessed from the callbacks.
+     * \param parameters The configured parameters of the socket.
+     * \param targetEndpointUrl The target endpoint url to connect to.
+     * \param creationCallback The socketCallback is called once for each socket that is created.
+     */
+    UA_StatusCode (*createSocket)(void *application, const UA_ClientSocketConfig *parameters,
+                                  const UA_String targetEndpointUrl,
+                                  const UA_SocketCallbackFunction creationCallback);
+};
+
+struct UA_ListenerSocketConfig {
+    UA_SocketConfig socketConfig;
+
     UA_ByteString customHostname;
 
     /**
@@ -203,39 +227,10 @@ struct UA_SocketConfig {
      * \param parameters
      * \param creationCallback The socketCallback is called once for each socket that is created.
      */
-    UA_StatusCode (*createSocket)(const UA_SocketConfig *parameters, const UA_SocketCallbackFunction creationCallback);
-
-    /**
-     * The following parameters will be automatically filled by the application.
-     * ########################
-     */
-
-    /**
-     * The application that is associated with the created socket.
-     */
-    void *application;
-    void *additionalParameters;
-    /**
-     * This function, if set by the networkmanager, is called on socket creation.
-     */
-    UA_SocketCallbackFunction networkManagerCallback;
-};
-
-struct UA_ClientSocketConfig {
-    UA_SocketConfig socketConfig;
-
-    UA_String targetEndpointUrl;
-    UA_UInt32 timeout;
-};
-
-struct UA_ListenerSocketConfig {
-    UA_SocketConfig socketConfig;
-
-    /**
-     * The onAccept function is called when a new socket is accepted by a listener socket.
-     * This function may never be called if the socket is a data socket.
-     */
-    UA_SocketCallbackFunction onAccept;
+    UA_StatusCode (*createSocket)(void *application, const UA_ListenerSocketConfig *parameters,
+                                  UA_SocketCallbackFunction onAccept,
+                                  const UA_SocketCallbackFunction creationCallback,
+                                  UA_String **discoveryUrls, size_t *discoveryUrlsSize);
 };
 
 /**

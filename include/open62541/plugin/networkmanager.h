@@ -17,7 +17,7 @@ typedef UA_StatusCode (*UA_SocketCreationFunction)(const UA_SocketConfig *parame
 
 struct UA_NetworkManager {
     /**
-     * Creates a new socket using the creation function in the supplied config.
+     * Allocates space for a socket. The size to allocate is stored in the config.
      *
      * On successful creation, the socket is kept in the network manager, until it is closed.
      * The network manager will free the socket and the socket will call its free callback.
@@ -26,10 +26,10 @@ struct UA_NetworkManager {
      *
      * \param networkManager The network manager to perform the operation on.
      * \param socketParameters The parameters of the socket, including the creation function.
-     * \param creationCallback The callback that is called after a socket has been created.
      */
-    UA_StatusCode (*createSocket)(UA_NetworkManager *networkManager, UA_SocketConfig *const socketParameters,
-                                  const UA_SocketCallbackFunction creationCallback);
+    void *(*allocateSocket)(UA_NetworkManager *networkManager, size_t socketSize);
+
+    UA_StatusCode (*activateSocket)(UA_NetworkManager *networkManager, UA_Socket *socket);
 
     /**
      * Processes all registered sockets.
