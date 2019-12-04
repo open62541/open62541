@@ -152,47 +152,58 @@ UA_WSS_DSock_handleWritable(UA_WSS_Socket *socket) {
 }
 
 UA_StatusCode
-UA_WSS_DataSocket_AcceptFrom(const UA_SocketConfig *socketConfig, UA_SocketCallbackFunction const creationCallback) {
-    if(socketConfig == NULL || socketConfig->additionalParameters == NULL)
+UA_WSS_DataSocket_AcceptFrom(UA_Socket *listenerSocket, const UA_SocketConfig *parameters,
+                             void *additionalParameters,
+                             const UA_SocketCallbackFunction creationCallback) {
+    if(parameters == NULL || additionalParameters == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_Socket_wssDSock *const sock = (UA_Socket_wssDSock *const)UA_malloc(sizeof(UA_Socket_wssDSock));
+    UA_Socket_wssDSock *sock = NULL;
+    if(parameters->networkManager != NULL) {
+        sock = (UA_Socket_wssDSock *const)parameters->networkManager->allocateSocket(parameters->networkManager,
+                                                                                       sizeof(UA_Socket_wssDSock));
+    } else {
+        sock = (UA_Socket_wssDSock *const)UA_malloc(sizeof(UA_Socket_wssDSock));
+    }
     if(sock == NULL)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     memset(sock, 0, sizeof(UA_Socket_wssDSock));
 
-    UA_WSS_DataSocket_AcceptFrom_AdditionalParameters *additionalParameters =
-        ((UA_WSS_DataSocket_AcceptFrom_AdditionalParameters *)socketConfig->additionalParameters);
+    UA_WSS_DataSocket_AcceptFrom_AdditionalParameters *extraParams =
+        ((UA_WSS_DataSocket_AcceptFrom_AdditionalParameters *)additionalParameters);
 
-    sock->socket.socket.id = additionalParameters->fd;
+    sock->socket.socket.id = extraParams->fd;
     sock->socket.socket.open = wss_dsock_open;
     sock->socket.socket.close = wss_dsock_close;
     sock->socket.socket.mayDelete = wss_dsock_mayDelete;
-    sock->socket.socket.free = wss_dsock_free;
+    sock->socket.socket.clean = wss_dsock_free;
     sock->socket.socket.activity = wss_dsock_activity;
     sock->socket.socket.send = wss_dsock_send;
     sock->socket.socket.acquireSendBuffer = wss_dsock_acquireSendBuffer;
     sock->socket.socket.releaseSendBuffer = wss_dsock_releaseSendBuffer;
 
-    sock->socket.socket.networkManager = socketConfig->networkManager;
+    sock->socket.socket.networkManager = parameters->networkManager;
     sock->socket.socket.waitForWriteActivity = false;
     sock->socket.socket.waitForReadActivity = false;
     sock->socket.socket.isListener = false;
-    sock->socket.socket.application = socketConfig->application;
+    sock->socket.socket.application = listenerSocket->application;
     sock->socket.closeOnNextCallback = false;
-    sock->lwsContext = (struct lws_context *)additionalParameters->lwsContext;
-    sock->wsi = (struct lws *)additionalParameters->wsi;
+    sock->lwsContext = (struct lws_context *)extraParams->lwsContext;
+    sock->wsi = (struct lws *)extraParams->wsi;
     SIMPLEQ_INIT(&sock->pendingBuffers);
 
-    UA_StatusCode retval = additionalParameters->createCallback(additionalParameters->listenerSocket,
-                                                                (UA_Socket *)sock);
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(parameters->networkManager != NULL) {
+        retval = parameters->networkManager->activateSocket(parameters->networkManager, (UA_Socket *)sock);
+        if(retval != UA_STATUSCODE_GOOD)
+            UA_LOG_ERROR(parameters->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+                         "Error activating socket in network manager: %s",
+                         UA_StatusCode_name(retval));
+    }
+
+    retval = extraParams->createCallback(extraParams->listenerSocket,
+                                                  (UA_Socket *)sock);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-
-    retval = UA_SocketCallback_call(socketConfig->networkManagerCallback, (UA_Socket *)sock);
-    if(retval != UA_STATUSCODE_GOOD)
-        UA_LOG_ERROR(socketConfig->networkManager->logger, UA_LOGCATEGORY_NETWORK,
-                     "Error calling socket callback %s",
-                     UA_StatusCode_name(retval));
     return UA_SocketCallback_call(creationCallback, (UA_Socket *)sock);
 }

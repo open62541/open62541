@@ -18,6 +18,9 @@ typedef struct {
     UA_Boolean closeOnNextCallback;
 } UA_WSS_Socket;
 
+/**
+ * Convenience struct so we don't have to pass so many parameters.
+ */
 typedef struct {
     UA_UInt64 fd;
     void *lwsContext;

@@ -158,6 +158,7 @@ callback_opcua(struct lws *wsi, enum lws_callback_reasons reason, void *user, vo
             listenerSock->socket.socket.id = socketFD;
         if(listenerSock->socket.socket.socketState == UA_SOCKETSTATE_OPEN &&
            listenerSock->socket.socket.id != socketFD) {
+
             UA_WSS_DataSocket_AcceptFrom_AdditionalParameters additionalParameters;
             additionalParameters.fd = socketFD;
             additionalParameters.lwsContext = listenerSock->lwsContext;
@@ -169,13 +170,10 @@ callback_opcua(struct lws *wsi, enum lws_callback_reasons reason, void *user, vo
             socketConfig.recvBufferSize = listenerSock->recvBufferSize;
             socketConfig.sendBufferSize = listenerSock->sendBufferSize;
             socketConfig.networkManager = listenerSock->socket.socket.networkManager;
-            socketConfig.createSocket = UA_WSS_DataSocket_AcceptFrom;
-            socketConfig.additionalParameters = &additionalParameters;
-            socketConfig.application = listenerSock->socket.socket.application;
 
-            UA_StatusCode retval = socketConfig.networkManager->createSocket(listenerSock->socket.socket.networkManager,
-                                                                             &socketConfig,
-                                                                             listenerSock->onAccept);
+            UA_StatusCode retval = UA_WSS_DataSocket_AcceptFrom((UA_Socket *)listenerSock, &socketConfig,
+                                                                &additionalParameters,
+                                                                listenerSock->onAccept);
             if(retval != UA_STATUSCODE_GOOD) {
                 UA_LOG_ERROR(listenerSock->socket.socket.networkManager->logger, UA_LOGCATEGORY_NETWORK,
                              "Error while accepting new socket connection: %s",
@@ -288,8 +286,18 @@ const struct lws_protocol_vhost_options pvo = {NULL,
                                                ""};
 
 UA_StatusCode
-UA_WSS_ListenerSocket(const UA_SocketConfig *socketConfig, UA_SocketCallbackFunction const creationCallback) {
-    UA_Socket_wssListener *const sock = (UA_Socket_wssListener *const)UA_malloc(sizeof(UA_Socket_wssListener));
+UA_WSS_ListenerSocket(void *application, const UA_ListenerSocketConfig *parameters,
+                      UA_SocketCallbackFunction onAccept,
+                      const UA_SocketCallbackFunction creationCallback,
+                      UA_String **discoveryUrls, size_t *discoveryUrlsSize) {
+    UA_Socket_wssListener *sock;
+    if(parameters->socketConfig.networkManager != NULL) {
+        sock = (UA_Socket_wssListener *const)parameters->socketConfig.networkManager
+                                                       ->allocateSocket(parameters->socketConfig.networkManager,
+                                                                        sizeof(UA_Socket_wssListener));
+    } else {
+        sock = (UA_Socket_wssListener *const)UA_malloc(sizeof(UA_Socket_wssListener));
+    }
     memset(sock, 0, sizeof(UA_Socket_wssListener));
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -297,39 +305,39 @@ UA_WSS_ListenerSocket(const UA_SocketConfig *socketConfig, UA_SocketCallbackFunc
     sock->socket.socket.open = wss_open;
     sock->socket.socket.close = wss_close;
     sock->socket.socket.mayDelete = wss_mayDelete;
-    sock->socket.socket.free = wss_free;
+    sock->socket.socket.clean = wss_free;
     sock->socket.socket.activity = wss_activity;
     sock->socket.socket.send = wss_send;
     sock->socket.socket.acquireSendBuffer = wss_acquireSendBuffer;
     sock->socket.socket.releaseSendBuffer = wss_releaseSendBuffer;
 
-    sock->socket.socket.networkManager = socketConfig->networkManager;
+    sock->socket.socket.networkManager = parameters->socketConfig.networkManager;
     sock->socket.socket.waitForWriteActivity = false;
     sock->socket.socket.waitForReadActivity = false;
     sock->socket.socket.isListener = true;
-    sock->socket.socket.application = socketConfig->application;
+    sock->socket.socket.application = application;
 
-    sock->recvBufferSize = socketConfig->recvBufferSize;
-    sock->sendBufferSize = socketConfig->sendBufferSize;
-    sock->onAccept = ((const UA_ListenerSocketConfig *)socketConfig)->onAccept;
+    sock->recvBufferSize = parameters->socketConfig.recvBufferSize;
+    sock->sendBufferSize = parameters->socketConfig.sendBufferSize;
+    sock->onAccept = onAccept;
 
     /* Get the discovery url from the hostname */
     UA_String du = UA_STRING_NULL;
     char discoveryUrlBuffer[256];
-    if(socketConfig->customHostname.length) {
+    if(parameters->customHostname.length) {
         du.length = (size_t)UA_snprintf(discoveryUrlBuffer, 255, "ws://%.*s:%d/",
-                                        (int)socketConfig->customHostname.length,
-                                        socketConfig->customHostname.data,
-                                        socketConfig->port);
+                                        (int)parameters->customHostname.length,
+                                        parameters->customHostname.data,
+                                        parameters->socketConfig.port);
         du.data = (UA_Byte *)discoveryUrlBuffer;
     } else {
         char hostnameBuffer[256];
         if(UA_gethostname(hostnameBuffer, 255) == 0) {
             du.length = (size_t)UA_snprintf(discoveryUrlBuffer, 255, "ws://%s:%d/",
-                                            hostnameBuffer, socketConfig->port);
+                                            hostnameBuffer, parameters->socketConfig.port);
             du.data = (UA_Byte *)discoveryUrlBuffer;
         } else {
-            UA_LOG_ERROR(socketConfig->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+            UA_LOG_ERROR(parameters->socketConfig.networkManager->logger, UA_LOGCATEGORY_NETWORK,
                          "Could not get the hostname");
         }
     }
@@ -339,7 +347,7 @@ UA_WSS_ListenerSocket(const UA_SocketConfig *socketConfig, UA_SocketCallbackFunc
     // remove null byte from ua string. memory still has null byte
     sock->socket.socket.discoveryUrl.length -= 1;
 
-    UA_LOG_INFO(socketConfig->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+    UA_LOG_INFO(parameters->socketConfig.networkManager->logger, UA_LOGCATEGORY_NETWORK,
                 "Websocket network layer listening on %.*s",
                 (int)sock->socket.socket.discoveryUrl.length,
                 sock->socket.socket.discoveryUrl.data);
@@ -348,7 +356,7 @@ UA_WSS_ListenerSocket(const UA_SocketConfig *socketConfig, UA_SocketCallbackFunc
     int logLevel = LLL_USER | LLL_ERR | LLL_WARN | LLL_NOTICE | LLL_INFO | LLL_DEBUG;
     lws_set_log_level(logLevel, NULL);
     memset(&info, 0, sizeof(info));
-    info.port = socketConfig->port;
+    info.port = parameters->socketConfig.port;
     info.protocols = protocols;
     info.vhost_name = (char *)sock->socket.socket.discoveryUrl.data;
     info.ws_ping_pong_interval = 10;
@@ -358,7 +366,7 @@ UA_WSS_ListenerSocket(const UA_SocketConfig *socketConfig, UA_SocketCallbackFunc
 
     struct lws_context *context = lws_create_context(&info);
     if(!context) {
-        UA_LOG_ERROR(socketConfig->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_ERROR(parameters->socketConfig.networkManager->logger, UA_LOGCATEGORY_NETWORK,
                      "lws init failed");
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
@@ -371,10 +379,13 @@ UA_WSS_ListenerSocket(const UA_SocketConfig *socketConfig, UA_SocketCallbackFunc
                      "vhost creation failed\n");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    retval = UA_SocketCallback_call(socketConfig->networkManagerCallback, (UA_Socket *)sock);
-    if(retval != UA_STATUSCODE_GOOD)
-        UA_LOG_ERROR(socketConfig->networkManager->logger, UA_LOGCATEGORY_NETWORK,
-                     "Error calling socket callback %s",
-                     UA_StatusCode_name(retval));
+    if(parameters->socketConfig.networkManager != NULL) {
+        retval = parameters->socketConfig.networkManager
+                           ->activateSocket(parameters->socketConfig.networkManager, (UA_Socket *)sock);
+        if(retval != UA_STATUSCODE_GOOD)
+            UA_LOG_ERROR(parameters->socketConfig.networkManager->logger, UA_LOGCATEGORY_NETWORK,
+                         "Error activating socket in network manager: %s",
+                         UA_StatusCode_name(retval));
+    }
     return UA_SocketCallback_call(creationCallback, (UA_Socket *)sock);
 }
