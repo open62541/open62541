@@ -11,7 +11,7 @@
 
 _UA_BEGIN_DECLS
 /**
- * This function creates a single listener socket using the socketConfig
+ * This function creates a single listener socket using the baseConfig
  * and the supplied addrinfo. In contrast to the other creation functions
  * this function allows more control over the socket creation, because
  * the addrinfo can be specified.
@@ -24,7 +24,7 @@ _UA_BEGIN_DECLS
  * \return
  */
 UA_StatusCode
-UA_TCP_ListenerSocketFromAddrinfo(struct addrinfo *addrinfo, const UA_SocketConfig *socketConfig,
+UA_TCP_ListenerSocketFromAddrinfo(struct addrinfo *addrinfo, const UA_ListenerSocketConfig *socketConfig,
                                   UA_SocketCallbackFunction const onAccept,
                                   UA_Socket **p_socket);
 
@@ -40,18 +40,22 @@ UA_TCP_ListenerSocketFromAddrinfo(struct addrinfo *addrinfo, const UA_SocketConf
  *                     resource leaks.
  */
 UA_StatusCode
-UA_TCP_ListenerSockets(const UA_SocketConfig *socketConfig, UA_SocketCallbackFunction const creationCallback);
-
-typedef struct {
-    UA_Socket *listenerSocket;
-} UA_TCP_DataSocket_AcceptFrom_AdditionalParameters;
+UA_TCP_ListenerSockets(void *application, const UA_ListenerSocketConfig *parameters,
+                       const UA_SocketCallbackFunction onAccept,
+                       const UA_SocketCallbackFunction creationCallback,
+                       UA_String **discoveryUrls, size_t *discoveryUrlsSize);
 
 #ifdef UA_ENABLE_WEBSOCKET_SERVER
 UA_StatusCode
-UA_WSS_ListenerSocket(const UA_SocketConfig *socketConfig, UA_SocketCallbackFunction const creationCallback);
+UA_WSS_ListenerSocket(void *application, const UA_ListenerSocketConfig *parameters,
+                      UA_SocketCallbackFunction onAccept,
+                      const UA_SocketCallbackFunction creationCallback,
+                      UA_String **discoveryUrls, size_t *discoveryUrlsSize);
 
 UA_StatusCode
-UA_WSS_DataSocket_AcceptFrom(const UA_SocketConfig *socketConfig, UA_SocketCallbackFunction const creationCallback);
+UA_WSS_DataSocket_AcceptFrom(UA_Socket *listenerSocket, const UA_SocketConfig *parameters,
+                             void *additionalParameters,
+                             const UA_SocketCallbackFunction creationCallback);
 #endif
 
 /**
@@ -61,7 +65,8 @@ UA_WSS_DataSocket_AcceptFrom(const UA_SocketConfig *socketConfig, UA_SocketCallb
  * \param the creation callback that is called after the socket has been created. It is passed the newly created socket.
  */
 UA_StatusCode
-UA_TCP_DataSocket_AcceptFrom(const UA_SocketConfig *parameters, UA_SocketCallbackFunction const creationCallback);
+UA_TCP_DataSocket_AcceptFrom(UA_Socket *listenerSocket, const UA_SocketConfig *parameters,
+                             const UA_SocketCallbackFunction creationCallback);
 
 /**
  * Creates a new client socket according to the socket config
@@ -70,7 +75,9 @@ UA_TCP_DataSocket_AcceptFrom(const UA_SocketConfig *parameters, UA_SocketCallbac
  * \param creationCallback The creation callback that will be called once the socket has been created.
  */
 UA_StatusCode
-UA_TCP_ClientDataSocket(const UA_SocketConfig *socketParameters, UA_SocketCallbackFunction const creationCallback);
+UA_TCP_ClientDataSocket(void *application, const UA_ClientSocketConfig *parameters,
+                        const UA_String targetEndpointUrl,
+                        const UA_SocketCallbackFunction creationCallback);
 
 _UA_END_DECLS
 

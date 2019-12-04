@@ -107,7 +107,7 @@ tcp_sock_mayDelete(UA_Socket *sock) {
 }
 
 static UA_StatusCode
-tcp_sock_free(UA_Socket *sock) {
+tcp_sock_clean(UA_Socket *sock) {
     if(sock == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
     UA_Socket_tcpListener *const internalSock = (UA_Socket_tcpListener *const)sock;
@@ -117,7 +117,6 @@ tcp_sock_free(UA_Socket *sock) {
     UA_String_deleteMembers(&internalSock->customHostname);
     UA_ByteString_deleteMembers(&sock->discoveryUrl);
     UA_close((int)sock->id);
-    UA_free(sock);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -133,19 +132,12 @@ tcp_sock_activity(UA_Socket *sock, UA_Boolean readActivity, UA_Boolean writeActi
         if(sock->mayDelete(sock))
             return UA_STATUSCODE_GOOD;
 
-        UA_TCP_DataSocket_AcceptFrom_AdditionalParameters additionalParameters;
-        additionalParameters.listenerSocket = sock;
-
         UA_SocketConfig socketConfig;
         socketConfig.recvBufferSize = internalSock->recvBufferSize;
         socketConfig.sendBufferSize = internalSock->sendBufferSize;
         socketConfig.networkManager = internalSock->socket.networkManager;
-        socketConfig.createSocket = UA_TCP_DataSocket_AcceptFrom;
-        socketConfig.additionalParameters = &additionalParameters;
 
-        UA_StatusCode retval = socketConfig.networkManager->createSocket(sock->networkManager,
-                                                                         &socketConfig,
-                                                                         internalSock->onAccept);
+        UA_StatusCode retval = UA_TCP_DataSocket_AcceptFrom(sock, &socketConfig, internalSock->onAccept);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(sock->networkManager->logger, UA_LOGCATEGORY_NETWORK,
                          "Error while accepting new socket connection: %s",
@@ -183,7 +175,7 @@ tcp_sock_set_func_pointers(UA_Socket *sock) {
     sock->open = tcp_sock_open;
     sock->close = tcp_sock_close;
     sock->mayDelete = tcp_sock_mayDelete;
-    sock->free = tcp_sock_free;
+    sock->clean = tcp_sock_clean;
     sock->activity = tcp_sock_activity;
     sock->send = tcp_sock_send;
     sock->acquireSendBuffer = tcp_sock_acquireSendBuffer;
@@ -193,31 +185,37 @@ tcp_sock_set_func_pointers(UA_Socket *sock) {
 }
 
 UA_StatusCode
-UA_TCP_ListenerSocketFromAddrinfo(struct addrinfo *addrinfo, const UA_SocketConfig *socketConfig,
+UA_TCP_ListenerSocketFromAddrinfo(struct addrinfo *addrinfo, const UA_ListenerSocketConfig *socketConfig,
                                   UA_SocketCallbackFunction const onAccept,
                                   UA_Socket **p_socket) {
     UA_StatusCode retval;
     if(socketConfig == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    if(socketConfig->networkManager == NULL) {
+    if(socketConfig->socketConfig.networkManager == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     UA_SOCKET socket_fd = UA_socket(addrinfo->ai_family, addrinfo->ai_socktype, addrinfo->ai_protocol);
     if(socket_fd == UA_INVALID_SOCKET) {
-        UA_LOG_WARNING(socketConfig->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_WARNING(socketConfig->socketConfig.networkManager->logger, UA_LOGCATEGORY_NETWORK,
                        "Error opening the listener socket");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    UA_Socket_tcpListener *sock = (UA_Socket_tcpListener *)UA_malloc(sizeof(UA_Socket_tcpListener));
+    UA_Socket_tcpListener *sock;
+    if(socketConfig->socketConfig.networkManager != NULL) {
+        sock = (UA_Socket_tcpListener *)socketConfig->socketConfig.networkManager
+                                                    ->allocateSocket(socketConfig->socketConfig.networkManager,
+                                                                     sizeof(UA_Socket_tcpListener));
+    } else {
+        sock = (UA_Socket_tcpListener *)UA_malloc(sizeof(UA_Socket_tcpListener));
+    }
     if(sock == NULL) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
     memset(sock, 0, sizeof(UA_Socket_tcpListener));
 
-    sock->socket.application = socketConfig->application;
     sock->socket.isListener = true;
     sock->socket.id = (UA_UInt64)socket_fd;
     sock->socket.socketState = UA_SOCKETSTATE_NEW;
@@ -225,9 +223,9 @@ UA_TCP_ListenerSocketFromAddrinfo(struct addrinfo *addrinfo, const UA_SocketConf
     sock->socket.waitForWriteActivity = false;
     sock->onAccept = onAccept;
 
-    sock->socket.networkManager = socketConfig->networkManager;
-    sock->recvBufferSize = socketConfig->recvBufferSize;
-    sock->sendBufferSize = socketConfig->sendBufferSize;
+    sock->socket.networkManager = socketConfig->socketConfig.networkManager;
+    sock->recvBufferSize = socketConfig->socketConfig.recvBufferSize;
+    sock->sendBufferSize = socketConfig->socketConfig.sendBufferSize;
     UA_String_copy(&socketConfig->customHostname, &sock->customHostname);
 
     int optVal = 1;
@@ -235,27 +233,27 @@ UA_TCP_ListenerSocketFromAddrinfo(struct addrinfo *addrinfo, const UA_SocketConf
     if(addrinfo->ai_family == AF_INET6 &&
        UA_setsockopt(socket_fd, IPPROTO_IPV6, IPV6_V6ONLY,
                      (const char *)&optVal, sizeof(optVal)) == -1) {
-        UA_LOG_WARNING(socketConfig->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_WARNING(socketConfig->socketConfig.networkManager->logger, UA_LOGCATEGORY_NETWORK,
                        "Could not set an IPv6 socket to IPv6 only");
         goto error;
     }
 #endif
     if(UA_setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR,
                      (const char *)&optVal, sizeof(optVal)) == -1) {
-        UA_LOG_WARNING(socketConfig->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_WARNING(socketConfig->socketConfig.networkManager->logger, UA_LOGCATEGORY_NETWORK,
                        "Could not make the socket reusable");
         goto error;
     }
 
     if(UA_socket_set_nonblocking(socket_fd) != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(socketConfig->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_WARNING(socketConfig->socketConfig.networkManager->logger, UA_LOGCATEGORY_NETWORK,
                        "Could not set the server socket to non blocking");
         goto error;
     }
 
     if(UA_bind(socket_fd, addrinfo->ai_addr, (socklen_t)addrinfo->ai_addrlen) < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
-            UA_LOG_WARNING(socketConfig->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+            UA_LOG_WARNING(socketConfig->socketConfig.networkManager->logger, UA_LOGCATEGORY_NETWORK,
                            "Error binding a server socket: %s", errno_str));
         goto error;
     }
@@ -267,7 +265,7 @@ UA_TCP_ListenerSocketFromAddrinfo(struct addrinfo *addrinfo, const UA_SocketConf
 
     *p_socket = (UA_Socket *)sock;
 
-    UA_LOG_TRACE(socketConfig->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+    UA_LOG_TRACE(socketConfig->socketConfig.networkManager->logger, UA_LOGCATEGORY_NETWORK,
                  "Created new listener socket %p", (void *)sock);
     return UA_STATUSCODE_GOOD;
 
@@ -280,15 +278,18 @@ error:
 
 
 UA_StatusCode
-UA_TCP_ListenerSockets(const UA_SocketConfig *socketConfig, UA_SocketCallbackFunction const creationCallback) {
+UA_TCP_ListenerSockets(void *application, const UA_ListenerSocketConfig *parameters,
+                       UA_SocketCallbackFunction onAccept,
+                       const UA_SocketCallbackFunction creationCallback,
+                       UA_String **discoveryUrls, size_t *discoveryUrlsSize) {
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(socketConfig == NULL) {
+    if(parameters == NULL) {
         return retval;
     }
 
     char portNumber[6];
-    UA_snprintf(portNumber, 6, "%d", socketConfig->port);
+    UA_snprintf(portNumber, 6, "%d", parameters->socketConfig.port);
     struct addrinfo hints, *res;
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_UNSPEC;
@@ -305,18 +306,25 @@ UA_TCP_ListenerSockets(const UA_SocketConfig *socketConfig, UA_SocketCallbackFun
         sockets_size < FD_SETSIZE && ai != NULL;
         ai = ai->ai_next, ++sockets_size) {
         UA_Socket *sock = NULL;
-        UA_TCP_ListenerSocketFromAddrinfo(ai, socketConfig,
-                                          ((const UA_ListenerSocketConfig *)socketConfig)->onAccept,
+        UA_TCP_ListenerSocketFromAddrinfo(ai, parameters,
+                                          onAccept,
                                           &sock);
+        if(sock == NULL) {
+            // TODO: Log error?
+            continue;
+        }
+        sock->application = application;
         /* Instead of allocating an array to return the sockets, we call a callback for each one */
-        retval = UA_SocketCallback_call(socketConfig->networkManagerCallback, sock);
-        if(retval != UA_STATUSCODE_GOOD)
-            UA_LOG_ERROR(socketConfig->networkManager->logger, UA_LOGCATEGORY_NETWORK,
-                         "Error calling socket callback %s",
-                         UA_StatusCode_name(retval));
+        if(parameters->socketConfig.networkManager != NULL) {
+            retval = parameters->socketConfig.networkManager
+                               ->activateSocket(parameters->socketConfig.networkManager, sock);
+            if(retval != UA_STATUSCODE_GOOD)
+                UA_LOG_ERROR(parameters->socketConfig.networkManager->logger, UA_LOGCATEGORY_NETWORK,
+                             "Error activating socket in networkmanager");
+        }
         retval = UA_SocketCallback_call(creationCallback, sock);
         if(retval != UA_STATUSCODE_GOOD)
-            UA_LOG_ERROR(socketConfig->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+            UA_LOG_ERROR(parameters->socketConfig.networkManager->logger, UA_LOGCATEGORY_NETWORK,
                          "Error calling socket callback %s",
                          UA_StatusCode_name(retval));
     }

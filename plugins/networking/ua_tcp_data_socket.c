@@ -78,7 +78,7 @@ UA_TCP_ClientDataSocket_mayDelete(UA_Socket *sock) {
 }
 
 static UA_StatusCode
-UA_TCP_DataSocket_free(UA_Socket *sock) {
+UA_TCP_DataSocket_clean(UA_Socket *sock) {
     if(sock == NULL) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
@@ -93,7 +93,6 @@ UA_TCP_DataSocket_free(UA_Socket *sock) {
     UA_String_deleteMembers(&sock->discoveryUrl);
     UA_ByteString_deleteMembers(&internalSocket->receiveBuffer);
     UA_ByteString_deleteMembers(&internalSocket->sendBuffer);
-    UA_free(sock);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -325,7 +324,7 @@ UA_TCP_DataSocket_init(UA_UInt64 sockFd,
     sock->socket.id = (UA_UInt64)sockFd;
     sock->socket.close = UA_TCP_DataSocket_close;
     sock->socket.mayDelete = UA_TCP_DataSocket_mayDelete;
-    sock->socket.free = UA_TCP_DataSocket_free;
+    sock->socket.clean = UA_TCP_DataSocket_clean;
     sock->socket.activity = UA_TCP_DataSocket_activity;
     sock->socket.send = UA_TCP_DataSocket_send;
     sock->socket.open = UA_TCP_DataSocket_open;
@@ -363,11 +362,10 @@ error:
 }
 
 UA_StatusCode
-UA_TCP_DataSocket_AcceptFrom(const UA_SocketConfig *parameters, UA_SocketCallbackFunction const creationCallback) {
-    if(parameters == NULL || parameters->additionalParameters == NULL)
+UA_TCP_DataSocket_AcceptFrom(UA_Socket *listenerSocket, const UA_SocketConfig *parameters,
+                             const UA_SocketCallbackFunction creationCallback) {
+    if(parameters == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    UA_Socket *listenerSocket = ((UA_TCP_DataSocket_AcceptFrom_AdditionalParameters *)parameters->additionalParameters)
-        ->listenerSocket;
     if(listenerSocket == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -387,7 +385,13 @@ UA_TCP_DataSocket_AcceptFrom(const UA_SocketConfig *parameters, UA_SocketCallbac
                  "New TCP sock (fd: %i) accepted from listener socket (fd: %i)",
                  (int)newSockFd, (int)listenerSocket->id);
 
-    UA_Socket_tcpDataSocket *const sock = (UA_Socket_tcpDataSocket *const)UA_malloc(sizeof(UA_Socket_tcpDataSocket));
+    UA_Socket_tcpDataSocket *sock;
+    if(parameters->networkManager != NULL) {
+        sock = (UA_Socket_tcpDataSocket *const)
+            parameters->networkManager->allocateSocket(parameters->networkManager, sizeof(UA_Socket_tcpDataSocket));
+    } else {
+        sock = (UA_Socket_tcpDataSocket *const)UA_malloc(sizeof(UA_Socket_tcpDataSocket));
+    }
     UA_StatusCode retval;
     if(sock == NULL) {
         UA_LOG_ERROR(parameters->networkManager->logger, UA_LOGCATEGORY_NETWORK,
@@ -433,12 +437,11 @@ UA_TCP_DataSocket_AcceptFrom(const UA_SocketConfig *parameters, UA_SocketCallbac
 
     UA_TCP_DataSocket_logPeerName((UA_Socket *)sock, &remote);
 
-    retval = UA_SocketCallback_call(parameters->networkManagerCallback, (UA_Socket *)sock);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(parameters->networkManager->logger, UA_LOGCATEGORY_NETWORK,
-                     "Creation callback returned error %s.",
-                     UA_StatusCode_name(retval));
-        goto error;
+
+    if(parameters->networkManager != NULL) {
+        retval = parameters->networkManager->activateSocket(parameters->networkManager, (UA_Socket *)sock);
+        if(retval != UA_STATUSCODE_GOOD)
+            goto error;
     }
 
     retval = UA_SocketCallback_call(creationCallback, (UA_Socket *)sock);
@@ -454,7 +457,7 @@ UA_TCP_DataSocket_AcceptFrom(const UA_SocketConfig *parameters, UA_SocketCallbac
 error:
     if(sock != NULL) {
         sock->socket.close((UA_Socket *)sock);
-        sock->socket.free((UA_Socket *)sock);
+        sock->socket.clean((UA_Socket *)sock);
     }
     return retval;
 }
@@ -509,22 +512,30 @@ error:
 }
 
 static UA_StatusCode
-UA_TCP_ClientDataSocket_free(UA_Socket *sock) {
+UA_TCP_ClientDataSocket_clean(UA_Socket *sock) {
     UA_Socket_tcpClientDataSocket *internalSocket = (UA_Socket_tcpClientDataSocket *)sock;
     UA_String_deleteMembers(&internalSocket->endpointUrl);
     if(internalSocket->server != NULL)
         UA_freeaddrinfo(internalSocket->server);
-    return UA_TCP_DataSocket_free(sock);
+    return UA_TCP_DataSocket_clean(sock);
 }
 
 UA_StatusCode
-UA_TCP_ClientDataSocket(const UA_SocketConfig *socketParameters, UA_SocketCallbackFunction const creationCallback) {
-    if(socketParameters == NULL || socketParameters->createSocket == NULL)
+UA_TCP_ClientDataSocket(void *application, const UA_ClientSocketConfig *parameters,
+                        const UA_String targetEndpointUrl,
+                        const UA_SocketCallbackFunction creationCallback) {
+    if(parameters == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_NetworkManager *networkManager = socketParameters->networkManager;
-    UA_Socket_tcpClientDataSocket *const sock = (UA_Socket_tcpClientDataSocket *const)UA_malloc(
-        sizeof(UA_Socket_tcpClientDataSocket));
+    UA_NetworkManager *networkManager = parameters->baseConfig.networkManager;
+    UA_Socket_tcpClientDataSocket *sock;
+    if(networkManager != NULL) {
+        sock = (UA_Socket_tcpClientDataSocket *const)networkManager
+            ->allocateSocket(networkManager, sizeof(UA_Socket_tcpClientDataSocket));
+    } else {
+        sock = (UA_Socket_tcpClientDataSocket *const)UA_malloc(
+            sizeof(UA_Socket_tcpClientDataSocket));
+    }
     if(sock == NULL) {
         UA_LOG_ERROR(networkManager->logger, UA_LOGCATEGORY_NETWORK,
                      "Failed to allocate data socket internal data. Out of memory");
@@ -533,11 +544,11 @@ UA_TCP_ClientDataSocket(const UA_SocketConfig *socketParameters, UA_SocketCallba
     memset(sock, 0, sizeof(UA_Socket_tcpClientDataSocket));
 
     UA_StatusCode retval = UA_TCP_DataSocket_init((UA_UInt64)UA_INVALID_SOCKET,
-                                                  socketParameters->sendBufferSize,
-                                                  socketParameters->recvBufferSize,
+                                                  parameters->baseConfig.sendBufferSize,
+                                                  parameters->baseConfig.recvBufferSize,
                                                   networkManager,
                                                   (UA_Socket_tcpDataSocket *)sock,
-                                                  socketParameters->application);
+                                                  application);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(networkManager->logger, UA_LOGCATEGORY_NETWORK,
                      "Failed to allocate socket resources with error %s",
@@ -546,11 +557,11 @@ UA_TCP_ClientDataSocket(const UA_SocketConfig *socketParameters, UA_SocketCallba
         return retval;
     }
 
-    UA_String_copy(&((const UA_ClientSocketConfig *)socketParameters)->targetEndpointUrl, &sock->endpointUrl);
-    sock->timeout = ((const UA_ClientSocketConfig *)socketParameters)->timeout;
+    UA_String_copy(&targetEndpointUrl, &sock->endpointUrl);
+    sock->timeout = parameters->timeout;
 
     sock->socket.socket.open = UA_TCP_ClientDataSocket_open;
-    sock->socket.socket.free = UA_TCP_ClientDataSocket_free;
+    sock->socket.socket.clean = UA_TCP_ClientDataSocket_clean;
     sock->socket.socket.mayDelete = UA_TCP_ClientDataSocket_mayDelete;
 
     UA_String hostnameString = UA_STRING_NULL;
@@ -613,29 +624,23 @@ UA_TCP_ClientDataSocket(const UA_SocketConfig *socketParameters, UA_SocketCallba
 
     sock->socket.socket.id = (UA_UInt64)client_sockfd;
 
-    retval = UA_SocketCallback_call(socketParameters->networkManagerCallback, (UA_Socket *)sock);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(socketParameters->networkManager->logger, UA_LOGCATEGORY_NETWORK,
-                     "Creation callback returned error %s.",
-                     UA_StatusCode_name(retval));
-        goto after_nm_register_error;
+    if(networkManager != NULL) {
+        retval = networkManager->activateSocket(networkManager, (UA_Socket *)sock);
+        if(retval != UA_STATUSCODE_GOOD)
+            goto error;
     }
 
     retval = UA_SocketCallback_call(creationCallback, (UA_Socket *)sock);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(socketParameters->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_ERROR(parameters->baseConfig.networkManager->logger, UA_LOGCATEGORY_NETWORK,
                      "Creation callback returned error %s.",
                      UA_StatusCode_name(retval));
-        goto after_nm_register_error;
+        goto error;
     }
     return retval;
 
 error:
     sock->socket.socket.close((UA_Socket *)sock);
-    sock->socket.socket.free((UA_Socket *)sock);
-    return retval;
-
-after_nm_register_error:
-    sock->socket.socket.close((UA_Socket *)sock);
+    sock->socket.socket.clean((UA_Socket *)sock);
     return retval;
 }
