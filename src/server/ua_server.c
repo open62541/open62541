@@ -592,15 +592,12 @@ UA_Server_run_startup(UA_Server *server) {
     server->config.networkManager->start(server->config.networkManager);
 
     /* Delayed creation of the server sockets. */
-    UA_NetworkManager *networkManager = server->config.networkManager;
     for(size_t i = 0; i < server->config.listenerSocketConfigsSize; ++i) {
         UA_ListenerSocketConfig listenerSocketConfig = server->config.listenerSocketConfigs[i];
-        listenerSocketConfig.socketConfig.application = server;
-        listenerSocketConfig.onAccept = createConnection;
 
-        listenerSocketConfig.socketConfig.networkManager
-                            ->createSocket(networkManager, (UA_SocketConfig *)&listenerSocketConfig,
-                                           open_listener_socket);
+        listenerSocketConfig.createSocket(server, &listenerSocketConfig,
+                                          createConnection, open_listener_socket,
+                                          NULL, NULL);
     }
 
     /* Update the application description to match the previously added discovery urls.

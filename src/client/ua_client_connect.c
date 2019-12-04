@@ -828,35 +828,15 @@ UA_Client_connectTCPSecureChannel(UA_Client *client, const UA_String endpointUrl
     // we can autoconfigure in this case. Otherwise the user has to configure the endpoint data
     // in the config.
     UA_ClientSocketConfig clientSocketConfig = client->config.clientSocketConfig;
-    if(clientSocketConfig.socketConfig.createSocket != UA_TCP_ClientDataSocket) {
-        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "Cannot configure endpointUrl when using non default tcp sockets. "
-                     "Please configure the appropriate data in the config.");
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
 
-    if(clientSocketConfig.targetEndpointUrl.data == NULL) {
-        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                    "No target endpoint configured. Using the supplied endpoint");
-        clientSocketConfig.targetEndpointUrl = endpointUrl;
-        // TODO: dont save this in client config
-        // create separate config in this case that is only valid for the current function call stack
-    }
-    if(clientSocketConfig.socketConfig.networkManager == NULL) {
+    if(clientSocketConfig.baseConfig.networkManager == NULL) {
         UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                     "No network manager configured. Using the default client network manager");
-        clientSocketConfig.socketConfig.networkManager = client->config.networkManager;
+        clientSocketConfig.baseConfig.networkManager = client->config.networkManager;
     }
 
-    if(clientSocketConfig.socketConfig.application == NULL) {
-        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                    "No application configured. Using the client as application");
-        clientSocketConfig.socketConfig.application = client;
-    }
-    UA_StatusCode retval =
-        clientSocketConfig.socketConfig.networkManager->createSocket(client->config.networkManager,
-                                                                     (UA_SocketConfig *)&clientSocketConfig,
-                                                                     UA_Client_openSocket);
+    UA_StatusCode retval = clientSocketConfig.createSocket(client, &clientSocketConfig,
+                                                           endpointUrl, UA_Client_openSocket);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 

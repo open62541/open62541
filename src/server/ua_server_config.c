@@ -36,8 +36,8 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
     }
 
     for(size_t i = 0; i < config->listenerSocketConfigsSize; ++i) {
-        UA_String_deleteMembers(&config->listenerSocketConfigs[i].socketConfig.customHostname);
-        config->listenerSocketConfigs[i].socketConfig.customHostname = UA_STRING_NULL;
+        UA_String_deleteMembers(&config->listenerSocketConfigs[i].customHostname);
+        config->listenerSocketConfigs[i].customHostname = UA_STRING_NULL;
     }
     UA_free(config->listenerSocketConfigs);
 
@@ -87,8 +87,8 @@ UA_ServerConfig_setCustomHostname(UA_ServerConfig *config,
     if(!config)
         return;
     for(size_t i = 0; i < config->listenerSocketConfigsSize; ++i) {
-        UA_String_deleteMembers(&config->listenerSocketConfigs[i].socketConfig.customHostname);
-        UA_String_copy(&customHostname, &config->listenerSocketConfigs[i].socketConfig.customHostname);
+        UA_String_deleteMembers(&config->listenerSocketConfigs[i].customHostname);
+        UA_String_copy(&customHostname, &config->listenerSocketConfigs[i].customHostname);
     }
 }
 

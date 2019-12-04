@@ -277,9 +277,8 @@ configureNetworking_default(UA_ServerConfig *conf, UA_UInt16 portNumber, UA_UInt
     if(conf->listenerSocketConfigs[0].socketConfig.recvBufferSize <= 0)
         conf->listenerSocketConfigs[0].socketConfig.recvBufferSize = 65535;
     conf->listenerSocketConfigs[0].socketConfig.port = portNumber;
-    conf->listenerSocketConfigs[0].socketConfig.createSocket = UA_TCP_ListenerSockets;
-    conf->listenerSocketConfigs[0].socketConfig.customHostname = UA_STRING_NULL;
-    conf->listenerSocketConfigs[0].socketConfig.additionalParameters = NULL;
+    conf->listenerSocketConfigs[0].createSocket = UA_TCP_ListenerSockets;
+    conf->listenerSocketConfigs[0].customHostname = UA_STRING_NULL;
 
 #ifdef UA_ENABLE_WEBSOCKET_SERVER
     // Websocket Listeners
@@ -291,9 +290,8 @@ configureNetworking_default(UA_ServerConfig *conf, UA_UInt16 portNumber, UA_UInt
     if(conf->listenerSocketConfigs[1].socketConfig.recvBufferSize <= 0)
         conf->listenerSocketConfigs[1].socketConfig.recvBufferSize = 65535;
     conf->listenerSocketConfigs[1].socketConfig.port = 4880;
-    conf->listenerSocketConfigs[1].socketConfig.createSocket = UA_WSS_ListenerSocket;
-    conf->listenerSocketConfigs[1].socketConfig.customHostname = UA_STRING_NULL;
-    conf->listenerSocketConfigs[1].socketConfig.additionalParameters = NULL;
+    conf->listenerSocketConfigs[1].createSocket = UA_WSS_ListenerSocket;
+    conf->listenerSocketConfigs[1].customHostname = UA_STRING_NULL;
 #endif
 
     conf->connectionConfig.sendBufferSize = sendBufferSize;
@@ -711,13 +709,11 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
     }
     config->securityPoliciesSize = 1;
 
-    config->clientSocketConfig.socketConfig.sendBufferSize = 65535;
-    config->clientSocketConfig.socketConfig.recvBufferSize = 65535;
-    config->clientSocketConfig.socketConfig.port = 4840;
-    config->clientSocketConfig.socketConfig.networkManager = NULL;
-    config->clientSocketConfig.socketConfig.customHostname = UA_STRING_NULL;
-    config->clientSocketConfig.socketConfig.createSocket = UA_TCP_ClientDataSocket;
-    config->clientSocketConfig.targetEndpointUrl = UA_STRING_NULL;
+    config->clientSocketConfig.baseConfig.sendBufferSize = 65535;
+    config->clientSocketConfig.baseConfig.recvBufferSize = 65535;
+    config->clientSocketConfig.baseConfig.port = 4840;
+    config->clientSocketConfig.baseConfig.networkManager = NULL;
+    config->clientSocketConfig.createSocket = UA_TCP_ClientDataSocket;
     config->clientSocketConfig.timeout = 5000;
 
     retval = UA_SelectBasedNetworkManager(UA_Log_Stdout, &config->networkManager);
