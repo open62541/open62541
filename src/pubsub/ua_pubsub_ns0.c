@@ -943,12 +943,13 @@ addDataSetWriterAction(UA_Server *server,
     UA_DataSetWriterDataType *dataSetWriterDataType = (UA_DataSetWriterDataType *) input[0].data;
 
     UA_NodeId targetPDS = UA_NODEID_NULL;
-    for(size_t i = 0; i < server->pubSubManager.publishedDataSetsSize; ++i) {
-        if(UA_String_equal(&dataSetWriterDataType->dataSetName,
-                           &server->pubSubManager.publishedDataSets[i].config.name)){
-            targetPDS = server->pubSubManager.publishedDataSets[i].identifier;
+    UA_PublishedDataSet *tmpPDS;
+    TAILQ_FOREACH(tmpPDS, &server->pubSubManager.publishedDataSets, listEntry){
+        if(UA_String_equal(&dataSetWriterDataType->dataSetName, &tmpPDS->config.name)){
+            targetPDS = tmpPDS->identifier;
         }
     }
+
     if(UA_NodeId_isNull(&targetPDS))
         return UA_STATUSCODE_BADPARENTNODEIDINVALID;
 
