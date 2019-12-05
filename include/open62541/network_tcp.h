@@ -13,6 +13,26 @@
 
 _UA_BEGIN_DECLS
 
+UA_StatusCode UA_EXPORT
+connection_getsendbuffer(UA_Connection *connection,
+                         size_t length, UA_ByteString *buf);
+
+void UA_EXPORT
+connection_releasesendbuffer(UA_Connection *connection,
+                             UA_ByteString *buf);
+
+void UA_EXPORT
+connection_releaserecvbuffer(UA_Connection *connection,
+                             UA_ByteString *buf);
+
+UA_StatusCode UA_EXPORT
+connection_write(UA_Connection *connection, UA_ByteString *buf);
+
+
+UA_StatusCode UA_EXPORT
+connection_recv(UA_Connection *connection, UA_ByteString *response,
+                UA_UInt32 timeout);
+
 UA_ServerNetworkLayer UA_EXPORT
 UA_ServerNetworkLayerTCP(UA_ConnectionConfig config, UA_UInt16 port, UA_Logger *logger);
 

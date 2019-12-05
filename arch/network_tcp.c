@@ -26,7 +26,7 @@
 /* Generic Socket Functions */
 /****************************/
 
-static UA_StatusCode
+UA_StatusCode
 connection_getsendbuffer(UA_Connection *connection,
                          size_t length, UA_ByteString *buf) {
     if(length > connection->config.sendBufferSize)
@@ -34,19 +34,19 @@ connection_getsendbuffer(UA_Connection *connection,
     return UA_ByteString_allocBuffer(buf, length);
 }
 
-static void
+void
 connection_releasesendbuffer(UA_Connection *connection,
                              UA_ByteString *buf) {
     UA_ByteString_deleteMembers(buf);
 }
 
-static void
+void
 connection_releaserecvbuffer(UA_Connection *connection,
                              UA_ByteString *buf) {
     UA_ByteString_deleteMembers(buf);
 }
 
-static UA_StatusCode
+UA_StatusCode
 connection_write(UA_Connection *connection, UA_ByteString *buf) {
     if(connection->state == UA_CONNECTION_CLOSED) {
         UA_ByteString_deleteMembers(buf);
@@ -80,7 +80,7 @@ connection_write(UA_Connection *connection, UA_ByteString *buf) {
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode
+UA_StatusCode
 connection_recv(UA_Connection *connection, UA_ByteString *response,
                 UA_UInt32 timeout) {
     if(connection->state == UA_CONNECTION_CLOSED)
