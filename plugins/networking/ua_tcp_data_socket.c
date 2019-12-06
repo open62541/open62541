@@ -229,6 +229,65 @@ UA_TCP_DataSocket_send(UA_Socket *sock, UA_ByteString *buffer) {
     return UA_STATUSCODE_GOOD;
 }
 
+
+static UA_StatusCode
+UA_TCP_DataSocket_recv(UA_Socket *socket, UA_ByteString *buffer, UA_UInt32 *timeout) {
+    UA_Socket_tcpDataSocket *const internalSocket = (UA_Socket_tcpDataSocket *const)socket;
+
+    if(socket == NULL || buffer == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    fd_set readfdset;
+    FD_ZERO(&readfdset);
+    UA_fd_set((UA_SOCKET)socket->id, &readfdset);
+
+    int resultsize = 0;
+    if(timeout != NULL) {
+        long int secs = (long int)*timeout / 1000;
+        long int microsecs = ((long int)*timeout * 1000) % 1000000;
+        struct timeval tmptv = {secs, microsecs};
+
+        resultsize = UA_select((UA_Int32)(socket->id + 1), &readfdset, NULL, NULL, &tmptv);
+    } else {
+        resultsize = UA_select((UA_Int32)(socket->id + 1), &readfdset, NULL, NULL, NULL);
+    }
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(resultsize == 0) {
+        UA_LOG_ERROR(socket->networkManager->logger, UA_LOGCATEGORY_NETWORK, "Socket select timed out");
+        return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+    }
+    if(resultsize == -1) {
+        UA_LOG_SOCKET_ERRNO_WRAP(UA_LOG_ERROR(socket->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+                                              "Socket select failed with %s", errno_str));
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    ssize_t bytesReceived = UA_recv((int)socket->id,
+                                    (char *)buffer->data,
+                                    buffer->length, 0);
+
+    if(bytesReceived < 0) {
+        if(UA_ERRNO == UA_WOULDBLOCK || UA_ERRNO == UA_EAGAIN || UA_ERRNO == UA_INTERRUPTED) {
+            buffer->length = 0;
+            return UA_STATUSCODE_GOOD;
+        }
+        UA_LOG_SOCKET_ERRNO_WRAP(
+            UA_LOG_ERROR(socket->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+                         "Error while receiving data from socket: %s", errno_str));
+        return UA_STATUSCODE_BADCOMMUNICATIONERROR;
+    }
+    if(bytesReceived == 0) {
+        UA_LOG_INFO(socket->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+                    "Socket %i | Performing orderly shutdown", (int)socket->id);
+        internalSocket->flaggedForDeletion = true;
+        return UA_STATUSCODE_BADCONNECTIONCLOSED;
+    }
+
+    buffer->length = (size_t)bytesReceived;
+
+    return UA_STATUSCODE_GOOD;
+}
+
 static UA_StatusCode
 UA_TCP_DataSocket_open(UA_Socket *sock) {
     /* nothing to do for server side data sockets */
@@ -327,6 +386,7 @@ UA_TCP_DataSocket_init(UA_UInt64 sockFd,
     sock->socket.clean = UA_TCP_DataSocket_clean;
     sock->socket.activity = UA_TCP_DataSocket_activity;
     sock->socket.send = UA_TCP_DataSocket_send;
+    sock->socket.recv = UA_TCP_DataSocket_recv;
     sock->socket.open = UA_TCP_DataSocket_open;
     sock->socket.acquireSendBuffer = UA_TCP_DataSocket_acquireSendBuffer;
     sock->socket.releaseSendBuffer = UA_TCP_DataSocket_releaseSendBuffer;

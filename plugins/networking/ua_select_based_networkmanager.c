@@ -32,13 +32,19 @@ typedef struct {
 } UA_NetworkManager_selectBased;
 
 static void *
-select_nm_createSocket(UA_NetworkManager *networkManager, size_t socketSize) {
+select_nm_allocateSocket(UA_NetworkManager *networkManager, size_t socketSize) {
     UA_NetworkManager_selectBased *const internalManager = (UA_NetworkManager_selectBased *const)networkManager;
     if(internalManager->state != UA_NETWORKMANAGER_RUNNING) {
         UA_LOG_ERROR(networkManager->logger, UA_LOGCATEGORY_NETWORK,
                      "Cannot create socket on uninitialized or shutdown network manager");
         return NULL;
     }
+    if(socketSize <= 0) {
+        UA_LOG_ERROR(networkManager->logger, UA_LOGCATEGORY_NETWORK,
+                     "Size to allocate has to be greater than zero");
+        return NULL;
+    }
+
     UA_LOG_DEBUG(networkManager->logger, UA_LOGCATEGORY_NETWORK,
                  "Allocating new socket in network manager");
 
@@ -51,6 +57,8 @@ select_nm_createSocket(UA_NetworkManager *networkManager, size_t socketSize) {
     UA_SocketListEntry *socketListEntry = (UA_SocketListEntry *)UA_malloc(sizeof(UA_SocketListEntry) + socketSize);
     if(socketListEntry == NULL)
         return NULL;
+
+    memset(socketListEntry, 0, sizeof(UA_SocketListEntry) + socketSize);
 
     LIST_INSERT_HEAD(&internalManager->sockets, (UA_SocketListEntry *)socketListEntry, pointers);
     ++internalManager->numSockets;
@@ -364,7 +372,7 @@ UA_SelectBasedNetworkManager(const UA_Logger *logger, UA_NetworkManager **p_netw
     memset(networkManager, 0, sizeof(UA_NetworkManager_selectBased));
     UA_LOG_DEBUG(logger, UA_LOGCATEGORY_NETWORK, "Setting up select based network manager");
 
-    networkManager->baseManager.allocateSocket = select_nm_createSocket;
+    networkManager->baseManager.allocateSocket = select_nm_allocateSocket;
     networkManager->baseManager.activateSocket = select_nm_activateSocket;
     networkManager->baseManager.process = select_nm_process;
     networkManager->baseManager.processSocket = select_nm_processSocket;
