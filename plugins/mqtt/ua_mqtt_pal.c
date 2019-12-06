@@ -29,7 +29,7 @@ ssize_t
 mqtt_pal_recvall(mqtt_pal_socket_handle fd, void* buf, size_t bufsz, int flags) {
     UA_Socket *socket = (UA_Socket *)fd->connection;
     UA_ByteString buffer;
-    buffer.data = buf;
+    buffer.data = (UA_Byte *)buf;
     buffer.length = bufsz;
     UA_StatusCode ret = socket->recv(socket, &buffer, (UA_UInt32 *)&fd->timeout);
     if(ret == UA_STATUSCODE_GOOD) {
