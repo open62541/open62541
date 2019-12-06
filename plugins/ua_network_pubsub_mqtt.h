@@ -12,7 +12,6 @@ extern "C" {
 #endif
 
 #include "open62541/plugin/pubsub.h"
-#include "open62541/network_tcp.h"
 
 /* mqtt network layer specific internal data */
 typedef struct {
@@ -22,7 +21,7 @@ typedef struct {
     uint8_t *mqttSendBuffer; 
     uint8_t *mqttRecvBuffer; 
     UA_String *mqttClientId;
-    UA_Connection *connection;
+    UA_Socket *socket;
     void * mqttClient;
     void (*callback)(UA_ByteString *encodedBuffer, UA_ByteString *topic);
 } UA_PubSubChannelDataMQTT;
