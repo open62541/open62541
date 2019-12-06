@@ -564,7 +564,7 @@ static UA_StatusCode
 UA_Client_openSocketAsync(UA_Socket *sock) {
     UA_Client *const client = (UA_Client *const)sock->application;
     sock->openCallback = UA_Client_createConnectionAsync;
-    sock->freeCallback = async_socket_free_callback;
+    sock->cleanCallback = async_socket_free_callback;
     client->asyncOpeningSocket = sock;
 
     return sock->open(sock);

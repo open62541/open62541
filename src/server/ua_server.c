@@ -531,7 +531,7 @@ createConnection(UA_Socket *sock) {
     sock->dataCallback = (UA_Socket_DataCallbackFunction)UA_Connection_assembleChunks;
 
     sock->context = connection;
-    sock->freeCallback = removeConnection;
+    sock->cleanCallback = removeConnection;
 
     return UA_STATUSCODE_GOOD;
 }
@@ -589,6 +589,8 @@ UA_Server_run_startup(UA_Server *server) {
                          UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STARTTIME),
                          var);
 
+    if(server->config.networkManager == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
     server->config.networkManager->start(server->config.networkManager);
 
     /* Delayed creation of the server sockets. */

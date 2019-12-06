@@ -789,7 +789,7 @@ UA_Client_createConnection(UA_Socket *sock) {
         return retval;
 
     sock->dataCallback = (UA_Socket_DataCallbackFunction)UA_Connection_assembleChunks;
-    sock->freeCallback = UA_Client_removeConnection;
+    sock->cleanCallback = UA_Client_removeConnection;
     sock->context = connection;
 
     connection->chunkCallback.callbackContext = client;

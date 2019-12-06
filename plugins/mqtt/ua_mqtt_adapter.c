@@ -66,7 +66,7 @@ connectMqtt(UA_PubSubChannelDataMQTT *channelData) {
 //    conf.maxMessageSize = 1000;
 //    conf.maxChunkCount = 1;
 
-    UA_StatusCode retval = UA_TCP_ClientDataSocket(NULL, &conf, address.url, mqtt_socket_created);
+    UA_StatusCode retval = UA_TCP_ClientDataSocket(channelData, &conf, address.url, mqtt_socket_created);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                      "PubSub MQTT: Connection creation failed. Tcp connection failed!");
