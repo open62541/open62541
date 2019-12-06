@@ -18,7 +18,6 @@ typedef struct UA_Socket UA_Socket;
 typedef struct UA_SocketConfig UA_SocketConfig;
 typedef struct UA_ClientSocketConfig UA_ClientSocketConfig;
 typedef struct UA_ListenerSocketConfig UA_ListenerSocketConfig;
-typedef struct UA_SocketFactory UA_SocketFactory;
 typedef struct UA_NetworkManager UA_NetworkManager;
 
 /**
@@ -155,6 +154,20 @@ struct UA_Socket {
      * \param socket the socket to perform the operation on.
      */
     UA_StatusCode (*send)(UA_Socket *socket, UA_ByteString *buffer);
+
+    /**
+     * Receive bytes into the supplied buffer.
+     *
+     * The buffer length is the maximum amount of bytes to receive.
+     * If this function returns an error, the data in the buffer should be considered invalid.
+     * \param socket The socket to perform the operation on.
+     * \param buffer A pointer to a buffer allocated by the user.
+     *               The length will be set to the amount of bytes received.
+     * \param timeout The timeout in milliseconds to wait for.
+     *                If NULL is passed, the call will block until data is received.
+     * \return
+     */
+    UA_StatusCode (*recv)(UA_Socket *socket, UA_ByteString *buffer, UA_UInt32 *timeout);
 
     /**
      * This function can be used to get a send buffer from the socket implementation.
