@@ -62,15 +62,17 @@ struct UA_Socket {
 
     UA_NetworkManager *networkManager;
 
+    const UA_Logger *logger;
+
     /**
      * This callback is called when the socket->open function successfully returns.
      */
     UA_SocketCallbackFunction openCallback;
 
     /**
-     * This callback is called when the socket is freed with the socket->free function.
+     * This callback is called when the socket is cleaned up with the socket->clean function.
      */
-    UA_SocketCallbackFunction freeCallback;
+    UA_SocketCallbackFunction cleanCallback;
 
     /**
      * The dataCallback is called by the socket once it has sufficient data
@@ -119,11 +121,11 @@ struct UA_Socket {
     UA_Boolean (*mayDelete)(UA_Socket *socket);
 
     /**
-     * This function deletes the socket and frees all resources allocated by it.
+     * This function frees all resources allocated by the socket.
      * After calling this function the behavior for all following calls is undefined.
      *
-     * Because a socket might be kept in several places, the free function
-     * will call the registered freeCallback so that the references to this
+     * Because a socket might be kept in several places, the clean function
+     * will call the registered cleanCallback so that the references to this
      * socket can be properly cleaned up.
      *
      * \param socket the socket to perform the operation on.
