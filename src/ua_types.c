@@ -384,8 +384,8 @@ UA_NodeId_order(const UA_NodeId *n1, const UA_NodeId *n2) {
 /* FNV non-cryptographic hash function. See
  * https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function */
 #define FNV_PRIME_32 16777619
-static u32
-fnv32(u32 fnv, const u8 *buf, size_t size) {
+u32
+UA_ByteString_hash(u32 fnv, const u8 *buf, size_t size) {
     for(size_t i = 0; i < size; ++i) {
         fnv = fnv ^ (buf[i]);
         fnv = fnv * FNV_PRIME_32;
@@ -402,9 +402,9 @@ UA_NodeId_hash(const UA_NodeId *n) {
         return (u32)((n->namespaceIndex + ((n->identifier.numeric * (u64)2654435761) >> (32))) & UINT32_C(4294967295)); /*  Knuth's multiplicative hashing */
     case UA_NODEIDTYPE_STRING:
     case UA_NODEIDTYPE_BYTESTRING:
-        return fnv32(n->namespaceIndex, n->identifier.string.data, n->identifier.string.length);
+        return UA_ByteString_hash(n->namespaceIndex, n->identifier.string.data, n->identifier.string.length);
     case UA_NODEIDTYPE_GUID:
-        return fnv32(n->namespaceIndex, (const u8*)&n->identifier.guid, sizeof(UA_Guid));
+        return UA_ByteString_hash(n->namespaceIndex, (const u8*)&n->identifier.guid, sizeof(UA_Guid));
     }
 }
 
@@ -450,8 +450,8 @@ UA_ExpandedNodeId_order(const UA_ExpandedNodeId *n1,
 u32
 UA_ExpandedNodeId_hash(const UA_ExpandedNodeId *n) {
     u32 h = UA_NodeId_hash(&n->nodeId);
-    h = fnv32(h, (const UA_Byte*)&n->serverIndex, 4);
-    return fnv32(h, n->namespaceUri.data, n->namespaceUri.length);
+    h = UA_ByteString_hash(h, (const UA_Byte*)&n->serverIndex, 4);
+    return UA_ByteString_hash(h, n->namespaceUri.data, n->namespaceUri.length);
 }
 
 /* ExtensionObject */
