@@ -408,6 +408,10 @@ endfunction()
 #   [FILE_CSV]      Optional path to the .csv file containing the node ids, e.g. 'OpcUaDiModel.csv'
 #   [FILE_BSD]      Optional path to the .bsd file containing the type definitions, e.g. 'Opc.Ua.Di.Types.bsd'. Multiple files can be
 #                   passed which will all combined to one resulting code.
+#   [IMPORT_BSD]    Optional combination of types array and path to the .bsd file containing additional type definitions referenced by
+#                   the FILES_BSD files. The value is separated with a hash sign, i.e.
+#                   'UA_TYPES#${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.Types.bsd'
+#                   Multiple files can be passed which will all be imported.
 #   [NAMESPACE_IDX] Optional namespace index of the nodeset, when it is loaded into the server. This parameter is mandatory if FILE_CSV
 #                   or FILE_BSD is set. See ua_generate_datatypes function.
 #   [TARGET_PREFIX] Optional prefix for the resulting targets. Default `open62541-generator`
@@ -420,7 +424,7 @@ endfunction()
 function(ua_generate_nodeset_and_datatypes)
 
     set(options INTERNAL)
-    set(oneValueArgs NAME FILE_NS FILE_CSV FILE_BSD NAMESPACE_IDX OUTPUT_DIR TARGET_PREFIX)
+    set(oneValueArgs NAME FILE_NS FILE_CSV FILE_BSD IMPORT_BSD NAMESPACE_IDX OUTPUT_DIR TARGET_PREFIX)
     set(multiValueArgs DEPENDS)
     cmake_parse_arguments(UA_GEN "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
 
@@ -481,6 +485,7 @@ function(ua_generate_nodeset_and_datatypes)
             NAMESPACE_IDX ${UA_GEN_NAMESPACE_IDX}
             FILE_CSV "${UA_GEN_FILE_CSV}"
             FILES_BSD "${UA_GEN_FILE_BSD}"
+            IMPORT_BSD "${UA_GEN_IMPORT_BSD}"
             OUTPUT_DIR "${UA_GEN_OUTPUT_DIR}"
         )
         set(NODESET_DEPENDS_TARGET "${UA_GEN_TARGET_PREFIX}-types-${UA_GEN_NAME}")
