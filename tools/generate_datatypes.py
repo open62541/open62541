@@ -355,8 +355,10 @@ def parseTypeDefinitions(outname, xmlDescription, namespace, addToTypes=None):
     detectLoop = len(snippets)+1
     while(len(snippets) > 0):
         if detectLoop == len(snippets):
-            name, typeXml = (snippets.items())[0]
-            raise RuntimeError("Infinite loop detected trying to processing types " + name + ": unknonwn subtype " + str(unknownTypes(typeXml)))
+            name, typeXml = snippets.popitem()
+            raise RuntimeError("Infinite loop detected or type not found while processing types " + name + ": unknonwn subtype " +
+                               str(unknownTypes(typeXml)) + " Maybe you need to import additional types with the --import flag. " +
+                               "E.g. '--import==UA_TYPES#/path/to/deps/ua-nodeset/Schema/Opc.Ua.Types.bsd'")
         detectLoop = len(snippets)
         for name, typeXml in list(snippets.items()):
             if name in types or skipType(name):
