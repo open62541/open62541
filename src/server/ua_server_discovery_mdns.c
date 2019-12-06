@@ -31,30 +31,10 @@
 # include <netdb.h> // for recvfrom in cygwin
 #endif
 
-/* FIXME: Is this a required algorithm? Otherwise, reuse hashing for nodeids */
-/* Generates a hash code for a string.
- * This function uses the ELF hashing algorithm as reprinted in
- * Andrew Binstock, "Hashing Rehashed," Dr. Dobb's Journal, April 1996.
- */
-static int
-mdns_hash_record(const char *s) {
-    /* ELF hash uses unsigned chars and unsigned arithmetic for portability */
-    const unsigned char *name = (const unsigned char *) s;
-    unsigned long h = 0;
-    while(*name) {
-        h = (h << 4) + (unsigned long) (*name++);
-        unsigned long g;
-        if((g = (h & 0xF0000000UL)) != 0)
-            h ^= (g >> 24);
-        h &= ~g;
-    }
-    return (int) h;
-}
-
 static struct serverOnNetwork_list_entry *
 mdns_record_add_or_get(UA_DiscoveryManager *dm, const char *record, const char *serverName,
                        size_t serverNameLen, UA_Boolean createNew) {
-    int hashIdx = mdns_hash_record(record) % SERVER_ON_NETWORK_HASH_PRIME;
+    UA_UInt32 hashIdx = UA_ByteString_hash(0, (const UA_Byte*)record, strlen(record)) % SERVER_ON_NETWORK_HASH_SIZE;
     struct serverOnNetwork_hash_entry *hash_entry = dm->serverOnNetworkHash[hashIdx];
 
     while(hash_entry) {
@@ -322,7 +302,7 @@ mdns_record_remove(UA_Server *server, const char *record,
     UA_DiscoveryManager *dm = &server->discoveryManager;
 
     /* remove from hash */
-    int hashIdx = mdns_hash_record(record) % SERVER_ON_NETWORK_HASH_PRIME;
+    UA_UInt32 hashIdx = UA_ByteString_hash(0, (const UA_Byte*)record, strlen(record)) % SERVER_ON_NETWORK_HASH_SIZE;
     struct serverOnNetwork_hash_entry *hash_entry = dm->serverOnNetworkHash[hashIdx];
     struct serverOnNetwork_hash_entry *prevEntry = hash_entry;
     while(hash_entry) {

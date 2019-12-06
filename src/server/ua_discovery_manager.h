@@ -74,7 +74,7 @@ typedef struct serverOnNetwork_list_entry {
     char* pathTmp;
 } serverOnNetwork_list_entry;
 
-#define SERVER_ON_NETWORK_HASH_PRIME 1009
+#define SERVER_ON_NETWORK_HASH_SIZE 1000
 typedef struct serverOnNetwork_hash_entry {
     serverOnNetwork_list_entry* entry;
     struct serverOnNetwork_hash_entry* next;
@@ -101,7 +101,7 @@ typedef struct {
     UA_DateTime serverOnNetworkRecordIdLastReset;
 
     /* hash mapping domain name to serverOnNetwork list entry */
-    struct serverOnNetwork_hash_entry* serverOnNetworkHash[SERVER_ON_NETWORK_HASH_PRIME];
+    struct serverOnNetwork_hash_entry* serverOnNetworkHash[SERVER_ON_NETWORK_HASH_SIZE];
 
     UA_Server_serverOnNetworkCallback serverOnNetworkCallback;
     void* serverOnNetworkCallbackData;
