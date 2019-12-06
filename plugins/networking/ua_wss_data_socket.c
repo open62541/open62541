@@ -57,13 +57,12 @@ wss_dsock_mayDelete(UA_Socket *socket) {
 }
 
 static UA_StatusCode
-wss_dsock_free(UA_Socket *socket) {
+wss_dsock_clean(UA_Socket *socket) {
     UA_LOG_DEBUG(socket->networkManager->logger, UA_LOGCATEGORY_NETWORK,
                  "Deleting wss data socket with id %lu", socket->id);
 
-    UA_StatusCode retval = UA_SocketCallback_call(socket->freeCallback, socket);
+    UA_StatusCode retval = UA_SocketCallback_call(socket->cleanCallback, socket);
 
-    UA_free(socket);
     return retval;
 }
 
@@ -176,7 +175,7 @@ UA_WSS_DataSocket_AcceptFrom(UA_Socket *listenerSocket, const UA_SocketConfig *p
     sock->socket.socket.open = wss_dsock_open;
     sock->socket.socket.close = wss_dsock_close;
     sock->socket.socket.mayDelete = wss_dsock_mayDelete;
-    sock->socket.socket.clean = wss_dsock_free;
+    sock->socket.socket.clean = wss_dsock_clean;
     sock->socket.socket.activity = wss_dsock_activity;
     sock->socket.socket.send = wss_dsock_send;
     sock->socket.socket.acquireSendBuffer = wss_dsock_acquireSendBuffer;
