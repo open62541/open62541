@@ -41,10 +41,10 @@ tcp_sock_setDiscoveryUrl(UA_Socket *sock, UA_UInt16 port, UA_ByteString *customH
                                             hostnameBuffer, port);
             du.data = (UA_Byte *)discoveryUrlBuffer;
         } else {
-            UA_LOG_ERROR(sock->networkManager->logger, UA_LOGCATEGORY_NETWORK, "Could not get the hostname");
+            UA_LOG_ERROR(sock->logger, UA_LOGCATEGORY_NETWORK, "Could not get the hostname");
         }
     }
-    UA_LOG_INFO(sock->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+    UA_LOG_INFO(sock->logger, UA_LOGCATEGORY_NETWORK,
                 "New TCP listener socket will listen on %.*s",
                 (int)du.length, du.data);
     return UA_String_copy(&du, &sock->discoveryUrl);
@@ -55,14 +55,14 @@ tcp_sock_open(UA_Socket *sock) {
     UA_Socket_tcpListener *const internalSock = (UA_Socket_tcpListener *const)sock;
 
     if(sock->socketState != UA_SOCKETSTATE_NEW) {
-        UA_LOG_ERROR(sock->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_ERROR(sock->logger, UA_LOGCATEGORY_NETWORK,
                      "Calling open on already open socket not supported");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     if(UA_listen((UA_SOCKET)sock->id, MAXBACKLOG) < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
-            UA_LOG_WARNING(sock->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+            UA_LOG_WARNING(sock->logger, UA_LOGCATEGORY_NETWORK,
                            "Error listening on server socket: %s", errno_str));
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -74,7 +74,7 @@ tcp_sock_open(UA_Socket *sock) {
     socklen_t len = sizeof(returned_addr);
     if(UA_getsockname((UA_SOCKET)sock->id, (struct sockaddr *)&returned_addr, &len) < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
-            UA_LOG_WARNING(sock->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+            UA_LOG_WARNING(sock->logger, UA_LOGCATEGORY_NETWORK,
                            "Error getting the socket port on server socket: %s", errno_str));
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -112,7 +112,7 @@ tcp_sock_clean(UA_Socket *sock) {
         return UA_STATUSCODE_BADINTERNALERROR;
     UA_Socket_tcpListener *const internalSock = (UA_Socket_tcpListener *const)sock;
 
-    UA_SocketCallback_call(sock->freeCallback, sock);
+    UA_SocketCallback_call(sock->cleanCallback, sock);
 
     UA_String_deleteMembers(&internalSock->customHostname);
     UA_ByteString_deleteMembers(&sock->discoveryUrl);
@@ -139,7 +139,7 @@ tcp_sock_activity(UA_Socket *sock, UA_Boolean readActivity, UA_Boolean writeActi
 
         UA_StatusCode retval = UA_TCP_DataSocket_AcceptFrom(sock, &socketConfig, internalSock->onAccept);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(sock->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+            UA_LOG_ERROR(sock->logger, UA_LOGCATEGORY_NETWORK,
                          "Error while accepting new socket connection: %s",
                          UA_StatusCode_name(retval));
         }
@@ -149,7 +149,7 @@ tcp_sock_activity(UA_Socket *sock, UA_Boolean readActivity, UA_Boolean writeActi
 
 static UA_StatusCode
 tcp_sock_send(UA_Socket *sock, UA_ByteString *buffer) {
-    UA_LOG_ERROR(sock->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+    UA_LOG_ERROR(sock->logger, UA_LOGCATEGORY_NETWORK,
                  "Sending is not supported on listener sockets");
     // TODO: Can we support sending here? does it make sense at all?
     return UA_STATUSCODE_BADNOTIMPLEMENTED;
@@ -158,7 +158,7 @@ tcp_sock_send(UA_Socket *sock, UA_ByteString *buffer) {
 static UA_StatusCode
 tcp_sock_acquireSendBuffer(UA_Socket *sock, size_t bufferSize, UA_ByteString **p_buffer) {
     (void)bufferSize, (void)p_buffer;
-    UA_LOG_ERROR(sock->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+    UA_LOG_ERROR(sock->logger, UA_LOGCATEGORY_NETWORK,
                  "Getting a send buffer is not supported on listener sockets");
     // TODO: see above
     return UA_STATUSCODE_BADNOTIMPLEMENTED;
@@ -224,6 +224,7 @@ UA_TCP_ListenerSocketFromAddrinfo(struct addrinfo *addrinfo, const UA_ListenerSo
     sock->onAccept = onAccept;
 
     sock->socket.networkManager = socketConfig->socketConfig.networkManager;
+    sock->socket.logger = sock->socket.networkManager->logger;
     sock->recvBufferSize = socketConfig->socketConfig.recvBufferSize;
     sock->sendBufferSize = socketConfig->socketConfig.sendBufferSize;
     UA_String_copy(&socketConfig->customHostname, &sock->customHostname);

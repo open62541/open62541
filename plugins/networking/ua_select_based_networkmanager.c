@@ -98,6 +98,9 @@ select_nm_removeSocket(UA_NetworkManager *networkManager, UA_Socket *socket) {
 
     LIST_FOREACH_SAFE(socketListEntry, &internalManager->sockets, pointers, tmp) {
         if(socketListEntry->socket == socket) {
+            UA_LOG_DEBUG(networkManager->logger, UA_LOGCATEGORY_NETWORK,
+                         "Removed socket with id %i",
+                         (int)socketListEntry->socket->id);
             if(socket->isListener)
                 --internalManager->numListenerSockets;
             --internalManager->numSockets;
@@ -105,9 +108,6 @@ select_nm_removeSocket(UA_NetworkManager *networkManager, UA_Socket *socket) {
             UA_free(socketListEntry);
         }
     }
-    UA_LOG_DEBUG(networkManager->logger, UA_LOGCATEGORY_NETWORK,
-                 "Removed socket with id %i",
-                 (int)socket->id);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -225,8 +225,8 @@ select_nm_processSocket(UA_NetworkManager *networkManager, UA_UInt32 timeout,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(resultsize == 1) {
         if(sock->mayDelete(sock)) {
-            select_nm_removeSocket(networkManager, sock);
             sock->clean(sock);
+            select_nm_removeSocket(networkManager, sock);
             return UA_STATUSCODE_BADCONNECTIONCLOSED;
         }
         UA_Boolean readActivity = UA_fd_isset((UA_SOCKET)sock->id, &readfdset);

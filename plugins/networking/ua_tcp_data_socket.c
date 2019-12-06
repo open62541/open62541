@@ -9,6 +9,7 @@
 #include <open62541/util.h>
 #include <open62541/plugin/networking/sockets.h>
 #include <open62541/plugin/networkmanager.h>
+#include <include/open62541/plugin/log_stdout.h>
 
 #ifndef MSG_NOSIGNAL
 #define MSG_NOSIGNAL 0
@@ -49,7 +50,7 @@ UA_TCP_DataSocket_close(UA_Socket *sock) {
     if(internalSocket->flaggedForDeletion)
         return UA_STATUSCODE_GOOD;
 
-    UA_LOG_DEBUG(sock->networkManager->logger, UA_LOGCATEGORY_NETWORK, "Shutting down socket %i", (int)sock->id);
+    UA_LOG_DEBUG(sock->logger, UA_LOGCATEGORY_NETWORK, "Shutting down socket %i", (int)sock->id);
     if((UA_SOCKET)sock->id != UA_INVALID_SOCKET)
         UA_shutdown((UA_SOCKET)sock->id, 2);
     sock->socketState = UA_SOCKETSTATE_CLOSED;
@@ -69,7 +70,7 @@ UA_TCP_ClientDataSocket_mayDelete(UA_Socket *sock) {
     if((UA_DateTime_nowMonotonic() - internalSocket->connStart) >= internalSocket->dtTimeout &&
        sock->socketState == UA_SOCKETSTATE_NEW) {
         sock->close(sock);
-        UA_LOG_WARNING(sock->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_WARNING(sock->logger, UA_LOGCATEGORY_NETWORK,
                        "Trying to connect to %.*s timed out",
                        (int)internalSocket->endpointUrl.length,
                        internalSocket->endpointUrl.data);
@@ -84,9 +85,9 @@ UA_TCP_DataSocket_clean(UA_Socket *sock) {
     }
     UA_Socket_tcpDataSocket *const internalSocket = (UA_Socket_tcpDataSocket *const)sock;
 
-    UA_SocketCallback_call(sock->freeCallback, sock);
+    UA_SocketCallback_call(sock->cleanCallback, sock);
 
-    UA_LOG_DEBUG(sock->networkManager->logger, UA_LOGCATEGORY_NETWORK, "Freeing socket %i", (int)sock->id);
+    UA_LOG_DEBUG(sock->logger, UA_LOGCATEGORY_NETWORK, "Freeing socket %i", (int)sock->id);
 
     if((UA_SOCKET)sock->id != UA_INVALID_SOCKET)
         UA_close((UA_SOCKET)sock->id);
@@ -120,13 +121,13 @@ UA_TCP_DataSocket_activity(UA_Socket *sock, UA_Boolean readActivity, UA_Boolean 
 
             if(ret != 0 || so_error != 0) {
                 if(so_error != ECONNREFUSED) {
-                    UA_LOG_WARNING(sock->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+                    UA_LOG_WARNING(sock->logger, UA_LOGCATEGORY_NETWORK,
                                    "Connection on socket %d failed with error: %s",
                                    (UA_SOCKET)sock->id,
                                    strerror(ret == 0 ? so_error : UA_ERRNO));
                     return UA_STATUSCODE_BADCOMMUNICATIONERROR;
                 } else {
-                    UA_LOG_WARNING(sock->networkManager->logger, UA_LOGCATEGORY_NETWORK, "Connection refused");
+                    UA_LOG_WARNING(sock->logger, UA_LOGCATEGORY_NETWORK, "Connection refused");
 
                     return UA_STATUSCODE_BADCONNECTIONREJECTED;
                 }
@@ -137,7 +138,7 @@ UA_TCP_DataSocket_activity(UA_Socket *sock, UA_Boolean readActivity, UA_Boolean 
             /* We are connected. Reset socket to blocking */
             UA_StatusCode retval = UA_socket_set_blocking((UA_SOCKET)sock->id);
             if(retval != UA_STATUSCODE_GOOD) {
-                UA_LOG_WARNING(sock->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+                UA_LOG_WARNING(sock->logger, UA_LOGCATEGORY_NETWORK,
                                "Could not set the client socket to blocking");
                 return retval;
             }
@@ -147,7 +148,7 @@ UA_TCP_DataSocket_activity(UA_Socket *sock, UA_Boolean readActivity, UA_Boolean 
             if(sock->socketState == UA_SOCKETSTATE_OPEN)
                 return UA_SocketCallback_call(sock->openCallback, sock);
         } else {
-            UA_LOG_WARNING(sock->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+            UA_LOG_WARNING(sock->logger, UA_LOGCATEGORY_NETWORK,
                            "Read activity on not connected socket!");
         }
         break;
@@ -166,12 +167,12 @@ UA_TCP_DataSocket_activity(UA_Socket *sock, UA_Boolean readActivity, UA_Boolean 
                     return UA_STATUSCODE_GOOD;
                 }
                 UA_LOG_SOCKET_ERRNO_WRAP(
-                    UA_LOG_ERROR(sock->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+                    UA_LOG_ERROR(sock->logger, UA_LOGCATEGORY_NETWORK,
                                  "Error while receiving data from socket: %s", errno_str));
                 return UA_STATUSCODE_BADCOMMUNICATIONERROR;
             }
             if(bytesReceived == 0) {
-                UA_LOG_INFO(sock->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+                UA_LOG_INFO(sock->logger, UA_LOGCATEGORY_NETWORK,
                             "Socket %i | Performing orderly shutdown", (int)sock->id);
                 internalSocket->flaggedForDeletion = true;
                 return UA_STATUSCODE_GOOD;
@@ -199,7 +200,7 @@ UA_TCP_DataSocket_send(UA_Socket *sock, UA_ByteString *buffer) {
     UA_Socket_tcpDataSocket *const internalSocket = (UA_Socket_tcpDataSocket *const)sock;
     if(buffer->length > internalSocket->sendBuffer.length ||
        buffer->data != internalSocket->sendBuffer.data) {
-        UA_LOG_ERROR(sock->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_ERROR(sock->logger, UA_LOGCATEGORY_NETWORK,
                      "sendBuffer length exceeds originally allocated length, "
                      "or the data pointer was modified.");
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -218,7 +219,7 @@ UA_TCP_DataSocket_send(UA_Socket *sock, UA_ByteString *buffer) {
                                 (const char *)buffer->data + totalBytesSent,
                                 buffer->length - totalBytesSent, flags);
             if(bytesSent < 0 && UA_ERRNO != UA_EAGAIN && UA_ERRNO != UA_INTERRUPTED) {
-                UA_LOG_ERROR(sock->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+                UA_LOG_ERROR(sock->logger, UA_LOGCATEGORY_NETWORK,
                              "Error while sending data over socket");
                 return UA_STATUSCODE_BADCOMMUNICATIONERROR;
             }
@@ -251,15 +252,15 @@ UA_TCP_DataSocket_recv(UA_Socket *socket, UA_ByteString *buffer, UA_UInt32 *time
     } else {
         resultsize = UA_select((UA_Int32)(socket->id + 1), &readfdset, NULL, NULL, NULL);
     }
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
     if(resultsize == 0) {
-        UA_LOG_ERROR(socket->networkManager->logger, UA_LOGCATEGORY_NETWORK, "Socket select timed out");
+        UA_LOG_ERROR(socket->logger, UA_LOGCATEGORY_NETWORK, "Socket select timed out");
         return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
     }
     if(resultsize == -1) {
-        UA_LOG_SOCKET_ERRNO_WRAP(UA_LOG_ERROR(socket->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_SOCKET_ERRNO_WRAP(UA_LOG_ERROR(socket->logger, UA_LOGCATEGORY_NETWORK,
                                               "Socket select failed with %s", errno_str));
-        retval = UA_STATUSCODE_BADINTERNALERROR;
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     ssize_t bytesReceived = UA_recv((int)socket->id,
@@ -272,12 +273,12 @@ UA_TCP_DataSocket_recv(UA_Socket *socket, UA_ByteString *buffer, UA_UInt32 *time
             return UA_STATUSCODE_GOOD;
         }
         UA_LOG_SOCKET_ERRNO_WRAP(
-            UA_LOG_ERROR(socket->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+            UA_LOG_ERROR(socket->logger, UA_LOGCATEGORY_NETWORK,
                          "Error while receiving data from socket: %s", errno_str));
         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
     }
     if(bytesReceived == 0) {
-        UA_LOG_INFO(socket->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_INFO(socket->logger, UA_LOGCATEGORY_NETWORK,
                     "Socket %i | Performing orderly shutdown", (int)socket->id);
         internalSocket->flaggedForDeletion = true;
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
@@ -332,7 +333,7 @@ UA_TCP_DataSocket_disableNaglesAlgorithm(UA_Socket *sock) {
     if(UA_setsockopt((int)sock->id, IPPROTO_TCP, TCP_NODELAY,
                      (const char *)&dummy, sizeof(dummy)) < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
-            UA_LOG_ERROR(sock->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+            UA_LOG_ERROR(sock->logger, UA_LOGCATEGORY_NETWORK,
                          "Cannot set socket option TCP_NODELAY. Error: %s",
                          errno_str));
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
@@ -351,17 +352,17 @@ UA_TCP_DataSocket_logPeerName(UA_Socket *sock, struct sockaddr_storage *remote) 
                              remote_name, sizeof(remote_name),
                              NULL, 0, NI_NUMERICHOST);
     if(res == 0) {
-        UA_LOG_INFO(sock->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_INFO(sock->logger, UA_LOGCATEGORY_NETWORK,
                     "Socket %i | New connection over TCP from %s",
                     (int)sock->id, remote_name);
     } else {
-        UA_LOG_SOCKET_ERRNO_WRAP(UA_LOG_WARNING(sock->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_SOCKET_ERRNO_WRAP(UA_LOG_WARNING(sock->logger, UA_LOGCATEGORY_NETWORK,
                                                 "Socket %i | New connection over TCP, "
                                                 "getnameinfo failed with error: %s",
                                                 (int)sock->id, errno_str));
     }
 #else
-    UA_LOG_INFO(sock->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+    UA_LOG_INFO(sock->logger, UA_LOGCATEGORY_NETWORK,
                 "Socket %i | New connection over TCP",
                 (int)sock->id);
 #endif
@@ -374,9 +375,15 @@ UA_TCP_DataSocket_init(UA_UInt64 sockFd,
                        UA_NetworkManager *networkManager,
                        UA_Socket_tcpDataSocket *sock,
                        void *application) {
-    if(sock == NULL || networkManager == NULL) {
+    if(sock == NULL) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
+
+    const UA_Logger *logger;
+    if(networkManager == NULL)
+        logger = UA_Log_Stdout;
+    else
+        logger = networkManager->logger;
 
     sock->socket.application = application;
     sock->socket.isListener = false;
@@ -391,6 +398,7 @@ UA_TCP_DataSocket_init(UA_UInt64 sockFd,
     sock->socket.acquireSendBuffer = UA_TCP_DataSocket_acquireSendBuffer;
     sock->socket.releaseSendBuffer = UA_TCP_DataSocket_releaseSendBuffer;
     sock->socket.networkManager = networkManager;
+    sock->socket.logger = logger;
     sock->socket.socketState = UA_SOCKETSTATE_NEW;
     sock->socket.waitForReadActivity = true;
     sock->socket.waitForWriteActivity = false;
@@ -398,7 +406,7 @@ UA_TCP_DataSocket_init(UA_UInt64 sockFd,
 
     UA_StatusCode retval = UA_ByteString_allocBuffer(&sock->receiveBuffer, recvBufferSize);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(networkManager->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
                      "Failed to allocate receive buffer for socket with error %s",
                      UA_StatusCode_name(retval));
         goto error;
@@ -407,7 +415,7 @@ UA_TCP_DataSocket_init(UA_UInt64 sockFd,
 
     retval = UA_ByteString_allocBuffer(&sock->sendBuffer, sendBufferSize);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(networkManager->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
                      "Failed to allocate receive buffer for socket with error %s",
                      UA_StatusCode_name(retval));
         goto error;
@@ -435,13 +443,13 @@ UA_TCP_DataSocket_AcceptFrom(UA_Socket *listenerSocket, const UA_SocketConfig *p
                                     (struct sockaddr *)&remote, &remote_size);
     if(newSockFd == UA_INVALID_SOCKET) {
         UA_LOG_SOCKET_ERRNO_WRAP(
-            UA_LOG_WARNING(parameters->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+            UA_LOG_WARNING(listenerSocket->logger, UA_LOGCATEGORY_NETWORK,
                            "Accept failed with %s", errno_str));
-        UA_LOG_ERROR(parameters->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_ERROR(listenerSocket->logger, UA_LOGCATEGORY_NETWORK,
                      "Error accepting socket. Got invalid file descriptor");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    UA_LOG_DEBUG(parameters->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+    UA_LOG_DEBUG(listenerSocket->logger, UA_LOGCATEGORY_NETWORK,
                  "New TCP sock (fd: %i) accepted from listener socket (fd: %i)",
                  (int)newSockFd, (int)listenerSocket->id);
 
@@ -454,7 +462,7 @@ UA_TCP_DataSocket_AcceptFrom(UA_Socket *listenerSocket, const UA_SocketConfig *p
     }
     UA_StatusCode retval;
     if(sock == NULL) {
-        UA_LOG_ERROR(parameters->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_ERROR(listenerSocket->logger, UA_LOGCATEGORY_NETWORK,
                      "Failed to allocate data socket internal data. Out of memory");
         UA_close(newSockFd);
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -468,7 +476,7 @@ UA_TCP_DataSocket_AcceptFrom(UA_Socket *listenerSocket, const UA_SocketConfig *p
                                     sock,
                                     listenerSocket->application);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(parameters->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_ERROR(listenerSocket->logger, UA_LOGCATEGORY_NETWORK,
                      "Failed to allocate socket resources with error %s",
                      UA_StatusCode_name(retval));
         UA_close(newSockFd);
@@ -478,14 +486,14 @@ UA_TCP_DataSocket_AcceptFrom(UA_Socket *listenerSocket, const UA_SocketConfig *p
 
     retval = UA_String_copy(&listenerSocket->discoveryUrl, &sock->socket.discoveryUrl);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(parameters->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_ERROR(listenerSocket->logger, UA_LOGCATEGORY_NETWORK,
                      "Failed to copy discovery url while creating data socket");
         goto error;
     }
 
     retval = UA_socket_set_nonblocking(newSockFd);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(parameters->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_ERROR(listenerSocket->logger, UA_LOGCATEGORY_NETWORK,
                      "Encountered error %s while setting socket to non blocking.",
                      UA_StatusCode_name(retval));
         goto error;
@@ -506,7 +514,7 @@ UA_TCP_DataSocket_AcceptFrom(UA_Socket *listenerSocket, const UA_SocketConfig *p
 
     retval = UA_SocketCallback_call(creationCallback, (UA_Socket *)sock);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(parameters->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_ERROR(listenerSocket->logger, UA_LOGCATEGORY_NETWORK,
                      "Creation callback returned error %s.",
                      UA_StatusCode_name(retval));
         goto error;
@@ -542,7 +550,7 @@ UA_TCP_ClientDataSocket_open(UA_Socket *sock) {
 
     if((error == -1) && (UA_ERRNO != UA_ERR_CONNECTION_PROGRESS)) {
         UA_LOG_SOCKET_ERRNO_WRAP(
-            UA_LOG_WARNING(sock->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+            UA_LOG_WARNING(sock->logger, UA_LOGCATEGORY_NETWORK,
                            "Connection to %.*s failed with error: %s",
                            (int)internalSocket->endpointUrl.length,
                            internalSocket->endpointUrl.data, errno_str));
@@ -555,7 +563,7 @@ UA_TCP_ClientDataSocket_open(UA_Socket *sock) {
     int sso_result = UA_setsockopt((UA_SOCKET)sock->id, SOL_SOCKET,
                                    SO_NOSIGPIPE, (void*)&val, sizeof(val));
     if(sso_result < 0)
-        UA_LOG_WARNING(sock->networkManager->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_WARNING(sock->logger, UA_LOGCATEGORY_NETWORK,
                        "Couldn't set SO_NOSIGPIPE");
 #endif
 
@@ -588,6 +596,13 @@ UA_TCP_ClientDataSocket(void *application, const UA_ClientSocketConfig *paramete
         return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_NetworkManager *networkManager = parameters->baseConfig.networkManager;
+    const UA_Logger *logger;
+    if(networkManager != NULL) {
+        logger = networkManager->logger;
+    } else {
+        logger = UA_Log_Stdout;
+    }
+
     UA_Socket_tcpClientDataSocket *sock;
     if(networkManager != NULL) {
         sock = (UA_Socket_tcpClientDataSocket *const)networkManager
@@ -597,7 +612,7 @@ UA_TCP_ClientDataSocket(void *application, const UA_ClientSocketConfig *paramete
             sizeof(UA_Socket_tcpClientDataSocket));
     }
     if(sock == NULL) {
-        UA_LOG_ERROR(networkManager->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
                      "Failed to allocate data socket internal data. Out of memory");
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
@@ -610,7 +625,7 @@ UA_TCP_ClientDataSocket(void *application, const UA_ClientSocketConfig *paramete
                                                   (UA_Socket_tcpDataSocket *)sock,
                                                   application);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(networkManager->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
                      "Failed to allocate socket resources with error %s",
                      UA_StatusCode_name(retval));
         UA_free(sock);
@@ -632,7 +647,7 @@ UA_TCP_ClientDataSocket(void *application, const UA_ClientSocketConfig *paramete
     retval = UA_parseEndpointUrl(&sock->endpointUrl, &hostnameString,
                                  &port, &pathString);
     if(retval != UA_STATUSCODE_GOOD || hostnameString.length >= UA_HOSTNAME_MAX_LENGTH) {
-        UA_LOG_WARNING(networkManager->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
                        "Server url is invalid: %.*s",
                        (int)sock->endpointUrl.length, sock->endpointUrl.data);
 
@@ -644,7 +659,7 @@ UA_TCP_ClientDataSocket(void *application, const UA_ClientSocketConfig *paramete
 
     if(port == 0) {
         port = 4840;
-        UA_LOG_INFO(networkManager->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_INFO(logger, UA_LOGCATEGORY_NETWORK,
                     "No port defined, using default port %d", port);
     }
 
@@ -658,7 +673,7 @@ UA_TCP_ClientDataSocket(void *application, const UA_ClientSocketConfig *paramete
     UA_snprintf(portStr, 6, "%d", port);
     int error = UA_getaddrinfo(hostname, portStr, &hints, &sock->server);
     if(error != 0 || sock->server == NULL) {
-        UA_LOG_SOCKET_ERRNO_GAI_WRAP(UA_LOG_WARNING(networkManager->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_SOCKET_ERRNO_GAI_WRAP(UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
                                                     "DNS lookup of %s failed with error %s", hostname, errno_str));
         retval = UA_STATUSCODE_BADINTERNALERROR;
         goto error;
@@ -668,7 +683,7 @@ UA_TCP_ClientDataSocket(void *application, const UA_ClientSocketConfig *paramete
                                         sock->server->ai_socktype,
                                         sock->server->ai_protocol);
     if(client_sockfd == UA_INVALID_SOCKET) {
-        UA_LOG_SOCKET_ERRNO_WRAP(UA_LOG_WARNING(networkManager->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_SOCKET_ERRNO_WRAP(UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
                                                 "Could not create client socket: %s", errno_str));
         retval = UA_STATUSCODE_BADINTERNALERROR;
         goto error;
@@ -677,7 +692,7 @@ UA_TCP_ClientDataSocket(void *application, const UA_ClientSocketConfig *paramete
     /* Non blocking connect to be able to timeout */
     retval = UA_socket_set_nonblocking(client_sockfd);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(networkManager->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
                        "Could not set the client socket to non blocking");
         goto error;
     }
@@ -692,7 +707,7 @@ UA_TCP_ClientDataSocket(void *application, const UA_ClientSocketConfig *paramete
 
     retval = UA_SocketCallback_call(creationCallback, (UA_Socket *)sock);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(parameters->baseConfig.networkManager->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
                      "Creation callback returned error %s.",
                      UA_StatusCode_name(retval));
         goto error;
