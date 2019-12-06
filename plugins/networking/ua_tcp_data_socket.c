@@ -9,7 +9,7 @@
 #include <open62541/util.h>
 #include <open62541/plugin/networking/sockets.h>
 #include <open62541/plugin/networkmanager.h>
-#include <include/open62541/plugin/log_stdout.h>
+#include <open62541/plugin/log_stdout.h>
 
 #ifndef MSG_NOSIGNAL
 #define MSG_NOSIGNAL 0
