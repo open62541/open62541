@@ -57,17 +57,6 @@ struct UA_NetworkManager {
     UA_StatusCode (*processSocket)(UA_NetworkManager *networkManager, UA_UInt32 timeout, UA_Socket *sock);
 
     /**
-     * Gets all known discovery urls of listener sockets registered with the network manager.
-     * This function will allocate an array of strings, which needs to be freed by the caller.
-     *
-     * \param networkManager the network manager to perform the operation on.
-     * \param discoveryUrls the newly allocated array of discoveryUrls.
-     * \param discoveryUrlsSize the size of the discoveryUrls array.
-     */
-    UA_StatusCode (*getDiscoveryUrls)(const UA_NetworkManager *networkManager, UA_String *discoveryUrls[],
-                                      size_t *discoveryUrlsSize);
-
-    /**
      * Starts the network manager.
      * Performs initial setup and needs to be called before using the network manager.
      * \param networkManager The NetworkManager to perform the operation on.
