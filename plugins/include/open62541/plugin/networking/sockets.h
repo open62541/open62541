@@ -25,7 +25,7 @@ _UA_BEGIN_DECLS
  */
 UA_StatusCode
 UA_TCP_ListenerSocketFromAddrinfo(struct addrinfo *addrinfo, const UA_ListenerSocketConfig *socketConfig,
-                                  UA_SocketCallbackFunction const onAccept,
+                                  UA_SocketCallbackFunction const onAccept, UA_String *discoveryUrl,
                                   UA_Socket **p_socket);
 
 /**

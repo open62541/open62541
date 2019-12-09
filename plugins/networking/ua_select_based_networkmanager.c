@@ -26,7 +26,6 @@ typedef enum {
 typedef struct {
     UA_NetworkManager baseManager;
     LIST_HEAD(, UA_SocketListEntry) sockets;
-    size_t numListenerSockets;
     size_t numSockets;
     UA_NetworkManager_State state;
 } UA_NetworkManager_selectBased;
@@ -81,8 +80,6 @@ select_nm_activateSocket(UA_NetworkManager *networkManager, UA_Socket *socket) {
             UA_LOG_DEBUG(networkManager->logger, UA_LOGCATEGORY_NETWORK,
                          "Activated socket with id %i",
                          (int)socket->id);
-            if(socket->isListener)
-                ++internalManager->numListenerSockets;
 
             return UA_STATUSCODE_GOOD;
         }
@@ -101,8 +98,6 @@ select_nm_removeSocket(UA_NetworkManager *networkManager, UA_Socket *socket) {
             UA_LOG_DEBUG(networkManager->logger, UA_LOGCATEGORY_NETWORK,
                          "Removed socket with id %i",
                          (int)socketListEntry->socket->id);
-            if(socket->isListener)
-                --internalManager->numListenerSockets;
             --internalManager->numSockets;
             LIST_REMOVE(socketListEntry, pointers);
             UA_free(socketListEntry);
@@ -169,8 +164,6 @@ select_nm_process(UA_NetworkManager *networkManager, UA_UInt16 timeout) {
         if(!readActivity && !writeActivity) {
             // Check deletion for all not selected sockets to clean them up if necessary.
             if(socket->mayDelete(socket)) {
-                if(socket->isListener)
-                    --internalManager->numListenerSockets;
                 --internalManager->numSockets;
                 socket->clean(socket);
                 LIST_REMOVE(socketListEntry, pointers);
@@ -191,8 +184,6 @@ select_nm_process(UA_NetworkManager *networkManager, UA_UInt16 timeout) {
         // We check here for all selected sockets so sockets that are selected
         // but flagged for deletion still get the chance to receive data once more.
         if(socket->mayDelete(socket)) {
-            if(socket->isListener)
-                --internalManager->numListenerSockets;
             --internalManager->numSockets;
             socket->clean(socket);
             LIST_REMOVE(socketListEntry, pointers);
@@ -247,42 +238,6 @@ select_nm_processSocket(UA_NetworkManager *networkManager, UA_UInt32 timeout,
         retval = UA_STATUSCODE_BADINTERNALERROR;
     }
     return retval;
-}
-
-static UA_StatusCode
-select_nm_getDiscoveryUrls(const UA_NetworkManager *networkManager, UA_String *discoveryUrls[],
-                           size_t *discoveryUrlsSize) {
-    const UA_NetworkManager_selectBased *const internalManager =
-        (const UA_NetworkManager_selectBased *const)networkManager;
-
-    UA_LOG_DEBUG(networkManager->logger, UA_LOGCATEGORY_NETWORK,
-                 "Getting discovery urls from network manager");
-
-    UA_String *const urls = (UA_String *const)UA_malloc(sizeof(UA_String) * internalManager->numListenerSockets);
-    if(urls == NULL) {
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-
-    size_t position = 0;
-    UA_SocketListEntry *socketListEntry, *e_tmp;
-    LIST_FOREACH_SAFE(socketListEntry, &internalManager->sockets, pointers, e_tmp) {
-        if(socketListEntry->socket->isListener) {
-            if(position >= internalManager->numListenerSockets) {
-                UA_LOG_ERROR(networkManager->logger, UA_LOGCATEGORY_NETWORK,
-                             "Mismatch between found listener sockets and maximum array size.");
-                UA_free(urls);
-                return UA_STATUSCODE_BADINTERNALERROR;
-            }
-            urls[position] = socketListEntry->socket->discoveryUrl;
-            //UA_ByteString_copy(&socketListEntry->socket->discoveryUrl, &urls[position]);
-            ++position;
-        }
-    }
-
-    *discoveryUrls = urls;
-    *discoveryUrlsSize = internalManager->numListenerSockets;
-
-    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
@@ -376,13 +331,11 @@ UA_SelectBasedNetworkManager(const UA_Logger *logger, UA_NetworkManager **p_netw
     networkManager->baseManager.activateSocket = select_nm_activateSocket;
     networkManager->baseManager.process = select_nm_process;
     networkManager->baseManager.processSocket = select_nm_processSocket;
-    networkManager->baseManager.getDiscoveryUrls = select_nm_getDiscoveryUrls;
     networkManager->baseManager.start = select_nm_start;
     networkManager->baseManager.shutdown = select_nm_shutdown;
     networkManager->baseManager.free = select_nm_free;
     networkManager->baseManager.logger = logger;
 
-    networkManager->numListenerSockets = 0;
     networkManager->numSockets = 0;
     networkManager->state = UA_NETWORKMANAGER_NEW;
 

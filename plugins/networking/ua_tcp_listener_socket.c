@@ -21,39 +21,7 @@ typedef struct {
 } UA_Socket_tcpListener;
 
 static UA_StatusCode
-tcp_sock_setDiscoveryUrl(UA_Socket *sock, UA_UInt16 port, UA_ByteString *customHostname) {
-    if(sock == NULL)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    /* Get the discovery url from the hostname */
-    UA_String du = UA_STRING_NULL;
-    char discoveryUrlBuffer[256];
-    if(!UA_ByteString_equal(customHostname, &UA_BYTESTRING_NULL)) {
-        du.length = (size_t)UA_snprintf(discoveryUrlBuffer, 255, "opc.tcp://%.*s:%d/",
-                                        (int)customHostname->length,
-                                        customHostname->data,
-                                        port);
-        du.data = (UA_Byte *)discoveryUrlBuffer;
-    } else {
-        char hostnameBuffer[256];
-        if(UA_gethostname(hostnameBuffer, 255) == 0) {
-            du.length = (size_t)UA_snprintf(discoveryUrlBuffer, 255, "opc.tcp://%s:%d/",
-                                            hostnameBuffer, port);
-            du.data = (UA_Byte *)discoveryUrlBuffer;
-        } else {
-            UA_LOG_ERROR(sock->logger, UA_LOGCATEGORY_NETWORK, "Could not get the hostname");
-        }
-    }
-    UA_LOG_INFO(sock->logger, UA_LOGCATEGORY_NETWORK,
-                "New TCP listener socket will listen on %.*s",
-                (int)du.length, du.data);
-    return UA_String_copy(&du, &sock->discoveryUrl);
-}
-
-static UA_StatusCode
 tcp_sock_open(UA_Socket *sock) {
-    UA_Socket_tcpListener *const internalSock = (UA_Socket_tcpListener *const)sock;
-
     if(sock->socketState != UA_SOCKETSTATE_NEW) {
         UA_LOG_ERROR(sock->logger, UA_LOGCATEGORY_NETWORK,
                      "Calling open on already open socket not supported");
@@ -66,25 +34,6 @@ tcp_sock_open(UA_Socket *sock) {
                            "Error listening on server socket: %s", errno_str));
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-
-    sock->socketState = UA_SOCKETSTATE_OPEN;
-
-    struct sockaddr_storage returned_addr;
-    memset(&returned_addr, 0, sizeof(returned_addr));
-    socklen_t len = sizeof(returned_addr);
-    if(UA_getsockname((UA_SOCKET)sock->id, (struct sockaddr *)&returned_addr, &len) < 0) {
-        UA_LOG_SOCKET_ERRNO_WRAP(
-            UA_LOG_WARNING(sock->logger, UA_LOGCATEGORY_NETWORK,
-                           "Error getting the socket port on server socket: %s", errno_str));
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    UA_UInt16 port = 0;
-    if(returned_addr.ss_family == AF_INET)
-        port = UA_ntohs(((struct sockaddr_in *)&returned_addr)->sin_port);
-    else if(returned_addr.ss_family == AF_INET6)
-        port = UA_ntohs(((struct sockaddr_in6 *)&returned_addr)->sin6_port);
-
-    tcp_sock_setDiscoveryUrl(sock, port, &internalSock->customHostname);
 
     sock->socketState = UA_SOCKETSTATE_OPEN;
 
@@ -115,7 +64,6 @@ tcp_sock_clean(UA_Socket *sock) {
     UA_SocketCallback_call(sock->cleanCallback, sock);
 
     UA_String_deleteMembers(&internalSock->customHostname);
-    UA_ByteString_deleteMembers(&sock->discoveryUrl);
     UA_close((int)sock->id);
 
     return UA_STATUSCODE_GOOD;
@@ -184,9 +132,41 @@ tcp_sock_set_func_pointers(UA_Socket *sock) {
     return UA_STATUSCODE_GOOD;
 }
 
+static UA_ByteString
+tcp_sock_getDiscoveryUrl(UA_Socket *sock, UA_UInt16 port, UA_ByteString *customHostname) {
+    if(sock == NULL)
+        return UA_STRING_NULL;
+
+    /* Get the discovery url from the hostname */
+    UA_String du = UA_STRING_NULL;
+    char discoveryUrlBuffer[256];
+    if(!UA_ByteString_equal(customHostname, &UA_BYTESTRING_NULL)) {
+        du.length = (size_t)UA_snprintf(discoveryUrlBuffer, 255, "opc.tcp://%.*s:%d/",
+                                        (int)customHostname->length,
+                                        customHostname->data,
+                                        port);
+        du.data = (UA_Byte *)discoveryUrlBuffer;
+    } else {
+        char hostnameBuffer[256];
+        if(UA_gethostname(hostnameBuffer, 255) == 0) {
+            du.length = (size_t)UA_snprintf(discoveryUrlBuffer, 255, "opc.tcp://%s:%d/",
+                                            hostnameBuffer, port);
+            du.data = (UA_Byte *)discoveryUrlBuffer;
+        } else {
+            UA_LOG_ERROR(sock->logger, UA_LOGCATEGORY_NETWORK, "Could not get the hostname");
+        }
+    }
+    UA_LOG_INFO(sock->logger, UA_LOGCATEGORY_NETWORK,
+                "New TCP listener socket will listen on %.*s",
+                (int)du.length, du.data);
+    UA_String discoveryUrl = UA_STRING_NULL;
+    UA_String_copy(&du, &discoveryUrl);
+    return discoveryUrl;
+}
+
 UA_StatusCode
 UA_TCP_ListenerSocketFromAddrinfo(struct addrinfo *addrinfo, const UA_ListenerSocketConfig *socketConfig,
-                                  UA_SocketCallbackFunction const onAccept,
+                                  UA_SocketCallbackFunction const onAccept, UA_String *discoveryUrl,
                                   UA_Socket **p_socket) {
     UA_StatusCode retval;
     if(socketConfig == NULL) {
@@ -216,7 +196,6 @@ UA_TCP_ListenerSocketFromAddrinfo(struct addrinfo *addrinfo, const UA_ListenerSo
     }
     memset(sock, 0, sizeof(UA_Socket_tcpListener));
 
-    sock->socket.isListener = true;
     sock->socket.id = (UA_UInt64)socket_fd;
     sock->socket.socketState = UA_SOCKETSTATE_NEW;
     sock->socket.waitForReadActivity = true;
@@ -259,6 +238,24 @@ UA_TCP_ListenerSocketFromAddrinfo(struct addrinfo *addrinfo, const UA_ListenerSo
         goto error;
     }
 
+    struct sockaddr_storage returned_addr;
+    memset(&returned_addr, 0, sizeof(returned_addr));
+    socklen_t len = sizeof(returned_addr);
+    if(UA_getsockname((UA_SOCKET)sock->socket.id, (struct sockaddr *)&returned_addr, &len) < 0) {
+        UA_LOG_SOCKET_ERRNO_WRAP(
+            UA_LOG_WARNING(sock->socket.logger, UA_LOGCATEGORY_NETWORK,
+                           "Error getting the socket port on server socket: %s", errno_str));
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    UA_UInt16 port = 0;
+    if(returned_addr.ss_family == AF_INET)
+        port = UA_ntohs(((struct sockaddr_in *)&returned_addr)->sin_port);
+    else if(returned_addr.ss_family == AF_INET6)
+        port = UA_ntohs(((struct sockaddr_in6 *)&returned_addr)->sin6_port);
+
+    *discoveryUrl = tcp_sock_getDiscoveryUrl(&sock->socket, port, &sock->customHostname);
+
     retval = tcp_sock_set_func_pointers((UA_Socket *)sock);
     if(retval != UA_STATUSCODE_GOOD) {
         goto error;
@@ -285,8 +282,8 @@ UA_TCP_ListenerSockets(void *application, const UA_ListenerSocketConfig *paramet
                        UA_String **discoveryUrls, size_t *discoveryUrlsSize) {
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(parameters == NULL) {
-        return retval;
+    if(parameters == NULL || discoveryUrls == NULL || discoveryUrlsSize == NULL) {
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
     char portNumber[6];
@@ -300,15 +297,26 @@ UA_TCP_ListenerSockets(void *application, const UA_ListenerSocketConfig *paramet
     if(UA_getaddrinfo(NULL, portNumber, &hints, &res) != 0)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    /* There might be several addrinfos (for different network cards,
-     * IPv4/IPv6). Add a server socket for all of them. */
+
     size_t sockets_size = 0;
     for(struct addrinfo *ai = res;
         sockets_size < FD_SETSIZE && ai != NULL;
-        ai = ai->ai_next, ++sockets_size) {
+        ai = ai->ai_next, ++sockets_size);
+
+    *discoveryUrls = (UA_String *)UA_Array_new(sockets_size, &UA_TYPES[UA_TYPES_STRING]);
+    if(*discoveryUrls == NULL)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    *discoveryUrlsSize = sockets_size;
+
+    /* There might be several addrinfos (for different network cards,
+     * IPv4/IPv6). Add a server socket for all of them. */
+    size_t i = 0;
+    for(struct addrinfo *ai = res;
+        i < FD_SETSIZE && ai != NULL;
+        ai = ai->ai_next, ++i) {
         UA_Socket *sock = NULL;
         UA_TCP_ListenerSocketFromAddrinfo(ai, parameters,
-                                          onAccept,
+                                          onAccept, &(*discoveryUrls)[i],
                                           &sock);
         if(sock == NULL) {
             // TODO: Log error?

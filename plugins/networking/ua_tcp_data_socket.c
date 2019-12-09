@@ -91,7 +91,6 @@ UA_TCP_DataSocket_clean(UA_Socket *sock) {
 
     if((UA_SOCKET)sock->id != UA_INVALID_SOCKET)
         UA_close((UA_SOCKET)sock->id);
-    UA_String_deleteMembers(&sock->discoveryUrl);
     UA_ByteString_deleteMembers(&internalSocket->receiveBuffer);
     UA_ByteString_deleteMembers(&internalSocket->sendBuffer);
     return UA_STATUSCODE_GOOD;
@@ -386,7 +385,6 @@ UA_TCP_DataSocket_init(UA_UInt64 sockFd,
         logger = networkManager->logger;
 
     sock->socket.application = application;
-    sock->socket.isListener = false;
     sock->socket.id = (UA_UInt64)sockFd;
     sock->socket.close = UA_TCP_DataSocket_close;
     sock->socket.mayDelete = UA_TCP_DataSocket_mayDelete;
@@ -482,13 +480,6 @@ UA_TCP_DataSocket_AcceptFrom(UA_Socket *listenerSocket, const UA_SocketConfig *p
         UA_close(newSockFd);
         UA_free(sock);
         return retval;
-    }
-
-    retval = UA_String_copy(&listenerSocket->discoveryUrl, &sock->socket.discoveryUrl);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(listenerSocket->logger, UA_LOGCATEGORY_NETWORK,
-                     "Failed to copy discovery url while creating data socket");
-        goto error;
     }
 
     retval = UA_socket_set_nonblocking(newSockFd);
