@@ -184,7 +184,6 @@ UA_WSS_DataSocket_AcceptFrom(UA_Socket *listenerSocket, const UA_SocketConfig *p
     sock->socket.socket.networkManager = parameters->networkManager;
     sock->socket.socket.waitForWriteActivity = false;
     sock->socket.socket.waitForReadActivity = false;
-    sock->socket.socket.isListener = false;
     sock->socket.socket.application = listenerSocket->application;
     sock->socket.closeOnNextCallback = false;
     sock->lwsContext = (struct lws_context *)extraParams->lwsContext;

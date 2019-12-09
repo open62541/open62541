@@ -67,8 +67,6 @@ wss_clean(UA_Socket *socket) {
     UA_LOG_DEBUG(socket->networkManager->logger, UA_LOGCATEGORY_NETWORK,
                  "Deleting wss listener socket with id %lu", socket->id);
 
-    UA_String_deleteMembers(&socket->discoveryUrl);
-
     UA_StatusCode retval = UA_SocketCallback_call(socket->cleanCallback, socket);
     UA_Socket_wssListener *const internalSocket = (UA_Socket_wssListener *const)socket;
     lws_context_destroy(internalSocket->lwsContext);
@@ -232,11 +230,11 @@ callback_opcua(struct lws *wsi, enum lws_callback_reasons reason, void *user, vo
     }
 
     case LWS_CALLBACK_RECEIVE: {
-        if(currentSocket == NULL || currentSocket->socket.isListener)
+        if(currentSocket == NULL)
             break;
 
         UA_ByteString message = {len, (UA_Byte *)in};
-        currentSocket->socket.dataCallback(&message, (UA_Socket *)currentSocket);
+        UA_Socket_DataCallback_call(&currentSocket->socket, &message);
         break;
     }
 
@@ -313,7 +311,6 @@ UA_WSS_ListenerSocket(void *application, const UA_ListenerSocketConfig *paramete
     sock->socket.socket.networkManager = parameters->socketConfig.networkManager;
     sock->socket.socket.waitForWriteActivity = false;
     sock->socket.socket.waitForReadActivity = false;
-    sock->socket.socket.isListener = true;
     sock->socket.socket.application = application;
 
     sock->recvBufferSize = parameters->socketConfig.recvBufferSize;
@@ -342,14 +339,18 @@ UA_WSS_ListenerSocket(void *application, const UA_ListenerSocketConfig *paramete
     }
     // null terminate
     du.length += 1;
-    UA_String_copy(&du, &sock->socket.socket.discoveryUrl);
+    *discoveryUrls = (UA_String *)UA_Array_new(1, &UA_TYPES[UA_TYPES_STRING]);
+    if(*discoveryUrls == NULL)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    *discoveryUrlsSize = 1;
+    UA_String_copy(&du, &(*discoveryUrls)[0]);
     // remove null byte from ua string. memory still has null byte
-    sock->socket.socket.discoveryUrl.length -= 1;
+    (*discoveryUrls)[0].length -= 1;
 
     UA_LOG_INFO(parameters->socketConfig.networkManager->logger, UA_LOGCATEGORY_NETWORK,
                 "Websocket network layer listening on %.*s",
-                (int)sock->socket.socket.discoveryUrl.length,
-                sock->socket.socket.discoveryUrl.data);
+                (int)(*discoveryUrls)[0].length,
+                (*discoveryUrls)[0].data);
 
     struct lws_context_creation_info info;
     int logLevel = LLL_USER | LLL_ERR | LLL_WARN | LLL_NOTICE | LLL_INFO | LLL_DEBUG;
@@ -357,7 +358,7 @@ UA_WSS_ListenerSocket(void *application, const UA_ListenerSocketConfig *paramete
     memset(&info, 0, sizeof(info));
     info.port = parameters->socketConfig.port;
     info.protocols = protocols;
-    info.vhost_name = (char *)sock->socket.socket.discoveryUrl.data;
+    info.vhost_name = (char *)(*discoveryUrls)[0].data;
     info.ws_ping_pong_interval = 10;
     info.options = LWS_SERVER_OPTION_HTTP_HEADERS_SECURITY_BEST_PRACTICES_ENFORCE | LWS_SERVER_OPTION_EXPLICIT_VHOSTS;
     info.pvo = &pvo;
@@ -376,6 +377,7 @@ UA_WSS_ListenerSocket(void *application, const UA_ListenerSocketConfig *paramete
     if(!vhost) {
         UA_LOG_ERROR(sock->socket.socket.networkManager->logger, UA_LOGCATEGORY_NETWORK,
                      "vhost creation failed\n");
+        UA_Array_delete(*discoveryUrls, *discoveryUrlsSize, &UA_TYPES[UA_TYPES_STRING]);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     if(parameters->socketConfig.networkManager != NULL) {
