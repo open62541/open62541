@@ -105,18 +105,10 @@ addMdnsRecordForDiscoveryUrl(UA_Server *server, const UA_String *appName,
 
 void startMulticastDiscoveryServer(UA_Server *server) {
     UA_String *appName = &server->config.discovery.mdns.mdnsServerName;
-    UA_String *discoveryUrls;
-    size_t discoveryUrlsSize;
-    UA_StatusCode retval =
-        server->config.networkManager->getDiscoveryUrls(server->config.networkManager,
-                                                        &discoveryUrls, &discoveryUrlsSize);
-    if(retval != UA_STATUSCODE_GOOD)
-        return;
 
-    for(size_t i = 0; i < discoveryUrlsSize; i++)
-        addMdnsRecordForDiscoveryUrl(server, appName, discoveryUrls[i]);
+    for(size_t i = 0; i < server->discoveryUrlsSize; i++)
+        addMdnsRecordForDiscoveryUrl(server, appName, server->discoveryUrls[i]);
 
-    UA_free(discoveryUrls);
     /* find any other server on the net */
     UA_Discovery_multicastQuery(server);
 

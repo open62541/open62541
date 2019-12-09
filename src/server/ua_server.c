@@ -288,6 +288,8 @@ UA_Server_init(UA_Server *server) {
     server->namespacesSize = 2;
 
     /* Initialized SecureChannel and Session managers */
+    server->discoveryUrls = NULL;
+    server->discoveryUrlsSize = 0;
     UA_ConnectionManager_init(&server->connectionManager, &server->config.logger);
     UA_SecureChannelManager_init(&server->secureChannelManager, server);
     UA_SessionManager_init(&server->sessionManager, server);
@@ -553,11 +555,11 @@ UA_Server_run_startup(UA_Server *server) {
     setupNs1Uri(server);
 
     /* write ServerArray with same ApplicationURI value as NamespaceArray */
-    UA_StatusCode retVal = writeNs0VariableArray(server, UA_NS0ID_SERVER_SERVERARRAY,
-                                    &server->config.applicationDescription.applicationUri,
-                                    1, &UA_TYPES[UA_TYPES_STRING]);
-    if(retVal != UA_STATUSCODE_GOOD)
-        return retVal;
+    UA_StatusCode retval = writeNs0VariableArray(server, UA_NS0ID_SERVER_SERVERARRAY,
+                                                 &server->config.applicationDescription.applicationUri,
+                                                 1, &UA_TYPES[UA_TYPES_STRING]);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
     if(server->state > UA_SERVERLIFECYCLE_FRESH)
         return UA_STATUSCODE_GOOD;
@@ -575,9 +577,9 @@ UA_Server_run_startup(UA_Server *server) {
 
     /* Does the ApplicationURI match the local certificates? */
 #ifdef UA_ENABLE_ENCRYPTION
-    retVal = verifyServerApplicationURI(server);
-    if(retVal != UA_STATUSCODE_GOOD)
-        return retVal;
+    retval = verifyServerApplicationURI(server);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 #endif
 
     /* Sample the start time and set it to the Server object */
@@ -593,13 +595,37 @@ UA_Server_run_startup(UA_Server *server) {
         return UA_STATUSCODE_BADINTERNALERROR;
     server->config.networkManager->start(server->config.networkManager);
 
+    typedef struct {
+        UA_String *urls;
+        size_t urlsSize;
+    } DiscUrlsArray;
+
+    size_t discoveryUrlsArraySize = server->config.listenerSocketConfigsSize;
+    UA_STACKARRAY(DiscUrlsArray, discoveryUrlsArray, discoveryUrlsArraySize);
+    size_t totalDiscUrls = 0;
+
     /* Delayed creation of the server sockets. */
     for(size_t i = 0; i < server->config.listenerSocketConfigsSize; ++i) {
         UA_ListenerSocketConfig listenerSocketConfig = server->config.listenerSocketConfigs[i];
 
         listenerSocketConfig.createSocket(server, &listenerSocketConfig,
                                           createConnection, open_listener_socket,
-                                          NULL, NULL);
+                                          &discoveryUrlsArray[i].urls, &discoveryUrlsArray[i].urlsSize);
+        totalDiscUrls += discoveryUrlsArray[i].urlsSize;
+    }
+
+    server->discoveryUrls = (UA_String *)UA_Array_new(totalDiscUrls, &UA_TYPES[UA_TYPES_STRING]);
+    if(server->discoveryUrls == NULL)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    server->discoveryUrlsSize = totalDiscUrls;
+
+    size_t discUrlOffset = 0;
+    for(size_t i = 0; i < discoveryUrlsArraySize; ++i) {
+        for(size_t j = 0; j < discoveryUrlsArray[i].urlsSize && discUrlOffset < totalDiscUrls; ++j) {
+            UA_String_copy(&discoveryUrlsArray[i].urls[j], &server->discoveryUrls[discUrlOffset]);
+            ++discUrlOffset;
+        }
+        UA_Array_delete(discoveryUrlsArray[i].urls, discoveryUrlsArray[i].urlsSize, &UA_TYPES[UA_TYPES_STRING]);
     }
 
     /* Update the application description to match the previously added discovery urls.
@@ -610,16 +636,15 @@ UA_Server_run_startup(UA_Server *server) {
                         &UA_TYPES[UA_TYPES_STRING]);
         server->config.applicationDescription.discoveryUrlsSize = 0;
     }
-    // TODO: Rework for new networking?
-//    server->config.applicationDescription.discoveryUrls = (UA_String *)
-//        UA_Array_new(server->config.networkLayersSize, &UA_TYPES[UA_TYPES_STRING]);
-//    if(!server->config.applicationDescription.discoveryUrls)
-//        return UA_STATUSCODE_BADOUTOFMEMORY;
-//    server->config.applicationDescription.discoveryUrlsSize = server->config.networkLayersSize;
-//    for(size_t i = 0; i < server->config.applicationDescription.discoveryUrlsSize; i++) {
-//        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
-//        UA_String_copy(&nl->discoveryUrl, &server->config.applicationDescription.discoveryUrls[i]);
-//    }
+
+    server->config.applicationDescription.discoveryUrls = (UA_String *)
+        UA_Array_new(server->discoveryUrlsSize, &UA_TYPES[UA_TYPES_STRING]);
+    if(!server->config.applicationDescription.discoveryUrls)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    server->config.applicationDescription.discoveryUrlsSize = server->discoveryUrlsSize;
+    for(size_t i = 0; i < server->config.applicationDescription.discoveryUrlsSize; i++) {
+        UA_String_copy(&server->discoveryUrls[i], &server->config.applicationDescription.discoveryUrls[i]);
+    }
 
     /* Spin up the worker threads */
 #if UA_MULTITHREADING >= 200
@@ -724,6 +749,8 @@ UA_Server_run_shutdown(UA_Server *server) {
 
     /* Execute all delayed callbacks */
     UA_WorkQueue_cleanup(&server->workQueue);
+
+    UA_Array_delete(server->discoveryUrls, server->discoveryUrlsSize, &UA_TYPES[UA_TYPES_STRING]);
 
     return UA_STATUSCODE_GOOD;
 }

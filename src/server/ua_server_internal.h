@@ -74,6 +74,8 @@ struct UA_Server {
     UA_ServerLifecycle state;
     /* Networking */
     UA_ConnectionManager connectionManager;
+    UA_String *discoveryUrls;
+    size_t discoveryUrlsSize;
 
     /* Security */
     UA_SecureChannelManager secureChannelManager;
