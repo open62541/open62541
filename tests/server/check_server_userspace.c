@@ -149,23 +149,15 @@ START_TEST(Server_set_customHostname) {
     // TODO when we have more network layers, extend this
     ck_assert_uint_ge(config->listenerSocketConfigsSize, 1);
 
-    UA_String *discoveryUrls;
-    size_t discoveryUrlsSize;
-
-    retval = server->config.networkManager->getDiscoveryUrls(server->config.networkManager,
-                                                             &discoveryUrls,
-                                                             &discoveryUrlsSize);
-
     ck_assert(retval == UA_STATUSCODE_GOOD);
-    for(size_t i = 0; i < discoveryUrlsSize; i++) {
+    for(size_t i = 0; i < server->discoveryUrlsSize; i++) {
         char discoveryUrl[256];
         int len = snprintf(discoveryUrl, 255, "opc.tcp://%.*s:%d/", (int)customHost.length, customHost.data, port);
-        ck_assert_int_eq(discoveryUrls[i].length, len);
-        ck_assert(strncmp(discoveryUrl, (char *)discoveryUrls[i].data, len) == 0);
+        ck_assert_int_eq(server->discoveryUrls[i].length, len);
+        ck_assert(strncmp(discoveryUrl, (char *)server->discoveryUrls[i].data, len) == 0);
     }
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
-    UA_free(discoveryUrls);
 }
 END_TEST
 

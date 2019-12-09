@@ -70,8 +70,6 @@ createDummySocket(UA_ByteString *verificationBuffer) {
     UA_Socket sock;
     memset(&sock, 0, sizeof(UA_Socket));
     sock.mayDelete = dummyMayDelete;
-    sock.discoveryUrl = UA_STRING_NULL;
-    sock.isListener = false;
     sock.id = 42;
     sock.send = dummySend;
     sock.acquireSendBuffer = dummyGetSendBuffer;
