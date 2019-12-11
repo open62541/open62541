@@ -140,16 +140,15 @@ initUaRegisterServer(UA_RegisteredServer *requestServer) {
     requestServer->gatewayServerUri = server->config.applicationDescription.gatewayServerUri;
 
     // create the semaphore
-    int fd = open("/tmp/open62541-corpus-semaphore", O_RDWR|O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
+    int fd = open("/tmp/open62541-corpus-semaphore", O_RDWR | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
     close(fd);
     requestServer->semaphoreFilePath = UA_STRING("/tmp/open62541-corpus-semaphore");
 
     requestServer->serverNames = &server->config.applicationDescription.applicationName;
     requestServer->serverNamesSize = 1;
 
-    server->config.networkManager->getDiscoveryUrls(server->config.networkManager,
-                                                    &requestServer->discoveryUrls,
-                                                    &requestServer->discoveryUrlsSize);
+    requestServer->discoveryUrls = server->discoveryUrls;
+    requestServer->discoveryUrlsSize = server->discoveryUrlsSize;
 }
 
 static UA_StatusCode
