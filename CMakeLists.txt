@@ -19,6 +19,50 @@ set(open62541_NODESET_DIR ${PROJECT_SOURCE_DIR}/deps/ua-nodeset)
 
 include(macros_internal)
 include(macros_public)
+include(functions/check_add_cc_flag)
+
+################################
+# Check for lld or gold linker #
+################################
+
+set(UA_LINKER "LLD" CACHE STRING "Use a linker other than the default one. (GOLD, LLD)")
+SET_PROPERTY(CACHE UA_LINKER PROPERTY STRINGS "DEFAULT" "LLD" "GOLD")
+mark_as_advanced(UA_LINKER)
+
+if(UA_LINKER STREQUAL "LLD")
+    message("Checking for lld support")
+    execute_process(COMMAND "ld.lld" --version ERROR_QUIET OUTPUT_VARIABLE LD_VERSION)
+    if("${LD_VERSION}" MATCHES "LLD")
+        message("lld found. Using lld linker. Version: ${LD_VERSION}")
+        set(CMAKE_LINKER "ld.lld")
+        check_c_compiler_flag("-fuse-ld=lld" fuse-ld_supported)
+
+        # setup linking commands
+        set(CMAKE_CXX_LINK_EXECUTABLE
+            "<CMAKE_CXX_COMPILER> -fuse-ld=lld <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS>  -o <TARGET> <LINK_LIBRARIES>")
+        set(CMAKE_C_LINK_EXECUTABLE
+            "<CMAKE_C_COMPILER> -fuse-ld=lld <FLAGS> <CMAKE_C_LINK_FLAGS> <LINK_FLAGS> <OBJECTS>  -o <TARGET> <LINK_LIBRARIES>")
+    else()
+        message("lld not found. Using the default linker")
+    endif()
+endif()
+if(UA_LINKER STREQUAL "GOLD")
+    message("Checking for gold support")
+    execute_process(COMMAND "gold" --version ERROR_QUIET OUTPUT_VARIABLE GOLD_VERSION)
+    if("${GOLD_VERSION}" MATCHES "GNU gold")
+        message("gold found. Using gold linker. Version: ${GOLD_VERSION}")
+        set(CMAKE_LINKER "gold")
+        check_c_compiler_flag("-fuse-ld=gold" fuse-ld_supported)
+
+        # setup linking commands
+        set(CMAKE_CXX_LINK_EXECUTABLE
+            "<CMAKE_CXX_COMPILER> -fuse-ld=gold <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS>  -o <TARGET> <LINK_LIBRARIES>")
+        set(CMAKE_C_LINK_EXECUTABLE
+            "<CMAKE_C_COMPILER> -fuse-ld=gold <FLAGS> <CMAKE_C_LINK_FLAGS> <LINK_FLAGS> <OBJECTS>  -o <TARGET> <LINK_LIBRARIES>")
+    else()
+        message("gold not found. Using the default linker")
+    endif()
+endif()
 
 #############################
 # Compiled binaries folders #
@@ -418,23 +462,9 @@ endif()
 # Compiler Settings #
 #####################
 
-# Check if a C compiler flag is supported and add it (if supported)
-# Taken from https://stackoverflow.com/a/33266748
-include(CheckCCompilerFlag)
-function(check_add_cc_flag CC_FLAG)
-    string(FIND "${CMAKE_C_FLAGS}" "${CC_FLAG}" flag_already_set)
-    if(flag_already_set EQUAL -1)
-        message(STATUS "Test CC flag ${CC_FLAG}")
-        check_c_compiler_flag("${CC_FLAG}" flag_supported)
-        if(flag_supported)
-            set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CC_FLAG}" PARENT_SCOPE)
-        endif()
-        unset(flag_supported CACHE)
-    endif()
-endfunction()
-
 if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang"))
     check_add_cc_flag("-std=c99")   # C99 mode
+    check_add_cc_flag("-Qunused-arguments")   # clang10 complains about some unused arguments during link stage
     check_add_cc_flag("-pipe")      # Avoid writing temporary files (for compiler speed)
     check_add_cc_flag("-Wall")      # Warnings
     check_add_cc_flag("-Wextra")    # More warnings
