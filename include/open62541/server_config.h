@@ -18,7 +18,7 @@
 #include <open62541/plugin/securitypolicy.h>
 #include <open62541/server.h>
 #include <open62541/connection.h>
-#include "open62541/plugin/networkmanager.h"
+#include <open62541/plugin/networkmanager.h>
 
 #ifdef UA_ENABLE_PUBSUB
 #include <open62541/plugin/pubsub.h>
