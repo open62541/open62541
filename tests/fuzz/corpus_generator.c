@@ -170,7 +170,6 @@ registerServerRequest(UA_Client *client) {
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_REGISTERSERVERREQUEST],
                         &response, &UA_TYPES[UA_TYPES_REGISTERSERVERRESPONSE]);
 
-    UA_free(request.server.discoveryUrls);
     ASSERT_GOOD(response.responseHeader.serviceResult);
 
     return UA_STATUSCODE_GOOD;
@@ -202,7 +201,6 @@ registerServer2Request(UA_Client *client) {
                         &response, &UA_TYPES[UA_TYPES_REGISTERSERVER2RESPONSE]);
 
     ASSERT_GOOD(response.responseHeader.serviceResult);
-    UA_free(request.server.discoveryUrls);
     UA_ExtensionObject_delete(request.discoveryConfiguration);
 
     UA_RegisterServer2Response_deleteMembers(&response);
