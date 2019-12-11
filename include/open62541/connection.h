@@ -12,6 +12,7 @@
 
 #include <open62541/server.h>
 #include <open62541/plugin/log.h>
+#include <open62541/plugin/socket.h>
 #include "open62541_queue.h"
 
 _UA_BEGIN_DECLS
