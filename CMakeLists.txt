@@ -465,6 +465,8 @@ if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID
             # future use (control flow integrity protection)
             check_add_cc_flag("-mcet")
             check_add_cc_flag("-fcf-protection")
+            # enable position independent code to allow ASLR
+            check_add_cc_flag("-fPIC")
         endif()
 
         # IPO requires too much memory for unit tests
@@ -516,7 +518,6 @@ if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID
         check_add_cc_flag("-fno-unwind-tables")
         check_add_cc_flag("-fno-asynchronous-unwind-tables")
         check_add_cc_flag("-fno-math-errno")
-        check_add_cc_flag("-fno-ident")
 
         # remove stack-protector with MinSizeRel
         if(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel")

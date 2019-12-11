@@ -31,8 +31,10 @@ static UA_Server *server;
 static UA_NodeId readNodeIds[READNODES];
 
 static void setup(void) {
-    server = UA_Server_new();
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
+    UA_ServerConfig config;
+    memset(&config, 0, sizeof(UA_ServerConfig));
+    UA_Nodestore_HashMap(&config.nodestore);
+    server = UA_Server_newWithConfig(&config);
 
     TestingPolicy(&dummyPolicy, UA_BYTESTRING_NULL, &funcsCalled, &keySizes);
     UA_SecureChannel_init(&testChannel);
