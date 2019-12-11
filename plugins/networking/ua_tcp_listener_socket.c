@@ -277,7 +277,7 @@ error:
 
 UA_StatusCode
 UA_TCP_ListenerSockets(void *application, const UA_ListenerSocketConfig *parameters,
-                       UA_SocketCallbackFunction onAccept,
+                       const UA_SocketCallbackFunction onAccept,
                        const UA_SocketCallbackFunction creationCallback,
                        UA_String **discoveryUrls, size_t *discoveryUrlsSize) {
 
