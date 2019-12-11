@@ -38,7 +38,7 @@ select_nm_allocateSocket(UA_NetworkManager *networkManager, size_t socketSize) {
                      "Cannot create socket on uninitialized or shutdown network manager");
         return NULL;
     }
-    if(socketSize <= 0) {
+    if(socketSize == 0) {
         UA_LOG_ERROR(networkManager->logger, UA_LOGCATEGORY_NETWORK,
                      "Size to allocate has to be greater than zero");
         return NULL;
@@ -158,6 +158,7 @@ select_nm_process(UA_NetworkManager *networkManager, UA_UInt16 timeout) {
             LIST_REMOVE(socketListEntry, pointers);
             UA_free(socketListEntry);
             --internalManager->numSockets;
+            continue;
         }
         UA_Boolean readActivity = UA_fd_isset((UA_SOCKET)socket->id, &readfdset);
         UA_Boolean writeActivity = UA_fd_isset((UA_SOCKET)socket->id, &writefdset);

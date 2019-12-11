@@ -333,9 +333,10 @@ UA_TCP_ListenerSockets(void *application, const UA_ListenerSocketConfig *paramet
         }
         retval = UA_SocketCallback_call(creationCallback, sock);
         if(retval != UA_STATUSCODE_GOOD)
-            UA_LOG_ERROR(parameters->socketConfig.networkManager->logger, UA_LOGCATEGORY_NETWORK,
-                         "Error calling socket callback %s",
-                         UA_StatusCode_name(retval));
+            if(parameters->socketConfig.networkManager != NULL)
+                UA_LOG_ERROR(parameters->socketConfig.networkManager->logger, UA_LOGCATEGORY_NETWORK,
+                             "Error calling socket callback %s",
+                             UA_StatusCode_name(retval));
     }
     UA_freeaddrinfo(res);
 
