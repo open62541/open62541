@@ -24,6 +24,8 @@
 
 #define UA_MAX_SIZENAME 64  /* Max size of Qualified Name of Subscribed Variable */
 
+UA_UInt64 subscribedcounter[DATETIME_NODECOUNTS + 1];
+
 /***************/
 /* ReaderGroup */
 /***************/
@@ -290,13 +292,14 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
 
     connection->channel->receive(connection->channel, &buffer, NULL, 1000);
     if(buffer.length > 0) {
-        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_USERLAND, "Message received:");
+//        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_USERLAND, "Message received:");
         UA_NetworkMessage currentNetworkMessage;
         memset(&currentNetworkMessage, 0, sizeof(UA_NetworkMessage));
         size_t currentPosition = 0;
         UA_NetworkMessage_decodeBinary(&buffer, &currentPosition, &currentNetworkMessage);
         UA_Server_processNetworkMessage(server, &currentNetworkMessage, connection);
         UA_NetworkMessage_deleteMembers(&currentNetworkMessage);
+
     }
 
     UA_ByteString_deleteMembers(&buffer);
@@ -620,7 +623,9 @@ UA_Server_DataSetReader_process(UA_Server *server, UA_DataSetReader *dataSetRead
             for(UA_UInt16 i = 0; i < anzFields; i++) {
                 if(dataSetMsg->data.keyFrameData.dataSetFields[i].hasValue) {
                     if(dataSetReader->subscribedDataSetTarget.targetVariables[i].attributeId == UA_ATTRIBUTEID_VALUE) {
-                        retVal = UA_Server_writeValue(server, dataSetReader->subscribedDataSetTarget.targetVariables[i].targetNodeId, dataSetMsg->data.keyFrameData.dataSetFields[i].value);
+                       // retVal = UA_Server_writeValue(server, dataSetReader->subscribedDataSetTarget.targetVariables[i].targetNodeId, dataSetMsg->data.keyFrameData.dataSetFields[i].value);
+                        subscribedcounter[i] = *(UA_UInt64 *) dataSetMsg->data.keyFrameData.dataSetFields[i].value.data;
+
                         if(retVal != UA_STATUSCODE_GOOD) {
                             UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Error Write Value KF %u: 0x%x", i, retVal);
                         }

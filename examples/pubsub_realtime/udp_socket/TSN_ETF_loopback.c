@@ -92,10 +92,10 @@ UA_DataSetReaderConfig readerConfig;
 #define             CONNECTION_NUMBER                     2
 #define             PORT_NUMBER                           62541
 #define             FAILURE_EXIT                          -1
-#define             DATETIME_NODECOUNTS                   4
 #define             CLOCKID                               CLOCK_TAI
 #define             ETH_TRANSPORT_PROFILE                 "http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp"
 #define             UDP_TRANSPORT_PROFILE                 "http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp"
+#define             PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
 
 /* This is a hardcoded publisher/subscriber IP address. If the IP address need
  * to be changed for running over UDP, change it in the below lines.
@@ -134,9 +134,12 @@ UA_NodeId           DateNodeIDSub;
 UA_ServerCallback   pubCallback;
 /* Variables for counter data handling in address space */
 UA_UInt64           pubCounterData         = 0;
+UA_UInt64           currentTime            = 10;
 UA_UInt64           subCounterData         = 0;
 UA_Variant          pubCounter;
 UA_Variant          subCounter;
+
+extern UA_UInt64 subscribedcounter[DATETIME_NODECOUNTS + 1];
 
 /* For adding nodes in the server information model */
 static void addServerNodes(UA_Server *server);
@@ -241,6 +244,9 @@ addPubSubConnection1(UA_Server *server, UA_NetworkAddressUrlDataType *networkAdd
     retval |= UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdentSubscriber);
     if (retval == UA_STATUSCODE_GOOD)
          UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,"The PubSub Connection was created successfully!");
+#ifndef UA_ENABLE_PUBSUB_ETH_UADP
+         retval |= UA_PubSubConnection_regist(server, &connectionIdentSubscriber);
+#endif
 }
 /* Add ReaderGroup to the created connection */
 static void
@@ -267,7 +273,11 @@ addDataSetReader(UA_Server *server) {
 
     memset (&readerConfig, 0, sizeof(UA_DataSetReaderConfig));
     readerConfig.name                 = UA_STRING("DataSet Reader");
-    readerConfig.dataSetWriterId      = DATA_SET_WRITER_ID;
+    UA_UInt16 publisherIdentifier     = 2234;
+    readerConfig.publisherId.type     = &UA_TYPES[UA_TYPES_UINT16];
+    readerConfig.publisherId.data     = &publisherIdentifier;
+    readerConfig.writerGroupId        = 100;
+    readerConfig.dataSetWriterId      = 62541;
 
     /* Setting up Meta data configuration in DataSetReader */
     UA_DataSetMetaDataType *pMetaData = &readerConfig.dataSetMetaData;
@@ -277,12 +287,17 @@ addDataSetReader(UA_Server *server) {
     pMetaData->fieldsSize             = DATETIME_NODECOUNTS + 1;
     pMetaData->fields                 = (UA_FieldMetaData*)UA_Array_new (pMetaData->fieldsSize,
                                                                          &UA_TYPES[UA_TYPES_FIELDMETADATA]);
+/*    UA_FieldMetaData_init (&pMetaData->fields[0]);
+    UA_NodeId_copy (&UA_TYPES[UA_TYPES_UINT64].typeId,
+                    &pMetaData->fields[0].dataType);
+    pMetaData->fields[0].builtInType  = UA_NS0ID_UINT64;
+    pMetaData->fields[0].valueRank    = -1; */
     for (iterator = 0; iterator < DATETIME_NODECOUNTS; iterator++)
     {
         UA_FieldMetaData_init (&pMetaData->fields[iterator]);
-        UA_NodeId_copy (&UA_TYPES[UA_TYPES_DATETIME].typeId,
+        UA_NodeId_copy (&UA_TYPES[UA_TYPES_UINT64].typeId,
                          &pMetaData->fields[iterator].dataType);
-        pMetaData->fields[iterator].builtInType  = UA_NS0ID_DATETIME;
+        pMetaData->fields[iterator].builtInType  = UA_NS0ID_UINT64;
         pMetaData->fields[iterator].valueRank    = -1; /* scalar */
     }
     /* Unsigned Integer DataType */
@@ -310,16 +325,21 @@ static void addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId
     targetVars.targetVariables     = (UA_FieldTargetDataType *)
                                       UA_calloc(targetVars.targetVariablesSize,
                                       sizeof(UA_FieldTargetDataType));
-    for (iterator = 0; iterator < DATETIME_NODECOUNTS; iterator++)
-    {
-        UA_FieldTargetDataType_init(&targetVars.targetVariables[iterator]);
-        targetVars.targetVariables[iterator].attributeId  = UA_ATTRIBUTEID_VALUE;
-        targetVars.targetVariables[iterator].targetNodeId = UA_NODEID_NUMERIC(1, (UA_UInt32)iterator + 50000);
-    }
     /* For creating Targetvariable */
     UA_FieldTargetDataType_init(&targetVars.targetVariables[iterator]);
     targetVars.targetVariables[iterator].attributeId  = UA_ATTRIBUTEID_VALUE;
     targetVars.targetVariables[iterator].targetNodeId = UA_NODEID_STRING(1, "SubscriberCounter");
+
+    for (iterator = 1; iterator < DATETIME_NODECOUNTS + 1; iterator++)
+    {
+        UA_FieldTargetDataType_init(&targetVars.targetVariables[iterator]);
+        targetVars.targetVariables[iterator].attributeId  = UA_ATTRIBUTEID_VALUE;
+        targetVars.targetVariables[iterator].targetNodeId = UA_NODEID_NUMERIC(1, (UA_UInt32)(iterator-1) + 50000);
+    }
+    /* For creating Targetvariable */
+/*    UA_FieldTargetDataType_init(&targetVars.targetVariables[iterator]);
+    targetVars.targetVariables[iterator].attributeId  = UA_ATTRIBUTEID_VALUE;
+    targetVars.targetVariables[iterator].targetNodeId = UA_NODEID_STRING(1, "SubscriberCounter");*/
     UA_Server_DataSetReader_createTargetVariables(server, dataSetReaderId,
                                                   &targetVars);
 }
@@ -365,7 +385,7 @@ addPubSubConnection(UA_Server *server, UA_NetworkAddressUrlDataType *networkAddr
 #endif
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherId.numeric           = UA_UInt32_random();
+    connectionConfig.publisherId.numeric           = 2235;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
 }
 
@@ -396,23 +416,46 @@ addDataSetField(UA_Server *server) {
     UA_NodeId dataSetFieldIdent;
     UA_DataSetFieldConfig counterValue;
     memset(&counterValue, 0, sizeof(UA_DataSetFieldConfig));
+#if defined PUB_WITH_INFORMATION_MODEL
     counterValue.dataSetFieldType                                   = UA_PUBSUB_DATASETFIELD_VARIABLE;
     counterValue.field.variable.fieldNameAlias                      = UA_STRING("Counter Variable");
     counterValue.field.variable.promotedField                       = UA_FALSE;
     counterValue.field.variable.publishParameters.publishedVariable = pubNodeID;
     counterValue.field.variable.publishParameters.attributeId       = UA_ATTRIBUTEID_VALUE;
+#endif
+#if defined PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
+    counterValue.field.variable.staticValueSourceEnabled = UA_TRUE;
+    UA_DataValue_init(&counterValue.field.variable.staticValueSource);
+    UA_Variant_setScalar(&counterValue.field.variable.staticValueSource.value,
+                         &subCounterData, &UA_TYPES[UA_TYPES_UINT64]);
+    counterValue.field.variable.staticValueSource.value.storageType = UA_VARIANT_DATA_NODELETE;
+    //counterValue.field.variable.staticValueSource.value =  variant;
+#endif
     UA_Server_addDataSetField(server, publishedDataSetIdent, &counterValue, &dataSetFieldIdent);
     UA_NodeId dataSetFieldIdent1;
     for (UA_Int32 iterator = 0; iterator < DATETIME_NODECOUNTS; iterator++)
     {
        UA_DataSetFieldConfig dataSetFieldConfig;
        memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
+#if defined PUB_WITH_INFORMATION_MODEL
        dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
        dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Server localtime");
        dataSetFieldConfig.field.variable.promotedField = UA_FALSE;
        dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
-            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+         //   UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+                                UA_NODEID_NUMERIC(1, (UA_UInt32)iterator+10000);
+
        dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
+#endif
+#if defined PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
+//       UA_UInt64  currentTime = 10;//UA_DateTime_now();
+       dataSetFieldConfig.field.variable.staticValueSourceEnabled = UA_TRUE;
+       UA_DataValue_init(&dataSetFieldConfig.field.variable.staticValueSource);
+       UA_Variant_setScalar(&dataSetFieldConfig.field.variable.staticValueSource.value,
+                            &currentTime, &UA_TYPES[UA_TYPES_UINT64]);
+       dataSetFieldConfig.field.variable.staticValueSource.value.storageType = UA_VARIANT_DATA_NODELETE;
+    //dataSetFieldConfig.field.variable.staticValueSource.value =  variant;
+#endif
        UA_Server_addDataSetField(server, publishedDataSetIdent, &dataSetFieldConfig, &dataSetFieldIdent1);
    }
 
@@ -432,6 +475,25 @@ addWriterGroup(UA_Server *server) {
     writerGroupConfig.publishingInterval = PUB_INTERVAL;
     writerGroupConfig.enabled            = UA_FALSE;
     writerGroupConfig.encodingMimeType   = UA_PUBSUB_ENCODING_UADP;
+#if defined PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
+    writerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
+#endif
+    writerGroupConfig.writerGroupId      = 101;
+    writerGroupConfig.messageSettings.encoding             = UA_EXTENSIONOBJECT_DECODED;
+    writerGroupConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
+    /* The configuration flags for the messages are encapsulated inside the
+     * message- and transport settings extension objects. These extension
+     * objects are defined by the standard. e.g.
+     * UadpWriterGroupMessageDataType */
+    UA_UadpWriterGroupMessageDataType *writerGroupMessage  = UA_UadpWriterGroupMessageDataType_new();
+    /* Change message settings of writerGroup to send PublisherId,
+     * WriterGroupId in GroupHeader and DataSetWriterId in PayloadHeader
+     * of NetworkMessage */
+    writerGroupMessage->networkMessageContentMask          = (UA_UadpNetworkMessageContentMask)(UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID |
+                                                              (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_GROUPHEADER |
+                                                              (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_WRITERGROUPID |
+                                                              (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
+    writerGroupConfig.messageSettings.content.decoded.data = writerGroupMessage;
     UA_Server_addWriterGroup(server, connectionIdent, &writerGroupConfig, &writerGroupIdent);
 }
 
@@ -452,6 +514,8 @@ addDataSetWriter(UA_Server *server) {
     dataSetWriterConfig.keyFrameCount   = KEY_FRAME_COUNT;
     UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent,
                                &dataSetWriterConfig, &dataSetWriterIdent);
+    UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent);
+    //UA_Server_setWriterGroupOperational(server, writerGroupIdent);
 }
 #if defined(UPDATE_MEASUREMENTS)
 /**
@@ -506,12 +570,12 @@ void *publisherETF(void *arg) {
     nanoSecondFieldConversion(&nextnanosleeptime);
     while (running) {
         clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptime, NULL);
-        clock_gettime(CLOCKID, &dataModificationTime);
+
         UA_WriterGroup_publishCallback(server, currentWriterGroupCallback);
-#if defined(UPDATE_MEASUREMENTS)
+/*#if defined(UPDATE_MEASUREMENTS)
         if (subCounterData > 0)
              updateMeasurementsPublisher(dataModificationTime, subCounterData);
-#endif
+#endif*/
         nextnanosleeptime.tv_nsec += CYCLE_TIME;
         nanoSecondFieldConversion(&nextnanosleeptime);
       }
@@ -521,7 +585,6 @@ void *publisherETF(void *arg) {
 #endif
 
 #if defined(SUBSCRIBER)
-
 #if defined(UPDATE_MEASUREMENTS)
 /**
  * Subscribed data handling**
@@ -557,7 +620,7 @@ void *subscriber(void *arg) {
         clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptimeSub, NULL);
         /* Read subscribed data from the SubscriberCounter variable */
         UA_ReaderGroup_subscribeCallback(server, currentReaderGroupCallback);
-        clock_gettime(CLOCKID, &dataReceiveTime);
+
         nextnanosleeptimeSub.tv_nsec += CYCLE_TIME;
         nanoSecondFieldConversion(&nextnanosleeptimeSub);
     }
@@ -571,7 +634,7 @@ void *subscriber(void *arg) {
  *
  */
 void *userApplicationPubSub(void *arg) {
-    UA_Server* server;
+   // UA_Server* server;
     struct timespec nextnanosleeptimeUserApplication;
     /* Get current time and compute the next nanosleeptime */
     clock_gettime(CLOCKID, &nextnanosleeptimeUserApplication);
@@ -579,24 +642,40 @@ void *userApplicationPubSub(void *arg) {
     nextnanosleeptimeUserApplication.tv_sec                      += SECONDS_SLEEP;
     nextnanosleeptimeUserApplication.tv_nsec                      = NANO_SECONDS_SLEEP_USER_APPLICATION;
     nanoSecondFieldConversion(&nextnanosleeptimeUserApplication);
-    serverConfigStruct *serverConfig = (serverConfigStruct*)arg;
-    server = serverConfig->ServerRun;
+ //   serverConfigStruct *serverConfig = (serverConfigStruct*)arg;
+  //  server = serverConfig->ServerRun;
     while (running) {
         clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptimeUserApplication, NULL);
-        const UA_NodeId nodeid = UA_NODEID_STRING(1,"SubscriberCounter");
-        UA_Variant_init(&subCounter);
-        UA_Server_readValue(server, nodeid, &subCounter);
-        subCounterData = *(UA_UInt64 *)subCounter.data;
-        UA_Variant_deleteMembers(&subCounter);
+//        const UA_NodeId nodeid = UA_NODEID_STRING(1,"SubscriberCounter");
+
+//        UA_Server_readValue(server, nodeid, &subCounter);
+//        subCounterData = *(UA_UInt64 *)subCounter.data;
+        subCounterData = subscribedcounter[0];
+        clock_gettime(CLOCKID, &dataReceiveTime);
+        clock_gettime(CLOCKID, &dataModificationTime);
+
+#if defined(PUBLISHER) 
+#if defined(PUB_WITH_INFORMATION_MODEL)
+
         UA_Variant_setScalar(&pubCounter, &subCounterData, &UA_TYPES[UA_TYPES_UINT64]);
         UA_NodeId currentNodeId         = UA_NODEID_STRING(1, "PublisherCounter");
         UA_Server_writeValue(server, currentNodeId, pubCounter);
+#endif
 #if defined(UPDATE_MEASUREMENTS)
         if (subCounterData > 0)
         {
              updateMeasurementsSubscriber(dataReceiveTime, subCounterData);
+             updateMeasurementsPublisher(dataModificationTime, subCounterData);
         }
+        /*if (pubCounterData > 0)
+        {
+             updateMeasurementsPublisher(dataModificationTime, pubCounterData);
+        }*/
+
 #endif
+#endif
+        //pubCounterData = subCounterData;
+        //FirstPacket = UA_FALSE;
         nextnanosleeptimeUserApplication.tv_nsec += CYCLE_TIME;
         nanoSecondFieldConversion(&nextnanosleeptimeUserApplication);
     }
@@ -617,11 +696,13 @@ static void removeServerNodes(UA_Server *server) {
     /* Delete the Subscriber Counter Node*/
     UA_Server_deleteNode(server, subNodeID, UA_TRUE);
     UA_NodeId_deleteMembers(&subNodeID);
+#if defined(PUB_WITH_INFORMATION_MODEL)
     for (UA_Int32 iterator = 0; iterator < DATETIME_NODECOUNTS; iterator++)
     {
         UA_Server_deleteNode(server, DateNodeIDPub, UA_TRUE);
         UA_NodeId_deleteMembers(&DateNodeIDPub);
     }
+#endif
     for (UA_Int32 iterator = 0; iterator < DATETIME_NODECOUNTS; iterator++)
     {
         UA_Server_deleteNode(server, DateNodeIDSub, UA_TRUE);
@@ -675,6 +756,7 @@ static pthread_t threadCreation(UA_Int16 threadPriority, size_t coreAffinity, vo
  */
 static void addServerNodes(UA_Server *server) {
     UA_NodeId counterId;
+    UA_NodeId newNodeId;
     UA_ObjectAttributes oAttr    = UA_ObjectAttributes_default;
     oAttr.displayName            = UA_LOCALIZEDTEXT("en-US", "Counter Object");
     UA_Server_addObjectNode(server, UA_NODEID_NULL,
@@ -682,18 +764,18 @@ static void addServerNodes(UA_Server *server) {
                             UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                             UA_QUALIFIEDNAME(1, "Counter Object"), UA_NODEID_NULL,
                             oAttr, NULL, &counterId);
-
+#if defined(PUB_WITH_INFORMATION_MODEL)
     UA_VariableAttributes p4Attr = UA_VariableAttributes_default;
     UA_UInt64 axis4position      = 0;
     p4Attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
     UA_Variant_setScalar(&p4Attr.value, &axis4position, &UA_TYPES[UA_TYPES_UINT64]);
     p4Attr.displayName           = UA_LOCALIZEDTEXT("en-US", "Publisher Counter");
-    UA_NodeId newNodeId          = UA_NODEID_STRING(1, "PublisherCounter");
+    newNodeId          = UA_NODEID_STRING(1, "PublisherCounter");
     UA_Server_addVariableNode(server, newNodeId, counterId,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                               UA_QUALIFIEDNAME(1, "Publisher Counter"),
                               UA_NODEID_NULL, p4Attr, NULL, &pubNodeID);
-
+#endif
     UA_VariableAttributes p5Attr = UA_VariableAttributes_default;
     UA_UInt64 axis5position      = 0;
     p5Attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
@@ -704,13 +786,14 @@ static void addServerNodes(UA_Server *server) {
                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                               UA_QUALIFIEDNAME(1, "Subscriber Counter"),
                               UA_NODEID_NULL, p5Attr, NULL, &subNodeID);
-
+#if defined(PUB_WITH_INFORMATION_MODEL)
     for (UA_Int32 iterator = 0; iterator < DATETIME_NODECOUNTS; iterator++)
     {
         UA_VariableAttributes p6Attr = UA_VariableAttributes_default;
         UA_UInt64 axis6position = 0;
         p6Attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
-        UA_Variant_setScalar(&p6Attr.value, &axis6position, &UA_TYPES[UA_TYPES_DATETIME]);
+        UA_Variant_setScalar(&p6Attr.value, &axis6position, &UA_TYPES[UA_TYPES_UINT64]);
+
         p6Attr.displayName = UA_LOCALIZEDTEXT("en-US", "DateTime");
         newNodeId = UA_NODEID_NUMERIC(1, (UA_UInt32)iterator+10000);
         UA_Server_addVariableNode(server, newNodeId, counterId,
@@ -718,11 +801,13 @@ static void addServerNodes(UA_Server *server) {
                                  UA_QUALIFIEDNAME(1, "DateTime"),
                                  UA_NODEID_NULL, p6Attr, NULL, &DateNodeIDPub);
     }
+#endif
     for (UA_Int32 iterator = 0; iterator < DATETIME_NODECOUNTS; iterator++)
     {
         UA_VariableAttributes p7Attr = UA_VariableAttributes_default;
-        UA_DateTime axis7position;
-        UA_Variant_setScalar(&p7Attr.value, &axis7position, &UA_TYPES[UA_TYPES_DATETIME]);
+       // UA_DateTime axis7position;
+        UA_UInt64 axis7position = 0;
+        UA_Variant_setScalar(&p7Attr.value, &axis7position, &UA_TYPES[UA_TYPES_UINT64]);
         p7Attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
         p7Attr.displayName = UA_LOCALIZEDTEXT("en-US", "DateTimeSub");
         newNodeId = UA_NODEID_NUMERIC(1, (UA_UInt32)iterator+50000);
@@ -755,9 +840,11 @@ int main(int argc, char **argv) {
     UA_StatusCode    retval              = UA_STATUSCODE_GOOD;
     UA_Server       *server              = UA_Server_new();
     UA_ServerConfig *config              = UA_Server_getConfig(server);
-    pthread_t                            pubthreadID;
-    pthread_t                            subthreadID;
-    pthread_t                            userThreadID;
+    pthread_t           pubthreadID;
+#if defined(SUBSCRIBER)
+    pthread_t           subthreadID;
+#endif
+    pthread_t           userThreadID;
     UA_ServerConfig_setMinimal(config, PORT_NUMBER, NULL);
 
 #if defined(PUBLISHER)
@@ -766,6 +853,7 @@ int main(int argc, char **argv) {
 #if defined(SUBSCRIBER)
 UA_NetworkAddressUrlDataType networkAddressUrlSub;
 #endif
+
 #if defined(UA_ENABLE_PUBSUB_ETH_UADP)
     if (argc > 1) {
         if (strcmp(argv[1], "-h") == 0) {
@@ -805,12 +893,12 @@ UA_NetworkAddressUrlDataType networkAddressUrlSub;
 
     else {
 #if defined(PUBLISHER)
-        networkAddressUrlEthernet.networkInterface = UA_STRING("enp4s0");
-        networkAddressUrlEthernet.url = UA_STRING("opc.eth://00-1b-21-de-c4-3f"); /* MAC address of subscribing node*/
+        networkAddressUrlEthernet.networkInterface = UA_STRING("enp2s0");
+        networkAddressUrlEthernet.url = UA_STRING("opc.eth://00-07-32-6b-a6-c7"); /* MAC address of subscribing node*/
 #endif
 #if defined(SUBSCRIBER)
-        networkAddressUrlSub.url = UA_STRING("opc.eth://00-1b-21-de-ee-a9"); /* Self MAC address */
-        networkAddressUrlSub.networkInterface = UA_STRING("enp4s0");
+        networkAddressUrlSub.url = UA_STRING("opc.eth://00-07-32-6b-a6-eb"); /* Self MAC address */
+        networkAddressUrlSub.networkInterface = UA_STRING("enp2s0");
 #endif
     }
 
@@ -927,7 +1015,6 @@ UA_NetworkAddressUrlDataType networkAddressUrlSub;
 #endif
 
 #if defined(PUBLISHER)
-
 #if defined(UPDATE_MEASUREMENTS)
     /* Write the published data in the publisher_T1.csv file */
     size_t pubLoopVariable = 0;
@@ -938,7 +1025,6 @@ UA_NetworkAddressUrlDataType networkAddressUrlSub;
                 publishTimestamp[pubLoopVariable].tv_sec,
                 publishTimestamp[pubLoopVariable].tv_nsec);
     }
-
 #endif
 #endif
 
@@ -954,7 +1040,6 @@ UA_NetworkAddressUrlDataType networkAddressUrlSub;
                 subscribeTimestamp[subLoopVariable].tv_sec,
                 subscribeTimestamp[subLoopVariable].tv_nsec);
     }
-
 #endif
 #endif
 #if defined(PUBLISHER) || defined(SUBSCRIBER)
@@ -962,17 +1047,17 @@ UA_NetworkAddressUrlDataType networkAddressUrlSub;
     UA_Server_delete(server);
     free(serverConfig);
 #endif
-#if defined(PUBLISHER)
+
 #if defined(UPDATE_MEASUREMENTS)
+#if defined(PUBLISHER)
     fclose(fpPublisher);
 #endif
 #endif
 
-#if defined(SUBSCRIBER)
 #if defined(UPDATE_MEASUREMENTS)
+#if defined(SUBSCRIBER)
     fclose(fpSubscriber);
 #endif
 #endif
-
     return (int)retval;
 }

@@ -20,6 +20,8 @@ _UA_BEGIN_DECLS
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
+#define             DATETIME_NODECOUNTS                   7
+
 /* forward declarations */
 struct UA_WriterGroup;
 typedef struct UA_WriterGroup UA_WriterGroup;
