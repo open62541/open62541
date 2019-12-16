@@ -11,7 +11,8 @@
 extern "C" {
 #endif
 
-#include "open62541/plugin/pubsub.h"
+#include <open62541/plugin/pubsub.h>
+#include <open62541/plugin/socket.h>
 
 /* mqtt network layer specific internal data */
 typedef struct {
