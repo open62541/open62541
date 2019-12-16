@@ -424,33 +424,36 @@ UA_Discovery_addRecord(UA_Server *server, const UA_String *servername,
     // The servername is servername + hostname. It is the same which we get through mDNS and therefore we need to match servername
     UA_StatusCode retval = UA_DiscoveryManager_addEntryToServersOnNetwork(server, fullServiceDomain, fullServiceDomain,
             UA_MIN(63, (servernameLen+hostnameLen)+1), &listEntry);
-    if (retval != UA_STATUSCODE_GOOD)
+    if (retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_BADALREADYEXISTS)
         return retval;
 
-    // if capabilitiesSize is 0, then add default cap 'NA'
-    listEntry->serverOnNetwork.serverCapabilitiesSize = UA_MAX(1, capabilitiesSize);
-    listEntry->serverOnNetwork.serverCapabilities =
-            (UA_String *) UA_Array_new(listEntry->serverOnNetwork.serverCapabilitiesSize, &UA_TYPES[UA_TYPES_STRING]);
-    if (!listEntry->serverOnNetwork.serverCapabilities)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    if (capabilitiesSize == 0) {
-        UA_String na;
-        na.length = 2;
-        na.data = (UA_Byte*)(uintptr_t)"NA";
-        UA_String_copy(&na, &listEntry->serverOnNetwork.serverCapabilities[0]);
-    } else {
-        for(size_t i = 0; i < capabilitiesSize; i++) {
-            UA_String_copy(&capabilites[i], &listEntry->serverOnNetwork.serverCapabilities[i]);
+    // If entry is already in list, skip initialization of capabilities and txt+srv
+    if (retval != UA_STATUSCODE_BADALREADYEXISTS) {
+        // if capabilitiesSize is 0, then add default cap 'NA'
+        listEntry->serverOnNetwork.serverCapabilitiesSize = UA_MAX(1, capabilitiesSize);
+        listEntry->serverOnNetwork.serverCapabilities =
+                (UA_String *) UA_Array_new(listEntry->serverOnNetwork.serverCapabilitiesSize, &UA_TYPES[UA_TYPES_STRING]);
+        if (!listEntry->serverOnNetwork.serverCapabilities)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        if (capabilitiesSize == 0) {
+            UA_String na;
+            na.length = 2;
+            na.data = (UA_Byte *) (uintptr_t) "NA";
+            UA_String_copy(&na, &listEntry->serverOnNetwork.serverCapabilities[0]);
+        } else {
+            for (size_t i = 0; i < capabilitiesSize; i++) {
+                UA_String_copy(&capabilites[i], &listEntry->serverOnNetwork.serverCapabilities[i]);
+            }
         }
+
+        listEntry->txtSet = true;
+
+        UA_STACKARRAY(char, newUrl, 10 + hostnameLen + 8 + path->length + 1);
+        UA_snprintf(newUrl, 10 + hostnameLen + 8 + path->length + 1, "opc.tcp://%.*s:%d%s%.*s", (int) hostnameLen,
+                    hostname->data, port, path->length > 0 ? "/" : "", (int) path->length, path->data);
+        listEntry->serverOnNetwork.discoveryUrl = UA_String_fromChars(newUrl);
+        listEntry->srvSet = true;
     }
-
-    listEntry->txtSet = true;
-
-    UA_STACKARRAY(char, newUrl, 10 + hostnameLen + 8 + path->length + 1);
-    UA_snprintf(newUrl, 10 + hostnameLen + 8 + path->length + 1, "opc.tcp://%.*s:%d%s%.*s", (int) hostnameLen,
-                hostname->data, port, path->length > 0 ? "/" : "", (int)path->length, path->data);
-    listEntry->serverOnNetwork.discoveryUrl = UA_String_fromChars(newUrl);
-    listEntry->srvSet = true;
 
     // _services._dns-sd._udp.local. PTR _opcua-tcp._tcp.local
 

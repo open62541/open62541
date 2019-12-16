@@ -66,6 +66,16 @@ UA_StatusCode
 UA_DiscoveryManager_addEntryToServersOnNetwork(UA_Server *server, const char *fqdnMdnsRecord, const char *serverName,
                                                size_t serverNameLen, struct serverOnNetwork_list_entry **addedEntry) {
 
+    struct serverOnNetwork_list_entry *entry =
+            mdns_record_add_or_get(server, fqdnMdnsRecord, serverName,
+                                   serverNameLen, UA_FALSE);
+    if (entry) {
+        if (addedEntry != NULL)
+            *addedEntry = entry;
+        return UA_STATUSCODE_BADALREADYEXISTS;
+    }
+
+
     UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
                 "Multicast DNS: Add entry to ServersOnNetwork: %s (%*.s)", fqdnMdnsRecord, (int)serverNameLen, serverName);
 
@@ -79,9 +89,12 @@ UA_DiscoveryManager_addEntryToServersOnNetwork(UA_Server *server, const char *fq
     listEntry->srvSet = false;
     UA_ServerOnNetwork_init(&listEntry->serverOnNetwork);
     listEntry->serverOnNetwork.recordId = server->discoveryManager.serverOnNetworkRecordIdCounter;
-    listEntry->serverOnNetwork.serverName.length = serverNameLen;
-    /* todo: malloc may fail: return a statuscode */
     listEntry->serverOnNetwork.serverName.data = (UA_Byte*)UA_malloc(serverNameLen);
+    if (!listEntry->serverOnNetwork.serverName.data) {
+        UA_free(listEntry);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    listEntry->serverOnNetwork.serverName.length = serverNameLen;
     memcpy(listEntry->serverOnNetwork.serverName.data, serverName, serverNameLen);
     UA_atomic_addUInt32(&server->discoveryManager.serverOnNetworkRecordIdCounter, 1);
     if(server->discoveryManager.serverOnNetworkRecordIdCounter == 0)
@@ -92,8 +105,11 @@ UA_DiscoveryManager_addEntryToServersOnNetwork(UA_Server *server, const char *fq
     UA_UInt32 hashIdx = UA_ByteString_hash(0, (const UA_Byte*)fqdnMdnsRecord, strlen(fqdnMdnsRecord)) % SERVER_ON_NETWORK_HASH_SIZE;
     struct serverOnNetwork_hash_entry *newHashEntry = (struct serverOnNetwork_hash_entry*)
             UA_malloc(sizeof(struct serverOnNetwork_hash_entry));
-    if (!newHashEntry)
+    if (!newHashEntry) {
+        UA_free(listEntry->serverOnNetwork.serverName.data);
+        UA_free(listEntry);
         return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
     newHashEntry->next = server->discoveryManager.serverOnNetworkHash[hashIdx];
     server->discoveryManager.serverOnNetworkHash[hashIdx] = newHashEntry;
     newHashEntry->entry = listEntry;
