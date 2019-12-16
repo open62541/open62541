@@ -22,7 +22,7 @@ matrix:
 #
 # gcc-4.8 (trusty) full host and cross build with tests:
 # doc, cert, cross-mingw32, cross-mingw64, cross-linux32, cross-raspi, linux64,
-# amalgamated, shared, multithread, encryption, discovery, json, test-ns0-full, test-ns0-minimal, debian-package
+# amalgamated, shared, multithread, encryption, discovery, json, test-ns0-full, test-ns0-minimal
     - os: linux
       compiler: gcc-4.8
       addons:
@@ -36,10 +36,7 @@ matrix:
             - gcc-mingw-w64-x86-64
             - binutils-mingw-w64-i686
             - g++-multilib
-            # debian packaging
             - cmake
-            - debhelper
-            - fakeroot
             # doc
             - python-sphinx
             - graphviz
@@ -53,7 +50,6 @@ matrix:
             - valgrind
       env:
         - MINGW=true
-        - DEBIAN=true
 #
 # gcc-8 full host build with tests:
 # doc, cert, linux64,
@@ -378,7 +374,6 @@ deploy:
     - open62541-raspberrypi.tar.gz
     - open62541.c
     - open62541.h
-    - open62541*.deb
   file_glob: true
   skip_cleanup: true
   on:

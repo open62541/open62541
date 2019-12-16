@@ -81,6 +81,17 @@ install_file_template = os.path.join(debian_path, "libopen62541-dev.install-temp
 install_file = os.path.join(debian_path, "libopen62541-{}-dev.install".format(version_major))
 os.rename(install_file_template, install_file)
 
+install_file_template = os.path.join(debian_path, "libopen62541-tools.install-template")
+install_file = os.path.join(debian_path, "libopen62541-{}-tools.install".format(version_major))
+os.rename(install_file_template, install_file)
+
+install_file_template = os.path.join(debian_path, "open62541-doc.doc-base-template")
+install_file = os.path.join(debian_path, "open62541-doc.doc-base")
+os.rename(install_file_template, install_file)
+
+install_file_template = os.path.join(debian_path, "open62541-doc.install-template")
+install_file = os.path.join(debian_path, "open62541-doc.install")
+os.rename(install_file_template, install_file)
 
 # Create rule file and replace template variables
 rule_file_template = os.path.join(debian_path, "rules-template")
