@@ -109,6 +109,11 @@ struct UA_Server {
     /* To be cast to UA_LocalMonitoredItem to get the callback and context */
     LIST_HEAD(LocalMonitoredItems, UA_MonitoredItem) localMonitoredItems;
     UA_UInt32 lastLocalMonitoredItemId;
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+    LIST_HEAD(conditionSourcelisthead, UA_ConditionSource_nodeListElement) headConditionSource;
+#endif//UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+
 #endif
 
     /* Publish/Subscribe */
@@ -183,6 +188,21 @@ UA_StatusCode
 getParentTypeAndInterfaceHierarchy(UA_Server *server, const UA_NodeId *typeNode,
                                    UA_NodeId **typeHierarchy, size_t *typeHierarchySize);
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+
+UA_StatusCode UA_EXPORT
+UA_getConditionId(UA_Server *server, const UA_NodeId *conditionNodeId, UA_NodeId *outConditionId);
+
+void UA_EXPORT
+UA_ConditionList_delete(UA_Server *server);
+
+UA_Boolean
+isConditionOrBranch(UA_Server *server,
+                    const UA_NodeId *condition,
+                    const UA_NodeId *conditionSource,
+                    UA_Boolean *isCallerAC);
+
+#endif//UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
 /* Returns the type node from the node on the stack top. The type node is pushed
  * on the stack and returned. */
 const UA_Node * getNodeType(UA_Server *server, const UA_Node *node);

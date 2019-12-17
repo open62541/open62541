@@ -40,8 +40,10 @@ UA_MonitoredItem_removeNodeEventCallback(UA_Server *server, UA_Session *session,
 }
 
 /* We use a 16-Byte ByteString as an identifier */
-static UA_StatusCode
-generateEventId(UA_ByteString *generatedId) {
+UA_StatusCode
+UA_Event_generateEventId(UA_ByteString *generatedId) {
+    /* EventId is a ByteString, which is basically just a string
+     * We will use a 16-Byte ByteString as an identifier */
     UA_StatusCode res = UA_ByteString_allocBuffer(generatedId, 16 * sizeof(UA_Byte));
     if(res != UA_STATUSCODE_GOOD)
         return res;
@@ -137,7 +139,7 @@ isValidEvent(UA_Server *server, const UA_NodeId *validEventParent,
         UA_BrowsePathResult_clear(&bpr);
         return false;
     }
-    
+
     /* Get the EventType Property Node */
     UA_Variant tOutVariant;
     UA_Variant_init(&tOutVariant);
@@ -153,21 +155,21 @@ isValidEvent(UA_Server *server, const UA_NodeId *validEventParent,
 
     const UA_NodeId *tEventType = (UA_NodeId*)tOutVariant.data;
 
-    /* Make sure the EventType is not a Subtype of CondtionType
-     * First check for filter set using UaExpert
-     * (ConditionId Clause won't be present in Events, which are not Conditions)
-     * Second check for Events which are Conditions or Alarms (Part 9 not supported yet) */
+    /* check whether the EventType is a Subtype of CondtionType
+     * (Part 9 first implementation) */
     UA_NodeId conditionTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
     UA_NodeId hasSubtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
-    if(UA_NodeId_equal(validEventParent, &conditionTypeId) ||
-       isNodeInTree(server, tEventType, &conditionTypeId, &hasSubtypeId, 1)) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
-                     "Alarms and Conditions are not supported yet!");
-        UA_BrowsePathResult_clear(&bpr);
+
+    if(UA_NodeId_equal(validEventParent, &conditionTypeId) &&
+       isNodeInTree(server, tEventType,
+					&conditionTypeId, &hasSubtypeId, 1)){
+        UA_BrowsePathResult_deleteMembers(&bpr);
         UA_Variant_clear(&tOutVariant);
-        return false;
+        return true;
     }
 
+    /*EventType is not a Subtype of CondtionType
+     *(ConditionId Clause won't be present in Events, which are not Conditions)*/
     /* check whether Valid Event other than Conditions */
     UA_NodeId baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
     UA_Boolean isSubtypeOfBaseEvent = isNodeInTree(server, tEventType,
@@ -193,9 +195,25 @@ resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session, const UA_N
     /* If this list (browsePath) is empty the Node is the instance of the
      * TypeDefinition. */
     if(sao->browsePathSize == 0) {
+#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+      //TODO check for Branches! One Condition could have multiple Branches
+      // Set ConditionId
+      UA_NodeId conditionTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
+      if(UA_NodeId_equal(&sao->typeDefinitionId, &conditionTypeId)){
+        UA_NodeId conditionId;
+        UA_StatusCode retval = UA_getConditionId(server, origin, &conditionId);
+        if(retval != UA_STATUSCODE_GOOD)
+          return retval;
+
+        rvi.nodeId = conditionId;
+      }
+      else
         rvi.nodeId = sao->typeDefinitionId;
+#else
+      rvi.nodeId = sao->typeDefinitionId;
+#endif /*UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS*/
         UA_DataValue v = UA_Server_readWithSession(server, session, &rvi,
-                                                   UA_TIMESTAMPSTORETURN_NEITHER);
+		                                           UA_TIMESTAMPSTORETURN_NEITHER);
         if(v.status == UA_STATUSCODE_GOOD && v.hasValue)
             *value = v.value;
         return v.status;
@@ -319,7 +337,7 @@ eventSetStandardFields(UA_Server *server, const UA_NodeId *event,
 
     /* Set the EventId */
     UA_ByteString eventId = UA_BYTESTRING_NULL;
-    retval = generateEventId(&eventId);
+    retval = UA_Event_generateEventId(&eventId);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     name = UA_QUALIFIEDNAME(0, "EventId");
@@ -351,9 +369,8 @@ eventSetStandardFields(UA_Server *server, const UA_NodeId *event,
 
 /* Filters an event according to the filter specified by mon and then adds it to
  * mons notification queue */
-static UA_StatusCode
-addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event,
-                        const UA_NodeId *source, UA_MonitoredItem *mon) {
+UA_StatusCode
+UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event, UA_MonitoredItem *mon) {
     UA_Notification *notification = (UA_Notification *) UA_malloc(sizeof(UA_Notification));
     if(!notification)
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -362,14 +379,6 @@ addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event,
     UA_Subscription *sub = mon->subscription;
     UA_Session *session = sub->session;
 
-#if UA_LOGLEVEL <= 200
-    UA_LOG_NODEID_WRAP(source,
-                       UA_LOG_DEBUG_SESSION(&server->config.logger, session,
-                                            "Subscription %u | MonitoredItem %i | "
-                                            "Node %.*s emits an event notification",
-                                            sub->subscriptionId, mon->monitoredItemId,
-                                            (int)nodeIdStr.length, nodeIdStr.data));
-#endif
 
     /* Apply the filter */
     UA_StatusCode retval =
@@ -387,10 +396,12 @@ addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event,
 }
 
 static const UA_NodeId objectsFolderId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_OBJECTSFOLDER}};
-static const UA_NodeId emitReferencesRoots[3] =
+#define EMIT_REFS_ROOT_COUNT 4
+static const UA_NodeId emitReferencesRoots[EMIT_REFS_ROOT_COUNT] =
     {{0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_ORGANIZES}},
      {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASCOMPONENT}},
-     {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASEVENTSOURCE}}};
+     {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASEVENTSOURCE}},
+     {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASNOTIFIER}}};
 
 UA_StatusCode
 UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
@@ -404,6 +415,19 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
                                     "Events: An event is triggered on node %.*s",
                                     (int)nodeIdStr.length, nodeIdStr.data));
 #endif
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+    UA_Boolean isCallerAC = false;
+    if(isConditionOrBranch(server, &eventNodeId, &origin, &isCallerAC)) {
+        if(!isCallerAC) {
+          UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                                 "Condition Events: Please use A&C API to trigger Condition Events 0x%08X",
+                                  UA_STATUSCODE_BADINVALIDARGUMENT);
+          UA_UNLOCK(server->serviceMutex);
+          return UA_STATUSCODE_BADINVALIDARGUMENT;
+        }
+    }
+#endif /*UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS*/
 
     /* Check that the origin node exists */
     const UA_Node *originNode = UA_NODESTORE_GET(server, &origin);
@@ -453,29 +477,29 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
     emitStartNodes[1] = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
 
     /* Get all ReferenceTypes over which the events propagate */
-    UA_NodeId *emitRefTypes[3] = {NULL, NULL, NULL};
-    size_t emitRefTypesSize[3] = {0, 0, 0};
-    retval |= referenceSubtypes(server, &emitReferencesRoots[0],
-                                &emitRefTypesSize[0], &emitRefTypes[0]);
-    retval |= referenceSubtypes(server, &emitReferencesRoots[1],
-                                &emitRefTypesSize[0], &emitRefTypes[0]);
-    retval |= referenceSubtypes(server, &emitReferencesRoots[2],
-                                &emitRefTypesSize[0], &emitRefTypes[0]);
-    size_t totalEmitRefTypesSize =
-        emitRefTypesSize[0] + emitRefTypesSize[1] + emitRefTypesSize[2];
+    UA_NodeId *emitRefTypes[EMIT_REFS_ROOT_COUNT] = {NULL, NULL, NULL};
+    size_t emitRefTypesSize[EMIT_REFS_ROOT_COUNT] = {0, 0, 0, 0};
+    size_t totalEmitRefTypesSize = 0;
+    for (size_t i=0; i<EMIT_REFS_ROOT_COUNT; i++) {
+        retval |= referenceSubtypes(server, &emitReferencesRoots[i],
+                                    &emitRefTypesSize[i], &emitRefTypes[i]);
+        totalEmitRefTypesSize += emitRefTypesSize[i];
+    }
     UA_STACKARRAY(UA_NodeId, totalEmitRefTypes, totalEmitRefTypesSize);
-    memcpy(&totalEmitRefTypes[0], emitRefTypes[0],
-           emitRefTypesSize[0] * sizeof(UA_NodeId));
-    memcpy(&totalEmitRefTypes[emitRefTypesSize[0]], emitRefTypes[1],
-           emitRefTypesSize[1] * sizeof(UA_NodeId));
-    memcpy(&totalEmitRefTypes[emitRefTypesSize[0] + emitRefTypesSize[1]],
-           emitRefTypes[2], emitRefTypesSize[2] * sizeof(UA_NodeId));
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Events: Could not create the list of references for event "
                        "propagation with StatusCode %s", UA_StatusCode_name(retval));
         goto cleanup;
     }
+
+    size_t currIndex = 0;
+    for (size_t i=0; i<EMIT_REFS_ROOT_COUNT; i++) {
+        memcpy(&totalEmitRefTypes[currIndex], emitRefTypes[i],
+               emitRefTypesSize[i] * sizeof(UA_NodeId));
+        currIndex += emitRefTypesSize[i];
+    }
+
 
     /* Get the list of nodes in the hierarchy that emits the event. */
     retval = browseRecursive(server, 2, emitStartNodes,
@@ -500,7 +524,7 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
             continue;
         }
         for(UA_MonitoredItem *mi = node->monitoredItemQueue; mi != NULL; mi = mi->next) {
-            retval = addEventToMonitoredItem(server, &eventNodeId, &emitNodes[i].nodeId, mi);
+            retval = UA_Event_addEventToMonitoredItem(server, &eventNodeId, mi);
             if(retval != UA_STATUSCODE_GOOD) {
                 UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                                "Events: Could not add the event to a listening node with StatusCode %s",
@@ -573,9 +597,9 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
     }
 
  cleanup:
-    UA_Array_delete(emitRefTypes[0], emitRefTypesSize[0], &UA_TYPES[UA_TYPES_NODEID]);
-    UA_Array_delete(emitRefTypes[1], emitRefTypesSize[1], &UA_TYPES[UA_TYPES_NODEID]);
-    UA_Array_delete(emitRefTypes[2], emitRefTypesSize[2], &UA_TYPES[UA_TYPES_NODEID]);
+    for (size_t i=0; i<EMIT_REFS_ROOT_COUNT; i++) {
+        UA_Array_delete(emitRefTypes[i], emitRefTypesSize[i], &UA_TYPES[UA_TYPES_NODEID]);
+    }
     UA_Array_delete(emitNodes, emitNodesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
     UA_UNLOCK(server->serviceMutex);
     return retval;

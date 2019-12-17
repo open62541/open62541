@@ -183,6 +183,11 @@ void UA_Server_delete(UA_Server *server) {
         UA_MonitoredItem_delete(server, mon);
         UA_UNLOCK(server->serviceMutex);
     }
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+    UA_ConditionList_delete(server);
+#endif//UA_ENABLE_ALARMS_CONDITIONS
+
 #endif
 
 #ifdef UA_ENABLE_PUBSUB

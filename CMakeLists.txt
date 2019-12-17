@@ -134,6 +134,7 @@ option(UA_ENABLE_NODEMANAGEMENT "Enable dynamic addition and removal of nodes at
 option(UA_ENABLE_SUBSCRIPTIONS "Enable subscriptions support." ON)
 option(UA_ENABLE_SUBSCRIPTIONS_EVENTS "Enable the use of event subscriptions" OFF)
 option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" ON)
+option(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS "Enable the use of A&C. (EXPERIMENTAL)" OFF)
 option(UA_ENABLE_DISCOVERY_MULTICAST "Enable Discovery Service with multicast support (LDS-ME)" OFF)
 option(UA_ENABLE_ENCRYPTION "Enable encryption support (uses mbedTLS)" OFF)
 option(UA_ENABLE_DA "Enable OPC UA DataAccess (Part 8) definitions" ON)
@@ -176,6 +177,11 @@ endif()
 #if((UA_ENABLE_SUBSCRIPTIONS_EVENTS) AND (NOT (UA_ENABLE_SUBSCRIPTIONS AND UA_NAMESPACE_ZERO STREQUAL "FULL")))
 #    message(FATAL_ERROR "Unable to enable events without UA_ENABLE_SUBSCRIPTIONS and full namespace 0")
 #endif()
+
+# It should not be possible to enable Alarms and Condition without enabling Events and full ns0
+if((UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS) AND (NOT (UA_ENABLE_SUBSCRIPTIONS_EVENTS AND UA_NAMESPACE_ZERO STREQUAL "FULL")))
+    message(FATAL_ERROR "Unable to enable A&C without UA_ENABLE_SUBSCRIPTIONS_EVENTS and full namespace 0")
+endif()
 
 if(UA_ENABLE_COVERAGE)
   set(CMAKE_BUILD_TYPE DEBUG)
@@ -376,6 +382,10 @@ endif()
 # Warn if experimental features are enabled
 if(UA_MULTITHREADING GREATER 199)
     MESSAGE(WARNING "UA_MULTITHREADING >= 200. Internal threads of the server are an EXPERIMENTAL feature. Expect bugs")
+endif()
+
+if(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS)
+    MESSAGE(WARNING "UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS is enabled. The feature is under development and marked as EXPERIMENTAL")
 endif()
 
 ########################
@@ -817,6 +827,9 @@ if(UA_ENABLE_SUBSCRIPTIONS)
                             ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_datachange.c)
     if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
         list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_events.c)
+        if(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS)
+            list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_alarms_conditions.c)
+        endif()
     endif()
 endif()
 
@@ -1325,7 +1338,7 @@ install(DIRECTORY ${UA_install_tools_dirs}
 
 install(FILES ${UA_install_tools_files} DESTINATION ${open62541_install_tools_dir})
 
-if (UA_PACK_DEBIAN)    
+if (UA_PACK_DEBIAN)
     set(UA_install_examples_dirs "examples/"
         "examples/access_control"
         "examples/custom_datatype"
