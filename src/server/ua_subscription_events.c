@@ -41,7 +41,7 @@ UA_MonitoredItem_removeNodeEventCallback(UA_Server *server, UA_Session *session,
 
 /* We use a 16-Byte ByteString as an identifier */
 UA_StatusCode
-generateEventId(UA_ByteString *generatedId) {
+UA_Event_generateEventId(UA_ByteString *generatedId) {
     /* EventId is a ByteString, which is basically just a string
      * We will use a 16-Byte ByteString as an identifier */
     UA_StatusCode res = UA_ByteString_allocBuffer(generatedId, 16 * sizeof(UA_Byte));
@@ -370,8 +370,7 @@ eventSetStandardFields(UA_Server *server, const UA_NodeId *event,
 /* Filters an event according to the filter specified by mon and then adds it to
  * mons notification queue */
 UA_StatusCode
-UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event,
-                                 const UA_NodeId *source, UA_MonitoredItem *mon) {
+UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event, UA_MonitoredItem *mon) {
     UA_Notification *notification = (UA_Notification *) UA_malloc(sizeof(UA_Notification));
     if(!notification)
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -380,14 +379,6 @@ UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event,
     UA_Subscription *sub = mon->subscription;
     UA_Session *session = sub->session;
 
-#if UA_LOGLEVEL <= 200
-    UA_LOG_NODEID_WRAP(source,
-                       UA_LOG_DEBUG_SESSION(&server->config.logger, session,
-                                            "Subscription %u | MonitoredItem %i | "
-                                            "Node %.*s emits an event notification",
-                                            sub->subscriptionId, mon->monitoredItemId,
-                                            (int)nodeIdStr.length, nodeIdStr.data));
-#endif
 
     /* Apply the filter */
     UA_StatusCode retval =
@@ -410,7 +401,7 @@ static const UA_NodeId emitReferencesRoots[EMIT_REFS_ROOT_COUNT] =
     {{0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_ORGANIZES}},
      {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASCOMPONENT}},
      {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASEVENTSOURCE}},
-     {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASNOTIFIER}};
+     {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASNOTIFIER}}};
 
 UA_StatusCode
 UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
@@ -494,6 +485,7 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
                                     &emitRefTypesSize[i], &emitRefTypes[i]);
         totalEmitRefTypesSize += emitRefTypesSize[i];
     }
+    UA_STACKARRAY(UA_NodeId, totalEmitRefTypes, totalEmitRefTypesSize);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Events: Could not create the list of references for event "
@@ -501,7 +493,6 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
         goto cleanup;
     }
 
-    UA_STACKARRAY(UA_NodeId, totalEmitRefTypes, totalEmitRefTypesSize);
     size_t currIndex = 0;
     for (size_t i=0; i<EMIT_REFS_ROOT_COUNT; i++) {
         memcpy(&totalEmitRefTypes[currIndex], emitRefTypes[i],
@@ -533,7 +524,7 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
             continue;
         }
         for(UA_MonitoredItem *mi = node->monitoredItemQueue; mi != NULL; mi = mi->next) {
-            retval = addEventToMonitoredItem(server, &eventNodeId, &emitNodes[i].nodeId, mi);
+            retval = UA_Event_addEventToMonitoredItem(server, &eventNodeId, mi);
             if(retval != UA_STATUSCODE_GOOD) {
                 UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                                "Events: Could not add the event to a listening node with StatusCode %s",
@@ -606,9 +597,9 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
     }
 
  cleanup:
-    UA_Array_delete(emitRefTypes[0], emitRefTypesSize[0], &UA_TYPES[UA_TYPES_NODEID]);
-    UA_Array_delete(emitRefTypes[1], emitRefTypesSize[1], &UA_TYPES[UA_TYPES_NODEID]);
-    UA_Array_delete(emitRefTypes[2], emitRefTypesSize[2], &UA_TYPES[UA_TYPES_NODEID]);
+    for (size_t i=0; i<EMIT_REFS_ROOT_COUNT; i++) {
+        UA_Array_delete(emitRefTypes[i], emitRefTypesSize[i], &UA_TYPES[UA_TYPES_NODEID]);
+    }
     UA_Array_delete(emitNodes, emitNodesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
     UA_UNLOCK(server->serviceMutex);
     return retval;
