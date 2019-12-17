@@ -246,6 +246,16 @@ if(UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_INTERRUPT)
     endif()
 endif()
 
+option(UA_ENABLE_PUBSUB_JIT
+       "Enable JIT compilation of the Publisher hot-path" OFF)
+mark_as_advanced(UA_ENABLE_PUBSUB_JIT)
+if(UA_ENABLE_PUBSUB_JIT)
+    if(NOT UA_ENABLE_PUBSUB_JIT)
+        message(FATAL_ERROR "JIT publisher cannot be used with PubSub function disabled")
+    endif()
+endif()
+
+
 option(UA_ENABLE_JSON_ENCODING "Enable Json encoding (EXPERIMENTAL)" OFF)
 mark_as_advanced(UA_ENABLE_JSON_ENCODING)
 

@@ -329,7 +329,9 @@ typedef enum {
     UA_PUBSUB_RT_NONE = 0,
     UA_PUBSUB_RT_DIRECT_VALUE_ACCESS = 1,
     UA_PUBSUB_RT_FIXED_SIZE = 2,
-    UA_PUBSUB_RT_DETERMINISTIC = 4,
+#ifdef UA_ENABLE_PUBSUB_JIT
+    UA_PUBSUB_RT_JIT = 4,
+#endif
 } UA_PubSubRTLevel;
 
 typedef struct {

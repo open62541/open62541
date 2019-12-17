@@ -11,7 +11,7 @@
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
-#include "ua_pubsub_networkmessage.h"
+#include "ua_pubsub.h"
 
 const UA_Byte NM_VERSION_MASK = 15;
 const UA_Byte NM_PUBLISHER_ID_ENABLED_MASK = 16;
@@ -77,6 +77,101 @@ UA_NetworkMessage_updateBufferedMessage(UA_NetworkMessageOffsetBuffer *buffer){
     }
     return rv;
 }
+
+#ifdef UA_ENABLE_PUBSUB_JIT
+UA_StatusCode
+UA_WriterGroup_generateJitUpdate(UA_WriterGroup *wg) {
+    init_jit(NULL);
+
+    jit_state_t *_jit = wg->jitState; /* The jit_ macros use this */
+    if(_jit)
+        jit_destroy_state();
+    wg->jitState = NULL;
+    wg->jitUpdate = NULL;
+
+    _jit = jit_new_state();
+
+    jit_name("Prolog");
+    jit_note("/src/pubsub/ua_pubsub_networkmessage.c", __LINE__);
+    jit_prolog();
+
+    /* Update the message in-situ */
+    UA_StatusCode rv = UA_STATUSCODE_GOOD;
+    UA_NetworkMessageOffsetBuffer *buffer = &wg->bufferedMessage;
+    for (size_t i = 0; i < buffer->offsetsSize; ++i) {
+        UA_Byte *bufPos = &buffer->buffer.data[buffer->offsets[i].offset];
+        UA_Variant *data = &buffer->offsets[i].offsetData.value.value->value;
+        switch(buffer->offsets[i].contentType) {
+            case UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE_SEQUENCENUMBER:
+            case UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_SEQUENCENUMBER:
+                jit_name("Encode SequenceNumber (sizeof==2)");
+                jit_note("/src/pubsub/ua_pubsub_networkmessage.c", __LINE__);
+                jit_ldi_s(JIT_R0, data->data);
+                jit_sti_s(bufPos, JIT_R0);
+                break;
+
+            case UA_PUBSUB_OFFSETTYPE_PAYLOAD_DATAVALUE:
+                return UA_STATUSCODE_BADNOTSUPPORTED;
+
+            case UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT:
+                /* Verify that we have a scalar of fixed length */
+                if(!UA_Variant_isScalar(&buffer->offsets[i].offsetData.value.value->value)) {
+                    rv = UA_STATUSCODE_BADNOTSUPPORTED;
+                    break;
+                }
+                if(data->type->typeKind > UA_DATATYPEKIND_STATUSCODE) {
+                    rv = UA_STATUSCODE_BADNOTSUPPORTED;
+                    break;
+                }
+                if(!data->type->overlayable) {
+                    rv = UA_STATUSCODE_BADNOTSUPPORTED;
+                    break;
+                }
+                if(data->type->memSize == 4) {
+                    jit_name("Encode Payload (sizeof==4)");
+                    jit_note("/src/pubsub/ua_pubsub_networkmessage.c", __LINE__);
+                    jit_ldi_ui(JIT_R0, data->data);
+                    jit_sti_i(bufPos, JIT_R0);
+                } else if(data->type->memSize == 8) {
+                    jit_name("Encode Payload (sizeof==8)");
+                    jit_note("/src/pubsub/ua_pubsub_networkmessage.c", __LINE__);
+                    jit_ldi_l(JIT_R0, data->data);
+                    jit_sti_l(bufPos, JIT_R0);
+                } else {
+                    rv = UA_STATUSCODE_BADNOTSUPPORTED;
+                    break;
+                }
+                break;
+
+            default:
+                rv = UA_STATUSCODE_BADNOTSUPPORTED;
+                break;
+        }
+    }
+
+    /* Increase the sequence number */
+    jit_name("Increase SequenceNumber");
+    jit_note("/src/pubsub/ua_pubsub_networkmessage.c", __LINE__);
+    jit_ldi_us(JIT_R0, &wg->sequenceNumber);
+    jit_addi(JIT_R0, JIT_R0, 1);
+    jit_sti_s(&wg->sequenceNumber, JIT_R0);
+
+    if(rv != UA_STATUSCODE_GOOD) {
+        jit_destroy_state();
+        return rv;
+    }
+
+    jit_name("Epilog");
+    jit_note("/src/pubsub/ua_pubsub_networkmessage.c", __LINE__);
+    jit_epilog();
+
+    wg->jitUpdate = (void (*)(UA_NetworkMessageOffsetBuffer *))(uintptr_t)jit_emit();
+    wg->jitState = _jit;
+    jit_clear_state();
+    jit_disassemble();
+    return UA_STATUSCODE_GOOD;
+}
+#endif
 
 UA_StatusCode
 UA_NetworkMessage_encodeBinary(const UA_NetworkMessage* src, UA_Byte **bufPos,
@@ -752,12 +847,15 @@ UA_NetworkMessage_calcSizeBinary(UA_NetworkMessage *p, UA_NetworkMessageOffsetBu
                 size_t pos = offsetBuffer->offsetsSize;
                 if(!increaseOffsetArray(offsetBuffer))
                     return 0;
-                offsetBuffer->offsets[pos].offset = size;
-                offsetBuffer->offsets[pos].offsetData.value.value = UA_DataValue_new();
-                UA_DataValue_init(offsetBuffer->offsets[pos].offsetData.value.value);
-                UA_Variant_setScalar(&offsetBuffer->offsets[pos].offsetData.value.value->value,
-                                     &p->groupHeader.sequenceNumber, &UA_TYPES[UA_TYPES_UINT16]);
-                offsetBuffer->offsets[pos].contentType = UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_SEQUENCENUMBER;
+                UA_NetworkMessageOffset *os = &offsetBuffer->offsets[pos];
+                os->offset = size;
+                os->offsetData.value.value = UA_DataValue_new();
+                UA_DataValue_init(os->offsetData.value.value);
+                UA_Variant_setScalar(&os->offsetData.value.value->value,
+                                     &p->groupHeader.sequenceNumber,
+                                     &UA_TYPES[UA_TYPES_UINT16]);
+                os->offsetData.value.value->value.storageType = UA_VARIANT_DATA_NODELETE;
+                os->contentType = UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_SEQUENCENUMBER;
             }
             size += UA_UInt16_calcSizeBinary(&p->groupHeader.sequenceNumber);
         }
@@ -783,8 +881,9 @@ UA_NetworkMessage_calcSizeBinary(UA_NetworkMessage *p, UA_NetworkMessageOffsetBu
             size_t pos = offsetBuffer->offsetsSize;
             if(!increaseOffsetArray(offsetBuffer))
                 return 0;
-            offsetBuffer->offsets[pos].offset = size;
-            offsetBuffer->offsets[pos].contentType = UA_PUBSUB_OFFSETTYPE_TIMESTAMP;
+            UA_NetworkMessageOffset *os = &offsetBuffer->offsets[pos];
+            os->offset = size;
+            os->contentType = UA_PUBSUB_OFFSETTYPE_TIMESTAMP;
         }
         size += UA_DateTime_calcSizeBinary(&p->timestamp);
     }
@@ -794,8 +893,9 @@ UA_NetworkMessage_calcSizeBinary(UA_NetworkMessage *p, UA_NetworkMessageOffsetBu
             size_t pos = offsetBuffer->offsetsSize;
             if(!increaseOffsetArray(offsetBuffer))
                 return 0;
-            offsetBuffer->offsets[pos].offset = size;
-            offsetBuffer->offsets[pos].contentType = UA_PUBSUB_OFFSETTYPE_TIMESTAMP_PICOSECONDS;
+            UA_NetworkMessageOffset *os = &offsetBuffer->offsets[pos];
+            os->offset = size;
+            os->contentType = UA_PUBSUB_OFFSETTYPE_TIMESTAMP_PICOSECONDS;
         }
         size += UA_UInt16_calcSizeBinary(&p->picoseconds);
     }
@@ -826,9 +926,10 @@ UA_NetworkMessage_calcSizeBinary(UA_NetworkMessage *p, UA_NetworkMessageOffsetBu
 
         for (size_t i = 0; i < count; i++) {
             if (offsetBuffer)
-                UA_DataSetMessage_calcSizeBinary(&(p->payload.dataSetPayload.dataSetMessages[i]), offsetBuffer,
-                                                 size);
-            size += UA_DataSetMessage_calcSizeBinary(&(p->payload.dataSetPayload.dataSetMessages[i]), NULL, 0);
+                UA_DataSetMessage_calcSizeBinary(&p->payload.dataSetPayload.dataSetMessages[i],
+                                                 offsetBuffer, size);
+            size += UA_DataSetMessage_calcSizeBinary(&p->payload.dataSetPayload.dataSetMessages[i],
+                                                     NULL, 0);
         }
     }
 
@@ -1304,12 +1405,15 @@ UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage* p, UA_NetworkMessageOffsetBu
             size_t pos = offsetBuffer->offsetsSize;
             if(!increaseOffsetArray(offsetBuffer))
                 return 0;
-            offsetBuffer->offsets[pos].offset = size;
-            offsetBuffer->offsets[pos].offsetData.value.value = UA_DataValue_new();
-            UA_DataValue_init(offsetBuffer->offsets[pos].offsetData.value.value);
-            UA_Variant_setScalar(&offsetBuffer->offsets[pos].offsetData.value.value->value,
-                                 &p->header.dataSetMessageSequenceNr, &UA_TYPES[UA_TYPES_UINT16]);
-            offsetBuffer->offsets[pos].contentType = UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE_SEQUENCENUMBER;
+            UA_NetworkMessageOffset *os = &offsetBuffer->offsets[pos];
+            os->offset = size;
+            os->offsetData.value.value = UA_DataValue_new();
+            UA_DataValue_init(os->offsetData.value.value);
+            UA_Variant_setScalar(&os->offsetData.value.value->value,
+                                 &p->header.dataSetMessageSequenceNr,
+                                 &UA_TYPES[UA_TYPES_UINT16]);
+            os->offsetData.value.value->value.storageType = UA_VARIANT_DATA_NODELETE;
+            os->contentType = UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE_SEQUENCENUMBER;
         }
         size += UA_UInt16_calcSizeBinary(&p->header.dataSetMessageSequenceNr);
     }
@@ -1341,16 +1445,18 @@ UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage* p, UA_NetworkMessageOffsetBu
                     size_t pos = offsetBuffer->offsetsSize;
                     if(!increaseOffsetArray(offsetBuffer))
                         return 0;
-                    offsetBuffer->offsets[pos].offset = size;
-                    offsetBuffer->offsets[pos].contentType = UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT;
+                    UA_NetworkMessageOffset *os = &offsetBuffer->offsets[pos];
+                    os->offset = size;
+                    os->contentType = UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT;
                     //TODO check value source and alloc!
-                    offsetBuffer->offsets[pos].offsetData.value.value = UA_DataValue_new();
-                    UA_Variant_setScalar(&offsetBuffer->offsets[pos].offsetData.value.value->value,
+                    os->offsetData.value.value = UA_DataValue_new();
+                    UA_Variant_setScalar(&os->offsetData.value.value->value,
                                          p->data.keyFrameData.dataSetFields[i].value.data,
                                          p->data.keyFrameData.dataSetFields[i].value.type);
-                    //offsetBuffer->offsets[pos].offsetData.value.value->value = p->data.keyFrameData.dataSetFields->value;
+                    os->offsetData.value.value->value.storageType = UA_VARIANT_DATA_NODELETE;
                 }
-                size += UA_calcSizeBinary(&p->data.keyFrameData.dataSetFields[i].value, &UA_TYPES[UA_TYPES_VARIANT]);
+                size += UA_calcSizeBinary(&p->data.keyFrameData.dataSetFields[i].value,
+                                          &UA_TYPES[UA_TYPES_VARIANT]);
             }
         } else if(p->header.fieldEncoding == UA_FIELDENCODING_RAWDATA) {
             // not implemented
@@ -1360,12 +1466,15 @@ UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage* p, UA_NetworkMessageOffsetBu
                     size_t pos = offsetBuffer->offsetsSize;
                     if(!increaseOffsetArray(offsetBuffer))
                         return 0;
-                    offsetBuffer->offsets[pos].offset = size;
-                    offsetBuffer->offsets[pos].contentType = UA_PUBSUB_OFFSETTYPE_PAYLOAD_DATAVALUE;
+                    UA_NetworkMessageOffset *os = &offsetBuffer->offsets[pos];
+                    os->offset = size;
+                    os->contentType = UA_PUBSUB_OFFSETTYPE_PAYLOAD_DATAVALUE;
                     //TODO check value source, change implementation to 'variant'
-                    offsetBuffer->offsets[pos].offsetData.value.value = p->data.keyFrameData.dataSetFields;
+                    os->offsetData.value.value = p->data.keyFrameData.dataSetFields;
+                    os->offsetData.value.value->value.storageType = UA_VARIANT_DATA_NODELETE;
                 }
-                size += UA_calcSizeBinary(&p->data.keyFrameData.dataSetFields[i], &UA_TYPES[UA_TYPES_DATAVALUE]);
+                size += UA_calcSizeBinary(&p->data.keyFrameData.dataSetFields[i],
+                                          &UA_TYPES[UA_TYPES_DATAVALUE]);
             }
         }
     } else if(p->header.dataSetMessageType == UA_DATASETMESSAGE_DATADELTAFRAME) {

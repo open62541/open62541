@@ -46,7 +46,8 @@ size_t publisherMeasurementsCounter  = 0;
 /* The RT level of the publisher */
 //#define PUBSUB_RT_LEVEL UA_PUBSUB_RT_NONE
 //#define PUBSUB_RT_LEVEL UA_PUBSUB_RT_DIRECT_VALUE_ACCESS
-#define PUBSUB_RT_LEVEL UA_PUBSUB_RT_FIXED_SIZE
+//#define PUBSUB_RT_LEVEL UA_PUBSUB_RT_FIXED_SIZE
+#define PUBSUB_RT_LEVEL UA_PUBSUB_RT_JIT
 
 /* The value to published */
 static UA_UInt64 publishValue = 62541;
@@ -303,6 +304,15 @@ addPubSubConfiguration(UA_Server* server) {
     writerGroupConfig.enabled = UA_FALSE;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
     writerGroupConfig.rtLevel = PUBSUB_RT_LEVEL;
+    UA_UadpWriterGroupMessageDataType uadpWGConfig;
+    UA_UadpWriterGroupMessageDataType_init(&uadpWGConfig);
+    uadpWGConfig.networkMessageContentMask = (UA_UadpNetworkMessageContentMask)
+        (UA_UADPNETWORKMESSAGECONTENTMASK_GROUPHEADER |
+         UA_UADPNETWORKMESSAGECONTENTMASK_SEQUENCENUMBER);
+    writerGroupConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
+    writerGroupConfig.messageSettings.content.decoded.type =
+        &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
+    writerGroupConfig.messageSettings.content.decoded.data = &uadpWGConfig;
     UA_Server_addWriterGroup(server, connectionIdent,
                              &writerGroupConfig, &writerGroupIdent);
 
