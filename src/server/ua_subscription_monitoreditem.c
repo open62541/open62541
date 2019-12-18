@@ -49,7 +49,9 @@ static UA_StatusCode
 createEventOverflowNotification(UA_Server *server, UA_Subscription *sub,
                                 UA_MonitoredItem *mon, UA_Notification *indicator) {
     /* Avoid two redundant overflow events in a row */
-    if(UA_Notification_isOverflowEvent(server, indicator))
+    if((mon->discardOldest && UA_Notification_isOverflowEvent(server, indicator))
+       || (!mon->discardOldest && TAILQ_PREV(indicator, NotificationQueue, listEntry) != NULL &&
+           UA_Notification_isOverflowEvent(server, TAILQ_PREV(indicator, NotificationQueue, listEntry))))
         return UA_STATUSCODE_GOOD;
 
     /* A notification is inserted into the queue which includes only the
