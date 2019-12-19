@@ -2568,7 +2568,7 @@ UA_Server_triggerConditionEvent(UA_Server *server, const UA_NodeId condition,
     }
     else {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_USERLAND,
-                       "Cannot trigger condition event when Retain is false. StatusCode %s", UA_StatusCode_name(retval));
+                       "Cannot trigger condition event when "CONDITION_FIELD_ENABLEDSTATE"."CONDITION_FIELD_TWOSTATEVARIABLE_ID" is false. StatusCode %s", UA_StatusCode_name(retval));
     }
 
     return retval;
