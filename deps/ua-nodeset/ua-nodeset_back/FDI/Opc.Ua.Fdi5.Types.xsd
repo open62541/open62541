@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+ * Copyright (c) 2005-2019 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<xs:schema
+  xmlns:DI="http://opcfoundation.org/UA/DI/Types.xsd"
+  xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  xmlns:ua="http://opcfoundation.org/UA/2008/02/Types.xsd"
+  xmlns:tns="http://fdi-cooperation.com/OPCUA/FDI5/Types.xsd"
+  targetNamespace="http://fdi-cooperation.com/OPCUA/FDI5/Types.xsd"
+  elementFormDefault="qualified"
+>
+  <xs:import namespace="http://opcfoundation.org/UA/DI/Types.xsd" />
+  <xs:import namespace="http://opcfoundation.org/UA/2008/02/Types.xsd" />
+
+  <xs:simpleType  name="WindowModeType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="ModalWindow_1" />
+      <xs:enumeration value="NonModalWindow_2" />
+      <xs:enumeration value="UIP_3" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="WindowModeType" type="tns:WindowModeType" />
+
+  <xs:complexType name="ListOfWindowModeType">
+    <xs:sequence>
+      <xs:element name="WindowModeType" type="tns:WindowModeType" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfWindowModeType" type="tns:ListOfWindowModeType" nillable="true"></xs:element>
+
+  <xs:simpleType  name="StyleType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Window_1" />
+      <xs:enumeration value="Dialog_2" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="StyleType" type="tns:StyleType" />
+
+  <xs:complexType name="ListOfStyleType">
+    <xs:sequence>
+      <xs:element name="StyleType" type="tns:StyleType" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfStyleType" type="tns:ListOfStyleType" nillable="true"></xs:element>
+
+  <xs:complexType name="RegistrationParameters">
+    <xs:sequence>
+      <xs:element name="Path" type="ua:RelativePath" minOccurs="0" nillable="true" />
+      <xs:element name="SelectionFlags" type="xs:unsignedInt" minOccurs="0" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="RegistrationParameters" type="tns:RegistrationParameters" />
+
+  <xs:complexType name="ListOfRegistrationParameters">
+    <xs:sequence>
+      <xs:element name="RegistrationParameters" type="tns:RegistrationParameters" minOccurs="0" maxOccurs="unbounded" nillable="true" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfRegistrationParameters" type="tns:ListOfRegistrationParameters" nillable="true"></xs:element>
+
+  <xs:complexType name="RegisteredNode">
+    <xs:sequence>
+      <xs:element name="NodeStatus" type="xs:int" minOccurs="0" />
+      <xs:element name="OnlineContextNodeId" type="ua:NodeId" minOccurs="0" nillable="true" />
+      <xs:element name="OnlineDeviceNodeId" type="ua:NodeId" minOccurs="0" nillable="true" />
+      <xs:element name="OfflineContextNodeId" type="ua:NodeId" minOccurs="0" nillable="true" />
+      <xs:element name="OfflineDeviceNodeId" type="ua:NodeId" minOccurs="0" nillable="true" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="RegisteredNode" type="tns:RegisteredNode" />
+
+  <xs:complexType name="ListOfRegisteredNode">
+    <xs:sequence>
+      <xs:element name="RegisteredNode" type="tns:RegisteredNode" minOccurs="0" maxOccurs="unbounded" nillable="true" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfRegisteredNode" type="tns:ListOfRegisteredNode" nillable="true"></xs:element>
+
+  <xs:complexType name="RegisterNodesResult">
+    <xs:sequence>
+      <xs:element name="Status" type="xs:int" minOccurs="0" />
+      <xs:element name="RegisteredNodes" type="tns:ListOfRegisteredNode" minOccurs="0" nillable="true" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="RegisterNodesResult" type="tns:RegisterNodesResult" />
+
+  <xs:complexType name="ListOfRegisterNodesResult">
+    <xs:sequence>
+      <xs:element name="RegisterNodesResult" type="tns:RegisterNodesResult" minOccurs="0" maxOccurs="unbounded" nillable="true" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfRegisterNodesResult" type="tns:ListOfRegisterNodesResult" nillable="true"></xs:element>
+
+  <xs:complexType name="TransferIncident">
+    <xs:sequence>
+      <xs:element name="ContextNodeId" type="ua:NodeId" minOccurs="0" nillable="true" />
+      <xs:element name="StatusCode" type="ua:StatusCode" minOccurs="0" />
+      <xs:element name="Diagnostics" type="ua:DiagnosticInfo" minOccurs="0" nillable="true" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="TransferIncident" type="tns:TransferIncident" />
+
+  <xs:complexType name="ListOfTransferIncident">
+    <xs:sequence>
+      <xs:element name="TransferIncident" type="tns:TransferIncident" minOccurs="0" maxOccurs="unbounded" nillable="true" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfTransferIncident" type="tns:ListOfTransferIncident" nillable="true"></xs:element>
+
+  <xs:complexType name="ApplyResult">
+    <xs:sequence>
+      <xs:element name="Status" type="xs:int" minOccurs="0" />
+      <xs:element name="TransferIncidents" type="tns:ListOfTransferIncident" minOccurs="0" nillable="true" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ApplyResult" type="tns:ApplyResult" />
+
+  <xs:complexType name="ListOfApplyResult">
+    <xs:sequence>
+      <xs:element name="ApplyResult" type="tns:ApplyResult" minOccurs="0" maxOccurs="unbounded" nillable="true" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfApplyResult" type="tns:ListOfApplyResult" nillable="true"></xs:element>
+
+</xs:schema>

@@ -1,0 +1,488 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+ * Copyright (c) 2005-2019 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<xs:schema elementFormDefault="qualified" targetNamespace="http://opcfoundation.org/UA/TMC/Types.xsd" xmlns:tns="http://opcfoundation.org/UA/TMC/Types.xsd" xmlns:ua="http://opcfoundation.org/UA/2008/02/Types.xsd" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:import namespace="http://opcfoundation.org/UA/2008/02/Types.xsd"/>
+    <xs:simpleType name="CommandEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Abort_0"/>
+            <xs:enumeration value="Start_1"/>
+            <xs:enumeration value="Stop_2"/>
+            <xs:enumeration value="Reset_3"/>
+            <xs:enumeration value="Hold_4"/>
+            <xs:enumeration value="Un-Hold_5"/>
+            <xs:enumeration value="Clear_6"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:CommandEnumeration" name="CommandEnumeration"/>
+    <xs:complexType name="ListOfCommandEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:CommandEnumeration" name="CommandEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfCommandEnumeration" name="ListOfCommandEnumeration" nillable="true"/>
+    <xs:simpleType name="ControlModeEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="OTHER_0"/>
+            <xs:enumeration value="PRODUCTION_1"/>
+            <xs:enumeration value="MAINTENANCE_2"/>
+            <xs:enumeration value="MANUAL_3"/>
+            <xs:enumeration value="CHANGE OVER_4"/>
+            <xs:enumeration value="CLEAN_5"/>
+            <xs:enumeration value="SET UP_6"/>
+            <xs:enumeration value="EMPTY OUT_7"/>
+            <xs:enumeration value="REMOTE SERVICE_8"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:ControlModeEnumeration" name="ControlModeEnumeration"/>
+    <xs:complexType name="ListOfControlModeEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:ControlModeEnumeration" name="ControlModeEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfControlModeEnumeration" name="ListOfControlModeEnumeration" nillable="true"/>
+    <xs:simpleType name="ControlsHWFeatureEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Other_0"/>
+            <xs:enumeration value="IOImage_1"/>
+            <xs:enumeration value="LiveStream_2"/>
+            <xs:enumeration value="RemoteConnection_3"/>
+            <xs:enumeration value="ScreenshotCurrentPage_4"/>
+            <xs:enumeration value="SystemDump_5"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:ControlsHWFeatureEnumeration" name="ControlsHWFeatureEnumeration"/>
+    <xs:complexType name="ListOfControlsHWFeatureEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:ControlsHWFeatureEnumeration" name="ControlsHWFeatureEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfControlsHWFeatureEnumeration" name="ListOfControlsHWFeatureEnumeration" nillable="true"/>
+    <xs:simpleType name="ControlsSWFeatureEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Other_0"/>
+            <xs:enumeration value="SoftwarePackageRepository_1"/>
+            <xs:enumeration value="SoftwarePackageInstall_2"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:ControlsSWFeatureEnumeration" name="ControlsSWFeatureEnumeration"/>
+    <xs:complexType name="ListOfControlsSWFeatureEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:ControlsSWFeatureEnumeration" name="ControlsSWFeatureEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfControlsSWFeatureEnumeration" name="ListOfControlsSWFeatureEnumeration" nillable="true"/>
+    <xs:simpleType name="IOTypeEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="BYTE_0"/>
+            <xs:enumeration value="WORD_1"/>
+            <xs:enumeration value="DWORD_2"/>
+            <xs:enumeration value="LWORD_3"/>
+            <xs:enumeration value="SINT_4"/>
+            <xs:enumeration value="INT_5"/>
+            <xs:enumeration value="DINT_6"/>
+            <xs:enumeration value="LINT_7"/>
+            <xs:enumeration value="USINT_8"/>
+            <xs:enumeration value="UINT_9"/>
+            <xs:enumeration value="UDINT_10"/>
+            <xs:enumeration value="ULINT_11"/>
+            <xs:enumeration value="REAL_12"/>
+            <xs:enumeration value="LREAL_13"/>
+            <xs:enumeration value="TIME_14"/>
+            <xs:enumeration value="LTIME_15"/>
+            <xs:enumeration value="DATE_16"/>
+            <xs:enumeration value="LDATE_17"/>
+            <xs:enumeration value="TIME_OF_DAY_18"/>
+            <xs:enumeration value="LTIME_OF_DAY_19"/>
+            <xs:enumeration value="DATE_AND_TIME_20"/>
+            <xs:enumeration value="LDATE_AND_TIME_21"/>
+            <xs:enumeration value="CHAR_22"/>
+            <xs:enumeration value="WCHAR_23"/>
+            <xs:enumeration value="STRING_24"/>
+            <xs:enumeration value="WSTRING_25"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:IOTypeEnumeration" name="IOTypeEnumeration"/>
+    <xs:complexType name="ListOfIOTypeEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:IOTypeEnumeration" name="IOTypeEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfIOTypeEnumeration" name="ListOfIOTypeEnumeration" nillable="true"/>
+    <xs:simpleType name="MaterialIntergrityAgentEnumeration">
+        <xs:annotation>
+            <xs:documentation>Identifies the possible agents responsible for material integrity checking.</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Other_0"/>
+            <xs:enumeration value="MES_1"/>
+            <xs:enumeration value="Local_2"/>
+            <xs:enumeration value="None_3"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:MaterialIntergrityAgentEnumeration" name="MaterialIntergrityAgentEnumeration"/>
+    <xs:complexType name="ListOfMaterialIntergrityAgentEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:MaterialIntergrityAgentEnumeration" name="MaterialIntergrityAgentEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfMaterialIntergrityAgentEnumeration" name="ListOfMaterialIntergrityAgentEnumeration" nillable="true"/>
+    <xs:simpleType name="ParameterDependencyEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Machine_0"/>
+            <xs:enumeration value="Brand_1"/>
+            <xs:enumeration value="Machine and Brand_2"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:ParameterDependencyEnumeration" name="ParameterDependencyEnumeration"/>
+    <xs:complexType name="ListOfParameterDependencyEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:ParameterDependencyEnumeration" name="ParameterDependencyEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfParameterDependencyEnumeration" name="ListOfParameterDependencyEnumeration" nillable="true"/>
+    <xs:simpleType name="ProductionStatusEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Other_0"/>
+            <xs:enumeration value="Brand Change_1"/>
+            <xs:enumeration value="Production_2"/>
+            <xs:enumeration value="No Production_3"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:ProductionStatusEnumeration" name="ProductionStatusEnumeration"/>
+    <xs:complexType name="ListOfProductionStatusEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:ProductionStatusEnumeration" name="ProductionStatusEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfProductionStatusEnumeration" name="ListOfProductionStatusEnumeration" nillable="true"/>
+    <xs:simpleType name="StateEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Stopped_0"/>
+            <xs:enumeration value="Resetting_1"/>
+            <xs:enumeration value="Idle_2"/>
+            <xs:enumeration value="Starting_3"/>
+            <xs:enumeration value="Execute_4"/>
+            <xs:enumeration value="Completing_5"/>
+            <xs:enumeration value="Complete_6"/>
+            <xs:enumeration value="Aborting_7"/>
+            <xs:enumeration value="Aborted_8"/>
+            <xs:enumeration value="Stopping_9"/>
+            <xs:enumeration value="Clearing_10"/>
+            <xs:enumeration value="Suspending_11"/>
+            <xs:enumeration value="Suspended_12"/>
+            <xs:enumeration value="Un-Suspending_13"/>
+            <xs:enumeration value="Holding_14"/>
+            <xs:enumeration value="Held_15"/>
+            <xs:enumeration value="Un-holding_16"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:StateEnumeration" name="StateEnumeration"/>
+    <xs:complexType name="ListOfStateEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:StateEnumeration" name="StateEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfStateEnumeration" name="ListOfStateEnumeration" nillable="true"/>
+    <xs:simpleType name="StorageLogicEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Other_0"/>
+            <xs:enumeration value="FIFO_1"/>
+            <xs:enumeration value="LIFO_2"/>
+            <xs:enumeration value="FEFO_3"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:StorageLogicEnumeration" name="StorageLogicEnumeration"/>
+    <xs:complexType name="ListOfStorageLogicEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:StorageLogicEnumeration" name="StorageLogicEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfStorageLogicEnumeration" name="ListOfStorageLogicEnumeration" nillable="true"/>
+    <xs:simpleType name="TMCImplementedLevelEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Other_0"/>
+            <xs:enumeration value="Essential_1"/>
+            <xs:enumeration value="Adavnced_2"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:TMCImplementedLevelEnumeration" name="TMCImplementedLevelEnumeration"/>
+    <xs:complexType name="ListOfTMCImplementedLevelEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:TMCImplementedLevelEnumeration" name="TMCImplementedLevelEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfTMCImplementedLevelEnumeration" name="ListOfTMCImplementedLevelEnumeration" nillable="true"/>
+    <xs:complexType name="DataDescriptionType">
+        <xs:annotation>
+            <xs:documentation>The metadata (i.e. the complete identification except for the actual value) that describes one setting parameter.</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="ID"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="MES_ID"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:EUInformation" name="EngineeringUnits"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="DisplayFormat"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:ParameterDependencyEnumeration" name="Dependency"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="DataType"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:boolean" name="UserSubset"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:Range" name="ControlRange"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:Range" name="AlarmRange"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:DataDescriptionType" name="DataDescriptionType"/>
+    <xs:complexType name="ListOfDataDescriptionType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:DataDescriptionType" name="DataDescriptionType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfDataDescriptionType" name="ListOfDataDescriptionType" nillable="true"/>
+    <xs:complexType name="DataSetEntryType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="ID"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:Variant" name="Value"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:DataSetEntryType" name="DataSetEntryType"/>
+    <xs:complexType name="ListOfDataSetEntryType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:DataSetEntryType" name="DataSetEntryType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfDataSetEntryType" name="ListOfDataSetEntryType" nillable="true"/>
+    <xs:complexType name="DataSetListType">
+        <xs:annotation>
+            <xs:documentation>Contains the description and other necessary metadata of the complete set of machine settigns required for production.</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="DataSetListId"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:LocalizedText" name="DataSetListDescription"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:ListOfDataDescriptionType" name="DataDescriptions"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:DataSetListType" name="DataSetListType"/>
+    <xs:complexType name="ListOfDataSetListType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:DataSetListType" name="DataSetListType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfDataSetListType" name="ListOfDataSetListType" nillable="true"/>
+    <xs:complexType name="DataSetType">
+        <xs:annotation>
+            <xs:documentation>Complete set of settings values required to run production.</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="DataSetId"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:LocalizedText" name="DataSetDescription"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:ListOfDataSetEntryType" name="DataValues"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:double" name="DataSetCRC"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:DataSetType" name="DataSetType"/>
+    <xs:complexType name="ListOfDataSetType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:DataSetType" name="DataSetType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfDataSetType" name="ListOfDataSetType" nillable="true"/>
+    <xs:complexType name="IOMetaType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="Description"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="Address"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:IOTypeEnumeration" name="IOType"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:IOMetaType" name="IOMetaType"/>
+    <xs:complexType name="ListOfIOMetaType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:IOMetaType" name="IOMetaType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfIOMetaType" name="ListOfIOMetaType" nillable="true"/>
+    <xs:complexType name="IOPointType">
+        <xs:sequence>
+            <xs:element minOccurs="0" type="xs:unsignedInt" name="EncodingMask"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:IOMetaType" name="IOPointMeta"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:IOValueType" name="IOPointValue"/>
+        </xs:sequence>
+        <xs:attribute name="EncodingTable" fixed="IOPointMeta:0,IOPointValue:1"/>
+    </xs:complexType>
+    <xs:element type="tns:IOPointType" name="IOPointType"/>
+    <xs:complexType name="ListOfIOPointType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:IOPointType" name="IOPointType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfIOPointType" name="ListOfIOPointType" nillable="true"/>
+    <xs:complexType name="IOValueType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:dateTime" name="TimeStamp"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:Variant" name="RawValue"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:Variant" name="EngValue"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:IOValueType" name="IOValueType"/>
+    <xs:complexType name="ListOfIOValueType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:IOValueType" name="IOValueType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfIOValueType" name="ListOfIOValueType" nillable="true"/>
+    <xs:complexType name="LoadUnloadPointType">
+        <xs:annotation>
+            <xs:documentation>A physical location in the machine module where input materials can be loaded.</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="ID"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:LocalizedText" name="Description"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:ListOfMaterialType" name="MaterialCapability"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="UserName"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="MES_ID"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:LoadUnloadPointType" name="LoadUnloadPointType"/>
+    <xs:complexType name="ListOfLoadUnloadPointType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:LoadUnloadPointType" name="LoadUnloadPointType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfLoadUnloadPointType" name="ListOfLoadUnloadPointType" nillable="true"/>
+    <xs:complexType name="MaterialStorageBufferDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="ID"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="MES_ID"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:MaterialType" name="StoredMaterial"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:EUInformation" name="EUInfo"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:double" name="TotalStorageCapacity"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:StorageLogicEnumeration" name="StorageLogic"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:MaterialStorageBufferDataType" name="MaterialStorageBufferDataType"/>
+    <xs:complexType name="ListOfMaterialStorageBufferDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:MaterialStorageBufferDataType" name="MaterialStorageBufferDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfMaterialStorageBufferDataType" name="ListOfMaterialStorageBufferDataType" nillable="true"/>
+    <xs:complexType name="MaterialType">
+        <xs:annotation>
+            <xs:documentation>Describes a material (raw, semi, finished) in the production process.The information shall be made consistent with the ERP system's description.</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="Group"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="Id"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="BatchId"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:LocalizedText" name="Description"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="MES_Id"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:EUInformation" name="BaseUoM"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:MaterialType" name="MaterialType"/>
+    <xs:complexType name="ListOfMaterialType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:MaterialType" name="MaterialType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfMaterialType" name="ListOfMaterialType" nillable="true"/>
+    <xs:complexType name="MessageType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="ID"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:LocalizedText" name="LocalText"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:MessageType" name="MessageType"/>
+    <xs:complexType name="ListOfMessageType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:MessageType" name="MessageType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfMessageType" name="ListOfMessageType" nillable="true"/>
+    <xs:complexType name="RootCauseMessageType">
+        <xs:complexContent mixed="false">
+            <xs:extension base="tns:MessageType">
+                <xs:sequence>
+                    <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="GroupId"/>
+                </xs:sequence>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+    <xs:element type="tns:RootCauseMessageType" name="RootCauseMessageType"/>
+    <xs:complexType name="ListOfRootCauseMessageType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:RootCauseMessageType" name="RootCauseMessageType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfRootCauseMessageType" name="ListOfRootCauseMessageType" nillable="true"/>
+    <xs:complexType name="MethodExecutionFeedbackType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:boolean" name="Success"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:ListOfMessageType" name="Message"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:MethodExecutionFeedbackType" name="MethodExecutionFeedbackType"/>
+    <xs:complexType name="ListOfMethodExecutionFeedbackType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:MethodExecutionFeedbackType" name="MethodExecutionFeedbackType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfMethodExecutionFeedbackType" name="ListOfMethodExecutionFeedbackType" nillable="true"/>
+    <xs:complexType name="POType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="Number"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:MaterialType" name="ProducedMaterial"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:double" name="TargetQuantity"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:boolean" name="ContinueAtJobEnd"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:dateTime" name="TargetStartTime"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:dateTime" name="TargetEndTime"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="DatasetId"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="DatasetDescription"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:POType" name="POType"/>
+    <xs:complexType name="ListOfPOType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:POType" name="POType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfPOType" name="ListOfPOType" nillable="true"/>
+    <xs:complexType name="RootCauseGroupType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="Id"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="ParentId"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="ua:LocalizedText" name="Description"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:RootCauseGroupType" name="RootCauseGroupType"/>
+    <xs:complexType name="ListOfRootCauseGroupType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:RootCauseGroupType" name="RootCauseGroupType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfRootCauseGroupType" name="ListOfRootCauseGroupType" nillable="true"/>
+</xs:schema>

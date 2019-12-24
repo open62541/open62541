@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+ * Copyright (c) 2005-2019 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<ModelDesign 
+  xmlns:OpcUaPlc="http://PLCopen.org/OpcUa/IEC61131-3/" 
+  xmlns:OpcUaDi="http://opcfoundation.org/UA/DI/" 
+  xmlns:OpcUa="http://opcfoundation.org/UA/"
+  TargetNamespace="http://PLCopen.org/OpcUa/IEC61131-3/"
+  TargetXmlNamespace="http://PLCopen.org/OpcUa/IEC61131-3/" 
+  xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd"
+  TargetVersion="1.00"
+  TargetPublicationDate="2010-03-24T00:00:00Z"
+  xmlns="http://opcfoundation.org/UA/ModelDesign.xsd">
+  <Namespaces>
+    <Namespace Name="OpcUa" Version="1.03" PublicationDate="2013-12-02T00:00:00Z" Prefix="Opc.Ua" InternalPrefix="Opc.Ua.Server" XmlNamespace="http://opcfoundation.org/UA/2008/02/Types.xsd" XmlPrefix="OpcUa">http://opcfoundation.org/UA/</Namespace>
+    <Namespace Name="OpcUaDi" Prefix="Opc.Ua.Di" XmlNamespace="http://opcfoundation.org/UA/DI/Types.xsd" FilePath="OpcUaDiModel">http://opcfoundation.org/UA/DI/</Namespace>
+    <Namespace Name="OpcUaPlc" Prefix="Opc.Ua.Plc" XmlNamespace="http://PLCopen.org/OpcUa/IEC61131-3/Types.xsd">http://PLCopen.org/OpcUa/IEC61131-3/</Namespace>
+  </Namespaces>
+
+  <Object SymbolicName="OpcUaPlc:OpcUaPlcNamespaceMetadata" TypeDefinition="OpcUa:NamespaceMetadataType">
+    <BrowseName>http://PLCopen.org/OpcUa/IEC61131-3/</BrowseName>
+    <Children>
+      <Property SymbolicName="OpcUa:NamespaceUri" DataType="OpcUa:String">
+        <DefaultValue>
+          <uax:String>http://PLCopen.org/OpcUa/IEC61131-3/</uax:String>
+        </DefaultValue>
+      </Property>
+      <Property SymbolicName="OpcUa:NamespaceVersion" DataType="OpcUa:String">
+        <DefaultValue>
+          <uax:String>1.00</uax:String>
+        </DefaultValue>
+      </Property>
+      <Property SymbolicName="OpcUa:NamespacePublicationDate" DataType="OpcUa:DateTime">
+        <DefaultValue>
+          <uax:DateTime>2010-03-24</uax:DateTime>
+        </DefaultValue>
+      </Property>
+      <Property SymbolicName="OpcUa:IsNamespaceSubset" DataType="OpcUa:Boolean">
+        <DefaultValue>
+          <uax:Boolean>false</uax:Boolean>
+        </DefaultValue>
+      </Property>
+      <Property SymbolicName="OpcUa:StaticNodeIdTypes" DataType="OpcUa:IdType" ValueRank="Array">
+        <DefaultValue>
+          <uax:ListOfInt32>
+            <uax:Int32>0</uax:Int32>
+          </uax:ListOfInt32>
+        </DefaultValue>
+      </Property>
+      <Property SymbolicName="OpcUa:StaticNumericNodeIdRange" DataType="OpcUa:NumericRange" ValueRank="Array">
+        <DefaultValue>
+          <uax:ListOfString>
+            <uax:String>1:65535</uax:String>
+          </uax:ListOfString>
+        </DefaultValue>
+      </Property>
+      <Property SymbolicName="OpcUa:StaticStringNodeIdPattern" DataType="OpcUa:String">
+        <DefaultValue>
+          <uax:String></uax:String>
+        </DefaultValue>
+      </Property>
+      <Property SymbolicName="OpcUa:DefaultRolePermissions" ModellingRule="Mandatory" />
+      <Property SymbolicName="OpcUa:DefaultUserRolePermissions" ModellingRule="Mandatory" />
+      <Property SymbolicName="OpcUa:DefaultAccessRestrictions" ModellingRule="Mandatory" />
+    </Children>
+    <References>
+      <Reference IsInverse="true">
+        <ReferenceType>OpcUa:HasComponent</ReferenceType>
+        <TargetId>OpcUa:Server_Namespaces</TargetId>
+      </Reference>
+    </References>
+  </Object>
+  
+  <ReferenceType SymbolicName="OpcUaPlc:HasInputVars" BaseType="OpcUa:HasComponent">
+    <InverseName>InputVarsOf</InverseName>
+  </ReferenceType>
+  <ReferenceType SymbolicName="OpcUaPlc:HasOutputVars" BaseType="OpcUa:HasComponent">
+    <InverseName>OutputVarsOf</InverseName>
+  </ReferenceType>
+  <ReferenceType SymbolicName="OpcUaPlc:HasInOutVars" BaseType="OpcUa:HasComponent">
+    <InverseName>InOutVarsOf</InverseName>
+  </ReferenceType>
+  <ReferenceType SymbolicName="OpcUaPlc:HasLocalVars" BaseType="OpcUa:HasComponent">
+    <InverseName>LocalVarsOf</InverseName>
+  </ReferenceType>
+  <ReferenceType SymbolicName="OpcUaPlc:HasExternalVars" BaseType="OpcUa:Organizes">
+    <InverseName>ExternalVarsOf</InverseName>
+  </ReferenceType>
+  <ReferenceType SymbolicName="OpcUaPlc:With" BaseType="OpcUa:NonHierarchicalReferences">
+    <InverseName>Executes</InverseName>
+  </ReferenceType>
+  <ObjectType SymbolicName="OpcUaPlc:CtrlConfigurationType" BaseType="OpcUaDi:DeviceType">
+    <Children>
+      <Object SymbolicName="OpcUaPlc:MethodSet" TypeDefinition="OpcUa:BaseObjectType">
+        <Children>
+          <Method SymbolicName="OpcUaPlc:Start" ModellingRule="Optional"></Method>
+          <Method SymbolicName="OpcUaPlc:Stop" ModellingRule="Optional"></Method>
+        </Children>
+      </Object>
+      <Object SymbolicName="OpcUaPlc:Resources" TypeDefinition="OpcUaDi:ConfigurableObjectType"></Object>
+      <Object SymbolicName="OpcUaPlc:GlobalVars" TypeDefinition="OpcUaDi:FunctionalGroupType"></Object>
+      <Object SymbolicName="OpcUaPlc:AccessVars" TypeDefinition="OpcUaDi:FunctionalGroupType"></Object>
+      <Object SymbolicName="OpcUaPlc:ConfigVars" TypeDefinition="OpcUaDi:FunctionalGroupType"></Object>
+      <Object SymbolicName="OpcUaPlc:Configuration" TypeDefinition="OpcUaDi:FunctionalGroupType"></Object>
+      <Object SymbolicName="OpcUaPlc:Diagnostic" TypeDefinition="OpcUaDi:FunctionalGroupType"></Object>
+    </Children>
+  </ObjectType>
+  <ObjectType SymbolicName="OpcUaPlc:CtrlResourceType" BaseType="OpcUaDi:DeviceType">
+    <Children>
+      <Object SymbolicName="OpcUaPlc:MethodSet" TypeDefinition="OpcUa:BaseObjectType" ModellingRule="Optional">
+        <Children>
+          <Method SymbolicName="OpcUaPlc:Start" ModellingRule="Optional"></Method>
+          <Method SymbolicName="OpcUaPlc:Stop" ModellingRule="Optional"></Method>
+        </Children>
+      </Object>
+      <Object SymbolicName="OpcUaPlc:Tasks" TypeDefinition="OpcUaDi:ConfigurableObjectType" ModellingRule="Mandatory"></Object>
+      <Object SymbolicName="OpcUaPlc:Programs" TypeDefinition="OpcUaDi:ConfigurableObjectType" ModellingRule="Mandatory"></Object>
+      <Object SymbolicName="OpcUaPlc:GlobalVars" TypeDefinition="OpcUaDi:FunctionalGroupType" ModellingRule="Optional"></Object>
+      <Object SymbolicName="OpcUaPlc:Configuration" TypeDefinition="OpcUaDi:FunctionalGroupType" ModellingRule="Optional"></Object>
+      <Object SymbolicName="OpcUaPlc:Diagnostic" TypeDefinition="OpcUaDi:FunctionalGroupType" ModellingRule="Optional"></Object>
+    </Children>
+  </ObjectType>
+  <ObjectType SymbolicName="OpcUaPlc:CtrlProgramOrganizationUnitType" BaseType="OpcUaDi:BlockType" IsAbstract="true">
+    <Children>
+      <Variable SymbolicName="OpcUaPlc:Body" TypeDefinition="OpcUa:BaseDataVariableType" ModellingRule="Optional" DataType="OpcUa:XmlElement"></Variable>
+    </Children>
+  </ObjectType>
+  <ObjectType SymbolicName="OpcUaPlc:CtrlProgramType" BaseType="OpcUaPlc:CtrlProgramOrganizationUnitType" IsAbstract="true">
+    <Children>
+      <Variable SymbolicName="OpcUaPlc:Program" TypeDefinition="OpcUa:BaseDataVariableType" ModellingRule="Optional" DataType="OpcUa:Structure"></Variable>
+    </Children>
+  </ObjectType>
+  <ObjectType SymbolicName="OpcUaPlc:CtrlFunctionBlockType" BaseType="OpcUaPlc:CtrlProgramOrganizationUnitType" IsAbstract="true">
+    <Children>
+      <Variable SymbolicName="OpcUaPlc:FunctionBlock" TypeDefinition="OpcUa:BaseDataVariableType" ModellingRule="Optional"></Variable>
+    </Children>
+  </ObjectType>
+  <ObjectType SymbolicName="OpcUaPlc:CtrlTaskType" BaseType="OpcUa:BaseObjectType">
+    <Children>
+      <Property SymbolicName="OpcUaPlc:Priority" TypeDefinition="OpcUa:PropertyType" ModellingRule="Mandatory" DataType="OpcUa:UInt32"></Property>
+      <Property SymbolicName="OpcUaPlc:Interval" TypeDefinition="OpcUa:PropertyType" ModellingRule="Optional" DataType="OpcUa:String"></Property>
+      <Property SymbolicName="OpcUaPlc:Single" TypeDefinition="OpcUa:PropertyType" ModellingRule="Optional" DataType="OpcUa:String"></Property>
+      </Children>
+  </ObjectType>
+  <ObjectType SymbolicName="OpcUaPlc:SFCType" BaseType="OpcUa:BaseObjectType">
+  </ObjectType>
+</ModelDesign>

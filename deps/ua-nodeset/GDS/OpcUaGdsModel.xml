@@ -1,0 +1,467 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+ * Copyright (c) 2005-2019 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<opc:ModelDesign
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+  xmlns:opc="http://opcfoundation.org/UA/ModelDesign.xsd"
+  xmlns:ua="http://opcfoundation.org/UA/"
+  xmlns="http://opcfoundation.org/UA/GDS/"
+  xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd"
+  xmlns:uasc="http://opcfoundation.org/UA/PushConfiguration/"
+  TargetNamespace="http://opcfoundation.org/UA/GDS/"
+  TargetVersion="1.04"
+  TargetPublicationDate="2019-05-01T00:00:00Z"
+>
+  <opc:Namespaces>
+    <opc:Namespace Name="OpcUaGds" Prefix="Opc.Ua.Gds" XmlNamespace="http://opcfoundation.org/UA/GDS/Types.xsd" XmlPrefix="GDS">http://opcfoundation.org/UA/GDS/</opc:Namespace>
+    <opc:Namespace Name="OpcUa" Prefix="Opc.Ua" InternalPrefix="Opc.Ua.Server" XmlNamespace="http://opcfoundation.org/UA/2008/02/Types.xsd" XmlPrefix="OpcUa">http://opcfoundation.org/UA/</opc:Namespace>
+  </opc:Namespaces>
+
+  <opc:Object SymbolicName="OPCUAGDSNamespaceMetadata" TypeDefinition="ua:NamespaceMetadataType" PartNo="12">
+    <opc:BrowseName>http://opcfoundation.org/UA/GDS/</opc:BrowseName>
+    <opc:Children>
+      <opc:Property SymbolicName="ua:NamespaceUri" DataType="ua:String">
+        <opc:DefaultValue>
+          <uax:String>http://opcfoundation.org/UA/GDS/</uax:String>
+        </opc:DefaultValue>
+      </opc:Property>
+      <opc:Property SymbolicName="ua:NamespaceVersion" DataType="ua:String">
+        <opc:DefaultValue>
+          <uax:String>1.04</uax:String>
+        </opc:DefaultValue>
+      </opc:Property>
+      <opc:Property SymbolicName="ua:NamespacePublicationDate" DataType="ua:DateTime">
+        <opc:DefaultValue>
+          <uax:DateTime>2019-05-01T00:00:00Z</uax:DateTime>
+        </opc:DefaultValue>
+      </opc:Property>
+      <opc:Property SymbolicName="ua:IsNamespaceSubset" DataType="ua:Boolean">
+        <opc:DefaultValue>
+          <uax:Boolean>false</uax:Boolean>
+        </opc:DefaultValue>
+      </opc:Property>
+      <opc:Property SymbolicName="ua:StaticNodeIdTypes" DataType="ua:IdType" ValueRank="Array">
+        <opc:DefaultValue>
+          <uax:ListOfInt32>
+            <uax:Int32>0</uax:Int32>
+          </uax:ListOfInt32>
+        </opc:DefaultValue>
+      </opc:Property>
+      <opc:Property SymbolicName="ua:StaticNumericNodeIdRange" DataType="ua:NumericRange" ValueRank="Array">
+        <opc:DefaultValue>
+          <uax:ListOfString>
+            <uax:String>1:65535</uax:String>
+          </uax:ListOfString>
+        </opc:DefaultValue>
+      </opc:Property>
+      <opc:Property SymbolicName="ua:StaticStringNodeIdPattern" DataType="ua:String">
+        <opc:DefaultValue>
+          <uax:String></uax:String>
+        </opc:DefaultValue>
+      </opc:Property>
+      <opc:Property SymbolicName="ua:DefaultRolePermissions" ModellingRule="Mandatory" />
+      <opc:Property SymbolicName="ua:DefaultUserRolePermissions" ModellingRule="Mandatory" />
+      <opc:Property SymbolicName="ua:DefaultAccessRestrictions" ModellingRule="Mandatory" />
+    </opc:Children>
+    <opc:References>
+      <opc:Reference IsInverse="true">
+        <opc:ReferenceType>ua:HasComponent</opc:ReferenceType>
+        <opc:TargetId>ua:Server_Namespaces</opc:TargetId>
+      </opc:Reference>
+    </opc:References>
+  </opc:Object>
+  
+  <opc:DataType SymbolicName="ApplicationRecordDataType" BaseType="ua:Structure">
+    <opc:Fields>
+      <opc:Field Name="ApplicationId" DataType="ua:NodeId"></opc:Field>
+      <opc:Field Name="ApplicationUri" DataType="ua:String"></opc:Field>
+      <opc:Field Name="ApplicationType" DataType="ua:ApplicationType" />
+      <opc:Field Name="ApplicationNames" DataType="ua:LocalizedText" ValueRank="Array" />
+      <opc:Field Name="ProductUri" DataType="ua:String" />
+      <opc:Field Name="DiscoveryUrls" DataType="ua:String" ValueRank="Array" />
+      <opc:Field Name="ServerCapabilities" DataType="ua:String" ValueRank="Array" />
+    </opc:Fields>
+  </opc:DataType>
+
+  <opc:Method SymbolicName="FindApplicationsMethodType">
+    <opc:InputArguments>
+      <opc:Argument Name="ApplicationUri" DataType="ua:String"></opc:Argument>
+    </opc:InputArguments>
+    <opc:OutputArguments>
+      <opc:Argument Name="Applications" DataType="ApplicationRecordDataType" ValueRank="Array"></opc:Argument>
+    </opc:OutputArguments>
+  </opc:Method>
+
+  <opc:Method SymbolicName="RegisterApplicationMethodType">
+    <opc:InputArguments>
+      <opc:Argument Name="Application" DataType="ApplicationRecordDataType"></opc:Argument>
+    </opc:InputArguments>
+    <opc:OutputArguments>
+      <opc:Argument Name="ApplicationId" DataType="ua:NodeId"></opc:Argument>
+    </opc:OutputArguments>
+  </opc:Method>
+
+  <opc:Method SymbolicName="UpdateApplicationMethodType">
+    <opc:InputArguments>
+      <opc:Argument Name="Application" DataType="ApplicationRecordDataType"></opc:Argument>
+    </opc:InputArguments>
+  </opc:Method>
+
+  <opc:Method SymbolicName="UnregisterApplicationMethodType">
+    <opc:InputArguments>
+      <opc:Argument Name="ApplicationId" DataType="ua:NodeId"></opc:Argument>
+    </opc:InputArguments>
+  </opc:Method>
+
+  <opc:Method SymbolicName="GetApplicationMethodType">
+    <opc:InputArguments>
+      <opc:Argument Name="ApplicationId" DataType="ua:NodeId"></opc:Argument>
+    </opc:InputArguments>
+    <opc:OutputArguments>
+      <opc:Argument Name="Application" DataType="ApplicationRecordDataType"></opc:Argument>
+    </opc:OutputArguments>
+  </opc:Method>
+
+  <opc:Method SymbolicName="QueryApplicationsMethodType">
+    <opc:InputArguments>
+      <opc:Argument Name="StartingRecordId" DataType="ua:UInt32"></opc:Argument>
+      <opc:Argument Name="MaxRecordsToReturn" DataType="ua:UInt32"></opc:Argument>
+      <opc:Argument Name="ApplicationName" DataType="ua:String"></opc:Argument>
+      <opc:Argument Name="ApplicationUri" DataType="ua:String"></opc:Argument>
+      <opc:Argument Name="ApplicationType" DataType="ua:UInt32"></opc:Argument>
+      <opc:Argument Name="ProductUri" DataType="ua:String"></opc:Argument>
+      <opc:Argument Name="Capabilities" DataType="ua:String" ValueRank="Array"></opc:Argument>
+    </opc:InputArguments>
+    <opc:OutputArguments>
+      <opc:Argument Name="LastCounterResetTime" DataType="ua:UtcTime"></opc:Argument>
+      <opc:Argument Name="NextRecordId" DataType="ua:UInt32"></opc:Argument>
+      <opc:Argument Name="Applications" DataType="ua:ApplicationDescription" ValueRank="Array"></opc:Argument>
+    </opc:OutputArguments>
+  </opc:Method>
+  
+  <opc:Method SymbolicName="QueryServersMethodType">
+    <opc:InputArguments>
+      <opc:Argument Name="StartingRecordId" DataType="ua:UInt32"></opc:Argument>
+      <opc:Argument Name="MaxRecordsToReturn" DataType="ua:UInt32"></opc:Argument>
+      <opc:Argument Name="ApplicationName" DataType="ua:String"></opc:Argument>
+      <opc:Argument Name="ApplicationUri" DataType="ua:String"></opc:Argument>
+      <opc:Argument Name="ProductUri" DataType="ua:String"></opc:Argument>
+      <opc:Argument Name="ServerCapabilities" DataType="ua:String" ValueRank="Array"></opc:Argument>
+    </opc:InputArguments>
+    <opc:OutputArguments>
+      <opc:Argument Name="LastCounterResetTime" DataType="ua:UtcTime"></opc:Argument>
+      <opc:Argument Name="Servers" DataType="ua:ServerOnNetwork" ValueRank="Array"></opc:Argument>
+    </opc:OutputArguments>
+  </opc:Method>
+
+  <opc:ObjectType SymbolicName="DirectoryType" BaseType="ua:FolderType">
+    <opc:Children>
+      <opc:Object SymbolicName="Applications" TypeDefinition="ua:FolderType" ModellingRule="Mandatory" />
+      <opc:Method SymbolicName="FindApplications" TypeDefinition="FindApplicationsMethodType" ModellingRule="Mandatory" />
+      <opc:Method SymbolicName="RegisterApplication" TypeDefinition="RegisterApplicationMethodType" ModellingRule="Mandatory" />
+      <opc:Method SymbolicName="UpdateApplication" TypeDefinition="UpdateApplicationMethodType" ModellingRule="Mandatory" />
+      <opc:Method SymbolicName="UnregisterApplication" TypeDefinition="UnregisterApplicationMethodType" ModellingRule="Mandatory" />
+      <opc:Method SymbolicName="GetApplication" TypeDefinition="GetApplicationMethodType" ModellingRule="Mandatory" />
+      <opc:Method SymbolicName="QueryApplications" TypeDefinition="QueryApplicationsMethodType" ModellingRule="Mandatory" />
+      <opc:Method SymbolicName="QueryServers" TypeDefinition="QueryServersMethodType" ModellingRule="Mandatory" />
+    </opc:Children>
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="ApplicationRegistrationChangedAuditEventType" BaseType="ua:AuditUpdateMethodEventType" IsAbstract="true">
+  </opc:ObjectType>
+
+  <opc:Method SymbolicName="StartSigningRequestMethodType">
+    <opc:InputArguments>
+      <opc:Argument Name="ApplicationId" DataType="ua:NodeId" />
+      <opc:Argument Name="CertificateGroupId" DataType="ua:NodeId" />
+      <opc:Argument Name="CertificateTypeId" DataType="ua:NodeId" />
+      <opc:Argument Name="CertificateRequest" DataType="ua:ByteString" />
+    </opc:InputArguments>
+    <opc:OutputArguments>
+      <opc:Argument Name="RequestId" DataType="ua:NodeId"></opc:Argument>
+    </opc:OutputArguments>
+  </opc:Method>
+
+  <opc:Method SymbolicName="StartNewKeyPairRequestMethodType">
+    <opc:InputArguments>
+      <opc:Argument Name="ApplicationId" DataType="ua:NodeId" />
+      <opc:Argument Name="CertificateGroupId" DataType="ua:NodeId" />
+      <opc:Argument Name="CertificateTypeId" DataType="ua:NodeId" />
+      <opc:Argument Name="SubjectName" DataType="ua:String" />
+      <opc:Argument Name="DomainNames" DataType="ua:String" ValueRank="Array" />
+      <opc:Argument Name="PrivateKeyFormat" DataType="ua:String" />
+      <opc:Argument Name="PrivateKeyPassword" DataType="ua:String" />
+    </opc:InputArguments>
+    <opc:OutputArguments>
+      <opc:Argument Name="RequestId" DataType="ua:NodeId"></opc:Argument>
+    </opc:OutputArguments>
+  </opc:Method>
+  
+  <opc:Method SymbolicName="FinishRequestMethodType">
+    <opc:InputArguments>
+      <opc:Argument Name="ApplicationId" DataType="ua:NodeId"></opc:Argument>
+      <opc:Argument Name="RequestId" DataType="ua:NodeId"></opc:Argument>
+    </opc:InputArguments>
+    <opc:OutputArguments>
+      <opc:Argument Name="Certificate" DataType="ua:ByteString"></opc:Argument>
+      <opc:Argument Name="PrivateKey" DataType="ua:ByteString"></opc:Argument>
+      <opc:Argument Name="IssuerCertificates" DataType="ua:ByteString" ValueRank="Array"></opc:Argument>
+    </opc:OutputArguments>
+  </opc:Method>
+
+  <opc:Method SymbolicName="GetCertificateGroupsMethodType">
+    <opc:InputArguments>
+      <opc:Argument Name="ApplicationId" DataType="ua:NodeId"></opc:Argument>
+    </opc:InputArguments>
+    <opc:OutputArguments>
+      <opc:Argument Name="CertificateGroupIds" DataType="ua:NodeId" ValueRank="Array"></opc:Argument>
+    </opc:OutputArguments>
+  </opc:Method>
+
+  <opc:Method SymbolicName="GetTrustListMethodType">
+    <opc:InputArguments>
+      <opc:Argument Name="ApplicationId" DataType="ua:NodeId"></opc:Argument>
+      <opc:Argument Name="CertificateGroupId" DataType="ua:NodeId"></opc:Argument>
+    </opc:InputArguments>
+    <opc:OutputArguments>
+      <opc:Argument Name="TrustListId" DataType="ua:NodeId"></opc:Argument>
+    </opc:OutputArguments>
+  </opc:Method>
+
+  <opc:Method SymbolicName="RevokeCertificateMethodType">
+    <opc:InputArguments>
+      <opc:Argument Name="ApplicationId" DataType="ua:NodeId"></opc:Argument>
+      <opc:Argument Name="Certificate" DataType="ua:ByteString"></opc:Argument>
+    </opc:InputArguments>
+  </opc:Method>
+
+  <opc:Method SymbolicName="GetCertificateStatusMethodType">
+    <opc:InputArguments>
+      <opc:Argument Name="ApplicationId" DataType="ua:NodeId"></opc:Argument>
+      <opc:Argument Name="CertificateGroupId" DataType="ua:NodeId"></opc:Argument>
+      <opc:Argument Name="CertificateTypeId" DataType="ua:NodeId" />
+    </opc:InputArguments>
+    <opc:OutputArguments>
+      <opc:Argument Name="UpdateRequired" DataType="ua:Boolean"></opc:Argument>
+    </opc:OutputArguments>
+  </opc:Method>
+
+  <opc:ObjectType SymbolicName="CertificateDirectoryType" BaseType="DirectoryType">
+    <opc:Children>
+      <opc:Object SymbolicName="CertificateGroups" TypeDefinition="ua:CertificateGroupFolderType"  ModellingRule="Mandatory">
+        <opc:ReferenceType>ua:Organizes</opc:ReferenceType>
+      </opc:Object>
+      <opc:Method SymbolicName="StartSigningRequest" TypeDefinition="StartSigningRequestMethodType" ModellingRule="Mandatory" />
+      <opc:Method SymbolicName="StartNewKeyPairRequest" TypeDefinition="StartNewKeyPairRequestMethodType" ModellingRule="Mandatory" />
+      <opc:Method SymbolicName="FinishRequest" TypeDefinition="FinishRequestMethodType" ModellingRule="Mandatory" />
+      <opc:Method SymbolicName="RevokeCertificate" TypeDefinition="RevokeCertificateMethodType" ModellingRule="Optional" />
+      <opc:Method SymbolicName="GetCertificateGroups" TypeDefinition="GetCertificateGroupsMethodType" ModellingRule="Mandatory" />
+      <opc:Method SymbolicName="GetTrustList" TypeDefinition="GetTrustListMethodType" ModellingRule="Mandatory" />
+      <opc:Method SymbolicName="GetCertificateStatus" TypeDefinition="GetCertificateStatusMethodType" ModellingRule="Mandatory" />
+    </opc:Children>
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="CertificateRequestedAuditEventType" BaseType="ua:AuditUpdateMethodEventType" IsAbstract="true">
+    <opc:Children>
+      <opc:Property SymbolicName="CertificateGroup" DataType="ua:NodeId" ModellingRule="Mandatory" />
+      <opc:Property SymbolicName="CertificateType" DataType="ua:NodeId" ModellingRule="Mandatory" />
+    </opc:Children>
+  </opc:ObjectType>
+
+  <opc:ObjectType SymbolicName="CertificateDeliveredAuditEventType" BaseType="ua:AuditUpdateMethodEventType" IsAbstract="true">
+    <opc:Children>
+      <opc:Property SymbolicName="CertificateGroup" DataType="ua:NodeId" ModellingRule="Mandatory" />
+      <opc:Property SymbolicName="CertificateType" DataType="ua:NodeId" ModellingRule="Mandatory" />
+    </opc:Children>
+  </opc:ObjectType>
+  
+  <opc:Object SymbolicName="KeyCredentialManagement" TypeDefinition="ua:FolderType">
+    <opc:Children>
+      <opc:Object SymbolicName="ServiceName_Placeholder" TypeDefinition="KeyCredentialServiceType"  ModellingRule="OptionalPlaceholder">
+        <opc:BrowseName>&lt;ServiceName&gt;</opc:BrowseName>
+        <opc:ReferenceType>ua:Organizes</opc:ReferenceType>
+      </opc:Object>
+    </opc:Children>
+    <opc:References>
+      <opc:Reference IsInverse="true">
+        <opc:ReferenceType>ua:Organizes</opc:ReferenceType>
+        <opc:TargetId>ua:ObjectsFolder</opc:TargetId>
+      </opc:Reference>
+    </opc:References>
+  </opc:Object>
+
+  <opc:ObjectType SymbolicName="KeyCredentialServiceType" BaseType="ua:BaseObjectType">
+    <opc:Children>
+      <opc:Property SymbolicName="ResourceUri"  DataType="ua:String" ValueRank="Scalar" ModellingRule="Mandatory" />
+      <opc:Property SymbolicName="ProfileUris"  DataType="ua:String" ValueRank="Array" ModellingRule="Mandatory" />
+      <opc:Method SymbolicName="StartRequest" TypeDefinition="KeyCredentialStartRequestMethodType" ModellingRule="Mandatory" />
+      <opc:Method SymbolicName="FinishRequest" TypeDefinition="KeyCredentialFinishRequestMethodType" ModellingRule="Mandatory" />
+      <opc:Method SymbolicName="Revoke" TypeDefinition="KeyCredentialRevokeMethodType" ModellingRule="Optional" />
+    </opc:Children>
+  </opc:ObjectType>
+
+  <opc:Method SymbolicName="KeyCredentialStartRequestMethodType">
+    <opc:InputArguments>
+      <opc:Argument Name="ApplicationUri" DataType="ua:String" />
+      <opc:Argument Name="PublicKey" DataType="ua:ByteString"></opc:Argument>
+      <opc:Argument Name="SecurityPolicyUri" DataType="ua:String" />
+      <opc:Argument Name="RequestedRoles" DataType="ua:NodeId" ValueRank="Array" />
+    </opc:InputArguments>
+    <opc:OutputArguments>
+      <opc:Argument Name="RequestId" DataType="ua:NodeId"></opc:Argument>
+    </opc:OutputArguments>
+  </opc:Method>
+
+  <opc:Method SymbolicName="KeyCredentialFinishRequestMethodType">
+    <opc:InputArguments>
+      <opc:Argument Name="RequestId" DataType="ua:NodeId"></opc:Argument>
+      <opc:Argument Name="CancelRequest" DataType="ua:Boolean"></opc:Argument>
+    </opc:InputArguments>
+    <opc:OutputArguments>
+      <opc:Argument Name="CredentialId" DataType="ua:String" />
+      <opc:Argument Name="CredentialSecret" DataType="ua:ByteString"></opc:Argument>
+      <opc:Argument Name="CertificateThumbprint" DataType="ua:String" />
+      <opc:Argument Name="SecurityPolicyUri" DataType="ua:String" />
+      <opc:Argument Name="GrantedRoles" DataType="ua:NodeId" ValueRank="Array" />
+    </opc:OutputArguments>
+  </opc:Method>
+
+  <opc:Method SymbolicName="KeyCredentialRevokeMethodType">
+    <opc:InputArguments>
+      <opc:Argument Name="CredentialId" DataType="ua:String" />
+    </opc:InputArguments>
+  </opc:Method>
+
+  <opc:ObjectType SymbolicName="KeyCredentialRequestedAuditEventType" BaseType="ua:KeyCredentialAuditEventType" IsAbstract="false" />
+  <opc:ObjectType SymbolicName="KeyCredentialDeliveredAuditEventType" BaseType="ua:KeyCredentialAuditEventType" IsAbstract="false" />
+  <opc:ObjectType SymbolicName="KeyCredentialRevokedAuditEventType" BaseType="ua:KeyCredentialAuditEventType" IsAbstract="false" />
+  
+  <opc:Object SymbolicName="AuthorizationServices" TypeDefinition="ua:FolderType">
+    <opc:Children>
+      <opc:Object SymbolicName="ServiceName_Placeholder" TypeDefinition="AuthorizationServiceType"  ModellingRule="OptionalPlaceholder">
+        <opc:BrowseName>&lt;ServiceName&gt;</opc:BrowseName>
+        <opc:ReferenceType>ua:Organizes</opc:ReferenceType>
+      </opc:Object>
+    </opc:Children>
+    <opc:References>
+      <opc:Reference IsInverse="true">
+        <opc:ReferenceType>ua:Organizes</opc:ReferenceType>
+        <opc:TargetId>ua:ObjectsFolder</opc:TargetId>
+      </opc:Reference>
+    </opc:References>
+  </opc:Object>
+
+  <opc:ObjectType SymbolicName="AuthorizationServiceType" BaseType="ua:BaseObjectType">
+    <opc:Children>
+      <opc:Property SymbolicName="ServiceUri"  DataType="ua:String" ValueRank="Scalar" ModellingRule="Mandatory" />
+      <opc:Property SymbolicName="ServiceCertificate"  DataType="ua:ByteString" ValueRank="Scalar" ModellingRule="Mandatory" />
+      <opc:Property SymbolicName="UserTokenPolicies"  DataType="ua:UserTokenPolicy" ValueRank="Array" ModellingRule="Optional" />
+      <opc:Method SymbolicName="GetServiceDescription" TypeDefinition="GetServiceDescriptionMethodType" ModellingRule="Mandatory" />
+      <opc:Method SymbolicName="RequestAccessToken" TypeDefinition="RequestAccessTokenMethodType" ModellingRule="Optional" />
+    </opc:Children>
+  </opc:ObjectType>
+
+  <opc:Method SymbolicName="GetServiceDescriptionMethodType">
+    <opc:OutputArguments>
+      <opc:Argument Name="ServiceUri" DataType="ua:String"></opc:Argument>
+      <opc:Argument Name="ServiceCertificate" DataType="ua:ByteString"></opc:Argument>
+      <opc:Argument Name="UserTokenPolicies" DataType="ua:UserTokenPolicy" ValueRank="Array"></opc:Argument>
+    </opc:OutputArguments>
+  </opc:Method>
+
+  <opc:Method SymbolicName="RequestAccessTokenMethodType">
+    <opc:InputArguments>
+      <opc:Argument Name="IdentityToken" DataType="ua:UserIdentityToken"></opc:Argument>
+      <opc:Argument Name="ResourceId" DataType="ua:String"></opc:Argument>
+    </opc:InputArguments>
+    <opc:OutputArguments>
+      <opc:Argument Name="AccessToken" DataType="ua:String"></opc:Argument>
+    </opc:OutputArguments>
+  </opc:Method>
+
+  <opc:ObjectType SymbolicName="AccessTokenAuditIssuedAuditEventType" BaseType="ua:AuditUpdateMethodEventType" IsAbstract="false" />
+
+  <opc:Object SymbolicName="Directory" TypeDefinition="CertificateDirectoryType">
+    
+    <opc:Children>
+      <opc:Object SymbolicName="CertificateGroups" ModellingRule="Mandatory">
+        <opc:Children>
+          <opc:Object SymbolicName="DefaultApplicationGroup" ModellingRule="Mandatory">
+            <opc:Children>
+              <opc:Object SymbolicName="ua:TrustList" ModellingRule="Mandatory">
+                <opc:Children>
+                  <opc:Method SymbolicName="ua:OpenWithMasks" ModellingRule="Mandatory" />
+                  <opc:Method SymbolicName="ua:CloseAndUpdate" ModellingRule="Mandatory" />
+                  <opc:Method SymbolicName="ua:AddCertificate" ModellingRule="Mandatory" />
+                  <opc:Method SymbolicName="ua:RemoveCertificate" ModellingRule="Mandatory" />
+                </opc:Children>
+              </opc:Object>
+            </opc:Children>
+          </opc:Object>
+
+          <opc:Object SymbolicName="DefaultHttpsGroup" ModellingRule="Mandatory">
+            <opc:Children>
+              <opc:Object SymbolicName="ua:TrustList" ModellingRule="Mandatory">
+                <opc:Children>
+                  <opc:Method SymbolicName="ua:OpenWithMasks" ModellingRule="Mandatory" />
+                  <opc:Method SymbolicName="ua:CloseAndUpdate" ModellingRule="Mandatory" />
+                  <opc:Method SymbolicName="ua:AddCertificate" ModellingRule="Mandatory" />
+                  <opc:Method SymbolicName="ua:RemoveCertificate" ModellingRule="Mandatory" />
+                </opc:Children>
+              </opc:Object>
+            </opc:Children>
+          </opc:Object>
+
+          <opc:Object SymbolicName="DefaultUserTokenGroup" ModellingRule="Mandatory">
+            <opc:Children>
+              <opc:Object SymbolicName="ua:TrustList" ModellingRule="Mandatory">
+                <opc:Children>
+                  <opc:Method SymbolicName="ua:OpenWithMasks" ModellingRule="Mandatory" />
+                  <opc:Method SymbolicName="ua:CloseAndUpdate" ModellingRule="Mandatory" />
+                  <opc:Method SymbolicName="ua:AddCertificate" ModellingRule="Mandatory" />
+                  <opc:Method SymbolicName="ua:RemoveCertificate" ModellingRule="Mandatory" />
+                </opc:Children>
+              </opc:Object>
+            </opc:Children>
+          </opc:Object>
+        </opc:Children>
+      </opc:Object>
+    </opc:Children>
+    
+    <opc:References>
+      <opc:Reference IsInverse="true">
+        <opc:ReferenceType>ua:Organizes</opc:ReferenceType>
+        <opc:TargetId>ua:ObjectsFolder</opc:TargetId>
+      </opc:Reference>
+    </opc:References>
+  </opc:Object>
+  
+</opc:ModelDesign>
