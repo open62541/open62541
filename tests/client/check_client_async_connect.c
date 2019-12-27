@@ -7,19 +7,15 @@
 #include <open62541/client_highlevel_async.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
-
-#include "client/ua_client_internal.h"
-
 #include <check.h>
 #include <stdlib.h>
-
+#include "client/ua_client_internal.h"
 #include "testing_clock.h"
-#include "testing_networklayers.h"
+#include "testing_socket.h"
 #include "thread_wrapper.h"
 
 UA_Server *server;
 UA_Boolean running;
-UA_ServerNetworkLayer nl;
 THREAD_HANDLE server_thread;
 
 THREAD_CALLBACK(serverloop) {
@@ -36,6 +32,8 @@ onConnect(UA_Client *Client, void *connected,
 }
 
 static void setup(void) {
+    UA_Socket_activityTesting_result = UA_STATUSCODE_GOOD;
+    UA_NetworkManager_processTesting_result = UA_STATUSCODE_GOOD;
     running = true;
     server = UA_Server_new();
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
@@ -102,19 +100,51 @@ START_TEST(Client_connect_async){
 }
 END_TEST
 
+/* https://github.com/open62541/open62541/issues/2394 */
+START_TEST(Client_connect_async_memleak)
+    {
+        UA_Client *client = UA_Client_new();
+        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+        const char* uri = "opc.tcp://localhost:4840";
+        const int iterations = 20;
+
+        UA_Boolean connected = false;
+        for (int i = 0; i < iterations; i++) {
+            UA_StatusCode retval = UA_Client_connect_async(client, uri, onConnect, &connected);
+            if(retval != UA_STATUSCODE_GOOD)
+                ck_assert_uint_eq(retval, UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY);
+            UA_Client_run_iterate(client, 0);
+            UA_comboSleep(25);
+        }
+        ck_assert(connected);
+
+        UA_Client_delete(client);
+    }
+END_TEST
+
 START_TEST(Client_no_connection) {
     UA_Client *client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
 
     UA_Boolean connected = false;
-    UA_StatusCode retval =
-        UA_Client_connect_async(client, "opc.tcp://localhost:4840", onConnect, &connected);
+    UA_StatusCode retval = UA_Client_connect_async(client, "opc.tcp://localhost:4840", onConnect, &connected);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_Client_recv = client->connection.recv;
-    client->connection.recv = UA_Client_recvTesting;
+    UA_NetworkManager_process = client->config.networkManager->process;
+    client->config.networkManager->process = UA_NetworkManager_processTesting;
+
+    /* Wait for connect. Otherwise we wont be able to replace the activity function */
+    for(int i = 0; i < 100 && !connected; ++i) {
+        UA_fakeSleep(100);
+        UA_realSleep(100);
+        UA_Client_run_iterate(client, 0);
+    }
+    UA_Socket_activity = UA_Connection_getSocket(client->connection)->activity;
+    UA_Connection_getSocket(client->connection)->activity = UA_Socket_activityTesting;
+
     //simulating unconnected server
-    UA_Client_recvTesting_result = UA_STATUSCODE_BADCONNECTIONCLOSED;
+    UA_Socket_activityTesting_result = UA_STATUSCODE_BADCONNECTIONCLOSED;
+    UA_NetworkManager_processTesting_result = UA_STATUSCODE_BADCONNECTIONCLOSED;
     retval = UA_Client_run_iterate(client, 0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONNECTIONCLOSED);
     UA_Client_disconnect(client);
@@ -135,6 +165,7 @@ static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Client");
     TCase *tc_client_connect = tcase_create("Client Connect Async");
     tcase_add_checked_fixture(tc_client_connect, setup, teardown);
+    tcase_add_test(tc_client_connect, Client_connect_async_memleak);
     tcase_add_test(tc_client_connect, Client_connect_async);
     tcase_add_test(tc_client_connect, Client_no_connection);
     tcase_add_test(tc_client_connect, Client_without_run_iterate);

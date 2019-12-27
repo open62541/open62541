@@ -32,7 +32,6 @@ IncludeBlocks: Regroup
 #include <open62541/plugin/log_stdout.h>
 
 #include "server/ua_server_internal.h"
-#include "ua_network_tcp.h"
 #include "ua_securechannel.h"
 #include "ua_types_encoding_binary.h"
 

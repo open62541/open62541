@@ -61,6 +61,10 @@ stateCallback (UA_Client *client, UA_ClientState clientState) {
             UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                         "A TCP connection to the server is open");
         break;
+        case UA_CLIENTSTATE_SECURECHANNEL_OPENING:
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                    "A SecureChannel to the server is opening");
+        break;
         case UA_CLIENTSTATE_SECURECHANNEL:
             UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                         "A SecureChannel to the server is open");

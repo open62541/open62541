@@ -12,12 +12,11 @@
 #include <stdlib.h>
 
 #include "testing_clock.h"
-#include "testing_networklayers.h"
+#include "testing_socket.h"
 #include "thread_wrapper.h"
 
 UA_Server *server;
 UA_Boolean running;
-UA_ServerNetworkLayer nl;
 THREAD_HANDLE server_thread;
 
 static void
@@ -184,7 +183,6 @@ START_TEST(Client_renewSecureChannel) {
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
-
 } END_TEST
 
 START_TEST(Client_renewSecureChannelWithActiveSubscription) {
@@ -235,7 +233,7 @@ START_TEST(Client_reconnect) {
     setup();
 
     retval = UA_Client_readValueAttribute(client, nodeId, &val);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONNECTIONCLOSED);
+    ck_assert(retval == UA_STATUSCODE_BADCONNECTIONCLOSED || retval == UA_STATUSCODE_BADCOMMUNICATIONERROR);
 
     retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, UA_StatusCode_name(retval));
@@ -318,7 +316,7 @@ START_TEST(Client_activateSessionTimeout) {
     client->connection.recv = UA_Client_recvTesting;
 
     /* Simulate network cable unplugged (no response from server) */
-    UA_Client_recvTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+    UA_Socket_activityTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
 
     UA_Variant_init(&val);
     retval = UA_Client_readValueAttribute(client, nodeId, &val);
@@ -326,7 +324,7 @@ START_TEST(Client_activateSessionTimeout) {
 
     ck_assert_msg(UA_Client_getState(client) == UA_CLIENTSTATE_DISCONNECTED);
 
-    UA_Client_recvTesting_result = UA_STATUSCODE_GOOD;
+    UA_Socket_activityTesting_result = UA_STATUSCODE_GOOD;
     retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(server->sessionManager.currentSessionCount, 1);

@@ -75,17 +75,17 @@ multicastListenStop(UA_Server* server) {
 # endif /* UA_MULTITHREADING */
 
 static UA_StatusCode
-addMdnsRecordForNetworkLayer(UA_Server *server, const UA_String *appName,
-                             const UA_ServerNetworkLayer* nl) {
+addMdnsRecordForDiscoveryUrl(UA_Server *server, const UA_String *appName,
+                             const UA_ByteString discoveryUrl) {
     UA_String hostname = UA_STRING_NULL;
     UA_UInt16 port = 4840;
     UA_String path = UA_STRING_NULL;
-    UA_StatusCode retval = UA_parseEndpointUrl(&nl->discoveryUrl, &hostname,
+    UA_StatusCode retval = UA_parseEndpointUrl(&discoveryUrl, &hostname,
                                                &port, &path);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_NETWORK,
                        "Server url is invalid: %.*s",
-                       (int)nl->discoveryUrl.length, nl->discoveryUrl.data);
+                       (int)discoveryUrl.length, discoveryUrl.data);
         return retval;
     }
 
@@ -105,8 +105,9 @@ addMdnsRecordForNetworkLayer(UA_Server *server, const UA_String *appName,
 
 void startMulticastDiscoveryServer(UA_Server *server) {
     UA_String *appName = &server->config.discovery.mdns.mdnsServerName;
-    for(size_t i = 0; i < server->config.networkLayersSize; i++)
-        addMdnsRecordForNetworkLayer(server, appName, &server->config.networkLayers[i]);
+
+    for(size_t i = 0; i < server->discoveryUrlsSize; i++)
+        addMdnsRecordForDiscoveryUrl(server, appName, server->discoveryUrls[i]);
 
     /* find any other server on the net */
     UA_Discovery_multicastQuery(server);

@@ -140,21 +140,15 @@ initUaRegisterServer(UA_RegisteredServer *requestServer) {
     requestServer->gatewayServerUri = server->config.applicationDescription.gatewayServerUri;
 
     // create the semaphore
-    int fd = open("/tmp/open62541-corpus-semaphore", O_RDWR|O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
+    int fd = open("/tmp/open62541-corpus-semaphore", O_RDWR | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
     close(fd);
     requestServer->semaphoreFilePath = UA_STRING("/tmp/open62541-corpus-semaphore");
 
     requestServer->serverNames = &server->config.applicationDescription.applicationName;
     requestServer->serverNamesSize = 1;
 
-    size_t nl_discurls = server->config.networkLayersSize;
-    requestServer->discoveryUrls = (UA_String*)UA_malloc(sizeof(UA_String) * nl_discurls);
-    requestServer->discoveryUrlsSize = nl_discurls;
-    for(size_t i = 0; i < nl_discurls; ++i) {
-        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
-        requestServer->discoveryUrls[i] = nl->discoveryUrl;
-    }
-
+    requestServer->discoveryUrls = server->discoveryUrls;
+    requestServer->discoveryUrlsSize = server->discoveryUrlsSize;
 }
 
 static UA_StatusCode
@@ -176,7 +170,6 @@ registerServerRequest(UA_Client *client) {
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_REGISTERSERVERREQUEST],
                         &response, &UA_TYPES[UA_TYPES_REGISTERSERVERRESPONSE]);
 
-    UA_free(request.server.discoveryUrls);
     ASSERT_GOOD(response.responseHeader.serviceResult);
 
     return UA_STATUSCODE_GOOD;
@@ -208,7 +201,6 @@ registerServer2Request(UA_Client *client) {
                         &response, &UA_TYPES[UA_TYPES_REGISTERSERVER2RESPONSE]);
 
     ASSERT_GOOD(response.responseHeader.serviceResult);
-    UA_free(request.server.discoveryUrls);
     UA_ExtensionObject_delete(request.discoveryConfiguration);
 
     UA_RegisterServer2Response_deleteMembers(&response);

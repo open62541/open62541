@@ -12,7 +12,7 @@
 
 #include "check.h"
 #include "testing_clock.h"
-#include "testing_networklayers.h"
+#include "testing_socket.h"
 #include "thread_wrapper.h"
 
 UA_Server *server;
@@ -107,15 +107,18 @@ START_TEST(SecureChannel_networkfail) {
 
     /* Forward the clock after recv in the client */
     UA_ClientConfig *cconfig = UA_Client_getConfig(client);
-    UA_Client_recv = client->connection.recv;
-    client->connection.recv = UA_Client_recvTesting;
-    UA_Client_recvSleepDuration = cconfig->secureChannelLifeTime + 1;
+    UA_NetworkManager_process = client->config.networkManager->process;
+    client->config.networkManager->process = UA_NetworkManager_processTesting;
+    UA_Socket_activity = UA_Connection_getSocket(client->connection)->activity;
+    UA_Connection_getSocket(client->connection)->activity = UA_Socket_activityTesting;
+    UA_Socket_activitySleepDuration = cconfig->secureChannelLifeTime + 1;
 
     UA_Variant val;
     UA_Variant_init(&val);
     UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
     retval = UA_Client_readValueAttribute(client, nodeId, &val);
-    ck_assert(retval == UA_STATUSCODE_BADSECURECHANNELCLOSED);
+    ck_assert_msg(retval == UA_STATUSCODE_BADCONNECTIONCLOSED ||
+                  retval == UA_STATUSCODE_BADSECURECHANNELCLOSED, UA_StatusCode_name(retval));
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
@@ -159,11 +162,11 @@ START_TEST(SecureChannel_cableunplugged) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_Variant_deleteMembers(&val);
 
-    UA_Client_recv = client->connection.recv;
-    client->connection.recv = UA_Client_recvTesting;
+    UA_Socket_activity = UA_Connection_getSocket(client->connection)->activity;
+    UA_Connection_getSocket(client->connection)->activity = UA_Socket_activityTesting;
 
     /* Simulate network cable unplugged (no response from server) */
-    UA_Client_recvTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+    UA_Socket_activityTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
 
     UA_Variant_init(&val);
     retval = UA_Client_readValueAttribute(client, nodeId, &val);
@@ -171,7 +174,7 @@ START_TEST(SecureChannel_cableunplugged) {
 
     ck_assert(UA_Client_getState(client) == UA_CLIENTSTATE_DISCONNECTED);
 
-    UA_Client_recvTesting_result = UA_STATUSCODE_GOOD;
+    UA_Socket_activityTesting_result = UA_STATUSCODE_GOOD;
 
     UA_Client_delete(client);
 }

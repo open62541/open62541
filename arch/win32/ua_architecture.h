@@ -84,6 +84,10 @@
 # define errno
 #endif
 
+#define UA_SHUT_RD SD_RECEIVE
+#define UA_SHUT_WR SD_SEND
+#define UA_SHUT_RDWR SD_BOTH
+
 #define UA_getnameinfo getnameinfo
 #define UA_send(sockfd, buf, len, flags) send(sockfd, buf, (int)(len), flags)
 #define UA_recv(sockfd, buf, len, flags) recv(sockfd, buf, (int)(len), flags)
@@ -91,6 +95,8 @@
 #define UA_recvfrom(sockfd, buf, len, flags, src_addr, addrlen) recvfrom(sockfd, (char*)(buf), (int)(len), flags, src_addr, addrlen)
 #define UA_htonl htonl
 #define UA_ntohl ntohl
+#define UA_ntohs ntohs
+#define UA_htons htons
 #define UA_close closesocket
 #define UA_select(nfds, readfds, writefds, exceptfds, timeout) select((int)(nfds), readfds, writefds, exceptfds, timeout)
 #define UA_shutdown shutdown
@@ -100,6 +106,7 @@
 #define UA_accept accept
 #define UA_connect(sockfd, addr, addrlen) connect(sockfd, addr, (int)(addrlen))
 #define UA_getaddrinfo getaddrinfo
+#define UA_getsockname getsockname
 #define UA_getsockopt getsockopt
 #define UA_setsockopt(sockfd, level, optname, optval, optlen) setsockopt(sockfd, level, optname, (const char*) (optval), optlen)
 #define UA_freeaddrinfo freeaddrinfo

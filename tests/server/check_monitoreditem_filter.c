@@ -16,23 +16,23 @@
 #include <check.h>
 
 #include "testing_clock.h"
-#include "testing_networklayers.h"
+#include "testing_socket.h"
 #include "thread_wrapper.h"
 
-UA_Server *server;
-UA_Boolean running;
-THREAD_HANDLE server_thread;
+static UA_Server *server;
+static UA_Boolean running;
+static THREAD_HANDLE server_thread;
 
-UA_Client *client;
-UA_UInt32 subId;
-UA_NodeId parentNodeId;
-UA_NodeId parentReferenceNodeId;
-UA_NodeId outNodeId;
+static UA_Client *client;
+static UA_UInt32 subId;
+static UA_NodeId parentNodeId;
+static UA_NodeId parentReferenceNodeId;
+static UA_NodeId outNodeId;
 
-UA_Boolean notificationReceived = false;
-UA_UInt32 countNotificationReceived = 0;
-UA_Double publishingInterval = 500.0;
-UA_DataValue lastValue;
+static UA_Boolean notificationReceived = false;
+static UA_UInt32 countNotificationReceived = 0;
+static UA_Double publishingInterval = 500.0;
+static UA_DataValue lastValue;
 
 THREAD_CALLBACK(serverloop) {
     while(running)
@@ -87,11 +87,14 @@ static void setup(void) {
 
     client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_Client_recv = client->connection.recv;
-    client->connection.recv = UA_Client_recvTesting;
+    UA_Socket_activity = UA_Connection_getSocket(client->connection)->activity;
+    UA_Connection_getSocket(client->connection)->activity = UA_Socket_activityTesting;
+    UA_NetworkManager_process = client->config.networkManager->process;
+    client->config.networkManager->process = UA_NetworkManager_processTesting;
 
     UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
     request.requestedMaxKeepAliveCount = 100;

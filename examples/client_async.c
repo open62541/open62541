@@ -59,6 +59,8 @@ attrWritten(UA_Client *client, void *userdata, UA_UInt32 requestId,
 static void
 methodCalled(UA_Client *client, void *userdata, UA_UInt32 requestId,
              UA_CallResponse *response) {
+    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+        return;
 
     printf("%-50s%i\n", "Called method for request ", requestId);
     size_t outputSize;
@@ -95,6 +97,8 @@ static void
 translateCalled(UA_Client *client, void *userdata, UA_UInt32 requestId,
                 UA_TranslateBrowsePathsToNodeIdsResponse *response) {
     printf("%-50s%i\n", "Translated path for request ", requestId);
+    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+        return;
 
     if(response->results[0].targetsSize == 1)
         return;
@@ -193,13 +197,17 @@ main(int argc, char *argv[]) {
             UA_Client_run_iterate(client, 0);
         }
     }
-    UA_Client_run_iterate(client, 0);
+    // process all remaining responses.
+    // TODO: need to check how many responses are still pending
+    // wait a bit for remaining responses to arrive
+    UA_sleep_ms(100);
+    for(int i = 0; i < 100; ++i)
+        UA_Client_run_iterate(client, 0);
 
     /* Async disconnect kills unprocessed requests */
     // UA_Client_disconnect_async (client, &reqId); //can only be used when connected = true
     // UA_Client_run_iterate (client, &timedOut);
     UA_Client_disconnect(client);
     UA_Client_delete(client);
-
     return EXIT_SUCCESS;
 }

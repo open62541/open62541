@@ -11,8 +11,9 @@
 
 #include <open62541/config.h>
 #include <open62541/plugin/log.h>
-#include <open62541/plugin/network.h>
 #include <open62541/plugin/securitypolicy.h>
+#include <open62541/plugin/networkmanager.h>
+#include "connection.h"
 
 _UA_BEGIN_DECLS
 
@@ -44,13 +45,16 @@ typedef enum {
     UA_CLIENTSTATE_DISCONNECTED,         /* The client is disconnected */
     UA_CLIENTSTATE_WAITING_FOR_ACK,      /* The Client has sent HEL and waiting */
     UA_CLIENTSTATE_CONNECTED,            /* A TCP connection to the server is open */
+    UA_CLIENTSTATE_SECURECHANNEL_OPENING,/* A SecureChannel to the server is opening */
     UA_CLIENTSTATE_SECURECHANNEL,        /* A SecureChannel to the server is open */
     UA_CLIENTSTATE_SESSION,              /* A session with the server is open */
     UA_CLIENTSTATE_SESSION_DISCONNECTED, /* Disconnected vs renewed? */
     UA_CLIENTSTATE_SESSION_RENEWED       /* A session with the server is open (renewed) */
 } UA_ClientState;
 
-typedef struct {
+typedef struct UA_ClientConfig UA_ClientConfig;
+
+struct UA_ClientConfig {
     /* Basic client configuration */
     void *clientContext; /* User-defined data attached to the client */
     UA_Logger logger;   /* Logger used by the client */
@@ -88,7 +92,6 @@ typedef struct {
     UA_UserTokenPolicy userTokenPolicy;
 
     /* Advanced client configuration */
-
     UA_UInt32 secureChannelLifeTime; /* Lifetime in ms (then the channel needs
                                         to be renewed) */
     UA_UInt32 requestedSessionTimeout; /* Session timeout in ms */
@@ -108,10 +111,10 @@ typedef struct {
     /* Certificate Verification Plugin */
     UA_CertificateVerification certificateVerification;
 
-    /* Callbacks for async connection handshakes */
-    UA_ConnectClientConnection connectionFunc;
-    UA_ConnectClientConnection initConnectionFunc;
-    void (*pollConnectionFunc)(UA_Client *client, void *context);
+    /* Networking */
+    UA_ClientSocketConfig clientSocketConfig;
+    UA_NetworkManager *networkManager;
+    UA_Boolean internallyAllocatedNetworkManager; /* If true, NM will be deleted on client delete */
 
     /* Callback for state changes */
     void (*stateCallback)(UA_Client *client, UA_ClientState clientState);
@@ -135,7 +138,7 @@ typedef struct {
                                            UA_UInt32 subscriptionId,
                                            void *subContext);
 #endif
-} UA_ClientConfig;
+};
 
 _UA_END_DECLS
 

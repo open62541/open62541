@@ -20,7 +20,9 @@
 #include <open62541/server_config.h>
 #include <open62541/plugin/nodestore.h>
 
-#include "ua_connection_internal.h"
+#include "ua_util_internal.h"
+#include "ua_timer.h"
+#include "ua_session_manager.h"
 #include "ua_securechannel_manager.h"
 #include "ua_session_manager.h"
 #include "ua_server_async.h"
@@ -70,6 +72,10 @@ struct UA_Server {
                           * down once the time has been reached */
 
     UA_ServerLifecycle state;
+    /* Networking */
+    UA_ConnectionManager connectionManager;
+    UA_String *discoveryUrls;
+    size_t discoveryUrlsSize;
 
     /* Security */
     UA_SecureChannelManager secureChannelManager;
@@ -83,6 +89,7 @@ struct UA_Server {
 
     /* Namespaces */
     size_t namespacesSize;
+
     UA_String *namespaces;
 
     /* Callbacks with a repetition interval */

@@ -92,23 +92,24 @@ setApplicationDescriptionFromServer(UA_ApplicationDescription *target, const UA_
     if(result != UA_STATUSCODE_GOOD)
         return result;
 
-    /* Add the discoveryUrls from the networklayers only if discoveryUrl
-     * not already present and to avoid redundancy */
+    /* add the discoveryUrls from the networklayers */
     if(!target->discoveryUrlsSize) {
-        size_t discSize = sizeof(UA_String) * (target->discoveryUrlsSize + server->config.networkLayersSize);
-        UA_String* disc = (UA_String *)UA_realloc(target->discoveryUrls, discSize);
-        if(!disc)
+        if(result != UA_STATUSCODE_GOOD)
+            return result;
+        size_t discSize = sizeof(UA_String) * (target->discoveryUrlsSize + server->discoveryUrlsSize);
+        UA_String *disc = (UA_String *)UA_realloc(target->discoveryUrls, discSize);
+        if(!disc) {
             return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
         size_t existing = target->discoveryUrlsSize;
         target->discoveryUrls = disc;
-        target->discoveryUrlsSize += server->config.networkLayersSize;
+        target->discoveryUrlsSize += server->discoveryUrlsSize;
 
-        for(size_t i = 0; i < server->config.networkLayersSize; i++) {
-            UA_ServerNetworkLayer* nl = &server->config.networkLayers[i];
-            UA_String_copy(&nl->discoveryUrl, &target->discoveryUrls[existing + i]);
+        // TODO: Add nl only if discoveryUrl not already present
+        for(size_t i = 0; i < server->discoveryUrlsSize; i++) {
+            UA_String_copy(&server->discoveryUrls[i], &target->discoveryUrls[existing + i]);
         }
     }
-
     return UA_STATUSCODE_GOOD;
 }
 
@@ -251,11 +252,12 @@ Service_GetEndpoints(UA_Server *server, UA_Session *session,
         return;
     }
 
+
     /* Clone the endpoint for each networklayer? */
     size_t clone_times = 1;
     UA_Boolean nl_endpointurl = false;
     if(endpointUrl->length == 0) {
-        clone_times = server->config.networkLayersSize;
+        clone_times = server->discoveryUrlsSize;
         nl_endpointurl = true;
     }
 
@@ -268,11 +270,11 @@ Service_GetEndpoints(UA_Server *server, UA_Session *session,
     }
     response->endpointsSize = relevant_count * clone_times;
 
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     size_t k = 0;
-    UA_StatusCode retval;
     for(size_t i = 0; i < clone_times; ++i) {
         if(nl_endpointurl)
-            endpointUrl = &server->config.networkLayers[i].discoveryUrl;
+            endpointUrl = &server->discoveryUrls[i];
         for(size_t j = 0; j < server->config.endpointsSize; ++j) {
             if(!relevant_endpoints[j])
                 continue;
@@ -650,7 +652,7 @@ UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
     }
 
 
-    if (client->connection.state != UA_CONNECTION_CLOSED) {
+    if(client->connection != NULL && client->connection->state != UA_CONNECTION_CLOSED) {
         UA_UNLOCK(server->serviceMutex);
         return UA_STATUSCODE_BADINVALIDSTATE;
     }

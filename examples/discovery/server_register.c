@@ -115,8 +115,7 @@ int main(int argc, char **argv) {
         return EXIT_FAILURE;
     }
 
-    retval = UA_Server_run(server, &running);
-
+    retval = UA_Server_run_startup(server);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "Could not start the server. StatusCode %s",
@@ -125,6 +124,13 @@ int main(int argc, char **argv) {
         UA_Client_delete(clientRegister);
         UA_Server_delete(server);
         return EXIT_FAILURE;
+    }
+    while(running) {
+        retval = UA_Server_run_iterate(server, true);
+        if(retval != UA_STATUSCODE_GOOD)
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                         "Error while running server main loop: %s",
+                         UA_StatusCode_name(retval));
     }
 
     // Unregister the server from the discovery server.
@@ -135,6 +141,7 @@ int main(int argc, char **argv) {
                      "Could not unregister server from discovery server. StatusCode %s",
                      UA_StatusCode_name(retval));
 
+    UA_Server_run_shutdown(server);
     UA_Client_disconnect(clientRegister);
     UA_Client_delete(clientRegister);
     UA_Server_delete(server);

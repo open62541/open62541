@@ -22,7 +22,7 @@
 #include <check.h>
 
 #include "testing_clock.h"
-#include "testing_networklayers.h"
+#include "testing_socket.h"
 #include "thread_wrapper.h"
 #ifdef UA_ENABLE_HISTORIZING
 #include "historical_read_test_data.h"
@@ -129,8 +129,10 @@ static void setup(void) {
         exit(1);
     }
 
-    UA_Client_recv = client->connection.recv;
-    client->connection.recv = UA_Client_recvTesting;
+    UA_Socket_activity = UA_Connection_getSocket(client->connection)->activity;
+    UA_Connection_getSocket(client->connection)->activity = UA_Socket_activityTesting;
+    UA_NetworkManager_process = client->config.networkManager->process;
+    client->config.networkManager->process = UA_NetworkManager_processTesting;
 }
 
 static void teardown(void) {

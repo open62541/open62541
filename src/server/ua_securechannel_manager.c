@@ -119,7 +119,7 @@ UA_SecureChannelManager_create(UA_SecureChannelManager *const cm, UA_Connection 
      * strategy is expected here */
     if(cm->currentChannelCount >= cm->server->config.maxSecureChannels &&
        !purgeFirstChannelWithoutSession(cm))
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+        return UA_STATUSCODE_BADMAXCONNECTIONSREACHED;
 
     UA_LOG_INFO(&cm->server->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                 "Creating a new SecureChannel");
@@ -274,7 +274,7 @@ UA_SecureChannelManager_close(UA_SecureChannelManager *cm, UA_UInt32 channelId) 
             break;
     }
     if(!entry)
-        return UA_STATUSCODE_BADINTERNALERROR;
+        return UA_STATUSCODE_BADSECURECHANNELIDINVALID;
 
     removeSecureChannel(cm, entry);
     return UA_STATUSCODE_GOOD;

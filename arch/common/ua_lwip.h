@@ -57,6 +57,7 @@
 #define UA_gethostname gethostname_lwip
 #define UA_getsockname lwip_getsockname
 #define UA_getaddrinfo lwip_getaddrinfo
+#define UA_getsockname lwip_getsockname
 
 #if UA_IPV6
 # define UA_inet_pton(af, src, dst) \

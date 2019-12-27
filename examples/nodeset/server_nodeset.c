@@ -7,8 +7,8 @@
 
 /* Files example_namespace.h and example_namespace.c are created from server_nodeset.xml in the
  * /src_generated directory by CMake */
-#include "open62541/example_nodeids.h"
-#include "open62541/namespace_example_generated.h"
+#include <open62541/example_nodeids.h>
+#include <open62541/namespace_example_generated.h>
 
 #include <signal.h>
 #include <stdlib.h>

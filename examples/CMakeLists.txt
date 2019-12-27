@@ -92,6 +92,8 @@ if(UA_ENABLE_METHODCALLS)
     endif()
 endif()
 
+add_example(speedtest_client speedtest_client.c)
+
 add_example(tutorial_client_firststeps tutorial_client_firststeps.c)
 
 add_example(tutorial_client_events tutorial_client_events.c)

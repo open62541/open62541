@@ -113,10 +113,10 @@ UA_Session_dequeuePublishReq(UA_Session *session);
         UA_String idString = UA_STRING_NULL;                            \
         UA_NodeId_toString(&(SESSION)->sessionId, &idString);           \
         UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_SESSION,                  \
-                       "Connection %i | SecureChannel %i | Session %.*s | " MSG "%.0s", \
+                       "Socket %i | SecureChannel %i | Session %.*s | " MSG "%.0s", \
                        ((SESSION)->header.channel ?                     \
                         ((SESSION)->header.channel->connection ?        \
-                         (int)((SESSION)->header.channel->connection->sockfd) : 0) : 0), \
+                         (int)(UA_Connection_getSocket((SESSION)->header.channel->connection)->id) : 0) : 0), \
                        ((SESSION)->header.channel ?                     \
                         (SESSION)->header.channel->securityToken.channelId : 0), \
                        (int)idString.length, idString.data, __VA_ARGS__); \
