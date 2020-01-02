@@ -47,7 +47,6 @@ size_t publisherMeasurementsCounter  = 0;
 //#define PUBSUB_RT_LEVEL UA_PUBSUB_RT_NONE
 //#define PUBSUB_RT_LEVEL UA_PUBSUB_RT_DIRECT_VALUE_ACCESS
 #define PUBSUB_RT_LEVEL UA_PUBSUB_RT_FIXED_SIZE
-
 /* The value to published */
 static UA_UInt64 publishValue = 62541;
 
@@ -302,8 +301,7 @@ addPubSubConfiguration(UA_Server* server) {
     writerGroupConfig.publishingInterval = PUB_INTERVAL;
     writerGroupConfig.enabled = UA_FALSE;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
-    writerGroupConfig.rtLevel = PUBSUB_RT_LEVEL;
-    UA_Server_addWriterGroup(server, connectionIdent,
+    writerGroupConfig.rtLevel = PUBSUB_RT_LEVEL;    UA_Server_addWriterGroup(server, connectionIdent,
                              &writerGroupConfig, &writerGroupIdent);
 
     UA_NodeId dataSetWriterIdent;

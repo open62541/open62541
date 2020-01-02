@@ -16,6 +16,7 @@ include(GNUInstallDirs)
 # Set when installed via make install
 set(open62541_TOOLS_DIR ${PROJECT_SOURCE_DIR}/tools)
 set(open62541_NODESET_DIR ${PROJECT_SOURCE_DIR}/deps/ua-nodeset)
+set(XDP_PATH "/usr/src/bpf-next")
 
 include(macros_internal)
 include(macros_public)
@@ -222,6 +223,15 @@ if(UA_ENABLE_PUBSUB_ETH_UADP)
 	endif()
 endif()
 
+option(UA_ENABLE_PUBSUB_ETH_UADP_XDP_RECV "Enable Subscribe UADP over Ethernet using XDP" OFF)
+mark_as_advanced(UA_ENABLE_PUBSUB_ETH_UADP_XDP_RECV)
+if(UA_ENABLE_PUBSUB_ETH_UADP_XDP_RECV)
+    if (NOT UA_ENABLE_PUBSUB_ETH_UADP)
+    message(FATAL_ERROR "UADP over Ethernet using XDP is only available when UA_ENABLE_PUBSUB_ETH_UADP is ON.")
+        endif()
+endif()
+
+
 option(UA_ENABLE_PUBSUB_DELTAFRAMES "Enable sending of delta frames with only the changes" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_DELTAFRAMES)
 
@@ -297,13 +307,6 @@ mark_as_advanced(UA_MSVC_FORCE_STATIC_CRT)
 
 option(UA_FILE_NS0 "Override the NodeSet xml file used to generate namespace zero")
 mark_as_advanced(UA_FILE_NS0)
-
-# Blacklist file passed as --blacklist to the nodeset compiler. All the given nodes will be removed from the generated
-# nodeset, including all the references to and from that node. The format is a node id per line.
-# Supported formats: "i=123" (for NS0), "ns=2;s=asdf" (matches NS2 in that specific file), or recommended
-# "ns=http://opcfoundation.org/UA/DI/;i=123" namespace index independent node id
-option(UA_FILE_NS0_BLACKLIST "File containing blacklisted nodes which should not be included in the generated nodeset code.")
-mark_as_advanced(UA_FILE_NS0_BLACKLIST)
 
 # Semaphores/file system may not be available on embedded devices. It can be
 # disabled with the following option
@@ -794,6 +797,10 @@ if(UA_ENABLE_PUBSUB)
         list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/pubsub_ethernet.h)
         list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_ethernet.c)
     endif()
+    if(UA_ENABLE_PUBSUB_ETH_UADP_XDP_RECV)
+        list(APPEND open62541_LIBRARIES ${XDP_PATH}/tools/lib/bpf/libbpf.a)
+        list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_xdprecv_ethernet.c)
+    endif()
     if(UA_ENABLE_PUBSUB_MQTT)
         if(WIN32)
             MESSAGE(WARNING "Multithreading is enabled in MQTT plugin. This feature is under development and marked as EXPERIMENTAL")
@@ -1018,7 +1025,6 @@ ua_generate_nodeset(
     NAME "ns0"
     FILE ${UA_FILE_NODESETS} ${UA_NODESET_FILE_DA}
     INTERNAL
-    BLACKLIST ${UA_FILE_NS0_BLACKLIST}
     IGNORE "${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/NodeID_NS0_Base.txt"
     DEPENDS_TARGET "open62541-generator-types"
 )

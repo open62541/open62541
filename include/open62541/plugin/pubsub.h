@@ -47,6 +47,9 @@ struct UA_PubSubChannel {
     UA_PubSubChannelState state;
     UA_PubSubConnectionConfig *connectionConfig; /* link to parent connection config */
     UA_SOCKET sockfd;
+#ifdef UA_ENABLE_PUBSUB_ETH_UADP_XDP_RECV
+    struct xdpsock *xdpsocket;
+#endif
     void *handle; /* implementation specific data */
     /*@info for handle: each network implementation should provide an structure
     * UA_PubSubChannelData[ImplementationName] This structure can be used by the
@@ -72,6 +75,12 @@ struct UA_PubSubChannel {
 
     /* Giving the connection protocoll time to process inbound and outbound traffic. */
     UA_StatusCode (*yield)(UA_PubSubChannel *channel, UA_UInt16 timeout);
+
+#ifdef UA_ENABLE_PUBSUB_ETH_UADP_XDP_RECV
+    /* Receive messages via XDP. */
+    UA_StatusCode (*receiveXDP)(UA_PubSubChannel * channel, UA_ByteString *,
+                             UA_ExtensionObject *transportSettings, UA_UInt32 *numOfMsgsRcvd);
+#endif
 };
 
 /**

@@ -25,7 +25,7 @@
 #include <netinet/ether.h>
 
 #define       CLOCKIDENTITY                                     CLOCK_TAI
-#define       CYCLE_TIME                                        200 * 1000
+#define       CYCLE_TIME                                        100 * 1000
 #define       SECONDS                                           1000 * 1000 * 1000
 #define       SECONDS_INCREMENT                                  1
 #define       FAILURE_EXIT                                      -1

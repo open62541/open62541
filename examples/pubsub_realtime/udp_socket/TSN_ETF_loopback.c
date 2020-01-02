@@ -48,6 +48,8 @@ UA_NodeId readerIdentifier;
 
 UA_DataSetReaderConfig readerConfig;
 
+UA_DataSetReader *dataSetReader;
+
 /*to find load of each thread
  * ps -L -o pid,pri,%cpu -C TSN_ETF_loopback
  *
@@ -59,7 +61,7 @@ UA_DataSetReaderConfig readerConfig;
 /* To run only subscriber, enable SUBSCRIBER define alone
  * (comment PUBLISHER) */
 #define             SUBSCRIBER
-#define             UPDATE_MEASUREMENTS
+//#define             UPDATE_MEASUREMENTS
 #define             UA_ENABLE_STATICVALUESOURCE
 /* Publish interval in milliseconds */
 #define             PUB_INTERVAL                    250
@@ -138,8 +140,6 @@ UA_UInt64           currentTime            = 10;
 UA_UInt64           subCounterData         = 0;
 UA_Variant          pubCounter;
 UA_Variant          subCounter;
-
-extern UA_UInt64 subscribedcounter[DATETIME_NODECOUNTS + 1];
 
 /* For adding nodes in the server information model */
 static void addServerNodes(UA_Server *server);
@@ -284,7 +284,7 @@ addDataSetReader(UA_Server *server) {
     UA_DataSetMetaDataType_init (pMetaData);
     /* Static definition of number of fields size to 1 to create one
        targetVariable */
-    pMetaData->fieldsSize             = DATETIME_NODECOUNTS + 1;
+    pMetaData->fieldsSize             = REPEATED_NODECOUNTS + 1;
     pMetaData->fields                 = (UA_FieldMetaData*)UA_Array_new (pMetaData->fieldsSize,
                                                                          &UA_TYPES[UA_TYPES_FIELDMETADATA]);
 /*    UA_FieldMetaData_init (&pMetaData->fields[0]);
@@ -292,7 +292,7 @@ addDataSetReader(UA_Server *server) {
                     &pMetaData->fields[0].dataType);
     pMetaData->fields[0].builtInType  = UA_NS0ID_UINT64;
     pMetaData->fields[0].valueRank    = -1; */
-    for (iterator = 0; iterator < DATETIME_NODECOUNTS; iterator++)
+    for (iterator = 0; iterator < REPEATED_NODECOUNTS; iterator++)
     {
         UA_FieldMetaData_init (&pMetaData->fields[iterator]);
         UA_NodeId_copy (&UA_TYPES[UA_TYPES_UINT64].typeId,
@@ -321,7 +321,7 @@ static void addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId
     }
 
     UA_TargetVariablesDataType targetVars;
-    targetVars.targetVariablesSize = DATETIME_NODECOUNTS + 1;
+    targetVars.targetVariablesSize = REPEATED_NODECOUNTS + 1;
     targetVars.targetVariables     = (UA_FieldTargetDataType *)
                                       UA_calloc(targetVars.targetVariablesSize,
                                       sizeof(UA_FieldTargetDataType));
@@ -330,7 +330,7 @@ static void addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId
     targetVars.targetVariables[iterator].attributeId  = UA_ATTRIBUTEID_VALUE;
     targetVars.targetVariables[iterator].targetNodeId = UA_NODEID_STRING(1, "SubscriberCounter");
 
-    for (iterator = 1; iterator < DATETIME_NODECOUNTS + 1; iterator++)
+    for (iterator = 1; iterator < REPEATED_NODECOUNTS + 1; iterator++)
     {
         UA_FieldTargetDataType_init(&targetVars.targetVariables[iterator]);
         targetVars.targetVariables[iterator].attributeId  = UA_ATTRIBUTEID_VALUE;
@@ -433,7 +433,7 @@ addDataSetField(UA_Server *server) {
 #endif
     UA_Server_addDataSetField(server, publishedDataSetIdent, &counterValue, &dataSetFieldIdent);
     UA_NodeId dataSetFieldIdent1;
-    for (UA_Int32 iterator = 0; iterator < DATETIME_NODECOUNTS; iterator++)
+    for (UA_Int32 iterator = 0; iterator < REPEATED_NODECOUNTS; iterator++)
     {
        UA_DataSetFieldConfig dataSetFieldConfig;
        memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
@@ -634,7 +634,7 @@ void *subscriber(void *arg) {
  *
  */
 void *userApplicationPubSub(void *arg) {
-   // UA_Server* server;
+    UA_Server* server;
     struct timespec nextnanosleeptimeUserApplication;
     /* Get current time and compute the next nanosleeptime */
     clock_gettime(CLOCKID, &nextnanosleeptimeUserApplication);
@@ -642,15 +642,16 @@ void *userApplicationPubSub(void *arg) {
     nextnanosleeptimeUserApplication.tv_sec                      += SECONDS_SLEEP;
     nextnanosleeptimeUserApplication.tv_nsec                      = NANO_SECONDS_SLEEP_USER_APPLICATION;
     nanoSecondFieldConversion(&nextnanosleeptimeUserApplication);
- //   serverConfigStruct *serverConfig = (serverConfigStruct*)arg;
-  //  server = serverConfig->ServerRun;
+    serverConfigStruct *serverConfig = (serverConfigStruct*)arg;
+    server = serverConfig->ServerRun;
+    dataSetReader      = UA_ReaderGroup_findDSRbyId(server, readerIdentifier);
     while (running) {
         clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptimeUserApplication, NULL);
 //        const UA_NodeId nodeid = UA_NODEID_STRING(1,"SubscriberCounter");
 
 //        UA_Server_readValue(server, nodeid, &subCounter);
 //        subCounterData = *(UA_UInt64 *)subCounter.data;
-        subCounterData = subscribedcounter[0];
+        subCounterData = dataSetReader->subscribedcounter[0];
         clock_gettime(CLOCKID, &dataReceiveTime);
         clock_gettime(CLOCKID, &dataModificationTime);
 
@@ -697,13 +698,13 @@ static void removeServerNodes(UA_Server *server) {
     UA_Server_deleteNode(server, subNodeID, UA_TRUE);
     UA_NodeId_deleteMembers(&subNodeID);
 #if defined(PUB_WITH_INFORMATION_MODEL)
-    for (UA_Int32 iterator = 0; iterator < DATETIME_NODECOUNTS; iterator++)
+    for (UA_Int32 iterator = 0; iterator < REPEATED_NODECOUNTS; iterator++)
     {
         UA_Server_deleteNode(server, DateNodeIDPub, UA_TRUE);
         UA_NodeId_deleteMembers(&DateNodeIDPub);
     }
 #endif
-    for (UA_Int32 iterator = 0; iterator < DATETIME_NODECOUNTS; iterator++)
+    for (UA_Int32 iterator = 0; iterator < REPEATED_NODECOUNTS; iterator++)
     {
         UA_Server_deleteNode(server, DateNodeIDSub, UA_TRUE);
         UA_NodeId_deleteMembers(&DateNodeIDSub);
@@ -787,7 +788,7 @@ static void addServerNodes(UA_Server *server) {
                               UA_QUALIFIEDNAME(1, "Subscriber Counter"),
                               UA_NODEID_NULL, p5Attr, NULL, &subNodeID);
 #if defined(PUB_WITH_INFORMATION_MODEL)
-    for (UA_Int32 iterator = 0; iterator < DATETIME_NODECOUNTS; iterator++)
+    for (UA_Int32 iterator = 0; iterator < REPEATED_NODECOUNTS; iterator++)
     {
         UA_VariableAttributes p6Attr = UA_VariableAttributes_default;
         UA_UInt64 axis6position = 0;
@@ -802,7 +803,7 @@ static void addServerNodes(UA_Server *server) {
                                  UA_NODEID_NULL, p6Attr, NULL, &DateNodeIDPub);
     }
 #endif
-    for (UA_Int32 iterator = 0; iterator < DATETIME_NODECOUNTS; iterator++)
+    for (UA_Int32 iterator = 0; iterator < REPEATED_NODECOUNTS; iterator++)
     {
         UA_VariableAttributes p7Attr = UA_VariableAttributes_default;
        // UA_DateTime axis7position;
@@ -893,12 +894,12 @@ UA_NetworkAddressUrlDataType networkAddressUrlSub;
 
     else {
 #if defined(PUBLISHER)
-        networkAddressUrlEthernet.networkInterface = UA_STRING("enp2s0");
-        networkAddressUrlEthernet.url = UA_STRING("opc.eth://00-07-32-6b-a6-c7"); /* MAC address of subscribing node*/
+        networkAddressUrlEthernet.networkInterface = UA_STRING("enp3s0");
+        networkAddressUrlEthernet.url = UA_STRING("opc.eth://a0-36-9f-2d-01-bf"); /* MAC address of subscribing node*/
 #endif
 #if defined(SUBSCRIBER)
-        networkAddressUrlSub.url = UA_STRING("opc.eth://00-07-32-6b-a6-eb"); /* Self MAC address */
-        networkAddressUrlSub.networkInterface = UA_STRING("enp2s0");
+        networkAddressUrlSub.url = UA_STRING("opc.eth://a0-36-9f-04-5b-11"); /* Self MAC address */
+        networkAddressUrlSub.networkInterface = UA_STRING("enp3s0");
 #endif
     }
 

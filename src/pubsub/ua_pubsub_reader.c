@@ -24,8 +24,9 @@
 
 #define UA_MAX_SIZENAME 64  /* Max size of Qualified Name of Subscribed Variable */
 
-UA_UInt64 subscribedcounter[DATETIME_NODECOUNTS + 1];
+#define MAX_MSG 16
 
+#include "time.h"
 /***************/
 /* ReaderGroup */
 /***************/
@@ -284,6 +285,39 @@ UA_DataSetReader *UA_ReaderGroup_findDSRbyId(UA_Server *server, UA_NodeId identi
 void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerGroup) {
     UA_PubSubConnection *connection =
         UA_PubSubConnection_findConnectionbyId(server, readerGroup->linkedConnection);
+
+#ifdef UA_ENABLE_PUBSUB_ETH_UADP_XDP_RECV
+    UA_ByteString buffer[MAX_MSG];
+    for (int i = 0; i < MAX_MSG; i++) {
+        if(UA_ByteString_allocBuffer(&buffer[i], 512) != UA_STATUSCODE_GOOD) {
+            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Message buffer alloc failed!");
+            return;
+        }
+    }
+
+    UA_UInt32 numOfMsgsRcvd = 0;
+    connection->channel->receiveXDP(connection->channel, buffer, NULL, &numOfMsgsRcvd);
+    if (numOfMsgsRcvd > MAX_MSG) {
+        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Will not process every messages");
+        numOfMsgsRcvd = MAX_MSG;
+    }
+
+    for (int i = 0; i < (int)numOfMsgsRcvd; i++) {
+        if(buffer[i].length > 0) {
+            UA_NetworkMessage currentNetworkMessage;
+            memset(&currentNetworkMessage, 0, sizeof(UA_NetworkMessage));
+            size_t currentPosition = 0;
+            UA_NetworkMessage_decodeBinary(&buffer[i], &currentPosition, &currentNetworkMessage);
+            UA_Server_processNetworkMessage(server, &currentNetworkMessage, connection);
+            UA_NetworkMessage_deleteMembers(&currentNetworkMessage);
+        }
+
+    }
+    for (int i = 0; i < MAX_MSG; i++) {
+       UA_ByteString_deleteMembers(&buffer[i]);
+    }
+
+#else
     UA_ByteString buffer;
     if(UA_ByteString_allocBuffer(&buffer, 512) != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Message buffer alloc failed!");
@@ -297,12 +331,15 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
         memset(&currentNetworkMessage, 0, sizeof(UA_NetworkMessage));
         size_t currentPosition = 0;
         UA_NetworkMessage_decodeBinary(&buffer, &currentPosition, &currentNetworkMessage);
+
         UA_Server_processNetworkMessage(server, &currentNetworkMessage, connection);
+
         UA_NetworkMessage_deleteMembers(&currentNetworkMessage);
 
     }
 
     UA_ByteString_deleteMembers(&buffer);
+#endif
 }
 
 /* Add new subscribeCallback. The first execution is triggered directly after
@@ -623,9 +660,11 @@ UA_Server_DataSetReader_process(UA_Server *server, UA_DataSetReader *dataSetRead
             for(UA_UInt16 i = 0; i < anzFields; i++) {
                 if(dataSetMsg->data.keyFrameData.dataSetFields[i].hasValue) {
                     if(dataSetReader->subscribedDataSetTarget.targetVariables[i].attributeId == UA_ATTRIBUTEID_VALUE) {
-                       // retVal = UA_Server_writeValue(server, dataSetReader->subscribedDataSetTarget.targetVariables[i].targetNodeId, dataSetMsg->data.keyFrameData.dataSetFields[i].value);
-                        subscribedcounter[i] = *(UA_UInt64 *) dataSetMsg->data.keyFrameData.dataSetFields[i].value.data;
-
+#ifndef UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
+                        retVal = UA_Server_writeValue(server, dataSetReader->subscribedDataSetTarget.targetVariables[i].targetNodeId, dataSetMsg->data.keyFrameData.dataSetFields[i].value);
+#else
+                        dataSetReader->subscribedcounter[i] = *(UA_UInt64 *) dataSetMsg->data.keyFrameData.dataSetFields[i].value.data;
+#endif
                         if(retVal != UA_STATUSCODE_GOOD) {
                             UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Error Write Value KF %u: 0x%x", i, retVal);
                         }

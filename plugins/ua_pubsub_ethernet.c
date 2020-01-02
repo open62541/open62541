@@ -49,14 +49,6 @@
 
 struct sockaddr_ll sll = { 0 };
 #endif
-/* Ethernet network layer specific internal data */
-typedef struct {
-    int ifindex;
-    UA_UInt16 vid;
-    UA_Byte prio;
-    UA_Byte ifAddress[ETH_ALEN];
-    UA_Byte targetAddress[ETH_ALEN];
-} UA_PubSubChannelDataEthernet;
 
 #ifdef UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
 struct socket_transmission_time {
@@ -229,7 +221,6 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
 #endif
 
     /* bind the socket to interface and ethertype */
-   // struct sockaddr_ll sll = { 0 };
     sll.sll_family = AF_PACKET;
     sll.sll_ifindex = channelDataEthernet->ifindex;
     sll.sll_protocol = htons(ETHERTYPE_UADP);
