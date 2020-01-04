@@ -251,20 +251,20 @@ decryptChunk(const UA_SecureChannel *const channel,
              size_t const offset, size_t *const chunkSizeAfterDecryption);
 
 UA_UInt16
-decodeChunkPaddingSize(const UA_SecureChannel *const channel,
-                       const UA_SecurityPolicyCryptoModule *const cryptoModule,
-                       UA_MessageType const messageType, const UA_ByteString *const chunk,
-                       size_t const chunkSizeAfterDecryption, size_t sigsize);
+decodeChunkPaddingSize(const UA_SecureChannel *channel,
+                       const UA_SecurityPolicyCryptoModule *cryptoModule,
+                       UA_MessageType messageType, const UA_ByteString *chunk,
+                       size_t chunkSizeAfterDecryption, size_t sigsize);
 
 UA_StatusCode
-verifyChunk(const UA_SecureChannel *const channel,
-            const UA_SecurityPolicyCryptoModule *const cryptoModule,
-            const UA_ByteString *const chunk,
-            size_t const chunkSizeAfterDecryption, size_t sigsize);
+verifyChunk(const UA_SecureChannel *channel,
+            const UA_SecurityPolicyCryptoModule *cryptoModule,
+            const UA_ByteString *chunk,
+            size_t chunkSizeAfterDecryption, size_t sigsize);
 
 UA_StatusCode
-checkSymHeader(UA_SecureChannel *const channel,
-               const UA_UInt32 tokenId, UA_Boolean allowPreviousToken);
+checkSymHeader(UA_SecureChannel *channel, UA_UInt32 tokenId,
+               UA_Boolean allowPreviousToken);
 
 UA_StatusCode
 processSequenceNumberAsym(UA_SecureChannel *channel, UA_UInt32 sequenceNumber);
@@ -273,15 +273,15 @@ UA_StatusCode
 processSequenceNumberSym(UA_SecureChannel *channel, UA_UInt32 sequenceNumber);
 
 UA_StatusCode
-checkAsymHeader(UA_SecureChannel *const channel,
-                UA_AsymmetricAlgorithmSecurityHeader *const asymHeader);
+checkAsymHeader(UA_SecureChannel *channel,
+                const UA_AsymmetricAlgorithmSecurityHeader *asymHeader);
 
 void
-padChunkAsym(UA_SecureChannel *channel, const UA_ByteString *const buf,
+padChunkAsym(UA_SecureChannel *channel, const UA_ByteString *buf,
              size_t securityHeaderLength, UA_Byte **buf_pos);
 
 UA_StatusCode
-signAndEncryptAsym(UA_SecureChannel *const channel, size_t preSignLength,
+signAndEncryptAsym(UA_SecureChannel *channel, size_t preSignLength,
                    UA_ByteString *buf, size_t securityHeaderLength,
                    size_t totalLength);
 
