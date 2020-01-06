@@ -615,7 +615,7 @@ UA_SecureChannel_processCompleteMessages(UA_SecureChannel *channel, void *applic
 
 /* Sets the payload to a pointer inside the chunk buffer. Returns the requestId
  * and the sequenceNumber */
-static UA_StatusCode
+UA_StatusCode
 decryptAndVerifyChunk(const UA_SecureChannel *channel,
                       const UA_SecurityPolicyCryptoModule *cryptoModule,
                       UA_MessageType messageType, const UA_ByteString *chunk,
