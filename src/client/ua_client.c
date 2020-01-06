@@ -384,7 +384,7 @@ receiveServiceResponse(UA_Client *client, void *response, const UA_DataType *res
             UA_Client_disconnect(client);
             break;
         }
-    } while(!rd.received);
+    } while(!rd.received && responseType); /* Return if we don't wait for an async response */
     return retval;
 }
 
