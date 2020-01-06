@@ -262,9 +262,15 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
                        const UA_ByteString *message) {
     SyncResponseDescription *rd = (SyncResponseDescription*)application;
 
+    /* Process undecoded OPN forwarded from the SecureChannel */
+    if(messageType == UA_MESSAGETYPE_OPN) {
+        decodeProcessOPNResponseAsync(rd->client, &rd->client->channel,
+                                      messageType, requestId, message);
+        return;
+    }
+
     /* Must be OPN or MSG */
-    if(messageType != UA_MESSAGETYPE_OPN &&
-       messageType != UA_MESSAGETYPE_MSG) {
+    if(messageType != UA_MESSAGETYPE_MSG) {
         UA_LOG_TRACE_CHANNEL(&rd->client->config.logger, channel,
                              "Invalid message type");
         return;
