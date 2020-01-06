@@ -714,8 +714,6 @@ decryptAddChunk(UA_SecureChannel *channel, const UA_ByteString *chunk,
     UA_UInt32 requestId = 0;
     UA_UInt32 sequenceNumber = 0;
     UA_ByteString chunkPayload;
-    const UA_SecurityPolicyCryptoModule *cryptoModule = NULL;
-    UA_SequenceNumberCallback sequenceNumberCallback = NULL;
 
     switch(messageType) {
         /* ERR message (not encrypted) */
@@ -746,9 +744,20 @@ decryptAddChunk(UA_SecureChannel *channel, const UA_ByteString *chunk,
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
 
-        cryptoModule = &channel->securityPolicy->symmetricModule.cryptoModule;
-        sequenceNumberCallback = processSequenceNumberSym;
-        break;
+        retval = decryptAndVerifyChunk(channel, &channel->securityPolicy->symmetricModule.cryptoModule,
+                                       messageType, chunk, offset, &requestId, &sequenceNumber, &chunkPayload);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+
+        /* Check the sequence number. Skip sequence number checking for fuzzer to
+         * improve coverage */
+#ifndef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+        retval = processSequenceNumberSym(channel, sequenceNumber);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+#endif
+
+        return putPayload(channel, requestId, messageType, chunkType, &chunkPayload);
     }
 
         /* OPN: Asymmetric encryption */
@@ -771,34 +780,26 @@ decryptAddChunk(UA_SecureChannel *channel, const UA_ByteString *chunk,
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
 
-        cryptoModule = &channel->securityPolicy->asymmetricModule.cryptoModule;
-        sequenceNumberCallback = processSequenceNumberAsym;
-        break;
+        retval = decryptAndVerifyChunk(channel, &channel->securityPolicy->asymmetricModule.cryptoModule,
+                                       messageType, chunk, offset, &requestId, &sequenceNumber, &chunkPayload);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+
+#ifndef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+        retval = processSequenceNumberAsym(channel, sequenceNumber);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+#endif
+
+        return putPayload(channel, requestId, messageType, chunkType, &chunkPayload);
     }
 
         /* Invalid message type */
-    default:return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
+    default:
+        break;
     }
 
-    UA_assert(cryptoModule != NULL);
-    retval = decryptAndVerifyChunk(channel, cryptoModule, messageType, chunk, offset,
-                                   &requestId, &sequenceNumber, &chunkPayload);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    /* Check the sequence number. Skip sequence number checking for fuzzer to
-     * improve coverage */
-    if(sequenceNumberCallback == NULL)
-        return UA_STATUSCODE_BADINTERNALERROR;
-#if defined(FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION)
-    retval = UA_STATUSCODE_GOOD;
-#else
-    retval = sequenceNumberCallback(channel, sequenceNumber);
-#endif
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    return putPayload(channel, requestId, messageType, chunkType, &chunkPayload);
+    return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
 }
 
 UA_StatusCode
