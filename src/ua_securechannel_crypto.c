@@ -139,17 +139,11 @@ UA_SecureChannel_generateNewKeys(UA_SecureChannel *channel) {
 
 UA_StatusCode
 UA_SecureChannel_revolveTokens(UA_SecureChannel *channel) {
-    if(channel->nextSecurityToken.tokenId == 0) // no security token issued
+    if(channel->nextSecurityToken.tokenId == 0) /* no next security token issued */
         return UA_STATUSCODE_BADSECURECHANNELTOKENUNKNOWN;
 
-    //FIXME: not thread-safe ???? Why is this not thread safe?
-    UA_ChannelSecurityToken_deleteMembers(&channel->previousSecurityToken);
-    UA_ChannelSecurityToken_copy(&channel->securityToken, &channel->previousSecurityToken);
-
-    UA_ChannelSecurityToken_deleteMembers(&channel->securityToken);
-    UA_ChannelSecurityToken_copy(&channel->nextSecurityToken, &channel->securityToken);
-
-    UA_ChannelSecurityToken_deleteMembers(&channel->nextSecurityToken);
+    UA_ChannelSecurityToken_clear(&channel->securityToken);
+    channel->securityToken = channel->nextSecurityToken;
     UA_ChannelSecurityToken_init(&channel->nextSecurityToken);
 
     /* remote keys are generated later on */
@@ -591,69 +585,46 @@ checkAsymHeader(UA_SecureChannel *channel,
         compareCertificateThumbprint(sp, &asymHeader->receiverCertificateThumbprint);
 }
 
-static UA_StatusCode
-checkPreviousToken(UA_SecureChannel *const channel, const UA_UInt32 tokenId) {
-    if(tokenId != channel->previousSecurityToken.tokenId)
-        return UA_STATUSCODE_BADSECURECHANNELTOKENUNKNOWN;
-
-    UA_DateTime timeout = channel->previousSecurityToken.createdAt +
-        (UA_DateTime)((UA_Double)channel->previousSecurityToken.revisedLifetime *
-                      (UA_Double)UA_DATETIME_MSEC * 1.25);
-
-    if(timeout < UA_DateTime_nowMonotonic())
-        return UA_STATUSCODE_BADSECURECHANNELTOKENUNKNOWN;
-
-    return UA_STATUSCODE_GOOD;
-}
-
 UA_StatusCode
 checkSymHeader(UA_SecureChannel *channel, UA_UInt32 tokenId,
                UA_Boolean allowPreviousToken) {
-    /* If the message uses the currently active token, check if it is still valid */
-    if(tokenId == channel->securityToken.tokenId) {
-        if(channel->state == UA_SECURECHANNELSTATE_OPEN &&
-           (channel->securityToken.createdAt +
-            (channel->securityToken.revisedLifetime * UA_DATETIME_MSEC))
-           < UA_DateTime_nowMonotonic()) {
-            UA_SecureChannel_close(channel);
-            return UA_STATUSCODE_BADSECURECHANNELCLOSED;
-        }
-    }
-
     /* If the message uses a different token, check if it is the next token. */
     if(tokenId != channel->securityToken.tokenId) {
-        /* If it isn't the next token, we might be dealing with a message, that
-         * still uses the old token, so check if the old one is still valid.*/
         if(tokenId != channel->nextSecurityToken.tokenId) {
-            if(allowPreviousToken)
-                return checkPreviousToken(channel, tokenId);
-
+            UA_LOG_WARNING_CHANNEL(channel->securityPolicy->logger, channel,
+                                 "Received an unknown SecurityToken");
             return UA_STATUSCODE_BADSECURECHANNELTOKENUNKNOWN;
         }
+
+        UA_LOG_DEBUG_CHANNEL(channel->securityPolicy->logger, channel,
+                             "Revolving to the next SecurityToken");
+
         /* If the token is indeed the next token, revolve the tokens */
         UA_StatusCode retval = UA_SecureChannel_revolveTokens(channel);
-        if(retval != UA_STATUSCODE_GOOD)
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING_CHANNEL(channel->securityPolicy->logger, channel,
+                                   "Revolving to the next SecurityToken failed");
             return retval;
+        }
 
         /* If the message now uses the currently active token also generate
          * new remote keys to correctly decrypt. */
-        if(channel->securityToken.tokenId == tokenId) {
-            retval = generateRemoteKeys(channel, channel->securityPolicy);
-            UA_ChannelSecurityToken_deleteMembers(&channel->previousSecurityToken);
-            UA_ChannelSecurityToken_init(&channel->previousSecurityToken);
+        retval = generateRemoteKeys(channel, channel->securityPolicy);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING_CHANNEL(channel->securityPolicy->logger, channel,
+                                   "Could not generate new remote keys");
             return retval;
         }
     }
 
-    /* It is possible that the sent messages already use the new token, but
-     * the received messages still use the old token. If we receive a message
-     * with the new token, we will need to generate the keys and discard the
-     * old token now*/
-    if(channel->previousSecurityToken.tokenId != 0) {
-        UA_StatusCode retval = generateRemoteKeys(channel, channel->securityPolicy);
-        UA_ChannelSecurityToken_deleteMembers(&channel->previousSecurityToken);
-        UA_ChannelSecurityToken_init(&channel->previousSecurityToken);
-        return retval;
+    UA_DateTime timeout = channel->securityToken.createdAt +
+        (channel->securityToken.revisedLifetime * UA_DATETIME_MSEC);
+    if(channel->state == UA_SECURECHANNELSTATE_OPEN &&
+       timeout < UA_DateTime_nowMonotonic()) {
+        UA_LOG_WARNING_CHANNEL(channel->securityPolicy->logger, channel,
+                               "SecurityToken timed out");
+        UA_SecureChannel_close(channel);
+        return UA_STATUSCODE_BADSECURECHANNELCLOSED;
     }
 
     return UA_STATUSCODE_GOOD;

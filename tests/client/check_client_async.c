@@ -130,9 +130,9 @@ START_TEST(Client_read_async) {
         }
 
         /* Process async responses during 1s */
-        retval = UA_Client_run_iterate(client, 999);
+        while(asyncCounter < 100)
+            retval |= UA_Client_run_iterate(client, 999);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-        ck_assert_uint_eq(asyncCounter, 100);
 
         UA_Client_disconnect(client);
         UA_Client_delete(client);
@@ -218,12 +218,21 @@ START_TEST(Client_connectivity_check) {
         ck_assert_uint_eq(inactivityCallbackTriggered, false);
 
         /* Simulate network cable unplugged (no response from server) */
-        UA_Client_recvTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+        running = false;
+        THREAD_JOIN(server_thread);
 
-        retval = UA_Client_run_iterate(client,
-                (UA_UInt16) (1000 + 1 + clientConfig->timeout));
+        UA_fakeSleep(1000 + 1 + clientConfig->connectivityCheckInterval);
+        retval = UA_Client_run_iterate(client, 1);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+        UA_fakeSleep(1000 + 1 + clientConfig->timeout);
+        retval = UA_Client_run_iterate(client, 1);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
         ck_assert_uint_eq(inactivityCallbackTriggered, true);
+
+        /* Get the server back up */
+        running = true;
+        THREAD_CREATE(server_thread, serverloop);
 
         UA_Client_disconnect(client);
         UA_Client_delete(client);

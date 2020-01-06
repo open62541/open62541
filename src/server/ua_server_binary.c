@@ -402,6 +402,46 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
     return retval;
 }
 
+static UA_StatusCode
+decryptProcessOPN(UA_Server *server, UA_SecureChannel *channel,
+                  const UA_ByteString *msg) {
+    UA_LOG_DEBUG_CHANNEL(&server->config.logger, channel, "Decrypt an OPN message");
+
+    /* Skip the first header. We know length and message type. */
+    size_t offset = UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH;
+
+    /* Decode the asymmetric algorithm security header and call the callback
+     * to perform checks. */
+    UA_AsymmetricAlgorithmSecurityHeader asymHeader;
+    UA_AsymmetricAlgorithmSecurityHeader_init(&asymHeader);
+    UA_StatusCode retval =
+        UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(msg, &offset, &asymHeader);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    retval = checkAsymHeader(channel, &asymHeader);
+    UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    UA_ByteString chunkPayload;
+    UA_UInt32 requestId = 0;
+    UA_UInt32 sequenceNumber = 0;
+    retval = decryptAndVerifyChunk(channel, &channel->securityPolicy->asymmetricModule.cryptoModule,
+                                   UA_MESSAGETYPE_OPN, msg, offset, &requestId,
+                                   &sequenceNumber, &chunkPayload);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+#ifndef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+    retval = processSequenceNumberAsym(channel, sequenceNumber);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+#endif
+
+    return processOPN(server, channel, requestId, &chunkPayload);
+}
+
 UA_StatusCode
 sendResponse(UA_SecureChannel *channel, UA_UInt32 requestId, UA_UInt32 requestHandle,
              UA_ResponseHeader *responseHeader, const UA_DataType *responseType) {
@@ -672,7 +712,8 @@ processSecureChannelMessage(void *application, UA_SecureChannel *channel,
     case UA_MESSAGETYPE_OPN:
         UA_LOG_TRACE_CHANNEL(&server->config.logger, channel,
                              "Process an OPN on an open channel");
-        retval = processOPN(server, channel, requestId, message);
+        /* Message contains the full undecrypted chunk */
+        retval = decryptProcessOPN(server, channel, message);
         break;
     case UA_MESSAGETYPE_MSG:
         UA_LOG_TRACE_CHANNEL(&server->config.logger, channel, "Process a MSG");
