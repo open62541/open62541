@@ -242,7 +242,7 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
         UA_DataValue_clear(&value);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_NODEID_WRAP(&node->nodeId, UA_LOG_INFO_SESSION(&server->config.logger, session,
-                               "AddNodes: The value of of %.*s is incomatible with the "
+                               "AddNodes: The value of %.*s is incompatible with the "
                                "variable definition", (int)nodeIdStr.length, nodeIdStr.data));
         }
     }
