@@ -698,6 +698,8 @@ putPayload(UA_SecureChannel *const channel, UA_UInt32 const requestId,
 static UA_StatusCode
 decryptAddChunk(UA_SecureChannel *channel, const UA_ByteString *chunk,
                 UA_Boolean allowPreviousToken) {
+    const UA_SecurityPolicy *sp = channel->securityPolicy;
+
     /* Decode the MessageHeader */
     size_t offset = 0;
     UA_SecureConversationMessageHeader messageHeader;
@@ -745,22 +747,29 @@ decryptAddChunk(UA_SecureChannel *channel, const UA_ByteString *chunk,
 #endif
 
         retval = checkSymHeader(channel, symmetricSecurityHeader.tokenId, allowPreviousToken);
-        if(retval != UA_STATUSCODE_GOOD)
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING_CHANNEL(sp->logger, channel, "Could not validate the chunk header");
             return retval;
+        }
 
         UA_UInt32 requestId = 0;
         UA_UInt32 sequenceNumber = 0;
-        retval = decryptAndVerifyChunk(channel, &channel->securityPolicy->symmetricModule.cryptoModule,
-                                       messageType, chunk, offset, &requestId, &sequenceNumber, &chunkPayload);
-        if(retval != UA_STATUSCODE_GOOD)
+        retval = decryptAndVerifyChunk(channel, &sp->symmetricModule.cryptoModule, messageType,
+                                       chunk, offset, &requestId, &sequenceNumber, &chunkPayload);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING_CHANNEL(sp->logger, channel, "Could not decrypt and verify the chunk payload");
             return retval;
+        }
 
         /* Check the sequence number. Skip sequence number checking for fuzzer to
          * improve coverage */
 #ifndef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
         retval = processSequenceNumberSym(channel, sequenceNumber);
-        if(retval != UA_STATUSCODE_GOOD)
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING_CHANNEL(sp->logger, channel,
+                                   "Processing the sequence number failed");
             return retval;
+        }
 #endif
 
         return putPayload(channel, requestId, messageType, chunkType, &chunkPayload);
