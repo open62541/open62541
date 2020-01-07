@@ -75,10 +75,13 @@ removeSession(UA_SessionManager *sm, session_list_entry *sentry, UA_SessionClose
     {
     case UA_SESSIONCLOSEEVENT_CLOSE:
         UA_atomic_addUInt32(&sm->server->serverStats.ss.closedSessions, 1);
+        break;
     case UA_SESSIONCLOSEEVENT_TIMEOUT:
         UA_atomic_addUInt32(&sm->server->serverStats.ss.timedoutSessions, 1);
+        break;
     case UA_SESSIONCLOSEEVENT_CREATEFAIL:
         UA_atomic_addUInt32(&sm->server->serverStats.ss.createSessionFailures, 1);
+        break;
     }
 
     /* Add a delayed callback to remove the session when the currently
