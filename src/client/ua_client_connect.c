@@ -184,12 +184,12 @@ openSecureChannel(UA_Client *client, UA_Boolean renew) {
     opnSecRq.requestHeader.authenticationToken = client->authenticationToken;
     if(renew) {
         opnSecRq.requestType = UA_SECURITYTOKENREQUESTTYPE_RENEW;
-        UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
-                     "Requesting to renew the SecureChannel");
+        UA_LOG_DEBUG_CHANNEL(&client->config.logger, &client->channel,
+                             "Requesting to renew the SecureChannel");
     } else {
         opnSecRq.requestType = UA_SECURITYTOKENREQUESTTYPE_ISSUE;
-        UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
-                     "Requesting to open a SecureChannel");
+        UA_LOG_DEBUG_CHANNEL(&client->config.logger, &client->channel,
+                             "Requesting to open a SecureChannel");
     }
 
     /* Set the securityMode to input securityMode from client data */
