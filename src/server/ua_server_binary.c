@@ -506,8 +506,8 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
         session = &anonymousSession;
     }
 
-    /* Trying to use a non-activated session? Do not allow if request is of type
-     * CloseSessionRequest */
+    /* Trying to use a non-activated session? Do not allow if request isn't of
+     * type CloseSessionRequest */
     if(sessionRequired && !session->activated &&
        requestType != &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST]) {
 #ifdef UA_ENABLE_TYPEDESCRIPTION
@@ -521,7 +521,8 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
 #endif
         UA_LOCK(server->serviceMutex);
         UA_SessionManager_removeSession(&server->sessionManager,
-                                        &session->header.authenticationToken);
+                                        &session->header.authenticationToken,
+                                        UA_SESSIONCLOSEEVENT_CLOSE);
         UA_UNLOCK(server->serviceMutex);
         return sendServiceFaultWithRequest(channel, requestHeader, responseType,
                                            requestId, UA_STATUSCODE_BADSESSIONNOTACTIVATED);

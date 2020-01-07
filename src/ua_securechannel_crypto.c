@@ -306,7 +306,7 @@ signAndEncryptAsym(UA_SecureChannel *channel, size_t preSignLength,
         return UA_STATUSCODE_GOOD;
 
     const UA_SecurityPolicy *sp = channel->securityPolicy;
-    
+
     /* Sign message */
     const UA_ByteString dataToSign = {preSignLength, buf->data};
     size_t sigsize = sp->asymmetricModule.cryptoModule.signatureAlgorithm.
@@ -399,7 +399,7 @@ encryptChunkSym(UA_MessageContext *const messageContext, size_t totalLength) {
     const UA_SecureChannel *channel = messageContext->channel;
     if(channel->securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
         return UA_STATUSCODE_GOOD;
-        
+
     UA_ByteString dataToEncrypt;
     dataToEncrypt.data = messageContext->messageBuffer.data + UA_SECUREMH_AND_SYMALGH_LENGTH;
     dataToEncrypt.length = totalLength - UA_SECUREMH_AND_SYMALGH_LENGTH;
@@ -615,7 +615,7 @@ checkSymHeader(UA_SecureChannel *channel, UA_UInt32 tokenId,
            (channel->securityToken.createdAt +
             (channel->securityToken.revisedLifetime * UA_DATETIME_MSEC))
            < UA_DateTime_nowMonotonic()) {
-            UA_SecureChannel_close(channel);
+           UA_SecureChannel_close(channel, UA_SECURECHANNELCLOSEEVENT_TIMEOUT);
             return UA_STATUSCODE_BADSECURECHANNELCLOSED;
         }
     }

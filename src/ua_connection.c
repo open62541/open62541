@@ -51,6 +51,7 @@ UA_Connection_processHELACK(UA_Connection *connection,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     connection->state = UA_CONNECTION_ESTABLISHED;
+    UA_atomic_addUInt32(&connection->networkStats->currentConnections, 1);
 
     return UA_STATUSCODE_GOOD;
 }

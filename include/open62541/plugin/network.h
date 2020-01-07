@@ -71,6 +71,7 @@ struct UA_Connection {
     UA_ByteString incompleteChunk; /* A half-received chunk (TCP is a
                                     * streaming protocol) is stored here */
     UA_UInt64 connectCallbackID;   /* Callback Id, for the connect-loop */
+    UA_NetworkStatistics *networkStats; /* Pointer to network statistic counters */
     /* Get a buffer for sending */
     UA_StatusCode (*getSendBuffer)(UA_Connection *connection, size_t length,
                                    UA_ByteString *buf);
@@ -153,6 +154,7 @@ struct UA_ServerNetworkLayer {
     UA_String discoveryUrl;
 
     UA_ConnectionConfig localConnectionConfig;
+    UA_NetworkStatistics *networkStats;
 
     /* Start listening on the networklayer.
      *

@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2015-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2015-2016 (c) Sten Grüner
@@ -32,6 +32,7 @@
 static void
 UA_Client_init(UA_Client* client) {
     UA_SecureChannel_init(&client->channel);
+    client->channel.channelStats = &client->clientStats.scs;
     if(client->config.stateCallback)
         client->config.stateCallback(client, client->state);
     /* Catch error during async connection */
@@ -565,4 +566,8 @@ UA_Client_changeRepeatedCallbackInterval(UA_Client *client, UA_UInt64 callbackId
 void
 UA_Client_removeCallback(UA_Client *client, UA_UInt64 callbackId) {
     UA_Timer_removeCallback(&client->timer, callbackId);
+}
+
+const UA_ClientStatistics * UA_Client_getStatistics(UA_Client *client) {
+    return &client->clientStats;
 }

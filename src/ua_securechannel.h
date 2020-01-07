@@ -15,6 +15,7 @@
 #include <open62541/plugin/securitypolicy.h>
 #include <open62541/transport_generated.h>
 #include <open62541/types.h>
+#include <open62541/statistics.h>
 
 #include "open62541_queue.h"
 #include "ua_connection_internal.h"
@@ -69,6 +70,12 @@ typedef enum {
     UA_SECURECHANNELSTATE_CLOSED
 } UA_SecureChannelState;
 
+typedef enum {
+    UA_SECURECHANNELCLOSEEVENT_CLOSE,
+    UA_SECURECHANNELCLOSEEVENT_TIMEOUT,
+    UA_SECURECHANNELCLOSEEVENT_PURGE
+} UA_SecureChannelCloseEvent;
+
 typedef TAILQ_HEAD(UA_MessageQueue, UA_Message) UA_MessageQueue;
 
 struct UA_SecureChannel {
@@ -103,11 +110,13 @@ struct UA_SecureChannel {
 
     LIST_HEAD(, UA_SessionHeader) sessions;
     UA_MessageQueue messages;
+
+    UA_SecureChannelStatistics *channelStats;
 };
 
 void UA_SecureChannel_init(UA_SecureChannel *channel);
 
-void UA_SecureChannel_close(UA_SecureChannel *channel);
+void UA_SecureChannel_close(UA_SecureChannel *channel, UA_SecureChannelCloseEvent event);
 
 UA_StatusCode
 UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel,

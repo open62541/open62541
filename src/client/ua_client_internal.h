@@ -168,6 +168,9 @@ struct UA_Client {
     /* Connectivity check */
     UA_DateTime lastConnectivityCheck;
     UA_Boolean pendingConnectivityCheck;
+
+    /* Statistics */
+    UA_ClientStatistics clientStats;
 };
 
 static UA_INLINE CustomCallback *

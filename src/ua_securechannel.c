@@ -147,9 +147,25 @@ UA_SecureChannel_deleteMembers(UA_SecureChannel *channel) {
 }
 
 void
-UA_SecureChannel_close(UA_SecureChannel *channel) {
+UA_SecureChannel_close(UA_SecureChannel *channel, UA_SecureChannelCloseEvent event) {
     /* Set the status to closed */
-    channel->state = UA_SECURECHANNELSTATE_CLOSED;
+    if(channel->state != UA_SECURECHANNELSTATE_CLOSED)
+    {
+        channel->state = UA_SECURECHANNELSTATE_CLOSED;
+        UA_atomic_subUInt32(&channel->channelStats->currentChannels, 1);
+        switch(event)
+        {
+        case UA_SECURECHANNELCLOSEEVENT_CLOSE:
+            UA_atomic_addUInt32(&channel->channelStats->closedChannels, 1);
+            break;
+        case UA_SECURECHANNELCLOSEEVENT_TIMEOUT:
+            UA_atomic_addUInt32(&channel->channelStats->timedoutChannels, 1);
+            break;
+        case UA_SECURECHANNELCLOSEEVENT_PURGE:
+            UA_atomic_addUInt32(&channel->channelStats->purgedChannels, 1);
+            break;
+        }
+    }
 
     /* Detach from the connection and close the connection */
     if(channel->connection) {
@@ -814,7 +830,7 @@ UA_SecureChannel_decryptAddChunk(UA_SecureChannel *channel, const UA_ByteString 
 
     UA_StatusCode retval = decryptAddChunk(channel, chunk, allowPreviousToken);
     if(retval != UA_STATUSCODE_GOOD)
-        UA_SecureChannel_close(channel);
+        UA_SecureChannel_close(channel, UA_SECURECHANNELCLOSEEVENT_CLOSE);
 
     return retval;
 }
@@ -830,7 +846,7 @@ UA_SecureChannel_persistIncompleteMessages(UA_SecureChannel *channel) {
             UA_ByteString copy;
             UA_StatusCode retval = UA_ByteString_copy(&cp->bytes, &copy);
             if(retval != UA_STATUSCODE_GOOD) {
-                UA_SecureChannel_close(channel);
+                UA_SecureChannel_close(channel, UA_SECURECHANNELCLOSEEVENT_CLOSE);
                 return retval;
             }
             cp->bytes = copy;

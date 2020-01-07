@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014-2017 (c) Florian Palm
@@ -36,7 +36,7 @@ UA_SecureChannelManager_deleteMembers(UA_SecureChannelManager *cm) {
     channel_entry *entry, *temp;
     TAILQ_FOREACH_SAFE(entry, &cm->channels, pointers, temp) {
         TAILQ_REMOVE(&cm->channels, entry, pointers);
-        UA_SecureChannel_close(&entry->channel);
+        UA_SecureChannel_close(&entry->channel, UA_SECURECHANNELCLOSEEVENT_CLOSE);
         UA_SecureChannel_deleteMembers(&entry->channel);
         UA_free(entry);
     }
@@ -48,9 +48,9 @@ removeSecureChannelCallback(void *_, channel_entry *entry) {
 }
 
 static void
-removeSecureChannel(UA_SecureChannelManager *cm, channel_entry *entry) {
+removeSecureChannel(UA_SecureChannelManager *cm, channel_entry *entry, UA_SecureChannelCloseEvent event) {
     /* Close the SecureChannel */
-    UA_SecureChannel_close(&entry->channel);
+    UA_SecureChannel_close(&entry->channel, event);
 
     /* Detach the channel and make the capacity available */
     TAILQ_REMOVE(&cm->channels, entry, pointers);
@@ -73,7 +73,7 @@ UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm,
         /* The channel was closed internally */
         if(entry->channel.state == UA_SECURECHANNELSTATE_CLOSED ||
            !entry->channel.connection) {
-            removeSecureChannel(cm, entry);
+            removeSecureChannel(cm, entry, UA_SECURECHANNELCLOSEEVENT_CLOSE);
             continue;
         }
 
@@ -84,7 +84,7 @@ UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm,
         if(timeout < nowMonotonic) {
             UA_LOG_INFO_CHANNEL(&cm->server->config.logger, &entry->channel,
                                 "SecureChannel has timed out");
-            removeSecureChannel(cm, entry);
+            removeSecureChannel(cm, entry, UA_SECURECHANNELCLOSEEVENT_TIMEOUT);
             continue;
         }
     }
@@ -99,7 +99,7 @@ purgeFirstChannelWithoutSession(UA_SecureChannelManager *cm) {
             UA_LOG_INFO_CHANNEL(&cm->server->config.logger, &entry->channel,
                                 "Channel was purged since maxSecureChannels was "
                                 "reached and channel had no session attached");
-            removeSecureChannel(cm, entry);
+            removeSecureChannel(cm, entry, UA_SECURECHANNELCLOSEEVENT_PURGE);
             return true;
         }
     }
@@ -118,8 +118,10 @@ UA_SecureChannelManager_create(UA_SecureChannelManager *const cm, UA_Connection 
      * session the purge has been introduced to pass CTT, it is not clear what
      * strategy is expected here */
     if(cm->currentChannelCount >= cm->server->config.maxSecureChannels &&
-       !purgeFirstChannelWithoutSession(cm))
+       !purgeFirstChannelWithoutSession(cm)) {
+        UA_atomic_addUInt32(&cm->server->serverStats.scs.outOfChannels, 1);
         return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
 
     UA_LOG_INFO(&cm->server->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                 "Creating a new SecureChannel");
@@ -144,6 +146,8 @@ UA_SecureChannelManager_create(UA_SecureChannelManager *const cm, UA_Connection 
     entry->channel.securityToken.tokenId = cm->lastTokenId++;
     entry->channel.securityToken.createdAt = UA_DateTime_now();
     entry->channel.securityToken.revisedLifetime = cm->server->config.maxSecurityTokenLifetime;
+
+    entry->channel.channelStats = &cm->server->serverStats.scs;
 
     TAILQ_INSERT_TAIL(&cm->channels, entry, pointers);
     UA_atomic_addUInt32(&cm->currentChannelCount, 1);
@@ -205,6 +209,7 @@ UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_SecureChannel *chan
 
     /* The channel is open */
     channel->state = UA_SECURECHANNELSTATE_OPEN;
+    UA_atomic_addUInt32(&channel->channelStats->currentChannels, 1);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -276,6 +281,6 @@ UA_SecureChannelManager_close(UA_SecureChannelManager *cm, UA_UInt32 channelId) 
     if(!entry)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    removeSecureChannel(cm, entry);
+    removeSecureChannel(cm, entry, UA_SECURECHANNELCLOSEEVENT_CLOSE);
     return UA_STATUSCODE_GOOD;
 }

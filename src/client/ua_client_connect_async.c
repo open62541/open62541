@@ -685,7 +685,7 @@ sendCloseSecureChannelAsync(UA_Client *client, void *userdata,
     UA_SecureChannel_sendSymmetricMessage(
             channel, ++client->requestId, UA_MESSAGETYPE_CLO, &request,
             &UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST]);
-    UA_SecureChannel_close(&client->channel);
+    UA_SecureChannel_close(&client->channel, UA_SECURECHANNELCLOSEEVENT_CLOSE);
     UA_SecureChannel_deleteMembers(&client->channel);
 }
 

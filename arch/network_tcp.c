@@ -197,6 +197,8 @@ ServerNetworkLayerTCP_close(UA_Connection *connection) {
         return;
     UA_shutdown((UA_SOCKET)connection->sockfd, 2);
     connection->state = UA_CONNECTION_CLOSED;
+    UA_atomic_addUInt32(&connection->networkStats->closedConnections, 1);
+    UA_atomic_subUInt32(&connection->networkStats->currentConnections, 1);
 }
 
 static UA_StatusCode
@@ -258,6 +260,7 @@ ServerNetworkLayerTCP_add(UA_ServerNetworkLayer *nl, ServerNetworkLayerTCP *laye
     c->releaseRecvBuffer = connection_releaserecvbuffer;
     c->state = UA_CONNECTION_OPENING;
     c->openingDate = UA_DateTime_nowMonotonic();
+    c->networkStats = nl->networkStats;
 
     /* Add to the linked list */
     LIST_INSERT_HEAD(&layer->connections, e, pointers);
@@ -464,6 +467,8 @@ ServerNetworkLayerTCP_listen(UA_ServerNetworkLayer *nl, UA_Server *server,
                         "Connection %i | Closed by the server (no Hello Message)",
                          (int)(e->connection.sockfd));
             LIST_REMOVE(e, pointers);
+            UA_atomic_subUInt32(&e->connection.networkStats->currentConnections, 1);
+            UA_atomic_addUInt32(&e->connection.networkStats->timedoutConnections, 1);
             UA_close(e->connection.sockfd);
             UA_Server_removeConnection(server, &e->connection);
             continue;
@@ -577,7 +582,7 @@ typedef struct TCPClientConnection {
 /***************************/
 
 static void
-ClientNetworkLayerTCP_close(UA_Connection *connection) {
+ClientNetworkLayerTCP_closeConnection(UA_Connection *connection) {
     if (connection->state == UA_CONNECTION_CLOSED)
         return;
 
@@ -586,6 +591,14 @@ ClientNetworkLayerTCP_close(UA_Connection *connection) {
         UA_close(connection->sockfd);
     }
     connection->state = UA_CONNECTION_CLOSED;
+    UA_atomic_subUInt32(&connection->networkStats->currentConnections, 1);
+}
+
+static void
+ClientNetworkLayerTCP_close(UA_Connection *connection) {
+
+    ClientNetworkLayerTCP_closeConnection(connection);
+    UA_atomic_addUInt32(&connection->networkStats->closedConnections, 1);
 }
 
 static void
@@ -621,9 +634,10 @@ UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
     if ((UA_Double) (UA_DateTime_nowMonotonic() - tcpConnection->connStart)
                     > tcpConnection->timeout* UA_DATETIME_MSEC ) {
             // connection timeout
-            ClientNetworkLayerTCP_close(connection);
+            ClientNetworkLayerTCP_closeConnection(connection);
             UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_NETWORK,
                             "Timed out");
+            UA_atomic_addUInt32(&connection->networkStats->timedoutConnections, 1);
             return UA_STATUSCODE_BADDISCONNECT;
 
     }
@@ -711,6 +725,7 @@ UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
 #ifdef _WIN32
             connection->sockfd = clientsockfd;
             connection->state = UA_CONNECTION_ESTABLISHED;
+            UA_atomic_addUInt32(&connection->networkStats->currentConnections, 1);
             return UA_STATUSCODE_GOOD;
 #else
             OPTVAL_TYPE so_error;
@@ -735,12 +750,14 @@ UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
 
             } else {
                 connection->state = UA_CONNECTION_ESTABLISHED;
+                UA_atomic_addUInt32(&connection->networkStats->currentConnections, 1);
                 return UA_STATUSCODE_GOOD;
             }
 #endif
         }
     } else {
         connection->state = UA_CONNECTION_ESTABLISHED;
+        UA_atomic_addUInt32(&connection->networkStats->currentConnections, 1);
         return UA_STATUSCODE_GOOD;
     }
 
@@ -1005,10 +1022,11 @@ UA_ClientConnectionTCP(UA_ConnectionConfig config, const UA_String endpointUrl,
     if(!connected) {
         /* connection timeout */
         if (connection.state != UA_CONNECTION_CLOSED)
-            ClientNetworkLayerTCP_close(&connection);
+            ClientNetworkLayerTCP_closeConnection(&connection);
         UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
                        "Trying to connect to %.*s timed out",
                        (int)endpointUrl.length, endpointUrl.data);
+        UA_atomic_addUInt32(&connection.networkStats->timedoutConnections, 1);
         return connection;
     }
 

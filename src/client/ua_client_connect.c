@@ -264,6 +264,7 @@ openSecureChannel(UA_Client *client, UA_Boolean renew) {
     }
 
     processDecodedOPNResponse(client, &response, renew);
+    UA_atomic_addUInt32(&client->channel.channelStats->currentChannels, 1);
     UA_OpenSecureChannelResponse_deleteMembers(&response);
     return retval;
 }
@@ -501,6 +502,7 @@ activateSession(UA_Client *client) {
         UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                      "ActivateSession failed with error code %s",
                      UA_StatusCode_name(response.responseHeader.serviceResult));
+        UA_atomic_addUInt32(&client->clientStats.ss.activateSessionFailures, 1);
     }
 
     retval = response.responseHeader.serviceResult;
@@ -778,6 +780,8 @@ createSession(UA_Client *client) {
     retval |= response.responseHeader.serviceResult;
 
  cleanup:
+    if(retval != UA_STATUSCODE_GOOD)
+        UA_atomic_addUInt32(&client->clientStats.ss.createSessionFailures, 1);
     UA_CreateSessionRequest_deleteMembers(&request);
     UA_CreateSessionResponse_deleteMembers(&response);
     return retval;
@@ -839,6 +843,7 @@ UA_Client_connectTCPSecureChannel(UA_Client *client, const UA_String endpointUrl
         retval = UA_STATUSCODE_BADCONNECTIONCLOSED;
         goto cleanup;
     }
+    client->connection.networkStats = &client->clientStats.ns;
 
     UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                 "TCP connection established");
@@ -1066,6 +1071,8 @@ sendCloseSession(UA_Client *client) {
     UA_CloseSessionResponse response;
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST],
                         &response, &UA_TYPES[UA_TYPES_CLOSESESSIONRESPONSE]);
+    UA_atomic_subUInt32(&client->clientStats.ss.currentSessions, 1);
+    UA_atomic_addUInt32(&client->clientStats.ss.closedSessions, 1);
     UA_CloseSessionRequest_deleteMembers(&request);
     UA_CloseSessionResponse_deleteMembers(&response);
 }
@@ -1083,7 +1090,7 @@ sendCloseSecureChannel(UA_Client *client) {
                                           UA_MESSAGETYPE_CLO, &request,
                                           &UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST]);
     UA_CloseSecureChannelRequest_deleteMembers(&request);
-    UA_SecureChannel_close(&client->channel);
+    UA_SecureChannel_close(&client->channel, UA_SECURECHANNELCLOSEEVENT_CLOSE);
     UA_SecureChannel_deleteMembers(&client->channel);
 }
 

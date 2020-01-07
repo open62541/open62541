@@ -17,6 +17,7 @@
 #include <open62541/types.h>
 #include <open62541/types_generated.h>
 #include <open62541/types_generated_handling.h>
+#include <open62541/statistics.h>
 
 _UA_BEGIN_DECLS
 
@@ -1565,6 +1566,26 @@ UA_Server_getAsyncOperation(UA_Server *server, UA_AsyncOperationType *type,
                             void **context);
 
 #endif /* !UA_MULTITHREADING >= 100 */
+
+/**
+* Statistic counters
+* ------------------
+* Statistic counters keeping track of the current state of the stack.
+* Counters are structured per OPC UA communication layer. */
+
+typedef struct
+{
+   UA_NetworkStatistics ns;
+   UA_SecureChannelStatistics scs;
+   UA_SessionStatistics ss;
+}
+UA_ServerStatistics;
+
+/* Get the statistic counters of the server
+ *
+ * @param server The server object
+ * @return A reference to the statistic counters of the server */
+const UA_ServerStatistics * UA_Server_getStatistics(UA_Server *server);
 
 _UA_END_DECLS
 

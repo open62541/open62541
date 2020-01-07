@@ -22,6 +22,7 @@
 #include <open62541/types.h>
 #include <open62541/types_generated.h>
 #include <open62541/types_generated_handling.h>
+#include <open62541/statistics.h>
 
 _UA_BEGIN_DECLS
 
@@ -530,6 +531,26 @@ UA_Client_removeCallback(UA_Client *client, UA_UInt64 callbackId);
  *
  *    client_highlevel
  *    client_subscriptions */
+
+/**
+* Statistic counters
+* ------------------
+* Statistic counters keeping track of the current state of the stack.
+* Counters are structured per OPC UA communication layer. */
+
+typedef struct
+{
+   UA_NetworkStatistics ns;
+   UA_SecureChannelStatistics scs;
+   UA_SessionStatistics ss;
+}
+UA_ClientStatistics;
+
+/* Get the statistic counters of the client
+ *
+ * @param client The client object
+ * @return A reference to the statistic counters of the server */
+const UA_ClientStatistics * UA_Client_getStatistics(UA_Client *client);
 
 _UA_END_DECLS
 
