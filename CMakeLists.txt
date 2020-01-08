@@ -628,6 +628,7 @@ set(exported_headers ${exported_headers}
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated_handling.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/util.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/statistics.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/server.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/log.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/network.h
