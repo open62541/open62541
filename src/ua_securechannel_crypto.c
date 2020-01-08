@@ -615,7 +615,7 @@ checkSymHeader(UA_SecureChannel *channel, UA_UInt32 tokenId,
            (channel->securityToken.createdAt +
             (channel->securityToken.revisedLifetime * UA_DATETIME_MSEC))
            < UA_DateTime_nowMonotonic()) {
-           UA_SecureChannel_close(channel, UA_SECURECHANNELCLOSEEVENT_TIMEOUT);
+           UA_SecureChannel_close(channel, UA_DIAGNOSTICEVENT_TIMEOUT);
             return UA_STATUSCODE_BADSECURECHANNELCLOSED;
         }
     }

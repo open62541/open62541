@@ -33,12 +33,6 @@ typedef struct UA_SessionManager {
     UA_Server *server;
 } UA_SessionManager;
 
-typedef enum UA_SessionCloseEvent {
-    UA_SESSIONCLOSEEVENT_CLOSE,
-    UA_SESSIONCLOSEEVENT_TIMEOUT,
-    UA_SESSIONCLOSEEVENT_CREATEFAIL
-} UA_SessionCloseEvent;
-
 UA_StatusCode
 UA_SessionManager_init(UA_SessionManager *sm, UA_Server *server);
 
@@ -56,7 +50,7 @@ UA_SessionManager_createSession(UA_SessionManager *sm, UA_SecureChannel *channel
                                 const UA_CreateSessionRequest *request, UA_Session **session);
 
 UA_StatusCode
-UA_SessionManager_removeSession(UA_SessionManager *sm, const UA_NodeId *token, UA_SessionCloseEvent event);
+UA_SessionManager_removeSession(UA_SessionManager *sm, const UA_NodeId *token, UA_DiagnosticEvent event);
 
 UA_Session *
 UA_SessionManager_getSessionByToken(UA_SessionManager *sm, const UA_NodeId *token);

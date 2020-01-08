@@ -66,7 +66,8 @@ UA_SecureChannel *
 UA_SecureChannelManager_get(UA_SecureChannelManager *cm, UA_UInt32 channelId);
 
 UA_StatusCode
-UA_SecureChannelManager_close(UA_SecureChannelManager *cm, UA_UInt32 channelId);
+UA_SecureChannelManager_close(UA_SecureChannelManager *cm, UA_UInt32 channelId,
+                              UA_DiagnosticEvent event);
 
 _UA_END_DECLS
 

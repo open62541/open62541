@@ -51,10 +51,10 @@ setup_secureChannel(void) {
 
 static void
 teardown_secureChannel(void) {
-    UA_SecureChannel_close(&testChannel, UA_SECURECHANNELCLOSEEVENT_CLOSE);
+    UA_SecureChannel_close(&testChannel, UA_DIAGNOSTICEVENT_CLOSE);
     UA_SecureChannel_deleteMembers(&testChannel);
     dummyPolicy.clear(&dummyPolicy);
-    testingConnection.close(&testingConnection);
+    testingConnection.close(&testingConnection, UA_DIAGNOSTICEVENT_CLOSE);
 }
 
 static void
@@ -105,7 +105,7 @@ START_TEST(SecureChannel_initAndDelete) {
                   "Expected makeCertificateThumbprint to have been called");
     ck_assert_msg(channel.securityPolicy == &dummyPolicy, "SecurityPolicy not set correctly");
 
-    UA_SecureChannel_close(&channel, UA_SECURECHANNELCLOSEEVENT_CLOSE);
+    UA_SecureChannel_close(&channel, UA_DIAGNOSTICEVENT_CLOSE);
     UA_SecureChannel_deleteMembers(&channel);
     ck_assert_msg(fCalled.deleteContext, "Expected deleteContext to have been called");
 

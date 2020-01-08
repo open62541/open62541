@@ -46,7 +46,7 @@ dummyReleaseRecvBuffer(UA_Connection *connection, UA_ByteString *buf) {
 }
 
 static void
-dummyClose(UA_Connection *connection) {
+dummyClose(UA_Connection *connection, UA_ConnectionDiagnosticEvent event) {
     if(vBuffer)
         UA_ByteString_deleteMembers(vBuffer);
     UA_ByteString_deleteMembers(&sendBuffer);

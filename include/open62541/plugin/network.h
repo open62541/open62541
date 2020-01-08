@@ -106,7 +106,7 @@ struct UA_Connection {
     /* Close the connection. The network layer closes the socket. This is picked
      * up during the next 'listen' and the connection is freed in the network
      * layer. */
-    void (*close)(UA_Connection *connection);
+    void (*close)(UA_Connection *connection, UA_DiagnosticEvent event);
 
     /* To be called only from within the server (and not the network layer).
      * Frees up the connection's memory. */

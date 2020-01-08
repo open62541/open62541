@@ -422,7 +422,7 @@ UA_Server_updateCertificate(UA_Server *server,
                                     &current->session.header.channel->securityPolicy->localCertificate)) {
                 UA_LOCK(server->serviceMutex);
                 UA_SessionManager_removeSession(sm, &current->session.header.authenticationToken,
-                                                UA_SESSIONCLOSEEVENT_CLOSE);
+                                                UA_DIAGNOSTICEVENT_CLOSE);
                 UA_UNLOCK(server->serviceMutex);
             }
         }
@@ -434,7 +434,8 @@ UA_Server_updateCertificate(UA_Server *server,
         channel_entry *entry;
         TAILQ_FOREACH(entry, &cm->channels, pointers) {
             if(UA_ByteString_equal(&entry->channel.securityPolicy->localCertificate, oldCertificate)){
-                UA_SecureChannelManager_close(cm, entry->channel.securityToken.channelId);
+                UA_SecureChannelManager_close(cm, entry->channel.securityToken.channelId,
+                                              UA_DIAGNOSTICEVENT_CLOSE);
             }
         }
     }
@@ -497,9 +498,9 @@ verifyServerApplicationURI(const UA_Server *server) {
 }
 #endif
 
-const UA_ServerStatistics * UA_Server_getStatistics(UA_Server *server)
+const UA_ServerStatistics UA_Server_getStatistics(UA_Server *server)
 {
-   return &server->serverStats;
+   return server->serverStats;
 }
 
 /********************/

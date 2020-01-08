@@ -83,7 +83,7 @@ connection_send(UA_Connection *connection, UA_ByteString *buf) {
 }
 
 static void
-ServerNetworkLayerWS_close(UA_Connection *connection) {
+ServerNetworkLayerWS_close(UA_Connection *connection, UA_ConnectionDiagnosticEvent event) {
     if(connection->state == UA_CONNECTION_CLOSED)
         return;
     connection->state = UA_CONNECTION_CLOSED;

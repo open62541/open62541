@@ -36,7 +36,7 @@ UA_SecureChannelManager_deleteMembers(UA_SecureChannelManager *cm) {
     channel_entry *entry, *temp;
     TAILQ_FOREACH_SAFE(entry, &cm->channels, pointers, temp) {
         TAILQ_REMOVE(&cm->channels, entry, pointers);
-        UA_SecureChannel_close(&entry->channel, UA_SECURECHANNELCLOSEEVENT_CLOSE);
+        UA_SecureChannel_close(&entry->channel, UA_DIAGNOSTICEVENT_CLOSE);
         UA_SecureChannel_deleteMembers(&entry->channel);
         UA_free(entry);
     }
@@ -48,7 +48,7 @@ removeSecureChannelCallback(void *_, channel_entry *entry) {
 }
 
 static void
-removeSecureChannel(UA_SecureChannelManager *cm, channel_entry *entry, UA_SecureChannelCloseEvent event) {
+removeSecureChannel(UA_SecureChannelManager *cm, channel_entry *entry, UA_DiagnosticEvent event) {
     /* Close the SecureChannel */
     UA_SecureChannel_close(&entry->channel, event);
 
@@ -73,7 +73,7 @@ UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm,
         /* The channel was closed internally */
         if(entry->channel.state == UA_SECURECHANNELSTATE_CLOSED ||
            !entry->channel.connection) {
-            removeSecureChannel(cm, entry, UA_SECURECHANNELCLOSEEVENT_CLOSE);
+            removeSecureChannel(cm, entry, UA_DIAGNOSTICEVENT_CLOSE);
             continue;
         }
 
@@ -84,7 +84,7 @@ UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm,
         if(timeout < nowMonotonic) {
             UA_LOG_INFO_CHANNEL(&cm->server->config.logger, &entry->channel,
                                 "SecureChannel has timed out");
-            removeSecureChannel(cm, entry, UA_SECURECHANNELCLOSEEVENT_TIMEOUT);
+            removeSecureChannel(cm, entry, UA_DIAGNOSTICEVENT_TIMEOUT);
             continue;
         }
     }
@@ -99,7 +99,7 @@ purgeFirstChannelWithoutSession(UA_SecureChannelManager *cm) {
             UA_LOG_INFO_CHANNEL(&cm->server->config.logger, &entry->channel,
                                 "Channel was purged since maxSecureChannels was "
                                 "reached and channel had no session attached");
-            removeSecureChannel(cm, entry, UA_SECURECHANNELCLOSEEVENT_PURGE);
+            removeSecureChannel(cm, entry, UA_DIAGNOSTICEVENT_PURGE);
             return true;
         }
     }
@@ -118,10 +118,8 @@ UA_SecureChannelManager_create(UA_SecureChannelManager *const cm, UA_Connection 
      * session the purge has been introduced to pass CTT, it is not clear what
      * strategy is expected here */
     if(cm->currentChannelCount >= cm->server->config.maxSecureChannels &&
-       !purgeFirstChannelWithoutSession(cm)) {
-        UA_atomic_addUInt32(&cm->server->serverStats.scs.outOfChannels, 1);
+       !purgeFirstChannelWithoutSession(cm))
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
 
     UA_LOG_INFO(&cm->server->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                 "Creating a new SecureChannel");
@@ -209,7 +207,8 @@ UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_SecureChannel *chan
 
     /* The channel is open */
     channel->state = UA_SECURECHANNELSTATE_OPEN;
-    UA_atomic_addUInt32(&channel->channelStats->currentChannels, 1);
+    UA_atomic_addUInt32(&channel->channelStats->currentChannelCount, 1);
+    UA_atomic_addUInt32(&channel->channelStats->cumulatedChannelCount, 1);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -272,7 +271,8 @@ UA_SecureChannelManager_get(UA_SecureChannelManager *cm, UA_UInt32 channelId) {
 }
 
 UA_StatusCode
-UA_SecureChannelManager_close(UA_SecureChannelManager *cm, UA_UInt32 channelId) {
+UA_SecureChannelManager_close(UA_SecureChannelManager *cm, UA_UInt32 channelId,
+                              UA_DiagnosticEvent event) {
     channel_entry *entry;
     TAILQ_FOREACH(entry, &cm->channels, pointers) {
         if(entry->channel.securityToken.channelId == channelId)
@@ -281,6 +281,6 @@ UA_SecureChannelManager_close(UA_SecureChannelManager *cm, UA_UInt32 channelId) 
     if(!entry)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    removeSecureChannel(cm, entry, UA_SECURECHANNELCLOSEEVENT_CLOSE);
+    removeSecureChannel(cm, entry, event);
     return UA_STATUSCODE_GOOD;
 }

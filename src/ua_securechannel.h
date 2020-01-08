@@ -70,12 +70,6 @@ typedef enum {
     UA_SECURECHANNELSTATE_CLOSED
 } UA_SecureChannelState;
 
-typedef enum {
-    UA_SECURECHANNELCLOSEEVENT_CLOSE,
-    UA_SECURECHANNELCLOSEEVENT_TIMEOUT,
-    UA_SECURECHANNELCLOSEEVENT_PURGE
-} UA_SecureChannelCloseEvent;
-
 typedef TAILQ_HEAD(UA_MessageQueue, UA_Message) UA_MessageQueue;
 
 struct UA_SecureChannel {
@@ -116,7 +110,7 @@ struct UA_SecureChannel {
 
 void UA_SecureChannel_init(UA_SecureChannel *channel);
 
-void UA_SecureChannel_close(UA_SecureChannel *channel, UA_SecureChannelCloseEvent event);
+void UA_SecureChannel_close(UA_SecureChannel *channel, UA_DiagnosticEvent event);
 
 UA_StatusCode
 UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel,

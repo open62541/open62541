@@ -356,7 +356,8 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
         UA_NodeId_clear(&requestType);
         UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
                             "Could not decode the NodeId. Closing the connection");
-        UA_SecureChannelManager_close(&server->secureChannelManager, channel->securityToken.channelId);
+        UA_SecureChannelManager_close(&server->secureChannelManager, channel->securityToken.channelId,
+                                      UA_DIAGNOSTICEVENT_REJECT);
         return retval;
     }
     retval = UA_OpenSecureChannelRequest_decodeBinary(msg, &offset, &openSecureChannelRequest);
@@ -368,7 +369,8 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
         UA_OpenSecureChannelRequest_clear(&openSecureChannelRequest);
         UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
                             "Could not decode the OPN message. Closing the connection.");
-        UA_SecureChannelManager_close(&server->secureChannelManager, channel->securityToken.channelId);
+        UA_SecureChannelManager_close(&server->secureChannelManager, channel->securityToken.channelId,
+                                      UA_DIAGNOSTICEVENT_REJECT);
         return retval;
     }
     UA_NodeId_clear(&requestType);
@@ -382,7 +384,8 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
         UA_LOG_INFO_CHANNEL(&server->config.logger, channel, "Could not open a SecureChannel. "
                             "Closing the connection.");
         UA_SecureChannelManager_close(&server->secureChannelManager,
-                                      channel->securityToken.channelId);
+                                      channel->securityToken.channelId,
+                                      UA_DIAGNOSTICEVENT_REJECT);
         return openScResponse.responseHeader.serviceResult;
     }
 
@@ -395,7 +398,8 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
                             "Could not send the OPN answer with error code %s",
                             UA_StatusCode_name(retval));
         UA_SecureChannelManager_close(&server->secureChannelManager,
-                                      channel->securityToken.channelId);
+                                      channel->securityToken.channelId,
+                                      UA_DIAGNOSTICEVENT_REJECT);
         return retval;
     }
 
@@ -522,7 +526,7 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
         UA_LOCK(server->serviceMutex);
         UA_SessionManager_removeSession(&server->sessionManager,
                                         &session->header.authenticationToken,
-                                        UA_SESSIONCLOSEEVENT_CLOSE);
+                                        UA_DIAGNOSTICEVENT_ABORT);
         UA_UNLOCK(server->serviceMutex);
         return sendServiceFaultWithRequest(channel, requestHeader, responseType,
                                            requestId, UA_STATUSCODE_BADSESSIONNOTACTIVATED);
@@ -700,6 +704,7 @@ static UA_StatusCode
 createSecureChannel(void *application, UA_Connection *connection,
                     UA_AsymmetricAlgorithmSecurityHeader *asymHeader) {
     UA_Server *server = (UA_Server*)application;
+    UA_StatusCode retval;
 
     /* Iterate over available endpoints and choose the correct one */
     UA_SecurityPolicy *securityPolicy = NULL;
@@ -708,7 +713,7 @@ createSecureChannel(void *application, UA_Connection *connection,
         if(!UA_ByteString_equal(&asymHeader->securityPolicyUri, &policy->policyUri))
             continue;
 
-        UA_StatusCode retval = policy->asymmetricModule.
+        retval = policy->asymmetricModule.
             compareCertificateThumbprint(policy, &asymHeader->receiverCertificateThumbprint);
         if(retval != UA_STATUSCODE_GOOD)
             continue;
@@ -721,11 +726,15 @@ createSecureChannel(void *application, UA_Connection *connection,
     }
 
     if(!securityPolicy)
-        return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
+        retval = UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
+    else /* Create a new channel */
+        retval = UA_SecureChannelManager_create(&server->secureChannelManager, connection,
+                                                securityPolicy, asymHeader);
 
-    /* Create a new channel */
-    return UA_SecureChannelManager_create(&server->secureChannelManager, connection,
-                                          securityPolicy, asymHeader);
+    if(retval != UA_STATUSCODE_GOOD)
+        UA_atomic_addUInt32(&server->serverStats.scs.rejectedChannelCount, 1);
+
+    return retval;
 }
 
 static UA_StatusCode
@@ -754,6 +763,7 @@ processCompleteChunkWithoutChannel(UA_Server *server, UA_Connection *connection,
 
         /* Called before HEL */
         if(connection->state != UA_CONNECTION_ESTABLISHED) {
+            UA_atomic_addUInt32(&server->serverStats.scs.rejectedChannelCount, 1);
             retval = UA_STATUSCODE_BADCOMMUNICATIONERROR;
             break;
         }
@@ -766,8 +776,10 @@ processCompleteChunkWithoutChannel(UA_Server *server, UA_Connection *connection,
         retval = UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(message,
                                                                    &messageHeaderOffset,
                                                                    &asymHeader);
-        if(retval != UA_STATUSCODE_GOOD)
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_atomic_addUInt32(&server->serverStats.scs.rejectedChannelCount, 1);
             break;
+        }
 
         retval = createSecureChannel(server, connection, &asymHeader);
         UA_AsymmetricAlgorithmSecurityHeader_clear(&asymHeader);
@@ -824,7 +836,7 @@ UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
         error.error = retval;
         error.reason = UA_STRING_NULL;
         UA_Connection_sendError(connection, &error);
-        connection->close(connection);
+        connection->close(connection, UA_DIAGNOSTICEVENT_ABORT);
         return;
     }
 

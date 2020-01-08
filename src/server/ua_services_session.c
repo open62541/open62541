@@ -113,6 +113,8 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
                                    "The client's ApplicationURI did not match the certificate");
+            UA_atomic_addUInt32(&server->serverStats.ss.securityRejectedSessionCount, 1);
+            UA_atomic_addUInt32(&server->serverStats.ss.rejectedSessionCount, 1);
             return;
         }
     }
@@ -136,7 +138,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         UA_SessionManager_removeSession(&server->sessionManager,
                                         &newSession->header.authenticationToken,
-                                        UA_SESSIONCLOSEEVENT_CREATEFAIL);
+                                        UA_DIAGNOSTICEVENT_REJECT);
         return;
     }
     response->serverEndpointsSize = server->config.endpointsSize;
@@ -149,7 +151,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_SessionManager_removeSession(&server->sessionManager,
                                         &newSession->header.authenticationToken,
-                                        UA_SESSIONCLOSEEVENT_CREATEFAIL);
+                                        UA_DIAGNOSTICEVENT_REJECT);
         return;
     }
 
@@ -208,7 +210,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_SessionManager_removeSession(&server->sessionManager,
                                         &newSession->header.authenticationToken,
-                                        UA_SESSIONCLOSEEVENT_CREATEFAIL);
+                                        UA_DIAGNOSTICEVENT_REJECT);
         return;
     }
 
@@ -336,7 +338,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                             channel->securityToken.channelId);
         response->responseHeader.serviceResult =
             UA_STATUSCODE_BADSESSIONIDINVALID;
-        goto error;
+        goto rejected;
     }
 
     /* Check if the signature corresponds to the ServerNonce that was last sent
@@ -346,7 +348,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         UA_LOG_INFO_SESSION(&server->config.logger, session,
                             "Signature check failed with status code %s",
                             UA_StatusCode_name(response->responseHeader.serviceResult));
-        goto error;
+        goto securityRejected;
     }
 
     /* Find the matching endpoint */
@@ -395,7 +397,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     /* No matching endpoint found */
     if(!ed) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-        goto error;
+        goto rejected;
     }
 
 #ifdef UA_ENABLE_ENCRYPTION
@@ -415,7 +417,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
        }
        if(tokenIndex == ed->userIdentityTokensSize) {
            response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-           goto error;
+           goto rejected;
        }
 
        /* Get the SecurityPolicy. If the userTokenPolicy doesn't specify a
@@ -427,7 +429,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
            securityPolicy = UA_SecurityPolicy_getSecurityPolicyByUri(server, &ed->userIdentityTokens[tokenIndex].securityPolicyUri);
        if(!securityPolicy) {
           response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
-          goto error;
+          goto rejected;
        }
 
        /* Encrypted password? */
@@ -437,7 +439,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                                &securityPolicy->asymmetricModule.cryptoModule.
                                encryptionAlgorithm.uri)) {
                response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-               goto error;
+               goto securityRejected;
            }
 
            /* Create a temporary channel context if a different SecurityPolicy is
@@ -458,7 +460,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                                           "Failed to create a context for the SecurityPolicy %.*s",
                                           (int)securityPolicy->policyUri.length,
                                           securityPolicy->policyUri.data);
-                   goto error;
+                   goto rejected;
                }
            }
 
@@ -475,7 +477,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
            UA_LOG_INFO_SESSION(&server->config.logger, session, "ActivateSession: "
                                "Failed to decrypt the password with the status code %s",
                                UA_StatusCode_name(response->responseHeader.serviceResult));
-           goto error;
+           goto securityRejected;
        }
 
     }
@@ -493,7 +495,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                             "ActivateSession: The AccessControl plugin "
                             "denied the access with the status code %s",
                             UA_StatusCode_name(response->responseHeader.serviceResult));
-        goto error;
+        goto rejected;
     }
 
     if(session->header.channel && session->header.channel != channel) {
@@ -507,7 +509,8 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     /* Activate the session */
     session->activated = true;
     UA_Session_updateLifetime(session);
-    UA_atomic_addUInt32(&server->serverStats.ss.currentSessions, 1);
+    UA_atomic_addUInt32(&server->serverStats.ss.currentSessionCount, 1);
+    UA_atomic_addUInt32(&server->serverStats.ss.cumulatedSessionCount, 1);
 
     /* Generate a new session nonce for the next time ActivateSession is called */
     response->responseHeader.serviceResult = UA_Session_generateNonce(session);
@@ -518,7 +521,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         session->activated = false;
         UA_LOG_INFO_SESSION(&server->config.logger, session,
                             "ActivateSession: Could not generate a server nonce");
-        goto error;
+        goto rejected;
     }
 
     UA_LOG_INFO_SESSION(&server->config.logger, session,
@@ -526,8 +529,10 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
 
     return;
 
-error:
-    UA_atomic_addUInt32(&server->serverStats.ss.activateSessionFailures, 1);
+securityRejected:
+    UA_atomic_addUInt32(&server->serverStats.ss.securityRejectedSessionCount, 1);
+rejected:
+    UA_atomic_addUInt32(&server->serverStats.ss.rejectedSessionCount, 1);
 }
 
 void
@@ -540,5 +545,5 @@ Service_CloseSession(UA_Server *server, UA_Session *session,
     response->responseHeader.serviceResult =
         UA_SessionManager_removeSession(&server->sessionManager,
                                         &session->header.authenticationToken,
-                                        UA_SESSIONCLOSEEVENT_CLOSE);
+                                        UA_DIAGNOSTICEVENT_CLOSE);
 }

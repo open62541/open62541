@@ -67,7 +67,7 @@ connection_write(UA_Connection *connection, UA_ByteString *buf) {
                      (const char*)buf->data + nWritten,
                      bytes_to_send, flags);
             if(n < 0 && UA_ERRNO != UA_INTERRUPTED && UA_ERRNO != UA_AGAIN) {
-                connection->close(connection);
+                connection->close(connection, UA_DIAGNOSTICEVENT_ABORT);
                 UA_ByteString_deleteMembers(buf);
                 return UA_STATUSCODE_BADCONNECTIONCLOSED;
             }
@@ -108,7 +108,7 @@ connection_recv(UA_Connection *connection, UA_ByteString *response,
                 return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
 
             /* The error cannot be recovered. Close the connection. */
-            connection->close(connection);
+            connection->close(connection, UA_DIAGNOSTICEVENT_ABORT);
             return UA_STATUSCODE_BADCONNECTIONCLOSED;
         }
     }
@@ -135,7 +135,7 @@ connection_recv(UA_Connection *connection, UA_ByteString *response,
     /* The remote side closed the connection */
     if(ret == 0) {
         UA_ByteString_deleteMembers(response);
-        connection->close(connection);
+        connection->close(connection, UA_DIAGNOSTICEVENT_ABORT);
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
     }
 
@@ -145,7 +145,7 @@ connection_recv(UA_Connection *connection, UA_ByteString *response,
         if(UA_ERRNO == UA_INTERRUPTED || (timeout > 0) ?
            false : (UA_ERRNO == UA_EAGAIN || UA_ERRNO == UA_WOULDBLOCK))
             return UA_STATUSCODE_GOOD; /* statuscode_good but no data -> retry */
-        connection->close(connection);
+        connection->close(connection, UA_DIAGNOSTICEVENT_ABORT);
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
     }
 
@@ -192,13 +192,30 @@ ServerNetworkLayerTCP_freeConnection(UA_Connection *connection) {
 /* This performs only 'shutdown'. 'close' is called when the shutdown
  * socket is returned from select. */
 static void
-ServerNetworkLayerTCP_close(UA_Connection *connection) {
+ServerNetworkLayerTCP_close(UA_Connection *connection, UA_DiagnosticEvent event) {
     if (connection->state == UA_CONNECTION_CLOSED)
         return;
     UA_shutdown((UA_SOCKET)connection->sockfd, 2);
     connection->state = UA_CONNECTION_CLOSED;
-    UA_atomic_addUInt32(&connection->networkStats->closedConnections, 1);
-    UA_atomic_subUInt32(&connection->networkStats->currentConnections, 1);
+
+    UA_atomic_subUInt32(&connection->networkStats->currentConnectionCount, 1);
+    switch(event)
+    {
+    case UA_DIAGNOSTICEVENT_TIMEOUT:
+        UA_atomic_addUInt32(&connection->networkStats->connectionTimeoutCount, 1);
+        break;
+    case UA_DIAGNOSTICEVENT_SECURITYREJECT:
+    case UA_DIAGNOSTICEVENT_REJECT:
+        UA_atomic_addUInt32(&connection->networkStats->rejectedConnectionCount, 1);
+        break;
+    case UA_DIAGNOSTICEVENT_ABORT:
+        UA_atomic_addUInt32(&connection->networkStats->connectionAbortCount, 1);
+        break;
+    case UA_DIAGNOSTICEVENT_CLOSE:
+    case UA_DIAGNOSTICEVENT_PURGE:
+    default:
+        break;
+    }
 }
 
 static UA_StatusCode
@@ -454,7 +471,8 @@ ServerNetworkLayerTCP_listen(UA_ServerNetworkLayer *nl, UA_Server *server,
                     "Connection %i | New TCP connection on server socket %i",
                     (int)newsockfd, (int)(layer->serverSockets[i]));
 
-        ServerNetworkLayerTCP_add(nl, layer, (UA_Int32)newsockfd, &remote);
+        if(ServerNetworkLayerTCP_add(nl, layer, (UA_Int32)newsockfd, &remote) != UA_STATUSCODE_GOOD)
+            UA_atomic_addUInt32(&nl->networkStats->rejectedConnectionCount, 1);
     }
 
     /* Read from established sockets */
@@ -467,8 +485,8 @@ ServerNetworkLayerTCP_listen(UA_ServerNetworkLayer *nl, UA_Server *server,
                         "Connection %i | Closed by the server (no Hello Message)",
                          (int)(e->connection.sockfd));
             LIST_REMOVE(e, pointers);
-            UA_atomic_subUInt32(&e->connection.networkStats->currentConnections, 1);
-            UA_atomic_addUInt32(&e->connection.networkStats->timedoutConnections, 1);
+            UA_atomic_subUInt32(&e->connection.networkStats->currentConnectionCount, 1);
+            UA_atomic_addUInt32(&e->connection.networkStats->connectionTimeoutCount, 1);
             UA_close(e->connection.sockfd);
             UA_Server_removeConnection(server, &e->connection);
             continue;
@@ -518,7 +536,7 @@ ServerNetworkLayerTCP_stop(UA_ServerNetworkLayer *nl, UA_Server *server) {
     /* Close open connections */
     ConnectionEntry *e;
     LIST_FOREACH(e, &layer->connections, pointers)
-        ServerNetworkLayerTCP_close(&e->connection);
+        ServerNetworkLayerTCP_close(&e->connection, UA_DIAGNOSTICEVENT_CLOSE);
 
     /* Run recv on client sockets. This picks up the closed sockets and frees
      * the connection. */
@@ -582,7 +600,7 @@ typedef struct TCPClientConnection {
 /***************************/
 
 static void
-ClientNetworkLayerTCP_closeConnection(UA_Connection *connection) {
+ClientNetworkLayerTCP_close(UA_Connection *connection, UA_DiagnosticEvent event) {
     if (connection->state == UA_CONNECTION_CLOSED)
         return;
 
@@ -591,14 +609,25 @@ ClientNetworkLayerTCP_closeConnection(UA_Connection *connection) {
         UA_close(connection->sockfd);
     }
     connection->state = UA_CONNECTION_CLOSED;
-    UA_atomic_subUInt32(&connection->networkStats->currentConnections, 1);
-}
+    UA_atomic_subUInt32(&connection->networkStats->currentConnectionCount, 1);
 
-static void
-ClientNetworkLayerTCP_close(UA_Connection *connection) {
-
-    ClientNetworkLayerTCP_closeConnection(connection);
-    UA_atomic_addUInt32(&connection->networkStats->closedConnections, 1);
+    switch(event)
+    {
+    case UA_DIAGNOSTICEVENT_TIMEOUT:
+        UA_atomic_addUInt32(&connection->networkStats->connectionTimeoutCount, 1);
+        break;
+    case UA_DIAGNOSTICEVENT_SECURITYREJECT:
+    case UA_DIAGNOSTICEVENT_REJECT:
+        UA_atomic_addUInt32(&connection->networkStats->rejectedConnectionCount, 1);
+        break;
+    case UA_DIAGNOSTICEVENT_ABORT:
+        UA_atomic_addUInt32(&connection->networkStats->connectionAbortCount, 1);
+        break;
+    case UA_DIAGNOSTICEVENT_CLOSE:
+    case UA_DIAGNOSTICEVENT_PURGE:
+    default:
+        break;
+    }
 }
 
 static void
@@ -634,10 +663,9 @@ UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
     if ((UA_Double) (UA_DateTime_nowMonotonic() - tcpConnection->connStart)
                     > tcpConnection->timeout* UA_DATETIME_MSEC ) {
             // connection timeout
-            ClientNetworkLayerTCP_closeConnection(connection);
+            ClientNetworkLayerTCP_close(connection, UA_DIAGNOSTICEVENT_TIMEOUT);
             UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_NETWORK,
                             "Timed out");
-            UA_atomic_addUInt32(&connection->networkStats->timedoutConnections, 1);
             return UA_STATUSCODE_BADDISCONNECT;
 
     }
@@ -655,7 +683,7 @@ UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
     if(clientsockfd == UA_INVALID_SOCKET) {
         UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_NETWORK,
                        "Could not create client socket: %s", strerror(UA_ERRNO));
-        ClientNetworkLayerTCP_close(connection);
+        ClientNetworkLayerTCP_close(connection, UA_DIAGNOSTICEVENT_ABORT);
         return UA_STATUSCODE_BADDISCONNECT;
     }
 
@@ -663,7 +691,7 @@ UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
     if(UA_socket_set_nonblocking(clientsockfd) != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_NETWORK,
                        "Could not set the client socket to nonblocking");
-        ClientNetworkLayerTCP_close(connection);
+        ClientNetworkLayerTCP_close(connection, UA_DIAGNOSTICEVENT_ABORT);
         return UA_STATUSCODE_BADDISCONNECT;
     }
 
@@ -672,7 +700,7 @@ UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
                     tcpConnection->server->ai_addrlen);
 
     if ((error == -1) && (UA_ERRNO != UA_ERR_CONNECTION_PROGRESS)) {
-            ClientNetworkLayerTCP_close(connection);
+            ClientNetworkLayerTCP_close(connection, UA_DIAGNOSTICEVENT_REJECT);
             UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_NETWORK,
                            "Connection to  failed with error: %s", strerror(UA_ERRNO));
             return UA_STATUSCODE_BADDISCONNECT;
@@ -725,7 +753,8 @@ UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
 #ifdef _WIN32
             connection->sockfd = clientsockfd;
             connection->state = UA_CONNECTION_ESTABLISHED;
-            UA_atomic_addUInt32(&connection->networkStats->currentConnections, 1);
+            UA_atomic_addUInt32(&connection->networkStats->currentConnectionCount, 1);
+            UA_atomic_addUInt32(&connection->networkStats->cumulatedConnectionCount, 1);
             return UA_STATUSCODE_GOOD;
 #else
             OPTVAL_TYPE so_error;
@@ -739,7 +768,7 @@ UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
                 /* connection refused happens on localhost or local ip without timeout */
                 if (so_error != ECONNREFUSED) {
                         // general error
-                        ClientNetworkLayerTCP_close(connection);
+                        ClientNetworkLayerTCP_close(connection, UA_DIAGNOSTICEVENT_REJECT);
                         UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_NETWORK,
                                         "Connection to failed with error: %s",
                                         strerror(ret == 0 ? so_error : UA_ERRNO));
@@ -750,14 +779,16 @@ UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
 
             } else {
                 connection->state = UA_CONNECTION_ESTABLISHED;
-                UA_atomic_addUInt32(&connection->networkStats->currentConnections, 1);
+                UA_atomic_addUInt32(&connection->networkStats->currentConnectionCount, 1);
+                UA_atomic_addUInt32(&connection->networkStats->cumulatedConnectionCount, 1);
                 return UA_STATUSCODE_GOOD;
             }
 #endif
         }
     } else {
         connection->state = UA_CONNECTION_ESTABLISHED;
-        UA_atomic_addUInt32(&connection->networkStats->currentConnections, 1);
+        UA_atomic_addUInt32(&connection->networkStats->currentConnectionCount, 1);
+        UA_atomic_addUInt32(&connection->networkStats->cumulatedConnectionCount, 1);
         return UA_STATUSCODE_GOOD;
     }
 
@@ -918,7 +949,7 @@ UA_ClientConnectionTCP(UA_ConnectionConfig config, const UA_String endpointUrl,
         if (UA_socket_set_nonblocking(clientsockfd) != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
                            "Could not set the client socket to nonblocking");
-            ClientNetworkLayerTCP_close(&connection);
+            ClientNetworkLayerTCP_close(&connection, UA_DIAGNOSTICEVENT_ABORT);
             UA_freeaddrinfo(server);
             return connection;
         }
@@ -927,7 +958,7 @@ UA_ClientConnectionTCP(UA_ConnectionConfig config, const UA_String endpointUrl,
         error = UA_connect(clientsockfd, server->ai_addr, (socklen_t)server->ai_addrlen);
 
         if ((error == -1) && (UA_ERRNO != UA_ERR_CONNECTION_PROGRESS)) {
-            ClientNetworkLayerTCP_close(&connection);
+            ClientNetworkLayerTCP_close(&connection, UA_DIAGNOSTICEVENT_REJECT);
             UA_LOG_SOCKET_ERRNO_WRAP(
                     UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
                                    "Connection to %.*s failed with error: %s",
@@ -992,7 +1023,7 @@ UA_ClientConnectionTCP(UA_ConnectionConfig config, const UA_String endpointUrl,
                     /* on connection refused we should still try to connect */
                     /* connection refused happens on localhost or local ip without timeout */
                     if (so_error != ECONNREFUSED) {
-                        ClientNetworkLayerTCP_close(&connection);
+                        ClientNetworkLayerTCP_close(&connection, UA_DIAGNOSTICEVENT_REJECT);
                         UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
                                        "Connection to %.*s failed with error: %s",
                                        (int)endpointUrl.length, endpointUrl.data,
@@ -1013,7 +1044,7 @@ UA_ClientConnectionTCP(UA_ConnectionConfig config, const UA_String endpointUrl,
             connected = true;
             break;
         }
-        ClientNetworkLayerTCP_close(&connection);
+        ClientNetworkLayerTCP_close(&connection, UA_DIAGNOSTICEVENT_REJECT);
 
     } while ((UA_DateTime_nowMonotonic() - connStart) < dtTimeout);
 
@@ -1022,11 +1053,11 @@ UA_ClientConnectionTCP(UA_ConnectionConfig config, const UA_String endpointUrl,
     if(!connected) {
         /* connection timeout */
         if (connection.state != UA_CONNECTION_CLOSED)
-            ClientNetworkLayerTCP_closeConnection(&connection);
+            ClientNetworkLayerTCP_close(&connection, UA_DIAGNOSTICEVENT_TIMEOUT);
         UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
                        "Trying to connect to %.*s timed out",
                        (int)endpointUrl.length, endpointUrl.data);
-        UA_atomic_addUInt32(&connection.networkStats->timedoutConnections, 1);
+        UA_atomic_addUInt32(&connection.networkStats->connectionTimeoutCount, 1);
         return connection;
     }
 
@@ -1035,7 +1066,7 @@ UA_ClientConnectionTCP(UA_ConnectionConfig config, const UA_String endpointUrl,
     if(UA_socket_set_blocking(clientsockfd) != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
                        "Could not set the client socket to blocking");
-        ClientNetworkLayerTCP_close(&connection);
+        ClientNetworkLayerTCP_close(&connection, UA_DIAGNOSTICEVENT_ABORT);
         return connection;
     }
 

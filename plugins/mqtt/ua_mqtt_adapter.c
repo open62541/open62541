@@ -162,7 +162,7 @@ disconnectMqtt(UA_PubSubChannelDataMQTT* channelData){
         UA_free(client->socketfd);
     }
     if(channelData->connection != NULL){
-        channelData->connection->close(channelData->connection);
+        channelData->connection->close(channelData->connection, UA_DIAGNOSTICEVENT_CLOSE);
         channelData->connection->free(channelData->connection);
         UA_free(channelData->connection);
         channelData->connection = NULL;

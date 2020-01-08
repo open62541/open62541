@@ -1584,8 +1584,8 @@ UA_ServerStatistics;
 /* Get the statistic counters of the server
  *
  * @param server The server object
- * @return A reference to the statistic counters of the server */
-const UA_ServerStatistics * UA_Server_getStatistics(UA_Server *server);
+ * @return A copy of the server statistic counters */
+const UA_ServerStatistics UA_Server_getStatistics(UA_Server *server);
 
 _UA_END_DECLS
 

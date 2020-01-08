@@ -30,7 +30,7 @@ removeSessionCallback(UA_Server *server, session_list_entry *entry) {
 }
 
 static void
-removeSession(UA_SessionManager *sm, session_list_entry *sentry, UA_SessionCloseEvent event) {
+removeSession(UA_SessionManager *sm, session_list_entry *sentry, UA_DiagnosticEvent event) {
     UA_Server *server = sm->server;
     UA_Session *session = &sentry->session;
 
@@ -69,18 +69,26 @@ removeSession(UA_SessionManager *sm, session_list_entry *sentry, UA_SessionClose
     LIST_REMOVE(sentry, pointers);
 
     /* Update session statistics */
-    UA_atomic_subUInt32(&sm->server->serverStats.ss.currentSessions, 1);
+    UA_atomic_subUInt32(&sm->server->serverStats.ss.currentSessionCount, 1);
 
     switch(event)
     {
-    case UA_SESSIONCLOSEEVENT_CLOSE:
-        UA_atomic_addUInt32(&sm->server->serverStats.ss.closedSessions, 1);
+    case UA_DIAGNOSTICEVENT_TIMEOUT:
+        UA_atomic_addUInt32(&sm->server->serverStats.ss.sessionTimeoutCount, 1);
         break;
-    case UA_SESSIONCLOSEEVENT_TIMEOUT:
-        UA_atomic_addUInt32(&sm->server->serverStats.ss.timedoutSessions, 1);
+    case UA_DIAGNOSTICEVENT_REJECT:
+        UA_atomic_addUInt32(&sm->server->serverStats.ss.rejectedSessionCount, 1);
         break;
-    case UA_SESSIONCLOSEEVENT_CREATEFAIL:
-        UA_atomic_addUInt32(&sm->server->serverStats.ss.createSessionFailures, 1);
+    case UA_DIAGNOSTICEVENT_SECURITYREJECT:
+        UA_atomic_addUInt32(&sm->server->serverStats.ss.rejectedSessionCount, 1);
+        UA_atomic_addUInt32(&sm->server->serverStats.ss.securityRejectedSessionCount, 1);
+        break;
+    case UA_DIAGNOSTICEVENT_ABORT:
+        UA_atomic_addUInt32(&sm->server->serverStats.ss.sessionAbortCount, 1);
+        break;
+    case UA_DIAGNOSTICEVENT_CLOSE:
+    case UA_DIAGNOSTICEVENT_PURGE:
+    default:
         break;
     }
 
@@ -96,7 +104,7 @@ void UA_SessionManager_deleteMembers(UA_SessionManager *sm) {
     UA_LOCK_ASSERT(sm->server->serviceMutex, 1);
     session_list_entry *current, *temp;
     LIST_FOREACH_SAFE(current, &sm->sessions, pointers, temp) {
-        removeSession(sm, current, UA_SESSIONCLOSEEVENT_CLOSE);
+        removeSession(sm, current, UA_DIAGNOSTICEVENT_CLOSE);
     }
 }
 
@@ -111,7 +119,7 @@ UA_SessionManager_cleanupTimedOut(UA_SessionManager *sm,
             continue;
         UA_LOG_INFO_SESSION(&sm->server->config.logger, &sentry->session,
                             "Session has timed out");
-        removeSession(sm, sentry, UA_SESSIONCLOSEEVENT_TIMEOUT);
+        removeSession(sm, sentry, UA_DIAGNOSTICEVENT_TIMEOUT);
     }
 }
 
@@ -187,7 +195,7 @@ UA_SessionManager_createSession(UA_SessionManager *sm, UA_SecureChannel *channel
 
     if(sm->currentSessionCount >= sm->server->config.maxSessions)
     {
-        UA_atomic_addUInt32(&sm->server->serverStats.ss.outOfSessions, 1);
+        UA_atomic_addUInt32(&sm->server->serverStats.ss.rejectedSessionCount, 1);
         return UA_STATUSCODE_BADTOOMANYSESSIONS;
     }
 
@@ -213,7 +221,7 @@ UA_SessionManager_createSession(UA_SessionManager *sm, UA_SecureChannel *channel
 }
 
 UA_StatusCode
-UA_SessionManager_removeSession(UA_SessionManager *sm, const UA_NodeId *token, UA_SessionCloseEvent event) {
+UA_SessionManager_removeSession(UA_SessionManager *sm, const UA_NodeId *token, UA_DiagnosticEvent event) {
     UA_LOCK_ASSERT(sm->server->serviceMutex, 1);
 
     session_list_entry *current;

@@ -556,7 +556,7 @@ UA_Client_connect_iterate(UA_Client *client) {
             if(client->connectStatus == UA_STATUSCODE_GOOD) {
                 setClientState(client, UA_CLIENTSTATE_WAITING_FOR_ACK);
             } else {
-                client->connection.close(&client->connection);
+                client->connection.close(&client->connection, UA_DIAGNOSTICEVENT_ABORT);
                 client->connection.free(&client->connection);
             }
             return client->connectStatus;
@@ -571,7 +571,7 @@ UA_Client_connect_iterate(UA_Client *client) {
     }
 
     if(client->connectStatus != UA_STATUSCODE_GOOD) {
-        client->connection.close(&client->connection);
+        client->connection.close(&client->connection, UA_DIAGNOSTICEVENT_ABORT);
         client->connection.free(&client->connection);
     }
 
@@ -685,7 +685,7 @@ sendCloseSecureChannelAsync(UA_Client *client, void *userdata,
     UA_SecureChannel_sendSymmetricMessage(
             channel, ++client->requestId, UA_MESSAGETYPE_CLO, &request,
             &UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST]);
-    UA_SecureChannel_close(&client->channel, UA_SECURECHANNELCLOSEEVENT_CLOSE);
+    UA_SecureChannel_close(&client->channel, UA_DIAGNOSTICEVENT_CLOSE);
     UA_SecureChannel_deleteMembers(&client->channel);
 }
 
@@ -716,7 +716,7 @@ UA_Client_disconnect_async(UA_Client *client, UA_UInt32 *requestId) {
     /* Close the TCP connection
      * shutdown and close (in tcp.c) are already async*/
     if (client->state >= UA_CLIENTSTATE_CONNECTED)
-        client->connection.close(&client->connection);
+        client->connection.close(&client->connection, UA_DIAGNOSTICEVENT_CLOSE);
     else
         UA_Client_removeRepeatedCallback(client, client->connection.connectCallbackID);
 

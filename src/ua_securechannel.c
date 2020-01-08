@@ -147,22 +147,28 @@ UA_SecureChannel_deleteMembers(UA_SecureChannel *channel) {
 }
 
 void
-UA_SecureChannel_close(UA_SecureChannel *channel, UA_SecureChannelCloseEvent event) {
+UA_SecureChannel_close(UA_SecureChannel *channel, UA_DiagnosticEvent event) {
     /* Set the status to closed */
     if(channel->state != UA_SECURECHANNELSTATE_CLOSED)
     {
         channel->state = UA_SECURECHANNELSTATE_CLOSED;
-        UA_atomic_subUInt32(&channel->channelStats->currentChannels, 1);
+        UA_atomic_subUInt32(&channel->channelStats->currentChannelCount, 1);
         switch(event)
         {
-        case UA_SECURECHANNELCLOSEEVENT_CLOSE:
-            UA_atomic_addUInt32(&channel->channelStats->closedChannels, 1);
+        case UA_DIAGNOSTICEVENT_CLOSE:
             break;
-        case UA_SECURECHANNELCLOSEEVENT_TIMEOUT:
-            UA_atomic_addUInt32(&channel->channelStats->timedoutChannels, 1);
+        case UA_DIAGNOSTICEVENT_TIMEOUT:
+            UA_atomic_addUInt32(&channel->channelStats->channelTimeoutCount, 1);
             break;
-        case UA_SECURECHANNELCLOSEEVENT_PURGE:
-            UA_atomic_addUInt32(&channel->channelStats->purgedChannels, 1);
+        case UA_DIAGNOSTICEVENT_PURGE:
+            UA_atomic_addUInt32(&channel->channelStats->channelPurgeCount, 1);
+            break;
+        case UA_DIAGNOSTICEVENT_SECURITYREJECT:
+        case UA_DIAGNOSTICEVENT_REJECT:
+            UA_atomic_addUInt32(&channel->channelStats->rejectedChannelCount, 1);
+            break;
+        case UA_DIAGNOSTICEVENT_ABORT:
+            UA_atomic_addUInt32(&channel->channelStats->channelAbortCount, 1);
             break;
         }
     }
@@ -170,7 +176,7 @@ UA_SecureChannel_close(UA_SecureChannel *channel, UA_SecureChannelCloseEvent eve
     /* Detach from the connection and close the connection */
     if(channel->connection) {
         if(channel->connection->state != UA_CONNECTION_CLOSED)
-            channel->connection->close(channel->connection);
+            channel->connection->close(channel->connection, event);
         UA_Connection_detachSecureChannel(channel->connection);
     }
 
@@ -830,7 +836,7 @@ UA_SecureChannel_decryptAddChunk(UA_SecureChannel *channel, const UA_ByteString 
 
     UA_StatusCode retval = decryptAddChunk(channel, chunk, allowPreviousToken);
     if(retval != UA_STATUSCODE_GOOD)
-        UA_SecureChannel_close(channel, UA_SECURECHANNELCLOSEEVENT_CLOSE);
+        UA_SecureChannel_close(channel, UA_DIAGNOSTICEVENT_ABORT);
 
     return retval;
 }
@@ -846,7 +852,7 @@ UA_SecureChannel_persistIncompleteMessages(UA_SecureChannel *channel) {
             UA_ByteString copy;
             UA_StatusCode retval = UA_ByteString_copy(&cp->bytes, &copy);
             if(retval != UA_STATUSCODE_GOOD) {
-                UA_SecureChannel_close(channel, UA_SECURECHANNELCLOSEEVENT_CLOSE);
+                UA_SecureChannel_close(channel, UA_DIAGNOSTICEVENT_ABORT);
                 return retval;
             }
             cp->bytes = copy;

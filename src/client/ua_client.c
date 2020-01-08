@@ -568,6 +568,6 @@ UA_Client_removeCallback(UA_Client *client, UA_UInt64 callbackId) {
     UA_Timer_removeCallback(&client->timer, callbackId);
 }
 
-const UA_ClientStatistics * UA_Client_getStatistics(UA_Client *client) {
-    return &client->clientStats;
+const UA_ClientStatistics UA_Client_getStatistics(UA_Client *client) {
+    return client->clientStats;
 }

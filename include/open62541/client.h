@@ -549,8 +549,8 @@ UA_ClientStatistics;
 /* Get the statistic counters of the client
  *
  * @param client The client object
- * @return A reference to the statistic counters of the server */
-const UA_ClientStatistics * UA_Client_getStatistics(UA_Client *client);
+ * @return A copy of the client statistic counters */
+const UA_ClientStatistics UA_Client_getStatistics(UA_Client *client);
 
 _UA_END_DECLS
 
