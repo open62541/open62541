@@ -71,8 +71,7 @@ removeSession(UA_SessionManager *sm, session_list_entry *sentry, UA_DiagnosticEv
     /* Update session statistics */
     UA_atomic_subUInt32(&sm->server->serverStats.ss.currentSessionCount, 1);
 
-    switch(event)
-    {
+    switch(event) {
     case UA_DIAGNOSTICEVENT_TIMEOUT:
         UA_atomic_addUInt32(&sm->server->serverStats.ss.sessionTimeoutCount, 1);
         break;

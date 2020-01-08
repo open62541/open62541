@@ -199,8 +199,7 @@ ServerNetworkLayerTCP_close(UA_Connection *connection, UA_DiagnosticEvent event)
     connection->state = UA_CONNECTION_CLOSED;
 
     UA_atomic_subUInt32(&connection->networkStats->currentConnectionCount, 1);
-    switch(event)
-    {
+    switch(event) {
     case UA_DIAGNOSTICEVENT_TIMEOUT:
         UA_atomic_addUInt32(&connection->networkStats->connectionTimeoutCount, 1);
         break;
@@ -609,10 +608,9 @@ ClientNetworkLayerTCP_close(UA_Connection *connection, UA_DiagnosticEvent event)
         UA_close(connection->sockfd);
     }
     connection->state = UA_CONNECTION_CLOSED;
-    UA_atomic_subUInt32(&connection->networkStats->currentConnectionCount, 1);
 
-    switch(event)
-    {
+    UA_atomic_subUInt32(&connection->networkStats->currentConnectionCount, 1);
+    switch(event) {
     case UA_DIAGNOSTICEVENT_TIMEOUT:
         UA_atomic_addUInt32(&connection->networkStats->connectionTimeoutCount, 1);
         break;

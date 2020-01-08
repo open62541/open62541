@@ -550,7 +550,7 @@ UA_ClientStatistics;
  *
  * @param client The client object
  * @return A copy of the client statistic counters */
-const UA_ClientStatistics UA_Client_getStatistics(UA_Client *client);
+UA_ClientStatistics UA_Client_getStatistics(UA_Client *client);
 
 _UA_END_DECLS
 

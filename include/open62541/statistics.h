@@ -36,7 +36,7 @@ typedef enum {
    UA_DIAGNOSTICEVENT_TIMEOUT,
    UA_DIAGNOSTICEVENT_ABORT,
    UA_DIAGNOSTICEVENT_PURGE
-}UA_DiagnosticEvent;
+} UA_DiagnosticEvent;
 
 typedef struct {
     UA_UInt32 currentConnectionCount;
@@ -53,7 +53,7 @@ typedef struct {
     UA_UInt32 channelTimeoutCount; /* only used by servers */
     UA_UInt32 channelAbortCount;
     UA_UInt32 channelPurgeCount; /* only used by servers */
-}UA_SecureChannelStatistics;
+} UA_SecureChannelStatistics;
 
 typedef struct {
     UA_UInt32 currentSessionCount;
@@ -62,7 +62,7 @@ typedef struct {
     UA_UInt32 rejectedSessionCount;
     UA_UInt32 sessionTimeoutCount; /* only used by servers */
     UA_UInt32 sessionAbortCount; /* only used by servers */
-}UA_SessionStatistics;
+} UA_SessionStatistics;
 
 _UA_END_DECLS
 

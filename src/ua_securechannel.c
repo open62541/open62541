@@ -149,12 +149,10 @@ UA_SecureChannel_deleteMembers(UA_SecureChannel *channel) {
 void
 UA_SecureChannel_close(UA_SecureChannel *channel, UA_DiagnosticEvent event) {
     /* Set the status to closed */
-    if(channel->state != UA_SECURECHANNELSTATE_CLOSED)
-    {
+    if(channel->state != UA_SECURECHANNELSTATE_CLOSED) {
         channel->state = UA_SECURECHANNELSTATE_CLOSED;
         UA_atomic_subUInt32(&channel->channelStats->currentChannelCount, 1);
-        switch(event)
-        {
+        switch(event) {
         case UA_DIAGNOSTICEVENT_CLOSE:
             break;
         case UA_DIAGNOSTICEVENT_TIMEOUT:

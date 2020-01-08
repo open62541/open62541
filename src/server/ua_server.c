@@ -498,7 +498,7 @@ verifyServerApplicationURI(const UA_Server *server) {
 }
 #endif
 
-const UA_ServerStatistics UA_Server_getStatistics(UA_Server *server)
+UA_ServerStatistics UA_Server_getStatistics(UA_Server *server)
 {
    return server->serverStats;
 }
