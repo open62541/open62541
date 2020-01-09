@@ -92,6 +92,13 @@ ServerNetworkLayerWS_close(UA_Connection *connection) {
 static void
 freeConnection(UA_Connection *connection) {
     if(connection->handle) {
+        ConnectionUserData *userData = (ConnectionUserData *)connection->handle;
+        while(!SIMPLEQ_EMPTY(&userData->messages)) {
+            BufferEntry *entry = SIMPLEQ_FIRST(&userData->messages);
+            UA_ByteString_deleteMembers(&entry->msg);
+            SIMPLEQ_REMOVE_HEAD(&userData->messages, next);
+            UA_free(entry);
+        }
         UA_free(connection->handle);
     }
     UA_Connection_clear(connection);
