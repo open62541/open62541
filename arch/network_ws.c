@@ -171,8 +171,8 @@ callback_opcua(struct lws *wsi, enum lws_callback_reasons reason, void *user, vo
                     return -1;
                 }
                 UA_ByteString_deleteMembers(&entry->msg);
-                UA_free(entry);
                 SIMPLEQ_REMOVE_HEAD(&b->messages, next);
+                UA_free(entry);
             } while(!lws_send_pipe_choked(wsi));
 
             // process remaining messages
