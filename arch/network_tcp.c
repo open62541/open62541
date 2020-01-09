@@ -168,9 +168,11 @@ typedef struct ConnectionEntry {
 typedef struct {
     const UA_Logger *logger;
     UA_UInt16 port;
+    UA_UInt16 maxConnections;
     UA_SOCKET serverSockets[FD_SETSIZE];
     UA_UInt16 serverSocketsSize;
     LIST_HEAD(, ConnectionEntry) connections;
+    UA_UInt16 connectionsSize;
 } ServerNetworkLayerTCP;
 
 static void
@@ -191,6 +193,10 @@ ServerNetworkLayerTCP_close(UA_Connection *connection) {
 static UA_StatusCode
 ServerNetworkLayerTCP_add(UA_ServerNetworkLayer *nl, ServerNetworkLayerTCP *layer,
                           UA_Int32 newsockfd, struct sockaddr_storage *remote) {
+   if(layer->maxConnections && layer->connectionsSize >= layer->maxConnections) {
+       return UA_STATUSCODE_BADTCPNOTENOUGHRESOURCES;
+   }
+
     /* Set nonblocking */
     UA_socket_set_nonblocking(newsockfd);//TODO: check return value
 
@@ -443,7 +449,9 @@ ServerNetworkLayerTCP_listen(UA_ServerNetworkLayer *nl, UA_Server *server,
                     "Connection %i | New TCP connection on server socket %i",
                     (int)newsockfd, (int)(layer->serverSockets[i]));
 
-        ServerNetworkLayerTCP_add(nl, layer, (UA_Int32)newsockfd, &remote);
+        if(ServerNetworkLayerTCP_add(nl, layer, (UA_Int32)newsockfd, &remote) != UA_STATUSCODE_GOOD) {
+            UA_close(newsockfd);
+        }
     }
 
     /* Read from established sockets */
@@ -456,6 +464,7 @@ ServerNetworkLayerTCP_listen(UA_ServerNetworkLayer *nl, UA_Server *server,
                         "Connection %i | Closed by the server (no Hello Message)",
                          (int)(e->connection.sockfd));
             LIST_REMOVE(e, pointers);
+            layer->connectionsSize--;
             UA_close(e->connection.sockfd);
             UA_Server_removeConnection(server, &e->connection);
             if(nl->statistics) {
@@ -486,6 +495,7 @@ ServerNetworkLayerTCP_listen(UA_ServerNetworkLayer *nl, UA_Server *server,
                         "Connection %i | Closed",
                         (int)(e->connection.sockfd));
             LIST_REMOVE(e, pointers);
+            layer->connectionsSize--;
             UA_close(e->connection.sockfd);
             UA_Server_removeConnection(server, &e->connection);
             if(nl->statistics) {
@@ -532,6 +542,7 @@ ServerNetworkLayerTCP_deleteMembers(UA_ServerNetworkLayer *nl) {
     ConnectionEntry *e, *e_tmp;
     LIST_FOREACH_SAFE(e, &layer->connections, pointers, e_tmp) {
         LIST_REMOVE(e, pointers);
+        layer->connectionsSize--;
         UA_close(e->connection.sockfd);
         UA_free(e);
         if(nl->statistics) {
@@ -545,7 +556,7 @@ ServerNetworkLayerTCP_deleteMembers(UA_ServerNetworkLayer *nl) {
 
 UA_ServerNetworkLayer
 UA_ServerNetworkLayerTCP(UA_ConnectionConfig config, UA_UInt16 port,
-                         UA_Logger *logger) {
+                         UA_UInt16 maxConnections, UA_Logger *logger) {
     UA_ServerNetworkLayer nl;
     memset(&nl, 0, sizeof(UA_ServerNetworkLayer));
     nl.clear = ServerNetworkLayerTCP_deleteMembers;
@@ -563,6 +574,7 @@ UA_ServerNetworkLayerTCP(UA_ConnectionConfig config, UA_UInt16 port,
 
     layer->logger = logger;
     layer->port = port;
+    layer->maxConnections = maxConnections;
 
     return nl;
 }
