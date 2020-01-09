@@ -4,7 +4,7 @@ ADD . /opt/open62541
 
 # Get all the git tags to make sure we detect the correct version with git describe
 WORKDIR /opt/open62541
-RUN git remote add github-upstream https://github.com/open62541/open62541.git
+RUN git init && git remote add github-upstream https://github.com/open62541/open62541.git
 RUN git fetch -f --tags github-upstream
 # Ignore error here. This always fails on Docker Cloud. It's fine there because the submodule is alread initialized. See also:
 # https://stackoverflow.com/questions/58690455/how-to-correctly-initialize-git-submodules-in-dockerfile-for-docker-cloud
