@@ -236,7 +236,6 @@ ServerNetworkLayerTCP_add(UA_ServerNetworkLayer *nl, ServerNetworkLayerTCP *laye
     /* Allocate and initialize the connection */
     ConnectionEntry *e = (ConnectionEntry*)UA_malloc(sizeof(ConnectionEntry));
     if(!e){
-        UA_close(newsockfd);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
