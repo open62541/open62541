@@ -37,7 +37,6 @@ extern UA_StatusCode processSym_seqNumberFailure;
  * Sessions is independent of the underlying SecureChannel. But every Session
  * can be attached to only one SecureChannel. */
 typedef struct UA_SessionHeader {
-    LIST_ENTRY(UA_SessionHeader) pointers;
     UA_NodeId authenticationToken;
     UA_SecureChannel *channel; /* The pointer back to the SecureChannel in the session. */
 } UA_SessionHeader;
@@ -103,7 +102,7 @@ struct UA_SecureChannel {
     UA_UInt32 receiveSequenceNumber;
     UA_UInt32 sendSequenceNumber;
 
-    LIST_HEAD(, UA_SessionHeader) sessions;
+    UA_SessionHeader *session;
     UA_MessageQueue messages;
 };
 
