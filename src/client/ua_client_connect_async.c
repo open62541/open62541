@@ -23,7 +23,7 @@
  *      call the non-blocking receiving function and register processACKResponseAsync() as its callback
  *      (see receivePacketAsync())
  * if ACK is processed (callback called):
- *      processACKResponseAsync() calls openSecureChannelAsync() at the end, which prepares the request
+ *      processACKResponseAsync() calls sendOPNAsync() at the end, which prepares the request
  *      to open secure channel and the client is connected
  * if client is connected:
  *      call the non-blocking receiving function and register processOPNResponse() as its callback
@@ -40,7 +40,7 @@
 /* Open the Connection */
 /***********************/
 static UA_StatusCode
-openSecureChannelAsync(UA_Client *client/*, UA_Boolean renew*/);
+sendOPNAsync(UA_Client *client);
 
 static UA_StatusCode
 requestSession(UA_Client *client, UA_UInt32 *requestId);
@@ -79,7 +79,7 @@ processACKResponseAsync(void *application, UA_Connection *connection,
 
     /* Open a SecureChannel. TODO: Select with endpoint  */
     client->channel.connection = &client->connection;
-    client->connectStatus = openSecureChannelAsync(client/*, false*/);
+    client->connectStatus = sendOPNAsync(client);
     return client->connectStatus;
 }
 
@@ -285,11 +285,7 @@ error:
 
 /* OPN messges to renew the channel are sent asynchronous */
 static UA_StatusCode
-openSecureChannelAsync(UA_Client *client/*, UA_Boolean renew*/) {
-    /* Check if sc is still valid */
-    /*if(renew && client->nextChannelRenewal - UA_DateTime_nowMonotonic () > 0)
-        return UA_STATUSCODE_GOOD;*/
-
+sendOPNAsync(UA_Client *client) {
     UA_Connection *conn = &client->connection;
     if(conn->state != UA_CONNECTION_ESTABLISHED)
         return UA_STATUSCODE_BADSERVERNOTCONNECTED;
@@ -299,15 +295,9 @@ openSecureChannelAsync(UA_Client *client/*, UA_Boolean renew*/) {
     UA_OpenSecureChannelRequest_init(&opnSecRq);
     opnSecRq.requestHeader.timestamp = UA_DateTime_now();
     opnSecRq.requestHeader.authenticationToken = client->authenticationToken;
-    /*if(renew) {
-        opnSecRq.requestType = UA_SECURITYTOKENREQUESTTYPE_RENEW;
-        UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
-                     "Requesting to renew the SecureChannel");
-    } else {*/
-        opnSecRq.requestType = UA_SECURITYTOKENREQUESTTYPE_ISSUE;
-        UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
-                     "Requesting to open a SecureChannel");
-    //}
+    opnSecRq.requestType = UA_SECURITYTOKENREQUESTTYPE_ISSUE;
+    UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
+                 "Requesting to open a SecureChannel");
     opnSecRq.securityMode = client->channel.securityMode;
 
     opnSecRq.clientNonce = client->channel.localNonce;
@@ -315,17 +305,6 @@ openSecureChannelAsync(UA_Client *client/*, UA_Boolean renew*/) {
 
     /* Prepare the entry for the linked list */
     UA_UInt32 requestId = ++client->requestId;
-    /*AsyncServiceCall *ac = NULL;
-    if(renew) {
-        ac = (AsyncServiceCall*)UA_malloc(sizeof(AsyncServiceCall));
-        if (!ac)
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-        ac->callback =
-                (UA_ClientAsyncServiceCallback) processDecodedOPNResponseAsync;
-        ac->responseType = &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE];
-        ac->requestId = requestId;
-        ac->userdata = NULL;
-    }*/
 
     /* Send the OPN message */
     UA_StatusCode retval = UA_SecureChannel_sendAsymmetricOPNMessage (
@@ -339,19 +318,12 @@ openSecureChannelAsync(UA_Client *client/*, UA_Boolean renew*/) {
                       "Sending OPN message failed with error %s",
                       UA_StatusCode_name(retval));
         UA_Client_disconnect(client);
-        //if(renew)
-        //    UA_free(ac);
         return retval;
     }
 
     UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                  "OPN message sent");
 
-    /* Store the entry for async processing and return */
-    /*if(renew) {
-        LIST_INSERT_HEAD(&client->asyncServiceCalls, ac, pointers);
-        return retval;
-    }*/
     return retval;
 }
 
