@@ -59,8 +59,7 @@ processACKResponse(void *application, UA_SecureChannel *channel,
     UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_NETWORK, "Received ACK message");
 
     /* Process the ACK message */
-    retval = UA_Connection_processHELACK(channel->connection, &client->config.localConnectionConfig,
-                                         (const UA_ConnectionConfig*)&ackMessage);
+    retval = UA_SecureChannel_processHELACK(channel, (const UA_ConnectionConfig*)&ackMessage);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_NETWORK,
                      "Processing the ACK message failed with StatusCode %s",
@@ -734,6 +733,7 @@ UA_Client_connectTCPSecureChannel(UA_Client *client, const UA_String endpointUrl
     client->channel.state = UA_SECURECHANNELSTATE_FRESH;
     client->channel.sendSequenceNumber = 0;
     client->requestId = 0;
+    client->channel.config = client->config.localConnectionConfig;
 
     /* Set the channel SecurityMode */
     client->channel.securityMode = client->config.endpoint.securityMode;
@@ -788,7 +788,7 @@ UA_Client_connectTCPSecureChannel(UA_Client *client, const UA_String endpointUrl
     UA_Connection_attachSecureChannel(&client->connection, &client->channel);
 
     /* Perform the HEL/ACK handshake */
-    client->connection.config = client->config.localConnectionConfig;
+    client->channel.config = client->config.localConnectionConfig;
     retval = HelAckHandshake(client, endpointUrl);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,

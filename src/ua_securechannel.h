@@ -73,6 +73,7 @@ typedef TAILQ_HEAD(UA_MessageQueue, UA_Message) UA_MessageQueue;
 struct UA_SecureChannel {
     UA_SecureChannelState   state;
     UA_MessageSecurityMode  securityMode;
+    UA_ConnectionConfig     config;
 
     /* Rules for revolving the token with a renew OPN request: The client is
      * allowed to accept messages with the old token until the OPN response has
@@ -110,9 +111,16 @@ struct UA_SecureChannel {
                                     * messages */
 };
 
-void UA_SecureChannel_init(UA_SecureChannel *channel);
+void UA_SecureChannel_init(UA_SecureChannel *channel,
+                           const UA_ConnectionConfig *config);
 
 void UA_SecureChannel_close(UA_SecureChannel *channel);
+
+/* Process the remote configuration in the HEL/ACK handshake. The connection
+ * config is initialized with the local settings. */
+UA_StatusCode
+UA_SecureChannel_processHELACK(UA_SecureChannel *channel,
+                               const UA_ConnectionConfig *remoteConfig);
 
 UA_StatusCode
 UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel,

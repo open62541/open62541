@@ -62,6 +62,5 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
     c.close(&c);
-    UA_Connection_clear(&c);
     return 0;
 }

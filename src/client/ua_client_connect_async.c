@@ -63,8 +63,7 @@ processACKResponseAsync(void *application, UA_SecureChannel *channel,
     }
 
     client->connectStatus =
-        UA_Connection_processHELACK(channel->connection, &client->config.localConnectionConfig,
-                                    (const UA_ConnectionConfig*)&ackMessage);
+        UA_SecureChannel_processHELACK(channel, (const UA_ConnectionConfig*)&ackMessage);
     if(client->connectStatus != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_NETWORK,
                      "Processing the ACK message failed with StatusCode %s",
@@ -607,6 +606,7 @@ UA_Client_connect_async(UA_Client *client, const char *endpointUrl,
     client->channel.state = UA_SECURECHANNELSTATE_FRESH;
     client->channel.sendSequenceNumber = 0;
     client->requestId = 0;
+    client->channel.config = client->config.localConnectionConfig;
 
     UA_String_deleteMembers(&client->endpointUrl);
     client->endpointUrl = UA_STRING_ALLOC(endpointUrl);
