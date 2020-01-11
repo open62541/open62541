@@ -770,22 +770,3 @@ UA_SecureChannel_persistIncompleteMessages(UA_SecureChannel *channel) {
     return UA_STATUSCODE_GOOD;
 }
 
-/* Functionality used by both the SecureChannel and the SecurityPolicy */
-
-size_t
-UA_SecurityPolicy_getRemoteAsymEncryptionBufferLengthOverhead(const UA_SecurityPolicy *securityPolicy,
-                                                              const void *channelContext,
-                                                              size_t maxEncryptionLength) {
-    if(maxEncryptionLength == 0)
-        return 0;
-
-    size_t plainTextBlockSize = securityPolicy->asymmetricModule.cryptoModule.
-        encryptionAlgorithm.getRemotePlainTextBlockSize(securityPolicy, channelContext);
-    size_t encryptedBlockSize = securityPolicy->asymmetricModule.cryptoModule.
-        encryptionAlgorithm.getRemoteBlockSize(securityPolicy, channelContext);
-    if(plainTextBlockSize == 0)
-        return 0;
-
-    size_t maxNumberOfBlocks = maxEncryptionLength / plainTextBlockSize;
-    return maxNumberOfBlocks * (encryptedBlockSize - plainTextBlockSize);
-}
