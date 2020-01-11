@@ -55,12 +55,10 @@ typedef enum {
                                * is not done */
     UA_CONNECTION_ESTABLISHED /* The socket is open and the connection
                                * configured */
-
 } UA_ConnectionState;
 
 struct UA_Connection {
     UA_ConnectionState state;
-    UA_ConnectionConfig config;
     UA_SecureChannel *channel;     /* The securechannel that is attached to
                                     * this connection */
     UA_SOCKET sockfd;              /* Most connectivity solutions run on

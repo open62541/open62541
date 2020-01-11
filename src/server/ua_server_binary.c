@@ -20,6 +20,7 @@
 #include <open62541/transport_generated_handling.h>
 #include <open62541/types_generated_encoding_binary.h>
 #include <open62541/types_generated_handling.h>
+#include "open62541/plugin/network.h"
 
 #include "ua_securechannel_manager.h"
 #include "ua_server_internal.h"
@@ -279,7 +280,7 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
 
 /* HEL -> Open up the connection */
 static UA_StatusCode
-processHEL(UA_Server *server, UA_Connection *connection, const UA_ByteString *msg) {
+processHEL(UA_Server *server, UA_SecureChannel *channel, const UA_ByteString *msg) {
     size_t offset = 8; /* Go to the beginning of the TcpHelloMessage */
     UA_TcpHelloMessage helloMessage;
     UA_StatusCode retval = UA_TcpHelloMessage_decodeBinary(msg, &offset, &helloMessage);
@@ -289,11 +290,6 @@ processHEL(UA_Server *server, UA_Connection *connection, const UA_ByteString *ms
     /* Currently not checked */
     UA_String_clear(&helloMessage.endpointUrl);
 
-    /* TODO: Use the config of the exact NetworkLayer */
-    if(server->config.networkLayersSize == 0)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    const UA_ConnectionConfig *localConfig = &server->config.networkLayers[0].localConnectionConfig;
-
     /* Parameterize the connection */
     UA_ConnectionConfig remoteConfig;
     remoteConfig.protocolVersion = helloMessage.protocolVersion;
@@ -301,32 +297,33 @@ processHEL(UA_Server *server, UA_Connection *connection, const UA_ByteString *ms
     remoteConfig.recvBufferSize = helloMessage.receiveBufferSize;
     remoteConfig.maxMessageSize = helloMessage.maxMessageSize;
     remoteConfig.maxChunkCount = helloMessage.maxChunkCount;
-    retval = UA_Connection_processHELACK(connection, localConfig, &remoteConfig);
+    retval = UA_SecureChannel_processHELACK(channel, &remoteConfig);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_NETWORK,
                     "Connection %i | Error during the HEL/ACK handshake",
-                    (int)(connection->sockfd));
+                    (int)(channel->connection->sockfd));
         return retval;
     }
 
     /* Build acknowledge response */
     UA_TcpAcknowledgeMessage ackMessage;
-    memcpy(&ackMessage, &connection->config, sizeof(UA_TcpAcknowledgeMessage)); /* Same struct layout.. */
+    memcpy(&ackMessage, &channel->config, sizeof(UA_TcpAcknowledgeMessage)); /* Same struct layout.. */
     UA_TcpMessageHeader ackHeader;
     ackHeader.messageTypeAndChunkType = UA_MESSAGETYPE_ACK + UA_CHUNKTYPE_FINAL;
     ackHeader.messageSize = 8 + 20; /* ackHeader + ackMessage */
 
+    UA_Connection *connection = channel->connection;
+
     /* Get the send buffer from the network layer */
     UA_ByteString ack_msg;
     UA_ByteString_init(&ack_msg);
-    retval = connection->getSendBuffer(connection, connection->config.sendBufferSize, &ack_msg);
+    retval = connection->getSendBuffer(connection, channel->config.sendBufferSize, &ack_msg);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
     /* Encode and send the response */
     UA_Byte *bufPos = ack_msg.data;
     const UA_Byte *bufEnd = &ack_msg.data[ack_msg.length];
-
     retval = UA_TcpMessageHeader_encodeBinary(&ackHeader, &bufPos, bufEnd);
     if(retval != UA_STATUSCODE_GOOD) {
         connection->releaseSendBuffer(connection, &ack_msg);
@@ -732,7 +729,7 @@ processSecureChannelMessage(void *application, UA_SecureChannel *channel,
     switch(messagetype) {
     case UA_MESSAGETYPE_HEL:
         UA_LOG_TRACE_CHANNEL(&server->config.logger, channel, "Process a HEL message");
-        retval = processHEL(server, channel->connection, message);
+        retval = processHEL(server, channel, message);
         break;
     case UA_MESSAGETYPE_OPN:
         UA_LOG_TRACE_CHANNEL(&server->config.logger, channel, "Process an OPN message");

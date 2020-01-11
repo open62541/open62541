@@ -16,13 +16,6 @@
 
 _UA_BEGIN_DECLS
 
-/* Process the remote configuration in the HEL/ACK handshake. The connection
- * config is initialized with the local settings. */
-UA_StatusCode
-UA_Connection_processHELACK(UA_Connection *connection,
-                            const UA_ConnectionConfig *localConfig,
-                            const UA_ConnectionConfig *remoteConfig);
-
 /* When a fatal error occurs the Server shall send an Error Message to the
  * Client and close the socket. When a Client encounters one of these errors, it
  * shall also close the socket but does not send an Error Message. After the

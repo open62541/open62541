@@ -7,6 +7,7 @@
 #include <open62541/transport_generated_handling.h>
 #include <open62541/types_generated.h>
 #include <open62541/types_generated_encoding_binary.h>
+#include <open62541/server_config_default.h>
 
 #include "ua_securechannel.h"
 #include <ua_types_encoding_binary.h>
@@ -41,7 +42,7 @@ static key_sizes keySizes;
 static void
 setup_secureChannel(void) {
     TestingPolicy(&dummyPolicy, dummyCertificate, &fCalled, &keySizes);
-    UA_SecureChannel_init(&testChannel);
+    UA_SecureChannel_init(&testChannel, &UA_ConnectionConfig_default);
     UA_SecureChannel_setSecurityPolicy(&testChannel, &dummyPolicy, &dummyCertificate);
 
     testingConnection = createDummyConnection(65535, &sentData);
@@ -95,7 +96,7 @@ START_TEST(SecureChannel_initAndDelete) {
     UA_StatusCode retval;
 
     UA_SecureChannel channel;
-    UA_SecureChannel_init(&channel);
+    UA_SecureChannel_init(&channel, &UA_ConnectionConfig_default);
     retval = UA_SecureChannel_setSecurityPolicy(&channel, &dummyPolicy, &dummyCertificate);
 
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected StatusCode to be good");

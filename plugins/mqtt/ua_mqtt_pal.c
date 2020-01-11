@@ -24,20 +24,16 @@ mqtt_pal_sendall(mqtt_pal_socket_handle fd, const void* buf, size_t len, int fla
 
 ssize_t
 mqtt_pal_recvall(mqtt_pal_socket_handle fd, void* buf, size_t bufsz, int flags) {
-    UA_Connection *connection = (UA_Connection*) fd->connection;
-    connection->config.recvBufferSize = (UA_UInt32) bufsz;
+    UA_Connection *connection = (UA_Connection*)fd->connection;
     UA_ByteString inBuffer;
+    inBuffer.data = (UA_Byte*)buf;
+    inBuffer.length = bufsz;
     UA_StatusCode ret = connection->recv(connection, &inBuffer, fd->timeout);
-    if(ret == UA_STATUSCODE_GOOD ){
-        // Buffer received, copy to recv buffer
-        memcpy(buf, inBuffer.data, inBuffer.length);
-        ssize_t bytesReceived = (ssize_t)inBuffer.length;
-        /* free recv buffer */
-        connection->releaseRecvBuffer(connection, &inBuffer);
-        return bytesReceived;
-    }else if(ret == UA_STATUSCODE_GOODNONCRITICALTIMEOUT){
+    if(ret == UA_STATUSCODE_GOOD ) {
+        return (ssize_t)inBuffer.length;
+    } else if(ret == UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
         return 0;
-    }else{
+    } else {
         return -1; //error case, no free necessary
     }
 }

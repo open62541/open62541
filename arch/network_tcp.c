@@ -15,6 +15,7 @@
 #include <open62541/util.h>
 
 #include "open62541_queue.h"
+#include "ua_securechannel.h"
 
 #include <string.h>  // memset
 
@@ -29,7 +30,8 @@
 static UA_StatusCode
 connection_getsendbuffer(UA_Connection *connection,
                          size_t length, UA_ByteString *buf) {
-    if(length > connection->config.sendBufferSize)
+    UA_SecureChannel *channel = connection->channel;
+    if(channel && channel->config.sendBufferSize < length)
         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
     return UA_ByteString_allocBuffer(buf, length);
 }
@@ -115,8 +117,8 @@ connection_recv(UA_Connection *connection, UA_ByteString *response,
     if(internallyAllocated) {
         size_t bufferSize = 16384; /* Use as default for a new SecureChannel */
         UA_SecureChannel *channel = connection->channel;
-        if(channel && connection->config.recvBufferSize > 0)
-            bufferSize = connection->config.recvBufferSize;
+        if(channel && channel->config.recvBufferSize > 0)
+            bufferSize = channel->config.recvBufferSize;
         UA_StatusCode res = UA_ByteString_allocBuffer(response, bufferSize);
         if(res != UA_STATUSCODE_GOOD)
             return res;
@@ -236,7 +238,6 @@ ServerNetworkLayerTCP_add(UA_ServerNetworkLayer *nl, ServerNetworkLayerTCP *laye
     memset(c, 0, sizeof(UA_Connection));
     c->sockfd = newsockfd;
     c->handle = layer;
-    c->config = nl->localConnectionConfig;
     c->send = connection_write;
     c->close = ServerNetworkLayerTCP_close;
     c->free = ServerNetworkLayerTCP_freeConnection;
@@ -751,7 +752,6 @@ UA_ClientConnectionTCP_init(UA_ConnectionConfig config, const UA_String endpoint
     memset(&connection, 0, sizeof(UA_Connection));
 
     connection.state = UA_CONNECTION_OPENING;
-    connection.config = config;
     connection.send = connection_write;
     connection.recv = connection_recv;
     connection.close = ClientNetworkLayerTCP_close;
@@ -813,7 +813,6 @@ UA_ClientConnectionTCP(UA_ConnectionConfig config, const UA_String endpointUrl,
     UA_Connection connection;
     memset(&connection, 0, sizeof(UA_Connection));
     connection.state = UA_CONNECTION_CLOSED;
-    connection.config = config;
     connection.send = connection_write;
     connection.recv = connection_recv;
     connection.close = ClientNetworkLayerTCP_close;

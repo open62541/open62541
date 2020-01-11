@@ -31,12 +31,13 @@ UA_StatusCode sendAsym_sendFailure;
 UA_StatusCode processSym_seqNumberFailure;
 #endif
 
-void
-UA_SecureChannel_init(UA_SecureChannel *channel) {
+void UA_SecureChannel_init(UA_SecureChannel *channel,
+                           const UA_ConnectionConfig *config) {
     /* Linked lists are also initialized by zeroing out */
     memset(channel, 0, sizeof(UA_SecureChannel));
     channel->state = UA_SECURECHANNELSTATE_FRESH;
     TAILQ_INIT(&channel->messages);
+    channel->config = *config;
 }
 
 UA_StatusCode
@@ -143,7 +144,8 @@ UA_SecureChannel_deleteMembers(UA_SecureChannel *channel) {
     /* Remove the buffered messages */
     UA_SecureChannel_deleteMessages(channel);
     UA_ByteString_clear(&channel->incompleteChunk);
-    UA_SecureChannel_init(channel);
+    UA_ConnectionConfig oldConfig = channel->config;
+    UA_SecureChannel_init(channel, &oldConfig);
 }
 
 void
@@ -164,6 +166,36 @@ UA_SecureChannel_close(UA_SecureChannel *channel) {
         channel->session->channel = NULL;
         channel->session = NULL;
     }
+}
+
+UA_StatusCode
+UA_SecureChannel_processHELACK(UA_SecureChannel *channel,
+                               const UA_ConnectionConfig *remoteConfig) {
+    channel->config = *remoteConfig;
+
+    /* The lowest common version is used by both sides */
+    if(channel->config.protocolVersion > remoteConfig->protocolVersion)
+        channel->config.protocolVersion = remoteConfig->protocolVersion;
+
+    /* Can we receive the max send size? */
+    if(channel->config.sendBufferSize > channel->config.recvBufferSize)
+        channel->config.sendBufferSize = channel->config.recvBufferSize;
+
+    /* Can we send the max receive size? */
+    if(channel->config.recvBufferSize > channel->config.sendBufferSize)
+        channel->config.recvBufferSize = channel->config.sendBufferSize;
+
+    /* Chunks of at least 8192 bytes must be permissible.
+     * See Part 6, Clause 6.7.1 */
+    if(channel->config.recvBufferSize < 8192 ||
+       channel->config.sendBufferSize < 8192 ||
+       (channel->config.maxMessageSize != 0 &&
+        channel->config.maxMessageSize < 8192))
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    channel->connection->state = UA_CONNECTION_ESTABLISHED;
+
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_SessionHeader *
@@ -191,7 +223,7 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel,
     /* Allocate the message buffer */
     UA_ByteString buf = UA_BYTESTRING_NULL;
     UA_StatusCode retval =
-        connection->getSendBuffer(connection, connection->config.sendBufferSize, &buf);
+        connection->getSendBuffer(connection, channel->config.sendBufferSize, &buf);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -253,25 +285,22 @@ error:
     return retval;
 }
 
+/* Will this chunk surpass the capacity of the SecureChannel for the message? */
 static UA_StatusCode
-checkLimitsSym(UA_MessageContext *const messageContext, size_t *const bodyLength) {
-    /* Will this chunk surpass the capacity of the SecureChannel for the message? */
-    UA_Connection *const connection = messageContext->channel->connection;
-    if(!connection)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    UA_Byte *buf_body_start = messageContext->messageBuffer.data + UA_SECURE_MESSAGE_HEADER_LENGTH;
-    const UA_Byte *buf_body_end = messageContext->buf_pos;
+checkLimitsSym(UA_MessageContext *const mc, size_t *const bodyLength) {
+    UA_Byte *buf_body_start = mc->messageBuffer.data + UA_SECURE_MESSAGE_HEADER_LENGTH;
+    const UA_Byte *buf_body_end = mc->buf_pos;
     *bodyLength = (uintptr_t)buf_body_end - (uintptr_t)buf_body_start;
-    messageContext->messageSizeSoFar += *bodyLength;
-    messageContext->chunksSoFar++;
+    mc->messageSizeSoFar += *bodyLength;
+    mc->chunksSoFar++;
 
-    if(messageContext->messageSizeSoFar > connection->config.maxMessageSize &&
-       connection->config.maxMessageSize != 0)
+    UA_SecureChannel *channel = mc->channel;
+    if(mc->messageSizeSoFar > channel->config.maxMessageSize &&
+       channel->config.maxMessageSize != 0)
         return UA_STATUSCODE_BADRESPONSETOOLARGE;
 
-    if(messageContext->chunksSoFar > connection->config.maxChunkCount &&
-       connection->config.maxChunkCount != 0)
+    if(mc->chunksSoFar > channel->config.maxChunkCount &&
+       channel->config.maxChunkCount != 0)
         return UA_STATUSCODE_BADRESPONSETOOLARGE;
 
     return UA_STATUSCODE_GOOD;
@@ -340,7 +369,7 @@ sendSymmetricChunk(UA_MessageContext *messageContext) {
         total_length += securityPolicy->symmetricModule.cryptoModule.signatureAlgorithm.
             getLocalSignatureSize(securityPolicy, channel->channelContext);
     /* Space for the padding and the signature have been reserved in setBufPos() */
-    UA_assert(total_length <= connection->config.sendBufferSize);
+    UA_assert(total_length <= channel->config.sendBufferSize);
 
     /* For giving the buffer to the network layer */
     messageContext->messageBuffer.length = total_length;
@@ -386,7 +415,7 @@ sendSymmetricEncodingCallback(void *data, UA_Byte **buf_pos, const UA_Byte **buf
     if(!connection)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    retval = connection->getSendBuffer(connection, connection->config.sendBufferSize,
+    retval = connection->getSendBuffer(connection, mc->channel->config.sendBufferSize,
                                        &mc->messageBuffer);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
@@ -419,7 +448,7 @@ UA_MessageContext_begin(UA_MessageContext *mc, UA_SecureChannel *channel,
 
     /* Allocate the message buffer */
     UA_StatusCode retval =
-        connection->getSendBuffer(connection, connection->config.sendBufferSize,
+        connection->getSendBuffer(connection, channel->config.sendBufferSize,
                                   &mc->messageBuffer);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
@@ -518,9 +547,7 @@ addChunkPayload(UA_SecureChannel *channel, UA_UInt32 requestId,
     }
 
     /* Test against the connection settings */
-    const UA_ConnectionConfig *config = &channel->connection->config;
-    UA_assert(config != NULL); /* clang-analyzer false positive */
-
+    const UA_ConnectionConfig *config = &channel->config;
     if(config->maxChunkCount > 0 &&
        config->maxChunkCount <= latest->chunkPayloadsSize)
         return UA_STATUSCODE_BADRESPONSETOOLARGE;
@@ -781,14 +808,14 @@ processChunk(UA_SecureChannel *channel, const UA_ByteString *packet,
     UA_TcpMessageHeader hdr;
     UA_TcpMessageHeader_decodeBinary(packet, &initial_offset, &hdr);
     UA_MessageType msgType = (UA_MessageType)
-        hdr.messageTypeAndChunkType & UA_BITMASK_MESSAGETYPE;
+        (hdr.messageTypeAndChunkType & UA_BITMASK_MESSAGETYPE);
     UA_ChunkType chunkType = (UA_ChunkType)
         (hdr.messageTypeAndChunkType & UA_BITMASK_CHUNKTYPE);
 
     /* The message size is not allowed */
     if(hdr.messageSize < 16)
         return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
-    if(hdr.messageSize > channel->connection->config.recvBufferSize)
+    if(hdr.messageSize > channel->config.recvBufferSize)
         return UA_STATUSCODE_BADTCPMESSAGETOOLARGE;
 
     /* Incomplete chunk */

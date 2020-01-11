@@ -20,37 +20,6 @@
 #include "ua_types_encoding_binary.h"
 #include "ua_util_internal.h"
 
-UA_StatusCode
-UA_Connection_processHELACK(UA_Connection *connection,
-                            const UA_ConnectionConfig *localConfig,
-                            const UA_ConnectionConfig *remoteConfig) {
-    connection->config = *remoteConfig;
-
-    /* The lowest common version is used by both sides */
-    if(connection->config.protocolVersion > localConfig->protocolVersion)
-        connection->config.protocolVersion = localConfig->protocolVersion;
-
-    /* Can we receive the max send size? */
-    if(connection->config.sendBufferSize > localConfig->recvBufferSize)
-        connection->config.sendBufferSize = localConfig->recvBufferSize;
-
-    /* Can we send the max receive size? */
-    if(connection->config.recvBufferSize > localConfig->sendBufferSize)
-        connection->config.recvBufferSize = localConfig->sendBufferSize;
-
-    /* Chunks of at least 8192 bytes must be permissible.
-     * See Part 6, Clause 6.7.1 */
-    if(connection->config.recvBufferSize < 8192 ||
-       connection->config.sendBufferSize < 8192 ||
-       (connection->config.maxMessageSize != 0 &&
-        connection->config.maxMessageSize < 8192))
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    connection->state = UA_CONNECTION_ESTABLISHED;
-
-    return UA_STATUSCODE_GOOD;
-}
-
 /* Hides some errors before sending them to a client according to the
  * standard. */
 static void

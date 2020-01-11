@@ -127,7 +127,9 @@ UA_SecureChannelManager_create(UA_SecureChannelManager *cm, UA_Connection *conne
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     /* Channel state is fresh (0) */
-    UA_SecureChannel_init(&entry->channel);
+    /* TODO: Use the connection config from the correct network layer */
+    UA_SecureChannel_init(&entry->channel,
+                          &cm->server->config.networkLayers[0].localConnectionConfig);
     entry->channel.securityToken.channelId = 0;
     entry->channel.securityToken.createdAt = UA_DateTime_now();
     entry->channel.securityToken.revisedLifetime = cm->server->config.maxSecurityTokenLifetime;
