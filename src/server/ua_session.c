@@ -40,15 +40,16 @@ void UA_Session_deleteMembersCleanup(UA_Session *session, UA_Server* server) {
 }
 
 void UA_Session_attachToSecureChannel(UA_Session *session, UA_SecureChannel *channel) {
-    LIST_INSERT_HEAD(&channel->sessions, &session->header, pointers);
+    UA_Session_detachFromSecureChannel(session);
     session->header.channel = channel;
+    channel->session = &session->header;
 }
 
 void UA_Session_detachFromSecureChannel(UA_Session *session) {
     if(!session->header.channel)
         return;
+    session->header.channel->session = NULL;
     session->header.channel = NULL;
-    LIST_REMOVE(&session->header, pointers);
 }
 
 UA_StatusCode

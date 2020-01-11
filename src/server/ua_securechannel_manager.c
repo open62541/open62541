@@ -95,13 +95,13 @@ static UA_Boolean
 purgeFirstChannelWithoutSession(UA_SecureChannelManager *cm) {
     channel_entry *entry;
     TAILQ_FOREACH(entry, &cm->channels, pointers) {
-        if(LIST_EMPTY(&entry->channel.sessions)) {
-            UA_LOG_INFO_CHANNEL(&cm->server->config.logger, &entry->channel,
-                                "Channel was purged since maxSecureChannels was "
-                                "reached and channel had no session attached");
-            removeSecureChannel(cm, entry);
-            return true;
-        }
+        if(entry->channel.session)
+            continue;
+        UA_LOG_INFO_CHANNEL(&cm->server->config.logger, &entry->channel,
+                            "Channel was purged since maxSecureChannels was "
+                            "reached and channel had no session attached");
+        removeSecureChannel(cm, entry);
+        return true;
     }
     return false;
 }

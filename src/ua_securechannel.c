@@ -160,22 +160,19 @@ UA_SecureChannel_close(UA_SecureChannel *channel) {
 
     /* Remove session pointers (not the sessions) and NULL the pointers back to
      * the SecureChannel in the Session */
-    UA_SessionHeader *sh, *temp;
-    LIST_FOREACH_SAFE(sh, &channel->sessions, pointers, temp) {
-        sh->channel = NULL;
-        LIST_REMOVE(sh, pointers);
+    if(channel->session) {
+        channel->session->channel = NULL;
+        channel->session = NULL;
     }
 }
 
 UA_SessionHeader *
 UA_SecureChannel_getSession(UA_SecureChannel *channel,
                             const UA_NodeId *authenticationToken) {
-    UA_SessionHeader *sh;
-    LIST_FOREACH(sh, &channel->sessions, pointers) {
-        if(UA_NodeId_equal(&sh->authenticationToken, authenticationToken))
-            break;
-    }
-    return sh;
+    if(channel->session &&
+       UA_NodeId_equal(&channel->session->authenticationToken, authenticationToken))
+        return channel->session;
+    return NULL;
 }
 
 /* Sends an OPN message using asymmetric encryption if defined */
