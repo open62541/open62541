@@ -779,18 +779,20 @@ processCompleteChunkWithoutChannel(UA_Server *server, UA_Connection *connection,
             break;
         }
 
+        retval = UA_SecureChannelManager_create(&server->secureChannelManager, connection);
+        if(retval != UA_STATUSCODE_GOOD)
+            break;
+
         // Decode the asymmetric algorithm security header since it is not encrypted and
         // needed to decide what security policy to use.
         UA_AsymmetricAlgorithmSecurityHeader asymHeader;
-        UA_AsymmetricAlgorithmSecurityHeader_init(&asymHeader);
         size_t messageHeaderOffset = UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH;
         retval = UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(message,
                                                                    &messageHeaderOffset,
                                                                    &asymHeader);
         if(retval != UA_STATUSCODE_GOOD)
             break;
-
-        retval = UA_SecureChannelManager_create(&server->secureChannelManager, connection,
+        retval = UA_SecureChannelManager_config(&server->secureChannelManager, connection->channel,
                                                 &asymHeader);
         UA_AsymmetricAlgorithmSecurityHeader_clear(&asymHeader);
         if(retval != UA_STATUSCODE_GOOD)

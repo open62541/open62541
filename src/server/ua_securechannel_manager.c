@@ -107,12 +107,40 @@ purgeFirstChannelWithoutSession(UA_SecureChannelManager *cm) {
 }
 
 UA_StatusCode
-UA_SecureChannelManager_create(UA_SecureChannelManager *cm, UA_Connection *connection,
-                               const UA_AsymmetricAlgorithmSecurityHeader *asymHeader) {
+UA_SecureChannelManager_create(UA_SecureChannelManager *cm, UA_Connection *connection) {
     /* connection already has a channel attached. */
     if(connection->channel != NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
+    /* Check if there exists a free SC, otherwise try to purge one SC without a
+     * session the purge has been introduced to pass CTT, it is not clear what
+     * strategy is expected here */
+    if(cm->currentChannelCount >= cm->server->config.maxSecureChannels &&
+       !purgeFirstChannelWithoutSession(cm))
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    UA_LOG_INFO(&cm->server->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
+                "Creating a new SecureChannel");
+
+    channel_entry *entry = (channel_entry *)UA_malloc(sizeof(channel_entry));
+    if(!entry)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    /* Channel state is fresh (0) */
+    UA_SecureChannel_init(&entry->channel);
+    entry->channel.securityToken.channelId = 0;
+    entry->channel.securityToken.createdAt = UA_DateTime_now();
+    entry->channel.securityToken.revisedLifetime = cm->server->config.maxSecurityTokenLifetime;
+
+    TAILQ_INSERT_TAIL(&cm->channels, entry, pointers);
+    UA_atomic_addUInt32(&cm->currentChannelCount, 1);
+    UA_Connection_attachSecureChannel(connection, &entry->channel);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_SecureChannelManager_config(UA_SecureChannelManager *cm, UA_SecureChannel *channel,
+                               const UA_AsymmetricAlgorithmSecurityHeader *asymHeader) {
     /* Iterate over available endpoints and choose the correct one */
     UA_SecurityPolicy *securityPolicy = NULL;
     UA_Server *server = cm->server;
@@ -136,40 +164,15 @@ UA_SecureChannelManager_create(UA_SecureChannelManager *cm, UA_Connection *conne
     if(!securityPolicy)
         return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
 
-    /* Check if there exists a free SC, otherwise try to purge one SC without a
-     * session the purge has been introduced to pass CTT, it is not clear what
-     * strategy is expected here */
-    if(cm->currentChannelCount >= cm->server->config.maxSecureChannels &&
-       !purgeFirstChannelWithoutSession(cm))
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    UA_LOG_INFO(&cm->server->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
-                "Creating a new SecureChannel");
-
-    channel_entry *entry = (channel_entry *)UA_malloc(sizeof(channel_entry));
-    if(!entry)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
     /* Create the channel context and parse the sender (remote) certificate used for the
      * secureChannel. */
-    UA_SecureChannel_init(&entry->channel);
     UA_StatusCode retval =
-        UA_SecureChannel_setSecurityPolicy(&entry->channel, securityPolicy,
+        UA_SecureChannel_setSecurityPolicy(channel, securityPolicy,
                                            &asymHeader->senderCertificate);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_free(entry);
+    if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    }
 
-    /* Channel state is fresh (0) */
-    entry->channel.securityToken.channelId = 0;
-    entry->channel.securityToken.tokenId = cm->lastTokenId++;
-    entry->channel.securityToken.createdAt = UA_DateTime_now();
-    entry->channel.securityToken.revisedLifetime = cm->server->config.maxSecurityTokenLifetime;
-
-    TAILQ_INSERT_TAIL(&cm->channels, entry, pointers);
-    UA_atomic_addUInt32(&cm->currentChannelCount, 1);
-    UA_Connection_attachSecureChannel(connection, &entry->channel);
+    channel->securityToken.tokenId = cm->lastTokenId++;
     return UA_STATUSCODE_GOOD;
 }
 

@@ -48,7 +48,10 @@ UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm,
                                         UA_DateTime nowMonotonic);
 
 UA_StatusCode
-UA_SecureChannelManager_create(UA_SecureChannelManager *cm, UA_Connection *connection,
+UA_SecureChannelManager_create(UA_SecureChannelManager *cm, UA_Connection *connection);
+
+UA_StatusCode
+UA_SecureChannelManager_config(UA_SecureChannelManager *cm, UA_SecureChannel *channel,
                                const UA_AsymmetricAlgorithmSecurityHeader *asymHeader);
 
 UA_StatusCode
