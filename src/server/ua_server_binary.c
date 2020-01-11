@@ -750,8 +750,8 @@ processSecureChannelMessage(void *application, UA_SecureChannel *channel,
 }
 
 static UA_StatusCode
-processCompleteChunkWithoutChannel(UA_Server *server, UA_Connection *connection,
-                                   UA_ByteString *message) {
+processCompleteChunkWithFreshChannel(UA_Server *server, UA_Connection *connection,
+                                     UA_ByteString *message) {
     /* Process chunk without a channel; must be OPN */
     UA_LOG_TRACE(&server->config.logger, UA_LOGCATEGORY_NETWORK,
                  "Connection %i | No channel attached to the connection. "
@@ -779,12 +779,8 @@ processCompleteChunkWithoutChannel(UA_Server *server, UA_Connection *connection,
             break;
         }
 
-        retval = UA_SecureChannelManager_create(&server->secureChannelManager, connection);
-        if(retval != UA_STATUSCODE_GOOD)
-            break;
-
-        // Decode the asymmetric algorithm security header since it is not encrypted and
-        // needed to decide what security policy to use.
+        /* Decode the asymmetric algorithm security header since it is not
+         * encrypted and needed to decide what SecurityPolicy to use */
         UA_AsymmetricAlgorithmSecurityHeader asymHeader;
         size_t messageHeaderOffset = UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH;
         retval = UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(message,
@@ -792,8 +788,8 @@ processCompleteChunkWithoutChannel(UA_Server *server, UA_Connection *connection,
                                                                    &asymHeader);
         if(retval != UA_STATUSCODE_GOOD)
             break;
-        retval = UA_SecureChannelManager_config(&server->secureChannelManager, connection->channel,
-                                                &asymHeader);
+        retval = UA_SecureChannelManager_config(&server->secureChannelManager,
+                                                connection->channel, &asymHeader);
         UA_AsymmetricAlgorithmSecurityHeader_clear(&asymHeader);
         if(retval != UA_STATUSCODE_GOOD)
             break;
@@ -823,8 +819,8 @@ processCompleteChunk(void *const application, UA_Connection *connection,
 #ifdef UA_DEBUG_DUMP_PKGS_FILE
     UA_debug_dumpCompleteChunk(server, connection, chunk);
 #endif
-    if(!connection->channel)
-        return processCompleteChunkWithoutChannel(server, connection, chunk);
+    if(connection->channel->state < UA_SECURECHANNELSTATE_OPEN)
+        return processCompleteChunkWithFreshChannel(server, connection, chunk);
     return UA_SecureChannel_decryptAddChunk(connection->channel, chunk, false);
 }
 
@@ -837,24 +833,26 @@ UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
     UA_dump_hex_pkg(message->data, message->length);
 #endif
 
-    UA_StatusCode retval = UA_Connection_processChunks(connection, server,
-                                                       processCompleteChunk, message);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_NETWORK,
-                    "Connection %i | Processing the message failed with "
-                    "error %s", (int)(connection->sockfd), UA_StatusCode_name(retval));
-        /* Send an ERR message and close the connection */
-        UA_TcpErrorMessage error;
-        error.error = retval;
-        error.reason = UA_STRING_NULL;
-        UA_Connection_sendError(connection, &error);
-        connection->close(connection);
-        return;
+    UA_TcpErrorMessage error;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_SecureChannel *channel = connection->channel;
+
+    /* Add a SecureChannel to a new connection */
+    if(!channel) {
+        retval = UA_SecureChannelManager_create(&server->secureChannelManager, connection);
+        if(retval != UA_STATUSCODE_GOOD)
+            goto error;
+        channel = connection->channel;
+        UA_assert(channel);
     }
 
-    UA_SecureChannel *channel = connection->channel;
-    if(!channel)
-        return;
+    retval = UA_Connection_processChunks(connection, server, processCompleteChunk, message);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_NETWORK,
+                    "Connection %i | Processing the message failed with error %s",
+                    (int)(connection->sockfd), UA_StatusCode_name(retval));
+        goto error;
+    }
 
     /* Process complete messages */
     UA_SecureChannel_processCompleteMessages(channel, server, processSecureChannelMessage);
@@ -865,6 +863,14 @@ UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
 
     /* Store unused decoded chunks internally in the SecureChannel */
     UA_SecureChannel_persistIncompleteMessages(connection->channel);
+    return;
+
+ error:
+    /* Send an ERR message and close the connection */
+    error.error = retval;
+    error.reason = UA_STRING_NULL;
+    UA_Connection_sendError(connection, &error);
+    connection->close(connection);
 }
 
 #if UA_MULTITHREADING >= 200
