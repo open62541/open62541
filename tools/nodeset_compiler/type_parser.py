@@ -8,7 +8,6 @@ import sys
 
 if sys.version_info[0] >= 3:
     from nodeset_compiler.opaque_type_mapping import get_base_type_for_opaque as get_base_type_for_opaque_ns0
-    print("hello")
 else:
     from opaque_type_mapping import get_base_type_for_opaque as get_base_type_for_opaque_ns0
     # import opaque_type_mapping
@@ -234,10 +233,10 @@ class TypeParser():
         detectLoop = len(snippets) + 1
         while len(snippets) > 0:
             if detectLoop == len(snippets):
-                name, typeXml = (snippets.items())[0]
-                raise RuntimeError(
-                    "Infinite loop detected trying to processing types " + name + ": unknonwn subtype " + str(
-                        unknownTypes(typeXml)))
+                name, typeXml = snippets.popitem()
+                raise RuntimeError("Infinite loop detected or type not found while processing types " + name + ": unknonwn subtype " +
+                                   str(unknownTypes(typeXml)) + " Maybe you need to import additional types with the --import flag. " +
+                                   "E.g. '--import==UA_TYPES#/path/to/deps/ua-nodeset/Schema/Opc.Ua.Types.bsd'")
             detectLoop = len(snippets)
             for name, typeXml in list(snippets.items()):
                 if name in self.types or skipType(name):

@@ -78,6 +78,10 @@ typedef struct {
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     UA_MdnsDiscoveryConfiguration mdns;
     UA_String mdnsInterfaceIP;
+# if !defined(UA_HAS_GETIFADDR)
+    uint32_t *ipAddressList;
+    size_t ipAddressListSize;
+# endif
 #endif
 
 } UA_ServerConfig_Discovery;

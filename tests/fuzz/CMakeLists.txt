@@ -120,10 +120,10 @@ FOREACH(f ${CORPUS_FILES})
 ENDFOREACH(f)
 
 
-file(GLOB CORPUS_FILES ${PROJECT_SOURCE_DIR}/deps/mdnsd/tests/fuzz/fuzz_mdns_message_corpus/*)
-FOREACH(f ${CORPUS_FILES})
-    LIST(APPEND CORPUS_CMDS COMMAND ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/fuzz_mdns_message "${f}")
-ENDFOREACH(f)
+#file(GLOB CORPUS_FILES ${PROJECT_SOURCE_DIR}/deps/mdnsd/tests/fuzz/fuzz_mdns_message_corpus/*)
+#FOREACH(f ${CORPUS_FILES})
+#    LIST(APPEND CORPUS_CMDS COMMAND ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/fuzz_mdns_message "${f}")
+#ENDFOREACH(f)
 
 add_custom_target(run_fuzzer ${CORPUS_CMDS}
                   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}

@@ -152,6 +152,10 @@ setDefaultConfig(UA_ServerConfig *conf) {
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     UA_MdnsDiscoveryConfiguration_clear(&conf->discovery.mdns);
     conf->discovery.mdnsInterfaceIP = UA_STRING_NULL;
+# if !defined(UA_HAS_GETIFADDR)
+    conf->discovery.ipAddressList = NULL;
+    conf->discovery.ipAddressListSize = 0;
+# endif
 #endif
 
     /* Custom DataTypes */
@@ -679,9 +683,11 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
     config->timeout = 5000;
     config->secureChannelLifeTime = 10 * 60 * 1000; /* 10 minutes */
 
-    config->logger.log = UA_Log_Stdout_log;
-    config->logger.context = NULL;
-    config->logger.clear = UA_Log_Stdout_clear;
+    if(!config->logger.log) {
+       config->logger.log = UA_Log_Stdout_log;
+       config->logger.context = NULL;
+       config->logger.clear = UA_Log_Stdout_clear;
+    }
 
     config->localConnectionConfig = UA_ConnectionConfig_default;
 

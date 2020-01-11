@@ -39,6 +39,7 @@
 #cmakedefine UA_ENABLE_SUBSCRIPTIONS_EVENTS
 #cmakedefine UA_ENABLE_JSON_ENCODING
 #cmakedefine UA_ENABLE_PUBSUB_MQTT
+#cmakedefine UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
 
 /* Multithreading */
 #cmakedefine UA_ENABLE_IMMUTABLE_NODES
@@ -102,6 +103,9 @@
 #  define UA_ARCHITECTURE_POSIX
 # endif
 #endif
+
+// specific architectures can undef this
+#define UA_HAS_GETIFADDR
 
 #include "${UA_ARCHITECTURE}/ua_architecture.h"
 

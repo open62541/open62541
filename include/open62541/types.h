@@ -337,6 +337,11 @@ UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2) {
     return (UA_NodeId_order(n1, n2) == UA_ORDER_EQ);
 }
 
+/* Returns a non-cryptographic hash for the String.
+ * Uses FNV non-cryptographic hash function. See
+ * https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function */
+UA_UInt32 UA_EXPORT UA_ByteString_hash(UA_UInt32 initialHashValue, const UA_Byte *data, size_t size);
+
 /* Returns a non-cryptographic hash for the NodeId */
 UA_UInt32 UA_EXPORT UA_NodeId_hash(const UA_NodeId *n);
 
@@ -869,7 +874,7 @@ struct UA_DataType {
     UA_UInt32 overlayable      : 1;  /* The type has the identical memory layout
                                       * in memory and on the binary stream. */
     UA_UInt32 membersSize      : 8;  /* How many members does the type have? */
-    UA_UInt32 binaryEncodingId : 16; /* NodeId of datatype when encoded as binary */
+    UA_UInt32 binaryEncodingId;      /* NodeId of datatype when encoded as binary */
     //UA_UInt16  xmlEncodingId;      /* NodeId of datatype when encoded as XML */
     UA_DataTypeMember *members;
 };

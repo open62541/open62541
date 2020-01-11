@@ -226,6 +226,74 @@ UA_StatusCode
 UA_SecureChannel_processCompleteMessages(UA_SecureChannel *channel, void *application,
                                          UA_ProcessMessageCallback callback);
 
+/* Internal methods in ua_securechannel_crypto.h */
+
+void
+hideBytesAsym(const UA_SecureChannel *channel, UA_Byte **buf_start,
+              const UA_Byte **buf_end);
+
+size_t
+calculateAsymAlgSecurityHeaderLength(const UA_SecureChannel *channel);
+
+UA_StatusCode
+prependHeadersAsym(UA_SecureChannel *const channel, UA_Byte *header_pos,
+                   const UA_Byte *buf_end, size_t totalLength,
+                   size_t securityHeaderLength, UA_UInt32 requestId,
+                   size_t *const finalLength);
+
+void
+setBufPos(UA_MessageContext *mc);
+
+UA_StatusCode
+decryptChunk(const UA_SecureChannel *const channel,
+             const UA_SecurityPolicyCryptoModule *const cryptoModule,
+             UA_MessageType const messageType, const UA_ByteString *const chunk,
+             size_t const offset, size_t *const chunkSizeAfterDecryption);
+
+UA_UInt16
+decodeChunkPaddingSize(const UA_SecureChannel *channel,
+                       const UA_SecurityPolicyCryptoModule *cryptoModule,
+                       UA_MessageType messageType, const UA_ByteString *chunk,
+                       size_t chunkSizeAfterDecryption, size_t sigsize);
+
+UA_StatusCode
+verifyChunk(const UA_SecureChannel *channel,
+            const UA_SecurityPolicyCryptoModule *cryptoModule,
+            const UA_ByteString *chunk,
+            size_t chunkSizeAfterDecryption, size_t sigsize);
+
+UA_StatusCode
+checkSymHeader(UA_SecureChannel *channel, UA_UInt32 tokenId,
+               UA_Boolean allowPreviousToken);
+
+UA_StatusCode
+processSequenceNumberAsym(UA_SecureChannel *channel, UA_UInt32 sequenceNumber);
+
+UA_StatusCode
+processSequenceNumberSym(UA_SecureChannel *channel, UA_UInt32 sequenceNumber);
+
+UA_StatusCode
+checkAsymHeader(UA_SecureChannel *channel,
+                const UA_AsymmetricAlgorithmSecurityHeader *asymHeader);
+
+void
+padChunkAsym(UA_SecureChannel *channel, const UA_ByteString *buf,
+             size_t securityHeaderLength, UA_Byte **buf_pos);
+
+UA_StatusCode
+signAndEncryptAsym(UA_SecureChannel *channel, size_t preSignLength,
+                   UA_ByteString *buf, size_t securityHeaderLength,
+                   size_t totalLength);
+
+void
+padChunkSym(UA_MessageContext *messageContext, size_t bodyLength);
+
+UA_StatusCode
+signChunkSym(UA_MessageContext *const messageContext, size_t preSigLength);
+
+UA_StatusCode
+encryptChunkSym(UA_MessageContext *const messageContext, size_t totalLength);
+
 /**
  * Log Helper
  * ----------

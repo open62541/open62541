@@ -248,9 +248,10 @@ getReaderFromIdentifier(UA_Server *server, UA_NetworkMessage *pMsg,
 
 UA_ReaderGroup *
 UA_ReaderGroup_findRGbyId(UA_Server *server, UA_NodeId identifier) {
-    for(size_t iteratorConn = 0; iteratorConn < server->pubSubManager.connectionsSize; iteratorConn++) {
+    UA_PubSubConnection *pubSubConnection;
+    TAILQ_FOREACH(pubSubConnection, &server->pubSubManager.connections, listEntry){
         UA_ReaderGroup* readerGroup = NULL;
-        LIST_FOREACH(readerGroup, &server->pubSubManager.connections[iteratorConn].readerGroups, listEntry) {
+        LIST_FOREACH(readerGroup, &pubSubConnection->readerGroups, listEntry) {
             if(UA_NodeId_equal(&identifier, &readerGroup->identifier)) {
                 return readerGroup;
             }
@@ -261,15 +262,15 @@ UA_ReaderGroup_findRGbyId(UA_Server *server, UA_NodeId identifier) {
 }
 
 UA_DataSetReader *UA_ReaderGroup_findDSRbyId(UA_Server *server, UA_NodeId identifier) {
-    for(size_t i = 0; i < server->pubSubManager.connectionsSize; i++) {
+    UA_PubSubConnection *pubSubConnection;
+    TAILQ_FOREACH(pubSubConnection, &server->pubSubManager.connections, listEntry){
         UA_ReaderGroup* readerGroup = NULL;
-        LIST_FOREACH(readerGroup, &server->pubSubManager.connections[i].readerGroups, listEntry) {
+        LIST_FOREACH(readerGroup, &pubSubConnection->readerGroups, listEntry) {
             UA_DataSetReader *tmpReader;
             LIST_FOREACH(tmpReader, &readerGroup->readers, listEntry) {
                 if(UA_NodeId_equal(&tmpReader->identifier, &identifier)) {
                     return tmpReader;
                 }
-
             }
         }
     }

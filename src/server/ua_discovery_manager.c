@@ -139,12 +139,13 @@ UA_DiscoveryManager_init(UA_DiscoveryManager *dm, UA_Server *server) {
     if(server->config.discovery.mdnsEnable)
         initMulticastDiscoveryServer(dm, server);
 
+    dm->selfFqdnMdnsRecord = UA_STRING_NULL;
+
     LIST_INIT(&dm->serverOnNetwork);
-    dm->serverOnNetworkSize = 0;
     dm->serverOnNetworkRecordIdCounter = 0;
     dm->serverOnNetworkRecordIdLastReset = UA_DateTime_now();
     memset(dm->serverOnNetworkHash, 0,
-           sizeof(struct serverOnNetwork_hash_entry*) * SERVER_ON_NETWORK_HASH_PRIME);
+           sizeof(struct serverOnNetwork_hash_entry*) * SERVER_ON_NETWORK_HASH_SIZE);
 
     dm->serverOnNetworkCallback = NULL;
     dm->serverOnNetworkCallbackData = NULL;
@@ -181,7 +182,9 @@ UA_DiscoveryManager_deleteMembers(UA_DiscoveryManager *dm, UA_Server *server) {
         UA_free(son);
     }
 
-    for(size_t i = 0; i < SERVER_ON_NETWORK_HASH_PRIME; i++) {
+    UA_String_clear(&dm->selfFqdnMdnsRecord);
+
+    for(size_t i = 0; i < SERVER_ON_NETWORK_HASH_SIZE; i++) {
         serverOnNetwork_hash_entry* currHash = dm->serverOnNetworkHash[i];
         while(currHash) {
             serverOnNetwork_hash_entry* nextHash = currHash->next;

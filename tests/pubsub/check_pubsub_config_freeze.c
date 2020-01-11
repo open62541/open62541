@@ -53,7 +53,7 @@ START_TEST(CreateAndLockConfiguration) {
     writerGroupConfig.name = UA_STRING("WriterGroup 1");
     writerGroupConfig.publishingInterval = 10;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
-    writerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
+    writerGroupConfig.rtLevel = UA_PUBSUB_RT_NONE;
     UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroup1);
 
     UA_PublishedDataSetConfig pdsConfig;
@@ -95,9 +95,11 @@ START_TEST(CreateAndLockConfiguration) {
     dataSetWriterConfig.name = UA_STRING("DataSetWriter 1");
     UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter1);
     UA_DataSetWriter *dataSetWriter = UA_DataSetWriter_findDSWbyId(server, dataSetWriter1);
+    ck_assert(dataSetWriter != NULL);
 
     //get internal PubSubConnection Pointer
     UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_findConnectionbyId(server, connection1);
+    ck_assert(pubSubConnection != NULL);
 
     ck_assert(dataSetWriter->config.configurationFrozen == UA_FALSE);
     //Lock the writer group and the child pubsub entities
@@ -132,7 +134,7 @@ START_TEST(CreateAndLockConfigurationWithExternalAPI) {
         writerGroupConfig.name = UA_STRING("WriterGroup 1");
         writerGroupConfig.publishingInterval = 10;
         writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
-        writerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
+        writerGroupConfig.rtLevel = UA_PUBSUB_RT_NONE;
         UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroup1);
 
         UA_PublishedDataSetConfig pdsConfig;
@@ -159,6 +161,7 @@ START_TEST(CreateAndLockConfigurationWithExternalAPI) {
         dataSetWriterConfig.name = UA_STRING("DataSetWriter 1");
         UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter1);
         UA_DataSetWriter *dataSetWriter = UA_DataSetWriter_findDSWbyId(server, dataSetWriter1);
+        ck_assert(dataSetWriter != NULL);
 
         //get internal PubSubConnection Pointer
         UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_findConnectionbyId(server, connection1);
@@ -197,7 +200,7 @@ START_TEST(CreateAndReleaseMultiplePDSLocks) {
     writerGroupConfig.name = UA_STRING("WriterGroup 1");
     writerGroupConfig.publishingInterval = 10;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
-    writerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
+    writerGroupConfig.rtLevel = UA_PUBSUB_RT_NONE;
     UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroup1);
     writerGroupConfig.name = UA_STRING("WriterGroup 2");
     UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroup2);
@@ -268,7 +271,7 @@ START_TEST(CreateLockAndEditConfiguration) {
     writerGroupConfig.name = UA_STRING("WriterGroup 1");
     writerGroupConfig.publishingInterval = 10;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
-    writerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
+    writerGroupConfig.rtLevel = UA_PUBSUB_RT_NONE;
     UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroup1);
 
     UA_PublishedDataSetConfig pdsConfig;
@@ -293,6 +296,7 @@ START_TEST(CreateLockAndEditConfiguration) {
     dataSetWriterConfig.name = UA_STRING("DataSetWriter 1");
     UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter1);
     UA_DataSetWriter *dataSetWriter = UA_DataSetWriter_findDSWbyId(server, dataSetWriter1);
+    ck_assert(dataSetWriter != NULL);
 
     ck_assert(dataSetWriter->config.configurationFrozen == UA_FALSE);
     //Lock the writer group and the child pubsub entities

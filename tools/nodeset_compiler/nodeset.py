@@ -15,7 +15,7 @@ import xml.dom.minidom as dom
 import logging
 import codecs
 import re
-from datatypes import *
+from datatypes import NodeId, valueIsInternalType
 from nodes import *
 from opaque_type_mapping import opaque_type_mapping
 
@@ -195,6 +195,47 @@ class NodeSet(object):
             result.update(dictionary)
         return result
 
+    def getNodeByIDString(self, idStr):
+        # Split id to namespace part and id part
+        m = re.match("ns=([^;]+);(.*)", idStr)
+        if m:
+            ns = m.group(1)
+            # Convert namespace uri to index
+            if not ns.isdigit():
+                if ns not in self.namespaces:
+                    return None
+                ns = self.namespaces.index(ns)
+                idStr = "ns={};{}".format(ns, m.group(2))
+        nodeId = NodeId(idStr)
+        if not nodeId in self.nodes:
+            return None
+        return self.nodes[nodeId]
+
+    def remove_node(self, node):
+
+        def filterRef(r, rt):
+            return (r.referenceType != rt.referenceType) or (not (
+                    rt.target == node.id or rt.source == node.id
+                ))
+
+        for r in node.references:
+            if r.target == node.id:
+                if r.source not in self.nodes:
+                    continue
+                self.nodes[r.source].references = set(filter(
+                    lambda rt: filterRef(r, rt),
+                    self.nodes[r.source].references
+                ))
+            elif r.source == node.id:
+                if r.target not in self.nodes:
+                    continue
+                self.nodes[r.target].references = set(filter(
+                    lambda rt: filterRef(r, rt),
+                    self.nodes[r.target].references
+                ))
+        del self.nodes[node.id]
+
+
     def addNodeSet(self, xmlfile, hidden=False, typesArray="UA_TYPES"):
         # Extract NodeSet DOM
 
@@ -343,7 +384,16 @@ class NodeSet(object):
         parentreftypes = list(map(lambda x: x.id, parentreftypes))
 
         for node in self.nodes.values():
+            if node.id.ns == 0 and node.id.i in [78, 80, 84]:
+                # ModellingRule, Root node do not have a parent
+                continue
+
             parentref = node.getParentReference(parentreftypes)
             if parentref is not None:
                 node.parent = self.nodes[parentref.target]
+                if not node.parent:
+                    raise RuntimeError("Node {}: Did not find parent node: ".format(str(node.id)))
                 node.parentReference = self.nodes[parentref.referenceType]
+            # Some nodes in the full nodeset do not have a parent. So accept this and do not show an error.
+            #else:
+            #    raise RuntimeError("Node {}: HierarchicalReference (or subtype of it) to parent node is missing.".format(str(node.id)))

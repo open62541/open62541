@@ -61,6 +61,59 @@ typedef struct UA_EventNotification {
     /* EventFilterResult currently isn't being used
     UA_EventFilterResult result; */
 } UA_EventNotification;
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+typedef enum {
+  UA_INACTIVE,
+  UA_ACTIVE,
+  UA_ACTIVE_HIGHHIGH,
+  UA_ACTIVE_HIGH,
+  UA_ACTIVE_LOW,
+  UA_ACTIVE_LOWLOW
+} UA_ActiveState;
+
+typedef struct UA_SpecificCallbacks_Data {
+    UA_TwoStateVariableChangeCallback enteringEnabledStateCallback;
+    UA_TwoStateVariableChangeCallback enteringAckedStateCallback;
+    UA_Boolean ackedRemoveBranch;
+    UA_TwoStateVariableChangeCallback enteringConfirmedStateCallback;
+    UA_Boolean confirmedRemoveBranch;
+    UA_TwoStateVariableChangeCallback enteringActiveStateCallback;
+} UA_SpecificCallbacks_Data;
+
+typedef struct UA_LastSverity_Data {
+    UA_UInt16 lastSeverity;
+    UA_DateTime sourceTimeStamp;
+} UA_LastSverity_Data;
+
+/* in the first implementation there will be only one entry in this list
+ * conditionBranchId is always NULL.
+ */
+typedef struct UA_ConditionBranch_nodeListElement { 
+    LIST_ENTRY(UA_ConditionBranch_nodeListElement) listEntry;
+    UA_NodeId* conditionBranchId;
+    UA_ByteString lastEventId;
+    UA_Boolean isCallerAC;
+} UA_ConditionBranch_nodeListElement;
+
+typedef struct UA_Condition_nodeListElement {
+    LIST_ENTRY(UA_Condition_nodeListElement) listEntry;
+    LIST_HEAD(conditionbranchlisthead, UA_ConditionBranch_nodeListElement) conditionBranchHead;
+    UA_NodeId conditionId;
+    UA_LastSverity_Data lastSevertyData;
+    UA_SpecificCallbacks_Data specificCallbacksData;
+    UA_ActiveState lastActiveState;
+    UA_ActiveState currentActiveState;
+    UA_Boolean isLimitAlarm;
+} UA_Condition_nodeListElement;
+
+typedef struct UA_ConditionSource_nodeListElement {
+    LIST_ENTRY(UA_ConditionSource_nodeListElement) listEntry;
+    LIST_HEAD(conditionlisthead, UA_Condition_nodeListElement) conditionHead;
+    UA_NodeId conditionSourceId;
+} UA_ConditionSource_nodeListElement;
+#endif
+
 #endif
 
 typedef struct UA_Notification {
@@ -157,6 +210,9 @@ void UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem)
 void UA_MonitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem);
 UA_StatusCode UA_MonitoredItem_registerSampleCallback(UA_Server *server, UA_MonitoredItem *mon);
 void UA_MonitoredItem_unregisterSampleCallback(UA_Server *server, UA_MonitoredItem *mon);
+
+UA_StatusCode UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event, UA_MonitoredItem *mon);
+UA_StatusCode UA_Event_generateEventId(UA_ByteString *generatedId);
 
 /* Remove entries until mon->maxQueueSize is reached. Sets infobits for lost
  * data if required. */

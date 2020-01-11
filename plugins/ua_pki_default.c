@@ -214,16 +214,16 @@ certificateVerification_verify(void *verificationContext,
     mbedtls_x509_crt remoteCertificate;
 
     /* Temporary Object to parse the trustList */
-    mbedtls_x509_crt *tempCert;
+    mbedtls_x509_crt *tempCert = NULL;
 
     /* Temporary Object to parse the revocationList */
-    mbedtls_x509_crl *tempCrl;
+    mbedtls_x509_crl *tempCrl = NULL;
 
     /* Temporary Object to identify the parent CA when there is no intermediate CA */
-    mbedtls_x509_crt *parentCert;
+    mbedtls_x509_crt *parentCert = NULL;
 
     /* Temporary Object to identify the parent CA when there is intermediate CA */
-    mbedtls_x509_crt *parentCert_2;
+    mbedtls_x509_crt *parentCert_2 = NULL;
 
     /* Flag value to identify if the issuer certificate is found */
     int issuerKnown = 0;

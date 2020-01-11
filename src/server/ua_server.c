@@ -183,6 +183,11 @@ void UA_Server_delete(UA_Server *server) {
         UA_MonitoredItem_delete(server, mon);
         UA_UNLOCK(server->serviceMutex);
     }
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+    UA_ConditionList_delete(server);
+#endif//UA_ENABLE_ALARMS_CONDITIONS
+
 #endif
 
 #ifdef UA_ENABLE_PUBSUB
@@ -398,7 +403,7 @@ UA_Server_removeCallback(UA_Server *server, UA_UInt64 callbackId) {
     UA_UNLOCK(server->serviceMutex);
 }
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode
 UA_Server_updateCertificate(UA_Server *server,
                             const UA_ByteString *oldCertificate,
                             const UA_ByteString *newCertificate,
@@ -406,16 +411,14 @@ UA_Server_updateCertificate(UA_Server *server,
                             UA_Boolean closeSessions,
                             UA_Boolean closeSecureChannels) {
 
-    if (server == NULL || oldCertificate == NULL
-        || newCertificate == NULL || newPrivateKey == NULL) {
+    if(!server || !oldCertificate || !newCertificate || !newPrivateKey)
         return UA_STATUSCODE_BADINTERNALERROR;
-    }
 
-    if (closeSessions) {
+    if(closeSessions) {
         UA_SessionManager *sm = &server->sessionManager;
         session_list_entry *current;
         LIST_FOREACH(current, &sm->sessions, pointers) {
-            if (UA_ByteString_equal(oldCertificate,
+            if(UA_ByteString_equal(oldCertificate,
                                     &current->session.header.channel->securityPolicy->localCertificate)) {
                 UA_LOCK(server->serviceMutex);
                 UA_SessionManager_removeSession(sm, &current->session.header.authenticationToken);
@@ -425,7 +428,7 @@ UA_Server_updateCertificate(UA_Server *server,
 
     }
 
-    if (closeSecureChannels) {
+    if(closeSecureChannels) {
         UA_SecureChannelManager *cm = &server->secureChannelManager;
         channel_entry *entry;
         TAILQ_FOREACH(entry, &cm->channels, pointers) {
@@ -436,9 +439,9 @@ UA_Server_updateCertificate(UA_Server *server,
     }
 
     size_t i = 0;
-    while (i < server->config.endpointsSize) {
+    while(i < server->config.endpointsSize) {
         UA_EndpointDescription *ed = &server->config.endpoints[i];
-        if (UA_ByteString_equal(&ed->serverCertificate, oldCertificate)) {
+        if(UA_ByteString_equal(&ed->serverCertificate, oldCertificate)) {
             UA_String_deleteMembers(&ed->serverCertificate);
             UA_String_copy(newCertificate, &ed->serverCertificate);
             UA_SecurityPolicy *sp = UA_SecurityPolicy_getSecurityPolicyByUri(server, &server->config.endpoints[i].securityPolicyUri);
@@ -470,9 +473,8 @@ UA_SecurityPolicy_getSecurityPolicyByUri(const UA_Server *server,
 #ifdef UA_ENABLE_ENCRYPTION
 /* The local ApplicationURI has to match the certificates of the
  * SecurityPolicies */
-static void
+static UA_StatusCode
 verifyServerApplicationURI(const UA_Server *server) {
-#if UA_LOGLEVEL <= 400
     for(size_t i = 0; i < server->config.securityPoliciesSize; i++) {
         UA_SecurityPolicy *sp = &server->config.securityPolicies[i];
         if(!sp->certificateVerification)
@@ -483,13 +485,14 @@ verifyServerApplicationURI(const UA_Server *server) {
                                  &sp->localCertificate,
                                  &server->config.applicationDescription.applicationUri);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                           "The configured ApplicationURI does not match the URI "
-                           "specified in the certificate for the SecurityPolicy %.*s",
-                           (int)sp->policyUri.length, sp->policyUri.data);
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "The configured ApplicationURI does not match the URI "
+                         "specified in the certificate for the SecurityPolicy %.*s",
+                         (int)sp->policyUri.length, sp->policyUri.data);
+            return retval;
         }
     }
-#endif
+    return UA_STATUSCODE_GOOD;
 }
 #endif
 
@@ -534,7 +537,9 @@ UA_Server_run_startup(UA_Server *server) {
 
     /* Does the ApplicationURI match the local certificates? */
 #ifdef UA_ENABLE_ENCRYPTION
-    verifyServerApplicationURI(server);
+    retVal = verifyServerApplicationURI(server);
+    if(retVal != UA_STATUSCODE_GOOD)
+        return retVal;
 #endif
 
     /* Sample the start time and set it to the Server object */
@@ -555,16 +560,18 @@ UA_Server_run_startup(UA_Server *server) {
 
     /* Update the application description to match the previously added discovery urls.
      * We can only do this after the network layer is started since it inits the discovery url */
-    if (server->config.applicationDescription.discoveryUrlsSize != 0) {
-        UA_Array_delete(server->config.applicationDescription.discoveryUrls, server->config.applicationDescription.discoveryUrlsSize, &UA_TYPES[UA_TYPES_STRING]);
+    if(server->config.applicationDescription.discoveryUrlsSize != 0) {
+        UA_Array_delete(server->config.applicationDescription.discoveryUrls,
+                        server->config.applicationDescription.discoveryUrlsSize,
+                        &UA_TYPES[UA_TYPES_STRING]);
         server->config.applicationDescription.discoveryUrlsSize = 0;
     }
-    server->config.applicationDescription.discoveryUrls = (UA_String *) UA_Array_new(server->config.networkLayersSize, &UA_TYPES[UA_TYPES_STRING]);
-    if (!server->config.applicationDescription.discoveryUrls) {
+    server->config.applicationDescription.discoveryUrls = (UA_String *)
+        UA_Array_new(server->config.networkLayersSize, &UA_TYPES[UA_TYPES_STRING]);
+    if(!server->config.applicationDescription.discoveryUrls)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
     server->config.applicationDescription.discoveryUrlsSize = server->config.networkLayersSize;
-    for (size_t i=0; i< server->config.applicationDescription.discoveryUrlsSize; i++) {
+    for(size_t i = 0; i < server->config.applicationDescription.discoveryUrlsSize; i++) {
         UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
         UA_String_copy(&nl->discoveryUrl, &server->config.applicationDescription.discoveryUrls[i]);
     }
@@ -622,10 +629,11 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
 
 #if defined(UA_ENABLE_PUBSUB_MQTT)
     /* Listen on the pubsublayer, but only if the yield function is set */
-    for(size_t i = 0; i < server->pubSubManager.connectionsSize; ++i) {
-        UA_PubSubConnection *ps = &server->pubSubManager.connections[i];
-            if(ps && ps->channel->yield){
-                ps->channel->yield(ps->channel, timeout);
+    UA_PubSubConnection *connection;
+    TAILQ_FOREACH(connection, &server->pubSubManager.connections, listEntry){
+        UA_PubSubConnection *ps = connection;
+        if(ps && ps->channel->yield){
+            ps->channel->yield(ps->channel, timeout);
         }
     }
 #endif

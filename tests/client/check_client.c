@@ -171,6 +171,10 @@ START_TEST(Client_renewSecureChannel) {
     UA_ClientConfig *cc = UA_Client_getConfig(client);
     UA_fakeSleep((UA_UInt32)((UA_Double)cc->secureChannelLifeTime * 0.8));
 
+    /* Make the client renew the channel */
+    retval = UA_Client_run_iterate(client, 0);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
     /* Now read */
     UA_Variant val;
     UA_NodeId nodeId = UA_NODEID_STRING(1, "my.variable");
@@ -193,7 +197,12 @@ START_TEST(Client_renewSecureChannelWithActiveSubscription) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
-    request.requestedLifetimeCount = 1000;
+    /* Force the server to send keep alive responses every second to trigg
+     * the client to send new publish requests. Requests from the client
+     * will make the server to change to the new SecurityToken after renewal.
+     */
+    request.requestedPublishingInterval = 1000;
+    request.requestedMaxKeepAliveCount = 1;
     UA_CreateSubscriptionResponse response = UA_Client_Subscriptions_create(client, request,
                                                                             NULL, NULL, NULL);
 

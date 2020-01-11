@@ -202,7 +202,7 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
     if(!compatibleValueRankArrayDimensions(server, session, node->valueRank,
                                            node->arrayDimensionsSize)) {
         UA_LOG_NODEID_WRAP(&node->nodeId, UA_LOG_INFO_SESSION(&server->config.logger, session,
-                           "AddNodes: The value rank of %.*s is incomatible "
+                           "AddNodes: The value rank of %.*s is incompatible "
                            "with its array dimensions", (int)nodeIdStr.length, nodeIdStr.data));
         UA_DataValue_clear(&value);
         return UA_STATUSCODE_BADTYPEMISMATCH;
@@ -211,7 +211,7 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
     /* Check valueRank against the vt */
     if(!compatibleValueRanks(node->valueRank, vt->valueRank)) {
         UA_LOG_NODEID_WRAP(&node->nodeId, UA_LOG_INFO_SESSION(&server->config.logger, session,
-                           "AddNodes: The value rank of %.*s is incomatible "
+                           "AddNodes: The value rank of %.*s is incompatible "
                            "with the value rank of the VariableType",
                            (int)nodeIdStr.length, nodeIdStr.data));
         UA_DataValue_clear(&value);
@@ -223,7 +223,7 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
                                   node->arrayDimensionsSize, node->arrayDimensions)) {
         UA_LOG_NODEID_WRAP(&node->nodeId, UA_LOG_INFO_SESSION(&server->config.logger, session,
                            "AddNodes: The array dimensions of %.*s are "
-                           "incomatible with the array dimensions of the VariableType",
+                           "incompatible with the array dimensions of the VariableType",
                            (int)nodeIdStr.length, nodeIdStr.data));
         UA_DataValue_clear(&value);
         return UA_STATUSCODE_BADTYPEMISMATCH;
@@ -242,7 +242,7 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
         UA_DataValue_clear(&value);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_NODEID_WRAP(&node->nodeId, UA_LOG_INFO_SESSION(&server->config.logger, session,
-                               "AddNodes: The value of of %.*s is incomatible with the "
+                               "AddNodes: The value of %.*s is incompatible with the "
                                "variable definition", (int)nodeIdStr.length, nodeIdStr.data));
         }
     }

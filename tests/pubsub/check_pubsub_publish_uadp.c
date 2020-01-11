@@ -189,7 +189,7 @@ START_TEST(CheckNMandDSMBufferCalculation){
         writerGroupConfig.enabled = UA_FALSE;
         writerGroupConfig.writerGroupId = 100;
         writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
-        writerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
+        writerGroupConfig.rtLevel = UA_PUBSUB_RT_NONE;
 
         UA_UadpWriterGroupMessageDataType *wgm = UA_UadpWriterGroupMessageDataType_new();
         wgm->networkMessageContentMask = UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER;
@@ -216,7 +216,6 @@ START_TEST(CheckNMandDSMBufferCalculation){
                                        &dataSetWriterConfig, &dataSetWriterIdent);
         }
 
-        //TODO extend this test with the buffer and offset calculation of the uadp network layer
         UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent);
         UA_Server_unfreezeWriterGroupConfiguration(server, writerGroupIdent);
 

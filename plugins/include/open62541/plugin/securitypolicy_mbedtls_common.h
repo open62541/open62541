@@ -15,6 +15,13 @@
 #include <mbedtls/x509_crt.h>
 #include <mbedtls/ctr_drbg.h>
 
+#if !defined(MBEDTLS_NO_PLATFORM_ENTROPY)
+#define MBEDTLS_ENTROPY_POLL_METHOD mbedtls_platform_entropy_poll
+#else
+// MBEDTLS_ENTROPY_HARDWARE_ALT should be defined if your hardware does not supportd platform entropy
+#define MBEDTLS_ENTROPY_POLL_METHOD mbedtls_hardware_poll
+#endif
+
 #define UA_SHA1_LENGTH 20
 
 _UA_BEGIN_DECLS

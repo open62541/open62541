@@ -601,9 +601,10 @@ __UA_Server_read(UA_Server *server, const UA_NodeId *nodeId,
 }
 
 UA_StatusCode
-UA_Server_readObjectProperty(UA_Server *server, const UA_NodeId objectId,
-                             const UA_QualifiedName propertyName,
-                             UA_Variant *value) {
+readObjectProperty(UA_Server *server, const UA_NodeId objectId,
+                   const UA_QualifiedName propertyName,
+                   UA_Variant *value) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
     UA_RelativePathElement rpe;
     UA_RelativePathElement_init(&rpe);
     rpe.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
@@ -618,19 +619,27 @@ UA_Server_readObjectProperty(UA_Server *server, const UA_NodeId objectId,
     bp.relativePath.elements = &rpe;
 
     UA_StatusCode retval;
-    UA_LOCK(server->serviceMutex);
     UA_BrowsePathResult bpr = translateBrowsePathToNodeIds(server, &bp);
     if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
         retval = bpr.statusCode;
         UA_BrowsePathResult_clear(&bpr);
-        UA_UNLOCK(server->serviceMutex);
         return retval;
     }
 
     retval = readWithReadValue(server, &bpr.targets[0].targetId.nodeId, UA_ATTRIBUTEID_VALUE, value);
-    UA_UNLOCK(server->serviceMutex);
 
     UA_BrowsePathResult_clear(&bpr);
+    return retval;
+}
+
+
+UA_StatusCode
+UA_Server_readObjectProperty(UA_Server *server, const UA_NodeId objectId,
+                             const UA_QualifiedName propertyName,
+                             UA_Variant *value) {
+    UA_LOCK(server->serviceMutex);
+    UA_StatusCode retval = readObjectProperty(server, objectId, propertyName, value);
+    UA_UNLOCK(server->serviceMutex);
     return retval;
 }
 
@@ -1573,6 +1582,10 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
             }
             break;
         }
+        case UA_TYPES_READEVENTDETAILS:
+            historyDataType = &UA_TYPES[UA_TYPES_HISTORYEVENT];
+            readHistory = (UA_HistoryDatabase_readFunc)server->config.historyDatabase.readEvent;
+            break;
         case UA_TYPES_READPROCESSEDDETAILS:
             readHistory = (UA_HistoryDatabase_readFunc)server->config.historyDatabase.readProcessed;
             break;
