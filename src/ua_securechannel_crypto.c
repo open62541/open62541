@@ -179,16 +179,18 @@ prependHeadersAsym(UA_SecureChannel *const channel, UA_Byte *header_pos,
     size_t dataToEncryptLength =
         totalLength - (UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH + securityHeaderLength);
 
-    UA_SecureConversationMessageHeader respHeader;
-    respHeader.messageHeader.messageTypeAndChunkType = UA_MESSAGETYPE_OPN + UA_CHUNKTYPE_FINAL;
-    respHeader.messageHeader.messageSize = (UA_UInt32)
+    UA_TcpMessageHeader messageHeader;
+    messageHeader.messageTypeAndChunkType = UA_MESSAGETYPE_OPN + UA_CHUNKTYPE_FINAL;
+    messageHeader.messageSize = (UA_UInt32)
         (totalLength +
          UA_SecurityPolicy_getRemoteAsymEncryptionBufferLengthOverhead(sp, channel->channelContext,
                                                                        dataToEncryptLength));
-    respHeader.secureChannelId = channel->securityToken.channelId;
-    UA_StatusCode retval = UA_encodeBinary(&respHeader,
-                                           &UA_TRANSPORT[UA_TRANSPORT_SECURECONVERSATIONMESSAGEHEADER],
-                                           &header_pos, &buf_end, NULL, NULL);
+    UA_UInt32 secureChannelId = channel->securityToken.channelId;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    retval |= UA_encodeBinary(&messageHeader, &UA_TRANSPORT[UA_TRANSPORT_TCPMESSAGEHEADER],
+                              &header_pos, &buf_end, NULL, NULL);
+    retval |= UA_encodeBinary(&secureChannelId, &UA_TYPES[UA_TYPES_UINT32],
+                              &header_pos, &buf_end, NULL, NULL);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -213,7 +215,7 @@ prependHeadersAsym(UA_SecureChannel *const channel, UA_Byte *header_pos,
     retval = UA_encodeBinary(&seqHeader, &UA_TRANSPORT[UA_TRANSPORT_SEQUENCEHEADER],
                              &header_pos, &buf_end, NULL, NULL);
 
-    *finalLength = respHeader.messageHeader.messageSize;
+    *finalLength = messageHeader.messageSize;
 
     return retval;
 }

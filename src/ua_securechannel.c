@@ -282,37 +282,34 @@ encodeHeadersSym(UA_MessageContext *const messageContext, size_t totalLength) {
     UA_SecureChannel *channel = messageContext->channel;
     UA_Byte *header_pos = messageContext->messageBuffer.data;
 
-    UA_SecureConversationMessageHeader respHeader;
-    respHeader.secureChannelId = channel->securityToken.channelId;
-    respHeader.messageHeader.messageTypeAndChunkType = messageContext->messageType;
-    respHeader.messageHeader.messageSize = (UA_UInt32)totalLength;
+    UA_TcpMessageHeader header;
+    header.messageTypeAndChunkType = messageContext->messageType;
+    header.messageSize = (UA_UInt32)totalLength;
     if(messageContext->final)
-        respHeader.messageHeader.messageTypeAndChunkType += UA_CHUNKTYPE_FINAL;
+        header.messageTypeAndChunkType += UA_CHUNKTYPE_FINAL;
     else
-        respHeader.messageHeader.messageTypeAndChunkType += UA_CHUNKTYPE_INTERMEDIATE;
+        header.messageTypeAndChunkType += UA_CHUNKTYPE_INTERMEDIATE;
 
-    UA_StatusCode res =
-        UA_encodeBinary(&respHeader, &UA_TRANSPORT[UA_TRANSPORT_SECURECONVERSATIONMESSAGEHEADER],
-                        &header_pos, &messageContext->buf_end, NULL, NULL);
-
-    UA_SymmetricAlgorithmSecurityHeader symSecHeader;
-    symSecHeader.tokenId = channel->securityToken.tokenId;
+    UA_UInt32 tokenId = channel->securityToken.tokenId;
     /* This is a server SecureChannel and we have sent out the OPN response but
      * not gotten a request with the new token. So we want to send with
      * nextSecurityToken and still allow to receive with the old one. */
     if(channel->nextSecurityToken.tokenId != 0)
-        symSecHeader.tokenId = channel->nextSecurityToken.tokenId;
-
-    res |= UA_encodeBinary(&symSecHeader.tokenId,
-                           &UA_TRANSPORT[UA_TRANSPORT_SYMMETRICALGORITHMSECURITYHEADER],
-                           &header_pos, &messageContext->buf_end, NULL, NULL);
+        tokenId = channel->nextSecurityToken.tokenId;
 
     UA_SequenceHeader seqHeader;
     seqHeader.requestId = messageContext->requestId;
     seqHeader.sequenceNumber = UA_atomic_addUInt32(&channel->sendSequenceNumber, 1);
+
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    res |= UA_encodeBinary(&header, &UA_TRANSPORT[UA_TRANSPORT_TCPMESSAGEHEADER],
+                           &header_pos, &messageContext->buf_end, NULL, NULL);
+    res |= UA_encodeBinary(&channel->securityToken.channelId, &UA_TYPES[UA_TYPES_UINT32],
+                           &header_pos, &messageContext->buf_end, NULL, NULL);
+    res |= UA_encodeBinary(&tokenId, &UA_TYPES[UA_TYPES_UINT32],
+                           &header_pos, &messageContext->buf_end, NULL, NULL);
     res |= UA_encodeBinary(&seqHeader, &UA_TRANSPORT[UA_TRANSPORT_SEQUENCEHEADER],
                            &header_pos, &messageContext->buf_end, NULL, NULL);
-
     return res;
 }
 
@@ -640,24 +637,26 @@ decryptAddChunk(UA_SecureChannel *channel, UA_ByteString *chunk,
     const UA_SecurityPolicy *sp = channel->securityPolicy;
 
     /* Decode the MessageHeader */
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_TcpMessageHeader messageHeader;
+    UA_UInt32 secureChannelId;
     size_t offset = 0;
-    UA_SecureConversationMessageHeader messageHeader;
-    UA_StatusCode retval =
-        UA_SecureConversationMessageHeader_decodeBinary(chunk, &offset, &messageHeader);
+    retval |= UA_TcpMessageHeader_decodeBinary(chunk, &offset, &messageHeader);
+    retval |= UA_UInt32_decodeBinary(chunk, &offset, &secureChannelId);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
 #if !defined(FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION)
     /* The wrong ChannelId. Non-opened channels have the id zero. */
-    if(messageHeader.secureChannelId != channel->securityToken.channelId &&
+    if(secureChannelId != channel->securityToken.channelId &&
        channel->state != UA_SECURECHANNELSTATE_FRESH)
         return UA_STATUSCODE_BADSECURECHANNELIDINVALID;
 #endif
 
     UA_MessageType messageType = (UA_MessageType)
-        (messageHeader.messageHeader.messageTypeAndChunkType & UA_BITMASK_MESSAGETYPE);
+        (messageHeader.messageTypeAndChunkType & UA_BITMASK_MESSAGETYPE);
     UA_ChunkType chunkType = (UA_ChunkType)
-        (messageHeader.messageHeader.messageTypeAndChunkType & UA_BITMASK_CHUNKTYPE);
+        (messageHeader.messageTypeAndChunkType & UA_BITMASK_CHUNKTYPE);
     UA_ByteString chunkPayload;
 
     switch(messageType) {
@@ -673,10 +672,8 @@ decryptAddChunk(UA_SecureChannel *channel, UA_ByteString *chunk,
     case UA_MESSAGETYPE_MSG:
     case UA_MESSAGETYPE_CLO: {
         /* Decode and check the symmetric security header (tokenId) */
-        UA_SymmetricAlgorithmSecurityHeader symmetricSecurityHeader;
-        UA_SymmetricAlgorithmSecurityHeader_init(&symmetricSecurityHeader);
-        retval = UA_SymmetricAlgorithmSecurityHeader_decodeBinary(chunk, &offset,
-                                                                  &symmetricSecurityHeader);
+        UA_UInt32 tokenId;
+        retval = UA_UInt32_decodeBinary(chunk, &offset, &tokenId);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
 
@@ -685,7 +682,7 @@ decryptAddChunk(UA_SecureChannel *channel, UA_ByteString *chunk,
         symmetricSecurityHeader.tokenId = channel->securityToken.tokenId;
 #endif
 
-        retval = checkSymHeader(channel, symmetricSecurityHeader.tokenId, allowPreviousToken);
+        retval = checkSymHeader(channel, tokenId, allowPreviousToken);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING_CHANNEL(sp->logger, channel, "Could not validate the chunk header");
             return retval;

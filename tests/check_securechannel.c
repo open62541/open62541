@@ -270,8 +270,10 @@ START_TEST(SecureChannel_sendAsymmetricOPNMessage_sentDataIsValid) {
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected function to succeed");
 
     size_t offset = 0;
-    UA_SecureConversationMessageHeader header;
-    UA_SecureConversationMessageHeader_decodeBinary(&sentData, &offset, &header);
+    UA_TcpMessageHeader header;
+    UA_TcpMessageHeader_decodeBinary(&sentData, &offset, &header);
+    UA_UInt32 secureChannelId;
+    UA_UInt32_decodeBinary(&sentData, &offset, &secureChannelId);
 
     UA_AsymmetricAlgorithmSecurityHeader asymSecurityHeader;
     UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(&sentData, &offset, &asymSecurityHeader);
@@ -291,7 +293,7 @@ START_TEST(SecureChannel_sendAsymmetricOPNMessage_sentDataIsValid) {
                   "in the secureChannel");
 
     /* Dummy encryption */
-    for(size_t i = offset; i < header.messageHeader.messageSize; ++i) {
+    for(size_t i = offset; i < header.messageSize; ++i) {
         sentData.data[i] = (UA_Byte)((sentData.data[i] - 1) % (UA_BYTE_MAX + 1));
     }
 #endif
@@ -327,7 +329,6 @@ START_TEST(SecureChannel_sendAsymmetricOPNMessage_sentDataIsValid) {
     ck_assert_msg(sentData.data[offset + paddingSize + 1] == '*', "Expected first byte of signature");
 #endif
 
-    UA_SecureConversationMessageHeader_deleteMembers(&header);
     UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymSecurityHeader);
     UA_SequenceHeader_deleteMembers(&sequenceHeader);
     UA_OpenSecureChannelResponse_deleteMembers(&sentResponse);
@@ -352,8 +353,10 @@ START_TEST(Securechannel_sendAsymmetricOPNMessage_extraPaddingPresentWhenKeyLarg
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected function to succeed");
 
     size_t offset = 0;
-    UA_SecureConversationMessageHeader header;
-    UA_SecureConversationMessageHeader_decodeBinary(&sentData, &offset, &header);
+    UA_TcpMessageHeader header;
+    UA_TcpMessageHeader_decodeBinary(&sentData, &offset, &header);
+    UA_UInt32 secureChannelId;
+    UA_UInt32_decodeBinary(&sentData, &offset, &secureChannelId);
 
     UA_AsymmetricAlgorithmSecurityHeader asymSecurityHeader;
     UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(&sentData, &offset, &asymSecurityHeader);
@@ -368,7 +371,7 @@ START_TEST(Securechannel_sendAsymmetricOPNMessage_extraPaddingPresentWhenKeyLarg
                   "Expected receiverCertificateThumbprint to be equal to the one set "
                   "in the secureChannel");
 
-    for(size_t i = offset; i < header.messageHeader.messageSize; ++i) {
+    for(size_t i = offset; i < header.messageSize; ++i) {
         sentData.data[i] = (UA_Byte)((sentData.data[i] - 1) % (UA_BYTE_MAX + 1));
     }
 
@@ -409,7 +412,6 @@ START_TEST(Securechannel_sendAsymmetricOPNMessage_extraPaddingPresentWhenKeyLarg
                   "Expected first byte 42 of signature but got %i",
                   sentData.data[offset + paddingSize + 2]);
 
-    UA_SecureConversationMessageHeader_deleteMembers(&header);
     UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymSecurityHeader);
     UA_SequenceHeader_deleteMembers(&sequenceHeader);
     UA_OpenSecureChannelResponse_deleteMembers(&sentResponse);
