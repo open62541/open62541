@@ -424,6 +424,11 @@ if(UA_ENABLE_WEBSOCKET_SERVER)
     list(APPEND open62541_LIBRARIES ${LIBWEBSOCKETS_LIBRARIES})
 endif()
 
+if(MINGW)
+    # GCC stack protector support
+    list(APPEND open62541_LIBRARIES ssp)
+endif()
+
 #####################
 # Compiler Settings #
 #####################
@@ -1272,7 +1277,7 @@ install(TARGETS open62541 ${EXTRATARGETS}
         EXPORT open62541Targets
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        RUNTIME DESTINATION ${CMAKE_INSTALL_PREFIX}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
         INCLUDES DESTINATION include)
 
 if(UA_ENABLE_AMALGAMATION)
