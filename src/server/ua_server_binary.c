@@ -750,38 +750,6 @@ processSecureChannelMessage(void *application, UA_SecureChannel *channel,
 }
 
 static UA_StatusCode
-createSecureChannel(void *application, UA_Connection *connection,
-                    UA_AsymmetricAlgorithmSecurityHeader *asymHeader) {
-    UA_Server *server = (UA_Server*)application;
-
-    /* Iterate over available endpoints and choose the correct one */
-    UA_SecurityPolicy *securityPolicy = NULL;
-    for(size_t i = 0; i < server->config.securityPoliciesSize; ++i) {
-        UA_SecurityPolicy *policy = &server->config.securityPolicies[i];
-        if(!UA_ByteString_equal(&asymHeader->securityPolicyUri, &policy->policyUri))
-            continue;
-
-        UA_StatusCode retval = policy->asymmetricModule.
-            compareCertificateThumbprint(policy, &asymHeader->receiverCertificateThumbprint);
-        if(retval != UA_STATUSCODE_GOOD)
-            continue;
-
-        /* We found the correct policy (except for security mode). The endpoint
-         * needs to be selected by the client / server to match the security
-         * mode in the endpoint for the session. */
-        securityPolicy = policy;
-        break;
-    }
-
-    if(!securityPolicy)
-        return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
-
-    /* Create a new channel */
-    return UA_SecureChannelManager_create(&server->secureChannelManager, connection,
-                                          securityPolicy, asymHeader);
-}
-
-static UA_StatusCode
 processCompleteChunkWithoutChannel(UA_Server *server, UA_Connection *connection,
                                    UA_ByteString *message) {
     /* Process chunk without a channel; must be OPN */
@@ -822,7 +790,8 @@ processCompleteChunkWithoutChannel(UA_Server *server, UA_Connection *connection,
         if(retval != UA_STATUSCODE_GOOD)
             break;
 
-        retval = createSecureChannel(server, connection, &asymHeader);
+        retval = UA_SecureChannelManager_create(&server->secureChannelManager, connection,
+                                                &asymHeader);
         UA_AsymmetricAlgorithmSecurityHeader_clear(&asymHeader);
         if(retval != UA_STATUSCODE_GOOD)
             break;

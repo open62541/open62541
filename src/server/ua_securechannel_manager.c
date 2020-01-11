@@ -107,12 +107,34 @@ purgeFirstChannelWithoutSession(UA_SecureChannelManager *cm) {
 }
 
 UA_StatusCode
-UA_SecureChannelManager_create(UA_SecureChannelManager *const cm, UA_Connection *const connection,
-                               const UA_SecurityPolicy *const securityPolicy,
-                               const UA_AsymmetricAlgorithmSecurityHeader *const asymHeader) {
+UA_SecureChannelManager_create(UA_SecureChannelManager *cm, UA_Connection *connection,
+                               const UA_AsymmetricAlgorithmSecurityHeader *asymHeader) {
     /* connection already has a channel attached. */
     if(connection->channel != NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Iterate over available endpoints and choose the correct one */
+    UA_SecurityPolicy *securityPolicy = NULL;
+    UA_Server *server = cm->server;
+    for(size_t i = 0; i < server->config.securityPoliciesSize; ++i) {
+        UA_SecurityPolicy *policy = &server->config.securityPolicies[i];
+        if(!UA_ByteString_equal(&asymHeader->securityPolicyUri, &policy->policyUri))
+            continue;
+
+        UA_StatusCode retval = policy->asymmetricModule.
+            compareCertificateThumbprint(policy, &asymHeader->receiverCertificateThumbprint);
+        if(retval != UA_STATUSCODE_GOOD)
+            continue;
+
+        /* We found the correct policy (except for security mode). The endpoint
+         * needs to be selected by the client / server to match the security
+         * mode in the endpoint for the session. */
+        securityPolicy = policy;
+        break;
+    }
+
+    if(!securityPolicy)
+        return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
 
     /* Check if there exists a free SC, otherwise try to purge one SC without a
      * session the purge has been introduced to pass CTT, it is not clear what
