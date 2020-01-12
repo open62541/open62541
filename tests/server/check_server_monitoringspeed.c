@@ -86,7 +86,7 @@ START_TEST(monitorIntegerNoChanges) {
     clock_t begin, finish;
     begin = clock();
 
-    for(int i = 0; i < 1000000; i++) {
+    for(int i = 0; i < 1000; i++) {
         UA_MonitoredItem_sampleCallback(server, mon);
     }
 
