@@ -17,8 +17,8 @@
 #include "testing_networklayers.h"
 #include "testing_policy.h"
 
-#define READNODES 10000 /* Number of nodes to be created for reading */
-#define READS 1000000  /* Number of reads to perform */
+#define READNODES 1000 /* Number of nodes to be created for reading */
+#define READS 1000  /* Number of reads to perform */
 
 static UA_Server *server;
 static UA_NodeId readNodeIds[READNODES];
