@@ -109,24 +109,34 @@ connection_recv(UA_Connection *connection, UA_ByteString *response,
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
     }
 
-    /* Allocate the buffer */
-    UA_StatusCode res = UA_ByteString_allocBuffer(response, connection->config.recvBufferSize);
-    if(res != UA_STATUSCODE_GOOD)
-        return res;
+    UA_Boolean internallyAllocated = !response->length;
+
+    /* Allocate the buffer  */
+    if(internallyAllocated) {
+        size_t bufferSize = 16384; /* Use as default for a new SecureChannel */
+        UA_SecureChannel *channel = connection->channel;
+        if(channel && connection->config.recvBufferSize > 0)
+            bufferSize = connection->config.recvBufferSize;
+        UA_StatusCode res = UA_ByteString_allocBuffer(response, bufferSize);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    }
 
     /* Get the received packet(s) */
     ssize_t ret = UA_recv(connection->sockfd, (char*)response->data, response->length, 0);
 
     /* The remote side closed the connection */
     if(ret == 0) {
-        UA_ByteString_deleteMembers(response);
+        if(internallyAllocated)
+            UA_ByteString_deleteMembers(response);
         connection->close(connection);
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
     }
 
     /* Error case */
     if(ret < 0) {
-        UA_ByteString_deleteMembers(response);
+        if(internallyAllocated)
+            UA_ByteString_deleteMembers(response);
         if(UA_ERRNO == UA_INTERRUPTED || (timeout > 0) ?
            false : (UA_ERRNO == UA_EAGAIN || UA_ERRNO == UA_WOULDBLOCK))
             return UA_STATUSCODE_GOOD; /* statuscode_good but no data -> retry */

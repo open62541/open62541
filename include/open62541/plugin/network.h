@@ -87,8 +87,13 @@ struct UA_Connection {
     /* Receive a message from the remote connection
      *
      * @param connection The connection
-     * @param response The response string. It is allocated by the connection
-     *        and needs to be freed with connection->releaseBuffer
+
+     * @param response The response string. If this is empty, it will be
+     *        allocated by the connection and needs to be freed with
+     *        connection->releaseBuffer. If the response string is non-empty, it
+     *        will be used as the receive buffer. If bytes are received, the
+     *        length of the buffer is adjusted to match the length of the
+     *        received bytes.
      * @param timeout Timeout of the recv operation in milliseconds
      * @return Returns UA_STATUSCODE_BADCOMMUNICATIONERROR if the recv operation
      *         can be repeated, UA_STATUSCODE_GOOD if it succeeded and
