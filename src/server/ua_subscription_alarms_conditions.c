@@ -2236,7 +2236,8 @@ UA_Server_createCondition(UA_Server *server,
     /* Create an ObjectNode which represents the condition */
     UA_NodeId newNodeId = UA_NODEID_NULL;
     UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
-    oAttr.displayName = UA_LOCALIZEDTEXT("en", (char*)conditionName.name.data);
+    oAttr.displayName.locale = UA_STRING("en");
+    oAttr.displayName.text = conditionName.name;
     retval = UA_Server_addObjectNode(server,
                                      conditionId,
                                      UA_NODEID_NULL,
