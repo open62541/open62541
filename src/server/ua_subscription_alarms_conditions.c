@@ -2267,7 +2267,8 @@ UA_Server_createCondition(UA_Server *server,
     else {
         retval = UA_Server_addReference(server, conditionSource, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCONDITION),
                                         UA_EXPANDEDNODEID_NUMERIC(conditionType.namespaceIndex, conditionType.identifier.numeric), true);
-        CONDITION_ASSERT_RETURN_RETVAL(retval, "Creating HasCondition Reference failed",);
+        if(retval != UA_STATUSCODE_BADDUPLICATEREFERENCENOTALLOWED)
+            CONDITION_ASSERT_RETURN_RETVAL(retval, "Creating HasCondition Reference failed",);
     }
 
     /* Set standard fields */
