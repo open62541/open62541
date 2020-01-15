@@ -92,6 +92,13 @@ ServerNetworkLayerWS_close(UA_Connection *connection) {
 static void
 freeConnection(UA_Connection *connection) {
     if(connection->handle) {
+        ConnectionUserData *userData = (ConnectionUserData *)connection->handle;
+        while(!SIMPLEQ_EMPTY(&userData->messages)) {
+            BufferEntry *entry = SIMPLEQ_FIRST(&userData->messages);
+            UA_ByteString_deleteMembers(&entry->msg);
+            SIMPLEQ_REMOVE_HEAD(&userData->messages, next);
+            UA_free(entry);
+        }
         UA_free(connection->handle);
     }
     UA_Connection_clear(connection);
@@ -171,8 +178,8 @@ callback_opcua(struct lws *wsi, enum lws_callback_reasons reason, void *user, vo
                     return -1;
                 }
                 UA_ByteString_deleteMembers(&entry->msg);
-                UA_free(entry);
                 SIMPLEQ_REMOVE_HEAD(&b->messages, next);
+                UA_free(entry);
             } while(!lws_send_pipe_choked(wsi));
 
             // process remaining messages
@@ -189,8 +196,25 @@ callback_opcua(struct lws *wsi, enum lws_callback_reasons reason, void *user, vo
             if(!layer->server)
                 break;
 
-            UA_ByteString message = {len, (UA_Byte *)in};
-            UA_Server_processBinaryMessage(layer->server, pss->connection, &message);
+            if(pss->connection->incompleteChunk.length == 0) {
+                UA_ByteString message = {len, (UA_Byte *)in};
+                UA_Server_processBinaryMessage(layer->server, pss->connection, &message);
+            } else {
+                UA_ByteString message = pss->connection->incompleteChunk;
+                pss->connection->incompleteChunk = UA_BYTESTRING_NULL;
+                UA_Byte *t = (UA_Byte*)UA_realloc(message.data, message.length + len);
+                if(!t) {
+                    UA_ByteString_deleteMembers(&message);
+                    return -1;
+                }
+                memcpy(&t[message.length], in, len);
+                message.data = t;
+                message.length += len;
+
+                UA_Server_processBinaryMessage(layer->server, pss->connection, &message);
+
+                connection_releaserecvbuffer(pss->connection, &message);
+            }
             break;
 
         default:

@@ -80,10 +80,12 @@ updateNeededForFilteredValue(const UA_Variant *value, const UA_Variant *oldValue
 static UA_StatusCode
 detectValueChangeWithFilter(UA_Server *server, UA_Session *session, UA_MonitoredItem *mon,
                             UA_DataValue *value, UA_ByteString *encoding, UA_Boolean *changed) {
+    /* Check for absolute deadband */
     if(UA_DataType_isNumeric(value->value.type) &&
-       (mon->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUSVALUE ||
-        mon->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP)) {
-        if(mon->filter.dataChangeFilter.deadbandType == UA_DEADBANDTYPE_ABSOLUTE) {
+       mon->filter.dataChangeFilter.deadbandType == UA_DEADBANDTYPE_ABSOLUTE) {
+        UA_assert(value->value.type);
+        if(mon->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUSVALUE ||
+           mon->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP) {
             if(!updateNeededForFilteredValue(&value->value, &mon->lastValue,
                                              mon->filter.dataChangeFilter.deadbandValue))
                 return UA_STATUSCODE_GOOD;

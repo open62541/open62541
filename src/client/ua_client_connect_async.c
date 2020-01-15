@@ -127,39 +127,27 @@ sendHELMessage(UA_Client *client) {
 }
 
 static void
-processDecodedOPNResponseAsync(void *application, UA_SecureChannel *channel,
-                                UA_MessageType messageType,
-                                UA_UInt32 requestId,
-                                const UA_ByteString *message) {
-    /* Does the request id match? */
-    UA_Client *client = (UA_Client*)application;
-    if(requestId != client->requestId) {
-        UA_Client_disconnect(client);
-        return;
-    }
-
+processOPNResponseDecoded(UA_Client *client, const UA_ByteString *message) {
     /* Is the content of the expected type? */
     size_t offset = 0;
     UA_NodeId responseId;
-    UA_NodeId expectedId = UA_NODEID_NUMERIC(
-            0, UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE].binaryEncodingId);
-    UA_StatusCode retval = UA_NodeId_decodeBinary(message, &offset,
-                                                  &responseId);
+    UA_NodeId expectedId =
+        UA_NODEID_NUMERIC(0, UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE].binaryEncodingId);
+    UA_StatusCode retval = UA_NodeId_decodeBinary(message, &offset, &responseId);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_disconnect(client);
         return;
     }
+
     if(!UA_NodeId_equal(&responseId, &expectedId)) {
         UA_NodeId_deleteMembers(&responseId);
         UA_Client_disconnect(client);
         return;
     }
-    UA_NodeId_deleteMembers (&responseId);
 
     /* Decode the response */
     UA_OpenSecureChannelResponse response;
-    retval = UA_OpenSecureChannelResponse_decodeBinary(message, &offset,
-                                                       &response);
+    retval = UA_OpenSecureChannelResponse_decodeBinary(message, &offset, &response);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_disconnect(client);
         return;
@@ -172,20 +160,86 @@ processDecodedOPNResponseAsync(void *application, UA_SecureChannel *channel,
             + (UA_DateTime) (response.securityToken.revisedLifetime
                     * (UA_Double) UA_DATETIME_MSEC * 0.75);
 
-    /* Replace the token and nonce */
+    /* Replace the token. On the client side we don't use NextSecurityToken. */
     UA_ChannelSecurityToken_deleteMembers(&client->channel.securityToken);
-    UA_ByteString_deleteMembers(&client->channel.remoteNonce);
     client->channel.securityToken = response.securityToken;
+    UA_ChannelSecurityToken_init(&response.securityToken);
+
+    /* Replace the nonce */
+    UA_ByteString_deleteMembers(&client->channel.remoteNonce);
     client->channel.remoteNonce = response.serverNonce;
+    UA_ByteString_init(&response.serverNonce);
+
     UA_ResponseHeader_deleteMembers(&response.responseHeader); /* the other members were moved */
-    if(client->channel.state == UA_SECURECHANNELSTATE_OPEN)
-        UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "SecureChannel renewed");
+
+    UA_Boolean renew = (client->channel.state == UA_SECURECHANNELSTATE_OPEN);
+    if(renew)
+        UA_LOG_INFO_CHANNEL(&client->config.logger, &client->channel, "SecureChannel renewed");
     else
-        UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "SecureChannel opened");
+        UA_LOG_INFO_CHANNEL(&client->config.logger, &client->channel,
+                            "Opened SecureChannel with SecurityPolicy %.*s",
+                            (int)client->channel.securityPolicy->policyUri.length,
+                            client->channel.securityPolicy->policyUri.data);
     client->channel.state = UA_SECURECHANNELSTATE_OPEN;
 
     if(client->state < UA_CLIENTSTATE_SECURECHANNEL)
         setClientState(client, UA_CLIENTSTATE_SECURECHANNEL);
+}
+
+void
+decodeProcessOPNResponseAsync(void *application, UA_SecureChannel *channel,
+                              UA_MessageType messageType, UA_UInt32 requestId,
+                              const UA_ByteString *msg) {
+    UA_Client *client = (UA_Client*)application;
+
+    /* Skip the first header. We know length and message type. */
+    size_t offset = UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH;
+
+    /* Decode the asymmetric algorithm security header and call the callback
+     * to perform checks. */
+    UA_AsymmetricAlgorithmSecurityHeader asymHeader;
+    UA_AsymmetricAlgorithmSecurityHeader_init(&asymHeader);
+    UA_StatusCode retval =
+        UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(msg, &offset, &asymHeader);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING_CHANNEL(&client->config.logger, channel,
+                               "Could not decode the OPN header");
+        UA_Client_disconnect(client);
+        return;
+    }
+
+    retval = checkAsymHeader(channel, &asymHeader);
+    UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING_CHANNEL(&client->config.logger, channel,
+                               "Could not verify the OPN header");
+        UA_Client_disconnect(client);
+        return;
+    }
+
+    UA_ByteString chunkPayload;
+    UA_UInt32 sequenceNumber = 0;
+    retval = decryptAndVerifyChunk(channel, &channel->securityPolicy->asymmetricModule.cryptoModule,
+                                   UA_MESSAGETYPE_OPN, msg, offset, &requestId,
+                                   &sequenceNumber, &chunkPayload);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING_CHANNEL(&client->config.logger, channel,
+                               "Could not decrypt and verify the OPN payload");
+        UA_Client_disconnect(client);
+        return;
+    }
+
+#ifndef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+    retval = processSequenceNumberAsym(channel, sequenceNumber);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING_CHANNEL(&client->config.logger, channel,
+                               "Could not process the OPN sequence number");
+        UA_Client_disconnect(client);
+        return;
+    }
+#endif
+
+    processOPNResponseDecoded(client, &chunkPayload);
 }
 
 UA_StatusCode
@@ -196,7 +250,7 @@ processOPNResponseAsync(void *application, UA_Connection *connection,
     client->connectStatus = retval;
     if(retval != UA_STATUSCODE_GOOD)
         goto error;
-    UA_SecureChannel_processCompleteMessages(&client->channel, client, processDecodedOPNResponseAsync);
+    UA_SecureChannel_processCompleteMessages(&client->channel, client, decodeProcessOPNResponseAsync);
     
     if(client->state < UA_CLIENTSTATE_SECURECHANNEL) {
         retval = UA_STATUSCODE_BADSECURECHANNELCLOSED;
@@ -310,14 +364,15 @@ responseActivateSession(UA_Client *client, void *userdata, UA_UInt32 requestId,
         UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                      "ActivateSession failed with error code %s",
                      UA_StatusCode_name(activateResponse->responseHeader.serviceResult));
+        return;
     }
-    client->connection.state = UA_CONNECTION_ESTABLISHED;
-    setClientState(client, UA_CLIENTSTATE_SESSION);
-
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* A new session has been created. We need to clean up the subscriptions */
     UA_Client_Subscriptions_clean(client);
 #endif
+
+    client->connection.state = UA_CONNECTION_ESTABLISHED;
+    setClientState(client, UA_CLIENTSTATE_SESSION);
 
      /* Call onConnect (client_async.c) callback */
     if(client->asyncConnectCall.callback)

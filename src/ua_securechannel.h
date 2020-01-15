@@ -74,16 +74,18 @@ typedef TAILQ_HEAD(UA_MessageQueue, UA_Message) UA_MessageQueue;
 struct UA_SecureChannel {
     UA_SecureChannelState   state;
     UA_MessageSecurityMode  securityMode;
-    /* We use three tokens because when switching tokens the client is allowed to accept
-     * messages with the old token for up to 25% of the lifetime after the token would have timed out.
-     * For messages that are sent, the new token is already used, which is contained in the securityToken
-     * variable. The nextSecurityToken variable holds a newly issued token, that will be automatically
-     * revolved into the securityToken variable. This could be done with two variables, but would require
-     * greater changes to the current code. This could be done in the future after the client and networking
-     * structure has been reworked, which would make this easier to implement. */
-    UA_ChannelSecurityToken securityToken; /* the channelId is contained in the securityToken */
-    UA_ChannelSecurityToken nextSecurityToken;
-    UA_ChannelSecurityToken previousSecurityToken;
+
+    /* Rules for revolving the token with a renew OPN request: The client is
+     * allowed to accept messages with the old token until the OPN response has
+     * arrived. The server accepts the old token until one message secured with
+     * the new token has arrived.
+     *
+     * We recognize whether nextSecurityToken contains a valid next token if the
+     * ChannelId is not 0. */
+    UA_ChannelSecurityToken securityToken;     /* Also contains the channelId */
+    UA_ChannelSecurityToken nextSecurityToken; /* Only used by the server. The next token
+                                                * is put here when sending the OPN
+                                                * response. */
 
     /* The endpoint and context of the channel */
     const UA_SecurityPolicy *securityPolicy;
@@ -231,6 +233,15 @@ UA_SecureChannel_processCompleteMessages(UA_SecureChannel *channel, void *applic
 void
 hideBytesAsym(const UA_SecureChannel *channel, UA_Byte **buf_start,
               const UA_Byte **buf_end);
+
+/* Sets the payload to a pointer inside the chunk buffer. Returns the requestId
+ * and the sequenceNumber */
+UA_StatusCode
+decryptAndVerifyChunk(const UA_SecureChannel *channel,
+                      const UA_SecurityPolicyCryptoModule *cryptoModule,
+                      UA_MessageType messageType, const UA_ByteString *chunk,
+                      size_t offset, UA_UInt32 *requestId,
+                      UA_UInt32 *sequenceNumber, UA_ByteString *payload);
 
 size_t
 calculateAsymAlgSecurityHeaderLength(const UA_SecureChannel *channel);

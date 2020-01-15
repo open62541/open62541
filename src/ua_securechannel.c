@@ -300,6 +300,12 @@ encodeHeadersSym(UA_MessageContext *const messageContext, size_t totalLength) {
 
     UA_SymmetricAlgorithmSecurityHeader symSecHeader;
     symSecHeader.tokenId = channel->securityToken.tokenId;
+    /* This is a server SecureChannel and we have sent out the OPN response but
+     * not gotten a request with the new token. So we want to send with
+     * nextSecurityToken and still allow to receive with the old one. */
+    if(channel->nextSecurityToken.tokenId != 0)
+        symSecHeader.tokenId = channel->nextSecurityToken.tokenId;
+
     res |= UA_encodeBinary(&symSecHeader.tokenId,
                            &UA_TRANSPORT[UA_TRANSPORT_SYMMETRICALGORITHMSECURITYHEADER],
                            &header_pos, &messageContext->buf_end, NULL, NULL);
@@ -615,7 +621,7 @@ UA_SecureChannel_processCompleteMessages(UA_SecureChannel *channel, void *applic
 
 /* Sets the payload to a pointer inside the chunk buffer. Returns the requestId
  * and the sequenceNumber */
-static UA_StatusCode
+UA_StatusCode
 decryptAndVerifyChunk(const UA_SecureChannel *channel,
                       const UA_SecurityPolicyCryptoModule *cryptoModule,
                       UA_MessageType messageType, const UA_ByteString *chunk,
@@ -692,6 +698,8 @@ putPayload(UA_SecureChannel *const channel, UA_UInt32 const requestId,
 static UA_StatusCode
 decryptAddChunk(UA_SecureChannel *channel, const UA_ByteString *chunk,
                 UA_Boolean allowPreviousToken) {
+    const UA_SecurityPolicy *sp = channel->securityPolicy;
+
     /* Decode the MessageHeader */
     size_t offset = 0;
     UA_SecureConversationMessageHeader messageHeader;
@@ -711,11 +719,7 @@ decryptAddChunk(UA_SecureChannel *channel, const UA_ByteString *chunk,
         (messageHeader.messageHeader.messageTypeAndChunkType & UA_BITMASK_MESSAGETYPE);
     UA_ChunkType chunkType = (UA_ChunkType)
         (messageHeader.messageHeader.messageTypeAndChunkType & UA_BITMASK_CHUNKTYPE);
-    UA_UInt32 requestId = 0;
-    UA_UInt32 sequenceNumber = 0;
     UA_ByteString chunkPayload;
-    const UA_SecurityPolicyCryptoModule *cryptoModule = NULL;
-    UA_SequenceNumberCallback sequenceNumberCallback = NULL;
 
     switch(messageType) {
         /* ERR message (not encrypted) */
@@ -724,7 +728,7 @@ decryptAddChunk(UA_SecureChannel *channel, const UA_ByteString *chunk,
             return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
         chunkPayload.length = chunk->length - offset;
         chunkPayload.data = chunk->data + offset;
-        return putPayload(channel, requestId, messageType, chunkType, &chunkPayload);
+        return putPayload(channel, 0, messageType, chunkType, &chunkPayload);
 
         /* MSG and CLO: Symmetric encryption */
     case UA_MESSAGETYPE_MSG:
@@ -743,12 +747,32 @@ decryptAddChunk(UA_SecureChannel *channel, const UA_ByteString *chunk,
 #endif
 
         retval = checkSymHeader(channel, symmetricSecurityHeader.tokenId, allowPreviousToken);
-        if(retval != UA_STATUSCODE_GOOD)
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING_CHANNEL(sp->logger, channel, "Could not validate the chunk header");
             return retval;
+        }
 
-        cryptoModule = &channel->securityPolicy->symmetricModule.cryptoModule;
-        sequenceNumberCallback = processSequenceNumberSym;
-        break;
+        UA_UInt32 requestId = 0;
+        UA_UInt32 sequenceNumber = 0;
+        retval = decryptAndVerifyChunk(channel, &sp->symmetricModule.cryptoModule, messageType,
+                                       chunk, offset, &requestId, &sequenceNumber, &chunkPayload);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING_CHANNEL(sp->logger, channel, "Could not decrypt and verify the chunk payload");
+            return retval;
+        }
+
+        /* Check the sequence number. Skip sequence number checking for fuzzer to
+         * improve coverage */
+#ifndef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+        retval = processSequenceNumberSym(channel, sequenceNumber);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING_CHANNEL(sp->logger, channel,
+                                   "Processing the sequence number failed");
+            return retval;
+        }
+#endif
+
+        return putPayload(channel, requestId, messageType, chunkType, &chunkPayload);
     }
 
         /* OPN: Asymmetric encryption */
@@ -757,48 +781,15 @@ decryptAddChunk(UA_SecureChannel *channel, const UA_ByteString *chunk,
         if(chunkType != UA_CHUNKTYPE_FINAL)
             return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
 
-        /* Decode the asymmetric algorithm security header and call the callback
-         * to perform checks. */
-        UA_AsymmetricAlgorithmSecurityHeader asymHeader;
-        UA_AsymmetricAlgorithmSecurityHeader_init(&asymHeader);
-        offset = UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH;
-        retval = UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(chunk, &offset, &asymHeader);
-        if(retval != UA_STATUSCODE_GOOD)
-            return retval;
-
-        retval = checkAsymHeader(channel, &asymHeader);
-        UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
-        if(retval != UA_STATUSCODE_GOOD)
-            return retval;
-
-        cryptoModule = &channel->securityPolicy->asymmetricModule.cryptoModule;
-        sequenceNumberCallback = processSequenceNumberAsym;
-        break;
+        return putPayload(channel, 0, messageType, chunkType, (UA_ByteString*)(uintptr_t)chunk);
     }
 
         /* Invalid message type */
-    default:return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
+    default:
+        break;
     }
 
-    UA_assert(cryptoModule != NULL);
-    retval = decryptAndVerifyChunk(channel, cryptoModule, messageType, chunk, offset,
-                                   &requestId, &sequenceNumber, &chunkPayload);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    /* Check the sequence number. Skip sequence number checking for fuzzer to
-     * improve coverage */
-    if(sequenceNumberCallback == NULL)
-        return UA_STATUSCODE_BADINTERNALERROR;
-#if defined(FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION)
-    retval = UA_STATUSCODE_GOOD;
-#else
-    retval = sequenceNumberCallback(channel, sequenceNumber);
-#endif
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    return putPayload(channel, requestId, messageType, chunkType, &chunkPayload);
+    return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
 }
 
 UA_StatusCode

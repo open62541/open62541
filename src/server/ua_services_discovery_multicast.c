@@ -121,14 +121,21 @@ stopMulticastDiscoveryServer(UA_Server *server) {
     if (!server->discoveryManager.mdnsDaemon)
         return;
 
-    char hostname[256];
-    if(UA_gethostname(hostname, 255) == 0) {
-        UA_String hnString = UA_STRING(hostname);
+    for (size_t i=0; i<server->config.networkLayersSize; i++) {
+
+        UA_String hostname = UA_STRING_NULL;
+        UA_String path = UA_STRING_NULL;
+        UA_UInt16 port = 0;
+
+        UA_StatusCode retval = UA_parseEndpointUrl(&server->config.networkLayers[i].discoveryUrl, &hostname,
+                                                   &port, &path);
+
+        if (retval != UA_STATUSCODE_GOOD)
+            continue;
+
         UA_Discovery_removeRecord(server, &server->config.discovery.mdns.mdnsServerName,
-                                  &hnString, 4840, true);
-    } else {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "Could not get hostname for multicast discovery.");
+                                  &hostname, port, true);
+
     }
 
 #if UA_MULTITHREADING >= 200
