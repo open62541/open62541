@@ -509,11 +509,11 @@ updateConditionLastEventId(UA_Server *server,
                         UA_ByteString_deleteMembers(&conditionBranchEntryTmp->lastEventId);
                         return UA_ByteString_copy(lastEventId, &conditionBranchEntryTmp->lastEventId);
                     }
+                    else { // TODO update condition branch
+                        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND, "Condition Branch not implemented");
+                        return UA_STATUSCODE_BADNOTFOUND;
+                    }
                 }
-            }
-            else { // TODO update condition branch
-                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,"Condition Branch not implemented");
-                return UA_STATUSCODE_BADNOTFOUND;
             }
         }
     }
@@ -542,11 +542,11 @@ setIsCallerAC(UA_Server *server,
                         conditionBranchEntryTmp->isCallerAC = isCallerAC;
                         return;
                     }
+                    else {// TODO condition branch
+                        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND, "Condition Branch not implemented");
+                        return;
+                    }
                 }
-            }
-            else {// TODO condition branch
-                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND, "Condition Branch not implemented");
-                return;
             }
         }
     }
@@ -574,11 +574,11 @@ isConditionOrBranch(UA_Server *server,
                           *isCallerAC = conditionBranchEntryTmp->isCallerAC;
                           return true;
                         }
+                        else {
+                            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND, "Condition Branch not implemented");
+                            return false;
+                        }
                     }
-            }
-            else {
-                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND, "Condition Branch not implemented");
-                return false;
             }
         }
     }
