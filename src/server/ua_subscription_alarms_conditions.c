@@ -2252,22 +2252,23 @@ UA_Server_createCondition(UA_Server *server,
     /* create HasCondition Reference (HasCondition should be forward from the ConditionSourceNode to the Condition.
      * else, HasCondition should be forward from the ConditionSourceNode to the ConditionType Node) */
     UA_NodeId nodIdNull = UA_NODEID_NULL;
-    UA_ExpandedNodeId hasConditionTarget;
     if(!UA_NodeId_equal(&hierarchialReferenceType, &nodIdNull)) {
-        hasConditionTarget = UA_EXPANDEDNODEID_NUMERIC(newNodeId.namespaceIndex, newNodeId.identifier.numeric);
+        UA_ExpandedNodeId expandedNewNodeId = UA_EXPANDEDNODEID_NUMERIC(newNodeId.namespaceIndex, newNodeId.identifier.numeric);
 
         /* create hierarchical Reference to ConditionSource to expose the ConditionNode in Address Space */
         retval = UA_Server_addReference(server, conditionSource, hierarchialReferenceType,
-                                        UA_EXPANDEDNODEID_NUMERIC(newNodeId.namespaceIndex, newNodeId.identifier.numeric), true);// only Check hierarchialReferenceType
+                                        expandedNewNodeId, true);// only Check hierarchialReferenceType
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Creating hierarchical Reference to ConditionSource failed",);
-    }
-    else
-        hasConditionTarget = UA_EXPANDEDNODEID_NUMERIC(conditionType.namespaceIndex, conditionType.identifier.numeric);
 
-    UA_NodeId hasConditionId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCONDITION);
-    retval = UA_Server_addReference(server, conditionSource, hasConditionId,
-                                    hasConditionTarget, true);
-    CONDITION_ASSERT_RETURN_RETVAL(retval, "Creating HasCondition Reference failed",);
+        retval = UA_Server_addReference(server, conditionSource, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCONDITION),
+                                        expandedNewNodeId, true);
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Creating HasCondition Reference failed",);
+    }
+    else {
+        retval = UA_Server_addReference(server, conditionSource, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCONDITION),
+                                        UA_EXPANDEDNODEID_NUMERIC(conditionType.namespaceIndex, conditionType.identifier.numeric), true);
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Creating HasCondition Reference failed",);
+    }
 
     /* Set standard fields */
     retval = setStandardConditionFields(server, &newNodeId, &conditionType,
