@@ -675,7 +675,8 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     retval = UA_decodeBinary(msg, &offset, request, requestType, server->config.customDataTypes);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG_CHANNEL(&server->config.logger, channel,
-                             "Could not decode the request");
+                             "Could not decode the request with StatusCode %s",
+                             UA_StatusCode_name(retval));
         return sendServiceFault(channel, msg, requestPos, responseType, requestId, retval);
     }
 
