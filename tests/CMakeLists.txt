@@ -203,7 +203,7 @@ add_executable(check_server_callbacks server/check_server_callbacks.c $<TARGET_O
 target_link_libraries(check_server_callbacks ${LIBS})
 add_test_valgrind(server_callbacks ${TESTS_BINARY_DIR}/check_server_callbacks)
 
-if (UA_MULTITHREADING EQUAL 100)
+if (UA_MULTITHREADING GREATER 100)
     add_executable(check_mt_addVariableNode multithreading/check_mt_addVariableNode.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     target_link_libraries(check_mt_addVariableNode ${LIBS})
     add_test_valgrind(mt_addVariableNode ${TESTS_BINARY_DIR}/check_mt_addVariableNode)
