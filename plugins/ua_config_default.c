@@ -119,7 +119,10 @@ setDefaultConfig(UA_ServerConfig *conf) {
 
     /* --> Start setting the default static config <-- */
     conf->nThreads = 1;
-    conf->logger = UA_Log_Stdout_;
+
+    /* Allow user to set his own logger */
+    if (!conf->logger.log)
+        conf->logger = UA_Log_Stdout_;
 
     conf->shutdownDelay = 0.0;
 
