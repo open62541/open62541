@@ -232,11 +232,11 @@ class Value(object):
             # [ [...], [...], [...]] multifield of unknowns (analyse separately)
             # create an extension object to hold multipart type
 
-            # FIXME: This implementation expects an extensionobject to be manditory for
+            # FIXME: This implementation expects an ExtensionObject to be mandatory for
             #        multipart variables. Variants/Structures are not included in the
             #        OPCUA Namespace 0 nodeset.
             #        Consider moving this ExtensionObject specific parsing into the
-            #        builtin type and only determining the multipart type at this stage.
+            #        builtin type and only determine the multipart type at this stage.
             extobj = ExtensionObject()
             if not xmlvalue.localName == "ExtensionObject":
                 logger.error(str(parent.id) + ": Expected XML tag <ExtensionObject> for multipart type, but found " + xmlvalue.localName + " instead.")
@@ -270,7 +270,10 @@ class Value(object):
                     logger.error(str(parent.id) + ": Expected ExtensionObject to hold a variable of type " + str(parentDataTypeNode.browseName) + " but found nothing.")
                     return extobj
 
-                if not ebodypart.localName == "OptionSet" and not ebodypart.localName == parentDataTypeNode.browseName.name:
+                parentName = parentDataTypeNode.browseName.name
+                if parentDataTypeNode.symbolicName is not None and parentDataTypeNode.symbolicName.value is not None:
+                    parentName = parentDataTypeNode.symbolicName.value
+                if not ebodypart.localName == "OptionSet" and not ebodypart.localName == parentName:
                     logger.error(str(parent.id) + ": Expected ExtensionObject to hold a variable of type " + str(parentDataTypeNode.browseName) + " but found " +
                                  str(ebodypart.localName) + " instead.")
                     return extobj
