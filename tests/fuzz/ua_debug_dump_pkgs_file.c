@@ -108,40 +108,14 @@ UA_debug_dumpSetServiceName(const UA_ByteString *msg, char serviceNameTarget[100
 
 /**
  * We need to decode the given binary message to get the name of the called service.
- * This method is used if the connection has no channel yet.
- */
-static UA_StatusCode
-UA_debug_dump_setName_withoutChannel(UA_Server *server, UA_Connection *connection,
-                                     UA_ByteString *message, struct UA_dump_filename* dump_filename) {
-    size_t offset = 0;
-    UA_TcpMessageHeader tcpMessageHeader;
-    UA_StatusCode retval =
-            UA_TcpMessageHeader_decodeBinary(message, &offset, &tcpMessageHeader);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    dump_filename->messageType =
-        UA_debug_dumpGetMessageTypePrefix(tcpMessageHeader.messageTypeAndChunkType & 0x00ffffff);
-
-    if ((tcpMessageHeader.messageTypeAndChunkType & 0x00ffffff) == UA_MESSAGETYPE_MSG) {
-        // this should not happen in normal operation
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "Got MSG package without channel.");
-        return UA_STATUSCODE_BADUNEXPECTEDERROR;
-    }
-    return UA_STATUSCODE_GOOD;
-}
-
-
-/**
- * We need to decode the given binary message to get the name of the called service.
  * This method is used if the connection an established secure channel.
  *
  * message is the decoded message starting at the nodeid of the content type.
  */
 static void
-UA_debug_dump_setName_withChannel(void *application, UA_SecureChannel *channel,
-                                  UA_MessageType messagetype, UA_UInt32 requestId,
-                                  const UA_ByteString *message) {
+UA_debug_dump_setName(void *application, UA_SecureChannel *channel,
+                      UA_MessageType messagetype, UA_UInt32 requestId,
+                      UA_ByteString *message) {
     struct UA_dump_filename *dump_filename = (struct UA_dump_filename *)application;
     dump_filename->messageType = UA_debug_dumpGetMessageTypePrefix(messagetype);
     if(messagetype == UA_MESSAGETYPE_MSG)
@@ -161,20 +135,15 @@ UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const connect
     struct UA_dump_filename dump_filename;
     dump_filename.messageType = NULL;
     dump_filename.serviceName[0] = 0;
-
-    if(!connection->channel) {
-        UA_debug_dump_setName_withoutChannel(server, connection, messageBuffer, &dump_filename);
-    } else {
-        UA_SecureChannel dummy = *connection->channel;
-        TAILQ_INIT(&dummy.messages);
-        UA_ByteString messageBufferCopy;
-        UA_ByteString_copy(messageBuffer, &messageBufferCopy);
-        UA_SecureChannel_decryptAddChunk(&dummy, &messageBufferCopy, UA_TRUE);
-        UA_SecureChannel_processCompleteMessages(&dummy, &dump_filename, UA_debug_dump_setName_withChannel);
-        UA_SecureChannel_deleteMessages(&dummy);
-        UA_ByteString_deleteMembers(&messageBufferCopy);
-    }
-
+    
+    UA_SecureChannel dummy = *connection->channel;
+    TAILQ_INIT(&dummy.messages);
+    UA_ByteString messageBufferCopy;
+    UA_ByteString_copy(messageBuffer, &messageBufferCopy);
+    UA_SecureChannel_processPacket(&dummy, &dump_filename, UA_debug_dump_setName, &messageBufferCopy);
+    UA_SecureChannel_deleteMessages(&dummy);
+    UA_ByteString_deleteMembers(&messageBufferCopy);
+    
     char fileName[250];
     snprintf(fileName, sizeof(fileName), "%s/%05u_%s%s", UA_CORPUS_OUTPUT_DIR, ++UA_dump_chunkCount,
              dump_filename.messageType ? dump_filename.messageType : "", dump_filename.serviceName);
