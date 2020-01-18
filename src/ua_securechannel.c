@@ -198,15 +198,6 @@ UA_SecureChannel_processHELACK(UA_SecureChannel *channel,
     return UA_STATUSCODE_GOOD;
 }
 
-UA_SessionHeader *
-UA_SecureChannel_getSession(UA_SecureChannel *channel,
-                            const UA_NodeId *authenticationToken) {
-    if(channel->session &&
-       UA_NodeId_equal(&channel->session->authenticationToken, authenticationToken))
-        return channel->session;
-    return NULL;
-}
-
 /* Sends an OPN message using asymmetric encryption if defined */
 UA_StatusCode
 UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel,
