@@ -628,23 +628,6 @@ processCompleteMessages(UA_SecureChannel *channel, void *application,
     return retval;
 }
 
-static UA_StatusCode
-putPayload(UA_SecureChannel *const channel, UA_UInt32 const requestId,
-           UA_MessageType const messageType, UA_ChunkType const chunkType,
-           UA_ByteString *chunkPayload) {
-    switch(chunkType) {
-    case UA_CHUNKTYPE_INTERMEDIATE:
-    case UA_CHUNKTYPE_FINAL:
-        return addChunkPayload(channel, requestId, messageType,
-                               chunkPayload, chunkType == UA_CHUNKTYPE_FINAL);
-    case UA_CHUNKTYPE_ABORT:
-        deleteLatestMessage(channel, requestId);
-        return UA_STATUSCODE_GOOD;
-    default:
-        return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
-    }
-}
-
 #ifndef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
 static UA_StatusCode
 processSequenceNumberSym(UA_SecureChannel *channel, UA_UInt32 sequenceNumber) {
@@ -686,7 +669,7 @@ decryptAddChunk(UA_SecureChannel *channel, UA_MessageType messageType,
        messageType == UA_MESSAGETYPE_ERR || messageType == UA_MESSAGETYPE_OPN) {
         if(chunkType != UA_CHUNKTYPE_FINAL)
             return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
-        return putPayload(channel, 0, messageType, chunkType, (UA_ByteString*)(uintptr_t)chunk);
+        return addChunkPayload(channel, 0, messageType, chunk, true);
     }
 
     /* Only messages on SecureChannel-level with symmetric encryption afterwards */
@@ -746,7 +729,14 @@ decryptAddChunk(UA_SecureChannel *channel, UA_MessageType messageType,
         return res;
 #endif
 
-    return putPayload(channel, requestId, messageType, chunkType, chunk);
+    /* A message consisting of serveral chunks is aborted */
+    if(chunkType == UA_CHUNKTYPE_ABORT) {
+        deleteLatestMessage(channel, requestId);
+        return UA_STATUSCODE_GOOD;
+    }
+
+    return addChunkPayload(channel, requestId, messageType,
+                           chunk, chunkType == UA_CHUNKTYPE_FINAL);
 }
 
 static UA_StatusCode
