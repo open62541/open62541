@@ -142,10 +142,6 @@ UA_SecureChannel_generateNewKeys(UA_SecureChannel* channel);
 UA_StatusCode
 UA_SecureChannel_generateLocalNonce(UA_SecureChannel *channel);
 
-UA_SessionHeader *
-UA_SecureChannel_getSession(UA_SecureChannel *channel,
-                            const UA_NodeId *authenticationToken);
-
 UA_StatusCode
 UA_SecureChannel_revolveTokens(UA_SecureChannel *channel);
 

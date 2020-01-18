@@ -512,9 +512,11 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
                             responseHeader, responseType);
     }
 
-    /* Find the matching session */
-    UA_Session *session = (UA_Session*)
-        UA_SecureChannel_getSession(channel, &requestHeader->authenticationToken);
+    /* Is the session on the SecureChannel a match? */
+    UA_Session *session = (UA_Session*)channel->session;
+    if(session && !UA_NodeId_equal(&session->header.authenticationToken,
+                                   &requestHeader->authenticationToken))
+        session = NULL;
     if(!session && !UA_NodeId_isNull(&requestHeader->authenticationToken)) {
         UA_LOCK(server->serviceMutex);
         session = UA_SessionManager_getSessionByToken(&server->sessionManager,
