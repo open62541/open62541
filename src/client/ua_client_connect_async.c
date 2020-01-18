@@ -219,11 +219,9 @@ decodeProcessOPNResponseAsync(void *application, UA_SecureChannel *channel,
         return;
     }
 
-    UA_ByteString chunkPayload;
     UA_UInt32 sequenceNumber = 0;
     retval = decryptAndVerifyChunk(channel, &channel->securityPolicy->asymmetricModule.cryptoModule,
-                                   UA_MESSAGETYPE_OPN, msg, offset, &requestId,
-                                   &sequenceNumber, &chunkPayload);
+                                   UA_MESSAGETYPE_OPN, msg, offset, &requestId, &sequenceNumber);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_CHANNEL(&client->config.logger, channel,
                                "Could not decrypt and verify the OPN payload");
@@ -241,7 +239,7 @@ decodeProcessOPNResponseAsync(void *application, UA_SecureChannel *channel,
     }
 #endif
 
-    processOPNResponseDecoded(client, &chunkPayload);
+    processOPNResponseDecoded(client, msg);
 }
 
 /* OPN messges to renew the channel are sent asynchronous */

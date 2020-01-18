@@ -709,6 +709,10 @@ decryptAddChunk(UA_SecureChannel *channel, UA_MessageType messageType,
        chunkType != UA_CHUNKTYPE_ABORT)
         return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
 
+    const UA_SecurityPolicy *sp = channel->securityPolicy;
+    if(!sp)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     size_t offset = 8; /* Skip the message header */
     UA_UInt32 secureChannelId;
     UA_StatusCode res = UA_UInt32_decodeBinary(chunk, &offset, &secureChannelId);
@@ -732,22 +736,16 @@ decryptAddChunk(UA_SecureChannel *channel, UA_MessageType messageType,
     tokenId = channel->securityToken.tokenId;
 #endif
 
+    res = checkSymHeader(channel, tokenId, allowPreviousToken);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
     UA_UInt32 requestId = 0;
     UA_UInt32 sequenceNumber = 0;
-    UA_ByteString chunkPayload;
-    const UA_SecurityPolicy *sp = channel->securityPolicy;
-    if(sp) {
-        res = checkSymHeader(channel, tokenId, allowPreviousToken);
-        if(res != UA_STATUSCODE_GOOD)
-            return res;
-        res = decryptAndVerifyChunk(channel, &sp->symmetricModule.cryptoModule, messageType,
-                                    chunk, offset, &requestId, &sequenceNumber, &chunkPayload);
-        if(res != UA_STATUSCODE_GOOD)
-            return res;
-    } else {
-        chunkPayload.data = chunk->data + offset;
-        chunkPayload.length = chunk->length + offset;
-    }
+    res = decryptAndVerifyChunk(channel, &sp->symmetricModule.cryptoModule, messageType,
+                                chunk, offset, &requestId, &sequenceNumber);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
     /* Check the sequence number. Skip sequence number checking for fuzzer to
      * improve coverage */
@@ -756,7 +754,8 @@ decryptAddChunk(UA_SecureChannel *channel, UA_MessageType messageType,
     if(res != UA_STATUSCODE_GOOD)
         return res;
 #endif
-    return putPayload(channel, requestId, messageType, chunkType, &chunkPayload);
+
+    return putPayload(channel, requestId, messageType, chunkType, chunk);
 }
 
 static UA_StatusCode
@@ -824,7 +823,9 @@ processChunk(UA_SecureChannel *channel, const UA_ByteString *packet,
         return UA_STATUSCODE_GOOD;
     }
 
-    /* ByteString with only this chunk */
+    /* ByteString with only this chunk. Don't forward the original packet
+     * ByteString into decryptAddChunk. The data pointer is modified internally
+     * to point to payload beyond the header. */
     UA_ByteString chunk;
     chunk.data = &packet->data[*offset];
     chunk.length = hdr.messageSize;
