@@ -87,50 +87,35 @@ connection_recv(UA_Connection *connection, UA_ByteString *response,
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
 
     /* Listen on the socket for the given timeout until a message arrives */
-    if(timeout > 0) {
-        fd_set fdset;
-        FD_ZERO(&fdset);
-        UA_fd_set(connection->sockfd, &fdset);
-        UA_UInt32 timeout_usec = timeout * 1000;
-        struct timeval tmptv = {(long int)(timeout_usec / 1000000),
-                                (int)(timeout_usec % 1000000)};
-        int resultsize = UA_select(connection->sockfd+1, &fdset, NULL,
-                                NULL, &tmptv);
+    fd_set fdset;
+    FD_ZERO(&fdset);
+    UA_fd_set(connection->sockfd, &fdset);
+    UA_UInt32 timeout_usec = timeout * 1000;
+    struct timeval tmptv = {(long int)(timeout_usec / 1000000),
+                            (int)(timeout_usec % 1000000)};
+    int resultsize = UA_select(connection->sockfd+1, &fdset, NULL, NULL, &tmptv);
 
-        /* No result */
-        if(resultsize == 0)
+    /* No result */
+    if(resultsize == 0)
+        return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+
+    if(resultsize == -1) {
+        /* The call to select was interrupted. Act as if it timed out. */
+        if(UA_ERRNO == EINTR)
             return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
 
-        if(resultsize == -1) {
-            /* The call to select was interrupted manually. Act as if it timed
-             * out */
-            if(UA_ERRNO == EINTR)
-                return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
-
-            /* The error cannot be recovered. Close the connection. */
-            connection->close(connection);
-            return UA_STATUSCODE_BADCONNECTIONCLOSED;
-        }
+        /* The error cannot be recovered. Close the connection. */
+        connection->close(connection);
+        return UA_STATUSCODE_BADCONNECTIONCLOSED;
     }
 
-    response->data = (UA_Byte*)UA_malloc(connection->config.recvBufferSize);
-    if(!response->data) {
-        response->length = 0;
-        return UA_STATUSCODE_BADOUTOFMEMORY; /* not enough memory retry */
-    }
-
-#ifdef _WIN32
-    // windows requires int parameter for length
-    int offset = (int)connection->incompleteChunk.length;
-    int remaining = connection->config.recvBufferSize - offset;
-#else
-    size_t offset = connection->incompleteChunk.length;
-    size_t remaining = connection->config.recvBufferSize - offset;
-#endif
+    /* Allocate the buffer */
+    UA_StatusCode res = UA_ByteString_allocBuffer(response, connection->config.recvBufferSize);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
     /* Get the received packet(s) */
-    ssize_t ret = UA_recv(connection->sockfd, (char*)&response->data[offset],
-                          remaining, 0);
+    ssize_t ret = UA_recv(connection->sockfd, (char*)response->data, response->length, 0);
 
     /* The remote side closed the connection */
     if(ret == 0) {
@@ -149,15 +134,8 @@ connection_recv(UA_Connection *connection, UA_ByteString *response,
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
     }
 
-    /* Preprend the last incompleteChunk into the buffer */
-    if (connection->incompleteChunk.length > 0) {
-        memcpy(response->data, connection->incompleteChunk.data,
-               connection->incompleteChunk.length);
-        UA_ByteString_deleteMembers(&connection->incompleteChunk);
-    }
-
     /* Set the length of the received buffer */
-    response->length = offset + (size_t)ret;
+    response->length = (size_t)ret;
     return UA_STATUSCODE_GOOD;
 }
 
