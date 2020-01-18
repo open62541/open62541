@@ -435,12 +435,11 @@ decryptProcessOPN(UA_Server *server, UA_SecureChannel *channel,
         return retval;
     }
 
-    UA_ByteString chunkPayload;
+    /* After decryption, msg contains only the payload after the SequenceHeader */
     UA_UInt32 requestId = 0;
     UA_UInt32 sequenceNumber = 0;
     retval = decryptAndVerifyChunk(channel, &channel->securityPolicy->asymmetricModule.cryptoModule,
-                                   UA_MESSAGETYPE_OPN, msg, offset, &requestId,
-                                   &sequenceNumber, &chunkPayload);
+                                   UA_MESSAGETYPE_OPN, msg, offset, &requestId, &sequenceNumber);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
                                "Could not decrypt and verify the OPN payload");
@@ -456,7 +455,7 @@ decryptProcessOPN(UA_Server *server, UA_SecureChannel *channel,
     }
 #endif
 
-    return processOPN(server, channel, requestId, &chunkPayload);
+    return processOPN(server, channel, requestId, msg);
 }
 
 UA_StatusCode
