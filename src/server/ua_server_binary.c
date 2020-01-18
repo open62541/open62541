@@ -403,7 +403,7 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
 
 static UA_StatusCode
 decryptProcessOPN(UA_Server *server, UA_SecureChannel *channel,
-                  const UA_ByteString *msg) {
+                  UA_ByteString *msg) {
     UA_LOG_DEBUG_CHANNEL(&server->config.logger, channel, "Decrypt an OPN message");
 
     /* Skip the first header. We know length and message type. */
@@ -718,7 +718,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
 static void
 processSecureChannelMessage(void *application, UA_SecureChannel *channel,
                             UA_MessageType messagetype, UA_UInt32 requestId,
-                            const UA_ByteString *message) {
+                            UA_ByteString *message) {
     UA_Server *server = (UA_Server*)application;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     switch(messagetype) {

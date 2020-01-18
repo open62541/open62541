@@ -198,7 +198,7 @@ UA_MessageContext_abort(UA_MessageContext *mc);
 
 /* Decrypt a chunk and add it to the message. Create a new message if necessary. */
 UA_StatusCode
-UA_SecureChannel_decryptAddChunk(UA_SecureChannel *channel, const UA_ByteString *chunk,
+UA_SecureChannel_decryptAddChunk(UA_SecureChannel *channel, UA_ByteString *chunk,
                                  UA_Boolean allowPreviousToken);
 
 /* The network buffer is about to be cleared. Copy all chunks that point into
@@ -209,7 +209,7 @@ UA_SecureChannel_persistIncompleteMessages(UA_SecureChannel *channel);
 typedef void
 (UA_ProcessMessageCallback)(void *application, UA_SecureChannel *channel,
                             UA_MessageType messageType, UA_UInt32 requestId,
-                            const UA_ByteString *message);
+                            UA_ByteString *message);
 
 /* Process received complete messages in-order. The callback function is called
  * with the complete message body if the message is complete. The message is
@@ -239,7 +239,7 @@ hideBytesAsym(const UA_SecureChannel *channel, UA_Byte **buf_start,
 UA_StatusCode
 decryptAndVerifyChunk(const UA_SecureChannel *channel,
                       const UA_SecurityPolicyCryptoModule *cryptoModule,
-                      UA_MessageType messageType, const UA_ByteString *chunk,
+                      UA_MessageType messageType, UA_ByteString *chunk,
                       size_t offset, UA_UInt32 *requestId,
                       UA_UInt32 *sequenceNumber, UA_ByteString *payload);
 
@@ -254,24 +254,6 @@ prependHeadersAsym(UA_SecureChannel *const channel, UA_Byte *header_pos,
 
 void
 setBufPos(UA_MessageContext *mc);
-
-UA_StatusCode
-decryptChunk(const UA_SecureChannel *const channel,
-             const UA_SecurityPolicyCryptoModule *const cryptoModule,
-             UA_MessageType const messageType, const UA_ByteString *const chunk,
-             size_t const offset, size_t *const chunkSizeAfterDecryption);
-
-UA_UInt16
-decodeChunkPaddingSize(const UA_SecureChannel *channel,
-                       const UA_SecurityPolicyCryptoModule *cryptoModule,
-                       UA_MessageType messageType, const UA_ByteString *chunk,
-                       size_t chunkSizeAfterDecryption, size_t sigsize);
-
-UA_StatusCode
-verifyChunk(const UA_SecureChannel *channel,
-            const UA_SecurityPolicyCryptoModule *cryptoModule,
-            const UA_ByteString *chunk,
-            size_t chunkSizeAfterDecryption, size_t sigsize);
 
 UA_StatusCode
 checkSymHeader(UA_SecureChannel *channel, UA_UInt32 tokenId,

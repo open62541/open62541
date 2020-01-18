@@ -215,7 +215,7 @@ processOPNResponseAsync(void *application, UA_Connection *connection,
 void
 decodeProcessOPNResponseAsync(void *application, UA_SecureChannel *channel,
                               UA_MessageType messageType, UA_UInt32 requestId,
-                              const UA_ByteString *msg);
+                              UA_ByteString *msg);
 
 UA_StatusCode
 openSecureChannel(UA_Client *client, UA_Boolean renew);
