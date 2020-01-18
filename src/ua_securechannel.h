@@ -103,7 +103,11 @@ struct UA_SecureChannel {
     UA_UInt32 sendSequenceNumber;
 
     UA_SessionHeader *session;
-    UA_MessageQueue messages;
+
+    UA_ByteString incompleteChunk; /* A half-received chunk (TCP is a
+                                    * streaming protocol) is stored here */
+    UA_MessageQueue messages;      /* Received full chunks grouped into the
+                                    * messages */
 };
 
 void UA_SecureChannel_init(UA_SecureChannel *channel);
@@ -210,22 +214,32 @@ typedef void
                             UA_MessageType messageType, UA_UInt32 requestId,
                             UA_ByteString *message);
 
-/* Process received complete messages in-order. The callback function is called
- * with the complete message body if the message is complete. The message is
- * removed afterwards.
- *
- * Symmetric callback is ERR, MSG, CLO only
- * Asymmetric callback is OPN only
- *
- * @param channel the channel the chunks were received on.
- * @param application data pointer to application specific data that gets passed
- *                    on to the callback function.
- * @param callback the callback function that gets called with the complete
- *                 message body, once a final chunk is processed.
- * @return Returns if an irrecoverable error occured. Maybe close the channel. */
+/* Process a received packet. The callback function is called with the complete
+ * message body if the message is complete. The message is removed afterwards.
+ * Returns if an irrecoverable error occured. */
 UA_StatusCode
-UA_SecureChannel_processCompleteMessages(UA_SecureChannel *channel, void *application,
-                                         UA_ProcessMessageCallback callback);
+UA_SecureChannel_processPacket(UA_SecureChannel *channel, void *application,
+                               UA_ProcessMessageCallback callback,
+                               const UA_ByteString *packet);
+
+/* Try to receive at least one complete chunk on the connection. This blocks the
+ * current thread up to the given timeout.
+ *
+ * @param channel The SecureChannel
+ * @param application The client or server application
+ * @param processCallback The function pointer for processing each chunk
+ * @param timeout The timeout (in milliseconds) the method will block at most.
+ * @return Returns UA_STATUSCODE_GOOD or an error code. When an timeout occurs,
+ *         UA_STATUSCODE_GOODNONCRITICALTIMEOUT is returned. */
+UA_StatusCode
+UA_SecureChannel_receiveChunksBlocking(UA_SecureChannel *channel, void *application,
+                                       UA_ProcessMessageCallback callback,
+                                       UA_UInt32 timeout);
+
+UA_StatusCode
+UA_SecureChannel_receiveChunksNonBlocking(UA_SecureChannel *channel, void *application,
+                                          UA_ProcessMessageCallback callback);
+
 
 /* Internal methods in ua_securechannel_crypto.h */
 
@@ -260,9 +274,6 @@ checkSymHeader(UA_SecureChannel *channel, UA_UInt32 tokenId,
 
 UA_StatusCode
 processSequenceNumberAsym(UA_SecureChannel *channel, UA_UInt32 sequenceNumber);
-
-UA_StatusCode
-processSequenceNumberSym(UA_SecureChannel *channel, UA_UInt32 sequenceNumber);
 
 UA_StatusCode
 checkAsymHeader(UA_SecureChannel *channel,

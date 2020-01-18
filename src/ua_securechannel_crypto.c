@@ -31,6 +31,8 @@ UA_SecureChannel_generateLocalNonce(UA_SecureChannel *channel) {
     if(!sp)
         return UA_STATUSCODE_BADINTERNALERROR;
 
+    UA_LOG_DEBUG_CHANNEL(sp->logger, channel, "Generating new local nonce");
+
     /* Is the length of the previous nonce correct? */
     size_t nonceLength = sp->symmetricModule.secureChannelNonceLength;
     if(channel->localNonce.length != nonceLength) {
@@ -61,6 +63,7 @@ generateLocalKeys(const UA_SecureChannel *channel,
     UA_STACKARRAY(UA_Byte, bufBytes, bufSize);
     UA_ByteString buf = {bufSize, bufBytes};
 
+    UA_assert(channel->localNonce.length == sp->symmetricModule.secureChannelNonceLength);
     UA_StatusCode retval = sm->generateKey(sp, &channel->remoteNonce,
                                            &channel->localNonce, &buf);
     if(retval != UA_STATUSCODE_GOOD)
@@ -121,6 +124,10 @@ generateRemoteKeys(const UA_SecureChannel *channel,
 UA_StatusCode
 UA_SecureChannel_generateNewKeys(UA_SecureChannel *channel) {
     const UA_SecurityPolicy *sp = channel->securityPolicy;
+    if(!sp)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_LOG_DEBUG_CHANNEL(sp->logger, channel, "Generating SecureChannel keys");
+
     UA_StatusCode retval = generateLocalKeys(channel, sp);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(sp->logger, UA_LOGCATEGORY_SECURECHANNEL,
@@ -140,6 +147,10 @@ UA_SecureChannel_generateNewKeys(UA_SecureChannel *channel) {
 
 UA_StatusCode
 UA_SecureChannel_revolveTokens(UA_SecureChannel *channel) {
+    const UA_SecurityPolicy *sp = channel->securityPolicy;
+    if(!sp)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     if(channel->nextSecurityToken.tokenId == 0) /* no next security token issued */
         return UA_STATUSCODE_BADSECURECHANNELTOKENUNKNOWN;
 
@@ -148,7 +159,7 @@ UA_SecureChannel_revolveTokens(UA_SecureChannel *channel) {
     UA_ChannelSecurityToken_init(&channel->nextSecurityToken);
 
     /* remote keys are generated later on */
-    return generateLocalKeys(channel, channel->securityPolicy);
+    return generateLocalKeys(channel, sp);
 }
 
 /***************************/
@@ -158,6 +169,9 @@ UA_SecureChannel_revolveTokens(UA_SecureChannel *channel) {
 size_t
 calculateAsymAlgSecurityHeaderLength(const UA_SecureChannel *channel) {
     const UA_SecurityPolicy *sp = channel->securityPolicy;
+    if(!sp)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     size_t asymHeaderLength = UA_ASYMMETRIC_ALG_SECURITY_HEADER_FIXED_LENGTH +
                               sp->policyUri.length;
     if(channel->securityMode != UA_MESSAGESECURITYMODE_SIGN &&
@@ -176,6 +190,9 @@ prependHeadersAsym(UA_SecureChannel *const channel, UA_Byte *header_pos,
                    size_t securityHeaderLength, UA_UInt32 requestId,
                    size_t *const finalLength) {
     const UA_SecurityPolicy *sp = channel->securityPolicy;
+    if(!sp)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     size_t dataToEncryptLength =
         totalLength - (UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH + securityHeaderLength);
 
@@ -596,31 +613,7 @@ decryptAndVerifyChunk(const UA_SecureChannel *channel,
 
 UA_StatusCode
 processSequenceNumberAsym(UA_SecureChannel *channel, UA_UInt32 sequenceNumber) {
-    UA_LOG_TRACE_CHANNEL(channel->securityPolicy->logger, channel,
-                         "Sequence Number processed: %i", sequenceNumber);
     channel->receiveSequenceNumber = sequenceNumber;
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode
-processSequenceNumberSym(UA_SecureChannel *channel, UA_UInt32 sequenceNumber) {
-    /* Failure mode hook for unit tests */
-#ifdef UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
-    if(processSym_seqNumberFailure != UA_STATUSCODE_GOOD)
-        return processSym_seqNumberFailure;
-#endif
-
-    UA_LOG_TRACE_CHANNEL(channel->securityPolicy->logger, channel,
-                         "Sequence Number processed: %i", sequenceNumber);
-    /* Does the sequence number match? */
-    if(sequenceNumber != channel->receiveSequenceNumber + 1) {
-        /* FIXME: Remove magic numbers :( */
-        if(channel->receiveSequenceNumber + 1 > 4294966271 && sequenceNumber < 1024)
-            channel->receiveSequenceNumber = sequenceNumber - 1; /* Roll over */
-        else
-            return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-    }
-    ++channel->receiveSequenceNumber;
     return UA_STATUSCODE_GOOD;
 }
 

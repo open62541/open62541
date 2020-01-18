@@ -279,10 +279,10 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
 
 /* HEL -> Open up the connection */
 static UA_StatusCode
-processHEL(UA_Server *server, UA_Connection *connection,
-           const UA_ByteString *msg, size_t *offset) {
+processHEL(UA_Server *server, UA_Connection *connection, const UA_ByteString *msg) {
+    size_t offset = 8; /* Go to the beginning of the TcpHelloMessage */
     UA_TcpHelloMessage helloMessage;
-    UA_StatusCode retval = UA_TcpHelloMessage_decodeBinary(msg, offset, &helloMessage);
+    UA_StatusCode retval = UA_TcpHelloMessage_decodeBinary(msg, &offset, &helloMessage);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -409,8 +409,6 @@ decryptProcessOPN(UA_Server *server, UA_SecureChannel *channel,
     /* Skip the first header. We know length and message type. */
     size_t offset = UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH;
 
-    UA_LOG_DEBUG_CHANNEL(&server->config.logger, channel, "Decrypt an OPN message");
-
     /* Decode the asymmetric algorithm security header and call the callback
      * to perform checks. */
     UA_AsymmetricAlgorithmSecurityHeader asymHeader;
@@ -423,8 +421,17 @@ decryptProcessOPN(UA_Server *server, UA_SecureChannel *channel,
         return retval;
     }
 
+    if(channel->state < UA_SECURECHANNELSTATE_OPEN) {
+        retval = UA_SecureChannelManager_config(&server->secureChannelManager,
+                                                channel, &asymHeader);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_AsymmetricAlgorithmSecurityHeader_clear(&asymHeader);
+            return retval;
+        }
+    }
+
     retval = checkAsymHeader(channel, &asymHeader);
-    UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
+    UA_AsymmetricAlgorithmSecurityHeader_clear(&asymHeader);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
                                "Could not verify OPN header");
@@ -720,12 +727,15 @@ processSecureChannelMessage(void *application, UA_SecureChannel *channel,
                             UA_MessageType messagetype, UA_UInt32 requestId,
                             UA_ByteString *message) {
     UA_Server *server = (UA_Server*)application;
+
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     switch(messagetype) {
+    case UA_MESSAGETYPE_HEL:
+        UA_LOG_TRACE_CHANNEL(&server->config.logger, channel, "Process a HEL message");
+        retval = processHEL(server, channel->connection, message);
+        break;
     case UA_MESSAGETYPE_OPN:
-        UA_LOG_TRACE_CHANNEL(&server->config.logger, channel,
-                             "Process an OPN on an open channel");
-        /* Message contains the full undecrypted chunk */
+        UA_LOG_TRACE_CHANNEL(&server->config.logger, channel, "Process an OPN message");
         retval = decryptProcessOPN(server, channel, message);
         break;
     case UA_MESSAGETYPE_MSG:
@@ -749,89 +759,11 @@ processSecureChannelMessage(void *application, UA_SecureChannel *channel,
     }
 }
 
-static UA_StatusCode
-processCompleteChunkWithFreshChannel(UA_Server *server, UA_Connection *connection,
-                                     UA_ByteString *message) {
-    /* Process chunk without a channel; must be OPN */
-    UA_LOG_TRACE(&server->config.logger, UA_LOGCATEGORY_NETWORK,
-                 "Connection %i | No channel attached to the connection. "
-                 "Process the chunk directly", (int)(connection->sockfd));
-    size_t offset = 0;
-    UA_TcpMessageHeader tcpMessageHeader;
-    UA_StatusCode retval =
-        UA_TcpMessageHeader_decodeBinary(message, &offset, &tcpMessageHeader);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    // Only HEL and OPN messages possible without a channel (on the server side)
-    switch(tcpMessageHeader.messageTypeAndChunkType & 0x00ffffffu) {
-    case UA_MESSAGETYPE_HEL:
-        retval = processHEL(server, connection, message, &offset);
-        break;
-    case UA_MESSAGETYPE_OPN:
-    {
-        UA_LOG_TRACE(&server->config.logger, UA_LOGCATEGORY_NETWORK,
-                     "Connection %i | Process OPN message", (int)(connection->sockfd));
-
-        /* Called before HEL */
-        if(connection->state != UA_CONNECTION_ESTABLISHED) {
-            retval = UA_STATUSCODE_BADCOMMUNICATIONERROR;
-            break;
-        }
-
-        /* Decode the asymmetric algorithm security header since it is not
-         * encrypted and needed to decide what SecurityPolicy to use */
-        UA_AsymmetricAlgorithmSecurityHeader asymHeader;
-        size_t messageHeaderOffset = UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH;
-        retval = UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(message,
-                                                                   &messageHeaderOffset,
-                                                                   &asymHeader);
-        if(retval != UA_STATUSCODE_GOOD)
-            break;
-        retval = UA_SecureChannelManager_config(&server->secureChannelManager,
-                                                connection->channel, &asymHeader);
-        UA_AsymmetricAlgorithmSecurityHeader_clear(&asymHeader);
-        if(retval != UA_STATUSCODE_GOOD)
-            break;
-
-        retval = UA_SecureChannel_decryptAddChunk(connection->channel, message, false);
-        if(retval != UA_STATUSCODE_GOOD)
-            break;
-
-        UA_SecureChannel_processCompleteMessages(connection->channel, server,
-                                                 processSecureChannelMessage);
-        break;
-    }
-    default:
-        UA_LOG_TRACE(&server->config.logger, UA_LOGCATEGORY_NETWORK,
-                     "Connection %i | Expected OPN or HEL message on a connection "
-                     "without a SecureChannel", (int)(connection->sockfd));
-        retval = UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
-        break;
-    }
-    return retval;
-}
-
-static UA_StatusCode
-processCompleteChunk(void *const application, UA_Connection *connection,
-                     UA_ByteString *chunk) {
-    UA_Server *server = (UA_Server*)application;
-#ifdef UA_DEBUG_DUMP_PKGS_FILE
-    UA_debug_dumpCompleteChunk(server, connection, chunk);
-#endif
-    if(connection->channel->state < UA_SECURECHANNELSTATE_OPEN)
-        return processCompleteChunkWithFreshChannel(server, connection, chunk);
-    return UA_SecureChannel_decryptAddChunk(connection->channel, chunk, false);
-}
-
 void
 UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
                                UA_ByteString *message) {
     UA_LOG_TRACE(&server->config.logger, UA_LOGCATEGORY_NETWORK,
                  "Connection %i | Received a packet.", (int)(connection->sockfd));
-#ifdef UA_DEBUG_DUMP_PKGS
-    UA_dump_hex_pkg(message->data, message->length);
-#endif
 
     UA_TcpErrorMessage error;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -846,7 +778,14 @@ UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
         UA_assert(channel);
     }
 
-    retval = UA_Connection_processChunks(connection, server, processCompleteChunk, message);
+#ifdef UA_DEBUG_DUMP_PKGS
+    UA_dump_hex_pkg(message->data, message->length);
+#endif
+#ifdef UA_DEBUG_DUMP_PKGS_FILE
+    UA_debug_dumpCompleteChunk(server, channel->connection, message);
+#endif
+
+    retval = UA_SecureChannel_processPacket(channel, server, processSecureChannelMessage, message);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_NETWORK,
                     "Connection %i | Processing the message failed with error %s",
@@ -854,15 +793,6 @@ UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
         goto error;
     }
 
-    /* Process complete messages */
-    UA_SecureChannel_processCompleteMessages(channel, server, processSecureChannelMessage);
-
-    /* Is the channel still open? */
-    if(channel->state == UA_SECURECHANNELSTATE_CLOSED)
-        return;
-
-    /* Store unused decoded chunks internally in the SecureChannel */
-    UA_SecureChannel_persistIncompleteMessages(connection->channel);
     return;
 
  error:
