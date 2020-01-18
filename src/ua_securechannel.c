@@ -206,7 +206,10 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel,
     if(channel->securityMode == UA_MESSAGESECURITYMODE_INVALID)
         return UA_STATUSCODE_BADSECURITYMODEREJECTED;
 
-    const UA_SecurityPolicy *const securityPolicy = channel->securityPolicy;
+    const UA_SecurityPolicy *sp = channel->securityPolicy;
+    if(!sp)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     UA_Connection *connection = channel->connection;
     if(!connection)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -225,10 +228,8 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel,
 
     /* Encode the message type and content */
     UA_NodeId typeId = UA_NODEID_NUMERIC(0, contentType->binaryEncodingId);
-    retval |= UA_encodeBinary(&typeId, &UA_TYPES[UA_TYPES_NODEID],
-                              &buf_pos, &buf_end, NULL, NULL);
-    retval |= UA_encodeBinary(content, contentType,
-                              &buf_pos, &buf_end, NULL, NULL);
+    retval |= UA_encodeBinary(&typeId, &UA_TYPES[UA_TYPES_NODEID], &buf_pos, &buf_end, NULL, NULL);
+    retval |= UA_encodeBinary(content, contentType, &buf_pos, &buf_end, NULL, NULL);
     if(retval != UA_STATUSCODE_GOOD) {
         connection->releaseSendBuffer(connection, &buf);
         return retval;
@@ -246,21 +247,25 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel,
     size_t total_length = pre_sig_length;
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
-        total_length += securityPolicy->asymmetricModule.cryptoModule.signatureAlgorithm.
-            getLocalSignatureSize(securityPolicy, channel->channelContext);
+        total_length += sp->asymmetricModule.cryptoModule.signatureAlgorithm.
+            getLocalSignatureSize(sp, channel->channelContext);
 
     /* The total message length is known here which is why we encode the headers
      * at this step and not earlier. */
     size_t finalLength = 0;
     retval = prependHeadersAsym(channel, buf.data, buf_end, total_length,
                                 securityHeaderLength, requestId, &finalLength);
-    if(retval != UA_STATUSCODE_GOOD)
-        goto error;
+    if(retval != UA_STATUSCODE_GOOD) {
+        connection->releaseSendBuffer(connection, &buf);
+        return retval;
+    }
 
 #ifdef UA_ENABLE_ENCRYPTION
     retval = signAndEncryptAsym(channel, pre_sig_length, &buf, securityHeaderLength, total_length);
-    if(retval != UA_STATUSCODE_GOOD)
-        goto error;
+    if(retval != UA_STATUSCODE_GOOD) {
+        connection->releaseSendBuffer(connection, &buf);
+        return retval;
+    }
 #endif
 
     /* Send the message, the buffer is freed in the network layer */
@@ -269,10 +274,6 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel,
 #ifdef UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
     retval |= sendAsym_sendFailure;
 #endif
-    return retval;
-
-error:
-    connection->releaseSendBuffer(connection, &buf);
     return retval;
 }
 
