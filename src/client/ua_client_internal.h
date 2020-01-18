@@ -199,6 +199,9 @@ UA_Client_getEndpointsInternal(UA_Client *client, const UA_String endpointUrl,
                                size_t *endpointDescriptionsSize,
                                UA_EndpointDescription **endpointDescriptions);
 
+UA_Boolean
+endpointUnconfigured(UA_Client *client);
+
 /* Receive and process messages until a synchronous message arrives or the
  * timout finishes */
 UA_StatusCode

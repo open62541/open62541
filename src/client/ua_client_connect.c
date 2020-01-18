@@ -926,6 +926,18 @@ verifyClientApplicationURI(const UA_Client *client) {
 }
 #endif
 
+UA_Boolean
+endpointUnconfigured(UA_Client *client) {
+    UA_Byte test = 0;
+    UA_Byte *pos = (UA_Byte*)&client->config.endpoint;
+    for(size_t i = 0; i < sizeof(UA_EndpointDescription); i++)
+        test = test | pos[i];
+    pos = (UA_Byte*)&client->config.userTokenPolicy;
+    for(size_t i = 0; i < sizeof(UA_UserTokenPolicy); i++)
+        test = test | pos[i];
+    return (test == 0);
+}
+
 UA_StatusCode
 UA_Client_connectInternal(UA_Client *client, const UA_String endpointUrl) {
     if(client->state >= UA_CLIENTSTATE_CONNECTED)
@@ -940,14 +952,7 @@ UA_Client_connectInternal(UA_Client *client, const UA_String endpointUrl) {
 #endif
 
     /* Get endpoints only if the description has not been touched (memset to zero) */
-    UA_Byte test = 0;
-    UA_Byte *pos = (UA_Byte*)&client->config.endpoint;
-    for(size_t i = 0; i < sizeof(UA_EndpointDescription); i++)
-        test = test | pos[i];
-    pos = (UA_Byte*)&client->config.userTokenPolicy;
-    for(size_t i = 0; i < sizeof(UA_UserTokenPolicy); i++)
-        test = test | pos[i];
-    UA_Boolean getEndpoints = (test == 0);
+    UA_Boolean getEndpoints = endpointUnconfigured(client);
 
     /* Connect up to the SecureChannel */
     UA_StatusCode retval = UA_Client_connectTCPSecureChannel(client, endpointUrl);
