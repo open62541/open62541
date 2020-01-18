@@ -259,7 +259,7 @@ processAsyncResponse(UA_Client *client, UA_UInt32 requestId, const UA_NodeId *re
 static void
 processServiceResponse(void *application, UA_SecureChannel *channel,
                        UA_MessageType messageType, UA_UInt32 requestId,
-                       const UA_ByteString *message) {
+                       UA_ByteString *message) {
     SyncResponseDescription *rd = (SyncResponseDescription*)application;
 
     /* Process undecoded OPN forwarded from the SecureChannel */

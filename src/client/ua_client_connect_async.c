@@ -189,7 +189,7 @@ processOPNResponseDecoded(UA_Client *client, const UA_ByteString *message) {
 void
 decodeProcessOPNResponseAsync(void *application, UA_SecureChannel *channel,
                               UA_MessageType messageType, UA_UInt32 requestId,
-                              const UA_ByteString *msg) {
+                              UA_ByteString *msg) {
     UA_Client *client = (UA_Client*)application;
 
     /* Skip the first header. We know length and message type. */

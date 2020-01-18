@@ -12,6 +12,7 @@
  */
 
 #include <open62541/types_generated_encoding_binary.h>
+#include <open62541/transport_generated_encoding_binary.h>
 #include <open62541/transport_generated_handling.h>
 
 #include "ua_securechannel.h"
@@ -454,7 +455,7 @@ setBufPos(UA_MessageContext *mc) {
 /* Process a received Chunk */
 /****************************/
 
-UA_StatusCode
+static UA_StatusCode
 decryptChunk(const UA_SecureChannel *const channel,
              const UA_SecurityPolicyCryptoModule *const cryptoModule,
              UA_MessageType const messageType, const UA_ByteString *const chunk,
@@ -485,7 +486,7 @@ decryptChunk(const UA_SecureChannel *const channel,
     return UA_STATUSCODE_GOOD;
 }
 
-UA_UInt16
+static UA_UInt16
 decodeChunkPaddingSize(const UA_SecureChannel *channel,
                        const UA_SecurityPolicyCryptoModule *cryptoModule,
                        UA_MessageType messageType, const UA_ByteString *chunk,
@@ -517,7 +518,7 @@ decodeChunkPaddingSize(const UA_SecureChannel *channel,
     return (UA_UInt16)paddingSize;
 }
 
-UA_StatusCode
+static UA_StatusCode
 verifyChunk(const UA_SecureChannel *channel,
             const UA_SecurityPolicyCryptoModule *cryptoModule,
             const UA_ByteString *chunk,
@@ -535,6 +536,60 @@ verifyChunk(const UA_SecureChannel *channel,
 #endif
 
     return retval;
+}
+
+/* Sets the payload to a pointer inside the chunk buffer. Returns the requestId
+ * and the sequenceNumber */
+UA_StatusCode
+decryptAndVerifyChunk(const UA_SecureChannel *channel,
+                      const UA_SecurityPolicyCryptoModule *cryptoModule,
+                      UA_MessageType messageType, UA_ByteString *chunk,
+                      size_t offset, UA_UInt32 *requestId,
+                      UA_UInt32 *sequenceNumber, UA_ByteString *payload) {
+    size_t chunkSizeAfterDecryption = chunk->length;
+    UA_StatusCode retval = decryptChunk(channel, cryptoModule, messageType,
+                                        chunk, offset, &chunkSizeAfterDecryption);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    /* Verify the chunk signature */
+    size_t sigsize = 0;
+    size_t paddingSize = 0;
+    const UA_SecurityPolicy *securityPolicy = channel->securityPolicy;
+    if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
+       channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT ||
+       messageType == UA_MESSAGETYPE_OPN) {
+        sigsize = cryptoModule->signatureAlgorithm.
+            getRemoteSignatureSize(securityPolicy, channel->channelContext);
+        paddingSize = decodeChunkPaddingSize(channel, cryptoModule, messageType, chunk,
+                                             chunkSizeAfterDecryption, sigsize);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+
+        if(offset + paddingSize + sigsize >= chunkSizeAfterDecryption)
+            return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+
+        retval = verifyChunk(channel, cryptoModule, chunk, chunkSizeAfterDecryption, sigsize);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
+
+    /* Decode the sequence header */
+    UA_SequenceHeader sequenceHeader;
+    retval = UA_SequenceHeader_decodeBinary(chunk, &offset, &sequenceHeader);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    if(offset + paddingSize + sigsize >= chunk->length)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    *requestId = sequenceHeader.requestId;
+    *sequenceNumber = sequenceHeader.sequenceNumber;
+    payload->data = chunk->data + offset;
+    payload->length = chunkSizeAfterDecryption - offset - sigsize - paddingSize;
+    UA_LOG_TRACE_CHANNEL(channel->securityPolicy->logger, channel,
+                         "Decrypted and verified chunk with request id %u and "
+                         "sequence number %u", *requestId, *sequenceNumber);
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
