@@ -1416,7 +1416,7 @@ removeIncomingReferences(UA_Server *server, UA_Session *session,
     UA_DeleteReferencesItem item;
     UA_DeleteReferencesItem_init(&item);
     item.targetNodeId.nodeId = node->nodeId;
-    item.deleteBidirectional = false;
+    item.deleteBidirectional = true;
     UA_StatusCode dummy;
     for(size_t i = 0; i < node->referencesSize; ++i) {
         UA_NodeReferenceKind *refs = &node->references[i];
