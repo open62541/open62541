@@ -57,21 +57,20 @@ signCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
 
 void
 Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
-                      const UA_CreateSessionRequest *request,
+                      UA_Session *session, const UA_CreateSessionRequest *request,
                       UA_CreateSessionResponse *response) {
     UA_LOCK_ASSERT(server->serviceMutex, 1);
-
-    if(!channel) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
-        return;
-    }
-
-    if(!channel->connection) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
-        return;
-    }
-
     UA_LOG_DEBUG_CHANNEL(&server->config.logger, channel, "Trying to create session");
+
+    /* Using CreateSession in the context of an existing session is not allowed. */
+    if(session) {
+        UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
+                               "The client certificate did not validate");
+        UA_SessionManager_removeSession(&server->sessionManager,
+                                        &session->header.authenticationToken);
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
+        return;
+    }
 
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
@@ -221,9 +220,8 @@ checkSignature(const UA_Server *server, const UA_SecureChannel *channel,
         return UA_STATUSCODE_GOOD;
 
     /* Check for zero signature length in client signature */
-    if(request->clientSignature.signature.length == 0) {
+    if(request->clientSignature.signature.length == 0)
         return UA_STATUSCODE_BADAPPLICATIONSIGNATUREINVALID;
-    }
 
     if(!channel->securityPolicy)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -240,8 +238,8 @@ checkSignature(const UA_Server *server, const UA_SecureChannel *channel,
     memcpy(dataToVerify.data, localCertificate->data, localCertificate->length);
     memcpy(dataToVerify.data + localCertificate->length,
            session->serverNonce.data, session->serverNonce.length);
-
-    retval = securityPolicy->certificateSigningAlgorithm.verify(securityPolicy, channel->channelContext, &dataToVerify,
+    retval = securityPolicy->certificateSigningAlgorithm.verify(securityPolicy,
+                                                                channel->channelContext, &dataToVerify,
                                                                 &request->clientSignature.signature);
     UA_ByteString_clear(&dataToVerify);
     return retval;
@@ -305,18 +303,13 @@ decryptPassword(UA_SecurityPolicy *securityPolicy, void *tempChannelContext,
 }
 #endif
 
-/* TODO: Check all of the following:
- *
- * Part 4, §5.6.3: When the ActivateSession Service is called for the first time
- * then the Server shall reject the request if the SecureChannel is not same as
- * the one associated with the CreateSession request. Subsequent calls to
- * ActivateSession may be associated with different SecureChannels. If this is
- * the case then the Server shall verify that the Certificate the Client used to
- * create the new SecureChannel is the same as the Certificate used to create
- * the original SecureChannel. In addition, the Server shall verify that the
- * Client supplied a UserIdentityToken that is identical to the token currently
- * associated with the Session. Once the Server accepts the new SecureChannel it
- * shall reject requests sent via the old SecureChannel. */
+/* TODO: Check all of the following: The Server shall verify that the
+ * Certificate the Client used to create the new SecureChannel is the same as
+ * the Certificate used to create the original SecureChannel. In addition, the
+ * Server shall verify that the Client supplied a UserIdentityToken that is
+ * identical to the token currently associated with the Session. Once the Server
+ * accepts the new SecureChannel it shall reject requests sent via the old
+ * SecureChannel. */
 
 void
 Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
@@ -325,13 +318,26 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Execute ActivateSession");
     UA_LOCK_ASSERT(server->serviceMutex, 1);
 
+    /* The Session was not bound to this SecureChannel. It could be that we want
+     * to transfer/activate a Session from another SecureChannel.
+     *
+     * Part 4, §5.6.3: When the ActivateSession Service is called for the first
+     * time then the Server shall reject the request if the SecureChannel is not
+     * same as the one associated with the CreateSession request. Subsequent
+     * calls to ActivateSession may be associated with different
+     * SecureChannels. */
+    if(!session) {
+        session = UA_SessionManager_getSessionByToken(&server->sessionManager,
+                                                      &request->requestHeader.authenticationToken);
+        if(!session || !session->activated) {
+            response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
+            return;
+        }
+    }
+
+    /* Has the session timed out? */
     if(session->validTill < UA_DateTime_nowMonotonic()) {
-        UA_LOG_INFO_SESSION(&server->config.logger, session,
-                            "ActivateSession: SecureChannel %i wants "
-                            "to activate, but the session has timed out",
-                            channel->securityToken.channelId);
-        response->responseHeader.serviceResult =
-            UA_STATUSCODE_BADSESSIONIDINVALID;
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
         return;
     }
 
@@ -520,11 +526,17 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
 }
 
 void
-Service_CloseSession(UA_Server *server, UA_Session *session,
+Service_CloseSession(UA_Server *server, UA_SecureChannel *channel, UA_Session *session,
                      const UA_CloseSessionRequest *request,
                      UA_CloseSessionResponse *response) {
     UA_LOG_INFO_SESSION(&server->config.logger, session, "CloseSession");
     UA_LOCK_ASSERT(server->serviceMutex, 1);
+
+    /* The Session was not bound to this SecureChannel. (Does not have to be activated.) */
+    if(!session) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
+        return;
+    }
 
     response->responseHeader.serviceResult =
         UA_SessionManager_removeSession(&server->sessionManager,

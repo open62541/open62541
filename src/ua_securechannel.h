@@ -103,6 +103,9 @@ struct UA_SecureChannel {
     UA_UInt32 receiveSequenceNumber;
     UA_UInt32 sendSequenceNumber;
 
+    /* The standard does not forbid a SecureChannel to carry several Sessions.
+     * But this is not supported here. So clients need one SecureChannel for
+     * every Session. */
     UA_SessionHeader *session;
 
     UA_ByteString incompleteChunk; /* A half-received chunk (TCP is a
