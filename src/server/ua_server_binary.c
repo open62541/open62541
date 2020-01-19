@@ -120,18 +120,18 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
         break;
 #endif
     case UA_NS0ID_CREATESESSIONREQUEST_ENCODING_DEFAULTBINARY:
-        *service = NULL; //(UA_Service)Service_CreateSession;
+        *service = (UA_Service)(uintptr_t)Service_CreateSession;
         *requestType = &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE];
         *requiresSession = false;
         break;
     case UA_NS0ID_ACTIVATESESSIONREQUEST_ENCODING_DEFAULTBINARY:
-        *service = NULL; //(UA_Service)Service_ActivateSession;
+        *service = (UA_Service)(uintptr_t)Service_ActivateSession;
         *requestType = &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_ACTIVATESESSIONRESPONSE];
         break;
     case UA_NS0ID_CLOSESESSIONREQUEST_ENCODING_DEFAULTBINARY:
-        *service = (UA_Service)Service_CloseSession;
+        *service = (UA_Service)(uintptr_t)Service_CloseSession;
         *requestType = &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_CLOSESESSIONRESPONSE];
         break;
@@ -499,53 +499,50 @@ sendResponse(UA_SecureChannel *channel, UA_UInt32 requestId, UA_UInt32 requestHa
     return UA_MessageContext_finish(&mc);
 }
 
+/* A Session is bound to at most one SecureChannel. After creation, the Session
+ * is already bound to the SecureChannel on which the CreateSession request was
+ * received. Even if the Session is not yet activated.
+ *
+ * The only way to rebind a Session to another SecureChannel is via the
+ * ActivateSession request.
+ *
+ * A Session can only be closed from the SecureChannel to which it is bound.
+ * (Also prior to ActivateSession.) */
 static UA_StatusCode
 processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 requestId,
                   UA_Service service, const UA_RequestHeader *requestHeader,
                   const UA_DataType *requestType, UA_ResponseHeader *responseHeader,
                   const UA_DataType *responseType, UA_Boolean sessionRequired) {
-    /* CreateSession doesn't need a session */
-    if(requestType == &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST]) {
+    /* Does the Session bound to the SecureChannel match the
+     * AuthenticationToken? If no session is bound, no token must be used. */
+    UA_Session *session = (UA_Session*)channel->session;
+    if((session && !UA_NodeId_equal(&session->header.authenticationToken,
+                                    &requestHeader->authenticationToken)) ||
+       (!session && !UA_NodeId_isNull(&requestHeader->authenticationToken)))
+        return sendServiceFaultWithRequest(channel, requestHeader, responseType,
+                                           requestId, UA_STATUSCODE_BADSESSIONIDINVALID);
+
+    /* Has the session timed out? */
+    if(session && session->validTill < UA_DateTime_nowMonotonic())
+        return sendServiceFaultWithRequest(channel, requestHeader, responseType,
+                                           requestId, UA_STATUSCODE_BADSESSIONIDINVALID);
+
+    /* Session lifecycle service. The session pointer can still be NULL. */
+    if(requestType == &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST] ||
+       requestType == &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST] ||
+       requestType == &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST]) {
         UA_LOCK(server->serviceMutex);
-        Service_CreateSession(server, channel,
-                              (const UA_CreateSessionRequest *)requestHeader,
-                              (UA_CreateSessionResponse *)responseHeader);
+        ((UA_SessionService)(uintptr_t)service)(server, channel, session,
+                                                requestHeader, responseHeader);
         UA_UNLOCK(server->serviceMutex);
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
-        /* Store the authentication token and session ID so we can help fuzzing
-         * by setting these values in the next request automatically */
-        UA_CreateSessionResponse *res = (UA_CreateSessionResponse *)responseHeader;
-        UA_NodeId_copy(&res->authenticationToken, &unsafe_fuzz_authenticationToken);
-#endif
-        return sendResponse(channel, requestId, requestHeader->requestHandle,
-                            responseHeader, responseType);
-    }
-
-    /* Is the session on the SecureChannel a match? */
-    UA_Session *session = (UA_Session*)channel->session;
-    if(session && !UA_NodeId_equal(&session->header.authenticationToken,
-                                   &requestHeader->authenticationToken))
-        session = NULL;
-    if(!session && !UA_NodeId_isNull(&requestHeader->authenticationToken)) {
-        UA_LOCK(server->serviceMutex);
-        session = UA_SessionManager_getSessionByToken(&server->sessionManager,
-                                                      &requestHeader->authenticationToken);
-        UA_UNLOCK(server->serviceMutex)
-    }
-
-    if(requestType == &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST]) {
-        if(!session) {
-            UA_LOG_DEBUG_CHANNEL(&server->config.logger, channel,
-                                 "Trying to activate a session that is " \
-                                 "not known in the server");
-            return sendServiceFaultWithRequest(channel, requestHeader, responseType,
-                                    requestId, UA_STATUSCODE_BADSESSIONIDINVALID);
+        /* Store the authentication token so we can help fuzzing by setting
+         * these values in the next request automatically */
+        if(requestType == &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST]) {
+            UA_CreateSessionResponse *res = (UA_CreateSessionResponse *)responseHeader;
+            UA_NodeId_copy(&res->authenticationToken, &unsafe_fuzz_authenticationToken);
         }
-        UA_LOCK(server->serviceMutex);
-        Service_ActivateSession(server, channel, session,
-                                (const UA_ActivateSessionRequest*)requestHeader,
-                                (UA_ActivateSessionResponse*)responseHeader);
-        UA_UNLOCK(server->serviceMutex);
+#endif
         return sendResponse(channel, requestId, requestHeader->requestHandle,
                             responseHeader, responseType);
     }
@@ -573,10 +570,10 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
         session = &anonymousSession;
     }
 
-    /* Trying to use a non-activated session? Do not allow if request is of type
-     * CloseSessionRequest */
-    if(sessionRequired && !session->activated &&
-       requestType != &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST]) {
+    UA_assert(session != NULL);
+
+    /* Trying to use a non-activated session? */
+    if(sessionRequired && !session->activated) {
 #ifdef UA_ENABLE_TYPEDESCRIPTION
         UA_LOG_WARNING_SESSION(&server->config.logger, session,
                                "%s refused on a non-activated session",
@@ -592,15 +589,6 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
         UA_UNLOCK(server->serviceMutex);
         return sendServiceFaultWithRequest(channel, requestHeader, responseType,
                                            requestId, UA_STATUSCODE_BADSESSIONNOTACTIVATED);
-    }
-
-    /* The session is bound to another channel */
-    if(session != &anonymousSession && session->header.channel != channel) {
-        UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
-                               "Client tries to use a Session that is not "
-                               "bound to this SecureChannel");
-        return sendServiceFaultWithRequest(channel, requestHeader, responseType,
-                                           requestId, UA_STATUSCODE_BADSECURECHANNELIDINVALID);
     }
 
     /* Update the session lifetime */
