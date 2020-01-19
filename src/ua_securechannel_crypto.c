@@ -600,14 +600,12 @@ checkAsymHeader(UA_SecureChannel *channel,
     if(!UA_ByteString_equal(&sp->policyUri, &asymHeader->securityPolicyUri))
         return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
 
-    // TODO: Verify certificate using certificate plugin. This will come with a new PR
-    /* Something like this
-    retval = certificateManager->verify(certificateStore??, &asymHeader->senderCertificate);
-    if(retval != UA_STATUSCODE_GOOD)
-    return retval;
-    */
     return sp->asymmetricModule.
         compareCertificateThumbprint(sp, &asymHeader->receiverCertificateThumbprint);
+
+    /* The certificate in the header is verified via the configured PKI plugin
+     * as certificateVerification.verifyCertificate(...). We cannot do it here
+     * because the client/server context is needed. */
 }
 
 UA_StatusCode

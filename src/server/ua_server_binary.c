@@ -435,6 +435,15 @@ decryptProcessOPN(UA_Server *server, UA_SecureChannel *channel,
         return retval;
     }
 
+    retval = server->config.certificateVerification.
+        verifyCertificate(server->config.certificateVerification.context,
+                          &asymHeader.senderCertificate);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
+                               "Could not verify the client's certificate");
+        return retval;
+    }
+
     /* After decryption, msg contains only the payload after the SequenceHeader */
     UA_UInt32 requestId = 0;
     UA_UInt32 sequenceNumber = 0;
