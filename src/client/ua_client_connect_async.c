@@ -219,6 +219,16 @@ decodeProcessOPNResponseAsync(void *application, UA_SecureChannel *channel,
         return;
     }
 
+    retval = client->config.certificateVerification.
+        verifyCertificate(client->config.certificateVerification.context,
+                          &asymHeader.senderCertificate);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING_CHANNEL(&client->config.logger, channel,
+                               "Could not verify the server's certificate");
+        UA_Client_disconnect(client);
+        return;
+    }
+
     UA_UInt32 sequenceNumber = 0;
     retval = decryptAndVerifyChunk(channel, &channel->securityPolicy->asymmetricModule.cryptoModule,
                                    UA_MESSAGETYPE_OPN, msg, offset, &requestId, &sequenceNumber);
