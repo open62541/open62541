@@ -51,23 +51,7 @@ UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    UA_StatusCode retval;
-    if(securityPolicy->certificateVerification != NULL) {
-        retval = securityPolicy->certificateVerification->
-            verifyCertificate(securityPolicy->certificateVerification->context,
-                              remoteCertificate);
-
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                           "Could not verify the remote certificate");
-            return retval;
-        }
-    } else {
-        UA_LOG_WARNING(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                       "Security policy None is used to create SecureChannel. Accepting all certificates");
-    }
-
-    retval = securityPolicy->channelModule.
+    UA_StatusCode retval = securityPolicy->channelModule.
         newContext(securityPolicy, remoteCertificate, &channel->channelContext);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,

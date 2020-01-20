@@ -477,11 +477,8 @@ static UA_StatusCode
 verifyServerApplicationURI(const UA_Server *server) {
     for(size_t i = 0; i < server->config.securityPoliciesSize; i++) {
         UA_SecurityPolicy *sp = &server->config.securityPolicies[i];
-        if(!sp->certificateVerification)
-            continue;
-        UA_StatusCode retval =
-            sp->certificateVerification->
-            verifyApplicationURI(sp->certificateVerification->context,
+        UA_StatusCode retval = server->config.certificateVerification.
+            verifyApplicationURI(server->config.certificateVerification.context,
                                  &sp->localCertificate,
                                  &server->config.applicationDescription.applicationUri);
         if(retval != UA_STATUSCODE_GOOD) {
