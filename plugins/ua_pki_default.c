@@ -204,11 +204,16 @@ certificateVerification_verify(void *verificationContext,
     reloadCertificates(ci);
 #endif
 
-    /* if(ci->certificateTrustList.raw.len == 0) { */
-    /*     UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, */
-    /*                    "No Trustlist loaded. Accepting the certificate."); */
-    /*     return UA_STATUSCODE_GOOD; */
-    /* } */
+    if(ci->trustListFolder.length == 0 &&
+       ci->issuerListFolder.length == 0 &&
+       ci->revocationListFolder.length == 0 &&
+       ci->certificateTrustList.raw.len == 0 &&
+       ci->certificateIssuerList.raw.len == 0 &&
+       ci->certificateRevocationList.raw.len == 0) {
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                       "PKI plugin unconfigured. Accepting the certificate.");
+        return UA_STATUSCODE_GOOD;
+    }
 
     /* Parse the certificate */
     mbedtls_x509_crt remoteCertificate;
