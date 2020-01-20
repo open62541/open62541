@@ -210,21 +210,24 @@ decodeProcessOPNResponseAsync(void *application, UA_SecureChannel *channel,
         return;
     }
 
+    /* Verify the certificate before creating the SecureChannel with it */
+    if(asymHeader.senderCertificate.length > 0) {
+        retval = client->config.certificateVerification.
+            verifyCertificate(client->config.certificateVerification.context,
+                              &asymHeader.senderCertificate);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING_CHANNEL(&client->config.logger, channel,
+                                   "Could not verify the server's certificate");
+            UA_Client_disconnect(client);
+            return;
+        }
+    }
+
     retval = checkAsymHeader(channel, &asymHeader);
     UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_CHANNEL(&client->config.logger, channel,
                                "Could not verify the OPN header");
-        UA_Client_disconnect(client);
-        return;
-    }
-
-    retval = client->config.certificateVerification.
-        verifyCertificate(client->config.certificateVerification.context,
-                          &asymHeader.senderCertificate);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_CHANNEL(&client->config.logger, channel,
-                               "Could not verify the server's certificate");
         UA_Client_disconnect(client);
         return;
     }
