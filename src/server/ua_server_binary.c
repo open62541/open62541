@@ -517,11 +517,10 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
                   const UA_DataType *requestType, UA_ResponseHeader *responseHeader,
                   const UA_DataType *responseType, UA_Boolean sessionRequired) {
     /* Does the Session bound to the SecureChannel match the
-     * AuthenticationToken? If no session is bound, no token must be used. */
+     * AuthenticationToken? */
     UA_Session *session = (UA_Session*)channel->session;
-    if((session && !UA_NodeId_equal(&session->header.authenticationToken,
-                                    &requestHeader->authenticationToken)) ||
-       (!session && !UA_NodeId_isNull(&requestHeader->authenticationToken)))
+    if(session && !UA_NodeId_equal(&session->header.authenticationToken,
+                                   &requestHeader->authenticationToken))
         return sendServiceFaultWithRequest(channel, requestHeader, responseType,
                                            requestId, UA_STATUSCODE_BADSESSIONIDINVALID);
 
