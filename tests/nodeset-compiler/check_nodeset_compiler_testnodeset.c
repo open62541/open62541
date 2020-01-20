@@ -107,6 +107,26 @@ START_TEST(readValueRank) {
 }
 END_TEST
 
+START_TEST(checkFrameValues) {
+        UA_Variant out;
+        UA_Variant_init(&out);
+        // Frame variable
+        UA_Server_readValue(server, UA_NODEID_NUMERIC(2, 15235), &out);
+        ck_assert(out.type == &UA_TYPES[UA_TYPES_THREEDFRAME]);
+        UA_ThreeDFrame *f = (UA_ThreeDFrame *)out.data;
+        ck_assert(UA_Variant_isScalar(&out));
+        ck_assert(out.arrayLength == 0);
+        ck_assert(out.arrayDimensionsSize == 0);
+        ck_assert(f[0].cartesianCoordinates.x == (UA_Double)0.123);
+        ck_assert(f[0].cartesianCoordinates.y == (UA_Double)456.7);
+        ck_assert(f[0].cartesianCoordinates.z == (UA_Double)89);
+        ck_assert(f[0].orientation.a == (UA_Double)0.12);
+        ck_assert(f[0].orientation.b == (UA_Double)3.4);
+        ck_assert(f[0].orientation.c == (UA_Double)56);
+        UA_Variant_clear(&out);
+    }
+END_TEST
+
 static Suite *testSuite_Client(void) {
     Suite *s = suite_create("Server Nodeset Compiler");
     TCase *tc_server = tcase_create("Server Testnodeset");
@@ -115,6 +135,7 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_server, checkScalarValues);
     tcase_add_test(tc_server, check1dimValues);
     tcase_add_test(tc_server, readValueRank);
+    tcase_add_test(tc_server, checkFrameValues);
     suite_add_tcase(s, tc_server);
     return s;
 }
