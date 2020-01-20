@@ -103,17 +103,14 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         return;
     }
 
-    /* TODO: Compare application URI with certificate uri (decode certificate) */
-    UA_CertificateVerification *cv = channel->securityPolicy->certificateVerification;
-    if(cv && cv->verifyApplicationURI) {
-        response->responseHeader.serviceResult =
-            cv->verifyApplicationURI(cv->context, &request->clientCertificate,
-                                     &request->clientDescription.applicationUri);
-        if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
-                                   "The client's ApplicationURI did not match the certificate");
-            return;
-        }
+    UA_CertificateVerification *cv = &server->config.certificateVerification;
+    response->responseHeader.serviceResult =
+        cv->verifyApplicationURI(cv->context, &request->clientCertificate,
+                                 &request->clientDescription.applicationUri);
+    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
+                               "The client's ApplicationURI did not match the certificate");
+        return;
     }
 
     UA_Session *newSession = NULL;

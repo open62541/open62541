@@ -881,11 +881,9 @@ verifyClientApplicationURI(const UA_Client *client) {
 #if UA_LOGLEVEL <= 400
     for(size_t i = 0; i < client->config.securityPoliciesSize; i++) {
         UA_SecurityPolicy *sp = &client->config.securityPolicies[i];
-        if(!sp->certificateVerification)
-            continue;
         UA_StatusCode retval =
-            sp->certificateVerification->
-            verifyApplicationURI(sp->certificateVerification->context,
+            client->config.certificateVerification.
+            verifyApplicationURI(client->config.certificateVerification.context,
                                  &sp->localCertificate,
                                  &client->config.clientDescription.applicationUri);
         if(retval != UA_STATUSCODE_GOOD) {
