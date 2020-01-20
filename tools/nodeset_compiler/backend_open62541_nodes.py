@@ -12,8 +12,10 @@
 ###    Copyright 2018 (c) Jannis Volker
 ###    Copyright 2018 (c) Ralph Lange
 
-from nodes import *
-from backend_open62541_datatypes import *
+from datatypes import  ExtensionObject, NodeId, StatusCode, DiagnosticInfo, Guid, Value
+from nodes import ReferenceTypeNode, ObjectNode, VariableNode, VariableTypeNode, MethodNode, ObjectTypeNode, DataTypeNode, ViewNode
+from backend_open62541_datatypes import makeCIdentifier, generateLocalizedTextCode, generateQualifiedNameCode, generateNodeIdCode, \
+    generateExpandedNodeIdCode, generateNodeValueCode
 import re
 import logging
 
