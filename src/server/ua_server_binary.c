@@ -751,6 +751,10 @@ processSecureChannelMessage(void *application, UA_SecureChannel *channel,
         UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
                             "Processing the message failed with StatusCode %s. "
                             "Closing the channel.", UA_StatusCode_name(retval));
+        UA_TcpErrorMessage errMsg;
+        UA_TcpErrorMessage_init(&errMsg);
+        errMsg.error = retval;
+        UA_Connection_sendError(channel->connection, &errMsg);
         Service_CloseSecureChannel(server, channel);
     }
 }
