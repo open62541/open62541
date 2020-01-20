@@ -396,9 +396,9 @@ certificateVerification_verify(void *verificationContext,
     if(mbedErr) {
 #if UA_LOGLEVEL <= 400
         char buff[100];
-        mbedtls_x509_crt_verify_info(buff, 100, "", flags);
+        int len = mbedtls_x509_crt_verify_info(buff, 100, "", flags);
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SECURITYPOLICY,
-                       "Verifying the certificate failed with error: %s", buff);
+                       "Verifying the certificate failed with error: %.*s", len-1, buff);
 #endif
         if(flags & (uint32_t)MBEDTLS_X509_BADCERT_NOT_TRUSTED) {
             retval = UA_STATUSCODE_BADCERTIFICATEUNTRUSTED;
