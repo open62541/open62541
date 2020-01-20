@@ -261,7 +261,12 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, global_var_code, i
     logger.debug("Building extensionObject for " + str(parent.id))
     logger.debug("Encoding " + str(node.encodingRule))
 
-    typeBrowseNode = makeCIdentifier(nodeset.getDataTypeNode(parent.dataType).browseName.name)
+    parentDataType = nodeset.getDataTypeNode(parent.dataType)
+    parentDataTypeName = nodeset.getDataTypeNode(parent.dataType).browseName.name
+    if parentDataType.symbolicName is not None and parentDataType.symbolicName.value is not None:
+        parentDataTypeName = parentDataType.symbolicName.value
+
+    typeBrowseNode = makeCIdentifier(parentDataTypeName)
     #TODO: review this
     if typeBrowseNode == "NumericRange":
         # in the stack we define a separate structure for the numeric range, but
@@ -274,8 +279,7 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, global_var_code, i
         instanceName = generateNodeValueInstanceName(node, parent, 0)
         code.append("UA_STACKARRAY(" + typeString + ", " + instanceName + ", 1);")
     typeArr = nodeset.getDataTypeNode(parent.dataType).typesArray
-    typeString = nodeset.getDataTypeNode(parent.dataType).browseName.name.upper()
-    typeArrayString = typeArr + "[" + typeArr + "_" + typeString + "]"
+    typeArrayString = typeArr + "[" + typeArr + "_" + parentDataTypeName.upper() + "]"
     code.append("UA_init({ref}{instanceName}, &{typeArrayString});".format(ref="&" if isArrayElement else "",
                                                                            instanceName=instanceName,
                                                                            typeArrayString=typeArrayString))
@@ -306,7 +310,7 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, global_var_code, i
                                                                               typeArrayString=encTypeArrayString))
 
             for subArrayIdx,val in enumerate(subv):
-                code.append(generateNodeValueCode(instanceNameSafe + "_" + memberName + "[" + str(subArrayIdx) + "]" +" = ",
+                code.append(generateNodeValueCode(instanceNameSafe + "_" + memberName + "[" + str(subArrayIdx) + "]",
                                                   val, instanceName,instanceName + "_gehtNed_member", global_var_code, asIndirect=False))
             code.append(instanceName + accessor + memberName + "Size = {0};".format(len(subv)))
             code.append(instanceName + accessor + memberName + " = " + instanceNameSafe+"_"+ memberName+";")
@@ -317,11 +321,11 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, global_var_code, i
             if not subv.isNone():
                 # Some values can be optional
                 valueName = instanceName + accessor + memberName
-                code.append(generateNodeValueCode(valueName + " = " ,
+                code.append(generateNodeValueCode(valueName,
                             subv, instanceName,valueName, global_var_code, asIndirect=False))
         else:
             memberName = lowerFirstChar(encField[0])
-            code.append(generateNodeValueCode(instanceName + accessor + memberName + "Size = ", subv,
+            code.append(generateNodeValueCode(instanceName + accessor + memberName + "Size", subv,
                                               instanceName,valueName, global_var_code, asIndirect=False))
 
     if not isArrayElement:
@@ -401,7 +405,7 @@ def generateValueCode(node, parentNode, nodeset, bootstrapping=True):
                 for idx, v in enumerate(node.value):
                     instanceName = generateNodeValueInstanceName(v, parentNode, idx)
                     code.append(generateNodeValueCode(
-                        valueName + "[" + str(idx) + "] = " , v, instanceName, valueName, codeGlobal))
+                        valueName + "[" + str(idx) + "]" , v, instanceName, valueName, codeGlobal))
             code.append("UA_Variant_setArray(&attr.value, &" + valueName +
                         ", (UA_Int32) " + str(len(node.value)) + ", " + "&" +
                         dataTypeNode.typesArray + "["+dataTypeNode.typesArray + "_" + getTypeBrowseName(dataTypeNode).upper() +"]);")
@@ -427,7 +431,7 @@ def generateValueCode(node, parentNode, nodeset, bootstrapping=True):
                     0].__class__.__name__ + "_new();")
                 code.append("if (!" + valueName + ") return UA_STATUSCODE_BADOUTOFMEMORY;")
                 code.append("UA_" + node.value[0].__class__.__name__ + "_init(" + valueName + ");")
-                code.append(generateNodeValueCode("*" + valueName + " = " , node.value[0], instanceName, valueName, codeGlobal, asIndirect=True))
+                code.append(generateNodeValueCode("*" + valueName, node.value[0], instanceName, valueName, codeGlobal, asIndirect=True))
                 code.append(
                         "UA_Variant_setScalar(&attr.value, " + valueName + ", " +
                         getTypesArrayForValue(nodeset, node.value[0]) + ");")

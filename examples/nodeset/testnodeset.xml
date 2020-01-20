@@ -553,4 +553,34 @@
             <Reference ReferenceType="Organizes" IsForward="false">ns=1;i=5001</Reference>
         </References>
     </UAVariable>
+
+    <UAVariable NodeId="ns=1;i=15235" BrowseName="1:Frame" DataType="i=18814">
+        <DisplayName>Frame</DisplayName>
+        <Description>Three Dimensional Frame data</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=18791</Reference>
+            <Reference ReferenceType="Organizes" IsForward="false">ns=1;i=5001</Reference>
+        </References>
+        <Value>
+            <ExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+                <TypeId>
+                    <Identifier>i=18814</Identifier>
+                </TypeId>
+                <Body>
+                    <ThreeDFrame>
+                        <CartesianCoordinates>
+                            <X>0.123</X>
+                            <Y>456.7</Y>
+                            <Z>89</Z>
+                        </CartesianCoordinates>
+                        <Orientation>
+                            <A>0.12</A>
+                            <B>3.4</B>
+                            <C>56</C>
+                        </Orientation>
+                    </ThreeDFrame>
+                </Body>
+            </ExtensionObject>
+        </Value>
+    </UAVariable>
 </UANodeSet>

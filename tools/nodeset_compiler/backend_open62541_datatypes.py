@@ -99,27 +99,27 @@ def generateDateTimeCode(value):
 
 def generateNodeValueCode(prepend , node, instanceName, valueName, global_var_code, asIndirect=False):
     if type(node) in [Boolean, Byte, SByte, Int16, UInt16, Int32, UInt32, Int64, UInt64, Float, Double]:
-        return prepend + "(UA_" + node.__class__.__name__ + ") " + str(node.value) + ";"
+        return prepend + " = (UA_" + node.__class__.__name__ + ") " + str(node.value) + ";"
     elif type(node) == String:
-        return prepend + generateStringCode(node.value, alloc=asIndirect) + ";"
+        return prepend + " = " + generateStringCode(node.value, alloc=asIndirect) + ";"
     elif type(node) == XmlElement:
-        return prepend + generateXmlElementCode(node.value, alloc=asIndirect) + ";"
+        return prepend + " = " + generateXmlElementCode(node.value, alloc=asIndirect) + ";"
     elif type(node) == ByteString:
         # replace whitespaces between tags and remove newlines
-        return prepend + "UA_BYTESTRING_NULL;" if not node.value else generateByteStringCode(
+        return prepend + " = UA_BYTESTRING_NULL;" if not node.value else generateByteStringCode(
             node.value, valueName, global_var_code, isPointer=asIndirect)
         # the replacements done here is just for the array form can be workable in C code. It doesn't couses any problem
         # because the core data used here is already in byte form. So, there is no way we disturb it.
     elif type(node) == LocalizedText:
-        return prepend + generateLocalizedTextCode(node, alloc=asIndirect) + ";"
+        return prepend + " = " + generateLocalizedTextCode(node, alloc=asIndirect) + ";"
     elif type(node) == NodeId:
-        return prepend + generateNodeIdCode(node) + ";"
+        return prepend + " = " + generateNodeIdCode(node) + ";"
     elif type(node) == ExpandedNodeId:
-        return prepend + generateExpandedNodeIdCode(node) + ";"
+        return prepend + " = " + generateExpandedNodeIdCode(node) + ";"
     elif type(node) == DateTime:
-        return prepend + generateDateTimeCode(node.value) + ";"
+        return prepend + " = " + generateDateTimeCode(node.value) + ";"
     elif type(node) == QualifiedName:
-        return prepend + generateQualifiedNameCode(node.value, alloc=asIndirect) + ";"
+        return prepend + " = " + generateQualifiedNameCode(node.value, alloc=asIndirect) + ";"
     elif type(node) == StatusCode:
         raise Exception("generateNodeValueCode for type " + node.__class__.name + " not implemented")
     elif type(node) == DiagnosticInfo:
@@ -128,5 +128,13 @@ def generateNodeValueCode(prepend , node, instanceName, valueName, global_var_co
         raise Exception("generateNodeValueCode for type " + node.__class__.name + " not implemented")
     elif type(node) == ExtensionObject:
         if asIndirect == False:
-            return prepend + "*" + str(instanceName) + ";"
-        return prepend + str(instanceName) + ";"
+            return prepend + " = *" + str(instanceName) + ";"
+        return prepend + " = " + str(instanceName) + ";"
+    elif type(node) == Structure:
+        code = []
+        for idx,subv in enumerate(node.value):
+            code.append(generateNodeValueCode(prepend + "." + subv.alias.lower(), subv, instanceName, valueName, global_var_code, asIndirect))
+        return "\n".join(code)
+
+
+
