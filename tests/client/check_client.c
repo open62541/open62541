@@ -206,13 +206,22 @@ START_TEST(Client_renewSecureChannelWithActiveSubscription) {
     UA_CreateSubscriptionResponse response = UA_Client_Subscriptions_create(client, request,
                                                                             NULL, NULL, NULL);
 
-    (void)response;
+    UA_CreateSubscriptionResponse_clear(&response);
+
+    /* manually control the server thread */
+    running = false;
+    THREAD_JOIN(server_thread);
 
     for(int i = 0; i < 15; ++i) {
-        UA_sleep_ms(1000);
+        UA_fakeSleep(1000);
+        UA_Server_run_iterate(server, true);
         retval = UA_Client_run_iterate(client, 0);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
+
+    /* run the server in an independent thread again */
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
