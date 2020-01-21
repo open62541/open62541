@@ -54,6 +54,17 @@ def getNodeidTypeAndId(nodeId):
         strId = nodeId[2:]
         return "UA_NODEIDTYPE_STRING, {{ .string = UA_STRING_STATIC(\"{id}\") }}".format(id=strId.replace("\"", "\\\""))
 
+def hasOptionalFields(datatype):
+    for m in datatype.members:
+        if m.is_optional:
+            return True
+    return False
+
+def getLastOptionalFieldName(datatype):
+    for m in datatype.members:
+        if m.is_optional:
+            o = m
+    return o.name
 
 class CGenerator(object):
     def __init__(self, parser, inname, outfile, is_internal_types):
@@ -87,6 +98,11 @@ class CGenerator(object):
         if isinstance(datatype, OpaqueType):
             return "UA_DATATYPEKIND_" + datatype.base_type.upper()
         if isinstance(datatype, StructType):
+            for m in datatype.members:
+                if m.is_optional:
+                    return "UA_DATATYPEKIND_OPTSTRUCT"
+            if datatype.is_union:
+                return "UA_DATATYPEKIND_UNION"
             return "UA_DATATYPEKIND_STRUCTURE"
         raise RuntimeError("Unknown type")
 
@@ -159,7 +175,15 @@ class CGenerator(object):
                 member.member_type.outname.upper(), makeCIdentifier(member.member_type.name.upper()))
             m += "    "
             if not before:
-                m += "0,"
+                if hasOptionalFields(datatype):
+                    last_optField = getLastOptionalFieldName(datatype)
+                    if member.is_array:
+                        m += "offsetof(UA_%s, %sSize)" % (idName, member_name)
+                    else:
+                        m += "offsetof(UA_%s, %s)" % (idName, member_name)
+                    m += " - offsetof(UA_%s, has%s) - sizeof(UA_Boolean)," % (idName, last_optField[0].upper() + last_optField[1:])
+                else:
+                    m += "0,"
             else:
                 if member.is_array:
                     m += "offsetof(UA_%s, %sSize)" % (idName, member_name)
@@ -172,7 +196,8 @@ class CGenerator(object):
                     m += " - sizeof(UA_%s)," % makeCIdentifier(before.member_type.name)
             m += " /* .padding */\n"
             m += "    %s, /* .namespaceZero */\n" % ("true" if member.member_type.ns0 else "false")
-            m += ("    true" if member.is_array else "    false") + " /* .isArray */\n}"
+            m += ("    true," if member.is_array else "    false,") + " /* .isArray */\n"
+            m += ("    true" if member.is_optional else "    false") + " /* .isOptional */\n}"
             if i != size:
                 m += ","
             members += m
@@ -245,6 +270,10 @@ class CGenerator(object):
         if len(struct.members) == 0:
             return "typedef void * UA_%s;" % makeCIdentifier(struct.name)
         returnstr = "typedef struct {\n"
+        for member in struct.members:
+            if member.is_optional:
+                n = makeCIdentifier(member.name)
+                returnstr += "    UA_Boolean has%s;\n" % (n[:1].upper() + n[1:])
         for member in struct.members:
             if member.is_array:
                 returnstr += "    size_t %sSize;\n" % makeCIdentifier(member.name)

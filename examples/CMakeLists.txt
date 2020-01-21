@@ -171,6 +171,9 @@ endif()
 add_example(custom_datatype_client custom_datatype/client_types_custom.c)
 add_example(custom_datatype_server custom_datatype/server_types_custom.c)
 
+add_example(optStruct_union_server optStruct_union/server_optStruct_union.c)
+add_example(optStruct_union_client optStruct_union/client_optStruct_union.c)
+
 if(UA_ENABLE_NODEMANAGEMENT)
     add_example(access_control_server access_control/server_access_control.c)
     add_example(access_control_client access_control/client_access_control.c)

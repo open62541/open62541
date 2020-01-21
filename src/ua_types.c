@@ -46,6 +46,8 @@ typedef void (*UA_clearSignature)(void *p, const UA_DataType *type);
 extern const UA_copySignature copyJumpTable[UA_DATATYPEKINDS];
 extern const UA_clearSignature clearJumpTable[UA_DATATYPEKINDS];
 
+static size_t getOptFieldsSize(const UA_DataType *type);
+
 /* TODO: The standard-defined types are ordered. See if binary search is
  * more efficient. */
 const UA_DataType *
@@ -1004,8 +1006,16 @@ copyGuid(const UA_Guid *src, UA_Guid *dst, const UA_DataType *_) {
 static UA_StatusCode
 copyStructure(const void *src, void *dst, const UA_DataType *type) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    size_t optFieldsSize = getOptFieldsSize(type);
     uintptr_t ptrs = (uintptr_t)src;
     uintptr_t ptrd = (uintptr_t)dst;
+    if(optFieldsSize){
+        for(size_t h = 0; h < optFieldsSize; h++){
+            retval |= copyJumpTable[UA_DATATYPEKIND_BOOLEAN]((const void*)ptrs, (void*)ptrd, &UA_TYPES[UA_TYPES_BOOLEAN]);
+            ptrs += sizeof(UA_Boolean);
+            ptrd += sizeof(UA_Boolean);
+        }
+    }
     const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
     for(size_t i = 0; i < type->membersSize; ++i) {
         const UA_DataTypeMember *m= &type->members[i];
@@ -1040,6 +1050,15 @@ copyNotImplemented(const void *src, void *dst, const UA_DataType *type) {
     return UA_STATUSCODE_BADNOTIMPLEMENTED;
 }
 
+static size_t
+getOptFieldsSize(const UA_DataType *type){
+    size_t s = 0;
+    for(size_t i = 0; i < type->membersSize; i++) {
+        if((type->members[i]).isOptional) s++;
+    }
+    return s;
+}
+
 const UA_copySignature copyJumpTable[UA_DATATYPEKINDS] = {
     (UA_copySignature)copyByte, /* Boolean */
     (UA_copySignature)copyByte, /* SByte */
@@ -1069,8 +1088,8 @@ const UA_copySignature copyJumpTable[UA_DATATYPEKINDS] = {
     (UA_copySignature)copyNotImplemented, /* Decimal */
     (UA_copySignature)copy4Byte, /* Enumeration */
     (UA_copySignature)copyStructure,
-    (UA_copySignature)copyNotImplemented, /* Structure with Optional Fields */
-    (UA_copySignature)copyNotImplemented, /* Union */
+    (UA_copySignature)copyStructure, /* Structure with Optional Fields */
+    (UA_copySignature)copyStructure, /* Union */
     (UA_copySignature)copyNotImplemented /* BitfieldCluster*/
 };
 
@@ -1086,6 +1105,11 @@ UA_copy(const void *src, void *dst, const UA_DataType *type) {
 static void
 clearStructure(void *p, const UA_DataType *type) {
     uintptr_t ptr = (uintptr_t)p;
+    size_t optFieldsSize = getOptFieldsSize(type);
+    if(optFieldsSize){
+        clearJumpTable[UA_DATATYPEKIND_BOOLEAN]((void*)ptr, &UA_TYPES[UA_TYPES_BOOLEAN]);
+        ptr += sizeof(UA_Boolean);
+    }
     const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
     for(size_t i = 0; i < type->membersSize; ++i) {
         const UA_DataTypeMember *m = &type->members[i];
@@ -1136,8 +1160,8 @@ UA_clearSignature clearJumpTable[UA_DATATYPEKINDS] = {
     (UA_clearSignature)nopClear, /* Decimal, not implemented */
     (UA_clearSignature)nopClear, /* Enumeration */
     (UA_clearSignature)clearStructure,
-    (UA_clearSignature)nopClear, /* Struct with Optional Fields, not implemented*/
-    (UA_clearSignature)nopClear, /* Union, not implemented*/
+    (UA_clearSignature)clearStructure, /* Struct with Optional Fields, not implemented*/
+    (UA_clearSignature)clearStructure, /* Union, not implemented*/
     (UA_clearSignature)nopClear /* BitfieldCluster, not implemented*/
 };
 
