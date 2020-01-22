@@ -2,15 +2,24 @@
 *  License, v. 2.0. If a copy of the MPL was not distributed with this
 *  file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include <open62541/client.h>
+#include <open62541/client_config_default.h>
+#include <open62541/server_config_default.h>
+
 #include "server/ua_server_internal.h"
-#include "ua_client.h"
-#include "ua_config_default.h"
-#include "ua_network_tcp.h"
-#include "testing_clock.h"
-#include "thread_wrapper.h"
 
 #include <fcntl.h>
+
+#include "testing_clock.h"
+#include "thread_wrapper.h"
+#ifndef WIN32
+#include <sys/stat.h>
+#endif
 #include <check.h>
+
+#ifndef _WIN32
+#include <sys/stat.h>
+#endif
 
 // set register timeout to 1 second so we are able to test it.
 #define registerTimeout 1
@@ -18,7 +27,6 @@
 #define checkWait registerTimeout + 11
 
 UA_Server *server_lds;
-UA_ServerConfig *config_lds;
 UA_Boolean *running_lds;
 THREAD_HANDLE server_thread_lds;
 UA_Client *clientRegisterRepeated;
@@ -29,11 +37,11 @@ THREAD_CALLBACK(serverloop_lds) {
     return 0;
 }
 
-static void setup_lds(void) {
-    // start LDS server
-    running_lds = UA_Boolean_new();
-    *running_lds = true;
-    config_lds = UA_ServerConfig_new_default();
+static void configure_lds_server(UA_Server *pServer)
+{
+    UA_ServerConfig *config_lds = UA_Server_getConfig(pServer);
+    UA_ServerConfig_setDefault(config_lds);
+
     config_lds->applicationDescription.applicationType = UA_APPLICATIONTYPE_DISCOVERYSERVER;
     UA_String_deleteMembers(&config_lds->applicationDescription.applicationUri);
     config_lds->applicationDescription.applicationUri =
@@ -41,13 +49,25 @@ static void setup_lds(void) {
     UA_LocalizedText_deleteMembers(&config_lds->applicationDescription.applicationName);
     config_lds->applicationDescription.applicationName
         = UA_LOCALIZEDTEXT_ALLOC("en", "LDS Server");
-    config_lds->mdnsServerName = UA_String_fromChars("LDS_test");
-    config_lds->serverCapabilitiesSize = 1;
+    config_lds->discovery.mdnsEnable = true;
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+    config_lds->discovery.mdns.mdnsServerName = UA_String_fromChars("LDS_test");
+    config_lds->discovery.mdns.serverCapabilitiesSize = 1;
     UA_String *caps = UA_String_new();
     *caps = UA_String_fromChars("LDS");
-    config_lds->serverCapabilities = caps;
-    config_lds->discoveryCleanupTimeout = registerTimeout;
-    server_lds = UA_Server_new(config_lds);
+    config_lds->discovery.mdns.serverCapabilities = caps;
+#endif
+    config_lds->discovery.cleanupTimeout = registerTimeout;
+}
+
+static void setup_lds(void) {
+    // start LDS server
+    running_lds = UA_Boolean_new();
+    *running_lds = true;
+
+    server_lds = UA_Server_new();
+    configure_lds_server(server_lds);
+
     UA_Server_run_startup(server_lds);
     THREAD_CREATE(server_thread_lds, serverloop_lds);
 
@@ -62,11 +82,9 @@ static void teardown_lds(void) {
     UA_Server_run_shutdown(server_lds);
     UA_Boolean_delete(running_lds);
     UA_Server_delete(server_lds);
-    UA_ServerConfig_delete(config_lds);
 }
 
 UA_Server *server_register;
-UA_ServerConfig *config_register;
 UA_Boolean *running_register;
 THREAD_HANDLE server_thread_register;
 
@@ -82,15 +100,21 @@ static void setup_register(void) {
     // start register server
     running_register = UA_Boolean_new();
     *running_register = true;
-    config_register = UA_ServerConfig_new_minimal(16664, NULL);
+
+    server_register = UA_Server_new();
+    UA_ServerConfig *config_register = UA_Server_getConfig(server_register);
+    UA_ServerConfig_setMinimal(config_register, 16664, NULL);
+
     UA_String_deleteMembers(&config_register->applicationDescription.applicationUri);
     config_register->applicationDescription.applicationUri =
         UA_String_fromChars("urn:open62541.test.server_register");
     UA_LocalizedText_deleteMembers(&config_register->applicationDescription.applicationName);
     config_register->applicationDescription.applicationName =
         UA_LOCALIZEDTEXT_ALLOC("de", "Anmeldungsserver");
-    config_register->mdnsServerName = UA_String_fromChars("Register_test");
-    server_register = UA_Server_new(config_register);
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+    config_register->discovery.mdns.mdnsServerName = UA_String_fromChars("Register_test");
+#endif
+
     UA_Server_run_startup(server_register);
     THREAD_CREATE(server_thread_register, serverloop_register);
 }
@@ -101,12 +125,28 @@ static void teardown_register(void) {
     UA_Server_run_shutdown(server_register);
     UA_Boolean_delete(running_register);
     UA_Server_delete(server_register);
-    UA_ServerConfig_delete(config_register);
 }
 
+START_TEST(Server_new_delete) {
+    UA_Server *pServer = UA_Server_new();
+    configure_lds_server(pServer);
+    UA_Server_delete(pServer);
+}
+END_TEST
+
+START_TEST(Server_new_shutdown_delete) {
+        UA_Server *pServer = UA_Server_new();
+        configure_lds_server(pServer);
+        UA_StatusCode retval = UA_Server_run_shutdown(pServer);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        UA_Server_delete(pServer);
+}
+END_TEST
+
 START_TEST(Server_register) {
-    UA_Client *clientRegister = UA_Client_new(UA_ClientConfig_default);
-    ck_assert(clientRegister != NULL);
+    UA_Client *clientRegister = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(clientRegister));
+
     UA_StatusCode retval = UA_Client_connect_noSession(clientRegister, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     retval = UA_Server_register_discovery(server_register, clientRegister , NULL);
@@ -117,8 +157,9 @@ START_TEST(Server_register) {
 END_TEST
 
 START_TEST(Server_unregister) {
-    UA_Client *clientRegister = UA_Client_new(UA_ClientConfig_default);
-    ck_assert(clientRegister != NULL);
+    UA_Client *clientRegister = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(clientRegister));
+
     UA_StatusCode retval = UA_Client_connect_noSession(clientRegister, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     retval = UA_Server_unregister_discovery(server_register, clientRegister);
@@ -127,6 +168,8 @@ START_TEST(Server_unregister) {
     UA_Client_delete(clientRegister);
 }
 END_TEST
+
+#ifdef UA_ENABLE_DISCOVERY_SEMAPHORE
 
 #ifndef WIN32
 #define SEMAPHORE_PATH "/tmp/open62541-unit-test-semaphore"
@@ -146,8 +189,10 @@ START_TEST(Server_register_semaphore) {
     ck_assert_ptr_ne(fp, NULL);
     fclose(fp);
 #endif
-    UA_Client *clientRegister = UA_Client_new(UA_ClientConfig_default);
-    ck_assert(clientRegister != NULL);
+
+    UA_Client *clientRegister = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(clientRegister));
+
     UA_StatusCode retval = UA_Client_connect_noSession(clientRegister, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     retval = UA_Server_register_discovery(server_register, clientRegister, SEMAPHORE_PATH);
@@ -163,9 +208,14 @@ START_TEST(Server_unregister_semaphore) {
 }
 END_TEST
 
+#endif /* UA_ENABLE_DISCOVERY_SEMAPHORE */
+
 START_TEST(Server_register_periodic) {
     ck_assert(clientRegisterRepeated == NULL);
-    clientRegisterRepeated = UA_Client_new(UA_ClientConfig_default);
+
+    clientRegisterRepeated = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(clientRegisterRepeated));
+
     ck_assert(clientRegisterRepeated != NULL);
     // periodic register every minute, first register immediately
     UA_StatusCode retval = UA_Server_addPeriodicServerRegisterCallback(server_register, clientRegisterRepeated, "opc.tcp://localhost:4840",
@@ -193,7 +243,8 @@ FindAndCheck(const UA_String expectedUris[], size_t expectedUrisSize,
              const UA_String expectedNames[],
              const char *filterUri,
              const char *filterLocale) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
 
     UA_ApplicationDescription* applicationDescriptionArray = NULL;
     size_t applicationDescriptionArraySize = 0;
@@ -259,11 +310,11 @@ static void
 FindOnNetworkAndCheck(UA_String expectedServerNames[], size_t expectedServerNamesSize,
                       const char *filterUri, const char *filterLocale,
                       const char** filterCapabilities, size_t filterCapabilitiesSize) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
 
     UA_ServerOnNetwork* serverOnNetwork = NULL;
     size_t serverOnNetworkSize = 0;
-
 
     size_t  serverCapabilityFilterSize = 0;
     UA_String *serverCapabilityFilter = NULL;
@@ -294,9 +345,15 @@ FindOnNetworkAndCheck(UA_String expectedServerNames[], size_t expectedServerName
         ck_assert_ptr_ne(serverOnNetwork, NULL);
 
     if(serverOnNetwork != NULL) {
-        for(size_t i = 0; i < expectedServerNamesSize; i++)
-            ck_assert(UA_String_equal(&serverOnNetwork[i].serverName,
-                                      &expectedServerNames[i]));
+        for(size_t i = 0; i < expectedServerNamesSize; i++) {
+            UA_Boolean expectedServerNameInServerOnNetwork = false;
+            for(size_t j = 0; j < expectedServerNamesSize && !expectedServerNameInServerOnNetwork; j++) {
+                expectedServerNameInServerOnNetwork = UA_String_equal(&serverOnNetwork[j].serverName,
+                                        &expectedServerNames[i]);
+            }
+            ck_assert_msg(expectedServerNameInServerOnNetwork, "Expected %.*s in serverOnNetwork list, but not found",
+                expectedServerNames[i].length, expectedServerNames[i].data);
+        }
     }
 
     UA_Array_delete(serverOnNetwork, serverOnNetworkSize, &UA_TYPES[UA_TYPES_SERVERONNETWORK]);
@@ -348,7 +405,8 @@ GetEndpoints(UA_Client *client, const UA_String* endpointUrl,
 static void
 GetEndpointsAndCheck(const char* discoveryUrl, const char* filterTransportProfileUri,
                      const UA_String expectedEndpointUrls[], size_t expectedEndpointUrlsSize) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
 
     ck_assert_uint_eq(UA_Client_connect(client, discoveryUrl), UA_STATUSCODE_GOOD);
 
@@ -491,8 +549,8 @@ END_TEST
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
 START_TEST(Util_wait_mdns) {
-    UA_fakeSleep(1000);
-    UA_realSleep(1000);
+    UA_fakeSleep(5000);
+    UA_realSleep(5000);
 }
 END_TEST
 #endif
@@ -512,6 +570,12 @@ END_TEST
 
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Register Server and Client");
+
+    TCase *tc_new_del = tcase_create("New Delete");
+    tcase_add_test(tc_new_del, Server_new_delete);
+    tcase_add_test(tc_new_del, Server_new_shutdown_delete);
+    suite_add_tcase(s,tc_new_del);
+
     TCase *tc_register = tcase_create("RegisterServer");
     tcase_add_unchecked_fixture(tc_register, setup_lds, teardown_lds);
     tcase_add_unchecked_fixture(tc_register, setup_register, teardown_register);

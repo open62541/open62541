@@ -6,7 +6,7 @@
 
 #ifdef UA_ARCHITECTURE_WEC7
 
-#include "ua_types.h"
+#include <open62541/types.h>
 
 #undef UA_fileExists
 UA_Boolean UA_fileExists(const char* path) {

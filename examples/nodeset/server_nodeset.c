@@ -1,13 +1,17 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-#include "open62541.h"
-#include <signal.h>
+#include <open62541/plugin/log_stdout.h>
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
 
 /* Files example_namespace.h and example_namespace.c are created from server_nodeset.xml in the
  * /src_generated directory by CMake */
-#include "example_nodeset.h"
-#include "example_nodeset_ids.h"
+#include "open62541/example_nodeids.h"
+#include "open62541/namespace_example_generated.h"
+
+#include <signal.h>
+#include <stdlib.h>
 
 UA_Boolean running = true;
 
@@ -20,12 +24,12 @@ int main(int argc, char** argv) {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
     
-    UA_ServerConfig *config = UA_ServerConfig_new_default();
-    UA_Server *server = UA_Server_new(config);
+    UA_Server *server = UA_Server_new();
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     UA_StatusCode retval;
     /* create nodes from nodeset */
-    if(example_nodeset(server) != UA_STATUSCODE_GOOD) {
+    if(namespace_example_generated(server) != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Could not add the example nodeset. "
         "Check previous output for any error.");
         retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
@@ -45,6 +49,5 @@ int main(int argc, char** argv) {
     }
 
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
-    return (int)retval;
+    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }

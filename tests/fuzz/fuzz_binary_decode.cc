@@ -1,11 +1,18 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ *
+ *    Copyright 2019 (c) fortiss (Author: Stefan Profanter)
+ */
 
-#include <ua_types.h>
+
+#include "custom_memory_manager.h"
+
+#include <open62541/plugin/log_stdout.h>
+#include <open62541/server_config_default.h>
+#include <open62541/types.h>
+
 #include "ua_server_internal.h"
-#include "ua_config_default.h"
-#include "ua_log_stdout.h"
 #include "ua_types_encoding_binary.h"
 
 
@@ -24,16 +31,21 @@ static UA_Boolean tortureEncoding(const uint8_t *data, size_t size, size_t *newO
 
     void *dst = UA_new(&UA_TYPES[typeIndex]);
 
+    if (!dst)
+        return UA_FALSE;
+
     const UA_ByteString binary = {
             size, //length
             (UA_Byte *) (void *) data
     };
 
-    UA_StatusCode ret = UA_decodeBinary(&binary, newOffset, dst, &UA_TYPES[typeIndex], 0, nullptr);
+    UA_StatusCode ret = UA_decodeBinary(&binary, newOffset, dst, &UA_TYPES[typeIndex], NULL);
 
     if (ret == UA_STATUSCODE_GOOD) {
         // copy the datatype to test
         void *dstCopy = UA_new(&UA_TYPES[typeIndex]);
+        if (!dstCopy)
+            return UA_FALSE;
         UA_copy(dst, dstCopy, &UA_TYPES[typeIndex]);
         UA_delete(dstCopy, &UA_TYPES[typeIndex]);
 
@@ -78,7 +90,9 @@ static UA_Boolean tortureExtensionObject(const uint8_t *data, size_t size, size_
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     if (type) {
         void *dstCopy = UA_new(type);
-        ret = UA_decodeBinary(&obj.content.encoded.body, newOffset, dstCopy, type, 0, NULL);
+        if (!dstCopy)
+            return UA_FALSE;
+        ret = UA_decodeBinary(&obj.content.encoded.body, newOffset, dstCopy, type, NULL);
 
         if (ret == UA_STATUSCODE_GOOD) {
             UA_Variant var;
@@ -95,6 +109,10 @@ static UA_Boolean tortureExtensionObject(const uint8_t *data, size_t size, size_
 ** fuzzed input.
 */
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
+
+    if (!UA_memoryManager_setLimitFromLast4Bytes(data, size))
+        return 0;
+    size -= 4;
 
     size_t offset;
     if (!tortureEncoding(data, size, &offset)) {

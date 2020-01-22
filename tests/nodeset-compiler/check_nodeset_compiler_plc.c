@@ -2,43 +2,37 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "ua_server.h"
-#include "ua_config_default.h"
-
-#include "ua_types.h"
-
-#include "tests/ua_namespace_di.h"
-#include "tests/ua_namespace_plc.h"
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
+#include <open62541/types.h>
 
 #include "check.h"
 #include "testing_clock.h"
-
+#include "tests/namespace_tests_di_generated.h"
+#include "tests/namespace_tests_plc_generated.h"
 #include "unistd.h"
 
 UA_Server *server = NULL;
-UA_ServerConfig *config = NULL;
 
 static void setup(void) {
-    config = UA_ServerConfig_new_default();
-    server = UA_Server_new(config);
+    server = UA_Server_new();
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     UA_Server_run_startup(server);
 }
 
 static void teardown(void) {
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
 }
 
-
 START_TEST(Server_addDiNodeset) {
-    UA_StatusCode retval = ua_namespace_di(server);
+    UA_StatusCode retval = namespace_tests_di_generated(server);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 }
 END_TEST
 
 START_TEST(Server_addPlcNodeset) {
-    UA_StatusCode retval = ua_namespace_plc(server);
+    UA_StatusCode retval = namespace_tests_plc_generated(server);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 }
 END_TEST

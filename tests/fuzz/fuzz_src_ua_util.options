@@ -1,0 +1,2 @@
+[libfuzzer]
+dict = fuzz_src_ua_util_endpoints.dict

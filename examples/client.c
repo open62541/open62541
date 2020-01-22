@@ -1,7 +1,12 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-#include "open62541.h"
+#include <open62541/client_config_default.h>
+#include <open62541/client_highlevel.h>
+#include <open62541/client_subscriptions.h>
+#include <open62541/plugin/log_stdout.h>
+
+#include <stdlib.h>
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 static void
@@ -24,7 +29,8 @@ nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, voi
 }
 
 int main(int argc, char *argv[]) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
 
     /* Listing endpoints */
     UA_EndpointDescription* endpointArray = NULL;
@@ -34,7 +40,7 @@ int main(int argc, char *argv[]) {
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Array_delete(endpointArray, endpointArraySize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
         UA_Client_delete(client);
-        return (int)retval;
+        return EXIT_FAILURE;
     }
     printf("%i endpoints found\n", (int)endpointArraySize);
     for(size_t i=0;i<endpointArraySize;i++) {
@@ -49,7 +55,7 @@ int main(int argc, char *argv[]) {
     retval = UA_Client_connect_username(client, "opc.tcp://localhost:4840", "user1", "password");
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
-        return (int)retval;
+        return EXIT_FAILURE;
     }
 
     /* Browse some objects */
@@ -81,8 +87,8 @@ int main(int argc, char *argv[]) {
             /* TODO: distinguish further types */
         }
     }
-    UA_BrowseRequest_deleteMembers(&bReq);
-    UA_BrowseResponse_deleteMembers(&bResp);
+    UA_BrowseRequest_clear(&bReq);
+    UA_BrowseResponse_clear(&bResp);
 
     /* Same thing, this time using the node iterator... */
     UA_NodeId *parent = UA_NodeId_new();
@@ -144,8 +150,8 @@ int main(int argc, char *argv[]) {
     UA_WriteResponse wResp = UA_Client_Service_write(client, wReq);
     if(wResp.responseHeader.serviceResult == UA_STATUSCODE_GOOD)
             printf("the new value is: %i\n", value);
-    UA_WriteRequest_deleteMembers(&wReq);
-    UA_WriteResponse_deleteMembers(&wResp);
+    UA_WriteRequest_clear(&wReq);
+    UA_WriteResponse_clear(&wResp);
 
     /* Write node attribute (using the highlevel API) */
     value++;
@@ -179,7 +185,7 @@ int main(int argc, char *argv[]) {
     } else {
         printf("Method call was unsuccessful, and %x returned values available.\n", retval);
     }
-    UA_Variant_deleteMembers(&input);
+    UA_Variant_clear(&input);
 #endif
 
 #ifdef UA_ENABLE_NODEMANAGEMENT
@@ -251,5 +257,5 @@ int main(int argc, char *argv[]) {
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
-    return (int) UA_STATUSCODE_GOOD;
+    return EXIT_SUCCESS;
 }

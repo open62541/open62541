@@ -5,19 +5,16 @@
  *    Copyright 2018 (c) basysKom GmbH <opensource@basyskom.com> (Author: Peter Rustler)
  */
 
-#include "ua_types.h"
-#include "ua_server.h"
-#include "ua_client.h"
-#include "client/ua_client_internal.h"
-#include "ua_client_highlevel.h"
-#include "ua_config_default.h"
-#include "ua_network_tcp.h"
+#include <open62541/client_subscriptions.h>
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
+#include <open62541/types.h>
+
+#include <stddef.h>
 
 #include "check.h"
 #include "testing_clock.h"
 #include "testing_networklayers.h"
-#include "thread_wrapper.h"
-#include <stddef.h>
 
 #ifdef UA_ENABLE_STATUSCODE_DESCRIPTIONS
     #define ASSERT_STATUSCODE(a,b) ck_assert_str_eq(UA_StatusCode_name(a),UA_StatusCode_name(b));
@@ -26,31 +23,18 @@
 #endif
 
 UA_Server *server;
-UA_ServerConfig *config;
-UA_Boolean running;
-THREAD_HANDLE server_thread;
+size_t callbackCount = 0;
 
-UA_Client *client;
 UA_NodeId parentNodeId;
 UA_NodeId parentReferenceNodeId;
 UA_NodeId outNodeId;
 
-THREAD_CALLBACK(serverloop)
-{
-    while(running)
-        UA_Server_run_iterate(server, true);
-    return 0;
-}
+static void setup(void) {
+    server = UA_Server_new();
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
-static void
-setup(void)
-{
-    running = true;
-    config = UA_ServerConfig_new_default();
-    server = UA_Server_new(config);
     UA_StatusCode retval = UA_Server_run_startup(server);
     ASSERT_STATUSCODE(retval, UA_STATUSCODE_GOOD);
-    THREAD_CREATE(server_thread, serverloop);
     /* Define the attribute of the uint32 variable node */
     UA_VariableAttributes attr = UA_VariableAttributes_default;
     UA_UInt32 myUint32 = 40;
@@ -74,40 +58,16 @@ setup(void)
                                                 UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
                                                 attr,
                                                 NULL,
-                                                &outNodeId)
-                      , UA_STATUSCODE_GOOD);
-
-    client = UA_Client_new(UA_ClientConfig_default);
-    retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
-    ASSERT_STATUSCODE(retval, UA_STATUSCODE_GOOD);
-
-    UA_Client_recv = client->connection.recv;
-    client->connection.recv = UA_Client_recvTesting;
+                                                &outNodeId), UA_STATUSCODE_GOOD);
 }
 
-static void
-teardown(void)
-{
+static void teardown(void) {
     /* cleanup */
-    UA_Client_disconnect(client);
-    UA_Client_delete(client);
     UA_NodeId_deleteMembers(&parentNodeId);
     UA_NodeId_deleteMembers(&parentReferenceNodeId);
     UA_NodeId_deleteMembers(&outNodeId);
-    running = false;
-    THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
-}
-
-
-static UA_StatusCode
-setUInt32(UA_Client *thisClient, UA_NodeId node, UA_UInt32 value)
-{
-    UA_Variant variant;
-    UA_Variant_setScalar(&variant, &value, &UA_TYPES[UA_TYPES_UINT32]);
-    return UA_Client_writeValueAttribute(thisClient, node, &variant);
 }
 
 static void
@@ -119,21 +79,15 @@ dataChangeNotificationCallback(UA_Server *thisServer,
                                UA_UInt32 attributeId,
                                const UA_DataValue *value)
 {
-    static size_t count = 0;
     static UA_UInt32 lastValue = 100;
     UA_UInt32 currentValue = *((UA_UInt32*)value->value.data);
     ck_assert_uint_ne(lastValue, currentValue);
     lastValue = currentValue;
-    if (count++ == 10) {
-        UA_Server_deleteMonitoredItem(server, monitoredItemId);
-        running = false;
-    }
+    callbackCount++;
 }
 
-
-START_TEST(Server_LocalMonitoredItem)
-{
-    ASSERT_STATUSCODE(setUInt32(client, outNodeId, 0), UA_STATUSCODE_GOOD);
+START_TEST(Server_LocalMonitoredItem) {
+    ck_assert_uint_eq(callbackCount, 0);
 
     UA_MonitoredItemCreateRequest monitorRequest =
             UA_MonitoredItemCreateRequest_default(outNodeId);
@@ -145,16 +99,23 @@ START_TEST(Server_LocalMonitoredItem)
                                                     monitorRequest,
                                                     NULL,
                                                     &dataChangeNotificationCallback);
+
     ASSERT_STATUSCODE(result.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(callbackCount, 1);
+
     UA_UInt32 count = 0;
-    while (running) {
-        ASSERT_STATUSCODE(setUInt32(client, outNodeId, count++), UA_STATUSCODE_GOOD);
+    UA_Variant val;
+    UA_Variant_setScalar(&val, &count, &UA_TYPES[UA_TYPES_UINT32]);
+
+    for(size_t i = 0; i < 10; i++) {
+        count++;
+        UA_Server_writeValue(server, outNodeId, val);
         UA_fakeSleep(100);
-        UA_realSleep(100);
+        UA_Server_run_iterate(server, 1);
     }
+    ck_assert_uint_eq(callbackCount, 11);
 }
 END_TEST
-
 
 static Suite* testSuite_Client(void)
 {

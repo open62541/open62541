@@ -14,9 +14,13 @@
  * Basic Data Handling
  * ^^^^^^^^^^^^^^^^^^^
  * This section shows the basic interaction patterns for data types. Make
- * sure to compare with the type definitions in ``ua_types.h``. */
+ * sure to compare with the type definitions in ``types.h``. */
 
-#include "open62541.h"
+#include <open62541/plugin/log_stdout.h>
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
+
+#include <stdlib.h>
 
 static void
 variables_basic(void) {
@@ -38,12 +42,12 @@ variables_basic(void) {
 
     UA_String s2;
     UA_String_copy(&s, &s2);
-    UA_String_deleteMembers(&s2); /* Copying heap-allocated the dynamic content */
+    UA_String_clear(&s2); /* Copying heap-allocated the dynamic content */
 
     UA_String s3 = UA_STRING("test2");
     UA_String s4 = UA_STRING_ALLOC("test2"); /* Copies the content to the heap */
     UA_Boolean eq = UA_String_equal(&s3, &s4);
-    UA_String_deleteMembers(&s4);
+    UA_String_clear(&s4);
     if(!eq)
         return;
 
@@ -59,7 +63,7 @@ variables_basic(void) {
 
     UA_ReadRequest *rr2 = UA_ReadRequest_new();
     UA_copy(&rr, rr2, &UA_TYPES[UA_TYPES_READREQUEST]);
-    UA_ReadRequest_deleteMembers(&rr);
+    UA_ReadRequest_clear(&rr);
     UA_ReadRequest_delete(rr2);
 }
 
@@ -83,11 +87,11 @@ variables_nodeids(void) {
 
     UA_NodeId id3;
     UA_NodeId_copy(&id2, &id3);
-    UA_NodeId_deleteMembers(&id3);
+    UA_NodeId_clear(&id3);
 
     UA_NodeId id4 = UA_NODEID_STRING_ALLOC(1, "testid"); /* the string is copied
                                                             to the heap */
-    UA_NodeId_deleteMembers(&id4);
+    UA_NodeId_clear(&id4);
 }
 
 /**
@@ -109,7 +113,7 @@ variables_variants(void) {
     /* Make a copy */
     UA_Variant v2;
     UA_Variant_copy(&v, &v2);
-    UA_Variant_deleteMembers(&v2);
+    UA_Variant_clear(&v2);
 
     /* Set an array value */
     UA_Variant v3;
@@ -123,7 +127,7 @@ variables_variants(void) {
     v3.arrayDimensionsSize = 2;
     v3.arrayDimensions[0] = 3;
     v3.arrayDimensions[1] = 3;
-    UA_Variant_deleteMembers(&v3);
+    UA_Variant_clear(&v3);
 }
 
 /** It follows the main function, making use of the above definitions. */
@@ -132,5 +136,5 @@ int main(void) {
     variables_basic();
     variables_nodeids();
     variables_variants();
-    return 0;
+    return EXIT_SUCCESS;
 }

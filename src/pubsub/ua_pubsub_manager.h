@@ -2,14 +2,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * Copyright (c) 2017-2018 Fraunhofer IOSB (Author: Andreas Ebner)
+ * Copyright (c) 2017-2019 Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
 #ifndef UA_PUBSUB_MANAGER_H_
 #define UA_PUBSUB_MANAGER_H_
 
+#include <open62541/server_pubsub.h>
+
 #include "ua_pubsub.h"
-#include "ua_server_pubsub.h"
 
 _UA_BEGIN_DECLS
 
@@ -18,9 +19,9 @@ _UA_BEGIN_DECLS
 typedef struct UA_PubSubManager{
     //Connections and PublishedDataSets can exist alone (own lifecycle) -> top level components
     size_t connectionsSize;
-    UA_PubSubConnection *connections;
+    TAILQ_HEAD(UA_ListOfPubSubConnection, UA_PubSubConnection) connections;
     size_t publishedDataSetsSize;
-    UA_PublishedDataSet *publishedDataSets;
+    TAILQ_HEAD(UA_ListOfPublishedDataSet, UA_PublishedDataSet) publishedDataSets;
 } UA_PubSubManager;
 
 void
@@ -37,11 +38,11 @@ UA_PubSubConfigurationVersionTimeDifference(void);
 /***********************************/
 UA_StatusCode
 UA_PubSubManager_addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
-                                     void *data, UA_UInt32 interval, UA_UInt64 *callbackId);
+                                     void *data, UA_Double interval_ms, UA_UInt64 *callbackId);
 UA_StatusCode
 UA_PubSubManager_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
-                                                UA_UInt32 interval);
-UA_StatusCode
+                                                UA_Double interval_ms);
+void
 UA_PubSubManager_removeRepeatedPubSubCallback(UA_Server *server, UA_UInt64 callbackId);
 
 #endif /* UA_ENABLE_PUBSUB */

@@ -13,11 +13,6 @@ import sys
 from git import *
 from shutil import move
 
-try:
-    from StringIO import StringIO
-except ImportError:
-    from io import StringIO
-
 if sys.version_info[0] >= 3:
     # strings are already parsed to unicode
     def unicode(s):

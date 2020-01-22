@@ -1,5 +1,5 @@
 #!/bin/bash
-set -ev
+set -e
 
 # This script will only be executed on branches which are either master or a release
 # See travis_linux_after_success.sh

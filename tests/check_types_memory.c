@@ -3,15 +3,16 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #define _XOPEN_SOURCE 500
-#include <stdlib.h>
-#include <stdio.h>
+#include <open62541/server.h>
+#include <open62541/types_generated.h>
+#include <open62541/types_generated_handling.h>
+#include <open62541/util.h>
 
-#include "ua_types.h"
-#include "ua_server.h"
-#include "ua_types_generated.h"
-#include "ua_types_generated_handling.h"
 #include "ua_types_encoding_binary.h"
-#include "ua_util.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+
 #include "check.h"
 
 /* Define types to a dummy value if they are not available (e.g. not built with
@@ -130,7 +131,7 @@ START_TEST(encodeShallYieldDecode) {
     // when
     void *obj2 = UA_new(&UA_TYPES[_i]);
     size_t offset = 0;
-    retval = UA_decodeBinary(&msg1, &offset, obj2, &UA_TYPES[_i], 0, NULL);
+    retval = UA_decodeBinary(&msg1, &offset, obj2, &UA_TYPES[_i], NULL);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "could not decode idx=%d,nodeid=%i",
                   _i, UA_TYPES[_i].typeId.identifier.numeric);
     ck_assert(!memcmp(obj1, obj2, UA_TYPES[_i].memSize)); // bit identical decoding
@@ -164,6 +165,12 @@ START_TEST(decodeShallFailWithTruncatedBufferButSurvive) {
 #endif
         _i == UA_TYPES_FILTEROPERAND ||
         _i == UA_TYPES_UNION ||
+#ifdef UA_TYPES_FRAME
+        _i == UA_TYPES_FRAME ||
+        _i == UA_TYPES_ORIENTATION ||
+        _i == UA_TYPES_VECTOR ||
+        _i == UA_TYPES_CARTESIANCOORDINATES ||
+#endif
         _i == UA_TYPES_HISTORYREADDETAILS ||
         _i == UA_TYPES_NOTIFICATIONDATA ||
         _i == UA_TYPES_MONITORINGFILTER ||
@@ -199,7 +206,7 @@ START_TEST(decodeShallFailWithTruncatedBufferButSurvive) {
     // when
     void *obj2 = UA_new(&UA_TYPES[_i]);
     size_t offset = 0;
-    retval = UA_decodeBinary(&msg1, &offset, obj2, &UA_TYPES[_i], 0, NULL);
+    retval = UA_decodeBinary(&msg1, &offset, obj2, &UA_TYPES[_i], NULL);
     ck_assert_int_ne(retval, UA_STATUSCODE_GOOD);
     UA_delete(obj2, &UA_TYPES[_i]);
     UA_ByteString_deleteMembers(&msg1);
@@ -232,7 +239,7 @@ START_TEST(decodeScalarBasicTypeFromRandomBufferShallSucceed) {
         }
         size_t pos = 0;
         obj1 = UA_new(&UA_TYPES[_i]);
-        retval |= UA_decodeBinary(&msg1, &pos, obj1, &UA_TYPES[_i], 0, NULL);
+        retval |= UA_decodeBinary(&msg1, &pos, obj1, &UA_TYPES[_i], NULL);
         //then
         ck_assert_msg(retval == UA_STATUSCODE_GOOD,
                       "Decoding %d from random buffer",
@@ -268,7 +275,7 @@ START_TEST(decodeComplexTypeFromRandomBufferShallSurvive) {
         }
         size_t pos = 0;
         void *obj1 = UA_new(&UA_TYPES[_i]);
-        retval |= UA_decodeBinary(&msg1, &pos, obj1, &UA_TYPES[_i], 0, NULL);
+        retval |= UA_decodeBinary(&msg1, &pos, obj1, &UA_TYPES[_i], NULL);
         UA_delete(obj1, &UA_TYPES[_i]);
     }
 
@@ -288,6 +295,12 @@ START_TEST(calcSizeBinaryShallBeCorrect) {
        _i == UA_TYPES_DISCOVERYCONFIGURATION ||
 #endif
        _i == UA_TYPES_UNION ||
+#ifdef UA_TYPES_FRAME
+       _i == UA_TYPES_FRAME ||
+       _i == UA_TYPES_ORIENTATION ||
+       _i == UA_TYPES_VECTOR ||
+       _i == UA_TYPES_CARTESIANCOORDINATES ||
+#endif
        _i == UA_TYPES_HISTORYREADDETAILS ||
        _i == UA_TYPES_NOTIFICATIONDATA ||
        _i == UA_TYPES_MONITORINGFILTER ||

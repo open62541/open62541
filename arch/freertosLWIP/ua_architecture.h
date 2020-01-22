@@ -11,10 +11,25 @@
 #ifndef PLUGINS_ARCH_FREERTOSLWIP_UA_ARCHITECTURE_H_
 #define PLUGINS_ARCH_FREERTOSLWIP_UA_ARCHITECTURE_H_
 
-#include "../common/lwip62541.h"
-#include "../common/freeRTOS62541.h"
+#include "ua_lwip.h"
+#include "ua_freeRTOS.h"
 
-#include "../ua_architecture_functions.h"
+#if UA_MULTITHREADING >= 100
+#error Multithreading unsupported
+#else
+#define UA_LOCK_TYPE(mutexName)
+#define UA_LOCK_TYPE_POINTER(mutexName)
+#define UA_LOCK_INIT(mutexName)
+#define UA_LOCK_DESTROY(mutexName)
+#define UA_LOCK(mutexName)
+#define UA_UNLOCK(mutexName)
+#define UA_LOCK_ASSERT(mutexName, num)
+#endif
+
+// freeRTOS does not have getifaddr
+#undef UA_HAS_GETIFADDR
+
+#include <open62541/architecture_functions.h>
 
 #endif /* PLUGINS_ARCH_FREERTOSLWIP_UA_ARCHITECTURE_H_ */
 

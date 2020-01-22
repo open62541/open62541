@@ -12,7 +12,8 @@
 # define _BSD_SOURCE
 #endif
 
-#include "ua_types.h"
+#include <open62541/types.h>
+
 #include <time.h>
 /* Backup definition of SLIST_ENTRY on mingw winnt.h */
 # ifdef SLIST_ENTRY

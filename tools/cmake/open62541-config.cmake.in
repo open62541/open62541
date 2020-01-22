@@ -1,5 +1,0 @@
-@PACKAGE_INIT@
-
-include ("@PACKAGE_target_install_dest_name@")
-
-set (open62541_TOOLS_DIR @PACKAGE_open62541_tools_dir@ CACHE PATH "Path to the directory that contains the tooling of the stack")

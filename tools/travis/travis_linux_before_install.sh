@@ -1,6 +1,15 @@
 #!/bin/bash
-set -ev
+set -e
 
+if [ -z ${LOCAL_PKG+x} ] || [ -z "$LOCAL_PKG" ]; then
+    echo "LOCAL_PKG is not set. Aborting..."
+    exit 1
+fi
+
+if ! [ -z ${CLANG_FORMAT+x} ]; then
+    echo "CLANG_FORMAT does not need any dependencies. Done."
+    exit 0
+fi
 
 if [ -z ${DOCKER+x} ] && [ -z ${SONAR+x} ]; then
 	# Only on non-docker builds required
@@ -25,11 +34,15 @@ if [ -z ${DOCKER+x} ] && [ -z ${SONAR+x} ]; then
     echo "=== The build environment is outdated ==="
 
     # Clean up
-    rm -rf $LOCAL_PKG/*
+    # additional safety measure to avoid rm -rf on root
+    # only execute it on travis
+    if ! [ -z ${TRAVIS+x} ]; then
+        echo "rm -rf $LOCAL_PKG/*"
+    fi
 
 	if [ "$CC" = "tcc" ]; then
 		mkdir tcc_install && cd tcc_install
-		wget https://download.savannah.gnu.org/releases/tinycc/tcc-0.9.27.tar.bz2
+		wget https://mirror.netcologne.de/savannah/tinycc/tcc-0.9.27.tar.bz2
 		tar xf tcc-0.9.27.tar.bz2
 		cd tcc-0.9.27
 		./configure --prefix=$LOCAL_PKG
@@ -50,7 +63,8 @@ if [ -z ${DOCKER+x} ] && [ -z ${SONAR+x} ]; then
 
 	echo "=== Installing python packages ===" && echo -en 'travis_fold:start:before_install.python\\r'
 	pip install --user cpp-coveralls
-	pip install --user 'sphinx==1.7.9'
+	# Pin docutils to version smaller 0.15. Otherwise we run into https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=839299
+	pip install --user 'docutils<=0.14'
 	pip install --user sphinx_rtd_theme
 	pip install --user cpplint
 	echo -en 'travis_fold:end:script.before_install.python\\r'

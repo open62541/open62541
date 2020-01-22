@@ -11,7 +11,8 @@
 #ifndef UA_HISTORICAL_READ_TEST_DATA_H_
 #define UA_HISTORICAL_READ_TEST_DATA_H_
 
-#include "ua_types.h"
+#include <open62541/types.h>
+
 #include <limits.h>
 
 typedef struct {
@@ -47,6 +48,25 @@ static UA_DateTime testData[] = {
     TIMESTAMP_5_05,
     0 // last element
 };
+
+#define DELETE_START_TIME TIMESTAMP_5_03
+#define DELETE_STOP_TIME  TIMESTAMP_5_06
+
+static UA_DateTime testDataAfterDelete[] = {
+    TIMESTAMP_5_00,
+    TIMESTAMP_5_02,
+    TIMESTAMP_5_06,
+    0 // last element
+};
+
+static UA_StatusCode testDataUpdateResult[] = {
+    UA_STATUSCODE_GOODENTRYREPLACED,
+    UA_STATUSCODE_GOODENTRYREPLACED,
+    UA_STATUSCODE_GOODENTRYINSERTED,
+    UA_STATUSCODE_GOODENTRYINSERTED,
+    UA_STATUSCODE_GOODENTRYREPLACED
+};
+
 static testTuple testRequests[] =
 {
     { TIMESTAMP_5_00,

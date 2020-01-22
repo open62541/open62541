@@ -5,14 +5,19 @@
  * Using access_control_server
  */
 
-#include "open62541.h"
+#include <open62541/client_config_default.h>
+#include <open62541/client_highlevel.h>
+
+#include <stdlib.h>
 
 int main(void) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
-    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+
+    UA_StatusCode retval = UA_Client_connect_username(client, "opc.tcp://localhost:4840", "paula", "paula123");
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
-        return (int)retval;
+        return EXIT_FAILURE;
     }
 
     UA_NodeId newVariableIdRequest = UA_NODEID_NUMERIC(1, 1001);
@@ -24,10 +29,8 @@ int main(void) {
     newVariableAttributes.description = UA_LOCALIZEDTEXT_ALLOC("en-US", "NewVariable desc");
     newVariableAttributes.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", "NewVariable");
     newVariableAttributes.dataType = UA_TYPES[UA_TYPES_UINT32].typeId;
-    {
-        UA_UInt32 value = 50;
-        UA_Variant_setScalarCopy(&newVariableAttributes.value, &value, &UA_TYPES[UA_TYPES_UINT32]);
-    }
+    UA_UInt32 value = 50;
+    UA_Variant_setScalarCopy(&newVariableAttributes.value, &value, &UA_TYPES[UA_TYPES_UINT32]);
 
     UA_StatusCode retCode;
 
@@ -59,7 +62,7 @@ int main(void) {
     printf("deleteNode returned: %s\n", UA_StatusCode_name(retCode));
 
     /* Clean up */
-    UA_VariableAttributes_deleteMembers(&newVariableAttributes);
+    UA_VariableAttributes_clear(&newVariableAttributes);
     UA_Client_delete(client); /* Disconnects the client internally */
-    return UA_STATUSCODE_GOOD;
+    return EXIT_SUCCESS;
 }

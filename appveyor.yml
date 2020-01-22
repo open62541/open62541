@@ -1,42 +1,30 @@
 version: '{build}'
 
 clone_folder: c:\projects\open62541
-clone_depth: 20
+
+# Do not set clone depth, we need all the tags to automatically detect the version based on git describe
+# clone_depth: 20
 
 # Avoid building branch if it is part of a PR and built anyways
 skip_branch_with_pr: true
+
+# Fast finish (stop other builds if one fails) to speed up appveyor builds
+# matrix:
+#  fast_finish: true
 
 environment:
     global:
         APPVEYOR_CACHE_ENTRY_ZIP_ARGS: -t7z -m0=lzma -mx=9
 
     matrix:
-        - CC_NAME: MinGW Makefiles
-          CC_SHORTNAME: mingw
-          # We need to redirect stderr to stdout otherwise powershell will fail if there is an output during amalgamation.
-          # Only use one thread, otherwise appveyor runs out of memory
-          MAKE: mingw32-make -j1 2>&1
-          FORCE_CXX: OFF
-          OUT_DIR_LIB: bin
-          OUT_DIR_EXAMPLES: bin\examples
         - CC_NAME: Visual Studio 9 2008
           CC_SHORTNAME: vs2008
-          MAKE: msbuild /p:ContinueOnError=false /p:StopOnFirstFailure=true open62541.sln
+          GENERATOR: Visual Studio 9 2008
           FORCE_CXX: ON
-          OUT_DIR_LIB: bin\Debug
-          OUT_DIR_EXAMPLES: bin\examples\Debug
         - CC_NAME: Visual Studio 12 2013
           CC_SHORTNAME: vs2013
-          MAKE: msbuild /p:ContinueOnError=false /p:StopOnFirstFailure=true open62541.sln
+          GENERATOR: Visual Studio 12 2013
           FORCE_CXX: OFF
-          OUT_DIR_LIB: bin\Debug
-          OUT_DIR_EXAMPLES: bin\examples\Debug
-        - CC_NAME: Visual Studio 14 2015
-          CC_SHORTNAME: vs2015
-          MAKE: msbuild /p:ContinueOnError=false /p:StopOnFirstFailure=true open62541.sln
-          FORCE_CXX: OFF
-          OUT_DIR_LIB: bin\Debug
-          OUT_DIR_EXAMPLES: bin\examples\Debug
 
 cache:
   - C:\ProgramData\chocolatey\bin -> tools/appveyor/install.ps1
@@ -51,21 +39,10 @@ install:
 - set PATH=C:\Users\appveyor\AppData\Roaming\Python\Scripts;%PATH%
 - ps: '& "./tools/appveyor/install.ps1"'
 
-before_build:
-  # Add installed tools to PATH
-  - set PATH=C:\Python27;C:\msys64\mingw64\bin;C:\Program Files (x86)\Dr. Memory\bin;C:\Program Files\CMake\bin;%PATH%
-  # Workaround for CMake not wanting sh.exe on PATH for MinGW
-  - set PATH=%PATH:C:\Program Files\Git\usr\bin;=%
-  # Miktex
-  - set "PATH=%PATH%;c:\miktex\texmfs\install\miktex\bin;%APPDATA%\Python\Scripts"
-  # autoinstall latex packages (0=no, 1=autoinstall, 2=ask)
-  # this adds this to the registry!
-  - initexmf --set-config-value [MPM]AutoInstall=1
-  - initexmf --update-fndb
-
 build_script:
 - ps: '& "./tools/appveyor/build.ps1"'
 
 after_build:
+  # Only push artifact if make install is defined
   - appveyor PushArtifact %APPVEYOR_BUILD_FOLDER%\open62541-%CC_SHORTNAME%-static.zip
   - appveyor PushArtifact %APPVEYOR_BUILD_FOLDER%\open62541-%CC_SHORTNAME%-dynamic.zip

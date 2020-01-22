@@ -1,147 +1,182 @@
-# using c for language overwrites our compilers
-language: generic
-
+language: c
 sudo: required
 
 env:
   global:
     # GITAUTH:
     - secure: nSunY54Wp5HkQCHHbKwlwpbaKyqRVIu/0EnhaoJSwhM1wqerQV/E5d/2JelO9/tZgbungAO7wk/fjutRMVc7d378RTIPwS8vHpvZfEoGhCFsLoTOlqESzsZFBup2H5t1lpQ23jRHDOxlLdJy2lz5U+zd1YnYgDXqdDFjegsIYdo=
-    # COVERITY_SCAN_TOKEN:
-    - secure: C7LLWmOCdRYJGiXjFYDHWwBB6XGjs9Hio4kkvDehLRredRgp1UJ73g6Av9L7xrTUide6GiPrSd+RJw7py/twx5qaeIjOWPy+XvtmabDEQBquLjEkvS+LP2EycaMe92kHMo1ItFfRomgj1FyNYPVnUFgdyedGWv+p553ziDbrMas=
+    - PYTHON=python2
+    # For tag builds we do not have the base branch in TRAVIS_BRANCH, therefore store it in BRANCH_FOR_TAG
+    - BRANCH_FOR_TAG=$(git ls-remote origin | sed -n "\|$TRAVIS_COMMIT\s\+refs/heads/|{s///p}")
 
 
 dist: trusty
 
+# Make sure we have the git tags. Travis uses shallow checkout where git describe does not work
+git:
+  depth: false
+
 matrix:
   fast_finish: true
   include:
-    #
+#
+# gcc-4.8 (trusty) full host and cross build with tests:
+# doc, cert, cross-mingw32, cross-mingw64, cross-linux32, cross-raspi, linux64,
+# amalgamated, shared, multithread, encryption, discovery, json, test-ns0-full, test-ns0-minimal
     - os: linux
+      compiler: gcc-4.8
       addons:
         apt:
           sources:
             # see https://github.com/travis-ci/apt-source-whitelist/blob/master/ubuntu.json
             - ubuntu-toolchain-r-test
           packages:
-            - binutils-mingw-w64-i686
-            - build-essential
-            - check
-            - cmake
-            - gcc-multilib
-            - g++-mingw-w64-i686
-            - g++-mingw-w64-x86-64
-            - g++-multilib
-            - graphviz
-            - libsubunit-dev
-            - libx11-dev
             - mingw-w64
-            - python-six
-            - python3-six
+            - gcc-mingw-w64-i686
+            - gcc-mingw-w64-x86-64
+            - binutils-mingw-w64-i686
+            - g++-multilib
+            - cmake
+            # doc
+            - python-sphinx
+            - graphviz
+            - texlive-generic-extra
             - texlive-fonts-recommended
             - texlive-latex-extra
-            - texlive-latex-recommended
+            - latexmk
+            # tests
+            - check
+            - libsubunit-dev
             - valgrind
-            - wget
-            - xutils-dev
-            - zip
       env:
-        - ANALYZE=false
-        - CC=gcc-4.8
-        - CXX=g++-4.8
-        - PYTHON=python2
         - MINGW=true
+#
+# gcc-8 full host build with tests:
+# doc, cert, linux64,
+# amalgamated, shared, multithread, encryption, discovery, json, test-ns0-full, test-ns0-minimal
     - os: linux
+      compiler: gcc-8
       addons:
         apt:
           sources:
             - ubuntu-toolchain-r-test
           packages:
-            - check
             - gcc-8
             - gcc-8-multilib
-            - g++-8
-            - g++-8-multilib
+            # doc
+            - python-sphinx
             - graphviz
-            - linux-libc-dev:i386
-            - python-six
-            - python3-six
+            - texlive-generic-extra
             - texlive-fonts-recommended
             - texlive-latex-extra
-            - texlive-latex-recommended
+            - latexmk
+            # tests
+            - check
+            - libsubunit-dev
             - valgrind
-      env:
-        - ANALYZE=false
-        - CC=gcc-8
-        - CXX=g++-8
-        - PYTHON=python2
+#
+# clang-6 full host build with tests:
+# doc, cert, linux64,
+# amalgamated, shared, multithread, encryption, discovery, json, test-ns0-full, test-ns0-minimal
     - os: linux
+      compiler: clang-6.0
       addons:
         apt:
           sources:
             - llvm-toolchain-trusty-6.0
             - ubuntu-toolchain-r-test
           packages:
-            - check
             - clang-6.0
             - clang-tidy-6.0
+            # doc
+            - python-sphinx
             - graphviz
-            - python-six
+            - texlive-generic-extra
             - texlive-fonts-recommended
             - texlive-latex-extra
-            - texlive-latex-recommended
+            - latexmk
+            # tests
+            - check
+            - libsubunit-dev
             - valgrind
-      env:
-        - ANALYZE=false
-        - CC=clang-6.0
-        - CXX=clang++-6.0
-        - PYTHON=python2
+#
+# clang-6 python-3 full host build with tests:
+# doc, cert, linux64,
+# amalgamated, shared, multithread, encryption, discovery, json, test-ns0-full, test-ns0-minimal
     - os: linux
+      compiler: clang-6.0
       addons:
         apt:
           sources:
             - llvm-toolchain-trusty-6.0
             - ubuntu-toolchain-r-test
           packages:
-            - check
             - clang-6.0
             - clang-tidy-6.0
+            # doc
+            - python3-sphinx
             - graphviz
-            - python3-six
+            - texlive-generic-extra
             - texlive-fonts-recommended
             - texlive-latex-extra
-            - texlive-latex-recommended
+            - latexmk
+            # tests
+            - check
+            - libsubunit-dev
             - valgrind
       env:
-        - ANALYZE=false
-        - CC=clang-6.0
-        - CXX=clang++-6.0
         - PYTHON=python3
+#
+# tcc full host build:
+# doc, cert, linux64,
+# amalgamated, shared, multithread, encryption, discovery, json, test-ns0-full, test-ns0-minimal
     - os: linux
+      compiler: tcc
       addons:
         apt:
           packages:
-            - check
+            # doc
+            - python-sphinx
             - graphviz
-            - python-six
-            - python3-six
+            - texlive-generic-extra
             - texlive-fonts-recommended
             - texlive-latex-extra
-            - texlive-latex-recommended
-      env:
-        - ANALYZE=false
-        - CC=tcc
-        - PYTHON=python2
+            - latexmk
+            # tests
+            - check
+            - libsubunit-dev
+            - valgrind
+#
+# clang-6 python-3 install build and minimal example:
+# linux64, minimal-example
     - os: linux
+      compiler: clang-6.0
+      addons:
+        apt:
+          sources:
+            - llvm-toolchain-trusty-6.0
+            - ubuntu-toolchain-r-test
+          packages:
+            - clang-6.0
+            - clang-tidy-6.0
+      env:
+        - INSTALL=true
+        - PYTHON=python3
+        - CXX=clang-6.0
+#
+# gcc-4.8 static code analysis
+    - os: linux
+      compiler: gcc
       addons:
         apt:
           packages:
             - cppcheck
       env:
         - ANALYZE=true
-        - CC=gcc-4.8
-        - CXX=g++-4.8
+#
+# clang-6 static code analysis
     - os: linux
+      compiler: clang-6.0
       addons:
         apt:
           sources:
@@ -149,26 +184,38 @@ matrix:
             - ubuntu-toolchain-r-test
           packages:
             - check
+            - libsubunit-dev
             - clang-6.0
             - clang-tidy-6.0
-            - graphviz
-            - python-six
-            - python3-six
-            - texlive-fonts-recommended
-            - texlive-latex-extra
-            - texlive-latex-recommended
       env:
         - ANALYZE=true
         - PYTHON=python3
-        - CC=clang-6.0
-        - CXX=clang++-6.0
-    #- os: linux
-    #  compiler: gcc
-    #  env: LINT=true
+#
+# clang-format code analysis
+# is allowed to fail (see allow_failures)
     - os: linux
+      compiler: clang-6.0
+      addons:
+        apt:
+          sources:
+            - llvm-toolchain-trusty-6.0
+            - ubuntu-toolchain-r-test
+          packages:
+            - clang-6.0
+            - clang-tidy-6.0
+            - clang-format-6.0
+      env:
+        - CLANG_FORMAT=true
+#
+# DOCKER build
+    - os: linux
+      compiler: gcc
       env:
         - DOCKER=true
+#
+# clang-6 FUZZER build
     - os: linux
+      compiler: clang-6.0
       addons:
         apt:
           sources:
@@ -176,13 +223,14 @@ matrix:
             - ubuntu-toolchain-r-test
           packages:
             - check
+            - libsubunit-dev
             - clang-6.0
             - clang-tidy-6.0
             - libfuzzer-6.0-dev
-            - python-six
-            - python3-six
       env:
         - FUZZER=true
+#
+# OSX clang build
     - os: osx
       compiler: clang
       # disable homebrew auto update which takes a lot of time
@@ -190,7 +238,10 @@ matrix:
       cache:
         directories:
           - $HOME/Library/Caches/Homebrew
+#
+# SONAR gcc-4.9 build
     - os: linux
+      compiler: gcc-4.9
       addons:
         sonarcloud:
           organization: open62541
@@ -198,22 +249,17 @@ matrix:
             - master
             - sonarcloud
       env:
-        - CC=gcc-4.9
-        - CXX=g++-4.9
         - SONAR=true
-        - PYTHON=python2
       cache:
         directories:
           - '$HOME/.sonar/cache'
-addons:
-  coverity_scan:
-    project:
-      name: "open62541/open62541"
-      description: "Build submitted by Travis"
-    notification_email: noreply@open62541.org
-    build_command_prepend: "mkdir build && cd build && cmake .."
-    build_command: "make"
-    branch_pattern: coverity_scan
+  allow_failures:
+    #
+    # clang-format code analysis
+    - env:
+        - CLANG_FORMAT=true
+    - env:
+        - SONAR=true
 
 cache:
   pip: true
@@ -224,7 +270,24 @@ cache:
 
 # combine all the commands into one single command. See https://github.com/travis-ci/travis-ci/issues/1066
 before_install: |
- set -e
+ set -eE
+
+ errorTrap() {
+   last_rv=$?
+
+   if [ $last_rv -ne 0 ] ; then
+      echo ""
+      echo ""
+      echo "----------------- Error -----------------"
+      echo ""
+      echo "---- Check additional output above!! ----"
+      # Wait a bit until the stdout is flushed
+      for i in 1 2 3 4 5 6 7 8 9 10; do echo "."; sleep 1; done
+   fi
+
+   exit $last_rv
+ }
+ trap errorTrap 0
 
  # set paths for locally installed libs (like liburcu)
  export LOCAL_PKG=$HOME/install
@@ -242,17 +305,52 @@ before_install: |
  export PATH=$PATH:$HOME/Library/Python #OS X
  export PATH=$PATH:$HOME/Library/Python/2.7/bin #OS X
 
- # Exit travis if on coverity_scan branch and not first build
- test $TRAVIS_BRANCH != coverity_scan -o ${TRAVIS_JOB_NUMBER##*.} = 1 || exit 0
  if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis/travis_linux_before_install.sh; fi
  if [ ${TRAVIS_OS_NAME} == "osx" ]; then sh ./tools/travis/travis_osx_before_install.sh; fi
 
 script: |
- set -e
+ set -eE
+
+ errorTrap() {
+   last_rv=$?
+
+   if [ $last_rv -ne 0 ] ; then
+      echo ""
+      echo ""
+      echo "----------------- Error -----------------"
+      echo ""
+      echo "---- Check additional output above!! ----"
+      # Wait a bit until the stdout is flushed
+      for i in 1 2 3 4 5 6 7 8 9 10; do echo "."; sleep 1; done
+   fi
+
+   exit $last_rv
+ }
+ trap errorTrap 0
+
  if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis/travis_linux_script.sh; fi
  if [ ${TRAVIS_OS_NAME} == "osx" ]; then sh ./tools/travis/travis_osx_script.sh; fi
 
 after_success: |
+ set -eE
+
+ errorTrap() {
+   last_rv=$?
+
+   if [ $last_rv -ne 0 ] ; then
+     echo ""
+     echo ""
+     echo "----------------- Error -----------------"
+     echo ""
+     echo "---- Check additional output above!! ----"
+     # Wait a bit until the stdout is flushed
+     for i in 1 2 3 4 5 6 7 8 9 10; do echo "."; sleep 1; done
+   fi
+
+   exit $last_rv
+ }
+ trap errorTrap 0
+
  if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis/travis_linux_after_success.sh; fi
  # Sleep to flush travis output
  echo == Build success ==
@@ -266,7 +364,8 @@ after_failure: |
 deploy:
   provider: releases
   api_key:
-    secure: PKCoA7MBRtHloIbNF4Qj5LQyCafjekfVeFXlMBd9KmC0ynNuef+D7nn38f/jo25/b0Ii7r+hgslkQPezbKyEqo2zcCB8Pn8TWau2hbzKM/dUCPoN90HVaQcRjUi8P2Y+QkouwyPWSujBL35/X5QiAntRotCSbZx4fkyiN8cU95o=
+    # Uses token from user open62541-travis-release (managed by @Pro). Sets GITAUTH
+    secure: dtn6ayBGoWzeVMM6xYpSRZly1XOhS/2jdiwEHd0hYZIr0dNq18CxTiqbGrUwW1JsSiXoHaGSZhUVr06O1P/tfC3Ma6i7ugyun+yXz6FdZiwirjURI8HQe+XwR4Ui3hqgQSOHLMK/xtOkjM28AN1jg9u3//Zep69xJVIGAqNT0bE=
   file:
     - open62541-win32.zip
     - open62541-win64.zip
@@ -275,8 +374,9 @@ deploy:
     - open62541-raspberrypi.tar.gz
     - open62541.c
     - open62541.h
+  file_glob: true
   skip_cleanup: true
   on:
     repo: open62541/open62541
     tags: true
-    condition: $CC = gcc && $ANALYZE = false
+    condition: $MINGW=true

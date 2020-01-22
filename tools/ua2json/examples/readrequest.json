@@ -1,0 +1,27 @@
+{
+    "RequestHeader": {
+        "AdditionalHeader": null,
+        "AuditEntryId": null,
+        "AuthenticationToken": {
+            "Id": "D358AA6F-D5C7-4AA9-0CB0-EB0E1491E91E",
+            "IdType": 2,
+            "Namespace": 1
+        },
+        "RequestHandle": 1000059,
+        "ReturnDiagnostics": 0,
+        "TimeoutHint": 5000,
+        "Timestamp": "2019-01-09T21:54:40.179Z"
+    },
+    "TimestampsToReturn": 1,
+    "MaxAge": 0,
+    "NodesToRead": [
+        {
+            "AttributeId": 13,
+            "DataEncoding": {
+                "Name": null
+            },
+            "IndexRange": null,
+            "NodeId": {"Id": 2259}
+        }
+    ]
+}

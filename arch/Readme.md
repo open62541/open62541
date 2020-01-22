@@ -1,8 +1,19 @@
-# To port to a new architecture you should follow this file:
+# open62541 Architectures 
+
+The `arch` folder contains all the architecture-specific code for a given operating system.
+
+The list of supported architectures is also available as a CMake option.
+
+## Adding new architectures
+
+To port to a new architecture you should follow these steps:
 
 1. Create a folder with your architecture, let's call it new_arch
+
 2. In the CMakeLists.txt file located next to this file, add `add_subdirectory(new_arch)` at the end of it
+
 3. Create a CMakeLists.txt file in the new_arch folder
+
 4. Use the following template for it (remember that when you see new_arch you should replace with the name of your architecture)
     ```C
     # ---------------------------------------------------
@@ -37,17 +48,21 @@
     # ---- End of the CMakeLists.txt template -----
     # ---------------------------------------------------
     ```
-5. Create a ua_clock.c file that implements the following functions defined in ua_types.h:
+5. Create a ua_clock.c file that implements the following functions defined in open62541/types.h:
 
-    UA_DateTime UA_DateTime_now(void);
-    UA_Int64 UA_DateTime_localTimeUtcOffset(void);
-    UA_DateTime UA_DateTime_nowMonotonic(void);
+   * UA_DateTime UA_DateTime_now(void);
+   
+   * UA_Int64 UA_DateTime_localTimeUtcOffset(void);
+   
+   * UA_DateTime UA_DateTime_nowMonotonic(void);
 
 6. Create a file in the folder new_arch called ua_architecture.h
 
-7. Use the following template for it:
-  a: Change YEAR, YOUR_NAME and YOUR_COMPANY in the header
-  b: Change NEW_ARCH at the beginning in PLUGINS_ARCH_NEW_ARCH_UA_ARCHITECTURE_H_ for your own name in uppercase
+7. Use the following template for it:  
+
+   * Change YEAR, YOUR_NAME and YOUR_COMPANY in the header
+   
+   * Change NEW_ARCH at the beginning in PLUGINS_ARCH_NEW_ARCH_UA_ARCHITECTURE_H_ for your own name in uppercase  
    
     ```C
     /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
@@ -99,7 +114,7 @@
     * Do the same for UA_LOG_SOCKET_ERRNO_GAI_WRAP(LOG) for errors related to getaddrinfo
     */
     
-    #include "../ua_architecture_functions.h"
+    #include <open62541/architecture_functions.h>
     
     #endif /* PLUGINS_ARCH_NEW_ARCH_UA_ARCHITECTURE_H_ */
     

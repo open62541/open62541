@@ -20,10 +20,14 @@
  * you have the ``open62541.c/.h`` files in the current folder. Now create a new
  * C source-file called ``myServer.c`` with the following content: */
 
-#include "open62541.h"
-#include <signal.h>
+#include <open62541/plugin/log_stdout.h>
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
 
-UA_Boolean running = true;
+#include <signal.h>
+#include <stdlib.h>
+
+static volatile UA_Boolean running = true;
 static void stopHandler(int sig) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "received ctrl-c");
     running = false;
@@ -33,13 +37,13 @@ int main(void) {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
 
-    UA_ServerConfig *config = UA_ServerConfig_new_default();
-    UA_Server *server = UA_Server_new(config);
+    UA_Server *server = UA_Server_new();
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     UA_StatusCode retval = UA_Server_run(server, &running);
+
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
-    return (int)retval;
+    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
 /**
@@ -85,6 +89,7 @@ int main(void) {
  *
  * Server Lifecycle
  * ^^^^^^^^^^^^^^^^
+ *
  * The code in this example shows the three parts for server lifecycle
  * management: Creating a server, running the server, and deleting the server.
  * Creating and deleting a server is trivial once the configuration is set up.
@@ -98,7 +103,7 @@ int main(void) {
  * receives when the operating systems tries to close it. This happens for
  * example when you press ctrl-c in a terminal program. The signal handler then
  * sets the variable ``running`` to false and the server shuts down once it
- * takes back control. [#f1]_
+ * takes back control.
  *
  * In order to integrated OPC UA in a single-threaded application with its own
  * mainloop (for example provided by a GUI toolkit), one can alternatively drive
@@ -107,6 +112,4 @@ int main(void) {
  *
  * The server configuration and lifecycle management is needed for all servers.
  * We will use it in the following tutorials without further comment.
- *
- * .. [#f1] Be careful with global variables in multi-threaded applications. You
- *          might want to allocate the ``running`` variable on the heap. */
+ */

@@ -24,7 +24,7 @@ if outname[-2:] == ".c":
 pos = outname.find(".")
 if pos > 0:
     outname = outname[:pos]
-include_re = re.compile("^#[\s]*include (\".*\").*$")
+include_re = re.compile("^#[\s]*include (\".*\").*$|^#[\s]*include (<open62541/.*>).*$")
 guard_re = re.compile("^#(?:(?:ifndef|define)\s*[A-Z_]+_H_|endif /\* [A-Z_]+_H_ \*/|endif // [A-Z_]+_H_|endif\s*/\*\s*!?[A-Z_]+_H[_]+\s*\*/)")
 
 print ("Starting amalgamating file "+ args.outfile)

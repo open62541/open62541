@@ -13,6 +13,9 @@ RANDFILE		= $ENV::HOME/.rnd
 oid_section		= new_oids
 
 hostname = ${ENV::HOSTNAME}
+ipaddress1 = ${ENV::IPADDRESS1}
+ipaddress2 = ${ENV::IPADDRESS2}
+uri1 = ${ENV::URI1}
 
 # To use this configuration file with the "-extfile" option of the
 # "openssl x509" utility, name here the section containing the
@@ -225,11 +228,11 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment
 subjectAltName = @alt_names
 
 [ alt_names ]
-DNS.1 = localhost
+DNS.1 = ${hostname}
 DNS.2 = ${hostname}
-IP.1 = 127.0.0.1
-IP.2 = 0.0.0.0
-URI.1 = urn:unconfigured:application
+IP.1 = ${ipaddress1}
+IP.2 = ${ipaddress2}
+URI.1 = ${uri1}
 
 [ v3_ca ]
 

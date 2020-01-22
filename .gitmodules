@@ -3,4 +3,5 @@
 	url = https://github.com/Pro/mdnsd.git
 [submodule "deps/ua-nodeset"]
 	path = deps/ua-nodeset
-	url = https://github.com/OPCFoundation/UA-Nodeset.git
+	url = https://github.com/OPCFoundation/UA-Nodeset
+	branch = v1.04

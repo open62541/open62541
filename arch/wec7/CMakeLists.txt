@@ -2,7 +2,7 @@ SET(SOURCE_GROUP ${SOURCE_GROUP}\\wec7)
 
 ua_add_architecture("wec7")
 
-list (FIND UA_AMALGAMATION_ARCHITECUTRES "wec7" _index)
+list (FIND UA_AMALGAMATION_ARCHITECTURES "wec7" _index)
 if (${_index} GREATER -1 OR "${UA_ARCHITECTURE}" STREQUAL "wec7")
 
     ua_add_architecture_file(${CMAKE_CURRENT_SOURCE_DIR}/ua_clock.c)

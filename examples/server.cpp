@@ -1,8 +1,10 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-# include "open62541.h"
+#include "open62541.h"
+
 #include <signal.h>
+#include <stdlib.h>
 
 /* Build Instructions (Linux)
  * - gcc -std=c99 -c open62541.c
@@ -11,10 +13,9 @@
 using namespace std;
 
 UA_Boolean running = true;
-UA_Logger logger = UA_Log_Stdout;
 
 static void stopHandler(int sign) {
-    UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "received ctrl-c");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
     running = false;
 }
 
@@ -22,8 +23,8 @@ int main() {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
 
-    UA_ServerConfig *config = UA_ServerConfig_new_default();
-    UA_Server *server = UA_Server_new(config);
+    UA_Server *server = UA_Server_new();
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     // add a variable node to the adresspace
     UA_VariableAttributes attr = UA_VariableAttributes_default;
@@ -40,12 +41,12 @@ int main() {
                               UA_NODEID_NULL, attr, NULL, NULL);
 
     /* allocations on the heap need to be freed */
-    UA_VariableAttributes_deleteMembers(&attr);
-    UA_NodeId_deleteMembers(&myIntegerNodeId);
-    UA_QualifiedName_deleteMembers(&myIntegerName);
+    UA_VariableAttributes_clear(&attr);
+    UA_NodeId_clear(&myIntegerNodeId);
+    UA_QualifiedName_clear(&myIntegerName);
 
     UA_StatusCode retval = UA_Server_run(server, &running);
+
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
-    return retval;
+    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }

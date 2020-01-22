@@ -1,8 +1,13 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-#include "open62541.h"
+#include <open62541/plugin/accesscontrol_default.h>
+#include <open62541/plugin/log_stdout.h>
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
+
 #include <signal.h>
+#include <stdlib.h>
 
 static UA_Boolean
 allowAddNode(UA_Server *server, UA_AccessControl *ac,
@@ -42,22 +47,35 @@ static void stopHandler(int sign) {
     running = false;
 }
 
+static UA_UsernamePasswordLogin logins[2] = {
+    {UA_STRING_STATIC("peter"), UA_STRING_STATIC("peter123")},
+    {UA_STRING_STATIC("paula"), UA_STRING_STATIC("paula123")}
+};
+
 int main(void) {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
 
-    UA_ServerConfig *config = UA_ServerConfig_new_default();
+    UA_Server *server = UA_Server_new();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_ServerConfig_setDefault(config);
 
-    // Set accessControl functions for nodeManagement
+    /* Disable anonymous logins, enable two user/password logins */
+    config->accessControl.clear(&config->accessControl);
+    UA_StatusCode retval = UA_AccessControl_default(config, false,
+             &config->securityPolicies[config->securityPoliciesSize-1].policyUri, 2, logins);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
+    /* Set accessControl functions for nodeManagement */
     config->accessControl.allowAddNode = allowAddNode;
     config->accessControl.allowAddReference = allowAddReference;
     config->accessControl.allowDeleteNode = allowDeleteNode;
     config->accessControl.allowDeleteReference = allowDeleteReference;
 
-    UA_Server *server = UA_Server_new(config);
+    retval = UA_Server_run(server, &running);
 
-    UA_StatusCode retval = UA_Server_run(server, &running);
+ cleanup:
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
-    return (int)retval;
+    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }

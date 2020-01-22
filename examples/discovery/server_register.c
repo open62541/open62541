@@ -5,17 +5,21 @@
  * Before shutdown it has to unregister itself.
  */
 
+#include <open62541/client.h>
+#include <open62541/client_config_default.h>
+#include <open62541/plugin/log_stdout.h>
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
 
-#include "open62541.h"
 #include <signal.h>
+#include <stdlib.h>
 
 #define DISCOVERY_SERVER_ENDPOINT "opc.tcp://localhost:4840"
 
-UA_Logger logger = UA_Log_Stdout;
 UA_Boolean running = true;
 
 static void stopHandler(int sign) {
-    UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "received ctrl-c");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
     running = false;
 }
 
@@ -29,10 +33,10 @@ readInteger(UA_Server *server, const UA_NodeId *sessionId,
     UA_Variant_setScalarCopy(&value->value, myInteger, &UA_TYPES[UA_TYPES_INT32]);
 
     // we know the nodeid is a string
-    UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Node read %.*s",
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Node read %.*s",
                 (int)nodeId->identifier.string.length,
                 nodeId->identifier.string.data);
-    UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                 "read value %i", *(UA_UInt32 *)myInteger);
     return UA_STATUSCODE_GOOD;
 }
@@ -48,10 +52,10 @@ writeInteger(UA_Server *server, const UA_NodeId *sessionId,
         *myInteger = *(UA_Int32 *)value->value.data;
 
     // we know the nodeid is a string
-    UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Node written %.*s",
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Node written %.*s",
                 (int)nodeId->identifier.string.length,
                 nodeId->identifier.string.data);
-    UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                 "written value %i", *(UA_UInt32 *)myInteger);
     return UA_STATUSCODE_GOOD;
 }
@@ -60,17 +64,19 @@ int main(int argc, char **argv) {
     signal(SIGINT, stopHandler); /* catches ctrl-c */
     signal(SIGTERM, stopHandler);
 
-    UA_ServerConfig *config = UA_ServerConfig_new_default();
-    UA_String_deleteMembers(&config->applicationDescription.applicationUri);
+    UA_Server *server = UA_Server_new();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    // use port 0 to dynamically assign port
+    UA_ServerConfig_setMinimal(config, 0, NULL);
+
+    UA_String_clear(&config->applicationDescription.applicationUri);
     config->applicationDescription.applicationUri =
         UA_String_fromChars("urn:open62541.example.server_register");
-    config->mdnsServerName = UA_String_fromChars("Sample Server");
+    config->discovery.mdns.mdnsServerName = UA_String_fromChars("Sample Server");
     // See http://www.opcfoundation.org/UA/schemas/1.03/ServerCapabilities.csv
     //config.serverCapabilitiesSize = 1;
     //UA_String caps = UA_String_fromChars("LDS");
     //config.serverCapabilities = &caps;
-
-    UA_Server *server = UA_Server_new(config);
 
     /* add a variable node to the address space */
     UA_Int32 myInteger = 42;
@@ -89,7 +95,8 @@ int main(int argc, char **argv) {
                                         myIntegerName, UA_NODEID_NULL, attr, dateDataSource,
                                         &myInteger, NULL);
 
-    UA_Client *clientRegister = UA_Client_new(UA_ClientConfig_default);
+    UA_Client *clientRegister = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(clientRegister));
 
     // periodic server register after 10 Minutes, delay first register for 500ms
     UA_StatusCode retval =
@@ -98,39 +105,38 @@ int main(int argc, char **argv) {
     // UA_StatusCode retval = UA_Server_addPeriodicServerRegisterJob(server,
     // "opc.tcp://localhost:4840", 10*60*1000, 500, NULL);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "Could not create periodic job for server register. StatusCode %s",
                      UA_StatusCode_name(retval));
         UA_Client_disconnect(clientRegister);
         UA_Client_delete(clientRegister);
         UA_Server_delete(server);
-        UA_ServerConfig_delete(config);
-        return (int)retval;
+        UA_Server_delete(server);
+        return EXIT_FAILURE;
     }
 
     retval = UA_Server_run(server, &running);
+
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "Could not start the server. StatusCode %s",
                      UA_StatusCode_name(retval));
         UA_Client_disconnect(clientRegister);
         UA_Client_delete(clientRegister);
         UA_Server_delete(server);
-        UA_ServerConfig_delete(config);
-        return (int)retval;
+        return EXIT_FAILURE;
     }
 
-    // UNregister the server from the discovery server.
+    // Unregister the server from the discovery server.
     retval = UA_Server_unregister_discovery(server, clientRegister);
     //retval = UA_Server_unregister_discovery(server, "opc.tcp://localhost:4840" );
     if(retval != UA_STATUSCODE_GOOD)
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "Could not unregister server from discovery server. StatusCode %s",
                      UA_StatusCode_name(retval));
 
     UA_Client_disconnect(clientRegister);
     UA_Client_delete(clientRegister);
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
-    return (int)retval;
+    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;;
 }

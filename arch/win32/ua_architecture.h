@@ -10,12 +10,14 @@
 #ifndef PLUGINS_ARCH_WIN32_UA_ARCHITECTURE_H_
 #define PLUGINS_ARCH_WIN32_UA_ARCHITECTURE_H_
 
+#include <open62541/architecture_base.h>
+
 #ifndef _BSD_SOURCE
 # define _BSD_SOURCE
 #endif
 
 /* Disable some security warnings on MSVC */
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(_CRT_SECURE_NO_WARNINGS)
 # define _CRT_SECURE_NO_WARNINGS
 #endif
 
@@ -40,7 +42,7 @@
 #include <windows.h>
 #include <ws2tcpip.h>
 
-#ifdef _MSC_VER
+#if defined (_MSC_VER) || defined(__clang__)
 # ifndef UNDER_CE
 #  include <io.h> //access
 #  define UA_access _access
@@ -54,10 +56,6 @@
 #define OPTVAL_TYPE char
 #ifndef UA_sleep_ms
 # define UA_sleep_ms(X) Sleep(X)
-#else /* UA_sleep_ms */
-/* With this one can define its own UA_sleep_ms using a preprocessor define.
-E.g. see unit tests. */
-void UA_sleep_ms(size_t ms);
 #endif
 
 // Windows does not support ansi colors
@@ -65,7 +63,7 @@ void UA_sleep_ms(size_t ms);
 
 #define UA_IPV6 1
 
-#if defined(__MINGW32__) //mingw defines SOCKET as long long unsigned int, giving errors in logging and when comparing with UA_Int32
+#if defined(__MINGW32__) && !defined(__clang__) //mingw defines SOCKET as long long unsigned int, giving errors in logging and when comparing with UA_Int32
 # define UA_SOCKET int
 # define UA_INVALID_SOCKET -1
 #else
@@ -88,7 +86,7 @@ void UA_sleep_ms(size_t ms);
 
 #define UA_getnameinfo getnameinfo
 #define UA_send(sockfd, buf, len, flags) send(sockfd, buf, (int)(len), flags)
-#define UA_recv recv
+#define UA_recv(sockfd, buf, len, flags) recv(sockfd, buf, (int)(len), flags)
 #define UA_sendto(sockfd, buf, len, flags, dest_addr, addrlen) sendto(sockfd, (const char*)(buf), (int)(len), flags, dest_addr, (int) (addrlen))
 #define UA_recvfrom(sockfd, buf, len, flags, src_addr, addrlen) recvfrom(sockfd, (char*)(buf), (int)(len), flags, src_addr, addrlen)
 #define UA_htonl htonl
@@ -106,6 +104,7 @@ void UA_sleep_ms(size_t ms);
 #define UA_setsockopt(sockfd, level, optname, optval, optlen) setsockopt(sockfd, level, optname, (const char*) (optval), optlen)
 #define UA_freeaddrinfo freeaddrinfo
 #define UA_gethostname gethostname
+#define UA_getsockname getsockname
 #define UA_inet_pton InetPton
 
 #if UA_IPV6
@@ -117,10 +116,18 @@ void UA_sleep_ms(size_t ms);
 # undef maxStringLength
 #endif
 
+#ifndef UA_free
 #define UA_free free
+#endif
+#ifndef UA_malloc
 #define UA_malloc malloc
+#endif
+#ifndef UA_calloc
 #define UA_calloc calloc
+#endif
+#ifndef UA_realloc
 #define UA_realloc realloc
+#endif
 
 /* 3rd Argument is the string */
 #define UA_snprintf(source, size, ...) _snprintf_s(source, size, _TRUNCATE, __VA_ARGS__)
@@ -136,10 +143,31 @@ void UA_sleep_ms(size_t ms);
 }
 #define UA_LOG_SOCKET_ERRNO_GAI_WRAP UA_LOG_SOCKET_ERRNO_WRAP
 
-#include "../ua_architecture_functions.h"
+#if UA_MULTITHREADING >= 100
+#define UA_LOCK_TYPE(mutexName) CRITICAL_SECTION mutexName; \
+                                int mutexName##Counter;
+#define UA_LOCK_INIT(mutexName) InitializeCriticalSection(&mutexName); \
+                                mutexName##Counter = 0;;
+#define UA_LOCK_DESTROY(mutexName) DeleteCriticalSection(&mutexName);
+#define UA_LOCK(mutexName) EnterCriticalSection(&mutexName); \
+                           UA_assert(++(mutexName##Counter) == 1);
+#define UA_UNLOCK(mutexName) UA_assert(--(mutexName##Counter) == 0); \
+                             LeaveCriticalSection(&mutexName);
+#define UA_LOCK_ASSERT(mutexName, num) UA_assert(mutexName##Counter == num);
+#else
+#define UA_LOCK_TYPE(mutexName)
+#define UA_LOCK_TYPE_POINTER(mutexName)
+#define UA_LOCK_INIT(mutexName)
+#define UA_LOCK_DESTROY(mutexName)
+#define UA_LOCK(mutexName)
+#define UA_UNLOCK(mutexName)
+#define UA_LOCK_ASSERT(mutexName, num)
+#endif
+
+#include <open62541/architecture_functions.h>
 
 /* Fix redefinition of SLIST_ENTRY on mingw winnt.h */
-#ifdef SLIST_ENTRY
+#if !defined(_SYS_QUEUE_H_) && defined(SLIST_ENTRY)
 # undef SLIST_ENTRY
 #endif
 

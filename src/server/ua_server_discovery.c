@@ -6,16 +6,19 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
+#include <open62541/client.h>
+
 #include "ua_server_internal.h"
-#include "ua_client.h"
 
 #ifdef UA_ENABLE_DISCOVERY
 
-static UA_StatusCode
+UA_StatusCode
 register_server_with_discovery_server(UA_Server *server,
-                                      UA_Client *client,
+                                      void *pClient,
                                       const UA_Boolean isUnregister,
                                       const char* semaphoreFilePath) {
+    UA_Client *client = (UA_Client *) pClient;
+
     /* Prepare the request. Do not cleanup the request after the service call,
      * as the members are stack-allocated or point into the server config. */
     UA_RegisterServer2Request request;
@@ -34,7 +37,7 @@ register_server_with_discovery_server(UA_Server *server,
         request.server.semaphoreFilePath =
             UA_STRING((char*)(uintptr_t)semaphoreFilePath); /* dirty cast */
 #else
-        UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_CLIENT,
                        "Ignoring semaphore file path. open62541 not compiled "
                        "with UA_ENABLE_DISCOVERY_SEMAPHORE=ON");
 #endif
@@ -60,19 +63,15 @@ register_server_with_discovery_server(UA_Server *server,
         request.server.discoveryUrls[config_discurls + i] = nl->discoveryUrl;
     }
 
-    UA_MdnsDiscoveryConfiguration mdnsConfig;
-    UA_MdnsDiscoveryConfiguration_init(&mdnsConfig);
-
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
     request.discoveryConfigurationSize = 1;
     request.discoveryConfiguration = UA_ExtensionObject_new();
     UA_ExtensionObject_init(&request.discoveryConfiguration[0]);
+    // Set to NODELETE so that we can just use a pointer to the mdns config
     request.discoveryConfiguration[0].encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
     request.discoveryConfiguration[0].content.decoded.type = &UA_TYPES[UA_TYPES_MDNSDISCOVERYCONFIGURATION];
-    request.discoveryConfiguration[0].content.decoded.data = &mdnsConfig;
-
-    mdnsConfig.mdnsServerName = server->config.mdnsServerName;
-    mdnsConfig.serverCapabilities = server->config.serverCapabilities;
-    mdnsConfig.serverCapabilitiesSize = server->config.serverCapabilitiesSize;
+    request.discoveryConfiguration[0].content.decoded.data = &server->config.discovery.mdns;
+#endif
 
     // First try with RegisterServer2, if that isn't implemented, use RegisterServer
     UA_RegisterServer2Response response;
@@ -80,8 +79,12 @@ register_server_with_discovery_server(UA_Server *server,
                         &response, &UA_TYPES[UA_TYPES_REGISTERSERVER2RESPONSE]);
 
     UA_StatusCode serviceResult = response.responseHeader.serviceResult;
-    UA_RegisterServer2Response_deleteMembers(&response);
-    UA_ExtensionObject_delete(request.discoveryConfiguration);
+    UA_RegisterServer2Response_clear(&response);
+    UA_Array_delete(request.discoveryConfiguration,
+                    request.discoveryConfigurationSize,
+                    &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+    request.discoveryConfiguration = NULL;
+    request.discoveryConfigurationSize = 0;
 
     if(serviceResult == UA_STATUSCODE_BADNOTIMPLEMENTED ||
        serviceResult == UA_STATUSCODE_BADSERVICEUNSUPPORTED) {
@@ -100,11 +103,11 @@ register_server_with_discovery_server(UA_Server *server,
                             &UA_TYPES[UA_TYPES_REGISTERSERVERRESPONSE]);
 
         serviceResult = response_fallback.responseHeader.serviceResult;
-        UA_RegisterServerResponse_deleteMembers(&response_fallback);
+        UA_RegisterServerResponse_clear(&response_fallback);
     }
 
     if(serviceResult != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_CLIENT,
                      "RegisterServer/RegisterServer2 failed with statuscode %s",
                      UA_StatusCode_name(serviceResult));
     }
@@ -115,14 +118,20 @@ register_server_with_discovery_server(UA_Server *server,
 UA_StatusCode
 UA_Server_register_discovery(UA_Server *server, UA_Client *client,
                              const char* semaphoreFilePath) {
-    return register_server_with_discovery_server(server, client,
-                                                 UA_FALSE, semaphoreFilePath);
+    UA_LOCK(server->serviceMutex);
+    UA_StatusCode retval = register_server_with_discovery_server(server, client,
+                                                                 false, semaphoreFilePath);
+    UA_UNLOCK(server->serviceMutex);
+    return retval;
 }
 
 UA_StatusCode
 UA_Server_unregister_discovery(UA_Server *server, UA_Client *client) {
-    return register_server_with_discovery_server(server, client,
-                                                 UA_TRUE, NULL);
+    UA_LOCK(server->serviceMutex);
+    UA_StatusCode retval = register_server_with_discovery_server(server, client,
+                                                                 true, NULL);
+    UA_UNLOCK(server->serviceMutex);
+    return retval;
 }
 
 #endif /* UA_ENABLE_DISCOVERY */

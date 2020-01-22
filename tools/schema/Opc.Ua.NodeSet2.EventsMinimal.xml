@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+ * Copyright (c) 2005-2018 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ *
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ *
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<UANodeSet xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" LastModified="2019-01-31T00:00:00Z" xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd">
+  <Models>
+    <Model ModelUri="http://opcfoundation.org/UA/" Version="1.04" PublicationDate="2019-01-31T00:00:00Z" />
+  </Models>
+  <UAObjectType NodeId="i=2041" BrowseName="BaseEventType" IsAbstract="true">
+    <DisplayName>BaseEventType</DisplayName>
+    <Description>The base type for all events.</Description>
+    <References>
+      <Reference ReferenceType="HasProperty">i=2042</Reference>
+      <Reference ReferenceType="HasProperty">i=2043</Reference>
+      <Reference ReferenceType="HasProperty">i=2044</Reference>
+      <Reference ReferenceType="HasProperty">i=2045</Reference>
+      <Reference ReferenceType="HasProperty">i=2046</Reference>
+      <Reference ReferenceType="HasProperty">i=2047</Reference>
+      <Reference ReferenceType="HasProperty">i=3190</Reference>
+      <Reference ReferenceType="HasProperty">i=2050</Reference>
+      <Reference ReferenceType="HasProperty">i=2051</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="i=2042" BrowseName="EventId" ParentNodeId="i=2041" DataType="ByteString">
+    <DisplayName>EventId</DisplayName>
+    <Description>A globally unique identifier for the event.</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=2041</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=2043" BrowseName="EventType" ParentNodeId="i=2041" DataType="NodeId">
+    <DisplayName>EventType</DisplayName>
+    <Description>The identifier for the event type.</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=2041</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=2044" BrowseName="SourceNode" ParentNodeId="i=2041" DataType="NodeId">
+    <DisplayName>SourceNode</DisplayName>
+    <Description>The source of the event.</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=2041</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=2045" BrowseName="SourceName" ParentNodeId="i=2041" DataType="String">
+    <DisplayName>SourceName</DisplayName>
+    <Description>A description of the source of the event.</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=2041</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=2046" BrowseName="Time" ParentNodeId="i=2041" DataType="i=294">
+    <DisplayName>Time</DisplayName>
+    <Description>When the event occurred.</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=2041</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=2047" BrowseName="ReceiveTime" ParentNodeId="i=2041" DataType="i=294">
+    <DisplayName>ReceiveTime</DisplayName>
+    <Description>When the server received the event from the underlying system.</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=2041</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=3190" BrowseName="LocalTime" ParentNodeId="i=2041" DataType="i=8912">
+    <DisplayName>LocalTime</DisplayName>
+    <Description>Information about the local time where the event originated.</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=2041</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=2050" BrowseName="Message" ParentNodeId="i=2041" DataType="LocalizedText">
+    <DisplayName>Message</DisplayName>
+    <Description>A localized description of the event.</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=2041</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=2051" BrowseName="Severity" ParentNodeId="i=2041" DataType="UInt16">
+    <DisplayName>Severity</DisplayName>
+    <Description>Indicates how urgent an event is.</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=2041</Reference>
+    </References>
+  </UAVariable>
+  <UAObjectType NodeId="i=3035" BrowseName="EventQueueOverflowEventType" IsAbstract="true">
+    <DisplayName>EventQueueOverflowEventType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=2041</Reference>
+    </References>
+  </UAObjectType>
+  <UADataType NodeId="i=8912" BrowseName="TimeZoneDataType">
+    <DisplayName>TimeZoneDataType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+    </References>
+    <Definition Name="TimeZoneDataType">
+      <Field Name="Offset" DataType="i=4"/>
+      <Field Name="DaylightSavingInOffset" DataType="i=1"/>
+    </Definition>
+  </UADataType>
+</UANodeSet>

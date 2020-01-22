@@ -3,16 +3,10 @@
 Building open62541
 ==================
 
-Building the Examples
----------------------
-
-Using the GCC compiler, the following calls build the examples on Linux.
-
-.. code-block:: bash
-
-   cp /path-to/open62541.* . # copy single-file distribution to the local directory
-   cp /path-to/examples/tutorial_server_variable.c . # copy the example server
-   gcc -std=c99 -DUA_ARCHITECTURE_POSIX open62541.c tutorial_server_variable.c -o server
+open62541 uses CMake to build the library and binaries. The library version is automatically
+detected using ``git describe``. This command returns a valid version string based on the current tag.
+If you did not directly clone the sources, but use the tar or zip package from a release, you need
+to manually specify the version. In that case use e.g. ``cmake -DOPEN62541_VERSION=v1.0.3``.
 
 Building the Library
 --------------------
@@ -22,12 +16,12 @@ Building with CMake on Ubuntu or Debian
 
 .. code-block:: bash
 
-   sudo apt-get install git build-essential gcc pkg-config cmake python python-six
+   sudo apt-get install git build-essential gcc pkg-config cmake python
 
    # enable additional features
    sudo apt-get install cmake-curses-gui # for the ccmake graphical interface
    sudo apt-get install libmbedtls-dev # for encryption support
-   sudo apt-get install check # for unit tests
+   sudo apt-get install check libsubunit-dev # for unit tests
    sudo apt-get install python-sphinx graphviz # for documentation generation
    sudo apt-get install python-sphinx-rtd-theme # documentation style
 
@@ -54,7 +48,6 @@ with MinGW, just replace the compiler selection in the call to CMake.
 - Download and install
 
   - Python 2.7.x (Python 3.x works as well): https://python.org/downloads
-  - Install python-six with the pip package manager (``pip install six``)
   - CMake: http://www.cmake.org/cmake/resources/software.html
   - Microsoft Visual Studio: https://www.visualstudio.com/products/visual-studio-community-vs
 
@@ -85,12 +78,10 @@ Building on OS X
 .. code-block:: bash
 
    brew install cmake
-   pip install six # python 2/3 compatibility workarounds
    pip install sphinx # for documentation generation
    pip install sphinx_rtd_theme # documentation style
    brew install graphviz # for graphics in the documentation
    brew install check # for unit tests
-   brew install userspace-rcu # for multi-threading support
 
 Follow Ubuntu instructions without the ``apt-get`` commands as these are taken care of by the above packages.
 
@@ -120,6 +111,82 @@ The procedure below works on OpenBSD 5.8 with gcc version 4.8.4, cmake version 3
    cmake ..
    make
 
+Building Debian Packages inside Docker Container with CMake on Ubuntu or Debian
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Here is an example howto build the library as Debian package inside a Docker container
+
+- Download and install
+
+  - Docker Engine: https://docs.docker.com/install/linux/docker-ce/debian/
+  - docker-deb-builder: https://github.com/tsaarni/docker-deb-builder.git
+  - open62541: https://github.com/open62541/open62541.git
+
+Install Docker as described at https://docs.docker.com/install/linux/docker-ce/debian/ .
+
+Get the docker-deb-builder utility from github and make Docker images for the needed
+Debian and/or Ubuntu relases
+
+.. code-block:: bash
+
+   # make and goto local development path (e.g. ~/development)
+   mkdir ~/development
+   cd ~/development
+
+   # clone docker-deb-builder utility from github and change into builder directory
+   git clone https://github.com/tsaarni/docker-deb-builder.git
+   cd docker-deb-builder
+
+   # make Docker builder images (e.g. Ubuntu 18.04 and 17.04)
+   docker build -t docker-deb-builder:18.04 -f Dockerfile-ubuntu-18.04 .
+   docker build -t docker-deb-builder:17.04 -f Dockerfile-ubuntu-17.04 .
+
+Make a local copy of the open62541 git repo and checkout a pack branch
+
+.. code-block:: bash
+
+   # make a local copy of the open62541 git repo (e.g. in the home directory) 
+   # and checkout a pack branch (e.g. pack/1.0)
+   cd ~
+   git clone https://github.com/open62541/open62541.git
+   cd ~/open62541
+   git checkout pack/1.0
+
+Now it's all set to build Debian/Ubuntu open62541 packages
+
+.. code-block:: bash
+
+   # goto local developmet path
+   cd ~/development
+   
+   # make a local output directory for the builder where the packages can be placed after build
+   mkdir output
+   
+   # build Debian/Ubuntu packages inside Docker container (e.g. Ubuntu-18.04)
+   ./build -i docker-deb-builder:18.04 -o output ~/open62541
+
+After a successfull build the Debian/Ubuntu packages can be found at :file:`~/development/docker-deb-builder/output`
+
+CMake Build Options and Debian Packaging
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+If the open62541 library will be build as a Debian package using a pack branch (e.g. pack/master or pack/1.0)
+then altering or adding CMake build options should be done inside the :file:`debian/rules` file respectively in
+the :file:`debian/rules-template` file if working with a development branch (e.g. master or 1.0).
+
+The section in :file:`debian/rules` where the CMake build options are defined is 
+
+.. code-block:: bash
+
+   ...
+   override_dh_auto_configure:
+       dh_auto_configure -- -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUA_NAMESPACE_ZERO=FULL -DUA_ENABLE_AMALGAMATION=OFF -DUA_PACK_DEBIAN=ON
+   ...
+
+This CMake build options will be passed as command line variables to CMake during Debian packaging.
+
+.. _build_options:
+
 Build Options
 -------------
 
@@ -145,12 +212,22 @@ Main Build Options
    The SDK logs events of the level defined in ``UA_LOGLEVEL`` and above only.
    The logging event levels are as follows:
 
-     - 600: Fatal
-     - 500: Error
-     - 400: Warning
-     - 300: Info
-     - 200: Debug
-     - 100: Trace
+   - 600: Fatal
+   - 500: Error
+   - 400: Warning
+   - 300: Info
+   - 200: Debug
+   - 100: Trace
+
+**UA_MULTITHREADING**
+   Level of multi-threading support. The supported levels are currently as follows:
+
+  - 0-199: Multithreading support disabled.
+  - 100-199: API functions marked with the UA_THREADSAFE-macro are protected internally with mutexes.
+    Multiple threads are allowed to call these functions of the SDK at the same time without causing race conditions.
+    Furthermore, this level support the handling of asynchronous method calls from external worker threads.
+  - >=200: Work is distributed to a number of internal worker threads. Those worker threads are created within the SDK.
+    (EXPERIMENTAL FEATURE! Expect bugs.)
 
 Select build artefacts
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -174,8 +251,11 @@ Detailed SDK Features
 **UA_ENABLE_SUBSCRIPTIONS**
    Enable subscriptions
 
-**UA_ENABLE_SUBSCRIPTIONS_EVENTS**
+**UA_ENABLE_SUBSCRIPTIONS_EVENTS (EXPERIMENTAL)**
     Enable the use of events for subscriptions. This is a new feature and currently marked as EXPERIMENTAL.
+
+**UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS (EXPERIMENTAL)**
+    Enable the use of A&C for subscriptions. This is a new feature build upon events and currently marked as EXPERIMENTAL.
 
 **UA_ENABLE_METHODCALLS**
    Enable the Method service set
@@ -184,17 +264,14 @@ Detailed SDK Features
    Enable dynamic addition and removal of nodes at runtime
 
 **UA_ENABLE_AMALGAMATION**
-   Compile a single-file release into the files :file:`open62541.c` and :file:`open62541.h`
-
-**UA_ENABLE_MULTITHREADING**
-   Enable multi-threading support
+   Compile a single-file release into the files :file:`open62541.c` and :file:`open62541.h`. Not recommended for installation.
 
 **UA_ENABLE_IMMUTABLE_NODES**
    Nodes in the information model are not edited but copied and replaced. The
    replacement is done with atomic operations so that the information model is
    always consistent and can be accessed from an interrupt or parallel thread
    (depends on the node storage plugin implementation). This feature is a
-   prerequisite for ``UA_ENABLE_MULTITHREADING``.
+   prerequisite for ``UA_MULTITHREADING``.
 
 **UA_ENABLE_COVERAGE**
    Measure the coverage of unit tests
@@ -222,7 +299,7 @@ Detailed SDK Features
 Some options are marked as advanced. The advanced options need to be toggled to
 be visible in the cmake GUIs.
 
-**UA_ENABLE_TYPENAMES**
+**UA_ENABLE_TYPEDESCRIPTION**
    Add the type and member names to the UA_DataType structure. Enabled by default.
 
 **UA_ENABLE_STATUSCODE_DESCRIPTIONS**
@@ -230,8 +307,6 @@ be visible in the cmake GUIs.
 **UA_ENABLE_FULL_NS0**
    Use the full NS0 instead of a minimal Namespace 0 nodeset
    ``UA_FILE_NS0`` is used to specify the file for NS0 generation from namespace0 folder. Default value is ``Opc.Ua.NodeSet2.xml``
-**UA_ENABLE_NONSTANDARD_UDP**
-   Enable udp extension
 
 Debug Build Options
 ^^^^^^^^^^^^^^^^^^^
@@ -279,7 +354,7 @@ communication.
 Last, logging messages take up a lot of space in the binary and might not be
 needed in embedded scenarios. Setting ``UA_LOGLEVEL`` to a value above 600
 (``FATAL``) disables all logging. In addition, the feature-flags
-``UA_ENABLE_TYPENAMES`` and ``UA_ENABLE_STATUSCODE_DESCRIPTIONS`` add static
+``UA_ENABLE_TYPEDESCRIPTION`` and ``UA_ENABLE_STATUSCODE_DESCRIPTIONS`` add static
 information to the binary that is only used for human-readable logging and
 debugging.
 
@@ -288,3 +363,19 @@ The RAM requirements of a server are mostly due to the following settings:
 - The size of the information model
 - The number of connected clients
 - The configured maximum message size that is preallocated
+
+
+Building the Examples
+---------------------
+
+Make sure that you can build the shared library as explained in the previous steps. Even easier way
+to build the examples is to install open62541 in your operating system (see :ref:`installing`).
+
+Then the compiler should automatically find the includes and the shared library.
+
+.. code-block:: bash
+
+   cp /path-to/examples/tutorial_server_firststeps.c . # copy the example server
+   gcc -std=c99 -o server tutorial_server_firststeps.c -lopen62541
+
+.. include:: building_arch.rst

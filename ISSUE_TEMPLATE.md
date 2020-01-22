@@ -13,17 +13,29 @@ Fill out the sections and checklist below (add text at the end of each line).
 --------------------------------------------------------------------------------
 -->
 
-Description
-===========
+## Description
 
-
-Background Information / Reproduction Steps
-===========================================
+## Background Information / Reproduction Steps
 
 
 
-Checklist
-=========
+Used CMake options:
+
+<!-- 
+
+Include all CMake options here, which you modified or used for your build.
+
+If you are using cmake-gui, go to "Tools > Show my Changes" and paste the content of "Command Line Options"
+
+On the command line use `cmake -L` (or `cmake -LA` if you changed advanced variables)
+-->
+
+```bash
+cmake -DUA_NAMESPACE_ZERO=<YOUR_OPTION> <ANY_OTHER_OPTIONS> ..
+```
+
+## Checklist
+
 Please provide the following information:
 
  - [ ] open62541 Version (release number or git tag):

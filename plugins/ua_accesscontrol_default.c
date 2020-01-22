@@ -5,7 +5,8 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
-#include "ua_accesscontrol_default.h"
+#include <open62541/plugin/accesscontrol_default.h>
+#include <open62541/server_config.h>
 
 /* Example access control management. Anonymous and username / password login.
  * The access rights are maximally permissive. */
@@ -75,9 +76,9 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
         if(!UA_String_equal(&userToken->policyId, &username_policy))
             return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 
-        /* TODO: Support encrypted username/password over unencrypted SecureChannels */
-        if(userToken->encryptionAlgorithm.length > 0)
-            return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+        /* The userToken has been decrypted by the server before forwarding
+         * it to the plugin. This information can be used here. */
+        /* if(userToken->encryptionAlgorithm.length > 0) {} */
 
         /* Empty username and password */
         if(userToken->userName.length == 0 && userToken->password.length == 0)
@@ -167,45 +168,82 @@ allowDeleteReference_default(UA_Server *server, UA_AccessControl *ac,
     return true;
 }
 
+#ifdef UA_ENABLE_HISTORIZING
+static UA_Boolean
+allowHistoryUpdateUpdateData_default(UA_Server *server, UA_AccessControl *ac,
+                                     const UA_NodeId *sessionId, void *sessionContext,
+                                     const UA_NodeId *nodeId,
+                                     UA_PerformUpdateType performInsertReplace,
+                                     const UA_DataValue *value) {
+    return true;
+}
+
+static UA_Boolean
+allowHistoryUpdateDeleteRawModified_default(UA_Server *server, UA_AccessControl *ac,
+                                            const UA_NodeId *sessionId, void *sessionContext,
+                                            const UA_NodeId *nodeId,
+                                            UA_DateTime startTimestamp,
+                                            UA_DateTime endTimestamp,
+                                            bool isDeleteModified) {
+    return true;
+}
+#endif
+
 /***************************************/
 /* Create Delete Access Control Plugin */
 /***************************************/
 
-static void deleteMembers_default(UA_AccessControl *ac) {
+static void clear_default(UA_AccessControl *ac) {
     UA_Array_delete((void*)(uintptr_t)ac->userTokenPolicies,
                     ac->userTokenPoliciesSize,
                     &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
+    ac->userTokenPolicies = NULL;
+    ac->userTokenPoliciesSize = 0;
 
     AccessControlContext *context = (AccessControlContext*)ac->context;
-    for(size_t i = 0; i < context->usernamePasswordLoginSize; i++) {
-        UA_String_deleteMembers(&context->usernamePasswordLogin[i].username);
-        UA_String_deleteMembers(&context->usernamePasswordLogin[i].password);
+
+    if (context) {
+        for(size_t i = 0; i < context->usernamePasswordLoginSize; i++) {
+            UA_String_deleteMembers(&context->usernamePasswordLogin[i].username);
+            UA_String_deleteMembers(&context->usernamePasswordLogin[i].password);
+        }
+        if(context->usernamePasswordLoginSize > 0)
+            UA_free(context->usernamePasswordLogin);
+        UA_free(ac->context);
+        ac->context = NULL;
     }
-    if(context->usernamePasswordLoginSize > 0)
-        UA_free(context->usernamePasswordLogin);
-    UA_free(ac->context);
 }
 
-UA_AccessControl
-UA_AccessControl_default(UA_Boolean allowAnonymous, size_t usernamePasswordLoginSize,
+UA_StatusCode
+UA_AccessControl_default(UA_ServerConfig *config, UA_Boolean allowAnonymous,
+                         const UA_ByteString *userTokenPolicyUri,
+                         size_t usernamePasswordLoginSize,
                          const UA_UsernamePasswordLogin *usernamePasswordLogin) {
+    UA_AccessControl *ac = &config->accessControl;
+    ac->clear = clear_default;
+    ac->activateSession = activateSession_default;
+    ac->closeSession = closeSession_default;
+    ac->getUserRightsMask = getUserRightsMask_default;
+    ac->getUserAccessLevel = getUserAccessLevel_default;
+    ac->getUserExecutable = getUserExecutable_default;
+    ac->getUserExecutableOnObject = getUserExecutableOnObject_default;
+    ac->allowAddNode = allowAddNode_default;
+    ac->allowAddReference = allowAddReference_default;
+
+#ifdef UA_ENABLE_HISTORIZING
+    ac->allowHistoryUpdateUpdateData = allowHistoryUpdateUpdateData_default;
+    ac->allowHistoryUpdateDeleteRawModified = allowHistoryUpdateDeleteRawModified_default;
+#endif
+
+    ac->allowDeleteNode = allowDeleteNode_default;
+    ac->allowDeleteReference = allowDeleteReference_default;
+
     AccessControlContext *context = (AccessControlContext*)
-        UA_malloc(sizeof(AccessControlContext));
+            UA_malloc(sizeof(AccessControlContext));
+    if (!context)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     memset(context, 0, sizeof(AccessControlContext));
-    UA_AccessControl ac;
-    memset(&ac, 0, sizeof(ac));
-    ac.context = context;
-    ac.deleteMembers = deleteMembers_default;
-    ac.activateSession = activateSession_default;
-    ac.closeSession = closeSession_default;
-    ac.getUserRightsMask = getUserRightsMask_default;
-    ac.getUserAccessLevel = getUserAccessLevel_default;
-    ac.getUserExecutable = getUserExecutable_default;
-    ac.getUserExecutableOnObject = getUserExecutableOnObject_default;
-    ac.allowAddNode = allowAddNode_default;
-    ac.allowAddReference = allowAddReference_default;
-    ac.allowDeleteNode = allowDeleteNode_default;
-    ac.allowDeleteReference = allowDeleteReference_default;
+    ac->context = context;
 
     /* Allow anonymous? */
     context->allowAnonymous = allowAnonymous;
@@ -215,7 +253,7 @@ UA_AccessControl_default(UA_Boolean allowAnonymous, size_t usernamePasswordLogin
         context->usernamePasswordLogin = (UA_UsernamePasswordLogin*)
             UA_malloc(usernamePasswordLoginSize * sizeof(UA_UsernamePasswordLogin));
         if(!context->usernamePasswordLogin)
-            return ac;
+            return UA_STATUSCODE_BADOUTOFMEMORY;
         context->usernamePasswordLoginSize = usernamePasswordLoginSize;
         for(size_t i = 0; i < usernamePasswordLoginSize; i++) {
             UA_String_copy(&usernamePasswordLogin[i].username, &context->usernamePasswordLogin[i].username);
@@ -229,26 +267,38 @@ UA_AccessControl_default(UA_Boolean allowAnonymous, size_t usernamePasswordLogin
         policies++;
     if(usernamePasswordLoginSize > 0)
         policies++;
-    ac.userTokenPoliciesSize = 0;
-    ac.userTokenPolicies = (UA_UserTokenPolicy *)
+    ac->userTokenPoliciesSize = 0;
+    ac->userTokenPolicies = (UA_UserTokenPolicy *)
         UA_Array_new(policies, &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
-    if(!ac.userTokenPolicies)
-        return ac;
-    ac.userTokenPoliciesSize = policies;
+    if(!ac->userTokenPolicies)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    ac->userTokenPoliciesSize = policies;
 
     policies = 0;
     if(allowAnonymous) {
-        ac.userTokenPolicies[policies].tokenType = UA_USERTOKENTYPE_ANONYMOUS;
-        ac.userTokenPolicies[policies].policyId = UA_STRING_ALLOC(ANONYMOUS_POLICY);
+        ac->userTokenPolicies[policies].tokenType = UA_USERTOKENTYPE_ANONYMOUS;
+        ac->userTokenPolicies[policies].policyId = UA_STRING_ALLOC(ANONYMOUS_POLICY);
+        if (!ac->userTokenPolicies[policies].policyId.data)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
         policies++;
     }
 
     if(usernamePasswordLoginSize > 0) {
-        ac.userTokenPolicies[policies].tokenType = UA_USERTOKENTYPE_USERNAME;
-        ac.userTokenPolicies[policies].policyId = UA_STRING_ALLOC(USERNAME_POLICY);
-        /* No encryption of username/password supported at the moment */
-        ac.userTokenPolicies[policies].securityPolicyUri =
-            UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#None");
+        ac->userTokenPolicies[policies].tokenType = UA_USERTOKENTYPE_USERNAME;
+        ac->userTokenPolicies[policies].policyId = UA_STRING_ALLOC(USERNAME_POLICY);
+        if(!ac->userTokenPolicies[policies].policyId.data)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+
+#if UA_LOGLEVEL <= 400
+        const UA_String noneUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
+        if(UA_ByteString_equal(userTokenPolicyUri, &noneUri)) {
+            UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_SERVER,
+                           "Username/Password configured, but no encrypting SecurityPolicy. "
+                           "This can leak credentials on the network.");
+        }
+#endif
+        return UA_ByteString_copy(userTokenPolicyUri,
+                                  &ac->userTokenPolicies[policies].securityPolicyUri);
     }
-    return ac;
+    return UA_STATUSCODE_GOOD;
 }

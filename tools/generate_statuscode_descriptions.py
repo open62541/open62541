@@ -6,9 +6,6 @@
 
 from __future__ import print_function
 import sys
-import platform
-import getpass
-import time
 import argparse
 from io import open
 
@@ -56,7 +53,7 @@ printh(u'''/*---------------------------------------------------------
 ''' % (args.statuscodes, sys.argv[0]))
 
 for row in rows:
-    printh(u"#define UA_STATUSCODE_%s %s /* %s */" % (row[0].upper(), row[1], row[2]))
+    printh(u"/* %s */\n#define UA_STATUSCODE_%s %s\n" % (row[2], row[0].upper(), row[1]))
 
 #########################
 # Print the source file #
@@ -67,7 +64,7 @@ printc(u'''/**********************************************************
  * Generated from %s with script %s
  *********************************************************/
 
-#include "ua_types.h"''' % (args.statuscodes, sys.argv[0]))
+#include <open62541/types.h>''' % (args.statuscodes, sys.argv[0]))
 
 count = 2 + len(rows)
 

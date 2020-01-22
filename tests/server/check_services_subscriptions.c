@@ -2,20 +2,20 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "ua_server.h"
-#include "server/ua_services.h"
-#include "server/ua_server_internal.h"
-#include "server/ua_subscription.h"
-#include "ua_config_default.h"
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
 
-#include "check.h"
+#include "server/ua_server_internal.h"
+#include "server/ua_services.h"
+#include "server/ua_subscription.h"
+
+#include <check.h>
+
 #include "testing_clock.h"
 
 static UA_Server *server = NULL;
-static UA_ServerConfig *config = NULL;
 static UA_Session *session = NULL;
-
-UA_UInt32 monitored = 0; /* Number of active MonitoredItems */
+static UA_UInt32 monitored = 0; /* Number of active MonitoredItems */
 
 static void
 monitoredRegisterCallback(UA_Server *s,
@@ -33,15 +33,18 @@ createSession(void) {
     UA_CreateSessionRequest request;
     UA_CreateSessionRequest_init(&request);
     request.requestedSessionTimeout = UA_UINT32_MAX;
+    UA_LOCK(server->serviceMutex);
     UA_StatusCode retval = UA_SessionManager_createSession(&server->sessionManager, NULL,
                                                            &request, &session);
+    UA_UNLOCK(server->serviceMutex);
     ck_assert_uint_eq(retval, 0);
 }
 
 static void setup(void) {
-    config = UA_ServerConfig_new_default();
+    server = UA_Server_new();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_ServerConfig_setDefault(config);
     config->monitoredItemRegisterCallback = monitoredRegisterCallback;
-    server = UA_Server_new(config);
     UA_Server_run_startup(server);
     createSession();
 }
@@ -49,15 +52,13 @@ static void setup(void) {
 static void teardown(void) {
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
-
     ck_assert_uint_eq(monitored, 0); /* All MonitoredItems have been de-registered */
 }
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 
-UA_UInt32 subscriptionId;
-UA_UInt32 monitoredItemId;
+static UA_UInt32 subscriptionId;
+static UA_UInt32 monitoredItemId;
 
 static void
 createSubscription(void) {
@@ -68,7 +69,9 @@ createSubscription(void) {
     UA_CreateSubscriptionResponse response;
     UA_CreateSubscriptionResponse_init(&response);
 
+    UA_LOCK(server->serviceMutex);
     Service_CreateSubscription(server, session, &request, &response);
+    UA_UNLOCK(server->serviceMutex);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     subscriptionId = response.subscriptionId;
 
@@ -99,7 +102,9 @@ createMonitoredItem(void) {
     UA_CreateMonitoredItemsResponse response;
     UA_CreateMonitoredItemsResponse_init(&response);
 
+    UA_LOCK(server->serviceMutex);
     Service_CreateMonitoredItems(server, session, &request, &response);
+    UA_UNLOCK(server->serviceMutex);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(response.resultsSize, 1);
     ck_assert_uint_eq(response.results[0].statusCode, UA_STATUSCODE_GOOD);
@@ -119,8 +124,9 @@ START_TEST(Server_createSubscription) {
 
     UA_CreateSubscriptionResponse response;
     UA_CreateSubscriptionResponse_init(&response);
-
+    UA_LOCK(server->serviceMutex);
     Service_CreateSubscription(server, session, &request, &response);
+    UA_UNLOCK(server->serviceMutex);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     subscriptionId = response.subscriptionId;
 
@@ -146,7 +152,9 @@ START_TEST(Server_modifySubscription) {
     UA_ModifySubscriptionResponse response;
     UA_ModifySubscriptionResponse_init(&response);
 
+    UA_LOCK(server->serviceMutex);
     Service_ModifySubscription(server, session, &request, &response);
+    UA_UNLOCK(server->serviceMutex);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
 
     UA_ModifySubscriptionResponse_deleteMembers(&response);
@@ -165,7 +173,10 @@ START_TEST(Server_setPublishingMode) {
     UA_SetPublishingModeResponse response;
     UA_SetPublishingModeResponse_init(&response);
 
+    UA_LOCK(server->serviceMutex);
     Service_SetPublishingMode(server, session, &request, &response);
+    UA_UNLOCK(server->serviceMutex);
+
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(response.resultsSize, 1);
     ck_assert_uint_eq(response.results[0], UA_STATUSCODE_GOOD);
@@ -185,7 +196,9 @@ START_TEST(Server_republish) {
     UA_RepublishResponse response;
     UA_RepublishResponse_init(&response);
 
+    UA_LOCK(server->serviceMutex);
     Service_Republish(server, session, &request, &response);
+    UA_UNLOCK(server->serviceMutex);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_BADMESSAGENOTAVAILABLE);
 
     UA_RepublishResponse_deleteMembers(&response);
@@ -202,7 +215,9 @@ START_TEST(Server_republish_invalid) {
     UA_RepublishResponse response;
     UA_RepublishResponse_init(&response);
 
+    UA_LOCK(server->serviceMutex);
     Service_Republish(server, session, &request, &response);
+    UA_UNLOCK(server->serviceMutex);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID);
 
     UA_RepublishResponse_deleteMembers(&response);
@@ -221,7 +236,9 @@ START_TEST(Server_deleteSubscription) {
     UA_DeleteSubscriptionsResponse del_response;
     UA_DeleteSubscriptionsResponse_init(&del_response);
 
+    UA_LOCK(server->serviceMutex);
     Service_DeleteSubscriptions(server, session, &del_request, &del_response);
+    UA_UNLOCK(server->serviceMutex);
     ck_assert_uint_eq(del_response.resultsSize, 1);
     ck_assert_uint_eq(del_response.results[0], UA_STATUSCODE_GOOD);
 
@@ -237,7 +254,9 @@ START_TEST(Server_publishCallback) {
     UA_CreateSubscriptionRequest_init(&request);
     request.publishingEnabled = true;
     UA_CreateSubscriptionResponse_init(&response);
+    UA_LOCK(server->serviceMutex);
     Service_CreateSubscription(server, session, &request, &response);
+    UA_UNLOCK(server->serviceMutex);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     UA_UInt32 subscriptionId1 = response.subscriptionId;
     UA_CreateSubscriptionResponse_deleteMembers(&response);
@@ -246,7 +265,9 @@ START_TEST(Server_publishCallback) {
     UA_CreateSubscriptionRequest_init(&request);
     request.publishingEnabled = true;
     UA_CreateSubscriptionResponse_init(&response);
+    UA_LOCK(server->serviceMutex);
     Service_CreateSubscription(server, session, &request, &response);
+    UA_UNLOCK(server->serviceMutex);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     UA_UInt32 subscriptionId2 = response.subscriptionId;
     UA_Double publishingInterval = response.revisedPublishingInterval;
@@ -278,7 +299,9 @@ START_TEST(Server_publishCallback) {
     UA_DeleteSubscriptionsResponse del_response;
     UA_DeleteSubscriptionsResponse_init(&del_response);
 
+    UA_LOCK(server->serviceMutex);
     Service_DeleteSubscriptions(server, session, &del_request, &del_response);
+    UA_UNLOCK(server->serviceMutex);
     ck_assert_uint_eq(del_response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(del_response.resultsSize, 2);
     ck_assert_uint_eq(del_response.results[0], UA_STATUSCODE_GOOD);
@@ -319,7 +342,9 @@ START_TEST(Server_modifyMonitoredItems) {
     UA_ModifyMonitoredItemsResponse response;
     UA_ModifyMonitoredItemsResponse_init(&response);
 
+    UA_LOCK(server->serviceMutex);
     Service_ModifyMonitoredItems(server, session, &request, &response);
+    UA_UNLOCK(server->serviceMutex);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(response.resultsSize, 1);
     ck_assert_uint_eq(response.results[0].statusCode, UA_STATUSCODE_GOOD);
@@ -337,7 +362,9 @@ START_TEST(Server_overflow) {
     UA_CreateSubscriptionRequest_init(&createSubscriptionRequest);
     createSubscriptionRequest.publishingEnabled = true;
     UA_CreateSubscriptionResponse_init(&createSubscriptionResponse);
+    UA_LOCK(server->serviceMutex);
     Service_CreateSubscription(server, session, &createSubscriptionRequest, &createSubscriptionResponse);
+    UA_UNLOCK(server->serviceMutex);
     ck_assert_uint_eq(createSubscriptionResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     UA_UInt32 localSubscriptionId = createSubscriptionResponse.subscriptionId;
     UA_Double publishingInterval = createSubscriptionResponse.revisedPublishingInterval;
@@ -369,7 +396,9 @@ START_TEST(Server_overflow) {
     UA_CreateMonitoredItemsResponse createMonitoredItemsResponse;
     UA_CreateMonitoredItemsResponse_init(&createMonitoredItemsResponse);
 
+    UA_LOCK(server->serviceMutex);
     Service_CreateMonitoredItems(server, session, &createMonitoredItemsRequest, &createMonitoredItemsResponse);
+    UA_UNLOCK(server->serviceMutex);
     ck_assert_uint_eq(createMonitoredItemsResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(createMonitoredItemsResponse.resultsSize, 1);
     ck_assert_uint_eq(createMonitoredItemsResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
@@ -439,8 +468,10 @@ START_TEST(Server_overflow) {
     UA_ModifyMonitoredItemsResponse modifyMonitoredItemsResponse;
     UA_ModifyMonitoredItemsResponse_init(&modifyMonitoredItemsResponse);
 
+    UA_LOCK(server->serviceMutex);
     Service_ModifyMonitoredItems(server, session, &modifyMonitoredItemsRequest,
                                  &modifyMonitoredItemsResponse);
+    UA_UNLOCK(server->serviceMutex);
     ck_assert_uint_eq(modifyMonitoredItemsResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(modifyMonitoredItemsResponse.resultsSize, 1);
     ck_assert_uint_eq(modifyMonitoredItemsResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
@@ -469,8 +500,10 @@ START_TEST(Server_overflow) {
 
     UA_ModifyMonitoredItemsResponse_init(&modifyMonitoredItemsResponse);
 
+    UA_LOCK(server->serviceMutex);
     Service_ModifyMonitoredItems(server, session, &modifyMonitoredItemsRequest,
                                  &modifyMonitoredItemsResponse);
+    UA_UNLOCK(server->serviceMutex);
     ck_assert_uint_eq(modifyMonitoredItemsResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(modifyMonitoredItemsResponse.resultsSize, 1);
     ck_assert_uint_eq(modifyMonitoredItemsResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
@@ -498,8 +531,10 @@ START_TEST(Server_overflow) {
 
     UA_ModifyMonitoredItemsResponse_init(&modifyMonitoredItemsResponse);
 
+    UA_LOCK(server->serviceMutex);
     Service_ModifyMonitoredItems(server, session, &modifyMonitoredItemsRequest,
                                  &modifyMonitoredItemsResponse);
+    UA_UNLOCK(server->serviceMutex);
     ck_assert_uint_eq(modifyMonitoredItemsResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(modifyMonitoredItemsResponse.resultsSize, 1);
     ck_assert_uint_eq(modifyMonitoredItemsResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
@@ -523,8 +558,10 @@ START_TEST(Server_overflow) {
     UA_DeleteSubscriptionsResponse deleteSubscriptionsResponse;
     UA_DeleteSubscriptionsResponse_init(&deleteSubscriptionsResponse);
 
+    UA_LOCK(server->serviceMutex);
     Service_DeleteSubscriptions(server, session, &deleteSubscriptionsRequest,
                                 &deleteSubscriptionsResponse);
+    UA_UNLOCK(server->serviceMutex);
     ck_assert_uint_eq(deleteSubscriptionsResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(deleteSubscriptionsResponse.resultsSize, 1);
     ck_assert_uint_eq(deleteSubscriptionsResponse.results[0], UA_STATUSCODE_GOOD);
@@ -548,7 +585,9 @@ START_TEST(Server_setMonitoringMode) {
     UA_SetMonitoringModeResponse response;
     UA_SetMonitoringModeResponse_init(&response);
 
+    UA_LOCK(server->serviceMutex);
     Service_SetMonitoringMode(server, session, &request, &response);
+    UA_UNLOCK(server->serviceMutex);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(response.resultsSize, 1);
     ck_assert_uint_eq(response.results[0], UA_STATUSCODE_GOOD);
@@ -570,7 +609,9 @@ START_TEST(Server_deleteMonitoredItems) {
     UA_DeleteMonitoredItemsResponse response;
     UA_DeleteMonitoredItemsResponse_init(&response);
 
+    UA_LOCK(server->serviceMutex);
     Service_DeleteMonitoredItems(server, session, &request, &response);
+    UA_UNLOCK(server->serviceMutex);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(response.resultsSize, 1);
     ck_assert_uint_eq(response.results[0], UA_STATUSCODE_GOOD);
@@ -589,7 +630,9 @@ START_TEST(Server_lifeTimeCount) {
     request.requestedLifetimeCount = 3;
     request.requestedMaxKeepAliveCount = 1;
     UA_CreateSubscriptionResponse_init(&response);
+    UA_LOCK(server->serviceMutex);
     Service_CreateSubscription(server, session, &request, &response);
+    UA_UNLOCK(server->serviceMutex);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(response.revisedMaxKeepAliveCount, 1);
     ck_assert_uint_eq(response.revisedLifetimeCount, 3);
@@ -601,7 +644,9 @@ START_TEST(Server_lifeTimeCount) {
     request.requestedLifetimeCount = 4;
     request.requestedMaxKeepAliveCount = 2;
     UA_CreateSubscriptionResponse_init(&response);
+    UA_LOCK(server->serviceMutex);
     Service_CreateSubscription(server, session, &request, &response);
+    UA_UNLOCK(server->serviceMutex);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(response.revisedMaxKeepAliveCount, 2);
     /* revisedLifetimeCount is revised to 3*MaxKeepAliveCount == 3 */
@@ -634,7 +679,9 @@ START_TEST(Server_lifeTimeCount) {
 
     UA_CreateMonitoredItemsResponse mresponse;
     UA_CreateMonitoredItemsResponse_init(&mresponse);
+    UA_LOCK(server->serviceMutex);
     Service_CreateMonitoredItems(server, session, &mrequest, &mresponse);
+    UA_UNLOCK(server->serviceMutex);
     ck_assert_uint_eq(mresponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(mresponse.resultsSize, 1);
     ck_assert_uint_eq(mresponse.results[0].statusCode, UA_STATUSCODE_GOOD);
@@ -730,6 +777,73 @@ START_TEST(Server_lifeTimeCount) {
 }
 END_TEST
 
+START_TEST(Server_invalidPublishingInterval) {
+    UA_Double savedPublishingIntervalLimitsMin = server->config.publishingIntervalLimits.min;
+    server->config.publishingIntervalLimits.min = 1;
+    /* Create a subscription */
+    UA_CreateSubscriptionRequest request;
+    UA_CreateSubscriptionResponse response;
+
+    UA_CreateSubscriptionRequest_init(&request);
+    request.publishingEnabled = true;
+    request.requestedPublishingInterval = -5.0; // Must be positive
+    UA_CreateSubscriptionResponse_init(&response);
+    UA_LOCK(server->serviceMutex);
+    Service_CreateSubscription(server, session, &request, &response);
+    UA_UNLOCK(server->serviceMutex);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert(response.revisedPublishingInterval ==
+              server->config.publishingIntervalLimits.min);
+    UA_CreateSubscriptionResponse_deleteMembers(&response);
+
+    server->config.publishingIntervalLimits.min = savedPublishingIntervalLimitsMin;
+}
+END_TEST
+
+START_TEST(Server_invalidSamplingInterval) {
+    createSubscription();
+
+    UA_Double savedSamplingIntervalLimitsMin = server->config.samplingIntervalLimits.min;
+    server->config.samplingIntervalLimits.min = 1;
+
+    UA_CreateMonitoredItemsRequest request;
+    UA_CreateMonitoredItemsRequest_init(&request);
+    request.subscriptionId = subscriptionId;
+    request.timestampsToReturn = UA_TIMESTAMPSTORETURN_SERVER;
+    UA_MonitoredItemCreateRequest item;
+    UA_MonitoredItemCreateRequest_init(&item);
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    rvi.attributeId = UA_ATTRIBUTEID_BROWSENAME;
+    rvi.indexRange = UA_STRING_NULL;
+    item.itemToMonitor = rvi;
+    item.monitoringMode = UA_MONITORINGMODE_REPORTING;
+    UA_MonitoringParameters params;
+    UA_MonitoringParameters_init(&params);
+    params.samplingInterval = -5.0; // Must be positive
+    item.requestedParameters = params;
+    request.itemsToCreateSize = 1;
+    request.itemsToCreate = &item;
+
+    UA_CreateMonitoredItemsResponse response;
+    UA_CreateMonitoredItemsResponse_init(&response);
+    UA_LOCK(server->serviceMutex);
+    Service_CreateMonitoredItems(server, session, &request, &response);
+    UA_UNLOCK(server->serviceMutex);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(response.resultsSize, 1);
+    ck_assert_uint_eq(response.results[0].statusCode, UA_STATUSCODE_GOOD);
+    ck_assert(response.results[0].revisedSamplingInterval ==
+              server->config.samplingIntervalLimits.min);
+
+    UA_MonitoredItemCreateRequest_deleteMembers(&item);
+    UA_CreateMonitoredItemsResponse_deleteMembers(&response);
+
+    server->config.samplingIntervalLimits.min = savedSamplingIntervalLimitsMin;
+}
+END_TEST
+
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
 
 static Suite* testSuite_Client(void) {
@@ -740,16 +854,18 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_server, Server_createSubscription);
     tcase_add_test(tc_server, Server_modifySubscription);
     tcase_add_test(tc_server, Server_setPublishingMode);
+    tcase_add_test(tc_server, Server_invalidSamplingInterval);
     tcase_add_test(tc_server, Server_createMonitoredItems);
     tcase_add_test(tc_server, Server_modifyMonitoredItems);
     tcase_add_test(tc_server, Server_overflow);
     tcase_add_test(tc_server, Server_setMonitoringMode);
     tcase_add_test(tc_server, Server_deleteMonitoredItems);
     tcase_add_test(tc_server, Server_republish);
-    tcase_add_test(tc_server, Server_deleteSubscription);
     tcase_add_test(tc_server, Server_republish_invalid);
+    tcase_add_test(tc_server, Server_deleteSubscription);
     tcase_add_test(tc_server, Server_publishCallback);
     tcase_add_test(tc_server, Server_lifeTimeCount);
+    tcase_add_test(tc_server, Server_invalidPublishingInterval);
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
     suite_add_tcase(s, tc_server);
 

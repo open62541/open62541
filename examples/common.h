@@ -1,7 +1,8 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-#include "open62541.h"
+#include <open62541/types.h>
+#include <open62541/types_generated_handling.h>
 
 /* loadFile parses the certificate file.
  *
@@ -26,7 +27,7 @@ loadFile(const char *const path) {
         fseek(fp, 0, SEEK_SET);
         size_t read = fread(fileContents.data, sizeof(UA_Byte), fileContents.length, fp);
         if(read != fileContents.length)
-            UA_ByteString_deleteMembers(&fileContents);
+            UA_ByteString_clear(&fileContents);
     } else {
         fileContents.length = 0;
     }

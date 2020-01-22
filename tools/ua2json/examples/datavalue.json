@@ -1,0 +1,11 @@
+{
+    "ServerPicoseconds": 0,
+    "ServerTimestamp": "1970-01-15T06:56:07Z",
+    "SourcePicoseconds": 0,
+    "SourceTimestamp": "1970-01-15T06:56:07Z",
+    "Status": 2153250816,
+    "Value": {
+        "Type": 1,
+        "Body": true
+    }
+}

@@ -2,19 +2,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include <stdio.h>
-#include <stdlib.h>
+#include <open62541/client.h>
+#include <open62541/client_config_default.h>
+#include <open62541/client_highlevel.h>
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
 
-#include "ua_server.h"
-#include "ua_client.h"
-#include "ua_config_default.h"
-#include "ua_client_highlevel.h"
-#include "ua_network_tcp.h"
-#include "check.h"
+#include <check.h>
+
 #include "thread_wrapper.h"
 
 UA_Server *server;
-UA_ServerConfig *config;
 UA_Boolean running;
 UA_ServerNetworkLayer nl;
 THREAD_HANDLE server_thread;
@@ -32,15 +30,16 @@ THREAD_CALLBACK(serverloop) {
 
 static void setup(void) {
     running = true;
-    config = UA_ServerConfig_new_default();
-    server = UA_Server_new(config);
+    server = UA_Server_new();
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     ck_assert_uint_eq(2, UA_Server_addNamespace(server, CUSTOM_NS));
 
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
 
-    client = UA_Client_new(UA_ClientConfig_default);
+    client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 }
@@ -52,7 +51,6 @@ static void teardown(void) {
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
 }
 
 START_TEST(Misc_State) {
@@ -114,6 +112,8 @@ START_TEST(Node_Add) {
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
 
+    /* Minimal nodeset does not contain UA_NS0ID_INTEGER node */
+    #ifdef UA_GENERATED_NAMESPACE_ZERO
     // Create Int128 DataType within Integer Datatype
     {
         UA_DataTypeAttributes attr = UA_DataTypeAttributes_default;
@@ -125,12 +125,13 @@ START_TEST(Node_Add) {
                                            UA_QUALIFIEDNAME(1, "Int128"), attr, &newDataTypeId);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
+    #endif
 
     // Create PointType VariableType within BaseDataVariableType
     {
         UA_VariableTypeAttributes attr = UA_VariableTypeAttributes_default;
         attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
-        attr.valueRank = 1; /* array with one dimension */
+        attr.valueRank = UA_VALUERANK_ONE_DIMENSION;
         UA_UInt32 arrayDims[1] = {2};
         attr.arrayDimensions = arrayDims;
         attr.arrayDimensionsSize = 1;
@@ -167,7 +168,7 @@ START_TEST(Node_Add) {
         UA_Int32 values[2] = {10, 20};
         UA_Variant_setArray(&attr.value, values, 2, &UA_TYPES[UA_TYPES_INT32]);
         attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
-        attr.valueRank = 1; /* array with one dimension */
+        attr.valueRank = UA_VALUERANK_ONE_DIMENSION;
         UA_UInt32 arrayDims[1] = {2};
         attr.arrayDimensions = arrayDims;
         attr.arrayDimensionsSize = 1;
@@ -372,7 +373,8 @@ START_TEST(Node_AddReadWriteNodes) {
                                          UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                          UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                                          UA_QUALIFIEDNAME(1, "UnitTest"),
-                                         UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), attr, &nodeReadWriteUnitTest);
+                                         UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE),
+                                         attr, &nodeReadWriteUnitTest);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
 
@@ -390,7 +392,7 @@ START_TEST(Node_AddReadWriteNodes) {
 
         UA_Variant_setArray(&attr.value, values, 2, &UA_TYPES[UA_TYPES_INT32]);
         attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
-        attr.valueRank = 1; /* array with one dimension */
+        attr.valueRank = UA_VALUERANK_ONE_DIMENSION;
         UA_UInt32 arrayDims[1] = {2};
         attr.arrayDimensions = arrayDims;
         attr.arrayDimensionsSize = 1;
@@ -539,7 +541,9 @@ static void checkNodeClass(UA_Client *clientNc, const UA_NodeId nodeId, const UA
 START_TEST(Node_ReadWrite_Class) {
     checkNodeClass(client, nodeReadWriteInt, UA_NODECLASS_VARIABLE);
     checkNodeClass(client, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), UA_NODECLASS_OBJECT);
-#ifdef UA_ENABLE_METHODCALLS
+
+    /* Minimal nodeset does not contain UA_NS0ID_SERVER_GETMONITOREDITEMS node */
+#if defined(UA_ENABLE_METHODCALLS) && defined(UA_GENERATED_NAMESPACE_ZERO)
     checkNodeClass(client, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS), UA_NODECLASS_METHOD);
 #endif
 
@@ -835,10 +839,10 @@ END_TEST
 
 START_TEST(Node_ReadWrite_ValueRank) {
 
-    UA_Int32 valueRank = 0;
+    UA_Int32 valueRank = UA_VALUERANK_ONE_OR_MORE_DIMENSIONS;
     UA_StatusCode retval = UA_Client_readValueRankAttribute(client, nodeReadWriteGeneric, &valueRank);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(valueRank, -2);
+    ck_assert_int_eq(valueRank, UA_VALUERANK_ANY);
 
     // set the value to a scalar
     UA_Double val = 0.0;
@@ -848,7 +852,7 @@ START_TEST(Node_ReadWrite_ValueRank) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     // we want an array
-    UA_Int32 newValueRank = 1;
+    UA_Int32 newValueRank = UA_VALUERANK_ONE_DIMENSION;
 
     // shall fail when the value is not compatible
     retval = UA_Client_writeValueRankAttribute(client, nodeReadWriteGeneric, &newValueRank);
@@ -885,15 +889,22 @@ START_TEST(Node_ReadWrite_ArrayDimensions) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(arrayDimsReadSize, 0);
 
+    // Set a vector of size 1 as the value
+    UA_Double vec2[2] = {0.0, 0.0};
+    UA_Variant value;
+    UA_Variant_setArray(&value, vec2, 2, &UA_TYPES[UA_TYPES_DOUBLE]);
+    retval = UA_Client_writeValueAttribute(client, nodeReadWriteGeneric, &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
     // writing the array dimensions shall fail at first
-    UA_UInt32 arrayDimsNew[] = {3};
+    // because the current value is not conformant
+    UA_UInt32 arrayDimsNew[] = {1};
     retval = UA_Client_writeArrayDimensionsAttribute(client, nodeReadWriteGeneric, 1, arrayDimsNew);
     ck_assert(retval != UA_STATUSCODE_GOOD);
 
-    // Set a vector of size 3 as the value
-    UA_Double vec[3] = {0.0, 0.0, 0.0};
-    UA_Variant value;
-    UA_Variant_setArray(&value, vec, 3, &UA_TYPES[UA_TYPES_DOUBLE]);
+    // Set a vector of size 1 as the value
+    UA_Double vec1[1] = {0.0};
+    UA_Variant_setArray(&value, vec1, 1, &UA_TYPES[UA_TYPES_DOUBLE]);
     retval = UA_Client_writeValueAttribute(client, nodeReadWriteGeneric, &value);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -905,7 +916,7 @@ START_TEST(Node_ReadWrite_ArrayDimensions) {
                                                     &arrayDimsReadSize, &arrayDimsRead);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(arrayDimsReadSize, 1);
-    ck_assert_int_eq(arrayDimsRead[0], 3);
+    ck_assert_int_eq(arrayDimsRead[0], 1);
     UA_Array_delete(arrayDimsRead, arrayDimsReadSize, &UA_TYPES[UA_TYPES_UINT32]);
 }
 END_TEST

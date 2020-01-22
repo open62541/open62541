@@ -5,21 +5,21 @@
  *    Copyright 2018 (c) basysKom GmbH <opensource@basyskom.com> (Author: Peter Rustler)
  */
 
-#include "ua_types.h"
-#include "ua_server.h"
-#include "ua_client.h"
-#include "client/ua_client_internal.h"
-#include "ua_client_highlevel.h"
-#include "ua_config_default.h"
-#include "ua_network_tcp.h"
+#include <open62541/client.h>
+#include <open62541/client_config_default.h>
+#include <open62541/client_highlevel.h>
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
 
-#include "check.h"
+#include "client/ua_client_internal.h"
+
+#include <check.h>
+
 #include "testing_clock.h"
 #include "testing_networklayers.h"
 #include "thread_wrapper.h"
 
 UA_Server *server;
-UA_ServerConfig *config;
 UA_Boolean running;
 THREAD_HANDLE server_thread;
 
@@ -43,10 +43,11 @@ THREAD_CALLBACK(serverloop) {
 static void setup(void) {
     UA_DataValue_init(&lastValue);
     running = true;
-    config = UA_ServerConfig_new_default();
-    server = UA_Server_new(config);
+    server = UA_Server_new();
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
+
     /* Define the attribute of the double variable node */
     UA_VariableAttributes attr = UA_VariableAttributes_default;
     UA_Double myDouble = 40.0;
@@ -55,8 +56,6 @@ static void setup(void) {
     attr.displayName = UA_LOCALIZEDTEXT("en-US","the answer");
     attr.dataType = UA_TYPES[UA_TYPES_DOUBLE].typeId;
     attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
-
-    /* Add the variable node to the information model */
     UA_NodeId doubleNodeId = UA_NODEID_STRING(1, "the.answer");
     UA_QualifiedName doubleName = UA_QUALIFIEDNAME(1, "the answer");
     parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
@@ -72,7 +71,22 @@ static void setup(void) {
                                                 &outNodeId)
                       , UA_STATUSCODE_GOOD);
 
-    client = UA_Client_new(UA_ClientConfig_default);
+    /* Add a boolean node */
+    UA_Boolean myBool = false;
+    UA_Variant_setScalar(&attr.value, &myBool, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    attr.description = UA_LOCALIZEDTEXT("en-US","the answer bool");
+    attr.displayName = UA_LOCALIZEDTEXT("en-US","the answer bool");
+    attr.dataType = UA_TYPES[UA_TYPES_BOOLEAN].typeId;
+    ck_assert_uint_eq(UA_Server_addVariableNode(server,
+                                                UA_NODEID_STRING(1, "the.bool"),
+                                                parentNodeId, parentReferenceNodeId,
+                                                UA_QUALIFIEDNAME(1, "the bool"),
+                                                UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                                attr, NULL, NULL)
+                      , UA_STATUSCODE_GOOD);
+
+    client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -103,12 +117,10 @@ static void teardown(void) {
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
     UA_DataValue_deleteMembers(&lastValue);
 }
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-
 
 static void
 dataChangeHandler(UA_Client *thisClient, UA_UInt32 thisSubId, void *subContext,
@@ -547,7 +559,7 @@ START_TEST(Server_MonitoredItemsPercentFilterSetLater) {
        UA_Client_MonitoredItems_modify(client, modifyRequest);
 
     ck_assert_uint_eq(modifyResponse.resultsSize, 1);
-    ck_assert_uint_eq(modifyResponse.results[0].statusCode, UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED);
+    ck_assert_uint_eq(modifyResponse.results[0].statusCode, UA_STATUSCODE_BADFILTERNOTALLOWED);
 
     UA_ModifyMonitoredItemsResponse_deleteMembers(&modifyResponse);
 
@@ -670,6 +682,43 @@ START_TEST(Server_MonitoredItemsNoFilter) {
 }
 END_TEST
 
+/* Test if an absolute filter can be added for boolean variables */
+START_TEST(Server_MonitoredItemsAbsoluteFilterOnBool) {
+    UA_DataValue_init(&lastValue);
+    /* define a monitored item with an absolute filter with deadbandvalue = 2.0 */
+    UA_MonitoredItemCreateRequest item =
+        UA_MonitoredItemCreateRequest_default(UA_NODEID_STRING(1, "the.bool"));;
+    UA_DataChangeFilter filter;
+    UA_DataChangeFilter_init(&filter);
+    filter.trigger = UA_DATACHANGETRIGGER_STATUSVALUE;
+    filter.deadbandType = UA_DEADBANDTYPE_ABSOLUTE;
+    filter.deadbandValue = 0.5;
+    item.requestedParameters.filter.encoding = UA_EXTENSIONOBJECT_DECODED;
+    item.requestedParameters.filter.content.decoded.type = &UA_TYPES[UA_TYPES_DATACHANGEFILTER];
+    item.requestedParameters.filter.content.decoded.data = &filter;
+    UA_Client_DataChangeNotificationCallback callbacks[1];
+    callbacks[0] = dataChangeHandler;
+    UA_Client_DeleteMonitoredItemCallback deleteCallbacks[1] = {NULL};
+    void *contexts[1];
+    contexts[0] = NULL;
+
+    UA_CreateMonitoredItemsRequest createRequest;
+    UA_CreateMonitoredItemsRequest_init(&createRequest);
+    createRequest.subscriptionId = subId;
+    createRequest.timestampsToReturn = UA_TIMESTAMPSTORETURN_BOTH;
+    createRequest.itemsToCreate = &item;
+    createRequest.itemsToCreateSize = 1;
+    UA_CreateMonitoredItemsResponse createResponse =
+       UA_Client_MonitoredItems_createDataChanges(client, createRequest, contexts,
+                                                  callbacks, deleteCallbacks);
+
+    ck_assert_uint_eq(createResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(createResponse.resultsSize, 1);
+    ck_assert_uint_eq(createResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
+    UA_CreateMonitoredItemsResponse_deleteMembers(&createResponse);
+}
+END_TEST
+
 START_TEST(Server_MonitoredItemsAbsoluteFilterSetOnCreate) {
     UA_DataValue_init(&lastValue);
     /* define a monitored item with an absolute filter with deadbandvalue = 2.0 */
@@ -788,7 +837,7 @@ START_TEST(Server_MonitoredItemsPercentFilterSetOnCreate) {
 
     ck_assert_uint_eq(createResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(createResponse.resultsSize, 1);
-    ck_assert_uint_eq(createResponse.results[0].statusCode, UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED);
+    ck_assert_uint_eq(createResponse.results[0].statusCode, UA_STATUSCODE_BADFILTERNOTALLOWED);
     newMonitoredItemIds[0] = createResponse.results[0].monitoredItemId;
     UA_CreateMonitoredItemsResponse_deleteMembers(&createResponse);
 
@@ -826,6 +875,7 @@ static Suite* testSuite_Client(void) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     tcase_add_test(tc_server, Server_MonitoredItemsNoFilter);
     tcase_add_test(tc_server, Server_MonitoredItemsAbsoluteFilterSetOnCreate);
+    tcase_add_test(tc_server, Server_MonitoredItemsAbsoluteFilterOnBool);
     tcase_add_test(tc_server, Server_MonitoredItemsAbsoluteFilterSetLater);
     tcase_add_test(tc_server, Server_MonitoredItemsAbsoluteFilterSetOnCreateRemoveLater);
     tcase_add_test(tc_server, Server_MonitoredItemsPercentFilterSetOnCreate);

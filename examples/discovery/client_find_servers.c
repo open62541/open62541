@@ -5,9 +5,11 @@
  * and then calls GetEndpoints on the returned list of servers.
  */
 
-#include "open62541.h"
+#include <open62541/client_config_default.h>
+#include <open62541/client_highlevel.h>
+#include <open62541/plugin/log_stdout.h>
 
-UA_Logger logger = UA_Log_Stdout;
+#include <stdlib.h>
 
 #define DISCOVERY_SERVER_ENDPOINT "opc.tcp://localhost:4840"
 
@@ -21,16 +23,17 @@ int main(void) {
         UA_ServerOnNetwork *serverOnNetwork = NULL;
         size_t serverOnNetworkSize = 0;
 
-        UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+        UA_Client *client = UA_Client_new();
+        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
         UA_StatusCode retval = UA_Client_findServersOnNetwork(client, DISCOVERY_SERVER_ENDPOINT, 0, 0,
                                                               0, NULL, &serverOnNetworkSize, &serverOnNetwork);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                          "Could not call FindServersOnNetwork service. "
                          "Is the discovery server started? StatusCode %s",
                          UA_StatusCode_name(retval));
             UA_Client_delete(client);
-            return (int) retval;
+            return EXIT_FAILURE;
         }
 
         // output all the returned/registered servers
@@ -59,15 +62,16 @@ int main(void) {
 
     UA_StatusCode retval;
     {
-        UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+        UA_Client *client = UA_Client_new();
+        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
         retval = UA_Client_findServers(client, DISCOVERY_SERVER_ENDPOINT, 0, NULL, 0, NULL,
                                        &applicationDescriptionArraySize, &applicationDescriptionArray);
         UA_Client_delete(client);
     }
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER, "Could not call FindServers service. "
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Could not call FindServers service. "
                 "Is the discovery server started? StatusCode %s", UA_StatusCode_name(retval));
-        return (int) retval;
+        return EXIT_FAILURE;
     }
 
     // output all the returned/registered servers
@@ -117,7 +121,7 @@ int main(void) {
     for(size_t i = 0; i < applicationDescriptionArraySize; i++) {
         UA_ApplicationDescription *description = &applicationDescriptionArray[i];
         if(description->discoveryUrlsSize == 0) {
-            UA_LOG_INFO(logger, UA_LOGCATEGORY_CLIENT,
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT,
                         "[GetEndpoints] Server %.*s did not provide any discovery urls. Skipping.",
                         (int)description->applicationUri.length, description->applicationUri.data);
             continue;
@@ -126,7 +130,8 @@ int main(void) {
         printf("\nEndpoints for Server[%lu]: %.*s\n", (unsigned long) i,
                (int) description->applicationUri.length, description->applicationUri.data);
 
-        UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+        UA_Client *client = UA_Client_new();
+        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
 
         char *discoveryUrl = (char *) UA_malloc(sizeof(char) * description->discoveryUrls[0].length + 1);
         memcpy(discoveryUrl, description->discoveryUrls[0].data, description->discoveryUrls[0].length);
@@ -181,5 +186,5 @@ int main(void) {
     UA_Array_delete(applicationDescriptionArray, applicationDescriptionArraySize,
                     &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]);
 
-    return (int) UA_STATUSCODE_GOOD;
+    return EXIT_SUCCESS;
 }

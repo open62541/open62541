@@ -1,8 +1,12 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-#include "open62541.h"
+#include <open62541/plugin/log_stdout.h>
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
+
 #include <signal.h>
+#include <stdlib.h>
 
 UA_Boolean running = true;
 static void stopHandler(int sig) {
@@ -15,7 +19,7 @@ static void stopHandler(int sig) {
  * Create a rudimentary objectType
  *
  * Type:
- * + MamalType
+ * + MammalType
  *  v- Class  = "mamalia"
  *  v- Species
  *  o- Abilities
@@ -28,19 +32,19 @@ static void stopHandler(int sig) {
  *          v- MakeSound = "Wuff"
  *           v- FetchNewPaper
  */
-static void createMamals(UA_Server *server) {
+static void createMammals(UA_Server *server) {
 
 
     UA_ObjectTypeAttributes otAttr = UA_ObjectTypeAttributes_default;
-    otAttr.description = UA_LOCALIZEDTEXT("en-US", "A mamal");
-    otAttr.displayName = UA_LOCALIZEDTEXT("en-US", "MamalType");
+    otAttr.description = UA_LOCALIZEDTEXT("en-US", "A mammal");
+    otAttr.displayName = UA_LOCALIZEDTEXT("en-US", "MammalType");
     UA_Server_addObjectTypeNode(server, UA_NODEID_NUMERIC(1, 10000),
                                 UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
                                 UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
-                                UA_QUALIFIEDNAME(1, "MamalType"), otAttr, NULL, NULL);
+                                UA_QUALIFIEDNAME(1, "MammalType"), otAttr, NULL, NULL);
 
     UA_VariableAttributes vAttr = UA_VariableAttributes_default;
-    vAttr.description =  UA_LOCALIZEDTEXT("en-US", "This mamals class");
+    vAttr.description =  UA_LOCALIZEDTEXT("en-US", "This mammals class");
     vAttr.displayName =  UA_LOCALIZEDTEXT("en-US", "Class");
     UA_String classVar = UA_STRING("mamalia");
     UA_Variant_setScalar(&vAttr.value, &classVar, &UA_TYPES[UA_TYPES_STRING]);
@@ -51,7 +55,7 @@ static void createMamals(UA_Server *server) {
                               vAttr, NULL, NULL);
 
     vAttr = UA_VariableAttributes_default;
-    vAttr.description =  UA_LOCALIZEDTEXT("en-US", "This mamals species");
+    vAttr.description =  UA_LOCALIZEDTEXT("en-US", "This mammals species");
     vAttr.displayName =  UA_LOCALIZEDTEXT("en-US", "Species");
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 10002),
                               UA_NODEID_NUMERIC(1, 10000),
@@ -60,7 +64,7 @@ static void createMamals(UA_Server *server) {
                               vAttr, NULL, NULL);
 
     otAttr = UA_ObjectTypeAttributes_default;
-    otAttr.description = UA_LOCALIZEDTEXT("en-US", "A dog, subtype of mamal");
+    otAttr.description = UA_LOCALIZEDTEXT("en-US", "A dog, subtype of mammal");
     otAttr.displayName = UA_LOCALIZEDTEXT("en-US", "DogType");
     UA_Server_addObjectTypeNode(server, UA_NODEID_NUMERIC(1, 20000),
                                 UA_NODEID_NUMERIC(1, 10000),
@@ -115,12 +119,12 @@ static void createMamals(UA_Server *server) {
                             oAttr, NULL, NULL);
 
     oAttr = UA_ObjectAttributes_default;
-    oAttr.description = UA_LOCALIZEDTEXT("en-US", "A mamal");
-    oAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Mamal1");
+    oAttr.description = UA_LOCALIZEDTEXT("en-US", "A mmamal");
+    oAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Mmamal1");
     UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, 0),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                            UA_QUALIFIEDNAME(1, "Mamal1"), UA_NODEID_NUMERIC(1, 10000),
+                            UA_QUALIFIEDNAME(1, "Mammal1"), UA_NODEID_NUMERIC(1, 10000),
                             oAttr, NULL, NULL);
 
 }
@@ -246,16 +250,16 @@ int main(void) {
     signal(SIGINT,  stopHandler);
     signal(SIGTERM, stopHandler);
 
-    UA_ServerConfig *config = UA_ServerConfig_new_default();
-    UA_Server *server = UA_Server_new(config);
+    UA_Server *server = UA_Server_new();
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
-    createMamals(server);
+    createMammals(server);
 
     createCustomInheritance(server);
 
     /* Run the server */
     UA_StatusCode retval = UA_Server_run(server, &running);
+
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
-    return (int)retval;
+    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }

@@ -5,32 +5,32 @@
  * Copyright (c) 2017 - 2018 Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
-#include "ua_server_pubsub.h"
-#include "src_generated/ua_types_generated_encoding_binary.h"
-#include "ua_config_default.h"
-#include "ua_network_pubsub_udp.h"
+#include <open62541/plugin/pubsub_udp.h>
+#include <open62541/server_config_default.h>
+#include <open62541/server_pubsub.h>
+#include <open62541/types_generated_encoding_binary.h>
+
 #include "ua_server_internal.h"
-#include "check.h"
+
+#include <check.h>
 
 UA_Server *server = NULL;
-UA_ServerConfig *config = NULL;
 
 static void setup(void) {
-    config = UA_ServerConfig_new_default();
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer *) UA_malloc(sizeof(UA_PubSubTransportLayer));
-    if(!config->pubsubTransportLayers) {
-        UA_ServerConfig_delete(config);
-    }
+    server = UA_Server_new();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_ServerConfig_setDefault(config);
+
+    config->pubsubTransportLayers = (UA_PubSubTransportLayer *)
+        UA_malloc(sizeof(UA_PubSubTransportLayer));
     config->pubsubTransportLayers[0] = UA_PubSubTransportLayerUDPMP();
     config->pubsubTransportLayersSize++;
-    server = UA_Server_new(config);
     UA_Server_run_startup(server);
 }
 
 static void teardown(void) {
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
 }
 
 START_TEST(AddConnectionsWithMinimalValidConfiguration){
@@ -45,10 +45,10 @@ START_TEST(AddConnectionsWithMinimalValidConfiguration){
     retVal = UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
     ck_assert_int_eq(server->pubSubManager.connectionsSize, 1);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-    ck_assert(server->pubSubManager.connections[0].channel != NULL);
+    ck_assert(! TAILQ_EMPTY(&server->pubSubManager.connections));
     retVal = UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-    ck_assert(server->pubSubManager.connections[1].channel != NULL);
+    ck_assert(&server->pubSubManager.connections.tqh_first->listEntry.tqe_next != NULL);
     ck_assert_int_eq(server->pubSubManager.connectionsSize, 2);
 } END_TEST
 
@@ -65,13 +65,13 @@ START_TEST(AddRemoveAddConnectionWithMinimalValidConfiguration){
         retVal = UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
         ck_assert_int_eq(server->pubSubManager.connectionsSize, 1);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        ck_assert(server->pubSubManager.connections[0].channel != NULL);
+        ck_assert(! TAILQ_EMPTY(&server->pubSubManager.connections));
         retVal |= UA_Server_removePubSubConnection(server, connectionIdent);
         ck_assert_int_eq(server->pubSubManager.connectionsSize, 0);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         retVal = UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
         ck_assert_int_eq(server->pubSubManager.connectionsSize, 1);
-        ck_assert(server->pubSubManager.connections[0].channel != NULL);
+        ck_assert(&server->pubSubManager.connections.tqh_first->listEntry.tqe_next != NULL);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 } END_TEST
 
@@ -124,10 +124,10 @@ START_TEST(AddSingleConnectionWithMaximalConfiguration){
     UA_Variant_setScalar(&connectionOptions[0].value, &ttl, &UA_TYPES[UA_TYPES_UINT32]);
     connectionOptions[1].key = UA_QUALIFIEDNAME(0, "loopback");
     UA_Boolean loopback = UA_FALSE;
-    UA_Variant_setScalar(&connectionOptions[1].value, &loopback, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&connectionOptions[1].value, &loopback, &UA_TYPES[UA_TYPES_BOOLEAN]);
     connectionOptions[2].key = UA_QUALIFIEDNAME(0, "reuse");
     UA_Boolean reuse = UA_TRUE;
-    UA_Variant_setScalar(&connectionOptions[2].value, &reuse, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&connectionOptions[2].value, &reuse, &UA_TYPES[UA_TYPES_BOOLEAN]);
 
     UA_PubSubConnectionConfig connectionConf;
     memset(&connectionConf, 0, sizeof(UA_PubSubConnectionConfig));
@@ -142,7 +142,7 @@ START_TEST(AddSingleConnectionWithMaximalConfiguration){
     UA_StatusCode retVal = UA_Server_addPubSubConnection(server, &connectionConf, &connection);
     ck_assert_int_eq(server->pubSubManager.connectionsSize, 1);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-    ck_assert(server->pubSubManager.connections[0].channel != NULL);
+    ck_assert(! TAILQ_EMPTY(&server->pubSubManager.connections));
 } END_TEST
 
 START_TEST(GetMaximalConnectionConfigurationAndCompareValues){
@@ -155,10 +155,10 @@ START_TEST(GetMaximalConnectionConfigurationAndCompareValues){
     UA_Variant_setScalar(&connectionOptions[0].value, &ttl, &UA_TYPES[UA_TYPES_UINT32]);
     connectionOptions[1].key = UA_QUALIFIEDNAME(0, "loopback");
     UA_Boolean loopback = UA_FALSE;
-    UA_Variant_setScalar(&connectionOptions[1].value, &loopback, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&connectionOptions[1].value, &loopback, &UA_TYPES[UA_TYPES_BOOLEAN]);
     connectionOptions[2].key = UA_QUALIFIEDNAME(0, "reuse");
     UA_Boolean reuse = UA_TRUE;
-    UA_Variant_setScalar(&connectionOptions[2].value, &reuse, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&connectionOptions[2].value, &reuse, &UA_TYPES[UA_TYPES_BOOLEAN]);
 
     UA_PubSubConnectionConfig connectionConf;
     memset(&connectionConf, 0, sizeof(UA_PubSubConnectionConfig));
@@ -185,7 +185,7 @@ START_TEST(GetMaximalConnectionConfigurationAndCompareValues){
         ck_assert(UA_String_equal(&connectionConfig.connectionProperties[i].key.name, &connectionConf.connectionProperties[i].key.name) == UA_TRUE);
         ck_assert(UA_Variant_calcSizeBinary(&connectionConfig.connectionProperties[i].value) == UA_Variant_calcSizeBinary(&connectionConf.connectionProperties[i].value));
     }
-    UA_PubSubConnectionConfig_deleteMembers(&connectionConfig);
+    UA_PubSubConnectionConfig_clear(&connectionConfig);
     } END_TEST
 
 int main(void) {

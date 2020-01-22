@@ -55,7 +55,10 @@
  * setting constraints on the variable values as this is not the focus of this
  * tutorial and was already covered. */
 
-#include "open62541.h"
+#include <open62541/plugin/log_stdout.h>
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
+
 #include <signal.h>
 
 static void
@@ -207,7 +210,7 @@ defineObjectTypes(UA_Server *server) {
 
     UA_VariableAttributes statusAttr = UA_VariableAttributes_default;
     statusAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Status");
-    statusAttr.valueRank = -1;
+    statusAttr.valueRank = UA_VALUERANK_SCALAR;
     UA_NodeId statusId;
     UA_Server_addVariableNode(server, UA_NODEID_NULL, pumpTypeId,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
@@ -220,7 +223,7 @@ defineObjectTypes(UA_Server *server) {
 
     UA_VariableAttributes rpmAttr = UA_VariableAttributes_default;
     rpmAttr.displayName = UA_LOCALIZEDTEXT("en-US", "MotorRPM");
-    rpmAttr.valueRank = -1;
+    rpmAttr.valueRank = UA_VALUERANK_SCALAR;
     UA_Server_addVariableNode(server, UA_NODEID_NULL, pumpTypeId,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                               UA_QUALIFIEDNAME(1, "MotorRPMs"),
@@ -288,7 +291,7 @@ pumpTypeConstructor(UA_Server *server,
     UA_Variant value;
     UA_Variant_setScalar(&value, &status, &UA_TYPES[UA_TYPES_BOOLEAN]);
     UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
-    UA_BrowsePathResult_deleteMembers(&bpr);
+    UA_BrowsePathResult_clear(&bpr);
 
     /* At this point we could replace the node context .. */
 
@@ -305,7 +308,7 @@ addPumpTypeConstructor(UA_Server *server) {
 
 /** It follows the main server code, making use of the above definitions. */
 
-UA_Boolean running = true;
+static volatile UA_Boolean running = true;
 static void stopHandler(int sign) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
     running = false;
@@ -315,8 +318,8 @@ int main(void) {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
 
-    UA_ServerConfig *config = UA_ServerConfig_new_default();
-    UA_Server *server = UA_Server_new(config);
+    UA_Server *server = UA_Server_new();
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     manuallyDefinePump(server);
     defineObjectTypes(server);
@@ -327,7 +330,7 @@ int main(void) {
     addPumpObjectInstance(server, "pump5");
 
     UA_StatusCode retval = UA_Server_run(server, &running);
+
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
-    return (int)retval;
+    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }

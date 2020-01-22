@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+ * Copyright (c) 2005-2018 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ *
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ *
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<UANodeSet xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" LastModified="2019-01-31T00:00:00Z" xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd">
+  <Models>
+    <Model ModelUri="http://opcfoundation.org/UA/" Version="1.04" PublicationDate="2019-01-31T00:00:00Z" />
+  </Models>
+  <UAObjectType NodeId="i=2330" BrowseName="HistoryServerCapabilitiesType">
+    <DisplayName>HistoryServerCapabilitiesType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
+    </References>
+  </UAObjectType>
+  <UAObject NodeId="i=11192" BrowseName="HistoryServerCapabilities">
+    <DisplayName>HistoryServerCapabilities</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=11193</Reference>
+      <Reference ReferenceType="HasProperty">i=11242</Reference>
+      <Reference ReferenceType="HasProperty">i=11273</Reference>
+      <Reference ReferenceType="HasProperty">i=11274</Reference>
+      <Reference ReferenceType="HasProperty">i=11196</Reference>
+      <Reference ReferenceType="HasProperty">i=11197</Reference>
+      <Reference ReferenceType="HasProperty">i=11198</Reference>
+      <Reference ReferenceType="HasProperty">i=11199</Reference>
+      <Reference ReferenceType="HasProperty">i=11200</Reference>
+      <Reference ReferenceType="HasProperty">i=11281</Reference>
+      <Reference ReferenceType="HasProperty">i=11282</Reference>
+      <Reference ReferenceType="HasProperty">i=11283</Reference>
+      <Reference ReferenceType="HasProperty">i=11502</Reference>
+      <Reference ReferenceType="HasProperty">i=11275</Reference>
+      <Reference ReferenceType="HasComponent">i=11201</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=2268</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=2330</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="i=11193" BrowseName="AccessHistoryDataCapability" ParentNodeId="i=11192" DataType="Boolean">
+    <DisplayName>AccessHistoryDataCapability</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=11192</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=11242" BrowseName="AccessHistoryEventsCapability" ParentNodeId="i=11192" DataType="Boolean">
+    <DisplayName>AccessHistoryEventsCapability</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=11192</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=11273" BrowseName="MaxReturnDataValues" ParentNodeId="i=11192" DataType="UInt32">
+    <DisplayName>MaxReturnDataValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=11192</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=11274" BrowseName="MaxReturnEventValues" ParentNodeId="i=11192" DataType="UInt32">
+    <DisplayName>MaxReturnEventValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=11192</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=11196" BrowseName="InsertDataCapability" ParentNodeId="i=11192" DataType="Boolean">
+    <DisplayName>InsertDataCapability</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=11192</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=11197" BrowseName="ReplaceDataCapability" ParentNodeId="i=11192" DataType="Boolean">
+    <DisplayName>ReplaceDataCapability</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=11192</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=11198" BrowseName="UpdateDataCapability" ParentNodeId="i=11192" DataType="Boolean">
+    <DisplayName>UpdateDataCapability</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=11192</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=11199" BrowseName="DeleteRawCapability" ParentNodeId="i=11192" DataType="Boolean">
+    <DisplayName>DeleteRawCapability</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=11192</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=11200" BrowseName="DeleteAtTimeCapability" ParentNodeId="i=11192" DataType="Boolean">
+    <DisplayName>DeleteAtTimeCapability</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=11192</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=11281" BrowseName="InsertEventCapability" ParentNodeId="i=11192" DataType="Boolean">
+    <DisplayName>InsertEventCapability</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=11192</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=11282" BrowseName="ReplaceEventCapability" ParentNodeId="i=11192" DataType="Boolean">
+    <DisplayName>ReplaceEventCapability</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=11192</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=11283" BrowseName="UpdateEventCapability" ParentNodeId="i=11192" DataType="Boolean">
+    <DisplayName>UpdateEventCapability</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=11192</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=11502" BrowseName="DeleteEventCapability" ParentNodeId="i=11192" DataType="Boolean">
+    <DisplayName>DeleteEventCapability</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=11192</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=11275" BrowseName="InsertAnnotationCapability" ParentNodeId="i=11192" DataType="Boolean">
+    <DisplayName>InsertAnnotationCapability</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=11192</Reference>
+    </References>
+  </UAVariable>
+  <UAObject NodeId="i=11201" BrowseName="AggregateFunctions" ParentNodeId="i=11192">
+    <DisplayName>AggregateFunctions</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=61</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=11192</Reference>
+    </References>
+  </UAObject>
+</UANodeSet>

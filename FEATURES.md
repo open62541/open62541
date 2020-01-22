@@ -4,27 +4,27 @@ open62541 Supported Features
 OPC UA Stack
 ------------
 
-|                                         |                      |                      |
-| --------------------------------------- |:--------------------:| -------------------- |
-| **Encoding **                           |                      |                      |
-| OPC UA Binary                           |  :heavy_check_mark:  |                      |
-| OPC UA JSON                             |      :new_moon:      | WIP for Release 0.4  |
-| OPC UA XML                              |      :new_moon:      |                      |
-| **Transport**                           |                      |                      |
-| UA-TCP UA-SC UA Binary                  |  :heavy_check_mark:  |                      |
-| OPC UA HTTPS                            |      :new_moon:      |                      |
-| SOAP-HTTP WS-SC UA Binary               |      :new_moon:      |                      |
-| SOAP-HTTP WS-SC UA XML                  |      :new_moon:      |                      |
-| SOAP-HTTP WS-SC UA XML-UA Binary        |      :new_moon:      |                      |
-| **Encryption**                          |                      |                      |
-| None                                    |  :heavy_check_mark:  |                      |
-| Basic128Rsa15                           |  :heavy_check_mark:  | master, Release 0.3  |
-| Basic256                                |  :heavy_check_mark:  | master, Release 0.3  |
-| Basic256Sha256                          |  :heavy_check_mark:  | master, Release 0.3  |
-| **Authentication**                      |                      |                      |
-| Anonymous                               |  :heavy_check_mark:  |                      |
-| User Name Password                      |  :heavy_check_mark:  |                      |
-| X509 Certificate                        |      :new_moon:      |                      |
+|                                         |                    |                      |
+| --------------------------------------- |:------------------:| -------------------- |
+| **Encoding**                            |                    |                      |
+| OPC UA Binary                           | :heavy_check_mark: |                      |
+| OPC UA JSON                             |     :new_moon:     | WIP for Release 0.4  |
+| OPC UA XML                              |     :new_moon:     |                      |
+| **Transport**                           |                    |                      |
+| UA-TCP UA-SC UA Binary                  | :heavy_check_mark: |                      |
+| OPC UA HTTPS                            |     :new_moon:     |                      |
+| SOAP-HTTP WS-SC UA Binary               |     :new_moon:     |                      |
+| SOAP-HTTP WS-SC UA XML                  |     :new_moon:     |                      |
+| SOAP-HTTP WS-SC UA XML-UA Binary        |     :new_moon:     |                      |
+| **Encryption**                          |                    |                      |
+| None                                    | :heavy_check_mark: |                      |
+| Basic128Rsa15                           | :heavy_check_mark: | master, Release 0.3  |
+| Basic256                                | :heavy_check_mark: | master, Release 0.3  |
+| Basic256Sha256                          | :heavy_check_mark: | master, Release 0.3  |
+| **Authentication**                      |                    |                      |
+| Anonymous                               | :heavy_check_mark: |                      |
+| User Name Password                      | :heavy_check_mark: |                      |
+| X509 Certificate                        |     :new_moon:     |                      |
 
 OPC UA Server
 -------------
@@ -55,8 +55,8 @@ OPC UA Server
 |                             | QueryNext()                     |      :new_moon:      |                      |
 | Attribute Service Set       | Read()                          |  :heavy_check_mark:  |                      |
 |                             | Write()                         |  :heavy_check_mark:  |                      |
-|                             | HistoryRead()                   | :waning_gibbous_moon: | [WIP](https://github.com/open62541/open62541/pull/1740), Release 0.4     |
-|                             | HistoryUpdate()                 | :waning_gibbous_moon: | [WIP](https://github.com/open62541/open62541/pull/1740), Release 0.4     |
+|                             | HistoryRead()                   | :waning_gibbous_moon: | [WIP](https://github.com/open62541/open62541/pull/1740), Release 0.4 |
+|                             | HistoryUpdate()                 | :waning_gibbous_moon: | [WIP](https://github.com/open62541/open62541/pull/1740), Release 0.4 |
 | Method Service Set          | Call()                          |  :heavy_check_mark:  |                      |
 | MonitoredItems Service Set  | CreateMonitoredItems()          |  :heavy_check_mark:  | See below for Events |
 |                             | DeleteMonitoredItems()          |  :heavy_check_mark:  |                      |
@@ -71,18 +71,18 @@ OPC UA Server
 |                             | DeleteSubscriptions()           |  :heavy_check_mark:  |                      |
 |                             | TransferSubscriptions()         |      :new_moon:      |                      |
 
-| **Subscriptions**                       |                      |                      |
-| --------------------------------------- |:--------------------:| -------------------- |
-| DataChange MonitoredItems               |  :heavy_check_mark:  | master, Release 0.3  |
-| DataChange Filters                      |  :heavy_check_mark:  | master               |
-| Event MonitoredItems                    |  :heavy_check_mark:  | master               |
-| Event Filters                           |      :new_moon:      |                      |
+| **Subscriptions**                       |                    |                      |
+| --------------------------------------- |:------------------:| -------------------- |
+| DataChange MonitoredItems               | :heavy_check_mark: | master, Release 0.3  |
+| DataChange Filters                      | :heavy_check_mark: | master               |
+| Event MonitoredItems                    | :heavy_check_mark: | master               |
+| Event Filters                           |     :new_moon:     |                      |
 
-| **Discovery**                           |                      | See Discovery Service Set |
-| --------------------------------------- |:--------------------:| -------------------- |
-| Local Disovery Server                   |  :heavy_check_mark:  | master, Release 0.3  |
-| Local Discovery Server Multicast Ext.   |  :heavy_check_mark:  | master, Release 0.3  |
-| Global Discovery Server                 |      :new_moon:      |                      |
+| **Discovery**                           |                    | See Discovery Service Set |
+| --------------------------------------- |:------------------:| -------------------- |
+| Local Discovery Server                  | :heavy_check_mark: | master, Release 0.3  |
+| Local Discovery Server Multicast Ext.   | :heavy_check_mark: | master, Release 0.3  |
+| Global Discovery Server                 |     :new_moon:     |                      |
 
 OPC UA Client
 -------------

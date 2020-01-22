@@ -12,7 +12,7 @@
 #ifndef UA_TYPES_ENCODING_BINARY_H_
 #define UA_TYPES_ENCODING_BINARY_H_
 
-#include "ua_types.h"
+#include <open62541/types.h>
 
 _UA_BEGIN_DECLS
 
@@ -37,8 +37,7 @@ typedef UA_StatusCode (*UA_exchangeEncodeBuffer)(void *handle, UA_Byte **bufPos,
           Is ignored if NULL.
  * @param exchangeHandle Custom data passed into the exchangeCallback.
  * @return Returns a statuscode whether encoding succeeded. */
-//TODO remove UA_EXPORT after we fix issue #1914
-UA_StatusCode UA_EXPORT
+UA_StatusCode 
 UA_encodeBinary(const void *src, const UA_DataType *type,
                 UA_Byte **bufPos, const UA_Byte **bufEnd,
                 UA_exchangeEncodeBuffer exchangeCallback,
@@ -63,8 +62,8 @@ UA_encodeBinary(const void *src, const UA_DataType *type,
  * @return Returns a statuscode whether decoding succeeded. */
 UA_StatusCode
 UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *dst,
-                const UA_DataType *type, size_t customTypesSize,
-                const UA_DataType *customTypes) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+                const UA_DataType *type, const UA_DataTypeArray *customTypes)
+    UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
 /* Returns the number of bytes the value p takes in binary encoding. Returns
  * zero if an error occurs. UA_calcSizeBinary is thread-safe and reentrant since

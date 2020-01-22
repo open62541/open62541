@@ -1,0 +1,18 @@
+# Valid scopes for commit messages. 
+scopes:
+  - appveyor
+  - arch
+  - client
+  - core
+  - encrypt
+  - example
+  - fuzz
+  - multithread
+# Nodeset Compiler
+  - nc
+  - plugin
+  - pack
+  - pubsub
+  - server
+  - travis
+
