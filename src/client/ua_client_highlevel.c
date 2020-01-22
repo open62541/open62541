@@ -792,7 +792,7 @@ void ValueAttributeRead(UA_Client *client, void *userdata,
     if(!done)
         UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                     "Cannot process the response to the async read "
-                    "request %u", requestId);
+                    "request %" PRIu32, requestId);
 
     UA_free(cc->clientData);
     LIST_REMOVE(cc, pointers);

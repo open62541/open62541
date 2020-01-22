@@ -184,15 +184,15 @@ sampleCallbackWithValue(UA_Server *server, UA_Session *session,
     UA_Boolean changed = false;
     UA_StatusCode retval = detectValueChange(server, session, mon, *value, &binValueEncoding, &changed);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_SESSION(&server->config.logger, session, "Subscription %u | "
-                               "MonitoredItem %i | Value change detection failed with StatusCode %s",
+        UA_LOG_WARNING_SESSION(&server->config.logger, session, "Subscription %" PRIu32 " | "
+                               "MonitoredItem %" PRIi32 " | Value change detection failed with StatusCode %s",
                                sub ? sub->subscriptionId : 0, mon->monitoredItemId,
                                UA_StatusCode_name(retval));
         return retval;
     }
     if(!changed) {
-        UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Subscription %u | "
-                             "MonitoredItem %i | The value has not changed",
+        UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Subscription %" PRIu32 " | "
+                             "MonitoredItem %" PRIi32 " | The value has not changed",
                              sub ? sub->subscriptionId : 0, mon->monitoredItemId);
         return UA_STATUSCODE_GOOD;
     }
@@ -221,8 +221,8 @@ sampleCallbackWithValue(UA_Server *server, UA_Session *session,
 
         /* <-- Point of no return --> */
 
-        UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Subscription %u | "
-                             "MonitoredItem %i | Enqueue a new notification",
+        UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Subscription %" PRIu32 " | "
+                             "MonitoredItem %" PRIi32 " | Enqueue a new notification",
                              sub ? sub->subscriptionId : 0, mon->monitoredItemId);
 
         newNotification->mon = mon;
@@ -286,8 +286,8 @@ monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem)
     if(sub)
         session = sub->session;
 
-    UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Subscription %u | "
-                         "MonitoredItem %i | Sample callback called",
+    UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Subscription %" PRIu32 " | "
+                         "MonitoredItem %" PRIi32 " | Sample callback called",
                          sub ? sub->subscriptionId : 0, monitoredItem->monitoredItemId);
 
     UA_assert(monitoredItem->attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER);
@@ -314,8 +314,8 @@ monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem)
     UA_Boolean movedValue = false;
     UA_StatusCode retval = sampleCallbackWithValue(server, session, sub, monitoredItem, &value, &movedValue);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_SESSION(&server->config.logger, session, "Subscription %u | "
-                               "MonitoredItem %i | Sampling returned the statuscode %s",
+        UA_LOG_WARNING_SESSION(&server->config.logger, session, "Subscription %" PRIu32 " | "
+                               "MonitoredItem %" PRIi32 " | Sampling returned the statuscode %s",
                                sub ? sub->subscriptionId : 0, monitoredItem->monitoredItemId,
                                UA_StatusCode_name(retval));
     }

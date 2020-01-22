@@ -561,7 +561,7 @@ UA_Server_DataSetReader_addTargetVariables(UA_Server *server, UA_NodeId *parentN
         }
         else {
             UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
-                         "addVariableNode: error 0x%x", retval);
+                         "addVariableNode: error 0x%" PRIx32, retval);
         }
 
         UA_FieldTargetDataType_init(&targetVars.targetVariables[i]);
@@ -622,7 +622,7 @@ UA_Server_DataSetReader_process(UA_Server *server, UA_DataSetReader *dataSetRead
                     if(dataSetReader->subscribedDataSetTarget.targetVariables[i].attributeId == UA_ATTRIBUTEID_VALUE) {
                         retVal = UA_Server_writeValue(server, dataSetReader->subscribedDataSetTarget.targetVariables[i].targetNodeId, dataSetMsg->data.keyFrameData.dataSetFields[i].value);
                         if(retVal != UA_STATUSCODE_GOOD) {
-                            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Error Write Value KF %u: 0x%x", i, retVal);
+                            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Error Write Value KF %" PRIu16 ": 0x%"PRIx32, i, retVal);
                         }
 
                     }
@@ -635,7 +635,7 @@ UA_Server_DataSetReader_process(UA_Server *server, UA_DataSetReader *dataSetRead
                         UA_DataValue_copy(&dataSetMsg->data.keyFrameData.dataSetFields[i], &writeVal.value);
                         retVal = UA_Server_write(server, &writeVal);
                         if(retVal != UA_STATUSCODE_GOOD) {
-                            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Error Write KF %u: 0x%x", i, retVal);
+                            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Error Write KF %" PRIu16 ": 0x%" PRIx32, i, retVal);
                         }
 
                     }

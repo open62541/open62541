@@ -284,7 +284,7 @@ __Subscriptions_delete_handler(UA_Client *client, void *data, UA_UInt32 requestI
 
         if(!subs[i]) {
             UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                        "No internal representation of subscription %u",
+                        "No internal representation of subscription %" PRIu32,
                         delData->request->subscriptionIds[i]);
             continue;
         }
@@ -519,7 +519,7 @@ __MonitoredItems_create_handler(UA_Client *client, void *d, UA_UInt32 requestId,
         LIST_INSERT_HEAD(&sub->monitoredItems, newMon, listEntry);
 
         UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                    "Subscription %u | Added a MonitoredItem with handle %u",
+                    "Subscription %" PRIu32 " | Added a MonitoredItem with handle %" PRIu32,
                      sub->subscriptionId, newMon->clientHandle);
         mis[i] = NULL;
     }
@@ -795,7 +795,7 @@ __MonitoredItems_delete_handler(UA_Client *client, void *d, UA_UInt32 requestId,
     UA_Client_Subscription *sub = findSubscription(client, request->subscriptionId);
     if(!sub) {
         UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                    "No internal representation of subscription %u",
+                    "No internal representation of subscription %" PRIu32,
                     request->subscriptionId);
         goto cleanup;
     }
@@ -998,7 +998,7 @@ processDataChangeNotification(UA_Client *client, UA_Client_Subscription *sub,
 
         if(!mon) {
             UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                         "Could not process a notification with clienthandle %u on subscription %u",
+                         "Could not process a notification with clienthandle %" PRIu32" on subscription %" PRIu32,
                          min->clientHandle, sub->subscriptionId);
             continue;
         }
@@ -1031,7 +1031,7 @@ processEventNotification(UA_Client *client, UA_Client_Subscription *sub,
 
         if(!mon) {
             UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                         "Could not process a notification with clienthandle %u on subscription %u",
+                         "Could not process a notification with clienthandle %" PRIu32 " on subscription %" PRIu32,
                          eventFieldList->clientHandle, sub->subscriptionId);
             continue;
         }
@@ -1099,7 +1099,7 @@ UA_Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishRequ
         if(client->config.outStandingPublishRequests > 1) {
             client->config.outStandingPublishRequests--;
             UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                          "Too many publishrequest, reduce outStandingPublishRequests to %d",
+                          "Too many publishrequest, reduce outStandingPublishRequests to %" PRId16,
                            client->config.outStandingPublishRequests);
         } else {
             UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
@@ -1164,7 +1164,7 @@ UA_Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishRequ
     /* Detect missing message - OPC Unified Architecture, Part 4 5.13.1.1 e) */
     if(UA_Client_Subscriptions_nextSequenceNumber(sub->sequenceNumber) != msg->sequenceNumber) {
         UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "Invalid subscription sequence number: expected %u but got %u",
+                     "Invalid subscription sequence number: expected %" PRIu32 " but got %" PRIu32,
                      UA_Client_Subscriptions_nextSequenceNumber(sub->sequenceNumber),
                      msg->sequenceNumber);
         /* This is an error. But we do not abort the connection. Some server
@@ -1193,7 +1193,7 @@ UA_Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishRequ
         if(!tmpAck) {
             UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                            "Not enough memory to store the acknowledgement for a publish "
-                           "message on subscription %u", sub->subscriptionId);
+                           "message on subscription %" PRIu32, sub->subscriptionId);
             break;
         }   
         tmpAck->subAck.sequenceNumber = msg->sequenceNumber;
@@ -1256,7 +1256,7 @@ UA_Client_Subscriptions_backgroundPublishInactivityCheck(UA_Client *client) {
                 client->config.subscriptionInactivityCallback(client, sub->subscriptionId,
                                                               sub->context);
             UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                         "Inactivity for Subscription %u.", sub->subscriptionId);
+                         "Inactivity for Subscription %" PRIu32 ".", sub->subscriptionId);
         }
     }
 }

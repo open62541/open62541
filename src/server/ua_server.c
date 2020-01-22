@@ -581,7 +581,7 @@ UA_Server_run_startup(UA_Server *server) {
     /* Spin up the worker threads */
 #if UA_MULTITHREADING >= 200
     UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                "Spinning up %u worker thread(s)", server->config.nThreads);
+                "Spinning up %" PRIu16 " worker thread(s)", server->config.nThreads);
     UA_WorkQueue_start(&server->workQueue, server->config.nThreads);
 #endif
 
@@ -676,7 +676,7 @@ UA_Server_run_shutdown(UA_Server *server) {
     /* Shut down the workers */
     UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
                 "Shutting down %u worker thread(s)",
-                (UA_UInt32)server->workQueue.workersSize);
+                (int unsigned)server->workQueue.workersSize);
     UA_WorkQueue_stop(&server->workQueue);
 #endif
 
