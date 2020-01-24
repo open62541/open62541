@@ -155,19 +155,19 @@ UA_SecureChannel_close(UA_SecureChannel *channel) {
 UA_StatusCode
 UA_SecureChannel_processHELACK(UA_SecureChannel *channel,
                                const UA_ConnectionConfig *remoteConfig) {
-    channel->config = *remoteConfig;
-
     /* The lowest common version is used by both sides */
     if(channel->config.protocolVersion > remoteConfig->protocolVersion)
         channel->config.protocolVersion = remoteConfig->protocolVersion;
 
     /* Can we receive the max send size? */
-    if(channel->config.sendBufferSize > channel->config.recvBufferSize)
-        channel->config.sendBufferSize = channel->config.recvBufferSize;
+    if(channel->config.sendBufferSize > remoteConfig->recvBufferSize)
+        channel->config.sendBufferSize = remoteConfig->recvBufferSize;
 
     /* Can we send the max receive size? */
-    if(channel->config.recvBufferSize > channel->config.sendBufferSize)
-        channel->config.recvBufferSize = channel->config.sendBufferSize;
+    if(channel->config.recvBufferSize > remoteConfig->sendBufferSize)
+        channel->config.recvBufferSize = remoteConfig->sendBufferSize;
+
+    channel->config.maxChunkCount = remoteConfig->maxChunkCount;
 
     /* Chunks of at least 8192 bytes must be permissible.
      * See Part 6, Clause 6.7.1 */
