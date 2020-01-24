@@ -63,7 +63,7 @@ processACKResponseAsync(void *application, UA_SecureChannel *channel,
     }
 
     client->connectStatus =
-        UA_SecureChannel_processHELACK(channel, (const UA_ConnectionConfig*)&ackMessage);
+        UA_SecureChannel_processHELACK(channel, &ackMessage);
     if(client->connectStatus != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_NETWORK,
                      "Processing the ACK message failed with StatusCode %s",
@@ -90,14 +90,16 @@ sendHELMessage(UA_Client *client) {
 
     /* Prepare the HEL message and encode at offset 8 */
     UA_TcpHelloMessage hello;
-    UA_String_copy(&client->endpointUrl, &hello.endpointUrl); /* must be less than 4096 bytes */
-    memcpy(&hello, &client->config.localConnectionConfig,
-           sizeof(UA_ConnectionConfig)); /* same struct layout */
+    hello.protocolVersion = 0;
+    hello.receiveBufferSize = client->config.localConnectionConfig.recvBufferSize;
+    hello.sendBufferSize = client->config.localConnectionConfig.sendBufferSize;
+    hello.maxMessageSize = client->config.localConnectionConfig.localMaxMessageSize;
+    hello.maxChunkCount = client->config.localConnectionConfig.localMaxChunkCount;
+    hello.endpointUrl = client->endpointUrl;
 
     UA_Byte *bufPos = &message.data[8]; /* skip the header */
     const UA_Byte *bufEnd = &message.data[message.length];
     client->connectStatus = UA_TcpHelloMessage_encodeBinary(&hello, &bufPos, bufEnd);
-    UA_TcpHelloMessage_deleteMembers (&hello);
 
     /* Encode the message header at offset 0 */
     UA_TcpMessageHeader messageHeader;

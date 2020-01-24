@@ -154,27 +154,28 @@ UA_SecureChannel_close(UA_SecureChannel *channel) {
 
 UA_StatusCode
 UA_SecureChannel_processHELACK(UA_SecureChannel *channel,
-                               const UA_ConnectionConfig *remoteConfig) {
+                               const UA_TcpAcknowledgeMessage *remoteConfig) {
     /* The lowest common version is used by both sides */
     if(channel->config.protocolVersion > remoteConfig->protocolVersion)
         channel->config.protocolVersion = remoteConfig->protocolVersion;
 
     /* Can we receive the max send size? */
-    if(channel->config.sendBufferSize > remoteConfig->recvBufferSize)
-        channel->config.sendBufferSize = remoteConfig->recvBufferSize;
+    if(channel->config.sendBufferSize > remoteConfig->receiveBufferSize)
+        channel->config.sendBufferSize = remoteConfig->receiveBufferSize;
 
     /* Can we send the max receive size? */
     if(channel->config.recvBufferSize > remoteConfig->sendBufferSize)
         channel->config.recvBufferSize = remoteConfig->sendBufferSize;
 
-    channel->config.maxChunkCount = remoteConfig->maxChunkCount;
+    channel->config.remoteMaxMessageSize = remoteConfig->maxMessageSize;
+    channel->config.remoteMaxChunkCount = remoteConfig->maxChunkCount;
 
     /* Chunks of at least 8192 bytes must be permissible.
      * See Part 6, Clause 6.7.1 */
     if(channel->config.recvBufferSize < 8192 ||
        channel->config.sendBufferSize < 8192 ||
-       (channel->config.maxMessageSize != 0 &&
-        channel->config.maxMessageSize < 8192))
+       (channel->config.remoteMaxMessageSize != 0 &&
+        channel->config.remoteMaxMessageSize < 8192))
         return UA_STATUSCODE_BADINTERNALERROR;
 
     channel->connection->state = UA_CONNECTION_ESTABLISHED;
@@ -271,12 +272,12 @@ checkLimitsSym(UA_MessageContext *const mc, size_t *const bodyLength) {
     mc->chunksSoFar++;
 
     UA_SecureChannel *channel = mc->channel;
-    if(mc->messageSizeSoFar > channel->config.maxMessageSize &&
-       channel->config.maxMessageSize != 0)
+    if(mc->messageSizeSoFar > channel->config.localMaxMessageSize &&
+       channel->config.localMaxMessageSize != 0)
         return UA_STATUSCODE_BADRESPONSETOOLARGE;
 
-    if(mc->chunksSoFar > channel->config.maxChunkCount &&
-       channel->config.maxChunkCount != 0)
+    if(mc->chunksSoFar > channel->config.localMaxChunkCount &&
+       channel->config.localMaxChunkCount != 0)
         return UA_STATUSCODE_BADRESPONSETOOLARGE;
 
     return UA_STATUSCODE_GOOD;
@@ -524,12 +525,12 @@ addChunkPayload(UA_SecureChannel *channel, UA_UInt32 requestId,
 
     /* Test against the connection settings */
     const UA_ConnectionConfig *config = &channel->config;
-    if(config->maxChunkCount > 0 &&
-       config->maxChunkCount <= latest->chunkPayloadsSize)
+    if(config->localMaxChunkCount > 0 &&
+       config->localMaxChunkCount <= latest->chunkPayloadsSize)
         return UA_STATUSCODE_BADRESPONSETOOLARGE;
 
-    if(config->maxMessageSize > 0 &&
-       config->maxMessageSize < latest->messageSize + chunkPayload->length)
+    if(config->localMaxMessageSize > 0 &&
+       config->localMaxMessageSize < latest->messageSize + chunkPayload->length)
         return UA_STATUSCODE_BADRESPONSETOOLARGE;
 
     /* Create a new chunk entry */
