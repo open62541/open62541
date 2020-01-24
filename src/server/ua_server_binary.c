@@ -290,14 +290,10 @@ processHEL(UA_Server *server, UA_SecureChannel *channel, const UA_ByteString *ms
     /* Currently not checked */
     UA_String_clear(&helloMessage.endpointUrl);
 
-    /* Parameterize the connection */
-    UA_ConnectionConfig remoteConfig;
-    remoteConfig.protocolVersion = helloMessage.protocolVersion;
-    remoteConfig.sendBufferSize = helloMessage.sendBufferSize;
-    remoteConfig.recvBufferSize = helloMessage.receiveBufferSize;
-    remoteConfig.maxMessageSize = helloMessage.maxMessageSize;
-    remoteConfig.maxChunkCount = helloMessage.maxChunkCount;
-    retval = UA_SecureChannel_processHELACK(channel, &remoteConfig);
+    /* Parameterize the connection. The TcpHelloMessage casts to a
+     * TcpAcknowledgeMessage. */
+    retval = UA_SecureChannel_processHELACK(channel,
+                                            (UA_TcpAcknowledgeMessage*)&helloMessage);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_NETWORK,
                     "Connection %i | Error during the HEL/ACK handshake",
@@ -305,36 +301,36 @@ processHEL(UA_Server *server, UA_SecureChannel *channel, const UA_ByteString *ms
         return retval;
     }
 
-    /* Build acknowledge response */
-    UA_TcpAcknowledgeMessage ackMessage;
-    memcpy(&ackMessage, &channel->config, sizeof(UA_TcpAcknowledgeMessage)); /* Same struct layout.. */
-    UA_TcpMessageHeader ackHeader;
-    ackHeader.messageTypeAndChunkType = UA_MESSAGETYPE_ACK + UA_CHUNKTYPE_FINAL;
-    ackHeader.messageSize = 8 + 20; /* ackHeader + ackMessage */
-
-    UA_Connection *connection = channel->connection;
-
     /* Get the send buffer from the network layer */
+    UA_Connection *connection = channel->connection;
     UA_ByteString ack_msg;
     UA_ByteString_init(&ack_msg);
     retval = connection->getSendBuffer(connection, channel->config.sendBufferSize, &ack_msg);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
+    /* Build acknowledge response */
+    UA_TcpAcknowledgeMessage ackMessage;
+    ackMessage.protocolVersion = 0;
+    ackMessage.receiveBufferSize = channel->config.recvBufferSize;
+    ackMessage.sendBufferSize = channel->config.sendBufferSize;
+    ackMessage.maxMessageSize = channel->config.localMaxMessageSize;
+    ackMessage.maxChunkCount = channel->config.localMaxChunkCount;
+    
+    UA_TcpMessageHeader ackHeader;
+    ackHeader.messageTypeAndChunkType = UA_MESSAGETYPE_ACK + UA_CHUNKTYPE_FINAL;
+    ackHeader.messageSize = 8 + 20; /* ackHeader + ackMessage */
+
     /* Encode and send the response */
     UA_Byte *bufPos = ack_msg.data;
     const UA_Byte *bufEnd = &ack_msg.data[ack_msg.length];
-    retval = UA_TcpMessageHeader_encodeBinary(&ackHeader, &bufPos, bufEnd);
+    retval |= UA_TcpMessageHeader_encodeBinary(&ackHeader, &bufPos, bufEnd);
+    retval |= UA_TcpAcknowledgeMessage_encodeBinary(&ackMessage, &bufPos, bufEnd);
     if(retval != UA_STATUSCODE_GOOD) {
         connection->releaseSendBuffer(connection, &ack_msg);
         return retval;
     }
 
-    retval = UA_TcpAcknowledgeMessage_encodeBinary(&ackMessage, &bufPos, bufEnd);
-    if(retval != UA_STATUSCODE_GOOD) {
-        connection->releaseSendBuffer(connection, &ack_msg);
-        return retval;
-    }
     ack_msg.length = ackHeader.messageSize;
     return connection->send(connection, &ack_msg);
 }

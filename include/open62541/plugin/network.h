@@ -44,8 +44,10 @@ typedef struct {
     UA_UInt32 protocolVersion;
     UA_UInt32 recvBufferSize;
     UA_UInt32 sendBufferSize;
-    UA_UInt32 maxMessageSize; /* Indicated by the remote side (0 = unbounded) */
-    UA_UInt32 maxChunkCount;  /* Indicated by the remote side (0 = unbounded) */
+    UA_UInt32 localMaxMessageSize;  /* (0 = unbounded) */
+    UA_UInt32 remoteMaxMessageSize; /* (0 = unbounded) */
+    UA_UInt32 localMaxChunkCount;   /* (0 = unbounded) */
+    UA_UInt32 remoteMaxChunkCount;  /* (0 = unbounded) */
 } UA_ConnectionConfig;
 
 typedef enum {

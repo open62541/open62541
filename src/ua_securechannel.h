@@ -123,7 +123,7 @@ void UA_SecureChannel_close(UA_SecureChannel *channel);
  * config is initialized with the local settings. */
 UA_StatusCode
 UA_SecureChannel_processHELACK(UA_SecureChannel *channel,
-                               const UA_ConnectionConfig *remoteConfig);
+                               const UA_TcpAcknowledgeMessage *remoteConfig);
 
 UA_StatusCode
 UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel,

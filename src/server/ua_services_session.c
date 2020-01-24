@@ -162,7 +162,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
 
     /* Fill the session information */
     newSession->maxResponseMessageSize = request->maxResponseMessageSize;
-    newSession->maxRequestMessageSize = channel->config.maxMessageSize;
+    newSession->maxRequestMessageSize = channel->config.localMaxMessageSize;
     response->responseHeader.serviceResult |=
         UA_ApplicationDescription_copy(&request->clientDescription,
                                        &newSession->clientDescription);
