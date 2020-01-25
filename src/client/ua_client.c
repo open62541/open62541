@@ -154,7 +154,6 @@ static UA_StatusCode
 sendSymmetricServiceRequest(UA_Client *client, const void *request,
                             const UA_DataType *requestType, UA_UInt32 *requestId) {
     /* Make sure we have a valid session */
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     /* FIXME: this is just a dirty workaround. We need to rework some of the sync and async processing
      * FIXME: in the client. Currently a lot of stuff is semi broken and in dire need of cleaning up.*/
     /*UA_StatusCode retval = openSecureChannel(client, true);
@@ -173,10 +172,9 @@ sendSymmetricServiceRequest(UA_Client *client, const void *request,
     UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                  "Sending a request of type %i", requestType->typeId.identifier.numeric);
 
-    if (client->channel.nextSecurityToken.tokenId != 0) // Change to the new security token if the secure channel has been renewed.
-        UA_SecureChannel_revolveTokens(&client->channel);
-    retval = UA_SecureChannel_sendSymmetricMessage(&client->channel, rqId, UA_MESSAGETYPE_MSG,
-                                                   rr, requestType);
+    UA_StatusCode retval =
+        UA_SecureChannel_sendSymmetricMessage(&client->channel, rqId, UA_MESSAGETYPE_MSG,
+                                              rr, requestType);
     UA_NodeId_init(&rr->authenticationToken); /* Do not return the token to the user */
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
