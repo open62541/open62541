@@ -131,7 +131,7 @@ UA_SecureChannelManager_create(UA_SecureChannelManager *cm, UA_Connection *conne
     UA_SecureChannel_init(&entry->channel,
                           &cm->server->config.networkLayers[0].localConnectionConfig);
     entry->channel.securityToken.channelId = 0;
-    entry->channel.securityToken.createdAt = UA_DateTime_now();
+    entry->channel.securityToken.createdAt = UA_DateTime_nowMonotonic();
     entry->channel.securityToken.revisedLifetime = cm->server->config.maxSecurityTokenLifetime;
 
     TAILQ_INSERT_TAIL(&cm->channels, entry, pointers);
@@ -194,7 +194,6 @@ UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_SecureChannel *chan
     }
 
     channel->securityMode = request->securityMode;
-    channel->securityToken.createdAt = UA_DateTime_nowMonotonic();
     channel->securityToken.channelId = cm->lastChannelId++;
     channel->securityToken.createdAt = UA_DateTime_now();
 
@@ -232,6 +231,9 @@ UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_SecureChannel *chan
 
     /* The channel is open */
     channel->state = UA_SECURECHANNELSTATE_OPEN;
+
+    /* Reset the internal creation date to the monotonic clock */
+    channel->securityToken.createdAt = UA_DateTime_nowMonotonic();
 
     return UA_STATUSCODE_GOOD;
 }
