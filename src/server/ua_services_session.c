@@ -247,10 +247,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         }
     }
 
-    if(channel->securityToken.channelId == 0) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADSECURECHANNELIDINVALID;
-        return;
-    }
+    UA_assert(channel->securityToken.channelId != 0);
 
     if(!UA_ByteString_equal(&channel->securityPolicy->policyUri,
                             &UA_SECURITY_POLICY_NONE_URI) &&
