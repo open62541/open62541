@@ -298,8 +298,8 @@ encodeHeadersSym(UA_MessageContext *const messageContext, size_t totalLength) {
 
     UA_UInt32 tokenId = channel->securityToken.tokenId;
     /* This is a server SecureChannel and we have sent out the OPN response but
-     * not gotten a request with the new token. So we want to send with
-     * nextSecurityToken and still allow to receive with the old one. */
+     * not gotten a request with the new token. So send with nextSecurityToken
+     * and still allow to receive with the old one. */
     if(channel->nextSecurityToken.tokenId != 0)
         tokenId = channel->nextSecurityToken.tokenId;
 
@@ -675,27 +675,20 @@ decryptAddChunk(UA_SecureChannel *channel, UA_MessageType messageType,
 
     size_t offset = 8; /* Skip the message header */
     UA_UInt32 secureChannelId;
-    UA_StatusCode res = UA_UInt32_decodeBinary(chunk, &offset, &secureChannelId);
+    UA_UInt32 tokenId;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    res |= UA_UInt32_decodeBinary(chunk, &offset, &secureChannelId);
+    res |= UA_UInt32_decodeBinary(chunk, &offset, &tokenId);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
 #if !defined(FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION)
-    /* The wrong ChannelId. Non-opened channels have the id zero. */
+    /* Check the ChannelId. Non-opened channels have the id zero. */
     if(secureChannelId != channel->securityToken.channelId)
         return UA_STATUSCODE_BADSECURECHANNELIDINVALID;
 #endif
 
-    /* Decode and check the symmetric security header (tokenId) */
-    UA_UInt32 tokenId;
-    res = UA_UInt32_decodeBinary(chunk, &offset, &tokenId);
-    if(res != UA_STATUSCODE_GOOD)
-        return res;
-
-#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
-    /* Help fuzzing by always setting the correct tokenId */
-    tokenId = channel->securityToken.tokenId;
-#endif
-
+    /* Check (and revolve) the SecurityToken */
     res = checkSymHeader(channel, tokenId, allowPreviousToken);
     if(res != UA_STATUSCODE_GOOD)
         return res;
