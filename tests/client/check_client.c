@@ -187,6 +187,7 @@ START_TEST(Client_renewSecureChannel) {
 
 } END_TEST
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS
 START_TEST(Client_renewSecureChannelWithActiveSubscription) {
     UA_Client *client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
@@ -226,6 +227,7 @@ START_TEST(Client_renewSecureChannelWithActiveSubscription) {
     UA_Client_disconnect(client);
     UA_Client_delete(client);
 } END_TEST
+#endif
 
 START_TEST(Client_reconnect) {
     UA_Client *client = UA_Client_new();
@@ -366,7 +368,9 @@ static Suite* testSuite_Client(void) {
     TCase *tc_client_reconnect = tcase_create("Client Reconnect");
     tcase_add_checked_fixture(tc_client_reconnect, setup, teardown);
     tcase_add_test(tc_client_reconnect, Client_renewSecureChannel);
+#ifdef UA_ENABLE_SUBSCRIPTIONS
     tcase_add_test(tc_client_reconnect, Client_renewSecureChannelWithActiveSubscription);
+#endif
     tcase_add_test(tc_client_reconnect, Client_reconnect);
 #ifdef UA_SESSION_RECOVERY
     tcase_add_test(tc_client_reconnect, Client_activateSessionClose);
