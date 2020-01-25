@@ -841,6 +841,7 @@ endif()
 
 if(UA_DEBUG_DUMP_PKGS)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/plugins/ua_debug_dump_pkgs.c)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c)
 endif()
 
 if(UA_ENABLE_DISCOVERY_MULTICAST)
