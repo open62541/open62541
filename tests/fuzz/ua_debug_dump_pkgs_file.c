@@ -21,6 +21,9 @@
 #include <open62541/types_generated_encoding_binary.h>
 
 #include "server/ua_server_internal.h"
+#include "testing_networklayers.h"
+
+#define RECEIVE_BUFFER_SIZE 65535
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -136,13 +139,26 @@ UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const connect
     dump_filename.messageType = NULL;
     dump_filename.serviceName[0] = 0;
     
-    UA_SecureChannel dummy = *connection->channel;
-    TAILQ_INIT(&dummy.messages);
+    UA_Connection c = createDummyConnection(RECEIVE_BUFFER_SIZE, NULL);
+    UA_SecureChannel dummy;
+    UA_SecureChannel_init(&dummy, &connection->channel->config);
+    dummy.securityPolicy = connection->channel->securityPolicy;
+    dummy.state = connection->channel->state;
+    dummy.securityMode = connection->channel->securityMode;
+    dummy.connection = &c;
+    UA_ChannelSecurityToken_copy(&connection->channel->securityToken,
+                                 &dummy.securityToken);
+    UA_ChannelSecurityToken_copy(&connection->channel->nextSecurityToken,
+                                 &dummy.nextSecurityToken);
+
     UA_ByteString messageBufferCopy;
     UA_ByteString_copy(messageBuffer, &messageBufferCopy);
     UA_SecureChannel_processPacket(&dummy, &dump_filename, UA_debug_dump_setName, &messageBufferCopy);
-    UA_SecureChannel_deleteMessages(&dummy);
     UA_ByteString_deleteMembers(&messageBufferCopy);
+
+    dummy.securityPolicy = NULL;
+    UA_SecureChannel_deleteMessages(&dummy);
+    c.close(&c);
     
     char fileName[250];
     snprintf(fileName, sizeof(fileName), "%s/%05u_%s%s", UA_CORPUS_OUTPUT_DIR, ++UA_dump_chunkCount,
