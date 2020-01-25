@@ -45,8 +45,6 @@ static void teardown(void) {
     UA_Server_delete(server);
 }
 
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-
 UA_Boolean notificationReceived = false;
 UA_UInt32 countNotificationReceived = 0;
 UA_Double publishingInterval = 500.0;
@@ -931,12 +929,9 @@ START_TEST(Client_methodcall) {
 END_TEST
 #endif /* UA_ENABLE_METHODCALLS */
 
-#endif /* UA_ENABLE_SUBSCRIPTIONS */
-
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Client Subscription");
 
-#ifdef UA_ENABLE_SUBSCRIPTIONS
     TCase *tc_client = tcase_create("Client Subscription Basic");
     tcase_add_checked_fixture(tc_client, setup, teardown);
     tcase_add_test(tc_client, Client_subscription);
@@ -948,9 +943,8 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client, Client_subscription_without_notification);
     tcase_add_test(tc_client, Client_subscription_async_sub);
     suite_add_tcase(s,tc_client);
-#endif /* UA_ENABLE_SUBSCRIPTIONS */
 
-#if defined(UA_ENABLE_SUBSCRIPTIONS) && defined(UA_ENABLE_METHODCALLS)
+#ifdef UA_ENABLE_METHODCALLS
     TCase *tc_client2 = tcase_create("Client Subscription + Method Call of GetMonitoredItmes");
     tcase_add_checked_fixture(tc_client2, setup, teardown);
     tcase_add_test(tc_client2, Client_methodcall);
