@@ -14,7 +14,134 @@
 
 #include "ua_services.h"
 #include "ua_server_internal.h"
-#include "ua_session_manager.h"
+
+/* Delayed callback to free the session memory */
+static void
+removeSessionCallback(UA_Server *server, session_list_entry *entry) {
+    UA_LOCK(server->serviceMutex);
+    UA_Session_deleteMembersCleanup(&entry->session, server);
+    UA_UNLOCK(server->serviceMutex);
+}
+
+void
+UA_Server_removeSession(UA_Server *server, session_list_entry *sentry) {
+    UA_Session *session = &sentry->session;
+
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
+
+    /* Remove the Subscriptions */
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    UA_Subscription *sub, *tempsub;
+    LIST_FOREACH_SAFE(sub, &session->serverSubscriptions, listEntry, tempsub) {
+        UA_Session_deleteSubscription(server, session, sub->subscriptionId);
+    }
+
+    UA_PublishResponseEntry *entry;
+    while((entry = UA_Session_dequeuePublishReq(session))) {
+        UA_PublishResponse_deleteMembers(&entry->response);
+        UA_free(entry);
+    }
+#endif
+
+    /* Callback into userland access control */
+    if(server->config.accessControl.closeSession) {
+        UA_UNLOCK(server->serviceMutex);
+        server->config.accessControl.closeSession(server, &server->config.accessControl,
+                                                  &session->sessionId, session->sessionHandle);
+        UA_LOCK(server->serviceMutex);
+    }
+
+    UA_Session_detachFromSecureChannel(session); /* Detach the Session from the SecureChannel */
+    sentry->session.activated = false; /* Deactivate the session */
+
+    /* Detach the session from the session manager and make the capacity
+     * available */
+    LIST_REMOVE(sentry, pointers);
+    UA_atomic_subUInt32(&server->sessionCount, 1);
+
+    /* Add a delayed callback to remove the session when the currently
+     * scheduled jobs have completed */
+    sentry->cleanupCallback.callback = (UA_ApplicationCallback)removeSessionCallback;
+    sentry->cleanupCallback.application = server;
+    sentry->cleanupCallback.data = sentry;
+    UA_WorkQueue_enqueueDelayed(&server->workQueue, &sentry->cleanupCallback);
+}
+
+UA_StatusCode
+UA_Server_removeSessionByToken(UA_Server *server, const UA_NodeId *token) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    session_list_entry *entry;
+    LIST_FOREACH(entry, &server->sessions, pointers) {
+        if(UA_NodeId_equal(&entry->session.header.authenticationToken, token)) {
+            UA_Server_removeSession(server, entry);
+            return UA_STATUSCODE_GOOD;
+        }
+    }
+    return UA_STATUSCODE_BADSESSIONIDINVALID;
+}
+
+void
+UA_Server_cleanupSessions(UA_Server *server, UA_DateTime nowMonotonic) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    session_list_entry *sentry, *temp;
+    LIST_FOREACH_SAFE(sentry, &server->sessions, pointers, temp) {
+        /* Session has timed out? */
+        if(sentry->session.validTill >= nowMonotonic)
+            continue;
+        UA_LOG_INFO_SESSION(&server->config.logger, &sentry->session, "Session has timed out");
+        UA_Server_removeSession(server, sentry);
+    }
+}
+
+/************/
+/* Services */
+/************/
+
+static UA_Session *
+getSessionByToken(UA_Server *server, const UA_NodeId *token) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
+
+    session_list_entry *current = NULL;
+    LIST_FOREACH(current, &server->sessions, pointers) {
+        /* Token does not match */
+        if(!UA_NodeId_equal(&current->session.header.authenticationToken, token))
+            continue;
+
+        /* Session has timed out */
+        if(UA_DateTime_nowMonotonic() > current->session.validTill) {
+            UA_LOG_INFO_SESSION(&server->config.logger, &current->session,
+                                "Client tries to use a session that has timed out");
+            return NULL;
+        }
+
+        return &current->session;
+    }
+
+    return NULL;
+}
+
+UA_Session *
+UA_Server_getSessionById(UA_Server *server, const UA_NodeId *sessionId) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
+
+    session_list_entry *current = NULL;
+    LIST_FOREACH(current, &server->sessions, pointers) {
+        /* Token does not match */
+        if(!UA_NodeId_equal(&current->session.sessionId, sessionId))
+            continue;
+
+        /* Session has timed out */
+        if(UA_DateTime_nowMonotonic() > current->session.validTill) {
+            UA_LOG_INFO_SESSION(&server->config.logger, &current->session,
+                                "Client tries to use a session that has timed out");
+            return NULL;
+        }
+
+        return &current->session;
+    }
+
+    return NULL;
+}
 
 static UA_StatusCode
 signCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
@@ -55,6 +182,36 @@ signCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
     return retval;
 }
 
+/* Creates and adds a session. But it is not yet attached to a secure channel. */
+UA_StatusCode
+UA_Server_createSession(UA_Server *server, UA_SecureChannel *channel,
+                        const UA_CreateSessionRequest *request, UA_Session **session) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
+
+    if(server->sessionCount >= server->config.maxSessions)
+        return UA_STATUSCODE_BADTOOMANYSESSIONS;
+
+    session_list_entry *newentry = (session_list_entry *)UA_malloc(sizeof(session_list_entry));
+    if(!newentry)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    UA_atomic_addUInt32(&server->sessionCount, 1);
+    UA_Session_init(&newentry->session);
+    newentry->session.sessionId = UA_NODEID_GUID(1, UA_Guid_random());
+    newentry->session.header.authenticationToken = UA_NODEID_GUID(1, UA_Guid_random());
+
+    if(request->requestedSessionTimeout <= server->config.maxSessionTimeout &&
+       request->requestedSessionTimeout > 0)
+        newentry->session.timeout = request->requestedSessionTimeout;
+    else
+        newentry->session.timeout = server->config.maxSessionTimeout;
+
+    UA_Session_updateLifetime(&newentry->session);
+    LIST_INSERT_HEAD(&server->sessions, newentry, pointers);
+    *session = &newentry->session;
+    return UA_STATUSCODE_GOOD;
+}
+
 void
 Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
                       UA_Session *session, const UA_CreateSessionRequest *request,
@@ -66,8 +223,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     if(session) {
         UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
                                "The client certificate did not validate");
-        UA_SessionManager_removeSession(&server->sessionManager,
-                                        &session->header.authenticationToken);
+        UA_Server_removeSessionByToken(server, &session->header.authenticationToken);
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
         return;
     }
@@ -117,7 +273,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
 
     UA_Session *newSession = NULL;
     response->responseHeader.serviceResult =
-        UA_SessionManager_createSession(&server->sessionManager, channel, request, &newSession);
+        UA_Server_createSession(server, channel, request, &newSession);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
                                "Processing CreateSessionRequest failed");
@@ -132,8 +288,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
                      &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
     if(!response->serverEndpoints) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-        UA_SessionManager_removeSession(&server->sessionManager,
-                                        &newSession->header.authenticationToken);
+        UA_Server_removeSessionByToken(server, &newSession->header.authenticationToken);
         return;
     }
     response->serverEndpointsSize = server->config.endpointsSize;
@@ -144,8 +299,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
             UA_EndpointDescription_copy(&server->config.endpoints[i],
                                         &response->serverEndpoints[i]);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_SessionManager_removeSession(&server->sessionManager,
-                                        &newSession->header.authenticationToken);
+        UA_Server_removeSessionByToken(server, &newSession->header.authenticationToken);
         return;
     }
 
@@ -201,8 +355,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
 
     /* Failure -> remove the session */
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_SessionManager_removeSession(&server->sessionManager,
-                                        &newSession->header.authenticationToken);
+        UA_Server_removeSessionByToken(server, &newSession->header.authenticationToken);
         return;
     }
 
@@ -326,8 +479,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
      * calls to ActivateSession may be associated with different
      * SecureChannels. */
     if(!session) {
-        session = UA_SessionManager_getSessionByToken(&server->sessionManager,
-                                                      &request->requestHeader.authenticationToken);
+        session = getSessionByToken(server, &request->requestHeader.authenticationToken);
         if(!session || !session->activated) {
             response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
             return;
@@ -531,13 +683,9 @@ Service_CloseSession(UA_Server *server, UA_SecureChannel *channel, UA_Session *s
     UA_LOG_INFO_SESSION(&server->config.logger, session, "CloseSession");
     UA_LOCK_ASSERT(server->serviceMutex, 1);
 
-    /* The Session was not bound to this SecureChannel. (Does not have to be activated.) */
-    if(!session) {
+    if(!session)
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
-        return;
-    }
-
-    response->responseHeader.serviceResult =
-        UA_SessionManager_removeSession(&server->sessionManager,
-                                        &session->header.authenticationToken);
+    else
+        response->responseHeader.serviceResult =
+            UA_Server_removeSessionByToken(server, &session->header.authenticationToken);
 }

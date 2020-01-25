@@ -25,7 +25,6 @@
 #include "ua_securechannel_manager.h"
 #include "ua_server_internal.h"
 #include "ua_services.h"
-#include "ua_session_manager.h"
 
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
 // store the authentication token and session ID so we can help fuzzing by setting
@@ -582,8 +581,7 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
                                requestType->binaryEncodingId);
 #endif
         UA_LOCK(server->serviceMutex);
-        UA_SessionManager_removeSession(&server->sessionManager,
-                                        &session->header.authenticationToken);
+        UA_Server_removeSessionByToken(server, &session->header.authenticationToken);
         UA_UNLOCK(server->serviceMutex);
         return sendServiceFaultWithRequest(channel, requestHeader, responseType,
                                            requestId, UA_STATUSCODE_BADSESSIONNOTACTIVATED);

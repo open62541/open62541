@@ -1643,7 +1643,7 @@ refresh2MethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                       UA_Variant *output) {
     //TODO implement logic for subscription array
     /* Check if valid subscriptionId */
-    UA_Session *session = UA_SessionManager_getSessionById(&server->sessionManager, sessionId);
+    UA_Session *session = UA_Server_getSessionById(server, sessionId);
     UA_Subscription *subscription = UA_Session_getSubscriptionById(session, *((UA_UInt32 *)input[0].data));
     if(subscription == NULL)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
@@ -1683,7 +1683,7 @@ refreshMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                       UA_Variant *output) {
     //TODO implement logic for subscription array
     /* Check if valid subscriptionId */
-    UA_Session *session = UA_SessionManager_getSessionById(&server->sessionManager, sessionId);
+    UA_Session *session = UA_Server_getSessionById(server, sessionId);
     UA_Subscription *subscription = UA_Session_getSubscriptionById(session, *((UA_UInt32 *)input[0].data));
     if(subscription == NULL)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
