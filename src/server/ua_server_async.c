@@ -23,7 +23,7 @@ UA_AsyncManager_sendAsyncResponse(UA_AsyncManager *am, UA_Server *server,
     /* Get the session */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_LOCK(server->serviceMutex);
-    UA_Session* session = UA_SessionManager_getSessionById(&server->sessionManager, &ar->sessionId);
+    UA_Session* session = UA_Server_getSessionById(server, &ar->sessionId);
     UA_UNLOCK(server->serviceMutex);
     if(!session) {
         res = UA_STATUSCODE_BADSESSIONIDINVALID;

@@ -548,7 +548,7 @@ readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionC
                    const UA_Variant *input, size_t outputSize,
                    UA_Variant *output) {
     UA_LOCK(server->serviceMutex);
-    UA_Session *session = UA_SessionManager_getSessionById(&server->sessionManager, sessionId);
+    UA_Session *session = UA_Server_getSessionById(server, sessionId);
     UA_UNLOCK(server->serviceMutex);
     if(!session)
         return UA_STATUSCODE_BADINTERNALERROR;
