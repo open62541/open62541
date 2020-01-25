@@ -605,6 +605,8 @@ setInformationModel(UA_Server *server) {
             continue;
 
         UA_DataSource scaleTestDataSource;
+        scaleTestDataSource.read = NULL;
+        scaleTestDataSource.write = NULL;
         UA_VariableAttributes attr = UA_VariableAttributes_default;
         attr.dataType = UA_TYPES[type].typeId;
         attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
@@ -614,61 +616,49 @@ setInformationModel(UA_Server *server) {
         switch(UA_TYPES[type].typeIndex) {
             case UA_TYPES_BOOLEAN: {
                 scaleTestDataSource.read = readRandomBoolData;
-                scaleTestDataSource.write = NULL;
                 break;
             }
             case UA_TYPES_INT16: {
                 scaleTestDataSource.read = readRandomInt16Data;
-                scaleTestDataSource.write = NULL;
                 break;
             }
             case UA_TYPES_UINT16: {
                 scaleTestDataSource.read = readRandomUInt16Data;
-                scaleTestDataSource.write = NULL;
                 break;
             }
             case UA_TYPES_INT32: {
                 scaleTestDataSource.read = readRandomInt32Data;
-                scaleTestDataSource.write = NULL;
                 break;
             }
             case UA_TYPES_UINT32: {
                 scaleTestDataSource.read = readRandomUInt32Data;
-                scaleTestDataSource.write = NULL;
                 break;
             }
             case UA_TYPES_INT64: {
                 scaleTestDataSource.read = readRandomInt64Data;
-                scaleTestDataSource.write = NULL;
                 break;
             }
             case UA_TYPES_UINT64: {
                 scaleTestDataSource.read = readRandomUInt64Data;
-                scaleTestDataSource.write = NULL;
                 break;
             }
             case UA_TYPES_STRING: {
                 scaleTestDataSource.read = readRandomStringData;
-                scaleTestDataSource.write = NULL;
                 break;
             }
             case UA_TYPES_FLOAT: {
                 scaleTestDataSource.read = readRandomFloatData;
-                scaleTestDataSource.write = NULL;
                 break;
             }
             case UA_TYPES_DOUBLE: {
                 scaleTestDataSource.read = readRandomDoubleData;
-                scaleTestDataSource.write = NULL;
                 break;
             }
             case UA_TYPES_DATETIME:
                 scaleTestDataSource.read = readTimeData;
-                scaleTestDataSource.write = NULL;
                 break;
             case UA_TYPES_BYTESTRING:
                 scaleTestDataSource.read = readByteString;
-                scaleTestDataSource.write = NULL;
                 break;
             default:
                 break;
