@@ -578,7 +578,7 @@ int main(void) {
         // now also connect with user/pass so that fuzzer also knows how to do that
         client = UA_Client_new();
         UA_ClientConfig_setDefault(UA_Client_getConfig(client));
-        retval = UA_Client_connect_username(client, "opc.tcp://localhost:4840", "user", "password");
+        retval = UA_Client_connect_username(client, "opc.tcp://localhost:4840", "user1", "password");
         retval = retval == UA_STATUSCODE_BADUSERACCESSDENIED ? UA_STATUSCODE_GOOD : retval;
         UA_Client_disconnect(client);
         UA_Client_delete(client);
