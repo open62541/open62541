@@ -17,7 +17,7 @@
 #define UA_TYPES_H_
 
 #include <open62541/config.h>
-#include <open62541/constants.h>
+#include <open62541/common.h>
 #include <open62541/statuscodes.h>
 
 _UA_BEGIN_DECLS

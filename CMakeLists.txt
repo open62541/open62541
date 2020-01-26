@@ -628,7 +628,7 @@ set(exported_headers ${exported_headers}
                      ${PROJECT_SOURCE_DIR}/include/open62541/architecture_definitions.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/nodeids.h
-                     ${PROJECT_SOURCE_DIR}/include/open62541/constants.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/common.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/types.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated_handling.h
