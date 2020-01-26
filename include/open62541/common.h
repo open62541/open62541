@@ -8,8 +8,8 @@
  *    Copyright 2017 (c) Florian Palm
  */
 
-#ifndef UA_CONSTANTS_H_
-#define UA_CONSTANTS_H_
+#ifndef UA_COMMON_H_
+#define UA_COMMON_H_
 
 #include <open62541/config.h>
 
@@ -113,8 +113,8 @@ typedef enum {
 #define UA_VALUERANK_THREE_DIMENSIONS          3
 
 /**
- * Internal Constants
- * ==================
+ * Internal Definitions
+ * ====================
  *
  * Rule Handling
  * -------------
@@ -146,4 +146,4 @@ typedef enum {
 
 _UA_END_DECLS
 
-#endif /* UA_CONSTANTS_H_ */
+#endif /* UA_COMMON_H_ */
