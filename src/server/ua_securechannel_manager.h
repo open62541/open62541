@@ -36,8 +36,7 @@ typedef struct channel_entry {
 } channel_entry;
 
 typedef struct {
-    TAILQ_HEAD(, channel_entry) channels; // doubly-linked list of channels
-    UA_UInt32 currentChannelCount;
+    TAILQ_HEAD(, channel_entry) channels;
     UA_UInt32 lastChannelId;
     UA_UInt32 lastTokenId;
     UA_Server *server;
@@ -77,7 +76,8 @@ UA_SecureChannel *
 UA_SecureChannelManager_get(UA_SecureChannelManager *cm, UA_UInt32 channelId);
 
 UA_StatusCode
-UA_SecureChannelManager_close(UA_SecureChannelManager *cm, UA_UInt32 channelId);
+UA_SecureChannelManager_close(UA_SecureChannelManager *cm, UA_UInt32 channelId,
+                              UA_DiagnosticEvent event);
 
 _UA_END_DECLS
 
