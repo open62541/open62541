@@ -20,6 +20,15 @@
 
 _UA_BEGIN_DECLS
 
+typedef enum {
+    UA_DIAGNOSTICEVENT_CLOSE,
+    UA_DIAGNOSTICEVENT_REJECT,
+    UA_DIAGNOSTICEVENT_SECURITYREJECT,
+    UA_DIAGNOSTICEVENT_TIMEOUT,
+    UA_DIAGNOSTICEVENT_ABORT,
+    UA_DIAGNOSTICEVENT_PURGE
+} UA_DiagnosticEvent;
+
 typedef struct channel_entry {
     UA_DelayedCallback cleanupCallback;
     TAILQ_ENTRY(channel_entry) pointers;
