@@ -211,18 +211,18 @@ UA_Node_copy(const UA_Node *src, UA_Node *dst) {
                 drefTarget->targetHash = srefTarget->targetHash;
                 ZIP_RIGHT(drefTarget, zipfields) = NULL;
                 if(ZIP_RIGHT(srefTarget, zipfields))
-                    *(uintptr_t*)&ZIP_RIGHT(drefTarget, zipfields) =
-                        (uintptr_t)ZIP_RIGHT(srefTarget, zipfields) + arraydiff;
+                    ZIP_RIGHT(drefTarget, zipfields) =
+                        (UA_ReferenceTarget*)((uintptr_t)ZIP_RIGHT(srefTarget, zipfields) + arraydiff);
                 ZIP_LEFT(drefTarget, zipfields) = NULL;
                 if(ZIP_LEFT(srefTarget, zipfields))
-                    *(uintptr_t*)&ZIP_LEFT(drefTarget, zipfields) =
-                        (uintptr_t)ZIP_LEFT(srefTarget, zipfields) + arraydiff;
+                    ZIP_LEFT(drefTarget, zipfields) =
+                        (UA_ReferenceTarget*)((uintptr_t)ZIP_LEFT(srefTarget, zipfields) + arraydiff);
                 ZIP_RANK(drefTarget, zipfields) = ZIP_RANK(srefTarget, zipfields);
             }
             ZIP_ROOT(&drefs->refTargetsTree) = NULL;
             if(ZIP_ROOT(&srefs->refTargetsTree))
-                *(uintptr_t*)&ZIP_ROOT(&drefs->refTargetsTree) =
-                    (uintptr_t)ZIP_ROOT(&srefs->refTargetsTree) + arraydiff;
+                ZIP_ROOT(&drefs->refTargetsTree) =
+                    (UA_ReferenceTarget*)((uintptr_t)ZIP_ROOT(&srefs->refTargetsTree) + arraydiff);
             drefs->refTargetsSize = srefs->refTargetsSize;
             if(retval != UA_STATUSCODE_GOOD)
                 break;
@@ -507,14 +507,14 @@ addReferenceTarget(UA_NodeReferenceKind *refs, const UA_ExpandedNodeId *target,
     if(arraydiff != 0) {
         for(size_t i = 0; i < refs->refTargetsSize; i++) {
             if(targets[i].zipfields.zip_left)
-                *(uintptr_t*)&targets[i].zipfields.zip_left += arraydiff;
+                targets[i].zipfields.zip_left = (UA_ReferenceTarget*)((uintptr_t)targets[i].zipfields.zip_left + arraydiff);
             if(targets[i].zipfields.zip_right)
-                *(uintptr_t*)&targets[i].zipfields.zip_right += arraydiff;
+                targets[i].zipfields.zip_right = (UA_ReferenceTarget*)((uintptr_t)targets[i].zipfields.zip_right + arraydiff);
         }
     }
 
     if(refs->refTargetsTree.zip_root)
-        *(uintptr_t*)&refs->refTargetsTree.zip_root += arraydiff;
+        refs->refTargetsTree.zip_root = (UA_ReferenceTarget*)((uintptr_t)refs->refTargetsTree.zip_root + arraydiff);
     refs->refTargets = targets;
 
     UA_ReferenceTarget *entry = &refs->refTargets[refs->refTargetsSize];
