@@ -134,6 +134,9 @@ struct UA_Server {
     UA_LOCK_TYPE(networkMutex)
     UA_LOCK_TYPE(serviceMutex)
 #endif
+
+    /* Statistics */
+    UA_ServerStatistics serverStats;
 };
 
 /* Exposed for unit tests */

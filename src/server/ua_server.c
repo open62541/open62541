@@ -498,6 +498,11 @@ verifyServerApplicationURI(const UA_Server *server) {
 }
 #endif
 
+UA_ServerStatistics UA_Server_getStatistics(UA_Server *server)
+{
+   return server->serverStats;
+}
+
 /********************/
 /* Main Server Loop */
 /********************/
