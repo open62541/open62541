@@ -26,20 +26,8 @@ UA_SecureChannelManager_init(UA_SecureChannelManager *cm, UA_Server *server) {
     // TODO: use an ID that is likely to be unique after a restart
     cm->lastChannelId = STARTCHANNELID;
     cm->lastTokenId = STARTTOKENID;
-    cm->currentChannelCount = 0;
     cm->server = server;
     return UA_STATUSCODE_GOOD;
-}
-
-void
-UA_SecureChannelManager_deleteMembers(UA_SecureChannelManager *cm) {
-    channel_entry *entry, *temp;
-    TAILQ_FOREACH_SAFE(entry, &cm->channels, pointers, temp) {
-        TAILQ_REMOVE(&cm->channels, entry, pointers);
-        UA_SecureChannel_close(&entry->channel);
-        UA_SecureChannel_deleteMembers(&entry->channel);
-        UA_free(entry);
-    }
 }
 
 static void
@@ -48,13 +36,36 @@ removeSecureChannelCallback(void *_, channel_entry *entry) {
 }
 
 static void
-removeSecureChannel(UA_SecureChannelManager *cm, channel_entry *entry) {
+removeSecureChannel(UA_SecureChannelManager *cm, channel_entry *entry, UA_DiagnosticEvent event) {
     /* Close the SecureChannel */
     UA_SecureChannel_close(&entry->channel);
 
-    /* Detach the channel and make the capacity available */
+    /* Detach the channel */
     TAILQ_REMOVE(&cm->channels, entry, pointers);
-    UA_atomic_subUInt32(&cm->currentChannelCount, 1);
+
+    /* Update the statistics */
+    UA_SecureChannelStatistics *scs = &cm->server->serverStats.scs;
+    UA_atomic_subSize(&scs->currentChannelCount, 1);
+    switch(event) {
+    case UA_DIAGNOSTICEVENT_CLOSE:
+        break;
+    case UA_DIAGNOSTICEVENT_TIMEOUT:
+        UA_atomic_addSize(&scs->channelTimeoutCount, 1);
+        break;
+    case UA_DIAGNOSTICEVENT_PURGE:
+        UA_atomic_addSize(&scs->channelPurgeCount, 1);
+        break;
+    case UA_DIAGNOSTICEVENT_REJECT:
+    case UA_DIAGNOSTICEVENT_SECURITYREJECT:
+        UA_atomic_addSize(&scs->rejectedChannelCount, 1);
+        break;
+    case UA_DIAGNOSTICEVENT_ABORT:
+        UA_atomic_addSize(&scs->channelAbortCount, 1);
+        break;
+    default:
+        UA_assert(false);
+        break;
+    }
 
     /* Add a delayed callback to remove the channel when the currently
      * scheduled jobs have completed */
@@ -62,6 +73,13 @@ removeSecureChannel(UA_SecureChannelManager *cm, channel_entry *entry) {
     entry->cleanupCallback.application = NULL;
     entry->cleanupCallback.data = entry;
     UA_WorkQueue_enqueueDelayed(&cm->server->workQueue, &entry->cleanupCallback);
+}
+
+void
+UA_SecureChannelManager_deleteMembers(UA_SecureChannelManager *cm) {
+    channel_entry *entry, *temp;
+    TAILQ_FOREACH_SAFE(entry, &cm->channels, pointers, temp)
+        removeSecureChannel(cm, entry, UA_DIAGNOSTICEVENT_CLOSE);
 }
 
 /* remove channels that were not renewed or who have no connection attached */
@@ -73,7 +91,7 @@ UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm,
         /* The channel was closed internally */
         if(entry->channel.state == UA_SECURECHANNELSTATE_CLOSED ||
            !entry->channel.connection) {
-            removeSecureChannel(cm, entry);
+            removeSecureChannel(cm, entry, UA_DIAGNOSTICEVENT_CLOSE);
             continue;
         }
 
@@ -84,7 +102,7 @@ UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm,
         if(timeout < nowMonotonic) {
             UA_LOG_INFO_CHANNEL(&cm->server->config.logger, &entry->channel,
                                 "SecureChannel has timed out");
-            removeSecureChannel(cm, entry);
+            removeSecureChannel(cm, entry, UA_DIAGNOSTICEVENT_TIMEOUT);
             continue;
         }
     }
@@ -100,7 +118,7 @@ purgeFirstChannelWithoutSession(UA_SecureChannelManager *cm) {
         UA_LOG_INFO_CHANNEL(&cm->server->config.logger, &entry->channel,
                             "Channel was purged since maxSecureChannels was "
                             "reached and channel had no session attached");
-        removeSecureChannel(cm, entry);
+        removeSecureChannel(cm, entry, UA_DIAGNOSTICEVENT_PURGE);
         return true;
     }
     return false;
@@ -115,7 +133,7 @@ UA_SecureChannelManager_create(UA_SecureChannelManager *cm, UA_Connection *conne
     /* Check if there exists a free SC, otherwise try to purge one SC without a
      * session the purge has been introduced to pass CTT, it is not clear what
      * strategy is expected here */
-    if(cm->currentChannelCount >= cm->server->config.maxSecureChannels &&
+    if(cm->server->serverStats.scs.currentChannelCount >= cm->server->config.maxSecureChannels &&
        !purgeFirstChannelWithoutSession(cm))
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
@@ -135,8 +153,9 @@ UA_SecureChannelManager_create(UA_SecureChannelManager *cm, UA_Connection *conne
     entry->channel.securityToken.revisedLifetime = cm->server->config.maxSecurityTokenLifetime;
 
     TAILQ_INSERT_TAIL(&cm->channels, entry, pointers);
-    UA_atomic_addUInt32(&cm->currentChannelCount, 1);
     UA_Connection_attachSecureChannel(connection, &entry->channel);
+    UA_atomic_addSize(&cm->server->serverStats.scs.currentChannelCount, 1);
+    UA_atomic_addSize(&cm->server->serverStats.scs.cumulatedChannelCount, 1);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -296,7 +315,8 @@ UA_SecureChannelManager_get(UA_SecureChannelManager *cm, UA_UInt32 channelId) {
 }
 
 UA_StatusCode
-UA_SecureChannelManager_close(UA_SecureChannelManager *cm, UA_UInt32 channelId) {
+UA_SecureChannelManager_close(UA_SecureChannelManager *cm, UA_UInt32 channelId,
+                              UA_DiagnosticEvent event) {
     channel_entry *entry;
     TAILQ_FOREACH(entry, &cm->channels, pointers) {
         if(entry->channel.securityToken.channelId == channelId)
@@ -305,6 +325,6 @@ UA_SecureChannelManager_close(UA_SecureChannelManager *cm, UA_UInt32 channelId) 
     if(!entry)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    removeSecureChannel(cm, entry);
+    removeSecureChannel(cm, entry, event);
     return UA_STATUSCODE_GOOD;
 }
