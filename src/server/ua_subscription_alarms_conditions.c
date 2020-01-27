@@ -68,7 +68,8 @@
 #define CONDITION_FIELD_CANCELRESPONSE                         "CancelResponse"
 #define CONDITION_FIELD_RESPOND                                "Respond"
 
-
+#define REFRESHEVENT_START_IDX                                 0
+#define REFRESHEVENT_END_IDX                                   1
 #define REFRESHEVENT_SEVERITY_DEFAULT                          100
 
 #define LOCALE                                                 "en"
@@ -112,6 +113,17 @@
         }                                                                                 \
     }
 
+/*****************************************************************************/
+/* Global Variables                                                          */
+/*****************************************************************************/
+
+static UA_NodeId refreshEvents[2] =
+    {{0, UA_NODEIDTYPE_NUMERIC, {0}},
+     {0, UA_NODEIDTYPE_NUMERIC, {0}}};
+
+/*****************************************************************************/
+/* Functions                                                                */
+/*****************************************************************************/
 /* Function used to set a user specific callback to TwoStateVariable Fields of a
  * condition. The callbacks will be called before triggering the events when
  * transition to true State of EnabledState/Id, AckedState/Id, ConfirmedState/Id
@@ -1501,20 +1513,25 @@ static UA_StatusCode
 createRefreshMethodEvents(UA_Server *server, UA_NodeId *outRefreshStartNodId, UA_NodeId *outRefreshEndNodId) {
     UA_NodeId refreshStartEventTypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_REFRESHSTARTEVENTTYPE);
     UA_NodeId refreshEndEventTypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_REFRESHENDEVENTTYPE);
-    /* create RefreshStartEvent TODO those ReferenceTypes should not be Abstract */
+    /* create RefreshStartEvent */
     UA_StatusCode retval = UA_Server_createEvent(server, refreshStartEventTypeNodeId, outRefreshStartNodId);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "CreateEvent RefreshStart failed",);
-
-    /* Set Standard Fields */
-    retval = setRefreshMethodEventFields(server, outRefreshStartNodId);
-    CONDITION_ASSERT_RETURN_RETVAL(retval, "Set standard Fields of RefreshStartEvent failed",);
 
     /* create RefreshEndEvent */
     retval = UA_Server_createEvent(server, refreshEndEventTypeNodeId, outRefreshEndNodId);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "CreateEvent RefreshEnd failed",);
 
-    /* Set Standard Fields */
-    retval = setRefreshMethodEventFields(server, outRefreshEndNodId);
+    return retval;
+}
+
+static UA_StatusCode
+setRefreshMethodEvents(UA_Server *server, const UA_NodeId *refreshStartNodId, const UA_NodeId *refreshEndNodId) {
+    /* Set Standard Fields for RefreshStart */
+    UA_StatusCode retval = setRefreshMethodEventFields(server, refreshStartNodId);
+    CONDITION_ASSERT_RETURN_RETVAL(retval, "Set standard Fields of RefreshStartEvent failed",);
+
+    /* Set Standard Fields for RefreshEnd*/
+    retval = setRefreshMethodEventFields(server, refreshEndNodId);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Set standard Fields of RefreshEndEvent failed",);
 
     return retval;
@@ -1613,10 +1630,8 @@ refresh2MethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     if(subscription == NULL)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
     else {
-        /* create RefreshStartEvent and RefreshEndEvent */
-        UA_NodeId refreshStartNodId;
-        UA_NodeId refreshEndNodId;
-        UA_StatusCode retval = createRefreshMethodEvents(server, &refreshStartNodId, &refreshEndNodId);
+        /* set RefreshStartEvent and RefreshEndEvent */
+        UA_StatusCode retval = setRefreshMethodEvents(server, &refreshEvents[REFRESHEVENT_START_IDX], &refreshEvents[REFRESHEVENT_END_IDX]);
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Create Event RefreshStart or RefreshEnd failed",);
 
         /* Trigger RefreshStartEvent and RefreshEndEvent for the each monitoredItem in the subscription */
@@ -1624,16 +1639,9 @@ refresh2MethodCallback(UA_Server *server, const UA_NodeId *sessionId,
         if(monitoredItem == NULL)
             return UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
         else {//TODO when there are a lot of monitoreditems (not only events)?
-            retval = refreshLogic(server, &refreshStartNodId, &refreshEndNodId, monitoredItem);
+            retval = refreshLogic(server, &refreshEvents[REFRESHEVENT_START_IDX], &refreshEvents[REFRESHEVENT_END_IDX], monitoredItem);
             CONDITION_ASSERT_RETURN_RETVAL(retval, "Could not refresh Condition",);
         }
-
-        /* delete RefreshStartEvent and RefreshEndEvent */
-        retval = UA_Server_deleteNode(server, refreshStartNodId, true);
-        CONDITION_ASSERT_RETURN_RETVAL(retval, "Attempt to remove event using deleteNode failed",);
-
-        retval = UA_Server_deleteNode(server, refreshEndNodId, true);
-        CONDITION_ASSERT_RETURN_RETVAL(retval, "Attempt to remove event using deleteNode failed",);
     }
 
     return UA_STATUSCODE_GOOD;
@@ -1653,25 +1661,16 @@ refreshMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     if(subscription == NULL)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
     else {
-        /* create RefreshStartEvent and RefreshEndEvent */
-        UA_NodeId refreshStartNodId;
-        UA_NodeId refreshEndNodId;
-        UA_StatusCode retval = createRefreshMethodEvents(server, &refreshStartNodId, &refreshEndNodId);
+        /* set RefreshStartEvent and RefreshEndEvent */
+        UA_StatusCode retval = setRefreshMethodEvents(server, &refreshEvents[REFRESHEVENT_START_IDX], &refreshEvents[REFRESHEVENT_END_IDX]);
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Create Event RefreshStart or RefreshEnd failed",);
 
         /* Trigger RefreshStartEvent and RefreshEndEvent for the each monitoredItem in the subscription */
         UA_MonitoredItem *monitoredItem = NULL;
         LIST_FOREACH(monitoredItem, &subscription->monitoredItems, listEntry) {//TODO when there are a lot of monitoreditems (not only events)?
-            retval = refreshLogic(server, &refreshStartNodId, &refreshEndNodId, monitoredItem);
+            retval = refreshLogic(server, &refreshEvents[REFRESHEVENT_START_IDX], &refreshEvents[REFRESHEVENT_END_IDX], monitoredItem);
             CONDITION_ASSERT_RETURN_RETVAL(retval, "Could not refresh Condition",);
         }
-
-        /* delete RefreshStartEvent and RefreshEndEvent */
-        retval = UA_Server_deleteNode(server, refreshStartNodId, true);
-        CONDITION_ASSERT_RETURN_RETVAL(retval, "Attempt to remove event using deleteNode failed",);
-
-        retval = UA_Server_deleteNode(server, refreshEndNodId, true);
-        CONDITION_ASSERT_RETURN_RETVAL(retval, "Attempt to remove event using deleteNode failed",);
     }
 
     return UA_STATUSCODE_GOOD;
@@ -1773,6 +1772,12 @@ UA_ConditionList_delete(UA_Server *server) {
         UA_NodeId_deleteMembers(&conditionSourceEntry->conditionSourceId);
         LIST_REMOVE(conditionSourceEntry, listEntry);
         UA_free(conditionSourceEntry);
+    }
+
+    /* free memory allocated for RefreshEvents NodeIds */
+    if(!UA_NodeId_isNull(&refreshEvents[REFRESHEVENT_START_IDX]) && !UA_NodeId_isNull(&refreshEvents[REFRESHEVENT_END_IDX])) {
+      UA_NodeId_deleteMembers(&refreshEvents[REFRESHEVENT_START_IDX]);
+      UA_NodeId_deleteMembers(&refreshEvents[REFRESHEVENT_END_IDX]);
     }
 }
 
@@ -1932,7 +1937,7 @@ setStandardConditionFields(UA_Server *server,
         retval = UA_Server_setConditionVariableFieldProperty(server, *condition, &value,
                                                    UA_QUALIFIEDNAME(0,CONDITION_FIELD_ACKEDSTATE),
                                                    UA_QUALIFIEDNAME(0,CONDITION_FIELD_TWOSTATEVARIABLE_ID));
-        CONDITION_ASSERT_RETURN_RETVAL(retval, "Set EnabledState/Id Field failed",);
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Set AckedState/Id Field failed",);
 
 #ifdef CONDITIONOPTIONALFIELDS_SUPPORT
         /* add optional field ConfirmedState*/
@@ -2149,9 +2154,18 @@ setStandardConditionCallbacks(UA_Server *server,
     retval = setConditionVariableCallbacks(server, condition, conditionType);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Set ConditionVariable Callback failed",);
 
-    /* Set callbacks for Method Components */
-    retval = setConditionMethodCallbacks(server, condition, conditionType);
-    CONDITION_ASSERT_RETURN_RETVAL(retval, "Set Method Callback failed",);
+    /* Set callbacks for Method Components (needs to be set only once!) */
+    if(LIST_EMPTY(&server->headConditionSource)) {
+      retval = setConditionMethodCallbacks(server, condition, conditionType);
+      CONDITION_ASSERT_RETURN_RETVAL(retval, "Set Method Callback failed",);
+
+      // Create RefreshEvents
+      if(UA_NodeId_isNull(&refreshEvents[REFRESHEVENT_START_IDX]) &&
+         UA_NodeId_isNull(&refreshEvents[REFRESHEVENT_END_IDX])) {
+        retval = createRefreshMethodEvents(server, &refreshEvents[REFRESHEVENT_START_IDX], &refreshEvents[REFRESHEVENT_END_IDX]);
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Create RefreshEvents failed",);
+      }
+    }
 
     return retval;
 }
