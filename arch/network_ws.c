@@ -53,11 +53,19 @@ connection_getsendbuffer(UA_Connection *connection, size_t length, UA_ByteString
     UA_SecureChannel *channel = connection->channel;
     if(channel && channel->config.sendBufferSize < length)
         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
-    return UA_ByteString_allocBuffer(buf, length);
+    UA_StatusCode retval = UA_ByteString_allocBuffer(buf, LWS_PRE + length);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    buf->data += LWS_PRE;
+    buf->length -= LWS_PRE;
+
+    return UA_STATUSCODE_GOOD;
 }
 
 static void
 connection_releasesendbuffer(UA_Connection *connection, UA_ByteString *buf) {
+    buf->data -= LWS_PRE;
+    buf->length += LWS_PRE;
     UA_ByteString_deleteMembers(buf);
 }
 
@@ -70,15 +78,12 @@ static UA_StatusCode
 connection_send(UA_Connection *connection, UA_ByteString *buf) {
     ConnectionUserData *buffer = (ConnectionUserData *)connection->handle;
     if(connection->state == UA_CONNECTION_CLOSED) {
-        UA_ByteString_deleteMembers(buf);
+        connection_releasesendbuffer(connection, buf);
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
     }
 
     BufferEntry *entry = (BufferEntry *)malloc(sizeof(BufferEntry));
-    entry->msg.length = buf->length;
-    entry->msg.data = (UA_Byte *)malloc(LWS_PRE + buf->length);
-    memcpy(entry->msg.data + LWS_PRE, buf->data, buf->length);
-    UA_ByteString_deleteMembers(buf);
+    entry->msg = *buf;
     SIMPLEQ_INSERT_TAIL(&buffer->messages, entry, next);
     lws_callback_on_writable(buffer->wsi);
     return UA_STATUSCODE_GOOD;
@@ -97,7 +102,7 @@ freeConnection(UA_Connection *connection) {
         ConnectionUserData *userData = (ConnectionUserData *)connection->handle;
         while(!SIMPLEQ_EMPTY(&userData->messages)) {
             BufferEntry *entry = SIMPLEQ_FIRST(&userData->messages);
-            UA_ByteString_deleteMembers(&entry->msg);
+            connection_releasesendbuffer(connection, &entry->msg);
             SIMPLEQ_REMOVE_HEAD(&userData->messages, next);
             UA_free(entry);
         }
@@ -171,13 +176,13 @@ callback_opcua(struct lws *wsi, enum lws_callback_reasons reason, void *user, vo
                 if(!entry)
                     break;
 
-                int m = lws_write(wsi, entry->msg.data + LWS_PRE, entry->msg.length,
+                int m = lws_write(wsi, entry->msg.data, entry->msg.length,
                                   LWS_WRITE_BINARY);
                 if(m < (int)entry->msg.length) {
                     lwsl_err("ERROR %d writing to ws\n", m);
                     return -1;
                 }
-                UA_ByteString_deleteMembers(&entry->msg);
+                connection_releasesendbuffer(pss->connection, &entry->msg);
                 SIMPLEQ_REMOVE_HEAD(&b->messages, next);
                 UA_free(entry);
             } while(!lws_send_pipe_choked(wsi));
