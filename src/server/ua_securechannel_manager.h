@@ -62,9 +62,6 @@ UA_StatusCode
 UA_SecureChannelManager_config(UA_SecureChannelManager *cm, UA_SecureChannel *channel,
                                const UA_AsymmetricAlgorithmSecurityHeader *asymHeader);
 
-UA_SecureChannel *
-UA_SecureChannelManager_get(UA_SecureChannelManager *cm, UA_UInt32 channelId);
-
 UA_StatusCode
 UA_SecureChannelManager_close(UA_SecureChannelManager *cm, UA_UInt32 channelId,
                               UA_DiagnosticEvent event);
