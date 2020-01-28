@@ -226,13 +226,13 @@ ServerNetworkLayerWS_start(UA_ServerNetworkLayer *nl, const UA_String *customHos
     /* Get the discovery url from the hostname */
     UA_String du = UA_STRING_NULL;
     char discoveryUrlBuffer[256];
-    char hostnameBuffer[256];
     if(customHostname->length) {
         du.length = (size_t)UA_snprintf(discoveryUrlBuffer, 255, "ws://%.*s:%d/",
                                         (int)customHostname->length, customHostname->data,
                                         layer->port);
         du.data = (UA_Byte *)discoveryUrlBuffer;
     } else {
+        char hostnameBuffer[256];
         if(UA_gethostname(hostnameBuffer, 255) == 0) {
             du.length = (size_t)UA_snprintf(discoveryUrlBuffer, 255, "ws://%s:%d/",
                                             hostnameBuffer, layer->port);
@@ -242,7 +242,11 @@ ServerNetworkLayerWS_start(UA_ServerNetworkLayer *nl, const UA_String *customHos
                          "Could not get the hostname");
         }
     }
-    UA_String_copy(&du, &nl->discoveryUrl);
+    // we need discoveryUrl.data as a null-terminated string for vhost_name
+    nl->discoveryUrl.data = (UA_Byte *)UA_malloc(du.length+1);
+    strncpy((char *)nl->discoveryUrl.data, discoveryUrlBuffer, du.length);
+    nl->discoveryUrl.data[du.length] = '\0';
+    nl->discoveryUrl.length = du.length;
 
     UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK,
                 "Websocket network layer listening on %.*s", (int)nl->discoveryUrl.length,
@@ -254,7 +258,7 @@ ServerNetworkLayerWS_start(UA_ServerNetworkLayer *nl, const UA_String *customHos
     memset(&info, 0, sizeof info);
     info.port = layer->port;
     info.protocols = protocols;
-    info.vhost_name = (char *)du.data;
+    info.vhost_name = (char *)nl->discoveryUrl.data;
     info.ws_ping_pong_interval = 10;
     info.options = LWS_SERVER_OPTION_HTTP_HEADERS_SECURITY_BEST_PRACTICES_ENFORCE;
     info.pvo = &pvo;
