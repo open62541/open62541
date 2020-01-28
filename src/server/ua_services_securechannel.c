@@ -99,7 +99,6 @@ UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm,
             UA_LOG_INFO_CHANNEL(&cm->server->config.logger, &entry->channel,
                                 "SecureChannel has timed out");
             removeSecureChannel(cm, entry, UA_DIAGNOSTICEVENT_TIMEOUT);
-            continue;
         }
     }
 }
