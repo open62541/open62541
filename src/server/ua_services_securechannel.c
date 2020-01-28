@@ -193,7 +193,7 @@ UA_SecureChannelManager_config(UA_SecureChannelManager *cm, UA_SecureChannel *ch
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode
+static UA_StatusCode
 UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_SecureChannel *channel,
                              const UA_OpenSecureChannelRequest *request,
                              UA_OpenSecureChannelResponse *response) {
