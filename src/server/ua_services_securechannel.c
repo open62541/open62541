@@ -300,16 +300,6 @@ UA_SecureChannelManager_renew(UA_SecureChannelManager *cm, UA_SecureChannel *cha
     return UA_STATUSCODE_GOOD;
 }
 
-UA_SecureChannel *
-UA_SecureChannelManager_get(UA_SecureChannelManager *cm, UA_UInt32 channelId) {
-    channel_entry *entry;
-    TAILQ_FOREACH(entry, &cm->channels, pointers) {
-        if(entry->channel.securityToken.channelId == channelId)
-            return &entry->channel;
-    }
-    return NULL;
-}
-
 UA_StatusCode
 UA_SecureChannelManager_close(UA_SecureChannelManager *cm, UA_UInt32 channelId,
                               UA_DiagnosticEvent event) {
