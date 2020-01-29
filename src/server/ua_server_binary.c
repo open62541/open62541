@@ -22,7 +22,6 @@
 #include <open62541/types_generated_handling.h>
 #include "open62541/plugin/network.h"
 
-#include "ua_securechannel_manager.h"
 #include "ua_server_internal.h"
 #include "ua_services.h"
 
@@ -348,8 +347,7 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
         UA_NodeId_clear(&requestType);
         UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
                                "Could not decode the NodeId. Closing the connection");
-        UA_SecureChannelManager_close(&server->secureChannelManager,
-                                      channel, UA_DIAGNOSTICEVENT_REJECT);
+        UA_Server_closeSecureChannel(server, channel, UA_DIAGNOSTICEVENT_REJECT);
         return retval;
     }
     retval = UA_OpenSecureChannelRequest_decodeBinary(msg, &offset, &openSecureChannelRequest);
@@ -361,8 +359,7 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
         UA_OpenSecureChannelRequest_clear(&openSecureChannelRequest);
         UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
                                "Could not decode the OPN message. Closing the connection.");
-        UA_SecureChannelManager_close(&server->secureChannelManager,
-                                      channel, UA_DIAGNOSTICEVENT_REJECT);
+        UA_Server_closeSecureChannel(server, channel, UA_DIAGNOSTICEVENT_REJECT);
         return retval;
     }
     UA_NodeId_clear(&requestType);
@@ -375,8 +372,7 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
     if(openScResponse.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_CHANNEL(&server->config.logger, channel, "Could not open a SecureChannel. "
                                "Closing the connection.");
-        UA_SecureChannelManager_close(&server->secureChannelManager,
-                                      channel, UA_DIAGNOSTICEVENT_REJECT);
+        UA_Server_closeSecureChannel(server, channel, UA_DIAGNOSTICEVENT_REJECT);
         return openScResponse.responseHeader.serviceResult;
     }
 
@@ -388,8 +384,7 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
         UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
                                "Could not send the OPN answer with error code %s",
                                UA_StatusCode_name(retval));
-        UA_SecureChannelManager_close(&server->secureChannelManager,
-                                      channel, UA_DIAGNOSTICEVENT_REJECT);
+        UA_Server_closeSecureChannel(server, channel, UA_DIAGNOSTICEVENT_REJECT);
     }
 
     return retval;
@@ -428,8 +423,7 @@ decryptProcessOPN(UA_Server *server, UA_SecureChannel *channel,
     }
 
     if(channel->state < UA_SECURECHANNELSTATE_OPEN) {
-        retval = UA_SecureChannelManager_config(&server->secureChannelManager,
-                                                channel, &asymHeader);
+        retval = UA_Server_configSecureChannel(server, channel, &asymHeader);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_AsymmetricAlgorithmSecurityHeader_clear(&asymHeader);
             return retval;
@@ -768,12 +762,10 @@ processSecureChannelMessage(void *application, UA_SecureChannel *channel,
         case UA_STATUSCODE_BADSECURECHANNELTOKENUNKNOWN:
         case UA_STATUSCODE_BADSECURITYPOLICYREJECTED:
         case UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED:
-            UA_SecureChannelManager_close(&server->secureChannelManager,
-                                          channel, UA_DIAGNOSTICEVENT_SECURITYREJECT);
+            UA_Server_closeSecureChannel(server, channel, UA_DIAGNOSTICEVENT_SECURITYREJECT);
             break;
         default:
-            UA_SecureChannelManager_close(&server->secureChannelManager,
-                                          channel, UA_DIAGNOSTICEVENT_CLOSE);
+            UA_Server_closeSecureChannel(server, channel, UA_DIAGNOSTICEVENT_CLOSE);
             break;
         }
     }
@@ -791,7 +783,7 @@ UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
 
     /* Add a SecureChannel to a new connection */
     if(!channel) {
-        retval = UA_SecureChannelManager_create(&server->secureChannelManager, connection);
+        retval = UA_Server_createSecureChannel(server, connection);
         if(retval != UA_STATUSCODE_GOOD)
             goto error;
         channel = connection->channel;
