@@ -31,6 +31,9 @@
 #include <valgrind/memcheck.h>
 #endif
 
+#define STARTCHANNELID 1
+#define STARTTOKENID 1
+
 /**********************/
 /* Namespace Handling */
 /**********************/
@@ -169,7 +172,7 @@ cleanup:
 /* The server needs to be stopped before it can be deleted */
 void UA_Server_delete(UA_Server *server) {
     /* Delete all internal data */
-    UA_SecureChannelManager_deleteMembers(&server->secureChannelManager);
+    UA_Server_deleteSecureChannels(server);
     UA_LOCK(server->serviceMutex);
     session_list_entry *current, *temp;
     LIST_FOREACH_SAFE(current, &server->sessions, pointers, temp) {
@@ -234,7 +237,7 @@ UA_Server_cleanup(UA_Server *server, void *_) {
     UA_LOCK(server->serviceMutex);
     UA_DateTime nowMonotonic = UA_DateTime_nowMonotonic();
     UA_Server_cleanupSessions(server, nowMonotonic);
-    UA_SecureChannelManager_cleanupTimedOut(&server->secureChannelManager, nowMonotonic);
+    UA_Server_cleanupTimedOutSecureChannels(server, nowMonotonic);
 #ifdef UA_ENABLE_DISCOVERY
     UA_Discovery_cleanupTimedOut(server, nowMonotonic);
 #endif
@@ -292,7 +295,10 @@ UA_Server_init(UA_Server *server) {
     server->namespacesSize = 2;
 
     /* Initialize SecureChannel */
-    UA_SecureChannelManager_init(&server->secureChannelManager, server);
+    TAILQ_INIT(&server->channels);
+    /* TODO: use an ID that is likely to be unique after a restart */
+    server->lastChannelId = STARTCHANNELID;
+    server->lastTokenId = STARTTOKENID;
 
     /* Initialize Session Management */
     LIST_INIT(&server->sessions);
@@ -435,11 +441,10 @@ UA_Server_updateCertificate(UA_Server *server,
     }
 
     if(closeSecureChannels) {
-        UA_SecureChannelManager *cm = &server->secureChannelManager;
         channel_entry *entry;
-        TAILQ_FOREACH(entry, &cm->channels, pointers) {
+        TAILQ_FOREACH(entry, &server->channels, pointers) {
             if(UA_ByteString_equal(&entry->channel.securityPolicy->localCertificate, oldCertificate))
-                UA_SecureChannelManager_close(cm, &entry->channel, UA_DIAGNOSTICEVENT_CLOSE);
+                UA_Server_closeSecureChannel(server, &entry->channel, UA_DIAGNOSTICEVENT_CLOSE);
         }
     }
 
