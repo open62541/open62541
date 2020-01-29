@@ -349,8 +349,7 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
         UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
                                "Could not decode the NodeId. Closing the connection");
         UA_SecureChannelManager_close(&server->secureChannelManager,
-                                      channel->securityToken.channelId,
-                                      UA_DIAGNOSTICEVENT_REJECT);
+                                      channel, UA_DIAGNOSTICEVENT_REJECT);
         return retval;
     }
     retval = UA_OpenSecureChannelRequest_decodeBinary(msg, &offset, &openSecureChannelRequest);
@@ -363,8 +362,7 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
         UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
                                "Could not decode the OPN message. Closing the connection.");
         UA_SecureChannelManager_close(&server->secureChannelManager,
-                                      channel->securityToken.channelId,
-                                      UA_DIAGNOSTICEVENT_REJECT);
+                                      channel, UA_DIAGNOSTICEVENT_REJECT);
         return retval;
     }
     UA_NodeId_clear(&requestType);
@@ -378,8 +376,7 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
         UA_LOG_WARNING_CHANNEL(&server->config.logger, channel, "Could not open a SecureChannel. "
                                "Closing the connection.");
         UA_SecureChannelManager_close(&server->secureChannelManager,
-                                      channel->securityToken.channelId,
-                                      UA_DIAGNOSTICEVENT_REJECT);
+                                      channel, UA_DIAGNOSTICEVENT_REJECT);
         return openScResponse.responseHeader.serviceResult;
     }
 
@@ -392,8 +389,7 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
                                "Could not send the OPN answer with error code %s",
                                UA_StatusCode_name(retval));
         UA_SecureChannelManager_close(&server->secureChannelManager,
-                                      channel->securityToken.channelId,
-                                      UA_DIAGNOSTICEVENT_REJECT);
+                                      channel, UA_DIAGNOSTICEVENT_REJECT);
     }
 
     return retval;
@@ -773,13 +769,11 @@ processSecureChannelMessage(void *application, UA_SecureChannel *channel,
         case UA_STATUSCODE_BADSECURITYPOLICYREJECTED:
         case UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED:
             UA_SecureChannelManager_close(&server->secureChannelManager,
-                                          channel->securityToken.channelId,
-                                          UA_DIAGNOSTICEVENT_SECURITYREJECT);
+                                          channel, UA_DIAGNOSTICEVENT_SECURITYREJECT);
             break;
         default:
             UA_SecureChannelManager_close(&server->secureChannelManager,
-                                          channel->securityToken.channelId,
-                                          UA_DIAGNOSTICEVENT_CLOSE);
+                                          channel, UA_DIAGNOSTICEVENT_CLOSE);
             break;
         }
     }
