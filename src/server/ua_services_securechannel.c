@@ -16,6 +16,11 @@
 #define STARTCHANNELID 1
 #define STARTTOKENID 1
 
+#ifndef container_of
+#define container_of(ptr, type, member) \
+    (type *)((uintptr_t)ptr - offsetof(type,member))
+#endif
+
 UA_StatusCode
 UA_SecureChannelManager_init(UA_SecureChannelManager *cm, UA_Server *server) {
     TAILQ_INIT(&cm->channels);
@@ -299,19 +304,10 @@ UA_SecureChannelManager_renew(UA_SecureChannelManager *cm, UA_SecureChannel *cha
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode
-UA_SecureChannelManager_close(UA_SecureChannelManager *cm, UA_UInt32 channelId,
+void
+UA_SecureChannelManager_close(UA_SecureChannelManager *cm, UA_SecureChannel *channel,
                               UA_DiagnosticEvent event) {
-    channel_entry *entry;
-    TAILQ_FOREACH(entry, &cm->channels, pointers) {
-        if(entry->channel.securityToken.channelId == channelId)
-            break;
-    }
-    if(!entry)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    removeSecureChannel(cm, entry, event);
-    return UA_STATUSCODE_GOOD;
+    removeSecureChannel(cm, container_of(channel, channel_entry, channel), event);
 }
 
 void
@@ -360,7 +356,7 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
 void
 Service_CloseSecureChannel(UA_Server *server, UA_SecureChannel *channel) {
     UA_LOG_INFO_CHANNEL(&server->config.logger, channel, "CloseSecureChannel");
-    UA_SecureChannelManager_close(&server->secureChannelManager,
-                                  channel->securityToken.channelId,
-                                  UA_DIAGNOSTICEVENT_CLOSE);
+    removeSecureChannel(&server->secureChannelManager,
+                        container_of(channel, channel_entry, channel),
+                        UA_DIAGNOSTICEVENT_CLOSE);
 }

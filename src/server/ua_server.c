@@ -438,10 +438,8 @@ UA_Server_updateCertificate(UA_Server *server,
         UA_SecureChannelManager *cm = &server->secureChannelManager;
         channel_entry *entry;
         TAILQ_FOREACH(entry, &cm->channels, pointers) {
-            if(UA_ByteString_equal(&entry->channel.securityPolicy->localCertificate, oldCertificate)){
-                UA_SecureChannelManager_close(cm, entry->channel.securityToken.channelId,
-                                              UA_DIAGNOSTICEVENT_CLOSE);
-            }
+            if(UA_ByteString_equal(&entry->channel.securityPolicy->localCertificate, oldCertificate))
+                UA_SecureChannelManager_close(cm, &entry->channel, UA_DIAGNOSTICEVENT_CLOSE);
         }
     }
 
