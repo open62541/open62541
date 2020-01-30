@@ -135,13 +135,13 @@ UA_Server_setConditionTwoStateVariableCallback(UA_Server *server, const UA_NodeI
                                                UA_TwoStateVariableChangeCallback callback,
                                                UA_TwoStateVariableCallbackType callbackType) {
     /* Get ConditionSource Entry */
-    UA_ConditionSource_nodeListElement *cs;
+    UA_ConditionSource *cs;
     LIST_FOREACH(cs, &server->headConditionSource, listEntry) {
         if(!UA_NodeId_equal(&cs->conditionSourceId, &conditionSource))
             continue;
 
         /* Get Condition Entry */
-        UA_Condition_nodeListElement *c;
+        UA_Condition *c;
         LIST_FOREACH(c, &cs->conditionHead, listEntry) {
             if(!UA_NodeId_equal(&c->conditionId, &condition))
                 continue;
@@ -175,7 +175,7 @@ UA_Server_setConditionTwoStateVariableCallback(UA_Server *server, const UA_NodeI
 
 static UA_StatusCode
 getConditionTwoStateVariableCallback(UA_Server *server, const UA_NodeId *branch,
-                                    UA_Condition_nodeListElement *condition,
+                                    UA_Condition *condition,
                                     UA_Boolean *removeBranch,
                                     UA_TwoStateVariableCallbackType callbackType) {
     switch(callbackType) {
@@ -212,17 +212,17 @@ static UA_StatusCode
 callConditionTwoStateVariableCallback(UA_Server *server, const UA_NodeId *condition,
                                       const UA_NodeId *conditionSource, UA_Boolean *removeBranch,
                                       UA_TwoStateVariableCallbackType callbackType) {
-    UA_ConditionSource_nodeListElement *source;
+    UA_ConditionSource *source;
     LIST_FOREACH(source, &server->headConditionSource, listEntry) {
         if(!UA_NodeId_equal(&source->conditionSourceId, conditionSource))
             continue;
-        UA_Condition_nodeListElement *cond;
+        UA_Condition *cond;
         LIST_FOREACH(cond, &source->conditionHead, listEntry) {
             if(UA_NodeId_equal(&cond->conditionId, condition)) {
                 return getConditionTwoStateVariableCallback(server, condition, cond,
                                                             removeBranch, callbackType);
             }
-            UA_ConditionBranch_nodeListElement *branch;
+            UA_ConditionBranch *branch;
             LIST_FOREACH(branch, &cond->conditionBranchHead, listEntry) {
                 if(branch->conditionBranchId == NULL ||
                    !UA_NodeId_equal(branch->conditionBranchId, condition))
@@ -339,13 +339,13 @@ getConditionBranchNodeId(UA_Server *server, const UA_ByteString *eventId,
     /* The function checks the BranchId based on the event Id, if BranchId ==
        NULL -> outConditionId = ConditionId */
     /* Get ConditionSource Entry */
-    UA_ConditionSource_nodeListElement *source;
+    UA_ConditionSource *source;
     LIST_FOREACH(source, &server->headConditionSource, listEntry) {
         /* Get Condition Entry */
-        UA_Condition_nodeListElement *cond;
+        UA_Condition *cond;
         LIST_FOREACH(cond, &source->conditionHead, listEntry) {
             /* Get Branch Entry*/
-            UA_ConditionBranch_nodeListElement *branch;
+            UA_ConditionBranch *branch;
             LIST_FOREACH(branch, &cond->conditionBranchHead, listEntry) {
                 if(!UA_ByteString_equal(&branch->lastEventId, eventId))
                     continue;
@@ -364,12 +364,12 @@ static UA_StatusCode
 getConditionLastSeverity(UA_Server *server, const UA_NodeId *conditionSource,
                          const UA_NodeId *conditionId, UA_LastSverity_Data *outLastSeverity) {
     /* Get ConditionSource Entry */
-    UA_ConditionSource_nodeListElement *source;
+    UA_ConditionSource *source;
     LIST_FOREACH(source, &server->headConditionSource, listEntry) {
         if(!UA_NodeId_equal(&source->conditionSourceId, conditionSource))
             continue;
         /* Get Condition Entry */
-        UA_Condition_nodeListElement *cond;
+        UA_Condition *cond;
         LIST_FOREACH(cond, &source->conditionHead, listEntry) {
             if(!UA_NodeId_equal(&cond->conditionId, conditionId))
                 continue;
@@ -388,12 +388,12 @@ updateConditionLastSeverity(UA_Server *server, const UA_NodeId *conditionSource,
                             const UA_NodeId *conditionId,
                             const UA_LastSverity_Data *outLastSeverity) {
     /* Get ConditionSource Entry */
-    UA_ConditionSource_nodeListElement *source;
+    UA_ConditionSource *source;
     LIST_FOREACH(source, &server->headConditionSource, listEntry) {
         if(!UA_NodeId_equal(&source->conditionSourceId, conditionSource))
             continue;
         /* Get Condition Entry */
-        UA_Condition_nodeListElement *cond;
+        UA_Condition *cond;
         LIST_FOREACH(cond, &source->conditionHead, listEntry) {
             if(!UA_NodeId_equal(&cond->conditionId, conditionId))
                 continue;
@@ -413,12 +413,12 @@ getConditionActiveState(UA_Server *server, const UA_NodeId *conditionSource,
                          const UA_NodeId *conditionId, UA_ActiveState *outLastActiveState,
                          UA_ActiveState *outCurrentActiveState, UA_Boolean *outIsLimitAlarm) {
     /* Get ConditionSource Entry */
-    UA_ConditionSource_nodeListElement *source;
+    UA_ConditionSource *source;
     LIST_FOREACH(source, &server->headConditionSource, listEntry) {
         if(!UA_NodeId_equal(&source->conditionSourceId, conditionSource))
             continue;
         /* Get Condition Entry */
-        UA_Condition_nodeListElement *cond;
+        UA_Condition *cond;
         LIST_FOREACH(cond, &source->conditionHead, listEntry) {
             if(!UA_NodeId_equal(&cond->conditionId, conditionId))
                 continue;
@@ -438,12 +438,12 @@ updateConditionActiveState(UA_Server *server, const UA_NodeId *conditionSource,
                             const UA_NodeId *conditionId, const UA_ActiveState lastActiveState,
                             const UA_ActiveState currentActiveState, UA_Boolean isLimitAlarm) {
     /* Get ConditionSource Entry */
-    UA_ConditionSource_nodeListElement *source;
+    UA_ConditionSource *source;
     LIST_FOREACH(source, &server->headConditionSource, listEntry) {
         if(!UA_NodeId_equal(&source->conditionSourceId, conditionSource))
             continue;
         /* Get Condition Entry */
-        UA_Condition_nodeListElement *cond;
+        UA_Condition *cond;
         LIST_FOREACH(cond, &source->conditionHead, listEntry) {
             if(!UA_NodeId_equal(&cond->conditionId, conditionId))
                 continue;
@@ -462,16 +462,16 @@ static UA_StatusCode
 updateConditionLastEventId(UA_Server *server, const UA_NodeId *triggeredEvent,
                            const UA_NodeId *ConditionSource, const UA_ByteString *lastEventId) {
     /* Get ConditionSource Entry */
-    UA_ConditionSource_nodeListElement *source;
+    UA_ConditionSource *source;
     LIST_FOREACH(source, &server->headConditionSource, listEntry) {
         if(!UA_NodeId_equal(&source->conditionSourceId, ConditionSource))
             continue;
         /* Get Condition Entry */
-        UA_Condition_nodeListElement *cond;
+        UA_Condition *cond;
         LIST_FOREACH(cond, &source->conditionHead, listEntry) {
             if(!UA_NodeId_equal(&cond->conditionId, triggeredEvent))
                 continue;
-            UA_ConditionBranch_nodeListElement *branch;
+            UA_ConditionBranch *branch;
             LIST_FOREACH(branch, &cond->conditionBranchHead, listEntry) {
                 if(branch->conditionBranchId == NULL) { // update main condition branch
                     UA_ByteString_deleteMembers(&branch->lastEventId);
@@ -492,16 +492,16 @@ static void
 setIsCallerAC(UA_Server *server, const UA_NodeId *condition,
               const UA_NodeId *conditionSource, UA_Boolean isCallerAC) {
     /* Get conditionSource Entry */
-    UA_ConditionSource_nodeListElement *source;
+    UA_ConditionSource *source;
     LIST_FOREACH(source, &server->headConditionSource, listEntry) {
         if(!UA_NodeId_equal(&source->conditionSourceId, conditionSource))
             continue;
         /* Get Condition Entry */
-        UA_Condition_nodeListElement *cond;
+        UA_Condition *cond;
         LIST_FOREACH(cond, &source->conditionHead, listEntry) {
             if(!UA_NodeId_equal(&cond->conditionId, condition))
                 continue;
-            UA_ConditionBranch_nodeListElement *branch;
+            UA_ConditionBranch *branch;
             LIST_FOREACH(branch, &cond->conditionBranchHead, listEntry) {
                 if(branch->conditionBranchId == NULL) {
                     branch->isCallerAC = isCallerAC;
@@ -521,16 +521,16 @@ UA_Boolean
 isConditionOrBranch(UA_Server *server, const UA_NodeId *condition,
                     const UA_NodeId *conditionSource, UA_Boolean *isCallerAC) {
     /* Get conditionSource Entry */
-    UA_ConditionSource_nodeListElement *source;
+    UA_ConditionSource *source;
     LIST_FOREACH(source, &server->headConditionSource, listEntry) {
         if(!UA_NodeId_equal(&source->conditionSourceId, conditionSource))
             continue;
         /* Get Condition Entry */
-        UA_Condition_nodeListElement *cond;
+        UA_Condition *cond;
         LIST_FOREACH(cond, &source->conditionHead, listEntry) {
             if(!UA_NodeId_equal(&cond->conditionId, condition))
                 continue;
-            UA_ConditionBranch_nodeListElement *branch;
+            UA_ConditionBranch *branch;
             LIST_FOREACH(branch, &cond->conditionBranchHead, listEntry) {
                 if(branch->conditionBranchId == NULL) {
                     *isCallerAC = branch->isCallerAC;
@@ -631,17 +631,17 @@ enteringDisabledState(UA_Server *server,
     UA_Variant value;
 
     /* Get ConditionSource Entry */
-    UA_ConditionSource_nodeListElement *source;
+    UA_ConditionSource *source;
     LIST_FOREACH(source, &server->headConditionSource, listEntry) {
         if(!UA_NodeId_equal(&source->conditionSourceId, conditionSource))
             continue;
         /* Get Condition Entry */
-        UA_Condition_nodeListElement *cond;
+        UA_Condition *cond;
         LIST_FOREACH(cond, &source->conditionHead, listEntry) {
             if(!UA_NodeId_equal(&cond->conditionId, conditionId))
                 continue;
             /* Get Branch Entry*/
-            UA_ConditionBranch_nodeListElement *branch;
+            UA_ConditionBranch *branch;
             LIST_FOREACH(branch, &cond->conditionBranchHead, listEntry) {
                 UA_NodeId_init(&triggeredNode);
                 if(branch->conditionBranchId == NULL) //disable main Condition Branch (BranchId == NULL)
@@ -697,17 +697,17 @@ enteringEnabledState(UA_Server *server,
     UA_Variant value;
 
     /* Get ConditionSource Entry */
-    UA_ConditionSource_nodeListElement *source;
+    UA_ConditionSource *source;
     LIST_FOREACH(source, &server->headConditionSource, listEntry) {
         if(!UA_NodeId_equal(&source->conditionSourceId, conditionSource))
             continue;
         /* Get Condition Entry */
-        UA_Condition_nodeListElement *cond;
+        UA_Condition *cond;
         LIST_FOREACH(cond, &source->conditionHead, listEntry) {
             if(!UA_NodeId_equal(&cond->conditionId, conditionId))
                 continue;
             /* Get Branch Entry*/
-            UA_ConditionBranch_nodeListElement *branch;
+            UA_ConditionBranch *branch;
             LIST_FOREACH(branch, &cond->conditionBranchHead, listEntry) {
                 UA_NodeId_init(&triggeredNode);
                 if(branch->conditionBranchId == NULL) //enable main Condition
@@ -1668,7 +1668,7 @@ refreshLogic(UA_Server *server, const UA_NodeId *refreshStartNodId,
 
     /* 2. refresh (see 5.5.7)*/
     /* Get ConditionSource Entry */
-    UA_ConditionSource_nodeListElement *source;
+    UA_ConditionSource *source;
     LIST_FOREACH(source, &server->headConditionSource, listEntry) {
         UA_NodeId conditionSource = source->conditionSourceId;
         UA_NodeId serverObjectNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
@@ -1678,10 +1678,10 @@ refreshLogic(UA_Server *server, const UA_NodeId *refreshStartNodId,
            UA_NodeId_equal(&monitoredItem->monitoredNodeId, &serverObjectNodeId) ||
            isConditionSourceInMonitoredItem(server, monitoredItem, &conditionSource)) {
             /* Get Condition Entry */
-            UA_Condition_nodeListElement *cond;
+            UA_Condition *cond;
             LIST_FOREACH(cond, &source->conditionHead, listEntry) {
                 /* Get Branch Entry*/
-                UA_ConditionBranch_nodeListElement *branch;
+                UA_ConditionBranch *branch;
                 LIST_FOREACH(branch, &cond->conditionBranchHead, listEntry) {
                     /*if no event was triggered for that branch, then check next without refreshing*/
                     if(UA_ByteString_equal(&branch->lastEventId, &UA_BYTESTRING_NULL))
@@ -1786,13 +1786,13 @@ refreshMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
 
 static UA_StatusCode
 setConditionInConditionList(UA_Server *server, const UA_NodeId *conditionNodeId,
-                            UA_ConditionSource_nodeListElement *conditionSourceEntry) {
-    UA_Condition_nodeListElement *conditionListEntry = (UA_Condition_nodeListElement*)
-        UA_malloc(sizeof(UA_Condition_nodeListElement));
+                            UA_ConditionSource *conditionSourceEntry) {
+    UA_Condition *conditionListEntry = (UA_Condition*)
+        UA_malloc(sizeof(UA_Condition));
     if(!conditionListEntry)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    memset(conditionListEntry, 0, sizeof(UA_Condition_nodeListElement));
+    memset(conditionListEntry, 0, sizeof(UA_Condition));
 
     /* Set ConditionId with given ConditionNodeId */
     UA_StatusCode retval = UA_NodeId_copy(conditionNodeId, &conditionListEntry->conditionId);
@@ -1801,15 +1801,15 @@ setConditionInConditionList(UA_Server *server, const UA_NodeId *conditionNodeId,
         return retval;
     }
 
-    UA_ConditionBranch_nodeListElement *conditionBranchListEntry;
-    conditionBranchListEntry = (UA_ConditionBranch_nodeListElement*)
-        UA_malloc(sizeof(UA_ConditionBranch_nodeListElement));
+    UA_ConditionBranch *conditionBranchListEntry;
+    conditionBranchListEntry = (UA_ConditionBranch*)
+        UA_malloc(sizeof(UA_ConditionBranch));
     if(!conditionBranchListEntry) {
 		UA_free(conditionListEntry);
         return UA_STATUSCODE_BADOUTOFMEMORY;
 	}
 
-    memset(conditionBranchListEntry, 0, sizeof(UA_ConditionBranch_nodeListElement));
+    memset(conditionBranchListEntry, 0, sizeof(UA_ConditionBranch));
 
     /* append to list */
     LIST_INSERT_HEAD(&conditionSourceEntry->conditionHead, conditionListEntry, listEntry);
@@ -1822,7 +1822,7 @@ static UA_StatusCode
 appendConditionEntry(UA_Server *server, const UA_NodeId *conditionNodeId,
                      const UA_NodeId *conditionSourceNodeId) {
     /* Get ConditionSource Entry to see if the ConditionSource Entry already exists*/
-    UA_ConditionSource_nodeListElement *source;
+    UA_ConditionSource *source;
     if(!LIST_EMPTY(&server->headConditionSource)) {
         LIST_FOREACH(source, &server->headConditionSource, listEntry) {
             if(UA_NodeId_equal(&source->conditionSourceId, conditionSourceNodeId)) {
@@ -1832,13 +1832,13 @@ appendConditionEntry(UA_Server *server, const UA_NodeId *conditionNodeId,
     }
 
     /* ConditionSource not found in list, so we create a new ConditionSource Entry */
-    UA_ConditionSource_nodeListElement *conditionSourceListEntry;
-    conditionSourceListEntry = (UA_ConditionSource_nodeListElement*)
-        UA_malloc(sizeof(UA_ConditionSource_nodeListElement));
+    UA_ConditionSource *conditionSourceListEntry;
+    conditionSourceListEntry = (UA_ConditionSource*)
+        UA_malloc(sizeof(UA_ConditionSource));
     if(!conditionSourceListEntry)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    memset(conditionSourceListEntry, 0, sizeof(UA_ConditionSource_nodeListElement));
+    memset(conditionSourceListEntry, 0, sizeof(UA_ConditionSource));
 
     /* Set ConditionSourceId with given ConditionSourceNodeId */
     UA_StatusCode retval = UA_NodeId_copy(conditionSourceNodeId, &conditionSourceListEntry->conditionSourceId);
@@ -1856,11 +1856,11 @@ appendConditionEntry(UA_Server *server, const UA_NodeId *conditionNodeId,
 
 void
 UA_ConditionList_delete(UA_Server *server) {
-    UA_ConditionSource_nodeListElement *conditionSourceEntry, *source;
+    UA_ConditionSource *conditionSourceEntry, *source;
     LIST_FOREACH_SAFE(conditionSourceEntry, &server->headConditionSource, listEntry, source) {
-        UA_Condition_nodeListElement *conditionEntry, *cond;
+        UA_Condition *conditionEntry, *cond;
         LIST_FOREACH_SAFE(conditionEntry, &conditionSourceEntry->conditionHead, listEntry, cond) {
-            UA_ConditionBranch_nodeListElement *conditionBranchEntry, *branch;
+            UA_ConditionBranch *conditionBranchEntry, *branch;
             LIST_FOREACH_SAFE(conditionBranchEntry, &conditionEntry->conditionBranchHead, listEntry, branch) {
                 if(conditionBranchEntry->conditionBranchId != NULL)
                     UA_NodeId_delete(conditionBranchEntry->conditionBranchId);
@@ -1893,18 +1893,17 @@ UA_StatusCode
 UA_getConditionId(UA_Server *server, const UA_NodeId *conditionNodeId,
                   UA_NodeId *outConditionId) {
     /* Get ConditionSource Entry */
-    UA_ConditionSource_nodeListElement *source;
+    UA_ConditionSource *source;
     LIST_FOREACH(source, &server->headConditionSource, listEntry) {
         /* Get Condition Entry */
-        UA_Condition_nodeListElement *cond;
+        UA_Condition *cond;
         LIST_FOREACH(cond, &source->conditionHead, listEntry) {
             if(UA_NodeId_equal(&cond->conditionId, conditionNodeId)) {
                 *outConditionId = cond->conditionId;
                 return UA_STATUSCODE_GOOD;
-            }
-            else {
+            } else {
                 /* Get Branch Entry*/
-                UA_ConditionBranch_nodeListElement *branch;
+                UA_ConditionBranch *branch;
                 LIST_FOREACH(branch, &cond->conditionBranchHead, listEntry) {
                     if(((NULL == branch->conditionBranchId) && (NULL == conditionNodeId)) ||
                        (NULL != branch->conditionBranchId &&
