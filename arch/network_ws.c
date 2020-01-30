@@ -76,6 +76,11 @@ connection_releaserecvbuffer(UA_Connection *connection, UA_ByteString *buf) {
 
 static UA_StatusCode
 connection_send(UA_Connection *connection, UA_ByteString *buf) {
+    /*  libwebsockets sends data only once lws_service is called
+    and it gets a POLLOUT event. Effectively that means that this send is
+    deferred until the next ServerNetworkLayerWS_listen. That may result
+    in very poor throughput if there are any other network layers present. */
+
     ConnectionUserData *buffer = (ConnectionUserData *)connection->handle;
     if(connection->state == UA_CONNECTION_CLOSED) {
         connection_releasesendbuffer(connection, buf);
@@ -283,8 +288,10 @@ ServerNetworkLayerWS_listen(UA_ServerNetworkLayer *nl, UA_Server *server,
                             UA_UInt16 timeout) {
     ServerNetworkLayerWS *layer = (ServerNetworkLayerWS *)nl->handle;
     layer->server = server;
-    // set timeout to zero to return immediately if nothing to do
-    lws_service(layer->context, 0);
+    /*  N.B.: lws_service documentation says:
+            "Since v3.2 internally the timeout wait is ignored, the lws scheduler
+             is smart enough to stay asleep until an event is queued." */
+    lws_service(layer->context, timeout);
     return UA_STATUSCODE_GOOD;
 }
 
