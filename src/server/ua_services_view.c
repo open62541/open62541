@@ -109,10 +109,10 @@ RefTree_double(RefTree *rt) {
     memmove(reArray, oldReArray, rt->size * sizeof(RefEntry));
     for(size_t i = 0; i < rt->size; i++) {
         if(reArray[i].zipfields.zip_left)
-            *(uintptr_t*)&reArray[i].zipfields.zip_left += entrydiff;
+            reArray[i].zipfields.zip_left = (RefEntry*)((uintptr_t)reArray[i].zipfields.zip_left + entrydiff);
         if(reArray[i].zipfields.zip_right)
-            *(uintptr_t*)&reArray[i].zipfields.zip_right += entrydiff;
-        *(uintptr_t*)&reArray[i].target += arraydiff;
+            reArray[i].zipfields.zip_right = (RefEntry*)((uintptr_t)reArray[i].zipfields.zip_right + entrydiff);;
+        reArray[i].target = (UA_ExpandedNodeId*)((uintptr_t)reArray[i].target + arraydiff );
     }
 
     rt->head.zip_root = (RefEntry*)((uintptr_t)rt->head.zip_root + entrydiff);

@@ -22,7 +22,7 @@
 
 #include "ua_connection_internal.h"
 #include "ua_securechannel_manager.h"
-#include "ua_session_manager.h"
+#include "ua_session.h"
 #include "ua_server_async.h"
 #include "ua_timer.h"
 #include "ua_util_internal.h"
@@ -57,6 +57,12 @@ typedef struct {
 
 #endif
 
+typedef struct session_list_entry {
+    UA_DelayedCallback cleanupCallback;
+    LIST_ENTRY(session_list_entry) pointers;
+    UA_Session session;
+} session_list_entry;
+
 typedef enum {
     UA_SERVERLIFECYCLE_FRESH,
     UA_SERVERLIFECYLE_RUNNING
@@ -73,10 +79,13 @@ struct UA_Server {
 
     /* Security */
     UA_SecureChannelManager secureChannelManager;
-    UA_SessionManager sessionManager;
 #if UA_MULTITHREADING >= 100
     UA_AsyncManager asyncManager;
 #endif
+
+    /* Session Management */
+    LIST_HEAD(session_list, session_list_entry) sessions;
+    UA_UInt32 sessionCount;
     UA_Session adminSession; /* Local access to the services (for startup and
                               * maintenance) uses this Session with all possible
                               * access rights (Session Id: 1) */
@@ -126,6 +135,23 @@ struct UA_Server {
     UA_LOCK_TYPE(serviceMutex)
 #endif
 };
+
+/* Exposed for unit tests */
+UA_StatusCode
+UA_Server_createSession(UA_Server *server, UA_SecureChannel *channel,
+                        const UA_CreateSessionRequest *request, UA_Session **session);
+
+void
+UA_Server_removeSession(UA_Server *server, session_list_entry *sentry);
+
+UA_StatusCode
+UA_Server_removeSessionByToken(UA_Server *server, const UA_NodeId *token);
+
+void
+UA_Server_cleanupSessions(UA_Server *server, UA_DateTime nowMonotonic);
+
+UA_Session *
+UA_Server_getSessionById(UA_Server *server, const UA_NodeId *sessionId);
 
 /*****************/
 /* Node Handling */

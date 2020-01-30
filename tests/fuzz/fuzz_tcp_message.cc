@@ -112,7 +112,7 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
             if (status >= 0) {
                 if (write(sockfd, data, size) != size) {
                     UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT,
-                                 "Did not write %d bytes", size);
+                                 "Did not write %lu bytes", (long unsigned)size);
                     retCode = EXIT_FAILURE;
                 }
             } else {

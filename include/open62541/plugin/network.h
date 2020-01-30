@@ -44,8 +44,10 @@ typedef struct {
     UA_UInt32 protocolVersion;
     UA_UInt32 recvBufferSize;
     UA_UInt32 sendBufferSize;
-    UA_UInt32 maxMessageSize; /* Indicated by the remote side (0 = unbounded) */
-    UA_UInt32 maxChunkCount;  /* Indicated by the remote side (0 = unbounded) */
+    UA_UInt32 localMaxMessageSize;  /* (0 = unbounded) */
+    UA_UInt32 remoteMaxMessageSize; /* (0 = unbounded) */
+    UA_UInt32 localMaxChunkCount;   /* (0 = unbounded) */
+    UA_UInt32 remoteMaxChunkCount;  /* (0 = unbounded) */
 } UA_ConnectionConfig;
 
 typedef enum {
@@ -55,12 +57,10 @@ typedef enum {
                                * is not done */
     UA_CONNECTION_ESTABLISHED /* The socket is open and the connection
                                * configured */
-
 } UA_ConnectionState;
 
 struct UA_Connection {
     UA_ConnectionState state;
-    UA_ConnectionConfig config;
     UA_SecureChannel *channel;     /* The securechannel that is attached to
                                     * this connection */
     UA_SOCKET sockfd;              /* Most connectivity solutions run on
@@ -68,8 +68,6 @@ struct UA_Connection {
                                     * simplifies the design. */
     UA_DateTime openingDate;       /* The date the connection was created */
     void *handle;                  /* A pointer to internal data */
-    UA_ByteString incompleteChunk; /* A half-received chunk (TCP is a
-                                    * streaming protocol) is stored here */
     UA_UInt64 connectCallbackID;   /* Callback Id, for the connect-loop */
     /* Get a buffer for sending */
     UA_StatusCode (*getSendBuffer)(UA_Connection *connection, size_t length,
@@ -89,8 +87,13 @@ struct UA_Connection {
     /* Receive a message from the remote connection
      *
      * @param connection The connection
-     * @param response The response string. It is allocated by the connection
-     *        and needs to be freed with connection->releaseBuffer
+
+     * @param response The response string. If this is empty, it will be
+     *        allocated by the connection and needs to be freed with
+     *        connection->releaseBuffer. If the response string is non-empty, it
+     *        will be used as the receive buffer. If bytes are received, the
+     *        length of the buffer is adjusted to match the length of the
+     *        received bytes.
      * @param timeout Timeout of the recv operation in milliseconds
      * @return Returns UA_STATUSCODE_BADCOMMUNICATIONERROR if the recv operation
      *         can be repeated, UA_STATUSCODE_GOOD if it succeeded and
@@ -111,10 +114,6 @@ struct UA_Connection {
      * Frees up the connection's memory. */
     void (*free)(UA_Connection *connection);
 };
-
-/* Cleans up half-received messages, and so on. Called from connection->free. */
-void UA_EXPORT
-UA_Connection_clear(UA_Connection *connection);
 
 /**
  * Server Network Layer

@@ -12,6 +12,7 @@
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/util.h>
 #include "open62541_queue.h"
+#include "ua_securechannel.h"
 #include <libwebsockets.h>
 #include <string.h>
 
@@ -49,7 +50,8 @@ typedef struct {
 
 static UA_StatusCode
 connection_getsendbuffer(UA_Connection *connection, size_t length, UA_ByteString *buf) {
-    if(length > connection->config.sendBufferSize)
+    UA_SecureChannel *channel = connection->channel;
+    if(channel && channel->config.sendBufferSize < length)
         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
     return UA_ByteString_allocBuffer(buf, length);
 }
@@ -101,7 +103,6 @@ freeConnection(UA_Connection *connection) {
         }
         UA_free(connection->handle);
     }
-    UA_Connection_clear(connection);
     UA_free(connection);
 }
 
@@ -133,7 +134,6 @@ callback_opcua(struct lws *wsi, enum lws_callback_reasons reason, void *user, vo
             memset(c, 0, sizeof(UA_Connection));
             c->sockfd = 0;
             c->handle = buffer;
-            c->config = layer->config;
             c->send = connection_send;
             c->close = ServerNetworkLayerWS_close;
             c->free = freeConnection;
@@ -188,34 +188,17 @@ callback_opcua(struct lws *wsi, enum lws_callback_reasons reason, void *user, vo
             }
             break;
 
-        case LWS_CALLBACK_RECEIVE:
+    case LWS_CALLBACK_RECEIVE: {
             if(!vhd->context)
                 break;
-            layer =
-                (ServerNetworkLayerWS *)lws_context_user(vhd->context);
+            layer = (ServerNetworkLayerWS *)lws_context_user(vhd->context);
             if(!layer->server)
                 break;
 
-            if(pss->connection->incompleteChunk.length == 0) {
-                UA_ByteString message = {len, (UA_Byte *)in};
-                UA_Server_processBinaryMessage(layer->server, pss->connection, &message);
-            } else {
-                UA_ByteString message = pss->connection->incompleteChunk;
-                pss->connection->incompleteChunk = UA_BYTESTRING_NULL;
-                UA_Byte *t = (UA_Byte*)UA_realloc(message.data, message.length + len);
-                if(!t) {
-                    UA_ByteString_deleteMembers(&message);
-                    return -1;
-                }
-                memcpy(&t[message.length], in, len);
-                message.data = t;
-                message.length += len;
-
-                UA_Server_processBinaryMessage(layer->server, pss->connection, &message);
-
-                connection_releaserecvbuffer(pss->connection, &message);
-            }
+            UA_ByteString message = {len, (UA_Byte *)in};
+            UA_Server_processBinaryMessage(layer->server, pss->connection, &message);
             break;
+    }
 
         default:
             break;

@@ -145,7 +145,7 @@ decodeNetworkMessage(const UA_ByteString *buf, UA_ByteString *out) {
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    size_t binLength = UA_NetworkMessage_calcSizeBinary(&msg);
+    size_t binLength = UA_NetworkMessage_calcSizeBinary(&msg, NULL);
     retval = UA_ByteString_allocBuffer(out, binLength);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_NetworkMessage_deleteMembers(&msg);

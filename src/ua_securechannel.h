@@ -37,7 +37,6 @@ extern UA_StatusCode processSym_seqNumberFailure;
  * Sessions is independent of the underlying SecureChannel. But every Session
  * can be attached to only one SecureChannel. */
 typedef struct UA_SessionHeader {
-    LIST_ENTRY(UA_SessionHeader) pointers;
     UA_NodeId authenticationToken;
     UA_SecureChannel *channel; /* The pointer back to the SecureChannel in the session. */
 } UA_SessionHeader;
@@ -74,6 +73,7 @@ typedef TAILQ_HEAD(UA_MessageQueue, UA_Message) UA_MessageQueue;
 struct UA_SecureChannel {
     UA_SecureChannelState   state;
     UA_MessageSecurityMode  securityMode;
+    UA_ConnectionConfig     config;
 
     /* Rules for revolving the token with a renew OPN request: The client is
      * allowed to accept messages with the old token until the OPN response has
@@ -103,13 +103,27 @@ struct UA_SecureChannel {
     UA_UInt32 receiveSequenceNumber;
     UA_UInt32 sendSequenceNumber;
 
-    LIST_HEAD(, UA_SessionHeader) sessions;
-    UA_MessageQueue messages;
+    /* The standard does not forbid a SecureChannel to carry several Sessions.
+     * But this is not supported here. So clients need one SecureChannel for
+     * every Session. */
+    UA_SessionHeader *session;
+
+    UA_ByteString incompleteChunk; /* A half-received chunk (TCP is a
+                                    * streaming protocol) is stored here */
+    UA_MessageQueue messages;      /* Received full chunks grouped into the
+                                    * messages */
 };
 
-void UA_SecureChannel_init(UA_SecureChannel *channel);
+void UA_SecureChannel_init(UA_SecureChannel *channel,
+                           const UA_ConnectionConfig *config);
 
 void UA_SecureChannel_close(UA_SecureChannel *channel);
+
+/* Process the remote configuration in the HEL/ACK handshake. The connection
+ * config is initialized with the local settings. */
+UA_StatusCode
+UA_SecureChannel_processHELACK(UA_SecureChannel *channel,
+                               const UA_TcpAcknowledgeMessage *remoteConfig);
 
 UA_StatusCode
 UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel,
@@ -130,10 +144,6 @@ UA_SecureChannel_generateNewKeys(UA_SecureChannel* channel);
  * a nonce with the specified length. */
 UA_StatusCode
 UA_SecureChannel_generateLocalNonce(UA_SecureChannel *channel);
-
-UA_SessionHeader *
-UA_SecureChannel_getSession(UA_SecureChannel *channel,
-                            const UA_NodeId *authenticationToken);
 
 UA_StatusCode
 UA_SecureChannel_revolveTokens(UA_SecureChannel *channel);
@@ -198,7 +208,7 @@ UA_MessageContext_abort(UA_MessageContext *mc);
 
 /* Decrypt a chunk and add it to the message. Create a new message if necessary. */
 UA_StatusCode
-UA_SecureChannel_decryptAddChunk(UA_SecureChannel *channel, const UA_ByteString *chunk,
+UA_SecureChannel_decryptAddChunk(UA_SecureChannel *channel, UA_ByteString *chunk,
                                  UA_Boolean allowPreviousToken);
 
 /* The network buffer is about to be cleared. Copy all chunks that point into
@@ -209,24 +219,34 @@ UA_SecureChannel_persistIncompleteMessages(UA_SecureChannel *channel);
 typedef void
 (UA_ProcessMessageCallback)(void *application, UA_SecureChannel *channel,
                             UA_MessageType messageType, UA_UInt32 requestId,
-                            const UA_ByteString *message);
+                            UA_ByteString *message);
 
-/* Process received complete messages in-order. The callback function is called
- * with the complete message body if the message is complete. The message is
- * removed afterwards.
- *
- * Symmetric callback is ERR, MSG, CLO only
- * Asymmetric callback is OPN only
- *
- * @param channel the channel the chunks were received on.
- * @param application data pointer to application specific data that gets passed
- *                    on to the callback function.
- * @param callback the callback function that gets called with the complete
- *                 message body, once a final chunk is processed.
- * @return Returns if an irrecoverable error occured. Maybe close the channel. */
+/* Process a received packet. The callback function is called with the complete
+ * message body if the message is complete. The message is removed afterwards.
+ * Returns if an irrecoverable error occured. */
 UA_StatusCode
-UA_SecureChannel_processCompleteMessages(UA_SecureChannel *channel, void *application,
-                                         UA_ProcessMessageCallback callback);
+UA_SecureChannel_processPacket(UA_SecureChannel *channel, void *application,
+                               UA_ProcessMessageCallback callback,
+                               const UA_ByteString *packet);
+
+/* Try to receive at least one complete chunk on the connection. This blocks the
+ * current thread up to the given timeout.
+ *
+ * @param channel The SecureChannel
+ * @param application The client or server application
+ * @param processCallback The function pointer for processing each chunk
+ * @param timeout The timeout (in milliseconds) the method will block at most.
+ * @return Returns UA_STATUSCODE_GOOD or an error code. When an timeout occurs,
+ *         UA_STATUSCODE_GOODNONCRITICALTIMEOUT is returned. */
+UA_StatusCode
+UA_SecureChannel_receiveChunksBlocking(UA_SecureChannel *channel, void *application,
+                                       UA_ProcessMessageCallback callback,
+                                       UA_UInt32 timeout);
+
+UA_StatusCode
+UA_SecureChannel_receiveChunksNonBlocking(UA_SecureChannel *channel, void *application,
+                                          UA_ProcessMessageCallback callback);
+
 
 /* Internal methods in ua_securechannel_crypto.h */
 
@@ -234,14 +254,16 @@ void
 hideBytesAsym(const UA_SecureChannel *channel, UA_Byte **buf_start,
               const UA_Byte **buf_end);
 
-/* Sets the payload to a pointer inside the chunk buffer. Returns the requestId
- * and the sequenceNumber */
+/* Decrypt and verify via the signature. The chunk buffer is reused to hold the
+ * decoded data. The chunk ByteString is reset. So it only contains the payload
+ * after the SequenceHeader and before the padding. Returns the decoded
+ * RequestId and SequenceNumber */
 UA_StatusCode
 decryptAndVerifyChunk(const UA_SecureChannel *channel,
                       const UA_SecurityPolicyCryptoModule *cryptoModule,
-                      UA_MessageType messageType, const UA_ByteString *chunk,
+                      UA_MessageType messageType, UA_ByteString *chunk,
                       size_t offset, UA_UInt32 *requestId,
-                      UA_UInt32 *sequenceNumber, UA_ByteString *payload);
+                      UA_UInt32 *sequenceNumber);
 
 size_t
 calculateAsymAlgSecurityHeaderLength(const UA_SecureChannel *channel);
@@ -256,32 +278,11 @@ void
 setBufPos(UA_MessageContext *mc);
 
 UA_StatusCode
-decryptChunk(const UA_SecureChannel *const channel,
-             const UA_SecurityPolicyCryptoModule *const cryptoModule,
-             UA_MessageType const messageType, const UA_ByteString *const chunk,
-             size_t const offset, size_t *const chunkSizeAfterDecryption);
-
-UA_UInt16
-decodeChunkPaddingSize(const UA_SecureChannel *channel,
-                       const UA_SecurityPolicyCryptoModule *cryptoModule,
-                       UA_MessageType messageType, const UA_ByteString *chunk,
-                       size_t chunkSizeAfterDecryption, size_t sigsize);
-
-UA_StatusCode
-verifyChunk(const UA_SecureChannel *channel,
-            const UA_SecurityPolicyCryptoModule *cryptoModule,
-            const UA_ByteString *chunk,
-            size_t chunkSizeAfterDecryption, size_t sigsize);
-
-UA_StatusCode
 checkSymHeader(UA_SecureChannel *channel, UA_UInt32 tokenId,
                UA_Boolean allowPreviousToken);
 
 UA_StatusCode
 processSequenceNumberAsym(UA_SecureChannel *channel, UA_UInt32 sequenceNumber);
-
-UA_StatusCode
-processSequenceNumberSym(UA_SecureChannel *channel, UA_UInt32 sequenceNumber);
 
 UA_StatusCode
 checkAsymHeader(UA_SecureChannel *channel,

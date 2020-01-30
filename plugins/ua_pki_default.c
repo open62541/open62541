@@ -204,11 +204,16 @@ certificateVerification_verify(void *verificationContext,
     reloadCertificates(ci);
 #endif
 
-    /* if(ci->certificateTrustList.raw.len == 0) { */
-    /*     UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, */
-    /*                    "No Trustlist loaded. Accepting the certificate."); */
-    /*     return UA_STATUSCODE_GOOD; */
-    /* } */
+    if(ci->trustListFolder.length == 0 &&
+       ci->issuerListFolder.length == 0 &&
+       ci->revocationListFolder.length == 0 &&
+       ci->certificateTrustList.raw.len == 0 &&
+       ci->certificateIssuerList.raw.len == 0 &&
+       ci->certificateRevocationList.raw.len == 0) {
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                       "PKI plugin unconfigured. Accepting the certificate.");
+        return UA_STATUSCODE_GOOD;
+    }
 
     /* Parse the certificate */
     mbedtls_x509_crt remoteCertificate;
@@ -394,12 +399,12 @@ certificateVerification_verify(void *verificationContext,
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(mbedErr) {
-        /* char buff[100]; */
-        /* mbedtls_x509_crt_verify_info(buff, 100, "", flags); */
-        /* UA_LOG_ERROR(channelContextData->policyContext->securityPolicy->logger, */
-        /*              UA_LOGCATEGORY_SECURITYPOLICY, */
-        /*              "Verifying the certificate failed with error: %s", buff); */
-
+#if UA_LOGLEVEL <= 400
+        char buff[100];
+        int len = mbedtls_x509_crt_verify_info(buff, 100, "", flags);
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SECURITYPOLICY,
+                       "Verifying the certificate failed with error: %.*s", len-1, buff);
+#endif
         if(flags & (uint32_t)MBEDTLS_X509_BADCERT_NOT_TRUSTED) {
             retval = UA_STATUSCODE_BADCERTIFICATEUNTRUSTED;
         } else if(flags & (uint32_t)MBEDTLS_X509_BADCERT_FUTURE ||

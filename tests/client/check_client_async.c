@@ -67,7 +67,9 @@ START_TEST(Client_highlevel_async_readValue) {
         UA_Client *client = UA_Client_new();
         UA_ClientConfig *clientConfig = UA_Client_getConfig(client);
         UA_ClientConfig_setDefault(clientConfig);
+#ifdef UA_ENABLE_SUBSCRIPTIONS
         clientConfig->outStandingPublishRequests = 0;
+#endif
 
         UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -142,7 +144,9 @@ START_TEST(Client_read_async_timed) {
         UA_Client *client = UA_Client_new();
         UA_ClientConfig *clientConfig = UA_Client_getConfig(client);
         UA_ClientConfig_setDefault(clientConfig);
+#ifdef UA_ENABLE_SUBSCRIPTIONS
         clientConfig->outStandingPublishRequests = 0;
+#endif
 
         UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -201,7 +205,9 @@ START_TEST(Client_connectivity_check) {
         UA_Client *client = UA_Client_new();
         UA_ClientConfig *clientConfig = UA_Client_getConfig(client);
         UA_ClientConfig_setDefault(clientConfig);
+#ifdef UA_ENABLE_SUBSCRIPTIONS
         clientConfig->outStandingPublishRequests = 0;
+#endif
         clientConfig->inactivityCallback = inactivityCallback;
         clientConfig->connectivityCheckInterval = 1000;
 

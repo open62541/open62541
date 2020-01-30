@@ -15,6 +15,7 @@
 #include <open62541/util.h>
 
 #include "open62541_queue.h"
+#include "ua_securechannel.h"
 
 #include <string.h>  // memset
 
@@ -29,7 +30,8 @@
 static UA_StatusCode
 connection_getsendbuffer(UA_Connection *connection,
                          size_t length, UA_ByteString *buf) {
-    if(length > connection->config.sendBufferSize)
+    UA_SecureChannel *channel = connection->channel;
+    if(channel && channel->config.sendBufferSize < length)
         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
     return UA_ByteString_allocBuffer(buf, length);
 }
@@ -87,61 +89,56 @@ connection_recv(UA_Connection *connection, UA_ByteString *response,
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
 
     /* Listen on the socket for the given timeout until a message arrives */
-    if(timeout > 0) {
-        fd_set fdset;
-        FD_ZERO(&fdset);
-        UA_fd_set(connection->sockfd, &fdset);
-        UA_UInt32 timeout_usec = timeout * 1000;
-        struct timeval tmptv = {(long int)(timeout_usec / 1000000),
-                                (int)(timeout_usec % 1000000)};
-        int resultsize = UA_select(connection->sockfd+1, &fdset, NULL,
-                                NULL, &tmptv);
+    fd_set fdset;
+    FD_ZERO(&fdset);
+    UA_fd_set(connection->sockfd, &fdset);
+    UA_UInt32 timeout_usec = timeout * 1000;
+    struct timeval tmptv = {(long int)(timeout_usec / 1000000),
+                            (int)(timeout_usec % 1000000)};
+    int resultsize = UA_select(connection->sockfd+1, &fdset, NULL, NULL, &tmptv);
 
-        /* No result */
-        if(resultsize == 0)
+    /* No result */
+    if(resultsize == 0)
+        return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+
+    if(resultsize == -1) {
+        /* The call to select was interrupted. Act as if it timed out. */
+        if(UA_ERRNO == EINTR)
             return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
 
-        if(resultsize == -1) {
-            /* The call to select was interrupted manually. Act as if it timed
-             * out */
-            if(UA_ERRNO == EINTR)
-                return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
-
-            /* The error cannot be recovered. Close the connection. */
-            connection->close(connection);
-            return UA_STATUSCODE_BADCONNECTIONCLOSED;
-        }
+        /* The error cannot be recovered. Close the connection. */
+        connection->close(connection);
+        return UA_STATUSCODE_BADCONNECTIONCLOSED;
     }
 
-    response->data = (UA_Byte*)UA_malloc(connection->config.recvBufferSize);
-    if(!response->data) {
-        response->length = 0;
-        return UA_STATUSCODE_BADOUTOFMEMORY; /* not enough memory retry */
-    }
+    UA_Boolean internallyAllocated = !response->length;
 
-#ifdef _WIN32
-    // windows requires int parameter for length
-    int offset = (int)connection->incompleteChunk.length;
-    int remaining = connection->config.recvBufferSize - offset;
-#else
-    size_t offset = connection->incompleteChunk.length;
-    size_t remaining = connection->config.recvBufferSize - offset;
-#endif
+    /* Allocate the buffer  */
+    if(internallyAllocated) {
+        size_t bufferSize = 16384; /* Use as default for a new SecureChannel */
+        UA_SecureChannel *channel = connection->channel;
+        if(channel && channel->config.recvBufferSize > 0)
+            bufferSize = channel->config.recvBufferSize;
+        UA_StatusCode res = UA_ByteString_allocBuffer(response, bufferSize);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    }
 
     /* Get the received packet(s) */
-    ssize_t ret = UA_recv(connection->sockfd, (char*)&response->data[offset],
-                          remaining, 0);
+    ssize_t ret = UA_recv(connection->sockfd, (char*)response->data, response->length, 0);
 
     /* The remote side closed the connection */
     if(ret == 0) {
-        UA_ByteString_deleteMembers(response);
+        if(internallyAllocated)
+            UA_ByteString_deleteMembers(response);
         connection->close(connection);
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
     }
 
     /* Error case */
     if(ret < 0) {
-        UA_ByteString_deleteMembers(response);
+        if(internallyAllocated)
+            UA_ByteString_deleteMembers(response);
         if(UA_ERRNO == UA_INTERRUPTED || (timeout > 0) ?
            false : (UA_ERRNO == UA_EAGAIN || UA_ERRNO == UA_WOULDBLOCK))
             return UA_STATUSCODE_GOOD; /* statuscode_good but no data -> retry */
@@ -149,15 +146,8 @@ connection_recv(UA_Connection *connection, UA_ByteString *response,
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
     }
 
-    /* Preprend the last incompleteChunk into the buffer */
-    if (connection->incompleteChunk.length > 0) {
-        memcpy(response->data, connection->incompleteChunk.data,
-               connection->incompleteChunk.length);
-        UA_ByteString_deleteMembers(&connection->incompleteChunk);
-    }
-
     /* Set the length of the received buffer */
-    response->length = offset + (size_t)ret;
+    response->length = (size_t)ret;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -185,7 +175,6 @@ typedef struct {
 
 static void
 ServerNetworkLayerTCP_freeConnection(UA_Connection *connection) {
-    UA_Connection_clear(connection);
     UA_free(connection);
 }
 
@@ -249,7 +238,6 @@ ServerNetworkLayerTCP_add(UA_ServerNetworkLayer *nl, ServerNetworkLayerTCP *laye
     memset(c, 0, sizeof(UA_Connection));
     c->sockfd = newsockfd;
     c->handle = layer;
-    c->config = nl->localConnectionConfig;
     c->send = connection_write;
     c->close = ServerNetworkLayerTCP_close;
     c->free = ServerNetworkLayerTCP_freeConnection;
@@ -764,7 +752,6 @@ UA_ClientConnectionTCP_init(UA_ConnectionConfig config, const UA_String endpoint
     memset(&connection, 0, sizeof(UA_Connection));
 
     connection.state = UA_CONNECTION_OPENING;
-    connection.config = config;
     connection.send = connection_write;
     connection.recv = connection_recv;
     connection.close = ClientNetworkLayerTCP_close;
@@ -826,7 +813,6 @@ UA_ClientConnectionTCP(UA_ConnectionConfig config, const UA_String endpointUrl,
     UA_Connection connection;
     memset(&connection, 0, sizeof(UA_Connection));
     connection.state = UA_CONNECTION_CLOSED;
-    connection.config = config;
     connection.send = connection_write;
     connection.recv = connection_recv;
     connection.close = ClientNetworkLayerTCP_close;

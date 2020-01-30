@@ -171,7 +171,10 @@ void UA_Server_delete(UA_Server *server) {
     /* Delete all internal data */
     UA_SecureChannelManager_deleteMembers(&server->secureChannelManager);
     UA_LOCK(server->serviceMutex);
-    UA_SessionManager_deleteMembers(&server->sessionManager);
+    session_list_entry *current, *temp;
+    LIST_FOREACH_SAFE(current, &server->sessions, pointers, temp) {
+        UA_Server_removeSession(server, current);
+    }
     UA_UNLOCK(server->serviceMutex);
     UA_Array_delete(server->namespaces, server->namespacesSize, &UA_TYPES[UA_TYPES_STRING]);
 
@@ -230,7 +233,7 @@ static void
 UA_Server_cleanup(UA_Server *server, void *_) {
     UA_LOCK(server->serviceMutex);
     UA_DateTime nowMonotonic = UA_DateTime_nowMonotonic();
-    UA_SessionManager_cleanupTimedOut(&server->sessionManager, nowMonotonic);
+    UA_Server_cleanupSessions(server, nowMonotonic);
     UA_SecureChannelManager_cleanupTimedOut(&server->secureChannelManager, nowMonotonic);
 #ifdef UA_ENABLE_DISCOVERY
     UA_Discovery_cleanupTimedOut(server, nowMonotonic);
@@ -288,9 +291,12 @@ UA_Server_init(UA_Server *server) {
     server->namespaces[1] = UA_STRING_NULL;
     server->namespacesSize = 2;
 
-    /* Initialized SecureChannel and Session managers */
+    /* Initialize SecureChannel */
     UA_SecureChannelManager_init(&server->secureChannelManager, server);
-    UA_SessionManager_init(&server->sessionManager, server);
+
+    /* Initialize Session Management */
+    LIST_INIT(&server->sessions);
+    server->sessionCount = 0;
 
 #if UA_MULTITHREADING >= 100
     UA_AsyncManager_init(&server->asyncManager, server);
@@ -415,13 +421,12 @@ UA_Server_updateCertificate(UA_Server *server,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     if(closeSessions) {
-        UA_SessionManager *sm = &server->sessionManager;
         session_list_entry *current;
-        LIST_FOREACH(current, &sm->sessions, pointers) {
+        LIST_FOREACH(current, &server->sessions, pointers) {
             if(UA_ByteString_equal(oldCertificate,
                                     &current->session.header.channel->securityPolicy->localCertificate)) {
                 UA_LOCK(server->serviceMutex);
-                UA_SessionManager_removeSession(sm, &current->session.header.authenticationToken);
+                UA_Server_removeSessionByToken(server, &current->session.header.authenticationToken);
                 UA_UNLOCK(server->serviceMutex);
             }
         }
@@ -477,11 +482,8 @@ static UA_StatusCode
 verifyServerApplicationURI(const UA_Server *server) {
     for(size_t i = 0; i < server->config.securityPoliciesSize; i++) {
         UA_SecurityPolicy *sp = &server->config.securityPolicies[i];
-        if(!sp->certificateVerification)
-            continue;
-        UA_StatusCode retval =
-            sp->certificateVerification->
-            verifyApplicationURI(sp->certificateVerification->context,
+        UA_StatusCode retval = server->config.certificateVerification.
+            verifyApplicationURI(server->config.certificateVerification.context,
                                  &sp->localCertificate,
                                  &server->config.applicationDescription.applicationUri);
         if(retval != UA_STATUSCODE_GOOD) {

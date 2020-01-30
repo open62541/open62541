@@ -146,6 +146,7 @@ struct UA_Client {
     UA_UInt32 requestHandle;
 
     UA_Boolean endpointsHandshake;
+    UA_Boolean sessionHandshake;
     UA_String endpointUrl; /* Only for the async connect */
 
     /* Async Service */
@@ -199,23 +200,23 @@ UA_Client_getEndpointsInternal(UA_Client *client, const UA_String endpointUrl,
                                size_t *endpointDescriptionsSize,
                                UA_EndpointDescription **endpointDescriptions);
 
+UA_Boolean
+endpointUnconfigured(UA_Client *client);
+
 /* Receive and process messages until a synchronous message arrives or the
  * timout finishes */
 UA_StatusCode
 receivePacketAsync(UA_Client *client);
 
-UA_StatusCode
-processACKResponseAsync(void *application, UA_Connection *connection,
-                        UA_ByteString *chunk);
-
-UA_StatusCode
-processOPNResponseAsync(void *application, UA_Connection *connection,
+void
+processACKResponseAsync(void *application, UA_SecureChannel *channel,
+                        UA_MessageType messageType, UA_UInt32 requestId,
                         UA_ByteString *chunk);
 
 void
 decodeProcessOPNResponseAsync(void *application, UA_SecureChannel *channel,
                               UA_MessageType messageType, UA_UInt32 requestId,
-                              const UA_ByteString *msg);
+                              UA_ByteString *chunk);
 
 UA_StatusCode
 openSecureChannel(UA_Client *client, UA_Boolean renew);

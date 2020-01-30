@@ -52,8 +52,10 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
     conf.protocolVersion = 0;
     conf.sendBufferSize = 1000;
     conf.recvBufferSize = 2000;
-    conf.maxMessageSize = 1000;
-    conf.maxChunkCount = 1;
+    conf.localMaxMessageSize = 1000;
+    conf.remoteMaxMessageSize = 1000;
+    conf.localMaxChunkCount = 1;
+    conf.remoteMaxChunkCount = 1;
 
     /* Create TCP connection: open the blocking TCP socket (connecting to the broker) */
     UA_Connection connection = UA_ClientConnectionTCP( conf, address.url, 1000, NULL);

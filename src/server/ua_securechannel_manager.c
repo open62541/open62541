@@ -95,21 +95,19 @@ static UA_Boolean
 purgeFirstChannelWithoutSession(UA_SecureChannelManager *cm) {
     channel_entry *entry;
     TAILQ_FOREACH(entry, &cm->channels, pointers) {
-        if(LIST_EMPTY(&entry->channel.sessions)) {
-            UA_LOG_INFO_CHANNEL(&cm->server->config.logger, &entry->channel,
-                                "Channel was purged since maxSecureChannels was "
-                                "reached and channel had no session attached");
-            removeSecureChannel(cm, entry);
-            return true;
-        }
+        if(entry->channel.session)
+            continue;
+        UA_LOG_INFO_CHANNEL(&cm->server->config.logger, &entry->channel,
+                            "Channel was purged since maxSecureChannels was "
+                            "reached and channel had no session attached");
+        removeSecureChannel(cm, entry);
+        return true;
     }
     return false;
 }
 
 UA_StatusCode
-UA_SecureChannelManager_create(UA_SecureChannelManager *const cm, UA_Connection *const connection,
-                               const UA_SecurityPolicy *const securityPolicy,
-                               const UA_AsymmetricAlgorithmSecurityHeader *const asymHeader) {
+UA_SecureChannelManager_create(UA_SecureChannelManager *cm, UA_Connection *connection) {
     /* connection already has a channel attached. */
     if(connection->channel != NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -128,26 +126,55 @@ UA_SecureChannelManager_create(UA_SecureChannelManager *const cm, UA_Connection 
     if(!entry)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    /* Create the channel context and parse the sender (remote) certificate used for the
-     * secureChannel. */
-    UA_SecureChannel_init(&entry->channel);
-    UA_StatusCode retval =
-        UA_SecureChannel_setSecurityPolicy(&entry->channel, securityPolicy,
-                                           &asymHeader->senderCertificate);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_free(entry);
-        return retval;
-    }
-
     /* Channel state is fresh (0) */
+    /* TODO: Use the connection config from the correct network layer */
+    UA_SecureChannel_init(&entry->channel,
+                          &cm->server->config.networkLayers[0].localConnectionConfig);
     entry->channel.securityToken.channelId = 0;
-    entry->channel.securityToken.tokenId = cm->lastTokenId++;
-    entry->channel.securityToken.createdAt = UA_DateTime_now();
+    entry->channel.securityToken.createdAt = UA_DateTime_nowMonotonic();
     entry->channel.securityToken.revisedLifetime = cm->server->config.maxSecurityTokenLifetime;
 
     TAILQ_INSERT_TAIL(&cm->channels, entry, pointers);
     UA_atomic_addUInt32(&cm->currentChannelCount, 1);
     UA_Connection_attachSecureChannel(connection, &entry->channel);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_SecureChannelManager_config(UA_SecureChannelManager *cm, UA_SecureChannel *channel,
+                               const UA_AsymmetricAlgorithmSecurityHeader *asymHeader) {
+    /* Iterate over available endpoints and choose the correct one */
+    UA_SecurityPolicy *securityPolicy = NULL;
+    UA_Server *server = cm->server;
+    for(size_t i = 0; i < server->config.securityPoliciesSize; ++i) {
+        UA_SecurityPolicy *policy = &server->config.securityPolicies[i];
+        if(!UA_ByteString_equal(&asymHeader->securityPolicyUri, &policy->policyUri))
+            continue;
+
+        UA_StatusCode retval = policy->asymmetricModule.
+            compareCertificateThumbprint(policy, &asymHeader->receiverCertificateThumbprint);
+        if(retval != UA_STATUSCODE_GOOD)
+            continue;
+
+        /* We found the correct policy (except for security mode). The endpoint
+         * needs to be selected by the client / server to match the security
+         * mode in the endpoint for the session. */
+        securityPolicy = policy;
+        break;
+    }
+
+    if(!securityPolicy)
+        return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
+
+    /* Create the channel context and parse the sender (remote) certificate used for the
+     * secureChannel. */
+    UA_StatusCode retval =
+        UA_SecureChannel_setSecurityPolicy(channel, securityPolicy,
+                                           &asymHeader->senderCertificate);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    channel->securityToken.tokenId = cm->lastTokenId++;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -167,7 +194,6 @@ UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_SecureChannel *chan
     }
 
     channel->securityMode = request->securityMode;
-    channel->securityToken.createdAt = UA_DateTime_nowMonotonic();
     channel->securityToken.channelId = cm->lastChannelId++;
     channel->securityToken.createdAt = UA_DateTime_now();
 
@@ -205,6 +231,9 @@ UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_SecureChannel *chan
 
     /* The channel is open */
     channel->state = UA_SECURECHANNELSTATE_OPEN;
+
+    /* Reset the internal creation date to the monotonic clock */
+    channel->securityToken.createdAt = UA_DateTime_nowMonotonic();
 
     return UA_STATUSCODE_GOOD;
 }

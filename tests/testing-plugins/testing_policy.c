@@ -383,7 +383,6 @@ TestingPolicy(UA_SecurityPolicy *policy, UA_ByteString localCertificate,
     policy->policyContext = (void *)funcsCalled;
     policy->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Testing");
     policy->logger = UA_Log_Stdout;
-    policy->certificateVerification = NULL;
     UA_ByteString_copy(&localCertificate, &policy->localCertificate);
 
     policy->asymmetricModule.makeCertificateThumbprint = makeThumbprint_testing;
