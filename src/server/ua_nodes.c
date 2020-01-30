@@ -494,11 +494,12 @@ UA_Node_setAttributes(UA_Node *node, const void *attributes,
 /* Manage References */
 /*********************/
 
+
 static UA_StatusCode
-addReferenceTarget(UA_NodeReferenceKind *refs, const UA_ExpandedNodeId *target,
-                   UA_UInt32 targetHash) {
+resizeReferenceTargets(UA_NodeReferenceKind *refs, size_t newSize) {
+
     UA_ReferenceTarget *targets = (UA_ReferenceTarget*)
-        UA_realloc(refs->refTargets, (refs->refTargetsSize + 1) * sizeof(UA_ReferenceTarget));
+        UA_realloc(refs->refTargets, newSize * sizeof(UA_ReferenceTarget));
     if(!targets)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
@@ -516,9 +517,19 @@ addReferenceTarget(UA_NodeReferenceKind *refs, const UA_ExpandedNodeId *target,
     if(refs->refTargetsTree.zip_root)
         refs->refTargetsTree.zip_root = (UA_ReferenceTarget*)((uintptr_t)refs->refTargetsTree.zip_root + arraydiff);
     refs->refTargets = targets;
+    return UA_STATUSCODE_GOOD;
+}
+
+
+static UA_StatusCode
+addReferenceTarget(UA_NodeReferenceKind *refs, const UA_ExpandedNodeId *target,
+                   UA_UInt32 targetHash) {
+    UA_StatusCode retval = resizeReferenceTargets(refs, refs->refTargetsSize + 1);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
     UA_ReferenceTarget *entry = &refs->refTargets[refs->refTargetsSize];
-    UA_StatusCode retval = UA_ExpandedNodeId_copy(target, &entry->target);
+    retval = UA_ExpandedNodeId_copy(target, &entry->target);
     if(retval != UA_STATUSCODE_GOOD) {
         if(refs->refTargetsSize== 0) {
             /* We had zero references before (realloc was a malloc) */
@@ -610,17 +621,18 @@ UA_Node_deleteReference(UA_Node *node, const UA_DeleteReferencesItem *item) {
             UA_ExpandedNodeId_clear(&target->target);
             refs->refTargetsSize--;
 
-            /* One matching target remaining */
             if(refs->refTargetsSize > 0) {
+                /* At least one target remains in buffer */ 
                 if(j-1 != refs->refTargetsSize) {
-                    /* avoid valgrind error: Source and destination overlap in
-                     * memcpy */
+                    /* Move last entry into the entry from where reference was removed */
                     ZIP_REMOVE(UA_ReferenceTargetHead, &refs->refTargetsTree,
                                &refs->refTargets[refs->refTargetsSize]);
                     *target = refs->refTargets[refs->refTargetsSize];
                     ZIP_INSERT(UA_ReferenceTargetHead, &refs->refTargetsTree,
                                target, ZIP_RANK(target, zipfields));
                 }
+                /* Shrink down allocated buffer, ignore failure */
+                (void)resizeReferenceTargets(refs, refs->refTargetsSize);
                 return UA_STATUSCODE_GOOD;
             }
 
@@ -630,9 +642,15 @@ UA_Node_deleteReference(UA_Node *node, const UA_DeleteReferencesItem *item) {
             node->referencesSize--;
             if(node->referencesSize > 0) {
                 if(i-1 != node->referencesSize) {
-                    /* avoid valgrind error: Source and destination overlap in
-                     * memcpy */
+                    /* Move last array node into array node from where reference kind was removed */
                     node->references[i-1] = node->references[node->referencesSize];
+                }
+                /* And shrink down allocated buffer for one entry */
+                UA_NodeReferenceKind *newRefs = (UA_NodeReferenceKind*)
+                    UA_realloc(node->references, sizeof(UA_NodeReferenceKind) * node->referencesSize);
+                /* Ignore errors in case memory buffer could not be shrinked down */
+                if(newRefs) {
+                    node->references = newRefs;
                 }
                 return UA_STATUSCODE_GOOD;
             }
