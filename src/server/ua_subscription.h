@@ -94,7 +94,7 @@ typedef struct {
 
 typedef struct UA_Condition {
     LIST_ENTRY(UA_Condition) listEntry;
-    LIST_HEAD(conditionbranchlisthead, UA_ConditionBranch) conditionBranchHead;
+    LIST_HEAD(, UA_ConditionBranch) conditionBranchHead;
     UA_NodeId conditionId;
     UA_UInt16 lastSeverity;
     UA_DateTime lastSeveritySourceTimeStamp;
@@ -106,7 +106,7 @@ typedef struct UA_Condition {
 
 typedef struct UA_ConditionSource {
     LIST_ENTRY(UA_ConditionSource) listEntry;
-    LIST_HEAD(conditionlisthead, UA_Condition) conditionHead;
+    LIST_HEAD(, UA_Condition) conditionHead;
     UA_NodeId conditionSourceId;
 } UA_ConditionSource;
 
