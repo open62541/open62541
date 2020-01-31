@@ -1885,8 +1885,8 @@ UA_ConditionList_delete(UA_Server *server) {
     UA_NodeId_clear(&refreshEvents[REFRESHEVENT_END_IDX]);
 }
 
-/* this function is used to get the ConditionId based on the EventId (all
- * branches of one condition should have the same ConditionId) */
+/* Get the ConditionId based on the EventId (all branches of one condition
+ * should have the same ConditionId) */
 UA_StatusCode
 UA_getConditionId(UA_Server *server, const UA_NodeId *conditionNodeId,
                   UA_NodeId *outConditionId) {
@@ -1899,19 +1899,17 @@ UA_getConditionId(UA_Server *server, const UA_NodeId *conditionNodeId,
             if(UA_NodeId_equal(&cond->conditionId, conditionNodeId)) {
                 *outConditionId = cond->conditionId;
                 return UA_STATUSCODE_GOOD;
-            } else {
-                /* Get Branch Entry*/
-                UA_ConditionBranch *branch;
-                LIST_FOREACH(branch, &cond->conditionBranchHead, listEntry) {
-                    if(UA_NodeId_equal(&branch->conditionBranchId, conditionNodeId)) {
-                        *outConditionId = cond->conditionId;
-                        return UA_STATUSCODE_GOOD;
-                    }
+            }
+            /* Get Branch Entry*/
+            UA_ConditionBranch *branch;
+            LIST_FOREACH(branch, &cond->conditionBranchHead, listEntry) {
+                if(!UA_NodeId_equal(&branch->conditionBranchId, conditionNodeId)) {
+                    *outConditionId = cond->conditionId;
+                    return UA_STATUSCODE_GOOD;
                 }
             }
         }
     }
-
     return UA_STATUSCODE_BADNOTFOUND;
 }
 
