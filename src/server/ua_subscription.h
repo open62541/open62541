@@ -78,7 +78,7 @@ typedef enum {
  * conditionBranchId is always NULL. */
 typedef struct UA_ConditionBranch {
     LIST_ENTRY(UA_ConditionBranch) listEntry;
-    UA_NodeId* conditionBranchId;
+    UA_NodeId conditionBranchId;
     UA_ByteString lastEventId;
     UA_Boolean isCallerAC;
 } UA_ConditionBranch;
