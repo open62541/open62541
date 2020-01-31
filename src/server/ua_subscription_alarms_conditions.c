@@ -362,7 +362,8 @@ getConditionBranchNodeId(UA_Server *server, const UA_ByteString *eventId,
 
 static UA_StatusCode
 getConditionLastSeverity(UA_Server *server, const UA_NodeId *conditionSource,
-                         const UA_NodeId *conditionId, UA_LastSverity_Data *outLastSeverity) {
+                         const UA_NodeId *conditionId, UA_UInt16 *outLastSeverity,
+                         UA_DateTime *outLastSeveritySourceTimeStamp) {
     /* Get ConditionSource Entry */
     UA_ConditionSource *source;
     LIST_FOREACH(source, &server->headConditionSource, listEntry) {
@@ -373,8 +374,8 @@ getConditionLastSeverity(UA_Server *server, const UA_NodeId *conditionSource,
         LIST_FOREACH(cond, &source->conditionHead, listEntry) {
             if(!UA_NodeId_equal(&cond->conditionId, conditionId))
                 continue;
-            outLastSeverity->lastSeverity = cond->lastSevertyData.lastSeverity;
-            outLastSeverity->sourceTimeStamp = cond->lastSevertyData.sourceTimeStamp;
+            *outLastSeverity = cond->lastSeverity;
+            *outLastSeveritySourceTimeStamp = cond->lastSeveritySourceTimeStamp;
             return UA_STATUSCODE_GOOD;
         }
     }
@@ -385,8 +386,8 @@ getConditionLastSeverity(UA_Server *server, const UA_NodeId *conditionSource,
 
 static UA_StatusCode
 updateConditionLastSeverity(UA_Server *server, const UA_NodeId *conditionSource,
-                            const UA_NodeId *conditionId,
-                            const UA_LastSverity_Data *outLastSeverity) {
+                            const UA_NodeId *conditionId, UA_UInt16 lastSeverity,
+                            UA_DateTime lastSeveritySourceTimeStamp) {
     /* Get ConditionSource Entry */
     UA_ConditionSource *source;
     LIST_FOREACH(source, &server->headConditionSource, listEntry) {
@@ -397,8 +398,8 @@ updateConditionLastSeverity(UA_Server *server, const UA_NodeId *conditionSource,
         LIST_FOREACH(cond, &source->conditionHead, listEntry) {
             if(!UA_NodeId_equal(&cond->conditionId, conditionId))
                 continue;
-            cond->lastSevertyData.lastSeverity = outLastSeverity->lastSeverity;
-            cond->lastSevertyData.sourceTimeStamp =  outLastSeverity->sourceTimeStamp;
+            cond->lastSeverity = lastSeverity;
+            cond->lastSeveritySourceTimeStamp =  lastSeveritySourceTimeStamp;
             return UA_STATUSCODE_GOOD;
         }
     }
@@ -1172,27 +1173,29 @@ afterWriteCallbackSeverityChange(UA_Server *server,
     CONDITION_ASSERT_RETURN_VOID(retval, "ConditionSource not found",
                                  UA_NodeId_deleteMembers(&condition););
 
-    UA_LastSverity_Data outLastSeverity;
-    retval = getConditionLastSeverity(server, &conditionSource, &condition, &outLastSeverity);
+    UA_UInt16 lastSeverity;
+    UA_DateTime lastSeveritySourceTimeStamp;
+    retval = getConditionLastSeverity(server, &conditionSource, &condition,
+                                      &lastSeverity, &lastSeveritySourceTimeStamp);
     CONDITION_ASSERT_RETURN_VOID(retval, "Get Condition LastSeverity failed",
                                  UA_NodeId_deleteMembers(&condition);
                                  UA_NodeId_deleteMembers(&conditionSource););
 
     /* Set message dependent on compare result*/
-    if(outLastSeverity.lastSeverity < (*(UA_UInt16 *)data->value.data))
+    if(lastSeverity < (*(UA_UInt16 *)data->value.data))
         message = UA_LOCALIZEDTEXT(LOCALE, SEVERITY_INCREASED_MESSAGE);
     else
         message = UA_LOCALIZEDTEXT(LOCALE, SEVERITY_DECREASED_MESSAGE);
 
     /* Set LastSeverity */
-    UA_Variant_setScalar(&value, &outLastSeverity.lastSeverity, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_Variant_setScalar(&value, &lastSeverity, &UA_TYPES[UA_TYPES_UINT16]);
     retval = UA_Server_setConditionField(server, condition, &value, fieldLastSeverity);
     CONDITION_ASSERT_RETURN_VOID(retval, "Set Condition LAstSeverity failed",
                                  UA_NodeId_deleteMembers(&condition);
                                  UA_NodeId_deleteMembers(&conditionSource););
 
     /* Set SourceTimestamp */
-    UA_Variant_setScalar(&value, &outLastSeverity.sourceTimeStamp, &UA_TYPES[UA_TYPES_DATETIME]);
+    UA_Variant_setScalar(&value, &lastSeveritySourceTimeStamp, &UA_TYPES[UA_TYPES_DATETIME]);
     retval = UA_Server_setConditionVariableFieldProperty(server, condition, &value,
                                                          fieldLastSeverity, fieldSourceTimeStamp);
     CONDITION_ASSERT_RETURN_VOID(retval, "Set LastSeverity SourceTimestamp failed",
@@ -1200,9 +1203,10 @@ afterWriteCallbackSeverityChange(UA_Server *server,
                                  UA_NodeId_deleteMembers(&conditionSource););
 
     /* Update lastSeverity in list */
-    outLastSeverity.lastSeverity = *(UA_UInt16 *)data->value.data;
-    outLastSeverity.sourceTimeStamp = data->sourceTimestamp;
-    retval = updateConditionLastSeverity(server, &conditionSource, &condition, &outLastSeverity);
+    lastSeverity = *(UA_UInt16 *)data->value.data;
+    lastSeveritySourceTimeStamp = data->sourceTimestamp;
+    retval = updateConditionLastSeverity(server, &conditionSource, &condition,
+                                         lastSeverity, lastSeveritySourceTimeStamp);
     CONDITION_ASSERT_RETURN_VOID(retval, "Update Condition LastSeverity failed",
                                  UA_NodeId_deleteMembers(&condition);
     UA_NodeId_deleteMembers(&conditionSource););

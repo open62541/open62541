@@ -56,6 +56,7 @@ struct UA_MonitoredItem;
 typedef struct UA_MonitoredItem UA_MonitoredItem;
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+
 typedef struct UA_EventNotification {
     UA_EventFieldList fields;
     /* EventFilterResult currently isn't being used
@@ -63,6 +64,7 @@ typedef struct UA_EventNotification {
 } UA_EventNotification;
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+
 typedef enum {
   UA_INACTIVE,
   UA_ACTIVE,
@@ -72,14 +74,8 @@ typedef enum {
   UA_ACTIVE_LOWLOW
 } UA_ActiveState;
 
-typedef struct UA_LastSverity_Data {
-    UA_UInt16 lastSeverity;
-    UA_DateTime sourceTimeStamp;
-} UA_LastSverity_Data;
-
-/* in the first implementation there will be only one entry in this list
- * conditionBranchId is always NULL.
- */
+/* In the first implementation there will be only one entry in this list
+ * conditionBranchId is always NULL. */
 typedef struct UA_ConditionBranch {
     LIST_ENTRY(UA_ConditionBranch) listEntry;
     UA_NodeId* conditionBranchId;
@@ -100,7 +96,8 @@ typedef struct UA_Condition {
     LIST_ENTRY(UA_Condition) listEntry;
     LIST_HEAD(conditionbranchlisthead, UA_ConditionBranch) conditionBranchHead;
     UA_NodeId conditionId;
-    UA_LastSverity_Data lastSevertyData;
+    UA_UInt16 lastSeverity;
+    UA_DateTime lastSeveritySourceTimeStamp;
     UA_ConditionCallbacks callbacks;
     UA_ActiveState lastActiveState;
     UA_ActiveState currentActiveState;
@@ -112,9 +109,10 @@ typedef struct UA_ConditionSource {
     LIST_HEAD(conditionlisthead, UA_Condition) conditionHead;
     UA_NodeId conditionSourceId;
 } UA_ConditionSource;
-#endif
 
-#endif
+#endif /* UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */
+
+#endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
 typedef struct UA_Notification {
     TAILQ_ENTRY(UA_Notification) listEntry; /* Notification list for the MonitoredItem */
