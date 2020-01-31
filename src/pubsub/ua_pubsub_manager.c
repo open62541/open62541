@@ -304,6 +304,115 @@ UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
     }
 }
 
+/* Information model RT handling */
+/*
+* @param server The server executing the callback
+* @param sessionId The identifier of the session
+* @param sessionContext Additional data attached to the session in the
+*        access control layer
+* @param nodeId The identifier of the node being read from
+* @param nodeContext Additional data attached to the node by the user
+* @param includeSourceTimeStamp If true, then the datasource is expected to
+*        set the source timestamp in the returned value
+* @param range If not null, then the datasource shall return only a
+*        selection of the (nonscalar) data. Set
+*        UA_STATUSCODE_BADINDEXRANGEINVALID in the value if this does not
+        *        apply
+* @param value The (non-null) DataValue that is returned to the client. The
+        *        data source sets the read data, the result status and optionally a
+*        sourcetimestamp.
+* @return Returns a status code for logging. Error codes intended for the
+        *         original caller are set in the value. If an error is returned,
+*         then no releasing of the value is done
+*/
+static UA_StatusCode
+readInformationModelVariableMemory(UA_Server *server, const UA_NodeId *sessionId,
+                      void *sessionContext, const UA_NodeId *nodeId,
+                      void *nodeContext, UA_Boolean includeSourceTimeStamp,
+                      const UA_NumericRange *range, UA_DataValue *value){
+    UA_Variant *internalValue = (UA_Variant *) nodeContext;
+    UA_Variant_setScalarCopy(&value->value, internalValue->data, internalValue->type);
+    value->hasValue = true;
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Write into a data source. This method pointer can be NULL if the
+ * operation is unsupported.
+ *
+ * @param server The server executing the callback
+ * @param sessionId The identifier of the session
+ * @param sessionContext Additional data attached to the session in the
+ *        access control layer
+ * @param nodeId The identifier of the node being written to
+ * @param nodeContext Additional data attached to the node by the user
+ * @param range If not NULL, then the datasource shall return only a
+ *        selection of the (nonscalar) data. Set
+ *        UA_STATUSCODE_BADINDEXRANGEINVALID in the value if this does not
+ *        apply
+ * @param value The (non-NULL) DataValue that has been written by the client.
+ *        The data source contains the written data, the result status and
+ *        optionally a sourcetimestamp
+ * @return Returns a status code for logging. Error codes intended for the
+ *         original caller are set in the value. If an error is returned,
+ *         then no releasing of the value is done
+ */
+static UA_StatusCode
+writeInformationMdelVariableMemory(UA_Server *server, const UA_NodeId *sessionId,
+                       void *sessionContext, const UA_NodeId *nodeId,
+                       void *nodeContext, const UA_NumericRange *range,
+                       const UA_DataValue *value){
+    UA_Variant *internalValue = (UA_Variant *) nodeContext;
+    *(UA_Int32 *) internalValue->data = *(UA_Int32 *) value->value.data;
+    //UA_Variant_setScalarCopy(&dataValue.value, internalValue->data, internalValue->type);
+    //dataValue.hasValue = true;
+
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_addPubSubRTvariableNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
+                                       const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+                                       const UA_QualifiedName browseName, const UA_NodeId typeDefinition,
+                                       const UA_VariableAttributes attr, UA_Variant *staticValue,
+                                       void *nodeContext, UA_NodeId *outNewNodeId){
+    UA_StatusCode retVal;
+    if(!UA_DataType_isNumeric(UA_findDataType(&staticValue->type->typeId)))
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+    /* add var + data set and read callback */
+    UA_DataSource dataSourceField;
+    memset(&dataSourceField, 0, sizeof(UA_DataSource));
+    dataSourceField.read = readInformationModelVariableMemory;
+    dataSourceField.write = writeInformationMdelVariableMemory;
+    retVal = UA_Server_addDataSourceVariableNode(server, requestedNewNodeId, parentNodeId, referenceTypeId,
+                                        browseName, typeDefinition, attr, dataSourceField, staticValue, outNewNodeId);
+    /* ToDo add destructor to clean up structures */
+    return retVal;
+}
+
+UA_StatusCode
+UA_Server_swapExistingVariableNodeToRT(UA_Server *server, UA_NodeId targetNodeId, UA_Variant *staticValue){
+    UA_StatusCode retVal;
+    UA_NodeId nodeDataType;
+    UA_Server_readDataType(server, targetNodeId, &nodeDataType);
+    if(!UA_DataType_isNumeric(UA_findDataType(&nodeDataType)))
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+    UA_Variant lastValue;
+    UA_Server_readValue(server, targetNodeId, &lastValue);
+    //check if DataType of static value is equal with target Node in the information model
+    if(!UA_NodeId_equal(&nodeDataType, &staticValue->type->typeId))
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+    //set copy of the value
+    UA_copy(lastValue.data, staticValue->data, UA_findDataType(&nodeDataType));
+    //set dataSource methods to the specified field
+    UA_DataSource dataSourceField;
+    memset(&dataSourceField, 0, sizeof(UA_DataSource));
+    dataSourceField.read = readInformationModelVariableMemory;
+    dataSourceField.write = writeInformationMdelVariableMemory;
+    UA_Server_setNodeContext(server, targetNodeId, staticValue);
+    retVal = UA_Server_setVariableNode_dataSource(server, targetNodeId, dataSourceField);
+    return retVal;
+}
+
 /***********************************/
 /*      PubSub Jobs abstraction    */
 /***********************************/

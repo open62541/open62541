@@ -547,6 +547,17 @@ UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
 UA_StatusCode UA_EXPORT
 UA_Server_removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier);
 
+/* TODO add comment */
+UA_StatusCode
+UA_Server_addPubSubRTvariableNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
+                                       const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+                                       const UA_QualifiedName browseName, const UA_NodeId typeDefinition,
+                                       const UA_VariableAttributes attr, UA_Variant *staticValue,
+                                       void *nodeContext, UA_NodeId *outNewNodeId);
+
+UA_StatusCode
+UA_Server_swapExistingVariableNodeToRT(UA_Server *server, UA_NodeId targetNodeId, UA_Variant *staticValue);
+
 #endif /* UA_ENABLE_PUBSUB */
 
 _UA_END_DECLS
