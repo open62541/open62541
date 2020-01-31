@@ -801,12 +801,9 @@ afterWriteCallbackAckedStateChange(UA_Server *server,
     UA_QualifiedName fieldAckedState = UA_QUALIFIEDNAME(0, CONDITION_FIELD_ACKEDSTATE);
     UA_QualifiedName fieldAckedStateId = UA_QUALIFIEDNAME(0, CONDITION_FIELD_TWOSTATEVARIABLE_ID);
     UA_QualifiedName fieldMessage = UA_QUALIFIEDNAME(0, CONDITION_FIELD_MESSAGE);
-    UA_LocalizedText message;
-    UA_LocalizedText text;
-    UA_Variant value;
 
-    UA_NodeId twoStateVariableNode;
     /* Get the AckedState NodeId then The Condition NodeId */
+    UA_NodeId twoStateVariableNode;
     UA_StatusCode retval = getFieldParentNodeId(server, nodeId, &twoStateVariableNode);
     CONDITION_ASSERT_RETURN_VOID(retval, "No Parent TwoStateVariable found for given AckedState/Id",);
 
@@ -818,67 +815,7 @@ afterWriteCallbackAckedStateChange(UA_Server *server,
     /* Callback for change to true in AckedState/Id property.
      * First check whether the value is true (ackedState/Id == true).
      * That check makes it possible to set ackedState/Id to false, without triggering an event */
-    if(*((UA_Boolean *)data->value.data) == true) {
-
-        /* Check if enabled and retained */
-        if(isTwoStateVariableInTrueState(server, &conditionNode, &fieldEnabledState) &&
-           isRetained(server, &conditionNode)) {
-            /* Set acknowledging time */
-            retval = UA_Server_writeObjectProperty_scalar(server, conditionNode,
-                                                          UA_QUALIFIEDNAME(0, CONDITION_FIELD_TIME),
-                                                          &data->sourceTimestamp,
-                                                          &UA_TYPES[UA_TYPES_DATETIME]);
-            CONDITION_ASSERT_RETURN_VOID(retval, "Set Acknowledging Time failed",
-                                         UA_NodeId_deleteMembers(&conditionNode););
-
-            /* Set Message */
-            message = UA_LOCALIZEDTEXT(LOCALE, ACKED_MESSAGE);
-            UA_Variant_setScalar(&value, &message, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
-            retval = UA_Server_setConditionField(server, conditionNode, &value, fieldMessage);
-            CONDITION_ASSERT_RETURN_VOID(retval, "Set Condition Message failed",
-                                         UA_NodeId_deleteMembers(&conditionNode););
-
-            /* Set AckedState text */
-            text = UA_LOCALIZEDTEXT(LOCALE, ACKED_TEXT);
-            UA_Variant_setScalar(&value, &text, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
-            retval = UA_Server_setConditionField(server, conditionNode, &value, fieldAckedState);
-            CONDITION_ASSERT_RETURN_VOID(retval, "Set Condition AckedState failed",
-                                         UA_NodeId_deleteMembers(&conditionNode););
-
-            /* Get conditionSource */
-            UA_NodeId conditionSource;
-            retval = getNodeIdValueOfConditionField(server, &conditionNode,
-                                                    UA_QUALIFIEDNAME(0, CONDITION_FIELD_SOURCENODE),
-                                                    &conditionSource);
-            CONDITION_ASSERT_RETURN_VOID(retval, "ConditionSource not found",
-                                         UA_NodeId_deleteMembers(&conditionNode););
-
-            /* User callback*/
-            UA_Boolean removeBranch = false;
-            retval = callConditionTwoStateVariableCallback(server, &conditionNode,
-                                                           &conditionSource, &removeBranch,
-                                                           UA_ENTERING_ACKEDSTATE);
-            CONDITION_ASSERT_RETURN_VOID(retval, "Calling condition callback failed",
-                                         UA_NodeId_deleteMembers(&conditionNode);
-                                         UA_NodeId_deleteMembers(&conditionSource););
-
-            /* Trigger event */
-            retval = UA_Server_triggerConditionEvent(server, conditionNode, conditionSource,
-                                                     NULL); //Condition Nodes should not be deleted after triggering the event
-            CONDITION_ASSERT_RETURN_VOID(retval, "Triggering condition event failed",
-                                         UA_NodeId_deleteMembers(&conditionNode);
-                                         UA_NodeId_deleteMembers(&conditionSource););
-        } else {
-            /* Set AckedState/Id to false*/
-            UA_Boolean idValue = false;
-            UA_Variant_setScalar(&value, &idValue, &UA_TYPES[UA_TYPES_BOOLEAN]);
-            retval = UA_Server_setConditionVariableFieldProperty(server, conditionNode,
-                                                                 &value, fieldAckedState,
-                                                                 fieldAckedStateId);
-            UA_NodeId_deleteMembers(&conditionNode);
-            CONDITION_ASSERT_RETURN_VOID(retval, "Set AckedState/Id failed",);
-        }
-    } else {
+    if(*((UA_Boolean *)data->value.data) == false) {
         /* Set unacknowledging time */
         retval = UA_Server_writeObjectProperty_scalar(server, conditionNode,
                                                       UA_QUALIFIEDNAME(0, CONDITION_FIELD_TIME),
@@ -888,12 +825,67 @@ afterWriteCallbackAckedStateChange(UA_Server *server,
                                      UA_NodeId_deleteMembers(&conditionNode););
 
         /* Set AckedState text to Unacknowledged*/
-        text = UA_LOCALIZEDTEXT(LOCALE, UNACKED_TEXT);
+        UA_LocalizedText text = UA_LOCALIZEDTEXT(LOCALE, UNACKED_TEXT);
+        UA_Variant value;
         UA_Variant_setScalar(&value, &text, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
         retval = UA_Server_setConditionField(server, conditionNode, &value, fieldAckedState);
         UA_NodeId_deleteMembers(&conditionNode);
         CONDITION_ASSERT_RETURN_VOID(retval, "Set Condition AckedState failed",);
+        return;
     }
+
+    /* Check if enabled and retained */
+    if(!isTwoStateVariableInTrueState(server, &conditionNode, &fieldEnabledState) ||
+       !isRetained(server, &conditionNode)) {
+        /* Set AckedState/Id to false*/
+        UA_Boolean idValue = false;
+        UA_Variant value;
+        UA_Variant_setScalar(&value, &idValue, &UA_TYPES[UA_TYPES_BOOLEAN]);
+        retval = UA_Server_setConditionVariableFieldProperty(server, conditionNode,
+                                                             &value, fieldAckedState,
+                                                             fieldAckedStateId);
+        UA_NodeId_deleteMembers(&conditionNode);
+        CONDITION_ASSERT_RETURN_VOID(retval, "Set AckedState/Id failed",);
+        return;
+    }
+
+    /* Set Message */
+    UA_LocalizedText message = UA_LOCALIZEDTEXT(LOCALE, ACKED_MESSAGE);
+    UA_Variant value;
+    UA_Variant_setScalar(&value, &message, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    retval = UA_Server_setConditionField(server, conditionNode, &value, fieldMessage);
+    CONDITION_ASSERT_RETURN_VOID(retval, "Set Condition Message failed",
+                                 UA_NodeId_deleteMembers(&conditionNode););
+    
+    /* Set AckedState text */
+    UA_LocalizedText text = UA_LOCALIZEDTEXT(LOCALE, ACKED_TEXT);
+    UA_Variant_setScalar(&value, &text, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    retval = UA_Server_setConditionField(server, conditionNode, &value, fieldAckedState);
+    CONDITION_ASSERT_RETURN_VOID(retval, "Set Condition AckedState failed",
+                                 UA_NodeId_deleteMembers(&conditionNode););
+    
+    /* Get conditionSource */
+    UA_NodeId conditionSource;
+    retval = getNodeIdValueOfConditionField(server, &conditionNode,
+                                            UA_QUALIFIEDNAME(0, CONDITION_FIELD_SOURCENODE),
+                                            &conditionSource);
+    CONDITION_ASSERT_RETURN_VOID(retval, "ConditionSource not found",
+                                 UA_NodeId_deleteMembers(&conditionNode););
+    
+    /* User callback*/
+    UA_Boolean removeBranch = false;
+    retval = callConditionTwoStateVariableCallback(server, &conditionNode, &conditionSource,
+                                                   &removeBranch, UA_ENTERING_ACKEDSTATE);
+    CONDITION_ASSERT_RETURN_VOID(retval, "Calling condition callback failed",
+                                 UA_NodeId_deleteMembers(&conditionNode);
+                                 UA_NodeId_deleteMembers(&conditionSource););
+    
+    /* Trigger event */
+    //Condition Nodes should not be deleted after triggering the event
+    retval = UA_Server_triggerConditionEvent(server, conditionNode, conditionSource, NULL);
+    CONDITION_ASSERT_RETURN_VOID(retval, "Triggering condition event failed",
+                                 UA_NodeId_deleteMembers(&conditionNode);
+                                 UA_NodeId_deleteMembers(&conditionSource););
 }
 
 #ifdef CONDITIONOPTIONALFIELDS_SUPPORT
