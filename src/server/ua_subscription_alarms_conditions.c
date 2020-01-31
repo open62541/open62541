@@ -2573,35 +2573,32 @@ UA_Server_setConditionVariableFieldProperty(UA_Server *server, const UA_NodeId c
 UA_StatusCode
 UA_Server_triggerConditionEvent(UA_Server *server, const UA_NodeId condition,
                                 const UA_NodeId conditionSource, UA_ByteString *outEventId){
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    /* Check if enabled */
     UA_ByteString eventId = UA_BYTESTRING_NULL;
     UA_QualifiedName enabledStateField = UA_QUALIFIEDNAME(0, CONDITION_FIELD_ENABLEDSTATE);
-
-    /* Check if enabled */
-    if(isTwoStateVariableInTrueState(server, &condition, &enabledStateField)) {
-        setIsCallerAC(server, &condition, &conditionSource, true);
-        /* Trigger the event for Condition*/
-        retval = UA_Server_triggerEvent(server, condition, conditionSource,
-                                        &eventId, false); //Condition Nodes should not be deleted after triggering the event
-        CONDITION_ASSERT_RETURN_RETVAL(retval, "Triggering condition event failed",);
-
-        setIsCallerAC(server, &condition, &conditionSource, false);
-
-        /* Update list */
-        retval = updateConditionLastEventId(server, &condition, &conditionSource, &eventId);
-
-        if(outEventId)
-            *outEventId = eventId;
-        else
-            UA_ByteString_deleteMembers(&eventId);
-    } else {
+    if(!isTwoStateVariableInTrueState(server, &condition, &enabledStateField)) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                        "Cannot trigger condition event when "
                        CONDITION_FIELD_ENABLEDSTATE"."
-                       CONDITION_FIELD_TWOSTATEVARIABLE_ID" is false. StatusCode %s",
-                       UA_StatusCode_name(retval));
+                       CONDITION_FIELD_TWOSTATEVARIABLE_ID" is false.");
+        return UA_STATUSCODE_BADCONDITIONALREADYDISABLED;
     }
 
+    setIsCallerAC(server, &condition, &conditionSource, true);
+
+    /* Trigger the event for Condition*/
+    //Condition Nodes should not be deleted after triggering the event
+    UA_StatusCode retval = UA_Server_triggerEvent(server, condition, conditionSource, &eventId, false);
+    CONDITION_ASSERT_RETURN_RETVAL(retval, "Triggering condition event failed",);
+    
+    setIsCallerAC(server, &condition, &conditionSource, false);
+    
+    /* Update list */
+    retval = updateConditionLastEventId(server, &condition, &conditionSource, &eventId);
+    if(outEventId)
+        *outEventId = eventId;
+    else
+        UA_ByteString_deleteMembers(&eventId);
     return retval;
 }
 #endif//UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
