@@ -72,15 +72,6 @@ typedef enum {
   UA_ACTIVE_LOWLOW
 } UA_ActiveState;
 
-typedef struct UA_SpecificCallbacks_Data {
-    UA_TwoStateVariableChangeCallback enableStateCallback;
-    UA_TwoStateVariableChangeCallback ackStateCallback;
-    UA_Boolean ackedRemoveBranch;
-    UA_TwoStateVariableChangeCallback confirmStateCallback;
-    UA_Boolean confirmedRemoveBranch;
-    UA_TwoStateVariableChangeCallback activeStateCallback;
-} UA_SpecificCallbacks_Data;
-
 typedef struct UA_LastSverity_Data {
     UA_UInt16 lastSeverity;
     UA_DateTime sourceTimeStamp;
@@ -96,12 +87,21 @@ typedef struct UA_ConditionBranch {
     UA_Boolean isCallerAC;
 } UA_ConditionBranch;
 
+typedef struct {
+    UA_TwoStateVariableChangeCallback enableStateCallback;
+    UA_TwoStateVariableChangeCallback ackStateCallback;
+    UA_Boolean ackedRemoveBranch;
+    UA_TwoStateVariableChangeCallback confirmStateCallback;
+    UA_Boolean confirmedRemoveBranch;
+    UA_TwoStateVariableChangeCallback activeStateCallback;
+} UA_ConditionCallbacks;
+
 typedef struct UA_Condition {
     LIST_ENTRY(UA_Condition) listEntry;
     LIST_HEAD(conditionbranchlisthead, UA_ConditionBranch) conditionBranchHead;
     UA_NodeId conditionId;
     UA_LastSverity_Data lastSevertyData;
-    UA_SpecificCallbacks_Data specificCallbacksData;
+    UA_ConditionCallbacks callbacks;
     UA_ActiveState lastActiveState;
     UA_ActiveState currentActiveState;
     UA_Boolean isLimitAlarm;
