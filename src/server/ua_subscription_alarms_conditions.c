@@ -1913,27 +1913,24 @@ UA_getConditionId(UA_Server *server, const UA_NodeId *conditionNodeId,
     return UA_STATUSCODE_BADNOTFOUND;
 }
 
-/**
- * function to check whether the Condition Source Node has "EventSource" or
- * one of its subtypes inverse reference.
- */
+/* Check whether the Condition Source Node has "EventSource" or one of its
+ * subtypes inverse reference. */
 static UA_Boolean
 doesHasEventSourceReferenceExist(UA_Server *server, const UA_NodeId nodeToCheck) {
-    const UA_Node* node = UA_NODESTORE_GET(server, &nodeToCheck);
     UA_NodeId hasSubtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
     UA_NodeId hasEventSourceId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASEVENTSOURCE);
-    if(node != NULL) {
-        for(size_t i = 0; i < node->referencesSize; i++) {
-            if((UA_NodeId_equal(&node->references[i].referenceTypeId, &hasEventSourceId) ||
-               isNodeInTree(server, &node->references[i].referenceTypeId,
-                            &hasEventSourceId, &hasSubtypeId, 1)) &&
-               (node->references[i].isInverse == true)) {
-                UA_NODESTORE_RELEASE(server, node);
-                return true;
-            }
+    const UA_Node* node = UA_NODESTORE_GET(server, &nodeToCheck);
+    if(!node)
+        return false;
+    for(size_t i = 0; i < node->referencesSize; i++) {
+        if((UA_NodeId_equal(&node->references[i].referenceTypeId, &hasEventSourceId) ||
+            isNodeInTree(server, &node->references[i].referenceTypeId,
+                         &hasEventSourceId, &hasSubtypeId, 1)) &&
+           (node->references[i].isInverse == true)) {
+            UA_NODESTORE_RELEASE(server, node);
+            return true;
         }
     }
-
     UA_NODESTORE_RELEASE(server, node);
     return false;
 }
