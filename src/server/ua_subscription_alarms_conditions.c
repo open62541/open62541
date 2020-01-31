@@ -148,21 +148,21 @@ UA_Server_setConditionTwoStateVariableCallback(UA_Server *server, const UA_NodeI
 
             switch(callbackType) {
                 case UA_ENTERING_ENABLEDSTATE:
-                    c->specificCallbacksData.enteringEnabledStateCallback = callback;
+                    c->specificCallbacksData.enableStateCallback = callback;
                     return UA_STATUSCODE_GOOD;
 
                 case UA_ENTERING_ACKEDSTATE:
-                    c->specificCallbacksData.enteringAckedStateCallback = callback;
+                    c->specificCallbacksData.ackStateCallback = callback;
                     c->specificCallbacksData.ackedRemoveBranch = removeBranch;
                     return UA_STATUSCODE_GOOD;
 
                 case UA_ENTERING_CONFIRMEDSTATE:
-                    c->specificCallbacksData.enteringConfirmedStateCallback = callback;
+                    c->specificCallbacksData.confirmStateCallback = callback;
                     c->specificCallbacksData.confirmedRemoveBranch = removeBranch;
                     return UA_STATUSCODE_GOOD;
 
                 case UA_ENTERING_ACTIVESTATE:
-                    c->specificCallbacksData.enteringActiveStateCallback = callback;
+                    c->specificCallbacksData.activeStateCallback = callback;
                     return UA_STATUSCODE_GOOD;
 
                 default:
@@ -180,27 +180,27 @@ getConditionTwoStateVariableCallback(UA_Server *server, const UA_NodeId *branch,
                                     UA_TwoStateVariableCallbackType callbackType) {
     switch(callbackType) {
     case UA_ENTERING_ENABLEDSTATE:
-        if(condition->specificCallbacksData.enteringEnabledStateCallback != NULL)
-            return condition->specificCallbacksData.enteringEnabledStateCallback(server, branch);
+        if(condition->specificCallbacksData.enableStateCallback != NULL)
+            return condition->specificCallbacksData.enableStateCallback(server, branch);
         return UA_STATUSCODE_GOOD;//TODO log warning when the callback wasn't set
 
     case UA_ENTERING_ACKEDSTATE:
-        if(condition->specificCallbacksData.enteringAckedStateCallback != NULL) {
+        if(condition->specificCallbacksData.ackStateCallback != NULL) {
             *removeBranch = condition->specificCallbacksData.ackedRemoveBranch;
-            return condition->specificCallbacksData.enteringAckedStateCallback(server, branch);
+            return condition->specificCallbacksData.ackStateCallback(server, branch);
         }
         return UA_STATUSCODE_GOOD;
 
     case UA_ENTERING_CONFIRMEDSTATE:
-        if(condition->specificCallbacksData.enteringConfirmedStateCallback != NULL) {
+        if(condition->specificCallbacksData.confirmStateCallback != NULL) {
             *removeBranch = condition->specificCallbacksData.confirmedRemoveBranch;
-            return condition->specificCallbacksData.enteringConfirmedStateCallback(server, branch);
+            return condition->specificCallbacksData.confirmStateCallback(server, branch);
         }
         return UA_STATUSCODE_GOOD;
 
     case UA_ENTERING_ACTIVESTATE:
-        if(condition->specificCallbacksData.enteringActiveStateCallback != NULL)
-            return condition->specificCallbacksData.enteringActiveStateCallback(server, branch);
+        if(condition->specificCallbacksData.activeStateCallback != NULL)
+            return condition->specificCallbacksData.activeStateCallback(server, branch);
         return UA_STATUSCODE_GOOD;
 
     default:

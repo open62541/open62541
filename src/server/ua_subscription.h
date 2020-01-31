@@ -73,12 +73,12 @@ typedef enum {
 } UA_ActiveState;
 
 typedef struct UA_SpecificCallbacks_Data {
-    UA_TwoStateVariableChangeCallback enteringEnabledStateCallback;
-    UA_TwoStateVariableChangeCallback enteringAckedStateCallback;
+    UA_TwoStateVariableChangeCallback enableStateCallback;
+    UA_TwoStateVariableChangeCallback ackStateCallback;
     UA_Boolean ackedRemoveBranch;
-    UA_TwoStateVariableChangeCallback enteringConfirmedStateCallback;
+    UA_TwoStateVariableChangeCallback confirmStateCallback;
     UA_Boolean confirmedRemoveBranch;
-    UA_TwoStateVariableChangeCallback enteringActiveStateCallback;
+    UA_TwoStateVariableChangeCallback activeStateCallback;
 } UA_SpecificCallbacks_Data;
 
 typedef struct UA_LastSverity_Data {
