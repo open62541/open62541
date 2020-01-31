@@ -998,7 +998,7 @@ processDataChangeNotification(UA_Client *client, UA_Client_Subscription *sub,
 
         if(!mon) {
             UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                         "Could not process a notification with clienthandle %" PRIu32" on subscription %" PRIu32,
+                         "Could not process a notification with clienthandle %" PRIu32 " on subscription %" PRIu32,
                          min->clientHandle, sub->subscriptionId);
             continue;
         }
