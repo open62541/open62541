@@ -224,10 +224,9 @@ callConditionTwoStateVariableCallback(UA_Server *server, const UA_NodeId *condit
             }
             UA_ConditionBranch *branch;
             LIST_FOREACH(branch, &cond->conditionBranchHead, listEntry) {
-                if(branch->conditionBranchId == NULL ||
-                   !UA_NodeId_equal(branch->conditionBranchId, condition))
+                if(!UA_NodeId_equal(&branch->conditionBranchId, condition))
                     continue;
-                return getConditionTwoStateVariableCallback(server, branch->conditionBranchId,
+                return getConditionTwoStateVariableCallback(server, &branch->conditionBranchId,
                                                             cond, removeBranch, callbackType);
             }
         }
@@ -331,7 +330,7 @@ getNodeIdValueOfConditionField(UA_Server *server, const UA_NodeId *condition,
 }
 
 /* Gets the NodeId of a condition branch. In case of main branch (BranchId ==
- * NULL), ConditionId will be returned. */
+ * UA_NODEID_NULL), ConditionId will be returned. */
 static UA_StatusCode
 getConditionBranchNodeId(UA_Server *server, const UA_ByteString *eventId,
                          UA_NodeId *outConditionBranchNodeId) {
@@ -349,10 +348,10 @@ getConditionBranchNodeId(UA_Server *server, const UA_ByteString *eventId,
             LIST_FOREACH(branch, &cond->conditionBranchHead, listEntry) {
                 if(!UA_ByteString_equal(&branch->lastEventId, eventId))
                     continue;
-                if(branch->conditionBranchId == NULL)
+                if(UA_NodeId_isNull(&branch->conditionBranchId))
                     return UA_NodeId_copy(&cond->conditionId, outConditionBranchNodeId);
                 else
-                    return UA_NodeId_copy(branch->conditionBranchId, outConditionBranchNodeId);
+                    return UA_NodeId_copy(&branch->conditionBranchId, outConditionBranchNodeId);
             }
         }
     }
@@ -474,7 +473,8 @@ updateConditionLastEventId(UA_Server *server, const UA_NodeId *triggeredEvent,
                 continue;
             UA_ConditionBranch *branch;
             LIST_FOREACH(branch, &cond->conditionBranchHead, listEntry) {
-                if(branch->conditionBranchId == NULL) { // update main condition branch
+                if(UA_NodeId_isNull(&branch->conditionBranchId)) {
+                    /* update main condition branch */
                     UA_ByteString_deleteMembers(&branch->lastEventId);
                     return UA_ByteString_copy(lastEventId, &branch->lastEventId);
                 }
@@ -504,7 +504,7 @@ setIsCallerAC(UA_Server *server, const UA_NodeId *condition,
                 continue;
             UA_ConditionBranch *branch;
             LIST_FOREACH(branch, &cond->conditionBranchHead, listEntry) {
-                if(branch->conditionBranchId == NULL) {
+                if(UA_NodeId_isNull(&branch->conditionBranchId)) {
                     branch->isCallerAC = isCallerAC;
                     return;
                 }
@@ -533,7 +533,7 @@ isConditionOrBranch(UA_Server *server, const UA_NodeId *condition,
                 continue;
             UA_ConditionBranch *branch;
             LIST_FOREACH(branch, &cond->conditionBranchHead, listEntry) {
-                if(branch->conditionBranchId == NULL) {
+                if(UA_NodeId_isNull(&branch->conditionBranchId)) {
                     *isCallerAC = branch->isCallerAC;
                     return true;
                 }
@@ -645,10 +645,11 @@ enteringDisabledState(UA_Server *server,
             UA_ConditionBranch *branch;
             LIST_FOREACH(branch, &cond->conditionBranchHead, listEntry) {
                 UA_NodeId_init(&triggeredNode);
-                if(branch->conditionBranchId == NULL) //disable main Condition Branch (BranchId == NULL)
+                if(UA_NodeId_isNull(&branch->conditionBranchId))
+                    //disable main Condition Branch (BranchId == NULL)
                     triggeredNode = cond->conditionId;
                 else //disable all branches
-                    triggeredNode = *(branch->conditionBranchId);
+                    triggeredNode = branch->conditionBranchId;
 
                 message = UA_LOCALIZEDTEXT(LOCALE, DISABLED_MESSAGE);
                 enableText = UA_LOCALIZEDTEXT(LOCALE, DISABLED_TEXT);
@@ -711,10 +712,10 @@ enteringEnabledState(UA_Server *server,
             UA_ConditionBranch *branch;
             LIST_FOREACH(branch, &cond->conditionBranchHead, listEntry) {
                 UA_NodeId_init(&triggeredNode);
-                if(branch->conditionBranchId == NULL) //enable main Condition
+                if(UA_NodeId_isNull(&branch->conditionBranchId)) //enable main Condition
                     triggeredNode = cond->conditionId;
                 else //enable branches
-                    triggeredNode = *(branch->conditionBranchId);
+                    triggeredNode = branch->conditionBranchId;
 
                 message = UA_LOCALIZEDTEXT(LOCALE, ENABLED_MESSAGE);
                 enableText = UA_LOCALIZEDTEXT(LOCALE, ENABLED_TEXT);
@@ -1692,10 +1693,10 @@ refreshLogic(UA_Server *server, const UA_NodeId *refreshStartNodId,
                         continue;
 
                     UA_NodeId triggeredNode;
-                    if(branch->conditionBranchId == NULL)
+                    if(UA_NodeId_isNull(&branch->conditionBranchId))
                         triggeredNode = cond->conditionId;
                     else
-                        triggeredNode = *branch->conditionBranchId;
+                        triggeredNode = branch->conditionBranchId;
 
                     /* Check if Retain is set to true*/
                     if(isRetained(server, &triggeredNode)) {
@@ -1866,8 +1867,7 @@ UA_ConditionList_delete(UA_Server *server) {
         LIST_FOREACH_SAFE(conditionEntry, &conditionSourceEntry->conditionHead, listEntry, cond) {
             UA_ConditionBranch *conditionBranchEntry, *branch;
             LIST_FOREACH_SAFE(conditionBranchEntry, &conditionEntry->conditionBranchHead, listEntry, branch) {
-                if(conditionBranchEntry->conditionBranchId != NULL)
-                    UA_NodeId_delete(conditionBranchEntry->conditionBranchId);
+                UA_NodeId_clear(&conditionBranchEntry->conditionBranchId);
 
                 UA_ByteString_deleteMembers(&conditionBranchEntry->lastEventId);
                 LIST_REMOVE(conditionBranchEntry, listEntry);
@@ -1909,9 +1909,7 @@ UA_getConditionId(UA_Server *server, const UA_NodeId *conditionNodeId,
                 /* Get Branch Entry*/
                 UA_ConditionBranch *branch;
                 LIST_FOREACH(branch, &cond->conditionBranchHead, listEntry) {
-                    if(((NULL == branch->conditionBranchId) && (NULL == conditionNodeId)) ||
-                       (NULL != branch->conditionBranchId &&
-                        UA_NodeId_equal(branch->conditionBranchId, conditionNodeId))) {
+                    if(UA_NodeId_equal(&branch->conditionBranchId, conditionNodeId)) {
                         *outConditionId = cond->conditionId;
                         return UA_STATUSCODE_GOOD;
                     }
