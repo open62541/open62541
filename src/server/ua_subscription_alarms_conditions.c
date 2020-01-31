@@ -617,48 +617,47 @@ isTwoStateVariableInTrueState(UA_Server *server, const UA_NodeId *condition,
 }
 
 static UA_StatusCode
-enteringDisabledState(UA_Server *server,
-                      const UA_NodeId *conditionId,
+enteringDisabledState(UA_Server *server, const UA_NodeId *conditionId,
                       const UA_NodeId *conditionSource) {
     UA_QualifiedName fieldEnabledState = UA_QUALIFIEDNAME(0, CONDITION_FIELD_ENABLEDSTATE);
     UA_QualifiedName fieldMessage = UA_QUALIFIEDNAME(0, CONDITION_FIELD_MESSAGE);
     UA_QualifiedName fieldRetain = UA_QUALIFIEDNAME(0, CONDITION_FIELD_RETAIN);
-    UA_Boolean retain = false;
-    UA_LocalizedText message;
-    UA_LocalizedText enableText;
-    UA_NodeId triggeredNode;
-    UA_Variant value;
 
     /* Get ConditionSource Entry */
     UA_ConditionSource *source;
     LIST_FOREACH(source, &server->headConditionSource, listEntry) {
         if(!UA_NodeId_equal(&source->conditionSourceId, conditionSource))
             continue;
+
         /* Get Condition Entry */
         UA_Condition *cond;
         LIST_FOREACH(cond, &source->conditionHead, listEntry) {
             if(!UA_NodeId_equal(&cond->conditionId, conditionId))
                 continue;
+
             /* Get Branch Entry*/
             UA_ConditionBranch *branch;
             LIST_FOREACH(branch, &cond->conditionBranchHead, listEntry) {
-                UA_NodeId_init(&triggeredNode);
+                UA_NodeId triggeredNode;
                 if(UA_NodeId_isNull(&branch->conditionBranchId))
                     //disable main Condition Branch (BranchId == NULL)
                     triggeredNode = cond->conditionId;
                 else //disable all branches
                     triggeredNode = branch->conditionBranchId;
 
-                message = UA_LOCALIZEDTEXT(LOCALE, DISABLED_MESSAGE);
-                enableText = UA_LOCALIZEDTEXT(LOCALE, DISABLED_TEXT);
+                UA_LocalizedText message = UA_LOCALIZEDTEXT(LOCALE, DISABLED_MESSAGE);
+                UA_LocalizedText enableText = UA_LOCALIZEDTEXT(LOCALE, DISABLED_TEXT);
+                UA_Variant value;
                 UA_Variant_setScalar(&value, &message, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
-                UA_StatusCode retval = UA_Server_setConditionField(server, triggeredNode, &value, fieldMessage);
+                UA_StatusCode retval = UA_Server_setConditionField(server, triggeredNode,
+                                                                   &value, fieldMessage);
                 CONDITION_ASSERT_RETURN_RETVAL(retval, "Set Condition Message failed",);
 
                 UA_Variant_setScalar(&value, &enableText, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
                 retval = UA_Server_setConditionField(server, triggeredNode, &value, fieldEnabledState);
                 CONDITION_ASSERT_RETURN_RETVAL(retval, "Set Condition EnabledState text failed",);
 
+                UA_Boolean retain = false;
                 UA_Variant_setScalar(&value, &retain, &UA_TYPES[UA_TYPES_BOOLEAN]);
                 retval = UA_Server_setConditionField(server, triggeredNode, &value, fieldRetain);
                 CONDITION_ASSERT_RETURN_RETVAL(retval, "Set Condition Retain failed",);
@@ -667,13 +666,15 @@ enteringDisabledState(UA_Server *server,
                 UA_ByteString lastEventId = UA_BYTESTRING_NULL;
                 /* Trigger the event for Condition or its Branch */
                 setIsCallerAC(server, &triggeredNode, conditionSource, true);
+                //Condition Nodes should not be deleted after triggering the event
                 retval = UA_Server_triggerEvent(server, triggeredNode, source->conditionSourceId,
-                                                &lastEventId, false); //Condition Nodes should not be deleted after triggering the event
+                                                &lastEventId, false);
                 CONDITION_ASSERT_RETURN_RETVAL(retval, "Triggering condition event failed",);
                 setIsCallerAC(server, &triggeredNode, conditionSource, false);
 
                 /* Update list */
-                retval = updateConditionLastEventId(server, &triggeredNode, &source->conditionSourceId, &lastEventId);
+                retval = updateConditionLastEventId(server, &triggeredNode,
+                                                    &source->conditionSourceId, &lastEventId);
                 UA_ByteString_deleteMembers(&lastEventId);
                 CONDITION_ASSERT_RETURN_RETVAL(retval, "updating condition event failed",);
             }
