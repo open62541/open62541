@@ -899,8 +899,6 @@ afterWriteCallbackConfirmedStateChange(UA_Server *server,
     UA_QualifiedName fieldConfirmedState = UA_QUALIFIEDNAME(0, CONDITION_FIELD_CONFIRMEDSTATE);
     UA_QualifiedName fieldConfirmedStateId = UA_QUALIFIEDNAME(0, CONDITION_FIELD_TWOSTATEVARIABLE_ID);
     UA_QualifiedName fieldMessage = UA_QUALIFIEDNAME(0, CONDITION_FIELD_MESSAGE);
-    UA_LocalizedText message;
-    UA_LocalizedText text;
     UA_Variant value;
 
     UA_NodeId twoStateVariableNode;
@@ -915,67 +913,7 @@ afterWriteCallbackConfirmedStateChange(UA_Server *server,
     /* Callback to change to true in ConfirmedState/Id property.
      * First check whether the value is true (ConfirmedState/Id == true).
      * That check makes it possible to set ConfirmedState/Id to false, without triggering an event */
-    if(*((UA_Boolean *)data->value.data) == true) {
-
-        /* Check if enabled and retained */
-        if(isTwoStateVariableInTrueState(server, &conditionNode, &fieldEnabledState) &&
-            isRetained(server, &conditionNode)) {
-            /* Set confirming time */
-            retval = UA_Server_writeObjectProperty_scalar(server, conditionNode,
-                                                          UA_QUALIFIEDNAME(0, CONDITION_FIELD_TIME),
-                                                          &data->sourceTimestamp,
-                                                          &UA_TYPES[UA_TYPES_DATETIME]);
-            CONDITION_ASSERT_RETURN_VOID(retval, "Set Confirming Time failed",
-                                         UA_NodeId_deleteMembers(&conditionNode););
-
-            /* Set Message */
-            message = UA_LOCALIZEDTEXT(LOCALE, CONFIRMED_MESSAGE);
-            UA_Variant_setScalar(&value, &message, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
-            retval = UA_Server_setConditionField(server, conditionNode, &value, fieldMessage);
-            CONDITION_ASSERT_RETURN_VOID(retval, "Set Condition Message failed",
-                                         UA_NodeId_deleteMembers(&conditionNode););
-
-            /* Set ConfirmedState text */
-            text = UA_LOCALIZEDTEXT(LOCALE, CONFIRMED_TEXT);
-            UA_Variant_setScalar(&value, &text, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
-            retval = UA_Server_setConditionField(server, conditionNode, &value, fieldConfirmedState);
-            CONDITION_ASSERT_RETURN_VOID(retval, "Set Condition ConfirmedState failed",
-                                         UA_NodeId_deleteMembers(&conditionNode););
-
-            /* Get conditionSource */
-            UA_NodeId conditionSource;
-            retval = getNodeIdValueOfConditionField(server, &conditionNode,
-                                                    UA_QUALIFIEDNAME(0, CONDITION_FIELD_SOURCENODE),
-                                                    &conditionSource);
-            CONDITION_ASSERT_RETURN_VOID(retval, "ConditionSource not found",
-                                         UA_NodeId_deleteMembers(&conditionNode););
-
-            /* User callback*/
-            UA_Boolean removeBranch = false;
-            retval = callConditionTwoStateVariableCallback(server, &conditionNode,
-                                                           &conditionSource, &removeBranch,
-                                                           UA_ENTERING_CONFIRMEDSTATE);
-            CONDITION_ASSERT_RETURN_VOID(retval, "Calling condition callback failed",
-                                         UA_NodeId_deleteMembers(&conditionNode);
-                                         UA_NodeId_deleteMembers(&conditionSource););
-
-            /* Trigger event */
-            retval = UA_Server_triggerConditionEvent(server, conditionNode, conditionSource,
-                                                     NULL); //Condition Nodes should not be deleted after triggering the event
-            CONDITION_ASSERT_RETURN_VOID(retval, "Triggering condition event failed",
-                                         UA_NodeId_deleteMembers(&conditionNode);
-                                         UA_NodeId_deleteMembers(&conditionSource););
-        } else {
-            /* Set confirmedState/Id to false*/
-            UA_Boolean idValue = false;
-            UA_Variant_setScalar(&value, &idValue, &UA_TYPES[UA_TYPES_BOOLEAN]);
-            retval = UA_Server_setConditionVariableFieldProperty(server, conditionNode,
-                                                                 &value, fieldConfirmedState,
-                                                                 fieldConfirmedStateId);
-            UA_NodeId_deleteMembers(&conditionNode);
-            CONDITION_ASSERT_RETURN_VOID(retval, "Set ConfirmedState/Id failed",);
-        }
-    } else {
+    if(*((UA_Boolean *)data->value.data) == false) {
         /* Set unconfirming time */
         retval = UA_Server_writeObjectProperty_scalar(server, conditionNode,
                                                       UA_QUALIFIEDNAME(0, CONDITION_FIELD_TIME),
@@ -983,14 +921,75 @@ afterWriteCallbackConfirmedStateChange(UA_Server *server,
                                                       &UA_TYPES[UA_TYPES_DATETIME]);
         CONDITION_ASSERT_RETURN_VOID(retval, "Set deactivating Time failed",
                                      UA_NodeId_deleteMembers(&conditionNode););
-
+        
         /* Set ConfirmedState text to (Unconfirmed)*/
-        text = UA_LOCALIZEDTEXT(LOCALE, UNCONFIRMED_TEXT);
+        UA_LocalizedText text = UA_LOCALIZEDTEXT(LOCALE, UNCONFIRMED_TEXT);
         UA_Variant_setScalar(&value, &text, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
         retval = UA_Server_setConditionField(server, conditionNode, &value, fieldConfirmedState);
         UA_NodeId_deleteMembers(&conditionNode);
         CONDITION_ASSERT_RETURN_VOID(retval, "Set Condition ConfirmedState failed",);
+        return;
     }
+
+    /* Check if enabled and retained */
+    if(!isTwoStateVariableInTrueState(server, &conditionNode, &fieldEnabledState) ||
+       !isRetained(server, &conditionNode)) {
+        /* Set confirmedState/Id to false*/
+        UA_Boolean idValue = false;
+        UA_Variant_setScalar(&value, &idValue, &UA_TYPES[UA_TYPES_BOOLEAN]);
+        retval = UA_Server_setConditionVariableFieldProperty(server, conditionNode,
+                                                             &value, fieldConfirmedState,
+                                                             fieldConfirmedStateId);
+        UA_NodeId_deleteMembers(&conditionNode);
+        CONDITION_ASSERT_RETURN_VOID(retval, "Set ConfirmedState/Id failed",);
+        return;
+    }
+
+    /* Set confirming time */
+    retval = UA_Server_writeObjectProperty_scalar(server, conditionNode,
+                                                  UA_QUALIFIEDNAME(0, CONDITION_FIELD_TIME),
+                                                  &data->sourceTimestamp,
+                                                  &UA_TYPES[UA_TYPES_DATETIME]);
+    CONDITION_ASSERT_RETURN_VOID(retval, "Set Confirming Time failed",
+                                 UA_NodeId_deleteMembers(&conditionNode););
+    
+    /* Set Message */
+    UA_LocalizedText message = UA_LOCALIZEDTEXT(LOCALE, CONFIRMED_MESSAGE);
+    UA_Variant_setScalar(&value, &message, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    retval = UA_Server_setConditionField(server, conditionNode, &value, fieldMessage);
+    CONDITION_ASSERT_RETURN_VOID(retval, "Set Condition Message failed",
+                                 UA_NodeId_deleteMembers(&conditionNode););
+    
+    /* Set ConfirmedState text */
+    UA_LocalizedText text = UA_LOCALIZEDTEXT(LOCALE, CONFIRMED_TEXT);
+    UA_Variant_setScalar(&value, &text, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    retval = UA_Server_setConditionField(server, conditionNode, &value, fieldConfirmedState);
+    CONDITION_ASSERT_RETURN_VOID(retval, "Set Condition ConfirmedState failed",
+                                 UA_NodeId_deleteMembers(&conditionNode););
+    
+    /* Get conditionSource */
+    UA_NodeId conditionSource;
+    retval = getNodeIdValueOfConditionField(server, &conditionNode,
+                                            UA_QUALIFIEDNAME(0, CONDITION_FIELD_SOURCENODE),
+                                            &conditionSource);
+    CONDITION_ASSERT_RETURN_VOID(retval, "ConditionSource not found",
+                                 UA_NodeId_deleteMembers(&conditionNode););
+    
+    /* User callback*/
+    UA_Boolean removeBranch = false;
+    retval = callConditionTwoStateVariableCallback(server, &conditionNode,
+                                                   &conditionSource, &removeBranch,
+                                                   UA_ENTERING_CONFIRMEDSTATE);
+    CONDITION_ASSERT_RETURN_VOID(retval, "Calling condition callback failed",
+                                 UA_NodeId_deleteMembers(&conditionNode);
+                                 UA_NodeId_deleteMembers(&conditionSource););
+    
+    /* Trigger event */
+    //Condition Nodes should not be deleted after triggering the event
+    retval = UA_Server_triggerConditionEvent(server, conditionNode, conditionSource, NULL);
+    CONDITION_ASSERT_RETURN_VOID(retval, "Triggering condition event failed",
+                                 UA_NodeId_deleteMembers(&conditionNode);
+                                 UA_NodeId_deleteMembers(&conditionSource););
 }
 #endif//CONDITIONOPTIONALFIELDS_SUPPORT
 
