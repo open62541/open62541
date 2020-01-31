@@ -1861,34 +1861,28 @@ appendConditionEntry(UA_Server *server, const UA_NodeId *conditionNodeId,
 
 void
 UA_ConditionList_delete(UA_Server *server) {
-    UA_ConditionSource *conditionSourceEntry, *source;
-    LIST_FOREACH_SAFE(conditionSourceEntry, &server->headConditionSource, listEntry, source) {
-        UA_Condition *conditionEntry, *cond;
-        LIST_FOREACH_SAFE(conditionEntry, &conditionSourceEntry->conditionHead, listEntry, cond) {
-            UA_ConditionBranch *conditionBranchEntry, *branch;
-            LIST_FOREACH_SAFE(conditionBranchEntry, &conditionEntry->conditionBranchHead, listEntry, branch) {
-                UA_NodeId_clear(&conditionBranchEntry->conditionBranchId);
-
-                UA_ByteString_deleteMembers(&conditionBranchEntry->lastEventId);
-                LIST_REMOVE(conditionBranchEntry, listEntry);
-                UA_free(conditionBranchEntry);
+    UA_ConditionSource *source, *tmp_source;
+    LIST_FOREACH_SAFE(source, &server->headConditionSource, listEntry, tmp_source) {
+        UA_Condition *cond, *tmp_cond;
+        LIST_FOREACH_SAFE(cond, &source->conditionHead, listEntry, tmp_cond) {
+            UA_ConditionBranch *branch, *tmp_branch;
+            LIST_FOREACH_SAFE(branch, &cond->conditionBranchHead, listEntry, tmp_branch) {
+                UA_NodeId_clear(&branch->conditionBranchId);
+                UA_ByteString_clear(&branch->lastEventId);
+                LIST_REMOVE(branch, listEntry);
+                UA_free(branch);
             }
-
-            UA_NodeId_deleteMembers(&conditionEntry->conditionId);
-            LIST_REMOVE(conditionEntry, listEntry);
-            UA_free(conditionEntry);
+            UA_NodeId_clear(&cond->conditionId);
+            LIST_REMOVE(cond, listEntry);
+            UA_free(cond);
         }
-
-        UA_NodeId_deleteMembers(&conditionSourceEntry->conditionSourceId);
-        LIST_REMOVE(conditionSourceEntry, listEntry);
-        UA_free(conditionSourceEntry);
+        UA_NodeId_clear(&source->conditionSourceId);
+        LIST_REMOVE(source, listEntry);
+        UA_free(source);
     }
-
-    /* free memory allocated for RefreshEvents NodeIds */
-    if(!UA_NodeId_isNull(&refreshEvents[REFRESHEVENT_START_IDX]) && !UA_NodeId_isNull(&refreshEvents[REFRESHEVENT_END_IDX])) {
-      UA_NodeId_deleteMembers(&refreshEvents[REFRESHEVENT_START_IDX]);
-      UA_NodeId_deleteMembers(&refreshEvents[REFRESHEVENT_END_IDX]);
-    }
+    /* Free memory allocated for RefreshEvents NodeIds */
+    UA_NodeId_clear(&refreshEvents[REFRESHEVENT_START_IDX]);
+    UA_NodeId_clear(&refreshEvents[REFRESHEVENT_END_IDX]);
 }
 
 /* this function is used to get the ConditionId based on the EventId (all
