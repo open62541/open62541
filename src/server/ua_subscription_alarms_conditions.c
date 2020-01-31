@@ -241,22 +241,20 @@ getFieldParentNodeId(UA_Server *server, const UA_NodeId *field, UA_NodeId *paren
     *parent = UA_NODEID_NULL;
     UA_NodeId hasPropertyType = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
     UA_NodeId hasComponentType = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT);
-    const UA_VariableNode *fieldNode = (const UA_VariableNode *)UA_NODESTORE_GET(server, field);
-    if(fieldNode != NULL) {
-        for(size_t i = 0; i < fieldNode->referencesSize; i++) {
-            if((UA_NodeId_equal(&fieldNode->references[i].referenceTypeId, &hasPropertyType) ||
-                UA_NodeId_equal(&fieldNode->references[i].referenceTypeId, &hasComponentType)) &&
-               (true == fieldNode->references[i].isInverse)) {
-                UA_StatusCode retval = UA_NodeId_copy(&fieldNode->references[i].refTargets->target.nodeId, parent);
-                UA_NODESTORE_RELEASE(server, (const UA_Node *)fieldNode);
-                return retval;
-            }
+    const UA_Node *fieldNode = UA_NODESTORE_GET(server, field);
+    if(!fieldNode)
+        return UA_STATUSCODE_BADNOTFOUND;
+    for(size_t i = 0; i < fieldNode->referencesSize; i++) {
+        UA_NodeReferenceKind *rk = &fieldNode->references[i];
+        if((UA_NodeId_equal(&rk->referenceTypeId, &hasPropertyType) ||
+            UA_NodeId_equal(&rk->referenceTypeId, &hasComponentType)) &&
+           true == rk->isInverse) {
+            UA_StatusCode retval = UA_NodeId_copy(&rk->refTargets->target.nodeId, parent);
+            UA_NODESTORE_RELEASE(server, (const UA_Node *)fieldNode);
+            return retval;
         }
     }
-
-    if(fieldNode != NULL)
-        UA_NODESTORE_RELEASE(server, (const UA_Node *)fieldNode);
-
+    UA_NODESTORE_RELEASE(server, (const UA_Node *)fieldNode);
     return UA_STATUSCODE_BADNOTFOUND;
 }
 
