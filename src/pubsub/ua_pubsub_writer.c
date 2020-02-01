@@ -403,32 +403,43 @@ UA_Server_setWriterGroupDisabled(UA_Server *server, const UA_NodeId writerGroup)
 UA_StatusCode
 UA_PublishedDataSetConfig_copy(const UA_PublishedDataSetConfig *src,
                                UA_PublishedDataSetConfig *dst) {
-    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
     memcpy(dst, src, sizeof(UA_PublishedDataSetConfig));
-    retVal |= UA_String_copy(&src->name, &dst->name);
+    res |= UA_String_copy(&src->name, &dst->name);
     switch(src->publishedDataSetType){
         case UA_PUBSUB_DATASET_PUBLISHEDITEMS:
             //no additional items
             break;
+
         case UA_PUBSUB_DATASET_PUBLISHEDITEMS_TEMPLATE:
             if(src->config.itemsTemplate.variablesToAddSize > 0){
                 dst->config.itemsTemplate.variablesToAdd = (UA_PublishedVariableDataType *)
                     UA_calloc(src->config.itemsTemplate.variablesToAddSize,
                               sizeof(UA_PublishedVariableDataType));
+                if(!dst->config.itemsTemplate.variablesToAdd) {
+                    res = UA_STATUSCODE_BADOUTOFMEMORY;
+                    break;
+                }
+                dst->config.itemsTemplate.variablesToAddSize =
+                    src->config.itemsTemplate.variablesToAddSize;
             }
 
             for(size_t i = 0; i < src->config.itemsTemplate.variablesToAddSize; i++){
-                retVal |= UA_PublishedVariableDataType_copy(&src->config.itemsTemplate.variablesToAdd[i],
-                                                            &dst->config.itemsTemplate.variablesToAdd[i]);
+                res |= UA_PublishedVariableDataType_copy(&src->config.itemsTemplate.variablesToAdd[i],
+                                                         &dst->config.itemsTemplate.variablesToAdd[i]);
             }
-            retVal |= UA_DataSetMetaDataType_copy(&src->config.itemsTemplate.metaData,
-                                                  &dst->config.itemsTemplate.metaData);
+            res |= UA_DataSetMetaDataType_copy(&src->config.itemsTemplate.metaData,
+                                               &dst->config.itemsTemplate.metaData);
             break;
 
         default:
-            return UA_STATUSCODE_BADINVALIDARGUMENT;
+            res = UA_STATUSCODE_BADINVALIDARGUMENT;
+            break;
     }
-    return retVal;
+
+    if(res != UA_STATUSCODE_GOOD)
+        UA_PublishedDataSetConfig_clear(dst);
+    return res;
 }
 
 UA_StatusCode
