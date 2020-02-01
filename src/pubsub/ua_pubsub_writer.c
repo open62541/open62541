@@ -111,23 +111,21 @@ UA_PubSubConnectionConfig_clear(UA_PubSubConnectionConfig *connectionConfig) {
 
 void
 UA_PubSubConnection_clear(UA_Server *server, UA_PubSubConnection *connection) {
-    //delete connection config
-    UA_PubSubConnectionConfig_clear(connection->config);
-    //remove contained WriterGroups
+    /* Remove WriterGroups */
     UA_WriterGroup *writerGroup, *tmpWriterGroup;
-    LIST_FOREACH_SAFE(writerGroup, &connection->writerGroups, listEntry, tmpWriterGroup){
+    LIST_FOREACH_SAFE(writerGroup, &connection->writerGroups, listEntry, tmpWriterGroup)
         UA_Server_removeWriterGroup(server, writerGroup->identifier);
-    }
-    /* remove contained ReaderGroups */
+
+    /* Remove ReaderGroups */
     UA_ReaderGroup *readerGroups, *tmpReaderGroup;
-    LIST_FOREACH_SAFE(readerGroups, &connection->readerGroups, listEntry, tmpReaderGroup){
+    LIST_FOREACH_SAFE(readerGroups, &connection->readerGroups, listEntry, tmpReaderGroup)
         UA_Server_removeReaderGroup(server, readerGroups->identifier);
-    }
 
     UA_NodeId_clear(&connection->identifier);
-    if(connection->channel) {
+    if(connection->channel)
         connection->channel->close(connection->channel);
-    }
+
+    UA_PubSubConnectionConfig_clear(connection->config);
     UA_free(connection->config);
 }
 
