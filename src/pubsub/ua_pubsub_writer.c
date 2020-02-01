@@ -83,11 +83,7 @@ UA_Server_getPubSubConnectionConfig(UA_Server *server, const UA_NodeId connectio
     if(!currentPubSubConnection)
         return UA_STATUSCODE_BADNOTFOUND;
 
-    UA_PubSubConnectionConfig tmpPubSubConnectionConfig;
-    //deep copy of the actual config
-    UA_PubSubConnectionConfig_copy(currentPubSubConnection->config, &tmpPubSubConnectionConfig);
-    *config = tmpPubSubConnectionConfig;
-    return UA_STATUSCODE_GOOD;
+    return UA_PubSubConnectionConfig_copy(currentPubSubConnection->config, config);
 }
 
 UA_PubSubConnection *
