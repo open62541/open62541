@@ -93,16 +93,16 @@
 #define ACTIVE_LOWLOW_TEXT                                     "LowLow active"
 #define INACTIVE_TEXT                                          "Inactive"
 
-#define STATIC_QUALIFIEDNAME(name) {0, UA_STRING_STATIC(name)}
-const UA_QualifiedName fieldEnabledStateQN = STATIC_QUALIFIEDNAME(CONDITION_FIELD_ENABLEDSTATE);
-const UA_QualifiedName fieldRetainQN = STATIC_QUALIFIEDNAME(CONDITION_FIELD_RETAIN);
-const UA_QualifiedName twoStateVariableIdQN = STATIC_QUALIFIEDNAME(CONDITION_FIELD_TWOSTATEVARIABLE_ID);
-const UA_QualifiedName fieldMessageQN = STATIC_QUALIFIEDNAME(CONDITION_FIELD_MESSAGE);
-const UA_QualifiedName fieldAckedStateQN = STATIC_QUALIFIEDNAME(CONDITION_FIELD_ACKEDSTATE);
-const UA_QualifiedName fieldConfirmedStateQN = STATIC_QUALIFIEDNAME(CONDITION_FIELD_CONFIRMEDSTATE);
-const UA_QualifiedName fieldActiveStateQN = STATIC_QUALIFIEDNAME(CONDITION_FIELD_ACTIVESTATE);
-const UA_QualifiedName fieldTimeQN = STATIC_QUALIFIEDNAME(CONDITION_FIELD_TIME);
-const UA_QualifiedName fieldSourceQN = STATIC_QUALIFIEDNAME(CONDITION_FIELD_SOURCENODE);
+#define STATIC_QN(name) {0, UA_STRING_STATIC(name)}
+static const UA_QualifiedName fieldEnabledStateQN = STATIC_QN(CONDITION_FIELD_ENABLEDSTATE);
+static const UA_QualifiedName fieldRetainQN = STATIC_QN(CONDITION_FIELD_RETAIN);
+static const UA_QualifiedName twoStateVariableIdQN = STATIC_QN(CONDITION_FIELD_TWOSTATEVARIABLE_ID);
+static const UA_QualifiedName fieldMessageQN = STATIC_QN(CONDITION_FIELD_MESSAGE);
+static const UA_QualifiedName fieldAckedStateQN = STATIC_QN(CONDITION_FIELD_ACKEDSTATE);
+static const UA_QualifiedName fieldConfirmedStateQN = STATIC_QN(CONDITION_FIELD_CONFIRMEDSTATE);
+static const UA_QualifiedName fieldActiveStateQN = STATIC_QN(CONDITION_FIELD_ACTIVESTATE);
+static const UA_QualifiedName fieldTimeQN = STATIC_QN(CONDITION_FIELD_TIME);
+static const UA_QualifiedName fieldSourceQN = STATIC_QN(CONDITION_FIELD_SOURCENODE);
 
 #define CONDITION_ASSERT_RETURN_RETVAL(retval, logMessage, deleteFunction)                \
     {                                                                                     \
@@ -1183,7 +1183,7 @@ afterWriteCallbackSeverityChange(UA_Server *server,
     /* Set Time (Time of Value Change) */
     UA_Variant_setScalar(&value, (void*)(uintptr_t)((const UA_DateTime*)&data->sourceTimestamp),
                          &UA_TYPES[UA_TYPES_DATETIME]);
-    retval = UA_Server_setConditionField(server, condition, &value, fieldTime);
+    retval = UA_Server_setConditionField(server, condition, &value, fieldTimeQN);
     CONDITION_ASSERT_RETURN_VOID(retval, "Set Condition Time failed",
                                  UA_NodeId_deleteMembers(&condition););
 
@@ -2198,11 +2198,12 @@ UA_Server_createCondition(UA_Server *server,
     if(!doesHasEventSourceReferenceExist(server, conditionSource) &&
        !UA_NodeId_equal(&serverObject, &conditionSource)) {
          UA_NodeId hasHasEventSourceId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASEVENTSOURCE);
+         UA_ExpandedNodeId expandedConditionSource = UA_EXPANDEDNODEID_NULL;
+         expandedConditionSource.nodeId = conditionSource;
           retval = UA_Server_addReference(server, serverObject, hasHasEventSourceId,
-                                          UA_EXPANDEDNODEID_NUMERIC(conditionSource.namespaceIndex,
-                                                                    conditionSource.identifier.numeric),
-                                          true);
-          CONDITION_ASSERT_RETURN_RETVAL(retval, "Creating HasHasEventSource Reference to the Server Object failed",);
+                                          expandedConditionSource, true);
+          CONDITION_ASSERT_RETURN_RETVAL(retval, "Creating HasHasEventSource Reference "
+                                         "to the Server Object failed",);
     }
 
     /* Create an ObjectNode which represents the condition */
@@ -2217,28 +2218,27 @@ UA_Server_createCondition(UA_Server *server,
     /* create HasCondition Reference (HasCondition should be forward from the
      * ConditionSourceNode to the Condition. else, HasCondition should be
      * forward from the ConditionSourceNode to the ConditionType Node) */
-    UA_NodeId nodIdNull = UA_NODEID_NULL;
-    if(!UA_NodeId_equal(&hierarchialReferenceType, &nodIdNull)) {
-        UA_ExpandedNodeId expandedNewNodeId =
-            UA_EXPANDEDNODEID_NUMERIC(newNodeId.namespaceIndex, newNodeId.identifier.numeric);
-
+    if(!UA_NodeId_isNull(&hierarchialReferenceType)) {
         /* Create hierarchical Reference to ConditionSource to expose the
          * ConditionNode in Address Space */
+        // only Check hierarchialReferenceType
+        UA_ExpandedNodeId expandedNewNodeId = UA_EXPANDEDNODEID_NULL;
+        expandedNewNodeId.nodeId = newNodeId;
         retval = UA_Server_addReference(server, conditionSource, hierarchialReferenceType,
-                                        expandedNewNodeId, true);// only Check hierarchialReferenceType
-        CONDITION_ASSERT_RETURN_RETVAL(retval,
-                                       "Creating hierarchical Reference to ConditionSource failed",);
+                                        expandedNewNodeId, true);
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Creating hierarchical Reference to "
+                                       "ConditionSource failed",);
 
         retval = UA_Server_addReference(server, conditionSource,
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_HASCONDITION),
                                         expandedNewNodeId, true);
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Creating HasCondition Reference failed",);
     } else {
+        UA_ExpandedNodeId expandedConditionType = UA_EXPANDEDNODEID_NULL;
+        expandedConditionType.nodeId = conditionType;
         retval = UA_Server_addReference(server, conditionSource,
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_HASCONDITION),
-                                        UA_EXPANDEDNODEID_NUMERIC(conditionType.namespaceIndex,
-                                                                  conditionType.identifier.numeric),
-                                        true);
+                                        expandedConditionType, true);
         if(retval != UA_STATUSCODE_BADDUPLICATEREFERENCENOTALLOWED)
             CONDITION_ASSERT_RETURN_RETVAL(retval, "Creating HasCondition Reference failed",);
     }
