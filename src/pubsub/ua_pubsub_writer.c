@@ -47,26 +47,29 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server, UA_DataSetMessage *da
 UA_StatusCode
 UA_PubSubConnectionConfig_copy(const UA_PubSubConnectionConfig *src,
                                UA_PubSubConnectionConfig *dst) {
-    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
     memcpy(dst, src, sizeof(UA_PubSubConnectionConfig));
-    retVal |= UA_String_copy(&src->name, &dst->name);
-    retVal |= UA_Variant_copy(&src->address, &dst->address);
-    retVal |= UA_String_copy(&src->transportProfileUri, &dst->transportProfileUri);
-    retVal |= UA_Variant_copy(&src->connectionTransportSettings, &dst->connectionTransportSettings);
-    if(src->connectionPropertiesSize > 0){
+    res |= UA_String_copy(&src->name, &dst->name);
+    res |= UA_Variant_copy(&src->address, &dst->address);
+    res |= UA_String_copy(&src->transportProfileUri, &dst->transportProfileUri);
+    res |= UA_Variant_copy(&src->connectionTransportSettings, &dst->connectionTransportSettings);
+    if(src->connectionPropertiesSize > 0) {
         dst->connectionProperties = (UA_KeyValuePair *)
             UA_calloc(src->connectionPropertiesSize, sizeof(UA_KeyValuePair));
-        if(!dst->connectionProperties){
+        if(!dst->connectionProperties) {
+            UA_PubSubConnectionConfig_clear(dst);
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
         for(size_t i = 0; i < src->connectionPropertiesSize; i++){
-            retVal |= UA_QualifiedName_copy(&src->connectionProperties[i].key,
+            res |= UA_QualifiedName_copy(&src->connectionProperties[i].key,
                                             &dst->connectionProperties[i].key);
-            retVal |= UA_Variant_copy(&src->connectionProperties[i].value,
+            res |= UA_Variant_copy(&src->connectionProperties[i].value,
                                       &dst->connectionProperties[i].value);
         }
     }
-    return retVal;
+    if(res != UA_STATUSCODE_GOOD)
+        UA_PubSubConnectionConfig_clear(dst);
+    return res;
 }
 
 UA_StatusCode
