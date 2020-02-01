@@ -135,6 +135,7 @@ UA_PubSubConnection_regist(UA_Server *server, UA_NodeId *connectionIdentifier) {
         UA_PubSubConnection_findConnectionbyId(server, *connectionIdentifier);
     if(!connection)
         return UA_STATUSCODE_BADNOTFOUND;
+
     UA_StatusCode retval = connection->channel->regist(connection->channel, NULL, NULL);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -191,7 +192,7 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
 }
 
 UA_StatusCode
-UA_Server_removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup){
+UA_Server_removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup) {
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
     if(!wg)
         return UA_STATUSCODE_BADNOTFOUND;
@@ -226,7 +227,7 @@ UA_Server_removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup){
 }
 
 UA_StatusCode
-UA_Server_freezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId writerGroup){
+UA_Server_freezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId writerGroup) {
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
     if(!wg)
         return UA_STATUSCODE_BADNOTFOUND;
@@ -339,7 +340,6 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId writ
             UA_free(dsmStore[i].data.keyFrameData.fieldNames);
 #endif
         }
-
     }
     return UA_STATUSCODE_GOOD;
 }
