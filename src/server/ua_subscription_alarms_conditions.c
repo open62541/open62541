@@ -2258,31 +2258,16 @@ UA_Server_createCondition(UA_Server *server,
      * so abstract Events : RefreshStart and RefreshEnd could be created */
     UA_NodeId refreshStartEventTypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_REFRESHSTARTEVENTTYPE);
     UA_NodeId refreshEndEventTypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_REFRESHENDEVENTTYPE);
-    const UA_Node* refreshStartEventType = UA_NODESTORE_GET(server, &refreshStartEventTypeNodeId);
-    const UA_Node* refreshEndEventType = UA_NODESTORE_GET(server, &refreshEndEventTypeNodeId);
 
-    UA_Boolean inner = 
-        (false == ((const UA_ObjectTypeNode*)refreshStartEventType)->isAbstract &&
-         false == ((const UA_ObjectTypeNode*)refreshEndEventType)->isAbstract);
-    UA_NODESTORE_RELEASE(server, refreshStartEventType);
-    UA_NODESTORE_RELEASE(server, refreshEndEventType);
+    UA_Boolean startAbstract = false;
+    UA_Boolean endAbstract = false;
+    UA_Server_readIsAbstract(server, refreshStartEventTypeNodeId, &startAbstract);
+    UA_Server_readIsAbstract(server, refreshEndEventTypeNodeId, &endAbstract);
 
+    UA_Boolean inner = (startAbstract == false && endAbstract == false);
     if(inner) {
-        UA_Node* refreshStartEventTypeInner;
-        UA_Node* refreshEndEventTypeInner;
-        if(UA_STATUSCODE_GOOD != UA_NODESTORE_GETCOPY(server,
-                                                      &refreshStartEventTypeNodeId,
-                                                      &refreshStartEventTypeInner) ||
-           UA_STATUSCODE_GOOD != UA_NODESTORE_GETCOPY(server,
-                                                      &refreshEndEventTypeNodeId,
-                                                      &refreshEndEventTypeInner)) {
-            UA_assert(0);
-        } else {
-            ((UA_ObjectTypeNode*)refreshStartEventTypeInner)->isAbstract = false;
-            ((UA_ObjectTypeNode*)refreshEndEventTypeInner)->isAbstract = false;
-            UA_NODESTORE_REPLACE(server, refreshStartEventTypeInner);
-            UA_NODESTORE_REPLACE(server, refreshEndEventTypeInner);
-        }
+        UA_Server_writeIsAbstract(server, refreshStartEventTypeNodeId, false);
+        UA_Server_writeIsAbstract(server, refreshEndEventTypeNodeId, false);
     }
 
     /* append Condition to list */
