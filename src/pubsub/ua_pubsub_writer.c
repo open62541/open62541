@@ -1396,22 +1396,22 @@ UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_Server *server, UA_DataSetMess
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
 #ifdef UA_ENABLE_JSON_ENCODING
-    /* json: insert fieldnames used as json keys */
-       dataSetMessage->data.keyFrameData.fieldNames =
-               (UA_String *)UA_Array_new(currentDataSet->fieldSize, &UA_TYPES[UA_TYPES_STRING]);
-       if(!dataSetMessage->data.keyFrameData.fieldNames)
-           return UA_STATUSCODE_BADOUTOFMEMORY;
+    dataSetMessage->data.keyFrameData.fieldNames = (UA_String *)
+        UA_Array_new(currentDataSet->fieldSize, &UA_TYPES[UA_TYPES_STRING]);
+    if(!dataSetMessage->data.keyFrameData.fieldNames) {
+        UA_DataSetMessage_free(dataSetMessage);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
 #endif
 
     /* Loop over the fields */
     size_t counter = 0;
     UA_DataSetField *dsf;
     TAILQ_FOREACH(dsf, &currentDataSet->fields, listEntry) {
-
 #ifdef UA_ENABLE_JSON_ENCODING
-        /* json: store the fieldNameAlias*/
+        /* Set the field name alias */
         UA_String_copy(&dsf->config.field.variable.fieldNameAlias,
-              &dataSetMessage->data.keyFrameData.fieldNames[counter]);
+                       &dataSetMessage->data.keyFrameData.fieldNames[counter]);
 #endif
 
         /* Sample the value */
@@ -1419,7 +1419,8 @@ UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_Server *server, UA_DataSetMess
         UA_PubSubDataSetField_sampleValue(server, dsf, dfv);
 
         /* Deactivate statuscode? */
-        if(((u64)dataSetWriter->config.dataSetFieldContentMask & (u64)UA_DATASETFIELDCONTENTMASK_STATUSCODE) == 0)
+        if(((u64)dataSetWriter->config.dataSetFieldContentMask &
+            (u64)UA_DATASETFIELDCONTENTMASK_STATUSCODE) == 0)
             dfv->hasStatus = false;
 
         /* Deactivate timestamps */
@@ -1721,8 +1722,7 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server, UA_DataSetMessage *da
 #endif
     }
 
-    UA_PubSubDataSetWriter_generateKeyFrameMessage(server, dataSetMessage, dataSetWriter);
-    return UA_STATUSCODE_GOOD;
+    return UA_PubSubDataSetWriter_generateKeyFrameMessage(server, dataSetMessage, dataSetWriter);
 }
 
 static UA_StatusCode
