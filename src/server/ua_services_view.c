@@ -918,12 +918,17 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session, UA_UInt32 nodeClas
             if(rk->isInverse != elem->isInverse)
                 continue;
 
-            /* Is the node relevant? */
+            /* Does the reference type match? */
             if(!all_refs) {
-                if(!elem->includeSubtypes && !UA_NodeId_equal(&rk->referenceTypeId, &elem->referenceTypeId))
-                    continue;
-                if(!isNodeInTree(server, &rk->referenceTypeId, &elem->referenceTypeId, &subtypeId, 1))
-                    continue;
+                if(!elem->includeSubtypes) {
+                    if(!UA_NodeId_equal(&rk->referenceTypeId, &elem->referenceTypeId))
+                        continue;
+                } else {
+                    UA_Boolean match =
+                        isNodeInTree(server, &rk->referenceTypeId, &elem->referenceTypeId, &subtypeId, 1);
+                    if(!match)
+                        continue;
+                }
             }
 
             /* Walk over the reference targets */
