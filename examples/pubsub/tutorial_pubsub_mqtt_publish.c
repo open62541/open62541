@@ -127,30 +127,55 @@ addWriterGroup(UA_Server *server, char *topic, int interval) {
     writerGroupConfig.publishingInterval = interval;
     writerGroupConfig.enabled = UA_FALSE;
     writerGroupConfig.writerGroupId = 100;
+    UA_UadpWriterGroupMessageDataType *writerGroupMessage;
 
     /* decide whether to use JSON or UADP encoding*/
 #ifdef UA_ENABLE_JSON_ENCODING
-    if(useJson)
+    UA_JsonDataSetWriterMessageDataType *Json_writerGroupMessage;
+    
+    if(useJson) {
         writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_JSON;
+        writerGroupConfig.messageSettings.encoding             = UA_EXTENSIONOBJECT_DECODED;
+
+        writerGroupConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_JSONDATASETWRITERMESSAGEDATATYPE];
+        /* The configuration flags for the messages are encapsulated inside the
+         * message- and transport settings extension objects. These extension
+         * objects are defined by the standard. e.g.
+         * JsonDataSetWriterMessageDataType */
+        Json_writerGroupMessage = UA_JsonDataSetWriterMessageDataType_new();
+        /* Change message settings of writerGroup to send SequenceNumber,
+         * WriterGroupId in GroupHeader and DataSetWriterId in PayloadHeader
+         * of NetworkMessage */
+        Json_writerGroupMessage->dataSetMessageContentMask =
+            (UA_JsonDataSetMessageContentMask)(UA_JSONDATASETMESSAGECONTENTMASK_DATASETWRITERID |
+            (UA_JsonDataSetMessageContentMask)UA_JSONDATASETMESSAGECONTENTMASK_SEQUENCENUMBER |
+            (UA_JsonDataSetMessageContentMask)UA_JSONDATASETMESSAGECONTENTMASK_TIMESTAMP |
+            (UA_JsonDataSetMessageContentMask)UA_JSONDATASETMESSAGECONTENTMASK_STATUS);
+        writerGroupConfig.messageSettings.content.decoded.data = Json_writerGroupMessage;
+    }
+
     else
 #endif
+    {
         writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
-    writerGroupConfig.messageSettings.encoding             = UA_EXTENSIONOBJECT_DECODED;
-    writerGroupConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
-    /* The configuration flags for the messages are encapsulated inside the
-     * message- and transport settings extension objects. These extension
-     * objects are defined by the standard. e.g.
-     * UadpWriterGroupMessageDataType */
-    UA_UadpWriterGroupMessageDataType *writerGroupMessage  = UA_UadpWriterGroupMessageDataType_new();
-    /* Change message settings of writerGroup to send PublisherId,
-     * WriterGroupId in GroupHeader and DataSetWriterId in PayloadHeader
-     * of NetworkMessage */
-    writerGroupMessage->networkMessageContentMask =
-        (UA_UadpNetworkMessageContentMask)(UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID |
-        (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_GROUPHEADER |
-        (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_WRITERGROUPID |
-        (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
-    writerGroupConfig.messageSettings.content.decoded.data = writerGroupMessage;
+        writerGroupConfig.messageSettings.encoding             = UA_EXTENSIONOBJECT_DECODED;
+        writerGroupConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
+        /* The configuration flags for the messages are encapsulated inside the
+         * message- and transport settings extension objects. These extension
+         * objects are defined by the standard. e.g.
+         * UadpWriterGroupMessageDataType */
+        writerGroupMessage  = UA_UadpWriterGroupMessageDataType_new();
+        /* Change message settings of writerGroup to send PublisherId,
+         * WriterGroupId in GroupHeader and DataSetWriterId in PayloadHeader
+         * of NetworkMessage */
+        writerGroupMessage->networkMessageContentMask =
+            (UA_UadpNetworkMessageContentMask)(UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID |
+            (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_GROUPHEADER |
+            (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_WRITERGROUPID |
+            (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
+        writerGroupConfig.messageSettings.content.decoded.data = writerGroupMessage;
+    }
+
 
     /* configure the mqtt publish topic */
     UA_BrokerWriterGroupTransportDataType brokerTransportSettings;
@@ -174,7 +199,14 @@ addWriterGroup(UA_Server *server, char *topic, int interval) {
     writerGroupConfig.transportSettings = transportSettings;
     UA_Server_addWriterGroup(server, connectionIdent, &writerGroupConfig, &writerGroupIdent);
     UA_Server_setWriterGroupOperational(server, writerGroupIdent);
-    UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
+    if (useJson)
+    {
+        UA_JsonDataSetWriterMessageDataType_delete(Json_writerGroupMessage);
+    }
+    else
+    {
+        UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
+    }
 }
 
 /**
