@@ -46,7 +46,7 @@ UA_AsyncManager_sendAsyncResponse(UA_AsyncManager *am, UA_Server *server,
                        (UA_ResponseHeader*)&ar->response.callResponse.responseHeader,
                        &UA_TYPES[UA_TYPES_CALLRESPONSE]);
     UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                 "UA_Server_SendResponse: Response for Req# %u sent", ar->requestId);
+                 "UA_Server_SendResponse: Response for Req# %" PRIu32 " sent", ar->requestId);
 
  clean_up:
     /* Remove from the AsyncManager */
@@ -66,8 +66,8 @@ integrateOperationResult(UA_AsyncManager *am, UA_Server *server,
     ar->opCountdown -= 1;
 
     UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                 "Return result in the server thread with %u remaining",
-                 (UA_UInt32)ar->opCountdown);
+                 "Return result in the server thread with %" PRIu32 " remaining",
+                 ar->opCountdown);
 
     /* Move the UA_CallMethodResult to UA_CallResponse */
     ar->response.callResponse.results[ao->index] = ao->response;
@@ -241,7 +241,7 @@ UA_AsyncManager_createAsyncOp(UA_AsyncManager *am, UA_Server *server,
        am->opsCount >= server->config.maxAsyncOperationQueueSize) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "UA_Server_SetNextAsyncMethod: Queue exceeds limit (%d).",
-                       (UA_UInt32)server->config.maxAsyncOperationQueueSize);
+                       (int unsigned)server->config.maxAsyncOperationQueueSize);
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
 

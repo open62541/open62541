@@ -170,7 +170,7 @@ sendSymmetricServiceRequest(UA_Client *client, const void *request,
     /* Send the request */
     UA_UInt32 rqId = ++client->requestId;
     UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                 "Sending a request of type %i", requestType->typeId.identifier.numeric);
+                 "Sending a request of type %" PRIi32, requestType->typeId.identifier.numeric);
 
     UA_StatusCode retval =
         UA_SecureChannel_sendSymmetricMessage(&client->channel, rqId, UA_MESSAGETYPE_MSG,
@@ -320,7 +320,7 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
                  "Decode a message of type %s", rd->responseType->typeName);
 #else
     UA_LOG_DEBUG(&rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
-                 "Decode a message of type %u", responseId.identifier.numeric);
+                 "Decode a message of type %" PRIu32, responseId.identifier.numeric);
 #endif
 
     /* Decode the response */

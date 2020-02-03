@@ -550,7 +550,7 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
                                    requestType->typeName);
 #else
             UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
-                                   "Service %i refused without a valid session",
+                                   "Service %" PRIi16 " refused without a valid session",
                                    requestType->binaryEncodingId);
 #endif
             return sendServiceFaultWithRequest(channel, requestHeader, responseType,
@@ -573,7 +573,7 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
                                requestType->typeName);
 #else
         UA_LOG_WARNING_SESSION(&server->config.logger, session,
-                               "Service %i refused on a non-activated session",
+                               "Service %" PRIi16 " refused on a non-activated session",
                                requestType->binaryEncodingId);
 #endif
         UA_LOCK(server->serviceMutex);
@@ -653,7 +653,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
                                 "but those are not enabled in the build");
         } else {
             UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
-                                "Unknown request with type identifier %i",
+                                "Unknown request with type identifier %" PRIi32,
                                 requestTypeId.identifier.numeric);
         }
         return sendServiceFault(channel, msg, requestPos, &UA_TYPES[UA_TYPES_SERVICEFAULT],

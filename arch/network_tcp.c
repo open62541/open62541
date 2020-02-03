@@ -800,7 +800,7 @@ UA_ClientConnectionTCP_init(UA_ConnectionConfig config, const UA_String endpoint
     if (port == 0) {
             port = 4840;
             UA_LOG_INFO(logger, UA_LOGCATEGORY_NETWORK,
-                            "No port defined, using default port %d", port);
+                            "No port defined, using default port %" PRIu16, port);
     }
 
     memset(&tcpClientConnection->hints, 0, sizeof(tcpClientConnection->hints));
@@ -855,7 +855,7 @@ UA_ClientConnectionTCP(UA_ConnectionConfig config, const UA_String endpointUrl,
     if(port == 0) {
         port = 4840;
         UA_LOG_INFO(logger, UA_LOGCATEGORY_NETWORK,
-                    "No port defined, using default port %d", port);
+                    "No port defined, using default port %" PRIu16, port);
     }
 
     struct addrinfo hints, *server;
