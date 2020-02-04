@@ -14,7 +14,6 @@
 int counter  = 0;
 UA_Server *server;
 UA_Boolean running;
-UA_ServerNetworkLayer nl;
 UA_NodeId temperatureNodeId = {1, UA_NODEIDTYPE_NUMERIC, {1001}};
 UA_Int32 temperature;
 UA_Boolean deleteNodeWhileWriting;

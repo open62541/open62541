@@ -12,12 +12,10 @@
 #include <stdlib.h>
 
 #include "testing_clock.h"
-#include "testing_networklayers.h"
 #include "thread_wrapper.h"
 
 UA_Server *server;
 UA_Boolean running;
-UA_ServerNetworkLayer nl;
 THREAD_HANDLE server_thread;
 
 static void
@@ -384,7 +382,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client, Client_endpoints);
     tcase_add_test(tc_client, Client_endpoints_empty);
     tcase_add_test(tc_client, Client_read);
-    suite_add_tcase(s,tc_client);
+    suite_add_tcase(s, tc_client);
     TCase *tc_client_reconnect = tcase_create("Client Reconnect");
     tcase_add_checked_fixture(tc_client_reconnect, setup, teardown);
     tcase_add_test(tc_client_reconnect, Client_renewSecureChannel);

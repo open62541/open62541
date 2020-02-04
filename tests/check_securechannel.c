@@ -11,9 +11,9 @@
 
 #include "ua_securechannel.h"
 #include <ua_types_encoding_binary.h>
+#include <testing_socket.h>
 
 #include "check.h"
-#include "testing_networklayers.h"
 #include "testing_policy.h"
 
 #define UA_BYTESTRING_STATIC(s) {sizeof(s)-1, (UA_Byte*)(s)}
@@ -32,7 +32,7 @@ UA_SecureChannel testChannel;
 UA_ByteString dummyCertificate =
     UA_BYTESTRING_STATIC("DUMMY CERTIFICATE DUMMY CERTIFICATE DUMMY CERTIFICATE");
 UA_SecurityPolicy dummyPolicy;
-UA_Connection testingConnection;
+UA_Socket dummySocket;
 UA_ByteString sentData;
 
 
@@ -42,12 +42,11 @@ static key_sizes keySizes;
 static void
 setup_secureChannel(void) {
     TestingPolicy(&dummyPolicy, dummyCertificate, &fCalled, &keySizes);
-    UA_SecureChannel_init(&testChannel, &UA_ConnectionConfig_default);
+    UA_SecureChannel_init(&testChannel, &UA_SecureChannelConfig_default);
     UA_SecureChannel_setSecurityPolicy(&testChannel, &dummyPolicy, &dummyCertificate);
 
-    testingConnection = createDummyConnection(65535, &sentData);
-    UA_Connection_attachSecureChannel(&testingConnection, &testChannel);
-    testChannel.connection = &testingConnection;
+    dummySocket = createDummySocket(&sentData);
+    UA_SecureChannel_attachSocket(&testChannel, &dummySocket);
 
     testChannel.state = UA_SECURECHANNELSTATE_OPEN;
 }
@@ -56,7 +55,8 @@ static void
 teardown_secureChannel(void) {
     UA_SecureChannel_close(&testChannel);
     dummyPolicy.clear(&dummyPolicy);
-    testingConnection.close(&testingConnection);
+    dummySocket.close(&dummySocket);
+    dummySocket.clean(&dummySocket);
 }
 
 static void
@@ -97,8 +97,8 @@ START_TEST(SecureChannel_initAndDelete) {
     UA_StatusCode retval;
 
     UA_SecureChannel channel;
-    UA_SecureChannel_init(&channel, &UA_ConnectionConfig_default);
-    retval = UA_SecureChannel_setSecurityPolicy(&channel, &dummyPolicy, &dummyCertificate);
+        UA_SecureChannel_init(&channel, &UA_SecureChannelConfig_default);
+        retval = UA_SecureChannel_setSecurityPolicy(&channel, &dummyPolicy, &dummyCertificate);
 
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected StatusCode to be good");
     ck_assert_msg(channel.state == UA_SECURECHANNELSTATE_CLOSED, "Expected state to be closed");
@@ -125,8 +125,7 @@ START_TEST(SecureChannel_sendAsymmetricOPNMessage_withoutConnection) {
     testChannel.securityMode = UA_MESSAGESECURITYMODE_NONE;
 
     // Remove connection to provoke error
-    UA_Connection_detachSecureChannel(testChannel.connection);
-    testChannel.connection = NULL;
+    UA_SecureChannel_detachSocket(&testChannel);
 
     UA_StatusCode retval =
         UA_SecureChannel_sendAsymmetricOPNMessage(&testChannel, 42, &dummyResponse,

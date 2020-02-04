@@ -16,20 +16,18 @@
 
 #include "ua_server_internal.h"
 
-#include "testing_networklayers.h"
-
 #define RECEIVE_BUFFER_SIZE 65535
 #define SERVER_PORT 4840
 
 volatile bool running = true;
 
 static void *serverLoop(void *server_ptr) {
-    UA_Server *server = (UA_Server*) server_ptr;
+    auto *server = (UA_Server *)server_ptr;
 
     while (running) {
         UA_Server_run_iterate(server, false);
     }
-    return NULL;
+    return nullptr;
 }
 
 /*
@@ -40,7 +38,7 @@ extern "C" int
 LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
 
     UA_Server *server = UA_Server_new();
-    if(!server) {
+    if(server == nullptr) {
         UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "Could not create server instance using UA_Server_new");
         return EXIT_FAILURE;
@@ -68,7 +66,7 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
         return EXIT_FAILURE;
     }
 
-    if (!UA_memoryManager_setLimitFromLast4Bytes(data, size)) {
+    if(UA_memoryManager_setLimitFromLast4Bytes(data, size) == 0) {
         UA_Server_run_shutdown(server);
         UA_Server_delete(server);
         return EXIT_SUCCESS;
@@ -79,8 +77,8 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     UA_Server_run_iterate(server, true);
 
     pthread_t serverThread;
-    int rc = pthread_create(&serverThread, NULL, serverLoop, (void *)server);
-    if (rc){
+    int rc = pthread_create(&serverThread, nullptr, serverLoop, (void *)server);
+    if(rc != 0) {
 
         UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "return code from pthread_create() is %d", rc);
@@ -103,7 +101,7 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
             retCode = EXIT_FAILURE;
         } else {
 
-            struct sockaddr_in serv_addr;
+            struct sockaddr_in serv_addr{};
             serv_addr.sin_family = AF_INET;
             serv_addr.sin_port = htons(SERVER_PORT);
             serv_addr.sin_addr.s_addr = inet_addr("127.0.0.1");

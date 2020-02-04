@@ -13,13 +13,13 @@
 
 #include <check.h>
 #include <stdlib.h>
+#include <testing_socket.h>
 
 #include "testing_clock.h"
-#include "testing_networklayers.h"
 #include "thread_wrapper.h"
 
 UA_Server *server;
-UA_ServerNetworkLayer nl;
+UA_Boolean running;
 
 UA_Boolean connected = false;
 
@@ -136,15 +136,17 @@ START_TEST(Client_no_connection) {
     UA_Client *client = UA_Client_new();
     UA_ClientConfig *cc = UA_Client_getConfig(client);
     UA_ClientConfig_setDefault(cc);
-    cc->stateCallback = currentState;
-    connected = false;
-    UA_StatusCode retval = UA_Client_connectAsync(client, "opc.tcp://localhost:4840");
+    cc->stateCallback = currentState; connected = false;
+    UA_StatusCode retval =
+    UA_Client_connectAsync(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_Client_recv = client->connection.recv;
-    client->connection.recv = UA_Client_recvTesting;
+    // Process once, so the socket is created so we can set the pseudo result
+    client->config.networkManager->process(client->config.networkManager, 0);
+    UA_Socket_recv = client->channel.socket->recv;
+    client->channel.socket->recv = UA_Socket_recvTesting;
     //simulating unconnected server
-    UA_Client_recvTesting_result = UA_STATUSCODE_BADCONNECTIONCLOSED;
+    UA_Socket_recvTesting_result = UA_STATUSCODE_BADCONNECTIONCLOSED;
     UA_Server_run_iterate(server, false);
     retval = UA_Client_run_iterate(client, 0);  /* Open connection */
     UA_Server_run_iterate(server, false);

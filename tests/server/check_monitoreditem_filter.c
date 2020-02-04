@@ -14,9 +14,9 @@
 #include "client/ua_client_internal.h"
 
 #include <check.h>
+#include <testing_socket.h>
 
 #include "testing_clock.h"
-#include "testing_networklayers.h"
 #include "thread_wrapper.h"
 
 UA_Server *server;
@@ -95,8 +95,8 @@ static void setup(void) {
     retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_Client_recv = client->connection.recv;
-    client->connection.recv = UA_Client_recvTesting;
+    UA_Socket_recv = client->channel.socket->recv;
+    client->channel.socket->recv = UA_Socket_recvTesting;
 
     UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
     request.requestedMaxKeepAliveCount = 100;

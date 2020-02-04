@@ -22,13 +22,13 @@
 #include <check.h>
 
 #include "testing_clock.h"
-#include "testing_networklayers.h"
 #include "thread_wrapper.h"
 #ifdef UA_ENABLE_HISTORIZING
 #include "historical_read_test_data.h"
 #include "randomindextest_backend.h"
 #endif
 #include <stddef.h>
+#include <testing_socket.h>
 
 static UA_Server *server;
 #ifdef UA_ENABLE_HISTORIZING
@@ -129,8 +129,8 @@ static void setup(void) {
         exit(1);
     }
 
-    UA_Client_recv = client->connection.recv;
-    client->connection.recv = UA_Client_recvTesting;
+    UA_Socket_recv = client->channel.socket->recv;
+    client->channel.socket->recv = UA_Socket_recvTesting;
 }
 
 static void teardown(void) {
