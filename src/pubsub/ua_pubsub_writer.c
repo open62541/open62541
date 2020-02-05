@@ -162,6 +162,22 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
+    /* Validate messageSettings type */
+    if (writerGroupConfig->messageSettings.content.decoded.type) {
+        if (writerGroupConfig->encodingMimeType == UA_PUBSUB_ENCODING_JSON &&
+                (writerGroupConfig->messageSettings.encoding != UA_EXTENSIONOBJECT_DECODED
+                || writerGroupConfig->messageSettings.content.decoded.type->typeIndex != UA_TYPES_JSONWRITERGROUPMESSAGEDATATYPE) ) {
+            return UA_STATUSCODE_BADTYPEMISMATCH;
+        }
+
+        if (writerGroupConfig->encodingMimeType == UA_PUBSUB_ENCODING_UADP &&
+                (writerGroupConfig->messageSettings.encoding != UA_EXTENSIONOBJECT_DECODED
+                        || writerGroupConfig->messageSettings.content.decoded.type->typeIndex != UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE) ) {
+            return UA_STATUSCODE_BADTYPEMISMATCH;
+        }    
+    }
+
+
     //allocate memory for new WriterGroup
     UA_WriterGroup *newWriterGroup = (UA_WriterGroup *) UA_calloc(1, sizeof(UA_WriterGroup));
     if(!newWriterGroup)
