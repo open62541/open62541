@@ -209,7 +209,7 @@ sym_verify_sp_basic256(const UA_SecurityPolicy *securityPolicy,
 
     Basic256_PolicyContext *pc =
         (Basic256_PolicyContext *)securityPolicy->policyContext;
-    
+
     unsigned char mac[UA_SHA1_LENGTH];
     mbedtls_hmac(&pc->sha1MdContext, &cc->remoteSymSigningKey, message, mac);
 
@@ -589,6 +589,11 @@ updateCertificateAndPrivateKey_sp_basic256(UA_SecurityPolicy *securityPolicy,
                                        newPrivateKey.data, newPrivateKey.length,
                                        NULL, 0);
     if(mbedErr) {
+        if ( newPrivateKey.length > 10 || strncmp( (char*)newPrivateKey.data, "-----BEGIN", 10 ))
+            UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                "Key is in ASCII format, should use DER");
+        UA_LOG_TRACE(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+            "Offending key: %.*s", (int)newPrivateKey.length, newPrivateKey.data);
         retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         goto error;
     }
@@ -604,6 +609,12 @@ updateCertificateAndPrivateKey_sp_basic256(UA_SecurityPolicy *securityPolicy,
     error:
     UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                  "Could not update certificate and private key");
+    #if UA_LOGLEVEL <= 300
+        char errBuff[300];
+        mbedtls_strerror(mbedErr, errBuff, 300);
+        UA_LOG_DEBUG(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                 "Certificate error: %d, %s", mbedErr, errBuff);
+    #endif
     if(securityPolicy->policyContext != NULL)
         deleteMembers_sp_basic256(securityPolicy);
     return retval;
@@ -669,6 +680,11 @@ policyContext_newContext_sp_basic256(UA_SecurityPolicy *securityPolicy,
     mbedErr = mbedtls_pk_parse_key(&pc->localPrivateKey, localPrivateKey.data,
                                    localPrivateKey.length, NULL, 0);
     if(mbedErr) {
+        if ( localPrivateKey.length > 10 || strncmp( (char*)localPrivateKey.data, "-----BEGIN", 10 ))
+            UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                "Key is in ASCII format, should use DER");
+        UA_LOG_TRACE(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+            "Offending key: %.*s", (int)localPrivateKey.length, localPrivateKey.data);
         retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         goto error;
     }
@@ -688,6 +704,12 @@ policyContext_newContext_sp_basic256(UA_SecurityPolicy *securityPolicy,
 error:
     UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                  "Could not create securityContext: %s", UA_StatusCode_name(retval));
+    #if UA_LOGLEVEL <= 300
+        char errBuff[300];
+        mbedtls_strerror(mbedErr, errBuff, 300);
+        UA_LOG_DEBUG(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                 "Certificate error: %d, %s", mbedErr, errBuff);
+    #endif
     if(securityPolicy->policyContext != NULL)
         deleteMembers_sp_basic256(securityPolicy);
     return retval;

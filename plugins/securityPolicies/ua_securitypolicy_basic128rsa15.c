@@ -638,6 +638,11 @@ updateCertificateAndPrivateKey_sp_basic128rsa15(UA_SecurityPolicy *securityPolic
                                        newPrivateKey.data, newPrivateKey.length,
                                        NULL, 0);
     if(mbedErr) {
+        if ( newPrivateKey.length > 10 || strncmp( (char*)newPrivateKey.data, "-----BEGIN", 10 ))
+            UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                "Key is in ASCII format, should use DER");
+        UA_LOG_TRACE(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+            "Offending key: %.*s", (int)newPrivateKey.length, newPrivateKey.data);
         retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         goto error;
     }
@@ -653,6 +658,12 @@ updateCertificateAndPrivateKey_sp_basic128rsa15(UA_SecurityPolicy *securityPolic
     error:
     UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                  "Could not update certificate and private key");
+    #if UA_LOGLEVEL <= 300
+        char errBuff[300];
+        mbedtls_strerror(mbedErr, errBuff, 300);
+        UA_LOG_DEBUG(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                 "Certificate error: %d, %s", mbedErr, errBuff);
+    #endif
     if(securityPolicy->policyContext != NULL)
         deleteMembers_sp_basic128rsa15(securityPolicy);
     return retval;
@@ -719,6 +730,11 @@ policyContext_newContext_sp_basic128rsa15(UA_SecurityPolicy *securityPolicy,
                                    localPrivateKey.data, localPrivateKey.length,
                                    NULL, 0);
     if(mbedErr) {
+        if ( localPrivateKey.length > 10 || strncmp( (char*)localPrivateKey.data, "-----BEGIN", 10 ))
+            UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                "Key is in ASCII format, should use DER");
+        UA_LOG_TRACE(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+            "Offending key: %.*s", (int)localPrivateKey.length, localPrivateKey.data);
         retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         goto error;
     }
@@ -738,6 +754,12 @@ policyContext_newContext_sp_basic128rsa15(UA_SecurityPolicy *securityPolicy,
 error:
     UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                  "Could not create securityContext: %s", UA_StatusCode_name(retval));
+    #if UA_LOGLEVEL <= 300
+        char errBuff[300];
+        mbedtls_strerror(mbedErr, errBuff, 300);
+        UA_LOG_DEBUG(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                 "Certificate error: %d, %s", mbedErr, errBuff);
+    #endif
     if(securityPolicy->policyContext != NULL)
         deleteMembers_sp_basic128rsa15(securityPolicy);
     return retval;
