@@ -414,6 +414,9 @@ _UA_END_DECLS
  * on host ''' + platform.uname()[1] + ''' by user ''' + getpass.getuser() + ''' at ''' + time.strftime(
             "%Y-%m-%d %I:%M:%S") + ''' */
 
+#ifndef ''' + self.parser.outname.upper() + '''_GENERATED_ENCODING_BINARY_H_
+#define ''' + self.parser.outname.upper() + '''_GENERATED_ENCODING_BINARY_H_
+
 #ifdef UA_ENABLE_AMALGAMATION
 # include "open62541.h"
 #else
@@ -426,3 +429,5 @@ _UA_END_DECLS
         for t in self.filtered_types:
             self.printe("\n/* " + t.name + " */")
             self.printe(self.print_datatype_encoding(t))
+
+        self.printe("\n#endif /* " + self.parser.outname.upper() + "_GENERATED_ENCODING_BINARY_H_ */")
