@@ -91,19 +91,20 @@ Nightly single file releases for Linux and Windows of the last 50 commits can be
 OS Specific packages
 ^^^^^^^^^^^^^^^^^^^^
 
-Debian packages can be found in our official PPA:
+Packages in `deb format <https://manpages.debian.org/stable/dpkg-dev/deb.5.en.html>`_ built for Ubuntu can be found in the two official `Ubuntu PPAs <https://help.launchpad.net/Packaging/PPA>`_ maintained by the open62541 developers:
 
- * Daily Builds (based on master branch): https://launchpad.net/~open62541-team/+archive/ubuntu/daily
- * Release Builds (starting with Version 0.4): https://launchpad.net/~open62541-team/+archive/ubuntu/ppa
+ * Release Builds (starting with version 0.4): `ppa:open62541-team/ppa <https://launchpad.net/~open62541-team/+archive/ubuntu/ppa>`_
+ * Daily Builds (based on master branch): `ppa:open62541-team/daily <https://launchpad.net/~open62541-team/+archive/ubuntu/daily>`_
 
-Install them with:
-
+On Ubuntu installing and following the updates of the stable archive's development & library packages can be done by issuing:
 
 .. code-block:: bash
 
     sudo add-apt-repository ppa:open62541-team/ppa
     sudo apt-get update
-    sudo apt-get install libopen62541-dev
+    sudo apt-get install libopen62541-1-dev
+
+On Debian the Ubuntu PPAs can also be added as package sources like above but package installation will likely fail because of the intricate differences between distributions and releases. `Debian's PPA instructions <https://wiki.debian.org/CreatePackageFromPPA>`_ might succeed in rebuilding the packages for Debian although that is `not a recommended Debian practice <https://wiki.debian.org/DontBreakDebian#Don.27t_make_a_FrankenDebian>`_.
 
 Arch packages are available in the AUR
 
