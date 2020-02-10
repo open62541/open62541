@@ -1172,20 +1172,20 @@ writeValueAttribute(UA_Server *server, UA_Session *session,
         }
     }
 
-    /* Set the source timestamp if there is none */
-    UA_DateTime now = UA_DateTime_now();
-    if(!adjustedValue.hasSourceTimestamp) {
-        adjustedValue.sourceTimestamp = now;
-        adjustedValue.hasSourceTimestamp = true;
-    }
-
-    if(!adjustedValue.hasServerTimestamp) {
-        adjustedValue.serverTimestamp = now;
-        adjustedValue.hasServerTimestamp = true;
-    }
-
     /* Ok, do it */
     if(node->valueSource == UA_VALUESOURCE_DATA) {
+        /* Set the source timestamp if there is none */
+        UA_DateTime now = UA_DateTime_now();
+        if(!adjustedValue.hasSourceTimestamp) {
+            adjustedValue.sourceTimestamp = now;
+            adjustedValue.hasSourceTimestamp = true;
+        }
+
+        if(!adjustedValue.hasServerTimestamp) {
+            adjustedValue.serverTimestamp = now;
+            adjustedValue.hasServerTimestamp = true;
+        }
+
         if(!rangeptr)
             retval = writeValueAttributeWithoutRange(node, &adjustedValue);
         else
