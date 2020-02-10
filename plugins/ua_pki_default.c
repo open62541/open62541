@@ -508,6 +508,9 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification *cv,
                                      size_t certificateIssuerListSize,
                                      const UA_ByteString *certificateRevocationList,
                                      size_t certificateRevocationListSize) {
+    #if UA_LOGLEVEL <= 100
+      char *tlsdebug = "";
+    #endif
     CertInfo *ci = (CertInfo*)UA_malloc(sizeof(CertInfo));
     if(!ci)
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -526,6 +529,9 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification *cv,
 
     int err = 0;
     for(size_t i = 0; i < certificateTrustListSize; i++) {
+        #if UA_LOGLEVEL <= 100
+            tlsdebug = "mbedtls_x509_crt_parse";
+        #endif
         err = mbedtls_x509_crt_parse(&ci->certificateTrustList,
                                      certificateTrustList[i].data,
                                      certificateTrustList[i].length);
@@ -533,6 +539,9 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification *cv,
             goto error;
     }
     for(size_t i = 0; i < certificateIssuerListSize; i++) {
+        #if UA_LOGLEVEL <= 100
+            tlsdebug = "mbedtls_x509_crt_parse";
+        #endif
         err = mbedtls_x509_crt_parse(&ci->certificateIssuerList,
                                      certificateIssuerList[i].data,
                                      certificateIssuerList[i].length);
@@ -540,6 +549,9 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification *cv,
             goto error;
     }
     for(size_t i = 0; i < certificateRevocationListSize; i++) {
+        #if UA_LOGLEVEL <= 100
+            tlsdebug = "mbedtls_x509_crl_parse";
+        #endif
         err = mbedtls_x509_crl_parse(&ci->certificateRevocationList,
                                      certificateRevocationList[i].data,
                                      certificateRevocationList[i].length);
@@ -549,6 +561,14 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification *cv,
 
     return UA_STATUSCODE_GOOD;
 error:
+    #if UA_LOGLEVEL <= 100
+    {
+        char errBuff[300];
+        mbedtls_strerror(err, errBuff, 300);
+        UA_LOG_DEBUG(UA_Log_Stdout, UA_LOGCATEGORY_SECURITYPOLICY,
+                 "%s error: %d, %s", tlsdebug, err, errBuff);
+    }
+    #endif
     certificateVerification_deleteMembers(cv);
     return UA_STATUSCODE_BADINTERNALERROR;
 }
