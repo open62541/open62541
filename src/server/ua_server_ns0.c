@@ -17,6 +17,8 @@
 #include "ua_session.h"
 #include "ua_subscription.h"
 
+#if 0
+
 static UA_StatusCode
 addNode_raw(UA_Server *server, UA_NodeClass nodeClass,
             UA_UInt32 nodeId, char *name, void *attributes,
@@ -44,6 +46,8 @@ addNode_finish(UA_Server *server, UA_UInt32 nodeId,
     return AddNode_finish(server, &server->adminSession, &sourceId);
 }
 
+#endif
+
 static UA_StatusCode
 addObjectNode(UA_Server *server, char* name, UA_UInt32 objectid,
               UA_UInt32 parentid, UA_UInt32 referenceid, UA_UInt32 type_id) {
@@ -57,6 +61,7 @@ addObjectNode(UA_Server *server, char* name, UA_UInt32 objectid,
                                    object_attr, NULL, NULL);
 }
 
+#if 0
 static UA_StatusCode
 addReferenceTypeNode(UA_Server *server, char* name, char *inverseName, UA_UInt32 referencetypeid,
                      UA_Boolean isabstract, UA_Boolean symmetric, UA_UInt32 parentid) {
@@ -70,11 +75,13 @@ addReferenceTypeNode(UA_Server *server, char* name, char *inverseName, UA_UInt32
                                    UA_NODEID_NUMERIC(0, parentid), UA_NODEID_NULL,
                                    UA_QUALIFIEDNAME(0, name), reference_attr, NULL, NULL);
 }
+#endif
 
 /***************************/
 /* Bootstrap NS0 hierarchy */
 /***************************/
 
+#if 0
 /* Creates the basic nodes which are expected by the nodeset compiler to be
  * already created. This is necessary to reduce the dependencies for the nodeset
  * compiler. */
@@ -254,6 +261,8 @@ UA_Server_createNS0_base(UA_Server *server) {
 
     return ret;
 }
+
+#endif
 
 /****************/
 /* Data Sources */
@@ -749,11 +758,12 @@ addModellingRules(UA_Server *server) {
  * example server time. */
 UA_StatusCode
 UA_Server_initNS0(UA_Server *server) {
+    return 0;
 
     /* Initialize base nodes which are always required an cannot be created
      * through the NS compiler */
     server->bootstrapNS0 = true;
-    UA_StatusCode retVal = UA_Server_createNS0_base(server);
+    UA_StatusCode retVal = 0;//UA_Server_createNS0_base(server);
     server->bootstrapNS0 = false;
     if(retVal != UA_STATUSCODE_GOOD)
         return retVal;
