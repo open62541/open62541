@@ -235,8 +235,8 @@ getNodeSize(const UA_Node * node) {
     return nodeSize;
 }
 
-static UA_StatusCode
-getEncodeNodes (const UA_Node *node, UA_ByteString *new_valueEncoding) {
+UA_StatusCode
+UA_Node_encode(const UA_Node *node, UA_ByteString *new_valueEncoding) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     UA_Byte *bufPos = new_valueEncoding->data;
@@ -514,107 +514,6 @@ UA_Read_Encoded_Binary(UA_ByteString *encodedBin, const char *const path) {
     return retval;
 }
 
-void
-encodeEditedNode(const UA_Node *node, UA_ByteString *encodedBin,
-                          lookUpTable *lt, UA_UInt32 ltSize) {
-
-    /* Find the index location of node that is edited */
-    size_t index;
-    if(node->nodeId.identifierType == UA_NODEIDTYPE_NUMERIC) {
-        for (size_t i = 0; i < ltSize; i++) {
-            if(lt[i].nodeId.identifier.numeric == node->nodeId.identifier.numeric) {
-                index = i;
-                break;
-            }
-        }
-    }
-
-    if(node->nodeId.identifierType == UA_NODEIDTYPE_STRING) {
-        for (size_t j = 0; j < ltSize; j++) {
-            if(lt[j].nodeId.identifierType == UA_NODEIDTYPE_STRING) {
-                if(UA_String_equal(&lt[j].nodeId.identifier.string, &node->nodeId.identifier.string)) {
-                    index = j;
-                    break;
-                }
-            }
-        }
-    }
-
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-
-    size_t nodeSize =  getNodeSize(node);
-    UA_UInt32 lastNodeIndex = ltSize - 1;
-
-    UA_STACKARRAY(UA_Byte, new_stackValueEncoding, nodeSize);
-    UA_ByteString new_valueEncoding;
-    new_valueEncoding.data = new_stackValueEncoding;
-    new_valueEncoding.length = nodeSize;
-
-    /* Encode the value */
-    retval |= getEncodeNodes(node, &new_valueEncoding);
-
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "The encoding of edited nodes failed with error : %s",
-                             UA_StatusCode_name(retval));
-    }
-
-    /* When the node size is unchanged replace old encoded content with new one*/
-    if(lt[index].nodeSize == nodeSize) {
-        for (size_t k = lt[index].nodePosition, m = 0; k < lt[index].nodePosition + nodeSize; k++, m++) {
-            encodedBin->data[k] = new_valueEncoding.data[m];
-        }
-    }
-
-    /* When the node size is modified replace old encoded content with new one*/
-    else{
-        /* Update the encoded binary */
-        size_t nextNodePos = lt[index].nodePosition + lt[index].nodeSize;
-        for(size_t i = lt[index].nodePosition;
-                i < (lt[lastNodeIndex].nodePosition + lt[lastNodeIndex].nodeSize);
-                i++, nextNodePos++) {
-            encodedBin->data[i] = encodedBin->data[nextNodePos];
-        }
-
-        /* update the lookuptable */
-        for(size_t j = index; j < lastNodeIndex; j++) {
-            /* Clear the destination nodeId */
-            UA_NodeId_clear(&lt[j].nodeId);
-
-            UA_NodeId_copy(&lt[j+1].nodeId, &lt[j].nodeId);
-
-            /* Clear the source nodeId */
-            UA_NodeId_clear(&lt[j+1].nodeId);
-
-            /* Update the node size and node position */
-            lt[j].nodeSize = lt[j+1].nodeSize;
-            lt[j].nodePosition = lt[j-1].nodePosition + lt[j-1].nodeSize;
-        }
-
-        /* Re-insert the updated node at the end (node with modified size) */
-
-        /* Clear the old content in the last location */
-        UA_NodeId_clear(&lt[lastNodeIndex].nodeId);
-        lt[lastNodeIndex].nodeSize = nodeSize;
-
-        /* Calculate the starting position from the previous node */
-        lt[lastNodeIndex].nodePosition = lt[lastNodeIndex - 1].nodePosition + lt[lastNodeIndex - 1].nodeSize;
-        lt[lastNodeIndex].nodeId.identifierType = node->nodeId.identifierType;
-        if(node->nodeId.identifierType == UA_NODEIDTYPE_NUMERIC) {
-            lt[lastNodeIndex].nodeId.identifier.numeric = node->nodeId.identifier.numeric;
-        }
-        if(node->nodeId.identifierType == UA_NODEIDTYPE_STRING) {
-            UA_String_copy(&node->nodeId.identifier.string, &lt[lastNodeIndex].nodeId.identifier.string);
-        }
-
-        /* Update the encoded edited node */
-        for(size_t i = lt[lastNodeIndex].nodePosition, j = 0;
-                i < (lt[lastNodeIndex].nodePosition + nodeSize);
-                i++, j++) {
-            encodedBin->data[i] = new_valueEncoding.data[j];
-        }
-    }
-}
-
 /* container_of */
 #define container_of(ptr, type, member) \
     (type *)((uintptr_t)ptr - offsetof(type,member))
@@ -738,7 +637,8 @@ zipNsNewNode(void *nsCtx, UA_NodeClass nodeClass) {
 /* Not yet inserted into the ZipContext */
 static void
 zipNsDeleteNode(void *nsCtx, UA_Node *node) {
-    deleteEntry(container_of(node, NodeEntry, nodeId));
+    NodeEntry *entry = container_of(node, NodeEntry, nodeId);
+    entry->deleted = true;
 }
 
 static void
@@ -748,12 +648,6 @@ zipNsReleaseNode(void *nsCtx, const UA_Node *node) {
     NodeEntry *entry = container_of(node, NodeEntry, nodeId);
     UA_assert(entry->refCount > 0);
     --entry->refCount;
-    if(entry->deleted) {
-        /* Encode the edited node and replace the encoded content */
-        if(node->nodeClass == UA_NODECLASS_VARIABLE) {
-            encodeEditedNode(node, &encodeBin, ltRead, ltSizeRead);
-        }
-    }
     cleanupEntry(entry);
 }
 
@@ -854,53 +748,19 @@ static const UA_Node *
 zipNsGetNode(void *nsCtx, const UA_NodeId *nodeId) {
     ZipContext *ns = (ZipContext*)nsCtx;
     NodeEntry dummy;
-    if(isMinimalNodesAdded) {
-        if(nodeId->identifierType == UA_NODEIDTYPE_NUMERIC) {
-            for (UA_UInt32 i = 0; i < ltSizeRead; i++) {
-                if(ltRead[i].nodeId.identifier.numeric == nodeId->identifier.numeric) {
-                    const UA_Node* node = decodeNode(nsCtx, encodeBin, ltRead[i].nodePosition);
-                    /* Datasource variable to be redirected to the uncompressed nodes i.e., Datetime
-                     * TODO: Redirect UA_NODECLASS_METHOD to uncompressed nodes */
-                    if(node->nodeClass == UA_NODECLASS_VARIABLE) {
-                        const UA_VariableTypeNode *varNode = (const UA_VariableTypeNode*) node;
-                        if(varNode->valueSource == UA_VALUESOURCE_DATASOURCE) {
-                            zipNsReleaseNode(nsCtx, node); // Delete the above allocated memory!
-                            goto getnode;
-                        }
-                    }
-                    return node;
-                }
-            }
-        }
-
-        if(nodeId->identifierType == UA_NODEIDTYPE_STRING) {
-            for (UA_UInt32 i = 0; i < ltSizeRead; i++) {
-                if(ltRead[i].nodeId.identifierType == UA_NODEIDTYPE_STRING) {
-                    if(UA_String_equal(&ltRead[i].nodeId.identifier.string, &nodeId->identifier.string)) {
-                        const UA_Node* node = decodeNode(nsCtx, encodeBin, ltRead[i].nodePosition);
-                        /* Datasource variable to be redirected to the uncompressed nodes i.e., Datetime
-                         * TODO: Redirect UA_NODECLASS_METHOD to uncompressed nodes */
-                        if(node->nodeClass == UA_NODECLASS_VARIABLE) {
-                            const UA_VariableTypeNode *varNode = (const UA_VariableTypeNode*) node;
-                            if(varNode->valueSource == UA_VALUESOURCE_DATASOURCE) {
-                                zipNsReleaseNode(nsCtx, node); // Delete the above allocated memory!
-                                goto getnode;
-                            }
-                        }
-                        return node;
-                    }
-                }
-            }
-        }
-    }
-    getnode:
     dummy.nodeIdHash = UA_NodeId_hash(nodeId);
     dummy.nodeId = *nodeId;
     NodeEntry *entry = ZIP_FIND(NodeTreeBin, &ns->root, &dummy);
-    if(!entry)
-        return NULL;
-    ++entry->refCount;
-    return (const UA_Node*)&entry->nodeId;
+    if(entry) {
+        ++entry->refCount;
+        return (const UA_Node*)&entry->nodeId;
+    }
+
+    for(size_t i = 0; i < ltSizeRead; i++) {
+        if(UA_NodeId_equal(nodeId, &ltRead[i].nodeId))
+            return decodeNode(nsCtx, encodeBin, ltRead[i].nodePosition);
+    }
+    return NULL;
 }
 
 static UA_StatusCode
@@ -975,6 +835,9 @@ zipNsInsertNode(void *nsCtx, UA_Node *node, UA_NodeId *addedNodeId) {
 
 static UA_StatusCode
 zipNsReplaceNode(void *nsCtx, UA_Node *node) {
+    ZipContext *ns = (ZipContext*)nsCtx;
+    NodeEntry *entry = container_of(node, NodeEntry, nodeId);
+
     /* Find the node */
     const UA_Node *oldNode = zipNsGetNode(nsCtx, &node->nodeId);
     if(!oldNode) {
@@ -982,22 +845,24 @@ zipNsReplaceNode(void *nsCtx, UA_Node *node) {
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     }
 
-    /* Test if the copy is current */
-    NodeEntry *entry = container_of(node, NodeEntry, nodeId);
     NodeEntry *oldEntry = container_of(oldNode, NodeEntry, nodeId);
-    if(oldEntry != entry->orig) {
-        /* The node was already updated since the copy was made */
-        deleteEntry(entry);
-        zipNsReleaseNode(nsCtx, oldNode);
-        return UA_STATUSCODE_BADINTERNALERROR;
+    if(!oldEntry->deleted) {
+        /* The nold version is not from the binfile */
+        if(oldEntry != entry->orig) {
+            /* The node was already updated since the copy was made */
+            deleteEntry(entry);
+            zipNsReleaseNode(nsCtx, oldNode);
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+        ZIP_REMOVE(NodeTreeBin, &ns->root, oldEntry);
+        entry->nodeIdHash = oldEntry->nodeIdHash;
+        oldEntry->deleted = true;
+    } else {
+        entry->nodeIdHash = UA_NodeId_hash(&node->nodeId);
     }
 
     /* Replace */
-    ZipContext *ns = (ZipContext*)nsCtx;
-    ZIP_REMOVE(NodeTreeBin, &ns->root, oldEntry);
-    entry->nodeIdHash = oldEntry->nodeIdHash;
     ZIP_INSERT(NodeTreeBin, &ns->root, entry, ZIP_RANK(entry, zipfields));
-    oldEntry->deleted = true;
 
     zipNsReleaseNode(nsCtx, oldNode);
     return UA_STATUSCODE_GOOD;
@@ -1097,7 +962,6 @@ UA_Nodestore_BinaryEncoded(UA_Nodestore *ns, const char *const lookupTablePath,
 }
 #endif
 
-#ifdef UA_ENABLE_ENCODE_AND_DUMP
 void
 encodeNodeCallback(void *visitorCtx, const UA_Node *node) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -1136,7 +1000,7 @@ encodeNodeCallback(void *visitorCtx, const UA_Node *node) {
     new_valueEncoding.length = nodeSize;
 
     /* Encode the node */
-    retval = getEncodeNodes(node, &new_valueEncoding);
+    retval = UA_Node_encode(node, &new_valueEncoding);
 
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "The encoding of nodes failed with error : %s",
@@ -1160,5 +1024,3 @@ encodeNodeCallback(void *visitorCtx, const UA_Node *node) {
     fclose(fpLookuptable);
     fclose(fpEncoded);
 }
-#endif
-
