@@ -16,6 +16,10 @@
 
 #if defined UA_ENABLE_ENCODE_AND_DUMP || defined UA_ENABLE_USE_ENCODED_NODES
 
+#ifndef UA_ENABLE_IMMUTABLE_NODES
+#error The ROM-based Nodestore requires nodes to be replaced on write
+#endif
+
 static UA_StatusCode
 commonVariableAttributeEncode(const UA_VariableNode *node, UA_Byte *bufPos, const UA_Byte *bufEnd) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
