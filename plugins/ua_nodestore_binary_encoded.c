@@ -1,7 +1,7 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  *
- *    Copyright 2014-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2014-2020 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Julian Grothoff
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2020 (c) Kalycito Infotech Pvt Ltd (Author: Jayanth Velusamy)
@@ -9,10 +9,14 @@
  *    This nodestore contains the copy of zipTree to hold the MINIMAL nodes
  */
 
+
 #include <open62541/plugin/nodestore_default.h>
 #include <open62541/plugin/log_stdout.h>
 #include "ziptree.h"
 #include <open62541/types_generated_encoding_binary.h>
+
+#include <sys/mman.h>
+#include <stdio.h>
 
 #if defined UA_ENABLE_ENCODE_AND_DUMP || defined UA_ENABLE_USE_ENCODED_NODES
 
@@ -300,7 +304,6 @@ const UA_UInt32 minimalNodeIds[MINIMALNODECOUNT] =
     };
 
 UA_Boolean isMinimalNodesAdded = UA_FALSE;
-#define OFFSET_MEMORYSIZE    2024  // Offset memory size for the edited encode nodes
 #define MAX_ROW_LENGTH         30  // Maximum length of a row in lookup table
 
 lookUpTable *ltRead;
@@ -503,16 +506,10 @@ UA_Read_Encoded_Binary(UA_ByteString *encodedBin, const char *const path) {
         return retval;
     }
     fseek(fpEncoded, 0L, SEEK_END);
-    UA_UInt32 sizeOfEncodedBin = (UA_UInt32)ftell(fpEncoded);
-    encodedBin->data = (UA_Byte*) UA_malloc(sizeOfEncodedBin + OFFSET_MEMORYSIZE);
-    encodedBin->length = sizeOfEncodedBin + OFFSET_MEMORYSIZE;
-    fseek(fpEncoded, 0L, SEEK_SET);
-    size_t read = fread(&encodedBin->data[0], sizeof(UA_Byte), sizeOfEncodedBin, fpEncoded);
-    if(read != sizeOfEncodedBin) {
-        UA_ByteString_clear(encodedBin);
-        retval |= UA_STATUSCODE_BADINTERNALERROR;
-    }
-
+    size_t sizeOfEncodedBin = (size_t)ftell(fpEncoded);
+    void *mmapped = mmap(NULL, sizeOfEncodedBin, PROT_READ, MAP_PRIVATE, fileno(fpEncoded), 0);
+    encodedBin->data = (UA_Byte*)mmapped;
+    encodedBin->length = sizeOfEncodedBin;
     fclose(fpEncoded);
     return retval;
 }
@@ -1064,7 +1061,7 @@ zipNsClear(void *nsCtx) {
         UA_NodeId_clear(&ltRead[i].nodeId);
     }
     UA_free(ltRead);
-    UA_free(encodeBin.data);
+    //UA_free(encodeBin.data); // mmapped
 }
 
 UA_StatusCode
