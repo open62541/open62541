@@ -309,6 +309,36 @@ configureNetworking_default(UA_ServerConfig *conf, UA_UInt16 portNumber, UA_UInt
     return retval;
 }
 
+#ifdef UA_ENABLE_WEBSOCKET_SERVER
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addNetworkLayerWS(UA_ServerConfig *conf, UA_UInt16 portNumber,
+                                  UA_UInt32 sendBufferSize, UA_UInt32 recvBufferSize) {
+    /* Add a network layer */
+    UA_ListenerSocketConfig *tmp = (UA_ListenerSocketConfig *)
+        UA_realloc(conf->listenerSocketConfigs,
+                   sizeof(UA_ListenerSocketConfig) * (1 + conf->listenerSocketConfigsSize));
+    if(!tmp)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    conf->listenerSocketConfigs = tmp;
+
+    // Websocket Listeners
+    size_t i = conf->listenerSocketConfigsSize;
+    conf->listenerSocketConfigs[i].socketConfig.networkManager = conf->networkManager;
+    conf->listenerSocketConfigs[i].socketConfig.sendBufferSize = sendBufferSize;
+    if(conf->listenerSocketConfigs[i].socketConfig.sendBufferSize <= 0)
+        conf->listenerSocketConfigs[i].socketConfig.sendBufferSize = 65535;
+    conf->listenerSocketConfigs[i].socketConfig.recvBufferSize = recvBufferSize;
+    if(conf->listenerSocketConfigs[i].socketConfig.recvBufferSize <= 0)
+        conf->listenerSocketConfigs[i].socketConfig.recvBufferSize = 65535;
+    conf->listenerSocketConfigs[i].socketConfig.port = 4880;
+    conf->listenerSocketConfigs[i].createSocket = UA_WSS_ListenerSocket;
+    conf->listenerSocketConfigs[i].customHostname = UA_STRING_NULL;
+    conf->listenerSocketConfigsSize++;
+
+    return UA_STATUSCODE_GOOD;
+}
+#endif
+
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_addSecurityPolicyNone(UA_ServerConfig *config, 
                                       const UA_ByteString *certificate) {

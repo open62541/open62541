@@ -31,7 +31,7 @@ typedef struct {
     /* Verifies the signature of the message using the provided keys in the context.
      *
      * @param securityPolicy the securityPolicy the function is invoked on.
-     * @param channelContext the channelContext that contains the key to verify
+     * @param policyChannelContext the policyChannelContext that contains the key to verify
      *                       the supplied message with.
      * @param message the message to which the signature is supposed to belong.
      * @param signature the signature of the message, that should be verified. */
@@ -43,7 +43,7 @@ typedef struct {
      * provided keys in the context.
      *
      * @param securityPolicy the securityPolicy the function is invoked on.
-     * @param channelContext the channelContext that contains the key to sign
+     * @param policyChannelContext the policyChannelContext that contains the key to sign
      *                       the supplied message with.
      * @param message the message to sign.
      * @param signature an output buffer to which the signature is written. The
@@ -57,7 +57,7 @@ typedef struct {
     /* Gets the signature size that depends on the local (private) key.
      *
      * @param securityPolicy the securityPolicy the function is invoked on.
-     * @param channelContext the channelContext that contains the
+     * @param policyChannelContext the policyChannelContext that contains the
      *                       certificate/key.
      * @return the size of the local signature. Returns 0 if no local
      *         certificate was set. */
@@ -67,7 +67,7 @@ typedef struct {
     /* Gets the signature size that depends on the remote (public) key.
      *
      * @param securityPolicy the securityPolicy the function is invoked on.
-     * @param channelContext the context to retrieve data from.
+     * @param policyChannelContext the context to retrieve data from.
      * @return the size of the remote signature. Returns 0 if no
      *         remote certificate was set previousely. */
     size_t (*getRemoteSignatureSize)(const UA_SecurityPolicy *securityPolicy,
@@ -76,7 +76,7 @@ typedef struct {
     /* Gets the local signing key length.
      *
      * @param securityPolicy the securityPolicy the function is invoked on.
-     * @param channelContext the context to retrieve data from.
+     * @param policyChannelContext the context to retrieve data from.
      * @return the length of the signing key in bytes. Returns 0 if no length can be found.
      */
     size_t (*getLocalKeyLength)(const UA_SecurityPolicy *securityPolicy,
@@ -85,7 +85,7 @@ typedef struct {
     /* Gets the local signing key length.
      *
      * @param securityPolicy the securityPolicy the function is invoked on.
-     * @param channelContext the context to retrieve data from.
+     * @param policyChannelContext the context to retrieve data from.
      * @return the length of the signing key in bytes. Returns 0 if no length can be found.
      */
     size_t (*getRemoteKeyLength)(const UA_SecurityPolicy *securityPolicy,
@@ -98,7 +98,7 @@ typedef struct {
     /* Encrypt the given data in place using an asymmetric algorithm and keys.
      *
      * @param securityPolicy the securityPolicy the function is invoked on.
-     * @param channelContext the channelContext which contains information about
+     * @param policyChannelContext the policyChannelContext which contains information about
      *                       the keys to encrypt data.
      * @param data the data that is encrypted. The encrypted data will overwrite
      *             the data that was supplied. */
@@ -110,7 +110,7 @@ typedef struct {
      * key.
      *
      * @param securityPolicy the securityPolicy the function is invoked on.
-     * @param channelContext the channelContext which contains information about
+     * @param policyChannelContext the policyChannelContext which contains information about
      *                       the keys needed to decrypt the message.
      * @param data the data to decrypt. The decryption is done in place. */
     UA_StatusCode (*decrypt)(const UA_SecurityPolicy *securityPolicy,
@@ -120,7 +120,7 @@ typedef struct {
     /* Returns the length of the key used locally to encrypt messages in bits
      *
      * @param securityPolicy the securityPolicy the function is invoked on.
-     * @param channelContext the context to retrieve data from.
+     * @param policyChannelContext the context to retrieve data from.
      * @return the length of the local key. Returns 0 if no
      *         key length is known. */
     size_t (*getLocalKeyLength)(const UA_SecurityPolicy *securityPolicy,
@@ -129,7 +129,7 @@ typedef struct {
     /* Returns the length of the key used remotely to encrypt messages in bits
      *
      * @param securityPolicy the securityPolicy the function is invoked on.
-     * @param channelContext the context to retrieve data from.
+     * @param policyChannelContext the context to retrieve data from.
      * @return the length of the remote key. Returns 0 if no
      *         key length is known. */
     size_t (*getRemoteKeyLength)(const UA_SecurityPolicy *securityPolicy,
@@ -138,7 +138,7 @@ typedef struct {
     /* Returns the size of encrypted blocks used by the local encryption algorithm.
      *
      * @param securityPolicy the securityPolicy the function is invoked on.
-     * @param channelContext the context to retrieve data from.
+     * @param policyChannelContext the context to retrieve data from.
      * @return the size of encrypted blocks in bytes. Returns 0 if no key length is known.
      */
     size_t (*getLocalBlockSize)(const UA_SecurityPolicy *securityPolicy,
@@ -147,7 +147,7 @@ typedef struct {
     /* Returns the size of encrypted blocks used by the remote encryption algorithm.
      *
      * @param securityPolicy the securityPolicy the function is invoked on.
-     * @param channelContext the context to retrieve data from.
+     * @param policyChannelContext the context to retrieve data from.
      * @return the size of encrypted blocks in bytes. Returns 0 if no key length is known.
      */
     size_t (*getRemoteBlockSize)(const UA_SecurityPolicy *securityPolicy,
@@ -156,7 +156,7 @@ typedef struct {
     /* Returns the size of plaintext blocks used by the local encryption algorithm.
      *
      * @param securityPolicy the securityPolicy the function is invoked on.
-     * @param channelContext the context to retrieve data from.
+     * @param policyChannelContext the context to retrieve data from.
      * @return the size of plaintext blocks in bytes. Returns 0 if no key length is known.
      */
     size_t (*getLocalPlainTextBlockSize)(const UA_SecurityPolicy *securityPolicy,
@@ -165,7 +165,7 @@ typedef struct {
     /* Returns the size of plaintext blocks used by the remote encryption algorithm.
      *
      * @param securityPolicy the securityPolicy the function is invoked on.
-     * @param channelContext the context to retrieve data from.
+     * @param policyChannelContext the context to retrieve data from.
      * @return the size of plaintext blocks in bytes. Returns 0 if no key length is known.
      */
     size_t (*getRemotePlainTextBlockSize)(const UA_SecurityPolicy *securityPolicy,
@@ -250,17 +250,17 @@ typedef struct {
      *
      * The caller needs to call delete on the received object to free allocated
      * memory. Memory is only allocated if the function succeeds so there is no
-     * need to manually free the memory pointed to by *channelContext or to
+     * need to manually free the memory pointed to by *policyChannelContext or to
      * call delete in case of failure.
      *
      * @param securityPolicy the policy context of the endpoint that is connected
-     *                       to. It will be stored in the channelContext for
+     *                       to. It will be stored in the policyChannelContext for
      *                       further access by the policy.
      * @param remoteCertificate the remote certificate contains the remote
      *                          asymmetric key. The certificate will be verified
      *                          and then stored in the context so that its
      *                          details may be accessed.
-     * @param channelContext the initialized channelContext that is passed to
+     * @param policyChannelContext the initialized policyChannelContext that is passed to
      *                       functions that work on a context. */
     UA_StatusCode (*newContext)(const UA_SecurityPolicy *securityPolicy,
                                 const UA_ByteString *remoteCertificate,
@@ -272,7 +272,7 @@ typedef struct {
 
     /* Sets the local encrypting key in the supplied context.
      *
-     * @param channelContext the context to work on.
+     * @param policyChannelContext the context to work on.
      * @param key the local encrypting key to store in the context. */
     UA_StatusCode (*setLocalSymEncryptingKey)(void *channelContext,
                                               const UA_ByteString *key)
@@ -280,7 +280,7 @@ typedef struct {
 
     /* Sets the local signing key in the supplied context.
      *
-     * @param channelContext the context to work on.
+     * @param policyChannelContext the context to work on.
      * @param key the local signing key to store in the context. */
     UA_StatusCode (*setLocalSymSigningKey)(void *channelContext,
                                            const UA_ByteString *key)
@@ -288,7 +288,7 @@ typedef struct {
 
     /* Sets the local initialization vector in the supplied context.
      *
-     * @param channelContext the context to work on.
+     * @param policyChannelContext the context to work on.
      * @param iv the local initialization vector to store in the context. */
     UA_StatusCode (*setLocalSymIv)(void *channelContext,
                                    const UA_ByteString *iv)
@@ -296,7 +296,7 @@ typedef struct {
 
     /* Sets the remote encrypting key in the supplied context.
      *
-     * @param channelContext the context to work on.
+     * @param policyChannelContext the context to work on.
      * @param key the remote encrypting key to store in the context. */
     UA_StatusCode (*setRemoteSymEncryptingKey)(void *channelContext,
                                                const UA_ByteString *key)
@@ -304,7 +304,7 @@ typedef struct {
 
     /* Sets the remote signing key in the supplied context.
      *
-     * @param channelContext the context to work on.
+     * @param policyChannelContext the context to work on.
      * @param key the remote signing key to store in the context. */
     UA_StatusCode (*setRemoteSymSigningKey)(void *channelContext,
                                             const UA_ByteString *key)
@@ -312,7 +312,7 @@ typedef struct {
 
     /* Sets the remote initialization vector in the supplied context.
      *
-     * @param channelContext the context to work on.
+     * @param policyChannelContext the context to work on.
      * @param iv the remote initialization vector to store in the context. */
     UA_StatusCode (*setRemoteSymIv)(void *channelContext,
                                     const UA_ByteString *iv)
@@ -321,7 +321,7 @@ typedef struct {
     /* Compares the supplied certificate with the certificate in the channel
      * context.
      *
-     * @param channelContext the channel context data that contains the
+     * @param policyChannelContext the channel context data that contains the
      *                       certificate to compare to.
      * @param certificate the certificate to compare to the one stored in the context.
      * @return if the certificates match UA_STATUSCODE_GOOD is returned. If they
@@ -367,7 +367,7 @@ struct UA_SecurityPolicy {
  * have enough room in the buffer for the overhead.
  *
  * @param securityPolicy the algorithms to use.
- * @param channelContext the retrieve data from.
+ * @param policyChannelContext the retrieve data from.
  * @param maxEncryptionLength the maximum number of bytes that the data to
  *                            encrypt can be. */
 size_t

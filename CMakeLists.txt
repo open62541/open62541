@@ -886,9 +886,9 @@ endif()
 
 if(UA_ENABLE_WEBSOCKET_SERVER)
     list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/networking/wss_private.h)
-    set(default_plugin_sources ${default_plugin_sources}
-        ${PROJECT_SOURCE_DIR}/plugins/networking/ua_wss_listener_socket.c
-        ${PROJECT_SOURCE_DIR}/plugins/networking/ua_wss_data_socket.c)
+    list(APPEND default_plugin_sources
+         ${PROJECT_SOURCE_DIR}/plugins/networking/ua_wss_listener_socket.c
+         ${PROJECT_SOURCE_DIR}/plugins/networking/ua_wss_data_socket.c)
 endif()
 
 if(UA_ENABLE_JSON_ENCODING)

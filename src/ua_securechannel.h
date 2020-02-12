@@ -104,8 +104,11 @@ struct UA_SecureChannel {
 
     /* The endpoint and context of the channel */
     const UA_SecurityPolicy *securityPolicy;
-    void *channelContext; /* For interaction with the security policy */
+    void *policyChannelContext; /* For interaction with the security policy */
     UA_Socket *socket;
+    UA_CertificateVerification *certificateVerification;
+    UA_StatusCode (*configure)(void *application, UA_SecureChannel *channel,
+                               const UA_AsymmetricAlgorithmSecurityHeader *asymHeader);
 
     /* Asymmetric encryption info */
     UA_ByteString remoteCertificate;

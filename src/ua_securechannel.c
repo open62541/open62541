@@ -116,7 +116,7 @@ UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel,
     }
 
     UA_StatusCode retval = securityPolicy->channelModule.
-        newContext(securityPolicy, remoteCertificate, &channel->channelContext);
+        newContext(securityPolicy, remoteCertificate, &channel->policyChannelContext);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                        "Could not set up the SecureChannel context");
@@ -280,7 +280,7 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel,
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
         total_length += sp->asymmetricModule.cryptoModule.signatureAlgorithm.
-            getLocalSignatureSize(sp, channel->channelContext);
+            getLocalSignatureSize(sp, channel->policyChannelContext);
 
     /* The total message length is known here which is why we encode the headers
      * at this step and not earlier. */
@@ -386,7 +386,7 @@ sendSymmetricChunk(UA_MessageContext *messageContext) {
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
         total_length += securityPolicy->symmetricModule.cryptoModule.signatureAlgorithm.
-            getLocalSignatureSize(securityPolicy, channel->channelContext);
+            getLocalSignatureSize(securityPolicy, channel->policyChannelContext);
     /* Space for the padding and the signature have been reserved in setBufPos() */
     UA_assert(total_length <= channel->socket->socketConfig.sendBufferSize);
 
@@ -536,7 +536,6 @@ UA_SecureChannel_sendSymmetricMessage(UA_SecureChannel *channel, UA_UInt32 reque
 /* Receive and Process Messages */
 /********************************/
 
-#ifndef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
 static UA_StatusCode
 processSequenceNumberSym(UA_SecureChannel *channel, UA_UInt32 sequenceNumber) {
     /* Failure mode hook for unit tests */
@@ -641,14 +640,13 @@ decryptMessageChunk(UA_SecureChannel *channel, UA_Chunk *chunk, void *applicatio
     }
 
 #if !defined(FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION)
-    /* Check the ChannelId. Non-opened channels have the id zero. */
+/* Check the ChannelId. Non-opened channels have the id zero. */
     if(secureChannelId != channel->securityToken.channelId) {
         res = UA_STATUSCODE_BADSECURECHANNELIDINVALID;
         goto error;
     }
 #endif
 
-    /* Check (and revolve) the SecurityToken */
     res = checkHeader(channel, securityHeader);
     clearHeader(securityHeader);
     if(res != UA_STATUSCODE_GOOD)

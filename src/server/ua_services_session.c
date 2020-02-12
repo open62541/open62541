@@ -185,7 +185,7 @@ signCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
 
     /* Prepare the signature */
     size_t signatureSize = securityPolicy->certificateSigningAlgorithm.
-        getLocalSignatureSize(securityPolicy, channel->channelContext);
+        getLocalSignatureSize(securityPolicy, channel->policyChannelContext);
     UA_StatusCode retval = UA_String_copy(&securityPolicy->certificateSigningAlgorithm.uri,
                                           &signatureData->algorithm);
     retval |= UA_ByteString_allocBuffer(&signatureData->signature, signatureSize);
@@ -204,7 +204,7 @@ signCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
     memcpy(dataToSign.data + request->clientCertificate.length,
            request->clientNonce.data, request->clientNonce.length);
     retval = securityPolicy->certificateSigningAlgorithm.
-        sign(securityPolicy, channel->channelContext, &dataToSign, &signatureData->signature);
+        sign(securityPolicy, channel->policyChannelContext, &dataToSign, &signatureData->signature);
 
     /* Clean up */
     UA_ByteString_clear(&dataToSign);
@@ -262,7 +262,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
          * first in the chain according to the OPC UA specification Part 6 (1.04),
          * chapter 6.2.3.*/
         UA_StatusCode retval = channel->securityPolicy->channelModule.
-            compareCertificate(channel->channelContext, &request->clientCertificate);
+            compareCertificate(channel->policyChannelContext, &request->clientCertificate);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
                                    "The client certificate did not validate");
@@ -413,7 +413,7 @@ checkSignature(const UA_Server *server, const UA_SecureChannel *channel,
     memcpy(dataToVerify.data + localCertificate->length,
            session->serverNonce.data, session->serverNonce.length);
     retval = securityPolicy->certificateSigningAlgorithm.
-        verify(securityPolicy, channel->channelContext, &dataToVerify,
+        verify(securityPolicy, channel->policyChannelContext, &dataToVerify,
                &request->clientSignature.signature);
     UA_ByteString_clear(&dataToVerify);
     return retval;
@@ -636,7 +636,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
        if(!UA_String_equal(&securityPolicy->policyUri, &UA_SECURITY_POLICY_NONE_URI)) {
            /* Create a temporary channel context if a different SecurityPolicy is
             * used for the password from the SecureChannel */
-           void *tempChannelContext = channel->channelContext;
+           void *tempChannelContext = channel->policyChannelContext;
            if(securityPolicy != channel->securityPolicy) {
                /* TODO: This is a hack. We use our own certificate to create a
                 * channel context. Because the client does not provide one in a

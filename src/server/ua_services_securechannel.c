@@ -183,6 +183,8 @@ UA_Server_createSecureChannel(UA_Server *server, UA_Socket *socket) {
 UA_StatusCode
 UA_Server_configSecureChannel(void *application, UA_SecureChannel *channel,
                               const UA_AsymmetricAlgorithmSecurityHeader *asymHeader) {
+    if(channel->state != UA_SECURECHANNELSTATE_FRESH)
+        return UA_STATUSCODE_GOOD;
     /* Iterate over available endpoints and choose the correct one */
     UA_SecurityPolicy *securityPolicy = NULL;
     UA_Server *const server = (UA_Server *const) application;
