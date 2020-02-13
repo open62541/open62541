@@ -37,7 +37,11 @@ typedef UA_StatusCode (*UA_exchangeEncodeBuffer)(void *handle, UA_Byte **bufPos,
           Is ignored if NULL.
  * @param exchangeHandle Custom data passed into the exchangeCallback.
  * @return Returns a statuscode whether encoding succeeded. */
-UA_StatusCode 
+#ifdef UA_ENABLE_NODESTORE_SWITCH
+UA_StatusCode UA_EXPORT
+#else
+UA_StatusCode
+#endif
 UA_encodeBinary(const void *src, const UA_DataType *type,
                 UA_Byte **bufPos, const UA_Byte **bufEnd,
                 UA_exchangeEncodeBuffer exchangeCallback,
@@ -60,7 +64,11 @@ UA_encodeBinary(const void *src, const UA_DataType *type,
  * @param customTypes An array of non-standard datatypes (not included in
  *        UA_TYPES). Can be NULL if customTypesSize is zero.
  * @return Returns a statuscode whether decoding succeeded. */
+#ifdef UA_ENABLE_NODESTORE_SWITCH
+UA_StatusCode UA_EXPORT
+#else
 UA_StatusCode
+#endif
 UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *dst,
                 const UA_DataType *type, const UA_DataTypeArray *customTypes)
     UA_FUNC_ATTR_WARN_UNUSED_RESULT;
@@ -68,10 +76,18 @@ UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *dst,
 /* Returns the number of bytes the value p takes in binary encoding. Returns
  * zero if an error occurs. UA_calcSizeBinary is thread-safe and reentrant since
  * it does not access global (thread-local) variables. */
+#ifdef UA_ENABLE_NODESTORE_SWITCH
+size_t UA_EXPORT
+#else
 size_t
+#endif
 UA_calcSizeBinary(const void *p, const UA_DataType *type);
 
+#ifdef UA_ENABLE_NODESTORE_SWITCH
+const UA_DataType UA_EXPORT *
+#else
 const UA_DataType *
+#endif
 UA_findDataTypeByBinary(const UA_NodeId *typeId);
 
 _UA_END_DECLS
