@@ -118,8 +118,9 @@ addDataSetField(UA_Server *server) {
  * The WriterGroup (WG) is part of the connection and contains the primary configuration
  * parameters for the message creation.
  */
-static void
+static UA_StatusCode
 addWriterGroup(UA_Server *server, char *topic, int interval) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     /* Now we create a new WriterGroupConfig and add the group to the existing PubSubConnection. */
     UA_WriterGroupConfig writerGroupConfig;
     memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
@@ -127,30 +128,56 @@ addWriterGroup(UA_Server *server, char *topic, int interval) {
     writerGroupConfig.publishingInterval = interval;
     writerGroupConfig.enabled = UA_FALSE;
     writerGroupConfig.writerGroupId = 100;
+    UA_UadpWriterGroupMessageDataType *writerGroupMessage;
 
     /* decide whether to use JSON or UADP encoding*/
 #ifdef UA_ENABLE_JSON_ENCODING
-    if(useJson)
+    UA_JsonWriterGroupMessageDataType *Json_writerGroupMessage;
+    
+    if(useJson) {
         writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_JSON;
+        writerGroupConfig.messageSettings.encoding             = UA_EXTENSIONOBJECT_DECODED;
+
+        writerGroupConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_JSONWRITERGROUPMESSAGEDATATYPE];
+        /* The configuration flags for the messages are encapsulated inside the
+         * message- and transport settings extension objects. These extension
+         * objects are defined by the standard. e.g.
+         * UadpWriterGroupMessageDataType */
+        Json_writerGroupMessage = UA_JsonWriterGroupMessageDataType_new();
+        /* Change message settings of writerGroup to send PublisherId,
+         * DataSetMessageHeader, SingleDataSetMessage and DataSetClassId in PayloadHeader
+         * of NetworkMessage */
+        Json_writerGroupMessage->networkMessageContentMask =
+            (UA_JsonNetworkMessageContentMask)(UA_JSONNETWORKMESSAGECONTENTMASK_NETWORKMESSAGEHEADER |
+            (UA_JsonNetworkMessageContentMask)UA_JSONNETWORKMESSAGECONTENTMASK_DATASETMESSAGEHEADER |
+            (UA_JsonNetworkMessageContentMask)UA_JSONNETWORKMESSAGECONTENTMASK_SINGLEDATASETMESSAGE |
+            (UA_JsonNetworkMessageContentMask)UA_JSONNETWORKMESSAGECONTENTMASK_PUBLISHERID |
+            (UA_JsonNetworkMessageContentMask)UA_JSONNETWORKMESSAGECONTENTMASK_DATASETCLASSID);
+        writerGroupConfig.messageSettings.content.decoded.data = Json_writerGroupMessage;
+    }
+
     else
 #endif
+    {
         writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
-    writerGroupConfig.messageSettings.encoding             = UA_EXTENSIONOBJECT_DECODED;
-    writerGroupConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
-    /* The configuration flags for the messages are encapsulated inside the
-     * message- and transport settings extension objects. These extension
-     * objects are defined by the standard. e.g.
-     * UadpWriterGroupMessageDataType */
-    UA_UadpWriterGroupMessageDataType *writerGroupMessage  = UA_UadpWriterGroupMessageDataType_new();
-    /* Change message settings of writerGroup to send PublisherId,
-     * WriterGroupId in GroupHeader and DataSetWriterId in PayloadHeader
-     * of NetworkMessage */
-    writerGroupMessage->networkMessageContentMask =
-        (UA_UadpNetworkMessageContentMask)(UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID |
-        (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_GROUPHEADER |
-        (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_WRITERGROUPID |
-        (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
-    writerGroupConfig.messageSettings.content.decoded.data = writerGroupMessage;
+        writerGroupConfig.messageSettings.encoding             = UA_EXTENSIONOBJECT_DECODED;
+        writerGroupConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
+        /* The configuration flags for the messages are encapsulated inside the
+         * message- and transport settings extension objects. These extension
+         * objects are defined by the standard. e.g.
+         * UadpWriterGroupMessageDataType */
+        writerGroupMessage  = UA_UadpWriterGroupMessageDataType_new();
+        /* Change message settings of writerGroup to send PublisherId,
+         * WriterGroupId in GroupHeader and DataSetWriterId in PayloadHeader
+         * of NetworkMessage */
+        writerGroupMessage->networkMessageContentMask =
+            (UA_UadpNetworkMessageContentMask)(UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID |
+            (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_GROUPHEADER |
+            (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_WRITERGROUPID |
+            (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
+        writerGroupConfig.messageSettings.content.decoded.data = writerGroupMessage;
+    }
+
 
     /* configure the mqtt publish topic */
     UA_BrokerWriterGroupTransportDataType brokerTransportSettings;
@@ -172,9 +199,22 @@ addWriterGroup(UA_Server *server, char *topic, int interval) {
     transportSettings.content.decoded.data = &brokerTransportSettings;
 
     writerGroupConfig.transportSettings = transportSettings;
-    UA_Server_addWriterGroup(server, connectionIdent, &writerGroupConfig, &writerGroupIdent);
-    UA_Server_setWriterGroupOperational(server, writerGroupIdent);
-    UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
+    retval = UA_Server_addWriterGroup(server, connectionIdent, &writerGroupConfig, &writerGroupIdent);
+
+    if (retval == UA_STATUSCODE_GOOD)
+        UA_Server_setWriterGroupOperational(server, writerGroupIdent);
+
+#ifdef UA_ENABLE_JSON_ENCODING
+    if (useJson) {
+        UA_JsonWriterGroupMessageDataType_delete(Json_writerGroupMessage);
+    }
+#endif
+
+    if (!useJson && writerGroupMessage) {
+        UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
+    }
+
+    return retval;
 }
 
 /**
@@ -337,6 +377,7 @@ int main(int argc, char **argv) {
         return -1;
     }
 
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     /* Set up the server config */
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
@@ -354,7 +395,12 @@ int main(int argc, char **argv) {
     addPubSubConnection(server, addressUrl);
     addPublishedDataSet(server);
     addDataSetField(server);
-    addWriterGroup(server, topic, interval);
+    retval = addWriterGroup(server, topic, interval);
+    if (UA_STATUSCODE_GOOD != retval)
+    {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Error Name = %s", UA_StatusCode_name(retval));
+        return EXIT_FAILURE;
+    }
     addDataSetWriter(server, topic);
     UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, connectionIdent);
 

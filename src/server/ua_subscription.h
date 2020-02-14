@@ -56,12 +56,63 @@ struct UA_MonitoredItem;
 typedef struct UA_MonitoredItem UA_MonitoredItem;
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+
 typedef struct UA_EventNotification {
     UA_EventFieldList fields;
     /* EventFilterResult currently isn't being used
     UA_EventFilterResult result; */
 } UA_EventNotification;
-#endif
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+
+typedef enum {
+  UA_INACTIVE,
+  UA_ACTIVE,
+  UA_ACTIVE_HIGHHIGH,
+  UA_ACTIVE_HIGH,
+  UA_ACTIVE_LOW,
+  UA_ACTIVE_LOWLOW
+} UA_ActiveState;
+
+/* In the first implementation there will be only one entry in this list
+ * conditionBranchId is always NULL. */
+typedef struct UA_ConditionBranch {
+    LIST_ENTRY(UA_ConditionBranch) listEntry;
+    UA_NodeId conditionBranchId;
+    UA_ByteString lastEventId;
+    UA_Boolean isCallerAC;
+} UA_ConditionBranch;
+
+typedef struct {
+    UA_TwoStateVariableChangeCallback enableStateCallback;
+    UA_TwoStateVariableChangeCallback ackStateCallback;
+    UA_Boolean ackedRemoveBranch;
+    UA_TwoStateVariableChangeCallback confirmStateCallback;
+    UA_Boolean confirmedRemoveBranch;
+    UA_TwoStateVariableChangeCallback activeStateCallback;
+} UA_ConditionCallbacks;
+
+typedef struct UA_Condition {
+    LIST_ENTRY(UA_Condition) listEntry;
+    LIST_HEAD(, UA_ConditionBranch) conditionBranchHead;
+    UA_NodeId conditionId;
+    UA_UInt16 lastSeverity;
+    UA_DateTime lastSeveritySourceTimeStamp;
+    UA_ConditionCallbacks callbacks;
+    UA_ActiveState lastActiveState;
+    UA_ActiveState currentActiveState;
+    UA_Boolean isLimitAlarm;
+} UA_Condition;
+
+typedef struct UA_ConditionSource {
+    LIST_ENTRY(UA_ConditionSource) listEntry;
+    LIST_HEAD(, UA_Condition) conditionHead;
+    UA_NodeId conditionSourceId;
+} UA_ConditionSource;
+
+#endif /* UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */
+
+#endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
 typedef struct UA_Notification {
     TAILQ_ENTRY(UA_Notification) listEntry; /* Notification list for the MonitoredItem */
@@ -157,6 +208,9 @@ void UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem)
 void UA_MonitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem);
 UA_StatusCode UA_MonitoredItem_registerSampleCallback(UA_Server *server, UA_MonitoredItem *mon);
 void UA_MonitoredItem_unregisterSampleCallback(UA_Server *server, UA_MonitoredItem *mon);
+
+UA_StatusCode UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event, UA_MonitoredItem *mon);
+UA_StatusCode UA_Event_generateEventId(UA_ByteString *generatedId);
 
 /* Remove entries until mon->maxQueueSize is reached. Sets infobits for lost
  * data if required. */

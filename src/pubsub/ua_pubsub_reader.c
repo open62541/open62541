@@ -248,9 +248,10 @@ getReaderFromIdentifier(UA_Server *server, UA_NetworkMessage *pMsg,
 
 UA_ReaderGroup *
 UA_ReaderGroup_findRGbyId(UA_Server *server, UA_NodeId identifier) {
-    for(size_t iteratorConn = 0; iteratorConn < server->pubSubManager.connectionsSize; iteratorConn++) {
+    UA_PubSubConnection *pubSubConnection;
+    TAILQ_FOREACH(pubSubConnection, &server->pubSubManager.connections, listEntry){
         UA_ReaderGroup* readerGroup = NULL;
-        LIST_FOREACH(readerGroup, &server->pubSubManager.connections[iteratorConn].readerGroups, listEntry) {
+        LIST_FOREACH(readerGroup, &pubSubConnection->readerGroups, listEntry) {
             if(UA_NodeId_equal(&identifier, &readerGroup->identifier)) {
                 return readerGroup;
             }
@@ -261,15 +262,15 @@ UA_ReaderGroup_findRGbyId(UA_Server *server, UA_NodeId identifier) {
 }
 
 UA_DataSetReader *UA_ReaderGroup_findDSRbyId(UA_Server *server, UA_NodeId identifier) {
-    for(size_t i = 0; i < server->pubSubManager.connectionsSize; i++) {
+    UA_PubSubConnection *pubSubConnection;
+    TAILQ_FOREACH(pubSubConnection, &server->pubSubManager.connections, listEntry){
         UA_ReaderGroup* readerGroup = NULL;
-        LIST_FOREACH(readerGroup, &server->pubSubManager.connections[i].readerGroups, listEntry) {
+        LIST_FOREACH(readerGroup, &pubSubConnection->readerGroups, listEntry) {
             UA_DataSetReader *tmpReader;
             LIST_FOREACH(tmpReader, &readerGroup->readers, listEntry) {
                 if(UA_NodeId_equal(&tmpReader->identifier, &identifier)) {
                     return tmpReader;
                 }
-
             }
         }
     }
@@ -560,7 +561,7 @@ UA_Server_DataSetReader_addTargetVariables(UA_Server *server, UA_NodeId *parentN
         }
         else {
             UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
-                         "addVariableNode: error 0x%x", retval);
+                         "addVariableNode: error 0x%" PRIx32, retval);
         }
 
         UA_FieldTargetDataType_init(&targetVars.targetVariables[i]);
@@ -621,7 +622,7 @@ UA_Server_DataSetReader_process(UA_Server *server, UA_DataSetReader *dataSetRead
                     if(dataSetReader->subscribedDataSetTarget.targetVariables[i].attributeId == UA_ATTRIBUTEID_VALUE) {
                         retVal = UA_Server_writeValue(server, dataSetReader->subscribedDataSetTarget.targetVariables[i].targetNodeId, dataSetMsg->data.keyFrameData.dataSetFields[i].value);
                         if(retVal != UA_STATUSCODE_GOOD) {
-                            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Error Write Value KF %u: 0x%x", i, retVal);
+                            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Error Write Value KF %" PRIu16 ": 0x%"PRIx32, i, retVal);
                         }
 
                     }
@@ -634,7 +635,7 @@ UA_Server_DataSetReader_process(UA_Server *server, UA_DataSetReader *dataSetRead
                         UA_DataValue_copy(&dataSetMsg->data.keyFrameData.dataSetFields[i], &writeVal.value);
                         retVal = UA_Server_write(server, &writeVal);
                         if(retVal != UA_STATUSCODE_GOOD) {
-                            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Error Write KF %u: 0x%x", i, retVal);
+                            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Error Write KF %" PRIu16 ": 0x%" PRIx32, i, retVal);
                         }
 
                     }

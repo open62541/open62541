@@ -33,14 +33,15 @@ typedef struct UA_ReaderGroup UA_ReaderGroup;
 /**********************************************/
 /*            PublishedDataSet                */
 /**********************************************/
-typedef struct{
+typedef struct UA_PublishedDataSet{
     UA_PublishedDataSetConfig config;
     UA_DataSetMetaDataType dataSetMetaData;
-    LIST_HEAD(UA_ListOfDataSetField, UA_DataSetField) fields;
+    TAILQ_HEAD(UA_ListOfDataSetField, UA_DataSetField) fields;
     UA_NodeId identifier;
     UA_UInt16 fieldSize;
     UA_UInt16 promotedFieldsCount;
     UA_UInt16 configurationFreezeCounter;
+    TAILQ_ENTRY(UA_PublishedDataSet) listEntry;
 } UA_PublishedDataSet;
 
 UA_StatusCode
@@ -54,7 +55,7 @@ UA_PublishedDataSet_clear(UA_Server *server, UA_PublishedDataSet *publishedDataS
 /*               Connection                   */
 /**********************************************/
 //the connection config (public part of connection) object is defined in include/ua_plugin_pubsub.h
-typedef struct{
+typedef struct UA_PubSubConnection{
     UA_PubSubConnectionConfig *config;
     //internal fields
     UA_PubSubChannel *channel;
@@ -62,7 +63,7 @@ typedef struct{
     LIST_HEAD(UA_ListOfWriterGroup, UA_WriterGroup) writerGroups;
     LIST_HEAD(UA_ListOfPubSubReaderGroup, UA_ReaderGroup) readerGroups;
     size_t readerGroupsSize;
-
+    TAILQ_ENTRY(UA_PubSubConnection) listEntry;
     UA_UInt16 configurationFreezeCounter;
 } UA_PubSubConnection;
 
@@ -114,37 +115,6 @@ UA_StatusCode
 UA_DataSetWriter_setPubSubState(UA_Server *server, UA_PubSubState state, UA_DataSetWriter *dataSetWriter);
 
 /**********************************************/
-/*          Network Message Offsets           */
-/**********************************************/
-
-/* Offsets for buffered messages in the PubSub fast path.
- * TODO: Implement the generation of the offsets */
-typedef enum {
-	UA_PUBSUB_OFFSETTYPE_SEQUENCENUMBER,
-    UA_PUBSUB_OFFSETTYPE_TIMESTAMP,     /* source pointer */
-	UA_PUBSUB_OFFSETTYPE_TIMESTAMP_NOW, /* no source */
-    UA_PUBSUB_OFFSETTYPE_PAYLOAD_DATAVALUE,
-	UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT,
-	UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW
-    /* Add more offset types as needed */
-} UA_NetworkMessageOffsetType;
-
-typedef struct {
-    UA_NetworkMessageOffsetType contentType;
-	union {
-		UA_DateTime *timestamp;
-		UA_DataValue *value;
-	} offsetData;
-	size_t offset;
-} UA_NetworkMessageOffset;
-
-typedef struct {
-    UA_ByteString buffer; /* The precomputed message buffer */
-    UA_NetworkMessageOffset *offsets; /* Offsets for changes in the message buffer */
-    size_t offsetsSize;
-} UA_NetworkMessageOffsetBuffer;
-
-/**********************************************/
 /*               WriterGroup                  */
 /**********************************************/
 
@@ -153,13 +123,14 @@ struct UA_WriterGroup{
     //internal fields
     LIST_ENTRY(UA_WriterGroup) listEntry;
     UA_NodeId identifier;
-    UA_NodeId linkedConnection;
+    UA_PubSubConnection *linkedConnection;
     LIST_HEAD(UA_ListOfDataSetWriter, UA_DataSetWriter) writers;
     UA_UInt32 writersCount;
     UA_UInt64 publishCallbackId;
     UA_Boolean publishCallbackIsRegistered;
     UA_PubSubState state;
     UA_NetworkMessageOffsetBuffer bufferedMessage;
+    UA_UInt16 sequenceNumber; /* Increased after every succressuly sent message */
 };
 
 UA_StatusCode
@@ -176,7 +147,7 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_PubSubState state, UA_Writer
 typedef struct UA_DataSetField{
     UA_DataSetFieldConfig config;
     //internal fields
-    LIST_ENTRY(UA_DataSetField) listEntry;
+    TAILQ_ENTRY(UA_DataSetField) listEntry;
     UA_NodeId identifier;
     UA_NodeId publishedDataSet;             //ref to parent pds
     UA_FieldMetaData fieldMetaData;

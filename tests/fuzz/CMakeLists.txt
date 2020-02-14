@@ -6,6 +6,8 @@ include_directories("${PROJECT_SOURCE_DIR}/src/server")
 # testing_clock.h
 include_directories("${PROJECT_SOURCE_DIR}/tests/testing-plugins")
 
+add_definitions(-DUA_sleep_ms=UA_comboSleep)
+
 if(NOT MSVC)
     add_definitions(-Wno-deprecated-declarations)
 endif()
@@ -16,7 +18,9 @@ if (UA_BUILD_FUZZING_CORPUS)
     add_definitions(-DUA_CORPUS_OUTPUT_DIR="${PROJECT_BINARY_DIR}/corpus/custom")
     file(MAKE_DIRECTORY ${PROJECT_BINARY_DIR}/corpus/custom)
 
-    add_executable(corpus_generator ua_debug_dump_pkgs_file.c corpus_generator.c)
+    add_executable(corpus_generator ua_debug_dump_pkgs_file.c corpus_generator.c
+                                    ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c
+                                    ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_clock.c)
     target_link_libraries(corpus_generator open62541 ${open62541_LIBRARIES})
     assign_source_group(corpus_generator)
     set_target_properties(corpus_generator PROPERTIES FOLDER "open62541/corpus_generator")
@@ -102,6 +106,9 @@ add_fuzzer(fuzz_mdns_message ${PROJECT_SOURCE_DIR}/deps/mdnsd/tests/fuzz/fuzz_md
 add_fuzzer(fuzz_mdns_xht ${PROJECT_SOURCE_DIR}/deps/mdnsd/tests/fuzz/fuzz_mdns_xht.cc)
 
 
+add_fuzzer(fuzz_base64_encode fuzz_base64_encode.cc)
+add_fuzzer(fuzz_base64_decode fuzz_base64_decode.cc)
+
 if(UA_ENABLE_JSON_ENCODING)
     add_fuzzer(fuzz_json_decode fuzz_json_decode.cc)
     add_fuzzer(fuzz_json_decode_encode fuzz_json_decode_encode.cc)
@@ -115,10 +122,10 @@ FOREACH(f ${CORPUS_FILES})
 ENDFOREACH(f)
 
 
-file(GLOB CORPUS_FILES ${PROJECT_SOURCE_DIR}/deps/mdnsd/tests/fuzz/fuzz_mdns_message_corpus/*)
-FOREACH(f ${CORPUS_FILES})
-    LIST(APPEND CORPUS_CMDS COMMAND ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/fuzz_mdns_message "${f}")
-ENDFOREACH(f)
+#file(GLOB CORPUS_FILES ${PROJECT_SOURCE_DIR}/deps/mdnsd/tests/fuzz/fuzz_mdns_message_corpus/*)
+#FOREACH(f ${CORPUS_FILES})
+#    LIST(APPEND CORPUS_CMDS COMMAND ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/fuzz_mdns_message "${f}")
+#ENDFOREACH(f)
 
 add_custom_target(run_fuzzer ${CORPUS_CMDS}
                   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}

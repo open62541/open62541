@@ -187,6 +187,12 @@ asym_decrypt_sp_basic256sha256(const UA_SecurityPolicy *securityPolicy,
 }
 
 static size_t
+asym_getLocalEncryptionKeyLength_sp_basic256sha256(const UA_SecurityPolicy *securityPolicy,
+                                                   const Basic256Sha256_ChannelContext *cc) {
+    return mbedtls_pk_get_len(&cc->policyContext->localPrivateKey) * 8;
+}
+
+static size_t
 asym_getRemoteEncryptionKeyLength_sp_basic256sha256(const UA_SecurityPolicy *securityPolicy,
                                                     const Basic256Sha256_ChannelContext *cc) {
     return mbedtls_pk_get_len(&cc->remoteCertificate.pk) * 8;
@@ -572,10 +578,10 @@ clear_sp_basic256sha256(UA_SecurityPolicy *securityPolicy) {
     if(securityPolicy == NULL)
         return;
 
+    UA_ByteString_deleteMembers(&securityPolicy->localCertificate);
+
     if(securityPolicy->policyContext == NULL)
         return;
-
-    UA_ByteString_deleteMembers(&securityPolicy->localCertificate);
 
     /* delete all allocated members in the context */
     Basic256Sha256_PolicyContext *pc = (Basic256Sha256_PolicyContext *)
@@ -682,7 +688,7 @@ policyContext_newContext_sp_basic256sha256(UA_SecurityPolicy *securityPolicy,
 
     /* Add the system entropy source */
     mbedErr = mbedtls_entropy_add_source(&pc->entropyContext,
-                                         mbedtls_platform_entropy_poll, NULL, 0,
+                                         MBEDTLS_ENTROPY_POLL_METHOD, NULL, 0,
                                          MBEDTLS_ENTROPY_SOURCE_STRONG);
     if(mbedErr) {
         retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
@@ -728,9 +734,7 @@ error:
 }
 
 UA_StatusCode
-UA_SecurityPolicy_Basic256Sha256(UA_SecurityPolicy *policy,
-                                 UA_CertificateVerification *certificateVerification,
-                                 const UA_ByteString localCertificate,
+UA_SecurityPolicy_Basic256Sha256(UA_SecurityPolicy *policy, const UA_ByteString localCertificate,
                                  const UA_ByteString localPrivateKey, const UA_Logger *logger) {
     memset(policy, 0, sizeof(UA_SecurityPolicy));
     policy->logger = logger;
@@ -749,7 +753,6 @@ UA_SecurityPolicy_Basic256Sha256(UA_SecurityPolicy *policy,
     memcpy(policy->localCertificate.data, localCertificate.data, localCertificate.length);
     policy->localCertificate.data[localCertificate.length] = '\0';
     policy->localCertificate.length--;
-    policy->certificateVerification = certificateVerification;
 
     /* AsymmetricModule */
     UA_SecurityPolicySignatureAlgorithm *asym_signatureAlgorithm =
@@ -777,7 +780,8 @@ UA_SecurityPolicy_Basic256Sha256(UA_SecurityPolicy *policy,
     asym_encryptionAlgorithm->decrypt =
         (UA_StatusCode(*)(const UA_SecurityPolicy *, void *, UA_ByteString *))
             asym_decrypt_sp_basic256sha256;
-    asym_encryptionAlgorithm->getLocalKeyLength = NULL; // TODO: Write function
+    asym_encryptionAlgorithm->getLocalKeyLength =
+        (size_t (*)(const UA_SecurityPolicy *, const void *))asym_getLocalEncryptionKeyLength_sp_basic256sha256;
     asym_encryptionAlgorithm->getRemoteKeyLength =
         (size_t (*)(const UA_SecurityPolicy *, const void *))asym_getRemoteEncryptionKeyLength_sp_basic256sha256;
     asym_encryptionAlgorithm->getLocalBlockSize = NULL; // TODO: Write function
@@ -861,7 +865,11 @@ UA_SecurityPolicy_Basic256Sha256(UA_SecurityPolicy *policy,
     policy->updateCertificateAndPrivateKey = updateCertificateAndPrivateKey_sp_basic256sha256;
     policy->clear = clear_sp_basic256sha256;
 
-    return policyContext_newContext_sp_basic256sha256(policy, localPrivateKey);
+    UA_StatusCode res = policyContext_newContext_sp_basic256sha256(policy, localPrivateKey);
+    if(res != UA_STATUSCODE_GOOD)
+        clear_sp_basic256sha256(policy);
+
+    return res;
 }
 
 #endif

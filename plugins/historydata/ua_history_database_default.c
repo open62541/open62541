@@ -615,6 +615,7 @@ UA_HistoryDatabase
 UA_HistoryDatabase_default(UA_HistoryDataGathering gathering)
 {
     UA_HistoryDatabase hdb;
+    memset(&hdb, 0, sizeof(UA_HistoryDatabase));
     UA_HistoryDatabaseContext_default *context =
             (UA_HistoryDatabaseContext_default*)
             UA_calloc(1, sizeof(UA_HistoryDatabaseContext_default));

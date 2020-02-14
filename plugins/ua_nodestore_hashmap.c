@@ -8,9 +8,10 @@
 
 #include <open62541/plugin/nodestore_default.h>
 
-/* container_of */
+#ifndef container_of
 #define container_of(ptr, type, member) \
     (type *)((uintptr_t)ptr - offsetof(type,member))
+#endif
 
 /* The default Nodestore is simply a hash-map from NodeIds to Nodes. To find an
  * entry, iterate over candidate positions according to the NodeId hash.

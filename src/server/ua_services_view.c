@@ -109,10 +109,10 @@ RefTree_double(RefTree *rt) {
     memmove(reArray, oldReArray, rt->size * sizeof(RefEntry));
     for(size_t i = 0; i < rt->size; i++) {
         if(reArray[i].zipfields.zip_left)
-            *(uintptr_t*)&reArray[i].zipfields.zip_left += entrydiff;
+            reArray[i].zipfields.zip_left = (RefEntry*)((uintptr_t)reArray[i].zipfields.zip_left + entrydiff);
         if(reArray[i].zipfields.zip_right)
-            *(uintptr_t*)&reArray[i].zipfields.zip_right += entrydiff;
-        *(uintptr_t*)&reArray[i].target += arraydiff;
+            reArray[i].zipfields.zip_right = (RefEntry*)((uintptr_t)reArray[i].zipfields.zip_right + entrydiff);;
+        reArray[i].target = (UA_ExpandedNodeId*)((uintptr_t)reArray[i].target + arraydiff );
     }
 
     rt->head.zip_root = (RefEntry*)((uintptr_t)rt->head.zip_root + entrydiff);
@@ -918,12 +918,17 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session, UA_UInt32 nodeClas
             if(rk->isInverse != elem->isInverse)
                 continue;
 
-            /* Is the node relevant? */
+            /* Does the reference type match? */
             if(!all_refs) {
-                if(!elem->includeSubtypes && !UA_NodeId_equal(&rk->referenceTypeId, &elem->referenceTypeId))
-                    continue;
-                if(!isNodeInTree(server, &rk->referenceTypeId, &elem->referenceTypeId, &subtypeId, 1))
-                    continue;
+                if(!elem->includeSubtypes) {
+                    if(!UA_NodeId_equal(&rk->referenceTypeId, &elem->referenceTypeId))
+                        continue;
+                } else {
+                    UA_Boolean match =
+                        isNodeInTree(server, &rk->referenceTypeId, &elem->referenceTypeId, &subtypeId, 1);
+                    if(!match)
+                        continue;
+                }
             }
 
             /* Walk over the reference targets */
@@ -1189,6 +1194,10 @@ browseSimplifiedBrowsePath(UA_Server *server, const UA_NodeId origin,
     UA_BrowsePathResult bpr;
     UA_BrowsePathResult_init(&bpr);
     UA_UInt32 nodeClassMask = UA_NODECLASS_OBJECT | UA_NODECLASS_VARIABLE;
+#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+    nodeClassMask |= UA_NODECLASS_OBJECTTYPE;
+#endif /* UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */
+
     Operation_TranslateBrowsePathToNodeIds(server, &server->adminSession, &nodeClassMask, &bp, &bpr);
     return bpr;
 }

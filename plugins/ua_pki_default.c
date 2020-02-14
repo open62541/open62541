@@ -89,7 +89,11 @@ fileNamesFromFolder(const UA_String *folder, size_t *pathsSize, UA_String **path
 
     struct dirent *ent;
     char buf2[PATH_MAX + 1];
-    realpath(buf, buf2);
+    char *res = realpath(buf, buf2);
+    if(!res) {
+        closedir(dir);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
     size_t pathlen = strlen(buf2);
     *pathsSize = 0;
     while((ent = readdir (dir)) != NULL && *pathsSize < 256) {
@@ -200,26 +204,31 @@ certificateVerification_verify(void *verificationContext,
     reloadCertificates(ci);
 #endif
 
-    /* if(ci->certificateTrustList.raw.len == 0) { */
-    /*     UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, */
-    /*                    "No Trustlist loaded. Accepting the certificate."); */
-    /*     return UA_STATUSCODE_GOOD; */
-    /* } */
+    if(ci->trustListFolder.length == 0 &&
+       ci->issuerListFolder.length == 0 &&
+       ci->revocationListFolder.length == 0 &&
+       ci->certificateTrustList.raw.len == 0 &&
+       ci->certificateIssuerList.raw.len == 0 &&
+       ci->certificateRevocationList.raw.len == 0) {
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                       "PKI plugin unconfigured. Accepting the certificate.");
+        return UA_STATUSCODE_GOOD;
+    }
 
     /* Parse the certificate */
     mbedtls_x509_crt remoteCertificate;
 
     /* Temporary Object to parse the trustList */
-    mbedtls_x509_crt *tempCert;
+    mbedtls_x509_crt *tempCert = NULL;
 
     /* Temporary Object to parse the revocationList */
-    mbedtls_x509_crl *tempCrl;
+    mbedtls_x509_crl *tempCrl = NULL;
 
     /* Temporary Object to identify the parent CA when there is no intermediate CA */
-    mbedtls_x509_crt *parentCert;
+    mbedtls_x509_crt *parentCert = NULL;
 
     /* Temporary Object to identify the parent CA when there is intermediate CA */
-    mbedtls_x509_crt *parentCert_2;
+    mbedtls_x509_crt *parentCert_2 = NULL;
 
     /* Flag value to identify if the issuer certificate is found */
     int issuerKnown = 0;
@@ -390,12 +399,12 @@ certificateVerification_verify(void *verificationContext,
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(mbedErr) {
-        /* char buff[100]; */
-        /* mbedtls_x509_crt_verify_info(buff, 100, "", flags); */
-        /* UA_LOG_ERROR(channelContextData->policyContext->securityPolicy->logger, */
-        /*              UA_LOGCATEGORY_SECURITYPOLICY, */
-        /*              "Verifying the certificate failed with error: %s", buff); */
-
+#if UA_LOGLEVEL <= 400
+        char buff[100];
+        int len = mbedtls_x509_crt_verify_info(buff, 100, "", flags);
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SECURITYPOLICY,
+                       "Verifying the certificate failed with error: %.*s", len-1, buff);
+#endif
         if(flags & (uint32_t)MBEDTLS_X509_BADCERT_NOT_TRUSTED) {
             retval = UA_STATUSCODE_BADCERTIFICATEUNTRUSTED;
         } else if(flags & (uint32_t)MBEDTLS_X509_BADCERT_FUTURE ||

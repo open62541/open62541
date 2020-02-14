@@ -78,6 +78,10 @@ typedef struct {
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     UA_MdnsDiscoveryConfiguration mdns;
     UA_String mdnsInterfaceIP;
+# if !defined(UA_HAS_GETIFADDR)
+    uint32_t *ipAddressList;
+    size_t ipAddressListSize;
+# endif
 #endif
 
 } UA_ServerConfig_Discovery;
@@ -91,7 +95,10 @@ struct UA_ServerConfig {
     UA_UInt16 nThreads; /* only if multithreading is enabled */
     UA_Logger logger;
 
-    /* Server Description */
+    /* Server Description:
+     * The description must be internally consistent.
+     * - The ApplicationUri set in the ApplicationDescription must match the
+     *   URI set in the server certificate */
     UA_BuildInfo buildInfo;
     UA_ApplicationDescription applicationDescription;
     UA_ByteString serverCertificate;
@@ -148,7 +155,7 @@ struct UA_ServerConfig {
 #if UA_MULTITHREADING >= 100
     UA_Double asyncOperationTimeout; /* in ms, 0 => unlimited */
     size_t maxAsyncOperationQueueSize; /* 0 => unlimited */
-    UA_Double asyncCallRequestTimeout; /* in ms, 0 => unlimited */
+    UA_Double asyncCallRequestTimeout UA_DEPRECATED; /* in ms, 0 => unlimited */
     /* Notify workers when an async operation was enqueued */
     UA_Server_AsyncOperationNotifyCallback asyncOperationNotifyCallback;
 #endif

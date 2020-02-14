@@ -72,7 +72,7 @@ class CGenerator(object):
         if isinstance(datatype,  BuiltinType):
             return makeCIdentifier("UA_TYPES_" + datatype.name.upper())
         if isinstance(datatype, EnumerationType):
-            return "UA_TYPES_INT32"
+            return datatype.strTypeIndex;
 
         if datatype.name is not None:
             return "UA_" + makeCIdentifier(datatype.outname.upper() + "_" + datatype.name.upper())
@@ -83,7 +83,7 @@ class CGenerator(object):
         if isinstance(datatype, BuiltinType):
             return "UA_DATATYPEKIND_" + datatype.name.upper()
         if isinstance(datatype, EnumerationType):
-            return "UA_DATATYPEKIND_ENUM"
+            return datatype.strTypeKind
         if isinstance(datatype, OpaqueType):
             return "UA_DATATYPEKIND_" + datatype.base_type.upper()
         if isinstance(datatype, StructType):
@@ -227,12 +227,18 @@ class CGenerator(object):
             values = enum.elements.iteritems()
         else:
             values = enum.elements.items()
-        return "typedef enum {\n    " + ",\n    ".join(
-            map(lambda kv: makeCIdentifier("UA_" + enum.name.upper() + "_" + kv[0].upper()) +
-                           " = " + kv[1], values)) + \
-               ",\n    __UA_{0}_FORCE32BIT = 0x7fffffff\n".format(makeCIdentifier(enum.name.upper())) + "} " + \
-               "UA_{0};\nUA_STATIC_ASSERT(sizeof(UA_{0}) == sizeof(UA_Int32), enum_must_be_32bit);".format(
-                   makeCIdentifier(enum.name))
+
+        if enum.isOptionSet == True:
+            return "typedef " + enum.strDataType + " " + makeCIdentifier("UA_" + enum.name) + ";\n\n" + "\n".join(
+                map(lambda kv: "#define " + makeCIdentifier("UA_" + enum.name.upper() + "_" + kv[0].upper()) +
+                " " + kv[1], values))
+        else:
+            return "typedef enum {\n    " + ",\n    ".join(
+                map(lambda kv: makeCIdentifier("UA_" + enum.name.upper() + "_" + kv[0].upper()) +
+                               " = " + kv[1], values)) + \
+                   ",\n    __UA_{0}_FORCE32BIT = 0x7fffffff\n".format(makeCIdentifier(enum.name.upper())) + "} " + \
+                   "UA_{0};\nUA_STATIC_ASSERT(sizeof(UA_{0}) == sizeof(UA_Int32), enum_must_be_32bit);".format(
+                       makeCIdentifier(enum.name))
 
     @staticmethod
     def print_struct_typedef(struct):
@@ -326,20 +332,23 @@ _UA_BEGIN_DECLS
  * These descriptions are used during type handling (copying, deletion,
  * binary encoding, ...). */''')
         self.printh("#define UA_" + self.parser.outname.upper() + "_COUNT %s" % (str(len(self.filtered_types))))
-        self.printh(
-            "extern UA_EXPORT const UA_DataType UA_" + self.parser.outname.upper() + "[UA_" + self.parser.outname.upper() + "_COUNT];")
 
-        for i, t in enumerate(self.filtered_types):
-            self.printh("\n/**\n * " + t.name)
-            self.printh(" * " + "^" * len(t.name))
-            if t.description == "":
-                self.printh(" */")
-            else:
-                self.printh(" * " + t.description + " */")
-            if not isinstance(t, BuiltinType):
-                self.printh(self.print_datatype_typedef(t) + "\n")
+        if len(self.filtered_types) > 0:
+
             self.printh(
-                "#define UA_" + makeCIdentifier(self.parser.outname.upper() + "_" + t.name.upper()) + " " + str(i))
+                "extern UA_EXPORT const UA_DataType UA_" + self.parser.outname.upper() + "[UA_" + self.parser.outname.upper() + "_COUNT];")
+
+            for i, t in enumerate(self.filtered_types):
+                self.printh("\n/**\n * " + t.name)
+                self.printh(" * " + "^" * len(t.name))
+                if t.description == "":
+                    self.printh(" */")
+                else:
+                    self.printh(" * " + t.description + " */")
+                if not isinstance(t, BuiltinType):
+                    self.printh(self.print_datatype_typedef(t) + "\n")
+                self.printh(
+                    "#define UA_" + makeCIdentifier(self.parser.outname.upper() + "_" + t.name.upper()) + " " + str(i))
 
         self.printh('''
 
@@ -391,18 +400,22 @@ _UA_END_DECLS
             self.printc("/* " + t.name + " */")
             self.printc(CGenerator.print_members(t))
 
-        self.printc(
-            "const UA_DataType UA_%s[UA_%s_COUNT] = {" % (self.parser.outname.upper(), self.parser.outname.upper()))
+        if len(self.filtered_types) > 0:
+            self.printc(
+                "const UA_DataType UA_%s[UA_%s_COUNT] = {" % (self.parser.outname.upper(), self.parser.outname.upper()))
 
-        for t in self.filtered_types:
-            self.printc("/* " + t.name + " */")
-            self.printc(self.print_datatype(t) + ",")
-        self.printc("};\n")
+            for t in self.filtered_types:
+                self.printc("/* " + t.name + " */")
+                self.printc(self.print_datatype(t) + ",")
+            self.printc("};\n")
 
     def print_encoding(self):
         self.printe('''/* Generated from ''' + self.inname + ''' with script ''' + sys.argv[0] + '''
  * on host ''' + platform.uname()[1] + ''' by user ''' + getpass.getuser() + ''' at ''' + time.strftime(
             "%Y-%m-%d %I:%M:%S") + ''' */
+
+#ifndef ''' + self.parser.outname.upper() + '''_GENERATED_ENCODING_BINARY_H_
+#define ''' + self.parser.outname.upper() + '''_GENERATED_ENCODING_BINARY_H_
 
 #ifdef UA_ENABLE_AMALGAMATION
 # include "open62541.h"
@@ -416,3 +429,5 @@ _UA_END_DECLS
         for t in self.filtered_types:
             self.printe("\n/* " + t.name + " */")
             self.printe(self.print_datatype_encoding(t))
+
+        self.printe("\n#endif /* " + self.parser.outname.upper() + "_GENERATED_ENCODING_BINARY_H_ */")

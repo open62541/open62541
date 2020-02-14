@@ -49,7 +49,9 @@ static UA_StatusCode
 createEventOverflowNotification(UA_Server *server, UA_Subscription *sub,
                                 UA_MonitoredItem *mon, UA_Notification *indicator) {
     /* Avoid two redundant overflow events in a row */
-    if(UA_Notification_isOverflowEvent(server, indicator))
+    if((mon->discardOldest && UA_Notification_isOverflowEvent(server, indicator))
+       || (!mon->discardOldest && TAILQ_PREV(indicator, NotificationQueue, listEntry) != NULL &&
+           UA_Notification_isOverflowEvent(server, TAILQ_PREV(indicator, NotificationQueue, listEntry))))
         return UA_STATUSCODE_GOOD;
 
     /* A notification is inserted into the queue which includes only the
@@ -158,6 +160,16 @@ UA_Notification_dequeue(UA_Server *server, UA_Notification *n) {
         {
             --sub->dataChangeNotifications;
         }
+
+        /*
+          see open issue #2114:
+          in the function UA_MonitoredItem_ensureQueueSpace, a greater overflow event size
+          than event queue size will result in false assertion.
+          to fix this problem, we assume that only one overflow event is allowed, so by
+          dequeueing a notification, we remove the overflow event by setting its size to 0.
+        */
+        //mon->eventOverflows = 0; 
+
         TAILQ_REMOVE(&sub->notificationQueue, n, globalEntry);
         --sub->notificationQueueSize;
     }

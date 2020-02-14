@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * Copyright (c) 2017-2018 Fraunhofer IOSB (Author: Andreas Ebner)
+ * Copyright (c) 2017-2019 Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
 #ifndef UA_PUBSUB_MANAGER_H_
@@ -19,9 +19,9 @@ _UA_BEGIN_DECLS
 typedef struct UA_PubSubManager{
     //Connections and PublishedDataSets can exist alone (own lifecycle) -> top level components
     size_t connectionsSize;
-    UA_PubSubConnection *connections;
+    TAILQ_HEAD(UA_ListOfPubSubConnection, UA_PubSubConnection) connections;
     size_t publishedDataSetsSize;
-    UA_PublishedDataSet *publishedDataSets;
+    TAILQ_HEAD(UA_ListOfPublishedDataSet, UA_PublishedDataSet) publishedDataSets;
 } UA_PubSubManager;
 
 void

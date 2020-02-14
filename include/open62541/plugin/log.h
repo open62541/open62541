@@ -68,6 +68,10 @@ UA_LOG_TRACE(const UA_Logger *logger, UA_LogCategory category, const char *msg, 
     va_list args; va_start(args, msg);
     logger->log(logger->context, UA_LOGLEVEL_TRACE, category, msg, args);
     va_end(args);
+#else
+    (void) logger;
+    (void) category;
+    (void) msg;
 #endif
 }
 
@@ -79,6 +83,10 @@ UA_LOG_DEBUG(const UA_Logger *logger, UA_LogCategory category, const char *msg, 
     va_list args; va_start(args, msg);
     logger->log(logger->context, UA_LOGLEVEL_DEBUG, category, msg, args);
     va_end(args);
+#else
+    (void) logger;
+    (void) category;
+    (void) msg;
 #endif
 }
 
@@ -90,6 +98,10 @@ UA_LOG_INFO(const UA_Logger *logger, UA_LogCategory category, const char *msg, .
     va_list args; va_start(args, msg);
     logger->log(logger->context, UA_LOGLEVEL_INFO, category, msg, args);
     va_end(args);
+#else
+    (void) logger;
+    (void) category;
+    (void) msg;
 #endif
 }
 
@@ -101,6 +113,10 @@ UA_LOG_WARNING(const UA_Logger *logger, UA_LogCategory category, const char *msg
     va_list args; va_start(args, msg);
     logger->log(logger->context, UA_LOGLEVEL_WARNING, category, msg, args);
     va_end(args);
+#else
+    (void) logger;
+    (void) category;
+    (void) msg;
 #endif
 }
 
@@ -112,6 +128,10 @@ UA_LOG_ERROR(const UA_Logger *logger, UA_LogCategory category, const char *msg, 
     va_list args; va_start(args, msg);
     logger->log(logger->context, UA_LOGLEVEL_ERROR, category, msg, args);
     va_end(args);
+#else
+    (void) logger;
+    (void) category;
+    (void) msg;
 #endif
 }
 
@@ -123,6 +143,10 @@ UA_LOG_FATAL(const UA_Logger *logger, UA_LogCategory category, const char *msg, 
     va_list args; va_start(args, msg);
     logger->log(logger->context, UA_LOGLEVEL_FATAL, category, msg, args);
     va_end(args);
+#else
+    (void) logger;
+    (void) category;
+    (void) msg;
 #endif
 }
 

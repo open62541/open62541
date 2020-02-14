@@ -17,46 +17,40 @@
 
 #define UA_VALUENCODING_MAXSTACK 512
 
-#define UA_ABS(a,b) ((a)>(b)?(a)-(b):(b)-(a))
-
+/* Convert to double first. We might loose differences for large Int64 that
+ * cannot be precisely expressed as double. */
 static UA_Boolean
 outOfDeadBand(const void *data1, const void *data2,
               const UA_DataType *type, const UA_Double deadband) {
+    UA_Double v;
     if(type == &UA_TYPES[UA_TYPES_BOOLEAN]) {
-        if(UA_ABS(*(const UA_Boolean*)data1, *(const UA_Boolean*)data2) <= deadband)
-            return false;
+        v = (UA_Double)*(const UA_Boolean*)data1 - (UA_Double)*(const UA_Boolean*)data2;
     } else if(type == &UA_TYPES[UA_TYPES_SBYTE]) {
-        if(UA_ABS(*(const UA_SByte*)data1, *(const UA_SByte*)data2) <= deadband)
-            return false;
+        v = (UA_Double)*(const UA_SByte*)data1 - (UA_Double)*(const UA_SByte*)data2;
     } else if(type == &UA_TYPES[UA_TYPES_BYTE]) {
-        if(UA_ABS(*(const UA_Byte*)data1, *(const UA_Byte*)data2) <= deadband)
-                return false;
+        v = (UA_Double)*(const UA_Byte*)data1 - (UA_Double)*(const UA_Byte*)data2;
     } else if(type == &UA_TYPES[UA_TYPES_INT16]) {
-        if(UA_ABS(*(const UA_Int16*)data1, *(const UA_Int16*)data2) <= deadband)
-            return false;
+        v = (UA_Double)*(const UA_Int16*)data1 - (UA_Double)*(const UA_Int16*)data2;
     } else if(type == &UA_TYPES[UA_TYPES_UINT16]) {
-        if(UA_ABS(*(const UA_UInt16*)data1, *(const UA_UInt16*)data2) <= deadband)
-            return false;
+        v = (UA_Double)*(const UA_UInt16*)data1 - (UA_Double)*(const UA_UInt16*)data2;
     } else if(type == &UA_TYPES[UA_TYPES_INT32]) {
-        if(UA_ABS(*(const UA_Int32*)data1, *(const UA_Int32*)data2) <= deadband)
-            return false;
+        v = (UA_Double)*(const UA_Int32*)data1 - (UA_Double)*(const UA_Int32*)data2;
     } else if(type == &UA_TYPES[UA_TYPES_UINT32]) {
-        if(UA_ABS(*(const UA_UInt32*)data1, *(const UA_UInt32*)data2) <= deadband)
-            return false;
+        v = (UA_Double)*(const UA_UInt32*)data1 - (UA_Double)*(const UA_UInt32*)data2;
     } else if(type == &UA_TYPES[UA_TYPES_INT64]) {
-        if(UA_ABS(*(const UA_Int64*)data1, *(const UA_Int64*)data2) <= deadband)
-            return false;
+        v = (UA_Double)*(const UA_Int64*)data1 - (UA_Double)*(const UA_Int64*)data2;
     } else if(type == &UA_TYPES[UA_TYPES_UINT64]) {
-        if(UA_ABS(*(const UA_UInt64*)data1, *(const UA_UInt64*)data2) <= deadband)
-            return false;
+        v = (UA_Double)*(const UA_UInt64*)data1 - (UA_Double)*(const UA_UInt64*)data2;
     } else if(type == &UA_TYPES[UA_TYPES_FLOAT]) {
-        if(UA_ABS(*(const UA_Float*)data1, *(const UA_Float*)data2) <= deadband)
-            return false;
+        v = (UA_Double)*(const UA_Float*)data1 - (UA_Double)*(const UA_Float*)data2;
     } else if(type == &UA_TYPES[UA_TYPES_DOUBLE]) {
-        if(UA_ABS(*(const UA_Double*)data1, *(const UA_Double*)data2) <= deadband)
-            return false;
+        v = (UA_Double)*(const UA_Double*)data1 - (UA_Double)*(const UA_Double*)data2;
+    } else {
+        return false;
     }
-    return true;
+    if(v < 0.0)
+        v = -v;
+    return (v > deadband);
 }
 
 static UA_Boolean
@@ -86,10 +80,12 @@ updateNeededForFilteredValue(const UA_Variant *value, const UA_Variant *oldValue
 static UA_StatusCode
 detectValueChangeWithFilter(UA_Server *server, UA_Session *session, UA_MonitoredItem *mon,
                             UA_DataValue *value, UA_ByteString *encoding, UA_Boolean *changed) {
+    /* Check for absolute deadband */
     if(UA_DataType_isNumeric(value->value.type) &&
-       (mon->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUSVALUE ||
-        mon->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP)) {
-        if(mon->filter.dataChangeFilter.deadbandType == UA_DEADBANDTYPE_ABSOLUTE) {
+       mon->filter.dataChangeFilter.deadbandType == UA_DEADBANDTYPE_ABSOLUTE) {
+        UA_assert(value->value.type);
+        if(mon->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUSVALUE ||
+           mon->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP) {
             if(!updateNeededForFilteredValue(&value->value, &mon->lastValue,
                                              mon->filter.dataChangeFilter.deadbandValue))
                 return UA_STATUSCODE_GOOD;
@@ -188,15 +184,15 @@ sampleCallbackWithValue(UA_Server *server, UA_Session *session,
     UA_Boolean changed = false;
     UA_StatusCode retval = detectValueChange(server, session, mon, *value, &binValueEncoding, &changed);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_SESSION(&server->config.logger, session, "Subscription %u | "
-                               "MonitoredItem %i | Value change detection failed with StatusCode %s",
+        UA_LOG_WARNING_SESSION(&server->config.logger, session, "Subscription %" PRIu32 " | "
+                               "MonitoredItem %" PRIi32 " | Value change detection failed with StatusCode %s",
                                sub ? sub->subscriptionId : 0, mon->monitoredItemId,
                                UA_StatusCode_name(retval));
         return retval;
     }
     if(!changed) {
-        UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Subscription %u | "
-                             "MonitoredItem %i | The value has not changed",
+        UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Subscription %" PRIu32 " | "
+                             "MonitoredItem %" PRIi32 " | The value has not changed",
                              sub ? sub->subscriptionId : 0, mon->monitoredItemId);
         return UA_STATUSCODE_GOOD;
     }
@@ -225,8 +221,8 @@ sampleCallbackWithValue(UA_Server *server, UA_Session *session,
 
         /* <-- Point of no return --> */
 
-        UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Subscription %u | "
-                             "MonitoredItem %i | Enqueue a new notification",
+        UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Subscription %" PRIu32 " | "
+                             "MonitoredItem %" PRIi32 " | Enqueue a new notification",
                              sub ? sub->subscriptionId : 0, mon->monitoredItemId);
 
         newNotification->mon = mon;
@@ -290,8 +286,8 @@ monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem)
     if(sub)
         session = sub->session;
 
-    UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Subscription %u | "
-                         "MonitoredItem %i | Sample callback called",
+    UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Subscription %" PRIu32 " | "
+                         "MonitoredItem %" PRIi32 " | Sample callback called",
                          sub ? sub->subscriptionId : 0, monitoredItem->monitoredItemId);
 
     UA_assert(monitoredItem->attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER);
@@ -318,8 +314,8 @@ monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem)
     UA_Boolean movedValue = false;
     UA_StatusCode retval = sampleCallbackWithValue(server, session, sub, monitoredItem, &value, &movedValue);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_SESSION(&server->config.logger, session, "Subscription %u | "
-                               "MonitoredItem %i | Sampling returned the statuscode %s",
+        UA_LOG_WARNING_SESSION(&server->config.logger, session, "Subscription %" PRIu32 " | "
+                               "MonitoredItem %" PRIi32 " | Sampling returned the statuscode %s",
                                sub ? sub->subscriptionId : 0, monitoredItem->monitoredItemId,
                                UA_StatusCode_name(retval));
     }

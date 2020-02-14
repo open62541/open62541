@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  * Copyright (c) 2017 - 2018 Fraunhofer IOSB (Author: Tino Bischoff)
+ * Copyright (c) 2017-2019 Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
 #ifndef UA_PUBSUB_NETWORKMESSAGE_H_
@@ -64,6 +65,41 @@ UA_DataSetMessageHeader_decodeBinary(const UA_ByteString *src, size_t *offset,
 size_t
 UA_DataSetMessageHeader_calcSizeBinary(const UA_DataSetMessageHeader* p);
 
+/**********************************************/
+/*          Network Message Offsets           */
+/**********************************************/
+
+/* Offsets for buffered messages in the PubSub fast path. */
+typedef enum {
+    UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE_SEQUENCENUMBER,
+    UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_SEQUENCENUMBER,
+    UA_PUBSUB_OFFSETTYPE_TIMESTAMP_PICOSECONDS,
+    UA_PUBSUB_OFFSETTYPE_TIMESTAMP,     /* source pointer */
+    UA_PUBSUB_OFFSETTYPE_TIMESTAMP_NOW, /* no source */
+    UA_PUBSUB_OFFSETTYPE_PAYLOAD_DATAVALUE,
+    UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT,
+    UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW
+    /* Add more offset types as needed */
+} UA_NetworkMessageOffsetType;
+
+typedef struct {
+    UA_NetworkMessageOffsetType contentType;
+    union {
+        union {
+            UA_DataValue *value;
+            size_t valueBinarySize;
+        } value;
+        UA_DateTime *timestamp;
+    } offsetData;
+    size_t offset;
+} UA_NetworkMessageOffset;
+
+typedef struct {
+    UA_ByteString buffer; /* The precomputed message buffer */
+    UA_NetworkMessageOffset *offsets; /* Offsets for changes in the message buffer */
+    size_t offsetsSize;
+} UA_NetworkMessageOffsetBuffer;
+
 /**
  * DataSetMessage
  * ^^^^^^^^^^^^^^ */
@@ -102,7 +138,8 @@ UA_DataSetMessage_decodeBinary(const UA_ByteString *src, size_t *offset,
                                UA_DataSetMessage* dst);
 
 size_t
-UA_DataSetMessage_calcSizeBinary(const UA_DataSetMessage* p);
+UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage *p, UA_NetworkMessageOffsetBuffer *offsetBuffer,
+                                 size_t currentOffset);
 
 void UA_DataSetMessage_free(const UA_DataSetMessage* p);
 
@@ -203,6 +240,9 @@ typedef struct {
 } UA_NetworkMessage;
 
 UA_StatusCode
+UA_NetworkMessage_updateBufferedMessage(UA_NetworkMessageOffsetBuffer *buffer);
+
+UA_StatusCode
 UA_NetworkMessage_encodeBinary(const UA_NetworkMessage* src,
                                UA_Byte **bufPos, const UA_Byte *bufEnd);
 
@@ -211,7 +251,7 @@ UA_NetworkMessage_decodeBinary(const UA_ByteString *src, size_t *offset,
                                UA_NetworkMessage* dst);
 
 size_t
-UA_NetworkMessage_calcSizeBinary(const UA_NetworkMessage* p);
+UA_NetworkMessage_calcSizeBinary(UA_NetworkMessage *p, UA_NetworkMessageOffsetBuffer *offsetBuffer);
 
 void
 UA_NetworkMessage_deleteMembers(UA_NetworkMessage* p);

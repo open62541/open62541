@@ -64,10 +64,10 @@ int main(void) {
     UA_Variant_setScalar(&connectionOptions[0].value, &ttl, &UA_TYPES[UA_TYPES_UINT32]);
     connectionOptions[1].key = UA_QUALIFIEDNAME(0, "loopback");
     UA_Boolean loopback = UA_FALSE;
-    UA_Variant_setScalar(&connectionOptions[1].value, &loopback, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&connectionOptions[1].value, &loopback, &UA_TYPES[UA_TYPES_BOOLEAN]);
     connectionOptions[2].key = UA_QUALIFIEDNAME(0, "reuse");
     UA_Boolean reuse = UA_TRUE;
-    UA_Variant_setScalar(&connectionOptions[2].value, &reuse, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&connectionOptions[2].value, &reuse, &UA_TYPES[UA_TYPES_BOOLEAN]);
     connectionConfig.connectionProperties = connectionOptions;
     connectionConfig.connectionPropertiesSize = 3;
     /* Create a new concrete connection and add the connection

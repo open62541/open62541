@@ -17,8 +17,6 @@
 
 #ifdef UA_ENABLE_METHODCALLS /* conditional compilation */
 
-#include "ua_server_methodqueue.h"
-
 static const UA_VariableNode *
 getArgumentsVariableNode(UA_Server *server, const UA_MethodNode *ofMethod,
                          UA_String withBrowseName) {
@@ -233,76 +231,62 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
 
 #if UA_MULTITHREADING >= 100
 
-static UA_StatusCode
-setMethodNodeAsync(UA_Server *server, UA_Session *session,
-                   UA_Node *node, UA_Boolean *isAsync) {
-    UA_MethodNode *method = (UA_MethodNode*)node;
-    if(method->nodeClass != UA_NODECLASS_METHOD)
-        return UA_STATUSCODE_BADNODECLASSINVALID;
-    method->async = *isAsync;
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode
-UA_Server_setMethodNodeAsync(UA_Server *server, const UA_NodeId id,
-                             UA_Boolean isAsync) {
-    return UA_Server_editNode(server, &server->adminSession, &id,
-                              (UA_EditNodeCallback)setMethodNodeAsync, &isAsync);
-}
-
 static void
-Operation_CallMethodAsync(UA_Server *server, UA_Session *session, void *context,
-    const UA_CallMethodRequest *request, UA_CallMethodResult *result) {
-    struct AsyncMethodContextInternal *pContext = (struct AsyncMethodContextInternal*)context;
-
+Operation_CallMethodAsync(UA_Server *server, UA_Session *session, UA_UInt32 requestId,
+                          UA_UInt32 requestHandle, size_t opIndex,
+                          UA_CallMethodRequest *opRequest, UA_CallMethodResult *opResult,
+                          UA_AsyncResponse **ar) {
     /* Get the method node */
     const UA_MethodNode *method = (const UA_MethodNode*)
-        UA_NODESTORE_GET(server, &request->methodId);
+        UA_NODESTORE_GET(server, &opRequest->methodId);
     if(!method) {
-        result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
+        opResult->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
         return;
     }
 
     /* Get the object node */
     const UA_ObjectNode *object = (const UA_ObjectNode*)
-        UA_NODESTORE_GET(server, &request->objectId);
+        UA_NODESTORE_GET(server, &opRequest->objectId);
     if(!object) {
-        result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
+        opResult->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
         UA_NODESTORE_RELEASE(server, (const UA_Node*)method);
         return;
     }
 
-    if(method->async) {
-        /* Async case */        
-        UA_StatusCode res = UA_Server_SetNextAsyncMethod(server, pContext->nRequestId,
-                                                         &pContext->nSessionId, pContext->nIndex, request);
-        if(res != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                "Operation_CallMethodAsync: Adding request to queue: FAILED");
-            /* Set this Request as failed */
-            UA_CallMethodResult_clear(result);
-            result->statusCode = res;
-            UA_Server_InsertMethodResponse(server, pContext->nRequestId,
-                                           &pContext->nSessionId, pContext->nIndex, result);
-            UA_CallMethodResult_clear(result);
-        }
-    }
-    else {
-        /* Sync execution case, continue with method and object as context */
-        callWithMethodAndObject(server, session, request, result, method, object);
-        UA_Server_InsertMethodResponse(server, pContext->nRequestId,
-                                       &pContext->nSessionId, pContext->nIndex, result);
-        UA_CallMethodResult_clear(result);
+    /* Synchronous execution */
+    if(!method->async) {
+        callWithMethodAndObject(server, session, opRequest, opResult, method, object);
+        goto cleanup;
     }
 
+    /* <-- Async method call --> */
+
+    /* No AsyncResponse allocated so far */
+    if(!*ar) {
+        opResult->statusCode =
+            UA_AsyncManager_createAsyncResponse(&server->asyncManager, server,
+                                                &session->sessionId, requestId,
+                                                requestHandle, UA_ASYNCOPERATIONTYPE_CALL,
+                                                ar);
+        if(opResult->statusCode != UA_STATUSCODE_GOOD)
+            goto cleanup;
+    }
+
+    /* Create the Async Request to be taken by workers */
+    opResult->statusCode =
+        UA_AsyncManager_createAsyncOp(&server->asyncManager,
+                                      server, *ar, opIndex, opRequest);
+
+ cleanup:
     /* Release the method and object node */
     UA_NODESTORE_RELEASE(server, (const UA_Node*)method);
     UA_NODESTORE_RELEASE(server, (const UA_Node*)object);
 }
 
-void Service_CallAsync(UA_Server *server, UA_Session *session,
-                       UA_SecureChannel* channel, UA_UInt32 requestId,
-                       const UA_CallRequest *request, UA_CallResponse *response) {
+void
+Service_CallAsync(UA_Server *server, UA_Session *session, UA_UInt32 requestId,
+                  const UA_CallRequest *request, UA_CallResponse *response,
+                  UA_Boolean *finished) {
     UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Processing CallRequestAsync");
     if(server->config.maxNodesPerMethodCall != 0 &&
         request->methodsToCallSize > server->config.maxNodesPerMethodCall) {
@@ -310,16 +294,29 @@ void Service_CallAsync(UA_Server *server, UA_Session *session,
         return;
     }
 
-    struct AsyncMethodContextInternal context;
-    context.nRequestId = requestId;
-    context.nSessionId = session->sessionId;
-    context.pRequest = request;
-    context.pChannel = (UA_SecureChannel*)channel;
+    UA_AsyncResponse *ar = NULL;
     response->responseHeader.serviceResult =
-        UA_Server_processServiceOperationsAsync(server, session,
-                                                (UA_ServiceOperation)Operation_CallMethodAsync, &context,
-            &request->methodsToCallSize, &UA_TYPES[UA_TYPES_CALLMETHODREQUEST],
-            &response->resultsSize, &UA_TYPES[UA_TYPES_CALLMETHODRESULT]);
+        UA_Server_processServiceOperationsAsync(server, session, requestId,
+                                                request->requestHeader.requestHandle,
+                                                (UA_AsyncServiceOperation)Operation_CallMethodAsync,
+                                                &request->methodsToCallSize,
+                                                &UA_TYPES[UA_TYPES_CALLMETHODREQUEST],
+                                                &response->resultsSize,
+                                                &UA_TYPES[UA_TYPES_CALLMETHODRESULT], &ar);
+
+    if(ar) {
+        if(ar->opCountdown > 0) {
+            /* Move all results to the AsyncResponse. The async operation results
+             * will be overwritten when the workers return results. */
+            ar->response.callResponse = *response;
+            UA_CallResponse_init(response);
+            *finished = false;
+        } else {
+            /* If there is a new AsyncResponse, ensure it has at least one pending
+             * operation */
+            UA_AsyncManager_removeAsyncResponse(&server->asyncManager, ar);
+        }
+    }
 }
 #endif
 

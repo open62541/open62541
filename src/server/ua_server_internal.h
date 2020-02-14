@@ -21,9 +21,8 @@
 #include <open62541/plugin/nodestore.h>
 
 #include "ua_connection_internal.h"
-#include "ua_securechannel_manager.h"
-#include "ua_session_manager.h"
-#include "ua_asyncmethod_manager.h"
+#include "ua_session.h"
+#include "ua_server_async.h"
 #include "ua_timer.h"
 #include "ua_util_internal.h"
 #include "ua_workqueue.h"
@@ -58,32 +57,31 @@ typedef struct {
 #endif
 
 typedef enum {
+    UA_DIAGNOSTICEVENT_CLOSE,
+    UA_DIAGNOSTICEVENT_REJECT,
+    UA_DIAGNOSTICEVENT_SECURITYREJECT,
+    UA_DIAGNOSTICEVENT_TIMEOUT,
+    UA_DIAGNOSTICEVENT_ABORT,
+    UA_DIAGNOSTICEVENT_PURGE
+} UA_DiagnosticEvent;
+
+typedef struct channel_entry {
+    UA_DelayedCallback cleanupCallback;
+    TAILQ_ENTRY(channel_entry) pointers;
+    UA_SecureChannel channel;
+} channel_entry;
+
+typedef struct session_list_entry {
+    UA_DelayedCallback cleanupCallback;
+    LIST_ENTRY(session_list_entry) pointers;
+    UA_Session session;
+} session_list_entry;
+
+typedef enum {
     UA_SERVERLIFECYCLE_FRESH,
     UA_SERVERLIFECYLE_RUNNING
 } UA_ServerLifecycle;
 
-#if UA_MULTITHREADING >= 100
-struct AsyncMethodQueueElement {
-        UA_CallMethodRequest m_Request;
-        UA_CallMethodResult	m_Response;
-        UA_DateTime	m_tDispatchTime;
-        UA_UInt32	m_nRequestId;
-        UA_NodeId	m_nSessionId;
-        UA_UInt32	m_nIndex;
-
-        SIMPLEQ_ENTRY(AsyncMethodQueueElement) next;
-    };
-	
-/* Internal Helper to transfer info */
-    struct AsyncMethodContextInternal {
-        UA_UInt32 nRequestId;
-        UA_NodeId nSessionId;
-        UA_UInt32 nIndex;
-        const UA_CallRequest* pRequest;
-        UA_SecureChannel* pChannel;
-    };
-#endif	
-	
 struct UA_Server {
     /* Config */
     UA_ServerConfig config;
@@ -91,17 +89,20 @@ struct UA_Server {
     UA_DateTime endTime; /* Zeroed out. If a time is set, then the server shuts
                           * down once the time has been reached */
 
-    /* Nodestore */
-    void *nsCtx;
-
     UA_ServerLifecycle state;
 
-    /* Security */
-    UA_SecureChannelManager secureChannelManager;
-    UA_SessionManager sessionManager;
+    /* SecureChannels */
+    TAILQ_HEAD(, channel_entry) channels;
+    UA_UInt32 lastChannelId;
+    UA_UInt32 lastTokenId;
+
 #if UA_MULTITHREADING >= 100
-    UA_AsyncMethodManager asyncMethodManager;
+    UA_AsyncManager asyncManager;
 #endif
+
+    /* Session Management */
+    LIST_HEAD(session_list, session_list_entry) sessions;
+    UA_UInt32 sessionCount;
     UA_Session adminSession; /* Local access to the services (for startup and
                               * maintenance) uses this Session with all possible
                               * access rights (Session Id: 1) */
@@ -134,6 +135,11 @@ struct UA_Server {
     /* To be cast to UA_LocalMonitoredItem to get the callback and context */
     LIST_HEAD(LocalMonitoredItems, UA_MonitoredItem) localMonitoredItems;
     UA_UInt32 lastLocalMonitoredItemId;
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+    LIST_HEAD(conditionSourcelisthead, UA_ConditionSource) headConditionSource;
+#endif//UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+
 #endif
 
     /* Publish/Subscribe */
@@ -141,25 +147,60 @@ struct UA_Server {
     UA_PubSubManager pubSubManager;
 #endif
 
-
 #if UA_MULTITHREADING >= 100
     UA_LOCK_TYPE(networkMutex)
     UA_LOCK_TYPE(serviceMutex)
+#endif
 
-	/* Async Method Handling */
-    UA_UInt32	nMQCurSize;		/* actual size of queue */
-    UA_UInt64	nCBIdIntegrity;	/* id of callback queue check callback  */
-    UA_UInt64	nCBIdResponse;	/* id of callback check for a response  */
-
-    UA_LOCK_TYPE(ua_request_queue_lock)
-    UA_LOCK_TYPE(ua_response_queue_lock)
-    UA_LOCK_TYPE(ua_pending_list_lock)
-
-    SIMPLEQ_HEAD(ua_method_request_queue, AsyncMethodQueueElement) ua_method_request_queue;    
-    SIMPLEQ_HEAD(ua_method_response_queue, AsyncMethodQueueElement) ua_method_response_queue;
-    SIMPLEQ_HEAD(ua_method_pending_list, AsyncMethodQueueElement) ua_method_pending_list;
-#endif /* UA_MULTITHREADING >= 100 */
+    /* Statistics */
+    UA_ServerStatistics serverStats;
 };
+
+/**************************/
+/* SecureChannel Handling */
+/**************************/
+
+/* Remove a all securechannels */
+void
+UA_Server_deleteSecureChannels(UA_Server *server);
+
+/* Remove timed out securechannels with a delayed callback. So all currently
+ * scheduled jobs with a pointer to a securechannel can finish first. */
+void
+UA_Server_cleanupTimedOutSecureChannels(UA_Server *server, UA_DateTime nowMonotonic);
+
+UA_StatusCode
+UA_Server_createSecureChannel(UA_Server *server, UA_Connection *connection);
+
+UA_StatusCode
+UA_Server_configSecureChannel(UA_Server *server, UA_SecureChannel *channel,
+                              const UA_AsymmetricAlgorithmSecurityHeader *asymHeader);
+
+void
+UA_Server_closeSecureChannel(UA_Server *server, UA_SecureChannel *channel,
+                             UA_DiagnosticEvent event);
+
+/********************/
+/* Session Handling */
+/********************/
+
+UA_StatusCode
+UA_Server_createSession(UA_Server *server, UA_SecureChannel *channel,
+                        const UA_CreateSessionRequest *request, UA_Session **session);
+
+void
+UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
+                        UA_DiagnosticEvent event);
+
+UA_StatusCode
+UA_Server_removeSessionByToken(UA_Server *server, const UA_NodeId *token,
+                               UA_DiagnosticEvent event);
+
+void
+UA_Server_cleanupSessions(UA_Server *server, UA_DateTime nowMonotonic);
+
+UA_Session *
+UA_Server_getSessionById(UA_Server *server, const UA_NodeId *sessionId);
 
 /*****************/
 /* Node Handling */
@@ -222,6 +263,21 @@ UA_StatusCode
 getParentTypeAndInterfaceHierarchy(UA_Server *server, const UA_NodeId *typeNode,
                                    UA_NodeId **typeHierarchy, size_t *typeHierarchySize);
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+
+UA_StatusCode UA_EXPORT
+UA_getConditionId(UA_Server *server, const UA_NodeId *conditionNodeId, UA_NodeId *outConditionId);
+
+void UA_EXPORT
+UA_ConditionList_delete(UA_Server *server);
+
+UA_Boolean
+isConditionOrBranch(UA_Server *server,
+                    const UA_NodeId *condition,
+                    const UA_NodeId *conditionSource,
+                    UA_Boolean *isCallerAC);
+
+#endif//UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
 /* Returns the type node from the node on the stack top. The type node is pushed
  * on the stack and returned. */
 const UA_Node * getNodeType(UA_Server *server, const UA_Node *node);
@@ -230,15 +286,6 @@ const UA_Node * getNodeType(UA_Server *server, const UA_Node *node);
 UA_StatusCode
 writeWithSession(UA_Server *server, UA_Session *session,
                  const UA_WriteValue *value);
-
-#if UA_MULTITHREADING >= 100
-void
-UA_Server_InsertMethodResponse(UA_Server *server, const UA_UInt32 nRequestId,
-                               const UA_NodeId* nSessionId, const UA_UInt32 nIndex,
-                               const UA_CallMethodResult* response);
-void 
-    UA_Server_CallMethodResponse(UA_Server *server, void* data);
-#endif
 
 UA_StatusCode
 sendResponse(UA_SecureChannel *channel, UA_UInt32 requestId, UA_UInt32 requestHandle,
@@ -260,16 +307,6 @@ UA_Server_processServiceOperations(UA_Server *server, UA_Session *session,
                                    size_t *responseOperations,
                                    const UA_DataType *responseOperationsType)
     UA_FUNC_ATTR_WARN_UNUSED_RESULT;
-
-UA_StatusCode
-UA_Server_processServiceOperationsAsync(UA_Server *server, UA_Session *session,
-                                        UA_ServiceOperation operationCallback,
-                                        void *context,
-                                        const size_t *requestOperations,
-                                        const UA_DataType *requestOperationsType,
-                                        size_t *responseOperations,
-                                        const UA_DataType *responseOperationsType)
-UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
 /******************************************/
 /* Internal function calls, without locks */
@@ -310,6 +347,11 @@ readAttribute(UA_Server *server, const UA_ReadValueId *item,
 UA_StatusCode
 readWithReadValue(UA_Server *server, const UA_NodeId *nodeId,
                   const UA_AttributeId attributeId, void *v);
+
+UA_StatusCode
+readObjectProperty(UA_Server *server, const UA_NodeId objectId,
+                   const UA_QualifiedName propertyName,
+                   UA_Variant *value);
 
 UA_BrowsePathResult
 translateBrowsePathToNodeIds(UA_Server *server, const UA_BrowsePath *browsePath);

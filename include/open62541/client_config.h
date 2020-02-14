@@ -55,6 +55,10 @@ typedef struct {
     void *clientContext; /* User-defined data attached to the client */
     UA_Logger logger;   /* Logger used by the client */
     UA_UInt32 timeout;  /* Response timeout in ms */
+
+    /* The description must be internally consistent.
+     * - The ApplicationUri set in the ApplicationDescription must match the
+     *   URI set in the server certificate */
     UA_ApplicationDescription clientDescription;
 
     /* Basic connection configuration */

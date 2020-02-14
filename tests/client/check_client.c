@@ -171,11 +171,15 @@ START_TEST(Client_renewSecureChannel) {
     UA_ClientConfig *cc = UA_Client_getConfig(client);
     UA_fakeSleep((UA_UInt32)((UA_Double)cc->secureChannelLifeTime * 0.8));
 
+    /* Make the client renew the channel */
+    retval = UA_Client_run_iterate(client, 0);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
     /* Now read */
     UA_Variant val;
     UA_NodeId nodeId = UA_NODEID_STRING(1, "my.variable");
     retval = UA_Client_readValueAttribute(client, nodeId, &val);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_msg(retval == UA_STATUSCODE_GOOD, UA_StatusCode_name(retval));
     UA_Variant_deleteMembers(&val);
 
     UA_Client_disconnect(client);
@@ -183,6 +187,7 @@ START_TEST(Client_renewSecureChannel) {
 
 } END_TEST
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS
 START_TEST(Client_renewSecureChannelWithActiveSubscription) {
     UA_Client *client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
@@ -193,21 +198,36 @@ START_TEST(Client_renewSecureChannelWithActiveSubscription) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
-    request.requestedLifetimeCount = 1000;
+    /* Force the server to send keep alive responses every second to trigg
+     * the client to send new publish requests. Requests from the client
+     * will make the server to change to the new SecurityToken after renewal.
+     */
+    request.requestedPublishingInterval = 1000;
+    request.requestedMaxKeepAliveCount = 1;
     UA_CreateSubscriptionResponse response = UA_Client_Subscriptions_create(client, request,
                                                                             NULL, NULL, NULL);
 
-    (void)response;
+    UA_CreateSubscriptionResponse_clear(&response);
+
+    /* manually control the server thread */
+    running = false;
+    THREAD_JOIN(server_thread);
 
     for(int i = 0; i < 15; ++i) {
-        UA_sleep_ms(1000);
+        UA_fakeSleep(1000);
+        UA_Server_run_iterate(server, true);
         retval = UA_Client_run_iterate(client, 0);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
 
+    /* run the server in an independent thread again */
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+
     UA_Client_disconnect(client);
     UA_Client_delete(client);
 } END_TEST
+#endif
 
 START_TEST(Client_reconnect) {
     UA_Client *client = UA_Client_new();
@@ -348,7 +368,9 @@ static Suite* testSuite_Client(void) {
     TCase *tc_client_reconnect = tcase_create("Client Reconnect");
     tcase_add_checked_fixture(tc_client_reconnect, setup, teardown);
     tcase_add_test(tc_client_reconnect, Client_renewSecureChannel);
+#ifdef UA_ENABLE_SUBSCRIPTIONS
     tcase_add_test(tc_client_reconnect, Client_renewSecureChannelWithActiveSubscription);
+#endif
     tcase_add_test(tc_client_reconnect, Client_reconnect);
 #ifdef UA_SESSION_RECOVERY
     tcase_add_test(tc_client_reconnect, Client_activateSessionClose);

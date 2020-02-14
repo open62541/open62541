@@ -122,6 +122,12 @@ Jointly with the overall open62541 community, the core maintainers steer the lon
 - Julius Pfrommer (Fraunhofer IOSB, Karlsruhe)
 - Stefan Profanter (fortiss, Munich)
 
+### Docker container
+
+Official docker container builds are available on [Docker Cloud](https://cloud.docker.com/u/open62541/repository/registry-1.docker.io/open62541/open62541)
+
+More information can be found in the [Docker README](docker/README.md)
+
 ## Support & Development
 
 ### Commercial Support

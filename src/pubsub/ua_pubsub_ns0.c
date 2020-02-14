@@ -6,6 +6,7 @@
  * Copyright (c) 2019 Kalycito Infotech Private Limited
  */
 
+#include <open62541/types.h>
 #include "ua_pubsub_ns0.h"
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL /* conditional compilation */
@@ -143,7 +144,7 @@ onRead(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
                 UA_calloc(publishedDataSet->fieldSize, sizeof(UA_PublishedVariableDataType));
             size_t counter = 0;
             UA_DataSetField *field;
-            LIST_FOREACH(field, &publishedDataSet->fields, listEntry) {
+            TAILQ_FOREACH(field, &publishedDataSet->fields, listEntry) {
                 pvd[counter].attributeId = UA_ATTRIBUTEID_VALUE;
                 pvd[counter].publishedVariable = field->config.field.variable.publishParameters.publishedVariable;
                 //UA_NodeId_copy(&field->config.field.variable.publishParameters.publishedVariable, &pvd[counter].publishedVariable);
@@ -749,7 +750,7 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup){
     //This code block must use a lock
     UA_NODESTORE_REMOVE(server, &writerGroup->identifier);
     retVal |= addPubSubObjectNode(server, wgName, writerGroup->identifier.identifier.numeric,
-                                  writerGroup->linkedConnection.identifier.numeric,
+                                  writerGroup->linkedConnection->identifier.identifier.numeric,
                                   UA_NS0ID_HASCOMPONENT, UA_NS0ID_WRITERGROUPTYPE);
     //End lock zone
     UA_NodeId keepAliveNode =
@@ -942,12 +943,13 @@ addDataSetWriterAction(UA_Server *server,
     UA_DataSetWriterDataType *dataSetWriterDataType = (UA_DataSetWriterDataType *) input[0].data;
 
     UA_NodeId targetPDS = UA_NODEID_NULL;
-    for(size_t i = 0; i < server->pubSubManager.publishedDataSetsSize; ++i) {
-        if(UA_String_equal(&dataSetWriterDataType->dataSetName,
-                           &server->pubSubManager.publishedDataSets[i].config.name)){
-            targetPDS = server->pubSubManager.publishedDataSets[i].identifier;
+    UA_PublishedDataSet *tmpPDS;
+    TAILQ_FOREACH(tmpPDS, &server->pubSubManager.publishedDataSets, listEntry){
+        if(UA_String_equal(&dataSetWriterDataType->dataSetName, &tmpPDS->config.name)){
+            targetPDS = tmpPDS->identifier;
         }
     }
+
     if(UA_NodeId_isNull(&targetPDS))
         return UA_STATUSCODE_BADPARENTNODEIDINVALID;
 

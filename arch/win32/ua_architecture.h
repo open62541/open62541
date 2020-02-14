@@ -144,7 +144,6 @@
 #define UA_LOG_SOCKET_ERRNO_GAI_WRAP UA_LOG_SOCKET_ERRNO_WRAP
 
 #if UA_MULTITHREADING >= 100
-#define UA_LOCK_TYPE_NAME CRITICAL_SECTION
 #define UA_LOCK_TYPE(mutexName) CRITICAL_SECTION mutexName; \
                                 int mutexName##Counter;
 #define UA_LOCK_INIT(mutexName) InitializeCriticalSection(&mutexName); \
@@ -156,7 +155,6 @@
                              LeaveCriticalSection(&mutexName);
 #define UA_LOCK_ASSERT(mutexName, num) UA_assert(mutexName##Counter == num);
 #else
-#define UA_LOCK_TYPE_NAME
 #define UA_LOCK_TYPE(mutexName)
 #define UA_LOCK_TYPE_POINTER(mutexName)
 #define UA_LOCK_INIT(mutexName)

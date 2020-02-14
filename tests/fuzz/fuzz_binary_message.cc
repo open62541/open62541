@@ -1,6 +1,10 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ *
+ *    Copyright 2019 (c) fortiss (Author: Stefan Profanter)
+ */
+
 
 #include "custom_memory_manager.h"
 
@@ -58,6 +62,5 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
     c.close(&c);
-    UA_Connection_clear(&c);
     return 0;
 }

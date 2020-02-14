@@ -211,18 +211,18 @@ UA_Node_copy(const UA_Node *src, UA_Node *dst) {
                 drefTarget->targetHash = srefTarget->targetHash;
                 ZIP_RIGHT(drefTarget, zipfields) = NULL;
                 if(ZIP_RIGHT(srefTarget, zipfields))
-                    *(uintptr_t*)&ZIP_RIGHT(drefTarget, zipfields) =
-                        (uintptr_t)ZIP_RIGHT(srefTarget, zipfields) + arraydiff;
+                    ZIP_RIGHT(drefTarget, zipfields) =
+                        (UA_ReferenceTarget*)((uintptr_t)ZIP_RIGHT(srefTarget, zipfields) + arraydiff);
                 ZIP_LEFT(drefTarget, zipfields) = NULL;
                 if(ZIP_LEFT(srefTarget, zipfields))
-                    *(uintptr_t*)&ZIP_LEFT(drefTarget, zipfields) =
-                        (uintptr_t)ZIP_LEFT(srefTarget, zipfields) + arraydiff;
+                    ZIP_LEFT(drefTarget, zipfields) =
+                        (UA_ReferenceTarget*)((uintptr_t)ZIP_LEFT(srefTarget, zipfields) + arraydiff);
                 ZIP_RANK(drefTarget, zipfields) = ZIP_RANK(srefTarget, zipfields);
             }
             ZIP_ROOT(&drefs->refTargetsTree) = NULL;
             if(ZIP_ROOT(&srefs->refTargetsTree))
-                *(uintptr_t*)&ZIP_ROOT(&drefs->refTargetsTree) =
-                    (uintptr_t)ZIP_ROOT(&srefs->refTargetsTree) + arraydiff;
+                ZIP_ROOT(&drefs->refTargetsTree) =
+                    (UA_ReferenceTarget*)((uintptr_t)ZIP_ROOT(&srefs->refTargetsTree) + arraydiff);
             drefs->refTargetsSize = srefs->refTargetsSize;
             if(retval != UA_STATUSCODE_GOOD)
                 break;
@@ -494,11 +494,12 @@ UA_Node_setAttributes(UA_Node *node, const void *attributes,
 /* Manage References */
 /*********************/
 
+
 static UA_StatusCode
-addReferenceTarget(UA_NodeReferenceKind *refs, const UA_ExpandedNodeId *target,
-                   UA_UInt32 targetHash) {
+resizeReferenceTargets(UA_NodeReferenceKind *refs, size_t newSize) {
+
     UA_ReferenceTarget *targets = (UA_ReferenceTarget*)
-        UA_realloc(refs->refTargets, (refs->refTargetsSize + 1) * sizeof(UA_ReferenceTarget));
+        UA_realloc(refs->refTargets, newSize * sizeof(UA_ReferenceTarget));
     if(!targets)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
@@ -507,18 +508,28 @@ addReferenceTarget(UA_NodeReferenceKind *refs, const UA_ExpandedNodeId *target,
     if(arraydiff != 0) {
         for(size_t i = 0; i < refs->refTargetsSize; i++) {
             if(targets[i].zipfields.zip_left)
-                *(uintptr_t*)&targets[i].zipfields.zip_left += arraydiff;
+                targets[i].zipfields.zip_left = (UA_ReferenceTarget*)((uintptr_t)targets[i].zipfields.zip_left + arraydiff);
             if(targets[i].zipfields.zip_right)
-                *(uintptr_t*)&targets[i].zipfields.zip_right += arraydiff;
+                targets[i].zipfields.zip_right = (UA_ReferenceTarget*)((uintptr_t)targets[i].zipfields.zip_right + arraydiff);
         }
     }
 
     if(refs->refTargetsTree.zip_root)
-        *(uintptr_t*)&refs->refTargetsTree.zip_root += arraydiff;
+        refs->refTargetsTree.zip_root = (UA_ReferenceTarget*)((uintptr_t)refs->refTargetsTree.zip_root + arraydiff);
     refs->refTargets = targets;
+    return UA_STATUSCODE_GOOD;
+}
+
+
+static UA_StatusCode
+addReferenceTarget(UA_NodeReferenceKind *refs, const UA_ExpandedNodeId *target,
+                   UA_UInt32 targetHash) {
+    UA_StatusCode retval = resizeReferenceTargets(refs, refs->refTargetsSize + 1);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
     UA_ReferenceTarget *entry = &refs->refTargets[refs->refTargetsSize];
-    UA_StatusCode retval = UA_ExpandedNodeId_copy(target, &entry->target);
+    retval = UA_ExpandedNodeId_copy(target, &entry->target);
     if(retval != UA_STATUSCODE_GOOD) {
         if(refs->refTargetsSize== 0) {
             /* We had zero references before (realloc was a malloc) */
@@ -610,17 +621,18 @@ UA_Node_deleteReference(UA_Node *node, const UA_DeleteReferencesItem *item) {
             UA_ExpandedNodeId_clear(&target->target);
             refs->refTargetsSize--;
 
-            /* One matching target remaining */
             if(refs->refTargetsSize > 0) {
+                /* At least one target remains in buffer */ 
                 if(j-1 != refs->refTargetsSize) {
-                    /* avoid valgrind error: Source and destination overlap in
-                     * memcpy */
+                    /* Move last entry into the entry from where reference was removed */
                     ZIP_REMOVE(UA_ReferenceTargetHead, &refs->refTargetsTree,
                                &refs->refTargets[refs->refTargetsSize]);
                     *target = refs->refTargets[refs->refTargetsSize];
                     ZIP_INSERT(UA_ReferenceTargetHead, &refs->refTargetsTree,
                                target, ZIP_RANK(target, zipfields));
                 }
+                /* Shrink down allocated buffer, ignore failure */
+                (void)resizeReferenceTargets(refs, refs->refTargetsSize);
                 return UA_STATUSCODE_GOOD;
             }
 
@@ -630,9 +642,15 @@ UA_Node_deleteReference(UA_Node *node, const UA_DeleteReferencesItem *item) {
             node->referencesSize--;
             if(node->referencesSize > 0) {
                 if(i-1 != node->referencesSize) {
-                    /* avoid valgrind error: Source and destination overlap in
-                     * memcpy */
+                    /* Move last array node into array node from where reference kind was removed */
                     node->references[i-1] = node->references[node->referencesSize];
+                }
+                /* And shrink down allocated buffer for one entry */
+                UA_NodeReferenceKind *newRefs = (UA_NodeReferenceKind*)
+                    UA_realloc(node->references, sizeof(UA_NodeReferenceKind) * node->referencesSize);
+                /* Ignore errors in case memory buffer could not be shrinked down */
+                if(newRefs) {
+                    node->references = newRefs;
                 }
                 return UA_STATUSCODE_GOOD;
             }

@@ -9,9 +9,10 @@
 #include <open62541/plugin/nodestore_default.h>
 #include "ziptree.h"
 
-/* container_of */
+#ifndef container_of
 #define container_of(ptr, type, member) \
     (type *)((uintptr_t)ptr - offsetof(type,member))
+#endif
 
 struct NodeEntry;
 typedef struct NodeEntry NodeEntry;

@@ -605,6 +605,8 @@ setInformationModel(UA_Server *server) {
             continue;
 
         UA_DataSource scaleTestDataSource;
+        scaleTestDataSource.read = NULL;
+        scaleTestDataSource.write = NULL;
         UA_VariableAttributes attr = UA_VariableAttributes_default;
         attr.dataType = UA_TYPES[type].typeId;
         attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
@@ -614,61 +616,49 @@ setInformationModel(UA_Server *server) {
         switch(UA_TYPES[type].typeIndex) {
             case UA_TYPES_BOOLEAN: {
                 scaleTestDataSource.read = readRandomBoolData;
-                scaleTestDataSource.write = NULL;
                 break;
             }
             case UA_TYPES_INT16: {
                 scaleTestDataSource.read = readRandomInt16Data;
-                scaleTestDataSource.write = NULL;
                 break;
             }
             case UA_TYPES_UINT16: {
                 scaleTestDataSource.read = readRandomUInt16Data;
-                scaleTestDataSource.write = NULL;
                 break;
             }
             case UA_TYPES_INT32: {
                 scaleTestDataSource.read = readRandomInt32Data;
-                scaleTestDataSource.write = NULL;
                 break;
             }
             case UA_TYPES_UINT32: {
                 scaleTestDataSource.read = readRandomUInt32Data;
-                scaleTestDataSource.write = NULL;
                 break;
             }
             case UA_TYPES_INT64: {
                 scaleTestDataSource.read = readRandomInt64Data;
-                scaleTestDataSource.write = NULL;
                 break;
             }
             case UA_TYPES_UINT64: {
                 scaleTestDataSource.read = readRandomUInt64Data;
-                scaleTestDataSource.write = NULL;
                 break;
             }
             case UA_TYPES_STRING: {
                 scaleTestDataSource.read = readRandomStringData;
-                scaleTestDataSource.write = NULL;
                 break;
             }
             case UA_TYPES_FLOAT: {
                 scaleTestDataSource.read = readRandomFloatData;
-                scaleTestDataSource.write = NULL;
                 break;
             }
             case UA_TYPES_DOUBLE: {
                 scaleTestDataSource.read = readRandomDoubleData;
-                scaleTestDataSource.write = NULL;
                 break;
             }
             case UA_TYPES_DATETIME:
                 scaleTestDataSource.read = readTimeData;
-                scaleTestDataSource.write = NULL;
                 break;
             case UA_TYPES_BYTESTRING:
                 scaleTestDataSource.read = readByteString;
-                scaleTestDataSource.write = NULL;
                 break;
             default:
                 break;
@@ -948,11 +938,11 @@ usage(void) {
 #endif
                    "\t[--enableUnencrypted]\n"
                    "\t[--enableOutdatedSecurityPolicy]\n"
-                   "\t[--enableTimestampCheck]\n"
                    "\t[--disableBasic128]\n"
                    "\t[--disableBasic256]\n"
                    "\t[--disableBasic256Sha256]\n"
 #endif
+                   "\t[--enableTimestampCheck]\n"
                    "\t[--enableAnonymous]\n");
 }
 
@@ -1000,7 +990,6 @@ int main(int argc, char **argv) {
     char filetype = ' '; /* t==trustlist, l == issuerList, r==revocationlist */
     UA_Boolean enableUnencr = false;
     UA_Boolean enableSec = false;
-    UA_Boolean enableTime = false;
     UA_Boolean disableBasic128 = false;
     UA_Boolean disableBasic256 = false;
     UA_Boolean disableBasic256Sha256 = false;
@@ -1016,17 +1005,23 @@ int main(int argc, char **argv) {
     const char *trustlistFolder = NULL;
     const char *issuerlistFolder = NULL;
     const char *revocationlistFolder = NULL;
-#endif
+#endif /* __linux__ */
 
-#endif
+#endif /* UA_ENABLE_ENCRYPTION */
 
     UA_Boolean enableAnon = false;
+    UA_Boolean enableTime = false;
 
     /* Loop over the remaining arguments */
     for(; pos < (size_t)argc; pos++) {
 
         if(strcmp(argv[pos], "--enableAnonymous") == 0) {
             enableAnon = true;
+            continue;
+        }
+
+        if(strcmp(argv[pos], "--enableTimestampCheck") == 0) {
+            enableTime = true;
             continue;
         }
 
@@ -1038,11 +1033,6 @@ int main(int argc, char **argv) {
 
         if(strcmp(argv[pos], "--enableOutdatedSecurityPolicy") == 0) {
             enableSec = true;
-            continue;
-        }
-
-        if(strcmp(argv[pos], "--enableTimestampCheck") == 0) {
-            enableTime = true;
             continue;
         }
 
@@ -1139,7 +1129,7 @@ int main(int argc, char **argv) {
             revocationListSize++;
             continue;
         }
-#else
+#else /* __linux__ */
         if(strcmp(argv[pos], "--trustlistFolder") == 0) {
             filetype = 't';
             continue;
@@ -1169,30 +1159,40 @@ int main(int argc, char **argv) {
             revocationlistFolder = argv[pos];
             continue;
         }
-#endif
+#endif /* __linux__ */
 
-#endif
+#endif /* UA_ENABLE_ENCRYPTION */
 
         usage();
         return EXIT_FAILURE;
     }
 
+    UA_Server *server = NULL;
+
 #ifdef UA_ENABLE_ENCRYPTION
 #ifndef __linux__
-    UA_ServerConfig_setDefaultWithSecurityPolicies(&config, 4840,
-                                                   &certificate, &privateKey,
-                                                   trustList, trustListSize,
-                                                   issuerList, issuerListSize,
-                                                   revocationList, revocationListSize);
-#else
-    UA_ServerConfig_setDefaultWithSecurityPolicies(&config, 4840,
-                                                   &certificate, &privateKey,
-                                                   NULL, 0, NULL, 0, NULL, 0);
+    UA_StatusCode res =
+        UA_ServerConfig_setDefaultWithSecurityPolicies(&config, 4840,
+                                                       &certificate, &privateKey,
+                                                       trustList, trustListSize,
+                                                       issuerList, issuerListSize,
+                                                       revocationList, revocationListSize);
+    if(res != UA_STATUSCODE_GOOD)
+        goto cleanup;
+#else /* On Linux we can monitor the certs folder and reload when changes are made */
+    UA_StatusCode res =
+        UA_ServerConfig_setDefaultWithSecurityPolicies(&config, 4840,
+                                                       &certificate, &privateKey,
+                                                       NULL, 0, NULL, 0, NULL, 0);
+    if(res != UA_STATUSCODE_GOOD)
+        goto cleanup;
     config.certificateVerification.clear(&config.certificateVerification);
-    UA_CertificateVerification_CertFolders(&config.certificateVerification,
-                                           trustlistFolder, issuerlistFolder,
-                                           revocationlistFolder);
-#endif
+    res = UA_CertificateVerification_CertFolders(&config.certificateVerification,
+                                                 trustlistFolder, issuerlistFolder,
+                                                 revocationlistFolder);
+    if(res != UA_STATUSCODE_GOOD)
+        goto cleanup;
+#endif /* __linux__ */
 
     if(!enableUnencr)
         disableUnencrypted(&config);
@@ -1206,6 +1206,16 @@ int main(int argc, char **argv) {
     if(disableBasic256Sha256)
         disableBasic256Sha256SecurityPolicy(&config);
 
+#else /* UA_ENABLE_ENCRYPTION */
+    UA_StatusCode res =
+        UA_ServerConfig_setMinimal(&config, 4840, &certificate);
+    if(res != UA_STATUSCODE_GOOD)
+        goto cleanup;
+#endif /* UA_ENABLE_ENCRYPTION */
+
+    if(!enableAnon)
+        disableAnonymous(&config);
+
     /* Set operation limits */
     config.maxNodesPerRead = MAX_OPERATION_LIMIT;
     config.maxNodesPerWrite = MAX_OPERATION_LIMIT;
@@ -1218,28 +1228,8 @@ int main(int argc, char **argv) {
 
     /* If RequestTimestamp is '0', log the warning and proceed */
     config.verifyRequestTimestamp = UA_RULEHANDLING_WARN;
-
     if(enableTime)
         config.verifyRequestTimestamp = UA_RULEHANDLING_DEFAULT;
-
-#else
-    UA_ServerConfig_setMinimal(&config, 4840, &certificate);
-#endif
-
-    if(!enableAnon)
-        disableAnonymous(&config);
-
-    /* Clean up temp values */
-    UA_ByteString_clear(&certificate);
-#if defined(UA_ENABLE_ENCRYPTION) && !defined(__linux__)
-    UA_ByteString_clear(&privateKey);
-    for(size_t i = 0; i < trustListSize; i++)
-        UA_ByteString_clear(&trustList[i]);
-    for(size_t i = 0; i < issuerListSize; i++)
-        UA_ByteString_clear(&issuerList[i]);
-    for(size_t i = 0; i < revocationListSize; i++)
-        UA_ByteString_clear(&revocationList[i]);
-#endif
 
     /* Override with a custom access control policy */
     config.accessControl.getUserAccessLevel = getUserAccessLevel_disallowSpecific;
@@ -1249,15 +1239,35 @@ int main(int argc, char **argv) {
 
     config.shutdownDelay = 5000.0; /* 5s */
 
-    UA_Server *server = UA_Server_newWithConfig(&config);
-    if(server == NULL)
-        return EXIT_FAILURE;
+    server = UA_Server_newWithConfig(&config);
+    if(!server) {
+        res = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
+    }
 
     setInformationModel(server);
 
     /* run server */
-    UA_StatusCode retval = UA_Server_run(server, &running);
+    res = UA_Server_run(server, &running);
 
-    UA_Server_delete(server);
-    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
+ cleanup:
+    if(server)
+        UA_Server_delete(server);
+    else
+        UA_ServerConfig_clean(&config);
+
+    UA_ByteString_clear(&certificate);
+#if defined(UA_ENABLE_ENCRYPTION)
+    UA_ByteString_clear(&privateKey);
+#ifndef __linux__
+    for(size_t i = 0; i < trustListSize; i++)
+        UA_ByteString_clear(&trustList[i]);
+    for(size_t i = 0; i < issuerListSize; i++)
+        UA_ByteString_clear(&issuerList[i]);
+    for(size_t i = 0; i < revocationListSize; i++)
+        UA_ByteString_clear(&revocationList[i]);
+#endif
+#endif
+
+    return res == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }

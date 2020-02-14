@@ -1337,6 +1337,116 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+typedef enum UA_TwoStateVariableCallbackType {
+  UA_ENTERING_ENABLEDSTATE,
+  UA_ENTERING_ACKEDSTATE,
+  UA_ENTERING_CONFIRMEDSTATE,
+  UA_ENTERING_ACTIVESTATE
+} UA_TwoStateVariableCallbackType;
+
+/**
+ * callback prototype to set user specific callbacks
+ */
+typedef UA_StatusCode
+(*UA_TwoStateVariableChangeCallback)(UA_Server *server, const UA_NodeId *condition);
+
+/**
+ * create condition instance. The function checks first whether the passed conditionType
+ * is a subType of ConditionType. Then checks whether the condition source has HasEventSource
+ * reference to its parent. If not, a HasEventSource reference will be created between condition
+ * source and server object. To expose the condition in address space, a hierarchical ReferenceType
+ * should be passed to create the reference to condition source. Otherwise, UA_NODEID_NULL should be
+ * passed to make the condition not exposed.
+ * @param server The server object
+ * @param conditionId The NodeId of the requested Condition Object. UA_NODEID_NULL for random Id with NS Idx = 0.
+ * @param conditionType The NodeId of the node representation of the ConditionType
+ * @param conditionName The name of the condition to be created
+ * @param conditionSource The NodeId of the Condition Source (Parent of the Condition)
+ * @param hierarchialReferenceType The NodeId of Hierarchical ReferenceType between Condition and its source
+ * @param outConditionId The NodeId of the created Condition
+ * @return The StatusCode of the UA_Server_createCondition method */
+UA_StatusCode UA_EXPORT
+UA_Server_createCondition(UA_Server *server,
+                          const UA_NodeId conditionId, const UA_NodeId conditionType,
+                          UA_QualifiedName conditionName, const UA_NodeId conditionSource,
+                          const UA_NodeId hierarchialReferenceType, UA_NodeId *outConditionId);
+
+/**
+ * set the value of condition field.
+ * @param server The server object
+ * @param condition The NodeId of the node representation of the Condition Instance
+ * @param value Variant Value to be written to the Field
+ * @param fieldName Name of the Field in which the value should be written
+ * @return The StatusCode of the UA_Server_setConditionField method*/
+UA_StatusCode UA_EXPORT
+UA_Server_setConditionField(UA_Server *server,
+                            const UA_NodeId condition,
+                            const UA_Variant* value,
+                            const UA_QualifiedName fieldName);
+
+/**
+ * set the value of property of condition field.
+ * @param server The server object
+ * @param condition The NodeId of the node representation of the Condition Instance
+ * @param value Variant Value to be written to the Field
+ * @param variableFieldName Name of the Field which has a property
+ * @param variablePropertyName Name of the Field Property in which the value should be written
+ * @return The StatusCode of the UA_Server_setConditionVariableFieldProperty*/
+UA_StatusCode UA_EXPORT
+UA_Server_setConditionVariableFieldProperty(UA_Server *server,
+                                            const UA_NodeId condition,
+                                            const UA_Variant* value,
+                                            const UA_QualifiedName variableFieldName,
+                                            const UA_QualifiedName variablePropertyName);
+
+/**
+ * triggers an event only for an enabled condition. The condition list is updated then with the
+ * last generated EventId.
+ * @param server The server object
+ * @param condition The NodeId of the node representation of the Condition Instance
+ * @param conditionSource The NodeId of the node representation of the Condition Source
+ * @param outEventId last generated EventId
+ * @return The StatusCode of the UA_Server_triggerConditionEvent method*/
+UA_StatusCode UA_EXPORT
+UA_Server_triggerConditionEvent(UA_Server *server, const UA_NodeId condition,
+                                const UA_NodeId conditionSource, UA_ByteString *outEventId);
+
+/**
+ * add an optional condition field using its name. (TODO Adding optional methods
+ * is not implemented yet)
+ * @param server The server object
+ * @param condition The NodeId of the node representation of the Condition Instance
+ * @param conditionType The NodeId of the node representation of the Condition Type
+ * from which the optional field comes
+ * @param fieldName Name of the optional field
+ * @param outOptionalVariable The NodeId of the created field (Variable Node)
+ * @return The StatusCode of the UA_Server_addConditionOptionalField method*/
+UA_StatusCode UA_EXPORT
+UA_Server_addConditionOptionalField(UA_Server *server, const UA_NodeId condition,
+                                    const UA_NodeId conditionType, const UA_QualifiedName fieldName,
+                                    UA_NodeId *outOptionalVariable);
+
+/**
+ * Function used to set a user specific callback to TwoStateVariable Fields of
+ * a condition. The callbacks will be called before triggering the events when
+ * transition to true State of EnabledState/Id, AckedState/Id, ConfirmedState/Id
+ * and ActiveState/Id occurs.
+ * @param server The server object
+ * @param condition The NodeId of the node representation of the Condition Instance
+ * @param conditionSource The NodeId of the node representation of the Condition Source
+ * @param removeBranch (Not Implemented yet)
+ * @param callback User specific callback function
+ * @param callbackType Callback function type, indicates where it should be called
+ * @return The StatusCode of the UA_Server_setConditionTwoStateVariableCallback method*/
+UA_StatusCode UA_EXPORT
+UA_Server_setConditionTwoStateVariableCallback(UA_Server *server, const UA_NodeId condition,
+                                               const UA_NodeId conditionSource, UA_Boolean removeBranch,
+                                               UA_TwoStateVariableChangeCallback callback,
+                                               UA_TwoStateVariableCallbackType callbackType);
+
+#endif//UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+
 UA_StatusCode UA_EXPORT
 UA_Server_updateCertificate(UA_Server *server,
                             const UA_ByteString *oldCertificate,
@@ -1374,22 +1484,22 @@ UA_Server_AccessControl_allowHistoryUpdateDeleteRawModified(UA_Server *server,
 #endif // UA_ENABLE_HISTORIZING
 
 /**
-* .. _async_methods:
+* .. _async_operations:
 *
-* Async Methods
-* -------------
-* Sample on working with async method calls
-* Check client_method_async and tutorial_server_method_async for working samples.
+* Async Operations
+* ----------------
+* Some operations (such as reading out a sensor that needs to warm up) can take
+* quite some time. In order not to block the server during such an operation, it
+* can be "outsourced" to a worker thread.
 *
-* Minimal Server:
+* Take the example of a CallRequest. It is split into the individual method call
+* operations. If the method is marked as async, then the operation is put into a
+* queue where it is be retrieved by a worker. The worker returns the result when
+* ready. See the examples in ``/examples/tutorial_server_method_async.c`` for
+* the usage.
 *
-* - Create a method node
-* - mark as async: ``UA_Server_MethodNodeAsync``
-* - set callback to be notified: ``config->asyncOperationNotifyCallback = ...``
-* - fetch MethodCall: ``UA_Server_GetNextAsyncMethod``
-* - execute Method: e.g. UA_Server_call(UA_Server*, UA_CallMethodRequest*)
-* - pass back the result: ``UA_Server_SetAsyncMethodResult``
-* - free memory used: free UA_CallMethodResult */
+* Note that the operation can time out (see the asyncOperationTimeout setting in
+* the server config) also when it has been retrieved by the worker. */
 
 #if UA_MULTITHREADING >= 100
 
@@ -1417,20 +1527,27 @@ typedef union {
     /* UA_StatusCode writeResult; */
 } UA_AsyncOperationResponse;
 
-/* Get and remove next Method Call Request
+/* Get the next async operation without blocking
  *
  * @param server The server object
  * @param type The type of the async operation
  * @param request Receives pointer to the operation
  * @param context Receives the pointer to the operation context
- * @return UA_FALSE if queue is empty, UA_TRUE else
- * Note: Timeout is doubled for requests which already got fetched by worker via UA_Server_getAsyncOperation */
+ * @param timeout The timestamp when the operation times out and can
+ *        no longer be returned to the client. The response has to
+ *        be set in UA_Server_setAsyncOperationResult in any case.
+ * @return false if queue is empty, true else */
 UA_Boolean UA_EXPORT
-UA_Server_getAsyncOperation(UA_Server *server, UA_AsyncOperationType *type,
-                            const UA_AsyncOperationRequest **request,
-                            void **context);
+UA_Server_getAsyncOperationNonBlocking(UA_Server *server, UA_AsyncOperationType *type,
+                                       const UA_AsyncOperationRequest **request,
+                                       void **context, UA_DateTime *timeout);
 
-/* Worker submits Method Call Response
+/* UA_Boolean UA_EXPORT */
+/* UA_Server_getAsyncOperationBlocking(UA_Server *server, UA_AsyncOperationType *type, */
+/*                                     const UA_AsyncOperationRequest **request, */
+/*                                     void **context, UA_DateTime *timeout); */
+
+/* Submit an async operation result
  *
  * @param server The server object
  * @param response Pointer to the operation result
@@ -1440,7 +1557,29 @@ UA_Server_setAsyncOperationResult(UA_Server *server,
                                   const UA_AsyncOperationResponse *response,
                                   void *context);
 
+/* Get the next async operation. Attention! This method is deprecated and has
+ * been replaced by UA_Server_getAsyncOperationNonBlocking! */
+UA_DEPRECATED UA_Boolean UA_EXPORT
+UA_Server_getAsyncOperation(UA_Server *server, UA_AsyncOperationType *type,
+                            const UA_AsyncOperationRequest **request,
+                            void **context);
+
 #endif /* !UA_MULTITHREADING >= 100 */
+
+/**
+* Statistics
+* ----------
+*
+* Statistic counters keeping track of the current state of the stack. Counters
+* are structured per OPC UA communication layer. */
+
+typedef struct {
+   UA_NetworkStatistics ns;
+   UA_SecureChannelStatistics scs;
+   UA_SessionStatistics ss;
+} UA_ServerStatistics;
+
+UA_ServerStatistics UA_Server_getStatistics(UA_Server *server);
 
 _UA_END_DECLS
 
