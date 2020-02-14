@@ -31,6 +31,9 @@
 #include <valgrind/memcheck.h>
 #endif
 
+#define STARTCHANNELID 1
+#define STARTTOKENID 1
+
 /**********************/
 /* Namespace Handling */
 /**********************/
@@ -169,9 +172,12 @@ cleanup:
 /* The server needs to be stopped before it can be deleted */
 void UA_Server_delete(UA_Server *server) {
     /* Delete all internal data */
-    UA_SecureChannelManager_deleteMembers(&server->secureChannelManager);
+    UA_Server_deleteSecureChannels(server);
     UA_LOCK(server->serviceMutex);
-    UA_SessionManager_deleteMembers(&server->sessionManager);
+    session_list_entry *current, *temp;
+    LIST_FOREACH_SAFE(current, &server->sessions, pointers, temp) {
+        UA_Server_removeSession(server, current, UA_DIAGNOSTICEVENT_CLOSE);
+    }
     UA_UNLOCK(server->serviceMutex);
     UA_Array_delete(server->namespaces, server->namespacesSize, &UA_TYPES[UA_TYPES_STRING]);
 
@@ -230,8 +236,8 @@ static void
 UA_Server_cleanup(UA_Server *server, void *_) {
     UA_LOCK(server->serviceMutex);
     UA_DateTime nowMonotonic = UA_DateTime_nowMonotonic();
-    UA_SessionManager_cleanupTimedOut(&server->sessionManager, nowMonotonic);
-    UA_SecureChannelManager_cleanupTimedOut(&server->secureChannelManager, nowMonotonic);
+    UA_Server_cleanupSessions(server, nowMonotonic);
+    UA_Server_cleanupTimedOutSecureChannels(server, nowMonotonic);
 #ifdef UA_ENABLE_DISCOVERY
     UA_Discovery_cleanupTimedOut(server, nowMonotonic);
 #endif
@@ -288,9 +294,15 @@ UA_Server_init(UA_Server *server) {
     server->namespaces[1] = UA_STRING_NULL;
     server->namespacesSize = 2;
 
-    /* Initialized SecureChannel and Session managers */
-    UA_SecureChannelManager_init(&server->secureChannelManager, server);
-    UA_SessionManager_init(&server->sessionManager, server);
+    /* Initialize SecureChannel */
+    TAILQ_INIT(&server->channels);
+    /* TODO: use an ID that is likely to be unique after a restart */
+    server->lastChannelId = STARTCHANNELID;
+    server->lastTokenId = STARTTOKENID;
+
+    /* Initialize Session Management */
+    LIST_INIT(&server->sessions);
+    server->sessionCount = 0;
 
 #if UA_MULTITHREADING >= 100
     UA_AsyncManager_init(&server->asyncManager, server);
@@ -415,13 +427,13 @@ UA_Server_updateCertificate(UA_Server *server,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     if(closeSessions) {
-        UA_SessionManager *sm = &server->sessionManager;
         session_list_entry *current;
-        LIST_FOREACH(current, &sm->sessions, pointers) {
+        LIST_FOREACH(current, &server->sessions, pointers) {
             if(UA_ByteString_equal(oldCertificate,
                                     &current->session.header.channel->securityPolicy->localCertificate)) {
                 UA_LOCK(server->serviceMutex);
-                UA_SessionManager_removeSession(sm, &current->session.header.authenticationToken);
+                UA_Server_removeSessionByToken(server, &current->session.header.authenticationToken,
+                                               UA_DIAGNOSTICEVENT_CLOSE);
                 UA_UNLOCK(server->serviceMutex);
             }
         }
@@ -429,12 +441,10 @@ UA_Server_updateCertificate(UA_Server *server,
     }
 
     if(closeSecureChannels) {
-        UA_SecureChannelManager *cm = &server->secureChannelManager;
         channel_entry *entry;
-        TAILQ_FOREACH(entry, &cm->channels, pointers) {
-            if(UA_ByteString_equal(&entry->channel.securityPolicy->localCertificate, oldCertificate)){
-                UA_SecureChannelManager_close(cm, entry->channel.securityToken.channelId);
-            }
+        TAILQ_FOREACH(entry, &server->channels, pointers) {
+            if(UA_ByteString_equal(&entry->channel.securityPolicy->localCertificate, oldCertificate))
+                UA_Server_closeSecureChannel(server, &entry->channel, UA_DIAGNOSTICEVENT_CLOSE);
         }
     }
 
@@ -477,11 +487,8 @@ static UA_StatusCode
 verifyServerApplicationURI(const UA_Server *server) {
     for(size_t i = 0; i < server->config.securityPoliciesSize; i++) {
         UA_SecurityPolicy *sp = &server->config.securityPolicies[i];
-        if(!sp->certificateVerification)
-            continue;
-        UA_StatusCode retval =
-            sp->certificateVerification->
-            verifyApplicationURI(sp->certificateVerification->context,
+        UA_StatusCode retval = server->config.certificateVerification.
+            verifyApplicationURI(server->config.certificateVerification.context,
                                  &sp->localCertificate,
                                  &server->config.applicationDescription.applicationUri);
         if(retval != UA_STATUSCODE_GOOD) {
@@ -495,6 +502,11 @@ verifyServerApplicationURI(const UA_Server *server) {
     return UA_STATUSCODE_GOOD;
 }
 #endif
+
+UA_ServerStatistics UA_Server_getStatistics(UA_Server *server)
+{
+   return server->serverStats;
+}
 
 /********************/
 /* Main Server Loop */
@@ -555,6 +567,7 @@ UA_Server_run_startup(UA_Server *server) {
     UA_StatusCode result = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
         UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
+        nl->statistics = &server->serverStats.ns;
         result |= nl->start(nl, &server->config.customHostname);
     }
 
@@ -579,7 +592,7 @@ UA_Server_run_startup(UA_Server *server) {
     /* Spin up the worker threads */
 #if UA_MULTITHREADING >= 200
     UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                "Spinning up %u worker thread(s)", server->config.nThreads);
+                "Spinning up %" PRIu16 " worker thread(s)", server->config.nThreads);
     UA_WorkQueue_start(&server->workQueue, server->config.nThreads);
 #endif
 
@@ -674,7 +687,7 @@ UA_Server_run_shutdown(UA_Server *server) {
     /* Shut down the workers */
     UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
                 "Shutting down %u worker thread(s)",
-                (UA_UInt32)server->workQueue.workersSize);
+                (int unsigned)server->workQueue.workersSize);
     UA_WorkQueue_stop(&server->workQueue);
 #endif
 

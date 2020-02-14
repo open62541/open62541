@@ -309,7 +309,7 @@ setSrv(UA_Server *server, const struct resource *r,
         /* cut off last dot */
         srvNameLen--;
     /* opc.tcp://[servername]:[port][path] */
-    char *newUrl = (char*)UA_malloc(10 + srvNameLen + 8);
+    char *newUrl = (char*)UA_malloc(10 + srvNameLen + 8 + 1);
     if (!newUrl) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "Cannot allocate char for discovery url. Out of memory.");
         return;
@@ -317,10 +317,9 @@ setSrv(UA_Server *server, const struct resource *r,
     UA_snprintf(newUrl, 10 + srvNameLen + 8, "opc.tcp://%.*s:%d", (int) srvNameLen,
              r->known.srv.name, r->known.srv.port);
 
-
-    UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                "Multicast DNS: found server: %s", newUrl);
     entry->serverOnNetwork.discoveryUrl = UA_String_fromChars(newUrl);
+    UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                "Multicast DNS: found server: %.*s", (int)entry->serverOnNetwork.discoveryUrl.length, (char*)entry->serverOnNetwork.discoveryUrl.data);
     UA_free(newUrl);
 
     if(entry->pathTmp) {

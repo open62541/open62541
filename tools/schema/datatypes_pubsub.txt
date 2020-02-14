@@ -26,6 +26,7 @@ DataSetWriterDataType
 DataSetReaderDataType
 PubSubState
 JsonDataSetWriterMessageDataType
+JsonWriterGroupMessageDataType
 JsonDataSetMessageContentMask
 JsonNetworkMessageContentMask
 BrokerTransportQualityOfService

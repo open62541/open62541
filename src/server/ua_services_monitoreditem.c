@@ -279,7 +279,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
     UA_DataValue_clear(&v);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO_SESSION(&server->config.logger, session,
-                            "Subscription %u | Could not create a MonitoredItem "
+                            "Subscription %" PRIu32 " | Could not create a MonitoredItem "
                             "with StatusCode %s", cmc->sub ? cmc->sub->subscriptionId : 0,
                             UA_StatusCode_name(retval));
         result->statusCode = retval;
@@ -321,7 +321,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
     }
 
     UA_LOG_INFO_SESSION(&server->config.logger, session,
-                        "Subscription %u | MonitoredItem %i | "
+                        "Subscription %" PRIu32 " | MonitoredItem %" PRIi32 " | "
                         "Created the MonitoredItem",
                         cmc->sub ? cmc->sub->subscriptionId : 0,
                         newMon->monitoredItemId);

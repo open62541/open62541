@@ -56,6 +56,7 @@ struct UA_MonitoredItem;
 typedef struct UA_MonitoredItem UA_MonitoredItem;
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+
 typedef struct UA_EventNotification {
     UA_EventFieldList fields;
     /* EventFilterResult currently isn't being used
@@ -63,6 +64,7 @@ typedef struct UA_EventNotification {
 } UA_EventNotification;
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+
 typedef enum {
   UA_INACTIVE,
   UA_ACTIVE,
@@ -72,49 +74,45 @@ typedef enum {
   UA_ACTIVE_LOWLOW
 } UA_ActiveState;
 
-typedef struct UA_SpecificCallbacks_Data {
-    UA_TwoStateVariableChangeCallback enteringEnabledStateCallback;
-    UA_TwoStateVariableChangeCallback enteringAckedStateCallback;
-    UA_Boolean ackedRemoveBranch;
-    UA_TwoStateVariableChangeCallback enteringConfirmedStateCallback;
-    UA_Boolean confirmedRemoveBranch;
-    UA_TwoStateVariableChangeCallback enteringActiveStateCallback;
-} UA_SpecificCallbacks_Data;
-
-typedef struct UA_LastSverity_Data {
-    UA_UInt16 lastSeverity;
-    UA_DateTime sourceTimeStamp;
-} UA_LastSverity_Data;
-
-/* in the first implementation there will be only one entry in this list
- * conditionBranchId is always NULL.
- */
-typedef struct UA_ConditionBranch_nodeListElement { 
-    LIST_ENTRY(UA_ConditionBranch_nodeListElement) listEntry;
-    UA_NodeId* conditionBranchId;
+/* In the first implementation there will be only one entry in this list
+ * conditionBranchId is always NULL. */
+typedef struct UA_ConditionBranch {
+    LIST_ENTRY(UA_ConditionBranch) listEntry;
+    UA_NodeId conditionBranchId;
     UA_ByteString lastEventId;
     UA_Boolean isCallerAC;
-} UA_ConditionBranch_nodeListElement;
+} UA_ConditionBranch;
 
-typedef struct UA_Condition_nodeListElement {
-    LIST_ENTRY(UA_Condition_nodeListElement) listEntry;
-    LIST_HEAD(conditionbranchlisthead, UA_ConditionBranch_nodeListElement) conditionBranchHead;
+typedef struct {
+    UA_TwoStateVariableChangeCallback enableStateCallback;
+    UA_TwoStateVariableChangeCallback ackStateCallback;
+    UA_Boolean ackedRemoveBranch;
+    UA_TwoStateVariableChangeCallback confirmStateCallback;
+    UA_Boolean confirmedRemoveBranch;
+    UA_TwoStateVariableChangeCallback activeStateCallback;
+} UA_ConditionCallbacks;
+
+typedef struct UA_Condition {
+    LIST_ENTRY(UA_Condition) listEntry;
+    LIST_HEAD(, UA_ConditionBranch) conditionBranchHead;
     UA_NodeId conditionId;
-    UA_LastSverity_Data lastSevertyData;
-    UA_SpecificCallbacks_Data specificCallbacksData;
+    UA_UInt16 lastSeverity;
+    UA_DateTime lastSeveritySourceTimeStamp;
+    UA_ConditionCallbacks callbacks;
     UA_ActiveState lastActiveState;
     UA_ActiveState currentActiveState;
     UA_Boolean isLimitAlarm;
-} UA_Condition_nodeListElement;
+} UA_Condition;
 
-typedef struct UA_ConditionSource_nodeListElement {
-    LIST_ENTRY(UA_ConditionSource_nodeListElement) listEntry;
-    LIST_HEAD(conditionlisthead, UA_Condition_nodeListElement) conditionHead;
+typedef struct UA_ConditionSource {
+    LIST_ENTRY(UA_ConditionSource) listEntry;
+    LIST_HEAD(, UA_Condition) conditionHead;
     UA_NodeId conditionSourceId;
-} UA_ConditionSource_nodeListElement;
-#endif
+} UA_ConditionSource;
 
-#endif
+#endif /* UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */
+
+#endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
 typedef struct UA_Notification {
     TAILQ_ENTRY(UA_Notification) listEntry; /* Notification list for the MonitoredItem */

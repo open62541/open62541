@@ -34,8 +34,8 @@ addConditionSourceObject(UA_Server *server) {
 
     object_attr.displayName = UA_LOCALIZEDTEXT("en", "ConditionSourceObject");
     UA_StatusCode retval =  UA_Server_addObjectNode(server, UA_NODEID_NULL,
-                                      UA_NODEID_NULL,
-                                      UA_NODEID_NULL,
+                                      UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                      UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                                       UA_QUALIFIEDNAME(0, "ConditionSourceObject"),
                                       UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
                                       object_attr, NULL, &conditionSource);

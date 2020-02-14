@@ -744,9 +744,7 @@ error:
 }
 
 UA_StatusCode
-UA_SecurityPolicy_Basic128Rsa15(UA_SecurityPolicy *policy,
-                                UA_CertificateVerification *certificateVerification,
-                                const UA_ByteString localCertificate,
+UA_SecurityPolicy_Basic128Rsa15(UA_SecurityPolicy *policy, const UA_ByteString localCertificate,
                                 const UA_ByteString localPrivateKey, const UA_Logger *logger) {
     memset(policy, 0, sizeof(UA_SecurityPolicy));
     policy->logger = logger;
@@ -765,7 +763,6 @@ UA_SecurityPolicy_Basic128Rsa15(UA_SecurityPolicy *policy,
     memcpy(policy->localCertificate.data, localCertificate.data, localCertificate.length);
     policy->localCertificate.data[localCertificate.length] = '\0';
     policy->localCertificate.length--;
-    policy->certificateVerification = certificateVerification;
 
     /* AsymmetricModule */
     UA_SecurityPolicySignatureAlgorithm *asym_signatureAlgorithm =

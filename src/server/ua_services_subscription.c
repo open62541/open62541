@@ -53,7 +53,7 @@ setSubscriptionSettings(UA_Server *server, UA_Subscription *subscription,
     UA_StatusCode retval = Subscription_registerPublishCallback(server, subscription);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG_SESSION(&server->config.logger, subscription->session,
-                             "Subscription %u | Could not register publish callback with error code %s",
+                             "Subscription %" PRIu32 " | Could not register publish callback with error code %s",
                              subscription->subscriptionId, UA_StatusCode_name(retval));
     }
     return retval;
@@ -104,7 +104,7 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
     response->revisedLifetimeCount = newSubscription->lifeTimeCount;
     response->revisedMaxKeepAliveCount = newSubscription->maxKeepAliveCount;
 
-    UA_LOG_INFO_SESSION(&server->config.logger, session, "Subscription %u | "
+    UA_LOG_INFO_SESSION(&server->config.logger, session, "Subscription %" PRIu32 " | "
                         "Created the Subscription with a publishing interval of %.2f ms",
                         response->subscriptionId, newSubscription->publishingInterval);
 }
@@ -244,7 +244,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
         if(!sub) {
             response->results[i] = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
             UA_LOG_DEBUG_SESSION(&server->config.logger, session,
-                                 "Cannot process acknowledgements subscription %u",
+                                 "Cannot process acknowledgements subscription %u" PRIu32,
                                  ack->subscriptionId);
             continue;
         }
@@ -286,7 +286,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
         if(immediate->state == UA_SUBSCRIPTIONSTATE_LATE) {
             session->lastSeenSubscriptionId = immediate->subscriptionId;
             UA_LOG_DEBUG_SESSION(&server->config.logger, session,
-                                 "Subscription %u | Response on a late subscription",
+                                 "Subscription %" PRIu32 " | Response on a late subscription",
                                  immediate->subscriptionId);
             UA_Subscription_publish(server, immediate);
             return;
@@ -311,11 +311,11 @@ Operation_DeleteSubscription(UA_Server *server, UA_Session *session, void *_,
     *result = UA_Session_deleteSubscription(server, session, *subscriptionId);
     if(*result == UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG_SESSION(&server->config.logger, session,
-                             "Subscription %u | Subscription deleted",
+                             "Subscription %" PRIu32 " | Subscription deleted",
                              *subscriptionId);
     } else {
         UA_LOG_DEBUG_SESSION(&server->config.logger, session,
-                             "Deleting Subscription with Id %u failed with error code %s",
+                             "Deleting Subscription with Id %" PRIu32 " failed with error code %s",
                              *subscriptionId, UA_StatusCode_name(*result));
     }
 }

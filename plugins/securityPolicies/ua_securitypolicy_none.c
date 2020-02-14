@@ -127,15 +127,12 @@ policy_clear_none(UA_SecurityPolicy *policy) {
 }
 
 UA_StatusCode
-UA_SecurityPolicy_None(UA_SecurityPolicy *policy,
-                       UA_CertificateVerification *certificateVerification,
-                       const UA_ByteString localCertificate, const UA_Logger *logger) {
+UA_SecurityPolicy_None(UA_SecurityPolicy *policy, const UA_ByteString localCertificate,
+                       const UA_Logger *logger) {
     policy->policyContext = (void *)(uintptr_t)logger;
     policy->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
     policy->logger = logger;
     UA_ByteString_copy(&localCertificate, &policy->localCertificate);
-
-    policy->certificateVerification = certificateVerification;
 
     policy->symmetricModule.generateKey = generateKey_none;
     policy->symmetricModule.generateNonce = generateNonce_none;

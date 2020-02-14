@@ -47,6 +47,11 @@ _UA_BEGIN_DECLS
 typedef void (*UA_Service)(UA_Server*, UA_Session*,
                            const void *request, void *response);
 
+/* Services in the Session Service Set have a different signature */
+typedef void (*UA_SessionService)(UA_Server*, UA_SecureChannel *,
+                                  UA_Session*, const void *request,
+                                  void *response);
+
 /**
  * Discovery Service Set
  * ---------------------
@@ -141,6 +146,7 @@ void Service_CloseSecureChannel(UA_Server *server, UA_SecureChannel *channel);
  * address space. The second is the authenticationToken which is used to
  * associate an incoming request with a Session. */
 void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
+                           UA_Session *session,
                            const UA_CreateSessionRequest *request,
                            UA_CreateSessionResponse *response);
 
@@ -161,7 +167,8 @@ void Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
  * CloseSession
  * ^^^^^^^^^^^^
  * Used to terminate a Session. */
-void Service_CloseSession(UA_Server *server, UA_Session *session,
+void Service_CloseSession(UA_Server *server, UA_SecureChannel *channel,
+                          UA_Session *session,
                           const UA_CloseSessionRequest *request,
                           UA_CloseSessionResponse *response);
 
