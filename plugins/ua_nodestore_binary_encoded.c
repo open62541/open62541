@@ -14,16 +14,14 @@
 #include <open62541/plugin/log_stdout.h>
 #include "ziptree.h"
 #include <open62541/types_generated_encoding_binary.h>
+#include <open62541/util.h>
 
-#include <sys/mman.h>
+#ifdef __linux__
 #include <stdio.h>
-
-#if defined UA_ENABLE_ENCODE_AND_DUMP || defined UA_ENABLE_USE_ENCODED_NODES
-
-#ifndef UA_ENABLE_IMMUTABLE_NODES
-#error The ROM-based Nodestore requires nodes to be replaced on write
+#include <sys/mman.h>
 #endif
 
+#if defined UA_ENABLE_ENCODE_AND_DUMP || defined UA_ENABLE_USE_ENCODED_NODES
 static UA_StatusCode
 commonVariableAttributeEncode(const UA_VariableNode *node, UA_Byte *bufPos, const UA_Byte *bufEnd) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -94,76 +92,6 @@ viewNodeEncode(const UA_ViewNode *node, UA_Byte *bufPos, const UA_Byte *bufEnd) 
     return retval;
 }
 
-static size_t
-commonVariableAttributeCalcSizeBinary(const UA_VariableNode *node) {
-    size_t size = 0;
-    size += UA_NodeId_calcSizeBinary(&node->dataType);
-    size += UA_Int32_calcSizeBinary(&node->valueRank);
-    size += UA_UInt64_calcSizeBinary(&node->arrayDimensionsSize);
-    if(node->arrayDimensionsSize) {
-        size += UA_UInt32_calcSizeBinary(node->arrayDimensions);
-    }
-    size += UA_UInt32_calcSizeBinary((const UA_UInt32*)&node->valueSource);
-    UA_DataValue v1 = node->value.data.value;
-    size += UA_DataValue_calcSizeBinary(&v1);
-    return size;
-}
-
-static size_t
-objectNodeCalcSizeBinary(const UA_ObjectNode* node) {
-    return UA_Byte_calcSizeBinary(&node->eventNotifier);
-}
-
-static size_t
-variableNodeCalcSizeBinary(const UA_VariableNode* node) {
-    size_t size = 0;
-    size += UA_Byte_calcSizeBinary(&node->accessLevel);
-    size += UA_Double_calcSizeBinary(&node->minimumSamplingInterval);
-    size += UA_Boolean_calcSizeBinary(&node->historizing);
-    size += commonVariableAttributeCalcSizeBinary(node);
-    return size;
-}
-
-static size_t
-methodNodeCalcSizeBinary(const UA_MethodNode* node) {
-    return UA_Boolean_calcSizeBinary(&node->executable);
-}
-
-static size_t
-objectTypeNodeCalcSizeBinary(const UA_ObjectTypeNode* node) {
-    return UA_Boolean_calcSizeBinary(&node->isAbstract);
-}
-
-static size_t
-variableTypeNodeCalcSizeBinary(const UA_VariableTypeNode* node){
-    size_t size = 0;
-    size += UA_Boolean_calcSizeBinary(&node->isAbstract);
-    size += commonVariableAttributeCalcSizeBinary((const UA_VariableNode*)node);
-    return size;
-}
-
-static size_t
-referenceTypeNodeCalcSizeBinary(const UA_ReferenceTypeNode* node) {
-    size_t size = 0;
-    size += UA_Boolean_calcSizeBinary(&node->isAbstract);
-    size += UA_Boolean_calcSizeBinary(&node->symmetric);
-    size += UA_LocalizedText_calcSizeBinary(&node->inverseName);
-    return size;
-}
-
-static size_t
-dataTypeNodeCalcSizeBinary(const UA_DataTypeNode* node) {
-    return UA_Boolean_calcSizeBinary(&node->isAbstract);
-}
-
-static size_t
-viewNodeCalcSizeBinary(const UA_ViewNode* node) {
-    size_t size = 0;
-    size += UA_Byte_calcSizeBinary(&node->eventNotifier);
-    size += UA_Boolean_calcSizeBinary(&node->containsNoLoops);
-    return size;
-}
-
 static UA_StatusCode
 UA_NodeReferenceKind_encodeBinary(const UA_NodeReferenceKind *references,
                                   UA_Byte **bufPos, const UA_Byte **bufEnd) {
@@ -179,70 +107,14 @@ UA_NodeReferenceKind_encodeBinary(const UA_NodeReferenceKind *references,
     return retval;
 }
 
-static size_t
-getNodeSize(const UA_Node * node) {
-    size_t nodeSize = 0;
-
-    nodeSize += UA_NodeId_calcSizeBinary(&node->nodeId);
-    nodeSize += UA_NodeClass_calcSizeBinary(&node->nodeClass);
-    nodeSize += UA_QualifiedName_calcSizeBinary(&node->browseName);
-    nodeSize += UA_LocalizedText_calcSizeBinary(&node->displayName);
-    nodeSize += UA_LocalizedText_calcSizeBinary(&node->description);
-    nodeSize += UA_UInt32_calcSizeBinary(&node->writeMask);
-    nodeSize += UA_UInt64_calcSizeBinary(&node->referencesSize);
-
-    for(size_t i = 0; i < node->referencesSize; i++) {
-        UA_NodeReferenceKind *refKind = &node->references[i];
-        nodeSize += UA_NodeId_calcSizeBinary(&refKind->referenceTypeId);
-        nodeSize += UA_Boolean_calcSizeBinary(&refKind->isInverse);
-        nodeSize += UA_UInt64_calcSizeBinary(&refKind->refTargetsSize);
-        for(size_t j = 0; j < node->references[i].refTargetsSize; j++) {
-            UA_ReferenceTarget *refTarget = &refKind->refTargets[j];
-            nodeSize += UA_UInt32_calcSizeBinary(&refTarget->targetHash);
-            nodeSize += UA_ExpandedNodeId_calcSizeBinary(&refTarget->target);
-        }
-    }
-
-    switch(node->nodeClass) {
-    case UA_NODECLASS_OBJECT:
-        nodeSize += objectNodeCalcSizeBinary((const UA_ObjectNode*)node);
-        break;
-    case UA_NODECLASS_VARIABLE:
-        nodeSize += variableNodeCalcSizeBinary((const UA_VariableNode*)node);
-        break;
-    case UA_NODECLASS_METHOD:
-        nodeSize += methodNodeCalcSizeBinary((const UA_MethodNode*)node);
-        break;
-    case UA_NODECLASS_OBJECTTYPE:
-        nodeSize += objectTypeNodeCalcSizeBinary((const UA_ObjectTypeNode*)node);
-        break;
-    case UA_NODECLASS_VARIABLETYPE:
-        nodeSize += variableTypeNodeCalcSizeBinary((const UA_VariableTypeNode*)node);
-        break;
-    case UA_NODECLASS_REFERENCETYPE:
-        nodeSize += referenceTypeNodeCalcSizeBinary((const UA_ReferenceTypeNode*)node);
-        break;
-    case UA_NODECLASS_DATATYPE:
-        nodeSize += dataTypeNodeCalcSizeBinary((const UA_DataTypeNode*)node);
-        break;
-    case UA_NODECLASS_VIEW:
-        nodeSize += viewNodeCalcSizeBinary((const UA_ViewNode*)node);
-        break;
-    default:
-        break;
-    }
-
-    return nodeSize;
-}
-
 UA_StatusCode
 UA_Node_encode(const UA_Node *node, UA_ByteString *new_valueEncoding) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     UA_Byte *bufPos = new_valueEncoding->data;
     const UA_Byte *bufEnd = &new_valueEncoding->data[new_valueEncoding->length];
-    retval |= UA_NodeId_encodeBinary(&node->nodeId, &bufPos, bufEnd);
     retval |= UA_NodeClass_encodeBinary(&node->nodeClass, &bufPos, bufEnd);
+    retval |= UA_NodeId_encodeBinary(&node->nodeId, &bufPos, bufEnd);
     retval |= UA_QualifiedName_encodeBinary(&node->browseName, &bufPos, bufEnd);
     retval |= UA_LocalizedText_encodeBinary(&node->displayName, &bufPos, bufEnd);
     retval |= UA_LocalizedText_encodeBinary(&node->description, &bufPos, bufEnd);
@@ -286,29 +158,12 @@ UA_Node_encode(const UA_Node *node, UA_ByteString *new_valueEncoding) {
 #endif
 
 #ifdef UA_ENABLE_USE_ENCODED_NODES
-#define MINIMALNODECOUNT        45 // Total number of nodes in MINIMAL configuration
-const UA_UInt32 minimalNodeIds[MINIMALNODECOUNT] =
-    {UA_NS0ID_REFERENCES, UA_NS0ID_HASSUBTYPE, UA_NS0ID_AGGREGATES, UA_NS0ID_HIERARCHICALREFERENCES,
-     UA_NS0ID_NONHIERARCHICALREFERENCES, UA_NS0ID_HASCHILD, UA_NS0ID_ORGANIZES, UA_NS0ID_HASEVENTSOURCE,
-     UA_NS0ID_HASMODELLINGRULE, UA_NS0ID_HASENCODING, UA_NS0ID_HASDESCRIPTION,UA_NS0ID_HASTYPEDEFINITION,
-     UA_NS0ID_GENERATESEVENT, UA_NS0ID_HASPROPERTY, UA_NS0ID_HASCOMPONENT, UA_NS0ID_HASNOTIFIER,
-     UA_NS0ID_HASORDEREDCOMPONENT, UA_NS0ID_BASEDATATYPE, UA_NS0ID_BASEVARIABLETYPE, UA_NS0ID_BASEDATAVARIABLETYPE,
-     UA_NS0ID_PROPERTYTYPE, UA_NS0ID_BASEOBJECTTYPE, UA_NS0ID_FOLDERTYPE, UA_NS0ID_ROOTFOLDER,
-     UA_NS0ID_OBJECTSFOLDER, UA_NS0ID_TYPESFOLDER, UA_NS0ID_REFERENCETYPESFOLDER, UA_NS0ID_DATATYPESFOLDER,
-     UA_NS0ID_VARIABLETYPESFOLDER, UA_NS0ID_OBJECTTYPESFOLDER, UA_NS0ID_EVENTTYPESFOLDER, UA_NS0ID_VIEWSFOLDER,
-     UA_NS0ID_SERVER, UA_NS0ID_SERVER_SERVERARRAY, UA_NS0ID_SERVER_NAMESPACEARRAY, UA_NS0ID_SERVER_SERVERSTATUS,
-     UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME, UA_NS0ID_SERVER_SERVERSTATUS_STATE, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO,
-     UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_PRODUCTURI, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_MANUFACTURERNAME,
-     UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_PRODUCTNAME, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_SOFTWAREVERSION,
-     UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_BUILDNUMBER, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_BUILDDATE
-    };
 
-UA_Boolean isMinimalNodesAdded = UA_FALSE;
 #define MAX_ROW_LENGTH         30  // Maximum length of a row in lookup table
 
-lookUpTable *ltRead;
-UA_UInt32 ltSizeRead;
-UA_ByteString encodeBin;
+#ifndef UA_ENABLE_IMMUTABLE_NODES
+#error The ROM-based Nodestore requires nodes to be replaced on write
+#endif
 
 static UA_StatusCode
 objectNodeDecode(const UA_ByteString *src, size_t *offset, UA_ObjectNode* objectNode) {
@@ -328,6 +183,9 @@ variableNodeDecode(const UA_ByteString *src, size_t *offset, UA_VariableNode* va
     retval |= UA_UInt64_decodeBinary(src, offset, &variableNode->arrayDimensionsSize);
     if(variableNode->arrayDimensionsSize) {
         variableNode->arrayDimensions = (UA_UInt32 *)UA_calloc(variableNode->arrayDimensionsSize, sizeof(UA_UInt32));
+        if(!variableNode->arrayDimensions) {
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
         retval |= UA_UInt32_decodeBinary(src, offset, variableNode->arrayDimensions);
     }
     retval |= UA_UInt32_decodeBinary(src, offset, (UA_UInt32*)&variableNode->valueSource);
@@ -389,65 +247,8 @@ viewNodeDecode(const UA_ByteString *src, size_t *offset, UA_ViewNode* viewNode) 
     return retval;
 }
 
-
-
-static void
-readRowLookuptable(char ltRow [], int length, lookUpTable *lt, int row) {
-    /**
-     * There are four contents per row
-     * |IdentifierType|Identifier|nodePosition|nodeSize|
-     * Each data is separated by space
-     */
-    size_t index = 0;
-    int column = 1;
-    char ltTemp[MAX_ROW_LENGTH] = {0};
-    for (int j = 0 ; j < length; j++) {
-        if(ltRow[j] != ' ') {
-            ltTemp[index] = ltRow[j];
-            index++;
-        }
-        if(ltRow[j] == ' ' || j == length - 1) {
-            switch(column) {
-            case 1:
-                if(strtol(ltTemp, NULL, 10) == UA_NODEIDTYPE_NUMERIC) {
-                    lt[row].nodeId.identifierType = UA_NODEIDTYPE_NUMERIC;
-                }
-                if(strtol(ltTemp, NULL, 10) == UA_NODEIDTYPE_STRING) {
-                    lt[row].nodeId.identifierType = UA_NODEIDTYPE_STRING;
-                }
-                break;
-            case 2:
-                if(lt[row].nodeId.identifierType == UA_NODEIDTYPE_NUMERIC) {
-                    lt[row].nodeId.identifier.numeric = (UA_UInt32)strtol(ltTemp, NULL, 10);
-                }
-                if(lt[row].nodeId.identifierType == UA_NODEIDTYPE_STRING) {
-                    lt[row].nodeId.identifier.string = UA_STRING_NULL;
-                    lt[row].nodeId.identifier.string.length = index;
-                    ltTemp[index] = '\0';
-                    lt[row].nodeId.identifier.string = UA_String_fromChars(&ltTemp[0]);
-                }
-                break;
-            case 3:
-                lt[row].nodePosition = (size_t) strtol(ltTemp, NULL, 10);
-                break;
-            case 4:
-                lt[row].nodeSize = (size_t) strtol(ltTemp, NULL, 10);
-                break;
-            default:
-                break;
-            }
-            /* Clear the array contents */
-            for(int i = 0; i < MAX_ROW_LENGTH; i++) {
-                ltTemp[i] = 0;
-            }
-            column++;
-            index = 0;
-        }
-    }
-}
-
-static lookUpTable*
-UA_Lookuptable_Initialize(UA_UInt32 *ltSize, const char *const path) {
+static UA_UInt32
+countNodes(const char *const path) {
     int ch;
     UA_UInt32 nodeCount = 0; // To count the number of nodes
     FILE *fpLookuptable;
@@ -461,38 +262,7 @@ UA_Lookuptable_Initialize(UA_UInt32 *ltSize, const char *const path) {
         }
     }
     fclose(fpLookuptable);
-    *ltSize = nodeCount;
-    lookUpTable *lt = (lookUpTable *)UA_calloc(*ltSize, sizeof(lookUpTable));
-    return lt;
-}
-
-static void
-UA_Read_LookUpTable(lookUpTable *lt, UA_UInt32 ltSize, const char* const path){
-    int ch;
-    int length = 0;
-    int row = 0;
-    char ltRow[MAX_ROW_LENGTH] = {0};
-    FILE *fpLookuptable  = fopen(path, "r");
-    if(!fpLookuptable) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "The opening of file lookupTable.bin failed");
-    }
-    while((ch = fgetc(fpLookuptable)) != EOF) {
-        switch(ch) {
-        case '\n':
-            readRowLookuptable(ltRow, length, lt, row); //separate lookuptable content from each row and populate
-            for(int i = 0; i < MAX_ROW_LENGTH; i++) {
-                  ltRow[i]= 0;
-            }
-            length = 0;
-            row++;
-            break;
-        default:
-            ltRow[length] = (char)ch; // Read each character until a newline is found
-            length++;
-            break;
-        }
-    }
-    fclose(fpLookuptable);
+    return nodeCount;
 }
 
 static UA_StatusCode
@@ -532,17 +302,13 @@ struct NodeEntry {
     UA_NodeId nodeId; /* This is actually a UA_Node that also starts with a NodeId */
 };
 
-static void checkMinimalNodeIds(UA_NodeId nodeId) {
-    static UA_UInt16 insertedNodeCount = 0;
-    for(int i = 0; i < MINIMALNODECOUNT; i++) {
-        if(nodeId.identifier.numeric == minimalNodeIds[i]) {
-            insertedNodeCount++;
-        }
-    }
-    if(insertedNodeCount == MINIMALNODECOUNT) {
-        isMinimalNodesAdded = UA_TRUE;
-    }
-}
+struct LtEntry;
+typedef struct LtEntry LtEntry;
+
+struct LtEntry {
+    ZIP_ENTRY(LtEntry) zipfieldsLt;
+    lookUpTable ltRead;
+};
 
 /* Absolute ordering for NodeIds */
 static enum ZIP_CMP
@@ -560,15 +326,35 @@ cmpNodeId(const void *a, const void *b) {
     return (enum ZIP_CMP)UA_NodeId_order(&aa->nodeId, &bb->nodeId);
 }
 
+/* Absolute ordering for NodeIds */
+static enum ZIP_CMP
+cmpNodeIdLt(const void *a, const void *b) {
+    const LtEntry *aa = (const LtEntry*)a;
+    const LtEntry *bb = (const LtEntry*)b;
+
+    /* Compare nodes in detail */
+    return (enum ZIP_CMP)UA_NodeId_order(&aa->ltRead.nodeId, &bb->ltRead.nodeId);
+}
+
 ZIP_HEAD(NodeTreeBin, NodeEntry);
 typedef struct NodeTreeBin NodeTreeBin;
 
+ZIP_HEAD(NodeTreeLt, LtEntry);
+typedef struct NodeTreeLt NodeTreeLt;
+
 typedef struct {
     NodeTreeBin root;
+    NodeTreeLt ltRoot;
+    LtEntry *lte;
+    UA_UInt32 ltSize;
+    UA_ByteString encodeBin;
 } ZipContext;
 
 ZIP_PROTTYPE(NodeTreeBin, NodeEntry, NodeEntry)
 ZIP_IMPL(NodeTreeBin, NodeEntry, zipfields, NodeEntry, zipfields, cmpNodeId)
+
+ZIP_PROTTYPE(NodeTreeLt, LtEntry, LtEntry)
+ZIP_IMPL(NodeTreeLt, LtEntry, zipfieldsLt, LtEntry, zipfieldsLt, cmpNodeIdLt)
 
 static NodeEntry *
 newEntry(UA_NodeClass nodeClass) {
@@ -639,6 +425,7 @@ static void
 zipNsDeleteNode(void *nsCtx, UA_Node *node) {
     NodeEntry *entry = container_of(node, NodeEntry, nodeId);
     entry->deleted = true;
+    deleteEntry(entry);
 }
 
 static void
@@ -651,56 +438,172 @@ zipNsReleaseNode(void *nsCtx, const UA_Node *node) {
     cleanupEntry(entry);
 }
 
+static UA_StatusCode
+parseGuid(char arg[], UA_Guid *guid) {
+    guid = UA_Guid_new();
+    guid->data1 = (UA_UInt32)strtoull(arg, NULL, 16);
+    guid->data2 = (UA_UInt16)strtoull(&arg[9], NULL, 16);
+    guid->data3 = (UA_UInt16)strtoull(&arg[14], NULL, 16);
+    UA_Int16 data4_1 = (UA_Int16)strtoull(&arg[19], NULL, 16);
+    guid->data4[0] = (UA_Byte)(data4_1 >> 8);
+    guid->data4[1] = (UA_Byte)data4_1;
+    UA_Int64 data4_2 = (UA_Int64)strtoull(&arg[24], NULL, 16);
+    guid->data4[2] = (UA_Byte)(data4_2 >> 40);
+    guid->data4[3] = (UA_Byte)(data4_2 >> 32);
+    guid->data4[4] = (UA_Byte)(data4_2 >> 24);
+    guid->data4[5] = (UA_Byte)(data4_2 >> 16);
+    guid->data4[6] = (UA_Byte)(data4_2 >> 8);
+    guid->data4[7] = (UA_Byte)data4_2;
+    return UA_STATUSCODE_GOOD;
+}
+
+
+/* Parse NodeId from String */
+static UA_StatusCode
+parseNodeId(UA_String str, lookUpTable *ltRow) {
+
+    UA_NodeId *id = &ltRow->nodeId;
+    /* zero-terminated string */
+    UA_STACKARRAY(char, s, str.length + 1);
+    memcpy(s, str.data, str.length);
+    s[str.length] = 0;
+
+    UA_NodeId_init(id);
+
+    /* Int identifier */
+    if(sscanf(s, "ns=%hu;i=%u %lu %lu", &id->namespaceIndex, &id->identifier.numeric,
+            &ltRow->nodePosition, &ltRow->nodeSize) == 4 ||
+       sscanf(s, "ns=%hu,i=%u %lu %lu", &id->namespaceIndex, &id->identifier.numeric,
+               &ltRow->nodePosition, &ltRow->nodeSize) == 4 ||
+       sscanf(s, "i=%u", &id->identifier.numeric) == 1) {
+        id->identifierType = UA_NODEIDTYPE_NUMERIC;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* String identifier */
+    UA_STACKARRAY(char, sid, str.length);
+    if(sscanf(s, "ns=%hu;s=%s %lu %lu", &id->namespaceIndex, sid,
+            &ltRow->nodePosition, &ltRow->nodeSize) == 4 ||
+       sscanf(s, "ns=%hu,s=%s %lu %lu", &id->namespaceIndex, sid,
+               &ltRow->nodePosition, &ltRow->nodeSize) == 4 ||
+       sscanf(s, "s=%s", sid) == 1) {
+        id->identifierType = UA_NODEIDTYPE_STRING;
+        id->identifier.string = UA_String_fromChars(sid);
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* ByteString idenifier */
+    if(sscanf(s, "ns=%hu;b=%s %lu %lu", &id->namespaceIndex, sid,
+            &ltRow->nodePosition, &ltRow->nodeSize) == 4 ||
+       sscanf(s, "ns=%hu,b=%s %lu %lu", &id->namespaceIndex, sid,
+               &ltRow->nodePosition, &ltRow->nodeSize) == 4 ||
+       sscanf(s, "b=%s", sid) == 1) {
+        id->identifierType = UA_NODEIDTYPE_BYTESTRING;
+        id->identifier.string = UA_String_fromChars(sid);
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* Guid idenifier */
+    if(sscanf(s, "ns=%hu;g=%s %lu %lu", &id->namespaceIndex, sid,
+            &ltRow->nodePosition, &ltRow->nodeSize) == 4 ||
+       sscanf(s, "ns=%hu,g=%s %lu %lu", &id->namespaceIndex, sid,
+               &ltRow->nodePosition, &ltRow->nodeSize) == 4 ||
+       sscanf(s, "g=%s", sid) == 1) {
+        UA_StatusCode retval = parseGuid(sid, &id->identifier.guid);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+        id->identifierType = UA_NODEIDTYPE_GUID;
+        return UA_STATUSCODE_GOOD;
+    }
+    return UA_STATUSCODE_BADINTERNALERROR;
+}
+
+static UA_StatusCode
+UA_Read_LookUpTable(void *nsCtx, const char* const path){
+    int ch;
+    int length = 0;
+    int row = 0;
+    char ltRow[MAX_ROW_LENGTH] = {0};
+    UA_String str = UA_STRING_NULL;
+    ZipContext *ns = (ZipContext *)nsCtx;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+    ns->ltSize = countNodes(path);
+    ns->lte = (LtEntry*)UA_calloc(ns->ltSize, sizeof(LtEntry));
+    if(!ns->lte) {
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    FILE *fpLookuptable  = fopen(path, "r");
+    if(!fpLookuptable) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "The opening of file lookupTable.bin failed");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    while((ch = fgetc(fpLookuptable)) != EOF) {
+        switch(ch) {
+        case '\n':
+            ltRow[length] = '\0';
+            str = UA_String_fromChars(ltRow);
+            retval |= parseNodeId(str, &ns->lte[row].ltRead);//separate lookuptable content from each row and populate
+            UA_free(str.data);
+            ZIP_INSERT(NodeTreeLt, &ns->ltRoot, &ns->lte[row], ZIP_FFS32(UA_UInt32_random()));
+            for(int i = 0; i < MAX_ROW_LENGTH; i++) {
+                ltRow[i]= 0;
+            }
+            length = 0;
+            row++;
+            break;
+        default:
+            ltRow[length] = (char)ch; // Read each character until a newline is found
+            length++;
+            break;
+        }
+    }
+    fclose(fpLookuptable);
+    return retval;
+}
+
 UA_Node*
 decodeNode(void *ctx, UA_ByteString encodedBin, size_t offset) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    UA_NodeId nodeID;
-    retval |= UA_NodeId_decodeBinary(&encodedBin, &offset, &nodeID);
+
     UA_NodeClass nodeClass;
     retval |= UA_NodeClass_decodeBinary(&encodedBin, &offset, &nodeClass);
-    UA_QualifiedName browseName;
-    retval |= UA_QualifiedName_decodeBinary(&encodedBin, &offset, &browseName);
-    UA_LocalizedText displayName;
-    retval |= UA_LocalizedText_decodeBinary(&encodedBin, &offset, &displayName);
-    UA_LocalizedText description;
-    retval |= UA_LocalizedText_decodeBinary(&encodedBin, &offset, &description);
-    UA_UInt32 writeMask;
-    retval |= UA_UInt32_decodeBinary(&encodedBin, &offset, &writeMask);
-    size_t referencesSize;
-    retval |= UA_UInt64_decodeBinary(&encodedBin, &offset, (UA_UInt64 *)&referencesSize);
-
     UA_Node* node = zipNsNewNode(ctx, nodeClass);
+    if(!node) {
+        return NULL;
+    }
+
     node->context = ctx;
-    memcpy(&node->nodeId, &nodeID, sizeof(UA_NodeId));
     node->nodeClass = nodeClass;
-    memcpy(&node->browseName, &browseName, sizeof(UA_QualifiedName));
-    memcpy(&node->displayName, &displayName, sizeof(UA_LocalizedText));
-    memcpy(&node->description, &description, sizeof(UA_LocalizedText));
-    node->writeMask = writeMask;
-    node->referencesSize = referencesSize;
+    retval |= UA_NodeId_decodeBinary(&encodedBin, &offset, &node->nodeId);
+    retval |= UA_QualifiedName_decodeBinary(&encodedBin, &offset, &node->browseName);
+    retval |= UA_LocalizedText_decodeBinary(&encodedBin, &offset, &node->displayName);
+    retval |= UA_LocalizedText_decodeBinary(&encodedBin, &offset, &node->description);
+    retval |= UA_UInt32_decodeBinary(&encodedBin, &offset, &node->writeMask);
+    retval |= UA_UInt64_decodeBinary(&encodedBin, &offset, (UA_UInt64 *)&node->referencesSize);
 
-    node->references = (UA_NodeReferenceKind*) UA_calloc(referencesSize, sizeof(UA_NodeReferenceKind));
-    for (size_t i = 0; i < referencesSize; i++) {
-        UA_NodeId referenceTypeId;
-        retval |= UA_NodeId_decodeBinary(&encodedBin, &offset, &referenceTypeId);
-        UA_Boolean isInverse;
-        retval |= UA_Boolean_decodeBinary(&encodedBin, &offset, &isInverse);
-        memcpy(&node->references[i].referenceTypeId, &referenceTypeId, sizeof(UA_NodeId));
-        node->references[i].isInverse = isInverse;
+    node->references = (UA_NodeReferenceKind*) UA_calloc(node->referencesSize, sizeof(UA_NodeReferenceKind));
+    if(!node->references) {
+        return NULL;
+    }
+    for (size_t i = 0; i < node->referencesSize; i++) {
+        retval |= UA_NodeId_decodeBinary(&encodedBin, &offset, &node->references[i].referenceTypeId);
+        retval |= UA_Boolean_decodeBinary(&encodedBin, &offset, &node->references[i].isInverse);
 
-           size_t refTargetsSize;
-           retval |= UA_UInt64_decodeBinary(&encodedBin, &offset, (UA_UInt64 *)&refTargetsSize);
-           node->references[i].refTargetsSize = refTargetsSize;
-           node->references[i].refTargets = (UA_ReferenceTarget*)UA_calloc(node->references[i].refTargetsSize,
+        size_t refTargetsSize;
+        retval |= UA_UInt64_decodeBinary(&encodedBin, &offset, (UA_UInt64 *)&refTargetsSize);
+        node->references[i].refTargetsSize = refTargetsSize;
+        node->references[i].refTargets = (UA_ReferenceTarget*)UA_calloc(node->references[i].refTargetsSize,
                                                  sizeof(UA_ReferenceTarget));
-           for (size_t j = 0; j < refTargetsSize; j++) {
-               UA_UInt32 targetHash;
-            retval |= UA_UInt32_decodeBinary(&encodedBin, &offset, &targetHash);
-            UA_ExpandedNodeId target;
-            retval |= UA_ExpandedNodeId_decodeBinary(&encodedBin, &offset, &target);
-            node->references[i].refTargets[j].targetHash = targetHash;
-            memcpy(&node->references[i].refTargets[j].target, &target, sizeof(UA_ExpandedNodeId));
-           }
+        if(!node->references[i].refTargets ) {
+            return NULL;
+        }
+        for (size_t j = 0; j < refTargetsSize; j++) {
+            retval |= UA_UInt32_decodeBinary(&encodedBin, &offset, &node->references[i].refTargets[j].targetHash);
+            retval |= UA_ExpandedNodeId_decodeBinary(&encodedBin, &offset, &node->references[i].refTargets[j].target);
+        }
     }
 
     switch(nodeClass) {
@@ -756,9 +659,11 @@ zipNsGetNode(void *nsCtx, const UA_NodeId *nodeId) {
         return (const UA_Node*)&entry->nodeId;
     }
 
-    for(size_t i = 0; i < ltSizeRead; i++) {
-        if(UA_NodeId_equal(nodeId, &ltRead[i].nodeId))
-            return decodeNode(nsCtx, encodeBin, ltRead[i].nodePosition);
+    LtEntry ltDummy;
+    ltDummy.ltRead.nodeId = *nodeId;
+    LtEntry *lte = ZIP_FIND(NodeTreeLt, &ns->ltRoot, &ltDummy);
+    if(lte) {
+        return decodeNode(nsCtx, ns->encodeBin, lte->ltRead.nodePosition);
     }
     return NULL;
 }
@@ -796,9 +701,6 @@ static UA_StatusCode
 zipNsInsertNode(void *nsCtx, UA_Node *node, UA_NodeId *addedNodeId) {
     NodeEntry *entry = container_of(node, NodeEntry, nodeId);
     ZipContext *ns = (ZipContext*)nsCtx;
-
-    /* Check if all the minimal nodes are inserted*/
-    checkMinimalNodeIds(node->nodeId);
 
     /* Ensure that the NodeId is unique */
     NodeEntry dummy;
@@ -919,25 +821,25 @@ zipNsClear(void *nsCtx) {
         return;
     ZipContext *ns = (ZipContext*)nsCtx;
     ZIP_ITER(NodeTreeBin, &ns->root, deleteNodeVisitor, NULL);
-    UA_free(ns);
 
-    /* Clear encoded node contents */
-    for (UA_UInt32 i = 0; i < ltSizeRead; i++) {
-        UA_NodeId_clear(&ltRead[i].nodeId);
+    /* Clear nodeId contents */
+    for (UA_UInt32 i = 0; i < ns->ltSize; i++) {
+        UA_NodeId_clear(&ns->lte[i].ltRead.nodeId);
     }
-    UA_free(ltRead);
-    //UA_free(encodeBin.data); // mmapped
+    UA_free(&ns->lte[0]);
+    UA_free(ns);
 }
 
 UA_StatusCode
 UA_Nodestore_BinaryEncoded(UA_Nodestore *ns, const char *const lookupTablePath,
-		                   const char *const enocdedBinPath) {
+                           const char *const enocdedBinPath) {
     /* Allocate and initialize the context */
     ZipContext *ctx = (ZipContext*)UA_malloc(sizeof(ZipContext));
     if(!ctx)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     ZIP_INIT(&ctx->root);
+    ZIP_INIT(&ctx->ltRoot);
 
     /* Populate the nodestore */
     ns->context = (void*)ctx;
@@ -952,15 +854,142 @@ UA_Nodestore_BinaryEncoded(UA_Nodestore *ns, const char *const lookupTablePath,
     ns->removeNode = zipNsRemoveNode;
     ns->iterate = zipNsIterate;
 
-    /* Initialize binary enocded nodes and lookuptable */
+    /* Initialize binary encoded nodes and lookuptable */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    retval |= UA_Read_Encoded_Binary(&encodeBin, enocdedBinPath);
-    ltRead = UA_Lookuptable_Initialize(&ltSizeRead, lookupTablePath);
-    UA_Read_LookUpTable(&ltRead[0], ltSizeRead, lookupTablePath);
+    retval |= UA_Read_Encoded_Binary(&ctx->encodeBin, enocdedBinPath);
+    retval |= UA_Read_LookUpTable(ctx, lookupTablePath);
 
     return retval;
 }
 #endif
+
+#ifdef UA_ENABLE_ENCODE_AND_DUMP
+
+static size_t
+commonVariableAttributeCalcSizeBinary(const UA_VariableNode *node) {
+    size_t size = 0;
+    size += UA_NodeId_calcSizeBinary(&node->dataType);
+    size += UA_Int32_calcSizeBinary(&node->valueRank);
+    size += UA_UInt64_calcSizeBinary(&node->arrayDimensionsSize);
+    if(node->arrayDimensionsSize) {
+        size += UA_UInt32_calcSizeBinary(node->arrayDimensions);
+    }
+    size += UA_UInt32_calcSizeBinary((const UA_UInt32*)&node->valueSource);
+    UA_DataValue v1 = node->value.data.value;
+    size += UA_DataValue_calcSizeBinary(&v1);
+    return size;
+}
+
+static size_t
+objectNodeCalcSizeBinary(const UA_ObjectNode* node) {
+    return UA_Byte_calcSizeBinary(&node->eventNotifier);
+}
+
+static size_t
+variableNodeCalcSizeBinary(const UA_VariableNode* node) {
+    size_t size = 0;
+    size += UA_Byte_calcSizeBinary(&node->accessLevel);
+    size += UA_Double_calcSizeBinary(&node->minimumSamplingInterval);
+    size += UA_Boolean_calcSizeBinary(&node->historizing);
+    size += commonVariableAttributeCalcSizeBinary(node);
+    return size;
+}
+
+static size_t
+methodNodeCalcSizeBinary(const UA_MethodNode* node) {
+    return UA_Boolean_calcSizeBinary(&node->executable);
+}
+
+static size_t
+objectTypeNodeCalcSizeBinary(const UA_ObjectTypeNode* node) {
+    return UA_Boolean_calcSizeBinary(&node->isAbstract);
+}
+
+static size_t
+variableTypeNodeCalcSizeBinary(const UA_VariableTypeNode* node){
+    size_t size = 0;
+    size += UA_Boolean_calcSizeBinary(&node->isAbstract);
+    size += commonVariableAttributeCalcSizeBinary((const UA_VariableNode*)node);
+    return size;
+}
+
+static size_t
+referenceTypeNodeCalcSizeBinary(const UA_ReferenceTypeNode* node) {
+    size_t size = 0;
+    size += UA_Boolean_calcSizeBinary(&node->isAbstract);
+    size += UA_Boolean_calcSizeBinary(&node->symmetric);
+    size += UA_LocalizedText_calcSizeBinary(&node->inverseName);
+    return size;
+}
+
+static size_t
+dataTypeNodeCalcSizeBinary(const UA_DataTypeNode* node) {
+    return UA_Boolean_calcSizeBinary(&node->isAbstract);
+}
+
+static size_t
+viewNodeCalcSizeBinary(const UA_ViewNode* node) {
+    size_t size = 0;
+    size += UA_Byte_calcSizeBinary(&node->eventNotifier);
+    size += UA_Boolean_calcSizeBinary(&node->containsNoLoops);
+    return size;
+}
+
+static size_t
+getNodeSize(const UA_Node * node) {
+    size_t nodeSize = 0;
+
+    nodeSize += UA_NodeId_calcSizeBinary(&node->nodeId);
+    nodeSize += UA_NodeClass_calcSizeBinary(&node->nodeClass);
+    nodeSize += UA_QualifiedName_calcSizeBinary(&node->browseName);
+    nodeSize += UA_LocalizedText_calcSizeBinary(&node->displayName);
+    nodeSize += UA_LocalizedText_calcSizeBinary(&node->description);
+    nodeSize += UA_UInt32_calcSizeBinary(&node->writeMask);
+    nodeSize += UA_UInt64_calcSizeBinary(&node->referencesSize);
+
+    for(size_t i = 0; i < node->referencesSize; i++) {
+        UA_NodeReferenceKind *refKind = &node->references[i];
+        nodeSize += UA_NodeId_calcSizeBinary(&refKind->referenceTypeId);
+        nodeSize += UA_Boolean_calcSizeBinary(&refKind->isInverse);
+        nodeSize += UA_UInt64_calcSizeBinary(&refKind->refTargetsSize);
+        for(size_t j = 0; j < node->references[i].refTargetsSize; j++) {
+            UA_ReferenceTarget *refTarget = &refKind->refTargets[j];
+            nodeSize += UA_UInt32_calcSizeBinary(&refTarget->targetHash);
+            nodeSize += UA_ExpandedNodeId_calcSizeBinary(&refTarget->target);
+        }
+    }
+
+    switch(node->nodeClass) {
+    case UA_NODECLASS_OBJECT:
+        nodeSize += objectNodeCalcSizeBinary((const UA_ObjectNode*)node);
+        break;
+    case UA_NODECLASS_VARIABLE:
+        nodeSize += variableNodeCalcSizeBinary((const UA_VariableNode*)node);
+        break;
+    case UA_NODECLASS_METHOD:
+        nodeSize += methodNodeCalcSizeBinary((const UA_MethodNode*)node);
+        break;
+    case UA_NODECLASS_OBJECTTYPE:
+        nodeSize += objectTypeNodeCalcSizeBinary((const UA_ObjectTypeNode*)node);
+        break;
+    case UA_NODECLASS_VARIABLETYPE:
+        nodeSize += variableTypeNodeCalcSizeBinary((const UA_VariableTypeNode*)node);
+        break;
+    case UA_NODECLASS_REFERENCETYPE:
+        nodeSize += referenceTypeNodeCalcSizeBinary((const UA_ReferenceTypeNode*)node);
+        break;
+    case UA_NODECLASS_DATATYPE:
+        nodeSize += dataTypeNodeCalcSizeBinary((const UA_DataTypeNode*)node);
+        break;
+    case UA_NODECLASS_VIEW:
+        nodeSize += viewNodeCalcSizeBinary((const UA_ViewNode*)node);
+        break;
+    default:
+        break;
+    }
+
+    return nodeSize;
+}
 
 void
 encodeNodeCallback(void *visitorCtx, const UA_Node *node) {
@@ -1011,16 +1040,33 @@ encodeNodeCallback(void *visitorCtx, const UA_Node *node) {
         fprintf(fpEncoded, "%c", new_valueEncoding.data[i]);
     }
 
+    /*For Numeric nodeId */
     if(node->nodeId.identifierType == UA_NODEIDTYPE_NUMERIC) {
-        fprintf(fpLookuptable, "%d %u %lu %lu\n", node->nodeId.identifierType, node->nodeId.identifier.numeric,
-                                          ltNodePosition, ltNodeSize);
+        fprintf(fpLookuptable, "ns=%d;i=%u %lu %lu\n", node->nodeId.namespaceIndex,
+                                node->nodeId.identifier.numeric, ltNodePosition, ltNodeSize);
     }
 
+    /*For String nodeId */
     if(node->nodeId.identifierType == UA_NODEIDTYPE_STRING) {
-        fprintf(fpLookuptable, "%d %s %lu %lu\n", node->nodeId.identifierType, node->nodeId.identifier.string.data,
-                                          ltNodePosition, ltNodeSize);
+        fprintf(fpLookuptable, "ns=%d;s=%.*s %lu %lu\n", node->nodeId.namespaceIndex,
+                                (int)node->nodeId.identifier.string.length,
+                                node->nodeId.identifier.string.data, ltNodePosition, ltNodeSize);
+    }
+
+    /*For Guid nodeId */
+    if(node->nodeId.identifierType == UA_NODEIDTYPE_GUID) {
+        fprintf(fpLookuptable, "ns=%d;g=" UA_PRINTF_GUID_FORMAT " %lu %lu\n", node->nodeId.namespaceIndex,
+                UA_PRINTF_GUID_DATA(node->nodeId.identifier.guid), ltNodePosition, ltNodeSize);
+    }
+
+    /*For ByteString nodeId */
+    if(node->nodeId.identifierType == UA_NODEIDTYPE_BYTESTRING) {
+        fprintf(fpLookuptable, "ns=%d;b=%.*s %lu %lu\n", node->nodeId.namespaceIndex,
+                                (int)node->nodeId.identifier.byteString.length,
+                                node->nodeId.identifier.byteString.data, ltNodePosition, ltNodeSize);
     }
 
     fclose(fpLookuptable);
     fclose(fpEncoded);
 }
+#endif

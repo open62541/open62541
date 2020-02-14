@@ -39,9 +39,6 @@ UA_EXPORT UA_StatusCode
 UA_Nodestore_BinaryEncoded(UA_Nodestore *ns, const char *const lookupTablePath,
                          const char *const enocdedBinPath);
 
-UA_StatusCode
-UA_Node_encode(const UA_Node *node, UA_ByteString *new_valueEncoding);
-
 /* Lookup table for the encoded nodes */
 struct lookUpTable;
 typedef struct lookUpTable lookUpTable;
@@ -53,10 +50,16 @@ struct lookUpTable {
 
 UA_Node*
 decodeNode(void *ctx, UA_ByteString encodedBin, size_t offset);
+#endif
 
+#if defined UA_ENABLE_ENCODE_AND_DUMP || defined UA_ENABLE_USE_ENCODED_NODES
+UA_StatusCode
+UA_Node_encode(const UA_Node *node, UA_ByteString *new_valueEncoding);
+#endif
+
+#ifdef UA_ENABLE_ENCODE_AND_DUMP
 void
 encodeNodeCallback(void *visitorCtx, const UA_Node *node);
-
 #endif
 
 

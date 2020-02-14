@@ -142,6 +142,7 @@ option(UA_ENABLE_MICRO_EMB_DEV_PROFILE "Builds CTT Compliant Micro Embedded Devi
 option(UA_ENABLE_WEBSOCKET_SERVER "Enable websocket support (uses libwebsockets)" OFF)
 option(UA_ENABLE_ENCODE_AND_DUMP "Binary Encode the nodes present in information model and dump it into a file" OFF)
 option(UA_ENABLE_USE_ENCODED_NODES "Use OPC UA binary encoded nodes" OFF)
+option(UA_DISABLE_INIT_NS0 "Disable init_ns0(). Used along with UA_ENABLE_USE_ENCODED_NODES" OFF)
 
 # Namespace Zero
 set(UA_NAMESPACE_ZERO "REDUCED" CACHE STRING "Completeness of the generated namespace zero (minimal/reduced/full)")
@@ -170,6 +171,10 @@ endif()
 
 if((UA_ENABLE_ENCODE_AND_DUMP) AND (UA_ENABLE_USE_ENCODED_NODES))
         message(FATAL_ERROR "Simultaneous usage of UA_ENABLE_ENCODE_AND_DUMP AND UA_ENABLE_USE_ENCODED_NODES is not allowed")
+endif()
+
+if((UA_DISABLE_INIT_NS0) AND (NOT (UA_ENABLE_USE_ENCODED_NODES)))
+        message(FATAL_ERROR "UA_DISABLE_INIT_NS0 needs UA_ENABLE_USE_ENCODED_NODES to be enabled")
 endif()
 
 if(UA_ENABLE_USE_ENCODED_NODES)

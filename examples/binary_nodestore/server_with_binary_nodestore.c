@@ -16,7 +16,7 @@
 #ifdef UA_ENABLE_USE_ENCODED_NODES
 static void usage(void) {
     printf("Usage: server [-lookupTable <lookup table file>] \n"
-           "              [-enocdedBin <encoded binary file>] \n");
+           "              [-encodedBin <encoded binary file>] \n");
 }
 #endif
 
@@ -55,7 +55,7 @@ int main(int argc, char *argv[]) {
             continue;
         }
 
-        if(strcmp(argv[argpos], "-enocdedBin") == 0) {
+        if(strcmp(argv[argpos], "-encodedBin") == 0) {
             argpos++;
             enocdedBinPath = argv[argpos];
             continue;

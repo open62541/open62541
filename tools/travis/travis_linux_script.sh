@@ -456,6 +456,7 @@ if [ "$CC" != "tcc" ]; then
         -DUA_BUILD_EXAMPLES=ON \
         -DUA_BUILD_UNIT_TESTS=ON \
         -DUA_ENABLE_USE_ENCODED_NODES=ON \
+        -DUA_ENABLE_IMMUTABLE_NODES=ON \
         -DUA_ENABLE_COVERAGE=ON \
         -DUA_ENABLE_DA=ON \
         -DUA_ENABLE_DISCOVERY=ON \

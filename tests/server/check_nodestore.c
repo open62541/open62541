@@ -145,75 +145,20 @@ START_TEST(decodeNodes) {
 END_TEST
 
 START_TEST(encodeNodes) {
-
-    /* Copy the compressed nodes */
-    UA_STACKARRAY(UA_Byte, encodedNodes, (ENCODEDNODESIZE + 2048));
     UA_ByteString encodebin;
-    encodebin.data = encodedNodes;
-
-    /* Extra size for editing the value attribute of nodes with datatype string */
-    encodebin.length = ENCODEDNODESIZE + 2048;
-    for(size_t i = 0;  i < ENCODEDNODESIZE; i++) {
-        encodebin.data[i] = encodedBin[i];
-    }
-
-    /* Check encoding function by fetching a variableType node
-     * by decoding, modifying the value field, encoding it, and
-     * checking the value field again after decoding */
-
-    /* The index 181 contains node of datatype UA_UInt32 */
-    UA_NodeId nodeIdEdited;
-    UA_NodeId_copy(&lt[181].nodeId, &nodeIdEdited);
-    const UA_Node* nr;
-    nr = decodeNode(ns.context , encodebin, lt[181].nodePosition);
-    const UA_VariableTypeNode *varNode = (const UA_VariableTypeNode*) nr;
-
-    UA_DataValue v = varNode->value.data.value;
-    UA_UInt32 value = UA_UINT32_MAX;
-    *(UA_UInt32*)v.value.data = value;
-
-    encodeEditedNode(nr, &encodebin, lt, ltSize);
-    ns.releaseNode(ns.context, nr);
+    encodebin.data = encodedBin;
+    encodebin.length = ENCODEDNODESIZE;
 
     for(UA_UInt32 i = 0; i < ltSize; i++) {
-        if(lt[i].nodeId.identifierType == UA_NODEIDTYPE_NUMERIC) {
-            if(lt[i].nodeId.identifier.numeric == nodeIdEdited.identifier.numeric) {
-                const UA_Node* nr2 = nr = decodeNode(ns.context , encodebin, lt[i].nodePosition);
-                const UA_VariableTypeNode *checkVarNode = (const UA_VariableTypeNode*) nr2;
-                UA_UInt32 valAttr = *(UA_UInt32*)checkVarNode->value.data.value.value.data;
-                ck_assert_int_eq(valAttr, UA_UINT32_MAX);
-                ns.releaseNode(ns.context, nr2);
-            }
-        }
+        UA_STACKARRAY(UA_Byte, new_stackValueEncoding, lt[i].nodeSize);
+        UA_ByteString new_valueEncoding;
+        new_valueEncoding.data = new_stackValueEncoding;
+        new_valueEncoding.length = lt[i].nodeSize;
+        const UA_Node* nr = decodeNode(ns.context , encodebin, lt[i].nodePosition);
+        UA_StatusCode retval = UA_Node_encode(nr, &new_valueEncoding);
+        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+        ns.releaseNode(ns.context, nr);
     }
-
-    UA_NodeId_clear(&nodeIdEdited);
-
-    /* The index 144 contains node of datatype UA_String */
-    UA_NodeId_copy(&lt[144].nodeId, &nodeIdEdited);
-    nr = decodeNode(ns.context , encodebin, lt[144].nodePosition);
-    const UA_VariableTypeNode *varNodeStr = (const UA_VariableTypeNode*) nr;
-
-    UA_DataValue v2 = varNodeStr->value.data.value;
-    UA_String str = UA_String_fromChars("test123");
-    *(UA_String*)v2.value.data = UA_String_fromChars("test123");
-
-    encodeEditedNode(nr, &encodebin, lt, ltSize);
-    ns.releaseNode(ns.context, nr);
-
-    for(UA_UInt32 i = 0; i < ltSize; i++) {
-        if(lt[i].nodeId.identifierType == UA_NODEIDTYPE_NUMERIC) {
-            if(lt[i].nodeId.identifier.numeric == nodeIdEdited.identifier.numeric) {
-                const UA_Node* nr2 = decodeNode(ns.context , encodebin, lt[i].nodePosition);
-                const UA_VariableTypeNode *checkVarNodeStr = (const UA_VariableTypeNode*) nr2;
-                UA_String valAttr = *(UA_String*)checkVarNodeStr->value.data.value.value.data;
-                ck_assert_int_eq(UA_String_equal(&valAttr, &str), true);
-                ns.releaseNode(ns.context, nr2);
-            }
-        }
-    }
-    UA_String_clear(&str);
-
 }
 END_TEST
 #endif
