@@ -211,6 +211,9 @@ endif()
 option(UA_ENABLE_EXPERIMENTAL_HISTORIZING "Enable client experimental historical access features" OFF)
 mark_as_advanced(UA_ENABLE_EXPERIMENTAL_HISTORIZING)
 
+option(UA_FORCE_32BIT "Force compilation as 32-bit executable" OFF)
+mark_as_advanced(UA_FORCE_32BIT)
+
 option(UA_ENABLE_PUBSUB "Enable publish/subscribe" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB)
 
@@ -482,6 +485,14 @@ if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID
     check_add_cc_flag("-Wundef")
     check_add_cc_flag("-fno-strict-aliasing") # fewer compiler assumptions about pointer types
     check_add_cc_flag("-fexceptions") # recommended for multi-threaded C code, also in combination with C++ code
+
+    if(UA_FORCE_32BIT)
+      string(FIND "${CMAKE_C_FLAGS}" "-m32" m32_already_set)
+      if(m32_already_set EQUAL -1)
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32")
+      endif()
+      unset(flag_supported CACHE)
+    endif()
 
     if (NOT MINGW)
         if(UA_ENABLE_HARDENING)
