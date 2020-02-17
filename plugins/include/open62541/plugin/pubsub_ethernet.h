@@ -9,21 +9,34 @@
 #define UA_NETWORK_PUBSUB_ETHERNET_H_
 
 #include <open62541/plugin/pubsub.h>
+#if defined(__vxworks) || defined(__VXWORKS__)
+#include <netinet/if_ether.h>
+#define ETH_ALEN ETHER_ADDR_LEN
+#endif
 #ifdef UA_ENABLE_PUBSUB_ETH_UADP
-#include <linux/if_packet.h>
-#include <netinet/ether.h>
+#include <netinet/if_ether.h>
 #endif
 
 _UA_BEGIN_DECLS
 
+#ifdef UA_ENABLE_PUBSUB_ETH_UADP
+#ifndef   ETHERTYPE_UADP
+#define   ETHERTYPE_UADP 0xb62c
+#endif
+
+/* Ethernet network layer specific internal data */
+typedef struct {
+    int ifindex;
+    UA_UInt16 vid;
+    UA_Byte prio;
+    UA_Byte ifAddress[ETH_ALEN];
+    UA_Byte targetAddress[ETH_ALEN];
+} UA_PubSubChannelDataEthernet;
+#endif
+
 UA_PubSubTransportLayer UA_EXPORT
 UA_PubSubTransportLayerEthernet(void);
 
-#ifdef UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
-/* Function for real time pubsub - txtime calculation*/
-UA_StatusCode
-txtimecalc_ethernet(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings, void *bufSend, int lenBuf, struct sockaddr_ll sll);
-#endif
 _UA_END_DECLS
 
 #endif /* UA_NETWORK_PUBSUB_ETHERNET_H_ */

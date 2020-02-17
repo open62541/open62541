@@ -7,62 +7,36 @@
 
 /* This file contains socket address handling and tx time calculation for real time publish */
 
-#ifdef UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
-#if __STDC_VERSION__ >= 199901L
-#define _XOPEN_SOURCE 600
-#else
-#define _XOPEN_SOURCE 500
-#endif /* __STDC_VERSION__ */
-#endif
 #include <open62541/plugin/network.h>
-#include <linux/errqueue.h>
-#include <poll.h>
-#include <linux/types.h>
-#include <open62541/plugin/pubsub_udp.h>
-#include "time.h"
-#include <open62541/plugin/pubsub_ethernet.h>
+#include <open62541/plugin/log_stdout.h>
+#include <include/open62541/plugin/pubsub_realtime_etf.h>
+#ifdef UA_ENABLE_PUBSUB_ETH_UADP
 #include <linux/if_packet.h>
-#include <netinet/ether.h>
-
-#define       CLOCKIDENTITY                                     CLOCK_TAI
-/* TODO: Take CYCLE_TIME value from application */
-#define       CYCLE_TIME                                        250 * 1000
-#define       SECONDS                                           1000 * 1000 * 1000
-#define       SECONDS_INCREMENT                                  1
-#define       FAILURE_EXIT                                      -1
-#define       SHIFT_32BITS                                      32
-
-#ifndef       SOCKET_TRANSMISSION_TIME
-#define       SOCKET_TRANSMISSION_TIME                          61
-#ifndef       SCM_TXTIME
-#define       SCM_TXTIME                                        SOCKET_TRANSMISSION_TIME
 #endif
-#endif
+#include "poll.h"
+#include "linux/errqueue.h"
+#include "time.h"
 
-#ifndef       SOCKET_EE_ORIGIN_TRANSMISSION_TIME
-#define       SOCKET_EE_ORIGIN_TRANSMISSION_TIME                6
-#define       SOCKET_EE_CODE_TRANSMISSION_TIME_INVALID_PARAM    1
-#define       SOCKET_EE_CODE_TRANSMISSION_TIME_MISSED           2
-#endif
-#define       MULTICAST_ADDRESS                                 "224.0.0.32"
-#define       PUBSUB_IP_ADDRESS                                 "192.168.9.10"
-
-#define       PRINT_ERROR(ERROR_INFO)                           fprintf(stderr, ERROR_INFO "\n")
-#define       START_TIME_BOUNDARY                               1
+#define   MICRO_SECONDS                                   1000
+#define   MILLI_SECONDS                                   1000 * 1000
+#define   SECONDS                                         1000 * 1000 * 1000
+#define   CYCLE_TIME                                      250 * 1000
+#define   QBV_OFFSET                                      25
+#define   SECONDS_INCREMENT                               1
+#define   FAILURE_EXIT                                    -1
+#define   SHIFT_32BITS                                    32
 
 struct timespec        nextCycleStartTime;
 UA_Boolean             firstPacket     = UA_TRUE;
 ssize_t                dataCount;
 UA_Int32               errorCount;
-__u64                  txtime;
+UA_UInt64              txtime;
 /* Qbv offset is 5us for i5. For Mbox, qbv offset is 25us */
-__u64                  qbv_offset      = 25 * 1000;
+UA_Int64               qbv_offset      = (QBV_OFFSET * MICRO_SECONDS);
 static UA_Int32        txTimeEnable    = 1;
-static unsigned char txBuffer[256];
+static unsigned char   txBuffer[256];
 
-static ssize_t sendfunc(UA_Int32 fd, void *buffer, UA_Int32 length, __u64 transmission_time, struct sockaddr_ll sll);
-
-static ssize_t sendfunc(UA_Int32 fd, void *buffer, UA_Int32 length, __u64 transmission_time, struct sockaddr_ll sll) {
+static ssize_t sendWithTxTime(UA_PubSubChannel *channel, void *buffer, UA_Int32 length, UA_UInt64 transmission_time) {
     /* Send the data packet with the tx time */
     char dataPacket[CMSG_SPACE(sizeof(transmission_time))] = {0};
     /* Structure for messages sent and received */
@@ -72,31 +46,33 @@ static ssize_t sendfunc(UA_Int32 fd, void *buffer, UA_Int32 length, __u64 transm
     ssize_t               msgCount;
 
 #if defined(UA_ENABLE_PUBSUB_ETH_UADP)
+    UA_PubSubChannelDataEthernet *channelDataEthernet =
+        (UA_PubSubChannelDataEthernet *) channel->handle;
+
+    /* Structure for socket internet address */
+    struct sockaddr_ll socketAddress = { 0 };
+
+    socketAddress.sll_family   = AF_PACKET;
+    socketAddress.sll_ifindex  = channelDataEthernet->ifindex;
+    socketAddress.sll_protocol = htons(ETHERTYPE_UADP);
+
     inputOutputVec.iov_base   = buffer;
     inputOutputVec.iov_len    = (size_t)length;
 
     memset(&message, 0, sizeof(message));
     /* Provide message name / optional address */
-    message.msg_name          = &sll;
+    message.msg_name          = &socketAddress;
     /* Provide message address size in bytes */
-    message.msg_namelen       = sizeof(sll);
+    message.msg_namelen       = sizeof(socketAddress);
     /* Provide array of input/output buffers */
     message.msg_iov           = &inputOutputVec;
     /* Provide the number of elements in the array */
     message.msg_iovlen        = 1;
 #else
-     /* Structure for socket internet address */
-    struct sockaddr_in    socketAddress;
-    static struct in_addr mcast_addr;
-    if (!inet_aton(MULTICAST_ADDRESS, &mcast_addr)) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    memset(&socketAddress, 0, sizeof(socketAddress));
-    /* Provide the socket family, port and multicast address*/
-    socketAddress.sin_family  = AF_INET;
-    socketAddress.sin_addr    = mcast_addr;
-    socketAddress.sin_port    = htons(4840);
+    UA_PubSubChannelDataUDPMC *channelDatagram = (UA_PubSubChannelDataUDPMC *) channel->handle;
+    /* Structure for socket internet address */
+    struct sockaddr_in socketAddress;
+    memcpy(&socketAddress, channelDatagram->ai_addr, sizeof(struct sockaddr_in));
     /* Provide the base address and length */
     inputOutputVec.iov_base   = buffer;
     inputOutputVec.iov_len    = (size_t)length;
@@ -129,9 +105,9 @@ static ssize_t sendfunc(UA_Int32 fd, void *buffer, UA_Int32 length, __u64 transm
         *((__u64 *) CMSG_DATA(controlMsg)) = transmission_time;
     }
 
-    msgCount = sendmsg(fd, &message, 0);
+    msgCount = sendmsg(channel->sockfd, &message, 0);
     if (msgCount < 1) {
-        printf("sendmessage failed: ");
+        printf("sendmessage failed");
         return msgCount;
     }
 
@@ -160,8 +136,8 @@ static int sockErrorQueueProcess(int fd) {
     };
 
     if (recvmsg(fd, &messageError, MSG_ERRQUEUE) == FAILURE_EXIT) {
-        PRINT_ERROR("recvmsg failed");
-            return FAILURE_EXIT;
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "recvmsg failed");
+        return FAILURE_EXIT;
     }
 
     controlErrorMsg = CMSG_FIRSTHDR(&messageError);
@@ -174,17 +150,19 @@ static int sockErrorQueueProcess(int fd) {
             timeStamp = ((__u64) sockErrorQueue->ee_data << SHIFT_32BITS) + sockErrorQueue->ee_info;
             switch (sockErrorQueue->ee_code) {
             case SOCKET_EE_CODE_TRANSMISSION_TIME_INVALID_PARAM:
-                fprintf(stderr, "packet with timeStamp %llu dropped due to invalid params\n", timeStamp);
+                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "packet with timeStamp %llu dropped due to invalid params\n", timeStamp);
                 return 0;
             case SOCKET_EE_CODE_TRANSMISSION_TIME_MISSED:
-                fprintf(stderr, "packet with timeStamp %llu dropped due to missed deadline\n", timeStamp);
+                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "packet with timeStamp %llu dropped due to missed deadline\n", timeStamp);
                 return 0;
                 default:
                     return -1;
             }
         }
+
         controlErrorMsg = CMSG_NXTHDR(&messageError, controlErrorMsg);
     }
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -198,20 +176,20 @@ static void nanoSecondFieldConversion(struct timespec *timeSpecValue) {
     }
 
 }
-/* txtime calculation */
 
+/* txtime calculation for UDP */
 UA_StatusCode
 txtimecalc_udp(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings, const UA_ByteString *buf) {
     /* Function for txtime calculation */
     UA_Int32 errorQueueCheck;
     struct   pollfd p_fd = {
-    .fd = channel->sockfd,
+        .fd = channel->sockfd,
     };
 
     if (firstPacket == UA_TRUE)
-   {
-        clock_gettime(CLOCKIDENTITY, &nextCycleStartTime);
-        nextCycleStartTime.tv_nsec = CYCLE_TIME + (__syscall_slong_t)qbv_offset;
+    {
+        clock_gettime(CLOCK_TAI, &nextCycleStartTime);
+        nextCycleStartTime.tv_nsec = CYCLE_TIME + qbv_offset;
         firstPacket = UA_FALSE;
     }
     else
@@ -219,63 +197,63 @@ txtimecalc_udp(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings,
         nextCycleStartTime.tv_nsec += CYCLE_TIME;
         nanoSecondFieldConversion(&nextCycleStartTime);
     }
-    struct sockaddr_ll sll = {0};
-/* Calculate the txtime and use txtime to publish the packet at the configured time */
-    txtime = (long long unsigned int)nextCycleStartTime.tv_sec * SECONDS + (long long unsigned int)nextCycleStartTime.tv_nsec;
+
+    /* Calculate the txtime and use txtime to publish the packet at the configured time */
+    txtime = (UA_UInt64)nextCycleStartTime.tv_sec * SECONDS + (UA_UInt64)nextCycleStartTime.tv_nsec;
     if (errorCount == 0) {
-        dataCount = sendfunc(channel->sockfd, buf->data, (UA_Int32)buf->length, txtime, sll);
+        dataCount = sendWithTxTime(channel, buf->data, (UA_Int32)buf->length, txtime);
         if (dataCount != (UA_Int32)(buf->length)) {
             return UA_STATUSCODE_BADINTERNALERROR;
-         }
+        }
 
-/* Check if errors are pending on the error queue. */
-    errorQueueCheck = poll(&p_fd, 1, 0);
-    if (errorQueueCheck == 1 && p_fd.revents & POLLERR) {
-        if (!sockErrorQueueProcess(channel->sockfd))
-           return UA_STATUSCODE_BADINTERNALERROR; /* TODO Modified the return value. Need to change this */
+         /* Check if errors are pending on the error queue. */
+         errorQueueCheck = poll(&p_fd, 1, 0);
+         if (errorQueueCheck == 1 && p_fd.revents & POLLERR) {
+             if (!sockErrorQueueProcess(channel->sockfd))
+                 return UA_STATUSCODE_BADINTERNALERROR; /* TODO Modified the return value. Need to change this */
+         }
     }
 
-}
-return UA_STATUSCODE_GOOD;
+    return UA_STATUSCODE_GOOD;
 }
 
+/* txtime calculation for Ethernet */
 UA_StatusCode
-txtimecalc_ethernet(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings, void *bufSend, int lenBuf, struct sockaddr_ll sll) {
+txtimecalc_ethernet(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettigns, void *bufSend, int lenBuf) {
     UA_Int32 errorQueueCheck;
     struct   pollfd p_fd = {
-    .fd = channel->sockfd,
-     };
+        .fd = channel->sockfd,
+    };
 
     if (firstPacket == UA_TRUE)
     {
-        clock_gettime(CLOCKIDENTITY, &nextCycleStartTime);
-
-        nextCycleStartTime.tv_nsec = CYCLE_TIME + (__syscall_slong_t)qbv_offset;
+        clock_gettime(CLOCK_TAI, &nextCycleStartTime);
+        nextCycleStartTime.tv_nsec = CYCLE_TIME + qbv_offset;
         firstPacket = UA_FALSE;
     }
     else
-   {
+    {
         nextCycleStartTime.tv_nsec += CYCLE_TIME;
         nanoSecondFieldConversion(&nextCycleStartTime);
-   }
+    }
 
-/* Calculate the txtime and use txtime to publish the packet at the configured time */
+    /* Calculate the txtime and use txtime to publish the packet at the configured time */
     txtime = (long long unsigned int)nextCycleStartTime.tv_sec * SECONDS + (long long unsigned int)nextCycleStartTime.tv_nsec;
 
     if (errorCount == 0) {
-        dataCount = sendfunc(channel->sockfd, bufSend, (int)lenBuf, txtime, sll);
+        dataCount = sendWithTxTime(channel, bufSend, (int)lenBuf, txtime);
         if (dataCount != (UA_Int32)lenBuf) {
             return UA_STATUSCODE_BADINTERNALERROR;
         }
 
-/* Check if errors are pending on the error queue. */
+    /* Check if errors are pending on the error queue. */
     errorQueueCheck = poll(&p_fd, 1, 0);
     if (errorQueueCheck == 1 && p_fd.revents & POLLERR) {
         if (!sockErrorQueueProcess(channel->sockfd))
             return UA_STATUSCODE_BADINTERNALERROR; /* TODO Modified the return value. Need to change this */
         }
-
     }
+
     return UA_STATUSCODE_GOOD;
 }
 
