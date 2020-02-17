@@ -6,60 +6,15 @@
  * Copyright 2018 (c) Jose Cabral, fortiss GmbH
   * Copyright (c) 2019-2020 Kalycito Infotech Private Limited
  */
-#ifdef UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
-#if __STDC_VERSION__ >= 199901L
-#define _XOPEN_SOURCE 600
-#else
-#define _XOPEN_SOURCE 500
-#endif /* __STDC_VERSION__ */
-#endif
+
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pubsub_udp.h>
 #include <open62541/util.h>
 
-#ifdef UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
+#ifdef UA_ENABLE_PUBSUB_REALTIME_PUBLISH_ETF
+#include <open62541/plugin/pubsub_realtime_etf.h>
 #include "time.h"
-#include <open62541/plugin/network.h>
-
-#include <linux/errqueue.h>
-#include <poll.h>
-#include <linux/types.h>
-
-#include "time.h"
-/* Modify the IP address, if UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING is enabled */
-#define  PUBSUB_IP_ADDRESS    "192.168.9.10"
-
-#ifndef       SOCKET_TRANSMISSION_TIME
-#define       SOCKET_TRANSMISSION_TIME         61
-#ifndef       SCM_TXTIME
-#define       SCM_TXTIME                       SOCKET_TRANSMISSION_TIME
 #endif
-#endif
-#define       TIMEOUT_REALTIME                     1
-#define       PRINT_ERROR(ERROR_INFO)          fprintf(stderr, ERROR_INFO "\n")
-
-struct socket_transmission_time {
-    clockid_t clockIdentity;
-    uint16_t flags;
-}txtimeSocket;
-
-enum transmission_time_flags {
-    SOF_TRANSMISSION_TIME_DEADLINE_MODE = (1 << 0),
-    SOF_TRANSMISSION_TIME_REPORT_ERRORS = (1 << 1),
-
-    SOF_TRANSMISSION_TIME_FLAGS_LAST = SOF_TRANSMISSION_TIME_REPORT_ERRORS,
-    SOF_TRANSMISSION_TIME_FLAGS_MASK = (SOF_TRANSMISSION_TIME_FLAGS_LAST - 1) |
-                 SOF_TRANSMISSION_TIME_FLAGS_LAST
-};
-#endif
-// UDP multicast network layer specific internal data
-typedef struct {
-    int ai_family;                        //Protocol family for socket.  IPv4/IPv6
-    struct sockaddr_storage *ai_addr;     //https://msdn.microsoft.com/de-de/library/windows/desktop/ms740496(v=vs.85).aspx
-    UA_UInt32 messageTTL;
-    UA_Boolean enableLoopback;
-    UA_Boolean enableReuse;
-} UA_PubSubChannelDataUDPMC;
 
 /**
  * Open communication socket based on the connectionConfig. Protocol specific parameters are
@@ -293,20 +248,23 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
         };
     }
 
-#ifdef UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
-    clockid_t clockId = CLOCK_TAI;
-    static UA_Int32 soPriority = 3;
-    /* TTS - changes done for time triggered send usage  */
-    txtimeSocket.clockIdentity = clockId;
-    /* Flag to use deadline mode or receive error mode */
-    txtimeSocket.flags   = 0;
-    if (setsockopt(newChannel->sockfd, SOL_SOCKET, SOCKET_TRANSMISSION_TIME, &txtimeSocket, sizeof(txtimeSocket))) {
-        PRINT_ERROR("setsockopt SOCKET_TRANSMISSION_TIME failed");
-    }
+#ifdef UA_ENABLE_PUBSUB_REALTIME_PUBLISH_ETF
+    UA_Int32 soPriority        = SOCKET_PRIORITY;
     /* TODO: Set SO_PRIORITY through command line argument from application instead of hardcoding */
     if (setsockopt(newChannel->sockfd, SOL_SOCKET, SO_PRIORITY, &soPriority, sizeof(int))) {
-        perror("setsockopt SO_PRIORITY failed: %m");
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "setsockopt SO_PRIORITY failed");
     }
+
+    socket_transmission_time *sk_txtime = (socket_transmission_time *)UA_malloc(sizeof(socket_transmission_time));
+    clockid_t clockId          = CLOCK_TAI;
+    /* TTS - changes done for time triggered send usage  */
+    sk_txtime->clockIdentity   = clockId;
+    /* Flag to use deadline mode or receive error mode */
+    sk_txtime->flags           = 0;
+    if (setsockopt(newChannel->sockfd, SOL_SOCKET, SOCKET_TRANSMISSION_TIME, sk_txtime, sizeof(sk_txtime))) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "setsockopt SOCKET_TRANSMISSION_TIME failed");
+    }
+    UA_free(sk_txtime);
 #endif
 
     UA_freeaddrinfo(requestResult);
@@ -337,21 +295,18 @@ UA_PubSubChannelUDPMC_regist(UA_PubSubChannel *channel, UA_ExtensionObject *tran
         }
         struct ip_mreq groupV4;
         memcpy(&groupV4.imr_multiaddr, &((const struct sockaddr_in *)connectionConfig->ai_addr)->sin_addr, sizeof(struct ip_mreq));
-        /* Comment the below line and use this line
-         * "groupV4.imr_interface.s_addr = inet_addr(PUBSUB_IP_ADDRESS);"
-         *  if UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING is enabled
-         */
-#ifndef UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
+
+#ifndef UA_ENABLE_PUBSUB_REALTIME_PUBLISH_ETF
         groupV4.imr_interface.s_addr = UA_htonl(INADDR_ANY);
 #else
         groupV4.imr_interface.s_addr = inet_addr(PUBSUB_IP_ADDRESS);
 #endif
         //multihomed hosts can join several groups on different IF, INADDR_ANY -> kernel decides
-
         if(UA_setsockopt(channel->sockfd, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *) &groupV4, sizeof(groupV4)) != 0) {
             UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                            "PubSub Connection not on multicast");
         }
+
 #if UA_IPV6
     } else if (connectionConfig->ai_family == PF_INET6) {//IPv6 handling
         //TODO implement regist for IPv6
@@ -404,7 +359,7 @@ UA_PubSubChannelUDPMC_unregist(UA_PubSubChannel *channel, UA_ExtensionObject *tr
 static UA_StatusCode
 UA_PubSubChannelUDPMC_send(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings, const UA_ByteString *buf) {
 
-#ifndef UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
+#ifndef UA_ENABLE_PUBSUB_REALTIME_PUBLISH_ETF
     UA_PubSubChannelDataUDPMC *channelConfigUDPMC = (UA_PubSubChannelDataUDPMC *) channel->handle;
     if(!(channel->state == UA_PUBSUB_CHANNEL_PUB || channel->state == UA_PUBSUB_CHANNEL_PUB_SUB)){
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub Connection sending failed. Invalid state.");
@@ -441,7 +396,7 @@ UA_PubSubChannelUDPMC_receive(UA_PubSubChannel *channel, UA_ByteString *message,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     UA_PubSubChannelDataUDPMC *channelConfigUDPMC = (UA_PubSubChannelDataUDPMC *) channel->handle;
-#ifdef UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
+#ifdef UA_ENABLE_PUBSUB_REALTIME_PUBLISH_ETF
     /* For real time pubsub, the timeout is set to 1ms */
     timeout = TIMEOUT_REALTIME;
 #endif
