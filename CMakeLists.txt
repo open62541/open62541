@@ -214,6 +214,12 @@ mark_as_advanced(UA_ENABLE_EXPERIMENTAL_HISTORIZING)
 option(UA_FORCE_32BIT "Force compilation as 32-bit executable" OFF)
 mark_as_advanced(UA_FORCE_32BIT)
 
+option(UA_FORCE_CPP "Force compilation with a C++ compiler" OFF)
+mark_as_advanced(UA_FORCE_CPP)
+if(UA_FORCE_CPP)
+    add_definitions(-D__STDC_CONSTANT_MACROS) # We need the UINT32_C define
+endif()
+
 option(UA_ENABLE_PUBSUB "Enable publish/subscribe" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB)
 
@@ -403,14 +409,6 @@ include(linting_build)
 
 list(APPEND open62541_LIBRARIES "")
 
-# Force compilation with as C++
-option(UA_COMPILE_AS_CXX "Force compilation with a C++ compiler" OFF)
-mark_as_advanced(UA_COMPILE_AS_CXX)
-if (UA_COMPILE_AS_CXX)
-    # We need the UINT32_C define
-    add_definitions(-D__STDC_CONSTANT_MACROS)
-endif()
-
 if(UA_ENABLE_ENCRYPTION)
     # The recommended way is to install mbedtls via the OS package manager. If
     # that is not possible, manually compile mbedTLS and set the cmake variables
@@ -451,7 +449,7 @@ function(check_add_cc_flag CC_FLAG)
     endif()
 endfunction()
 
-if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang"))
+if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang"))
     check_add_cc_flag("-std=c99")   # C99 mode
     check_add_cc_flag("-pipe")      # Avoid writing temporary files (for compiler speed)
     check_add_cc_flag("-Wall")      # Warnings
@@ -1072,7 +1070,7 @@ if(UA_ENABLE_AMALGAMATION)
     # the build directory is ${PROJECT_BINARY_DIR}, that contains the generated open62541.h
     target_include_directories(open62541 PUBLIC $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}>)
 
-    if(UA_COMPILE_AS_CXX)
+    if(UA_FORCE_CPP)
         set_source_files_properties(${PROJECT_BINARY_DIR}/open62541.c PROPERTIES LANGUAGE CXX)
     endif()
 
@@ -1103,7 +1101,7 @@ else()
     endif()
     add_library(open62541 $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
 
-    if(UA_COMPILE_AS_CXX)
+    if(UA_FORCE_CPP)
         set_source_files_properties(${lib_sources} PROPERTIES LANGUAGE CXX)
         set_source_files_properties(${default_plugin_sources} ${ua_architecture_sources} PROPERTIES LANGUAGE CXX)
     endif()
