@@ -79,7 +79,7 @@ signActivateSessionRequest(UA_SecureChannel *channel,
                                                   &dataToSign, &sd->signature);
 
     /* Clean up */
-    UA_ByteString_deleteMembers(&dataToSign);
+    UA_ByteString_clear(&dataToSign);
     return retval;
 }
 
@@ -174,7 +174,7 @@ encryptUserIdentityToken(UA_Client *client, const UA_String *userTokenSecurityPo
                                  &unit->encryptionAlgorithm);
     }
 
-    UA_ByteString_deleteMembers(tokenData);
+    UA_ByteString_clear(tokenData);
     *tokenData = encrypted;
 
     /* Delete the temp channel context */
@@ -211,7 +211,7 @@ checkCreateSessionSignature(const UA_SecureChannel *channel,
     retval = sp->certificateSigningAlgorithm.
         verify(sp, channel->channelContext, &dataToVerify,
                &response->serverSignature.signature);
-    UA_ByteString_deleteMembers(&dataToVerify);
+    UA_ByteString_clear(&dataToVerify);
     return retval;
 }
 
@@ -318,7 +318,7 @@ processOPNResponseDecoded(UA_Client *client, const UA_ByteString *message) {
     }
 
     if(!UA_NodeId_equal(&responseId, &expectedId)) {
-        UA_NodeId_deleteMembers(&responseId);
+        UA_NodeId_clear(&responseId);
         UA_Client_disconnect(client);
         return;
     }
@@ -339,16 +339,16 @@ processOPNResponseDecoded(UA_Client *client, const UA_ByteString *message) {
                     * (UA_Double) UA_DATETIME_MSEC * 0.75);
 
     /* Replace the token. On the client side we don't use NextSecurityToken. */
-    UA_ChannelSecurityToken_deleteMembers(&client->channel.securityToken);
+    UA_ChannelSecurityToken_clear(&client->channel.securityToken);
     client->channel.securityToken = response.securityToken;
     UA_ChannelSecurityToken_init(&response.securityToken);
 
     /* Replace the nonce */
-    UA_ByteString_deleteMembers(&client->channel.remoteNonce);
+    UA_ByteString_clear(&client->channel.remoteNonce);
     client->channel.remoteNonce = response.serverNonce;
     UA_ByteString_init(&response.serverNonce);
 
-    UA_ResponseHeader_deleteMembers(&response.responseHeader); /* the other members were moved */
+    UA_ResponseHeader_clear(&response.responseHeader); /* the other members were moved */
 
     retval = UA_SecureChannel_generateNewKeys(&client->channel);
     if(retval != UA_STATUSCODE_GOOD) {
@@ -406,7 +406,7 @@ decodeProcessOPNResponseAsync(void *application, UA_SecureChannel *channel,
     }
 
     retval = checkAsymHeader(channel, &asymHeader);
-    UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
+    UA_AsymmetricAlgorithmSecurityHeader_clear(&asymHeader);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_CHANNEL(&client->config.logger, channel,
                                "Could not verify the OPN header");
@@ -530,7 +530,7 @@ activateSessionAsync(UA_Client *client) {
     if(request.userIdentityToken.encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY) {
         UA_AnonymousIdentityToken *t = UA_AnonymousIdentityToken_new();
         if(!t) {
-            UA_ActivateSessionRequest_deleteMembers(&request);
+            UA_ActivateSessionRequest_clear(&request);
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
         request.userIdentityToken.content.decoded.data = t;
@@ -557,7 +557,7 @@ activateSessionAsync(UA_Client *client) {
                     client, &request, &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST],
                     (UA_ClientAsyncServiceCallback) responseActivateSession,
                     &UA_TYPES[UA_TYPES_ACTIVATESESSIONRESPONSE], NULL, NULL);
-    UA_ActivateSessionRequest_deleteMembers(&request);
+    UA_ActivateSessionRequest_clear(&request);
     return retval;
 }
 
@@ -577,7 +577,7 @@ responseGetEndpoints(UA_Client *client, void *userdata, UA_UInt32 requestId,
         UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                      "GetEndpointRequest failed with error code %s",
                      UA_StatusCode_name (client->connectStatus));
-        UA_GetEndpointsResponse_deleteMembers(resp);
+        UA_GetEndpointsResponse_clear(resp);
         return;
     }
     endpointArray = resp->endpoints;
@@ -631,9 +631,9 @@ responseGetEndpoints(UA_Client *client, void *userdata, UA_UInt32 requestId,
 
             /* Endpoint with matching usertokenpolicy found */
             tokenFound = true;
-            UA_EndpointDescription_deleteMembers(&client->config.endpoint);
+            UA_EndpointDescription_clear(&client->config.endpoint);
+            UA_UserTokenPolicy_clear(&client->config.userTokenPolicy);
             UA_EndpointDescription_copy(endpoint, &client->config.endpoint);
-            UA_UserTokenPolicy_deleteMembers(&client->config.userTokenPolicy);
             UA_UserTokenPolicy_copy(tokenPolicy, &client->config.userTokenPolicy);
             break;
         }
@@ -666,7 +666,7 @@ requestGetEndpoints(UA_Client *client) {
             client, &request, &UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST],
             (UA_ClientAsyncServiceCallback) responseGetEndpoints,
             &UA_TYPES[UA_TYPES_GETENDPOINTSRESPONSE], NULL, NULL);
-    UA_GetEndpointsRequest_deleteMembers(&request);
+    UA_GetEndpointsRequest_clear(&request);
 
     if(client->connectStatus == UA_STATUSCODE_GOOD)
         client->endpointsHandshake = true;
@@ -702,8 +702,8 @@ responseSessionCallback(UA_Client *client, void *userdata,
 #endif
     
     /* Copy nonce and and authenticationtoken */
-    UA_ByteString_deleteMembers(&client->channel.remoteNonce);
-    UA_NodeId_deleteMembers(&client->authenticationToken);
+    UA_ByteString_clear(&client->channel.remoteNonce);
+    UA_NodeId_clear(&client->authenticationToken);
     res |= UA_ByteString_copy(&sessionResponse->serverNonce, &client->channel.remoteNonce);
     res |= UA_NodeId_copy(&sessionResponse->authenticationToken, &client->authenticationToken);
     if(res != UA_STATUSCODE_GOOD)
@@ -733,7 +733,7 @@ createSessionAsync(UA_Client *client) {
     if(client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
         if(client->channel.localNonce.length != UA_SESSION_LOCALNONCELENGTH) {
-           UA_ByteString_deleteMembers(&client->channel.localNonce);
+           UA_ByteString_clear(&client->channel.localNonce);
             retval = UA_ByteString_allocBuffer(&client->channel.localNonce,
                                                UA_SESSION_LOCALNONCELENGTH);
             if(retval != UA_STATUSCODE_GOOD)
@@ -766,7 +766,7 @@ createSessionAsync(UA_Client *client) {
             client, &request, &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST],
             (UA_ClientAsyncServiceCallback) responseSessionCallback,
             &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE], NULL, NULL);
-    UA_CreateSessionRequest_deleteMembers(&request);
+    UA_CreateSessionRequest_clear(&request);
 
     if(retval == UA_STATUSCODE_GOOD)
         client->sessionHandshake = true;
@@ -833,7 +833,7 @@ UA_Client_connect_async(UA_Client *client, const char *endpointUrl,
     client->requestId = 0;
     client->channel.config = client->config.localConnectionConfig;
 
-    UA_String_deleteMembers(&client->endpointUrl);
+    UA_String_clear(&client->endpointUrl);
     client->endpointUrl = UA_STRING_ALLOC(endpointUrl);
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -893,7 +893,7 @@ UA_Client_connect_async(UA_Client *client, const char *endpointUrl,
     client->currentlyOutStandingPublishRequests = 0;
 #endif
 
-    UA_NodeId_deleteMembers(&client->authenticationToken);
+    UA_NodeId_clear(&client->authenticationToken);
 
     /* Generate new local and remote key */
     retval = UA_SecureChannel_generateNewKeys(&client->channel);
@@ -913,7 +913,7 @@ UA_Client_connect_async(UA_Client *client, const char *endpointUrl,
 static void
 sendCloseSecureChannelAsync(UA_Client *client, void *userdata,
                              UA_UInt32 requestId, void *response) {
-    UA_NodeId_deleteMembers (&client->authenticationToken);
+    UA_NodeId_clear(&client->authenticationToken);
     client->requestHandle = 0;
 
     UA_SecureChannel *channel = &client->channel;
