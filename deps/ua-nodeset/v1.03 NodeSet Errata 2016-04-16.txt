@@ -1,0 +1,31 @@
+The following mismatches between the specification have been corrected in the v1.03 NodeSet since the release of the specification:
+
+The InverseName is now not specified for the References ReferenceType (Mantis #3076);
+
+The InverseName of HasSubtype is now SubtypeOf instead of HasSupertype (Mantis #3262);
+
+The SessionPlaceholder component of in SessionsDiagnosticsSummaryType has been renamed to ClientName (Mantis #3196);
+
+OperationLimitsType is a subtype of FolderType instead of BaseObjectType (Mantis #2655);
+
+StaticNodeIdIdentifierTypes of NamespaceMetadataType has been renamed to StaticNodeIdTypes (Mantis #3195);
+
+A instance of NamespaceMetadataType for the OPCUANamespace has been added (Mantis #3308);
+
+Added ExpirationLimit to CertificateExpirationAlarmType;
+
+CertificateGroup component of CertificateGroupFolderType has been renamed to AdditionalGroup (Mantis #3194);
+
+StaticStringNodeIdPattern ValueRank is Scalar instead of Array (Mantis #3309)
+
+Integer and UInteger are now direct subtypes of Number as described in Part 3 (Mantis# 3064 and 2526);
+
+Adopted a consistent naming convention for instances with the Mandatory Placeholder or OptionalPlaceholder ModellingRule (Mantis #3466);
+
+Removed KerberosIdentityToken because it is not in the specification (Mantis #3468);
+
+AlwaysGeneratesEvent is now a subtype of GeneratesEvent (Mantis #3472);
+
+Added Invalid to List of Values for OpcUa_BrowseDirection and OpcUa_TimestampsToReturn (Mantis #3509);
+
+Removed SoftwareCertificate because it is not defined in specification (Mantis #3510);

@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+ * Copyright (c) 2005-2019 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<opc:TypeDictionary
+  xmlns:DI="http://opcfoundation.org/UA/DI/"
+  xmlns:opc="http://opcfoundation.org/BinarySchema/"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:ua="http://opcfoundation.org/UA/"
+  xmlns:tns="http://fdi-cooperation.com/OPCUA/FDI5/"
+  DefaultByteOrder="LittleEndian"
+  TargetNamespace="http://fdi-cooperation.com/OPCUA/FDI5/"
+>
+  <opc:Import Namespace="http://opcfoundation.org/UA/DI/" Location="Opc.Ua.Di.BinarySchema.bsd"/>
+  <opc:Import Namespace="http://opcfoundation.org/UA/" Location="Opc.Ua.BinarySchema.bsd"/>
+
+  <opc:EnumeratedType Name="WindowModeType" LengthInBits="32">
+    <opc:EnumeratedValue Name="ModalWindow" Value="1" />
+    <opc:EnumeratedValue Name="NonModalWindow" Value="2" />
+    <opc:EnumeratedValue Name="UIP" Value="3" />
+  </opc:EnumeratedType>
+
+  <opc:EnumeratedType Name="StyleType" LengthInBits="32">
+    <opc:EnumeratedValue Name="Window" Value="1" />
+    <opc:EnumeratedValue Name="Dialog" Value="2" />
+  </opc:EnumeratedType>
+
+  <opc:StructuredType Name="RegistrationParameters" BaseType="ua:ExtensionObject">
+    <opc:Field Name="Path" TypeName="ua:RelativePath" />
+    <opc:Field Name="SelectionFlags" TypeName="opc:UInt32" />
+  </opc:StructuredType>
+
+  <opc:StructuredType Name="RegisteredNode" BaseType="ua:ExtensionObject">
+    <opc:Field Name="NodeStatus" TypeName="opc:Int32" />
+    <opc:Field Name="OnlineContextNodeId" TypeName="ua:NodeId" />
+    <opc:Field Name="OnlineDeviceNodeId" TypeName="ua:NodeId" />
+    <opc:Field Name="OfflineContextNodeId" TypeName="ua:NodeId" />
+    <opc:Field Name="OfflineDeviceNodeId" TypeName="ua:NodeId" />
+  </opc:StructuredType>
+
+  <opc:StructuredType Name="RegisterNodesResult" BaseType="ua:ExtensionObject">
+    <opc:Field Name="Status" TypeName="opc:Int32" />
+    <opc:Field Name="NoOfRegisteredNodes" TypeName="opc:Int32" />
+    <opc:Field Name="RegisteredNodes" TypeName="tns:RegisteredNode" LengthField="NoOfRegisteredNodes" />
+  </opc:StructuredType>
+
+  <opc:StructuredType Name="TransferIncident" BaseType="ua:ExtensionObject">
+    <opc:Field Name="ContextNodeId" TypeName="ua:NodeId" />
+    <opc:Field Name="StatusCode" TypeName="ua:StatusCode" />
+    <opc:Field Name="Diagnostics" TypeName="ua:DiagnosticInfo" />
+  </opc:StructuredType>
+
+  <opc:StructuredType Name="ApplyResult" BaseType="ua:ExtensionObject">
+    <opc:Field Name="Status" TypeName="opc:Int32" />
+    <opc:Field Name="NoOfTransferIncidents" TypeName="opc:Int32" />
+    <opc:Field Name="TransferIncidents" TypeName="tns:TransferIncident" LengthField="NoOfTransferIncidents" />
+  </opc:StructuredType>
+
+</opc:TypeDictionary>

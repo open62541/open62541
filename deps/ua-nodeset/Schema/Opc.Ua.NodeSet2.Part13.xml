@@ -1,0 +1,336 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+ * Copyright (c) 2005-2019 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<UANodeSet xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" LastModified="2019-05-01T00:00:00Z" xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd">
+  <Models>
+    <Model ModelUri="http://opcfoundation.org/UA/" Version="1.04" PublicationDate="2019-05-01T00:00:00Z" />
+  </Models>
+  <Aliases>
+    <Alias Alias="Boolean">i=1</Alias>
+    <Alias Alias="SByte">i=2</Alias>
+    <Alias Alias="Byte">i=3</Alias>
+    <Alias Alias="Int16">i=4</Alias>
+    <Alias Alias="UInt16">i=5</Alias>
+    <Alias Alias="Int32">i=6</Alias>
+    <Alias Alias="UInt32">i=7</Alias>
+    <Alias Alias="Int64">i=8</Alias>
+    <Alias Alias="UInt64">i=9</Alias>
+    <Alias Alias="Float">i=10</Alias>
+    <Alias Alias="Double">i=11</Alias>
+    <Alias Alias="DateTime">i=13</Alias>
+    <Alias Alias="String">i=12</Alias>
+    <Alias Alias="ByteString">i=15</Alias>
+    <Alias Alias="Guid">i=14</Alias>
+    <Alias Alias="XmlElement">i=16</Alias>
+    <Alias Alias="NodeId">i=17</Alias>
+    <Alias Alias="ExpandedNodeId">i=18</Alias>
+    <Alias Alias="QualifiedName">i=20</Alias>
+    <Alias Alias="LocalizedText">i=21</Alias>
+    <Alias Alias="StatusCode">i=19</Alias>
+    <Alias Alias="Structure">i=22</Alias>
+    <Alias Alias="Number">i=26</Alias>
+    <Alias Alias="Integer">i=27</Alias>
+    <Alias Alias="UInteger">i=28</Alias>
+    <Alias Alias="HasComponent">i=47</Alias>
+    <Alias Alias="HasProperty">i=46</Alias>
+    <Alias Alias="Organizes">i=35</Alias>
+    <Alias Alias="HasEventSource">i=36</Alias>
+    <Alias Alias="HasNotifier">i=48</Alias>
+    <Alias Alias="HasSubtype">i=45</Alias>
+    <Alias Alias="HasTypeDefinition">i=40</Alias>
+    <Alias Alias="HasModellingRule">i=37</Alias>
+    <Alias Alias="HasEncoding">i=38</Alias>
+    <Alias Alias="HasDescription">i=39</Alias>
+  </Aliases>
+  <UAObjectType NodeId="i=11187" BrowseName="AggregateConfigurationType">
+    <DisplayName>AggregateConfigurationType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=11188</Reference>
+      <Reference ReferenceType="HasProperty">i=11189</Reference>
+      <Reference ReferenceType="HasProperty">i=11190</Reference>
+      <Reference ReferenceType="HasProperty">i=11191</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="i=11188" BrowseName="TreatUncertainAsBad" ParentNodeId="i=11187" DataType="Boolean">
+    <DisplayName>TreatUncertainAsBad</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=11187</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=11189" BrowseName="PercentDataBad" ParentNodeId="i=11187" DataType="Byte">
+    <DisplayName>PercentDataBad</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=11187</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=11190" BrowseName="PercentDataGood" ParentNodeId="i=11187" DataType="Byte">
+    <DisplayName>PercentDataGood</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=11187</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=11191" BrowseName="UseSlopedExtrapolation" ParentNodeId="i=11187" DataType="Boolean">
+    <DisplayName>UseSlopedExtrapolation</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=11187</Reference>
+    </References>
+  </UAVariable>
+  <UAObject NodeId="i=2341" BrowseName="Interpolative" SymbolicName="AggregateFunction_Interpolative">
+    <DisplayName>Interpolative</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2340</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=2342" BrowseName="Average" SymbolicName="AggregateFunction_Average">
+    <DisplayName>Average</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2340</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=2343" BrowseName="TimeAverage" SymbolicName="AggregateFunction_TimeAverage">
+    <DisplayName>TimeAverage</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2340</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=11285" BrowseName="TimeAverage2" SymbolicName="AggregateFunction_TimeAverage2">
+    <DisplayName>TimeAverage2</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2340</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=2344" BrowseName="Total" SymbolicName="AggregateFunction_Total">
+    <DisplayName>Total</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2340</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=11304" BrowseName="Total2" SymbolicName="AggregateFunction_Total2">
+    <DisplayName>Total2</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2340</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=2346" BrowseName="Minimum" SymbolicName="AggregateFunction_Minimum">
+    <DisplayName>Minimum</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2340</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=2347" BrowseName="Maximum" SymbolicName="AggregateFunction_Maximum">
+    <DisplayName>Maximum</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2340</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=2348" BrowseName="MinimumActualTime" SymbolicName="AggregateFunction_MinimumActualTime">
+    <DisplayName>MinimumActualTime</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2340</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=2349" BrowseName="MaximumActualTime" SymbolicName="AggregateFunction_MaximumActualTime">
+    <DisplayName>MaximumActualTime</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2340</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=2350" BrowseName="Range" SymbolicName="AggregateFunction_Range">
+    <DisplayName>Range</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2340</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=11286" BrowseName="Minimum2" SymbolicName="AggregateFunction_Minimum2">
+    <DisplayName>Minimum2</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2340</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=11287" BrowseName="Maximum2" SymbolicName="AggregateFunction_Maximum2">
+    <DisplayName>Maximum2</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2340</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=11305" BrowseName="MinimumActualTime2" SymbolicName="AggregateFunction_MinimumActualTime2">
+    <DisplayName>MinimumActualTime2</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2340</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=11306" BrowseName="MaximumActualTime2" SymbolicName="AggregateFunction_MaximumActualTime2">
+    <DisplayName>MaximumActualTime2</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2340</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=11288" BrowseName="Range2" SymbolicName="AggregateFunction_Range2">
+    <DisplayName>Range2</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2340</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=2351" BrowseName="AnnotationCount" SymbolicName="AggregateFunction_AnnotationCount">
+    <DisplayName>AnnotationCount</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2340</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=2352" BrowseName="Count" SymbolicName="AggregateFunction_Count">
+    <DisplayName>Count</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2340</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=11307" BrowseName="DurationInStateZero" SymbolicName="AggregateFunction_DurationInStateZero">
+    <DisplayName>DurationInStateZero</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2340</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=11308" BrowseName="DurationInStateNonZero" SymbolicName="AggregateFunction_DurationInStateNonZero">
+    <DisplayName>DurationInStateNonZero</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2340</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=2355" BrowseName="NumberOfTransitions" SymbolicName="AggregateFunction_NumberOfTransitions">
+    <DisplayName>NumberOfTransitions</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2340</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=2357" BrowseName="Start" SymbolicName="AggregateFunction_Start">
+    <DisplayName>Start</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2340</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=2358" BrowseName="End" SymbolicName="AggregateFunction_End">
+    <DisplayName>End</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2340</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=2359" BrowseName="Delta" SymbolicName="AggregateFunction_Delta">
+    <DisplayName>Delta</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2340</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=11505" BrowseName="StartBound" SymbolicName="AggregateFunction_StartBound">
+    <DisplayName>StartBound</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2340</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=11506" BrowseName="EndBound" SymbolicName="AggregateFunction_EndBound">
+    <DisplayName>EndBound</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2340</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=11507" BrowseName="DeltaBounds" SymbolicName="AggregateFunction_DeltaBounds">
+    <DisplayName>DeltaBounds</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2340</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=2360" BrowseName="DurationGood" SymbolicName="AggregateFunction_DurationGood">
+    <DisplayName>DurationGood</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2340</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=2361" BrowseName="DurationBad" SymbolicName="AggregateFunction_DurationBad">
+    <DisplayName>DurationBad</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2340</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=2362" BrowseName="PercentGood" SymbolicName="AggregateFunction_PercentGood">
+    <DisplayName>PercentGood</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2340</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=2363" BrowseName="PercentBad" SymbolicName="AggregateFunction_PercentBad">
+    <DisplayName>PercentBad</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2340</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=2364" BrowseName="WorstQuality" SymbolicName="AggregateFunction_WorstQuality">
+    <DisplayName>WorstQuality</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2340</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=11292" BrowseName="WorstQuality2" SymbolicName="AggregateFunction_WorstQuality2">
+    <DisplayName>WorstQuality2</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2340</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=11426" BrowseName="StandardDeviationSample" SymbolicName="AggregateFunction_StandardDeviationSample">
+    <DisplayName>StandardDeviationSample</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2340</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=11427" BrowseName="StandardDeviationPopulation" SymbolicName="AggregateFunction_StandardDeviationPopulation">
+    <DisplayName>StandardDeviationPopulation</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2340</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=11428" BrowseName="VarianceSample" SymbolicName="AggregateFunction_VarianceSample">
+    <DisplayName>VarianceSample</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2340</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=11429" BrowseName="VariancePopulation" SymbolicName="AggregateFunction_VariancePopulation">
+    <DisplayName>VariancePopulation</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2340</Reference>
+    </References>
+  </UAObject>
+</UANodeSet>
