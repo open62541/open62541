@@ -821,24 +821,6 @@ UA_Client_connectSession(UA_Client *client) {
     // republish is not implemented This option is disabled until we have a good
     // implementation of the subscription recovery.
 
-#ifdef UA_SESSION_RECOVERY
-    /* Try to activate an existing Session for this SecureChannel */
-    if((!UA_NodeId_equal(&client->authenticationToken, &UA_NODEID_NULL)) && (createNewSession)) {
-        UA_StatusCode res = activateSession(client);
-        if(res != UA_STATUSCODE_BADSESSIONIDINVALID) {
-            if(res == UA_STATUSCODE_GOOD) {
-                setClientState(client, UA_CLIENTSTATE_SESSION_RENEWED);
-            } else {
-                UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                             "Could not activate the Session with StatusCode %s",
-                             UA_StatusCode_name(retval));
-                UA_Client_disconnect(client);
-            }
-            return res;
-        }
-    }
-#endif /* UA_SESSION_RECOVERY */
-
     /* Could not recover an old session. Remove authenticationToken */
     UA_NodeId_deleteMembers(&client->authenticationToken);
 
