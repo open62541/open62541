@@ -85,13 +85,6 @@ UA_Client_Subscriptions_backgroundPublishInactivityCheck(UA_Client *client);
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
 
-/**************/
-/* Encryption */
-/**************/
-
-UA_StatusCode
-signActivateSessionRequest(UA_SecureChannel *channel,
-                           UA_ActivateSessionRequest *request);
 /**********/
 /* Client */
 /**********/
@@ -208,6 +201,12 @@ endpointUnconfigured(UA_Client *client);
 UA_StatusCode
 receivePacketAsync(UA_Client *client);
 
+UA_StatusCode
+createSessionAsync(UA_Client *client);
+
+UA_StatusCode
+activateSessionAsync(UA_Client *client);
+
 void
 processACKResponseAsync(void *application, UA_SecureChannel *channel,
                         UA_MessageType messageType, UA_UInt32 requestId,
@@ -235,15 +234,11 @@ UA_Client_connect_iterate (UA_Client *client);
 
 void
 setUserIdentityPolicyId(const UA_EndpointDescription *endpoint,
-                        const UA_DataType *tokenType,
-                        UA_String *policyId, UA_String *securityPolicyUri);
+                        const UA_DataType *tokenType, UA_String *policyId,
+                        UA_String *securityPolicyUri);
 
 UA_SecurityPolicy *
 getSecurityPolicy(UA_Client *client, UA_String policyUri);
-
-UA_StatusCode
-encryptUserIdentityToken(UA_Client *client, const UA_String *userTokenSecurityPolicy,
-                         UA_ExtensionObject *userIdentityToken);
 
 _UA_END_DECLS
 
