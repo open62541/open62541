@@ -609,27 +609,24 @@ responseGetEndpoints(UA_Client *client, void *userdata, UA_UInt32 requestId,
 
         /* Look for a user token policy with an anonymous token */
         for(size_t j = 0; j < endpoint->userIdentityTokensSize; ++j) {
-            UA_UserTokenPolicy* userToken = &endpoint->userIdentityTokens[j];
+            UA_UserTokenPolicy* tokenPolicy = &endpoint->userIdentityTokens[j];
+            const UA_DataType *tokenType = client->config.userIdentityToken.content.decoded.type;
 
             /* Usertokens also have a security policy... */
-            if(userToken->securityPolicyUri.length > 0 &&
-               !UA_String_equal(&userToken->securityPolicyUri, &securityNone))
+            if(tokenPolicy->securityPolicyUri.length > 0 &&
+               !UA_String_equal(&tokenPolicy->securityPolicyUri, &securityNone))
                 continue;
 
             /* Does the token type match the client configuration? */
-            if((userToken->tokenType == UA_USERTOKENTYPE_ANONYMOUS &&
-                client->config.userIdentityToken.content.decoded.type !=
-                &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN] &&
-                client->config.userIdentityToken.content.decoded.type != NULL) ||
-               (userToken->tokenType == UA_USERTOKENTYPE_USERNAME &&
-                client->config.userIdentityToken.content.decoded.type !=
-                &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) ||
-               (userToken->tokenType == UA_USERTOKENTYPE_CERTIFICATE &&
-                client->config.userIdentityToken.content.decoded.type !=
-                &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN]) ||
-               (userToken->tokenType == UA_USERTOKENTYPE_ISSUEDTOKEN &&
-                client->config.userIdentityToken.content.decoded.type !=
-                &UA_TYPES[UA_TYPES_ISSUEDIDENTITYTOKEN]))
+            if((tokenPolicy->tokenType == UA_USERTOKENTYPE_ANONYMOUS &&
+                tokenType != &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN] &&
+                tokenType != NULL) ||
+               (tokenPolicy->tokenType == UA_USERTOKENTYPE_USERNAME &&
+                tokenType != &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) ||
+               (tokenPolicy->tokenType == UA_USERTOKENTYPE_CERTIFICATE &&
+                tokenType != &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN]) ||
+               (tokenPolicy->tokenType == UA_USERTOKENTYPE_ISSUEDTOKEN &&
+                tokenType != &UA_TYPES[UA_TYPES_ISSUEDIDENTITYTOKEN]))
                 continue;
 
             /* Endpoint with matching usertokenpolicy found */
@@ -637,7 +634,7 @@ responseGetEndpoints(UA_Client *client, void *userdata, UA_UInt32 requestId,
             UA_EndpointDescription_deleteMembers(&client->config.endpoint);
             UA_EndpointDescription_copy(endpoint, &client->config.endpoint);
             UA_UserTokenPolicy_deleteMembers(&client->config.userTokenPolicy);
-            UA_UserTokenPolicy_copy(userToken, &client->config.userTokenPolicy);
+            UA_UserTokenPolicy_copy(tokenPolicy, &client->config.userTokenPolicy);
             break;
         }
     }
