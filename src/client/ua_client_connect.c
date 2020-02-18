@@ -208,247 +208,6 @@ openSecureChannel(UA_Client *client, UA_Boolean renew) {
     return retval;
 }
 
-/* Function to verify the signature corresponds to ClientNonce
- * using the local certificate */
-static UA_StatusCode
-checkClientSignature(const UA_SecureChannel *channel,
-                     const UA_CreateSessionResponse *response) {
-    if(channel->securityMode != UA_MESSAGESECURITYMODE_SIGN &&
-       channel->securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
-        return UA_STATUSCODE_GOOD;
-
-    if(!channel->securityPolicy)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    const UA_SecurityPolicy *sp = channel->securityPolicy;
-    const UA_ByteString *lc = &sp->localCertificate;
-
-    size_t dataToVerifySize = lc->length + channel->localNonce.length;
-    UA_ByteString dataToVerify = UA_BYTESTRING_NULL;
-    UA_StatusCode retval = UA_ByteString_allocBuffer(&dataToVerify, dataToVerifySize);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    memcpy(dataToVerify.data, lc->data, lc->length);
-    memcpy(dataToVerify.data + lc->length,
-           channel->localNonce.data, channel->localNonce.length);
-
-    retval = sp->certificateSigningAlgorithm.
-        verify(sp, channel->channelContext, &dataToVerify,
-               &response->serverSignature.signature);
-    UA_ByteString_deleteMembers(&dataToVerify);
-    return retval;
-}
-
-/* Function to create a signature using remote certificate and nonce */
-#ifdef UA_ENABLE_ENCRYPTION
-UA_StatusCode
-signActivateSessionRequest(UA_SecureChannel *channel,
-                           UA_ActivateSessionRequest *request) {
-    if(channel->securityMode != UA_MESSAGESECURITYMODE_SIGN &&
-       channel->securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
-        return UA_STATUSCODE_GOOD;
-
-    const UA_SecurityPolicy *sp = channel->securityPolicy;
-    UA_SignatureData *sd = &request->clientSignature;
-
-    /* Prepare the signature */
-    size_t signatureSize = sp->certificateSigningAlgorithm.
-        getLocalSignatureSize(sp, channel->channelContext);
-    UA_StatusCode retval = UA_String_copy(&sp->certificateSigningAlgorithm.uri,
-                                          &sd->algorithm);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    retval = UA_ByteString_allocBuffer(&sd->signature, signatureSize);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    /* Allocate a temporary buffer */
-    size_t dataToSignSize = channel->remoteCertificate.length + channel->remoteNonce.length;
-    if(dataToSignSize > MAX_DATA_SIZE)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    UA_ByteString dataToSign;
-    retval = UA_ByteString_allocBuffer(&dataToSign, dataToSignSize);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval; /* sd->signature is cleaned up with the response */
-
-    /* Sign the signature */
-    memcpy(dataToSign.data, channel->remoteCertificate.data,
-           channel->remoteCertificate.length);
-    memcpy(dataToSign.data + channel->remoteCertificate.length,
-           channel->remoteNonce.data, channel->remoteNonce.length);
-    retval = sp->certificateSigningAlgorithm.sign(sp, channel->channelContext,
-                                                  &dataToSign, &sd->signature);
-
-    /* Clean up */
-    UA_ByteString_deleteMembers(&dataToSign);
-    return retval;
-}
-
-UA_StatusCode
-encryptUserIdentityToken(UA_Client *client, const UA_String *userTokenSecurityPolicy,
-                         UA_ExtensionObject *userIdentityToken) {
-    UA_IssuedIdentityToken *iit = NULL;
-    UA_UserNameIdentityToken *unit = NULL;
-    UA_ByteString *tokenData;
-    if(userIdentityToken->content.decoded.type == &UA_TYPES[UA_TYPES_ISSUEDIDENTITYTOKEN]) {
-        iit = (UA_IssuedIdentityToken*)userIdentityToken->content.decoded.data;
-        tokenData = &iit->tokenData;
-    } else if(userIdentityToken->content.decoded.type == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
-        unit = (UA_UserNameIdentityToken*)userIdentityToken->content.decoded.data;
-        tokenData = &unit->password;
-    } else {
-        return UA_STATUSCODE_GOOD;
-    }
-
-    /* No encryption */
-    const UA_String none = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
-    if(userTokenSecurityPolicy->length == 0 ||
-       UA_String_equal(userTokenSecurityPolicy, &none)) {
-        return UA_STATUSCODE_GOOD;
-    }
-
-    UA_SecurityPolicy *sp = getSecurityPolicy(client, *userTokenSecurityPolicy);
-    if(!sp) {
-        UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_NETWORK,
-                       "Could not find the required SecurityPolicy for the UserToken");
-        return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
-    }
-
-    /* Create a temp channel context */
-
-    void *channelContext;
-    UA_StatusCode retval = sp->channelModule.
-        newContext(sp, &client->config.endpoint.serverCertificate, &channelContext);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_NETWORK,
-                       "Could not instantiate the SecurityPolicy for the UserToken");
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    
-    /* Compute the encrypted length (at least one byte padding) */
-    size_t plainTextBlockSize = sp->asymmetricModule.cryptoModule.
-        encryptionAlgorithm.getRemotePlainTextBlockSize(sp, channelContext);
-    UA_UInt32 length = (UA_UInt32)(tokenData->length + client->channel.remoteNonce.length);
-    UA_UInt32 totalLength = length + 4; /* Including the length field */
-    size_t blocks = totalLength / plainTextBlockSize;
-    if(totalLength  % plainTextBlockSize != 0)
-        blocks++;
-    size_t overHead =
-        UA_SecurityPolicy_getRemoteAsymEncryptionBufferLengthOverhead(sp, channelContext,
-                                                                      blocks * plainTextBlockSize);
-
-    /* Allocate memory for encryption overhead */
-    UA_ByteString encrypted;
-    retval = UA_ByteString_allocBuffer(&encrypted, (blocks * plainTextBlockSize) + overHead);
-    if(retval != UA_STATUSCODE_GOOD) {
-        sp->channelModule.deleteContext(channelContext);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-
-    UA_Byte *pos = encrypted.data;
-    const UA_Byte *end = &encrypted.data[encrypted.length];
-    UA_UInt32_encodeBinary(&length, &pos, end);
-    memcpy(pos, tokenData->data, tokenData->length);
-    memcpy(&pos[tokenData->length], client->channel.remoteNonce.data,
-           client->channel.remoteNonce.length);
-
-    /* Add padding
-     *
-     * 7.36.2.2 Legacy Encrypted Token Secret Format: A Client should not add any
-     * padding after the secret. If a Client adds padding then all bytes shall
-     * be zero. A Server shall check for padding added by Clients and ensure
-     * that all padding bytes are zeros. */
-    size_t paddedLength = plainTextBlockSize * blocks;
-    for(size_t i = totalLength; i < paddedLength; i++)
-        encrypted.data[i] = 0;
-    encrypted.length = paddedLength;
-
-    retval = sp->asymmetricModule.cryptoModule.encryptionAlgorithm.encrypt(sp, channelContext,
-                                                                           &encrypted);
-    encrypted.length = (blocks * plainTextBlockSize) + overHead;
-
-    if(iit) {
-        retval |= UA_String_copy(&sp->asymmetricModule.cryptoModule.encryptionAlgorithm.uri,
-                                 &iit->encryptionAlgorithm);
-    } else {
-        retval |= UA_String_copy(&sp->asymmetricModule.cryptoModule.encryptionAlgorithm.uri,
-                                 &unit->encryptionAlgorithm);
-    }
-
-    UA_ByteString_deleteMembers(tokenData);
-    *tokenData = encrypted;
-
-    /* Delete the temp channel context */
-    sp->channelModule.deleteContext(channelContext);
-
-    return retval;
-}
-#endif
-
-static UA_StatusCode
-activateSession(UA_Client *client) {
-    UA_ActivateSessionRequest request;
-    UA_ActivateSessionRequest_init(&request);
-    request.requestHeader.requestHandle = ++client->requestHandle;
-    request.requestHeader.timestamp = UA_DateTime_now();
-    request.requestHeader.timeoutHint = 600000;
-    UA_StatusCode retval =
-        UA_ExtensionObject_copy(&client->config.userIdentityToken, &request.userIdentityToken);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    /* If not token is set, use anonymous */
-    if(request.userIdentityToken.encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY) {
-        UA_AnonymousIdentityToken *t = UA_AnonymousIdentityToken_new();
-        if(!t) {
-            UA_ActivateSessionRequest_deleteMembers(&request);
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-        }
-        request.userIdentityToken.content.decoded.data = t;
-        request.userIdentityToken.content.decoded.type = &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN];
-        request.userIdentityToken.encoding = UA_EXTENSIONOBJECT_DECODED;
-    }
-
-    /* Set the policy-Id from the endpoint. Every IdentityToken starts with a
-     * string. */
-    retval = UA_String_copy(&client->config.userTokenPolicy.policyId,
-                            (UA_String*)request.userIdentityToken.content.decoded.data);
-
-#ifdef UA_ENABLE_ENCRYPTION
-    /* Encrypt the UserIdentityToken */
-    const UA_String *userTokenPolicy = &client->channel.securityPolicy->policyUri;
-    if(client->config.userTokenPolicy.securityPolicyUri.length > 0)
-        userTokenPolicy = &client->config.userTokenPolicy.securityPolicyUri;
-    retval |= encryptUserIdentityToken(client, userTokenPolicy, &request.userIdentityToken);
-
-    /* This function call is to prepare a client signature */
-    retval |= signActivateSessionRequest(&client->channel, &request);
-#endif
-
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_ActivateSessionRequest_deleteMembers(&request);
-        return retval;
-    }
-
-    UA_ActivateSessionResponse response;
-    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST],
-                        &response, &UA_TYPES[UA_TYPES_ACTIVATESESSIONRESPONSE]);
-
-    if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "ActivateSession failed with error code %s",
-                     UA_StatusCode_name(response.responseHeader.serviceResult));
-    }
-
-    retval = response.responseHeader.serviceResult;
-    UA_ActivateSessionRequest_deleteMembers(&request);
-    UA_ActivateSessionResponse_deleteMembers(&response);
-    return retval;
-}
-
 /* Gets a list of endpoints. Memory is allocated for endpointDescription array */
 UA_StatusCode
 UA_Client_getEndpointsInternal(UA_Client *client, const UA_String endpointUrl,
@@ -648,81 +407,6 @@ selectEndpoint(UA_Client *client, const UA_String endpointUrl) {
     return retval;
 }
 
-static UA_StatusCode
-createSession(UA_Client *client) {
-    UA_CreateSessionRequest request;
-    UA_CreateSessionRequest_init(&request);
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-
-    if(client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
-       client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
-        if(client->channel.localNonce.length != UA_SESSION_LOCALNONCELENGTH) {
-           UA_ByteString_deleteMembers(&client->channel.localNonce);
-            retval = UA_ByteString_allocBuffer(&client->channel.localNonce,
-                                               UA_SESSION_LOCALNONCELENGTH);
-            if(retval != UA_STATUSCODE_GOOD)
-               return retval;
-        }
-
-        retval = client->channel.securityPolicy->symmetricModule.
-                 generateNonce(client->channel.securityPolicy, &client->channel.localNonce);
-        if(retval != UA_STATUSCODE_GOOD)
-            return retval;
-    }
-
-    request.requestHeader.timestamp = UA_DateTime_now();
-    request.requestHeader.timeoutHint = 10000;
-    UA_ByteString_copy(&client->channel.localNonce, &request.clientNonce);
-    request.requestedSessionTimeout = client->config.requestedSessionTimeout;
-    request.maxResponseMessageSize = UA_INT32_MAX;
-    UA_String_copy(&client->config.endpoint.endpointUrl, &request.endpointUrl);
-
-    UA_ApplicationDescription_copy(&client->config.clientDescription,
-                                   &request.clientDescription);
-
-    if(client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
-       client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
-        UA_ByteString_copy(&client->channel.securityPolicy->localCertificate,
-                           &request.clientCertificate);
-    }
-
-    UA_CreateSessionResponse response;
-    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST],
-                        &response, &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE]);
-
-    if(response.responseHeader.serviceResult == UA_STATUSCODE_GOOD) {
-        /* Verify the encrypted response */
-        if(client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
-           client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
-
-            if(!UA_ByteString_equal(&response.serverCertificate,
-                                    &client->channel.remoteCertificate)) {
-                retval = UA_STATUSCODE_BADCERTIFICATEINVALID;
-                goto cleanup;
-            }
-
-            /* Verify the client signature */
-            retval = checkClientSignature(&client->channel, &response);
-            if(retval != UA_STATUSCODE_GOOD)
-                goto cleanup;
-        }
-
-        /* Copy nonce and and authenticationtoken */
-        UA_ByteString_deleteMembers(&client->channel.remoteNonce);
-        retval |= UA_ByteString_copy(&response.serverNonce, &client->channel.remoteNonce);
-
-        UA_NodeId_deleteMembers(&client->authenticationToken);
-        retval |= UA_NodeId_copy(&response.authenticationToken, &client->authenticationToken);
-    }
-
-    retval |= response.responseHeader.serviceResult;
-
- cleanup:
-    UA_CreateSessionRequest_deleteMembers(&request);
-    UA_CreateSessionResponse_deleteMembers(&response);
-    return retval;
-}
-
 UA_StatusCode
 UA_Client_connectTCPSecureChannel(UA_Client *client, const UA_String endpointUrl) {
     if(client->state >= UA_CLIENTSTATE_CONNECTED)
@@ -820,37 +504,42 @@ UA_Client_connectSession(UA_Client *client) {
     // TODO: actually, reactivate an existing session is working, but currently
     // republish is not implemented This option is disabled until we have a good
     // implementation of the subscription recovery.
-
-    /* Could not recover an old session. Remove authenticationToken */
-    UA_NodeId_deleteMembers(&client->authenticationToken);
-
-    /* Create a session */
-    UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_CLIENT, "Create a new session");
-    UA_StatusCode retval = createSession(client);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "Could not open a Session with StatusCode %s",
-                     UA_StatusCode_name(retval));
-        UA_Client_disconnect(client);
-        return retval;
-    }
     
-    /* A new session has been created. We need to clean up the subscriptions */
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-    UA_Client_Subscriptions_clean(client);
-    client->currentlyOutStandingPublishRequests = 0;
-#endif
-
-    /* Activate the session */
-    retval = activateSession(client);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "Could not activate the Session with StatusCode %s",
-                     UA_StatusCode_name(retval));
-        UA_Client_disconnect(client);
-        return retval;
+    /* If we have the AuthenticationToken for a session, try ActivateSession.
+     * Otherwise create a new Session. The async callback of the CreateSession
+     * request will launch the ActivateSession request internally. */
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(UA_NodeId_isNull(&client->authenticationToken)) {
+        retval = createSessionAsync(client);
+    } else {
+        retval = activateSessionAsync(client);
     }
-    setClientState(client, UA_CLIENTSTATE_SESSION);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    /* Iterate until the Session is activated or we have a timeout */
+
+    UA_DateTime nowTime = UA_DateTime_nowMonotonic();
+    UA_DateTime maxTime = 
+        nowTime + ((UA_DateTime)client->config.timeout * UA_DATETIME_MSEC);
+
+    while(client->state != UA_CLIENTSTATE_SESSION) {
+        if(maxTime < nowTime) {
+            retval = UA_STATUSCODE_BADTIMEOUT;
+            break;
+        }
+            
+        UA_UInt16 timeout = (UA_UInt16)((maxTime - nowTime) / UA_DATETIME_MSEC);
+        retval = UA_Client_run_iterate(client, timeout);
+        if(retval != UA_STATUSCODE_GOOD)
+            break;
+
+        retval = client->connectStatus;
+        if(retval != UA_STATUSCODE_GOOD)
+            break;
+
+        nowTime = UA_DateTime_nowMonotonic();
+    }
     return retval;
 }
 
