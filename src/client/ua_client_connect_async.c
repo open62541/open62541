@@ -567,42 +567,36 @@ responseGetEndpoints(UA_Client *client, void *userdata, UA_UInt32 requestId,
                      void *response) {
     client->endpointsHandshake = false;
 
-    UA_EndpointDescription* endpointArray = NULL;
-    size_t endpointArraySize = 0;
-    UA_GetEndpointsResponse* resp;
-    resp = (UA_GetEndpointsResponse*)response;
-
-    if (resp->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+    UA_GetEndpointsResponse *resp = (UA_GetEndpointsResponse*)response;
+    if(resp->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         client->connectStatus = resp->responseHeader.serviceResult;
         UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                      "GetEndpointRequest failed with error code %s",
-                     UA_StatusCode_name (client->connectStatus));
+                     UA_StatusCode_name(client->connectStatus));
         UA_GetEndpointsResponse_clear(resp);
         return;
     }
-    endpointArray = resp->endpoints;
-    endpointArraySize = resp->endpointsSize;
-    resp->endpoints = NULL;
-    resp->endpointsSize = 0;
 
     UA_Boolean endpointFound = false;
     UA_Boolean tokenFound = false;
-    UA_String securityNone = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
-    UA_String binaryTransport = UA_STRING("http://opcfoundation.org/UA-Profile/"
-                                          "Transport/uatcp-uasc-uabinary");
+    const UA_String securityNone = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
+    const UA_String binaryTransport = UA_STRING("http://opcfoundation.org/UA-Profile/"
+                                                "Transport/uatcp-uasc-uabinary");
 
     // TODO: compare endpoint information with client->endpointUri
+    UA_EndpointDescription* endpointArray = resp->endpoints;
+    size_t endpointArraySize = resp->endpointsSize;
     for(size_t i = 0; i < endpointArraySize; ++i) {
         UA_EndpointDescription* endpoint = &endpointArray[i];
         /* look out for binary transport endpoints */
         /* Note: Siemens returns empty ProfileUrl, we will accept it as binary */
-        if(endpoint->transportProfileUri.length != 0
-                && !UA_String_equal (&endpoint->transportProfileUri,
-                                     &binaryTransport))
+        if(endpoint->transportProfileUri.length != 0 &&
+           !UA_String_equal (&endpoint->transportProfileUri, &binaryTransport))
             continue;
 
         /* Look for an endpoint corresponding to the client security policy */
-        if(!UA_String_equal(&endpoint->securityPolicyUri, &client->channel.securityPolicy->policyUri))
+        if(!UA_String_equal(&endpoint->securityPolicyUri,
+                            &client->channel.securityPolicy->policyUri))
             continue;
 
         endpointFound = true;
@@ -638,9 +632,6 @@ responseGetEndpoints(UA_Client *client, void *userdata, UA_UInt32 requestId,
             break;
         }
     }
-
-    UA_Array_delete(endpointArray, endpointArraySize,
-                    &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
 
     if(!endpointFound) {
         UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
