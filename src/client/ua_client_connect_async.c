@@ -579,7 +579,6 @@ responseGetEndpoints(UA_Client *client, void *userdata, UA_UInt32 requestId,
 
     UA_Boolean endpointFound = false;
     UA_Boolean tokenFound = false;
-    const UA_String securityNone = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
     const UA_String binaryTransport = UA_STRING("http://opcfoundation.org/UA-Profile/"
                                                 "Transport/uatcp-uasc-uabinary");
 
@@ -594,10 +593,40 @@ responseGetEndpoints(UA_Client *client, void *userdata, UA_UInt32 requestId,
            !UA_String_equal (&endpoint->transportProfileUri, &binaryTransport))
             continue;
 
-        /* Look for an endpoint corresponding to the client security policy */
-        if(!UA_String_equal(&endpoint->securityPolicyUri,
-                            &client->channel.securityPolicy->policyUri))
+        /* Valid SecurityMode? */
+        if(endpoint->securityMode < 1 || endpoint->securityMode > 3) {
+            UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                        "Rejecting endpoint %lu: invalid security mode",
+                        (long unsigned)i);
             continue;
+        }
+
+        /* Selected SecurityMode? */
+        if(client->config.securityMode > 0 &&
+           client->config.securityMode != endpoint->securityMode) {
+            UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                        "Rejecting endpoint %lu: security mode doesn't match",
+                        (long unsigned)i);
+            continue;
+        }
+
+        /* Matching SecurityPolicy? */
+        if(client->config.securityPolicyUri.length > 0 &&
+           !UA_String_equal(&client->config.securityPolicyUri,
+                            &endpoint->securityPolicyUri)) {
+            UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                        "Rejecting endpoint %lu: security policy doesn't match",
+                        (long unsigned)i);
+            continue;
+        }
+
+        /* SecurityPolicy available? */
+        if(!getSecurityPolicy(client, endpoint->securityPolicyUri)) {
+            UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                        "Rejecting endpoint %lu: security policy not available",
+                        (long unsigned)i);
+            continue;
+        }
 
         endpointFound = true;
 
@@ -608,29 +637,92 @@ responseGetEndpoints(UA_Client *client, void *userdata, UA_UInt32 requestId,
 
             /* Usertokens also have a security policy... */
             if(tokenPolicy->securityPolicyUri.length > 0 &&
-               !UA_String_equal(&tokenPolicy->securityPolicyUri, &securityNone))
+               !getSecurityPolicy(client, tokenPolicy->securityPolicyUri)) {
+                UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                            "Rejecting UserTokenPolicy %lu in endpoint %lu: "
+                            "security policy '%.*s' not available", (long unsigned)j, (long unsigned)i,
+                            (int)tokenPolicy->securityPolicyUri.length,
+                            tokenPolicy->securityPolicyUri.data);
                 continue;
+            }
 
-            /* Does the token type match the client configuration? */
-            if((tokenPolicy->tokenType == UA_USERTOKENTYPE_ANONYMOUS &&
-                tokenType != &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN] &&
-                tokenType != NULL) ||
-               (tokenPolicy->tokenType == UA_USERTOKENTYPE_USERNAME &&
-                tokenType != &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) ||
-               (tokenPolicy->tokenType == UA_USERTOKENTYPE_CERTIFICATE &&
-                tokenType != &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN]) ||
-               (tokenPolicy->tokenType == UA_USERTOKENTYPE_ISSUEDTOKEN &&
-                tokenType != &UA_TYPES[UA_TYPES_ISSUEDIDENTITYTOKEN]))
+            if(tokenPolicy->tokenType > 3) {
+                UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                            "Rejecting UserTokenPolicy %lu in endpoint %lu: invalid token type",
+                            (long unsigned)j, (long unsigned)i);
                 continue;
+            }
+
+            if(tokenPolicy->tokenType == UA_USERTOKENTYPE_ANONYMOUS &&
+               tokenType != &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN] &&
+               tokenType != NULL) {
+                UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                            "Rejecting UserTokenPolicy %lu (anonymous) in endpoint %lu: "
+                            "configuration doesn't match", (long unsigned)j, (long unsigned)i);
+                continue;
+            }
+            if(tokenPolicy->tokenType == UA_USERTOKENTYPE_USERNAME &&
+               tokenType != &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
+                UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                            "Rejecting UserTokenPolicy %lu (username) in endpoint %lu: "
+                            "configuration doesn't match", (long unsigned)j, (long unsigned)i);
+                continue;
+            }
+            if(tokenPolicy->tokenType == UA_USERTOKENTYPE_CERTIFICATE &&
+               tokenType != &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN]) {
+                UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                            "Rejecting UserTokenPolicy %lu (certificate) in endpoint %lu: "
+                            "configuration doesn't match", (long unsigned)j, (long unsigned)i);
+                continue;
+            }
+            if(tokenPolicy->tokenType == UA_USERTOKENTYPE_ISSUEDTOKEN &&
+               tokenType != &UA_TYPES[UA_TYPES_ISSUEDIDENTITYTOKEN]) {
+                UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                            "Rejecting UserTokenPolicy %lu (token) in endpoint %lu: "
+                            "configuration doesn't match", (long unsigned)j, (long unsigned)i);
+                continue;
+            }
 
             /* Endpoint with matching usertokenpolicy found */
+
+#if UA_LOGLEVEL <= 300
+            const char *securityModeNames[3] = {"None", "Sign", "SignAndEncrypt"};
+            const char *userTokenTypeNames[4] = {"Anonymous", "UserName",
+                                                 "Certificate", "IssuedToken"};
+            UA_String *securityPolicyUri = &tokenPolicy->securityPolicyUri;
+            if(securityPolicyUri->length == 0)
+                securityPolicyUri = &endpoint->securityPolicyUri;
+
+            /* Log the selected endpoint */
+            UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                        "Selected Endpoint %.*s with SecurityMode %s and SecurityPolicy %.*s",
+                        (int)endpoint->endpointUrl.length, endpoint->endpointUrl.data,
+                        securityModeNames[endpoint->securityMode - 1],
+                        (int)endpoint->securityPolicyUri.length,
+                        endpoint->securityPolicyUri.data);
+
+            /* Log the selected UserTokenPolicy */
+            UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                        "Selected UserTokenPolicy %.*s with UserTokenType %s and SecurityPolicy %.*s",
+                        (int)tokenPolicy->policyId.length, tokenPolicy->policyId.data,
+                        userTokenTypeNames[tokenPolicy->tokenType],
+                        (int)securityPolicyUri->length, securityPolicyUri->data);
+#endif
+
+            /* Move to the client config */
             tokenFound = true;
             UA_EndpointDescription_clear(&client->config.endpoint);
+            client->config.endpoint = *endpoint;
+            UA_EndpointDescription_init(endpoint);
             UA_UserTokenPolicy_clear(&client->config.userTokenPolicy);
-            UA_EndpointDescription_copy(endpoint, &client->config.endpoint);
-            UA_UserTokenPolicy_copy(tokenPolicy, &client->config.userTokenPolicy);
+            client->config.userTokenPolicy = *tokenPolicy;
+            UA_UserTokenPolicy_init(tokenPolicy);
+
             break;
         }
+
+        if(tokenFound)
+            break;
     }
 
     if(!endpointFound) {
