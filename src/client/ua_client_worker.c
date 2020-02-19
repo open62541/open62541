@@ -102,6 +102,10 @@ UA_StatusCode UA_Client_run_iterate(UA_Client *client, UA_UInt16 timeout) {
     /* FIXME: Will most likely break somewhere in the future */
     /************************************************************/
 
+    UA_DateTime now = UA_DateTime_nowMonotonic();
+    UA_Timer_process(&client->timer, now,
+                     (UA_TimerExecutionCallback)clientExecuteRepeatedCallback, client);
+
     if(timeout) {
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
@@ -115,9 +119,6 @@ UA_StatusCode UA_Client_run_iterate(UA_Client *client, UA_UInt16 timeout) {
         if(retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
             retval = UA_STATUSCODE_GOOD;
     } else {
-        UA_DateTime now = UA_DateTime_nowMonotonic();
-        UA_Timer_process(&client->timer, now,
-                         (UA_TimerExecutionCallback)clientExecuteRepeatedCallback, client);
 
         UA_ClientState cs = UA_Client_getState(client);
         retval = UA_Client_connect_iterate(client);
