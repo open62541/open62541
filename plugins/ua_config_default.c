@@ -689,7 +689,7 @@ UA_Client * UA_Client_new() {
     return UA_Client_newWithConfig(&config);
 }
 
-static UA_INLINE void
+static void
 UA_ClientConnectionTCP_poll_callback(UA_Client *client, void *data) {
     UA_ClientConnectionTCP_poll(client, data);
 }
