@@ -742,14 +742,12 @@ requestGetEndpoints(UA_Client *client) {
     UA_GetEndpointsRequest_init(&request);
     request.requestHeader.timestamp = UA_DateTime_now();
     request.requestHeader.timeoutHint = 10000;
-    /* assume the endpointurl outlives the service call */
-    UA_String_copy(&client->endpointUrl, &request.endpointUrl);
+    request.endpointUrl = client->endpointUrl;
 
     client->connectStatus = UA_Client_sendAsyncRequest(
             client, &request, &UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST],
             (UA_ClientAsyncServiceCallback) responseGetEndpoints,
             &UA_TYPES[UA_TYPES_GETENDPOINTSRESPONSE], NULL, NULL);
-    UA_GetEndpointsRequest_clear(&request);
 
     if(client->connectStatus == UA_STATUSCODE_GOOD)
         client->endpointsHandshake = true;
