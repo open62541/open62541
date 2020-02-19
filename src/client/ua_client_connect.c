@@ -18,8 +18,6 @@
 
 /* Size are refered in bytes */
 #define UA_MINMESSAGESIZE                8192
-#define UA_SESSION_LOCALNONCELENGTH      32
-#define MAX_DATA_SIZE                    4096
 
  /********************/
  /* Set client state */
@@ -36,9 +34,6 @@ setClientState(UA_Client *client, UA_ClientState state) {
 /***********************/
 /* Open the Connection */
 /***********************/
-
-#define UA_BITMASK_MESSAGETYPE 0x00ffffffu
-#define UA_BITMASK_CHUNKTYPE 0xff000000u
 
 static void
 processACKResponse(void *application, UA_SecureChannel *channel,
