@@ -190,10 +190,26 @@ ServerNetworkLayerTCP_close(UA_Connection *connection) {
     connection->state = UA_CONNECTION_CLOSED;
 }
 
+static UA_Boolean
+purgeFirstConnectionWithoutChannel(ServerNetworkLayerTCP *layer) {
+    ConnectionEntry *e;
+    LIST_FOREACH(e, &layer->connections, pointers) {
+        if(e->connection.channel == NULL) {
+            LIST_REMOVE(e, pointers);
+            layer->connectionsSize--;
+            UA_close(e->connection.sockfd);
+            e->connection.free(&e->connection);
+            return true;
+        }
+    }
+    return false;
+}
+
 static UA_StatusCode
 ServerNetworkLayerTCP_add(UA_ServerNetworkLayer *nl, ServerNetworkLayerTCP *layer,
                           UA_Int32 newsockfd, struct sockaddr_storage *remote) {
-   if(layer->maxConnections && layer->connectionsSize >= layer->maxConnections) {
+   if(layer->maxConnections && layer->connectionsSize >= layer->maxConnections &&
+      !purgeFirstConnectionWithoutChannel(layer)) {
        return UA_STATUSCODE_BADTCPNOTENOUGHRESOURCES;
    }
 
