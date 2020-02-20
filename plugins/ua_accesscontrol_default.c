@@ -168,6 +168,13 @@ allowDeleteReference_default(UA_Server *server, UA_AccessControl *ac,
     return true;
 }
 
+static UA_Boolean
+allowBrowseNode_default(UA_Server *server, UA_AccessControl *ac,
+                        const UA_NodeId *sessionId, void *sessionContext,
+                        const UA_NodeId *nodeId, void *nodeContext) {
+    return true;
+}
+
 #ifdef UA_ENABLE_HISTORIZING
 static UA_Boolean
 allowHistoryUpdateUpdateData_default(UA_Server *server, UA_AccessControl *ac,
@@ -229,6 +236,7 @@ UA_AccessControl_default(UA_ServerConfig *config, UA_Boolean allowAnonymous,
     ac->getUserExecutableOnObject = getUserExecutableOnObject_default;
     ac->allowAddNode = allowAddNode_default;
     ac->allowAddReference = allowAddReference_default;
+    ac->allowBrowseNode = allowBrowseNode_default;
 
 #ifdef UA_ENABLE_HISTORIZING
     ac->allowHistoryUpdateUpdateData = allowHistoryUpdateUpdateData_default;

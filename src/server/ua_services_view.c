@@ -562,6 +562,14 @@ browseWithContinuation(UA_Server *server, UA_Session *session,
         return true;
     }
 
+    if(!server->config.accessControl.allowBrowseNode(server, &server->config.accessControl,
+                                                     &session->sessionId, session->sessionHandle,
+                                                     &descr->nodeId, node->context)) {
+        result->statusCode = UA_STATUSCODE_BADUSERACCESSDENIED;
+        UA_NODESTORE_RELEASE(server, node);
+        return true;
+    }
+
     RefResult rr;
     result->statusCode = RefResult_init(&rr);
     if(result->statusCode != UA_STATUSCODE_GOOD) {
