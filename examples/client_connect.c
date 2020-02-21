@@ -83,7 +83,7 @@ int main(int argc, char *argv[]) {
 
         if(strcmp(argv[argpos], "-securityPolicy") == 0) {
             argpos++;
-            securityPolicyUri = UA_STRING(argv[argpos]);
+            securityPolicyUri = UA_String_fromChars(argv[argpos]);
             continue;
         }
 #endif

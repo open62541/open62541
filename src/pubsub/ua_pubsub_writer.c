@@ -1041,10 +1041,10 @@ UA_WriterGroupConfig_clear(UA_WriterGroupConfig *writerGroupConfig){
     UA_String_clear(&writerGroupConfig->name);
     UA_ExtensionObject_clear(&writerGroupConfig->transportSettings);
     UA_ExtensionObject_clear(&writerGroupConfig->messageSettings);
-    for(size_t i = 0; i < writerGroupConfig->groupPropertiesSize; i++){
-        UA_KeyValuePair_clear(&writerGroupConfig->groupProperties[i]);
-    }
-    UA_free(writerGroupConfig->groupProperties);
+    UA_Array_delete(writerGroupConfig->groupProperties,
+                    writerGroupConfig->groupPropertiesSize,
+                    &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
+    writerGroupConfig->groupProperties = NULL;
 }
 
 static void
