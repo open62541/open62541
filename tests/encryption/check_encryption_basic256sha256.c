@@ -175,12 +175,128 @@ START_TEST(encryption_connect) {
 }
 END_TEST
 
+START_TEST(encryption_connect_chunking) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+    /* Add a long array variable to the server to force chunking */
+    UA_ServerConfig *sc = UA_Server_getConfig(server);
+    size_t bufSize = sc->networkLayers[0].localConnectionConfig.recvBufferSize;
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("", "force chunks");
+    UA_ByteString longString;
+    UA_ByteString_allocBuffer(&longString, 2*bufSize);
+    UA_Variant_setScalar(&attr.value, (void *)(uintptr_t)&longString,
+                         &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_NodeId stringNodeId = UA_NODEID_NULL;
+    retval = UA_Server_addVariableNode(server, UA_NODEID_NULL,
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                       UA_QUALIFIEDNAME(0, "force chunks"),
+                                       UA_NODEID_NULL, attr, NULL, &stringNodeId);
+    UA_ByteString_clear(&longString);
+
+    ck_assert_msg(retval == UA_STATUSCODE_GOOD, UA_StatusCode_name(retval));
+
+    UA_Client *client = NULL;
+    UA_EndpointDescription* endpointArray = NULL;
+    size_t endpointArraySize = 0;
+    UA_ByteString *trustList = NULL;
+    size_t trustListSize = 0;
+    UA_ByteString *revocationList = NULL;
+    size_t revocationListSize = 0;
+
+    /* Load certificate and private key */
+    UA_ByteString certificate;
+    certificate.length = CERT_DER_LENGTH;
+    certificate.data = CERT_DER_DATA;
+    ck_assert_int_ne(certificate.length, 0);
+
+    UA_ByteString privateKey;
+    privateKey.length = KEY_DER_LENGTH;
+    privateKey.data = KEY_DER_DATA;
+    ck_assert_int_ne(privateKey.length, 0);
+
+    /* The Get endpoint (discovery service) is done with
+     * security mode as none to see the server's capability
+     * and certificate */
+    client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    ck_assert(client != NULL);
+    retval = UA_Client_getEndpoints(client, "opc.tcp://localhost:4840",
+                                    &endpointArraySize, &endpointArray);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(endpointArraySize > 0);
+
+    UA_Array_delete(endpointArray, endpointArraySize,
+                    &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+
+    /* TODO test trustList Load revocationList is not supported now
+    if(argc > MIN_ARGS) {
+        trustListSize = (size_t)argc-MIN_ARGS;
+        retval = UA_ByteString_allocBuffer(trustList, trustListSize);
+        if(retval != UA_STATUSCODE_GOOD) {
+            cleanupClient(client, remoteCertificate);
+            return (int)retval;
+        }
+
+        for(size_t trustListCount = 0; trustListCount < trustListSize; trustListCount++) {
+            trustList[trustListCount] = loadFile(argv[trustListCount+3]);
+        }
+    }
+    */
+
+    UA_Client_delete(client);
+
+    /* Secure client initialization */
+    client = UA_Client_new();
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
+                                         trustList, trustListSize,
+                                         revocationList, revocationListSize);
+    cc->securityPolicyUri =
+        UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
+    ck_assert(client != NULL);
+
+    for(size_t deleteCount = 0; deleteCount < trustListSize; deleteCount++) {
+        UA_ByteString_deleteMembers(&trustList[deleteCount]);
+    }
+
+    /* Secure client connect */
+    retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ReadRequest rq;
+    UA_ReadRequest_init(&rq);
+
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = stringNodeId;
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+
+    rq.nodesToRead = &rvi;
+    rq.nodesToReadSize = 1;
+
+    char indexRange[100];
+    for(size_t i = 100; i < 200; i++) {
+        snprintf(indexRange, 100, "1:%lu", bufSize - i);
+        rvi.indexRange = UA_STRING(indexRange);
+        UA_ReadResponse rr = UA_Client_Service_read(client, rq);
+        UA_assert(rr.results[0].status == UA_STATUSCODE_GOOD);
+        UA_ReadResponse_clear(&rr);
+    }
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 static Suite* testSuite_encryption(void) {
     Suite *s = suite_create("Encryption");
     TCase *tc_encryption = tcase_create("Encryption basic256sha256");
     tcase_add_checked_fixture(tc_encryption, setup, teardown);
 #ifdef UA_ENABLE_ENCRYPTION
     tcase_add_test(tc_encryption, encryption_connect);
+    tcase_add_test(tc_encryption, encryption_connect_chunking);
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_encryption);
     return s;
