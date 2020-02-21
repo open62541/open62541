@@ -11,14 +11,26 @@
 #include "custom_datatype.h"
 
 UA_Boolean running = true;
+const UA_NodeId variableTypeId = {
+    1, UA_NODEIDTYPE_NUMERIC, {4243}};
 
 static void stopHandler(int sig) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "received ctrl-c");
     running = false;
 }
 
+static void add3DPointDataType(UA_Server* server)
+{
+    UA_DataTypeAttributes attr = UA_DataTypeAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "3D Point Type");
+
+    UA_Server_addDataTypeNode(
+        server, PointType.typeId, UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE), UA_QUALIFIEDNAME(1, "3D.Point"), attr, NULL, NULL);
+}
+
 static void
-add3PointDataType(UA_Server *server) {
+add3DPointVariableType(UA_Server *server) {
     UA_VariableTypeAttributes dattr = UA_VariableTypeAttributes_default;
     dattr.description = UA_LOCALIZEDTEXT("en-US", "3D Point");
     dattr.displayName = UA_LOCALIZEDTEXT("en-US", "3D Point");
@@ -31,7 +43,7 @@ add3PointDataType(UA_Server *server) {
     p.z = 0.0;
     UA_Variant_setScalar(&dattr.value, &p, &PointType);
 
-    UA_Server_addVariableTypeNode(server, PointType.typeId,
+    UA_Server_addVariableTypeNode(server, variableTypeId,
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
                                   UA_QUALIFIEDNAME(1, "3D.Point"),
@@ -57,7 +69,7 @@ add3DPointVariable(UA_Server *server) {
                               UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                               UA_QUALIFIEDNAME(1, "3D.Point"),
-                              PointType.typeId, vattr, NULL, NULL);
+                              variableTypeId, vattr, NULL, NULL);
 }
 
 int main(void) {
@@ -82,7 +94,8 @@ int main(void) {
     UA_DataTypeArray customDataTypes = {config->customDataTypes, 1, types};
     config->customDataTypes = &customDataTypes;
 
-    add3PointDataType(server);
+    add3DPointDataType(server);
+    add3DPointVariableType(server);
     add3DPointVariable(server);
 
     UA_Server_run(server, &running);
