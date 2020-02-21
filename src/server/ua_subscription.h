@@ -9,6 +9,7 @@
  *    Copyright 2017 (c) Florian Palm
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Mattias Bornhager
+ *    Copyright 2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
  */
 
 #ifndef UA_SUBSCRIPTION_H_

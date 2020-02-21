@@ -6,6 +6,7 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Henrik Norrman
  *    Copyright 2018 (c) Fabian Arndt, Root-Core
+ *    Copyright 2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
  */
 
 #ifndef UA_SERVER_CONFIG_H_

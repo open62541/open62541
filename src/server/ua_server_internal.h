@@ -11,6 +11,7 @@
  *    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Julian Grothoff
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
+ *    Copyright 2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
  */
 
 #ifndef UA_SERVER_INTERNAL_H_

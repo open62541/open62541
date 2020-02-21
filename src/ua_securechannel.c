@@ -9,6 +9,7 @@
  *    Copyright 2016 (c) TorbenD
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017-2018 (c) Mark Giraud, Fraunhofer IOSB
+ *    Copyright 2018-2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
  */
 
 #include <open62541/transport_generated_encoding_binary.h>

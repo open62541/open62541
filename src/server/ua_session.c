@@ -4,6 +4,7 @@
  *
  *    Copyright 2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2018 (c) Thomas Stalder, Blue Time Concept SA
+ *    Copyright 2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
  */
 
 #include "ua_session.h"
