@@ -562,7 +562,7 @@ browseWithContinuation(UA_Server *server, UA_Session *session,
         return true;
     }
 
-    if(session != server->adminSession &&
+    if(session != &server->adminSession &&
        !server->config.accessControl.allowBrowseNode(server, &server->config.accessControl,
                                                      &session->sessionId, session->sessionHandle,
                                                      &descr->nodeId, node->context)) {
