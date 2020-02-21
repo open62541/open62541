@@ -9,9 +9,7 @@
 #include <open62541/client_config_default.h>
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/server_config_default.h>
-
-#include "client/ua_client_internal.h"
-#include "ua_server_internal.h"
+#include <open62541/client_highlevel.h>
 
 #include <check.h>
 #include <stdio.h>
