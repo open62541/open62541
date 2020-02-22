@@ -853,9 +853,8 @@ UA_SecureChannel_processPacket(UA_SecureChannel *channel, void *application,
 }
 
 UA_StatusCode
-UA_SecureChannel_receiveChunksBlocking(UA_SecureChannel *channel, void *application,
-                                       UA_ProcessMessageCallback callback,
-                                       UA_UInt32 timeout) {
+UA_SecureChannel_receive(UA_SecureChannel *channel, void *application,
+                         UA_ProcessMessageCallback callback, UA_UInt32 timeout) {
     UA_Connection *connection = channel->connection;
     if(!connection)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -872,10 +871,4 @@ UA_SecureChannel_receiveChunksBlocking(UA_SecureChannel *channel, void *applicat
     retval = UA_SecureChannel_processPacket(channel, application, callback, &packet);
     connection->releaseRecvBuffer(connection, &packet);
     return retval;
-}
-
-UA_StatusCode
-UA_SecureChannel_receiveChunksNonBlocking(UA_SecureChannel *channel, void *application,
-                                          UA_ProcessMessageCallback callback) {
-    return UA_SecureChannel_receiveChunksBlocking(channel, application, callback, 0);
 }
