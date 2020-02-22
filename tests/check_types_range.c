@@ -9,6 +9,24 @@
 
 #include "check.h"
 
+/*
+Pull request #3446: accept "min:max" where min==max
+*/
+START_TEST(parseRangeMinExplicitlyEqualMax) {
+    UA_NumericRange range;
+    UA_String str = UA_STRING("1:1,0:0,5");
+    UA_StatusCode retval = UA_NumericRange_parseFromString(&range, &str);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(range.dimensionsSize,3);
+    ck_assert_int_eq(range.dimensions[0].min,1);
+    ck_assert_int_eq(range.dimensions[0].max,1);
+    ck_assert_int_eq(range.dimensions[1].min,0);
+    ck_assert_int_eq(range.dimensions[1].max,0);
+    ck_assert_int_eq(range.dimensions[2].min,5);
+    ck_assert_int_eq(range.dimensions[2].max,5);
+    UA_free(range.dimensions);
+} END_TEST
+
 START_TEST(parseRange) {
     UA_NumericRange range;
     UA_String str = UA_STRING("1:2,0:3,5");
@@ -93,6 +111,7 @@ int main(void) {
     TCase *tc = tcase_create("test cases");
     tcase_add_test(tc, parseRange);
     tcase_add_test(tc, parseRangeMinEqualMax);
+    tcase_add_test(tc, parseRangeMinExplicitlyEqualMax);
     tcase_add_test(tc, copySimpleArrayRange);
     tcase_add_test(tc, copyIntoStringArrayRange);
     suite_add_tcase(s, tc);
