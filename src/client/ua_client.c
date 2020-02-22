@@ -199,6 +199,9 @@ processAsyncResponse(UA_Client *client, UA_UInt32 requestId, const UA_NodeId *re
     if(!ac)
         return UA_STATUSCODE_BADREQUESTHEADERINVALID;
 
+    /* Dequeue ac. We might disconnect (remove all ac) in the callback. */
+    LIST_REMOVE(ac, pointers);
+
     /* Allocate the response */
     UA_STACKARRAY(UA_Byte, responseBuf, ac->responseType->memSize);
     void *response = (void*)(uintptr_t)&responseBuf[0]; /* workaround aliasing rules */
@@ -245,7 +248,6 @@ processAsyncResponse(UA_Client *client, UA_UInt32 requestId, const UA_NodeId *re
     UA_deleteMembers(response, ac->responseType);
 
     /* Remove the callback */
-    LIST_REMOVE(ac, pointers);
     UA_free(ac);
     return retval;
 }
