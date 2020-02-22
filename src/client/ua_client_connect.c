@@ -112,8 +112,8 @@ HelAckHandshake(UA_Client *client, const UA_String endpointUrl) {
                  "Sent HEL message");
 
     /* Loop until we have a complete chunk */
-    retval = UA_SecureChannel_receiveChunksBlocking(&client->channel, client,
-                                                    processACKResponse, client->config.timeout);
+    retval = UA_SecureChannel_receive(&client->channel, client,
+                                      processACKResponse, client->config.timeout);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_NETWORK,
                      "Receiving ACK message failed with %s", UA_StatusCode_name(retval));

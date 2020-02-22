@@ -367,8 +367,7 @@ receiveServiceResponse(UA_Client *client, void *response, const UA_DataType *res
         /* round always to upper value to avoid timeout to be set to 0
          * if(maxDate - now) < (UA_DATETIME_MSEC/2) */
         UA_UInt32 timeout = (UA_UInt32)(((maxDate - now) + (UA_DATETIME_MSEC - 1)) / UA_DATETIME_MSEC);
-        retval = UA_SecureChannel_receiveChunksBlocking(&client->channel, &rd,
-                                                        processServiceResponse, timeout);
+        retval = UA_SecureChannel_receive(&client->channel, &rd, processServiceResponse, timeout);
         if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
             if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
                 setClientState(client, UA_CLIENTSTATE_DISCONNECTED);
@@ -417,7 +416,7 @@ receiveServiceResponseAsync(UA_Client *client, void *response,
     SyncResponseDescription rd = { client, false, 0, response, responseType };
 
     UA_StatusCode retval =
-        UA_SecureChannel_receiveChunksNonBlocking(&client->channel, &rd, processServiceResponse);
+        UA_SecureChannel_receive(&client->channel, &rd, processServiceResponse, 0);
     /* Let client run when non critical timeout*/
     if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
         if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED) {
@@ -433,11 +432,11 @@ receivePacketAsync(UA_Client *client) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if (UA_Client_getState(client) == UA_CLIENTSTATE_DISCONNECTED ||
         UA_Client_getState(client) == UA_CLIENTSTATE_WAITING_FOR_ACK) {
-        retval = UA_SecureChannel_receiveChunksNonBlocking(&client->channel, client,
-                                                           processACKResponseAsync);
+        retval = UA_SecureChannel_receive(&client->channel, client,
+                                          processACKResponseAsync, 0);
     } else if(UA_Client_getState(client) == UA_CLIENTSTATE_CONNECTED) {
-        retval = UA_SecureChannel_receiveChunksNonBlocking(&client->channel, client,
-                                                           decodeProcessOPNResponseAsync);
+        retval = UA_SecureChannel_receive(&client->channel, client,
+                                          decodeProcessOPNResponseAsync, 0);
     }
 
     if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
