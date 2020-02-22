@@ -348,8 +348,8 @@ finish:
 /* Receive and process messages until a synchronous message arrives or the
  * timout finishes */
 UA_StatusCode
-receiveServiceResponse(UA_Client *client, void *response, const UA_DataType *responseType,
-                       UA_DateTime maxDate, const UA_UInt32 *synchronousRequestId) {
+receiveResponse(UA_Client *client, void *response, const UA_DataType *responseType,
+                UA_UInt32 timeout, const UA_UInt32 *synchronousRequestId) {
     /* Prepare the response and the structure we give into processServiceResponse */
     SyncResponseDescription rd = { client, false, 0, response, responseType };
 
@@ -358,24 +358,23 @@ receiveServiceResponse(UA_Client *client, void *response, const UA_DataType *res
     if(synchronousRequestId)
         rd.requestId = *synchronousRequestId;
 
-    UA_StatusCode retval;
+    UA_DateTime now = UA_DateTime_nowMonotonic();
+    UA_DateTime maxDate = now + ((UA_DateTime)timeout * UA_DATETIME_MSEC);
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     do {
-        UA_DateTime now = UA_DateTime_nowMonotonic();
-
-        /* >= avoid timeout to be set to 0 */
-        if(now >= maxDate)
+        /* TODO: This should be < instead of <=. But that breaks a test.. */
+        if(maxDate <= now)
             return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
-
-        /* round always to upper value to avoid timeout to be set to 0
-         * if(maxDate - now) < (UA_DATETIME_MSEC/2) */
-        UA_UInt32 timeout = (UA_UInt32)(((maxDate - now) + (UA_DATETIME_MSEC - 1)) / UA_DATETIME_MSEC);
-        retval = UA_SecureChannel_receive(&client->channel, &rd, processServiceResponse, timeout);
+        UA_UInt32 timeout2 = (UA_UInt32)((maxDate - now) / UA_DATETIME_MSEC);
+        retval = UA_SecureChannel_receive(&client->channel, &rd, processServiceResponse, timeout2);
         if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
             if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
                 setClientState(client, UA_CLIENTSTATE_DISCONNECTED);
             UA_Client_disconnect(client);
             break;
         }
+        now = UA_DateTime_nowMonotonic();
     } while(!rd.received && responseType); /* Return if we don't wait for an async response */
     return retval;
 }
@@ -400,9 +399,8 @@ __UA_Client_Service(UA_Client *client, const void *request,
     }
 
     /* Retrieve the response */
-    UA_DateTime maxDate = UA_DateTime_nowMonotonic() +
-        (client->config.timeout * UA_DATETIME_MSEC);
-    retval = receiveServiceResponse(client, response, responseType, maxDate, &requestId);
+    retval = receiveResponse(client, response, responseType,
+                             client->config.timeout, &requestId);
     if(retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
         /* In synchronous service, if we have don't have a reply we need to close the connection */
         UA_Client_disconnect(client);
