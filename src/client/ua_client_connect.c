@@ -193,13 +193,14 @@ openSecureChannel(UA_Client *client, UA_Boolean renew) {
     UA_DateTime now = UA_DateTime_nowMonotonic();
     UA_DateTime maxDate =  now + (client->config.timeout * UA_DATETIME_MSEC);
 
-    /* Receive the OPN response */
+    /* Receive the OPN response. The connection closes after timeout. */
     do {
-        if(maxDate < UA_DateTime_nowMonotonic())
+        if(maxDate < now)
             return UA_STATUSCODE_BADCONNECTIONCLOSED;
-        retval = receiveServiceResponse(client, NULL, NULL, maxDate, NULL);
+        UA_UInt32 timeout = (UA_UInt32)((maxDate - now) / UA_DATETIME_MSEC);
+        retval = receiveResponse(client, NULL, NULL, timeout, NULL);
+        now = UA_DateTime_nowMonotonic();
     } while(client->state < UA_CLIENTSTATE_SECURECHANNEL && retval == UA_STATUSCODE_GOOD);
-
     return retval;
 }
 
