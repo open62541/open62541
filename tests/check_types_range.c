@@ -9,9 +9,7 @@
 
 #include "check.h"
 
-/*
-Pull request #3446: accept "min:max" where min==max
-*/
+/* Pull request #3446: accept "min:max" where min==max */
 START_TEST(parseRangeMinExplicitlyEqualMax) {
     UA_NumericRange range;
     UA_String str = UA_STRING("1:1,0:0,5");
