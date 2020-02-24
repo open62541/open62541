@@ -277,7 +277,7 @@ ServerNetworkLayerTCP_add(UA_ServerNetworkLayer *nl, ServerNetworkLayerTCP *laye
     return UA_STATUSCODE_GOOD;
 }
 
-static void
+static UA_StatusCode
 addServerSocket(ServerNetworkLayerTCP *layer, struct addrinfo *ai) {
     /* Create the server socket */
     UA_SOCKET newsock = UA_socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
@@ -285,7 +285,7 @@ addServerSocket(ServerNetworkLayerTCP *layer, struct addrinfo *ai) {
     {
         UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK,
                        "Error opening the server socket");
-        return;
+        return UA_STATUSCODE_BADCOMMUNICATIONERROR;
     }
 
     /* Some Linux distributions have net.ipv6.bindv6only not activated. So
@@ -300,7 +300,8 @@ addServerSocket(ServerNetworkLayerTCP *layer, struct addrinfo *ai) {
         UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK,
                        "Could not set an IPv6 socket to IPv6 only");
         UA_close(newsock);
-        return;
+        return UA_STATUSCODE_BADCOMMUNICATIONERROR;
+
     }
 #endif
     if(UA_setsockopt(newsock, SOL_SOCKET, SO_REUSEADDR,
@@ -308,7 +309,7 @@ addServerSocket(ServerNetworkLayerTCP *layer, struct addrinfo *ai) {
         UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK,
                        "Could not make the socket reusable");
         UA_close(newsock);
-        return;
+        return UA_STATUSCODE_BADCOMMUNICATIONERROR;
     }
 
 
@@ -316,7 +317,7 @@ addServerSocket(ServerNetworkLayerTCP *layer, struct addrinfo *ai) {
         UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK,
                        "Could not set the server socket to nonblocking");
         UA_close(newsock);
-        return;
+        return UA_STATUSCODE_BADCOMMUNICATIONERROR;
     }
 
     /* Bind socket to address */
@@ -325,7 +326,7 @@ addServerSocket(ServerNetworkLayerTCP *layer, struct addrinfo *ai) {
             UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK,
                            "Error binding a server socket: %s", errno_str));
         UA_close(newsock);
-        return;
+        return UA_STATUSCODE_BADCOMMUNICATIONERROR;
     }
 
     /* Start listening */
@@ -334,7 +335,7 @@ addServerSocket(ServerNetworkLayerTCP *layer, struct addrinfo *ai) {
                 UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK,
                        "Error listening on server socket: %s", errno_str));
         UA_close(newsock);
-        return;
+        return UA_STATUSCODE_BADCOMMUNICATIONERROR;
     }
 
     if (layer->port == 0) {
@@ -348,6 +349,7 @@ addServerSocket(ServerNetworkLayerTCP *layer, struct addrinfo *ai) {
 
     layer->serverSockets[layer->serverSocketsSize] = newsock;
     layer->serverSocketsSize++;
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
@@ -374,7 +376,12 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, const UA_String *customHo
     for(layer->serverSocketsSize = 0;
         layer->serverSocketsSize < FD_SETSIZE && ai != NULL;
         ai = ai->ai_next)
-        addServerSocket(layer, ai);
+    {
+        UA_StatusCode statusCode = addServerSocket(layer, ai);
+        if (statusCode != UA_STATUSCODE_GOOD)
+            return statusCode;
+
+    }
     UA_freeaddrinfo(res);
 
     /* Get the discovery url from the hostname */
