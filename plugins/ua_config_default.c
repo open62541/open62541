@@ -10,6 +10,7 @@
  *    Copyright 2018 (c) Fabian Arndt, Root-Core
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
  *    Copyright 2017-2020 (c) HMS Industrial Networks AB (Author: Jonas Green)
+ *    Copyright 2020 (c) Wind River Systems, Inc.
  */
 
 #include <open62541/client_config_default.h>
@@ -776,8 +777,8 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
     if(!sp)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     config->securityPolicies = sp;
-
-    retval = UA_SecurityPolicy_Basic128Rsa15(&config->securityPolicies[1],
+                  
+    retval = UA_SecurityPolicy_Basic128Rsa15(&config->securityPolicies[config->securityPoliciesSize],
                                              localCertificate, privateKey, &config->logger);
     if(retval == UA_STATUSCODE_GOOD) {
         ++config->securityPoliciesSize;
@@ -787,7 +788,7 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
                        UA_StatusCode_name(retval));
     }
 
-    retval = UA_SecurityPolicy_Basic256(&config->securityPolicies[2],
+    retval = UA_SecurityPolicy_Basic256(&config->securityPolicies[config->securityPoliciesSize],
                                         localCertificate, privateKey, &config->logger);
     if(retval == UA_STATUSCODE_GOOD) {
         ++config->securityPoliciesSize;
@@ -797,7 +798,7 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
                        UA_StatusCode_name(retval));
     }
 
-    retval = UA_SecurityPolicy_Basic256Sha256(&config->securityPolicies[3],
+    retval = UA_SecurityPolicy_Basic256Sha256(&config->securityPolicies[config->securityPoliciesSize],
                                               localCertificate, privateKey, &config->logger);
     if(retval == UA_STATUSCODE_GOOD) {
         ++config->securityPoliciesSize;
