@@ -14,7 +14,7 @@
  *    Copyright 2017 (c) frax2222
  *    Copyright 2017 (c) Thomas Bender
  *    Copyright 2017 (c) Julian Grothoff
- *    Copyright 2017 (c) Jonas Green
+ *    Copyright 2017-2020 (c) HMS Industrial Networks AB (Author: Jonas Green)
  *    Copyright 2017 (c) Henrik Norrman
  */
 

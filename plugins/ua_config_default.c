@@ -9,6 +9,7 @@
  *    Copyright 2018 (c) Daniel Feist, Precitec GmbH & Co. KG
  *    Copyright 2018 (c) Fabian Arndt, Root-Core
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
+ *    Copyright 2017-2020 (c) HMS Industrial Networks AB (Author: Jonas Green)
  */
 
 #include <open62541/client_config_default.h>

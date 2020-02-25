@@ -14,6 +14,7 @@
  *    Copyright 2017 (c) Ari Breitkreuz, fortiss GmbH
  *    Copyright 2017 (c) Mattias Bornhager
  *    Copyright 2018 (c) Hilscher Gesellschaft für Systemautomation mbH (Author: Martin Lang)
+ *    Copyright 2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
  */
 
 #include "ua_server_internal.h"

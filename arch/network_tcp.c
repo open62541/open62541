@@ -6,6 +6,7 @@
  *    Copyright 2017 (c) frax2222
  *    Copyright 2017 (c) Jose Cabral
  *    Copyright 2017 (c) Thomas Stalder, Blue Time Concept SA
+ *    Copyright 2020 (c) HMS Industrial Networks AB (Author: Jonas Green)
  */
 
 #define UA_INTERNAL
