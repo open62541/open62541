@@ -10,7 +10,7 @@
 #include <open62541/plugin/pki_default.h>
 #include <open62541/plugin/log_stdout.h>
 
-#ifdef UA_ENABLE_ENCRYPTION
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
 #include <mbedtls/x509.h>
 #include <mbedtls/x509_crt.h>
 #include <mbedtls/error.h>
@@ -49,7 +49,7 @@ void UA_CertificateVerification_AcceptAll(UA_CertificateVerification *cv) {
     cv->clear = clearVerifyAllowAll;
 }
 
-#ifdef UA_ENABLE_ENCRYPTION
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
 
 typedef struct {
     /* If the folders are defined, we use them to reload the certificates during
