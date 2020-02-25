@@ -374,7 +374,7 @@ UA_Openssl_Random_Key_PSHA256_Derive (const UA_ByteString *     secret,
                                       const UA_ByteString *     seed, 
                                       UA_ByteString *           out) {
     size_t keyLen = out->length;
-    size_t iter   = keyLen/32 + (keyLen%32?1:0);
+    size_t iter   = keyLen/32 + ((keyLen%32)?1:0);
     size_t bufferLen = iter * 32;
     size_t i; 
     UA_StatusCode st;
@@ -415,6 +415,8 @@ UA_Openssl_RSA_Public_GetKeyLength (X509 *     publicKeyX509,
     }
     RSA * rsa = get_pkey_rsa (evpKey);
     *keyLen = RSA_size(rsa);
+    EVP_PKEY_free (evpKey);
+    
     return UA_STATUSCODE_GOOD;
 }
 
@@ -499,7 +501,7 @@ UA_OpenSSL_HMAC_SHA256_Verify (const UA_ByteString *     message,
                                const UA_ByteString *     key,
                                const UA_ByteString *     signature
                               ) {
-    unsigned char buf[SHA256_DIGEST_LENGTH];
+    unsigned char buf[SHA256_DIGEST_LENGTH] = {0};
     UA_ByteString mac = {SHA256_DIGEST_LENGTH, buf};
 
     if (HMAC (EVP_sha256(), key->data, (int) key->length, message->data, message->length, 

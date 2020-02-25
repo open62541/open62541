@@ -16,13 +16,19 @@ modification history
 
 #ifdef UA_ENABLE_ENCRYPTION_OPENSSL
 
+/* clear the policy context */
+
+static void
+UA_Policy_Clear_Context (UA_SecurityPolicy *policy) {
+}
+
 UA_StatusCode
 UA_SecurityPolicy_Basic128Rsa15(UA_SecurityPolicy *policy,
-                                UA_CertificateVerification *certificateVerification,
                                 const UA_ByteString localCertificate,
                                 const UA_ByteString localPrivateKey, 
                                 const UA_Logger *logger) {
     policy->policyUri = UA_STRING("Obsolete, not supported\0");  
+    policy->clear = UA_Policy_Clear_Context;
     return UA_STATUSCODE_GOOD;
 }
 

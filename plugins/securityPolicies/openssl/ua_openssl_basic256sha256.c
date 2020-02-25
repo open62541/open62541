@@ -174,10 +174,10 @@ UA_ChannelModule_Delete_Context (void * channelContext) {
         UA_ByteString_deleteMembers (&cc->remoteSymEncryptingKey);
         UA_ByteString_deleteMembers (&cc->remoteSymIv);
 
-        UA_free (cc);
         UA_LOG_INFO (cc->policyContext->securityPolicy->logger, 
                  UA_LOGCATEGORY_SECURITYPOLICY, 
-                 "The basic256sha256 security policy channel with openssl is deleted.");        
+                 "The basic256sha256 security policy channel with openssl is deleted.");   
+        UA_free (cc);                      
     }
 }
 
@@ -526,13 +526,34 @@ UA_ChannelM_Basic256Sha256_compareCertificate (const void *channelContext,
     return UA_OpenSSL_X509_compare (certificate, cc->remoteCertificateX509);
 }
 
+static size_t 
+UA_SymEn_Basic256Sha256_getLocalPlainTextBlockSize (const UA_SecurityPolicy * securityPolicy,
+                                                    const void *              channelContext) {
+    return UA_SECURITYPOLICY_BASIC256SHA256_SYM_PLAIN_TEXT_BLOCK_SIZE;                                                        
+}
+
+static size_t 
+UA_AsymEn_Basic256Sha256_getLocalKeyLength (const UA_SecurityPolicy * securityPolicy,
+                                            const void *              channelContext) {
+    if (securityPolicy == NULL || channelContext == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    Policy_Context_Basic256Sha256 * pc = 
+               (Policy_Context_Basic256Sha256 *) securityPolicy->policyContext;
+    UA_Int32 keyLen;
+    UA_Openssl_RSA_Private_GetKeyLength (&pc->localPrivateKey, &keyLen);
+    UA_assert (keyLen == 256); /* 256 bytes 2048 bits */
+
+    return (size_t) keyLen * 8; 
+}
+
 /* the main entry of Basic256Sha256 */
 
 UA_StatusCode
-UA_SecurityPolicy_Basic256Sha256(UA_SecurityPolicy *policy,
-                                 UA_CertificateVerification *certificateVerification,
+UA_SecurityPolicy_Basic256Sha256(UA_SecurityPolicy * policy,
                                  const UA_ByteString localCertificate,
-                                 const UA_ByteString localPrivateKey, const UA_Logger *logger) {
+                                 const UA_ByteString localPrivateKey, 
+                                 const UA_Logger *   logger) {
 
     UA_SecurityPolicyAsymmetricModule * const asymmetricModule = &policy->asymmetricModule;
     UA_SecurityPolicySymmetricModule * const  symmetricModule = &policy->symmetricModule;
@@ -565,8 +586,6 @@ UA_SecurityPolicy_Basic256Sha256(UA_SecurityPolicy *policy,
     if (retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    policy->certificateVerification = certificateVerification;
-
     /* AsymmetricModule - signature algorithm */
 
     UA_SecurityPolicySignatureAlgorithm * asySigAlgorithm =
@@ -590,7 +609,7 @@ UA_SecurityPolicy_Basic256Sha256(UA_SecurityPolicy *policy,
     asymEncryAlg->getRemoteBlockSize = UA_AsymEn_Basic256Sha256_getRemoteBlockSize;
     asymEncryAlg->getRemoteKeyLength = UA_AsymEn_Basic256Sha256_getRemoteKeyLength;
     asymEncryAlg->encrypt = UA_AsymEn_Basic256Sha256_encrypt;
-    asymEncryAlg->getLocalKeyLength = NULL;
+    asymEncryAlg->getLocalKeyLength = UA_AsymEn_Basic256Sha256_getLocalKeyLength;
     asymEncryAlg->getLocalPlainTextBlockSize = NULL;
     asymEncryAlg->getLocalBlockSize = NULL;
 
@@ -616,6 +635,8 @@ UA_SecurityPolicy_Basic256Sha256(UA_SecurityPolicy *policy,
     symEncryptionAlgorithm->getRemoteBlockSize = UA_SymEn_Basic256Sha256_getRemoteBlockSize;
     symEncryptionAlgorithm->decrypt = UA_SymEn_Basic256Sha256_decrypt;
     symEncryptionAlgorithm->encrypt = UA_SymEn_Basic256Sha256_encrypt;
+    symEncryptionAlgorithm->getLocalPlainTextBlockSize = 
+                  UA_SymEn_Basic256Sha256_getLocalPlainTextBlockSize;
 
     /* Symmetric signature Algorithm */
 
