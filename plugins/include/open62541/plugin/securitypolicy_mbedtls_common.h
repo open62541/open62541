@@ -57,6 +57,12 @@ mbedtls_decrypt_rsaOaep(mbedtls_pk_context *localPrivateKey,
                         mbedtls_ctr_drbg_context *drbgContext,
                         UA_ByteString *data);
 
+void 
+mbedtls_log_error( const char *message, int err, const UA_Logger *logger, UA_LogCategory category );
+
+void 
+mbedtls_log_flags( const char *message, uint32_t flags, const UA_Logger *logger, UA_LogCategory category );
+
 _UA_END_DECLS
 
 #endif
