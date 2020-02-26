@@ -266,7 +266,7 @@ Operation_CallMethodAsync(UA_Server *server, UA_Session *session, UA_UInt32 requ
         opResult->statusCode =
             UA_AsyncManager_createAsyncResponse(&server->asyncManager, server,
                                                 &session->sessionId, requestId,
-                                                requestHandle, UA_ASYNCOPERATIONTYPE_CALL,
+                                                requestHandle, &UA_TYPES[UA_TYPES_CALLRESPONSE],
                                                 ar);
         if(opResult->statusCode != UA_STATUSCODE_GOOD)
             goto cleanup;
@@ -275,7 +275,9 @@ Operation_CallMethodAsync(UA_Server *server, UA_Session *session, UA_UInt32 requ
     /* Create the Async Request to be taken by workers */
     opResult->statusCode =
         UA_AsyncManager_createAsyncOp(&server->asyncManager,
-                                      server, *ar, opIndex, opRequest);
+                                      server, *ar, opIndex,
+                                      &UA_TYPES[UA_TYPES_CALLMETHODREQUEST], opRequest,
+                                      &UA_TYPES[UA_TYPES_CALLMETHODRESULT]);
 
  cleanup:
     /* Release the method and object node */
@@ -308,7 +310,8 @@ Service_CallAsync(UA_Server *server, UA_Session *session, UA_UInt32 requestId,
         if(ar->opCountdown > 0) {
             /* Move all results to the AsyncResponse. The async operation results
              * will be overwritten when the workers return results. */
-            ar->response.callResponse = *response;
+            UA_CallResponse *r = (UA_CallResponse *)ar->response;
+            *r = *response;
             UA_CallResponse_init(response);
             *finished = false;
         } else {

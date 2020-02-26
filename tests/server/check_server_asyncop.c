@@ -122,14 +122,15 @@ START_TEST(Async_call) {
     ck_assert_uint_eq(clientCounter, 1);
 
     /* Process the async method call for the server */
-    UA_AsyncOperationType aot;
-    const UA_AsyncOperationRequest *request;
+    const UA_DataType *asyncOpType;
+    const void *request;
     void *context;
-    UA_Boolean haveAsync = UA_Server_getAsyncOperation(server, &aot, &request, &context);
+    UA_Boolean haveAsync = UA_Server_getAsyncOperation(server, &asyncOpType, (const void**)&request, &context);
     ck_assert_uint_eq(haveAsync, true);
-    UA_AsyncOperationResponse response;
-    UA_CallMethodResult_init(&response.callMethodResult);
-    UA_Server_setAsyncOperationResult(server, &response, context);
+    ck_assert_ptr_eq(asyncOpType, &UA_TYPES[UA_TYPES_CALLMETHODREQUEST]);
+    UA_CallMethodResult result;
+    UA_CallMethodResult_init(&result);
+    UA_Server_setAsyncOperationResult(server, &result, context);
 
     /* Iterate and pick up the async response to be sent out */
     UA_fakeSleep(1000);
@@ -218,13 +219,13 @@ START_TEST(Async_timeout_worker) {
     UA_Server_run_iterate(server, true);
 
     /* Process the async method call for the server */
-    UA_AsyncOperationType aot;
-    const UA_AsyncOperationRequest *request;
+    const UA_DataType *asyncOpType;
+    const void *request;
     void *context;
-    UA_Boolean haveAsync = UA_Server_getAsyncOperation(server, &aot, &request, &context);
+    UA_Boolean haveAsync = UA_Server_getAsyncOperation(server, &asyncOpType, (const void**)&request, &context);
     ck_assert_uint_eq(haveAsync, true);
-    UA_AsyncOperationResponse response;
-    UA_CallMethodResult_init(&response.callMethodResult);
+    UA_CallMethodResult result;
+    UA_CallMethodResult_init(&result);
 
     /* Force a timeout */
     UA_fakeSleep(2500);
@@ -233,7 +234,7 @@ START_TEST(Async_timeout_worker) {
     ck_assert_uint_eq(clientCounter, 1);
 
     /* Return the late response */
-    UA_Server_setAsyncOperationResult(server, &response, context);
+    UA_Server_setAsyncOperationResult(server, &result, context);
 
     running = true;
     THREAD_CREATE(server_thread, serverloop);

@@ -11,10 +11,10 @@
 #if UA_MULTITHREADING >= 100
 
 static void
-UA_AsyncOperation_delete(UA_AsyncOperation *ar) {
-    UA_CallMethodRequest_clear(&ar->request);
-    UA_CallMethodResult_clear(&ar->response);
-    UA_free(ar);
+UA_AsyncOperation_delete(UA_AsyncOperation *ao) {
+    UA_delete(ao->request, ao->requestType);
+    UA_delete(ao->response, ao->responseType);
+    UA_free(ao);
 }
 
 static UA_StatusCode
@@ -41,10 +41,10 @@ UA_AsyncManager_sendAsyncResponse(UA_AsyncManager *am, UA_Server *server,
         goto clean_up;
     }
 
-    /* Okay, here we go, send the UA_CallResponse */
+    /* Okay, here we go, send the response */
     res = sendResponse(channel, ar->requestId, ar->requestHandle,
-                       (UA_ResponseHeader*)&ar->response.callResponse.responseHeader,
-                       &UA_TYPES[UA_TYPES_CALLRESPONSE]);
+                       (UA_ResponseHeader*)ar->response,
+                       ar->responseType);
     UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
                  "UA_Server_SendResponse: Response for Req# %" PRIu32 " sent", ar->requestId);
 
@@ -53,6 +53,13 @@ UA_AsyncManager_sendAsyncResponse(UA_AsyncManager *am, UA_Server *server,
     UA_AsyncManager_removeAsyncResponse(&server->asyncManager, ar);
     return res;
 }
+
+// All responses that have a result array should have the following layout
+typedef struct {
+    UA_ResponseHeader responseHeader;
+    size_t resultsSize;
+    UA_StatusCode *results;
+} UA_Response;
 
 /* Integrate operation result in the AsyncResponse and send out the response if
  * it is ready. */
@@ -69,9 +76,10 @@ integrateOperationResult(UA_AsyncManager *am, UA_Server *server,
                  "Return result in the server thread with %" PRIu32 " remaining",
                  ar->opCountdown);
 
-    /* Move the UA_CallMethodResult to UA_CallResponse */
-    ar->response.callResponse.results[ao->index] = ao->response;
-    UA_CallMethodResult_init(&ao->response);
+    /* Move the operation result to parent response */
+    UA_Response *response = (UA_Response *)ar->response;
+    memcpy(response->results + ao->index*ao->responseType->memSize, ao->response, ao->responseType->memSize);
+    UA_init(ao->response, ao->responseType);
 
     /* Are we done with all operations? */
     if(ar->opCountdown == 0)
@@ -92,7 +100,7 @@ processAsyncResults(UA_Server *server, void *data) {
         if(!ao)
             break;
         UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "UA_Server_CallMethodResponse: Got Response: OKAY");
+                     "Async response: Got Response: OKAY");
         integrateOperationResult(am, server, ao);
         UA_AsyncOperation_delete(ao);
         am->opsCount--;
@@ -119,7 +127,10 @@ checkTimeouts(UA_Server *server, void *_) {
             break;
 
         /* Mark as timed out and put it into the result queue */
-        op->response.statusCode = UA_STATUSCODE_BADTIMEOUT;
+        if(op->responseType == &UA_TYPES[UA_TYPES_CALLMETHODRESULT]) {
+            UA_CallMethodResult *r = (UA_CallMethodResult *)op->request;
+            r->statusCode = UA_STATUSCODE_BADTIMEOUT;
+        }
         TAILQ_REMOVE(&am->dispatchedQueue, op, pointers);
         TAILQ_INSERT_TAIL(&am->resultQueue, op, pointers);
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -133,7 +144,10 @@ checkTimeouts(UA_Server *server, void *_) {
             break;
 
         /* Mark as timed out and put it into the result queue */
-        op->response.statusCode = UA_STATUSCODE_BADTIMEOUT;
+        if(op->responseType == &UA_TYPES[UA_TYPES_CALLMETHODRESULT]) {
+            UA_CallMethodResult *r = (UA_CallMethodResult *)op->request;
+            r->statusCode = UA_STATUSCODE_BADTIMEOUT;
+        }
         TAILQ_REMOVE(&am->newQueue, op, pointers);
         TAILQ_INSERT_TAIL(&am->resultQueue, op, pointers);
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -197,7 +211,7 @@ UA_StatusCode
 UA_AsyncManager_createAsyncResponse(UA_AsyncManager *am, UA_Server *server,
                                     const UA_NodeId *sessionId,
                                     const UA_UInt32 requestId, const UA_UInt32 requestHandle,
-                                    const UA_AsyncOperationType operationType,
+                                    const UA_DataType *responseType,
                                     UA_AsyncResponse **outAr) {
     UA_AsyncResponse *newentry = (UA_AsyncResponse*)UA_calloc(1, sizeof(UA_AsyncResponse));
     if(!newentry)
@@ -210,6 +224,8 @@ UA_AsyncManager_createAsyncResponse(UA_AsyncManager *am, UA_Server *server,
     }
 
     am->asyncResponsesCount += 1;
+    newentry->responseType = responseType;
+    newentry->response = UA_new(responseType);
     newentry->requestId = requestId;
     newentry->requestHandle = requestHandle;
     newentry->timeout = UA_DateTime_now();
@@ -227,7 +243,7 @@ void
 UA_AsyncManager_removeAsyncResponse(UA_AsyncManager *am, UA_AsyncResponse *ar) {
     TAILQ_REMOVE(&am->asyncResponses, ar, pointers);
     am->asyncResponsesCount -= 1;
-    UA_CallResponse_clear(&ar->response.callResponse);
+    UA_delete(ar->response, ar->responseType);
     UA_NodeId_clear(&ar->sessionId);
     UA_free(ar);
 }
@@ -236,7 +252,9 @@ UA_AsyncManager_removeAsyncResponse(UA_AsyncManager *am, UA_AsyncResponse *ar) {
 UA_StatusCode
 UA_AsyncManager_createAsyncOp(UA_AsyncManager *am, UA_Server *server,
                               UA_AsyncResponse *ar, size_t opIndex,
-                              const UA_CallMethodRequest *opRequest) {
+                              const UA_DataType *opRequestType,
+                              const void *opRequest,
+                              const UA_DataType *opResponseType) {
     if(server->config.maxAsyncOperationQueueSize != 0 &&
        am->opsCount >= server->config.maxAsyncOperationQueueSize) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -252,15 +270,17 @@ UA_AsyncManager_createAsyncOp(UA_AsyncManager *am, UA_Server *server,
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
-    UA_StatusCode result = UA_CallMethodRequest_copy(opRequest, &ao->request);
-    if(result != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "UA_Server_SetAsyncMethodResult: UA_CallMethodRequest_copy failed.");                
+    ao->requestType = opRequestType;
+    ao->request = UA_new(opRequestType);
+    ao->responseType = opResponseType;
+    ao->response = UA_new(opResponseType);
+    UA_StatusCode result = UA_copy(opRequest, ao->request, opRequestType);
+    if(result != UA_STATUSCODE_GOOD) {              
         UA_free(ao);
         return result;
     }
 
-    UA_CallMethodResult_init(&ao->response);
+    UA_init(ao->response, opResponseType);
     ao->index = opIndex;
     ao->parent = ar;
 
@@ -276,22 +296,22 @@ UA_AsyncManager_createAsyncOp(UA_AsyncManager *am, UA_Server *server,
     return UA_STATUSCODE_GOOD;
 }
 
-/* Get and remove next Method Call Request */
+/* Get and remove next async request */
 UA_Boolean
-UA_Server_getAsyncOperationNonBlocking(UA_Server *server, UA_AsyncOperationType *type,
-                                       const UA_AsyncOperationRequest **request,
+UA_Server_getAsyncOperationNonBlocking(UA_Server *server, const UA_DataType **type,
+                                       const void **request,
                                        void **context, UA_DateTime *timeout) {
     UA_AsyncManager *am = &server->asyncManager;
 
     UA_Boolean bRV = false;
-    *type = UA_ASYNCOPERATIONTYPE_INVALID;
+    *type = NULL;
     UA_LOCK(am->queueLock);
     UA_AsyncOperation *ao = TAILQ_FIRST(&am->newQueue);
     if(ao) {
         TAILQ_REMOVE(&am->newQueue, ao, pointers);
         TAILQ_INSERT_TAIL(&am->dispatchedQueue, ao, pointers);
-        *type = UA_ASYNCOPERATIONTYPE_CALL;
-        *request = (UA_AsyncOperationRequest*)&ao->request;
+        *type = ao->requestType;
+        *request = (void*)ao->request;
         *context = (void*)ao;
         if(timeout)
             *timeout = ao->parent->timeout;
@@ -303,26 +323,22 @@ UA_Server_getAsyncOperationNonBlocking(UA_Server *server, UA_AsyncOperationType 
 }
 
 UA_Boolean
-UA_Server_getAsyncOperation(UA_Server *server, UA_AsyncOperationType *type,
-                            const UA_AsyncOperationRequest **request,
+UA_Server_getAsyncOperation(UA_Server *server, const UA_DataType **requestType,
+                            const void **request,
                             void **context) {
-    return UA_Server_getAsyncOperationNonBlocking(server, type, request, context, NULL);
+    return UA_Server_getAsyncOperationNonBlocking(server, requestType, request, context, NULL);
 }
 
-/* Worker submits Method Call Response */
-void
+/* Worker submits async response */
+UA_StatusCode
 UA_Server_setAsyncOperationResult(UA_Server *server,
-                                  const UA_AsyncOperationResponse *response,
+                                  const void *response,
                                   void *context) {
     UA_AsyncManager *am = &server->asyncManager;
 
     UA_AsyncOperation *ao = (UA_AsyncOperation*)context;
-    if(!ao) {
-        /* Something went wrong. Not a good AsyncOp. */
-        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "UA_Server_SetAsyncMethodResult: Invalid context");
-        return;
-    }
+    if(!ao)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     UA_LOCK(am->queueLock);
 
@@ -341,19 +357,16 @@ UA_Server_setAsyncOperationResult(UA_Server *server,
     }
 
     if(!found) {
-        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "UA_Server_SetAsyncMethodResult: The operation has timed out");
         UA_UNLOCK(am->queueLock);
-        return;
+        return UA_STATUSCODE_BADNOTFOUND;
     }
 
     /* Copy the result into the internal AsyncOperation */
     UA_StatusCode result =
-        UA_CallMethodResult_copy(&response->callMethodResult, &ao->response);
+        UA_copy(response, ao->response, ao->responseType);
     if(result != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "UA_Server_SetAsyncMethodResult: UA_CallMethodResult_copy failed.");
-        ao->response.statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
+        UA_UNLOCK(am->queueLock);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
     /* Move to the result queue */
@@ -364,6 +377,8 @@ UA_Server_setAsyncOperationResult(UA_Server *server,
 
     UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
                  "Set the result from the worker thread");
+
+    return UA_STATUSCODE_GOOD;
 }
 
 /******************/

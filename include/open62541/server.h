@@ -1508,25 +1508,6 @@ UA_StatusCode UA_EXPORT
 UA_Server_setMethodNodeAsync(UA_Server *server, const UA_NodeId id,
                              UA_Boolean isAsync);
 
-typedef enum {
-    UA_ASYNCOPERATIONTYPE_INVALID, /* 0, the default */
-    UA_ASYNCOPERATIONTYPE_CALL
-    /* UA_ASYNCOPERATIONTYPE_READ, */
-    /* UA_ASYNCOPERATIONTYPE_WRITE, */
-} UA_AsyncOperationType;
-
-typedef union {
-    UA_CallMethodRequest callMethodRequest;
-    /* UA_ReadValueId readValueId; */
-    /* UA_WriteValue writeValue; */
-} UA_AsyncOperationRequest;
-
-typedef union {
-    UA_CallMethodResult callMethodResult;
-    /* UA_DataValue readResult; */
-    /* UA_StatusCode writeResult; */
-} UA_AsyncOperationResponse;
-
 /* Get the next async operation without blocking
  *
  * @param server The server object
@@ -1538,8 +1519,8 @@ typedef union {
  *        be set in UA_Server_setAsyncOperationResult in any case.
  * @return false if queue is empty, true else */
 UA_Boolean UA_EXPORT
-UA_Server_getAsyncOperationNonBlocking(UA_Server *server, UA_AsyncOperationType *type,
-                                       const UA_AsyncOperationRequest **request,
+UA_Server_getAsyncOperationNonBlocking(UA_Server *server, const UA_DataType **requestType,
+                                       const void **request,
                                        void **context, UA_DateTime *timeout);
 
 /* UA_Boolean UA_EXPORT */
@@ -1552,16 +1533,16 @@ UA_Server_getAsyncOperationNonBlocking(UA_Server *server, UA_AsyncOperationType 
  * @param server The server object
  * @param response Pointer to the operation result
  * @param context Pointer to the operation context */
-void UA_EXPORT
+UA_StatusCode UA_EXPORT
 UA_Server_setAsyncOperationResult(UA_Server *server,
-                                  const UA_AsyncOperationResponse *response,
+                                  const void *response,
                                   void *context);
 
 /* Get the next async operation. Attention! This method is deprecated and has
  * been replaced by UA_Server_getAsyncOperationNonBlocking! */
 UA_DEPRECATED UA_Boolean UA_EXPORT
-UA_Server_getAsyncOperation(UA_Server *server, UA_AsyncOperationType *type,
-                            const UA_AsyncOperationRequest **request,
+UA_Server_getAsyncOperation(UA_Server *server, const UA_DataType **requestType,
+                            const void **request,
                             void **context);
 
 #endif /* !UA_MULTITHREADING >= 100 */

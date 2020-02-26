@@ -178,16 +178,20 @@ THREAD_CALLBACK(ThreadWorker) {
     while(running) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                     "Try to dequeue an async operation");
-        const UA_AsyncOperationRequest* request = NULL;
+        const UA_CallMethodRequest *request = NULL;
         void *context = NULL;
-        UA_AsyncOperationType type;
-        if(UA_Server_getAsyncOperationNonBlocking(globalServer, &type, &request, &context, NULL) == true) {
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "AsyncMethod_Testing: Got entry: OKAY");
-            UA_CallMethodResult response = UA_Server_call(globalServer, &request->callMethodRequest);
-            UA_Server_setAsyncOperationResult(globalServer, (UA_AsyncOperationResponse*)&response,
-                                              context);
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "AsyncMethod_Testing: Call done: OKAY");
-            UA_CallMethodResult_clear(&response);
+        const UA_DataType *type;
+        if(UA_Server_getAsyncOperationNonBlocking(globalServer, &type, (const void**)&request, &context, NULL) == true) {
+            if (type == &UA_TYPES[UA_TYPES_CALLMETHODREQUEST]) {
+                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "AsyncMethod_Testing: Got entry: OKAY");
+                UA_CallMethodResult response = UA_Server_call(globalServer, request);
+                UA_Server_setAsyncOperationResult(globalServer, &response,
+                                                  context);
+                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "AsyncMethod_Testing: Call done: OKAY");
+                UA_CallMethodResult_clear(&response);
+            } else {
+                UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "AsyncMethod_Testing: Not supported");
+            }
         } else {
             /* not a good style, but done for simplicity :-) */
             Sleep(5000);
