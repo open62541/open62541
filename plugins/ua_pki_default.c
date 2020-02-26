@@ -9,6 +9,7 @@
 #include <open62541/server_config.h>
 #include <open62541/plugin/pki_default.h>
 #include <open62541/plugin/log_stdout.h>
+#include <open62541/plugin/securitypolicy_mbedtls_common.h>
 
 #ifdef UA_ENABLE_ENCRYPTION
 #include <mbedtls/x509.h>
@@ -231,6 +232,7 @@ certificateVerification_verify(void *verificationContext,
     int mbedErr = mbedtls_x509_crt_parse(&remoteCertificate, certificate->data,
                                          certificate->length);
     if(mbedErr) {
+        mbedtls_log_error( "mbedtls_x509_crt_parse(remoteCertificate)", mbedErr, UA_Log_Stdout, UA_LOGCATEGORY_SECURITYPOLICY); 
         /* char errBuff[300]; */
         /* mbedtls_strerror(mbedErr, errBuff, 300); */
         /* UA_LOG_WARNING(data->policyContext->securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY, */
@@ -245,14 +247,17 @@ certificateVerification_verify(void *verificationContext,
     }; // TODO: remove magic numbers
 
     uint32_t flags = 0;
+    /* This only checks against a self signed certificate 
+       how about a CA? */
     mbedErr = mbedtls_x509_crt_verify_with_profile(&remoteCertificate,
                                                    &ci->certificateTrustList,
                                                    &ci->certificateRevocationList,
                                                    &crtProfile, NULL, &flags, NULL, NULL);
+    mbedtls_log_error( "mbedtls_x509_crt_verify_with_profile failed with certificateTrustList", mbedErr, UA_Log_Stdout, UA_LOGCATEGORY_SECURITYPOLICY); 
+    mbedtls_log_flags( "mbedtls_x509_crt_verify_with_profile flags", flags, UA_Log_Stdout, UA_LOGCATEGORY_SECURITYPOLICY); 
 
     /* Flag to check if the remote certificate is trusted or not */
     int TRUSTED = 0;
-
     /* Check if the remoteCertificate is present in the trustList while mbedErr value is not zero */
     if(mbedErr && !(flags & MBEDTLS_X509_BADCERT_EXPIRED) && !(flags & MBEDTLS_X509_BADCERT_FUTURE)) {
         for(tempCert = &ci->certificateTrustList; tempCert != NULL; tempCert = tempCert->next) {
@@ -271,6 +276,9 @@ certificateVerification_verify(void *verificationContext,
                                                        &ci->certificateIssuerList,
                                                        &ci->certificateRevocationList,
                                                        &crtProfile, NULL, &flags, NULL, NULL);
+    mbedtls_log_error( "mbedtls_x509_crt_verify_with_profile", mbedErr, UA_Log_Stdout, UA_LOGCATEGORY_SECURITYPOLICY); 
+
+/* if mbedErr then mbedtls_x509_crt_verify_with_profile failed on both certificateTrustList and certificateIssuerList */
 
         /* Check if the parent certificate has a CRL file available */
         if(!mbedErr) {
@@ -390,6 +398,8 @@ certificateVerification_verify(void *verificationContext,
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(mbedErr) {
+        mbedtls_log_error( "certificateVerification_verify", mbedErr, UA_Log_Stdout, UA_LOGCATEGORY_SECURITYPOLICY); 
+        mbedtls_log_flags( "certificateVerification_verify", flags, UA_Log_Stdout, UA_LOGCATEGORY_SECURITYPOLICY); 
         /* char buff[100]; */
         /* mbedtls_x509_crt_verify_info(buff, 100, "", flags); */
         /* UA_LOG_ERROR(channelContextData->policyContext->securityPolicy->logger, */
@@ -530,7 +540,7 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification *cv,
     int err = 0;
     for(size_t i = 0; i < certificateTrustListSize; i++) {
         #if UA_LOGLEVEL <= 100
-            tlsdebug = "mbedtls_x509_crt_parse";
+            tlsdebug = "certificateTrustList mbedtls_x509_crt_parse";
         #endif
         err = mbedtls_x509_crt_parse(&ci->certificateTrustList,
                                      certificateTrustList[i].data,
@@ -540,7 +550,7 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification *cv,
     }
     for(size_t i = 0; i < certificateIssuerListSize; i++) {
         #if UA_LOGLEVEL <= 100
-            tlsdebug = "mbedtls_x509_crt_parse";
+            tlsdebug = "certificateIssuer mbedtls_x509_crt_parse";
         #endif
         err = mbedtls_x509_crt_parse(&ci->certificateIssuerList,
                                      certificateIssuerList[i].data,
@@ -562,12 +572,7 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification *cv,
     return UA_STATUSCODE_GOOD;
 error:
     #if UA_LOGLEVEL <= 100
-    {
-        char errBuff[300];
-        mbedtls_strerror(err, errBuff, 300);
-        UA_LOG_DEBUG(UA_Log_Stdout, UA_LOGCATEGORY_SECURITYPOLICY,
-                 "%s error: %d, %s", tlsdebug, err, errBuff);
-    }
+        mbedtls_log_error( tlsdebug, err, UA_Log_Stdout, UA_LOGCATEGORY_SECURITYPOLICY); 
     #endif
     certificateVerification_deleteMembers(cv);
     return UA_STATUSCODE_BADINTERNALERROR;
