@@ -170,11 +170,11 @@ UA_AsyncManager_clear(UA_AsyncManager *am, UA_Server *server) {
     /* Clean up queues */
     UA_LOCK(am->queueLock);
     while((ar = TAILQ_FIRST(&am->newQueue))) {
-        TAILQ_REMOVE(&am->resultQueue, ar, pointers);
+        TAILQ_REMOVE(&am->newQueue, ar, pointers);
         UA_AsyncOperation_delete(ar);
     }
     while((ar = TAILQ_FIRST(&am->dispatchedQueue))) {
-        TAILQ_REMOVE(&am->resultQueue, ar, pointers);
+        TAILQ_REMOVE(&am->dispatchedQueue, ar, pointers);
         UA_AsyncOperation_delete(ar);
     }
     while((ar = TAILQ_FIRST(&am->resultQueue))) {
