@@ -196,11 +196,6 @@ UA_Client_getEndpointsInternal(UA_Client *client, const UA_String endpointUrl,
 UA_Boolean
 endpointUnconfigured(UA_Client *client);
 
-/* Receive and process messages until a synchronous message arrives or the
- * timout finishes */
-UA_StatusCode
-receivePacketAsync(UA_Client *client);
-
 UA_StatusCode
 createSessionAsync(UA_Client *client);
 
@@ -224,9 +219,9 @@ UA_StatusCode
 receiveResponse(UA_Client *client, void *response,
                 const UA_DataType *responseType, UA_UInt32 timeout,
                 const UA_UInt32 *synchronousRequestId);
+
 UA_StatusCode
-receiveServiceResponseAsync(UA_Client *client, void *response,
-                             const UA_DataType *responseType);
+receiveResponseAsync(UA_Client *client);
 
 UA_StatusCode
 UA_Client_connect_iterate (UA_Client *client);
