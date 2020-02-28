@@ -61,6 +61,8 @@ processACKResponse(void *application, UA_SecureChannel *channel,
                      UA_StatusCode_name(retval));
         UA_Client_disconnect(client);
     }
+
+    channel->state = UA_SECURECHANNELSTATE_ACK_RECEIVED;
 }
 
 static UA_StatusCode
@@ -108,6 +110,8 @@ HelAckHandshake(UA_Client *client, const UA_String endpointUrl) {
                      "Sending HEL failed");
         return retval;
     }
+
+    client->channel.state = UA_SECURECHANNELSTATE_HEL_SENT;
     UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_NETWORK,
                  "Sent HEL message");
 
@@ -183,6 +187,7 @@ openSecureChannel(UA_Client *client, UA_Boolean renew) {
         return retval;
     }
 
+    client->channel.state = UA_SECURECHANNELSTATE_OPN_SENT;
     UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "OPN message sent");
 
     /* Increase nextChannelRenewal to avoid that we re-start renewal when

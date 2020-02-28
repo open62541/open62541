@@ -233,6 +233,7 @@ processACKResponseAsync(void *application, UA_SecureChannel *channel,
 
     /* Open a SecureChannel. TODO: Select with endpoint  */
     client->channel.connection = &client->connection;
+    client->channel.state = UA_SECURECHANNELSTATE_ACK_RECEIVED;
     sendOPNAsync(client);
 }
 
@@ -274,6 +275,7 @@ sendHELMessage(UA_Client *client) {
     retval = conn->send (conn, &message);
 
     if(retval == UA_STATUSCODE_GOOD) {
+        client->channel.state = UA_SECURECHANNELSTATE_HEL_SENT;
         UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_NETWORK, "Sent HEL message");
     } else {
         UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_NETWORK, "Sending HEL failed");
@@ -454,6 +456,7 @@ sendOPNAsync(UA_Client *client) {
         return;
     }
 
+    client->channel.state = UA_SECURECHANNELSTATE_OPN_SENT;
     UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                  "OPN message sent");
 }
