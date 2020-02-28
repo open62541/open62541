@@ -26,7 +26,7 @@ UA_SecurityPolicy_Basic256(UA_SecurityPolicy *policy,
                            const UA_ByteString localPrivateKey, const UA_Logger *logger) {
     policy->policyUri = UA_STRING("Obsolete, not supported\0");  
     policy->clear = UA_Policy_Clear_Context;    
-    return UA_STATUSCODE_GOOD;
+    return UA_STATUSCODE_BADNOTSUPPORTED;
 }
 
 #endif
