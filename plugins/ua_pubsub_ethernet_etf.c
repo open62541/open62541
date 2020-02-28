@@ -2,12 +2,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- *   Copyright 2018 (c) Kontron Europe GmbH (Author: Rudolf Hoyler)
- *   Copyright 2019 (c) Wind River Systems, Inc.
+ *   Copyright (c) 2019-2020 Kalycito Infotech Private Limited
  */
 
 #include <open62541/plugin/log_stdout.h>
-#include <open62541/plugin/pubsub_ethernet.h>
+#include <open62541/plugin/pubsub_ethernet_etf.h>
 #include <open62541/util.h>
 
 #if defined(__vxworks) || defined(__VXWORKS__)
@@ -18,10 +17,31 @@
 #include <linux/if_packet.h>
 #include <netinet/ether.h>
 #endif
+#include "poll.h"
+#include "linux/errqueue.h"
+#include "time.h"
 
 #ifndef ETHERTYPE_UADP
 #define ETHERTYPE_UADP 0xb62c
 #endif
+
+#define SOCKET_PRIORITY 3
+#define SHIFT_32BITS    32
+
+#ifndef SOCKET_TRANSMISSION_TIME
+#define SOCKET_TRANSMISSION_TIME                        61
+#ifndef SCM_TXTIME
+#define SCM_TXTIME                                      SOCKET_TRANSMISSION_TIME
+#endif
+#endif
+
+#ifndef SOCKET_EE_ORIGIN_TRANSMISSION_TIME
+#define SOCKET_EE_ORIGIN_TRANSMISSION_TIME              6
+#define SOCKET_EE_CODE_TRANSMISSION_TIME_INVALID_PARAM  1
+#define SOCKET_EE_CODE_TRANSMISSION_TIME_MISSED         2
+#endif
+
+#define TIMEOUT_REALTIME                                1
 
 /* Ethernet network layer specific internal data */
 typedef struct {
@@ -31,6 +51,11 @@ typedef struct {
     UA_Byte ifAddress[ETH_ALEN];
     UA_Byte targetAddress[ETH_ALEN];
 } UA_PubSubChannelDataEthernet;
+
+typedef struct {
+    clockid_t clockIdentity;
+    uint16_t flags;
+} socket_transmission_time;
 
 /*
  * OPC-UA specification Part 14:
@@ -78,7 +103,7 @@ UA_parseHardwareAddress(UA_String* target, UA_Byte* destinationMac) {
  * @return ref to created channel, NULL on error
  */
 static UA_PubSubChannel *
-UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig) {
+UA_PubSubChannelEthernetETF_open(const UA_PubSubConnectionConfig *connectionConfig) {
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                 "Open PubSub ethernet connection.");
@@ -160,8 +185,10 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
     /* get interface index */
     struct ifreq ifreq;
     memset(&ifreq, 0, sizeof(struct ifreq));
-    strncpy(ifreq.ifr_name, (char*)address->networkInterface.data,
-            UA_MIN(address->networkInterface.length, sizeof(ifreq.ifr_name)-1));
+    UA_UInt64 len = UA_MIN(address->networkInterface.length, sizeof(ifreq.ifr_name)-1);
+    UA_snprintf(ifreq.ifr_name, sizeof(struct ifreq),
+                "%.*s", (int)len,
+                (char*)address->networkInterface.data);
 
     if(ioctl(sockFd, SIOCGIFINDEX, &ifreq) < 0) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
@@ -203,6 +230,24 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
         return NULL;
     }
 
+    UA_Int32 soPriority        = SOCKET_PRIORITY;
+    /* TODO: Set SO_PRIORITY through command line argument from application instead of hardcoding */
+    if (setsockopt(sockFd, SOL_SOCKET, SO_PRIORITY, &soPriority, sizeof(int))) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "setsockopt SO_PRIORITY failed");
+    }
+
+    socket_transmission_time *sk_txtime;
+    sk_txtime = (socket_transmission_time *)UA_malloc(sizeof(socket_transmission_time));
+    clockid_t clockId          = CLOCK_TAI;
+    /* TTS - changes done for time triggered send usage  */
+    sk_txtime->clockIdentity   = clockId;
+    /* Flag to use deadline mode or receive error mode */
+    sk_txtime->flags           = 0;
+    if (setsockopt(sockFd, SOL_SOCKET, SOCKET_TRANSMISSION_TIME, sk_txtime, sizeof(sk_txtime))) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "setsockopt SOCKET_TRANSMISSION_TIME failed");
+    }
+    UA_free(sk_txtime);
+
     newChannel->handle = channelDataEthernet;
     newChannel->state = UA_PUBSUB_CHANNEL_PUB;
 
@@ -232,7 +277,7 @@ is_multicast_address(const UA_Byte *address) {
  * @return UA_STATUSCODE_GOOD on success
  */
 static UA_StatusCode
-UA_PubSubChannelEthernet_regist(UA_PubSubChannel *channel,
+UA_PubSubChannelEthernetETF_regist(UA_PubSubChannel *channel,
                                 UA_ExtensionObject *transportSettings,
                                 void (*notUsedHere)(UA_ByteString *encodedBuffer, UA_ByteString *topic)) {
     UA_PubSubChannelDataEthernet *channelDataEthernet =
@@ -261,7 +306,7 @@ UA_PubSubChannelEthernet_regist(UA_PubSubChannel *channel,
  * @return UA_STATUSCODE_GOOD on success
  */
 static UA_StatusCode
-UA_PubSubChannelEthernet_unregist(UA_PubSubChannel *channel,
+UA_PubSubChannelEthernetETF_unregist(UA_PubSubChannel *channel,
                                   UA_ExtensionObject *transportSettings) {
     UA_PubSubChannelDataEthernet *channelDataEthernet =
         (UA_PubSubChannelDataEthernet *) channel->handle;
@@ -276,8 +321,76 @@ UA_PubSubChannelEthernet_unregist(UA_PubSubChannel *channel,
     mreq.mr_alen = ETH_ALEN;
     memcpy(mreq.mr_address, channelDataEthernet->targetAddress, ETH_ALEN);
 
-    if(UA_setsockopt(channel->sockfd, SOL_PACKET, PACKET_DROP_MEMBERSHIP, (char*) &mreq, sizeof(mreq) < 0)) {
+    if(UA_setsockopt(channel->sockfd, SOL_PACKET, PACKET_DROP_MEMBERSHIP, (char*) &mreq, sizeof(mreq)) < 0) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub Connection regist failed.");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+sendWithTxTime(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings, void *bufSend, size_t lenBuf) {
+    UA_UInt64     transmission_time;
+    UA_Boolean    txTimeEnable;
+    /* Send the data packet with the tx time */
+    char dataPacket[CMSG_SPACE(sizeof(transmission_time))] = {0};
+    /* Structure for messages sent and received */
+    struct msghdr message;
+    /* Structure for scattering or gathering of input/output */
+    struct iovec  inputOutputVec;
+    ssize_t       msgCount;
+
+    UA_PubSubChannelDataEthernet *channelDataEthernet =
+        (UA_PubSubChannelDataEthernet *) channel->handle;
+
+    /* Structure for socket internet address */
+    struct sockaddr_ll socketAddress = { 0 };
+
+    socketAddress.sll_family   = AF_PACKET;
+    socketAddress.sll_ifindex  = channelDataEthernet->ifindex;
+    socketAddress.sll_protocol = htons(ETHERTYPE_UADP);
+
+    inputOutputVec.iov_base   = bufSend;
+    inputOutputVec.iov_len    = lenBuf;
+
+    memset(&message, 0, sizeof(message));
+    /* Provide message name / optional address */
+    message.msg_name          = &socketAddress;
+    /* Provide message address size in bytes */
+    message.msg_namelen       = sizeof(socketAddress);
+    /* Provide array of input/output buffers */
+    message.msg_iov           = &inputOutputVec;
+    /* Provide the number of elements in the array */
+    message.msg_iovlen        = 1;
+
+    /* Get ethernet ETF transport settings */
+    UA_EthernetETFWriterGroupTransportDataType *ethernetETFtransportSettings;
+    ethernetETFtransportSettings = (UA_EthernetETFWriterGroupTransportDataType *)transportSettings->content.decoded.data;
+    transmission_time = ethernetETFtransportSettings->transmission_time;
+    txTimeEnable = ethernetETFtransportSettings->txtime_enabled;
+
+    /*
+     * We specify the transmission time in the CMSG.
+     */
+    if (txTimeEnable) {
+        /* Provide the necessary data */
+        message.msg_control    = dataPacket;
+        /* Provide the size of necessary bytes */
+        message.msg_controllen = sizeof(dataPacket);
+        /* Structure for storing the necessary data */
+        struct cmsghdr*       controlMsg;
+        /* Control message created for tx time */
+        controlMsg                         = CMSG_FIRSTHDR(&message);
+        controlMsg->cmsg_level             = SOL_SOCKET;
+        controlMsg->cmsg_type              = SCM_TXTIME;
+        controlMsg->cmsg_len               = CMSG_LEN(sizeof(__u64));
+        *((__u64 *) CMSG_DATA(controlMsg)) = transmission_time;
+    }
+
+    msgCount = sendmsg(channel->sockfd, &message, 0);
+    if ((msgCount < 1) && (msgCount != (UA_Int32)lenBuf)) {
+        printf("sendmessage failed");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -290,9 +403,9 @@ UA_PubSubChannelEthernet_unregist(UA_PubSubChannel *channel,
  * @return UA_STATUSCODE_GOOD if success
  */
 static UA_StatusCode
-UA_PubSubChannelEthernet_send(UA_PubSubChannel *channel,
-                              UA_ExtensionObject *transportSettings,
-                              const UA_ByteString *buf) {
+UA_PubSubChannelEthernetETF_send(UA_PubSubChannel *channel,
+                                 UA_ExtensionObject *transportSettings,
+                                 const UA_ByteString *buf) {
     UA_PubSubChannelDataEthernet *channelDataEthernet =
         (UA_PubSubChannelDataEthernet *) channel->handle;
 
@@ -334,7 +447,8 @@ UA_PubSubChannelEthernet_send(UA_PubSubChannel *channel,
     memcpy(ptrCur, buf->data, buf->length);
 
     ssize_t rc;
-    rc = UA_send(channel->sockfd, bufSend, lenBuf, 0);
+ //   rc = UA_send(channel->sockfd, bufSend, lenBuf, 0);
+    rc = sendWithTxTime(channel, transportSettings, bufSend, lenBuf);
     if(rc  < 0) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
             "PubSub connection send failed. Send message failed.");
@@ -353,7 +467,7 @@ UA_PubSubChannelEthernet_send(UA_PubSubChannel *channel,
  * @return
  */
 static UA_StatusCode
-UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_ByteString *message,
+UA_PubSubChannelEthernetETF_receive(UA_PubSubChannel *channel, UA_ByteString *message,
                                  UA_ExtensionObject *transportSettings, UA_UInt32 timeout) {
     UA_PubSubChannelDataEthernet *channelDataEthernet =
         (UA_PubSubChannelDataEthernet *) channel->handle;
@@ -370,6 +484,12 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_ByteString *messa
     msg.msg_iov = iov;
     msg.msg_iovlen = 2;
     msg.msg_controllen = 0;
+
+    /* TODO: timeout from receive API should be configurable.
+     * The parameter should be inside the channel or transport settings.
+     * For now, timeout value set to 1us as we run in a lower cycle time of 100us
+     */
+    timeout = TIMEOUT_REALTIME;
 
     /* Sleep in a select call if a timeout was set */
     if(timeout > 0) {
@@ -420,7 +540,7 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_ByteString *messa
  * @return UA_STATUSCODE_GOOD if success
  */
 static UA_StatusCode
-UA_PubSubChannelEthernet_close(UA_PubSubChannel *channel) {
+UA_PubSubChannelEthernetETF_close(UA_PubSubChannel *channel) {
     UA_close(channel->sockfd);
     UA_free(channel->handle);
     UA_free(channel);
@@ -434,25 +554,25 @@ UA_PubSubChannelEthernet_close(UA_PubSubChannel *channel) {
  * @return  ref to created channel, NULL on error
  */
 static UA_PubSubChannel *
-TransportLayerEthernet_addChannel(UA_PubSubConnectionConfig *connectionConfig) {
+TransportLayerEthernetETF_addChannel(UA_PubSubConnectionConfig *connectionConfig) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "PubSub channel requested");
-    UA_PubSubChannel * pubSubChannel = UA_PubSubChannelEthernet_open(connectionConfig);
+    UA_PubSubChannel * pubSubChannel = UA_PubSubChannelEthernetETF_open(connectionConfig);
     if(pubSubChannel) {
-        pubSubChannel->regist = UA_PubSubChannelEthernet_regist;
-        pubSubChannel->unregist = UA_PubSubChannelEthernet_unregist;
-        pubSubChannel->send = UA_PubSubChannelEthernet_send;
-        pubSubChannel->receive = UA_PubSubChannelEthernet_receive;
-        pubSubChannel->close = UA_PubSubChannelEthernet_close;
+        pubSubChannel->regist = UA_PubSubChannelEthernetETF_regist;
+        pubSubChannel->unregist = UA_PubSubChannelEthernetETF_unregist;
+        pubSubChannel->send = UA_PubSubChannelEthernetETF_send;
+        pubSubChannel->receive = UA_PubSubChannelEthernetETF_receive;
+        pubSubChannel->close = UA_PubSubChannelEthernetETF_close;
         pubSubChannel->connectionConfig = connectionConfig;
     }
     return pubSubChannel;
 }
 
 UA_PubSubTransportLayer
-UA_PubSubTransportLayerEthernet() {
+UA_PubSubTransportLayerEthernetETF() {
     UA_PubSubTransportLayer pubSubTransportLayer;
     pubSubTransportLayer.transportProfileUri =
         UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp");
-    pubSubTransportLayer.createPubSubChannel = &TransportLayerEthernet_addChannel;
+    pubSubTransportLayer.createPubSubChannel = &TransportLayerEthernetETF_addChannel;
     return pubSubTransportLayer;
 }
