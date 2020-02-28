@@ -537,7 +537,7 @@ UA_OpenSSL_AES_CBC_Decrypt (const UA_ByteString * iv,
     UA_ByteString    ivCopy    = {0, NULL};
     UA_ByteString    cipherTxt = {0, NULL};
     EVP_CIPHER_CTX * ctx       = NULL;
-    UA_StatusCode    ret       = UA_STATUSCODE_GOOD;  
+    UA_StatusCode    ret;  
     int              opensslRet;
     int              outLen;
     int              tmpLen;
@@ -605,7 +605,7 @@ UA_OpenSSL_AES_CBC_Encrypt (const UA_ByteString * iv,
     UA_ByteString    ivCopy   = {0, NULL};
     UA_ByteString    plainTxt = {0, NULL};
     EVP_CIPHER_CTX * ctx      = NULL;
-    UA_StatusCode    ret      = UA_STATUSCODE_GOOD;  
+    UA_StatusCode    ret;  
     int              opensslRet;
     int              outLen;
     int              tmpLen;
