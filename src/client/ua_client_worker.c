@@ -118,19 +118,11 @@ UA_StatusCode UA_Client_run_iterate(UA_Client *client, UA_UInt16 timeout) {
         if(retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
             retval = UA_STATUSCODE_GOOD;
     } else {
-
-        UA_ClientState cs = UA_Client_getState(client);
         retval = UA_Client_connect_iterate(client);
-
-        /* Connection failed, drop the rest */
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
-        if((cs == UA_CLIENTSTATE_SECURECHANNEL) || (cs == UA_CLIENTSTATE_SESSION)) {
-            /* Check for new data */
-            retval = receiveServiceResponseAsync(client, NULL, NULL);
-        } else {
-            retval = receivePacketAsync(client);
-        }
+        /* Check for new data */
+        retval = receiveResponseAsync(client);
     }
 #ifdef UA_ENABLE_SUBSCRIPTIONS
         /* The inactivity check must be done after receiveServiceResponse*/

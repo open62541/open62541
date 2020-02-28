@@ -18,6 +18,7 @@
  */
 
 #include <open62541/types_generated_encoding_binary.h>
+#include "open62541/transport_generated.h"
 
 #include "ua_client_internal.h"
 #include "ua_connection_internal.h"
@@ -261,10 +262,21 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
                        UA_ByteString *message) {
     SyncResponseDescription *rd = (SyncResponseDescription*)application;
 
+    if(rd->client->state == UA_CLIENTSTATE_DISCONNECTED ||
+       rd->client->state == UA_CLIENTSTATE_WAITING_FOR_ACK) {
+        if(messageType != UA_MESSAGETYPE_ACK) {
+            UA_LOG_ERROR_CHANNEL(&rd->client->config.logger, channel,
+                                 "Expected an ACK response");
+            rd->client->connectStatus = UA_STATUSCODE_BADTCPINTERNALERROR;
+            return;
+        }
+        processACKResponseAsync(rd->client, channel, messageType, requestId, message);
+        return;
+    }
+
     /* Process undecoded OPN forwarded from the SecureChannel */
     if(messageType == UA_MESSAGETYPE_OPN) {
-        decodeProcessOPNResponseAsync(rd->client, &rd->client->channel,
-                                      messageType, requestId, message);
+        decodeProcessOPNResponseAsync(rd->client, channel, messageType, requestId, message);
         return;
     }
 
@@ -411,9 +423,8 @@ __UA_Client_Service(UA_Client *client, const void *request,
 }
 
 UA_StatusCode
-receiveServiceResponseAsync(UA_Client *client, void *response,
-                             const UA_DataType *responseType) {
-    SyncResponseDescription rd = { client, false, 0, response, responseType };
+receiveResponseAsync(UA_Client *client) {
+    SyncResponseDescription rd = {client, false, 0, NULL, NULL};
 
     UA_StatusCode retval =
         UA_SecureChannel_receive(&client->channel, &rd, processServiceResponse, 0);
@@ -422,26 +433,6 @@ receiveServiceResponseAsync(UA_Client *client, void *response,
         if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED) {
             setClientState(client, UA_CLIENTSTATE_DISCONNECTED);
         }
-        UA_Client_disconnect(client);
-    }
-    return retval;
-}
-
-UA_StatusCode
-receivePacketAsync(UA_Client *client) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if (UA_Client_getState(client) == UA_CLIENTSTATE_DISCONNECTED ||
-        UA_Client_getState(client) == UA_CLIENTSTATE_WAITING_FOR_ACK) {
-        retval = UA_SecureChannel_receive(&client->channel, client,
-                                          processACKResponseAsync, 0);
-    } else if(UA_Client_getState(client) == UA_CLIENTSTATE_CONNECTED) {
-        retval = UA_SecureChannel_receive(&client->channel, client,
-                                          decodeProcessOPNResponseAsync, 0);
-    }
-
-    if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
-        if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
-            setClientState(client, UA_CLIENTSTATE_DISCONNECTED);
         UA_Client_disconnect(client);
     }
     return retval;
