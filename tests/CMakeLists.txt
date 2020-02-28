@@ -1,7 +1,7 @@
 # Load CMake Packages
 find_package(Check REQUIRED)
 set(LIBS ${CHECK_LIBRARIES} ${open62541_LIBRARIES})
-if(NOT WIN32 AND NOT APPLE)
+if(NOT WIN32 AND NOT APPLE AND NOT (CMAKE_HOST_SYSTEM_NAME MATCHES "OpenBSD"))
   list(APPEND LIBS subunit)
 endif()
 
@@ -9,11 +9,6 @@ include_directories(${CHECK_INCLUDE_DIR})
 #find_package(Threads REQUIRED)
 if(NOT MSVC AND UA_ENABLE_UNIT_TESTS_MEMCHECK)
     find_package(Valgrind REQUIRED)
-endif()
-
-if(CMAKE_HOST_SYSTEM_NAME MATCHES "OpenBSD")
-    link_directories(/usr/local/lib)
-    add_definitions(-Wno-gnu-zero-variadic-macro-arguments)
 endif()
 
 if(APPLE)
@@ -37,6 +32,12 @@ include_directories("${PROJECT_BINARY_DIR}/../plugins")
 if(UA_ENABLE_ENCRYPTION)
     # mbedtls includes
     include_directories(${MBEDTLS_INCLUDE_DIRS})
+endif()
+
+if(CMAKE_HOST_SYSTEM_NAME MATCHES "OpenBSD")
+    include_directories(AFTER /usr/local/include)
+    link_directories(AFTER /usr/local/lib)
+    add_definitions(-Wno-gnu-zero-variadic-macro-arguments)
 endif()
 
 add_definitions(-DUA_sleep_ms=UA_comboSleep)
