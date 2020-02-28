@@ -11,15 +11,6 @@
 
 _UA_BEGIN_DECLS
 
-// UDP multicast network layer specific internal data
-typedef struct {
-    int ai_family;                        //Protocol family for socket.  IPv4/IPv6
-    struct sockaddr_storage *ai_addr;     //https://msdn.microsoft.com/de-de/library/windows/desktop/ms740496(v=vs.85).aspx
-    UA_UInt32 messageTTL;
-    UA_Boolean enableLoopback;
-    UA_Boolean enableReuse;
-} UA_PubSubChannelDataUDPMC;
-
 UA_PubSubTransportLayer UA_EXPORT
 UA_PubSubTransportLayerUDPMP(void);
 
