@@ -429,9 +429,8 @@ list(APPEND open62541_LIBRARIES "")
 
 if(UA_ENABLE_ENCRYPTION)
     if(UA_ENABLE_ENCRYPTION_OPENSSL)
-        # The recommended way is to install OpenSSL via the OS package manager. If
-        # that is not possible, manually compile OpenSSL and set the cmake variables
-        # defined in /tools/cmake/FindOpenSSL.cmake.
+        # use the OpenSSL encryption library
+        # https://cmake.org/cmake/help/v3.0/module/FindOpenSSL.html
         find_package(OpenSSL REQUIRED)
         list(APPEND open62541_LIBRARIES ${OPENSSL_LIBRARIES})
     else ()
@@ -1093,7 +1092,7 @@ if(UA_ENABLE_AMALGAMATION)
         target_include_directories(open62541-object PRIVATE ${MBEDTLS_INCLUDE_DIRS})
     endif()
     if(UA_ENABLE_ENCRYPTION_OPENSSL)
-        target_include_directories(open62541-object PRIVATE ${OPENSSL_INCLUDE_DIRS})
+        target_include_directories(open62541-object PRIVATE ${OPENSSL_INCLUDE_DIR})
     endif()
 
     # make sure the open62541_amalgamation target builds before so that amalgamation is finished and it is not executed again for open62541-object
@@ -1178,7 +1177,7 @@ else()
         include_directories_private(${MBEDTLS_INCLUDE_DIRS})
     endif()
     if(UA_ENABLE_ENCRYPTION_OPENSSL)
-        include_directories_private(${OPENSSL_INCLUDE_DIRS})
+        include_directories_private(${OPENSSL_INCLUDE_DIR})
     endif()
 
     # Option-specific includes
