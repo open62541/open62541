@@ -18,36 +18,22 @@
 #include "thread_wrapper.h"
 
 UA_Server *server;
-UA_Boolean running;
 UA_ServerNetworkLayer nl;
-THREAD_HANDLE server_thread;
-
-THREAD_CALLBACK(serverloop) {
-    while(running)
-        UA_Server_run_iterate(server, true);
-    return 0;
-}
 
 static void
 onConnect(UA_Client *Client, void *connected,
           UA_UInt32 requestId, void *response) {
-    if (UA_Client_getState (Client) == UA_CLIENTSTATE_SESSION)
+    if(UA_Client_getState (Client) == UA_CLIENTSTATE_SESSION)
         *(UA_Boolean *)connected = true;
 }
 
 static void setup(void) {
-    running = true;
     server = UA_Server_new();
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     UA_Server_run_startup(server);
-    THREAD_CREATE(server_thread, serverloop);
-    /* Waiting server is up */
-    UA_comboSleep(1000);
 }
 
 static void teardown(void) {
-    running = false;
-    THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
 }
@@ -65,8 +51,8 @@ START_TEST(Client_connect_async){
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
     UA_Boolean connected = false;
     UA_Client_connect_async(client, "opc.tcp://localhost:4840", onConnect, &connected);
-    /*Windows needs time to response*/
-    UA_sleep_ms(100);
+    UA_Server_run_iterate(server, false);
+
     UA_UInt32 reqId = 0;
     UA_UInt16 asyncCounter = 0;
     UA_BrowseRequest bReq;
@@ -85,7 +71,7 @@ START_TEST(Client_connect_async){
                                               &asyncCounter, &reqId);
         }
         /* Manual clock for unit tests */
-        UA_comboSleep(20);
+        UA_Server_run_iterate(server, false);
         retval = UA_Client_run_iterate(client, 0);
         /*fix infinite loop, but why is server occasionally shut down in Appveyor?!*/
         if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
@@ -97,7 +83,7 @@ START_TEST(Client_connect_async){
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     /* With default setting the client uses 4 requests to connect */
     ck_assert_uint_eq(asyncCounter, 10-4);
-    UA_Client_disconnect(client);
+    UA_Client_disconnect_async(client, NULL);
     UA_Client_delete (client);
 }
 END_TEST
@@ -115,8 +101,11 @@ START_TEST(Client_no_connection) {
     client->connection.recv = UA_Client_recvTesting;
     //simulating unconnected server
     UA_Client_recvTesting_result = UA_STATUSCODE_BADCONNECTIONCLOSED;
+    UA_Server_run_iterate(server, false);
     retval = UA_Client_run_iterate(client, 0);  /* Open connection */
+    UA_Server_run_iterate(server, false);
     retval |= UA_Client_run_iterate(client, 0); /* Send HEL */
+    UA_Server_run_iterate(server, false);
     retval |= UA_Client_run_iterate(client, 0); /* Receive ACK */
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONNECTIONCLOSED);
     UA_Client_disconnect(client);
