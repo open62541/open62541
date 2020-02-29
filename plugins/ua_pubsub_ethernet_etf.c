@@ -230,23 +230,29 @@ UA_PubSubChannelEthernetETF_open(const UA_PubSubConnectionConfig *connectionConf
         return NULL;
     }
 
-    UA_Int32 soPriority        = SOCKET_PRIORITY;
-    /* TODO: Set SO_PRIORITY through command line argument from application instead of hardcoding */
+    /* Setting the socket priority to the socket */
+    UA_Int32 soPriority        = connectionConfig->etfConfiguration.socketPriority;
     if (setsockopt(sockFd, SOL_SOCKET, SO_PRIORITY, &soPriority, sizeof(int))) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "setsockopt SO_PRIORITY failed");
+        UA_close(sockFd);
+        UA_free(channelDataEthernet);
+        UA_free(newChannel);
+        return NULL;
     }
 
-    socket_transmission_time *sk_txtime;
-    sk_txtime = (socket_transmission_time *)UA_malloc(sizeof(socket_transmission_time));
+    /* Setting socket txtime with required flags to the socket */
+    socket_transmission_time sk_txtime;
+    memset(&sk_txtime, 0, sizeof(sk_txtime));
     clockid_t clockId          = CLOCK_TAI;
-    /* TTS - changes done for time triggered send usage  */
-    sk_txtime->clockIdentity   = clockId;
-    /* Flag to use deadline mode or receive error mode */
-    sk_txtime->flags           = 0;
-    if (setsockopt(sockFd, SOL_SOCKET, SOCKET_TRANSMISSION_TIME, sk_txtime, sizeof(sk_txtime))) {
+    sk_txtime.clockIdentity   = clockId;
+    sk_txtime.flags           = (UA_UInt16)(connectionConfig->etfConfiguration.sotxtimeDeadlinemode | connectionConfig->etfConfiguration.sotxtimeReceiveerrors);
+    if (connectionConfig->etfConfiguration.sotxtimeEnabled && setsockopt(sockFd, SOL_SOCKET, SOCKET_TRANSMISSION_TIME, &sk_txtime, sizeof(&sk_txtime))) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "setsockopt SOCKET_TRANSMISSION_TIME failed");
+        UA_close(sockFd);
+        UA_free(channelDataEthernet);
+        UA_free(newChannel);
+        return NULL;
     }
-    UA_free(sk_txtime);
 
     newChannel->handle = channelDataEthernet;
     newChannel->state = UA_PUBSUB_CHANNEL_PUB;
@@ -390,7 +396,6 @@ sendWithTxTime(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings,
 
     msgCount = sendmsg(channel->sockfd, &message, 0);
     if ((msgCount < 1) && (msgCount != (UA_Int32)lenBuf)) {
-        printf("sendmessage failed");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -447,11 +452,10 @@ UA_PubSubChannelEthernetETF_send(UA_PubSubChannel *channel,
     memcpy(ptrCur, buf->data, buf->length);
 
     ssize_t rc;
- //   rc = UA_send(channel->sockfd, bufSend, lenBuf, 0);
+    /* Send the packets at the given Txtime */
     rc = sendWithTxTime(channel, transportSettings, bufSend, lenBuf);
-    if(rc  < 0) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-            "PubSub connection send failed. Send message failed.");
+    if(rc != UA_STATUSCODE_GOOD) {
+        printf("sendfailed");
         UA_free(bufSend);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
