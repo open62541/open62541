@@ -262,9 +262,9 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
                        UA_ByteString *message) {
     SyncResponseDescription *rd = (SyncResponseDescription*)application;
 
-    if(rd->client->state == UA_CLIENTSTATE_DISCONNECTED ||
-       rd->client->state == UA_CLIENTSTATE_WAITING_FOR_ACK) {
-        if(messageType != UA_MESSAGETYPE_ACK) {
+    /* Process ACK response */
+    if(messageType == UA_MESSAGETYPE_ACK) {
+        if(channel->state != UA_SECURECHANNELSTATE_HEL_SENT) {
             UA_LOG_ERROR_CHANNEL(&rd->client->config.logger, channel,
                                  "Expected an ACK response");
             rd->client->connectStatus = UA_STATUSCODE_BADTCPINTERNALERROR;
@@ -276,14 +276,20 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
 
     /* Process undecoded OPN forwarded from the SecureChannel */
     if(messageType == UA_MESSAGETYPE_OPN) {
+        if(channel->state != UA_SECURECHANNELSTATE_OPN_SENT &&
+           channel->state != UA_SECURECHANNELSTATE_OPEN) {
+            UA_LOG_ERROR_CHANNEL(&rd->client->config.logger, channel,
+                                 "Received an unexpected OPN response");
+            rd->client->connectStatus = UA_STATUSCODE_BADTCPINTERNALERROR;
+            return;
+        }
         decodeProcessOPNResponseAsync(rd->client, channel, messageType, requestId, message);
         return;
     }
 
     /* Must be OPN or MSG */
     if(messageType != UA_MESSAGETYPE_MSG) {
-        UA_LOG_TRACE_CHANNEL(&rd->client->config.logger, channel,
-                             "Invalid message type");
+        UA_LOG_TRACE_CHANNEL(&rd->client->config.logger, channel, "Invalid message type");
         return;
     }
 
@@ -375,8 +381,7 @@ receiveResponse(UA_Client *client, void *response, const UA_DataType *responseTy
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     do {
-        /* TODO: This should be < instead of <=. But that breaks a test.. */
-        if(maxDate <= now)
+        if(maxDate < now)
             return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
         UA_UInt32 timeout2 = (UA_UInt32)((maxDate - now) / UA_DATETIME_MSEC);
         retval = UA_SecureChannel_receive(&client->channel, &rd, processServiceResponse, timeout2);
@@ -413,7 +418,7 @@ __UA_Client_Service(UA_Client *client, const void *request,
     /* Retrieve the response */
     retval = receiveResponse(client, response, responseType,
                              client->config.timeout, &requestId);
-    if(retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
+    if(retval != UA_STATUSCODE_GOOD) {
         /* In synchronous service, if we have don't have a reply we need to close the connection */
         UA_Client_disconnect(client);
         retval = UA_STATUSCODE_BADCONNECTIONCLOSED;

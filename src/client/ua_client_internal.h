@@ -133,6 +133,7 @@ struct UA_Client {
     UA_SecureChannel channel;
     UA_UInt32 requestId;
     UA_DateTime nextChannelRenewal;
+    UA_Boolean secureChannelHandshake; /* OPN has been sent */
 
     /* Session */
     UA_NodeId authenticationToken;
@@ -222,6 +223,9 @@ receiveResponse(UA_Client *client, void *response,
 
 UA_StatusCode
 receiveResponseAsync(UA_Client *client);
+
+UA_StatusCode
+UA_Client_renewSecureChannelAsync(UA_Client *client);
 
 UA_StatusCode
 UA_Client_connect_iterate (UA_Client *client);

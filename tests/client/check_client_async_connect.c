@@ -115,7 +115,9 @@ START_TEST(Client_no_connection) {
     client->connection.recv = UA_Client_recvTesting;
     //simulating unconnected server
     UA_Client_recvTesting_result = UA_STATUSCODE_BADCONNECTIONCLOSED;
-    retval = UA_Client_run_iterate(client, 0);
+    retval = UA_Client_run_iterate(client, 0);  /* Open connection */
+    retval |= UA_Client_run_iterate(client, 0); /* Send HEL */
+    retval |= UA_Client_run_iterate(client, 0); /* Receive ACK */
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONNECTIONCLOSED);
     UA_Client_disconnect(client);
     UA_Client_delete(client);

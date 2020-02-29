@@ -689,11 +689,6 @@ UA_Client * UA_Client_new() {
     return UA_Client_newWithConfig(&config);
 }
 
-static void
-UA_ClientConnectionTCP_poll_callback(UA_Client *client, void *data) {
-    UA_ClientConnectionTCP_poll(client, data);
-}
-
 UA_StatusCode
 UA_ClientConfig_setDefault(UA_ClientConfig *config) {
     config->timeout = 5000;
@@ -739,7 +734,7 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
 
     config->connectionFunc = UA_ClientConnectionTCP;
     config->initConnectionFunc = UA_ClientConnectionTCP_init; /* for async client */
-    config->pollConnectionFunc = UA_ClientConnectionTCP_poll_callback; /* for async connection */
+    config->pollConnectionFunc = UA_ClientConnectionTCP_poll; /* for async connection */
 
     config->customDataTypes = NULL;
     config->stateCallback = NULL;
