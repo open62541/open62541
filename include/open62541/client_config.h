@@ -111,7 +111,7 @@ typedef struct {
     /* Callbacks for async connection handshakes */
     UA_ConnectClientConnection connectionFunc;
     UA_ConnectClientConnection initConnectionFunc;
-    void (*pollConnectionFunc)(UA_Client *client, void *context);
+    UA_StatusCode (*pollConnectionFunc)(UA_Client *client, void *context);
 
     /* Callback for state changes */
     void (*stateCallback)(UA_Client *client, UA_ClientState clientState);

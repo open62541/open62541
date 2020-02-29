@@ -68,7 +68,7 @@ struct UA_Connection {
                                     * simplifies the design. */
     UA_DateTime openingDate;       /* The date the connection was created */
     void *handle;                  /* A pointer to internal data */
-    UA_UInt64 connectCallbackID;   /* Callback Id, for the connect-loop */
+
     /* Get a buffer for sending */
     UA_StatusCode (*getSendBuffer)(UA_Connection *connection, size_t length,
                                    UA_ByteString *buf);

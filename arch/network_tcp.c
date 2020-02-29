@@ -638,23 +638,18 @@ ClientNetworkLayerTCP_free(UA_Connection *connection) {
 
 UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
     UA_Connection *connection = (UA_Connection*) data;
-
-    if (connection->state == UA_CONNECTION_CLOSED)
+    if(connection->state == UA_CONNECTION_CLOSED)
         return UA_STATUSCODE_BADDISCONNECT;
+    if(connection->state == UA_CONNECTION_ESTABLISHED)
+        return UA_STATUSCODE_GOOD;
 
     TCPClientConnection *tcpConnection =
                     (TCPClientConnection*) connection->handle;
 
     UA_DateTime connStart = UA_DateTime_nowMonotonic();
     UA_SOCKET clientsockfd = connection->sockfd;
-
     UA_ClientConfig *config = UA_Client_getConfig(client);
 
-    if (connection->state == UA_CONNECTION_ESTABLISHED) {
-            UA_Client_removeRepeatedCallback(client, connection->connectCallbackID);
-            connection->connectCallbackID = 0;
-            return UA_STATUSCODE_GOOD;
-    }
     if ((UA_Double) (UA_DateTime_nowMonotonic() - tcpConnection->connStart)
                     > tcpConnection->timeout* UA_DATETIME_MSEC ) {
             // connection timeout

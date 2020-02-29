@@ -734,6 +734,7 @@ UA_Client_disconnect(UA_Client *client) {
         client->state = UA_CLIENTSTATE_CONNECTED;
         sendCloseSecureChannel(client);
     }
+    client->secureChannelHandshake = false;
 
     /* Close the TCP connection */
     if(client->connection.state != UA_CONNECTION_CLOSED
