@@ -934,12 +934,40 @@ UA_Client_connect_iterate(UA_Client *client) {
     return client->connectStatus;
 }
 
+#ifdef UA_ENABLE_ENCRYPTION
+/* The local ApplicationURI has to match the certificates of the
+ * SecurityPolicies */
+static void
+verifyClientApplicationURI(const UA_Client *client) {
+#if UA_LOGLEVEL <= 400
+    for(size_t i = 0; i < client->config.securityPoliciesSize; i++) {
+        UA_SecurityPolicy *sp = &client->config.securityPolicies[i];
+        UA_StatusCode retval =
+            client->config.certificateVerification.
+            verifyApplicationURI(client->config.certificateVerification.context,
+                                 &sp->localCertificate,
+                                 &client->config.clientDescription.applicationUri);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                           "The configured ApplicationURI does not match the URI "
+                           "specified in the certificate for the SecurityPolicy %.*s",
+                           (int)sp->policyUri.length, sp->policyUri.data);
+        }
+    }
+#endif
+}
+#endif
+
 UA_StatusCode
 UA_Client_connect_async(UA_Client *client, const char *endpointUrl,
                         UA_ClientAsyncServiceCallback callback,
                         void *userdata) {
     UA_LOG_TRACE(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                  "Client internal async");
+
+#ifdef UA_ENABLE_ENCRYPTION
+    verifyClientApplicationURI(client);
+#endif
 
     if(client->state >= UA_CLIENTSTATE_WAITING_FOR_ACK)
         return UA_STATUSCODE_GOOD;
