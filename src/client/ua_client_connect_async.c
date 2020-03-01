@@ -853,6 +853,18 @@ createSessionAsync(UA_Client *client) {
     return client->connectStatus;
 }
 
+UA_Boolean
+endpointUnconfigured(UA_Client *client) {
+    UA_Byte test = 0;
+    UA_Byte *pos = (UA_Byte*)&client->config.endpoint;
+    for(size_t i = 0; i < sizeof(UA_EndpointDescription); i++)
+        test = test | pos[i];
+    pos = (UA_Byte*)&client->config.userTokenPolicy;
+    for(size_t i = 0; i < sizeof(UA_UserTokenPolicy); i++)
+        test = test | pos[i];
+    return (test == 0);
+}
+
 UA_StatusCode
 UA_Client_connect_iterate(UA_Client *client) {
     UA_LOG_TRACE(&client->config.logger, UA_LOGCATEGORY_CLIENT,
@@ -1038,6 +1050,21 @@ UA_StatusCode
 UA_Client_connect_noSession(UA_Client *client, const char *endpointUrl) {
     client->noSession = true;
     return UA_Client_connectSync(client, endpointUrl);
+}
+
+UA_StatusCode
+UA_Client_connect_username(UA_Client *client, const char *endpointUrl,
+                           const char *username, const char *password) {
+    UA_UserNameIdentityToken* identityToken = UA_UserNameIdentityToken_new();
+    if(!identityToken)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    identityToken->userName = UA_STRING_ALLOC(username);
+    identityToken->password = UA_STRING_ALLOC(password);
+    UA_ExtensionObject_deleteMembers(&client->config.userIdentityToken);
+    client->config.userIdentityToken.encoding = UA_EXTENSIONOBJECT_DECODED;
+    client->config.userIdentityToken.content.decoded.type = &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN];
+    client->config.userIdentityToken.content.decoded.data = identityToken;
+    return UA_Client_connect(client, endpointUrl);
 }
 
 /* Async disconnection */
