@@ -983,6 +983,9 @@ UA_Client_connect_async(UA_Client *client, const char *endpointUrl,
     UA_String_clear(&client->endpointUrl);
     client->endpointUrl = UA_STRING_ALLOC(endpointUrl);
 
+    if(client->connection.handle)
+        client->connection.free(&client->connection);
+
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     client->connection =
         client->config.initConnectionFunc(client->config.localConnectionConfig,
@@ -1145,6 +1148,9 @@ UA_Client_disconnect_async(UA_Client *client, UA_UInt32 *requestId) {
     if(client->state >= UA_CLIENTSTATE_CONNECTED)
         client->connection.close(&client->connection);
 
+    if(client->connection.handle)
+        client->connection.free(&client->connection);
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 // TODO REMOVE WHEN UA_SESSION_RECOVERY IS READY
     /* We need to clean up the subscriptions */
@@ -1212,11 +1218,13 @@ UA_Client_disconnect(UA_Client *client) {
     client->secureChannelHandshake = false;
 
     /* Close the TCP connection */
-    if(client->connection.state != UA_CONNECTION_CLOSED
-            && client->connection.state != UA_CONNECTION_OPENING)
-        /* UA_ClientConnectionTCP_init sets initial state to opening */
-        if(client->connection.close != NULL)
-            client->connection.close(&client->connection);
+    if(client->connection.state != UA_CONNECTION_CLOSED &&
+       client->connection.state != UA_CONNECTION_OPENING &&
+       client->connection.close != NULL)
+        client->connection.close(&client->connection);
+
+    if(client->connection.handle)
+        client->connection.free(&client->connection);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     // TODO REMOVE WHEN UA_SESSION_RECOVERY IS READY
