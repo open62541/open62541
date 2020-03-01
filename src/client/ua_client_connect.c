@@ -19,18 +19,6 @@
 /* Size are refered in bytes */
 #define UA_MINMESSAGESIZE                8192
 
- /********************/
- /* Set client state */
- /********************/
-void
-setClientState(UA_Client *client, UA_ClientState state) {
-    if(client->state != state) {
-        client->state = state;
-        if(client->config.stateCallback)
-            client->config.stateCallback(client, client->state);
-    }
-}
-
 /***********************/
 /* Open the Connection */
 /***********************/
@@ -126,15 +114,6 @@ HelAckHandshake(UA_Client *client, const UA_String endpointUrl) {
         UA_Client_disconnect(client);
     }
     return retval;
-}
-
-UA_SecurityPolicy *
-getSecurityPolicy(UA_Client *client, UA_String policyUri) {
-    for(size_t i = 0; i < client->config.securityPoliciesSize; i++) {
-        if(UA_String_equal(&policyUri, &client->config.securityPolicies[i].policyUri))
-            return &client->config.securityPolicies[i];
-    }
-    return NULL;
 }
 
 UA_StatusCode
@@ -683,77 +662,3 @@ UA_Client_connect_username(UA_Client *client, const char *endpointUrl,
     return UA_Client_connect(client, endpointUrl);
 }
 
-/************************/
-/* Close the Connection */
-/************************/
-
-static void
-sendCloseSession(UA_Client *client) {
-    UA_CloseSessionRequest request;
-    UA_CloseSessionRequest_init(&request);
-
-    request.requestHeader.timestamp = UA_DateTime_now();
-    request.requestHeader.timeoutHint = 10000;
-    request.deleteSubscriptions = true;
-    UA_CloseSessionResponse response;
-    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST],
-                        &response, &UA_TYPES[UA_TYPES_CLOSESESSIONRESPONSE]);
-    UA_CloseSessionRequest_deleteMembers(&request);
-    UA_CloseSessionResponse_deleteMembers(&response);
-}
-
-static void
-sendCloseSecureChannel(UA_Client *client) {
-    UA_SecureChannel *channel = &client->channel;
-    UA_CloseSecureChannelRequest request;
-    UA_CloseSecureChannelRequest_init(&request);
-    request.requestHeader.requestHandle = ++client->requestHandle;
-    request.requestHeader.timestamp = UA_DateTime_now();
-    request.requestHeader.timeoutHint = 10000;
-    request.requestHeader.authenticationToken = client->authenticationToken;
-    UA_SecureChannel_sendSymmetricMessage(channel, ++client->requestId,
-                                          UA_MESSAGETYPE_CLO, &request,
-                                          &UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST]);
-    UA_CloseSecureChannelRequest_deleteMembers(&request);
-    UA_SecureChannel_close(&client->channel);
-    UA_SecureChannel_deleteMembers(&client->channel);
-}
-
-UA_StatusCode
-UA_Client_disconnect(UA_Client *client) {
-    /* Is a session established? */
-    if(client->state >= UA_CLIENTSTATE_SESSION) {
-        client->state = UA_CLIENTSTATE_SECURECHANNEL;
-        sendCloseSession(client);
-    }
-    UA_NodeId_deleteMembers(&client->authenticationToken);
-    client->requestHandle = 0;
-
-    /* Is a secure channel established? */
-    if(client->state >= UA_CLIENTSTATE_SECURECHANNEL) {
-        client->state = UA_CLIENTSTATE_CONNECTED;
-        sendCloseSecureChannel(client);
-    }
-    client->secureChannelHandshake = false;
-
-    /* Close the TCP connection */
-    if(client->connection.state != UA_CONNECTION_CLOSED
-            && client->connection.state != UA_CONNECTION_OPENING)
-        /* UA_ClientConnectionTCP_init sets initial state to opening */
-        if(client->connection.close != NULL)
-            client->connection.close(&client->connection);
-
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-    // TODO REMOVE WHEN UA_SESSION_RECOVERY IS READY
-    /* We need to clean up the subscriptions */
-    UA_Client_Subscriptions_clean(client);
-#endif
-
-    /* Delete outstanding async services */
-    UA_Client_AsyncService_removeAll(client, UA_STATUSCODE_BADSHUTDOWN);
-
-    UA_SecureChannel_deleteMembers(&client->channel);
-
-    setClientState(client, UA_CLIENTSTATE_DISCONNECTED);
-    return UA_STATUSCODE_GOOD;
-}
