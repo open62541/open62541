@@ -135,6 +135,24 @@ UA_Client_getConfig(UA_Client *client) {
     return &client->config;
 }
 
+void
+setClientState(UA_Client *client, UA_ClientState state) {
+    if(client->state != state) {
+        client->state = state;
+        if(client->config.stateCallback)
+            client->config.stateCallback(client, client->state);
+    }
+}
+
+UA_SecurityPolicy *
+getSecurityPolicy(UA_Client *client, UA_String policyUri) {
+    for(size_t i = 0; i < client->config.securityPoliciesSize; i++) {
+        if(UA_String_equal(&policyUri, &client->config.securityPolicies[i].policyUri))
+            return &client->config.securityPolicies[i];
+    }
+    return NULL;
+}
+
 /****************/
 /* Raw Services */
 /****************/
