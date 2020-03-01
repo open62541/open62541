@@ -638,16 +638,6 @@ cleanup:
 }
 
 UA_StatusCode
-UA_Client_connect(UA_Client *client, const char *endpointUrl) {
-    return UA_Client_connectInternal(client, UA_STRING((char*)(uintptr_t)endpointUrl));
-}
-
-UA_StatusCode
-UA_Client_connect_noSession(UA_Client *client, const char *endpointUrl) {
-    return UA_Client_connectTCPSecureChannel(client, UA_STRING((char*)(uintptr_t)endpointUrl));
-}
-
-UA_StatusCode
 UA_Client_connect_username(UA_Client *client, const char *endpointUrl,
                            const char *username, const char *password) {
     UA_UserNameIdentityToken* identityToken = UA_UserNameIdentityToken_new();

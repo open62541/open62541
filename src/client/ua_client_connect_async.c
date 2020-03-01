@@ -898,6 +898,10 @@ UA_Client_connect_iterate(UA_Client *client) {
 
     /* Have a SecureChannel but no session */
     if(client->state == UA_CLIENTSTATE_SECURECHANNEL) {
+        /* Don't create/activate a Session */
+        if(client->noSession)
+            return client->connectStatus;
+
         if(endpointUnconfigured(client)) {
             if(!client->endpointsHandshake) {
                 requestGetEndpoints(client);
@@ -927,6 +931,8 @@ UA_Client_connect_async(UA_Client *client, const char *endpointUrl,
 
     if(client->state >= UA_CLIENTSTATE_WAITING_FOR_ACK)
         return UA_STATUSCODE_GOOD;
+
+    client->connectStatus = UA_STATUSCODE_GOOD;
 
     UA_ChannelSecurityToken_init(&client->channel.securityToken);
     client->channel.state = UA_SECURECHANNELSTATE_FRESH;
@@ -998,6 +1004,40 @@ UA_Client_connect_async(UA_Client *client, const char *endpointUrl,
                  "Failure during async connect");
     UA_Client_disconnect(client);
     return retval;
+}
+
+static UA_StatusCode
+UA_Client_connectSync(UA_Client *client, const char *endpointUrl) {
+    UA_DateTime now = UA_DateTime_nowMonotonic();
+    UA_DateTime maxDate = now + ((UA_DateTime)client->config.timeout * UA_DATETIME_MSEC);
+
+    UA_StatusCode retval = UA_Client_connect_async(client, endpointUrl, NULL, NULL);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    while(retval == UA_STATUSCODE_GOOD) {
+        if(client->state == UA_CLIENTSTATE_SESSION)
+            break;
+        if(client->noSession && client->state == UA_CLIENTSTATE_SECURECHANNEL)
+            break;
+        now = UA_DateTime_nowMonotonic();
+        if(maxDate < now)
+            return UA_STATUSCODE_BADTIMEOUT;
+        retval = UA_Client_connect_iterate(client);
+    }
+    return retval;
+}
+
+UA_StatusCode
+UA_Client_connect(UA_Client *client, const char *endpointUrl) {
+    client->noSession = false;
+    return UA_Client_connectSync(client, endpointUrl);
+}
+
+UA_StatusCode
+UA_Client_connect_noSession(UA_Client *client, const char *endpointUrl) {
+    client->noSession = true;
+    return UA_Client_connectSync(client, endpointUrl);
 }
 
 /* Async disconnection */
@@ -1105,6 +1145,9 @@ UA_Client_disconnect(UA_Client *client) {
     }
     UA_NodeId_deleteMembers(&client->authenticationToken);
     client->requestHandle = 0;
+
+    /* Reset so the next async connect creates a session by default */
+    client->noSession = false;
 
     /* Is a secure channel established? */
     if(client->state >= UA_CLIENTSTATE_SECURECHANNEL) {
