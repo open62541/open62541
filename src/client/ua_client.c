@@ -172,12 +172,10 @@ typedef struct {
 static UA_StatusCode
 sendSymmetricServiceRequest(UA_Client *client, const void *request,
                             const UA_DataType *requestType, UA_UInt32 *requestId) {
-    /* Make sure we have a valid session */
-    /* FIXME: this is just a dirty workaround. We need to rework some of the sync and async processing
-     * FIXME: in the client. Currently a lot of stuff is semi broken and in dire need of cleaning up.*/
-    /*UA_StatusCode retval = openSecureChannel(client, true);
+    /* Renew SecureChannel if necessary */
+    UA_StatusCode retval = UA_Client_renewSecureChannelAsync(client);
     if(retval != UA_STATUSCODE_GOOD)
-        return retval;*/
+        return retval;
 
     /* Adjusting the request header. The const attribute is violated, but we
      * only touch the following members: */
@@ -191,9 +189,8 @@ sendSymmetricServiceRequest(UA_Client *client, const void *request,
     UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                  "Sending a request of type %" PRIi32, requestType->typeId.identifier.numeric);
 
-    UA_StatusCode retval =
-        UA_SecureChannel_sendSymmetricMessage(&client->channel, rqId, UA_MESSAGETYPE_MSG,
-                                              rr, requestType);
+    retval = UA_SecureChannel_sendSymmetricMessage(&client->channel, rqId, UA_MESSAGETYPE_MSG,
+                                                   rr, requestType);
     UA_NodeId_init(&rr->authenticationToken); /* Do not return the token to the user */
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
