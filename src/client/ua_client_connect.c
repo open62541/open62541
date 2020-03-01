@@ -188,37 +188,6 @@ openSecureChannel(UA_Client *client, UA_Boolean renew) {
     return retval;
 }
 
-/* Gets a list of endpoints. Memory is allocated for endpointDescription array */
-UA_StatusCode
-UA_Client_getEndpointsInternal(UA_Client *client, const UA_String endpointUrl,
-                               size_t *endpointDescriptionsSize,
-                               UA_EndpointDescription **endpointDescriptions) {
-    UA_GetEndpointsRequest request;
-    UA_GetEndpointsRequest_init(&request);
-    request.requestHeader.timestamp = UA_DateTime_now();
-    request.requestHeader.timeoutHint = 10000;
-    // assume the endpointurl outlives the service call
-    request.endpointUrl = endpointUrl;
-
-    UA_GetEndpointsResponse response;
-    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST],
-                        &response, &UA_TYPES[UA_TYPES_GETENDPOINTSRESPONSE]);
-
-    if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_StatusCode retval = response.responseHeader.serviceResult;
-        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "GetEndpointRequest failed with error code %s",
-                     UA_StatusCode_name(retval));
-        UA_GetEndpointsResponse_deleteMembers(&response);
-        return retval;
-    }
-    *endpointDescriptions = response.endpoints;
-    *endpointDescriptionsSize = response.endpointsSize;
-    response.endpoints = NULL;
-    response.endpointsSize = 0;
-    UA_GetEndpointsResponse_deleteMembers(&response);
-    return UA_STATUSCODE_GOOD;
-}
 
 static UA_StatusCode
 selectEndpoint(UA_Client *client, const UA_String endpointUrl) {
@@ -571,18 +540,6 @@ verifyClientApplicationURI(const UA_Client *client) {
 }
 #endif
 
-UA_Boolean
-endpointUnconfigured(UA_Client *client) {
-    UA_Byte test = 0;
-    UA_Byte *pos = (UA_Byte*)&client->config.endpoint;
-    for(size_t i = 0; i < sizeof(UA_EndpointDescription); i++)
-        test = test | pos[i];
-    pos = (UA_Byte*)&client->config.userTokenPolicy;
-    for(size_t i = 0; i < sizeof(UA_UserTokenPolicy); i++)
-        test = test | pos[i];
-    return (test == 0);
-}
-
 UA_StatusCode
 UA_Client_connectInternal(UA_Client *client, const UA_String endpointUrl) {
     if(client->state >= UA_CLIENTSTATE_CONNECTED)
@@ -635,20 +592,5 @@ UA_Client_connectInternal(UA_Client *client, const UA_String endpointUrl) {
 cleanup:
     UA_Client_disconnect(client);
     return retval;
-}
-
-UA_StatusCode
-UA_Client_connect_username(UA_Client *client, const char *endpointUrl,
-                           const char *username, const char *password) {
-    UA_UserNameIdentityToken* identityToken = UA_UserNameIdentityToken_new();
-    if(!identityToken)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    identityToken->userName = UA_STRING_ALLOC(username);
-    identityToken->password = UA_STRING_ALLOC(password);
-    UA_ExtensionObject_deleteMembers(&client->config.userIdentityToken);
-    client->config.userIdentityToken.encoding = UA_EXTENSIONOBJECT_DECODED;
-    client->config.userIdentityToken.content.decoded.type = &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN];
-    client->config.userIdentityToken.content.decoded.data = identityToken;
-    return UA_Client_connect(client, endpointUrl);
 }
 
