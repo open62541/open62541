@@ -798,6 +798,10 @@ UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
 #endif
 
     retval = UA_SecureChannel_processPacket(channel, server, processSecureChannelMessage, message);
+    while(retval == UA_STATUSCODE_GOOD && channel->retryReceived) {
+        retval = UA_SecureChannel_processPacket(channel, server,
+                                                processSecureChannelMessage, &UA_BYTESTRING_NULL);
+    }
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_NETWORK,
                     "Connection %i | Processing the message failed with error %s",

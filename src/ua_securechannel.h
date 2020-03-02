@@ -117,6 +117,9 @@ struct UA_SecureChannel {
                                     * streaming protocol) is stored here */
     UA_MessageQueue messages;      /* Received full chunks grouped into the
                                     * messages */
+    UA_Boolean retryReceived;      /* Processing of received chunks was stopped
+                                    * e.g. after an OPN message. Retry
+                                    * processing remaining chunks. */
 };
 
 void UA_SecureChannel_init(UA_SecureChannel *channel,
