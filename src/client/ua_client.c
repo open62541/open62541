@@ -186,8 +186,14 @@ sendSymmetricServiceRequest(UA_Client *client, const void *request,
 
     /* Send the request */
     UA_UInt32 rqId = ++client->requestId;
+
+#ifdef UA_ENABLE_TYPEDESCRIPTION
     UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                 "Sending a request of type %" PRIi32, requestType->typeId.identifier.numeric);
+                 "Sending a request of type %s", requestType->typeName);
+#else
+    UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                 "Sending a request of type %" PRIi16, requestType->binaryEncodingId);
+#endif
 
     retval = UA_SecureChannel_sendSymmetricMessage(&client->channel, rqId, UA_MESSAGETYPE_MSG,
                                                    rr, requestType);
