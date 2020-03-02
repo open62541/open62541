@@ -792,7 +792,10 @@ processChunk(UA_SecureChannel *channel, const UA_ByteString *packet,
     chunk.length = hdr.messageSize;
 
     /* Stop processing after a non-MSG message */
-    *done = (msgType != UA_MESSAGETYPE_MSG);
+    if(msgType != UA_MESSAGETYPE_MSG) {
+        *done = true;
+        channel->retryReceived = true;
+    }
 
     /* Process the chunk; forward the offset */
     *offset += hdr.messageSize;
@@ -804,6 +807,7 @@ UA_SecureChannel_processPacket(UA_SecureChannel *channel, void *application,
                                UA_ProcessMessageCallback callback,
                                const UA_ByteString *packet) {
     UA_ByteString appended = channel->incompleteChunk;
+    channel->retryReceived = false;
 
     /* Prepend the incomplete last chunk. This is usually done in the
      * networklayer. But we test for a buffered incomplete chunk here again to
@@ -870,5 +874,9 @@ UA_SecureChannel_receive(UA_SecureChannel *channel, void *application,
     /* Try to process one complete chunk */
     retval = UA_SecureChannel_processPacket(channel, application, callback, &packet);
     connection->releaseRecvBuffer(connection, &packet);
+    while(retval == UA_STATUSCODE_GOOD && channel->retryReceived) {
+        retval = UA_SecureChannel_processPacket(channel, application, callback,
+                                                &UA_BYTESTRING_NULL);
+    }
     return retval;
 }
