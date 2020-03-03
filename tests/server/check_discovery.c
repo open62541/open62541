@@ -12,6 +12,7 @@
 
 #include "testing_clock.h"
 #include "thread_wrapper.h"
+#include <testing_socket.h>
 #ifndef WIN32
 #include <sys/stat.h>
 #endif
@@ -21,7 +22,6 @@
 #include <client/ua_client_internal.h>
 
 #include <sys/stat.h>
-#include <testing_socket.h>
 #endif
 
 // set register timeout to 1 second so we are able to test it.

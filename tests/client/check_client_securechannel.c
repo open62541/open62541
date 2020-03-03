@@ -55,6 +55,11 @@ START_TEST(SecureChannel_timeout_max) {
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
+    UA_NetworkManager_process = client->config.networkManager->process;
+    client->config.networkManager->process = UA_NetworkManager_processTesting;
+    UA_Socket_recv = client->channel.socket->recv;
+    client->channel.socket->recv = UA_Socket_recvTesting;
+
     UA_ClientConfig *cconfig = UA_Client_getConfig(client);
     UA_fakeSleep(cconfig->secureChannelLifeTime);
 
