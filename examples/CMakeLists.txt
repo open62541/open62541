@@ -157,6 +157,8 @@ add_example(server_repeated_job server_repeated_job.c)
 
 add_example(server_inheritance server_inheritance.c)
 
+add_example(server_loglevel server_loglevel.c)
+
 if(UA_ENABLE_HISTORIZING)
     add_example(tutorial_server_historicaldata tutorial_server_historicaldata.c)
 endif()
