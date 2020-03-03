@@ -659,10 +659,10 @@ updateCertificateAndPrivateKey_sp_basic128rsa15(UA_SecurityPolicy *securityPolic
     UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                  "Could not update certificate and private key");
     #if UA_LOGLEVEL <= 300
-        char errBuff[300];
-        mbedtls_strerror(mbedErr, errBuff, 300);
-        UA_LOG_DEBUG(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                 "Certificate error: %d, %s", mbedErr, errBuff);
+        mbedtls_log_error( "Certificate error", mbedErr, securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY); 
+        if(UA_ByteString_equal(&securityPolicy->localCertificate, &UA_BYTESTRING_NULL))
+            UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                 "localCertificate is empty" );
     #endif
     if(securityPolicy->policyContext != NULL)
         deleteMembers_sp_basic128rsa15(securityPolicy);
@@ -755,10 +755,10 @@ error:
     UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                  "Could not create securityContext: %s", UA_StatusCode_name(retval));
     #if UA_LOGLEVEL <= 300
-        char errBuff[300];
-        mbedtls_strerror(mbedErr, errBuff, 300);
-        UA_LOG_DEBUG(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                 "Certificate error: %d, %s", mbedErr, errBuff);
+        mbedtls_log_error( "Certificate error", mbedErr, securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY); 
+        if(UA_ByteString_equal(&securityPolicy->localCertificate, &UA_BYTESTRING_NULL))
+            UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                 "localCertificate is empty" );
     #endif
     if(securityPolicy->policyContext != NULL)
         deleteMembers_sp_basic128rsa15(securityPolicy);

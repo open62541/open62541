@@ -610,10 +610,10 @@ updateCertificateAndPrivateKey_sp_basic256(UA_SecurityPolicy *securityPolicy,
     UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                  "Could not update certificate and private key");
     #if UA_LOGLEVEL <= 300
-        char errBuff[300];
-        mbedtls_strerror(mbedErr, errBuff, 300);
-        UA_LOG_DEBUG(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                 "Certificate error: %d, %s", mbedErr, errBuff);
+        mbedtls_log_error( "Certificate error", mbedErr, securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY); 
+        if(UA_ByteString_equal(&securityPolicy->localCertificate, &UA_BYTESTRING_NULL))
+            UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                 "localCertificate is empty" );
     #endif
     if(securityPolicy->policyContext != NULL)
         deleteMembers_sp_basic256(securityPolicy);
@@ -691,11 +691,13 @@ policyContext_newContext_sp_basic256(UA_SecurityPolicy *securityPolicy,
 
     /* Set the local certificate thumbprint */
     retval = UA_ByteString_allocBuffer(&pc->localCertThumbprint, UA_SHA1_LENGTH);
+printf("UA_ByteString_allocBuffer returns %d %s:%d\n", retval, __FILE__, __LINE__);
     if(retval != UA_STATUSCODE_GOOD)
         goto error;
     retval = asym_makeThumbprint_sp_basic256(pc->securityPolicy,
                                                   &securityPolicy->localCertificate,
                                                   &pc->localCertThumbprint);
+printf("asym_makeThumbprint_sp_basic256 returns %d %s:%d\n", retval, __FILE__, __LINE__);
     if(retval != UA_STATUSCODE_GOOD)
         goto error;
 
@@ -705,10 +707,10 @@ error:
     UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                  "Could not create securityContext: %s", UA_StatusCode_name(retval));
     #if UA_LOGLEVEL <= 300
-        char errBuff[300];
-        mbedtls_strerror(mbedErr, errBuff, 300);
-        UA_LOG_DEBUG(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                 "Certificate error: %d, %s", mbedErr, errBuff);
+        mbedtls_log_error( "Certificate error", mbedErr, securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY); 
+        if(UA_ByteString_equal(&securityPolicy->localCertificate, &UA_BYTESTRING_NULL))
+            UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                 "localCertificate is empty" );
     #endif
     if(securityPolicy->policyContext != NULL)
         deleteMembers_sp_basic256(securityPolicy);
