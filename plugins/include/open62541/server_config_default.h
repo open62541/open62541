@@ -23,7 +23,7 @@ UA_Server UA_EXPORT * UA_Server_new(void);
 /**********************/
 
 extern const UA_EXPORT
-UA_ConnectionConfig UA_ConnectionConfig_default;
+UA_SecureChannelConfig UA_SecureChannelConfig_default;
 
 /*************************/
 /* Default Server Config */
@@ -95,19 +95,6 @@ UA_ServerConfig_setDefault(UA_ServerConfig *config) {
  */
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_setBasics(UA_ServerConfig *conf);
-
-/* Adds a TCP network layer with custom buffer sizes
- *
- * @param conf The configuration to manipulate
- * @param portNumber The port number for the tcp network layer
- * @param sendBufferSize The size in bytes for the network send buffer. Pass 0
- *        to use defaults.
- * @param recvBufferSize The size in bytes for the network receive buffer.
- *        Pass 0 to use defaults.
- */
-UA_EXPORT UA_StatusCode
-UA_ServerConfig_addNetworkLayerTCP(UA_ServerConfig *conf, UA_UInt16 portNumber,
-                                   UA_UInt32 sendBufferSize, UA_UInt32 recvBufferSize);
 
 #ifdef UA_ENABLE_WEBSOCKET_SERVER
 /* Adds a Websocket network layer with custom buffer sizes

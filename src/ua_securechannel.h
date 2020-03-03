@@ -16,9 +16,11 @@
 #include <open62541/plugin/log.h>
 #include <open62541/plugin/securitypolicy.h>
 #include <open62541/transport_generated.h>
+#include <open62541/types.h>
+#include <open62541/plugin/socket.h>
+#include <open62541/securechannel.h>
 
 #include "open62541_queue.h"
-#include "ua_connection_internal.h"
 
 _UA_BEGIN_DECLS
 
@@ -31,6 +33,11 @@ extern UA_StatusCode decrypt_verifySignatureFailure;
 extern UA_StatusCode sendAsym_sendFailure;
 extern UA_StatusCode processSym_seqNumberFailure;
 #endif
+
+typedef struct UA_SecureChannel UA_SecureChannel;
+
+typedef UA_StatusCode (*UA_ProcessMessageCallback)(UA_SecureChannel *channel, UA_MessageType messageType,
+                                                   UA_UInt32 requestId, UA_ByteString *message);
 
 /* The Session implementation differs between client and server. Still, it is
  * expected that the Session structure begins with the SessionHeader. This is
@@ -78,7 +85,7 @@ struct UA_SecureChannel {
     UA_SecureChannelState state;
     UA_SecureChannelRenewState renewState;
     UA_MessageSecurityMode securityMode;
-    UA_ConnectionConfig config;
+    UA_SecureChannelConfig config;
 
     /* Rules for revolving the token with a renew OPN request: The client is
      * allowed to accept messages with the old token until the OPN response has
@@ -91,10 +98,14 @@ struct UA_SecureChannel {
     UA_ChannelSecurityToken altSecurityToken; /* Alternative token for the rollover.
                                                * See the renewState. */
 
+    /* The context and callback for completed messages */
+    void *application;
+    UA_ProcessMessageCallback processMessageCallback;
+
     /* The endpoint and context of the channel */
     const UA_SecurityPolicy *securityPolicy;
     void *channelContext; /* For interaction with the security policy */
-    UA_Connection *connection;
+    UA_Socket *socket;
 
     /* Asymmetric encryption info */
     UA_ByteString remoteCertificate;
@@ -133,10 +144,28 @@ struct UA_SecureChannel {
                                       const UA_AsymmetricAlgorithmSecurityHeader *asymHeader);
 };
 
-void UA_SecureChannel_init(UA_SecureChannel *channel,
-                           const UA_ConnectionConfig *config);
+void
+UA_SecureChannel_init(UA_SecureChannel *channel,
+                      const UA_SecureChannelConfig *config);
 
-void UA_SecureChannel_close(UA_SecureChannel *channel);
+void
+UA_SecureChannel_close(UA_SecureChannel *channel);
+
+void
+UA_SecureChannel_attachSocket(UA_SecureChannel *secureChannel,
+                              UA_Socket *socket);
+
+void
+UA_SecureChannel_detachSocket(UA_SecureChannel *secureChannel);
+
+/* When a fatal error occurs the Server shall send an Error Message to the
+ * Client and close the socket. When a Client encounters one of these errors, it
+ * shall also close the socket but does not send an Error Message. After the
+ * socket is closed a Client shall try to reconnect automatically using the
+ * mechanisms described in [...]. */
+void
+UA_SecureChannel_sendError(UA_SecureChannel *secureChannel,
+                           UA_TcpErrorMessage *error);
 
 /* Process the remote configuration in the HEL/ACK handshake. The connection
  * config is initialized with the local settings. */
@@ -189,7 +218,7 @@ typedef struct {
     UA_UInt16 chunksSoFar;
     size_t messageSizeSoFar;
 
-    UA_ByteString messageBuffer;
+    UA_ByteString *messageBuffer;
     UA_Byte *buf_pos;
     const UA_Byte *buf_end;
 
@@ -326,7 +355,7 @@ encryptChunkSym(UA_MessageContext *const messageContext, size_t totalLength);
 #define UA_LOG_TRACE_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)              \
     UA_LOG_TRACE(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                        \
                  "Connection %i | SecureChannel %" PRIu32 " | " MSG "%.0s",     \
-                 ((CHANNEL)->connection ? (int)((CHANNEL)->connection->sockfd) : 0), \
+                 ((CHANNEL)->socket ? (int)((CHANNEL)->socket->id) : 0), \
                  (CHANNEL)->securityToken.channelId, __VA_ARGS__)
 
 #define UA_LOG_TRACE_CHANNEL(LOGGER, CHANNEL, ...)        \
@@ -335,7 +364,7 @@ encryptChunkSym(UA_MessageContext *const messageContext, size_t totalLength);
 #define UA_LOG_DEBUG_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)              \
     UA_LOG_DEBUG(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                        \
                  "Connection %i | SecureChannel %" PRIu32 " | " MSG "%.0s",     \
-                 ((CHANNEL)->connection ? (int)((CHANNEL)->connection->sockfd) : 0), \
+                 ((CHANNEL)->socket ? (int)((CHANNEL)->socket->id) : 0), \
                  (CHANNEL)->securityToken.channelId, __VA_ARGS__)
 
 #define UA_LOG_DEBUG_CHANNEL(LOGGER, CHANNEL, ...)        \
@@ -344,7 +373,7 @@ encryptChunkSym(UA_MessageContext *const messageContext, size_t totalLength);
 #define UA_LOG_INFO_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)               \
     UA_LOG_INFO(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                         \
                  "Connection %i | SecureChannel %" PRIu32 " | " MSG "%.0s",     \
-                 ((CHANNEL)->connection ? (int)((CHANNEL)->connection->sockfd) : 0), \
+                 ((CHANNEL)->socket ? (int)((CHANNEL)->socket->id) : 0), \
                  (CHANNEL)->securityToken.channelId, __VA_ARGS__)
 
 #define UA_LOG_INFO_CHANNEL(LOGGER, CHANNEL, ...)        \
@@ -353,7 +382,7 @@ encryptChunkSym(UA_MessageContext *const messageContext, size_t totalLength);
 #define UA_LOG_WARNING_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)            \
     UA_LOG_WARNING(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                      \
                  "Connection %i | SecureChannel %" PRIu32 " | " MSG "%.0s",     \
-                 ((CHANNEL)->connection ? (int)((CHANNEL)->connection->sockfd) : 0), \
+                 ((CHANNEL)->socket ? (int)((CHANNEL)->socket->id) : 0), \
                  (CHANNEL)->securityToken.channelId, __VA_ARGS__)
 
 #define UA_LOG_WARNING_CHANNEL(LOGGER, CHANNEL, ...)        \
@@ -362,7 +391,7 @@ encryptChunkSym(UA_MessageContext *const messageContext, size_t totalLength);
 #define UA_LOG_ERROR_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)              \
     UA_LOG_ERROR(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                        \
                  "Connection %i | SecureChannel %" PRIu32 " | " MSG "%.0s",     \
-                 ((CHANNEL)->connection ? (int)((CHANNEL)->connection->sockfd) : 0), \
+                 ((CHANNEL)->socket ? (int)((CHANNEL)->socket->id) : 0), \
                  (CHANNEL)->securityToken.channelId, __VA_ARGS__)
 
 #define UA_LOG_ERROR_CHANNEL(LOGGER, CHANNEL, ...)        \
@@ -371,7 +400,7 @@ encryptChunkSym(UA_MessageContext *const messageContext, size_t totalLength);
 #define UA_LOG_FATAL_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)              \
     UA_LOG_FATAL(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                        \
                  "Connection %i | SecureChannel %" PRIu32 " | " MSG "%.0s",     \
-                 ((CHANNEL)->connection ? (CHANNEL)->connection->sockfd : 0), \
+                 ((CHANNEL)->socket ? (CHANNEL)->socket->id : 0), \
                  (CHANNEL)->securityToken.channelId, __VA_ARGS__)
 
 #define UA_LOG_FATAL_CHANNEL(LOGGER, CHANNEL, ...)        \

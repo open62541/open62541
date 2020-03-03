@@ -15,16 +15,14 @@
 
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
-#include <open62541/network_tcp.h>
-#ifdef UA_ENABLE_WEBSOCKET_SERVER
-#include <open62541/network_ws.h>
-#endif
 #include <open62541/plugin/accesscontrol_default.h>
 #include <open62541/plugin/nodestore_default.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pki_default.h>
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/server_config_default.h>
+#include <open62541/plugin/networking/networkmanagers.h>
+#include <open62541/plugin/networking/sockets.h>
 
 /* Struct initialization works across ANSI C/C99/C++ if it is done when the
  * variable is first declared. Assigning values to existing structs is
@@ -55,10 +53,8 @@ UA_Server_new() {
 /* Default Connection Settings */
 /*******************************/
 
-const UA_ConnectionConfig UA_ConnectionConfig_default = {
+const UA_SecureChannelConfig UA_SecureChannelConfig_default = {
     0,     /* .protocolVersion */
-    65535, /* .sendBufferSize, 64k per chunk */
-    65535, /* .recvBufferSize, 64k per chunk */
     0,     /* .localMaxMessageSize, 0 -> unlimited */
     0,     /* .remoteMaxMessageSize, 0 -> unlimited */
     0,     /* .localMaxChunkCount, 0 -> unlimited */
@@ -264,63 +260,53 @@ UA_ServerConfig_setBasics(UA_ServerConfig* conf) {
 }
 
 static UA_StatusCode
-addDefaultNetworkLayers(UA_ServerConfig *conf, UA_UInt16 portNumber,
-                        UA_UInt32 sendBufferSize, UA_UInt32 recvBufferSize) {
-    return UA_ServerConfig_addNetworkLayerTCP(conf, portNumber, sendBufferSize, recvBufferSize);
-}
+configureNetworking_default(UA_ServerConfig *conf, UA_UInt16 portNumber, UA_UInt32 sendBufferSize,
+                            UA_UInt32 recvBufferSize) {
+
+    conf->listenerSocketConfigsSize = 1;
+#ifdef UA_ENABLE_WEBSOCKET_SERVER
+    conf->listenerSocketConfigsSize += 1;
+#endif
+    conf->listenerSocketConfigs = (UA_ListenerSocketConfig *)UA_malloc(
+        conf->listenerSocketConfigsSize * sizeof(UA_ListenerSocketConfig));
+    if(conf->listenerSocketConfigs == NULL) {
+        conf->listenerSocketConfigsSize = 0;
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    UA_StatusCode retval = UA_SelectBasedNetworkManager(&conf->logger, &conf->networkManager);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    // TCP Listeners
+    conf->listenerSocketConfigs[0].socketConfig.networkManager = conf->networkManager;
+    conf->listenerSocketConfigs[0].socketConfig.sendBufferSize = sendBufferSize;
+    if(conf->listenerSocketConfigs[0].socketConfig.sendBufferSize <= 0)
+        conf->listenerSocketConfigs[0].socketConfig.sendBufferSize = 65535;
+    conf->listenerSocketConfigs[0].socketConfig.recvBufferSize = recvBufferSize;
+    if(conf->listenerSocketConfigs[0].socketConfig.recvBufferSize <= 0)
+        conf->listenerSocketConfigs[0].socketConfig.recvBufferSize = 65535;
+    conf->listenerSocketConfigs[0].socketConfig.port = portNumber;
+    conf->listenerSocketConfigs[0].createSocket = UA_TCP_ListenerSockets;
+    conf->listenerSocketConfigs[0].customHostname = UA_STRING_NULL;
 
 #ifdef UA_ENABLE_WEBSOCKET_SERVER
-UA_EXPORT UA_StatusCode
-UA_ServerConfig_addNetworkLayerWS(UA_ServerConfig *conf, UA_UInt16 portNumber,
-                                   UA_UInt32 sendBufferSize, UA_UInt32 recvBufferSize) {
-    /* Add a network layer */
-    UA_ServerNetworkLayer *tmp = (UA_ServerNetworkLayer *)
-        UA_realloc(conf->networkLayers,
-                   sizeof(UA_ServerNetworkLayer) * (1 + conf->networkLayersSize));
-    if(!tmp)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    conf->networkLayers = tmp;
-
-    UA_ConnectionConfig config = UA_ConnectionConfig_default;
-    if (sendBufferSize > 0)
-        config.sendBufferSize = sendBufferSize;
-    if (recvBufferSize > 0)
-        config.recvBufferSize = recvBufferSize;
-
-    conf->networkLayers[conf->networkLayersSize] =
-        UA_ServerNetworkLayerWS(config, portNumber, &conf->logger);
-    if (!conf->networkLayers[conf->networkLayersSize].handle)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    conf->networkLayersSize++;
-
-    return UA_STATUSCODE_GOOD;
-}
+    // Websocket Listeners
+    conf->listenerSocketConfigs[1].socketConfig.networkManager = conf->networkManager;
+    conf->listenerSocketConfigs[1].socketConfig.sendBufferSize = sendBufferSize;
+    if(conf->listenerSocketConfigs[1].socketConfig.sendBufferSize <= 0)
+        conf->listenerSocketConfigs[1].socketConfig.sendBufferSize = 65535;
+    conf->listenerSocketConfigs[1].socketConfig.recvBufferSize = recvBufferSize;
+    if(conf->listenerSocketConfigs[1].socketConfig.recvBufferSize <= 0)
+        conf->listenerSocketConfigs[1].socketConfig.recvBufferSize = 65535;
+    conf->listenerSocketConfigs[1].socketConfig.port = 4880;
+    conf->listenerSocketConfigs[1].createSocket = UA_WSS_ListenerSocket;
+    conf->listenerSocketConfigs[1].customHostname = UA_STRING_NULL;
 #endif
 
-UA_EXPORT UA_StatusCode
-UA_ServerConfig_addNetworkLayerTCP(UA_ServerConfig *conf, UA_UInt16 portNumber,
-                                   UA_UInt32 sendBufferSize, UA_UInt32 recvBufferSize) {
-    /* Add a network layer */
-    UA_ServerNetworkLayer *tmp = (UA_ServerNetworkLayer *)
-        UA_realloc(conf->networkLayers,
-                   sizeof(UA_ServerNetworkLayer) * (1 + conf->networkLayersSize));
-    if(!tmp)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    conf->networkLayers = tmp;
+    conf->secureChannelConfig = UA_SecureChannelConfig_default;
 
-    UA_ConnectionConfig config = UA_ConnectionConfig_default;
-    if (sendBufferSize > 0)
-        config.sendBufferSize = sendBufferSize;
-    if (recvBufferSize > 0)
-        config.recvBufferSize = recvBufferSize;
-
-    conf->networkLayers[conf->networkLayersSize] =
-        UA_ServerNetworkLayerTCP(config, portNumber, 0, &conf->logger);
-    if (!conf->networkLayers[conf->networkLayersSize].handle)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    conf->networkLayersSize++;
-
-    return UA_STATUSCODE_GOOD;
+    return retval;
 }
 
 UA_EXPORT UA_StatusCode
@@ -442,7 +428,7 @@ UA_ServerConfig_setMinimalCustomBuffer(UA_ServerConfig *config, UA_UInt16 portNu
         return retval;
     }
 
-    retval = addDefaultNetworkLayers(config, portNumber, sendBufferSize, recvBufferSize);
+    retval = configureNetworking_default(config, portNumber, sendBufferSize, recvBufferSize);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_clean(config);
         return retval;
@@ -584,7 +570,7 @@ UA_ServerConfig_addSecurityPolicyBasic256Sha256(UA_ServerConfig *config,
 }
 
 UA_EXPORT UA_StatusCode
-UA_ServerConfig_addSecurityPolicyAes128Sha256RsaOaep(UA_ServerConfig *config, 
+UA_ServerConfig_addSecurityPolicyAes128Sha256RsaOaep(UA_ServerConfig *config,
                                                 const UA_ByteString *certificate,
                                                 const UA_ByteString *privateKey) {
     /* Allocate the SecurityPolicies */
@@ -594,7 +580,7 @@ UA_ServerConfig_addSecurityPolicyAes128Sha256RsaOaep(UA_ServerConfig *config,
     if(!tmp)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     config->securityPolicies = tmp;
-    
+
     /* Populate the SecurityPolicies */
     UA_ByteString localCertificate = UA_BYTESTRING_NULL;
     UA_ByteString localPrivateKey  = UA_BYTESTRING_NULL;
@@ -692,7 +678,7 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
     if (retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    retval = addDefaultNetworkLayers(conf, portNumber, 0, 0);
+    retval = configureNetworking_default(conf, portNumber, 0, 0);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_clean(conf);
         return retval;
@@ -747,7 +733,7 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
        config->logger.clear = UA_Log_Stdout_clear;
     }
 
-    config->localConnectionConfig = UA_ConnectionConfig_default;
+    config->secureChannelConfig = UA_SecureChannelConfig_default;
 
     /* Certificate Verification that accepts every certificate. Can be
      * overwritten when the policy is specialized. */
@@ -761,7 +747,7 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
     config->clientDescription.applicationUri = UA_STRING_ALLOC(APPLICATION_URI);
     config->clientDescription.applicationType = UA_APPLICATIONTYPE_CLIENT;
 
-    if(config->securityPoliciesSize > 0) {
+    if(config->securityPoliciesSize > 0 || config->securityPolicies != NULL) {
         UA_LOG_ERROR(&config->logger, UA_LOGCATEGORY_NETWORK,
                      "Could not initialize a config that already has SecurityPolicies");
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -779,8 +765,20 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
     }
     config->securityPoliciesSize = 1;
 
-    config->initConnectionFunc = UA_ClientConnectionTCP_init; /* for async client */
-    config->pollConnectionFunc = UA_ClientConnectionTCP_poll; /* for async connection */
+    config->clientSocketConfig.baseConfig.sendBufferSize = 65535;
+    config->clientSocketConfig.baseConfig.recvBufferSize = 65535;
+    config->clientSocketConfig.baseConfig.port = 4840;
+    config->clientSocketConfig.baseConfig.networkManager = NULL;
+    config->clientSocketConfig.createSocket = UA_TCP_ClientDataSocket;
+    config->clientSocketConfig.timeout = 5000;
+    config->deleteNetworkManagerOnShutdown = true;
+
+    retval = UA_SelectBasedNetworkManager(UA_Log_Stdout, &config->networkManager);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_free(config->securityPolicies);
+        config->securityPolicies = NULL;
+        return retval;
+    }
 
     config->customDataTypes = NULL;
     config->stateCallback = NULL;
@@ -796,6 +794,8 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
     config->subscriptionInactivityCallback = NULL;
 #endif
 
+    config->networkManager->start(config->networkManager);
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -808,6 +808,9 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
     UA_StatusCode retval = UA_ClientConfig_setDefault(config);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
+
+    if(config->securityPoliciesSize > 1)
+        return UA_STATUSCODE_BADINTERNALERROR;
 
     retval = UA_CertificateVerification_Trustlist(&config->certificateVerification,
                                                   trustList, trustListSize,
@@ -822,7 +825,7 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
     if(!sp)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     config->securityPolicies = sp;
-                  
+
     retval = UA_SecurityPolicy_Basic128Rsa15(&config->securityPolicies[config->securityPoliciesSize],
                                              localCertificate, privateKey, &config->logger);
     if(retval == UA_STATUSCODE_GOOD) {

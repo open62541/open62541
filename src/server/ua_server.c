@@ -303,6 +303,9 @@ UA_Server_init(UA_Server *server) {
     server->namespaces[1] = UA_STRING_NULL;
     server->namespacesSize = 2;
 
+    server->discoveryUrls = NULL;
+    server->discoveryUrlsSize = 0;
+
     /* Initialize SecureChannel */
     TAILQ_INIT(&server->channels);
     /* TODO: use an ID that is likely to be unique after a restart */
@@ -524,6 +527,42 @@ UA_ServerStatistics UA_Server_getStatistics(UA_Server *server)
 /* Main Server Loop */
 /********************/
 
+static UA_StatusCode
+removeChannel(UA_Socket *sock) {
+    UA_SecureChannel *const channel = (UA_SecureChannel *const)sock->context;
+    UA_SecureChannel_close(channel);
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+createChannel(UA_Socket *sock) {
+    UA_Server *const server = (UA_Server *const)sock->application;
+
+    UA_StatusCode retval = sock->open(sock);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                 "New data socket created. Adding corresponding channel");
+
+   UA_SecureChannel *secureChannel;
+    retval = UA_Server_createSecureChannel(server, sock);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    secureChannel = (UA_SecureChannel *)sock->context;
+    secureChannel->application = server;
+    secureChannel->processMessageCallback = (UA_ProcessMessageCallback)UA_Server_processMessage;
+
+    sock->cleanCallback = removeChannel;
+
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+open_listener_socket(UA_Socket *sock) {
+    return sock->open(sock);
+}
+
 #define UA_MAXTIMEOUT 50 /* Max timeout in ms between main-loop iterations */
 
 /* Start: Spin up the workers and the network layer and sample the server's
@@ -584,12 +623,43 @@ UA_Server_run_startup(UA_Server *server) {
                          UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STARTTIME),
                          var);
 
-    /* Start the networklayers */
-    UA_StatusCode result = UA_STATUSCODE_GOOD;
-    for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
-        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
-        nl->statistics = &server->serverStats.ns;
-        result |= nl->start(nl, &server->config.customHostname);
+    if(server->config.networkManager == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    retVal = server->config.networkManager->start(server->config.networkManager);
+    if(retVal != UA_STATUSCODE_GOOD)
+        return retVal;
+
+    typedef struct {
+        UA_String *urls;
+        size_t urlsSize;
+    } DiscUrlsArray;
+
+    size_t discoveryUrlsArraySize = server->config.listenerSocketConfigsSize;
+    UA_STACKARRAY(DiscUrlsArray, discoveryUrlsArray, discoveryUrlsArraySize);
+    size_t totalDiscUrls = 0;
+
+    /* Delayed creation of the server sockets. */
+    for(size_t i = 0; i < server->config.listenerSocketConfigsSize; ++i) {
+        UA_ListenerSocketConfig listenerSocketConfig = server->config.listenerSocketConfigs[i];
+
+        listenerSocketConfig.createSocket(server, &listenerSocketConfig,
+                                          createChannel, open_listener_socket,
+                                          &discoveryUrlsArray[i].urls, &discoveryUrlsArray[i].urlsSize);
+        totalDiscUrls += discoveryUrlsArray[i].urlsSize;
+    }
+
+    server->discoveryUrls = (UA_String *)UA_Array_new(totalDiscUrls, &UA_TYPES[UA_TYPES_STRING]);
+    if(server->discoveryUrls == NULL)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    server->discoveryUrlsSize = totalDiscUrls;
+
+    size_t discUrlOffset = 0;
+    for(size_t i = 0; i < discoveryUrlsArraySize; ++i) {
+        for(size_t j = 0; j < discoveryUrlsArray[i].urlsSize && discUrlOffset < totalDiscUrls; ++j) {
+            UA_String_copy(&discoveryUrlsArray[i].urls[j], &server->discoveryUrls[discUrlOffset]);
+            ++discUrlOffset;
+        }
+        UA_Array_delete(discoveryUrlsArray[i].urls, discoveryUrlsArray[i].urlsSize, &UA_TYPES[UA_TYPES_STRING]);
     }
 
     /* Update the application description to match the previously added discovery urls.
@@ -600,14 +670,14 @@ UA_Server_run_startup(UA_Server *server) {
                         &UA_TYPES[UA_TYPES_STRING]);
         server->config.applicationDescription.discoveryUrlsSize = 0;
     }
+
     server->config.applicationDescription.discoveryUrls = (UA_String *)
-        UA_Array_new(server->config.networkLayersSize, &UA_TYPES[UA_TYPES_STRING]);
+        UA_Array_new(server->discoveryUrlsSize, &UA_TYPES[UA_TYPES_STRING]);
     if(!server->config.applicationDescription.discoveryUrls)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    server->config.applicationDescription.discoveryUrlsSize = server->config.networkLayersSize;
+    server->config.applicationDescription.discoveryUrlsSize = server->discoveryUrlsSize;
     for(size_t i = 0; i < server->config.applicationDescription.discoveryUrlsSize; i++) {
-        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
-        UA_String_copy(&nl->discoveryUrl, &server->config.applicationDescription.discoveryUrls[i]);
+        UA_String_copy(&server->discoveryUrls[i], &server->config.applicationDescription.discoveryUrls[i]);
     }
 
     /* Spin up the worker threads */
@@ -625,7 +695,7 @@ UA_Server_run_startup(UA_Server *server) {
 
     server->state = UA_SERVERLIFECYCLE_FRESH;
 
-    return result;
+    return UA_STATUSCODE_GOOD;
 }
 
 static void
@@ -655,11 +725,8 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
     if(waitInternal)
         timeout = (UA_UInt16)(((nextRepeated - now) + (UA_DATETIME_MSEC - 1)) / UA_DATETIME_MSEC);
 
-    /* Listen on the networklayer */
-    for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
-        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
-        nl->listen(nl, server, timeout);
-    }
+    /* Listen for network activity */
+    server->config.networkManager->process(server->config.networkManager, timeout);
 
 #if defined(UA_ENABLE_PUBSUB_MQTT)
     /* Listen on the pubsublayer, but only if the yield function is set */
@@ -698,11 +765,7 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
 
 UA_StatusCode
 UA_Server_run_shutdown(UA_Server *server) {
-    /* Stop the netowrk layer */
-    for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
-        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
-        nl->stop(nl, server);
-    }
+    server->config.networkManager->shutdown(server->config.networkManager);
 
 #if UA_MULTITHREADING >= 200
     /* Shut down the workers */
@@ -720,6 +783,8 @@ UA_Server_run_shutdown(UA_Server *server) {
 
     /* Execute all delayed callbacks */
     UA_WorkQueue_cleanup(&server->workQueue);
+
+    UA_Array_delete(server->discoveryUrls, server->discoveryUrlsSize, &UA_TYPES[UA_TYPES_STRING]);
 
     return UA_STATUSCODE_GOOD;
 }

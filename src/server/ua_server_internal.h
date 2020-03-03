@@ -20,7 +20,6 @@
 #include <open62541/server.h>
 #include <open62541/plugin/nodestore.h>
 
-#include "ua_connection_internal.h"
 #include "ua_session.h"
 #include "ua_server_async.h"
 #include "ua_timer.h"
@@ -90,6 +89,10 @@ struct UA_Server {
                           * down once the time has been reached */
 
     UA_ServerLifecycle state;
+
+    /* Networking */
+    UA_String *discoveryUrls;
+    size_t discoveryUrlsSize;
 
     /* SecureChannels */
     TAILQ_HEAD(, channel_entry) channels;
@@ -170,7 +173,7 @@ void
 UA_Server_cleanupTimedOutSecureChannels(UA_Server *server, UA_DateTime nowMonotonic);
 
 UA_StatusCode
-UA_Server_createSecureChannel(UA_Server *server, UA_Connection *connection);
+UA_Server_createSecureChannel(UA_Server *server, UA_Socket *connection);
 
 UA_StatusCode
 UA_Server_configSecureChannel(void *application, UA_SecureChannel *channel,
@@ -216,6 +219,10 @@ getSessionByToken(UA_Server *server, const UA_NodeId *token);
 
 UA_Session *
 UA_Server_getSessionById(UA_Server *server, const UA_NodeId *sessionId);
+
+UA_StatusCode
+UA_Server_processMessage(UA_SecureChannel *channel, UA_MessageType messageType,
+                         UA_UInt32 requestId, UA_ByteString *message);
 
 /*****************/
 /* Node Handling */

@@ -30,14 +30,19 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
     /* nothing to do */
 
     /* Networking */
-    for(size_t i = 0; i < config->networkLayersSize; ++i)
-        config->networkLayers[i].clear(&config->networkLayers[i]);
-    UA_free(config->networkLayers);
-    config->networkLayers = NULL;
-    config->networkLayersSize = 0;
-    UA_String_deleteMembers(&config->customHostname);
-    config->customHostname = UA_STRING_NULL;
+    if(config->networkManager != NULL) {
+        config->networkManager->shutdown(config->networkManager);
+        config->networkManager->free(config->networkManager);
+        config->networkManager = NULL;
+    }
 
+    for(size_t i = 0; i < config->listenerSocketConfigsSize; ++i) {
+        UA_String_deleteMembers(&config->listenerSocketConfigs[i].customHostname);
+        config->listenerSocketConfigs[i].customHostname = UA_STRING_NULL;
+    }
+    UA_free(config->listenerSocketConfigs);
+
+    /* Security policies */
     for(size_t i = 0; i < config->securityPoliciesSize; ++i) {
         UA_SecurityPolicy *policy = &config->securityPolicies[i];
         policy->clear(policy);

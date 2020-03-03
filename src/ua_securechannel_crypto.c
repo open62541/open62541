@@ -368,7 +368,7 @@ signChunkSym(UA_MessageContext *const messageContext, size_t preSigLength) {
         return UA_STATUSCODE_GOOD;
 
     const UA_SecurityPolicy *sp = channel->securityPolicy;
-    UA_ByteString dataToSign = messageContext->messageBuffer;
+    UA_ByteString dataToSign = *messageContext->messageBuffer;
     dataToSign.length = preSigLength;
     UA_ByteString signature;
     signature.length = sp->symmetricModule.cryptoModule.signatureAlgorithm.
@@ -386,7 +386,7 @@ encryptChunkSym(UA_MessageContext *const messageContext, size_t totalLength) {
         return UA_STATUSCODE_GOOD;
         
     UA_ByteString dataToEncrypt;
-    dataToEncrypt.data = messageContext->messageBuffer.data + UA_SECUREMH_AND_SYMALGH_LENGTH;
+    dataToEncrypt.data = messageContext->messageBuffer->data + UA_SECUREMH_AND_SYMALGH_LENGTH;
     dataToEncrypt.length = totalLength - UA_SECUREMH_AND_SYMALGH_LENGTH;
 
     const UA_SecurityPolicy *sp = channel->securityPolicy;
@@ -400,8 +400,8 @@ void
 setBufPos(UA_MessageContext *mc) {
     /* Forward the data pointer so that the payload is encoded after the
      * message header */
-    mc->buf_pos = &mc->messageBuffer.data[UA_SECURE_MESSAGE_HEADER_LENGTH];
-    mc->buf_end = &mc->messageBuffer.data[mc->messageBuffer.length];
+    mc->buf_pos = &mc->messageBuffer->data[UA_SECURE_MESSAGE_HEADER_LENGTH];
+    mc->buf_end = &mc->messageBuffer->data[mc->messageBuffer->length];
 
 #ifdef UA_ENABLE_ENCRYPTION
     const UA_SecureChannel *channel = mc->channel;
@@ -433,7 +433,7 @@ setBufPos(UA_MessageContext *mc) {
          * maxEncryptedDataSize modulo EncryptionBlockSize to get a whole
          * number of blocks to encrypt later. Also reserve one byte for
          * padding (1 <= paddingSize <= encryptionBlockSize). */
-        size_t maxEncryptDataSize = mc->messageBuffer.length -
+        size_t maxEncryptDataSize = mc->messageBuffer->length -
             UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH -
             UA_SYMMETRIC_ALG_SECURITY_HEADER_LENGTH;
         mc->buf_end -= (maxEncryptDataSize % encryptionBlockSize) + 1;
@@ -626,8 +626,7 @@ checkSymHeader(UA_SecureChannel *channel,
        timeout < UA_DateTime_nowMonotonic()) {
         UA_LOG_WARNING_CHANNEL(channel->securityPolicy->logger, channel,
                                "SecurityToken timed out");
-        UA_SecureChannel_close(channel);
-        return UA_STATUSCODE_BADSECURECHANNELCLOSED;
+        return UA_STATUSCODE_BADTIMEOUT;
     }
 
     return UA_STATUSCODE_GOOD;
