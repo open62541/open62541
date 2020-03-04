@@ -104,7 +104,7 @@ struct UA_SecureChannel {
 
     /* The endpoint and context of the channel */
     const UA_SecurityPolicy *securityPolicy;
-    void *policyChannelContext; /* For interaction with the security policy */
+    void *channelContext; /* For interaction with the security policy */
     UA_Socket *socket;
     UA_CertificateVerification *certificateVerification;
     UA_StatusCode (*configure)(void *application, UA_SecureChannel *channel,
@@ -112,7 +112,8 @@ struct UA_SecureChannel {
 
     /* Asymmetric encryption info */
     UA_ByteString remoteCertificate;
-    UA_Byte remoteCertificateThumbprint[20]; /* The thumbprint of the remote certificate */
+    UA_Byte
+        remoteCertificateThumbprint[20]; /* The thumbprint of the remote certificate */
 
     /* Symmetric encryption nonces. These are used to generate the key material
      * and must not be reused once the keys are in place.

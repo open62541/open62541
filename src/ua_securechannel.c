@@ -61,9 +61,11 @@ UA_SecureChannel_detachSocket(UA_SecureChannel *secureChannel) {
     if(secureChannel == NULL)
         return;
     UA_Socket *old_sock = (UA_Socket *)UA_atomic_xchg((void **)&secureChannel->socket, NULL);
-    if(old_sock != NULL)
+    if(old_sock != NULL) {
         /* only replace when the channel points to this socket */
         UA_atomic_cmpxchg((void **)&old_sock->context, secureChannel, NULL);
+        old_sock->dataCallback = NULL;
+    }
 }
 
 /* Hides some errors before sending them to a client according to the
@@ -115,8 +117,8 @@ UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    UA_StatusCode retval = securityPolicy->channelModule.
-        newContext(securityPolicy, remoteCertificate, &channel->policyChannelContext);
+    UA_StatusCode retval = securityPolicy->channelModule.newContext(
+        securityPolicy, remoteCertificate, &channel->channelContext);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                        "Could not set up the SecureChannel context");
@@ -279,8 +281,9 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel,
     size_t total_length = pre_sig_length;
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
-        total_length += sp->asymmetricModule.cryptoModule.signatureAlgorithm.
-            getLocalSignatureSize(sp, channel->policyChannelContext);
+        total_length +=
+            sp->asymmetricModule.cryptoModule.signatureAlgorithm.getLocalSignatureSize(
+                sp, channel->channelContext);
 
     /* The total message length is known here which is why we encode the headers
      * at this step and not earlier. */
@@ -385,8 +388,9 @@ sendSymmetricChunk(UA_MessageContext *messageContext) {
     total_length = pre_sig_length;
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
-        total_length += securityPolicy->symmetricModule.cryptoModule.signatureAlgorithm.
-            getLocalSignatureSize(securityPolicy, channel->policyChannelContext);
+        total_length +=
+            securityPolicy->symmetricModule.cryptoModule.signatureAlgorithm
+                .getLocalSignatureSize(securityPolicy, channel->channelContext);
     /* Space for the padding and the signature have been reserved in setBufPos() */
     UA_assert(total_length <= channel->socket->socketConfig.sendBufferSize);
 

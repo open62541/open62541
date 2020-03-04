@@ -13,14 +13,13 @@
 #include "testing_clock.h"
 #include "thread_wrapper.h"
 #include <testing_socket.h>
+#include <client/ua_client_internal.h>
 #ifndef WIN32
 #include <sys/stat.h>
 #endif
 #include <check.h>
 
 #ifndef _WIN32
-#include <client/ua_client_internal.h>
-
 #include <sys/stat.h>
 #endif
 
