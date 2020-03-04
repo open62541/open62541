@@ -609,11 +609,10 @@ checkAsymHeader(UA_SecureChannel *channel,
 }
 
 UA_StatusCode
-checkSymHeader(UA_SecureChannel *channel, UA_UInt32 tokenId,
-               UA_Boolean allowPreviousToken) {
+checkSymHeader(UA_SecureChannel *channel, UA_SymmetricAlgorithmSecurityHeader *securityHeader) {
     /* If the message uses a different token, check if it is the next token. */
-    if(tokenId != channel->securityToken.tokenId) {
-        if(tokenId != channel->nextSecurityToken.tokenId) {
+    if(securityHeader->tokenId != channel->securityToken.tokenId) {
+        if(securityHeader->tokenId != channel->nextSecurityToken.tokenId) {
             UA_LOG_WARNING_CHANNEL(channel->securityPolicy->logger, channel,
                                  "Received an unknown SecurityToken");
             return UA_STATUSCODE_BADSECURECHANNELTOKENUNKNOWN;

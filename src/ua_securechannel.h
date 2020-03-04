@@ -96,6 +96,9 @@ struct UA_SecureChannel {
     const UA_SecurityPolicy *securityPolicy;
     void *channelContext; /* For interaction with the security policy */
     UA_Connection *connection;
+    UA_CertificateVerification *certificateVerification;
+    UA_StatusCode (*configure)(void *application, UA_SecureChannel *channel,
+                               const UA_AsymmetricAlgorithmSecurityHeader *asymHeader);
 
     /* Asymmetric encryption info */
     UA_ByteString remoteCertificate;
@@ -117,9 +120,6 @@ struct UA_SecureChannel {
                                     * streaming protocol) is stored here */
     UA_MessageQueue messages;      /* Received full chunks grouped into the
                                     * messages */
-    UA_Boolean retryReceived;      /* Processing of received chunks was stopped
-                                    * e.g. after an OPN message. Retry
-                                    * processing remaining chunks. */
 };
 
 void UA_SecureChannel_init(UA_SecureChannel *channel,
@@ -233,9 +233,9 @@ typedef void
  * message body if the message is complete. The message is removed afterwards.
  * Returns if an irrecoverable error occured. */
 UA_StatusCode
-UA_SecureChannel_processPacket(UA_SecureChannel *channel, void *application,
+UA_SecureChannel_assembleChunks(UA_SecureChannel *channel, void *application,
                                UA_ProcessMessageCallback callback,
-                               const UA_ByteString *packet);
+                               const UA_ByteString *buffer);
 
 /* Try to receive at least one complete chunk on the connection. This blocks the
  * current thread up to the given timeout. It will return once the first packet
@@ -281,8 +281,7 @@ void
 setBufPos(UA_MessageContext *mc);
 
 UA_StatusCode
-checkSymHeader(UA_SecureChannel *channel, UA_UInt32 tokenId,
-               UA_Boolean allowPreviousToken);
+checkSymHeader(UA_SecureChannel *channel, UA_SymmetricAlgorithmSecurityHeader *securityHeader);
 
 UA_StatusCode
 processSequenceNumberAsym(UA_SecureChannel *channel, UA_UInt32 sequenceNumber);

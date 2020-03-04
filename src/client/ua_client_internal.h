@@ -211,9 +211,9 @@ processACKResponseAsync(void *application, UA_SecureChannel *channel,
                         UA_ByteString *chunk);
 
 void
-decodeProcessOPNResponseAsync(void *application, UA_SecureChannel *channel,
-                              UA_MessageType messageType, UA_UInt32 requestId,
-                              UA_ByteString *chunk);
+processOPNResponseAsync(void *application, UA_SecureChannel *channel,
+                        UA_MessageType messageType, UA_UInt32 requestId,
+                        UA_ByteString *message);
 
 UA_StatusCode
 openSecureChannel(UA_Client *client, UA_Boolean renew);

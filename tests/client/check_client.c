@@ -214,7 +214,7 @@ START_TEST(Client_renewSecureChannelWithActiveSubscription) {
     THREAD_JOIN(server_thread);
 
     for(int i = 0; i < 15; ++i) {
-        UA_fakeSleep(1000);
+        UA_fakeSleep(100);
         UA_Server_run_iterate(server, true);
         retval = UA_Client_run_iterate(client, 0);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);

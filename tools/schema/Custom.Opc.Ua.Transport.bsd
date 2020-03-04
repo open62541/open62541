@@ -60,10 +60,15 @@
   </opc:StructuredType>
   
   <opc:StructuredType Name="AsymmetricAlgorithmSecurityHeader">
-    <opc:Documentation>Security Header</opc:Documentation>
+    <opc:Documentation>Asymmetric Security Header</opc:Documentation>
     <opc:Field Name="SecurityPolicyUri" TypeName="opc:ByteString" />
     <opc:Field Name="SenderCertificate" TypeName="opc:ByteString" />
     <opc:Field Name="ReceiverCertificateThumbprint" TypeName="opc:ByteString" />
+  </opc:StructuredType>
+
+  <opc:StructuredType Name="SymmetricAlgorithmSecurityHeader">
+    <opc:Documentation>Symmetric Security Header</opc:Documentation>
+    <opc:Field Name="TokenId" TypeName="opc:UInt32" />
   </opc:StructuredType>
   
   <opc:StructuredType Name="SequenceHeader">

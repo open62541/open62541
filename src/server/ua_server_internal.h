@@ -174,7 +174,7 @@ UA_StatusCode
 UA_Server_createSecureChannel(UA_Server *server, UA_Connection *connection);
 
 UA_StatusCode
-UA_Server_configSecureChannel(UA_Server *server, UA_SecureChannel *channel,
+UA_Server_configSecureChannel(void *application, UA_SecureChannel *channel,
                               const UA_AsymmetricAlgorithmSecurityHeader *asymHeader);
 
 void

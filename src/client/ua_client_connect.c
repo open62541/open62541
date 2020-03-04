@@ -283,8 +283,11 @@ sendHELMessage(UA_Client *client) {
     return retval;
 }
 
-static void
-processOPNResponseDecoded(UA_Client *client, const UA_ByteString *message) {
+void
+processOPNResponseAsync(void *application, UA_SecureChannel *channel,
+                        UA_MessageType messageType, UA_UInt32 requestId,
+                        UA_ByteString *message) {
+    UA_Client *const client = (UA_Client *const)application;
     /* Is the content of the expected type? */
     size_t offset = 0;
     UA_NodeId responseId;
@@ -349,74 +352,6 @@ processOPNResponseDecoded(UA_Client *client, const UA_ByteString *message) {
         setClientState(client, UA_CLIENTSTATE_SECURECHANNEL);
 }
 
-void
-decodeProcessOPNResponseAsync(void *application, UA_SecureChannel *channel,
-                              UA_MessageType messageType, UA_UInt32 requestId,
-                              UA_ByteString *msg) {
-    UA_Client *client = (UA_Client*)application;
-    client->secureChannelHandshake = false;
-
-    /* Skip the first header. We know length and message type. */
-    size_t offset = UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH;
-
-    /* Decode the asymmetric algorithm security header and call the callback
-     * to perform checks. */
-    UA_AsymmetricAlgorithmSecurityHeader asymHeader;
-    UA_AsymmetricAlgorithmSecurityHeader_init(&asymHeader);
-    UA_StatusCode retval =
-        UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(msg, &offset, &asymHeader);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_CHANNEL(&client->config.logger, channel,
-                               "Could not decode the OPN header");
-        UA_Client_disconnect(client);
-        return;
-    }
-
-    /* Verify the certificate before creating the SecureChannel with it */
-    if(asymHeader.senderCertificate.length > 0) {
-        retval = client->config.certificateVerification.
-            verifyCertificate(client->config.certificateVerification.context,
-                              &asymHeader.senderCertificate);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING_CHANNEL(&client->config.logger, channel,
-                                   "Could not verify the server's certificate");
-            UA_Client_disconnect(client);
-            return;
-        }
-    }
-
-    retval = checkAsymHeader(channel, &asymHeader);
-    UA_AsymmetricAlgorithmSecurityHeader_clear(&asymHeader);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_CHANNEL(&client->config.logger, channel,
-                               "Could not verify the OPN header");
-        UA_Client_disconnect(client);
-        return;
-    }
-
-    UA_UInt32 sequenceNumber = 0;
-    retval = decryptAndVerifyChunk(channel, &channel->securityPolicy->asymmetricModule.cryptoModule,
-                                   UA_MESSAGETYPE_OPN, msg, offset, &requestId, &sequenceNumber);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_CHANNEL(&client->config.logger, channel,
-                               "Could not decrypt and verify the OPN payload");
-        UA_Client_disconnect(client);
-        return;
-    }
-
-#ifndef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
-    retval = processSequenceNumberAsym(channel, sequenceNumber);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_CHANNEL(&client->config.logger, channel,
-                               "Could not process the OPN sequence number");
-        UA_Client_disconnect(client);
-        return;
-    }
-#endif
-
-    processOPNResponseDecoded(client, msg);
-}
-
 /* OPN messges to renew the channel are sent asynchronous */
 static UA_StatusCode
 sendOPNAsync(UA_Client *client, UA_Boolean renew) {
@@ -459,7 +394,7 @@ sendOPNAsync(UA_Client *client, UA_Boolean renew) {
                       "Sending OPN message failed with error %s",
                       UA_StatusCode_name(retval));
         UA_Client_disconnect(client);
-        return retval;;
+        return retval;
     }
 
     client->secureChannelHandshake = true;
@@ -956,7 +891,15 @@ verifyClientApplicationURI(const UA_Client *client) {
     }
 #endif
 }
+
 #endif
+
+static UA_StatusCode
+client_configure_securechannel(void *application, UA_SecureChannel *channel,
+                               const UA_AsymmetricAlgorithmSecurityHeader *asymHeader) {
+//    ((UA_Client *)application)->secureChannelHandshake = false;
+    return UA_STATUSCODE_GOOD;
+}
 
 UA_StatusCode
 UA_Client_connect_async(UA_Client *client, const char *endpointUrl,
@@ -979,6 +922,8 @@ UA_Client_connect_async(UA_Client *client, const char *endpointUrl,
     client->channel.sendSequenceNumber = 0;
     client->requestId = 0;
     client->channel.config = client->config.localConnectionConfig;
+    client->channel.certificateVerification = &client->config.certificateVerification;
+    client->channel.configure = client_configure_securechannel;
 
     UA_String_clear(&client->endpointUrl);
     client->endpointUrl = UA_STRING_ALLOC(endpointUrl);
