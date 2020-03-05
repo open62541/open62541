@@ -310,6 +310,11 @@ createFullServiceDomain(char *outServiceDomain, size_t maxLen,
                     (int) servernameLen, (char *) servername->data,
                     (int) hostnameLen, (char *) hostname->data);
         offset = servernameLen + hostnameLen + 1;
+        //replace all dots with minus. Otherwise mDNS is not valid
+        for (size_t i=servernameLen+1; i<offset; i++) {
+            if (outServiceDomain[i] == '.')
+                outServiceDomain[i] = '-';
+        }
     }
     else {
         UA_snprintf(outServiceDomain, maxLen + 1, "%.*s",
