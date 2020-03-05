@@ -1,9 +1,6 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-/* This example is just to see how fast we can process messages. The server does
-   not open a TCP port. */
-
 #include <open62541/server_config_default.h>
 #include <open62541/server.h>
 #include <open62541/client.h>
@@ -15,10 +12,30 @@
 
 #include <check.h>
 
-UA_Boolean running;
-THREAD_HANDLE server_thread;
+static UA_INLINE THREAD_HANDLE THREAD_SELF(void) {
+#ifndef _WIN32
+    return pthread_self();
+#else
+    return GetCurrentThread();
+#endif
+}
+
+static UA_INLINE bool THREAD_EQUAL(THREAD_HANDLE th1, THREAD_HANDLE th2) {
+#ifndef _WIN32
+    return pthread_equal(th1, th2);
+#else
+    return GetThreadId(th1) == GetThreadId(th2);
+#endif
+}
+
+volatile UA_Boolean running;
+THREAD_HANDLE mainThread;
+THREAD_HANDLE serverThread;
+THREAD_HANDLE workerThread;
 static UA_Server *server;
+static UA_Client *glClient;
 static size_t clientCounter;
+UA_CallRequest callRequest;
 
 static UA_StatusCode
 methodCallback(UA_Server *serverArg,
@@ -27,20 +44,42 @@ methodCallback(UA_Server *serverArg,
          const UA_NodeId *objectId, void *objectContext,
          size_t inputSize, const UA_Variant *input,
          size_t outputSize, UA_Variant *output) {
-    return UA_STATUSCODE_GOOD;
-}
+    bool async = *(bool*)input->data;
+    bool isCorrectThread = async != THREAD_EQUAL(THREAD_SELF(), mainThread);
+    UA_Variant_setScalarCopy(output, &isCorrectThread, &UA_TYPES[UA_TYPES_BOOLEAN]);
 
-static void
-clientReceiveCallback(UA_Client *client, void *userdata,
-                      UA_UInt32 requestId, UA_CallResponse *cr) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "Received call response");
-    clientCounter++;
+    return UA_STATUSCODE_GOOD;
 }
 
 THREAD_CALLBACK(serverloop) {
     while(running)
         UA_Server_run_iterate(server, true);
     return 0;
+}
+
+THREAD_CALLBACK(workerloop) {
+    UA_Server_runAsync(server);
+    return 0;
+}
+
+static void fillCallRequest(UA_CallRequest *cr) {
+    cr->methodsToCallSize = 2;
+    cr->methodsToCall = (UA_CallMethodRequest*)
+        UA_Array_new(cr->methodsToCallSize, &UA_TYPES[UA_TYPES_CALLMETHODREQUEST]);
+    cr->methodsToCall[0].objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    cr->methodsToCall[0].methodId = UA_NODEID_STRING_ALLOC(1, "method");
+    cr->methodsToCall[0].inputArgumentsSize = 1;
+    cr->methodsToCall[0].inputArguments = UA_Variant_new();
+    UA_Boolean isAsync = false;
+    UA_Variant_setScalarCopy(cr->methodsToCall[0].inputArguments, &isAsync,
+                             &UA_TYPES[UA_TYPES_BOOLEAN]);
+    cr->methodsToCall[1].objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    cr->methodsToCall[1].methodId = UA_NODEID_STRING_ALLOC(1, "asyncMethod");
+    cr->methodsToCall[1].inputArgumentsSize = 1;
+    cr->methodsToCall[1].inputArguments = UA_Variant_new();
+    isAsync = true;
+    UA_Variant_setScalarCopy(cr->methodsToCall[1].inputArguments, &isAsync,
+                             &UA_TYPES[UA_TYPES_BOOLEAN]);
 }
 
 static void setup(void) {
@@ -55,6 +94,11 @@ static void setup(void) {
     methodAttr.executable = true;
     methodAttr.userExecutable = true;
 
+    UA_Argument arg;
+    UA_Argument_init(&arg);
+    arg.dataType = UA_TYPES[UA_TYPES_BOOLEAN].typeId;
+    arg.valueRank = UA_VALUERANK_SCALAR;
+
     /* Synchronous Method */
     UA_StatusCode res =
         UA_Server_addMethodNode(server, UA_NODEID_STRING(1, "method"),
@@ -62,7 +106,7 @@ static void setup(void) {
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASORDEREDCOMPONENT),
                             UA_QUALIFIEDNAME(1, "method"),
                             methodAttr, &methodCallback,
-                            0, NULL, 0, NULL, NULL, NULL);
+                            1, &arg, 1, &arg, NULL, NULL);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 
     /* Asynchronous Method */
@@ -71,175 +115,101 @@ static void setup(void) {
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASORDEREDCOMPONENT),
                             UA_QUALIFIEDNAME(1, "asyncMethod"),
                             methodAttr, &methodCallback,
-                            0, NULL, 0, NULL, NULL, NULL);
+                            1, &arg, 1, &arg, NULL, NULL);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     res = UA_Server_setMethodNodeAsync(server, UA_NODEID_STRING(1, "asyncMethod"), true);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 
+    fillCallRequest(&callRequest);
+
     UA_Server_run_startup(server);
-    THREAD_CREATE(server_thread, serverloop);
+    THREAD_CREATE(serverThread, serverloop);
+    THREAD_CREATE(workerThread, workerloop);
+
+    glClient = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(glClient));
+
+    UA_StatusCode retval = UA_Client_connect(glClient, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    running = false;
+    THREAD_JOIN(serverThread);
+
+    mainThread = THREAD_SELF();
 }
 
-static void teardown(void) {    
-    running = false;
-    THREAD_JOIN(server_thread);
+static void teardown(void) {
+    UA_Server_stopAsync(server);
+    THREAD_JOIN(workerThread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
+    UA_Client_delete(glClient);
+    UA_CallRequest_clear(&callRequest);
+}
+
+static void
+checkMethodResult(const UA_CallMethodResult *result, bool shouldTimeOut) {
+    UA_StatusCode sc = shouldTimeOut ? UA_STATUSCODE_BADTIMEOUT : UA_STATUSCODE_GOOD;
+    ck_assert_msg(result->statusCode == sc, "Unexpected result status code");
+    if(!shouldTimeOut) {
+        ck_assert_uint_eq(result->outputArgumentsSize, 1);
+        ck_assert_msg(result->outputArguments->type == &UA_TYPES[UA_TYPES_BOOLEAN], "Unexpected output type");
+        ck_assert_msg(*(bool*)result->outputArguments->data, "Called in wrong thread");
+    }
+}
+
+static void
+clientMethodCallback(UA_Client *client, void *userdata,
+                     UA_UInt32 requestId, void *response) {
+    /* Copy response to check it outside of the callback so that
+     * we do not abort while inside the library */
+    *(UA_CallResponse**)userdata = UA_CallResponse_new();
+    UA_CallResponse_copy((UA_CallResponse*)response, *(UA_CallResponse**)userdata);
 }
 
 START_TEST(Async_call) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig *clientConfig = UA_Client_getConfig(client);
-    UA_ClientConfig_setDefault(clientConfig);
-
-    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    UA_CallResponse *response = NULL;
+    UA_StatusCode retval = UA_Client_sendAsyncRequest(glClient,
+        &callRequest, &UA_TYPES[UA_TYPES_CALLREQUEST], clientMethodCallback,
+        &UA_TYPES[UA_TYPES_CALLRESPONSE], &response, NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Server_run_iterate(server, false);
 
-    /* Stop the server thread. Iterate manually from now on */
-    running = false;
-    THREAD_JOIN(server_thread);
+    for(size_t i = 0; i < 100 && !response; ++i) {
+        /* Give the worker thread some time to wake up
+         * and process requests */
+        UA_realSleep(10);
+        UA_fakeSleep(101);
+        UA_Server_run_iterate(server, false);
+        UA_Client_run_iterate(glClient, 0);
+    }
+    ck_assert_msg(response, "Expected response");
 
-    /* Call async method, then the sync method.
-     * The sync method returns first. */
-    retval = UA_Client_call_async(client,
-                                  UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                                  UA_NODEID_STRING(1, "asyncMethod"),
-                                  0, NULL, clientReceiveCallback, NULL, NULL);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-
-    retval = UA_Client_call_async(client,
-                                  UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                                  UA_NODEID_STRING(1, "method"),
-                                  0, NULL, clientReceiveCallback, NULL, NULL);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-
-    /* Receive the answer of the sync call */
-    ck_assert_uint_eq(clientCounter, 0);
-    UA_Server_run_iterate(server, true);
-    UA_Client_run_iterate(client, 0);
-    UA_Server_run_iterate(server, true);
-    UA_Client_run_iterate(client, 0);
-    ck_assert_uint_eq(clientCounter, 1);
-
-    /* Process the async method call for the server */
-    UA_AsyncOperationType aot;
-    const UA_AsyncOperationRequest *request;
-    void *context;
-    UA_Boolean haveAsync = UA_Server_getAsyncOperation(server, &aot, &request, &context);
-    ck_assert_uint_eq(haveAsync, true);
-    UA_AsyncOperationResponse response;
-    UA_CallMethodResult_init(&response.callMethodResult);
-    UA_Server_setAsyncOperationResult(server, &response, context);
-
-    /* Iterate and pick up the async response to be sent out */
-    UA_fakeSleep(1000);
-    UA_Server_run_iterate(server, true);
-
-    UA_fakeSleep(1000);
-    UA_Server_run_iterate(server, true);
-
-    /* Process async responses during 1s */
-    UA_Client_run_iterate(client, 0);
-    ck_assert_uint_eq(clientCounter, 2);
-
-    running = true;
-    THREAD_CREATE(server_thread, serverloop);
-
-    UA_Client_disconnect(client);
-    UA_Client_delete(client);
+    ck_assert_uint_eq(response->resultsSize, 2);
+    ck_assert_uint_eq(response->responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    checkMethodResult(&response->results[0], false);
+    checkMethodResult(&response->results[1], false);
+    UA_CallResponse_delete(response);
 } END_TEST
 
 START_TEST(Async_timeout) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig *clientConfig = UA_Client_getConfig(client);
-    UA_ClientConfig_setDefault(clientConfig);
-
-    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    UA_CallResponse *response = NULL;
+    UA_StatusCode retval = UA_Client_sendAsyncRequest(glClient,
+        &callRequest, &UA_TYPES[UA_TYPES_CALLREQUEST], clientMethodCallback,
+        &UA_TYPES[UA_TYPES_CALLRESPONSE], &response, NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Server_run_iterate(server, false);
 
-    /* Stop the server thread. Iterate manually from now on */
-    running = false;
-    THREAD_JOIN(server_thread);
+    /* Force timeout */
+    UA_fakeSleep(10000);
+    UA_Server_run_iterate(server, false);
+    UA_Client_run_iterate(glClient, 0);
+    ck_assert_msg(response, "Expected response");
 
-    /* Call async method, then the sync method.
-     * The sync method returns first. */
-    retval = UA_Client_call_async(client,
-                                  UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                                  UA_NODEID_STRING(1, "asyncMethod"),
-                                  0, NULL, clientReceiveCallback, NULL, NULL);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-
-    /* We expect to receive the timeout not yet*/
-    UA_Server_run_iterate(server, true);
-    UA_Client_run_iterate(client, 0);
-    ck_assert_uint_eq(clientCounter, 0);
-
-    UA_fakeSleep(1000 * 1.5);
-
-    /* We expect to receive the timeout not yet*/
-    UA_Server_run_iterate(server, true);
-    UA_Client_run_iterate(client, 0);
-    ck_assert_uint_eq(clientCounter, 0);
-
-    UA_fakeSleep(1000);
-
-    /* We expect to receive the timeout response */
-    UA_Server_run_iterate(server, true);
-    UA_Client_run_iterate(client, 0);
-    ck_assert_uint_eq(clientCounter, 1);
-
-    running = true;
-    THREAD_CREATE(server_thread, serverloop);
-
-    UA_Client_disconnect(client);
-    UA_Client_delete(client);
-} END_TEST
-
-/* Force a timeout when the operation is checked out with the worker */
-START_TEST(Async_timeout_worker) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig *clientConfig = UA_Client_getConfig(client);
-    UA_ClientConfig_setDefault(clientConfig);
-
-    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-
-    /* Stop the server thread. Iterate manually from now on */
-    running = false;
-    THREAD_JOIN(server_thread);
-
-    /* Call async method, then the sync method.
-     * The sync method returns first. */
-    retval = UA_Client_call_async(client,
-                                  UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                                  UA_NODEID_STRING(1, "asyncMethod"),
-                                  0, NULL, clientReceiveCallback, NULL, NULL);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    UA_Server_run_iterate(server, true);
-
-    /* Process the async method call for the server */
-    UA_AsyncOperationType aot;
-    const UA_AsyncOperationRequest *request;
-    void *context;
-    UA_Boolean haveAsync = UA_Server_getAsyncOperation(server, &aot, &request, &context);
-    ck_assert_uint_eq(haveAsync, true);
-    UA_AsyncOperationResponse response;
-    UA_CallMethodResult_init(&response.callMethodResult);
-
-    /* Force a timeout */
-    UA_fakeSleep(2500);
-    UA_Server_run_iterate(server, true);
-    UA_Client_run_iterate(client, 0);
-    ck_assert_uint_eq(clientCounter, 1);
-
-    /* Return the late response */
-    UA_Server_setAsyncOperationResult(server, &response, context);
-
-    running = true;
-    THREAD_CREATE(server_thread, serverloop);
-
-    UA_Client_disconnect(client);
-    UA_Client_delete(client);
+    ck_assert_uint_eq(response->resultsSize, 2);
+    ck_assert_uint_eq(response->responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    checkMethodResult(&response->results[0], false);
+    checkMethodResult(&response->results[1], true);
+    UA_CallResponse_delete(response);
 } END_TEST
 
 static Suite* method_async_suite(void) {
@@ -250,7 +220,6 @@ static Suite* method_async_suite(void) {
     tcase_add_checked_fixture(tc_manager, setup, teardown);
     tcase_add_test(tc_manager, Async_call);
     tcase_add_test(tc_manager, Async_timeout);
-    tcase_add_test(tc_manager, Async_timeout_worker);
     suite_add_tcase(s, tc_manager);
     
     return s;

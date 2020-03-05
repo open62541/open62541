@@ -23,7 +23,6 @@
 
 #include "ua_connection_internal.h"
 #include "ua_session.h"
-#include "ua_server_async.h"
 #include "ua_timer.h"
 #include "ua_util_internal.h"
 #include "ua_workqueue.h"
@@ -83,6 +82,10 @@ typedef enum {
     UA_SERVERLIFECYLE_RUNNING
 } UA_ServerLifecycle;
 
+#if UA_MULTITHREADING >= 100
+struct UA_AsyncManager;
+#endif
+
 struct UA_Server {
     /* Config */
     UA_ServerConfig config;
@@ -98,7 +101,7 @@ struct UA_Server {
     UA_UInt32 lastTokenId;
 
 #if UA_MULTITHREADING >= 100
-    UA_AsyncManager asyncManager;
+    struct UA_AsyncManager *asyncManager;
 #endif
 
     /* Session Management */
