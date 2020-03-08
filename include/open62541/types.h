@@ -530,8 +530,18 @@ typedef struct  {
 } UA_NumericRange;
 
 UA_StatusCode UA_EXPORT
-UA_NumericRange_parseFromString(UA_NumericRange *range, const UA_String *str);
+UA_NumericRange_parse(UA_NumericRange *range, const UA_String str);
 
+static UA_INLINE UA_NumericRange
+UA_NUMERICRANGE(const char *s) {
+    UA_NumericRange nr; nr.dimensionsSize = 0; nr.dimensions = NULL;
+    UA_NumericRange_parse(&nr, UA_STRING((char*)(uintptr_t)s)); return nr;
+}
+
+UA_DEPRECATED static UA_INLINE UA_StatusCode
+UA_NumericRange_parseFromString(UA_NumericRange *range, const UA_String *str) {
+    return UA_NumericRange_parse(range, *str);
+}
 
 /**
  * .. _variant:
