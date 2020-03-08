@@ -162,6 +162,12 @@ add_executable(check_types_range check_types_range.c $<TARGET_OBJECTS:open62541-
 target_link_libraries(check_types_range ${LIBS})
 add_test_valgrind(types_range ${TESTS_BINARY_DIR}/check_types_range)
 
+if(UA_ENABLE_PARSING)
+    add_executable(check_types_parse check_types_parse.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    target_link_libraries(check_types_parse ${LIBS})
+    add_test_valgrind(types_parse ${TESTS_BINARY_DIR}/check_types_parse)
+endif()
+
 add_executable(check_types_custom check_types_custom.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_types_custom ${LIBS})
 add_test_valgrind(types_custom ${TESTS_BINARY_DIR}/check_types_custom)
