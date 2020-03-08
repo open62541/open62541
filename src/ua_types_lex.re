@@ -137,6 +137,7 @@ parse_nodeid(UA_NodeId *id, const char *input, const char *end) {
                 return UA_STATUSCODE_BADINTERNALERROR;
             id->namespaceIndex = (UA_UInt16)tmp;
         }
+
         /* From the current position until the end of the input */
         return parse_nodeid_body(id, &input[-2], end);
     }
@@ -149,6 +150,52 @@ UA_NodeId_parse(UA_NodeId *id, const UA_String str) {
     UA_StatusCode res =
         parse_nodeid(id, (const char*)str.data, (const char*)str.data+str.length);
     if(res != UA_STATUSCODE_GOOD)
-        *id = UA_NODEID_NULL;
+        UA_NodeId_clear(id);
+    return res;
+}
+
+static UA_StatusCode
+parse_expandednodeid(UA_ExpandedNodeId *id, const char *input, const char *end) {
+    *id = UA_EXPANDEDNODEID_NULL; /* Reset the NodeId */
+    const char *pos = input, *svr = NULL, *svre = NULL, *nsu = NULL, *ns = NULL, *body = NULL;
+    /*!re2c
+    ("svr=" @svr [0-9]+ @svre ";")?
+    ("ns=" @ns [0-9]+ ";" | "nsu=" @nsu (.\";")* ";")?
+    @body nodeid_body {
+        if(svr) {
+            size_t len = (size_t)((svre) - svr);
+            if(UA_readNumber((const UA_Byte*)svr, len, &id->serverIndex) != len)
+                return UA_STATUSCODE_BADINTERNALERROR;
+        }
+
+        if(nsu) {
+            size_t len = (size_t)((body-1) - nsu);
+            UA_String nsuri;
+            nsuri.data = (UA_Byte*)(uintptr_t)nsu;
+            nsuri.length = len;
+            UA_StatusCode res = UA_String_copy(&nsuri, &id->namespaceUri);
+            if(res != UA_STATUSCODE_GOOD)
+                return res;
+        } else if(ns) {
+            UA_UInt32 tmp;
+            size_t len = (size_t)((body-1) - ns);
+            if(UA_readNumber((const UA_Byte*)ns, len, &tmp) != len)
+                return UA_STATUSCODE_BADINTERNALERROR;
+            id->nodeId.namespaceIndex = (UA_UInt16)tmp;
+        }
+
+        /* From the current position until the end of the input */
+        return parse_nodeid_body(&id->nodeId, &input[-2], end);
+    }
+
+    * { error: return UA_STATUSCODE_BADINTERNALERROR; } */
+}
+
+UA_StatusCode
+UA_ExpandedNodeId_parse(UA_ExpandedNodeId *id, const UA_String str) {
+    UA_StatusCode res =
+        parse_expandednodeid(id, (const char*)str.data, (const char*)str.data+str.length);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_ExpandedNodeId_clear(id);
     return res;
 }
