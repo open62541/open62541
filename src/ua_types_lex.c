@@ -27,6 +27,11 @@
 const char *yyt1;const char *yyt2;const char *yyt3;const char *yyt4;
 
 
+/* The generated lexer defines global variables. Protect with a mutex. */
+#if UA_MULTITHREADING >= 100
+UA_LOCK_TYPE(parserMutex)
+#endif
+
 static UA_StatusCode
 parse_guid(UA_Guid *guid, const UA_Byte *s, const UA_Byte *e) {
     size_t len = (size_t)(e - s);
@@ -232,10 +237,12 @@ yy14:
 
 UA_StatusCode
 UA_NodeId_parse(UA_NodeId *id, const UA_String str) {
+    UA_LOCK(parserMutex);
     UA_StatusCode res =
         parse_nodeid(id, (const char*)str.data, (const char*)str.data+str.length);
     if(res != UA_STATUSCODE_GOOD)
         UA_NodeId_clear(id);
+    UA_UNLOCK(parserMutex);
     return res;
 }
 
@@ -490,9 +497,11 @@ yy42:
 
 UA_StatusCode
 UA_ExpandedNodeId_parse(UA_ExpandedNodeId *id, const UA_String str) {
+    UA_LOCK(parserMutex);
     UA_StatusCode res =
         parse_expandednodeid(id, (const char*)str.data, (const char*)str.data+str.length);
     if(res != UA_STATUSCODE_GOOD)
         UA_ExpandedNodeId_clear(id);
+    UA_UNLOCK(parserMutex);
     return res;
 }
