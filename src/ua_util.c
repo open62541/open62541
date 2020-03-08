@@ -38,8 +38,7 @@ UA_readNumberWithBase(const UA_Byte *buf, size_t buflen, UA_UInt32 *number, UA_B
 }
 
 size_t
-UA_readNumber(UA_Byte *buf, size_t buflen, UA_UInt32 *number)
-{
+UA_readNumber(const UA_Byte *buf, size_t buflen, UA_UInt32 *number) {
     return UA_readNumberWithBase(buf, buflen, number, 10);
 }
 
