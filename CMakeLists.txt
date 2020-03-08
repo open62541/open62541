@@ -139,6 +139,7 @@ option(UA_ENABLE_DISCOVERY_MULTICAST "Enable Discovery Service with multicast su
 option(UA_ENABLE_ENCRYPTION "Enable encryption support (uses mbedTLS by default)" OFF)
 option(UA_ENABLE_ENCRYPTION_OPENSSL "Enable encryption support (uses openssl)" OFF)
 option(UA_ENABLE_ENCRYPTION_MBEDTLS "Enable encryption support (uses mbedTLS)" OFF)
+option(UA_ENABLE_PARSING "Utility functions that require parsing (e.g. NodeId expressions)" ON)
 option(UA_ENABLE_DA "Enable OPC UA DataAccess (Part 8) definitions" ON)
 option(UA_ENABLE_MICRO_EMB_DEV_PROFILE "Builds CTT Compliant Micro Embedded Device Server Profile" OFF)
 option(UA_ENABLE_WEBSOCKET_SERVER "Enable websocket support (uses libwebsockets)" OFF)
@@ -794,6 +795,10 @@ set(default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
 if(UA_GENERATED_NAMESPACE_ZERO)
     list(APPEND internal_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/namespace0_generated.h)
     list(APPEND lib_sources ${PROJECT_BINARY_DIR}/src_generated/open62541/namespace0_generated.c)
+endif()
+
+if(UA_ENABLE_PARSING)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types_lex.c)
 endif()
 
 if (UA_ENABLE_ENCRYPTION_MBEDTLS)
