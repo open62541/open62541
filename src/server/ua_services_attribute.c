@@ -168,7 +168,7 @@ readValueAttributeComplete(UA_Server *server, UA_Session *session,
     UA_NumericRange *rangeptr = NULL;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(indexRange && indexRange->length > 0) {
-        retval = UA_NumericRange_parseFromString(&range, indexRange);
+        retval = UA_NumericRange_parse(&range, *indexRange);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
         rangeptr = &range;
@@ -1139,7 +1139,7 @@ writeValueAttribute(UA_Server *server, UA_Session *session,
     UA_NumericRange *rangeptr = NULL;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(indexRange && indexRange->length > 0) {
-        retval = UA_NumericRange_parseFromString(&range, indexRange);
+        retval = UA_NumericRange_parse(&range, *indexRange);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
         rangeptr = &range;

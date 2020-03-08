@@ -526,7 +526,7 @@ readRaw_service_default(UA_Server *server,
         range.dimensionsSize = 0;
         range.dimensions = NULL;
         if (nodesToRead[i].indexRange.length > 0) {
-            UA_StatusCode rangeParseResult = UA_NumericRange_parseFromString(&range, &nodesToRead[i].indexRange);
+            UA_StatusCode rangeParseResult = UA_NumericRange_parse(&range, nodesToRead[i].indexRange);
             if (rangeParseResult != UA_STATUSCODE_GOOD) {
                 response->results[i].statusCode = rangeParseResult;
                 continue;
