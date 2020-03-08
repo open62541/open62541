@@ -58,6 +58,43 @@ START_TEST(parseNodeIdByteString) {
     UA_NodeId_clear(&id);
 } END_TEST
 
+START_TEST(parseExpandedNodeIdInteger) {
+    UA_ExpandedNodeId id = UA_EXPANDEDNODEID("ns=1;i=1337");
+    ck_assert_int_eq(id.nodeId.identifierType, UA_NODEIDTYPE_NUMERIC);
+    ck_assert_int_eq(id.nodeId.identifier.numeric, 1337);
+    ck_assert_int_eq(id.nodeId.namespaceIndex, 1);
+} END_TEST
+
+START_TEST(parseExpandedNodeIdInteger2) {
+    UA_ExpandedNodeId id = UA_EXPANDEDNODEID("svr=5;ns=1;i=1337");
+    ck_assert_int_eq(id.nodeId.identifierType, UA_NODEIDTYPE_NUMERIC);
+    ck_assert_int_eq(id.nodeId.identifier.numeric, 1337);
+    ck_assert_int_eq(id.nodeId.namespaceIndex, 1);
+    ck_assert_int_eq(id.serverIndex, 5);
+} END_TEST
+
+START_TEST(parseExpandedNodeIdIntegerNSU) {
+    UA_ExpandedNodeId id = UA_EXPANDEDNODEID("svr=5;nsu=urn:test:1234;i=1337");
+    ck_assert_int_eq(id.nodeId.identifierType, UA_NODEIDTYPE_NUMERIC);
+    ck_assert_int_eq(id.nodeId.identifier.numeric, 1337);
+    UA_String nsu = UA_STRING("urn:test:1234");
+    ck_assert(UA_String_equal(&id.namespaceUri, &nsu));
+    ck_assert_int_eq(id.serverIndex, 5);
+    UA_ExpandedNodeId_clear(&id);
+} END_TEST
+
+START_TEST(parseExpandedNodeIdIntegerFailNSU) {
+    UA_ExpandedNodeId id = UA_EXPANDEDNODEID("svr=5;nsu=urn:test:1234;;i=1337");
+    ck_assert_int_eq(id.nodeId.identifierType, UA_NODEIDTYPE_NUMERIC);
+    ck_assert_int_eq(id.nodeId.identifier.numeric, 0);
+} END_TEST
+
+START_TEST(parseExpandedNodeIdIntegerFailNSU2) {
+    UA_ExpandedNodeId id = UA_EXPANDEDNODEID("svr=5;nsu=urn:test:1234;ns=1;i=1337");
+    ck_assert_int_eq(id.nodeId.identifierType, UA_NODEIDTYPE_NUMERIC);
+    ck_assert_int_eq(id.nodeId.identifier.numeric, 0);
+} END_TEST
+
 int main(void) {
     Suite *s  = suite_create("Test Builtin Type Parsing");
     TCase *tc = tcase_create("test cases");
@@ -68,6 +105,11 @@ int main(void) {
     tcase_add_test(tc, parseNodeIdGuid);
     tcase_add_test(tc, parseNodeIdGuidFail);
     tcase_add_test(tc, parseNodeIdByteString);
+    tcase_add_test(tc, parseExpandedNodeIdInteger);
+    tcase_add_test(tc, parseExpandedNodeIdInteger2);
+    tcase_add_test(tc, parseExpandedNodeIdIntegerNSU);
+    tcase_add_test(tc, parseExpandedNodeIdIntegerFailNSU);
+    tcase_add_test(tc, parseExpandedNodeIdIntegerFailNSU2);
     suite_add_tcase(s, tc);
 
     SRunner *sr = srunner_create(s);

@@ -24,7 +24,7 @@
  * In order that users of the SDK don't need to install re2c, always commit a
  * recent ua_types_lex.c if changes are made to the lexer. */
 
-const char *yyt1;const char *yyt2;
+const char *yyt1;const char *yyt2;const char *yyt3;const char *yyt4;
 
 
 static UA_StatusCode
@@ -161,6 +161,7 @@ yy6:
                 return UA_STATUSCODE_BADINTERNALERROR;
             id->namespaceIndex = (UA_UInt16)tmp;
         }
+
         /* From the current position until the end of the input */
         return parse_nodeid_body(id, &input[-2], end);
     }
@@ -234,6 +235,264 @@ UA_NodeId_parse(UA_NodeId *id, const UA_String str) {
     UA_StatusCode res =
         parse_nodeid(id, (const char*)str.data, (const char*)str.data+str.length);
     if(res != UA_STATUSCODE_GOOD)
-        *id = UA_NODEID_NULL;
+        UA_NodeId_clear(id);
+    return res;
+}
+
+static UA_StatusCode
+parse_expandednodeid(UA_ExpandedNodeId *id, const char *input, const char *end) {
+    *id = UA_EXPANDEDNODEID_NULL; /* Reset the NodeId */
+    const char *pos = input, *svr = NULL, *svre = NULL, *nsu = NULL, *ns = NULL, *body = NULL;
+    
+{
+	char yych;
+	if ((end - input) < 7) goto error;
+	yych = *input;
+	switch (yych) {
+	case 'b':
+	case 'g':
+	case 'i':
+		yyt1 = yyt2 = yyt3 = yyt4 = NULL;
+		goto yy19;
+	case 'n':
+		yyt1 = yyt2 = NULL;
+		goto yy20;
+	case 's':
+		yyt1 = yyt2 = yyt3 = yyt4 = NULL;
+		goto yy21;
+	default:	goto yy17;
+	}
+yy17:
+	++input;
+yy18:
+	{ error: return UA_STATUSCODE_BADINTERNALERROR; }
+yy19:
+	yych = *++input;
+	switch (yych) {
+	case '=':	goto yy22;
+	default:	goto yy18;
+	}
+yy20:
+	yych = *(pos = ++input);
+	switch (yych) {
+	case 's':	goto yy24;
+	default:	goto yy18;
+	}
+yy21:
+	yych = *(pos = ++input);
+	switch (yych) {
+	case '=':	goto yy22;
+	case 'v':	goto yy26;
+	default:	goto yy18;
+	}
+yy22:
+	++input;
+	svr = yyt1;
+	svre = yyt2;
+	ns = yyt3;
+	nsu = yyt4;
+	body = input - 2;
+	{
+        if(svr) {
+            size_t len = (size_t)((svre) - svr);
+            if(UA_readNumber((const UA_Byte*)svr, len, &id->serverIndex) != len)
+                return UA_STATUSCODE_BADINTERNALERROR;
+        }
+
+        if(nsu) {
+            size_t len = (size_t)((body-1) - nsu);
+            UA_String nsuri;
+            nsuri.data = (UA_Byte*)(uintptr_t)nsu;
+            nsuri.length = len;
+            UA_StatusCode res = UA_String_copy(&nsuri, &id->namespaceUri);
+            if(res != UA_STATUSCODE_GOOD)
+                return res;
+        } else if(ns) {
+            UA_UInt32 tmp;
+            size_t len = (size_t)((body-1) - ns);
+            if(UA_readNumber((const UA_Byte*)ns, len, &tmp) != len)
+                return UA_STATUSCODE_BADINTERNALERROR;
+            id->nodeId.namespaceIndex = (UA_UInt16)tmp;
+        }
+
+        /* From the current position until the end of the input */
+        return parse_nodeid_body(&id->nodeId, &input[-2], end);
+    }
+yy24:
+	yych = *++input;
+	switch (yych) {
+	case '=':	goto yy27;
+	case 'u':	goto yy28;
+	default:	goto yy25;
+	}
+yy25:
+	input = pos;
+	goto yy18;
+yy26:
+	yych = *++input;
+	switch (yych) {
+	case 'r':	goto yy29;
+	default:	goto yy25;
+	}
+yy27:
+	yych = *++input;
+	switch (yych) {
+	case '0':
+	case '1':
+	case '2':
+	case '3':
+	case '4':
+	case '5':
+	case '6':
+	case '7':
+	case '8':
+	case '9':
+		yyt3 = input;
+		goto yy30;
+	default:	goto yy25;
+	}
+yy28:
+	yych = *++input;
+	switch (yych) {
+	case '=':	goto yy32;
+	default:	goto yy25;
+	}
+yy29:
+	yych = *++input;
+	switch (yych) {
+	case '=':	goto yy33;
+	default:	goto yy25;
+	}
+yy30:
+	++input;
+	if ((end - input) < 3) goto error;
+	yych = *input;
+	switch (yych) {
+	case '0':
+	case '1':
+	case '2':
+	case '3':
+	case '4':
+	case '5':
+	case '6':
+	case '7':
+	case '8':
+	case '9':	goto yy30;
+	case ';':	goto yy34;
+	default:	goto yy25;
+	}
+yy32:
+	yych = *++input;
+	switch (yych) {
+	case '\n':	goto yy25;
+	case ';':
+		yyt4 = input;
+		goto yy37;
+	default:
+		yyt4 = input;
+		goto yy35;
+	}
+yy33:
+	yych = *++input;
+	switch (yych) {
+	case '0':
+	case '1':
+	case '2':
+	case '3':
+	case '4':
+	case '5':
+	case '6':
+	case '7':
+	case '8':
+	case '9':
+		yyt1 = input;
+		goto yy38;
+	default:	goto yy25;
+	}
+yy34:
+	yych = *++input;
+	switch (yych) {
+	case 'b':
+	case 'g':
+	case 'i':
+	case 's':
+		yyt4 = NULL;
+		goto yy40;
+	default:	goto yy25;
+	}
+yy35:
+	++input;
+	if ((end - input) < 3) goto error;
+	yych = *input;
+	switch (yych) {
+	case '\n':	goto yy25;
+	case ';':	goto yy37;
+	default:	goto yy35;
+	}
+yy37:
+	yych = *++input;
+	switch (yych) {
+	case 'b':
+	case 'g':
+	case 'i':
+	case 's':
+		yyt3 = NULL;
+		goto yy40;
+	default:	goto yy25;
+	}
+yy38:
+	++input;
+	if ((end - input) < 8) goto error;
+	yych = *input;
+	switch (yych) {
+	case '0':
+	case '1':
+	case '2':
+	case '3':
+	case '4':
+	case '5':
+	case '6':
+	case '7':
+	case '8':
+	case '9':	goto yy38;
+	case ';':
+		yyt2 = input;
+		goto yy41;
+	default:	goto yy25;
+	}
+yy40:
+	yych = *++input;
+	switch (yych) {
+	case '=':	goto yy22;
+	default:	goto yy25;
+	}
+yy41:
+	yych = *++input;
+	switch (yych) {
+	case 'b':
+	case 'g':
+	case 'i':
+	case 's':
+		yyt3 = yyt4 = NULL;
+		goto yy40;
+	case 'n':	goto yy42;
+	default:	goto yy25;
+	}
+yy42:
+	yych = *++input;
+	switch (yych) {
+	case 's':	goto yy24;
+	default:	goto yy25;
+	}
+}
+
+}
+
+UA_StatusCode
+UA_ExpandedNodeId_parse(UA_ExpandedNodeId *id, const UA_String str) {
+    UA_StatusCode res =
+        parse_expandednodeid(id, (const char*)str.data, (const char*)str.data+str.length);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_ExpandedNodeId_clear(id);
     return res;
 }
