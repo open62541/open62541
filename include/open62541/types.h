@@ -266,19 +266,12 @@ UA_EXPORT extern const UA_Guid UA_GUID_NULL;
  * A sequence of octets. */
 typedef UA_String UA_ByteString;
 
-static UA_INLINE UA_Boolean
-UA_ByteString_equal(const UA_ByteString *string1,
-                    const UA_ByteString *string2) {
-    return UA_String_equal((const UA_String*)string1,
-                           (const UA_String*)string2);
-}
+UA_EXPORT extern const UA_ByteString UA_BYTESTRING_NULL;
 
 /* Allocates memory of size length for the bytestring.
  * The content is not set to zero. */
 UA_StatusCode UA_EXPORT
 UA_ByteString_allocBuffer(UA_ByteString *bs, size_t length);
-
-UA_EXPORT extern const UA_ByteString UA_BYTESTRING_NULL;
 
 static UA_INLINE UA_ByteString
 UA_BYTESTRING(char *chars) {
@@ -293,6 +286,20 @@ UA_BYTESTRING_ALLOC(const char *chars) {
     UA_String str = UA_String_fromChars(chars); UA_ByteString bstr;
     bstr.length = str.length; bstr.data = str.data; return bstr;
 }
+
+static UA_INLINE UA_Boolean
+UA_ByteString_equal(const UA_ByteString *string1,
+                    const UA_ByteString *string2) {
+    return UA_String_equal((const UA_String*)string1,
+                           (const UA_String*)string2);
+}
+
+/* Returns a non-cryptographic hash for the String.
+ * Uses FNV non-cryptographic hash function. See
+ * https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function */
+UA_UInt32 UA_EXPORT
+UA_ByteString_hash(UA_UInt32 initialHashValue,
+                   const UA_Byte *data, size_t size);
 
 /**
  * XmlElement
@@ -336,11 +343,6 @@ static UA_INLINE UA_Boolean
 UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2) {
     return (UA_NodeId_order(n1, n2) == UA_ORDER_EQ);
 }
-
-/* Returns a non-cryptographic hash for the String.
- * Uses FNV non-cryptographic hash function. See
- * https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function */
-UA_UInt32 UA_EXPORT UA_ByteString_hash(UA_UInt32 initialHashValue, const UA_Byte *data, size_t size);
 
 /* Returns a non-cryptographic hash for the NodeId */
 UA_UInt32 UA_EXPORT UA_NodeId_hash(const UA_NodeId *n);
