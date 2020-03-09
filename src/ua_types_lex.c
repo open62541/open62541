@@ -141,7 +141,7 @@ parse_nodeid(UA_NodeId *id, const char *input, const char *end) {
 yy2:
 	++input;
 yy3:
-	{ error: return UA_STATUSCODE_BADINTERNALERROR; }
+	{ (void)input; error: return UA_STATUSCODE_BADINTERNALERROR; }
 yy4:
 	yych = *++input;
 	switch (yych) {
@@ -159,6 +159,7 @@ yy6:
 	ns = yyt1;
 	nse = yyt2;
 	{
+        (void)input; /* Get rid of a dead store clang-analyzer warning */
         if(ns) {
             UA_UInt32 tmp;
             size_t len = (size_t)(nse - ns);
@@ -272,7 +273,7 @@ parse_expandednodeid(UA_ExpandedNodeId *id, const char *input, const char *end) 
 yy17:
 	++input;
 yy18:
-	{ error: return UA_STATUSCODE_BADINTERNALERROR; }
+	{ (void)input; error: return UA_STATUSCODE_BADINTERNALERROR; }
 yy19:
 	yych = *++input;
 	switch (yych) {
@@ -300,6 +301,7 @@ yy22:
 	nsu = yyt4;
 	body = input - 2;
 	{
+        (void)input; /* Get rid of a dead store clang-analyzer warning */
         if(svr) {
             size_t len = (size_t)((svre) - svr);
             if(UA_readNumber((const UA_Byte*)svr, len, &id->serverIndex) != len)
