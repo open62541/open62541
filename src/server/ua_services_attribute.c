@@ -14,7 +14,7 @@
  *    Copyright 2017 (c) frax2222
  *    Copyright 2017 (c) Thomas Bender
  *    Copyright 2017 (c) Julian Grothoff
- *    Copyright 2017 (c) Jonas Green
+ *    Copyright 2017-2020 (c) HMS Industrial Networks AB (Author: Jonas Green)
  *    Copyright 2017 (c) Henrik Norrman
  */
 
@@ -1172,20 +1172,20 @@ writeValueAttribute(UA_Server *server, UA_Session *session,
         }
     }
 
-    /* Set the source timestamp if there is none */
-    UA_DateTime now = UA_DateTime_now();
-    if(!adjustedValue.hasSourceTimestamp) {
-        adjustedValue.sourceTimestamp = now;
-        adjustedValue.hasSourceTimestamp = true;
-    }
-
-    if(!adjustedValue.hasServerTimestamp) {
-        adjustedValue.serverTimestamp = now;
-        adjustedValue.hasServerTimestamp = true;
-    }
-
     /* Ok, do it */
     if(node->valueSource == UA_VALUESOURCE_DATA) {
+        /* Set the source timestamp if there is none */
+        UA_DateTime now = UA_DateTime_now();
+        if(!adjustedValue.hasSourceTimestamp) {
+            adjustedValue.sourceTimestamp = now;
+            adjustedValue.hasSourceTimestamp = true;
+        }
+
+        if(!adjustedValue.hasServerTimestamp) {
+            adjustedValue.serverTimestamp = now;
+            adjustedValue.hasServerTimestamp = true;
+        }
+
         if(!rangeptr)
             retval = writeValueAttributeWithoutRange(node, &adjustedValue);
         else

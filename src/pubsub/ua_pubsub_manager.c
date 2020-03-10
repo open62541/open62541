@@ -288,8 +288,10 @@ UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
     }
 
     //free the currently configured transport layers
-    UA_free(server->config.pubsubTransportLayers);
-    server->config.pubsubTransportLayersSize = 0;
+    if (server->config.pubsubTransportLayersSize > 0) {
+        UA_free(server->config.pubsubTransportLayers);
+        server->config.pubsubTransportLayersSize = 0;
+    }
 
     //remove Connections and WriterGroups
     UA_PubSubConnection *tmpConnection1, *tmpConnection2;
@@ -308,7 +310,7 @@ UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
 
 #ifndef UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
 
-/* If UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_INTERRUPT is enabled, a custom callback
+/* If UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING is enabled, a custom callback
  * management must be linked to the application */
 
 UA_StatusCode

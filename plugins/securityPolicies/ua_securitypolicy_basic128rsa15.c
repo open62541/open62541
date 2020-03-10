@@ -4,6 +4,7 @@
  *
  *    Copyright 2018-2019 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
+ *    Copyright 2018 (c) HMS Industrial Networks AB (Author: Jonas Green)
  *
  */
 

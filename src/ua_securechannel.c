@@ -9,6 +9,7 @@
  *    Copyright 2016 (c) TorbenD
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017-2018 (c) Mark Giraud, Fraunhofer IOSB
+ *    Copyright 2018-2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
  */
 
 #include <open62541/transport_generated_encoding_binary.h>
@@ -791,7 +792,10 @@ processChunk(UA_SecureChannel *channel, const UA_ByteString *packet,
     chunk.length = hdr.messageSize;
 
     /* Stop processing after a non-MSG message */
-    *done = (msgType != UA_MESSAGETYPE_MSG);
+    if(msgType != UA_MESSAGETYPE_MSG) {
+        *done = true;
+        channel->retryReceived = true;
+    }
 
     /* Process the chunk; forward the offset */
     *offset += hdr.messageSize;
@@ -803,6 +807,7 @@ UA_SecureChannel_processPacket(UA_SecureChannel *channel, void *application,
                                UA_ProcessMessageCallback callback,
                                const UA_ByteString *packet) {
     UA_ByteString appended = channel->incompleteChunk;
+    channel->retryReceived = false;
 
     /* Prepend the incomplete last chunk. This is usually done in the
      * networklayer. But we test for a buffered incomplete chunk here again to
@@ -852,9 +857,8 @@ UA_SecureChannel_processPacket(UA_SecureChannel *channel, void *application,
 }
 
 UA_StatusCode
-UA_SecureChannel_receiveChunksBlocking(UA_SecureChannel *channel, void *application,
-                                       UA_ProcessMessageCallback callback,
-                                       UA_UInt32 timeout) {
+UA_SecureChannel_receive(UA_SecureChannel *channel, void *application,
+                         UA_ProcessMessageCallback callback, UA_UInt32 timeout) {
     UA_Connection *connection = channel->connection;
     if(!connection)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -870,11 +874,9 @@ UA_SecureChannel_receiveChunksBlocking(UA_SecureChannel *channel, void *applicat
     /* Try to process one complete chunk */
     retval = UA_SecureChannel_processPacket(channel, application, callback, &packet);
     connection->releaseRecvBuffer(connection, &packet);
+    while(retval == UA_STATUSCODE_GOOD && channel->retryReceived) {
+        retval = UA_SecureChannel_processPacket(channel, application, callback,
+                                                &UA_BYTESTRING_NULL);
+    }
     return retval;
-}
-
-UA_StatusCode
-UA_SecureChannel_receiveChunksNonBlocking(UA_SecureChannel *channel, void *application,
-                                          UA_ProcessMessageCallback callback) {
-    return UA_SecureChannel_receiveChunksBlocking(channel, application, callback, 0);
 }

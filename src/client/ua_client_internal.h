@@ -85,13 +85,6 @@ UA_Client_Subscriptions_backgroundPublishInactivityCheck(UA_Client *client);
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
 
-/**************/
-/* Encryption */
-/**************/
-
-UA_StatusCode
-signActivateSessionRequest(UA_SecureChannel *channel,
-                           UA_ActivateSessionRequest *request);
 /**********/
 /* Client */
 /**********/
@@ -140,6 +133,7 @@ struct UA_Client {
     UA_SecureChannel channel;
     UA_UInt32 requestId;
     UA_DateTime nextChannelRenewal;
+    UA_Boolean secureChannelHandshake; /* OPN has been sent */
 
     /* Session */
     UA_NodeId authenticationToken;
@@ -147,6 +141,8 @@ struct UA_Client {
 
     UA_Boolean endpointsHandshake;
     UA_Boolean sessionHandshake;
+    UA_Boolean noSession; /* Don't open a session automatically */
+
     UA_String endpointUrl; /* Only for the async connect */
 
     /* Async Service */
@@ -203,10 +199,11 @@ UA_Client_getEndpointsInternal(UA_Client *client, const UA_String endpointUrl,
 UA_Boolean
 endpointUnconfigured(UA_Client *client);
 
-/* Receive and process messages until a synchronous message arrives or the
- * timout finishes */
 UA_StatusCode
-receivePacketAsync(UA_Client *client);
+createSessionAsync(UA_Client *client);
+
+UA_StatusCode
+activateSessionAsync(UA_Client *client);
 
 void
 processACKResponseAsync(void *application, UA_SecureChannel *channel,
@@ -222,28 +219,26 @@ UA_StatusCode
 openSecureChannel(UA_Client *client, UA_Boolean renew);
 
 UA_StatusCode
-receiveServiceResponse(UA_Client *client, void *response,
-                       const UA_DataType *responseType, UA_DateTime maxDate,
-                       const UA_UInt32 *synchronousRequestId);
+receiveResponse(UA_Client *client, void *response,
+                const UA_DataType *responseType, UA_UInt32 timeout,
+                const UA_UInt32 *synchronousRequestId);
 
 UA_StatusCode
-receiveServiceResponseAsync(UA_Client *client, void *response,
-                             const UA_DataType *responseType);
+receiveResponseAsync(UA_Client *client);
+
+UA_StatusCode
+UA_Client_renewSecureChannelAsync(UA_Client *client);
 
 UA_StatusCode
 UA_Client_connect_iterate (UA_Client *client);
 
 void
 setUserIdentityPolicyId(const UA_EndpointDescription *endpoint,
-                        const UA_DataType *tokenType,
-                        UA_String *policyId, UA_String *securityPolicyUri);
+                        const UA_DataType *tokenType, UA_String *policyId,
+                        UA_String *securityPolicyUri);
 
 UA_SecurityPolicy *
 getSecurityPolicy(UA_Client *client, UA_String policyUri);
-
-UA_StatusCode
-encryptUserIdentityToken(UA_Client *client, const UA_String *userTokenSecurityPolicy,
-                         UA_ExtensionObject *userIdentityToken);
 
 _UA_END_DECLS
 
