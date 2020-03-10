@@ -123,11 +123,9 @@ UA_NodeId           subNodeID;
 UA_NodeId           pubRepeatedCountNodeID;
 UA_NodeId           subRepeatedCountNodeID;
 /* Variables for counter data handling in address space */
-UA_UInt64           pubCounterData         = 0;
-UA_UInt64           repeatedCounter        = 10;
+UA_UInt64           *pubCounterData;
+UA_UInt64           *repeatedCounterData[REPEATED_NODECOUNTS];
 UA_UInt64           subCounterData         = 0;
-UA_Variant          pubCounter;
-UA_Variant          subCounter;
 
 #if defined(PUBLISHER)
 #if defined(UPDATE_MEASUREMENTS)
@@ -440,17 +438,25 @@ addDataSetField(UA_Server *server) {
     for (UA_Int32 iterator = 0; iterator < REPEATED_NODECOUNTS; iterator++)
     {
        memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
+#if defined PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
+       UA_UInt64 *repeatValue        = UA_UInt64_new();
+       repeatedCounterData[iterator] = repeatValue;
+       UA_Variant variant;
+       memset(&variant, 0, sizeof(UA_Variant));
+       UA_Variant_setScalar(&variant, repeatValue, &UA_TYPES[UA_TYPES_UINT64]);
+       UA_DataValue staticValueSource;
+       memset(&staticValueSource, 0, sizeof(staticValueSource));
+       staticValueSource.value = variant;
+       dataSetFieldConfig.field.variable.staticValueSourceEnabled            = UA_TRUE;
+       dataSetFieldConfig.field.variable.staticValueSource.value             = variant;
+#else
+       repeatedCounterData[iterator] = UA_UInt64_new();
        dataSetFieldConfig.dataSetFieldType                                   = UA_PUBSUB_DATASETFIELD_VARIABLE;
        dataSetFieldConfig.field.variable.fieldNameAlias                      = UA_STRING("Repeated Counter Variable");
        dataSetFieldConfig.field.variable.promotedField                       = UA_FALSE;
        dataSetFieldConfig.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(1, (UA_UInt32)iterator+10000);
        dataSetFieldConfig.field.variable.publishParameters.attributeId       = UA_ATTRIBUTEID_VALUE;
-#if defined PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
-       dataSetFieldConfig.field.variable.staticValueSourceEnabled            = UA_TRUE;
-       UA_DataValue_init(&dataSetFieldConfig.field.variable.staticValueSource);
-       UA_Variant_setScalar(&dataSetFieldConfig.field.variable.staticValueSource.value,
-                            &repeatedCounter, &UA_TYPES[UA_TYPES_UINT64]);
-       dataSetFieldConfig.field.variable.staticValueSource.value.storageType = UA_VARIANT_DATA_NODELETE;
+
 #endif
        UA_Server_addDataSetField(server, publishedDataSetIdent, &dataSetFieldConfig, &dataSetFieldIdent1);
    }
@@ -458,19 +464,24 @@ addDataSetField(UA_Server *server) {
     UA_NodeId dataSetFieldIdent;
     UA_DataSetFieldConfig counterValue;
     memset(&counterValue, 0, sizeof(UA_DataSetFieldConfig));
+#if defined PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
+    UA_UInt64 *countValue = UA_UInt64_new();
+    pubCounterData = countValue;
+    UA_Variant variant;
+    memset(&variant, 0, sizeof(UA_Variant));
+    UA_Variant_setScalar(&variant, countValue, &UA_TYPES[UA_TYPES_UINT64]);
+    UA_DataValue staticValueSource;
+    memset(&staticValueSource, 0, sizeof(staticValueSource));
+    staticValueSource.value = variant;
+    counterValue.field.variable.staticValueSourceEnabled            = UA_TRUE;
+    counterValue.field.variable.staticValueSource.value             = variant;
+#else
+    pubCounterData = UA_UInt64_new();
     counterValue.dataSetFieldType                                   = UA_PUBSUB_DATASETFIELD_VARIABLE;
     counterValue.field.variable.fieldNameAlias                      = UA_STRING("Counter Variable");
     counterValue.field.variable.promotedField                       = UA_FALSE;
     counterValue.field.variable.publishParameters.publishedVariable = pubNodeID;
     counterValue.field.variable.publishParameters.attributeId       = UA_ATTRIBUTEID_VALUE;
-#if defined PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
-    UA_Variant_setScalar(&pubCounter, &pubCounterData, &UA_TYPES[UA_TYPES_UINT64]);
-    UA_DataValue staticValueSource;
-    memset(&staticValueSource, 0, sizeof(staticValueSource));
-    staticValueSource.value                                         = pubCounter;
-    counterValue.field.variable.staticValueSourceEnabled            = UA_TRUE;
-    counterValue.field.variable.staticValueSource.value             = pubCounter;
-    counterValue.field.variable.staticValueSource.value.storageType = UA_VARIANT_DATA_NODELETE;
 #endif
     UA_Server_addDataSetField(server, publishedDataSetIdent, &counterValue, &dataSetFieldIdent);
 
@@ -532,7 +543,9 @@ addDataSetWriter(UA_Server *server) {
     UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent,
                                &dataSetWriterConfig, &dataSetWriterIdent);
 }
+
 #if defined(UPDATE_MEASUREMENTS)
+
 /**
  * **Published data handling**
  *
@@ -545,6 +558,18 @@ updateMeasurementsPublisher(struct timespec start_time,
     publishCounterValue[measurementsPublisher]     = counterValue;
     measurementsPublisher++;
 }
+
+/**
+ * Subscribed data handling**
+ * The subscribed data is updated in the array using this function Subscribed data handling**
+ */
+static void
+updateMeasurementsSubscriber(struct timespec receive_time, UA_UInt64 counterValue) {
+    subscribeTimestamp[measurementsSubscriber]     = receive_time;
+    subscribeCounterValue[measurementsSubscriber]  = counterValue;
+    measurementsSubscriber++;
+}
+
 #endif
 
 /**
@@ -595,7 +620,8 @@ void *publisherETF(void *arg) {
         clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptime, NULL);
         transmission_time                              = ((UA_UInt64)nextnanosleeptime.tv_sec * SECONDS + (UA_UInt64)nextnanosleeptime.tv_nsec) + roundOffCycleTime + QBV_OFFSET;
         ethernetETFtransportSettings.transmission_time = transmission_time;
-        pubCallback(server, currentWriterGroup);
+        if(*pubCounterData > 0)
+            pubCallback(server, currentWriterGroup);
         nextnanosleeptime.tv_nsec                     += interval_ns;
         nanoSecondFieldConversion(&nextnanosleeptime);
     }
@@ -606,19 +632,6 @@ void *publisherETF(void *arg) {
 #endif
 
 #if defined(SUBSCRIBER)
-
-#if defined(UPDATE_MEASUREMENTS)
-/**
- * Subscribed data handling**
- * The subscribed data is updated in the array using this function Subscribed data handling**
- */
-static void
-updateMeasurementsSubscriber(struct timespec receive_time, UA_UInt64 counterValue) {
-    subscribeTimestamp[measurementsSubscriber]     = receive_time;
-    subscribeCounterValue[measurementsSubscriber]  = counterValue;
-    measurementsSubscriber++;
-}
-#endif
 /**
  * **Subscriber thread routine**
  *
@@ -654,6 +667,7 @@ void *subscriber(void *arg) {
     return (void*)NULL;
 }
 #endif
+
 #if defined(PUBLISHER) || defined(SUBSCRIBER)
 /**
  * **UserApplication thread routine**
@@ -673,33 +687,61 @@ void *userApplicationPubSub(void *arg) {
     while (running) {
         clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptimeUserApplication, NULL);
 #if defined(SUBSCRIBER)
-        const UA_NodeId nodeid = UA_NODEID_STRING(1,"SubscriberCounter");
+        const UA_NodeId nodeid = UA_NODEID_STRING(1, "SubscriberCounter");
+        UA_Variant subCounter;
         UA_Variant_init(&subCounter);
         UA_Server_readValue(server, nodeid, &subCounter);
         clock_gettime(CLOCKID, &dataReceiveTime);
         subCounterData = *(UA_UInt64 *)subCounter.data;
         UA_Variant_deleteMembers(&subCounter);
+        for (UA_Int32 iterator = 0; iterator <  REPEATED_NODECOUNTS; iterator++)
+        {
+            UA_Variant_init(&subCounter);
+            UA_Server_readValue(server, UA_NODEID_NUMERIC(1, (UA_UInt32)iterator+50000), &subCounter);
+            *repeatedCounterData[iterator] = *(UA_UInt64 *)subCounter.data;
+            UA_Variant_deleteMembers(&subCounter);
+        }
 #endif
 #if defined(PUBLISHER)
         clock_gettime(CLOCKID, &dataModificationTime);
-        UA_Variant_setScalar(&pubCounter, &subCounterData, &UA_TYPES[UA_TYPES_UINT64]);
-        pubCounterData                  = *(UA_UInt64 *)pubCounter.data;
+        *pubCounterData = subCounterData;
+#ifndef PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
+        UA_Variant pubCounter;
+        UA_Variant_init(&pubCounter);
+        UA_Variant_setScalar(&pubCounter, pubCounterData, &UA_TYPES[UA_TYPES_UINT64]);
         UA_NodeId currentNodeId         = UA_NODEID_STRING(1, "PublisherCounter");
         UA_Server_writeValue(server, currentNodeId, pubCounter);
+        for (UA_Int32 iterator = 0; iterator <  REPEATED_NODECOUNTS; iterator++)
+        {
+            UA_Variant rpCounter;
+            UA_Variant_init(&rpCounter);
+            UA_Variant_setScalar(&rpCounter, repeatedCounterData[iterator], &UA_TYPES[UA_TYPES_UINT64]);
+            UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, (UA_UInt32)iterator+10000), rpCounter);
+        }
+#endif
 #endif
 #if defined(UPDATE_MEASUREMENTS)
         if (subCounterData > 0)
-        {
              updateMeasurementsSubscriber(dataReceiveTime, subCounterData);
-             updateMeasurementsPublisher(dataModificationTime, pubCounterData);
-        }
+        if (*pubCounterData > 0)
+             updateMeasurementsPublisher(dataModificationTime, *pubCounterData);
 #endif
         nextnanosleeptimeUserApplication.tv_nsec += (CYCLE_TIME * MILLI_SECONDS);
         nanoSecondFieldConversion(&nextnanosleeptimeUserApplication);
     }
+
+#ifndef PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
+    UA_free(pubCounterData);
+    for (UA_Int32 iterator = 0; iterator <  REPEATED_NODECOUNTS; iterator++)
+    {
+        UA_free(repeatedCounterData[iterator]);
+    }
+#endif
+
     return (void*)NULL;
 }
 #endif
+
 /**
  * **Deletion of nodes**
  *
@@ -707,15 +749,17 @@ void *userApplicationPubSub(void *arg) {
  * nodes.
  */
 static void removeServerNodes(UA_Server *server) {
+#ifndef PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
     /* Delete the Publisher Counter Node*/
     UA_Server_deleteNode(server, pubNodeID, UA_TRUE);
     UA_NodeId_deleteMembers(&pubNodeID);
-
     for (UA_Int32 iterator = 0; iterator < REPEATED_NODECOUNTS; iterator++)
     {
         UA_Server_deleteNode(server, pubRepeatedCountNodeID, UA_TRUE);
         UA_NodeId_deleteMembers(&pubRepeatedCountNodeID);
     }
+#endif
+
     for (UA_Int32 iterator = 0; iterator < REPEATED_NODECOUNTS; iterator++)
     {
         UA_Server_deleteNode(server, subRepeatedCountNodeID, UA_TRUE);
@@ -769,6 +813,7 @@ static pthread_t threadCreation(UA_Int16 threadPriority, size_t coreAffinity, vo
  */
 static void addServerNodes(UA_Server *server) {
     UA_NodeId objectId;
+    UA_NodeId newNodeId;
     UA_ObjectAttributes object           = UA_ObjectAttributes_default;
     object.displayName                   = UA_LOCALIZEDTEXT("en-US", "Counter Object");
     UA_Server_addObjectNode(server, UA_NODEID_NULL,
@@ -776,17 +821,18 @@ static void addServerNodes(UA_Server *server) {
                             UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                             UA_QUALIFIEDNAME(1, "Counter Object"), UA_NODEID_NULL,
                             object, NULL, &objectId);
-
+#ifndef PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
     UA_VariableAttributes publisherAttr  = UA_VariableAttributes_default;
     UA_UInt64 publishValue               = 0;
     publisherAttr.accessLevel            = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
     UA_Variant_setScalar(&publisherAttr.value, &publishValue, &UA_TYPES[UA_TYPES_UINT64]);
     publisherAttr.displayName            = UA_LOCALIZEDTEXT("en-US", "Publisher Counter");
-    UA_NodeId newNodeId                  = UA_NODEID_STRING(1, "PublisherCounter");
+    newNodeId                            = UA_NODEID_STRING(1, "PublisherCounter");
     UA_Server_addVariableNode(server, newNodeId, objectId,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                               UA_QUALIFIEDNAME(1, "Publisher Counter"),
                               UA_NODEID_NULL, publisherAttr, NULL, &pubNodeID);
+#endif
 
     UA_VariableAttributes subscriberAttr = UA_VariableAttributes_default;
     UA_UInt64 subscribeValue             = 0;
@@ -799,6 +845,7 @@ static void addServerNodes(UA_Server *server) {
                               UA_QUALIFIEDNAME(1, "Subscriber Counter"),
                               UA_NODEID_NULL, subscriberAttr, NULL, &subNodeID);
 
+#ifndef PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
     for (UA_Int32 iterator = 0; iterator < REPEATED_NODECOUNTS; iterator++)
     {
         UA_VariableAttributes repeatedNodePub = UA_VariableAttributes_default;
@@ -812,6 +859,8 @@ static void addServerNodes(UA_Server *server) {
                                  UA_QUALIFIEDNAME(1, "Publisher RepeatedCounter"),
                                  UA_NODEID_NULL, repeatedNodePub, NULL, &pubRepeatedCountNodeID);
     }
+#endif
+
     for (UA_Int32 iterator = 0; iterator < REPEATED_NODECOUNTS; iterator++)
     {
         UA_VariableAttributes repeatedNodeSub = UA_VariableAttributes_default;
