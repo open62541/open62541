@@ -459,7 +459,7 @@ sendOPNAsync(UA_Client *client, UA_Boolean renew) {
                       "Sending OPN message failed with error %s",
                       UA_StatusCode_name(retval));
         UA_Client_disconnect(client);
-        return retval;;
+        return retval;
     }
 
     client->secureChannelHandshake = true;
