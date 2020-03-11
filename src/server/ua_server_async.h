@@ -39,6 +39,13 @@ void Service_Call_async(UA_Server *server, UA_Session *session,
                         const UA_RequestHeader *request,
                         UA_ResponseHeader *response);
 #endif
+#ifdef UA_ENABLE_HISTORIZING
+void
+Service_HistoryRead_async(UA_Server *server, UA_Session *session,
+                          UA_UInt32 requestId,
+                          const UA_RequestHeader *request,
+                          UA_ResponseHeader *response);
+#endif
 
 /* AsyncManager */
 

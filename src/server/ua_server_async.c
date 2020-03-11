@@ -58,6 +58,10 @@ UA_getAsyncService(const UA_DataType *requestType) {
     case UA_NS0ID_CALLREQUEST:
         return Service_Call_async;
 #endif
+#ifdef UA_ENABLE_HISTORIZING
+    case UA_NS0ID_HISTORYREADREQUEST:
+        return Service_HistoryRead_async;
+#endif
     
     default:
         return NULL;

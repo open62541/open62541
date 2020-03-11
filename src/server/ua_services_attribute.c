@@ -19,6 +19,7 @@
  */
 
 #include "ua_server_internal.h"
+#include "ua_server_async.h"
 #include "ua_types_encoding_binary.h"
 #include "ua_services.h"
 
@@ -1709,6 +1710,28 @@ Service_HistoryUpdate(UA_Server *server, UA_Session *session,
     }
     response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
 }
+
+#if UA_MULTITHREADING >= 100
+void
+Service_HistoryRead_async(UA_Server *server, UA_Session *session,
+                          UA_UInt32 requestId,
+                          const UA_RequestHeader *request,
+                          UA_ResponseHeader *response) {
+    if(!server->config.historyDatabase.async) {
+        Service_HistoryRead(server, session,
+                            (const UA_HistoryReadRequest*)request,
+                            (UA_HistoryReadResponse*)response);
+    } else {
+        UA_AsyncManager_addAsyncTask(server->asyncManager, session, requestId,
+                                        &UA_TYPES[UA_TYPES_HISTORYREADREQUEST],
+                                        request,
+                                        &UA_TYPES[UA_TYPES_HISTORYREADRESPONSE],
+                                        response,
+                                        (_UA_Service)Service_HistoryRead);
+        response->serviceResult = UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY;
+    }
+}
+#endif
 
 #endif
 

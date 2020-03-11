@@ -15,6 +15,12 @@ _UA_BEGIN_DECLS
 typedef struct UA_HistoryDatabase UA_HistoryDatabase;
 
 struct UA_HistoryDatabase {
+#if UA_MULTITHREADING >= 100
+    /* If async flag is set then all history requests
+     * are executed in worker threads outside of the main loop */ 
+    bool async;
+#endif
+
     void *context;
 
     void (*clear)(UA_HistoryDatabase *hdb);
