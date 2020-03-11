@@ -513,6 +513,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
             goto rejected;
         }
     }
+    UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Execute ActivateSession");
 
     UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Execute ActivateSession");
 
