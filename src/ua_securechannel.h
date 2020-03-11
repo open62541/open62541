@@ -45,6 +45,8 @@ typedef struct UA_SessionHeader {
 typedef struct UA_Chunk {
     SIMPLEQ_ENTRY(UA_Chunk) pointers;
     UA_ByteString bytes;
+    UA_MessageType messageType;
+    UA_ChunkType chunkType;
     UA_Boolean copied; /* Do the bytes point to a buffer from the network or was
                         * memory allocated for the chunk separately */
 } UA_Chunk;

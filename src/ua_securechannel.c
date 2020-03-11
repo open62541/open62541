@@ -495,8 +495,8 @@ UA_SecureChannel_sendSymmetricMessage(UA_SecureChannel *channel, UA_UInt32 reque
 
 static UA_StatusCode
 addChunk(UA_SecureChannel *channel, UA_UInt32 requestId,
-         UA_MessageType messageType, UA_ByteString *chunkPayload,
-         UA_Boolean final) {
+         UA_MessageType messageType, UA_ChunkType chunkType,
+         UA_ByteString *chunkPayload) {
     UA_Message *latest = TAILQ_LAST(&channel->messages, UA_MessageQueue);
     if(latest) {
         if(latest->requestId != requestId) {
@@ -540,12 +540,14 @@ addChunk(UA_SecureChannel *channel, UA_UInt32 requestId,
         return UA_STATUSCODE_BADOUTOFMEMORY;
     chunk->bytes = *chunkPayload;
     chunk->copied = false;
+    chunk->messageType = messageType;
+    chunk->chunkType = chunkType;
 
     /* Add the chunk */
     SIMPLEQ_INSERT_TAIL(&latest->chunks, chunk, pointers);
     latest->chunksSize += 1;
     latest->messageSize += chunkPayload->length;
-    latest->final = final;
+    latest->final = (chunkType == UA_CHUNKTYPE_FINAL);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -656,7 +658,7 @@ decryptAddChunk(UA_SecureChannel *channel, UA_MessageType messageType,
        messageType == UA_MESSAGETYPE_ERR || messageType == UA_MESSAGETYPE_OPN) {
         if(chunkType != UA_CHUNKTYPE_FINAL)
             return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
-        return addChunk(channel, 0, messageType, chunk, true);
+        return addChunk(channel, 0, messageType, chunkType, chunk);
     }
 
     /* Only messages on SecureChannel-level with symmetric encryption afterwards */
@@ -715,8 +717,7 @@ decryptAddChunk(UA_SecureChannel *channel, UA_MessageType messageType,
         return UA_STATUSCODE_GOOD;
     }
 
-    return addChunk(channel, requestId, messageType,
-                    chunk, chunkType == UA_CHUNKTYPE_FINAL);
+    return addChunk(channel, requestId, messageType, chunkType, chunk);
 }
 
 static UA_StatusCode
