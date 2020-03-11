@@ -80,12 +80,12 @@ UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel,
 
 static void
 deleteMessage(UA_Message *me) {
-    UA_ChunkPayload *cp;
-    while((cp = SIMPLEQ_FIRST(&me->chunkPayloads))) {
-        if(cp->copied)
-            UA_ByteString_deleteMembers(&cp->bytes);
-        SIMPLEQ_REMOVE_HEAD(&me->chunkPayloads, pointers);
-        UA_free(cp);
+    UA_Chunk *chunk;
+    while((chunk = SIMPLEQ_FIRST(&me->chunks))) {
+        if(chunk->copied)
+            UA_ByteString_deleteMembers(&chunk->bytes);
+        SIMPLEQ_REMOVE_HEAD(&me->chunks, pointers);
+        UA_free(chunk);
     }
     UA_free(me);
 }
@@ -494,9 +494,9 @@ UA_SecureChannel_sendSymmetricMessage(UA_SecureChannel *channel, UA_UInt32 reque
 /*****************************/
 
 static UA_StatusCode
-addChunkPayload(UA_SecureChannel *channel, UA_UInt32 requestId,
-                UA_MessageType messageType, UA_ByteString *chunkPayload,
-                UA_Boolean final) {
+addChunk(UA_SecureChannel *channel, UA_UInt32 requestId,
+         UA_MessageType messageType, UA_ByteString *chunkPayload,
+         UA_Boolean final) {
     UA_Message *latest = TAILQ_LAST(&channel->messages, UA_MessageQueue);
     if(latest) {
         if(latest->requestId != requestId) {
@@ -520,14 +520,14 @@ addChunkPayload(UA_SecureChannel *channel, UA_UInt32 requestId,
         memset(latest, 0, sizeof(UA_Message));
         latest->requestId = requestId;
         latest->messageType = messageType;
-        SIMPLEQ_INIT(&latest->chunkPayloads);
+        SIMPLEQ_INIT(&latest->chunks);
         TAILQ_INSERT_TAIL(&channel->messages, latest, pointers);
     }
 
     /* Test against the connection settings */
     const UA_ConnectionConfig *config = &channel->config;
     if(config->localMaxChunkCount > 0 &&
-       config->localMaxChunkCount <= latest->chunkPayloadsSize)
+       config->localMaxChunkCount <= latest->chunksSize)
         return UA_STATUSCODE_BADRESPONSETOOLARGE;
 
     if(config->localMaxMessageSize > 0 &&
@@ -535,15 +535,15 @@ addChunkPayload(UA_SecureChannel *channel, UA_UInt32 requestId,
         return UA_STATUSCODE_BADRESPONSETOOLARGE;
 
     /* Create a new chunk entry */
-    UA_ChunkPayload *cp = (UA_ChunkPayload *)UA_malloc(sizeof(UA_ChunkPayload));
-    if(!cp)
+    UA_Chunk *chunk = (UA_Chunk*)UA_malloc(sizeof(UA_Chunk));
+    if(!chunk)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    cp->bytes = *chunkPayload;
-    cp->copied = false;
+    chunk->bytes = *chunkPayload;
+    chunk->copied = false;
 
     /* Add the chunk */
-    SIMPLEQ_INSERT_TAIL(&latest->chunkPayloads, cp, pointers);
-    latest->chunkPayloadsSize += 1;
+    SIMPLEQ_INSERT_TAIL(&latest->chunks, chunk, pointers);
+    latest->chunksSize += 1;
     latest->messageSize += chunkPayload->length;
     latest->final = final;
 
@@ -553,10 +553,10 @@ addChunkPayload(UA_SecureChannel *channel, UA_UInt32 requestId,
 static UA_StatusCode
 processMessage(UA_SecureChannel *channel, const UA_Message *message,
                void *application, UA_ProcessMessageCallback callback) {
-    if(message->chunkPayloadsSize == 1) {
+    if(message->chunksSize == 1) {
         /* No need to combine chunks */
-        UA_ChunkPayload *cp = SIMPLEQ_FIRST(&message->chunkPayloads);
-        callback(application, channel, message->messageType, message->requestId, &cp->bytes);
+        UA_Chunk *chunk = SIMPLEQ_FIRST(&message->chunks);
+        callback(application, channel, message->messageType, message->requestId, &chunk->bytes);
     } else {
         /* Allocate memory */
         UA_ByteString bytes;
@@ -567,10 +567,10 @@ processMessage(UA_SecureChannel *channel, const UA_Message *message,
 
         /* Assemble the full message */
         size_t curPos = 0;
-        UA_ChunkPayload *cp;
-        SIMPLEQ_FOREACH(cp, &message->chunkPayloads, pointers) {
-            memcpy(&bytes.data[curPos], cp->bytes.data, cp->bytes.length);
-            curPos += cp->bytes.length;
+        UA_Chunk *chunk;
+        SIMPLEQ_FOREACH(chunk, &message->chunks, pointers) {
+            memcpy(&bytes.data[curPos], chunk->bytes.data, chunk->bytes.length);
+            curPos += chunk->bytes.length;
         }
 
         /* Process the message */
@@ -603,12 +603,12 @@ processCompleteMessages(UA_SecureChannel *channel, void *application,
             break;
 
         /* Clean up the message */
-        UA_ChunkPayload *payload;
-        while((payload = SIMPLEQ_FIRST(&message->chunkPayloads))) {
-            if(payload->copied)
-                UA_ByteString_deleteMembers(&payload->bytes);
-            SIMPLEQ_REMOVE_HEAD(&message->chunkPayloads, pointers);
-            UA_free(payload);
+        UA_Chunk *chunk;
+        while((chunk = SIMPLEQ_FIRST(&message->chunks))) {
+            if(chunk->copied)
+                UA_ByteString_deleteMembers(&chunk->bytes);
+            SIMPLEQ_REMOVE_HEAD(&message->chunks, pointers);
+            UA_free(chunk);
         }
         UA_free(message);
     }
@@ -656,7 +656,7 @@ decryptAddChunk(UA_SecureChannel *channel, UA_MessageType messageType,
        messageType == UA_MESSAGETYPE_ERR || messageType == UA_MESSAGETYPE_OPN) {
         if(chunkType != UA_CHUNKTYPE_FINAL)
             return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
-        return addChunkPayload(channel, 0, messageType, chunk, true);
+        return addChunk(channel, 0, messageType, chunk, true);
     }
 
     /* Only messages on SecureChannel-level with symmetric encryption afterwards */
@@ -715,26 +715,26 @@ decryptAddChunk(UA_SecureChannel *channel, UA_MessageType messageType,
         return UA_STATUSCODE_GOOD;
     }
 
-    return addChunkPayload(channel, requestId, messageType,
-                           chunk, chunkType == UA_CHUNKTYPE_FINAL);
+    return addChunk(channel, requestId, messageType,
+                    chunk, chunkType == UA_CHUNKTYPE_FINAL);
 }
 
 static UA_StatusCode
 persistIncompleteMessages(UA_SecureChannel *channel) {
     UA_Message *me;
     TAILQ_FOREACH(me, &channel->messages, pointers) {
-        UA_ChunkPayload *cp;
-        SIMPLEQ_FOREACH(cp, &me->chunkPayloads, pointers) {
-            if(cp->copied)
+        UA_Chunk *chunk;
+        SIMPLEQ_FOREACH(chunk, &me->chunks, pointers) {
+            if(chunk->copied)
                 continue;
             UA_ByteString copy;
-            UA_StatusCode retval = UA_ByteString_copy(&cp->bytes, &copy);
+            UA_StatusCode retval = UA_ByteString_copy(&chunk->bytes, &copy);
             if(retval != UA_STATUSCODE_GOOD) {
                 UA_SecureChannel_close(channel);
                 return retval;
             }
-            cp->bytes = copy;
-            cp->copied = true;
+            chunk->bytes = copy;
+            chunk->copied = true;
         }
     }
     return UA_STATUSCODE_GOOD;

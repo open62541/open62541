@@ -42,12 +42,12 @@ typedef struct UA_SessionHeader {
 } UA_SessionHeader;
 
 /* For chunked requests */
-typedef struct UA_ChunkPayload {
-    SIMPLEQ_ENTRY(UA_ChunkPayload) pointers;
+typedef struct UA_Chunk {
+    SIMPLEQ_ENTRY(UA_Chunk) pointers;
     UA_ByteString bytes;
     UA_Boolean copied; /* Do the bytes point to a buffer from the network or was
-                          memory allocated for the chunk separately */
-} UA_ChunkPayload;
+                        * memory allocated for the chunk separately */
+} UA_Chunk;
 
 /* Receieved messages. Process them only in order. The Chunk payload has all
  * headers and the padding stripped out. The payload begins at the
@@ -56,8 +56,8 @@ typedef struct UA_Message {
     TAILQ_ENTRY(UA_Message) pointers;
     UA_UInt32 requestId;
     UA_MessageType messageType;
-    SIMPLEQ_HEAD(pp, UA_ChunkPayload) chunkPayloads;
-    size_t chunkPayloadsSize; /* No of chunks received so far */
+    SIMPLEQ_HEAD(pp, UA_Chunk) chunks;
+    size_t chunksSize; /* No of chunks received so far */
     size_t messageSize; /* Total length of the chunks received so far */
     UA_Boolean final; /* All chunks for the message have been received */
 } UA_Message;
