@@ -157,7 +157,7 @@ UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const connect
     UA_ByteString_deleteMembers(&messageBufferCopy);
 
     dummy.securityPolicy = NULL;
-    UA_SecureChannel_deleteMessages(&dummy);
+    UA_SecureChannel_deleteBuffered(&dummy);
     c.close(&c);
     
     char fileName[250];
