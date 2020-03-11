@@ -51,18 +51,7 @@ typedef struct UA_Chunk {
                         * memory allocated for the chunk separately */
 } UA_Chunk;
 
-/* Receieved messages. Process them only in order. The Chunk payload has all
- * headers and the padding stripped out. The payload begins at the
- * ExtensionObject prefix.*/
-typedef struct UA_Message {
-    TAILQ_ENTRY(UA_Message) pointers;
-    UA_UInt32 requestId;
-    UA_MessageType messageType;
-    SIMPLEQ_HEAD(pp, UA_Chunk) chunks;
-    size_t chunksSize; /* No of chunks received so far */
-    size_t messageSize; /* Total length of the chunks received so far */
-    UA_Boolean final; /* All chunks for the message have been received */
-} UA_Message;
+typedef SIMPLEQ_HEAD(UA_ChunkQueue, UA_Chunk) UA_ChunkQueue;
 
 typedef enum {
     UA_SECURECHANNELSTATE_FRESH,
@@ -74,8 +63,6 @@ typedef enum {
     UA_SECURECHANNELSTATE_OPEN,
     UA_SECURECHANNELSTATE_CLOSED
 } UA_SecureChannelState;
-
-typedef TAILQ_HEAD(UA_MessageQueue, UA_Message) UA_MessageQueue;
 
 struct UA_SecureChannel {
     UA_SecureChannelState   state;
@@ -115,13 +102,14 @@ struct UA_SecureChannel {
      * every Session. */
     UA_SessionHeader *session;
 
+    /* If a buffer is received, first all chunks are put into the completeChunks
+     * queue. Then they are processed in order. This ensures that processing
+     * buffers is reentrant with the correct processing order. (This has lead to
+     * problems in the client in the past.) */
+    UA_ChunkQueue completeChunks; /* Received full chunks that have not been
+                                   * processed so far */
     UA_ByteString incompleteChunk; /* A half-received chunk (TCP is a
                                     * streaming protocol) is stored here */
-    UA_MessageQueue messages;      /* Received full chunks grouped into the
-                                    * messages */
-    UA_Boolean retryReceived;      /* Processing of received chunks was stopped
-                                    * e.g. after an OPN message. Retry
-                                    * processing remaining chunks. */
 };
 
 void UA_SecureChannel_init(UA_SecureChannel *channel,
@@ -140,8 +128,9 @@ UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel,
                                    const UA_SecurityPolicy *securityPolicy,
                                    const UA_ByteString *remoteCertificate);
 
-/* Remove (partially) received unprocessed messages */
-void UA_SecureChannel_deleteMessages(UA_SecureChannel *channel);
+/* Remove (partially) received unprocessed chunks */
+void
+UA_SecureChannel_deleteBuffered(UA_SecureChannel *channel);
 
 void UA_SecureChannel_deleteMembers(UA_SecureChannel *channel);
 
@@ -221,9 +210,12 @@ typedef void
                             UA_MessageType messageType, UA_UInt32 requestId,
                             UA_ByteString *message);
 
-/* Process a received buffer. The callback function is called with the complete
- * message body if the message is complete. The message is removed afterwards.
- * Returns if an irrecoverable error occured. */
+/* Process a received buffer. The callback function is called with the message
+ * body if the message is complete. The message is removed afterwards. Returns
+ * if an irrecoverable error occured.
+ *
+ * Note that only MSG and CLO messages are decrypted. HEL/ACK/OPN/... are
+ * forwarded verbatim to the application. */
 UA_StatusCode
 UA_SecureChannel_processBuffer(UA_SecureChannel *channel, void *application,
                                UA_ProcessMessageCallback callback,
