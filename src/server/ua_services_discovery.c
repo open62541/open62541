@@ -593,13 +593,14 @@ periodicServerRegister(UA_Server *server, void *data) {
            "opc.tcp://localhost:4840", "/path/to/some/file");
         */
         retval = register_server_with_discovery_server(server, cb->client, false, NULL);
-    }
-    if (cb->client->state == UA_CLIENTSTATE_CONNECTED) {
-        UA_StatusCode retval1 = UA_Client_disconnect(cb->client);
-        if(retval1 != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                         "Could not disconnect client from register server. StatusCode %s",
-                         UA_StatusCode_name(retval));
+        if (retval == UA_STATUSCODE_BADCONNECTIONCLOSED) {
+            /* If the periodic interval is higher than the maximum lifetime of the session, the server will close the connection */
+            /* In this case we should try to reconnect */
+            UA_Client_disconnect(cb->client);
+            retval = UA_Client_connect_noSession(cb->client, cb->discovery_server_url);
+            if (retval == UA_STATUSCODE_GOOD) {
+                retval = register_server_with_discovery_server(server, cb->client, false, NULL);
+            }
         }
     }
     /* Registering failed */
