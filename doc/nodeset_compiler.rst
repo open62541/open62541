@@ -292,17 +292,17 @@ Here are some examples for the ``DI`` and ``PLCOpen`` nodesets::
     # Generate types and namespace for DI
     ua_generate_nodeset_and_datatypes(
         NAME "di"
-        FILE_CSV "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/OpcUaDiModel.csv"
-        FILE_BSD "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/Opc.Ua.Di.Types.bsd"
+        FILE_CSV "${UA_NODESET_DIR}/DI/OpcUaDiModel.csv"
+        FILE_BSD "${UA_NODESET_DIR}/DI/Opc.Ua.Di.Types.bsd"
         NAMESPACE_IDX 2
-        FILE_NS "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/Opc.Ua.Di.NodeSet2.xml"
+        FILE_NS "${UA_NODESET_DIR}/DI/Opc.Ua.Di.NodeSet2.xml"
     )
 
     # generate PLCopen namespace which is using DI
     ua_generate_nodeset_and_datatypes(
         NAME "plc"
         # PLCopen does not define custom types. Only generate the nodeset
-        FILE_NS "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/PLCopen/Opc.Ua.Plc.NodeSet2.xml"
+        FILE_NS "${UA_NODESET_DIR}/PLCopen/Opc.Ua.Plc.NodeSet2.xml"
         # PLCopen depends on the di nodeset, which must be generated before
         DEPENDS "di"
     )
@@ -403,8 +403,8 @@ This DI nodeset makes use of some additional data types in ``deps/ua-nodeset/DI/
         NAME "ua_types_di"
         TARGET_SUFFIX "types-di"
         NAMESPACE_IDX 2
-        FILE_CSV "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/OpcUaDiModel.csv"
-        FILES_BSD "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/Opc.Ua.Di.Types.bsd"
+        FILE_CSV "${UA_NODESET_DIR}/DI/OpcUaDiModel.csv"
+        FILES_BSD "${UA_NODESET_DIR}/DI/Opc.Ua.Di.Types.bsd"
     )
 
 The ``NAMESPACE_IDX`` parameter indicates the namespace index of the generated node IDs for the type definitions. Currently we need to rely that the namespace is also added at this position in the final server. There is no automatic inferring yet (pull requests are warmly welcome).
@@ -414,11 +414,11 @@ Now you can compile the DI nodeset XML using the following command::
 
     ua_generate_nodeset(
         NAME "di"
-        FILE "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/Opc.Ua.Di.NodeSet2.xml"
+        FILE "${UA_NODESET_DIR}/DI/Opc.Ua.Di.NodeSet2.xml"
         TYPES_ARRAY "UA_TYPES_DI"
         INTERNAL
         DEPENDS_TYPES "UA_TYPES"
-        DEPENDS_NS    "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml"
+        DEPENDS_NS    "${UA_NODESET_DIR}/Schema/Opc.Ua.NodeSet2.xml"
         DEPENDS_TARGET "open62541-generator-types-di"
     )
 
@@ -429,13 +429,13 @@ Next we can generate the PLCopen nodeset. Since it doesn't require any additiona
 
     ua_generate_nodeset(
         NAME "plc"
-        FILE "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/PLCopen/Opc.Ua.Plc.NodeSet2.xml"
+        FILE "${UA_NODESET_DIR}/PLCopen/Opc.Ua.Plc.NodeSet2.xml"
         INTERNAL
         DEPENDS_TYPES
             "UA_TYPES" "UA_TYPES_DI"
         DEPENDS_NS
-            "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml"
-            "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/Opc.Ua.Di.NodeSet2.xml"
+            "${UA_NODESET_DIR}/Schema/Opc.Ua.NodeSet2.xml"
+            "${UA_NODESET_DIR}/DI/Opc.Ua.Di.NodeSet2.xml"
         DEPENDS_TARGET "open62541-generator-ns-di"
     )
 
