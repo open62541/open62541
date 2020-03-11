@@ -249,7 +249,7 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId writ
         return UA_STATUSCODE_BADNOTFOUND;
 
     //PubSubConnection freezeCounter++
-    UA_PubSubConnection *pubSubConnection =  wg->linkedConnection;;
+    UA_PubSubConnection *pubSubConnection =  wg->linkedConnection;
     pubSubConnection->configurationFreezeCounter++;
     pubSubConnection->config->configurationFrozen = UA_TRUE;
     //WriterGroup freeze
@@ -371,7 +371,7 @@ UA_Server_unfreezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId wr
     //    return UA_STATUSCODE_BADCONFIGURATIONERROR;
     //}
     //PubSubConnection freezeCounter--
-    UA_PubSubConnection *pubSubConnection =  wg->linkedConnection;;
+    UA_PubSubConnection *pubSubConnection =  wg->linkedConnection;
     pubSubConnection->configurationFreezeCounter--;
     if(pubSubConnection->configurationFreezeCounter == 0){
         pubSubConnection->config->configurationFrozen = UA_FALSE;
