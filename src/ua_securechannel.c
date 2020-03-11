@@ -741,24 +741,24 @@ persistIncompleteMessages(UA_SecureChannel *channel) {
 }
 
 static UA_StatusCode
-bufferIncompleteChunk(UA_SecureChannel *channel, const UA_ByteString *packet,
+bufferIncompleteChunk(UA_SecureChannel *channel, const UA_ByteString *buffer,
                       size_t offset) {
     UA_assert(channel->incompleteChunk.length == 0);
-    UA_assert(offset < packet->length);
-    size_t length = packet->length - offset;
+    UA_assert(offset < buffer->length);
+    size_t length = buffer->length - offset;
     UA_StatusCode retval = UA_ByteString_allocBuffer(&channel->incompleteChunk, length);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    memcpy(channel->incompleteChunk.data, &packet->data[offset], length);
+    memcpy(channel->incompleteChunk.data, &buffer->data[offset], length);
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
-processChunk(UA_SecureChannel *channel, const UA_ByteString *packet,
+processChunk(UA_SecureChannel *channel, const UA_ByteString *buffer,
              size_t *offset, UA_Boolean *done) {
     /* At least 8 byte needed for the header. Wait for the next chunk. */
     size_t initial_offset = *offset;
-    size_t remaining = packet->length - initial_offset;
+    size_t remaining = buffer->length - initial_offset;
     if(remaining < 8) {
         *done = true;
         return UA_STATUSCODE_GOOD;
@@ -766,7 +766,7 @@ processChunk(UA_SecureChannel *channel, const UA_ByteString *packet,
 
     /* Decoding cannot fail */
     UA_TcpMessageHeader hdr;
-    UA_TcpMessageHeader_decodeBinary(packet, &initial_offset, &hdr);
+    UA_TcpMessageHeader_decodeBinary(buffer, &initial_offset, &hdr);
     UA_MessageType msgType = (UA_MessageType)
         (hdr.messageTypeAndChunkType & UA_BITMASK_MESSAGETYPE);
     UA_ChunkType chunkType = (UA_ChunkType)
@@ -784,11 +784,11 @@ processChunk(UA_SecureChannel *channel, const UA_ByteString *packet,
         return UA_STATUSCODE_GOOD;
     }
 
-    /* ByteString with only this chunk. Don't forward the original packet
+    /* ByteString with only this chunk. Don't forward the original buffer
      * ByteString into decryptAddChunk. The data pointer is modified internally
      * to point to payload beyond the header. */
     UA_ByteString chunk;
-    chunk.data = &packet->data[*offset];
+    chunk.data = &buffer->data[*offset];
     chunk.length = hdr.messageSize;
 
     /* Stop processing after a non-MSG message */
@@ -803,9 +803,9 @@ processChunk(UA_SecureChannel *channel, const UA_ByteString *packet,
 }
 
 UA_StatusCode
-UA_SecureChannel_processPacket(UA_SecureChannel *channel, void *application,
+UA_SecureChannel_processBuffer(UA_SecureChannel *channel, void *application,
                                UA_ProcessMessageCallback callback,
-                               const UA_ByteString *packet) {
+                               const UA_ByteString *buffer) {
     UA_ByteString appended = channel->incompleteChunk;
     channel->retryReceived = false;
 
@@ -814,15 +814,15 @@ UA_SecureChannel_processPacket(UA_SecureChannel *channel, void *application,
      * work around "lazy" network layers. */
     if(appended.length > 0) {
         channel->incompleteChunk = UA_BYTESTRING_NULL;
-        UA_Byte *t = (UA_Byte*)UA_realloc(appended.data, appended.length + packet->length);
+        UA_Byte *t = (UA_Byte*)UA_realloc(appended.data, appended.length + buffer->length);
         if(!t) {
             UA_ByteString_deleteMembers(&appended);
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
-        memcpy(&t[appended.length], packet->data, packet->length);
+        memcpy(&t[appended.length], buffer->data, buffer->length);
         appended.data = t;
-        appended.length += packet->length;
-        packet = &appended;
+        appended.length += buffer->length;
+        buffer = &appended;
     }
 
     UA_assert(channel->incompleteChunk.length == 0);
@@ -832,7 +832,7 @@ UA_SecureChannel_processPacket(UA_SecureChannel *channel, void *application,
     UA_Boolean done = false;
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     while(!done) {
-        res = processChunk(channel, packet, &offset, &done);
+        res = processChunk(channel, buffer, &offset, &done);
         if(res != UA_STATUSCODE_GOOD)
             goto cleanup;
     }
@@ -842,14 +842,14 @@ UA_SecureChannel_processPacket(UA_SecureChannel *channel, void *application,
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
 
-    /* Persist full chunks that still point to the packet */
+    /* Persist full chunks that still point to the buffer */
     res = persistIncompleteMessages(channel);
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
 
     /* Buffer half-received chunk */
-    if(offset < packet->length)
-        res = bufferIncompleteChunk(channel, packet, offset);
+    if(offset < buffer->length)
+        res = bufferIncompleteChunk(channel, buffer, offset);
 
  cleanup:
     UA_ByteString_deleteMembers(&appended);
@@ -864,18 +864,18 @@ UA_SecureChannel_receive(UA_SecureChannel *channel, void *application,
         return UA_STATUSCODE_BADINTERNALERROR;
     
     /* Listen for messages to arrive */
-    UA_ByteString packet = UA_BYTESTRING_NULL;
-    UA_StatusCode retval = connection->recv(connection, &packet, timeout);
+    UA_ByteString buffer = UA_BYTESTRING_NULL;
+    UA_StatusCode retval = connection->recv(connection, &buffer, timeout);
     if(retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
         return UA_STATUSCODE_GOOD;
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
     /* Try to process one complete chunk */
-    retval = UA_SecureChannel_processPacket(channel, application, callback, &packet);
-    connection->releaseRecvBuffer(connection, &packet);
+    retval = UA_SecureChannel_processBuffer(channel, application, callback, &buffer);
+    connection->releaseRecvBuffer(connection, &buffer);
     while(retval == UA_STATUSCODE_GOOD && channel->retryReceived) {
-        retval = UA_SecureChannel_processPacket(channel, application, callback,
+        retval = UA_SecureChannel_processBuffer(channel, application, callback,
                                                 &UA_BYTESTRING_NULL);
     }
     return retval;

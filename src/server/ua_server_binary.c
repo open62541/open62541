@@ -797,9 +797,9 @@ UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
     UA_debug_dumpCompleteChunk(server, channel->connection, message);
 #endif
 
-    retval = UA_SecureChannel_processPacket(channel, server, processSecureChannelMessage, message);
+    retval = UA_SecureChannel_processBuffer(channel, server, processSecureChannelMessage, message);
     while(retval == UA_STATUSCODE_GOOD && channel->retryReceived) {
-        retval = UA_SecureChannel_processPacket(channel, server,
+        retval = UA_SecureChannel_processBuffer(channel, server,
                                                 processSecureChannelMessage, &UA_BYTESTRING_NULL);
     }
     if(retval != UA_STATUSCODE_GOOD) {

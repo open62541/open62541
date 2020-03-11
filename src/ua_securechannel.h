@@ -229,16 +229,16 @@ typedef void
                             UA_MessageType messageType, UA_UInt32 requestId,
                             UA_ByteString *message);
 
-/* Process a received packet. The callback function is called with the complete
+/* Process a received buffer. The callback function is called with the complete
  * message body if the message is complete. The message is removed afterwards.
  * Returns if an irrecoverable error occured. */
 UA_StatusCode
-UA_SecureChannel_processPacket(UA_SecureChannel *channel, void *application,
+UA_SecureChannel_processBuffer(UA_SecureChannel *channel, void *application,
                                UA_ProcessMessageCallback callback,
-                               const UA_ByteString *packet);
+                               const UA_ByteString *buffer);
 
 /* Try to receive at least one complete chunk on the connection. This blocks the
- * current thread up to the given timeout. It will return once the first packet
+ * current thread up to the given timeout. It will return once the first buffer
  * has been received (and possibly processed when the message is complete).
  *
  * @param channel The SecureChannel
