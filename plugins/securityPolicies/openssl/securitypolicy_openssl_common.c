@@ -32,6 +32,8 @@ modification history
 #define get_pkey_rsa(evp) ((evp)->pkey.rsa)
 #endif
 
+#define SHA1_DIGEST_LENGTH 20          /* 160 bits */
+
 /** P_SHA256 Context */
 typedef struct UA_Openssl_P_SHA256_Ctx_ {
     size_t  seedLen;    
@@ -44,6 +46,19 @@ typedef struct UA_Openssl_P_SHA256_Ctx_ {
 
 #define UA_Openssl_P_SHA256_SEED(ctx)   ((ctx)->A+32)
 #define UA_Openssl_P_SHA256_SECRET(ctx) ((ctx)->A+32+(ctx)->seedLen)
+
+/** P_SHA1 Context */
+typedef struct UA_Openssl_P_SHA1_Ctx_ {
+    size_t  seedLen;    
+    size_t  secretLen;
+    UA_Byte A[SHA1_DIGEST_LENGTH];  /* 20 bytes of SHA1 output */
+    /*
+    char seed[seedLen];
+    char secret[secretLen]; */
+} UA_Openssl_P_SHA1_Ctx;
+
+#define UA_Openssl_P_SHA1_SEED(ctx)   ((ctx)->A + SHA1_DIGEST_LENGTH)
+#define UA_Openssl_P_SHA1_SECRET(ctx) ((ctx)->A + SHA1_DIGEST_LENGTH +(ctx)->seedLen)
 
 void 
 UA_Openssl_Init (void) {
@@ -697,5 +712,134 @@ UA_OpenSSL_X509_compare (const UA_ByteString * cert,
     return UA_STATUSCODE_UNCERTAINSUBNORMAL;
 }
 
-#endif
+UA_StatusCode
+UA_OpenSSL_RSA_PKCS1_V15_SHA1_Verify (const UA_ByteString * msg,
+                                      X509 *                publicKeyX509,
+                                      const UA_ByteString * signature) {
+    return UA_OpenSSL_RSA_Public_Verify (msg, EVP_sha1(), publicKeyX509,  
+                                         NID_sha1, signature);                                         
+}
 
+UA_StatusCode 
+UA_Openssl_RSA_PKCS1_V15_SHA1_Sign (const UA_ByteString * message,
+                                    const UA_ByteString * privateKey,
+                                    UA_ByteString *       outSignature) {
+    return UA_Openssl_RSA_Private_Sign (message, privateKey, EVP_sha1(), 
+                                        NID_sha1, outSignature); 
+}
+
+static UA_Openssl_P_SHA1_Ctx *
+P_SHA1_Ctx_Create (const UA_ByteString *  secret,
+                   const UA_ByteString *  seed) {
+    size_t size = (UA_Int32)sizeof (UA_Openssl_P_SHA1_Ctx) + secret->length +
+                    seed->length;
+    UA_Openssl_P_SHA1_Ctx * ctx = (UA_Openssl_P_SHA1_Ctx *) UA_malloc (size);
+    if (ctx == NULL) {
+        return NULL;
+    }
+
+    ctx->secretLen = secret->length;
+    ctx->seedLen = seed->length;
+    (void) memcpy (UA_Openssl_P_SHA1_SEED(ctx), seed->data, seed->length);
+    (void) memcpy (UA_Openssl_P_SHA1_SECRET(ctx), secret->data, secret->length);
+    /* A(0) = seed
+       A(n) = HMAC_HASH(secret, A(n-1)) */
+    
+    if (HMAC (EVP_sha1(), secret->data, (int) secret->length, seed->data, 
+        seed->length, ctx->A, NULL) == NULL) {
+        UA_free (ctx);
+        return NULL;
+    }
+
+    return ctx;
+}
+
+static UA_StatusCode 
+P_SHA1_Hash_Generate (UA_Openssl_P_SHA1_Ctx * ctx, 
+                      UA_Byte *               pHas
+                      ) {
+    /* Calculate P_SHA1(n) = HMAC_SHA1(secret, A(n)+seed) */
+    if (HMAC (EVP_sha1 (), UA_Openssl_P_SHA1_SECRET(ctx), (int) ctx->secretLen,
+        ctx->A, sizeof (ctx->A) + ctx->seedLen, pHas, NULL) == NULL) {
+            return UA_STATUSCODE_BADINTERNALERROR;
+        } 
+
+    /* Calculate A(n) = HMAC_SHA1(secret, A(n-1)) */
+   if (HMAC (EVP_sha1(), UA_Openssl_P_SHA1_SECRET(ctx), (int) ctx->secretLen,
+        ctx->A, sizeof (ctx->A), ctx->A, NULL) == NULL) {
+            return UA_STATUSCODE_BADINTERNALERROR;
+        } 
+    return UA_STATUSCODE_GOOD;      
+}
+
+UA_StatusCode 
+UA_Openssl_Random_Key_PSHA1_Derive (const UA_ByteString *     secret,
+                                   const UA_ByteString *     seed, 
+                                   UA_ByteString *           out) {
+    size_t keyLen     = out->length;
+    size_t iter       = keyLen / SHA1_DIGEST_LENGTH + ((keyLen % SHA1_DIGEST_LENGTH)?1:0);
+    size_t bufferLen  = iter * SHA1_DIGEST_LENGTH;
+    UA_Byte * pBuffer = (UA_Byte *) UA_malloc (bufferLen);
+    if (pBuffer == NULL) {
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    UA_Openssl_P_SHA1_Ctx * ctx = P_SHA1_Ctx_Create (secret, seed);
+    if (ctx == NULL) {
+        UA_free (pBuffer);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    
+    size_t i; 
+    UA_StatusCode st;
+
+    for (i = 0; i < iter; i++) {
+        st = P_SHA1_Hash_Generate (ctx, pBuffer + (i * SHA1_DIGEST_LENGTH));
+        if (st != UA_STATUSCODE_GOOD) {
+            UA_free (pBuffer);
+            UA_free (ctx);
+            return st;
+        }
+    }
+
+    (void) memcpy (out->data, pBuffer, keyLen);
+    UA_free (pBuffer);
+    UA_free (ctx);
+    
+    return UA_STATUSCODE_GOOD;                                         
+}
+
+UA_StatusCode
+UA_OpenSSL_HMAC_SHA1_Verify (const UA_ByteString *     message,
+                             const UA_ByteString *     key,
+                             const UA_ByteString *     signature
+                             ) {
+    unsigned char buf[SHA1_DIGEST_LENGTH] = {0};
+    UA_ByteString mac = {SHA1_DIGEST_LENGTH, buf};
+
+    if (HMAC (EVP_sha1(), key->data, (int) key->length, message->data, message->length, 
+              mac.data, (unsigned int *) &mac.length) == NULL) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    if (UA_ByteString_equal (signature, &mac)) {
+        return UA_STATUSCODE_GOOD;     
+    }
+    else {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }                  
+}
+
+UA_StatusCode
+UA_OpenSSL_HMAC_SHA1_Sign (const UA_ByteString *     message,
+                           const UA_ByteString *     key,
+                           UA_ByteString *           signature
+                           ) {
+    if (HMAC (EVP_sha1(), key->data, (int) key->length, message->data, 
+              message->length,
+              signature->data, (unsigned int *) &(signature->length)) == NULL) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    return UA_STATUSCODE_GOOD;
+} 
+
+#endif
