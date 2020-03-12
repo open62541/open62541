@@ -10,7 +10,7 @@
 #include <open62541/plugin/pki_default.h>
 #include <open62541/plugin/log_stdout.h>
 
-#ifdef UA_ENABLE_ENCRYPTION
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
 #include <mbedtls/x509.h>
 #include <mbedtls/x509_crt.h>
 #include <mbedtls/error.h>
@@ -50,6 +50,50 @@ void UA_CertificateVerification_AcceptAll(UA_CertificateVerification *cv) {
 }
 
 #ifdef UA_ENABLE_ENCRYPTION
+/* Find binary substring. Taken and adjusted from
+ * http://tungchingkai.blogspot.com/2011/07/binary-strstr.html */
+
+static const unsigned char *
+bstrchr(const unsigned char *s, const unsigned char ch, size_t l) {
+    /* find first occurrence of c in char s[] for length l*/
+    /* handle special case */
+    if(l == 0)
+        return (NULL);
+
+    for(; *s != ch; ++s, --l)
+        if(l == 0)
+            return (NULL);
+    return s;
+}
+
+const unsigned char *
+UA_Bstrstr(const unsigned char *s1, size_t l1, const unsigned char *s2, size_t l2) {
+    /* find first occurrence of s2[] in s1[] for length l1*/
+    const unsigned char *ss1 = s1;
+    const unsigned char *ss2 = s2;
+    /* handle special case */
+    if(l1 == 0)
+        return (NULL);
+    if(l2 == 0)
+        return s1;
+
+    /* match prefix */
+    for (; (s1 = bstrchr(s1, *s2, (uintptr_t)ss1-(uintptr_t)s1+(uintptr_t)l1)) != NULL &&
+             (uintptr_t)ss1-(uintptr_t)s1+(uintptr_t)l1 != 0; ++s1) {
+
+        /* match rest of prefix */
+        const unsigned char *sc1, *sc2;
+        for (sc1 = s1, sc2 = s2; ;)
+            if (++sc2 >= ss2+l2)
+                return s1;
+            else if (*++sc1 != *sc2)
+                break;
+    }
+    return NULL;
+}
+#endif /* end of UA_ENABLE_ENCRYPTION */
+
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
 
 typedef struct {
     /* If the folders are defined, we use them to reload the certificates during
@@ -422,48 +466,6 @@ certificateVerification_verify(void *verificationContext,
     return retval;
 }
 
-/* Find binary substring. Taken and adjusted from
- * http://tungchingkai.blogspot.com/2011/07/binary-strstr.html */
-
-static const unsigned char *
-bstrchr(const unsigned char *s, const unsigned char ch, size_t l) {
-    /* find first occurrence of c in char s[] for length l*/
-    /* handle special case */
-    if(l == 0)
-        return (NULL);
-
-    for(; *s != ch; ++s, --l)
-        if(l == 0)
-            return (NULL);
-    return s;
-}
-
-static const unsigned char *
-bstrstr(const unsigned char *s1, size_t l1, const unsigned char *s2, size_t l2) {
-    /* find first occurrence of s2[] in s1[] for length l1*/
-    const unsigned char *ss1 = s1;
-    const unsigned char *ss2 = s2;
-    /* handle special case */
-    if(l1 == 0)
-        return (NULL);
-    if(l2 == 0)
-        return s1;
-
-    /* match prefix */
-    for (; (s1 = bstrchr(s1, *s2, (uintptr_t)ss1-(uintptr_t)s1+(uintptr_t)l1)) != NULL &&
-             (uintptr_t)ss1-(uintptr_t)s1+(uintptr_t)l1 != 0; ++s1) {
-
-        /* match rest of prefix */
-        const unsigned char *sc1, *sc2;
-        for (sc1 = s1, sc2 = s2; ;)
-            if (++sc2 >= ss2+l2)
-                return s1;
-            else if (*++sc1 != *sc2)
-                break;
-    }
-    return NULL;
-}
-
 static UA_StatusCode
 certificateVerification_verifyApplicationURI(void *verificationContext,
                                              const UA_ByteString *certificate,
@@ -486,7 +488,7 @@ certificateVerification_verifyApplicationURI(void *verificationContext,
      *
      * TODO: Improve parsing of the Alternative Subject Name */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(bstrstr(remoteCertificate.v3_ext.p, remoteCertificate.v3_ext.len,
+    if(UA_Bstrstr(remoteCertificate.v3_ext.p, remoteCertificate.v3_ext.len,
                applicationURI->data, applicationURI->length) == NULL)
         retval = UA_STATUSCODE_BADCERTIFICATEURIINVALID;
 

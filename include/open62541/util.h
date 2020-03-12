@@ -57,7 +57,7 @@ UA_parseEndpointUrlEthernet(const UA_String *endpointUrl, UA_String *target,
  * digits. Stops if a non-digit char is found and returns the number of digits
  * up to that point. */
 size_t UA_EXPORT
-UA_readNumber(UA_Byte *buf, size_t buflen, UA_UInt32 *number);
+UA_readNumber(const UA_Byte *buf, size_t buflen, UA_UInt32 *number);
 
 /* Same as UA_ReadNumber but with a base parameter */
 size_t UA_EXPORT

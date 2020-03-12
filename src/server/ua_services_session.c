@@ -495,7 +495,6 @@ void
 Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                         UA_Session *session, const UA_ActivateSessionRequest *request,
                         UA_ActivateSessionResponse *response) {
-    UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Execute ActivateSession");
     UA_LOCK_ASSERT(server->serviceMutex, 1);
 
     /* The Session was not bound to this SecureChannel. It could be that we want
@@ -507,12 +506,15 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
      * calls to ActivateSession may be associated with different
      * SecureChannels. */
     if(!session) {
+        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SESSION, "Execute ActivateSession: Session not bound to this secure channel");
         session = getSessionByToken(server, &request->requestHeader.authenticationToken);
         if(!session || !session->activated) {
             response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
             goto rejected;
         }
     }
+
+    UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Execute ActivateSession");
 
     /* Has the session timed out? */
     if(session->validTill < UA_DateTime_nowMonotonic()) {

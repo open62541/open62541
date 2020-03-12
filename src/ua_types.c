@@ -1242,7 +1242,7 @@ readDimension(UA_Byte *buf, size_t buflen, UA_NumericRangeDimension *dim) {
 }
 
 UA_StatusCode
-UA_NumericRange_parseFromString(UA_NumericRange *range, const UA_String *str) {
+UA_NumericRange_parse(UA_NumericRange *range, const UA_String str) {
     size_t idx = 0;
     size_t dimensionsMax = 0;
     UA_NumericRangeDimension *dimensions = NULL;
@@ -1263,7 +1263,7 @@ UA_NumericRange_parseFromString(UA_NumericRange *range, const UA_String *str) {
         }
 
         /* read the dimension */
-        size_t progress = readDimension(&str->data[offset], str->length - offset,
+        size_t progress = readDimension(&str.data[offset], str.length - offset,
                                         &dimensions[idx]);
         if(progress == 0) {
             retval = UA_STATUSCODE_BADINDEXRANGEINVALID;
@@ -1273,10 +1273,10 @@ UA_NumericRange_parseFromString(UA_NumericRange *range, const UA_String *str) {
         ++idx;
 
         /* loop into the next dimension */
-        if(offset >= str->length)
+        if(offset >= str.length)
             break;
 
-        if(str->data[offset] != ',') {
+        if(str.data[offset] != ',') {
             retval = UA_STATUSCODE_BADINDEXRANGEINVALID;
             break;
         }

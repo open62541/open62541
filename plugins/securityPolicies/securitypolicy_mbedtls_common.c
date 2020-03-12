@@ -1,6 +1,6 @@
 #include <open62541/plugin/securitypolicy.h>
 
-#ifdef UA_ENABLE_ENCRYPTION
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
 
 #include <open62541/plugin/pki.h>
 #include <open62541/plugin/securitypolicy_mbedtls_common.h>

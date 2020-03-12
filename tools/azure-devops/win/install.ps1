@@ -26,7 +26,10 @@ try {
         & vcpkg install check:x86-windows-static
 
         Write-Host -ForegroundColor Green "`n### Installing DrMemory ###`n"
-        & choco install -y --no-progress drmemory.portable
+        # 12. March 2020: Hardcode Dr Memory Version to 2.2. Otherwise it fails with
+        # "Failed to take over all threads after multiple attempts."
+        # See: https://dev.azure.com/open62541/open62541/_build/results?buildId=1242&view=logs&j=0690d606-4da6-5fc6-313c-2fce474be087&t=6290dcff-a4f0-5630-9345-7cbc0279a890&l=1871
+        & choco install -y --no-progress drmemory.portable --version 2.2.0
         $env:Path = 'C:\Program Files (x86)\Dr. Memory\bin;' + $env:Path        
     }
 

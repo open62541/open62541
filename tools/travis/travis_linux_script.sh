@@ -18,7 +18,7 @@ if ! [ -z ${SONAR+x} ]; then
 	    -DUA_BUILD_EXAMPLES=ON \
         -DUA_ENABLE_DISCOVERY=ON \
         -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
-        -DUA_ENABLE_ENCRYPTION .. \
+        -DUA_ENABLE_ENCRYPTION=ON .. \
     && make -j
 	cd ..
 	sonar-scanner
