@@ -167,6 +167,37 @@ try {
             Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
             exit $LASTEXITCODE
         }
+        
+        cd ..
+        Remove-Item -Path build -Recurse -Force        
+        Write-Output -ForegroundColor Green "`n###################################################################"
+        Write-Output -ForegroundColor Green "`n##### Testing $env:CC_NAME with unit tests with openssl #####`n"
+        New-Item -ItemType directory -Path "build"
+        cd build
+        & cmake $cmake_cnf `
+                -DBUILD_SHARED_LIBS:BOOL=OFF `
+                -DCMAKE_BUILD_TYPE=Debug `
+                -DUA_BUILD_EXAMPLES=OFF `
+                -DUA_BUILD_UNIT_TESTS=ON `
+                -DUA_ENABLE_DA=ON `
+                -DUA_ENABLE_DISCOVERY=ON `
+                -DUA_ENABLE_DISCOVERY_MULTICAST=ON `
+                -DUA_ENABLE_ENCRYPTION_OPENSSL:BOOL=$build_encryption `
+                -DUA_ENABLE_JSON_ENCODING:BOOL=ON `
+                -DUA_ENABLE_PUBSUB:BOOL=ON `
+                -DUA_ENABLE_PUBSUB_DELTAFRAMES:BOOL=ON `
+                -DUA_ENABLE_PUBSUB_INFORMATIONMODEL:BOOL=ON `
+                -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON ..
+        & cmake --build . --config Debug
+        if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+            Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
+            exit $LASTEXITCODE
+        }
+        & cmake --build . --target test-verbose --config Debug
+        if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+            Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
+            exit $LASTEXITCODE
+        }        
     }
 
     # # do not cache log

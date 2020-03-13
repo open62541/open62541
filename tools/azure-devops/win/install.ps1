@@ -22,6 +22,9 @@ try {
         Write-Host -ForegroundColor Green "`n### Installing mbedtls via vcpkg ###`n"
         & vcpkg install mbedtls:x86-windows-static
 
+        Write-Output -ForegroundColor Green "`n### Installing openssl via vcpkg ###`n"
+        & vcpkg install openssl:x86-windows-static
+
         Write-Host -ForegroundColor Green "`n### Installing libcheck via vcpkg ###`n"
         & vcpkg install check:x86-windows-static
 
