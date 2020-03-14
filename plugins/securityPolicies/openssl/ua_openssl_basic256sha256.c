@@ -660,6 +660,7 @@ UA_SecurityPolicy_Basic256Sha256(UA_SecurityPolicy * policy,
 
     /* Use the same signature algorithm as the asymmetric component for 
        certificate signing (see standard) */
+       
     policy->certificateSigningAlgorithm = policy->asymmetricModule.cryptoModule.signatureAlgorithm;
 
     return UA_STATUSCODE_GOOD;

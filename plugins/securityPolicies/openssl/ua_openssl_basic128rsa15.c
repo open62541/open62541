@@ -33,5 +33,3 @@ UA_SecurityPolicy_Basic128Rsa15(UA_SecurityPolicy *policy,
 }
 
 #endif
-
-
