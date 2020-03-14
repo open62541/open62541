@@ -76,6 +76,8 @@ UA_CertificateVerification_clear (UA_CertificateVerification * cv) {
     UA_ByteString_deleteMembers (&context->revocationListFolder);
 
     UA_CertContext_sk_free (context);
+    UA_free (context);
+
     return;
 }
 

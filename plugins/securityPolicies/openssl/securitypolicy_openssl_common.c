@@ -698,3 +698,4 @@ UA_OpenSSL_X509_compare (const UA_ByteString * cert,
 }
 
 #endif
+

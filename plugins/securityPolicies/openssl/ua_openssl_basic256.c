@@ -30,5 +30,3 @@ UA_SecurityPolicy_Basic256(UA_SecurityPolicy *policy,
 }
 
 #endif
-
-
