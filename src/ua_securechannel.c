@@ -543,10 +543,18 @@ addChunk(UA_SecureChannel *channel, UA_UInt32 requestId,
     chunk->messageType = messageType;
     chunk->chunkType = chunkType;
 
+    /* Remove MessageHeader and SequenceHeader for OPN and MSG messages */
+    if(messageType == UA_MESSAGETYPE_MSG ||
+       messageType == UA_MESSAGETYPE_CLO) {
+        UA_assert(chunk->bytes.length > 24);
+        chunk->bytes.data += 24;
+        chunk->bytes.length -= 24;
+    }
+
     /* Add the chunk */
     SIMPLEQ_INSERT_TAIL(&latest->chunks, chunk, pointers);
     latest->chunksSize += 1;
-    latest->messageSize += chunkPayload->length;
+    latest->messageSize += chunk->bytes.length;
     latest->final = (chunkType == UA_CHUNKTYPE_FINAL);
 
     return UA_STATUSCODE_GOOD;
@@ -696,28 +704,32 @@ decryptAddChunk(UA_SecureChannel *channel, UA_MessageType messageType,
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
-    UA_UInt32 requestId = 0;
-    UA_UInt32 sequenceNumber = 0;
-    res = decryptAndVerifyChunk(channel, &sp->symmetricModule.cryptoModule, messageType,
-                                chunk, offset, &requestId, &sequenceNumber);
+    res = decryptAndVerifyChunk(channel, &sp->symmetricModule.cryptoModule,
+                                messageType, chunk, offset);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+   /* Decode the sequence header */
+    UA_SequenceHeader sequenceHeader;
+    res = UA_SequenceHeader_decodeBinary(chunk, &offset, &sequenceHeader);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
     /* Check the sequence number. Skip sequence number checking for fuzzer to
      * improve coverage */
 #ifndef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
-    res = processSequenceNumberSym(channel, sequenceNumber);
+    res = processSequenceNumberSym(channel, sequenceHeader.sequenceNumber);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 #endif
 
     /* A message consisting of serveral chunks is aborted */
     if(chunkType == UA_CHUNKTYPE_ABORT) {
-        deleteLatestMessage(channel, requestId);
+        deleteLatestMessage(channel, sequenceHeader.requestId);
         return UA_STATUSCODE_GOOD;
     }
 
-    return addChunk(channel, requestId, messageType, chunkType, chunk);
+    return addChunk(channel, sequenceHeader.requestId, messageType, chunkType, chunk);
 }
 
 static UA_StatusCode
@@ -784,6 +796,11 @@ processChunk(UA_SecureChannel *channel, const UA_ByteString *buffer,
         *done = true;
         return UA_STATUSCODE_GOOD;
     }
+
+    if(channel->securityPolicy)
+    UA_LOG_DEBUG_CHANNEL(channel->securityPolicy->logger, channel,
+                         "Received a chunk of length %u and chunktype %u",
+                         (unsigned)hdr.messageSize, (unsigned)(chunkType >> 24));
 
     /* ByteString with only this chunk. Don't forward the original buffer
      * ByteString into decryptAddChunk. The data pointer is modified internally
