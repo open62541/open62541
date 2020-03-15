@@ -304,91 +304,6 @@ UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
     }
 }
 
-/* Information model RT handling */
-/*
-* @param server The server executing the callback
-* @param sessionId The identifier of the session
-* @param sessionContext Additional data attached to the session in the
-*        access control layer
-* @param nodeId The identifier of the node being read from
-* @param nodeContext Additional data attached to the node by the user
-* @param includeSourceTimeStamp If true, then the datasource is expected to
-*        set the source timestamp in the returned value
-* @param range If not null, then the datasource shall return only a
-*        selection of the (nonscalar) data. Set
-*        UA_STATUSCODE_BADINDEXRANGEINVALID in the value if this does not
-        *        apply
-* @param value The (non-null) DataValue that is returned to the client. The
-        *        data source sets the read data, the result status and optionally a
-*        sourcetimestamp.
-* @return Returns a status code for logging. Error codes intended for the
-        *         original caller are set in the value. If an error is returned,
-*         then no releasing of the value is done
-*/
-static UA_StatusCode
-readInformationModelVariableMemory(UA_Server *server, const UA_NodeId *sessionId,
-                      void *sessionContext, const UA_NodeId *nodeId,
-                      void *nodeContext, UA_Boolean includeSourceTimeStamp,
-                      const UA_NumericRange *range, UA_DataValue *value){
-    UA_Variant *internalValue = (UA_Variant *) nodeContext;
-    UA_Variant_setScalarCopy(&value->value, internalValue->data, internalValue->type);
-    value->hasValue = true;
-    return UA_STATUSCODE_GOOD;
-}
-
-/* Write into a data source. This method pointer can be NULL if the
- * operation is unsupported.
- *
- * @param server The server executing the callback
- * @param sessionId The identifier of the session
- * @param sessionContext Additional data attached to the session in the
- *        access control layer
- * @param nodeId The identifier of the node being written to
- * @param nodeContext Additional data attached to the node by the user
- * @param range If not NULL, then the datasource shall return only a
- *        selection of the (nonscalar) data. Set
- *        UA_STATUSCODE_BADINDEXRANGEINVALID in the value if this does not
- *        apply
- * @param value The (non-NULL) DataValue that has been written by the client.
- *        The data source contains the written data, the result status and
- *        optionally a sourcetimestamp
- * @return Returns a status code for logging. Error codes intended for the
- *         original caller are set in the value. If an error is returned,
- *         then no releasing of the value is done
- */
-static UA_StatusCode
-writeInformationMdelVariableMemory(UA_Server *server, const UA_NodeId *sessionId,
-                       void *sessionContext, const UA_NodeId *nodeId,
-                       void *nodeContext, const UA_NumericRange *range,
-                       const UA_DataValue *value){
-    UA_Variant *internalValue = (UA_Variant *) nodeContext;
-    *(UA_Int32 *) internalValue->data = *(UA_Int32 *) value->value.data;
-    //UA_Variant_setScalarCopy(&dataValue.value, internalValue->data, internalValue->type);
-    //dataValue.hasValue = true;
-
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode
-UA_Server_addPubSubRTvariableNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
-                                       const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
-                                       const UA_QualifiedName browseName, const UA_NodeId typeDefinition,
-                                       const UA_VariableAttributes attr, UA_Variant *staticValue,
-                                       void *nodeContext, UA_NodeId *outNewNodeId){
-    UA_StatusCode retVal;
-    if(!UA_DataType_isNumeric(UA_findDataType(&staticValue->type->typeId)))
-        return UA_STATUSCODE_BADNOTSUPPORTED;
-    /* add var + data set and read callback */
-    UA_DataSource dataSourceField;
-    memset(&dataSourceField, 0, sizeof(UA_DataSource));
-    dataSourceField.read = readInformationModelVariableMemory;
-    dataSourceField.write = writeInformationMdelVariableMemory;
-    retVal = UA_Server_addDataSourceVariableNode(server, requestedNewNodeId, parentNodeId, referenceTypeId,
-                                        browseName, typeDefinition, attr, dataSourceField, staticValue, outNewNodeId);
-    /* ToDo add destructor to clean up structures */
-    return retVal;
-}
-
 UA_StatusCode
 UA_Server_swapExistingVariableNodeToRT(UA_Server *server, UA_NodeId targetNodeId, UA_Variant *staticValue){
     UA_StatusCode retVal;
@@ -397,20 +312,94 @@ UA_Server_swapExistingVariableNodeToRT(UA_Server *server, UA_NodeId targetNodeId
     if(!UA_DataType_isNumeric(UA_findDataType(&nodeDataType)))
         return UA_STATUSCODE_BADNOTSUPPORTED;
     UA_Variant lastValue;
-    UA_Server_readValue(server, targetNodeId, &lastValue);
+    retVal = UA_Server_readValue(server, targetNodeId, &lastValue);
     //check if DataType of static value is equal with target Node in the information model
-    if(!UA_NodeId_equal(&nodeDataType, &staticValue->type->typeId))
+    if(retVal != UA_STATUSCODE_GOOD || !UA_NodeId_equal(&nodeDataType, &staticValue->type->typeId))
         return UA_STATUSCODE_BADNOTSUPPORTED;
     //set copy of the value
-    UA_copy(lastValue.data, staticValue->data, UA_findDataType(&nodeDataType));
-    //set dataSource methods to the specified field
-    UA_DataSource dataSourceField;
-    memset(&dataSourceField, 0, sizeof(UA_DataSource));
-    dataSourceField.read = readInformationModelVariableMemory;
-    dataSourceField.write = writeInformationMdelVariableMemory;
-    UA_Server_setNodeContext(server, targetNodeId, staticValue);
-    retVal = UA_Server_setVariableNode_dataSource(server, targetNodeId, dataSourceField);
+    retVal = UA_copy(lastValue.data, staticValue->data, UA_findDataType(&nodeDataType));
     return retVal;
+}
+
+static int
+compareLookupStructure(const void *p1, const void *p2)
+{
+    const struct UA_PubSubRTVarLookup *rt1 = (const struct UA_PubSubRTVarLookup *) p1;
+    const struct UA_PubSubRTVarLookup *rt2 = (const struct UA_PubSubRTVarLookup *) p2;
+    int nodeIdCompare = UA_NodeId_order(rt1->rtUsedNode , rt2->rtUsedNode);
+    return nodeIdCompare;
+}
+
+void
+UA_PubSubMange_addRTNodeLookupEntry(UA_Server *server, UA_NodeId *variable){
+    //check if an other RT-DataSetField revers to the new RT-DataSetField base node
+    for (size_t index = 0; index < server->pubSubManager.rtInformationModelVarsSize; ++index) {
+        if(UA_NodeId_equal(server->pubSubManager.rtInformationModelVars[index].rtUsedNode, variable)){
+            server->pubSubManager.rtInformationModelVars[index].rtVarRevs++;
+            return;
+        }
+    }
+    UA_PublishedDataSet *tmpPDS = NULL;
+    UA_DataSetField *tmpField = NULL;
+    UA_Boolean found = UA_FALSE;
+    TAILQ_FOREACH(tmpPDS, &server->pubSubManager.publishedDataSets, listEntry){
+        TAILQ_FOREACH(tmpField, &tmpPDS->fields, listEntry){
+            if(UA_NodeId_equal(&tmpField->config.field.variable.publishParameters.publishedVariable, variable)){
+                found = UA_TRUE;
+                break;
+            }
+        }
+        if(found)
+            break;
+    }
+    if(tmpField == NULL)
+        return;
+    //keep the array of lookup entry ordered by the nodeId
+    server->pubSubManager.rtInformationModelVars = (UA_PubSubRTVarLookup *)
+            UA_realloc(server->pubSubManager.rtInformationModelVars,
+                    (++server->pubSubManager.rtInformationModelVarsSize) * sizeof(UA_PubSubRTVarLookup));
+    memset(&server->pubSubManager.rtInformationModelVars[server->pubSubManager.rtInformationModelVarsSize-1],
+            0, sizeof(UA_PubSubRTVarLookup));
+    server->pubSubManager.rtInformationModelVars[server->pubSubManager.rtInformationModelVarsSize-1].rtUsedNode =
+            variable;
+    server->pubSubManager.rtInformationModelVars[server->pubSubManager.rtInformationModelVarsSize-1].rtNodeValue =
+            &tmpField->config.field.variable.staticValueSource;
+    qsort(server->pubSubManager.rtInformationModelVars,
+            server->pubSubManager.rtInformationModelVarsSize,
+            sizeof(UA_PubSubRTVarLookup), compareLookupStructure);
+}
+
+void
+UA_PubSubMange_removeRTNodeLookupEntry(UA_Server *server, UA_NodeId *variable){
+    //keep the array of lookup entry ordered by the nodeId
+    size_t index;
+    for (index = 0; index < server->pubSubManager.rtInformationModelVarsSize; ++index) {
+        if(UA_NodeId_equal(server->pubSubManager.rtInformationModelVars[index].rtUsedNode, variable)){
+            if(--server->pubSubManager.rtInformationModelVars[index].rtVarRevs > 0)
+                return;
+            break;
+        }
+    }
+    memcpy(&server->pubSubManager.rtInformationModelVars[index],
+            &server->pubSubManager.rtInformationModelVars[server->pubSubManager.rtInformationModelVarsSize-1],
+           sizeof(struct UA_PubSubRTVarLookup));
+
+    server->pubSubManager.rtInformationModelVars = (UA_PubSubRTVarLookup *)
+            UA_realloc(server->pubSubManager.rtInformationModelVars,
+                       (--server->pubSubManager.rtInformationModelVarsSize) * sizeof(UA_PubSubRTVarLookup));
+    qsort(server->pubSubManager.rtInformationModelVars,
+          server->pubSubManager.rtInformationModelVarsSize,
+          sizeof(UA_PubSubRTVarLookup), compareLookupStructure);
+}
+
+UA_PubSubRTVarLookup *
+UA_PubSubManager_varContaintInRTLookup(UA_Server *server, const UA_PubSubRTVarLookup variable){
+    UA_PubSubRTVarLookup * result = (UA_PubSubRTVarLookup *) bsearch(
+            &variable,
+            server->pubSubManager.rtInformationModelVars,
+            server->pubSubManager.rtInformationModelVarsSize,
+            sizeof(UA_PubSubRTVarLookup), compareLookupStructure);
+    return result;
 }
 
 /***********************************/

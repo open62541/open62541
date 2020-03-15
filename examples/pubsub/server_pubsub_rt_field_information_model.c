@@ -9,6 +9,8 @@
 
 UA_Boolean running = true;
 UA_NodeId publishedDataSetIdent, dataSetFieldIdent, writerGroupIdent, connectionIdentifier;
+UA_UInt32 *integerRTValue, *integerRTValue2;
+UA_NodeId addedNodId1, addedNodId2;
 
 static void stopHandler(int sign) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
@@ -38,25 +40,36 @@ addMinimalPubSubConfiguration(UA_Server * server){
 }
 
 static UA_NodeId
-addVariable(UA_Server *server) {
+addVariable(UA_Server *server, char *name) {
     UA_NodeId outNodeId;
     /* Define the attribute of the myInteger variable node */
     UA_VariableAttributes attr = UA_VariableAttributes_default;
-    UA_Int32 myInteger = 42;
-    UA_Variant_setScalar(&attr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
-    attr.description = UA_LOCALIZEDTEXT("en-US","Normal to RT Node");
-    attr.displayName = UA_LOCALIZEDTEXT("en-US","Normal to RT Node");
-    attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    UA_UInt32 myInteger = 42;
+    UA_Variant_setScalar(&attr.value, &myInteger, &UA_TYPES[UA_TYPES_UINT32]);
+    attr.description = UA_LOCALIZEDTEXT("en-US",name);
+    attr.displayName = UA_LOCALIZEDTEXT("en-US",name);
+    attr.dataType = UA_TYPES[UA_TYPES_UINT32].typeId;
     attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
 
     /* Add the variable node to the information model */
-    UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "Normal to RT Node");
+    UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, name);
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_Server_addVariableNode(server, UA_NODEID_NULL, parentNodeId,
                               parentReferenceNodeId, myIntegerName,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr, NULL, &outNodeId);
     return outNodeId;
+}
+
+static void
+valueUpdateCallback(UA_Server *server, void *data) {
+    UA_Variant variant;
+    UA_Variant_init(&variant);
+    UA_Server_readValue(server, addedNodId1, &variant);
+    *integerRTValue = (*((UA_UInt32 *) (variant.data))) + 1;
+    UA_Variant_init(&variant);
+    UA_Server_readValue(server, addedNodId2, &variant);
+    *integerRTValue2 = (*((UA_UInt32 *) (variant.data))) + 1;
 }
 
 int main(void){
@@ -89,11 +102,11 @@ int main(void){
     UA_UadpWriterGroupMessageDataType_init(&writerGroupMessage);
     writerGroupMessage.networkMessageContentMask = (UA_UadpNetworkMessageContentMask) ((UA_UadpNetworkMessageContentMask) UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID |
                                                                                        (UA_UadpNetworkMessageContentMask) UA_UADPNETWORKMESSAGECONTENTMASK_GROUPHEADER |
-                                                                                       (UA_UadpNetworkMessageContentMask) UA_UADPNETWORKMESSAGECONTENTMASK_WRITERGROUPID |
-                                                                                       (UA_UadpNetworkMessageContentMask) UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
+                                                                                       (UA_UadpNetworkMessageContentMask) UA_UADPNETWORKMESSAGECONTENTMASK_WRITERGROUPID |(UA_UadpNetworkMessageContentMask) UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
     writerGroupConfig.messageSettings.content.decoded.data = &writerGroupMessage;
     writerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
     UA_Server_addWriterGroup(server, connectionIdentifier, &writerGroupConfig, &writerGroupIdent);
+
     /* Add one DataSetWriter */
     UA_NodeId dataSetWriterIdent;
     UA_DataSetWriterConfig dataSetWriterConfig;
@@ -103,55 +116,43 @@ int main(void){
     dataSetWriterConfig.keyFrameCount = 10;
     UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent, &dataSetWriterConfig, &dataSetWriterIdent);
 
-    /*change existing var to an RT variable */
-    UA_NodeId addedNodId = addVariable(server);
-    UA_Int32 *integerRTValue = UA_Int32_new();
+    /* add new node to the information model and create static value area */
+    addedNodId1 = addVariable(server, "RT value source 1");
+    integerRTValue = UA_UInt32_new();
     UA_Variant variantRT;
     UA_Variant_init(&variantRT);
-    UA_Variant_setScalar(&variantRT, integerRTValue, &UA_TYPES[UA_TYPES_INT32]);
-    UA_Server_swapExistingVariableNodeToRT(server, addedNodId, &variantRT);
+    UA_Variant_setScalar(&variantRT, integerRTValue, &UA_TYPES[UA_TYPES_UINT32]);
 
-    /* setup DataSetField config */
+    /* setup RT DataSetField config */
     UA_DataSetFieldConfig dsfConfig;
     memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));
+    dsfConfig.field.variable.publishParameters.publishedVariable = addedNodId1;
     dsfConfig.field.variable.staticValueSourceEnabled = UA_TRUE;
-    /* use the node id here as an alternative and then the node context*/
-    /* alternative structure {UA_Boolean rtNode; UA_Variant value} */
     dsfConfig.field.variable.staticValueSource.value = variantRT;
-    UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent);
+    UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, NULL);
 
-    /* add new RT variable to the server */
-    UA_VariableAttributes variableAttributes = UA_VariableAttributes_default;
-    variableAttributes.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
-    variableAttributes.displayName = UA_LOCALIZEDTEXT("en-EN", "Int32 PubSub test node");
-    variableAttributes.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
-
-    UA_Int32 *integerRTValue2 = UA_Int32_new();
-    *integerRTValue2 = 1000;
+    // add second new node to the information model and create static value area
+    // add new node to the information model and create static value area
+    addedNodId2 = addVariable(server, "RT value source 2");
+    integerRTValue2 = UA_UInt32_new();
     UA_Variant variantRT2;
     UA_Variant_init(&variantRT2);
-    UA_Variant_setScalar(&variantRT2, integerRTValue2, &UA_TYPES[UA_TYPES_INT32]);
-    variableAttributes.value = variantRT2;
-    variableAttributes.displayName = UA_LOCALIZEDTEXT("en-EN", "Direct RT Node");
-    UA_Server_addPubSubRTvariableNode(server, UA_NODEID_NULL,
-                                      UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                                      UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                                      UA_QUALIFIEDNAME(1, "Direct RT Node"),
-                                      UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
-                                      variableAttributes, &variantRT2, NULL, NULL);
+    UA_Variant_setScalar(&variantRT2, integerRTValue2, &UA_TYPES[UA_TYPES_UINT32]);
 
     /* setup second DataSetField config */
     UA_DataSetFieldConfig dsfConfig2;
     memset(&dsfConfig2, 0, sizeof(UA_DataSetFieldConfig));
+    dsfConfig2.field.variable.publishParameters.publishedVariable = addedNodId2;
     dsfConfig2.field.variable.staticValueSourceEnabled = UA_TRUE;
-    /* use the node id here as an alternative and then the node context*/
-    /* alternative structure {UA_Boolean rtNode; UA_Variant value} */
     dsfConfig2.field.variable.staticValueSource.value = variantRT2;
     UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig2, NULL);
 
     /* Freeze the PubSub configuration (and start implicitly the publish callback) */
     UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent);
     UA_Server_setWriterGroupOperational(server, writerGroupIdent);
+
+    UA_UInt64 callbackId;
+    UA_Server_addRepeatedCallback(server, valueUpdateCallback, NULL, 1000, &callbackId);
 
     UA_StatusCode retval = UA_Server_run(server, &running);
     UA_Server_delete(server);

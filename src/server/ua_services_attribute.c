@@ -174,6 +174,19 @@ readValueAttributeComplete(UA_Server *server, UA_Session *session,
         rangeptr = &range;
     }
 
+//check if PubSub-RT information model nodes are enabled
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_RT_VARIABLES
+
+    struct UA_PubSubRTVarLookup *lookup = UA_PubSubManager_varContaintInRTLookup(server,
+            (struct UA_PubSubRTVarLookup) {.rtNodeValue = NULL, .rtUsedNode = &vn->nodeId, .rtVarRevs = 0});
+    if(lookup != NULL){
+        UA_DataValue_copy(lookup->rtNodeValue, v);
+        if(rangeptr)
+            UA_free(range.dimensions);
+        return retval;
+    }
+#endif
+
     /* Read the value */
     if(vn->valueSource == UA_VALUESOURCE_DATA)
         retval = readValueAttributeFromNode(server, session, vn, v, rangeptr);
@@ -1224,6 +1237,14 @@ writeValueAttribute(UA_Server *server, UA_Session *session,
             retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
         }
     }
+
+
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_RT_VARIABLES
+    struct UA_PubSubRTVarLookup *lookup = UA_PubSubManager_varContaintInRTLookup(server,
+            (struct UA_PubSubRTVarLookup) {.rtNodeValue = NULL, .rtUsedNode = &node->nodeId, .rtVarRevs = 0});
+    if(lookup != NULL)
+        UA_copy(node->value.data.value.value.data, lookup->rtNodeValue->value.data, node->value.data.value.value.type);
+#endif
 
     /* Clean up */
     if(rangeptr)

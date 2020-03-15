@@ -297,6 +297,7 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId writ
                                "PubSub-RT configuration fail: PDS contains promoted fields.");
                 return UA_STATUSCODE_BADNOTSUPPORTED;
             }
+            size_t fieldCount = 0;
             UA_DataSetField *dsf;
             TAILQ_FOREACH(dsf, &pds->fields, listEntry){
                 if(!dsf->config.field.variable.staticValueSourceEnabled){
@@ -318,17 +319,20 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId writ
                                    "PDS contains variable with dynamic size.");
                     return UA_STATUSCODE_BADNOTSUPPORTED;
                 }
+                fieldCount++;
             }
-            /* Generate the DSM */
-            UA_StatusCode res =
-                    UA_DataSetWriter_generateDataSetMessage(server, &dsmStore[dsmCount], dsw);
-            if(res != UA_STATUSCODE_GOOD) {
-                UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                               "PubSub RT Offset calculation: DataSetMessage buffering failed");
-                continue;
+            if(fieldCount){
+                /* Generate the DSM */
+                UA_StatusCode res =
+                        UA_DataSetWriter_generateDataSetMessage(server, &dsmStore[dsmCount], dsw);
+                if(res != UA_STATUSCODE_GOOD) {
+                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                                   "PubSub RT Offset calculation: DataSetMessage buffering failed");
+                    continue;
+                }
+                dsWriterIds[dsmCount] = dsw->config.dataSetWriterId;
+                dsmCount++;
             }
-            dsWriterIds[dsmCount] = dsw->config.dataSetWriterId;
-            dsmCount++;
         }
         UA_NetworkMessage networkMessage;
         memset(&networkMessage, 0, sizeof(networkMessage));
@@ -637,6 +641,11 @@ UA_Server_addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
     if(currentDataSet->config.publishedDataSetType != UA_PUBSUB_DATASET_PUBLISHEDITEMS){
         result.result = UA_STATUSCODE_BADNOTIMPLEMENTED;
         return result;
+    } else {
+        if(UA_NodeId_isNull(&fieldConfig->field.variable.publishParameters.publishedVariable)){
+            result.result = UA_STATUSCODE_BADCONFIGURATIONERROR;
+            return result;
+        }
     }
 
     UA_DataSetField *newField = (UA_DataSetField *) UA_calloc(1, sizeof(UA_DataSetField));
@@ -665,6 +674,16 @@ UA_Server_addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
     if(newField->config.field.variable.promotedField)
         currentDataSet->promotedFieldsCount++;
     currentDataSet->fieldSize++;
+
+    if(tmpFieldConfig.field.variable.staticValueSourceEnabled){
+        /* asign latest information model value to the static memory */
+        UA_Server_swapExistingVariableNodeToRT(server,
+                newField->config.field.variable.publishParameters.publishedVariable,
+                &newField->config.field.variable.staticValueSource.value);
+        /* generate lookup structure */
+        UA_PubSubMange_addRTNodeLookupEntry(server,
+                                            &newField->config.field.variable.publishParameters.publishedVariable);
+    }
 
     //generate fieldMetadata within the DataSetMetaData
     currentDataSet->dataSetMetaData.fieldsSize++;
@@ -718,6 +737,16 @@ UA_Server_removeDataSetField(UA_Server *server, const UA_NodeId dsf) {
                        "Remove DataSetField failed. PublishedDataSet is frozen.");
         result.result = UA_STATUSCODE_BADCONFIGURATIONERROR;
         return result;
+    }
+
+    if(currentField->config.field.variable.staticValueSourceEnabled){
+        //TODO Implement the swap back!!
+        //UA_Server_swapExistingVariableNodeToRT(server,
+        //                                       newField->config.field.variable.publishParameters.publishedVariable,
+        //                                       &newField->config.field.variable.staticValueSource.value);
+
+        UA_PubSubMange_removeRTNodeLookupEntry(server,
+                                               &currentField->config.field.variable.publishParameters.publishedVariable);
     }
 
     parentPublishedDataSet->fieldSize--;
