@@ -650,8 +650,7 @@ processSequenceNumberSym(UA_SecureChannel *channel, UA_UInt32 sequenceNumber) {
 /* The chunk body begins after the SecureConversationMessageHeader */
 static UA_StatusCode
 decryptAddChunk(UA_SecureChannel *channel, UA_MessageType messageType,
-                UA_ChunkType chunkType, UA_ByteString *chunk,
-                UA_Boolean allowPreviousToken) {
+                UA_ChunkType chunkType, UA_ByteString *chunk) {
     /* Has the SecureChannel timed out? */
     if(channel->state == UA_SECURECHANNELSTATE_CLOSED)
         return UA_STATUSCODE_BADSECURECHANNELCLOSED;
@@ -700,7 +699,7 @@ decryptAddChunk(UA_SecureChannel *channel, UA_MessageType messageType,
 #endif
 
     /* Check (and revolve) the SecurityToken */
-    res = checkSymHeader(channel, tokenId, allowPreviousToken);
+    res = checkSymHeader(channel, tokenId);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
@@ -817,7 +816,7 @@ processChunk(UA_SecureChannel *channel, const UA_ByteString *buffer,
 
     /* Process the chunk; forward the offset */
     *offset += hdr.messageSize;
-    return decryptAddChunk(channel, msgType, chunkType, &chunk, true);
+    return decryptAddChunk(channel, msgType, chunkType, &chunk);
 }
 
 UA_StatusCode

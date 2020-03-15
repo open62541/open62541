@@ -284,8 +284,7 @@ void
 setBufPos(UA_MessageContext *mc);
 
 UA_StatusCode
-checkSymHeader(UA_SecureChannel *channel, UA_UInt32 tokenId,
-               UA_Boolean allowPreviousToken);
+checkSymHeader(UA_SecureChannel *channel, UA_UInt32 tokenId);
 
 UA_StatusCode
 processSequenceNumberAsym(UA_SecureChannel *channel, UA_UInt32 sequenceNumber);
