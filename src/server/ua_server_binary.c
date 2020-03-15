@@ -336,9 +336,8 @@ processHEL(UA_Server *server, UA_SecureChannel *channel, const UA_ByteString *ms
 /* OPN -> Open up/renew the securechannel */
 static UA_StatusCode
 processOPN(UA_Server *server, UA_SecureChannel *channel,
-           const UA_UInt32 requestId, const UA_ByteString *msg) {
+           const UA_UInt32 requestId, const UA_ByteString *msg, size_t offset) {
     /* Decode the request */
-    size_t offset = 0;
     UA_NodeId requestType;
     UA_OpenSecureChannelRequest openSecureChannelRequest;
     UA_StatusCode retval = UA_NodeId_decodeBinary(msg, &offset, &requestType);
@@ -438,19 +437,22 @@ decryptProcessOPN(UA_Server *server, UA_SecureChannel *channel,
         return retval;
     }
 
-    /* After decryption, msg contains only the payload after the SequenceHeader */
-    UA_UInt32 requestId = 0;
-    UA_UInt32 sequenceNumber = 0;
     retval = decryptAndVerifyChunk(channel, &channel->securityPolicy->asymmetricModule.cryptoModule,
-                                   UA_MESSAGETYPE_OPN, msg, offset, &requestId, &sequenceNumber);
+                                   UA_MESSAGETYPE_OPN, msg, offset);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
                                "Could not decrypt and verify the OPN payload");
         return retval;
     }
 
+   /* Decode the sequence header */
+    UA_SequenceHeader sequenceHeader;
+    retval = UA_SequenceHeader_decodeBinary(msg, &offset, &sequenceHeader);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
 #ifndef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
-    retval = processSequenceNumberAsym(channel, sequenceNumber);
+    retval = processSequenceNumberAsym(channel, sequenceHeader.sequenceNumber);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
                                "Could not process the OPN message's sequence number");
@@ -458,7 +460,7 @@ decryptProcessOPN(UA_Server *server, UA_SecureChannel *channel,
     }
 #endif
 
-    return processOPN(server, channel, requestId, msg);
+    return processOPN(server, channel, sequenceHeader.requestId, msg, offset);
 }
 
 UA_StatusCode

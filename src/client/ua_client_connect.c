@@ -284,9 +284,8 @@ sendHELMessage(UA_Client *client) {
 }
 
 static void
-processOPNResponseDecoded(UA_Client *client, const UA_ByteString *message) {
+processOPNResponseDecoded(UA_Client *client, const UA_ByteString *message, size_t offset) {
     /* Is the content of the expected type? */
-    size_t offset = 0;
     UA_NodeId responseId;
     UA_NodeId expectedId =
         UA_NODEID_NUMERIC(0, UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE].binaryEncodingId);
@@ -349,6 +348,7 @@ processOPNResponseDecoded(UA_Client *client, const UA_ByteString *message) {
         setClientState(client, UA_CLIENTSTATE_SECURECHANNEL);
 }
 
+/* The requestId argument is not used but needed for the callback signature. */
 void
 decodeProcessOPNResponseAsync(void *application, UA_SecureChannel *channel,
                               UA_MessageType messageType, UA_UInt32 requestId,
@@ -394,9 +394,8 @@ decodeProcessOPNResponseAsync(void *application, UA_SecureChannel *channel,
         return;
     }
 
-    UA_UInt32 sequenceNumber = 0;
     retval = decryptAndVerifyChunk(channel, &channel->securityPolicy->asymmetricModule.cryptoModule,
-                                   UA_MESSAGETYPE_OPN, msg, offset, &requestId, &sequenceNumber);
+                                   UA_MESSAGETYPE_OPN, msg, offset);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_CHANNEL(&client->config.logger, channel,
                                "Could not decrypt and verify the OPN payload");
@@ -404,17 +403,20 @@ decodeProcessOPNResponseAsync(void *application, UA_SecureChannel *channel,
         return;
     }
 
+   /* Decode and verify the sequence header */
+    UA_SequenceHeader sequenceHeader;
+    retval = UA_SequenceHeader_decodeBinary(msg, &offset, &sequenceHeader);
 #ifndef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
-    retval = processSequenceNumberAsym(channel, sequenceNumber);
+    retval |= processSequenceNumberAsym(channel, sequenceHeader.sequenceNumber);
+#endif
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_CHANNEL(&client->config.logger, channel,
                                "Could not process the OPN sequence number");
         UA_Client_disconnect(client);
         return;
     }
-#endif
 
-    processOPNResponseDecoded(client, msg);
+    processOPNResponseDecoded(client, msg, offset);
 }
 
 /* OPN messges to renew the channel are sent asynchronous */

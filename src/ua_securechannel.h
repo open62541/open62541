@@ -260,15 +260,16 @@ hideBytesAsym(const UA_SecureChannel *channel, UA_Byte **buf_start,
               const UA_Byte **buf_end);
 
 /* Decrypt and verify via the signature. The chunk buffer is reused to hold the
- * decoded data. The chunk ByteString is reset. So it only contains the payload
- * after the SequenceHeader and before the padding. Returns the decoded
- * RequestId and SequenceNumber */
+ * decrypted data after the MessageHeader and SecurityHeader. The chunk length
+ * is reduced by the signature, padding and encryption overhead.
+ *
+ * The offset argument points to the start of the encrypted content (beginning
+ * with the SequenceHeader).*/
 UA_StatusCode
 decryptAndVerifyChunk(const UA_SecureChannel *channel,
                       const UA_SecurityPolicyCryptoModule *cryptoModule,
                       UA_MessageType messageType, UA_ByteString *chunk,
-                      size_t offset, UA_UInt32 *requestId,
-                      UA_UInt32 *sequenceNumber);
+                      size_t offset);
 
 size_t
 calculateAsymAlgSecurityHeaderLength(const UA_SecureChannel *channel);
