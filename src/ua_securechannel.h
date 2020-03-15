@@ -216,16 +216,6 @@ UA_MessageContext_abort(UA_MessageContext *mc);
  * Receive Message
  * --------------- */
 
-/* Decrypt a chunk and add it to the message. Create a new message if necessary. */
-UA_StatusCode
-UA_SecureChannel_decryptAddChunk(UA_SecureChannel *channel, UA_ByteString *chunk,
-                                 UA_Boolean allowPreviousToken);
-
-/* The network buffer is about to be cleared. Copy all chunks that point into
- * the network buffer into dedicated memory. */
-UA_StatusCode
-UA_SecureChannel_persistIncompleteMessages(UA_SecureChannel *channel);
-
 typedef void
 (UA_ProcessMessageCallback)(void *application, UA_SecureChannel *channel,
                             UA_MessageType messageType, UA_UInt32 requestId,
