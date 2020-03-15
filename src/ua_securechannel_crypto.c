@@ -583,8 +583,7 @@ checkAsymHeader(UA_SecureChannel *channel,
 }
 
 UA_StatusCode
-checkSymHeader(UA_SecureChannel *channel, UA_UInt32 tokenId,
-               UA_Boolean allowPreviousToken) {
+checkSymHeader(UA_SecureChannel *channel, UA_UInt32 tokenId) {
     /* If the message uses a different token, check if it is the next token. */
     if(tokenId != channel->securityToken.tokenId) {
         if(tokenId != channel->nextSecurityToken.tokenId) {
