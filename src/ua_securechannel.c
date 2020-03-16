@@ -523,11 +523,15 @@ decryptVerifySymmetricChunk(UA_SecureChannel *channel, const UA_SecurityPolicy *
     res = checkSymHeader(channel, tokenId);
     if(res != UA_STATUSCODE_GOOD)
         return res;
-        
-    res = decryptAndVerifyChunk(channel, &sp->symmetricModule.cryptoModule,
-                                chunk->messageType, &chunk->bytes, offset);
-    if(res != UA_STATUSCODE_GOOD)
-        return res;
+
+    /* Decrypt the chunk payload */
+    if(!chunk->decrypted) {
+        res = decryptAndVerifyChunk(channel, &sp->symmetricModule.cryptoModule,
+                                    chunk->messageType, &chunk->bytes, offset);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        chunk->decrypted = true;
+    }
 
     /* Check the sequence number. Skip sequence number checking for fuzzer to
      * improve coverage */
@@ -741,6 +745,27 @@ processCompleteChunks(UA_SecureChannel *channel, void *application,
             break;
         chunk = next;
     }
+
+    /* Decrypt remaining MSG chunks. But abort before OPN. This allows us to
+     * decrypt chunks while the rest of the message is still in transit,
+     * resulting in speed improvements. */
+
+    /* Channel configured? */
+    const UA_SecurityPolicy *sp = channel->securityPolicy;
+    if(!sp)
+        return res;
+
+    SIMPLEQ_FOREACH(chunk, &channel->completeChunks, pointers) {
+        if(chunk->messageType != UA_MESSAGETYPE_MSG)
+            break;
+        if(chunk->decrypted)
+            continue;
+        res = decryptAndVerifyChunk(channel, &sp->symmetricModule.cryptoModule,
+                                    chunk->messageType, &chunk->bytes, 16);
+        if(res != UA_STATUSCODE_GOOD)
+            break;
+        chunk->decrypted = true;
+    }
     return res;
 }
 
@@ -811,6 +836,7 @@ extractCompleteChunk(UA_SecureChannel *channel, const UA_ByteString *buffer,
     chunk->chunkType = chunkType;
     chunk->bytes = chunkPayload;
     chunk->copied = false;
+    chunk->decrypted = false;
 
     SIMPLEQ_INSERT_TAIL(&channel->completeChunks, chunk, pointers);
     return UA_STATUSCODE_GOOD;
