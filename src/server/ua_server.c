@@ -523,6 +523,15 @@ UA_ServerStatistics UA_Server_getStatistics(UA_Server *server)
 
 UA_StatusCode
 UA_Server_run_startup(UA_Server *server) {
+
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+    /* Prominently warn user that fuzzing build is enabled. This will tamper with authentication tokens and other important variables
+     * E.g. if fuzzing is enabled, and two clients are connected, subscriptions do not work properly,
+     * since the tokens will be overridden to allow easier fuzzing. */
+    UA_LOG_FATAL(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "Server was built with unsafe fuzzing mode. This should only be used for specific fuzzing builds.");
+#endif
+
     /* ensure that the uri for ns1 is set up from the app description */
     setupNs1Uri(server);
 
