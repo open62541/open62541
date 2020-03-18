@@ -335,7 +335,7 @@ UA_AsySig_Basic256_Verify (const UA_SecurityPolicy * securityPolicy,
 }
 
 static UA_StatusCode
-UA_AsySig_Basic256_sign (const UA_SecurityPolicy * securityPolicy,
+UA_AsySig_Basic256_Sign (const UA_SecurityPolicy * securityPolicy,
                          void *                    channelContext, 
                          const UA_ByteString *     message,
                          UA_ByteString *           signature) {
@@ -417,12 +417,13 @@ UA_AsymEn_Basic256_Decrypt (const UA_SecurityPolicy * securityPolicy,
 }
 
 static UA_StatusCode
-UA_AsymEn_Basic25_Encrypt (const UA_SecurityPolicy * securityPolicy,
+UA_AsymEn_Basic256_Encrypt (const UA_SecurityPolicy * securityPolicy,
                             void *                    channelContext,
                             UA_ByteString *           data) {
     if (securityPolicy == NULL || channelContext == NULL ||
-        data == NULL)
+        data == NULL) {
         return UA_STATUSCODE_BADINVALIDARGUMENT; 
+    }
 
     Channel_Context_Basic256 * cc = (Channel_Context_Basic256 *) channelContext;    
     return UA_Openssl_RSA_OAEP_Encrypt (data, UA_SECURITYPOLICY_BASIC256SHA1_RSAPADDING_LEN,
@@ -586,7 +587,7 @@ UA_SecurityPolicy_Basic256 (UA_SecurityPolicy * policy,
     asySigAlgorithm->getRemoteSignatureSize = UA_AsySig_Basic256_getRemoteSignatureSize;
     asySigAlgorithm->getLocalSignatureSize = UA_AsySig_Basic256_getLocalSignatureSize;
     asySigAlgorithm->verify = UA_AsySig_Basic256_Verify;    
-    asySigAlgorithm->sign = UA_AsySig_Basic256_sign;
+    asySigAlgorithm->sign = UA_AsySig_Basic256_Sign;
     asySigAlgorithm->getLocalKeyLength = NULL;
     asySigAlgorithm->getRemoteKeyLength = NULL;
 
@@ -602,7 +603,7 @@ UA_SecurityPolicy_Basic256 (UA_SecurityPolicy * policy,
     asymEncryAlg->getLocalPlainTextBlockSize = NULL;
     asymEncryAlg->getLocalBlockSize = NULL;    
     asymEncryAlg->decrypt = UA_AsymEn_Basic256_Decrypt;
-    asymEncryAlg->encrypt = UA_AsymEn_Basic25_Encrypt;
+    asymEncryAlg->encrypt = UA_AsymEn_Basic256_Encrypt;
 
     /* SymmetricModule */
 

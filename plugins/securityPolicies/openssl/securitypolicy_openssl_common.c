@@ -193,13 +193,13 @@ UA_Openssl_X509_GetCertificateThumbprint (const UA_ByteString * certficate,
     return UA_STATUSCODE_GOOD;                                              
 }
 
-UA_StatusCode
-UA_Openssl_RSA_Oaep_Decrypt (UA_ByteString * data, 
-                             const UA_ByteString * privateKey) {
+static UA_StatusCode
+UA_Openssl_RSA_Private_Decrypt (UA_ByteString *       data, 
+                               const UA_ByteString * privateKey,
+                               UA_Int16              padding) {
     if (data == NULL || privateKey == NULL) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
-    UA_Int16 padding = RSA_PKCS1_OAEP_PADDING;
 
     const unsigned char * pkey = privateKey->data;
     EVP_PKEY * evpKey = d2i_PrivateKey(EVP_PKEY_RSA, NULL, 
@@ -232,6 +232,13 @@ UA_Openssl_RSA_Oaep_Decrypt (UA_ByteString * data,
     data->length = outOffset;
     EVP_PKEY_free(evpKey);
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Openssl_RSA_Oaep_Decrypt (UA_ByteString *       data, 
+                             const UA_ByteString * privateKey) {
+    return  UA_Openssl_RSA_Private_Decrypt (data, privateKey, 
+                                            RSA_PKCS1_OAEP_PADDING);
 }
 
 static UA_StatusCode
@@ -277,6 +284,7 @@ UA_Openssl_RSA_Public_Encrypt  (const UA_ByteString * message,
     
     switch (padding) {
         case RSA_PKCS1_OAEP_PADDING:
+        case RSA_PKCS1_PADDING:
             if (keySize <= paddingSize) {
                 ret = UA_STATUSCODE_BADINTERNALERROR;
                 goto errout;
@@ -841,5 +849,47 @@ UA_OpenSSL_HMAC_SHA1_Sign (const UA_ByteString *     message,
     }
     return UA_STATUSCODE_GOOD;
 } 
+
+UA_StatusCode
+UA_Openssl_RSA_PKCS1_V15_Decrypt (UA_ByteString *       data, 
+                                  const UA_ByteString * privateKey) {
+    return  UA_Openssl_RSA_Private_Decrypt (data, privateKey, 
+                                            RSA_PKCS1_PADDING);                                      
+}
+
+UA_StatusCode
+UA_Openssl_RSA_PKCS1_V15_Encrypt (UA_ByteString * data, 
+                                  size_t          paddingSize,
+                                  X509 *          publicX509) {
+    UA_ByteString message;
+    UA_StatusCode ret;
+    
+    ret = UA_ByteString_copy (data, &message);
+    if (ret != UA_STATUSCODE_GOOD) {
+        return ret;
+    }
+    ret = UA_Openssl_RSA_Public_Encrypt (&message, publicX509, 
+                                         RSA_PKCS1_PADDING, 
+                                         paddingSize,
+                                         data);
+    UA_ByteString_deleteMembers (&message);
+    return ret; 
+}
+
+UA_StatusCode
+UA_OpenSSL_AES_128_CBC_Decrypt (const UA_ByteString * iv,
+                                const UA_ByteString * key, 
+                                UA_ByteString *       data  /* [in/out]*/
+                                ) {
+    return UA_OpenSSL_Decrypt (iv, key, EVP_aes_128_cbc (), data);                                
+}
+
+UA_StatusCode
+UA_OpenSSL_AES_128_CBC_Encrypt (const UA_ByteString * iv,
+                                const UA_ByteString * key, 
+                                UA_ByteString *       data  /* [in/out]*/
+                                ) {
+    return UA_OpenSSL_Encrypt (iv, key, EVP_aes_128_cbc (), data);
+}
 
 #endif
