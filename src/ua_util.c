@@ -178,20 +178,17 @@ UA_parseEndpointUrlEthernet(const UA_String *endpointUrl, UA_String *target,
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_ByteString_toBase64String(const UA_ByteString *byteString, UA_String *str) {
-    if (str->length != 0) {
-        UA_free(str->data);
-        str->data = NULL;
-        str->length = 0;
-    }
-    if (byteString == NULL || byteString->data == NULL)
+UA_StatusCode
+UA_ByteString_toBase64(const UA_ByteString *byteString,
+                       UA_String *str) {
+    if(str->length != 0)
+        UA_String_clear(str);
+    if(!byteString || !byteString->data)
         return UA_STATUSCODE_GOOD;
-    if (byteString == str)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    str->data = (UA_Byte*)UA_base64(byteString->data,
-                                    byteString->length, &str->length);
-    if(str->data == NULL)
+    str->data = (UA_Byte*)
+        UA_base64(byteString->data, byteString->length, &str->length);
+    if(!str->data)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     return UA_STATUSCODE_GOOD;
@@ -263,7 +260,7 @@ UA_NodeId_toString(const UA_NodeId *nodeId, UA_String *nodeIdStr) {
                         UA_PRINTF_GUID_DATA(nodeId->identifier.guid));
             break;
         case UA_NODEIDTYPE_BYTESTRING:
-            UA_ByteString_toBase64String(&nodeId->identifier.byteString, &byteStr);
+            UA_ByteString_toBase64(&nodeId->identifier.byteString, &byteStr);
             /* ns (16bit) = 5 chars + LEN + nullbyte */
             nodeIdStr->length = nsLen + 2 + byteStr.length + 1;
             nodeIdStr->data = (UA_Byte*)UA_malloc(nodeIdStr->length);
