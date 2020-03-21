@@ -135,7 +135,7 @@ parse_nodeid(UA_NodeId *id, const char *input, const char *end) {
     const char *pos = input, *ns = NULL, *nse= NULL;
     /*!re2c
     ("ns=" @ns [0-9]+ @nse ";")? nodeid_body {
-        (void)input; /* Get rid of a dead store clang-analyzer warning */
+        (void)input; // Get rid of a dead store clang-analyzer warning
         if(ns) {
             UA_UInt32 tmp;
             size_t len = (size_t)(nse - ns);
@@ -144,7 +144,7 @@ parse_nodeid(UA_NodeId *id, const char *input, const char *end) {
             id->namespaceIndex = (UA_UInt16)tmp;
         }
 
-        /* From the current position until the end of the input */
+        // From the current position until the end of the input
         return parse_nodeid_body(id, &input[-2], end);
     }
 
@@ -170,7 +170,7 @@ parse_expandednodeid(UA_ExpandedNodeId *id, const char *input, const char *end) 
     ("svr=" @svr [0-9]+ @svre ";")?
     ("ns=" @ns [0-9]+ ";" | "nsu=" @nsu (.\";")* ";")?
     @body nodeid_body {
-        (void)input; /* Get rid of a dead store clang-analyzer warning */
+        (void)input; // Get rid of a dead store clang-analyzer warning
         if(svr) {
             size_t len = (size_t)((svre) - svr);
             if(UA_readNumber((const UA_Byte*)svr, len, &id->serverIndex) != len)
@@ -193,7 +193,7 @@ parse_expandednodeid(UA_ExpandedNodeId *id, const char *input, const char *end) 
             id->nodeId.namespaceIndex = (UA_UInt16)tmp;
         }
 
-        /* From the current position until the end of the input */
+        // From the current position until the end of the input
         return parse_nodeid_body(&id->nodeId, &input[-2], end);
     }
 
