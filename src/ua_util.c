@@ -181,8 +181,7 @@ UA_parseEndpointUrlEthernet(const UA_String *endpointUrl, UA_String *target,
 UA_StatusCode
 UA_ByteString_toBase64(const UA_ByteString *byteString,
                        UA_String *str) {
-    if(str->length != 0)
-        UA_String_clear(str);
+    UA_String_init(str);
     if(!byteString || !byteString->data)
         return UA_STATUSCODE_GOOD;
 
@@ -191,6 +190,20 @@ UA_ByteString_toBase64(const UA_ByteString *byteString,
     if(!str->data)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode UA_EXPORT
+UA_ByteString_fromBase64(UA_ByteString *bs,
+                         const UA_String *input) {
+    UA_ByteString_init(bs);
+    if(input->length == 0)
+        return UA_STATUSCODE_GOOD;
+    bs->data = UA_unbase64((const unsigned char*)input->data,
+                           input->length, &bs->length);
+    /* TODO: Differentiate between encoding and memory errors */
+    if(!bs->data)
+        return UA_STATUSCODE_BADINTERNALERROR;
     return UA_STATUSCODE_GOOD;
 }
 

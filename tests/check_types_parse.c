@@ -7,6 +7,40 @@
 
 #include "check.h"
 
+START_TEST(base64) {
+    UA_ByteString test1 = UA_BYTESTRING("abc123\nopen62541");
+    UA_String test1base64;
+    UA_StatusCode res = UA_ByteString_toBase64(&test1, &test1base64);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_ByteString test1out;
+    res = UA_ByteString_fromBase64(&test1out, &test1base64);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    ck_assert_int_eq(test1.length, test1out.length);
+    for(size_t i = 0; i < test1.length; i++)
+        ck_assert_int_eq(test1.data[i], test1out.data[i]);
+
+    UA_String_clear(&test1base64);
+    UA_ByteString_clear(&test1out);
+    UA_ByteString_clear(&test1out);
+
+    UA_ByteString test2 = UA_BYTESTRING("");
+    UA_String test2base64;
+    res = UA_ByteString_toBase64(&test2, &test2base64);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_ByteString test2out;
+    res = UA_ByteString_fromBase64(&test2out, &test2base64);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    ck_assert_int_eq(test2.length, test2out.length);
+    for(size_t i = 0; i < test2.length; i++)
+        ck_assert_int_eq(test2.data[i], test2out.data[i]);
+
+    UA_ByteString_clear(&test2out);
+} END_TEST
+
 START_TEST(parseGuid) {
     UA_Guid guid = UA_GUID("09087e75-8e5e-499b-954f-f2a9603db28a");
     ck_assert_int_eq(guid.data1, 151551605);
@@ -98,6 +132,7 @@ START_TEST(parseExpandedNodeIdIntegerFailNSU2) {
 int main(void) {
     Suite *s  = suite_create("Test Builtin Type Parsing");
     TCase *tc = tcase_create("test cases");
+    tcase_add_test(tc, base64);
     tcase_add_test(tc, parseGuid);
     tcase_add_test(tc, parseNodeIdNumeric);
     tcase_add_test(tc, parseNodeIdNumeric2);
