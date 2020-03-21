@@ -87,15 +87,12 @@ UA_readNumberWithBase(const UA_Byte *buf, size_t buflen,
  * Helper functions for converting data types
  * ------------------------------------ */
 
-/* Converts a bytestring to the corresponding base64 encoded string
- * representation.
- *
- * @param byteString the original byte string
- * @param str the resulting base64 encoded byte string
- *
- * Returns UA_STATUSCODE_GOOD on success. */
-UA_StatusCode UA_EXPORT
-UA_ByteString_toBase64String(const UA_ByteString *byteString, UA_String *str);
+/* Converts a bytestring to the corresponding base64 representation */
+UA_DEPRECATED static UA_INLINE UA_StatusCode
+UA_ByteString_toBase64String(const UA_ByteString *byteString,
+                             UA_String *str) {
+    return UA_ByteString_toBase64(byteString, str);
+}
 
 /* Converts a node id to the corresponding string representation.
  * It can be one of:

@@ -289,6 +289,12 @@ UA_EXPORT extern const UA_ByteString UA_BYTESTRING_NULL;
 UA_StatusCode UA_EXPORT
 UA_ByteString_allocBuffer(UA_ByteString *bs, size_t length);
 
+/* Converts a ByteString to the corresponding
+ * base64 representation */
+UA_StatusCode UA_EXPORT
+UA_ByteString_toBase64(const UA_ByteString *bs,
+                       UA_String *output);
+
 static UA_INLINE UA_ByteString
 UA_BYTESTRING(char *chars) {
     UA_ByteString bs; bs.length = 0; bs.data = NULL;
