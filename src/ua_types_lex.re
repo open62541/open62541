@@ -18,7 +18,7 @@
  * This compilation unit uses the re2c lexer generator. The final C source is
  * generated with the following script:
  *
- *   re2c -i --no-generation-date  ua_types_lex.re > ua_types_lex.c
+ *   re2c -i --no-generation-date ua_types_lex.re > ua_types_lex.c
  *
  * In order that users of the SDK don't need to install re2c, always commit a
  * recent ua_types_lex.c if changes are made to the lexer. */
