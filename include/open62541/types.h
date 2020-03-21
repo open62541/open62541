@@ -364,17 +364,23 @@ UA_EXPORT extern const UA_NodeId UA_NODEID_NULL;
 
 UA_Boolean UA_EXPORT UA_NodeId_isNull(const UA_NodeId *p);
 
-#ifdef UA_ENABLE_PARSING
-/* Parse the NodeId format defined in Part 6, 5.3.1.10.
- * Attention! String and ByteString NodeIds have their
- * identifier malloc'ed and need to be cleaned up.
+/* Print the NodeId in the human-readable format defined in Part 6,
+ * 5.3.1.10.
  *
  * Examples:
  *   UA_NODEID("i=13")
  *   UA_NODEID("ns=10;i=1")
  *   UA_NODEID("ns=10;s=Hello:World")
  *   UA_NODEID("g=09087e75-8e5e-499b-954f-f2a9603db28a")
- *   UA_NODEID("ns=1;b=b3BlbjYyNTQxIQ==") */
+ *   UA_NODEID("ns=1;b=b3BlbjYyNTQxIQ==") // base64
+ * */
+UA_StatusCode UA_EXPORT
+UA_NodeId_print(const UA_NodeId *id, UA_String *output);
+
+#ifdef UA_ENABLE_PARSING
+/* Parse the human-readable NodeId format. Attention! String and
+ * ByteString NodeIds have their identifier malloc'ed and need to be
+ * cleaned up. */
 UA_StatusCode
 UA_NodeId_parse(UA_NodeId *id, const UA_String str);
 

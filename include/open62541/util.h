@@ -100,8 +100,10 @@ UA_ByteString_toBase64String(const UA_ByteString *byteString,
  * - String: ns=0;s=Some String
  * - Guid: ns=0;g=A123456C-0ABC-1A2B-815F-687212AAEE1B
  * - ByteString: ns=0;b=AA== */
-UA_StatusCode UA_EXPORT
-UA_NodeId_toString(const UA_NodeId *nodeId, UA_String *nodeIdStr);
+UA_DEPRECATED static UA_INLINE UA_StatusCode
+UA_NodeId_toString(const UA_NodeId *nodeId, UA_String *nodeIdStr) {
+    return UA_NodeId_print(nodeId, nodeIdStr);
+}
 
 /* Compare memory in constant time to mitigate timing attacks.
  * Returns true if ptr1 and ptr2 are equal for length bytes. */
