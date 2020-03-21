@@ -295,6 +295,11 @@ UA_StatusCode UA_EXPORT
 UA_ByteString_toBase64(const UA_ByteString *bs,
                        UA_String *output);
 
+/* Parse a ByteString from a base64 representation */
+UA_StatusCode UA_EXPORT
+UA_ByteString_fromBase64(UA_ByteString *bs,
+                         const UA_String *input);
+
 static UA_INLINE UA_ByteString
 UA_BYTESTRING(char *chars) {
     UA_ByteString bs; bs.length = 0; bs.data = NULL;
