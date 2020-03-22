@@ -9,6 +9,7 @@
 #include <open62541/types.h>
 #include <open62541/types_generated_handling.h>
 #include <open62541/util.h>
+#include <open62541/nodeids.h>
 #include "base64.h"
 
 /* Lexing and parsing of builtin data types. These are helper functions that not
@@ -23,15 +24,6 @@
  * In order that users of the SDK don't need to install re2c, always commit a
  * recent ua_types_lex.c if changes are made to the lexer. */
 
-#define YYCURSOR pos
-#define YYPEEK() (YYCURSOR < end) ? *YYCURSOR : 0
-#define YYSKIP() ++YYCURSOR;
-#define YYBACKUP() YYMARKER = YYCURSOR
-#define YYRESTORE() YYCURSOR = YYMARKER
-#define YYSTAGP(t) t = YYCURSOR
-#define YYSTAGN(t) t = NULL
-
-/*!stags:re2c format = 'const char *@@;'; */
 /*!re2c
     re2c:define:YYCTYPE = char;
     re2c:flags:tags = 1;
@@ -41,7 +33,17 @@
     nodeid_body = ("i=" | "s=" | "g=" | "b=");
 */
 
+#define YYCURSOR pos
+#define YYPEEK() (YYCURSOR < end) ? *YYCURSOR : 0 /* The lexer sees a stream of
+                                                   * \0 when the input ends*/
+#define YYSKIP() ++YYCURSOR;
+#define YYBACKUP() YYMARKER = YYCURSOR
+#define YYRESTORE() YYCURSOR = YYMARKER
+#define YYSTAGP(t) t = YYCURSOR
+#define YYSTAGN(t) t = NULL
+
 /* The generated lexer defines global variables. Protect with a mutex. */
+/*!stags:re2c format = 'const char *@@;'; */
 #if UA_MULTITHREADING >= 100
 UA_LOCK_TYPE(parserMutex)
 #endif
@@ -211,6 +213,217 @@ UA_ExpandedNodeId_parse(UA_ExpandedNodeId *id, const UA_String str) {
         parse_expandednodeid(id, (const char*)str.data, (const char*)str.data+str.length);
     if(res != UA_STATUSCODE_GOOD)
         UA_ExpandedNodeId_clear(id);
+    UA_UNLOCK(parserMutex);
+    return res;
+}
+
+static UA_StatusCode
+relativepath_addelem(UA_RelativePath *rp, UA_RelativePathElement *el) {
+    /* Allocate memory */
+    UA_RelativePathElement *newArray = (UA_RelativePathElement*)
+        UA_realloc(rp->elements, sizeof(UA_RelativePathElement) * (rp->elementsSize + 1));
+    if(!newArray)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    rp->elements = newArray;
+
+    /* Move to the target */
+    rp->elements[rp->elementsSize] = *el;
+    rp->elementsSize++;
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Parse name string with '&' as the escape character */
+static UA_StatusCode
+parse_refpath_qn_name(UA_QualifiedName *qn, const char **pos, const char *end) {
+    /* Allocate the max length the name can have */
+    size_t maxlen = (size_t)(end - *pos);
+    if(maxlen == 0) {
+        qn->name.data = (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL;
+        return UA_STATUSCODE_GOOD;;
+    }
+    char *name = (char*)UA_malloc(maxlen);
+    if(!name)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    size_t index = 0;
+    for(; *pos < end; (*pos)++) {
+        char c = **pos;
+        /* Unescaped special characer: The end of the QualifiedName */
+        if(c == '/' || c == '.' || c == '<' || c == '>' ||
+           c == ':' || c == '#' || c == '!')
+            break;
+
+        /* Escaped character */
+        if(c == '&') {
+            (*pos)++;
+            if(*pos >= end ||
+               (**pos != '/' && **pos != '.' && **pos != '<' && **pos != '>' &&
+                **pos != ':' && **pos != '#' && **pos != '!' && **pos != '&')) {
+                UA_free(name);
+                return UA_STATUSCODE_BADINTERNALERROR;
+            }
+            c = **pos;
+        }
+
+        /* Unescaped normal character */
+        name[index] = c;
+        index++;
+    }
+
+    if(index > 0) {
+        qn->name.data = (UA_Byte*)name;
+        qn->name.length = index;
+    } else {
+        qn->name.data = (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL;
+        UA_free(name);
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+parse_refpath_qn(UA_QualifiedName *qn, const char *pos, const char *end) {
+    const char *YYMARKER = pos, *ns = NULL, *nse = NULL;
+    UA_QualifiedName_init(qn);
+
+    /*!re2c
+    @ns [0-9]+ @nse ":" {
+        UA_UInt32 tmp;
+        size_t len = (size_t)(nse - ns);
+        if(UA_readNumber((const UA_Byte*)ns, len, &tmp) != len)
+            return UA_STATUSCODE_BADINTERNALERROR;
+        qn->namespaceIndex = (UA_UInt16)tmp;
+        goto parse_qn_name;
+    }
+
+    // Default namespace 0. Ungobble last position.
+    * { pos--; goto parse_qn_name; } */
+
+ parse_qn_name:
+    return parse_refpath_qn_name(qn, &pos, end);
+}
+
+/* List of well-known ReferenceTypes that don't require lookup in the server */
+
+typedef struct {
+    char *browseName;
+    UA_UInt32 identifier;
+} RefTypeNames;
+
+#define KNOWNREFTYPES 17
+static const RefTypeNames knownRefTypes[KNOWNREFTYPES] = {
+    {"References", UA_NS0ID_REFERENCES},
+    {"HierachicalReferences", UA_NS0ID_HIERARCHICALREFERENCES},
+    {"NonHierachicalReferences", UA_NS0ID_NONHIERARCHICALREFERENCES},
+    {"HasChild", UA_NS0ID_HASCHILD},
+    {"Aggregates", UA_NS0ID_AGGREGATES},
+    {"HasComponent", UA_NS0ID_HASCOMPONENT},
+    {"HasProperty", UA_NS0ID_HASPROPERTY},
+    {"HasOrderedComponent", UA_NS0ID_HASORDEREDCOMPONENT},
+    {"HasSubtype", UA_NS0ID_HASSUBTYPE},
+    {"Organizes", UA_NS0ID_ORGANIZES},
+    {"HasModellingRule", UA_NS0ID_HASMODELLINGRULE},
+    {"HasTypeDefinition", UA_NS0ID_HASTYPEDEFINITION},
+    {"HasEncoding", UA_NS0ID_HASENCODING},
+    {"GeneratesEvent", UA_NS0ID_GENERATESEVENT},
+    {"AlwaysGeneratesEvent", UA_NS0ID_ALWAYSGENERATESEVENT},
+    {"HasEventSource", UA_NS0ID_HASEVENTSOURCE},
+    {"HasNotifier", UA_NS0ID_HASNOTIFIER}
+};
+
+static UA_StatusCode
+lookup_reftype(UA_NodeId *refTypeId, UA_QualifiedName *qn) {
+    if(qn->namespaceIndex != 0)
+        return UA_STATUSCODE_BADNOTFOUND;
+
+    for(size_t i = 0; i < KNOWNREFTYPES; i++) {
+        UA_String tmp = UA_STRING(knownRefTypes[i].browseName);
+        if(UA_String_equal(&qn->name, &tmp)) {
+            *refTypeId = UA_NODEID_NUMERIC(0, knownRefTypes[i].identifier);
+            return UA_STATUSCODE_GOOD;
+        }
+    }
+
+    return UA_STATUSCODE_BADNOTFOUND;
+}
+
+static UA_StatusCode
+parse_relativepath(UA_RelativePath *rp, const char *pos, const char *end) {
+    const char *YYMARKER = pos, *begin = NULL, *finish = NULL;
+    UA_RelativePath_init(rp); /* Reset the BrowsePath */
+    UA_RelativePathElement current;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+
+    /* Add one element to the path in every iteration */
+ loop:
+    UA_RelativePathElement_init(&current);
+    current.includeSubtypes = true; /* Follow subtypes by default */
+
+    /* Get the ReferenceType and its modifiers */
+    /*!re2c
+    "/" {
+        current.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
+        goto reftype_target;
+    }
+
+    "." {
+        current.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_AGGREGATES);
+        goto reftype_target;
+    }
+
+    // ReferenceType BrowseName with modifiers
+    "<" @begin ([^\000>] | "&>")+ @finish ">" {
+        for(; begin < finish; begin++) {
+            if(*begin== '#')
+                current.includeSubtypes = false;
+            else if(*begin == '!')
+                current.isInverse = true;
+            else
+                break;
+        }
+        UA_QualifiedName refqn;
+        res |= parse_refpath_qn(&refqn, begin, finish);
+        res |= lookup_reftype(&current.referenceTypeId, &refqn);
+        UA_QualifiedName_clear(&refqn);
+        goto reftype_target;
+    }
+
+    // End of input
+    "\000" { (void)pos; return UA_STATUSCODE_GOOD; }
+
+    // Unexpected input
+    * { (void)pos; return UA_STATUSCODE_BADINTERNALERROR; } */
+
+    /* Get the TargetName component */
+ reftype_target:
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /*!re2c
+     @begin ([^</.\000] | "&<" | "&/" | "&.")+ {
+        res = parse_refpath_qn(&current.targetName, begin, pos);
+        goto add_element;
+    }
+
+    // No TargetName for the current element. Ungobble the last pos.
+    * { pos--; goto add_element; } */
+
+    /* Add the current element to the path and continue to the next element */
+ add_element:
+    res |= relativepath_addelem(rp, &current);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_RelativePathElement_clear(&current);
+        return res;
+    }
+    goto loop;
+}
+
+UA_StatusCode
+UA_RelativePath_parse(UA_RelativePath *rp, const UA_String str) {
+    UA_LOCK(parserMutex);
+    UA_StatusCode res =
+        parse_relativepath(rp, (const char*)str.data, (const char*)str.data+str.length);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_RelativePath_clear(rp);
     UA_UNLOCK(parserMutex);
     return res;
 }
