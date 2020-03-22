@@ -19,12 +19,20 @@
  * This compilation unit uses the re2c lexer generator. The final C source is
  * generated with the following script:
  *
- *   re2c -i --no-generation-date  ua_types_lex.re > ua_types_lex.c
+ *   re2c -i --no-generation-date ua_types_lex.re > ua_types_lex.c
  *
  * In order that users of the SDK don't need to install re2c, always commit a
  * recent ua_types_lex.c if changes are made to the lexer. */
 
-const char *yyt1;const char *yyt2;const char *yyt3;const char *yyt4;
+#define YYCURSOR pos
+#define YYPEEK() (YYCURSOR < end) ? *YYCURSOR : 0
+#define YYSKIP() ++YYCURSOR;
+#define YYBACKUP() YYMARKER = YYCURSOR
+#define YYRESTORE() YYCURSOR = YYMARKER
+#define YYSTAGP(t) t = YYCURSOR
+#define YYSTAGN(t) t = NULL
+
+const char *yyt1;const char *yyt2;const char *yyt3;const char *yyt4;const char *yyt5;
 
 
 /* The generated lexer defines global variables. Protect with a mutex. */
@@ -120,46 +128,49 @@ parse_nodeid_body(UA_NodeId *id, const char *body, const char *end) {
 }
 
 static UA_StatusCode
-parse_nodeid(UA_NodeId *id, const char *input, const char *end) {
+parse_nodeid(UA_NodeId *id, const char *pos, const char *end) {
     *id = UA_NODEID_NULL; /* Reset the NodeId */
-    const char *pos = input, *ns = NULL, *nse= NULL;
+    const char *YYMARKER= pos, *ns = NULL, *nse= NULL;
     
 {
 	char yych;
-	if ((end - input) < 4) goto error;
-	yych = *input;
+	yych = YYPEEK ();
 	switch (yych) {
 	case 'b':
 	case 'g':
 	case 'i':
 	case 's':
-		yyt1 = yyt2 = NULL;
+		YYSTAGN (yyt1);
+		YYSTAGN (yyt2);
 		goto yy4;
 	case 'n':	goto yy5;
 	default:	goto yy2;
 	}
 yy2:
-	++input;
+	YYSKIP ();
 yy3:
-	{ (void)input; error: return UA_STATUSCODE_BADINTERNALERROR; }
+	{ (void)pos; return UA_STATUSCODE_BADINTERNALERROR; }
 yy4:
-	yych = *++input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case '=':	goto yy6;
 	default:	goto yy3;
 	}
 yy5:
-	yych = *(pos = ++input);
+	YYSKIP ();
+	YYBACKUP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case 's':	goto yy8;
 	default:	goto yy3;
 	}
 yy6:
-	++input;
+	YYSKIP ();
 	ns = yyt1;
 	nse = yyt2;
 	{
-        (void)input; /* Get rid of a dead store clang-analyzer warning */
+        (void)pos; // Get rid of a dead store clang-analyzer warning
         if(ns) {
             UA_UInt32 tmp;
             size_t len = (size_t)(nse - ns);
@@ -168,20 +179,22 @@ yy6:
             id->namespaceIndex = (UA_UInt16)tmp;
         }
 
-        /* From the current position until the end of the input */
-        return parse_nodeid_body(id, &input[-2], end);
+        // From the current position until the end
+        return parse_nodeid_body(id, &pos[-2], end);
     }
 yy8:
-	yych = *++input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case '=':	goto yy10;
 	default:	goto yy9;
 	}
 yy9:
-	input = pos;
+	YYRESTORE ();
 	goto yy3;
 yy10:
-	yych = *++input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case '0':
 	case '1':
@@ -193,14 +206,13 @@ yy10:
 	case '7':
 	case '8':
 	case '9':
-		yyt1 = input;
+		YYSTAGP (yyt1);
 		goto yy11;
 	default:	goto yy9;
 	}
 yy11:
-	++input;
-	if ((end - input) < 3) goto error;
-	yych = *input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case '0':
 	case '1':
@@ -213,12 +225,13 @@ yy11:
 	case '8':
 	case '9':	goto yy11;
 	case ';':
-		yyt2 = input;
+		YYSTAGP (yyt2);
 		goto yy13;
 	default:	goto yy9;
 	}
 yy13:
-	yych = *++input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case 'b':
 	case 'g':
@@ -227,7 +240,8 @@ yy13:
 	default:	goto yy9;
 	}
 yy14:
-	yych = *++input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case '=':	goto yy6;
 	default:	goto yy9;
@@ -248,60 +262,73 @@ UA_NodeId_parse(UA_NodeId *id, const UA_String str) {
 }
 
 static UA_StatusCode
-parse_expandednodeid(UA_ExpandedNodeId *id, const char *input, const char *end) {
+parse_expandednodeid(UA_ExpandedNodeId *id, const char *pos, const char *end) {
     *id = UA_EXPANDEDNODEID_NULL; /* Reset the NodeId */
-    const char *pos = input, *svr = NULL, *svre = NULL, *nsu = NULL, *ns = NULL, *body = NULL;
+    const char *YYMARKER= pos, *svr = NULL, *svre = NULL, *nsu = NULL, *ns = NULL, *body = NULL;
     
 {
 	char yych;
-	if ((end - input) < 7) goto error;
-	yych = *input;
+	yych = YYPEEK ();
 	switch (yych) {
 	case 'b':
 	case 'g':
 	case 'i':
-		yyt1 = yyt2 = yyt3 = yyt4 = NULL;
+		YYSTAGN (yyt1);
+		YYSTAGN (yyt2);
+		YYSTAGN (yyt3);
+		YYSTAGP (yyt4);
+		YYSTAGN (yyt5);
 		goto yy19;
 	case 'n':
-		yyt1 = yyt2 = NULL;
+		YYSTAGN (yyt1);
+		YYSTAGN (yyt2);
 		goto yy20;
 	case 's':
-		yyt1 = yyt2 = yyt3 = yyt4 = NULL;
+		YYSTAGN (yyt1);
+		YYSTAGN (yyt2);
+		YYSTAGN (yyt3);
+		YYSTAGP (yyt4);
+		YYSTAGN (yyt5);
 		goto yy21;
 	default:	goto yy17;
 	}
 yy17:
-	++input;
+	YYSKIP ();
 yy18:
-	{ (void)input; error: return UA_STATUSCODE_BADINTERNALERROR; }
+	{ (void)pos; return UA_STATUSCODE_BADINTERNALERROR; }
 yy19:
-	yych = *++input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case '=':	goto yy22;
 	default:	goto yy18;
 	}
 yy20:
-	yych = *(pos = ++input);
+	YYSKIP ();
+	YYBACKUP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case 's':	goto yy24;
 	default:	goto yy18;
 	}
 yy21:
-	yych = *(pos = ++input);
+	YYSKIP ();
+	YYBACKUP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case '=':	goto yy22;
 	case 'v':	goto yy26;
 	default:	goto yy18;
 	}
 yy22:
-	++input;
+	YYSKIP ();
 	svr = yyt1;
 	svre = yyt2;
 	ns = yyt3;
-	nsu = yyt4;
-	body = input - 2;
+	nsu = yyt5;
+	body = yyt4;
 	{
-        (void)input; /* Get rid of a dead store clang-analyzer warning */
+        (void)pos; // Get rid of a dead store clang-analyzer warning
         if(svr) {
             size_t len = (size_t)((svre) - svr);
             if(UA_readNumber((const UA_Byte*)svr, len, &id->serverIndex) != len)
@@ -324,27 +351,30 @@ yy22:
             id->nodeId.namespaceIndex = (UA_UInt16)tmp;
         }
 
-        /* From the current position until the end of the input */
-        return parse_nodeid_body(&id->nodeId, &input[-2], end);
+        // From the current position until the end
+        return parse_nodeid_body(&id->nodeId, &pos[-2], end);
     }
 yy24:
-	yych = *++input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case '=':	goto yy27;
 	case 'u':	goto yy28;
 	default:	goto yy25;
 	}
 yy25:
-	input = pos;
+	YYRESTORE ();
 	goto yy18;
 yy26:
-	yych = *++input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case 'r':	goto yy29;
 	default:	goto yy25;
 	}
 yy27:
-	yych = *++input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case '0':
 	case '1':
@@ -356,26 +386,27 @@ yy27:
 	case '7':
 	case '8':
 	case '9':
-		yyt3 = input;
+		YYSTAGP (yyt3);
 		goto yy30;
 	default:	goto yy25;
 	}
 yy28:
-	yych = *++input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case '=':	goto yy32;
 	default:	goto yy25;
 	}
 yy29:
-	yych = *++input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case '=':	goto yy33;
 	default:	goto yy25;
 	}
 yy30:
-	++input;
-	if ((end - input) < 3) goto error;
-	yych = *input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case '0':
 	case '1':
@@ -391,18 +422,20 @@ yy30:
 	default:	goto yy25;
 	}
 yy32:
-	yych = *++input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case '\n':	goto yy25;
 	case ';':
-		yyt4 = input;
+		YYSTAGP (yyt5);
 		goto yy37;
 	default:
-		yyt4 = input;
+		YYSTAGP (yyt5);
 		goto yy35;
 	}
 yy33:
-	yych = *++input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case '0':
 	case '1':
@@ -414,45 +447,47 @@ yy33:
 	case '7':
 	case '8':
 	case '9':
-		yyt1 = input;
+		YYSTAGP (yyt1);
 		goto yy38;
 	default:	goto yy25;
 	}
 yy34:
-	yych = *++input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case 'b':
 	case 'g':
 	case 'i':
 	case 's':
-		yyt4 = NULL;
+		YYSTAGP (yyt4);
+		YYSTAGN (yyt5);
 		goto yy40;
 	default:	goto yy25;
 	}
 yy35:
-	++input;
-	if ((end - input) < 3) goto error;
-	yych = *input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case '\n':	goto yy25;
 	case ';':	goto yy37;
 	default:	goto yy35;
 	}
 yy37:
-	yych = *++input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case 'b':
 	case 'g':
 	case 'i':
 	case 's':
-		yyt3 = NULL;
+		YYSTAGN (yyt3);
+		YYSTAGP (yyt4);
 		goto yy40;
 	default:	goto yy25;
 	}
 yy38:
-	++input;
-	if ((end - input) < 8) goto error;
-	yych = *input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case '0':
 	case '1':
@@ -465,30 +500,35 @@ yy38:
 	case '8':
 	case '9':	goto yy38;
 	case ';':
-		yyt2 = input;
+		YYSTAGP (yyt2);
 		goto yy41;
 	default:	goto yy25;
 	}
 yy40:
-	yych = *++input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case '=':	goto yy22;
 	default:	goto yy25;
 	}
 yy41:
-	yych = *++input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case 'b':
 	case 'g':
 	case 'i':
 	case 's':
-		yyt3 = yyt4 = NULL;
+		YYSTAGN (yyt3);
+		YYSTAGP (yyt4);
+		YYSTAGN (yyt5);
 		goto yy40;
 	case 'n':	goto yy42;
 	default:	goto yy25;
 	}
 yy42:
-	yych = *++input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case 's':	goto yy24;
 	default:	goto yy25;

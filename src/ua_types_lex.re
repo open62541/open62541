@@ -23,16 +23,20 @@
  * In order that users of the SDK don't need to install re2c, always commit a
  * recent ua_types_lex.c if changes are made to the lexer. */
 
+#define YYCURSOR pos
+#define YYPEEK() (YYCURSOR < end) ? *YYCURSOR : 0
+#define YYSKIP() ++YYCURSOR;
+#define YYBACKUP() YYMARKER = YYCURSOR
+#define YYRESTORE() YYCURSOR = YYMARKER
+#define YYSTAGP(t) t = YYCURSOR
+#define YYSTAGN(t) t = NULL
+
 /*!stags:re2c format = 'const char *@@;'; */
 /*!re2c
     re2c:define:YYCTYPE = char;
-    re2c:define:YYCURSOR = input;
-    re2c:define:YYMARKER = pos;
-    re2c:define:YYLIMIT = end;
     re2c:flags:tags = 1;
-    re2c:yyfill:check = 1;
-    re2c:define:YYFILL:naked = 1;
-    re2c:define:YYFILL = "goto error;";
+    re2c:yyfill:enable = 0;
+    re2c:flags:input = custom;
 
     nodeid_body = ("i=" | "s=" | "g=" | "b=");
 */
@@ -130,12 +134,12 @@ parse_nodeid_body(UA_NodeId *id, const char *body, const char *end) {
 }
 
 static UA_StatusCode
-parse_nodeid(UA_NodeId *id, const char *input, const char *end) {
+parse_nodeid(UA_NodeId *id, const char *pos, const char *end) {
     *id = UA_NODEID_NULL; /* Reset the NodeId */
-    const char *pos = input, *ns = NULL, *nse= NULL;
+    const char *YYMARKER= pos, *ns = NULL, *nse= NULL;
     /*!re2c
     ("ns=" @ns [0-9]+ @nse ";")? nodeid_body {
-        (void)input; // Get rid of a dead store clang-analyzer warning
+        (void)pos; // Get rid of a dead store clang-analyzer warning
         if(ns) {
             UA_UInt32 tmp;
             size_t len = (size_t)(nse - ns);
@@ -144,11 +148,11 @@ parse_nodeid(UA_NodeId *id, const char *input, const char *end) {
             id->namespaceIndex = (UA_UInt16)tmp;
         }
 
-        // From the current position until the end of the input
-        return parse_nodeid_body(id, &input[-2], end);
+        // From the current position until the end
+        return parse_nodeid_body(id, &pos[-2], end);
     }
 
-    * { (void)input; error: return UA_STATUSCODE_BADINTERNALERROR; } */
+    * { (void)pos; return UA_STATUSCODE_BADINTERNALERROR; } */
 }
 
 UA_StatusCode
@@ -163,14 +167,14 @@ UA_NodeId_parse(UA_NodeId *id, const UA_String str) {
 }
 
 static UA_StatusCode
-parse_expandednodeid(UA_ExpandedNodeId *id, const char *input, const char *end) {
+parse_expandednodeid(UA_ExpandedNodeId *id, const char *pos, const char *end) {
     *id = UA_EXPANDEDNODEID_NULL; /* Reset the NodeId */
-    const char *pos = input, *svr = NULL, *svre = NULL, *nsu = NULL, *ns = NULL, *body = NULL;
+    const char *YYMARKER= pos, *svr = NULL, *svre = NULL, *nsu = NULL, *ns = NULL, *body = NULL;
     /*!re2c
     ("svr=" @svr [0-9]+ @svre ";")?
     ("ns=" @ns [0-9]+ ";" | "nsu=" @nsu (.\";")* ";")?
     @body nodeid_body {
-        (void)input; // Get rid of a dead store clang-analyzer warning
+        (void)pos; // Get rid of a dead store clang-analyzer warning
         if(svr) {
             size_t len = (size_t)((svre) - svr);
             if(UA_readNumber((const UA_Byte*)svr, len, &id->serverIndex) != len)
@@ -193,11 +197,11 @@ parse_expandednodeid(UA_ExpandedNodeId *id, const char *input, const char *end) 
             id->nodeId.namespaceIndex = (UA_UInt16)tmp;
         }
 
-        // From the current position until the end of the input
-        return parse_nodeid_body(&id->nodeId, &input[-2], end);
+        // From the current position until the end
+        return parse_nodeid_body(&id->nodeId, &pos[-2], end);
     }
 
-    * { (void)input; error: return UA_STATUSCODE_BADINTERNALERROR; } */
+    * { (void)pos; return UA_STATUSCODE_BADINTERNALERROR; } */
 }
 
 UA_StatusCode
