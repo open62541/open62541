@@ -4,6 +4,7 @@
 
 #include <open62541/types.h>
 #include <open62541/types_generated_handling.h>
+#include "open62541/util.h"
 
 #include "check.h"
 
@@ -129,6 +130,63 @@ START_TEST(parseExpandedNodeIdIntegerFailNSU2) {
     ck_assert_int_eq(id.nodeId.identifier.numeric, 0);
 } END_TEST
 
+START_TEST(parseRelativePath) {
+    UA_RelativePath rp;
+    UA_StatusCode res = UA_RelativePath_parse(&rp, UA_STRING(""));
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(rp.elementsSize, 0);
+
+    res = UA_RelativePath_parse(&rp, UA_STRING("/2:Block&.Output"));
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(rp.elementsSize, 1);
+    UA_RelativePath_clear(&rp);
+
+    /* Paths with no BrowseName */
+    res = UA_RelativePath_parse(&rp, UA_STRING("//"));
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(rp.elementsSize, 2);
+    UA_RelativePath_clear(&rp);
+
+    res = UA_RelativePath_parse(&rp, UA_STRING("/."));
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(rp.elementsSize, 2);
+    UA_RelativePath_clear(&rp);
+
+    res = UA_RelativePath_parse(&rp, UA_STRING("<0:HierachicalReferences>2:Wheel"));
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(rp.elementsSize, 1);
+    ck_assert_int_eq(rp.elements[0].targetName.namespaceIndex, 2);
+    UA_RelativePath_clear(&rp);
+
+    res = UA_RelativePath_parse(&rp, UA_STRING("<0:HasComponent>1:Boiler/1:HeatSensor"));
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(rp.elementsSize, 2);
+    ck_assert_int_eq(rp.elements[0].targetName.namespaceIndex, 1);
+    ck_assert_int_eq(rp.elements[1].targetName.namespaceIndex, 1);
+    UA_RelativePath_clear(&rp);
+
+    res = UA_RelativePath_parse(&rp, UA_STRING(".1:Boiler/1:HeatSensor/"));
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(rp.elementsSize, 3);
+    ck_assert_int_eq(rp.elements[0].targetName.namespaceIndex, 1);
+    ck_assert_int_eq(rp.elements[1].targetName.namespaceIndex, 1);
+    UA_String tmp = UA_STRING("HeatSensor");
+    ck_assert(UA_String_equal(&tmp, &rp.elements[1].targetName.name));
+    ck_assert_int_eq(rp.elements[2].targetName.namespaceIndex, 0);
+    UA_RelativePath_clear(&rp);
+
+    res = UA_RelativePath_parse(&rp, UA_STRING("<!HasChild>Truck"));
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(rp.elementsSize, 1);
+    ck_assert_int_eq(rp.elements[0].isInverse, true);
+    UA_RelativePath_clear(&rp);
+
+    res = UA_RelativePath_parse(&rp, UA_STRING("<0:HasChild>"));
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(rp.elementsSize, 1);
+    UA_RelativePath_clear(&rp);
+} END_TEST
+
 int main(void) {
     Suite *s  = suite_create("Test Builtin Type Parsing");
     TCase *tc = tcase_create("test cases");
@@ -145,6 +203,7 @@ int main(void) {
     tcase_add_test(tc, parseExpandedNodeIdIntegerNSU);
     tcase_add_test(tc, parseExpandedNodeIdIntegerFailNSU);
     tcase_add_test(tc, parseExpandedNodeIdIntegerFailNSU2);
+    tcase_add_test(tc, parseRelativePath);
     suite_add_tcase(s, tc);
 
     SRunner *sr = srunner_create(s);
