@@ -1114,10 +1114,7 @@ typedef struct UA_DataTypeArray {
 } UA_DataTypeArray;
 
 /**
- *
- * .. toctree::
- *
- *    types_generated */
+ * .. include:: types_generated.rst */
 
 _UA_END_DECLS
 
