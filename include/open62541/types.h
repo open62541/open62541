@@ -155,9 +155,11 @@ typedef struct {
 } UA_String;
 
 /* Copies the content on the heap. Returns a null-string when alloc fails */
-UA_String UA_EXPORT UA_String_fromChars(const char *src) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+UA_String UA_EXPORT
+UA_String_fromChars(const char *src) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
-UA_Boolean UA_EXPORT UA_String_equal(const UA_String *s1, const UA_String *s2);
+UA_Boolean UA_EXPORT
+UA_String_equal(const UA_String *s1, const UA_String *s2);
 
 UA_EXPORT extern const UA_String UA_STRING_NULL;
 
@@ -289,6 +291,17 @@ UA_EXPORT extern const UA_ByteString UA_BYTESTRING_NULL;
 UA_StatusCode UA_EXPORT
 UA_ByteString_allocBuffer(UA_ByteString *bs, size_t length);
 
+/* Converts a ByteString to the corresponding
+ * base64 representation */
+UA_StatusCode UA_EXPORT
+UA_ByteString_toBase64(const UA_ByteString *bs,
+                       UA_String *output);
+
+/* Parse a ByteString from a base64 representation */
+UA_StatusCode UA_EXPORT
+UA_ByteString_fromBase64(UA_ByteString *bs,
+                         const UA_String *input);
+
 static UA_INLINE UA_ByteString
 UA_BYTESTRING(char *chars) {
     UA_ByteString bs; bs.length = 0; bs.data = NULL;
@@ -353,17 +366,23 @@ UA_EXPORT extern const UA_NodeId UA_NODEID_NULL;
 
 UA_Boolean UA_EXPORT UA_NodeId_isNull(const UA_NodeId *p);
 
-#ifdef UA_ENABLE_PARSING
-/* Parse the NodeId format defined in Part 6, 5.3.1.10.
- * Attention! String and ByteString NodeIds have their
- * identifier malloc'ed and need to be cleaned up.
+/* Print the NodeId in the human-readable format defined in Part 6,
+ * 5.3.1.10.
  *
  * Examples:
  *   UA_NODEID("i=13")
  *   UA_NODEID("ns=10;i=1")
  *   UA_NODEID("ns=10;s=Hello:World")
  *   UA_NODEID("g=09087e75-8e5e-499b-954f-f2a9603db28a")
- *   UA_NODEID("ns=1;b=b3BlbjYyNTQxIQ==") */
+ *   UA_NODEID("ns=1;b=b3BlbjYyNTQxIQ==") // base64
+ * */
+UA_StatusCode UA_EXPORT
+UA_NodeId_print(const UA_NodeId *id, UA_String *output);
+
+#ifdef UA_ENABLE_PARSING
+/* Parse the human-readable NodeId format. Attention! String and
+ * ByteString NodeIds have their identifier malloc'ed and need to be
+ * cleaned up. */
 UA_StatusCode
 UA_NodeId_parse(UA_NodeId *id, const UA_String str);
 
@@ -1095,10 +1114,7 @@ typedef struct UA_DataTypeArray {
 } UA_DataTypeArray;
 
 /**
- *
- * .. toctree::
- *
- *    types_generated */
+ * .. include:: types_generated.rst */
 
 _UA_END_DECLS
 

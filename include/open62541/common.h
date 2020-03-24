@@ -17,10 +17,10 @@
 _UA_BEGIN_DECLS
 
 /**
- * Standard-Defined Constants
- * ==========================
- * This section contains numerical and string constants that are defined in the
- * OPC UA standard.
+ * Common Definitions
+ * ==================
+ *
+ * Common definitions for Client, Server and PubSub.
  *
  * .. _attribute-id:
  *
@@ -114,9 +114,6 @@ typedef enum {
 #define UA_VALUERANK_THREE_DIMENSIONS          3
 
 /**
- * Internal Definitions
- * ====================
- *
  * Rule Handling
  * -------------
  *
@@ -150,6 +147,7 @@ typedef enum {
  * ------------------
  *
  * The stack manage statistic counter for the following layers:
+ *
  * - Network
  * - Secure channel
  * - Session
@@ -184,6 +182,9 @@ typedef struct {
     size_t sessionTimeoutCount;          /* only used by servers */
     size_t sessionAbortCount;            /* only used by servers */
 } UA_SessionStatistics;
+
+/**
+ * .. include:: util.rst */
 
 _UA_END_DECLS
 

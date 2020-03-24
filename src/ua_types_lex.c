@@ -10,6 +10,7 @@
 #include <open62541/types.h>
 #include <open62541/types_generated_handling.h>
 #include <open62541/util.h>
+#include <open62541/nodeids.h>
 #include "base64.h"
 
 /* Lexing and parsing of builtin data types. These are helper functions that not
@@ -19,15 +20,24 @@
  * This compilation unit uses the re2c lexer generator. The final C source is
  * generated with the following script:
  *
- *   re2c -i --no-generation-date  ua_types_lex.re > ua_types_lex.c
+ *   re2c -i --no-generation-date ua_types_lex.re > ua_types_lex.c
  *
  * In order that users of the SDK don't need to install re2c, always commit a
  * recent ua_types_lex.c if changes are made to the lexer. */
 
-const char *yyt1;const char *yyt2;const char *yyt3;const char *yyt4;
 
+
+#define YYCURSOR pos
+#define YYPEEK() (YYCURSOR < end) ? *YYCURSOR : 0 /* The lexer sees a stream of
+                                                   * \0 when the input ends*/
+#define YYSKIP() ++YYCURSOR;
+#define YYBACKUP() YYMARKER = YYCURSOR
+#define YYRESTORE() YYCURSOR = YYMARKER
+#define YYSTAGP(t) t = YYCURSOR
+#define YYSTAGN(t) t = NULL
 
 /* The generated lexer defines global variables. Protect with a mutex. */
+const char *yyt1;const char *yyt2;const char *yyt3;const char *yyt4;const char *yyt5;
 #if UA_MULTITHREADING >= 100
 UA_LOCK_TYPE(parserMutex)
 #endif
@@ -120,46 +130,49 @@ parse_nodeid_body(UA_NodeId *id, const char *body, const char *end) {
 }
 
 static UA_StatusCode
-parse_nodeid(UA_NodeId *id, const char *input, const char *end) {
+parse_nodeid(UA_NodeId *id, const char *pos, const char *end) {
     *id = UA_NODEID_NULL; /* Reset the NodeId */
-    const char *pos = input, *ns = NULL, *nse= NULL;
+    const char *YYMARKER= pos, *ns = NULL, *nse= NULL;
     
 {
 	char yych;
-	if ((end - input) < 4) goto error;
-	yych = *input;
+	yych = YYPEEK ();
 	switch (yych) {
 	case 'b':
 	case 'g':
 	case 'i':
 	case 's':
-		yyt1 = yyt2 = NULL;
+		YYSTAGN (yyt1);
+		YYSTAGN (yyt2);
 		goto yy4;
 	case 'n':	goto yy5;
 	default:	goto yy2;
 	}
 yy2:
-	++input;
+	YYSKIP ();
 yy3:
-	{ (void)input; error: return UA_STATUSCODE_BADINTERNALERROR; }
+	{ (void)pos; return UA_STATUSCODE_BADINTERNALERROR; }
 yy4:
-	yych = *++input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case '=':	goto yy6;
 	default:	goto yy3;
 	}
 yy5:
-	yych = *(pos = ++input);
+	YYSKIP ();
+	YYBACKUP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case 's':	goto yy8;
 	default:	goto yy3;
 	}
 yy6:
-	++input;
+	YYSKIP ();
 	ns = yyt1;
 	nse = yyt2;
 	{
-        (void)input; /* Get rid of a dead store clang-analyzer warning */
+        (void)pos; // Get rid of a dead store clang-analyzer warning
         if(ns) {
             UA_UInt32 tmp;
             size_t len = (size_t)(nse - ns);
@@ -168,20 +181,22 @@ yy6:
             id->namespaceIndex = (UA_UInt16)tmp;
         }
 
-        /* From the current position until the end of the input */
-        return parse_nodeid_body(id, &input[-2], end);
+        // From the current position until the end
+        return parse_nodeid_body(id, &pos[-2], end);
     }
 yy8:
-	yych = *++input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case '=':	goto yy10;
 	default:	goto yy9;
 	}
 yy9:
-	input = pos;
+	YYRESTORE ();
 	goto yy3;
 yy10:
-	yych = *++input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case '0':
 	case '1':
@@ -193,14 +208,13 @@ yy10:
 	case '7':
 	case '8':
 	case '9':
-		yyt1 = input;
+		YYSTAGP (yyt1);
 		goto yy11;
 	default:	goto yy9;
 	}
 yy11:
-	++input;
-	if ((end - input) < 3) goto error;
-	yych = *input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case '0':
 	case '1':
@@ -213,12 +227,13 @@ yy11:
 	case '8':
 	case '9':	goto yy11;
 	case ';':
-		yyt2 = input;
+		YYSTAGP (yyt2);
 		goto yy13;
 	default:	goto yy9;
 	}
 yy13:
-	yych = *++input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case 'b':
 	case 'g':
@@ -227,7 +242,8 @@ yy13:
 	default:	goto yy9;
 	}
 yy14:
-	yych = *++input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case '=':	goto yy6;
 	default:	goto yy9;
@@ -248,60 +264,73 @@ UA_NodeId_parse(UA_NodeId *id, const UA_String str) {
 }
 
 static UA_StatusCode
-parse_expandednodeid(UA_ExpandedNodeId *id, const char *input, const char *end) {
+parse_expandednodeid(UA_ExpandedNodeId *id, const char *pos, const char *end) {
     *id = UA_EXPANDEDNODEID_NULL; /* Reset the NodeId */
-    const char *pos = input, *svr = NULL, *svre = NULL, *nsu = NULL, *ns = NULL, *body = NULL;
+    const char *YYMARKER= pos, *svr = NULL, *svre = NULL, *nsu = NULL, *ns = NULL, *body = NULL;
     
 {
 	char yych;
-	if ((end - input) < 7) goto error;
-	yych = *input;
+	yych = YYPEEK ();
 	switch (yych) {
 	case 'b':
 	case 'g':
 	case 'i':
-		yyt1 = yyt2 = yyt3 = yyt4 = NULL;
+		YYSTAGN (yyt1);
+		YYSTAGN (yyt2);
+		YYSTAGN (yyt3);
+		YYSTAGP (yyt4);
+		YYSTAGN (yyt5);
 		goto yy19;
 	case 'n':
-		yyt1 = yyt2 = NULL;
+		YYSTAGN (yyt1);
+		YYSTAGN (yyt2);
 		goto yy20;
 	case 's':
-		yyt1 = yyt2 = yyt3 = yyt4 = NULL;
+		YYSTAGN (yyt1);
+		YYSTAGN (yyt2);
+		YYSTAGN (yyt3);
+		YYSTAGP (yyt4);
+		YYSTAGN (yyt5);
 		goto yy21;
 	default:	goto yy17;
 	}
 yy17:
-	++input;
+	YYSKIP ();
 yy18:
-	{ (void)input; error: return UA_STATUSCODE_BADINTERNALERROR; }
+	{ (void)pos; return UA_STATUSCODE_BADINTERNALERROR; }
 yy19:
-	yych = *++input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case '=':	goto yy22;
 	default:	goto yy18;
 	}
 yy20:
-	yych = *(pos = ++input);
+	YYSKIP ();
+	YYBACKUP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case 's':	goto yy24;
 	default:	goto yy18;
 	}
 yy21:
-	yych = *(pos = ++input);
+	YYSKIP ();
+	YYBACKUP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case '=':	goto yy22;
 	case 'v':	goto yy26;
 	default:	goto yy18;
 	}
 yy22:
-	++input;
+	YYSKIP ();
 	svr = yyt1;
 	svre = yyt2;
 	ns = yyt3;
-	nsu = yyt4;
-	body = input - 2;
+	nsu = yyt5;
+	body = yyt4;
 	{
-        (void)input; /* Get rid of a dead store clang-analyzer warning */
+        (void)pos; // Get rid of a dead store clang-analyzer warning
         if(svr) {
             size_t len = (size_t)((svre) - svr);
             if(UA_readNumber((const UA_Byte*)svr, len, &id->serverIndex) != len)
@@ -324,27 +353,30 @@ yy22:
             id->nodeId.namespaceIndex = (UA_UInt16)tmp;
         }
 
-        /* From the current position until the end of the input */
-        return parse_nodeid_body(&id->nodeId, &input[-2], end);
+        // From the current position until the end
+        return parse_nodeid_body(&id->nodeId, &pos[-2], end);
     }
 yy24:
-	yych = *++input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case '=':	goto yy27;
 	case 'u':	goto yy28;
 	default:	goto yy25;
 	}
 yy25:
-	input = pos;
+	YYRESTORE ();
 	goto yy18;
 yy26:
-	yych = *++input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case 'r':	goto yy29;
 	default:	goto yy25;
 	}
 yy27:
-	yych = *++input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case '0':
 	case '1':
@@ -356,26 +388,27 @@ yy27:
 	case '7':
 	case '8':
 	case '9':
-		yyt3 = input;
+		YYSTAGP (yyt3);
 		goto yy30;
 	default:	goto yy25;
 	}
 yy28:
-	yych = *++input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case '=':	goto yy32;
 	default:	goto yy25;
 	}
 yy29:
-	yych = *++input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case '=':	goto yy33;
 	default:	goto yy25;
 	}
 yy30:
-	++input;
-	if ((end - input) < 3) goto error;
-	yych = *input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case '0':
 	case '1':
@@ -391,18 +424,20 @@ yy30:
 	default:	goto yy25;
 	}
 yy32:
-	yych = *++input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case '\n':	goto yy25;
 	case ';':
-		yyt4 = input;
+		YYSTAGP (yyt5);
 		goto yy37;
 	default:
-		yyt4 = input;
+		YYSTAGP (yyt5);
 		goto yy35;
 	}
 yy33:
-	yych = *++input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case '0':
 	case '1':
@@ -414,45 +449,47 @@ yy33:
 	case '7':
 	case '8':
 	case '9':
-		yyt1 = input;
+		YYSTAGP (yyt1);
 		goto yy38;
 	default:	goto yy25;
 	}
 yy34:
-	yych = *++input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case 'b':
 	case 'g':
 	case 'i':
 	case 's':
-		yyt4 = NULL;
+		YYSTAGP (yyt4);
+		YYSTAGN (yyt5);
 		goto yy40;
 	default:	goto yy25;
 	}
 yy35:
-	++input;
-	if ((end - input) < 3) goto error;
-	yych = *input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case '\n':	goto yy25;
 	case ';':	goto yy37;
 	default:	goto yy35;
 	}
 yy37:
-	yych = *++input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case 'b':
 	case 'g':
 	case 'i':
 	case 's':
-		yyt3 = NULL;
+		YYSTAGN (yyt3);
+		YYSTAGP (yyt4);
 		goto yy40;
 	default:	goto yy25;
 	}
 yy38:
-	++input;
-	if ((end - input) < 8) goto error;
-	yych = *input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case '0':
 	case '1':
@@ -465,30 +502,35 @@ yy38:
 	case '8':
 	case '9':	goto yy38;
 	case ';':
-		yyt2 = input;
+		YYSTAGP (yyt2);
 		goto yy41;
 	default:	goto yy25;
 	}
 yy40:
-	yych = *++input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case '=':	goto yy22;
 	default:	goto yy25;
 	}
 yy41:
-	yych = *++input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case 'b':
 	case 'g':
 	case 'i':
 	case 's':
-		yyt3 = yyt4 = NULL;
+		YYSTAGN (yyt3);
+		YYSTAGP (yyt4);
+		YYSTAGN (yyt5);
 		goto yy40;
 	case 'n':	goto yy42;
 	default:	goto yy25;
 	}
 yy42:
-	yych = *++input;
+	YYSKIP ();
+	yych = YYPEEK ();
 	switch (yych) {
 	case 's':	goto yy24;
 	default:	goto yy25;
@@ -504,6 +546,398 @@ UA_ExpandedNodeId_parse(UA_ExpandedNodeId *id, const UA_String str) {
         parse_expandednodeid(id, (const char*)str.data, (const char*)str.data+str.length);
     if(res != UA_STATUSCODE_GOOD)
         UA_ExpandedNodeId_clear(id);
+    UA_UNLOCK(parserMutex);
+    return res;
+}
+
+static UA_StatusCode
+relativepath_addelem(UA_RelativePath *rp, UA_RelativePathElement *el) {
+    /* Allocate memory */
+    UA_RelativePathElement *newArray = (UA_RelativePathElement*)
+        UA_realloc(rp->elements, sizeof(UA_RelativePathElement) * (rp->elementsSize + 1));
+    if(!newArray)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    rp->elements = newArray;
+
+    /* Move to the target */
+    rp->elements[rp->elementsSize] = *el;
+    rp->elementsSize++;
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Parse name string with '&' as the escape character */
+static UA_StatusCode
+parse_refpath_qn_name(UA_QualifiedName *qn, const char **pos, const char *end) {
+    /* Allocate the max length the name can have */
+    size_t maxlen = (size_t)(end - *pos);
+    if(maxlen == 0) {
+        qn->name.data = (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL;
+        return UA_STATUSCODE_GOOD;;
+    }
+    char *name = (char*)UA_malloc(maxlen);
+    if(!name)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    size_t index = 0;
+    for(; *pos < end; (*pos)++) {
+        char c = **pos;
+        /* Unescaped special characer: The end of the QualifiedName */
+        if(c == '/' || c == '.' || c == '<' || c == '>' ||
+           c == ':' || c == '#' || c == '!')
+            break;
+
+        /* Escaped character */
+        if(c == '&') {
+            (*pos)++;
+            if(*pos >= end ||
+               (**pos != '/' && **pos != '.' && **pos != '<' && **pos != '>' &&
+                **pos != ':' && **pos != '#' && **pos != '!' && **pos != '&')) {
+                UA_free(name);
+                return UA_STATUSCODE_BADINTERNALERROR;
+            }
+            c = **pos;
+        }
+
+        /* Unescaped normal character */
+        name[index] = c;
+        index++;
+    }
+
+    if(index > 0) {
+        qn->name.data = (UA_Byte*)name;
+        qn->name.length = index;
+    } else {
+        qn->name.data = (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL;
+        UA_free(name);
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+parse_refpath_qn(UA_QualifiedName *qn, const char *pos, const char *end) {
+    const char *YYMARKER = pos, *ns = NULL, *nse = NULL;
+    UA_QualifiedName_init(qn);
+
+    
+{
+	char yych;
+	yych = YYPEEK ();
+	switch (yych) {
+	case '0':
+	case '1':
+	case '2':
+	case '3':
+	case '4':
+	case '5':
+	case '6':
+	case '7':
+	case '8':
+	case '9':
+		YYSTAGP (yyt1);
+		goto yy47;
+	default:	goto yy45;
+	}
+yy45:
+	YYSKIP ();
+yy46:
+	{ pos--; goto parse_qn_name; }
+yy47:
+	YYSKIP ();
+	YYBACKUP ();
+	yych = YYPEEK ();
+	switch (yych) {
+	case '0':
+	case '1':
+	case '2':
+	case '3':
+	case '4':
+	case '5':
+	case '6':
+	case '7':
+	case '8':
+	case '9':
+	case ':':	goto yy49;
+	default:	goto yy46;
+	}
+yy48:
+	YYSKIP ();
+	yych = YYPEEK ();
+yy49:
+	switch (yych) {
+	case '0':
+	case '1':
+	case '2':
+	case '3':
+	case '4':
+	case '5':
+	case '6':
+	case '7':
+	case '8':
+	case '9':	goto yy48;
+	case ':':
+		YYSTAGP (yyt2);
+		goto yy51;
+	default:	goto yy50;
+	}
+yy50:
+	YYRESTORE ();
+	goto yy46;
+yy51:
+	YYSKIP ();
+	ns = yyt1;
+	nse = yyt2;
+	{
+        UA_UInt32 tmp;
+        size_t len = (size_t)(nse - ns);
+        if(UA_readNumber((const UA_Byte*)ns, len, &tmp) != len)
+            return UA_STATUSCODE_BADINTERNALERROR;
+        qn->namespaceIndex = (UA_UInt16)tmp;
+        goto parse_qn_name;
+    }
+}
+
+
+ parse_qn_name:
+    return parse_refpath_qn_name(qn, &pos, end);
+}
+
+/* List of well-known ReferenceTypes that don't require lookup in the server */
+
+typedef struct {
+    char *browseName;
+    UA_UInt32 identifier;
+} RefTypeNames;
+
+#define KNOWNREFTYPES 17
+static const RefTypeNames knownRefTypes[KNOWNREFTYPES] = {
+    {"References", UA_NS0ID_REFERENCES},
+    {"HierachicalReferences", UA_NS0ID_HIERARCHICALREFERENCES},
+    {"NonHierachicalReferences", UA_NS0ID_NONHIERARCHICALREFERENCES},
+    {"HasChild", UA_NS0ID_HASCHILD},
+    {"Aggregates", UA_NS0ID_AGGREGATES},
+    {"HasComponent", UA_NS0ID_HASCOMPONENT},
+    {"HasProperty", UA_NS0ID_HASPROPERTY},
+    {"HasOrderedComponent", UA_NS0ID_HASORDEREDCOMPONENT},
+    {"HasSubtype", UA_NS0ID_HASSUBTYPE},
+    {"Organizes", UA_NS0ID_ORGANIZES},
+    {"HasModellingRule", UA_NS0ID_HASMODELLINGRULE},
+    {"HasTypeDefinition", UA_NS0ID_HASTYPEDEFINITION},
+    {"HasEncoding", UA_NS0ID_HASENCODING},
+    {"GeneratesEvent", UA_NS0ID_GENERATESEVENT},
+    {"AlwaysGeneratesEvent", UA_NS0ID_ALWAYSGENERATESEVENT},
+    {"HasEventSource", UA_NS0ID_HASEVENTSOURCE},
+    {"HasNotifier", UA_NS0ID_HASNOTIFIER}
+};
+
+static UA_StatusCode
+lookup_reftype(UA_NodeId *refTypeId, UA_QualifiedName *qn) {
+    if(qn->namespaceIndex != 0)
+        return UA_STATUSCODE_BADNOTFOUND;
+
+    for(size_t i = 0; i < KNOWNREFTYPES; i++) {
+        UA_String tmp = UA_STRING(knownRefTypes[i].browseName);
+        if(UA_String_equal(&qn->name, &tmp)) {
+            *refTypeId = UA_NODEID_NUMERIC(0, knownRefTypes[i].identifier);
+            return UA_STATUSCODE_GOOD;
+        }
+    }
+
+    return UA_STATUSCODE_BADNOTFOUND;
+}
+
+static UA_StatusCode
+parse_relativepath(UA_RelativePath *rp, const char *pos, const char *end) {
+    const char *YYMARKER = pos, *begin = NULL, *finish = NULL;
+    UA_RelativePath_init(rp); /* Reset the BrowsePath */
+    UA_RelativePathElement current;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+
+    /* Add one element to the path in every iteration */
+ loop:
+    UA_RelativePathElement_init(&current);
+    current.includeSubtypes = true; /* Follow subtypes by default */
+
+    /* Get the ReferenceType and its modifiers */
+    
+{
+	char yych;
+	unsigned int yyaccept = 0;
+	yych = YYPEEK ();
+	switch (yych) {
+	case 0x00:	goto yy55;
+	case '.':	goto yy59;
+	case '/':	goto yy61;
+	case '<':	goto yy63;
+	default:	goto yy57;
+	}
+yy55:
+	YYSKIP ();
+	{ (void)pos; return UA_STATUSCODE_GOOD; }
+yy57:
+	YYSKIP ();
+yy58:
+	{ (void)pos; return UA_STATUSCODE_BADINTERNALERROR; }
+yy59:
+	YYSKIP ();
+	{
+        current.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_AGGREGATES);
+        goto reftype_target;
+    }
+yy61:
+	YYSKIP ();
+	{
+        current.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
+        goto reftype_target;
+    }
+yy63:
+	yyaccept = 0;
+	YYSKIP ();
+	YYBACKUP ();
+	yych = YYPEEK ();
+	switch (yych) {
+	case 0x00:
+	case '>':	goto yy58;
+	case '&':
+		YYSTAGP (yyt1);
+		goto yy67;
+	default:
+		YYSTAGP (yyt1);
+		goto yy64;
+	}
+yy64:
+	YYSKIP ();
+	yych = YYPEEK ();
+	switch (yych) {
+	case 0x00:	goto yy66;
+	case '&':	goto yy67;
+	case '>':
+		YYSTAGP (yyt2);
+		goto yy69;
+	default:	goto yy64;
+	}
+yy66:
+	YYRESTORE ();
+	if (yyaccept == 0) {
+		goto yy58;
+	} else {
+		goto yy70;
+	}
+yy67:
+	YYSKIP ();
+	yych = YYPEEK ();
+	switch (yych) {
+	case 0x00:	goto yy66;
+	case '&':	goto yy67;
+	case '>':
+		YYSTAGP (yyt2);
+		goto yy71;
+	default:	goto yy64;
+	}
+yy69:
+	YYSKIP ();
+yy70:
+	begin = yyt1;
+	finish = yyt2;
+	{
+        for(; begin < finish; begin++) {
+            if(*begin== '#')
+                current.includeSubtypes = false;
+            else if(*begin == '!')
+                current.isInverse = true;
+            else
+                break;
+        }
+        UA_QualifiedName refqn;
+        res |= parse_refpath_qn(&refqn, begin, finish);
+        res |= lookup_reftype(&current.referenceTypeId, &refqn);
+        UA_QualifiedName_clear(&refqn);
+        goto reftype_target;
+    }
+yy71:
+	yyaccept = 1;
+	YYSKIP ();
+	YYBACKUP ();
+	yych = YYPEEK ();
+	switch (yych) {
+	case 0x00:	goto yy70;
+	case '&':	goto yy67;
+	case '>':
+		YYSTAGP (yyt2);
+		goto yy69;
+	default:	goto yy64;
+	}
+}
+
+
+    /* Get the TargetName component */
+ reftype_target:
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    
+{
+	char yych;
+	yych = YYPEEK ();
+	switch (yych) {
+	case 0x00:
+	case '.':
+	case '/':
+	case '<':	goto yy74;
+	case '&':
+		YYSTAGP (yyt1);
+		goto yy79;
+	default:
+		YYSTAGP (yyt1);
+		goto yy76;
+	}
+yy74:
+	YYSKIP ();
+	{ pos--; goto add_element; }
+yy76:
+	YYSKIP ();
+	yych = YYPEEK ();
+	switch (yych) {
+	case 0x00:
+	case '.':
+	case '/':
+	case '<':	goto yy78;
+	case '&':	goto yy79;
+	default:	goto yy76;
+	}
+yy78:
+	begin = yyt1;
+	{
+        res = parse_refpath_qn(&current.targetName, begin, pos);
+        goto add_element;
+    }
+yy79:
+	YYSKIP ();
+	yych = YYPEEK ();
+	switch (yych) {
+	case 0x00:	goto yy78;
+	case '&':	goto yy79;
+	default:	goto yy76;
+	}
+}
+
+
+    /* Add the current element to the path and continue to the next element */
+ add_element:
+    res |= relativepath_addelem(rp, &current);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_RelativePathElement_clear(&current);
+        return res;
+    }
+    goto loop;
+}
+
+UA_StatusCode
+UA_RelativePath_parse(UA_RelativePath *rp, const UA_String str) {
+    UA_LOCK(parserMutex);
+    UA_StatusCode res =
+        parse_relativepath(rp, (const char*)str.data, (const char*)str.data+str.length);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_RelativePath_clear(rp);
     UA_UNLOCK(parserMutex);
     return res;
 }

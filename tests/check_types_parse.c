@@ -4,8 +4,43 @@
 
 #include <open62541/types.h>
 #include <open62541/types_generated_handling.h>
+#include "open62541/util.h"
 
 #include "check.h"
+
+START_TEST(base64) {
+    UA_ByteString test1 = UA_BYTESTRING("abc123\nopen62541");
+    UA_String test1base64;
+    UA_StatusCode res = UA_ByteString_toBase64(&test1, &test1base64);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_ByteString test1out;
+    res = UA_ByteString_fromBase64(&test1out, &test1base64);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    ck_assert_int_eq(test1.length, test1out.length);
+    for(size_t i = 0; i < test1.length; i++)
+        ck_assert_int_eq(test1.data[i], test1out.data[i]);
+
+    UA_String_clear(&test1base64);
+    UA_ByteString_clear(&test1out);
+    UA_ByteString_clear(&test1out);
+
+    UA_ByteString test2 = UA_BYTESTRING("");
+    UA_String test2base64;
+    res = UA_ByteString_toBase64(&test2, &test2base64);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_ByteString test2out;
+    res = UA_ByteString_fromBase64(&test2out, &test2base64);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    ck_assert_int_eq(test2.length, test2out.length);
+    for(size_t i = 0; i < test2.length; i++)
+        ck_assert_int_eq(test2.data[i], test2out.data[i]);
+
+    UA_ByteString_clear(&test2out);
+} END_TEST
 
 START_TEST(parseGuid) {
     UA_Guid guid = UA_GUID("09087e75-8e5e-499b-954f-f2a9603db28a");
@@ -95,9 +130,67 @@ START_TEST(parseExpandedNodeIdIntegerFailNSU2) {
     ck_assert_int_eq(id.nodeId.identifier.numeric, 0);
 } END_TEST
 
+START_TEST(parseRelativePath) {
+    UA_RelativePath rp;
+    UA_StatusCode res = UA_RelativePath_parse(&rp, UA_STRING(""));
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(rp.elementsSize, 0);
+
+    res = UA_RelativePath_parse(&rp, UA_STRING("/2:Block&.Output"));
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(rp.elementsSize, 1);
+    UA_RelativePath_clear(&rp);
+
+    /* Paths with no BrowseName */
+    res = UA_RelativePath_parse(&rp, UA_STRING("//"));
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(rp.elementsSize, 2);
+    UA_RelativePath_clear(&rp);
+
+    res = UA_RelativePath_parse(&rp, UA_STRING("/."));
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(rp.elementsSize, 2);
+    UA_RelativePath_clear(&rp);
+
+    res = UA_RelativePath_parse(&rp, UA_STRING("<0:HierachicalReferences>2:Wheel"));
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(rp.elementsSize, 1);
+    ck_assert_int_eq(rp.elements[0].targetName.namespaceIndex, 2);
+    UA_RelativePath_clear(&rp);
+
+    res = UA_RelativePath_parse(&rp, UA_STRING("<0:HasComponent>1:Boiler/1:HeatSensor"));
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(rp.elementsSize, 2);
+    ck_assert_int_eq(rp.elements[0].targetName.namespaceIndex, 1);
+    ck_assert_int_eq(rp.elements[1].targetName.namespaceIndex, 1);
+    UA_RelativePath_clear(&rp);
+
+    res = UA_RelativePath_parse(&rp, UA_STRING(".1:Boiler/1:HeatSensor/"));
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(rp.elementsSize, 3);
+    ck_assert_int_eq(rp.elements[0].targetName.namespaceIndex, 1);
+    ck_assert_int_eq(rp.elements[1].targetName.namespaceIndex, 1);
+    UA_String tmp = UA_STRING("HeatSensor");
+    ck_assert(UA_String_equal(&tmp, &rp.elements[1].targetName.name));
+    ck_assert_int_eq(rp.elements[2].targetName.namespaceIndex, 0);
+    UA_RelativePath_clear(&rp);
+
+    res = UA_RelativePath_parse(&rp, UA_STRING("<!HasChild>Truck"));
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(rp.elementsSize, 1);
+    ck_assert_int_eq(rp.elements[0].isInverse, true);
+    UA_RelativePath_clear(&rp);
+
+    res = UA_RelativePath_parse(&rp, UA_STRING("<0:HasChild>"));
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(rp.elementsSize, 1);
+    UA_RelativePath_clear(&rp);
+} END_TEST
+
 int main(void) {
     Suite *s  = suite_create("Test Builtin Type Parsing");
     TCase *tc = tcase_create("test cases");
+    tcase_add_test(tc, base64);
     tcase_add_test(tc, parseGuid);
     tcase_add_test(tc, parseNodeIdNumeric);
     tcase_add_test(tc, parseNodeIdNumeric2);
@@ -110,6 +203,7 @@ int main(void) {
     tcase_add_test(tc, parseExpandedNodeIdIntegerNSU);
     tcase_add_test(tc, parseExpandedNodeIdIntegerFailNSU);
     tcase_add_test(tc, parseExpandedNodeIdIntegerFailNSU2);
+    tcase_add_test(tc, parseRelativePath);
     suite_add_tcase(s, tc);
 
     SRunner *sr = srunner_create(s);
