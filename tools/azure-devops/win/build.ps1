@@ -41,6 +41,39 @@ try {
 
     $cmake_cnf="$vcpkg_toolchain", "$vcpkg_triplet", "-G`"$env:GENERATOR`"", "-DUA_FORCE_CPP:BOOL=$env:FORCE_CXX"
 
+    # Only execute unit tests on vs2017 to save compilation time
+    if ($env:CC_SHORTNAME -eq "VS2017_OPENSSL") {
+        Write-Out -ForegroundColor Green "`n###################################################################"
+        Write-Out -ForegroundColor Green "`n##### Testing $env:CC_NAME with unit tests with openssl #####`n"
+        New-Item -ItemType directory -Path "build"
+        cd build
+        & cmake $cmake_cnf `
+                -DBUILD_SHARED_LIBS:BOOL=OFF `
+                -DCMAKE_BUILD_TYPE=Debug `
+                -DUA_BUILD_EXAMPLES=OFF `
+                -DUA_BUILD_UNIT_TESTS=ON `
+                -DUA_ENABLE_DA=ON `
+                -DUA_ENABLE_DISCOVERY=ON `
+                -DUA_ENABLE_DISCOVERY_MULTICAST=ON `
+                -DUA_ENABLE_ENCRYPTION_OPENSSL=ON `
+                -DUA_ENABLE_JSON_ENCODING:BOOL=ON `
+                -DUA_ENABLE_PUBSUB:BOOL=ON `
+                -DUA_ENABLE_PUBSUB_DELTAFRAMES:BOOL=ON `
+                -DUA_ENABLE_PUBSUB_INFORMATIONMODEL:BOOL=ON `
+                -DUA_ENABLE_UNIT_TESTS_MEMCHECK=OFF ..
+        & cmake --build . --config Debug
+        if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+            Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
+            exit $LASTEXITCODE
+        }
+        & cmake --build . --target test-verbose --config Debug
+        if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+            Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
+            exit $LASTEXITCODE
+        }
+        exit $LASTEXITCODE
+    }
+
     # Collect files for .zip packing
     New-Item -ItemType directory -Path pack
     Copy-Item LICENSE pack

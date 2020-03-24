@@ -94,3 +94,36 @@ jobs:
         # publishing artifacts from PRs from a fork is currently blocked
     condition: succeeded()
     displayName: "Publish Artifact: open62541-$(CC_SHORTNAME)"
+
+- job: 'win_vs2017_openssl'
+  displayName: 'Windows (VS2017 OpenSSL)'
+  pool:
+    vmImage: 'vs2017-win2016'
+  variables:
+    CC_NAME: Visual Studio 15 2017
+    CC_SHORTNAME: VS2017_OPENSSL
+    GENERATOR: Visual Studio 15 2017
+    FORCE_CXX: OFF
+    vcpkg_cache: C:/vcpkg/installed
+  steps:
+  - checkout: self
+    submodules: recursive
+
+  - task: CacheBeta@0
+    inputs:
+      key: $(Build.SourcesDirectory)/tools/azure-devops/win/install.ps1
+      path: $(vcpkg_cache)
+    displayName: Cache vcpkg
+
+  - powershell: ./tools/azure-devops/win/install.ps1
+    displayName: Install Requirements
+  - powershell: ./tools/azure-devops/win/build.ps1
+    displayName: "Build: $(CC_NAME)"
+
+  - task: PublishBuildArtifacts@1
+    inputs:
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+        ArtifactName: open62541-$(CC_SHORTNAME)
+        # publishing artifacts from PRs from a fork is currently blocked
+    condition: succeeded()
+    displayName: "Publish Artifact: open62541-$(CC_SHORTNAME)"    

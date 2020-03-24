@@ -448,6 +448,9 @@ if(UA_ENABLE_ENCRYPTION)
         # https://cmake.org/cmake/help/v3.0/module/FindOpenSSL.html
         find_package(OpenSSL REQUIRED)
         list(APPEND open62541_LIBRARIES ${OPENSSL_LIBRARIES})
+        if(WIN32)
+            list(APPEND open62541_LIBRARIES crypt32.lib)
+        endif()
     else ()
         # The recommended way is to install mbedtls via the OS package manager. If
         # that is not possible, manually compile mbedTLS and set the cmake variables
