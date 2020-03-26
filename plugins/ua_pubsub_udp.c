@@ -111,16 +111,32 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
         return NULL;
     }
 
+    int bOk = 1;
     //check if the ip address is a multicast address
     if(requestResult->ai_family == PF_INET){
         struct in_addr imr_interface;
+        memset(&imr_interface, 0, sizeof(imr_interface));
         UA_inet_pton(AF_INET, addressAsChar, &imr_interface);
         if((UA_ntohl(imr_interface.s_addr) & 0xF0000000) != 0xE0000000){
             UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                           "PubSub Connection creation failed. No multicast address.");
+                "PubSub Connection creation failed. No multicast address (IPv4).");
+            bOk = 0;
         }
     } else {
-        //TODO check if ipv6 addrr is multicast address.
+        struct in6_addr imr_interface;
+        memset(&imr_interface, 0, sizeof(imr_interface));
+        if((UA_inet_pton(AF_INET6, addressAsChar, &imr_interface) < 1) ||
+            (imr_interface.s6_addr[0] != 0xFF)) {
+            UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                "PubSub Connection creation failed. No multicast address (IPv6).");
+            bOk = 0;
+        }
+    }
+
+    if(bOk == 0) {
+        UA_free(channelDataUDPMC);
+        UA_free(newChannel);
+        return NULL;
     }
 
     for(rp = requestResult; rp != NULL; rp = rp->ai_next){
@@ -203,55 +219,112 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
         }
     }
 
-    //Set the physical interface for outgoing traffic
-    if(address.networkInterface.length > 0){
-        UA_STACKARRAY(char, interfaceAsChar, sizeof(char) * address.networkInterface.length + 1);
-        memcpy(interfaceAsChar, address.networkInterface.data, address.networkInterface.length);
-        interfaceAsChar[address.networkInterface.length] = 0;
-        enum{
-            IPv4,
+    /* prepare for following socket options:
+        * set the physical interface for in- and outgoing traffic (if configured)
+        * join multicast group
+     */
+    enum{
+        IPv4,
 #if UA_IPV6
-            IPv6,
+        IPv6,
 #endif
-            INVALID
-        } ipVersion;
-        union {
-            struct ip_mreq ipv4;
+    } ipVersion;
+    union {
+        struct ip_mreq ipv4;
 #if UA_IPV6
-            struct ipv6_mreq ipv6;
+        struct ipv6_mreq ipv6;
 #endif
-        } group;
-        if(UA_inet_pton(AF_INET, interfaceAsChar, &group.ipv4.imr_interface)){
-            ipVersion = IPv4;
+    } group;
+    memset(&group, 0, sizeof(group));
+
+    if ((requestResult->ai_family == AF_INET) && (UA_inet_pton(AF_INET, addressAsChar, &group.ipv4.imr_multiaddr) > 0)) {
+        ipVersion = IPv4;
+        group.ipv4.imr_interface.s_addr = htonl(INADDR_ANY); /* default configuration: multihomed hosts can join several groups on different IF,
+            INADDR_ANY -> kernel decides */
 #if UA_IPV6
-        } else if (UA_inet_pton(AF_INET6, interfaceAsChar, &group.ipv6.ipv6mr_multiaddr)){
-            group.ipv6.ipv6mr_interface = UA_if_nametoindex(interfaceAsChar);
-            ipVersion = IPv6;
+    } else if ((requestResult->ai_family == AF_INET6) && (UA_inet_pton(AF_INET6, addressAsChar, &group.ipv6.ipv6mr_multiaddr) > 0)) {
+        ipVersion = IPv6;
+        group.ipv6.ipv6mr_interface = 0; // default configuration
 #endif
-        } else {
-            ipVersion = INVALID;
-        }
-        if(ipVersion == INVALID ||
+    } else {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+            "PubSub Connection creation problem. Preparing the socket multicast configuration failed");
+        bOk = 0;
+    }
+    if (bOk == 1) {
+        if(address.networkInterface.length > 0){
+            // set configured interface
+            UA_STACKARRAY(char, interfaceAsChar, sizeof(char) * address.networkInterface.length + 1);
+            memcpy(interfaceAsChar, address.networkInterface.data, address.networkInterface.length);
+            interfaceAsChar[address.networkInterface.length] = 0;
+
+            if (ipVersion == IPv4) {
+                if(UA_inet_pton(AF_INET, interfaceAsChar, &group.ipv4.imr_interface) <= 0) {
+                    bOk = 0;
+                }
 #if UA_IPV6
-                UA_setsockopt(newChannel->sockfd,
-                           requestResult->ai_family == PF_INET6 ? IPPROTO_IPV6 : IPPROTO_IP,
-                           requestResult->ai_family == PF_INET6 ? IPV6_MULTICAST_IF : IP_MULTICAST_IF,
-                           ipVersion == IPv6 ? (const void *) &group.ipv6.ipv6mr_interface : &group.ipv4.imr_interface,
-                           ipVersion == IPv6 ? sizeof(group.ipv6.ipv6mr_interface) : sizeof(struct in_addr))
+            } else {
+                group.ipv6.ipv6mr_interface = UA_if_nametoindex(interfaceAsChar);
+                if (group.ipv6.ipv6mr_interface == 0) {
+                    bOk = 0;
+                }
+#endif
+            }
+
+            if(bOk == 1) {
+#if UA_IPV6
+                if (UA_setsockopt(newChannel->sockfd,
+                    requestResult->ai_family == PF_INET6 ? IPPROTO_IPV6 : IPPROTO_IP,
+                    requestResult->ai_family == PF_INET6 ? IPV6_MULTICAST_IF : IP_MULTICAST_IF,
+                    ipVersion == IPv6 ? (const void *) &group.ipv6.ipv6mr_interface : &group.ipv4.imr_interface,
+                    ipVersion == IPv6 ? sizeof(group.ipv6.ipv6mr_interface) : sizeof(struct in_addr))
 #else
-                UA_setsockopt(newChannel->sockfd,
-                           IPPROTO_IP,
-                           IP_MULTICAST_IF,
-                           &group.ipv4.imr_interface,
-                           sizeof(struct in_addr))
+                if (UA_setsockopt(newChannel->sockfd,
+                    IPPROTO_IP,
+                    IP_MULTICAST_IF,
+                    &group.ipv4.imr_interface,
+                    sizeof(struct in_addr))
 #endif
-                                                         < 0) {
-            UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                           "PubSub Connection creation problem. Interface selection failed.");
-        };
+                                                             < 0) {
+                    UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                        "PubSub Connection creation problem. Interface selection failed.");
+                    bOk = 0;
+                }
+            } else {
+                UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                        "PubSub Connection creation problem. Interface configuration preparation failed.");
+            }
+        }
+
+        if(
+#if UA_IPV6
+            UA_setsockopt(newChannel->sockfd,
+                requestResult->ai_family == PF_INET6 ? IPPROTO_IPV6 : IPPROTO_IP,
+                requestResult->ai_family == PF_INET6 ? IPV6_JOIN_GROUP : IP_ADD_MEMBERSHIP,
+                ipVersion == IPv6 ? (const void *) &group.ipv6 : &group.ipv4,
+                ipVersion == IPv6 ? sizeof(group.ipv6) : sizeof(group.ipv4))
+#else
+            UA_setsockopt(newChannel->sockfd,
+                IPPROTO_IP,
+                IP_ADD_MEMBERSHIP,
+                &group.ipv4,
+                sizeof(group.ipv4))
+#endif
+                                                             < 0) {
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                "PubSub Connection creation problem. Join multicast group failed.");
+            bOk = 0;
+        }
     }
     UA_freeaddrinfo(requestResult);
-    newChannel->state = UA_PUBSUB_CHANNEL_PUB;
+    if (bOk == 1) {
+        newChannel->state = UA_PUBSUB_CHANNEL_PUB;
+    } else {
+        UA_close(newChannel->sockfd);
+        UA_free(channelDataUDPMC);
+        UA_free(newChannel);
+        newChannel = NULL;
+    }
     return newChannel;
 }
 
@@ -270,24 +343,25 @@ UA_PubSubChannelUDPMC_regist(UA_PubSubChannel *channel, UA_ExtensionObject *tran
     UA_PubSubChannelDataUDPMC * connectionConfig = (UA_PubSubChannelDataUDPMC *) channel->handle;
     if(connectionConfig->ai_family == PF_INET){//IPv4 handling
         struct sockaddr_in addr;
+        memset(&addr, 0, sizeof(addr));
+        addr.sin_family = AF_INET;
         memcpy(&addr, connectionConfig->ai_addr, sizeof(struct sockaddr_in));
         addr.sin_addr.s_addr = INADDR_ANY;
         if (UA_bind(channel->sockfd, (const struct sockaddr *)&addr, sizeof(struct sockaddr_in)) != 0){
-            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub Connection regist failed.");
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub Connection regist failed. (IPv4)");
             return UA_STATUSCODE_BADINTERNALERROR;
-        }
-        struct ip_mreq groupV4;
-        memcpy(&groupV4.imr_multiaddr, &((const struct sockaddr_in *)connectionConfig->ai_addr)->sin_addr, sizeof(struct ip_mreq));
-        groupV4.imr_interface.s_addr = UA_htonl(INADDR_ANY);
-        //multihomed hosts can join several groups on different IF, INADDR_ANY -> kernel decides
-
-        if(UA_setsockopt(channel->sockfd, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *) &groupV4, sizeof(groupV4)) != 0) {
-            UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                           "PubSub Connection not on multicast");
         }
 #if UA_IPV6
     } else if (connectionConfig->ai_family == PF_INET6) {//IPv6 handling
-        //TODO implement regist for IPv6
+        struct sockaddr_in6 addr;
+        memset(&addr, 0, sizeof(addr));
+        addr.sin6_family = AF_INET6;
+        memcpy(&addr, connectionConfig->ai_addr, sizeof(struct sockaddr_in6));
+        addr.sin6_addr = in6addr_any;
+        if (UA_bind(channel->sockfd, (const struct sockaddr *)&addr, sizeof(struct sockaddr_in6)) != 0){
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub Connection regist failed. (IPv6)");
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
 #endif
     } else {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub Connection regist failed.");
