@@ -10,6 +10,8 @@
 #include "ua_server_async.h"
 #include "ua_server_internal.h"
 #include "open62541_queue.h"
+#include "ua_connection_internal.h"
+#include <open62541/transport_generated_handling.h>
 
 #if UA_MULTITHREADING >= 100
 
@@ -193,25 +195,54 @@ static void
 AsyncManager_sendResponse(UA_AsyncManager *am, UA_AsyncTask *task) {
     UA_LOCK(am->server->serviceMutex);
     UA_Session* session = UA_Server_getSessionById(am->server, &task->sessionId);
-    UA_UNLOCK(am->server->serviceMutex);
     if(!session) {
-        UA_LOG_WARNING(&am->server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "(Async) Cannot respond to request: session is gone");
+        UA_UNLOCK(am->server->serviceMutex);
+        UA_LOG_INFO(&am->server->config.logger, UA_LOGCATEGORY_SERVER,
+                    "(Async) Cannot respond to request: session is gone");
+        return;
     }
     UA_SecureChannel* channel = session->header.channel;
     if(!channel) {
-        UA_LOG_WARNING(&am->server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "(Async) Cannot respond to request: channel is gone");
+        UA_UNLOCK(am->server->serviceMutex);
+        UA_LOG_INFO(&am->server->config.logger, UA_LOGCATEGORY_SERVER,
+                    "(Async) Cannot respond to request: channel is gone");
+        return;
     }
     UA_StatusCode retval =
         sendResponse(channel, task->requestId, task->request->requestHandle,
                      task->response, task->responseType);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(&am->server->config.logger, UA_LOGCATEGORY_SERVER,
-            "(Async) Cannot send response to req# %" PRIu32 " : %s",
-            task->requestId,
-            UA_StatusCode_name(retval));
+        if(!channel->connection) {
+            UA_Server_closeSecureChannel(am->server, channel, UA_DIAGNOSTICEVENT_CLOSE);
+            UA_UNLOCK(am->server->serviceMutex);
+            UA_LOG_INFO_CHANNEL(&am->server->config.logger, channel,
+                                "(Async) Processing the message failed. Channel already closed "
+                                "with StatusCode %s. ", UA_StatusCode_name(retval));
+            return;
+        }
+
+        UA_LOG_INFO_CHANNEL(&am->server->config.logger, channel,
+                            "(Async) Processing the message failed with StatusCode %s. "
+                            "Closing the channel.", UA_StatusCode_name(retval));
+        UA_TcpErrorMessage errMsg;
+        UA_TcpErrorMessage_init(&errMsg);
+        errMsg.error = retval;
+        UA_Connection_sendError(channel->connection, &errMsg);
+        switch(retval) {
+        case UA_STATUSCODE_BADSECURITYMODEREJECTED:
+        case UA_STATUSCODE_BADSECURITYCHECKSFAILED:
+        case UA_STATUSCODE_BADSECURECHANNELIDINVALID:
+        case UA_STATUSCODE_BADSECURECHANNELTOKENUNKNOWN:
+        case UA_STATUSCODE_BADSECURITYPOLICYREJECTED:
+        case UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED:
+            UA_Server_closeSecureChannel(am->server, channel, UA_DIAGNOSTICEVENT_SECURITYREJECT);
+            break;
+        default:
+            UA_Server_closeSecureChannel(am->server, channel, UA_DIAGNOSTICEVENT_CLOSE);
+            break;
+        }
     }
+    UA_UNLOCK(am->server->serviceMutex);
 }
 
 static void
@@ -269,8 +300,10 @@ AsyncManager_serviceCallback(UA_Server *server, void *_) {
 static UA_AsyncTask *
 AsyncManager_getAsyncRequest(UA_AsyncManager *am) {
     UA_LOCK(am->mutex)
-    if(am->isStopping)
+    if(am->isStopping) {
+        UA_UNLOCK(am->mutex);
         return NULL;
+    }
     UA_AsyncTask *task = NULL;
     if(!TAILQ_EMPTY(&am->pendingTasks)) {
         task = TAILQ_FIRST(&am->pendingTasks);
