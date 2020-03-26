@@ -740,11 +740,9 @@ UA_Server_removeDataSetField(UA_Server *server, const UA_NodeId dsf) {
     }
 
     if(currentField->config.field.variable.staticValueSourceEnabled){
-        //TODO Implement the swap back!!
-        //UA_Server_swapExistingVariableNodeToRT(server,
-        //                                       newField->config.field.variable.publishParameters.publishedVariable,
-        //                                       &newField->config.field.variable.staticValueSource.value);
-
+        UA_Server_writeValue(server,
+                currentField->config.field.variable.publishParameters.publishedVariable,
+                currentField->config.field.variable.staticValueSource.value);
         UA_PubSubMange_removeRTNodeLookupEntry(server,
                                                &currentField->config.field.variable.publishParameters.publishedVariable);
     }

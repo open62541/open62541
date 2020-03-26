@@ -239,7 +239,7 @@ if(UA_FORCE_CPP)
     add_definitions(-D__STDC_CONSTANT_MACROS) # We need the UINT32_C define
 endif()
 
-option(UA_ENABLE_PUBSUB "Enable publish/subscribe" ON)
+option(UA_ENABLE_PUBSUB "Enable publish/subscribe" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB)
 
 option(UA_ENABLE_PUBSUB_ETH_UADP "Enable publish/subscribe UADP over Ethernet" OFF)
@@ -253,9 +253,9 @@ endif()
 option(UA_ENABLE_PUBSUB_DELTAFRAMES "Enable sending of delta frames with only the changes" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_DELTAFRAMES)
 
-option(UA_ENABLE_PUBSUB_INFORMATIONMODEL "Enable PubSub information model twin" ON)
+option(UA_ENABLE_PUBSUB_INFORMATIONMODEL "Enable PubSub information model twin" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_INFORMATIONMODEL)
-option(UA_ENABLE_PUBSUB_INFORMATIONMODEL_RT_VARIABLES "Enable PubSub informationmodel methods" ON)
+option(UA_ENABLE_PUBSUB_INFORMATIONMODEL_RT_VARIABLES "Enable PubSub informationmodel methods" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_INFORMATIONMODEL_RT_VARIABLES)
 if(UA_ENABLE_PUBSUB_INFORMATIONMODEL_RT_VARIABLES)
     if(NOT UA_ENABLE_PUBSUB_INFORMATIONMODEL)
@@ -388,9 +388,9 @@ if(CMAKE_VERSION VERSION_GREATER 3.6)
 endif()
 
 # Build Targets
-option(UA_BUILD_EXAMPLES "Build example servers and clients" ON)
+option(UA_BUILD_EXAMPLES "Build example servers and clients" OFF)
 option(UA_BUILD_TOOLS "Build OPC UA shell tools" OFF)
-option(UA_BUILD_UNIT_TESTS "Build the unit tests" ON)
+option(UA_BUILD_UNIT_TESTS "Build the unit tests" OFF)
 option(UA_BUILD_FUZZING "Build the fuzzing executables" OFF)
 mark_as_advanced(UA_BUILD_FUZZING)
 if(UA_BUILD_FUZZING)

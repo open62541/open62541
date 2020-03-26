@@ -278,6 +278,7 @@ START_TEST(AddDataSetFieldWithValidConfiguration){
         memset(&fieldConfig, 0, sizeof(UA_DataSetFieldConfig));
         fieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
         fieldConfig.field.variable.fieldNameAlias = UA_STRING("field 1");
+        fieldConfig.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_LOCALTIME);
         UA_NodeId localDataSetField;
         UA_PublishedDataSet *pds = UA_PublishedDataSet_findPDSbyId(server, publishedDataSet1);
         ck_assert_ptr_ne(pds, NULL);
@@ -294,6 +295,7 @@ START_TEST(AddRemoveAddDataSetFieldWithValidConfiguration){
         memset(&fieldConfig, 0, sizeof(UA_DataSetFieldConfig));
         fieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
         fieldConfig.field.variable.fieldNameAlias = UA_STRING("field 1");
+        fieldConfig.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_LOCALTIME);
         UA_NodeId localDataSetField;
         UA_PublishedDataSet *pds1 = UA_PublishedDataSet_findPDSbyId(server, publishedDataSet1);
         ck_assert_ptr_ne(pds1, NULL);
@@ -348,6 +350,7 @@ START_TEST(GetDataSetFieldConfigurationAndCompareValues){
         memset(&fieldConfig, 0, sizeof(UA_DataSetFieldConfig));
         fieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
         fieldConfig.field.variable.fieldNameAlias = UA_STRING("field 1");
+        fieldConfig.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_LOCALTIME);
         UA_NodeId dataSetFieldId;
         retVal = UA_Server_addDataSetField(server, publishedDataSet1, &fieldConfig, &dataSetFieldId).result;
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);

@@ -129,7 +129,8 @@ int main(void){
     dsfConfig.field.variable.publishParameters.publishedVariable = addedNodId1;
     dsfConfig.field.variable.staticValueSourceEnabled = UA_TRUE;
     dsfConfig.field.variable.staticValueSource.value = variantRT;
-    UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, NULL);
+    UA_NodeId dsfNodeId;
+    UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dsfNodeId);
 
     // add second new node to the information model and create static value area
     // add new node to the information model and create static value area
@@ -148,6 +149,17 @@ int main(void){
     UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig2, NULL);
 
     /* Freeze the PubSub configuration (and start implicitly the publish callback) */
+    UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent);
+    UA_Server_setWriterGroupOperational(server, writerGroupIdent);
+
+    valueUpdateCallback(server, NULL);
+
+    /* Disable PubSub and remove the second RT field */
+    UA_Server_setWriterGroupDisabled(server, writerGroupIdent);
+    UA_Server_unfreezeWriterGroupConfiguration(server, writerGroupIdent);
+    UA_Server_removeDataSetField(server, dsfNodeId);
+
+    /* Enable PubSub */
     UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent);
     UA_Server_setWriterGroupOperational(server, writerGroupIdent);
 

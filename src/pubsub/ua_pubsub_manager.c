@@ -380,16 +380,18 @@ UA_PubSubMange_removeRTNodeLookupEntry(UA_Server *server, UA_NodeId *variable){
             break;
         }
     }
-    memcpy(&server->pubSubManager.rtInformationModelVars[index],
-            &server->pubSubManager.rtInformationModelVars[server->pubSubManager.rtInformationModelVarsSize-1],
-           sizeof(struct UA_PubSubRTVarLookup));
+    if(server->pubSubManager.rtInformationModelVarsSize > 1){
+        memcpy(&server->pubSubManager.rtInformationModelVars[index],
+               &server->pubSubManager.rtInformationModelVars[server->pubSubManager.rtInformationModelVarsSize-1],
+               sizeof(struct UA_PubSubRTVarLookup));
 
-    server->pubSubManager.rtInformationModelVars = (UA_PubSubRTVarLookup *)
-            UA_realloc(server->pubSubManager.rtInformationModelVars,
-                       (--server->pubSubManager.rtInformationModelVarsSize) * sizeof(UA_PubSubRTVarLookup));
-    qsort(server->pubSubManager.rtInformationModelVars,
-          server->pubSubManager.rtInformationModelVarsSize,
-          sizeof(UA_PubSubRTVarLookup), compareLookupStructure);
+        server->pubSubManager.rtInformationModelVars = (UA_PubSubRTVarLookup *)
+                UA_realloc(server->pubSubManager.rtInformationModelVars,
+                           (--server->pubSubManager.rtInformationModelVarsSize) * sizeof(UA_PubSubRTVarLookup));
+        qsort(server->pubSubManager.rtInformationModelVars,
+              server->pubSubManager.rtInformationModelVarsSize,
+              sizeof(UA_PubSubRTVarLookup), compareLookupStructure);
+    }
 }
 
 UA_PubSubRTVarLookup *
