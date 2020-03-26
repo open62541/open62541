@@ -3,12 +3,13 @@
 
 #include <open62541/client_config_default.h>
 #include <open62541/client_highlevel.h>
-
-#include <stdlib.h>
+#include <open62541/server.h>
 #include <open62541/types.h>
+#include "ua_types_encoding_binary.h"
 
 #include "optStruct_union.h"
-#include "ua_types_encoding_binary.h"
+#include <stdlib.h>
+
 
 int main(void) {
     /* Make your custom datatype known to the stack */

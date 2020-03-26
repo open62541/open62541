@@ -4,17 +4,12 @@
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
-
-#include <signal.h>
-#include <stdlib.h>
-
-#include "optStruct_union.h"
-
+#include <open62541/types.h>
 #include "ua_types_encoding_binary.h"
 
+#include "optStruct_union.h"
 #include <signal.h>
 #include <stdlib.h>
-#include <open62541/types.h>
 
 UA_Boolean running = true;
 

@@ -81,8 +81,6 @@ extern const encodeBinarySignature encodeBinaryJumpTable[UA_DATATYPEKINDS];
 extern const decodeBinarySignature decodeBinaryJumpTable[UA_DATATYPEKINDS];
 extern const calcSizeBinarySignature calcSizeBinaryJumpTable[UA_DATATYPEKINDS];
 
-
-static size_t getOptFieldsSize(const UA_DataType *type);
 /* Breaking a message up into chunks is integrated with the encoding. When the
  * end of a buffer is reached, a callback is executed that sends the current
  * buffer as a chunk and exchanges the encoding buffer "underneath" the ongoing
@@ -1354,7 +1352,7 @@ encodeBinaryStructWithOptFields(const void *src, const UA_DataType *type, Ctx *c
         return UA_STATUSCODE_BADENCODINGERROR;
     ctx->depth++;
 
-    size_t optFieldsSize = getOptFieldsSize(type);
+    size_t optFieldsSize = getCountOfOptionalFields(type);
     uintptr_t boolptr = (uintptr_t)src;
     uintptr_t ptr = boolptr + (optFieldsSize * sizeof(UA_Boolean));
     UA_UInt32 encodingMask = 0;
@@ -1559,17 +1557,17 @@ decodeBinaryStructure(void *dst, const UA_DataType *type, Ctx *ctx) {
 static status
 decodeBinaryStructureWithOptFields(void *dst, const UA_DataType *type, Ctx *ctx){
     /* Check the recursion limit */
-    if(ctx->depth > UA_ENCODING_MAX_RECURSION)
+    if(ctx == NULL || ctx->depth > UA_ENCODING_MAX_RECURSION)
         return UA_STATUSCODE_BADENCODINGERROR;
     ctx->depth++;
 
-    size_t optFieldsSize = getOptFieldsSize(type);
+    size_t optFieldsSize = getCountOfOptionalFields(type);
     uintptr_t ptr = (uintptr_t)dst;
-    UA_UInt32 encodingMask;
+    UA_UInt32 encodingMask = 0;
     UInt32_decodeBinary(&encodingMask, &UA_TYPES[UA_TYPES_UINT32], ctx);
 
     for(size_t h = 0; h < optFieldsSize; h++){
-        *(UA_Boolean*)ptr = encodingMask & (UA_UInt32) (1<<h) ? true : false;
+        *(UA_Boolean*)ptr = (encodingMask & ((UA_UInt32) 1 << h)) ? true : false;
         ptr += sizeof(UA_Boolean);
     }
 
@@ -1917,7 +1915,7 @@ calcSizeBinaryStructure(const void *p, const UA_DataType *type) {
 static size_t
 calcSizeBinaryStructureWithOptFields(const void *p, const UA_DataType *type) {
     size_t s = 0;
-    size_t optFieldsSize = getOptFieldsSize(type);
+    size_t optFieldsSize = getCountOfOptionalFields(type);
     uintptr_t boolptr = (uintptr_t)p;
     uintptr_t ptr = boolptr + (optFieldsSize * sizeof(UA_Boolean));
     u8 membersSize = type->membersSize;
@@ -1959,15 +1957,6 @@ calcSizeBinaryStructureWithOptFields(const void *p, const UA_DataType *type) {
         ptr += membertype->memSize;
     }
 
-    return s;
-}
-
-static size_t
-getOptFieldsSize(const UA_DataType *type){
-    size_t s = 0;
-    for(size_t i = 0; i < type->membersSize; i++) {
-        if((type->members[i]).isOptional) s++;
-    }
     return s;
 }
 
