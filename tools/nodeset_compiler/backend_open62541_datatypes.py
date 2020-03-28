@@ -123,7 +123,7 @@ def generateNodeValueCode(prepend , node, instanceName, valueName, global_var_co
     elif isinstance(node, DateTime):
         return prepend + " = " + generateDateTimeCode(node.value) + ";"
     elif isinstance(node, QualifiedName):
-        return prepend + " = " + generateQualifiedNameCode(node.value, alloc=asIndirect) + ";"
+        return prepend + " = " + generateQualifiedNameCode(node, alloc=asIndirect) + ";"
     elif isinstance(node, StatusCode):
         raise Exception("generateNodeValueCode for type " + node.__class__.name + " not implemented")
     elif isinstance(node, DiagnosticInfo):
