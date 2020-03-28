@@ -548,6 +548,12 @@ UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
 UA_StatusCode UA_EXPORT
 UA_Server_removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier);
 
+UA_StatusCode UA_EXPORT
+UA_Server_setReaderGroupOperational(UA_Server *server, const UA_NodeId readerGroupId);
+
+UA_StatusCode UA_EXPORT
+UA_Server_setReaderGroupDisabled(UA_Server *server, const UA_NodeId readerGroupId);
+
 #endif /* UA_ENABLE_PUBSUB */
 
 _UA_END_DECLS

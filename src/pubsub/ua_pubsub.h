@@ -181,6 +181,7 @@ typedef struct UA_DataSetReader {
     UA_SubscribedDataSetEnumType subscribedDataSetType;
     UA_TargetVariablesDataType subscribedDataSetTarget;
     /* To Do UA_SubscribedDataSetMirrorDataType subscribedDataSetMirror */
+    UA_PubSubState state;
 }UA_DataSetReader;
 
 /* Delete DataSetReader */
@@ -195,6 +196,9 @@ UA_StatusCode UA_DataSetReaderConfig_copy(const UA_DataSetReaderConfig *src, UA_
 /* Add TargetVariables */
 UA_StatusCode
 UA_Server_DataSetReader_addTargetVariables(UA_Server* server, UA_NodeId* parentNode, UA_NodeId dataSetReaderIdentifier, UA_SubscribedDataSetEnumType sdsType);
+
+UA_StatusCode
+UA_DataSetReader_setPubSubState(UA_Server *server, UA_PubSubState state, UA_DataSetReader *dataSetReader);
 
 /**********************************************/
 /*                ReaderGroup                 */
@@ -211,6 +215,7 @@ struct UA_ReaderGroup {
     UA_UInt32 readersCount;
     UA_UInt64 subscribeCallbackId;
     UA_Boolean subscribeCallbackIsRegistered;
+    UA_PubSubState state;
 };
 
 /* Delete ReaderGroup */
@@ -228,6 +233,8 @@ UA_Server_processNetworkMessage(UA_Server *server, UA_NetworkMessage* pMsg, UA_P
  *(currently moved from public to internal)*/
 UA_ReaderGroup *UA_ReaderGroup_findRGbyId(UA_Server *server, UA_NodeId identifier);
 UA_DataSetReader *UA_ReaderGroup_findDSRbyId(UA_Server *server, UA_NodeId identifier);
+UA_StatusCode
+UA_ReaderGroup_setPubSubState(UA_Server *server, UA_PubSubState state, UA_ReaderGroup *readerGroup);
 
 /*********************************************************/
 /*               PublishValues handling                  */
