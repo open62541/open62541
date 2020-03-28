@@ -1309,13 +1309,9 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
     case UA_ATTRIBUTEID_USERWRITEMASK:
     case UA_ATTRIBUTEID_USERACCESSLEVEL:
     case UA_ATTRIBUTEID_USEREXECUTABLE:
+    case UA_ATTRIBUTEID_BROWSENAME: /* BrowseName is tracked in a binary tree
+                                       for fast lookup */
         retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-        break;
-    case UA_ATTRIBUTEID_BROWSENAME:
-        CHECK_USERWRITEMASK(UA_WRITEMASK_BROWSENAME);
-        CHECK_DATATYPE_SCALAR(QUALIFIEDNAME);
-        UA_QualifiedName_clear(&node->browseName);
-        UA_QualifiedName_copy((const UA_QualifiedName *)value, &node->browseName);
         break;
     case UA_ATTRIBUTEID_DISPLAYNAME:
         CHECK_USERWRITEMASK(UA_WRITEMASK_DISPLAYNAME);
