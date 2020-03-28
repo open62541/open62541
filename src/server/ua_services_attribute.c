@@ -1292,6 +1292,19 @@ writeIsAbstractAttribute(UA_Node *node, UA_Boolean value) {
         break;                                      \
     }
 
+/* Update a localized text. Don't touch the target if copying fails
+ * (maybe due to BadOutOfMemory). */
+static UA_StatusCode
+updateLocalizedText(const UA_LocalizedText *source, UA_LocalizedText *target) {
+    UA_LocalizedText tmp;
+    UA_StatusCode retval = UA_LocalizedText_copy(source, &tmp);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    UA_LocalizedText_clear(target);
+    *target = tmp;
+    return UA_STATUSCODE_GOOD;
+}
+
 /* This function implements the main part of the write service and operates on a
    copy of the node (not in single-threaded mode). */
 static UA_StatusCode
@@ -1316,14 +1329,12 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
     case UA_ATTRIBUTEID_DISPLAYNAME:
         CHECK_USERWRITEMASK(UA_WRITEMASK_DISPLAYNAME);
         CHECK_DATATYPE_SCALAR(LOCALIZEDTEXT);
-        UA_LocalizedText_clear(&node->displayName);
-        UA_LocalizedText_copy((const UA_LocalizedText *)value, &node->displayName);
+        retval = updateLocalizedText((const UA_LocalizedText *)value, &node->displayName);
         break;
     case UA_ATTRIBUTEID_DESCRIPTION:
         CHECK_USERWRITEMASK(UA_WRITEMASK_DESCRIPTION);
         CHECK_DATATYPE_SCALAR(LOCALIZEDTEXT);
-        UA_LocalizedText_clear(&node->description);
-        UA_LocalizedText_copy((const UA_LocalizedText *)value, &node->description);
+        retval = updateLocalizedText((const UA_LocalizedText *)value, &node->description);
         break;
     case UA_ATTRIBUTEID_WRITEMASK:
         CHECK_USERWRITEMASK(UA_WRITEMASK_WRITEMASK);
@@ -1345,9 +1356,8 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
         CHECK_NODECLASS_WRITE(UA_NODECLASS_REFERENCETYPE);
         CHECK_USERWRITEMASK(UA_WRITEMASK_INVERSENAME);
         CHECK_DATATYPE_SCALAR(LOCALIZEDTEXT);
-        UA_LocalizedText_clear(&((UA_ReferenceTypeNode*)node)->inverseName);
-        UA_LocalizedText_copy((const UA_LocalizedText *)value,
-                              &((UA_ReferenceTypeNode*)node)->inverseName);
+        retval = updateLocalizedText((const UA_LocalizedText *)value,
+                                     &((UA_ReferenceTypeNode*)node)->inverseName);
         break;
     case UA_ATTRIBUTEID_CONTAINSNOLOOPS:
         CHECK_NODECLASS_WRITE(UA_NODECLASS_VIEW);
@@ -1375,8 +1385,7 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
                 retval = UA_STATUSCODE_BADNOTWRITABLE;
                 break;
             }
-            accessLevel = getUserAccessLevel(server, session,
-                                             (const UA_VariableNode*)node);
+            accessLevel = getUserAccessLevel(server, session, (const UA_VariableNode*)node);
             if(!(accessLevel & (UA_ACCESSLEVELMASK_WRITE))) {
                 retval = UA_STATUSCODE_BADUSERACCESSDENIED;
                 break;
