@@ -650,7 +650,7 @@ START_TEST(WriteSingleAttributeBrowseName) {
     wValue.attributeId = UA_ATTRIBUTEID_BROWSENAME;
     wValue.value.hasValue = true;
     UA_StatusCode retval = UA_Server_write(server, &wValue);
-    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
 } END_TEST
 
 START_TEST(WriteSingleAttributeDisplayName) {

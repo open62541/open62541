@@ -568,20 +568,10 @@ START_TEST(Node_ReadWrite_BrowseName) {
     browseName = UA_QUALIFIEDNAME(1,"Int-Changed");
 
     retval = UA_Client_writeBrowseNameAttribute(client, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), &browseName);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_BADUSERACCESSDENIED);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
 
     retval = UA_Client_writeBrowseNameAttribute(client, nodeReadWriteInt, &browseName);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-
-    UA_QualifiedName browseNameChangedRead;
-    retval = UA_Client_readBrowseNameAttribute(client, nodeReadWriteInt, &browseNameChangedRead);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-
-    ck_assert_int_eq(browseName.namespaceIndex, browseNameChangedRead.namespaceIndex);
-    ck_assert(UA_String_equal(&browseName.name, &browseNameChangedRead.name));
-
-    UA_QualifiedName_deleteMembers(&browseNameChangedRead);
-
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
 }
 END_TEST
 
