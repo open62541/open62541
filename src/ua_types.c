@@ -154,6 +154,12 @@ QualifiedName_clear(UA_QualifiedName *p, const UA_DataType *_) {
     String_clear(&p->name, NULL);
 }
 
+u32
+UA_QualifiedName_hash(const UA_QualifiedName *q) {
+    return UA_ByteString_hash(q->namespaceIndex,
+                              q->name.data, q->name.length);
+}
+
 UA_Boolean
 UA_QualifiedName_equal(const UA_QualifiedName *qn1,
                        const UA_QualifiedName *qn2) {
