@@ -273,6 +273,7 @@ addReaderGroup(UA_Server *server) {
     readerGroupConfig.name   = UA_STRING("ReaderGroup1");
     UA_Server_addReaderGroup(server, connectionIdentSubscriber, &readerGroupConfig,
                              &readerGroupIdentifier);
+    UA_Server_setReaderGroupOperational(server, readerGroupIdentifier);
 }
 
 /* Add DataSetReader to the ReaderGroup */

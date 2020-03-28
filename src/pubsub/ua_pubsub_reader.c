@@ -61,7 +61,6 @@ UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
 
     /* Deep copy of the config */
     retval |= UA_ReaderGroupConfig_copy(readerGroupConfig, &newGroup->config);
-    retval |= UA_ReaderGroup_addSubscribeCallback(server, newGroup);
     LIST_INSERT_HEAD(&currentConnectionContext->readerGroups, newGroup, listEntry);
     currentConnectionContext->readerGroupsSize++;
 
@@ -86,8 +85,11 @@ UA_Server_removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier) {
         return UA_STATUSCODE_BADNOTFOUND;
     }
 
-    /* Unregister subscribe callback */
-    UA_PubSubManager_removeRepeatedPubSubCallback(server, readerGroup->subscribeCallbackId);
+    if(readerGroup->state == UA_PUBSUBSTATE_OPERATIONAL) {
+        /* Unregister subscribe callback */
+        UA_PubSubManager_removeRepeatedPubSubCallback(server, readerGroup->subscribeCallbackId);
+    }
+
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     /* To Do:RemoveGroupRepresentation(server, &readerGroup->identifier) */
 #endif
@@ -154,6 +156,104 @@ UA_ReaderGroupConfig_copy(const UA_ReaderGroupConfig *src,
     memcpy(&dst->securityParameters, &src->securityParameters, sizeof(UA_PubSubSecurityParameters));
     UA_String_copy(&src->name, &dst->name);
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_ReaderGroup_setPubSubState(UA_Server *server, UA_PubSubState state, UA_ReaderGroup *readerGroup){
+    UA_DataSetReader *dataSetReader;
+    switch(state){
+        case UA_PUBSUBSTATE_DISABLED:
+            switch (readerGroup->state){
+                case UA_PUBSUBSTATE_DISABLED:
+                    return UA_STATUSCODE_GOOD;
+                case UA_PUBSUBSTATE_PAUSED:
+                    break;
+                case UA_PUBSUBSTATE_OPERATIONAL:
+                    UA_PubSubManager_removeRepeatedPubSubCallback(server, readerGroup->subscribeCallbackId);
+                    LIST_FOREACH(dataSetReader, &readerGroup->readers, listEntry){
+                        UA_DataSetReader_setPubSubState(server, UA_PUBSUBSTATE_DISABLED, dataSetReader);
+                    }
+                    readerGroup->state = UA_PUBSUBSTATE_DISABLED;
+                    break;
+                case UA_PUBSUBSTATE_ERROR:
+                    break;
+                default:
+                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                                   "Received unknown PubSub state!");
+            }
+            break;
+        case UA_PUBSUBSTATE_PAUSED:
+            switch (readerGroup->state){
+                case UA_PUBSUBSTATE_DISABLED:
+                    break;
+                case UA_PUBSUBSTATE_PAUSED:
+                    return UA_STATUSCODE_GOOD;
+                case UA_PUBSUBSTATE_OPERATIONAL:
+                    break;
+                case UA_PUBSUBSTATE_ERROR:
+                    break;
+                default:
+                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                                   "Received unknown PubSub state!");
+            }
+            break;
+        case UA_PUBSUBSTATE_OPERATIONAL:
+            switch (readerGroup->state){
+                case UA_PUBSUBSTATE_DISABLED:
+                    readerGroup->state = UA_PUBSUBSTATE_OPERATIONAL;
+                    UA_PubSubManager_removeRepeatedPubSubCallback(server, readerGroup->subscribeCallbackId);
+                    LIST_FOREACH(dataSetReader, &readerGroup->readers, listEntry){
+                        UA_DataSetReader_setPubSubState(server, UA_PUBSUBSTATE_OPERATIONAL, dataSetReader);
+                    }
+                    UA_ReaderGroup_addSubscribeCallback(server, readerGroup);
+                    break;
+                case UA_PUBSUBSTATE_PAUSED:
+                    break;
+                case UA_PUBSUBSTATE_OPERATIONAL:
+                    return UA_STATUSCODE_GOOD;
+                case UA_PUBSUBSTATE_ERROR:
+                    break;
+                default:
+                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                                   "Received unknown PubSub state!");
+            }
+            break;
+        case UA_PUBSUBSTATE_ERROR:
+            switch (readerGroup->state){
+                case UA_PUBSUBSTATE_DISABLED:
+                    break;
+                case UA_PUBSUBSTATE_PAUSED:
+                    break;
+                case UA_PUBSUBSTATE_OPERATIONAL:
+                    break;
+                case UA_PUBSUBSTATE_ERROR:
+                    return UA_STATUSCODE_GOOD;
+                default:
+                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                                   "Received unknown PubSub state!");
+            }
+            break;
+        default:
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "Received unknown PubSub state!");
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode UA_EXPORT
+UA_Server_setReaderGroupOperational(UA_Server *server, const UA_NodeId readerGroupId){
+    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupId);
+    if(!rg)
+        return UA_STATUSCODE_BADNOTFOUND;
+    return UA_ReaderGroup_setPubSubState(server, UA_PUBSUBSTATE_OPERATIONAL, rg);
+}
+
+UA_StatusCode UA_EXPORT
+UA_Server_setReaderGroupDisabled(UA_Server *server, const UA_NodeId readerGroupId){
+    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupId);
+    if(!rg)
+        return UA_STATUSCODE_BADNOTFOUND;
+    return UA_ReaderGroup_setPubSubState(server, UA_PUBSUBSTATE_DISABLED, rg);
 }
 
 static UA_StatusCode
@@ -458,9 +558,83 @@ UA_DataSetReaderConfig_copy(const UA_DataSetReaderConfig *src,
 
     retVal = UA_ExtensionObject_copy(&src->transportSettings, &dst->transportSettings);
     if (retVal != UA_STATUSCODE_GOOD) {
-    	return retVal;
+        return retVal;
     }
 
+    return UA_STATUSCODE_GOOD;
+}
+
+//state machine methods not part of the open62541 state machine API
+UA_StatusCode
+UA_DataSetReader_setPubSubState(UA_Server *server, UA_PubSubState state, UA_DataSetReader *dataSetReader) {
+    switch(state){
+        case UA_PUBSUBSTATE_DISABLED:
+            switch (dataSetReader->state){
+                case UA_PUBSUBSTATE_DISABLED:
+                    return UA_STATUSCODE_GOOD;
+                case UA_PUBSUBSTATE_PAUSED:
+                    dataSetReader->state = UA_PUBSUBSTATE_DISABLED;
+                    break;
+                case UA_PUBSUBSTATE_OPERATIONAL:
+                    dataSetReader->state = UA_PUBSUBSTATE_DISABLED;
+                    break;
+                case UA_PUBSUBSTATE_ERROR:
+                    break;
+                default:
+                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                                   "Received unknown PubSub state!");
+            }
+            break;
+        case UA_PUBSUBSTATE_PAUSED:
+            switch (dataSetReader->state){
+                case UA_PUBSUBSTATE_DISABLED:
+                    break;
+                case UA_PUBSUBSTATE_PAUSED:
+                    return UA_STATUSCODE_GOOD;
+                case UA_PUBSUBSTATE_OPERATIONAL:
+                    break;
+                case UA_PUBSUBSTATE_ERROR:
+                    break;
+                default:
+                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                                   "Received unknown PubSub state!");
+            }
+            break;
+        case UA_PUBSUBSTATE_OPERATIONAL:
+            switch (dataSetReader->state){
+                case UA_PUBSUBSTATE_DISABLED:
+                    dataSetReader->state = UA_PUBSUBSTATE_OPERATIONAL;
+                    break;
+                case UA_PUBSUBSTATE_PAUSED:
+                    break;
+                case UA_PUBSUBSTATE_OPERATIONAL:
+                    return UA_STATUSCODE_GOOD;
+                case UA_PUBSUBSTATE_ERROR:
+                    break;
+                default:
+                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                                   "Received unknown PubSub state!");
+            }
+            break;
+        case UA_PUBSUBSTATE_ERROR:
+            switch (dataSetReader->state){
+                case UA_PUBSUBSTATE_DISABLED:
+                    break;
+                case UA_PUBSUBSTATE_PAUSED:
+                    break;
+                case UA_PUBSUBSTATE_OPERATIONAL:
+                    break;
+                case UA_PUBSUBSTATE_ERROR:
+                    return UA_STATUSCODE_GOOD;
+                default:
+                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                                   "Received unknown PubSub state!");
+            }
+            break;
+        default:
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                                           "Received unknown PubSub state!");
+    }
     return UA_STATUSCODE_GOOD;
 }
 
