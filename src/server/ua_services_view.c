@@ -184,7 +184,7 @@ addRelevantReferences(UA_Server *server, RefTree *rt, const UA_NodeId *nodeId,
             continue;
 
         for(size_t k = 0; k < rk->refTargetsSize; k++) {
-            retval = RefTree_add(rt, &rk->refTargets[k].target);
+            retval = RefTree_add(rt, &rk->refTargets[k].targetId);
             if(retval != UA_STATUSCODE_GOOD)
                 goto cleanup;
         }
@@ -484,10 +484,10 @@ browseReferences(UA_Server *server, const UA_Node *node,
             target = NULL;
 
             /* Get the node if it is not a remote reference */
-            if(rk->refTargets[targetIndex].target.serverIndex == 0 &&
-               rk->refTargets[targetIndex].target.namespaceUri.data == NULL) {
+            if(rk->refTargets[targetIndex].targetId.serverIndex == 0 &&
+               rk->refTargets[targetIndex].targetId.namespaceUri.data == NULL) {
                 target = UA_NODESTORE_GET(server,
-                                          &rk->refTargets[targetIndex].target.nodeId);
+                                          &rk->refTargets[targetIndex].targetId.nodeId);
 
                 /* Test if the node class matches */
                 if(target && !matchClassMask(target, bd->nodeClassMask)) {
@@ -508,7 +508,7 @@ browseReferences(UA_Server *server, const UA_Node *node,
 
             /* Copy the node description. Target is on top of the stack */
             retval = addReferenceDescription(server, rr, rk, bd->resultMask,
-                                             &rk->refTargets[targetIndex].target, target);
+                                             &rk->refTargets[targetIndex].targetId, target);
             UA_NODESTORE_RELEASE(server, target);
             if(retval != UA_STATUSCODE_GOOD)
                 return retval;
@@ -833,7 +833,7 @@ walkBrowsePathElementReferenceTargets(UA_BrowsePathResult *result, size_t *targe
                                       UA_UInt32 elemDepth, const UA_NodeReferenceKind *rk) {
     /* Loop over the targets */
     for(size_t i = 0; i < rk->refTargetsSize; i++) {
-        UA_ExpandedNodeId *targetId = &rk->refTargets[i].target;
+        UA_ExpandedNodeId *targetId = &rk->refTargets[i].targetId;
 
         /* Does the reference point to an external server? Then add to the
          * targets with the right path depth. */

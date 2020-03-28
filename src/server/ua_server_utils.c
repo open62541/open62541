@@ -66,7 +66,7 @@ isNodeInTreeNoCircular(UA_Server *server, const UA_NodeId *leafNode, const UA_No
                 struct ref_history *last = visitedRefs;
                 UA_Boolean skip = false;
                 while(!skip && last) {
-                    if(UA_NodeId_equal(last->id, &refs->refTargets[j].target.nodeId))
+                    if(UA_NodeId_equal(last->id, &refs->refTargets[j].targetId.nodeId))
                         skip = true;
                     last = last->parent;
                 }
@@ -75,12 +75,12 @@ isNodeInTreeNoCircular(UA_Server *server, const UA_NodeId *leafNode, const UA_No
             }
 
             /* Stack-allocate the visitedRefs structure for the next depth */
-            struct ref_history nextVisitedRefs = {visitedRefs, &refs->refTargets[j].target.nodeId,
+            struct ref_history nextVisitedRefs = {visitedRefs, &refs->refTargets[j].targetId.nodeId,
                                                   (UA_UInt16)(visitedRefs->depth+1)};
 
             /* Recurse */
             UA_Boolean foundRecursive =
-                isNodeInTreeNoCircular(server, &refs->refTargets[j].target.nodeId, nodeToFind,
+                isNodeInTreeNoCircular(server, &refs->refTargets[j].targetId.nodeId, nodeToFind,
                                        &nextVisitedRefs, referenceTypeIds, referenceTypeIdsSize);
             if(foundRecursive) {
                 UA_NODESTORE_RELEASE(server, node);
@@ -137,7 +137,7 @@ getNodeType(UA_Server *server, const UA_Node *node) {
         if(!UA_NodeId_equal(&node->references[i].referenceTypeId, &parentRef))
             continue;
         UA_assert(node->references[i].refTargetsSize> 0);
-        const UA_NodeId *targetId = &node->references[i].refTargets[0].target.nodeId;
+        const UA_NodeId *targetId = &node->references[i].refTargets[0].targetId.nodeId;
         const UA_Node *type = UA_NODESTORE_GET(server, targetId);
         if(!type)
             continue;

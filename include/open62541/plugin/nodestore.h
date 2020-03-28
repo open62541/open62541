@@ -68,14 +68,14 @@ struct UA_MonitoredItem;
 
 /* Ordered tree structure for fast member check */
 typedef struct UA_ReferenceTarget {
-    ZIP_ENTRY(UA_ReferenceTarget) zipfields;
-    UA_UInt32 targetHash; /* Hash of the target nodeid */
-    UA_ExpandedNodeId target;
+    ZIP_ENTRY(UA_ReferenceTarget) idTreeFields;
+    UA_UInt32 targetIdHash; /* Hash of the target's NodeId */
+    UA_ExpandedNodeId targetId;
 } UA_ReferenceTarget;
 
-ZIP_HEAD(UA_ReferenceTargetHead, UA_ReferenceTarget);
-typedef struct UA_ReferenceTargetHead UA_ReferenceTargetHead;
-ZIP_PROTTYPE(UA_ReferenceTargetHead, UA_ReferenceTarget, UA_ReferenceTarget)
+ZIP_HEAD(UA_ReferenceTargetIdTree, UA_ReferenceTarget);
+typedef struct UA_ReferenceTargetIdTree UA_ReferenceTargetIdTree;
+ZIP_PROTTYPE(UA_ReferenceTargetIdTree, UA_ReferenceTarget, UA_ReferenceTarget)
 
 /* List of reference targets with the same reference type and direction */
 typedef struct {
@@ -83,7 +83,7 @@ typedef struct {
     UA_Boolean isInverse;
     size_t refTargetsSize;
     UA_ReferenceTarget *refTargets;
-    UA_ReferenceTargetHead refTargetsTree;
+    UA_ReferenceTargetIdTree refTargetsIdTree;
 } UA_NodeReferenceKind;
 
 #define UA_NODE_BASEATTRIBUTES                  \

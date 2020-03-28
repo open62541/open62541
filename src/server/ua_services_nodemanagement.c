@@ -404,7 +404,7 @@ isMandatoryChild(UA_Server *server, UA_Session *session,
         if(refs->isInverse)
             continue;
         for(size_t j = 0; j < refs->refTargetsSize; ++j) {
-            if(UA_NodeId_equal(&mandatoryId, &refs->refTargets[j].target.nodeId)) {
+            if(UA_NodeId_equal(&mandatoryId, &refs->refTargets[j].targetId.nodeId)) {
                 UA_NODESTORE_RELEASE(server, child);
                 return true;
             }
@@ -1423,7 +1423,7 @@ removeIncomingReferences(UA_Server *server, UA_Session *session,
         item.isForward = refs->isInverse;
         item.referenceTypeId = refs->referenceTypeId;
         for(size_t j = 0; j < refs->refTargetsSize; ++j) {
-            item.sourceNodeId = refs->refTargets[j].target.nodeId;
+            item.sourceNodeId = refs->refTargets[j].targetId.nodeId;
             Operation_deleteReference(server, session, NULL, &item, &dummy);
         }
     }
