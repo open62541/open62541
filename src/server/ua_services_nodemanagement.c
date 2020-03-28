@@ -1686,10 +1686,15 @@ deleteNode(UA_Server *server, const UA_NodeId nodeId,
 /* Add References */
 /******************/
 
+struct AddNodeInfo {
+    const UA_AddReferencesItem *item;
+    UA_UInt32 browseNameHash;
+};
+
 static UA_StatusCode
 addOneWayReference(UA_Server *server, UA_Session *session,
-             UA_Node *node, const UA_AddReferencesItem *item) {
-    return UA_Node_addReference(node, item);
+                   UA_Node *node, const struct AddNodeInfo *info) {
+    return UA_Node_addReference(node, info->item, info->browseNameHash);
 }
 
 static UA_StatusCode
@@ -1720,17 +1725,36 @@ Operation_addReference(UA_Server *server, UA_Session *session, void *context,
         return;
     }
 
+    /* Get the source and target nodes */
+    const UA_Node *targetNode = UA_NODESTORE_GET(server, &item->targetNodeId.nodeId);
+    if(!targetNode) {
+        *retval = UA_STATUSCODE_BADTARGETNODEIDINVALID;
+        return;
+    }
+    const UA_Node *sourceNode = UA_NODESTORE_GET(server, &item->sourceNodeId);
+    if(!targetNode) {
+        UA_NODESTORE_RELEASE(server, targetNode);
+        *retval = UA_STATUSCODE_BADSOURCENODEIDINVALID;
+        return;
+    }
+
+    /* Compute the BrowseName hash and release the target */
+    struct AddNodeInfo info;
+    info.item = item;
+    info.browseNameHash = UA_QualifiedName_hash(&targetNode->browseName);
+    UA_NODESTORE_RELEASE(server, targetNode);
+
     /* Add the first direction */
     *retval = UA_Server_editNode(server, session, &item->sourceNodeId,
-                                 (UA_EditNodeCallback)addOneWayReference,
-                                 /* cast away const because callback uses const anyway */
-                                 (UA_AddReferencesItem *)(uintptr_t)item);
+                                 (UA_EditNodeCallback)addOneWayReference, &info);
     UA_Boolean firstExisted = false;
     if(*retval == UA_STATUSCODE_BADDUPLICATEREFERENCENOTALLOWED) {
         *retval = UA_STATUSCODE_GOOD;
         firstExisted = true;
-    } else if(*retval != UA_STATUSCODE_GOOD)
+    } else if(*retval != UA_STATUSCODE_GOOD) {
+        UA_NODESTORE_RELEASE(server, sourceNode);
         return;
+    }
 
     /* Add the second direction */
     UA_AddReferencesItem secondItem;
@@ -1739,9 +1763,12 @@ Operation_addReference(UA_Server *server, UA_Session *session, void *context,
     secondItem.referenceTypeId = item->referenceTypeId;
     secondItem.isForward = !item->isForward;
     secondItem.targetNodeId.nodeId = item->sourceNodeId;
+    info.item = &secondItem;
+    info.browseNameHash = UA_QualifiedName_hash(&sourceNode->browseName);
     /* keep default secondItem.targetNodeClass = UA_NODECLASS_UNSPECIFIED */
     *retval = UA_Server_editNode(server, session, &secondItem.sourceNodeId,
-                                 (UA_EditNodeCallback)addOneWayReference, &secondItem);
+                                 (UA_EditNodeCallback)addOneWayReference, &info);
+    UA_NODESTORE_RELEASE(server, sourceNode);
 
     /* remove reference if the second direction failed */
     UA_Boolean secondExisted = false;

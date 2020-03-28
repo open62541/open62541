@@ -69,13 +69,19 @@ struct UA_MonitoredItem;
 /* Ordered tree structure for fast member check */
 typedef struct UA_ReferenceTarget {
     ZIP_ENTRY(UA_ReferenceTarget) idTreeFields;
-    UA_UInt32 targetIdHash; /* Hash of the target's NodeId */
+    ZIP_ENTRY(UA_ReferenceTarget) nameTreeFields;
+    UA_UInt32 targetIdHash;   /* Hash of the target's NodeId */
+    UA_UInt32 targetNameHash; /* Hash of the target's BrowseName */
     UA_ExpandedNodeId targetId;
 } UA_ReferenceTarget;
 
 ZIP_HEAD(UA_ReferenceTargetIdTree, UA_ReferenceTarget);
 typedef struct UA_ReferenceTargetIdTree UA_ReferenceTargetIdTree;
 ZIP_PROTTYPE(UA_ReferenceTargetIdTree, UA_ReferenceTarget, UA_ReferenceTarget)
+
+ZIP_HEAD(UA_ReferenceTargetNameTree, UA_ReferenceTarget);
+typedef struct UA_ReferenceTargetNameTree UA_ReferenceTargetNameTree;
+ZIP_PROTTYPE(UA_ReferenceTargetNameTree, UA_ReferenceTarget, UA_UInt32)
 
 /* List of reference targets with the same reference type and direction */
 typedef struct {
@@ -84,6 +90,7 @@ typedef struct {
     size_t refTargetsSize;
     UA_ReferenceTarget *refTargets;
     UA_ReferenceTargetIdTree refTargetsIdTree;
+    UA_ReferenceTargetNameTree refTargetsNameTree;
 } UA_NodeReferenceKind;
 
 #define UA_NODE_BASEATTRIBUTES                  \
@@ -512,7 +519,8 @@ UA_Node_copy_alloc(const UA_Node *src);
 
 /* Add a single reference to the node */
 UA_StatusCode UA_EXPORT
-UA_Node_addReference(UA_Node *node, const UA_AddReferencesItem *item);
+UA_Node_addReference(UA_Node *node, const UA_AddReferencesItem *item,
+                     UA_UInt32 targetBrowseNameHash);
 
 /* Delete a single reference from the node */
 UA_StatusCode UA_EXPORT
