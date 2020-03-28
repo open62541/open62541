@@ -32,7 +32,7 @@ getArgumentsVariableNode(UA_Server *server, const UA_MethodNode *ofMethod,
 
         for(size_t j = 0; j < rk->refTargetsSize; ++j) {
             const UA_Node *refTarget =
-                UA_NODESTORE_GET(server, &rk->refTargets[j].target.nodeId);
+                UA_NODESTORE_GET(server, &rk->refTargets[j].targetId.nodeId);
             if(!refTarget)
                 continue;
             if(refTarget->nodeClass == UA_NODECLASS_VARIABLE &&
@@ -148,7 +148,7 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
                          &hasComponentNodeId, &hasSubTypeNodeId, 1))
             continue;
         for(size_t j = 0; j < rk->refTargetsSize; ++j) {
-            if(UA_NodeId_equal(&rk->refTargets[j].target.nodeId, &request->methodId)) {
+            if(UA_NodeId_equal(&rk->refTargets[j].targetId.nodeId, &request->methodId)) {
                 found = true;
                 break;
             }

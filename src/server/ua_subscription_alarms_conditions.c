@@ -254,18 +254,18 @@ getFieldParentNodeId(UA_Server *server, const UA_NodeId *field, UA_NodeId *paren
     const UA_Node *fieldNode = UA_NODESTORE_GET(server, field);
     if(!fieldNode)
         return UA_STATUSCODE_BADNOTFOUND;
+    UA_StatusCode retval = UA_STATUSCODE_BADNOTFOUND;
     for(size_t i = 0; i < fieldNode->referencesSize; i++) {
         UA_NodeReferenceKind *rk = &fieldNode->references[i];
         if((UA_NodeId_equal(&rk->referenceTypeId, &hasPropertyType) ||
             UA_NodeId_equal(&rk->referenceTypeId, &hasComponentType)) &&
            true == rk->isInverse) {
-            UA_StatusCode retval = UA_NodeId_copy(&rk->refTargets->target.nodeId, parent);
-            UA_NODESTORE_RELEASE(server, (const UA_Node *)fieldNode);
-            return retval;
+            retval = UA_NodeId_copy(&rk->refTargets->targetId.nodeId, parent);
+            break;
         }
     }
     UA_NODESTORE_RELEASE(server, (const UA_Node *)fieldNode);
-    return UA_STATUSCODE_BADNOTFOUND;
+    return retval;
 }
 
 /* Gets the NodeId of a Field (e.g. Severity) */
