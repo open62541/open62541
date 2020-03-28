@@ -211,18 +211,18 @@ UA_Node_copy(const UA_Node *src, UA_Node *dst) {
                 drefTarget->targetIdHash = srefTarget->targetIdHash;
                 ZIP_RIGHT(drefTarget, idTreeFields) = NULL;
                 if(ZIP_RIGHT(srefTarget, idTreeFields))
-                    ZIP_RIGHT(drefTarget, idTreeFields) =
-                        (UA_ReferenceTarget*)((uintptr_t)ZIP_RIGHT(srefTarget, idTreeFields) + arraydiff);
+                    ZIP_RIGHT(drefTarget, idTreeFields) = (UA_ReferenceTarget*)
+                        ((uintptr_t)ZIP_RIGHT(srefTarget, idTreeFields) + arraydiff);
                 ZIP_LEFT(drefTarget, idTreeFields) = NULL;
                 if(ZIP_LEFT(srefTarget, idTreeFields))
-                    ZIP_LEFT(drefTarget, idTreeFields) =
-                        (UA_ReferenceTarget*)((uintptr_t)ZIP_LEFT(srefTarget, idTreeFields) + arraydiff);
+                    ZIP_LEFT(drefTarget, idTreeFields) = (UA_ReferenceTarget*)
+                        ((uintptr_t)ZIP_LEFT(srefTarget, idTreeFields) + arraydiff);
                 ZIP_RANK(drefTarget, idTreeFields) = ZIP_RANK(srefTarget, idTreeFields);
             }
             ZIP_ROOT(&drefs->refTargetsIdTree) = NULL;
             if(ZIP_ROOT(&srefs->refTargetsIdTree))
-                ZIP_ROOT(&drefs->refTargetsIdTree) =
-                    (UA_ReferenceTarget*)((uintptr_t)ZIP_ROOT(&srefs->refTargetsIdTree) + arraydiff);
+                ZIP_ROOT(&drefs->refTargetsIdTree) = (UA_ReferenceTarget*)
+                    ((uintptr_t)ZIP_ROOT(&srefs->refTargetsIdTree) + arraydiff);
             drefs->refTargetsSize = srefs->refTargetsSize;
             if(retval != UA_STATUSCODE_GOOD)
                 break;
@@ -508,14 +508,17 @@ resizeReferenceTargets(UA_NodeReferenceKind *refs, size_t newSize) {
     if(arraydiff != 0) {
         for(size_t i = 0; i < refs->refTargetsSize; i++) {
             if(targets[i].idTreeFields.zip_left)
-                targets[i].idTreeFields.zip_left = (UA_ReferenceTarget*)((uintptr_t)targets[i].idTreeFields.zip_left + arraydiff);
+                targets[i].idTreeFields.zip_left = (UA_ReferenceTarget*)
+                    ((uintptr_t)targets[i].idTreeFields.zip_left + arraydiff);
             if(targets[i].idTreeFields.zip_right)
-                targets[i].idTreeFields.zip_right = (UA_ReferenceTarget*)((uintptr_t)targets[i].idTreeFields.zip_right + arraydiff);
+                targets[i].idTreeFields.zip_right = (UA_ReferenceTarget*)
+                    ((uintptr_t)targets[i].idTreeFields.zip_right + arraydiff);
         }
     }
 
     if(refs->refTargetsIdTree.zip_root)
-        refs->refTargetsIdTree.zip_root = (UA_ReferenceTarget*)((uintptr_t)refs->refTargetsIdTree.zip_root + arraydiff);
+        refs->refTargetsIdTree.zip_root = (UA_ReferenceTarget*)
+            ((uintptr_t)refs->refTargetsIdTree.zip_root + arraydiff);
     refs->refTargets = targets;
     return UA_STATUSCODE_GOOD;
 }
