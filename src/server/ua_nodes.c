@@ -13,12 +13,12 @@
 
 #include "ua_server_internal.h"
 #include "ua_types_encoding_binary.h"
+#include "ziptree.h"
 
-/* There is no UA_Node_new() method here. Creating nodes is part of the
- * Nodestore layer */
+/* ZipTree for the lookup of references by their identifier */
 
 static enum ZIP_CMP
-cmpRefTarget(const void *a, const void *b) {
+cmpRefTargetId(const void *a, const void *b) {
     const UA_ReferenceTarget *aa = (const UA_ReferenceTarget*)a;
     const UA_ReferenceTarget *bb = (const UA_ReferenceTarget*)b;
     if(aa->targetIdHash < bb->targetIdHash)
@@ -29,7 +29,26 @@ cmpRefTarget(const void *a, const void *b) {
 }
 
 ZIP_IMPL(UA_ReferenceTargetIdTree, UA_ReferenceTarget, idTreeFields,
-         UA_ReferenceTarget, idTreeFields, cmpRefTarget)
+         UA_ReferenceTarget, idTreeFields, cmpRefTargetId)
+
+/* ZipTree for the lookup of references by their BrowseName. UA_ReferenceTarget
+ * stores only the hash. A full node lookup is in order to do the actual
+ * comparison. */
+
+static enum ZIP_CMP
+cmpRefTargetName(const UA_UInt32 *nameHashA, const UA_UInt32 *nameHashB) {
+    if(*nameHashA < *nameHashB)
+        return ZIP_CMP_LESS;
+    if(*nameHashA > *nameHashB)
+        return ZIP_CMP_MORE;
+    return ZIP_CMP_EQ;
+}
+
+ZIP_IMPL(UA_ReferenceTargetNameTree, UA_ReferenceTarget, nameTreeFields,
+         UA_UInt32, targetNameHash, cmpRefTargetName)
+
+/* General node handling methods. There is no UA_Node_new() method here.
+ * Creating nodes is part of the Nodestore layer */
 
 void UA_Node_clear(UA_Node *node) {
     /* Delete standard content */
@@ -209,6 +228,9 @@ UA_Node_copy(const UA_Node *src, UA_Node *dst) {
                 UA_ReferenceTarget *drefTarget = &drefs->refTargets[j];
                 retval |= UA_ExpandedNodeId_copy(&srefTarget->targetId, &drefTarget->targetId);
                 drefTarget->targetIdHash = srefTarget->targetIdHash;
+                drefTarget->targetNameHash = srefTarget->targetNameHash;
+                ZIP_RANK(drefTarget, idTreeFields) = ZIP_RANK(srefTarget, idTreeFields);
+                /* IdTree Fields */
                 ZIP_RIGHT(drefTarget, idTreeFields) = NULL;
                 if(ZIP_RIGHT(srefTarget, idTreeFields))
                     ZIP_RIGHT(drefTarget, idTreeFields) = (UA_ReferenceTarget*)
@@ -217,12 +239,27 @@ UA_Node_copy(const UA_Node *src, UA_Node *dst) {
                 if(ZIP_LEFT(srefTarget, idTreeFields))
                     ZIP_LEFT(drefTarget, idTreeFields) = (UA_ReferenceTarget*)
                         ((uintptr_t)ZIP_LEFT(srefTarget, idTreeFields) + arraydiff);
-                ZIP_RANK(drefTarget, idTreeFields) = ZIP_RANK(srefTarget, idTreeFields);
+                /* NameTree Fields */
+                ZIP_RIGHT(drefTarget, nameTreeFields) = NULL;
+                if(ZIP_RIGHT(srefTarget, nameTreeFields))
+                    ZIP_RIGHT(drefTarget, nameTreeFields) = (UA_ReferenceTarget*)
+                        ((uintptr_t)ZIP_RIGHT(srefTarget, nameTreeFields) + arraydiff);
+                ZIP_LEFT(drefTarget, nameTreeFields) = NULL;
+                if(ZIP_LEFT(srefTarget, nameTreeFields))
+                    ZIP_LEFT(drefTarget, nameTreeFields) = (UA_ReferenceTarget*)
+                        ((uintptr_t)ZIP_LEFT(srefTarget, nameTreeFields) + arraydiff);
             }
+            /* IdTree Root */
             ZIP_ROOT(&drefs->refTargetsIdTree) = NULL;
             if(ZIP_ROOT(&srefs->refTargetsIdTree))
                 ZIP_ROOT(&drefs->refTargetsIdTree) = (UA_ReferenceTarget*)
                     ((uintptr_t)ZIP_ROOT(&srefs->refTargetsIdTree) + arraydiff);
+            /* NameTree Root */
+            ZIP_ROOT(&drefs->refTargetsNameTree) = NULL;
+            if(ZIP_ROOT(&srefs->refTargetsNameTree))
+                ZIP_ROOT(&drefs->refTargetsNameTree) = (UA_ReferenceTarget*)
+                    ((uintptr_t)ZIP_ROOT(&srefs->refTargetsNameTree) + arraydiff);
+
             drefs->refTargetsSize = srefs->refTargetsSize;
             if(retval != UA_STATUSCODE_GOOD)
                 break;
@@ -513,12 +550,21 @@ resizeReferenceTargets(UA_NodeReferenceKind *refs, size_t newSize) {
             if(targets[i].idTreeFields.zip_right)
                 targets[i].idTreeFields.zip_right = (UA_ReferenceTarget*)
                     ((uintptr_t)targets[i].idTreeFields.zip_right + arraydiff);
+            if(targets[i].nameTreeFields.zip_left)
+                targets[i].nameTreeFields.zip_left = (UA_ReferenceTarget*)
+                    ((uintptr_t)targets[i].nameTreeFields.zip_left + arraydiff);
+            if(targets[i].nameTreeFields.zip_right)
+                targets[i].nameTreeFields.zip_right = (UA_ReferenceTarget*)
+                    ((uintptr_t)targets[i].nameTreeFields.zip_right + arraydiff);
         }
     }
 
     if(refs->refTargetsIdTree.zip_root)
         refs->refTargetsIdTree.zip_root = (UA_ReferenceTarget*)
             ((uintptr_t)refs->refTargetsIdTree.zip_root + arraydiff);
+    if(refs->refTargetsNameTree.zip_root)
+        refs->refTargetsNameTree.zip_root = (UA_ReferenceTarget*)
+            ((uintptr_t)refs->refTargetsNameTree.zip_root + arraydiff);
     refs->refTargets = targets;
     return UA_STATUSCODE_GOOD;
 }
@@ -526,7 +572,7 @@ resizeReferenceTargets(UA_NodeReferenceKind *refs, size_t newSize) {
 
 static UA_StatusCode
 addReferenceTarget(UA_NodeReferenceKind *refs, const UA_ExpandedNodeId *target,
-                   UA_UInt32 targetHash) {
+                   UA_UInt32 targetIdHash, UA_UInt32 targetNameHash) {
     UA_StatusCode retval = resizeReferenceTargets(refs, refs->refTargetsSize + 1);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
@@ -542,29 +588,34 @@ addReferenceTarget(UA_NodeReferenceKind *refs, const UA_ExpandedNodeId *target,
         return retval;
     }
 
-    entry->targetIdHash = targetHash;
-    ZIP_INSERT(UA_ReferenceTargetIdTree, &refs->refTargetsIdTree,
-               entry, ZIP_FFS32(UA_UInt32_random()));
+    entry->targetIdHash = targetIdHash;
+    entry->targetNameHash = targetNameHash;
+    unsigned char rank = ZIP_FFS32(UA_UInt32_random());
+    ZIP_INSERT(UA_ReferenceTargetIdTree, &refs->refTargetsIdTree, entry, rank);
+    ZIP_INSERT(UA_ReferenceTargetNameTree, &refs->refTargetsNameTree, entry, rank);
     refs->refTargetsSize++;
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
-addReferenceKind(UA_Node *node, const UA_AddReferencesItem *item) {
+addReferenceKind(UA_Node *node, const UA_AddReferencesItem *item,
+                 UA_UInt32 targetBrowseNameHash) {
     UA_NodeReferenceKind *refs = (UA_NodeReferenceKind*)
         UA_realloc(node->references, sizeof(UA_NodeReferenceKind) * (node->referencesSize+1));
     if(!refs)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     node->references = refs;
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_NodeReferenceKind *newRef = &refs[node->referencesSize];
     memset(newRef, 0, sizeof(UA_NodeReferenceKind));
-
     ZIP_INIT(&newRef->refTargetsIdTree);
+    ZIP_INIT(&newRef->refTargetsNameTree);
     newRef->isInverse = !item->isForward;
-    UA_StatusCode retval = UA_NodeId_copy(&item->referenceTypeId, &newRef->referenceTypeId);
-    UA_UInt32 targetHash = UA_ExpandedNodeId_hash(&item->targetNodeId);
-    retval |= addReferenceTarget(newRef, &item->targetNodeId, targetHash);
-
+    retval |= UA_NodeId_copy(&item->referenceTypeId, &newRef->referenceTypeId);
+    retval |= addReferenceTarget(newRef, &item->targetNodeId,
+                                 UA_ExpandedNodeId_hash(&item->targetNodeId),
+                                 targetBrowseNameHash);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_NodeId_clear(&newRef->referenceTypeId);
         if(node->referencesSize == 0) {
@@ -579,7 +630,8 @@ addReferenceKind(UA_Node *node, const UA_AddReferencesItem *item) {
 }
 
 UA_StatusCode
-UA_Node_addReference(UA_Node *node, const UA_AddReferencesItem *item) {
+UA_Node_addReference(UA_Node *node, const UA_AddReferencesItem *item,
+                     UA_UInt32 targetBrowseNameHash) {
     /* Find the matching refkind */
     UA_NodeReferenceKind *existingRefs = NULL;
     for(size_t i = 0; i < node->referencesSize; ++i) {
@@ -592,17 +644,18 @@ UA_Node_addReference(UA_Node *node, const UA_AddReferencesItem *item) {
     }
 
     if(!existingRefs)
-        return addReferenceKind(node, item);
+        return addReferenceKind(node, item, targetBrowseNameHash);
 
     UA_ReferenceTarget tmpTarget;
     tmpTarget.targetId = item->targetNodeId;
     tmpTarget.targetIdHash = UA_ExpandedNodeId_hash(&item->targetNodeId);
-
     UA_ReferenceTarget *found =
         ZIP_FIND(UA_ReferenceTargetIdTree, &existingRefs->refTargetsIdTree, &tmpTarget);
     if(found)
         return UA_STATUSCODE_BADDUPLICATEREFERENCENOTALLOWED;
-    return addReferenceTarget(existingRefs, &item->targetNodeId, tmpTarget.targetIdHash);
+
+    return addReferenceTarget(existingRefs, &item->targetNodeId,
+                              tmpTarget.targetIdHash, targetBrowseNameHash);
 }
 
 UA_StatusCode
@@ -621,6 +674,7 @@ UA_Node_deleteReference(UA_Node *node, const UA_DeleteReferencesItem *item) {
 
             /* Ok, delete the reference */
             ZIP_REMOVE(UA_ReferenceTargetIdTree, &refs->refTargetsIdTree, target);
+            ZIP_REMOVE(UA_ReferenceTargetNameTree, &refs->refTargetsNameTree, target);
             UA_ExpandedNodeId_clear(&target->targetId);
             refs->refTargetsSize--;
 
@@ -630,9 +684,13 @@ UA_Node_deleteReference(UA_Node *node, const UA_DeleteReferencesItem *item) {
                     /* Move last entry into the entry from where reference was removed */
                     ZIP_REMOVE(UA_ReferenceTargetIdTree, &refs->refTargetsIdTree,
                                &refs->refTargets[refs->refTargetsSize]);
+                    ZIP_REMOVE(UA_ReferenceTargetNameTree, &refs->refTargetsNameTree,
+                               &refs->refTargets[refs->refTargetsSize]);
                     *target = refs->refTargets[refs->refTargetsSize];
                     ZIP_INSERT(UA_ReferenceTargetIdTree, &refs->refTargetsIdTree,
                                target, ZIP_RANK(target, idTreeFields));
+                    ZIP_INSERT(UA_ReferenceTargetNameTree, &refs->refTargetsNameTree,
+                               target, ZIP_RANK(target, nameTreeFields));
                 }
                 /* Shrink down allocated buffer, ignore failure */
                 (void)resizeReferenceTargets(refs, refs->refTargetsSize);
