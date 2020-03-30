@@ -111,32 +111,23 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
         return NULL;
     }
 
-    int bOk = 1;
-    //check if the ip address is a multicast address
-    if(requestResult->ai_family == PF_INET){
+    /* Check if the ip address is a multicast address */
+    if(requestResult->ai_family == PF_INET) {
         struct in_addr imr_interface;
         memset(&imr_interface, 0, sizeof(imr_interface));
-        UA_inet_pton(AF_INET, addressAsChar, &imr_interface);
-        if((UA_ntohl(imr_interface.s_addr) & 0xF0000000) != 0xE0000000){
+        if(UA_inet_pton(AF_INET, addressAsChar, &imr_interface) == 1 &&
+           (UA_ntohl(imr_interface.s_addr) & 0xF0000000) != 0xE0000000) {
             UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                "PubSub Connection creation failed. No multicast address (IPv4).");
-            bOk = 0;
+                "PubSub Connection is created for a unicast address (IPv4)");
         }
     } else {
         struct in6_addr imr_interface;
         memset(&imr_interface, 0, sizeof(imr_interface));
-        if((UA_inet_pton(AF_INET6, addressAsChar, &imr_interface) < 1) ||
-            (imr_interface.s6_addr[0] != 0xFF)) {
+        if(UA_inet_pton(AF_INET6, addressAsChar, &imr_interface) == 1 &&
+           (imr_interface.s6_addr[0] != 0xFF)) {
             UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                "PubSub Connection creation failed. No multicast address (IPv6).");
-            bOk = 0;
+                "PubSub Connection is created for a unicast address (IPv6)");
         }
-    }
-
-    if(bOk == 0) {
-        UA_free(channelDataUDPMC);
-        UA_free(newChannel);
-        return NULL;
     }
 
     for(rp = requestResult; rp != NULL; rp = rp->ai_next){
@@ -237,6 +228,7 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
     } group;
     memset(&group, 0, sizeof(group));
 
+    int bOk = 1;
     if ((requestResult->ai_family == AF_INET) && (UA_inet_pton(AF_INET, addressAsChar, &group.ipv4.imr_multiaddr) > 0)) {
         ipVersion = IPv4;
         group.ipv4.imr_interface.s_addr = htonl(INADDR_ANY); /* default configuration: multihomed hosts can join several groups on different IF,
