@@ -1026,6 +1026,7 @@ int main(int argc, char **argv) {
     addReaderGroup(server);
     addDataSetReader(server);
     addSubscribedVariables(server, readerIdentifier);
+    UA_Server_freezeReaderGroupConfiguration(server, readerGroupIdentifier);
 #endif
     serverConfigStruct *serverConfig;
     serverConfig            = (serverConfigStruct*)UA_malloc(sizeof(serverConfigStruct));
@@ -1037,6 +1038,7 @@ int main(int argc, char **argv) {
 #endif
     retval |= UA_Server_run(server, &running);
 
+    UA_Server_unfreezeReaderGroupConfiguration(server, readerGroupIdentifier);
 #if defined(PUBLISHER)
     returnValue = pthread_join(pubthreadID, NULL);
     if (returnValue != 0) {

@@ -1028,6 +1028,7 @@ UA_NetworkAddressUrlDataType networkAddressUrlSub;
     addReaderGroup(server);
     addDataSetReader(server);
     addSubscribedVariables(server, readerIdentifier);
+    UA_Server_freezeReaderGroupConfiguration(server, readerGroupIdentifier);
 #endif
     serverConfigStruct *serverConfig;
     serverConfig                = (serverConfigStruct*)UA_malloc(sizeof(serverConfigStruct));
@@ -1038,6 +1039,7 @@ UA_NetworkAddressUrlDataType networkAddressUrlSub;
 #endif
     retval |= UA_Server_run(server, &running);
 
+    UA_Server_unfreezeReaderGroupConfiguration(server, readerGroupIdentifier);
 #if defined(PUBLISHER)
     returnValue = pthread_join(pubthreadID, NULL);
     if (returnValue != 0) {

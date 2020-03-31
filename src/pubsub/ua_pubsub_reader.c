@@ -46,6 +46,12 @@ UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
         return UA_STATUSCODE_BADNOTFOUND;
     }
 
+    if(currentConnectionContext->config->configurationFrozen){
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "Adding ReaderGroup failed. PubSubConnection is frozen.");
+        return UA_STATUSCODE_BADCONFIGURATIONERROR;
+    }
+
     /* Allocate memory for new reader group */
     UA_ReaderGroup *newGroup = (UA_ReaderGroup *)UA_calloc(1, sizeof(UA_ReaderGroup));
     if(!newGroup) {
@@ -76,6 +82,12 @@ UA_Server_removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier) {
     UA_ReaderGroup* readerGroup = UA_ReaderGroup_findRGbyId(server, groupIdentifier);
     if(readerGroup == NULL) {
         return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    if(readerGroup->config.configurationFrozen){
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "Remove ReaderGroup failed. ReaderGroup is frozen.");
+        return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
     /* Search the connection to which the given readergroup is connected to */
@@ -153,6 +165,7 @@ UA_StatusCode
 UA_ReaderGroupConfig_copy(const UA_ReaderGroupConfig *src,
                           UA_ReaderGroupConfig *dst) {
     /* Currently simple memcpy only */
+    memcpy(dst, src, sizeof(UA_ReaderGroupConfig));
     memcpy(&dst->securityParameters, &src->securityParameters, sizeof(UA_PubSubSecurityParameters));
     UA_String_copy(&src->name, &dst->name);
     return UA_STATUSCODE_GOOD;
@@ -236,6 +249,51 @@ UA_ReaderGroup_setPubSubState(UA_Server *server, UA_PubSubState state, UA_Reader
         default:
             UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                            "Received unknown PubSub state!");
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_freezeReaderGroupConfiguration(UA_Server *server, const UA_NodeId readerGroupId) {
+    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupId);
+    if(!rg)
+        return UA_STATUSCODE_BADNOTFOUND;
+
+    //PubSubConnection freezeCounter++
+    UA_NodeId pubSubConnectionId =  rg->linkedConnection;;
+    UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_findConnectionbyId(server, pubSubConnectionId);
+    pubSubConnection->configurationFreezeCounter++;
+    pubSubConnection->config->configurationFrozen = UA_TRUE;
+    //ReaderGroup freeze
+    rg->config.configurationFrozen = UA_TRUE;
+    // TODO: Clarify on the freeze functionality in multiple DSR, multiple networkMessage conf in a RG
+    //DataSetReader freeze
+    UA_DataSetReader *dataSetReader;
+    LIST_FOREACH(dataSetReader, &rg->readers, listEntry){
+    	dataSetReader->config.configurationFrozen = UA_TRUE;
+        // TODO: Configuration frozen for subscribedDataSet
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_unfreezeReaderGroupConfiguration(UA_Server *server, const UA_NodeId readerGroupId){
+    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupId);
+    if(!rg)
+        return UA_STATUSCODE_BADNOTFOUND;
+    //PubSubConnection freezeCounter--
+    UA_NodeId pubSubConnectionId =  rg->linkedConnection;;
+    UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_findConnectionbyId(server, pubSubConnectionId);
+    pubSubConnection->configurationFreezeCounter--;
+    if(pubSubConnection->configurationFreezeCounter == 0){
+        pubSubConnection->config->configurationFrozen = UA_FALSE;
+    }
+    //ReaderGroup unfreeze
+    rg->config.configurationFrozen = UA_FALSE;
+    //DataSetReader unfreeze
+    UA_DataSetReader *dataSetReader;
+    LIST_FOREACH(dataSetReader, &rg->readers, listEntry) {
+        dataSetReader->config.configurationFrozen = UA_FALSE;
     }
     return UA_STATUSCODE_GOOD;
 }
@@ -388,6 +446,14 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
 
     connection->channel->receive(connection->channel, &buffer, NULL, 1000);
     if(buffer.length > 0) {
+        if (readerGroup->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE) {
+            /* TODO:
+             * Check whether this readergroup possess one DSR and its config in UA_PUBSUB_RT_FIXED_SIZE
+             * Decode fastly using the offsets
+             * Process with the static value source
+             */
+        }
+
         UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_USERLAND, "Message received:");
         UA_NetworkMessage currentNetworkMessage;
         memset(&currentNetworkMessage, 0, sizeof(UA_NetworkMessage));
@@ -424,17 +490,22 @@ UA_ReaderGroup_addSubscribeCallback(UA_Server *server, UA_ReaderGroup *readerGro
 
 UA_StatusCode
 UA_Server_addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdentifier,
-                                      const UA_DataSetReaderConfig *dataSetReaderConfig,
-                                      UA_NodeId *readerIdentifier) {
+                           const UA_DataSetReaderConfig *dataSetReaderConfig,
+                           UA_NodeId *readerIdentifier) {
     /* Search the reader group by the given readerGroupIdentifier */
     UA_ReaderGroup *readerGroup = UA_ReaderGroup_findRGbyId(server, readerGroupIdentifier);
+    if(readerGroup == NULL) {
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
 
     if(!dataSetReaderConfig) {
         return UA_STATUSCODE_BADNOTFOUND;
     }
 
-    if(readerGroup == NULL) {
-        return UA_STATUSCODE_BADNOTFOUND;
+    if(readerGroup->config.configurationFrozen){
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "Add DataSetReader failed. ReaderGroup is frozen.");
+        return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
     /* Allocate memory for new DataSetReader */
@@ -466,6 +537,12 @@ UA_Server_removeDataSetReader(UA_Server *server, UA_NodeId readerIdentifier) {
         return UA_STATUSCODE_BADNOTFOUND;
     }
 
+    if(dataSetReader->config.configurationFrozen){
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "Remove DataSetReader failed. DataSetReader is frozen.");
+        return UA_STATUSCODE_BADCONFIGURATIONERROR;
+    }
+
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     removeDataSetReaderRepresentation(server, dataSetReader);
 #endif
@@ -482,12 +559,22 @@ UA_Server_DataSetReader_updateConfig(UA_Server *server, UA_NodeId dataSetReaderI
        return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-    UA_DataSetReader *currentDataSetReader =
-        UA_ReaderGroup_findDSRbyId(server, dataSetReaderIdentifier);
-    UA_ReaderGroup *currentReaderGroup =
-        UA_ReaderGroup_findRGbyId(server, readerGroupIdentifier);
+    UA_DataSetReader *currentDataSetReader = UA_ReaderGroup_findDSRbyId(server, dataSetReaderIdentifier);
     if(!currentDataSetReader) {
        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    if(currentDataSetReader->config.configurationFrozen){
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "Update DataSetReader config failed. DataSetReader is frozen.");
+        return UA_STATUSCODE_BADCONFIGURATIONERROR;
+    }
+
+    UA_ReaderGroup *currentReaderGroup = UA_ReaderGroup_findRGbyId(server, readerGroupIdentifier);
+    if(currentReaderGroup->config.configurationFrozen){
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "Update DataSetReader config failed. ReaderGroup is frozen.");
+        return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
     /* The update functionality will be extended during the next PubSub batches.
@@ -651,6 +738,12 @@ UA_Server_DataSetReader_createTargetVariables(UA_Server *server,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
+    if(pDS->config.configurationFrozen) {
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "Create Target Variables failed. DataSetReader is frozen.");
+        return UA_STATUSCODE_BADCONFIGURATIONERROR;
+    }
+
     if(pDS->subscribedDataSetTarget.targetVariablesSize > 0) {
         UA_TargetVariablesDataType_deleteMembers(&pDS->subscribedDataSetTarget);
         pDS->subscribedDataSetTarget.targetVariablesSize = 0;
@@ -679,6 +772,12 @@ UA_Server_DataSetReader_addTargetVariables(UA_Server *server, UA_NodeId *parentN
     if(pDataSetReader == NULL) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
+
+    if(pDataSetReader->config.configurationFrozen) {
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "Add Target Variables failed. DataSetReader is frozen.");
+        return UA_STATUSCODE_BADCONFIGURATIONERROR;
+    } /* TODO: Check frozen in targetVariables after giving frozen configuration variable */
 
     UA_TargetVariablesDataType targetVars;
     targetVars.targetVariablesSize = pDataSetReader->config.dataSetMetaData.fieldsSize;
@@ -827,6 +926,14 @@ UA_Server_DataSetReader_process(UA_Server *server, UA_DataSetReader *dataSetRead
 }
 
 void UA_DataSetReader_delete(UA_Server *server, UA_DataSetReader *dataSetReader) {
+    /* Delete DataSetReader from ReaderGroup */
+    UA_ReaderGroup* pGroup = UA_ReaderGroup_findRGbyId(server, dataSetReader->linkedReaderGroup);
+    if(pGroup->config.configurationFrozen){
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "Delete DataSetReader failed. ReaderGroup is frozen.");
+        return;
+    }
+
     /* Delete DataSetReader config */
     UA_String_deleteMembers(&dataSetReader->config.name);
     UA_Variant_deleteMembers(&dataSetReader->config.publisherId);
@@ -834,9 +941,6 @@ void UA_DataSetReader_delete(UA_Server *server, UA_DataSetReader *dataSetReader)
     UA_UadpDataSetReaderMessageDataType_deleteMembers(&dataSetReader->config.messageSettings);
     UA_ExtensionObject_clear(&dataSetReader->config.transportSettings);
     UA_TargetVariablesDataType_deleteMembers(&dataSetReader->subscribedDataSetTarget);
-
-    /* Delete DataSetReader */
-    UA_ReaderGroup* pGroup = UA_ReaderGroup_findRGbyId(server, dataSetReader->linkedReaderGroup);
     if(pGroup != NULL) {
         pGroup->readersCount--;
     }
