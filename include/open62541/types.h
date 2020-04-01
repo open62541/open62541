@@ -548,6 +548,10 @@ UA_QualifiedName_isNull(const UA_QualifiedName *q) {
     return (q->namespaceIndex == 0 && q->name.length == 0);
 }
 
+/* Returns a non-cryptographic hash for QualifiedName */
+UA_UInt32 UA_EXPORT
+UA_QualifiedName_hash(const UA_QualifiedName *q);
+
 static UA_INLINE UA_QualifiedName
 UA_QUALIFIEDNAME(UA_UInt16 nsIndex, char *chars) {
     UA_QualifiedName qn; qn.namespaceIndex = nsIndex;

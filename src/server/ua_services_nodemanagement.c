@@ -404,7 +404,7 @@ isMandatoryChild(UA_Server *server, UA_Session *session,
         if(refs->isInverse)
             continue;
         for(size_t j = 0; j < refs->refTargetsSize; ++j) {
-            if(UA_NodeId_equal(&mandatoryId, &refs->refTargets[j].target.nodeId)) {
+            if(UA_NodeId_equal(&mandatoryId, &refs->refTargets[j].targetId.nodeId)) {
                 UA_NODESTORE_RELEASE(server, child);
                 return true;
             }
@@ -925,6 +925,67 @@ create_error:
     return retval;
 }
 
+static UA_StatusCode
+findDefaultInstanceBrowseNameNode(UA_Server *server, UA_NodeId startingNode,
+                                  UA_NodeId *foundId) {
+    UA_NodeId_init(foundId);
+    UA_RelativePathElement rpe;
+    UA_RelativePathElement_init(&rpe);
+    rpe.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
+    rpe.targetName = UA_QUALIFIEDNAME(0, "DefaultInstanceBrowseName");
+    UA_BrowsePath bp;
+    UA_BrowsePath_init(&bp);
+    bp.startingNode = startingNode;
+    bp.relativePath.elementsSize = 1;
+    bp.relativePath.elements = &rpe;
+    UA_BrowsePathResult bpr = translateBrowsePathToNodeIds(server, &bp);
+    UA_StatusCode retval = bpr.statusCode;
+    if(retval == UA_STATUSCODE_GOOD && bpr.targetsSize > 0)
+        retval = UA_NodeId_copy(&bpr.targets[0].targetId.nodeId, foundId);
+    UA_BrowsePathResult_clear(&bpr);
+    return retval;
+}
+
+/* Check if we got a valid browse name for the new node. For object nodes the
+ * BrowseName may only be null if the parent type has a
+ * 'DefaultInstanceBrowseName' property. */
+static UA_StatusCode
+checkSetBrowseName(UA_Server *server, UA_Session *session, UA_AddNodesItem *item) {
+    /* If the object node already has a browse name we are done here. */
+    if(!UA_QualifiedName_isNull(&item->browseName))
+        return UA_STATUSCODE_GOOD;
+
+    /* Nodes other than Objects must have a BrowseName */
+    if(item->nodeClass != UA_NODECLASS_OBJECT)
+        return UA_STATUSCODE_BADBROWSENAMEINVALID;
+
+    /* At this point we have an object with an empty browse name. Check the type
+     * node if it has a DefaultInstanceBrowseName property. */
+    UA_NodeId defaultBrowseNameNode;
+    UA_StatusCode retval =
+        findDefaultInstanceBrowseNameNode(server, item->typeDefinition.nodeId,
+                                          &defaultBrowseNameNode);
+    if(retval != UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_BADBROWSENAMEINVALID;
+
+    UA_Variant defaultBrowseName;
+    retval = readWithReadValue(server, &defaultBrowseNameNode,
+                               UA_ATTRIBUTEID_VALUE, &defaultBrowseName);
+    UA_NodeId_clear(&defaultBrowseNameNode);
+    if(retval != UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_BADBROWSENAMEINVALID;
+
+    if(UA_Variant_hasScalarType(&defaultBrowseName, &UA_TYPES[UA_TYPES_QUALIFIEDNAME])) {
+        item->browseName = *(UA_QualifiedName*)defaultBrowseName.data;
+        UA_QualifiedName_init((UA_QualifiedName*)defaultBrowseName.data);
+    } else {
+        retval = UA_STATUSCODE_BADBROWSENAMEINVALID;
+    }
+
+    UA_Variant_clear(&defaultBrowseName);
+    return retval;
+}
+
 /* Prepare the node, then add it to the nodestore */
 static UA_StatusCode
 Operation_addNode_begin(UA_Server *server, UA_Session *session, void *nodeContext,
@@ -937,10 +998,17 @@ Operation_addNode_begin(UA_Server *server, UA_Session *session, void *nodeContex
         outNewNodeId = &newId;
     }
 
-    /* Create the node and add it to the nodestore */
-    UA_StatusCode retval = AddNode_raw(server, session, nodeContext, item, outNewNodeId);
+    /* Set the BrowsenName before adding to the Nodestore. The BrowseName is
+     * immutable afterwards. */
+    UA_Boolean noBrowseName = UA_QualifiedName_isNull(&item->browseName);
+    UA_StatusCode retval = checkSetBrowseName(server, session, (UA_AddNodesItem*)(uintptr_t)item);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
+
+    /* Create the node and add it to the nodestore */
+    retval = AddNode_raw(server, session, nodeContext, item, outNewNodeId);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
 
     /* Typecheck and add references to parent and type definition */
     retval = AddNode_addRefs(server, session, outNewNodeId, parentNodeId,
@@ -950,6 +1018,10 @@ Operation_addNode_begin(UA_Server *server, UA_Session *session, void *nodeContex
 
     if(outNewNodeId == &newId)
         UA_NodeId_clear(&newId);
+
+ cleanup:
+    if(noBrowseName)
+        UA_QualifiedName_clear((UA_QualifiedName*)(uintptr_t)&item->browseName);
     return retval;
 }
 
@@ -1009,80 +1081,6 @@ recursiveTypeCheckAddChildren(UA_Server *server, UA_Session *session,
     }
 
     return UA_STATUSCODE_GOOD;
-}
-
-static UA_StatusCode
-findDefaultInstanceBrowseNameNode(UA_Server *server,
-                    UA_NodeId startingNode, UA_NodeId *foundId){
-
-    UA_NodeId_init(foundId);
-    UA_RelativePathElement rpe;
-    UA_RelativePathElement_init(&rpe);
-    rpe.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
-    rpe.isInverse = false;
-    rpe.includeSubtypes = false;
-    rpe.targetName = UA_QUALIFIEDNAME(0, "DefaultInstanceBrowseName");
-    UA_BrowsePath bp;
-    UA_BrowsePath_init(&bp);
-    bp.startingNode = startingNode;
-    bp.relativePath.elementsSize = 1;
-    bp.relativePath.elements = &rpe;
-    UA_BrowsePathResult bpr =
-            translateBrowsePathToNodeIds(server, &bp);
-    UA_StatusCode retval = bpr.statusCode;
-    if (retval == UA_STATUSCODE_GOOD &&
-        bpr.targetsSize > 0) {
-        retval = UA_NodeId_copy(&bpr.targets[0].targetId.nodeId, foundId);
-    }
-    UA_BrowsePathResult_clear(&bpr);
-    return retval;
-}
-
-/* Check if we got a valid browse name for the new node.
- * For object nodes the BrowseName may only be null if the parent type has a
- * 'DefaultInstanceBrowseName' property.
- * */
-static UA_StatusCode
-checkValidBrowseName(UA_Server *server, UA_Session *session,
-                     const UA_Node *node, const UA_Node *type) {
-
-    UA_assert(type != NULL);
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-
-    if(node->nodeClass != UA_NODECLASS_OBJECT) {
-        /* nodes other than Objects must have a browseName */
-        if (UA_QualifiedName_isNull(&node->browseName))
-            return UA_STATUSCODE_BADBROWSENAMEINVALID;
-        return UA_STATUSCODE_GOOD;
-    }
-
-    /* If the object node already has a browse name we are done here. */
-    if(!UA_QualifiedName_isNull(&node->browseName))
-        return UA_STATUSCODE_GOOD;
-
-    /* at this point we have an object with an empty browse name.
-     * Check the type node if it has a DefaultInstanceBrowseName property
-     */
-
-    UA_NodeId defaultBrowseNameNode;
-    retval = findDefaultInstanceBrowseNameNode(server, type->nodeId, &defaultBrowseNameNode);
-    if (retval != UA_STATUSCODE_GOOD) {
-        if (retval == UA_STATUSCODE_BADNOMATCH)
-            /* the DefaultBrowseName property is not found, return the corresponding status code */
-            return UA_STATUSCODE_BADBROWSENAMEINVALID;
-        return retval;
-    }
-
-    UA_Variant defaultBrowseName;
-    retval = readWithReadValue(server, &defaultBrowseNameNode, UA_ATTRIBUTEID_VALUE, &defaultBrowseName);
-    if (retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    UA_QualifiedName *defaultValue = (UA_QualifiedName *) defaultBrowseName.data;
-    retval = writeWithWriteValue(server, &node->nodeId, UA_ATTRIBUTEID_BROWSENAME, &UA_TYPES[UA_TYPES_QUALIFIEDNAME], defaultValue);
-    UA_Variant_clear(&defaultBrowseName);
-
-    return retval;
 }
 
 /* Construct children first */
@@ -1246,10 +1244,6 @@ AddNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId) 
             retval = UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
             goto cleanup;
         }
-
-        retval = checkValidBrowseName(server, session, node, type);
-        if(retval != UA_STATUSCODE_GOOD)
-            goto cleanup;
 
         retval = recursiveTypeCheckAddChildren(server, session, &node, type);
         if(retval != UA_STATUSCODE_GOOD)
@@ -1423,7 +1417,7 @@ removeIncomingReferences(UA_Server *server, UA_Session *session,
         item.isForward = refs->isInverse;
         item.referenceTypeId = refs->referenceTypeId;
         for(size_t j = 0; j < refs->refTargetsSize; ++j) {
-            item.sourceNodeId = refs->refTargets[j].target.nodeId;
+            item.sourceNodeId = refs->refTargets[j].targetId.nodeId;
             Operation_deleteReference(server, session, NULL, &item, &dummy);
         }
     }
@@ -1686,10 +1680,15 @@ deleteNode(UA_Server *server, const UA_NodeId nodeId,
 /* Add References */
 /******************/
 
+struct AddNodeInfo {
+    const UA_AddReferencesItem *item;
+    UA_UInt32 browseNameHash;
+};
+
 static UA_StatusCode
 addOneWayReference(UA_Server *server, UA_Session *session,
-             UA_Node *node, const UA_AddReferencesItem *item) {
-    return UA_Node_addReference(node, item);
+                   UA_Node *node, const struct AddNodeInfo *info) {
+    return UA_Node_addReference(node, info->item, info->browseNameHash);
 }
 
 static UA_StatusCode
@@ -1720,17 +1719,36 @@ Operation_addReference(UA_Server *server, UA_Session *session, void *context,
         return;
     }
 
+    /* Get the source and target nodes */
+    const UA_Node *targetNode = UA_NODESTORE_GET(server, &item->targetNodeId.nodeId);
+    if(!targetNode) {
+        *retval = UA_STATUSCODE_BADTARGETNODEIDINVALID;
+        return;
+    }
+    const UA_Node *sourceNode = UA_NODESTORE_GET(server, &item->sourceNodeId);
+    if(!targetNode) {
+        UA_NODESTORE_RELEASE(server, targetNode);
+        *retval = UA_STATUSCODE_BADSOURCENODEIDINVALID;
+        return;
+    }
+
+    /* Compute the BrowseName hash and release the target */
+    struct AddNodeInfo info;
+    info.item = item;
+    info.browseNameHash = UA_QualifiedName_hash(&targetNode->browseName);
+    UA_NODESTORE_RELEASE(server, targetNode);
+
     /* Add the first direction */
     *retval = UA_Server_editNode(server, session, &item->sourceNodeId,
-                                 (UA_EditNodeCallback)addOneWayReference,
-                                 /* cast away const because callback uses const anyway */
-                                 (UA_AddReferencesItem *)(uintptr_t)item);
+                                 (UA_EditNodeCallback)addOneWayReference, &info);
     UA_Boolean firstExisted = false;
     if(*retval == UA_STATUSCODE_BADDUPLICATEREFERENCENOTALLOWED) {
         *retval = UA_STATUSCODE_GOOD;
         firstExisted = true;
-    } else if(*retval != UA_STATUSCODE_GOOD)
+    } else if(*retval != UA_STATUSCODE_GOOD) {
+        UA_NODESTORE_RELEASE(server, sourceNode);
         return;
+    }
 
     /* Add the second direction */
     UA_AddReferencesItem secondItem;
@@ -1739,9 +1757,12 @@ Operation_addReference(UA_Server *server, UA_Session *session, void *context,
     secondItem.referenceTypeId = item->referenceTypeId;
     secondItem.isForward = !item->isForward;
     secondItem.targetNodeId.nodeId = item->sourceNodeId;
+    info.item = &secondItem;
+    info.browseNameHash = UA_QualifiedName_hash(&sourceNode->browseName);
     /* keep default secondItem.targetNodeClass = UA_NODECLASS_UNSPECIFIED */
     *retval = UA_Server_editNode(server, session, &secondItem.sourceNodeId,
-                                 (UA_EditNodeCallback)addOneWayReference, &secondItem);
+                                 (UA_EditNodeCallback)addOneWayReference, &info);
+    UA_NODESTORE_RELEASE(server, sourceNode);
 
     /* remove reference if the second direction failed */
     UA_Boolean secondExisted = false;
