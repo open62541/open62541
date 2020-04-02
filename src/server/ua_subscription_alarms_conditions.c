@@ -1829,7 +1829,7 @@ UA_getConditionId(UA_Server *server, const UA_NodeId *conditionNodeId,
             /* Get Branch Entry*/
             UA_ConditionBranch *branch;
             LIST_FOREACH(branch, &cond->conditionBranchHead, listEntry) {
-                if(!UA_NodeId_equal(&branch->conditionBranchId, conditionNodeId)) {
+                if(UA_NodeId_equal(&branch->conditionBranchId, conditionNodeId)) {
                     *outConditionId = cond->conditionId;
                     return UA_STATUSCODE_GOOD;
                 }
