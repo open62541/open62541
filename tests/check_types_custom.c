@@ -8,6 +8,7 @@
 #include "ua_types_encoding_binary.h"
 
 #include "check.h"
+#include <math.h>
 
 #ifdef __clang__
 //required for ck_assert_ptr_eq and const casting
@@ -54,7 +55,7 @@ static UA_DataTypeMember members[3] = {
 
     /* z */
     {
-        UA_TYPENAME("y")
+        UA_TYPENAME("z")
         UA_TYPES_FLOAT, padding_z, true, false, false
     }
 };
@@ -76,6 +77,54 @@ static const UA_DataType PointType = {
 };
 
 const UA_DataTypeArray customDataTypes = {NULL, 1, &PointType};
+
+/* The custom example datatype for an structure with optional fields */
+typedef struct {
+    UA_Boolean hasB;    /* defining if optional field "b" is defined or not */
+    UA_Int16 a;
+    UA_Float b;
+} Opt;
+
+/* flag "hasB" does not count as a member */
+static UA_DataTypeMember Opt_members[2] = {
+        /* a */
+        {
+                UA_TYPENAME("a") /* .memberName */
+                UA_TYPES_INT16,  /* .memberTypeIndex, points into UA_TYPES since namespaceZero is true */
+                offsetof(Opt,a) - offsetof(Opt,hasB) - sizeof(UA_Boolean),  /* .padding */
+                true,       /* .namespaceZero, see .memberTypeIndex */
+                false,      /* .isArray */
+                false       /* .isOptional */
+        },
+
+        /* b */
+        {
+                UA_TYPENAME("b")
+                UA_TYPES_FLOAT,
+                offsetof(Opt,b) - offsetof(Opt,a) - sizeof(UA_Int16),
+                true,
+                false,
+                true        /* b is an optional field */
+        }
+};
+
+static const UA_DataType OptType = {
+        UA_TYPENAME("Opt")             /* .typeName */
+        {1, UA_NODEIDTYPE_NUMERIC, {4242}}, /* .typeId */
+        sizeof(Opt),                   /* .memSize */
+        0,                               /* .typeIndex, in the array of custom types */
+        UA_DATATYPEKIND_OPTSTRUCT,       /* .typeKind */
+        true,                            /* .pointerFree */
+        false,                           /* .overlayable (depends on endianness and
+                                         the absence of padding) */
+        2,                               /* .membersSize */
+        0,                               /* .binaryEncodingId, the numeric
+                                         identifier used on the wire (the
+                                         namespaceindex is from .typeId) */
+        Opt_members
+};
+
+const UA_DataTypeArray customDataTypesOptStruct = {&customDataTypes, 2, &OptType};
 
 START_TEST(parseCustomScalar) {
     Point p;
@@ -197,12 +246,54 @@ START_TEST(parseCustomArray) {
     UA_ByteString_deleteMembers(&buf);
 } END_TEST
 
+START_TEST(parseCustomStructureWithOptionalFields) {
+        Opt o;
+        o.hasB = true;      /* means optional field "b" is defined and will be encoded */
+        o.a = 3;
+        o.b = 2.5;
+
+        UA_Variant var;
+        UA_Variant_init(&var);
+        UA_Variant_setScalar(&var, &o, &OptType);
+
+        size_t buflen = UA_calcSizeBinary(&var, &UA_TYPES[UA_TYPES_VARIANT]);
+        UA_ByteString buf;
+        UA_StatusCode retval = UA_ByteString_allocBuffer(&buf, buflen);
+        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+        UA_Byte *pos = buf.data;
+        const UA_Byte *end = &buf.data[buf.length];
+        retval = UA_encodeBinary(&var, &UA_TYPES[UA_TYPES_VARIANT],
+                                 &pos, &end, NULL, NULL);
+        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+        UA_Variant var2;
+        size_t offset = 0;
+        retval = UA_decodeBinary(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], &customDataTypesOptStruct);
+        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+        ck_assert(var2.type == &OptType);
+
+        Opt *optStruct2 = (Opt *) var2.data;
+        ck_assert(optStruct2->hasB == UA_TRUE);
+        ck_assert(optStruct2->a == 3);
+        ck_assert((fabs(optStruct2->b - 2.5)) < 0.005);
+
+        UA_Variant_deleteMembers(&var2);
+        UA_ByteString_deleteMembers(&buf);
+} END_TEST
+
+START_TEST(parseCustomUnion) {
+    //TODO Implement
+} END_TEST
+
 int main(void) {
     Suite *s  = suite_create("Test Custom DataType Encoding");
     TCase *tc = tcase_create("test cases");
     tcase_add_test(tc, parseCustomScalar);
     tcase_add_test(tc, parseCustomScalarExtensionObject);
     tcase_add_test(tc, parseCustomArray);
+    tcase_add_test(tc, parseCustomStructureWithOptionalFields);
+    tcase_add_test(tc, parseCustomUnion);
     suite_add_tcase(s, tc);
 
     SRunner *sr = srunner_create(s);
