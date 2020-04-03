@@ -34,9 +34,7 @@ UA_PubSubDSRDataSetField_sampleValue(UA_Server *server, UA_DataSetReader *dataSe
     UA_ReadValueId_init(&rvid);
     rvid.nodeId = dataSetReader->subscribedDataSetTarget.targetVariables[fieldNumber].targetNodeId;
     rvid.attributeId = dataSetReader->subscribedDataSetTarget.targetVariables[fieldNumber].attributeId;
-//    rvid.indexRange = field->config.field.variable.publishParameters.indexRange;
-//    param of qualified can also be given
-    *value = UA_Server_read(server, &rvid, UA_TIMESTAMPSTORETURN_BOTH);
+//    *value = UA_Server_read(server, &rvid, UA_TIMESTAMPSTORETURN_BOTH);
 }
 
 static UA_StatusCode
@@ -143,7 +141,7 @@ UA_DataSetReader_generateDataSetMessage(UA_Server *server, UA_DataSetMessage *da
        (u64)UA_UADPDATASETMESSAGECONTENTMASK_MAJORVERSION) {
         dataSetMessage->header.configVersionMajorVersionEnabled = true;
         dataSetMessage->header.configVersionMajorVersion =
-        	dataSetReader->config.dataSetMetaData.configurationVersion.majorVersion;
+            dataSetReader->config.dataSetMetaData.configurationVersion.majorVersion;
     }
 
     if((u64)dataSetReaderMessageDataType->dataSetMessageContentMask &
@@ -156,7 +154,7 @@ UA_DataSetReader_generateDataSetMessage(UA_Server *server, UA_DataSetMessage *da
     if((u64)dataSetReaderMessageDataType->dataSetMessageContentMask &
        (u64)UA_UADPDATASETMESSAGECONTENTMASK_SEQUENCENUMBER) {
         dataSetMessage->header.dataSetMessageSequenceNrEnabled = true;
-        dataSetMessage->header.dataSetMessageSequenceNr = 1; // Considering one DSR
+        dataSetMessage->header.dataSetMessageSequenceNr = 1; // dsmSequenceNumber = 1, Will be modified when subscriber receives new nw msg.
     }
 
     if((u64)dataSetReaderMessageDataType->dataSetMessageContentMask &
@@ -175,7 +173,8 @@ UA_DataSetReader_generateDataSetMessage(UA_Server *server, UA_DataSetMessage *da
        (u64)UA_UADPDATASETMESSAGECONTENTMASK_STATUS) {
         dataSetMessage->header.statusEnabled = false;
     }
-    /* Not supported for Delta frames */
+
+    /* Not supported for Delta frames atm*/
 
     return UA_PubSubDataSetReader_generateKeyFrameMessage(server, dataSetMessage, dataSetReader);
 }
@@ -229,9 +228,9 @@ UA_DataSetReader_generateNetworkMessage(UA_PubSubConnection *pubSubConnection, U
     }
 
     if(networkMessage->groupHeader.sequenceNumberEnabled)
-        networkMessage->groupHeader.sequenceNumber = 1; // Given as 1 for now if sequenceNumber is enabled.
+        networkMessage->groupHeader.sequenceNumber = 1; // sequenceNumber = 1, Will be modified when subscriber receives new nw msg.
     /* Compute the length of the dsm separately for the header */
-    UA_STACKARRAY(UA_UInt16, dsmLengths, dsmCount);
+    UA_UInt16 *dsmLengths = (UA_UInt16 *) UA_calloc(dsmCount, sizeof(UA_UInt16));
     for(UA_Byte i = 0; i < dsmCount; i++)
         dsmLengths[i] = (UA_UInt16) UA_DataSetMessage_calcSizeBinary(&dsm[i], NULL, 0);
 
@@ -488,12 +487,10 @@ UA_Server_freezeReaderGroupConfiguration(UA_Server *server, const UA_NodeId read
     rg->config.configurationFrozen = UA_TRUE;
     // TODO: Clarify on the freeze functionality in multiple DSR, multiple networkMessage conf in a RG
     //DataSetReader freeze
-    UA_DataSetReader *tmpDataSetReader;
     UA_DataSetReader *dataSetReader;
     UA_UInt16 dsrCount = 0;
-    LIST_FOREACH(tmpDataSetReader, &rg->readers, listEntry){
-        tmpDataSetReader->config.configurationFrozen = UA_TRUE;
-        dataSetReader = tmpDataSetReader;
+    LIST_FOREACH(dataSetReader, &rg->readers, listEntry){
+    	dataSetReader->config.configurationFrozen = UA_TRUE;
         dsrCount++;
         // TODO: Configuration frozen for subscribedDataSet
     }
@@ -505,6 +502,7 @@ UA_Server_freezeReaderGroupConfiguration(UA_Server *server, const UA_NodeId read
             return UA_STATUSCODE_BADNOTIMPLEMENTED;
         }
 
+        dataSetReader = LIST_FIRST(&rg->readers);
         // TODO: Check for UADP encoding
         for(size_t i = 0; i < dataSetReader->config.dataSetMetaData.fieldsSize; i++) {
             if((UA_NodeId_equal(&dataSetReader->config.dataSetMetaData.fields->dataType, &UA_TYPES[UA_TYPES_STRING].typeId) ||
@@ -523,50 +521,30 @@ UA_Server_freezeReaderGroupConfiguration(UA_Server *server, const UA_NodeId read
             }
         }
 
-        UA_DataSetMessage dsm;// = (UA_DataSetMessage*)UA_calloc(1, sizeof(UA_DataSetMessage));
+        /* Generate data set messages - Considering 1 DSM as max */
+        UA_UInt16 *dsWriterIds = (UA_UInt16 *) UA_calloc(1, sizeof(UA_UInt16));
+        UA_DataSetMessage *dsm = (UA_DataSetMessage *) UA_calloc(1, sizeof(UA_DataSetMessage));
+
         /* Generate the DSM */
-        UA_StatusCode res = UA_DataSetReader_generateDataSetMessage(server, &dsm, dataSetReader);
+        UA_StatusCode res = UA_DataSetReader_generateDataSetMessage(server, &dsm[0], dataSetReader);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                            "PubSub RT Offset calculation: DataSetMessage generation failed");
             return UA_STATUSCODE_BADINTERNALERROR;
         }
+        dsWriterIds[0] = dataSetReader->config.dataSetWriterId;
 
-        UA_NetworkMessage networkMessage;
-        memset(&networkMessage, 0, sizeof(networkMessage));
-        res = UA_DataSetReader_generateNetworkMessage(pubSubConnection, dataSetReader, &dsm,
-                                                      &dataSetReader->config.dataSetWriterId,
-                                                      1, &networkMessage);
+
+        UA_NetworkMessage *networkMessage = (UA_NetworkMessage *) UA_calloc(1, sizeof(UA_NetworkMessage));
+        res = UA_DataSetReader_generateNetworkMessage(pubSubConnection, dataSetReader, dsm,
+                                                      dsWriterIds, 1, networkMessage);
         if(res != UA_STATUSCODE_GOOD)
             return UA_STATUSCODE_BADINTERNALERROR;
 
-        /* Allocate the buffer. Allocate on the stack if the buffer is small. */
-        UA_ByteString buf;
-        size_t msgSize = UA_NetworkMessage_calcSizeBinary(&networkMessage, NULL);
-        size_t stackSize = 1;
-        if(msgSize <= UA_MAX_STACKBUF)
-            stackSize = msgSize;
-        UA_STACKARRAY(UA_Byte, stackBuf, stackSize);
-        buf.data = stackBuf;
-        buf.length = msgSize;
-        UA_StatusCode retval;
-        if(msgSize > UA_MAX_STACKBUF) {
-            retval = UA_ByteString_allocBuffer(&buf, msgSize);
-            if(retval != UA_STATUSCODE_GOOD)
-                return retval;
-        }
-
-        /* Encode the message */
-        UA_Byte *bufPos = buf.data;
-        memset(bufPos, 0, msgSize);
-        const UA_Byte *bufEnd = &buf.data[buf.length];
-        retval = UA_NetworkMessage_encodeBinary(&networkMessage, &bufPos, bufEnd);
-        if(retval != UA_STATUSCODE_GOOD) {
-            if(msgSize > UA_MAX_STACKBUF)
-                UA_ByteString_clear(&buf);
-            return retval;
-        }
-
+        dataSetReader->bufferedMessage.RTsubscriberEnabled = UA_TRUE;
+        /* Fix the offsets necessary to decode */
+        UA_NetworkMessage_calcSizeBinary(networkMessage, &dataSetReader->bufferedMessage);
+        dataSetReader->bufferedMessage.nm = networkMessage;
     }
 
     return UA_STATUSCODE_GOOD;
@@ -744,10 +722,18 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
     if(buffer.length > 0) {
         if (readerGroup->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE) {
             /* TODO:
-             * Check whether this readergroup possess one DSR and its config in UA_PUBSUB_RT_FIXED_SIZE
-             * Decode fastly using the offsets
              * Process with the static value source
              */
+            UA_DataSetReader *dataSetReader = LIST_FIRST(&readerGroup->readers);
+            if(UA_NetworkMessage_updateBufferedNwMessage(&dataSetReader->bufferedMessage, &buffer) != UA_STATUSCODE_GOOD)
+                UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                             "PubSub receive. Unknown field type.");
+
+            UA_Server_DataSetReader_process(server, dataSetReader,
+                                            &dataSetReader->bufferedMessage.nm->payload.dataSetPayload.dataSetMessages[0]); // Considering 1 DSM as max
+            UA_Variant_deleteMembers(&dataSetReader->bufferedMessage.nm->payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields->value); // TODO a new function
+            UA_ByteString_deleteMembers(&buffer);
+            return;
         }
 
         UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_USERLAND, "Message received:");
@@ -1243,6 +1229,21 @@ void UA_DataSetReader_delete(UA_Server *server, UA_DataSetReader *dataSetReader)
 
     UA_NodeId_deleteMembers(&dataSetReader->identifier);
     UA_NodeId_deleteMembers(&dataSetReader->linkedReaderGroup);
+    if(dataSetReader->bufferedMessage.offsetsSize > 0){
+        for (size_t i = 0; i < dataSetReader->bufferedMessage.offsetsSize; i++) {
+            if(dataSetReader->bufferedMessage.offsets[i].contentType == UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT){
+                UA_DataValue_delete(dataSetReader->bufferedMessage.offsets[i].offsetData.value.value);
+            }
+        }
+        UA_ByteString_deleteMembers(&dataSetReader->bufferedMessage.buffer);
+        UA_free(dataSetReader->bufferedMessage.offsets);
+    }
+
+    if(dataSetReader->bufferedMessage.RTsubscriberEnabled) {
+        UA_NetworkMessage_delete(dataSetReader->bufferedMessage.nm);
+        UA_free(dataSetReader->bufferedMessage.nm);
+    }
+
     /* Remove DataSetReader from group */
     LIST_REMOVE(dataSetReader, listEntry);
     /* Free memory allocated for DataSetReader */
