@@ -182,6 +182,7 @@ typedef struct UA_DataSetReader {
     UA_TargetVariablesDataType subscribedDataSetTarget;
     /* To Do UA_SubscribedDataSetMirrorDataType subscribedDataSetMirror */
     UA_PubSubState state;
+    UA_NetworkMessageOffsetBuffer bufferedMessage;
 }UA_DataSetReader;
 
 /* Delete DataSetReader */
