@@ -61,22 +61,19 @@ parse_guid(UA_Guid *guid, const UA_Byte *s, const UA_Byte *e) {
         return UA_STATUSCODE_BADINTERNALERROR;
     guid->data3 = (UA_UInt16)tmp;
 
-    if(UA_readNumberWithBase(&s[19], 4, &tmp, 16) != 4)
+    if(UA_readNumberWithBase(&s[19], 2, &tmp, 16) != 2)
         return UA_STATUSCODE_BADINTERNALERROR;
     guid->data4[0] = (UA_Byte)tmp;
-    guid->data4[1] = (UA_Byte)(tmp >> 8);
 
-    if(UA_readNumberWithBase(&s[24], 8, &tmp, 16) != 8)
+    if(UA_readNumberWithBase(&s[21], 2, &tmp, 16) != 2)
         return UA_STATUSCODE_BADINTERNALERROR;
-    guid->data4[2] = (UA_Byte)tmp;
-    guid->data4[3] = (UA_Byte)(tmp >> 8);
-    guid->data4[4] = (UA_Byte)(tmp >> 16);
-    guid->data4[5] = (UA_Byte)(tmp >> 24);
+    guid->data4[1] = (UA_Byte)tmp;
 
-    if(UA_readNumberWithBase(&s[32], 4, &tmp, 16) != 4)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    guid->data4[6] = (UA_Byte)tmp;
-    guid->data4[7] = (UA_Byte)(tmp >> 8);
+    for(size_t pos = 2, spos = 24; pos < 8; pos++, spos += 2) {
+        if(UA_readNumberWithBase(&s[spos], 2, &tmp, 16) != 2)
+            return UA_STATUSCODE_BADINTERNALERROR;
+        guid->data4[pos] = (UA_Byte)tmp;
+    }
 
     return UA_STATUSCODE_GOOD;
 }
