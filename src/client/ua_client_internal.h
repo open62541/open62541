@@ -59,7 +59,7 @@ typedef struct UA_Client_Subscription {
     UA_Client_DeleteSubscriptionCallback deleteCallback;
     UA_UInt32 sequenceNumber;
     UA_DateTime lastActivity;
-    LIST_HEAD(UA_ListOfClientMonitoredItems, UA_Client_MonitoredItem) monitoredItems;
+    LIST_HEAD(, UA_Client_MonitoredItem) monitoredItems;
 } UA_Client_Subscription;
 
 void
@@ -106,9 +106,7 @@ void UA_Client_AsyncService_cancel(UA_Client *client, AsyncServiceCall *ac,
 void UA_Client_AsyncService_removeAll(UA_Client *client, UA_StatusCode statusCode);
 
 typedef struct CustomCallback {
-    LIST_ENTRY(CustomCallback)
-    pointers;
-    //to find the correct callback
+    LIST_ENTRY(CustomCallback) pointers;
     UA_UInt32 callbackId;
 
     UA_ClientAsyncServiceCallback userCallback;
@@ -147,9 +145,9 @@ struct UA_Client {
 
     /* Async Service */
     AsyncServiceCall asyncConnectCall;
-    LIST_HEAD(ListOfAsyncServiceCall, AsyncServiceCall) asyncServiceCalls;
-    /*When using highlevel functions these are the callbacks that can be accessed by the user*/
-    LIST_HEAD(ListOfCustomCallback, CustomCallback) customCallbacks;
+    LIST_HEAD(, AsyncServiceCall) asyncServiceCalls;
+    /* When using highlevel functions these are the callbacks that can be accessed by the user */
+    LIST_HEAD(, CustomCallback) customCallbacks;
 
     /* Work queue */
     UA_WorkQueue workQueue;
