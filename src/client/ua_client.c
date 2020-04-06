@@ -24,8 +24,6 @@
 #include "ua_connection_internal.h"
 #include "ua_types_encoding_binary.h"
 
-#define STATUS_CODE_BAD_POINTER 0x01
-
 /********************/
 /* Client Lifecycle */
 /********************/
