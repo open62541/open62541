@@ -106,10 +106,10 @@ typedef struct {
 
 /* Adding a union */
 typedef struct {
-    enum {x, y} ettlingen;
+    enum {x, y} selection;
     UA_UInt32 switchField;      /* defining which field is defined for the union */
     union {
-        UA_Double x;
-        UA_String y;
+        UA_Double partA;
+        UA_String partB;
     } fields;
 } Union;

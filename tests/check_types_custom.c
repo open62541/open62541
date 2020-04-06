@@ -254,7 +254,7 @@ START_TEST(parseCustomStructureWithOptionalFields) {
 
         UA_Variant var;
         UA_Variant_init(&var);
-        UA_Variant_setScalar(&var, &o, &OptType);
+        UA_Variant_setScalarCopy(&var, &o, &OptType);
 
         size_t buflen = UA_calcSizeBinary(&var, &UA_TYPES[UA_TYPES_VARIANT]);
         UA_ByteString buf;
@@ -278,6 +278,7 @@ START_TEST(parseCustomStructureWithOptionalFields) {
         ck_assert(optStruct2->a == 3);
         ck_assert((fabs(optStruct2->b - 2.5)) < 0.005);
 
+        UA_Variant_deleteMembers(&var);
         UA_Variant_deleteMembers(&var2);
         UA_ByteString_deleteMembers(&buf);
 } END_TEST

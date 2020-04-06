@@ -1048,7 +1048,7 @@ copyStructureWithOptionalFields(const void *src, void *dst, const UA_DataType *t
             ptrd += sizeof(UA_Boolean);
         }
     }
-    return copyStructure(src, dst, type);
+    return copyStructure((const void *) ptrs, (void *) ptrd, type);
 }
 
 static UA_StatusCode
