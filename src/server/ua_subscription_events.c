@@ -195,10 +195,11 @@ resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session, const UA_N
     /* If this list (browsePath) is empty the Node is the instance of the
      * TypeDefinition. */
     if(sao->browsePathSize == 0) {
+      UA_NodeId conditionTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
       //TODO check for Branches! One Condition could have multiple Branches
       // Set ConditionId
-      UA_NodeId conditionTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
       if(UA_NodeId_equal(&sao->typeDefinitionId, &conditionTypeId)){
         UA_NodeId conditionId;
         UA_StatusCode retval = UA_getConditionId(server, origin, &conditionId);
@@ -210,7 +211,10 @@ resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session, const UA_N
       else
         rvi.nodeId = sao->typeDefinitionId;
 #else
-      rvi.nodeId = sao->typeDefinitionId;
+      if(UA_NodeId_equal(&sao->typeDefinitionId, &conditionTypeId))
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+      else
+        rvi.nodeId = sao->typeDefinitionId;
 #endif /*UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS*/
         UA_DataValue v = UA_Server_readWithSession(server, session, &rvi,
 		                                           UA_TIMESTAMPSTORETURN_NEITHER);
