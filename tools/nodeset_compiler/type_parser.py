@@ -240,6 +240,8 @@ class TypeParser():
         def structWithOptionalFields(element):
             opt_fields = []
             for child in element:
+                if child.tag != "{http://opcfoundation.org/BinarySchema/}Field":
+                    continue
                 typename = child.get("TypeName")
                 if typename and get_type_name(typename) == "Bit":
                     if re.match(re.compile('.+Specified'), child.get("Name")):
