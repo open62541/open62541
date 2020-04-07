@@ -18,7 +18,7 @@
  * / OPC UA services to interact with the information model. */
 
 #include <open62541/server.h>
-#include <open62541_queue.h>
+#include "open62541_queue.h"
 #include "ziptree.h"
 
 _UA_BEGIN_DECLS
