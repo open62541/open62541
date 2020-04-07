@@ -35,9 +35,9 @@ modification history
 #define UA_SECURITYPOLICY_BASIC256SHA256_MAXASYMKEYLENGTH 512
 
 typedef struct {
-    const UA_SecurityPolicy * securityPolicy;
     UA_ByteString             localPrivateKey;
     UA_ByteString             localCertThumbprint;
+    const UA_Logger *         logger;    
 } Policy_Context_Basic256Sha256;
 
 typedef struct {
@@ -57,13 +57,13 @@ typedef struct {
 
 static UA_StatusCode 
 UA_Policy_New_Context (UA_SecurityPolicy * securityPolicy,
-                       const UA_ByteString localPrivateKey) {
+                       const UA_ByteString localPrivateKey,
+                       const UA_Logger *   logger) {
     Policy_Context_Basic256Sha256 * context = (Policy_Context_Basic256Sha256 *)
                             UA_malloc (sizeof (Policy_Context_Basic256Sha256));
     if (context == NULL) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
-    context->securityPolicy = securityPolicy;
 
     /* copy the local private key and add a NULL to the end */
     
@@ -84,7 +84,9 @@ UA_Policy_New_Context (UA_SecurityPolicy * securityPolicy,
         return retval; 
     }
 
+    context->logger = logger;
     securityPolicy->policyContext = context;
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -174,7 +176,7 @@ UA_ChannelModule_Delete_Context (void * channelContext) {
         UA_ByteString_deleteMembers (&cc->remoteSymEncryptingKey);
         UA_ByteString_deleteMembers (&cc->remoteSymIv);
 
-        UA_LOG_INFO (cc->policyContext->securityPolicy->logger, 
+        UA_LOG_INFO (cc->policyContext->logger, 
                  UA_LOGCATEGORY_SECURITYPOLICY, 
                  "The basic256sha256 security policy channel with openssl is deleted.");   
         UA_free (cc);                      
@@ -651,7 +653,7 @@ UA_SecurityPolicy_Basic256Sha256(UA_SecurityPolicy * policy,
     symSignatureAlgorithm->sign = UA_SymSig_Basic256Sha256_sign;
     symSignatureAlgorithm->getLocalSignatureSize = UA_SymSig_Basic256Sha256_getLocalSignatureSize;
 
-    retval = UA_Policy_New_Context (policy, localPrivateKey);
+    retval = UA_Policy_New_Context (policy, localPrivateKey, logger);
     if (retval != UA_STATUSCODE_GOOD) {
         UA_ByteString_clear (&policy->localCertificate);
         return retval;
