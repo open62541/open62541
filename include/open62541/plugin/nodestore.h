@@ -94,19 +94,30 @@ typedef struct {
     UA_ReferenceTargetNameTree refTargetsNameTree;
 } UA_NodeReferenceKind;
 
-#define UA_NODE_BASEATTRIBUTES                  \
-    UA_NodeId nodeId;                           \
-    UA_NodeClass nodeClass;                     \
-    UA_QualifiedName browseName;                \
-    UA_LocalizedText displayName;               \
-    UA_LocalizedText description;               \
-    UA_UInt32 writeMask;                        \
-    size_t referencesSize;                      \
-    UA_NodeReferenceKind *references;           \
-                                                \
-    /* Members specific to open62541 */         \
-    void *context;                              \
-    UA_Boolean constructed; /* Constructors were called */
+struct MonitoredItemsList {
+    struct UA_MonitoredItem *slh_first;
+};
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+#define UA_MONITORED_ITEMS_EXTENSION struct MonitoredItemsList monitoredItemQueue;
+#else
+#define UA_MONITORED_ITEMS_EXTENSION
+#endif
+
+#define UA_NODE_BASEATTRIBUTES                             \
+    UA_NodeId nodeId;                                      \
+    UA_NodeClass nodeClass;                                \
+    UA_QualifiedName browseName;                           \
+    UA_LocalizedText displayName;                          \
+    UA_LocalizedText description;                          \
+    UA_UInt32 writeMask;                                   \
+    size_t referencesSize;                                 \
+    UA_NodeReferenceKind *references;                      \
+                                                           \
+    /* Members specific to open62541 */                    \
+    void *context;                                         \
+    UA_Boolean constructed; /* Constructors were called */ \
+    UA_MONITORED_ITEMS_EXTENSION                           \
 
 typedef struct {
     UA_NODE_BASEATTRIBUTES
@@ -208,9 +219,6 @@ typedef struct {
     UA_Byte accessLevel;
     UA_Double minimumSamplingInterval;
     UA_Boolean historizing;
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-    LIST_HEAD(MonitoredItems, UA_MonitoredItem) monitoredItems;
-#endif
 } UA_VariableNode;
 
 /**
@@ -275,9 +283,6 @@ typedef struct {
 
 typedef struct {
     UA_NODE_BASEATTRIBUTES
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-    struct UA_MonitoredItem *monitoredItemQueue;
-#endif
     UA_Byte eventNotifier;
 } UA_ObjectNode;
 

@@ -360,6 +360,11 @@ translateBrowsePathToNodeIds(UA_Server *server, const UA_BrowsePath *browsePath)
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 void
 monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem);
+
+UA_StatusCode
+sampleCallbackWithValue(UA_Server *server, UA_Session *session,
+    UA_Subscription *sub, UA_MonitoredItem *mon,
+    UA_DataValue *value, UA_Boolean *movedValue);
 #endif
 
 UA_BrowsePathResult

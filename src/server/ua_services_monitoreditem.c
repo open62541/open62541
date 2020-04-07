@@ -158,9 +158,9 @@ setMonitoredItemSettings(UA_Server *server, UA_Session *session, UA_MonitoredIte
 
                 /* Remove monitored item from the variable node's list */
                 UA_MonitoredItem *tempMon;
-                LIST_FOREACH(tempMon, &vn->monitoredItems, listEntryVariableNode) {
+                SLIST_FOREACH(tempMon, &vn->monitoredItemQueue, listEntryNode) {
                     if (mon->monitoredItemId == tempMon->monitoredItemId) {
-                        LIST_REMOVE(tempMon, listEntryVariableNode);
+                        SLIST_REMOVE(&vn->monitoredItemQueue, tempMon, UA_MonitoredItem, listEntryNode);
                         break;
                     }
                 }
@@ -170,7 +170,7 @@ setMonitoredItemSettings(UA_Server *server, UA_Session *session, UA_MonitoredIte
 
                 /* If the exception-based model is used, add mon to the variable node's list */
                 if (samplingInterval == 0.0) {
-                    LIST_INSERT_HEAD(&vn->monitoredItems, mon, listEntryVariableNode);
+                    SLIST_INSERT_HEAD(&vn->monitoredItemQueue, mon, listEntryNode);
                 }
             }
             UA_NODESTORE_RELEASE(server, (const UA_Node *)vn);
@@ -209,9 +209,7 @@ static UA_StatusCode
 UA_Server_addMonitoredItemToNodeEditNodeCallback(UA_Server *server, UA_Session *session,
                                                  UA_Node *node, void *data) {
     /* data is the MonitoredItem */
-    /* SLIST_INSERT_HEAD */
-    ((UA_MonitoredItem *)data)->next = ((UA_ObjectNode *)node)->monitoredItemQueue;
-    ((UA_ObjectNode *)node)->monitoredItemQueue = (UA_MonitoredItem *)data;
+    SLIST_INSERT_HEAD(&node->monitoredItemQueue, (UA_MonitoredItem *)data, listEntryNode);
     return UA_STATUSCODE_GOOD;
 }
 #endif

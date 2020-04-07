@@ -1227,31 +1227,19 @@ writeValueAttribute(UA_Server *server, UA_Session *session,
     }
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    /* If this node references a monitored item (exception-based model), queue a notification. */
-    UA_MonitoredItem *mon, *mon_tmp;
-    /* Iterate through monitored items */
-    LIST_FOREACH_SAFE(mon, &node->monitoredItems, listEntryVariableNode, mon_tmp) {
-        /* The MonitoredItem is attached to a subscription (not server-local).
-         * Prepare a notification and enqueue it. */
-        if (mon->subscription) {
-            /* Allocate a new notification */
-            UA_Notification *newNotification = (UA_Notification *)UA_calloc(1, sizeof(UA_Notification));
-            if (!newNotification) {
-                return UA_STATUSCODE_BADOUTOFMEMORY;
+    if (retval == UA_STATUSCODE_GOOD) {
+        /* If this node references a monitored item (exception-based model), queue a notification. */
+        UA_MonitoredItem *mon, *mon_tmp;
+        /* Iterate through monitored items */
+        SLIST_FOREACH_SAFE(mon, &node->monitoredItemQueue, listEntryNode, mon_tmp) {
+            /* The MonitoredItem is attached to a subscription (not server-local).
+             * Prepare a notification and enqueue it. */
+            if (mon->subscription) {
+                UA_DataValue value_copy;
+                UA_DataValue_copy(&adjustedValue, &value_copy);
+                UA_Boolean movedValue = UA_FALSE;
+                retval = sampleCallbackWithValue(server, session, mon->subscription, mon, &value_copy, &movedValue);
             }
-
-            retval = UA_DataValue_copy(&adjustedValue, &newNotification->data.value);
-            if (retval != UA_STATUSCODE_GOOD) {
-                UA_free(newNotification);
-                return retval;
-            }
-
-            UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Subscription %" PRIu32 " | "
-                "MonitoredItem %" PRIi32 " | Enqueue a new notification",
-                sub ? sub->subscriptionId : 0, mon->monitoredItemId);
-
-            newNotification->mon = mon;
-            UA_Notification_enqueue(server, mon->subscription, mon, newNotification);
         }
     }
 #endif

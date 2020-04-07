@@ -15,23 +15,15 @@ UA_MonitoredItem_removeNodeEventCallback(UA_Server *server, UA_Session *session,
                                          UA_Node *node, void *data) {
     if (node->nodeClass != UA_NODECLASS_OBJECT)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_ObjectNode *on = (UA_ObjectNode*)node;
     UA_MonitoredItem *remove = (UA_MonitoredItem*)data;
 
-    if(!on->monitoredItemQueue)
+    if(!node->monitoredItemQueue.slh_first)
         return UA_STATUSCODE_GOOD;
 
-    /* Edge case that it's the first element */
-    if(on->monitoredItemQueue == remove) {
-        on->monitoredItemQueue = remove->next;
-        return UA_STATUSCODE_GOOD;
-    }
-
-    UA_MonitoredItem *prev = on->monitoredItemQueue;
-    UA_MonitoredItem *entry = prev->next;
-    for(; entry != NULL; prev = entry, entry = entry->next) {
-        if(entry == remove) {
-            prev->next = entry->next;
+    UA_MonitoredItem *mon;
+    SLIST_FOREACH(mon, &node->monitoredItemQueue, listEntryNode) {
+        if (mon == remove) {
+            SLIST_REMOVE(&node->monitoredItemQueue, mon, UA_MonitoredItem, listEntryNode);
             return UA_STATUSCODE_GOOD;
         }
     }
@@ -523,12 +515,13 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
             UA_NODESTORE_RELEASE(server, (const UA_Node*)node);
             continue;
         }
-        for(UA_MonitoredItem *mi = node->monitoredItemQueue; mi != NULL; mi = mi->next) {
+        UA_MonitoredItem *mi;
+        SLIST_FOREACH(mi, &node->monitoredItemQueue, listEntryNode) {
             retval = UA_Event_addEventToMonitoredItem(server, &eventNodeId, mi);
-            if(retval != UA_STATUSCODE_GOOD) {
+            if (retval != UA_STATUSCODE_GOOD) {
                 UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                               "Events: Could not add the event to a listening node with StatusCode %s",
-                               UA_StatusCode_name(retval));
+                    "Events: Could not add the event to a listening node with StatusCode %s",
+                    UA_StatusCode_name(retval));
                 retval = UA_STATUSCODE_GOOD; /* Only log problems with individual emit nodes */
             }
         }

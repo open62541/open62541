@@ -146,8 +146,8 @@ typedef TAILQ_HEAD(NotificationQueue, UA_Notification) NotificationQueue;
 
 struct UA_MonitoredItem {
     UA_DelayedCallback delayedFreePointers;
-    LIST_ENTRY(UA_MonitoredItem) listEntry;
-    LIST_ENTRY(UA_MonitoredItem) listEntryVariableNode;
+    LIST_ENTRY(UA_MonitoredItem) listEntry; /* used in subscription or local monitored items */
+    SLIST_ENTRY(UA_MonitoredItem) listEntryNode; /* used in Node */
     UA_Subscription *subscription; /* Local MonitoredItem if the subscription is NULL */
     UA_UInt32 monitoredItemId;
     UA_UInt32 clientHandle;
@@ -195,10 +195,6 @@ struct UA_MonitoredItem {
     UA_UInt32 queueSize;
     UA_UInt32 eventOverflows; /* Separate counter for the queue. Can at most
                                * double the queue size */
-
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-    UA_MonitoredItem *next;
-#endif
 
 #ifdef UA_ENABLE_DA
     UA_StatusCode lastStatus;
