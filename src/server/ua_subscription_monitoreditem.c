@@ -209,6 +209,21 @@ UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
     /* Remove the sampling callback */
     UA_MonitoredItem_unregisterSampleCallback(server, monitoredItem);
 
+    /* Remove monitored item from the list inside the variable node */
+    const UA_Node *node = UA_NODESTORE_GET(server, &monitoredItem->monitoredNodeId);
+    if (node) {
+        if (node->nodeClass == UA_NODECLASS_VARIABLE) {
+            UA_VariableNode *vn = (UA_VariableNode *)node;
+            UA_MonitoredItem *tempMon;
+            LIST_FOREACH(tempMon, &vn->monitoredItems, listEntryVariableNode) {
+                if (monitoredItem->monitoredItemId == tempMon->monitoredItemId) {
+                    LIST_REMOVE(tempMon, listEntryVariableNode);
+                    break;
+                }
+            }
+        }
+    }
+
     /* Remove the queued notifications if attached to a subscription (not a
      * local MonitoredItem) */
     if(monitoredItem->subscription) {

@@ -147,6 +147,7 @@ typedef TAILQ_HEAD(NotificationQueue, UA_Notification) NotificationQueue;
 struct UA_MonitoredItem {
     UA_DelayedCallback delayedFreePointers;
     LIST_ENTRY(UA_MonitoredItem) listEntry;
+    LIST_ENTRY(UA_MonitoredItem) listEntryVariableNode;
     UA_Subscription *subscription; /* Local MonitoredItem if the subscription is NULL */
     UA_UInt32 monitoredItemId;
     UA_UInt32 clientHandle;

@@ -18,6 +18,7 @@
  * / OPC UA services to interact with the information model. */
 
 #include <open62541/server.h>
+#include <open62541_queue.h>
 #include "ziptree.h"
 
 _UA_BEGIN_DECLS
@@ -207,6 +208,9 @@ typedef struct {
     UA_Byte accessLevel;
     UA_Double minimumSamplingInterval;
     UA_Boolean historizing;
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    LIST_HEAD(MonitoredItems, UA_MonitoredItem) monitoredItems;
+#endif
 } UA_VariableNode;
 
 /**

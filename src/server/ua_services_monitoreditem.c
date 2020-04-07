@@ -151,12 +151,28 @@ setMonitoredItemSettings(UA_Server *server, UA_Session *session, UA_MonitoredIte
     UA_Double samplingInterval = params->samplingInterval;
 
     if(mon->attributeId == UA_ATTRIBUTEID_VALUE) {
-        const UA_VariableNode *vn = (const UA_VariableNode *)
+        UA_VariableNode *vn = (UA_VariableNode *)
             UA_NODESTORE_GET(server, &mon->monitoredNodeId);
         if(vn) {
-            if(vn->nodeClass == UA_NODECLASS_VARIABLE &&
-               samplingInterval < vn->minimumSamplingInterval)
-                samplingInterval = vn->minimumSamplingInterval;
+            if (vn->nodeClass == UA_NODECLASS_VARIABLE) {
+
+                /* Remove monitored item from the variable node's list */
+                UA_MonitoredItem *tempMon;
+                LIST_FOREACH(tempMon, &vn->monitoredItems, listEntryVariableNode) {
+                    if (mon->monitoredItemId == tempMon->monitoredItemId) {
+                        LIST_REMOVE(tempMon, listEntryVariableNode);
+                        break;
+                    }
+                }
+
+                if(samplingInterval < vn->minimumSamplingInterval)
+                    samplingInterval = vn->minimumSamplingInterval;
+
+                /* If the exception-based model is used, add mon to the variable node's list */
+                if (samplingInterval == 0.0) {
+                    LIST_INSERT_HEAD(&vn->monitoredItems, mon, listEntryVariableNode);
+                }
+            }
             UA_NODESTORE_RELEASE(server, (const UA_Node *)vn);
         }
     }
@@ -175,9 +191,13 @@ setMonitoredItemSettings(UA_Server *server, UA_Session *session, UA_MonitoredIte
 
     /* Register sample callback if reporting is enabled */
     mon->monitoringMode = monitoringMode;
-    if(monitoringMode == UA_MONITORINGMODE_SAMPLING ||
-       monitoringMode == UA_MONITORINGMODE_REPORTING)
-        return UA_MonitoredItem_registerSampleCallback(server, mon);
+    /* If sampling interval is 0, use exception-based model (see OPC UA Part 4 [p. 60] 5.12.1.2).
+     * Do not register a callback. */
+    if(samplingInterval != 0.0) {
+        if(monitoringMode == UA_MONITORINGMODE_SAMPLING ||
+            monitoringMode == UA_MONITORINGMODE_REPORTING)
+            return UA_MonitoredItem_registerSampleCallback(server, mon);
+    }
 
     return UA_STATUSCODE_GOOD;
 }
