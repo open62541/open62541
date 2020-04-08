@@ -648,4 +648,73 @@ UA_Server_deleteMonitoredItem(UA_Server *server, UA_UInt32 monitoredItemId) {
     return UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
 }
 
+UA_StatusCode
+UA_Server_notifyValueChange(UA_Server *server, const UA_NodeId node) {
+    UA_LOCK(server->serviceMutex);
+    UA_Node *nodeEntry = (UA_Node*)UA_NODESTORE_GET(server, &node);
+
+    if (nodeEntry) {
+        /* Only variable nodes can notify about value changes */
+        if (nodeEntry->nodeClass != UA_NODECLASS_VARIABLE) {
+            UA_NODESTORE_RELEASE(server, nodeEntry);
+            UA_UNLOCK(server->serviceMutex);
+            return UA_STATUSCODE_BADNODECLASSINVALID;
+        }
+
+        /* This method only make sense if a data source is attached */
+        UA_VariableNode *vn = (UA_VariableNode*)nodeEntry;
+        if (vn->valueSource != UA_VALUESOURCE_DATASOURCE) {
+            UA_NODESTORE_RELEASE(server, nodeEntry);
+            UA_UNLOCK(server->serviceMutex);
+            return UA_STATUSCODE_BADINVALIDARGUMENT;
+        }
+
+        UA_ReadValueId rvid;
+        UA_ReadValueId_init(&rvid);
+        rvid.nodeId = node;
+        rvid.attributeId = UA_ATTRIBUTEID_VALUE;
+        rvid.indexRange = UA_STRING_NULL;
+
+        UA_DataValue value;
+        UA_DataValue_init(&value);
+        /* Read value once and use for all monitored items */
+        ReadWithNode(nodeEntry, server, &server->adminSession, UA_TIMESTAMPSTORETURN_BOTH, &rvid, &value);
+
+        UA_MonitoredItem *mon;
+        SLIST_FOREACH(mon, &nodeEntry->monitoredItemQueue, listEntryNode) {
+            if (mon->attributeId == UA_ATTRIBUTEID_VALUE) {
+                /* Index range is unused */
+                if (UA_String_equal(&mon->indexRange, &UA_STRING_NULL)) {
+                    UA_DataValue value_copy;
+                    UA_DataValue_init(&value_copy);
+                    UA_DataValue_copy(&value, &value_copy);
+
+                    /* apply filter and enqueue notification if value changed */
+                    UA_Boolean movedValue = UA_FALSE;
+                    UA_StatusCode retval = sampleCallbackWithValue(server, &server->adminSession,
+                        mon->subscription, mon, &value_copy, &movedValue);
+
+                    /* Delete the sample if it was not moved to the notification. */
+                    if (!movedValue)
+                        UA_DataValue_clear(&value_copy); /* Does nothing for UA_VARIANT_DATA_NODELETE */
+                }
+                /* Index range is used */
+                else {
+                    // TODO support this
+                }
+            }
+        }
+
+        UA_DataValue_clear(&value);
+        UA_NODESTORE_RELEASE(server, nodeEntry);
+    }
+    else {
+        UA_UNLOCK(server->serviceMutex);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    UA_UNLOCK(server->serviceMutex);
+    return UA_STATUSCODE_GOOD;
+}
+
 #endif /* UA_ENABLE_SUBSCRIPTIONS */

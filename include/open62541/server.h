@@ -949,6 +949,19 @@ UA_Server_createDataChangeMonitoredItem(UA_Server *server,
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_deleteMonitoredItem(UA_Server *server, UA_UInt32 monitoredItemId);
 
+/* This method notifies the Server about a value change in a data source
+ * that is attached to a variable node.
+ *
+ * If a MonitoredItem uses the exception-based model (i.e. sampling interval = 0),
+ * the value is not sampled. With this method, userspace can inform
+ * proactively about a change in the data source and thus trigger a notification.
+ *
+ * @param server The server containing the variable node.
+ * @param node The NodeId of the variable node whose data source has changed.
+ * @return The StatusCode of the operation. */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_notifyValueChange(UA_Server *server, const UA_NodeId node);
+
 #endif
 
 /**

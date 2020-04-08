@@ -212,7 +212,6 @@ UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
     /* Remove monitored item from the list inside the variable node */
     UA_Node *node = (UA_Node*)UA_NODESTORE_GET(server, &monitoredItem->monitoredNodeId);
     if (node) {
-        struct MonitoredItemsList *itemsList = &node->monitoredItemQueue;
         UA_MonitoredItem *tempMon;
         SLIST_FOREACH(tempMon, &node->monitoredItemQueue, listEntryNode) {
             if (monitoredItem->monitoredItemId == tempMon->monitoredItemId) {
@@ -220,6 +219,7 @@ UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
                 break;
             }
         }
+        UA_NODESTORE_RELEASE(server, node);
     }
 
     /* Remove the queued notifications if attached to a subscription (not a

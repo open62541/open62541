@@ -1234,11 +1234,23 @@ writeValueAttribute(UA_Server *server, UA_Session *session,
         SLIST_FOREACH_SAFE(mon, &node->monitoredItemQueue, listEntryNode, mon_tmp) {
             /* The MonitoredItem is attached to a subscription (not server-local).
              * Prepare a notification and enqueue it. */
-            if (mon->subscription) {
-                UA_DataValue value_copy;
-                UA_DataValue_copy(&adjustedValue, &value_copy);
-                UA_Boolean movedValue = UA_FALSE;
-                retval = sampleCallbackWithValue(server, session, mon->subscription, mon, &value_copy, &movedValue);
+            if (mon->subscription && mon->attributeId == UA_ATTRIBUTEID_VALUE) {
+                /* Index range is unused */
+                if (UA_String_equal(&mon->indexRange, &UA_STRING_NULL)) {
+                    UA_DataValue value_copy;
+                    UA_DataValue_init(&value_copy);
+                    UA_DataValue_copy(&adjustedValue, &value_copy);
+                    UA_Boolean movedValue = UA_FALSE;
+                    retval = sampleCallbackWithValue(server, session, mon->subscription, mon, &value_copy, &movedValue);
+
+                    /* Delete the sample if it was not moved to the notification. */
+                    if (!movedValue)
+                        UA_DataValue_clear(&value_copy); /* Does nothing for UA_VARIANT_DATA_NODELETE */
+                }
+                /* Index range is used */
+                else {
+                    // TODO support this
+                }
             }
         }
     }
