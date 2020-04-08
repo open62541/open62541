@@ -19,13 +19,14 @@
 static UA_StatusCode
 UA_uaQos_toMqttQos(UA_BrokerTransportQualityOfService uaQos, UA_Byte *qos){
     switch (uaQos){
-        case UA_BROKERTRANSPORTQUALITYOFSERVICE_BESTEFFORT:
+    	case UA_BROKERTRANSPORTQUALITYOFSERVICE_BESTEFFORT:
+        case UA_BROKERTRANSPORTQUALITYOFSERVICE_ATMOSTONCE:
             *qos = 0;
             break;
         case UA_BROKERTRANSPORTQUALITYOFSERVICE_ATLEASTONCE:
             *qos = 1;
             break;
-        case UA_BROKERTRANSPORTQUALITYOFSERVICE_ATMOSTONCE:
+        case UA_BROKERTRANSPORTQUALITYOFSERVICE_EXACTLYONCE:
             *qos = 2;
             break;
         default:
@@ -150,9 +151,9 @@ UA_PubSubChannelMQTT_regist(UA_PubSubChannel *channel, UA_ExtensionObject *trans
     channelDataMQTT->callback = callback;
     
     if(transportSettings != NULL && transportSettings->encoding == UA_EXTENSIONOBJECT_DECODED
-            && transportSettings->content.decoded.type->typeIndex == UA_TYPES_BROKERWRITERGROUPTRANSPORTDATATYPE){
-        UA_BrokerWriterGroupTransportDataType *brokerTransportSettings =
-                (UA_BrokerWriterGroupTransportDataType*)transportSettings->content.decoded.data;
+            && transportSettings->content.decoded.type->typeIndex == UA_TYPES_BROKERDATASETREADERTRANSPORTDATATYPE){
+        	UA_BrokerDataSetReaderTransportDataType *brokerTransportSettings =
+                    (UA_BrokerDataSetReaderTransportDataType*)transportSettings->content.decoded.data;
 
         UA_Byte qos = 0;
         UA_uaQos_toMqttQos(brokerTransportSettings->requestedDeliveryGuarantee, &qos);

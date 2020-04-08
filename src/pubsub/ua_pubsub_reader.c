@@ -33,7 +33,6 @@ UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
                          const UA_ReaderGroupConfig *readerGroupConfig,
                          UA_NodeId *readerGroupIdentifier) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    UA_ReaderGroupConfig tmpReaderGroupConfig;
 
     /* Check for valid readergroup configuration */
     if(!readerGroupConfig) {
@@ -61,8 +60,7 @@ UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
     }
 
     /* Deep copy of the config */
-    retval |= UA_ReaderGroupConfig_copy(readerGroupConfig, &tmpReaderGroupConfig);
-    newGroup->config = tmpReaderGroupConfig;
+    retval |= UA_ReaderGroupConfig_copy(readerGroupConfig, &newGroup->config);
     retval |= UA_ReaderGroup_addSubscribeCallback(server, newGroup);
     LIST_INSERT_HEAD(&currentConnectionContext->readerGroups, newGroup, listEntry);
     currentConnectionContext->readerGroupsSize++;
@@ -458,6 +456,11 @@ UA_DataSetReaderConfig_copy(const UA_DataSetReaderConfig *src,
         return retVal;
     }
 
+    retVal = UA_ExtensionObject_copy(&src->transportSettings, &dst->transportSettings);
+    if (retVal != UA_STATUSCODE_GOOD) {
+    	return retVal;
+    }
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -655,6 +658,7 @@ void UA_DataSetReader_delete(UA_Server *server, UA_DataSetReader *dataSetReader)
     UA_Variant_deleteMembers(&dataSetReader->config.publisherId);
     UA_DataSetMetaDataType_deleteMembers(&dataSetReader->config.dataSetMetaData);
     UA_UadpDataSetReaderMessageDataType_deleteMembers(&dataSetReader->config.messageSettings);
+    UA_ExtensionObject_clear(&dataSetReader->config.transportSettings);
     UA_TargetVariablesDataType_deleteMembers(&dataSetReader->subscribedDataSetTarget);
 
     /* Delete DataSetReader */
