@@ -543,14 +543,15 @@ generateFieldMetaData(UA_Server *server, UA_DataSetField *field, UA_FieldMetaDat
 
             //ToDo after freeze PR, the value source must be checked (other behavior for static value source)
             if(field->config.field.variable.staticValueSourceEnabled) {
-                fieldMetaData->arrayDimensions = (UA_UInt32 *)
-                    UA_calloc(field->config.field.variable.staticValueSource.value.arrayDimensionsSize,
-                              sizeof(UA_UInt32));
-                if(fieldMetaData->arrayDimensions == NULL)
-                    return UA_STATUSCODE_BADOUTOFMEMORY;
-                memcpy(fieldMetaData->arrayDimensions,
-                       field->config.field.variable.staticValueSource.value.arrayDimensions,
-                       sizeof(UA_UInt32) *field->config.field.variable.staticValueSource.value.arrayDimensionsSize);
+                if (field->config.field.variable.staticValueSource.value.arrayDimensionsSize > 0) {
+                    fieldMetaData->arrayDimensions = (UA_UInt32 *) UA_calloc(
+                            field->config.field.variable.staticValueSource.value.arrayDimensionsSize, sizeof(UA_UInt32));
+                    if(fieldMetaData->arrayDimensions == NULL)
+                        return UA_STATUSCODE_BADOUTOFMEMORY;
+                    memcpy(fieldMetaData->arrayDimensions,
+                            field->config.field.variable.staticValueSource.value.arrayDimensions,
+                            sizeof(UA_UInt32) *field->config.field.variable.staticValueSource.value.arrayDimensionsSize);
+                }
                 fieldMetaData->arrayDimensionsSize = field->config.field.variable.staticValueSource.value.arrayDimensionsSize;
                 if(UA_NodeId_copy(&field->config.field.variable.staticValueSource.value.type->typeId,
                         &fieldMetaData->dataType) != UA_STATUSCODE_GOOD){
@@ -572,10 +573,12 @@ generateFieldMetaData(UA_Server *server, UA_DataSetField *field, UA_FieldMetaDat
                 UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                                "PubSub meta data generation. Reading ArrayDimension failed.");
             } else {
-                fieldMetaData->arrayDimensions = (UA_UInt32 *) UA_calloc(value.arrayDimensionsSize, sizeof(UA_UInt32));
-                if(fieldMetaData->arrayDimensions == NULL)
-                    return UA_STATUSCODE_BADOUTOFMEMORY;
-                memcpy(fieldMetaData->arrayDimensions, value.arrayDimensions, sizeof(UA_UInt32)*value.arrayDimensionsSize);
+                if (value.arrayDimensionsSize > 0) {
+                    fieldMetaData->arrayDimensions = (UA_UInt32 *) UA_calloc(value.arrayDimensionsSize, sizeof(UA_UInt32));
+                    if(fieldMetaData->arrayDimensions == NULL)
+                        return UA_STATUSCODE_BADOUTOFMEMORY;
+                    memcpy(fieldMetaData->arrayDimensions, value.arrayDimensions, sizeof(UA_UInt32)*value.arrayDimensionsSize);
+                }
                 fieldMetaData->arrayDimensionsSize = value.arrayDimensionsSize;
             }
             if(UA_Server_readDataType(server, field->config.field.variable.publishParameters.publishedVariable,
