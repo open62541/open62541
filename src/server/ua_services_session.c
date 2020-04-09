@@ -498,26 +498,37 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     UA_LOCK_ASSERT(server->serviceMutex, 1);
 
     /* The Session was not bound to this SecureChannel. It could be that we want
-     * to transfer/activate a Session from another SecureChannel.
-     *
-     * Part 4, §5.6.3: When the ActivateSession Service is called for the first
-     * time then the Server shall reject the request if the SecureChannel is not
-     * same as the one associated with the CreateSession request. Subsequent
-     * calls to ActivateSession may be associated with different
-     * SecureChannels. */
+     * to transfer/activate a Session from another SecureChannel. */
     if(!session) {
-        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SESSION, "Execute ActivateSession: Session not bound to this secure channel");
         session = getSessionByToken(server, &request->requestHeader.authenticationToken);
-        if(!session || !session->activated) {
+        if(!session) {
+            UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
+                                   "ActivateSession: Session not found");
             response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
             goto rejected;
         }
-    }
 
-    UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Execute ActivateSession");
+        /* Part 4, §5.6.3: When the ActivateSession Service is called for the
+         * first time then the Server shall reject the request if the
+         * SecureChannel is not same as the one associated with the
+         * CreateSession request. Subsequent calls to ActivateSession may be
+         * associated with different SecureChannels. */
+        if(!session->activated) {
+            UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
+                                   "ActivateSession: The Session has to be initially activated "
+                                   "on the SecureChannel that created it");
+            response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
+            goto rejected;
+        }
+
+        UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
+                            "ActivateSession: Transferring a Session from another SecureChannel");
+    }
 
     /* Has the session timed out? */
     if(session->validTill < UA_DateTime_nowMonotonic()) {
+        UA_LOG_WARNING_SESSION(&server->config.logger, session,
+                               "ActivateSession: The Session has timed out");
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
         goto rejected;
     }
@@ -526,9 +537,9 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
      * to the client */
     response->responseHeader.serviceResult = checkSignature(server, channel, session, request);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO_SESSION(&server->config.logger, session,
-                            "Signature check failed with status code %s",
-                            UA_StatusCode_name(response->responseHeader.serviceResult));
+        UA_LOG_WARNING_SESSION(&server->config.logger, session,
+                               "ActivateSession: Signature check failed with StatusCode %s",
+                               UA_StatusCode_name(response->responseHeader.serviceResult));
         goto securityRejected;
     }
 
@@ -584,8 +595,8 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
 
 #ifdef UA_ENABLE_ENCRYPTION
     /* If it is a UserNameIdentityToken, decrypt the password if encrypted */
-    if((request->userIdentityToken.encoding == UA_EXTENSIONOBJECT_DECODED) &&
-       (request->userIdentityToken.content.decoded.type == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN])) {
+    if(request->userIdentityToken.encoding == UA_EXTENSIONOBJECT_DECODED &&
+       tokenDataType == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
        UA_UserNameIdentityToken *userToken = (UA_UserNameIdentityToken *)
            request->userIdentityToken.content.decoded.data;
 
@@ -605,10 +616,11 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
        /* Get the SecurityPolicy. If the userTokenPolicy doesn't specify a
         * security policy the security policy of the secure channel is used. */
        UA_SecurityPolicy* securityPolicy;
-       if(ed->userIdentityTokens[tokenIndex].securityPolicyUri.data == NULL)
+       if(!ed->userIdentityTokens[tokenIndex].securityPolicyUri.data)
            securityPolicy = UA_SecurityPolicy_getSecurityPolicyByUri(server, &ed->securityPolicyUri);
        else
-           securityPolicy = UA_SecurityPolicy_getSecurityPolicyByUri(server, &ed->userIdentityTokens[tokenIndex].securityPolicyUri);
+           securityPolicy = UA_SecurityPolicy_getSecurityPolicyByUri(server,
+                                              &ed->userIdentityTokens[tokenIndex].securityPolicyUri);
        if(!securityPolicy) {
           response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
           goto rejected;
@@ -656,9 +668,9 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
        }
 
        if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-           UA_LOG_INFO_SESSION(&server->config.logger, session, "ActivateSession: "
-                               "Failed to decrypt the password with the status code %s",
-                               UA_StatusCode_name(response->responseHeader.serviceResult));
+           UA_LOG_WARNING_SESSION(&server->config.logger, session, "ActivateSession: "
+                                  "Failed to decrypt the password with the StatusCode %s",
+                                  UA_StatusCode_name(response->responseHeader.serviceResult));
            goto securityRejected;
        }
     }
@@ -670,9 +682,9 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         activateSession(server, &server->config.accessControl, ed, &channel->remoteCertificate,
                         &session->sessionId, &request->userIdentityToken, &session->sessionHandle);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO_SESSION(&server->config.logger, session, "ActivateSession: The AccessControl "
-                            "plugin denied the access with the status code %s",
-                            UA_StatusCode_name(response->responseHeader.serviceResult));
+        UA_LOG_WARNING_SESSION(&server->config.logger, session, "ActivateSession: The AccessControl "
+                               "plugin denied the activation with the StatusCode %s",
+                               UA_StatusCode_name(response->responseHeader.serviceResult));
         goto rejected;
     }
 
@@ -680,9 +692,10 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
      * attached to a channel or if the session is activated on a different
      * channel than it is attached to. */
     if(!session->header.channel || session->header.channel != channel) {
-        UA_LOG_INFO_SESSION(&server->config.logger, session, "ActivateSession: Attach to new channel");
         /* Attach the new SecureChannel, the old channel will be detached if present */
         UA_Session_attachToSecureChannel(session, channel);
+        UA_LOG_INFO_SESSION(&server->config.logger, session,
+                            "ActivateSession: Session attached to new channel");
     }
 
     /* Activate the session */
@@ -696,8 +709,8 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_Session_detachFromSecureChannel(session);
         session->activated = false;
-        UA_LOG_INFO_SESSION(&server->config.logger, session,
-                            "ActivateSession: Could not generate a server nonce");
+        UA_LOG_WARNING_SESSION(&server->config.logger, session,
+                               "ActivateSession: Could not generate the server nonce");
         goto rejected;
     }
 
