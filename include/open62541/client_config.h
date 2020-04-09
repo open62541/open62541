@@ -109,7 +109,6 @@ typedef struct {
     UA_CertificateVerification certificateVerification;
 
     /* Callbacks for async connection handshakes */
-    UA_ConnectClientConnection connectionFunc;
     UA_ConnectClientConnection initConnectionFunc;
     UA_StatusCode (*pollConnectionFunc)(UA_Client *client, void *context);
 
