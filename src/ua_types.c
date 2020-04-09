@@ -2,6 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
+ *    Copyright 2020 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014, 2016-2017 (c) Florian Palm
  *    Copyright 2014-2016 (c) Sten Grüner
@@ -1052,6 +1053,23 @@ copyStructureWithOptionalFields(const void *src, void *dst, const UA_DataType *t
 }
 
 static UA_StatusCode
+copyUnion(const void *src, void *dst, const UA_DataType *type) {
+    uintptr_t ptrs = (uintptr_t) src;
+    uintptr_t ptrd = (uintptr_t) dst;
+    UA_UInt32 selection = *(UA_UInt32 *)ptrs;
+    //printf("Copy selection: %u\n", selection);
+    UA_copy((const UA_UInt32 *) ptrs, (UA_UInt32 *) ptrd, &UA_TYPES[UA_TYPES_UINT32]);
+    const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
+    const UA_DataTypeMember *m = &type->members[selection];
+    const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
+    ptrs += UA_TYPES[UA_TYPES_UINT32].memSize;
+    ptrd += UA_TYPES[UA_TYPES_UINT32].memSize;
+    ptrs += m->padding;
+    ptrd += m->padding;
+    return UA_copy((const void *) ptrs, (void *) ptrd, mt);
+}
+
+static UA_StatusCode
 copyNotImplemented(const void *src, void *dst, const UA_DataType *type) {
     return UA_STATUSCODE_BADNOTIMPLEMENTED;
 }
@@ -1095,7 +1113,7 @@ const UA_copySignature copyJumpTable[UA_DATATYPEKINDS] = {
     (UA_copySignature)copy4Byte, /* Enumeration */
     (UA_copySignature)copyStructure,
     (UA_copySignature)copyStructureWithOptionalFields, /* Structure with Optional Fields */
-    (UA_copySignature)copyStructure, /* Union */
+    (UA_copySignature)copyUnion, /* Union */
     (UA_copySignature)copyNotImplemented /* BitfieldCluster*/
 };
 
@@ -1140,6 +1158,18 @@ clearStructureWithOptionalFields(void *p, const UA_DataType *type) {
     clearStructure((void *) ptr, type);
 }
 
+static void
+clearUnion(void *p, const UA_DataType *type) {
+    uintptr_t ptr = (uintptr_t) p;
+    UA_UInt32 selection = *(UA_UInt32 *)ptr;
+    const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
+    const UA_DataTypeMember *m = &type->members[selection];
+    const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
+    ptr += UA_TYPES[UA_TYPES_UINT32].memSize;
+    ptr += m->padding;
+    UA_clear((void *) ptr, mt);
+}
+
 static void nopClear(void *p, const UA_DataType *type) { }
 
 const
@@ -1173,7 +1203,7 @@ UA_clearSignature clearJumpTable[UA_DATATYPEKINDS] = {
     (UA_clearSignature)nopClear, /* Enumeration */
     (UA_clearSignature)clearStructure,
     (UA_clearSignature)clearStructureWithOptionalFields, /* Struct with Optional Fields*/
-    (UA_clearSignature)clearStructure, /* Union, not implemented*/
+    (UA_clearSignature)clearUnion, /* Union*/
     (UA_clearSignature)nopClear /* BitfieldCluster, not implemented*/
 };
 

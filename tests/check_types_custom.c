@@ -79,10 +79,15 @@ static const UA_DataType PointType = {
 const UA_DataTypeArray customDataTypes = {NULL, 1, &PointType};
 
 /* The custom example datatype for an structure with optional fields */
+//typedef struct {
+//    UA_Boolean hasB;    /* defining if optional field "b" is defined or not */
+//    UA_Int16 a;
+//    UA_Float b;
+//} Opt;
+
 typedef struct {
-    UA_Boolean hasB;    /* defining if optional field "b" is defined or not */
     UA_Int16 a;
-    UA_Float b;
+    UA_Float *b;
 } Opt;
 
 /* flag "hasB" does not count as a member */
@@ -91,7 +96,8 @@ static UA_DataTypeMember Opt_members[2] = {
         {
                 UA_TYPENAME("a") /* .memberName */
                 UA_TYPES_INT16,  /* .memberTypeIndex, points into UA_TYPES since namespaceZero is true */
-                offsetof(Opt,a) - offsetof(Opt,hasB) - sizeof(UA_Boolean),  /* .padding */
+                //offsetof(Opt,a) - offsetof(Opt,hasB) - sizeof(UA_Boolean),  /* .padding */
+                0,
                 true,       /* .namespaceZero, see .memberTypeIndex */
                 false,      /* .isArray */
                 false       /* .isOptional */
@@ -125,6 +131,50 @@ static const UA_DataType OptType = {
 };
 
 const UA_DataTypeArray customDataTypesOptStruct = {&customDataTypes, 2, &OptType};
+
+typedef enum {UA_UNISWITCH_OPTIONA = 0, UA_UNISWITCH_OPTIONB = 1} UniSwitch;
+
+typedef struct {
+    UniSwitch switchField;
+    union {
+        UA_Double optionA;
+        UA_String optionB;
+    } fields;
+} Uni;
+
+static UA_DataTypeMember Uni_members[2] = {
+        {
+                UA_TYPENAME("optionA")
+                UA_TYPES_DOUBLE,
+                sizeof(UA_UInt32),
+                true,
+                false,
+                false
+        },
+        {
+                UA_TYPENAME("optionB")
+                UA_TYPES_STRING,
+                sizeof(UA_UInt32),
+                true,
+                false,
+                false
+        }
+};
+
+static const UA_DataType UniType = {
+        UA_TYPENAME("Uni")
+        {1, UA_NODEIDTYPE_NUMERIC, {4243}},
+        sizeof(Uni),
+        1,
+        UA_DATATYPEKIND_UNION,
+        false,
+        false,
+        2,
+        0,
+        Uni_members
+};
+
+const UA_DataTypeArray customDataTypesUnion = {&customDataTypesOptStruct, 2, &UniType};
 
 START_TEST(parseCustomScalar) {
     Point p;
@@ -247,10 +297,15 @@ START_TEST(parseCustomArray) {
 } END_TEST
 
 START_TEST(parseCustomStructureWithOptionalFields) {
+        //Opt o;
+        //o.hasB = true;      /* means optional field "b" is defined and will be encoded */
+        //o.a = 3;
+        //o.b = 2.5;
+
         Opt o;
-        o.hasB = true;      /* means optional field "b" is defined and will be encoded */
         o.a = 3;
-        o.b = 2.5;
+        o.b = UA_Float_new();
+        *o.b = (UA_Float) 10.10;
 
         UA_Variant var;
         UA_Variant_init(&var);
@@ -274,9 +329,11 @@ START_TEST(parseCustomStructureWithOptionalFields) {
         ck_assert(var2.type == &OptType);
 
         Opt *optStruct2 = (Opt *) var2.data;
-        ck_assert(optStruct2->hasB == UA_TRUE);
+        //ck_assert(optStruct2->hasB == UA_TRUE);
         ck_assert(optStruct2->a == 3);
-        ck_assert((fabs(optStruct2->b - 2.5)) < 0.005);
+        ck_assert((fabs(*optStruct2->b - 2.5)) < 0.005);
+
+        //TODO add magic size number
 
         UA_Variant_deleteMembers(&var);
         UA_Variant_deleteMembers(&var2);
@@ -284,8 +341,47 @@ START_TEST(parseCustomStructureWithOptionalFields) {
 } END_TEST
 
 START_TEST(parseCustomUnion) {
-    //TODO Implement
-} END_TEST
+        UA_StatusCode retval;
+        Uni u;
+        u.switchField = UA_UNISWITCH_OPTIONB;
+        u.fields.optionB = UA_STRING("test string");
+
+        UA_Variant var;
+        UA_Variant_init(&var);
+        retval = UA_Variant_setScalarCopy(&var, &u, &UniType);
+        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+        size_t lengthOfUnion = UA_calcSizeBinary(&u, &UniType);
+        //check if 19 is the right size
+        ck_assert_uint_eq(lengthOfUnion, 19);
+
+        size_t buflen = UA_calcSizeBinary(&var, &UA_TYPES[UA_TYPES_VARIANT]);
+        UA_ByteString buf;
+        retval = UA_ByteString_allocBuffer(&buf, buflen);
+        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+        UA_Byte *pos = buf.data;
+        const UA_Byte *end = &buf.data[buf.length];
+        retval = UA_encodeBinary(&var, &UA_TYPES[UA_TYPES_VARIANT],
+                                 &pos, &end, NULL, NULL);
+        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+        UA_Variant var2;
+        size_t offset = 0;
+        retval = UA_decodeBinary(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], &customDataTypesUnion);
+        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+        ck_assert(var2.type == &UniType);
+
+        Uni *uni2 = (Uni *) var2.data;
+        ck_assert(uni2->switchField = UA_UNISWITCH_OPTIONB);
+        UA_String compare = UA_STRING("test string");
+        ck_assert(UA_String_equal(&u.fields.optionB, &compare));
+        //ck_assert(uni2->fields.optionA = (fabs(uni2->fields.optionA - 2.5)) < 0.005);
+
+        UA_Variant_deleteMembers(&var);
+        UA_Variant_deleteMembers(&var2);
+        UA_ByteString_deleteMembers(&buf);
+    } END_TEST
 
 int main(void) {
     Suite *s  = suite_create("Test Custom DataType Encoding");

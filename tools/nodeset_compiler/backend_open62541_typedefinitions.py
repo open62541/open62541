@@ -5,6 +5,7 @@ import sys
 import time
 import getpass
 import platform
+from collections import OrderedDict
 
 if sys.version_info[0] >= 3:
     from nodeset_compiler.type_parser import BuiltinType, EnumerationType, OpaqueType, StructType
@@ -134,6 +135,7 @@ class CGenerator(object):
 
     def print_datatype(self, datatype):
         binaryEncodingId = "0"
+        isUnion = isinstance(datatype, StructType) and datatype.is_union
         if datatype.name in self.parser.typedescriptions:
             description = self.parser.typedescriptions[datatype.name]
             typeid = "{%s, %s}" % (description.namespaceid, getNodeidTypeAndId(description.nodeid))
@@ -153,7 +155,7 @@ class CGenerator(object):
                "    " + self.get_type_kind(datatype) + ", /* .typeKind */\n" + \
                "    " + pointerfree + ", /* .pointerFree */\n" + \
                "    " + self.get_type_overlayable(datatype) + ", /* .overlayable */\n" + \
-               "    " + str(len(datatype.members)) + ", /* .membersSize */\n" + \
+               "    " + (str(len(datatype.members)) if not isUnion else str(len(datatype.members)-1)) + ", /* .membersSize */\n" + \
                "    " + binaryEncodingId + ", /* .binaryEncodingId */\n" + \
                "    %s_members" % idName + " /* .members */\n}"
 
@@ -162,10 +164,16 @@ class CGenerator(object):
         idName = makeCIdentifier(datatype.name)
         if len(datatype.members) == 0:
             return "#define %s_members NULL" % (idName)
-        members = "static UA_DataTypeMember %s_members[%s] = {" % (idName, len(datatype.members))
+        isUnion = isinstance(datatype, StructType) and datatype.is_union
+        if isUnion:
+            members = "static UA_DataTypeMember %s_members[%s] = {" % (idName, len(datatype.members)-1)
+        else:
+            members = "static UA_DataTypeMember %s_members[%s] = {" % (idName, len(datatype.members))
         before = None
         size = len(datatype.members)
         for i, member in enumerate(datatype.members):
+            if isUnion and i == 0:
+                continue
             member_name = makeCIdentifier(member.name)
             member_name_capital = member_name
             if len(member_name) > 0:
@@ -174,7 +182,7 @@ class CGenerator(object):
             m += "    UA_%s_%s, /* .memberTypeIndex */\n" % (
                 member.member_type.outname.upper(), makeCIdentifier(member.member_type.name.upper()))
             m += "    "
-            if not before:
+            if not before and not isUnion:
                 if hasOptionalFields(datatype):
                     last_optField = getLastOptionalFieldName(datatype)
                     if member.is_array:
@@ -184,6 +192,8 @@ class CGenerator(object):
                     m += " - offsetof(UA_%s, has%s) - sizeof(UA_Boolean)," % (idName, last_optField[0].upper() + last_optField[1:])
                 else:
                     m += "0,"
+            elif isUnion:
+                m += "sizeof(UA_UInt32),"
             else:
                 if member.is_array:
                     m += "offsetof(UA_%s, %sSize)" % (idName, member_name)
@@ -267,21 +277,63 @@ class CGenerator(object):
 
     @staticmethod
     def print_struct_typedef(struct):
+        #generate enum option for union
+        returnstr = ""
+        if struct.is_union:
+            #test = type("MyEnumOptionSet", (EnumOptionSet, object), {"foo": lambda self: "foo"})
+            obj = type('MyEnumOptionSet', (object,), {'isOptionSet': False, 'elements': OrderedDict(), 'name': struct.name+"Switch"})
+
+            #unionSwitchEnum = {}
+            #unionSwitchEnum['isOptionSet'] = False
+            #unionSwitchEnum['elements'] = OrderedDict()
+            #returnstr = "typedef enum { \n"
+            count = 0
+            for member in struct.members:
+                #enum function
+                #unionSwitchEnum['elements'][struct.name] = count
+                if(count > 0):
+                    obj.elements[member.name] = str(count-1)
+                count += 1
+                #end use of enum function
+
+                #n = makeCIdentifier(member.name)
+                #if(count < len(struct.members)-1):
+                #    returnstr += "    %s_%s = %i, \n" % (struct.name, n, count)
+                #else:
+                #    returnstr += "    %s_%s = %i \n" % (struct.name, n, count)
+            #returnstr += "} %sSelection;\n\n" % struct.name
+            #todo force check 32 bit enum
+            #returnstr += "UA_STATIC_ASSERT(sizeof(UA_{0}) == sizeof(UA_Int32), enum_must_be_32bit);"
+            returnstr += CGenerator.print_enum_typedef(obj)
+            returnstr += "\n\n"
         if len(struct.members) == 0:
             return "typedef void * UA_%s;" % makeCIdentifier(struct.name)
-        returnstr = "typedef struct {\n"
+        returnstr += "typedef struct {\n"
+        if struct.is_union:
+            returnstr += "    UA_%sSwitch switchField;\n" % struct.name
+            returnstr += "    union {\n"
         for member in struct.members:
             if member.is_optional:
                 n = makeCIdentifier(member.name)
                 returnstr += "    UA_Boolean has%s;\n" % (n[:1].upper() + n[1:])
+        count = 0
         for member in struct.members:
+            #if struct.is_union:
+            #    returnstr += "    "
             if member.is_array:
                 returnstr += "    size_t %sSize;\n" % makeCIdentifier(member.name)
                 returnstr += "    UA_%s *%s;\n" % (
                     makeCIdentifier(member.member_type.name), makeCIdentifier(member.name))
+            elif struct.is_union:
+                if count > 0:
+                    returnstr += "        UA_%s %s;\n" % (
+                    makeCIdentifier(member.member_type.name), makeCIdentifier(member.name))
             else:
                 returnstr += "    UA_%s %s;\n" % (
                     makeCIdentifier(member.member_type.name), makeCIdentifier(member.name))
+            count += 1
+        if struct.is_union:
+            returnstr += "    } fields;\n"
         return returnstr + "} UA_%s;" % makeCIdentifier(struct.name)
 
     @staticmethod
@@ -360,13 +412,19 @@ _UA_BEGIN_DECLS
  * Every type is assigned an index in an array containing the type descriptions.
  * These descriptions are used during type handling (copying, deletion,
  * binary encoding, ...). */''')
-        self.printh("#define UA_" + self.parser.outname.upper() + "_COUNT %s" % (str(len(self.filtered_types))))
+        containedUnionTypes = 0
+        for t in self.filtered_types:
+            if isinstance(t, StructType):
+                if t.is_union:
+                    containedUnionTypes += 1
+        self.printh("#define UA_" + self.parser.outname.upper() + "_COUNT %s" % (str(len(self.filtered_types) + containedUnionTypes)))
 
         if len(self.filtered_types) > 0:
 
             self.printh(
                 "extern UA_EXPORT const UA_DataType UA_" + self.parser.outname.upper() + "[UA_" + self.parser.outname.upper() + "_COUNT];")
 
+            typecount = 0
             for i, t in enumerate(self.filtered_types):
                 self.printh("\n/**\n * " + t.name)
                 self.printh(" * " + "^" * len(t.name))
@@ -376,8 +434,14 @@ _UA_BEGIN_DECLS
                     self.printh(" * " + t.description + " */")
                 if not isinstance(t, BuiltinType):
                     self.printh(self.print_datatype_typedef(t) + "\n")
+                    if isinstance(t, StructType) and t.is_union:
+                        self.printh(
+                            "#define UA_" + makeCIdentifier(
+                                self.parser.outname.upper() + "_" + t.name.upper()) + "SWITCH " + str(typecount))
+                        typecount += 1
                 self.printh(
-                    "#define UA_" + makeCIdentifier(self.parser.outname.upper() + "_" + t.name.upper()) + " " + str(i))
+                    "#define UA_" + makeCIdentifier(self.parser.outname.upper() + "_" + t.name.upper()) + " " + str(typecount))
+                typecount += 1
 
         self.printh('''
 

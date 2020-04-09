@@ -97,19 +97,45 @@ static const UA_DataType OptType = {
         Opt_members
 };
 
-/* Adding a union */
-typedef struct {
-    UA_UInt32 switchField;      /* defining which field is defined for the union */
-    UA_Double x;
-    UA_String y;
-} Uni;
+typedef enum {Uni_optionA = 0, Uni_optionB = 1} UniSwitchField;
 
-/* Adding a union */
 typedef struct {
-    enum {x, y} selection;
-    UA_UInt32 switchField;      /* defining which field is defined for the union */
+    UniSwitchField selection;
     union {
-        UA_Double partA;
-        UA_String partB;
+        UA_Double optionA;
+        UA_String optionB;
     } fields;
 } Union;
+
+
+static UA_DataTypeMember Uni_members[3] = {
+        {
+                UA_TYPENAME("optionA")
+                UA_TYPES_DOUBLE,
+                sizeof(UA_UInt32),
+                true,
+                false,
+                false
+        },
+        {
+                UA_TYPENAME("optionB")
+                UA_TYPES_STRING,
+                sizeof(UA_UInt32),
+                true,
+                false,
+                false
+        }
+};
+
+static const UA_DataType UniType = {
+        UA_TYPENAME("Uni")
+        {1, UA_NODEIDTYPE_NUMERIC, {4243}},
+        sizeof(Union),
+        1,
+        UA_DATATYPEKIND_UNION,
+        true,
+        false,
+        2,
+        0,
+        Uni_members
+};
