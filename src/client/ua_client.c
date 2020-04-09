@@ -215,8 +215,14 @@ processAsyncResponse(UA_Client *client, UA_UInt32 requestId, const UA_NodeId *re
         if(ac->requestId == requestId)
             break;
     }
+
+    /* Part 6, 6.7.6: After the security validation is complete the receiver
+     * shall verify the RequestId and the SequenceNumber. If these checks fail a
+     * Bad_SecurityChecksFailed error is reported. The RequestId only needs to
+     * be verified by the Client since only the Client knows if it is valid or
+     * not.*/
     if(!ac)
-        return UA_STATUSCODE_BADREQUESTHEADERINVALID;
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
     /* Dequeue ac. We might disconnect (remove all ac) in the callback. */
     LIST_REMOVE(ac, pointers);
