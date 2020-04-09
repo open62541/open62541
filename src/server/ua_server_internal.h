@@ -177,6 +177,10 @@ UA_StatusCode
 UA_Server_configSecureChannel(UA_Server *server, UA_SecureChannel *channel,
                               const UA_AsymmetricAlgorithmSecurityHeader *asymHeader);
 
+UA_StatusCode
+sendServiceFault(UA_SecureChannel *channel, UA_UInt32 requestId, UA_UInt32 requestHandle,
+                 const UA_DataType *responseType, UA_StatusCode statusCode);
+
 void
 UA_Server_closeSecureChannel(UA_Server *server, UA_SecureChannel *channel,
                              UA_DiagnosticEvent event);
@@ -289,8 +293,8 @@ writeWithSession(UA_Server *server, UA_Session *session,
                  const UA_WriteValue *value);
 
 UA_StatusCode
-sendResponse(UA_SecureChannel *channel, UA_UInt32 requestId, UA_UInt32 requestHandle,
-             UA_Response *response, const UA_DataType *responseType);
+sendResponse(UA_Server *server, UA_Session *session, UA_SecureChannel *channel,
+             UA_UInt32 requestId, UA_Response *response, const UA_DataType *responseType);
 
 /* Many services come as an array of operations. This function generalizes the
  * processing of the operations. */
