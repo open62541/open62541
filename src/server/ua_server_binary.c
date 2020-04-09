@@ -40,40 +40,37 @@ void UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const co
 /* Helper Functions */
 /********************/
 
-static UA_StatusCode
-sendServiceFaultWithRequest(UA_SecureChannel *channel,
-                            const UA_RequestHeader *requestHeader,
-                            const UA_DataType *responseType,
-                            UA_UInt32 requestId, UA_StatusCode error) {
+UA_StatusCode
+sendServiceFault(UA_SecureChannel *channel, UA_UInt32 requestId, UA_UInt32 requestHandle,
+                 const UA_DataType *responseType, UA_StatusCode statusCode) {
     UA_Response response;
     UA_init(&response, responseType);
     UA_ResponseHeader *responseHeader = &response.responseHeader;
-    responseHeader->requestHandle = requestHeader->requestHandle;
+    responseHeader->requestHandle = requestHandle;
     responseHeader->timestamp = UA_DateTime_now();
-    responseHeader->serviceResult = error;
+    responseHeader->serviceResult = statusCode;
+
+    UA_LOG_DEBUG(channel->securityPolicy->logger, UA_LOGCATEGORY_SERVER,
+                 "Sending response for RequestId %u with ServiceResult %s",
+                 (unsigned)requestId, UA_StatusCode_name(statusCode));
 
     /* Send error message. Message type is MSG and not ERR, since we are on a
      * SecureChannel! */
-    UA_StatusCode retval =
-        UA_SecureChannel_sendSymmetricMessage(channel, requestId, UA_MESSAGETYPE_MSG,
-                                              &response, responseType);
-
-    UA_LOG_DEBUG(channel->securityPolicy->logger, UA_LOGCATEGORY_SERVER,
-                 "Sent ServiceFault with error code %s", UA_StatusCode_name(error));
-    return retval;
+    return UA_SecureChannel_sendSymmetricMessage(channel, requestId, UA_MESSAGETYPE_MSG,
+                                                 &response, responseType);
 }
 
  /* This is not an ERR message, the connection is not closed afterwards */
 static UA_StatusCode
-sendServiceFault(UA_SecureChannel *channel, const UA_ByteString *msg,
-                 size_t offset, const UA_DataType *responseType,
-                 UA_UInt32 requestId, UA_StatusCode error) {
+decodeHeaderSendServiceFault(UA_SecureChannel *channel, const UA_ByteString *msg,
+                             size_t offset, const UA_DataType *responseType,
+                             UA_UInt32 requestId, UA_StatusCode error) {
     UA_RequestHeader requestHeader;
     UA_StatusCode retval = UA_RequestHeader_decodeBinary(msg, &offset, &requestHeader);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    retval = sendServiceFaultWithRequest(channel, &requestHeader, responseType,
-                                         requestId, error);
+    retval = sendServiceFault(channel,  requestId, requestHeader.requestHandle,
+                              responseType, error);
     UA_RequestHeader_clear(&requestHeader);
     return retval;
 }
@@ -463,12 +460,34 @@ decryptProcessOPN(UA_Server *server, UA_SecureChannel *channel,
     return processOPN(server, channel, sequenceHeader.requestId, msg, offset);
 }
 
+/* The responseHeader must have the requestHandle already set */
 UA_StatusCode
-sendResponse(UA_SecureChannel *channel, UA_UInt32 requestId, UA_UInt32 requestHandle,
-             UA_Response *response, const UA_DataType *responseType) {
+sendResponse(UA_Server *server, UA_Session *session, UA_SecureChannel *channel,
+             UA_UInt32 requestId, UA_Response *response, const UA_DataType *responseType) {
     /* Prepare the ResponseHeader */
-    response->responseHeader.requestHandle = requestHandle;
     response->responseHeader.timestamp = UA_DateTime_now();
+
+    if(session) {
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+        UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+                             "Sending response for RequestId %u of type %s",
+                             (unsigned)requestId, responseType->typeName);
+#else
+        UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+                             "Sending reponse for RequestId %u of type %" PRIi16,
+                             (unsigned)requestId, responseType->binaryEncodingId);
+#endif
+    } else {
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+        UA_LOG_DEBUG_CHANNEL(&server->config.logger, channel,
+                             "Sending response for RequestId %u of type %s",
+                             (unsigned)requestId, responseType->typeName);
+#else
+        UA_LOG_DEBUG_CHANNEL(&server->config.logger, channel,
+                             "Sending reponse for RequestId %u of type %" PRIi16,
+                             (unsigned)requestId, responseType->binaryEncodingId);
+#endif
+    }
 
     /* Start the message context */
     UA_MessageContext mc;
@@ -515,13 +534,13 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
     const UA_RequestHeader *requestHeader = &request->requestHeader;
     if(session && !UA_NodeId_equal(&session->header.authenticationToken,
                                    &requestHeader->authenticationToken))
-        return sendServiceFaultWithRequest(channel, requestHeader, responseType,
-                                           requestId, UA_STATUSCODE_BADSESSIONIDINVALID);
+        return sendServiceFault(channel, requestId, requestHeader->requestHandle,
+                                responseType, UA_STATUSCODE_BADSESSIONIDINVALID);
 
     /* Has the session timed out? */
     if(session && session->validTill < UA_DateTime_nowMonotonic())
-        return sendServiceFaultWithRequest(channel, requestHeader, responseType,
-                                           requestId, UA_STATUSCODE_BADSESSIONIDINVALID);
+        return sendServiceFault(channel, requestId, requestHeader->requestHandle,
+                                responseType, UA_STATUSCODE_BADSESSIONIDINVALID);
 
     /* Session lifecycle service. The session pointer can still be NULL. */
     if(requestType == &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST] ||
@@ -538,8 +557,7 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
             UA_NodeId_copy(&res->authenticationToken, &unsafe_fuzz_authenticationToken);
         }
 #endif
-        return sendResponse(channel, requestId, requestHeader->requestHandle,
-                            response, responseType);
+        return sendResponse(server, session, channel, requestId, response, responseType);
     }
 
     /* Set an anonymous, inactive session for services that need no session */
@@ -555,8 +573,8 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
                                    "Service %" PRIi16 " refused without a valid session",
                                    requestType->binaryEncodingId);
 #endif
-            return sendServiceFaultWithRequest(channel, requestHeader, responseType,
-                                               requestId, UA_STATUSCODE_BADSESSIONIDINVALID);
+            return sendServiceFault(channel, requestId, requestHeader->requestHandle,
+                                    responseType, UA_STATUSCODE_BADSESSIONIDINVALID);
         }
 
         UA_Session_init(&anonymousSession);
@@ -582,8 +600,8 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
         UA_Server_removeSessionByToken(server, &session->header.authenticationToken,
                                        UA_DIAGNOSTICEVENT_ABORT);
         UA_UNLOCK(server->serviceMutex);
-        return sendServiceFaultWithRequest(channel, requestHeader, responseType,
-                                           requestId, UA_STATUSCODE_BADSESSIONNOTACTIVATED);
+        return sendServiceFault(channel, requestId, requestHeader->requestHandle,
+                                responseType, UA_STATUSCODE_BADSESSIONNOTACTIVATED);
     }
 
     /* Update the session lifetime */
@@ -613,8 +631,7 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
             return UA_STATUSCODE_GOOD;
 
         /* We are done here */
-        return sendResponse(channel, requestId, requestHeader->requestHandle,
-                            response, responseType);
+        return sendResponse(server, session, channel, requestId, response, responseType);
     }
 #endif
 
@@ -622,8 +639,7 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
     UA_LOCK(server->serviceMutex);
     service(server, session, request, response);
     UA_UNLOCK(server->serviceMutex);
-    return sendResponse(channel, requestId, requestHeader->requestHandle,
-                        response, responseType);
+    return sendResponse(server, session, channel, requestId, response, responseType);
 }
 
 static UA_StatusCode
@@ -658,8 +674,9 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
                                 "Unknown request with type identifier %" PRIi32,
                                 requestTypeId.identifier.numeric);
         }
-        return sendServiceFault(channel, msg, requestPos, &UA_TYPES[UA_TYPES_SERVICEFAULT],
-                                requestId, UA_STATUSCODE_BADSERVICEUNSUPPORTED);
+        return decodeHeaderSendServiceFault(channel, msg, requestPos,
+                                            &UA_TYPES[UA_TYPES_SERVICEFAULT],
+                                            requestId, UA_STATUSCODE_BADSERVICEUNSUPPORTED);
     }
     UA_assert(responseType);
 
@@ -670,7 +687,8 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
         UA_LOG_DEBUG_CHANNEL(&server->config.logger, channel,
                              "Could not decode the request with StatusCode %s",
                              UA_StatusCode_name(retval));
-        return sendServiceFault(channel, msg, requestPos, responseType, requestId, retval);
+        return decodeHeaderSendServiceFault(channel, msg, requestPos,
+                                            responseType, requestId, retval);
     }
 
     /* Check timestamp in the request header */
@@ -681,8 +699,8 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
                                    "The server sends no timestamp in the request header. "
                                    "See the 'verifyRequestTimestamp' setting.");
             if(server->config.verifyRequestTimestamp <= UA_RULEHANDLING_ABORT) {
-                retval = sendServiceFaultWithRequest(channel, requestHeader, responseType,
-                                                     requestId, UA_STATUSCODE_BADINVALIDTIMESTAMP);
+                retval = sendServiceFault(channel, requestId, requestHeader->requestHandle,
+                                          responseType, UA_STATUSCODE_BADINVALIDTIMESTAMP);
                 UA_clear(&request, requestType);
                 return retval;
             }
@@ -700,6 +718,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     /* Prepare the respone and process the request */
     UA_Response response;
     UA_init(&response, responseType);
+    response.responseHeader.requestHandle = requestHeader->requestHandle;
     retval = processMSGDecoded(server, channel, requestId, service, &request, requestType,
                                &response, responseType, sessionRequired);
 
