@@ -271,9 +271,11 @@ addReaderGroup(UA_Server *server) {
     UA_ReaderGroupConfig     readerGroupConfig;
     memset (&readerGroupConfig, 0, sizeof(UA_ReaderGroupConfig));
     readerGroupConfig.name   = UA_STRING("ReaderGroup1");
+#if defined PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
+    readerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
+#endif
     UA_Server_addReaderGroup(server, connectionIdentSubscriber, &readerGroupConfig,
                              &readerGroupIdentifier);
-    UA_Server_setReaderGroupOperational(server, readerGroupIdentifier);
 }
 
 /* Add DataSetReader to the ReaderGroup */
@@ -291,6 +293,13 @@ addDataSetReader(UA_Server *server) {
     readerConfig.publisherId.data     = &publisherIdentifier;
     readerConfig.writerGroupId        = WRITER_GROUP_ID_SUB;
     readerConfig.dataSetWriterId      = DATA_SET_WRITER_ID_SUB;
+    UA_UadpDataSetReaderMessageDataType dataSetReaderMessage;
+    memset(&dataSetReaderMessage, 0, sizeof(UA_UadpDataSetReaderMessageDataType));
+    dataSetReaderMessage.networkMessageContentMask          = (UA_UadpNetworkMessageContentMask)(UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID |
+                                                                (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_GROUPHEADER |
+                                                                (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_WRITERGROUPID |
+                                                                (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
+    readerConfig.messageSettings = dataSetReaderMessage;
 
     /* Setting up Meta data configuration in DataSetReader */
     UA_DataSetMetaDataType *pMetaData = &readerConfig.dataSetMetaData;
@@ -1027,6 +1036,7 @@ int main(int argc, char **argv) {
     addDataSetReader(server);
     addSubscribedVariables(server, readerIdentifier);
     UA_Server_freezeReaderGroupConfiguration(server, readerGroupIdentifier);
+    UA_Server_setReaderGroupOperational(server, readerGroupIdentifier);
 #endif
     serverConfigStruct *serverConfig;
     serverConfig            = (serverConfigStruct*)UA_malloc(sizeof(serverConfigStruct));
