@@ -23,6 +23,10 @@ cmake \
     -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=OFF \
     -DUA_ENABLE_SUBSCRIPTIONS=ON \
     -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
-    -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON \
+    -DUA_ENABLE_UNIT_TESTS_MEMCHECK=OFF \
     -DUA_NAMESPACE_ZERO=REDUCED ..
-make -j && make test ARGS="-V"
+make -j
+
+gdb -batch -ex "run" -ex "bt" ../bin/tests/check_types_memory 2>&1 | grep -v ^"No stack."$
+
+make test ARGS="-V"
