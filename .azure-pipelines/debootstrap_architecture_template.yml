@@ -1,0 +1,60 @@
+# See https://headmelted.com/continuous-delivery-with-azure-pipelines-and-github-releases-20a0155360d8
+jobs:
+  - job: qemu_${{ parameters.arch }}
+    displayName: MultiArch (${{ parameters.arch }})
+    pool:
+      vmImage: 'Ubuntu 18.04'
+    variables:
+      PREBOOTSTRAP_ARCH: ${{ parameters.arch }}
+      PREBOOTSTRAP_QEMU_ARCH: ${{ parameters.qemu_arch }}
+      PREBOOTSTRAP_RELEASE: stretch
+      PREBOOTSTRAP_VARIANT: minbase
+    steps:
+      - checkout: self
+        submodules: recursive
+
+      - script: sudo apt-get install -y debootstrap qemu-user-static
+        displayName: 'Installing debootstrap and QEMU'
+      - script: sudo debootstrap --foreign --no-check-gpg --verbose --include=fakeroot,build-essential --arch=$(PREBOOTSTRAP_ARCH) --variant=$(PREBOOTSTRAP_VARIANT) $(PREBOOTSTRAP_RELEASE) /rootfs
+        displayName: 'Using debootstrap --foreign to create rootfs'
+      - script: |
+            cd /rootfs;
+            sudo mount --bind /dev dev/
+            sudo mount --bind /sys sys/
+            sudo mount --bind /proc proc/
+            sudo mount --bind /dev/pts dev/pts/
+            cd ..;
+        displayName: Entering chroot to mount dev, sys, proc and dev/pts
+      - script: sudo cp /usr/bin/qemu-$(PREBOOTSTRAP_QEMU_ARCH)-static /rootfs/usr/bin/;
+        displayName: Copy static QEMU to /rootfs
+      - script: sudo chmod +x /rootfs/usr/bin/qemu-$(PREBOOTSTRAP_QEMU_ARCH)-static
+        displayName: Marking static [/rootfs/usr/bin/qemu-$(PREBOOTSTRAP_QEMU_ARCH)-static] as executable
+      - script: sudo chroot /rootfs /debootstrap/debootstrap --second-stage --verbose
+        displayName: Manually setting up debootstrap
+      #- script: sudo sbuild-createchroot --arch=$(PREBOOTSTRAP_ARCH) --foreign --setup-only /rootfs
+      #  displayName: Setting up /rootfs
+      - script: sudo cp -r $HOME/work/1/s /rootfs/build_app
+        displayName: Copy source into /rootfs
+
+      # Resolv.conf is somehow not setup correctly. The exec bit is missing and therefore apt is not able to update
+      - task: Bash@3
+        inputs:
+          targetType: inline
+          script: sudo chroot /rootfs bash -c "chmod +x /etc/resolv.conf"
+          failOnStderr: false
+        displayName: Set correct resolv.conf
+
+
+      - task: Bash@3
+        inputs:
+          targetType: inline
+          script: sudo chroot /rootfs bash -c "cd build_app && ./tools/azure-devops/qemu/install.sh"
+          failOnStderr: false
+        displayName: Installing required packages
+
+      - task: Bash@3
+        inputs:
+          targetType: inline
+          script: sudo chroot /rootfs bash -c "cd build_app && ./tools/azure-devops/qemu/build.sh"
+          failOnStderr: true
+        displayName: Building & Testing

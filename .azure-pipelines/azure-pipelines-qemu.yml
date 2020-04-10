@@ -1,0 +1,23 @@
+# -*- mode: yaml -*-
+
+jobs:
+  #- template: debootstrap_architecture_template.yml
+  #  parameters:
+  #    arch: amd64
+  #    qemu_arch: x86_64
+  - template: debootstrap_architecture_template.yml
+    parameters:
+      arch: arm64
+      qemu_arch: aarch64
+  - template: debootstrap_architecture_template.yml
+    parameters:
+      arch: armel
+      qemu_arch: arm
+  - template: debootstrap_architecture_template.yml
+    parameters:
+      arch: armhf
+      qemu_arch: arm
+  - template: debootstrap_architecture_template.yml
+    parameters:
+      arch: mips
+      qemu_arch: mips

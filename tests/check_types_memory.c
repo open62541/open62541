@@ -67,6 +67,7 @@
 #endif
 
 START_TEST(newAndEmptyObjectShallBeDeleted) {
+    printf("newAndEmptyObjectShallBeDeleted i=%d\n", _i);
     // given
     void *obj = UA_new(&UA_TYPES[_i]);
     // then
@@ -77,6 +78,7 @@ START_TEST(newAndEmptyObjectShallBeDeleted) {
 END_TEST
 
 START_TEST(arrayCopyShallMakeADeepCopy) {
+    printf("arrayCopyShallMakeADeepCopy");
     // given
     UA_String a1[3];
     a1[0] = (UA_String){1, (UA_Byte*)"a"};
@@ -105,6 +107,7 @@ START_TEST(arrayCopyShallMakeADeepCopy) {
 END_TEST
 
 START_TEST(encodeShallYieldDecode) {
+    printf("encodeShallYieldDecode i=%d\n", _i);
     /* floating point types may change the representaton due to several possible NaN values. */
     if(_i != UA_TYPES_FLOAT || _i != UA_TYPES_DOUBLE ||
        _i != UA_TYPES_CREATESESSIONREQUEST || _i != UA_TYPES_CREATESESSIONRESPONSE ||
@@ -162,6 +165,7 @@ START_TEST(encodeShallYieldDecode) {
 END_TEST
 
 START_TEST(decodeShallFailWithTruncatedBufferButSurvive) {
+    printf("decodeShallFailWithTruncatedBufferButSurvive i=%d\n", _i);
     //Skip test for void*
     if (
 #ifdef UA_ENABLE_DISCOVERY
@@ -222,11 +226,13 @@ END_TEST
 #define RANDOM_TESTS 1000
 
 START_TEST(decodeScalarBasicTypeFromRandomBufferShallSucceed) {
+    printf("decodeScalarBasicTypeFromRandomBufferShallSucceed %d\n", _i);
     // given
     void *obj1 = NULL;
     UA_ByteString msg1;
     UA_Int32 retval = UA_STATUSCODE_GOOD;
     UA_Int32 buflen = 256;
+    printf("alloc\n");
     retval = UA_ByteString_allocBuffer(&msg1, buflen); // fixed size
 #ifdef _WIN32
     srand(42);
@@ -243,21 +249,30 @@ START_TEST(decodeScalarBasicTypeFromRandomBufferShallSucceed) {
             msg1.data[i] = (UA_Byte)random();  // when
 #endif
         }
+        if (_i == 9) printf("new %d - %d\n", _i, n);
         size_t pos = 0;
         obj1 = UA_new(&UA_TYPES[_i]);
+        ck_assert_msg(obj1 != NULL,
+                      "UA_new failed for id: %d",
+                      UA_TYPES[_i].typeId.identifier.numeric);
+        if (_i == 9) printf("decode %d - %d\n", _i, n);
         retval |= UA_decodeBinary(&msg1, &pos, obj1, &UA_TYPES[_i], NULL);
         //then
         ck_assert_msg(retval == UA_STATUSCODE_GOOD,
                       "Decoding %d from random buffer",
                       UA_TYPES[_i].typeId.identifier.numeric);
         // finally
+        if (_i == 9) printf("delete %d - %d\n", _i, n);
         UA_delete(obj1, &UA_TYPES[_i]);
     }
     UA_ByteString_deleteMembers(&msg1);
+
+    printf("end %d\n", _i);
 }
 END_TEST
 
 START_TEST(decodeComplexTypeFromRandomBufferShallSurvive) {
+    printf("decodeComplexTypeFromRandomBufferShallSurvive i=%d\n", _i);
     // given
     UA_ByteString msg1;
     UA_Int32 retval = UA_STATUSCODE_GOOD;
@@ -291,6 +306,7 @@ START_TEST(decodeComplexTypeFromRandomBufferShallSurvive) {
 END_TEST
 
 START_TEST(calcSizeBinaryShallBeCorrect) {
+    printf("calcSizeBinaryShallBeCorrect i=%d\n", _i);
     /* Empty variants (with no type defined) cannot be encoded. This is
      * intentional. Discovery configuration is just a base class and void * */
     if(_i == UA_TYPES_VARIANT ||

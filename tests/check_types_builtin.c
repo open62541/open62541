@@ -820,6 +820,7 @@ START_TEST(UA_Float_encodeShallWorkOnExample) {
     const UA_Byte *end = &dst.data[dst.length];
 
     for(size_t i = 0; i < 7; i++) {
+        printf("i= %d\n%d %d %d %d\n", i, result[i][0], result[i][1], result[i][2], result[i][3]);
         UA_Byte *pos = dst.data;
         UA_Int32 retval = UA_Float_encodeBinary(&src[i], &pos, end);
         ck_assert_int_eq((uintptr_t)(pos - dst.data), 4);
