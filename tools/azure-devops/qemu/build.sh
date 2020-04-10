@@ -27,6 +27,6 @@ cmake \
     -DUA_NAMESPACE_ZERO=REDUCED ..
 make -j
 
-gdb -batch -ex "run" -ex "bt" ../bin/tests/check_types_memory 2>&1 | grep -v ^"No stack."$
+gdb -batch -ex "run" -ex "bt" ./bin/tests/check_types_memory 2>&1 | grep -v ^"No stack."$
 
 make test ARGS="-V"
