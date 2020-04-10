@@ -252,6 +252,9 @@ START_TEST(decodeScalarBasicTypeFromRandomBufferShallSucceed) {
         if (_i == 9) printf("new %d - %d\n", _i, n);
         size_t pos = 0;
         obj1 = UA_new(&UA_TYPES[_i]);
+        ck_assert_msg(obj1 != NULL,
+                      "UA_new failed for id: %d",
+                      UA_TYPES[_i].typeId.identifier.numeric);
         if (_i == 9) printf("decode %d - %d\n", _i, n);
         retval |= UA_decodeBinary(&msg1, &pos, obj1, &UA_TYPES[_i], NULL);
         //then
