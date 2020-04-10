@@ -294,8 +294,8 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
                      &group.ipv4.imr_interface, sizeof(struct in_addr)) < 0)
 #endif
     {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "PubSub Connection creation problem. Interface selection failed.");
+        UA_LOG_SOCKET_ERRNO_WRAP(UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "PubSub Connection creation problem. Interface selection failed with error: %s", errno_str));
         goto cleanup;
     }
 
@@ -310,8 +310,8 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
                      &group.ipv4, sizeof(group.ipv4)) < 0)
 #endif
     {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "PubSub Connection creation problem. Join multicast group failed.");
+        UA_LOG_SOCKET_ERRNO_WRAP(UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "PubSub Connection creation problem. Join multicast group failed with error: %s", errno_str));
         goto cleanup;
     }
 
