@@ -232,6 +232,7 @@ START_TEST(decodeScalarBasicTypeFromRandomBufferShallSucceed) {
     UA_ByteString msg1;
     UA_Int32 retval = UA_STATUSCODE_GOOD;
     UA_Int32 buflen = 256;
+    printf("alloc\n");
     retval = UA_ByteString_allocBuffer(&msg1, buflen); // fixed size
 #ifdef _WIN32
     srand(42);
@@ -248,17 +249,22 @@ START_TEST(decodeScalarBasicTypeFromRandomBufferShallSucceed) {
             msg1.data[i] = (UA_Byte)random();  // when
 #endif
         }
+        if (_i == 9) printf("new %d - %d\n", _i, n);
         size_t pos = 0;
         obj1 = UA_new(&UA_TYPES[_i]);
+        if (_i == 9) printf("decode %d - %d\n", _i, n);
         retval |= UA_decodeBinary(&msg1, &pos, obj1, &UA_TYPES[_i], NULL);
         //then
         ck_assert_msg(retval == UA_STATUSCODE_GOOD,
                       "Decoding %d from random buffer",
                       UA_TYPES[_i].typeId.identifier.numeric);
         // finally
+        if (_i == 9) printf("delete %d - %d\n", _i, n);
         UA_delete(obj1, &UA_TYPES[_i]);
     }
     UA_ByteString_deleteMembers(&msg1);
+
+    printf("end %d\n", _i);
 }
 END_TEST
 
