@@ -226,7 +226,7 @@ END_TEST
 #define RANDOM_TESTS 1000
 
 START_TEST(decodeScalarBasicTypeFromRandomBufferShallSucceed) {
-    printf("decodeScalarBasicTypeFromRandomBufferShallSucceed");
+    printf("decodeScalarBasicTypeFromRandomBufferShallSucceed %d\n", _i);
     // given
     void *obj1 = NULL;
     UA_ByteString msg1;
