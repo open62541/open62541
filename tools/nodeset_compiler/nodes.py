@@ -74,6 +74,7 @@ class Node(object):
         self.modelUri = None
         self.parent = None
         self.parentReference = None
+        self.parentIdAttribute = None
 
     def __str__(self):
         return self.__class__.__name__ + "(" + str(self.id) + ")"
@@ -104,6 +105,8 @@ class Node(object):
                 self.eventNotifier = int(av)
             elif at == "SymbolicName":
                 self.symbolicName = String(av)
+            elif at == "ParentNodeId":
+                self.parentIdAttribute = NodeId(av)
 
         for x in xmlelement.childNodes:
             if x.nodeType != x.ELEMENT_NODE:
@@ -177,6 +180,8 @@ class Node(object):
         self.browseName.ns = nsMapping[self.browseName.ns]
         if hasattr(self, 'dataType') and isinstance(self.dataType, NodeId):
             self.dataType.ns = nsMapping[self.dataType.ns]
+        if self.parentIdAttribute is not None:
+            self.parentIdAttribute.ns = nsMapping[self.parentIdAttribute.ns]
         new_refs = set()
         for ref in self.references:
             ref.source.ns = nsMapping[ref.source.ns]
