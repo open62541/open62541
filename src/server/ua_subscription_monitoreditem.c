@@ -210,7 +210,7 @@ UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
     UA_MonitoredItem_unregisterSampleCallback(server, monitoredItem);
 
     /* Remove monitored item from the list inside the variable node */
-    UA_Node *node = (UA_Node*)UA_NODESTORE_GET(server, &monitoredItem->monitoredNodeId);
+    UA_Node *node = (UA_Node*)(uintptr_t)UA_NODESTORE_GET(server, &monitoredItem->monitoredNodeId);
     if (node) {
         UA_MonitoredItem *tempMon;
         SLIST_FOREACH(tempMon, &node->monitoredItemQueue, listEntryNode) {

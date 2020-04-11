@@ -151,7 +151,7 @@ setMonitoredItemSettings(UA_Server *server, UA_Session *session, UA_MonitoredIte
     UA_Double samplingInterval = params->samplingInterval;
 
     if(mon->attributeId == UA_ATTRIBUTEID_VALUE) {
-        UA_VariableNode *vn = (UA_VariableNode *)
+        UA_VariableNode *vn = (UA_VariableNode *)(uintptr_t)
             UA_NODESTORE_GET(server, &mon->monitoredNodeId);
         if(vn) {
             if (vn->nodeClass == UA_NODECLASS_VARIABLE) {
@@ -651,8 +651,10 @@ UA_Server_deleteMonitoredItem(UA_Server *server, UA_UInt32 monitoredItemId) {
 UA_StatusCode
 UA_Server_notifyValueChange(UA_Server *server, const UA_NodeId node) {
     UA_LOCK(server->serviceMutex);
-    UA_Node *nodeEntry = (UA_Node*)UA_NODESTORE_GET(server, &node);
+    
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
+    UA_Node *nodeEntry = (UA_Node*)(uintptr_t)UA_NODESTORE_GET(server, &node);
     if (nodeEntry) {
         /* Only variable nodes can notify about value changes */
         if (nodeEntry->nodeClass != UA_NODECLASS_VARIABLE) {
@@ -691,12 +693,15 @@ UA_Server_notifyValueChange(UA_Server *server, const UA_NodeId node) {
 
                     /* apply filter and enqueue notification if value changed */
                     UA_Boolean movedValue = UA_FALSE;
-                    UA_StatusCode retval = sampleCallbackWithValue(server, &server->adminSession,
+                    retval = sampleCallbackWithValue(server, &server->adminSession,
                         mon->subscription, mon, &value_copy, &movedValue);
 
                     /* Delete the sample if it was not moved to the notification. */
                     if (!movedValue)
                         UA_DataValue_clear(&value_copy); /* Does nothing for UA_VARIANT_DATA_NODELETE */
+
+                    if (retval != UA_STATUSCODE_GOOD)
+                        break;
                 }
                 /* Index range is used */
                 else {
@@ -714,7 +719,7 @@ UA_Server_notifyValueChange(UA_Server *server, const UA_NodeId node) {
     }
 
     UA_UNLOCK(server->serviceMutex);
-    return UA_STATUSCODE_GOOD;
+    return retval;
 }
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
