@@ -653,7 +653,6 @@ UA_Server_notifyValueChange(UA_Server *server, const UA_NodeId node) {
     UA_LOCK(server->serviceMutex);
     
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-
     UA_Node *nodeEntry = (UA_Node*)(uintptr_t)UA_NODESTORE_GET(server, &node);
     if (nodeEntry) {
         /* Only variable nodes can notify about value changes */
@@ -685,28 +684,38 @@ UA_Server_notifyValueChange(UA_Server *server, const UA_NodeId node) {
         UA_MonitoredItem *mon;
         SLIST_FOREACH(mon, &nodeEntry->monitoredItemQueue, listEntryNode) {
             if (mon->attributeId == UA_ATTRIBUTEID_VALUE) {
-                /* Index range is unused */
+                UA_DataValue value_copy;
+                UA_DataValue_init(&value_copy);
+
+                /* Index range is not used */
                 if (UA_String_equal(&mon->indexRange, &UA_STRING_NULL)) {
-                    UA_DataValue value_copy;
-                    UA_DataValue_init(&value_copy);
-                    UA_DataValue_copy(&value, &value_copy);
-
-                    /* apply filter and enqueue notification if value changed */
-                    UA_Boolean movedValue = UA_FALSE;
-                    retval = sampleCallbackWithValue(server, &server->adminSession,
-                        mon->subscription, mon, &value_copy, &movedValue);
-
-                    /* Delete the sample if it was not moved to the notification. */
-                    if (!movedValue)
-                        UA_DataValue_clear(&value_copy); /* Does nothing for UA_VARIANT_DATA_NODELETE */
-
-                    if (retval != UA_STATUSCODE_GOOD)
-                        break;
+                    retval = UA_DataValue_copy(&value, &value_copy);
                 }
                 /* Index range is used */
                 else {
-                    // TODO support this
+                    value_copy = value; /* shallow copy */
+                    UA_NumericRange range;
+                    retval = UA_NumericRange_parse(&range, mon->indexRange);
+                    if (retval != UA_STATUSCODE_GOOD)
+                        break;
+                    retval = UA_Variant_copyRange(&value.value, &value_copy.value, range);
+                    UA_free(range.dimensions);
                 }
+
+                if (retval != UA_STATUSCODE_GOOD)
+                    break;
+
+                /* apply filter and enqueue notification if value changed */
+                UA_Boolean movedValue = UA_FALSE;
+                retval = sampleCallbackWithValue(server, &server->adminSession,
+                    mon->subscription, mon, &value_copy, &movedValue);
+
+                /* Delete the sample if it was not moved to the notification. */
+                if (!movedValue)
+                    UA_DataValue_clear(&value_copy); /* Does nothing for UA_VARIANT_DATA_NODELETE */
+
+                if (retval != UA_STATUSCODE_GOOD)
+                    break;
             }
         }
 

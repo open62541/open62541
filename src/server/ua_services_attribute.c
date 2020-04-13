@@ -1228,30 +1228,14 @@ writeValueAttribute(UA_Server *server, UA_Session *session,
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     if (retval == UA_STATUSCODE_GOOD) {
-        /* If this node references a monitored item (exception-based model), queue a notification. */
+        /* If this node references monitored items (exception-based model), queue notifications. */
         UA_MonitoredItem *mon, *mon_tmp;
         /* Iterate through monitored items */
         SLIST_FOREACH_SAFE(mon, &node->monitoredItemQueue, listEntryNode, mon_tmp) {
-            /* The MonitoredItem is attached to a subscription (not server-local).
-             * Prepare a notification and enqueue it. */
-            if (mon->subscription && mon->attributeId == UA_ATTRIBUTEID_VALUE) {
-                /* Index range is unused */
-                if (UA_String_equal(&mon->indexRange, &UA_STRING_NULL)) {
-                    UA_DataValue value_copy;
-                    UA_DataValue_init(&value_copy);
-                    UA_DataValue_copy(&adjustedValue, &value_copy);
-                    UA_Boolean movedValue = UA_FALSE;
-                    retval = sampleCallbackWithValue(server, session, mon->subscription, mon, &value_copy, &movedValue);
-
-                    /* Delete the sample if it was not moved to the notification. */
-                    if (!movedValue)
-                        UA_DataValue_clear(&value_copy); /* Does nothing for UA_VARIANT_DATA_NODELETE */
-                }
-                /* Index range is used */
-                else {
-                    // TODO support this
-                }
-            }
+            /* Call the sample callback if monitored item targets value
+             * attribute and the exception-based model is used */
+            if (mon->attributeId == UA_ATTRIBUTEID_VALUE && mon->samplingInterval == 0.0)
+                monitoredItem_sampleCallback(server, mon);
         }
     }
 #endif
