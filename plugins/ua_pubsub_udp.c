@@ -122,6 +122,7 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
         return NULL;
     }
 
+    bool isMulticast = true;
     /* Check if the ip address is a multicast address */
     if(requestResult->ai_family == PF_INET) {
         struct in_addr imr_interface;
@@ -130,6 +131,7 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
            (UA_ntohl(imr_interface.s_addr) & 0xF0000000) != 0xE0000000) {
             UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                 "PubSub Connection is created for a unicast address (IPv4)");
+            isMulticast = false;
         }
     } else {
         struct in6_addr imr_interface;
@@ -138,6 +140,7 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
            (imr_interface.s6_addr[0] != 0xFF)) {
             UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                 "PubSub Connection is created for a unicast address (IPv6)");
+            isMulticast = false;
         }
     }
 
@@ -299,20 +302,22 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
         goto cleanup;
     }
 
+    if(isMulticast){
 #if UA_IPV6
-    if(UA_setsockopt(newChannel->sockfd,
-          requestResult->ai_family == PF_INET6 ? IPPROTO_IPV6 : IPPROTO_IP,
-          requestResult->ai_family == PF_INET6 ? IPV6_JOIN_GROUP : IP_ADD_MEMBERSHIP,
-          ipVersion == IPv6 ? (const void *) &group.ipv6 : &group.ipv4,
-          ipVersion == IPv6 ? sizeof(group.ipv6) : sizeof(group.ipv4)) < 0)
+        if(UA_setsockopt(newChannel->sockfd,
+            requestResult->ai_family == PF_INET6 ? IPPROTO_IPV6 : IPPROTO_IP,
+            requestResult->ai_family == PF_INET6 ? IPV6_JOIN_GROUP : IP_ADD_MEMBERSHIP,
+            ipVersion == IPv6 ? (const void *) &group.ipv6 : &group.ipv4,
+            ipVersion == IPv6 ? sizeof(group.ipv6) : sizeof(group.ipv4)) < 0)
 #else
-    if(UA_setsockopt(newChannel->sockfd, IPPROTO_IP, IP_ADD_MEMBERSHIP,
-                     &group.ipv4, sizeof(group.ipv4)) < 0)
+        if(UA_setsockopt(newChannel->sockfd, IPPROTO_IP, IP_ADD_MEMBERSHIP,
+                        &group.ipv4, sizeof(group.ipv4)) < 0)
 #endif
-    {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "PubSub Connection creation problem. Join multicast group failed.");
-        goto cleanup;
+        {
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                        "PubSub Connection creation problem. Join multicast group failed.");
+            goto cleanup;
+        }
     }
 
     UA_freeaddrinfo(requestResult);
