@@ -349,7 +349,7 @@ static void addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId
     targetVars.targetVariables[iterator].targetNodeId = subNodeID;
     UA_Server_DataSetReader_createTargetVariables(server, dataSetReaderId, &targetVars);
 
-    UA_TargetVariablesDataType_deleteMembers(&targetVars);
+    UA_TargetVariablesDataType_clear(&targetVars);
     UA_free(readerConfig.dataSetMetaData.fields);
 }
 
@@ -745,7 +745,7 @@ void *userApplicationPubSub(void *arg) {
         UA_Server_readValue(server, nodeid, &subCounter);
         subCounterData          = *(UA_UInt64 *)subCounter.data;
         clock_gettime(CLOCKID, &dataReceiveTime);
-        UA_Variant_deleteMembers(&subCounter);
+        UA_Variant_clear(&subCounter);
 #if defined(UPDATE_MEASUREMENTS)
         updateMeasurementsPublisher(dataModificationTime, *pubCounterData);
         if (subCounterData > 0)
@@ -777,17 +777,17 @@ static void removeServerNodes(UA_Server *server) {
 #ifndef PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
     /* Delete the Publisher Counter Node*/
     UA_Server_deleteNode(server, pubNodeID, UA_TRUE);
-    UA_NodeId_deleteMembers(&pubNodeID);
+    UA_NodeId_clear(&pubNodeID);
     for (UA_Int32 iterator = 0; iterator < REPEATED_NODECOUNTS; iterator++)
     {
         UA_Server_deleteNode(server, pubRepeatedCountNodeID, UA_TRUE);
-        UA_NodeId_deleteMembers(&pubRepeatedCountNodeID);
+        UA_NodeId_clear(&pubRepeatedCountNodeID);
     }
 #endif
     for (UA_Int32 iterator = 0; iterator < REPEATED_NODECOUNTS; iterator++)
     {
         UA_Server_deleteNode(server, subRepeatedCountNodeID, UA_TRUE);
-        UA_NodeId_deleteMembers(&subRepeatedCountNodeID);
+        UA_NodeId_clear(&subRepeatedCountNodeID);
     }
 }
 
