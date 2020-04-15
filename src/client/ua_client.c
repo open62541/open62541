@@ -76,12 +76,11 @@ UA_ClientConfig_deleteMembers(UA_ClientConfig *config) {
     UA_free(config->securityPolicies);
     config->securityPolicies = 0;
 
-    if (config->logger.context && config->logger.clear) {
+    /* Logger */
+    if(config->logger.clear)
         config->logger.clear(config->logger.context);
-        config->logger.context = NULL;
-        config->logger.log = NULL;
-        config->logger.clear = NULL;
-    }
+    config->logger.log = NULL;
+    config->logger.clear = NULL;
 }
 
 static void
