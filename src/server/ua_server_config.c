@@ -76,6 +76,8 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
     /* Logger */
     if(config->logger.clear)
         config->logger.clear(config->logger.context);
+    config->logger.log = NULL;
+    config->logger.clear = NULL;
 }
 
 void
