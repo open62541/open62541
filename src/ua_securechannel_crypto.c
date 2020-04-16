@@ -54,19 +54,21 @@ generateLocalKeys(const UA_SecureChannel *channel,
     const UA_SecurityPolicySymmetricModule *sm = &sp->symmetricModule;
     const UA_SecurityPolicyCryptoModule *crm = &sm->cryptoModule;
 
-    /* Symmetric key length */
+    /* Generate symmetric key buffer of the required length */
+    UA_ByteString buf;
     size_t encrKL = crm->encryptionAlgorithm.getLocalKeyLength(sp, cc);
     size_t encrBS = crm->encryptionAlgorithm.getLocalBlockSize(sp, cc);
     size_t signKL = crm->signatureAlgorithm.getLocalKeyLength(sp, cc);
-
-    /* Generate key */
-    const size_t bufSize = encrBS + signKL + encrKL;
-    UA_STACKARRAY(UA_Byte, bufBytes, bufSize);
-    UA_ByteString buf = {bufSize, bufBytes};
-    UA_StatusCode retval = sm->generateKey(sp, &channel->remoteNonce,
-                                           &channel->localNonce, &buf);
+    UA_StatusCode retval = UA_ByteString_allocBuffer(&buf, encrBS + signKL + encrKL);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
+
+    /* Generate key */
+    retval = sm->generateKey(sp, &channel->remoteNonce, &channel->localNonce, &buf);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ByteString_clear(&buf);
+        return retval;
+    }
 
     /* Set the channel context */
     const UA_ByteString localSigningKey = {signKL, buf.data};
@@ -75,6 +77,7 @@ generateLocalKeys(const UA_SecureChannel *channel,
     retval |= cm->setLocalSymSigningKey(cc, &localSigningKey);
     retval |= cm->setLocalSymEncryptingKey(cc, &localEncryptingKey);
     retval |= cm->setLocalSymIv(cc, &localIv);
+    UA_ByteString_clear(&buf);
     return retval;
 }
 
@@ -87,17 +90,19 @@ generateRemoteKeys(const UA_SecureChannel *channel,
     const UA_SecurityPolicySymmetricModule *sm = &sp->symmetricModule;
     const UA_SecurityPolicyCryptoModule *crm = &sm->cryptoModule;
 
-    /* Symmetric key length */
+    /* Generate symmetric key buffer of the required length */
+    UA_ByteString buf;
     size_t encrKL = crm->encryptionAlgorithm.getRemoteKeyLength(sp, cc);
     size_t encrBS = crm->encryptionAlgorithm.getRemoteBlockSize(sp, cc);
     size_t signKL = crm->signatureAlgorithm.getRemoteKeyLength(sp, cc);
+    UA_StatusCode retval = UA_ByteString_allocBuffer(&buf, encrBS + signKL + encrKL);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ByteString_clear(&buf);
+        return retval;
+    }
 
     /* Generate key */
-    const size_t bufSize = encrBS + signKL + encrKL;
-    UA_STACKARRAY(UA_Byte, bufBytes, bufSize);
-    UA_ByteString buf = {bufSize, bufBytes};
-    UA_StatusCode retval = sm->generateKey(sp, &channel->localNonce,
-                                           &channel->remoteNonce, &buf);
+    retval = sm->generateKey(sp, &channel->localNonce, &channel->remoteNonce, &buf);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -108,6 +113,7 @@ generateRemoteKeys(const UA_SecureChannel *channel,
     retval |= cm->setRemoteSymSigningKey(cc, &remoteSigningKey);
     retval |= cm->setRemoteSymEncryptingKey(cc, &remoteEncryptingKey);
     retval |= cm->setRemoteSymIv(cc, &remoteIv);
+    UA_ByteString_clear(&buf);
     return retval;
 }
 
