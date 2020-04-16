@@ -19,9 +19,10 @@
 #include <open62541/types_generated_handling.h>
 
 #include "ua_util_internal.h"
-
 #include "libc_time.h"
 #include "pcg_basic.h"
+
+#define UA_MAX_ARRAY_DIMS 100 /* Max dimensions of an array */
 
 /* Datatype Handling
  * -----------------
@@ -624,6 +625,11 @@ computeStrides(const UA_Variant *v, const UA_NumericRange range,
     }
     UA_assert(dims_count > 0);
 
+    /* Upper bound of the dimensions for stack-allocation */
+    if(dims_count > UA_MAX_ARRAY_DIMS)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_UInt32 realmax[UA_MAX_ARRAY_DIMS];
+
     /* Test the integrity of the range and compute the max index used for every
      * dimension. The standard says in Part 4, Section 7.22:
      *
@@ -631,7 +637,6 @@ computeStrides(const UA_Variant *v, const UA_NumericRange range,
      * the bounds of the array. The Server shall return a partial result if some
      * elements exist within the range. */
     size_t count = 1;
-    UA_STACKARRAY(UA_UInt32, realmax, dims_count);
     if(range.dimensionsSize != dims_count)
         return UA_STATUSCODE_BADINDEXRANGENODATA;
     for(size_t i = 0; i < dims_count; ++i) {
