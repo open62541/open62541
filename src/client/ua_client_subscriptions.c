@@ -22,21 +22,6 @@
 /* Subscriptions */
 /*****************/
 
-static UA_StatusCode
-__Subscriptions_create_prepare(CustomCallback *cc, const UA_CreateSubscriptionRequest *request,
-                               void *subscriptionContext,
-                               UA_Client_StatusChangeNotificationCallback statusChangeCallback,
-                               UA_Client_DeleteSubscriptionCallback deleteCallback) {
-    UA_Client_Subscription *sub = (UA_Client_Subscription *)
-        (cc->clientData = UA_malloc(sizeof(UA_Client_Subscription)));
-    if(!sub)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    sub->context = subscriptionContext;
-    sub->statusChangeCallback = statusChangeCallback;
-    sub->deleteCallback = deleteCallback;
-    return UA_STATUSCODE_GOOD;
-}
-
 static void
 __Subscriptions_create_handler(UA_Client *client, void *data, UA_UInt32 requestId,
                                void *r) {
@@ -85,12 +70,16 @@ UA_Client_Subscriptions_create(UA_Client *client,
     cc.isAsync = false;
 #endif
 
-    UA_StatusCode retval = __Subscriptions_create_prepare(
-        &cc, &request, subscriptionContext, statusChangeCallback, deleteCallback);
-    if(retval != UA_STATUSCODE_GOOD) {
-        response.responseHeader.serviceResult = retval;
+    UA_Client_Subscription *sub = (UA_Client_Subscription *)
+        UA_malloc(sizeof(UA_Client_Subscription));
+    if(!sub) {
+        response.responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return response;
     }
+    sub->context = subscriptionContext;
+    sub->statusChangeCallback = statusChangeCallback;
+    sub->deleteCallback = deleteCallback;
+    cc.clientData = sub;
 
     /* Send the request as a synchronous service call */
     __UA_Client_Service(client,
@@ -116,11 +105,16 @@ UA_Client_Subscriptions_create_async(UA_Client *client, const UA_CreateSubscript
     cc->userCallback = createCallback;
     cc->userData = userdata;
 
-    UA_StatusCode retval =
-        __Subscriptions_create_prepare(cc, &request, subscriptionContext,
-                                       statusChangeCallback, deleteCallback);
-    if(retval != UA_STATUSCODE_GOOD)
-        goto cleanup;
+    UA_Client_Subscription *sub = (UA_Client_Subscription *)
+        UA_malloc(sizeof(UA_Client_Subscription));
+    if(!sub) {
+        UA_free(cc);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    sub->context = subscriptionContext;
+    sub->statusChangeCallback = statusChangeCallback;
+    sub->deleteCallback = deleteCallback;
+    cc->clientData = sub;
 
     /* Send the request as asynchronous service call */
     return __UA_Client_AsyncService(client, &request,
@@ -128,11 +122,6 @@ UA_Client_Subscriptions_create_async(UA_Client *client, const UA_CreateSubscript
                                     __Subscriptions_create_handler,
                                     &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONRESPONSE],
                                     cc, requestId);
-cleanup:
-    if(cc->clientData)
-        UA_free(cc->clientData);
-    UA_free(cc);
-    return retval;
 }
 
 static UA_Client_Subscription *
