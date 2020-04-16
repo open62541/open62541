@@ -14,6 +14,7 @@
 
 #include "ua_services.h"
 #include "ua_server_internal.h"
+#include "ua_server_async.h"
 
 #ifdef UA_ENABLE_METHODCALLS /* conditional compilation */
 
@@ -230,94 +231,10 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
 }
 
 #if UA_MULTITHREADING >= 100
-
-static void
-Operation_CallMethodAsync(UA_Server *server, UA_Session *session, UA_UInt32 requestId,
-                          UA_UInt32 requestHandle, size_t opIndex,
-                          UA_CallMethodRequest *opRequest, UA_CallMethodResult *opResult,
-                          UA_AsyncResponse **ar) {
-    /* Get the method node */
-    const UA_MethodNode *method = (const UA_MethodNode*)
-        UA_NODESTORE_GET(server, &opRequest->methodId);
-    if(!method) {
-        opResult->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
-        return;
-    }
-
-    /* Get the object node */
-    const UA_ObjectNode *object = (const UA_ObjectNode*)
-        UA_NODESTORE_GET(server, &opRequest->objectId);
-    if(!object) {
-        opResult->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
-        UA_NODESTORE_RELEASE(server, (const UA_Node*)method);
-        return;
-    }
-
-    /* Synchronous execution */
-    if(!method->async) {
-        callWithMethodAndObject(server, session, opRequest, opResult, method, object);
-        goto cleanup;
-    }
-
-    /* <-- Async method call --> */
-
-    /* No AsyncResponse allocated so far */
-    if(!*ar) {
-        opResult->statusCode =
-            UA_AsyncManager_createAsyncResponse(&server->asyncManager, server,
-                                                &session->sessionId, requestId,
-                                                requestHandle, UA_ASYNCOPERATIONTYPE_CALL,
-                                                ar);
-        if(opResult->statusCode != UA_STATUSCODE_GOOD)
-            goto cleanup;
-    }
-
-    /* Create the Async Request to be taken by workers */
-    opResult->statusCode =
-        UA_AsyncManager_createAsyncOp(&server->asyncManager,
-                                      server, *ar, opIndex, opRequest);
-
- cleanup:
-    /* Release the method and object node */
-    UA_NODESTORE_RELEASE(server, (const UA_Node*)method);
-    UA_NODESTORE_RELEASE(server, (const UA_Node*)object);
-}
-
-void
-Service_CallAsync(UA_Server *server, UA_Session *session, UA_UInt32 requestId,
-                  const UA_CallRequest *request, UA_CallResponse *response,
-                  UA_Boolean *finished) {
-    UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Processing CallRequestAsync");
-    if(server->config.maxNodesPerMethodCall != 0 &&
-        request->methodsToCallSize > server->config.maxNodesPerMethodCall) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
-        return;
-    }
-
-    UA_AsyncResponse *ar = NULL;
-    response->responseHeader.serviceResult =
-        UA_Server_processServiceOperationsAsync(server, session, requestId,
-                                                request->requestHeader.requestHandle,
-                                                (UA_AsyncServiceOperation)Operation_CallMethodAsync,
-                                                &request->methodsToCallSize,
-                                                &UA_TYPES[UA_TYPES_CALLMETHODREQUEST],
-                                                &response->resultsSize,
-                                                &UA_TYPES[UA_TYPES_CALLMETHODRESULT], &ar);
-
-    if(ar) {
-        if(ar->opCountdown > 0) {
-            /* Move all results to the AsyncResponse. The async operation results
-             * will be overwritten when the workers return results. */
-            ar->response.callResponse = *response;
-            UA_CallResponse_init(response);
-            *finished = false;
-        } else {
-            /* If there is a new AsyncResponse, ensure it has at least one pending
-             * operation */
-            UA_AsyncManager_removeAsyncResponse(&server->asyncManager, ar);
-        }
-    }
-}
+typedef struct {
+    bool asyncRequest; /* Input param for Operation_CallMethod */
+    bool shouldBeProcessedAsynchronously; /* Output param of Operation_CallMethod */
+} CallMethodContext;
 #endif
 
 static void
@@ -330,6 +247,23 @@ Operation_CallMethod(UA_Server *server, UA_Session *session, void *context,
         result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
         return;
     }
+
+#if UA_MULTITHREADING >= 100
+    if(context) {
+        CallMethodContext *ctx = (CallMethodContext*)context;
+        if(!ctx->asyncRequest && method->async) {
+            /* Notify Service_Call that there are async methods */
+            ctx->shouldBeProcessedAsynchronously = true;
+            result->statusCode = UA_STATUSCODE_BADTIMEOUT;
+        }
+        /* Process only either sync or async requests depending on
+         * ctx->asyncRequest param */
+        if(method->async != ctx->asyncRequest) {
+            UA_NODESTORE_RELEASE(server, (const UA_Node*)method);
+            return;
+        }
+    }
+#endif
 
     /* Get the object node */
     const UA_ObjectNode *object = (const UA_ObjectNode*)
@@ -359,11 +293,29 @@ void Service_Call(UA_Server *server, UA_Session *session,
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
         return;
     }
-
+#if UA_MULTITHREADING < 100
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_CallMethod, NULL,
                                            &request->methodsToCallSize, &UA_TYPES[UA_TYPES_CALLMETHODREQUEST],
                                            &response->resultsSize, &UA_TYPES[UA_TYPES_CALLMETHODRESULT]);
+#else
+    void *ctx = UA_calloc(1, sizeof(CallMethodContext));
+    if(response->responseHeader.serviceResult == UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY) {
+        /* We will get here when the non async part of a request has been processed and we
+         * need to process the rest */
+        ((CallMethodContext*)ctx)->asyncRequest = true;
+    }
+
+    response->responseHeader.serviceResult =
+        UA_Server_processServiceOperationsAsync(server, session, (UA_ServiceOperation)Operation_CallMethod, ctx,
+                                                &request->methodsToCallSize, &UA_TYPES[UA_TYPES_CALLMETHODREQUEST],
+                                                &response->resultsSize, &UA_TYPES[UA_TYPES_CALLMETHODRESULT]);
+
+    if(response->responseHeader.serviceResult == UA_STATUSCODE_GOOD &&
+            ((CallMethodContext*)ctx)->shouldBeProcessedAsynchronously)
+        response->responseHeader.serviceResult = UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY;
+    UA_free(ctx);
+#endif
 }
 
 UA_CallMethodResult UA_EXPORT
@@ -375,5 +327,39 @@ UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request) {
     UA_UNLOCK(server->serviceMutex);
     return result;
 }
+
+#if UA_MULTITHREADING >= 100
+void Service_Call_async(UA_Server *server, UA_Session *session,
+                        UA_UInt32 requestId,
+                        const UA_RequestHeader *request,
+                        UA_ResponseHeader *response) {
+    Service_Call(server, session, (const UA_CallRequest*)request, (UA_CallResponse*)response);
+    if(response->serviceResult == UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY) {
+        UA_AsyncManager_addAsyncTask(server->asyncManager, session, requestId,
+                                     &UA_TYPES[UA_TYPES_CALLREQUEST],
+                                     request,
+                                     &UA_TYPES[UA_TYPES_CALLRESPONSE],
+                                     response,
+                                     (_UA_Service)Service_Call);
+    }
+}
+
+static UA_StatusCode
+setMethodNodeAsync(UA_Server *server, UA_Session *session,
+                   UA_Node *node, UA_Boolean *isAsync) {
+    UA_MethodNode *method = (UA_MethodNode*)node;
+    if(method->nodeClass != UA_NODECLASS_METHOD)
+        return UA_STATUSCODE_BADNODECLASSINVALID;
+    method->async = *isAsync;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_setMethodNodeAsync(UA_Server *server, const UA_NodeId id,
+                             UA_Boolean isAsync) {
+    return UA_Server_editNode(server, &server->adminSession, &id,
+                              (UA_EditNodeCallback)setMethodNodeAsync, &isAsync);
+}
+#endif
 
 #endif /* UA_ENABLE_METHODCALLS */

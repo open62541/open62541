@@ -23,6 +23,7 @@
 #include "open62541/plugin/network.h"
 
 #include "ua_server_internal.h"
+#include "ua_server_async.h"
 #include "ua_services.h"
 
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
@@ -601,15 +602,14 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
 
 #if UA_MULTITHREADING >= 100
     /* The call request might not be answered immediately */
-    if(requestType == &UA_TYPES[UA_TYPES_CALLREQUEST]) {
-        UA_Boolean finished = true;
+    UA_Service_async asyncService = UA_getAsyncService(requestType);
+    if(asyncService) {
         UA_LOCK(server->serviceMutex);
-        Service_CallAsync(server, session, requestId, (const UA_CallRequest*)requestHeader,
-                          (UA_CallResponse*)responseHeader, &finished);
+        asyncService(server, session, requestId, requestHeader, responseHeader);
         UA_UNLOCK(server->serviceMutex);
 
         /* Async method calls remain. Don't send a response now */
-        if(!finished)
+        if(responseHeader->serviceResult == UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY)
             return UA_STATUSCODE_GOOD;
 
         /* We are done here */

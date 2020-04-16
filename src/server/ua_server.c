@@ -18,6 +18,7 @@
  */
 
 #include "ua_server_internal.h"
+#include "ua_server_async.h"
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
 #include "ua_pubsub_ns0.h"
@@ -205,7 +206,7 @@ void UA_Server_delete(UA_Server *server) {
 #endif
 
 #if UA_MULTITHREADING >= 100
-    UA_AsyncManager_clear(&server->asyncManager, server);
+    UA_AsyncManager_delete(server->asyncManager);
 #endif
 
     /* Clean up the Admin Session */
@@ -305,7 +306,7 @@ UA_Server_init(UA_Server *server) {
     server->sessionCount = 0;
 
 #if UA_MULTITHREADING >= 100
-    UA_AsyncManager_init(&server->asyncManager, server);
+    server->asyncManager = UA_AsyncManager_new(server);
 #endif
 
     /* Add a regular callback for cleanup and maintenance. With a 10s interval. */
