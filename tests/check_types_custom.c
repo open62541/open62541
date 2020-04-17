@@ -88,26 +88,34 @@ const UA_DataTypeArray customDataTypes = {NULL, 1, &PointType};
 typedef struct {
     UA_Int16 a;
     UA_Float *b;
+    UA_Float *c;
 } Opt;
 
 /* flag "hasB" does not count as a member */
-static UA_DataTypeMember Opt_members[2] = {
+static UA_DataTypeMember Opt_members[3] = {
         /* a */
         {
                 UA_TYPENAME("a") /* .memberName */
                 UA_TYPES_INT16,  /* .memberTypeIndex, points into UA_TYPES since namespaceZero is true */
-                //offsetof(Opt,a) - offsetof(Opt,hasB) - sizeof(UA_Boolean),  /* .padding */
-                0,
+                0, /* .padding */
                 true,       /* .namespaceZero, see .memberTypeIndex */
                 false,      /* .isArray */
                 false       /* .isOptional */
         },
-
         /* b */
         {
                 UA_TYPENAME("b")
                 UA_TYPES_FLOAT,
                 offsetof(Opt,b) - offsetof(Opt,a) - sizeof(UA_Int16),
+                true,
+                false,
+                true        /* b is an optional field */
+        },
+        /* c */
+        {
+                UA_TYPENAME("c")
+                UA_TYPES_FLOAT,
+                offsetof(Opt,c) - offsetof(Opt,b) - sizeof(void *),
                 true,
                 false,
                 true        /* b is an optional field */
@@ -120,10 +128,10 @@ static const UA_DataType OptType = {
         sizeof(Opt),                   /* .memSize */
         0,                               /* .typeIndex, in the array of custom types */
         UA_DATATYPEKIND_OPTSTRUCT,       /* .typeKind */
-        true,                            /* .pointerFree */
+        false,                            /* .pointerFree */
         false,                           /* .overlayable (depends on endianness and
                                          the absence of padding) */
-        2,                               /* .membersSize */
+        3,                               /* .membersSize */
         0,                               /* .binaryEncodingId, the numeric
                                          identifier used on the wire (the
                                          namespaceindex is from .typeId) */
@@ -304,8 +312,11 @@ START_TEST(parseCustomStructureWithOptionalFields) {
 
         Opt o;
         o.a = 3;
-        o.b = UA_Float_new();
-        *o.b = (UA_Float) 10.10;
+        o.b = NULL;
+        //o.b = UA_Float_new();
+        //*o.b = (UA_Float) 8.8;;
+        o.c = UA_Float_new();
+        *o.c = (UA_Float) 10.10;;
 
         UA_Variant var;
         UA_Variant_init(&var);
@@ -331,10 +342,11 @@ START_TEST(parseCustomStructureWithOptionalFields) {
         Opt *optStruct2 = (Opt *) var2.data;
         //ck_assert(optStruct2->hasB == UA_TRUE);
         ck_assert(optStruct2->a == 3);
-        ck_assert((fabs(*optStruct2->b - 2.5)) < 0.005);
+        ck_assert((fabs(*optStruct2->c - 10.10)) < 0.005);
 
         //TODO add magic size number
-
+        UA_Float_delete(o.b);
+        UA_Float_delete(o.c);
         UA_Variant_deleteMembers(&var);
         UA_Variant_deleteMembers(&var2);
         UA_ByteString_deleteMembers(&buf);

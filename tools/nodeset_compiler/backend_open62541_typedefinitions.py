@@ -55,18 +55,6 @@ def getNodeidTypeAndId(nodeId):
         strId = nodeId[2:]
         return "UA_NODEIDTYPE_STRING, {{ .string = UA_STRING_STATIC(\"{id}\") }}".format(id=strId.replace("\"", "\\\""))
 
-def hasOptionalFields(datatype):
-    for m in datatype.members:
-        if m.is_optional:
-            return True
-    return False
-
-def getLastOptionalFieldName(datatype):
-    for m in datatype.members:
-        if m.is_optional:
-            o = m
-    return o.name
-
 class CGenerator(object):
     def __init__(self, parser, inname, outfile, is_internal_types):
         self.parser = parser
@@ -135,7 +123,6 @@ class CGenerator(object):
 
     def print_datatype(self, datatype):
         binaryEncodingId = "0"
-        isUnion = isinstance(datatype, StructType) and datatype.is_union
         if datatype.name in self.parser.typedescriptions:
             description = self.parser.typedescriptions[datatype.name]
             typeid = "{%s, %s}" % (description.namespaceid, getNodeidTypeAndId(description.nodeid))
@@ -155,7 +142,7 @@ class CGenerator(object):
                "    " + self.get_type_kind(datatype) + ", /* .typeKind */\n" + \
                "    " + pointerfree + ", /* .pointerFree */\n" + \
                "    " + self.get_type_overlayable(datatype) + ", /* .overlayable */\n" + \
-               "    " + (str(len(datatype.members)) if not isUnion else str(len(datatype.members)-1)) + ", /* .membersSize */\n" + \
+               "    " + str(len(datatype.members)) + ", /* .membersSize */\n" + \
                "    " + binaryEncodingId + ", /* .binaryEncodingId */\n" + \
                "    %s_members" % idName + " /* .members */\n}"
 
@@ -182,16 +169,28 @@ class CGenerator(object):
             m += "    UA_%s_%s, /* .memberTypeIndex */\n" % (
                 member.member_type.outname.upper(), makeCIdentifier(member.member_type.name.upper()))
             m += "    "
-            if not before and not isUnion:
-                if hasOptionalFields(datatype):
-                    last_optField = getLastOptionalFieldName(datatype)
-                    if member.is_array:
-                        m += "offsetof(UA_%s, %sSize)" % (idName, member_name)
-                    else:
-                        m += "offsetof(UA_%s, %s)" % (idName, member_name)
-                    m += " - offsetof(UA_%s, has%s) - sizeof(UA_Boolean)," % (idName, last_optField[0].upper() + last_optField[1:])
-                else:
-                    m += "0,"
+
+            #new optstruct cmpl code
+            # if member.is_optional:
+            #     if member.is_array:
+            #         m += "offsetof(UA_%s, %sSize)" % (idName, member_name)
+            #     else:
+            #         m += "offsetof(UA_%s, %s)" % (idName, member_name)
+            #
+            # #end optstruct cmpl code
+            #
+            # if not before and not isUnion:
+            #     if hasOptionalFields(datatype):
+            #         last_optField = getLastOptionalFieldName(datatype)
+            #         if member.is_array:
+            #             m += "offsetof(UA_%s, %sSize)" % (idName, member_name)
+            #         else:
+            #             m += "offsetof(UA_%s, %s)" % (idName, member_name)
+            #         m += " - offsetof(UA_%s, has%s) - sizeof(UA_Boolean)," % (idName, last_optField[0].upper() + last_optField[1:])
+            #     else:
+            #         m += "0,"
+            if not before:
+                m += "0,"
             elif isUnion:
                 m += "sizeof(UA_UInt32),"
             else:
@@ -200,8 +199,8 @@ class CGenerator(object):
                 else:
                     m += "offsetof(UA_%s, %s)" % (idName, member_name)
                 m += " - offsetof(UA_%s, %s)" % (idName, makeCIdentifier(before.name))
-                if before.is_array:
-                    m += " - sizeof(void*),"
+                if before.is_array or before.is_optional:
+                    m += " - sizeof(void *),"
                 else:
                     m += " - sizeof(UA_%s)," % makeCIdentifier(before.member_type.name)
             m += " /* .padding */\n"
@@ -312,10 +311,10 @@ class CGenerator(object):
         if struct.is_union:
             returnstr += "    UA_%sSwitch switchField;\n" % struct.name
             returnstr += "    union {\n"
-        for member in struct.members:
-            if member.is_optional:
-                n = makeCIdentifier(member.name)
-                returnstr += "    UA_Boolean has%s;\n" % (n[:1].upper() + n[1:])
+        #for member in struct.members:
+        #    if member.is_optional:
+        #        n = makeCIdentifier(member.name)
+        #        returnstr += "    UA_Boolean has%s;\n" % (n[:1].upper() + n[1:])
         count = 0
         for member in struct.members:
             #if struct.is_union:
@@ -327,6 +326,9 @@ class CGenerator(object):
             elif struct.is_union:
                 if count > 0:
                     returnstr += "        UA_%s %s;\n" % (
+                    makeCIdentifier(member.member_type.name), makeCIdentifier(member.name))
+            elif member.is_optional:
+                returnstr += "    UA_%s *%s;\n" % (
                     makeCIdentifier(member.member_type.name), makeCIdentifier(member.name))
             else:
                 returnstr += "    UA_%s %s;\n" % (
@@ -412,19 +414,13 @@ _UA_BEGIN_DECLS
  * Every type is assigned an index in an array containing the type descriptions.
  * These descriptions are used during type handling (copying, deletion,
  * binary encoding, ...). */''')
-        containedUnionTypes = 0
-        for t in self.filtered_types:
-            if isinstance(t, StructType):
-                if t.is_union:
-                    containedUnionTypes += 1
-        self.printh("#define UA_" + self.parser.outname.upper() + "_COUNT %s" % (str(len(self.filtered_types) + containedUnionTypes)))
+        self.printh("#define UA_" + self.parser.outname.upper() + "_COUNT %s" % (str(len(self.filtered_types))))
 
         if len(self.filtered_types) > 0:
 
             self.printh(
                 "extern UA_EXPORT const UA_DataType UA_" + self.parser.outname.upper() + "[UA_" + self.parser.outname.upper() + "_COUNT];")
 
-            typecount = 0
             for i, t in enumerate(self.filtered_types):
                 self.printh("\n/**\n * " + t.name)
                 self.printh(" * " + "^" * len(t.name))
@@ -434,14 +430,8 @@ _UA_BEGIN_DECLS
                     self.printh(" * " + t.description + " */")
                 if not isinstance(t, BuiltinType):
                     self.printh(self.print_datatype_typedef(t) + "\n")
-                    if isinstance(t, StructType) and t.is_union:
-                        self.printh(
-                            "#define UA_" + makeCIdentifier(
-                                self.parser.outname.upper() + "_" + t.name.upper()) + "SWITCH " + str(typecount))
-                        typecount += 1
                 self.printh(
-                    "#define UA_" + makeCIdentifier(self.parser.outname.upper() + "_" + t.name.upper()) + " " + str(typecount))
-                typecount += 1
+                    "#define UA_" + makeCIdentifier(self.parser.outname.upper() + "_" + t.name.upper()) + " " + str(i))
 
         self.printh('''
 

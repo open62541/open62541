@@ -1011,13 +1011,21 @@ copyStructure(const void *src, void *dst, const UA_DataType *type) {
     for(size_t i = 0; i < type->membersSize; ++i) {
         const UA_DataTypeMember *m= &type->members[i];
         const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
-        if(!m->isArray) {
+        if (m->isOptional){
             ptrs += m->padding;
             ptrd += m->padding;
-            retval |= copyJumpTable[mt->typeKind]((const void*)ptrs, (void*)ptrd, mt);
+            if(*(void* const*)ptrs != NULL)
+                retval |= UA_Array_copy(*(void* const*)ptrs, 1, (void**)ptrd, mt);
+            ptrs += sizeof(void*);
+            ptrd += sizeof(void*);
+            //todo array handling if optional
+        } else if(!m->isArray) {
+            ptrs += m->padding;
+            ptrd += m->padding;
+            retval |= copyJumpTable[mt->typeKind]((const void *)ptrs, (void *)ptrd, mt);
             ptrs += mt->memSize;
             ptrd += mt->memSize;
-        } else {
+        }  else {
             ptrs += m->padding;
             ptrd += m->padding;
             size_t *dst_size = (size_t*)ptrd;
@@ -1037,20 +1045,49 @@ copyStructure(const void *src, void *dst, const UA_DataType *type) {
 }
 
 
+/*
 static UA_StatusCode
 copyStructureWithOptionalFields(const void *src, void *dst, const UA_DataType *type){
-    size_t optFieldsSize = getCountOfOptionalFields(type);
+    //size_t optFieldsSize = getCountOfOptionalFields(type);
     uintptr_t ptrs = (uintptr_t)src;
     uintptr_t ptrd = (uintptr_t)dst;
-    if(optFieldsSize){
+    const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
+    for(size_t i = 0; i < type->membersSize; ++i) {
+        const UA_DataTypeMember *m = &type->members[i];
+        const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
+        if(m->isOptional){
+            //field is not set
+            if(*(uintptr_t *) ptrs == 0){
+                printf("copy optstruct with is optional field - not there\n");
+                ptrs += sizeof(void *);
+            } else { //field is set
+                printf("copy optstruct with is optional field - there\n");
+                //is the member type of type PTR or the concrete type?
+
+            }
+        } else {
+            ptrs += m->padding;
+            ptrd += m->padding;
+            copyJumpTable[mt->typeKind]((const void*)ptrs, (void*)ptrd, mt);
+            ptrs += mt->memSize;
+            ptrd += mt->memSize;
+            //todo array handling?
+        }
+    }
+
+
+    */
+/*if(optFieldsSize){
         for(size_t h = 0; h < optFieldsSize; h++){
             copyJumpTable[UA_DATATYPEKIND_BOOLEAN]((const void*)ptrs, (void*)ptrd, &UA_TYPES[UA_TYPES_BOOLEAN]);
             ptrs += sizeof(UA_Boolean);
             ptrd += sizeof(UA_Boolean);
         }
-    }
+    }*//*
+
     return copyStructure((const void *) ptrs, (void *) ptrd, type);
 }
+*/
 
 static UA_StatusCode
 copyUnion(const void *src, void *dst, const UA_DataType *type) {
@@ -1072,15 +1109,6 @@ copyUnion(const void *src, void *dst, const UA_DataType *type) {
 static UA_StatusCode
 copyNotImplemented(const void *src, void *dst, const UA_DataType *type) {
     return UA_STATUSCODE_BADNOTIMPLEMENTED;
-}
-
-size_t
-getCountOfOptionalFields(const UA_DataType *type){
-    size_t count = 0;
-    for(size_t i = 0; i < type->membersSize; i++) {
-        if((type->members[i]).isOptional) count++;
-    }
-    return count;
 }
 
 const UA_copySignature copyJumpTable[UA_DATATYPEKINDS] = {
@@ -1112,7 +1140,7 @@ const UA_copySignature copyJumpTable[UA_DATATYPEKINDS] = {
     (UA_copySignature)copyNotImplemented, /* Decimal */
     (UA_copySignature)copy4Byte, /* Enumeration */
     (UA_copySignature)copyStructure,
-    (UA_copySignature)copyStructureWithOptionalFields, /* Structure with Optional Fields */
+    (UA_copySignature)copyStructure, /* Structure with Optional Fields */
     (UA_copySignature)copyUnion, /* Union */
     (UA_copySignature)copyNotImplemented /* BitfieldCluster*/
 };
@@ -1133,29 +1161,38 @@ clearStructure(void *p, const UA_DataType *type) {
     for(size_t i = 0; i < type->membersSize; ++i) {
         const UA_DataTypeMember *m = &type->members[i];
         const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
-        if(!m->isArray) {
-            ptr += m->padding;
-            clearJumpTable[mt->typeKind]((void*)ptr, mt);
-            ptr += mt->memSize;
+        if(m->isOptional) {
+            if(*(void* const*)ptr != NULL){
+                if(!m->isArray){
+                    ptr += m->padding;
+                    UA_Array_delete(*(void**)ptr, 1, mt);
+                    ptr += sizeof(void*);
+                } else {
+                    //todo finish opt array handling
+                    ptr += m->padding;
+                    size_t length = *(size_t*)ptr;
+                    ptr += sizeof(size_t);
+                    UA_Array_delete(*(void**)ptr, length, mt);
+                    ptr += sizeof(void*);
+                }
+            } else {
+                ptr += m->padding;
+                ptr += sizeof(void*);
+            }
         } else {
-            ptr += m->padding;
-            size_t length = *(size_t*)ptr;
-            ptr += sizeof(size_t);
-            UA_Array_delete(*(void**)ptr, length, mt);
-            ptr += sizeof(void*);
+            if(!m->isArray) {
+                ptr += m->padding;
+                clearJumpTable[mt->typeKind]((void*)ptr, mt);
+                ptr += mt->memSize;
+            } else {
+                ptr += m->padding;
+                size_t length = *(size_t*)ptr;
+                ptr += sizeof(size_t);
+                UA_Array_delete(*(void**)ptr, length, mt);
+                ptr += sizeof(void*);
+            }
         }
     }
-}
-
-static void
-clearStructureWithOptionalFields(void *p, const UA_DataType *type) {
-    uintptr_t ptr = (uintptr_t) p;
-    size_t optFieldsSize = getCountOfOptionalFields(type);
-    if(optFieldsSize){
-        clearJumpTable[UA_DATATYPEKIND_BOOLEAN]((void*)ptr, &UA_TYPES[UA_TYPES_BOOLEAN]);
-        ptr += sizeof(UA_Boolean);
-    }
-    clearStructure((void *) ptr, type);
 }
 
 static void
@@ -1202,7 +1239,7 @@ UA_clearSignature clearJumpTable[UA_DATATYPEKINDS] = {
     (UA_clearSignature)nopClear, /* Decimal, not implemented */
     (UA_clearSignature)nopClear, /* Enumeration */
     (UA_clearSignature)clearStructure,
-    (UA_clearSignature)clearStructureWithOptionalFields, /* Struct with Optional Fields*/
+    (UA_clearSignature)clearStructure, /* Struct with Optional Fields*/
     (UA_clearSignature)clearUnion, /* Union*/
     (UA_clearSignature)nopClear /* BitfieldCluster, not implemented*/
 };
