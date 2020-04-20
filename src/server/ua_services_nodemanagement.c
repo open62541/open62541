@@ -2026,6 +2026,56 @@ UA_Server_setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
     return retval;
 }
 
+/******************************/
+/* Set External Value Source  */
+/******************************/
+static UA_StatusCode
+setExternalValueSource(UA_Server *server, UA_Session *session,
+                 UA_VariableNode *node, const UA_DataValue * externalValueSource) {
+    if(node->nodeClass != UA_NODECLASS_VARIABLE)
+        return UA_STATUSCODE_BADNODECLASSINVALID;
+    node->valueBackend.external = externalValueSource;
+    return UA_STATUSCODE_GOOD;
+}
+
+/**********************/
+/* Set Value Backend  */
+/**********************/
+
+UA_StatusCode
+UA_Server_setVariableNode_valueBackend(UA_Server *server, const UA_NodeId nodeId,
+                                       const UA_ValueBackend valueBackend){
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_LOCK(server->serviceMutex);
+    switch(valueBackend.backend){
+        case UA_VALUEBACKENDTYPE_CALLBACK:
+            retval = UA_Server_editNode(server, &server->adminSession, &nodeId,
+                                        (UA_EditNodeCallback)setValueCallback,
+                /* cast away const because callback uses const anyway */
+                                        (UA_ValueCallback *)(uintptr_t) &valueBackend.dataSource);
+            break;
+        case UA_VALUEBACKENDTYPE_INTERNAL:
+            break;
+        case UA_VALUEBACKENDTYPE_EXTERNAL:
+            retval = UA_Server_editNode(server, &server->adminSession, &nodeId,
+                                        (UA_EditNodeCallback)setExternalValueSource,
+                /* cast away const because callback uses const anyway */
+                                        (UA_ValueCallback *)(uintptr_t) valueBackend.external);
+            break;
+    }
+
+
+    //UA_StatusCode retval = UA_Server_editNode(server, &server->adminSession, &nodeId,
+    // (UA_EditNodeCallback)setValueCallback,
+    /* cast away const because callback uses const anyway */
+    // (UA_ValueCallback *)(uintptr_t) &callback);
+
+
+    UA_UNLOCK(server->serviceMutex);
+    return retval;
+}
+
+
 /************************************/
 /* Special Handling of Method Nodes */
 /************************************/
