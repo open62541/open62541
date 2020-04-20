@@ -37,17 +37,17 @@ historization:
   description: Controls the building of historization plugin
   choices:
     Disable:
-      short: None
+      short: noHistorization
       long: Deactivates the historization plugin for building
       setting:
         UA_ENABLE_HISTORIZING: False
     Standard:
-      short: Standard
+      short: Simple-Historization
       long: Activates the historization plugin for building
       setting:
         UA_ENABLE_HISTORIZING: True
     Expermental:
-      short: Expermental
+      short: Expermental-Historization
       long: Activates the expermental historization plugin for building
       setting:
         UA_ENABLE_EXPERIMENTAL_HISTORIZING: True
@@ -94,12 +94,6 @@ multithreading:
       setting:
         UA_ENABLE_MULTITHREADING: True
         UA_ENABLE_IMMUTABLE_NODES: True
-    Multithreaded-Parsing:
-      short: Multithreaded-Parsing
-      long: Activates Utility functions that require parsing
-      setting:
-        UA_ENABLE_MULTITHREADING: True
-        UA_ENABLE_PARSING: True
 
 discovery:
   default: Enable
@@ -155,58 +149,34 @@ pub_sub:
   description: Controls Publish/Subscribe service set
   choices:
     None:
-      short: None
+      short: Simple-Pub/Sub
       long: Disables Publish/Subscribe service set
       setting:
         UA_ENABLE_PUBSUB: False
     overEthernet:
-      short: Ethernet
+      short: Ethernet-Pub/Sub
       long: Enables Publish/Subscribe UADP over Ethernet
       setting:
         UA_ENABLE_PUBSUB: True
         UA_ENABLE_PUBSUB_ETH_UADP: True
     overEthernetXDP:
-      short: EthernetXDP
+      short: EthernetXDP-Pub/Sub
       long: Enables Publish/Subscribe UADP over Ethernet using XDP
       setting:
         UA_ENABLE_PUBSUB: True
         UA_ENABLE_PUBSUB_ETH_UADP_XDP: True
     overEthernetETF:
-      short: EthernetETF
+      short: EthernetETF-Pub/Sub
       long: Enables Publish/Subscribe UADP over Ethernet using ETF
       setting:
         UA_ENABLE_PUBSUB: True
         UA_ENABLE_PUBSUB_ETH_UADP_ETF: True
     mqtt:
-      short: MQTT
+      short: MQTT-Pub/Sub
       long: Enable publish/subscribe with mqtt
       setting:
         UA_ENABLE_PUBSUB: True
         UA_ENABLE_PUBSUB_MQTT: True
-    model_twin:
-      short: Model-Twin
-      long: able PubSub information model twin
-      setting:
-        UA_ENABLE_PUBSUB: True
-        UA_ENABLE_PUBSUB_INFORMATIONMODEL: True
-    methods:
-      short: Pub/Sub-Methods
-      long: Enable PubSub informationmodel methods
-      setting:
-        UA_ENABLE_PUBSUB: True
-        UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS: True
-    pub_sub_custom_handler:
-      short: Pub/Sub-Handler
-      long: Enable custom implementation for the publish callback handling
-      setting:
-        UA_ENABLE_PUBSUB: True
-        UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING: True
-    pub_sub_delta_frames:
-      short: Pub/Sub-Deltas
-      long: Enable sending of delta frames with only the changes
-      setting:
-        UA_ENABLE_PUBSUB: True
-        UA_ENABLE_PUBSUB_DELTAFRAMES: True
 
 namespace_zero:
   default: Reduced
