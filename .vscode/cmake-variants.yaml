@@ -149,7 +149,7 @@ pub_sub:
   description: Controls Publish/Subscribe service set
   choices:
     None:
-      short: Simple-Pub/Sub
+      short: No-Pub/Sub
       long: Disables Publish/Subscribe service set
       setting:
         UA_ENABLE_PUBSUB: False
