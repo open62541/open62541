@@ -83,4 +83,5 @@ Makefile
 /tools/certs/certs/*
 Pipfile
 Pipfile.lock
-.vscode
+.vscode/*
+!.vscode/cmake-variants.yaml

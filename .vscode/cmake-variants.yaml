@@ -1,0 +1,235 @@
+# Required extentions:
+# Cmake Tools: https://marketplace.visualstudio.com/items?itemName=ms-vscode.cmake-tools
+# Recommended extentions (for editing):
+# YAML: https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml
+# Authors:
+# Dovydas Girdvainis 2020.04.20
+
+buildType:
+  default: debug
+  choices:
+    debug:
+      short: Debug
+      long: Builds the binaries with debugging hookups, tests and code instrumentation without any optimizations (-O0)
+      buildType: Debug
+      setting:
+        UA_DEBUG: True
+        UA_LOGLEVEL: "100"
+        UA_BUILD_UNIT_TESTS: True
+        UA_ENABLE_COVERAGE: True
+        UA_ENABLE_DETERMINISTIC_RNG: True
+        UA_ENABLE_UNIT_TESTS_MEMCHECK: True
+    relWithDebInfo:
+      short: RelWithDebInfo
+      long: Builds the binaries with debugging information, but without any assertions, applies normal optimizations (-02)
+      buildType: RelWithDebInfo
+    release:
+      short: Release
+      long: Builds the binaries without any debugging informtaion and no code assetions, applies high optimizations (-03)
+      buildType: Release
+    minSizeRel:
+      short: MinSizeRel
+      long: Builds the binaries without any debugging informtaion and no code assetions, applies high binary size optimizations (-0s)
+      buildType: MinSizeRel
+
+historization:
+  default: Disable
+  description: Controls the building of historization plugin
+  choices:
+    Disable:
+      short: None
+      long: Deactivates the historization plugin for building
+      setting:
+        UA_ENABLE_HISTORIZING: False
+    Standard:
+      short: Standard
+      long: Activates the historization plugin for building
+      setting:
+        UA_ENABLE_HISTORIZING: True
+    Expermental:
+      short: Expermental
+      long: Activates the expermental historization plugin for building
+      setting:
+        UA_ENABLE_EXPERIMENTAL_HISTORIZING: True
+
+subscription:
+  default: Standard
+  description: Controls the subscription service
+  choices:
+    Standard:
+      short: Subscription
+      long: Activates the subscription service
+      setting:
+        UA_ENABLE_SUBSCRIPTIONS: True
+    Events:
+      short: Subscription-With-Events
+      long: Activates the Subscription Events
+      setting:
+        UA_ENABLE_SUBSCRIPTIONS: True
+        UA_ENABLE_SUBSCRIPTIONS_EVENTS: True
+    Disable:
+      short: noSubscription
+      long: Deactivates the subscription service
+      setting:
+        UA_ENABLE_SUBSCRIPTIONS: False
+
+multithreading:
+  default: Singlethreaded
+  description: Controls if the binaries are built for multithreaded execution
+  choices:
+    Singlethreaded:
+      short: Singlethreaded
+      long: Builds the binaries without multithreading support
+      setting:
+        UA_ENABLE_MULTITHREADING: False
+    Multithreaded-Mutable:
+      short: Multithreaded
+      long: Builds the binaries with multithreading support
+      setting:
+        UA_ENABLE_MULTITHREADING: True
+        UA_ENABLE_IMMUTABLE_NODES: False
+    Multithreaded-Immutable:
+      short: Multithreaded-Immutable
+      long: Builds the binaries with multithreading support and immutable nodes
+      setting:
+        UA_ENABLE_MULTITHREADING: True
+        UA_ENABLE_IMMUTABLE_NODES: True
+    Multithreaded-Parsing:
+      short: Multithreaded-Parsing
+      long: Activates Utility functions that require parsing
+      setting:
+        UA_ENABLE_MULTITHREADING: True
+        UA_ENABLE_PARSING: True
+
+discovery:
+  default: Enable
+  description: Controls the Discovery Server
+  choices:
+    Enable:
+      short: Discovery
+      long: Builds the Discovery Server
+      setting:
+        UA_ENABLE_DISCOVERY: True
+    multicast_discovery:
+      short: Multicast-Discovery
+      long: Enables LDS-ME Multicast Support and Discovery service
+      setting:
+        UA_ENABLE_DISCOVERY: True
+        UA_ENABLE_DISCOVERY_MULTICAST: True
+    discovery_semaphore:
+      short: Discovery-With-Semaphore
+      long: Activates Semaphroe support
+      setting:
+        UA_ENABLE_DISCOVERY: True
+        UA_ENABLE_DISCOVERY_SEMAPHORE: True
+    Disable:
+      short: noDiscovery
+      long: Doesnt builds the Discovery Server
+      setting:
+        UA_ENABLE_DISCOVERY: False
+
+encription:
+  default: noEncription
+  description: Controls encription support
+  choices:
+    noEncription:
+      short: noEncription
+      long: Deactivates all encription support
+      setting:
+        UA_ENABLE_ENCRYPTION: False
+    mbedTLS:
+      short: mbedTLS
+      description: Activates Encription support using mbedTLS
+      setting:
+        UA_ENABLE_ENCRYPTION: True
+        UA_ENABLE_ENCRYPTION_MBEDTLS: True
+    openssl:
+      short: openssl
+      description: Activates Encription support using openssl
+      setting:
+        UA_ENABLE_ENCRYPTION: True
+        UA_ENABLE_ENCRYPTION_OPENSSL: True
+
+pub_sub:
+  default: None
+  description: Controls Publish/Subscribe service set
+  choices:
+    None:
+      short: None
+      long: Disables Publish/Subscribe service set
+      setting:
+        UA_ENABLE_PUBSUB: False
+    overEthernet:
+      short: Ethernet
+      long: Enables Publish/Subscribe UADP over Ethernet
+      setting:
+        UA_ENABLE_PUBSUB: True
+        UA_ENABLE_PUBSUB_ETH_UADP: True
+    overEthernetXDP:
+      short: EthernetXDP
+      long: Enables Publish/Subscribe UADP over Ethernet using XDP
+      setting:
+        UA_ENABLE_PUBSUB: True
+        UA_ENABLE_PUBSUB_ETH_UADP_XDP: True
+    overEthernetETF:
+      short: EthernetETF
+      long: Enables Publish/Subscribe UADP over Ethernet using ETF
+      setting:
+        UA_ENABLE_PUBSUB: True
+        UA_ENABLE_PUBSUB_ETH_UADP_ETF: True
+    mqtt:
+      short: MQTT
+      long: Enable publish/subscribe with mqtt
+      setting:
+        UA_ENABLE_PUBSUB: True
+        UA_ENABLE_PUBSUB_MQTT: True
+    model_twin:
+      short: Model-Twin
+      long: able PubSub information model twin
+      setting:
+        UA_ENABLE_PUBSUB: True
+        UA_ENABLE_PUBSUB_INFORMATIONMODEL: True
+    methods:
+      short: Pub/Sub-Methods
+      long: Enable PubSub informationmodel methods
+      setting:
+        UA_ENABLE_PUBSUB: True
+        UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS: True
+    pub_sub_custom_handler:
+      short: Pub/Sub-Handler
+      long: Enable custom implementation for the publish callback handling
+      setting:
+        UA_ENABLE_PUBSUB: True
+        UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING: True
+    pub_sub_delta_frames:
+      short: Pub/Sub-Deltas
+      long: Enable sending of delta frames with only the changes
+      setting:
+        UA_ENABLE_PUBSUB: True
+        UA_ENABLE_PUBSUB_DELTAFRAMES: True
+
+namespace_zero:
+  default: Reduced
+  description: Controlls Completeness of the generated namespace zero (minimal/reduced/full)
+  choices:
+    Minimal:
+      short: Minimal
+      long: Barebones namespace zero that is compatible with most clients. But this namespace 0 is so small that it does not pass the CTT (Conformance Testing Tools of the OPC Foundation)
+      setting:
+        UA_NAMESPACE_ZERO: "MINIMAL"
+    Reduced:
+      short: Reduced
+      long: Small namespace zero that passes the CTT.
+      setting:
+        UA_NAMESPACE_ZERO: "REDUCED"
+    Full:
+      short: Full
+      long: Full namespace zero generated from the official XML definitions.
+      setting:
+        UA_NAMESPACE_ZERO: "FULL"
+    micro_emb_profile:
+      short: micro_emb_profile
+      long: Builds CTT Compliant Micro Embedded Device Server Profile
+      setting:
+        UA_NAMESPACE_ZERO: "FULL"
+        UA_ENABLE_MICRO_EMB_DEV_PROFILE: True
