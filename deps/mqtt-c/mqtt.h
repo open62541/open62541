@@ -493,6 +493,38 @@ struct mqtt_response {
 };
 
 /**
+ * @brief An enumeration of recieved message states.
+ * @ingroup details
+ */
+enum MQTTReceiveMessageState {
+    MQTT_RECEIVE_PROCESSED,
+    MQTT_RECEIVE_UNPROCESSED
+};
+
+/**
+ * @brief An enumeration of recieved buffer flag.
+ * @ingroup details
+ */
+enum MQTTReceiveFlag {
+	MQTT_RECEIVE_MESSAGE_FLUSH_DISABLE = 0,
+	MQTT_RECEIVE_MESSAGE_FLUSH_ENABLE  = 1
+};
+
+/**
+ * @brief Received message from publisher.
+ */
+struct mqtt_receive_message {
+    /** @brief A buffer to receive payload. */
+    UA_ByteString buffer;
+
+    /** @brief The state of the message. */
+    enum MQTTReceiveMessageState state;
+
+    /** @brief The state of the receive buffer flag. */
+    enum MQTTReceiveFlag flag;
+};
+
+/**
  * @brief Deserialize the contents of \p buf into an mqtt_fixed_header object.
  * @ingroup unpackers
  * 
@@ -534,6 +566,7 @@ ssize_t mqtt_unpack_connack_response (struct mqtt_response *mqtt_response, const
  *      have a control type of \c MQTT_CONTROL_PUBLISH.
  * 
  * @param[out] mqtt_response the response that is initialized from the contents of \p buf.
+ * @param[in] mqtt_receive_message message is received from the publisher.
  * @param[in] buf the buffer with the incoming data.
  * 
  * @relates mqtt_response_publish 
@@ -541,7 +574,7 @@ ssize_t mqtt_unpack_connack_response (struct mqtt_response *mqtt_response, const
  * @returns The number of bytes that were consumed, or 0 if the buffer does not contain enough 
  *          bytes to parse the packet, or a negative value if there was a protocol violation.
  */
-ssize_t mqtt_unpack_publish_response (struct mqtt_response *mqtt_response, const uint8_t *buf);
+ssize_t mqtt_unpack_publish_response (struct mqtt_response *mqtt_response, struct mqtt_receive_message* receive_message, const uint8_t *buf);
 
 /**
  * @brief Deserialize a PUBACK/PUBREC/PUBREL/PUBCOMP packet from \p buf.
@@ -600,6 +633,7 @@ ssize_t mqtt_unpack_unsuback_response(struct mqtt_response *mqtt_response, const
  * @ingroup unpackers
  * 
  * @param[out] response the mqtt_response that will be initialize from \p buf.
+ * @param[in] mqtt_receive_message message is received from the publisher.
  * @param[in] buf the incoming data buffer.
  * @param[in] bufsz the number of bytes available in the buffer.
  * 
@@ -608,7 +642,7 @@ ssize_t mqtt_unpack_unsuback_response(struct mqtt_response *mqtt_response, const
  * @returns The number of bytes consumed on success, zero \p buf does not contain enough bytes
  *          to deserialize the packet, a negative value if a protocol violation was encountered.  
  */
-ssize_t mqtt_unpack_response(struct mqtt_response* response, const uint8_t *buf, size_t bufsz);
+ssize_t mqtt_unpack_response(struct mqtt_response* response, struct mqtt_receive_message* receive_message, const uint8_t *buf, size_t bufsz);
 
 /* REQUESTS */
 
@@ -1190,6 +1224,12 @@ struct mqtt_client {
 
     /** @brief The sending message queue. */
     struct mqtt_message_queue mq;
+
+    /** @brief Receive message from publisher. */
+    struct mqtt_receive_message rm;
+
+    /** @brief Receive interval */
+    UA_UInt16 receiveInterval;
 };
 
 /**
