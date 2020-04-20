@@ -896,6 +896,26 @@ UA_Server_setVariableNode_valueCallback(UA_Server *server,
                                         const UA_NodeId nodeId,
                                         const UA_ValueCallback callback);
 
+typedef enum {
+    UA_VALUEBACKENDTYPE_INTERNAL,
+    UA_VALUEBACKENDTYPE_CALLBACK,
+    UA_VALUEBACKENDTYPE_EXTERNAL
+} UA_ValueBackendType;
+
+struct
+typedef union {
+    UA_ValueBackendType backend;
+    UA_DataValue internal;
+    UA_DataSource dataSource;
+    const UA_DataValue *external;
+} UA_ValueBackend;
+
+
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_setVariableNode_valueBackend(UA_Server *server,
+                                       const UA_NodeId nodeId,
+                                       const UA_ValueBackend valueBackend);
+
 /**
  * .. _local-monitoreditems:
  *
