@@ -9,7 +9,7 @@ buildType:
   default: debug
   choices:
     debug:
-      short: Debug
+      short: Dbg
       long: Builds the binaries with debugging hookups, tests and code instrumentation without any optimizations (-O0)
       buildType: Debug
       setting:
@@ -24,7 +24,7 @@ buildType:
       long: Builds the binaries with debugging information, but without any assertions, applies normal optimizations (-02)
       buildType: RelWithDebInfo
     release:
-      short: Release
+      short: Rel
       long: Builds the binaries without any debugging informtaion and no code assetions, applies high optimizations (-03)
       buildType: Release
     minSizeRel:
@@ -37,17 +37,17 @@ historization:
   description: Controls the building of historization plugin
   choices:
     Disable:
-      short: noHistorization
+      short: noHistory
       long: Deactivates the historization plugin for building
       setting:
         UA_ENABLE_HISTORIZING: False
     Standard:
-      short: Simple-Historization
+      short: Simple-History
       long: Activates the historization plugin for building
       setting:
         UA_ENABLE_HISTORIZING: True
     Expermental:
-      short: Expermental-Historization
+      short: Expmntl-History
       long: Activates the expermental historization plugin for building
       setting:
         UA_ENABLE_EXPERIMENTAL_HISTORIZING: True
@@ -57,18 +57,18 @@ subscription:
   description: Controls the subscription service
   choices:
     Standard:
-      short: Subscription
+      short: Subs
       long: Activates the subscription service
       setting:
         UA_ENABLE_SUBSCRIPTIONS: True
     Events:
-      short: Subscription-With-Events
+      short: Subs-And-Events
       long: Activates the Subscription Events
       setting:
         UA_ENABLE_SUBSCRIPTIONS: True
         UA_ENABLE_SUBSCRIPTIONS_EVENTS: True
     Disable:
-      short: noSubscription
+      short: noSubs
       long: Deactivates the subscription service
       setting:
         UA_ENABLE_SUBSCRIPTIONS: False
@@ -78,18 +78,18 @@ multithreading:
   description: Controls if the binaries are built for multithreaded execution
   choices:
     Singlethreaded:
-      short: Singlethreaded
+      short: Singlethread
       long: Builds the binaries without multithreading support
       setting:
         UA_ENABLE_MULTITHREADING: False
     Multithreaded-Mutable:
-      short: Multithreaded
+      short: Multithread
       long: Builds the binaries with multithreading support
       setting:
         UA_ENABLE_MULTITHREADING: True
         UA_ENABLE_IMMUTABLE_NODES: False
     Multithreaded-Immutable:
-      short: Multithreaded-Immutable
+      short: Multithread-Immutable
       long: Builds the binaries with multithreading support and immutable nodes
       setting:
         UA_ENABLE_MULTITHREADING: True
@@ -100,22 +100,16 @@ discovery:
   description: Controls the Discovery Server
   choices:
     Enable:
-      short: Discovery
+      short: LDS
       long: Builds the Discovery Server
       setting:
         UA_ENABLE_DISCOVERY: True
     multicast_discovery:
-      short: Multicast-Discovery
+      short: LDS-ME
       long: Enables LDS-ME Multicast Support and Discovery service
       setting:
         UA_ENABLE_DISCOVERY: True
         UA_ENABLE_DISCOVERY_MULTICAST: True
-    discovery_semaphore:
-      short: Discovery-With-Semaphore
-      long: Activates Semaphroe support
-      setting:
-        UA_ENABLE_DISCOVERY: True
-        UA_ENABLE_DISCOVERY_SEMAPHORE: True
     Disable:
       short: noDiscovery
       long: Doesnt builds the Discovery Server
@@ -127,7 +121,7 @@ encription:
   description: Controls encription support
   choices:
     noEncription:
-      short: noEncription
+      short: noEncript
       long: Deactivates all encription support
       setting:
         UA_ENABLE_ENCRYPTION: False
@@ -154,19 +148,19 @@ pub_sub:
       setting:
         UA_ENABLE_PUBSUB: False
     overEthernet:
-      short: Ethernet-Pub/Sub
+      short: Eth-Pub/Sub
       long: Enables Publish/Subscribe UADP over Ethernet
       setting:
         UA_ENABLE_PUBSUB: True
         UA_ENABLE_PUBSUB_ETH_UADP: True
     overEthernetXDP:
-      short: EthernetXDP-Pub/Sub
+      short: EthXDP-Pub/Sub
       long: Enables Publish/Subscribe UADP over Ethernet using XDP
       setting:
         UA_ENABLE_PUBSUB: True
         UA_ENABLE_PUBSUB_ETH_UADP_XDP: True
     overEthernetETF:
-      short: EthernetETF-Pub/Sub
+      short: EthETF-Pub/Sub
       long: Enables Publish/Subscribe UADP over Ethernet using ETF
       setting:
         UA_ENABLE_PUBSUB: True
