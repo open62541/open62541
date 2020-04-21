@@ -9,12 +9,12 @@ buildType:
   default: debug
   choices:
     debug:
-      short: Dbg
+      short: debug
       long: Builds the binaries with debugging hookups, tests and code instrumentation without any optimizations (-O0)
       buildType: Debug
-      setting:
+      settings:
         UA_DEBUG: True
-        UA_LOGLEVEL: "100"
+        UA_LOGLEVEL: 100
         UA_BUILD_UNIT_TESTS: True
         UA_ENABLE_COVERAGE: True
         UA_ENABLE_DETERMINISTIC_RNG: True
@@ -39,17 +39,17 @@ historization:
     Disable:
       short: noHistory
       long: Deactivates the historization plugin for building
-      setting:
+      settings:
         UA_ENABLE_HISTORIZING: False
     Standard:
       short: Simple-History
       long: Activates the historization plugin for building
-      setting:
+      settings:
         UA_ENABLE_HISTORIZING: True
     Expermental:
       short: Expmntl-History
       long: Activates the expermental historization plugin for building
-      setting:
+      settings:
         UA_ENABLE_EXPERIMENTAL_HISTORIZING: True
 
 subscription:
@@ -59,18 +59,18 @@ subscription:
     Standard:
       short: Subs
       long: Activates the subscription service
-      setting:
+      settings:
         UA_ENABLE_SUBSCRIPTIONS: True
     Events:
       short: Subs-And-Events
       long: Activates the Subscription Events
-      setting:
+      settings:
         UA_ENABLE_SUBSCRIPTIONS: True
         UA_ENABLE_SUBSCRIPTIONS_EVENTS: True
     Disable:
       short: noSubs
       long: Deactivates the subscription service
-      setting:
+      settings:
         UA_ENABLE_SUBSCRIPTIONS: False
 
 multithreading:
@@ -80,18 +80,18 @@ multithreading:
     Singlethreaded:
       short: Singlethread
       long: Builds the binaries without multithreading support
-      setting:
+      settings:
         UA_ENABLE_MULTITHREADING: False
     Multithreaded-Mutable:
       short: Multithread
       long: Builds the binaries with multithreading support
-      setting:
+      settings:
         UA_ENABLE_MULTITHREADING: True
         UA_ENABLE_IMMUTABLE_NODES: False
     Multithreaded-Immutable:
       short: Multithread-Immutable
       long: Builds the binaries with multithreading support and immutable nodes
-      setting:
+      settings:
         UA_ENABLE_MULTITHREADING: True
         UA_ENABLE_IMMUTABLE_NODES: True
 
@@ -102,18 +102,18 @@ discovery:
     Enable:
       short: LDS
       long: Builds the Discovery Server
-      setting:
+      settings:
         UA_ENABLE_DISCOVERY: True
     multicast_discovery:
       short: LDS-ME
       long: Enables LDS-ME Multicast Support and Discovery service
-      setting:
+      settings:
         UA_ENABLE_DISCOVERY: True
         UA_ENABLE_DISCOVERY_MULTICAST: True
     Disable:
       short: noDiscovery
       long: Doesnt builds the Discovery Server
-      setting:
+      settings:
         UA_ENABLE_DISCOVERY: False
 
 encription:
@@ -123,18 +123,18 @@ encription:
     noEncription:
       short: noEncript
       long: Deactivates all encription support
-      setting:
+      settings:
         UA_ENABLE_ENCRYPTION: False
     mbedTLS:
       short: mbedTLS
       description: Activates Encription support using mbedTLS
-      setting:
+      settings:
         UA_ENABLE_ENCRYPTION: True
         UA_ENABLE_ENCRYPTION_MBEDTLS: True
     openssl:
       short: openssl
       description: Activates Encription support using openssl
-      setting:
+      settings:
         UA_ENABLE_ENCRYPTION: True
         UA_ENABLE_ENCRYPTION_OPENSSL: True
 
@@ -145,30 +145,30 @@ pub_sub:
     None:
       short: No-Pub/Sub
       long: Disables Publish/Subscribe service set
-      setting:
+      settings:
         UA_ENABLE_PUBSUB: False
     overEthernet:
       short: Eth-Pub/Sub
       long: Enables Publish/Subscribe UADP over Ethernet
-      setting:
+      settings:
         UA_ENABLE_PUBSUB: True
         UA_ENABLE_PUBSUB_ETH_UADP: True
     overEthernetXDP:
       short: EthXDP-Pub/Sub
       long: Enables Publish/Subscribe UADP over Ethernet using XDP
-      setting:
+      settings:
         UA_ENABLE_PUBSUB: True
         UA_ENABLE_PUBSUB_ETH_UADP_XDP: True
     overEthernetETF:
       short: EthETF-Pub/Sub
       long: Enables Publish/Subscribe UADP over Ethernet using ETF
-      setting:
+      settings:
         UA_ENABLE_PUBSUB: True
         UA_ENABLE_PUBSUB_ETH_UADP_ETF: True
     mqtt:
       short: MQTT-Pub/Sub
       long: Enable publish/subscribe with mqtt
-      setting:
+      settings:
         UA_ENABLE_PUBSUB: True
         UA_ENABLE_PUBSUB_MQTT: True
 
@@ -179,21 +179,21 @@ namespace_zero:
     Minimal:
       short: Minimal
       long: Barebones namespace zero that is compatible with most clients. But this namespace 0 is so small that it does not pass the CTT (Conformance Testing Tools of the OPC Foundation)
-      setting:
+      settings:
         UA_NAMESPACE_ZERO: "MINIMAL"
     Reduced:
       short: Reduced
       long: Small namespace zero that passes the CTT.
-      setting:
+      settings:
         UA_NAMESPACE_ZERO: "REDUCED"
     Full:
       short: Full
       long: Full namespace zero generated from the official XML definitions.
-      setting:
+      settings:
         UA_NAMESPACE_ZERO: "FULL"
     micro_emb_profile:
       short: micro_emb_profile
       long: Builds CTT Compliant Micro Embedded Device Server Profile
-      setting:
+      settings:
         UA_NAMESPACE_ZERO: "FULL"
         UA_ENABLE_MICRO_EMB_DEV_PROFILE: True
