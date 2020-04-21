@@ -140,6 +140,56 @@ static const UA_DataType OptType = {
 
 const UA_DataTypeArray customDataTypesOptStruct = {&customDataTypes, 2, &OptType};
 
+typedef struct {
+    UA_String description;
+    UA_Float *b;
+    size_t cSize;
+    UA_Float *c;
+} OptArray;
+
+static UA_DataTypeMember ArrayOptStruct_members[3] = {
+    {
+        UA_TYPENAME("Measurement description") /* .memberName */
+        UA_TYPES_STRING,  /* .memberTypeIndex, points into UA_TYPES since namespaceZero is true */
+        0,               /* .padding */
+        true,            /* .namespaceZero, see .memberTypeIndex */
+        false,            /* .isArray */
+        false
+    },
+    {
+        UA_TYPENAME("TestArray1") /* .memberName */
+        UA_TYPES_FLOAT,  /* .memberTypeIndex, points into UA_TYPES since namespaceZero is true */
+        0,               /* .padding */
+        true,            /* .namespaceZero, see .memberTypeIndex */
+        true,            /* .isArray */
+        true
+    },
+    {
+        UA_TYPENAME("TestArray2") /* .memberName */
+        UA_TYPES_FLOAT,  /* .memberTypeIndex, points into UA_TYPES since namespaceZero is true */
+        0,               /* .padding */
+        true,            /* .namespaceZero, see .memberTypeIndex */
+        true,            /* .isArray */
+        false
+    }
+};
+
+static const UA_DataType ArrayOptType = {
+    UA_TYPENAME("OptArray")             /* .tyspeName */
+    {1, UA_NODEIDTYPE_NUMERIC, {4243}},     /* .typeId */
+    sizeof(OptArray),                   /* .memSize */
+    0,                               /* .typeIndex, in the array of custom types */
+    UA_DATATYPEKIND_OPTSTRUCT,       /* .typeKind */
+    true,                            /* .pointerFree */
+    false,                           /* .overlayable (depends on endianness and
+                                         the absence of padding) */
+    3,                               /* .membersSize */
+    0,                               /* .binaryEncodingId, the numeric
+                                         identifier used on the wire (the
+                                         namespaceindex is from .typeId) */
+    ArrayOptStruct_members
+};
+
 typedef enum {UA_UNISWITCH_OPTIONA = 0, UA_UNISWITCH_OPTIONB = 1} UniSwitch;
 
 typedef struct {
@@ -171,7 +221,7 @@ static UA_DataTypeMember Uni_members[2] = {
 
 static const UA_DataType UniType = {
         UA_TYPENAME("Uni")
-        {1, UA_NODEIDTYPE_NUMERIC, {4243}},
+        {1, UA_NODEIDTYPE_NUMERIC, {4245}},
         sizeof(Uni),
         1,
         UA_DATATYPEKIND_UNION,
@@ -305,11 +355,6 @@ START_TEST(parseCustomArray) {
 } END_TEST
 
 START_TEST(parseCustomStructureWithOptionalFields) {
-        //Opt o;
-        //o.hasB = true;      /* means optional field "b" is defined and will be encoded */
-        //o.a = 3;
-        //o.b = 2.5;
-
         Opt o;
         o.a = 3;
         o.b = NULL;
@@ -350,6 +395,54 @@ START_TEST(parseCustomStructureWithOptionalFields) {
         UA_Variant_deleteMembers(&var);
         UA_Variant_deleteMembers(&var2);
         UA_ByteString_deleteMembers(&buf);
+} END_TEST
+
+START_TEST(parseCustomStructureWithOptionalFieldsWithArray) {
+        OptArray oa;
+        oa.description = UA_STRING("TestDesc");
+        oa.b = NULL;
+        //invalid array desc.
+        oa.cSize = 3;
+        oa.c = (UA_Float *) UA_Array_new(oa.cSize, &ArrayOptType);
+        oa.c[0] = (UA_Float)1.1;
+        oa.c[1] = (UA_Float)1.2;
+        oa.c[2] = (UA_Float)1.3;
+
+        UA_Variant var;
+        UA_Variant_init(&var);
+        UA_Variant_setScalarCopy(&var, &oa, &ArrayOptType);
+        size_t buflen = UA_calcSizeBinary(&var, &UA_TYPES[UA_TYPES_VARIANT]);
+        UA_ByteString buf;
+        UA_StatusCode retval = UA_ByteString_allocBuffer(&buf, buflen);
+        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+        UA_Byte *pos = buf.data;
+        const UA_Byte *end = &buf.data[buf.length];
+        retval = UA_encodeBinary(&var, &UA_TYPES[UA_TYPES_VARIANT],
+                                 &pos, &end, NULL, NULL);
+        printf("Status Message: %s\n", UA_StatusCode_name(retval));
+        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+
+
+        /*
+
+        UA_Variant var2;
+        size_t offset = 0;
+        retval = UA_decodeBinary(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], &customDataTypesOptStruct);
+        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+        ck_assert(var2.type == &OptType);
+
+        Opt *optStruct2 = (Opt *) var2.data;
+        //ck_assert(optStruct2->hasB == UA_TRUE);
+        ck_assert(optStruct2->a == 3);
+        ck_assert((fabs(*optStruct2->c - 10.10)) < 0.005);
+
+        //TODO add magic size number
+        UA_Float_delete(o.b);
+        UA_Float_delete(o.c);
+        UA_Variant_deleteMembers(&var);
+        UA_Variant_deleteMembers(&var2);
+        UA_ByteString_deleteMembers(&buf);*/
 } END_TEST
 
 START_TEST(parseCustomUnion) {
@@ -403,6 +496,7 @@ int main(void) {
     tcase_add_test(tc, parseCustomArray);
     tcase_add_test(tc, parseCustomStructureWithOptionalFields);
     tcase_add_test(tc, parseCustomUnion);
+    tcase_add_test(tc, parseCustomStructureWithOptionalFieldsWithArray);
     suite_add_tcase(s, tc);
 
     SRunner *sr = srunner_create(s);

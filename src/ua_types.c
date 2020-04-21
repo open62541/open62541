@@ -1018,7 +1018,7 @@ copyStructure(const void *src, void *dst, const UA_DataType *type) {
                 retval |= UA_Array_copy(*(void* const*)ptrs, 1, (void**)ptrd, mt);
             ptrs += sizeof(void*);
             ptrd += sizeof(void*);
-            //todo array handling if optional
+            //todo array handling if optional contained optional array use correct array copy (case contained opt array)
         } else if(!m->isArray) {
             ptrs += m->padding;
             ptrd += m->padding;
