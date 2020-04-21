@@ -784,6 +784,33 @@ processCompleteChunks(UA_SecureChannel *channel, void *application,
 }
 
 static UA_StatusCode
+UA_Chunk_addChunk(UA_ChunkQueue *chunk_queue, size_t *offset, UA_TcpMessageHeader header,
+                  const UA_ByteString *buffer) {
+    /* Add the chunk; forward the offset */
+    *offset += header.messageSize;
+    UA_Chunk *chunk = (UA_Chunk *)UA_malloc(sizeof(UA_Chunk));
+    if(!chunk)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    /* ByteString with only this chunk. */
+    UA_ByteString payload;
+    payload.data = &buffer->data[*offset];
+    payload.length = header.messageSize;
+
+    chunk->messageType =
+        (UA_MessageType)(header.messageTypeAndChunkType & UA_BITMASK_MESSAGETYPE);
+    chunk->chunkType =
+        (UA_ChunkType)(header.messageTypeAndChunkType & UA_BITMASK_CHUNKTYPE);
+    chunk->bytes = payload;
+    chunk->copied = false;
+    chunk->decrypted = false;
+
+    SIMPLEQ_INSERT_TAIL(chunk_queue, chunk, pointers);
+
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
 extractCompleteChunk(UA_SecureChannel *channel, const UA_ByteString *buffer,
                      size_t *offset, UA_Boolean *done) {
     /* At least 8 byte needed for the header. Wait for the next chunk. */
@@ -814,18 +841,13 @@ extractCompleteChunk(UA_SecureChannel *channel, const UA_ByteString *buffer,
         return UA_STATUSCODE_GOOD;
     }
 
-    /* ByteString with only this chunk. */
-    UA_ByteString chunkPayload;
-    chunkPayload.data = &buffer->data[*offset];
-    chunkPayload.length = hdr.messageSize;
-
     /* Connection-level messages. These are forwarded entirely. OPN message are
      * also forwarded undecrypted */
     if(msgType == UA_MESSAGETYPE_HEL || msgType == UA_MESSAGETYPE_ACK ||
        msgType == UA_MESSAGETYPE_ERR || msgType == UA_MESSAGETYPE_OPN) {
         if(chunkType != UA_CHUNKTYPE_FINAL)
             return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
-        goto add_chunk;
+        return UA_Chunk_addChunk(&channel->completeChunks, offset, hdr, buffer);
     }
 
     /* Only messages on SecureChannel-level with symmetric encryption afterwards */
@@ -837,21 +859,7 @@ extractCompleteChunk(UA_SecureChannel *channel, const UA_ByteString *buffer,
        chunkType != UA_CHUNKTYPE_ABORT)
         return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
 
-add_chunk:
-    /* Add the chunk; forward the offset */
-    *offset += hdr.messageSize;
-    UA_Chunk *chunk = (UA_Chunk *)UA_malloc(sizeof(UA_Chunk));
-    if(!chunk)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    chunk->messageType = msgType;
-    chunk->chunkType = chunkType;
-    chunk->bytes = chunkPayload;
-    chunk->copied = false;
-    chunk->decrypted = false;
-
-    SIMPLEQ_INSERT_TAIL(&channel->completeChunks, chunk, pointers);
-    return UA_STATUSCODE_GOOD;
+    return UA_Chunk_addChunk(&channel->completeChunks, offset, hdr, buffer);
 }
 
 UA_StatusCode
