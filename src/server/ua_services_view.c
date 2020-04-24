@@ -71,13 +71,14 @@ typedef struct {
 
 static UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
 RefTree_init(RefTree *rt) {
+    rt->size = 0;
+    rt->capacity = 0;
+    ZIP_INIT(&rt->head);
     size_t space = (sizeof(UA_ExpandedNodeId) + sizeof(RefEntry)) * UA_BROWSE_INITIAL_SIZE;
     rt->targets = (UA_ExpandedNodeId*)UA_malloc(space);
     if(!rt->targets)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     rt->capacity = UA_BROWSE_INITIAL_SIZE;
-    rt->size = 0;
-    ZIP_INIT(&rt->head);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -85,7 +86,8 @@ static void
 RefTree_clear(RefTree *rt) {
     for(size_t i = 0; i < rt->size; i++)
         UA_ExpandedNodeId_clear(&rt->targets[i]);
-    UA_free(rt->targets);
+    if(rt->targets)
+        UA_free(rt->targets);
 }
 
 /* Double the capacity of the reftree */
