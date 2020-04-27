@@ -82,9 +82,9 @@ UA_StatusCode
 UA_NetworkMessage_updateBufferedNwMessage(UA_NetworkMessageOffsetBuffer *buffer,
                                           const UA_ByteString *src){
     UA_StatusCode rv = UA_STATUSCODE_GOOD;
-    UA_DataSetMessage* dsm = &(buffer->nm->payload.dataSetPayload.dataSetMessages[0]); // Considering one DSM in RT TODO: Clarify multiple DSM
+    size_t payloadCounter = 0;
+    UA_DataSetMessage* dsm = buffer->nm->payload.dataSetPayload.dataSetMessages; // Considering one DSM in RT TODO: Clarify multiple DSM
     for (size_t i = 0; i < buffer->offsetsSize; ++i) {
-        size_t payloadCounter = 0;
         size_t offset = buffer->offsets[i].offset;
         switch (buffer->offsets[i].contentType) {
         case UA_PUBSUB_OFFSETTYPE_PUBLISHERID:
@@ -126,6 +126,7 @@ UA_NetworkMessage_updateBufferedNwMessage(UA_NetworkMessageOffsetBuffer *buffer,
                                            &(dsm->data.keyFrameData.dataSetFields[payloadCounter]));
             if(rv != UA_STATUSCODE_GOOD)
                 return rv;
+            payloadCounter++;
             break;
         case UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT:
             rv = UA_Variant_decodeBinary(src, &offset,
@@ -133,6 +134,7 @@ UA_NetworkMessage_updateBufferedNwMessage(UA_NetworkMessageOffsetBuffer *buffer,
             if(rv != UA_STATUSCODE_GOOD)
                 return rv;
             dsm->data.keyFrameData.dataSetFields[payloadCounter].hasValue = true;
+            payloadCounter++;
             break;
         default:
             return UA_STATUSCODE_BADNOTSUPPORTED;
