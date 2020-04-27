@@ -1354,37 +1354,35 @@ encodeBinaryStructWithOptFields(const void *src, const UA_DataType *type, Ctx *c
         return UA_STATUSCODE_BADENCODINGERROR;
     ctx->depth++;
 
-    //size_t optFieldsSize = getCountOfOptionalFields(type);
     uintptr_t ptr = (uintptr_t) src;
-    //uintptr_t ptr = boolptr + (optFieldsSize * sizeof(UA_Boolean));
     UA_UInt32 encodingMask = 0;
 
     status ret = UA_STATUSCODE_GOOD;
     u8 membersSize = type->membersSize;
     const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
 
-    /* Creating the encoding mask marking the available optional fields */
+    /* Creating the encoding mask, marking the available optional fields */
     uintptr_t optFieldIterationPtr = ptr;
     size_t optFieldCounter = 0;
     for(size_t j = 0; j < membersSize; ++j) {
         const UA_DataTypeMember *m = &type->members[j];
         const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
+        optFieldIterationPtr += m->padding;
         if(m->isOptional) {
+            if(m->isArray)
+                optFieldIterationPtr += sizeof(size_t);
             if(*(void* const*)optFieldIterationPtr != NULL){
                 encodingMask |= (UA_UInt32) 1 << optFieldCounter;
             }
-            optFieldCounter++;
             optFieldIterationPtr += sizeof(void *);
+            optFieldCounter++;
         } else {
+            if(m->isArray)
+                optFieldIterationPtr += sizeof(size_t);
             optFieldIterationPtr += mt->memSize;
         }
     }
     ret = UInt32_encodeBinary(&encodingMask, &UA_TYPES[UA_TYPES_UINT32], ctx);
-    /*for(size_t h = 0; h < optFieldsSize; h++){
-        if(*(UA_Boolean*)boolptr) encodingMask |= (UA_UInt32) 1<<h;
-        boolptr += sizeof(UA_Boolean);
-    }
-    */
 
     /* Loop over members */
     for(size_t i = 0, o = 0; i < membersSize; ++i) {
@@ -1393,22 +1391,21 @@ encodeBinaryStructWithOptFields(const void *src, const UA_DataType *type, Ctx *c
         ptr += m->padding;
 
         if(m->isOptional){
-            if(!(encodingMask & (UA_UInt32) ( (UA_UInt32) 1<<(++o)))){
-                //optional array
-                if(m->isArray) {
+            /* This optional field is not contained */
+            if(!(encodingMask & (UA_UInt32) ( (UA_UInt32) 1<<(o++)))){
+                if(m->isArray)
+                    ptr += sizeof(size_t);
+                ptr += sizeof(void *);
+            } else { //this field is contained
+                if(m->isArray){
                     const size_t length = *((const size_t *) ptr);
                     ptr += sizeof(size_t);
                     ret = Array_encodeBinary(*(void *UA_RESTRICT const *) ptr, length, mt, ctx);
                     ptr += sizeof(void *);
-                    continue;
+                } else {
+                    ret = encodeWithExchangeBuffer(*(void* const*) ptr, mt, ctx);
+                    ptr += sizeof(void *);
                 }
-                //optional scalar
-                ret = encodeWithExchangeBuffer(*(void* const*) ptr, mt, ctx);
-                //ptr += mt->memSize;
-                ptr += sizeof(void *);
-            } else {
-                ptr += sizeof(void *);
-                continue;
             }
         } else {
             if(m->isArray) {
@@ -1420,23 +1417,11 @@ encodeBinaryStructWithOptFields(const void *src, const UA_DataType *type, Ctx *c
             }
             /* Scalar */
             ret = encodeWithExchangeBuffer((const void*)ptr, mt, ctx);
+
+            /* Array. Buffer-exchange is done inside Array_encodeBinary if required. */
+            ptr += mt->memSize;
         }
 
-
-/*        if(m->isOptional){
-            o++;
-            if(!(encodingMask & (UA_UInt32) ( (UA_UInt32) 1<<(o++-1)))){
-                if(m->isArray){
-                    ptr += sizeof(size_t) + sizeof(void*);
-                }
-                else{
-                    ptr += mt->memSize;
-                }
-                continue;
-            }
-        }*/
-        /* Array. Buffer-exchange is done inside Array_encodeBinary if required. */
-        ptr += mt->memSize;
     }
     ctx->depth--;
     return ret;
@@ -1452,8 +1437,11 @@ encodeBinaryUnion(const void *src, const UA_DataType *type, Ctx *ctx) {
     uintptr_t ptr = (uintptr_t)src;
     status ret;
     UA_UInt32 selection = *(UA_UInt32*) ptr;
+    if(selection == 0){
+        return encodeWithExchangeBuffer((const void*)ptr, &UA_TYPES[UA_TYPES_UINT32], ctx);
+    }
     const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
-    const UA_DataTypeMember *m = &type->members[selection];
+    const UA_DataTypeMember *m = &type->members[selection-1];
     const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
 
     ret = encodeWithExchangeBuffer((const void*)ptr, &UA_TYPES[UA_TYPES_UINT32], ctx);
@@ -1600,8 +1588,13 @@ decodeBinaryStructureWithOptFields(void *dst, const UA_DataType *type, Ctx *ctx)
         const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
         ptr += m->padding;
         if(m->isOptional){
-            if(!(encodingMask & (UA_UInt32) ( (UA_UInt32) 1<<(++o)))){
-                //optional array
+            /* This optional field is not contained */
+            if(!(encodingMask & (UA_UInt32) ( (UA_UInt32) 1<<(o++)))){
+                if(m->isArray)
+                    ptr += sizeof(size_t);
+                ptr += sizeof(void *);
+                //continue;
+            } else {
                 if(m->isArray) {
                     size_t *length = (size_t*)ptr;
                     ptr += sizeof(size_t);
@@ -1609,18 +1602,12 @@ decodeBinaryStructureWithOptFields(void *dst, const UA_DataType *type, Ctx *ctx)
                     ptr += sizeof(void*);
                     continue;
                 }
-                //optional scalar
-                /* Scalar */
+                /*optional scalar */
                 *(void *UA_RESTRICT *UA_RESTRICT) ptr = UA_calloc(1, mt->memSize);
                 if(!*(void *UA_RESTRICT *UA_RESTRICT) ptr)
                     return UA_STATUSCODE_BADOUTOFMEMORY;
                 decodeBinaryJumpTable[mt->typeKind](*(void *UA_RESTRICT *UA_RESTRICT) ptr, mt, ctx);
                 ptr += sizeof(void*);
-                //ret = decodeBinaryJumpTable[mt->typeKind]((void *UA_RESTRICT)ptr, mt, ctx);
-                //ptr += mt->memSize;
-            } else {
-                ptr += sizeof(void *);
-                continue;
             }
         } else {
             /* Array */
@@ -1650,11 +1637,13 @@ decodeBinaryUnion(void *dst, const UA_DataType *type, Ctx *ctx) {
     uintptr_t ptr = (uintptr_t)dst;
     status ret;
     UA_UInt32 selection = *(UA_UInt32*) ctx->pos;
+    if(selection == 0)
+        return decodeBinaryJumpTable[UA_TYPES_UINT32]((void *UA_RESTRICT)ptr, &UA_TYPES[UA_TYPES_UINT32], ctx);
     u8 membersSize = type->membersSize;
-    if(selection >= membersSize) return UA_STATUSCODE_BADDECODINGERROR;
+    if(selection-1 >= membersSize) return UA_STATUSCODE_BADDECODINGERROR;
 
     const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
-    const UA_DataTypeMember *m = &type->members[selection];
+    const UA_DataTypeMember *m = &type->members[selection-1];
     const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
 
     ret = decodeBinaryJumpTable[UA_TYPES_UINT32]((void *UA_RESTRICT)ptr, &UA_TYPES[UA_TYPES_UINT32], ctx);
@@ -1948,11 +1937,13 @@ calcSizeBinaryStructureWithOptFields(const void *p, const UA_DataType *type) {
         ptr += member->padding;
         if(member->isOptional){
             // optional member is contained in the optstruct
-            if(*(void* const*)ptr == NULL){
+            if((member->isArray && ((*(void* const*)(ptr+sizeof(size_t))) == NULL)) ||
+                (!member->isArray && (*(void* const*)ptr == NULL))) {
+                if(member->isArray)
+                    ptr += sizeof(size_t);
                 ptr += sizeof(void *);
                 continue;
             }
-            //todo check handling of optarrays
         }
         /* Array */
         if(member->isArray) {
@@ -1962,7 +1953,6 @@ calcSizeBinaryStructureWithOptFields(const void *p, const UA_DataType *type) {
             ptr += sizeof(void*);
             continue;
         }
-
         /* Scalar */
         s += calcSizeBinaryJumpTable[membertype->typeKind]((const void*)ptr, membertype);
         member->isOptional ? (ptr += sizeof(void *)) : (ptr += membertype->memSize);
@@ -1975,8 +1965,10 @@ calcSizeBinaryUnion(const void *p, const UA_DataType *type) {
     size_t s = 0;
     uintptr_t ptr = (uintptr_t)p;
     UA_UInt32 selection = *(UA_UInt32 *) ptr;
+    if(selection == 0)
+        return UA_TYPES[UA_TYPES_UINT32].memSize;
     const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
-    const UA_DataTypeMember *m = &type->members[selection];
+    const UA_DataTypeMember *m = &type->members[selection-1];
     const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
     s += UA_TYPES[UA_TYPES_UINT32].memSize;
     ptr += UA_TYPES[UA_TYPES_UINT32].memSize;

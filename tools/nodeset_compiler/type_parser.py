@@ -170,7 +170,7 @@ class StructType(Type):
 
         self.pointerfree = True
         for m in self.members:
-            if m.is_array or not m.member_type.pointerfree:
+            if m.is_array or m.is_optional or not m.member_type.pointerfree:
                 self.pointerfree = False
 
 

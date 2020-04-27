@@ -169,26 +169,6 @@ class CGenerator(object):
             m += "    UA_%s_%s, /* .memberTypeIndex */\n" % (
                 member.member_type.outname.upper(), makeCIdentifier(member.member_type.name.upper()))
             m += "    "
-
-            #new optstruct cmpl code
-            # if member.is_optional:
-            #     if member.is_array:
-            #         m += "offsetof(UA_%s, %sSize)" % (idName, member_name)
-            #     else:
-            #         m += "offsetof(UA_%s, %s)" % (idName, member_name)
-            #
-            # #end optstruct cmpl code
-            #
-            # if not before and not isUnion:
-            #     if hasOptionalFields(datatype):
-            #         last_optField = getLastOptionalFieldName(datatype)
-            #         if member.is_array:
-            #             m += "offsetof(UA_%s, %sSize)" % (idName, member_name)
-            #         else:
-            #             m += "offsetof(UA_%s, %s)" % (idName, member_name)
-            #         m += " - offsetof(UA_%s, has%s) - sizeof(UA_Boolean)," % (idName, last_optField[0].upper() + last_optField[1:])
-            #     else:
-            #         m += "0,"
             if not before:
                 m += "0,"
             elif isUnion:
@@ -281,28 +261,12 @@ class CGenerator(object):
         if struct.is_union:
             #test = type("MyEnumOptionSet", (EnumOptionSet, object), {"foo": lambda self: "foo"})
             obj = type('MyEnumOptionSet', (object,), {'isOptionSet': False, 'elements': OrderedDict(), 'name': struct.name+"Switch"})
-
-            #unionSwitchEnum = {}
-            #unionSwitchEnum['isOptionSet'] = False
-            #unionSwitchEnum['elements'] = OrderedDict()
-            #returnstr = "typedef enum { \n"
+            obj.elements['None'] = str(0)
             count = 0
             for member in struct.members:
-                #enum function
-                #unionSwitchEnum['elements'][struct.name] = count
                 if(count > 0):
-                    obj.elements[member.name] = str(count-1)
+                    obj.elements[member.name] = str(count)
                 count += 1
-                #end use of enum function
-
-                #n = makeCIdentifier(member.name)
-                #if(count < len(struct.members)-1):
-                #    returnstr += "    %s_%s = %i, \n" % (struct.name, n, count)
-                #else:
-                #    returnstr += "    %s_%s = %i \n" % (struct.name, n, count)
-            #returnstr += "} %sSelection;\n\n" % struct.name
-            #todo force check 32 bit enum
-            #returnstr += "UA_STATIC_ASSERT(sizeof(UA_{0}) == sizeof(UA_Int32), enum_must_be_32bit);"
             returnstr += CGenerator.print_enum_typedef(obj)
             returnstr += "\n\n"
         if len(struct.members) == 0:
@@ -311,14 +275,8 @@ class CGenerator(object):
         if struct.is_union:
             returnstr += "    UA_%sSwitch switchField;\n" % struct.name
             returnstr += "    union {\n"
-        #for member in struct.members:
-        #    if member.is_optional:
-        #        n = makeCIdentifier(member.name)
-        #        returnstr += "    UA_Boolean has%s;\n" % (n[:1].upper() + n[1:])
         count = 0
         for member in struct.members:
-            #if struct.is_union:
-            #    returnstr += "    "
             if member.is_array:
                 returnstr += "    size_t %sSize;\n" % makeCIdentifier(member.name)
                 returnstr += "    UA_%s *%s;\n" % (

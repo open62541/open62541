@@ -45,13 +45,18 @@ static const UA_DataType PointType = {
         false,                           /* .overlayable (depends on endianness and
                                          the absence of padding) */
         3,                               /* .membersSize */
-        0,                               /* .binaryEncodingId, the numeric
+        1,                               /* .binaryEncodingId, the numeric
                                          identifier used on the wire (the
                                          namespaceindex is from .typeId) */
         Point_members
 };
 
-/* Array example start */
+/* The datatype description for the Measurement-Series datatype (Array Example)*/
+typedef struct {
+    UA_String description;
+    size_t measurementSize;
+    UA_Float *measurement;
+} Measurements;
 
 static UA_DataTypeMember Measurements_members[2] = {
     {
@@ -60,7 +65,7 @@ static UA_DataTypeMember Measurements_members[2] = {
         0,               /* .padding */
         true,            /* .namespaceZero, see .memberTypeIndex */
         false,            /* .isArray */
-        false
+        false /* .isOptional */
     },
     {
         UA_TYPENAME("Measurements") /* .memberName */
@@ -68,38 +73,34 @@ static UA_DataTypeMember Measurements_members[2] = {
         0,               /* .padding */
          true,            /* .namespaceZero, see .memberTypeIndex */
         true,            /* .isArray */
-        false
+        false /* .isOptional */
     }
 };
 
 static const UA_DataType MeasurementType = {
-    UA_TYPENAME("Point")             /* .tyspeName */
-    {1, UA_NODEIDTYPE_NUMERIC, {4242}},     /* .typeId */
-    sizeof(Point),                   /* .memSize */
-    0,                               /* .typeIndex, in the array of custom types */
+    UA_TYPENAME("Measurement")             /* .tyspeName */
+    {1, UA_NODEIDTYPE_NUMERIC, {4443}},     /* .typeId */
+    sizeof(Measurements),                   /* .memSize */
+    1,                               /* .typeIndex, in the array of custom types */
     UA_DATATYPEKIND_STRUCTURE,       /* .typeKind */
     false,                            /* .pointerFree */
     false,                           /* .overlayable (depends on endianness and
                                          the absence of padding) */
     2,                               /* .membersSize */
-    0,                               /* .binaryEncodingId, the numeric
+    2,                               /* .binaryEncodingId, the numeric
                                          identifier used on the wire (the
                                          namespaceindex is from .typeId) */
     Measurements_members
 };
 
-/* Array example end */
 
-
-
-/* Adding a structure with optional fields */
+/* The datatype description for the Opt datatype (Structure with optional fields example)*/
 typedef struct {
     UA_Int16 a;
     UA_Float *b;
     UA_Float *c;
 } Opt;
 
-/* flag "hasB" does not count as a member */
 static UA_DataTypeMember Opt_members[3] = {
     /* a */
     {
@@ -132,21 +133,22 @@ static UA_DataTypeMember Opt_members[3] = {
 
 static const UA_DataType OptType = {
     UA_TYPENAME("Opt")             /* .typeName */
-    {1, UA_NODEIDTYPE_NUMERIC, {4242}}, /* .typeId */
+    {1, UA_NODEIDTYPE_NUMERIC, {4644}}, /* .typeId */
     sizeof(Opt),                   /* .memSize */
-    0,                               /* .typeIndex, in the array of custom types */
+    2,                               /* .typeIndex, in the array of custom types */
     UA_DATATYPEKIND_OPTSTRUCT,       /* .typeKind */
     false,                            /* .pointerFree */
     false,                           /* .overlayable (depends on endianness and
                                          the absence of padding) */
     3,                               /* .membersSize */
-    0,                               /* .binaryEncodingId, the numeric
+    3,                               /* .binaryEncodingId, the numeric
                                          identifier used on the wire (the
                                          namespaceindex is from .typeId) */
     Opt_members
 };
 
-typedef enum {UA_UNISWITCH_OPTIONA = 0, UA_UNISWITCH_OPTIONB = 1} UniSwitch;
+/* The datatype description for the Uni datatype (Union example) */
+typedef enum {UA_UNISWITCH_NONE = 0, UA_UNISWITCH_OPTIONA = 1, UA_UNISWITCH_OPTIONB = 2} UniSwitch;
 
 typedef struct {
     UniSwitch switchField;
@@ -177,13 +179,13 @@ static UA_DataTypeMember Uni_members[2] = {
 
 static const UA_DataType UniType = {
     UA_TYPENAME("Uni")
-    {1, UA_NODEIDTYPE_NUMERIC, {4243}},
+    {1, UA_NODEIDTYPE_NUMERIC, {4845}},
     sizeof(Uni),
-    1,
+    3,
     UA_DATATYPEKIND_UNION,
     false,
     false,
     2,
-    0,
+    4,
     Uni_members
 };

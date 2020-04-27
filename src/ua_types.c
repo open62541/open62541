@@ -1014,11 +1014,27 @@ copyStructure(const void *src, void *dst, const UA_DataType *type) {
         if (m->isOptional){
             ptrs += m->padding;
             ptrd += m->padding;
-            if(*(void* const*)ptrs != NULL)
-                retval |= UA_Array_copy(*(void* const*)ptrs, 1, (void**)ptrd, mt);
+            if((!m->isArray && (*(void* const*)ptrs != NULL)) ||
+               (m->isArray && (*(void* const*)(ptrs+sizeof(size_t)) != NULL))) {
+                if(m->isArray){
+                    size_t *dst_size = (size_t*)ptrd;
+                    const size_t size = *((const size_t*)ptrs);
+                    ptrs += sizeof(size_t);
+                    ptrd += sizeof(size_t);
+                    retval |= UA_Array_copy(*(void* const*)ptrs, size, (void**)ptrd, mt);
+                    if(retval == UA_STATUSCODE_GOOD)
+                        *dst_size = size;
+                    else
+                        *dst_size = 0;
+                } else {
+                    retval |= UA_Array_copy(*(void* const*)ptrs, 1, (void**)ptrd, mt);
+                }
+            } else if (m->isArray){
+                ptrs += sizeof(size_t);
+                ptrd += sizeof(size_t);
+            }
             ptrs += sizeof(void*);
             ptrd += sizeof(void*);
-            //todo array handling if optional contained optional array use correct array copy (case contained opt array)
         } else if(!m->isArray) {
             ptrs += m->padding;
             ptrd += m->padding;
@@ -1044,60 +1060,16 @@ copyStructure(const void *src, void *dst, const UA_DataType *type) {
     return retval;
 }
 
-
-/*
-static UA_StatusCode
-copyStructureWithOptionalFields(const void *src, void *dst, const UA_DataType *type){
-    //size_t optFieldsSize = getCountOfOptionalFields(type);
-    uintptr_t ptrs = (uintptr_t)src;
-    uintptr_t ptrd = (uintptr_t)dst;
-    const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
-    for(size_t i = 0; i < type->membersSize; ++i) {
-        const UA_DataTypeMember *m = &type->members[i];
-        const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
-        if(m->isOptional){
-            //field is not set
-            if(*(uintptr_t *) ptrs == 0){
-                printf("copy optstruct with is optional field - not there\n");
-                ptrs += sizeof(void *);
-            } else { //field is set
-                printf("copy optstruct with is optional field - there\n");
-                //is the member type of type PTR or the concrete type?
-
-            }
-        } else {
-            ptrs += m->padding;
-            ptrd += m->padding;
-            copyJumpTable[mt->typeKind]((const void*)ptrs, (void*)ptrd, mt);
-            ptrs += mt->memSize;
-            ptrd += mt->memSize;
-            //todo array handling?
-        }
-    }
-
-
-    */
-/*if(optFieldsSize){
-        for(size_t h = 0; h < optFieldsSize; h++){
-            copyJumpTable[UA_DATATYPEKIND_BOOLEAN]((const void*)ptrs, (void*)ptrd, &UA_TYPES[UA_TYPES_BOOLEAN]);
-            ptrs += sizeof(UA_Boolean);
-            ptrd += sizeof(UA_Boolean);
-        }
-    }*//*
-
-    return copyStructure((const void *) ptrs, (void *) ptrd, type);
-}
-*/
-
 static UA_StatusCode
 copyUnion(const void *src, void *dst, const UA_DataType *type) {
     uintptr_t ptrs = (uintptr_t) src;
     uintptr_t ptrd = (uintptr_t) dst;
     UA_UInt32 selection = *(UA_UInt32 *)ptrs;
-    //printf("Copy selection: %u\n", selection);
+    if(selection == 0)
+        return UA_STATUSCODE_GOOD;
     UA_copy((const UA_UInt32 *) ptrs, (UA_UInt32 *) ptrd, &UA_TYPES[UA_TYPES_UINT32]);
     const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
-    const UA_DataTypeMember *m = &type->members[selection];
+    const UA_DataTypeMember *m = &type->members[selection-1];
     const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
     ptrs += UA_TYPES[UA_TYPES_UINT32].memSize;
     ptrd += UA_TYPES[UA_TYPES_UINT32].memSize;
@@ -1162,20 +1134,23 @@ clearStructure(void *p, const UA_DataType *type) {
         const UA_DataTypeMember *m = &type->members[i];
         const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
         if(m->isOptional) {
-            if(*(void* const*)ptr != NULL){
+            if((!m->isArray && (*(void* const*)ptr != NULL)) ||
+               (m->isArray && (*(void* const*)(ptr+sizeof(size_t)) != NULL))) {
                 if(!m->isArray){
                     ptr += m->padding;
                     UA_Array_delete(*(void**)ptr, 1, mt);
                     ptr += sizeof(void*);
                 } else {
-                    //todo finish opt array handling
                     ptr += m->padding;
                     size_t length = *(size_t*)ptr;
                     ptr += sizeof(size_t);
                     UA_Array_delete(*(void**)ptr, length, mt);
                     ptr += sizeof(void*);
                 }
+
             } else {
+                if(m->isArray)
+                    ptr += sizeof(size_t);
                 ptr += m->padding;
                 ptr += sizeof(void*);
             }
@@ -1199,8 +1174,10 @@ static void
 clearUnion(void *p, const UA_DataType *type) {
     uintptr_t ptr = (uintptr_t) p;
     UA_UInt32 selection = *(UA_UInt32 *)ptr;
+    if(selection == 0)
+        return;
     const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
-    const UA_DataTypeMember *m = &type->members[selection];
+    const UA_DataTypeMember *m = &type->members[selection-1];
     const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
     ptr += UA_TYPES[UA_TYPES_UINT32].memSize;
     ptr += m->padding;
