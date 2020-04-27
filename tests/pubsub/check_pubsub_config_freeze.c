@@ -69,7 +69,7 @@ START_TEST(CreateAndLockConfiguration) {
     UA_Server_addDataSetField(server, publishedDataSet1, &fieldConfig, &dataSetField1);
 
     UA_DataSetField *dataSetField = UA_DataSetField_findDSFbyId(server, dataSetField1);
-    ck_assert(dataSetField->config.configurationFrozen == UA_FALSE);
+    ck_assert(dataSetField->configurationFrozen == UA_FALSE);
 
     //get internal WG Pointer
     UA_WriterGroup *writerGroup = UA_WriterGroup_findWGbyId(server, writerGroup1);
@@ -101,17 +101,17 @@ START_TEST(CreateAndLockConfiguration) {
     UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_findConnectionbyId(server, connection1);
     ck_assert(pubSubConnection != NULL);
 
-    ck_assert(dataSetWriter->config.configurationFrozen == UA_FALSE);
+    ck_assert(dataSetWriter->configurationFrozen == UA_FALSE);
     //Lock the writer group and the child pubsub entities
         UA_Server_freezeWriterGroupConfiguration(server, writerGroup1);
-    ck_assert(dataSetWriter->config.configurationFrozen == UA_TRUE);
-    ck_assert(dataSetField->config.configurationFrozen == UA_TRUE);
-    ck_assert(pubSubConnection->config->configurationFrozen == UA_TRUE);
+    ck_assert(dataSetWriter->configurationFrozen == UA_TRUE);
+    ck_assert(dataSetField->configurationFrozen == UA_TRUE);
+    ck_assert(pubSubConnection->configurationFrozen == UA_TRUE);
     UA_PublishedDataSet *publishedDataSet = UA_PublishedDataSet_findPDSbyId(server, dataSetWriter->connectedDataSet);
-    ck_assert(publishedDataSet->config.configurationFrozen == UA_TRUE);
+    ck_assert(publishedDataSet->configurationFrozen == UA_TRUE);
     UA_DataSetField *dsf;
     TAILQ_FOREACH(dsf ,&publishedDataSet->fields , listEntry){
-        ck_assert(dsf->config.configurationFrozen == UA_TRUE);
+        ck_assert(dsf->configurationFrozen == UA_TRUE);
     }
     //set state to disabled and implicit unlock the configuration
         UA_Server_unfreezeWriterGroupConfiguration(server, writerGroup1);
@@ -150,7 +150,7 @@ START_TEST(CreateAndLockConfigurationWithExternalAPI) {
         UA_Server_addDataSetField(server, publishedDataSet1, &fieldConfig, &dataSetField1);
 
         UA_DataSetField *dataSetField = UA_DataSetField_findDSFbyId(server, dataSetField1);
-        ck_assert(dataSetField->config.configurationFrozen == UA_FALSE);
+        ck_assert(dataSetField->configurationFrozen == UA_FALSE);
 
         //get internal WG Pointer
         UA_WriterGroup *writerGroup = UA_WriterGroup_findWGbyId(server, writerGroup1);
@@ -166,17 +166,17 @@ START_TEST(CreateAndLockConfigurationWithExternalAPI) {
         //get internal PubSubConnection Pointer
         UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_findConnectionbyId(server, connection1);
 
-        ck_assert(dataSetWriter->config.configurationFrozen == UA_FALSE);
+        ck_assert(dataSetWriter->configurationFrozen == UA_FALSE);
         //Lock the with the freeze function
         UA_Server_freezeWriterGroupConfiguration(server, writerGroup1);
-        ck_assert(dataSetWriter->config.configurationFrozen == UA_TRUE);
-        ck_assert(dataSetField->config.configurationFrozen == UA_TRUE);
-        ck_assert(pubSubConnection->config->configurationFrozen == UA_TRUE);
+        ck_assert(dataSetWriter->configurationFrozen == UA_TRUE);
+        ck_assert(dataSetField->configurationFrozen == UA_TRUE);
+        ck_assert(pubSubConnection->configurationFrozen == UA_TRUE);
         UA_PublishedDataSet *publishedDataSet = UA_PublishedDataSet_findPDSbyId(server, dataSetWriter->connectedDataSet);
-        ck_assert(publishedDataSet->config.configurationFrozen == UA_TRUE);
+        ck_assert(publishedDataSet->configurationFrozen == UA_TRUE);
         UA_DataSetField *dsf;
         TAILQ_FOREACH(dsf ,&publishedDataSet->fields , listEntry){
-            ck_assert(dsf->config.configurationFrozen == UA_TRUE);
+            ck_assert(dsf->configurationFrozen == UA_TRUE);
         }
         //set state to disabled and implicit unlock the configuration
         UA_Server_unfreezeWriterGroupConfiguration(server, writerGroup1);
@@ -233,25 +233,25 @@ START_TEST(CreateAndReleaseMultiplePDSLocks) {
     UA_PublishedDataSet *publishedDataSet = UA_PublishedDataSet_findPDSbyId(server, publishedDataSet1);
     UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_findConnectionbyId(server, connection1);
     //freeze configuratoin of both WG
-    ck_assert(writerGroup_1->config.configurationFrozen == UA_FALSE);
-    ck_assert(writerGroup_2->config.configurationFrozen == UA_FALSE);
-    ck_assert(publishedDataSet->config.configurationFrozen == UA_FALSE);
-    ck_assert(pubSubConnection->config->configurationFrozen == UA_FALSE);
+    ck_assert(writerGroup_1->configurationFrozen == UA_FALSE);
+    ck_assert(writerGroup_2->configurationFrozen == UA_FALSE);
+    ck_assert(publishedDataSet->configurationFrozen == UA_FALSE);
+    ck_assert(pubSubConnection->configurationFrozen == UA_FALSE);
         UA_Server_freezeWriterGroupConfiguration(server, writerGroup1);
         UA_Server_freezeWriterGroupConfiguration(server, writerGroup2);
-    ck_assert(writerGroup_1->config.configurationFrozen == UA_TRUE);
-    ck_assert(writerGroup_2->config.configurationFrozen == UA_TRUE);
-    ck_assert(publishedDataSet->config.configurationFrozen == UA_TRUE);
-    ck_assert(pubSubConnection->config->configurationFrozen == UA_TRUE);
+    ck_assert(writerGroup_1->configurationFrozen == UA_TRUE);
+    ck_assert(writerGroup_2->configurationFrozen == UA_TRUE);
+    ck_assert(publishedDataSet->configurationFrozen == UA_TRUE);
+    ck_assert(pubSubConnection->configurationFrozen == UA_TRUE);
     //unlock one tree, get sure pds still locked
         UA_Server_unfreezeWriterGroupConfiguration(server, writerGroup1);
-    ck_assert(writerGroup_1->config.configurationFrozen == UA_FALSE);
-    ck_assert(publishedDataSet->config.configurationFrozen == UA_TRUE);
-    ck_assert(dataSetField->config.configurationFrozen == UA_TRUE);
+    ck_assert(writerGroup_1->configurationFrozen == UA_FALSE);
+    ck_assert(publishedDataSet->configurationFrozen == UA_TRUE);
+    ck_assert(dataSetField->configurationFrozen == UA_TRUE);
         UA_Server_unfreezeWriterGroupConfiguration(server, writerGroup2);
-    ck_assert(publishedDataSet->config.configurationFrozen == UA_FALSE);
-    ck_assert(dataSetField->config.configurationFrozen == UA_FALSE);
-    ck_assert(pubSubConnection->config->configurationFrozen == UA_FALSE);
+    ck_assert(publishedDataSet->configurationFrozen == UA_FALSE);
+    ck_assert(dataSetField->configurationFrozen == UA_FALSE);
+    ck_assert(pubSubConnection->configurationFrozen == UA_FALSE);
 
     } END_TEST
 
@@ -298,7 +298,7 @@ START_TEST(CreateLockAndEditConfiguration) {
     UA_DataSetWriter *dataSetWriter = UA_DataSetWriter_findDSWbyId(server, dataSetWriter1);
     ck_assert(dataSetWriter != NULL);
 
-    ck_assert(dataSetWriter->config.configurationFrozen == UA_FALSE);
+    ck_assert(dataSetWriter->configurationFrozen == UA_FALSE);
     //Lock the writer group and the child pubsub entities
         UA_Server_freezeWriterGroupConfiguration(server, writerGroup1);
     //call not allowed configuration methods

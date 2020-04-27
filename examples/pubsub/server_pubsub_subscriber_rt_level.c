@@ -142,8 +142,14 @@ addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
+    UA_DataSetReader* pDataSetReader = UA_ReaderGroup_findDSRbyId(server, dataSetReaderId);
+    if(pDataSetReader == NULL) {
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_NodeId folderId;
+    UA_NodeId newnodeId;
     UA_String folderName = readerConfig.dataSetMetaData.name;
     UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
     UA_QualifiedName folderBrowseName;
@@ -164,9 +170,38 @@ addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId) {
                              folderBrowseName, UA_NODEID_NUMERIC (0,
                              UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
 
-    retval |= UA_Server_DataSetReader_addTargetVariables (server, &folderId,
-                                                          dataSetReaderId,
-                                                          UA_PUBSUB_SDS_TARGET);
+    UA_TargetVariablesDataType targetVars;
+    targetVars.targetVariablesSize = pDataSetReader->config.dataSetMetaData.fieldsSize;
+    targetVars.targetVariables = (UA_FieldTargetDataType*)
+        UA_calloc(targetVars.targetVariablesSize, sizeof(UA_FieldTargetDataType));
+
+    for (size_t i = 0; i < pDataSetReader->config.dataSetMetaData.fieldsSize; i++) {
+        /* Variable to subscribe data */
+        UA_VariableAttributes vAttr = UA_VariableAttributes_default;
+        vAttr.description = UA_LOCALIZEDTEXT ("en-US", "Subscribed UInt32");
+        vAttr.displayName = UA_LOCALIZEDTEXT ("en-US", "Subscribed UInt32");
+        vAttr.dataType    = UA_TYPES[UA_TYPES_UINT32].typeId;
+#if defined PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
+        // Initialize the values at first to create the buffered NetworkMessage with correct size and offsets
+        UA_Variant value;
+        UA_Variant_init(&value);
+        UA_UInt32 intValue = 0;
+        UA_Variant_setScalar(&value, &intValue, &UA_TYPES[UA_TYPES_UINT32]);
+        vAttr.value = value;
+#endif
+        retval = UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, (UA_UInt32)i + 50000), folderId,
+                                           UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),  UA_QUALIFIEDNAME(1, "Subscribed UInt32"),
+                                           UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vAttr, NULL, &newnodeId);
+        /* For creating Targetvariable */
+        UA_FieldTargetDataType_init(&targetVars.targetVariables[i]);
+        targetVars.targetVariables[i].attributeId  = UA_ATTRIBUTEID_VALUE;
+        targetVars.targetVariables[i].targetNodeId = newnodeId;
+    }
+
+    retval = UA_Server_DataSetReader_createTargetVariables(server, dataSetReaderId,
+                                                           &targetVars);
+
+    UA_TargetVariablesDataType_deleteMembers(&targetVars);
     UA_free(readerConfig.dataSetMetaData.fields);
     return retval;
 }
