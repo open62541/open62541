@@ -755,7 +755,7 @@ UA_ReaderGroup_addSubscribeCallback(UA_Server *server, UA_ReaderGroup *readerGro
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     retval |= UA_PubSubManager_addRepeatedCallback(server,
                                                    (UA_ServerCallback) UA_ReaderGroup_subscribeCallback,
-                                                   readerGroup, 5, &readerGroup->subscribeCallbackId);
+                                                   readerGroup, 5, &readerGroup->subscribeCallbackId); // TODO: Remove the hardcode of interval (5ms)
 
     if(retval == UA_STATUSCODE_GOOD) {
         readerGroup->subscribeCallbackIsRegistered = true;
