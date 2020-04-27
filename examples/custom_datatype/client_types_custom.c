@@ -8,6 +8,8 @@
 
 #include "custom_datatype.h"
 
+#define STRING_BUFFER_SIZE 20
+
 int main(void) {
     /* Make your custom datatype known to the stack */
     UA_DataType types[4];
@@ -54,12 +56,12 @@ int main(void) {
 
     if(retval == UA_STATUSCODE_GOOD) {
         Measurements *m = (Measurements *) value.data;
-        char description[m->description.length+1];
+        char description[STRING_BUFFER_SIZE];
         memcpy(description, m->description.data, m->description.length);
         description[m->description.length] = '\0';
         printf("Description of Series: %s\n", description);
         for(size_t i = 0; i < m->measurementSize; ++i) {
-            printf("Value %zu : %f\n", i, m->measurement[i]);
+            printf("Value %i : %f\n", (UA_Int32) i, m->measurement[i]);
         }
     }
     UA_Variant_clear(&value);
@@ -84,7 +86,7 @@ int main(void) {
 
     if(retval == UA_STATUSCODE_GOOD) {
         Uni *u = (Uni *) value.data;
-        char message[u->fields.optionB.length+1];
+        char message[STRING_BUFFER_SIZE];
         memcpy(message, u->fields.optionB.data, u->fields.optionB.length);
         message[u->fields.optionB.length] = '\0';
         printf("Union member selection: %u , member content: %s \n", u->switchField, message);

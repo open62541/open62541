@@ -226,7 +226,7 @@ static UA_StatusCode
 getStructureDefinition(const UA_DataType *type, UA_StructureDefinition *def) {
     def->defaultEncodingId =
         UA_NODEID_NUMERIC(type->typeId.namespaceIndex, type->binaryEncodingId);
-    switch(type->typeKind){
+    switch(type->typeKind) {
         case UA_DATATYPEKIND_STRUCTURE:
             def->structureType = UA_STRUCTURETYPE_STRUCTURE;
             def->baseDataType = UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE);
