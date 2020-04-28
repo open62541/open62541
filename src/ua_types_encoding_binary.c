@@ -1437,19 +1437,18 @@ encodeBinaryUnion(const void *src, const UA_DataType *type, Ctx *ctx) {
     uintptr_t ptr = (uintptr_t)src;
     status ret;
     UA_UInt32 selection = *(UA_UInt32*) ptr;
-    if(selection == 0){
-        return encodeWithExchangeBuffer((const void*)ptr, &UA_TYPES[UA_TYPES_UINT32], ctx);
-    }
+    ret = encodeWithExchangeBuffer((const void*)ptr, &UA_TYPES[UA_TYPES_UINT32], ctx);
+    if(selection == 0)
+        return ret;
+
     const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
     const UA_DataTypeMember *m = &type->members[selection-1];
     const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
 
-    ret = encodeWithExchangeBuffer((const void*)ptr, &UA_TYPES[UA_TYPES_UINT32], ctx);
     if (ret != UA_STATUSCODE_GOOD)
         return ret;
     ptr += m->padding;
     ptr += UA_TYPES[UA_TYPES_UINT32].memSize;
-
     ret = encodeWithExchangeBuffer((const void*)ptr, mt, ctx);
 
     ctx->depth--;
@@ -1640,7 +1639,8 @@ decodeBinaryUnion(void *dst, const UA_DataType *type, Ctx *ctx) {
     if(selection == 0)
         return decodeBinaryJumpTable[UA_TYPES_UINT32]((void *UA_RESTRICT)ptr, &UA_TYPES[UA_TYPES_UINT32], ctx);
     u8 membersSize = type->membersSize;
-    if(selection-1 >= membersSize) return UA_STATUSCODE_BADDECODINGERROR;
+    if(selection-1 >= membersSize)
+        return UA_STATUSCODE_BADDECODINGERROR;
 
     const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
     const UA_DataTypeMember *m = &type->members[selection-1];
