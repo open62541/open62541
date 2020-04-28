@@ -1065,9 +1065,9 @@ copyUnion(const void *src, void *dst, const UA_DataType *type) {
     uintptr_t ptrs = (uintptr_t) src;
     uintptr_t ptrd = (uintptr_t) dst;
     UA_UInt32 selection = *(UA_UInt32 *)ptrs;
+    UA_copy((const UA_UInt32 *) ptrs, (UA_UInt32 *) ptrd, &UA_TYPES[UA_TYPES_UINT32]);
     if(selection == 0)
         return UA_STATUSCODE_GOOD;
-    UA_copy((const UA_UInt32 *) ptrs, (UA_UInt32 *) ptrd, &UA_TYPES[UA_TYPES_UINT32]);
     const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
     const UA_DataTypeMember *m = &type->members[selection-1];
     const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];

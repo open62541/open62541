@@ -12,34 +12,41 @@ typedef struct {
 #define Point_padding_z offsetof(Point,z) - offsetof(Point,y) - sizeof(UA_Float)
 
 /* The binary encoding id's for the datatypes */
-#define Point_binary_encoding_id 1
-#define Measurement_binary_encoding_id 2
-#define Opt_binary_encoding_id 3
-#define Uni_binary_encoding_id 4
+#define Point_binary_encoding_id        1
+#define Measurement_binary_encoding_id  2
+#define Opt_binary_encoding_id          3
+#define Uni_binary_encoding_id          4
 
 
 static UA_DataTypeMember Point_members[3] = {
-        /* x */
-        {
-                UA_TYPENAME("x") /* .memberName */
-                UA_TYPES_FLOAT,  /* .memberTypeIndex, points into UA_TYPES since namespaceZero is true */
-                0,               /* .padding */
-                true,            /* .namespaceZero, see .memberTypeIndex */
-                false,           /* .isArray */
-                false
-        },
+    /* x */
+    {
+        UA_TYPENAME("x") /* .memberName */
+        UA_TYPES_FLOAT,  /* .memberTypeIndex, points into UA_TYPES since namespaceZero is true */
+        0,               /* .padding */
+        true,            /* .namespaceZero, see .memberTypeIndex */
+        false,           /* .isArray */
+        false            /* .isOptional */
+    },
 
-        /* y */
-        {
-                UA_TYPENAME("y")
-                UA_TYPES_FLOAT, Point_padding_y, true, false, false
-        },
-
-        /* z */
-        {
-                UA_TYPENAME("z")
-                UA_TYPES_FLOAT, Point_padding_z, true, false, false
-        }
+    /* y */
+    {
+        UA_TYPENAME("y") /* .memberName */
+        UA_TYPES_FLOAT,  /* .memberTypeIndex, points into UA_TYPES since namespaceZero is true */
+        Point_padding_y, /* .padding */
+        true,            /* .namespaceZero, see .memberTypeIndex */
+        false,           /* .isArray */
+        false            /* .isOptional */
+    },
+    /* z */
+    {
+        UA_TYPENAME("z") /* .memberName */
+        UA_TYPES_FLOAT,  /* .memberTypeIndex, points into UA_TYPES since namespaceZero is true */
+        Point_padding_z, /* .padding */
+        true,            /* .namespaceZero, see .memberTypeIndex */
+        false,           /* .isArray */
+        false            /* .isOptional */
+    }
 };
 
 static const UA_DataType PointType = {
@@ -166,10 +173,10 @@ static const UA_DataType OptType = {
 };
 
 /* The datatype description for the Uni datatype (Union example) */
-typedef enum {UA_UNISWITCH_NONE = 0, UA_UNISWITCH_OPTIONA = 1, UA_UNISWITCH_OPTIONB = 2} UniSwitch;
+typedef enum {UA_UNISWITCH_NONE = 0, UA_UNISWITCH_OPTIONA = 1, UA_UNISWITCH_OPTIONB = 2} UA_UniSwitch;
 
 typedef struct {
-    UniSwitch switchField;
+    UA_UniSwitch switchField;
     union {
         UA_Double optionA;
         UA_String optionB;

@@ -185,10 +185,10 @@ static const UA_DataType ArrayOptType = {
 
 const UA_DataTypeArray customDataTypesOptArrayStruct = {&customDataTypesOptStruct, 3, &ArrayOptType};
 
-typedef enum {UA_UNISWITCH_NONE = 0, UA_UNISWITCH_OPTIONA = 1, UA_UNISWITCH_OPTIONB = 2} UniSwitch;
+typedef enum {UA_UNISWITCH_NONE = 0, UA_UNISWITCH_OPTIONA = 1, UA_UNISWITCH_OPTIONB = 2} UA_UniSwitch;
 
 typedef struct {
-    UniSwitch switchField;
+    UA_UniSwitch switchField;
     union {
         UA_Double optionA;
         UA_String optionB;
