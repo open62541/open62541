@@ -33,7 +33,7 @@ static void setup(void) {
 
     config->pubsubTransportLayers = (UA_PubSubTransportLayer *)
         UA_malloc(sizeof(UA_PubSubTransportLayer));
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerEthernet();
+    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerEthernet(&config->logger);
     config->pubsubTransportLayersSize++;
     UA_Server_run_startup(server);
 }

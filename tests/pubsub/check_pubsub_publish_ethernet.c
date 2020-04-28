@@ -42,7 +42,7 @@ static void setup(void) {
         UA_ServerConfig_clean(config);
     }
 
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerEthernet();
+    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerEthernet(&config->logger);
     config->pubsubTransportLayersSize++;
 
 }
