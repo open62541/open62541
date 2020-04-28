@@ -11,6 +11,13 @@ typedef struct {
 #define Point_padding_y offsetof(Point,y) - offsetof(Point,x) - sizeof(UA_Float)
 #define Point_padding_z offsetof(Point,z) - offsetof(Point,y) - sizeof(UA_Float)
 
+/* The binary encoding id's for the datatypes */
+#define Point_binary_encoding_id 1
+#define Measurement_binary_encoding_id 2
+#define Opt_binary_encoding_id 3
+#define Uni_binary_encoding_id 4
+
+
 static UA_DataTypeMember Point_members[3] = {
         /* x */
         {
@@ -18,7 +25,7 @@ static UA_DataTypeMember Point_members[3] = {
                 UA_TYPES_FLOAT,  /* .memberTypeIndex, points into UA_TYPES since namespaceZero is true */
                 0,               /* .padding */
                 true,            /* .namespaceZero, see .memberTypeIndex */
-                false,            /* .isArray */
+                false,           /* .isArray */
                 false
         },
 
@@ -36,18 +43,18 @@ static UA_DataTypeMember Point_members[3] = {
 };
 
 static const UA_DataType PointType = {
-        UA_TYPENAME("Point")             /* .tyspeName */
+        UA_TYPENAME("Point")                /* .tyspeName */
         {1, UA_NODEIDTYPE_NUMERIC, {4242}}, /* .typeId */
-        sizeof(Point),                   /* .memSize */
-        0,                               /* .typeIndex, in the array of custom types */
-        UA_DATATYPEKIND_STRUCTURE,       /* .typeKind */
-        true,                            /* .pointerFree */
-        false,                           /* .overlayable (depends on endianness and
-                                         the absence of padding) */
-        3,                               /* .membersSize */
-        1,                               /* .binaryEncodingId, the numeric
-                                         identifier used on the wire (the
-                                         namespaceindex is from .typeId) */
+        sizeof(Point),                      /* .memSize */
+        0,                                  /* .typeIndex, in the array of custom types */
+        UA_DATATYPEKIND_STRUCTURE,          /* .typeKind */
+        true,                               /* .pointerFree */
+        false,                              /* .overlayable (depends on endianness and
+                                            the absence of padding) */
+        3,                                  /* .membersSize */
+        Point_binary_encoding_id,           /* .binaryEncodingId, the numeric
+                                            identifier used on the wire (the
+                                            namespaceindex is from .typeId) */
         Point_members
 };
 
@@ -61,35 +68,37 @@ typedef struct {
 static UA_DataTypeMember Measurements_members[2] = {
     {
         UA_TYPENAME("Measurement description") /* .memberName */
-        UA_TYPES_STRING,  /* .memberTypeIndex, points into UA_TYPES since namespaceZero is true */
-        0,               /* .padding */
-        true,            /* .namespaceZero, see .memberTypeIndex */
-        false,            /* .isArray */
-        false /* .isOptional */
+        UA_TYPES_STRING,                       /* .memberTypeIndex, points into UA_TYPES
+                                               since namespaceZero is true */
+        0,                                     /* .padding */
+        true,                                  /* .namespaceZero, see .memberTypeIndex */
+        false,                                 /* .isArray */
+        false                                  /* .isOptional */
     },
     {
-        UA_TYPENAME("Measurements") /* .memberName */
-        UA_TYPES_FLOAT,  /* .memberTypeIndex, points into UA_TYPES since namespaceZero is true */
-        0,               /* .padding */
-         true,            /* .namespaceZero, see .memberTypeIndex */
-        true,            /* .isArray */
-        false /* .isOptional */
+        UA_TYPENAME("Measurements")            /* .memberName */
+        UA_TYPES_FLOAT,                        /* .memberTypeIndex, points into UA_TYPES
+                                               since namespaceZero is true */
+        0,                                     /* .padding */
+         true,                                 /* .namespaceZero, see .memberTypeIndex */
+        true,                                  /* .isArray */
+        false                                  /* .isOptional */
     }
 };
 
 static const UA_DataType MeasurementType = {
-    UA_TYPENAME("Measurement")             /* .tyspeName */
+    UA_TYPENAME("Measurement")              /* .tyspeName */
     {1, UA_NODEIDTYPE_NUMERIC, {4443}},     /* .typeId */
     sizeof(Measurements),                   /* .memSize */
-    1,                               /* .typeIndex, in the array of custom types */
-    UA_DATATYPEKIND_STRUCTURE,       /* .typeKind */
-    false,                            /* .pointerFree */
-    false,                           /* .overlayable (depends on endianness and
-                                         the absence of padding) */
-    2,                               /* .membersSize */
-    2,                               /* .binaryEncodingId, the numeric
-                                         identifier used on the wire (the
-                                         namespaceindex is from .typeId) */
+    1,                                      /* .typeIndex, in the array of custom types */
+    UA_DATATYPEKIND_STRUCTURE,              /* .typeKind */
+    false,                                  /* .pointerFree */
+    false,                                  /* .overlayable (depends on endianness and
+                                            the absence of padding) */
+    2,                                      /* .membersSize */
+    Measurement_binary_encoding_id,         /* .binaryEncodingId, the numeric
+                                            identifier used on the wire (the
+                                            namespaceindex is from .typeId) */
     Measurements_members
 };
 
@@ -104,46 +113,55 @@ typedef struct {
 static UA_DataTypeMember Opt_members[3] = {
     /* a */
     {
-        UA_TYPENAME("a") /* .memberName */
-        UA_TYPES_INT16,  /* .memberTypeIndex, points into UA_TYPES since namespaceZero is true */
-        0, /* .padding */
-        true,       /* .namespaceZero, see .memberTypeIndex */
-        false,      /* .isArray */
-        false       /* .isOptional */
+        UA_TYPENAME("a")                                      /* .memberName */
+        UA_TYPES_INT16,                                       /* .memberTypeIndex, points
+                                                              into UA_TYPES since
+                                                              namespaceZero is true */
+        0,                                                    /* .padding */
+        true,                                                 /* .namespaceZero, see
+                                                              .memberTypeIndex */
+        false,                                                /* .isArray */
+        false                                                 /* .isOptional */
     },
     /* b */
     {
-        UA_TYPENAME("b")
-        UA_TYPES_FLOAT,
-        offsetof(Opt,b) - offsetof(Opt,a) - sizeof(UA_Int16),
-        true,
-        false,
-        true        /* b is an optional field */
+        UA_TYPENAME("b")                                      /* .memberName */
+        UA_TYPES_FLOAT,                                       /* .memberTypeIndex, points
+                                                              into UA_TYPES since
+                                                              namespaceZero is true */
+        offsetof(Opt,b) - offsetof(Opt,a) - sizeof(UA_Int16), /* .padding */
+        true,                                                 /* .namespaceZero, see
+                                                               .memberTypeIndex */
+        false,                                                /* .isArray */
+        true                                                  /* .isOptional */
     },
     /* c */
     {
-        UA_TYPENAME("c")
-        UA_TYPES_FLOAT,
-        offsetof(Opt,c) - offsetof(Opt,b) - sizeof(void *),
-        true,
-        false,
-        true        /* b is an optional field */
+        UA_TYPENAME("c")                                      /* .memberName */
+        UA_TYPES_FLOAT,                                       /* .memberTypeIndex, points
+                                                              into UA_TYPES since
+                                                              namespaceZero is true */
+        offsetof(Opt,c) - offsetof(Opt,b) - sizeof(void *),   /* .padding */
+        true,                                                 /* .namespaceZero, see
+                                                              .memberTypeIndex */
+        false,                                                /* .isArray */
+        true                                                  /* .isOptional */
     }
 };
 
 static const UA_DataType OptType = {
-    UA_TYPENAME("Opt")             /* .typeName */
+    UA_TYPENAME("Opt")                  /* .typeName */
     {1, UA_NODEIDTYPE_NUMERIC, {4644}}, /* .typeId */
-    sizeof(Opt),                   /* .memSize */
-    2,                               /* .typeIndex, in the array of custom types */
-    UA_DATATYPEKIND_OPTSTRUCT,       /* .typeKind */
-    false,                            /* .pointerFree */
-    false,                           /* .overlayable (depends on endianness and
-                                         the absence of padding) */
-    3,                               /* .membersSize */
-    3,                               /* .binaryEncodingId, the numeric
-                                         identifier used on the wire (the
-                                         namespaceindex is from .typeId) */
+    sizeof(Opt),                        /* .memSize */
+    2,                                  /* .typeIndex, in the array of custom types */
+    UA_DATATYPEKIND_OPTSTRUCT,          /* .typeKind */
+    false,                              /* .pointerFree */
+    false,                              /* .overlayable (depends on endianness and
+                                        the absence of padding) */
+    3,                                  /* .membersSize */
+    Opt_binary_encoding_id,             /* .binaryEncodingId, the numeric
+                                        identifier used on the wire (the
+                                        namespaceindex is from .typeId) */
     Opt_members
 };
 
@@ -160,32 +178,37 @@ typedef struct {
 
 static UA_DataTypeMember Uni_members[2] = {
     {
-        UA_TYPENAME("optionA")
-        UA_TYPES_DOUBLE,
-        sizeof(UA_UInt32),
-        true,
-        false,
-        false
+        UA_TYPENAME("optionA")      /* .memberName */
+        UA_TYPES_DOUBLE,            /* .memberTypeIndex, points into UA_TYPES since
+                                    namespaceZero is true */
+        sizeof(UA_UInt32),          /* .padding */
+        true,                       /* .namespaceZero, see .memberTypeIndex */
+        false,                      /* .isArray */
+        false                       /* .isOptional */
     },
     {
-        UA_TYPENAME("optionB")
-        UA_TYPES_STRING,
-        sizeof(UA_UInt32),
-        true,
-        false,
-        false
+        UA_TYPENAME("optionB")      /* .memberName */
+        UA_TYPES_STRING,            /* .memberTypeIndex, points into UA_TYPES since
+                                    namespaceZero is true */
+        sizeof(UA_UInt32),          /* .padding */
+        true,                       /* .namespaceZero, see .memberTypeIndex */
+        false,                      /* .isArray */
+        false                       /* .isOptional */
     }
 };
 
 static const UA_DataType UniType = {
-    UA_TYPENAME("Uni")
-    {1, UA_NODEIDTYPE_NUMERIC, {4845}},
-    sizeof(Uni),
-    3,
-    UA_DATATYPEKIND_UNION,
-    false,
-    false,
-    2,
-    4,
+    UA_TYPENAME("Uni")                      /* .typeName */
+    {1, UA_NODEIDTYPE_NUMERIC, {4845}},     /* .typeId */
+    sizeof(Uni),                            /* .memSize */
+    3,                                      /* .typeIndex, in the array of custom types */
+    UA_DATATYPEKIND_UNION,                  /* .typeKind */
+    false,                                  /* .pointerFree */
+    false,                                  /* .overlayable (depends on endianness and
+                                            the absence of padding) */
+    2,                                      /* .membersSize */
+    Uni_binary_encoding_id,                 /* .binaryEncodingId, the numeric
+                                            identifier used on the wire (the
+                                            namespaceindex is from .typeId) */
     Uni_members
 };
