@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * Copyright (c) 2020 Kalycito Infotech Private Limited
+ * Copyright (c) 2020 Kalycito Infotech Private Limited (Author: Suriya Narayanan)
  */
 
 #include <open62541/server.h>
@@ -76,8 +76,15 @@ static void receiveSingleMessageRT(UA_PubSubConnection *connection, UA_DataSetRe
     }
 
     /* Decode only the necessary offset and update the networkMessage */
-    if(UA_NetworkMessage_updateBufferedNwMessage(&dataSetReader->bufferedMessage, &buffer) != UA_STATUSCODE_GOOD)
+    if(UA_NetworkMessage_updateBufferedNwMessage(&dataSetReader->bufferedMessage, &buffer) != UA_STATUSCODE_GOOD) {
         ck_abort_msg("PubSub receive. Unknown field type!");
+    }
+
+    /* Check the decoded message is the expected one */
+    if((dataSetReader->bufferedMessage.nm->groupHeader.writerGroupId != dataSetReader->config.writerGroupId) ||
+       (*dataSetReader->bufferedMessage.nm->payloadHeader.dataSetPayloadHeader.dataSetWriterIds != dataSetReader->config.dataSetWriterId)) {
+        ck_abort_msg("PubSub receive. Unknown message received. Will not be processed.");
+    }
 
     UA_Server_DataSetReader_process(server, dataSetReader,
                                     dataSetReader->bufferedMessage.nm->payload.dataSetPayload.dataSetMessages);
@@ -234,6 +241,9 @@ START_TEST(SubscribeSingleFieldWithFixedOffsets) {
     ck_assert(UA_Server_freezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
     ck_assert(UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
     ck_assert(UA_Server_setWriterGroupOperational(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
+
+    ck_assert(UA_Server_unfreezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
+    ck_assert(UA_Server_freezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
 
     UA_DataSetReader *dataSetReader = UA_ReaderGroup_findDSRbyId(server, readerIdentifier);
     receiveSingleMessageRT(connection, dataSetReader);

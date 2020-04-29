@@ -982,7 +982,6 @@ UA_NetworkAddressUrlDataType networkAddressUrlSub;
     config->pubsubTransportLayers = (UA_PubSubTransportLayer *)
                                      UA_malloc(sizeof(UA_PubSubTransportLayer));
 #endif
-
     if (!config->pubsubTransportLayers) {
         UA_Server_delete(server);
         return EXIT_FAILURE;
@@ -1021,7 +1020,7 @@ UA_NetworkAddressUrlDataType networkAddressUrlSub;
 #endif
 #endif
 
-#if defined(SUBSCRIBER)
+#if defined(SUBSCRIBER) && !defined(PUBLISHER)
 #if defined (UA_ENABLE_PUBSUB_ETH_UADP_XDP)
     config->pubsubTransportLayers[0] = UA_PubSubTransportLayerEthernetXDP();
     config->pubsubTransportLayersSize++;

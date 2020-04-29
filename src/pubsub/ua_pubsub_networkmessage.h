@@ -193,9 +193,9 @@ typedef enum {
     UA_PUBSUB_OFFSETTYPE_PAYLOAD_DATAVALUE,
     UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT,
     UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW,
-	/* For subscriber RT */
-	UA_PUBSUB_OFFSETTYPE_PUBLISHERID,
-	UA_PUBSUB_OFFSETTYPE_WRITERGROUPID,
+    /* For subscriber RT */
+    UA_PUBSUB_OFFSETTYPE_PUBLISHERID,
+    UA_PUBSUB_OFFSETTYPE_WRITERGROUPID,
     UA_PUBSUB_OFFSETTYPE_DATASETWRITERID
     /* Add more offset types as needed */
 } UA_NetworkMessageOffsetType;
@@ -216,8 +216,8 @@ typedef struct {
     UA_ByteString buffer; /* The precomputed message buffer */
     UA_NetworkMessageOffset *offsets; /* Offsets for changes in the message buffer */
     size_t offsetsSize;
-    UA_Boolean RTsubscriberEnabled;
-    UA_NetworkMessage *nm;
+    UA_Boolean RTsubscriberEnabled; /* Addtional offsets computation like publisherId, WGId if this bool enabled */
+    UA_NetworkMessage *nm; /* The precomputed NetworkMessage for subscriber */
 } UA_NetworkMessageOffsetBuffer;
 
 /**
