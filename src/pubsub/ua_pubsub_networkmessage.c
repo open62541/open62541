@@ -772,14 +772,13 @@ UA_NetworkMessage_calcSizeBinary(UA_NetworkMessage *p, UA_NetworkMessageOffsetBu
     }
 
     if(p->publisherIdEnabled) {
-        if(offsetBuffer){
-            if(offsetBuffer->RTsubscriberEnabled) {
-                size_t pos = offsetBuffer->offsetsSize;
-                if(!increaseOffsetArray(offsetBuffer))
-                    return 0;
-                offsetBuffer->offsets[pos].offset = size;
-                offsetBuffer->offsets[pos].contentType = UA_PUBSUB_OFFSETTYPE_PUBLISHERID;
-            }
+        if(offsetBuffer && offsetBuffer->RTsubscriberEnabled){
+            size_t pos = offsetBuffer->offsetsSize;
+            if(!increaseOffsetArray(offsetBuffer))
+                return 0;
+
+            offsetBuffer->offsets[pos].offset = size;
+            offsetBuffer->offsets[pos].contentType = UA_PUBSUB_OFFSETTYPE_PUBLISHERID;
         }
         switch (p->publisherIdType) {
             case UA_PUBLISHERDATATYPE_BYTE:
@@ -812,14 +811,13 @@ UA_NetworkMessage_calcSizeBinary(UA_NetworkMessage *p, UA_NetworkMessageOffsetBu
         size += UA_Byte_calcSizeBinary(&byte);
 
         if(p->groupHeader.writerGroupIdEnabled) {
-            if(offsetBuffer){
-                if(offsetBuffer->RTsubscriberEnabled) {
-                    size_t pos = offsetBuffer->offsetsSize;
-                    if(!increaseOffsetArray(offsetBuffer))
-                        return 0;
-                    offsetBuffer->offsets[pos].offset = size;
-                    offsetBuffer->offsets[pos].contentType = UA_PUBSUB_OFFSETTYPE_WRITERGROUPID;
-                }
+            if(offsetBuffer && offsetBuffer->RTsubscriberEnabled){
+                size_t pos = offsetBuffer->offsetsSize;
+                if(!increaseOffsetArray(offsetBuffer))
+                    return 0;
+
+                offsetBuffer->offsets[pos].offset = size;
+                offsetBuffer->offsets[pos].contentType = UA_PUBSUB_OFFSETTYPE_WRITERGROUPID;
             }
             size += UA_UInt16_calcSizeBinary(&p->groupHeader.writerGroupId);
         }
@@ -852,14 +850,13 @@ UA_NetworkMessage_calcSizeBinary(UA_NetworkMessage *p, UA_NetworkMessageOffsetBu
         if(p->networkMessageType == UA_NETWORKMESSAGE_DATASET) {
             size += UA_Byte_calcSizeBinary(&p->payloadHeader.dataSetPayloadHeader.count);
             if(p->payloadHeader.dataSetPayloadHeader.dataSetWriterIds != NULL) {
-                if(offsetBuffer){
-                    if(offsetBuffer->RTsubscriberEnabled) {
-                        size_t pos = offsetBuffer->offsetsSize;
-                        if(!increaseOffsetArray(offsetBuffer))
-                            return 0;
-                        offsetBuffer->offsets[pos].offset = size;
-                        offsetBuffer->offsets[pos].contentType = UA_PUBSUB_OFFSETTYPE_DATASETWRITERID;
-                    }
+                if(offsetBuffer && offsetBuffer->RTsubscriberEnabled){
+                    size_t pos = offsetBuffer->offsetsSize;
+                    if(!increaseOffsetArray(offsetBuffer))
+                        return 0;
+
+                    offsetBuffer->offsets[pos].offset = size;
+                    offsetBuffer->offsets[pos].contentType = UA_PUBSUB_OFFSETTYPE_DATASETWRITERID;
                 }
                 size += UA_UInt16_calcSizeBinary(&p->payloadHeader.dataSetPayloadHeader.dataSetWriterIds[0]) *
                         p->payloadHeader.dataSetPayloadHeader.count;
