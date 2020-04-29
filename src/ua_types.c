@@ -1009,18 +1009,16 @@ copyStructure(const void *src, void *dst, const UA_DataType *type) {
     uintptr_t ptrd = (uintptr_t)dst;
     const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
     for(size_t i = 0; i < type->membersSize; ++i) {
-        const UA_DataTypeMember *m= &type->members[i];
+        const UA_DataTypeMember *m = &type->members[i];
         const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
-        if(!m->isOptional){
+        ptrs += m->padding;
+        ptrd += m->padding;
+        if(!m->isOptional) {
             if(!m->isArray) {
-                ptrs += m->padding;
-                ptrd += m->padding;
                 retval |= copyJumpTable[mt->typeKind]((const void *)ptrs, (void *)ptrd, mt);
                 ptrs += mt->memSize;
                 ptrd += mt->memSize;
             } else {
-                ptrs += m->padding;
-                ptrd += m->padding;
                 size_t *dst_size = (size_t*)ptrd;
                 const size_t size = *((const size_t*)ptrs);
                 ptrs += sizeof(size_t);
@@ -1034,14 +1032,11 @@ copyStructure(const void *src, void *dst, const UA_DataType *type) {
                 ptrd += sizeof(void*);
             }
         } else {
-            ptrs += m->padding;
-            ptrd += m->padding;
-
-            if(!m->isArray){
+            if(!m->isArray) {
                 if(*(void* const*)ptrs != NULL)
                     retval |= UA_Array_copy(*(void* const*)ptrs, 1, (void**)ptrd, mt);
             } else {
-                if(*(void* const*)(ptrs+sizeof(size_t)) != NULL){
+                if(*(void* const*)(ptrs+sizeof(size_t)) != NULL) {
                     size_t *dst_size = (size_t*)ptrd;
                     const size_t size = *((const size_t*)ptrs);
                     ptrs += sizeof(size_t);
@@ -1136,13 +1131,12 @@ clearStructure(void *p, const UA_DataType *type) {
     for(size_t i = 0; i < type->membersSize; ++i) {
         const UA_DataTypeMember *m = &type->members[i];
         const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
-        if(!m->isOptional){
+        ptr += m->padding;
+        if(!m->isOptional) {
             if(!m->isArray) {
-                ptr += m->padding;
                 clearJumpTable[mt->typeKind]((void*)ptr, mt);
                 ptr += mt->memSize;
             } else {
-                ptr += m->padding;
                 size_t length = *(size_t*)ptr;
                 ptr += sizeof(size_t);
                 UA_Array_delete(*(void**)ptr, length, mt);
@@ -1151,25 +1145,18 @@ clearStructure(void *p, const UA_DataType *type) {
         } else { /* field is optional */
             if(!m->isArray) {
                 /* optional scalar field is contained */
-                if((*(void *const *)ptr != NULL)) {
-                    ptr += m->padding;
+                if((*(void *const *)ptr != NULL))
                     UA_Array_delete(*(void **)ptr, 1, mt);
-                    ptr += sizeof(void *);
-                } else { /* optional scalar field not contained */
-                    ptr += m->padding;
-                    ptr += sizeof(void *);
-                }
+                ptr += sizeof(void *);
             } else {
                 /* optional array field is contained */
                 if((*(void *const *)(ptr + sizeof(size_t)) != NULL)) {
-                    ptr += m->padding;
                     size_t length = *(size_t *)ptr;
                     ptr += sizeof(size_t);
                     UA_Array_delete(*(void **)ptr, length, mt);
                     ptr += sizeof(void *);
                 } else { /* optional array field not contained */
                     ptr += sizeof(size_t);
-                    ptr += m->padding;
                     ptr += sizeof(void *);
                 }
             }
