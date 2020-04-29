@@ -2,10 +2,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this 
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "ua_types.h"
-#include "ua_types_generated_handling.h"
+#include <open62541/types.h>
+#include <open62541/types_generated_handling.h>
+
 #include "ua_types_encoding_binary.h"
-#include "ua_util.h"
+
 #include "check.h"
 
 #ifdef __clang__
@@ -62,11 +63,11 @@ static const UA_DataType PointType = {
     {1, UA_NODEIDTYPE_NUMERIC, {1}}, /* .typeId */
     sizeof(Point),                   /* .memSize */
     0,                               /* .typeIndex, in the array of custom types */
-    3,                               /* .membersSize */
-    false,                           /* .builtin */
+    UA_DATATYPEKIND_STRUCTURE,       /* .typeKind */
     true,                            /* .pointerFree */
     false,                           /* .overlayable (depends on endianness and
                                          the absence of padding) */
+    3,                               /* .membersSize */
     0,                               /* .binaryEncodingId, the numeric
                                          identifier used on the wire (the
                                          namespaceindex is from .typeId) */

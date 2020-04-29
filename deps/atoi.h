@@ -5,7 +5,8 @@
 extern "C" {
 #endif
 
-#include "ua_types.h"
+#include <open62541/types.h>
+
 UA_StatusCode atoiUnsigned(const char *s, size_t size, UA_UInt64 *result);
 UA_StatusCode atoiSigned(const char *s, size_t size, UA_Int64 *result);
     

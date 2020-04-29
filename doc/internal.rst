@@ -5,7 +5,7 @@ Internals
 
    statuscodes
    plugin_network
-   plugin_access_control
+   plugin_accesscontrol
    plugin_log
    plugin_pubsub_connection
    pubsub

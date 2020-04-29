@@ -5,21 +5,21 @@
  *    Copyright 2018 (c) basysKom GmbH <opensource@basyskom.com> (Author: Peter Rustler)
  */
 
-#include "ua_types.h"
-#include "ua_server.h"
-#include "ua_client.h"
-#include "client/ua_client_internal.h"
-#include "ua_client_highlevel.h"
-#include "ua_config_default.h"
-#include "ua_network_tcp.h"
+#include <open62541/client.h>
+#include <open62541/client_config_default.h>
+#include <open62541/client_highlevel.h>
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
 
-#include "check.h"
+#include "client/ua_client_internal.h"
+
+#include <check.h>
+
 #include "testing_clock.h"
 #include "testing_networklayers.h"
 #include "thread_wrapper.h"
 
 UA_Server *server;
-UA_ServerConfig *config;
 UA_Boolean running;
 THREAD_HANDLE server_thread;
 
@@ -43,8 +43,8 @@ THREAD_CALLBACK(serverloop) {
 static void setup(void) {
     UA_DataValue_init(&lastValue);
     running = true;
-    config = UA_ServerConfig_new_default();
-    server = UA_Server_new(config);
+    server = UA_Server_new();
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
 
@@ -85,7 +85,8 @@ static void setup(void) {
                                                 attr, NULL, NULL)
                       , UA_STATUSCODE_GOOD);
 
-    client = UA_Client_new(UA_ClientConfig_default);
+    client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -116,7 +117,6 @@ static void teardown(void) {
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
     UA_DataValue_deleteMembers(&lastValue);
 }
 
@@ -559,7 +559,7 @@ START_TEST(Server_MonitoredItemsPercentFilterSetLater) {
        UA_Client_MonitoredItems_modify(client, modifyRequest);
 
     ck_assert_uint_eq(modifyResponse.resultsSize, 1);
-    ck_assert_uint_eq(modifyResponse.results[0].statusCode, UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED);
+    ck_assert_uint_eq(modifyResponse.results[0].statusCode, UA_STATUSCODE_BADFILTERNOTALLOWED);
 
     UA_ModifyMonitoredItemsResponse_deleteMembers(&modifyResponse);
 
@@ -837,7 +837,7 @@ START_TEST(Server_MonitoredItemsPercentFilterSetOnCreate) {
 
     ck_assert_uint_eq(createResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(createResponse.resultsSize, 1);
-    ck_assert_uint_eq(createResponse.results[0].statusCode, UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED);
+    ck_assert_uint_eq(createResponse.results[0].statusCode, UA_STATUSCODE_BADFILTERNOTALLOWED);
     newMonitoredItemIds[0] = createResponse.results[0].monitoredItemId;
     UA_CreateMonitoredItemsResponse_deleteMembers(&createResponse);
 

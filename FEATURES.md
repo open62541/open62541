@@ -80,7 +80,7 @@ OPC UA Server
 
 | **Discovery**                           |                    | See Discovery Service Set |
 | --------------------------------------- |:------------------:| -------------------- |
-| Local Disovery Server                   | :heavy_check_mark: | master, Release 0.3  |
+| Local Discovery Server                  | :heavy_check_mark: | master, Release 0.3  |
 | Local Discovery Server Multicast Ext.   | :heavy_check_mark: | master, Release 0.3  |
 | Global Discovery Server                 |     :new_moon:     |                      |
 

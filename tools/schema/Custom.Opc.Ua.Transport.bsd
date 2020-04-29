@@ -26,7 +26,6 @@
     <opc:EnumeratedValue Name="FINAL" Value="0x46000000" />
     <opc:EnumeratedValue Name="INTERMEDIATE" Value="0x43000000" />
     <opc:EnumeratedValue Name="ABORT" Value="0x41000000" />
-
   </opc:EnumeratedType>
 
    <opc:StructuredType Name="TcpMessageHeader">
@@ -60,22 +59,11 @@
     <opc:Field Name="Reason" TypeName="opc:String" />
   </opc:StructuredType>
   
-  <opc:StructuredType Name="SecureConversationMessageHeader">
-    <opc:Documentation>Secure Layer Sequence Header</opc:Documentation>
-    <opc:Field Name="MessageHeader" TypeName="opc:TcpMessageHeader" />
-    <opc:Field Name="SecureChannelId" TypeName="opc:UInt32" />
-  </opc:StructuredType>
-  
   <opc:StructuredType Name="AsymmetricAlgorithmSecurityHeader">
     <opc:Documentation>Security Header</opc:Documentation>
     <opc:Field Name="SecurityPolicyUri" TypeName="opc:ByteString" />
     <opc:Field Name="SenderCertificate" TypeName="opc:ByteString" />
     <opc:Field Name="ReceiverCertificateThumbprint" TypeName="opc:ByteString" />
-  </opc:StructuredType>
-  
-  <opc:StructuredType Name="SymmetricAlgorithmSecurityHeader">
-    <opc:Documentation>Secure Layer Symmetric Algorithm Header</opc:Documentation>
-    <opc:Field Name="TokenId" TypeName="opc:UInt32" />
   </opc:StructuredType>
   
   <opc:StructuredType Name="SequenceHeader">
@@ -84,19 +72,6 @@
     <opc:Field Name="RequestId" TypeName="opc:UInt32"/>
   </opc:StructuredType>
   
-  <opc:StructuredType Name="SecureConversationMessageFooter">
-    <opc:Documentation>Secure Conversation Message Footer</opc:Documentation>
-    <opc:Field Name="PaddingSize" TypeName="opc:Byte" />
-    <opc:Field Name="Padding" TypeName="opc:Byte" LengthField="PaddingSize" />
-    <opc:Field Name="Signature" TypeName="opc:Byte"/>
-  </opc:StructuredType>
-  
-  <opc:StructuredType Name="SecureConversationMessageAbortBody">
-    <opc:Documentation>Secure Conversation Message Abort Body</opc:Documentation>
-    <opc:Field Name="Error" TypeName="opc:UInt32" />
-    <opc:Field Name="Reason" TypeName="opc:String" />
-  </opc:StructuredType>
- 
 <!-- Transport types end -->
 
 </opc:TypeDictionary>

@@ -2,55 +2,31 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include <open62541/types.h>
+#include <open62541/util.h>
+#include <open62541/plugin/nodestore_default.h>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-
-#include "ua_types.h"
-#include "ua_plugin_nodestore.h"
-#include "ua_nodestore_default.h"
-#include "ua_util.h"
-#include "ziptree.h"
 #include "check.h"
 
-/* container_of */
-#define container_of(ptr, type, member) \
-    (type *)((uintptr_t)ptr - offsetof(type,member))
-
-#ifdef UA_ENABLE_MULTITHREADING
+#if UA_MULTITHREADING >= 200
 #include <pthread.h>
 #endif
 
-/* Dirty redifinition from ua_nodestore_default.c to check that all nodes were
- * released */
-struct NodeEntry;
-typedef struct NodeEntry NodeEntry;
-
-struct NodeEntry {
-    ZIP_ENTRY(NodeEntry) zipfields;
-    UA_UInt32 nodeIdHash;
-    UA_UInt16 refCount; /* How many consumers have a reference to the node? */
-    UA_Boolean deleted; /* Node was marked as deleted and can be deleted when refCount == 0 */
-    NodeEntry *orig;    /* If a copy is made to replace a node, track that we
-                         * replace only the node from which the copy was made.
-                         * Important for concurrent operations. */
-    UA_NodeId nodeId; /* This is actually a UA_Node that also starts with a NodeId */
-};
-
-static void checkAllReleased(void *context, const UA_Node* node) {
-    NodeEntry *entry = container_of(node, NodeEntry, nodeId);
-    ck_assert_int_eq(entry->refCount, 0); /* The count is increased when the visited node is checked out */
-}
-
 UA_Nodestore ns;
 
-static void setup(void) {
-    UA_Nodestore_default_new(&ns);
+static void setupZipTree(void) {
+    UA_Nodestore_ZipTree(&ns);
+}
+
+static void setupHashMap(void) {
+    UA_Nodestore_HashMap(&ns);
 }
 
 static void teardown(void) {
-    ns.iterate(ns.context, NULL, checkAllReleased);
-    ns.deleteNodestore(ns.context);
+    ns.clear(ns.context);
 }
 
 static int zeroCnt = 0;
@@ -61,7 +37,7 @@ static void checkZeroVisitor(void *context, const UA_Node* node) {
 }
 
 static UA_Node* createNode(UA_Int16 nsid, UA_Int32 id) {
-    UA_Node *p = ns.newNode(ns.context, UA_NODECLASS_VARIABLE);
+    UA_Node *p = ns.newNode(&ns.context, UA_NODECLASS_VARIABLE);
     p->nodeId.identifierType = UA_NODEIDTYPE_NUMERIC;
     p->nodeId.namespaceIndex = nsid;
     p->nodeId.identifier.numeric = id;
@@ -155,7 +131,7 @@ START_TEST(iterateOverUA_NodeStoreShallNotVisitEmptyNodes) {
 
     zeroCnt = 0;
     visitCnt = 0;
-    ns.iterate(ns.context, NULL, checkZeroVisitor);
+    ns.iterate(ns.context, checkZeroVisitor, NULL);
     ck_assert_int_eq(zeroCnt, 0);
     ck_assert_int_eq(visitCnt, 6);
 }
@@ -183,7 +159,7 @@ START_TEST(iterateOverExpandedNamespaceShallNotVisitEmptyNodes) {
     // when
     zeroCnt = 0;
     visitCnt = 0;
-    ns.iterate(ns.context, NULL, checkZeroVisitor);
+    ns.iterate(ns.context, checkZeroVisitor, NULL);
     // then
     ck_assert_int_eq(zeroCnt, 0);
     ck_assert_int_eq(visitCnt, 200);
@@ -212,7 +188,7 @@ END_TEST
 /* Performance Profiling Test Cases */
 /************************************/
 
-#ifdef UA_ENABLE_MULTITHREADING
+#if UA_MULTITHREADING >= 200
 struct UA_NodeStoreProfileTest {
     UA_Int32 min_val;
     UA_Int32 max_val;
@@ -235,7 +211,7 @@ static void *profileGetThread(void *arg) {
 }
 #endif
 
-#define N 1000 /* make bigger to test */
+#define N 10000 /* make bigger to test */
 
 START_TEST(profileGetDelete) {
     clock_t begin, end;
@@ -246,7 +222,7 @@ START_TEST(profileGetDelete) {
         ns.insertNode(ns.context, n, NULL);
     }
 
-#ifdef UA_ENABLE_MULTITHREADING
+#if UA_MULTITHREADING >= 200
 #define THREADS 4
     pthread_t t[THREADS];
     struct UA_NodeStoreProfileTest p[THREADS];
@@ -275,8 +251,8 @@ END_TEST
 static Suite * namespace_suite (void) {
     Suite *s = suite_create ("UA_NodeStore");
 
-    TCase* tc_find = tcase_create ("Find");
-    tcase_add_checked_fixture(tc_find, setup, teardown);
+    TCase* tc_find = tcase_create ("Find-ZipTree");
+    tcase_add_checked_fixture(tc_find, setupZipTree, teardown);
     tcase_add_test (tc_find, findNodeInUA_NodeStoreWithSingleEntry);
     tcase_add_test (tc_find, findNodeInUA_NodeStoreWithSeveralEntries);
     tcase_add_test (tc_find, findNodeInExpandedNamespace);
@@ -284,22 +260,48 @@ static Suite * namespace_suite (void) {
     tcase_add_test (tc_find, failToFindNodeInOtherUA_NodeStore);
     suite_add_tcase (s, tc_find);
 
-    TCase *tc_replace = tcase_create("Replace");
-    tcase_add_checked_fixture(tc_replace, setup, teardown);
+    TCase *tc_replace = tcase_create("Replace-ZipTree");
+    tcase_add_checked_fixture(tc_replace, setupZipTree, teardown);
     tcase_add_test (tc_replace, replaceExistingNode);
     tcase_add_test (tc_replace, replaceOldNode);
     suite_add_tcase (s, tc_replace);
 
-    TCase* tc_iterate = tcase_create ("Iterate");
-    tcase_add_checked_fixture(tc_iterate, setup, teardown);
+    TCase* tc_iterate = tcase_create ("Iterate-ZipTree");
+    tcase_add_checked_fixture(tc_iterate, setupZipTree, teardown);
     tcase_add_test (tc_iterate, iterateOverUA_NodeStoreShallNotVisitEmptyNodes);
     tcase_add_test (tc_iterate, iterateOverExpandedNamespaceShallNotVisitEmptyNodes);
     suite_add_tcase (s, tc_iterate);
     
-    TCase* tc_profile = tcase_create ("Profile");
-    tcase_add_checked_fixture(tc_profile, setup, teardown);
+    TCase* tc_profile = tcase_create ("Profile-ZipTree");
+    tcase_add_checked_fixture(tc_profile, setupZipTree, teardown);
     tcase_add_test (tc_profile, profileGetDelete);
     suite_add_tcase (s, tc_profile);
+
+    TCase* tc_find_hm = tcase_create ("Find-HashMap");
+    tcase_add_checked_fixture(tc_find_hm, setupHashMap, teardown);
+    tcase_add_test (tc_find_hm, findNodeInUA_NodeStoreWithSingleEntry);
+    tcase_add_test (tc_find_hm, findNodeInUA_NodeStoreWithSeveralEntries);
+    tcase_add_test (tc_find_hm, findNodeInExpandedNamespace);
+    tcase_add_test (tc_find_hm, failToFindNonExistentNodeInUA_NodeStoreWithSeveralEntries);
+    tcase_add_test (tc_find_hm, failToFindNodeInOtherUA_NodeStore);
+    suite_add_tcase (s, tc_find_hm);
+
+    TCase *tc_replace_hm = tcase_create("Replace-HashMap");
+    tcase_add_checked_fixture(tc_replace_hm, setupHashMap, teardown);
+    tcase_add_test (tc_replace_hm, replaceExistingNode);
+    tcase_add_test (tc_replace_hm, replaceOldNode);
+    suite_add_tcase (s, tc_replace_hm);
+
+    TCase* tc_iterate_hm = tcase_create ("Iterate-HashMap");
+    tcase_add_checked_fixture(tc_iterate_hm, setupHashMap, teardown);
+    tcase_add_test (tc_iterate_hm, iterateOverUA_NodeStoreShallNotVisitEmptyNodes);
+    tcase_add_test (tc_iterate_hm, iterateOverExpandedNamespaceShallNotVisitEmptyNodes);
+    suite_add_tcase (s, tc_iterate_hm);
+    
+    TCase* tc_profile_hm = tcase_create ("Profile-HashMap");
+    tcase_add_checked_fixture(tc_profile_hm, setupHashMap, teardown);
+    tcase_add_test (tc_profile_hm, profileGetDelete);
+    suite_add_tcase (s, tc_profile_hm);
 
     return s;
 }

@@ -5,10 +5,11 @@
  * Copyright (c) 2017 - 2018 Fraunhofer IOSB (Author: Tino Bischoff)
  */
 
-#include "ua_types.h"
-#include "ua_client.h"
-#include "ua_util.h"
+#include <open62541/client.h>
+#include <open62541/types.h>
+
 #include "ua_pubsub_networkmessage.h"
+
 #include "check.h"
 
 START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS1ValueVariantKeyFrame) {
@@ -34,7 +35,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS1ValueVariantKeyFrame) {
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -102,7 +103,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS1ValueDataValueKeyFrame) {
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -176,7 +177,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantKeyFrame) {
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -252,7 +253,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesDataValueKeyFrame) {
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -325,7 +326,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS1ValueVariantDeltaFrame) {
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -394,7 +395,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS1ValueDataValueDeltaFrame) {
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -460,7 +461,7 @@ START_TEST(UA_PubSub_Encode_WithBufferTooSmallShallReturnError) {
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
 
     // to generate an error we make the buffer too small
     msgSize -= 5;
@@ -503,7 +504,7 @@ START_TEST(UA_PubSub_Decode_WithBufferTooSmallShallReturnError) {
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -575,7 +576,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantDeltaFrame) {
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -671,7 +672,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesDataValueDeltaFrame) {
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -766,7 +767,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantKeyFrameGroupHeader) {
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -865,7 +866,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantDeltaFramePublDSCID) {
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -960,7 +961,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesDataValueKeyFramePH) {
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -1049,7 +1050,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantKeyFrameTSProm) {
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -1154,7 +1155,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesDataValueDeltaFrameGHProm2) {
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -1276,7 +1277,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn2DSVariant) {
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -1364,7 +1365,7 @@ int main(void) {
     TCase *tc_ende2 = tcase_create("encode_decode2DS");
     tcase_add_test(tc_ende2, UA_PubSub_EnDecode_ShallWorkOn2DSVariant);
     
-    Suite *s = suite_create("PubSub NetworkMessage");	
+    Suite *s = suite_create("PubSub NetworkMessage");   
     suite_add_tcase(s, tc_encode);
     suite_add_tcase(s, tc_decode);
     suite_add_tcase(s, tc_ende1);

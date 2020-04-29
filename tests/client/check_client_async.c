@@ -2,26 +2,24 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include <open62541/client.h>
+#include <open62541/client_config_default.h>
+#include <open62541/client_highlevel_async.h>
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
+
+#include "client/ua_client_internal.h"
+
+#include <check.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "ua_types.h"
-#include "ua_server.h"
-#include "ua_client.h"
-#include "ua_client_highlevel_async.h"
-#include "ua_config_default.h"
-#include "ua_network_tcp.h"
-#include "check.h"
 #include "testing_clock.h"
 #include "testing_networklayers.h"
-#include "client/ua_client_internal.h"
-
 #include "thread_wrapper.h"
 
 UA_Server *server;
-UA_ServerConfig *config;
 UA_Boolean running;
-UA_ServerNetworkLayer nl;
 THREAD_HANDLE server_thread;
 
 THREAD_CALLBACK(serverloop) {
@@ -32,8 +30,9 @@ THREAD_CALLBACK(serverloop) {
 
 static void setup(void) {
     running = true;
-    config = UA_ServerConfig_new_default();
-    server = UA_Server_new(config);
+    server = UA_Server_new();
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
+
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
 }
@@ -43,7 +42,6 @@ static void teardown(void) {
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
 }
 
 static void asyncReadCallback(UA_Client *client, void *userdata,
@@ -65,15 +63,15 @@ static void asyncReadValueAtttributeCallback(UA_Client *client, void *userdata,
     UA_fakeSleep(10);
 }
 
-START_TEST(Client_highlevel_async_readValue)
-    {
-        UA_ClientConfig clientConfig = UA_ClientConfig_default;
-        clientConfig.outStandingPublishRequests = 0;
+START_TEST(Client_highlevel_async_readValue) {
+        UA_Client *client = UA_Client_new();
+        UA_ClientConfig *clientConfig = UA_Client_getConfig(client);
+        UA_ClientConfig_setDefault(clientConfig);
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+        clientConfig->outStandingPublishRequests = 0;
+#endif
 
-        UA_Client *client = UA_Client_new(clientConfig);
-
-        UA_StatusCode retval = UA_Client_connect(client,
-                "opc.tcp://localhost:4840");
+        UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
         UA_Client_recv = client->connection.recv;
@@ -100,16 +98,14 @@ START_TEST(Client_highlevel_async_readValue)
 
         UA_Client_disconnect(client);
         UA_Client_delete(client);
-    }
-}
+} END_TEST
 
+START_TEST(Client_read_async) {
+        UA_Client *client = UA_Client_new();
+        UA_ClientConfig *clientConfig = UA_Client_getConfig(client);
+        UA_ClientConfig_setDefault(clientConfig);
 
-
-START_TEST(Client_read_async)
-    {
-        UA_Client *client = UA_Client_new(UA_ClientConfig_default);
-        UA_StatusCode retval = UA_Client_connect(client,
-                "opc.tcp://localhost:4840");
+        UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
         UA_UInt16 asyncCounter = 0;
@@ -136,23 +132,23 @@ START_TEST(Client_read_async)
         }
 
         /* Process async responses during 1s */
-        retval = UA_Client_run_iterate(client, 999);
+        while(asyncCounter < 100)
+            retval |= UA_Client_run_iterate(client, 999);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-        ck_assert_uint_eq(asyncCounter, 100);
 
         UA_Client_disconnect(client);
         UA_Client_delete(client);
     }END_TEST
 
-START_TEST(Client_read_async_timed)
-    {
-        UA_ClientConfig clientConfig = UA_ClientConfig_default;
-        clientConfig.outStandingPublishRequests = 0;
+START_TEST(Client_read_async_timed) {
+        UA_Client *client = UA_Client_new();
+        UA_ClientConfig *clientConfig = UA_Client_getConfig(client);
+        UA_ClientConfig_setDefault(clientConfig);
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+        clientConfig->outStandingPublishRequests = 0;
+#endif
 
-        UA_Client *client = UA_Client_new(clientConfig);
-
-        UA_StatusCode retval = UA_Client_connect(client,
-                "opc.tcp://localhost:4840");
+        UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
         UA_Client_recv = client->connection.recv;
@@ -205,17 +201,17 @@ static void inactivityCallback(UA_Client *client) {
     inactivityCallbackTriggered = true;
 }
 
-START_TEST(Client_connectivity_check)
-    {
-        UA_ClientConfig clientConfig = UA_ClientConfig_default;
-        clientConfig.outStandingPublishRequests = 0;
-        clientConfig.inactivityCallback = inactivityCallback;
-        clientConfig.connectivityCheckInterval = 1000;
+START_TEST(Client_connectivity_check) {
+        UA_Client *client = UA_Client_new();
+        UA_ClientConfig *clientConfig = UA_Client_getConfig(client);
+        UA_ClientConfig_setDefault(clientConfig);
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+        clientConfig->outStandingPublishRequests = 0;
+#endif
+        clientConfig->inactivityCallback = inactivityCallback;
+        clientConfig->connectivityCheckInterval = 1000;
 
-        UA_Client *client = UA_Client_new(clientConfig);
-
-        UA_StatusCode retval = UA_Client_connect(client,
-                "opc.tcp://localhost:4840");
+        UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
         UA_Client_recv = client->connection.recv;
@@ -228,12 +224,21 @@ START_TEST(Client_connectivity_check)
         ck_assert_uint_eq(inactivityCallbackTriggered, false);
 
         /* Simulate network cable unplugged (no response from server) */
-        UA_Client_recvTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+        running = false;
+        THREAD_JOIN(server_thread);
 
-        retval = UA_Client_run_iterate(client,
-                (UA_UInt16) (1000 + 1 + clientConfig.timeout));
+        UA_fakeSleep(1000 + 1 + clientConfig->connectivityCheckInterval);
+        retval = UA_Client_run_iterate(client, 1);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+        UA_fakeSleep(1000 + 1 + clientConfig->timeout);
+        retval = UA_Client_run_iterate(client, 1);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
         ck_assert_uint_eq(inactivityCallbackTriggered, true);
+
+        /* Get the server back up */
+        running = true;
+        THREAD_CREATE(server_thread, serverloop);
 
         UA_Client_disconnect(client);
         UA_Client_delete(client);

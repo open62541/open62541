@@ -20,11 +20,11 @@ The recommended cmake options for a default installation are:
 
    git submodule update --init --recursive
    mkdir build && cd build
-   cmake -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUA_ENABLE_FULL_NS0=ON ..
+   cmake -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUA_NAMESPACE_ZERO=FULL ..
    make
    sudo make install
 
-This will enable the following features in 0.3:
+This will enable the following features in 0.4:
 
  * Discovery
  * FullNamespace
@@ -48,9 +48,11 @@ In your own CMake project you can then include the open62541 library using:
 
 .. code-block:: cmake
 
-   find_package(open62541 0.3.0 REQUIRED COMPONENTS FullNamespace DiscoveryMulticast)
+   # optionally you can also specify a specific version
+   # e.g. find_package(open62541 1.0.0)
+   find_package(open62541 REQUIRED COMPONENTS Events FullNamespace)
    add_executable(main main.cpp)
-   target_link_libraries(main open62541)
+   target_link_libraries(main open62541::open62541)
 
 
 A full list of enabled features during build time is stored in the CMake Variable ``open62541_COMPONENTS_ALL``
@@ -59,6 +61,23 @@ A full list of enabled features during build time is stored in the CMake Variabl
 Prebuilt packages
 -----------------
 
+Pack branches
+^^^^^^^^^^^^^
+
+Github allows you to download a specific branch as .zip package. Just using this .zip package for open62541 will likely fail:
+
+ * CMake uses ``git describe --tags`` to automatically detect the version string. The .zip package does not include any git information
+ * Specific options during the build stack require additional git submodules which are not inlined in the .zip
+
+Therefore we provide packaging branches. They have the prefix `pack/` and are automatically updated to match the referenced branch.
+
+Here are some examples:
+
+ * `pack/master.zip <https://github.com/open62541/open62541/archive/pack/master.zip>`_
+ * `pack/1.0.zip <https://github.com/open62541/open62541/archive/pack/1.0.zip>`_
+
+These pack branches have inlined submodules and the version string is hardcoded. If you need to build from source but do not want to use git,
+use these specific pack versions.
 
 Prebuild binaries
 ^^^^^^^^^^^^^^^^^
@@ -69,10 +88,34 @@ You can always find prebuild binaries for every release on our `Github Release P
 Nightly single file releases for Linux and Windows of the last 50 commits can be found here: https://open62541.org/releases/
 
 
-OS Specific packages
-^^^^^^^^^^^^^^^^^^^^
-
+Debian
+^^^^^^
 Debian packages can be found in our official PPA:
 
  * Daily Builds (based on master branch): https://launchpad.net/~open62541-team/+archive/ubuntu/daily
  * Release Builds (starting with Version 0.4): https://launchpad.net/~open62541-team/+archive/ubuntu/ppa
+
+Install them with:
+
+
+.. code-block:: bash
+
+    sudo add-apt-repository ppa:open62541-team/ppa
+    sudo apt-get update
+    sudo apt-get install libopen62541-dev
+
+Arch packages are available in the AUR
+
+ * Stable Builds: https://aur.archlinux.org/packages/open62541/
+ * Unstable Builds (current master): https://aur.archlinux.org/packages/open62541-git/
+ * In order to add custom build options (:ref:`build_options`), you can set the environment variable ``OPEN62541_CMAKE_FLAGS``
+
+OpenBSD
+^^^^^^^
+Starting with OpenBSD 6.7 the ports directory misc/open62541 can
+build the released version of open62541.
+Install the binary package from the OpenBSD mirrors:
+
+.. code-block:: bash
+   
+   pkg_add open62541

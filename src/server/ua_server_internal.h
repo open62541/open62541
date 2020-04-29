@@ -2,6 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
+ *    Copyright 2019 (c) Fraunhofer IOSB (Author: Klaus Schick)
  *    Copyright 2014-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014, 2017 (c) Florian Palm
  *    Copyright 2015-2016 (c) Sten Grüner
@@ -9,21 +10,30 @@
  *    Copyright 2015-2016 (c) Oleksiy Vasylyev
  *    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Julian Grothoff
+ *    Copyright 2019 (c) Kalycito Infotech Private Limited
+ *    Copyright 2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
  */
 
 #ifndef UA_SERVER_INTERNAL_H_
 #define UA_SERVER_INTERNAL_H_
 
-#include "ua_util_internal.h"
-#include "ua_server.h"
-#include "ua_server_config.h"
-#include "ua_timer.h"
+#include <open62541/server.h>
+#include <open62541/server_config.h>
+#include <open62541/plugin/nodestore.h>
+
 #include "ua_connection_internal.h"
-#include "ua_session_manager.h"
-#include "ua_securechannel_manager.h"
+#include "ua_session.h"
+#include "ua_server_async.h"
+#include "ua_timer.h"
+#include "ua_util_internal.h"
 #include "ua_workqueue.h"
 
 _UA_BEGIN_DECLS
+
+#if UA_MULTITHREADING >= 100
+#undef UA_THREADSAFE
+#define UA_THREADSAFE UA_DEPRECATED
+#endif
 
 #ifdef UA_ENABLE_PUBSUB
 #include "ua_pubsub_manager.h"
@@ -36,6 +46,101 @@ _UA_BEGIN_DECLS
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 #include "ua_subscription.h"
 
+/* Unions that represent any of the supported request or response message */
+typedef union {
+    UA_RequestHeader requestHeader;
+    UA_FindServersRequest findServersRequest;
+    UA_GetEndpointsRequest getEndpointsRequest;
+#ifdef UA_ENABLE_DISCOVERY
+# ifdef UA_ENABLE_DISCOVERY_MULTICAST
+    UA_FindServersOnNetworkRequest findServersOnNetworkRequest;
+# endif
+    UA_RegisterServerRequest registerServerRequest;
+    UA_RegisterServer2Request registerServer2Request;
+#endif
+    UA_OpenSecureChannelRequest openSecureChannelRequest;
+    UA_CreateSessionRequest createSessionRequest;
+    UA_ActivateSessionRequest activateSessionRequest;
+    UA_CloseSessionRequest closeSessionRequest;
+    UA_AddNodesRequest addNodesRequest;
+    UA_AddReferencesRequest addReferencesRequest;
+    UA_DeleteNodesRequest deleteNodesRequest;
+    UA_DeleteReferencesRequest deleteReferencesRequest;
+    UA_BrowseRequest browseRequest;
+    UA_BrowseNextRequest browseNextRequest;
+    UA_TranslateBrowsePathsToNodeIdsRequest translateBrowsePathsToNodeIdsRequest;
+    UA_RegisterNodesRequest registerNodesRequest;
+    UA_UnregisterNodesRequest unregisterNodesRequest;
+    UA_ReadRequest readRequest;
+    UA_WriteRequest writeRequest;
+#ifdef UA_ENABLE_HISTORIZING
+    UA_HistoryReadRequest historyReadRequest;
+    UA_HistoryUpdateRequest historyUpdateRequest;
+#endif
+#ifdef UA_ENABLE_METHODCALLS
+    UA_CallRequest callRequest;
+#endif
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    UA_CreateMonitoredItemsRequest createMonitoredItemsRequest;
+    UA_DeleteMonitoredItemsRequest deleteMonitoredItemsRequest;
+    UA_ModifyMonitoredItemsRequest modifyMonitoredItemsRequest;
+    UA_SetMonitoringModeRequest setMonitoringModeRequest;
+    UA_CreateSubscriptionRequest createSubscriptionRequest;
+    UA_ModifySubscriptionRequest modifySubscriptionRequest;
+    UA_SetPublishingModeRequest setPublishingModeRequest;
+    UA_PublishRequest publishRequest;
+    UA_RepublishRequest republishRequest;
+    UA_DeleteSubscriptionsRequest deleteSubscriptionsRequest;
+#endif
+} UA_Request;
+
+typedef union {
+    UA_ResponseHeader responseHeader;
+    UA_FindServersResponse findServersResponse;
+    UA_GetEndpointsResponse getEndpointsResponse;
+#ifdef UA_ENABLE_DISCOVERY
+# ifdef UA_ENABLE_DISCOVERY_MULTICAST
+    UA_FindServersOnNetworkResponse findServersOnNetworkResponse;
+# endif
+    UA_RegisterServerResponse registerServerResponse;
+    UA_RegisterServer2Response registerServer2Response;
+#endif
+    UA_OpenSecureChannelResponse openSecureChannelResponse;
+    UA_CreateSessionResponse createSessionResponse;
+    UA_ActivateSessionResponse activateSessionResponse;
+    UA_CloseSessionResponse closeSessionResponse;
+    UA_AddNodesResponse addNodesResponse;
+    UA_AddReferencesResponse addReferencesResponse;
+    UA_DeleteNodesResponse deleteNodesResponse;
+    UA_DeleteReferencesResponse deleteReferencesResponse;
+    UA_BrowseResponse browseResponse;
+    UA_BrowseNextResponse browseNextResponse;
+    UA_TranslateBrowsePathsToNodeIdsResponse translateBrowsePathsToNodeIdsResponse;
+    UA_RegisterNodesResponse registerNodesResponse;
+    UA_UnregisterNodesResponse unregisterNodesResponse;
+    UA_ReadResponse readResponse;
+    UA_WriteResponse writeResponse;
+#ifdef UA_ENABLE_HISTORIZING
+    UA_HistoryReadResponse historyReadResponse;
+    UA_HistoryUpdateResponse historyUpdateResponse;
+#endif
+#ifdef UA_ENABLE_METHODCALLS
+    UA_CallResponse callResponse;
+#endif
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    UA_CreateMonitoredItemsResponse createMonitoredItemsResponse;
+    UA_DeleteMonitoredItemsResponse deleteMonitoredItemsResponse;
+    UA_ModifyMonitoredItemsResponse modifyMonitoredItemsResponse;
+    UA_SetMonitoringModeResponse setMonitoringModeResponse;
+    UA_CreateSubscriptionResponse createSubscriptionResponse;
+    UA_ModifySubscriptionResponse modifySubscriptionResponse;
+    UA_SetPublishingModeResponse setPublishingModeResponse;
+    UA_PublishResponse publishResponse;
+    UA_RepublishResponse republishResponse;
+    UA_DeleteSubscriptionsResponse deleteSubscriptionsResponse;
+#endif
+} UA_Response;
+
 typedef struct {
     UA_MonitoredItem monitoredItem;
     void *context;
@@ -47,14 +152,53 @@ typedef struct {
 
 #endif
 
+typedef enum {
+    UA_DIAGNOSTICEVENT_CLOSE,
+    UA_DIAGNOSTICEVENT_REJECT,
+    UA_DIAGNOSTICEVENT_SECURITYREJECT,
+    UA_DIAGNOSTICEVENT_TIMEOUT,
+    UA_DIAGNOSTICEVENT_ABORT,
+    UA_DIAGNOSTICEVENT_PURGE
+} UA_DiagnosticEvent;
+
+typedef struct channel_entry {
+    UA_DelayedCallback cleanupCallback;
+    TAILQ_ENTRY(channel_entry) pointers;
+    UA_SecureChannel channel;
+} channel_entry;
+
+typedef struct session_list_entry {
+    UA_DelayedCallback cleanupCallback;
+    LIST_ENTRY(session_list_entry) pointers;
+    UA_Session session;
+} session_list_entry;
+
+typedef enum {
+    UA_SERVERLIFECYCLE_FRESH,
+    UA_SERVERLIFECYLE_RUNNING
+} UA_ServerLifecycle;
+
 struct UA_Server {
     /* Config */
     UA_ServerConfig config;
     UA_DateTime startTime;
+    UA_DateTime endTime; /* Zeroed out. If a time is set, then the server shuts
+                          * down once the time has been reached */
 
-    /* Security */
-    UA_SecureChannelManager secureChannelManager;
-    UA_SessionManager sessionManager;
+    UA_ServerLifecycle state;
+
+    /* SecureChannels */
+    TAILQ_HEAD(, channel_entry) channels;
+    UA_UInt32 lastChannelId;
+    UA_UInt32 lastTokenId;
+
+#if UA_MULTITHREADING >= 100
+    UA_AsyncManager asyncManager;
+#endif
+
+    /* Session Management */
+    LIST_HEAD(session_list, session_list_entry) sessions;
+    UA_UInt32 sessionCount;
     UA_Session adminSession; /* Local access to the services (for startup and
                               * maintenance) uses this Session with all possible
                               * access rights (Session Id: 1) */
@@ -78,43 +222,85 @@ struct UA_Server {
     UA_DiscoveryManager discoveryManager;
 #endif
 
-    /* Local MonitoredItems */
+    /* DataChange Subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
+    /* Num active subscriptions */
+    UA_UInt32 numSubscriptions;
+    /* Num active monitored items */
+    UA_UInt32 numMonitoredItems;
     /* To be cast to UA_LocalMonitoredItem to get the callback and context */
     LIST_HEAD(LocalMonitoredItems, UA_MonitoredItem) localMonitoredItems;
     UA_UInt32 lastLocalMonitoredItemId;
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+    LIST_HEAD(conditionSourcelisthead, UA_ConditionSource) headConditionSource;
+#endif//UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+
 #endif
 
     /* Publish/Subscribe */
 #ifdef UA_ENABLE_PUBSUB
     UA_PubSubManager pubSubManager;
 #endif
+
+#if UA_MULTITHREADING >= 100
+    UA_LOCK_TYPE(networkMutex)
+    UA_LOCK_TYPE(serviceMutex)
+#endif
+
+    /* Statistics */
+    UA_ServerStatistics serverStats;
 };
+
+/**************************/
+/* SecureChannel Handling */
+/**************************/
+
+/* Remove a all securechannels */
+void
+UA_Server_deleteSecureChannels(UA_Server *server);
+
+/* Remove timed out securechannels with a delayed callback. So all currently
+ * scheduled jobs with a pointer to a securechannel can finish first. */
+void
+UA_Server_cleanupTimedOutSecureChannels(UA_Server *server, UA_DateTime nowMonotonic);
+
+UA_StatusCode
+UA_Server_createSecureChannel(UA_Server *server, UA_Connection *connection);
+
+UA_StatusCode
+UA_Server_configSecureChannel(UA_Server *server, UA_SecureChannel *channel,
+                              const UA_AsymmetricAlgorithmSecurityHeader *asymHeader);
+
+void
+UA_Server_closeSecureChannel(UA_Server *server, UA_SecureChannel *channel,
+                             UA_DiagnosticEvent event);
+
+/********************/
+/* Session Handling */
+/********************/
+
+UA_StatusCode
+UA_Server_createSession(UA_Server *server, UA_SecureChannel *channel,
+                        const UA_CreateSessionRequest *request, UA_Session **session);
+
+void
+UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
+                        UA_DiagnosticEvent event);
+
+UA_StatusCode
+UA_Server_removeSessionByToken(UA_Server *server, const UA_NodeId *token,
+                               UA_DiagnosticEvent event);
+
+void
+UA_Server_cleanupSessions(UA_Server *server, UA_DateTime nowMonotonic);
+
+UA_Session *
+UA_Server_getSessionById(UA_Server *server, const UA_NodeId *sessionId);
 
 /*****************/
 /* Node Handling */
 /*****************/
-
-#define UA_Nodestore_get(SERVER, NODEID)                                \
-    (SERVER)->config.nodestore.getNode((SERVER)->config.nodestore.context, NODEID)
-
-#define UA_Nodestore_release(SERVER, NODEID)                            \
-    (SERVER)->config.nodestore.releaseNode((SERVER)->config.nodestore.context, NODEID)
-
-#define UA_Nodestore_new(SERVER, NODECLASS)                               \
-    (SERVER)->config.nodestore.newNode((SERVER)->config.nodestore.context, NODECLASS)
-
-#define UA_Nodestore_getCopy(SERVER, NODEID, OUTNODE)                   \
-    (SERVER)->config.nodestore.getNodeCopy((SERVER)->config.nodestore.context, NODEID, OUTNODE)
-
-#define UA_Nodestore_insert(SERVER, NODE, OUTNODEID)                    \
-    (SERVER)->config.nodestore.insertNode((SERVER)->config.nodestore.context, NODE, OUTNODEID)
-
-#define UA_Nodestore_delete(SERVER, NODE)                               \
-    (SERVER)->config.nodestore.deleteNode((SERVER)->config.nodestore.context, NODE)
-
-#define UA_Nodestore_remove(SERVER, NODEID)                             \
-    (SERVER)->config.nodestore.removeNode((SERVER)->config.nodestore.context, NODEID)
 
 /* Deletes references from the node which are not matching any type in the given
  * array. Could be used to e.g. delete all the references, except
@@ -140,6 +326,7 @@ UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session,
 extern const UA_NodeId subtypeId;
 extern const UA_NodeId hierarchicalReferences;
 
+void setupNs1Uri(UA_Server *server);
 UA_UInt16 addNamespace(UA_Server *server, const UA_String name);
 
 UA_Boolean
@@ -147,58 +334,157 @@ UA_Node_hasSubTypeOrInstances(const UA_Node *node);
 
 /* Recursively searches "upwards" in the tree following specific reference types */
 UA_Boolean
-isNodeInTree(UA_Nodestore *ns, const UA_NodeId *leafNode,
+isNodeInTree(UA_Server *server, const UA_NodeId *leafNode,
              const UA_NodeId *nodeToFind, const UA_NodeId *referenceTypeIds,
              size_t referenceTypeIdsSize);
 
-/* Returns an array with the hierarchy of type nodes. The returned array starts
- * at the leaf and continues "upwards" or "downwards" in the hierarchy based on the
- * ``hasSubType`` references. Since multiple-inheritance is possible in general,
- * duplicate entries are removed.
- * The parameter `walkDownwards` indicates the direction of search.
- * If set to TRUE it will get all the subtypes of the given
- * leafType (including leafType).
- * If set to FALSE it will get all the parent types of the given
- * leafType (including leafType)*/
+/* Returns an array with the hierarchy of nodes. The start nodes can be returned
+ * as well. The returned array starts at the leaf and continues "upwards" or
+ * "downwards". Duplicate entries are removed. The parameter `walkDownwards`
+ * indicates the direction of search. */
 UA_StatusCode
-getTypeHierarchy(UA_Nodestore *ns, const UA_NodeId *leafType,
-                 UA_NodeId **typeHierarchy, size_t *typeHierarchySize,
-                 UA_Boolean walkDownwards);
+browseRecursive(UA_Server *server,
+                size_t startNodesSize, const UA_NodeId *startNodes,
+                size_t refTypesSize, const UA_NodeId *refTypes,
+                UA_BrowseDirection browseDirection, UA_Boolean includeStartNodes,
+                size_t *resultsSize, UA_ExpandedNodeId **results);
 
-/* Same as getTypeHierarchy but takes multiple leafTypes as parameter and returns
- * an combined list of all the found types for all the leaf types */
+/* If refTypes is non-NULL, tries to realloc and increase the length */
 UA_StatusCode
-getTypesHierarchy(UA_Nodestore *ns, const UA_NodeId *leafType, size_t leafTypeSize,
-                 UA_NodeId **typeHierarchy, size_t *typeHierarchySize,
-                 UA_Boolean walkDownwards);
+referenceSubtypes(UA_Server *server, const UA_NodeId *refType,
+                  size_t *refTypesSize, UA_NodeId **refTypes);
 
+/* Returns the recursive type and interface hierarchy of the node */ 
+UA_StatusCode
+getParentTypeAndInterfaceHierarchy(UA_Server *server, const UA_NodeId *typeNode,
+                                   UA_NodeId **typeHierarchy, size_t *typeHierarchySize);
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+
+UA_StatusCode UA_EXPORT
+UA_getConditionId(UA_Server *server, const UA_NodeId *conditionNodeId, UA_NodeId *outConditionId);
+
+void UA_EXPORT
+UA_ConditionList_delete(UA_Server *server);
+
+UA_Boolean
+isConditionOrBranch(UA_Server *server,
+                    const UA_NodeId *condition,
+                    const UA_NodeId *conditionSource,
+                    UA_Boolean *isCallerAC);
+
+#endif//UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
 /* Returns the type node from the node on the stack top. The type node is pushed
  * on the stack and returned. */
 const UA_Node * getNodeType(UA_Server *server, const UA_Node *node);
 
 /* Write a node attribute with a defined session */
 UA_StatusCode
-UA_Server_writeWithSession(UA_Server *server, UA_Session *session,
-                           const UA_WriteValue *value);
+writeWithSession(UA_Server *server, UA_Session *session,
+                 const UA_WriteValue *value);
 
+UA_StatusCode
+sendResponse(UA_SecureChannel *channel, UA_UInt32 requestId, UA_UInt32 requestHandle,
+             UA_Response *response, const UA_DataType *responseType);
 
 /* Many services come as an array of operations. This function generalizes the
  * processing of the operations. */
 typedef void (*UA_ServiceOperation)(UA_Server *server, UA_Session *session,
-                                    void *context,
+                                    const void *context,
                                     const void *requestOperation,
                                     void *responseOperation);
 
 UA_StatusCode
 UA_Server_processServiceOperations(UA_Server *server, UA_Session *session,
                                    UA_ServiceOperation operationCallback,
-                                   void *context,
+                                   const void *context,
                                    const size_t *requestOperations,
                                    const UA_DataType *requestOperationsType,
                                    size_t *responseOperations,
                                    const UA_DataType *responseOperationsType)
     UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
+/******************************************/
+/* Internal function calls, without locks */
+/******************************************/
+UA_StatusCode
+deleteNode(UA_Server *server, const UA_NodeId nodeId,
+           UA_Boolean deleteReferences);
+
+UA_StatusCode
+addNode(UA_Server *server, const UA_NodeClass nodeClass, const UA_NodeId *requestedNewNodeId,
+        const UA_NodeId *parentNodeId, const UA_NodeId *referenceTypeId,
+        const UA_QualifiedName browseName, const UA_NodeId *typeDefinition,
+        const UA_NodeAttributes *attr, const UA_DataType *attributeType,
+        void *nodeContext, UA_NodeId *outNewNodeId);
+
+UA_StatusCode
+setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
+                           const UA_DataSource dataSource);
+
+UA_StatusCode
+setMethodNode_callback(UA_Server *server,
+                       const UA_NodeId methodNodeId,
+                       UA_MethodCallback methodCallback);
+
+UA_StatusCode
+writeAttribute(UA_Server *server, const UA_WriteValue *value);
+
+UA_StatusCode
+writeWithWriteValue(UA_Server *server, const UA_NodeId *nodeId,
+                    const UA_AttributeId attributeId,
+                    const UA_DataType *attr_type,
+                    const void *attr);
+
+UA_DataValue
+readAttribute(UA_Server *server, const UA_ReadValueId *item,
+              UA_TimestampsToReturn timestamps);
+
+UA_StatusCode
+readWithReadValue(UA_Server *server, const UA_NodeId *nodeId,
+                  const UA_AttributeId attributeId, void *v);
+
+UA_StatusCode
+readObjectProperty(UA_Server *server, const UA_NodeId objectId,
+                   const UA_QualifiedName propertyName,
+                   UA_Variant *value);
+
+UA_BrowsePathResult
+translateBrowsePathToNodeIds(UA_Server *server, const UA_BrowsePath *browsePath);
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+void
+monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem);
+#endif
+
+UA_BrowsePathResult
+browseSimplifiedBrowsePath(UA_Server *server, const UA_NodeId origin,
+                           size_t browsePathSize, const UA_QualifiedName *browsePath);
+
+UA_StatusCode
+writeObjectProperty(UA_Server *server, const UA_NodeId objectId,
+                    const UA_QualifiedName propertyName, const UA_Variant value);
+
+UA_StatusCode
+getNodeContext(UA_Server *server, UA_NodeId nodeId, void **nodeContext);
+
+void
+removeCallback(UA_Server *server, UA_UInt64 callbackId);
+
+UA_StatusCode
+changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId, UA_Double interval_ms);
+
+UA_StatusCode
+addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
+                    void *data, UA_Double interval_ms, UA_UInt64 *callbackId);
+
+#ifdef UA_ENABLE_DISCOVERY
+UA_StatusCode
+register_server_with_discovery_server(UA_Server *server,
+                                      void *client,
+                                      const UA_Boolean isUnregister,
+                                      const char* semaphoreFilePath);
+#endif
 /***************************************/
 /* Check Information Model Consistency */
 /***************************************/
@@ -249,8 +535,13 @@ compatibleDataType(UA_Server *server, const UA_NodeId *dataType,
 UA_Boolean
 compatibleValueRanks(UA_Int32 valueRank, UA_Int32 constraintValueRank);
 
+struct BrowseOpts {
+    UA_UInt32 maxReferences;
+    UA_Boolean recursive;
+};
+
 void
-Operation_Browse(UA_Server *server, UA_Session *session, UA_UInt32 *maxrefs,
+Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxrefs,
                  const UA_BrowseDescription *descr, UA_BrowseResult *result);
 
 UA_DataValue
@@ -282,6 +573,39 @@ AddNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId);
 /**********************/
 
 UA_StatusCode UA_Server_initNS0(UA_Server *server);
+
+UA_StatusCode writeNs0VariableArray(UA_Server *server, UA_UInt32 id, void *v,
+                      size_t length, const UA_DataType *type);
+
+/***************************/
+/* Nodestore Access Macros */
+/***************************/
+
+#define UA_NODESTORE_NEW(server, nodeClass)                             \
+    server->config.nodestore.newNode(server->config.nodestore.context, nodeClass)
+
+#define UA_NODESTORE_DELETE(server, node)                               \
+    server->config.nodestore.deleteNode(server->config.nodestore.context, node)
+
+#define UA_NODESTORE_GET(server, nodeid)                                \
+    server->config.nodestore.getNode(server->config.nodestore.context, nodeid)
+
+#define UA_NODESTORE_RELEASE(server, node)                              \
+    server->config.nodestore.releaseNode(server->config.nodestore.context, node)
+
+#define UA_NODESTORE_GETCOPY(server, nodeid, outnode)                      \
+    server->config.nodestore.getNodeCopy(server->config.nodestore.context, \
+                                         nodeid, outnode)
+
+#define UA_NODESTORE_INSERT(server, node, addedNodeId)                    \
+    server->config.nodestore.insertNode(server->config.nodestore.context, \
+                                        node, addedNodeId)
+
+#define UA_NODESTORE_REPLACE(server, node)                              \
+    server->config.nodestore.replaceNode(server->config.nodestore.context, node)
+
+#define UA_NODESTORE_REMOVE(server, nodeId)                             \
+    server->config.nodestore.removeNode(server->config.nodestore.context, nodeId)
 
 _UA_END_DECLS
 

@@ -1,0 +1,12 @@
+
+trigger:
+ tags:
+   include:
+     - '*'
+ branches:
+   include:
+     - '*'
+
+jobs:
+    - template: ./.azure-pipelines/azure-pipelines-win.yml
+    - template: ./.azure-pipelines/azure-pipelines-dist.yml

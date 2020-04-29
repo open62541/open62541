@@ -1,23 +1,27 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-#include <ua_client_highlevel.h>
-#include <ua_config_default.h>
+#include <open62541/client_config_default.h>
+#include <open62541/client_highlevel.h>
+
+#include <stdlib.h>
+
 #include "custom_datatype.h"
 
 int main(void) {
-    UA_ClientConfig config = UA_ClientConfig_default;
-
     /* Make your custom datatype known to the stack */
     UA_DataType types[1];
     types[0] = PointType;
 
     /* Attention! Here the custom datatypes are allocated on the stack. So they
      * cannot be accessed from parallel (worker) threads. */
-    UA_DataTypeArray customDataTypes = {config.customDataTypes, 1, types};
-    config.customDataTypes = &customDataTypes;
+    UA_DataTypeArray customDataTypes = {NULL, 1, types};
 
-    UA_Client *client = UA_Client_new(config);
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    UA_ClientConfig_setDefault(cc);
+    cc->customDataTypes = &customDataTypes;
+
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
@@ -40,5 +44,5 @@ int main(void) {
     /* Clean up */
     UA_Variant_clear(&value);
     UA_Client_delete(client); /* Disconnects the client internally */
-    return UA_STATUSCODE_GOOD;
+    return EXIT_SUCCESS;
 }

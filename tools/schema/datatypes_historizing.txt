@@ -12,3 +12,9 @@ HistoryUpdateType
 ModificationInfo
 HistoryEvent
 HistoryEventFieldList
+HistoryUpdateRequest
+HistoryUpdateResponse
+HistoryUpdateResult
+UpdateDataDetails
+DeleteRawModifiedDetails
+PerformUpdateType

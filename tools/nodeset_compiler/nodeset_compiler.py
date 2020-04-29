@@ -1,29 +1,18 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+### This Source Code Form is subject to the terms of the Mozilla Public
+### License, v. 2.0. If a copy of the MPL was not distributed with this
+### file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-###
-### Authors:
-### - Chris Iatrou (ichrispa@core-vector.net)
-### - Julius Pfrommer
-### - Stefan Profanter (profanter@fortiss.org)
-###
-### This program was created for educational purposes and has been
-### contributed to the open62541 project by the author. All licensing
-### terms for this source is inherited by the terms and conditions
-### specified for by the open62541 project (see the projects readme
-### file for more information on the MPLv2 terms and restrictions).
-###
-### This program is not meant to be used in a production environment. The
-### author is not liable for any complications arising due to the use of
-### this program.
-###
+###    Copyright 2014-2015 (c) TU-Dresden (Author: Chris Iatrou)
+###    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+###    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
+
 
 import logging
 import argparse
+import sys
 from datatypes import NodeId
 from nodeset import *
 
@@ -47,11 +36,6 @@ parser.add_argument('-x', '--xml',
 parser.add_argument('outputFile',
                     metavar='<outputFile>',
                     help='The path/basename for the <output file>.c and <output file>.h files to be generated. This will also be the function name used in the header and c-file.')
-
-parser.add_argument('--generate-ns0',
-                    action='store_true',
-                    dest="generate_ns0",
-                    help='Omit some consistency checks for bootstrapping namespace 0, create references to parents and type definitions manually')
 
 parser.add_argument('--internal-headers',
                     action='store_true',
@@ -82,12 +66,6 @@ parser.add_argument('-t', '--types-array',
                     default=[],
                     help='Types array for the given namespace. Can be used mutliple times to define (in the same order as the .xml files, first for --existing, then --xml) the type arrays')
 
-parser.add_argument('--encode-binary-size',
-                    type=int,
-                    dest="encode_binary_size",
-                    default=32000,
-                    help='Size of the temporary array used to encode custom datatypes. If you don\'t know what it is, do not use this option')
-
 parser.add_argument('-v', '--verbose', action='count',
                     default=1,
                     help='Make the script more verbose. Can be applied up to 4 times')
@@ -102,6 +80,9 @@ parser.add_argument('--backend',
 args = parser.parse_args()
 
 # Set up logging
+# By default logging outputs to stderr. We want to redirect it to stdout, otherwise build output from cmake
+# is in stdout and nodeset compiler in stderr
+logging.basicConfig(stream=sys.stdout)
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 verbosity = 0
@@ -118,6 +99,8 @@ elif (verbosity >= 4):
 else:
     logging.basicConfig(level=logging.CRITICAL)
 
+# Set up logging
+logger = logging.getLogger(__name__)
 # Create a new nodeset. The nodeset name is not significant.
 # Parse the XML files
 ns = NodeSet()
@@ -153,19 +136,6 @@ for xmlfile in args.infiles:
 # for key in namespaceArrayNames:
 #   ns.addNamespace(key, namespaceArrayNames[key])
 
-# Remove blacklisted nodes from the nodeset
-# Doing this now ensures that unlinkable pointers will be cleanly removed
-# during sanitation.
-for blacklist in args.blacklistFiles:
-    for line in blacklist.readlines():
-        line = line.replace(" ", "")
-        id = line.replace("\n", "")
-        if ns.getNodeByIDString(id) is None:
-            logger.info("Can't blacklist node, namespace does currently not contain a node with id " + str(id))
-        else:
-            ns.removeNodeById(line)
-    blacklist.close()
-
 # Set the nodes from the ignore list to hidden. This removes them from dependency calculation
 # and from printing their generated code.
 # These nodes should be already pre-created on the server to avoid any errors during
@@ -183,26 +153,40 @@ for ignoreFile in args.ignoreFiles:
 # unresolvable or no references or invalid NodeIDs
 ns.sanitize()
 
-
-# Parse Datatypes in order to find out what the XML keyed values actually
-# represent.
-# Ex. <rpm>123</rpm> is not encodable
-#     only after parsing the datatypes, it is known that
-#     rpm is encoded as a double
-ns.buildEncodingRules()
-
 # Allocate/Parse the data values. In order to do this, we must have run
 # buidEncodingRules.
 ns.allocateVariables()
 
 ns.addInverseReferences()
 
+
+# Remove blacklisted nodes from the nodeset.
+# We need to have the inverse references here to ensure the reference is deleted from the referencing node too
+if args.blacklistFiles:
+    for blacklist in args.blacklistFiles:
+        for line in blacklist.readlines():
+            if line.startswith("#"):
+                continue
+            line = line.replace(" ", "")
+            id = line.replace("\n", "")
+            if len(id) == 0:
+                continue
+            n = ns.getNodeByIDString(id)
+            if n is None:
+                logger.debug("Can't blacklist node, namespace does currently not contain a node with id " + str(id))
+            else:
+                ns.remove_node(n)
+        blacklist.close()
+    ns.sanitize()
+
+ns.setNodeParent()
+
 logger.info("Generating Code for Backend: {}".format(args.backend))
 
 if args.backend == "open62541":
     # Create the C code with the open62541 backend of the compiler
     from backend_open62541 import generateOpen62541Code
-    generateOpen62541Code(ns, args.outputFile, args.generate_ns0, args.internal_headers, args.typesArray, args.encode_binary_size)
+    generateOpen62541Code(ns, args.outputFile, args.internal_headers, args.typesArray)
 elif args.backend == "graphviz":
     from backend_graphviz import generateGraphvizCode
     generateGraphvizCode(ns, filename=args.outputFile)

@@ -10,7 +10,7 @@
 #ifndef PLUGINS_ARCH_POSIX_UA_ARCHITECTURE_H_
 #define PLUGINS_ARCH_POSIX_UA_ARCHITECTURE_H_
 
-#include "ua_architecture_base.h"
+#include <open62541/architecture_base.h>
 
 /* Enable POSIX features */
 #if !defined(_XOPEN_SOURCE)
@@ -104,23 +104,35 @@
 #define UA_setsockopt setsockopt
 #define UA_freeaddrinfo freeaddrinfo
 #define UA_gethostname gethostname
+#define UA_getsockname getsockname
 #define UA_inet_pton inet_pton
 #if UA_IPV6
 # define UA_if_nametoindex if_nametoindex
 #endif
 
+#ifdef UA_ENABLE_MALLOC_SINGLETON
+extern void * (*UA_globalMalloc)(size_t size);
+extern void (*UA_globalFree)(void *ptr);
+extern void * (*UA_globalCalloc)(size_t nelem, size_t elsize);
+extern void * (*UA_globalRealloc)(void *ptr, size_t size);
+# define UA_free(ptr) UA_globalFree(ptr)
+# define UA_malloc(size) UA_globalMalloc(size)
+# define UA_calloc(num, size) UA_globalCalloc(num, size)
+# define UA_realloc(ptr, size) UA_globalRealloc(ptr, size)
+#endif
+
 #include <stdlib.h>
 #ifndef UA_free
-#define UA_free free
+# define UA_free free
 #endif
 #ifndef UA_malloc
-#define UA_malloc malloc
+# define UA_malloc malloc
 #endif
 #ifndef UA_calloc
-#define UA_calloc calloc
+# define UA_calloc calloc
 #endif
 #ifndef UA_realloc
-#define UA_realloc realloc
+# define UA_realloc realloc
 #endif
 
 #include <stdio.h>
@@ -135,7 +147,35 @@
     LOG; \
 }
 
-#include "ua_architecture_functions.h"
+#if UA_MULTITHREADING >= 100
+#include <pthread.h>
+#define Sleep(x) sleep(x / 1000)
+#define UA_LOCK_TYPE(mutexName) pthread_mutex_t mutexName; \
+                                        pthread_mutexattr_t mutexName##_attr; \
+                                        int mutexName##Counter;
+#define UA_LOCK_INIT(mutexName) pthread_mutexattr_init(&mutexName##_attr); \
+                                        pthread_mutexattr_settype(&mutexName##_attr, PTHREAD_MUTEX_RECURSIVE); \
+                                        pthread_mutex_init(&mutexName, &mutexName##_attr); \
+                                        mutexName##Counter = 0;
+#define UA_LOCK_DESTROY(mutexName) pthread_mutex_destroy(&mutexName); \
+                                   pthread_mutexattr_destroy(&mutexName##_attr);
+
+#define UA_LOCK(mutexName) pthread_mutex_lock(&mutexName); \
+                           UA_assert(++(mutexName##Counter) == 1); \
+
+#define UA_UNLOCK(mutexName) UA_assert(--(mutexName##Counter) == 0); \
+                             pthread_mutex_unlock(&mutexName);
+#define UA_LOCK_ASSERT(mutexName, num) UA_assert(mutexName##Counter == num);
+#else
+#define UA_LOCK_TYPE(mutexName)
+#define UA_LOCK_INIT(mutexName)
+#define UA_LOCK_DESTROY(mutexName)
+#define UA_LOCK(mutexName)
+#define UA_UNLOCK(mutexName)
+#define UA_LOCK_ASSERT(mutexName, num)
+#endif
+
+#include <open62541/architecture_functions.h>
 
 #if defined(__APPLE__)  && defined(_SYS_QUEUE_H_)
 //  in some compilers there's already a _SYS_QUEUE_H_ which is included first and doesn't have all functions

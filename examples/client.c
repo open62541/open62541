@@ -1,10 +1,12 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-#include <ua_client_subscriptions.h>
-#include <ua_client_highlevel.h>
-#include <ua_config_default.h>
-#include <ua_log_stdout.h>
+#include <open62541/client_config_default.h>
+#include <open62541/client_highlevel.h>
+#include <open62541/client_subscriptions.h>
+#include <open62541/plugin/log_stdout.h>
+
+#include <stdlib.h>
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 static void
@@ -27,7 +29,8 @@ nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, voi
 }
 
 int main(int argc, char *argv[]) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
 
     /* Listing endpoints */
     UA_EndpointDescription* endpointArray = NULL;
@@ -37,7 +40,7 @@ int main(int argc, char *argv[]) {
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Array_delete(endpointArray, endpointArraySize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
         UA_Client_delete(client);
-        return (int)retval;
+        return EXIT_FAILURE;
     }
     printf("%i endpoints found\n", (int)endpointArraySize);
     for(size_t i=0;i<endpointArraySize;i++) {
@@ -52,7 +55,7 @@ int main(int argc, char *argv[]) {
     retval = UA_Client_connect_username(client, "opc.tcp://localhost:4840", "user1", "password");
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
-        return (int)retval;
+        return EXIT_FAILURE;
     }
 
     /* Browse some objects */
@@ -254,5 +257,5 @@ int main(int argc, char *argv[]) {
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
-    return (int) UA_STATUSCODE_GOOD;
+    return EXIT_SUCCESS;
 }

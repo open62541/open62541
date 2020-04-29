@@ -7,21 +7,16 @@
 
 #include <string.h>
 #include <math.h>
-#include "src_generated/ua_types_generated.h"
-#include "ua_types.h"
-#include "src_generated/ua_types_generated_encoding_binary.h"
-#include "ua_types.h"
-#include "ua_server_pubsub.h"
-#include "src_generated/ua_types_generated.h"
-#include "ua_network_pubsub_udp.h"
-#include "ua_server_internal.h"
+#include <open62541/plugin/pubsub_udp.h>
+#include <open62541/server_config_default.h>
+#include <open62541/server_pubsub.h>
+#include <open62541/types_generated_encoding_binary.h>
+#include <open62541/client.h>
+#include <open62541/client_config_default.h>
 #include "check.h"
-#include "ua_plugin_pubsub.h"
-#include "ua_config_default.h"
 #include "thread_wrapper.h"
 
 UA_Server *server = NULL;
-UA_ServerConfig *config = NULL;
 UA_Boolean running;
 THREAD_HANDLE server_thread;
 
@@ -33,14 +28,13 @@ THREAD_CALLBACK(serverloop) {
 
 static void setup(void) {
     running = true;
-    config = UA_ServerConfig_new_default();
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer *) UA_malloc(sizeof(UA_PubSubTransportLayer));
-    if(!config->pubsubTransportLayers) {
-        UA_ServerConfig_delete(config);
-    }
+    server = UA_Server_new();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_ServerConfig_setDefault(config);
+    config->pubsubTransportLayers = (UA_PubSubTransportLayer *)
+        UA_malloc(sizeof(UA_PubSubTransportLayer));
     config->pubsubTransportLayers[0] = UA_PubSubTransportLayerUDPMP();
     config->pubsubTransportLayersSize++;
-    server = UA_Server_new(config);
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
 }
@@ -50,7 +44,6 @@ static void teardown(void) {
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
 }
 
 static UA_NodeId
@@ -94,13 +87,15 @@ static UA_NodeId addPubSubConnection(void){
     pubSubConnection.publisherId = publisherId;
     pubSubConnection.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
 
+
     UA_ExtensionObject eo;
-    eo.encoding = UA_EXTENSIONOBJECT_ENCODED_BYTESTRING;
     UA_NetworkAddressUrlDataType networkAddressDataType = {UA_STRING("eth0"), UA_STRING("opc.udp://224.0.0.22:4840/")};
-    UA_ByteString_allocBuffer(&eo.content.encoded.body, UA_NetworkAddressUrlDataType_calcSizeBinary(&networkAddressDataType));
-    UA_Byte *bufPos = eo.content.encoded.body.data;
-    UA_NetworkAddressUrlDataType_encodeBinary(&networkAddressDataType, &bufPos, &(eo.content.encoded.body.data[eo.content.encoded.body.length]));
-    eo.content.encoded.typeId = UA_NODEID_NUMERIC(0, UA_TYPES_NETWORKADDRESSURLDATATYPE);
+    UA_NetworkAddressUrlDataType* identityToken = UA_NetworkAddressUrlDataType_new();
+    UA_NetworkAddressUrlDataType_init(identityToken);
+    UA_NetworkAddressUrlDataType_copy(&networkAddressDataType, identityToken);
+    eo.encoding = UA_EXTENSIONOBJECT_DECODED;
+    eo.content.decoded.type = &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE];
+    eo.content.decoded.data = identityToken;
     pubSubConnection.address = eo;
     pubSubConnection.connectionPropertiesSize = 2;
     UA_KeyValuePair connectionOptions[2];
@@ -142,7 +137,8 @@ static UA_NodeId addPubSubConnection(void){
 
 START_TEST(AddNewPubSubConnectionUsingTheInformationModelMethod){
     UA_StatusCode retVal;
-    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
     retVal = UA_Client_connect(client, "opc.tcp://localhost:4840");
     if(retVal != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
@@ -174,7 +170,8 @@ START_TEST(AddNewPubSubConnectionUsingTheInformationModelMethod){
 
 START_TEST(AddAndRemovePublishedDataSetFolders){
         UA_StatusCode retVal;
-        UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+        UA_Client *client = UA_Client_new();
+        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
         retVal = UA_Client_connect(client, "opc.tcp://localhost:4840");
         if(retVal != UA_STATUSCODE_GOOD) {
             UA_Client_delete(client);
@@ -262,7 +259,8 @@ START_TEST(AddAndRemovePublishedDataSetFolders){
 
 START_TEST(AddAndRemovePublishedDataSetItems){
         UA_StatusCode retVal;
-        UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+        UA_Client *client = UA_Client_new();
+        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
         retVal = UA_Client_connect(client, "opc.tcp://localhost:4840");
         if(retVal != UA_STATUSCODE_GOOD) {
             UA_Client_delete(client);
@@ -316,7 +314,8 @@ START_TEST(AddAndRemovePublishedDataSetItems){
 
 START_TEST(AddAndRemoveWriterGroups){
         UA_StatusCode retVal;
-        UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+        UA_Client *client = UA_Client_new();
+        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
         retVal = UA_Client_connect(client, "opc.tcp://localhost:4840");
         if(retVal != UA_STATUSCODE_GOOD) {
             UA_Client_delete(client);

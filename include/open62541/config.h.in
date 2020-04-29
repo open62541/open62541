@@ -1,0 +1,117 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#ifndef UA_CONFIG_H_
+#define UA_CONFIG_H_
+
+/**
+ * open62541 Version
+ * ----------------- */
+#define UA_OPEN62541_VER_MAJOR ${OPEN62541_VER_MAJOR}
+#define UA_OPEN62541_VER_MINOR ${OPEN62541_VER_MINOR}
+#define UA_OPEN62541_VER_PATCH ${OPEN62541_VER_PATCH}
+#define UA_OPEN62541_VER_LABEL "${OPEN62541_VER_LABEL}" /* Release candidate label, etc. */
+#define UA_OPEN62541_VER_COMMIT "${OPEN62541_VER_COMMIT}"
+
+/**
+ * Feature Options
+ * ---------------
+ * Changing the feature options has no effect on a pre-compiled library. */
+
+#define UA_LOGLEVEL ${UA_LOGLEVEL}
+#ifndef UA_ENABLE_AMALGAMATION
+#cmakedefine UA_ENABLE_AMALGAMATION
+#endif
+#cmakedefine UA_ENABLE_METHODCALLS
+#cmakedefine UA_ENABLE_NODEMANAGEMENT
+#cmakedefine UA_ENABLE_SUBSCRIPTIONS
+#cmakedefine UA_ENABLE_PUBSUB
+#cmakedefine UA_ENABLE_PUBSUB_ETH_UADP
+#cmakedefine UA_ENABLE_PUBSUB_ETH_UADP_ETF
+#cmakedefine UA_ENABLE_PUBSUB_ETH_UADP_XDP
+#cmakedefine UA_ENABLE_PUBSUB_DELTAFRAMES
+#cmakedefine UA_ENABLE_PUBSUB_INFORMATIONMODEL
+#cmakedefine UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
+#cmakedefine UA_ENABLE_DA
+#cmakedefine UA_ENABLE_ENCRYPTION
+#cmakedefine UA_ENABLE_HISTORIZING
+#cmakedefine UA_ENABLE_PARSING
+#cmakedefine UA_ENABLE_MICRO_EMB_DEV_PROFILE
+#cmakedefine UA_ENABLE_EXPERIMENTAL_HISTORIZING
+#cmakedefine UA_ENABLE_SUBSCRIPTIONS_EVENTS
+#cmakedefine UA_ENABLE_JSON_ENCODING
+#cmakedefine UA_ENABLE_PUBSUB_MQTT
+#cmakedefine UA_ENABLE_ENCRYPTION_MBEDTLS
+#cmakedefine UA_ENABLE_ENCRYPTION_OPENSSL
+#cmakedefine UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+
+/* Multithreading */
+#cmakedefine UA_ENABLE_IMMUTABLE_NODES
+#define UA_MULTITHREADING ${UA_MULTITHREADING}
+#if UA_MULTITHREADING >= 200 && !defined(UA_ENABLE_IMMUTABLE_NODES)
+#error "The multithreading feature requires nodes to be immutable"
+#endif
+
+/* Advanced Options */
+#cmakedefine UA_ENABLE_STATUSCODE_DESCRIPTIONS
+#cmakedefine UA_ENABLE_TYPEDESCRIPTION
+#cmakedefine UA_ENABLE_NODESET_COMPILER_DESCRIPTIONS
+#cmakedefine UA_ENABLE_DETERMINISTIC_RNG
+#cmakedefine UA_ENABLE_DISCOVERY
+#cmakedefine UA_ENABLE_DISCOVERY_MULTICAST
+#cmakedefine UA_ENABLE_WEBSOCKET_SERVER
+#cmakedefine UA_ENABLE_QUERY
+#cmakedefine UA_ENABLE_MALLOC_SINGLETON
+#cmakedefine UA_ENABLE_DISCOVERY_SEMAPHORE
+#cmakedefine UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
+#cmakedefine UA_ENABLE_VALGRIND_INTERACTIVE
+#define UA_VALGRIND_INTERACTIVE_INTERVAL ${UA_VALGRIND_INTERACTIVE_INTERVAL}
+#cmakedefine UA_GENERATED_NAMESPACE_ZERO
+#cmakedefine UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
+
+#cmakedefine UA_PACK_DEBIAN
+
+/* Options for Debugging */
+#cmakedefine UA_DEBUG
+#cmakedefine UA_DEBUG_DUMP_PKGS
+
+/**
+ * Function Export
+ * ---------------
+ * On Win32: Define ``UA_DYNAMIC_LINKING`` and ``UA_DYNAMIC_LINKING_EXPORT`` in
+ * order to export symbols for a DLL. Define ``UA_DYNAMIC_LINKING`` only to
+ * import symbols from a DLL.*/
+#cmakedefine UA_DYNAMIC_LINKING
+
+/* Shortcuts for extern "C" declarations */
+#if !defined(_UA_BEGIN_DECLS)
+# ifdef __cplusplus
+#  define _UA_BEGIN_DECLS extern "C" {
+# else
+#  define _UA_BEGIN_DECLS
+# endif
+#endif
+#if !defined(_UA_END_DECLS)
+# ifdef __cplusplus
+#  define _UA_END_DECLS }
+# else
+#  define _UA_END_DECLS
+# endif
+#endif
+
+/* Select default architecture if non is selected through CMake or compiler define */
+#if ${UA_ARCHITECTURES_NODEF}
+# ifdef _WIN32
+#  define UA_ARCHITECTURE_WIN32
+# else
+#  define UA_ARCHITECTURE_POSIX
+# endif
+#endif
+
+// specific architectures can undef this
+#define UA_HAS_GETIFADDR
+
+#include "${UA_ARCHITECTURE}/ua_architecture.h"
+
+#endif /* UA_CONFIG_H_ */

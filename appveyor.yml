@@ -1,7 +1,9 @@
 version: '{build}'
 
 clone_folder: c:\projects\open62541
-clone_depth: 20
+
+# Do not set clone depth, we need all the tags to automatically detect the version based on git describe
+# clone_depth: 20
 
 # Avoid building branch if it is part of a PR and built anyways
 skip_branch_with_pr: true
@@ -15,10 +17,6 @@ environment:
         APPVEYOR_CACHE_ENTRY_ZIP_ARGS: -t7z -m0=lzma -mx=9
 
     matrix:
-        - CC_NAME: MinGW Makefiles
-          CC_SHORTNAME: mingw
-          GENERATOR: MinGW Makefiles
-          FORCE_CXX: OFF
         - CC_NAME: Visual Studio 9 2008
           CC_SHORTNAME: vs2008
           GENERATOR: Visual Studio 9 2008
@@ -26,15 +24,6 @@ environment:
         - CC_NAME: Visual Studio 12 2013
           CC_SHORTNAME: vs2013
           GENERATOR: Visual Studio 12 2013
-          FORCE_CXX: OFF
-        - CC_NAME: Visual Studio 15 2017
-          CC_SHORTNAME: vs2017
-          APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017
-          GENERATOR: Visual Studio 15 2017
-          FORCE_CXX: OFF
-        - CC_NAME: Clang
-          CC_SHORTNAME: clang-mingw
-          GENERATOR: MinGW Makefiles
           FORCE_CXX: OFF
 
 cache:
@@ -49,12 +38,6 @@ init:
 install:
 - set PATH=C:\Users\appveyor\AppData\Roaming\Python\Scripts;%PATH%
 - ps: '& "./tools/appveyor/install.ps1"'
-
-before_build:
-  # Add installed tools to PATH
-  - set PATH=C:\msys64\mingw64\bin;%PATH%
-  # Workaround for CMake not wanting sh.exe on PATH for MinGW (necessary for CMake 3.12.2)
-  - set PATH=%PATH:C:\Program Files\Git\usr\bin;=%
 
 build_script:
 - ps: '& "./tools/appveyor/build.ps1"'

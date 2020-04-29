@@ -4,13 +4,11 @@
 
 #ifndef __clang_analyzer__
 
-#include <ua_plugin_securitypolicy.h>
-#include "ua_types.h"
-#include "ua_plugin_securitypolicy.h"
-#include "ua_log_stdout.h"
-#include "ua_types_generated_handling.h"
 #include "testing_policy.h"
-#include "check.h"
+
+#include <open62541/plugin/log_stdout.h>
+
+#include <check.h>
 
 #define SET_CALLED(func) funcsCalled->func = true
 
@@ -373,7 +371,7 @@ compareCertificate_testing(const void *channelContext,
 }
 
 static void
-policy_deletemembers_testing(UA_SecurityPolicy *policy) {
+policy_clear_testing(UA_SecurityPolicy *policy) {
     UA_ByteString_deleteMembers(&policy->localCertificate);
 }
 
@@ -385,7 +383,6 @@ TestingPolicy(UA_SecurityPolicy *policy, UA_ByteString localCertificate,
     policy->policyContext = (void *)funcsCalled;
     policy->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Testing");
     policy->logger = UA_Log_Stdout;
-    policy->certificateVerification = NULL;
     UA_ByteString_copy(&localCertificate, &policy->localCertificate);
 
     policy->asymmetricModule.makeCertificateThumbprint = makeThumbprint_testing;
@@ -439,7 +436,7 @@ TestingPolicy(UA_SecurityPolicy *policy, UA_ByteString localCertificate,
     policy->channelModule.setRemoteSymSigningKey = setRemoteSymSigningKey_testing;
     policy->channelModule.setRemoteSymIv = setRemoteSymIv_testing;
     policy->channelModule.compareCertificate = compareCertificate_testing;
-    policy->deleteMembers = policy_deletemembers_testing;
+    policy->clear = policy_clear_testing;
 
     return UA_STATUSCODE_GOOD;
 }

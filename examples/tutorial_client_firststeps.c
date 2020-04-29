@@ -8,12 +8,15 @@
  * provides both a server- and clientside API, so creating a client is as easy as
  * creating a server. Copy the following into a file `myClient.c`: */
 
-#include <ua_client_highlevel.h>
-#include <ua_config_default.h>
-#include <ua_log_stdout.h>
+#include <open62541/client_config_default.h>
+#include <open62541/client_highlevel.h>
+#include <open62541/plugin/log_stdout.h>
+
+#include <stdlib.h>
 
 int main(void) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
@@ -40,7 +43,7 @@ int main(void) {
     /* Clean up */
     UA_Variant_clear(&value);
     UA_Client_delete(client); /* Disconnects the client internally */
-    return UA_STATUSCODE_GOOD;
+    return EXIT_SUCCESS;
 }
 
 /**
@@ -67,4 +70,4 @@ int main(void) {
  *   an ``Int32`` from the example server (which is built in
  *   :doc:`tutorial_server_firststeps`) using "UA_Client_write" function. The
  *   example server needs some more modifications, i.e., changing request types.
- *   The answer can be found in "examples/exampleClient.c". */
+ *   The answer can be found in "examples/client.c". */

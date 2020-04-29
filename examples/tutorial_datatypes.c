@@ -14,12 +14,13 @@
  * Basic Data Handling
  * ^^^^^^^^^^^^^^^^^^^
  * This section shows the basic interaction patterns for data types. Make
- * sure to compare with the type definitions in ``ua_types.h``. */
+ * sure to compare with the type definitions in ``types.h``. */
 
-#include <ua_server.h>
-#include <ua_config_default.h>
-#include <ua_log_stdout.h>
+#include <open62541/plugin/log_stdout.h>
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
 
+#include <stdlib.h>
 
 static void
 variables_basic(void) {
@@ -135,5 +136,5 @@ int main(void) {
     variables_basic();
     variables_nodeids();
     variables_variants();
-    return 0;
+    return EXIT_SUCCESS;
 }

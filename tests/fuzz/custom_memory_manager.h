@@ -8,8 +8,7 @@
 #ifndef OPEN62541_CUSTOM_MEMORY_MANAGER_H
 #define OPEN62541_CUSTOM_MEMORY_MANAGER_H
 
-
-#include "ua_types.h"
+#include <open62541/types.h>
 
 _UA_BEGIN_DECLS
 
@@ -34,4 +33,4 @@ int UA_EXPORT UA_memoryManager_setLimitFromLast4Bytes(const uint8_t *data, size_
 
 _UA_END_DECLS
 
-#endif //OPEN62541_CUSTOM_MEMORY_MANAGER_H
+#endif /* OPEN62541_CUSTOM_MEMORY_MANAGER_H */

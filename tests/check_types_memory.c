@@ -3,15 +3,16 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #define _XOPEN_SOURCE 500
-#include <stdlib.h>
-#include <stdio.h>
+#include <open62541/server.h>
+#include <open62541/types_generated.h>
+#include <open62541/types_generated_handling.h>
+#include <open62541/util.h>
 
-#include "ua_types.h"
-#include "ua_server.h"
-#include "ua_types_generated.h"
-#include "ua_types_generated_handling.h"
 #include "ua_types_encoding_binary.h"
-#include "ua_util.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+
 #include "check.h"
 
 /* Define types to a dummy value if they are not available (e.g. not built with
@@ -107,9 +108,13 @@ START_TEST(encodeShallYieldDecode) {
     /* floating point types may change the representaton due to several possible NaN values. */
     if(_i != UA_TYPES_FLOAT || _i != UA_TYPES_DOUBLE ||
        _i != UA_TYPES_CREATESESSIONREQUEST || _i != UA_TYPES_CREATESESSIONRESPONSE ||
-       _i != UA_TYPES_VARIABLEATTRIBUTES || _i != UA_TYPES_READREQUEST ||
+       _i != UA_TYPES_VARIABLEATTRIBUTES || _i != UA_TYPES_READREQUEST
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+       ||
        _i != UA_TYPES_MONITORINGPARAMETERS || _i != UA_TYPES_MONITOREDITEMCREATERESULT ||
-       _i != UA_TYPES_CREATESUBSCRIPTIONREQUEST || _i != UA_TYPES_CREATESUBSCRIPTIONRESPONSE)
+       _i != UA_TYPES_CREATESUBSCRIPTIONREQUEST || _i != UA_TYPES_CREATESUBSCRIPTIONRESPONSE
+#endif
+       )
         return;
 
     // given
@@ -162,8 +167,16 @@ START_TEST(decodeShallFailWithTruncatedBufferButSurvive) {
 #ifdef UA_ENABLE_DISCOVERY
         _i == UA_TYPES_DISCOVERYCONFIGURATION ||
 #endif
+#ifdef UA_ENABLE_SUBSCRIPTIONS
         _i == UA_TYPES_FILTEROPERAND ||
         _i == UA_TYPES_UNION ||
+#endif
+#ifdef UA_TYPES_FRAME
+        _i == UA_TYPES_FRAME ||
+        _i == UA_TYPES_ORIENTATION ||
+        _i == UA_TYPES_VECTOR ||
+        _i == UA_TYPES_CARTESIANCOORDINATES ||
+#endif
         _i == UA_TYPES_HISTORYREADDETAILS ||
         _i == UA_TYPES_NOTIFICATIONDATA ||
         _i == UA_TYPES_MONITORINGFILTER ||
@@ -283,11 +296,19 @@ START_TEST(calcSizeBinaryShallBeCorrect) {
     if(_i == UA_TYPES_VARIANT ||
        _i == UA_TYPES_VARIABLEATTRIBUTES ||
        _i == UA_TYPES_VARIABLETYPEATTRIBUTES ||
+#ifdef UA_ENABLE_SUBSCRIPTIONS
        _i == UA_TYPES_FILTEROPERAND ||
+#endif
 #ifdef UA_ENABLE_DISCOVERY
        _i == UA_TYPES_DISCOVERYCONFIGURATION ||
 #endif
        _i == UA_TYPES_UNION ||
+#ifdef UA_TYPES_FRAME
+       _i == UA_TYPES_FRAME ||
+       _i == UA_TYPES_ORIENTATION ||
+       _i == UA_TYPES_VECTOR ||
+       _i == UA_TYPES_CARTESIANCOORDINATES ||
+#endif
        _i == UA_TYPES_HISTORYREADDETAILS ||
        _i == UA_TYPES_NOTIFICATIONDATA ||
        _i == UA_TYPES_MONITORINGFILTER ||

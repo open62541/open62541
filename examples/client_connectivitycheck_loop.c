@@ -1,11 +1,12 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-#include <ua_client.h>
-#include <ua_config_default.h>
-#include <ua_log_stdout.h>
+#include <open62541/client.h>
+#include <open62541/client_config_default.h>
+#include <open62541/plugin/log_stdout.h>
 
 #include <signal.h>
+#include <stdlib.h>
 
 UA_Boolean running = true;
 
@@ -22,14 +23,12 @@ inactivityCallback (UA_Client *client) {
 int main(void) {
     signal(SIGINT, stopHandler); /* catches ctrl-c */
 
-    UA_ClientConfig config = UA_ClientConfig_default;
-    /* Set stateCallback */
-    config.inactivityCallback = inactivityCallback;
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    UA_ClientConfig_setDefault(cc);
 
-    /* Perform a connectivity check every 2 seconds */
-    config.connectivityCheckInterval = 2000;
-
-    UA_Client *client = UA_Client_new(config);
+    cc->inactivityCallback = inactivityCallback; /* Set stateCallback */
+    cc->connectivityCheckInterval = 2000; /* Perform a connectivity check every 2 seconds */
 
     /* Endless loop runAsync */
     while (running) {
@@ -51,5 +50,5 @@ int main(void) {
 
     /* Clean up */
     UA_Client_delete(client); /* Disconnects the client internally */
-    return UA_STATUSCODE_GOOD;
+    return EXIT_SUCCESS;
 }

@@ -3,28 +3,26 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
  *    Copyright 2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
  */
 
 #ifndef UA_SESSION_H_
 #define UA_SESSION_H_
 
+#include <open62541/util.h>
+
 #include "ua_securechannel.h"
-#include "ua_util.h"
 
 _UA_BEGIN_DECLS
 
 #define UA_MAXCONTINUATIONPOINTS 5
 
-typedef struct ContinuationPointEntry {
-    LIST_ENTRY(ContinuationPointEntry) pointers;
-    UA_ByteString        identifier;
-    UA_BrowseDescription browseDescription;
-    UA_UInt32            maxReferences;
+struct ContinuationPoint;
+typedef struct ContinuationPoint ContinuationPoint;
 
-    /* The last point in the node references? */
-    size_t referenceKindIndex;
-    size_t targetIndex;
-} ContinuationPointEntry;
+/* Returns the next entry in the linked list */
+ContinuationPoint *
+ContinuationPoint_clear(ContinuationPoint *cp);
 
 struct UA_Subscription;
 typedef struct UA_Subscription UA_Subscription;
@@ -50,7 +48,7 @@ typedef struct {
     UA_DateTime       validTill;
     UA_ByteString     serverNonce;
     UA_UInt16 availableContinuationPoints;
-    LIST_HEAD(ContinuationPointList, ContinuationPointEntry) continuationPoints;
+    ContinuationPoint *continuationPoints;
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_UInt32 lastSubscriptionId;
     UA_UInt32 lastSeenSubscriptionId;
@@ -82,7 +80,8 @@ void UA_Session_updateLifetime(UA_Session *session);
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 
 void
-UA_Session_addSubscription(UA_Session *session,
+UA_Session_addSubscription(UA_Server *server,
+                           UA_Session *session,
                            UA_Subscription *newSubscription);
 
 UA_Subscription *
@@ -113,7 +112,7 @@ UA_Session_dequeuePublishReq(UA_Session *session);
 
 #define UA_LOG_SESSION_INTERNAL(LOGGER, LEVEL, SESSION, MSG, ...) do {  \
         UA_String idString = UA_STRING_NULL;                            \
-        UA_NodeId_toString(&(SESSION)->sessionId, &idString);           \
+        UA_NodeId_print(&(SESSION)->sessionId, &idString);              \
         UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_SESSION,                  \
                        "Connection %i | SecureChannel %i | Session %.*s | " MSG "%.0s", \
                        ((SESSION)->header.channel ?                     \
@@ -122,7 +121,7 @@ UA_Session_dequeuePublishReq(UA_Session *session);
                        ((SESSION)->header.channel ?                     \
                         (SESSION)->header.channel->securityToken.channelId : 0), \
                        (int)idString.length, idString.data, __VA_ARGS__); \
-        UA_String_deleteMembers(&idString);                             \
+        UA_String_clear(&idString);                                     \
     } while(0)
 
 #if UA_LOGLEVEL <= 100

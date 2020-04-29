@@ -52,7 +52,7 @@ START_TEST(benchmarkTimer) {
     clock_t finish = clock();
     double time_spent = (double)(finish - begin) / CLOCKS_PER_SEC;
     printf("duration was %f s\n", time_spent);
-    printf("%lu callbacks\n", count);
+    printf("%lu callbacks\n", (unsigned long)count);
 
     UA_Timer_deleteMembers(&timer);
 } END_TEST

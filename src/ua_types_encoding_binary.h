@@ -12,7 +12,7 @@
 #ifndef UA_TYPES_ENCODING_BINARY_H_
 #define UA_TYPES_ENCODING_BINARY_H_
 
-#include "ua_types.h"
+#include <open62541/types.h>
 
 _UA_BEGIN_DECLS
 

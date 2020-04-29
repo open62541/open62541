@@ -1,179 +1,115 @@
 /*
-
-  https://github.com/superwills/NibbleAndAHalf
-  base64.h -- Fast base64 encoding and decoding.
-  version 1.0.0, April 17, 2013 143a
-
-  Copyright (C) 2013 William Sherif
-
-  This software is provided 'as-is', without any express or implied
-  warranty.  In no event will the authors be held liable for any damages
-  arising from the use of this software.
-
-  Permission is granted to anyone to use this software for any purpose,
-  including commercial applications, and to alter it and redistribute it
-  freely, subject to the following restrictions:
-
-  1. The origin of this software must not be misrepresented; you must not
-     claim that you wrote the original software. If you use this software
-     in a product, an acknowledgment in the product documentation would be
-     appreciated but is not required.
-  2. Altered source versions must be plainly marked as such, and must not be
-     misrepresented as being the original software.
-  3. This notice may not be removed or altered from any source distribution.
-
-  William Sherif
-  will.sherif@gmail.com
-
-  YWxsIHlvdXIgYmFzZSBhcmUgYmVsb25nIHRvIHVz
-
-*/
+ * Base64 encoding: Copyright (c) 2005-2011, Jouni Malinen <j@w1.fi>
+ * This software may be distributed under the terms of the BSD license.
+ *
+ * Base64 decoding: Copyright (c) 2016, polfosol
+ * Posted at https://stackoverflow.com/a/37109258 under the CC-BY-SA Creative
+ * Commons license.
+ */
 
 #include "base64.h"
+#include <open62541/types.h>
 
-#include <stdio.h>
-#include <stdlib.h>
+static const unsigned char base64_table[65] =
+	"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
-static const char* b64="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/" ;
-
-// maps A=>0,B=>1..
-static const unsigned char unb64[]={
-    0,   0,   0,   0,   0,   0,   0,   0,   0,   0, //10
-    0,   0,   0,   0,   0,   0,   0,   0,   0,   0, //20
-    0,   0,   0,   0,   0,   0,   0,   0,   0,   0, //30
-    0,   0,   0,   0,   0,   0,   0,   0,   0,   0, //40
-    0,   0,   0,  62,   0,   0,   0,  63,  52,  53, //50
-    54,  55,  56,  57,  58,  59,  60,  61,   0,   0, //60
-    0,   0,   0,   0,   0,   0,   1,   2,   3,   4, //70
-    5,   6,   7,   8,   9,  10,  11,  12,  13,  14, //80
-    15,  16,  17,  18,  19,  20,  21,  22,  23,  24, //90
-    25,   0,   0,   0,   0,   0,   0,  26,  27,  28, //100
-    29,  30,  31,  32,  33,  34,  35,  36,  37,  38, //110
-    39,  40,  41,  42,  43,  44,  45,  46,  47,  48, //120
-    49,  50,  51,   0,   0,   0,   0,   0,   0,   0, //130
-    0,   0,   0,   0,   0,   0,   0,   0,   0,   0, //140
-    0,   0,   0,   0,   0,   0,   0,   0,   0,   0, //150
-    0,   0,   0,   0,   0,   0,   0,   0,   0,   0, //160
-    0,   0,   0,   0,   0,   0,   0,   0,   0,   0, //170
-    0,   0,   0,   0,   0,   0,   0,   0,   0,   0, //180
-    0,   0,   0,   0,   0,   0,   0,   0,   0,   0, //190
-    0,   0,   0,   0,   0,   0,   0,   0,   0,   0, //200
-    0,   0,   0,   0,   0,   0,   0,   0,   0,   0, //210
-    0,   0,   0,   0,   0,   0,   0,   0,   0,   0, //220
-    0,   0,   0,   0,   0,   0,   0,   0,   0,   0, //230
-    0,   0,   0,   0,   0,   0,   0,   0,   0,   0, //240
-    0,   0,   0,   0,   0,   0,   0,   0,   0,   0, //250
-    0,   0,   0,   0,   0,   0,
-}; // This array has 256 elements
-
-// Converts binary data of length=len to base64 characters.
-// Length of the resultant string is stored in flen
-// (you must pass pointer flen).
-char* UA_base64( const void* binaryData, int len, int *flen )
-{
-    const unsigned char* bin = (const unsigned char*) binaryData ;
-    char* res ;
-
-    int rc = 0 ; // result counter
-    int byteNo ; // I need this after the loop
-
-    int modulusLen = len % 3 ;
-    int pad = ((modulusLen&1)<<1) + ((modulusLen&2)>>1) ; // 2 gives 1 and 1 gives 2, but 0 gives 0.
-
-    *flen = 4*(len + pad)/3 ;
-    res = (char*) malloc( (size_t)(*flen + 1) ) ; // and one for the null
-    if( !res )
-    {
-        puts( "ERROR: base64 could not allocate enough memory." ) ;
-        puts( "I must stop because I could not get enough" ) ;
-        return 0;
+unsigned char *
+UA_base64(const unsigned char *src, size_t len, size_t *out_len) {
+    if(len == 0) {
+        *out_len = 0;
+        return (unsigned char*)UA_EMPTY_ARRAY_SENTINEL;
     }
 
-    for( byteNo = 0 ; byteNo <= len-3 ; byteNo+=3 )
-    {
-        unsigned char BYTE0=bin[byteNo];
-        unsigned char BYTE1=bin[byteNo+1];
-        unsigned char BYTE2=bin[byteNo+2];
-        res[rc++]  = b64[ BYTE0 >> 2 ] ;
-        res[rc++]  = b64[ ((0x3&BYTE0)<<4) + (BYTE1 >> 4) ] ;
-        res[rc++]  = b64[ ((0x0f&BYTE1)<<2) + (BYTE2>>6) ] ;
-        res[rc++]  = b64[ 0x3f&BYTE2 ] ;
-    }
+	size_t olen = 4*((len + 2) / 3); /* 3-byte blocks to 4-byte */
+	if(olen < len)
+		return NULL; /* integer overflow */
 
-    if( pad==2 )
-    {
-        res[rc++] = b64[ bin[byteNo] >> 2 ] ;
-        res[rc++] = b64[ (0x3&bin[byteNo])<<4 ] ;
-        res[rc++] = '=';
-        res[rc++] = '=';
-    }
-    else if( pad==1 )
-    {
-        res[rc++]  = b64[ bin[byteNo] >> 2 ] ;
-        res[rc++]  = b64[ ((0x3&bin[byteNo])<<4)   +   (bin[byteNo+1] >> 4) ] ;
-        res[rc++]  = b64[ (0x0f&bin[byteNo+1])<<2 ] ;
-        res[rc++] = '=';
-    }
+	unsigned char *out = (unsigned char*)UA_malloc(olen);
+	if(!out)
+		return NULL;
 
-    res[rc]=0; // NULL TERMINATOR! ;)
-    return res ;
+	const unsigned char *end = src + len;
+	const unsigned char *in = src;
+	unsigned char *pos = out;
+	while(end - in >= 3) {
+		*pos++ = base64_table[in[0] >> 2];
+		*pos++ = base64_table[((in[0] & 0x03) << 4) | (in[1] >> 4)];
+		*pos++ = base64_table[((in[1] & 0x0f) << 2) | (in[2] >> 6)];
+		*pos++ = base64_table[in[2] & 0x3f];
+		in += 3;
+	}
+
+	if(end - in) {
+		*pos++ = base64_table[in[0] >> 2];
+		if(end - in == 1) {
+			*pos++ = base64_table[(in[0] & 0x03) << 4];
+			*pos++ = '=';
+		} else {
+			*pos++ = base64_table[((in[0] & 0x03) << 4) | (in[1] >> 4)];
+			*pos++ = base64_table[(in[1] & 0x0f) << 2];
+		}
+		*pos++ = '=';
+	}
+
+    *out_len = (size_t)(pos - out);
+	return out;
 }
 
-unsigned char* UA_unbase64( const char* ascii, int len, int *flen )
-{
-    const unsigned char *safeAsciiPtr = (const unsigned char*)ascii ;
-    unsigned char *bin ;
-    int cb=0;
-    int charNo;
-    int pad = 0 ;
+static const uint32_t from_b64[256] = {
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  62, 63, 62, 62, 63,
+    52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 0,  0,  0,  0,  0,  0,
+    0,  0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14,
+    15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 0,  0,  0,  0,  63,
+    0,  26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
+    41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51};
 
-    if( len < 2 ) { // 2 accesses below would be OOB.
-        // catch empty string, return NULL as result.
-        puts( "ERROR: You passed an invalid base64 string (too short). You get NULL back." ) ;
-        *flen=0;
-        return 0 ;
-    }
-    if( safeAsciiPtr[ len-1 ]=='=' )  ++pad ;
-    if( safeAsciiPtr[ len-2 ]=='=' )  ++pad ;
-
-    *flen = 3*len/4 - pad ;
-    bin = (unsigned char*)malloc( (size_t) (*flen) ) ;
-    if( !bin )
-    {
-        puts( "ERROR: unbase64 could not allocate enough memory." ) ;
-        puts( "I must stop because I could not get enough" ) ;
-        return 0;
+unsigned char *
+UA_unbase64(const unsigned char *src, size_t len, size_t *out_len) {
+    // we need a minimum length
+    if(len <= 2) {
+        *out_len = 0;
+        return (unsigned char*)UA_EMPTY_ARRAY_SENTINEL;
     }
 
-    for( charNo=0; charNo <= len - 4 - pad ; charNo+=4 )
-    {
-        int A=unb64[safeAsciiPtr[charNo]];
-        int B=unb64[safeAsciiPtr[charNo+1]];
-        int C=unb64[safeAsciiPtr[charNo+2]];
-        int D=unb64[safeAsciiPtr[charNo+3]];
+    const unsigned char *p = src;
+    size_t pad1 = len % 4 || p[len - 1] == '=';
+    size_t pad2 = pad1 && (len % 4 > 2 || p[len - 2] != '=');
+    const size_t last = (len - pad1) / 4 << 2;
 
-        bin[cb++] = (unsigned char)((A<<2) | (B>>4)) ;
-        bin[cb++] = (unsigned char)((B<<4) | (C>>2)) ;
-        bin[cb++] = (unsigned char)((C<<6) | (D)) ;
+    unsigned char *str = (unsigned char*)UA_malloc(last / 4 * 3 + pad1 + pad2);
+    if(!str)
+        return NULL;
+
+    unsigned char *pos = str;
+    for(size_t i = 0; i < last; i += 4) {
+        uint32_t n = from_b64[p[i]] << 18 | from_b64[p[i + 1]] << 12 |
+                     from_b64[p[i + 2]] << 6 | from_b64[p[i + 3]];
+        *pos++ = (unsigned char)(n >> 16);
+        *pos++ = (unsigned char)(n >> 8 & 0xFF);
+        *pos++ = (unsigned char)(n & 0xFF);
     }
 
-    if( pad==1 )
-    {
-        int A=unb64[safeAsciiPtr[charNo]];
-        int B=unb64[safeAsciiPtr[charNo+1]];
-        int C=unb64[safeAsciiPtr[charNo+2]];
-
-        bin[cb++] = (unsigned char)((A<<2) | (B>>4)) ;
-        bin[cb++] = (unsigned char)((B<<4) | (C>>2)) ;
+    if(pad1) {
+        if (last + 1 >= len) {
+            UA_free(str);
+            *out_len = 0;
+            return (unsigned char*)UA_EMPTY_ARRAY_SENTINEL;
+        }
+        uint32_t n = from_b64[p[last]] << 18 | from_b64[p[last + 1]] << 12;
+        *pos++ = (unsigned char)(n >> 16);
+        if(pad2) {
+            if (last + 2 >= len) {
+                UA_free(str);
+                *out_len = 0;
+                return (unsigned char*)UA_EMPTY_ARRAY_SENTINEL;
+            }
+            n |= from_b64[p[last + 2]] << 6;
+            *pos++ = (unsigned char)(n >> 8 & 0xFF);
+        }
     }
-    else if( pad==2 )
-    {
-        int A=unb64[safeAsciiPtr[charNo]];
-        int B=unb64[safeAsciiPtr[charNo+1]];
 
-        bin[cb++] = (unsigned char)((A<<2) | (B>>4)) ;
-    }
-
-    return bin ;
+    *out_len = (uintptr_t)(pos - str);
+    return str;
 }
-

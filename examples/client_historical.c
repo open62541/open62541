@@ -1,10 +1,11 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
+#include <open62541/client_config_default.h>
+#include <open62541/client_highlevel.h>
+
 #include <stdio.h>
-#include <ua_client_highlevel.h>
-#include <ua_client.h>
-#include <ua_config_default.h>
+#include <stdlib.h>
 
 #ifdef UA_ENABLE_EXPERIMENTAL_HISTORIZING
 static void
@@ -133,13 +134,14 @@ readHist(UA_Client *client, const UA_NodeId *nodeId,
 }
 
 int main(int argc, char *argv[]) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
 
     /* Connect to the Unified Automation demo server */
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:53530/OPCUA/SimulationServer");
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
-        return (int)retval;
+        return EXIT_FAILURE;
     }
 
     /* Read historical values (uint32) */
@@ -174,5 +176,5 @@ int main(int argc, char *argv[]) {
 #endif
     UA_Client_disconnect(client);
     UA_Client_delete(client);
-    return (int) retval;
+    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }

@@ -5,18 +5,17 @@
  * Copyright (c) 2017 - 2018 Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
-#include "ua_server_pubsub.h"
-#include "src_generated/ua_types_generated_encoding_binary.h"
-#include "ua_types.h"
-#include "ua_pubsub.h"
-#include "ua_config_default.h"
-#include "ua_network_pubsub_udp.h"
+#include <open62541/plugin/pubsub_udp.h>
+#include <open62541/server_config_default.h>
+#include <open62541/server_pubsub.h>
+
+#include "open62541/types_generated_encoding_binary.h"
+
 #include "ua_server_internal.h"
-#include "check.h"
-#include "stdio.h"
+
+#include <check.h>
 
 UA_Server *server = NULL;
-UA_ServerConfig *config = NULL;
 UA_NodeId connection1, connection2;
 
 static void setup(void) {
@@ -26,7 +25,9 @@ static void teardown(void) {
 }
 
 START_TEST(AddMultipleTransportLayers){
-    config = UA_ServerConfig_new_default();
+    server = UA_Server_new();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_ServerConfig_setDefault(config);
 
     UA_PubSubTransportLayer pubsubTransportLayer;
 
@@ -44,13 +45,8 @@ START_TEST(AddMultipleTransportLayers){
     UA_ServerConfig_addPubSubTransportLayer(config, &pubsubTransportLayer);
     ck_assert_int_eq(config->pubsubTransportLayersSize, 3);
 
-    server = UA_Server_new(config);
     UA_Server_delete(server);
-
-    UA_ServerConfig_delete(config);
-
-    } END_TEST
-
+} END_TEST
 
 int main(void) {
     TCase *tc_add_pubsub_writergroup = tcase_create("PubSub Layer allocation");

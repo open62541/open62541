@@ -9,17 +9,17 @@
 #ifndef UA_TYPES_ENCODING_JSON_H_
 #define UA_TYPES_ENCODING_JSON_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <open62541/types.h>
 
-#include "ua_util_internal.h"
 #include "ua_types_encoding_binary.h"
 #include "ua_types_encoding_json.h"
-#include "ua_types.h"
+#include "ua_util_internal.h"
+
 #include "../deps/jsmn/jsmn.h"
- 
-#define TOKENCOUNT 1000
+
+_UA_BEGIN_DECLS
+
+#define UA_JSON_MAXTOKENCOUNT 1000
     
 size_t
 UA_calcSizeJson(const void *src, const UA_DataType *type,
@@ -60,7 +60,7 @@ typedef struct {
 } CtxJson;
 
 UA_StatusCode writeJsonObjStart(CtxJson *ctx);
-UA_StatusCode writeJsonObjElm(CtxJson *ctx, UA_String *key,
+UA_StatusCode writeJsonObjElm(CtxJson *ctx, const char *key,
                               const void *value, const UA_DataType *type);
 UA_StatusCode writeJsonObjEnd(CtxJson *ctx);
 
@@ -81,7 +81,7 @@ calcJsonObjStart(CtxJson *ctx) {
 }
 
 static UA_INLINE UA_StatusCode
-calcJsonObjElm(CtxJson *ctx, UA_String *key,
+calcJsonObjElm(CtxJson *ctx, const char *key,
                const void *value, const UA_DataType *type) {
     UA_assert(ctx->calcOnly);
     return writeJsonObjElm(ctx, key, value, type);
@@ -112,10 +112,19 @@ calcJsonArrEnd(CtxJson *ctx) {
     return writeJsonArrEnd(ctx);
 }
 
+status
+encodeJsonInternal(const void *src, const UA_DataType *type, CtxJson *ctx);
+
 typedef struct {
     jsmntok_t *tokenArray;
     UA_Int32 tokenCount;
     UA_UInt16 index;
+
+    /* Additonal data for special cases such as networkmessage/datasetmessage
+     * Currently only used for dataSetWriterIds */
+    size_t numCustom;
+    void * custom;
+    size_t* currentCustomIndex;
 } ParseCtx;
 
 typedef UA_StatusCode
@@ -134,6 +143,7 @@ typedef struct {
     void * fieldPointer;
     decodeJsonSignature function;
     UA_Boolean found;
+    const UA_DataType *type;
 } DecodeEntry;
 
 UA_StatusCode
@@ -152,8 +162,6 @@ jsmntype_t getJsmnType(const ParseCtx *parseCtx);
 UA_StatusCode tokenize(ParseCtx *parseCtx, CtxJson *ctx, const UA_ByteString *src);
 UA_Boolean isJsonNull(const CtxJson *ctx, const ParseCtx *parseCtx);
 
-#ifdef __cplusplus
-}
-#endif
+_UA_END_DECLS
 
 #endif /* UA_TYPES_ENCODING_JSON_H_ */

@@ -4,7 +4,9 @@
  *    Copyright 2018 (c) Jose Cabral, fortiss GmbH
  */
 
-#include "ua_types.h"
+#ifdef UA_ARCHITECTURE_ECOS
+
+#include <open62541/types.h>
 
 UA_DateTime UA_DateTime_now(void) {
   return UA_DateTime_nowMonotonic();
@@ -33,3 +35,5 @@ UA_DateTime UA_DateTime_nowMonotonic(void) {
   ts.tv_nsec = (UATime.milliSec % 1000) * 1000000;
   return (ts.tv_sec * UA_DATETIME_SEC) + (ts.tv_nsec / 100) + UA_DATETIME_UNIX_EPOCH;
 }
+
+#endif /* UA_ARCHITECTURE_ECOS */

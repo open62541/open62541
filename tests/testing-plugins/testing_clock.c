@@ -5,7 +5,9 @@
 #include "testing_clock.h"
 #include <time.h>
 
-UA_DateTime testingClock = 0;
+/* To avoid zero timestamp value in header, the testingClock
+ * is assigned with non-zero timestamp to pass unit tests */
+UA_DateTime testingClock = 0x5C8F735D;
 
 UA_DateTime UA_DateTime_now(void) {
     return testingClock;
@@ -41,6 +43,8 @@ UA_realSleep(UA_UInt32 duration) {
 #endif
 }
 
+/* Defined for the architecture via
+ * add_definitions(-DUA_sleep_ms=UA_comboSleep) */
 void
 UA_comboSleep(unsigned long duration) {
     UA_fakeSleep((UA_UInt32)duration);

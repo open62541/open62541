@@ -5,16 +5,16 @@
  *    Copyright 2018 (c) basysKom GmbH <opensource@basyskom.com> (Author: Peter Rustler)
  */
 
-#include "ua_types.h"
-#include "ua_server.h"
-#include "ua_client_subscriptions.h"
-#include "ua_config_default.h"
-#include "ua_network_tcp.h"
+#include <open62541/client_subscriptions.h>
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
+#include <open62541/types.h>
+
+#include <stddef.h>
 
 #include "check.h"
 #include "testing_clock.h"
 #include "testing_networklayers.h"
-#include <stddef.h>
 
 #ifdef UA_ENABLE_STATUSCODE_DESCRIPTIONS
     #define ASSERT_STATUSCODE(a,b) ck_assert_str_eq(UA_StatusCode_name(a),UA_StatusCode_name(b));
@@ -23,18 +23,16 @@
 #endif
 
 UA_Server *server;
-UA_ServerConfig *config;
 size_t callbackCount = 0;
 
 UA_NodeId parentNodeId;
 UA_NodeId parentReferenceNodeId;
 UA_NodeId outNodeId;
 
-static void
-setup(void)
-{
-    config = UA_ServerConfig_new_default();
-    server = UA_Server_new(config);
+static void setup(void) {
+    server = UA_Server_new();
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
+
     UA_StatusCode retval = UA_Server_run_startup(server);
     ASSERT_STATUSCODE(retval, UA_STATUSCODE_GOOD);
     /* Define the attribute of the uint32 variable node */
@@ -63,16 +61,13 @@ setup(void)
                                                 &outNodeId), UA_STATUSCODE_GOOD);
 }
 
-static void
-teardown(void)
-{
+static void teardown(void) {
     /* cleanup */
     UA_NodeId_deleteMembers(&parentNodeId);
     UA_NodeId_deleteMembers(&parentReferenceNodeId);
     UA_NodeId_deleteMembers(&outNodeId);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
 }
 
 static void

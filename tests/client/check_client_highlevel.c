@@ -2,16 +2,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "ua_server.h"
-#include "ua_client.h"
-#include "ua_config_default.h"
-#include "ua_client_highlevel.h"
-#include "ua_network_tcp.h"
-#include "check.h"
+#include <open62541/client.h>
+#include <open62541/client_config_default.h>
+#include <open62541/client_highlevel.h>
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
+
+#include <check.h>
+
 #include "thread_wrapper.h"
 
 UA_Server *server;
-UA_ServerConfig *config;
 UA_Boolean running;
 UA_ServerNetworkLayer nl;
 THREAD_HANDLE server_thread;
@@ -29,15 +30,16 @@ THREAD_CALLBACK(serverloop) {
 
 static void setup(void) {
     running = true;
-    config = UA_ServerConfig_new_default();
-    server = UA_Server_new(config);
+    server = UA_Server_new();
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     ck_assert_uint_eq(2, UA_Server_addNamespace(server, CUSTOM_NS));
 
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
 
-    client = UA_Client_new(UA_ClientConfig_default);
+    client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 }
@@ -49,7 +51,6 @@ static void teardown(void) {
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
 }
 
 START_TEST(Misc_State) {
@@ -111,6 +112,8 @@ START_TEST(Node_Add) {
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
 
+    /* Minimal nodeset does not contain UA_NS0ID_INTEGER node */
+    #ifdef UA_GENERATED_NAMESPACE_ZERO
     // Create Int128 DataType within Integer Datatype
     {
         UA_DataTypeAttributes attr = UA_DataTypeAttributes_default;
@@ -122,6 +125,7 @@ START_TEST(Node_Add) {
                                            UA_QUALIFIEDNAME(1, "Int128"), attr, &newDataTypeId);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
+    #endif
 
     // Create PointType VariableType within BaseDataVariableType
     {
@@ -537,7 +541,9 @@ static void checkNodeClass(UA_Client *clientNc, const UA_NodeId nodeId, const UA
 START_TEST(Node_ReadWrite_Class) {
     checkNodeClass(client, nodeReadWriteInt, UA_NODECLASS_VARIABLE);
     checkNodeClass(client, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), UA_NODECLASS_OBJECT);
-#ifdef UA_ENABLE_METHODCALLS
+
+    /* Minimal nodeset does not contain UA_NS0ID_SERVER_GETMONITOREDITEMS node */
+#if defined(UA_ENABLE_METHODCALLS) && defined(UA_GENERATED_NAMESPACE_ZERO)
     checkNodeClass(client, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS), UA_NODECLASS_METHOD);
 #endif
 
@@ -562,20 +568,10 @@ START_TEST(Node_ReadWrite_BrowseName) {
     browseName = UA_QUALIFIEDNAME(1,"Int-Changed");
 
     retval = UA_Client_writeBrowseNameAttribute(client, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), &browseName);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_BADUSERACCESSDENIED);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
 
     retval = UA_Client_writeBrowseNameAttribute(client, nodeReadWriteInt, &browseName);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-
-    UA_QualifiedName browseNameChangedRead;
-    retval = UA_Client_readBrowseNameAttribute(client, nodeReadWriteInt, &browseNameChangedRead);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-
-    ck_assert_int_eq(browseName.namespaceIndex, browseNameChangedRead.namespaceIndex);
-    ck_assert(UA_String_equal(&browseName.name, &browseNameChangedRead.name));
-
-    UA_QualifiedName_deleteMembers(&browseNameChangedRead);
-
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
 }
 END_TEST
 

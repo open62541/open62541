@@ -1,45 +1,39 @@
-#!/usr/bin/env/python
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-###
-### Author:  Chris Iatrou (ichrispa@core-vector.net)
-### Version: rev 13
-###
-### This program was created for educational purposes and has been
-### contributed to the open62541 project by the author. All licensing
-### terms for this source is inherited by the terms and conditions
-### specified for by the open62541 project (see the projects readme
-### file for more information on the LGPL terms and restrictions).
-###
-### This program is not meant to be used in a production environment. The
-### author is not liable for any complications arising due to the use of
-### this program.
-###
+### This Source Code Form is subject to the terms of the Mozilla Public
+### License, v. 2.0. If a copy of the MPL was not distributed with this
+### file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+###    Copyright 2014-2015 (c) TU-Dresden (Author: Chris Iatrou)
+###    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+###    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
+
 
 import sys
 import logging
+import re
 from datetime import datetime
-
+import xml.dom.minidom as dom
+from base64 import *
 
 __all__ = ['valueIsInternalType', 'Value', 'Boolean', 'Number', 'Integer',
            'UInteger', 'Byte', 'SByte',
            'Int16', 'UInt16', 'Int32', 'UInt32', 'Int64', 'UInt64', 'Float', 'Double',
-           'String', 'XmlElement', 'ByteString', 'ExtensionObject', 'LocalizedText',
+           'String', 'XmlElement', 'ByteString', 'Structure', 'ExtensionObject', 'LocalizedText',
            'NodeId', 'ExpandedNodeId', 'DateTime', 'QualifiedName', 'StatusCode',
            'DiagnosticInfo', 'Guid']
 
 logger = logging.getLogger(__name__)
-import xml.dom.minidom as dom
-
-from base64 import *
-
-import six
 
 if sys.version_info[0] >= 3:
     # strings are already parsed to unicode
     def unicode(s):
         return s
 
+    string_types = str
+else:
+    string_types = basestring 
 
 def getNextElementNode(xmlvalue):
     if xmlvalue is None:
@@ -187,18 +181,30 @@ class Value(object):
         if len(enc) == 1:
             # 0: ['BuiltinType']          either builtin type
             # 1: [ [ 'Alias', [...], n] ] or single alias for possible multipart
-            if isinstance(enc[0], six.string_types):
+            if isinstance(enc[0], string_types):
                 # 0: 'BuiltinType'
                 if alias is not None:
-                    if not xmlvalue.localName == alias and not xmlvalue.localName == enc[0]:
+                    if xmlvalue is not None and not xmlvalue.localName == alias and not xmlvalue.localName == enc[0]:
                         logger.error(str(parent.id) + ": Expected XML element with tag " + alias + " but found " + xmlvalue.localName + " instead")
-                        return None
+                        return ExtensionObject()
                     else:
                         t = self.getTypeByString(enc[0], enc)
                         t.alias = alias
-                        t.parseXML(xmlvalue)
                         t.valueRank = valueRank
-                        return t
+
+                        if valueRank == 1:
+                            values = []
+                            for el in xmlvalue.childNodes:
+                                if not el.nodeType == el.ELEMENT_NODE:
+                                    continue
+                                val = self.getTypeByString(enc[0], enc)
+                                val.parseXML(el)
+                                values.append(val)
+                            return values
+                        else:
+                            if xmlvalue is not None:
+                                t.parseXML(xmlvalue)
+                            return t
                 else:
                     if not valueIsInternalType(xmlvalue.localName):
                         logger.error(str(parent.id) + ": Expected XML describing builtin type " + enc[0] + " but found " + xmlvalue.localName + " instead")
@@ -212,7 +218,7 @@ class Value(object):
                 # Let the next elif handle this
                 return self.__parseXMLSingleValue(xmlvalue, parentDataTypeNode, parent,
                                                   alias=alias, encodingPart=enc[0], valueRank=enc[2] if len(enc)>2 else None)
-        elif len(enc) == 3 and isinstance(enc[0], six.string_types):
+        elif len(enc) == 3 and isinstance(enc[0], string_types):
             # [ 'Alias', [...], 0 ]          aliased multipart
             if alias is None:
                 alias = enc[0]
@@ -222,29 +228,43 @@ class Value(object):
             # otherwise drop the alias
             return self.__parseXMLSingleValue(xmlvalue, parentDataTypeNode, parent,
                                               alias=alias, encodingPart=enc[1], valueRank=enc[2] if len(enc)>2 else None)
+        elif not xmlvalue.localName == "ExtensionObject":
+            structure = Structure()
+            structure.alias = alias
+            structure.value = []
+            for e in enc:
+                # get field name
+                if len(e) == 3 and isinstance(e[0], string_types):
+                    field = e[0]
+                    childValue = xmlvalue.getElementsByTagName(field)
+                    if childValue is not None and len(childValue) >= 1:
+                        structure.value.append(structure.__parseXMLSingleValue(childValue[0], parentDataTypeNode, parent,
+                                                                               alias=None, encodingPart=e))
+                    else:
+                        prefix = alias + "." if alias is not None else ""
+                        logger.error(str(parent.id) + ": Expected Field '" + prefix + field + "' not found in ExtensionObject value")
+                else:
+                    logger.error(str(parent.id) + ": Expected Encoding to contain field name. Cannot construct struct")
+
+            return structure
         else:
             # [ [...], [...], [...]] multifield of unknowns (analyse separately)
             # create an extension object to hold multipart type
 
-            # FIXME: This implementation expects an extensionobject to be manditory for
-            #        multipart variables. Variants/Structures are not included in the
-            #        OPCUA Namespace 0 nodeset.
-            #        Consider moving this ExtensionObject specific parsing into the
-            #        builtin type and only determining the multipart type at this stage.
+            extobj = ExtensionObject()
             if not xmlvalue.localName == "ExtensionObject":
                 logger.error(str(parent.id) + ": Expected XML tag <ExtensionObject> for multipart type, but found " + xmlvalue.localName + " instead.")
-                return None
+                return extobj
 
-            extobj = ExtensionObject()
             extobj.encodingRule = enc
             etype = xmlvalue.getElementsByTagName("TypeId")
             if len(etype) == 0:
                 logger.error(str(parent.id) + ": Did not find <TypeId> for ExtensionObject")
-                return None
+                return extobj
             etype = etype[0].getElementsByTagName("Identifier")
             if len(etype) == 0:
                 logger.error(str(parent.id) + ": Did not find <Identifier> for ExtensionObject")
-                return None
+                return extobj
 
             etype = NodeId(etype[0].firstChild.data.strip(' \t\n\r'))
             extobj.typeId = etype
@@ -252,41 +272,49 @@ class Value(object):
             ebody = xmlvalue.getElementsByTagName("Body")
             if len(ebody) == 0:
                 logger.error(str(parent.id) + ": Did not find <Body> for ExtensionObject")
-                return None
+                return extobj
             ebody = ebody[0]
 
-            # Body must contain an Object of type 'DataType' as defined in Variable
-            ebodypart = ebody.firstChild
-            if not ebodypart.nodeType == ebodypart.ELEMENT_NODE:
-                ebodypart = getNextElementNode(ebodypart)
-            if ebodypart is None:
-                logger.error(str(parent.id) + ": Expected ExtensionObject to hold a variable of type " + str(parentDataTypeNode.browseName) + " but found nothing.")
-                return None
+            try:
+                # Body must contain an Object of type 'DataType' as defined in Variable
+                ebodypart = ebody.firstChild
+                if not ebodypart.nodeType == ebodypart.ELEMENT_NODE:
+                    ebodypart = getNextElementNode(ebodypart)
+                if ebodypart is None:
+                    logger.error(str(parent.id) + ": Expected ExtensionObject to hold a variable of type " + str(parentDataTypeNode.browseName) + " but found nothing.")
+                    return extobj
 
-            if not ebodypart.localName == parentDataTypeNode.browseName.name:
-                logger.error(str(parent.id) + ": Expected ExtensionObject to hold a variable of type " + str(parentDataTypeNode.browseName) + " but found " +
-                             str(ebodypart.localName) + " instead.")
-                return None
-            extobj.alias = ebodypart.localName
+                parentName = parentDataTypeNode.browseName.name
+                if parentDataTypeNode.symbolicName is not None and parentDataTypeNode.symbolicName.value is not None:
+                    parentName = parentDataTypeNode.symbolicName.value
+                if not ebodypart.localName == "OptionSet" and not ebodypart.localName == parentName:
+                    logger.error(str(parent.id) + ": Expected ExtensionObject to hold a variable of type " + str(parentDataTypeNode.browseName) + " but found " +
+                                 str(ebodypart.localName) + " instead.")
+                    return extobj
+                extobj.alias = ebodypart.localName
 
-            ebodypart = ebodypart.firstChild
-            if not ebodypart.nodeType == ebodypart.ELEMENT_NODE:
-                ebodypart = getNextElementNode(ebodypart)
-            if ebodypart is None:
-                logger.error(str(parent.id) + ": Description of dataType " + str(parentDataTypeNode.browseName) + " in ExtensionObject is empty/invalid.")
-                return None
+                ebodypart = ebodypart.firstChild
+                if not ebodypart.nodeType == ebodypart.ELEMENT_NODE:
+                    ebodypart = getNextElementNode(ebodypart)
+                if ebodypart is None:
+                    logger.error(str(parent.id) + ": Description of dataType " + str(parentDataTypeNode.browseName) + " in ExtensionObject is empty/invalid.")
+                    return extobj
 
-            extobj.value = []
-            for e in enc:
-                if not ebodypart is None:
-                    extobj.value.append(extobj.__parseXMLSingleValue(ebodypart, parentDataTypeNode, parent, alias=None, encodingPart=e))
-                else:
-                    logger.error(str(parent.id) + ": Expected encoding " + str(e) + " but found none in body.")
-                ebodypart = getNextElementNode(ebodypart)
+                extobj.value = []
+                for e in enc:
+                    extobj.value.append(extobj.__parseXMLSingleValue(ebodypart, parentDataTypeNode, parent,
+                                                                     alias=None, encodingPart=e))
+                    ebodypart = getNextElementNode(ebodypart)
+            except Exception as ex:
+                logger.error(str(parent.id) + ": Could not parse <Body> for ExtensionObject. {}".format(ex))
+
             return extobj
 
     def __str__(self):
         return self.__class__.__name__ + "(" + str(self.value) + ")"
+
+    def isNone(self):
+        return self.value is None
 
     def __repr__(self):
         return self.__str__()
@@ -294,6 +322,17 @@ class Value(object):
 #################
 # Builtin Types #
 #################
+
+
+def getXmlTextTrimmed(xmlNode):
+    if xmlNode is None or xmlNode.data is None:
+        return None
+    content = xmlNode.data
+    # Check for empty string (including newlines)
+    if not re.sub(r"[\s\n\r]", "", content).strip():
+        return None
+    return unicode(content.strip())
+
 
 class Boolean(Value):
     def __init__(self, xmlelement=None):
@@ -305,7 +344,8 @@ class Boolean(Value):
         # Expect <Boolean>value</Boolean> or
         #        <Aliasname>value</Aliasname>
         self.checkXML(xmlvalue)
-        if xmlvalue.firstChild is None:
+        val = getXmlTextTrimmed(xmlvalue.firstChild)
+        if val is None:
             self.value = "false"  # Catch XML <Boolean /> by setting the value to a default
         else:
             if "false" in unicode(xmlvalue.firstChild.data).lower():
@@ -323,10 +363,8 @@ class Number(Value):
         # Expect <Int16>value</Int16> or any other valid number type, or
         #        <Aliasname>value</Aliasname>
         self.checkXML(xmlvalue)
-        if xmlvalue.firstChild is None:
-            self.value = 0  # Catch XML <Int16 /> by setting the value to a default
-        else:
-            self.value = int(unicode(xmlvalue.firstChild.data))
+        val = getXmlTextTrimmed(xmlvalue.firstChild)
+        self.value = val if val is not None else 0
 
 class Integer(Number):
     def __init__(self, xmlelement=None):
@@ -398,10 +436,8 @@ class Float(Number):
         # Expect <Float>value</Float> or
         #        <Aliasname>value</Aliasname>
         self.checkXML(xmlvalue)
-        if xmlvalue.firstChild is None:
-            self.value = 0.0  # Catch XML <Float /> by setting the value to a default
-        else:
-            self.value = float(unicode(xmlvalue.firstChild.data))
+        val = getXmlTextTrimmed(xmlvalue.firstChild)
+        self.value = val if val is not None else 0.0
 
 class Double(Float):
     def __init__(self, xmlelement=None):
@@ -427,10 +463,9 @@ class String(Value):
             self.value = xmlvalue
             return
         self.checkXML(xmlvalue)
-        if xmlvalue.firstChild is None:
-            self.value = ""  # Catch XML <String /> by setting the value to a default
-        else:
-            self.value = unicode(xmlvalue.firstChild.data)
+        val = getXmlTextTrimmed(xmlvalue.firstChild)
+        self.value = val if val is not None else ""
+
 
 class XmlElement(String):
     def __init__(self, xmlelement=None):
@@ -449,7 +484,7 @@ class ByteString(Value):
         if xmlvalue.firstChild is None:
             self.value = []  # Catch XML <ByteString /> by setting the value to a default
         else:
-            self.value = b64decode(xmlvalue.firstChild.data).decode("utf-8")
+            self.value = b64decode(xmlvalue.firstChild.data)
 
 class ExtensionObject(Value):
     def __init__(self, xmlelement=None):
@@ -463,11 +498,23 @@ class ExtensionObject(Value):
     def __str__(self):
         return "'ExtensionObject'"
 
+class Structure(Value):
+    def __init__(self, xmlelement=None):
+        Value.__init__(self)
+        if xmlelement:
+            self.parseXML(xmlelement)
+
+    def parseXML(self, xmlelement):
+        pass
+
+    def __str__(self):
+        return "'Structure'"
+
 class LocalizedText(Value):
     def __init__(self, xmlvalue=None):
         Value.__init__(self)
-        self.locale = ''
-        self.text = ''
+        self.locale = None
+        self.text = None
         if xmlvalue:
             self.parseXML(xmlvalue)
 
@@ -488,10 +535,15 @@ class LocalizedText(Value):
             self.text = tmp[0].firstChild.data.strip(' \t\n\r')
 
     def __str__(self):
+        if self.locale is None and self.text is None:
+            return "None"
         if self.locale is not None and len(self.locale) > 0:
             return "(" + self.locale + ":" + self.text + ")"
         else:
             return self.text
+
+    def isNone(self):
+        return self.text is None
 
 class NodeId(Value):
     def __init__(self, idstring=None):
@@ -533,6 +585,7 @@ class NodeId(Value):
             else:
                 raise Exception("no valid nodeid: " + idstring)
 
+    # The parsing can be called with an optional namespace mapping dict.
     def parseXML(self, xmlvalue):
         # Expect <NodeId> or <Alias>
         #           <Identifier> # It is unclear whether or not this is manditory. Identifier tags are used in Namespace 0.
@@ -572,6 +625,9 @@ class NodeId(Value):
         elif self.s != None:
             return s + "s=" + str(self.s)
 
+    def isNone(self):
+        return self.i is None and self.b is None and self.s is None and self.g is None
+
     def __eq__(self, nodeId2):
         return (str(self) == str(nodeId2))
 
@@ -605,11 +661,12 @@ class DateTime(Value):
         #        2013-08-13T21:00:05.0000L
         #        </DateTime> or </AliasName>
         self.checkXML(xmlvalue)
-        if xmlvalue.firstChild is None:
+        timestr = getXmlTextTrimmed(xmlvalue.firstChild)
+
+        if timestr is None:
             # Catch XML <DateTime /> by setting the value to a default
             self.value = datetime(2001, 1, 1)
         else:
-            timestr = unicode(xmlvalue.firstChild.data)
             # .NET tends to create this garbage %Y-%m-%dT%H:%M:%S.0000z
             # strip everything after the "." away for a posix time_struct
             if "." in timestr:
@@ -631,7 +688,7 @@ class QualifiedName(Value):
     def __init__(self, xmlelement=None):
         Value.__init__(self)
         self.ns = 0
-        self.name = ''
+        self.name = None
         if xmlelement:
             self.parseXML(xmlelement)
 
@@ -656,8 +713,12 @@ class QualifiedName(Value):
         if len(xmlvalue.getElementsByTagName("Name")) != 0:
             self.name = xmlvalue.getElementsByTagName("Name")[0].firstChild.data
 
+
     def __str__(self):
         return "ns=" + str(self.ns) + ";" + str(self.name)
+
+    def isNone(self):
+        return self.name is None
 
 class StatusCode(UInt32):
     def __init__(self, xmlelement=None):
@@ -681,10 +742,13 @@ class Guid(Value):
 
     def parseXML(self, xmlvalue):
         self.checkXML(xmlvalue)
-        if xmlvalue.firstChild is None:
+
+        val = getXmlTextTrimmed(xmlvalue.firstChild)
+
+        if val is None:
             self.value = [0, 0, 0, 0]  # Catch XML <Guid /> by setting the value to a default
         else:
-            self.value = unicode(xmlvalue.firstChild.data)
+            self.value = val
             self.value = self.value.replace("{", "")
             self.value = self.value.replace("}", "")
             self.value = self.value.split("-")

@@ -2,18 +2,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include <stdlib.h>
+#include <open62541/client.h>
+#include <open62541/client_config_default.h>
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
+#include <open62541/types.h>
 
-#include "ua_types.h"
-#include "ua_server.h"
-#include "ua_client.h"
-#include "ua_config_default.h"
-#include "check.h"
+#include <check.h>
 
 #include "thread_wrapper.h"
 
 UA_Server *server;
-UA_ServerConfig *config;
 UA_Boolean running;
 UA_ServerNetworkLayer nl;
 THREAD_HANDLE server_thread;
@@ -26,8 +25,8 @@ THREAD_CALLBACK(serverloop) {
 
 static void setup(void) {
     running = true;
-    config = UA_ServerConfig_new_default();
-    server = UA_Server_new(config);
+    server = UA_Server_new();
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
 }
@@ -37,52 +36,54 @@ static void teardown(void) {
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
 }
 
 START_TEST(Client_anonymous) {
-        UA_Client *client = UA_Client_new(UA_ClientConfig_default);
-        UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
 
-        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-        UA_Client_disconnect(client);
-        UA_Client_delete(client);
-    }
-END_TEST
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
 
 START_TEST(Client_user_pass_ok) {
-        UA_Client *client = UA_Client_new(UA_ClientConfig_default);
-        UA_StatusCode retval = UA_Client_connect_username(client, "opc.tcp://localhost:4840", "user1", "password");
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_StatusCode retval =
+        UA_Client_connect_username(client, "opc.tcp://localhost:4840", "user1", "password");
 
-        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-        UA_Client_disconnect(client);
-        UA_Client_delete(client);
-    }
-END_TEST
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
 
 START_TEST(Client_user_fail) {
-        UA_Client *client = UA_Client_new(UA_ClientConfig_default);
-        UA_StatusCode retval = UA_Client_connect_username(client, "opc.tcp://localhost:4840", "user0", "password");
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_StatusCode retval =
+        UA_Client_connect_username(client, "opc.tcp://localhost:4840", "user0", "password");
 
-        ck_assert_uint_eq(retval, UA_STATUSCODE_BADUSERACCESSDENIED);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADUSERACCESSDENIED);
 
-        UA_Client_disconnect(client);
-        UA_Client_delete(client);
-    }
-END_TEST
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
 
 START_TEST(Client_pass_fail) {
-        UA_Client *client = UA_Client_new(UA_ClientConfig_default);
-        UA_StatusCode retval = UA_Client_connect_username(client, "opc.tcp://localhost:4840", "user1", "secret");
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_StatusCode retval =
+        UA_Client_connect_username(client, "opc.tcp://localhost:4840", "user1", "secret");
 
-        ck_assert_uint_eq(retval, UA_STATUSCODE_BADUSERACCESSDENIED);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADUSERACCESSDENIED);
 
-        UA_Client_disconnect(client);
-        UA_Client_delete(client);
-    }
-END_TEST
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
 
 
 static Suite* testSuite_Client(void) {

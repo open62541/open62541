@@ -1,0 +1,20 @@
+{
+    "MessageId": "1CD777E3-9590-A4E2-6DB6-4BE40EE09EB9",
+    "MessageType": "ua-data",
+    "Messages": [
+        {
+            "DataSetWriterId": 62541,
+            "MetaDataVersion": {
+                "MajorVersion": 1708098706,
+                "MinorVersion": 0
+            },
+            "Timestamp": "2019-01-20T23:33:28.493Z",
+            "Payload": {
+                "": {
+                    "Type": 13,
+                    "Body": "2019-01-20T23:33:28.493Z"
+                }
+            }
+        }
+    ]
+}

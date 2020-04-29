@@ -5,8 +5,8 @@
  *    Copyright 2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  */
 
-#include <ua_types.h>
-#include <ua_types_generated_handling.h>
+#include <open62541/types.h>
+#include <open62541/types_generated_handling.h>
 #include "ua_types_encoding_json.h"
 
 /* Decode a message, then encode, decode, encode.
@@ -38,19 +38,22 @@ LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {
     const uint8_t *bufEnd = &buf2.data[buf2.length];
     retval = UA_encodeJson(&value, &UA_TYPES[UA_TYPES_VARIANT],
                            &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
-    assert(retval == UA_STATUSCODE_GOOD);
-    assert(bufPos == bufEnd);
+	UA_Variant_deleteMembers(&value);
+	if(retval != UA_STATUSCODE_GOOD || bufPos != bufEnd) {
+		return 0;
+	}
 
     UA_Variant value2;
     UA_Variant_init(&value2);
 
     retval = UA_decodeJson(&buf2, &value2, &UA_TYPES[UA_TYPES_VARIANT]);
-    assert(retval == UA_STATUSCODE_GOOD);
+    if(retval != UA_STATUSCODE_GOOD) {
+		return 0;
+	}
 
     UA_ByteString buf3 = UA_BYTESTRING_NULL;
     retval = UA_ByteString_allocBuffer(&buf3, jsonSize);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_Variant_deleteMembers(&value);
         UA_Variant_deleteMembers(&value2);
         UA_ByteString_deleteMembers(&buf2);
         return 0;
@@ -60,14 +63,16 @@ LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {
     bufEnd = &buf3.data[buf3.length];
     retval = UA_encodeJson(&value2, &UA_TYPES[UA_TYPES_VARIANT],
                            &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
-    assert(retval == UA_STATUSCODE_GOOD);
-    assert(bufPos == bufEnd);
-    assert(memcmp(buf2.data, buf3.data, buf.length) == 0);
+	UA_Variant_deleteMembers(&value2);
+	if(retval != UA_STATUSCODE_GOOD) {
+		UA_ByteString_deleteMembers(&buf2);
+		UA_ByteString_deleteMembers(&buf3);
+		return 0;
+	}
 
-    UA_Variant_deleteMembers(&value);
-    UA_Variant_deleteMembers(&value2);
+    UA_assert(buf2.length == buf3.length);
+    UA_assert(memcmp(buf2.data, buf3.data, buf2.length) == 0);
     UA_ByteString_deleteMembers(&buf2);
     UA_ByteString_deleteMembers(&buf3);
-
     return 0;
 }

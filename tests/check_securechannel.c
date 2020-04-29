@@ -2,20 +2,19 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include <ua_types.h>
-#include <ua_plugin_securitypolicy.h>
-#include <ua_types_encoding_binary.h>
-#include <src_generated/ua_types_generated.h>
-#include <src_generated/ua_transport_generated_encoding_binary.h>
-#include <src_generated/ua_transport_generated.h>
-#include <src_generated/ua_types_generated_encoding_binary.h>
-#include <src_generated/ua_transport_generated_handling.h>
+#include <open62541/transport_generated.h>
+#include <open62541/transport_generated_encoding_binary.h>
+#include <open62541/transport_generated_handling.h>
+#include <open62541/types_generated.h>
+#include <open62541/types_generated_encoding_binary.h>
+#include <open62541/server_config_default.h>
 
-#include "testing_networklayers.h"
-#include "testing_policy.h"
 #include "ua_securechannel.h"
+#include <ua_types_encoding_binary.h>
 
 #include "check.h"
+#include "testing_networklayers.h"
+#include "testing_policy.h"
 
 #define UA_BYTESTRING_STATIC(s) {sizeof(s)-1, (UA_Byte*)(s)}
 
@@ -43,7 +42,7 @@ static key_sizes keySizes;
 static void
 setup_secureChannel(void) {
     TestingPolicy(&dummyPolicy, dummyCertificate, &fCalled, &keySizes);
-    UA_SecureChannel_init(&testChannel);
+    UA_SecureChannel_init(&testChannel, &UA_ConnectionConfig_default);
     UA_SecureChannel_setSecurityPolicy(&testChannel, &dummyPolicy, &dummyCertificate);
 
     testingConnection = createDummyConnection(65535, &sentData);
@@ -55,7 +54,7 @@ static void
 teardown_secureChannel(void) {
     UA_SecureChannel_close(&testChannel);
     UA_SecureChannel_deleteMembers(&testChannel);
-    dummyPolicy.deleteMembers(&dummyPolicy);
+    dummyPolicy.clear(&dummyPolicy);
     testingConnection.close(&testingConnection);
 }
 
@@ -97,7 +96,7 @@ START_TEST(SecureChannel_initAndDelete) {
     UA_StatusCode retval;
 
     UA_SecureChannel channel;
-    UA_SecureChannel_init(&channel);
+    UA_SecureChannel_init(&channel, &UA_ConnectionConfig_default);
     retval = UA_SecureChannel_setSecurityPolicy(&channel, &dummyPolicy, &dummyCertificate);
 
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected StatusCode to be good");
@@ -111,7 +110,7 @@ START_TEST(SecureChannel_initAndDelete) {
     UA_SecureChannel_deleteMembers(&channel);
     ck_assert_msg(fCalled.deleteContext, "Expected deleteContext to have been called");
 
-    dummyPolicy.deleteMembers(&dummyPolicy);
+    dummyPolicy.clear(&dummyPolicy);
 }END_TEST
 
 START_TEST(SecureChannel_generateNewKeys) {
@@ -272,8 +271,10 @@ START_TEST(SecureChannel_sendAsymmetricOPNMessage_sentDataIsValid) {
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected function to succeed");
 
     size_t offset = 0;
-    UA_SecureConversationMessageHeader header;
-    UA_SecureConversationMessageHeader_decodeBinary(&sentData, &offset, &header);
+    UA_TcpMessageHeader header;
+    UA_TcpMessageHeader_decodeBinary(&sentData, &offset, &header);
+    UA_UInt32 secureChannelId;
+    UA_UInt32_decodeBinary(&sentData, &offset, &secureChannelId);
 
     UA_AsymmetricAlgorithmSecurityHeader asymSecurityHeader;
     UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(&sentData, &offset, &asymSecurityHeader);
@@ -293,7 +294,7 @@ START_TEST(SecureChannel_sendAsymmetricOPNMessage_sentDataIsValid) {
                   "in the secureChannel");
 
     /* Dummy encryption */
-    for(size_t i = offset; i < header.messageHeader.messageSize; ++i) {
+    for(size_t i = offset; i < header.messageSize; ++i) {
         sentData.data[i] = (UA_Byte)((sentData.data[i] - 1) % (UA_BYTE_MAX + 1));
     }
 #endif
@@ -329,7 +330,6 @@ START_TEST(SecureChannel_sendAsymmetricOPNMessage_sentDataIsValid) {
     ck_assert_msg(sentData.data[offset + paddingSize + 1] == '*', "Expected first byte of signature");
 #endif
 
-    UA_SecureConversationMessageHeader_deleteMembers(&header);
     UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymSecurityHeader);
     UA_SequenceHeader_deleteMembers(&sequenceHeader);
     UA_OpenSecureChannelResponse_deleteMembers(&sentResponse);
@@ -354,8 +354,10 @@ START_TEST(Securechannel_sendAsymmetricOPNMessage_extraPaddingPresentWhenKeyLarg
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected function to succeed");
 
     size_t offset = 0;
-    UA_SecureConversationMessageHeader header;
-    UA_SecureConversationMessageHeader_decodeBinary(&sentData, &offset, &header);
+    UA_TcpMessageHeader header;
+    UA_TcpMessageHeader_decodeBinary(&sentData, &offset, &header);
+    UA_UInt32 secureChannelId;
+    UA_UInt32_decodeBinary(&sentData, &offset, &secureChannelId);
 
     UA_AsymmetricAlgorithmSecurityHeader asymSecurityHeader;
     UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(&sentData, &offset, &asymSecurityHeader);
@@ -370,7 +372,7 @@ START_TEST(Securechannel_sendAsymmetricOPNMessage_extraPaddingPresentWhenKeyLarg
                   "Expected receiverCertificateThumbprint to be equal to the one set "
                   "in the secureChannel");
 
-    for(size_t i = offset; i < header.messageHeader.messageSize; ++i) {
+    for(size_t i = offset; i < header.messageSize; ++i) {
         sentData.data[i] = (UA_Byte)((sentData.data[i] - 1) % (UA_BYTE_MAX + 1));
     }
 
@@ -411,7 +413,6 @@ START_TEST(Securechannel_sendAsymmetricOPNMessage_extraPaddingPresentWhenKeyLarg
                   "Expected first byte 42 of signature but got %i",
                   sentData.data[offset + paddingSize + 2]);
 
-    UA_SecureConversationMessageHeader_deleteMembers(&header);
     UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymSecurityHeader);
     UA_SequenceHeader_deleteMembers(&sequenceHeader);
     UA_OpenSecureChannelResponse_deleteMembers(&sentResponse);

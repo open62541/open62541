@@ -1,22 +1,36 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-#include <ua_server.h>
-#include <ua_log_stdout.h>
-#include <ua_config_default.h>
-#include "custom_datatype.h"
+#include <open62541/plugin/log_stdout.h>
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
 
 #include <signal.h>
+#include <stdlib.h>
+
+#include "custom_datatype.h"
 
 UA_Boolean running = true;
+const UA_NodeId variableTypeId = {
+    1, UA_NODEIDTYPE_NUMERIC, {4243}};
 
 static void stopHandler(int sig) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "received ctrl-c");
     running = false;
 }
 
+static void add3DPointDataType(UA_Server* server)
+{
+    UA_DataTypeAttributes attr = UA_DataTypeAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "3D Point Type");
+
+    UA_Server_addDataTypeNode(
+        server, PointType.typeId, UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE), UA_QUALIFIEDNAME(1, "3D.Point"), attr, NULL, NULL);
+}
+
 static void
-add3PointDataType(UA_Server *server) {
+add3DPointVariableType(UA_Server *server) {
     UA_VariableTypeAttributes dattr = UA_VariableTypeAttributes_default;
     dattr.description = UA_LOCALIZEDTEXT("en-US", "3D Point");
     dattr.displayName = UA_LOCALIZEDTEXT("en-US", "3D Point");
@@ -29,7 +43,7 @@ add3PointDataType(UA_Server *server) {
     p.z = 0.0;
     UA_Variant_setScalar(&dattr.value, &p, &PointType);
 
-    UA_Server_addVariableTypeNode(server, PointType.typeId,
+    UA_Server_addVariableTypeNode(server, variableTypeId,
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
                                   UA_QUALIFIEDNAME(1, "3D.Point"),
@@ -55,14 +69,17 @@ add3DPointVariable(UA_Server *server) {
                               UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                               UA_QUALIFIEDNAME(1, "3D.Point"),
-                              PointType.typeId, vattr, NULL, NULL);
+                              variableTypeId, vattr, NULL, NULL);
 }
 
 int main(void) {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
 
-    UA_ServerConfig *config = UA_ServerConfig_new_default();
+    UA_Server *server = UA_Server_new();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_ServerConfig_setDefault(config);
+
     /* Make your custom datatype known to the stack */
     UA_DataType *types = (UA_DataType*)UA_malloc(sizeof(UA_DataType));
     UA_DataTypeMember *members = (UA_DataTypeMember*)UA_malloc(sizeof(UA_DataTypeMember) * 3);
@@ -77,14 +94,14 @@ int main(void) {
     UA_DataTypeArray customDataTypes = {config->customDataTypes, 1, types};
     config->customDataTypes = &customDataTypes;
 
-    UA_Server *server = UA_Server_new(config);
-
-    add3PointDataType(server);
+    add3DPointDataType(server);
+    add3DPointVariableType(server);
     add3DPointVariable(server);
 
     UA_Server_run(server, &running);
 
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
-    return 0;
+    UA_free(members);
+    UA_free(types);
+    return EXIT_SUCCESS;
 }

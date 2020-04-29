@@ -1,22 +1,14 @@
-#!/usr/bin/env/python
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-###
-### Authors:
-### - Chris Iatrou (ichrispa@core-vector.net)
-### - Julius Pfrommer
-### - Stefan Profanter (profanter@fortiss.org)
-###
-### This program was created for educational purposes and has been
-### contributed to the open62541 project by the author. All licensing
-### terms for this source is inherited by the terms and conditions
-### specified for by the open62541 project (see the projects readme
-### file for more information on the LGPL terms and restrictions).
-###
-### This program is not meant to be used in a production environment. The
-### author is not liable for any complications arising due to the use of
-### this program.
-###
+### This Source Code Form is subject to the terms of the Mozilla Public
+### License, v. 2.0. If a copy of the MPL was not distributed with this
+### file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+###    Copyright 2014-2015 (c) TU-Dresden (Author: Chris Iatrou)
+###    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+###    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
+
 
 from __future__ import print_function
 from os.path import basename
@@ -72,8 +64,8 @@ def sortNodes(nodeset):
     # used in a reference, it must exist. A Variable node may point to a
     # DataTypeNode in the datatype attribute and not via an explicit reference.
 
-    Q = {node for node in R.values() if in_degree[node.id] == 0 and
-         (isinstance(node, ReferenceTypeNode) or isinstance(node, DataTypeNode))}
+    Q = [node for node in R.values() if in_degree[node.id] == 0 and
+         (isinstance(node, ReferenceTypeNode) or isinstance(node, DataTypeNode))]
     while Q:
         u = Q.pop() # choose node of zero in-degree and 'remove' it from graph
         L.append(u)
@@ -88,10 +80,10 @@ def sortNodes(nodeset):
                 continue
             in_degree[ref.target] -= 1
             if in_degree[ref.target] == 0:
-                Q.add(R[ref.target])
+                Q.append(R[ref.target])
 
     # Order the remaining nodes
-    Q = {node for node in R.values() if in_degree[node.id] == 0}
+    Q = [node for node in R.values() if in_degree[node.id] == 0]
     while Q:
         u = Q.pop() # choose node of zero in-degree and 'remove' it from graph
         L.append(u)
@@ -106,7 +98,7 @@ def sortNodes(nodeset):
                 continue
             in_degree[ref.target] -= 1
             if in_degree[ref.target] == 0:
-                Q.add(R[ref.target])
+                Q.append(R[ref.target])
 
     # reverse hastype references
     for u in nodeset.nodes.values():
@@ -130,7 +122,7 @@ def sortNodes(nodeset):
 # Generate C Code #
 ###################
 
-def generateOpen62541Code(nodeset, outfilename, generate_ns0=False, internal_headers=False, typesArray=[], encode_binary_size=32000):
+def generateOpen62541Code(nodeset, outfilename, internal_headers=False, typesArray=[]):
     outfilebase = basename(outfilename)
     # Printing functions
     outfileh = codecs.open(outfilename + ".h", r"w+", encoding='utf-8')
@@ -147,7 +139,10 @@ def generateOpen62541Code(nodeset, outfilename, generate_ns0=False, internal_hea
         for arr in set(typesArray):
             if arr == "UA_TYPES":
                 continue
-            additionalHeaders += """#include "%s_generated.h"\n""" % arr.lower()
+            # remove ua_ prefix if exists
+            typeFile = arr.lower()
+            typeFile = typeFile[typeFile.startswith("ua_") and len("ua_"):]
+            additionalHeaders += """#include "%s_generated.h"\n""" % typeFile
 
     # Print the preamble of the generated code
     writeh("""/* WARNING: This is a generated file.
@@ -163,7 +158,7 @@ def generateOpen62541Code(nodeset, outfilename, generate_ns0=False, internal_hea
 
 /* The following declarations are in the open62541.c file so here's needed when compiling nodesets externally */
 
-# ifndef UA_Nodestore_remove //this definition is needed to hide this code in the amalgamated .c file
+# ifndef UA_INTERNAL //this definition is needed to hide this code in the amalgamated .c file
 
 typedef UA_StatusCode (*UA_exchangeEncodeBuffer)(void *handle, UA_Byte **bufPos,
                                                  const UA_Byte **bufEnd);
@@ -185,10 +180,10 @@ UA_calcSizeBinary(void *p, const UA_DataType *type);
 const UA_DataType *
 UA_findDataTypeByBinary(const UA_NodeId *typeId);
 
-# endif // UA_Nodestore_remove
+# endif // UA_INTERNAL
 
 #else // UA_ENABLE_AMALGAMATION
-# include "ua_server.h"
+# include <open62541/server.h>
 #endif
 
 %s
@@ -198,7 +193,7 @@ UA_findDataTypeByBinary(const UA_NodeId *typeId);
 #ifdef UA_ENABLE_AMALGAMATION
 # include "open62541.h"
 #else
-# include "ua_server.h"
+# include <open62541/server.h>
 #endif
 %s
 """ % (additionalHeaders))
@@ -224,18 +219,14 @@ _UA_END_DECLS
     logger.info("Writing code for nodes and references")
     functionNumber = 0
 
-    parentreftypes = getSubTypesOf(nodeset, nodeset.getNodeByBrowseName("HierarchicalReferences"))
-    parentreftypes = list(map(lambda x: x.id, parentreftypes))
-
     printed_ids = set()
     for node in sorted_nodes:
         printed_ids.add(node.id)
 
-        parentref = node.popParentRef(parentreftypes)
         if not node.hidden:
             writec("\n/* " + str(node.displayName) + " - " + str(node.id) + " */")
             code_global = []
-            code = generateNodeCode_begin(node, nodeset, generate_ns0, parentref, encode_binary_size, code_global)
+            code = generateNodeCode_begin(node, nodeset, code_global)
             if code is None:
                 writec("/* Ignored. No parent */")
                 nodeset.hide_node(node.id)
@@ -254,6 +245,10 @@ _UA_END_DECLS
             if ref.target not in printed_ids:
                 continue
             if node.hidden and nodeset.nodes[ref.target].hidden:
+                continue
+            if node.parent is not None and ref.target == node.parent.id \
+                and ref.referenceType == node.parentReference.id:
+                # Skip parent reference
                 continue
             writec(generateReferenceCode(ref))
 
@@ -292,11 +287,22 @@ UA_StatusCode retVal = UA_STATUSCODE_GOOD;""" % (outfilebase))
         nsid = nsid.replace("\"", "\\\"")
         writec("ns[" + str(i) + "] = UA_Server_addNamespace(server, \"" + nsid + "\");")
 
-    for i in range(0, functionNumber):
-        writec("retVal |= function_" + outfilebase + "_" + str(i) + "_begin(server, ns);")
+    if functionNumber > 0:
 
-    for i in reversed(range(0, functionNumber)):
-        writec("retVal |= function_" + outfilebase + "_" + str(i) + "_finish(server, ns);")
+        # concatenate method calls with "&&" operator.
+        # The first method which does not return UA_STATUSCODE_GOOD (=0) will cause aborting
+        # the remaining calls and retVal will be set to that error code.
+        writec("bool dummy = (")
+        for i in range(0, functionNumber):
+            writec("!(retVal = function_{outfilebase}_{idx}_begin(server, ns)) &&".format(
+                outfilebase=outfilebase, idx=str(i)))
+
+        for i in reversed(range(0, functionNumber)):
+            writec("!(retVal = function_{outfilebase}_{idx}_finish(server, ns)) {concat}".format(
+                outfilebase=outfilebase, idx=str(i), concat= "&&" if i>0 else ""))
+
+        # use (void)(dummy) to avoid unused variable error.
+        writec("); (void)(dummy);")
 
     writec("return retVal;\n}")
     outfileh.flush()

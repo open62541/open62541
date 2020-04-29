@@ -2,11 +2,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include <stdlib.h>
-#include <assert.h>
 #include "testing_networklayers.h"
+
+#include <open62541/server_config_default.h>
+
+#include <assert.h>
+#include <stdlib.h>
+
 #include "testing_clock.h"
-#include "ua_config_default.h"
 
 static UA_ByteString *vBuffer;
 static UA_ByteString sendBuffer;
@@ -56,11 +59,9 @@ UA_Connection createDummyConnection(size_t sendBufferSize,
 
     UA_Connection c;
     c.state = UA_CONNECTION_ESTABLISHED;
-    c.config = UA_ConnectionConfig_default;
     c.channel = NULL;
     c.sockfd = 0;
     c.handle = NULL;
-    c.incompleteChunk = UA_BYTESTRING_NULL;
     c.getSendBuffer = dummyGetSendBuffer;
     c.releaseSendBuffer = dummyReleaseSendBuffer;
     c.send = dummySend;
