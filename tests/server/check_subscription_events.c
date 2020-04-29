@@ -699,6 +699,60 @@ START_TEST(eventStressing) {
     UA_DeleteMonitoredItemsResponse_deleteMembers(&deleteResponse);
 } END_TEST
 
+START_TEST(evaluateWhereClause) {
+    /* Everything is on the stack, so no memory cleaning required.*/
+    UA_NodeId eventNodeId;
+    UA_StatusCode retval = eventSetup(&eventNodeId);
+    UA_ContentFilter contentFilter;
+    UA_ContentFilter_init(&contentFilter);
+    /* Empty Filter */
+    retval = UA_Server_evaluateWhereClauseContentFilter(server, &eventNodeId, &contentFilter);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_ContentFilterElement contentFilterElement;
+    UA_ContentFilterElement_init(&contentFilterElement);
+    contentFilter.elements = &contentFilterElement;
+    contentFilter.elementsSize = 1;
+
+    /* Illegal filter operators */
+    contentFilterElement.filterOperator = UA_FILTEROPERATOR_RELATEDTO;
+    retval = UA_Server_evaluateWhereClauseContentFilter(server, &eventNodeId, &contentFilter);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADEVENTFILTERINVALID);
+    contentFilterElement.filterOperator = UA_FILTEROPERATOR_INVIEW;
+    retval = UA_Server_evaluateWhereClauseContentFilter(server, &eventNodeId, &contentFilter);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADEVENTFILTERINVALID);
+
+    /* No operand provided */
+    contentFilterElement.filterOperator = UA_FILTEROPERATOR_OFTYPE;
+    retval = UA_Server_evaluateWhereClauseContentFilter(server, &eventNodeId, &contentFilter);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH);
+
+    UA_ExtensionObject filterOperandExObj;
+    UA_ExtensionObject_init(&filterOperandExObj);
+    contentFilterElement.filterOperandsSize = 1;
+    contentFilterElement.filterOperands = &filterOperandExObj;
+    filterOperandExObj.content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
+    UA_LiteralOperand literalOperand;
+    UA_LiteralOperand_init(&literalOperand);
+    filterOperandExObj.content.decoded.data = &literalOperand;
+
+    /* Same type*/
+    UA_Variant_setScalar(&literalOperand.value, &eventType, &UA_TYPES[UA_TYPES_NODEID]);
+    retval = UA_Server_evaluateWhereClauseContentFilter(server, &eventNodeId, &contentFilter);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Base type*/
+    UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+    UA_Variant_setScalar(&literalOperand.value, &nodeId, &UA_TYPES[UA_TYPES_NODEID]);
+    retval = UA_Server_evaluateWhereClauseContentFilter(server, &eventNodeId, &contentFilter);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Other type*/
+    nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEMODELCHANGEEVENTTYPE);
+    retval = UA_Server_evaluateWhereClauseContentFilter(server, &eventNodeId, &contentFilter);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOMATCH);
+}
+END_TEST
+
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
 /* Assumes subscriptions work fine with data change because of other unit test */
@@ -717,6 +771,7 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_server, multipleMonitoredItemsOneNode);
     tcase_add_test(tc_server, discardNewestOverflow);
     tcase_add_test(tc_server, eventStressing);
+    tcase_add_test(tc_server, evaluateWhereClause);
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
     suite_add_tcase(s, tc_server);
 

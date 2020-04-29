@@ -315,6 +315,16 @@ UA_StatusCode UA_Subscription_removeRetransmissionMessage(UA_Subscription *sub,
 void UA_Subscription_answerPublishRequestsNoSubscription(UA_Server *server, UA_Session *session);
 UA_Boolean UA_Subscription_reachedPublishReqLimit(UA_Server *server,  UA_Session *session);
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+
+/* Only for unit testing */
+UA_StatusCode
+UA_Server_evaluateWhereClauseContentFilter(
+    UA_Server *server,
+    const UA_NodeId *eventNode,
+    const UA_ContentFilter *contentFilter);
+#endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
+
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
 
 _UA_END_DECLS
