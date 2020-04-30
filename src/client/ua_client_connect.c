@@ -4,6 +4,7 @@
  *
  *    Copyright 2017-2020 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017-2019 (c) Fraunhofer IOSB (Author: Mark Giraud)
+ *    Copyright 2020 (c) Wind River Systems, Inc.
  */
 
 #include <open62541/transport_generated.h>
@@ -932,9 +933,11 @@ connectIterate(UA_Client *client, UA_UInt32 timeout) {
         if(client->connectStatus != UA_STATUSCODE_GOOD)
             return client->connectStatus;
 
-        client->connectStatus = UA_SecureChannel_generateNewKeys(&client->channel);
-        if(client->connectStatus != UA_STATUSCODE_GOOD)
-            return client->connectStatus;
+        if (client->channel.remoteNonce.length != 0) {
+            client->connectStatus = UA_SecureChannel_generateNewKeys(&client->channel);
+            if(client->connectStatus != UA_STATUSCODE_GOOD)
+                return client->connectStatus;
+        }
     }
 
     /* Open the SecureChannel */
@@ -1070,11 +1073,41 @@ static UA_StatusCode
 connectSync(UA_Client *client, const char *endpointUrl) {
     UA_DateTime now = UA_DateTime_nowMonotonic();
     UA_DateTime maxDate = now + ((UA_DateTime)client->config.timeout * UA_DATETIME_MSEC);
+    UA_StatusCode retval;
+    UA_Boolean endPointShakeDone = false;
 
-    UA_StatusCode retval = initConnect(client, endpointUrl);
+    if (client->config.securityMode > UA_MESSAGESECURITYMODE_NONE) {
+        /* Get the end point from a server, then select the security policy and 
+         * set the endpoint information to client.
+         */
+        if (endpointUnconfigured (client)) {
+            retval = initConnect(client, endpointUrl);
+            if (retval != UA_STATUSCODE_GOOD)
+                return retval;
+
+            while (retval == UA_STATUSCODE_GOOD) {
+                if (client->sessionState == UA_SESSIONSTATE_ACTIVATED)
+                    break;
+                if (client->noSession && client->channel.state == UA_SECURECHANNELSTATE_OPEN)
+                    break;
+                now = UA_DateTime_nowMonotonic ();
+                if (maxDate < now)
+                    return UA_STATUSCODE_BADTIMEOUT;
+                retval = UA_Client_run_iterate (client, 
+                            (UA_UInt32)((maxDate - now) / UA_DATETIME_MSEC));
+            }
+        UA_Client_disconnect (client);
+        }
+        endPointShakeDone = true;
+    }
+
+    retval = initConnect(client, endpointUrl);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-
+    
+    if (endPointShakeDone)
+        client->endpointsHandshake = true;
+        
     while(retval == UA_STATUSCODE_GOOD) {
         if(client->sessionState == UA_SESSIONSTATE_ACTIVATED)
             break;
