@@ -36,7 +36,7 @@ void UA_SecureChannel_init(UA_SecureChannel *channel,
                            const UA_ConnectionConfig *config) {
     /* Linked lists are also initialized by zeroing out */
     memset(channel, 0, sizeof(UA_SecureChannel));
-    channel->state = UA_SECURECHANNELSTATE_FRESH;
+    channel->state = UA_SECURECHANNELSTATE_CLOSED;
     SIMPLEQ_INIT(&channel->completeChunks);
     channel->config = *config;
 }
@@ -451,7 +451,10 @@ UA_SecureChannel_sendSymmetricMessage(UA_SecureChannel *channel, UA_UInt32 reque
     if(!channel || !channel->connection || !payload || !payloadType)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    if(channel->connection->state == UA_CONNECTIONSTATE_CLOSED)
+    if(channel->state != UA_SECURECHANNELSTATE_OPEN)
+        return UA_STATUSCODE_BADCONNECTIONCLOSED;
+
+    if(channel->connection->state != UA_CONNECTIONSTATE_ESTABLISHED)
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
 
     UA_MessageContext mc;
@@ -905,8 +908,6 @@ UA_SecureChannel_receive(UA_SecureChannel *channel, void *application,
     /* Listen for messages to arrive */
     UA_ByteString buffer = UA_BYTESTRING_NULL;
     UA_StatusCode retval = connection->recv(connection, &buffer, timeout);
-    if(retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
-        return UA_STATUSCODE_GOOD;
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 

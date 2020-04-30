@@ -881,7 +881,7 @@ UA_Client_connect_iterate(UA_Client *client) {
         return client->connectStatus;
 
     /* The connection was already closed */
-    if(client->channel.state == UA_SECURECHANNELSTATE_CLOSED) {
+    if(client->channel.state == UA_SECURECHANNELSTATE_CLOSING) {
         client->connectStatus = UA_STATUSCODE_BADCONNECTIONCLOSED;
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
     }
@@ -896,7 +896,7 @@ UA_Client_connect_iterate(UA_Client *client) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(client->channel.state != UA_SECURECHANNELSTATE_OPEN) {
         /* Send the first HEL */
-        if(client->channel.state == UA_SECURECHANNELSTATE_FRESH) {
+        if(client->channel.state == UA_SECURECHANNELSTATE_CLOSED) {
             client->connectStatus = sendHELMessage(client);
             if(client->connectStatus == UA_STATUSCODE_GOOD) {
                 setClientState(client, UA_CLIENTSTATE_WAITING_FOR_ACK);
@@ -977,7 +977,7 @@ UA_Client_connect_async(UA_Client *client, const char *endpointUrl,
     client->connectStatus = UA_STATUSCODE_GOOD;
 
     UA_ChannelSecurityToken_init(&client->channel.securityToken);
-    client->channel.state = UA_SECURECHANNELSTATE_FRESH;
+    client->channel.state = UA_SECURECHANNELSTATE_CLOSED;
     client->channel.sendSequenceNumber = 0;
     client->requestId = 0;
     client->channel.config = client->config.localConnectionConfig;
