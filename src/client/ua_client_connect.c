@@ -423,7 +423,7 @@ decodeProcessOPNResponseAsync(void *application, UA_SecureChannel *channel,
 static UA_StatusCode
 sendOPNAsync(UA_Client *client, UA_Boolean renew) {
     UA_Connection *conn = &client->connection;
-    if(conn->state != UA_CONNECTION_ESTABLISHED) {
+    if(conn->state != UA_CONNECTIONSTATE_ESTABLISHED) {
         UA_Client_disconnect(client);
         return UA_STATUSCODE_BADNOTCONNECTED;
     }
@@ -502,7 +502,7 @@ responseActivateSession(UA_Client *client, void *userdata, UA_UInt32 requestId,
         return;
     }
 
-    client->connection.state = UA_CONNECTION_ESTABLISHED;
+    client->connection.state = UA_CONNECTIONSTATE_ESTABLISHED;
     setClientState(client, UA_CLIENTSTATE_SESSION);
     client->sessionHandshake = false;
 
@@ -887,7 +887,7 @@ UA_Client_connect_iterate(UA_Client *client) {
     }
 
     /* Poll the connection status */
-    if(client->connection.state != UA_CONNECTION_ESTABLISHED) {
+    if(client->connection.state != UA_CONNECTIONSTATE_ESTABLISHED) {
         client->connectStatus = client->config.pollConnectionFunc(client, &client->connection);
         return client->connectStatus;
     }
@@ -993,7 +993,7 @@ UA_Client_connect_async(UA_Client *client, const char *endpointUrl,
         client->config.initConnectionFunc(client->config.localConnectionConfig,
                                           client->endpointUrl,
                                           client->config.timeout, &client->config.logger);
-    if(client->connection.state != UA_CONNECTION_OPENING) {
+    if(client->connection.state != UA_CONNECTIONSTATE_OPENING) {
         UA_LOG_TRACE(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                      "Could not init async connection");
         retval = UA_STATUSCODE_BADCONNECTIONCLOSED;
@@ -1220,8 +1220,8 @@ UA_Client_disconnect(UA_Client *client) {
     client->secureChannelHandshake = false;
 
     /* Close the TCP connection */
-    if(client->connection.state != UA_CONNECTION_CLOSED &&
-       client->connection.state != UA_CONNECTION_OPENING &&
+    if(client->connection.state != UA_CONNECTIONSTATE_CLOSED &&
+       client->connection.state != UA_CONNECTIONSTATE_OPENING &&
        client->connection.close != NULL)
         client->connection.close(&client->connection);
 

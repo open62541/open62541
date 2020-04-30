@@ -58,7 +58,7 @@ UA_Connection createDummyConnection(size_t sendBufferSize,
     UA_ByteString_allocBuffer(&sendBuffer, sendBufferSize);
 
     UA_Connection c;
-    c.state = UA_CONNECTION_ESTABLISHED;
+    c.state = UA_CONNECTIONSTATE_ESTABLISHED;
     c.channel = NULL;
     c.sockfd = 0;
     c.handle = NULL;
