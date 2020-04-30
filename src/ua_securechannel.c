@@ -123,7 +123,7 @@ UA_SecureChannel_close(UA_SecureChannel *channel) {
 
     /* Detach from the connection and close the connection */
     if(channel->connection) {
-        if(channel->connection->state != UA_CONNECTION_CLOSED)
+        if(channel->connection->state != UA_CONNECTIONSTATE_CLOSED)
             channel->connection->close(channel->connection);
         UA_Connection_detachSecureChannel(channel->connection);
     }
@@ -165,7 +165,7 @@ UA_SecureChannel_processHELACK(UA_SecureChannel *channel,
         channel->config.remoteMaxMessageSize < 8192))
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    channel->connection->state = UA_CONNECTION_ESTABLISHED;
+    channel->connection->state = UA_CONNECTIONSTATE_ESTABLISHED;
 
     return UA_STATUSCODE_GOOD;
 }
@@ -451,7 +451,7 @@ UA_SecureChannel_sendSymmetricMessage(UA_SecureChannel *channel, UA_UInt32 reque
     if(!channel || !channel->connection || !payload || !payloadType)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    if(channel->connection->state == UA_CONNECTION_CLOSED)
+    if(channel->connection->state == UA_CONNECTIONSTATE_CLOSED)
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
 
     UA_MessageContext mc;

@@ -657,7 +657,7 @@ UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
     }
 
 
-    if (client->connection.state != UA_CONNECTION_CLOSED) {
+    if (client->connection.state != UA_CONNECTIONSTATE_CLOSED) {
         UA_UNLOCK(server->serviceMutex);
         return UA_STATUSCODE_BADINVALIDSTATE;
     }
