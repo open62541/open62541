@@ -122,8 +122,6 @@ UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel,
 void
 UA_SecureChannel_deleteBuffered(UA_SecureChannel *channel);
 
-void UA_SecureChannel_deleteMembers(UA_SecureChannel *channel);
-
 /* Generates new keys and sets them in the channel context */
 UA_StatusCode
 UA_SecureChannel_generateNewKeys(UA_SecureChannel* channel);

@@ -19,14 +19,25 @@
 
 static void
 removeSecureChannelCallback(void *_, channel_entry *entry) {
-    UA_SecureChannel_deleteMembers(&entry->channel);
+    UA_SecureChannel_close(&entry->channel);
 }
 
+/* Half-closes the channel. Will be completely closed / deleted in a deferred
+ * callback. Deferring is necessary so we don't remove lists that are still
+ * processed upwards the call stack. */
 static void
 removeSecureChannel(UA_Server *server, channel_entry *entry,
                     UA_DiagnosticEvent event) {
-    /* Close the SecureChannel */
-    UA_SecureChannel_close(&entry->channel);
+    if(entry->channel.state == UA_SECURECHANNELSTATE_CLOSING)
+        return;
+    entry->channel.state = UA_SECURECHANNELSTATE_CLOSING;
+
+    /* Detach from the connection and close the connection */
+    if(entry->channel.connection) {
+        if(entry->channel.connection->state != UA_CONNECTIONSTATE_CLOSED)
+            entry->channel.connection->close(entry->channel.connection);
+        UA_Connection_detachSecureChannel(entry->channel.connection);
+    }
 
     /* Detach the channel */
     TAILQ_REMOVE(&server->channels, entry, pointers);

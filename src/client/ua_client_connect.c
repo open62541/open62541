@@ -1118,7 +1118,6 @@ sendCloseSecureChannelAsync(UA_Client *client, void *userdata,
             channel, ++client->requestId, UA_MESSAGETYPE_CLO, &request,
             &UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST]);
     UA_SecureChannel_close(&client->channel);
-    UA_SecureChannel_deleteMembers(&client->channel);
 }
 
 static void
@@ -1196,7 +1195,6 @@ sendCloseSecureChannel(UA_Client *client) {
                                           &UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST]);
     UA_CloseSecureChannelRequest_deleteMembers(&request);
     UA_SecureChannel_close(&client->channel);
-    UA_SecureChannel_deleteMembers(&client->channel);
 }
 
 UA_StatusCode
@@ -1219,15 +1217,6 @@ UA_Client_disconnect(UA_Client *client) {
     }
     client->secureChannelHandshake = false;
 
-    /* Close the TCP connection */
-    if(client->connection.state != UA_CONNECTIONSTATE_CLOSED &&
-       client->connection.state != UA_CONNECTIONSTATE_OPENING &&
-       client->connection.close != NULL)
-        client->connection.close(&client->connection);
-
-    if(client->connection.handle)
-        client->connection.free(&client->connection);
-
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     // TODO REMOVE WHEN UA_SESSION_RECOVERY IS READY
     /* We need to clean up the subscriptions */
@@ -1237,7 +1226,7 @@ UA_Client_disconnect(UA_Client *client) {
     /* Delete outstanding async services */
     UA_Client_AsyncService_removeAll(client, UA_STATUSCODE_BADSHUTDOWN);
 
-    UA_SecureChannel_deleteMembers(&client->channel);
+    UA_SecureChannel_close(&client->channel);
 
     setClientState(client, UA_CLIENTSTATE_DISCONNECTED);
     return UA_STATUSCODE_GOOD;
