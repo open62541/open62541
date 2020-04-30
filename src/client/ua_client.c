@@ -37,7 +37,6 @@ UA_Client_init(UA_Client* client) {
     client->connectStatus = UA_STATUSCODE_GOOD;
 
     UA_Timer_init(&client->timer);
-    UA_WorkQueue_init(&client->workQueue);
 }
 
 UA_Client UA_EXPORT *
@@ -102,9 +101,6 @@ UA_Client_deleteMembers(UA_Client *client) {
 
     /* Delete the timed work */
     UA_Timer_deleteMembers(&client->timer);
-
-    /* Clean up the work queue */
-    UA_WorkQueue_cleanup(&client->workQueue);
 }
 
 void
@@ -658,8 +654,6 @@ static void
 clientExecuteRepeatedCallback(UA_Client *client, UA_ApplicationCallback cb,
                               void *callbackApplication, void *data) {
     cb(callbackApplication, data);
-    /* TODO: Use workers in the client
-     * UA_WorkQueue_enqueue(&client->workQueue, cb, callbackApplication, data); */
 }
 
 UA_StatusCode UA_Client_run_iterate(UA_Client *client, UA_UInt16 timeout) {
@@ -696,10 +690,5 @@ UA_StatusCode UA_Client_run_iterate(UA_Client *client, UA_UInt16 timeout) {
 #endif
     asyncServiceTimeoutCheck(client);
 
-#if UA_MULTITHREADING < 200
-    /* Process delayed callbacks when all callbacks and network events are
-     * done */
-    UA_WorkQueue_manuallyProcessDelayed(&client->workQueue);
-#endif
     return retval;
 }
