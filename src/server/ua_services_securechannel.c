@@ -131,7 +131,7 @@ UA_Server_createSecureChannel(UA_Server *server, UA_Connection *connection) {
     if(!entry)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    /* Channel state is fresh (0) */
+    /* Channel state is closed (0) */
     /* TODO: Use the connection config from the correct network layer */
     UA_SecureChannel_init(&entry->channel,
                           &server->config.networkLayers[0].localConnectionConfig);
@@ -187,7 +187,7 @@ static UA_StatusCode
 UA_SecureChannelManager_open(UA_Server *server, UA_SecureChannel *channel,
                              const UA_OpenSecureChannelRequest *request,
                              UA_OpenSecureChannelResponse *response) {
-    if(channel->state != UA_SECURECHANNELSTATE_FRESH) {
+    if(channel->state != UA_SECURECHANNELSTATE_CLOSED) {
         UA_LOG_ERROR_CHANNEL(&server->config.logger, channel,
                              "Called open on already open or closed channel");
         return UA_STATUSCODE_BADINTERNALERROR;

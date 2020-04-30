@@ -54,17 +54,6 @@ typedef struct UA_Chunk {
 
 typedef SIMPLEQ_HEAD(UA_ChunkQueue, UA_Chunk) UA_ChunkQueue;
 
-typedef enum {
-    UA_SECURECHANNELSTATE_FRESH,
-    UA_SECURECHANNELSTATE_HEL_SENT,
-    UA_SECURECHANNELSTATE_HEL_RECEIVED,
-    UA_SECURECHANNELSTATE_ACK_SENT,
-    UA_SECURECHANNELSTATE_ACK_RECEIVED,
-    UA_SECURECHANNELSTATE_OPN_SENT,
-    UA_SECURECHANNELSTATE_OPEN,
-    UA_SECURECHANNELSTATE_CLOSED
-} UA_SecureChannelState;
-
 struct UA_SecureChannel {
     UA_SecureChannelState   state;
     UA_MessageSecurityMode  securityMode;

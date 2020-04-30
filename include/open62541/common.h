@@ -143,6 +143,21 @@ typedef enum {
 } UA_Order;
 
 /**
+ * Connection State
+ * ---------------- */
+
+typedef enum {
+    UA_SECURECHANNELSTATE_CLOSED,
+    UA_SECURECHANNELSTATE_HEL_SENT,
+    UA_SECURECHANNELSTATE_HEL_RECEIVED,
+    UA_SECURECHANNELSTATE_ACK_SENT,
+    UA_SECURECHANNELSTATE_ACK_RECEIVED,
+    UA_SECURECHANNELSTATE_OPN_SENT,
+    UA_SECURECHANNELSTATE_OPEN,
+    UA_SECURECHANNELSTATE_CLOSING
+} UA_SecureChannelState;
+
+/**
  * Statistic counters
  * ------------------
  *
