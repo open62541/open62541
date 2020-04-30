@@ -96,27 +96,6 @@ UA_SecureChannel_deleteBuffered(UA_SecureChannel *channel) {
 }
 
 void
-UA_SecureChannel_deleteMembers(UA_SecureChannel *channel) {
-    /* Delete members */
-    UA_ByteString_deleteMembers(&channel->remoteCertificate);
-    UA_ByteString_deleteMembers(&channel->localNonce);
-    UA_ByteString_deleteMembers(&channel->remoteNonce);
-    UA_ChannelSecurityToken_deleteMembers(&channel->securityToken);
-    UA_ChannelSecurityToken_deleteMembers(&channel->nextSecurityToken);
-
-    /* Delete the channel context for the security policy */
-    if(channel->securityPolicy) {
-        channel->securityPolicy->channelModule.deleteContext(channel->channelContext);
-        channel->securityPolicy = NULL;
-    }
-
-    /* Remove buffered chunks */
-    UA_SecureChannel_deleteBuffered(channel);
-    UA_ConnectionConfig oldConfig = channel->config;
-    UA_SecureChannel_init(channel, &oldConfig);
-}
-
-void
 UA_SecureChannel_close(UA_SecureChannel *channel) {
     /* Set the status to closed */
     channel->state = UA_SECURECHANNELSTATE_CLOSED;
@@ -135,7 +114,19 @@ UA_SecureChannel_close(UA_SecureChannel *channel) {
         channel->session = NULL;
     }
 
-    /* Remove buffered chunks */
+    /* Delete the channel context for the security policy */
+    if(channel->securityPolicy) {
+        channel->securityPolicy->channelModule.deleteContext(channel->channelContext);
+        channel->securityPolicy = NULL;
+        channel->channelContext = NULL;
+    }
+
+    /* Delete members */
+    UA_ByteString_deleteMembers(&channel->remoteCertificate);
+    UA_ByteString_deleteMembers(&channel->localNonce);
+    UA_ByteString_deleteMembers(&channel->remoteNonce);
+    UA_ChannelSecurityToken_deleteMembers(&channel->securityToken);
+    UA_ChannelSecurityToken_deleteMembers(&channel->nextSecurityToken);
     UA_SecureChannel_deleteBuffered(channel);
 }
 

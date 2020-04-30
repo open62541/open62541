@@ -38,7 +38,6 @@ static void setup(void) {
 
 static void teardown(void) {
     UA_SecureChannel_close(&testChannel);
-    UA_SecureChannel_deleteMembers(&testChannel);
     dummyPolicy.clear(&dummyPolicy);
     testingConnection.close(&testingConnection);
 

@@ -55,7 +55,6 @@ setup_secureChannel(void) {
 static void
 teardown_secureChannel(void) {
     UA_SecureChannel_close(&testChannel);
-    UA_SecureChannel_deleteMembers(&testChannel);
     dummyPolicy.clear(&dummyPolicy);
     testingConnection.close(&testingConnection);
 }
@@ -109,7 +108,6 @@ START_TEST(SecureChannel_initAndDelete) {
     ck_assert_msg(channel.securityPolicy == &dummyPolicy, "SecurityPolicy not set correctly");
 
     UA_SecureChannel_close(&channel);
-    UA_SecureChannel_deleteMembers(&channel);
     ck_assert_msg(fCalled.deleteContext, "Expected deleteContext to have been called");
 
     dummyPolicy.clear(&dummyPolicy);
