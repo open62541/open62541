@@ -21,7 +21,6 @@
 #include "open62541_queue.h"
 #include "ua_securechannel.h"
 #include "ua_timer.h"
-#include "ua_workqueue.h"
 
 _UA_BEGIN_DECLS
 
@@ -148,9 +147,6 @@ struct UA_Client {
     LIST_HEAD(, AsyncServiceCall) asyncServiceCalls;
     /* When using highlevel functions these are the callbacks that can be accessed by the user */
     LIST_HEAD(, CustomCallback) customCallbacks;
-
-    /* Work queue */
-    UA_WorkQueue workQueue;
 
     /* Subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
