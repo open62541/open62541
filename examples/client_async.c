@@ -34,15 +34,11 @@ void
 readValueAttributeCallback(UA_Client *client, void *userdata,
                            UA_UInt32 requestId, UA_Variant *var) {
     printf("%-50s%i\n", "Read value attribute for request", requestId);
-
     if(UA_Variant_hasScalarType(var, &UA_TYPES[UA_TYPES_INT32])) {
         UA_Int32 int_val = *(UA_Int32*) var->data;
         printf("---%-40s%-8i\n",
                "Reading the value of node (1, \"the.answer\"):", int_val);
     }
-
-    /*more type distinctions possible*/
-    return;
 }
 
 static
@@ -106,7 +102,8 @@ translateCalled(UA_Client *client, void *userdata, UA_UInt32 requestId,
 int
 main(int argc, char *argv[]) {
     UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    UA_ClientConfig_setDefault(cc);
     UA_UInt32 reqId = 0;
     UA_String userdata = UA_STRING("userdata");
 

@@ -20,7 +20,8 @@ static void
 methodCalled(UA_Client *client, void *userdata, UA_UInt32 requestId,
     UA_CallResponse *response) {
     UA_UInt32 i;
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "**** CallRequest Response - Req:%u with %u results",
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                "**** CallRequest Response - Req:%u with %u results",
         requestId, (UA_UInt32)response->resultsSize);
     UA_StatusCode retval = response->responseHeader.serviceResult;
     if (retval == UA_STATUSCODE_GOOD) {
@@ -31,7 +32,8 @@ methodCalled(UA_Client *client, void *userdata, UA_UInt32 requestId,
                 retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
             if (retval != UA_STATUSCODE_GOOD) {
                 UA_CallResponse_clear(response);
-                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "**** CallRequest Response - Req: %u (%u) failed", requestId,i);
+                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                            "**** CallRequest Response - Req: %u (%u) failed", requestId,i);
                 if (i == response->resultsSize)
                     return;
                 else
