@@ -663,27 +663,26 @@ UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
         return UA_STATUSCODE_BADINVALIDSTATE;
     }
 
-    /* check if we are already registering with the given discovery url and remove the old periodic call */
-    {
-        periodicServerRegisterCallback_entry *rs, *rs_tmp;
-        LIST_FOREACH_SAFE(rs, &server->discoveryManager.
-                          periodicServerRegisterCallbacks, pointers, rs_tmp) {
-            if(strcmp(rs->callback->discovery_server_url, discoveryServerUrl) == 0) {
-                UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                            "There is already a register callback for '%s' in place. Removing the older one.", discoveryServerUrl);
-                removeCallback(server, rs->callback->id);
-                LIST_REMOVE(rs, pointers);
-                UA_free(rs->callback->discovery_server_url);
-                UA_free(rs->callback);
-                UA_free(rs);
-                break;
-            }
+    /* Check if we are already registering with the given discovery url and
+     * remove the old periodic call */
+    periodicServerRegisterCallback_entry *rs, *rs_tmp;
+    LIST_FOREACH_SAFE(rs, &server->discoveryManager.
+                      periodicServerRegisterCallbacks, pointers, rs_tmp) {
+        if(strcmp(rs->callback->discovery_server_url, discoveryServerUrl) == 0) {
+            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                        "There is already a register callback for '%s' in place. "
+                        "Removing the older one.", discoveryServerUrl);
+            removeCallback(server, rs->callback->id);
+            LIST_REMOVE(rs, pointers);
+            UA_free(rs->callback->discovery_server_url);
+            UA_free(rs->callback);
+            UA_free(rs);
+            break;
         }
     }
 
     /* Allocate and initialize */
-    struct PeriodicServerRegisterCallback* cb =
-        (struct PeriodicServerRegisterCallback*)
+    struct PeriodicServerRegisterCallback* cb = (struct PeriodicServerRegisterCallback*)
         UA_malloc(sizeof(struct PeriodicServerRegisterCallback));
     if(!cb) {
         UA_UNLOCK(server->serviceMutex);
@@ -721,8 +720,8 @@ UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
 
 #ifndef __clang_analyzer__
     // the analyzer reports on LIST_INSERT_HEAD a use after free false positive
-    periodicServerRegisterCallback_entry *newEntry =
-            (periodicServerRegisterCallback_entry *)UA_malloc(sizeof(periodicServerRegisterCallback_entry));
+    periodicServerRegisterCallback_entry *newEntry = (periodicServerRegisterCallback_entry*)
+        UA_malloc(sizeof(periodicServerRegisterCallback_entry));
     if(!newEntry) {
         removeCallback(server, cb->id);
         UA_free(cb);
