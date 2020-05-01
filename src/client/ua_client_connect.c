@@ -34,8 +34,9 @@ endpointUnconfigured(UA_Client *client) {
     return (test == 0);
 }
 
-/* Function to create a signature using remote certificate and nonce */
 #ifdef UA_ENABLE_ENCRYPTION
+
+/* Function to create a signature using remote certificate and nonce */
 static UA_StatusCode
 signActivateSessionRequest(UA_SecureChannel *channel,
                            UA_ActivateSessionRequest *request) {
@@ -307,7 +308,7 @@ processOPNResponseDecoded(UA_Client *client, const UA_ByteString *message, size_
     /* Is the content of the expected type? */
     UA_NodeId responseId;
     UA_NodeId expectedId =
-        UA_NODEID_NUMERIC(0, UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE].binaryEncodingId);
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OPENSECURECHANNELRESPONSE_ENCODING_DEFAULTBINARY);
     UA_StatusCode retval = UA_NodeId_decodeBinary(message, &offset, &responseId);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_disconnect(client);
@@ -340,7 +341,7 @@ processOPNResponseDecoded(UA_Client *client, const UA_ByteString *message, size_
     client->channel.securityToken = response.securityToken;
     UA_ChannelSecurityToken_init(&response.securityToken);
 
-    /* Replace the nonce */
+    /* Move the nonce out of the response */
     UA_ByteString_clear(&client->channel.remoteNonce);
     client->channel.remoteNonce = response.serverNonce;
     UA_ByteString_init(&response.serverNonce);
@@ -367,7 +368,6 @@ processOPNResponseDecoded(UA_Client *client, const UA_ByteString *message, size_
         setClientState(client, UA_CLIENTSTATE_SECURECHANNEL);
 }
 
-/* The requestId argument is not used but needed for the callback signature. */
 void
 processOPNResponse(UA_Client *client, UA_ByteString *chunk) {
     UA_SecureChannel *channel = &client->channel;
@@ -754,15 +754,12 @@ requestGetEndpoints(UA_Client *client) {
     request.requestHeader.timestamp = UA_DateTime_now();
     request.requestHeader.timeoutHint = 10000;
     request.endpointUrl = client->endpointUrl;
-
     client->connectStatus = UA_Client_sendAsyncRequest(
             client, &request, &UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST],
             (UA_ClientAsyncServiceCallback) responseGetEndpoints,
             &UA_TYPES[UA_TYPES_GETENDPOINTSRESPONSE], NULL, NULL);
-
     if(client->connectStatus == UA_STATUSCODE_GOOD)
         client->endpointsHandshake = true;
-
     return client->connectStatus;
 }
 
@@ -936,12 +933,11 @@ UA_Client_connect_iterate(UA_Client *client) {
     return client->connectStatus;
 }
 
-#ifdef UA_ENABLE_ENCRYPTION
 /* The local ApplicationURI has to match the certificates of the
  * SecurityPolicies */
 static void
 verifyClientApplicationURI(const UA_Client *client) {
-#if UA_LOGLEVEL <= 400
+#if defined(UA_ENABLE_ENCRYPTION) && (UA_LOGLEVEL <= 400)
     for(size_t i = 0; i < client->config.securityPoliciesSize; i++) {
         UA_SecurityPolicy *sp = &client->config.securityPolicies[i];
         UA_StatusCode retval =
@@ -958,16 +954,13 @@ verifyClientApplicationURI(const UA_Client *client) {
     }
 #endif
 }
-#endif
 
 UA_StatusCode
 UA_Client_connectAsync(UA_Client *client, const char *endpointUrl) {
     UA_LOG_TRACE(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                  "Client internal async");
 
-#ifdef UA_ENABLE_ENCRYPTION
     verifyClientApplicationURI(client);
-#endif
 
     if(client->state >= UA_CLIENTSTATE_WAITING_FOR_ACK)
         return UA_STATUSCODE_GOOD;
