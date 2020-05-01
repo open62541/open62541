@@ -151,9 +151,7 @@ static UA_StatusCode
 sendSymmetricServiceRequest(UA_Client *client, const void *request,
                             const UA_DataType *requestType, UA_UInt32 *requestId) {
     /* Renew SecureChannel if necessary */
-    UA_StatusCode retval = UA_Client_renewSecureChannelAsync(client);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
+    renewSecureChannel(client);
 
     /* Adjusting the request header. The const attribute is violated, but we
      * only touch the following members: */
@@ -175,12 +173,13 @@ sendSymmetricServiceRequest(UA_Client *client, const void *request,
 #endif
 
     /* Send the message */
-    retval = UA_SecureChannel_sendSymmetricMessage(&client->channel, rqId,
-                                                   UA_MESSAGETYPE_MSG, rr, requestType);
+    UA_StatusCode retval =
+        UA_SecureChannel_sendSymmetricMessage(&client->channel, rqId,
+                                              UA_MESSAGETYPE_MSG, rr, requestType);
     rr->authenticationToken = oldToken; /* Set the original token */
 
     *requestId = rqId;
-    return UA_STATUSCODE_GOOD;
+    return retval;
 }
 
 static const UA_NodeId
@@ -645,11 +644,9 @@ UA_StatusCode UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout) {
     if(client->state < UA_CLIENTSTATE_SESSION)
         return UA_Client_connect_iterate(client);
 
-    UA_StatusCode retval = UA_Client_renewSecureChannelAsync(client);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
+    renewSecureChannel(client);
 
-    retval = UA_Client_backgroundConnectivity(client);
+    UA_StatusCode retval = UA_Client_backgroundConnectivity(client);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 

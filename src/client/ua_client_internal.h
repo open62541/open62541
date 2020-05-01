@@ -125,7 +125,7 @@ struct UA_Client {
     UA_SecureChannel channel;
     UA_UInt32 requestId;
     UA_DateTime nextChannelRenewal;
-    UA_Boolean secureChannelHandshake; /* OPN has been sent */
+    UA_Boolean secureChannelHandshake; /* Avoid redundant renewSecureChannel */
 
     /* Session */
     UA_NodeId authenticationToken;
@@ -161,6 +161,7 @@ UA_StatusCode
 UA_Client_connectInternal(UA_Client *client, const UA_String endpointUrl);
 void processACKResponse(UA_Client *client, const UA_ByteString *chunk);
 void processOPNResponse(UA_Client *client, UA_ByteString *chunk);
+void renewSecureChannel(UA_Client *client);
 
 UA_StatusCode
 UA_Client_connectTCPSecureChannel(UA_Client *client, const UA_String endpointUrl);
@@ -184,9 +185,6 @@ receiveResponse(UA_Client *client, void *response,
 
 UA_StatusCode
 receiveResponseAsync(UA_Client *client);
-
-UA_StatusCode
-UA_Client_renewSecureChannelAsync(UA_Client *client);
 
 UA_StatusCode
 UA_Client_connect_iterate (UA_Client *client);
