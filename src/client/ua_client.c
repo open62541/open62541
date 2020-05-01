@@ -131,15 +131,6 @@ setClientState(UA_Client *client, UA_ClientState state) {
     }
 }
 
-UA_SecurityPolicy *
-getSecurityPolicy(UA_Client *client, UA_String policyUri) {
-    for(size_t i = 0; i < client->config.securityPoliciesSize; i++) {
-        if(UA_String_equal(&policyUri, &client->config.securityPolicies[i].policyUri))
-            return &client->config.securityPolicies[i];
-    }
-    return NULL;
-}
-
 /****************/
 /* Raw Services */
 /****************/

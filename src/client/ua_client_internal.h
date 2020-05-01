@@ -199,14 +199,6 @@ UA_Client_renewSecureChannelAsync(UA_Client *client);
 UA_StatusCode
 UA_Client_connect_iterate (UA_Client *client);
 
-void
-setUserIdentityPolicyId(const UA_EndpointDescription *endpoint,
-                        const UA_DataType *tokenType, UA_String *policyId,
-                        UA_String *securityPolicyUri);
-
-UA_SecurityPolicy *
-getSecurityPolicy(UA_Client *client, UA_String policyUri);
-
 _UA_END_DECLS
 
 #endif /* UA_CLIENT_INTERNAL_H_ */
