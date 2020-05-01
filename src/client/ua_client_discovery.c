@@ -10,7 +10,7 @@
 #include "ua_client_internal.h"
 
 /* Gets a list of endpoints. Memory is allocated for endpointDescription array */
-UA_StatusCode
+static UA_StatusCode
 UA_Client_getEndpointsInternal(UA_Client *client, const UA_String endpointUrl,
                                size_t *endpointDescriptionsSize,
                                UA_EndpointDescription **endpointDescriptions) {

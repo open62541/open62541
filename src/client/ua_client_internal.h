@@ -169,14 +169,6 @@ UA_StatusCode
 UA_Client_connectSession(UA_Client *client);
 
 UA_StatusCode
-UA_Client_getEndpointsInternal(UA_Client *client, const UA_String endpointUrl,
-                               size_t *endpointDescriptionsSize,
-                               UA_EndpointDescription **endpointDescriptions);
-
-UA_Boolean
-endpointUnconfigured(UA_Client *client);
-
-UA_StatusCode
 createSessionAsync(UA_Client *client);
 
 UA_StatusCode
