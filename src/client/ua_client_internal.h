@@ -159,6 +159,8 @@ setClientState(UA_Client *client, UA_ClientState state);
  * endpointdescription is not set, a GetEndpoints is performed. */
 UA_StatusCode
 UA_Client_connectInternal(UA_Client *client, const UA_String endpointUrl);
+void processACKResponse(UA_Client *client, const UA_ByteString *chunk);
+void processOPNResponse(UA_Client *client, UA_ByteString *chunk);
 
 UA_StatusCode
 UA_Client_connectTCPSecureChannel(UA_Client *client, const UA_String endpointUrl);
@@ -179,16 +181,6 @@ createSessionAsync(UA_Client *client);
 
 UA_StatusCode
 activateSessionAsync(UA_Client *client);
-
-void
-processACKResponseAsync(void *application, UA_SecureChannel *channel,
-                        UA_MessageType messageType, UA_UInt32 requestId,
-                        UA_ByteString *chunk);
-
-void
-decodeProcessOPNResponseAsync(void *application, UA_SecureChannel *channel,
-                              UA_MessageType messageType, UA_UInt32 requestId,
-                              UA_ByteString *chunk);
 
 UA_StatusCode
 openSecureChannel(UA_Client *client, UA_Boolean renew);

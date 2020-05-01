@@ -283,7 +283,7 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
             rd->client->connectStatus = UA_STATUSCODE_BADTCPINTERNALERROR;
             return;
         }
-        processACKResponseAsync(rd->client, channel, messageType, requestId, message);
+        processACKResponse(rd->client, message);
         return;
     }
 
@@ -296,7 +296,7 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
             rd->client->connectStatus = UA_STATUSCODE_BADTCPINTERNALERROR;
             return;
         }
-        decodeProcessOPNResponseAsync(rd->client, channel, messageType, requestId, message);
+        processOPNResponse(rd->client, message);
         return;
     }
 
