@@ -636,7 +636,8 @@ ClientNetworkLayerTCP_free(UA_Connection *connection) {
     }
 }
 
-UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
+UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data,
+                                          UA_UInt32 timeout) {
     UA_Connection *connection = (UA_Connection*) data;
     if(connection->state == UA_CONNECTIONSTATE_CLOSED)
         return UA_STATUSCODE_BADDISCONNECT;
@@ -646,7 +647,6 @@ UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
     TCPClientConnection *tcpConnection =
                     (TCPClientConnection*) connection->handle;
 
-    UA_DateTime connStart = UA_DateTime_nowMonotonic();
     UA_SOCKET clientsockfd = connection->sockfd;
     UA_ClientConfig *config = UA_Client_getConfig(client);
 
@@ -699,15 +699,12 @@ UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
     /* Use select to wait and check if connected */
     if (error == -1 && (UA_ERRNO == UA_ERR_CONNECTION_PROGRESS)) {
         /* connection in progress. Wait until connected using select */
+        UA_UInt32 timeout_usec = timeout * 1000;
 
-        UA_UInt32 timeSinceStart = (UA_UInt32)
-            ((UA_Double) (UA_DateTime_nowMonotonic() - connStart) / UA_DATETIME_MSEC);
 #ifdef _OS9000
         /* OS-9 can't use select for checking write sockets.
          * Therefore, we need to use connect until success or failed
          */
-        UA_UInt32 timeout_usec = (tcpConnection->timeout - timeSinceStart)
-                        * 1000;
         int resultsize = 0;
         do {
             u_int32 time = 0x80000001;
@@ -730,8 +727,6 @@ UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
         fd_set fdset;
         FD_ZERO(&fdset);
         UA_fd_set(clientsockfd, &fdset);
-        UA_UInt32 timeout_usec = (tcpConnection->timeout - timeSinceStart)
-                        * 1000;
         struct timeval tmptv = { (long int) (timeout_usec / 1000000),
                         (int) (timeout_usec % 1000000) };
 

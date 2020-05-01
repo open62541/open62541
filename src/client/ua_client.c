@@ -642,7 +642,7 @@ UA_StatusCode UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout) {
 
     /* Make sure we have an open channel */
     if(client->state < UA_CLIENTSTATE_SESSION)
-        return UA_Client_connect_iterate(client);
+        return connectIterate(client, timeout);
 
     renewSecureChannel(client);
 

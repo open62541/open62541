@@ -167,6 +167,9 @@ UA_StatusCode
 UA_Client_connectTCPSecureChannel(UA_Client *client, const UA_String endpointUrl);
 
 UA_StatusCode
+connectIterate(UA_Client *client, UA_UInt32 timeout);
+
+UA_StatusCode
 UA_Client_connectSession(UA_Client *client);
 
 UA_StatusCode
@@ -185,9 +188,6 @@ receiveResponse(UA_Client *client, void *response,
 
 UA_StatusCode
 receiveResponseAsync(UA_Client *client);
-
-UA_StatusCode
-UA_Client_connect_iterate (UA_Client *client);
 
 _UA_END_DECLS
 

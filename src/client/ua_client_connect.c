@@ -865,7 +865,7 @@ createSessionAsync(UA_Client *client) {
 }
 
 UA_StatusCode
-UA_Client_connect_iterate(UA_Client *client) {
+connectIterate(UA_Client *client, UA_UInt32 timeout) {
     UA_LOG_TRACE(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                  "Client connect iterate");
 
@@ -885,7 +885,8 @@ UA_Client_connect_iterate(UA_Client *client) {
 
     /* Poll the connection status */
     if(client->connection.state != UA_CONNECTIONSTATE_ESTABLISHED) {
-        client->connectStatus = client->config.pollConnectionFunc(client, &client->connection);
+        client->connectStatus =
+            client->config.pollConnectionFunc(client, &client->connection, timeout);
         return client->connectStatus;
     }
 
@@ -1056,7 +1057,7 @@ UA_Client_connectSync(UA_Client *client, const char *endpointUrl) {
         now = UA_DateTime_nowMonotonic();
         if(maxDate < now)
             return UA_STATUSCODE_BADTIMEOUT;
-        retval = UA_Client_connect_iterate(client);
+        retval = connectIterate(client, (UA_UInt32)((maxDate - now) / UA_DATETIME_MSEC));
     }
     return retval;
 }

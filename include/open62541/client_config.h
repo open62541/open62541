@@ -110,7 +110,8 @@ typedef struct {
 
     /* Callbacks for async connection handshakes */
     UA_ConnectClientConnection initConnectionFunc;
-    UA_StatusCode (*pollConnectionFunc)(UA_Client *client, void *context);
+    UA_StatusCode (*pollConnectionFunc)(UA_Client *client, void *context,
+                                        UA_UInt32 timeout);
 
     /* Callback for state changes */
     void (*stateCallback)(UA_Client *client, UA_ClientState clientState);
