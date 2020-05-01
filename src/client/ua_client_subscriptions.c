@@ -1100,7 +1100,7 @@ UA_Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishRequ
     }
 
     if(response->responseHeader.serviceResult == UA_STATUSCODE_BADSESSIONCLOSED) {
-        if(client->state >= UA_CLIENTSTATE_SESSION) {
+        if(client->sessionState != UA_SESSIONSTATE_ACTIVATED) {
             UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                            "Received Publish Response with code %s",
                             UA_StatusCode_name(response->responseHeader.serviceResult));
@@ -1218,7 +1218,7 @@ UA_Client_Subscriptions_clean(UA_Client *client) {
 
 void
 UA_Client_Subscriptions_backgroundPublishInactivityCheck(UA_Client *client) {
-    if(client->state < UA_CLIENTSTATE_SESSION)
+    if(client->sessionState < UA_SESSIONSTATE_ACTIVATED)
         return;
 
     /* Is the lack of responses the client's fault? */
@@ -1245,7 +1245,7 @@ UA_Client_Subscriptions_backgroundPublishInactivityCheck(UA_Client *client) {
 
 void
 UA_Client_Subscriptions_backgroundPublish(UA_Client *client) {
-    if(client->state < UA_CLIENTSTATE_SESSION)
+    if(client->sessionState < UA_SESSIONSTATE_ACTIVATED)
         return;
 
     /* The session must have at least one subscription */
