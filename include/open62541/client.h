@@ -60,9 +60,12 @@ _UA_BEGIN_DECLS
 UA_Client UA_EXPORT *
 UA_Client_newWithConfig(const UA_ClientConfig *config);
 
-/* Get the client connection status */
-UA_ClientState UA_EXPORT
-UA_Client_getState(UA_Client *client);
+/* Returns the current state. All arguments except ``client`` can be NULL. */
+void UA_EXPORT
+UA_Client_getState(UA_Client *client,
+                   UA_SecureChannelState *channelState,
+                   UA_SessionState *sessionState,
+                   UA_StatusCode *connectStatus);
 
 /* Get the client configuration */
 UA_EXPORT UA_ClientConfig *
@@ -145,7 +148,13 @@ UA_Client_connectUsername(UA_Client *client, const char *endpointUrl,
 UA_StatusCode UA_EXPORT
 UA_Client_disconnect(UA_Client *client);
 
-/* Disconnect the SecureChannel but keep the Session intact (if it exists) */
+/* Disconnect async. Run UA_Client_run_iterate until the callback notifies that
+ * all connections are closed. */
+UA_StatusCode UA_EXPORT
+UA_Client_disconnectAsync(UA_Client *client);
+
+/* Disconnect the SecureChannel but keep the Session intact (if it exists).
+ * This is always an async (non-blocking) operation. */
 UA_StatusCode UA_EXPORT
 UA_Client_disconnectSecureChannel(UA_Client *client);
 

@@ -13,10 +13,10 @@
 /* async connection callback, it only gets called after the completion of the whole
  * connection process*/
 static void
-onConnect(UA_Client *client, void *userdata, UA_UInt32 requestId,
-          void *status) {
+onConnect(UA_Client *client, UA_SecureChannelState channelState,
+          UA_SessionState sessionState, UA_StatusCode connectStatus) {
     printf("Async connect returned with status code %s\n",
-           UA_StatusCode_name(*(UA_StatusCode *) status));
+           UA_StatusCode_name(connectStatus));
 }
 
 static
@@ -126,8 +126,9 @@ main(int argc, char *argv[]) {
 
     UA_DateTime startTime = UA_DateTime_nowMonotonic();
     do {
-        /*TODO: fix memory-related bugs if condition not checked*/
-        if(UA_Client_getState(client) == UA_CLIENTSTATE_SESSION) {
+        UA_SessionState ss;
+        UA_Client_getState(client, NULL, &ss, NULL);
+        if(ss == UA_SESSIONSTATE_ACTIVATED) {
             /* If not connected requests are not sent */
             UA_Client_sendAsyncBrowseRequest(client, &bReq, fileBrowsed, &userdata, &reqId);
         }
@@ -150,7 +151,9 @@ main(int argc, char *argv[]) {
     UA_Variant_init(&input);
 
     for(UA_UInt16 i = 0; i < 5; i++) {
-        if(UA_Client_getState(client) == UA_CLIENTSTATE_SESSION) {
+        UA_SessionState ss;
+        UA_Client_getState(client, NULL, &ss, NULL);
+        if(ss == UA_SESSIONSTATE_ACTIVATED) {
             /* writing and reading value 1 to 5 */
             UA_Variant_setScalarCopy(&myVariant, &value, &UA_TYPES[UA_TYPES_INT32]);
             value++;

@@ -110,12 +110,20 @@ typedef struct CustomCallback {
 } CustomCallback;
 
 struct UA_Client {
-    /* State */
-    UA_ClientState state;
-
     UA_ClientConfig config;
     UA_Timer timer;
+
+    /* Overall connection status */
     UA_StatusCode connectStatus;
+
+    /* Old status to notify only changes */
+    UA_SecureChannelState oldChannelState;
+    UA_SessionState oldSessionState;
+    UA_StatusCode oldConnectStatus;
+
+    UA_Boolean secureChannelHandshake; /* Ongoing RenewSecureChannel */
+    UA_Boolean endpointsHandshake;     /* Ongoing GetEndpoints */
+    UA_Boolean noSession;              /* Don't open a session */
 
     /* Connection */
     UA_Connection connection;
@@ -125,15 +133,15 @@ struct UA_Client {
     UA_SecureChannel channel;
     UA_UInt32 requestId;
     UA_DateTime nextChannelRenewal;
-    UA_Boolean secureChannelHandshake; /* Avoid redundant renewSecureChannel */
 
     /* Session */
+    UA_SessionState sessionState;
     UA_NodeId authenticationToken;
     UA_UInt32 requestHandle;
 
-    UA_Boolean endpointsHandshake;
-    UA_Boolean sessionHandshake;
-    UA_Boolean noSession; /* Don't open a session automatically */
+    /* Connectivity check */
+    UA_DateTime lastConnectivityCheck;
+    UA_Boolean pendingConnectivityCheck;
 
     /* Async Service */
     LIST_HEAD(, AsyncServiceCall) asyncServiceCalls;
@@ -146,48 +154,19 @@ struct UA_Client {
     UA_UInt32 monitoredItemHandles;
     UA_UInt16 currentlyOutStandingPublishRequests;
 #endif
-
-    /* Connectivity check */
-    UA_DateTime lastConnectivityCheck;
-    UA_Boolean pendingConnectivityCheck;
 };
 
-void
-setClientState(UA_Client *client, UA_ClientState state);
-
-/* The endpointUrl must be set in the configuration. If the complete
- * endpointdescription is not set, a GetEndpoints is performed. */
-UA_StatusCode
-UA_Client_connectInternal(UA_Client *client, const UA_String endpointUrl);
+void notifyClientState(UA_Client *client);
 void processACKResponse(UA_Client *client, const UA_ByteString *chunk);
 void processOPNResponse(UA_Client *client, UA_ByteString *chunk);
+void closeSecureChannel(UA_Client *client);
 void renewSecureChannel(UA_Client *client);
-
-UA_StatusCode
-UA_Client_connectTCPSecureChannel(UA_Client *client, const UA_String endpointUrl);
 
 UA_StatusCode
 connectIterate(UA_Client *client, UA_UInt32 timeout);
 
 UA_StatusCode
-UA_Client_connectSession(UA_Client *client);
-
-UA_StatusCode
-createSessionAsync(UA_Client *client);
-
-UA_StatusCode
-activateSessionAsync(UA_Client *client);
-
-UA_StatusCode
-openSecureChannel(UA_Client *client, UA_Boolean renew);
-
-UA_StatusCode
-receiveResponse(UA_Client *client, void *response,
-                const UA_DataType *responseType, UA_UInt32 timeout,
-                const UA_UInt32 *synchronousRequestId);
-
-UA_StatusCode
-receiveResponseAsync(UA_Client *client);
+receiveResponseAsync(UA_Client *client, UA_UInt32 timeout);
 
 _UA_END_DECLS
 
