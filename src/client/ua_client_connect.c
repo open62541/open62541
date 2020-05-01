@@ -505,12 +505,6 @@ responseActivateSession(UA_Client *client, void *userdata, UA_UInt32 requestId,
     client->connection.state = UA_CONNECTIONSTATE_ESTABLISHED;
     setClientState(client, UA_CLIENTSTATE_SESSION);
     client->sessionHandshake = false;
-
-    /* Call into userland to signal the activated session */
-    if(client->asyncConnectCall.callback)
-        client->asyncConnectCall.callback(client, client->asyncConnectCall.userdata,
-                                          requestId + 1,
-                                          &activateResponse->responseHeader.serviceResult);
 }
 
 UA_StatusCode
