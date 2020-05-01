@@ -21,6 +21,8 @@ UA_Server *server;
 UA_Boolean running;
 UA_ServerNetworkLayer nl;
 THREAD_HANDLE server_thread;
+static UA_Boolean noNewSubscription; /* Don't create a subscription when the
+                                        session activates */
 
 THREAD_CALLBACK(serverloop) {
     while(running)
@@ -29,6 +31,7 @@ THREAD_CALLBACK(serverloop) {
 }
 
 static void setup(void) {
+    noNewSubscription = false;
     running = true;
     server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
@@ -643,7 +646,7 @@ START_TEST(Client_subscription_connectionClose) {
 
     /* monitor the server state */
     UA_MonitoredItemCreateRequest monRequest =
-        UA_MonitoredItemCreateRequest_default(UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE));
+        UA_MonitoredItemCreateRequest_default(UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME));
 
     UA_MonitoredItemCreateResult monResponse =
         UA_Client_MonitoredItems_createDataChange(client, response.subscriptionId,

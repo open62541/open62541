@@ -115,7 +115,8 @@ main(int argc, char *argv[]) {
     bReq.nodesToBrowse[0].nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     bReq.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL; /* return everything */
 
-    UA_Client_connect_async(client, "opc.tcp://localhost:4840", onConnect, NULL);
+    cc->stateCallback = onConnect;
+    UA_Client_connectAsync(client, "opc.tcp://localhost:4840");
 
     /*Windows needs time to response*/
     UA_sleep_ms(100);
