@@ -13,6 +13,15 @@
 #define UA_SESSION_LOCALNONCELENGTH      32
 #define MAX_DATA_SIZE 4096
 
+static UA_SecurityPolicy *
+getSecurityPolicy(UA_Client *client, UA_String policyUri) {
+    for(size_t i = 0; i < client->config.securityPoliciesSize; i++) {
+        if(UA_String_equal(&policyUri, &client->config.securityPolicies[i].policyUri))
+            return &client->config.securityPolicies[i];
+    }
+    return NULL;
+}
+
 /* Function to create a signature using remote certificate and nonce */
 #ifdef UA_ENABLE_ENCRYPTION
 static UA_StatusCode
