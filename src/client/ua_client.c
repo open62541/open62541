@@ -217,16 +217,14 @@ processAsyncResponse(UA_Client *client, UA_UInt32 requestId, const UA_NodeId *re
     /* Dequeue ac. We might disconnect (remove all ac) in the callback. */
     LIST_REMOVE(ac, pointers);
 
-    /* Allocate the response */
-    UA_STACKARRAY(UA_Byte, responseBuf, ac->responseType->memSize);
-    void *response = (void*)(uintptr_t)&responseBuf[0]; /* workaround aliasing rules */
 
     /* Verify the type of the response */
+    UA_Response response;
     const UA_DataType *responseType = ac->responseType;
     const UA_NodeId expectedNodeId = UA_NODEID_NUMERIC(0, ac->responseType->binaryEncodingId);
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(!UA_NodeId_equal(responseTypeId, &expectedNodeId)) {
-        UA_init(response, ac->responseType);
+        UA_init(&response, ac->responseType);
         if(UA_NodeId_equal(responseTypeId, &serviceFaultId)) {
             /* Decode as a ServiceFault, i.e. only the response header */
             UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
@@ -242,25 +240,26 @@ processAsyncResponse(UA_Client *client, UA_UInt32 requestId, const UA_NodeId *re
     }
 
     /* Decode the response */
-    retval = UA_decodeBinary(responseMessage, offset, response, responseType, client->config.customDataTypes);
+    retval = UA_decodeBinary(responseMessage, offset, &response, responseType,
+                             client->config.customDataTypes);
 
  process:
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                     "Could not decode the response with id %u due to %s",
                     requestId, UA_StatusCode_name(retval));
-        ((UA_ResponseHeader*)response)->serviceResult = retval;
-    } else if(((UA_ResponseHeader*)response)->serviceResult != UA_STATUSCODE_GOOD) {
+        response.responseHeader.serviceResult = retval;
+    } else if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         /* Decode as a ServiceFault, i.e. only the response header */
         UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                     "The ServiceResult has the StatusCode %s",
-                    UA_StatusCode_name(((UA_ResponseHeader*)response)->serviceResult));
+                    UA_StatusCode_name(response.responseHeader.serviceResult));
     }
 
     /* Call the callback */
     if(ac->callback)
-        ac->callback(client, ac->userdata, requestId, response);
-    UA_deleteMembers(response, ac->responseType);
+        ac->callback(client, ac->userdata, requestId, &response);
+    UA_clear(&response, ac->responseType);
 
     /* Remove the callback */
     UA_free(ac);
@@ -461,16 +460,15 @@ void
 UA_Client_AsyncService_cancel(UA_Client *client, AsyncServiceCall *ac,
                               UA_StatusCode statusCode) {
     /* Create an empty response with the statuscode */
-    UA_STACKARRAY(UA_Byte, responseBuf, ac->responseType->memSize);
-    void *resp = (void*)(uintptr_t)&responseBuf[0]; /* workaround aliasing rules */
-    UA_init(resp, ac->responseType);
-    ((UA_ResponseHeader*)resp)->serviceResult = statusCode;
+    UA_Response response;
+    UA_init(&response, ac->responseType);
+    response.responseHeader.serviceResult = statusCode;
 
     if(ac->callback)
-        ac->callback(client, ac->userdata, ac->requestId, resp);
+        ac->callback(client, ac->userdata, ac->requestId, &response);
 
     /* Clean up the response. Users might move data into it. For whatever reasons. */
-    UA_deleteMembers(resp, ac->responseType);
+    UA_clear(&response, ac->responseType);
 }
 
 void UA_Client_AsyncService_removeAll(UA_Client *client, UA_StatusCode statusCode) {
