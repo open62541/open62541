@@ -119,6 +119,7 @@ struct UA_Client {
 
     /* Connection */
     UA_Connection connection;
+    UA_String endpointUrl; /* Only for the async connect */
 
     /* SecureChannel */
     UA_SecureChannel channel;
@@ -133,8 +134,6 @@ struct UA_Client {
     UA_Boolean endpointsHandshake;
     UA_Boolean sessionHandshake;
     UA_Boolean noSession; /* Don't open a session automatically */
-
-    UA_String endpointUrl; /* Only for the async connect */
 
     /* Async Service */
     AsyncServiceCall asyncConnectCall;
