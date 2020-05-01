@@ -201,10 +201,8 @@ static UA_StatusCode sendOPNAsync(UA_Client *client, UA_Boolean renew);
 static UA_StatusCode requestGetEndpoints(UA_Client *client);
 
 void
-processACKResponseAsync(void *application, UA_SecureChannel *channel,
-                        UA_MessageType messageType, UA_UInt32 requestId,
-                        UA_ByteString *chunk) {
-    UA_Client *client = (UA_Client*)application;
+processACKResponse(UA_Client *client, const UA_ByteString *chunk) {
+    UA_SecureChannel *channel = &client->channel;
 
     UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_NETWORK, "Received ACK message");
 
@@ -350,10 +348,8 @@ processOPNResponseDecoded(UA_Client *client, const UA_ByteString *message, size_
 
 /* The requestId argument is not used but needed for the callback signature. */
 void
-decodeProcessOPNResponseAsync(void *application, UA_SecureChannel *channel,
-                              UA_MessageType messageType, UA_UInt32 requestId,
-                              UA_ByteString *msg) {
-    UA_Client *client = (UA_Client*)application;
+processOPNResponse(UA_Client *client, UA_ByteString *chunk) {
+    UA_SecureChannel *channel = &client->channel;
     client->secureChannelHandshake = false;
 
     /* Skip the first header. We know length and message type. */
@@ -364,7 +360,7 @@ decodeProcessOPNResponseAsync(void *application, UA_SecureChannel *channel,
     UA_AsymmetricAlgorithmSecurityHeader asymHeader;
     UA_AsymmetricAlgorithmSecurityHeader_init(&asymHeader);
     UA_StatusCode retval =
-        UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(msg, &offset, &asymHeader);
+        UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(chunk, &offset, &asymHeader);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_CHANNEL(&client->config.logger, channel,
                                "Could not decode the OPN header");
@@ -395,7 +391,7 @@ decodeProcessOPNResponseAsync(void *application, UA_SecureChannel *channel,
     }
 
     retval = decryptAndVerifyChunk(channel, &channel->securityPolicy->asymmetricModule.cryptoModule,
-                                   UA_MESSAGETYPE_OPN, msg, offset);
+                                   UA_MESSAGETYPE_OPN, chunk, offset);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_CHANNEL(&client->config.logger, channel,
                                "Could not decrypt and verify the OPN payload");
@@ -405,7 +401,7 @@ decodeProcessOPNResponseAsync(void *application, UA_SecureChannel *channel,
 
    /* Decode and verify the sequence header */
     UA_SequenceHeader sequenceHeader;
-    retval = UA_SequenceHeader_decodeBinary(msg, &offset, &sequenceHeader);
+    retval = UA_SequenceHeader_decodeBinary(chunk, &offset, &sequenceHeader);
 #ifndef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
     retval |= processSequenceNumberAsym(channel, sequenceHeader.sequenceNumber);
 #endif
@@ -416,7 +412,7 @@ decodeProcessOPNResponseAsync(void *application, UA_SecureChannel *channel,
         return;
     }
 
-    processOPNResponseDecoded(client, msg, offset);
+    processOPNResponseDecoded(client, chunk, offset);
 }
 
 /* OPN messges to renew the channel are sent asynchronous */
