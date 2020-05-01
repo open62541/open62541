@@ -136,9 +136,7 @@ struct UA_Client {
     UA_Boolean noSession; /* Don't open a session automatically */
 
     /* Async Service */
-    AsyncServiceCall asyncConnectCall;
     LIST_HEAD(, AsyncServiceCall) asyncServiceCalls;
-    /* When using highlevel functions these are the callbacks that can be accessed by the user */
     LIST_HEAD(, CustomCallback) customCallbacks;
 
     /* Subscriptions */
