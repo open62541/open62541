@@ -565,20 +565,13 @@ UA_Client_removeCallback(UA_Client *client, UA_UInt64 callbackId) {
     UA_Timer_removeCallback(&client->timer, callbackId);
 }
 
-/************************/
-/* Worker Functionality */
-/************************/
-
 static void
 asyncServiceTimeoutCheck(UA_Client *client) {
-    UA_DateTime now = UA_DateTime_nowMonotonic();
-
-    /* Timeout occurs, remove the callback */
     AsyncServiceCall *ac, *ac_tmp;
+    UA_DateTime now = UA_DateTime_nowMonotonic();
     LIST_FOREACH_SAFE(ac, &client->asyncServiceCalls, pointers, ac_tmp) {
         if(!ac->timeout)
            continue;
-
         if(ac->start + (UA_DateTime)(ac->timeout * UA_DATETIME_MSEC) <= now) {
             LIST_REMOVE(ac, pointers);
             UA_Client_AsyncService_cancel(client, ac, UA_STATUSCODE_BADTIMEOUT);
@@ -591,7 +584,7 @@ static void
 backgroundConnectivityCallback(UA_Client *client, void *userdata,
                                UA_UInt32 requestId, const UA_ReadResponse *response) {
     if(response->responseHeader.serviceResult == UA_STATUSCODE_BADTIMEOUT) {
-        if (client->config.inactivityCallback)
+        if(client->config.inactivityCallback)
             client->config.inactivityCallback(client);
     }
     client->pendingConnectivityCheck = false;
@@ -607,19 +600,18 @@ UA_Client_backgroundConnectivity(UA_Client *client) {
         return UA_STATUSCODE_GOOD;
 
     UA_DateTime now = UA_DateTime_nowMonotonic();
-    UA_DateTime nextDate = client->lastConnectivityCheck + (UA_DateTime)(client->config.connectivityCheckInterval * UA_DATETIME_MSEC);
-
+    UA_DateTime nextDate = client->lastConnectivityCheck +
+        (UA_DateTime)(client->config.connectivityCheckInterval * UA_DATETIME_MSEC);
     if(now <= nextDate)
         return UA_STATUSCODE_GOOD;
 
-    UA_ReadRequest request;
-    UA_ReadRequest_init(&request);
-
+    /* Prepare the request */
     UA_ReadValueId rvid;
     UA_ReadValueId_init(&rvid);
     rvid.attributeId = UA_ATTRIBUTEID_VALUE;
     rvid.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
-
+    UA_ReadRequest request;
+    UA_ReadRequest_init(&request);
     request.nodesToRead = &rvid;
     request.nodesToReadSize = 1;
 
@@ -643,7 +635,7 @@ UA_Client_backgroundConnectivity(UA_Client *client) {
  *       clean up */
 
 static void
-clientExecuteRepeatedCallback(UA_Client *client, UA_ApplicationCallback cb,
+clientExecuteRepeatedCallback(void *executionApplication, UA_ApplicationCallback cb,
                               void *callbackApplication, void *data) {
     cb(callbackApplication, data);
 }
