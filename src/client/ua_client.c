@@ -650,7 +650,7 @@ clientExecuteRepeatedCallback(UA_Client *client, UA_ApplicationCallback cb,
     cb(callbackApplication, data);
 }
 
-UA_StatusCode UA_Client_run_iterate(UA_Client *client, UA_UInt16 timeout) {
+UA_StatusCode UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_Client_Subscriptions_backgroundPublish(client);
 #endif

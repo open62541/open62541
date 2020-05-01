@@ -479,10 +479,10 @@ UA_Client_sendAsyncRequest(UA_Client *client, const void *request,
  * background. Internal housekeeping, renewal of SecureChannels and subscription
  * management is done as well. */
 UA_StatusCode UA_EXPORT
-UA_Client_run_iterate(UA_Client *client, UA_UInt16 timeout);
+UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout);
 
 UA_DEPRECATED static UA_INLINE UA_StatusCode
-UA_Client_runAsync(UA_Client *client, UA_UInt16 timeout) {
+UA_Client_runAsync(UA_Client *client, UA_UInt32 timeout) {
     return UA_Client_run_iterate(client, timeout);
 }
 
@@ -569,8 +569,10 @@ UA_Client_changeRepeatedCallbackInterval(UA_Client *client,
 void UA_EXPORT
 UA_Client_removeCallback(UA_Client *client, UA_UInt64 callbackId);
 
-#define UA_Client_removeRepeatedCallback(client, callbackId) \
-    UA_Client_removeCallback(client, callbackId)
+UA_DEPRECATED static UA_INLINE void
+UA_Client_removeRepeatedCallback(UA_Client *client, UA_UInt64 callbackId) {
+    UA_Client_removeCallback(client, callbackId);
+}
 
 /**
  * .. toctree::
