@@ -167,26 +167,26 @@ sendSymmetricServiceRequest(UA_Client *client, const void *request,
     /* Adjusting the request header. The const attribute is violated, but we
      * only touch the following members: */
     UA_RequestHeader *rr = (UA_RequestHeader*)(uintptr_t)request;
-    rr->authenticationToken = client->authenticationToken; /* cleaned up at the end */
+    UA_NodeId oldToken = rr->authenticationToken; /* Put back in place later */
+    rr->authenticationToken = client->authenticationToken;
     rr->timestamp = UA_DateTime_now();
     rr->requestHandle = ++client->requestHandle;
-
-    /* Send the request */
     UA_UInt32 rqId = ++client->requestId;
 
 #ifdef UA_ENABLE_TYPEDESCRIPTION
-    UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                 "Sending a request of type %s", requestType->typeName);
+    UA_LOG_DEBUG_CHANNEL(&client->config.logger, &client->channel,
+                         "Sending request with RequestId %u of type %s",
+                         (unsigned)rqId, requestType->typeName);
 #else
-    UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                 "Sending a request of type %" PRIi16, requestType->binaryEncodingId);
+    UA_LOG_DEBUG_CHANNEL(&client->config.logger, channel,
+                         "Sending request with RequestId %u of type %" PRIi16,
+                         (unsigned)rqId, requestType->binaryEncodingId);
 #endif
 
-    retval = UA_SecureChannel_sendSymmetricMessage(&client->channel, rqId, UA_MESSAGETYPE_MSG,
-                                                   rr, requestType);
-    UA_NodeId_init(&rr->authenticationToken); /* Do not return the token to the user */
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
+    /* Send the message */
+    retval = UA_SecureChannel_sendSymmetricMessage(&client->channel, rqId,
+                                                   UA_MESSAGETYPE_MSG, rr, requestType);
+    rr->authenticationToken = oldToken; /* Set the original token */
 
     *requestId = rqId;
     return UA_STATUSCODE_GOOD;
