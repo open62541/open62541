@@ -20,13 +20,6 @@
 UA_Server *server;
 UA_ServerNetworkLayer nl;
 
-static void
-onConnect(UA_Client *Client, void *connected,
-          UA_UInt32 requestId, void *response) {
-    if(UA_Client_getState (Client) == UA_CLIENTSTATE_SESSION)
-        *(UA_Boolean *)connected = true;
-}
-
 static void setup(void) {
     server = UA_Server_new();
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
@@ -50,7 +43,7 @@ START_TEST(Client_connect_async){
     UA_Client *client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
     UA_Boolean connected = false;
-    UA_Client_connect_async(client, "opc.tcp://localhost:4840", onConnect, &connected);
+    UA_Client_connectAsync(client, "opc.tcp://localhost:4840");
     UA_Server_run_iterate(server, false);
 
     UA_UInt32 reqId = 0;
@@ -83,7 +76,7 @@ START_TEST(Client_connect_async){
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     /* With default setting the client uses 4 requests to connect */
     ck_assert_uint_eq(asyncCounter, 10-4);
-    UA_Client_disconnect_async(client, NULL);
+    UA_Client_disconnect(client);
     UA_Client_delete (client);
 }
 END_TEST
@@ -92,9 +85,7 @@ START_TEST(Client_no_connection) {
     UA_Client *client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
 
-    UA_Boolean connected = false;
-    UA_StatusCode retval =
-        UA_Client_connect_async(client, "opc.tcp://localhost:4840", onConnect, &connected);
+    UA_StatusCode retval = UA_Client_connectAsync(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Client_recv = client->connection.recv;
@@ -116,8 +107,7 @@ END_TEST
 START_TEST(Client_without_run_iterate) {
     UA_Client *client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
-    UA_Boolean connected = false;
-    UA_Client_connect_async(client, "opc.tcp://localhost:4840", onConnect, &connected);
+    UA_Client_connectAsync(client, "opc.tcp://localhost:4840");
     UA_Client_delete(client);
 }
 END_TEST

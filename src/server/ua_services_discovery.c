@@ -582,7 +582,7 @@ periodicServerRegister(UA_Server *server, void *data) {
 
     struct PeriodicServerRegisterCallback *cb = (struct PeriodicServerRegisterCallback *)data;
 
-    UA_StatusCode retval = UA_Client_connect_noSession(cb->client, cb->discovery_server_url);
+    UA_StatusCode retval = UA_Client_connectSecureChannel(cb->client, cb->discovery_server_url);
     if (retval == UA_STATUSCODE_GOOD) {
         /* Register
            You can also use a semaphore file. That file must exist. When the file is
@@ -594,10 +594,11 @@ periodicServerRegister(UA_Server *server, void *data) {
         */
         retval = register_server_with_discovery_server(server, cb->client, false, NULL);
         if (retval == UA_STATUSCODE_BADCONNECTIONCLOSED) {
-            /* If the periodic interval is higher than the maximum lifetime of the session, the server will close the connection */
-            /* In this case we should try to reconnect */
+            /* If the periodic interval is higher than the maximum lifetime of
+             * the session, the server will close the connection. In this case
+             * we should try to reconnect */
             UA_Client_disconnect(cb->client);
-            retval = UA_Client_connect_noSession(cb->client, cb->discovery_server_url);
+            retval = UA_Client_connectSecureChannel(cb->client, cb->discovery_server_url);
             if (retval == UA_STATUSCODE_GOOD) {
                 retval = register_server_with_discovery_server(server, cb->client, false, NULL);
             }

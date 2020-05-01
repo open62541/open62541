@@ -961,9 +961,7 @@ verifyClientApplicationURI(const UA_Client *client) {
 #endif
 
 UA_StatusCode
-UA_Client_connect_async(UA_Client *client, const char *endpointUrl,
-                        UA_ClientAsyncServiceCallback callback,
-                        void *userdata) {
+UA_Client_connectAsync(UA_Client *client, const char *endpointUrl) {
     UA_LOG_TRACE(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                  "Client internal async");
 
@@ -1019,9 +1017,6 @@ UA_Client_connect_async(UA_Client *client, const char *endpointUrl,
             goto cleanup;
     }
 
-    client->asyncConnectCall.callback = callback;
-    client->asyncConnectCall.userdata = userdata;
-
     retval = UA_SecureChannel_generateLocalNonce(&client->channel);
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
@@ -1056,7 +1051,7 @@ UA_Client_connectSync(UA_Client *client, const char *endpointUrl) {
     UA_DateTime now = UA_DateTime_nowMonotonic();
     UA_DateTime maxDate = now + ((UA_DateTime)client->config.timeout * UA_DATETIME_MSEC);
 
-    UA_StatusCode retval = UA_Client_connect_async(client, endpointUrl, NULL, NULL);
+    UA_StatusCode retval = UA_Client_connectAsync(client, endpointUrl);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -1080,24 +1075,9 @@ UA_Client_connect(UA_Client *client, const char *endpointUrl) {
 }
 
 UA_StatusCode
-UA_Client_connect_noSession(UA_Client *client, const char *endpointUrl) {
+UA_Client_connectSecureChannel(UA_Client *client, const char *endpointUrl) {
     client->noSession = true;
     return UA_Client_connectSync(client, endpointUrl);
-}
-
-UA_StatusCode
-UA_Client_connect_username(UA_Client *client, const char *endpointUrl,
-                           const char *username, const char *password) {
-    UA_UserNameIdentityToken* identityToken = UA_UserNameIdentityToken_new();
-    if(!identityToken)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    identityToken->userName = UA_STRING_ALLOC(username);
-    identityToken->password = UA_STRING_ALLOC(password);
-    UA_ExtensionObject_deleteMembers(&client->config.userIdentityToken);
-    client->config.userIdentityToken.encoding = UA_EXTENSIONOBJECT_DECODED;
-    client->config.userIdentityToken.content.decoded.type = &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN];
-    client->config.userIdentityToken.content.decoded.data = identityToken;
-    return UA_Client_connect(client, endpointUrl);
 }
 
 /* Async disconnection */
@@ -1120,48 +1100,6 @@ sendCloseSecureChannelAsync(UA_Client *client, void *userdata,
     UA_SecureChannel_close(&client->channel);
 }
 
-static void
-sendCloseSessionAsync(UA_Client *client, UA_UInt32 *requestId) {
-    UA_CloseSessionRequest request;
-    UA_CloseSessionRequest_init(&request);
-
-    request.requestHeader.timestamp = UA_DateTime_now();
-    request.requestHeader.timeoutHint = 10000;
-    request.deleteSubscriptions = true;
-
-    UA_Client_sendAsyncRequest(
-            client, &request, &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST],
-            (UA_ClientAsyncServiceCallback) sendCloseSecureChannelAsync,
-            &UA_TYPES[UA_TYPES_CLOSESESSIONRESPONSE], NULL, requestId);
-
-}
-
-UA_StatusCode
-UA_Client_disconnect_async(UA_Client *client, UA_UInt32 *requestId) {
-    /* Is a session established? */
-    if (client->state == UA_CLIENTSTATE_SESSION) {
-        client->state = UA_CLIENTSTATE_SESSION_DISCONNECTED;
-        sendCloseSessionAsync(client, requestId);
-    }
-
-    /* Close the TCP connection
-     * shutdown and close (in tcp.c) are already async*/
-    if(client->state >= UA_CLIENTSTATE_CONNECTED)
-        client->connection.close(&client->connection);
-
-    if(client->connection.handle)
-        client->connection.free(&client->connection);
-
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-// TODO REMOVE WHEN UA_SESSION_RECOVERY IS READY
-    /* We need to clean up the subscriptions */
-    UA_Client_Subscriptions_clean(client);
-#endif
-
-    setClientState(client, UA_CLIENTSTATE_DISCONNECTED);
-    return UA_STATUSCODE_GOOD;
-}
-
 /************************/
 /* Close the Connection */
 /************************/
@@ -1181,21 +1119,16 @@ sendCloseSession(UA_Client *client) {
     UA_CloseSessionResponse_deleteMembers(&response);
 }
 
-static void
-sendCloseSecureChannel(UA_Client *client) {
-    UA_SecureChannel *channel = &client->channel;
-    UA_CloseSecureChannelRequest request;
-    UA_CloseSecureChannelRequest_init(&request);
-    request.requestHeader.requestHandle = ++client->requestHandle;
-    request.requestHeader.timestamp = UA_DateTime_now();
-    request.requestHeader.timeoutHint = 10000;
-    request.requestHeader.authenticationToken = client->authenticationToken;
-    UA_SecureChannel_sendSymmetricMessage(channel, ++client->requestId,
-                                          UA_MESSAGETYPE_CLO, &request,
-                                          &UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST]);
-    UA_CloseSecureChannelRequest_deleteMembers(&request);
+UA_StatusCode
+UA_Client_disconnectSecureChannel(UA_Client *client) {
+    if(client->channel.state == UA_SECURECHANNELSTATE_OPEN)
+        sendCloseSecureChannelAsync(client, NULL, 0, NULL);
+    client->secureChannelHandshake = false;
     UA_SecureChannel_close(&client->channel);
+    setClientState(client, UA_CLIENTSTATE_DISCONNECTED);
+    return UA_STATUSCODE_GOOD;
 }
+
 
 UA_StatusCode
 UA_Client_disconnect(UA_Client *client) {
@@ -1213,7 +1146,7 @@ UA_Client_disconnect(UA_Client *client) {
     /* Is a secure channel established? */
     if(client->state >= UA_CLIENTSTATE_SECURECHANNEL) {
         client->state = UA_CLIENTSTATE_CONNECTED;
-        sendCloseSecureChannel(client);
+        sendCloseSecureChannelAsync(client, NULL, 0, NULL);
     }
     client->secureChannelHandshake = false;
 

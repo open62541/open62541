@@ -104,12 +104,6 @@ UA_Client_deleteMembers(UA_Client *client) {
 }
 
 void
-UA_Client_reset(UA_Client* client) {
-    UA_Client_deleteMembers(client);
-    UA_Client_init(client);
-}
-
-void
 UA_Client_delete(UA_Client* client) {
     UA_Client_deleteMembers(client);
     UA_ClientConfig_deleteMembers(&client->config);

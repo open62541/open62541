@@ -53,7 +53,7 @@ START_TEST(Client_user_pass_ok) {
     UA_Client *client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
     UA_StatusCode retval =
-        UA_Client_connect_username(client, "opc.tcp://localhost:4840", "user1", "password");
+        UA_Client_connectUsername(client, "opc.tcp://localhost:4840", "user1", "password");
 
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -65,7 +65,7 @@ START_TEST(Client_user_fail) {
     UA_Client *client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
     UA_StatusCode retval =
-        UA_Client_connect_username(client, "opc.tcp://localhost:4840", "user0", "password");
+        UA_Client_connectUsername(client, "opc.tcp://localhost:4840", "user0", "password");
 
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADUSERACCESSDENIED);
 
@@ -77,7 +77,7 @@ START_TEST(Client_pass_fail) {
     UA_Client *client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
     UA_StatusCode retval =
-        UA_Client_connect_username(client, "opc.tcp://localhost:4840", "user1", "secret");
+        UA_Client_connectUsername(client, "opc.tcp://localhost:4840", "user1", "secret");
 
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADUSERACCESSDENIED);
 

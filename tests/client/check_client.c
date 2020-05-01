@@ -86,7 +86,8 @@ END_TEST
 START_TEST(Client_connect_username) {
     UA_Client *client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
-    UA_StatusCode retval = UA_Client_connect_username(client, "opc.tcp://localhost:4840", "user1", "password");
+    UA_StatusCode retval =
+        UA_Client_connectUsername(client, "opc.tcp://localhost:4840", "user1", "password");
 
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 

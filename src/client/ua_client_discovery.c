@@ -55,7 +55,7 @@ UA_Client_getEndpoints(UA_Client *client, const char *serverUrl,
     UA_StatusCode retval;
     const UA_String url = UA_STRING((char*)(uintptr_t)serverUrl);
     if(!connected) {
-        retval = UA_Client_connect_noSession(client, serverUrl);
+        retval = UA_Client_connectSecureChannel(client, serverUrl);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }
@@ -82,7 +82,7 @@ UA_Client_findServers(UA_Client *client, const char *serverUrl,
 
     UA_StatusCode retval;
     if(!connected) {
-        retval = UA_Client_connect_noSession(client, serverUrl);
+        retval = UA_Client_connectSecureChannel(client, serverUrl);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }
@@ -135,7 +135,7 @@ UA_Client_findServersOnNetwork(UA_Client *client, const char *serverUrl,
 
     UA_StatusCode retval;
     if(!connected) {
-        retval = UA_Client_connect_noSession(client, serverUrl);
+        retval = UA_Client_connectSecureChannel(client, serverUrl);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }

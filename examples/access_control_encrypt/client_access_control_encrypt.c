@@ -55,7 +55,7 @@ int main(int argc, char* argv[]) {
         UA_ByteString_clear(&trustList[deleteCount]);
     }
 
-    UA_StatusCode retval = UA_Client_connect_username(client, endpointUrl, "paula", "paula123");
+    UA_StatusCode retval = UA_Client_connectUsername(client, endpointUrl, "paula", "paula123");
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
         return EXIT_FAILURE;
