@@ -141,9 +141,9 @@ struct UA_Client {
 
     /* Subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    UA_UInt32 monitoredItemHandles;
     LIST_HEAD(, UA_Client_NotificationsAckNumber) pendingNotificationsAcks;
     LIST_HEAD(, UA_Client_Subscription) subscriptions;
+    UA_UInt32 monitoredItemHandles;
     UA_UInt16 currentlyOutStandingPublishRequests;
 #endif
 
