@@ -488,13 +488,14 @@ sendOPNAsync(UA_Client *client, UA_Boolean renew) {
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode
-UA_Client_renewSecureChannelAsync(UA_Client *client) {
+void
+renewSecureChannel(UA_Client *client) {
     /* Check if OPN has been sent or the SecureChannel is still valid */
-    if(client->secureChannelHandshake ||
+    if(client->channel.state != UA_SECURECHANNELSTATE_OPEN ||
+       client->secureChannelHandshake ||
        client->nextChannelRenewal > UA_DateTime_nowMonotonic())
-        return UA_STATUSCODE_GOOD;
-    return sendOPNAsync(client, true);
+        return;
+    sendOPNAsync(client, true);
 }
 
 static void
