@@ -520,7 +520,6 @@ responseActivateSession(UA_Client *client, void *userdata, UA_UInt32 requestId,
         return;
     }
 
-    client->connection.state = UA_CONNECTIONSTATE_ESTABLISHED;
     setClientState(client, UA_CLIENTSTATE_SESSION);
     client->sessionHandshake = false;
 }
