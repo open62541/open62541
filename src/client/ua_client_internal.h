@@ -64,19 +64,11 @@ typedef struct UA_Client_Subscription {
 void
 UA_Client_Subscriptions_clean(UA_Client *client);
 
-void
-UA_Client_MonitoredItem_remove(UA_Client *client, UA_Client_Subscription *sub,
-                               UA_Client_MonitoredItem *mon);
-
-void
-UA_Client_Subscriptions_processPublishResponse(UA_Client *client,
-                                               UA_PublishRequest *request,
-                                               UA_PublishResponse *response);
-
+/* Exposed for fuzzing */
 UA_StatusCode
 UA_Client_preparePublishRequest(UA_Client *client, UA_PublishRequest *request);
 
-UA_StatusCode
+void
 UA_Client_Subscriptions_backgroundPublish(UA_Client *client);
 
 void
@@ -99,10 +91,12 @@ typedef struct AsyncServiceCall {
     void *responsedata;
 } AsyncServiceCall;
 
-void UA_Client_AsyncService_cancel(UA_Client *client, AsyncServiceCall *ac,
-                                   UA_StatusCode statusCode);
+void
+UA_Client_AsyncService_cancel(UA_Client *client, AsyncServiceCall *ac,
+                              UA_StatusCode statusCode);
 
-void UA_Client_AsyncService_removeAll(UA_Client *client, UA_StatusCode statusCode);
+void
+UA_Client_AsyncService_removeAll(UA_Client *client, UA_StatusCode statusCode);
 
 typedef struct CustomCallback {
     LIST_ENTRY(CustomCallback) pointers;
@@ -160,16 +154,6 @@ struct UA_Client {
     UA_DateTime lastConnectivityCheck;
     UA_Boolean pendingConnectivityCheck;
 };
-
-static UA_INLINE CustomCallback *
-UA_Client_findCustomCallback(UA_Client *client, UA_UInt32 requestId) {
-    CustomCallback *cc;
-    LIST_FOREACH(cc, &client->customCallbacks, pointers) {
-        if(cc->callbackId == requestId)
-            break;
-    }
-    return cc;
-}
 
 void
 setClientState(UA_Client *client, UA_ClientState state);

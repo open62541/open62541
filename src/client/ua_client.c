@@ -652,9 +652,7 @@ clientExecuteRepeatedCallback(UA_Client *client, UA_ApplicationCallback cb,
 
 UA_StatusCode UA_Client_run_iterate(UA_Client *client, UA_UInt16 timeout) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    UA_StatusCode retvalPublish = UA_Client_Subscriptions_backgroundPublish(client);
-    if(client->state >= UA_CLIENTSTATE_SESSION && retvalPublish != UA_STATUSCODE_GOOD)
-        return retvalPublish;
+    UA_Client_Subscriptions_backgroundPublish(client);
 #endif
 
     /* Process timed (repeated) jobs */

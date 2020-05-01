@@ -758,6 +758,16 @@ typedef struct {
     const UA_DataType *outDataType;
 } AsyncReadData;
 
+static CustomCallback *
+UA_Client_findCustomCallback(UA_Client *client, UA_UInt32 requestId) {
+    CustomCallback *cc;
+    LIST_FOREACH(cc, &client->customCallbacks, pointers) {
+        if(cc->callbackId == requestId)
+            break;
+    }
+    return cc;
+}
+
 static
 void ValueAttributeRead(UA_Client *client, void *userdata,
                         UA_UInt32 requestId, void *response) {
