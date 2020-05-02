@@ -204,7 +204,7 @@ sendSymmetricServiceRequest(UA_Client *client, const void *request,
                          "Sending request with RequestId %u of type %s",
                          (unsigned)rqId, requestType->typeName);
 #else
-    UA_LOG_DEBUG_CHANNEL(&client->config.logger, channel,
+    UA_LOG_DEBUG_CHANNEL(&client->config.logger, &client->channel,
                          "Sending request with RequestId %u of type %" PRIi16,
                          (unsigned)rqId, requestType->binaryEncodingId);
 #endif
@@ -438,6 +438,9 @@ void
 __UA_Client_Service(UA_Client *client, const void *request,
                     const UA_DataType *requestType, void *response,
                     const UA_DataType *responseType) {
+    /* Initialize. Response is valied in case of aborting. */
+    UA_init(response, responseType);
+
     if(client->channel.state != UA_SECURECHANNELSTATE_OPEN) {
         UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                     "SecureChannel must be connected before sending requests");
