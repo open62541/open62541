@@ -267,7 +267,7 @@ UA_Boolean UA_EXPORT UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2);
  * Format: C496578A-0DFE-4B8F-870A-745238C6AEAE
  *         |       |    |    |    |            |
  *         0       8    13   18   23           36 */
-UA_StatusCode
+UA_StatusCode UA_EXPORT
 UA_Guid_parse(UA_Guid *guid, const UA_String str);
 
 static UA_INLINE UA_Guid
@@ -383,7 +383,7 @@ UA_NodeId_print(const UA_NodeId *id, UA_String *output);
 /* Parse the human-readable NodeId format. Attention! String and
  * ByteString NodeIds have their identifier malloc'ed and need to be
  * cleaned up. */
-UA_StatusCode
+UA_StatusCode UA_EXPORT
 UA_NodeId_parse(UA_NodeId *id, const UA_String str);
 
 static UA_INLINE UA_NodeId
@@ -471,7 +471,7 @@ UA_EXPORT extern const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL;
  *
  * The definitions for svr, ns and nsu can be omitted and will be set to zero /
  * the empty string.*/
-UA_StatusCode
+UA_StatusCode UA_EXPORT
 UA_ExpandedNodeId_parse(UA_ExpandedNodeId *id, const UA_String str);
 
 static UA_INLINE UA_ExpandedNodeId
