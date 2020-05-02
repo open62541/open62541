@@ -49,6 +49,15 @@ typedef UA_StatusCode status;
 /* Utility Functions
  * ----------------- */
 
+/*
+ * Get the number of optional fields contained in an structure type.
+ *
+ * @param type the requested type
+ * @return number of optional fields
+ */
+size_t UA_EXPORT
+getCountOfOptionalFields(const UA_DataType *type);
+
 #ifdef UA_DEBUG_DUMP_PKGS
 void UA_EXPORT UA_dump_hex_pkg(UA_Byte* buffer, size_t bufferLen);
 #endif

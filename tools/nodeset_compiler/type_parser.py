@@ -126,37 +126,51 @@ class OpaqueType(Type):
 
 
 class StructMember(object):
-    def __init__(self, name, member_type, is_array):
+    def __init__(self, name, member_type, is_array, is_optional):
         self.name = name
         self.member_type = member_type
         self.is_array = is_array
+        self.is_optional = is_optional
 
 
 class StructType(Type):
     def __init__(self, outname, xml, namespace, types):
         Type.__init__(self, outname, xml, namespace)
         length_fields = []
+        optional_fields = []
 
+        bt = xml.get("BaseType")
+        self.is_union = True if bt and get_type_name(bt) == "Union" else False
         for child in xml:
             length_field = child.get("LengthField")
             if length_field:
                 length_fields.append(length_field)
-
+        for child in xml:
+            child_type = child.get("TypeName")
+            if child_type and get_type_name(child_type) == "Bit":
+                optional_fields.append(child.get("Name"))
         for child in xml:
             if not child.tag == "{http://opcfoundation.org/BinarySchema/}Field":
                 continue
             if child.get("Name") in length_fields:
                 continue
+            if get_type_name(child.get("TypeName")) == "Bit":
+                continue
+            switch_field = child.get("SwitchField")
+            if switch_field and switch_field in optional_fields:
+                member_is_optional = True
+            else:
+                member_is_optional = False
             member_name = child.get("Name")
             member_name = member_name[:1].lower() + member_name[1:]
             member_type_name = get_type_name(child.get("TypeName"))
             member_type = types[member_type_name]
             is_array = True if child.get("LengthField") else False
-            self.members.append(StructMember(member_name, member_type, is_array))
+            self.members.append(StructMember(member_name, member_type, is_array, member_is_optional))
 
         self.pointerfree = True
         for m in self.members:
-            if m.is_array or not m.member_type.pointerfree:
+            if m.is_array or m.is_optional or not m.member_type.pointerfree:
                 self.pointerfree = False
 
 
@@ -202,7 +216,7 @@ class TypeParser():
             for child in element:
                 if child.tag == "{http://opcfoundation.org/BinarySchema/}Field":
                     childname = get_type_name(child.get("TypeName"))
-                    if childname not in self.types:
+                    if childname not in self.types and childname != "Bit":
                         return False
             return True
 
@@ -223,6 +237,37 @@ class TypeParser():
                 return True
             return False
 
+        def structWithOptionalFields(element):
+            opt_fields = []
+            for child in element:
+                if child.tag != "{http://opcfoundation.org/BinarySchema/}Field":
+                    continue
+                typename = child.get("TypeName")
+                if typename and get_type_name(typename) == "Bit":
+                    if re.match(re.compile('.+Specified'), child.get("Name")):
+                        opt_fields.append(child.get("Name"))
+                    elif child.get("Name") == "Reserved1":
+                        if len(opt_fields) + int(child.get("Length")) != 32:
+                            return False
+                        else:
+                            break
+                    else:
+                        return False
+                else:
+                    return False
+            for child in element:
+                switchfield = child.get("SwitchField")
+                if switchfield and switchfield in opt_fields:
+                    opt_fields.remove(switchfield)
+            return len(opt_fields) == 0
+
+        def structWithBitFields(element):
+            for child in element:
+                typename = child.get("TypeName")
+                if typename and get_type_name(typename) == "Bit":
+                    return True
+            return False
+
         snippets = {}
         for typeXml in etree.parse(xmlDescription).getroot():
             if not typeXml.get("Name"):
@@ -235,7 +280,7 @@ class TypeParser():
             if detectLoop == len(snippets):
                 name, typeXml = snippets.popitem()
                 raise RuntimeError("Infinite loop detected or type not found while processing types " + name + ": unknonwn subtype " +
-                                   str(unknownTypes(typeXml)) + " Maybe you need to import additional types with the --import flag. " +
+                                   str(unknownTypes(typeXml)) + ". If the unknown subtype is 'Bit', then maybe a struct with optional fields is defined wrong in the .bsd-file. If not, maybe you need to import additional types with the --import flag. " +
                                    "E.g. '--import==UA_TYPES#/path/to/deps/ua-nodeset/Schema/Opc.Ua.Types.bsd'")
             detectLoop = len(snippets)
             for name, typeXml in list(snippets.items()):
@@ -243,6 +288,8 @@ class TypeParser():
                     del snippets[name]
                     continue
                 if not typeReady(typeXml):
+                    continue
+                if structWithBitFields(typeXml) and not structWithOptionalFields(typeXml):
                     continue
                 if name in builtin_types:
                     new_type = BuiltinType(name)
