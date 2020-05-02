@@ -733,6 +733,11 @@ processCompleteChunks(UA_SecureChannel *channel, void *application,
         if(res != UA_STATUSCODE_GOOD)
             break;
 
+        /* The channel is to be closed */
+        if(channel->state == UA_SECURECHANNELSTATE_CLOSING ||
+           channel->state == UA_SECURECHANNELSTATE_CLOSED)
+            break;
+
         /* Could we process a full message? Done? */
         UA_Chunk *next = SIMPLEQ_FIRST(&channel->completeChunks);
         if(chunk == next)
