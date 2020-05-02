@@ -39,7 +39,7 @@ UA_Client_NamespaceGetIndex(UA_Client *client, UA_String *namespaceUri,
         retval = UA_STATUSCODE_BADTYPEMISMATCH;
 
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_ReadResponse_deleteMembers(&response);
+        UA_ReadResponse_clear(&response);
         return retval;
     }
 
@@ -53,7 +53,7 @@ UA_Client_NamespaceGetIndex(UA_Client *client, UA_String *namespaceUri,
         }
     }
 
-    UA_ReadResponse_deleteMembers(&response);
+    UA_ReadResponse_clear(&response);
     return retval;
 }
 
@@ -82,8 +82,8 @@ UA_Client_forEachChildNodeCall(UA_Client *client, UA_NodeId parentNodeId,
         }
     }
 
-    UA_BrowseRequest_deleteMembers(&bReq);
-    UA_BrowseResponse_deleteMembers(&bResp);
+    UA_BrowseRequest_clear(&bReq);
+    UA_BrowseResponse_clear(&bResp);
     return retval;
 }
 
@@ -112,15 +112,15 @@ UA_Client_addReference(UA_Client *client, const UA_NodeId sourceNodeId,
     UA_AddReferencesResponse response = UA_Client_Service_addReferences(client, request);
     UA_StatusCode retval = response.responseHeader.serviceResult;
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_AddReferencesResponse_deleteMembers(&response);
+        UA_AddReferencesResponse_clear(&response);
         return retval;
     }
     if(response.resultsSize != 1) {
-        UA_AddReferencesResponse_deleteMembers(&response);
+        UA_AddReferencesResponse_clear(&response);
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
     retval = response.results[0];
-    UA_AddReferencesResponse_deleteMembers(&response);
+    UA_AddReferencesResponse_clear(&response);
     return retval;
 }
 
@@ -143,15 +143,15 @@ UA_Client_deleteReference(UA_Client *client, const UA_NodeId sourceNodeId,
     UA_DeleteReferencesResponse response = UA_Client_Service_deleteReferences(client, request);
     UA_StatusCode retval = response.responseHeader.serviceResult;
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_DeleteReferencesResponse_deleteMembers(&response);
+        UA_DeleteReferencesResponse_clear(&response);
         return retval;
     }
     if(response.resultsSize != 1) {
-        UA_DeleteReferencesResponse_deleteMembers(&response);
+        UA_DeleteReferencesResponse_clear(&response);
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
     retval = response.results[0];
-    UA_DeleteReferencesResponse_deleteMembers(&response);
+    UA_DeleteReferencesResponse_clear(&response);
     return retval;
 }
 
@@ -169,15 +169,15 @@ UA_Client_deleteNode(UA_Client *client, const UA_NodeId nodeId,
     UA_DeleteNodesResponse response = UA_Client_Service_deleteNodes(client, request);
     UA_StatusCode retval = response.responseHeader.serviceResult;
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_DeleteNodesResponse_deleteMembers(&response);
+        UA_DeleteNodesResponse_clear(&response);
         return retval;
     }
     if(response.resultsSize != 1) {
-        UA_DeleteNodesResponse_deleteMembers(&response);
+        UA_DeleteNodesResponse_clear(&response);
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
     retval = response.results[0];
-    UA_DeleteNodesResponse_deleteMembers(&response);
+    UA_DeleteNodesResponse_clear(&response);
     return retval;
 }
 
@@ -206,12 +206,12 @@ __UA_Client_addNode(UA_Client *client, const UA_NodeClass nodeClass,
 
     UA_StatusCode retval = response.responseHeader.serviceResult;
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_AddNodesResponse_deleteMembers(&response);
+        UA_AddNodesResponse_clear(&response);
         return retval;
     }
 
     if(response.resultsSize != 1) {
-        UA_AddNodesResponse_deleteMembers(&response);
+        UA_AddNodesResponse_clear(&response);
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
 
@@ -222,7 +222,7 @@ __UA_Client_addNode(UA_Client *client, const UA_NodeClass nodeClass,
         UA_NodeId_init(&response.results[0].addedNodeId);
     }
 
-    UA_AddNodesResponse_deleteMembers(&response);
+    UA_AddNodesResponse_clear(&response);
     return retval;
 }
 
@@ -259,7 +259,7 @@ UA_Client_call(UA_Client *client, const UA_NodeId objectId,
             retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_CallResponse_deleteMembers(&response);
+        UA_CallResponse_clear(&response);
         return retval;
     }
 
@@ -270,7 +270,7 @@ UA_Client_call(UA_Client *client, const UA_NodeId objectId,
         response.results[0].outputArguments = NULL;
         response.results[0].outputArgumentsSize = 0;
     }
-    UA_CallResponse_deleteMembers(&response);
+    UA_CallResponse_clear(&response);
     return retval;
 }
 
@@ -312,7 +312,7 @@ __UA_Client_writeAttribute(UA_Client *client, const UA_NodeId *nodeId,
             retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
 
-    UA_WriteResponse_deleteMembers(&wResp);
+    UA_WriteResponse_clear(&wResp);
     return retval;
 }
 
@@ -344,7 +344,7 @@ UA_Client_writeArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeI
         else
             retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
-    UA_WriteResponse_deleteMembers(&wResp);
+    UA_WriteResponse_clear(&wResp);
     return retval;
 }
 
@@ -373,7 +373,7 @@ __UA_Client_readAttribute(UA_Client *client, const UA_NodeId *nodeId,
             retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_ReadResponse_deleteMembers(&response);
+        UA_ReadResponse_clear(&response);
         return retval;
     }
 
@@ -386,7 +386,7 @@ __UA_Client_readAttribute(UA_Client *client, const UA_NodeId *nodeId,
     if(!res->hasValue) {
         if(retval == UA_STATUSCODE_GOOD)
             retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
-        UA_ReadResponse_deleteMembers(&response);
+        UA_ReadResponse_clear(&response);
         return retval;
     }
 
@@ -405,7 +405,7 @@ __UA_Client_readAttribute(UA_Client *client, const UA_NodeId *nodeId,
         retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
 
-    UA_ReadResponse_deleteMembers(&response);
+    UA_ReadResponse_clear(&response);
     return retval;
 }
 
@@ -454,7 +454,7 @@ UA_Client_readArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeId
     UA_ReadResponse response = UA_Client_Service_read(client, request);
     UA_StatusCode retval = processReadArrayDimensionsResult(&response, outArrayDimensions,
                                                             outArrayDimensionsSize);
-    UA_ReadResponse_deleteMembers(&response);
+    UA_ReadResponse_clear(&response);
     return retval;
 }
 
@@ -510,8 +510,8 @@ __UA_Client_HistoryRead_service(UA_Client *client, const UA_NodeId *nodeId,
 
         if (cleanup) {
             retval = response.responseHeader.serviceResult;
-cleanup:    UA_HistoryReadResponse_deleteMembers(&response);
-            UA_ByteString_deleteMembers(&continuationPoint);
+cleanup:    UA_HistoryReadResponse_clear(&response);
+            UA_ByteString_clear(&continuationPoint);
             return retval;
         }
 
@@ -528,7 +528,7 @@ cleanup:    UA_HistoryReadResponse_deleteMembers(&response);
         UA_HistoryReadResult *res = response.results;
 
         /* Clear old and check / store new continuation point */
-        UA_ByteString_deleteMembers(&continuationPoint);
+        UA_ByteString_clear(&continuationPoint);
         UA_ByteString_copy(&res->continuationPoint, &continuationPoint);
         continuationAvail = !UA_ByteString_equal(&continuationPoint, &UA_BYTESTRING_NULL);
 
@@ -536,7 +536,7 @@ cleanup:    UA_HistoryReadResponse_deleteMembers(&response);
         fetchMore = callback(client, nodeId, continuationAvail, &res->historyData, callbackContext);
 
         /* Regular cleanup */
-        UA_HistoryReadResponse_deleteMembers(&response);
+        UA_HistoryReadResponse_clear(&response);
     } while (continuationAvail);
 
     return retval;
@@ -642,7 +642,6 @@ __UA_Client_HistoryUpdate(UA_Client *client,
 
     UA_HistoryUpdateResponse response;
     response = UA_Client_Service_historyUpdate(client, request);
-    //UA_HistoryUpdateRequest_deleteMembers(&request);
     return response;
 }
 
@@ -677,8 +676,8 @@ __UA_Client_HistoryUpdate_updateData(UA_Client *client,
     }
     ret = response.results[0].operationResults[0];
 cleanup:
-    UA_HistoryUpdateResponse_deleteMembers(&response);
-    UA_NodeId_deleteMembers(&details.nodeId);
+    UA_HistoryUpdateResponse_clear(&response);
+    UA_NodeId_clear(&details.nodeId);
     return ret;
 }
 
@@ -745,8 +744,8 @@ UA_Client_HistoryUpdate_deleteRaw(UA_Client *client,
     ret = response.results[0].statusCode;
 
 cleanup:
-    UA_HistoryUpdateResponse_deleteMembers(&response);
-    UA_NodeId_deleteMembers(&details.nodeId);
+    UA_HistoryUpdateResponse_clear(&response);
+    UA_NodeId_clear(&details.nodeId);
     return ret;
 }
 #endif // UA_ENABLE_HISTORIZING
@@ -963,6 +962,6 @@ UA_StatusCode __UA_Client_translateBrowsePathsToNodeIds_async(UA_Client *client,
                 &UA_TYPES[UA_TYPES_RELATIVEPATHELEMENT]);
         return retval;
     }
-    UA_BrowsePath_deleteMembers(&browsePath);
+    UA_BrowsePath_clear(&browsePath);
     return retval;
 }
