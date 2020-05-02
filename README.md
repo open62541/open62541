@@ -260,7 +260,7 @@ int main(int argc, char *argv[])
     }
 
     /* Clean up */
-    UA_Variant_deleteMembers(&value);
+    UA_Variant_clear(&value);
     UA_Client_delete(client); /* Disconnects the client internally */
     return status;
 }

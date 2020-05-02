@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2018 (c) Ari Breitkreuz, fortiss GmbH
+ *    Copyright 2020 (c) Christian von Arnim
  */
 
 #include "ua_server_internal.h"
@@ -195,10 +196,11 @@ resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session, const UA_N
     /* If this list (browsePath) is empty the Node is the instance of the
      * TypeDefinition. */
     if(sao->browsePathSize == 0) {
+      UA_NodeId conditionTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
       //TODO check for Branches! One Condition could have multiple Branches
       // Set ConditionId
-      UA_NodeId conditionTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
       if(UA_NodeId_equal(&sao->typeDefinitionId, &conditionTypeId)){
         UA_NodeId conditionId;
         UA_StatusCode retval = UA_getConditionId(server, origin, &conditionId);
@@ -210,7 +212,10 @@ resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session, const UA_N
       else
         rvi.nodeId = sao->typeDefinitionId;
 #else
-      rvi.nodeId = sao->typeDefinitionId;
+      if(UA_NodeId_equal(&sao->typeDefinitionId, &conditionTypeId))
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+      else
+        rvi.nodeId = sao->typeDefinitionId;
 #endif /*UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS*/
         UA_DataValue v = UA_Server_readWithSession(server, session, &rvi,
 		                                           UA_TIMESTAMPSTORETURN_NEITHER);
@@ -241,6 +246,122 @@ resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session, const UA_N
     return v.status;
 }
 
+UA_StatusCode
+UA_Server_evaluateWhereClauseContentFilter(
+    UA_Server *server,
+    const UA_NodeId *eventNode,
+    const UA_ContentFilter *contentFilter) {
+    if(contentFilter->elements == NULL || contentFilter->elementsSize == 0)
+    {
+        /* Nothing to do.*/
+        /** @todo Whats the default result?*/
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* The first element needs to be evaluated, this might be linked to */
+    /* other elements, which are evaluated in these cases.*/
+    /* See 7.4.1 in Part 4, v1.04-Nov 22, 2017 */
+    UA_ContentFilterElement *pElement = &contentFilter->elements[0];
+    /** @todo Verify retun types in specification or CTT */
+    switch (pElement->filterOperator)
+    {
+        case UA_FILTEROPERATOR_INVIEW:
+        case UA_FILTEROPERATOR_RELATEDTO:
+        {
+            /*Not allowed for event WhereClause according to 7.17.3 in */
+            /* Part 4, v1.04-Nov 22, 2017*/
+            return UA_STATUSCODE_BADEVENTFILTERINVALID;
+        }
+        case UA_FILTEROPERATOR_EQUALS:
+        case UA_FILTEROPERATOR_ISNULL:
+        case UA_FILTEROPERATOR_GREATERTHAN:
+        case UA_FILTEROPERATOR_LESSTHAN:
+        case UA_FILTEROPERATOR_GREATERTHANOREQUAL:
+        case UA_FILTEROPERATOR_LESSTHANOREQUAL:
+        case UA_FILTEROPERATOR_LIKE:
+        case UA_FILTEROPERATOR_NOT:
+        case UA_FILTEROPERATOR_BETWEEN:
+        case UA_FILTEROPERATOR_INLIST:
+        case UA_FILTEROPERATOR_AND:
+        case UA_FILTEROPERATOR_OR:
+        case UA_FILTEROPERATOR_CAST:
+        case UA_FILTEROPERATOR_BITWISEAND:
+        case UA_FILTEROPERATOR_BITWISEOR:
+        {
+            return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
+        }
+        case UA_FILTEROPERATOR_OFTYPE:
+        {
+            UA_Boolean result = UA_FALSE;
+            if(pElement->filterOperandsSize != 1)
+            {
+                return UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+            }
+            if(pElement->filterOperands[0].content.decoded.type !=
+                &UA_TYPES[UA_TYPES_LITERALOPERAND])
+            {
+                return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
+            }
+            UA_LiteralOperand *pOperand =
+                (UA_LiteralOperand *) pElement->filterOperands[0].content.decoded.data;
+            if(!UA_Variant_isScalar(&pOperand->value))
+            {
+                return UA_STATUSCODE_BADEVENTFILTERINVALID;
+            }
+
+            if(pOperand->value.type != &UA_TYPES[UA_TYPES_NODEID]
+                || pOperand->value.data == NULL)
+            {
+                result = UA_FALSE;
+            }
+            else {
+                UA_NodeId *pOperandNodeId = (UA_NodeId *) pOperand->value.data;
+                UA_NodeId hasSubtypeId =
+                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
+                UA_QualifiedName eventTypeQualifiedName =
+                    UA_QUALIFIEDNAME(0, "EventType");
+                UA_Variant typeNodeIdVariant;
+                UA_Variant_init(&typeNodeIdVariant);
+                UA_StatusCode readStatusCode =
+                    UA_Server_readObjectProperty(
+                        server, *eventNode,
+                        eventTypeQualifiedName, &typeNodeIdVariant);
+                if(readStatusCode != UA_STATUSCODE_GOOD)
+                {
+                    return readStatusCode;
+                }
+
+                if(!UA_Variant_isScalar(&typeNodeIdVariant)
+                    || typeNodeIdVariant.type != &UA_TYPES[UA_TYPES_NODEID]
+                    || typeNodeIdVariant.data == NULL)
+                {
+                    UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "EventType has an invalid type.");
+                    UA_Variant_clear(&typeNodeIdVariant);
+                    return UA_STATUSCODE_BADINTERNALERROR;
+                }
+                result = isNodeInTree(
+                    server, (UA_NodeId*) typeNodeIdVariant.data,
+                    pOperandNodeId, &hasSubtypeId, 1);
+                UA_Variant_clear(&typeNodeIdVariant);
+            }
+
+            if(result)
+            {
+                return UA_STATUSCODE_GOOD;
+            }
+            else
+            {
+                return UA_STATUSCODE_BADNOMATCH;
+            }
+        }
+            break;
+        default:
+            return UA_STATUSCODE_BADFILTEROPERATORINVALID;
+            break;
+        }
+}
+
 /* Filters the given event with the given filter and writes the results into a
  * notification */
 static UA_StatusCode
@@ -250,6 +371,12 @@ UA_Server_filterEvent(UA_Server *server, UA_Session *session,
     if (filter->selectClausesSize == 0)
         return UA_STATUSCODE_BADEVENTFILTERINVALID;
 
+    UA_StatusCode retVal = UA_Server_evaluateWhereClauseContentFilter(
+        server, eventNode, &filter->whereClause);
+    if(retVal != UA_STATUSCODE_GOOD)
+    {
+        return retVal;
+    }
     UA_EventFieldList_init(&notification->fields);
     /* EventFilterResult isn't being used currently
     UA_EventFilterResult_init(&notification->result); */
@@ -384,6 +511,11 @@ UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event, UA_M
     UA_StatusCode retval =
         UA_Server_filterEvent(server, session, event, &mon->filter.eventFilter,
                               &notification->data.event);
+    if(retval == UA_STATUSCODE_BADNOMATCH)
+    {
+        UA_free(notification);
+        return UA_STATUSCODE_GOOD;
+    }
     if(retval != UA_STATUSCODE_GOOD) {
         UA_free(notification);
         return retval;

@@ -5,7 +5,8 @@
  *    Copyright 2018-2019 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
  *    Copyright 2018 (c) HMS Industrial Networks AB (Author: Jonas Green)
- *
+ *    Copyright 2020 (c) Wind River Systems, Inc.
+ * 
  */
 
 #include <open62541/plugin/securitypolicy_default.h>
@@ -41,7 +42,6 @@
 #define UA_SECURITYPOLICY_BASIC128RSA15_MAXASYMKEYLENGTH 512
 
 typedef struct {
-    const UA_SecurityPolicy *securityPolicy;
     UA_ByteString localCertThumbprint;
 
     mbedtls_ctr_drbg_context drbgContext;
@@ -643,7 +643,7 @@ updateCertificateAndPrivateKey_sp_basic128rsa15(UA_SecurityPolicy *securityPolic
         goto error;
     }
 
-    retval = asym_makeThumbprint_sp_basic128rsa15(pc->securityPolicy,
+    retval = asym_makeThumbprint_sp_basic128rsa15(securityPolicy,
                                                   &securityPolicy->localCertificate,
                                                   &pc->localCertThumbprint);
     if(retval != UA_STATUSCODE_GOOD)
@@ -686,7 +686,6 @@ policyContext_newContext_sp_basic128rsa15(UA_SecurityPolicy *securityPolicy,
     mbedtls_entropy_init(&pc->entropyContext);
     mbedtls_pk_init(&pc->localPrivateKey);
     mbedtls_md_init(&pc->sha1MdContext);
-    pc->securityPolicy = securityPolicy;
 
     /* Initialized the message digest */
     const mbedtls_md_info_t *const mdInfo = mbedtls_md_info_from_type(MBEDTLS_MD_SHA1);
@@ -728,7 +727,7 @@ policyContext_newContext_sp_basic128rsa15(UA_SecurityPolicy *securityPolicy,
     retval = UA_ByteString_allocBuffer(&pc->localCertThumbprint, UA_SHA1_LENGTH);
     if(retval != UA_STATUSCODE_GOOD)
         goto error;
-    retval = asym_makeThumbprint_sp_basic128rsa15(pc->securityPolicy,
+    retval = asym_makeThumbprint_sp_basic128rsa15(securityPolicy,
                                                   &securityPolicy->localCertificate,
                                                   &pc->localCertThumbprint);
     if(retval != UA_STATUSCODE_GOOD)

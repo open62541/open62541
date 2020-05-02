@@ -5,6 +5,7 @@ import sys
 import time
 import getpass
 import platform
+from collections import OrderedDict
 
 if sys.version_info[0] >= 3:
     from nodeset_compiler.type_parser import BuiltinType, EnumerationType, OpaqueType, StructType
@@ -54,7 +55,6 @@ def getNodeidTypeAndId(nodeId):
         strId = nodeId[2:]
         return "UA_NODEIDTYPE_STRING, {{ .string = UA_STRING_STATIC(\"{id}\") }}".format(id=strId.replace("\"", "\\\""))
 
-
 class CGenerator(object):
     def __init__(self, parser, inname, outfile, is_internal_types):
         self.parser = parser
@@ -87,6 +87,11 @@ class CGenerator(object):
         if isinstance(datatype, OpaqueType):
             return "UA_DATATYPEKIND_" + datatype.base_type.upper()
         if isinstance(datatype, StructType):
+            for m in datatype.members:
+                if m.is_optional:
+                    return "UA_DATATYPEKIND_OPTSTRUCT"
+            if datatype.is_union:
+                return "UA_DATATYPEKIND_UNION"
             return "UA_DATATYPEKIND_STRUCTURE"
         raise RuntimeError("Unknown type")
 
@@ -146,10 +151,16 @@ class CGenerator(object):
         idName = makeCIdentifier(datatype.name)
         if len(datatype.members) == 0:
             return "#define %s_members NULL" % (idName)
-        members = "static UA_DataTypeMember %s_members[%s] = {" % (idName, len(datatype.members))
+        isUnion = isinstance(datatype, StructType) and datatype.is_union
+        if isUnion:
+            members = "static UA_DataTypeMember %s_members[%s] = {" % (idName, len(datatype.members)-1)
+        else:
+            members = "static UA_DataTypeMember %s_members[%s] = {" % (idName, len(datatype.members))
         before = None
         size = len(datatype.members)
         for i, member in enumerate(datatype.members):
+            if isUnion and i == 0:
+                continue
             member_name = makeCIdentifier(member.name)
             member_name_capital = member_name
             if len(member_name) > 0:
@@ -160,19 +171,22 @@ class CGenerator(object):
             m += "    "
             if not before:
                 m += "0,"
+            elif isUnion:
+                m += "sizeof(UA_UInt32),"
             else:
                 if member.is_array:
                     m += "offsetof(UA_%s, %sSize)" % (idName, member_name)
                 else:
                     m += "offsetof(UA_%s, %s)" % (idName, member_name)
                 m += " - offsetof(UA_%s, %s)" % (idName, makeCIdentifier(before.name))
-                if before.is_array:
-                    m += " - sizeof(void*),"
+                if before.is_array or before.is_optional:
+                    m += " - sizeof(void *),"
                 else:
                     m += " - sizeof(UA_%s)," % makeCIdentifier(before.member_type.name)
             m += " /* .padding */\n"
             m += "    %s, /* .namespaceZero */\n" % ("true" if member.member_type.ns0 else "false")
-            m += ("    true" if member.is_array else "    false") + " /* .isArray */\n}"
+            m += ("    true," if member.is_array else "    false,") + " /* .isArray */\n"
+            m += ("    true" if member.is_optional else "    false") + " /* .isOptional */\n}"
             if i != size:
                 m += ","
             members += m
@@ -242,17 +256,44 @@ class CGenerator(object):
 
     @staticmethod
     def print_struct_typedef(struct):
+        #generate enum option for union
+        returnstr = ""
+        if struct.is_union:
+            #test = type("MyEnumOptionSet", (EnumOptionSet, object), {"foo": lambda self: "foo"})
+            obj = type('MyEnumOptionSet', (object,), {'isOptionSet': False, 'elements': OrderedDict(), 'name': struct.name+"Switch"})
+            obj.elements['None'] = str(0)
+            count = 0
+            for member in struct.members:
+                if(count > 0):
+                    obj.elements[member.name] = str(count)
+                count += 1
+            returnstr += CGenerator.print_enum_typedef(obj)
+            returnstr += "\n\n"
         if len(struct.members) == 0:
             return "typedef void * UA_%s;" % makeCIdentifier(struct.name)
-        returnstr = "typedef struct {\n"
+        returnstr += "typedef struct {\n"
+        if struct.is_union:
+            returnstr += "    UA_%sSwitch switchField;\n" % struct.name
+            returnstr += "    union {\n"
+        count = 0
         for member in struct.members:
             if member.is_array:
                 returnstr += "    size_t %sSize;\n" % makeCIdentifier(member.name)
                 returnstr += "    UA_%s *%s;\n" % (
                     makeCIdentifier(member.member_type.name), makeCIdentifier(member.name))
+            elif struct.is_union:
+                if count > 0:
+                    returnstr += "        UA_%s %s;\n" % (
+                    makeCIdentifier(member.member_type.name), makeCIdentifier(member.name))
+            elif member.is_optional:
+                returnstr += "    UA_%s *%s;\n" % (
+                    makeCIdentifier(member.member_type.name), makeCIdentifier(member.name))
             else:
                 returnstr += "    UA_%s %s;\n" % (
                     makeCIdentifier(member.member_type.name), makeCIdentifier(member.name))
+            count += 1
+        if struct.is_union:
+            returnstr += "    } fields;\n"
         return returnstr + "} UA_%s;" % makeCIdentifier(struct.name)
 
     @staticmethod

@@ -62,7 +62,7 @@ createEventOverflowNotification(UA_Server *server, UA_Subscription *sub,
     UA_Notification *overflowNotification = (UA_Notification *)
         UA_malloc(sizeof(UA_Notification));
     if(!overflowNotification)
-        return UA_STATUSCODE_BADOUTOFMEMORY;;
+        return UA_STATUSCODE_BADOUTOFMEMORY;
 
     /* Set the notification fields */
     overflowNotification->mon = mon;
@@ -70,7 +70,7 @@ createEventOverflowNotification(UA_Server *server, UA_Subscription *sub,
     overflowNotification->data.event.fields.eventFields = UA_Variant_new();
     if(!overflowNotification->data.event.fields.eventFields) {
         UA_free(overflowNotification);
-        return UA_STATUSCODE_BADOUTOFMEMORY;;
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     }
     overflowNotification->data.event.fields.eventFieldsSize = 1;
     UA_StatusCode retval =

@@ -75,15 +75,6 @@ typedef enum {
   UA_ACTIVE_LOWLOW
 } UA_ActiveState;
 
-/* In the first implementation there will be only one entry in this list
- * conditionBranchId is always NULL. */
-typedef struct UA_ConditionBranch {
-    LIST_ENTRY(UA_ConditionBranch) listEntry;
-    UA_NodeId conditionBranchId;
-    UA_ByteString lastEventId;
-    UA_Boolean isCallerAC;
-} UA_ConditionBranch;
-
 typedef struct {
     UA_TwoStateVariableChangeCallback enableStateCallback;
     UA_TwoStateVariableChangeCallback ackStateCallback;
@@ -93,6 +84,23 @@ typedef struct {
     UA_TwoStateVariableChangeCallback activeStateCallback;
 } UA_ConditionCallbacks;
 
+/*
+ * In Alarms and Conditions first implementation, conditionBranchId
+ * is always equal to NULL NodeId (UA_NODEID_NULL). That ConditionBranch
+ * represents the current state Condition. The current state is determined
+ * by the last Event triggered (lastEventId). See Part 9, 5.5.2, BranchId.
+ */
+typedef struct UA_ConditionBranch {
+    LIST_ENTRY(UA_ConditionBranch) listEntry;
+    UA_NodeId conditionBranchId;
+    UA_ByteString lastEventId;
+    UA_Boolean isCallerAC;
+} UA_ConditionBranch;
+
+/*
+ * In Alarms and Conditions first implementation, A Condition
+ * have only one ConditionBranch entry.
+ */
 typedef struct UA_Condition {
     LIST_ENTRY(UA_Condition) listEntry;
     LIST_HEAD(, UA_ConditionBranch) conditionBranchHead;
@@ -105,6 +113,9 @@ typedef struct UA_Condition {
     UA_Boolean isLimitAlarm;
 } UA_Condition;
 
+/*
+ * A ConditionSource can have multiple Conditions.
+ */
 typedef struct UA_ConditionSource {
     LIST_ENTRY(UA_ConditionSource) listEntry;
     LIST_HEAD(, UA_Condition) conditionHead;
@@ -303,6 +314,16 @@ UA_StatusCode UA_Subscription_removeRetransmissionMessage(UA_Subscription *sub,
                                                           UA_UInt32 sequenceNumber);
 void UA_Subscription_answerPublishRequestsNoSubscription(UA_Server *server, UA_Session *session);
 UA_Boolean UA_Subscription_reachedPublishReqLimit(UA_Server *server,  UA_Session *session);
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+
+/* Only for unit testing */
+UA_StatusCode
+UA_Server_evaluateWhereClauseContentFilter(
+    UA_Server *server,
+    const UA_NodeId *eventNode,
+    const UA_ContentFilter *contentFilter);
+#endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
 

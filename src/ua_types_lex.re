@@ -24,16 +24,8 @@
  * In order that users of the SDK don't need to install re2c, always commit a
  * recent ua_types_lex.c if changes are made to the lexer. */
 
-/*!re2c
-    re2c:define:YYCTYPE = char;
-    re2c:flags:tags = 1;
-    re2c:yyfill:enable = 0;
-    re2c:flags:input = custom;
-
-    nodeid_body = ("i=" | "s=" | "g=" | "b=");
-*/
-
 #define YYCURSOR pos
+#define YYMARKER context.marker
 #define YYPEEK() (YYCURSOR < end) ? *YYCURSOR : 0 /* The lexer sees a stream of
                                                    * \0 when the input ends*/
 #define YYSKIP() ++YYCURSOR;
@@ -42,11 +34,20 @@
 #define YYSTAGP(t) t = YYCURSOR
 #define YYSTAGN(t) t = NULL
 
-/* The generated lexer defines global variables. Protect with a mutex. */
-/*!stags:re2c format = 'const char *@@;'; */
-#if UA_MULTITHREADING >= 100
-UA_LOCK_TYPE(parserMutex)
-#endif
+typedef struct {
+    const char *marker;
+    /*!stags:re2c format = 'const char *@@;'; */
+} LexContext;
+
+/*!re2c
+    re2c:define:YYCTYPE = char;
+    re2c:flags:tags = 1;
+    re2c:tags:expression = context.@@;
+    re2c:yyfill:enable = 0;
+    re2c:flags:input = custom;
+
+    nodeid_body = ("i=" | "s=" | "g=" | "b=");
+*/
 
 static UA_StatusCode
 parse_guid(UA_Guid *guid, const UA_Byte *s, const UA_Byte *e) {
@@ -67,22 +68,19 @@ parse_guid(UA_Guid *guid, const UA_Byte *s, const UA_Byte *e) {
         return UA_STATUSCODE_BADINTERNALERROR;
     guid->data3 = (UA_UInt16)tmp;
 
-    if(UA_readNumberWithBase(&s[19], 4, &tmp, 16) != 4)
+    if(UA_readNumberWithBase(&s[19], 2, &tmp, 16) != 2)
         return UA_STATUSCODE_BADINTERNALERROR;
     guid->data4[0] = (UA_Byte)tmp;
-    guid->data4[1] = (UA_Byte)(tmp >> 8);
 
-    if(UA_readNumberWithBase(&s[24], 8, &tmp, 16) != 8)
+    if(UA_readNumberWithBase(&s[21], 2, &tmp, 16) != 2)
         return UA_STATUSCODE_BADINTERNALERROR;
-    guid->data4[2] = (UA_Byte)tmp;
-    guid->data4[3] = (UA_Byte)(tmp >> 8);
-    guid->data4[4] = (UA_Byte)(tmp >> 16);
-    guid->data4[5] = (UA_Byte)(tmp >> 24);
+    guid->data4[1] = (UA_Byte)tmp;
 
-    if(UA_readNumberWithBase(&s[32], 4, &tmp, 16) != 4)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    guid->data4[6] = (UA_Byte)tmp;
-    guid->data4[7] = (UA_Byte)(tmp >> 8);
+    for(size_t pos = 2, spos = 24; pos < 8; pos++, spos += 2) {
+        if(UA_readNumberWithBase(&s[spos], 2, &tmp, 16) != 2)
+            return UA_STATUSCODE_BADINTERNALERROR;
+        guid->data4[pos] = (UA_Byte)tmp;
+    }
 
     return UA_STATUSCODE_GOOD;
 }
@@ -138,7 +136,10 @@ parse_nodeid_body(UA_NodeId *id, const char *body, const char *end) {
 static UA_StatusCode
 parse_nodeid(UA_NodeId *id, const char *pos, const char *end) {
     *id = UA_NODEID_NULL; /* Reset the NodeId */
-    const char *YYMARKER= pos, *ns = NULL, *nse= NULL;
+    LexContext context;
+    memset(&context, 0, sizeof(LexContext));
+    const char *ns = NULL, *nse= NULL;
+
     /*!re2c
     ("ns=" @ns [0-9]+ @nse ";")? nodeid_body {
         (void)pos; // Get rid of a dead store clang-analyzer warning
@@ -159,19 +160,20 @@ parse_nodeid(UA_NodeId *id, const char *pos, const char *end) {
 
 UA_StatusCode
 UA_NodeId_parse(UA_NodeId *id, const UA_String str) {
-    UA_LOCK(parserMutex);
     UA_StatusCode res =
         parse_nodeid(id, (const char*)str.data, (const char*)str.data+str.length);
     if(res != UA_STATUSCODE_GOOD)
         UA_NodeId_clear(id);
-    UA_UNLOCK(parserMutex);
     return res;
 }
 
 static UA_StatusCode
 parse_expandednodeid(UA_ExpandedNodeId *id, const char *pos, const char *end) {
     *id = UA_EXPANDEDNODEID_NULL; /* Reset the NodeId */
-    const char *YYMARKER= pos, *svr = NULL, *svre = NULL, *nsu = NULL, *ns = NULL, *body = NULL;
+    LexContext context;
+    memset(&context, 0, sizeof(LexContext));
+    const char *svr = NULL, *svre = NULL, *nsu = NULL, *ns = NULL, *body = NULL;
+
     /*!re2c
     ("svr=" @svr [0-9]+ @svre ";")?
     ("ns=" @ns [0-9]+ ";" | "nsu=" @nsu (.\";")* ";")?
@@ -208,12 +210,10 @@ parse_expandednodeid(UA_ExpandedNodeId *id, const char *pos, const char *end) {
 
 UA_StatusCode
 UA_ExpandedNodeId_parse(UA_ExpandedNodeId *id, const UA_String str) {
-    UA_LOCK(parserMutex);
     UA_StatusCode res =
         parse_expandednodeid(id, (const char*)str.data, (const char*)str.data+str.length);
     if(res != UA_STATUSCODE_GOOD)
         UA_ExpandedNodeId_clear(id);
-    UA_UNLOCK(parserMutex);
     return res;
 }
 
@@ -282,7 +282,9 @@ parse_refpath_qn_name(UA_QualifiedName *qn, const char **pos, const char *end) {
 
 static UA_StatusCode
 parse_refpath_qn(UA_QualifiedName *qn, const char *pos, const char *end) {
-    const char *YYMARKER = pos, *ns = NULL, *nse = NULL;
+    LexContext context;
+    memset(&context, 0, sizeof(LexContext));
+    const char *ns = NULL, *nse = NULL;
     UA_QualifiedName_init(qn);
 
     /*!re2c
@@ -348,12 +350,14 @@ lookup_reftype(UA_NodeId *refTypeId, UA_QualifiedName *qn) {
 
 static UA_StatusCode
 parse_relativepath(UA_RelativePath *rp, const char *pos, const char *end) {
-    const char *YYMARKER = pos, *begin = NULL, *finish = NULL;
-    UA_RelativePath_init(rp); /* Reset the BrowsePath */
-    UA_RelativePathElement current;
+    LexContext context;
+    memset(&context, 0, sizeof(LexContext));
+    const char *begin = NULL, *finish = NULL;
     UA_StatusCode res = UA_STATUSCODE_GOOD;
+    UA_RelativePath_init(rp); /* Reset the BrowsePath */
 
     /* Add one element to the path in every iteration */
+    UA_RelativePathElement current;
  loop:
     UA_RelativePathElement_init(&current);
     current.includeSubtypes = true; /* Follow subtypes by default */
@@ -419,11 +423,9 @@ parse_relativepath(UA_RelativePath *rp, const char *pos, const char *end) {
 
 UA_StatusCode
 UA_RelativePath_parse(UA_RelativePath *rp, const UA_String str) {
-    UA_LOCK(parserMutex);
     UA_StatusCode res =
         parse_relativepath(rp, (const char*)str.data, (const char*)str.data+str.length);
     if(res != UA_STATUSCODE_GOOD)
         UA_RelativePath_clear(rp);
-    UA_UNLOCK(parserMutex);
     return res;
 }

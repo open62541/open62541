@@ -42,9 +42,20 @@ START_TEST(base64) {
     UA_ByteString_clear(&test2out);
 } END_TEST
 
+/* Example taken from Part 6, 5.2.2.6 */
 START_TEST(parseGuid) {
-    UA_Guid guid = UA_GUID("09087e75-8e5e-499b-954f-f2a9603db28a");
-    ck_assert_int_eq(guid.data1, 151551605);
+    UA_Guid guid = UA_GUID("72962B91-FA75-4AE6-8D28-B404DC7DAF63");
+    ck_assert_int_eq((UA_Byte)guid.data1, 0x91);
+    ck_assert_int_eq((UA_Byte)guid.data2, 0x75);
+    ck_assert_int_eq((UA_Byte)guid.data3, 0xe6);
+    ck_assert_int_eq(guid.data4[0], 0x8d);
+    ck_assert_int_eq(guid.data4[1], 0x28);
+    ck_assert_int_eq(guid.data4[2], 0xb4);
+    ck_assert_int_eq(guid.data4[3], 0x04);
+    ck_assert_int_eq(guid.data4[4], 0xdc);
+    ck_assert_int_eq(guid.data4[5], 0x7d);
+    ck_assert_int_eq(guid.data4[6], 0xaf);
+    ck_assert_int_eq(guid.data4[7], 0x63);
 } END_TEST
 
 START_TEST(parseNodeIdNumeric) {

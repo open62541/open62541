@@ -1,0 +1,260 @@
+<opc:TypeDictionary xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:tns="http://opcfoundation.org/UA/AutoID/" DefaultByteOrder="LittleEndian" xmlns:opc="http://opcfoundation.org/BinarySchema/" xmlns:ua="http://opcfoundation.org/UA/" TargetNamespace="http://opcfoundation.org/UA/AutoID/">
+ <opc:Import Namespace="http://opcfoundation.org/UA/"/>
+ <opc:StructuredType BaseType="ua:ExtensionObject" Name="AccessResult">
+  <opc:Documentation>Result values of an AutoID Identifier access</opc:Documentation>
+  <opc:Field TypeName="opc:Bit" Name="CodeTypeSpecified"/>
+  <opc:Field TypeName="opc:Bit" Name="IdentifierSpecified"/>
+  <opc:Field TypeName="opc:Bit" Name="TimestampSpecified"/>
+  <opc:Field Length="29" TypeName="opc:Bit" Name="Reserved1"/>
+  <opc:Field SwitchField="CodeTypeSpecified" TypeName="opc:CharArray" Name="CodeType"/>
+  <opc:Field SwitchField="IdentifierSpecified" TypeName="tns:ScanData" Name="Identifier"/>
+  <opc:Field SwitchField="TimestampSpecified" TypeName="opc:DateTime" Name="Timestamp"/>
+ </opc:StructuredType>
+ <opc:StructuredType BaseType="tns:AccessResult" Name="RfidAccessResult">
+  <opc:Documentation>Additional result values of an Rfid Transponder access</opc:Documentation>
+  <opc:Field TypeName="opc:Bit" Name="CodeTypeSpecified"/>
+  <opc:Field TypeName="opc:Bit" Name="IdentifierSpecified"/>
+  <opc:Field TypeName="opc:Bit" Name="TimestampSpecified"/>
+  <opc:Field TypeName="opc:Bit" Name="CodeTypeRWDataSpecified"/>
+  <opc:Field TypeName="opc:Bit" Name="RWDataSpecified"/>
+  <opc:Field TypeName="opc:Bit" Name="AntennaSpecified"/>
+  <opc:Field TypeName="opc:Bit" Name="CurrentPowerLevelSpecified"/>
+  <opc:Field TypeName="opc:Bit" Name="PCSpecified"/>
+  <opc:Field TypeName="opc:Bit" Name="PolarizationSpecified"/>
+  <opc:Field TypeName="opc:Bit" Name="StrengthSpecified"/>
+  <opc:Field Length="22" TypeName="opc:Bit" Name="Reserved1"/>
+  <opc:Field SwitchField="CodeTypeSpecified" SourceType="tns:AccessResult" TypeName="opc:CharArray" Name="CodeType"/>
+  <opc:Field SwitchField="IdentifierSpecified" SourceType="tns:AccessResult" TypeName="tns:ScanData" Name="Identifier"/>
+  <opc:Field SwitchField="TimestampSpecified" SourceType="tns:AccessResult" TypeName="opc:DateTime" Name="Timestamp"/>
+  <opc:Field SwitchField="CodeTypeRWDataSpecified" TypeName="opc:CharArray" Name="CodeTypeRWData"/>
+  <opc:Field SwitchField="RWDataSpecified" TypeName="tns:ScanData" Name="RWData"/>
+  <opc:Field SwitchField="AntennaSpecified" TypeName="opc:Int32" Name="Antenna"/>
+  <opc:Field SwitchField="CurrentPowerLevelSpecified" TypeName="opc:Int32" Name="CurrentPowerLevel"/>
+  <opc:Field SwitchField="PCSpecified" TypeName="opc:UInt16" Name="PC"/>
+  <opc:Field SwitchField="PolarizationSpecified" TypeName="opc:CharArray" Name="Polarization"/>
+  <opc:Field SwitchField="StrengthSpecified" TypeName="opc:Int32" Name="Strength"/>
+ </opc:StructuredType>
+ <opc:StructuredType BaseType="ua:ExtensionObject" Name="AntennaNameIdPair">
+  <opc:Field TypeName="opc:Int32" Name="AntennaId"/>
+  <opc:Field TypeName="opc:CharArray" Name="AntennaName"/>
+ </opc:StructuredType>
+ <opc:StructuredType BaseType="ua:ExtensionObject" Name="DhcpGeoConfCoordinate">
+  <opc:Field TypeName="opc:Byte" Name="LaRes"/>
+  <opc:Field TypeName="opc:Int16" Name="LatitudeInteger"/>
+  <opc:Field TypeName="opc:Int32" Name="LatitudeFraction"/>
+  <opc:Field TypeName="opc:Byte" Name="LoRes"/>
+  <opc:Field TypeName="opc:Int16" Name="LongitudeInteger"/>
+  <opc:Field TypeName="opc:Int32" Name="LongitudeFraction"/>
+  <opc:Field TypeName="opc:Byte" Name="AT"/>
+  <opc:Field TypeName="opc:Byte" Name="AltRes"/>
+  <opc:Field TypeName="opc:Int32" Name="AltitudeInteger"/>
+  <opc:Field TypeName="opc:Int16" Name="AltitudeFraction"/>
+  <opc:Field TypeName="opc:Byte" Name="Datum"/>
+ </opc:StructuredType>
+ <opc:StructuredType BaseType="ua:ExtensionObject" Name="LocalCoordinate">
+  <opc:Field TypeName="opc:Double" Name="X"/>
+  <opc:Field TypeName="opc:Double" Name="Y"/>
+  <opc:Field TypeName="opc:Double" Name="Z"/>
+  <opc:Field TypeName="opc:DateTime" Name="Timestamp"/>
+  <opc:Field TypeName="opc:Double" Name="DilutionOfPrecision"/>
+  <opc:Field TypeName="opc:Int32" Name="UsefulPrecision"/>
+ </opc:StructuredType>
+ <opc:StructuredType BaseType="ua:ExtensionObject" Name="Position">
+  <opc:Field TypeName="opc:Int32" Name="PositionX"/>
+  <opc:Field TypeName="opc:Int32" Name="PositionY"/>
+  <opc:Field TypeName="opc:Int32" Name="SizeX"/>
+  <opc:Field TypeName="opc:Int32" Name="SizeY"/>
+  <opc:Field TypeName="opc:Int32" Name="Rotation"/>
+ </opc:StructuredType>
+ <opc:StructuredType BaseType="ua:ExtensionObject" Name="RfidSighting">
+  <opc:Field TypeName="opc:Int32" Name="Antenna"/>
+  <opc:Field TypeName="opc:Int32" Name="Strength"/>
+  <opc:Field TypeName="opc:DateTime" Name="Timestamp"/>
+  <opc:Field TypeName="opc:Int32" Name="CurrentPowerLevel"/>
+ </opc:StructuredType>
+ <opc:StructuredType BaseType="ua:ExtensionObject" Name="Rotation">
+  <opc:Field TypeName="opc:Double" Name="Yaw"/>
+  <opc:Field TypeName="opc:Double" Name="Pitch"/>
+  <opc:Field TypeName="opc:Double" Name="Roll"/>
+ </opc:StructuredType>
+ <opc:StructuredType BaseType="ua:ExtensionObject" Name="ScanDataEpc">
+  <opc:Field TypeName="opc:UInt16" Name="PC"/>
+  <opc:Field TypeName="opc:ByteString" Name="UId"/>
+  <opc:Field TypeName="opc:UInt16" Name="XPC_W1"/>
+  <opc:Field TypeName="opc:UInt16" Name="XPC_W2"/>
+ </opc:StructuredType>
+ <opc:StructuredType BaseType="ua:ExtensionObject" Name="ScanResult">
+  <opc:Field TypeName="opc:Bit" Name="LocationSpecified"/>
+  <opc:Field Length="31" TypeName="opc:Bit" Name="Reserved1"/>
+  <opc:Field TypeName="opc:CharArray" Name="CodeType"/>
+  <opc:Field TypeName="tns:ScanData" Name="ScanData"/>
+  <opc:Field TypeName="opc:DateTime" Name="Timestamp"/>
+  <opc:Field SwitchField="LocationSpecified" TypeName="tns:Location" Name="Location"/>
+ </opc:StructuredType>
+ <opc:StructuredType BaseType="tns:ScanResult" Name="OcrScanResult">
+  <opc:Field TypeName="opc:Bit" Name="LocationSpecified"/>
+  <opc:Field TypeName="opc:Bit" Name="FontSpecified"/>
+  <opc:Field TypeName="opc:Bit" Name="DecodingTimeSpecified"/>
+  <opc:Field Length="29" TypeName="opc:Bit" Name="Reserved1"/>
+  <opc:Field SourceType="tns:ScanResult" TypeName="opc:CharArray" Name="CodeType"/>
+  <opc:Field SourceType="tns:ScanResult" TypeName="tns:ScanData" Name="ScanData"/>
+  <opc:Field SourceType="tns:ScanResult" TypeName="opc:DateTime" Name="Timestamp"/>
+  <opc:Field SwitchField="LocationSpecified" SourceType="tns:ScanResult" TypeName="tns:Location" Name="Location"/>
+  <opc:Field TypeName="ua:NodeId" Name="ImageId"/>
+  <opc:Field TypeName="opc:Byte" Name="Quality"/>
+  <opc:Field TypeName="tns:Position" Name="Position"/>
+  <opc:Field SwitchField="FontSpecified" TypeName="opc:CharArray" Name="Font"/>
+  <opc:Field SwitchField="DecodingTimeSpecified" TypeName="opc:DateTime" Name="DecodingTime"/>
+ </opc:StructuredType>
+ <opc:StructuredType BaseType="tns:ScanResult" Name="OpticalScanResult">
+  <opc:Field TypeName="opc:Bit" Name="LocationSpecified"/>
+  <opc:Field TypeName="opc:Bit" Name="GradeSpecified"/>
+  <opc:Field TypeName="opc:Bit" Name="PositionSpecified"/>
+  <opc:Field TypeName="opc:Bit" Name="SymbologySpecified"/>
+  <opc:Field TypeName="opc:Bit" Name="ImageIdSpecified"/>
+  <opc:Field Length="27" TypeName="opc:Bit" Name="Reserved1"/>
+  <opc:Field SourceType="tns:ScanResult" TypeName="opc:CharArray" Name="CodeType"/>
+  <opc:Field SourceType="tns:ScanResult" TypeName="tns:ScanData" Name="ScanData"/>
+  <opc:Field SourceType="tns:ScanResult" TypeName="opc:DateTime" Name="Timestamp"/>
+  <opc:Field SwitchField="LocationSpecified" SourceType="tns:ScanResult" TypeName="tns:Location" Name="Location"/>
+  <opc:Field SwitchField="GradeSpecified" TypeName="opc:Float" Name="Grade"/>
+  <opc:Field SwitchField="PositionSpecified" TypeName="tns:Position" Name="Position"/>
+  <opc:Field SwitchField="SymbologySpecified" TypeName="opc:CharArray" Name="Symbology"/>
+  <opc:Field SwitchField="ImageIdSpecified" TypeName="ua:NodeId" Name="ImageId"/>
+ </opc:StructuredType>
+ <opc:StructuredType BaseType="tns:OpticalScanResult" Name="OpticalVerifierScanResult">
+  <opc:Field TypeName="opc:Bit" Name="LocationSpecified"/>
+  <opc:Field TypeName="opc:Bit" Name="GradeSpecified"/>
+  <opc:Field TypeName="opc:Bit" Name="PositionSpecified"/>
+  <opc:Field TypeName="opc:Bit" Name="SymbologySpecified"/>
+  <opc:Field TypeName="opc:Bit" Name="ImageIdSpecified"/>
+  <opc:Field Length="27" TypeName="opc:Bit" Name="Reserved1"/>
+  <opc:Field SourceType="tns:ScanResult" TypeName="opc:CharArray" Name="CodeType"/>
+  <opc:Field SourceType="tns:ScanResult" TypeName="tns:ScanData" Name="ScanData"/>
+  <opc:Field SourceType="tns:ScanResult" TypeName="opc:DateTime" Name="Timestamp"/>
+  <opc:Field SwitchField="LocationSpecified" SourceType="tns:ScanResult" TypeName="tns:Location" Name="Location"/>
+  <opc:Field SwitchField="GradeSpecified" SourceType="tns:OpticalScanResult" TypeName="opc:Float" Name="Grade"/>
+  <opc:Field SwitchField="PositionSpecified" SourceType="tns:OpticalScanResult" TypeName="tns:Position" Name="Position"/>
+  <opc:Field SwitchField="SymbologySpecified" SourceType="tns:OpticalScanResult" TypeName="opc:CharArray" Name="Symbology"/>
+  <opc:Field SwitchField="ImageIdSpecified" SourceType="tns:OpticalScanResult" TypeName="ua:NodeId" Name="ImageId"/>
+  <opc:Field TypeName="opc:CharArray" Name="IsoGrade"/>
+  <opc:Field TypeName="opc:Int16" Name="RMin"/>
+  <opc:Field TypeName="opc:Int16" Name="SymbolContrast"/>
+  <opc:Field TypeName="opc:Int16" Name="ECMin"/>
+  <opc:Field TypeName="opc:Int16" Name="Modulation"/>
+  <opc:Field TypeName="opc:Int16" Name="Defects"/>
+  <opc:Field TypeName="opc:Int16" Name="Decodability"/>
+  <opc:Field TypeName="opc:Int16" Name="Decode"/>
+  <opc:Field TypeName="opc:Int16" Name="PrintGain"/>
+ </opc:StructuredType>
+ <opc:StructuredType BaseType="tns:ScanResult" Name="RfidScanResult">
+  <opc:Field TypeName="opc:Bit" Name="LocationSpecified"/>
+  <opc:Field Length="31" TypeName="opc:Bit" Name="Reserved1"/>
+  <opc:Field SourceType="tns:ScanResult" TypeName="opc:CharArray" Name="CodeType"/>
+  <opc:Field SourceType="tns:ScanResult" TypeName="tns:ScanData" Name="ScanData"/>
+  <opc:Field SourceType="tns:ScanResult" TypeName="opc:DateTime" Name="Timestamp"/>
+  <opc:Field SwitchField="LocationSpecified" SourceType="tns:ScanResult" TypeName="tns:Location" Name="Location"/>
+  <opc:Field TypeName="opc:Int32" Name="NoOfSighting"/>
+  <opc:Field LengthField="NoOfSighting" TypeName="tns:RfidSighting" Name="Sighting"/>
+ </opc:StructuredType>
+ <opc:StructuredType BaseType="tns:ScanResult" Name="RtlsLocationResult">
+  <opc:Field TypeName="opc:Bit" Name="LocationSpecified"/>
+  <opc:Field Length="31" TypeName="opc:Bit" Name="Reserved1"/>
+  <opc:Field SourceType="tns:ScanResult" TypeName="opc:CharArray" Name="CodeType"/>
+  <opc:Field SourceType="tns:ScanResult" TypeName="tns:ScanData" Name="ScanData"/>
+  <opc:Field SourceType="tns:ScanResult" TypeName="opc:DateTime" Name="Timestamp"/>
+  <opc:Field SwitchField="LocationSpecified" SourceType="tns:ScanResult" TypeName="tns:Location" Name="Location"/>
+  <opc:Field TypeName="opc:Double" Name="Speed"/>
+  <opc:Field TypeName="opc:Double" Name="Heading"/>
+  <opc:Field TypeName="tns:Rotation" Name="Rotation"/>
+  <opc:Field TypeName="opc:DateTime" Name="ReceiveTime"/>
+ </opc:StructuredType>
+ <opc:StructuredType BaseType="ua:ExtensionObject" Name="ScanSettings">
+  <opc:Field TypeName="opc:Bit" Name="LocationTypeSpecified"/>
+  <opc:Field Length="31" TypeName="opc:Bit" Name="Reserved1"/>
+  <opc:Field TypeName="opc:Double" Name="Duration"/>
+  <opc:Field TypeName="opc:Int32" Name="Cycles"/>
+  <opc:Field TypeName="opc:Boolean" Name="DataAvailable"/>
+  <opc:Field SwitchField="LocationTypeSpecified" TypeName="tns:LocationTypeEnumeration" Name="LocationType"/>
+ </opc:StructuredType>
+ <opc:StructuredType BaseType="ua:Union" Name="Location">
+  <opc:Field TypeName="opc:UInt32" Name="SwitchField"/>
+  <opc:Field SwitchField="SwitchField" TypeName="opc:CharArray" SwitchValue="1" Name="NMEA"/>
+  <opc:Field SwitchField="SwitchField" TypeName="tns:LocalCoordinate" SwitchValue="2" Name="Local"/>
+  <opc:Field SwitchField="SwitchField" TypeName="tns:WGS84Coordinate" SwitchValue="3" Name="WGS84"/>
+  <opc:Field SwitchField="SwitchField" TypeName="opc:CharArray" SwitchValue="4" Name="Name"/>
+ </opc:StructuredType>
+ <opc:StructuredType BaseType="ua:Union" Name="ScanData">
+  <opc:Field TypeName="opc:UInt32" Name="SwitchField"/>
+  <opc:Field SwitchField="SwitchField" TypeName="opc:ByteString" SwitchValue="1" Name="ByteString"/>
+  <opc:Field SwitchField="SwitchField" TypeName="opc:CharArray" SwitchValue="2" Name="String"/>
+  <opc:Field SwitchField="SwitchField" TypeName="tns:ScanDataEpc" SwitchValue="3" Name="Epc"/>
+  <opc:Field SwitchField="SwitchField" TypeName="ua:Variant" SwitchValue="4" Name="Custom"/>
+ </opc:StructuredType>
+ <opc:StructuredType BaseType="ua:ExtensionObject" Name="WGS84Coordinate">
+  <opc:Field TypeName="opc:CharArray" Name="N/S Hemisphere"/>
+  <opc:Field TypeName="opc:Double" Name="Latitude"/>
+  <opc:Field TypeName="opc:CharArray" Name="E/W Hemisphere"/>
+  <opc:Field TypeName="opc:Double" Name="Longitude"/>
+  <opc:Field TypeName="opc:Double" Name="Altitude"/>
+  <opc:Field TypeName="opc:DateTime" Name="Timestamp"/>
+  <opc:Field TypeName="opc:Double" Name="DilutionOfPrecision"/>
+  <opc:Field TypeName="opc:Int32" Name="UsefulPrecisionLatLon"/>
+  <opc:Field TypeName="opc:Int32" Name="UsefulPrecisionAlt"/>
+ </opc:StructuredType>
+ <opc:EnumeratedType LengthInBits="32" Name="AutoIdOperationStatusEnumeration">
+  <opc:EnumeratedValue Name="SUCCESS" Value="0"/>
+  <opc:EnumeratedValue Name="MISC_ERROR_TOTAL" Value="1"/>
+  <opc:EnumeratedValue Name="MISC_ERROR_PARTIAL" Value="2"/>
+  <opc:EnumeratedValue Name="PERMISSON_ERROR" Value="3"/>
+  <opc:EnumeratedValue Name="PASSWORD_ERROR" Value="4"/>
+  <opc:EnumeratedValue Name="REGION_NOT_FOUND_ERROR" Value="5"/>
+  <opc:EnumeratedValue Name="OP_NOT_POSSIBLE_ERROR" Value="6"/>
+  <opc:EnumeratedValue Name="OUT_OF_RANGE_ERROR" Value="7"/>
+  <opc:EnumeratedValue Name="NO_IDENTIFIER" Value="8"/>
+  <opc:EnumeratedValue Name="MULTIPLE_IDENTIFIERS" Value="9"/>
+  <opc:EnumeratedValue Name="READ_ERROR" Value="10"/>
+  <opc:EnumeratedValue Name="DECODING_ERROR" Value="11"/>
+  <opc:EnumeratedValue Name="MATCH_ERROR" Value="12"/>
+  <opc:EnumeratedValue Name="CODE_NOT_SUPPORTED" Value="13"/>
+  <opc:EnumeratedValue Name="WRITE_ERROR" Value="14"/>
+  <opc:EnumeratedValue Name="NOT_SUPPORTED_BY_DEVICE" Value="15"/>
+  <opc:EnumeratedValue Name="NOT_SUPPORTED_BY_TAG" Value="16"/>
+  <opc:EnumeratedValue Name="DEVICE_NOT_READY" Value="17"/>
+  <opc:EnumeratedValue Name="INVALID_CONFIGURATION" Value="18"/>
+  <opc:EnumeratedValue Name="RF_COMMUNICATION_ERROR" Value="19"/>
+  <opc:EnumeratedValue Name="DEVICE_FAULT" Value="20"/>
+  <opc:EnumeratedValue Name="TAG_HAS_LOW_BATTERY" Value="21"/>
+ </opc:EnumeratedType>
+ <opc:EnumeratedType LengthInBits="32" Name="DeviceStatusEnumeration">
+  <opc:EnumeratedValue Name="Idle" Value="0"/>
+  <opc:EnumeratedValue Name="Error" Value="1"/>
+  <opc:EnumeratedValue Name="Scanning" Value="2"/>
+  <opc:EnumeratedValue Name="Busy" Value="3"/>
+ </opc:EnumeratedType>
+ <opc:EnumeratedType LengthInBits="32" Name="LocationTypeEnumeration">
+  <opc:EnumeratedValue Name="NMEA" Value="0"/>
+  <opc:EnumeratedValue Name="LOCAL" Value="1"/>
+  <opc:EnumeratedValue Name="WGS84" Value="2"/>
+  <opc:EnumeratedValue Name="NAME" Value="3"/>
+ </opc:EnumeratedType>
+ <opc:EnumeratedType LengthInBits="32" Name="RfidLockOperationEnumeration">
+  <opc:EnumeratedValue Name="Lock" Value="0"/>
+  <opc:EnumeratedValue Name="Unlock" Value="1"/>
+  <opc:EnumeratedValue Name="PermanentLock" Value="2"/>
+  <opc:EnumeratedValue Name="PermanentUnlock" Value="3"/>
+ </opc:EnumeratedType>
+ <opc:EnumeratedType LengthInBits="32" Name="RfidLockRegionEnumeration">
+  <opc:EnumeratedValue Name="Kill" Value="0"/>
+  <opc:EnumeratedValue Name="Access" Value="1"/>
+  <opc:EnumeratedValue Name="EPC" Value="2"/>
+  <opc:EnumeratedValue Name="TID" Value="3"/>
+  <opc:EnumeratedValue Name="User" Value="4"/>
+ </opc:EnumeratedType>
+ <opc:EnumeratedType LengthInBits="32" Name="RfidPasswordTypeEnumeration">
+  <opc:EnumeratedValue Name="Access" Value="0"/>
+  <opc:EnumeratedValue Name="Kill" Value="1"/>
+  <opc:EnumeratedValue Name="Read" Value="2"/>
+  <opc:EnumeratedValue Name="Write" Value="3"/>
+ </opc:EnumeratedType>
+</opc:TypeDictionary>

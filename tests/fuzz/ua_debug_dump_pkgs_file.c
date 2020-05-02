@@ -153,11 +153,11 @@ UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const connect
 
     UA_ByteString messageBufferCopy;
     UA_ByteString_copy(messageBuffer, &messageBufferCopy);
-    UA_SecureChannel_processPacket(&dummy, &dump_filename, UA_debug_dump_setName, &messageBufferCopy);
+    UA_SecureChannel_processBuffer(&dummy, &dump_filename, UA_debug_dump_setName, &messageBufferCopy);
     UA_ByteString_deleteMembers(&messageBufferCopy);
 
     dummy.securityPolicy = NULL;
-    UA_SecureChannel_deleteMessages(&dummy);
+    UA_SecureChannel_deleteBuffered(&dummy);
     c.close(&c);
     
     char fileName[250];

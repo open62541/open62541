@@ -45,9 +45,9 @@ sendServiceFaultWithRequest(UA_SecureChannel *channel,
                             const UA_RequestHeader *requestHeader,
                             const UA_DataType *responseType,
                             UA_UInt32 requestId, UA_StatusCode error) {
-    UA_STACKARRAY(UA_Byte, response, responseType->memSize);
-    UA_init(response, responseType);
-    UA_ResponseHeader *responseHeader = (UA_ResponseHeader*)response;
+    UA_Response response;
+    UA_init(&response, responseType);
+    UA_ResponseHeader *responseHeader = &response.responseHeader;
     responseHeader->requestHandle = requestHeader->requestHandle;
     responseHeader->timestamp = UA_DateTime_now();
     responseHeader->serviceResult = error;
@@ -56,7 +56,7 @@ sendServiceFaultWithRequest(UA_SecureChannel *channel,
      * SecureChannel! */
     UA_StatusCode retval =
         UA_SecureChannel_sendSymmetricMessage(channel, requestId, UA_MESSAGETYPE_MSG,
-                                              response, responseType);
+                                              &response, responseType);
 
     UA_LOG_DEBUG(channel->securityPolicy->logger, UA_LOGCATEGORY_SERVER,
                  "Sent ServiceFault with error code %s", UA_StatusCode_name(error));
@@ -336,9 +336,8 @@ processHEL(UA_Server *server, UA_SecureChannel *channel, const UA_ByteString *ms
 /* OPN -> Open up/renew the securechannel */
 static UA_StatusCode
 processOPN(UA_Server *server, UA_SecureChannel *channel,
-           const UA_UInt32 requestId, const UA_ByteString *msg) {
+           const UA_UInt32 requestId, const UA_ByteString *msg, size_t offset) {
     /* Decode the request */
-    size_t offset = 0;
     UA_NodeId requestType;
     UA_OpenSecureChannelRequest openSecureChannelRequest;
     UA_StatusCode retval = UA_NodeId_decodeBinary(msg, &offset, &requestType);
@@ -438,19 +437,22 @@ decryptProcessOPN(UA_Server *server, UA_SecureChannel *channel,
         return retval;
     }
 
-    /* After decryption, msg contains only the payload after the SequenceHeader */
-    UA_UInt32 requestId = 0;
-    UA_UInt32 sequenceNumber = 0;
     retval = decryptAndVerifyChunk(channel, &channel->securityPolicy->asymmetricModule.cryptoModule,
-                                   UA_MESSAGETYPE_OPN, msg, offset, &requestId, &sequenceNumber);
+                                   UA_MESSAGETYPE_OPN, msg, offset);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
                                "Could not decrypt and verify the OPN payload");
         return retval;
     }
 
+   /* Decode the sequence header */
+    UA_SequenceHeader sequenceHeader;
+    retval = UA_SequenceHeader_decodeBinary(msg, &offset, &sequenceHeader);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
 #ifndef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
-    retval = processSequenceNumberAsym(channel, sequenceNumber);
+    retval = processSequenceNumberAsym(channel, sequenceHeader.sequenceNumber);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
                                "Could not process the OPN message's sequence number");
@@ -458,15 +460,15 @@ decryptProcessOPN(UA_Server *server, UA_SecureChannel *channel,
     }
 #endif
 
-    return processOPN(server, channel, requestId, msg);
+    return processOPN(server, channel, sequenceHeader.requestId, msg, offset);
 }
 
 UA_StatusCode
 sendResponse(UA_SecureChannel *channel, UA_UInt32 requestId, UA_UInt32 requestHandle,
-             UA_ResponseHeader *responseHeader, const UA_DataType *responseType) {
+             UA_Response *response, const UA_DataType *responseType) {
     /* Prepare the ResponseHeader */
-    responseHeader->requestHandle = requestHandle;
-    responseHeader->timestamp = UA_DateTime_now();
+    response->responseHeader.requestHandle = requestHandle;
+    response->responseHeader.timestamp = UA_DateTime_now();
 
     /* Start the message context */
     UA_MessageContext mc;
@@ -485,7 +487,7 @@ sendResponse(UA_SecureChannel *channel, UA_UInt32 requestId, UA_UInt32 requestHa
         return retval;
 
     /* Encode the response */
-    retval = UA_MessageContext_encode(&mc, responseHeader, responseType);
+    retval = UA_MessageContext_encode(&mc, response, responseType);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -504,12 +506,13 @@ sendResponse(UA_SecureChannel *channel, UA_UInt32 requestId, UA_UInt32 requestHa
  * (Also prior to ActivateSession.) */
 static UA_StatusCode
 processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 requestId,
-                  UA_Service service, const UA_RequestHeader *requestHeader,
-                  const UA_DataType *requestType, UA_ResponseHeader *responseHeader,
+                  UA_Service service, const UA_Request *request,
+                  const UA_DataType *requestType, UA_Response *response,
                   const UA_DataType *responseType, UA_Boolean sessionRequired) {
     /* Does the Session bound to the SecureChannel match the
      * AuthenticationToken? */
     UA_Session *session = (UA_Session*)channel->session;
+    const UA_RequestHeader *requestHeader = &request->requestHeader;
     if(session && !UA_NodeId_equal(&session->header.authenticationToken,
                                    &requestHeader->authenticationToken))
         return sendServiceFaultWithRequest(channel, requestHeader, responseType,
@@ -525,19 +528,18 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
        requestType == &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST] ||
        requestType == &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST]) {
         UA_LOCK(server->serviceMutex);
-        ((UA_SessionService)(uintptr_t)service)(server, channel, session,
-                                                requestHeader, responseHeader);
+        ((UA_SessionService)(uintptr_t)service)(server, channel, session, request, response);
         UA_UNLOCK(server->serviceMutex);
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
         /* Store the authentication token so we can help fuzzing by setting
          * these values in the next request automatically */
         if(requestType == &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST]) {
-            UA_CreateSessionResponse *res = (UA_CreateSessionResponse *)responseHeader;
+            UA_CreateSessionResponse *res = &response->createSessionResponse;
             UA_NodeId_copy(&res->authenticationToken, &unsafe_fuzz_authenticationToken);
         }
 #endif
         return sendResponse(channel, requestId, requestHeader->requestHandle,
-                            responseHeader, responseType);
+                            response, responseType);
     }
 
     /* Set an anonymous, inactive session for services that need no session */
@@ -591,7 +593,7 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
     /* The publish request is not answered immediately */
     if(requestType == &UA_TYPES[UA_TYPES_PUBLISHREQUEST]) {
         UA_LOCK(server->serviceMutex);
-        Service_Publish(server, session, (const UA_PublishRequest*)requestHeader, requestId);
+        Service_Publish(server, session, &request->publishRequest, requestId);
         UA_UNLOCK(server->serviceMutex);
         return UA_STATUSCODE_GOOD;
     }
@@ -602,8 +604,8 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
     if(requestType == &UA_TYPES[UA_TYPES_CALLREQUEST]) {
         UA_Boolean finished = true;
         UA_LOCK(server->serviceMutex);
-        Service_CallAsync(server, session, requestId, (const UA_CallRequest*)requestHeader,
-                          (UA_CallResponse*)responseHeader, &finished);
+        Service_CallAsync(server, session, requestId, &request->callRequest,
+                          &response->callResponse, &finished);
         UA_UNLOCK(server->serviceMutex);
 
         /* Async method calls remain. Don't send a response now */
@@ -612,16 +614,16 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
 
         /* We are done here */
         return sendResponse(channel, requestId, requestHeader->requestHandle,
-                            responseHeader, responseType);
+                            response, responseType);
     }
 #endif
 
     /* Dispatch the synchronous service call and send the response */
     UA_LOCK(server->serviceMutex);
-    service(server, session, requestHeader, responseHeader);
+    service(server, session, request, response);
     UA_UNLOCK(server->serviceMutex);
     return sendResponse(channel, requestId, requestHeader->requestHandle,
-                        responseHeader, responseType);
+                        response, responseType);
 }
 
 static UA_StatusCode
@@ -662,8 +664,8 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     UA_assert(responseType);
 
     /* Decode the request */
-    UA_STACKARRAY(UA_Byte, request, requestType->memSize);
-    retval = UA_decodeBinary(msg, &offset, request, requestType, server->config.customDataTypes);
+    UA_Request request;
+    retval = UA_decodeBinary(msg, &offset, &request, requestType, server->config.customDataTypes);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG_CHANNEL(&server->config.logger, channel,
                              "Could not decode the request with StatusCode %s",
@@ -672,7 +674,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     }
 
     /* Check timestamp in the request header */
-    UA_RequestHeader *requestHeader = (UA_RequestHeader*)request;
+    UA_RequestHeader *requestHeader = &request.requestHeader;
     if(requestHeader->timestamp == 0) {
         if(server->config.verifyRequestTimestamp <= UA_RULEHANDLING_WARN) {
             UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
@@ -681,7 +683,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
             if(server->config.verifyRequestTimestamp <= UA_RULEHANDLING_ABORT) {
                 retval = sendServiceFaultWithRequest(channel, requestHeader, responseType,
                                                      requestId, UA_STATUSCODE_BADINVALIDTIMESTAMP);
-                UA_clear(request, requestType);
+                UA_clear(&request, requestType);
                 return retval;
             }
         }
@@ -695,18 +697,15 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
         UA_NodeId_copy(&unsafe_fuzz_authenticationToken, &requestHeader->authenticationToken);
 #endif
 
-    /* Prepare the respone */
-    UA_STACKARRAY(UA_Byte, response, responseType->memSize);
-    UA_ResponseHeader *responseHeader = (UA_ResponseHeader*)response;
-    UA_init(response, responseType);
-
-    /* Continue with the decoded Request */
-    retval = processMSGDecoded(server, channel, requestId, service, requestHeader, requestType,
-                               responseHeader, responseType, sessionRequired);
+    /* Prepare the respone and process the request */
+    UA_Response response;
+    UA_init(&response, responseType);
+    retval = processMSGDecoded(server, channel, requestId, service, &request, requestType,
+                               &response, responseType, sessionRequired);
 
     /* Clean up */
-    UA_clear(request, requestType);
-    UA_clear(responseHeader, responseType);
+    UA_clear(&request, requestType);
+    UA_clear(&response, responseType);
     return retval;
 }
 
@@ -797,11 +796,7 @@ UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
     UA_debug_dumpCompleteChunk(server, channel->connection, message);
 #endif
 
-    retval = UA_SecureChannel_processPacket(channel, server, processSecureChannelMessage, message);
-    while(retval == UA_STATUSCODE_GOOD && channel->retryReceived) {
-        retval = UA_SecureChannel_processPacket(channel, server,
-                                                processSecureChannelMessage, &UA_BYTESTRING_NULL);
-    }
+    retval = UA_SecureChannel_processBuffer(channel, server, processSecureChannelMessage, message);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_NETWORK,
                     "Connection %i | Processing the message failed with error %s",

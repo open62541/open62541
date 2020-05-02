@@ -86,7 +86,7 @@ valueUpdateCallback(UA_Server *server, void *data) {
         }
         if(i == 0 && *intValue  > PUBSUB_CONFIG_PUBLISH_CYCLES)
             running = false;
-        UA_Variant_deleteMembers(&value);
+        UA_Variant_clear(&value);
     }
 #endif
 }

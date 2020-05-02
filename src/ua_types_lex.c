@@ -25,9 +25,8 @@
  * In order that users of the SDK don't need to install re2c, always commit a
  * recent ua_types_lex.c if changes are made to the lexer. */
 
-
-
 #define YYCURSOR pos
+#define YYMARKER context.marker
 #define YYPEEK() (YYCURSOR < end) ? *YYCURSOR : 0 /* The lexer sees a stream of
                                                    * \0 when the input ends*/
 #define YYSKIP() ++YYCURSOR;
@@ -36,11 +35,12 @@
 #define YYSTAGP(t) t = YYCURSOR
 #define YYSTAGN(t) t = NULL
 
-/* The generated lexer defines global variables. Protect with a mutex. */
-const char *yyt1;const char *yyt2;const char *yyt3;const char *yyt4;const char *yyt5;
-#if UA_MULTITHREADING >= 100
-UA_LOCK_TYPE(parserMutex)
-#endif
+typedef struct {
+    const char *marker;
+    const char *yyt1;const char *yyt2;const char *yyt3;const char *yyt4;const char *yyt5;
+} LexContext;
+
+
 
 static UA_StatusCode
 parse_guid(UA_Guid *guid, const UA_Byte *s, const UA_Byte *e) {
@@ -61,22 +61,19 @@ parse_guid(UA_Guid *guid, const UA_Byte *s, const UA_Byte *e) {
         return UA_STATUSCODE_BADINTERNALERROR;
     guid->data3 = (UA_UInt16)tmp;
 
-    if(UA_readNumberWithBase(&s[19], 4, &tmp, 16) != 4)
+    if(UA_readNumberWithBase(&s[19], 2, &tmp, 16) != 2)
         return UA_STATUSCODE_BADINTERNALERROR;
     guid->data4[0] = (UA_Byte)tmp;
-    guid->data4[1] = (UA_Byte)(tmp >> 8);
 
-    if(UA_readNumberWithBase(&s[24], 8, &tmp, 16) != 8)
+    if(UA_readNumberWithBase(&s[21], 2, &tmp, 16) != 2)
         return UA_STATUSCODE_BADINTERNALERROR;
-    guid->data4[2] = (UA_Byte)tmp;
-    guid->data4[3] = (UA_Byte)(tmp >> 8);
-    guid->data4[4] = (UA_Byte)(tmp >> 16);
-    guid->data4[5] = (UA_Byte)(tmp >> 24);
+    guid->data4[1] = (UA_Byte)tmp;
 
-    if(UA_readNumberWithBase(&s[32], 4, &tmp, 16) != 4)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    guid->data4[6] = (UA_Byte)tmp;
-    guid->data4[7] = (UA_Byte)(tmp >> 8);
+    for(size_t pos = 2, spos = 24; pos < 8; pos++, spos += 2) {
+        if(UA_readNumberWithBase(&s[spos], 2, &tmp, 16) != 2)
+            return UA_STATUSCODE_BADINTERNALERROR;
+        guid->data4[pos] = (UA_Byte)tmp;
+    }
 
     return UA_STATUSCODE_GOOD;
 }
@@ -132,7 +129,10 @@ parse_nodeid_body(UA_NodeId *id, const char *body, const char *end) {
 static UA_StatusCode
 parse_nodeid(UA_NodeId *id, const char *pos, const char *end) {
     *id = UA_NODEID_NULL; /* Reset the NodeId */
-    const char *YYMARKER= pos, *ns = NULL, *nse= NULL;
+    LexContext context;
+    memset(&context, 0, sizeof(LexContext));
+    const char *ns = NULL, *nse= NULL;
+
     
 {
 	char yych;
@@ -142,8 +142,8 @@ parse_nodeid(UA_NodeId *id, const char *pos, const char *end) {
 	case 'g':
 	case 'i':
 	case 's':
-		YYSTAGN (yyt1);
-		YYSTAGN (yyt2);
+		YYSTAGN (context.yyt1);
+		YYSTAGN (context.yyt2);
 		goto yy4;
 	case 'n':	goto yy5;
 	default:	goto yy2;
@@ -169,8 +169,8 @@ yy5:
 	}
 yy6:
 	YYSKIP ();
-	ns = yyt1;
-	nse = yyt2;
+	ns = context.yyt1;
+	nse = context.yyt2;
 	{
         (void)pos; // Get rid of a dead store clang-analyzer warning
         if(ns) {
@@ -208,7 +208,7 @@ yy10:
 	case '7':
 	case '8':
 	case '9':
-		YYSTAGP (yyt1);
+		YYSTAGP (context.yyt1);
 		goto yy11;
 	default:	goto yy9;
 	}
@@ -227,7 +227,7 @@ yy11:
 	case '8':
 	case '9':	goto yy11;
 	case ';':
-		YYSTAGP (yyt2);
+		YYSTAGP (context.yyt2);
 		goto yy13;
 	default:	goto yy9;
 	}
@@ -254,19 +254,20 @@ yy14:
 
 UA_StatusCode
 UA_NodeId_parse(UA_NodeId *id, const UA_String str) {
-    UA_LOCK(parserMutex);
     UA_StatusCode res =
         parse_nodeid(id, (const char*)str.data, (const char*)str.data+str.length);
     if(res != UA_STATUSCODE_GOOD)
         UA_NodeId_clear(id);
-    UA_UNLOCK(parserMutex);
     return res;
 }
 
 static UA_StatusCode
 parse_expandednodeid(UA_ExpandedNodeId *id, const char *pos, const char *end) {
     *id = UA_EXPANDEDNODEID_NULL; /* Reset the NodeId */
-    const char *YYMARKER= pos, *svr = NULL, *svre = NULL, *nsu = NULL, *ns = NULL, *body = NULL;
+    LexContext context;
+    memset(&context, 0, sizeof(LexContext));
+    const char *svr = NULL, *svre = NULL, *nsu = NULL, *ns = NULL, *body = NULL;
+
     
 {
 	char yych;
@@ -275,22 +276,22 @@ parse_expandednodeid(UA_ExpandedNodeId *id, const char *pos, const char *end) {
 	case 'b':
 	case 'g':
 	case 'i':
-		YYSTAGN (yyt1);
-		YYSTAGN (yyt2);
-		YYSTAGN (yyt3);
-		YYSTAGP (yyt4);
-		YYSTAGN (yyt5);
+		YYSTAGN (context.yyt1);
+		YYSTAGN (context.yyt2);
+		YYSTAGN (context.yyt3);
+		YYSTAGP (context.yyt4);
+		YYSTAGN (context.yyt5);
 		goto yy19;
 	case 'n':
-		YYSTAGN (yyt1);
-		YYSTAGN (yyt2);
+		YYSTAGN (context.yyt1);
+		YYSTAGN (context.yyt2);
 		goto yy20;
 	case 's':
-		YYSTAGN (yyt1);
-		YYSTAGN (yyt2);
-		YYSTAGN (yyt3);
-		YYSTAGP (yyt4);
-		YYSTAGN (yyt5);
+		YYSTAGN (context.yyt1);
+		YYSTAGN (context.yyt2);
+		YYSTAGN (context.yyt3);
+		YYSTAGP (context.yyt4);
+		YYSTAGN (context.yyt5);
 		goto yy21;
 	default:	goto yy17;
 	}
@@ -324,11 +325,11 @@ yy21:
 	}
 yy22:
 	YYSKIP ();
-	svr = yyt1;
-	svre = yyt2;
-	ns = yyt3;
-	nsu = yyt5;
-	body = yyt4;
+	svr = context.yyt1;
+	svre = context.yyt2;
+	ns = context.yyt3;
+	nsu = context.yyt5;
+	body = context.yyt4;
 	{
         (void)pos; // Get rid of a dead store clang-analyzer warning
         if(svr) {
@@ -388,7 +389,7 @@ yy27:
 	case '7':
 	case '8':
 	case '9':
-		YYSTAGP (yyt3);
+		YYSTAGP (context.yyt3);
 		goto yy30;
 	default:	goto yy25;
 	}
@@ -429,10 +430,10 @@ yy32:
 	switch (yych) {
 	case '\n':	goto yy25;
 	case ';':
-		YYSTAGP (yyt5);
+		YYSTAGP (context.yyt5);
 		goto yy37;
 	default:
-		YYSTAGP (yyt5);
+		YYSTAGP (context.yyt5);
 		goto yy35;
 	}
 yy33:
@@ -449,7 +450,7 @@ yy33:
 	case '7':
 	case '8':
 	case '9':
-		YYSTAGP (yyt1);
+		YYSTAGP (context.yyt1);
 		goto yy38;
 	default:	goto yy25;
 	}
@@ -461,8 +462,8 @@ yy34:
 	case 'g':
 	case 'i':
 	case 's':
-		YYSTAGP (yyt4);
-		YYSTAGN (yyt5);
+		YYSTAGP (context.yyt4);
+		YYSTAGN (context.yyt5);
 		goto yy40;
 	default:	goto yy25;
 	}
@@ -482,8 +483,8 @@ yy37:
 	case 'g':
 	case 'i':
 	case 's':
-		YYSTAGN (yyt3);
-		YYSTAGP (yyt4);
+		YYSTAGN (context.yyt3);
+		YYSTAGP (context.yyt4);
 		goto yy40;
 	default:	goto yy25;
 	}
@@ -502,7 +503,7 @@ yy38:
 	case '8':
 	case '9':	goto yy38;
 	case ';':
-		YYSTAGP (yyt2);
+		YYSTAGP (context.yyt2);
 		goto yy41;
 	default:	goto yy25;
 	}
@@ -521,9 +522,9 @@ yy41:
 	case 'g':
 	case 'i':
 	case 's':
-		YYSTAGN (yyt3);
-		YYSTAGP (yyt4);
-		YYSTAGN (yyt5);
+		YYSTAGN (context.yyt3);
+		YYSTAGP (context.yyt4);
+		YYSTAGN (context.yyt5);
 		goto yy40;
 	case 'n':	goto yy42;
 	default:	goto yy25;
@@ -541,12 +542,10 @@ yy42:
 
 UA_StatusCode
 UA_ExpandedNodeId_parse(UA_ExpandedNodeId *id, const UA_String str) {
-    UA_LOCK(parserMutex);
     UA_StatusCode res =
         parse_expandednodeid(id, (const char*)str.data, (const char*)str.data+str.length);
     if(res != UA_STATUSCODE_GOOD)
         UA_ExpandedNodeId_clear(id);
-    UA_UNLOCK(parserMutex);
     return res;
 }
 
@@ -615,7 +614,9 @@ parse_refpath_qn_name(UA_QualifiedName *qn, const char **pos, const char *end) {
 
 static UA_StatusCode
 parse_refpath_qn(UA_QualifiedName *qn, const char *pos, const char *end) {
-    const char *YYMARKER = pos, *ns = NULL, *nse = NULL;
+    LexContext context;
+    memset(&context, 0, sizeof(LexContext));
+    const char *ns = NULL, *nse = NULL;
     UA_QualifiedName_init(qn);
 
     
@@ -633,7 +634,7 @@ parse_refpath_qn(UA_QualifiedName *qn, const char *pos, const char *end) {
 	case '7':
 	case '8':
 	case '9':
-		YYSTAGP (yyt1);
+		YYSTAGP (context.yyt1);
 		goto yy47;
 	default:	goto yy45;
 	}
@@ -675,7 +676,7 @@ yy49:
 	case '8':
 	case '9':	goto yy48;
 	case ':':
-		YYSTAGP (yyt2);
+		YYSTAGP (context.yyt2);
 		goto yy51;
 	default:	goto yy50;
 	}
@@ -684,8 +685,8 @@ yy50:
 	goto yy46;
 yy51:
 	YYSKIP ();
-	ns = yyt1;
-	nse = yyt2;
+	ns = context.yyt1;
+	nse = context.yyt2;
 	{
         UA_UInt32 tmp;
         size_t len = (size_t)(nse - ns);
@@ -747,12 +748,14 @@ lookup_reftype(UA_NodeId *refTypeId, UA_QualifiedName *qn) {
 
 static UA_StatusCode
 parse_relativepath(UA_RelativePath *rp, const char *pos, const char *end) {
-    const char *YYMARKER = pos, *begin = NULL, *finish = NULL;
-    UA_RelativePath_init(rp); /* Reset the BrowsePath */
-    UA_RelativePathElement current;
+    LexContext context;
+    memset(&context, 0, sizeof(LexContext));
+    const char *begin = NULL, *finish = NULL;
     UA_StatusCode res = UA_STATUSCODE_GOOD;
+    UA_RelativePath_init(rp); /* Reset the BrowsePath */
 
     /* Add one element to the path in every iteration */
+    UA_RelativePathElement current;
  loop:
     UA_RelativePathElement_init(&current);
     current.includeSubtypes = true; /* Follow subtypes by default */
@@ -798,10 +801,10 @@ yy63:
 	case 0x00:
 	case '>':	goto yy58;
 	case '&':
-		YYSTAGP (yyt1);
+		YYSTAGP (context.yyt1);
 		goto yy67;
 	default:
-		YYSTAGP (yyt1);
+		YYSTAGP (context.yyt1);
 		goto yy64;
 	}
 yy64:
@@ -811,7 +814,7 @@ yy64:
 	case 0x00:	goto yy66;
 	case '&':	goto yy67;
 	case '>':
-		YYSTAGP (yyt2);
+		YYSTAGP (context.yyt2);
 		goto yy69;
 	default:	goto yy64;
 	}
@@ -829,15 +832,15 @@ yy67:
 	case 0x00:	goto yy66;
 	case '&':	goto yy67;
 	case '>':
-		YYSTAGP (yyt2);
+		YYSTAGP (context.yyt2);
 		goto yy71;
 	default:	goto yy64;
 	}
 yy69:
 	YYSKIP ();
 yy70:
-	begin = yyt1;
-	finish = yyt2;
+	begin = context.yyt1;
+	finish = context.yyt2;
 	{
         for(; begin < finish; begin++) {
             if(*begin== '#')
@@ -862,7 +865,7 @@ yy71:
 	case 0x00:	goto yy70;
 	case '&':	goto yy67;
 	case '>':
-		YYSTAGP (yyt2);
+		YYSTAGP (context.yyt2);
 		goto yy69;
 	default:	goto yy64;
 	}
@@ -884,10 +887,10 @@ yy71:
 	case '/':
 	case '<':	goto yy74;
 	case '&':
-		YYSTAGP (yyt1);
+		YYSTAGP (context.yyt1);
 		goto yy79;
 	default:
-		YYSTAGP (yyt1);
+		YYSTAGP (context.yyt1);
 		goto yy76;
 	}
 yy74:
@@ -905,7 +908,7 @@ yy76:
 	default:	goto yy76;
 	}
 yy78:
-	begin = yyt1;
+	begin = context.yyt1;
 	{
         res = parse_refpath_qn(&current.targetName, begin, pos);
         goto add_element;
@@ -933,11 +936,9 @@ yy79:
 
 UA_StatusCode
 UA_RelativePath_parse(UA_RelativePath *rp, const UA_String str) {
-    UA_LOCK(parserMutex);
     UA_StatusCode res =
         parse_relativepath(rp, (const char*)str.data, (const char*)str.data+str.length);
     if(res != UA_STATUSCODE_GOOD)
         UA_RelativePath_clear(rp);
-    UA_UNLOCK(parserMutex);
     return res;
 }
