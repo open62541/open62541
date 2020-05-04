@@ -174,11 +174,32 @@ readValueAttributeComplete(UA_Server *server, UA_Session *session,
         rangeptr = &range;
     }
 
-    /* Read the value */
-    if(vn->valueSource == UA_VALUESOURCE_DATA)
-        retval = readValueAttributeFromNode(server, session, vn, v, rangeptr);
-    else
-        retval = readValueAttributeFromDataSource(server, session, vn, v, timestamps, rangeptr);
+    switch(vn->valueBackend.backendType) {
+        case UA_VALUEBACKENDTYPE_INTERNAL:
+            retval = readValueAttributeFromNode(server, session, vn, v, rangeptr);
+            //TODO change old structure to value backend
+            break;
+        case UA_VALUEBACKENDTYPE_CALLBACK:
+            retval = readValueAttributeFromDataSource(server, session, vn, v, timestamps, rangeptr);
+            //TODO change old structure to value backend
+            break;
+        case UA_VALUEBACKENDTYPE_EXTERNAL:
+            /* Set the result */
+            if(rangeptr)
+                return UA_Variant_copyRange(
+                    (const UA_Variant *) &vn->valueBackend.backend.external->value, &v->value, *rangeptr);
+            UA_DataValue_copy(vn->valueBackend.backend.external, v);
+            break;
+        case UA_VALUEBACKENDTYPE_NONE:
+            /** @deprecated legacy code */
+            /* Read the value */
+            if(vn->valueSource == UA_VALUESOURCE_DATA)
+                retval = readValueAttributeFromNode(server, session, vn, v, rangeptr);
+            else
+                retval = readValueAttributeFromDataSource(server, session, vn, v, timestamps, rangeptr);
+            /* end lagacy */
+            break;
+    }
 
     /* Clean up */
     if(rangeptr)

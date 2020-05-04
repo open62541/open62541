@@ -2034,7 +2034,8 @@ setExternalValueSource(UA_Server *server, UA_Session *session,
                  UA_VariableNode *node, const UA_DataValue * externalValueSource) {
     if(node->nodeClass != UA_NODECLASS_VARIABLE)
         return UA_STATUSCODE_BADNODECLASSINVALID;
-    node->valueBackend.external = externalValueSource;
+    node->valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
+    node->valueBackend.backend.external = externalValueSource;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -2047,25 +2048,27 @@ UA_Server_setVariableNode_valueBackend(UA_Server *server, const UA_NodeId nodeId
                                        const UA_ValueBackend valueBackend){
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_LOCK(server->serviceMutex);
-    switch(valueBackend.backend){
+    switch(valueBackend.backendType){
+        case UA_VALUEBACKENDTYPE_NONE:
+            return UA_STATUSCODE_BADCONFIGURATIONERROR;
         case UA_VALUEBACKENDTYPE_CALLBACK:
             retval = UA_Server_editNode(server, &server->adminSession, &nodeId,
-                                        (UA_EditNodeCallback)setValueCallback,
+                                        (UA_EditNodeCallback) setValueCallback,
                 /* cast away const because callback uses const anyway */
-                                        (UA_ValueCallback *)(uintptr_t) &valueBackend.dataSource);
+                                        (UA_ValueCallback *)(uintptr_t) &valueBackend.backend.dataSource);
             break;
         case UA_VALUEBACKENDTYPE_INTERNAL:
             break;
         case UA_VALUEBACKENDTYPE_EXTERNAL:
             retval = UA_Server_editNode(server, &server->adminSession, &nodeId,
-                                        (UA_EditNodeCallback)setExternalValueSource,
+                                        (UA_EditNodeCallback) setExternalValueSource,
                 /* cast away const because callback uses const anyway */
-                                        (UA_ValueCallback *)(uintptr_t) valueBackend.external);
+                                        (UA_ValueCallback *)(uintptr_t) valueBackend.backend.external);
             break;
     }
 
 
-    //UA_StatusCode retval = UA_Server_editNode(server, &server->adminSession, &nodeId,
+    // UA_StatusCode retval = UA_Server_editNode(server, &server->adminSession, &nodeId,
     // (UA_EditNodeCallback)setValueCallback,
     /* cast away const because callback uses const anyway */
     // (UA_ValueCallback *)(uintptr_t) &callback);
