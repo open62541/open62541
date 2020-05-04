@@ -299,11 +299,14 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId writ
             }
             UA_DataSetField *dsf;
             TAILQ_FOREACH(dsf, &pds->fields, listEntry){
-                if(!dsf->config.field.variable.staticValueSourceEnabled){
+                const UA_VariableNode *rtNode = (const UA_VariableNode *) UA_NODESTORE_GET(server, &dsf->config.field.variable.publishParameters.publishedVariable);
+                if(rtNode != NULL && rtNode->valueBackend.backendType != UA_VALUEBACKENDTYPE_EXTERNAL){
                     UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                                   "PubSub-RT configuration fail: PDS contains variables with dynamic length types.");
+                                   "PubSub-RT configuration fail: PDS contains field without external data source.");
+                    UA_NODESTORE_RELEASE(server, (const UA_Node *) rtNode);
                     return UA_STATUSCODE_BADNOTSUPPORTED;
                 }
+                UA_NODESTORE_RELEASE(server, (const UA_Node *) rtNode);
                 if((UA_NodeId_equal(&dsf->fieldMetaData.dataType, &UA_TYPES[UA_TYPES_STRING].typeId) ||
                     UA_NodeId_equal(&dsf->fieldMetaData.dataType,
                                     &UA_TYPES[UA_TYPES_BYTESTRING].typeId)) &&
@@ -396,6 +399,9 @@ UA_Server_unfreezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId wr
         }
         dataSetWriter->configurationFrozen = UA_FALSE;
     }
+    if(wg->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE)
+        UA_ByteString_clear(&wg->bufferedMessage.buffer);
+
     return UA_STATUSCODE_GOOD;
 }
 
