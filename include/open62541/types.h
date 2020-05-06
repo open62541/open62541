@@ -161,6 +161,9 @@ UA_String_fromChars(const char *src) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 UA_Boolean UA_EXPORT
 UA_String_equal(const UA_String *s1, const UA_String *s2);
 
+UA_Boolean UA_EXPORT
+UA_String_equal_ignorecase(const UA_String *s1, const UA_String *s2);
+
 UA_EXPORT extern const UA_String UA_STRING_NULL;
 
 /**

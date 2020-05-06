@@ -130,6 +130,18 @@ UA_String_equal(const UA_String *s1, const UA_String *s2) {
     return (is == 0) ? true : false;
 }
 
+UA_Boolean
+UA_String_equal_ignorecase(const UA_String *s1, const UA_String *s2) {
+    if(s1->length != s2->length)
+        return false;
+    if(s1->length == 0)
+        return true;
+    if(s2->data == NULL)
+        return false;
+
+    return UA_strncasecmp((const char*)s1->data, (const char*)s2->data, s1->length) == 0;
+}
+
 static UA_StatusCode
 String_copy(UA_String const *src, UA_String *dst, const UA_DataType *_) {
     UA_StatusCode retval = UA_Array_copy(src->data, src->length, (void**)&dst->data,
