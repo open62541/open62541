@@ -146,20 +146,29 @@ stopMulticastDiscoveryServer(UA_Server *server) {
 # endif
 }
 
-/* All filter criteria must be fulfilled */
+/* All filter criteria must be fulfilled in the list entry. The comparison is case 
+ * insensitive.
+ * @returns true if the entry matches the filter. False if the filter does not match.
+ * */
 static UA_Boolean
-filterServerRecord(size_t serverCapabilityFilterSize, UA_String *serverCapabilityFilter,
+entryMatchesCapabilityFilter(size_t serverCapabilityFilterSize, UA_String *serverCapabilityFilter,
                    serverOnNetwork_list_entry* current) {
-    // if the element has no capabilities defined, but the filter expects some, then do not use this entry
-    if (serverCapabilityFilterSize > 0 && current->serverOnNetwork.serverCapabilitiesSize == 0)
-        return false;
+    // if the entry has less capabilities defined than the filter, there's no match
+    if (serverCapabilityFilterSize > current->serverOnNetwork.serverCapabilitiesSize)
+        return UA_FALSE;
     for(size_t i = 0; i < serverCapabilityFilterSize; i++) {
-        for(size_t j = 0; j < current->serverOnNetwork.serverCapabilitiesSize; j++)
-            if(!UA_String_equal(&serverCapabilityFilter[i],
-                                &current->serverOnNetwork.serverCapabilities[j]))
-                return false;
+        UA_Boolean capabilityFound = UA_FALSE;
+        for(size_t j = 0; j < current->serverOnNetwork.serverCapabilitiesSize; j++) {
+            if(UA_String_equal_ignorecase(&serverCapabilityFilter[i],
+                               &current->serverOnNetwork.serverCapabilities[j])) {
+                capabilityFound = UA_TRUE;
+                break;
+            }
+        }
+        if (!capabilityFound)
+            return UA_FALSE; // entry does not match capability
     }
-    return true;
+    return UA_TRUE;
 }
 
 void Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
@@ -197,7 +206,7 @@ void Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
             break;
         if(current->serverOnNetwork.recordId < request->startingRecordId)
             continue;
-        if(!filterServerRecord(request->serverCapabilityFilterSize,
+        if(!entryMatchesCapabilityFilter(request->serverCapabilityFilterSize,
                                request->serverCapabilityFilter, current))
             continue;
         filtered[filteredCount++] = &current->serverOnNetwork;
