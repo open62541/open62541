@@ -137,6 +137,7 @@ extern void * (*UA_globalRealloc)(void *ptr, size_t size);
 
 #include <stdio.h>
 #define UA_snprintf snprintf
+#define UA_strncasecmp strncasecmp
 
 #define UA_LOG_SOCKET_ERRNO_WRAP(LOG) { \
     char *errno_str = strerror(errno); \
