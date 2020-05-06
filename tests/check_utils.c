@@ -202,6 +202,49 @@ START_TEST(readNumber) {
 }
 END_TEST
 
+
+START_TEST(stringCompare) {
+
+    UA_String sa1 = UA_String_fromChars("A");
+    UA_String sa2 = UA_String_fromChars("a");
+
+    UA_String s1 = UA_String_fromChars("SomeLongString");
+    UA_String s2 = UA_String_fromChars("SomeLongString");
+    UA_String s3 = UA_String_fromChars("somelongstring");
+    UA_String s4 = UA_String_fromChars("somelongstring ");
+
+    // same string
+    ck_assert(UA_String_equal(&sa1, &sa1));
+    ck_assert(UA_String_equal_ignorecase(&sa1, &sa1));
+
+    // case sensitive
+    ck_assert(!UA_String_equal(&sa1, &sa2));
+    // case insensitive
+    ck_assert(UA_String_equal_ignorecase(&sa1, &sa2));
+
+
+    // same string
+    ck_assert(UA_String_equal(&s1, &s2));
+    ck_assert(UA_String_equal_ignorecase(&s1, &s2));
+
+    // case sensitive
+    ck_assert(!UA_String_equal(&s1, &s3));
+    // case insensitive
+    ck_assert(UA_String_equal_ignorecase(&s1, &s3));
+
+    // different length
+    ck_assert(!UA_String_equal(&s3, &s4));
+    ck_assert(!UA_String_equal_ignorecase(&s3, &s4));
+
+        UA_String_clear(&sa1);
+        UA_String_clear(&sa2);
+        UA_String_clear(&s1);
+        UA_String_clear(&s2);
+        UA_String_clear(&s3);
+        UA_String_clear(&s4);
+}
+END_TEST
+
 START_TEST(readNumberWithBase) {
     UA_UInt32 result;
     ck_assert_uint_eq(UA_readNumberWithBase((UA_Byte*)"g", 1, &result, 16), 0);
@@ -537,6 +580,7 @@ static Suite* testSuite_Utils(void) {
     tcase_add_test(tc_utils, readNumber);
     tcase_add_test(tc_utils, readNumberWithBase);
     tcase_add_test(tc_utils, StatusCode_msg);
+    tcase_add_test(tc_utils, stringCompare);
     suite_add_tcase(s,tc_utils);
 
 
