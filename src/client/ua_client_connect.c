@@ -590,6 +590,7 @@ responseGetEndpoints(UA_Client *client, void *userdata, UA_UInt32 requestId,
     client->endpointsHandshake = false;
 
     UA_GetEndpointsResponse *resp = (UA_GetEndpointsResponse*)response;
+    /* GetEndpoints not possible. Fail the connection */
     if(resp->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         client->connectStatus = resp->responseHeader.serviceResult;
         UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
@@ -609,8 +610,8 @@ responseGetEndpoints(UA_Client *client, void *userdata, UA_UInt32 requestId,
     size_t endpointArraySize = resp->endpointsSize;
     for(size_t i = 0; i < endpointArraySize; ++i) {
         UA_EndpointDescription* endpoint = &endpointArray[i];
-        /* look out for binary transport endpoints */
-        /* Note: Siemens returns empty ProfileUrl, we will accept it as binary */
+        /* Look out for binary transport endpoints.
+         * Note: Siemens returns empty ProfileUrl, we will accept it as binary. */
         if(endpoint->transportProfileUri.length != 0 &&
            !UA_String_equal (&endpoint->transportProfileUri, &binaryTransport))
             continue;
