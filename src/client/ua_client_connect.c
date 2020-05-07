@@ -756,6 +756,12 @@ responseGetEndpoints(UA_Client *client, void *userdata, UA_UInt32 requestId,
                      "No suitable UserTokenPolicy found for the possible endpoints");
         client->connectStatus = UA_STATUSCODE_BADINTERNALERROR;
     }
+
+    /* Close the SecureChannel if a different SecurityPolicy is defined by the Endpoint */
+    if(client->config.endpoint.securityMode != client->channel.securityMode ||
+       !UA_String_equal(&client->config.endpoint.securityPolicyUri,
+                        &client->channel.securityPolicy->policyUri))
+        closeSecureChannel(client);
 }
 
 static UA_StatusCode
