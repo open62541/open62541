@@ -303,13 +303,13 @@ UA_Openssl_RSA_Public_Encrypt  (const UA_ByteString * message,
     size_t encryptedPos = ((dataPos - 1) / encryptedBlockSize + 1) * keySize;
     size_t bytesToEncrypt = (dataPos - 1) % encryptedBlockSize + 1;
     size_t encryptedTextLen = encryptedPos;
-    size_t everyEncryptedBytes;
 
     while (dataPos > 0) {
+        size_t outlen = keySize;
         encryptedPos -= keySize;
         dataPos -= bytesToEncrypt;
-        opensslRet = EVP_PKEY_encrypt (ctx, encrypted->data + encryptedPos,
-             &everyEncryptedBytes, message->data + dataPos, bytesToEncrypt);
+        opensslRet = EVP_PKEY_encrypt (ctx, encrypted->data + encryptedPos, &outlen,
+                                       message->data + dataPos, bytesToEncrypt);
        
         if (opensslRet != 1) {
             ret = UA_STATUSCODE_BADINTERNALERROR;
