@@ -939,9 +939,11 @@ connectIterate(UA_Client *client, UA_UInt32 timeout) {
         if(client->connectStatus != UA_STATUSCODE_GOOD)
             return client->connectStatus;
 
-        client->connectStatus = UA_SecureChannel_generateNewKeys(&client->channel);
-        if(client->connectStatus != UA_STATUSCODE_GOOD)
-            return client->connectStatus;
+        if (client->channel.remoteNonce.length != 0) {
+            client->connectStatus = UA_SecureChannel_generateNewKeys(&client->channel);
+            if(client->connectStatus != UA_STATUSCODE_GOOD)
+                return client->connectStatus;
+        }
     }
 
     /* Open the SecureChannel */
@@ -1221,3 +1223,4 @@ UA_Client_disconnect(UA_Client *client) {
     notifyClientState(client);
     return UA_STATUSCODE_GOOD;
 }
+
