@@ -60,7 +60,7 @@ static void setup(void) {
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
     connectionConfig.publisherId.numeric = PUBLISHER_ID;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connection_test);
-    UA_PubSubConnection_regist(server, &connection_test);
+    UA_PubSubConnection_regist(server, &connection_test, NULL, NULL);
 }
 
 /* teardown() is to delete the environment set for test cases */

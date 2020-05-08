@@ -189,6 +189,22 @@ UA_PubSubChannelMQTT_unregist(UA_PubSubChannel *channel, UA_ExtensionObject *tra
          return UA_STATUSCODE_BADARGUMENTSMISSING;
     }
 }
+/**
+ * receive a message.
+ *
+ * @return UA_STATUSCODE_GOOD if success
+ */
+static UA_StatusCode
+UA_PubSubChannelMQTT_receive(UA_PubSubChannel *channel, UA_ByteString *buffer,
+                             UA_ExtensionObject *transportSettings, UA_UInt32 timeout) {
+
+    /*TODO: add processing of the received messages to address space*/
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+
+    buffer->length = 0;
+
+    return ret;
+}
 
 /**
  * Send a message.
@@ -285,6 +301,7 @@ TransportLayerMQTT_addChannel(UA_PubSubConnectionConfig *connectionConfig) {
         pubSubChannel->regist = UA_PubSubChannelMQTT_regist;
         pubSubChannel->unregist = UA_PubSubChannelMQTT_unregist;
         pubSubChannel->send = UA_PubSubChannelMQTT_send;
+        pubSubChannel->receive = UA_PubSubChannelMQTT_receive;
         pubSubChannel->close = UA_PubSubChannelMQTT_close;
         pubSubChannel->yield = UA_PubSubChannelMQTT_yield;
         

@@ -130,13 +130,14 @@ UA_PubSubConnection_clear(UA_Server *server, UA_PubSubConnection *connection) {
 }
 
 UA_StatusCode
-UA_PubSubConnection_regist(UA_Server *server, UA_NodeId *connectionIdentifier) {
+UA_PubSubConnection_regist(UA_Server *server, UA_NodeId *connectionIdentifier, UA_ExtensionObject *transportSettings,
+                           void (*callback)(UA_ByteString *encodedBuffer, UA_ByteString *topic)) {
     UA_PubSubConnection *connection =
         UA_PubSubConnection_findConnectionbyId(server, *connectionIdentifier);
     if(!connection)
         return UA_STATUSCODE_BADNOTFOUND;
 
-    UA_StatusCode retval = connection->channel->regist(connection->channel, NULL, NULL);
+    UA_StatusCode retval = connection->channel->regist(connection->channel, transportSettings, callback);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "register channel failed: 0x%" PRIx32 "!", retval);
