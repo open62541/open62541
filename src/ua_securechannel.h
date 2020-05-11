@@ -89,8 +89,7 @@ struct UA_SecureChannel {
 
     /* Asymmetric encryption info */
     UA_ByteString remoteCertificate;
-    UA_Byte
-        remoteCertificateThumbprint[20]; /* The thumbprint of the remote certificate */
+    UA_Byte remoteCertificateThumbprint[20]; /* The thumbprint of the remote certificate */
 
     /* Symmetric encryption info */
     UA_ByteString remoteNonce;
@@ -114,7 +113,7 @@ struct UA_SecureChannel {
                                     * streaming protocol) is stored here */
 };
 
-void
+void 
 UA_SecureChannel_init(UA_SecureChannel *channel, const UA_ConnectionConfig *config);
 
 void
@@ -157,8 +156,7 @@ UA_SecureChannel_revolveTokens(UA_SecureChannel *channel);
 
 UA_StatusCode
 UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel, UA_UInt32 requestId,
-                                          const void *content,
-                                          const UA_DataType *contentType);
+                                          const void *content, const UA_DataType *contentType);
 
 UA_StatusCode
 UA_SecureChannel_sendSymmetricMessage(UA_SecureChannel *channel, UA_UInt32 requestId,
@@ -215,7 +213,8 @@ UA_Connection_releaseSendBuffer(UA_Connection *const connection, UA_ByteString *
  * Receive Message
  * --------------- */
 
-typedef void(UA_ProcessMessageCallback)(void *application, UA_SecureChannel *channel,
+typedef void
+(UA_ProcessMessageCallback)(void *application, UA_SecureChannel *channel,
                                         UA_MessageType messageType, UA_UInt32 requestId,
                                         UA_ByteString *message);
 
@@ -259,7 +258,8 @@ hideBytesAsym(const UA_SecureChannel *channel, UA_Byte **buf_start,
 UA_StatusCode
 decryptAndVerifyChunk(const UA_SecureChannel *channel,
                       const UA_SecurityPolicyCryptoModule *cryptoModule,
-                      UA_MessageType messageType, UA_ByteString *chunk, size_t offset);
+                      UA_MessageType messageType, UA_ByteString *chunk, 
+                      size_t offset);
 
 size_t
 calculateAsymAlgSecurityHeaderLength(const UA_SecureChannel *channel);
@@ -288,8 +288,9 @@ padChunkAsym(UA_SecureChannel *channel, const UA_ByteString *buf,
              size_t securityHeaderLength, UA_Byte **buf_pos);
 
 UA_StatusCode
-signAndEncryptAsym(UA_SecureChannel *channel, size_t preSignLength, UA_ByteString *buf,
-                   size_t securityHeaderLength, size_t totalLength);
+signAndEncryptAsym(UA_SecureChannel *channel, size_t preSignLength, 
+                   UA_ByteString *buf, size_t securityHeaderLength, 
+                   size_t totalLength);
 
 void
 padChunkSym(UA_MessageContext *messageContext, size_t bodyLength);

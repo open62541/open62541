@@ -12,20 +12,19 @@
  *    Copyright 2018-2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
  */
 
-#include "ua_securechannel.h"
-
 #include <open62541/transport_generated_encoding_binary.h>
 #include <open62541/transport_generated_handling.h>
 #include <open62541/types_generated_encoding_binary.h>
 #include <open62541/types_generated_handling.h>
 
+#include "ua_securechannel.h"
 #include "ua_util_internal.h"
 
 #define UA_BITMASK_MESSAGETYPE 0x00ffffffu
 #define UA_BITMASK_CHUNKTYPE 0xff000000u
 
 const UA_ByteString UA_SECURITY_POLICY_NONE_URI = {
-    47, (UA_Byte *)"http://opcfoundation.org/UA/SecurityPolicy#None"};
+    {47, (UA_Byte *)"http://opcfoundation.org/UA/SecurityPolicy#None"};
 
 #ifdef UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
 UA_StatusCode decrypt_verifySignatureFailure;
@@ -33,8 +32,8 @@ UA_StatusCode sendAsym_sendFailure;
 UA_StatusCode processSym_seqNumberFailure;
 #endif
 
-void
-UA_SecureChannel_init(UA_SecureChannel *channel, const UA_ConnectionConfig *config) {
+void UA_SecureChannel_init(UA_SecureChannel *channel,
+                           const UA_ConnectionConfig *config) {
     /* Linked lists are also initialized by zeroing out */
     memset(channel, 0, sizeof(UA_SecureChannel));
     channel->state = UA_SECURECHANNELSTATE_FRESH;
@@ -53,8 +52,8 @@ UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    UA_StatusCode retval = securityPolicy->channelModule.newContext(
-        securityPolicy, remoteCertificate, &channel->channelContext);
+    UA_StatusCode retval = securityPolicy->channelModule.
+        newContext(securityPolicy, remoteCertificate, &channel->channelContext);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                        "Could not set up the SecureChannel context");
@@ -65,10 +64,10 @@ UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    UA_ByteString remoteCertificateThumbprint = {20,
-                                                 channel->remoteCertificateThumbprint};
-    retval = securityPolicy->asymmetricModule.makeCertificateThumbprint(
-        securityPolicy, &channel->remoteCertificate, &remoteCertificateThumbprint);
+    UA_ByteString remoteCertificateThumbprint = {20, channel->remoteCertificateThumbprint};
+    retval = securityPolicy->asymmetricModule.
+        makeCertificateThumbprint(securityPolicy, &channel->remoteCertificate, 
+                                  &remoteCertificateThumbprint);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                        "Could not create the certificate thumbprint");
@@ -171,7 +170,8 @@ UA_SecureChannel_processHELACK(UA_SecureChannel *channel,
 
     /* Chunks of at least 8192 bytes must be permissible.
      * See Part 6, Clause 6.7.1 */
-    if(channel->config.recvBufferSize < 8192 || channel->config.sendBufferSize < 8192 ||
+    if(channel->config.recvBufferSize < 8192 || 
+       channel->config.sendBufferSize < 8192 ||
        (channel->config.remoteMaxMessageSize != 0 &&
         channel->config.remoteMaxMessageSize < 8192))
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -183,7 +183,8 @@ UA_SecureChannel_processHELACK(UA_SecureChannel *channel,
 
 /* Sends an OPN message using asymmetric encryption if defined */
 UA_StatusCode
-UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel, UA_UInt32 requestId,
+UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel, 
+                                          UA_UInt32 requestId,
                                           const void *content,
                                           const UA_DataType *contentType) {
     if(channel->securityMode == UA_MESSAGESECURITYMODE_INVALID)
@@ -211,8 +212,7 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel, UA_UInt32 r
 
     /* Encode the message type and content */
     UA_NodeId typeId = UA_NODEID_NUMERIC(0, contentType->binaryEncodingId);
-    retval |= UA_encodeBinary(&typeId, &UA_TYPES[UA_TYPES_NODEID], &buf_pos, &buf_end,
-                              NULL, NULL);
+    retval |= UA_encodeBinary(&typeId, &UA_TYPES[UA_TYPES_NODEID], &buf_pos, &buf_end, NULL, NULL);
     retval |= UA_encodeBinary(content, contentType, &buf_pos, &buf_end, NULL, NULL);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Connection_releaseSendBuffer(connection, &buf);
@@ -246,8 +246,7 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel, UA_UInt32 r
     }
 
 #ifdef UA_ENABLE_ENCRYPTION
-    retval = signAndEncryptAsym(channel, pre_sig_length, &buf, securityHeaderLength,
-                                total_length);
+    retval = signAndEncryptAsym(channel, pre_sig_length, &buf, securityHeaderLength, total_length);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Connection_releaseSendBuffer(connection, &buf);
         return retval;
@@ -313,8 +312,8 @@ encodeHeadersSym(UA_MessageContext *const messageContext, size_t totalLength) {
                            &header_pos, &messageContext->buf_end, NULL, NULL);
     res |= UA_encodeBinary(&channel->securityToken.channelId, &UA_TYPES[UA_TYPES_UINT32],
                            &header_pos, &messageContext->buf_end, NULL, NULL);
-    res |= UA_encodeBinary(&tokenId, &UA_TYPES[UA_TYPES_UINT32], &header_pos,
-                           &messageContext->buf_end, NULL, NULL);
+    res |= UA_encodeBinary(&tokenId, &UA_TYPES[UA_TYPES_UINT32], 
+                           &header_pos, &messageContext->buf_end, NULL, NULL);
     res |= UA_encodeBinary(&seqHeader, &UA_TRANSPORT[UA_TRANSPORT_SEQUENCEHEADER],
                            &header_pos, &messageContext->buf_end, NULL, NULL);
     return res;
@@ -342,13 +341,12 @@ sendSymmetricChunk(UA_MessageContext *messageContext) {
 
     /* The total message length */
     size_t pre_sig_length = (uintptr_t)(messageContext->buf_pos) -
-                            (uintptr_t)messageContext->messageBuffer.data;
+        (uintptr_t)messageContext->messageBuffer.data;
     size_t total_length = pre_sig_length;
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
-        total_length +=
-            securityPolicy->symmetricModule.cryptoModule.signatureAlgorithm
-                .getLocalSignatureSize(securityPolicy, channel->channelContext);
+        total_length += securityPolicy->symmetricModule.cryptoModule.signatureAlgorithm.
+            getLocalSignatureSize(securityPolicy, channel->channelContext);
     /* Space for the padding and the signature have been reserved in setBufPos() */
     UA_assert(total_length <= channel->config.sendBufferSize);
 
@@ -430,8 +428,9 @@ UA_MessageContext_begin(UA_MessageContext *mc, UA_SecureChannel *channel,
     mc->messageType = messageType;
 
     /* Allocate the message buffer */
-    UA_StatusCode retval = connection->getSendBuffer(
-        connection, channel->config.sendBufferSize, &mc->messageBuffer);
+    UA_StatusCode retval = 
+        connection->getSendBuffer(connection, channel->config.sendBufferSize, 
+                                  &mc->messageBuffer);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_MessageContext_abort(mc);
         return retval;
@@ -445,9 +444,8 @@ UA_MessageContext_begin(UA_MessageContext *mc, UA_SecureChannel *channel,
 UA_StatusCode
 UA_MessageContext_encode(UA_MessageContext *mc, const void *content,
                          const UA_DataType *contentType) {
-    UA_StatusCode retval =
-        UA_encodeBinary(content, contentType, &mc->buf_pos, &mc->buf_end,
-                        sendSymmetricEncodingCallback, mc);
+    UA_StatusCode retval = UA_encodeBinary(content, contentType, &mc->buf_pos, &mc->buf_end,
+                                           sendSymmetricEncodingCallback, mc);
     if(retval != UA_STATUSCODE_GOOD && mc->messageBuffer.length > 0)
         UA_MessageContext_abort(mc);
     return retval;
@@ -561,8 +559,8 @@ decryptVerifySymmetricChunk(UA_SecureChannel *channel, const UA_SecurityPolicy *
 }
 
 static UA_StatusCode
-assembleProcessMessage(UA_SecureChannel *channel, UA_ChunkQueue *chunks,
-                       size_t chunksSize, UA_UInt32 requestId, UA_MessageType messageType,
+assembleProcessMessage(UA_SecureChannel *channel, UA_ChunkQueue *chunks, size_t chunksSize, 
+                       UA_UInt32 requestId, UA_MessageType messageType,
                        void *application, UA_ProcessMessageCallback callback) {
     /* Only MSG and CLO messages at this point */
     UA_assert(messageType == UA_MESSAGETYPE_MSG || messageType == UA_MESSAGETYPE_CLO);
@@ -575,18 +573,15 @@ assembleProcessMessage(UA_SecureChannel *channel, UA_ChunkQueue *chunks,
          * SequenceHeader. */
         size_t messageLength = 0;
         SIMPLEQ_FOREACH(chunk, chunks, pointers)
-        messageLength += chunk->bytes.length - 24;
-
+            messageLength += chunk->bytes.length - 24;
         /* Test chunk count against the connection settings */
         if(channel->config.localMaxMessageSize != 0 &&
            messageLength > channel->config.localMaxMessageSize)
             return UA_STATUSCODE_BADRESPONSETOOLARGE;
-
         /* Allocate memory for the full message */
         UA_StatusCode res = UA_ByteString_allocBuffer(&payload, messageLength);
         if(res != UA_STATUSCODE_GOOD)
             return res;
-
         /* Assemble the full message */
         size_t curPos = 0;
         SIMPLEQ_FOREACH(chunk, chunks, pointers) {
@@ -601,14 +596,12 @@ assembleProcessMessage(UA_SecureChannel *channel, UA_ChunkQueue *chunks,
         UA_ByteString_deleteMembers(&payload);
         return UA_STATUSCODE_GOOD;
     }
-
     /* Hide the MessageHeader and SequenceHeader */
     chunk = SIMPLEQ_FIRST(chunks);
     payload = chunk->bytes;
     UA_assert(chunk->bytes.length > 24);
     payload.data += 24;
     payload.length -= 24;
-
     /* Process the message */
     callback(application, channel, messageType, requestId, &payload);
     return UA_STATUSCODE_GOOD;
@@ -735,18 +728,18 @@ processCompleteChunks(UA_SecureChannel *channel, void *application,
         UA_ChunkQueue doneChunks;
         SIMPLEQ_INIT(&doneChunks);
         switch(chunk->messageType) {
-            case UA_MESSAGETYPE_HEL:
-            case UA_MESSAGETYPE_ACK:
-            case UA_MESSAGETYPE_OPN:
-            case UA_MESSAGETYPE_ERR:
-                /* Chunks that are processed entirely by the application */
-                SIMPLEQ_REMOVE_HEAD(&channel->completeChunks, pointers);
-                SIMPLEQ_INSERT_TAIL(&doneChunks, chunk, pointers);
-                callback(application, channel, chunk->messageType, 0, &chunk->bytes);
-                break;
-            default: /* MSG and CLO */
-                res = processSymmetricChunks(channel, &doneChunks, application, callback);
-                break;
+        case UA_MESSAGETYPE_HEL:
+        case UA_MESSAGETYPE_ACK:
+        case UA_MESSAGETYPE_OPN:
+        case UA_MESSAGETYPE_ERR:
+            /* Chunks that are processed entirely by the application */
+            SIMPLEQ_REMOVE_HEAD(&channel->completeChunks, pointers);
+            SIMPLEQ_INSERT_TAIL(&doneChunks, chunk, pointers);
+            callback(application, channel, chunk->messageType, 0, &chunk->bytes);
+            break;
+        default: /* MSG and CLO */
+            res = processSymmetricChunks(channel, &doneChunks, application, callback);
+            break;
         }
 
         deleteChunks(&doneChunks);
@@ -824,10 +817,10 @@ extractCompleteChunk(UA_SecureChannel *channel, const UA_ByteString *buffer,
     /* Decoding cannot fail */
     UA_TcpMessageHeader hdr;
     UA_TcpMessageHeader_decodeBinary(buffer, &initial_offset, &hdr);
-    UA_MessageType msgType =
-        (UA_MessageType)(hdr.messageTypeAndChunkType & UA_BITMASK_MESSAGETYPE);
-    UA_ChunkType chunkType =
-        (UA_ChunkType)(hdr.messageTypeAndChunkType & UA_BITMASK_CHUNKTYPE);
+    UA_MessageType msgType = (UA_MessageType)
+        (hdr.messageTypeAndChunkType & UA_BITMASK_MESSAGETYPE);
+    UA_ChunkType chunkType = (UA_ChunkType)
+        (hdr.messageTypeAndChunkType & UA_BITMASK_CHUNKTYPE);
 
     /* The message size is not allowed */
     if(hdr.messageSize < 16)
@@ -872,8 +865,7 @@ UA_SecureChannel_processBuffer(UA_SecureChannel *channel, void *application,
     UA_ByteString appended = channel->incompleteChunk;
     if(appended.length > 0) {
         channel->incompleteChunk = UA_BYTESTRING_NULL;
-        UA_Byte *t =
-            (UA_Byte *)UA_realloc(appended.data, appended.length + buffer->length);
+        UA_Byte *t = (UA_Byte *)UA_realloc(appended.data, appended.length + buffer->length);
         if(!t) {
             UA_ByteString_deleteMembers(&appended);
             return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -926,7 +918,6 @@ UA_SecureChannel_receive(UA_SecureChannel *channel, void *application,
     UA_Connection *connection = channel->connection;
     if(!connection)
         return UA_STATUSCODE_BADINTERNALERROR;
-
     /* Listen for messages to arrive */
     UA_ByteString buffer = UA_BYTESTRING_NULL;
     UA_StatusCode retval = connection->recv(connection, &buffer, timeout);
