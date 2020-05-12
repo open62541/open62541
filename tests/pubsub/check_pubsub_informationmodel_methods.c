@@ -89,7 +89,7 @@ static UA_NodeId addPubSubConnection(void){
 
 
     UA_ExtensionObject eo;
-    UA_NetworkAddressUrlDataType networkAddressDataType = {UA_STRING("eth0"), UA_STRING("opc.udp://224.0.0.22:4840/")};
+    UA_NetworkAddressUrlDataType networkAddressDataType = {UA_STRING(""), UA_STRING("opc.udp://224.0.0.22:4840/")};
     UA_NetworkAddressUrlDataType* identityToken = UA_NetworkAddressUrlDataType_new();
     UA_NetworkAddressUrlDataType_init(identityToken);
     UA_NetworkAddressUrlDataType_copy(&networkAddressDataType, identityToken);
