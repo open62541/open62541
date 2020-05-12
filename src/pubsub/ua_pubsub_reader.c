@@ -237,6 +237,8 @@ UA_DataSetReader_generateNetworkMessage(UA_PubSubConnection *pubSubConnection, U
         networkMessage->groupHeader.sequenceNumber = 1; // Will be modified when subscriber receives new nw msg.
     /* Compute the length of the dsm separately for the header */
     UA_UInt16 *dsmLengths = (UA_UInt16 *) UA_calloc(dsmCount, sizeof(UA_UInt16));
+    if(!dsmLengths)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     for(UA_Byte i = 0; i < dsmCount; i++)
         dsmLengths[i] = (UA_UInt16) UA_DataSetMessage_calcSizeBinary(&dsm[i], NULL, 0);
 
@@ -546,6 +548,7 @@ UA_Server_freezeReaderGroupConfiguration(UA_Server *server, const UA_NodeId read
 
         UA_NetworkMessage *networkMessage = (UA_NetworkMessage *) UA_calloc(1, sizeof(UA_NetworkMessage));
         if(!networkMessage) {
+            UA_free(dsWriterIds);
             UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                          "PubSub RT Offset calculation: Network message creation failed");
             return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -554,6 +557,10 @@ UA_Server_freezeReaderGroupConfiguration(UA_Server *server, const UA_NodeId read
         res = UA_DataSetReader_generateNetworkMessage(pubSubConnection, dataSetReader, dsm,
                                                       dsWriterIds, 1, networkMessage);
         if(res != UA_STATUSCODE_GOOD) {
+            UA_free(networkMessage->payload.dataSetPayload.sizes);
+            UA_free(networkMessage);
+            UA_free(dsWriterIds);
+            UA_free(dsm);
             UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                            "PubSub RT Offset calculation: NetworkMessage generation failed");
             return UA_STATUSCODE_BADINTERNALERROR;
