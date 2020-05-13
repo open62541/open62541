@@ -728,15 +728,32 @@ rejected:
 
 void
 Service_CloseSession(UA_Server *server, UA_SecureChannel *channel, UA_Session *session,
-                     const UA_CloseSessionRequest *request,
-                     UA_CloseSessionResponse *response) {
-    UA_LOG_INFO_SESSION(&server->config.logger, session, "CloseSession");
+                     const UA_CloseSessionRequest *request, UA_CloseSessionResponse *response) {
     UA_LOCK_ASSERT(server->serviceMutex, 1);
-
-    if(!session)
+    if(!session) {
+        UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
+                               "CloseSession: No Session activated to the SecureChannel");
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
-    else
-        response->responseHeader.serviceResult =
-            UA_Server_removeSessionByToken(server, &session->header.authenticationToken,
-                                           UA_DIAGNOSTICEVENT_CLOSE);
+        return;
+    }
+
+    /* Part 4, 5.6.4: When the CloseSession Service is called before the Session
+     * is successfully activated, the Server shall reject the request if the
+     * SecureChannel is not the same as the one associated with the
+     * CreateSession request.
+     *
+     * A non-activated Session is already attached to the SecureChannel that
+     * created the Session. */
+    if(!session) {
+        UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
+                               "CloseSession: No Session activated to the SecureChannel");
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
+        return;
+    }
+
+    UA_LOG_INFO_SESSION(&server->config.logger, session, "CloseSession");
+
+    response->responseHeader.serviceResult =
+        UA_Server_removeSessionByToken(server, &session->header.authenticationToken,
+                                       UA_DIAGNOSTICEVENT_CLOSE);
 }
