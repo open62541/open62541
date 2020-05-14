@@ -22,7 +22,7 @@ typedef struct {
 
 /* FieldEncoding Enum  */
 typedef enum {
-    UA_FIELDENCODING_VARIANT = 0, 
+    UA_FIELDENCODING_VARIANT = 0,
     UA_FIELDENCODING_RAWDATA = 1,
     UA_FIELDENCODING_DATAVALUE = 2
 } UA_FieldEncoding;
@@ -31,7 +31,7 @@ typedef enum {
 typedef enum {
     UA_DATASETMESSAGE_DATAKEYFRAME = 0,
     UA_DATASETMESSAGE_DATADELTAFRAME = 1,
-    UA_DATASETMESSAGE_EVENT = 2, 
+    UA_DATASETMESSAGE_EVENT = 2,
     UA_DATASETMESSAGE_KEEPALIVE = 3
 } UA_DataSetMessageType;
 
@@ -203,7 +203,7 @@ typedef enum {
 typedef struct {
     UA_NetworkMessageOffsetType contentType;
     union {
-        union {
+        struct {
             UA_DataValue *value;
             size_t valueBinarySize;
         } value;
