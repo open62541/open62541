@@ -808,7 +808,8 @@ void ValueAttributeRead(UA_Client *client, void *userdata,
 }
 
 /*Read Attributes*/
-UA_StatusCode __UA_Client_readAttribute_async(UA_Client *client,
+UA_StatusCode
+__UA_Client_readAttribute_async(UA_Client *client,
         const UA_NodeId *nodeId, UA_AttributeId attributeId,
         const UA_DataType *outDataType, UA_ClientAsyncServiceCallback callback,
         void *userdata, UA_UInt32 *reqId) {
@@ -821,17 +822,12 @@ UA_StatusCode __UA_Client_readAttribute_async(UA_Client *client,
     request.nodesToRead = &item;
     request.nodesToReadSize = 1;
 
-    __UA_Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_READREQUEST],
-                             ValueAttributeRead, &UA_TYPES[UA_TYPES_READRESPONSE], NULL,
-                             reqId);
-
     CustomCallback *cc = (CustomCallback*) UA_malloc(sizeof(CustomCallback));
     if (!cc)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     memset(cc, 0, sizeof(CustomCallback));
     cc->userCallback = callback;
     cc->userData = userdata;
-    cc->callbackId = *reqId;
 
     cc->clientData = UA_malloc(sizeof(AsyncReadData));
     if(!cc->clientData) {
@@ -842,7 +838,13 @@ UA_StatusCode __UA_Client_readAttribute_async(UA_Client *client,
     rd->attributeId = attributeId;
     rd->outDataType = outDataType;
 
+    __UA_Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_READREQUEST],
+                             ValueAttributeRead, &UA_TYPES[UA_TYPES_READRESPONSE], NULL,
+                             &cc->callbackId);
+
     LIST_INSERT_HEAD(&client->customCallbacks, cc, pointers);
+    if (reqId != NULL)
+        *reqId = cc->callbackId;
 
     return UA_STATUSCODE_GOOD;
 }
