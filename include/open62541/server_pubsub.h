@@ -463,7 +463,7 @@ typedef struct {
     UA_DataSetFieldContentMask dataSetFieldContentMask;
     UA_Double messageReceiveTimeout;
     UA_PubSubSecurityParameters securityParameters;
-    UA_UadpDataSetReaderMessageDataType messageSettings;
+    UA_ExtensionObject messageSettings;
     UA_ExtensionObject transportSettings;
     UA_TargetVariablesDataType subscribedDataSetTarget;
 } UA_DataSetReaderConfig;

@@ -100,14 +100,21 @@ UA_DataSetReader_generateDataSetMessage(UA_Server *server, UA_DataSetMessage *da
      * TODO: JSON encoding if UA_DataSetReader_generateDataSetMessage used other that RT configuration
      */
 
+    if(dataSetReader->config.messageSettings.content.decoded.type != &UA_TYPES[UA_TYPES_UADPDATASETREADERMESSAGEDATATYPE]) {
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "Only UADP encoding is supported.");
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+    }
+
     /* The configuration Flags are included inside the std. defined UA_UadpDataSetReaderMessageDataType */
     UA_UadpDataSetReaderMessageDataType defaultUadpConfiguration;
-    UA_UadpDataSetReaderMessageDataType *dataSetReaderMessageDataType;
-    if(dataSetReader->config.messageSettings.dataSetMessageContentMask) {
-    	dataSetReaderMessageDataType = &dataSetReader->config.messageSettings;
-    }
-    else {
-        /* create default flag configuration if no
+    UA_UadpDataSetReaderMessageDataType *dataSetReaderMessageDataType = (UA_UadpDataSetReaderMessageDataType *)
+        dataSetReader->config.messageSettings.content.decoded.data;
+
+    if(!(dataSetReader->config.messageSettings.encoding == UA_EXTENSIONOBJECT_DECODED ||
+       dataSetReader->config.messageSettings.encoding == UA_EXTENSIONOBJECT_DECODED_NODELETE) ||
+       !dataSetReaderMessageDataType->dataSetMessageContentMask) {
+        /* create default flag configuration if no dataSetMessageContentMask or even messageSettings in
          * UadpDataSetWriterMessageDataType was passed in */
         memset(&defaultUadpConfiguration, 0, sizeof(UA_UadpDataSetReaderMessageDataType));
         defaultUadpConfiguration.dataSetMessageContentMask = (UA_UadpDataSetMessageContentMask)
@@ -187,9 +194,11 @@ UA_DataSetReader_generateDataSetMessage(UA_Server *server, UA_DataSetMessage *da
 
 static UA_StatusCode
 UA_DataSetReader_generateNetworkMessage(UA_PubSubConnection *pubSubConnection, UA_DataSetReader *dataSetReader, UA_DataSetMessage *dsm,
-		                                UA_UInt16 *writerId, UA_Byte dsmCount, UA_NetworkMessage *networkMessage) {
-    UA_UadpDataSetReaderMessageDataType *dsrm = &dataSetReader->config.messageSettings;
+                                        UA_UInt16 *writerId, UA_Byte dsmCount, UA_NetworkMessage *networkMessage) {
+    if(dataSetReader->config.messageSettings.content.decoded.type != &UA_TYPES[UA_TYPES_UADPDATASETREADERMESSAGEDATATYPE])
+        return UA_STATUSCODE_BADNOTSUPPORTED;
 
+    UA_UadpDataSetReaderMessageDataType *dsrm = (UA_UadpDataSetReaderMessageDataType *) dataSetReader->config.messageSettings.content.decoded.data;
     networkMessage->publisherIdEnabled =
         ((u64)dsrm->networkMessageContentMask &
          (u64)UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID) != 0;
@@ -504,7 +513,13 @@ UA_Server_freezeReaderGroupConfiguration(UA_Server *server, const UA_NodeId read
         }
 
         dataSetReader = LIST_FIRST(&rg->readers);
-        // TODO: Check for UADP encoding
+        // Support only to UADP encoding
+        if(dataSetReader->config.messageSettings.content.decoded.type != &UA_TYPES[UA_TYPES_UADPDATASETREADERMESSAGEDATATYPE]) {
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "PubSub-RT configuration fail: Non-RT capable encoding.");
+            return UA_STATUSCODE_BADNOTSUPPORTED;
+        }
+
         for(size_t i = 0; i < dataSetReader->config.dataSetMetaData.fieldsSize; i++) {
             if((UA_NodeId_equal(&dataSetReader->config.dataSetMetaData.fields->dataType, &UA_TYPES[UA_TYPES_STRING].typeId) ||
                 UA_NodeId_equal(&dataSetReader->config.dataSetMetaData.fields->dataType,
@@ -984,7 +999,7 @@ UA_DataSetReaderConfig_copy(const UA_DataSetReaderConfig *src,
 
     /* Currently memcpy is used to copy the securityParameters */
     memcpy(&dst->securityParameters, &src->securityParameters, sizeof(UA_PubSubSecurityParameters));
-    retVal = UA_UadpDataSetReaderMessageDataType_copy(&src->messageSettings, &dst->messageSettings);
+    retVal = UA_ExtensionObject_copy(&src->messageSettings, &dst->messageSettings);
     if(retVal != UA_STATUSCODE_GOOD)
         return retVal;
 
@@ -1275,7 +1290,7 @@ UA_DataSetReader_clear(UA_Server *server, UA_DataSetReader *dataSetReader) {
     UA_String_deleteMembers(&dataSetReader->config.name);
     UA_Variant_deleteMembers(&dataSetReader->config.publisherId);
     UA_DataSetMetaDataType_deleteMembers(&dataSetReader->config.dataSetMetaData);
-    UA_UadpDataSetReaderMessageDataType_deleteMembers(&dataSetReader->config.messageSettings);
+    UA_ExtensionObject_clear(&dataSetReader->config.messageSettings);
     UA_ExtensionObject_clear(&dataSetReader->config.transportSettings);
     UA_TargetVariablesDataType_deleteMembers(&dataSetReader->subscribedDataSetTarget);
 

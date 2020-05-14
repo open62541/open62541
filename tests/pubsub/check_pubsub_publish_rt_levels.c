@@ -9,11 +9,11 @@
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/pubsub_udp.h>
 
+#include "ua_pubsub.h"
+#include "ua_pubsub_networkmessage.h"
+
 #include <check.h>
 #include <stdio.h>
-#include <ua_pubsub.h>
-#include <ua_pubsub_networkmessage.h>
-
 
 UA_Server *server = NULL;
 UA_NodeId connectionIdentifier, publishedDataSetIdent, writerGroupIdent, dataSetWriterIdent, dataSetFieldIdent;

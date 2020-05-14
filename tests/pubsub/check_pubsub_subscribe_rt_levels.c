@@ -9,11 +9,11 @@
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/pubsub_udp.h>
 
+#include "ua_pubsub.h"
+#include "ua_pubsub_networkmessage.h"
+
 #include <check.h>
 #include <stdio.h>
-#include <ua_pubsub.h>
-#include <ua_pubsub_networkmessage.h>
-
 
 UA_Server *server = NULL;
 UA_NodeId connectionIdentifier, publishedDataSetIdent, writerGroupIdent, dataSetWriterIdent, dataSetFieldIdent, readerGroupIdentifier, readerIdentifier;
@@ -165,13 +165,14 @@ START_TEST(SubscribeSingleFieldWithFixedOffsets) {
     readerConfig.publisherId.data = &publisherIdentifier;
     readerConfig.writerGroupId    = 100;
     readerConfig.dataSetWriterId  = 62541;
-    UA_UadpDataSetReaderMessageDataType dataSetReaderMessage;
-    memset(&dataSetReaderMessage, 0, sizeof(UA_UadpDataSetReaderMessageDataType));
-    dataSetReaderMessage.networkMessageContentMask          = (UA_UadpNetworkMessageContentMask)(UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID |
-                                                               (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_GROUPHEADER |
-                                                               (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_WRITERGROUPID |
-                                                               (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
-    readerConfig.messageSettings = dataSetReaderMessage;
+    readerConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
+    readerConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPDATASETREADERMESSAGEDATATYPE];
+    UA_UadpDataSetReaderMessageDataType *dataSetReaderMessage = UA_UadpDataSetReaderMessageDataType_new();
+    dataSetReaderMessage->networkMessageContentMask           = (UA_UadpNetworkMessageContentMask)(UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID |
+                                                                 (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_GROUPHEADER |
+                                                                 (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_WRITERGROUPID |
+                                                                 (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
+    readerConfig.messageSettings.content.decoded.data = dataSetReaderMessage;
     /* Setting up Meta data configuration in DataSetReader for DateTime DataType */
     UA_DataSetMetaDataType *pMetaData = &readerConfig.dataSetMetaData;
     /* FilltestMetadata function in subscriber implementation */
@@ -191,6 +192,7 @@ START_TEST(SubscribeSingleFieldWithFixedOffsets) {
     retVal = UA_Server_addDataSetReader (server, readerGroupIdentifier, &readerConfig,
                                           &readerIdentifier);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    UA_UadpDataSetReaderMessageDataType_delete(dataSetReaderMessage);
     /* Add Subscribed Variables */
     UA_NodeId folderId;
     UA_NodeId newnodeId;
@@ -329,13 +331,14 @@ START_TEST(SetupInvalidPubSubConfig) {
     readerConfig.publisherId.data = &publisherIdentifier;
     readerConfig.writerGroupId    = 100;
     readerConfig.dataSetWriterId  = 62541;
-    UA_UadpDataSetReaderMessageDataType dataSetReaderMessage;
-    memset(&dataSetReaderMessage, 0, sizeof(UA_UadpDataSetReaderMessageDataType));
-    dataSetReaderMessage.networkMessageContentMask          = (UA_UadpNetworkMessageContentMask)(UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID |
-                                                               (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_GROUPHEADER |
-                                                               (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_WRITERGROUPID |
-                                                               (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
-    readerConfig.messageSettings = dataSetReaderMessage;
+    readerConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
+    readerConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPDATASETREADERMESSAGEDATATYPE];
+    UA_UadpDataSetReaderMessageDataType *dataSetReaderMessage = UA_UadpDataSetReaderMessageDataType_new();
+    dataSetReaderMessage->networkMessageContentMask           = (UA_UadpNetworkMessageContentMask)(UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID |
+                                                                 (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_GROUPHEADER |
+                                                                 (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_WRITERGROUPID |
+                                                                 (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
+    readerConfig.messageSettings.content.decoded.data = dataSetReaderMessage;
     /* Setting up Meta data configuration in DataSetReader for DateTime DataType */
     UA_DataSetMetaDataType *pMetaData = &readerConfig.dataSetMetaData;
     /* FilltestMetadata function in subscriber implementation */
@@ -359,6 +362,7 @@ START_TEST(SetupInvalidPubSubConfig) {
     retVal = UA_Server_addDataSetReader (server, readerGroupIdentifier, &readerConfig,
                                           &readerIdentifier2);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    UA_UadpDataSetReaderMessageDataType_delete(dataSetReaderMessage);
     /* Add Subscribed Variables */
     UA_NodeId folderId;
     UA_NodeId newnodeId;
