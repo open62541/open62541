@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2014-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2014-2020 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Florian Palm
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
@@ -37,6 +37,7 @@ extern UA_StatusCode processSym_seqNumberFailure;
  * Sessions is independent of the underlying SecureChannel. But every Session
  * can be attached to only one SecureChannel. */
 typedef struct UA_SessionHeader {
+    SLIST_ENTRY(UA_SessionHeader) next;
     UA_NodeId authenticationToken;
     UA_SecureChannel *channel; /* The pointer back to the SecureChannel in the session. */
 } UA_SessionHeader;
@@ -87,10 +88,8 @@ struct UA_SecureChannel {
     UA_UInt32 receiveSequenceNumber;
     UA_UInt32 sendSequenceNumber;
 
-    /* The standard does not forbid a SecureChannel to carry several Sessions.
-     * But this is not supported here. So clients need one SecureChannel for
-     * every Session. */
-    UA_SessionHeader *session;
+    /* Sessions that are bound to the SecureChannel */
+    SLIST_HEAD(, UA_SessionHeader) sessions;
 
     /* If a buffer is received, first all chunks are put into the completeChunks
      * queue. Then they are processed in order. This ensures that processing

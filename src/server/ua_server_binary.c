@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2014-2020 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014-2016 (c) Sten Grüner
  *    Copyright 2014-2015, 2017 (c) Florian Palm
  *    Copyright 2015-2016 (c) Chris Iatrou
@@ -514,40 +514,46 @@ sendResponse(UA_Server *server, UA_Session *session, UA_SecureChannel *channel,
     return UA_MessageContext_finish(&mc);
 }
 
-/* A Session is bound to at most one SecureChannel. After creation, the Session
- * is already bound to the SecureChannel on which the CreateSession request was
- * received. Even if the Session is not yet activated.
+/* A Session is "bound" to a SecureChannel if it was created by the
+ * SecureChannel or if it was activated on it. A Session can only be bound to
+ * one SecureChannel. A Session can only be closed from the SecureChannel to
+ * which it is bound.
  *
- * The only way to rebind a Session to another SecureChannel is via the
- * ActivateSession request.
- *
- * A Session can only be closed from the SecureChannel to which it is bound.
- * (Also prior to ActivateSession.) */
+ * Returns Good if the AuthenticationToken exists nowhere (for CTT). */
+UA_StatusCode
+getBoundSession(UA_Server *server, const UA_SecureChannel *channel,
+                const UA_NodeId *token, UA_Session **session) {
+    UA_DateTime now = UA_DateTime_nowMonotonic();
+    UA_SessionHeader *sh;
+    SLIST_FOREACH(sh, &channel->sessions, next) {
+        if(!UA_NodeId_equal(token, &sh->authenticationToken))
+            continue;
+        UA_Session *current = (UA_Session*)sh;
+        /* Has the session timed out? */
+        if(current->validTill < now)
+            return UA_STATUSCODE_BADSESSIONCLOSED;
+        *session = current;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* Session exists on another SecureChannel. The CTT expect this error. */
+    if(getSessionByToken(server, token))
+        return UA_STATUSCODE_BADSECURECHANNELIDINVALID;
+
+    return UA_STATUSCODE_GOOD;
+}
+
 static UA_StatusCode
 processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 requestId,
                   UA_Service service, const UA_Request *request,
                   const UA_DataType *requestType, UA_Response *response,
                   const UA_DataType *responseType, UA_Boolean sessionRequired) {
-    /* Does the Session bound to the SecureChannel match the
-     * AuthenticationToken? */
-    UA_Session *session = (UA_Session*)channel->session;
-    const UA_RequestHeader *requestHeader = &request->requestHeader;
-    if(session && !UA_NodeId_equal(&session->header.authenticationToken,
-                                   &requestHeader->authenticationToken))
-        return sendServiceFault(channel, requestId, requestHeader->requestHandle,
-                                responseType, UA_STATUSCODE_BADSESSIONIDINVALID);
-
-    /* Has the session timed out? */
-    if(session && session->validTill < UA_DateTime_nowMonotonic())
-        return sendServiceFault(channel, requestId, requestHeader->requestHandle,
-                                responseType, UA_STATUSCODE_BADSESSIONIDINVALID);
-
-    /* Session lifecycle service. The session pointer can still be NULL. */
+    /* Session lifecycle services. */
     if(requestType == &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST] ||
        requestType == &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST] ||
        requestType == &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST]) {
         UA_LOCK(server->serviceMutex);
-        ((UA_SessionService)(uintptr_t)service)(server, channel, session, request, response);
+        ((UA_ChannelService)(uintptr_t)service)(server, channel, request, response);
         UA_UNLOCK(server->serviceMutex);
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
         /* Store the authentication token so we can help fuzzing by setting
@@ -557,7 +563,18 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
             UA_NodeId_copy(&res->authenticationToken, &unsafe_fuzz_authenticationToken);
         }
 #endif
-        return sendResponse(server, session, channel, requestId, response, responseType);
+        return sendResponse(server, NULL, channel, requestId, response, responseType);
+    }
+
+    /* Get the Session bound to the SecureChannel (not necessarily activated) */
+    UA_Session *session = NULL;
+    const UA_RequestHeader *requestHeader = &request->requestHeader;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(!UA_NodeId_isNull(&requestHeader->authenticationToken)) {
+        retval = getBoundSession(server, channel, &requestHeader->authenticationToken, &session);
+        if(retval != UA_STATUSCODE_GOOD)
+            return sendServiceFault(channel, requestId, requestHeader->requestHandle,
+                                    responseType, retval);
     }
 
     /* Set an anonymous, inactive session for services that need no session */

@@ -111,7 +111,7 @@ static UA_Boolean
 purgeFirstChannelWithoutSession(UA_Server *server) {
     channel_entry *entry;
     TAILQ_FOREACH(entry, &server->channels, pointers) {
-        if(entry->channel.session)
+        if(SLIST_FIRST(&entry->channel.sessions))
             continue;
         UA_LOG_INFO_CHANNEL(&server->config.logger, &entry->channel,
                             "Channel was purged since maxSecureChannels was "
