@@ -190,6 +190,10 @@ UA_Server_closeSecureChannel(UA_Server *server, UA_SecureChannel *channel,
 /********************/
 
 UA_StatusCode
+getBoundSession(UA_Server *server, const UA_SecureChannel *channel,
+                const UA_NodeId *token, UA_Session **session);
+
+UA_StatusCode
 UA_Server_createSession(UA_Server *server, UA_SecureChannel *channel,
                         const UA_CreateSessionRequest *request, UA_Session **session);
 
@@ -203,6 +207,9 @@ UA_Server_removeSessionByToken(UA_Server *server, const UA_NodeId *token,
 
 void
 UA_Server_cleanupSessions(UA_Server *server, UA_DateTime nowMonotonic);
+
+UA_Session *
+getSessionByToken(UA_Server *server, const UA_NodeId *token);
 
 UA_Session *
 UA_Server_getSessionById(UA_Server *server, const UA_NodeId *sessionId);
