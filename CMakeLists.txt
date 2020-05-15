@@ -817,7 +817,8 @@ list(APPEND default_plugin_sources
      ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/securitypolicy_mbedtls_common.c
      ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic128rsa15.c
      ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256.c
-     ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256sha256.c)
+     ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256sha256.c
+     ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_aes128sha256rsaoaep.c)
 endif()
 
 if (UA_ENABLE_ENCRYPTION_OPENSSL)
@@ -828,6 +829,7 @@ list(APPEND default_plugin_sources
      ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/openssl/ua_openssl_basic128rsa15.c
      ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/openssl/ua_openssl_basic256.c
      ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/openssl/ua_openssl_basic256sha256.c
+     ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/openssl/ua_openssl_aes128sha256rsaoaep.c
      ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/openssl/ua_pki_openssl.c)
 endif()
 

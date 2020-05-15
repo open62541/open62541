@@ -85,7 +85,8 @@ if(UA_ENABLE_ENCRYPTION_MBEDTLS)
        ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/securitypolicy_mbedtls_common.c
               ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic128rsa15.c
               ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256.c
-              ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256sha256.c)
+              ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256sha256.c
+              ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_aes128sha256rsaoaep.c)
 endif()
 
 if(UA_ENABLE_ENCRYPTION_OPENSSL)
@@ -94,6 +95,7 @@ if(UA_ENABLE_ENCRYPTION_OPENSSL)
               ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/openssl/ua_openssl_basic128rsa15.c
               ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/openssl/ua_openssl_basic256.c
               ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/openssl/ua_openssl_basic256sha256.c
+              ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/openssl/ua_openssl_aes128sha256rsaoaep.c
               ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/openssl/ua_pki_openssl.c)
 endif()
 
@@ -479,6 +481,10 @@ if(UA_ENABLE_ENCRYPTION_MBEDTLS)
     add_executable(check_encryption_basic256sha256 encryption/check_encryption_basic256sha256.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     target_link_libraries(check_encryption_basic256sha256 ${LIBS})
     add_test_valgrind(encryption_basic256sha256 ${TESTS_BINARY_DIR}/check_encryption_basic256sha256)
+
+    add_executable(check_encryption_aes128sha256rsaoaep encryption/check_encryption_aes128sha256rsaoaep.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    target_link_libraries(check_encryption_aes128sha256rsaoaep ${LIBS})
+    add_test_valgrind(encryption_aes128sha256rsaoaep ${TESTS_BINARY_DIR}/check_encryption_aes128sha256rsaoaep)
 endif()
 
 if(UA_ENABLE_ENCRYPTION_OPENSSL)
@@ -489,6 +495,10 @@ if(UA_ENABLE_ENCRYPTION_OPENSSL)
     add_executable(check_encryption_basic256sha256 encryption/check_encryption_basic256sha256.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     target_link_libraries(check_encryption_basic256sha256 ${LIBS})
     add_test_valgrind(encryption_basic256sha256 ${TESTS_BINARY_DIR}/check_encryption_basic256sha256)
+
+    add_executable(check_encryption_aes128sha256rsaoaep encryption/check_encryption_aes128sha256rsaoaep.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    target_link_libraries(check_encryption_aes128sha256rsaoaep ${LIBS})
+    add_test_valgrind(encryption_aes128sha256rsaoaep ${TESTS_BINARY_DIR}/check_encryption_aes128sha256rsaoaep)
 endif()
 
 # Tests for Nodeset Compiler
