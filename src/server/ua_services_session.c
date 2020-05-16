@@ -477,6 +477,71 @@ decryptPassword(UA_SecurityPolicy *securityPolicy, void *tempChannelContext,
 }
 #endif
 
+static void
+selectEndpointAndTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
+                             const UA_ExtensionObject *identityToken,
+                             const UA_EndpointDescription **ed,
+                             const UA_UserTokenPolicy **utp) {
+    for(size_t i = 0; i < server->config.endpointsSize; ++i) {
+        const UA_EndpointDescription *desc = &server->config.endpoints[i];
+
+        /* Match the Security Mode */
+        if(desc->securityMode != channel->securityMode)
+            continue;
+
+        /* Match the SecurityPolicy of the endpoint with the current channel */
+        if(!UA_String_equal(&desc->securityPolicyUri, &channel->securityPolicy->policyUri))
+            continue;
+
+        /* Match the UserTokenType */
+        const UA_DataType *tokenDataType = identityToken->content.decoded.type;
+        for(size_t j = 0; j < desc->userIdentityTokensSize; j++) {
+            const UA_UserTokenPolicy *pol = &desc->userIdentityTokens[j];
+
+            /* Part 4, Section 5.6.3.2, Table 17: A NULL or empty
+             * UserIdentityToken should be treated as Anonymous */
+            if(identityToken->encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY &&
+               pol->tokenType == UA_USERTOKENTYPE_ANONYMOUS) {
+                *ed = desc;
+                *utp = pol;
+                return;
+            }
+
+            /* Expect decoded content */
+            if(!tokenDataType)
+                continue;
+
+            if(pol->tokenType == UA_USERTOKENTYPE_ANONYMOUS) {
+                if(tokenDataType != &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN])
+                    continue;
+            } else if(pol->tokenType == UA_USERTOKENTYPE_USERNAME) {
+                if(tokenDataType != &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN])
+                    continue;
+            } else if(pol->tokenType == UA_USERTOKENTYPE_CERTIFICATE) {
+                if(tokenDataType != &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN])
+                    continue;
+            } else if(pol->tokenType == UA_USERTOKENTYPE_ISSUEDTOKEN) {
+                if(tokenDataType != &UA_TYPES[UA_TYPES_ISSUEDIDENTITYTOKEN])
+                    continue;
+            } else {
+                continue;
+            }
+
+            /* All valid token data types start with a string policyId */
+            UA_AnonymousIdentityToken *token = (UA_AnonymousIdentityToken*)
+                identityToken->content.decoded.data;
+
+            if(!UA_String_equal(&pol->policyId, &token->policyId))
+                continue;
+
+            /* Match found */
+            *ed = desc;
+            *utp = pol;
+            return;
+        }
+    }
+}
+
 /* TODO: Check all of the following: The Server shall verify that the
  * Certificate the Client used to create the new SecureChannel is the same as
  * the Certificate used to create the original SecureChannel. In addition, the
@@ -530,99 +595,42 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         goto securityRejected;
     }
 
-    /* Find the matching endpoint */
+    /* Find the matching Endpoint with UserTokenPolicy */
     const UA_EndpointDescription *ed = NULL;
-    const UA_DataType *tokenDataType = request->userIdentityToken.content.decoded.type;
-    for(size_t i = 0; ed == NULL && i < server->config.endpointsSize; ++i) {
-        const UA_EndpointDescription *e = &server->config.endpoints[i];
-
-        /* Match the Security Mode */
-        if(e->securityMode != channel->securityMode)
-            continue;
-
-        /* Match the SecurityPolicy */
-        if(!UA_String_equal(&e->securityPolicyUri, &channel->securityPolicy->policyUri))
-            continue;
-
-        /* Match the UserTokenType */
-        for(size_t j = 0; j < e->userIdentityTokensSize; j++) {
-            const UA_UserTokenPolicy *u = &e->userIdentityTokens[j];
-            if(u->tokenType == UA_USERTOKENTYPE_ANONYMOUS) {
-                /* Part 4, Section 5.6.3.2, Table 17: A NULL or empty
-                 * UserIdentityToken should be treated as Anonymous */
-                if(tokenDataType != &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN] &&
-                   request->userIdentityToken.encoding != UA_EXTENSIONOBJECT_ENCODED_NOBODY)
-                    continue;
-            } else if(u->tokenType == UA_USERTOKENTYPE_USERNAME) {
-                if(tokenDataType != &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN])
-                    continue;
-            } else if(u->tokenType == UA_USERTOKENTYPE_CERTIFICATE) {
-                if(tokenDataType != &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN])
-                    continue;
-            } else if(u->tokenType == UA_USERTOKENTYPE_ISSUEDTOKEN) {
-                if(tokenDataType != &UA_TYPES[UA_TYPES_ISSUEDIDENTITYTOKEN])
-                    continue;
-            } else {
-                response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-                return;
-            }
-
-            /* Match found */
-            ed = e;
-            break;
-        }
-
-    }
-
-    /* No matching endpoint found */
+    const UA_UserTokenPolicy *utp = NULL;
+    selectEndpointAndTokenPolicy(server, channel, &request->userIdentityToken, &ed, &utp);
     if(!ed) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
         goto rejected;
     }
 
-#ifdef UA_ENABLE_ENCRYPTION
-    /* If it is a UserNameIdentityToken, decrypt the password if encrypted */
-    if(request->userIdentityToken.encoding == UA_EXTENSIONOBJECT_DECODED &&
-       tokenDataType == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
+    /* If it is a UserNameIdentityToken, the password may be encrypted */
+    if(utp->tokenType == UA_USERTOKENTYPE_USERNAME) {
        UA_UserNameIdentityToken *userToken = (UA_UserNameIdentityToken *)
            request->userIdentityToken.content.decoded.data;
 
-       /* Find the UserTokenPolicy */
-       UA_Byte tokenIndex = 0;
-       for(; tokenIndex < ed->userIdentityTokensSize; tokenIndex++) {
-           if(ed->userIdentityTokens[tokenIndex].tokenType != UA_USERTOKENTYPE_USERNAME)
-               continue;
-           if(UA_String_equal(&userToken->policyId, &ed->userIdentityTokens[tokenIndex].policyId))
-               break;
-       }
-       if(tokenIndex == ed->userIdentityTokensSize) {
-           response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-           goto rejected;
-       }
-
-       /* Get the SecurityPolicy. If the userTokenPolicy doesn't specify a
-        * security policy the security policy of the secure channel is used. */
+       /* If the userTokenPolicy doesn't specify a security policy the security
+        * policy of the secure channel is used. */
        UA_SecurityPolicy* securityPolicy;
-       if(!ed->userIdentityTokens[tokenIndex].securityPolicyUri.data)
+       if(!utp->securityPolicyUri.data)
            securityPolicy = UA_SecurityPolicy_getSecurityPolicyByUri(server, &ed->securityPolicyUri);
        else
-           securityPolicy = UA_SecurityPolicy_getSecurityPolicyByUri(server,
-                                              &ed->userIdentityTokens[tokenIndex].securityPolicyUri);
+           securityPolicy = UA_SecurityPolicy_getSecurityPolicyByUri(server, &utp->securityPolicyUri);
        if(!securityPolicy) {
           response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
           goto rejected;
        }
 
+       /* Test if the encryption algorithm is correctly specified */
+       if(!UA_String_equal(&userToken->encryptionAlgorithm,
+                           &securityPolicy->asymmetricModule.cryptoModule.encryptionAlgorithm.uri)) {
+           response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+           goto securityRejected;
+       }
+
+#ifdef UA_ENABLE_ENCRYPTION
        /* Encrypted password? */
        if(!UA_String_equal(&securityPolicy->policyUri, &UA_SECURITY_POLICY_NONE_URI)) {
-           /* Test if the encryption algorithm is correctly specified */
-           if(!UA_String_equal(&userToken->encryptionAlgorithm,
-                               &securityPolicy->asymmetricModule.cryptoModule.
-                               encryptionAlgorithm.uri)) {
-               response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-               goto securityRejected;
-           }
-
            /* Create a temporary channel context if a different SecurityPolicy is
             * used for the password from the SecureChannel */
            void *tempChannelContext = channel->channelContext;
@@ -660,8 +668,8 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                                   UA_StatusCode_name(response->responseHeader.serviceResult));
            goto securityRejected;
        }
-    }
 #endif
+    }
 
     /* Callback into userland access control */
     response->responseHeader.serviceResult =
