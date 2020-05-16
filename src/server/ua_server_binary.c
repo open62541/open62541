@@ -613,10 +613,12 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
                                "Service %" PRIi16 " refused on a non-activated session",
                                requestType->binaryEncodingId);
 #endif
-        UA_LOCK(server->serviceMutex);
-        UA_Server_removeSessionByToken(server, &session->header.authenticationToken,
-                                       UA_DIAGNOSTICEVENT_ABORT);
-        UA_UNLOCK(server->serviceMutex);
+        if(session != &anonymousSession) {
+            UA_LOCK(server->serviceMutex);
+            UA_Server_removeSessionByToken(server, &session->header.authenticationToken,
+                                           UA_DIAGNOSTICEVENT_ABORT);
+            UA_UNLOCK(server->serviceMutex);
+        }
         return sendServiceFault(channel, requestId, requestHeader->requestHandle,
                                 responseType, UA_STATUSCODE_BADSESSIONNOTACTIVATED);
     }
