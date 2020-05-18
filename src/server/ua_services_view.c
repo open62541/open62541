@@ -858,11 +858,11 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session,
     if(!all_refs) {
         const UA_Node *rootRef = UA_NODESTORE_GET(server, &elem->referenceTypeId);
         if(!rootRef)
-            return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
+            return UA_STATUSCODE_BADNOMATCH;
         UA_Boolean match = (rootRef->nodeClass == UA_NODECLASS_REFERENCETYPE);
         UA_NODESTORE_RELEASE(server, rootRef);
         if(!match)
-            return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
+            return UA_STATUSCODE_BADNOMATCH;
     }
 
     /* Loop over all Nodes int the current depth level */
