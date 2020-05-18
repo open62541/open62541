@@ -38,6 +38,7 @@ void UA_SecureChannel_init(UA_SecureChannel *channel,
     memset(channel, 0, sizeof(UA_SecureChannel));
     channel->state = UA_SECURECHANNELSTATE_CLOSED;
     SIMPLEQ_INIT(&channel->completeChunks);
+    SLIST_INIT(&channel->sessions);
     channel->config = *config;
 }
 
@@ -109,9 +110,10 @@ UA_SecureChannel_close(UA_SecureChannel *channel) {
 
     /* Remove session pointers (not the sessions) and NULL the pointers back to
      * the SecureChannel in the Session */
-    if(channel->session) {
-        channel->session->channel = NULL;
-        channel->session = NULL;
+    UA_SessionHeader *sh;
+    while((sh = SLIST_FIRST(&channel->sessions))) {
+        sh->channel = NULL;
+        SLIST_REMOVE_HEAD(&channel->sessions, next);
     }
 
     /* Delete the channel context for the security policy */
