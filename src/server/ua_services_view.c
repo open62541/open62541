@@ -910,7 +910,10 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session,
                                               &rk->refTargetsNameTree, &browseNameHash);
             if(!rt)
                 continue;
+
             res = addBrowseTarget(next, rt);
+            if(res != UA_STATUSCODE_GOOD)
+                break;
         }
 
         UA_NODESTORE_RELEASE(server, node);
