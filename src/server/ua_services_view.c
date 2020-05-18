@@ -964,6 +964,14 @@ Operation_TranslateBrowsePathToNodeIds(UA_Server *server, UA_Session *session,
         }
     }
 
+    /* Check if the starting node exists */
+    const UA_Node *startingNode = UA_NODESTORE_GET(server, &path->startingNode);
+    if(!startingNode) {
+        result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
+        return;
+    }
+    UA_NODESTORE_RELEASE(server, startingNode);
+
     /* Create two RefTrees that are alternated between path elements */
     RefTree rt1, rt2, *current = &rt1, *next = &rt2, *tmp;
     result->statusCode |= RefTree_init(&rt1);
