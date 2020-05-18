@@ -778,6 +778,8 @@ UA_ClientConnectionTCP_poll(UA_Client *client, void *data, UA_UInt32 timeout) {
 UA_Connection
 UA_ClientConnectionTCP_init(UA_ConnectionConfig config, const UA_String endpointUrl,
                             UA_UInt32 timeout, UA_Logger *logger) {
+    UA_initialize_architecture_network();
+
     UA_Connection connection;
     memset(&connection, 0, sizeof(UA_Connection));
 
