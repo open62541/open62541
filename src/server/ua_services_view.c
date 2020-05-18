@@ -846,10 +846,11 @@ addBrowseTarget(RefTree *next, const UA_ReferenceTarget *rt) {
 
 static UA_StatusCode
 walkBrowsePathElement(UA_Server *server, UA_Session *session,
-                      const UA_RelativePathElement *elem, UA_UInt32 nodeClassMask,
+                      const UA_RelativePath *path, const size_t pathIndex, UA_UInt32 nodeClassMask,
                       const UA_QualifiedName *lastBrowseName, UA_BrowsePathResult *result,
                       RefTree *current, RefTree *next) {
     /* For the next level. Note the difference from lastBrowseName */
+    const UA_RelativePathElement *elem = &path->elements[pathIndex];
     UA_UInt32 browseNameHash = UA_QualifiedName_hash(&elem->targetName);
 
     /* Is the ReferenceType valid? */
@@ -864,9 +865,31 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session,
             return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
     }
 
-    /* Loop over all nodes at the current level */
+    /* Loop over all Nodes int the current depth level */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < current->size; i++) {
+        /* Remote Node. Immediately add to the results with the RemainingPathIndex set. */
+        if(current->targets[i].serverIndex > 0 ||
+           current->targets[i].namespaceUri.length > 0) {
+            /* Increase the size of the results array */
+            UA_BrowsePathTarget *tmpResults = (UA_BrowsePathTarget*)
+                UA_realloc(result->targets, sizeof(UA_BrowsePathTarget) *
+                           (result->targetsSize + 1));
+            if(!tmpResults)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+            result->targets = tmpResults;
+
+            /* Copy over the result */
+            res = UA_ExpandedNodeId_copy(&current->targets[i],
+                                         &result->targets[result->targetsSize].targetId);
+            result->targets[result->targetsSize].remainingPathIndex = (UA_UInt32)pathIndex;
+            result->targetsSize++;
+            if(res != UA_STATUSCODE_GOOD)
+                break;
+            continue;
+        }
+
+        /* Local Node. Add to the tree of results at the next depth. */
         const UA_Node *node = UA_NODESTORE_GET(server, &current->targets[i].nodeId);
         if(!node)
             continue;
@@ -978,7 +1001,7 @@ Operation_TranslateBrowsePathToNodeIds(UA_Server *server, UA_Session *session,
         /* Walk element for all NodeIds in the "current" tree.
          * Puts new results in the "next" tree. */
         result->statusCode =
-            walkBrowsePathElement(server, session, &path->relativePath.elements[i],
+            walkBrowsePathElement(server, session, &path->relativePath, i,
                                   *nodeClassMask, browseNameFilter, result, current, next);
         if(result->statusCode != UA_STATUSCODE_GOOD)
             goto cleanup;
@@ -1008,7 +1031,7 @@ Operation_TranslateBrowsePathToNodeIds(UA_Server *server, UA_Session *session,
 
         /* Move to the target to the results array */
         result->targets[result->targetsSize].targetId = next->targets[k];
-        result->targets[result->targetsSize].remainingPathIndex = 0;
+        result->targets[result->targetsSize].remainingPathIndex = UA_UINT32_MAX;
         UA_ExpandedNodeId_init(&next->targets[k]);
         result->targetsSize++;
     }
