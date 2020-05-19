@@ -108,6 +108,8 @@ static WRITE_JSON_ELEMENT(Quote) {
 
 WRITE_JSON_ELEMENT(ObjStart) {
     /* increase depth, save: before first key-value no comma needed. */
+    if(ctx->depth >= UA_JSON_ENCODING_MAX_RECURSION)
+        return UA_STATUSCODE_BADENCODINGERROR;
     ctx->depth++;
     ctx->commaNeeded[ctx->depth] = false;
     return writeChar(ctx, '{');
@@ -121,7 +123,10 @@ WRITE_JSON_ELEMENT(ObjEnd) {
 
 WRITE_JSON_ELEMENT(ArrStart) {
     /* increase depth, save: before first array entry no comma needed. */
-    ctx->commaNeeded[++ctx->depth] = false;
+    if(ctx->depth >= UA_JSON_ENCODING_MAX_RECURSION)
+        return UA_STATUSCODE_BADENCODINGERROR;
+    ctx->depth++;
+    ctx->commaNeeded[ctx->depth] = false;
     return writeChar(ctx, '[');
 }
 
@@ -1124,7 +1129,7 @@ addMultiArrayContentJSON(CtxJson *ctx, void* array, const UA_DataType *type,
                          size_t *index, UA_UInt32 *arrayDimensions, size_t dimensionIndex, 
                          size_t dimensionSize) {
     /* Check the recursion limit */
-    if(ctx->depth > UA_JSON_ENCODING_MAX_RECURSION)
+    if(ctx->depth >= UA_JSON_ENCODING_MAX_RECURSION)
         return UA_STATUSCODE_BADENCODINGERROR;
     
     /* Stop recursion: The inner Arrays are written */
@@ -1382,7 +1387,7 @@ ENCODE_JSON(DiagnosticInfo) {
 static status
 encodeJsonStructure(const void *src, const UA_DataType *type, CtxJson *ctx) {
     /* Check the recursion limit */
-    if(ctx->depth > UA_JSON_ENCODING_MAX_RECURSION)
+    if(ctx->depth >= UA_JSON_ENCODING_MAX_RECURSION)
         return UA_STATUSCODE_BADENCODINGERROR;
     ctx->depth++;
 
@@ -3153,7 +3158,7 @@ decodeJsonStructure(void *dst, const UA_DataType *type, CtxJson *ctx,
                     ParseCtx *parseCtx, UA_Boolean moveToken) {
     (void) moveToken;
     /* Check the recursion limit */
-    if(ctx->depth > UA_JSON_ENCODING_MAX_RECURSION)
+    if(ctx->depth >= UA_JSON_ENCODING_MAX_RECURSION)
         return UA_STATUSCODE_BADENCODINGERROR;
     ctx->depth++;
 
