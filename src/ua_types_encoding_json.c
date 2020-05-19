@@ -2973,6 +2973,7 @@ Variant_decodeJsonUnwrapExtensionObject(UA_Variant *dst, const UA_DataType *type
         ret = decodeFields(ctx, parseCtx, entries, encodingFound ? 3:2, typeOfBody);
         if(ret != UA_STATUSCODE_GOOD) {
             UA_free(dst->data);
+            dst->data = NULL;
         }
     } else if(encoding == 1 || encoding == 2 || typeOfBody == NULL) {
         UA_NodeId_deleteMembers(&typeId);
@@ -2987,8 +2988,10 @@ Variant_decodeJsonUnwrapExtensionObject(UA_Variant *dst, const UA_DataType *type
 
         /* decode: Does not move tokenindex. */
         ret = DECODE_DIRECT_JSON(dst->data, ExtensionObject);
-        if(ret != UA_STATUSCODE_GOOD)
+        if(ret != UA_STATUSCODE_GOOD) {
             UA_free(dst->data);
+            dst->data = NULL;
+        }
     } else {
         /*no recognized encoding type*/
         return UA_STATUSCODE_BADDECODINGERROR;
