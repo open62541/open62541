@@ -518,6 +518,68 @@ START_TEST(SecureChannel_sendSymmetricMessage_invalidParameters) {
     ck_assert_msg(retval != UA_STATUSCODE_GOOD, "Expected failure");
 } END_TEST
 
+static void
+process_callback(void *application, UA_SecureChannel *channel,
+                 UA_MessageType messageType, UA_UInt32 requestId,
+                 UA_ByteString *message) {
+    ck_assert_ptr_ne(message, NULL);
+    ck_assert_ptr_ne(application, NULL);
+    ck_assert_uint_ne(message->length, 0);
+    ck_assert_ptr_ne(message->data, NULL);
+    int *chunks_processed = (int *)application;
+    ++*chunks_processed;
+}
+
+START_TEST(SecureChannel_assemblePartialChunks) {
+    int chunks_processed = 0;
+    UA_ByteString buffer = UA_BYTESTRING_NULL;
+
+    buffer.data = (UA_Byte *)"HELF \x00\x00\x00\x00\x00\x00\x00\x00\x10\x00\x00\x00"
+                             "\x10\x00\x00\x00@\x00\x00\x00\x00\x00\x00\xff\xff\xff\xff";
+    buffer.length = 32;
+
+    UA_StatusCode retval = UA_SecureChannel_processBuffer(&testChannel, &chunks_processed, process_callback, &buffer);
+    ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected success");
+    ck_assert_int_eq(chunks_processed, 1);
+
+    buffer.length = 16;
+
+    UA_SecureChannel_processBuffer(&testChannel, &chunks_processed, process_callback, &buffer);
+    ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected success");
+    ck_assert_int_eq(chunks_processed, 1);
+
+    buffer.data = &buffer.data[16];
+    UA_SecureChannel_processBuffer(&testChannel, &chunks_processed, process_callback, &buffer);
+    ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected success");
+    ck_assert_int_eq(chunks_processed, 2);
+
+    buffer.data = (UA_Byte *)"HELF \x00\x00\x00\x00\x00\x00\x00\x00\x10\x00\x00\x00"
+                             "\x10\x00\x00\x00@\x00\x00\x00\x00\x00\x00\xff\xff\xff\xff"
+                             "HELF \x00\x00\x00\x00\x00\x00\x00\x00\x10\x00\x00\x00"
+                             "\x10\x00\x00\x00@\x00\x00\x00\x00\x00\x00\xff\xff\xff\xff"
+                             "HELF \x00\x00\x00\x00\x00\x00\x00\x00\x10\x00\x00\x00"
+                             "\x10\x00\x00\x00@\x00\x00\x00\x00\x00\x00\xff\xff\xff\xff";
+    buffer.length = 48;
+
+    UA_SecureChannel_processBuffer(&testChannel, &chunks_processed, process_callback, &buffer);
+    ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected success");
+    ck_assert_int_eq(chunks_processed, 3);
+
+    buffer.data = &buffer.data[48];
+    buffer.length = 32;
+
+    UA_SecureChannel_processBuffer(&testChannel, &chunks_processed, process_callback, &buffer);
+    ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected success");
+    ck_assert_int_eq(chunks_processed, 4);
+
+    buffer.data = &buffer.data[32];
+    buffer.length = 16;
+    UA_SecureChannel_processBuffer(&testChannel, &chunks_processed, process_callback, &buffer);
+    ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected success");
+    ck_assert_int_eq(chunks_processed, 5);
+} END_TEST
+
+
 static Suite *
 testSuite_SecureChannel(void) {
     Suite *s = suite_create("SecureChannel");
@@ -571,6 +633,13 @@ testSuite_SecureChannel(void) {
     tcase_add_test(tc_sendSymmetricMessage, SecureChannel_sendSymmetricMessage_modeSignAndEncrypt);
 #endif
     suite_add_tcase(s, tc_sendSymmetricMessage);
+
+    TCase *tc_processBuffer = tcase_create("Test chunk assembly");
+    tcase_add_checked_fixture(tc_processBuffer, setup_funcs_called, teardown_funcs_called);
+    tcase_add_checked_fixture(tc_processBuffer, setup_key_sizes, teardown_key_sizes);
+    tcase_add_checked_fixture(tc_processBuffer, setup_secureChannel, teardown_secureChannel);
+    tcase_add_test(tc_processBuffer, SecureChannel_assemblePartialChunks);
+    suite_add_tcase(s, tc_processBuffer);
 
     return s;
 }
