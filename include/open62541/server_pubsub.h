@@ -134,6 +134,7 @@ typedef struct {
     /* This flag is 'read only' and is set internally based on the PubSub state. */
     UA_Boolean configurationFrozen;
 
+    const UA_Logger *logger;
 #ifdef UA_ENABLE_PUBSUB_ETH_UADP_ETF
     /* ETF related connection configuration - Not in PubSub specfication */
     UA_ETFConfiguration etfConfiguration;
