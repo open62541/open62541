@@ -276,7 +276,7 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
 /* HEL -> Open up the connection */
 static UA_StatusCode
 processHEL(UA_Server *server, UA_SecureChannel *channel, const UA_ByteString *msg) {
-    size_t offset = 8; /* Go to the beginning of the TcpHelloMessage */
+    size_t offset = 0; /* Go to the beginning of the TcpHelloMessage */
     UA_TcpHelloMessage helloMessage;
     UA_StatusCode retval = UA_TcpHelloMessage_decodeBinary(msg, &offset, &helloMessage);
     if(retval != UA_STATUSCODE_GOOD)
@@ -333,10 +333,11 @@ processHEL(UA_Server *server, UA_SecureChannel *channel, const UA_ByteString *ms
 /* OPN -> Open up/renew the securechannel */
 static UA_StatusCode
 processOPN(UA_Server *server, UA_SecureChannel *channel,
-           const UA_UInt32 requestId, const UA_ByteString *msg, size_t offset) {
+           const UA_UInt32 requestId, const UA_ByteString *msg) {
     /* Decode the request */
     UA_NodeId requestType;
     UA_OpenSecureChannelRequest openSecureChannelRequest;
+    size_t offset = 0;
     UA_StatusCode retval = UA_NodeId_decodeBinary(msg, &offset, &requestType);
 
     if(retval != UA_STATUSCODE_GOOD) {
@@ -384,80 +385,6 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
     }
 
     return retval;
-}
-
-static UA_StatusCode
-decryptProcessOPN(UA_Server *server, UA_SecureChannel *channel,
-                  UA_ByteString *msg) {
-    UA_LOG_DEBUG_CHANNEL(&server->config.logger, channel, "Decrypt an OPN message");
-
-    /* Skip the first header. We know length and message type. */
-    size_t offset = UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH;
-
-    /* Decode the asymmetric algorithm security header and call the callback
-     * to perform checks. */
-    UA_AsymmetricAlgorithmSecurityHeader asymHeader;
-    UA_AsymmetricAlgorithmSecurityHeader_init(&asymHeader);
-    UA_StatusCode retval =
-        UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(msg, &offset, &asymHeader);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
-                               "Could not decode the OPN header");
-        return retval;
-    }
-
-    /* Verify the certificate before creating the SecureChannel with it */
-    if(asymHeader.senderCertificate.length > 0) {
-        retval = server->config.certificateVerification.
-            verifyCertificate(server->config.certificateVerification.context,
-                              &asymHeader.senderCertificate);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
-                                   "Could not verify the client's certificate");
-            return retval;
-        }
-    }
-
-    if(channel->state < UA_SECURECHANNELSTATE_OPEN) {
-        retval = UA_Server_configSecureChannel(server, channel, &asymHeader);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_AsymmetricAlgorithmSecurityHeader_clear(&asymHeader);
-            return retval;
-        }
-    }
-
-    retval = checkAsymHeader(channel, &asymHeader);
-    UA_AsymmetricAlgorithmSecurityHeader_clear(&asymHeader);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
-                               "Could not verify OPN header");
-        return retval;
-    }
-
-    retval = decryptAndVerifyChunk(channel, &channel->securityPolicy->asymmetricModule.cryptoModule,
-                                   UA_MESSAGETYPE_OPN, msg, offset);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
-                               "Could not decrypt and verify the OPN payload");
-        return retval;
-    }
-
-   /* Decode the sequence header */
-    UA_SequenceHeader sequenceHeader;
-    retval = UA_SequenceHeader_decodeBinary(msg, &offset, &sequenceHeader);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-#ifndef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
-    retval = processSequenceNumberAsym(channel, sequenceHeader.sequenceNumber);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
-                               "Could not process the OPN message's sequence number");
-        return retval;
-    }
-#endif
-
-    return processOPN(server, channel, sequenceHeader.requestId, msg, offset);
 }
 
 /* The responseHeader must have the requestHandle already set */
@@ -779,7 +706,7 @@ processSecureChannelMessage(void *application, UA_SecureChannel *channel,
         break;
     case UA_MESSAGETYPE_OPN:
         UA_LOG_TRACE_CHANNEL(&server->config.logger, channel, "Process an OPN message");
-        retval = decryptProcessOPN(server, channel, message);
+        retval = processOPN(server, channel, requestId, message);
         break;
     case UA_MESSAGETYPE_MSG:
         UA_LOG_TRACE_CHANNEL(&server->config.logger, channel, "Process a MSG");
