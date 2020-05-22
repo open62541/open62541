@@ -62,7 +62,8 @@ UA_PubSubChannelMQTT_open(const UA_PubSubConnectionConfig *connectionConfig) {
     
     /* set default values */
     UA_String mqttClientId = UA_STRING("open62541_pub");
-    memcpy(channelDataMQTT, &(UA_PubSubChannelDataMQTT){address, 2000,2000, NULL, NULL,&mqttClientId, NULL, NULL, NULL, NULL, NULL}, sizeof(UA_PubSubChannelDataMQTT));
+    memcpy(channelDataMQTT, &(UA_PubSubChannelDataMQTT){address, 2000,2000, NULL, NULL,&mqttClientId, NULL, NULL, NULL,
+                                                        UA_STRING_NULL,UA_STRING_NULL}, sizeof(UA_PubSubChannelDataMQTT));
     /* iterate over the given KeyValuePair paramters */
     UA_String sendBuffer = UA_STRING("sendBufferSize"), recvBuffer = UA_STRING("recvBufferSize"), clientId = UA_STRING("mqttClientId"),
             username = UA_STRING("mqttUsername"), password = UA_STRING("mqttPassword");
@@ -81,11 +82,11 @@ UA_PubSubChannelMQTT_open(const UA_PubSubConnectionConfig *connectionConfig) {
             }
         } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &username)){
             if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_STRING])){
-                channelDataMQTT->mqttUsername = (UA_String *) connectionConfig->connectionProperties[i].value.data;
+                UA_String_copy((UA_String *) connectionConfig->connectionProperties[i].value.data, &channelDataMQTT->mqttUsername);
             }
         } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &password)){
             if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_STRING])){
-                channelDataMQTT->mqttPassword = (UA_String *) connectionConfig->connectionProperties[i].value.data;
+                UA_String_copy((UA_String *) connectionConfig->connectionProperties[i].value.data, &channelDataMQTT->mqttPassword);
             }
         } else {
             UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT Connection creation. Unknown connection parameter.");
@@ -96,6 +97,8 @@ UA_PubSubChannelMQTT_open(const UA_PubSubConnectionConfig *connectionConfig) {
     UA_PubSubChannel *newChannel = (UA_PubSubChannel *) UA_calloc(1, sizeof(UA_PubSubChannel));
     if(!newChannel){
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT Connection creation failed. Out of memory.");
+        UA_String_deleteMembers(&channelDataMQTT->mqttUsername);
+        UA_String_deleteMembers(&channelDataMQTT->mqttPassword);
         UA_free(channelDataMQTT);
         return NULL;
     }
@@ -104,6 +107,8 @@ UA_PubSubChannelMQTT_open(const UA_PubSubConnectionConfig *connectionConfig) {
     if(channelDataMQTT->mqttRecvBufferSize > 0){
         channelDataMQTT->mqttRecvBuffer = (uint8_t*)UA_calloc(channelDataMQTT->mqttRecvBufferSize, sizeof(uint8_t));
         if(channelDataMQTT->mqttRecvBuffer == NULL){
+            UA_String_deleteMembers(&channelDataMQTT->mqttUsername);
+            UA_String_deleteMembers(&channelDataMQTT->mqttPassword);
             UA_free(channelDataMQTT);
             UA_free(newChannel);
             return NULL;
@@ -117,6 +122,8 @@ UA_PubSubChannelMQTT_open(const UA_PubSubConnectionConfig *connectionConfig) {
             if(channelDataMQTT->mqttRecvBufferSize > 0){
                 UA_free(channelDataMQTT->mqttRecvBuffer);
             }
+            UA_String_deleteMembers(&channelDataMQTT->mqttUsername);
+            UA_String_deleteMembers(&channelDataMQTT->mqttPassword);
             UA_free(channelDataMQTT);
             UA_free(newChannel);
             return NULL;
@@ -134,6 +141,8 @@ UA_PubSubChannelMQTT_open(const UA_PubSubConnectionConfig *connectionConfig) {
         disconnectMqtt(channelDataMQTT);
         UA_free(channelDataMQTT->mqttSendBuffer);
         UA_free(channelDataMQTT->mqttRecvBuffer);
+        UA_String_deleteMembers(&channelDataMQTT->mqttUsername);
+        UA_String_deleteMembers(&channelDataMQTT->mqttPassword);
         UA_free(channelDataMQTT);
         UA_free(newChannel);
         return NULL;
@@ -249,6 +258,8 @@ UA_PubSubChannelMQTT_close(UA_PubSubChannel *channel) {
     UA_PubSubChannelDataMQTT *channelDataMQTT = (UA_PubSubChannelDataMQTT *) channel->handle;
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Closing PubSubChannel.");
     disconnectMqtt(channelDataMQTT);
+    UA_String_deleteMembers(&channelDataMQTT->mqttUsername);
+    UA_String_deleteMembers(&channelDataMQTT->mqttPassword);
     UA_free(channelDataMQTT);
     UA_free(channel);
     return UA_STATUSCODE_GOOD;
