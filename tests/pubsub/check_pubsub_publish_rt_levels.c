@@ -397,7 +397,7 @@ START_TEST(PubSubConfigWithInformationModelRTVariable) {
         externalValueSourceDataValue.value = variantRT;
         UA_ValueBackend valueBackend;
         valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
-        valueBackend.backend.external = &externalValueSourceDataValue;
+        valueBackend.backend.external.value = &externalValueSourceDataValue;
         UA_Server_setVariableNode_valueBackend(server, variableNodeId, valueBackend);
         UA_DataSetFieldConfig dsfConfig;
         memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));
@@ -469,7 +469,7 @@ START_TEST(PubSubConfigWithMultipleInformationModelRTVariables) {
 
             UA_ValueBackend valueBackend;
             valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
-            valueBackend.backend.external = externalValueSources[i];
+            valueBackend.backend.external.value = externalValueSources[i];
             UA_Server_setVariableNode_valueBackend(server, *nodes[i], valueBackend);
 
             UA_DataSetFieldConfig dsfConfig;

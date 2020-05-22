@@ -74,6 +74,18 @@ valueUpdateCallback(UA_Server *server, void *data) {
     UA_Variant_clear(&variant);
 }
 
+/* If the external data source is written over the information model, the
+ * ,externalDataWriteCallback, will be triggered. The user has to take care and assure
+ * that the write leads not to synchronization issues and race conditions. */
+static void
+externalDataWriteCallback(UA_Server *server, const UA_NodeId *sessionId,
+                                  void *sessionContext, const UA_NodeId *nodeId,
+                                  void *nodeContext, const UA_NumericRange *range,
+                                  const UA_DataValue *data){
+    //The user must take about synchronization.
+    memcpy(data->value.data, integerRTValue, sizeof(UA_UInt32));
+}
+
 int main(void){
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
@@ -132,7 +144,9 @@ int main(void){
     externalValueSourceDataValue.value = variantRT;
     UA_ValueBackend valueBackend;
     valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
-    valueBackend.backend.external = &externalValueSourceDataValue;
+    valueBackend.backend.external.value = &externalValueSourceDataValue;
+    valueBackend.backend.external.externalDataWriteCallback = externalDataWriteCallback;
+
     UA_Server_setVariableNode_valueBackend(server, addedNodId1, valueBackend);
 
     /* setup RT DataSetField config */
@@ -159,7 +173,7 @@ int main(void){
     UA_Variant_setScalar(&externalValueSourceDataValue2.value, integerRTValue2, &UA_TYPES[UA_TYPES_UINT32]);
     UA_ValueBackend valueBackend2;
     valueBackend2.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
-    valueBackend2.backend.external = &externalValueSourceDataValue2;
+    valueBackend2.backend.external.value = &externalValueSourceDataValue2;
     UA_Server_setVariableNode_valueBackend(server, addedNodId2, valueBackend2);
 
     /* setup second DataSetField config */

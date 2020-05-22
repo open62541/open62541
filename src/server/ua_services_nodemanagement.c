@@ -2031,11 +2031,12 @@ UA_Server_setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
 /******************************/
 static UA_StatusCode
 setExternalValueSource(UA_Server *server, UA_Session *session,
-                 UA_VariableNode *node, const UA_DataValue * externalValueSource) {
+                 UA_VariableNode *node, const UA_ValueBackend * externalValueSource) {
     if(node->nodeClass != UA_NODECLASS_VARIABLE)
         return UA_STATUSCODE_BADNODECLASSINVALID;
     node->valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
-    node->valueBackend.backend.external = externalValueSource;
+    node->valueBackend.backend.external.value = externalValueSource->backend.external.value;
+    node->valueBackend.backend.external.externalDataWriteCallback = externalValueSource->backend.external.externalDataWriteCallback;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -2063,7 +2064,7 @@ UA_Server_setVariableNode_valueBackend(UA_Server *server, const UA_NodeId nodeId
             retval = UA_Server_editNode(server, &server->adminSession, &nodeId,
                                         (UA_EditNodeCallback) setExternalValueSource,
                 /* cast away const because callback uses const anyway */
-                                        (UA_ValueCallback *)(uintptr_t) valueBackend.backend.external);
+                                        (UA_ValueCallback *)(uintptr_t) valueBackend.backend.external.value);
             break;
     }
 

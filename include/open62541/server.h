@@ -908,7 +908,13 @@ typedef struct {
     union {
         UA_DataValue internal;
         UA_DataSource dataSource;
-        const UA_DataValue *external;
+        struct {
+            const UA_DataValue *value;
+            void (*externalDataWriteCallback)(UA_Server *server, const UA_NodeId *sessionId,
+                            void *sessionContext, const UA_NodeId *nodeId,
+                            void *nodeContext, const UA_NumericRange *range,
+                            const UA_DataValue *data);
+        } external;
     } backend;
 } UA_ValueBackend;
 

@@ -159,7 +159,7 @@ addCurrentTimeExternalDataSource(UA_Server *server) {
 
     UA_ValueBackend valueBackend;
     valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
-    valueBackend.backend.external = &externalValue;
+    valueBackend.backend.external.value = &externalValue;
 
     UA_Server_setVariableNode_valueBackend(server, currentNodeId, valueBackend);
 }
