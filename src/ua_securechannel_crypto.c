@@ -63,6 +63,10 @@ generateLocalKeys(const UA_SecureChannel *channel,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
+    // No keys to generate
+    if(buf.length == 0)
+        return UA_STATUSCODE_GOOD;
+
     /* Generate key */
     retval = sm->generateKey(sp, &channel->remoteNonce, &channel->localNonce, &buf);
     if(retval != UA_STATUSCODE_GOOD) {
@@ -100,6 +104,10 @@ generateRemoteKeys(const UA_SecureChannel *channel,
         UA_ByteString_clear(&buf);
         return retval;
     }
+
+    // No keys to generate.
+    if(buf.length == 0)
+        return UA_STATUSCODE_GOOD;
 
     /* Generate key */
     retval = sm->generateKey(sp, &channel->localNonce, &channel->remoteNonce, &buf);
@@ -589,10 +597,10 @@ checkAsymHeader(UA_SecureChannel *channel,
 }
 
 UA_StatusCode
-checkSymHeader(UA_SecureChannel *channel, UA_UInt32 tokenId) {
+checkSymHeader(UA_SecureChannel *channel, const UA_SymmetricAlgorithmSecurityHeader *symHeader) {
     /* If the message uses a different token, check if it is the next token. */
-    if(tokenId != channel->securityToken.tokenId) {
-        if(tokenId != channel->nextSecurityToken.tokenId) {
+    if(symHeader->tokenId != channel->securityToken.tokenId) {
+        if(symHeader->tokenId != channel->nextSecurityToken.tokenId) {
             UA_LOG_WARNING_CHANNEL(channel->securityPolicy->logger, channel,
                                  "Received an unknown SecurityToken");
             return UA_STATUSCODE_BADSECURECHANNELTOKENUNKNOWN;
