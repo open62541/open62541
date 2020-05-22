@@ -23,16 +23,16 @@
 typedef struct {
     const UA_Logger *logger;
     void *cert_info;
-} CertContext;
+} DefaultCertContext;
 
 static void 
-UA_CertContext_Init (CertContext * context) {
-    context = (CertContext *)UA_malloc(sizeof(CertContext));
-    (void) memset (context, 0, sizeof (CertContext));
+UA_DefaultCertContext_Init (DefaultCertContext * context) {
+    context = (DefaultCertContext *)UA_malloc(sizeof(DefaultCertContext));
+    (void) memset (context, 0, sizeof (DefaultCertContext));
 }
 
 static void 
-UA_CertContext_sk_free(CertContext * context) {
+UA_DefaultCertContext_sk_free(DefaultCertContext * context) {
     UA_free(context);
 }
 
@@ -55,12 +55,12 @@ verifyApplicationURIAllowAll(void *verificationContext,
 
 static void
 clearVerifyAllowAll(UA_CertificateVerification *cv) {
-
+    UA_DefaultCertContext_sk_free((DefaultCertContext *) cv->context);
 }
 
 void UA_CertificateVerification_AcceptAll(const UA_Logger *logger, UA_CertificateVerification *cv) {
-    CertContext context;
-    UA_CertContext_Init(&context);
+    DefaultCertContext context;
+    UA_DefaultCertContext_Init(&context);
     context.logger = logger;
 
     cv->context = (void *)&context;
@@ -179,7 +179,7 @@ fileNamesFromFolder(const UA_String *folder, size_t *pathsSize, UA_String **path
 }
 
 static UA_StatusCode
-reloadCertificates(CertContext *context) {
+reloadCertificates(DefaultCertContext *context) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     int err = 0;
 
@@ -262,7 +262,7 @@ reloadCertificates(CertContext *context) {
 static UA_StatusCode
 certificateVerification_verify(void *verificationContext,
                                const UA_ByteString *certificate) {
-    CertContext * context = (CertContext *)verificationContext;
+    DefaultCertContext * context = (DefaultCertContext *)verificationContext;
     CertInfo *ci = (CertInfo*)context->cert_info;    
     if(!ci)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -497,7 +497,7 @@ static UA_StatusCode
 certificateVerification_verifyApplicationURI(void *verificationContext,
                                              const UA_ByteString *certificate,
                                              const UA_String *applicationURI) {
-    CertContext * context = (CertContext *)verificationContext;
+    DefaultCertContext * context = (DefaultCertContext *)verificationContext;
     CertInfo *ci = (CertInfo*)context->cert_info;    
     if(!ci)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -526,7 +526,7 @@ certificateVerification_verifyApplicationURI(void *verificationContext,
 
 static void
 certificateVerification_clear(UA_CertificateVerification *cv) {
-    CertContext * context = (CertContext *)cv->context;
+    DefaultCertContext * context = (DefaultCertContext *)cv->context;
     CertInfo *ci = (CertInfo*)context->cert_info;
     if(!ci)
         return;
@@ -538,7 +538,7 @@ certificateVerification_clear(UA_CertificateVerification *cv) {
     UA_String_clear(&ci->revocationListFolder);
     UA_free(ci);
     context->cert_info = NULL;
-    UA_CertContext_sk_free(context);
+    UA_DefaultCertContext_sk_free(context);
 }
 
 UA_StatusCode
@@ -558,8 +558,8 @@ UA_CertificateVerification_Trustlist(const UA_Logger *logger,
     mbedtls_x509_crl_init(&ci->certificateRevocationList);
     mbedtls_x509_crt_init(&ci->certificateIssuerList);
 
-    CertContext context; 
-    UA_CertContext_Init(&context);
+    DefaultCertContext context; 
+    UA_DefaultCertContext_Init(&context);
     
     if(!logger)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -626,8 +626,8 @@ UA_CertificateVerification_CertFolders(const UA_Logger *logger,
     ci->issuerListFolder = UA_STRING_ALLOC(issuerListFolder);
     ci->revocationListFolder = UA_STRING_ALLOC(revocationListFolder);
 
-    CertContext context; 
-    UA_CertContext_Init(&context);
+    DefaultCertContext context; 
+    UA_DefaultCertContext_Init(&context);
     
     if(!logger)
         return UA_STATUSCODE_BADINTERNALERROR;
