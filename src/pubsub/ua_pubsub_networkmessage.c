@@ -79,6 +79,71 @@ UA_NetworkMessage_updateBufferedMessage(UA_NetworkMessageOffsetBuffer *buffer){
 }
 
 UA_StatusCode
+UA_NetworkMessage_updateBufferedNwMessage(UA_NetworkMessageOffsetBuffer *buffer,
+                                          const UA_ByteString *src){
+    UA_StatusCode rv = UA_STATUSCODE_GOOD;
+    size_t payloadCounter = 0;
+    UA_DataSetMessage* dsm = buffer->nm->payload.dataSetPayload.dataSetMessages; // Considering one DSM in RT TODO: Clarify multiple DSM
+    for (size_t i = 0; i < buffer->offsetsSize; ++i) {
+        size_t offset = buffer->offsets[i].offset;
+        switch (buffer->offsets[i].contentType) {
+        case UA_PUBSUB_OFFSETTYPE_PUBLISHERID:
+            switch (buffer->nm->publisherIdType) {
+            case UA_PUBLISHERDATATYPE_BYTE:
+                rv = UA_Byte_decodeBinary(src, &offset, &(buffer->nm->publisherId.publisherIdByte));
+                break;
+            case UA_PUBLISHERDATATYPE_UINT16:
+                rv = UA_UInt16_decodeBinary(src, &offset, &(buffer->nm->publisherId.publisherIdUInt16));
+                break;
+            case UA_PUBLISHERDATATYPE_UINT32:
+                rv = UA_UInt32_decodeBinary(src, &offset, &(buffer->nm->publisherId.publisherIdUInt32));
+                break;
+            case UA_PUBLISHERDATATYPE_UINT64:
+                rv = UA_UInt64_decodeBinary(src, &offset, &(buffer->nm->publisherId.publisherIdUInt64));
+                break;
+            default:
+                return UA_STATUSCODE_BADNOTSUPPORTED;
+            }
+            break;
+        case UA_PUBSUB_OFFSETTYPE_WRITERGROUPID:
+            rv = UA_UInt16_decodeBinary(src, &offset, &buffer->nm->groupHeader.writerGroupId);
+            if(rv != UA_STATUSCODE_GOOD)
+                return rv;
+            break;
+        case UA_PUBSUB_OFFSETTYPE_DATASETWRITERID:
+            rv = UA_UInt16_decodeBinary(src, &offset,
+                                        &buffer->nm->payloadHeader.dataSetPayloadHeader.dataSetWriterIds[0]); /* TODO */
+            if(rv != UA_STATUSCODE_GOOD)
+                return rv;
+            break;
+        case UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_SEQUENCENUMBER:
+            rv = UA_UInt16_decodeBinary(src, &offset, &buffer->nm->groupHeader.sequenceNumber);
+            if(rv != UA_STATUSCODE_GOOD)
+                return rv;
+            break;
+        case UA_PUBSUB_OFFSETTYPE_PAYLOAD_DATAVALUE:
+            rv = UA_DataValue_decodeBinary(src, &offset,
+                                           &(dsm->data.keyFrameData.dataSetFields[payloadCounter]));
+            if(rv != UA_STATUSCODE_GOOD)
+                return rv;
+            payloadCounter++;
+            break;
+        case UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT:
+            rv = UA_Variant_decodeBinary(src, &offset,
+                                         &dsm->data.keyFrameData.dataSetFields[payloadCounter].value);
+            if(rv != UA_STATUSCODE_GOOD)
+                return rv;
+            dsm->data.keyFrameData.dataSetFields[payloadCounter].hasValue = true;
+            payloadCounter++;
+            break;
+        default:
+            return UA_STATUSCODE_BADNOTSUPPORTED;
+        }
+    }
+    return rv;
+}
+
+UA_StatusCode
 UA_NetworkMessage_encodeBinary(const UA_NetworkMessage* src, UA_Byte **bufPos,
                                const UA_Byte *bufEnd) {
     /* UADPVersion + UADP Flags */
@@ -707,6 +772,14 @@ UA_NetworkMessage_calcSizeBinary(UA_NetworkMessage *p, UA_NetworkMessageOffsetBu
     }
 
     if(p->publisherIdEnabled) {
+        if(offsetBuffer && offsetBuffer->RTsubscriberEnabled){
+            size_t pos = offsetBuffer->offsetsSize;
+            if(!increaseOffsetArray(offsetBuffer))
+                return 0;
+
+            offsetBuffer->offsets[pos].offset = size;
+            offsetBuffer->offsets[pos].contentType = UA_PUBSUB_OFFSETTYPE_PUBLISHERID;
+        }
         switch (p->publisherIdType) {
             case UA_PUBLISHERDATATYPE_BYTE:
                 size += UA_Byte_calcSizeBinary(&p->publisherId.publisherIdByte);
@@ -737,8 +810,17 @@ UA_NetworkMessage_calcSizeBinary(UA_NetworkMessage *p, UA_NetworkMessageOffsetBu
     if(p->groupHeaderEnabled) {
         size += UA_Byte_calcSizeBinary(&byte);
 
-        if(p->groupHeader.writerGroupIdEnabled)
+        if(p->groupHeader.writerGroupIdEnabled) {
+            if(offsetBuffer && offsetBuffer->RTsubscriberEnabled){
+                size_t pos = offsetBuffer->offsetsSize;
+                if(!increaseOffsetArray(offsetBuffer))
+                    return 0;
+
+                offsetBuffer->offsets[pos].offset = size;
+                offsetBuffer->offsets[pos].contentType = UA_PUBSUB_OFFSETTYPE_WRITERGROUPID;
+            }
             size += UA_UInt16_calcSizeBinary(&p->groupHeader.writerGroupId);
+        }
 
         if(p->groupHeader.groupVersionEnabled)
             size += UA_UInt32_calcSizeBinary(&p->groupHeader.groupVersion);
@@ -768,6 +850,14 @@ UA_NetworkMessage_calcSizeBinary(UA_NetworkMessage *p, UA_NetworkMessageOffsetBu
         if(p->networkMessageType == UA_NETWORKMESSAGE_DATASET) {
             size += UA_Byte_calcSizeBinary(&p->payloadHeader.dataSetPayloadHeader.count);
             if(p->payloadHeader.dataSetPayloadHeader.dataSetWriterIds != NULL) {
+                if(offsetBuffer && offsetBuffer->RTsubscriberEnabled){
+                    size_t pos = offsetBuffer->offsetsSize;
+                    if(!increaseOffsetArray(offsetBuffer))
+                        return 0;
+
+                    offsetBuffer->offsets[pos].offset = size;
+                    offsetBuffer->offsets[pos].contentType = UA_PUBSUB_OFFSETTYPE_DATASETWRITERID;
+                }
                 size += UA_UInt16_calcSizeBinary(&p->payloadHeader.dataSetPayloadHeader.dataSetWriterIds[0]) *
                         p->payloadHeader.dataSetPayloadHeader.count;
             } else {

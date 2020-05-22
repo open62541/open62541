@@ -52,9 +52,10 @@ static void configure_lds_server(UA_Server *pServer)
     config_lds->discovery.mdnsEnable = true;
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     config_lds->discovery.mdns.mdnsServerName = UA_String_fromChars("LDS_test");
-    config_lds->discovery.mdns.serverCapabilitiesSize = 1;
-    UA_String *caps = UA_String_new();
-    *caps = UA_String_fromChars("LDS");
+    config_lds->discovery.mdns.serverCapabilitiesSize = 2;
+    UA_String *caps = (UA_String *)UA_Array_new(2, &UA_TYPES[UA_TYPES_STRING]);
+    caps[0] = UA_String_fromChars("LDS");
+    caps[1] = UA_String_fromChars("MyFancyCap");
     config_lds->discovery.mdns.serverCapabilities = caps;
 #endif
     config_lds->discovery.cleanupTimeout = registerTimeout;
@@ -474,14 +475,21 @@ START_TEST(Client_find_on_network_registered) {
     // filter by Capabilities
     const char* capsLDS[] = {"LDS"};
     const char* capsNA[] = {"NA"};
-    const char* capsMultiple[] = {"LDS", "NA"};
+    const char* capsMultipleNone[] = {"LDS", "NA"};
+    const char* capsMultipleCustom[] = {"LDS", "MyFancyCap"};
+    const char* capsMultipleCustomIgnoreCase[] = {"LDS", "myfancycap"};
+
 
     // only LDS expected
     FindOnNetworkAndCheck(expectedUris, 1, NULL, NULL, capsLDS, 1);
     // only register server expected
     FindOnNetworkAndCheck(&expectedUris[1], 1, NULL, NULL, capsNA, 1);
     // no server expected
-    FindOnNetworkAndCheck(NULL, 0, NULL, NULL, capsMultiple, 2);
+    FindOnNetworkAndCheck(NULL, 0, NULL, NULL, capsMultipleNone, 2);
+    // only LDS expected
+    FindOnNetworkAndCheck(expectedUris, 1, NULL, NULL, capsMultipleCustom, 2);
+    // only LDS expected
+    FindOnNetworkAndCheck(expectedUris, 1, NULL, NULL, capsMultipleCustomIgnoreCase, 2);
 }
 END_TEST
 

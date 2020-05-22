@@ -102,7 +102,7 @@ Install them with:
 
     sudo add-apt-repository ppa:open62541-team/ppa
     sudo apt-get update
-    sudo apt-get install libopen62541-dev
+    sudo apt-get install libopen62541-1-dev
 
 Arch packages are available in the AUR
 

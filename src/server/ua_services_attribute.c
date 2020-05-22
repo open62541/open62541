@@ -224,10 +224,24 @@ findDataType(const UA_Node *node, const UA_DataTypeArray *customTypes) {
 
 static UA_StatusCode
 getStructureDefinition(const UA_DataType *type, UA_StructureDefinition *def) {
-    def->baseDataType = UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE);
     def->defaultEncodingId =
         UA_NODEID_NUMERIC(type->typeId.namespaceIndex, type->binaryEncodingId);
-    def->structureType = UA_STRUCTURETYPE_STRUCTURE;
+    switch(type->typeKind) {
+        case UA_DATATYPEKIND_STRUCTURE:
+            def->structureType = UA_STRUCTURETYPE_STRUCTURE;
+            def->baseDataType = UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE);
+            break;
+        case UA_DATATYPEKIND_OPTSTRUCT:
+            def->structureType = UA_STRUCTURETYPE_STRUCTUREWITHOPTIONALFIELDS;
+            def->baseDataType = UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE);
+            break;
+        case UA_DATATYPEKIND_UNION:
+            def->structureType = UA_STRUCTURETYPE_UNION;
+            def->baseDataType = UA_NODEID_NUMERIC(0, UA_NS0ID_UNION);
+            break;
+        default:
+            return UA_STATUSCODE_BADENCODINGERROR;
+    }
     def->fieldsSize = type->membersSize;
     def->fields =
         (UA_StructureField *)UA_calloc(def->fieldsSize, sizeof(UA_StructureField));
@@ -246,6 +260,7 @@ getStructureDefinition(const UA_DataType *type, UA_StructureDefinition *def) {
         def->fields[cnt].description.text = UA_STRING_NULL;
         def->fields[cnt].dataType = typelists[!m->namespaceZero][m->memberTypeIndex].typeId;
         def->fields[cnt].maxStringLength = 0;
+        def->fields[cnt].isOptional = m->isOptional;
     }
     return UA_STATUSCODE_GOOD;
 }
@@ -413,7 +428,8 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
         }
 
         if(UA_DATATYPEKIND_STRUCTURE == type->typeKind ||
-           UA_DATATYPEKIND_OPTSTRUCT == type->typeKind) {
+           UA_DATATYPEKIND_OPTSTRUCT == type->typeKind ||
+           UA_DATATYPEKIND_UNION == type->typeKind) {
             UA_StructureDefinition def;
             retval = getStructureDefinition(type, &def);
             if(UA_STATUSCODE_GOOD!=retval)

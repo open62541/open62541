@@ -32,7 +32,7 @@ UA_ClientConnectionTCP(UA_ConnectionConfig config, const UA_String endpointUrl,
                        UA_UInt32 timeout, UA_Logger *logger);
 
 UA_StatusCode UA_EXPORT
-UA_ClientConnectionTCP_poll(UA_Client *client, void *data);
+UA_ClientConnectionTCP_poll(UA_Client *client, void *data, UA_UInt32 timeout);
 
 UA_Connection UA_EXPORT
 UA_ClientConnectionTCP_init(UA_ConnectionConfig config, const UA_String endpointUrl,

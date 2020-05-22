@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- *    Copyright 2014-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2014-2020 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Florian Palm
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
@@ -37,6 +37,7 @@ extern UA_StatusCode processSym_seqNumberFailure;
  * Sessions is independent of the underlying SecureChannel. But every Session
  * can be attached to only one SecureChannel. */
 typedef struct UA_SessionHeader {
+    SLIST_ENTRY(UA_SessionHeader) next;
     UA_NodeId authenticationToken;
     UA_SecureChannel *channel; /* The pointer back to the SecureChannel in the session. */
 } UA_SessionHeader;
@@ -53,17 +54,6 @@ typedef struct UA_Chunk {
 } UA_Chunk;
 
 typedef SIMPLEQ_HEAD(UA_ChunkQueue, UA_Chunk) UA_ChunkQueue;
-
-typedef enum {
-    UA_SECURECHANNELSTATE_FRESH,
-    UA_SECURECHANNELSTATE_HEL_SENT,
-    UA_SECURECHANNELSTATE_HEL_RECEIVED,
-    UA_SECURECHANNELSTATE_ACK_SENT,
-    UA_SECURECHANNELSTATE_ACK_RECEIVED,
-    UA_SECURECHANNELSTATE_OPN_SENT,
-    UA_SECURECHANNELSTATE_OPEN,
-    UA_SECURECHANNELSTATE_CLOSED
-} UA_SecureChannelState;
 
 struct UA_SecureChannel {
     UA_SecureChannelState state;
@@ -98,10 +88,8 @@ struct UA_SecureChannel {
     UA_UInt32 receiveSequenceNumber;
     UA_UInt32 sendSequenceNumber;
 
-    /* The standard does not forbid a SecureChannel to carry several Sessions.
-     * But this is not supported here. So clients need one SecureChannel for
-     * every Session. */
-    UA_SessionHeader *session;
+    /* Sessions that are bound to the SecureChannel */
+    SLIST_HEAD(, UA_SessionHeader) sessions;
 
     /* If a buffer is received, first all chunks are put into the completeChunks
      * queue. Then they are processed in order. This ensures that processing
@@ -134,9 +122,12 @@ UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel,
 void
 UA_SecureChannel_deleteBuffered(UA_SecureChannel *channel);
 
+<<<<<<< HEAD
 void
 UA_SecureChannel_deleteMembers(UA_SecureChannel *channel);
 
+=======
+>>>>>>> 50f8074e654f8223334512f5a66e62854191a3eb
 /* Generates new keys and sets them in the channel context */
 UA_StatusCode
 UA_SecureChannel_generateNewKeys(UA_SecureChannel *channel);

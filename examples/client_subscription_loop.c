@@ -49,60 +49,62 @@ subscriptionInactivityCallback (UA_Client *client, UA_UInt32 subId, void *subCon
 }
 
 static void
-stateCallback (UA_Client *client, UA_ClientState clientState) {
-    switch(clientState) {
-        case UA_CLIENTSTATE_DISCONNECTED:
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "The client is disconnected");
+stateCallback(UA_Client *client, UA_SecureChannelState channelState,
+              UA_SessionState sessionState, UA_StatusCode recoveryStatus) {
+    switch(channelState) {
+    case UA_SECURECHANNELSTATE_CLOSED:
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "The client is disconnected");
         break;
-        case UA_CLIENTSTATE_WAITING_FOR_ACK:
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Waiting for ack");
+    case UA_SECURECHANNELSTATE_HEL_SENT:
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Waiting for ack");
         break;
-        case UA_CLIENTSTATE_CONNECTED:
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                        "A TCP connection to the server is open");
+    case UA_SECURECHANNELSTATE_OPN_SENT:
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Waiting for OPN Response");
         break;
-        case UA_CLIENTSTATE_SECURECHANNEL:
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                        "A SecureChannel to the server is open");
+    case UA_SECURECHANNELSTATE_OPEN:
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "A SecureChannel to the server is open");
         break;
-        case UA_CLIENTSTATE_SESSION:{
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "A session with the server is open");
-            /* A new session was created. We need to create the subscription. */
-            /* Create a subscription */
-            UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
-            UA_CreateSubscriptionResponse response = UA_Client_Subscriptions_create(client, request,
-                                                                                    NULL, NULL, deleteSubscriptionCallback);
+    default:
+        break;
+    }
 
+    switch(sessionState) {
+    case UA_SESSIONSTATE_ACTIVATED: {
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "A session with the server is activated");
+        /* A new session was created. We need to create the subscription. */
+        /* Create a subscription */
+        UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
+        UA_CreateSubscriptionResponse response =
+            UA_Client_Subscriptions_create(client, request, NULL, NULL, deleteSubscriptionCallback);
             if(response.responseHeader.serviceResult == UA_STATUSCODE_GOOD)
                 UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                            "Create subscription succeeded, id %u", response.subscriptionId);
+                            "Create subscription succeeded, id %u",
+                            response.subscriptionId);
             else
                 return;
 
             /* Add a MonitoredItem */
+            UA_NodeId currentTimeNode =
+                UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
             UA_MonitoredItemCreateRequest monRequest =
-                UA_MonitoredItemCreateRequest_default(UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME));
+                UA_MonitoredItemCreateRequest_default(currentTimeNode);
 
             UA_MonitoredItemCreateResult monResponse =
                 UA_Client_MonitoredItems_createDataChange(client, response.subscriptionId,
-                                                          UA_TIMESTAMPSTORETURN_BOTH,
-                                                          monRequest, NULL, handler_currentTimeChanged, NULL);
+                                                          UA_TIMESTAMPSTORETURN_BOTH, monRequest,
+                                                          NULL, handler_currentTimeChanged, NULL);
             if(monResponse.statusCode == UA_STATUSCODE_GOOD)
                 UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                             "Monitoring UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME', id %u",
                             monResponse.monitoredItemId);
         }
         break;
-        case UA_CLIENTSTATE_SESSION_RENEWED:
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                        "A session with the server is open (renewed)");
-            /* The session was renewed. We don't need to recreate the subscription. */
+    case UA_SESSIONSTATE_CLOSED:
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Session disconnected");
         break;
-        case UA_CLIENTSTATE_SESSION_DISCONNECTED:
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Session disconnected");
+    default:
         break;
     }
-    return;
 }
 
 int

@@ -2,6 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
+ *    Copyright 2020 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014, 2016-2017 (c) Florian Palm
  *    Copyright 2014-2016 (c) Sten Grüner
@@ -127,6 +128,22 @@ UA_String_equal(const UA_String *s1, const UA_String *s2) {
     i32 is = memcmp((char const*)s1->data,
                     (char const*)s2->data, s1->length);
     return (is == 0) ? true : false;
+}
+
+
+/* Do not expose UA_String_equal_ignorecase to public API as it currently only handles
+ * ASCII strings, and not UTF8! */
+UA_Boolean
+UA_String_equal_ignorecase(const UA_String *s1, const UA_String *s2) {
+    if(s1->length != s2->length)
+        return false;
+    if(s1->length == 0)
+        return true;
+    if(s2->data == NULL)
+        return false;
+
+    //FIXME this currently does not handle UTF8
+    return UA_strncasecmp((const char*)s1->data, (const char*)s2->data, s1->length) == 0;
 }
 
 static UA_StatusCode
@@ -1008,31 +1025,71 @@ copyStructure(const void *src, void *dst, const UA_DataType *type) {
     uintptr_t ptrd = (uintptr_t)dst;
     const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
     for(size_t i = 0; i < type->membersSize; ++i) {
-        const UA_DataTypeMember *m= &type->members[i];
+        const UA_DataTypeMember *m = &type->members[i];
         const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
-        if(!m->isArray) {
-            ptrs += m->padding;
-            ptrd += m->padding;
-            retval |= copyJumpTable[mt->typeKind]((const void*)ptrs, (void*)ptrd, mt);
-            ptrs += mt->memSize;
-            ptrd += mt->memSize;
+        ptrs += m->padding;
+        ptrd += m->padding;
+        if(!m->isOptional) {
+            if(!m->isArray) {
+                retval |= copyJumpTable[mt->typeKind]((const void *)ptrs, (void *)ptrd, mt);
+                ptrs += mt->memSize;
+                ptrd += mt->memSize;
+            } else {
+                size_t *dst_size = (size_t*)ptrd;
+                const size_t size = *((const size_t*)ptrs);
+                ptrs += sizeof(size_t);
+                ptrd += sizeof(size_t);
+                retval |= UA_Array_copy(*(void* const*)ptrs, size, (void**)ptrd, mt);
+                if(retval == UA_STATUSCODE_GOOD)
+                    *dst_size = size;
+                else
+                    *dst_size = 0;
+                ptrs += sizeof(void*);
+                ptrd += sizeof(void*);
+            }
         } else {
-            ptrs += m->padding;
-            ptrd += m->padding;
-            size_t *dst_size = (size_t*)ptrd;
-            const size_t size = *((const size_t*)ptrs);
-            ptrs += sizeof(size_t);
-            ptrd += sizeof(size_t);
-            retval |= UA_Array_copy(*(void* const*)ptrs, size, (void**)ptrd, mt);
-            if(retval == UA_STATUSCODE_GOOD)
-                *dst_size = size;
-            else
-                *dst_size = 0;
+            if(!m->isArray) {
+                if(*(void* const*)ptrs != NULL)
+                    retval |= UA_Array_copy(*(void* const*)ptrs, 1, (void**)ptrd, mt);
+            } else {
+                if(*(void* const*)(ptrs+sizeof(size_t)) != NULL) {
+                    size_t *dst_size = (size_t*)ptrd;
+                    const size_t size = *((const size_t*)ptrs);
+                    ptrs += sizeof(size_t);
+                    ptrd += sizeof(size_t);
+                    retval |= UA_Array_copy(*(void* const*)ptrs, size, (void**)ptrd, mt);
+                    if(retval == UA_STATUSCODE_GOOD)
+                        *dst_size = size;
+                    else
+                        *dst_size = 0;
+                } else {
+                    ptrs += sizeof(size_t);
+                    ptrd += sizeof(size_t);
+                }
+            }
             ptrs += sizeof(void*);
             ptrd += sizeof(void*);
         }
     }
     return retval;
+}
+
+static UA_StatusCode
+copyUnion(const void *src, void *dst, const UA_DataType *type) {
+    uintptr_t ptrs = (uintptr_t) src;
+    uintptr_t ptrd = (uintptr_t) dst;
+    UA_UInt32 selection = *(UA_UInt32 *)ptrs;
+    UA_copy((const UA_UInt32 *) ptrs, (UA_UInt32 *) ptrd, &UA_TYPES[UA_TYPES_UINT32]);
+    if(selection == 0)
+        return UA_STATUSCODE_GOOD;
+    const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
+    const UA_DataTypeMember *m = &type->members[selection-1];
+    const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
+    ptrs += UA_TYPES[UA_TYPES_UINT32].memSize;
+    ptrd += UA_TYPES[UA_TYPES_UINT32].memSize;
+    ptrs += m->padding;
+    ptrd += m->padding;
+    return UA_copy((const void *) ptrs, (void *) ptrd, mt);
 }
 
 static UA_StatusCode
@@ -1069,8 +1126,8 @@ const UA_copySignature copyJumpTable[UA_DATATYPEKINDS] = {
     (UA_copySignature)copyNotImplemented, /* Decimal */
     (UA_copySignature)copy4Byte, /* Enumeration */
     (UA_copySignature)copyStructure,
-    (UA_copySignature)copyNotImplemented, /* Structure with Optional Fields */
-    (UA_copySignature)copyNotImplemented, /* Union */
+    (UA_copySignature)copyStructure, /* Structure with Optional Fields */
+    (UA_copySignature)copyUnion, /* Union */
     (UA_copySignature)copyNotImplemented /* BitfieldCluster*/
 };
 
@@ -1090,18 +1147,51 @@ clearStructure(void *p, const UA_DataType *type) {
     for(size_t i = 0; i < type->membersSize; ++i) {
         const UA_DataTypeMember *m = &type->members[i];
         const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
-        if(!m->isArray) {
-            ptr += m->padding;
-            clearJumpTable[mt->typeKind]((void*)ptr, mt);
-            ptr += mt->memSize;
-        } else {
-            ptr += m->padding;
-            size_t length = *(size_t*)ptr;
-            ptr += sizeof(size_t);
-            UA_Array_delete(*(void**)ptr, length, mt);
-            ptr += sizeof(void*);
+        ptr += m->padding;
+        if(!m->isOptional) {
+            if(!m->isArray) {
+                clearJumpTable[mt->typeKind]((void*)ptr, mt);
+                ptr += mt->memSize;
+            } else {
+                size_t length = *(size_t*)ptr;
+                ptr += sizeof(size_t);
+                UA_Array_delete(*(void**)ptr, length, mt);
+                ptr += sizeof(void*);
+            }
+        } else { /* field is optional */
+            if(!m->isArray) {
+                /* optional scalar field is contained */
+                if((*(void *const *)ptr != NULL))
+                    UA_Array_delete(*(void **)ptr, 1, mt);
+                ptr += sizeof(void *);
+            } else {
+                /* optional array field is contained */
+                if((*(void *const *)(ptr + sizeof(size_t)) != NULL)) {
+                    size_t length = *(size_t *)ptr;
+                    ptr += sizeof(size_t);
+                    UA_Array_delete(*(void **)ptr, length, mt);
+                    ptr += sizeof(void *);
+                } else { /* optional array field not contained */
+                    ptr += sizeof(size_t);
+                    ptr += sizeof(void *);
+                }
+            }
         }
     }
+}
+
+static void
+clearUnion(void *p, const UA_DataType *type) {
+    uintptr_t ptr = (uintptr_t) p;
+    UA_UInt32 selection = *(UA_UInt32 *)ptr;
+    if(selection == 0)
+        return;
+    const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
+    const UA_DataTypeMember *m = &type->members[selection-1];
+    const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
+    ptr += UA_TYPES[UA_TYPES_UINT32].memSize;
+    ptr += m->padding;
+    UA_clear((void *) ptr, mt);
 }
 
 static void nopClear(void *p, const UA_DataType *type) { }
@@ -1136,8 +1226,8 @@ UA_clearSignature clearJumpTable[UA_DATATYPEKINDS] = {
     (UA_clearSignature)nopClear, /* Decimal, not implemented */
     (UA_clearSignature)nopClear, /* Enumeration */
     (UA_clearSignature)clearStructure,
-    (UA_clearSignature)nopClear, /* Struct with Optional Fields, not implemented*/
-    (UA_clearSignature)nopClear, /* Union, not implemented*/
+    (UA_clearSignature)clearStructure, /* Struct with Optional Fields*/
+    (UA_clearSignature)clearUnion, /* Union*/
     (UA_clearSignature)nopClear /* BitfieldCluster, not implemented*/
 };
 
