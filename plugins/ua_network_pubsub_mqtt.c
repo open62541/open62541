@@ -62,9 +62,10 @@ UA_PubSubChannelMQTT_open(const UA_PubSubConnectionConfig *connectionConfig) {
     
     /* set default values */
     UA_String mqttClientId = UA_STRING("open62541_pub");
-    memcpy(channelDataMQTT, &(UA_PubSubChannelDataMQTT){address, 2000,2000, NULL, NULL,&mqttClientId, NULL, NULL, NULL}, sizeof(UA_PubSubChannelDataMQTT));
+    memcpy(channelDataMQTT, &(UA_PubSubChannelDataMQTT){address, 2000,2000, NULL, NULL,&mqttClientId, NULL, NULL, NULL, NULL, NULL}, sizeof(UA_PubSubChannelDataMQTT));
     /* iterate over the given KeyValuePair paramters */
-    UA_String sendBuffer = UA_STRING("sendBufferSize"), recvBuffer = UA_STRING("recvBufferSize"), clientId = UA_STRING("mqttClientId");
+    UA_String sendBuffer = UA_STRING("sendBufferSize"), recvBuffer = UA_STRING("recvBufferSize"), clientId = UA_STRING("mqttClientId"),
+            username = UA_STRING("mqttUsername"), password = UA_STRING("mqttPassword");
     for(size_t i = 0; i < connectionConfig->connectionPropertiesSize; i++){
         if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &sendBuffer)){
             if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_UINT32])){
@@ -77,6 +78,14 @@ UA_PubSubChannelMQTT_open(const UA_PubSubConnectionConfig *connectionConfig) {
         } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &clientId)){
             if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_STRING])){
                 channelDataMQTT->mqttClientId = (UA_String *) connectionConfig->connectionProperties[i].value.data;
+            }
+        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &username)){
+            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_STRING])){
+                channelDataMQTT->mqttUsername = (UA_String *) connectionConfig->connectionProperties[i].value.data;
+            }
+        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &password)){
+            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_STRING])){
+                channelDataMQTT->mqttPassword = (UA_String *) connectionConfig->connectionProperties[i].value.data;
             }
         } else {
             UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT Connection creation. Unknown connection parameter.");
