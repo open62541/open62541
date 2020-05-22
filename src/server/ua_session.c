@@ -40,17 +40,26 @@ void UA_Session_deleteMembersCleanup(UA_Session *session, UA_Server* server) {
     session->availableContinuationPoints = UA_MAXCONTINUATIONPOINTS;
 }
 
-void UA_Session_attachToSecureChannel(UA_Session *session, UA_SecureChannel *channel) {
+void
+UA_Session_attachToSecureChannel(UA_Session *session, UA_SecureChannel *channel) {
     UA_Session_detachFromSecureChannel(session);
     session->header.channel = channel;
-    channel->session = &session->header;
+    SLIST_INSERT_HEAD(&channel->sessions, &session->header, next);
 }
 
-void UA_Session_detachFromSecureChannel(UA_Session *session) {
-    if(!session->header.channel)
+void
+UA_Session_detachFromSecureChannel(UA_Session *session) {
+    UA_SecureChannel *channel = session->header.channel;
+    if(!channel)
         return;
-    session->header.channel->session = NULL;
     session->header.channel = NULL;
+    UA_SessionHeader *sh;
+    SLIST_FOREACH(sh, &channel->sessions, next) {
+        if((UA_Session*)sh != session)
+            continue;
+        SLIST_REMOVE(&channel->sessions, sh, UA_SessionHeader, next);
+        break;
+    }
 }
 
 UA_StatusCode

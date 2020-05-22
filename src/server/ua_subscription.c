@@ -504,9 +504,8 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
                          "Subscription %" PRIu32 " | Sending out a publish response "
                          "with %" PRIu32 " notifications", sub->subscriptionId,
                          notifications);
-    UA_SecureChannel_sendSymmetricMessage(sub->session->header.channel, pre->requestId,
-                                          UA_MESSAGETYPE_MSG, response,
-                                          &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
+    sendResponse(server, sub->session, sub->session->header.channel, pre->requestId,
+                 (UA_Response*)response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
 
     /* Reset subscription state to normal */
     sub->state = UA_SUBSCRIPTIONSTATE_NORMAL;
@@ -557,8 +556,8 @@ UA_Subscription_reachedPublishReqLimit(UA_Server *server,  UA_Session *session) 
     /* Send the response */
     UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                          "Sending out a publish response triggered by too many publish requests");
-    UA_SecureChannel_sendSymmetricMessage(session->header.channel, pre->requestId,
-                     UA_MESSAGETYPE_MSG, response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
+    sendResponse(server, session, session->header.channel, pre->requestId,
+                 (UA_Response*)response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
 
     /* Free the response */
     UA_Array_delete(response->results, response->resultsSize, &UA_TYPES[UA_TYPES_UINT32]);
@@ -613,8 +612,8 @@ UA_Subscription_answerPublishRequestsNoSubscription(UA_Server *server, UA_Sessio
         UA_PublishResponse *response = &pre->response;
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOSUBSCRIPTION;
         response->responseHeader.timestamp = UA_DateTime_now();
-        UA_SecureChannel_sendSymmetricMessage(session->header.channel, pre->requestId, UA_MESSAGETYPE_MSG,
-                                              response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
+        sendResponse(server, session, session->header.channel, pre->requestId,
+                     (UA_Response*)response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
         UA_PublishResponse_clear(response);
         UA_free(pre);
     }

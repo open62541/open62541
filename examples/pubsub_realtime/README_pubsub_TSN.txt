@@ -1,3 +1,9 @@
+Tested Environment:
+OS - Debian/Lubuntu
+Kernel - 4.19.37-rt19, 5.4.28-rt19
+[Note: ETF will work in all RT kernels above 4.19,
+       XDP works only on 4.19.37-rt19 kernel]
+ 
 PRE-REQUISITES:
 RT enabled kernel in nodes (say node1 and node2)
 Ensure the nodes are ptp synchronized

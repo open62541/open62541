@@ -73,6 +73,7 @@ int gethostname_ecos(char* name, size_t len);
 #define UA_realloc realloc
 
 #define UA_snprintf snprintf
+#define UA_strncasecmp strncasecmp
 
 #define UA_LOG_SOCKET_ERRNO_WRAP(LOG) { \
     char *errno_str = strerror(errno); \

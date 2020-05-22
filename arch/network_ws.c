@@ -82,7 +82,7 @@ connection_send(UA_Connection *connection, UA_ByteString *buf) {
     in very poor throughput if there are any other network layers present. */
 
     ConnectionUserData *buffer = (ConnectionUserData *)connection->handle;
-    if(connection->state == UA_CONNECTION_CLOSED) {
+    if(connection->state == UA_CONNECTIONSTATE_CLOSED) {
         connection_releasesendbuffer(connection, buf);
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
     }
@@ -96,9 +96,7 @@ connection_send(UA_Connection *connection, UA_ByteString *buf) {
 
 static void
 ServerNetworkLayerWS_close(UA_Connection *connection) {
-    if(connection->state == UA_CONNECTION_CLOSED)
-        return;
-    connection->state = UA_CONNECTION_CLOSED;
+    connection->state = UA_CONNECTIONSTATE_CLOSED;
 }
 
 static void
@@ -151,20 +149,19 @@ callback_opcua(struct lws *wsi, enum lws_callback_reasons reason, void *user, vo
             c->releaseSendBuffer = connection_releasesendbuffer;
             c->releaseRecvBuffer = connection_releaserecvbuffer;
             // stack sets the connection to established
-            c->state = UA_CONNECTION_OPENING;
+            c->state = UA_CONNECTIONSTATE_OPENING;
             c->openingDate = UA_DateTime_nowMonotonic();
             pss->connection = c;
             break;
 
         case LWS_CALLBACK_CLOSED:
             // notify server
-            if(!pss->connection->state != UA_CONNECTION_CLOSED) {
-                pss->connection->state = UA_CONNECTION_CLOSED;
+            if(!pss->connection->state != UA_CONNECTIONSTATE_CLOSED) {
+                pss->connection->state = UA_CONNECTIONSTATE_CLOSED;
             }
 
             layer = (ServerNetworkLayerWS*)lws_context_user(vhd->context);
-            if(layer && layer->server)
-            {
+            if(layer && layer->server) {
                 UA_Server_removeConnection(layer->server, pss->connection);
             }
             

@@ -269,7 +269,9 @@ addReaderGroup(UA_Server *server) {
     UA_ReaderGroupConfig readerGroupConfig;
     memset (&readerGroupConfig, 0, sizeof(UA_ReaderGroupConfig));
     readerGroupConfig.name = UA_STRING("ReaderGroup");
-
+#if defined PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
+    readerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
+#endif
     UA_Server_addReaderGroup(server, connectionIdentSubscriber, &readerGroupConfig,
                              &readerGroupIdentifier);
 }
@@ -289,6 +291,15 @@ addDataSetReader(UA_Server *server) {
     readerConfig.publisherId.data     = &publisherIdentifier;
     readerConfig.writerGroupId        = WRITER_GROUP_ID_SUB;
     readerConfig.dataSetWriterId      = DATA_SET_WRITER_ID_SUB;
+
+    readerConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
+    readerConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPDATASETREADERMESSAGEDATATYPE];
+    UA_UadpDataSetReaderMessageDataType *dataSetReaderMessage = UA_UadpDataSetReaderMessageDataType_new();
+    dataSetReaderMessage->networkMessageContentMask           = (UA_UadpNetworkMessageContentMask)(UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID |
+                                                                 (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_GROUPHEADER |
+                                                                 (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_WRITERGROUPID |
+                                                                 (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
+    readerConfig.messageSettings.content.decoded.data = dataSetReaderMessage;
 
     /* Setting up Meta data configuration in DataSetReader */
     UA_DataSetMetaDataType *pMetaData = &readerConfig.dataSetMetaData;
@@ -318,6 +329,7 @@ addDataSetReader(UA_Server *server) {
     /* Setting up Meta data configuration in DataSetReader */
     UA_Server_addDataSetReader(server, readerGroupIdentifier, &readerConfig,
                                &readerIdentifier);
+    UA_UadpDataSetReaderMessageDataType_delete(dataSetReaderMessage);
 }
 
 /* Set SubscribedDataSet type to TargetVariables data type
@@ -973,7 +985,6 @@ UA_NetworkAddressUrlDataType networkAddressUrlSub;
     config->pubsubTransportLayers = (UA_PubSubTransportLayer *)
                                      UA_malloc(sizeof(UA_PubSubTransportLayer));
 #endif
-
     if (!config->pubsubTransportLayers) {
         UA_Server_delete(server);
         return EXIT_FAILURE;
@@ -1012,7 +1023,7 @@ UA_NetworkAddressUrlDataType networkAddressUrlSub;
 #endif
 #endif
 
-#if defined(SUBSCRIBER)
+#if defined(SUBSCRIBER) && !defined(PUBLISHER)
 #if defined (UA_ENABLE_PUBSUB_ETH_UADP_XDP)
     config->pubsubTransportLayers[0] = UA_PubSubTransportLayerEthernetXDP();
     config->pubsubTransportLayersSize++;
@@ -1027,6 +1038,8 @@ UA_NetworkAddressUrlDataType networkAddressUrlSub;
     addReaderGroup(server);
     addDataSetReader(server);
     addSubscribedVariables(server, readerIdentifier);
+    UA_Server_freezeReaderGroupConfiguration(server, readerGroupIdentifier);
+    UA_Server_setReaderGroupOperational(server, readerGroupIdentifier);
 #endif
     serverConfigStruct *serverConfig;
     serverConfig                = (serverConfigStruct*)UA_malloc(sizeof(serverConfigStruct));
@@ -1037,6 +1050,7 @@ UA_NetworkAddressUrlDataType networkAddressUrlSub;
 #endif
     retval |= UA_Server_run(server, &running);
 
+    UA_Server_unfreezeReaderGroupConfiguration(server, readerGroupIdentifier);
 #if defined(PUBLISHER)
     returnValue = pthread_join(pubthreadID, NULL);
     if (returnValue != 0) {

@@ -19,14 +19,25 @@
 
 static void
 removeSecureChannelCallback(void *_, channel_entry *entry) {
-    UA_SecureChannel_deleteMembers(&entry->channel);
+    UA_SecureChannel_close(&entry->channel);
 }
 
+/* Half-closes the channel. Will be completely closed / deleted in a deferred
+ * callback. Deferring is necessary so we don't remove lists that are still
+ * processed upwards the call stack. */
 static void
 removeSecureChannel(UA_Server *server, channel_entry *entry,
                     UA_DiagnosticEvent event) {
-    /* Close the SecureChannel */
-    UA_SecureChannel_close(&entry->channel);
+    if(entry->channel.state == UA_SECURECHANNELSTATE_CLOSING)
+        return;
+    entry->channel.state = UA_SECURECHANNELSTATE_CLOSING;
+
+    /* Detach from the connection and close the connection */
+    if(entry->channel.connection) {
+        if(entry->channel.connection->state != UA_CONNECTIONSTATE_CLOSED)
+            entry->channel.connection->close(entry->channel.connection);
+        UA_Connection_detachSecureChannel(entry->channel.connection);
+    }
 
     /* Detach the channel */
     TAILQ_REMOVE(&server->channels, entry, pointers);
@@ -100,7 +111,7 @@ static UA_Boolean
 purgeFirstChannelWithoutSession(UA_Server *server) {
     channel_entry *entry;
     TAILQ_FOREACH(entry, &server->channels, pointers) {
-        if(entry->channel.session)
+        if(SLIST_FIRST(&entry->channel.sessions))
             continue;
         UA_LOG_INFO_CHANNEL(&server->config.logger, &entry->channel,
                             "Channel was purged since maxSecureChannels was "
@@ -131,7 +142,7 @@ UA_Server_createSecureChannel(UA_Server *server, UA_Connection *connection) {
     if(!entry)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    /* Channel state is fresh (0) */
+    /* Channel state is closed (0) */
     /* TODO: Use the connection config from the correct network layer */
     UA_SecureChannel_init(&entry->channel,
                           &server->config.networkLayers[0].localConnectionConfig);
@@ -187,7 +198,7 @@ static UA_StatusCode
 UA_SecureChannelManager_open(UA_Server *server, UA_SecureChannel *channel,
                              const UA_OpenSecureChannelRequest *request,
                              UA_OpenSecureChannelResponse *response) {
-    if(channel->state != UA_SECURECHANNELSTATE_FRESH) {
+    if(channel->state != UA_SECURECHANNELSTATE_CLOSED) {
         UA_LOG_ERROR_CHANNEL(&server->config.logger, channel,
                              "Called open on already open or closed channel");
         return UA_STATUSCODE_BADINTERNALERROR;

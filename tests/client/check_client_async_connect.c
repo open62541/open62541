@@ -7,6 +7,7 @@
 #include <open62541/client_highlevel_async.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
+#include "open62541/common.h"
 
 #include "client/ua_client_internal.h"
 
@@ -20,11 +21,15 @@
 UA_Server *server;
 UA_ServerNetworkLayer nl;
 
+UA_Boolean connected = false;
+
 static void
-onConnect(UA_Client *Client, void *connected,
-          UA_UInt32 requestId, void *response) {
-    if(UA_Client_getState (Client) == UA_CLIENTSTATE_SESSION)
-        *(UA_Boolean *)connected = true;
+currentState(UA_Client *client, UA_SecureChannelState channelState,
+             UA_SessionState sessionState, UA_StatusCode recoveryStatus) {
+    if(sessionState == UA_SESSIONSTATE_ACTIVATED)
+        connected = true;
+    else
+        connected = false;
 }
 
 static void setup(void) {
@@ -45,12 +50,14 @@ asyncBrowseCallback(UA_Client *Client, void *userdata,
     (*asyncCounter)++;
 }
 
-START_TEST(Client_connect_async){
+START_TEST(Client_connect_async) {
     UA_StatusCode retval;
     UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
-    UA_Boolean connected = false;
-    UA_Client_connect_async(client, "opc.tcp://localhost:4840", onConnect, &connected);
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    UA_ClientConfig_setDefault(cc);
+    cc->stateCallback = currentState;
+    connected = false;
+    UA_Client_connect_async(client, "opc.tcp://localhost:4840");
     UA_Server_run_iterate(server, false);
 
     UA_UInt32 reqId = 0;
@@ -83,18 +90,55 @@ START_TEST(Client_connect_async){
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     /* With default setting the client uses 4 requests to connect */
     ck_assert_uint_eq(asyncCounter, 10-4);
-    UA_Client_disconnect_async(client, NULL);
+    UA_Client_disconnectAsync(client);
+    while(connected) {
+        UA_Server_run_iterate(server, false);
+        UA_Client_run_iterate(client, 0);
+    }
     UA_Client_delete (client);
+}
+END_TEST
+
+UA_SecureChannelState abortState;
+static void
+abortSecureChannelConnect(UA_Client *client, UA_SecureChannelState channelState,
+                          UA_SessionState sessionState, UA_StatusCode recoveryStatus) {
+    if(channelState >= abortState)
+        UA_Client_disconnect(client);
+}
+
+/* Abort the connection by calling disconnect */
+START_TEST(Client_connect_async_abort) {
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    UA_ClientConfig_setDefault(cc);
+    cc->stateCallback = abortSecureChannelConnect;
+
+    for(int i = UA_SECURECHANNELSTATE_HEL_SENT;
+        i < UA_SECURECHANNELSTATE_CLOSED; i++) {
+        abortState = (UA_SecureChannelState)i;
+        UA_StatusCode retval = UA_Client_connect_async(client, "opc.tcp://localhost:4840");
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+        UA_SecureChannelState currentState;
+        do {
+            UA_Client_run_iterate(client, 5);
+            UA_Client_getState(client, &currentState, NULL, &retval);
+        } while(currentState != UA_SECURECHANNELSTATE_CLOSED);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    }
+
+    UA_Client_delete(client);
 }
 END_TEST
 
 START_TEST(Client_no_connection) {
     UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
-
-    UA_Boolean connected = false;
-    UA_StatusCode retval =
-        UA_Client_connect_async(client, "opc.tcp://localhost:4840", onConnect, &connected);
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    UA_ClientConfig_setDefault(cc);
+    cc->stateCallback = currentState;
+    connected = false;
+    UA_StatusCode retval = UA_Client_connect_async(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Client_recv = client->connection.recv;
@@ -115,9 +159,11 @@ END_TEST
 
 START_TEST(Client_without_run_iterate) {
     UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
-    UA_Boolean connected = false;
-    UA_Client_connect_async(client, "opc.tcp://localhost:4840", onConnect, &connected);
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    UA_ClientConfig_setDefault(cc);
+    cc->stateCallback = currentState;
+    connected = false;
+    UA_Client_connect_async(client, "opc.tcp://localhost:4840");
     UA_Client_delete(client);
 }
 END_TEST
@@ -127,6 +173,7 @@ static Suite* testSuite_Client(void) {
     TCase *tc_client_connect = tcase_create("Client Connect Async");
     tcase_add_checked_fixture(tc_client_connect, setup, teardown);
     tcase_add_test(tc_client_connect, Client_connect_async);
+    tcase_add_test(tc_client_connect, Client_connect_async_abort);
     tcase_add_test(tc_client_connect, Client_no_connection);
     tcase_add_test(tc_client_connect, Client_without_run_iterate);
     suite_add_tcase(s,tc_client_connect);

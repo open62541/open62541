@@ -733,7 +733,6 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
     }
     config->securityPoliciesSize = 1;
 
-    config->connectionFunc = UA_ClientConnectionTCP;
     config->initConnectionFunc = UA_ClientConnectionTCP_init; /* for async client */
     config->pollConnectionFunc = UA_ClientConnectionTCP_poll; /* for async connection */
 

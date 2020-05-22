@@ -42,6 +42,8 @@ typedef struct UA_PublishedDataSet{
     UA_UInt16 promotedFieldsCount;
     UA_UInt16 configurationFreezeCounter;
     TAILQ_ENTRY(UA_PublishedDataSet) listEntry;
+    /* This flag is 'read only' and is set internally based on the PubSub state. */
+    UA_Boolean configurationFrozen;
 } UA_PublishedDataSet;
 
 UA_StatusCode
@@ -65,6 +67,8 @@ typedef struct UA_PubSubConnection{
     size_t readerGroupsSize;
     TAILQ_ENTRY(UA_PubSubConnection) listEntry;
     UA_UInt16 configurationFreezeCounter;
+    /* This flag is 'read only' and is set internally based on the PubSub state. */
+    UA_Boolean configurationFrozen;
 } UA_PubSubConnection;
 
 UA_StatusCode
@@ -105,6 +109,8 @@ typedef struct UA_DataSetWriter{
     UA_DataSetWriterSample *lastSamples;
 #endif
     UA_UInt16 actualDataSetMessageSequenceCount;
+    /* This flag is 'read only' and is set internally based on the PubSub state. */
+    UA_Boolean configurationFrozen;
 } UA_DataSetWriter;
 
 UA_StatusCode
@@ -131,6 +137,8 @@ struct UA_WriterGroup{
     UA_PubSubState state;
     UA_NetworkMessageOffsetBuffer bufferedMessage;
     UA_UInt16 sequenceNumber; /* Increased after every succressuly sent message */
+    /* This flag is 'read only' and is set internally based on the PubSub state. */
+    UA_Boolean configurationFrozen;
 };
 
 UA_StatusCode
@@ -153,7 +161,8 @@ typedef struct UA_DataSetField{
     UA_FieldMetaData fieldMetaData;
     UA_UInt64 sampleCallbackId;
     UA_Boolean sampleCallbackIsRegistered;
-
+    /* This flag is 'read only' and is set internally based on the PubSub state. */
+    UA_Boolean configurationFrozen;
 } UA_DataSetField;
 
 UA_StatusCode
@@ -180,11 +189,13 @@ typedef struct UA_DataSetReader {
     LIST_ENTRY(UA_DataSetReader) listEntry;
     UA_SubscribedDataSetEnumType subscribedDataSetType;
     UA_TargetVariablesDataType subscribedDataSetTarget;
-    /* To Do UA_SubscribedDataSetMirrorDataType subscribedDataSetMirror */
+    /* TODO UA_SubscribedDataSetMirrorDataType subscribedDataSetMirror */
+    /* non std */
+    UA_PubSubState state;
+    /* This flag is 'read only' and is set internally based on the PubSub state. */
+    UA_Boolean configurationFrozen;
+    UA_NetworkMessageOffsetBuffer bufferedMessage;
 }UA_DataSetReader;
-
-/* Delete DataSetReader */
-void UA_DataSetReader_delete(UA_Server *server, UA_DataSetReader *dataSetReader);
 
 /* Process Network Message using DataSetReader */
 void UA_Server_DataSetReader_process(UA_Server *server, UA_DataSetReader *dataSetReader, UA_DataSetMessage* dataSetMsg);
@@ -195,6 +206,9 @@ UA_StatusCode UA_DataSetReaderConfig_copy(const UA_DataSetReaderConfig *src, UA_
 /* Add TargetVariables */
 UA_StatusCode
 UA_Server_DataSetReader_addTargetVariables(UA_Server* server, UA_NodeId* parentNode, UA_NodeId dataSetReaderIdentifier, UA_SubscribedDataSetEnumType sdsType);
+
+UA_StatusCode
+UA_DataSetReader_setPubSubState(UA_Server *server, UA_PubSubState state, UA_DataSetReader *dataSetReader);
 
 /**********************************************/
 /*                ReaderGroup                 */
@@ -211,10 +225,10 @@ struct UA_ReaderGroup {
     UA_UInt32 readersCount;
     UA_UInt64 subscribeCallbackId;
     UA_Boolean subscribeCallbackIsRegistered;
+    UA_PubSubState state;
+    /* This flag is 'read only' and is set internally based on the PubSub state. */
+    UA_Boolean configurationFrozen;
 };
-
-/* Delete ReaderGroup */
-void UA_Server_ReaderGroup_delete(UA_Server *server, UA_ReaderGroup *readerGroup);
 
 /* Copy configuration of ReaderGroup */
 UA_StatusCode
@@ -228,6 +242,8 @@ UA_Server_processNetworkMessage(UA_Server *server, UA_NetworkMessage* pMsg, UA_P
  *(currently moved from public to internal)*/
 UA_ReaderGroup *UA_ReaderGroup_findRGbyId(UA_Server *server, UA_NodeId identifier);
 UA_DataSetReader *UA_ReaderGroup_findDSRbyId(UA_Server *server, UA_NodeId identifier);
+UA_StatusCode
+UA_ReaderGroup_setPubSubState(UA_Server *server, UA_PubSubState state, UA_ReaderGroup *readerGroup);
 
 /*********************************************************/
 /*               PublishValues handling                  */
