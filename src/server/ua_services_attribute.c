@@ -187,8 +187,8 @@ readValueAttributeComplete(UA_Server *server, UA_Session *session,
             /* Set the result */
             if(rangeptr)
                 return UA_Variant_copyRange(
-                    (const UA_Variant *) &vn->valueBackend.backend.external->value, &v->value, *rangeptr);
-            UA_DataValue_copy(vn->valueBackend.backend.external, v);
+                    (const UA_Variant *) &vn->valueBackend.backend.external.value, &v->value, *rangeptr);
+            UA_DataValue_copy(vn->valueBackend.backend.external.value, v);
             break;
         case UA_VALUEBACKENDTYPE_NONE:
             /** @deprecated legacy code */
@@ -1212,7 +1212,7 @@ writeValueAttribute(UA_Server *server, UA_Session *session,
 
     uintptr_t externalValuePtr;
     if(node->valueBackend.backendType == UA_VALUEBACKENDTYPE_EXTERNAL){
-        externalValuePtr = (uintptr_t) node->valueBackend.backend.external->value.data;
+        externalValuePtr = (uintptr_t) node->valueBackend.backend.external.value->value.data;
     }
 
     switch(node->valueBackend.backendType) {
@@ -1278,7 +1278,14 @@ writeValueAttribute(UA_Server *server, UA_Session *session,
             //TODO How to handle the range Ptr?
             //TODO this function should not write the external source directly.
             //TODO Instead an user defined 'write' callback could be an option.
-            memcpy((void *) externalValuePtr, adjustedValue.value.data, node->valueBackend.backend.external->value.type->memSize);
+            if(node->valueBackend.backend.external.externalDataWriteCallback == NULL){
+                if(rangeptr)
+                    UA_free(range.dimensions);
+                return UA_STATUSCODE_BADWRITENOTSUPPORTED;
+            }
+            node->valueBackend.backend.external.externalDataWriteCallback(server, &session->sessionId, session->sessionHandle,
+                                                                          &node->nodeId, node->context, rangeptr, &adjustedValue);
+            //memcpy((void *) externalValuePtr, adjustedValue.value.data, node->valueBackend.backend.external.value->value.type->memSize);
             break;
     }
 
