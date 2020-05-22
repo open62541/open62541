@@ -207,8 +207,6 @@ typedef struct {
         UA_PublishedEventConfig event;
         UA_PublishedEventTemplateConfig eventTemplate;
     } config;
-    /* This flag is 'read only' and is set internally based on the PubSub state. */
-    UA_Boolean configurationFrozen;
 } UA_PublishedDataSetConfig;
 
 void UA_EXPORT
@@ -271,8 +269,6 @@ typedef struct {
         /* events need other config later */
         UA_DataSetVariableConfig variable;
     } field;
-    /* This flag is 'read only' and is set internally based on the PubSub state. */
-    UA_Boolean configurationFrozen;
 } UA_DataSetFieldConfig;
 
 void UA_EXPORT
@@ -365,8 +361,6 @@ typedef struct {
     /* non std. config parameter. maximum count of embedded DataSetMessage in
      * one NetworkMessage */
     UA_UInt16 maxEncapsulatedDataSetMessageCount;
-    /* This flag is 'read only' and is set internally based on the PubSub state. */
-    UA_Boolean configurationFrozen;
     /* non std. field */
     UA_PubSubRTLevel rtLevel;
 } UA_WriterGroupConfig;
@@ -405,9 +399,6 @@ UA_StatusCode UA_EXPORT
 UA_Server_setWriterGroupDisabled(UA_Server *server, const UA_NodeId writerGroup);
 
 /**
- * .. _dsw:    UA_Boolean configurationFrozen;
-
- *
  * DataSetWriter
  * -------------
  * The DataSetWriters are the glue between the WriterGroups and the
@@ -426,8 +417,6 @@ typedef struct {
     UA_String dataSetName;
     size_t dataSetWriterPropertiesSize;
     UA_KeyValuePair *dataSetWriterProperties;
-    /* This flag is 'read only' and is set internally based on the PubSub state. */
-    UA_Boolean configurationFrozen;
 } UA_DataSetWriterConfig;
 
 void UA_EXPORT
@@ -479,7 +468,7 @@ typedef struct {
     UA_DataSetFieldContentMask dataSetFieldContentMask;
     UA_Double messageReceiveTimeout;
     UA_PubSubSecurityParameters securityParameters;
-    UA_UadpDataSetReaderMessageDataType messageSettings;
+    UA_ExtensionObject messageSettings;
     UA_ExtensionObject transportSettings;
     UA_TargetVariablesDataType subscribedDataSetTarget;
 } UA_DataSetReaderConfig;
@@ -516,6 +505,8 @@ UA_Server_DataSetReader_createTargetVariables(UA_Server *server, UA_NodeId dataS
 typedef struct {
     UA_String name;
     UA_PubSubSecurityParameters securityParameters;
+    /* non std. field */
+    UA_PubSubRTLevel rtLevel;
 } UA_ReaderGroupConfig;
 
 /* Add DataSetReader to the ReaderGroup */
@@ -548,6 +539,18 @@ UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
 /* Remove ReaderGroup from connection */
 UA_StatusCode UA_EXPORT
 UA_Server_removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier);
+
+UA_StatusCode UA_EXPORT
+UA_Server_freezeReaderGroupConfiguration(UA_Server *server, const UA_NodeId readerGroupId);
+
+UA_StatusCode UA_EXPORT
+UA_Server_unfreezeReaderGroupConfiguration(UA_Server *server, const UA_NodeId readerGroupId);
+
+UA_StatusCode UA_EXPORT
+UA_Server_setReaderGroupOperational(UA_Server *server, const UA_NodeId readerGroupId);
+
+UA_StatusCode UA_EXPORT
+UA_Server_setReaderGroupDisabled(UA_Server *server, const UA_NodeId readerGroupId);
 
 #endif /* UA_ENABLE_PUBSUB */
 

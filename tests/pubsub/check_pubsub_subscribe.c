@@ -552,9 +552,9 @@ START_TEST(SinglePublishSubscribeDateTime) {
         UA_ReaderGroupConfig readerGroupConfig;
         memset (&readerGroupConfig, 0, sizeof (UA_ReaderGroupConfig));
         readerGroupConfig.name = UA_STRING ("ReaderGroup Test");
-        retVal |=  UA_Server_addReaderGroup (server, connection_test, &readerGroupConfig,
-                                                      &readerGroupTest);
+        retVal |=  UA_Server_addReaderGroup (server, connection_test, &readerGroupConfig, &readerGroupTest);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        UA_Server_setReaderGroupOperational(server, readerGroupTest);
         /* Data Set Reader */
         memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
         readerConfig.name = UA_STRING ("DataSetReader Test");
@@ -688,7 +688,7 @@ START_TEST(SinglePublishSubscribeInt32) {
         memset (&readerGroupConfig, 0, sizeof (UA_ReaderGroupConfig));
         readerGroupConfig.name = UA_STRING ("ReaderGroup Test");
         retVal |=  UA_Server_addReaderGroup(server, connection_test, &readerGroupConfig, &readerGroupTest);
-
+        UA_Server_setReaderGroupOperational(server, readerGroupTest);
         /* Data Set Reader */
         /* Parameters to filter received NetworkMessage */
         memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
@@ -863,7 +863,7 @@ START_TEST(SinglePublishSubscribeInt64) {
         memset (&readerGroupConfig, 0, sizeof (UA_ReaderGroupConfig));
         readerGroupConfig.name = UA_STRING ("ReaderGroup Test");
         retVal |=  UA_Server_addReaderGroup(server, connection_test, &readerGroupConfig, &readerGroupTest);
-
+        UA_Server_setReaderGroupOperational(server, readerGroupTest);
         /* Data Set Reader */
         /* Parameters to filter received NetworkMessage */
         memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
@@ -1038,7 +1038,7 @@ START_TEST(SinglePublishSubscribeBool) {
         memset (&readerGroupConfig, 0, sizeof (UA_ReaderGroupConfig));
         readerGroupConfig.name = UA_STRING ("ReaderGroup Test");
         retVal |=  UA_Server_addReaderGroup(server, connection_test, &readerGroupConfig, &readerGroupTest);
-
+        UA_Server_setReaderGroupOperational(server, readerGroupTest);
         /* Data Set Reader */
         /* Parameters to filter received NetworkMessage */
         memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
@@ -1214,7 +1214,7 @@ START_TEST(SinglePublishSubscribewithValidIdentifiers) {
         memset (&readerGroupConfig, 0, sizeof (UA_ReaderGroupConfig));
         readerGroupConfig.name = UA_STRING ("ReaderGroup Test");
         retVal |=  UA_Server_addReaderGroup(server, connection_test, &readerGroupConfig, &readerGroupTest);
-
+        UA_Server_setReaderGroupOperational(server, readerGroupTest);
         /* Data Set Reader */
         /* Parameters to filter received NetworkMessage */
         memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));

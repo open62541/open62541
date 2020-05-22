@@ -77,6 +77,8 @@ add_example(tutorial_server_variable tutorial_server_variable.c)
 
 add_example(tutorial_server_datasource tutorial_server_datasource.c)
 
+add_example(server_settimestamp server_settimestamp.c)
+
 if(UA_ENABLE_SUBSCRIPTIONS)
     add_example(tutorial_server_monitoreditems tutorial_server_monitoreditems.c)
 endif()
@@ -197,6 +199,7 @@ if(UA_ENABLE_PUBSUB)
     add_example(tutorial_pubsub_publish pubsub/tutorial_pubsub_publish.c)
 	add_example(server_pubsub_publisher_iop pubsub/server_pubsub_publisher_iop.c)
 	add_example(server_pubsub_publish_rt_level pubsub/server_pubsub_publisher_rt_level.c)
+	add_example(server_pubsub_subscribe_rt_level pubsub/server_pubsub_subscriber_rt_level.c)
     if(UA_ENABLE_AMALGAMATION)
         message(WARNING "PubSub subscriber tutorial (preview) can not be used with AMALGAMATION. Skipping tutorial_pubsub_subscribe.")
     else(NOT UA_ENABLE_AMALGAMATION)

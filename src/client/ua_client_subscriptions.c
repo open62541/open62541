@@ -23,6 +23,10 @@
 /*****************/
 
 static void
+UA_Client_MonitoredItem_remove(UA_Client *client, UA_Client_Subscription *sub,
+                               UA_Client_MonitoredItem *mon);
+
+static void
 __Subscriptions_create_handler(UA_Client *client, void *data, UA_UInt32 requestId, void *r) {
     UA_CreateSubscriptionResponse *response = (UA_CreateSubscriptionResponse *)r;
     CustomCallback *cc = (CustomCallback *)data;
@@ -388,7 +392,7 @@ UA_Client_Subscriptions_deleteSingle(UA_Client *client, UA_UInt32 subscriptionId
 /* MonitoredItems */
 /******************/
 
-void
+static void
 UA_Client_MonitoredItem_remove(UA_Client *client, UA_Client_Subscription *sub,
                                UA_Client_MonitoredItem *mon) {
     // NOLINTNEXTLINE
@@ -1066,7 +1070,7 @@ processNotificationMessage(UA_Client *client, UA_Client_Subscription *sub,
                    "Unknown notification message type");
 }
 
-void
+static void
 UA_Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishRequest *request,
                                                UA_PublishResponse *response) {
     UA_NotificationMessage *msg = &response->notificationMessage;
@@ -1096,7 +1100,7 @@ UA_Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishRequ
     }
 
     if(response->responseHeader.serviceResult == UA_STATUSCODE_BADSESSIONCLOSED) {
-        if(client->state >= UA_CLIENTSTATE_SESSION) {
+        if(client->sessionState != UA_SESSIONSTATE_ACTIVATED) {
             UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                            "Received Publish Response with code %s",
                             UA_StatusCode_name(response->responseHeader.serviceResult));
@@ -1214,7 +1218,7 @@ UA_Client_Subscriptions_clean(UA_Client *client) {
 
 void
 UA_Client_Subscriptions_backgroundPublishInactivityCheck(UA_Client *client) {
-    if(client->state < UA_CLIENTSTATE_SESSION)
+    if(client->sessionState < UA_SESSIONSTATE_ACTIVATED)
         return;
 
     /* Is the lack of responses the client's fault? */
@@ -1239,25 +1243,25 @@ UA_Client_Subscriptions_backgroundPublishInactivityCheck(UA_Client *client) {
     }
 }
 
-UA_StatusCode
+void
 UA_Client_Subscriptions_backgroundPublish(UA_Client *client) {
-    if(client->state < UA_CLIENTSTATE_SESSION)
-        return UA_STATUSCODE_BADSERVERNOTCONNECTED;
+    if(client->sessionState < UA_SESSIONSTATE_ACTIVATED)
+        return;
 
     /* The session must have at least one subscription */
     if(!LIST_FIRST(&client->subscriptions))
-        return UA_STATUSCODE_GOOD;
+        return;
 
     while(client->currentlyOutStandingPublishRequests < client->config.outStandingPublishRequests) {
         UA_PublishRequest *request = UA_PublishRequest_new();
-        if (!request)
-            return UA_STATUSCODE_BADOUTOFMEMORY;
+        if(!request)
+            return;
 
         request->requestHeader.timeoutHint=60000;
         UA_StatusCode retval = UA_Client_preparePublishRequest(client, request);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_PublishRequest_delete(request);
-            return retval;
+            return;
         }
     
         UA_UInt32 requestId;
@@ -1271,11 +1275,9 @@ UA_Client_Subscriptions_backgroundPublish(UA_Client *client) {
                                             (void*)request, &requestId, 0);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_PublishRequest_delete(request);
-            return retval;
+            return;
         }
     }
-
-    return UA_STATUSCODE_GOOD;
 }
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS */

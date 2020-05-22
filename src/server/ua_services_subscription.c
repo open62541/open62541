@@ -168,19 +168,6 @@ Service_SetPublishingMode(UA_Server *server, UA_Session *session,
                                            &response->resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
 }
 
-/* TODO: Unify with senderror in ua_server_binary.c */
-static void
-subscriptionSendError(UA_SecureChannel *channel, UA_UInt32 requestHandle,
-                      UA_UInt32 requestId, UA_StatusCode error) {
-    UA_PublishResponse err_response;
-    UA_PublishResponse_init(&err_response);
-    err_response.responseHeader.requestHandle = requestHandle;
-    err_response.responseHeader.timestamp = UA_DateTime_now();
-    err_response.responseHeader.serviceResult = error;
-    UA_SecureChannel_sendSymmetricMessage(channel, requestId, UA_MESSAGETYPE_MSG,
-                                          &err_response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
-}
-
 void
 Service_Publish(UA_Server *server, UA_Session *session,
                 const UA_PublishRequest *request, UA_UInt32 requestId) {
@@ -189,8 +176,8 @@ Service_Publish(UA_Server *server, UA_Session *session,
 
     /* Return an error if the session has no subscription */
     if(LIST_EMPTY(&session->serverSubscriptions)) {
-        subscriptionSendError(session->header.channel, request->requestHeader.requestHandle,
-                              requestId, UA_STATUSCODE_BADNOSUBSCRIPTION);
+        sendServiceFault(session->header.channel, requestId, request->requestHeader.requestHandle,
+                         &UA_TYPES[UA_TYPES_PUBLISHRESPONSE], UA_STATUSCODE_BADNOSUBSCRIPTION);
         return;
     }
 
@@ -200,9 +187,8 @@ Service_Publish(UA_Server *server, UA_Session *session,
     if((server->config.maxPublishReqPerSession != 0) &&
        (session->numPublishReq >= server->config.maxPublishReqPerSession)) {
         if(!UA_Subscription_reachedPublishReqLimit(server, session)) {
-            subscriptionSendError(session->header.channel, requestId,
-                                  request->requestHeader.requestHandle,
-                                  UA_STATUSCODE_BADINTERNALERROR);
+            sendServiceFault(session->header.channel, requestId, request->requestHeader.requestHandle,
+                             &UA_TYPES[UA_TYPES_PUBLISHRESPONSE], UA_STATUSCODE_BADINTERNALERROR);
             return;
         }
     }
@@ -211,9 +197,8 @@ Service_Publish(UA_Server *server, UA_Session *session,
     UA_PublishResponseEntry *entry = (UA_PublishResponseEntry *)
         UA_malloc(sizeof(UA_PublishResponseEntry));
     if(!entry) {
-        subscriptionSendError(session->header.channel, requestId,
-                              request->requestHeader.requestHandle,
-                              UA_STATUSCODE_BADOUTOFMEMORY);
+        sendServiceFault(session->header.channel, requestId, request->requestHeader.requestHandle,
+                         &UA_TYPES[UA_TYPES_PUBLISHRESPONSE], UA_STATUSCODE_BADOUTOFMEMORY);
         return;
     }
 
@@ -230,9 +215,8 @@ Service_Publish(UA_Server *server, UA_Session *session,
                          &UA_TYPES[UA_TYPES_STATUSCODE]);
         if(!response->results) {
             UA_free(entry);
-            subscriptionSendError(session->header.channel, requestId,
-                                  request->requestHeader.requestHandle,
-                                  UA_STATUSCODE_BADOUTOFMEMORY);
+            sendServiceFault(session->header.channel, requestId, request->requestHeader.requestHandle,
+                             &UA_TYPES[UA_TYPES_PUBLISHRESPONSE], UA_STATUSCODE_BADOUTOFMEMORY);
             return;
         }
         response->resultsSize = request->subscriptionAcknowledgementsSize;

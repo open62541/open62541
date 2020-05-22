@@ -42,7 +42,10 @@ UA_AsyncManager_sendAsyncResponse(UA_AsyncManager *am, UA_Server *server,
     }
 
     /* Okay, here we go, send the UA_CallResponse */
-    res = sendResponse(channel, ar->requestId, ar->requestHandle,
+    UA_ResponseHeader *responseHeader = (UA_ResponseHeader*)
+        &ar->response.callResponse.responseHeader;
+    responseHeader->requestHandle = ar->requestHandle;
+    res = sendResponse(server, session, channel, ar->requestId,
                        (UA_Response*)&ar->response, &UA_TYPES[UA_TYPES_CALLRESPONSE]);
     UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
                  "UA_Server_SendResponse: Response for Req# %" PRIu32 " sent", ar->requestId);

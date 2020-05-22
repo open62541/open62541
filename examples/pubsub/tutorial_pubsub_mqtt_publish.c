@@ -41,7 +41,12 @@
 #define BROKER_ADDRESS_URL           "opc.mqtt://127.0.0.1:1883"
 #define PUBLISH_INTERVAL             500
 
+#ifdef UA_ENABLE_JSON_ENCODING
+static UA_Boolean useJson = true;
+#else
 static UA_Boolean useJson = false;
+#endif
+
 static UA_NodeId connectionIdent;
 static UA_NodeId publishedDataSetIdent;
 static UA_NodeId writerGroupIdent;

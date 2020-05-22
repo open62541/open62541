@@ -21,6 +21,8 @@ UA_Server *server;
 UA_Boolean running;
 UA_ServerNetworkLayer nl;
 THREAD_HANDLE server_thread;
+static UA_Boolean noNewSubscription; /* Don't create a subscription when the
+                                        session activates */
 
 THREAD_CALLBACK(serverloop) {
     while(running)
@@ -29,6 +31,7 @@ THREAD_CALLBACK(serverloop) {
 }
 
 static void setup(void) {
+    noNewSubscription = false;
     running = true;
     server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
@@ -643,7 +646,7 @@ START_TEST(Client_subscription_connectionClose) {
 
     /* monitor the server state */
     UA_MonitoredItemCreateRequest monRequest =
-        UA_MonitoredItemCreateRequest_default(UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE));
+        UA_MonitoredItemCreateRequest_default(UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME));
 
     UA_MonitoredItemCreateResult monResponse =
         UA_Client_MonitoredItems_createDataChange(client, response.subscriptionId,
@@ -659,8 +662,34 @@ START_TEST(Client_subscription_connectionClose) {
     /* Simulate BADCONNECTIONCLOSE */
     UA_Client_recvTesting_result = UA_STATUSCODE_BADCONNECTIONCLOSED;
 
+    /* Reconnect a new SecureChannel and recover the Session */
     retval = UA_Client_run_iterate(client, 1);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONNECTIONCLOSED);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_SessionState ss;
+    UA_Client_getState(client, NULL, &ss, NULL);
+    ck_assert_uint_eq(ss, UA_SESSIONSTATE_CREATED);
+    while(ss != UA_SESSIONSTATE_ACTIVATED) {
+        UA_Client_run_iterate(client, 1);
+        UA_Client_getState(client, NULL, &ss, NULL);
+    }
+
+    /* manually control the server thread */
+    running = false;
+    THREAD_JOIN(server_thread);
+
+    /* Still receiving on the MonitoredItem */
+    UA_fakeSleep((UA_UInt32)publishingInterval + 1);
+    UA_Server_run_iterate(server, true);
+    notificationReceived = false;
+    countNotificationReceived = 0;
+    retval = UA_Client_run_iterate(client, 1);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(countNotificationReceived, 1);
+
+    /* run the server in an independent thread again */
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
@@ -732,13 +761,19 @@ START_TEST(Client_subscription_without_notification) {
 }
 END_TEST
 
-static UA_ClientState callbackClientState;
+static UA_SecureChannelState chanState;
+static UA_SessionState sessState;
 
 static void
-stateCallback (UA_Client *client, UA_ClientState clientState){
-    callbackClientState = clientState;
+stateCallback(UA_Client *client, UA_SecureChannelState channelState,
+              UA_SessionState sessionState, UA_StatusCode recoveryStatus) {
+    chanState = channelState;
+    sessState = sessionState;
 
-    if (clientState == UA_CLIENTSTATE_SESSION){
+    if(noNewSubscription)
+        return;
+
+    if(sessionState == UA_SESSIONSTATE_ACTIVATED) {
         /* A new session was created. We need to create the subscription. */
         UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
         request.requestedMaxKeepAliveCount = 1;
@@ -749,8 +784,10 @@ stateCallback (UA_Client *client, UA_ClientState clientState){
         ck_assert_uint_ne(subId, 0);
 
         /* Add a MonitoredItem */
+        UA_NodeId currentTime =
+            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
         UA_MonitoredItemCreateRequest monRequest =
-            UA_MonitoredItemCreateRequest_default(UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME));
+            UA_MonitoredItemCreateRequest_default(currentTime);
     
         UA_MonitoredItemCreateResult monResponse =
             UA_Client_MonitoredItems_createDataChange(client, response.subscriptionId,
@@ -783,11 +820,11 @@ START_TEST(Client_subscription_async_sub) {
     /* Activate background publish request */
     cc->outStandingPublishRequests = 10;
 
-    ck_assert_uint_eq(callbackClientState, UA_CLIENTSTATE_DISCONNECTED);
+    ck_assert_uint_eq(chanState, UA_SECURECHANNELSTATE_CLOSED);
 
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(callbackClientState, UA_CLIENTSTATE_SESSION);
+    ck_assert_uint_eq(sessState, UA_SESSIONSTATE_ACTIVATED);
 
     UA_Client_recv = client->connection.recv;
     client->connection.recv = UA_Client_recvTesting;
@@ -847,14 +884,82 @@ START_TEST(Client_subscription_async_sub) {
     UA_Client_recvTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
     UA_Client_run_iterate(client, (UA_UInt16)(publishingInterval + 1));
     ck_assert_uint_eq(notificationReceived, false);
-    ck_assert_uint_eq(callbackClientState, UA_CLIENTSTATE_SESSION);
+    ck_assert_uint_eq(sessState, UA_SESSIONSTATE_ACTIVATED);
 
     /* Simulate network cable unplugged (no response from server) */
     ck_assert_uint_eq(inactivityCallbackCalled, false);
     UA_Client_recvTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
     UA_Client_run_iterate(client, (UA_UInt16)cc->timeout);
     ck_assert_uint_eq(inactivityCallbackCalled, true);
-    ck_assert_uint_eq(callbackClientState, UA_CLIENTSTATE_SESSION);
+    ck_assert_uint_eq(sessState, UA_SESSIONSTATE_ACTIVATED);
+
+    /* Get the server back up */
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_subscription_reconnect) {
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+
+    /* Set stateCallback */
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    cc->stateCallback = stateCallback;
+    cc->subscriptionInactivityCallback = subscriptionInactivityCallback;
+    inactivityCallbackCalled = false;
+
+    /* Activate background publish request */
+    cc->outStandingPublishRequests = 10;
+
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(sessState, UA_SESSIONSTATE_ACTIVATED);
+
+    UA_Client_recv = client->connection.recv;
+    client->connection.recv = UA_Client_recvTesting;
+
+    UA_Client_run_iterate(client, 1);
+
+    /* manually control the server thread */
+    running = false;
+    THREAD_JOIN(server_thread);
+
+    UA_fakeSleep((UA_UInt32)publishingInterval + 1);
+    UA_Server_run_iterate(server, true);
+
+    countNotificationReceived = 0;
+
+    notificationReceived = false;
+    UA_Client_run_iterate(client, 1);
+    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(countNotificationReceived, 1);
+
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+    UA_Client_disconnectSecureChannel(client);
+
+    /* Reconnect to the old session and see if the old subscription still works */
+    noNewSubscription = true;
+    retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(sessState, UA_SESSIONSTATE_ACTIVATED);
+
+    /* manually control the server thread */
+    running = false;
+    THREAD_JOIN(server_thread);
+
+    UA_Client_run_iterate(client, 1);
+
+    UA_fakeSleep((UA_UInt32)publishingInterval + 1);
+    UA_Server_run_iterate(server, true);
+
+    notificationReceived = false;
+    UA_Client_run_iterate(client, 1);
+    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(countNotificationReceived, 2);
 
     /* Get the server back up */
     running = true;
@@ -942,6 +1047,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client, Client_subscription_keepAlive);
     tcase_add_test(tc_client, Client_subscription_without_notification);
     tcase_add_test(tc_client, Client_subscription_async_sub);
+    tcase_add_test(tc_client, Client_subscription_reconnect);
     suite_add_tcase(s,tc_client);
 
 #ifdef UA_ENABLE_METHODCALLS

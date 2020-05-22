@@ -45,8 +45,8 @@
 #define MUTEX_HANDLE HANDLE
 
 /* Will return UA_FALSE when zero */
-#define MUTEX_INIT(name) (CreateMutex(NULL, FALSE, NULL) != 0)
-#define MUTEX_LOCK(name) (WaitForSingleObject((name), INFINITE) != 0)
+#define MUTEX_INIT(name) (((name) = CreateMutex(NULL, FALSE, NULL)) != 0)
+#define MUTEX_LOCK(name) (WaitForSingleObject((name), INFINITE) == WAIT_OBJECT_0)
 #define MUTEX_UNLOCK(name) (ReleaseMutex((name)) != 0)
 #define MUTEX_DESTROY(name) (CloseHandle((name)) != 0)
 #endif

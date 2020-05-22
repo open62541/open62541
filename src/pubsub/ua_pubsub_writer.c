@@ -156,7 +156,7 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
     if(!currentConnectionContext)
         return UA_STATUSCODE_BADNOTFOUND;
 
-    if(currentConnectionContext->config->configurationFrozen){
+    if(currentConnectionContext->configurationFrozen){
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Adding WriterGroup failed. PubSubConnection is frozen.");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
@@ -213,7 +213,7 @@ UA_Server_removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup) {
     if(!wg)
         return UA_STATUSCODE_BADNOTFOUND;
 
-    if(wg->config.configurationFrozen){
+    if(wg->configurationFrozen){
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Delete WriterGroup failed. WriterGroup is frozen.");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
@@ -223,7 +223,7 @@ UA_Server_removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup) {
     if(!connection)
         return UA_STATUSCODE_BADNOTFOUND;
 
-    if(connection->config->configurationFrozen){
+    if(connection->configurationFrozen){
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Delete WriterGroup failed. PubSubConnection is frozen.");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
@@ -251,22 +251,22 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId writ
     //PubSubConnection freezeCounter++
     UA_PubSubConnection *pubSubConnection =  wg->linkedConnection;
     pubSubConnection->configurationFreezeCounter++;
-    pubSubConnection->config->configurationFrozen = UA_TRUE;
+    pubSubConnection->configurationFrozen = UA_TRUE;
     //WriterGroup freeze
-    wg->config.configurationFrozen = UA_TRUE;
+    wg->configurationFrozen = UA_TRUE;
     //DataSetWriter freeze
     UA_DataSetWriter *dataSetWriter;
     LIST_FOREACH(dataSetWriter, &wg->writers, listEntry){
-        dataSetWriter->config.configurationFrozen = UA_TRUE;
+        dataSetWriter->configurationFrozen = UA_TRUE;
         //PublishedDataSet freezeCounter++
         UA_PublishedDataSet *publishedDataSet =
             UA_PublishedDataSet_findPDSbyId(server, dataSetWriter->connectedDataSet);
         publishedDataSet->configurationFreezeCounter++;
-        publishedDataSet->config.configurationFrozen = UA_TRUE;
+        publishedDataSet->configurationFrozen = UA_TRUE;
         //DataSetFields freeze
         UA_DataSetField *dataSetField;
         TAILQ_FOREACH(dataSetField, &publishedDataSet->fields, listEntry){
-            dataSetField->config.configurationFrozen = UA_TRUE;
+            dataSetField->configurationFrozen = UA_TRUE;
         }
     }
 
@@ -338,6 +338,8 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId writ
                                    &networkMessage);
         if(res != UA_STATUSCODE_GOOD)
             return UA_STATUSCODE_BADINTERNALERROR;
+
+        memset(&wg->bufferedMessage, 0, sizeof(UA_NetworkMessageOffsetBuffer));
         UA_NetworkMessage_calcSizeBinary(&networkMessage, &wg->bufferedMessage);
         /* Allocate the buffer. Allocate on the stack if the buffer is small. */
         UA_ByteString buf;
@@ -374,10 +376,10 @@ UA_Server_unfreezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId wr
     UA_PubSubConnection *pubSubConnection =  wg->linkedConnection;
     pubSubConnection->configurationFreezeCounter--;
     if(pubSubConnection->configurationFreezeCounter == 0){
-        pubSubConnection->config->configurationFrozen = UA_FALSE;
+        pubSubConnection->configurationFrozen = UA_FALSE;
     }
     //WriterGroup unfreeze
-    wg->config.configurationFrozen = UA_FALSE;
+    wg->configurationFrozen = UA_FALSE;
     //DataSetWriter unfreeze
     UA_DataSetWriter *dataSetWriter;
     LIST_FOREACH(dataSetWriter, &wg->writers, listEntry) {
@@ -386,13 +388,13 @@ UA_Server_unfreezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId wr
         //PublishedDataSet freezeCounter--
         publishedDataSet->configurationFreezeCounter--;
         if(publishedDataSet->configurationFreezeCounter == 0){
-            publishedDataSet->config.configurationFrozen = UA_FALSE;
+            publishedDataSet->configurationFrozen = UA_FALSE;
             UA_DataSetField *dataSetField;
             TAILQ_FOREACH(dataSetField, &publishedDataSet->fields, listEntry){
-                dataSetField->config.configurationFrozen = UA_FALSE;
+                dataSetField->configurationFrozen = UA_FALSE;
             }
         }
-        dataSetWriter->config.configurationFrozen = UA_FALSE;
+        dataSetWriter->configurationFrozen = UA_FALSE;
     }
     return UA_STATUSCODE_GOOD;
 }
@@ -630,7 +632,7 @@ UA_Server_addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
         return result;
     }
 
-    if(currentDataSet->config.configurationFrozen){
+    if(currentDataSet->configurationFrozen){
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Adding DataSetField failed. PublishedDataSet is frozen.");
         result.result = UA_STATUSCODE_BADCONFIGURATIONERROR;
@@ -704,7 +706,7 @@ UA_Server_removeDataSetField(UA_Server *server, const UA_NodeId dsf) {
     if(!currentField)
         return result;
 
-    if(currentField->config.configurationFrozen){
+    if(currentField->configurationFrozen){
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Remove DataSetField failed. DataSetField is frozen.");
         result.result = UA_STATUSCODE_BADCONFIGURATIONERROR;
@@ -716,7 +718,7 @@ UA_Server_removeDataSetField(UA_Server *server, const UA_NodeId dsf) {
     if(!parentPublishedDataSet)
         return result;
 
-    if(parentPublishedDataSet->config.configurationFrozen){
+    if(parentPublishedDataSet->configurationFrozen){
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Remove DataSetField failed. PublishedDataSet is frozen.");
         result.result = UA_STATUSCODE_BADCONFIGURATIONERROR;
@@ -993,7 +995,7 @@ UA_Server_updateWriterGroupConfig(UA_Server *server, UA_NodeId writerGroupIdenti
     if(!currentWriterGroup)
         return UA_STATUSCODE_BADNOTFOUND;
 
-    if(currentWriterGroup->config.configurationFrozen){
+    if(currentWriterGroup->configurationFrozen){
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Modify WriterGroup failed. WriterGroup is frozen.");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
@@ -1167,7 +1169,7 @@ UA_Server_addDataSetWriter(UA_Server *server,
     if(!currentDataSetContext)
         return UA_STATUSCODE_BADNOTFOUND;
 
-    if(currentDataSetContext->config.configurationFrozen){
+    if(currentDataSetContext->configurationFrozen){
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Adding DataSetWriter failed. PublishedDataSet is frozen.");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
@@ -1177,7 +1179,7 @@ UA_Server_addDataSetWriter(UA_Server *server,
     if(!wg)
         return UA_STATUSCODE_BADNOTFOUND;
 
-    if(wg->config.configurationFrozen){
+    if(wg->configurationFrozen){
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Adding DataSetWriter failed. WriterGroup is frozen.");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
@@ -1240,7 +1242,7 @@ UA_Server_removeDataSetWriter(UA_Server *server, const UA_NodeId dsw){
     if(!dataSetWriter)
         return UA_STATUSCODE_BADNOTFOUND;
 
-    if(dataSetWriter->config.configurationFrozen){
+    if(dataSetWriter->configurationFrozen){
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Remove DataSetWriter failed. DataSetWriter is frozen.");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
@@ -1251,7 +1253,7 @@ UA_Server_removeDataSetWriter(UA_Server *server, const UA_NodeId dsw){
     if(!linkedWriterGroup)
         return UA_STATUSCODE_BADNOTFOUND;
 
-    if(linkedWriterGroup->config.configurationFrozen){
+    if(linkedWriterGroup->configurationFrozen){
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Remove DataSetWriter failed. WriterGroup is frozen.");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;

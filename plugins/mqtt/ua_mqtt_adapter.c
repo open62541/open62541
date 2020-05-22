@@ -59,8 +59,10 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
 
     /* Create TCP connection: open the blocking TCP socket (connecting to the broker) */
     UA_Connection connection = UA_ClientConnectionTCP( conf, address.url, 1000, NULL);
-    if(connection.state != UA_CONNECTION_ESTABLISHED && connection.state != UA_CONNECTION_OPENING){
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK, "PubSub MQTT: Connection creation failed. Tcp connection failed!");
+    if(connection.state != UA_CONNECTIONSTATE_ESTABLISHED &&
+       connection.state != UA_CONNECTIONSTATE_OPENING){
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                     "PubSub MQTT: Connection creation failed. Tcp connection failed!");
         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
     }
 
@@ -246,12 +248,14 @@ yieldMqtt(UA_PubSubChannelDataMQTT* channelData, UA_UInt16 timeout){
     }
 
     UA_Connection *connection = channelData->connection;
-    if(connection == NULL){
+    if(!connection) {
         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
     }
     
-    if(connection->state != UA_CONNECTION_ESTABLISHED && connection->state != UA_CONNECTION_OPENING){
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK, "PubSub MQTT: yield: Tcp Connection not established!");
+    if(connection->state != UA_CONNECTIONSTATE_ESTABLISHED &&
+       connection->state != UA_CONNECTIONSTATE_OPENING) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                     "PubSub MQTT: yield: Tcp Connection not established!");
         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
     }
     

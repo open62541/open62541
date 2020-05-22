@@ -221,7 +221,7 @@ UA_Server_removePublishedDataSet(UA_Server *server, const UA_NodeId pds) {
     if(!publishedDataSet){
         return UA_STATUSCODE_BADNOTFOUND;
     }
-    if(publishedDataSet->config.configurationFrozen){
+    if(publishedDataSet->configurationFrozen){
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Remove PublishedDataSet failed. PublishedDataSet is frozen.");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;

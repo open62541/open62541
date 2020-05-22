@@ -192,6 +192,10 @@ void UA_deinitialize_architecture_network(void);//de-initializes the network int
 int UA_snprintf(char* pa_stream, size_t pa_size, const char* pa_format, ...); //prints text to output
 #endif
 
+#ifndef UA_strncasecmp
+int UA_strncasecmp(const char* s1, const char* s2, size_t n);
+#endif
+
 /*
  * Access to file function
  */

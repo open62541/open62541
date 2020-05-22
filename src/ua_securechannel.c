@@ -36,8 +36,9 @@ void UA_SecureChannel_init(UA_SecureChannel *channel,
                            const UA_ConnectionConfig *config) {
     /* Linked lists are also initialized by zeroing out */
     memset(channel, 0, sizeof(UA_SecureChannel));
-    channel->state = UA_SECURECHANNELSTATE_FRESH;
+    channel->state = UA_SECURECHANNELSTATE_CLOSED;
     SIMPLEQ_INIT(&channel->completeChunks);
+    SLIST_INIT(&channel->sessions);
     channel->config = *config;
 }
 
@@ -96,46 +97,38 @@ UA_SecureChannel_deleteBuffered(UA_SecureChannel *channel) {
 }
 
 void
-UA_SecureChannel_deleteMembers(UA_SecureChannel *channel) {
-    /* Delete members */
-    UA_ByteString_deleteMembers(&channel->remoteCertificate);
-    UA_ByteString_deleteMembers(&channel->localNonce);
-    UA_ByteString_deleteMembers(&channel->remoteNonce);
-    UA_ChannelSecurityToken_deleteMembers(&channel->securityToken);
-    UA_ChannelSecurityToken_deleteMembers(&channel->nextSecurityToken);
-
-    /* Delete the channel context for the security policy */
-    if(channel->securityPolicy) {
-        channel->securityPolicy->channelModule.deleteContext(channel->channelContext);
-        channel->securityPolicy = NULL;
-    }
-
-    /* Remove buffered chunks */
-    UA_SecureChannel_deleteBuffered(channel);
-    UA_ConnectionConfig oldConfig = channel->config;
-    UA_SecureChannel_init(channel, &oldConfig);
-}
-
-void
 UA_SecureChannel_close(UA_SecureChannel *channel) {
     /* Set the status to closed */
     channel->state = UA_SECURECHANNELSTATE_CLOSED;
 
     /* Detach from the connection and close the connection */
     if(channel->connection) {
-        if(channel->connection->state != UA_CONNECTION_CLOSED)
+        if(channel->connection->state != UA_CONNECTIONSTATE_CLOSED)
             channel->connection->close(channel->connection);
         UA_Connection_detachSecureChannel(channel->connection);
     }
 
     /* Remove session pointers (not the sessions) and NULL the pointers back to
      * the SecureChannel in the Session */
-    if(channel->session) {
-        channel->session->channel = NULL;
-        channel->session = NULL;
+    UA_SessionHeader *sh;
+    while((sh = SLIST_FIRST(&channel->sessions))) {
+        sh->channel = NULL;
+        SLIST_REMOVE_HEAD(&channel->sessions, next);
     }
 
-    /* Remove buffered chunks */
+    /* Delete the channel context for the security policy */
+    if(channel->securityPolicy) {
+        channel->securityPolicy->channelModule.deleteContext(channel->channelContext);
+        channel->securityPolicy = NULL;
+        channel->channelContext = NULL;
+    }
+
+    /* Delete members */
+    UA_ByteString_deleteMembers(&channel->remoteCertificate);
+    UA_ByteString_deleteMembers(&channel->localNonce);
+    UA_ByteString_deleteMembers(&channel->remoteNonce);
+    UA_ChannelSecurityToken_deleteMembers(&channel->securityToken);
+    UA_ChannelSecurityToken_deleteMembers(&channel->nextSecurityToken);
     UA_SecureChannel_deleteBuffered(channel);
 }
 
@@ -165,7 +158,7 @@ UA_SecureChannel_processHELACK(UA_SecureChannel *channel,
         channel->config.remoteMaxMessageSize < 8192))
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    channel->connection->state = UA_CONNECTION_ESTABLISHED;
+    channel->connection->state = UA_CONNECTIONSTATE_ESTABLISHED;
 
     return UA_STATUSCODE_GOOD;
 }
@@ -451,7 +444,10 @@ UA_SecureChannel_sendSymmetricMessage(UA_SecureChannel *channel, UA_UInt32 reque
     if(!channel || !channel->connection || !payload || !payloadType)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    if(channel->connection->state == UA_CONNECTION_CLOSED)
+    if(channel->state != UA_SECURECHANNELSTATE_OPEN)
+        return UA_STATUSCODE_BADCONNECTIONCLOSED;
+
+    if(channel->connection->state != UA_CONNECTIONSTATE_ESTABLISHED)
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
 
     UA_MessageContext mc;
@@ -739,6 +735,11 @@ processCompleteChunks(UA_SecureChannel *channel, void *application,
         if(res != UA_STATUSCODE_GOOD)
             break;
 
+        /* The channel is to be closed */
+        if(channel->state == UA_SECURECHANNELSTATE_CLOSING ||
+           channel->state == UA_SECURECHANNELSTATE_CLOSED)
+            break;
+
         /* Could we process a full message? Done? */
         UA_Chunk *next = SIMPLEQ_FIRST(&channel->completeChunks);
         if(chunk == next)
@@ -905,8 +906,6 @@ UA_SecureChannel_receive(UA_SecureChannel *channel, void *application,
     /* Listen for messages to arrive */
     UA_ByteString buffer = UA_BYTESTRING_NULL;
     UA_StatusCode retval = connection->recv(connection, &buffer, timeout);
-    if(retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
-        return UA_STATUSCODE_GOOD;
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 

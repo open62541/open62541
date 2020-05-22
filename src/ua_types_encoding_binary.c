@@ -2,6 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
+ *    Copyright 2020 (c) Fraunhofer IOSB (Author: Andreas Ebner)
+ *    Copyright 2020 (c) Grigory Friedman
  *    Copyright 2014-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014-2017 (c) Florian Palm
  *    Copyright 2014-2016 (c) Sten Grüner
@@ -1346,6 +1348,111 @@ encodeBinaryStruct(const void *src, const UA_DataType *type, Ctx *ctx) {
 }
 
 static status
+encodeBinaryStructWithOptFields(const void *src, const UA_DataType *type, Ctx *ctx) {
+    /* Check the recursion limit */
+    if(ctx->depth > UA_ENCODING_MAX_RECURSION)
+        return UA_STATUSCODE_BADENCODINGERROR;
+    ctx->depth++;
+
+    uintptr_t ptr = (uintptr_t) src;
+    UA_UInt32 encodingMask = 0;
+
+    status ret = UA_STATUSCODE_GOOD;
+    u8 membersSize = type->membersSize;
+    const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
+
+    /* Creating the encoding mask, marking the available optional fields */
+    uintptr_t optFieldIterationPtr = ptr;
+    size_t optFieldCounter = 0;
+    for(size_t j = 0; j < membersSize; ++j) {
+        const UA_DataTypeMember *m = &type->members[j];
+        const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
+        optFieldIterationPtr += m->padding;
+        if(m->isOptional) {
+            if(m->isArray)
+                optFieldIterationPtr += sizeof(size_t);
+            if(*(void* const*)optFieldIterationPtr != NULL)
+                encodingMask |= (UA_UInt32) 1 << optFieldCounter;
+            optFieldIterationPtr += sizeof(void *);
+            optFieldCounter++;
+        } else {
+            if(m->isArray)
+                optFieldIterationPtr += sizeof(size_t);
+            optFieldIterationPtr += mt->memSize;
+        }
+    }
+    ret = UInt32_encodeBinary(&encodingMask, &UA_TYPES[UA_TYPES_UINT32], ctx);
+
+    /* Loop over members */
+    for(size_t i = 0, o = 0; i < membersSize; ++i) {
+        const UA_DataTypeMember *m = &type->members[i];
+        const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
+        ptr += m->padding;
+
+        if(m->isOptional) {
+            /* This optional field is not contained */
+            if(!(encodingMask & (UA_UInt32) ( (UA_UInt32) 1<<(o++)))) {
+                if(m->isArray)
+                    ptr += sizeof(size_t);
+                ptr += sizeof(void *);
+            } else { /* This field is contained */
+                if(m->isArray) {
+                    const size_t length = *((const size_t *) ptr);
+                    ptr += sizeof(size_t);
+                    ret = Array_encodeBinary(*(void *UA_RESTRICT const *) ptr, length, mt, ctx);
+                    ptr += sizeof(void *);
+                } else {
+                    ret = encodeWithExchangeBuffer(*(void* const*) ptr, mt, ctx);
+                    ptr += sizeof(void *);
+                }
+            }
+        } else {
+            if(m->isArray) {
+                const size_t length = *((const size_t *) ptr);
+                ptr += sizeof(size_t);
+                ret = Array_encodeBinary(*(void *UA_RESTRICT const *) ptr, length, mt, ctx);
+                ptr += sizeof(void *);
+                continue;
+            }
+            /* Scalar */
+            ret = encodeWithExchangeBuffer((const void*)ptr, mt, ctx);
+            ptr += mt->memSize;
+        }
+
+    }
+    ctx->depth--;
+    return ret;
+}
+
+static status
+encodeBinaryUnion(const void *src, const UA_DataType *type, Ctx *ctx) {
+    /* Check the recursion limit */
+    if(ctx->depth > UA_ENCODING_MAX_RECURSION)
+        return UA_STATUSCODE_BADENCODINGERROR;
+    ctx->depth++;
+
+    uintptr_t ptr = (uintptr_t)src;
+    status ret;
+    UA_UInt32 selection = *(UA_UInt32*) ptr;
+    ret = encodeWithExchangeBuffer((const void*)ptr, &UA_TYPES[UA_TYPES_UINT32], ctx);
+    if(selection == 0)
+        return ret;
+
+    const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
+    const UA_DataTypeMember *m = &type->members[selection-1];
+    const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
+
+    if(ret != UA_STATUSCODE_GOOD)
+        return ret;
+    ptr += m->padding;
+    ptr += UA_TYPES[UA_TYPES_UINT32].memSize;
+    ret = encodeWithExchangeBuffer((const void*)ptr, mt, ctx);
+
+    ctx->depth--;
+    return ret;
+}
+
+static status
 encodeBinaryNotImplemented(const void *src, const UA_DataType *type, Ctx *ctx) {
     (void)src, (void)type, (void)ctx;
     return UA_STATUSCODE_BADNOTIMPLEMENTED;
@@ -1384,8 +1491,8 @@ const encodeBinarySignature encodeBinaryJumpTable[UA_DATATYPEKINDS] = {
     (encodeBinarySignature)encodeBinaryNotImplemented, /* Decimal */
     (encodeBinarySignature)UInt32_encodeBinary, /* Enumeration */
     (encodeBinarySignature)encodeBinaryStruct,
-    (encodeBinarySignature)encodeBinaryNotImplemented, /* Structure with Optional Fields */
-    (encodeBinarySignature)encodeBinaryStruct, /* Union */
+    (encodeBinarySignature)encodeBinaryStructWithOptFields, /* Structure with Optional Fields */
+    (encodeBinarySignature)encodeBinaryUnion, /* Union */
     (encodeBinarySignature)encodeBinaryStruct /* BitfieldCluster */
 };
 
@@ -1456,6 +1563,98 @@ decodeBinaryStructure(void *dst, const UA_DataType *type, Ctx *ctx) {
     return ret;
 }
 
+static status
+decodeBinaryStructureWithOptFields(void *dst, const UA_DataType *type, Ctx *ctx) {
+    /* Check the recursion limit */
+    if(ctx == NULL || ctx->depth > UA_ENCODING_MAX_RECURSION)
+        return UA_STATUSCODE_BADENCODINGERROR;
+    ctx->depth++;
+
+    uintptr_t ptr = (uintptr_t)dst;
+    UA_UInt32 encodingMask = 0;
+    UInt32_decodeBinary(&encodingMask, &UA_TYPES[UA_TYPES_UINT32], ctx);
+
+    status ret = UA_STATUSCODE_GOOD;
+    u8 membersSize = type->membersSize;
+    const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
+
+    /* Loop over members */
+    for(size_t i = 0, o = 0; i < membersSize && ret == UA_STATUSCODE_GOOD; ++i) {
+        const UA_DataTypeMember *m = &type->members[i];
+        const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
+        ptr += m->padding;
+        if(m->isOptional) {
+            /* This optional field is not contained */
+            if(!(encodingMask & (UA_UInt32) ( (UA_UInt32) 1<<(o++)))) {
+                if(m->isArray)
+                    ptr += sizeof(size_t);
+                ptr += sizeof(void *);
+                //continue;
+            } else {
+                if(m->isArray) {
+                    size_t *length = (size_t*)ptr;
+                    ptr += sizeof(size_t);
+                    ret = Array_decodeBinary((void *UA_RESTRICT *UA_RESTRICT)ptr, length, mt , ctx);
+                    ptr += sizeof(void*);
+                    continue;
+                }
+                /*optional scalar */
+                *(void *UA_RESTRICT *UA_RESTRICT) ptr = UA_calloc(1, mt->memSize);
+                if(!*(void *UA_RESTRICT *UA_RESTRICT) ptr)
+                    return UA_STATUSCODE_BADOUTOFMEMORY;
+                decodeBinaryJumpTable[mt->typeKind](*(void *UA_RESTRICT *UA_RESTRICT) ptr, mt, ctx);
+                ptr += sizeof(void*);
+            }
+        } else {
+            /* Array */
+            if(m->isArray) {
+                size_t *length = (size_t *)ptr;
+                ptr += sizeof(size_t);
+                ret = Array_decodeBinary((void *UA_RESTRICT *UA_RESTRICT)ptr, length, mt, ctx);
+                ptr += sizeof(void *);
+                continue;
+            }
+            /* Scalar */
+            ret = decodeBinaryJumpTable[mt->typeKind]((void *UA_RESTRICT)ptr, mt, ctx);
+            ptr += mt->memSize;
+        }
+    }
+    ctx->depth--;
+    return ret;
+}
+
+static status
+decodeBinaryUnion(void *dst, const UA_DataType *type, Ctx *ctx) {
+    /* Check the recursion limit */
+    if(ctx->depth > UA_ENCODING_MAX_RECURSION)
+        return UA_STATUSCODE_BADENCODINGERROR;
+    ctx->depth++;
+    uintptr_t ptr = (uintptr_t)dst;
+    status ret;
+    UA_UInt32 selection = *(UA_UInt32*) ctx->pos;
+    if(selection == 0)
+        return decodeBinaryJumpTable[UA_TYPES_UINT32]((void *UA_RESTRICT)ptr, &UA_TYPES[UA_TYPES_UINT32], ctx);
+    u8 membersSize = type->membersSize;
+    if(selection-1 >= membersSize)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
+    const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
+    const UA_DataTypeMember *m = &type->members[selection-1];
+    const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
+
+    ret = decodeBinaryJumpTable[UA_TYPES_UINT32]((void *UA_RESTRICT)ptr, &UA_TYPES[UA_TYPES_UINT32], ctx);
+    if(ret != UA_STATUSCODE_GOOD)
+        return ret;
+    ptr += m->padding;
+    ptr += UA_TYPES[UA_TYPES_UINT32].memSize;
+    ret = decodeBinaryJumpTable[mt->typeKind]((void *UA_RESTRICT)ptr, mt, ctx);
+    if(ret != UA_STATUSCODE_GOOD)
+        return ret;
+
+    ctx->depth--;
+    return ret;
+}
+
 const decodeBinarySignature decodeBinaryJumpTable[UA_DATATYPEKINDS] = {
     (decodeBinarySignature)Boolean_decodeBinary,
     (decodeBinarySignature)Byte_decodeBinary, /* SByte */
@@ -1485,8 +1684,8 @@ const decodeBinarySignature decodeBinaryJumpTable[UA_DATATYPEKINDS] = {
     (decodeBinarySignature)decodeBinaryNotImplemented, /* Decimal */
     (decodeBinarySignature)UInt32_decodeBinary, /* Enumeration */
     (decodeBinarySignature)decodeBinaryStructure,
-    (decodeBinarySignature)decodeBinaryNotImplemented, /* Structure with optional fields */
-    (decodeBinarySignature)decodeBinaryNotImplemented, /* Union */
+    (decodeBinarySignature)decodeBinaryStructureWithOptFields, /* Structure with optional fields */
+    (decodeBinarySignature)decodeBinaryUnion, /* Union */
     (decodeBinarySignature)decodeBinaryNotImplemented /* BitfieldCluster */
 };
 
@@ -1719,6 +1918,62 @@ calcSizeBinaryStructure(const void *p, const UA_DataType *type) {
 }
 
 static size_t
+calcSizeBinaryStructureWithOptFields(const void *p, const UA_DataType *type) {
+    size_t s = 0;
+    uintptr_t ptr = (uintptr_t)p;
+    u8 membersSize = type->membersSize;
+    const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
+    /* Adding the size of the encoding mask */
+    s += sizeof(UA_UInt32);
+
+    /* Loop over members */
+    for(size_t i = 0; i < membersSize; ++i) {
+        const UA_DataTypeMember *member = &type->members[i];
+        const UA_DataType *membertype = &typelists[!member->namespaceZero][member->memberTypeIndex];
+        ptr += member->padding;
+        if(member->isOptional) {
+            // optional member is contained in the optstruct
+            if((member->isArray && ((*(void* const*)(ptr+sizeof(size_t))) == NULL)) ||
+                (!member->isArray && (*(void* const*)ptr == NULL))) {
+                if(member->isArray)
+                    ptr += sizeof(size_t);
+                ptr += sizeof(void *);
+                continue;
+            }
+        }
+        /* Array */
+        if(member->isArray) {
+            const size_t length = *((const size_t*)ptr);
+            ptr += sizeof(size_t);
+            s += Array_calcSizeBinary(*(void *UA_RESTRICT const *)ptr, length, membertype);
+            ptr += sizeof(void*);
+            continue;
+        }
+        /* Scalar */
+        s += calcSizeBinaryJumpTable[membertype->typeKind]((const void*)ptr, membertype);
+        member->isOptional ? (ptr += sizeof(void *)) : (ptr += membertype->memSize);
+    }
+    return s;
+}
+
+static size_t
+calcSizeBinaryUnion(const void *p, const UA_DataType *type) {
+    size_t s = 0;
+    uintptr_t ptr = (uintptr_t)p;
+    UA_UInt32 selection = *(UA_UInt32 *) ptr;
+    if(selection == 0)
+        return UA_TYPES[UA_TYPES_UINT32].memSize;
+    const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
+    const UA_DataTypeMember *m = &type->members[selection-1];
+    const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
+    s += UA_TYPES[UA_TYPES_UINT32].memSize;
+    ptr += UA_TYPES[UA_TYPES_UINT32].memSize;
+    ptr += m->padding;
+    s += UA_calcSizeBinary((const void *) ptr, mt);
+    return s;
+}
+
+static size_t
 calcSizeBinaryNotImplemented(const void *p, const UA_DataType *type) {
     (void)p, (void)type;
     return 0;
@@ -1753,8 +2008,8 @@ const calcSizeBinarySignature calcSizeBinaryJumpTable[UA_DATATYPEKINDS] = {
     (calcSizeBinarySignature)calcSizeBinaryNotImplemented, /* Decimal */
     (calcSizeBinarySignature)calcSizeBinary4, /* Enumeration */
     (calcSizeBinarySignature)calcSizeBinaryStructure,
-    (calcSizeBinarySignature)calcSizeBinaryNotImplemented, /* Structure with Optional Fields */
-    (calcSizeBinarySignature)calcSizeBinaryNotImplemented, /* Union */
+    (calcSizeBinarySignature)calcSizeBinaryStructureWithOptFields, /* Structure with Optional Fields */
+    (calcSizeBinarySignature)calcSizeBinaryUnion, /* Union */
     (calcSizeBinarySignature)calcSizeBinaryNotImplemented /* BitfieldCluster */
 };
 

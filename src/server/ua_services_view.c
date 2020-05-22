@@ -71,13 +71,14 @@ typedef struct {
 
 static UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
 RefTree_init(RefTree *rt) {
+    rt->size = 0;
+    rt->capacity = 0;
+    ZIP_INIT(&rt->head);
     size_t space = (sizeof(UA_ExpandedNodeId) + sizeof(RefEntry)) * UA_BROWSE_INITIAL_SIZE;
     rt->targets = (UA_ExpandedNodeId*)UA_malloc(space);
     if(!rt->targets)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     rt->capacity = UA_BROWSE_INITIAL_SIZE;
-    rt->size = 0;
-    ZIP_INIT(&rt->head);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -85,7 +86,8 @@ static void
 RefTree_clear(RefTree *rt) {
     for(size_t i = 0; i < rt->size; i++)
         UA_ExpandedNodeId_clear(&rt->targets[i]);
-    UA_free(rt->targets);
+    if(rt->targets)
+        UA_free(rt->targets);
 }
 
 /* Double the capacity of the reftree */
@@ -844,10 +846,11 @@ addBrowseTarget(RefTree *next, const UA_ReferenceTarget *rt) {
 
 static UA_StatusCode
 walkBrowsePathElement(UA_Server *server, UA_Session *session,
-                      const UA_RelativePathElement *elem, UA_UInt32 nodeClassMask,
+                      const UA_RelativePath *path, const size_t pathIndex, UA_UInt32 nodeClassMask,
                       const UA_QualifiedName *lastBrowseName, UA_BrowsePathResult *result,
                       RefTree *current, RefTree *next) {
     /* For the next level. Note the difference from lastBrowseName */
+    const UA_RelativePathElement *elem = &path->elements[pathIndex];
     UA_UInt32 browseNameHash = UA_QualifiedName_hash(&elem->targetName);
 
     /* Is the ReferenceType valid? */
@@ -855,16 +858,38 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session,
     if(!all_refs) {
         const UA_Node *rootRef = UA_NODESTORE_GET(server, &elem->referenceTypeId);
         if(!rootRef)
-            return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
+            return UA_STATUSCODE_BADNOMATCH;
         UA_Boolean match = (rootRef->nodeClass == UA_NODECLASS_REFERENCETYPE);
         UA_NODESTORE_RELEASE(server, rootRef);
         if(!match)
-            return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
+            return UA_STATUSCODE_BADNOMATCH;
     }
 
-    /* Loop over all nodes at the current level */
+    /* Loop over all Nodes int the current depth level */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < current->size; i++) {
+        /* Remote Node. Immediately add to the results with the RemainingPathIndex set. */
+        if(current->targets[i].serverIndex > 0 ||
+           current->targets[i].namespaceUri.length > 0) {
+            /* Increase the size of the results array */
+            UA_BrowsePathTarget *tmpResults = (UA_BrowsePathTarget*)
+                UA_realloc(result->targets, sizeof(UA_BrowsePathTarget) *
+                           (result->targetsSize + 1));
+            if(!tmpResults)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+            result->targets = tmpResults;
+
+            /* Copy over the result */
+            res = UA_ExpandedNodeId_copy(&current->targets[i],
+                                         &result->targets[result->targetsSize].targetId);
+            result->targets[result->targetsSize].remainingPathIndex = (UA_UInt32)pathIndex;
+            result->targetsSize++;
+            if(res != UA_STATUSCODE_GOOD)
+                break;
+            continue;
+        }
+
+        /* Local Node. Add to the tree of results at the next depth. */
         const UA_Node *node = UA_NODESTORE_GET(server, &current->targets[i].nodeId);
         if(!node)
             continue;
@@ -908,7 +933,10 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session,
                                               &rk->refTargetsNameTree, &browseNameHash);
             if(!rt)
                 continue;
+
             res = addBrowseTarget(next, rt);
+            if(res != UA_STATUSCODE_GOOD)
+                break;
         }
 
         UA_NODESTORE_RELEASE(server, node);
@@ -935,6 +963,14 @@ Operation_TranslateBrowsePathToNodeIds(UA_Server *server, UA_Session *session,
             return;
         }
     }
+
+    /* Check if the starting node exists */
+    const UA_Node *startingNode = UA_NODESTORE_GET(server, &path->startingNode);
+    if(!startingNode) {
+        result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
+        return;
+    }
+    UA_NODESTORE_RELEASE(server, startingNode);
 
     /* Create two RefTrees that are alternated between path elements */
     RefTree rt1, rt2, *current = &rt1, *next = &rt2, *tmp;
@@ -973,7 +1009,7 @@ Operation_TranslateBrowsePathToNodeIds(UA_Server *server, UA_Session *session,
         /* Walk element for all NodeIds in the "current" tree.
          * Puts new results in the "next" tree. */
         result->statusCode =
-            walkBrowsePathElement(server, session, &path->relativePath.elements[i],
+            walkBrowsePathElement(server, session, &path->relativePath, i,
                                   *nodeClassMask, browseNameFilter, result, current, next);
         if(result->statusCode != UA_STATUSCODE_GOOD)
             goto cleanup;
@@ -1003,7 +1039,7 @@ Operation_TranslateBrowsePathToNodeIds(UA_Server *server, UA_Session *session,
 
         /* Move to the target to the results array */
         result->targets[result->targetsSize].targetId = next->targets[k];
-        result->targets[result->targetsSize].remainingPathIndex = 0;
+        result->targets[result->targetsSize].remainingPathIndex = UA_UINT32_MAX;
         UA_ExpandedNodeId_init(&next->targets[k]);
         result->targetsSize++;
     }
