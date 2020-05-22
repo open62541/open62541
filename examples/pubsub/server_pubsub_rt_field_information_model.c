@@ -83,7 +83,11 @@ externalDataWriteCallback(UA_Server *server, const UA_NodeId *sessionId,
                                   void *nodeContext, const UA_NumericRange *range,
                                   const UA_DataValue *data){
     //The user must take about synchronization.
-    memcpy(data->value.data, integerRTValue, sizeof(UA_UInt32));
+    if(UA_NodeId_equal(nodeId, )){
+        memcpy(data->value.data, integerRTValue, sizeof(UA_UInt32));
+    } else if(UA_NodeId_equal(nodeId, )){
+        memcpy(data->value.data, integerRTValue2, sizeof(UA_UInt32));
+    }
 }
 
 int main(void){
