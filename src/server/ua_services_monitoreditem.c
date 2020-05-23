@@ -154,7 +154,7 @@ setMonitoredItemSettings(UA_Server *server, UA_Session *session, UA_MonitoredIte
         const UA_VariableNode *vn = (const UA_VariableNode *)
             UA_NODESTORE_GET(server, &mon->monitoredNodeId);
         if(vn) {
-            if(vn->nodeClass == UA_NODECLASS_VARIABLE &&
+            if(vn->head.nodeClass == UA_NODECLASS_VARIABLE &&
                samplingInterval < vn->minimumSamplingInterval)
                 samplingInterval = vn->minimumSamplingInterval;
             UA_NODESTORE_RELEASE(server, (const UA_Node *)vn);

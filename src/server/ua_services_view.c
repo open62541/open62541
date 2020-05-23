@@ -174,8 +174,9 @@ addRelevantReferences(UA_Server *server, RefTree *rt, const UA_NodeId *nodeId,
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    for(size_t i = 0; i < node->referencesSize; i++) {
-        UA_NodeReferenceKind *rk = &node->references[i];
+    const UA_NodeHead *head = &node->head;
+    for(size_t i = 0; i < head->referencesSize; i++) {
+        UA_NodeReferenceKind *rk = &head->references[i];
 
         /* Reference in the right direction? */
         if(rk->isInverse && browseDirection == UA_BROWSEDIRECTION_FORWARD)
@@ -425,17 +426,17 @@ addReferenceDescription(UA_Server *server, RefResult *rr, const UA_NodeReference
     
     /* Fields that require the actual node */
     if(mask & UA_BROWSERESULTMASK_NODECLASS)
-        retval |= UA_NodeClass_copy(&curr->nodeClass, &descr->nodeClass);
+        descr->nodeClass = curr->head.nodeClass;
     if(mask & UA_BROWSERESULTMASK_BROWSENAME)
-        retval |= UA_QualifiedName_copy(&curr->browseName, &descr->browseName);
+        retval |= UA_QualifiedName_copy(&curr->head.browseName, &descr->browseName);
     if(mask & UA_BROWSERESULTMASK_DISPLAYNAME)
-        retval |= UA_LocalizedText_copy(&curr->displayName, &descr->displayName);
+        retval |= UA_LocalizedText_copy(&curr->head.displayName, &descr->displayName);
     if(mask & UA_BROWSERESULTMASK_TYPEDEFINITION) {
-        if(curr->nodeClass == UA_NODECLASS_OBJECT ||
-           curr->nodeClass == UA_NODECLASS_VARIABLE) {
-            const UA_Node *type = getNodeType(server, curr);
+        if(curr->head.nodeClass == UA_NODECLASS_OBJECT ||
+           curr->head.nodeClass == UA_NODECLASS_VARIABLE) {
+            const UA_Node *type = getNodeType(server, &curr->head);
             if(type) {
-                retval |= UA_NodeId_copy(&type->nodeId, &descr->typeDefinition.nodeId);
+                retval |= UA_NodeId_copy(&type->head.nodeId, &descr->typeDefinition.nodeId);
                 UA_NODESTORE_RELEASE(server, type);
             }
         }
@@ -451,14 +452,14 @@ addReferenceDescription(UA_Server *server, RefResult *rr, const UA_NodeReference
 static UA_Boolean
 matchClassMask(const UA_Node *node, UA_UInt32 nodeClassMask) {
     if(nodeClassMask != UA_NODECLASS_UNSPECIFIED &&
-       (node->nodeClass & nodeClassMask) == 0)
+       (node->head.nodeClass & nodeClassMask) == 0)
         return false;
     return true;
 }
 
 /* Returns whether the node / continuationpoint is done */
 static UA_StatusCode
-browseReferences(UA_Server *server, const UA_Node *node,
+browseReferences(UA_Server *server, const UA_NodeHead *head,
                  ContinuationPoint *cp, RefResult *rr, UA_Boolean *done) {
     UA_assert(cp != NULL);
     const UA_BrowseDescription *bd= &cp->browseDescription;
@@ -469,8 +470,8 @@ browseReferences(UA_Server *server, const UA_Node *node,
     /* Loop over the node's references */
     const UA_Node *target = NULL;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    for(; referenceKindIndex < node->referencesSize; ++referenceKindIndex) {
-        UA_NodeReferenceKind *rk = &node->references[referenceKindIndex];
+    for(; referenceKindIndex < head->referencesSize; ++referenceKindIndex) {
+        UA_NodeReferenceKind *rk = &head->references[referenceKindIndex];
 
         /* Reference in the right direction? */
         if(rk->isInverse && bd->browseDirection == UA_BROWSEDIRECTION_FORWARD)
@@ -551,7 +552,7 @@ browseWithContinuation(UA_Server *server, UA_Session *session,
             return true;
         }
 
-        UA_Boolean isRef = (reftype->nodeClass == UA_NODECLASS_REFERENCETYPE);
+        UA_Boolean isRef = (reftype->head.nodeClass == UA_NODECLASS_REFERENCETYPE);
         UA_NODESTORE_RELEASE(server, reftype);
 
         if(!isRef) {
@@ -569,7 +570,7 @@ browseWithContinuation(UA_Server *server, UA_Session *session,
     if(session != &server->adminSession &&
        !server->config.accessControl.allowBrowseNode(server, &server->config.accessControl,
                                                      &session->sessionId, session->sessionHandle,
-                                                     &descr->nodeId, node->context)) {
+                                                     &descr->nodeId, node->head.context)) {
         result->statusCode = UA_STATUSCODE_BADUSERACCESSDENIED;
         UA_NODESTORE_RELEASE(server, node);
         return true;
@@ -584,7 +585,7 @@ browseWithContinuation(UA_Server *server, UA_Session *session,
 
     /* Browse the references */
     UA_Boolean done = false;
-    result->statusCode = browseReferences(server, node, cp, &rr, &done);
+    result->statusCode = browseReferences(server, &node->head, cp, &rr, &done);
     UA_NODESTORE_RELEASE(server, node);
     if(result->statusCode != UA_STATUSCODE_GOOD) {
         RefResult_clear(&rr);
@@ -859,7 +860,7 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session,
         const UA_Node *rootRef = UA_NODESTORE_GET(server, &elem->referenceTypeId);
         if(!rootRef)
             return UA_STATUSCODE_BADNOMATCH;
-        UA_Boolean match = (rootRef->nodeClass == UA_NODECLASS_REFERENCETYPE);
+        UA_Boolean match = (rootRef->head.nodeClass == UA_NODECLASS_REFERENCETYPE);
         UA_NODESTORE_RELEASE(server, rootRef);
         if(!match)
             return UA_STATUSCODE_BADNOMATCH;
@@ -899,7 +900,7 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session,
 
         /* Does the BrowseName match for the current node (not the rerences
          * going out here) */
-        skip |= (lastBrowseName && !UA_QualifiedName_equal(lastBrowseName, &node->browseName));
+        skip |= (lastBrowseName && !UA_QualifiedName_equal(lastBrowseName, &node->head.browseName));
 
         if(skip) {
             UA_NODESTORE_RELEASE(server, node);
@@ -907,8 +908,8 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session,
         }
 
         /* Loop over the ReferenceKinds */
-        for(size_t j = 0; j < node->referencesSize; j++) {
-            UA_NodeReferenceKind *rk = &node->references[j];
+        for(size_t j = 0; j < node->head.referencesSize; j++) {
+            UA_NodeReferenceKind *rk = &node->head.references[j];
 
             /* Does the direction of the reference match? */
             if(rk->isInverse != elem->isInverse)
@@ -1032,7 +1033,7 @@ Operation_TranslateBrowsePathToNodeIds(UA_Server *server, UA_Session *session,
         const UA_Node *node = UA_NODESTORE_GET(server, &next->targets[k].nodeId);
         if(!node)
             continue;
-        UA_Boolean match = UA_QualifiedName_equal(browseNameFilter, &node->browseName);
+        UA_Boolean match = UA_QualifiedName_equal(browseNameFilter, &node->head.browseName);
         UA_NODESTORE_RELEASE(server, node);
         if(!match)
             continue;

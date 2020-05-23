@@ -39,8 +39,8 @@ isNodeInTreeNoCircular(UA_Server *server, const UA_NodeId *leafNode, const UA_No
     if(!node)
         return false;
 
-    for(size_t i = 0; i < node->referencesSize; ++i) {
-        UA_NodeReferenceKind *refs = &node->references[i];
+    for(size_t i = 0; i < node->head.referencesSize; ++i) {
+        UA_NodeReferenceKind *refs = &node->head.references[i];
         /* Search upwards in the tree */
         if(!refs->isInverse)
             continue;
@@ -102,12 +102,12 @@ isNodeInTree(UA_Server *server, const UA_NodeId *leafNode, const UA_NodeId *node
 }
 
 const UA_Node *
-getNodeType(UA_Server *server, const UA_Node *node) {
+getNodeType(UA_Server *server, const UA_NodeHead *head) {
     /* The reference to the parent is different for variable and variabletype */
     UA_NodeId parentRef;
     UA_Boolean inverse;
     UA_NodeClass typeNodeClass;
-    switch(node->nodeClass) {
+    switch(head->nodeClass) {
     case UA_NODECLASS_OBJECT:
         parentRef = UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION);
         inverse = false;
@@ -124,24 +124,24 @@ getNodeType(UA_Server *server, const UA_Node *node) {
     case UA_NODECLASS_DATATYPE:
         parentRef = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
         inverse = true;
-        typeNodeClass = node->nodeClass;
+        typeNodeClass = head->nodeClass;
         break;
     default:
         return NULL;
     }
 
     /* Return the first matching candidate */
-    for(size_t i = 0; i < node->referencesSize; ++i) {
-        if(node->references[i].isInverse != inverse)
+    for(size_t i = 0; i < head->referencesSize; ++i) {
+        if(head->references[i].isInverse != inverse)
             continue;
-        if(!UA_NodeId_equal(&node->references[i].referenceTypeId, &parentRef))
+        if(!UA_NodeId_equal(&head->references[i].referenceTypeId, &parentRef))
             continue;
-        UA_assert(node->references[i].refTargetsSize> 0);
-        const UA_NodeId *targetId = &node->references[i].refTargets[0].targetId.nodeId;
+        UA_assert(head->references[i].refTargetsSize> 0);
+        const UA_NodeId *targetId = &head->references[i].refTargets[0].targetId.nodeId;
         const UA_Node *type = UA_NODESTORE_GET(server, targetId);
         if(!type)
             continue;
-        if(type->nodeClass == typeNodeClass)
+        if(type->head.nodeClass == typeNodeClass)
             return type;
         UA_NODESTORE_RELEASE(server, type);
     }
@@ -150,15 +150,15 @@ getNodeType(UA_Server *server, const UA_Node *node) {
 }
 
 UA_Boolean
-UA_Node_hasSubTypeOrInstances(const UA_Node *node) {
+UA_Node_hasSubTypeOrInstances(const UA_NodeHead *head) {
     const UA_NodeId hasSubType = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
     const UA_NodeId hasTypeDefinition = UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION);
-    for(size_t i = 0; i < node->referencesSize; ++i) {
-        if(node->references[i].isInverse == false &&
-           UA_NodeId_equal(&node->references[i].referenceTypeId, &hasSubType))
+    for(size_t i = 0; i < head->referencesSize; ++i) {
+        if(head->references[i].isInverse == false &&
+           UA_NodeId_equal(&head->references[i].referenceTypeId, &hasSubType))
             return true;
-        if(node->references[i].isInverse == true &&
-           UA_NodeId_equal(&node->references[i].referenceTypeId, &hasTypeDefinition))
+        if(head->references[i].isInverse == true &&
+           UA_NodeId_equal(&head->references[i].referenceTypeId, &hasTypeDefinition))
             return true;
     }
     return false;

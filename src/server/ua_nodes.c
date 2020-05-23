@@ -51,17 +51,18 @@ ZIP_IMPL(UA_ReferenceTargetNameTree, UA_ReferenceTarget, nameTreeFields,
  * Creating nodes is part of the Nodestore layer */
 
 void UA_Node_clear(UA_Node *node) {
-    /* Delete standard content */
-    UA_NodeId_clear(&node->nodeId);
-    UA_QualifiedName_clear(&node->browseName);
-    UA_LocalizedText_clear(&node->displayName);
-    UA_LocalizedText_clear(&node->description);
-
     /* Delete references */
     UA_Node_deleteReferences(node);
 
+    /* Delete other head content */
+    UA_NodeHead *head = &node->head;
+    UA_NodeId_clear(&head->nodeId);
+    UA_QualifiedName_clear(&head->browseName);
+    UA_LocalizedText_clear(&head->displayName);
+    UA_LocalizedText_clear(&head->description);
+
     /* Delete unique content of the nodeclass */
-    switch(node->nodeClass) {
+    switch(head->nodeClass) {
     case UA_NODECLASS_OBJECT:
         break;
     case UA_NODECLASS_METHOD:
@@ -123,20 +124,17 @@ UA_CommonVariableNode_copy(const UA_VariableNode *src, UA_VariableNode *dst) {
 
 static UA_StatusCode
 UA_VariableNode_copy(const UA_VariableNode *src, UA_VariableNode *dst) {
-    UA_StatusCode retval = UA_CommonVariableNode_copy(src, dst);
     dst->accessLevel = src->accessLevel;
     dst->minimumSamplingInterval = src->minimumSamplingInterval;
     dst->historizing = src->historizing;
-    return retval;
+    return UA_CommonVariableNode_copy(src, dst);
 }
 
 static UA_StatusCode
 UA_VariableTypeNode_copy(const UA_VariableTypeNode *src,
                          UA_VariableTypeNode *dst) {
-    UA_StatusCode retval = UA_CommonVariableNode_copy((const UA_VariableNode*)src,
-                                                      (UA_VariableNode*)dst);
     dst->isAbstract = src->isAbstract;
-    return retval;
+    return UA_CommonVariableNode_copy((const UA_VariableNode*)src, (UA_VariableNode*)dst);
 }
 
 static UA_StatusCode
@@ -159,11 +157,9 @@ UA_ObjectTypeNode_copy(const UA_ObjectTypeNode *src, UA_ObjectTypeNode *dst) {
 static UA_StatusCode
 UA_ReferenceTypeNode_copy(const UA_ReferenceTypeNode *src,
                           UA_ReferenceTypeNode *dst) {
-    UA_StatusCode retval = UA_LocalizedText_copy(&src->inverseName,
-                                                 &dst->inverseName);
     dst->isAbstract = src->isAbstract;
     dst->symmetric = src->symmetric;
-    return retval;
+    return UA_LocalizedText_copy(&src->inverseName, &dst->inverseName);
 }
 
 static UA_StatusCode
@@ -181,36 +177,38 @@ UA_ViewNode_copy(const UA_ViewNode *src, UA_ViewNode *dst) {
 
 UA_StatusCode
 UA_Node_copy(const UA_Node *src, UA_Node *dst) {
-    if(src->nodeClass != dst->nodeClass)
+    const UA_NodeHead *srchead = &src->head;
+    UA_NodeHead *dsthead = &dst->head;
+    if(srchead->nodeClass != dsthead->nodeClass)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Copy standard content */
-    UA_StatusCode retval = UA_NodeId_copy(&src->nodeId, &dst->nodeId);
-    retval |= UA_QualifiedName_copy(&src->browseName, &dst->browseName);
-    retval |= UA_LocalizedText_copy(&src->displayName, &dst->displayName);
-    retval |= UA_LocalizedText_copy(&src->description, &dst->description);
-    dst->writeMask = src->writeMask;
-    dst->context = src->context;
-    dst->constructed = src->constructed;
+    UA_StatusCode retval = UA_NodeId_copy(&srchead->nodeId, &dsthead->nodeId);
+    retval |= UA_QualifiedName_copy(&srchead->browseName, &dsthead->browseName);
+    retval |= UA_LocalizedText_copy(&srchead->displayName, &dsthead->displayName);
+    retval |= UA_LocalizedText_copy(&srchead->description, &dsthead->description);
+    dsthead->writeMask = srchead->writeMask;
+    dsthead->context = srchead->context;
+    dsthead->constructed = srchead->constructed;
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Node_clear(dst);
         return retval;
     }
 
     /* Copy the references */
-    dst->references = NULL;
-    if(src->referencesSize > 0) {
-        dst->references = (UA_NodeReferenceKind*)
-            UA_calloc(src->referencesSize, sizeof(UA_NodeReferenceKind));
-        if(!dst->references) {
+    dsthead->references = NULL;
+    if(srchead->referencesSize > 0) {
+        dsthead->references = (UA_NodeReferenceKind*)
+            UA_calloc(srchead->referencesSize, sizeof(UA_NodeReferenceKind));
+        if(!dsthead->references) {
             UA_Node_clear(dst);
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
-        dst->referencesSize = src->referencesSize;
+        dsthead->referencesSize = srchead->referencesSize;
 
-        for(size_t i = 0; i < src->referencesSize; ++i) {
-            UA_NodeReferenceKind *srefs = &src->references[i];
-            UA_NodeReferenceKind *drefs = &dst->references[i];
+        for(size_t i = 0; i < srchead->referencesSize; ++i) {
+            UA_NodeReferenceKind *srefs = &srchead->references[i];
+            UA_NodeReferenceKind *drefs = &dsthead->references[i];
             drefs->isInverse = srefs->isInverse;
             ZIP_INIT(&drefs->refTargetsIdTree);
             retval = UA_NodeId_copy(&srefs->referenceTypeId, &drefs->referenceTypeId);
@@ -272,30 +270,30 @@ UA_Node_copy(const UA_Node *src, UA_Node *dst) {
     }
 
     /* Copy unique content of the nodeclass */
-    switch(src->nodeClass) {
+    switch(src->head.nodeClass) {
     case UA_NODECLASS_OBJECT:
-        retval = UA_ObjectNode_copy((const UA_ObjectNode*)src, (UA_ObjectNode*)dst);
+        retval = UA_ObjectNode_copy(&src->objectNode, &dst->objectNode);
         break;
     case UA_NODECLASS_VARIABLE:
-        retval = UA_VariableNode_copy((const UA_VariableNode*)src, (UA_VariableNode*)dst);
+        retval = UA_VariableNode_copy(&src->variableNode, &dst->variableNode);
         break;
     case UA_NODECLASS_METHOD:
-        retval = UA_MethodNode_copy((const UA_MethodNode*)src, (UA_MethodNode*)dst);
+        retval = UA_MethodNode_copy(&src->methodNode, &dst->methodNode);
         break;
     case UA_NODECLASS_OBJECTTYPE:
-        retval = UA_ObjectTypeNode_copy((const UA_ObjectTypeNode*)src, (UA_ObjectTypeNode*)dst);
+        retval = UA_ObjectTypeNode_copy(&src->objectTypeNode, &dst->objectTypeNode);
         break;
     case UA_NODECLASS_VARIABLETYPE:
-        retval = UA_VariableTypeNode_copy((const UA_VariableTypeNode*)src, (UA_VariableTypeNode*)dst);
+        retval = UA_VariableTypeNode_copy(&src->variableTypeNode, &dst->variableTypeNode);
         break;
     case UA_NODECLASS_REFERENCETYPE:
-        retval = UA_ReferenceTypeNode_copy((const UA_ReferenceTypeNode*)src, (UA_ReferenceTypeNode*)dst);
+        retval = UA_ReferenceTypeNode_copy(&src->referenceTypeNode, &dst->referenceTypeNode);
         break;
     case UA_NODECLASS_DATATYPE:
-        retval = UA_DataTypeNode_copy((const UA_DataTypeNode*)src, (UA_DataTypeNode*)dst);
+        retval = UA_DataTypeNode_copy(&src->dataTypeNode, &dst->dataTypeNode);
         break;
     case UA_NODECLASS_VIEW:
-        retval = UA_ViewNode_copy((const UA_ViewNode*)src, (UA_ViewNode*)dst);
+        retval = UA_ViewNode_copy(&src->viewNode, &dst->viewNode);
         break;
     default:
         break;
@@ -309,9 +307,8 @@ UA_Node_copy(const UA_Node *src, UA_Node *dst) {
 
 UA_Node *
 UA_Node_copy_alloc(const UA_Node *src) {
-    /* use dstPtr to trick static code analysis in accepting dirty cast */
     size_t nodesize = 0;
-    switch(src->nodeClass) {
+    switch(src->head.nodeClass) {
         case UA_NODECLASS_OBJECT:
             nodesize = sizeof(UA_ObjectNode);
             break;
@@ -340,11 +337,11 @@ UA_Node_copy_alloc(const UA_Node *src) {
             return NULL;
     }
 
-    UA_Node *dst = (UA_Node*)UA_calloc(1,nodesize);
+    UA_Node *dst = (UA_Node*)UA_calloc(1, nodesize);
     if(!dst)
         return NULL;
 
-    dst->nodeClass = src->nodeClass;
+    dst->head.nodeClass = src->head.nodeClass;
 
     UA_StatusCode retval = UA_Node_copy(src, dst);
     if(retval != UA_STATUSCODE_GOOD) {
@@ -358,24 +355,19 @@ UA_Node_copy_alloc(const UA_Node *src) {
 /******************************/
 
 static UA_StatusCode
-copyStandardAttributes(UA_Node *node, const UA_NodeAttributes *attr) {
-    /* retval  = UA_NodeId_copy(&item->requestedNewNodeId.nodeId, &node->nodeId); */
-    /* retval |= UA_QualifiedName_copy(&item->browseName, &node->browseName); */
+copyStandardAttributes(UA_NodeHead *head, const UA_NodeAttributes *attr) {
+    /* UA_NodeId_copy(&item->requestedNewNodeId.nodeId, &node->nodeId); */
+    /* UA_QualifiedName_copy(&item->browseName, &node->browseName); */
 
-    UA_StatusCode retval;
-    /* The new nodeset format has optional display name.
-     * See https://github.com/open62541/open62541/issues/2627
-     * If display name is NULL, then we take the name part of the browse name */
-    if (attr->displayName.text.length == 0) {
-        retval = UA_String_copy(&node->browseName.name,
-                                       &node->displayName.text);
-    } else {
-        retval = UA_LocalizedText_copy(&attr->displayName,
-                                                     &node->displayName);
-        retval |= UA_LocalizedText_copy(&attr->description, &node->description);
-    }
-
-    node->writeMask = attr->writeMask;
+    head->writeMask = attr->writeMask;
+    UA_StatusCode retval = UA_LocalizedText_copy(&attr->description, &head->description);
+    /* The new nodeset format has optional display names:
+     * https://github.com/open62541/open62541/issues/2627. If the display name
+     * is NULL, take the name part of the browse name */
+    if(attr->displayName.text.length == 0)
+        retval |= UA_String_copy(&head->browseName.name, &head->displayName.text);
+    else
+        retval |= UA_LocalizedText_copy(&attr->displayName, &head->displayName);
     return retval;
 }
 
@@ -470,50 +462,41 @@ copyMethodNodeAttributes(UA_MethodNode *mnode,
     }
 
 UA_StatusCode
-UA_Node_setAttributes(UA_Node *node, const void *attributes,
-                      const UA_DataType *attributeType) {
+UA_Node_setAttributes(UA_Node *node, const void *attributes, const UA_DataType *attributeType) {
     /* Copy the attributes into the node */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    switch(node->nodeClass) {
+    switch(node->head.nodeClass) {
     case UA_NODECLASS_OBJECT:
         CHECK_ATTRIBUTES(OBJECTATTRIBUTES);
-        retval = copyObjectNodeAttributes((UA_ObjectNode*)node,
-                                          (const UA_ObjectAttributes*)attributes);
+        retval = copyObjectNodeAttributes(&node->objectNode, (const UA_ObjectAttributes*)attributes);
         break;
     case UA_NODECLASS_VARIABLE:
         CHECK_ATTRIBUTES(VARIABLEATTRIBUTES);
-        retval = copyVariableNodeAttributes((UA_VariableNode*)node,
-                                            (const UA_VariableAttributes*)attributes);
+        retval = copyVariableNodeAttributes(&node->variableNode, (const UA_VariableAttributes*)attributes);
         break;
     case UA_NODECLASS_OBJECTTYPE:
         CHECK_ATTRIBUTES(OBJECTTYPEATTRIBUTES);
-        retval = copyObjectTypeNodeAttributes((UA_ObjectTypeNode*)node,
-                                              (const UA_ObjectTypeAttributes*)attributes);
+        retval = copyObjectTypeNodeAttributes(&node->objectTypeNode, (const UA_ObjectTypeAttributes*)attributes);
         break;
     case UA_NODECLASS_VARIABLETYPE:
         CHECK_ATTRIBUTES(VARIABLETYPEATTRIBUTES);
-        retval = copyVariableTypeNodeAttributes((UA_VariableTypeNode*)node,
-                                                (const UA_VariableTypeAttributes*)attributes);
+        retval = copyVariableTypeNodeAttributes(&node->variableTypeNode, (const UA_VariableTypeAttributes*)attributes);
         break;
     case UA_NODECLASS_REFERENCETYPE:
         CHECK_ATTRIBUTES(REFERENCETYPEATTRIBUTES);
-        retval = copyReferenceTypeNodeAttributes((UA_ReferenceTypeNode*)node,
-                                                 (const UA_ReferenceTypeAttributes*)attributes);
+        retval = copyReferenceTypeNodeAttributes(&node->referenceTypeNode, (const UA_ReferenceTypeAttributes*)attributes);
         break;
     case UA_NODECLASS_DATATYPE:
         CHECK_ATTRIBUTES(DATATYPEATTRIBUTES);
-        retval = copyDataTypeNodeAttributes((UA_DataTypeNode*)node,
-                                            (const UA_DataTypeAttributes*)attributes);
+        retval = copyDataTypeNodeAttributes(&node->dataTypeNode, (const UA_DataTypeAttributes*)attributes);
         break;
     case UA_NODECLASS_VIEW:
         CHECK_ATTRIBUTES(VIEWATTRIBUTES);
-        retval = copyViewNodeAttributes((UA_ViewNode*)node,
-                                        (const UA_ViewAttributes*)attributes);
+        retval = copyViewNodeAttributes(&node->viewNode, (const UA_ViewAttributes*)attributes);
         break;
     case UA_NODECLASS_METHOD:
         CHECK_ATTRIBUTES(METHODATTRIBUTES);
-        retval = copyMethodNodeAttributes((UA_MethodNode*)node,
-                                          (const UA_MethodAttributes*)attributes);
+        retval = copyMethodNodeAttributes(&node->methodNode, (const UA_MethodAttributes*)attributes);
         break;
     case UA_NODECLASS_UNSPECIFIED:
     default:
@@ -521,7 +504,7 @@ UA_Node_setAttributes(UA_Node *node, const void *attributes,
     }
 
     if(retval == UA_STATUSCODE_GOOD)
-        retval = copyStandardAttributes(node, (const UA_NodeAttributes*)attributes);
+        retval = copyStandardAttributes(&node->head, (const UA_NodeAttributes*)attributes);
     if(retval != UA_STATUSCODE_GOOD)
         UA_Node_clear(node);
     return retval;
@@ -598,16 +581,16 @@ addReferenceTarget(UA_NodeReferenceKind *refs, const UA_ExpandedNodeId *target,
 }
 
 static UA_StatusCode
-addReferenceKind(UA_Node *node, const UA_AddReferencesItem *item,
+addReferenceKind(UA_NodeHead *head, const UA_AddReferencesItem *item,
                  UA_UInt32 targetBrowseNameHash) {
     UA_NodeReferenceKind *refs = (UA_NodeReferenceKind*)
-        UA_realloc(node->references, sizeof(UA_NodeReferenceKind) * (node->referencesSize+1));
+        UA_realloc(head->references, sizeof(UA_NodeReferenceKind) * (head->referencesSize+1));
     if(!refs)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    node->references = refs;
+    head->references = refs;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    UA_NodeReferenceKind *newRef = &refs[node->referencesSize];
+    UA_NodeReferenceKind *newRef = &refs[head->referencesSize];
     memset(newRef, 0, sizeof(UA_NodeReferenceKind));
     ZIP_INIT(&newRef->refTargetsIdTree);
     ZIP_INIT(&newRef->refTargetsNameTree);
@@ -618,24 +601,26 @@ addReferenceKind(UA_Node *node, const UA_AddReferencesItem *item,
                                  targetBrowseNameHash);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_NodeId_clear(&newRef->referenceTypeId);
-        if(node->referencesSize == 0) {
-            UA_free(node->references);
-            node->references = NULL;
+        if(head->referencesSize == 0) {
+            UA_free(head->references);
+            head->references = NULL;
         }
         return retval;
     }
 
-    node->referencesSize++;
+    head->referencesSize++;
     return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
 UA_Node_addReference(UA_Node *node, const UA_AddReferencesItem *item,
                      UA_UInt32 targetBrowseNameHash) {
+    UA_NodeHead *head = &node->head;
+
     /* Find the matching refkind */
     UA_NodeReferenceKind *existingRefs = NULL;
-    for(size_t i = 0; i < node->referencesSize; ++i) {
-        UA_NodeReferenceKind *refs = &node->references[i];
+    for(size_t i = 0; i < head->referencesSize; ++i) {
+        UA_NodeReferenceKind *refs = &head->references[i];
         if(refs->isInverse != item->isForward &&
            UA_NodeId_equal(&refs->referenceTypeId, &item->referenceTypeId)) {
             existingRefs = refs;
@@ -644,7 +629,7 @@ UA_Node_addReference(UA_Node *node, const UA_AddReferencesItem *item,
     }
 
     if(!existingRefs)
-        return addReferenceKind(node, item, targetBrowseNameHash);
+        return addReferenceKind(head, item, targetBrowseNameHash);
 
     UA_ReferenceTarget tmpTarget;
     tmpTarget.targetId = item->targetNodeId;
@@ -660,8 +645,10 @@ UA_Node_addReference(UA_Node *node, const UA_AddReferencesItem *item,
 
 UA_StatusCode
 UA_Node_deleteReference(UA_Node *node, const UA_DeleteReferencesItem *item) {
-    for(size_t i = node->referencesSize; i > 0; --i) {
-        UA_NodeReferenceKind *refs = &node->references[i-1];
+    UA_NodeHead *head = &node->head;
+
+    for(size_t i = head->referencesSize; i > 0; --i) {
+        UA_NodeReferenceKind *refs = &head->references[i-1];
         if(item->isForward == refs->isInverse)
             continue;
         if(!UA_NodeId_equal(&item->referenceTypeId, &refs->referenceTypeId))
@@ -700,25 +687,23 @@ UA_Node_deleteReference(UA_Node *node, const UA_DeleteReferencesItem *item) {
             /* No target for the ReferenceType remaining. Remove entry. */
             UA_free(refs->refTargets);
             UA_NodeId_clear(&refs->referenceTypeId);
-            node->referencesSize--;
-            if(node->referencesSize > 0) {
-                if(i-1 != node->referencesSize) {
-                    /* Move last array node into array node from where reference kind was removed */
-                    node->references[i-1] = node->references[node->referencesSize];
-                }
+            head->referencesSize--;
+            if(head->referencesSize > 0) {
+                /* Move last array node into array node from where reference kind was removed */
+                if(i-1 != head->referencesSize)
+                    head->references[i-1] = head->references[head->referencesSize];
                 /* And shrink down allocated buffer for one entry */
                 UA_NodeReferenceKind *newRefs = (UA_NodeReferenceKind*)
-                    UA_realloc(node->references, sizeof(UA_NodeReferenceKind) * node->referencesSize);
+                    UA_realloc(head->references, sizeof(UA_NodeReferenceKind) * head->referencesSize);
                 /* Ignore errors in case memory buffer could not be shrinked down */
-                if(newRefs) {
-                    node->references = newRefs;
-                }
+                if(newRefs)
+                    head->references = newRefs;
                 return UA_STATUSCODE_GOOD;
             }
 
             /* No remaining references of any ReferenceType */
-            UA_free(node->references);
-            node->references = NULL;
+            UA_free(head->references);
+            head->references = NULL;
             return UA_STATUSCODE_GOOD;
         }
     }
@@ -729,11 +714,12 @@ void
 UA_Node_deleteReferencesSubset(UA_Node *node, size_t referencesSkipSize,
                                UA_NodeId* referencesSkip) {
     /* Nothing to do */
-    if(node->referencesSize == 0 || node->references == NULL)
+    UA_NodeHead *head = &node->head;
+    if(head->referencesSize == 0 || head->references == NULL)
         return;
 
-    for(size_t i = node->referencesSize; i > 0; --i) {
-        UA_NodeReferenceKind *refs = &node->references[i-1];
+    for(size_t i = head->referencesSize; i > 0; --i) {
+        UA_NodeReferenceKind *refs = &head->references[i-1];
 
         /* Shall we keep the references of this type? */
         UA_Boolean skip = false;
@@ -751,26 +737,26 @@ UA_Node_deleteReferencesSubset(UA_Node *node, size_t referencesSkipSize,
             UA_ExpandedNodeId_clear(&refs->refTargets[j].targetId);
         UA_free(refs->refTargets);
         UA_NodeId_clear(&refs->referenceTypeId);
-        node->referencesSize--;
+        head->referencesSize--;
 
         /* Move last references-kind entry to this position */
-        if(i-1 == node->referencesSize) /* Don't memcpy over the same position */
+        if(i-1 == head->referencesSize) /* Don't memcpy over the same position */
             continue;
-        node->references[i-1] = node->references[node->referencesSize];
+        head->references[i-1] = head->references[head->referencesSize];
     }
 
-    if(node->referencesSize > 0) {
+    if(head->referencesSize > 0) {
         /* Realloc to save memory */
         UA_NodeReferenceKind *refs = (UA_NodeReferenceKind*)
-            UA_realloc(node->references, sizeof(UA_NodeReferenceKind) * node->referencesSize);
+            UA_realloc(head->references, sizeof(UA_NodeReferenceKind) * head->referencesSize);
         if(refs) /* Do nothing if realloc fails */
-            node->references = refs;
+            head->references = refs;
         return;
     }
 
     /* The array is empty. Remove. */
-    UA_free(node->references);
-    node->references = NULL;
+    UA_free(head->references);
+    head->references = NULL;
 }
 
 void UA_Node_deleteReferences(UA_Node *node) {
