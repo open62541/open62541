@@ -38,10 +38,10 @@ static void checkZeroVisitor(void *context, const UA_Node* node) {
 
 static UA_Node* createNode(UA_UInt16 nsid, UA_UInt32 id) {
     UA_Node *p = ns.newNode(&ns.context, UA_NODECLASS_VARIABLE);
-    p->nodeId.identifierType = UA_NODEIDTYPE_NUMERIC;
-    p->nodeId.namespaceIndex = nsid;
-    p->nodeId.identifier.numeric = id;
-    p->nodeClass = UA_NODECLASS_VARIABLE;
+    p->head.nodeId.identifierType = UA_NODEIDTYPE_NUMERIC;
+    p->head.nodeId.namespaceIndex = nsid;
+    p->head.nodeId.identifier.numeric = id;
+    p->head.nodeClass = UA_NODECLASS_VARIABLE;
     return p;
 }
 
@@ -144,8 +144,8 @@ START_TEST(findNodeInExpandedNamespace) {
     }
     // when
     UA_Node *n2 = createNode(0,25);
-    const UA_Node* nr = ns.getNode(ns.context, &n2->nodeId);
-    ck_assert_int_eq(nr->nodeId.identifier.numeric, n2->nodeId.identifier.numeric);
+    const UA_Node* nr = ns.getNode(ns.context, &n2->head.nodeId);
+    ck_assert_int_eq(nr->head.nodeId.identifier.numeric, n2->head.nodeId.identifier.numeric);
     ns.releaseNode(ns.context, nr);
     ns.deleteNode(ns.context, n2);
 }

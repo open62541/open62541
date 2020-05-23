@@ -93,23 +93,21 @@ typedef struct {
     UA_ReferenceTargetNameTree refTargetsNameTree;
 } UA_NodeReferenceKind;
 
-#define UA_NODE_BASEATTRIBUTES                  \
-    UA_NodeId nodeId;                           \
-    UA_NodeClass nodeClass;                     \
-    UA_QualifiedName browseName;                \
-    UA_LocalizedText displayName;               \
-    UA_LocalizedText description;               \
-    UA_UInt32 writeMask;                        \
-    size_t referencesSize;                      \
-    UA_NodeReferenceKind *references;           \
-                                                \
-    /* Members specific to open62541 */         \
-    void *context;                              \
-    UA_Boolean constructed; /* Constructors were called */
-
+/* Every Node starts with these attributes */
 typedef struct {
-    UA_NODE_BASEATTRIBUTES
-} UA_Node;
+    UA_NodeId nodeId;
+    UA_NodeClass nodeClass;
+    UA_QualifiedName browseName;
+    UA_LocalizedText displayName;
+    UA_LocalizedText description;
+    UA_UInt32 writeMask;
+    size_t referencesSize;
+    UA_NodeReferenceKind *references;
+
+    /* Members specific to open62541 */
+    void *context;
+    UA_Boolean constructed; /* Constructors were called */
+} UA_NodeHead;
 
 /**
  * VariableNode
@@ -202,7 +200,7 @@ typedef enum {
     } value;
 
 typedef struct {
-    UA_NODE_BASEATTRIBUTES
+    UA_NodeHead head;
     UA_NODE_VARIABLEATTRIBUTES
     UA_Byte accessLevel;
     UA_Double minimumSamplingInterval;
@@ -223,7 +221,7 @@ typedef struct {
  * instantiated from ``BaseDataVariable``. */
 
 typedef struct {
-    UA_NODE_BASEATTRIBUTES
+    UA_NodeHead head;
     UA_NODE_VARIABLEATTRIBUTES
     UA_Boolean isAbstract;
 
@@ -250,7 +248,7 @@ typedef struct {
  * providing context* is part of a Call request message. */
 
 typedef struct {
-    UA_NODE_BASEATTRIBUTES
+    UA_NodeHead head;
     UA_Boolean executable;
 
     /* Members specific to open62541 */
@@ -270,7 +268,7 @@ typedef struct {
  * objects. */
 
 typedef struct {
-    UA_NODE_BASEATTRIBUTES
+    UA_NodeHead head;
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     struct UA_MonitoredItem *monitoredItemQueue;
 #endif
@@ -288,7 +286,7 @@ typedef struct {
  * destructor callbacks. */
 
 typedef struct {
-    UA_NODE_BASEATTRIBUTES
+    UA_NodeHead head;
     UA_Boolean isAbstract;
 
     /* Members specific to open62541 */
@@ -399,7 +397,7 @@ typedef struct {
  * based on a common understanding of just two custom reference types. */
 
 typedef struct {
-    UA_NODE_BASEATTRIBUTES
+    UA_NodeHead head;
     UA_Boolean isAbstract;
     UA_Boolean symmetric;
     UA_LocalizedText inverseName;
@@ -421,7 +419,7 @@ typedef struct {
  * ``UInt32``). */
 
 typedef struct {
-    UA_NODE_BASEATTRIBUTES
+    UA_NodeHead head;
     UA_Boolean isAbstract;
 } UA_DataTypeNode;
 
@@ -436,10 +434,30 @@ typedef struct {
  * open62541. */
 
 typedef struct {
-    UA_NODE_BASEATTRIBUTES
+    UA_NodeHead head;
     UA_Byte eventNotifier;
     UA_Boolean containsNoLoops;
 } UA_ViewNode;
+
+/**
+ * Node Union
+ * ----------
+ *
+ * A union that represents any kind of node. The node head can always be used.
+ * Check the NodeClass before accessing specific content.
+ */
+
+typedef union {
+    UA_NodeHead head;
+    UA_VariableNode variableNode;
+    UA_VariableTypeNode variableTypeNode;
+    UA_MethodNode methodNode;
+    UA_ObjectNode objectNode;
+    UA_ObjectTypeNode objectTypeNode;
+    UA_ReferenceTypeNode referenceTypeNode;
+    UA_DataTypeNode dataTypeNode;
+    UA_ViewNode viewNode;
+} UA_Node;
 
 /**
  * Nodestore Plugin API

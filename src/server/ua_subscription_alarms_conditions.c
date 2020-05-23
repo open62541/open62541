@@ -255,8 +255,8 @@ getFieldParentNodeId(UA_Server *server, const UA_NodeId *field, UA_NodeId *paren
     if(!fieldNode)
         return UA_STATUSCODE_BADNOTFOUND;
     UA_StatusCode retval = UA_STATUSCODE_BADNOTFOUND;
-    for(size_t i = 0; i < fieldNode->referencesSize; i++) {
-        UA_NodeReferenceKind *rk = &fieldNode->references[i];
+    for(size_t i = 0; i < fieldNode->head.referencesSize; i++) {
+        UA_NodeReferenceKind *rk = &fieldNode->head.references[i];
         if((UA_NodeId_equal(&rk->referenceTypeId, &hasPropertyType) ||
             UA_NodeId_equal(&rk->referenceTypeId, &hasComponentType)) &&
            true == rk->isInverse) {
@@ -1858,11 +1858,11 @@ doesHasEventSourceReferenceExist(UA_Server *server, const UA_NodeId nodeToCheck)
     const UA_Node* node = UA_NODESTORE_GET(server, &nodeToCheck);
     if(!node)
         return false;
-    for(size_t i = 0; i < node->referencesSize; i++) {
-        if((UA_NodeId_equal(&node->references[i].referenceTypeId, &hasEventSourceId) ||
-            isNodeInTree(server, &node->references[i].referenceTypeId,
+    for(size_t i = 0; i < node->head.referencesSize; i++) {
+        if((UA_NodeId_equal(&node->head.references[i].referenceTypeId, &hasEventSourceId) ||
+            isNodeInTree(server, &node->head.references[i].referenceTypeId,
                          &hasEventSourceId, &hasSubtypeId, 1)) &&
-           (node->references[i].isInverse == true)) {
+           (node->head.references[i].isInverse == true)) {
             UA_NODESTORE_RELEASE(server, node);
             return true;
         }
@@ -1918,7 +1918,7 @@ setStandardConditionFields(UA_Server *server, const UA_NodeId* condition,
     }
 
     /* 6.Set SourceName*/
-    UA_Variant_setScalar(&value, (void*)(uintptr_t)&conditionSourceNode->browseName.name,
+    UA_Variant_setScalar(&value, (void*)(uintptr_t)&conditionSourceNode->head.browseName.name,
                          &UA_TYPES[UA_TYPES_STRING]);
     retval = UA_Server_setConditionField(server, *condition, &value,
                                          UA_QUALIFIEDNAME(0,CONDITION_FIELD_SOURCENAME));
@@ -1931,7 +1931,7 @@ setStandardConditionFields(UA_Server *server, const UA_NodeId* condition,
     }
 
     /* 7.Set SourceNode*/
-    UA_Variant_setScalar(&value, (void*)(uintptr_t)&conditionSourceNode->nodeId,
+    UA_Variant_setScalar(&value, (void*)(uintptr_t)&conditionSourceNode->head.nodeId,
                          &UA_TYPES[UA_TYPES_NODEID]);
     retval = UA_Server_setConditionField(server, *condition, &value, fieldSourceQN);
     if(retval != UA_STATUSCODE_GOOD) {
@@ -2293,7 +2293,7 @@ addOptionalVariableField(UA_Server *server, const UA_NodeId *originCondition,
                          UA_NodeId *outOptionalVariable) {
     UA_VariableAttributes vAttr = UA_VariableAttributes_default;
     vAttr.valueRank = optionalVariableFieldNode->valueRank;
-    UA_StatusCode retval = UA_LocalizedText_copy(&optionalVariableFieldNode->displayName,
+    UA_StatusCode retval = UA_LocalizedText_copy(&optionalVariableFieldNode->head.displayName,
                                                  &vAttr.displayName);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Copying LocalizedText failed",);
 
@@ -2301,7 +2301,7 @@ addOptionalVariableField(UA_Server *server, const UA_NodeId *originCondition,
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Copying NodeId failed",);
 
     /* Get typedefintion */
-    const UA_Node *type = getNodeType(server, (const UA_Node *)optionalVariableFieldNode);
+    const UA_Node *type = getNodeType(server, &optionalVariableFieldNode->head);
     if(!type) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                        "Invalid VariableType. StatusCode %s",
@@ -2313,7 +2313,7 @@ addOptionalVariableField(UA_Server *server, const UA_NodeId *originCondition,
     /* Set referenceType to parent */
     UA_NodeId referenceToParent;
     UA_NodeId propertyTypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE);
-    if(UA_NodeId_equal(&type->nodeId, &propertyTypeNodeId))
+    if(UA_NodeId_equal(&type->head.nodeId, &propertyTypeNodeId))
         referenceToParent = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
     else
         referenceToParent = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT);
@@ -2321,7 +2321,7 @@ addOptionalVariableField(UA_Server *server, const UA_NodeId *originCondition,
     /* Set a random unused NodeId with specified Namespace Index*/
     UA_NodeId optionalVariable = {originCondition->namespaceIndex, UA_NODEIDTYPE_NUMERIC, {0}};
     retval = UA_Server_addVariableNode(server, optionalVariable, *originCondition,
-                                       referenceToParent, *fieldName, type->nodeId,
+                                       referenceToParent, *fieldName, type->head.nodeId,
                                        vAttr, NULL, outOptionalVariable);
     UA_NODESTORE_RELEASE(server, type);
     UA_VariableAttributes_deleteMembers(&vAttr);
@@ -2334,12 +2334,12 @@ addOptionalObjectField(UA_Server *server, const UA_NodeId *originCondition,
                        const UA_ObjectNode *optionalObjectFieldNode,
                        UA_NodeId *outOptionalObject) {
     UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
-    UA_StatusCode retval = UA_LocalizedText_copy(&optionalObjectFieldNode->displayName,
+    UA_StatusCode retval = UA_LocalizedText_copy(&optionalObjectFieldNode->head.displayName,
                                                  &oAttr.displayName);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Copying LocalizedText failed",);
 
     /* Get typedefintion */
-    const UA_Node *type = getNodeType(server, (const UA_Node *)optionalObjectFieldNode);
+    const UA_Node *type = getNodeType(server, &optionalObjectFieldNode->head);
     if(!type) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                        "Invalid ObjectType. StatusCode %s",
@@ -2351,14 +2351,14 @@ addOptionalObjectField(UA_Server *server, const UA_NodeId *originCondition,
     /* Set referenceType to parent */
     UA_NodeId referenceToParent;
     UA_NodeId propertyTypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE);
-    if(UA_NodeId_equal(&type->nodeId, &propertyTypeNodeId))
+    if(UA_NodeId_equal(&type->head.nodeId, &propertyTypeNodeId))
         referenceToParent = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
     else
         referenceToParent = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT);
     
     UA_NodeId optionalObject = {originCondition->namespaceIndex, UA_NODEIDTYPE_NUMERIC, {0}};
     retval = UA_Server_addObjectNode(server, optionalObject, *originCondition,
-                                     referenceToParent, *fieldName, type->nodeId,
+                                     referenceToParent, *fieldName, type->head.nodeId,
                                      oAttr, NULL, outOptionalObject);
 
     UA_NODESTORE_RELEASE(server, type);
@@ -2394,7 +2394,7 @@ UA_Server_addConditionOptionalField(UA_Server *server, const UA_NodeId condition
         return UA_STATUSCODE_BADNOTFOUND;
     }
 
-    switch(optionalFieldNode->nodeClass) {
+    switch(optionalFieldNode->head.nodeClass) {
         case UA_NODECLASS_VARIABLE: {
             UA_StatusCode retval =
                 addOptionalVariableField(server, &condition, &fieldName,

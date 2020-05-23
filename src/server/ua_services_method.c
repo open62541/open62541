@@ -19,11 +19,11 @@
 #ifdef UA_ENABLE_METHODCALLS /* conditional compilation */
 
 static const UA_VariableNode *
-getArgumentsVariableNode(UA_Server *server, const UA_MethodNode *ofMethod,
+getArgumentsVariableNode(UA_Server *server, const UA_NodeHead *head,
                          UA_String withBrowseName) {
     UA_NodeId hasProperty = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
-    for(size_t i = 0; i < ofMethod->referencesSize; ++i) {
-        UA_NodeReferenceKind *rk = &ofMethod->references[i];
+    for(size_t i = 0; i < head->referencesSize; ++i) {
+        UA_NodeReferenceKind *rk = &head->references[i];
 
         if(rk->isInverse != false)
             continue;
@@ -36,9 +36,9 @@ getArgumentsVariableNode(UA_Server *server, const UA_MethodNode *ofMethod,
                 UA_NODESTORE_GET(server, &rk->refTargets[j].targetId.nodeId);
             if(!refTarget)
                 continue;
-            if(refTarget->nodeClass == UA_NODECLASS_VARIABLE &&
-               refTarget->browseName.namespaceIndex == 0 &&
-               UA_String_equal(&withBrowseName, &refTarget->browseName.name)) {
+            if(refTarget->head.nodeClass == UA_NODECLASS_VARIABLE &&
+               refTarget->head.browseName.namespaceIndex == 0 &&
+               UA_String_equal(&withBrowseName, &refTarget->head.browseName.name)) {
                 return (const UA_VariableNode*)refTarget;
             }
             UA_NODESTORE_RELEASE(server, refTarget);
@@ -92,7 +92,7 @@ validMethodArguments(UA_Server *server, UA_Session *session, const UA_MethodNode
                      UA_StatusCode *inputArgumentResults) {
     /* Get the input arguments node */
     const UA_VariableNode *inputArguments =
-        getArgumentsVariableNode(server, method, UA_STRING("InputArguments"));
+        getArgumentsVariableNode(server, &method->head, UA_STRING("InputArguments"));
     if(!inputArguments) {
         if(request->inputArgumentsSize > 0)
             return UA_STATUSCODE_BADTOOMANYARGUMENTS;
@@ -123,14 +123,14 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
                         const UA_CallMethodRequest *request, UA_CallMethodResult *result,
                         const UA_MethodNode *method, const UA_ObjectNode *object) {
     /* Verify the object's NodeClass */
-    if(object->nodeClass != UA_NODECLASS_OBJECT &&
-       object->nodeClass != UA_NODECLASS_OBJECTTYPE) {
+    if(object->head.nodeClass != UA_NODECLASS_OBJECT &&
+       object->head.nodeClass != UA_NODECLASS_OBJECTTYPE) {
         result->statusCode = UA_STATUSCODE_BADNODECLASSINVALID;
         return;
     }
 
     /* Verify the method's NodeClass */
-    if(method->nodeClass != UA_NODECLASS_METHOD) {
+    if(method->head.nodeClass != UA_NODECLASS_METHOD) {
         result->statusCode = UA_STATUSCODE_BADNODECLASSINVALID;
         return;
     }
@@ -146,8 +146,8 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
      * every reference between the parent object and the method node if there is
      * a hasComponent (or subtype) reference */
     UA_Boolean found = false;
-    for(size_t i = 0; i < object->referencesSize && !found; ++i) {
-        UA_NodeReferenceKind *rk = &object->references[i];
+    for(size_t i = 0; i < object->head.referencesSize && !found; ++i) {
+        UA_NodeReferenceKind *rk = &object->head.references[i];
         if(rk->isInverse)
             continue;
         if(!isNodeInTree(server, &rk->referenceTypeId,
@@ -184,8 +184,8 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
         functionGroupNodeId.namespaceIndex = (UA_UInt16)foundNamespace;
 
         /* Search for a HasTypeDefinition (or sub-) reference in the parent object */
-        for(size_t i = 0; i < object->referencesSize && !found; ++i) {
-            UA_NodeReferenceKind *rk = &object->references[i];
+        for(size_t i = 0; i < object->head.referencesSize && !found; ++i) {
+            UA_NodeReferenceKind *rk = &object->head.references[i];
             if(rk->isInverse)
                 continue;
             if(!isNodeInTree(server, &rk->referenceTypeId,
@@ -201,8 +201,8 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
                 
                 /* Search for the called method with reference Organize (or
                  * sub-type) from the parent object */
-                for(size_t k = 0; k < object->referencesSize && !found; ++k) {
-                    UA_NodeReferenceKind *rkInner = &object->references[k];
+                for(size_t k = 0; k < object->head.referencesSize && !found; ++k) {
+                    UA_NodeReferenceKind *rkInner = &object->head.references[k];
                     if(rkInner->isInverse)
                         continue;
                     if(!isNodeInTree(server, &rkInner->referenceTypeId,
@@ -231,8 +231,8 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
         UA_UNLOCK(server->serviceMutex);
         executable = executable && server->config.accessControl.
             getUserExecutableOnObject(server, &server->config.accessControl, &session->sessionId,
-                                      session->sessionHandle, &request->methodId, method->context,
-                                      &request->objectId, object->context);
+                                      session->sessionHandle, &request->methodId, method->head.context,
+                                      &request->objectId, object->head.context);
         UA_LOCK(server->serviceMutex);
     }
 
@@ -267,7 +267,7 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
 
     /* Get the output arguments node */
     const UA_VariableNode *outputArguments =
-        getArgumentsVariableNode(server, method, UA_STRING("OutputArguments"));
+        getArgumentsVariableNode(server, &method->head, UA_STRING("OutputArguments"));
 
     /* Allocate the output arguments array */
     size_t outputArgsSize = 0;
@@ -287,8 +287,8 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
     /* Call the method */
     UA_UNLOCK(server->serviceMutex);
     result->statusCode = method->method(server, &session->sessionId, session->sessionHandle,
-                                        &method->nodeId, method->context,
-                                        &object->nodeId, object->context,
+                                        &method->head.nodeId, method->head.context,
+                                        &object->head.nodeId, object->head.context,
                                         request->inputArgumentsSize, request->inputArguments,
                                         result->outputArgumentsSize, result->outputArguments);
     UA_LOCK(server->serviceMutex);

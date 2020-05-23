@@ -89,7 +89,7 @@ newEntry(UA_NodeClass nodeClass) {
     if(!entry)
         return NULL;
     UA_Node *node = (UA_Node*)&entry->nodeId;
-    node->nodeClass = nodeClass;
+    node->head.nodeClass = nodeClass;
     return entry;
 }
 
@@ -156,7 +156,7 @@ zipNsGetNodeCopy(void *nsCtx, const UA_NodeId *nodeId,
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
 
     /* Create the new entry */
-    NodeEntry *ne = newEntry(node->nodeClass);
+    NodeEntry *ne = newEntry(node->head.nodeClass);
     if(!ne) {
         zipNsReleaseNode(nsCtx, node);
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -183,16 +183,16 @@ zipNsInsertNode(void *nsCtx, UA_Node *node, UA_NodeId *addedNodeId) {
 
     /* Ensure that the NodeId is unique */
     NodeEntry dummy;
-    dummy.nodeId = node->nodeId;
-    if(node->nodeId.identifierType == UA_NODEIDTYPE_NUMERIC &&
-       node->nodeId.identifier.numeric == 0) {
+    dummy.nodeId = node->head.nodeId;
+    if(node->head.nodeId.identifierType == UA_NODEIDTYPE_NUMERIC &&
+       node->head.nodeId.identifier.numeric == 0) {
         do { /* Create a random nodeid until we find an unoccupied id */
-            node->nodeId.identifier.numeric = UA_UInt32_random();
-            dummy.nodeId.identifier.numeric = node->nodeId.identifier.numeric;
-            dummy.nodeIdHash = UA_NodeId_hash(&node->nodeId);
+            node->head.nodeId.identifier.numeric = UA_UInt32_random();
+            dummy.nodeId.identifier.numeric = node->head.nodeId.identifier.numeric;
+            dummy.nodeIdHash = UA_NodeId_hash(&node->head.nodeId);
         } while(ZIP_FIND(NodeTree, &ns->root, &dummy));
     } else {
-        dummy.nodeIdHash = UA_NodeId_hash(&node->nodeId);
+        dummy.nodeIdHash = UA_NodeId_hash(&node->head.nodeId);
         if(ZIP_FIND(NodeTree, &ns->root, &dummy)) { /* The nodeid exists */
             deleteEntry(entry);
             return UA_STATUSCODE_BADNODEIDEXISTS;
@@ -201,7 +201,7 @@ zipNsInsertNode(void *nsCtx, UA_Node *node, UA_NodeId *addedNodeId) {
 
     /* Copy the NodeId */
     if(addedNodeId) {
-        UA_StatusCode retval = UA_NodeId_copy(&node->nodeId, addedNodeId);
+        UA_StatusCode retval = UA_NodeId_copy(&node->head.nodeId, addedNodeId);
         if(retval != UA_STATUSCODE_GOOD) {
             deleteEntry(entry);
             return retval;
@@ -217,7 +217,7 @@ zipNsInsertNode(void *nsCtx, UA_Node *node, UA_NodeId *addedNodeId) {
 static UA_StatusCode
 zipNsReplaceNode(void *nsCtx, UA_Node *node) {
     /* Find the node */
-    const UA_Node *oldNode = zipNsGetNode(nsCtx, &node->nodeId);
+    const UA_Node *oldNode = zipNsGetNode(nsCtx, &node->head.nodeId);
     if(!oldNode) {
         deleteEntry(container_of(node, NodeEntry, nodeId));
         return UA_STATUSCODE_BADNODEIDUNKNOWN;

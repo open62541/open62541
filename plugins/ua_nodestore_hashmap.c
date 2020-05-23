@@ -89,7 +89,7 @@ findFreeSlot(const UA_NodeMap *ns, const UA_NodeId *nodeid) {
         if(slot->entry > UA_NODEMAP_TOMBSTONE) {
             /* A Node with the NodeId does already exist */
             if(slot->nodeIdHash == h &&
-               UA_NodeId_equal(&slot->entry->node.nodeId, nodeid))
+               UA_NodeId_equal(&slot->entry->node.head.nodeId, nodeid))
                 return NULL;
         } else {
             /* Found a candidate node */
@@ -133,7 +133,7 @@ expand(UA_NodeMap *ns) {
     for(size_t i = 0, j = 0; i < osize && j < count; ++i) {
         if(oslots[i].entry <= UA_NODEMAP_TOMBSTONE)
             continue;
-        UA_NodeMapSlot *s = findFreeSlot(ns, &oslots[i].entry->node.nodeId);
+        UA_NodeMapSlot *s = findFreeSlot(ns, &oslots[i].entry->node.head.nodeId);
         UA_assert(s);
         *s = oslots[i];
         ++j;
@@ -177,7 +177,7 @@ createEntry(UA_NodeClass nodeClass) {
     UA_NodeMapEntry *entry = (UA_NodeMapEntry*)UA_calloc(1, size);
     if(!entry)
         return NULL;
-    entry->node.nodeClass = nodeClass;
+    entry->node.head.nodeClass = nodeClass;
     return entry;
 }
 
@@ -205,7 +205,7 @@ findOccupiedSlot(const UA_NodeMap *ns, const UA_NodeId *nodeid) {
         UA_NodeMapSlot *slot= &ns->slots[(UA_UInt32)idx];
         if(slot->entry > UA_NODEMAP_TOMBSTONE) {
             if(slot->nodeIdHash == h &&
-               UA_NodeId_equal(&slot->entry->node.nodeId, nodeid))
+               UA_NodeId_equal(&slot->entry->node.head.nodeId, nodeid))
                 return slot;
         } else {
             if(slot->entry == NULL)
@@ -268,7 +268,7 @@ UA_NodeMap_getNodeCopy(void *context, const UA_NodeId *nodeid,
     if(!slot)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     UA_NodeMapEntry *entry = slot->entry;
-    UA_NodeMapEntry *newItem = createEntry(entry->node.nodeClass);
+    UA_NodeMapEntry *newItem = createEntry(entry->node.head.nodeClass);
     if(!newItem)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     UA_StatusCode retval = UA_Node_copy(&entry->node, &newItem->node);
@@ -311,8 +311,8 @@ UA_NodeMap_insertNode(void *context, UA_Node *node,
     }
 
     UA_NodeMapSlot *slot;
-    if(node->nodeId.identifierType == UA_NODEIDTYPE_NUMERIC &&
-       node->nodeId.identifier.numeric == 0) {
+    if(node->head.nodeId.identifierType == UA_NODEIDTYPE_NUMERIC &&
+       node->head.nodeId.identifier.numeric == 0) {
         /* Create a random nodeid: Start at least with 50,000 to make sure we
          * don not conflict with nodes from the spec. If we find a conflict, we
          * just try another identifier until we have tried all possible
@@ -328,8 +328,8 @@ UA_NodeMap_insertNode(void *context, UA_Node *node,
                                                     * is a valid 32 bit integer */
 
         do {
-            node->nodeId.identifier.numeric = (UA_UInt32)identifier;
-            slot = findFreeSlot(ns, &node->nodeId);
+            node->head.nodeId.identifier.numeric = (UA_UInt32)identifier;
+            slot = findFreeSlot(ns, &node->head.nodeId);
             if(slot)
                 break;
             identifier += increase;
@@ -337,7 +337,7 @@ UA_NodeMap_insertNode(void *context, UA_Node *node,
                 identifier -= size;
         } while((UA_UInt32)identifier != startId);
     } else {
-        slot = findFreeSlot(ns, &node->nodeId);
+        slot = findFreeSlot(ns, &node->head.nodeId);
     }
 
     if(!slot) {
@@ -348,7 +348,7 @@ UA_NodeMap_insertNode(void *context, UA_Node *node,
     /* Copy the NodeId */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(addedNodeId) {
-        retval = UA_NodeId_copy(&node->nodeId, addedNodeId);
+        retval = UA_NodeId_copy(&node->head.nodeId, addedNodeId);
         if(retval != UA_STATUSCODE_GOOD) {
             deleteNodeMapEntry(container_of(node, UA_NodeMapEntry, node));
             return retval;
@@ -357,7 +357,7 @@ UA_NodeMap_insertNode(void *context, UA_Node *node,
 
     /* Insert the node */
     UA_NodeMapEntry *newEntry = container_of(node, UA_NodeMapEntry, node);
-    slot->nodeIdHash = UA_NodeId_hash(&node->nodeId);
+    slot->nodeIdHash = UA_NodeId_hash(&node->head.nodeId);
     UA_atomic_sync(); /* Set the hash first */
     slot->entry = newEntry;
     ++ns->count;
@@ -370,7 +370,7 @@ UA_NodeMap_replaceNode(void *context, UA_Node *node) {
     UA_NodeMapEntry *newEntry = container_of(node, UA_NodeMapEntry, node);
 
     /* Find the node */
-    UA_NodeMapSlot *slot = findOccupiedSlot(ns, &node->nodeId);
+    UA_NodeMapSlot *slot = findOccupiedSlot(ns, &node->head.nodeId);
     if(!slot) {
         deleteNodeMapEntry(newEntry);
         return UA_STATUSCODE_BADNODEIDUNKNOWN;

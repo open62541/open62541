@@ -375,10 +375,9 @@ UA_Server_setAsyncOperationResult(UA_Server *server,
 static UA_StatusCode
 setMethodNodeAsync(UA_Server *server, UA_Session *session,
                    UA_Node *node, UA_Boolean *isAsync) {
-    UA_MethodNode *method = (UA_MethodNode*)node;
-    if(method->nodeClass != UA_NODECLASS_METHOD)
+    if(node->head.nodeClass != UA_NODECLASS_METHOD)
         return UA_STATUSCODE_BADNODECLASSINVALID;
-    method->async = *isAsync;
+    node->methodNode.async = *isAsync;
     return UA_STATUSCODE_GOOD;
 }
 

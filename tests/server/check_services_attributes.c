@@ -159,14 +159,14 @@ static UA_VariableNode* makeCompareSequence(void) {
     node->value.data.value.hasValue = true;
 
     const UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
-    UA_QualifiedName_copy(&myIntegerName,&node->browseName);
+    UA_QualifiedName_copy(&myIntegerName, &node->head.browseName);
 
     const UA_LocalizedText myIntegerDisplName = UA_LOCALIZEDTEXT("locale", "the answer");
-    UA_LocalizedText_copy(&myIntegerDisplName, &node->displayName);
-    UA_LocalizedText_copy(&myIntegerDisplName, &node->description);
+    UA_LocalizedText_copy(&myIntegerDisplName, &node->head.displayName);
+    UA_LocalizedText_copy(&myIntegerDisplName, &node->head.description);
 
     const UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
-    UA_NodeId_copy(&myIntegerNodeId,&node->nodeId);
+    UA_NodeId_copy(&myIntegerNodeId, &node->head.nodeId);
 
     return node;
 }
@@ -285,7 +285,7 @@ START_TEST(ReadSingleAttributeDisplayNameWithoutTimestamp) {
     ck_assert_uint_eq(0, resp.value.arrayLength);
     ck_assert(&UA_TYPES[UA_TYPES_LOCALIZEDTEXT] == resp.value.type);
     ck_assert(UA_String_equal(&comp.text, &respval->text));
-    ck_assert(UA_String_equal(&compNode->displayName.locale, &respval->locale));
+    ck_assert(UA_String_equal(&compNode->head.displayName.locale, &respval->locale));
     UA_DataValue_deleteMembers(&resp);
     UA_NODESTORE_DELETE(server, (UA_Node*)compNode);
 } END_TEST
@@ -302,8 +302,8 @@ START_TEST(ReadSingleAttributeDescriptionWithoutTimestamp) {
     UA_VariableNode* compNode = makeCompareSequence();
     ck_assert_uint_eq(0, resp.value.arrayLength);
     ck_assert(&UA_TYPES[UA_TYPES_LOCALIZEDTEXT] == resp.value.type);
-    ck_assert(UA_String_equal(&compNode->description.locale, &respval->locale));
-    ck_assert(UA_String_equal(&compNode->description.text, &respval->text));
+    ck_assert(UA_String_equal(&compNode->head.description.locale, &respval->locale));
+    ck_assert(UA_String_equal(&compNode->head.description.text, &respval->text));
     UA_DataValue_deleteMembers(&resp);
     UA_NODESTORE_DELETE(server, (UA_Node*)compNode);
 } END_TEST

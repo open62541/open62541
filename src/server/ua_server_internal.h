@@ -246,7 +246,7 @@ void setupNs1Uri(UA_Server *server);
 UA_UInt16 addNamespace(UA_Server *server, const UA_String name);
 
 UA_Boolean
-UA_Node_hasSubTypeOrInstances(const UA_Node *node);
+UA_Node_hasSubTypeOrInstances(const UA_NodeHead *head);
 
 /* Recursively searches "upwards" in the tree following specific reference types */
 UA_Boolean
@@ -292,7 +292,8 @@ isConditionOrBranch(UA_Server *server,
 #endif//UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
 /* Returns the type node from the node on the stack top. The type node is pushed
  * on the stack and returned. */
-const UA_Node * getNodeType(UA_Server *server, const UA_Node *node);
+const UA_Node *
+getNodeType(UA_Server *server, const UA_NodeHead *nodeHead);
 
 /* Write a node attribute with a defined session */
 UA_StatusCode

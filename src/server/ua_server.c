@@ -144,8 +144,8 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
     }
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    for(size_t i = parentCopy->referencesSize; i > 0; --i) {
-        UA_NodeReferenceKind *ref = &parentCopy->references[i - 1];
+    for(size_t i = parentCopy->head.referencesSize; i > 0; --i) {
+        UA_NodeReferenceKind *ref = &parentCopy->head.references[i - 1];
         for(size_t j = 0; j<ref->refTargetsSize; j++) {
             UA_UNLOCK(server->serviceMutex);
             retval = callback(ref->refTargets[j].targetId.nodeId, ref->isInverse,
