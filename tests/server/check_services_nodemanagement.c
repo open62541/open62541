@@ -13,12 +13,16 @@
 #include <time.h>
 
 static UA_Server *server = NULL;
+static void *sessionCalled = (void *)1;
+static void *nodeCalled = (void *)2;
 static UA_Int32 handleCalled = 0;
 
 static UA_StatusCode
 globalInstantiationMethod(UA_Server *server_,
                           const UA_NodeId *sessionId, void *sessionContext,
                           const UA_NodeId *nodeId, void **nodeContext) {
+    sessionCalled = sessionContext;
+    nodeCalled = *nodeContext;
     handleCalled++;
     return UA_STATUSCODE_GOOD;
 }
@@ -34,6 +38,7 @@ static void setup(void) {
     lifecycle.createOptionalChild = NULL;
     lifecycle.generateChildNodeId = NULL;
     config->nodeLifecycle = lifecycle;
+    UA_Server_setAdminSessionContext(server, (void *)0x3);
 }
 
 static void teardown(void) {
@@ -51,12 +56,16 @@ START_TEST(AddVariableNode) {
     UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    ck_assert_ptr_eq(sessionCalled, (void *)1);
+    ck_assert_ptr_eq(nodeCalled, (void *)2);
     UA_StatusCode res =
         UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
                                   parentReferenceNodeId, myIntegerName,
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
-                                  attr, NULL, NULL);
+                                  attr, (void *)4, NULL);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, res);
+    ck_assert_ptr_eq(sessionCalled, (void *)3);
+    ck_assert_ptr_eq(nodeCalled, (void *)4);
 } END_TEST
 
 START_TEST(AddVariableNode_Matrix) {

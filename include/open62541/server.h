@@ -736,7 +736,11 @@ typedef struct {
                                          const UA_NodeId *targetParentNodeId,
                                          const UA_NodeId *referenceTypeId,
                                          UA_NodeId *targetNodeId);
-    } UA_GlobalNodeLifecycle;
+} UA_GlobalNodeLifecycle;
+
+void UA_EXPORT
+UA_Server_setAdminSessionContext(UA_Server *server,
+                                 void *context);
 
 typedef struct {
     /* Can be NULL. May replace the nodeContext */
