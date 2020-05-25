@@ -847,10 +847,21 @@ addWriterGroupAction(UA_Server *server,
     writerGroupConfig.writerGroupId = writerGroupDataType->writerGroupId;
     writerGroupConfig.enabled = writerGroupDataType->enabled;
     writerGroupConfig.priority = writerGroupDataType->priority;
+    //TODO remove hard coded messageSettings
+    writerGroupConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
+    writerGroupConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
+    UA_UadpWriterGroupMessageDataType *writer_group_message = UA_UadpWriterGroupMessageDataType_new();
+    writer_group_message->networkMessageContentMask = (UA_UadpNetworkMessageContentMask)(UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID |
+    UA_UADPNETWORKMESSAGECONTENTMASK_GROUPHEADER |
+    UA_UADPNETWORKMESSAGECONTENTMASK_WRITERGROUPID |
+    UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
+    writerGroupConfig.messageSettings.content.decoded.data = writer_group_message;
     //TODO remove hard coded UADP
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
     //ToDo transfer all arguments to internal WGConfiguration
     retVal |= UA_Server_addWriterGroup(server, *objectId, &writerGroupConfig, &generatedId);
+    retVal |= UA_Server_setWriterGroupOperational(server, generatedId);
+    UA_UadpWriterGroupMessageDataType_delete(writer_group_message);
     UA_Variant_setScalarCopy(output, &generatedId, &UA_TYPES[UA_TYPES_NODEID]);
     return retVal;
 }
