@@ -36,7 +36,7 @@ static void checkZeroVisitor(void *context, const UA_Node* node) {
     if (node == NULL) zeroCnt++;
 }
 
-static UA_Node* createNode(UA_Int16 nsid, UA_Int32 id) {
+static UA_Node* createNode(UA_UInt16 nsid, UA_UInt32 id) {
     UA_Node *p = ns.newNode(&ns.context, UA_NODECLASS_VARIABLE);
     p->nodeId.identifierType = UA_NODEIDTYPE_NUMERIC;
     p->nodeId.namespaceIndex = nsid;
@@ -80,7 +80,7 @@ START_TEST(findNodeInUA_NodeStoreWithSingleEntry) {
     ns.insertNode(ns.context, n1, NULL);
     UA_NodeId in1 = UA_NODEID_NUMERIC(0,2253);
     const UA_Node* nr = ns.getNode(ns.context, &in1);
-    ck_assert_int_eq((uintptr_t)n1, (uintptr_t)nr);
+    ck_assert_uint_eq((uintptr_t)n1, (uintptr_t)nr);
     ns.releaseNode(ns.context, nr);
 }
 END_TEST
@@ -90,7 +90,7 @@ START_TEST(failToFindNodeInOtherUA_NodeStore) {
     ns.insertNode(ns.context, n1, NULL);
     UA_NodeId in1 = UA_NODEID_NUMERIC(1, 2255);
     const UA_Node* nr = ns.getNode(ns.context, &in1);
-    ck_assert_int_eq((uintptr_t)nr, 0);
+    ck_assert_uint_eq((uintptr_t)nr, 0);
 }
 END_TEST
 
@@ -110,7 +110,7 @@ START_TEST(findNodeInUA_NodeStoreWithSeveralEntries) {
 
     UA_NodeId in3 = UA_NODEID_NUMERIC(0, 2257);
     const UA_Node* nr = ns.getNode(ns.context, &in3);
-    ck_assert_int_eq((uintptr_t)nr, (uintptr_t)n3);
+    ck_assert_uint_eq((uintptr_t)nr, (uintptr_t)n3);
     ns.releaseNode(ns.context, nr);
 }
 END_TEST
@@ -180,7 +180,7 @@ START_TEST(failToFindNonExistentNodeInUA_NodeStoreWithSeveralEntries) {
 
     UA_NodeId id = UA_NODEID_NUMERIC(0, 12);
     const UA_Node* nr = ns.getNode(ns.context, &id);
-    ck_assert_int_eq((uintptr_t)nr, 0);
+    ck_assert_uint_eq((uintptr_t)nr, 0);
 }
 END_TEST
 

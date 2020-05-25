@@ -188,7 +188,7 @@ START_TEST(client_readMultipleAttributes) {
         retval = response.responseHeader.serviceResult;
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-        ck_assert_int_eq(response.resultsSize, 3);
+        ck_assert_uint_eq(response.resultsSize, 3);
         ck_assert_uint_eq(response.results[0].status, UA_STATUSCODE_GOOD);
         ck_assert_uint_eq(response.results[1].status, UA_STATUSCODE_GOOD);
         ck_assert_uint_eq(response.results[2].status, UA_STATUSCODE_BADNODEIDUNKNOWN);

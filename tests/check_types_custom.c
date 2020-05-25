@@ -289,8 +289,8 @@ START_TEST(parseCustomScalarExtensionObject) {
     UA_ExtensionObject eo2;
     size_t offset = 0;
     retval = UA_decodeBinary(&buf, &offset, &eo2, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], &customDataTypes);
-    ck_assert_int_eq(offset, (uintptr_t)(bufPos - buf.data));
-    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(offset, (uintptr_t)(bufPos - buf.data));
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     ck_assert_int_eq(eo2.encoding, UA_EXTENSIONOBJECT_DECODED);
     ck_assert(eo2.content.decoded.type == &PointType);
@@ -330,7 +330,7 @@ START_TEST(parseCustomArray) {
     retval = UA_decodeBinary(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], &customDataTypes);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert(var2.type == &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
-    ck_assert_int_eq(var2.arrayLength, 10);
+    ck_assert_uint_eq(var2.arrayLength, 10);
 
     for (size_t i = 0; i < 10; i++) {
         UA_ExtensionObject *eo = &((UA_ExtensionObject*)var2.data)[i];

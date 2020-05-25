@@ -48,7 +48,7 @@ START_TEST(UA_Byte_decodeShallModifyOnlyCurrentPosition) {
     UA_StatusCode retval = UA_Byte_decodeBinary(&src, &pos, &dst[1]);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(pos, 1);
+    ck_assert_uint_eq(pos, 1);
     ck_assert_uint_eq(dst[0], 0xFF);
     ck_assert_uint_eq(dst[1], 0x08);
     ck_assert_uint_eq(dst[2], 0xFF);
@@ -71,7 +71,7 @@ START_TEST(UA_Int16_decodeShallAssumeLittleEndian) {
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(val_01_00, 1);
     ck_assert_int_eq(val_00_01, 256);
-    ck_assert_int_eq(pos, 4);
+    ck_assert_uint_eq(pos, 4);
 }
 END_TEST
 
@@ -108,7 +108,7 @@ START_TEST(UA_UInt16_decodeShallNotRespectSign) {
     retval |= UA_UInt16_decodeBinary(&src, &pos, &val_00_80);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(pos, 4);
+    ck_assert_uint_eq(pos, 4);
     ck_assert_uint_eq(val_ff_ff, (0x01 << 16)-1);
     ck_assert_uint_eq(val_00_80, (0x01 << 15));
 }
@@ -131,7 +131,7 @@ START_TEST(UA_Int32_decodeShallAssumeLittleEndian) {
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(val_01_00, 1);
     ck_assert_int_eq(val_00_01, 256);
-    ck_assert_int_eq(pos, 8);
+    ck_assert_uint_eq(pos, 8);
 }
 END_TEST
 
@@ -170,7 +170,7 @@ START_TEST(UA_UInt32_decodeShallNotRespectSign) {
     retval |= UA_UInt32_decodeBinary(&src, &pos, &val_00_80);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(pos, 8);
+    ck_assert_uint_eq(pos, 8);
     ck_assert_uint_eq(val_ff_ff, (UA_UInt32)( (0x01LL << 32 ) - 1 ));
     ck_assert_uint_eq(val_00_80, (UA_UInt32)(0x01) << 31);
 }
@@ -196,7 +196,7 @@ END_TEST
 START_TEST(UA_Int64_decodeShallRespectSign) {
     // given
     UA_ByteString rawMessage;
-    UA_UInt64 expectedVal = (UA_UInt64)0xFF << 56;
+    UA_Int64 expectedVal = (UA_Int64)0xFF << 56;
     UA_Byte  mem[8]      = { 00, 00, 00, 00, 0x00, 0x00, 0x00, 0xFF };
     rawMessage.data   = mem;
     rawMessage.length = 8;
@@ -206,7 +206,7 @@ START_TEST(UA_Int64_decodeShallRespectSign) {
     // when
     UA_Int64_decodeBinary(&rawMessage, &pos, &val);
     //then
-    ck_assert_uint_eq(val, expectedVal);
+    ck_assert_int_eq(val, expectedVal);
 }
 END_TEST
 
@@ -220,7 +220,7 @@ START_TEST(UA_Float_decodeShallWorkOnExample) {
     UA_StatusCode retval = UA_Float_decodeBinary(&src, &pos, &dst);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(pos, 4);
+    ck_assert_uint_eq(pos, 4);
     ck_assert(-6.5000001 < dst);
     ck_assert(dst < -6.49999999999);
 }
@@ -236,7 +236,7 @@ START_TEST(UA_Double_decodeShallGiveOne) {
     UA_StatusCode retval = UA_Double_decodeBinary(&src, &pos, &dst);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(pos, 8);
+    ck_assert_uint_eq(pos, 8);
     ck_assert(0.9999999 < dst);
     ck_assert(dst < 1.00000000001);
 }
@@ -252,7 +252,7 @@ START_TEST(UA_Double_decodeShallGiveZero) {
     UA_StatusCode retval = UA_Double_decodeBinary(&src, &pos, &dst);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(pos, 8);
+    ck_assert_uint_eq(pos, 8);
     ck_assert(-0.00000001 < dst);
     ck_assert(dst < 0.000000001);
 }
@@ -268,7 +268,7 @@ START_TEST(UA_Double_decodeShallGiveMinusTwo) {
     UA_StatusCode retval = UA_Double_decodeBinary(&src, &pos, &dst);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(pos, 8);
+    ck_assert_uint_eq(pos, 8);
     ck_assert(-1.9999999 > dst);
     ck_assert(dst > -2.00000000001);
 }
@@ -284,7 +284,7 @@ START_TEST(UA_Double_decodeShallGive2147483648) {
     UA_StatusCode retval = UA_Double_decodeBinary(&src, &pos, &dst);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(pos, 8);
+    ck_assert_uint_eq(pos, 8);
     ck_assert(2147483647.9999999 <= dst);
     ck_assert(dst <= 2147483648.00000001);
 }
@@ -301,7 +301,7 @@ START_TEST(UA_String_decodeShallAllocateMemoryAndCopyString) {
     UA_StatusCode retval = UA_String_decodeBinary(&src, &pos, &dst);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(dst.length, 8);
+    ck_assert_uint_eq(dst.length, 8);
     ck_assert_int_eq(dst.data[3], 'L');
     ck_assert_uint_eq(pos, UA_calcSizeBinary(&dst, &UA_TYPES[UA_TYPES_STRING]));
     // finally
@@ -320,7 +320,7 @@ START_TEST(UA_String_decodeWithNegativeSizeShallNotAllocateMemoryAndNullPtr) {
     UA_StatusCode retval = UA_String_decodeBinary(&src, &pos, &dst);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(dst.length, 0);
+    ck_assert_uint_eq(dst.length, 0);
     ck_assert_ptr_eq(dst.data, NULL);
 }
 END_TEST
@@ -336,7 +336,7 @@ START_TEST(UA_String_decodeWithZeroSizeShallNotAllocateMemoryAndNullPtr) {
     UA_StatusCode retval = UA_String_decodeBinary(&src, &pos, &dst);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(dst.length, 0);
+    ck_assert_uint_eq(dst.length, 0);
     ck_assert_ptr_eq(dst.data, UA_EMPTY_ARRAY_SENTINEL);
 }
 END_TEST
@@ -351,7 +351,7 @@ START_TEST(UA_NodeId_decodeTwoByteShallReadTwoBytesAndSetNamespaceToZero) {
     UA_StatusCode retval = UA_NodeId_decodeBinary(&src, &pos, &dst);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(pos, 2);
+    ck_assert_uint_eq(pos, 2);
     ck_assert_uint_eq(pos, UA_calcSizeBinary(&dst, &UA_TYPES[UA_TYPES_NODEID]));
     ck_assert_int_eq(dst.identifierType, UA_NODEIDTYPE_NUMERIC);
     ck_assert_int_eq(dst.identifier.numeric, 16);
@@ -369,7 +369,7 @@ START_TEST(UA_NodeId_decodeFourByteShallReadFourBytesAndRespectNamespace) {
     UA_StatusCode retval = UA_NodeId_decodeBinary(&src, &pos, &dst);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(pos, 4);
+    ck_assert_uint_eq(pos, 4);
     ck_assert_uint_eq(pos, UA_calcSizeBinary(&dst, &UA_TYPES[UA_TYPES_NODEID]));
     ck_assert_int_eq(dst.identifierType, UA_NODEIDTYPE_NUMERIC);
     ck_assert_int_eq(dst.identifier.numeric, 256);
@@ -387,11 +387,11 @@ START_TEST(UA_NodeId_decodeStringShallAllocateMemory) {
     UA_StatusCode retval = UA_NodeId_decodeBinary(&src, &pos, &dst);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(pos, 10);
+    ck_assert_uint_eq(pos, 10);
     ck_assert_uint_eq(pos, UA_calcSizeBinary(&dst, &UA_TYPES[UA_TYPES_NODEID]));
     ck_assert_int_eq(dst.identifierType, UA_NODEIDTYPE_STRING);
     ck_assert_int_eq(dst.namespaceIndex, 1);
-    ck_assert_int_eq(dst.identifier.string.length, 3);
+    ck_assert_uint_eq(dst.identifier.string.length, 3);
     ck_assert_int_eq(dst.identifier.string.data[1], 'L');
     // finally
     UA_NodeId_deleteMembers(&dst);
@@ -411,9 +411,9 @@ START_TEST(UA_Variant_decodeWithOutArrayFlagSetShallSetVTAndAllocateMemoryForArr
     ck_assert_uint_eq(pos, 5);
     ck_assert_uint_eq(pos, UA_calcSizeBinary(&dst, &UA_TYPES[UA_TYPES_VARIANT]));
     //ck_assert_ptr_eq((const void *)dst.type, (const void *)&UA_TYPES[UA_TYPES_INT32]); //does not compile in gcc 4.6
-    ck_assert_int_eq((uintptr_t)dst.type, (uintptr_t)&UA_TYPES[UA_TYPES_INT32]);
-    ck_assert_int_eq(dst.arrayLength, 0);
-    ck_assert_int_ne((uintptr_t)dst.data, 0);
+    ck_assert_uint_eq((uintptr_t)dst.type, (uintptr_t)&UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_uint_eq(dst.arrayLength, 0);
+    ck_assert_uint_ne((uintptr_t)dst.data, 0);
     UA_assert(dst.data != NULL); /* repeat the previous argument so that clang-analyzer is happy */
     ck_assert_int_eq(*(UA_Int32 *)dst.data, 255);
     // finally
@@ -434,11 +434,11 @@ START_TEST(UA_Variant_decodeWithArrayFlagSetShallSetVTAndAllocateMemoryForArray)
     UA_StatusCode retval = UA_Variant_decodeBinary(&src, &pos, &dst);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(pos, 1+4+2*4);
+    ck_assert_uint_eq(pos, 1+4+2*4);
     ck_assert_uint_eq(pos, UA_calcSizeBinary(&dst, &UA_TYPES[UA_TYPES_VARIANT]));
     //ck_assert_ptr_eq((const (void*))dst.type, (const void*)&UA_TYPES[UA_TYPES_INT32]); //does not compile in gcc 4.6
-    ck_assert_int_eq((uintptr_t)dst.type,(uintptr_t)&UA_TYPES[UA_TYPES_INT32]);
-    ck_assert_int_eq(dst.arrayLength, 2);
+    ck_assert_uint_eq((uintptr_t)dst.type,(uintptr_t)&UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_uint_eq(dst.arrayLength, 2);
     ck_assert_int_eq(((UA_Int32 *)dst.data)[0], 255);
     ck_assert_int_eq(((UA_Int32 *)dst.data)[1], -1);
     // finally
@@ -486,12 +486,12 @@ START_TEST(UA_Variant_decodeSingleExtensionObjectShallSetVTAndAllocateMemory){
     /* ck_assert_int_eq(retval, UA_STATUSCODE_GOOD); */
     /* // TODO!! */
     /* /\* ck_assert_int_eq(dst.encoding, UA_EXTENSIONOBJECT_DECODED); *\/ */
-    /* /\* ck_assert_int_eq((uintptr_t)dst.content.decoded.type, (uintptr_t)&UA_TYPES[UA_TYPES_EXTENSIONOBJECT]); *\/ */
-    /* /\* ck_assert_int_eq(dst.arrayLength, -1); *\/ */
+    /* /\* ck_assert_uint_eq((uintptr_t)dst.content.decoded.type, (uintptr_t)&UA_TYPES[UA_TYPES_EXTENSIONOBJECT]); *\/ */
+    /* /\* ck_assert_uint_eq(dst.arrayLength, -1); *\/ */
     /* /\* ck_assert_int_eq(((UA_ExtensionObject *)dst.data)->body.data[0], 10); *\/ */
     /* /\* ck_assert_int_eq(((UA_ExtensionObject *)dst.data)->body.data[1], 20); *\/ */
     /* /\* ck_assert_int_eq(((UA_ExtensionObject *)dst.data)->body.data[2], 30); *\/ */
-    /* /\* ck_assert_int_eq(((UA_ExtensionObject *)dst.data)->body.length, 3); *\/ */
+    /* /\* ck_assert_uint_eq(((UA_ExtensionObject *)dst.data)->body.length, 3); *\/ */
 
 
     /* // finally */
@@ -550,7 +550,7 @@ START_TEST(UA_Byte_encode_test) {
 
     ck_assert_uint_eq(dst.data[0], 0x08);
     ck_assert_uint_eq(dst.data[1], 0xFF);
-    ck_assert_int_eq((uintptr_t)(pos - dst.data), 1);
+    ck_assert_uint_eq((uintptr_t)(pos - dst.data), 1);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     // Test2
@@ -562,7 +562,7 @@ START_TEST(UA_Byte_encode_test) {
 
     ck_assert_int_eq(dst.data[0], 0xFF);
     ck_assert_int_eq(dst.data[1], 0x00);
-    ck_assert_int_eq((uintptr_t)(pos - dst.data), 1);
+    ck_assert_uint_eq((uintptr_t)(pos - dst.data), 1);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
 }
@@ -570,7 +570,7 @@ END_TEST
 
 START_TEST(UA_UInt16_encodeNegativeShallEncodeLittleEndian) {
     // given
-    UA_UInt16     src    = -1;
+    UA_UInt16     src    = (UA_UInt16)-1;
     UA_Byte       data[] = { 0x55, 0x55, 0x55, 0x55 };
     UA_ByteString dst    = { 4, data };
     UA_Byte *pos = dst.data;
@@ -579,16 +579,16 @@ START_TEST(UA_UInt16_encodeNegativeShallEncodeLittleEndian) {
     // when test 1
     UA_StatusCode retval = UA_UInt16_encodeBinary(&src, &pos, end);
     // then test 1
-    ck_assert_int_eq((uintptr_t)(pos - dst.data), 2);
+    ck_assert_uint_eq((uintptr_t)(pos - dst.data), 2);
     ck_assert_int_eq(dst.data[0], 0xFF);
     ck_assert_int_eq(dst.data[1], 0xFF);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     // when test 2
-    src    = -32768;
+    src    = (UA_UInt16)-32768;
     retval = UA_UInt16_encodeBinary(&src, &pos, end);
     // then test 2
-    ck_assert_int_eq((uintptr_t)(pos - dst.data), 4);
+    ck_assert_uint_eq((uintptr_t)(pos - dst.data), 4);
     ck_assert_int_eq(dst.data[2], 0x00);
     ck_assert_int_eq(dst.data[3], 0x80);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
@@ -606,7 +606,7 @@ START_TEST(UA_UInt16_encodeShallEncodeLittleEndian) {
     // when test 1
     UA_StatusCode retval = UA_UInt16_encodeBinary(&src, &pos, end);
     // then test 1
-    ck_assert_int_eq((uintptr_t)(pos - dst.data), 2);
+    ck_assert_uint_eq((uintptr_t)(pos - dst.data), 2);
     ck_assert_int_eq(dst.data[0], 0x00);
     ck_assert_int_eq(dst.data[1], 0x00);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
@@ -615,7 +615,7 @@ START_TEST(UA_UInt16_encodeShallEncodeLittleEndian) {
     src    = 32767;
     retval = UA_UInt16_encodeBinary(&src, &pos, end);
     // then test 2
-    ck_assert_int_eq((uintptr_t)(pos - dst.data), 4);
+    ck_assert_uint_eq((uintptr_t)(pos - dst.data), 4);
     ck_assert_int_eq(dst.data[2], 0xFF);
     ck_assert_int_eq(dst.data[3], 0x7F);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
@@ -624,7 +624,7 @@ END_TEST
 
 START_TEST(UA_UInt32_encodeShallEncodeLittleEndian) {
     // given
-    UA_UInt32     src    = -1;
+    UA_UInt32     src    = (UA_UInt32)(-1);
     UA_Byte       data[] = { 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55 };
     UA_ByteString dst    = { 8, data };
     UA_Byte *pos = dst.data;
@@ -633,7 +633,7 @@ START_TEST(UA_UInt32_encodeShallEncodeLittleEndian) {
     // when test 1
     UA_StatusCode retval = UA_UInt32_encodeBinary(&src, &pos, end);
     // then test 1
-    ck_assert_int_eq((uintptr_t)(pos - dst.data), 4);
+    ck_assert_uint_eq((uintptr_t)(pos - dst.data), 4);
     ck_assert_int_eq(dst.data[0], 0xFF);
     ck_assert_int_eq(dst.data[1], 0xFF);
     ck_assert_int_eq(dst.data[2], 0xFF);
@@ -644,7 +644,7 @@ START_TEST(UA_UInt32_encodeShallEncodeLittleEndian) {
     src    = 0x0101FF00;
     retval = UA_UInt32_encodeBinary(&src, &pos, end);
     // then test 2
-    ck_assert_int_eq((uintptr_t)(pos - dst.data), 8);
+    ck_assert_uint_eq((uintptr_t)(pos - dst.data), 8);
     ck_assert_int_eq(dst.data[4], 0x00);
     ck_assert_int_eq(dst.data[5], 0xFF);
     ck_assert_int_eq(dst.data[6], 0x01);
@@ -664,7 +664,7 @@ START_TEST(UA_Int32_encodeShallEncodeLittleEndian) {
     // when test 1
     UA_StatusCode retval = UA_Int32_encodeBinary(&src, &pos, end);
     // then test 1
-    ck_assert_int_eq((uintptr_t)(pos - dst.data), 4);
+    ck_assert_uint_eq((uintptr_t)(pos - dst.data), 4);
     ck_assert_int_eq(dst.data[0], 0x01);
     ck_assert_int_eq(dst.data[1], 0x00);
     ck_assert_int_eq(dst.data[2], 0x00);
@@ -675,7 +675,7 @@ START_TEST(UA_Int32_encodeShallEncodeLittleEndian) {
     src    = 0x7FFFFFFF;
     retval = UA_Int32_encodeBinary(&src, &pos, end);
     // then test 2
-    ck_assert_int_eq((uintptr_t)(pos - dst.data), 8);
+    ck_assert_uint_eq((uintptr_t)(pos - dst.data), 8);
     ck_assert_int_eq(dst.data[4], 0xFF);
     ck_assert_int_eq(dst.data[5], 0xFF);
     ck_assert_int_eq(dst.data[6], 0xFF);
@@ -695,7 +695,7 @@ START_TEST(UA_Int32_encodeNegativeShallEncodeLittleEndian) {
     // when test 1
     UA_StatusCode retval = UA_Int32_encodeBinary(&src, &pos, end);
     // then test 1
-    ck_assert_int_eq((uintptr_t)(pos - dst.data), 4);
+    ck_assert_uint_eq((uintptr_t)(pos - dst.data), 4);
     ck_assert_int_eq(dst.data[0], 0xFF);
     ck_assert_int_eq(dst.data[1], 0xFF);
     ck_assert_int_eq(dst.data[2], 0xFF);
@@ -706,7 +706,7 @@ END_TEST
 
 START_TEST(UA_UInt64_encodeShallWorkOnExample) {
     // given
-    UA_UInt64     src    = -1;
+    UA_UInt64     src    = (UA_UInt64)(-1LL);
     UA_Byte       data[] = { 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55,
                              0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55 };
     UA_ByteString dst    = { 16, data };
@@ -716,7 +716,7 @@ START_TEST(UA_UInt64_encodeShallWorkOnExample) {
     // when test 1
     UA_StatusCode retval = UA_UInt64_encodeBinary(&src, &pos, end);
     // then test 1
-    ck_assert_int_eq((uintptr_t)(pos - dst.data), 8);
+    ck_assert_uint_eq((uintptr_t)(pos - dst.data), 8);
     ck_assert_int_eq(dst.data[0], 0xFF);
     ck_assert_int_eq(dst.data[1], 0xFF);
     ck_assert_int_eq(dst.data[2], 0xFF);
@@ -731,7 +731,7 @@ START_TEST(UA_UInt64_encodeShallWorkOnExample) {
     src    = 0x7F0033AA44EE6611;
     retval = UA_UInt64_encodeBinary(&src, &pos, end);
     // then test 2
-    ck_assert_int_eq((uintptr_t)(pos - dst.data), 16);
+    ck_assert_uint_eq((uintptr_t)(pos - dst.data), 16);
     ck_assert_int_eq(dst.data[8], 0x11);
     ck_assert_int_eq(dst.data[9], 0x66);
     ck_assert_int_eq(dst.data[10], 0xEE);
@@ -756,7 +756,7 @@ START_TEST(UA_Int64_encodeShallEncodeLittleEndian) {
     // when test 1
     UA_StatusCode retval = UA_Int64_encodeBinary(&src, &pos, end);
     // then test 1
-    ck_assert_int_eq((uintptr_t)(pos - dst.data), 8);
+    ck_assert_uint_eq((uintptr_t)(pos - dst.data), 8);
     ck_assert_int_eq(dst.data[0], 0x11);
     ck_assert_int_eq(dst.data[1], 0x66);
     ck_assert_int_eq(dst.data[2], 0xEE);
@@ -781,7 +781,7 @@ START_TEST(UA_Int64_encodeNegativeShallEncodeLittleEndian) {
     // when test 1
     UA_StatusCode retval = UA_Int64_encodeBinary(&src, &pos, end);
     // then test 1
-    ck_assert_int_eq((uintptr_t)(pos - dst.data), 8);
+    ck_assert_uint_eq((uintptr_t)(pos - dst.data), 8);
     ck_assert_int_eq(dst.data[0], 0xFF);
     ck_assert_int_eq(dst.data[1], 0xFF);
     ck_assert_int_eq(dst.data[2], 0xFF);
@@ -821,13 +821,13 @@ START_TEST(UA_Float_encodeShallWorkOnExample) {
 
     for(size_t i = 0; i < 7; i++) {
         UA_Byte *pos = dst.data;
-        UA_Int32 retval = UA_Float_encodeBinary(&src[i], &pos, end);
-        ck_assert_int_eq((uintptr_t)(pos - dst.data), 4);
-        ck_assert_int_eq(dst.data[0], result[i][0]);
-        ck_assert_int_eq(dst.data[1], result[i][1]);
-        ck_assert_int_eq(dst.data[2], result[i][2]);
-        ck_assert_int_eq(dst.data[3], result[i][3]);
-        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+        UA_UInt32 retval = UA_Float_encodeBinary(&src[i], &pos, end);
+        ck_assert_uint_eq((uintptr_t)(pos - dst.data), 4);
+        ck_assert_uint_eq(dst.data[0], result[i][0]);
+        ck_assert_uint_eq(dst.data[1], result[i][1]);
+        ck_assert_uint_eq(dst.data[2], result[i][2]);
+        ck_assert_uint_eq(dst.data[3], result[i][3]);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
 }
 END_TEST
@@ -844,7 +844,7 @@ START_TEST(UA_Double_encodeShallWorkOnExample) {
     // when test 1
     UA_StatusCode retval = UA_Double_encodeBinary(&src, &pos, end);
     // then test 1
-    ck_assert_int_eq((uintptr_t)(pos - dst.data), 8);
+    ck_assert_uint_eq((uintptr_t)(pos - dst.data), 8);
     ck_assert_int_eq(dst.data[6], 0x1A);
     ck_assert_int_eq(dst.data[7], 0xC0);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
@@ -868,7 +868,7 @@ START_TEST(UA_String_encodeShallWorkOnExample) {
     // when
     UA_StatusCode retval = UA_String_encodeBinary(&src, &pos, end);
     // then
-    ck_assert_int_eq((uintptr_t)(pos - dst.data), sizeof(UA_Int32)+11);
+    ck_assert_uint_eq((uintptr_t)(pos - dst.data), sizeof(UA_Int32)+11);
     ck_assert_uint_eq(sizeof(UA_Int32)+11, UA_calcSizeBinary(&src, &UA_TYPES[UA_TYPES_STRING]));
     ck_assert_int_eq(dst.data[0], 11);
     ck_assert_int_eq(dst.data[sizeof(UA_Int32)+0], 'A');
@@ -898,7 +898,7 @@ START_TEST(UA_ExpandedNodeId_encodeShallWorkOnExample) {
     UA_StatusCode retval = UA_ExpandedNodeId_encodeBinary(&src, &pos, end);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq((uintptr_t)(pos - dst.data), 13);
+    ck_assert_uint_eq((uintptr_t)(pos - dst.data), 13);
     ck_assert_uint_eq(13, UA_calcSizeBinary(&src, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]));
     ck_assert_int_eq(dst.data[0], 0x80); // namespaceuri flag
 }
@@ -921,7 +921,7 @@ START_TEST(UA_DataValue_encodeShallWorkOnExampleWithoutVariant) {
     // when
     UA_StatusCode retval = UA_DataValue_encodeBinary(&src, &pos, end);
     // then
-    ck_assert_int_eq((uintptr_t)(pos - dst.data), 9);
+    ck_assert_uint_eq((uintptr_t)(pos - dst.data), 9);
     ck_assert_uint_eq(9, UA_calcSizeBinary(&src, &UA_TYPES[UA_TYPES_DATAVALUE]));
     ck_assert_int_eq(dst.data[0], 0x08); // encodingMask
     ck_assert_int_eq(dst.data[1], 80);   // 8 Byte serverTimestamp
@@ -958,7 +958,7 @@ START_TEST(UA_DataValue_encodeShallWorkOnExampleWithVariant) {
     // when
     UA_StatusCode retval = UA_DataValue_encodeBinary(&src, &pos, end);
     // then
-    ck_assert_int_eq((uintptr_t)(pos - dst.data), 1+(1+4)+8);           // represents the length
+    ck_assert_uint_eq((uintptr_t)(pos - dst.data), 1+(1+4)+8);           // represents the length
     ck_assert_uint_eq(1+(1+4)+8, UA_calcSizeBinary(&src, &UA_TYPES[UA_TYPES_DATAVALUE]));
     ck_assert_int_eq(dst.data[0], 0x08 | 0x01); // encodingMask
     ck_assert_int_eq(dst.data[1], 0x06);        // Variant's Encoding Mask - INT32
@@ -1079,8 +1079,8 @@ START_TEST(UA_Array_copyByteArrayShallWorkOnExample) {
     //given
     UA_String testString;
     UA_Byte  *dstArray;
-    UA_Int32  size = 5;
-    UA_Int32  i    = 0;
+    UA_UInt32  size = 5;
+    UA_UInt32  i    = 0;
     testString.data = (UA_Byte*)UA_malloc(size);
     testString.data[0] = 'O';
     testString.data[1] = 'P';
@@ -1121,7 +1121,7 @@ START_TEST(UA_Array_copyUA_StringShallWorkOnExample) {
     for(i = 0;i < 3;i++) {
         for(j = 0;j < 3;j++)
             ck_assert_int_eq(srcArray[i].data[j], dstArray[i].data[j]);
-        ck_assert_int_eq(srcArray[i].length, dstArray[i].length);
+        ck_assert_uint_eq(srcArray[i].length, dstArray[i].length);
     }
     //finally
     UA_Array_delete(srcArray, 3, &UA_TYPES[UA_TYPES_STRING]);
@@ -1147,7 +1147,7 @@ START_TEST(UA_DiagnosticInfo_copyShallWorkOnExample) {
     //then
     for(size_t i = 0;i < testString.length;i++)
         ck_assert_int_eq(copiedValue.additionalInfo.data[i], value.additionalInfo.data[i]);
-    ck_assert_int_eq(copiedValue.additionalInfo.length, value.additionalInfo.length);
+    ck_assert_uint_eq(copiedValue.additionalInfo.length, value.additionalInfo.length);
 
     ck_assert_int_eq(copiedValue.hasInnerDiagnosticInfo, value.hasInnerDiagnosticInfo);
     ck_assert_int_eq(copiedValue.innerDiagnosticInfo->locale, value.innerDiagnosticInfo->locale);
@@ -1195,25 +1195,25 @@ START_TEST(UA_ApplicationDescription_copyShallWorkOnExample) {
 
     for(size_t i = 0; i < appString.length; i++)
         ck_assert_int_eq(copiedValue.applicationUri.data[i], value.applicationUri.data[i]);
-    ck_assert_int_eq(copiedValue.applicationUri.length, value.applicationUri.length);
+    ck_assert_uint_eq(copiedValue.applicationUri.length, value.applicationUri.length);
 
     for(size_t i = 0; i < discString.length; i++)
         ck_assert_int_eq(copiedValue.discoveryProfileUri.data[i], value.discoveryProfileUri.data[i]);
-    ck_assert_int_eq(copiedValue.discoveryProfileUri.length, value.discoveryProfileUri.length);
+    ck_assert_uint_eq(copiedValue.discoveryProfileUri.length, value.discoveryProfileUri.length);
 
     for(size_t i = 0; i < gateWayString.length; i++)
         ck_assert_int_eq(copiedValue.gatewayServerUri.data[i], value.gatewayServerUri.data[i]);
-    ck_assert_int_eq(copiedValue.gatewayServerUri.length, value.gatewayServerUri.length);
+    ck_assert_uint_eq(copiedValue.gatewayServerUri.length, value.gatewayServerUri.length);
 
     //String Array Test
     for(UA_Int32 i = 0;i < 3;i++) {
         for(UA_Int32 j = 0;j < 6;j++)
             ck_assert_int_eq(value.discoveryUrls[i].data[j], copiedValue.discoveryUrls[i].data[j]);
-        ck_assert_int_eq(value.discoveryUrls[i].length, copiedValue.discoveryUrls[i].length);
+        ck_assert_uint_eq(value.discoveryUrls[i].length, copiedValue.discoveryUrls[i].length);
     }
     ck_assert_int_eq(copiedValue.discoveryUrls[0].data[2], 'o');
     ck_assert_int_eq(copiedValue.discoveryUrls[0].data[3], 'p');
-    ck_assert_int_eq(copiedValue.discoveryUrlsSize, value.discoveryUrlsSize);
+    ck_assert_uint_eq(copiedValue.discoveryUrlsSize, value.discoveryUrlsSize);
 
     //finally
     // UA_ApplicationDescription_deleteMembers(&value); // do not free the members as they are statically allocated
@@ -1232,7 +1232,7 @@ START_TEST(UA_QualifiedName_copyShallWorkOnInputExample) {
     ck_assert_int_eq(ret, UA_STATUSCODE_GOOD);
     ck_assert_int_eq('E', dst.name.data[1]);
     ck_assert_int_eq('!', dst.name.data[7]);
-    ck_assert_int_eq(8, dst.name.length);
+    ck_assert_uint_eq(8, dst.name.length);
     ck_assert_int_eq(5, dst.namespaceIndex);
     // finally
     UA_QualifiedName_deleteMembers(&dst);
@@ -1263,8 +1263,8 @@ START_TEST(UA_LocalizedText_copycstringShallWorkOnInputExample) {
 
     // then
     ck_assert_int_eq('1', dst.text.data[4]);
-    ck_assert_int_eq(0, dst.locale.length);
-    ck_assert_int_eq(7, dst.text.length);
+    ck_assert_uint_eq(0, dst.locale.length);
+    ck_assert_uint_eq(7, dst.text.length);
 }
 END_TEST
 
@@ -1310,10 +1310,10 @@ START_TEST(UA_Variant_copyShallWorkOnSingleValueExample) {
     UA_String copiedString = *(UA_String*)(copiedValue.data);
     for(UA_Int32 i = 0;i < 5;i++)
         ck_assert_int_eq(copiedString.data[i], testString.data[i]);
-    ck_assert_int_eq(copiedString.length, testString.length);
+    ck_assert_uint_eq(copiedString.length, testString.length);
 
-    ck_assert_int_eq(value.arrayDimensionsSize, copiedValue.arrayDimensionsSize);
-    ck_assert_int_eq(value.arrayLength, copiedValue.arrayLength);
+    ck_assert_uint_eq(value.arrayDimensionsSize, copiedValue.arrayDimensionsSize);
+    ck_assert_uint_eq(value.arrayLength, copiedValue.arrayLength);
 
     //finally
     ((UA_String*)value.data)->data = NULL; // the string is statically allocated. do not free it.
@@ -1364,22 +1364,22 @@ START_TEST(UA_Variant_copyShallWorkOn1DArrayExample) {
     UA_Variant_copy(&value, &copiedValue);
 
     //then
-    UA_Int32 i1 = value.arrayDimensions[0];
-    UA_Int32 i2 = copiedValue.arrayDimensions[0];
-    ck_assert_int_eq(i1, i2);
+    UA_UInt32 i1 = value.arrayDimensions[0];
+    UA_UInt32 i2 = copiedValue.arrayDimensions[0];
+    ck_assert_uint_eq(i1, i2);
 
     for(UA_Int32 i = 0;i < 3;i++) {
         for(UA_Int32 j = 0;j < 6;j++) {
             ck_assert_int_eq(((UA_String *)value.data)[i].data[j],
                     ((UA_String *)copiedValue.data)[i].data[j]);
         }
-        ck_assert_int_eq(((UA_String *)value.data)[i].length,
+        ck_assert_uint_eq(((UA_String *)value.data)[i].length,
                 ((UA_String *)copiedValue.data)[i].length);
     }
     ck_assert_int_eq(((UA_String *)copiedValue.data)[0].data[2], 'o');
     ck_assert_int_eq(((UA_String *)copiedValue.data)[0].data[3], 'p');
-    ck_assert_int_eq(value.arrayDimensionsSize, copiedValue.arrayDimensionsSize);
-    ck_assert_int_eq(value.arrayLength, copiedValue.arrayLength);
+    ck_assert_uint_eq(value.arrayDimensionsSize, copiedValue.arrayDimensionsSize);
+    ck_assert_uint_eq(value.arrayLength, copiedValue.arrayLength);
 
     //finally
     UA_Variant_deleteMembers(&value);
@@ -1418,10 +1418,10 @@ START_TEST(UA_Variant_copyShallWorkOn2DArrayExample) {
 
     //then
     //1st dimension
-    UA_Int32 i1 = value.arrayDimensions[0];
-    UA_Int32 i2 = copiedValue.arrayDimensions[0];
-    ck_assert_int_eq(i1, i2);
-    ck_assert_int_eq(i1, dim1);
+    UA_UInt32 i1 = value.arrayDimensions[0];
+    UA_UInt32 i2 = copiedValue.arrayDimensions[0];
+    ck_assert_uint_eq(i1, i2);
+    ck_assert_uint_eq(i1, dim1);
 
 
     //2nd dimension
@@ -1432,14 +1432,14 @@ START_TEST(UA_Variant_copyShallWorkOn2DArrayExample) {
 
 
     for(UA_Int32 i = 0;i < 6;i++) {
-        i1 = ((UA_Int32 *)value.data)[i];
-        i2 = ((UA_Int32 *)copiedValue.data)[i];
+        i1 = ((UA_UInt32 *)value.data)[i];
+        i2 = ((UA_UInt32 *)copiedValue.data)[i];
         ck_assert_int_eq(i1, i2);
         ck_assert_int_eq(i2, i);
     }
 
-    ck_assert_int_eq(value.arrayDimensionsSize, copiedValue.arrayDimensionsSize);
-    ck_assert_int_eq(value.arrayLength, copiedValue.arrayLength);
+    ck_assert_uint_eq(value.arrayDimensionsSize, copiedValue.arrayDimensionsSize);
+    ck_assert_uint_eq(value.arrayLength, copiedValue.arrayLength);
 
     //finally
     UA_Variant_deleteMembers(&value);
@@ -1482,15 +1482,15 @@ START_TEST(UA_ExtensionObject_encodeDecodeShallWorkOnExtensionObject) {
     /* size_t posDecode = 0; */
     /* UA_ExtensionObject_decodeBinary(&dst, &posDecode, &extensionObjectDecoded); */
 
-    /* ck_assert_int_eq(posEncode, posDecode); */
-    /* ck_assert_int_eq(extensionObjectDecoded.body.length, extensionObject.body.length); */
+    /* ck_assert_uint_eq(posEncode, posDecode); */
+    /* ck_assert_uint_eq(extensionObjectDecoded.body.length, extensionObject.body.length); */
 
     /* UA_VariableAttributes varAttrDecoded; */
     /* UA_VariableAttributes_init(&varAttrDecoded); */
     /* posDecode = 0; */
     /* UA_VariableAttributes_decodeBinary(&extensionObjectDecoded.body, &posDecode, &varAttrDecoded); */
     /* ck_assert_uint_eq(41, varAttrDecoded.userWriteMask); */
-    /* ck_assert_int_eq(-1, varAttrDecoded.value.arrayLength); */
+    /* ck_assert_uint_eq(-1, varAttrDecoded.value.arrayLength); */
 
     /* // finally */
     /* UA_ExtensionObject_deleteMembers(&extensionObjectDecoded); */
