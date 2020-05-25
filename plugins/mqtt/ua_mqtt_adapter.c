@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  * Copyright (c) 2018 Fraunhofer IOSB (Author: Lukas Meling)
+ * Copyright (c) 2020 basysKom GmbH
  */
 
 #include "ua_mqtt_adapter.h"
@@ -10,15 +11,44 @@
 #include "open62541/plugin/log_stdout.h"
 #include "open62541/util.h"
 
+#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+#include <openssl/ssl.h>
+#endif
+
 /* forward decl for callback */
 void
 publish_callback(void**, struct mqtt_response_publish*);
+
+void freeTLS(UA_PubSubChannelDataMQTT *data) {
+#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+    if (!data->ssl)
+        return;
+    SSL_shutdown(data->ssl);
+    SSL_CTX_free(SSL_get_SSL_CTX(data->ssl));
+    SSL_free(data->ssl);
+    data->ssl = NULL;
+#endif
+}
 
 UA_StatusCode
 connectMqtt(UA_PubSubChannelDataMQTT* channelData){
     if(channelData == NULL){
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
+
+#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+    if (channelData->mqttUseTLS && !channelData->mqttCertPath.length && !channelData->mqttCaPath.length) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "MQTT PubSub: TLS connection requested, mqttCertPath or mqttCaPath must be specified");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+#else
+    if (channelData->mqttUseTLS) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "MQTT PubSub: TLS connection requested but open62541 has been built without TLS support");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+#endif
 
     /* Get address and replace mqtt with tcp
      * because we use a tcp UA_ClientConnectionTCP for mqtt */
@@ -77,9 +107,92 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
 
     memcpy(channelData->connection, &connection, sizeof(UA_Connection));
 
+#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+    if (channelData->mqttUseTLS) {
+        char *mqttCertPath = NULL;
+        if (channelData->mqttCertPath.length > 0) {
+            /* Convert tls certificate path UA_String to char* null terminated */
+            mqttCertPath = (char*)calloc(1,channelData->mqttCertPath.length + 1);
+            if(!mqttCertPath){
+                UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Connection creation failed. Out of memory.");
+                // TODO: There are several places in the existing code where channelData->connection is freed but not set to NULL
+                // The call to disconnectMqtt by the function calling this function in case of error causes heap-use-after-free
+                // Where should channelData->connection be cleaned up?
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+            }
+            memcpy(mqttCertPath, channelData->mqttCertPath.data, channelData->mqttCertPath.length);
+        }
+
+        char *mqttCaPath = NULL;
+        if (channelData->mqttCaPath.length > 0) {
+            /* Convert tls CA path UA_String to char* null terminated */
+            mqttCaPath = (char*)calloc(1,channelData->mqttCaPath.length + 1);
+            if(!mqttCaPath){
+                UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Connection creation failed. Out of memory.");
+                UA_free(mqttCaPath);
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+            }
+            memcpy(mqttCaPath, channelData->mqttCaPath.data, channelData->mqttCaPath.length);
+        }
+
+        SSL_library_init();
+
+        SSL_CTX *ctx = SSL_CTX_new(TLSv1_client_method());
+
+        if (!ctx) {
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Connection creation failed. Out of memory.");
+            UA_free(mqttCertPath);
+            UA_free(mqttCaPath);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+
+        int result = SSL_CTX_load_verify_locations(ctx, mqttCertPath, mqttCaPath);
+
+        UA_free(mqttCertPath);
+        UA_free(mqttCaPath);
+
+        if (!result) {
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: TLS initialization failed.");
+            SSL_CTX_free(ctx);
+            return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        }
+
+        channelData->ssl = SSL_new(ctx);
+
+        if (!channelData->ssl) {
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Connection creation failed. Out of memory.");
+            SSL_CTX_free(ctx);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+
+        SSL_set_fd(channelData->ssl, connection.sockfd);
+
+        result = SSL_connect(channelData->ssl);
+
+        if (SSL_get_error(channelData->ssl, result) != SSL_ERROR_NONE) {
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: TLS connect failed.");
+            return UA_STATUSCODE_BADCOMMUNICATIONERROR;
+        }
+
+        long verifyResult = SSL_get_verify_result(channelData->ssl);
+
+        if (verifyResult != SSL_ERROR_NONE) {
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: TLS certificate verification failed with result %ld.", verifyResult);
+            freeTLS(channelData);
+            return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        }
+
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: TLS connection successfully opened.");
+    }
+#endif
+
+    /* Set socket to nonblocking!*/
+    UA_socket_set_nonblocking(connection.sockfd);
+
     /* calloc mqtt_client */
     struct mqtt_client* client = (struct mqtt_client*)UA_calloc(1, sizeof(struct mqtt_client));
     if(!client){
+        freeTLS(channelData);
         UA_free(channelData->connection);
 
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Connection creation failed. Out of memory.");
@@ -93,6 +206,7 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
     struct my_custom_socket_handle* handle =
         (struct my_custom_socket_handle*)UA_calloc(1, sizeof(struct my_custom_socket_handle));
     if(!handle){
+        freeTLS(channelData);
         UA_free(channelData->connection);
         UA_free(client);
 
@@ -101,11 +215,13 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
     }
     handle->client = client;
     handle->connection = channelData->connection;
+    handle->tls = channelData->ssl;
 
     /* init mqtt client struct with buffers and callback */
     enum MQTTErrors mqttErr = mqtt_init(client, handle, channelData->mqttSendBuffer, channelData->mqttSendBufferSize,
                 channelData->mqttRecvBuffer, channelData->mqttRecvBufferSize, publish_callback);
     if(mqttErr != MQTT_OK){
+        freeTLS(channelData);
         UA_free(channelData->connection);
         UA_free(client);
 
@@ -123,6 +239,7 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
     char* clientId = (char*)calloc(1,channelData->mqttClientId->length + 1);
     if(!clientId){
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Connection creation failed. Out of memory.");
+        freeTLS(channelData);
         UA_free(channelData->connection);
         UA_free(client);
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -135,6 +252,7 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
         username = (char*)calloc(1,channelData->mqttUsername.length + 1);
         if(!username){
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Connection creation failed. Out of memory.");
+            freeTLS(channelData);
             UA_free(channelData->connection);
             UA_free(client);
             UA_free(clientId);
@@ -149,6 +267,7 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
         password = (char*)calloc(1,channelData->mqttPassword.length + 1);
         if(!password){
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Connection creation failed. Out of memory.");
+            freeTLS(channelData);
             UA_free(channelData->connection);
             UA_free(client);
             UA_free(clientId);
@@ -164,6 +283,7 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
     UA_free(username);
     UA_free(password);
     if(mqttErr != MQTT_OK){
+        freeTLS(channelData);
         UA_free(channelData->connection);
         UA_free(client);
 
@@ -176,6 +296,7 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
        After that yield must be called frequently to exchange mqtt messages. */
     UA_StatusCode ret = yieldMqtt(channelData, 100);
     if(ret != UA_STATUSCODE_GOOD){
+        freeTLS(channelData);
         UA_free(channelData->connection);
         UA_free(client);
         return ret;
@@ -195,12 +316,18 @@ disconnectMqtt(UA_PubSubChannelDataMQTT* channelData){
         yieldMqtt(channelData, 10);
         UA_free(client->socketfd);
     }
+
+#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+    freeTLS(channelData);
+#endif
+
     if(channelData->connection != NULL){
         channelData->connection->close(channelData->connection);
         channelData->connection->free(channelData->connection);
         UA_free(channelData->connection);
         channelData->connection = NULL;
     }
+
     UA_free(channelData->mqttRecvBuffer);
     channelData->mqttRecvBuffer = NULL;
     UA_free(channelData->mqttSendBuffer);

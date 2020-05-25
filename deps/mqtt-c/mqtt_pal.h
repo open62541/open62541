@@ -79,6 +79,7 @@
     struct my_custom_socket_handle {
         void* client;
         void* connection;
+        void* tls;
         uint16_t timeout;
     };
     
