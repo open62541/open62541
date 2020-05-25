@@ -386,7 +386,7 @@ START_TEST(DeleteObjectAndReferences) {
         if(UA_NodeId_equal(&br.references[i].nodeId.nodeId, &objectid))
             refCount++;
     }
-    ck_assert_int_eq(refCount, 1);
+    ck_assert_uint_eq(refCount, 1);
     UA_BrowseResult_deleteMembers(&br);
 
     /* Delete the object */
@@ -400,7 +400,7 @@ START_TEST(DeleteObjectAndReferences) {
         if(UA_NodeId_equal(&br.references[i].nodeId.nodeId, &objectid))
             refCount++;
     }
-    ck_assert_int_eq(refCount, 0);
+    ck_assert_uint_eq(refCount, 0);
     UA_BrowseResult_deleteMembers(&br);
 
     /* Add an object the second time */
@@ -423,7 +423,7 @@ START_TEST(DeleteObjectAndReferences) {
         if(UA_NodeId_equal(&br.references[i].nodeId.nodeId, &objectid))
             refCount++;
     }
-    ck_assert_int_eq(refCount, 1);
+    ck_assert_uint_eq(refCount, 1);
     UA_BrowseResult_deleteMembers(&br);
 } END_TEST
 

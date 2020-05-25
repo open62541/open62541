@@ -197,7 +197,7 @@ START_TEST(callMethodWithWronglyTypedArguments) {
     UA_CallMethodResult_init(&result);
     result = UA_Server_call(server, &callMethodRequest);
 
-    ck_assert_int_gt(result.inputArgumentResultsSize, 0);
+    ck_assert_uint_gt(result.inputArgumentResultsSize, 0);
     ck_assert_int_eq(result.inputArgumentResults[0], UA_STATUSCODE_BADTYPEMISMATCH);
     ck_assert_int_eq(result.statusCode, UA_STATUSCODE_BADINVALIDARGUMENT);
 

@@ -878,7 +878,7 @@ START_TEST(Node_ReadWrite_ArrayDimensions) {
     UA_StatusCode retval = UA_Client_readArrayDimensionsAttribute(client, nodeReadWriteGeneric,
                                                                   &arrayDimsReadSize, &arrayDimsRead);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(arrayDimsReadSize, 0);
+    ck_assert_uint_eq(arrayDimsReadSize, 0);
 
     // Set a vector of size 1 as the value
     UA_Double vec2[2] = {0.0, 0.0};
@@ -906,7 +906,7 @@ START_TEST(Node_ReadWrite_ArrayDimensions) {
     retval = UA_Client_readArrayDimensionsAttribute(client, nodeReadWriteGeneric,
                                                     &arrayDimsReadSize, &arrayDimsRead);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(arrayDimsReadSize, 1);
+    ck_assert_uint_eq(arrayDimsReadSize, 1);
     ck_assert_int_eq(arrayDimsRead[0], 1);
     UA_Array_delete(arrayDimsRead, arrayDimsReadSize, &UA_TYPES[UA_TYPES_UINT32]);
 }
