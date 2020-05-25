@@ -1210,10 +1210,10 @@ writeValueAttribute(UA_Server *server, UA_Session *session,
         }
     }
 
-    uintptr_t externalValuePtr;
-    if(node->valueBackend.backendType == UA_VALUEBACKENDTYPE_EXTERNAL){
-        externalValuePtr = (uintptr_t) node->valueBackend.backend.external.value->value.data;
-    }
+    //uintptr_t externalValuePtr;
+    //if(node->valueBackend.backendType == UA_VALUEBACKENDTYPE_EXTERNAL){
+    //    externalValuePtr = (uintptr_t) node->valueBackend.backend.external.value->value.data;
+    //}
 
     switch(node->valueBackend.backendType) {
         case UA_VALUEBACKENDTYPE_NONE:

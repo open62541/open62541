@@ -918,6 +918,10 @@ typedef struct {
                             void *sessionContext, const UA_NodeId *nodeId,
                             void *nodeContext, const UA_NumericRange *range,
                             const UA_DataValue *data);
+            //TODO just give a 'right okay flag' ?
+            void (*externalDataReadCallback)(UA_Server *server, const UA_NodeId *sessionId,
+                                              void *sessionContext, const UA_NodeId *nodeId,
+                                              void *nodeContext);
         } external;
     } backend;
 } UA_ValueBackend;
