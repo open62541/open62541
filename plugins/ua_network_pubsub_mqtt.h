@@ -37,6 +37,8 @@ typedef struct {
     UA_String mqttPassword;
     UA_String mqttCertPath;
     UA_String mqttCaPath;
+    UA_String mqttClientCertPath;
+    UA_String mqttClientKeyPath;
     UA_Boolean mqttUseTLS;
 } UA_PubSubChannelDataMQTT;
 /* TODO:

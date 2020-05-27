@@ -42,6 +42,12 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
                      "MQTT PubSub: TLS connection requested, mqttCertPath or mqttCaPath must be specified");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
+    if ((channelData->mqttClientCertPath.length && !channelData->mqttClientKeyPath.length) ||
+            (channelData->mqttClientKeyPath.length && !channelData->mqttClientCertPath.length)) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "MQTT PubSub: If a client certificate is used, mqttClientCertPath and mqttClientKeyPath must be both specified");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
 #else
     if (channelData->mqttUseTLS) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
@@ -129,10 +135,37 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
             mqttCaPath = (char*)calloc(1,channelData->mqttCaPath.length + 1);
             if(!mqttCaPath){
                 UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Connection creation failed. Out of memory.");
-                UA_free(mqttCaPath);
+                UA_free(mqttCertPath);
                 return UA_STATUSCODE_BADOUTOFMEMORY;
             }
             memcpy(mqttCaPath, channelData->mqttCaPath.data, channelData->mqttCaPath.length);
+        }
+
+        char *mqttClientCertPath = NULL;
+        if (channelData->mqttClientCertPath.length > 0) {
+            /* Convert tls client cert path UA_String to char* null terminated */
+            mqttClientCertPath = (char*)calloc(1,channelData->mqttClientCertPath.length + 1);
+            if(!mqttClientCertPath){
+                UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Connection creation failed. Out of memory.");
+                UA_free(mqttCertPath);
+                UA_free(mqttCaPath);
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+            }
+            memcpy(mqttClientCertPath, channelData->mqttClientCertPath.data, channelData->mqttClientCertPath.length);
+        }
+
+        char *mqttClientKeyPath = NULL;
+        if (channelData->mqttClientKeyPath.length > 0) {
+            /* Convert tls client key path UA_String to char* null terminated */
+            mqttClientKeyPath = (char*)calloc(1,channelData->mqttClientKeyPath.length + 1);
+            if(!mqttClientKeyPath){
+                UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Connection creation failed. Out of memory.");
+                UA_free(mqttCertPath);
+                UA_free(mqttCaPath);
+                UA_free(mqttClientCertPath);
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+            }
+            memcpy(mqttClientKeyPath, channelData->mqttClientKeyPath.data, channelData->mqttClientKeyPath.length);
         }
 #endif
 
@@ -145,6 +178,8 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Connection creation failed. Out of memory.");
             UA_free(mqttCertPath);
             UA_free(mqttCaPath);
+            UA_free(mqttClientCertPath);
+            UA_free(mqttClientKeyPath);
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
 
@@ -157,6 +192,33 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: TLS initialization failed.");
             SSL_CTX_free(ctx);
             return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        }
+
+        if (mqttClientKeyPath && mqttClientCertPath) {
+            result = SSL_CTX_use_certificate_file(ctx, mqttClientCertPath, SSL_FILETYPE_PEM);
+
+            if (SSL_get_error(channelData->ssl, result) != SSL_ERROR_NONE) {
+                UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Failed to load client certificate.");
+                SSL_CTX_free(ctx);
+                UA_free(mqttClientCertPath);
+                UA_free(mqttClientKeyPath);
+                return UA_STATUSCODE_BADCOMMUNICATIONERROR;
+            }
+
+            result = SSL_CTX_use_PrivateKey_file(ctx, mqttClientKeyPath, SSL_FILETYPE_PEM);
+
+            if (SSL_get_error(channelData->ssl, result) != SSL_ERROR_NONE) {
+                UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Failed to load client private key.");
+                SSL_CTX_free(ctx);
+                UA_free(mqttClientCertPath);
+                UA_free(mqttClientKeyPath);
+                return UA_STATUSCODE_BADCOMMUNICATIONERROR;
+            }
+
+            UA_free(mqttClientCertPath);
+            UA_free(mqttClientKeyPath);
+
+            SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL);
         }
 
         channelData->ssl = SSL_new(ctx);
