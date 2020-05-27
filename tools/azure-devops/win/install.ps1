@@ -14,10 +14,10 @@ try {
         # pacman may complain that the directory does not exist, thus create it.
         # See https://github.com/open62541/open62541/issues/2068
         & C:\msys64\usr\bin\mkdir -p /var/cache/pacman/pkg
-        & C:\msys64\usr\bin\pacman --noconfirm -S mingw-w64-x86_64-mbedtls
+        & cmd /c 'C:\\msys64\\usr\\bin\\pacman 2>&1' --noconfirm --needed -S mingw-w64-x86_64-mbedtls
 
         Write-Host -ForegroundColor Green "`n### Installing clang via PacMan ###`n"
-        & C:\msys64\usr\bin\pacman --noconfirm -S mingw-w64-x86_64-clang mingw-w64-i686-clang
+        & cmd /c 'C:\\msys64\\usr\\bin\\pacman 2>&1' --noconfirm --needed -S mingw-w64-x86_64-clang mingw-w64-i686-clang
     } elseif ($env:CC_SHORTNAME -eq "vs2015" -or $env:CC_SHORTNAME -eq "vs2017") {
         Write-Host -ForegroundColor Green "`n### Installing mbedtls via vcpkg ###`n"
         & vcpkg install mbedtls:x86-windows-static
