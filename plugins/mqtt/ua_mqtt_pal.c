@@ -10,14 +10,15 @@
 #include "../../deps/mqtt-c/mqtt.h"
 #include <open62541/network_tcp.h>
 
-#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+#ifdef UA_ENABLE_MQTT_TLS_OPENSSL
 #include <openssl/ssl.h>
 #endif
 
 ssize_t
 mqtt_pal_sendall(mqtt_pal_socket_handle fd, const void* buf, size_t len, int flags) {
-#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+#ifdef UA_ENABLE_MQTT_TLS
     if (fd->tls) {
+#ifdef UA_ENABLE_MQTT_TLS_OPENSSL
         SSL *ssl = (SSL*) fd->tls;
         int written = 0;
         const UA_Byte *buffer = (const UA_Byte *) buf;
@@ -42,6 +43,7 @@ mqtt_pal_sendall(mqtt_pal_socket_handle fd, const void* buf, size_t len, int fla
         }
 
         return written;
+#endif
     }
 #endif
 
@@ -58,8 +60,9 @@ mqtt_pal_sendall(mqtt_pal_socket_handle fd, const void* buf, size_t len, int fla
 
 ssize_t
 mqtt_pal_recvall(mqtt_pal_socket_handle fd, void* buf, size_t bufsz, int flags) {
-#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+#ifdef UA_ENABLE_MQTT_TLS
     if (fd->tls) {
+#ifdef UA_ENABLE_MQTT_TLS_OPENSSL
         SSL *ssl = (SSL*) fd->tls;
 
         int read = 0;
@@ -86,6 +89,7 @@ mqtt_pal_recvall(mqtt_pal_socket_handle fd, void* buf, size_t bufsz, int flags) 
         } while (SSL_pending(ssl) && read < (int) bufsz);
 
         return read;
+#endif
     }
 #endif
 

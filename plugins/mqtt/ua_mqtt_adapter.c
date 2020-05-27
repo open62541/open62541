@@ -11,7 +11,7 @@
 #include "open62541/plugin/log_stdout.h"
 #include "open62541/util.h"
 
-#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+#ifdef UA_ENABLE_MQTT_TLS_OPENSSL
 #include <openssl/ssl.h>
 #endif
 
@@ -20,7 +20,7 @@ void
 publish_callback(void**, struct mqtt_response_publish*);
 
 void freeTLS(UA_PubSubChannelDataMQTT *data) {
-#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+#ifdef UA_ENABLE_MQTT_TLS_OPENSSL
     if (!data->ssl)
         return;
     SSL_shutdown(data->ssl);
@@ -36,7 +36,7 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+#ifdef UA_ENABLE_MQTT_TLS
     if (channelData->mqttUseTLS && !channelData->mqttCertPath.length && !channelData->mqttCaPath.length) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "MQTT PubSub: TLS connection requested, mqttCertPath or mqttCaPath must be specified");
@@ -107,7 +107,7 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
 
     memcpy(channelData->connection, &connection, sizeof(UA_Connection));
 
-#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+#ifdef UA_ENABLE_MQTT_TLS
     if (channelData->mqttUseTLS) {
         char *mqttCertPath = NULL;
         if (channelData->mqttCertPath.length > 0) {
@@ -134,7 +134,9 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
             }
             memcpy(mqttCaPath, channelData->mqttCaPath.data, channelData->mqttCaPath.length);
         }
+#endif
 
+#ifdef UA_ENABLE_MQTT_TLS_OPENSSL
         SSL_library_init();
 
         SSL_CTX *ctx = SSL_CTX_new(TLSv1_client_method());
@@ -183,6 +185,9 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
         }
 
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: TLS connection successfully opened.");
+#endif
+
+#ifdef UA_ENABLE_MQTT_TLS
     }
 #endif
 
@@ -317,9 +322,7 @@ disconnectMqtt(UA_PubSubChannelDataMQTT* channelData){
         UA_free(client->socketfd);
     }
 
-#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
     freeTLS(channelData);
-#endif
 
     if(channelData->connection != NULL){
         channelData->connection->close(channelData->connection);

@@ -15,7 +15,7 @@ extern "C" {
 #include "open62541/plugin/pubsub.h"
 #include "open62541/network_tcp.h"
 
-#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+#ifdef UA_ENABLE_MQTT_TLS
 #include <openssl/ssl.h>
 #endif
 
@@ -28,7 +28,7 @@ typedef struct {
     uint8_t *mqttRecvBuffer; 
     UA_String *mqttClientId;
     UA_Connection *connection;
-#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+#ifdef UA_ENABLE_MQTT_TLS
     SSL *ssl;
 #endif
     void * mqttClient;
