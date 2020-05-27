@@ -30,7 +30,7 @@ struct ConnectionUserData {
 
 typedef struct ConnectionUserData ConnectionUserData;
 
-//one of these is created for each client connecting to us
+// one of these is created for each client connecting to us
 struct SessionData {
     UA_Connection *connection;
 };
@@ -97,6 +97,8 @@ connection_send(UA_Connection *connection, UA_ByteString *buf) {
 static void
 ServerNetworkLayerWS_close(UA_Connection *connection) {
     connection->state = UA_CONNECTIONSTATE_CLOSED;
+    // trigger callback and close;
+    lws_callback_on_writable(((ConnectionUserData *)connection->handle)->wsi);
 }
 
 static void
@@ -118,7 +120,7 @@ static int
 callback_opcua(struct lws *wsi, enum lws_callback_reasons reason, void *user, void *in,
                size_t len) {
     struct SessionData *pss = (struct SessionData *)user;
-    struct VHostData *vhd =
+    struct VHostData *vhd = 
         (struct VHostData *)lws_protocol_vh_priv_get(lws_get_vhost(wsi),
                                                                    lws_get_protocol(wsi));
 
@@ -133,7 +135,7 @@ callback_opcua(struct lws *wsi, enum lws_callback_reasons reason, void *user, vo
         case LWS_CALLBACK_ESTABLISHED:
             if(!wsi)
                 break;
-            ServerNetworkLayerWS *layer = (ServerNetworkLayerWS*)lws_context_user(vhd->context);
+            ServerNetworkLayerWS *layer = (ServerNetworkLayerWS *)lws_context_user(vhd->context);
             UA_Connection *c = (UA_Connection *)malloc(sizeof(UA_Connection));
             ConnectionUserData *buffer =
                 (ConnectionUserData *)malloc(sizeof(ConnectionUserData));
@@ -160,11 +162,11 @@ callback_opcua(struct lws *wsi, enum lws_callback_reasons reason, void *user, vo
                 pss->connection->state = UA_CONNECTIONSTATE_CLOSED;
             }
 
-            layer = (ServerNetworkLayerWS*)lws_context_user(vhd->context);
+            layer = (ServerNetworkLayerWS *)lws_context_user(vhd->context);
             if(layer && layer->server) {
                 UA_Server_removeConnection(layer->server, pss->connection);
             }
-            
+
             break;
 
         case LWS_CALLBACK_SERVER_WRITEABLE:
@@ -173,6 +175,16 @@ callback_opcua(struct lws *wsi, enum lws_callback_reasons reason, void *user, vo
 
             ConnectionUserData *b = (ConnectionUserData *)pss->connection->handle;
             do {
+                if(!pss->connection ||
+                   pss->connection->state == UA_CONNECTIONSTATE_CLOSED) {
+                    /*
+                    connetion is closed signal it to lws:
+                    lws documentation says:
+                    When you want to close a connection,
+                    you do it by returning -1 from a callback for that connection.
+                    */
+                    return -1;
+                }
 
                 BufferEntry *entry = SIMPLEQ_FIRST(&b->messages);
                 if(!entry)
@@ -195,7 +207,7 @@ callback_opcua(struct lws *wsi, enum lws_callback_reasons reason, void *user, vo
             }
             break;
 
-    case LWS_CALLBACK_RECEIVE: {
+        case LWS_CALLBACK_RECEIVE: {
             if(!vhd->context)
                 break;
             layer = (ServerNetworkLayerWS *)lws_context_user(vhd->context);
@@ -205,7 +217,7 @@ callback_opcua(struct lws *wsi, enum lws_callback_reasons reason, void *user, vo
             UA_ByteString message = {len, (UA_Byte *)in};
             UA_Server_processBinaryMessage(layer->server, pss->connection, &message);
             break;
-    }
+        }
 
         default:
             break;
@@ -217,8 +229,8 @@ callback_opcua(struct lws *wsi, enum lws_callback_reasons reason, void *user, vo
 static struct lws_protocols protocols[] = {
     {"http", lws_callback_http_dummy, 0, 0, 0, NULL, 0},
     {"opcua", callback_opcua, sizeof(struct SessionData), 0, 0, NULL, 0},
-    {NULL, NULL, 0, 0, 0, NULL, 0}
-};
+    {"opcua+uacp", callback_opcua, sizeof(struct SessionData), 0, 0, NULL, 0},
+    {NULL, NULL, 0, 0, 0, NULL, 0}};
 
 // make the opcua protocol callback the default one
 const struct lws_protocol_vhost_options pvo_opt = {NULL, NULL, "default", "1"};
@@ -250,7 +262,7 @@ ServerNetworkLayerWS_start(UA_ServerNetworkLayer *nl, const UA_String *customHos
         }
     }
     // we need discoveryUrl.data as a null-terminated string for vhost_name
-    nl->discoveryUrl.data = (UA_Byte *)UA_malloc(du.length+1);
+    nl->discoveryUrl.data = (UA_Byte *)UA_malloc(du.length + 1);
     strncpy((char *)nl->discoveryUrl.data, discoveryUrlBuffer, du.length);
     nl->discoveryUrl.data[du.length] = '\0';
     nl->discoveryUrl.length = du.length;
