@@ -197,6 +197,10 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
         if (mqttClientKeyPath && mqttClientCertPath) {
             result = SSL_CTX_use_certificate_file(ctx, mqttClientCertPath, SSL_FILETYPE_PEM);
 
+            if (result != 1) {
+                result = SSL_CTX_use_certificate_file(ctx, mqttClientCertPath, SSL_FILETYPE_ASN1);
+            }
+
             if (SSL_get_error(channelData->ssl, result) != SSL_ERROR_NONE) {
                 UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Failed to load client certificate.");
                 SSL_CTX_free(ctx);
@@ -206,6 +210,10 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
             }
 
             result = SSL_CTX_use_PrivateKey_file(ctx, mqttClientKeyPath, SSL_FILETYPE_PEM);
+
+            if (result != 1) {
+                result = SSL_CTX_use_PrivateKey_file(ctx, mqttClientKeyPath, SSL_FILETYPE_ASN1);
+            }
 
             if (SSL_get_error(channelData->ssl, result) != SSL_ERROR_NONE) {
                 UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Failed to load client private key.");
