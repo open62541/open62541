@@ -493,8 +493,11 @@ verifyServerApplicationURI(const UA_Server *server) {
                                  &server->config.applicationDescription.applicationUri);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                         "The configured ApplicationURI does not match the URI "
-                         "specified in the certificate for the SecurityPolicy %.*s",
+                         "The configured ApplicationURI \"%.*s\"does not match the "
+                         "ApplicationURI specified in the certificate for the "
+                         "SecurityPolicy %.*s",
+                         (int)server->config.applicationDescription.applicationUri.length,
+                         server->config.applicationDescription.applicationUri.data,
                          (int)sp->policyUri.length, sp->policyUri.data);
             return retval;
         }
