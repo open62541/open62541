@@ -35,7 +35,7 @@ typedef struct {
     void (*callback)(UA_ByteString *encodedBuffer, UA_ByteString *topic);
     UA_String mqttUsername;
     UA_String mqttPassword;
-    UA_String mqttCertPath;
+    UA_String mqttCaFilePath;
     UA_String mqttCaPath;
     UA_String mqttClientCertPath;
     UA_String mqttClientKeyPath;

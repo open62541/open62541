@@ -72,7 +72,7 @@ UA_PubSubChannelMQTT_open(const UA_PubSubConnectionConfig *connectionConfig) {
            sizeof(UA_PubSubChannelDataMQTT));
     /* iterate over the given KeyValuePair paramters */
     UA_String sendBuffer = UA_STRING("sendBufferSize"), recvBuffer = UA_STRING("recvBufferSize"), clientId = UA_STRING("mqttClientId"),
-            username = UA_STRING("mqttUsername"), password = UA_STRING("mqttPassword"), certPath = UA_STRING("mqttCertPath"),
+            username = UA_STRING("mqttUsername"), password = UA_STRING("mqttPassword"), caFilePath = UA_STRING("mqttCaFilePath"),
             caPath = UA_STRING("mqttCaPath"), useTLS = UA_STRING("mqttUseTLS"), clientCertPath = UA_STRING("mqttClientCertPath"),
             clientKeyPath = UA_STRING("mqttClientKeyPath");
     for(size_t i = 0; i < connectionConfig->connectionPropertiesSize; i++){
@@ -96,9 +96,9 @@ UA_PubSubChannelMQTT_open(const UA_PubSubConnectionConfig *connectionConfig) {
             if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_STRING])){
                 UA_String_copy((UA_String *) connectionConfig->connectionProperties[i].value.data, &channelDataMQTT->mqttPassword);
             }
-        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &certPath)){
+        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &caFilePath)){
             if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_STRING])){
-                UA_String_copy((UA_String *) connectionConfig->connectionProperties[i].value.data, &channelDataMQTT->mqttCertPath);
+                UA_String_copy((UA_String *) connectionConfig->connectionProperties[i].value.data, &channelDataMQTT->mqttCaFilePath);
             }
         } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &caPath)){
             if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_STRING])){
@@ -127,7 +127,7 @@ UA_PubSubChannelMQTT_open(const UA_PubSubConnectionConfig *connectionConfig) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT Connection creation failed. Out of memory.");
         UA_String_clear(&channelDataMQTT->mqttUsername);
         UA_String_clear(&channelDataMQTT->mqttPassword);
-        UA_String_clear(&channelDataMQTT->mqttCertPath);
+        UA_String_clear(&channelDataMQTT->mqttCaFilePath);
         UA_String_clear(&channelDataMQTT->mqttCaPath);
         UA_String_clear(&channelDataMQTT->mqttClientCertPath);
         UA_String_clear(&channelDataMQTT->mqttClientKeyPath);
@@ -141,7 +141,7 @@ UA_PubSubChannelMQTT_open(const UA_PubSubConnectionConfig *connectionConfig) {
         if(channelDataMQTT->mqttRecvBuffer == NULL){
             UA_String_clear(&channelDataMQTT->mqttUsername);
             UA_String_clear(&channelDataMQTT->mqttPassword);
-            UA_String_clear(&channelDataMQTT->mqttCertPath);
+            UA_String_clear(&channelDataMQTT->mqttCaFilePath);
             UA_String_clear(&channelDataMQTT->mqttCaPath);
             UA_String_clear(&channelDataMQTT->mqttClientCertPath);
             UA_String_clear(&channelDataMQTT->mqttClientKeyPath);
@@ -160,7 +160,7 @@ UA_PubSubChannelMQTT_open(const UA_PubSubConnectionConfig *connectionConfig) {
             }
             UA_String_clear(&channelDataMQTT->mqttUsername);
             UA_String_clear(&channelDataMQTT->mqttPassword);
-            UA_String_clear(&channelDataMQTT->mqttCertPath);
+            UA_String_clear(&channelDataMQTT->mqttCaFilePath);
             UA_String_clear(&channelDataMQTT->mqttCaPath);
             UA_String_clear(&channelDataMQTT->mqttClientCertPath);
             UA_String_clear(&channelDataMQTT->mqttClientKeyPath);
@@ -183,7 +183,7 @@ UA_PubSubChannelMQTT_open(const UA_PubSubConnectionConfig *connectionConfig) {
         UA_free(channelDataMQTT->mqttRecvBuffer);
         UA_String_clear(&channelDataMQTT->mqttUsername);
         UA_String_clear(&channelDataMQTT->mqttPassword);
-        UA_String_clear(&channelDataMQTT->mqttCertPath);
+        UA_String_clear(&channelDataMQTT->mqttCaFilePath);
         UA_String_clear(&channelDataMQTT->mqttCaPath);
         UA_String_clear(&channelDataMQTT->mqttClientCertPath);
         UA_String_clear(&channelDataMQTT->mqttClientKeyPath);
@@ -304,7 +304,7 @@ UA_PubSubChannelMQTT_close(UA_PubSubChannel *channel) {
     disconnectMqtt(channelDataMQTT);
     UA_String_clear(&channelDataMQTT->mqttUsername);
     UA_String_clear(&channelDataMQTT->mqttPassword);
-    UA_String_clear(&channelDataMQTT->mqttCertPath);
+    UA_String_clear(&channelDataMQTT->mqttCaFilePath);
     UA_String_clear(&channelDataMQTT->mqttCaPath);
     UA_String_clear(&channelDataMQTT->mqttClientCertPath);
     UA_String_clear(&channelDataMQTT->mqttClientKeyPath);
