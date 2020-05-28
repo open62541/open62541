@@ -232,8 +232,7 @@ static struct lws_protocols protocols[] = {
     {"opcua", callback_opcua, sizeof(struct SessionData), 0, 0, NULL, 0},
     /* defined protocols: https://reference.opcfoundation.org/v104/Core/docs/Part6/7.5.2/ */
     {"opcua+uacp", callback_opcua, sizeof(struct SessionData), 0, 0, NULL, 0},
-    {"opcua+json", callback_opcua, sizeof(struct SessionData), 0, 0, NULL, 0},
-
+    // {"opcua+json", callback_opcua, sizeof(struct SessionData), 0, 0, NULL, 0}, // <-- enable when json coding is fully supported
     {NULL, NULL, 0, 0, 0, NULL, 0}};
 
 // make the opcua protocol callback the default one
