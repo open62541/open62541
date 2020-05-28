@@ -37,11 +37,6 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
     }
 
 #ifdef UA_ENABLE_MQTT_TLS
-    if (channelData->mqttUseTLS && !channelData->mqttCertPath.length && !channelData->mqttCaPath.length) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "MQTT PubSub: TLS connection requested, mqttCertPath or mqttCaPath must be specified");
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
     if ((channelData->mqttClientCertPath.length && !channelData->mqttClientKeyPath.length) ||
             (channelData->mqttClientKeyPath.length && !channelData->mqttClientCertPath.length)) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
@@ -183,7 +178,12 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
 
-        int result = SSL_CTX_load_verify_locations(ctx, mqttCertPath, mqttCaPath);
+        int result = 0;
+
+        if (mqttCertPath || mqttCaPath)
+            result = SSL_CTX_load_verify_locations(ctx, mqttCertPath, mqttCaPath);
+        else
+            result = SSL_CTX_set_default_verify_paths(ctx);
 
         UA_free(mqttCertPath);
         UA_free(mqttCaPath);
@@ -193,6 +193,8 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
             SSL_CTX_free(ctx);
             return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         }
+
+        SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, NULL);
 
         if (mqttClientKeyPath && mqttClientCertPath) {
             result = SSL_CTX_use_certificate_file(ctx, mqttClientCertPath, SSL_FILETYPE_PEM);
@@ -225,8 +227,6 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
 
             UA_free(mqttClientCertPath);
             UA_free(mqttClientKeyPath);
-
-            SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL);
         }
 
         channelData->ssl = SSL_new(ctx);
