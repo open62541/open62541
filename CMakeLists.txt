@@ -546,8 +546,10 @@ if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" ST
             check_add_cc_flag("-fstack-protector-strong") # more performant stack protector, available since gcc 4.9
             check_add_cc_flag("-fstack-clash-protection") # increased reliability of stack overflow detection, available since gcc 8
             # future use (control flow integrity protection)
-            check_add_cc_flag("-mcet")
-            check_add_cc_flag("-fcf-protection")
+            if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD")
+                check_add_cc_flag("-mcet")
+                check_add_cc_flag("-fcf-protection")
+            endif()
         endif()
 
         # IPO requires too much memory for unit tests
