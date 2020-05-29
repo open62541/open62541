@@ -130,9 +130,40 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
     }
     memcpy(clientId, channelData->mqttClientId->data, channelData->mqttClientId->length);
 
+    char *username = NULL;
+    if (channelData->mqttUsername.length > 0) {
+        /* Convert username UA_String to char* null terminated */
+        username = (char*)calloc(1,channelData->mqttUsername.length + 1);
+        if(!username){
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Connection creation failed. Out of memory.");
+            UA_free(channelData->connection);
+            UA_free(client);
+            UA_free(clientId);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+        memcpy(username, channelData->mqttUsername.data, channelData->mqttUsername.length);
+    }
+
+    char *password = NULL;
+    if (channelData->mqttPassword.length > 0) {
+        /* Convert password UA_String to char* null terminated */
+        password = (char*)calloc(1,channelData->mqttPassword.length + 1);
+        if(!password){
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Connection creation failed. Out of memory.");
+            UA_free(channelData->connection);
+            UA_free(client);
+            UA_free(clientId);
+            UA_free(username);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+        memcpy(password, channelData->mqttPassword.data, channelData->mqttPassword.length);
+    }
+
     /* Connect mqtt with socket fd of networktcp  */
-    mqttErr = mqtt_connect(client, clientId, NULL, NULL, 0, NULL, NULL, 0, 400);
+    mqttErr = mqtt_connect(client, clientId, NULL, NULL, 0, username, password, 0, 400);
     UA_free(clientId);
+    UA_free(username);
+    UA_free(password);
     if(mqttErr != MQTT_OK){
         UA_free(channelData->connection);
         UA_free(client);
