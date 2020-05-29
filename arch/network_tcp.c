@@ -355,11 +355,18 @@ addServerSocket(ServerNetworkLayerTCP *layer, struct addrinfo *ai) {
 
 static UA_StatusCode
 ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, const UA_String *customHostname) {
-  UA_initialize_architecture_network();
+    UA_initialize_architecture_network();
 
     ServerNetworkLayerTCP *layer = (ServerNetworkLayerTCP *)nl->handle;
 
     /* Get addrinfo of the server and create server sockets */
+    char hostname[512];
+    if(customHostname->length) {
+        if(customHostname->length >= sizeof(hostname))
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        memcpy(hostname, customHostname->data, customHostname->length);
+        hostname[customHostname->length] = '\0';
+    }
     char portno[6];
     UA_snprintf(portno, 6, "%d", layer->port);
     struct addrinfo hints, *res;
@@ -368,7 +375,8 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, const UA_String *customHo
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;
     hints.ai_protocol = IPPROTO_TCP;
-    if(UA_getaddrinfo(NULL, portno, &hints, &res) != 0)
+    if(UA_getaddrinfo(customHostname->length ? hostname : NULL,
+        portno, &hints, &res) != 0)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* There might be serveral addrinfos (for different network cards,
