@@ -133,7 +133,7 @@ START_TEST(Server_forEachChildNodeCall) {
 
 
 START_TEST(Server_set_customHostname) {
-    UA_String customHost = UA_STRING("fancy-host");
+    UA_String customHost = UA_STRING("localhost");
     UA_UInt16 port = 10042;
 
     UA_Server *server = UA_Server_new();
