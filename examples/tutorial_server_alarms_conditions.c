@@ -10,18 +10,22 @@
 
 /**
  * Using Alarms and Conditions Server
- * -----------------
- * Besides the usage of monitored items and events to observe the changes in the server, it is also important to
- * make use of the Alarms and Conditions Server Model. Alarms are events which are triggered automatically by the server
- * dependent on internal server logic or user specific logic when the state of server components change.
- * The state of a component is represented through a condition. So the values of all the condition children (Fields)
- * are the actual state of the component.
+ * ----------------------------------
+ *
+ * Besides the usage of monitored items and events to observe the changes in the
+ * server, it is also important to make use of the Alarms and Conditions Server
+ * Model. Alarms are events which are triggered automatically by the server
+ * dependent on internal server logic or user specific logic when the state of
+ * server components change. The state of a component is represented through a
+ * condition. So the values of all the condition children (Fields) are the
+ * actual state of the component.
  *
  * Trigger Alarm events by changing States
  * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
- * The following example will be based on the server events tutorial. Please make sure to understand the principle
- * of normal events before proceeding with this example!
-**/
+ *
+ * The following example will be based on the server events tutorial. Please
+ * make sure to understand the principle of normal events before proceeding with
+ * this example! */
 
 static UA_NodeId conditionSource;
 static UA_NodeId conditionInstance_1;
@@ -42,12 +46,14 @@ addConditionSourceObject(UA_Server *server) {
 
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                     "creating Condition Source failed. StatusCode %s", UA_StatusCode_name(retval));
+                     "Creating Condition Source failed. StatusCode %s",
+                     UA_StatusCode_name(retval));
     }
 
-    /* ConditionSource should be EventNotifier of another Object (usually the Server Object).
-     * If this Reference is not created by user then the A&C Server will create "HasEventSource"
-     * reference to the Server Object automatically when the condition is created*/
+    /* ConditionSource should be EventNotifier of another Object (usually the
+     * Server Object). If this Reference is not created by user then the A&C
+     * Server will create "HasEventSource" reference to the Server Object
+     * automatically when the condition is created*/
     retval = UA_Server_addReference(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
                                      UA_NODEID_NUMERIC(0, UA_NS0ID_HASNOTIFIER),
                                      UA_EXPANDEDNODEID_NUMERIC(conditionSource.namespaceIndex,
@@ -58,36 +64,40 @@ addConditionSourceObject(UA_Server *server) {
 }
 
 /**
- * create a condition instance from OffNormalAlarmType. The condition source is the Object created in
- * addConditionSourceObject(). The condition will be exposed in Address Space through the HasComponent
- * reference to the condition source.
- */
+ * Create a condition instance from OffNormalAlarmType. The condition source is
+ * the Object created in addConditionSourceObject(). The condition will be
+ * exposed in Address Space through the HasComponent reference to the condition
+ * source. */
 static UA_StatusCode
 addCondition_1(UA_Server *server) {
     UA_StatusCode retval = addConditionSourceObject(server);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                     "creating Condition Source failed. StatusCode %s", UA_StatusCode_name(retval));
+                     "creating Condition Source failed. StatusCode %s",
+                     UA_StatusCode_name(retval));
     }
 
     retval = UA_Server_createCondition(server,
-                                       UA_NODEID_NULL, UA_NODEID_NUMERIC(0, UA_NS0ID_OFFNORMALALARMTYPE),
+                                       UA_NODEID_NULL,
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_OFFNORMALALARMTYPE),
                                        UA_QUALIFIEDNAME(0, "Condition 1"), conditionSource,
-                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), &conditionInstance_1);
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                       &conditionInstance_1);
 
     return retval;
 }
 
 /**
- * create a condition instance from OffNormalAlarmType. The condition source is the server Object.
- * The condition won't be exposed in Address Space.
- */
+ * Create a condition instance from OffNormalAlarmType. The condition source is
+ * the server Object. The condition won't be exposed in Address Space. */
 static UA_StatusCode
 addCondition_2(UA_Server *server) {
-    UA_StatusCode retval = UA_Server_createCondition(server,
-                                                     UA_NODEID_NULL, UA_NODEID_NUMERIC(0, UA_NS0ID_OFFNORMALALARMTYPE),
-                                                     UA_QUALIFIEDNAME(0, "Condition 2"), UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
-                                                     UA_NODEID_NULL, &conditionInstance_2);
+    UA_StatusCode retval =
+        UA_Server_createCondition(server, UA_NODEID_NULL,
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_OFFNORMALALARMTYPE),
+                                  UA_QUALIFIEDNAME(0, "Condition 2"),
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
+                                  UA_NODEID_NULL, &conditionInstance_2);
 
     return retval;
 }
@@ -110,14 +120,16 @@ addVariable_1_triggerAlarmOfCondition_1(UA_Server *server, UA_NodeId* outNodeId)
 }
 
 static void
-addVariable_2_changeSeverityOfCondition_2(UA_Server *server, UA_NodeId* outNodeId) {
+addVariable_2_changeSeverityOfCondition_2(UA_Server *server,
+                                          UA_NodeId* outNodeId) {
     UA_VariableAttributes attr = UA_VariableAttributes_default;
     attr.displayName = UA_LOCALIZEDTEXT("en", "Change Severity Condition 2");
     attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
     UA_UInt16 severityValue = 0;
     UA_Variant_setScalar(&attr.value, &severityValue, &UA_TYPES[UA_TYPES_UINT16]);
 
-    UA_QualifiedName CallbackTestVariableName = UA_QUALIFIEDNAME(0, "Change Severity Condition 2");
+    UA_QualifiedName CallbackTestVariableName =
+        UA_QUALIFIEDNAME(0, "Change Severity Condition 2");
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_NodeId variableTypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE);
@@ -127,14 +139,16 @@ addVariable_2_changeSeverityOfCondition_2(UA_Server *server, UA_NodeId* outNodeI
 }
 
 static void
-addVariable_3_returnCondition_1_toNormalState(UA_Server *server, UA_NodeId* outNodeId) {
+addVariable_3_returnCondition_1_toNormalState(UA_Server *server,
+                                              UA_NodeId* outNodeId) {
     UA_VariableAttributes attr = UA_VariableAttributes_default;
     attr.displayName = UA_LOCALIZEDTEXT("en", "Return to Normal Condition 1");
     attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
     UA_Boolean rtn = 0;
     UA_Variant_setScalar(&attr.value, &rtn, &UA_TYPES[UA_TYPES_BOOLEAN]);
 
-    UA_QualifiedName CallbackTestVariableName = UA_QUALIFIEDNAME(0, "Return to Normal Condition 1");
+    UA_QualifiedName CallbackTestVariableName =
+        UA_QUALIFIEDNAME(0, "Return to Normal Condition 1");
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_NodeId variableTypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE);
@@ -144,79 +158,86 @@ addVariable_3_returnCondition_1_toNormalState(UA_Server *server, UA_NodeId* outN
 }
 
 static void
-afterWriteCallbackVariable_1(UA_Server *server,
-               const UA_NodeId *sessionId, void *sessionContext,
-               const UA_NodeId *nodeId, void *nodeContext,
-               const UA_NumericRange *range, const UA_DataValue *data) {
+afterWriteCallbackVariable_1(UA_Server *server, const UA_NodeId *sessionId,
+                             void *sessionContext, const UA_NodeId *nodeId,
+                             void *nodeContext, const UA_NumericRange *range,
+                             const UA_DataValue *data) {
     UA_QualifiedName activeStateField = UA_QUALIFIEDNAME(0,"ActiveState");
     UA_QualifiedName activeStateIdField = UA_QUALIFIEDNAME(0,"Id");
     UA_Variant value;
 
-    UA_StatusCode retval = UA_Server_writeObjectProperty_scalar(server, conditionInstance_1, UA_QUALIFIEDNAME(0, "Time"),
-                                                  &data->sourceTimestamp, &UA_TYPES[UA_TYPES_DATETIME]);
+    UA_StatusCode retval =
+        UA_Server_writeObjectProperty_scalar(server, conditionInstance_1,
+                                             UA_QUALIFIEDNAME(0, "Time"),
+                                             &data->sourceTimestamp,
+                                             &UA_TYPES[UA_TYPES_DATETIME]);
 
     if(*(UA_Boolean *)(data->value.data) == true) {
-        /**
-         * by writing "true" in ActiveState/Id, the A&C server will set the related fields
-         * automatically and then will trigger event notification.
-         */
+        /* By writing "true" in ActiveState/Id, the A&C server will set the
+         * related fields automatically and then will trigger event
+         * notification. */
         UA_Boolean activeStateId = true;
         UA_Variant_setScalar(&value, &activeStateId, &UA_TYPES[UA_TYPES_BOOLEAN]);
         retval |= UA_Server_setConditionVariableFieldProperty(server, conditionInstance_1,
-                                                              &value, activeStateField, activeStateIdField);
+                                                              &value, activeStateField,
+                                                              activeStateIdField);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                         "Setting ActiveState/Id Field failed. StatusCode %s", UA_StatusCode_name(retval));
+                         "Setting ActiveState/Id Field failed. StatusCode %s",
+                         UA_StatusCode_name(retval));
             return;
         }
-    }
-    else {
-        /**
-         * by writing "false" in ActiveState/Id, the A&C server will set only the ActiveState field
-         * automatically to the value "Inactive". The user should trigger the event manually by calling
+    } else {
+        /* By writing "false" in ActiveState/Id, the A&C server will set only
+         * the ActiveState field automatically to the value "Inactive". The user
+         * should trigger the event manually by calling
          * UA_Server_triggerConditionEvent inside the application or call
-         * ConditionRefresh method with client to update the event notification.
-         */
+         * ConditionRefresh method with client to update the event notification. */
         UA_Boolean activeStateId = false;
         UA_Variant_setScalar(&value, &activeStateId, &UA_TYPES[UA_TYPES_BOOLEAN]);
         retval = UA_Server_setConditionVariableFieldProperty(server, conditionInstance_1,
-                                                             &value, activeStateField, activeStateIdField);
+                                                             &value, activeStateField,
+                                                             activeStateIdField);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                         "Setting ActiveState/Id Field failed. StatusCode %s", UA_StatusCode_name(retval));
+                         "Setting ActiveState/Id Field failed. StatusCode %s",
+                         UA_StatusCode_name(retval));
             return;
         }
 
-        retval = UA_Server_triggerConditionEvent(server, conditionInstance_1, conditionSource, NULL);
+        retval = UA_Server_triggerConditionEvent(server, conditionInstance_1,
+                                                 conditionSource, NULL);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                           "Triggering condition event failed. StatusCode %s", UA_StatusCode_name(retval));
+                           "Triggering condition event failed. StatusCode %s",
+                           UA_StatusCode_name(retval));
             return;
         }
     }
 }
 
 /**
- * the callback only changes the severity field of the condition 2. The severity
- * field is of ConditionVariableType, so changes in it triggers an event notification
- * automatically by the server.
- */
+ * The callback only changes the severity field of the condition 2. The severity
+ * field is of ConditionVariableType, so changes in it triggers an event
+ * notification automatically by the server. */
 static void
-afterWriteCallbackVariable_2(UA_Server *server,
-               const UA_NodeId *sessionId, void *sessionContext,
-               const UA_NodeId *nodeId, void *nodeContext,
-               const UA_NumericRange *range, const UA_DataValue *data) {
-   /**
-    * another way to set fields of conditions
-    */
-    UA_Server_writeObjectProperty_scalar(server, conditionInstance_2, UA_QUALIFIEDNAME(0, "Severity"),
-                                         (UA_UInt16 *)data->value.data, &UA_TYPES[UA_TYPES_UINT16]);
+afterWriteCallbackVariable_2(UA_Server *server, const UA_NodeId *sessionId,
+                             void *sessionContext, const UA_NodeId *nodeId,
+                             void *nodeContext, const UA_NumericRange *range,
+                             const UA_DataValue *data) {
+   /* Another way to set fields of conditions */
+    UA_Server_writeObjectProperty_scalar(server, conditionInstance_2,
+                                         UA_QUALIFIEDNAME(0, "Severity"),
+                                         (UA_UInt16 *)data->value.data,
+                                         &UA_TYPES[UA_TYPES_UINT16]);
 }
 
 /**
  * RTN = return to normal.
- * Retain will be set to false, thus no events will be generated for condition 1 (although EnabledState/=true).
- * To set Retain to true again, the disable and enable methods should be called respectively.
+ *
+ * Retain will be set to false, thus no events will be generated for condition 1
+ * (although EnabledState/=true). To set Retain to true again, the disable and
+ * enable methods should be called respectively.
  */
 static void
 afterWriteCallbackVariable_3(UA_Server *server,
@@ -234,32 +255,41 @@ afterWriteCallbackVariable_3(UA_Server *server,
     UA_QualifiedName retainField = UA_QUALIFIEDNAME(0,"Retain");
     UA_QualifiedName idField = UA_QUALIFIEDNAME(0,"Id");
 
-    UA_StatusCode retval = UA_Server_writeObjectProperty_scalar(server, conditionInstance_1, UA_QUALIFIEDNAME(0, "Time"),
-                                                  &data->serverTimestamp, &UA_TYPES[UA_TYPES_DATETIME]);
+    UA_StatusCode retval =
+        UA_Server_writeObjectProperty_scalar(server, conditionInstance_1,
+                                             UA_QUALIFIEDNAME(0, "Time"),
+                                             &data->serverTimestamp,
+                                             &UA_TYPES[UA_TYPES_DATETIME]);
     UA_Variant value;
     UA_Boolean idValue = false;
     UA_Variant_setScalar(&value, &idValue, &UA_TYPES[UA_TYPES_BOOLEAN]);
     retval |= UA_Server_setConditionVariableFieldProperty(server, conditionInstance_1,
-                                                          &value, activeStateField, idField);
+                                                          &value, activeStateField,
+                                                          idField);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                     "Setting ActiveState/Id Field failed. StatusCode %s", UA_StatusCode_name(retval));
+                     "Setting ActiveState/Id Field failed. StatusCode %s",
+                     UA_StatusCode_name(retval));
         return;
     }
 
     retval = UA_Server_setConditionVariableFieldProperty(server, conditionInstance_1,
-                                                         &value, ackedStateField, idField);
+                                                         &value, ackedStateField,
+                                                         idField);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                     "Setting AckedState/Id Field failed. StatusCode %s", UA_StatusCode_name(retval));
+                     "Setting AckedState/Id Field failed. StatusCode %s",
+                     UA_StatusCode_name(retval));
         return;
     }
 
     retval = UA_Server_setConditionVariableFieldProperty(server, conditionInstance_1,
-                                                         &value, confirmedStateField, idField);
+                                                         &value, confirmedStateField,
+                                                         idField);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                     "Setting ConfirmedState/Id Field failed. StatusCode %s", UA_StatusCode_name(retval));
+                     "Setting ConfirmedState/Id Field failed. StatusCode %s",
+                     UA_StatusCode_name(retval));
         return;
     }
 
@@ -269,17 +299,20 @@ afterWriteCallbackVariable_3(UA_Server *server,
                                          &value, severityField);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                     "Setting Severity Field failed. StatusCode %s", UA_StatusCode_name(retval));
+                     "Setting Severity Field failed. StatusCode %s",
+                     UA_StatusCode_name(retval));
         return;
     }
 
-    UA_LocalizedText messageValue = UA_LOCALIZEDTEXT("en", "Condition returned to normal state");
+    UA_LocalizedText messageValue =
+        UA_LOCALIZEDTEXT("en", "Condition returned to normal state");
     UA_Variant_setScalar(&value, &messageValue, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
     retval = UA_Server_setConditionField(server, conditionInstance_1,
                                          &value, messageField);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                     "Setting Message Field failed. StatusCode %s", UA_StatusCode_name(retval));
+                     "Setting Message Field failed. StatusCode %s",
+                     UA_StatusCode_name(retval));
         return;
     }
 
@@ -289,7 +322,8 @@ afterWriteCallbackVariable_3(UA_Server *server,
                                          &value, commentField);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                     "Setting Comment Field failed. StatusCode %s", UA_StatusCode_name(retval));
+                     "Setting Comment Field failed. StatusCode %s",
+                     UA_StatusCode_name(retval));
         return;
     }
 
@@ -299,31 +333,35 @@ afterWriteCallbackVariable_3(UA_Server *server,
                                          &value, retainField);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                     "Setting Retain Field failed. StatusCode %s", UA_StatusCode_name(retval));
+                     "Setting Retain Field failed. StatusCode %s",
+                     UA_StatusCode_name(retval));
         return;
     }
 
-    retval = UA_Server_triggerConditionEvent(server, conditionInstance_1, conditionSource, NULL);
+    retval = UA_Server_triggerConditionEvent(server, conditionInstance_1,
+                                             conditionSource, NULL);
     if (retval != UA_STATUSCODE_GOOD) {
      UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                    "Triggering condition event failed. StatusCode %s", UA_StatusCode_name(retval));
+                    "Triggering condition event failed. StatusCode %s",
+                    UA_StatusCode_name(retval));
      return;
     }
 }
 
 static UA_StatusCode
 enteringEnabledStateCallback(UA_Server *server, const UA_NodeId *condition) {
-    UA_Boolean retain = UA_TRUE;
-
-    return UA_Server_writeObjectProperty_scalar(server, *condition, UA_QUALIFIEDNAME(0, "Retain"),
-                                                &retain, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_Boolean retain = true;
+    return UA_Server_writeObjectProperty_scalar(server, *condition,
+                                                UA_QUALIFIEDNAME(0, "Retain"),
+                                                &retain,
+                                                &UA_TYPES[UA_TYPES_BOOLEAN]);
 }
 
 /**
- * this is user specific function which will be called upon acknowledging an alarm notification.
- * In this example we will set the Alarm to Inactive state. The server is responsible of setting
- * standard fields related to Acknowledge Method and triggering the alarm notification.
- */
+ * This is user specific function which will be called upon acknowledging an
+ * alarm notification. In this example we will set the Alarm to Inactive state.
+ * The server is responsible of setting standard fields related to Acknowledge
+ * Method and triggering the alarm notification. */
 static UA_StatusCode
 enteringAckedStateCallback(UA_Server *server, const UA_NodeId *condition) {
     /* deactivate Alarm when acknowledging*/
@@ -333,12 +371,15 @@ enteringAckedStateCallback(UA_Server *server, const UA_NodeId *condition) {
     UA_QualifiedName activeStateIdField = UA_QUALIFIEDNAME(0,"Id");
 
     UA_Variant_setScalar(&value, &activeStateId, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    UA_StatusCode retval = UA_Server_setConditionVariableFieldProperty(server, *condition,
-                                                         &value, activeStateField, activeStateIdField);
+    UA_StatusCode retval =
+        UA_Server_setConditionVariableFieldProperty(server, *condition,
+                                                    &value, activeStateField,
+                                                    activeStateIdField);
 
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                     "Setting ActiveState/Id Field failed. StatusCode %s", UA_StatusCode_name(retval));
+                     "Setting ActiveState/Id Field failed. StatusCode %s",
+                     UA_StatusCode_name(retval));
     }
 
     return retval;
@@ -346,7 +387,8 @@ enteringAckedStateCallback(UA_Server *server, const UA_NodeId *condition) {
 
 static UA_StatusCode
 enteringConfirmedStateCallback(UA_Server *server, const UA_NodeId *condition) {
-	/* deactivate Alarm and put it out of the interesting state (by writing false to Retain field) when confirming*/
+	/* Deactivate Alarm and put it out of the interesting state (by writing
+     * false to Retain field) when confirming*/
     UA_Boolean activeStateId = false;
     UA_Boolean retain = false;
     UA_Variant value;
@@ -355,11 +397,14 @@ enteringConfirmedStateCallback(UA_Server *server, const UA_NodeId *condition) {
     UA_QualifiedName retainField = UA_QUALIFIEDNAME(0,"Retain");
 
     UA_Variant_setScalar(&value, &activeStateId, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    UA_StatusCode retval = UA_Server_setConditionVariableFieldProperty(server, *condition,
-                                                         &value, activeStateField, activeStateIdField);
+    UA_StatusCode retval =
+        UA_Server_setConditionVariableFieldProperty(server, *condition,
+                                                    &value, activeStateField,
+                                                    activeStateIdField);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                     "Setting ActiveState/Id Field failed. StatusCode %s", UA_StatusCode_name(retval));
+                     "Setting ActiveState/Id Field failed. StatusCode %s",
+                     UA_StatusCode_name(retval));
         return retval;
     }
 
@@ -368,7 +413,8 @@ enteringConfirmedStateCallback(UA_Server *server, const UA_NodeId *condition) {
                                          &value, retainField);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                     "Setting ActiveState/Id Field failed. StatusCode %s", UA_StatusCode_name(retval));
+                     "Setting ActiveState/Id Field failed. StatusCode %s",
+                     UA_StatusCode_name(retval));
     }
 
     return retval;
@@ -382,63 +428,68 @@ setUpEnvironment(UA_Server *server) {
     UA_ValueCallback callback;
     callback.onRead = NULL;
 
-    /**
-       * exposed condition 1. We will add to it user specific callbacks when entering enabled state,
-       * when acknowledging and when confirming
-       */
+    /* Exposed condition 1. We will add to it user specific callbacks when
+     * entering enabled state, when acknowledging and when confirming. */
     UA_StatusCode retval = addCondition_1(server);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                     "adding condition 1 failed. StatusCode %s", UA_StatusCode_name(retval));
+                     "adding condition 1 failed. StatusCode %s",
+                     UA_StatusCode_name(retval));
         return retval;
     }
 
     UA_TwoStateVariableChangeCallback userSpecificCallback = enteringEnabledStateCallback;
     retval = UA_Server_setConditionTwoStateVariableCallback(server, conditionInstance_1,
-                                                            conditionSource, false, userSpecificCallback,
+                                                            conditionSource, false,
+                                                            userSpecificCallback,
                                                             UA_ENTERING_ENABLEDSTATE);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                     "adding entering enabled state callback failed. StatusCode %s", UA_StatusCode_name(retval));
+                     "adding entering enabled state callback failed. StatusCode %s",
+                     UA_StatusCode_name(retval));
         return retval;
     }
 
     userSpecificCallback = enteringAckedStateCallback;
     retval = UA_Server_setConditionTwoStateVariableCallback(server, conditionInstance_1,
-                                                            conditionSource, false, userSpecificCallback,
+                                                            conditionSource, false,
+                                                            userSpecificCallback,
                                                             UA_ENTERING_ACKEDSTATE);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                     "adding entering acked state callback failed. StatusCode %s", UA_StatusCode_name(retval));
+                     "adding entering acked state callback failed. StatusCode %s",
+                     UA_StatusCode_name(retval));
         return retval;
     }
 
     userSpecificCallback = enteringConfirmedStateCallback;
     retval = UA_Server_setConditionTwoStateVariableCallback(server, conditionInstance_1,
-                                                            conditionSource, false, userSpecificCallback,
+                                                            conditionSource, false,
+                                                            userSpecificCallback,
                                                             UA_ENTERING_CONFIRMEDSTATE);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                     "adding entering confirmed state callback failed. StatusCode %s", UA_StatusCode_name(retval));
+                     "adding entering confirmed state callback failed. StatusCode %s",
+                     UA_StatusCode_name(retval));
         return retval;
     }
 
-    /**
-     * unexposed condition 2. No user specific callbacks, so the server will behave in a standard manner
-     * upon entering enabled state, acknowledging and confirming.
-     * We will set Retain field to true and enable the condition so we can receive event
-     * notifications (we cannot call enable method on unexposed condition using a
-     * client like UaExpert or Softing).
-     */
+    /* Unexposed condition 2. No user specific callbacks, so the server will
+     * behave in a standard manner upon entering enabled state, acknowledging
+     * and confirming. We will set Retain field to true and enable the condition
+     * so we can receive event notifications (we cannot call enable method on
+     * unexposed condition using a client like UaExpert or Softing). */
     retval = addCondition_2(server);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                     "adding condition 2 failed. StatusCode %s", UA_StatusCode_name(retval));
+                     "adding condition 2 failed. StatusCode %s",
+                     UA_StatusCode_name(retval));
         return retval;
     }
 
     UA_Boolean retain = UA_TRUE;
-    UA_Server_writeObjectProperty_scalar(server, conditionInstance_2, UA_QUALIFIEDNAME(0, "Retain"),
+    UA_Server_writeObjectProperty_scalar(server, conditionInstance_2,
+                                         UA_QUALIFIEDNAME(0, "Retain"),
                                          &retain, &UA_TYPES[UA_TYPES_BOOLEAN]);
 
     UA_Variant value;
@@ -447,39 +498,39 @@ setUpEnvironment(UA_Server *server) {
     UA_QualifiedName enabledStateIdField = UA_QUALIFIEDNAME(0,"Id");
     UA_Variant_setScalar(&value, &enabledStateId, &UA_TYPES[UA_TYPES_BOOLEAN]);
     retval = UA_Server_setConditionVariableFieldProperty(server, conditionInstance_2,
-                                                         &value, enabledStateField, enabledStateIdField);
+                                                         &value, enabledStateField,
+                                                         enabledStateIdField);
 
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                     "Setting EnabledState/Id Field failed. StatusCode %s", UA_StatusCode_name(retval));
+                     "Setting EnabledState/Id Field failed. StatusCode %s",
+                     UA_StatusCode_name(retval));
         return retval;
     }
 
 
-    /**
-     * add 3 variables to trigger condition events
-     */
+    /* Add 3 variables to trigger condition events */
     addVariable_1_triggerAlarmOfCondition_1(server, &variable_1);
 
     callback.onWrite = afterWriteCallbackVariable_1;
     retval = UA_Server_setVariableNode_valueCallback(server, variable_1, callback);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                     "setting variable 1 Callback failed. StatusCode %s", UA_StatusCode_name(retval));
+                     "Setting variable 1 Callback failed. StatusCode %s",
+                     UA_StatusCode_name(retval));
         return retval;
     }
 
-    /**
-     * severity can change internally also when the condition disabled and retain is false. However,
-     * in this case no events will be generated.
-     */
+    /* Severity can change internally also when the condition disabled and
+     * retain is false. However, in this case no events will be generated. */
     addVariable_2_changeSeverityOfCondition_2(server, &variable_2);
 
     callback.onWrite = afterWriteCallbackVariable_2;
     retval = UA_Server_setVariableNode_valueCallback(server, variable_2, callback);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                     "setting variable 2 Callback failed. StatusCode %s", UA_StatusCode_name(retval));
+                     "Setting variable 2 Callback failed. StatusCode %s",
+                     UA_StatusCode_name(retval));
         return retval;
     }
 
@@ -489,15 +540,15 @@ setUpEnvironment(UA_Server *server) {
     retval = UA_Server_setVariableNode_valueCallback(server, variable_3, callback);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                     "setting variable 3 Callback failed. StatusCode %s", UA_StatusCode_name(retval));
+                     "Setting variable 3 Callback failed. StatusCode %s",
+                     UA_StatusCode_name(retval));
     }
 
     return retval;
 }
 
-
-
-/** It follows the main server code, making use of the above definitions. */
+/**
+ * It follows the main server code, making use of the above definitions. */
 
 static UA_Boolean running = true;
 static void stopHandler(int sig) {
@@ -515,9 +566,7 @@ int main (void) {
     UA_StatusCode retval = setUpEnvironment(server);
 
     if(retval == UA_STATUSCODE_GOOD)
-    {
         retval = UA_Server_run(server, &running);
-    }
 
     UA_Server_delete(server);
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
