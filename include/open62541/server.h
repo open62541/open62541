@@ -1502,7 +1502,7 @@ UA_Server_AccessControl_allowHistoryUpdateDeleteRawModified(UA_Server *server,
 #endif // UA_ENABLE_HISTORIZING
 
 /**
-* .. _async_operations:
+* .. _async-operations:
 *
 * Async Operations
 * ----------------

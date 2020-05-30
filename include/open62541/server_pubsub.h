@@ -404,8 +404,7 @@ UA_StatusCode UA_EXPORT
 UA_Server_setWriterGroupDisabled(UA_Server *server, const UA_NodeId writerGroup);
 
 /**
- * .. _dsw:    UA_Boolean configurationFrozen;
-
+ * .. _dsw:
  *
  * DataSetWriter
  * -------------

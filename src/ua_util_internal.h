@@ -43,7 +43,8 @@ typedef UA_UInt64 u64;
 typedef UA_Int64 i64;
 typedef UA_StatusCode status;
 
-/* Utility Functions
+/**
+ * Utility Functions
  * ----------------- */
 
 /* Get the number of optional fields contained in an structure type */
