@@ -142,12 +142,14 @@ struct UA_ServerConfig {
 
     /* Node Lifecycle callbacks */
     UA_GlobalNodeLifecycle nodeLifecycle;
+
     /**
      * .. note:: See the section for :ref:`node lifecycle
      *    handling<node-lifecycle>`. */
 
     /* Access Control */
     UA_AccessControl accessControl;
+
     /**
      * .. note:: See the section for :ref:`access-control
      *    handling<access-control>`. */
@@ -160,9 +162,10 @@ struct UA_ServerConfig {
     /* Notify workers when an async operation was enqueued */
     UA_Server_AsyncOperationNotifyCallback asyncOperationNotifyCallback;
 #endif
+
     /**
      * .. note:: See the section for :ref:`async
-     * operations<async-operations>`. */
+     *    operations<async-operations>`. */
 
     /* Nodestore */
     UA_Nodestore nodestore;

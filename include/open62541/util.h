@@ -128,7 +128,7 @@ UA_RelativePath_parse(UA_RelativePath *rp, const UA_String str);
 
 /**
  * Helper functions for converting data types
- * ------------------------------------ */
+ * ------------------------------------------ */
 
 /* Converts a bytestring to the corresponding base64 representation */
 UA_DEPRECATED static UA_INLINE UA_StatusCode
