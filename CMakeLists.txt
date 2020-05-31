@@ -246,7 +246,7 @@ mark_as_advanced(UA_ENABLE_PUBSUB)
 option(UA_ENABLE_PUBSUB_ETH_UADP "Enable publish/subscribe UADP over Ethernet" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_ETH_UADP)
 if(UA_ENABLE_PUBSUB_ETH_UADP)
-    if (NOT CMAKE_SYSTEM MATCHES "Linux")
+    if(NOT CMAKE_SYSTEM MATCHES "Linux")
     message(FATAL_ERROR "UADP over Ethernet is only available on Linux.")
 	endif()
 endif()
@@ -254,7 +254,7 @@ endif()
 option(UA_ENABLE_PUBSUB_ETH_UADP_XDP "Enable Subscribe UADP over Ethernet using XDP" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_ETH_UADP_XDP)
 if(UA_ENABLE_PUBSUB_ETH_UADP_XDP)
-    if (NOT CMAKE_SYSTEM MATCHES "Linux")
+    if(NOT CMAKE_SYSTEM MATCHES "Linux")
         message(FATAL_ERROR "XDP is only available on Linux.")
     endif()
 endif()
@@ -298,7 +298,7 @@ if(UA_ENABLE_PUBSUB_ETH_UADP_ETF)
     if(NOT UA_ENABLE_PUBSUB)
         message(FATAL_ERROR "ETF publish callback handling cannot be used with PubSub function disabled")
     endif()
-    if (NOT CMAKE_SYSTEM MATCHES "Linux")
+    if(NOT CMAKE_SYSTEM MATCHES "Linux")
         message(FATAL_ERROR "ETF is only available on Linux.")
     endif()
 endif()
@@ -425,7 +425,7 @@ mark_as_advanced(UA_PACK_DEBIAN)
 set(UA_DYNAMIC_LINKING OFF)
 if(BUILD_SHARED_LIBS)
   set(UA_DYNAMIC_LINKING ON)
-  if (UA_ENABLE_DISCOVERY_MULTICAST)
+  if(UA_ENABLE_DISCOVERY_MULTICAST)
       set(MDNSD_DYNAMIC_LINKING ON)
   endif()
 endif()
@@ -457,7 +457,7 @@ if(UA_ENABLE_ENCRYPTION)
         # https://cmake.org/cmake/help/v3.0/module/FindOpenSSL.html
         find_package(OpenSSL REQUIRED)
         list(APPEND open62541_LIBRARIES ${OPENSSL_LIBRARIES})
-    else ()
+    else()
         # The recommended way is to install mbedtls via the OS package manager. If
         # that is not possible, manually compile mbedTLS and set the cmake variables
         # defined in /tools/cmake/FindMbedTLS.cmake.
@@ -541,7 +541,7 @@ if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" ST
       unset(flag_supported CACHE)
     endif()
 
-    if (NOT MINGW)
+    if(NOT MINGW)
         if(UA_ENABLE_HARDENING)
             check_add_cc_flag("-fstack-protector-strong") # more performant stack protector, available since gcc 4.9
             check_add_cc_flag("-fstack-clash-protection") # increased reliability of stack overflow detection, available since gcc 8
@@ -812,7 +812,7 @@ if(UA_ENABLE_PARSING)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types_lex.c)
 endif()
 
-if (UA_ENABLE_ENCRYPTION_MBEDTLS)
+if(UA_ENABLE_ENCRYPTION_MBEDTLS)
 list(APPEND default_plugin_headers
      ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/securitypolicy_mbedtls_common.h)
 list(APPEND default_plugin_sources
@@ -822,7 +822,7 @@ list(APPEND default_plugin_sources
      ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256sha256.c)
 endif()
 
-if (UA_ENABLE_ENCRYPTION_OPENSSL)
+if(UA_ENABLE_ENCRYPTION_OPENSSL)
 list(APPEND default_plugin_headers
      ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/securitypolicy_openssl_common.h)
 list(APPEND default_plugin_sources
@@ -1067,7 +1067,7 @@ add_custom_target(open62541-generator-statuscode DEPENDS
         ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.h
         ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.c)
 
-if (UA_ENABLE_AMALGAMATION)
+if(UA_ENABLE_AMALGAMATION)
     # single-file release
     add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.h
                        PRE_BUILD
@@ -1234,7 +1234,7 @@ add_library(open62541::open62541 ALIAS open62541)
 # Export Symbols
 target_compile_definitions(open62541-object PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
 target_compile_definitions(open62541 PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
-if (UA_ENABLE_DISCOVERY_MULTICAST)
+if(UA_ENABLE_DISCOVERY_MULTICAST)
     target_compile_definitions(open62541-object PRIVATE -DMDNSD_DYNAMIC_LINKING_EXPORT)
     target_compile_definitions(open62541 PRIVATE -DMDNSD_DYNAMIC_LINKING_EXPORT)
 endif()
@@ -1249,7 +1249,7 @@ GET_PROPERTY(ua_architecture_add_definitions GLOBAL PROPERTY UA_ARCHITECTURE_ADD
 add_definitions(${ua_architecture_add_definitions})
 
 GET_PROPERTY(ua_architecture_remove_definitions GLOBAL PROPERTY UA_ARCHITECTURE_REMOVE_DEFINITIONS)
-if (NOT "${ua_architecture_remove_definitions}" STREQUAL "")
+if(NOT "${ua_architecture_remove_definitions}" STREQUAL "")
   string(REPLACE " " ";" ua_architecture_remove_definitions_list ${ua_architecture_remove_definitions})
   remove_definitions(${ua_architecture_remove_definitions_list})
   foreach ( flag ${ua_architecture_remove_definitions} )
@@ -1433,7 +1433,7 @@ install(DIRECTORY ${UA_install_tools_dirs}
 
 install(FILES ${UA_install_tools_files} DESTINATION ${open62541_install_tools_dir})
 
-if (UA_PACK_DEBIAN)
+if(UA_PACK_DEBIAN)
     set(UA_install_examples_dirs "examples/"
         "examples/access_control"
         "examples/custom_datatype"
@@ -1494,7 +1494,7 @@ set_property(GLOBAL PROPERTY PREDEFINED_TARGETS_FOLDER "_CmakePredifinedTargets"
 
 set_target_properties(open62541 PROPERTIES FOLDER "open62541/lib")
 set_target_properties(open62541-object PROPERTIES FOLDER "open62541/lib")
-if (UA_ENABLE_AMALGAMATION)
+if(UA_ENABLE_AMALGAMATION)
     set_target_properties(open62541-amalgamation-header PROPERTIES FOLDER "open62541/lib")
     set_target_properties(open62541-amalgamation-source PROPERTIES FOLDER "open62541/lib")
 endif()
