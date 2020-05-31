@@ -394,6 +394,8 @@ UA_StatusCode UA_EXPORT
 UA_Server_setWriterGroupDisabled(UA_Server *server, const UA_NodeId writerGroup);
 
 /**
+ * .. _dsw:
+ *
  * DataSetWriter
  * -------------
  * The DataSetWriters are the glue between the WriterGroups and the

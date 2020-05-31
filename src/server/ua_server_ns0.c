@@ -249,6 +249,14 @@ UA_Server_createNS0_base(UA_Server *server) {
     ret |= addObjectNode(server, "Views", UA_NS0ID_VIEWSFOLDER, UA_NS0ID_ROOTFOLDER,
                   UA_NS0ID_ORGANIZES, UA_NS0ID_FOLDERTYPE);
 
+    /* Add BaseEventType */
+    UA_ObjectTypeAttributes eventtype_attr = UA_ObjectTypeAttributes_default;
+    eventtype_attr.displayName = UA_LOCALIZEDTEXT("", "BaseEventType");
+    ret |= addNode_raw(server, UA_NODECLASS_OBJECTTYPE, UA_NS0ID_BASEEVENTTYPE, "BaseEventType",
+                       &eventtype_attr, &UA_TYPES[UA_TYPES_OBJECTTYPEATTRIBUTES]);
+    ret |= addNode_finish(server, UA_NS0ID_BASEEVENTTYPE, UA_NS0ID_EVENTTYPESFOLDER,
+                   UA_NS0ID_ORGANIZES);
+
     if(ret != UA_STATUSCODE_GOOD)
         ret = UA_STATUSCODE_BADINTERNALERROR;
 
