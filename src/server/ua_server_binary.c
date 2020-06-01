@@ -311,7 +311,7 @@ processHEL(UA_Server *server, UA_SecureChannel *channel, const UA_ByteString *ms
     ackMessage.sendBufferSize = channel->config.sendBufferSize;
     ackMessage.maxMessageSize = channel->config.localMaxMessageSize;
     ackMessage.maxChunkCount = channel->config.localMaxChunkCount;
-    
+
     UA_TcpMessageHeader ackHeader;
     ackHeader.messageTypeAndChunkType = UA_MESSAGETYPE_ACK + UA_CHUNKTYPE_FINAL;
     ackHeader.messageSize = 8 + 20; /* ackHeader + ackMessage */
@@ -543,11 +543,29 @@ getBoundSession(UA_Server *server, const UA_SecureChannel *channel,
     return UA_STATUSCODE_GOOD;
 }
 
+static const UA_String securityPolicyNone =
+    UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#None");
+
 static UA_StatusCode
 processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 requestId,
                   UA_Service service, const UA_Request *request,
                   const UA_DataType *requestType, UA_Response *response,
                   const UA_DataType *responseType, UA_Boolean sessionRequired) {
+    const UA_RequestHeader *requestHeader = &request->requestHeader;
+
+    /* If it is an unencrypted (#None) channel, only allow the discovery services */
+    if(server->config.securityPolicyNoneDiscoveryOnly &&
+       UA_String_equal(&channel->securityPolicy->policyUri, &securityPolicyNone ) &&
+       requestType != &UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST] &&
+       requestType != &UA_TYPES[UA_TYPES_FINDSERVERSREQUEST]
+#if defined(UA_ENABLE_DISCOVERY) && defined(UA_ENABLE_DISCOVERY_MULTICAST)
+       && requestType != &UA_TYPES[UA_TYPES_FINDSERVERSONNETWORKREQUEST]
+#endif
+       ) {
+        return sendServiceFault(channel, requestId, requestHeader->requestHandle,
+                                responseType, UA_STATUSCODE_BADSECURITYPOLICYREJECTED);
+    }
+
     /* Session lifecycle services. */
     if(requestType == &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST] ||
        requestType == &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST] ||
@@ -568,7 +586,6 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
 
     /* Get the Session bound to the SecureChannel (not necessarily activated) */
     UA_Session *session = NULL;
-    const UA_RequestHeader *requestHeader = &request->requestHeader;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(!UA_NodeId_isNull(&requestHeader->authenticationToken)) {
         retval = getBoundSession(server, channel, &requestHeader->authenticationToken, &session);
