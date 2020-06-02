@@ -175,7 +175,7 @@ To change these options you need to add the following in your ``conanfile.txt`` 
    [settings]
    open62541:build_type=Debug
 
-This setting supprots the following options:
+This setting supports the following options:
 
  * RelWithDebInfo
  * Release
