@@ -79,6 +79,116 @@ Here are some examples:
 These pack branches have inlined submodules and the version string is hardcoded. If you need to build from source but do not want to use git,
 use these specific pack versions.
 
+Conan package
+^^^^^^^^^^^^^^
+
+Conan is a package management utility based on Python, which fetches a pre-pacakaged library from a remote repository. If you are new to conan you can read 
+up on it at `getting started <https://docs.conan.io/en/latest/getting_started.html>`_. For a fresh instalation of conana package manager, please follow 
+the `instalation guide <https://docs.conan.io/en/latest/installation.html>`_.
+
+To add open62541 as a dependency to your projecet, add the following lines to your ``conanfile.txt`` file:
+
+.. code-block:: bash
+
+   [requires]
+   open62541/1.0.0
+
+This package provides the following options as described in :ref:`build_options` for you to configure:
+
++-----------------------------------------+--------------------------------+--------------------------------------------+---------------+
+| Cmake Option name                       | Conan option name              | Posible Values                             | Default Value |
++=========================================+================================+============================================+===============+
+| POSITION_INDEPENDENT_CODE               | fPIC                           | True/False                                 | True          |
++-----------------------------------------+--------------------------------+--------------------------------------------+---------------+
+| BUILD_SHARED_LIBS                       | shared                         | True/False                                 | True          |
++-----------------------------------------+--------------------------------+--------------------------------------------+---------------+
+| UA_LOGLEVEL                             | logging_level                  | Fatal, Error, Warrning, Info, Debug, Trace | Info          |
++-----------------------------------------+--------------------------------+--------------------------------------------+---------------+
+| UA_ENABLE_DA                            | data_access                    | True/False                                 | True          |
++-----------------------------------------+--------------------------------+--------------------------------------------+---------------+
+| UA_ENABLE_SUBSCRIPTIONS                 | subscription                   | True/False                                 | True          |
++-----------------------------------------+--------------------------------+--------------------------------------------+---------------+
+| UA_ENABLE_SUBSCRIPTIONS_EVENTS          | subscription_events            | True/False                                 | False         |
++-----------------------------------------+--------------------------------+--------------------------------------------+---------------+
+| UA_ENABLE_METHODCALLS                   | methods                        | True/False                                 | True          |
++-----------------------------------------+--------------------------------+--------------------------------------------+---------------+
+| UA_ENABLE_NODEMANAGEMENT                | dynamic_nodes                  | True/False                                 | True          |
++-----------------------------------------+--------------------------------+--------------------------------------------+---------------+
+| UA_ENABLE_AMALGAMATION                  | single_header                  | True/False                                 | False         |
++-----------------------------------------+--------------------------------+--------------------------------------------+---------------+
+| UA_ENABLE_MULTITHREADING                | multithreading                 | True/False                                 | False         |
++-----------------------------------------+--------------------------------+--------------------------------------------+---------------+
+| UA_ENABLE_IMMUTABLE_NODES               | imutable_nodes                 | True/False                                 | False         |
++-----------------------------------------+--------------------------------+--------------------------------------------+---------------+
+| UA_ENABLE_WEBSOCKET_SERVER              | web_socket                     | True/False                                 | False         |
++-----------------------------------------+--------------------------------+--------------------------------------------+---------------+
+| UA_ENABLE_HISTORIZING                   | historize                      | True/False                                 | False         |
++-----------------------------------------+--------------------------------+--------------------------------------------+---------------+
+| UA_ENABLE_DISCOVERY                     | discovery                      | True/False                                 | True          |
++-----------------------------------------+--------------------------------+--------------------------------------------+---------------+
+| UA_ENABLE_DISCOVERY_MULTICAST           | discovery_multicast            | True/False                                 | False         |
++-----------------------------------------+--------------------------------+--------------------------------------------+---------------+
+| UA_ENABLE_DISCOVERY_SEMAPHORE           | discovery_semaphore            | True/False                                 | True          |
++-----------------------------------------+--------------------------------+--------------------------------------------+---------------+
+| UA_ENABLE_QUERY                         | query                          | True/False                                 | False         |
++-----------------------------------------+--------------------------------+--------------------------------------------+---------------+
+| UA_ENABLE_ENCRYPTION                    | encription                     | True/False                                 | False         |
++-----------------------------------------+--------------------------------+--------------------------------------------+---------------+
+| UA_ENABLE_JSON_ENCODING                 | json_support                   | True/False                                 | False         |
++-----------------------------------------+--------------------------------+--------------------------------------------+---------------+
+| UA_ENABLE_PUBSUB                        | *pub_sub                       | None, Simple, Ethernet, Ethernet_XDP       | None          |
++-----------------------------------------+--------------------------------+--------------------------------------------+---------------+
+| UA_ENABLE_NODESET_COMPILER_DESCRIPTIONS | compiled_nodeset_descriptions  | True/False                                 | True          |
++-----------------------------------------+--------------------------------+--------------------------------------------+---------------+
+| UA_NAMESPACE_ZERO                       | namescpae_zero                 | MINIMAL, REDUCED, FULL                     | FULL          |
++-----------------------------------------+--------------------------------+--------------------------------------------+---------------+
+| UA_ENABLE_MICRO_EMB_DEV_PROFILE         | embedded_profile               | True/False                                 | False         |
++-----------------------------------------+--------------------------------+--------------------------------------------+---------------+
+| UA_ENABLE_TYPENAMES                     | typenames                      | True/False                                 | True          |
++-----------------------------------------+--------------------------------+--------------------------------------------+---------------+
+| UA_ENABLE_STATUSCODE_DESCRIPTIONS       | readable_statuscodes           | True/False                                 | True          |
++-----------------------------------------+--------------------------------+--------------------------------------------+---------------+
+| UA_ENABLE_HARDENING                     | hardening                      | True/False                                 | False         |
++-----------------------------------------+--------------------------------+--------------------------------------------+---------------+
+| UA_COMPILE_AS_CXX                       | cpp_compatible                 | True/False                                 | False         |
++-----------------------------------------+--------------------------------+--------------------------------------------+---------------+
+
+.. note::
+
+   *pub_sub - this option controls ``UA_ENABLE_PUBSUB``, ``UA_ENABLE_PUBSUB_ETH_UADP`` and ``UA_ENABLE_PUBSUB_ETH_UADP_XDP`` CMake Options. 
+    * To enable the default Pub/Sub use Simple as a value, this will activate ``UA_ENABLE_PUBSUB``
+    * To enable Pub/Sub over UADP Ethernet``use Ethernet as a value, this will activate ``UA_ENABLE_PUBSUB`` and ``UA_ENABLE_PUBSUB_ETH_UADP``
+    * To enable XDP over UADP Ethernet use Ethernet_XDP as a value, this will activate ``UA_ENABLE_PUBSUB``,  ``UA_ENABLE_PUBSUB_ETH_UADP`` 
+    and ``UA_ENABLE_PUBSUB_ETH_UADP_XDP``
+
+To change these options you need to add the following in your ``conanfile.txt`` file:
+
+.. code-block:: bash
+
+   [options]
+   open62541:logging_level=Fatal # PACKAGE:OPTION=VALUE
+
+``CMAKE_BUILD_TYPE`` is set via settings instead of options. It can be done set in your ``conanfile.txt`` so: 
+
+.. code-block:: bash
+
+   [settings]
+   open62541:build_type=Debug
+
+This setting supprots the following options:
+
+ * RelWithDebInfo
+ * Release
+ * Debug
+ * MinSizeRel
+
+This package does not contain any utilities or exampels for you to use since these can not be imported from the package into the user project space, 
+where they would be useful.
+
+This pacakge does not build Test Cases to save package space.
+
+If you experience a bug or a problem with this package please open as issue at `conan central index <https://github.com/conan-io/conan-center-index/issues>`_.
+
 Prebuild binaries
 ^^^^^^^^^^^^^^^^^
 
