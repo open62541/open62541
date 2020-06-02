@@ -304,6 +304,11 @@ UA_PubSubChannelEthernet_send(UA_PubSubChannel *channel,
 
     lenBuf = sizeof(*ethHdr) + 4 + buf->length;
     bufSend = (char*) UA_malloc(lenBuf);
+    if (bufSend == NULL)
+        {
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+
     ethHdr = (struct ether_header*) bufSend;
 
     /* Set (own) source MAC address */
