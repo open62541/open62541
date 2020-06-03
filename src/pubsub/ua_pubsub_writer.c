@@ -201,6 +201,7 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
     }
     newWriterGroup->config = tmpWriterGroupConfig;
     LIST_INSERT_HEAD(&currentConnectionContext->writerGroups, newWriterGroup, listEntry);
+    currentConnectionContext->writerGroupsSize++;
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     addWriterGroupRepresentation(server, newWriterGroup);
 #endif
@@ -232,6 +233,8 @@ UA_Server_removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup) {
         //unregister the publish callback
         UA_PubSubManager_removeRepeatedPubSubCallback(server, wg->publishCallbackId);
     }
+
+    connection->writerGroupsSize--;
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     removeGroupRepresentation(server, wg);
 #endif

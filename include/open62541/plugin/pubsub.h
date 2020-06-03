@@ -100,9 +100,25 @@ typedef struct {
  * .. note:: This has to be done before the server is started with UA_Server_run. */
 UA_StatusCode UA_EXPORT
 UA_ServerConfig_addPubSubTransportLayer(UA_ServerConfig *config,
-                                        UA_PubSubTransportLayer *pubsubTransportLayer);
+                                        UA_PubSubTransportLayer *pubsubTransportLayer);              
+
+#ifdef UA_ENABLE_PUBSUB_CONFIG
+/**
+ * Stores name of PubSub configuration file in the PubSub manager. The configuration will be loaded during 
+ * the startup routine of the server.
+ * 
+ * @param   server      [bi]    Server object that shall be configured
+ * @param   filename    [in]    Relative path and name of the file that contains the PubSub configuration
+ * 
+ * @return  UA_STATUSCODE_GOOD on success
+ */
+UA_StatusCode 
+UA_Server_setPubSubConfigFilename(UA_Server *server, 
+                                  const char *filename);
+#endif
 
 #endif /* UA_ENABLE_PUBSUB */
+
 
 _UA_END_DECLS
 
