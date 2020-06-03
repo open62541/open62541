@@ -20,7 +20,9 @@ void addVariables(UA_Server *server);
 /***** MAIN FUNCTION **********************************************************************************/
 int main(int argc, char** argv)
 {
+#ifdef UA_ENABLE_PUBSUB_CONFIG
     UA_Boolean loadPubSubFromFile = UA_FALSE;
+#endif
     UA_UInt16 port = 4840;
 
     /* 1. Check arguments and set name of PubSub configuration file*/
@@ -31,7 +33,9 @@ int main(int argc, char** argv)
             break;
         case 3:
             port = (unsigned short)atoi(argv[1]);
+#ifdef UA_ENABLE_PUBSUB_CONFIG
             loadPubSubFromFile = UA_TRUE;
+#endif
             break;
 
         default:
