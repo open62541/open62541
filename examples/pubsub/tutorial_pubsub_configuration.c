@@ -1,7 +1,6 @@
 /* Includes */
 #include <stdio.h>
 #include <signal.h>
-#include <unistd.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/pubsub.h>
@@ -46,10 +45,13 @@ int main(int argc, char** argv)
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setMinimal(config, port, NULL); /* creates server on default port 4840 */
+
+#ifdef UA_ENABLE_PUBSUB_CONFIG
     if(loadPubSubFromFile) 
     {
         UA_Server_setPubSubConfigFilename(server, argv[2]);
     }
+#endif
 
     /* 3. Add variable nodes to the server */
     addVariables(server);
