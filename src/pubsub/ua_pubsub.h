@@ -4,6 +4,8 @@
  *
  * Copyright (c) 2017-2018 Fraunhofer IOSB (Author: Andreas Ebner)
  * Copyright (c) 2019 Kalycito Infotech Private Limited
+ * Copyright (c) 2020 Yannick Wallerer, Siemens AG
+ * Copyright (c) 2020 Thomas Fischer, Siemens AG
  */
 
 #ifndef UA_PUBSUB_H_
@@ -63,6 +65,7 @@ typedef struct UA_PubSubConnection{
     UA_PubSubChannel *channel;
     UA_NodeId identifier;
     LIST_HEAD(UA_ListOfWriterGroup, UA_WriterGroup) writerGroups;
+    size_t writerGroupsSize;
     LIST_HEAD(UA_ListOfPubSubReaderGroup, UA_ReaderGroup) readerGroups;
     size_t readerGroupsSize;
     TAILQ_ENTRY(UA_PubSubConnection) listEntry;

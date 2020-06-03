@@ -15,9 +15,15 @@
  *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2018 (c) Hilscher Gesellschaft für Systemautomation mbH (Author: Martin Lang)
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
+ *    Copyright (c) 2020 Yannick Wallerer, Siemens AG
+ *    Copyright (c) 2020 Thomas Fischer, Siemens AG
  */
 
 #include "ua_server_internal.h"
+
+#ifdef UA_ENABLE_PUBSUB_CONFIG
+#include "ua_pubsub_config.h"
+#endif
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
 #include "ua_pubsub_ns0.h"
@@ -206,6 +212,12 @@ void UA_Server_delete(UA_Server *server) {
 #endif
 
 #ifdef UA_ENABLE_PUBSUB
+#ifdef UA_ENABLE_PUBSUB_CONFIG
+    if(server->pubSubManager.pubSubConfigFilename.length > 0) {
+        UA_savePubSubConfigToFile(server);
+    }
+    UA_String_deleteMembers(&server->pubSubManager.pubSubConfigFilename);
+#endif
     UA_PubSubManager_delete(server, &server->pubSubManager);
 #endif
 
@@ -562,6 +574,17 @@ UA_Server_run_startup(UA_Server *server) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "There has to be at least one endpoint.");
     }
+
+#ifdef UA_ENABLE_PUBSUB_CONFIG
+    if(server->pubSubManager.pubSubConfigFilename.length == 0){
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER, "No PubSub configuration file specified");
+    } else {
+        retVal = UA_loadPubSubConfigFromFile(server, server->pubSubManager.pubSubConfigFilename);
+        if(retVal != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "Loading PubSubConfig from file failed");
+        }
+    }
+#endif
 
     /* Initialized discovery */
 #ifdef UA_ENABLE_DISCOVERY
