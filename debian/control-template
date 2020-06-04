@@ -12,7 +12,6 @@ Build-Depends: debhelper (>= 9),
  texlive-plain-generic | texlive-generic-extra,
  latexmk,
  libmbedtls-dev
-
 Standards-Version: 4.4.1
 Section: libs
 Homepage: https://open62541.org/
