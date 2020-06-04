@@ -1746,9 +1746,9 @@ setConditionInConditionList(UA_Server *server, const UA_NodeId *conditionNodeId,
     UA_ConditionBranch *conditionBranchListEntry;
     conditionBranchListEntry = (UA_ConditionBranch*)UA_malloc(sizeof(UA_ConditionBranch));
     if(!conditionBranchListEntry) {
-		UA_free(conditionListEntry);
+        UA_free(conditionListEntry);
         return UA_STATUSCODE_BADOUTOFMEMORY;
-	}
+    }
 
     memset(conditionBranchListEntry, 0, sizeof(UA_ConditionBranch));
     LIST_INSERT_HEAD(&conditionSourceEntry->conditionHead, conditionListEntry, listEntry);
@@ -1785,22 +1785,32 @@ appendConditionEntry(UA_Server *server, const UA_NodeId *conditionNodeId,
     return setConditionInConditionList(server, conditionNodeId, conditionSourceListEntry);
 }
 
+static void deleteAllBranchesFromCondition(UA_Condition *cond)
+{
+    UA_ConditionBranch *branch, *tmp_branch;
+    LIST_FOREACH_SAFE(branch, &cond->conditionBranchHead, listEntry, tmp_branch) {
+        UA_NodeId_clear(&branch->conditionBranchId);
+        UA_ByteString_clear(&branch->lastEventId);
+        LIST_REMOVE(branch, listEntry);
+        UA_free(branch);
+    }
+}
+
+static void deleteCondition(UA_Condition *cond)
+{
+    deleteAllBranchesFromCondition(cond);
+    UA_NodeId_clear(&cond->conditionId);
+    LIST_REMOVE(cond, listEntry);
+    UA_free(cond);
+}
+
 void
 UA_ConditionList_delete(UA_Server *server) {
     UA_ConditionSource *source, *tmp_source;
     LIST_FOREACH_SAFE(source, &server->headConditionSource, listEntry, tmp_source) {
         UA_Condition *cond, *tmp_cond;
         LIST_FOREACH_SAFE(cond, &source->conditionHead, listEntry, tmp_cond) {
-            UA_ConditionBranch *branch, *tmp_branch;
-            LIST_FOREACH_SAFE(branch, &cond->conditionBranchHead, listEntry, tmp_branch) {
-                UA_NodeId_clear(&branch->conditionBranchId);
-                UA_ByteString_clear(&branch->lastEventId);
-                LIST_REMOVE(branch, listEntry);
-                UA_free(branch);
-            }
-            UA_NodeId_clear(&cond->conditionId);
-            LIST_REMOVE(cond, listEntry);
-            UA_free(cond);
+            deleteCondition(cond);
         }
         UA_NodeId_clear(&source->conditionSourceId);
         LIST_REMOVE(source, listEntry);
@@ -2520,5 +2530,39 @@ UA_Server_triggerConditionEvent(UA_Server *server, const UA_NodeId condition,
     else
         UA_ByteString_deleteMembers(&eventId);
     return retval;
+}
+
+UA_StatusCode UA_Server_deleteCondition(UA_Server *server, const UA_NodeId condition, const UA_NodeId conditionSource)
+{
+    // Delete from internal list
+    UA_Boolean found = UA_FALSE;
+    /* Get ConditionSource Entry */
+    UA_ConditionSource *source, *tmp_source;
+    LIST_FOREACH_SAFE(source, &server->headConditionSource, listEntry, tmp_source) {
+        if(!UA_NodeId_equal(&source->conditionSourceId, &conditionSource))
+            continue;
+        /* Get Condition Entry */
+        UA_Condition *cond, *tmp_cond;
+        LIST_FOREACH_SAFE(cond, &source->conditionHead, listEntry, tmp_cond) {
+            if(!UA_NodeId_equal(&cond->conditionId, &condition))
+                continue;
+            deleteCondition(cond);
+            found = UA_TRUE;
+            break;
+        }
+
+        if(LIST_EMPTY(&source->conditionHead)){
+            UA_NodeId_clear(&source->conditionSourceId);
+            LIST_REMOVE(source, listEntry);
+            UA_free(source);
+        }
+        break;
+    }
+    if(!found)
+    {
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+    // Delete from address space
+    return UA_Server_deleteNode(server, condition, true);
 }
 #endif//UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
