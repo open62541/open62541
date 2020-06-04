@@ -429,6 +429,12 @@ if(UA_ENABLE_SUBSCRIPTIONS)
     add_test_no_valgrind(server_monitoringspeed ${TESTS_BINARY_DIR}/check_server_monitoringspeed)
 endif()
 
+if(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS)
+    add_executable(check_server_alarmsconditions server/check_server_alarmsconditions.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    target_link_libraries(check_server_alarmsconditions ${LIBS})
+    add_test_no_valgrind(check_server_alarmsconditions ${TESTS_BINARY_DIR}/check_server_alarmsconditions)
+endif()
+
 if(UA_ENABLE_ASYNCOPERATIONS)
     add_executable(check_server_asyncop server/check_server_asyncop.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     target_link_libraries(check_server_asyncop ${LIBS})
