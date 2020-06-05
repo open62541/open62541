@@ -190,7 +190,7 @@ START_TEST(Node_Add) {
         attr.userExecutable = true;
         retval = UA_Client_addMethodNode(client, UA_NODEID_NULL,
                                          newObjectId,
-                                         UA_NODEID_NUMERIC(0, UA_NS0ID_HASORDEREDCOMPONENT),
+                                         UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                                          UA_QUALIFIEDNAME(1, "Dummy"),
                                          attr, &newMethodId);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -457,7 +457,7 @@ START_TEST(Node_AddReadWriteNodes) {
         attr.writeMask = 0xFFFFFFFF;
         retval = UA_Client_addMethodNode(client, UA_NODEID_NULL,
                                          nodeReadWriteUnitTest,
-                                         UA_NODEID_NUMERIC(0, UA_NS0ID_HASORDEREDCOMPONENT),
+                                         UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                                          UA_QUALIFIEDNAME(1, "Dummy"),
                                          attr, &nodeReadWriteMethod);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
