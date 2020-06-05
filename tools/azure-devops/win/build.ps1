@@ -114,8 +114,7 @@ try {
             -DUA_ENABLE_PUBSUB_INFORMATIONMODEL:BOOL=ON `
             -DUA_ENABLE_SUBSCRIPTIONS_EVENTS:BOOL=ON `
             -DUA_NAMESPACE_ZERO:STRING=FULL ..
-    # clang runs out of memory if multiple processes are used. Therefore limit to single process build
-    & cmake --build . --config Debug -- -j 1
+    & cmake --build . --config Debug
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
         Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
         exit $LASTEXITCODE
