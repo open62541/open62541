@@ -42,8 +42,10 @@ static void setup(void) {
 }
 
 static void teardown(void) {
-    running = false;
-    THREAD_JOIN(server_thread);
+    if (running) {
+        running = false;
+        THREAD_JOIN(server_thread);
+    }
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
 }
