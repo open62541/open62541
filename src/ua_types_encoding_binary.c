@@ -721,6 +721,8 @@ DECODE_BINARY(ExpandedNodeId) {
 /* QualifiedName */
 ENCODE_BINARY(QualifiedName) {
     status ret = ENCODE_DIRECT(&src->namespaceIndex, UInt16);
+    if(ret != UA_STATUSCODE_GOOD)
+        return ret;
     ret |= ENCODE_DIRECT(&src->name, String);
     return ret;
 }
