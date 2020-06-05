@@ -59,7 +59,7 @@ static void setup(void) {
     UA_StatusCode res =
         UA_Server_addMethodNode(server, UA_NODEID_STRING(1, "method"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASORDEREDCOMPONENT),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                             UA_QUALIFIEDNAME(1, "method"),
                             methodAttr, &methodCallback,
                             0, NULL, 0, NULL, NULL, NULL);
@@ -68,7 +68,7 @@ static void setup(void) {
     /* Asynchronous Method */
     res = UA_Server_addMethodNode(server, UA_NODEID_STRING(1, "asyncMethod"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASORDEREDCOMPONENT),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                             UA_QUALIFIEDNAME(1, "asyncMethod"),
                             methodAttr, &methodCallback,
                             0, NULL, 0, NULL, NULL, NULL);
