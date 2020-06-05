@@ -1303,6 +1303,10 @@ UA_Server_addDataSetWriter(UA_Server *server,
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
     newDataSetWriter->lastSamplesCount = currentDataSetContext->fieldSize;
+    for(size_t i = 0; i < newDataSetWriter->lastSamplesCount; i++) {
+        UA_DataValue_init(&newDataSetWriter->lastSamples[i].value);
+        newDataSetWriter->lastSamples[i].valueChanged = false;
+    }
 #endif
 
     //connect PublishedDataSet with DataSetWriter
