@@ -1121,8 +1121,10 @@ DECODE_BINARY(Variant) {
         ret = Array_decodeBinary(&dst->data, &dst->arrayLength, dst->type, ctx);
     } else if(typeKind != UA_DATATYPEKIND_EXTENSIONOBJECT) {
         dst->data = UA_new(dst->type);
-        if(!dst->data)
+        if(!dst->data) {
+            ctx->depth--;
             return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
         ret = decodeBinaryJumpTable[typeKind](dst->data, dst->type, ctx);
     } else {
         ret = Variant_decodeBinaryUnwrapExtensionObject(dst, ctx);
@@ -1440,21 +1442,17 @@ encodeBinaryUnion(const void *src, const UA_DataType *type, Ctx *ctx) {
         return UA_STATUSCODE_BADENCODINGERROR;
     ctx->depth++;
 
-    uintptr_t ptr = (uintptr_t)src;
-    status ret;
-    UA_UInt32 selection = *(UA_UInt32*) ptr;
-    ret = encodeWithExchangeBuffer((const void*)ptr, &UA_TYPES[UA_TYPES_UINT32], ctx);
-    if(selection == 0)
+    const UA_UInt32 selection = *(const UA_UInt32*)src;
+    status ret = ENCODE_DIRECT(src, UInt32);
+    if(ret != UA_STATUSCODE_GOOD || selection == 0) {
+        ctx->depth--;
         return ret;
+    }
 
     const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
     const UA_DataTypeMember *m = &type->members[selection-1];
     const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
-
-    if(ret != UA_STATUSCODE_GOOD)
-        return ret;
-    ptr += m->padding;
-    ptr += UA_TYPES[UA_TYPES_UINT32].memSize;
+    uintptr_t ptr = ((uintptr_t)src) + UA_TYPES[UA_TYPES_UINT32].memSize + m->padding;
     ret = encodeWithExchangeBuffer((const void*)ptr, mt, ctx);
     UA_assert(ret != UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
 
