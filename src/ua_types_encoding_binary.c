@@ -41,12 +41,12 @@
 #define UA_ENCODING_MAX_RECURSION 100
 
 typedef struct {
-    /* Pointers to the current position and the last position in the buffer */
+    /* Pointers to the current and last buffer position */
     u8 *pos;
     const u8 *end;
 
-    u8 **oldpos; /* Sentinel for a lower stacktrace exchanging the buffer */
-    u16 depth;   /* How often did we en-/decoding recurse? */
+    /* How often did we en-/decoding recurse? */
+    u16 depth;
 
     const UA_DataTypeArray *customTypes;
     UA_exchangeEncodeBuffer exchangeBufferCallback;
@@ -98,9 +98,17 @@ static status exchangeBuffer(Ctx *ctx) {
 static status
 encodeWithExchangeBuffer(const void *ptr, const UA_DataType *type, Ctx *ctx) {
     u8 *oldpos = ctx->pos; /* Last known good position */
-    ctx->oldpos = &oldpos;
+#ifndef NDEBUG
+    /* Ensure that the buffer was not exchanged AND BADENCODINGLIMITSEXCEEDED
+     * was returned. If that were the case, oldpos would be invalid. That means,
+     * a type encoding must not return BADENCODINGLIMITSEXCEEDED after the
+     * buffer could have been exchanged. */
+    const u8 *oldend = ctx->end;
+    (void)oldend; /* For compilers who don't understand NDEBUG... */
+#endif
     status ret = encodeBinaryJumpTable[type->typeKind](ptr, type, ctx);
-    if(ret == UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED && ctx->oldpos == &oldpos) {
+    if(ret == UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED) {
+        UA_assert(ctx->end == oldend);
         ctx->pos = oldpos; /* Set to the last known good position and exchange */
         ret = exchangeBuffer(ctx);
         if(ret != UA_STATUSCODE_GOOD)
@@ -406,9 +414,6 @@ Array_encodeBinaryOverlayable(uintptr_t ptr, size_t memSize, Ctx *ctx) {
         ctx->pos += possible;
         ptr += possible;
         status ret = exchangeBuffer(ctx);
-        ctx->oldpos = NULL; /* Set the sentinel so that no upper stack frame
-                             * with a saved pos attempts to exchange from an
-                             * invalid position in the old buffer. */
         if(ret != UA_STATUSCODE_GOOD)
             return ret;
         memSize -= possible;
@@ -447,15 +452,17 @@ Array_encodeBinary(const void *src, size_t length, const UA_DataType *type, Ctx 
 
     /* Encode the array length */
     status ret = encodeWithExchangeBuffer(&signed_length, &UA_TYPES[UA_TYPES_INT32], ctx);
-
-    /* Quit early? */
+    UA_assert(ret != UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
     if(ret != UA_STATUSCODE_GOOD || length == 0)
         return ret;
 
     /* Encode the content */
-    if(!type->overlayable)
-        return Array_encodeBinaryComplex((uintptr_t)src, length, type, ctx);
-    return Array_encodeBinaryOverlayable((uintptr_t)src, length * type->memSize, ctx);
+    if(type->overlayable)
+        ret = Array_encodeBinaryOverlayable((uintptr_t)src, length * type->memSize, ctx);
+    else
+        ret = Array_encodeBinaryComplex((uintptr_t)src, length, type, ctx);
+    UA_assert(ret != UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
+    return ret;
 }
 
 static status
@@ -592,6 +599,7 @@ NodeId_encodeBinaryWithEncodingMask(UA_NodeId const *src, u8 encoding, Ctx *ctx)
         if(ret != UA_STATUSCODE_GOOD)
             return ret;
         ret = ENCODE_DIRECT(&src->identifier.string, String);
+        UA_assert(ret != UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
         break;
     case UA_NODEIDTYPE_GUID:encoding |= (u8)UA_NODEIDTYPE_GUID;
         ret |= ENCODE_DIRECT(&encoding, Byte);
@@ -604,6 +612,7 @@ NodeId_encodeBinaryWithEncodingMask(UA_NodeId const *src, u8 encoding, Ctx *ctx)
         if(ret != UA_STATUSCODE_GOOD)
             return ret;
         ret = ENCODE_DIRECT(&src->identifier.byteString, String); /* ByteString */
+        UA_assert(ret != UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
         break;
     default:
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -687,6 +696,7 @@ ENCODE_BINARY(ExpandedNodeId) {
     /* Encode the namespace. */
     if((void*)src->namespaceUri.data > UA_EMPTY_ARRAY_SENTINEL) {
         ret = ENCODE_DIRECT(&src->namespaceUri, String);
+        UA_assert(ret != UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
         if(ret != UA_STATUSCODE_GOOD)
             return ret;
     }
@@ -694,6 +704,7 @@ ENCODE_BINARY(ExpandedNodeId) {
     /* Encode the serverIndex */
     if(src->serverIndex > 0)
         ret = encodeWithExchangeBuffer(&src->serverIndex, &UA_TYPES[UA_TYPES_UINT32], ctx);
+    UA_assert(ret != UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
     return ret;
 }
 
@@ -755,6 +766,7 @@ ENCODE_BINARY(LocalizedText) {
         ret |= ENCODE_DIRECT(&src->locale, String);
     if(encoding & UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT)
         ret |= ENCODE_DIRECT(&src->text, String);
+    UA_assert(ret != UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
     return ret;
 }
 
@@ -829,6 +841,7 @@ ENCODE_BINARY(ExtensionObject) {
         default:
             ret = UA_STATUSCODE_BADINTERNALERROR;
         }
+        UA_assert(ret != UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
         return ret;
     }
 
@@ -843,6 +856,9 @@ ENCODE_BINARY(ExtensionObject) {
         return UA_STATUSCODE_BADENCODINGERROR;
     typeId.identifier.numeric = src->content.decoded.type->binaryEncodingId;
     status ret = ENCODE_DIRECT(&typeId, NodeId);
+    UA_assert(ret != UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
+    if(ret != UA_STATUSCODE_GOOD)
+        return ret;
 
     /* Write the encoding byte */
     encoding = UA_EXTENSIONOBJECT_ENCODED_BYTESTRING;
@@ -1014,11 +1030,13 @@ ENCODE_BINARY(Variant) {
         ret = encodeWithExchangeBuffer(src->data, src->type, ctx);
     else
         ret = Array_encodeBinary(src->data, src->arrayLength, src->type, ctx);
+    UA_assert(ret != UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
 
     /* Encode the array dimensions */
     if(hasDimensions && ret == UA_STATUSCODE_GOOD)
         ret = Array_encodeBinary(src->arrayDimensions, src->arrayDimensionsSize,
                                  &UA_TYPES[UA_TYPES_INT32], ctx);
+    UA_assert(ret != UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
     return ret;
 }
 
@@ -1151,6 +1169,7 @@ ENCODE_BINARY(DataValue) {
         ret |= encodeWithExchangeBuffer(&src->serverTimestamp, &UA_TYPES[UA_TYPES_DATETIME], ctx);
     if(src->hasServerPicoseconds)
         ret |= encodeWithExchangeBuffer(&src->serverPicoseconds, &UA_TYPES[UA_TYPES_UINT16], ctx);
+    UA_assert(ret != UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
     return ret;
 }
 
@@ -1307,13 +1326,11 @@ encodeBinaryStruct(const void *src, const UA_DataType *type, Ctx *ctx) {
         return UA_STATUSCODE_BADENCODINGERROR;
     ctx->depth++;
 
+    /* Loop over members */
     uintptr_t ptr = (uintptr_t)src;
     status ret = UA_STATUSCODE_GOOD;
-    u8 membersSize = type->membersSize;
     const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
-
-    /* Loop over members */
-    for(size_t i = 0; i < membersSize; ++i) {
+    for(size_t i = 0; i < type->membersSize && ret == UA_STATUSCODE_GOOD; ++i) {
         const UA_DataTypeMember *m = &type->members[i];
         const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
         ptr += m->padding;
@@ -1331,6 +1348,7 @@ encodeBinaryStruct(const void *src, const UA_DataType *type, Ctx *ctx) {
         ret = encodeWithExchangeBuffer((const void*)ptr, mt, ctx);
         ptr += mt->memSize;
     }
+    UA_assert(ret != UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
 
     ctx->depth--;
     return ret;
@@ -1409,6 +1427,8 @@ encodeBinaryStructWithOptFields(const void *src, const UA_DataType *type, Ctx *c
         }
 
     }
+    UA_assert(ret != UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
+
     ctx->depth--;
     return ret;
 }
@@ -1436,6 +1456,7 @@ encodeBinaryUnion(const void *src, const UA_DataType *type, Ctx *ctx) {
     ptr += m->padding;
     ptr += UA_TYPES[UA_TYPES_UINT32].memSize;
     ret = encodeWithExchangeBuffer((const void*)ptr, mt, ctx);
+    UA_assert(ret != UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
 
     ctx->depth--;
     return ret;
@@ -1502,6 +1523,7 @@ UA_encodeBinary(const void *src, const UA_DataType *type,
 
     /* Encode */
     status ret = encodeWithExchangeBuffer(src, type, &ctx);
+    UA_assert(ret != UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
 
     /* Set the new buffer position for the output. Beware that the buffer might
      * have been exchanged internally. */
