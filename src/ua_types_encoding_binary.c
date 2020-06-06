@@ -593,7 +593,8 @@ NodeId_encodeBinaryWithEncodingMask(UA_NodeId const *src, u8 encoding, Ctx *ctx)
             ret |= ENCODE_DIRECT(&identifier8, Byte);
         }
         break;
-    case UA_NODEIDTYPE_STRING:encoding |= (u8)UA_NODEIDTYPE_STRING;
+    case UA_NODEIDTYPE_STRING:
+        encoding |= (u8)UA_NODEIDTYPE_STRING;
         ret |= ENCODE_DIRECT(&encoding, Byte);
         ret |= ENCODE_DIRECT(&src->namespaceIndex, UInt16);
         if(ret != UA_STATUSCODE_GOOD)
@@ -601,12 +602,14 @@ NodeId_encodeBinaryWithEncodingMask(UA_NodeId const *src, u8 encoding, Ctx *ctx)
         ret = ENCODE_DIRECT(&src->identifier.string, String);
         UA_assert(ret != UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
         break;
-    case UA_NODEIDTYPE_GUID:encoding |= (u8)UA_NODEIDTYPE_GUID;
+    case UA_NODEIDTYPE_GUID:
+        encoding |= (u8)UA_NODEIDTYPE_GUID;
         ret |= ENCODE_DIRECT(&encoding, Byte);
         ret |= ENCODE_DIRECT(&src->namespaceIndex, UInt16);
         ret |= ENCODE_DIRECT(&src->identifier.guid, Guid);
         break;
-    case UA_NODEIDTYPE_BYTESTRING:encoding |= (u8)UA_NODEIDTYPE_BYTESTRING;
+    case UA_NODEIDTYPE_BYTESTRING:
+        encoding |= (u8)UA_NODEIDTYPE_BYTESTRING;
         ret |= ENCODE_DIRECT(&encoding, Byte);
         ret |= ENCODE_DIRECT(&src->namespaceIndex, UInt16);
         if(ret != UA_STATUSCODE_GOOD)
@@ -860,21 +863,17 @@ ENCODE_BINARY(ExtensionObject) {
     if(ret != UA_STATUSCODE_GOOD)
         return ret;
 
-    /* Write the encoding byte */
+    /* Encode the encoding byte */
     encoding = UA_EXTENSIONOBJECT_ENCODED_BYTESTRING;
     ret |= ENCODE_DIRECT(&encoding, Byte);
 
-    /* Compute the content length */
+    /* Encode the content length */
     const UA_DataType *contentType = src->content.decoded.type;
     size_t len = UA_calcSizeBinary(src->content.decoded.data, contentType);
-
-    /* Encode the content length */
     if(len > UA_INT32_MAX)
         return UA_STATUSCODE_BADENCODINGERROR;
     i32 signed_len = (i32)len;
     ret |= ENCODE_DIRECT(&signed_len, UInt32); /* Int32 */
-
-    /* Return early upon failures (no buffer exchange until here) */
     if(ret != UA_STATUSCODE_GOOD)
         return ret;
 
@@ -955,8 +954,7 @@ DECODE_BINARY(ExtensionObject) {
 static status
 Variant_encodeBinaryWrapExtensionObject(const UA_Variant *src,
                                         const UA_Boolean isArray, Ctx *ctx) {
-    /* Default to 1 for a scalar. */
-    size_t length = 1;
+    size_t length = 1; /* Default to 1 for a scalar. */
 
     /* Encode the array length if required */
     status ret = UA_STATUSCODE_GOOD;
@@ -1263,7 +1261,6 @@ ENCODE_BINARY(DiagnosticInfo) {
 
     /* Encode the inner diagnostic info */
     if(src->hasInnerDiagnosticInfo)
-        // innerDiagnosticInfo is already a pointer, so don't use the & reference here
         ret = encodeWithExchangeBuffer(src->innerDiagnosticInfo,
                                        &UA_TYPES[UA_TYPES_DIAGNOSTICINFO], ctx);
 
