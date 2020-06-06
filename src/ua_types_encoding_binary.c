@@ -17,11 +17,10 @@
  *    Copyright 2017 (c) Henrik Norrman
  */
 
-#include "ua_types_encoding_binary.h"
-
 #include <open62541/types_generated.h>
 #include <open62541/types_generated_handling.h>
 
+#include "ua_types_encoding_binary.h"
 #include "ua_util_internal.h"
 
 /**
@@ -61,7 +60,7 @@ typedef status
 (*decodeBinarySignature)(void *UA_RESTRICT dst, const UA_DataType *type,
                          Ctx *UA_RESTRICT ctx);
 typedef size_t
-(*calcSizeBinarySignature)(const void *UA_RESTRICT p, const UA_DataType *contenttype);
+(*calcSizeBinarySignature)(const void *UA_RESTRICT p, const UA_DataType *type);
 
 #define ENCODE_BINARY(TYPE) static status                               \
     TYPE##_encodeBinary(const UA_##TYPE *UA_RESTRICT src,               \
@@ -70,8 +69,7 @@ typedef size_t
     TYPE##_decodeBinary(UA_##TYPE *UA_RESTRICT dst,                     \
                         const UA_DataType *type, Ctx *UA_RESTRICT ctx)
 #define CALCSIZE_BINARY(TYPE) static size_t                             \
-    TYPE##_calcSizeBinary(const UA_##TYPE *UA_RESTRICT src,             \
-                          const UA_DataType *_)
+    TYPE##_calcSizeBinary(const UA_##TYPE *UA_RESTRICT src, const UA_DataType *_)
 #define ENCODE_DIRECT(SRC, TYPE) TYPE##_encodeBinary((const UA_##TYPE*)SRC, NULL, ctx)
 #define DECODE_DIRECT(DST, TYPE) TYPE##_decodeBinary((UA_##TYPE*)DST, NULL, ctx)
 
@@ -103,8 +101,7 @@ encodeWithExchangeBuffer(const void *ptr, const UA_DataType *type, Ctx *ctx) {
     ctx->oldpos = &oldpos;
     status ret = encodeBinaryJumpTable[type->typeKind](ptr, type, ctx);
     if(ret == UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED && ctx->oldpos == &oldpos) {
-        ctx->pos = oldpos; /* Send the position to the last known good position
-                            * and switch */
+        ctx->pos = oldpos; /* Set to the last known good position and exchange */
         ret = exchangeBuffer(ctx);
         if(ret != UA_STATUSCODE_GOOD)
             return ret;
@@ -112,9 +109,6 @@ encodeWithExchangeBuffer(const void *ptr, const UA_DataType *type, Ctx *ctx) {
     }
     return ret;
 }
-
-#define ENCODE_WITHEXCHANGE(VAR, TYPE) \
-    encodeWithExchangeBuffer((const void*)VAR, &UA_TYPES[TYPE], ctx)
 
 /*****************/
 /* Integer Types */
@@ -404,30 +398,25 @@ DECODE_BINARY(Double) {
 /******************/
 
 static status
-Array_encodeBinaryOverlayable(uintptr_t ptr, size_t length,
-                              size_t elementMemSize, Ctx *ctx) {
-    /* Store the number of already encoded elements */
-    size_t finished = 0;
-
+Array_encodeBinaryOverlayable(uintptr_t ptr, size_t memSize, Ctx *ctx) {
     /* Loop as long as more elements remain than fit into the chunk */
-    while(ctx->end < ctx->pos + (elementMemSize * (length-finished))) {
-        size_t possible = ((uintptr_t)ctx->end - (uintptr_t)ctx->pos) / (sizeof(u8) * elementMemSize);
-        size_t possibleMem = possible * elementMemSize;
-        memcpy(ctx->pos, (void*)ptr, possibleMem);
-        ctx->pos += possibleMem;
-        ptr += possibleMem;
-        finished += possible;
+    while(ctx->end < ctx->pos + memSize) {
+        size_t possible = ((uintptr_t)ctx->end - (uintptr_t)ctx->pos);
+        memcpy(ctx->pos, (void*)ptr, possible);
+        ctx->pos += possible;
+        ptr += possible;
         status ret = exchangeBuffer(ctx);
         ctx->oldpos = NULL; /* Set the sentinel so that no upper stack frame
                              * with a saved pos attempts to exchange from an
                              * invalid position in the old buffer. */
         if(ret != UA_STATUSCODE_GOOD)
             return ret;
+        memSize -= possible;
     }
 
     /* Encode the remaining elements */
-    memcpy(ctx->pos, (void*)ptr, elementMemSize * (length-finished));
-    ctx->pos += elementMemSize * (length-finished);
+    memcpy(ctx->pos, (void*)ptr, memSize);
+    ctx->pos += memSize;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -438,7 +427,6 @@ Array_encodeBinaryComplex(uintptr_t ptr, size_t length,
     for(size_t i = 0; i < length; ++i) {
         status ret = encodeWithExchangeBuffer((const void*)ptr, type, ctx);
         ptr += type->memSize;
-
         if(ret != UA_STATUSCODE_GOOD)
             return ret; /* Unrecoverable fail */
     }
@@ -447,8 +435,7 @@ Array_encodeBinaryComplex(uintptr_t ptr, size_t length,
 }
 
 static status
-Array_encodeBinary(const void *src, size_t length,
-                   const UA_DataType *type, Ctx *ctx) {
+Array_encodeBinary(const void *src, size_t length, const UA_DataType *type, Ctx *ctx) {
     /* Check and convert the array length to int32 */
     i32 signed_length = -1;
     if(length > UA_INT32_MAX)
@@ -459,7 +446,7 @@ Array_encodeBinary(const void *src, size_t length,
         signed_length = 0;
 
     /* Encode the array length */
-    status ret = ENCODE_WITHEXCHANGE(&signed_length, UA_TYPES_INT32);
+    status ret = encodeWithExchangeBuffer(&signed_length, &UA_TYPES[UA_TYPES_INT32], ctx);
 
     /* Quit early? */
     if(ret != UA_STATUSCODE_GOOD || length == 0)
@@ -468,7 +455,7 @@ Array_encodeBinary(const void *src, size_t length,
     /* Encode the content */
     if(!type->overlayable)
         return Array_encodeBinaryComplex((uintptr_t)src, length, type, ctx);
-    return Array_encodeBinaryOverlayable((uintptr_t)src, length, type->memSize, ctx);
+    return Array_encodeBinaryOverlayable((uintptr_t)src, length * type->memSize, ctx);
 }
 
 static status
@@ -706,7 +693,7 @@ ENCODE_BINARY(ExpandedNodeId) {
 
     /* Encode the serverIndex */
     if(src->serverIndex > 0)
-        ret = ENCODE_WITHEXCHANGE(&src->serverIndex, UA_TYPES_UINT32);
+        ret = encodeWithExchangeBuffer(&src->serverIndex, &UA_TYPES[UA_TYPES_UINT32], ctx);
     return ret;
 }
 
@@ -827,7 +814,7 @@ ENCODE_BINARY(ExtensionObject) {
         status ret = ENCODE_DIRECT(&src->content.encoded.typeId, NodeId);
         if(ret != UA_STATUSCODE_GOOD)
             return ret;
-        ret = ENCODE_WITHEXCHANGE(&encoding, UA_TYPES_BYTE);
+        ret = encodeWithExchangeBuffer(&encoding, &UA_TYPES[UA_TYPES_BYTE], ctx);
         if(ret != UA_STATUSCODE_GOOD)
             return ret;
         switch(src->encoding) {
@@ -1153,15 +1140,15 @@ ENCODE_BINARY(DataValue) {
     }
 
     if(src->hasStatus)
-        ret |= ENCODE_WITHEXCHANGE(&src->status, UA_TYPES_STATUSCODE);
+        ret |= encodeWithExchangeBuffer(&src->status, &UA_TYPES[UA_TYPES_STATUSCODE], ctx);
     if(src->hasSourceTimestamp)
-        ret |= ENCODE_WITHEXCHANGE(&src->sourceTimestamp, UA_TYPES_DATETIME);
+        ret |= encodeWithExchangeBuffer(&src->sourceTimestamp, &UA_TYPES[UA_TYPES_DATETIME], ctx);
     if(src->hasSourcePicoseconds)
-        ret |= ENCODE_WITHEXCHANGE(&src->sourcePicoseconds, UA_TYPES_UINT16);
+        ret |= encodeWithExchangeBuffer(&src->sourcePicoseconds, &UA_TYPES[UA_TYPES_UINT16], ctx);
     if(src->hasServerTimestamp)
-        ret |= ENCODE_WITHEXCHANGE(&src->serverTimestamp, UA_TYPES_DATETIME);
+        ret |= encodeWithExchangeBuffer(&src->serverTimestamp, &UA_TYPES[UA_TYPES_DATETIME], ctx);
     if(src->hasServerPicoseconds)
-        ret |= ENCODE_WITHEXCHANGE(&src->serverPicoseconds, UA_TYPES_UINT16);
+        ret |= encodeWithExchangeBuffer(&src->serverPicoseconds, &UA_TYPES[UA_TYPES_UINT16], ctx);
     return ret;
 }
 
@@ -1246,7 +1233,7 @@ ENCODE_BINARY(DiagnosticInfo) {
 
     /* Encode the inner status code */
     if(src->hasInnerStatusCode) {
-        ret = ENCODE_WITHEXCHANGE(&src->innerStatusCode, UA_TYPES_UINT32);
+        ret = encodeWithExchangeBuffer(&src->innerStatusCode, &UA_TYPES[UA_TYPES_UINT32], ctx);
         if(ret != UA_STATUSCODE_GOOD)
             return ret;
     }
@@ -1254,8 +1241,8 @@ ENCODE_BINARY(DiagnosticInfo) {
     /* Encode the inner diagnostic info */
     if(src->hasInnerDiagnosticInfo)
         // innerDiagnosticInfo is already a pointer, so don't use the & reference here
-        ret = ENCODE_WITHEXCHANGE(src->innerDiagnosticInfo,
-                                  UA_TYPES_DIAGNOSTICINFO);
+        ret = encodeWithExchangeBuffer(src->innerDiagnosticInfo,
+                                       &UA_TYPES[UA_TYPES_DIAGNOSTICINFO], ctx);
 
     return ret;
 }
