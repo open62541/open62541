@@ -803,6 +803,13 @@ set(default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                            ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_none.c
 )
 
+# Syslog-logging on Linux and Unices
+if(UNIX)
+    list(APPEND default_plugin_headers
+        ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/log_syslog.h)
+    list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_syslog.c)
+endif()
+
 if(UA_GENERATED_NAMESPACE_ZERO)
     list(APPEND internal_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/namespace0_generated.h)
     list(APPEND lib_sources ${PROJECT_BINARY_DIR}/src_generated/open62541/namespace0_generated.c)
