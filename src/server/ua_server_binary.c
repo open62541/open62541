@@ -285,6 +285,10 @@ processHEL(UA_Server *server, UA_SecureChannel *channel, const UA_ByteString *ms
     /* Currently not checked */
     UA_String_clear(&helloMessage.endpointUrl);
 
+    /* Parameterize the connection. The TcpHelloMessage casts to a
+     * TcpAcknowledgeMessage. */
+    UA_SecureChannel_processHELACK(channel, (UA_TcpAcknowledgeMessage*)&helloMessage);
+
     /* Get the send buffer from the network layer */
     UA_Connection *connection = channel->connection;
     UA_ByteString ack_msg;
