@@ -121,6 +121,8 @@ UA_String_equal(const UA_String *s1, const UA_String *s2) {
         return false;
     if(s1->length == 0)
         return true;
+    if(s2->data == NULL)
+        return false;
     i32 is = memcmp((char const*)s1->data,
                     (char const*)s2->data, s1->length);
     return (is == 0) ? true : false;
