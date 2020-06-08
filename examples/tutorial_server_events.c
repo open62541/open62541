@@ -131,7 +131,7 @@ addGenerateEventMethod(UA_Server *server) {
     generateAttr.userExecutable = true;
     UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1, 62541),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASORDEREDCOMPONENT),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                             UA_QUALIFIEDNAME(1, "Generate Event"),
                             generateAttr, &generateEventMethodCallback,
                             0, NULL, 0, NULL, NULL, NULL);
