@@ -174,7 +174,7 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
                 (writerGroupConfig->messageSettings.encoding != UA_EXTENSIONOBJECT_DECODED
                         || writerGroupConfig->messageSettings.content.decoded.type->typeIndex != UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE) ) {
             return UA_STATUSCODE_BADTYPEMISMATCH;
-        }    
+        }
     }
 
 
@@ -482,7 +482,7 @@ UA_Server_getPublishedDataSetMetaData(UA_Server *server, const UA_NodeId pds,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     UA_PublishedDataSet *currentPublishedDataSet = UA_PublishedDataSet_findPDSbyId(server, pds);
-    if(!currentPublishedDataSet) 
+    if(!currentPublishedDataSet)
         return UA_STATUSCODE_BADNOTFOUND;
 
     return UA_DataSetMetaDataType_copy(&currentPublishedDataSet->dataSetMetaData, metaData);
@@ -1216,6 +1216,10 @@ UA_Server_addDataSetWriter(UA_Server *server,
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
         newDataSetWriter->lastSamplesCount = currentDataSetContext->fieldSize;
+        for(size_t i = 0; i < newDataSetWriter->lastSamplesCount; i++) {
+            UA_DataValue_init(&newDataSetWriter->lastSamples[i].value);
+            newDataSetWriter->lastSamples[i].valueChanged = false;
+        }
     }
 #endif
 
