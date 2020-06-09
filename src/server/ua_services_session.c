@@ -13,8 +13,9 @@
  *    Copyright 2018-2020 (c) HMS Industrial Networks AB (Author: Jonas Green)
  */
 
-#include "ua_services.h"
 #include "ua_server_internal.h"
+#include "ua_services.h"
+#include <open62541/types_generated_encoding_binary.h>
 
 /* Delayed callback to free the session memory */
 static void
@@ -437,7 +438,8 @@ decryptPassword(UA_SecurityPolicy *securityPolicy, void *tempChannelContext,
                         &decryptedTokenSecret) != UA_STATUSCODE_GOOD)
         goto cleanup;
 
-    memcpy(&tokenSecretLength, decryptedTokenSecret.data, sizeof(UA_UInt32));
+    size_t offset = 0;
+    UA_UInt32_decodeBinary(&decryptedTokenSecret, &offset, &tokenSecretLength);
 
     /* The decrypted data must be large enough to include the Encrypted Token
      * Secret Format and the length field must indicate enough data to include
