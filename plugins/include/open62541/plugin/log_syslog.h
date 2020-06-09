@@ -25,14 +25,15 @@ _UA_BEGIN_DECLS
 
 #if defined(__linux__) || defined(__unix__)
 
-/* Returns a syslog-logger for messages up to the specified level. The ident and
- * option parameters are forwarded to the initial openlog. */
+/* Returns a syslog-logger for messages up to the specified level.
+ * The programm must call openlog(3) before using this logger. */
 UA_EXPORT UA_Logger
-UA_Log_Syslog_withLevel(const char *ident, int option, UA_LogLevel minlevel);
+UA_Log_Syslog_withLevel(UA_LogLevel minlevel);
 
-/* Log all warning levels supported by syslog (no trace-warnings) */
+/* Log all warning levels supported by syslog (no trace-warnings).
+ * The programm must call openlog(3) before using this logger. */
 UA_EXPORT UA_Logger
-UA_Log_Syslog(const char *ident, int option);
+UA_Log_Syslog(void);
 
 #endif
 

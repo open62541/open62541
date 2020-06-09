@@ -73,13 +73,12 @@ UA_Log_Syslog_clear(void *logContext) {
 }
 
 UA_Logger
-UA_Log_Syslog(const char *ident, int option) {
-    return UA_Log_Syslog_withLevel(ident, option, UA_LOGLEVEL_TRACE);
+UA_Log_Syslog(void) {
+    return UA_Log_Syslog_withLevel(UA_LOGLEVEL_TRACE);
 }
 
 UA_Logger
-UA_Log_Syslog_withLevel(const char *ident, int option, UA_LogLevel minlevel) {
-    openlog(ident, option, LOG_USER);
+UA_Log_Syslog_withLevel(UA_LogLevel minlevel) {
     UA_Logger logger = {UA_Log_Syslog_log, (void*)minlevel, UA_Log_Syslog_clear};
     return logger;
 }
