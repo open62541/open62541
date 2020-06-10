@@ -796,11 +796,13 @@ void ValueAttributeRead(UA_Client *client, void *userdata,
         }
     }
 
-    /* Could not process, delete the callback anyway */
-    if(!done)
+    /* Could not process, run the callback anyway, but without value */
+    if(!done) {
         UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                     "Cannot process the response to the async read "
                     "request %" PRIu32, requestId);
+        cc->userCallback(client, cc->userData, requestId, NULL);
+    }
 
     UA_free(cc->clientData);
     LIST_REMOVE(cc, pointers);
