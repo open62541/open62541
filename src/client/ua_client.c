@@ -444,6 +444,8 @@ __UA_Client_Service(UA_Client *client, const void *request,
     if(client->channel.state != UA_SECURECHANNELSTATE_OPEN) {
         UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                     "SecureChannel must be connected before sending requests");
+        UA_ResponseHeader *respHeader = (UA_ResponseHeader*)response;
+        respHeader->serviceResult = UA_STATUSCODE_BADCONNECTIONCLOSED;
 		return;
     }
 
