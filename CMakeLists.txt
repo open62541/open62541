@@ -818,9 +818,8 @@ if(UA_ENABLE_PARSING)
 endif()
 
 if(UA_ENABLE_ENCRYPTION_MBEDTLS)
-list(APPEND default_plugin_headers
-     ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/securitypolicy_mbedtls_common.h)
 list(APPEND default_plugin_sources
+     ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/securitypolicy_mbedtls_common.h
      ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/securitypolicy_mbedtls_common.c
      ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic128rsa15.c
      ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256.c
@@ -828,9 +827,8 @@ list(APPEND default_plugin_sources
 endif()
 
 if(UA_ENABLE_ENCRYPTION_OPENSSL)
-list(APPEND default_plugin_headers
-     ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/securitypolicy_openssl_common.h)
 list(APPEND default_plugin_sources
+     ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/openssl/securitypolicy_openssl_common.h
      ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/openssl/securitypolicy_openssl_common.c
      ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/openssl/ua_openssl_basic128rsa15.c
      ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/openssl/ua_openssl_basic256.c

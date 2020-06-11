@@ -16,8 +16,9 @@ modification history
 
 #ifdef UA_ENABLE_ENCRYPTION_OPENSSL
 
+#include "securitypolicy_openssl_common.h"
+
 #include <openssl/x509.h>
-#include <open62541/plugin/securitypolicy_openssl_common.h>
 #include <openssl/rand.h>
 
 #define UA_SECURITYPOLICY_BASIC256SHA1_RSAPADDING_LEN                42
@@ -182,7 +183,7 @@ UA_ChannelModule_Basic256_Delete_Context (void * channelContext) {
  */
 
 static UA_StatusCode
-UA_Asy_compareCertificateThumbprint (const UA_SecurityPolicy * securityPolicy,
+UA_Asy_Basic256_compareCertificateThumbprint (const UA_SecurityPolicy * securityPolicy,
                                      const UA_ByteString *     certificateThumbprint) {
     if (securityPolicy == NULL || certificateThumbprint == NULL) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -198,7 +199,7 @@ UA_Asy_compareCertificateThumbprint (const UA_SecurityPolicy * securityPolicy,
 /* Generates a thumbprint for the specified certificate */
 
 static UA_StatusCode 
-UA_Asy_makeCertificateThumbprint (const UA_SecurityPolicy * securityPolicy,
+UA_Asy_Basic256_makeCertificateThumbprint (const UA_SecurityPolicy * securityPolicy,
                                   const UA_ByteString *     certificate,
                                   UA_ByteString *           thumbprint) {
     return UA_Openssl_X509_GetCertificateThumbprint (certificate, 
@@ -576,8 +577,8 @@ UA_SecurityPolicy_Basic256 (UA_SecurityPolicy * policy,
 
     /* asymmetricModule */
 
-    asymmetricModule->compareCertificateThumbprint = UA_Asy_compareCertificateThumbprint;
-    asymmetricModule->makeCertificateThumbprint = UA_Asy_makeCertificateThumbprint;
+    asymmetricModule->compareCertificateThumbprint = UA_Asy_Basic256_compareCertificateThumbprint;
+    asymmetricModule->makeCertificateThumbprint = UA_Asy_Basic256_makeCertificateThumbprint;
 
     /* AsymmetricModule - signature algorithm */
 
