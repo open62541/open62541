@@ -12,6 +12,8 @@
 
 #ifdef UA_ENABLE_ENCRYPTION_OPENSSL
 
+#include <openssl/x509.h>
+
 _UA_BEGIN_DECLS
 
 void saveDataToFile(const char *fileName, const UA_ByteString *str);
