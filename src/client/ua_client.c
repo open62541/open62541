@@ -302,19 +302,20 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
     SyncResponseDescription *rd = (SyncResponseDescription*)application;
 
     /* Process ACK response */
-    if(messageType == UA_MESSAGETYPE_ACK) {
+    switch(messageType) {
+    case UA_MESSAGETYPE_ACK:
         processACKResponse(rd->client, message);
         return;
-    }
-
-    /* Process undecoded OPN forwarded from the SecureChannel */
-    if(messageType == UA_MESSAGETYPE_OPN) {
+    case UA_MESSAGETYPE_OPN:
         processOPNResponse(rd->client, message);
         return;
-    }
-
-    /* Must be OPN or MSG */
-    if(messageType != UA_MESSAGETYPE_MSG) {
+    case UA_MESSAGETYPE_ERR:
+        processERRResponse(rd->client, message);
+        return;
+    case UA_MESSAGETYPE_MSG:
+        /* Continue below */
+        break;
+    default:
         UA_LOG_TRACE_CHANNEL(&rd->client->config.logger, channel, "Invalid message type");
         channel->state = UA_SECURECHANNELSTATE_CLOSING;
         return;

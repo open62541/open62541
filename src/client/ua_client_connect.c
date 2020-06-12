@@ -227,6 +227,28 @@ checkCreateSessionSignature(const UA_SecureChannel *channel,
 /***********************/
 
 void
+processERRResponse(UA_Client *client, const UA_ByteString *chunk) {
+    client->channel.state = UA_SECURECHANNELSTATE_CLOSING;
+
+    size_t offset = 8; /* TODO: Make a define for the magic number */
+    UA_TcpErrorMessage errMessage;
+    UA_StatusCode res = UA_TcpErrorMessage_decodeBinary(chunk, &offset, &errMessage);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR_CHANNEL(&client->config.logger, &client->channel,
+                             "Received an ERR response that could not be decoded with StatusCode %s",
+                             UA_StatusCode_name(res));
+        client->connectStatus = res;
+        return;
+    }
+
+    UA_LOG_ERROR_CHANNEL(&client->config.logger, &client->channel,
+                         "Received an ERR response with StatusCode %s and the following reason: %.*s",
+                         UA_StatusCode_name(errMessage.error), (int)errMessage.reason.length, errMessage.reason.data);
+    client->connectStatus = errMessage.error;
+    UA_TcpErrorMessage_clear(&errMessage);
+}
+
+void
 processACKResponse(UA_Client *client, const UA_ByteString *chunk) {
     UA_SecureChannel *channel = &client->channel;
     if(channel->state != UA_SECURECHANNELSTATE_HEL_SENT) {
