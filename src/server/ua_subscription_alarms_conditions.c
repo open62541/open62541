@@ -249,16 +249,14 @@ callConditionTwoStateVariableCallback(UA_Server *server, const UA_NodeId *condit
 static UA_StatusCode
 getFieldParentNodeId(UA_Server *server, const UA_NodeId *field, UA_NodeId *parent) {
     *parent = UA_NODEID_NULL;
-    UA_NodeId hasPropertyType = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
-    UA_NodeId hasComponentType = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT);
     const UA_Node *fieldNode = UA_NODESTORE_GET(server, field);
     if(!fieldNode)
         return UA_STATUSCODE_BADNOTFOUND;
     UA_StatusCode retval = UA_STATUSCODE_BADNOTFOUND;
     for(size_t i = 0; i < fieldNode->head.referencesSize; i++) {
         UA_NodeReferenceKind *rk = &fieldNode->head.references[i];
-        if((UA_NodeId_equal(&rk->referenceTypeId, &hasPropertyType) ||
-            UA_NodeId_equal(&rk->referenceTypeId, &hasComponentType)) &&
+        if((rk->referenceTypeIndex == UA_REFERENCETYPEINDEX_HASPROPERTY ||
+           rk->referenceTypeIndex == UA_REFERENCETYPEINDEX_HASCOMPONENT) &&
            true == rk->isInverse) {
             retval = UA_NodeId_copy(&rk->refTargets->targetId.nodeId, parent);
             break;
@@ -1393,10 +1391,10 @@ acknowledgeMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                                    UA_NodeId_deleteMembers(&conditionNode););
     
     /* Check if ConditionType is subType of AcknowledgeableConditionType TODO Over Kill*/
-    UA_NodeId hasSubtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
     UA_NodeId AcknowledgeableConditionTypeId =
         UA_NODEID_NUMERIC(0, UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE);
-    if(!isNodeInTree(server, &eventType, &AcknowledgeableConditionTypeId, &hasSubtypeId, 1)) {
+    if(!isNodeInTree_singleRef(server, &eventType, &AcknowledgeableConditionTypeId,
+                               UA_REFERENCETYPEINDEX_HASSUBTYPE)) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Condition Type must be a subtype of AcknowledgeableConditionType!");
         UA_NodeId_deleteMembers(&conditionNode);
@@ -1469,10 +1467,10 @@ confirmMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                                    UA_NodeId_deleteMembers(&conditionNode););
     
     /* Check if ConditionType is subType of AcknowledgeableConditionType. */
-    UA_NodeId hasSubtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
     UA_NodeId AcknowledgeableConditionTypeId =
         UA_NODEID_NUMERIC(0, UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE);
-    if(!isNodeInTree(server, &eventType, &AcknowledgeableConditionTypeId, &hasSubtypeId, 1)) {
+    if(!isNodeInTree_singleRef(server, &eventType, &AcknowledgeableConditionTypeId,
+                               UA_REFERENCETYPEINDEX_HASSUBTYPE)) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Condition Type must be a subtype of AcknowledgeableConditionType!");
         UA_NodeId_deleteMembers(&conditionNode);
@@ -1581,16 +1579,11 @@ static UA_Boolean
 isConditionSourceInMonitoredItem(UA_Server *server, const UA_MonitoredItem *monitoredItem,
                                  const UA_NodeId *conditionSource){
     /* TODO: check also other hierarchical references */
-    UA_NodeId parentReferences_conditions[4] =
-    {
-        {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_ORGANIZES}},
-        {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASCOMPONENT}},
-        {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASEVENTSOURCE}},
-        {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASNOTIFIER}}
-    };
-
-    return isNodeInTree(server, conditionSource, &monitoredItem->monitoredNodeId,
-                        parentReferences_conditions, 4);
+    UA_ReferenceTypeSet refs = UA_REFTYPESET(UA_REFERENCETYPEINDEX_ORGANIZES);
+    refs = UA_ReferenceTypeSet_union(refs, UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASCOMPONENT));
+    refs = UA_ReferenceTypeSet_union(refs, UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASEVENTSOURCE));
+    refs = UA_ReferenceTypeSet_union(refs, UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASNOTIFIER));
+    return isNodeInTree(server, conditionSource, &monitoredItem->monitoredNodeId, &refs);
 }
 
 static UA_StatusCode
@@ -1853,15 +1846,15 @@ UA_getConditionId(UA_Server *server, const UA_NodeId *conditionNodeId,
  * subtypes inverse reference. */
 static UA_Boolean
 doesHasEventSourceReferenceExist(UA_Server *server, const UA_NodeId nodeToCheck) {
-    UA_NodeId hasSubtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
     UA_NodeId hasEventSourceId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASEVENTSOURCE);
     const UA_Node* node = UA_NODESTORE_GET(server, &nodeToCheck);
     if(!node)
         return false;
     for(size_t i = 0; i < node->head.referencesSize; i++) {
-        if((UA_NodeId_equal(&node->head.references[i].referenceTypeId, &hasEventSourceId) ||
-            isNodeInTree(server, &node->head.references[i].referenceTypeId,
-                         &hasEventSourceId, &hasSubtypeId, 1)) &&
+        UA_Byte refTypeIndex = node->head.references[i].referenceTypeIndex;
+        if((refTypeIndex == UA_REFERENCETYPEINDEX_HASEVENTSOURCE ||
+            isNodeInTree_singleRef(server, UA_NODESTORE_GETREFERENCETYPEID(server, refTypeIndex),
+                                   &hasEventSourceId, UA_REFERENCETYPEINDEX_HASSUBTYPE)) &&
            (node->head.references[i].isInverse == true)) {
             UA_NODESTORE_RELEASE(server, node);
             return true;
@@ -1960,10 +1953,10 @@ setStandardConditionFields(UA_Server *server, const UA_NodeId* condition,
     /* Check subTypes of ConditionType to set further Fields*/
 
     /* 1. Check if ConditionType is subType of AcknowledgeableConditionType */
-    UA_NodeId hasSubtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
     UA_NodeId acknowledgeableConditionTypeId =
         UA_NODEID_NUMERIC(0, UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE);
-    if(!isNodeInTree(server, conditionType, &acknowledgeableConditionTypeId, &hasSubtypeId, 1))
+    if(!isNodeInTree_singleRef(server, conditionType, &acknowledgeableConditionTypeId,
+                               UA_REFERENCETYPEINDEX_HASSUBTYPE))
         return UA_STATUSCODE_GOOD;
     
     /* Set AckedState (Id = false by default) */
@@ -1998,7 +1991,8 @@ setStandardConditionFields(UA_Server *server, const UA_NodeId* condition,
     
     /* 2. Check if ConditionType is subType of AlarmConditionType */
     UA_NodeId alarmConditionTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ALARMCONDITIONTYPE);
-    if(isNodeInTree(server, conditionType, &alarmConditionTypeId, &hasSubtypeId, 1)) {
+    if(isNodeInTree_singleRef(server, conditionType, &alarmConditionTypeId,
+                              UA_REFERENCETYPEINDEX_HASSUBTYPE)) {
         /* Set ActiveState (Id = false by default) */
         text = UA_LOCALIZEDTEXT(LOCALE, INACTIVE_TEXT);
         UA_Variant_setScalar(&value, &text, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
@@ -2030,10 +2024,10 @@ setTwoStateVariableCallbacks(UA_Server *server, const UA_NodeId* condition,
 
     /* Set AckedState Callback */
     /* Check if ConditionType is subType of AcknowledgeableConditionType */
-    UA_NodeId hasSubtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
     UA_NodeId acknowledgeableConditionTypeId =
         UA_NODEID_NUMERIC(0, UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE);
-    if(isNodeInTree(server, conditionType, &acknowledgeableConditionTypeId, &hasSubtypeId, 1)) {
+    if(isNodeInTree_singleRef(server, conditionType, &acknowledgeableConditionTypeId,
+                              UA_REFERENCETYPEINDEX_HASSUBTYPE)) {
         UA_NodeId_deleteMembers(&twoStateVariableIdNodeId);
         retval = getConditionFieldPropertyNodeId(server, condition, &fieldAckedStateQN,
                                                  &twoStateVariableIdQN, &twoStateVariableIdNodeId);
@@ -2067,7 +2061,8 @@ setTwoStateVariableCallbacks(UA_Server *server, const UA_NodeId* condition,
         /* Set ActiveState Callback */
         /* Check if ConditionType is subType of AlarmConditionType */
         UA_NodeId alarmConditionTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ALARMCONDITIONTYPE);
-        if(isNodeInTree(server, conditionType, &alarmConditionTypeId, &hasSubtypeId, 1)) {
+        if(isNodeInTree_singleRef(server, conditionType, &alarmConditionTypeId,
+                                  UA_REFERENCETYPEINDEX_HASSUBTYPE)) {
             UA_NodeId_deleteMembers(&twoStateVariableIdNodeId);
             retval = getConditionFieldPropertyNodeId(server, condition, &fieldActiveStateQN,
                                                      &twoStateVariableIdQN, &twoStateVariableIdNodeId);
@@ -2194,9 +2189,9 @@ UA_Server_createCondition(UA_Server *server,
     }
 
     /* Make sure the conditionType is a Subtype of ConditionType */
-    UA_NodeId hasSubtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
     UA_NodeId conditionTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
-    if(!isNodeInTree(server, &conditionType, &conditionTypeId, &hasSubtypeId, 1)) {
+    if(!isNodeInTree_singleRef(server, &conditionType, &conditionTypeId,
+                               UA_REFERENCETYPEINDEX_HASSUBTYPE)) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Condition Type must be a subtype of ConditionType!");
         return UA_STATUSCODE_BADNOMATCH;
@@ -2532,8 +2527,8 @@ UA_Server_triggerConditionEvent(UA_Server *server, const UA_NodeId condition,
     return retval;
 }
 
-UA_StatusCode UA_Server_deleteCondition(UA_Server *server, const UA_NodeId condition, const UA_NodeId conditionSource)
-{
+UA_StatusCode UA_Server_deleteCondition(UA_Server *server, const UA_NodeId condition,
+                                        const UA_NodeId conditionSource) {
     // Delete from internal list
     UA_Boolean found = UA_FALSE;
     /* Get ConditionSource Entry */

@@ -80,7 +80,10 @@ addReferenceTypeNode(UA_Server *server, char* name, char *inverseName, UA_UInt32
  * compiler. */
 static UA_StatusCode
 UA_Server_createNS0_base(UA_Server *server) {
-    /* Bootstrap References and HasSubtype */
+    /* Bootstrap ReferenceTypes. The order of these is important for the
+     * ReferenceTypeIndex. The ReferenceTypeIndex is created with the raw node.
+     * The ReferenceTypeSet of subtypes for every ReferenceType is created
+     * during the call to AddNode_finish. */
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     UA_ReferenceTypeAttributes references_attr = UA_ReferenceTypeAttributes_default;
     references_attr.displayName = UA_LOCALIZEDTEXT("", "References");
@@ -760,7 +763,6 @@ addModellingRules(UA_Server *server) {
  * example server time. */
 UA_StatusCode
 UA_Server_initNS0(UA_Server *server) {
-
     /* Initialize base nodes which are always required an cannot be created
      * through the NS compiler */
     server->bootstrapNS0 = true;

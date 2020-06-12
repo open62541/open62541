@@ -49,6 +49,10 @@ typedef struct NodeTree NodeTree;
 
 typedef struct {
     NodeTree root;
+
+    /* Maps ReferenceTypeIndex to the NodeId of the ReferenceType */
+    UA_NodeId referenceTypeIds[UA_REFERENCETYPESET_MAX];
+    UA_Byte referenceTypeCounter;
 } ZipContext;
 
 ZIP_PROTTYPE(NodeTree, NodeEntry, NodeEntry)
@@ -208,6 +212,28 @@ zipNsInsertNode(void *nsCtx, UA_Node *node, UA_NodeId *addedNodeId) {
         }
     }
 
+    /* For new ReferencetypeNodes add to the index map */
+    if(node->head.nodeClass == UA_NODECLASS_REFERENCETYPE) {
+        UA_ReferenceTypeNode *refNode = (UA_ReferenceTypeNode*)node;
+        if(ns->referenceTypeCounter >= UA_REFERENCETYPESET_MAX) {
+            deleteEntry(entry);
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+
+        UA_StatusCode retval =
+            UA_NodeId_copy(&node->head.nodeId, &ns->referenceTypeIds[ns->referenceTypeCounter]);
+        if(retval != UA_STATUSCODE_GOOD) {
+            deleteEntry(entry);
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+
+        /* Assign the ReferenceTypeIndex to the new ReferenceTypeNode */
+        refNode->referenceTypeIndex = ns->referenceTypeCounter;
+        refNode->subTypes = UA_REFTYPESET(ns->referenceTypeCounter);
+
+        ns->referenceTypeCounter++;
+    }
+
     /* Insert the node */
     entry->nodeIdHash = dummy.nodeIdHash;
     ZIP_INSERT(NodeTree, &ns->root, entry, ZIP_FFS32(UA_UInt32_random()));
@@ -259,6 +285,14 @@ zipNsRemoveNode(void *nsCtx, const UA_NodeId *nodeId) {
     return UA_STATUSCODE_GOOD;
 }
 
+static const UA_NodeId *
+zipNsGetReferenceTypeId(void *nsCtx, UA_Byte refTypeIndex) {
+    ZipContext *ns = (ZipContext*)nsCtx;
+    if(refTypeIndex > ns->referenceTypeCounter)
+        return NULL;
+    return &ns->referenceTypeIds[refTypeIndex];
+}
+
 struct VisitorData {
     UA_NodestoreVisitor visitor;
     void *visitorContext;
@@ -295,6 +329,11 @@ zipNsClear(void *nsCtx) {
         return;
     ZipContext *ns = (ZipContext*)nsCtx;
     ZIP_ITER(NodeTree, &ns->root, deleteNodeVisitor, NULL);
+
+    /* Clean up the ReferenceTypes index array */
+    for(size_t i = 0; i < ns->referenceTypeCounter; i++)
+        UA_NodeId_clear(&ns->referenceTypeIds[i]);
+
     UA_free(ns);
 }
 
@@ -306,6 +345,7 @@ UA_Nodestore_ZipTree(UA_Nodestore *ns) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     ZIP_INIT(&ctx->root);
+    ctx->referenceTypeCounter = 0;
 
     /* Populate the nodestore */
     ns->context = (void*)ctx;
@@ -318,6 +358,7 @@ UA_Nodestore_ZipTree(UA_Nodestore *ns) {
     ns->insertNode = zipNsInsertNode;
     ns->replaceNode = zipNsReplaceNode;
     ns->removeNode = zipNsRemoveNode;
+    ns->getReferenceTypeId = zipNsGetReferenceTypeId;
     ns->iterate = zipNsIterate;
     
     return UA_STATUSCODE_GOOD;

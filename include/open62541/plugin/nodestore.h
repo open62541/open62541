@@ -54,6 +54,78 @@ struct UA_MonitoredItem;
  * sections are purely informational so that users may have a clear mental
  * model of the underlying representation.
  *
+ * ReferenceType Bitfield Representation
+ * -------------------------------------
+ *
+ * ReferenceTypes have an alternative represention as an index into a bitfield
+ * for fast comparison. The index is generated when the corresponding
+ * ReferenceTypeNode is added. By bounding the number of ReferenceTypes that can
+ * exist in the server, the bitfield can represent a set of an combination of
+ * ReferenceTypes.
+ *
+ * Every ReferenceTypeNode contains a bitfield with the set of all its subtypes.
+ * This speeds up the the Browse services substantially.
+ *
+ * The following ReferenceTypes have a fixed index. The NS0 bootstrapping
+ * creates these ReferenceTypes in-order. */
+#define UA_REFERENCETYPEINDEX_REFERENCES 0
+#define UA_REFERENCETYPEINDEX_HASSUBTYPE 1
+#define UA_REFERENCETYPEINDEX_AGGREGATES 2
+#define UA_REFERENCETYPEINDEX_HIERARCHICALREFERENCES 3
+#define UA_REFERENCETYPEINDEX_NONHIERARCHICALREFERENCES 4
+#define UA_REFERENCETYPEINDEX_HASCHILD 5
+#define UA_REFERENCETYPEINDEX_ORGANIZES 6
+#define UA_REFERENCETYPEINDEX_HASEVENTSOURCE 7
+#define UA_REFERENCETYPEINDEX_HASMODELLINGRULE 8
+#define UA_REFERENCETYPEINDEX_HASENCODING 9
+#define UA_REFERENCETYPEINDEX_HASDESCRIPTION 10
+#define UA_REFERENCETYPEINDEX_HASTYPEDEFINITION 11
+#define UA_REFERENCETYPEINDEX_GENERATESEVENT 12
+#define UA_REFERENCETYPEINDEX_HASPROPERTY 13
+#define UA_REFERENCETYPEINDEX_HASCOMPONENT 14
+#define UA_REFERENCETYPEINDEX_HASNOTIFIER 15
+#define UA_REFERENCETYPEINDEX_HASORDEREDCOMPONENT 16
+#define UA_REFERENCETYPEINDEX_HASINTERFACE 17
+
+/* The maximum number of ReferrenceTypes. Must be a multiple of 32. */
+#define UA_REFERENCETYPESET_MAX 128
+typedef struct { UA_UInt32 bits[UA_REFERENCETYPESET_MAX / 32]; } UA_ReferenceTypeSet;
+
+static UA_INLINE void
+UA_ReferenceTypeSet_init(UA_ReferenceTypeSet *set) {
+    memset(set, 0, sizeof(UA_ReferenceTypeSet));
+}
+
+static UA_INLINE void
+UA_ReferenceTypeSet_any(UA_ReferenceTypeSet *set) {
+    memset(set, -1, sizeof(UA_ReferenceTypeSet));
+}
+
+static UA_INLINE UA_ReferenceTypeSet
+UA_REFTYPESET(UA_Byte index) {
+    UA_Byte i = index / 32, j = index % 32;
+    UA_ReferenceTypeSet set;
+    UA_ReferenceTypeSet_init(&set);
+    set.bits[i] |= ((UA_UInt32)1) << j;
+    return set;
+}
+
+static UA_INLINE UA_ReferenceTypeSet
+UA_ReferenceTypeSet_union(const UA_ReferenceTypeSet setA,
+                          const UA_ReferenceTypeSet setB) {
+    UA_ReferenceTypeSet set;
+    for(size_t i = 0; i < UA_REFERENCETYPESET_MAX / 32; i++)
+        set.bits[i] = setA.bits[i] | setB.bits[i];
+    return set;
+}
+
+static UA_INLINE UA_Boolean
+UA_ReferenceTypeSet_contains(const UA_ReferenceTypeSet *set, UA_Byte index) {
+    UA_Byte i = index / 32, j = index % 32;
+    return !!(set->bits[i] & (((UA_UInt32)1) << j));
+}
+
+/**
  * Base Node Attributes
  * --------------------
  *
@@ -85,7 +157,7 @@ ZIP_PROTTYPE(UA_ReferenceTargetNameTree, UA_ReferenceTarget, UA_UInt32)
 
 /* List of reference targets with the same reference type and direction */
 typedef struct {
-    UA_NodeId referenceTypeId;
+    UA_Byte referenceTypeIndex;
     UA_Boolean isInverse;
     size_t refTargetsSize;
     UA_ReferenceTarget *refTargets;
@@ -401,6 +473,10 @@ typedef struct {
     UA_Boolean isAbstract;
     UA_Boolean symmetric;
     UA_LocalizedText inverseName;
+
+    /* Members specific to open62541 */
+    UA_Byte referenceTypeIndex;
+    UA_ReferenceTypeSet subTypes; /* contains the type itself as well */
 } UA_ReferenceTypeNode;
 
 /**
@@ -513,6 +589,11 @@ typedef struct {
     /* Removes a node from the nodestore. */
     UA_StatusCode (*removeNode)(void *nsCtx, const UA_NodeId *nodeId);
 
+    /* Maps the ReferenceTypeIndex used for the references to the NodeId of the
+     * ReferenceType. The returned pointer is stable until the Nodestore is
+     * deleted. */
+    const UA_NodeId * (*getReferenceTypeId)(void *nsCtx, UA_Byte refTypeIndex);
+
     /* Execute a callback for every node in the nodestore. */
     void (*iterate)(void *nsCtx, UA_NodestoreVisitor visitor,
                     void *visitorCtx);
@@ -537,12 +618,20 @@ UA_Node_copy_alloc(const UA_Node *src);
 
 /* Add a single reference to the node */
 UA_StatusCode UA_EXPORT
-UA_Node_addReference(UA_Node *node, const UA_AddReferencesItem *item,
+UA_Node_addReference(UA_Node *node, UA_Byte refTypeIndex, UA_Boolean isForward,
+                     const UA_ExpandedNodeId *targetNodeId,
                      UA_UInt32 targetBrowseNameHash);
 
 /* Delete a single reference from the node */
 UA_StatusCode UA_EXPORT
-UA_Node_deleteReference(UA_Node *node, const UA_DeleteReferencesItem *item);
+UA_Node_deleteReference(UA_Node *node, UA_Byte refTypeIndex, UA_Boolean isForward,
+                        const UA_ExpandedNodeId *targetNodeId);
+
+/* Deletes references from the node which are not matching any type in the given
+ * array. Could be used to e.g. delete all the references, except
+ * 'HASMODELINGRULE' */
+void UA_EXPORT
+UA_Node_deleteReferencesSubset(UA_Node *node, const UA_ReferenceTypeSet *keepSet);
 
 /* Delete all references of the node */
 void UA_EXPORT
