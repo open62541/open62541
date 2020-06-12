@@ -148,8 +148,10 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
         UA_NodeReferenceKind *ref = &parentCopy->head.references[i - 1];
         for(size_t j = 0; j<ref->refTargetsSize; j++) {
             UA_UNLOCK(server->serviceMutex);
-            retval = callback(ref->refTargets[j].targetId.nodeId, ref->isInverse,
-                              ref->referenceTypeId, handle);
+            UA_NodeId refTypeId =
+                *UA_NODESTORE_GETREFERENCETYPEID(server, ref->referenceTypeIndex);
+            retval = callback(ref->refTargets[j].targetId.nodeId,
+                              ref->isInverse, refTypeId, handle);
             UA_LOCK(server->serviceMutex);
             if(retval != UA_STATUSCODE_GOOD)
                 goto cleanup;

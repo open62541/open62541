@@ -693,12 +693,14 @@ compatibleDataType(UA_Server *server, const UA_NodeId *dataType,
         return true;
 
     /* Is the value-type a subtype of the required type? */
-    if(isNodeInTree(server, dataType, constraintDataType, &subtypeId, 1))
+    if(isNodeInTree_singleRef(server, dataType, constraintDataType,
+                              UA_REFERENCETYPEINDEX_HASSUBTYPE))
         return true;
 
     /* Enum allows Int32 (only) */
     if(UA_NodeId_equal(dataType, &UA_TYPES[UA_TYPES_INT32].typeId) &&
-       isNodeInTree(server, constraintDataType, &enumNodeId, &subtypeId, 1))
+       isNodeInTree_singleRef(server, constraintDataType, &enumNodeId,
+                              UA_REFERENCETYPEINDEX_HASSUBTYPE))
         return true;
 
     /* More checks for the data type of real values (variants) */
@@ -710,8 +712,8 @@ compatibleDataType(UA_Server *server, const UA_NodeId *dataType,
         if(dataType->namespaceIndex == 0 &&
            dataType->identifierType == UA_NODEIDTYPE_NUMERIC &&
            dataType->identifier.numeric <= 25 &&
-           isNodeInTree(server, constraintDataType,
-                        dataType, &subtypeId, 1))
+           isNodeInTree_singleRef(server, constraintDataType, dataType,
+                                  UA_REFERENCETYPEINDEX_HASSUBTYPE))
             return true;
     }
 

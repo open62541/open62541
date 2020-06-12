@@ -40,6 +40,10 @@ typedef struct {
     UA_UInt32 size;
     UA_UInt32 count;
     UA_UInt32 sizePrimeIndex;
+
+    /* Maps ReferenceTypeIndex to the NodeId of the ReferenceType */
+    UA_NodeId referenceTypeIds[UA_REFERENCETYPESET_MAX];
+    UA_Byte referenceTypeCounter;
 } UA_NodeMap;
 
 /*********************/
@@ -355,6 +359,27 @@ UA_NodeMap_insertNode(void *context, UA_Node *node,
         }
     }
 
+    /* For new ReferencetypeNodes add to the index map */
+    if(node->head.nodeClass == UA_NODECLASS_REFERENCETYPE) {
+        UA_ReferenceTypeNode *refNode = (UA_ReferenceTypeNode*)node;
+        if(ns->referenceTypeCounter >= UA_REFERENCETYPESET_MAX) {
+            deleteNodeMapEntry(container_of(node, UA_NodeMapEntry, node));
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+
+        retval = UA_NodeId_copy(&node->head.nodeId, &ns->referenceTypeIds[ns->referenceTypeCounter]);
+        if(retval != UA_STATUSCODE_GOOD) {
+            deleteNodeMapEntry(container_of(node, UA_NodeMapEntry, node));
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+
+        /* Assign the ReferenceTypeIndex to the new ReferenceTypeNode */
+        refNode->referenceTypeIndex = ns->referenceTypeCounter;
+        refNode->subTypes = UA_REFTYPESET(ns->referenceTypeCounter);
+
+        ns->referenceTypeCounter++;
+    }
+
     /* Insert the node */
     UA_NodeMapEntry *newEntry = container_of(node, UA_NodeMapEntry, node);
     slot->nodeIdHash = UA_NodeId_hash(&node->head.nodeId);
@@ -391,6 +416,14 @@ UA_NodeMap_replaceNode(void *context, UA_Node *node) {
     return UA_STATUSCODE_GOOD;
 }
 
+static const UA_NodeId *
+UA_NodeMap_getReferenceTypeId(void *nsCtx, UA_Byte refTypeIndex) {
+    UA_NodeMap *ns = (UA_NodeMap*)nsCtx;
+    if(refTypeIndex > ns->referenceTypeCounter)
+        return NULL;
+    return &ns->referenceTypeIds[refTypeIndex];
+}
+
 static void
 UA_NodeMap_iterate(void *context, UA_NodestoreVisitor visitor,
                    void *visitorContext) {
@@ -421,6 +454,11 @@ UA_NodeMap_delete(void *context) {
         }
     }
     UA_free(ns->slots);
+
+    /* Clean up the ReferenceTypes index array */
+    for(size_t i = 0; i < ns->referenceTypeCounter; i++)
+        UA_NodeId_clear(&ns->referenceTypeIds[i]);
+
     UA_free(ns);
 }
 
@@ -440,6 +478,8 @@ UA_Nodestore_HashMap(UA_Nodestore *ns) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
+    nodemap->referenceTypeCounter = 0;
+
     /* Populate the nodestore */
     ns->context = nodemap;
     ns->clear = UA_NodeMap_delete;
@@ -451,6 +491,7 @@ UA_Nodestore_HashMap(UA_Nodestore *ns) {
     ns->insertNode = UA_NodeMap_insertNode;
     ns->replaceNode = UA_NodeMap_replaceNode;
     ns->removeNode = UA_NodeMap_removeNode;
+    ns->getReferenceTypeId = UA_NodeMap_getReferenceTypeId;
     ns->iterate = UA_NodeMap_iterate;
     return UA_STATUSCODE_GOOD;
 }
