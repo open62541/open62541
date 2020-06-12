@@ -477,6 +477,10 @@ sendOPNAsync(UA_Client *client, UA_Boolean renew) {
         return UA_STATUSCODE_BADNOTCONNECTED;
     }
 
+    UA_StatusCode retval = UA_SecureChannel_generateLocalNonce(&client->channel);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
     /* Prepare the OpenSecureChannelRequest */
     UA_OpenSecureChannelRequest opnSecRq;
     UA_OpenSecureChannelRequest_init(&opnSecRq);
@@ -501,7 +505,7 @@ sendOPNAsync(UA_Client *client, UA_Boolean renew) {
     /* Send the OPN message */
     UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                  "Requesting to open a SecureChannel");
-    UA_StatusCode retval =
+    retval =
         UA_SecureChannel_sendAsymmetricOPNMessage(&client->channel, requestId, &opnSecRq,
                                                   &UA_TYPES[UA_TYPES_OPENSECURECHANNELREQUEST]);
     if(retval != UA_STATUSCODE_GOOD) {
@@ -829,7 +833,7 @@ responseSessionCallback(UA_Client *client, void *userdata,
     }
 #endif
     
-    /* Copy nonce and and authenticationtoken */
+    /* Copy nonce and AuthenticationToken */
     UA_ByteString_clear(&client->channel.remoteNonce);
     UA_NodeId_clear(&client->authenticationToken);
     res |= UA_ByteString_copy(&sessionResponse->serverNonce, &client->channel.remoteNonce);
@@ -858,7 +862,6 @@ createSessionAsync(UA_Client *client) {
             if(retval != UA_STATUSCODE_GOOD)
                 return retval;
         }
-
         retval = client->channel.securityPolicy->symmetricModule.
                  generateNonce(client->channel.securityPolicy, &client->channel.localNonce);
         if(retval != UA_STATUSCODE_GOOD)
