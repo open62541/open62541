@@ -81,7 +81,12 @@ struct UA_SecureChannel {
     UA_ByteString remoteCertificate;
     UA_Byte remoteCertificateThumbprint[20]; /* The thumbprint of the remote certificate */
 
-    /* Symmetric encryption info */
+    /* Symmetric encryption nonces. These are used to generate the key material
+     * and must not be reused once the keys are in place.
+     *
+     * Nonces are also used during the CreateSession / ActivateSession
+     * handshake. These are not handled here, as the Session handling can
+     * overlap with a RenewSecureChannel. */
     UA_ByteString remoteNonce;
     UA_ByteString localNonce;
 
