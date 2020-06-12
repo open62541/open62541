@@ -83,7 +83,10 @@ UA_Client_deleteMembers(UA_Client *client) {
     UA_Client_AsyncService_removeAll(client, UA_STATUSCODE_BADSHUTDOWN);
 
     UA_Client_disconnect(client);
-    UA_String_deleteMembers(&client->endpointUrl);
+    UA_String_clear(&client->endpointUrl);
+
+    UA_String_clear(&client->remoteNonce);
+    UA_String_clear(&client->localNonce);
 
     /* Delete the subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
