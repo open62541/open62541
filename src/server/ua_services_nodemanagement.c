@@ -1711,7 +1711,7 @@ Operation_addReference(UA_Server *server, UA_Session *session, void *context,
         return;
     }
     const UA_Node *sourceNode = UA_NODESTORE_GET(server, &item->sourceNodeId);
-    if(!targetNode) {
+    if(!sourceNode) {
         UA_NODESTORE_RELEASE(server, targetNode);
         *retval = UA_STATUSCODE_BADSOURCENODEIDINVALID;
         return;
