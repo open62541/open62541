@@ -986,6 +986,12 @@ initConnect(UA_Client *client, const char *endpointUrl) {
         return UA_STATUSCODE_GOOD;
     }
 
+    if(client->config.initConnectionFunc == NULL) {
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "Client connection not configured");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
     /* Consistency check the client's own ApplicationURI */
     verifyClientApplicationURI(client);
 
