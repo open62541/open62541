@@ -36,7 +36,7 @@ UA_SecureChannel_generateLocalNonce(UA_SecureChannel *channel) {
     /* Is the length of the previous nonce correct? */
     size_t nonceLength = sp->symmetricModule.secureChannelNonceLength;
     if(channel->localNonce.length != nonceLength) {
-        UA_ByteString_deleteMembers(&channel->localNonce);
+        UA_ByteString_clear(&channel->localNonce);
         UA_StatusCode retval = UA_ByteString_allocBuffer(&channel->localNonce, nonceLength);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;

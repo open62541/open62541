@@ -81,7 +81,12 @@ struct UA_SecureChannel {
     UA_ByteString remoteCertificate;
     UA_Byte remoteCertificateThumbprint[20]; /* The thumbprint of the remote certificate */
 
-    /* Symmetric encryption info */
+    /* Symmetric encryption nonces. These are used to generate the key material
+     * and must not be reused once the keys are in place.
+     *
+     * Nonces are also used during the CreateSession / ActivateSession
+     * handshake. These are not handled here, as the Session handling can
+     * overlap with a RenewSecureChannel. */
     UA_ByteString remoteNonce;
     UA_ByteString localNonce;
 
@@ -294,7 +299,7 @@ encryptChunkSym(UA_MessageContext *const messageContext, size_t totalLength);
 
 #define UA_LOG_TRACE_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)              \
     UA_LOG_TRACE(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                        \
-                 "Connection %i | SecureChannel %" PRIi32 " | " MSG "%.0s",     \
+                 "Connection %i | SecureChannel %" PRIu32 " | " MSG "%.0s",     \
                  ((CHANNEL)->connection ? (int)((CHANNEL)->connection->sockfd) : 0), \
                  (CHANNEL)->securityToken.channelId, __VA_ARGS__)
 
@@ -303,7 +308,7 @@ encryptChunkSym(UA_MessageContext *const messageContext, size_t totalLength);
 
 #define UA_LOG_DEBUG_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)              \
     UA_LOG_DEBUG(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                        \
-                 "Connection %i | SecureChannel %" PRIi32 " | " MSG "%.0s",     \
+                 "Connection %i | SecureChannel %" PRIu32 " | " MSG "%.0s",     \
                  ((CHANNEL)->connection ? (int)((CHANNEL)->connection->sockfd) : 0), \
                  (CHANNEL)->securityToken.channelId, __VA_ARGS__)
 
@@ -312,7 +317,7 @@ encryptChunkSym(UA_MessageContext *const messageContext, size_t totalLength);
 
 #define UA_LOG_INFO_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)               \
     UA_LOG_INFO(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                         \
-                 "Connection %i | SecureChannel %" PRIi32 " | " MSG "%.0s",     \
+                 "Connection %i | SecureChannel %" PRIu32 " | " MSG "%.0s",     \
                  ((CHANNEL)->connection ? (int)((CHANNEL)->connection->sockfd) : 0), \
                  (CHANNEL)->securityToken.channelId, __VA_ARGS__)
 
@@ -321,7 +326,7 @@ encryptChunkSym(UA_MessageContext *const messageContext, size_t totalLength);
 
 #define UA_LOG_WARNING_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)            \
     UA_LOG_WARNING(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                      \
-                 "Connection %i | SecureChannel %" PRIi32 " | " MSG "%.0s",     \
+                 "Connection %i | SecureChannel %" PRIu32 " | " MSG "%.0s",     \
                  ((CHANNEL)->connection ? (int)((CHANNEL)->connection->sockfd) : 0), \
                  (CHANNEL)->securityToken.channelId, __VA_ARGS__)
 
@@ -330,7 +335,7 @@ encryptChunkSym(UA_MessageContext *const messageContext, size_t totalLength);
 
 #define UA_LOG_ERROR_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)              \
     UA_LOG_ERROR(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                        \
-                 "Connection %i | SecureChannel %" PRIi32 " | " MSG "%.0s",     \
+                 "Connection %i | SecureChannel %" PRIu32 " | " MSG "%.0s",     \
                  ((CHANNEL)->connection ? (int)((CHANNEL)->connection->sockfd) : 0), \
                  (CHANNEL)->securityToken.channelId, __VA_ARGS__)
 
@@ -339,7 +344,7 @@ encryptChunkSym(UA_MessageContext *const messageContext, size_t totalLength);
 
 #define UA_LOG_FATAL_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)              \
     UA_LOG_FATAL(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                        \
-                 "Connection %i | SecureChannel %" PRIi32 " | " MSG "%.0s",     \
+                 "Connection %i | SecureChannel %" PRIu32 " | " MSG "%.0s",     \
                  ((CHANNEL)->connection ? (CHANNEL)->connection->sockfd : 0), \
                  (CHANNEL)->securityToken.channelId, __VA_ARGS__)
 

@@ -10,12 +10,11 @@
  */
 
 #include <open62541/plugin/securitypolicy_default.h>
-#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
-#include <open62541/plugin/securitypolicy_mbedtls_common.h>
-
-
 #include <open62541/util.h>
 
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+
+#include "securitypolicy_mbedtls_common.h"
 
 #include <mbedtls/aes.h>
 #include <mbedtls/ctr_drbg.h>

@@ -1166,9 +1166,8 @@ ENCODE_JSON(Variant) {
     /* If type is 0 (NULL) the Variant contains a NULL value and the containing
      * JSON object shall be omitted or replaced by the JSON literal ‘null’ (when
      * an element of a JSON array). */
-    if(!src->type) {
+    if(!src->type)
         return writeJsonNull(ctx);
-    }
         
     /* Set the content type in the encoding mask */
     const UA_Boolean isBuiltin = (src->type->typeKind <= UA_DATATYPEKIND_DIAGNOSTICINFO);
@@ -2677,10 +2676,8 @@ DECODE_JSON(Variant) {
     UA_Boolean hasDimension = false;
     size_t searchResultDim = 0;
     ret = lookAheadForKey(UA_JSONKEY_DIMENSION, ctx, parseCtx, &searchResultDim);
-    if(ret == UA_STATUSCODE_GOOD) {
-        hasDimension = true;
-        dst->arrayDimensionsSize = (size_t)parseCtx->tokenArray[searchResultDim].size;
-    }
+    if(ret == UA_STATUSCODE_GOOD)
+        hasDimension = (parseCtx->tokenArray[searchResultDim].size > 0);
     
     /* no array but has dimension. error? */
     if(!isArray && hasDimension)

@@ -16,14 +16,14 @@ modification history
 
 #ifdef UA_ENABLE_ENCRYPTION_OPENSSL
 
+#include "securitypolicy_openssl_common.h"
+
 #include <openssl/hmac.h>
 #include <openssl/sha.h>
 #include <openssl/rsa.h>
 #include <openssl/x509.h>
 #include <openssl/rand.h>
 #include <openssl/rsa.h>
-
-#include <open62541/plugin/securitypolicy_openssl_common.h>
 
 #define UA_SHA256_LENGTH 32    /* 256 bit */
 #define UA_SECURITYPOLICY_BASIC256SHA256_RSAPADDING_LEN 42
