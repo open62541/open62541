@@ -154,6 +154,9 @@ UA_Server_createNS0_base(UA_Server *server) {
     ret |= addReferenceTypeNode(server, "HasOrderedComponent", "OrderedComponentOf",
                          UA_NS0ID_HASORDEREDCOMPONENT, false, false, UA_NS0ID_HASCOMPONENT);
 
+    ret |= addReferenceTypeNode(server, "HasInterface", "InterfaceOf",
+                         UA_NS0ID_HASINTERFACE, false, false, UA_NS0ID_NONHIERARCHICALREFERENCES);
+
     /**************/
     /* Data Types */
     /**************/
