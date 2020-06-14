@@ -24,7 +24,7 @@ modification history
 #include <openssl/hmac.h>
 #include <openssl/aes.h>
 
-#include <open62541/plugin/securitypolicy_openssl_common.h>
+#include "securitypolicy_openssl_common.h"
 
 #if OPENSSL_VERSION_NUMBER >= 0x1010000fL
 #define get_pkey_rsa(evp) EVP_PKEY_get0_RSA(evp)

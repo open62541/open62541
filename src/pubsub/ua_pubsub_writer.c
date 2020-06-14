@@ -174,7 +174,7 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
                 (writerGroupConfig->messageSettings.encoding != UA_EXTENSIONOBJECT_DECODED
                         || writerGroupConfig->messageSettings.content.decoded.type->typeIndex != UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE) ) {
             return UA_STATUSCODE_BADTYPEMISMATCH;
-        }    
+        }
     }
 
 
@@ -484,7 +484,7 @@ UA_Server_getPublishedDataSetMetaData(UA_Server *server, const UA_NodeId pds,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     UA_PublishedDataSet *currentPublishedDataSet = UA_PublishedDataSet_findPDSbyId(server, pds);
-    if(!currentPublishedDataSet) 
+    if(!currentPublishedDataSet)
         return UA_STATUSCODE_BADNOTFOUND;
 
     return UA_DataSetMetaDataType_copy(&currentPublishedDataSet->dataSetMetaData, metaData);
