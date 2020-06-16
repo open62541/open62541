@@ -1341,6 +1341,12 @@ endif()
 if(UA_ENABLE_ENCRYPTION)
     list(APPEND open62541_enabled_components "Encryption")
 endif()
+if(UA_ENABLE_ENCRYPTION_MBEDTLS)
+    list(APPEND open62541_enabled_components "EncryptionMbedTLS")
+endif()
+if(UA_ENABLE_ENCRYPTION_OPENSSL)
+    list(APPEND open62541_enabled_components "EncryptionOpenSSL")
+endif()
 if(UA_ENABLE_AMALGAMATION)
     list(APPEND open62541_enabled_components "Amalgamation")
 endif()
@@ -1415,6 +1421,11 @@ install(FILES "${CMAKE_CURRENT_BINARY_DIR}/open62541Config.cmake"
               "${CMAKE_CURRENT_BINARY_DIR}/open62541ConfigVersion.cmake"
               "${CMAKE_CURRENT_BINARY_DIR}/open62541Macros.cmake"
         DESTINATION "${cmake_configfile_install}")
+
+if(UA_ENABLE_ENCRYPTION_MBEDTLS)
+    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/FindMbedTLS.cmake"
+            DESTINATION "${cmake_configfile_install}")
+endif()
 
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     install(FILES "${PROJECT_BINARY_DIR}/src_generated/open62541.pc"
