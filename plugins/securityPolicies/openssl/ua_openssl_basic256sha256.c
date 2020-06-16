@@ -5,12 +5,6 @@
  *    Copyright 2020 (c) Wind River Systems, Inc.
  */
 
-/*
-modification history
---------------------
-01feb20,lan  written
-*/
-
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/util.h>
 
