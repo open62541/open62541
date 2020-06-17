@@ -36,11 +36,13 @@ _UA_BEGIN_DECLS
  * abstractions <client-highlevel>`.
  *
  * **However**: At this time, the client does not yet contain its own thread or
- * event-driven main-loop. So the client will not perform any actions
+ * event-driven main-loop, meaning that the client will not perform any actions
  * automatically in the background. This is especially relevant for
- * subscriptions. The user will have to periodically call
- * `UA_Client_Subscriptions_manuallySendPublishRequest`. See also :ref:`here
- * <client-subscriptions>`.
+ * connection/session management and subscriptions. The user will have to
+ * periodically call `UA_Client_run_iterate` to ensure that asynchronous events
+ * are handled, including keeping a secure connection established.
+ * See more about :ref:`asynchronicity<client-async-services>` and
+ * :ref:`subscriptions<client-subscriptions>`.
  *
  *
  * .. include:: client_config.rst
@@ -445,8 +447,22 @@ UA_Client_Service_queryNext(UA_Client *client,
  * Asynchronous Services
  * ---------------------
  * All OPC UA services are asynchronous in nature. So several service calls can
- * be made without waiting for a response first. Responess may come in a
- * different ordering. */
+ * be made without waiting for the individual responses. Depending on the
+ * server's priorities responses may come in a different ordering than sent.
+ *
+ * As noted in :ref:`the client overview<client>` currently no means
+ * of handling asynchronous events automatically is provided. However, some
+ * synchronous function calls will trigger handling, but to ensure this
+ * happens a client should periodically call `UA_Client_run_iterate`
+ * explicitly.
+ *
+ * Connection and session management are also performed in
+ * `UA_Client_run_iterate`, so to keep a connection healthy any client need to
+ * consider how and when it is appropriate to do the call.
+ * This is especially true for the periodic renewal of a SecureChannel's
+ * SecurityToken which is designed to have a limited lifetime and will
+ * invalidate the connection if not renewed.
+ */
 
 /* Use the type versions of this method. See below. However, the general
  * mechanism of async service calls is explained here.
