@@ -151,7 +151,7 @@ addCurrentTimeDataSourceVariable(UA_Server *server) {
                                         timeDataSource, NULL, NULL);
 }
 
-static UA_DataValue externalValue;
+static UA_DataValue *externalValue;
 
 static void
 addCurrentTimeExternalDataSource(UA_Server *server) {

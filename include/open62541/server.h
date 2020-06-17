@@ -907,6 +907,7 @@ typedef enum {
     UA_VALUEBACKENDTYPE_EXTERNAL
 } UA_ValueBackendType;
 
+/*
 typedef struct {
     UA_ValueBackendType backendType;
     union {
@@ -922,6 +923,19 @@ typedef struct {
             void (*externalDataReadCallback)(UA_Server *server, const UA_NodeId *sessionId,
                                               void *sessionContext, const UA_NodeId *nodeId,
                                               void *nodeContext);
+        } external;
+    } backend;
+} UA_ValueBackend;
+*/
+
+typedef struct {
+    UA_ValueBackendType backendType;
+    union {
+        UA_DataValue internal;
+        UA_DataSource dataSource;
+        struct {
+            UA_DataValue **value;
+            UA_ValueCallback callback;
         } external;
     } backend;
 } UA_ValueBackend;

@@ -391,10 +391,9 @@ START_TEST(PubSubConfigWithInformationModelRTVariable) {
         UA_Variant variantRT;
         UA_Variant_init(&variantRT);
         UA_Variant_setScalar(&variantRT, integerRTValue, &UA_TYPES[UA_TYPES_UINT32]);
-        UA_DataValue externalValueSourceDataValue;
-        UA_DataValue_init(&externalValueSourceDataValue);
-        externalValueSourceDataValue.hasValue = UA_TRUE;
-        externalValueSourceDataValue.value = variantRT;
+        UA_DataValue *externalValueSourceDataValue = UA_DataValue_new();
+        externalValueSourceDataValue->hasValue = UA_TRUE;
+        externalValueSourceDataValue->value = variantRT;
         UA_ValueBackend valueBackend;
         valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
         valueBackend.backend.external.value = &externalValueSourceDataValue;
@@ -419,6 +418,7 @@ START_TEST(PubSubConfigWithInformationModelRTVariable) {
         UA_Server_readValue(server, variableNodeId, &variant);
         ck_assert(*((UA_UInt32 *)variant.data) == 43);
         UA_free(integerRTValue);
+        UA_free(externalValueSourceDataValue);
     } END_TEST
 
 START_TEST(PubSubConfigWithMultipleInformationModelRTVariables) {
@@ -469,7 +469,7 @@ START_TEST(PubSubConfigWithMultipleInformationModelRTVariables) {
 
             UA_ValueBackend valueBackend;
             valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
-            valueBackend.backend.external.value = externalValueSources[i];
+            valueBackend.backend.external.value = &externalValueSources[i];
             UA_Server_setVariableNode_valueBackend(server, *nodes[i], valueBackend);
 
             UA_DataSetFieldConfig dsfConfig;

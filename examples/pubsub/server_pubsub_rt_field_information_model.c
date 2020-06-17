@@ -46,8 +46,8 @@ addVariable(UA_Server *server, char *name) {
     UA_VariableAttributes attr = UA_VariableAttributes_default;
     UA_UInt32 myInteger = 42;
     UA_Variant_setScalar(&attr.value, &myInteger, &UA_TYPES[UA_TYPES_UINT32]);
-    attr.description = UA_LOCALIZEDTEXT("en-US",name);
-    attr.displayName = UA_LOCALIZEDTEXT("en-US",name);
+    attr.description = UA_LOCALIZEDTEXT("en-US", name);
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", name);
     attr.dataType = UA_TYPES[UA_TYPES_UINT32].typeId;
     attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
 
@@ -61,19 +61,6 @@ addVariable(UA_Server *server, char *name) {
     return outNodeId;
 }
 
-static void
-valueUpdateCallback(UA_Server *server, void *data) {
-    UA_Variant variant;
-    UA_Variant_init(&variant);
-    UA_Server_readValue(server, addedNodId1, &variant);
-    *integerRTValue = (*((UA_UInt32 *) (variant.data))) + 1;
-    UA_Variant_clear(&variant);
-    UA_Variant_init(&variant);
-    UA_Server_readValue(server, addedNodId2, &variant);
-    *integerRTValue2 = (*((UA_UInt32 *) (variant.data))) + 1;
-    UA_Variant_clear(&variant);
-}
-
 /* If the external data source is written over the information model, the
  * ,externalDataWriteCallback, will be triggered. The user has to take care and assure
  * that the write leads not to synchronization issues and race conditions. */
@@ -82,12 +69,20 @@ externalDataWriteCallback(UA_Server *server, const UA_NodeId *sessionId,
                                   void *sessionContext, const UA_NodeId *nodeId,
                                   void *nodeContext, const UA_NumericRange *range,
                                   const UA_DataValue *data){
+                                      printf("TODO Implement compare and switch");
+    printf("TODO Implement compare and switch");
     //The user must take about synchronization.
     if(UA_NodeId_equal(nodeId, &addedNodId1)){
         memcpy(data->value.data, integerRTValue, sizeof(UA_UInt32));
     } else if(UA_NodeId_equal(nodeId, &addedNodId2)){
         memcpy(data->value.data, integerRTValue2, sizeof(UA_UInt32));
     }
+}
+
+static void
+cyclicValueUpdateCallback_UpdateToMemory(UA_Server *server, void *data) {
+    *integerRTValue = (*integerRTValue)+1;
+    *integerRTValue2 = (*integerRTValue2)+1;
 }
 
 int main(void){
@@ -134,23 +129,19 @@ int main(void){
     dataSetWriterConfig.keyFrameCount = 10;
     UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent, &dataSetWriterConfig, &dataSetWriterIdent);
 
-    /* add new node to the information model*/
+    /* add new node to the information model with external data source backend*/
     addedNodId1 = addVariable(server, "RT value source 1");
-    /* create static value source */
+    /* create external value source for the node */
     integerRTValue = UA_UInt32_new();
-    UA_Variant variantRT;
-    UA_Variant_init(&variantRT);
-    UA_Variant_setScalar(&variantRT, integerRTValue, &UA_TYPES[UA_TYPES_UINT32]);
-    /* update node to use external data source */
-    UA_DataValue externalValueSourceDataValue;
-    UA_DataValue_init(&externalValueSourceDataValue);
-    externalValueSourceDataValue.hasValue = UA_TRUE;
-    externalValueSourceDataValue.value = variantRT;
+    UA_DataValue *dataValueRT = UA_DataValue_new();
+    dataValueRT->hasValue = UA_TRUE;
+    UA_Variant_setScalar(&dataValueRT->value, integerRTValue, &UA_TYPES[UA_TYPES_UINT32]);
+    /* Set the value backend of the above create node to 'external value source' */
     UA_ValueBackend valueBackend;
     valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
-    valueBackend.backend.external.value = &externalValueSourceDataValue;
-    valueBackend.backend.external.externalDataWriteCallback = externalDataWriteCallback;
-
+    valueBackend.backend.external.value = &dataValueRT;
+    valueBackend.backend.external.callback.onWrite = externalDataWriteCallback;
+    valueBackend.backend.external.callback.onRead = NULL;
     UA_Server_setVariableNode_valueBackend(server, addedNodId1, valueBackend);
 
     /* setup RT DataSetField config */
@@ -158,41 +149,38 @@ int main(void){
     memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));
     dsfConfig.field.variable.publishParameters.publishedVariable = addedNodId1;
     // -> This is removed and the node is checkt to be form type external value source
-    // -> How to prevent change during a running rt config?
-    //dsfConfig.field.variable.staticValueSourceEnabled = UA_TRUE;
-    //dsfConfig.field.variable.staticValueSource.value = variantRT;
+    // TODO remove the following flags
+    // dsfConfig.field.variable.staticValueSourceEnabled = UA_TRUE;
+    // dsfConfig.field.variable.staticValueSource.value = variantRT;
     UA_NodeId dsfNodeId;
-    //TODO check external data source
+    // TODO check external data source during the RT profile creation
     UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dsfNodeId);
 
-    // add second new node to the information model and create static value source
+    /* add second new node to the information model with external data source backend*/
     addedNodId2 = addVariable(server, "RT value source 2");
-    /* create static value source */
+    /* create external value source for the node */
     integerRTValue2 = UA_UInt32_new();
     *integerRTValue2 = 1000;
-    /* update node to use external data source */
-    UA_DataValue externalValueSourceDataValue2;
-    UA_DataValue_init(&externalValueSourceDataValue2);
-    externalValueSourceDataValue2.hasValue = UA_TRUE;
-    UA_Variant_setScalar(&externalValueSourceDataValue2.value, integerRTValue2, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_DataValue *dataValue2RT = UA_DataValue_new();
+    dataValue2RT->hasValue = UA_TRUE;
+    UA_Variant_setScalar(&dataValue2RT->value, integerRTValue2, &UA_TYPES[UA_TYPES_UINT32]);
+    /* Set the value backend of the above create node to 'external value source' */
     UA_ValueBackend valueBackend2;
     valueBackend2.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
-    valueBackend2.backend.external.value = &externalValueSourceDataValue2;
+    valueBackend2.backend.external.value = &dataValue2RT;
+    valueBackend2.backend.external.callback.onWrite = externalDataWriteCallback;
+    valueBackend2.backend.external.callback.onRead = NULL;
     UA_Server_setVariableNode_valueBackend(server, addedNodId2, valueBackend2);
 
     /* setup second DataSetField config */
     UA_DataSetFieldConfig dsfConfig2;
     memset(&dsfConfig2, 0, sizeof(UA_DataSetFieldConfig));
     dsfConfig2.field.variable.publishParameters.publishedVariable = addedNodId2;
-    //dsfConfig2.field.variable.staticValueSourceEnabled = UA_TRUE;
-    //dsfConfig2.field.variable.staticValueSource.value = variantRT2;
     UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig2, NULL);
 
     /* Freeze the PubSub configuration (and start implicitly the publish callback) */
     UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent);
     UA_Server_setWriterGroupOperational(server, writerGroupIdent);
-
-    valueUpdateCallback(server, NULL);
 
     /* Disable PubSub and remove the second RT field */
     UA_Server_setWriterGroupDisabled(server, writerGroupIdent);
@@ -204,9 +192,15 @@ int main(void){
     UA_Server_setWriterGroupOperational(server, writerGroupIdent);
 
     UA_UInt64 callbackId;
-    UA_Server_addRepeatedCallback(server, valueUpdateCallback, NULL, 1000, &callbackId);
+    UA_Server_addRepeatedCallback(server, cyclicValueUpdateCallback_UpdateToMemory, NULL,
+                                  1000, &callbackId);
 
     UA_StatusCode retval = UA_Server_run(server, &running);
     UA_Server_delete(server);
+
+    /* Free external data source */
+    UA_DataValue_clear(dataValueRT);
+    UA_DataValue_clear(dataValue2RT);
+
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }
