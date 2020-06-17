@@ -617,8 +617,8 @@ class DataTypeNode(Node):
             else:
                 logger.debug( "Encodable as: " + str(self.__baseTypeEncoding__))
                 self.__isEnum__ = False
-                self.__definition__ = typeDict
             logger.debug( "")
+        self.__definition__ = typeDict
         return self.__baseTypeEncoding__
 
 class ViewNode(Node):
