@@ -901,6 +901,51 @@ UA_Server_setVariableNode_valueCallback(UA_Server *server,
                                         const UA_NodeId nodeId,
                                         const UA_ValueCallback callback);
 
+typedef enum {
+    UA_VALUEBACKENDTYPE_NONE,
+    UA_VALUEBACKENDTYPE_INTERNAL,
+    UA_VALUEBACKENDTYPE_CALLBACK,
+    UA_VALUEBACKENDTYPE_EXTERNAL
+} UA_ValueBackendType;
+
+/*
+typedef struct {
+    UA_ValueBackendType backendType;
+    union {
+        UA_DataValue internal;
+        UA_DataSource dataSource;
+        struct {
+            const UA_DataValue *value;
+            void (*externalDataWriteCallback)(UA_Server *server, const UA_NodeId *sessionId,
+                            void *sessionContext, const UA_NodeId *nodeId,
+                            void *nodeContext, const UA_NumericRange *range,
+                            const UA_DataValue *data);
+            //TODO just give a 'right okay flag' ?
+            void (*externalDataReadCallback)(UA_Server *server, const UA_NodeId *sessionId,
+                                              void *sessionContext, const UA_NodeId *nodeId,
+                                              void *nodeContext);
+        } external;
+    } backend;
+} UA_ValueBackend;
+*/
+
+typedef struct {
+    UA_ValueBackendType backendType;
+    union {
+        UA_DataValue internal;
+        UA_DataSource dataSource;
+        struct {
+            UA_DataValue **value;
+            UA_ValueCallback callback;
+        } external;
+    } backend;
+} UA_ValueBackend;
+
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_setVariableNode_valueBackend(UA_Server *server,
+                                       const UA_NodeId nodeId,
+                                       const UA_ValueBackend valueBackend);
+
 /**
  * .. _local-monitoreditems:
  *
