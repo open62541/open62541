@@ -1242,6 +1242,20 @@ writeValueAttribute(UA_Server *server, UA_Session *session,
         }
     }
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    if (retval == UA_STATUSCODE_GOOD) {
+        /* If this node references monitored items (exception-based model), queue notifications. */
+        UA_MonitoredItem *mon, *mon_tmp;
+        /* Iterate through monitored items */
+        SLIST_FOREACH_SAFE(mon, &node->monitoredItemQueue, listEntryNode, mon_tmp) {
+            /* Call the sample callback if monitored item targets value
+             * attribute and the exception-based model is used */
+            if (mon->attributeId == UA_ATTRIBUTEID_VALUE && mon->samplingInterval == 0.0)
+                monitoredItem_sampleCallback(server, mon);
+        }
+    }
+#endif
+
     /* Clean up */
     if(rangeptr)
         UA_free(range.dimensions);

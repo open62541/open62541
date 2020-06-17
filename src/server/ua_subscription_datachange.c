@@ -170,7 +170,7 @@ static UA_StatusCode
 
 /* movedValue returns whether the sample was moved to the notification. The
  * default is false. */
-static UA_StatusCode
+UA_StatusCode
 sampleCallbackWithValue(UA_Server *server, UA_Session *session,
                         UA_Subscription *sub, UA_MonitoredItem *mon,
                         UA_DataValue *value, UA_Boolean *movedValue) {

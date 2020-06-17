@@ -151,12 +151,28 @@ setMonitoredItemSettings(UA_Server *server, UA_Session *session, UA_MonitoredIte
     UA_Double samplingInterval = params->samplingInterval;
 
     if(mon->attributeId == UA_ATTRIBUTEID_VALUE) {
-        const UA_VariableNode *vn = (const UA_VariableNode *)
+        UA_VariableNode *vn = (UA_VariableNode *)(uintptr_t)
             UA_NODESTORE_GET(server, &mon->monitoredNodeId);
         if(vn) {
-            if(vn->nodeClass == UA_NODECLASS_VARIABLE &&
-               samplingInterval < vn->minimumSamplingInterval)
-                samplingInterval = vn->minimumSamplingInterval;
+            if (vn->nodeClass == UA_NODECLASS_VARIABLE) {
+
+                /* Remove monitored item from the variable node's list */
+                UA_MonitoredItem *tempMon;
+                SLIST_FOREACH(tempMon, &vn->monitoredItemQueue, listEntryNode) {
+                    if (mon->monitoredItemId == tempMon->monitoredItemId) {
+                        SLIST_REMOVE(&vn->monitoredItemQueue, tempMon, UA_MonitoredItem, listEntryNode);
+                        break;
+                    }
+                }
+
+                if(samplingInterval < vn->minimumSamplingInterval)
+                    samplingInterval = vn->minimumSamplingInterval;
+
+                /* If the exception-based model is used, add mon to the variable node's list */
+                if (samplingInterval == 0.0) {
+                    SLIST_INSERT_HEAD(&vn->monitoredItemQueue, mon, listEntryNode);
+                }
+            }
             UA_NODESTORE_RELEASE(server, (const UA_Node *)vn);
         }
     }
@@ -175,9 +191,13 @@ setMonitoredItemSettings(UA_Server *server, UA_Session *session, UA_MonitoredIte
 
     /* Register sample callback if reporting is enabled */
     mon->monitoringMode = monitoringMode;
-    if(monitoringMode == UA_MONITORINGMODE_SAMPLING ||
-       monitoringMode == UA_MONITORINGMODE_REPORTING)
-        return UA_MonitoredItem_registerSampleCallback(server, mon);
+    /* If sampling interval is 0, use exception-based model (see OPC UA Part 4 [p. 60] 5.12.1.2).
+     * Do not register a callback. */
+    if(samplingInterval != 0.0) {
+        if(monitoringMode == UA_MONITORINGMODE_SAMPLING ||
+            monitoringMode == UA_MONITORINGMODE_REPORTING)
+            return UA_MonitoredItem_registerSampleCallback(server, mon);
+    }
 
     return UA_STATUSCODE_GOOD;
 }
@@ -189,9 +209,7 @@ static UA_StatusCode
 UA_Server_addMonitoredItemToNodeEditNodeCallback(UA_Server *server, UA_Session *session,
                                                  UA_Node *node, void *data) {
     /* data is the MonitoredItem */
-    /* SLIST_INSERT_HEAD */
-    ((UA_MonitoredItem *)data)->next = ((UA_ObjectNode *)node)->monitoredItemQueue;
-    ((UA_ObjectNode *)node)->monitoredItemQueue = (UA_MonitoredItem *)data;
+    SLIST_INSERT_HEAD(&node->monitoredItemQueue, (UA_MonitoredItem *)data, listEntryNode);
     return UA_STATUSCODE_GOOD;
 }
 #endif
@@ -628,6 +646,89 @@ UA_Server_deleteMonitoredItem(UA_Server *server, UA_UInt32 monitoredItemId) {
     }
     UA_UNLOCK(server->serviceMutex);
     return UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
+}
+
+UA_StatusCode
+UA_Server_notifyValueChange(UA_Server *server, const UA_NodeId node) {
+    UA_LOCK(server->serviceMutex);
+    
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_Node *nodeEntry = (UA_Node*)(uintptr_t)UA_NODESTORE_GET(server, &node);
+    if (nodeEntry) {
+        /* Only variable nodes can notify about value changes */
+        if (nodeEntry->nodeClass != UA_NODECLASS_VARIABLE) {
+            UA_NODESTORE_RELEASE(server, nodeEntry);
+            UA_UNLOCK(server->serviceMutex);
+            return UA_STATUSCODE_BADNODECLASSINVALID;
+        }
+
+        /* This method only make sense if a data source is attached */
+        UA_VariableNode *vn = (UA_VariableNode*)nodeEntry;
+        if (vn->valueSource != UA_VALUESOURCE_DATASOURCE) {
+            UA_NODESTORE_RELEASE(server, nodeEntry);
+            UA_UNLOCK(server->serviceMutex);
+            return UA_STATUSCODE_BADINVALIDARGUMENT;
+        }
+
+        UA_ReadValueId rvid;
+        UA_ReadValueId_init(&rvid);
+        rvid.nodeId = node;
+        rvid.attributeId = UA_ATTRIBUTEID_VALUE;
+        rvid.indexRange = UA_STRING_NULL;
+
+        UA_DataValue value;
+        UA_DataValue_init(&value);
+        /* Read value once and use for all monitored items */
+        ReadWithNode(nodeEntry, server, &server->adminSession, UA_TIMESTAMPSTORETURN_BOTH, &rvid, &value);
+
+        UA_MonitoredItem *mon;
+        SLIST_FOREACH(mon, &nodeEntry->monitoredItemQueue, listEntryNode) {
+            if (mon->attributeId == UA_ATTRIBUTEID_VALUE) {
+                UA_DataValue value_copy;
+                UA_DataValue_init(&value_copy);
+
+                /* Index range is not used */
+                if (UA_String_equal(&mon->indexRange, &UA_STRING_NULL)) {
+                    retval = UA_DataValue_copy(&value, &value_copy);
+                }
+                /* Index range is used */
+                else {
+                    value_copy = value; /* shallow copy */
+                    UA_NumericRange range;
+                    retval = UA_NumericRange_parse(&range, mon->indexRange);
+                    if (retval != UA_STATUSCODE_GOOD)
+                        break;
+                    retval = UA_Variant_copyRange(&value.value, &value_copy.value, range);
+                    UA_free(range.dimensions);
+                }
+
+                if (retval != UA_STATUSCODE_GOOD)
+                    break;
+
+                /* apply filter and enqueue notification if value changed */
+                UA_Boolean movedValue = UA_FALSE;
+                retval = sampleCallbackWithValue(server, &server->adminSession,
+                    mon->subscription, mon, &value_copy, &movedValue);
+
+                /* Delete the sample if it was not moved to the notification. */
+                if (!movedValue)
+                    UA_DataValue_clear(&value_copy); /* Does nothing for UA_VARIANT_DATA_NODELETE */
+
+                if (retval != UA_STATUSCODE_GOOD)
+                    break;
+            }
+        }
+
+        UA_DataValue_clear(&value);
+        UA_NODESTORE_RELEASE(server, nodeEntry);
+    }
+    else {
+        UA_UNLOCK(server->serviceMutex);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    UA_UNLOCK(server->serviceMutex);
+    return retval;
 }
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
