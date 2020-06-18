@@ -322,7 +322,34 @@ addServerSocket(ServerNetworkLayerTCP *layer, struct addrinfo *ai) {
     }
 
     /* Bind socket to address */
-    if(UA_bind(newsock, ai->ai_addr, (socklen_t)ai->ai_addrlen) < 0) {
+    int ret = UA_bind(newsock, ai->ai_addr, (socklen_t)ai->ai_addrlen);
+    if(ret < 0) {
+        /* If bind to specific address failed, try to bind *-socket */
+        if(ai->ai_family == AF_INET) {
+            struct sockaddr_in *sin = (struct sockaddr_in *)ai->ai_addr;
+            if(sin->sin_addr.s_addr != htonl(INADDR_ANY)) {
+                sin->sin_addr.s_addr = 0;
+                ret = 0;
+            }
+        }
+        if(ai->ai_family == AF_INET6) {
+            struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *)ai->ai_addr;
+            if(!IN6_IS_ADDR_UNSPECIFIED(&sin6->sin6_addr)) {
+                memset(&sin6->sin6_addr, 0, sizeof(sin6->sin6_addr));
+                sin6->sin6_scope_id = 0;
+                ret = 0;
+            }
+        }
+        if(ret == 0) {
+            ret = UA_bind(newsock, ai->ai_addr, (socklen_t)ai->ai_addrlen);
+            if(ret == 0) {
+                /* The second bind fixed the issue, inform the user. */
+                UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK,
+                    "Server socket bound to unspecified address");
+            }
+        }
+    }
+    if(ret < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK,
                            "Error binding a server socket: %s", errno_str));
