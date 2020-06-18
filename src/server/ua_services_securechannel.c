@@ -279,6 +279,14 @@ UA_SecureChannelManager_renew(UA_Server *server, UA_SecureChannel *channel,
             channel->nextSecurityToken.revisedLifetime = server->config.maxSecurityTokenLifetime;
     }
 
+    /* Check whether the nonce was reused */
+    if(channel->securityMode != UA_MESSAGESECURITYMODE_NONE &&
+       UA_ByteString_equal(&channel->remoteNonce, &request->clientNonce)) {
+        UA_LOG_ERROR_CHANNEL(&server->config.logger, channel,
+                             "The client reused the last nonce");
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    }
+
     /* Replace the nonces */
     UA_ByteString_deleteMembers(&channel->remoteNonce);
     UA_StatusCode retval = UA_ByteString_copy(&request->clientNonce, &channel->remoteNonce);
