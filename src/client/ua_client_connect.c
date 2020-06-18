@@ -368,6 +368,17 @@ processOPNResponse(UA_Client *client, const UA_ByteString *message) {
     client->channel.securityToken = response.securityToken;
     UA_ChannelSecurityToken_init(&response.securityToken);
 
+    /* Check whether the nonce was reused */
+    if(client->channel.securityMode != UA_MESSAGESECURITYMODE_NONE &&
+       UA_ByteString_equal(&client->channel.remoteNonce,
+                           &response.serverNonce)) {
+        UA_LOG_ERROR_CHANNEL(&client->config.logger, &client->channel,
+                             "The server reused the last nonce");
+        client->connectStatus = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        closeSecureChannel(client);
+        return;
+    }
+
     /* Move the nonce out of the response */
     UA_ByteString_clear(&client->channel.remoteNonce);
     client->channel.remoteNonce = response.serverNonce;
