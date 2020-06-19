@@ -143,8 +143,8 @@ START_TEST(SubscribeSingleFieldWithFixedOffsets) {
     UA_DataValue staticValueSource;
     memset(&staticValueSource, 0, sizeof(staticValueSource));
     staticValueSource.value = variant;
-    dsfConfig.field.variable.staticValueSourceEnabled = UA_TRUE;
-    dsfConfig.field.variable.staticValueSource.value = variant;
+    dsfConfig.field.variable.rtFieldSourceEnabled = UA_TRUE;
+    dsfConfig.field.variable.rtValueSource.staticValueSource.value = variant;
     dsfConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
     ck_assert(UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent).result == UA_STATUSCODE_GOOD);
 

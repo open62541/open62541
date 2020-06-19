@@ -249,8 +249,12 @@ typedef struct{
     UA_Boolean promotedField;
     UA_PublishedVariableDataType publishParameters;
     /* non std. field */
-    UA_Boolean staticValueSourceEnabled;
-    UA_DataValue staticValueSource;
+    union {
+        UA_Boolean rtInformationModelNode;
+        UA_DataValue staticValueSource;
+    } rtValueSource;
+    /* deprecated flag */
+    UA_Boolean rtFieldSourceEnabled;
 } UA_DataSetVariableConfig;
 
 typedef enum {

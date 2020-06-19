@@ -10,12 +10,14 @@
 UA_Boolean running = true;
 UA_NodeId publishedDataSetIdent, dataSetFieldIdent, writerGroupIdent, connectionIdentifier;
 UA_UInt32 *integerRTValue, *integerRTValue2;
-UA_NodeId addedNodId1, addedNodId2;
+UA_NodeId rtNodeId1, rtNodeId2;
 
 static void stopHandler(int sign) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
     running = false;
 }
+
+//TODO Add case without linked field
 
 /* The following PubSub configuration does not differ from the 'normal' configuration */
 static void
@@ -70,12 +72,15 @@ externalDataWriteCallback(UA_Server *server, const UA_NodeId *sessionId,
                                   void *nodeContext, const UA_NumericRange *range,
                                   const UA_DataValue *data){
                                       printf("TODO Implement compare and switch");
+    //TODO create new DataValue and adjust DataValue PTR.
+    //UA_atomic_cmpxchg();
+
     printf("TODO Implement compare and switch");
     //The user must take about synchronization.
-    if(UA_NodeId_equal(nodeId, &addedNodId1)){
-        memcpy(data->value.data, integerRTValue, sizeof(UA_UInt32));
-    } else if(UA_NodeId_equal(nodeId, &addedNodId2)){
-        memcpy(data->value.data, integerRTValue2, sizeof(UA_UInt32));
+    if(UA_NodeId_equal(nodeId, &rtNodeId1)){
+        memcpy(integerRTValue, data->value.data, sizeof(UA_UInt32));
+    } else if(UA_NodeId_equal(nodeId, &rtNodeId2)){
+        memcpy(integerRTValue2, data->value.data, sizeof(UA_UInt32));
     }
 }
 
@@ -83,6 +88,19 @@ static void
 cyclicValueUpdateCallback_UpdateToMemory(UA_Server *server, void *data) {
     *integerRTValue = (*integerRTValue)+1;
     *integerRTValue2 = (*integerRTValue2)+1;
+}
+
+static void
+cyclicValueUpdateCallback_UpdateToStack(UA_Server *server, void *data) {
+    UA_Variant valueToWrite;
+    UA_UInt32 newValue = (*integerRTValue)+10;
+    UA_Variant_setScalar(&valueToWrite, &newValue, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Server_writeValue(server, rtNodeId1, valueToWrite);
+
+    UA_Variant valueToWrite2;
+    UA_UInt32 newValue2 = (*integerRTValue2)+10;
+    UA_Variant_setScalar(&valueToWrite2, &newValue2, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Server_writeValue(server, rtNodeId2, valueToWrite2);
 }
 
 int main(void){
@@ -130,7 +148,7 @@ int main(void){
     UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent, &dataSetWriterConfig, &dataSetWriterIdent);
 
     /* add new node to the information model with external data source backend*/
-    addedNodId1 = addVariable(server, "RT value source 1");
+    rtNodeId1 = addVariable(server, "RT value source 1");
     /* create external value source for the node */
     integerRTValue = UA_UInt32_new();
     UA_DataValue *dataValueRT = UA_DataValue_new();
@@ -142,22 +160,23 @@ int main(void){
     valueBackend.backend.external.value = &dataValueRT;
     valueBackend.backend.external.callback.onWrite = externalDataWriteCallback;
     valueBackend.backend.external.callback.onRead = NULL;
-    UA_Server_setVariableNode_valueBackend(server, addedNodId1, valueBackend);
+    UA_Server_setVariableNode_valueBackend(server, rtNodeId1, valueBackend);
 
     /* setup RT DataSetField config */
     UA_DataSetFieldConfig dsfConfig;
     memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));
-    dsfConfig.field.variable.publishParameters.publishedVariable = addedNodId1;
+    dsfConfig.field.variable.rtValueSource.rtInformationModelNode = UA_TRUE;
+    dsfConfig.field.variable.publishParameters.publishedVariable = rtNodeId1;
     // -> This is removed and the node is checkt to be form type external value source
     // TODO remove the following flags
-    // dsfConfig.field.variable.staticValueSourceEnabled = UA_TRUE;
+    // dsfConfig.field.variable.rtFieldSourceEnabled = UA_TRUE;
     // dsfConfig.field.variable.staticValueSource.value = variantRT;
     UA_NodeId dsfNodeId;
     // TODO check external data source during the RT profile creation
     UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dsfNodeId);
 
     /* add second new node to the information model with external data source backend*/
-    addedNodId2 = addVariable(server, "RT value source 2");
+    rtNodeId2 = addVariable(server, "RT value source 2");
     /* create external value source for the node */
     integerRTValue2 = UA_UInt32_new();
     *integerRTValue2 = 1000;
@@ -170,30 +189,24 @@ int main(void){
     valueBackend2.backend.external.value = &dataValue2RT;
     valueBackend2.backend.external.callback.onWrite = externalDataWriteCallback;
     valueBackend2.backend.external.callback.onRead = NULL;
-    UA_Server_setVariableNode_valueBackend(server, addedNodId2, valueBackend2);
+    UA_Server_setVariableNode_valueBackend(server, rtNodeId2, valueBackend2);
 
     /* setup second DataSetField config */
     UA_DataSetFieldConfig dsfConfig2;
     memset(&dsfConfig2, 0, sizeof(UA_DataSetFieldConfig));
-    dsfConfig2.field.variable.publishParameters.publishedVariable = addedNodId2;
+    dsfConfig2.field.variable.rtValueSource.rtInformationModelNode = UA_TRUE;
+    dsfConfig2.field.variable.publishParameters.publishedVariable = rtNodeId2;
     UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig2, NULL);
 
     /* Freeze the PubSub configuration (and start implicitly the publish callback) */
     UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent);
     UA_Server_setWriterGroupOperational(server, writerGroupIdent);
 
-    /* Disable PubSub and remove the second RT field */
-    UA_Server_setWriterGroupDisabled(server, writerGroupIdent);
-    UA_Server_unfreezeWriterGroupConfiguration(server, writerGroupIdent);
-    UA_Server_removeDataSetField(server, dsfNodeId);
-
-    /* Enable PubSub */
-    UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent);
-    UA_Server_setWriterGroupOperational(server, writerGroupIdent);
-
-    UA_UInt64 callbackId;
     UA_Server_addRepeatedCallback(server, cyclicValueUpdateCallback_UpdateToMemory, NULL,
-                                  1000, &callbackId);
+                                  1000, NULL);
+
+    UA_Server_addRepeatedCallback(server, cyclicValueUpdateCallback_UpdateToStack, NULL,
+                                  5000, NULL);
 
     UA_StatusCode retval = UA_Server_run(server, &running);
     UA_Server_delete(server);

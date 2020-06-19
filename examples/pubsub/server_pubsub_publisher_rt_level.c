@@ -159,8 +159,8 @@ int main(void) {
         UA_DataValue staticValueSource;
         memset(&staticValueSource, 0, sizeof(staticValueSource));
         staticValueSource.value = variant;
-        dsfConfig.field.variable.staticValueSourceEnabled = UA_TRUE;
-        dsfConfig.field.variable.staticValueSource.value = variant;
+        dsfConfig.field.variable.rtFieldSourceEnabled = UA_TRUE;
+        dsfConfig.field.variable.rtValueSource.staticValueSource.value = variant;
         UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent);
     }
 #endif
