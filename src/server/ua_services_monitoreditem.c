@@ -13,6 +13,7 @@
  *    Copyright 2017 (c) Henrik Norrman
  *    Copyright 2017-2018 (c) Thomas Stalder, Blue Time Concept SA
  *    Copyright 2018 (c) Fabian Arndt, Root-Core
+ *    Copyright 2020 (c) Kalycito Infotech Private Limited
  */
 
 #include "ua_server_internal.h"
@@ -293,6 +294,35 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
         UA_Subscription_addMonitoredItem(server, cmc->sub, newMon);
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
         if(newMon->attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) {
+            UA_Byte eventNotifierValue = 0;
+
+            /* Read the value stored in EventNotifier attribute of the object
+             * node, requested for monitoring by the client */
+            UA_ReadValueId item;
+            UA_ReadValueId_init(&item);
+            item.nodeId = newMon->monitoredNodeId;
+            item.attributeId = newMon->attributeId;
+            UA_DataValue dv = readAttribute(server, &item, UA_TIMESTAMPSTORETURN_NEITHER);
+
+            eventNotifierValue = *((UA_Byte *)dv.value.data);
+
+            UA_DataValue_deleteMembers(&dv);
+
+            /* Check if the EventNotifier attribute has 'SubscribeToEvents'
+             * bit set */
+            if((eventNotifierValue & 0x01) != 1) {
+                /* If the 'SubscribeToEvents' bit of EventNotifier attribute
+                 * is zero, then the object cannot be subscribed to monitor
+                 * events */
+                result->statusCode = UA_STATUSCODE_BADNOTSUPPORTED;
+                UA_LOG_INFO_SESSION(&server->config.logger, session,
+                                    "Subscription %" PRIu32 " | Could not create a MonitoredItem as "
+                                    "'SubscribeToEvents' bit of EventNotifier attribute is not set "
+                                    "with StatusCode %s", cmc->sub ? cmc->sub->subscriptionId : 0,
+                                    UA_StatusCode_name(result->statusCode));
+                UA_MonitoredItem_delete(server, newMon);
+                return;
+            }
             /* Insert the monitored item into the node's queue */
             UA_Server_editNode(server, NULL, &newMon->monitoredNodeId,
                                UA_Server_addMonitoredItemToNodeEditNodeCallback, newMon);
