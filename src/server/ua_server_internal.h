@@ -190,6 +190,10 @@ UA_Server_closeSecureChannel(UA_Server *server, UA_SecureChannel *channel,
 /********************/
 
 UA_StatusCode
+getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
+                   size_t *foundIndex);
+
+UA_StatusCode
 getBoundSession(UA_Server *server, const UA_SecureChannel *channel,
                 const UA_NodeId *token, UA_Session **session);
 
