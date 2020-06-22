@@ -374,6 +374,19 @@ UA_Server_ReaderGroup_getConfig(UA_Server *server, UA_NodeId readerGroupIdentifi
     return UA_STATUSCODE_GOOD;
 }
 
+UA_StatusCode
+UA_Server_ReaderGroup_getState(UA_Server *server, UA_NodeId readerGroupIdentifier,
+                               UA_PubSubState *state)
+{
+    if((server == NULL) || (state == NULL)) 
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_ReaderGroup *currentReaderGroup = UA_ReaderGroup_findRGbyId(server, readerGroupIdentifier);
+    if(currentReaderGroup == NULL) 
+        return UA_STATUSCODE_BADNOTFOUND;
+    *state = currentReaderGroup->state;
+    return UA_STATUSCODE_GOOD;
+}
+
 static void
 UA_Server_ReaderGroup_clear(UA_Server* server, UA_ReaderGroup *readerGroup) {
     /* To Do Call UA_ReaderGroupConfig_delete */
@@ -1086,6 +1099,19 @@ UA_DataSetReaderConfig_copy(const UA_DataSetReaderConfig *src,
            return retVal;
     }
 
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_DataSetReader_getState(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
+                               UA_PubSubState *state) {
+
+    if((server == NULL) || (state == NULL))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_DataSetReader *currentDataSetReader = UA_ReaderGroup_findDSRbyId(server, dataSetReaderIdentifier);
+    if(currentDataSetReader == NULL) 
+        return UA_STATUSCODE_BADNOTFOUND;
+    *state = currentDataSetReader->state;
     return UA_STATUSCODE_GOOD;
 }
 
