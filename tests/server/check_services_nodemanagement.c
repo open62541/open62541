@@ -59,6 +59,34 @@ START_TEST(AddVariableNode) {
     ck_assert_int_eq(UA_STATUSCODE_GOOD, res);
 } END_TEST
 
+START_TEST(AddVariableNode_ValueRankZero) {
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "Array ValueRank 0");
+    attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+
+    /* Set the variable value constraints */
+    attr.dataType = UA_TYPES[UA_TYPES_DOUBLE].typeId;
+    attr.valueRank = UA_VALUERANK_ONE_OR_MORE_DIMENSIONS;
+
+    /* Set the value */
+    UA_UInt32 arrayDims[1] = {2};
+    UA_Double zero[2] = {0.0, 0.0};
+    UA_Variant_setArray(&attr.value, zero, 2, &UA_TYPES[UA_TYPES_DOUBLE]);
+    attr.value.arrayDimensions = arrayDims;
+    attr.value.arrayDimensionsSize = 1;
+
+    UA_NodeId myNodeId = UA_NODEID_STRING(1, "array0");
+    UA_QualifiedName myName = UA_QUALIFIEDNAME(1, "array0");
+    UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    UA_StatusCode res =
+        UA_Server_addVariableNode(server, myNodeId, parentNodeId,
+                                  parentReferenceNodeId, myName,
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                  attr, NULL, NULL);
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, res);
+} END_TEST
+
 START_TEST(AddVariableNode_Matrix) {
     /* Add a variable node to the address space */
     UA_VariableAttributes attr = UA_VariableAttributes_default;
@@ -622,6 +650,7 @@ int main(void) {
     TCase *tc_addnodes = tcase_create("addnodes");
     tcase_add_checked_fixture(tc_addnodes, setup, teardown);
     tcase_add_test(tc_addnodes, AddVariableNode);
+    tcase_add_test(tc_addnodes, AddVariableNode_ValueRankZero);
     tcase_add_test(tc_addnodes, AddVariableNode_Matrix);
     tcase_add_test(tc_addnodes, AddVariableNode_ExtensionObject);
     tcase_add_test(tc_addnodes, InstantiateVariableTypeNode);
