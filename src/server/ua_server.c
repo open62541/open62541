@@ -15,6 +15,8 @@
  *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2018 (c) Hilscher Gesellschaft für Systemautomation mbH (Author: Martin Lang)
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
+ *    Copyright (c) 2020 Yannick Wallerer, Siemens AG
+ *    Copyright (c) 2020 Thomas Fischer, Siemens AG
  */
 
 #include "ua_server_internal.h"
