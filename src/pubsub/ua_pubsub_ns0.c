@@ -1134,20 +1134,20 @@ UA_Server_initPubSubNS0(UA_Server *server) {
                                         UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_REMOVECONNECTION),
                                         false);
 #endif
-    UA_NodeTypeLifecycle liveCycle;
-    liveCycle.constructor = NULL;
-    liveCycle.destructor = connectionTypeDestructor;
-    UA_Server_setNodeTypeLifecycle(server, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBSUBCONNECTIONTYPE), liveCycle);
-    liveCycle.destructor = writerGroupTypeDestructor;
-    UA_Server_setNodeTypeLifecycle(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WRITERGROUPTYPE), liveCycle);
-    liveCycle.destructor = readerGroupTypeDestructor;
-    UA_Server_setNodeTypeLifecycle(server, UA_NODEID_NUMERIC(0, UA_NS0ID_READERGROUPTYPE), liveCycle);
-    liveCycle.destructor = dataSetWriterTypeDestructor;
-    UA_Server_setNodeTypeLifecycle(server, UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETWRITERDATATYPE), liveCycle);
-    liveCycle.destructor = publishedDataItemsTypeDestructor;
-    UA_Server_setNodeTypeLifecycle(server, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHEDDATAITEMSTYPE), liveCycle);
-    liveCycle.destructor = dataSetReaderTypeDestructor;
-    UA_Server_setNodeTypeLifecycle(server, UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETREADERDATATYPE), liveCycle);
+    UA_NodeTypeLifecycle lifeCycle;
+    lifeCycle.constructor = NULL;
+    lifeCycle.destructor = connectionTypeDestructor;
+    UA_Server_setNodeTypeLifecycle(server, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBSUBCONNECTIONTYPE), lifeCycle);
+    lifeCycle.destructor = writerGroupTypeDestructor;
+    UA_Server_setNodeTypeLifecycle(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WRITERGROUPTYPE), lifeCycle);
+    lifeCycle.destructor = readerGroupTypeDestructor;
+    UA_Server_setNodeTypeLifecycle(server, UA_NODEID_NUMERIC(0, UA_NS0ID_READERGROUPTYPE), lifeCycle);
+    lifeCycle.destructor = dataSetWriterTypeDestructor;
+    UA_Server_setNodeTypeLifecycle(server, UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETWRITERDATATYPE), lifeCycle);
+    lifeCycle.destructor = publishedDataItemsTypeDestructor;
+    UA_Server_setNodeTypeLifecycle(server, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHEDDATAITEMSTYPE), lifeCycle);
+    lifeCycle.destructor = dataSetReaderTypeDestructor;
+    UA_Server_setNodeTypeLifecycle(server, UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETREADERDATATYPE), lifeCycle);
 
     return retVal;
 }
