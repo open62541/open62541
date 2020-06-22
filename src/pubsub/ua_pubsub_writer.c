@@ -841,6 +841,20 @@ UA_Server_getDataSetWriterConfig(UA_Server *server, const UA_NodeId dsw,
     return retVal;
 }
 
+UA_StatusCode
+UA_Server_DataSetWriter_getState(UA_Server *server, UA_NodeId dataSetWriterIdentifier,
+                               UA_PubSubState *state) {
+    if(!state)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    UA_DataSetWriter *currentDataSetWriter = UA_DataSetWriter_findDSWbyId(server, dataSetWriterIdentifier);
+    if(!currentDataSetWriter)
+        return UA_STATUSCODE_BADNOTFOUND;
+
+    *state = currentDataSetWriter->state;
+    return UA_STATUSCODE_GOOD;
+}
+
 UA_DataSetWriter *
 UA_DataSetWriter_findDSWbyId(UA_Server *server, UA_NodeId identifier) {
     UA_PubSubConnection *pubSubConnection;
@@ -1042,6 +1056,20 @@ UA_Server_updateWriterGroupConfig(UA_Server *server, UA_NodeId writerGroupIdenti
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "No or unsupported WriterGroup update.");
     }
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_WriterGroup_getState(UA_Server *server, UA_NodeId writerGroupIdentifier,
+                               UA_PubSubState *state) {
+    if(!state)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    UA_WriterGroup *currentWriterGroup = UA_WriterGroup_findWGbyId(server, writerGroupIdentifier);
+    if(!currentWriterGroup){
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+    *state = currentWriterGroup->state;
     return UA_STATUSCODE_GOOD;
 }
 
