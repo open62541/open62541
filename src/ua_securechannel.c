@@ -124,11 +124,11 @@ UA_SecureChannel_close(UA_SecureChannel *channel) {
     }
 
     /* Delete members */
-    UA_ByteString_deleteMembers(&channel->remoteCertificate);
-    UA_ByteString_deleteMembers(&channel->localNonce);
-    UA_ByteString_deleteMembers(&channel->remoteNonce);
-    UA_ChannelSecurityToken_deleteMembers(&channel->securityToken);
-    UA_ChannelSecurityToken_deleteMembers(&channel->nextSecurityToken);
+    UA_ByteString_clear(&channel->remoteCertificate);
+    UA_ByteString_clear(&channel->localNonce);
+    UA_ByteString_clear(&channel->remoteNonce);
+    UA_ChannelSecurityToken_clear(&channel->securityToken);
+    UA_ChannelSecurityToken_clear(&channel->altSecurityToken);
     UA_SecureChannel_deleteBuffered(channel);
 }
 
@@ -276,13 +276,6 @@ encodeHeadersSym(UA_MessageContext *const messageContext, size_t totalLength) {
     else
         header.messageTypeAndChunkType += UA_CHUNKTYPE_INTERMEDIATE;
 
-    UA_UInt32 tokenId = channel->securityToken.tokenId;
-    /* This is a server SecureChannel and we have sent out the OPN response but
-     * not gotten a request with the new token. So send with nextSecurityToken
-     * and still allow to receive with the old one. */
-    if(channel->nextSecurityToken.tokenId != 0)
-        tokenId = channel->nextSecurityToken.tokenId;
-
     UA_SequenceHeader seqHeader;
     seqHeader.requestId = messageContext->requestId;
     seqHeader.sequenceNumber = UA_atomic_addUInt32(&channel->sendSequenceNumber, 1);
@@ -292,7 +285,7 @@ encodeHeadersSym(UA_MessageContext *const messageContext, size_t totalLength) {
                            &header_pos, &messageContext->buf_end, NULL, NULL);
     res |= UA_encodeBinary(&channel->securityToken.channelId, &UA_TYPES[UA_TYPES_UINT32],
                            &header_pos, &messageContext->buf_end, NULL, NULL);
-    res |= UA_encodeBinary(&tokenId, &UA_TYPES[UA_TYPES_UINT32],
+    res |= UA_encodeBinary(&channel->securityToken.tokenId, &UA_TYPES[UA_TYPES_UINT32],
                            &header_pos, &messageContext->buf_end, NULL, NULL);
     res |= UA_encodeBinary(&seqHeader, &UA_TRANSPORT[UA_TRANSPORT_SEQUENCEHEADER],
                            &header_pos, &messageContext->buf_end, NULL, NULL);
