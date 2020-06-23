@@ -2058,7 +2058,7 @@ UA_Server_setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
 static UA_StatusCode
 setExternalValueSource(UA_Server *server, UA_Session *session,
                  UA_VariableNode *node, const UA_ValueBackend *externalValueSource) {
-    if(node->nodeClass != UA_NODECLASS_VARIABLE)
+    if(node->head.nodeClass != UA_NODECLASS_VARIABLE)
         return UA_STATUSCODE_BADNODECLASSINVALID;
     node->valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
     node->valueBackend.backend.external.value = externalValueSource->backend.external.value;

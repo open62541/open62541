@@ -185,7 +185,7 @@ readValueAttributeComplete(UA_Server *server, UA_Session *session,
             //TODO change old structure to value backend
             break;
         case UA_VALUEBACKENDTYPE_EXTERNAL:
-            retval = vn->valueBackend.backend.external.callback.notificationRead(session->sessionHandle, &vn->nodeId, vn->context);
+            retval = vn->valueBackend.backend.external.callback.notificationRead(session->sessionHandle, &vn->head.nodeId, vn->head.context);
             if(!retval){
                 retval = UA_STATUSCODE_BADNOTREADABLE;
                 break;
@@ -1284,7 +1284,7 @@ writeValueAttribute(UA_Server *server, UA_Session *session,
                 return UA_STATUSCODE_BADWRITENOTSUPPORTED;
             }
             node->valueBackend.backend.external.callback.userWrite(server, &session->sessionId, session->sessionHandle,
-                                                                 &node->nodeId, node->context, rangeptr, &adjustedValue);
+                                                                 &node->head.nodeId, node->head.context, rangeptr, &adjustedValue);
             break;
     }
 
