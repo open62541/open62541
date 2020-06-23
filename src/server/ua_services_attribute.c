@@ -185,6 +185,11 @@ readValueAttributeComplete(UA_Server *server, UA_Session *session,
             //TODO change old structure to value backend
             break;
         case UA_VALUEBACKENDTYPE_EXTERNAL:
+            retval = vn->valueBackend.backend.external.callback.notificationRead(session->sessionHandle, &vn->nodeId, vn->context);
+            if(!retval){
+                retval = UA_STATUSCODE_BADNOTREADABLE;
+                break;
+            }
             /* Set the result */
             if(rangeptr)
                 return UA_Variant_copyRange(
@@ -192,7 +197,6 @@ readValueAttributeComplete(UA_Server *server, UA_Session *session,
             UA_DataValue_copy(*vn->valueBackend.backend.external.value, v);
             break;
         case UA_VALUEBACKENDTYPE_NONE:
-            /** @deprecated legacy code */
             /* Read the value */
             if(vn->valueSource == UA_VALUESOURCE_DATA)
                 retval = readValueAttributeFromNode(server, session, vn, v, rangeptr);
@@ -1213,12 +1217,6 @@ writeValueAttribute(UA_Server *server, UA_Session *session,
             return UA_STATUSCODE_BADTYPEMISMATCH;
         }
     }
-
-    //uintptr_t externalValuePtr;
-    //if(node->valueBackend.backendType == UA_VALUEBACKENDTYPE_EXTERNAL){
-    //    externalValuePtr = (uintptr_t) node->valueBackend.backend.external.value->value.data;
-    //}
-
     switch(node->valueBackend.backendType) {
         case UA_VALUEBACKENDTYPE_NONE:
             /* Ok, do it */
@@ -1280,21 +1278,13 @@ writeValueAttribute(UA_Server *server, UA_Session *session,
         case UA_VALUEBACKENDTYPE_CALLBACK:
             break;
         case UA_VALUEBACKENDTYPE_EXTERNAL:
-            //TODO How to handle the range Ptr?
-            //TODO this function should not write the external source directly.
-            //TODO Instead an user defined 'write' callback could be an option.
-
-            if(node->valueBackend.backend.external.callback.onWrite == NULL){
+            if(node->valueBackend.backend.external.callback.userWrite == NULL){
                 if(rangeptr)
                     UA_free(range.dimensions);
                 return UA_STATUSCODE_BADWRITENOTSUPPORTED;
             }
-            node->valueBackend.backend.external.callback.onWrite(server, &session->sessionId, session->sessionHandle,
+            node->valueBackend.backend.external.callback.userWrite(server, &session->sessionId, session->sessionHandle,
                                                                  &node->nodeId, node->context, rangeptr, &adjustedValue);
-
-            //node->valueBackend.backend.external.externalDataWriteCallback(server, &session->sessionId, session->sessionHandle,
-            //                                                              &node->nodeId, node->context, rangeptr, &adjustedValue);
-            //memcpy((void *) externalValuePtr, adjustedValue.value.data, node->valueBackend.backend.external.value->value.type->memSize);
             break;
     }
 

@@ -249,11 +249,19 @@ typedef struct{
     UA_Boolean promotedField;
     UA_PublishedVariableDataType publishParameters;
     /* non std. field */
+    /*struct {
+        UA_Boolean rtFieldSourceEnabled;
+
+
+    } rtSetup;*/
     union {
+        /* If the rtInformationModelNode is set, the nodeid in publishParameter must point
+         * to a node with external data source backend defined */
         UA_Boolean rtInformationModelNode;
-        UA_DataValue staticValueSource;
+        //TODO -> decide if suppress C++ warnings and use 'UA_DataValue * * const staticValueSource;'
+        UA_DataValue ** staticValueSource;
+
     } rtValueSource;
-    /* deprecated flag */
     UA_Boolean rtFieldSourceEnabled;
 } UA_DataSetVariableConfig;
 

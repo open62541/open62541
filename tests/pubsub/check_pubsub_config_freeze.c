@@ -348,7 +348,7 @@ START_TEST(CreateConfigWithStaticFieldSource) {
     fieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
     fieldConfig.field.variable.fieldNameAlias = UA_STRING("field 1");
     fieldConfig.field.variable.rtFieldSourceEnabled = UA_TRUE;
-    fieldConfig.field.variable.rtValueSource.staticValueSource.value = variant;
+    (*(*fieldConfig.field.variable.rtValueSource.staticValueSource)).value = variant;
     UA_NodeId localDataSetField;
     UA_Server_addDataSetField(server, publishedDataSet1, &fieldConfig, &localDataSetField);
 

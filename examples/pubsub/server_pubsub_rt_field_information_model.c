@@ -17,7 +17,7 @@ static void stopHandler(int sign) {
     running = false;
 }
 
-//TODO Add case without linked field
+//TODO Add case where the rt source is no information model node
 
 /* The following PubSub configuration does not differ from the 'normal' configuration */
 static void
@@ -72,16 +72,25 @@ externalDataWriteCallback(UA_Server *server, const UA_NodeId *sessionId,
                                   void *nodeContext, const UA_NumericRange *range,
                                   const UA_DataValue *data){
                                       printf("TODO Implement compare and switch");
-    //TODO create new DataValue and adjust DataValue PTR.
-    //UA_atomic_cmpxchg();
+    //It's possible to create a new DataValue here and use an atomic ptr switch
+    //to update the value without the need for locks e.g. UA_atomic_cmpxchg();
 
-    printf("TODO Implement compare and switch");
-    //The user must take about synchronization.
+    //!!The user must take about synchronization.!!
     if(UA_NodeId_equal(nodeId, &rtNodeId1)){
         memcpy(integerRTValue, data->value.data, sizeof(UA_UInt32));
     } else if(UA_NodeId_equal(nodeId, &rtNodeId2)){
         memcpy(integerRTValue2, data->value.data, sizeof(UA_UInt32));
     }
+}
+
+/* If the external data source is written over the information model, the
+ * ,externalDataWriteCallback, will be triggered. The user has to take care and assure
+ * that the write leads not to synchronization issues and race conditions. */
+static UA_StatusCode
+externalDataReadNotificationCallback(void *sessionContext, const UA_NodeId *nodeId,
+                                  void *nodeContext){
+    //allow read without any preparation
+    return UA_STATUSCODE_GOOD;
 }
 
 static void
@@ -158,8 +167,8 @@ int main(void){
     UA_ValueBackend valueBackend;
     valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
     valueBackend.backend.external.value = &dataValueRT;
-    valueBackend.backend.external.callback.onWrite = externalDataWriteCallback;
-    valueBackend.backend.external.callback.onRead = NULL;
+    valueBackend.backend.external.callback.userWrite = externalDataWriteCallback;
+    valueBackend.backend.external.callback.notificationRead = externalDataReadNotificationCallback;
     UA_Server_setVariableNode_valueBackend(server, rtNodeId1, valueBackend);
 
     /* setup RT DataSetField config */
@@ -187,8 +196,8 @@ int main(void){
     UA_ValueBackend valueBackend2;
     valueBackend2.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
     valueBackend2.backend.external.value = &dataValue2RT;
-    valueBackend2.backend.external.callback.onWrite = externalDataWriteCallback;
-    valueBackend2.backend.external.callback.onRead = NULL;
+    valueBackend2.backend.external.callback.userWrite = externalDataWriteCallback;
+    valueBackend2.backend.external.callback.notificationRead = externalDataReadNotificationCallback;
     UA_Server_setVariableNode_valueBackend(server, rtNodeId2, valueBackend2);
 
     /* setup second DataSetField config */

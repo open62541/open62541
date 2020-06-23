@@ -116,7 +116,7 @@ START_TEST(PublishSingleFieldWithStaticValueSource) {
         memset(&staticValueSource, 0, sizeof(staticValueSource));
         staticValueSource.value = variant;
         dsfConfig.field.variable.rtFieldSourceEnabled = UA_TRUE;
-        dsfConfig.field.variable.rtValueSource.staticValueSource.value = variant;
+        (*(*dsfConfig.field.variable.rtValueSource.staticValueSource)).value = variant;
         dsfConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
         ck_assert(UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent).result == UA_STATUSCODE_GOOD);
         ck_assert(UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
@@ -168,7 +168,7 @@ START_TEST(PublishSingleFieldWithDifferentBinarySizes) {
         memset(&staticValueSource, 0, sizeof(staticValueSource));
         staticValueSource.value = variant;
         dsfConfig.field.variable.rtFieldSourceEnabled = UA_TRUE;
-        dsfConfig.field.variable.rtValueSource.staticValueSource.value = variant;
+        (*(*dsfConfig.field.variable.rtValueSource.staticValueSource)).value = variant;
         dsfConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
         ck_assert(UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent).result == UA_STATUSCODE_GOOD);
         ck_assert(UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
@@ -276,7 +276,7 @@ START_TEST(PublishSingleFieldWithFixedOffsets) {
         memset(&staticValueSource, 0, sizeof(staticValueSource));
         staticValueSource.value = variant;
         dsfConfig.field.variable.rtFieldSourceEnabled = UA_TRUE;
-        dsfConfig.field.variable.rtValueSource.staticValueSource.value = variant;
+        (*(*dsfConfig.field.variable.rtValueSource.staticValueSource)).value = variant;
         dsfConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
         ck_assert(UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent).result == UA_STATUSCODE_GOOD);
         ck_assert(UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
@@ -329,7 +329,7 @@ START_TEST(PublishPDSWithMultipleFieldsAndFixedOffset) {
         memset(&staticValueSource, 0, sizeof(staticValueSource));
         staticValueSource.value = variant;
         dsfConfig.field.variable.rtFieldSourceEnabled = UA_TRUE;
-        dsfConfig.field.variable.rtValueSource.staticValueSource.value = variant;
+        (*(*dsfConfig.field.variable.rtValueSource.staticValueSource)).value = variant;
         dsfConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
         ck_assert(UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent).result == UA_STATUSCODE_GOOD);
         UA_UInt32 *intValue2 = UA_UInt32_new();
@@ -340,7 +340,7 @@ START_TEST(PublishPDSWithMultipleFieldsAndFixedOffset) {
         UA_DataValue staticValueSource2;
         memset(&staticValueSource2, 0, sizeof(staticValueSource));
         staticValueSource2.value = variant2;
-        dsfConfig.field.variable.rtValueSource.staticValueSource.value = variant2;
+        (*(*dsfConfig.field.variable.rtValueSource.staticValueSource)).value = variant2;
         ck_assert(UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent).result == UA_STATUSCODE_GOOD);
         ck_assert(UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
         ck_assert(UA_Server_setWriterGroupOperational(server, writerGroupIdent) == UA_STATUSCODE_GOOD);

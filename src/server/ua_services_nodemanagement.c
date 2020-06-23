@@ -2062,8 +2062,8 @@ setExternalValueSource(UA_Server *server, UA_Session *session,
         return UA_STATUSCODE_BADNODECLASSINVALID;
     node->valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
     node->valueBackend.backend.external.value = externalValueSource->backend.external.value;
-    node->valueBackend.backend.external.callback.onWrite = externalValueSource->backend.external.callback.onWrite;
-    node->valueBackend.backend.external.callback.onRead = externalValueSource->backend.external.callback.onRead;
+    node->valueBackend.backend.external.callback.notificationRead = externalValueSource->backend.external.callback.notificationRead;
+    node->valueBackend.backend.external.callback.userWrite = externalValueSource->backend.external.callback.userWrite;
     return UA_STATUSCODE_GOOD;
 }
 

@@ -551,17 +551,17 @@ generateFieldMetaData(UA_Server *server, UA_DataSetField *field, UA_FieldMetaDat
 
             //ToDo after freeze PR, the value source must be checked (other behavior for static value source)
             if(field->config.field.variable.rtFieldSourceEnabled) {
-                if (field->config.field.variable.rtValueSource.staticValueSource.value.arrayDimensionsSize > 0) {
+                if (*(*(field->config.field.variable.rtValueSource.staticValueSource))->value.arrayDimensions > 0) {
                     fieldMetaData->arrayDimensions = (UA_UInt32 *) UA_calloc(
-                            field->config.field.variable.rtValueSource.staticValueSource.value.arrayDimensionsSize, sizeof(UA_UInt32));
+                        *(*(field->config.field.variable.rtValueSource.staticValueSource))->value.arrayDimensions, sizeof(UA_UInt32));
                     if(fieldMetaData->arrayDimensions == NULL)
                         return UA_STATUSCODE_BADOUTOFMEMORY;
                     memcpy(fieldMetaData->arrayDimensions,
-                            field->config.field.variable.rtValueSource.staticValueSource.value.arrayDimensions,
-                            sizeof(UA_UInt32) *field->config.field.variable.rtValueSource.staticValueSource.value.arrayDimensionsSize);
+                           (*(field->config.field.variable.rtValueSource.staticValueSource))->value.arrayDimensions,
+                            sizeof(UA_UInt32) * ((*(field->config.field.variable.rtValueSource.staticValueSource))->value.arrayDimensionsSize));
                 }
-                fieldMetaData->arrayDimensionsSize = field->config.field.variable.rtValueSource.staticValueSource.value.arrayDimensionsSize;
-                if(UA_NodeId_copy(&field->config.field.variable.rtValueSource.staticValueSource.value.type->typeId,
+                fieldMetaData->arrayDimensionsSize = (*(field->config.field.variable.rtValueSource.staticValueSource))->value.arrayDimensionsSize;
+                if(UA_NodeId_copy(&(*field->config.field.variable.rtValueSource.staticValueSource)->value.type->typeId,
                         &fieldMetaData->dataType) != UA_STATUSCODE_GOOD){
                     if(fieldMetaData->arrayDimensions){
                         UA_free(fieldMetaData->arrayDimensions);
@@ -1429,7 +1429,7 @@ UA_PubSubDataSetField_sampleValue(UA_Server *server, UA_DataSetField *field,
         //    *value = **field->config.field.variable.staticValueSource;
         //}
         //TODO use external data source here
-        *value = field->config.field.variable.rtValueSource.staticValueSource;
+        *value = *(*field->config.field.variable.rtValueSource.staticValueSource);
         value->value.storageType = UA_VARIANT_DATA_NODELETE;
     }
 }

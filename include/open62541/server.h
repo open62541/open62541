@@ -853,10 +853,10 @@ UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
                                      const UA_DataSource dataSource);
 
-/**
+/** @DEPRECATED
  * .. _value-callback:
  *
- * Value Callback
+ * Value Callback (legacy)
  * ^^^^^^^^^^^^^^
  * Value Callbacks can be attached to variable and variable type nodes. If
  * not ``NULL``, they are called before reading and after writing respectively. */
@@ -896,6 +896,41 @@ typedef struct {
                     const UA_DataValue *data);
 } UA_ValueCallback;
 
+/**
+ * .. _value-callback:
+ *
+ * Value Callback
+ * ^^^^^^^^^^^^^^
+ * Value Callbacks can be attached to variable and variable type nodes. If
+ * not ``NULL``, they are called before reading and after writing respectively. */
+typedef struct {
+    /* Called before the value attribute is read. The external value source can be
+     * be updated and/or locked during this notification call. After this function returns
+     * to the core, the external value source is readed immediately.
+    */
+    UA_StatusCode (*notificationRead)(void *sessionContext, const UA_NodeId *nodeid,
+                                      void *nodeContext);
+
+    /* Called after writing the value attribute. The node is re-opened after
+     * writing so that the new value is visible in the callback.
+     *
+     * @param server The server executing the callback
+     * @sessionId The identifier of the session
+     * @sessionContext Additional data attached to the session
+     *                 in the access control layer
+     * @param nodeid The identifier of the node.
+     * @param nodeUserContext Additional data attached to the node by
+     *        the user.
+     * @param nodeConstructorContext Additional data attached to the node
+     *        by the type constructor(s).
+     * @param range Points to the numeric range the client wants to write to (or
+     *        NULL). */
+    void (*userWrite)(UA_Server *server, const UA_NodeId *sessionId,
+                    void *sessionContext, const UA_NodeId *nodeId,
+                    void *nodeContext, const UA_NumericRange *range,
+                    const UA_DataValue *data);
+} UA_ValueBackendCallback;
+
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_setVariableNode_valueCallback(UA_Server *server,
                                         const UA_NodeId nodeId,
@@ -908,27 +943,6 @@ typedef enum {
     UA_VALUEBACKENDTYPE_EXTERNAL
 } UA_ValueBackendType;
 
-/*
-typedef struct {
-    UA_ValueBackendType backendType;
-    union {
-        UA_DataValue internal;
-        UA_DataSource dataSource;
-        struct {
-            const UA_DataValue *value;
-            void (*externalDataWriteCallback)(UA_Server *server, const UA_NodeId *sessionId,
-                            void *sessionContext, const UA_NodeId *nodeId,
-                            void *nodeContext, const UA_NumericRange *range,
-                            const UA_DataValue *data);
-            //TODO just give a 'right okay flag' ?
-            void (*externalDataReadCallback)(UA_Server *server, const UA_NodeId *sessionId,
-                                              void *sessionContext, const UA_NodeId *nodeId,
-                                              void *nodeContext);
-        } external;
-    } backend;
-} UA_ValueBackend;
-*/
-
 typedef struct {
     UA_ValueBackendType backendType;
     union {
@@ -936,7 +950,7 @@ typedef struct {
         UA_DataSource dataSource;
         struct {
             UA_DataValue **value;
-            UA_ValueCallback callback;
+            UA_ValueBackendCallback callback;
         } external;
     } backend;
 } UA_ValueBackend;
