@@ -148,8 +148,8 @@ UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const connect
     dummy.connection = &c;
     UA_ChannelSecurityToken_copy(&connection->channel->securityToken,
                                  &dummy.securityToken);
-    UA_ChannelSecurityToken_copy(&connection->channel->nextSecurityToken,
-                                 &dummy.nextSecurityToken);
+    UA_ChannelSecurityToken_copy(&connection->channel->altSecurityToken,
+                                 &dummy.altSecurityToken);
 
     UA_ByteString messageBufferCopy;
     UA_ByteString_copy(messageBuffer, &messageBufferCopy);

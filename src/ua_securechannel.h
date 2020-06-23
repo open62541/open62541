@@ -55,10 +55,29 @@ typedef struct UA_Chunk {
 
 typedef SIMPLEQ_HEAD(UA_ChunkQueue, UA_Chunk) UA_ChunkQueue;
 
+typedef enum {
+    UA_SECURECHANNELRENEWSTATE_NORMAL,
+
+    /* Client has sent an OPN, but not received a response so far. */
+    UA_SECURECHANNELRENEWSTATE_SENT,
+
+    /* The server waits for the first request with the new token for the rollover.
+     * The new token is stored in the altSecurityToken. The configured local and
+     * remote symmetric encryption keys are the old ones. */
+    UA_SECURECHANNELRENEWSTATE_NEWTOKEN_SERVER,
+
+    /* The client already uses the new token. But he waits for the server to respond
+     * with the new token to complete the rollover. The old token is stored in
+     * altSecurityToken. The local symmetric encryption key is new. The remote
+     * encryption key is the old one. */
+    UA_SECURECHANNELRENEWSTATE_NEWTOKEN_CLIENT
+} UA_SecureChannelRenewState;
+
 struct UA_SecureChannel {
-    UA_SecureChannelState   state;
-    UA_MessageSecurityMode  securityMode;
-    UA_ConnectionConfig     config;
+    UA_SecureChannelState state;
+    UA_SecureChannelRenewState renewState;
+    UA_MessageSecurityMode securityMode;
+    UA_ConnectionConfig config;
 
     /* Rules for revolving the token with a renew OPN request: The client is
      * allowed to accept messages with the old token until the OPN response has
@@ -67,10 +86,9 @@ struct UA_SecureChannel {
      *
      * We recognize whether nextSecurityToken contains a valid next token if the
      * ChannelId is not 0. */
-    UA_ChannelSecurityToken securityToken;     /* Also contains the channelId */
-    UA_ChannelSecurityToken nextSecurityToken; /* Only used by the server. The next token
-                                                * is put here when sending the OPN
-                                                * response. */
+    UA_ChannelSecurityToken securityToken;    /* Also contains the channelId */
+    UA_ChannelSecurityToken altSecurityToken; /* Alternative token for the rollover.
+                                               * See the renewState. */
 
     /* The endpoint and context of the channel */
     const UA_SecurityPolicy *securityPolicy;
@@ -126,10 +144,6 @@ UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel,
 void
 UA_SecureChannel_deleteBuffered(UA_SecureChannel *channel);
 
-/* Generates new keys and sets them in the channel context */
-UA_StatusCode
-UA_SecureChannel_generateNewKeys(UA_SecureChannel* channel);
-
 /* Wrapper function for generating a local nonce for the supplied channel. Uses
  * the random generator of the channels security policy to allocate and generate
  * a nonce with the specified length. */
@@ -137,7 +151,7 @@ UA_StatusCode
 UA_SecureChannel_generateLocalNonce(UA_SecureChannel *channel);
 
 UA_StatusCode
-UA_SecureChannel_revolveTokens(UA_SecureChannel *channel);
+UA_SecureChannel_generateLocalKeys(const UA_SecureChannel *channel);
 
 /**
  * Sending Messages
