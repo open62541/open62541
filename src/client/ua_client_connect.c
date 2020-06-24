@@ -330,7 +330,6 @@ sendHELMessage(UA_Client *client) {
 
 void
 processOPNResponse(UA_Client *client, const UA_ByteString *message) {
-    client->secureChannelHandshake = false;
     /* Is the content of the expected type? */
     size_t offset = 0;
     UA_NodeId responseId;
