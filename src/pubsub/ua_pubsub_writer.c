@@ -550,17 +550,17 @@ generateFieldMetaData(UA_Server *server, UA_DataSetField *field, UA_FieldMetaDat
             fieldMetaData->dataSetFieldId = UA_GUID_NULL;
 
             //ToDo after freeze PR, the value source must be checked (other behavior for static value source)
-            if(field->config.field.variable.rtFieldSourceEnabled) {
-                if (*(*(field->config.field.variable.rtValueSource.staticValueSource))->value.arrayDimensions > 0) {
+            if(field->config.field.variable.rtValueSource.rtFieldSourceEnabled && !field->config.field.variable.rtValueSource.rtInformationModelNode) {
+                if((**(field->config.field.variable.rtValueSource.staticValueSource)).value.arrayDimensionsSize > 0) {
                     fieldMetaData->arrayDimensions = (UA_UInt32 *) UA_calloc(
-                        *(*(field->config.field.variable.rtValueSource.staticValueSource))->value.arrayDimensions, sizeof(UA_UInt32));
+                        (*(*(field->config.field.variable.rtValueSource.staticValueSource))).value.arrayDimensionsSize, sizeof(UA_UInt32));
                     if(fieldMetaData->arrayDimensions == NULL)
                         return UA_STATUSCODE_BADOUTOFMEMORY;
                     memcpy(fieldMetaData->arrayDimensions,
                            (*(field->config.field.variable.rtValueSource.staticValueSource))->value.arrayDimensions,
-                            sizeof(UA_UInt32) * ((*(field->config.field.variable.rtValueSource.staticValueSource))->value.arrayDimensionsSize));
+                            sizeof(UA_UInt32) * ((*(*(field->config.field.variable.rtValueSource.staticValueSource))).value.arrayDimensionsSize));
                 }
-                fieldMetaData->arrayDimensionsSize = (*(field->config.field.variable.rtValueSource.staticValueSource))->value.arrayDimensionsSize;
+                fieldMetaData->arrayDimensionsSize = ((*(*(field->config.field.variable.rtValueSource.staticValueSource))).value.arrayDimensionsSize);
                 if(UA_NodeId_copy(&(*field->config.field.variable.rtValueSource.staticValueSource)->value.type->typeId,
                         &fieldMetaData->dataType) != UA_STATUSCODE_GOOD){
                     if(fieldMetaData->arrayDimensions){
@@ -1194,7 +1194,7 @@ UA_Server_addDataSetWriter(UA_Server *server,
     if(wg->config.rtLevel != UA_PUBSUB_RT_NONE){
         UA_DataSetField *tmpDSF;
         TAILQ_FOREACH(tmpDSF, &currentDataSetContext->fields, listEntry){
-            if(tmpDSF->config.field.variable.rtFieldSourceEnabled != UA_TRUE){
+            if(tmpDSF->config.field.variable.rtValueSource.rtFieldSourceEnabled != UA_TRUE){
                 UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                                "Adding DataSetWriter failed. Fields in PDS are not RT capable.");
                 return UA_STATUSCODE_BADCONFIGURATIONERROR;
@@ -1416,7 +1416,7 @@ UA_PubSubDataSetField_sampleValue(UA_Server *server, UA_DataSetField *field,
                           &field->config.field.variable.publishParameters.publishedVariable);
         *value = **rtNode->valueBackend.backend.external.value;
         value->value.storageType = UA_VARIANT_DATA_NODELETE;
-    } else if(field->config.field.variable.rtFieldSourceEnabled == UA_FALSE){
+    } else if(field->config.field.variable.rtValueSource.rtFieldSourceEnabled == UA_FALSE){
         UA_ReadValueId rvid;
         UA_ReadValueId_init(&rvid);
         rvid.nodeId = field->config.field.variable.publishParameters.publishedVariable;

@@ -146,6 +146,7 @@ int main(void) {
 
 #if defined PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS || defined PUBSUB_CONFIG_FASTPATH_STATIC_VALUES
     /* Add one DataSetField with static value source to PDS */
+    UA_DataValue *staticValueSource = UA_DataValue_new();
     UA_DataSetFieldConfig dsfConfig;
     for(size_t i = 0; i < PUBSUB_CONFIG_FIELD_COUNT; i++){
         memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));
@@ -153,14 +154,9 @@ int main(void) {
         UA_UInt32 *intValue = UA_UInt32_new();
         *intValue = (UA_UInt32) i * 1000;
         valueStore[i] = intValue;
-        UA_Variant variant;
-        memset(&variant, 0, sizeof(UA_Variant));
-        UA_Variant_setScalar(&variant, intValue, &UA_TYPES[UA_TYPES_UINT32]);
-        UA_DataValue staticValueSource;
-        memset(&staticValueSource, 0, sizeof(staticValueSource));
-        staticValueSource.value = variant;
-        dsfConfig.field.variable.rtFieldSourceEnabled = UA_TRUE;
-        (*(*dsfConfig.field.variable.rtValueSource.staticValueSource)).value = variant;
+        UA_Variant_setScalar(&staticValueSource->value, intValue, &UA_TYPES[UA_TYPES_UINT32]);
+        dsfConfig.field.variable.rtValueSource.rtFieldSourceEnabled = UA_TRUE;
+        dsfConfig.field.variable.rtValueSource.staticValueSource = &staticValueSource;
         UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent);
     }
 #endif
@@ -200,6 +196,9 @@ int main(void) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     retval |= UA_Server_run(server, &running);
 
+#if defined PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS || defined PUBSUB_CONFIG_FASTPATH_STATIC_VALUES
+    UA_DataValue_delete(staticValueSource);
+#endif
     UA_Server_delete(server);
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }
