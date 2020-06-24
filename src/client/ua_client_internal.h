@@ -121,7 +121,6 @@ struct UA_Client {
     UA_SessionState oldSessionState;
     UA_StatusCode oldConnectStatus;
 
-    UA_Boolean secureChannelHandshake; /* Ongoing RenewSecureChannel */
     UA_Boolean endpointsHandshake;     /* Ongoing GetEndpoints */
     UA_Boolean noSession;              /* Don't open a session */
 

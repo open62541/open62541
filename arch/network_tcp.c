@@ -638,7 +638,7 @@ UA_ServerNetworkLayerTCP(UA_ConnectionConfig config, UA_UInt16 port,
 typedef struct TCPClientConnection {
     struct addrinfo hints, *server;
     UA_DateTime connStart;
-    char* endpointURL;
+    UA_String endpointUrl;
     UA_UInt32 timeout;
 } TCPClientConnection;
 
@@ -666,6 +666,7 @@ ClientNetworkLayerTCP_free(UA_Connection *connection) {
     TCPClientConnection *tcpConnection = (TCPClientConnection *)connection->handle;
     if(tcpConnection->server)
         UA_freeaddrinfo(tcpConnection->server);
+    UA_String_clear(&tcpConnection->endpointUrl);
     UA_free(tcpConnection);
     connection->handle = NULL;
 }
@@ -724,7 +725,9 @@ UA_ClientConnectionTCP_poll(UA_Client *client, void *data, UA_UInt32 timeout) {
     if((error == -1) && (UA_ERRNO != UA_ERR_CONNECTION_PROGRESS)) {
         ClientNetworkLayerTCP_close(connection);
         UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_NETWORK,
-                       "Connection to  failed with error: %s", strerror(UA_ERRNO));
+                       "Connection to %.*s failed with error: %s",
+                       (int)tcpConnection->endpointUrl.length,
+                       tcpConnection->endpointUrl.data, strerror(UA_ERRNO));
         return UA_STATUSCODE_BADDISCONNECT;
     }
 
@@ -781,7 +784,9 @@ UA_ClientConnectionTCP_poll(UA_Client *client, void *data, UA_UInt32 timeout) {
                     /* General error */
                     ClientNetworkLayerTCP_close(connection);
                     UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_NETWORK,
-                                   "Connection to failed with error: %s",
+                                   "Connection to %.*s failed with error: %s",
+                                   (int)tcpConnection->endpointUrl.length,
+                                   tcpConnection->endpointUrl.data,
                                    strerror(ret == 0 ? so_error : UA_ERRNO));
                     return UA_STATUSCODE_BADDISCONNECT;
                 }
@@ -827,8 +832,8 @@ UA_ClientConnectionTCP_init(UA_ConnectionConfig config, const UA_String endpoint
     connection.releaseSendBuffer = connection_releasesendbuffer;
     connection.releaseRecvBuffer = connection_releaserecvbuffer;
 
-    TCPClientConnection *tcpClientConnection = (TCPClientConnection*) UA_malloc(
-                    sizeof(TCPClientConnection));
+    TCPClientConnection *tcpClientConnection = (TCPClientConnection*)
+        UA_malloc(sizeof(TCPClientConnection));
     memset(tcpClientConnection, 0, sizeof(TCPClientConnection));
     connection.handle = (void*) tcpClientConnection;
     tcpClientConnection->timeout = timeout;
@@ -837,9 +842,10 @@ UA_ClientConnectionTCP_init(UA_ConnectionConfig config, const UA_String endpoint
     UA_UInt16 port = 0;
     char hostname[512];
     tcpClientConnection->connStart = UA_DateTime_nowMonotonic();
+    UA_String_copy(&endpointUrl, &tcpClientConnection->endpointUrl);
 
-    UA_StatusCode parse_retval = UA_parseEndpointUrl(&endpointUrl,
-                    &hostnameString, &port, &pathString);
+    UA_StatusCode parse_retval =
+        UA_parseEndpointUrl(&endpointUrl, &hostnameString, &port, &pathString);
     if(parse_retval != UA_STATUSCODE_GOOD || hostnameString.length > 511) {
         UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
                        "Server url is invalid: %.*s",

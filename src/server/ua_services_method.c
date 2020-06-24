@@ -173,8 +173,7 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
 
         /* Check whether the DI namespace is available */
         size_t foundNamespace = 0;
-        UA_StatusCode res = UA_Server_getNamespaceByName(server, namespaceDiModel,
-                                                         &foundNamespace);
+        UA_StatusCode res = getNamespaceByName(server, namespaceDiModel, &foundNamespace);
         if(res != UA_STATUSCODE_GOOD) {
             result->statusCode = UA_STATUSCODE_BADMETHODINVALID;
             return;

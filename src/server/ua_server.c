@@ -38,18 +38,21 @@
 /* Namespace Handling */
 /**********************/
 
-/*
- * The NS1 Uri can be changed by the user to some custom string.
- * This method is called to initialize the NS1 Uri if it is not set before to the default Application URI.
+/* The NS1 Uri can be changed by the user to some custom string. This method is
+ * called to initialize the NS1 Uri if it is not set before to the default
+ * Application URI.
  *
- * This is done as soon as the Namespace Array is read or written via node value read / write services,
- * or UA_Server_addNamespace, UA_Server_getNamespaceByName or UA_Server_run_startup is called.
+ * This is done as soon as the Namespace Array is read or written via node value
+ * read / write services, or UA_Server_addNamespace,
+ * UA_Server_getNamespaceByName or UA_Server_run_startup is called.
  *
- * Therefore one has to set the custom NS1 URI before one of the previously mentioned steps.
- */
-void setupNs1Uri(UA_Server *server) {
-    if (!server->namespaces[1].data) {
-        UA_String_copy(&server->config.applicationDescription.applicationUri, &server->namespaces[1]);
+ * Therefore one has to set the custom NS1 URI before one of the previously
+ * mentioned steps. */
+void
+setupNs1Uri(UA_Server *server) {
+    if(!server->namespaces[1].data) {
+        UA_String_copy(&server->config.applicationDescription.applicationUri,
+                       &server->namespaces[1]);
     }
 }
 
@@ -92,31 +95,35 @@ UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
 }
 
 UA_ServerConfig*
-UA_Server_getConfig(UA_Server *server)
-{
+UA_Server_getConfig(UA_Server *server) {
   if(!server)
-    return NULL;
-
+      return NULL;
   return &server->config;
 }
 
 UA_StatusCode
-UA_Server_getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
-                             size_t* foundIndex) {
-    UA_LOCK(server->serviceMutex);
-
+getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
+                   size_t *foundIndex) {
     /* ensure that the uri for ns1 is set up from the app description */
     setupNs1Uri(server);
-
+    UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
     for(size_t idx = 0; idx < server->namespacesSize; idx++) {
-        if(!UA_String_equal(&server->namespaces[idx], &namespaceUri))
-            continue;
-        (*foundIndex) = idx;
-        UA_UNLOCK(server->serviceMutex);
-        return UA_STATUSCODE_GOOD;
+        if(UA_String_equal(&server->namespaces[idx], &namespaceUri)) {
+            (*foundIndex) = idx;
+            res = UA_STATUSCODE_GOOD;
+            break;
+        }
     }
+    return res;
+}
+
+UA_StatusCode
+UA_Server_getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
+                             size_t *foundIndex) {
+    UA_LOCK(server->serviceMutex);
+    UA_StatusCode res = getNamespaceByName(server, namespaceUri, foundIndex);
     UA_UNLOCK(server->serviceMutex);
-    return UA_STATUSCODE_BADNOTFOUND;
+    return res;
 }
 
 UA_StatusCode
