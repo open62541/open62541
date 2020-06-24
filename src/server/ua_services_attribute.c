@@ -809,6 +809,8 @@ compatibleValueRankValue(UA_Int32 valueRank, const UA_Variant *value) {
         return true;
     case UA_VALUERANK_SCALAR: /* The value is a scalar */
         return (arrayDims == 0);
+    case UA_VALUERANK_ONE_OR_MORE_DIMENSIONS:
+        return (arrayDims >= 1);
     default:
         break;
     }

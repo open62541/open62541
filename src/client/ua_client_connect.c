@@ -330,7 +330,6 @@ sendHELMessage(UA_Client *client) {
 
 void
 processOPNResponse(UA_Client *client, const UA_ByteString *message) {
-    client->secureChannelHandshake = false;
     /* Is the content of the expected type? */
     size_t offset = 0;
     UA_NodeId responseId;
@@ -356,18 +355,6 @@ processOPNResponse(UA_Client *client, const UA_ByteString *message) {
         return;
     }
 
-    /* Response.securityToken.revisedLifetime is UInt32 we need to cast it to
-     * DateTime=Int64 we take 75% of lifetime to start renewing as described in
-     * standard */
-    client->nextChannelRenewal = UA_DateTime_nowMonotonic()
-            + (UA_DateTime) (response.securityToken.revisedLifetime
-                    * (UA_Double) UA_DATETIME_MSEC * 0.75);
-
-    /* Replace the token. On the client side we don't use NextSecurityToken. */
-    UA_ChannelSecurityToken_clear(&client->channel.securityToken);
-    client->channel.securityToken = response.securityToken;
-    UA_ChannelSecurityToken_init(&response.securityToken);
-
     /* Check whether the nonce was reused */
     if(client->channel.securityMode != UA_MESSAGESECURITYMODE_NONE &&
        UA_ByteString_equal(&client->channel.remoteNonce,
@@ -379,14 +366,28 @@ processOPNResponse(UA_Client *client, const UA_ByteString *message) {
         return;
     }
 
+    /* Response.securityToken.revisedLifetime is UInt32 we need to cast it to
+     * DateTime=Int64 we take 75% of lifetime to start renewing as described in
+     * standard */
+    client->nextChannelRenewal = UA_DateTime_nowMonotonic()
+            + (UA_DateTime) (response.securityToken.revisedLifetime
+                    * (UA_Double) UA_DATETIME_MSEC * 0.75);
+
     /* Move the nonce out of the response */
     UA_ByteString_clear(&client->channel.remoteNonce);
     client->channel.remoteNonce = response.serverNonce;
     UA_ByteString_init(&response.serverNonce);
+    UA_ResponseHeader_clear(&response.responseHeader);
 
-    UA_ResponseHeader_clear(&response.responseHeader); /* the other members were moved */
+    /* Replace the token. Keep the current token as the old token. Messages
+     * might still arrive for the old token. */
+    client->channel.altSecurityToken = client->channel.securityToken;
+    client->channel.securityToken = response.securityToken;
+    client->channel.renewState = UA_SECURECHANNELRENEWSTATE_NEWTOKEN_CLIENT;
 
-    retval = UA_SecureChannel_generateNewKeys(&client->channel);
+    /* Compute the new local keys. The remote keys are updated when a message
+     * with the new SecurityToken is received. */
+    retval = UA_SecureChannel_generateLocalKeys(&client->channel);
     if(retval != UA_STATUSCODE_GOOD) {
         closeSecureChannel(client);
         return;
@@ -453,7 +454,7 @@ sendOPNAsync(UA_Client *client, UA_Boolean renew) {
         return retval;
     }
 
-    client->secureChannelHandshake = true;
+    client->channel.renewState = UA_SECURECHANNELRENEWSTATE_SENT;
     if(client->channel.state < UA_SECURECHANNELSTATE_OPN_SENT)
         client->channel.state = UA_SECURECHANNELSTATE_OPN_SENT;
     UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "OPN message sent");
@@ -464,7 +465,7 @@ void
 renewSecureChannel(UA_Client *client) {
     /* Check if OPN has been sent or the SecureChannel is still valid */
     if(client->channel.state != UA_SECURECHANNELSTATE_OPEN ||
-       client->secureChannelHandshake ||
+       client->channel.renewState != UA_SECURECHANNELRENEWSTATE_NORMAL ||
        client->nextChannelRenewal > UA_DateTime_nowMonotonic())
         return;
     sendOPNAsync(client, true);
@@ -895,16 +896,6 @@ connectIterate(UA_Client *client, UA_UInt32 timeout) {
                                                &client->config.endpoint.serverCertificate);
         if(client->connectStatus != UA_STATUSCODE_GOOD)
             return client->connectStatus;
-
-        client->connectStatus = UA_SecureChannel_generateLocalNonce(&client->channel);
-        if(client->connectStatus != UA_STATUSCODE_GOOD)
-            return client->connectStatus;
-
-        if (client->channel.remoteNonce.length != 0) {
-            client->connectStatus = UA_SecureChannel_generateNewKeys(&client->channel);
-            if(client->connectStatus != UA_STATUSCODE_GOOD)
-                return client->connectStatus;
-        }
     }
 
     /* Open the SecureChannel */
@@ -1008,7 +999,7 @@ initConnect(UA_Client *client, const char *endpointUrl) {
 
     /* Reset the connect status */
     client->connectStatus = UA_STATUSCODE_GOOD;
-    client->secureChannelHandshake = false;
+    client->channel.renewState = UA_SECURECHANNELRENEWSTATE_NORMAL;
     client->endpointsHandshake = false;
 
     /* Initialize the SecureChannel */
@@ -1106,7 +1097,7 @@ closeSecureChannel(UA_Client *client) {
     }
 
     /* Clean up */
-    client->secureChannelHandshake = false;
+    client->channel.renewState = UA_SECURECHANNELRENEWSTATE_NORMAL;
     UA_SecureChannel_close(&client->channel);
     if(client->connection.free)
         client->connection.free(&client->connection);
