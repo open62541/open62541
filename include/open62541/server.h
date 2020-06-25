@@ -719,8 +719,9 @@ typedef struct {
 
     /* Can be NULL. Called when a node is to be copied during recursive
      * node instantiation. Allows definition of the NodeId for the new node.
-     * If the callback is set to NULL or the resulting NodeId is UA_NODEID_NULL,
-     * then a random NodeId will be generated.
+     * If the callback is set to NULL or the resulting NodeId is UA_NODEID_NUMERIC(X,0)
+     * an unused nodeid in namespace X will be used. E.g. passing UA_NODEID_NULL will
+     * result in a NodeId in namespace 0.
      *
      * @param server The server executing the callback
      * @param sessionId The identifier of the session
@@ -1381,7 +1382,9 @@ typedef UA_StatusCode
  * should be passed to create the reference to condition source. Otherwise, UA_NODEID_NULL should be
  * passed to make the condition not exposed.
  * @param server The server object
- * @param conditionId The NodeId of the requested Condition Object. UA_NODEID_NULL for random Id with NS Idx = 0.
+ * @param conditionId The NodeId of the requested Condition Object. When passing UA_NODEID_NUMERIC(X,0)
+ *                      an unused nodeid in namespace X will be used. E.g. passing UA_NODEID_NULL will
+ *                      result in a NodeId in namespace 0.
  * @param conditionType The NodeId of the node representation of the ConditionType
  * @param conditionName The name of the condition to be created
  * @param conditionSource The NodeId of the Condition Source (Parent of the Condition)
