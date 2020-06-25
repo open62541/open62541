@@ -333,11 +333,6 @@ mark_as_advanced(UA_ENABLE_DETERMINISTIC_RNG)
 option(UA_ENABLE_MALLOC_SINGLETON
        "Use a global variable pointer for malloc (and free, ...) that can be switched at runtime" OFF)
 mark_as_advanced(UA_ENABLE_MALLOC_SINGLETON)
-if(UA_ENABLE_MALLOC_SINGLETON)
-    if(NOT "${UA_ARCHITECTURE}" MATCHES "posix")
-        message(FATAL_ERROR "The singleton malloc is available only for the posix architecture")
-    endif()
-endif()
 
 option(UA_ENABLE_VALGRIND_INTERACTIVE "Enable dumping valgrind every iteration. CAUTION! SLOWDOWN!" OFF)
 mark_as_advanced(UA_ENABLE_VALGRIND_INTERACTIVE)
@@ -643,10 +638,7 @@ if(MSVC)
 endif()
 
 if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ)
-    add_definitions(-DUA_malloc=UA_memoryManager_malloc)
-    add_definitions(-DUA_free=UA_memoryManager_free)
-    add_definitions(-DUA_calloc=UA_memoryManager_calloc)
-    add_definitions(-DUA_realloc=UA_memoryManager_realloc)
+    set(UA_ENABLE_MALLOC_SINGLETON ON)
 endif()
 
 #########################
@@ -664,7 +656,6 @@ endif()
 
 set(exported_headers ${exported_headers}
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
-                     ${PROJECT_SOURCE_DIR}/include/open62541/architecture_base.h
                      ${ua_architecture_headers_beginning}
                      )
 

@@ -6,11 +6,11 @@
  *    Copyright 2018 (c) Fraunhofer IOSB (Author: Lukas Meling)
  */
 
-#include "ua_types_encoding_json.h"
-
+#include <open62541/config.h>
 #include <open62541/types_generated.h>
 #include <open62541/types_generated_handling.h>
 
+#include "ua_types_encoding_json.h"
 #include "ua_types_encoding_binary.h"
 
 #include <float.h>
