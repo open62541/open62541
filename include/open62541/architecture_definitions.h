@@ -95,6 +95,26 @@ extern void * (*UA_reallocSingleton)(void *ptr, size_t size);
 # define UA_realloc(ptr, size) UA_reallocSingleton(ptr, size)
 #endif
 
+/* Stack-allocation of memory. Use C99 variable-length arrays if possible.
+ * Otherwise revert to alloca. Note that alloca is not supported on some
+ * plattforms. */
+#ifndef UA_STACKARRAY
+# if defined(__GNUC__) || defined(__clang__)
+#  define UA_STACKARRAY(TYPE, NAME, SIZE) TYPE NAME[SIZE]
+# else
+# if defined(__GNUC__) || defined(__clang__)
+#  define UA_alloca(size) __builtin_alloca (size)
+# elif defined(_WIN32)
+#  define UA_alloca(SIZE) _alloca(SIZE)
+# else
+#  include <alloca.h>
+#  define UA_alloca(SIZE) alloca(SIZE)
+# endif
+#  define UA_STACKARRAY(TYPE, NAME, SIZE) \
+    TYPE *NAME = (TYPE*)UA_alloca(sizeof(TYPE) * SIZE)
+# endif
+#endif
+
 /**
  * Assertions
  * ----------
