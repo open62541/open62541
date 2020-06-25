@@ -5,8 +5,9 @@
  */
 
 /*
- * This header has all the functions that are architecture dependent. The declaration is behind a ifndef since
- * they can be previously defined in the ua_architecture.h which include this files at the end
+ * This header has all the functions that are architecture dependent. The
+ * declaration is behind a ifndef since they can be previously defined in the
+ * ua_architecture.h which include this files at the end
  */
 
 #ifndef PLUGINS_ARCH_UA_ARCHITECTURE_FUNCTIONS_H_
@@ -16,10 +17,7 @@
 
 _UA_BEGIN_DECLS
 
-/*
- * Allocation functions
- */
-
+/* Allocation functions */
 #ifndef UA_malloc
 void* UA_malloc(size_t size); //allocate memory in the heap with size bytes
 #endif
@@ -36,41 +34,12 @@ void* UA_realloc(void *ptr, size_t new_size);//re-allocate memory in the heap wi
 void UA_free(void* ptr); //de-allocate memory previously allocated with UA_malloc, UA_calloc or UA_realloc
 #endif
 
-#ifndef UA_alloca
-# if defined(__GNUC__) || defined(__clang__)
-#  define UA_alloca(size) __builtin_alloca (size)
-# elif defined(_WIN32)
-#  define UA_alloca(SIZE) _alloca(SIZE)
-# else
-#  include <alloca.h>
-#  define UA_alloca(SIZE) alloca(SIZE)
-# endif
-#endif
-
-#ifndef UA_STACKARRAY
-/* Stack-allocation of memory. Use C99 variable-length arrays if possible.
- * Otherwise revert to alloca. Note that alloca is not supported on some
- * plattforms. */
-# if defined(__GNUC__) || defined(__clang__)
-#  define UA_STACKARRAY(TYPE, NAME, SIZE) TYPE NAME[SIZE]
-# else
-#  define UA_STACKARRAY(TYPE, NAME, SIZE) \
-    TYPE *NAME = (TYPE*)UA_alloca(sizeof(TYPE) * SIZE)
-# endif
-#endif
-
-/*
- * Sleep function
- */
-
+/* Sleep function */
 #ifndef UA_sleep_ms
 int UA_sleep_ms(unsigned int miliSeconds); //suspend the thread for a certain amount of mili seconds
 #endif
 
-/*
- * Socket functions
- */
-
+/* Socket functions */
 #ifndef UA_send
 ssize_t UA_send(UA_SOCKET sockfd, const void *buf, size_t len, int flags); //equivalent to posix send implementation
 #endif
@@ -185,9 +154,7 @@ void UA_initialize_architecture_network(void);//initializes all needed for using
 void UA_deinitialize_architecture_network(void);//de-initializes the network interfaces
 #endif
 
-/*
- * Print function
- */
+/* Print function */
 #ifndef UA_snprintf
 int UA_snprintf(char* pa_stream, size_t pa_size, const char* pa_format, ...); //prints text to output
 #endif
@@ -196,10 +163,7 @@ int UA_snprintf(char* pa_stream, size_t pa_size, const char* pa_format, ...); //
 int UA_strncasecmp(const char* s1, const char* s2, size_t n);
 #endif
 
-/*
- * Access to file function
- */
-
+/* Access to file function */
 #ifndef UA_access
 int UA_access(const char *pathname, int mode); //equivalent implementation of https://linux.die.net/man/2/access
 #endif
