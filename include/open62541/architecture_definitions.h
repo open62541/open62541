@@ -72,6 +72,30 @@
 #endif
 
 /**
+ * Memory Management
+ * -----------------
+ *
+ * The flag ``UA_ENABLE_MALLOC_SINGLETON`` enables singleton (global) variables
+ * with method pointers for memory management (malloc et al.). The method
+ * pointers can be switched out at runtime. Use-cases for this are testing of
+ * constrained memory conditions and arena-based custom memory management.
+ *
+ * If the flag is undefined, then ``UA_malloc`` etc. are set to the default
+ * malloc, as defined in ``/arch/<architecture>/ua_architecture.h``.
+ */
+
+#ifdef UA_ENABLE_MALLOC_SINGLETON
+extern void * (*UA_mallocSingleton)(size_t size);
+extern void (*UA_freeSingleton)(void *ptr);
+extern void * (*UA_callocSingleton)(size_t nelem, size_t elsize);
+extern void * (*UA_reallocSingleton)(void *ptr, size_t size);
+# define UA_malloc(size) UA_mallocSingleton(size)
+# define UA_free(ptr) UA_freeSingleton(ptr)
+# define UA_calloc(num, size) UA_callocSingleton(num, size)
+# define UA_realloc(ptr, size) UA_reallocSingleton(ptr, size)
+#endif
+
+/**
  * Assertions
  * ----------
  * The assert macro is disabled by defining NDEBUG. It is often forgotten to
@@ -306,7 +330,6 @@ UA_STATIC_ASSERT(sizeof(bool) == 1, cannot_overlay_integers_with_large_bool);
 #else
 # define UA_BINARY_OVERLAYABLE_FLOAT 0
 #endif
-
 
 /* Atomic Operations
  * -----------------

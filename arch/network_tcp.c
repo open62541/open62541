@@ -11,6 +11,7 @@
 
 #define UA_INTERNAL
 
+#include <open62541/config.h>
 #include <open62541/network_tcp.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/util.h>
