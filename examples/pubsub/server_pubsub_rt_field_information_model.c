@@ -7,6 +7,8 @@
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/pubsub_udp.h>
 
+#include <signal.h>
+
 UA_Boolean running = true;
 UA_NodeId publishedDataSetIdent, dataSetFieldIdent, writerGroupIdent, connectionIdentifier;
 UA_UInt32 *integerRTValue, *integerRTValue2;
@@ -71,7 +73,6 @@ externalDataWriteCallback(UA_Server *server, const UA_NodeId *sessionId,
                                   void *sessionContext, const UA_NodeId *nodeId,
                                   void *nodeContext, const UA_NumericRange *range,
                                   const UA_DataValue *data){
-                                      printf("TODO Implement compare and switch");
     //It's possible to create a new DataValue here and use an atomic ptr switch
     //to update the value without the need for locks e.g. UA_atomic_cmpxchg();
 
@@ -115,6 +116,7 @@ cyclicValueUpdateCallback_UpdateToStack(UA_Server *server, void *data) {
 int main(void){
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
+
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);

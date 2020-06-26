@@ -5,12 +5,13 @@
  * Copyright (c) 2019 Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
+#include <open62541/plugin/pubsub_udp.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
-#include <open62541/plugin/pubsub_udp.h>
 
 #include "ua_pubsub.h"
 #include "ua_pubsub_networkmessage.h"
+#include <server/ua_server_internal.h>
 
 #include <check.h>
 #include <stdio.h>
@@ -266,7 +267,7 @@ START_TEST(PublishSingleFieldWithFixedOffsets) {
         UA_UInt32 *intValue = UA_UInt32_new();
         *intValue = (UA_UInt32) 1000;
         UA_DataValue *dataValue = UA_DataValue_new();
-        UA_Variant_setScalar(&dataValue->value, &intValue, &UA_TYPES[UA_TYPES_UINT32]);
+        UA_Variant_setScalar(&dataValue->value, intValue, &UA_TYPES[UA_TYPES_UINT32]);
         dsfConfig.field.variable.rtValueSource.rtFieldSourceEnabled = UA_TRUE;
         dsfConfig.field.variable.rtValueSource.staticValueSource = &dataValue;
         dsfConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
@@ -280,6 +281,9 @@ START_TEST(PublishSingleFieldWithFixedOffsets) {
         ck_assert((*((UA_UInt32 *)networkMessage.payload.dataSetPayload.dataSetMessages->data.keyFrameData.dataSetFields->value.data)) == 1000);
         UA_NetworkMessage_deleteMembers(&networkMessage);
         UA_DataValue_delete(dataValue);
+
+        UA_Server_run_shutdown(server);
+        UA_Server_delete(server);
     } END_TEST
 
 START_TEST(PublishPDSWithMultipleFieldsAndFixedOffset) {
@@ -316,19 +320,21 @@ START_TEST(PublishPDSWithMultipleFieldsAndFixedOffset) {
         UA_UInt32 *intValue = UA_UInt32_new();
         *intValue = (UA_UInt32) 1000;
         UA_DataValue *dataValue = UA_DataValue_new();
-        UA_Variant_setScalar(&dataValue->value, &intValue, &UA_TYPES[UA_TYPES_UINT32]);
+        UA_Variant_setScalar(&dataValue->value, intValue, &UA_TYPES[UA_TYPES_UINT32]);
         dsfConfig.field.variable.rtValueSource.rtFieldSourceEnabled = UA_TRUE;
+        dsfConfig.field.variable.rtValueSource.rtInformationModelNode = UA_FALSE;
         dsfConfig.field.variable.rtValueSource.staticValueSource = &dataValue;
         dsfConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
-        ck_assert(UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent).result == UA_STATUSCODE_GOOD);
+        ck_assert(UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, NULL).result == UA_STATUSCODE_GOOD);
         UA_UInt32 *intValue2 = UA_UInt32_new();
         *intValue2 = (UA_UInt32) 2000;
         UA_DataValue *dataValue2 = UA_DataValue_new();
-        UA_Variant_setScalar(&dataValue2->value, &intValue2, &UA_TYPES[UA_TYPES_UINT32]);
+        UA_Variant_setScalar(&dataValue2->value, intValue2, &UA_TYPES[UA_TYPES_UINT32]);
         dsfConfig.field.variable.rtValueSource.staticValueSource = &dataValue2;
-        ck_assert(UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent).result == UA_STATUSCODE_GOOD);
+        ck_assert(UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, NULL).result == UA_STATUSCODE_GOOD);
         ck_assert(UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
         ck_assert(UA_Server_setWriterGroupOperational(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
+
         UA_ByteString buffer;
         UA_ByteString_init(&buffer);
         UA_NetworkMessage networkMessage;
@@ -346,6 +352,9 @@ START_TEST(PublishPDSWithMultipleFieldsAndFixedOffset) {
         ck_assert((*((UA_UInt32 *)networkMessage.payload.dataSetPayload.dataSetMessages->data.keyFrameData.dataSetFields->value.data)) == 1001);
         ck_assert(*((UA_UInt32 *) networkMessage.payload.dataSetPayload.dataSetMessages->data.keyFrameData.dataSetFields[1].value.data) == 2001);
         UA_NetworkMessage_deleteMembers(&networkMessage);
+
+        UA_Server_run_shutdown(server);
+        UA_Server_delete(server);
         UA_DataValue_delete(dataValue);
         UA_DataValue_delete(dataValue2);
 } END_TEST
@@ -505,11 +514,12 @@ START_TEST(PubSubConfigWithMultipleInformationModelRTVariables) {
             ck_assert_uint_eq(j, *((UA_UInt32 *)variant.data));
             UA_Server_removeDataSetField(server, *dsf[j]);
             UA_NodeId_delete(dsf[j]);
+            UA_Variant_deleteMembers(&variant);
             UA_Variant_init(&variant);
             ck_assert(UA_Server_readValue(server, *nodes[j], &variant) == UA_STATUSCODE_GOOD);
             ck_assert_uint_eq(j, *((UA_UInt32 *)variant.data));
+            UA_Variant_deleteMembers(&variant);
             UA_NodeId_delete(nodes[j]);
-            UA_UInt32_delete(values[j]);
             UA_DataValue_delete(externalValueSources[j]);
         }
     } END_TEST
@@ -524,13 +534,13 @@ int main(void) {
     tcase_add_test(tc_pubsub_rt_static_value_source, PubSubConfigWithMultipleInformationModelRTVariables);
 
     TCase *tc_pubsub_rt_fixed_offsets = tcase_create("PubSub RT publish with fixed offsets");
-    tcase_add_checked_fixture(tc_pubsub_rt_fixed_offsets, setup, teardown);
+    tcase_add_checked_fixture(tc_pubsub_rt_fixed_offsets, setup, NULL);
     tcase_add_test(tc_pubsub_rt_fixed_offsets, PublishSingleFieldWithFixedOffsets);
     tcase_add_test(tc_pubsub_rt_fixed_offsets, PublishPDSWithMultipleFieldsAndFixedOffset);
 
     Suite *s = suite_create("PubSub RT configuration levels");
     suite_add_tcase(s, tc_pubsub_rt_static_value_source);
-    //suite_add_tcase(s, tc_pubsub_rt_fixed_offsets);
+    suite_add_tcase(s, tc_pubsub_rt_fixed_offsets);
 
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);

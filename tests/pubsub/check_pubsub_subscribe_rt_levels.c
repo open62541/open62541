@@ -139,7 +139,6 @@ START_TEST(SubscribeSingleFieldWithFixedOffsets) {
     *intValue = 1000;
     UA_DataValue *dataValue = UA_DataValue_new();
     UA_Variant_setScalar(&dataValue->value, intValue, &UA_TYPES[UA_TYPES_UINT32]);
-    dataValue->value.storageType = UA_VARIANT_DATA_NODELETE;
     dsfConfig.field.variable.rtValueSource.rtFieldSourceEnabled = UA_TRUE;
     dsfConfig.field.variable.rtValueSource.staticValueSource = &dataValue;
     dsfConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;

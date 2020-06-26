@@ -1434,11 +1434,12 @@ UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage* p, UA_NetworkMessageOffsetBu
                     offsetBuffer->offsets[pos].offset = size;
                     offsetBuffer->offsets[pos].contentType = UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT;
                     //TODO check value source and alloc!
+                    //offsetBuffer->offsets[pos].offsetData.value.value = p->data.keyFrameData.dataSetFields;
                     offsetBuffer->offsets[pos].offsetData.value.value = UA_DataValue_new();
                     UA_Variant_setScalar(&offsetBuffer->offsets[pos].offsetData.value.value->value,
                                          p->data.keyFrameData.dataSetFields[i].value.data,
                                          p->data.keyFrameData.dataSetFields[i].value.type);
-                    //offsetBuffer->offsets[pos].offsetData.value.value->value = p->data.keyFrameData.dataSetFields->value;
+                    offsetBuffer->offsets[pos].offsetData.value.value->value.storageType = UA_VARIANT_DATA_NODELETE;
                 }
                 size += UA_calcSizeBinary(&p->data.keyFrameData.dataSetFields[i].value, &UA_TYPES[UA_TYPES_VARIANT]);
             }
