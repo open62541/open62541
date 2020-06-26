@@ -1250,7 +1250,7 @@ AddNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId) 
     /* Set the ReferenceTypesSet of subtypes in the ReferenceTypeNode */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(node->head.nodeClass == UA_NODECLASS_REFERENCETYPE) {
-        retval = setReferenceTypeSubtypes(server, (const UA_ReferenceTypeNode*)node);
+        retval = setReferenceTypeSubtypes(server, &node->referenceTypeNode);
         if(retval != UA_STATUSCODE_GOOD)
             goto cleanup;
     }
@@ -1739,7 +1739,7 @@ Operation_addReference(UA_Server *server, UA_Session *session, void *context,
         *retval = UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
         return;
     }
-    UA_Byte refTypeIndex = ((const UA_ReferenceTypeNode*)refType)->referenceTypeIndex;
+    UA_Byte refTypeIndex = refType->referenceTypeNode.referenceTypeIndex;
     UA_NODESTORE_RELEASE(server, refType);
 
     /* Get the source and target node BrowseName hash */

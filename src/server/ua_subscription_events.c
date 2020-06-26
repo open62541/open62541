@@ -16,7 +16,7 @@ UA_MonitoredItem_removeNodeEventCallback(UA_Server *server, UA_Session *session,
                                          UA_Node *node, void *data) {
     if(node->head.nodeClass != UA_NODECLASS_OBJECT)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_ObjectNode *on = (UA_ObjectNode*)node;
+    UA_ObjectNode *on = &node->objectNode;
     UA_MonitoredItem *remove = (UA_MonitoredItem*)data;
 
     if(!on->monitoredItemQueue)

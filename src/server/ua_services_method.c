@@ -35,7 +35,7 @@ getArgumentsVariableNode(UA_Server *server, const UA_NodeHead *head,
             if(refTarget->head.nodeClass == UA_NODECLASS_VARIABLE &&
                refTarget->head.browseName.namespaceIndex == 0 &&
                UA_String_equal(&withBrowseName, &refTarget->head.browseName.name)) {
-                return (const UA_VariableNode*)refTarget;
+                return &refTarget->variableNode;
             }
             UA_NODESTORE_RELEASE(server, refTarget);
         }
@@ -309,25 +309,24 @@ Operation_CallMethodAsync(UA_Server *server, UA_Session *session, UA_UInt32 requ
                           UA_CallMethodRequest *opRequest, UA_CallMethodResult *opResult,
                           UA_AsyncResponse **ar) {
     /* Get the method node */
-    const UA_MethodNode *method = (const UA_MethodNode*)
-        UA_NODESTORE_GET(server, &opRequest->methodId);
+    const UA_Node *method = UA_NODESTORE_GET(server, &opRequest->methodId);
     if(!method) {
         opResult->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
         return;
     }
 
     /* Get the object node */
-    const UA_ObjectNode *object = (const UA_ObjectNode*)
-        UA_NODESTORE_GET(server, &opRequest->objectId);
+    const UA_Node *object = UA_NODESTORE_GET(server, &opRequest->objectId);
     if(!object) {
         opResult->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
-        UA_NODESTORE_RELEASE(server, (const UA_Node*)method);
+        UA_NODESTORE_RELEASE(server, method);
         return;
     }
 
     /* Synchronous execution */
-    if(!method->async) {
-        callWithMethodAndObject(server, session, opRequest, opResult, method, object);
+    if(!method->methodNode.async) {
+        callWithMethodAndObject(server, session, opRequest, opResult,
+                                &method->methodNode, &object->objectNode);
         goto cleanup;
     }
 
@@ -350,8 +349,8 @@ Operation_CallMethodAsync(UA_Server *server, UA_Session *session, UA_UInt32 requ
 
  cleanup:
     /* Release the method and object node */
-    UA_NODESTORE_RELEASE(server, (const UA_Node*)method);
-    UA_NODESTORE_RELEASE(server, (const UA_Node*)object);
+    UA_NODESTORE_RELEASE(server, method);
+    UA_NODESTORE_RELEASE(server, object);
 }
 
 void
@@ -393,33 +392,31 @@ static void
 Operation_CallMethod(UA_Server *server, UA_Session *session, void *context,
                      const UA_CallMethodRequest *request, UA_CallMethodResult *result) {
     /* Get the method node */
-    const UA_MethodNode *method = (const UA_MethodNode*)
-        UA_NODESTORE_GET(server, &request->methodId);
+    const UA_Node *method = UA_NODESTORE_GET(server, &request->methodId);
     if(!method) {
         result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
         return;
     }
 
     /* Get the object node */
-    const UA_ObjectNode *object = (const UA_ObjectNode*)
-        UA_NODESTORE_GET(server, &request->objectId);
+    const UA_Node *object = UA_NODESTORE_GET(server, &request->objectId);
     if(!object) {
         result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
-        UA_NODESTORE_RELEASE(server, (const UA_Node*)method);
+        UA_NODESTORE_RELEASE(server, method);
         return;
     }
 
     /* Continue with method and object as context */
-    callWithMethodAndObject(server, session, request, result, method, object);
+    callWithMethodAndObject(server, session, request, result,
+                            &method->methodNode, &object->objectNode);
 
     /* Release the method and object node */
-    UA_NODESTORE_RELEASE(server, (const UA_Node*)method);
-    UA_NODESTORE_RELEASE(server, (const UA_Node*)object);
+    UA_NODESTORE_RELEASE(server, method);
+    UA_NODESTORE_RELEASE(server, object);
 }
 
 void Service_Call(UA_Server *server, UA_Session *session,
-                  const UA_CallRequest *request,
-                  UA_CallResponse *response) {
+                  const UA_CallRequest *request, UA_CallResponse *response) {
     UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Processing CallRequest");
     UA_LOCK_ASSERT(server->serviceMutex, 1);
 
@@ -436,7 +433,7 @@ void Service_Call(UA_Server *server, UA_Session *session,
                   &response->resultsSize, &UA_TYPES[UA_TYPES_CALLMETHODRESULT]);
 }
 
-UA_CallMethodResult UA_EXPORT
+UA_CallMethodResult
 UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request) {
     UA_CallMethodResult result;
     UA_CallMethodResult_init(&result);

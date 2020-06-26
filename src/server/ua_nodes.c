@@ -71,7 +71,7 @@ void UA_Node_clear(UA_Node *node) {
         break;
     case UA_NODECLASS_VARIABLE:
     case UA_NODECLASS_VARIABLETYPE: {
-        UA_VariableNode *p = (UA_VariableNode*)node;
+        UA_VariableNode *p = &node->variableNode;
         UA_NodeId_clear(&p->dataType);
         UA_Array_delete(p->arrayDimensions, p->arrayDimensionsSize,
                         &UA_TYPES[UA_TYPES_INT32]);
@@ -82,7 +82,7 @@ void UA_Node_clear(UA_Node *node) {
         break;
     }
     case UA_NODECLASS_REFERENCETYPE: {
-        UA_ReferenceTypeNode *p = (UA_ReferenceTypeNode*)node;
+        UA_ReferenceTypeNode *p = &node->referenceTypeNode;
         UA_LocalizedText_clear(&p->inverseName);
         break;
     }
@@ -103,10 +103,9 @@ UA_ObjectNode_copy(const UA_ObjectNode *src, UA_ObjectNode *dst) {
 
 static UA_StatusCode
 UA_CommonVariableNode_copy(const UA_VariableNode *src, UA_VariableNode *dst) {
-    UA_StatusCode retval = UA_Array_copy(src->arrayDimensions,
-                                         src->arrayDimensionsSize,
-                                         (void**)&dst->arrayDimensions,
-                                         &UA_TYPES[UA_TYPES_INT32]);
+    UA_StatusCode retval =
+        UA_Array_copy(src->arrayDimensions, src->arrayDimensionsSize,
+                      (void**)&dst->arrayDimensions, &UA_TYPES[UA_TYPES_INT32]);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     dst->arrayDimensionsSize = src->arrayDimensionsSize;

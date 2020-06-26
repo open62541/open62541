@@ -1429,7 +1429,7 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
         CHECK_USERWRITEMASK(UA_WRITEMASK_INVERSENAME);
         CHECK_DATATYPE_SCALAR(LOCALIZEDTEXT);
         retval = updateLocalizedText((const UA_LocalizedText *)value,
-                                     &((UA_ReferenceTypeNode*)node)->inverseName);
+                                     &node->referenceTypeNode.inverseName);
         break;
     case UA_ATTRIBUTEID_CONTAINSNOLOOPS:
         CHECK_NODECLASS_WRITE(UA_NODECLASS_VIEW);
