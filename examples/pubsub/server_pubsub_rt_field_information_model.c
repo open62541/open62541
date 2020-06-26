@@ -19,7 +19,9 @@ static void stopHandler(int sign) {
     running = false;
 }
 
-//TODO Add case where the rt source is no information model node
+// Info: It is still possible to create a RT-PubSub configuration without a information model
+// node. Just set the DSF flags to 'rtInformationModelNode' -> UA_TRUE and
+// 'rtInformationModelNode' -> UA_FALSE and provide the PTR to your self managed value source.
 
 /* The following PubSub configuration does not differ from the 'normal' configuration */
 static void
@@ -178,12 +180,7 @@ int main(void){
     memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));
     dsfConfig.field.variable.rtValueSource.rtInformationModelNode = UA_TRUE;
     dsfConfig.field.variable.publishParameters.publishedVariable = rtNodeId1;
-    // -> This is removed and the node is checkt to be form type external value source
-    // TODO remove the following flags
-    // dsfConfig.field.variable.rtFieldSourceEnabled = UA_TRUE;
-    // dsfConfig.field.variable.staticValueSource.value = variantRT;
     UA_NodeId dsfNodeId;
-    // TODO check external data source during the RT profile creation
     UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dsfNodeId);
 
     /* add second new node to the information model with external data source backend*/

@@ -1425,11 +1425,6 @@ UA_PubSubDataSetField_sampleValue(UA_Server *server, UA_DataSetField *field,
         rvid.indexRange = field->config.field.variable.publishParameters.indexRange;
         *value = UA_Server_read(server, &rvid, UA_TIMESTAMPSTORETURN_BOTH);
     } else {
-        //if(field->config.field.variable.staticValueSource != NULL){
-        //    value->value.storageType = UA_VARIANT_DATA_NODELETE;
-        //    *value = **field->config.field.variable.staticValueSource;
-        //}
-        //TODO use external data source here
         *value = **field->config.field.variable.rtValueSource.staticValueSource;
         value->value.storageType = UA_VARIANT_DATA_NODELETE;
     }

@@ -939,14 +939,19 @@ UA_Server_setVariableNode_valueCallback(UA_Server *server,
 typedef enum {
     UA_VALUEBACKENDTYPE_NONE,
     UA_VALUEBACKENDTYPE_INTERNAL,
-    UA_VALUEBACKENDTYPE_CALLBACK,
+    UA_VALUEBACKENDTYPE_DATACALLBACK,
     UA_VALUEBACKENDTYPE_EXTERNAL
 } UA_ValueBackendType;
 
 typedef struct {
     UA_ValueBackendType backendType;
     union {
-        UA_DataValue internal;
+        struct {
+            struct {
+            UA_DataValue value;
+            UA_ValueCallback callback;
+        } data;
+        } internal;
         UA_DataSource dataSource;
         struct {
             UA_DataValue **value;

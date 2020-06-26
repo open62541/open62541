@@ -180,7 +180,7 @@ readValueAttributeComplete(UA_Server *server, UA_Session *session,
             retval = readValueAttributeFromNode(server, session, vn, v, rangeptr);
             //TODO change old structure to value backend
             break;
-        case UA_VALUEBACKENDTYPE_CALLBACK:
+        case UA_VALUEBACKENDTYPE_DATACALLBACK:
             retval = readValueAttributeFromDataSource(server, session, vn, v, timestamps, rangeptr);
             //TODO change old structure to value backend
             break;
@@ -1279,7 +1279,7 @@ writeValueAttribute(UA_Server *server, UA_Session *session,
             break;
         case UA_VALUEBACKENDTYPE_INTERNAL:
             break;
-        case UA_VALUEBACKENDTYPE_CALLBACK:
+        case UA_VALUEBACKENDTYPE_DATACALLBACK:
             break;
         case UA_VALUEBACKENDTYPE_EXTERNAL:
             if(node->valueBackend.backend.external.callback.userWrite == NULL){
