@@ -1043,6 +1043,15 @@ START_TEST(UA_QualifiedName_equalShallWorkOnExample) {
 }
 END_TEST
 
+START_TEST(UA_ExpandedNodeId_hashIdentical) {
+    // given
+    UA_NodeId n = UA_NODEID_NUMERIC(1, 1234);
+    UA_ExpandedNodeId en = UA_EXPANDEDNODEID_NUMERIC(1, 1234);
+
+    ck_assert(UA_ExpandedNodeId_hash(&en) == UA_NodeId_hash(&n));
+}
+END_TEST
+
 START_TEST(UA_ExtensionObject_copyShallWorkOnExample) {
     // given
     /* UA_Byte data[3] = { 1, 2, 3 }; */
@@ -1558,6 +1567,10 @@ static Suite *testSuite_builtin(void) {
     TCase *tc_equal = tcase_create("equal");
     tcase_add_test(tc_equal, UA_QualifiedName_equalShallWorkOnExample);
     suite_add_tcase(s, tc_equal);
+
+    TCase *tc_hash = tcase_create("hash");
+    tcase_add_test(tc_hash, UA_ExpandedNodeId_hashIdentical);
+    suite_add_tcase(s, tc_hash);
 
     TCase *tc_copy = tcase_create("copy");
     tcase_add_test(tc_copy, UA_Array_copyByteArrayShallWorkOnExample);
