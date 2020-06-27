@@ -529,7 +529,9 @@ UA_ExpandedNodeId_equal(const UA_ExpandedNodeId *n1, const UA_ExpandedNodeId *n2
     return (UA_ExpandedNodeId_order(n1, n2) == UA_ORDER_EQ);
 }
 
-/* Returns a non-cryptographic hash for ExpandedNodeId */
+/* Returns a non-cryptographic hash for ExpandedNodeId. The hash of an
+ * ExpandedNodeId is identical to the hash of the embedded (simple) NodeId if
+ * the ServerIndex is zero and no NamespaceUri is set. */
 UA_UInt32 UA_EXPORT UA_ExpandedNodeId_hash(const UA_ExpandedNodeId *n);
 
 /**
