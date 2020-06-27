@@ -149,11 +149,11 @@ typedef struct UA_ReferenceTarget {
 
 ZIP_HEAD(UA_ReferenceTargetIdTree, UA_ReferenceTarget);
 typedef struct UA_ReferenceTargetIdTree UA_ReferenceTargetIdTree;
-ZIP_PROTTYPE(UA_ReferenceTargetIdTree, UA_ReferenceTarget, UA_ReferenceTarget)
+ZIP_PROTOTYPE(UA_ReferenceTargetIdTree, UA_ReferenceTarget, UA_ReferenceTarget)
 
 ZIP_HEAD(UA_ReferenceTargetNameTree, UA_ReferenceTarget);
 typedef struct UA_ReferenceTargetNameTree UA_ReferenceTargetNameTree;
-ZIP_PROTTYPE(UA_ReferenceTargetNameTree, UA_ReferenceTarget, UA_UInt32)
+ZIP_PROTOTYPE(UA_ReferenceTargetNameTree, UA_ReferenceTarget, UA_UInt32)
 
 /* List of reference targets with the same reference type and direction */
 typedef struct {

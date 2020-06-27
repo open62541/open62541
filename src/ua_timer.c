@@ -40,7 +40,7 @@ cmpDateTime(const UA_DateTime *a, const UA_DateTime *b) {
     return ZIP_CMP_MORE;
 }
 
-ZIP_PROTTYPE(UA_TimerZip, UA_TimerEntry, UA_DateTime)
+ZIP_PROTOTYPE(UA_TimerZip, UA_TimerEntry, UA_DateTime)
 ZIP_IMPL(UA_TimerZip, UA_TimerEntry, zipfields, UA_DateTime, nextTime, cmpDateTime)
 
 /* The identifiers of entries are unique */
@@ -53,7 +53,7 @@ cmpId(const UA_UInt64 *a, const UA_UInt64 *b) {
     return ZIP_CMP_MORE;
 }
 
-ZIP_PROTTYPE(UA_TimerIdZip, UA_TimerEntry, UA_UInt64)
+ZIP_PROTOTYPE(UA_TimerIdZip, UA_TimerEntry, UA_UInt64)
 ZIP_IMPL(UA_TimerIdZip, UA_TimerEntry, idZipfields, UA_UInt64, id, cmpId)
 
 void

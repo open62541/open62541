@@ -55,7 +55,7 @@ typedef struct {
     UA_Byte referenceTypeCounter;
 } ZipContext;
 
-ZIP_PROTTYPE(NodeTree, NodeEntry, NodeEntry)
+ZIP_PROTOTYPE(NodeTree, NodeEntry, NodeEntry)
 ZIP_IMPL(NodeTree, NodeEntry, zipfields, NodeEntry, zipfields, cmpNodeId)
 
 static NodeEntry *
