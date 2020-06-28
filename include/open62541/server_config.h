@@ -139,7 +139,6 @@ struct UA_ServerConfig {
 #if UA_MULTITHREADING >= 100
     UA_Double asyncOperationTimeout; /* in ms, 0 => unlimited */
     size_t maxAsyncOperationQueueSize; /* 0 => unlimited */
-    UA_DEPRECATED UA_Double asyncCallRequestTimeout; /* in ms, 0 => unlimited */
     /* Notify workers when an async operation was enqueued */
     UA_Server_AsyncOperationNotifyCallback asyncOperationNotifyCallback;
 #endif
