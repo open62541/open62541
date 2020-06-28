@@ -80,15 +80,6 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
     config->logger.clear = NULL;
 }
 
-void
-UA_ServerConfig_setCustomHostname(UA_ServerConfig *config,
-                                  const UA_String customHostname) {
-    if(!config)
-        return;
-    UA_String_deleteMembers(&config->customHostname);
-    UA_String_copy(&customHostname, &config->customHostname);
-}
-
 #ifdef UA_ENABLE_PUBSUB
 /* Add a pubsubTransportLayer to the configuration. Memory is reallocated on
  * demand. */
