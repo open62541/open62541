@@ -541,9 +541,13 @@ readMinSamplingInterval(UA_Server *server, const UA_NodeId *sessionId, void *ses
     }
 
     UA_StatusCode retval;
-    retval = UA_Variant_setScalarCopy(&value->value,
-                                      &server->config.samplingIntervalLimits.min,
-                                      &UA_TYPES[UA_TYPES_DURATION]);
+    UA_Duration minInterval;
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    minInterval = server->config.samplingIntervalLimits.min;
+#else
+    minInterval = 0.0;
+#endif
+    retval = UA_Variant_setScalarCopy(&value->value, &minInterval, &UA_TYPES[UA_TYPES_DURATION]);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     value->hasValue = true;

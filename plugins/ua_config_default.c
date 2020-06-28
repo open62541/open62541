@@ -197,6 +197,7 @@ setDefaultConfig(UA_ServerConfig *conf) {
     conf->maxSessions = 100;
     conf->maxSessionTimeout = 60.0 * 60.0 * 1000.0; /* 1h */
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS
     /* Limits for Subscriptions */
     conf->publishingIntervalLimits = UA_DURATIONRANGE(100.0, 3600.0 * 1000.0);
     conf->lifeTimeCountLimits = UA_UINT32RANGE(3, 15000);
@@ -204,13 +205,14 @@ setDefaultConfig(UA_ServerConfig *conf) {
     conf->maxNotificationsPerPublish = 1000;
     conf->enableRetransmissionQueue = true;
     conf->maxRetransmissionQueueSize = 0; /* unlimited */
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+# ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     conf->maxEventsPerNode = 0; /* unlimited */
-#endif
+# endif
 
     /* Limits for MonitoredItems */
     conf->samplingIntervalLimits = UA_DURATIONRANGE(50.0, 24.0 * 3600.0 * 1000.0);
     conf->queueSizeLimits = UA_UINT32RANGE(1, 100);
+#endif
 
 #ifdef UA_ENABLE_DISCOVERY
     conf->discoveryCleanupTimeout = 60 * 60;
