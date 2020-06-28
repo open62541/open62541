@@ -123,8 +123,6 @@ setDefaultConfig(UA_ServerConfig *conf) {
         UA_Nodestore_HashMap(&conf->nodestore);
 
     /* --> Start setting the default static config <-- */
-    conf->nThreads = 1;
-
     /* Allow user to set his own logger */
     if (!conf->logger.log)
         conf->logger = UA_Log_Stdout_;
@@ -243,6 +241,10 @@ setDefaultConfig(UA_ServerConfig *conf) {
 #if UA_MULTITHREADING >= 100
     conf->maxAsyncOperationQueueSize = 0;
     conf->asyncOperationTimeout = 120000; /* Async Operation Timeout in ms (2 minutes) */
+#endif
+
+#if UA_MULTITHREADING >= 200
+    conf->nThreads = 1;
 #endif
 
     /* --> Finish setting the default static config <-- */
