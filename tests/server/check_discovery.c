@@ -148,7 +148,7 @@ START_TEST(Server_register) {
     UA_Client *clientRegister = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(clientRegister));
 
-    UA_StatusCode retval = UA_Client_connect_noSession(clientRegister, "opc.tcp://localhost:4840");
+    UA_StatusCode retval = UA_Client_connectSecureChannel(clientRegister, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     retval = UA_Server_register_discovery(server_register, clientRegister , NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -161,7 +161,7 @@ START_TEST(Server_unregister) {
     UA_Client *clientRegister = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(clientRegister));
 
-    UA_StatusCode retval = UA_Client_connect_noSession(clientRegister, "opc.tcp://localhost:4840");
+    UA_StatusCode retval = UA_Client_connectSecureChannel(clientRegister, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     retval = UA_Server_unregister_discovery(server_register, clientRegister);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -194,7 +194,7 @@ START_TEST(Server_register_semaphore) {
     UA_Client *clientRegister = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(clientRegister));
 
-    UA_StatusCode retval = UA_Client_connect_noSession(clientRegister, "opc.tcp://localhost:4840");
+    UA_StatusCode retval = UA_Client_connectSecureChannel(clientRegister, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     retval = UA_Server_register_discovery(server_register, clientRegister, SEMAPHORE_PATH);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);

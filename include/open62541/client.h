@@ -279,35 +279,6 @@ UA_Client_disconnectAsync(UA_Client *client);
 UA_StatusCode UA_EXPORT
 UA_Client_disconnectSecureChannel(UA_Client *client);
 
-/* Deprecated methods */
-
-UA_DEPRECATED static UA_INLINE UA_StatusCode
-UA_Client_connect_async(UA_Client *client, const char *endpointUrl) {
-    return UA_Client_connectAsync(client, endpointUrl);
-}
-
-UA_DEPRECATED static UA_INLINE UA_StatusCode
-UA_Client_connect_noSession(UA_Client *client, const char *endpointUrl) {
-    return UA_Client_connectSecureChannel(client, endpointUrl);
-}
-
-UA_DEPRECATED static UA_INLINE UA_StatusCode
-UA_Client_connect_username(UA_Client *client, const char *endpointUrl,
-                           const char *username, const char *password) {
-    return UA_Client_connectUsername(client, endpointUrl,
-                                     username, password);
-}
-
-UA_DEPRECATED static UA_INLINE UA_StatusCode
-UA_Client_disconnect_async(UA_Client *client, UA_UInt32 *requestId) {
-    return UA_Client_disconnect(client);
-}
-
-UA_DEPRECATED static UA_INLINE UA_StatusCode
-UA_Client_close(UA_Client *client) {
-    return UA_Client_disconnect(client);
-}
-
 /**
  * Discovery
  * --------- */
@@ -625,16 +596,6 @@ UA_Client_sendAsyncRequest(UA_Client *client, const void *request,
 UA_StatusCode UA_EXPORT
 UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout);
 
-UA_DEPRECATED static UA_INLINE UA_StatusCode
-UA_Client_runAsync(UA_Client *client, UA_UInt32 timeout) {
-    return UA_Client_run_iterate(client, timeout);
-}
-
-UA_DEPRECATED static UA_INLINE UA_StatusCode
-UA_Client_manuallyRenewSecureChannel(UA_Client *client) {
-    return UA_Client_run_iterate(client, 0);
-}
-
 /* Use the type versions of this method. See below. However, the general
  * mechanism of async service calls is explained here.
  *
@@ -712,11 +673,6 @@ UA_Client_changeRepeatedCallbackInterval(UA_Client *client,
 
 void UA_EXPORT
 UA_Client_removeCallback(UA_Client *client, UA_UInt64 callbackId);
-
-UA_DEPRECATED static UA_INLINE void
-UA_Client_removeRepeatedCallback(UA_Client *client, UA_UInt64 callbackId) {
-    UA_Client_removeCallback(client, callbackId);
-}
 
 /**
  * .. toctree::
