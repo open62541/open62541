@@ -392,7 +392,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
     }
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    if(server->config.discovery.mdnsEnable) {
+    if(server->config.mdnsEnabled) {
         for(size_t i = 0; i < requestServer->discoveryUrlsSize; i++) {
             /* create TXT if is online and first index, delete TXT if is offline and last index */
             UA_Boolean updateTxt = (requestServer->isOnline && i==0) ||
@@ -510,8 +510,8 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
     UA_DateTime timedOut = nowMonotonic;
     // registration is timed out if lastSeen is older than 60 minutes (default
     // value, can be modified by user).
-    if(server->config.discovery.cleanupTimeout)
-        timedOut -= server->config.discovery.cleanupTimeout*UA_DATETIME_SEC;
+    if(server->config.discoveryCleanupTimeout)
+        timedOut -= server->config.discoveryCleanupTimeout * UA_DATETIME_SEC;
 
     registeredServer_list_entry* current, *temp;
     LIST_FOREACH_SAFE(current, &server->discoveryManager.registeredServers, pointers, temp) {
@@ -535,7 +535,7 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
         }
 #endif
 
-        if(semaphoreDeleted || (server->config.discovery.cleanupTimeout &&
+        if(semaphoreDeleted || (server->config.discoveryCleanupTimeout &&
                                 current->lastSeen < timedOut)) {
             if(semaphoreDeleted) {
                 UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
