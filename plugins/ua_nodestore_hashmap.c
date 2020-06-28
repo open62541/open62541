@@ -6,6 +6,7 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
+#include <open62541/util.h>
 #include <open62541/plugin/nodestore_default.h>
 
 #ifndef container_of

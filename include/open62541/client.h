@@ -29,9 +29,6 @@
 
 _UA_BEGIN_DECLS
 
-struct UA_Client;
-typedef struct UA_Client UA_Client;
-
 /**
  * .. _client:
  *

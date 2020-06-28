@@ -9,7 +9,7 @@
 #ifndef UA_PLUGIN_ACCESS_CONTROL_H_
 #define UA_PLUGIN_ACCESS_CONTROL_H_
 
-#include <open62541/server.h>
+#include <open62541/util.h>
 
 _UA_BEGIN_DECLS
 

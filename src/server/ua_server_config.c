@@ -6,7 +6,7 @@
  *    Copyright 2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
  */
 
-#include <open62541/server_config.h>
+#include <open62541/server.h>
 
 void
 UA_ServerConfig_clean(UA_ServerConfig *config) {
