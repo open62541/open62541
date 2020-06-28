@@ -8,6 +8,7 @@
 #ifndef SECURITYPOLICY_OPENSSL_COMMON_H_
 #define SECURITYPOLICY_OPENSSL_COMMON_H_
 
+#include <open62541/util.h>
 #include <open62541/plugin/securitypolicy.h>
 
 #ifdef UA_ENABLE_ENCRYPTION_OPENSSL

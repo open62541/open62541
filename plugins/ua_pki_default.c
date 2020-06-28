@@ -6,7 +6,7 @@
  *    Copyright 2019 (c) Julius Pfrommer, Fraunhofer IOSB
  */
 
-#include <open62541/server_config.h>
+#include <open62541/util.h>
 #include <open62541/plugin/pki_default.h>
 #include <open62541/plugin/log_stdout.h>
 

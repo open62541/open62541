@@ -9,7 +9,9 @@
 #ifndef UA_SERVER_PUBSUB_H
 #define UA_SERVER_PUBSUB_H
 
-#include <open62541/server.h>
+#include <open62541/util.h>
+#include <open62541/types.h>
+#include <open62541/types_generated.h>
 
 _UA_BEGIN_DECLS
 

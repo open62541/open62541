@@ -672,7 +672,7 @@ endif()
 
 
 if(UA_ENABLE_HISTORIZING)
-    # Historizing needs to be included before server_config.h
+    # Historizing needs to be included before server.h
     set(historizing_exported_headers
          ${PROJECT_SOURCE_DIR}/include/open62541/plugin/historydatabase.h)
 endif()
@@ -687,7 +687,6 @@ set(exported_headers ${exported_headers}
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated_handling.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/util.h
-                     ${PROJECT_SOURCE_DIR}/include/open62541/server.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/log.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/network.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/accesscontrol.h
@@ -698,7 +697,7 @@ set(exported_headers ${exported_headers}
                      ${PROJECT_SOURCE_DIR}/deps/ziptree.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h
                      ${historizing_exported_headers}
-                     ${PROJECT_SOURCE_DIR}/include/open62541/server_config.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/server.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/client.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/client_highlevel.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/client_subscriptions.h

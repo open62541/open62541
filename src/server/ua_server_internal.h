@@ -18,7 +18,6 @@
 #define UA_SERVER_INTERNAL_H_
 
 #include <open62541/server.h>
-#include <open62541/server_config.h>
 #include <open62541/plugin/nodestore.h>
 
 #include "ua_connection_internal.h"

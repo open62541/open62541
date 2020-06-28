@@ -4,13 +4,7 @@
  *    Copyright 2020 (c) Wind River Systems, Inc.
  */
 
-/*
-modification history
---------------------
-21feb20,lan  written
-*/
-
-#include <open62541/server_config.h>
+#include <open62541/util.h>
 #include <open62541/plugin/pki_default.h>
 #include <open62541/plugin/log_stdout.h>
 

@@ -5,7 +5,7 @@
 #ifndef TESTING_NETWORKLAYERS_H_
 #define TESTING_NETWORKLAYERS_H_
 
-#include <open62541/server_config.h>
+#include <open62541/server.h>
 
 _UA_BEGIN_DECLS
 
