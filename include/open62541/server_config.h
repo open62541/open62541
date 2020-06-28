@@ -65,7 +65,6 @@ typedef struct {
 typedef void (*UA_Server_AsyncOperationNotifyCallback)(UA_Server *server);
 
 struct UA_ServerConfig {
-    UA_UInt16 nThreads; /* only if multithreading is enabled */
     UA_Logger logger;
 
     /* Server Description:
@@ -141,6 +140,10 @@ struct UA_ServerConfig {
     size_t maxAsyncOperationQueueSize; /* 0 => unlimited */
     /* Notify workers when an async operation was enqueued */
     UA_Server_AsyncOperationNotifyCallback asyncOperationNotifyCallback;
+#endif
+
+#if UA_MULTITHREADING >= 200
+    UA_UInt16 nThreads; /* Experimental feature */
 #endif
 
     /**
