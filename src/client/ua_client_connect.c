@@ -240,9 +240,12 @@ processERRResponse(UA_Client *client, const UA_ByteString *chunk) {
         return;
     }
 
-    UA_LOG_ERROR_CHANNEL(&client->config.logger, &client->channel,
-                         "Received an ERR response with StatusCode %s and the following reason: %.*s",
-                         UA_StatusCode_name(errMessage.error), (int)errMessage.reason.length, errMessage.reason.data);
+    if ((errMessage.reason.length > 0) && (errMessage.reason.data != NULL)) {
+        UA_LOG_ERROR_CHANNEL(&client->config.logger, &client->channel,
+                "Received an ERR response with StatusCode %s and the following reason: %.*s",
+                UA_StatusCode_name(errMessage.error), (int)errMessage.reason.length, 
+                errMessage.reason.data);
+    }
     client->connectStatus = errMessage.error;
     UA_TcpErrorMessage_clear(&errMessage);
 }
