@@ -13,6 +13,7 @@
  *    Copyright 2020 (c) Wind River Systems, Inc.
  */
 
+#include <open62541/client.h>
 #include <open62541/client_config_default.h>
 #include <open62541/network_tcp.h>
 #ifdef UA_ENABLE_WEBSOCKET_SERVER

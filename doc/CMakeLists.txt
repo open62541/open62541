@@ -37,7 +37,6 @@ generate_rst(${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.h ${DOC_S
 generate_rst(${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated.h ${DOC_SRC_DIR}/types_generated.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/server_config.h ${DOC_SRC_DIR}/server_config.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/server.h ${DOC_SRC_DIR}/server.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/client_config.h ${DOC_SRC_DIR}/client_config.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/client_subscriptions.h ${DOC_SRC_DIR}/client_subscriptions.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/client.h ${DOC_SRC_DIR}/client.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/client_highlevel.h ${DOC_SRC_DIR}/client_highlevel.rst)
