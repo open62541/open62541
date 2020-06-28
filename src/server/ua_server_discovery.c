@@ -71,7 +71,7 @@ register_server_with_discovery_server(UA_Server *server,
     // Set to NODELETE so that we can just use a pointer to the mdns config
     request.discoveryConfiguration[0].encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
     request.discoveryConfiguration[0].content.decoded.type = &UA_TYPES[UA_TYPES_MDNSDISCOVERYCONFIGURATION];
-    request.discoveryConfiguration[0].content.decoded.data = &server->config.discovery.mdns;
+    request.discoveryConfiguration[0].content.decoded.data = &server->config.mdnsConfig;
 #endif
 
     // First try with RegisterServer2, if that isn't implemented, use RegisterServer

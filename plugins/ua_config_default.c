@@ -158,11 +158,11 @@ setDefaultConfig(UA_ServerConfig *conf) {
     /* conf->applicationDescription.discoveryUrls = NULL; */
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    UA_MdnsDiscoveryConfiguration_clear(&conf->discovery.mdns);
-    conf->discovery.mdnsInterfaceIP = UA_STRING_NULL;
+    UA_MdnsDiscoveryConfiguration_clear(&conf->mdnsConfig);
+    conf->mdnsInterfaceIP = UA_STRING_NULL;
 # if !defined(UA_HAS_GETIFADDR)
-    conf->discovery.ipAddressList = NULL;
-    conf->discovery.ipAddressListSize = 0;
+    conf->mdnsIpAddressList = NULL;
+    conf->mdnsIpAddressListSize = 0;
 # endif
 #endif
 
@@ -215,7 +215,7 @@ setDefaultConfig(UA_ServerConfig *conf) {
     conf->queueSizeLimits = UA_UINT32RANGE(1, 100);
 
 #ifdef UA_ENABLE_DISCOVERY
-    conf->discovery.cleanupTimeout = 60 * 60;
+    conf->discoveryCleanupTimeout = 60 * 60;
 #endif
 
 #ifdef UA_ENABLE_HISTORIZING

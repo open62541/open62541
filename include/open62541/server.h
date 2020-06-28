@@ -14,8 +14,9 @@
 #ifndef UA_SERVER_H_
 #define UA_SERVER_H_
 
-#include <open62541/nodeids.h>
 #include <open62541/types.h>
+#include <open62541/nodeids.h>
+#include <open62541/common.h>
 #include <open62541/types_generated.h>
 #include <open62541/types_generated_handling.h>
 

@@ -91,8 +91,8 @@ addMdnsRecordForNetworkLayer(UA_Server *server, const UA_String *appName,
 
     retval = UA_Discovery_addRecord(server, appName, &hostname, port,
                                     &path, UA_DISCOVERY_TCP, true,
-                                    server->config.discovery.mdns.serverCapabilities,
-                                    server->config.discovery.mdns.serverCapabilitiesSize,
+                                    server->config.mdnsConfig.serverCapabilities,
+                                    server->config.mdnsConfig.serverCapabilitiesSize,
                                     true);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_NETWORK,
@@ -104,7 +104,7 @@ addMdnsRecordForNetworkLayer(UA_Server *server, const UA_String *appName,
 }
 
 void startMulticastDiscoveryServer(UA_Server *server) {
-    UA_String *appName = &server->config.discovery.mdns.mdnsServerName;
+    UA_String *appName = &server->config.mdnsConfig.mdnsServerName;
     for(size_t i = 0; i < server->config.networkLayersSize; i++)
         addMdnsRecordForNetworkLayer(server, appName, &server->config.networkLayers[i]);
 
@@ -133,7 +133,7 @@ stopMulticastDiscoveryServer(UA_Server *server) {
         if (retval != UA_STATUSCODE_GOOD)
             continue;
 
-        UA_Discovery_removeRecord(server, &server->config.discovery.mdns.mdnsServerName,
+        UA_Discovery_removeRecord(server, &server->config.mdnsConfig.mdnsServerName,
                                   &hostname, port, true);
 
     }
@@ -176,7 +176,7 @@ void Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
                                   UA_FindServersOnNetworkResponse *response) {
     UA_LOCK_ASSERT(server->serviceMutex, 1);
 
-    if (!server->config.discovery.mdnsEnable) {
+    if (!server->config.mdnsEnabled) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTIMPLEMENTED;
         return;
     }
