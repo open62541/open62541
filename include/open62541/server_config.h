@@ -182,28 +182,6 @@ struct UA_ServerConfig {
     /* Limits for Requests */
     UA_UInt32 maxReferencesPerNode;
 
-    /* Limits for Subscriptions */
-    UA_UInt32 maxSubscriptions;
-    UA_UInt32 maxSubscriptionsPerSession;
-    UA_DurationRange publishingIntervalLimits; /* in ms (must not be less than 5) */
-    UA_UInt32Range lifeTimeCountLimits;
-    UA_UInt32Range keepAliveCountLimits;
-    UA_UInt32 maxNotificationsPerPublish;
-    UA_Boolean enableRetransmissionQueue;
-    UA_UInt32 maxRetransmissionQueueSize; /* 0 -> unlimited size */
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-    UA_UInt32 maxEventsPerNode; /* 0 -> unlimited size */
-#endif
-
-    /* Limits for MonitoredItems */
-    UA_UInt32 maxMonitoredItems;
-    UA_UInt32 maxMonitoredItemsPerSubscription;
-    UA_DurationRange samplingIntervalLimits; /* in ms (must not be less than 5) */
-    UA_UInt32Range queueSizeLimits; /* Negotiated with the client */
-
-    /* Limits for PublishRequests */
-    UA_UInt32 maxPublishReqPerSession;
-
     /* Discovery */
 #ifdef UA_ENABLE_DISCOVERY
     /* Timeout in seconds when to automatically remove a registered server from
@@ -227,6 +205,28 @@ struct UA_ServerConfig {
 
     /* Subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
+    /* Limits for Subscriptions */
+    UA_UInt32 maxSubscriptions;
+    UA_UInt32 maxSubscriptionsPerSession;
+    UA_DurationRange publishingIntervalLimits; /* in ms (must not be less than 5) */
+    UA_UInt32Range lifeTimeCountLimits;
+    UA_UInt32Range keepAliveCountLimits;
+    UA_UInt32 maxNotificationsPerPublish;
+    UA_Boolean enableRetransmissionQueue;
+    UA_UInt32 maxRetransmissionQueueSize; /* 0 -> unlimited size */
+# ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    UA_UInt32 maxEventsPerNode; /* 0 -> unlimited size */
+# endif
+
+    /* Limits for MonitoredItems */
+    UA_UInt32 maxMonitoredItems;
+    UA_UInt32 maxMonitoredItemsPerSubscription;
+    UA_DurationRange samplingIntervalLimits; /* in ms (must not be less than 5) */
+    UA_UInt32Range queueSizeLimits; /* Negotiated with the client */
+
+    /* Limits for PublishRequests */
+    UA_UInt32 maxPublishReqPerSession;
+
     /* Register MonitoredItem in Userland
      *
      * @param server Allows the access to the server object
