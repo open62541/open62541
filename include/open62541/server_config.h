@@ -274,9 +274,12 @@ void UA_EXPORT
 UA_ServerConfig_clean(UA_ServerConfig *config);
 
 /* Set a custom hostname in server configuration */
-UA_EXPORT void
+UA_DEPRECATED static UA_INLINE void 
 UA_ServerConfig_setCustomHostname(UA_ServerConfig *config,
-                                  const UA_String customHostname);
+                                  const UA_String customHostname) {
+    UA_String_clear(&config->customHostname);
+    UA_String_copy(&customHostname, &config->customHostname);
+}
 
 _UA_END_DECLS
 
