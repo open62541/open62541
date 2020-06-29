@@ -11,8 +11,13 @@
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
 
 #ifndef UA_ENABLE_AMALGAMATION
+#ifndef USE_CONAN_PKG_MANAGER
 #include "mdnsd/libmdnsd/xht.h"
 #include "mdnsd/libmdnsd/sdtxt.h"
+#else 
+#include "libmdnsd/xht.h"
+#include "libmdnsd/sdtxt.h"
+#endif
 #endif
 
 #ifdef _WIN32

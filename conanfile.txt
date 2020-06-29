@@ -1,0 +1,6 @@
+[requires]
+pro-mdnsd/0.8.4
+
+[generators]
+cmake_paths
+cmake_find_package

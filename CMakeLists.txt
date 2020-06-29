@@ -21,6 +21,16 @@ set(XDP_LIBRARY "/usr/local/src/bpf-next/tools/lib/bpf/libbpf.a")
 include(macros_internal)
 include(macros_public)
 
+################################
+# Conan Package Manager Helper #
+################################
+
+option(CONAN_PKG_MANAGER "Manage various external dependencies via conan package manager." OFF)
+if(CONAN_PKG_MANAGER)
+    include(conan_install)
+    execute_conan_install()
+endif()
+
 #############################
 # Compiled binaries folders #
 #############################
@@ -417,7 +427,7 @@ endif()
 option(UA_BUILD_OSS_FUZZ "Special build switch used in oss-fuzz" OFF)
 mark_as_advanced(UA_BUILD_OSS_FUZZ)
 
-# Advanced Build Targets
+# Advanced Build Targetsl
 option(UA_PACK_DEBIAN "Special build switch used in .deb packaging" OFF)
 mark_as_advanced(UA_PACK_DEBIAN)
 
@@ -659,7 +669,12 @@ configure_file(open62541.pc.in ${PROJECT_BINARY_DIR}/src_generated/open62541.pc 
 
 if(UA_ENABLE_DISCOVERY_MULTICAST)
     set(MDNSD_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported" FORCE)
-    configure_file("deps/mdnsd/libmdnsd/mdnsd_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/mdnsd_config.h")
+    if(NOT CONAN_PKG_MANAGER)
+        configure_file("deps/mdnsd/libmdnsd/mdnsd_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/mdnsd_config.h")
+    else()
+        find_package(mdnsd REQUIRED)
+        add_compile_definitions(USE_CONAN_PKG_MANAGER)
+    endif()
 endif()
 
 set(exported_headers ${exported_headers}
@@ -934,19 +949,27 @@ if(UA_DEBUG_DUMP_PKGS)
 endif()
 
 if(UA_ENABLE_DISCOVERY_MULTICAST)
-    # prepend in list, otherwise it complains that winsock2.h has to be included before windows.h
-    set(internal_headers ${PROJECT_BINARY_DIR}/src_generated/mdnsd_config.h
-                         ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/1035.h
-                         ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/xht.h
-                         ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.h
-                         ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.h
-                         ${internal_headers} )
-    set(lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_server_discovery_mdns.c
-        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/1035.c
-        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/xht.c
-        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.c
-        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.c
-        ${lib_sources})
+    if(NOT CONAN_PKG_MANAGER)
+        # prepend in list, otherwise it complains that winsock2.h has to be included before windows.h
+        set(internal_headers ${PROJECT_BINARY_DIR}/src_generated/mdnsd_config.h
+                            ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/1035.h
+                            ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/xht.h
+                            ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.h
+                            ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.h
+                            ${internal_headers} 
+        )
+        set(lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_server_discovery_mdns.c
+            ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/1035.c
+            ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/xht.c
+            ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.c
+            ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.c
+            ${lib_sources}
+        )
+    else()
+        set(lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_server_discovery_mdns.c
+            ${lib_sources}
+        )
+    endif()
 endif()
 
 if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ)
@@ -1166,6 +1189,10 @@ if(UA_ENABLE_AMALGAMATION)
 else()
     add_library(open62541-object OBJECT ${lib_sources} ${internal_headers} ${exported_headers})
 
+    if(CONAN_PKG_MANAGER)
+        target_link_libraries(open62541-object PUBLIC mdnsd::mdnsd)
+    endif()
+
     add_custom_target(open62541-code-generation DEPENDS
                       open62541-generator-types
                       open62541-generator-transport
@@ -1266,6 +1293,10 @@ endif(NOT "${ua_architecture_remove_definitions}" STREQUAL "")
 
 GET_PROPERTY(ua_architecture_append_to_library GLOBAL PROPERTY UA_ARCHITECTURE_APPEND_TO_LIBRARY)
 list(APPEND open62541_LIBRARIES ${ua_architecture_append_to_library})
+
+if(UA_ENABLE_DISCOVERY_MULTICAST AND CONAN_PKG_MANAGER)
+    list(APPEND open62541_LIBRARIES mdnsd::mdnsd)
+endif()
 
 target_compile_definitions(open62541 PUBLIC UA_ARCHITECTURE_${UA_ARCHITECTURE_UPPER})
 

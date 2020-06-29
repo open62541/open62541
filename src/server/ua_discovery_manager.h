@@ -50,8 +50,11 @@ typedef struct periodicServerRegisterCallback_entry {
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
 
+#ifndef USE_CONAN_PKG_MANAGER
 #include "mdnsd/libmdnsd/mdnsd.h"
-
+#else 
+#include "libmdnsd/mdnsd.h"
+#endif
 /**
  * TXT record:
  * [servername]-[hostname]._opcua-tcp._tcp.local. TXT path=/ caps=NA,DA,...
