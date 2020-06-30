@@ -39,7 +39,7 @@ addNode_finish(UA_Server *server, UA_UInt32 nodeId,
     const UA_NodeId refTypeId = UA_NODEID_NUMERIC(0, referenceTypeId);
     const UA_ExpandedNodeId targetId = UA_EXPANDEDNODEID_NUMERIC(0, parentNodeId);
     UA_StatusCode retval = UA_Server_addReference(server, sourceId, refTypeId, targetId, false);
-    if (retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD)
         return retval;
     return AddNode_finish(server, &server->adminSession, &sourceId);
 }
@@ -328,7 +328,8 @@ readStatus(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
         statustype->secondsTillShutdown = 0;
         if(server->endTime != 0) {
             statustype->state = UA_SERVERSTATE_SHUTDOWN;
-            statustype->secondsTillShutdown = (UA_UInt32)((server->endTime - UA_DateTime_now()) / UA_DATETIME_SEC);
+            statustype->secondsTillShutdown = (UA_UInt32)
+                ((server->endTime - UA_DateTime_now()) / UA_DATETIME_SEC);
         }
 
         value->value.data = statustype;
@@ -558,32 +559,27 @@ readMinSamplingInterval(UA_Server *server, const UA_NodeId *sessionId, void *ses
 static UA_StatusCode
 readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
                    const UA_NodeId *methodId, void *methodContext, const UA_NodeId *objectId,
-                   void *objectContext, size_t inputSize,
-                   const UA_Variant *input, size_t outputSize,
-                   UA_Variant *output) {
+                   void *objectContext, size_t inputSize, const UA_Variant *input,
+                   size_t outputSize, UA_Variant *output) {
     UA_LOCK(server->serviceMutex);
     UA_Session *session = UA_Server_getSessionById(server, sessionId);
     UA_UNLOCK(server->serviceMutex);
     if(!session)
         return UA_STATUSCODE_BADINTERNALERROR;
-    if (inputSize == 0 || !input[0].data)
+    if(inputSize == 0 || !input[0].data)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
     UA_UInt32 subscriptionId = *((UA_UInt32*)(input[0].data));
     UA_LOCK(server->serviceMutex);
     UA_Subscription* subscription = UA_Session_getSubscriptionById(session, subscriptionId);
     UA_UNLOCK(server->serviceMutex);
-    if(!subscription)
-    {
-        if(LIST_EMPTY(&session->serverSubscriptions))
-        {
-          UA_Variant_setArray(&output[0], UA_Array_new(0, &UA_TYPES[UA_TYPES_UINT32]),
-                              0, &UA_TYPES[UA_TYPES_UINT32]);
-          UA_Variant_setArray(&output[1], UA_Array_new(0, &UA_TYPES[UA_TYPES_UINT32]),
-                              0, &UA_TYPES[UA_TYPES_UINT32]);
-
-          return UA_STATUSCODE_BADNOMATCH;
+    if(!subscription) {
+        if(LIST_EMPTY(&session->serverSubscriptions)) {
+            UA_Variant_setArray(&output[0], UA_Array_new(0, &UA_TYPES[UA_TYPES_UINT32]),
+                                0, &UA_TYPES[UA_TYPES_UINT32]);
+            UA_Variant_setArray(&output[1], UA_Array_new(0, &UA_TYPES[UA_TYPES_UINT32]),
+                                0, &UA_TYPES[UA_TYPES_UINT32]);
+            return UA_STATUSCODE_BADNOMATCH;
         }
-
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
     }
 
@@ -647,6 +643,7 @@ UA_Server_minimalServerObject(UA_Server *server) {
     retval |= addVariableNode(server, "ServerArray", UA_NS0ID_SERVER_SERVERARRAY,
                               UA_NS0ID_SERVER, UA_NS0ID_HASPROPERTY,
                               UA_VALUERANK_ANY, UA_NS0ID_BASEDATATYPE);
+
     retval |= addVariableNode(server, "NamespaceArray", UA_NS0ID_SERVER_NAMESPACEARRAY,
                               UA_NS0ID_SERVER, UA_NS0ID_HASPROPERTY,
                               UA_VALUERANK_ANY, UA_NS0ID_BASEDATATYPE);
