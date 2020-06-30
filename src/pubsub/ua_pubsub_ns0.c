@@ -626,6 +626,7 @@ addPublishedDataItemsAction(UA_Server *server,
     retVal |= UA_Server_addPublishedDataSet(server, &publishedDataSetConfig, &dataSetItemsNodeId).addResult;
 
     UA_DataSetFieldConfig dataSetFieldConfig;
+    dataSetFieldConfig.field.variable.rtValueSource.staticValueSource = NULL;
     for(size_t j = 0; j < variablesToAddSize; ++j) {
         memset(&dataSetFieldConfig, 0, sizeof(dataSetFieldConfig));
         dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;

@@ -261,6 +261,8 @@ typedef enum {
     size_t arrayDimensionsSize;                                         \
     UA_UInt32 *arrayDimensions;                                         \
                                                                         \
+    UA_ValueBackend valueBackend;                                       \
+                                                                        \
     /* The current value */                                             \
     UA_ValueSource valueSource;                                         \
     union {                                                             \

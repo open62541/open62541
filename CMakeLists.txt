@@ -240,37 +240,45 @@ if(UA_FORCE_CPP)
     add_definitions(-D__STDC_CONSTANT_MACROS) # We need the UINT32_C define
 endif()
 
+#General PubSub setup
 option(UA_ENABLE_PUBSUB "Enable publish/subscribe" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB)
 
+option(UA_ENABLE_PUBSUB_INFORMATIONMODEL "Enable PubSub information model twin" OFF)
+mark_as_advanced(UA_ENABLE_PUBSUB_INFORMATIONMODEL)
+option(UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS "Enable PubSub informationmodel methods" OFF)
+mark_as_advanced(UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS)
+option(UA_ENABLE_PUBSUB_DELTAFRAMES "Enable sending of delta frames with only the changes" OFF)
+mark_as_advanced(UA_ENABLE_PUBSUB_DELTAFRAMES)
+#RT and Transport PubSub settings
 option(UA_ENABLE_PUBSUB_ETH_UADP "Enable publish/subscribe UADP over Ethernet" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_ETH_UADP)
+option(UA_ENABLE_PUBSUB_ETH_UADP_XDP "Enable Subscribe UADP over Ethernet using XDP" OFF)
+mark_as_advanced(UA_ENABLE_PUBSUB_ETH_UADP_XDP)
+option(UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
+        "Use a custom implementation for the publish callback handling" OFF)
+mark_as_advanced(UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING)
+option(UA_ENABLE_PUBSUB_ETH_UADP_ETF "Use ETF implementation for the ETH_UADP publish" OFF)
+mark_as_advanced(UA_ENABLE_PUBSUB_ETH_UADP_ETF)
+
 if(UA_ENABLE_PUBSUB_ETH_UADP)
     if(NOT CMAKE_SYSTEM MATCHES "Linux")
     message(FATAL_ERROR "UADP over Ethernet is only available on Linux.")
 	endif()
 endif()
 
-option(UA_ENABLE_PUBSUB_ETH_UADP_XDP "Enable Subscribe UADP over Ethernet using XDP" OFF)
-mark_as_advanced(UA_ENABLE_PUBSUB_ETH_UADP_XDP)
 if(UA_ENABLE_PUBSUB_ETH_UADP_XDP)
     if(NOT CMAKE_SYSTEM MATCHES "Linux")
         message(FATAL_ERROR "XDP is only available on Linux.")
     endif()
 endif()
 
-option(UA_ENABLE_PUBSUB_DELTAFRAMES "Enable sending of delta frames with only the changes" OFF)
-mark_as_advanced(UA_ENABLE_PUBSUB_DELTAFRAMES)
-
-option(UA_ENABLE_PUBSUB_INFORMATIONMODEL "Enable PubSub information model twin" OFF)
-mark_as_advanced(UA_ENABLE_PUBSUB_INFORMATIONMODEL)
-option(UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS "Enable PubSub informationmodel methods" OFF)
-mark_as_advanced(UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS)
 if(UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS)
     if(NOT UA_ENABLE_PUBSUB_INFORMATIONMODEL)
         message(FATAL_ERROR "PubSub information model methods cannot be used with disabled PubSub information model.")
     endif()
 endif()
+
 if(UA_ENABLE_PUBSUB_INFORMATIONMODEL)
     if(NOT UA_ENABLE_PUBSUB)
         message(FATAL_ERROR "PubSub information model representation cannot be used with disabled PubSub function.")
@@ -279,14 +287,6 @@ if(UA_ENABLE_PUBSUB_INFORMATIONMODEL)
         message(FATAL_ERROR "PubSub information model representation cannot be used with MINIMAL namespace zero.")
     endif()
 endif()
-
-option(UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
-       "Use a custom implementation for the publish callback handling" OFF)
-mark_as_advanced(UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING)
-
-option(UA_ENABLE_PUBSUB_ETH_UADP_ETF
-       "Use ETF implementation for the ETH_UADP publish" OFF)
-mark_as_advanced(UA_ENABLE_PUBSUB_ETH_UADP_ETF)
 
 if(UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING)
     if(NOT UA_ENABLE_PUBSUB)
