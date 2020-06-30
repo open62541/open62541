@@ -2079,7 +2079,7 @@ UA_Server_setVariableNode_valueBackend(UA_Server *server, const UA_NodeId nodeId
     switch(valueBackend.backendType){
         case UA_VALUEBACKENDTYPE_NONE:
             return UA_STATUSCODE_BADCONFIGURATIONERROR;
-        case UA_VALUEBACKENDTYPE_DATACALLBACK:
+        case UA_VALUEBACKENDTYPE_DATA_SOURCE_CALLBACK:
             retval = UA_Server_editNode(server, &server->adminSession, &nodeId,
                                         (UA_EditNodeCallback) setValueCallback,
                 /* cast away const because callback uses const anyway */

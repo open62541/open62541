@@ -70,7 +70,7 @@ addVariable(UA_Server *server, char *name) {
 /* If the external data source is written over the information model, the
  * ,externalDataWriteCallback, will be triggered. The user has to take care and assure
  * that the write leads not to synchronization issues and race conditions. */
-static void
+static UA_StatusCode
 externalDataWriteCallback(UA_Server *server, const UA_NodeId *sessionId,
                                   void *sessionContext, const UA_NodeId *nodeId,
                                   void *nodeContext, const UA_NumericRange *range,
@@ -84,14 +84,16 @@ externalDataWriteCallback(UA_Server *server, const UA_NodeId *sessionId,
     } else if(UA_NodeId_equal(nodeId, &rtNodeId2)){
         memcpy(integerRTValue2, data->value.data, sizeof(UA_UInt32));
     }
+    return UA_STATUSCODE_GOOD;
 }
 
 /* If the external data source is written over the information model, the
  * ,externalDataWriteCallback, will be triggered. The user has to take care and assure
  * that the write leads not to synchronization issues and race conditions. */
 static UA_StatusCode
-externalDataReadNotificationCallback(void *sessionContext, const UA_NodeId *nodeId,
-                                  void *nodeContext){
+externalDataReadNotificationCallback(UA_Server *server, const UA_NodeId *sessionId,
+                                     void *sessionContext, const UA_NodeId *nodeid,
+                                     void *nodeContext, const UA_NumericRange *range){
     //allow read without any preparation
     return UA_STATUSCODE_GOOD;
 }

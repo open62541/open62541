@@ -180,13 +180,18 @@ readValueAttributeComplete(UA_Server *server, UA_Session *session,
             retval = readValueAttributeFromNode(server, session, vn, v, rangeptr);
             //TODO change old structure to value backend
             break;
-        case UA_VALUEBACKENDTYPE_DATACALLBACK:
+        case UA_VALUEBACKENDTYPE_DATA_SOURCE_CALLBACK:
             retval = readValueAttributeFromDataSource(server, session, vn, v, timestamps, rangeptr);
             //TODO change old structure to value backend
             break;
         case UA_VALUEBACKENDTYPE_EXTERNAL:
             if(vn->valueBackend.backend.external.callback.notificationRead){
-                retval = vn->valueBackend.backend.external.callback.notificationRead(session->sessionHandle, &vn->head.nodeId, vn->head.context);
+                retval = vn->valueBackend.backend.external.callback.notificationRead(server,
+                                                                                     &session->sessionId,
+                                                                                     session->sessionHandle,
+                                                                                     &vn->head.nodeId,
+                                                                                     vn->head.context,
+                                                                                     rangeptr);
             } else {
                 retval = UA_STATUSCODE_BADNOTREADABLE;
             }
@@ -1279,7 +1284,7 @@ writeValueAttribute(UA_Server *server, UA_Session *session,
             break;
         case UA_VALUEBACKENDTYPE_INTERNAL:
             break;
-        case UA_VALUEBACKENDTYPE_DATACALLBACK:
+        case UA_VALUEBACKENDTYPE_DATA_SOURCE_CALLBACK:
             break;
         case UA_VALUEBACKENDTYPE_EXTERNAL:
             if(node->valueBackend.backend.external.callback.userWrite == NULL){

@@ -853,10 +853,10 @@ UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
                                      const UA_DataSource dataSource);
 
-/** @DEPRECATED
+/**
  * .. _value-callback:
  *
- * Value Callback (legacy)
+ * Value Callback
  * ^^^^^^^^^^^^^^
  * Value Callbacks can be attached to variable and variable type nodes. If
  * not ``NULL``, they are called before reading and after writing respectively. */
@@ -908,8 +908,9 @@ typedef struct {
      * be updated and/or locked during this notification call. After this function returns
      * to the core, the external value source is readed immediately.
     */
-    UA_StatusCode (*notificationRead)(void *sessionContext, const UA_NodeId *nodeid,
-                                      void *nodeContext);
+    UA_StatusCode (*notificationRead)(UA_Server *server, const UA_NodeId *sessionId,
+                                      void *sessionContext, const UA_NodeId *nodeid,
+                                      void *nodeContext, const UA_NumericRange *range);
 
     /* Called after writing the value attribute. The node is re-opened after
      * writing so that the new value is visible in the callback.
@@ -925,11 +926,11 @@ typedef struct {
      *        by the type constructor(s).
      * @param range Points to the numeric range the client wants to write to (or
      *        NULL). */
-    void (*userWrite)(UA_Server *server, const UA_NodeId *sessionId,
-                    void *sessionContext, const UA_NodeId *nodeId,
-                    void *nodeContext, const UA_NumericRange *range,
-                    const UA_DataValue *data);
-} UA_ValueBackendCallback;
+    UA_StatusCode (*userWrite)(UA_Server *server, const UA_NodeId *sessionId,
+                               void *sessionContext, const UA_NodeId *nodeId,
+                               void *nodeContext, const UA_NumericRange *range,
+                               const UA_DataValue *data);
+} UA_ExternalValueCallback;
 
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_setVariableNode_valueCallback(UA_Server *server,
@@ -939,7 +940,7 @@ UA_Server_setVariableNode_valueCallback(UA_Server *server,
 typedef enum {
     UA_VALUEBACKENDTYPE_NONE,
     UA_VALUEBACKENDTYPE_INTERNAL,
-    UA_VALUEBACKENDTYPE_DATACALLBACK,
+    UA_VALUEBACKENDTYPE_DATA_SOURCE_CALLBACK,
     UA_VALUEBACKENDTYPE_EXTERNAL
 } UA_ValueBackendType;
 
@@ -947,15 +948,13 @@ typedef struct {
     UA_ValueBackendType backendType;
     union {
         struct {
-            struct {
             UA_DataValue value;
             UA_ValueCallback callback;
-        } data;
         } internal;
         UA_DataSource dataSource;
         struct {
             UA_DataValue **value;
-            UA_ValueBackendCallback callback;
+            UA_ExternalValueCallback callback;
         } external;
     } backend;
 } UA_ValueBackend;

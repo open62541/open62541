@@ -360,8 +360,9 @@ START_TEST(PublishPDSWithMultipleFieldsAndFixedOffset) {
 } END_TEST
 
 static UA_StatusCode
-simpleNotificationRead(void *sessionContext, const UA_NodeId *nodeId,
-                                     void *nodeContext){
+simpleNotificationRead(UA_Server *srv, const UA_NodeId *sessionId,
+                       void *sessionContext, const UA_NodeId *nodeid,
+                       void *nodeContext, const UA_NumericRange *range){
     //allow read without any preparation
     return UA_STATUSCODE_GOOD;
 }
@@ -372,7 +373,7 @@ static UA_UInt32 *values[3];
 static UA_NodeId variableNodeId;
 static UA_UInt32 *integerRTValue;
 
-static void
+static UA_StatusCode
 externalDataWriteCallback(UA_Server *s, const UA_NodeId *sessionId,
                           void *sessionContext, const UA_NodeId *nodeId,
                           void *nodeContext, const UA_NumericRange *range,
@@ -386,6 +387,7 @@ externalDataWriteCallback(UA_Server *s, const UA_NodeId *sessionId,
     } else if(UA_NodeId_equal(nodeId, &variableNodeId)){
         memcpy(integerRTValue, data->value.data, sizeof(UA_UInt32));
     }
+    return UA_STATUSCODE_GOOD;
 }
 
 START_TEST(PubSubConfigWithInformationModelRTVariable) {
