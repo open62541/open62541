@@ -1597,7 +1597,8 @@ typedef struct {
    UA_SessionStatistics ss;
 } UA_ServerStatistics;
 
-UA_ServerStatistics UA_Server_getStatistics(UA_Server *server);
+UA_ServerStatistics UA_EXPORT
+UA_Server_getStatistics(UA_Server *server);
 
 _UA_END_DECLS
 
