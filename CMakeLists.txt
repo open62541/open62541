@@ -467,6 +467,9 @@ if(UA_ENABLE_WEBSOCKET_SERVER)
     # defined in /tools/cmake/Findlibwebsockets.cmake
     find_package(libwebsockets REQUIRED)
     list(APPEND open62541_LIBRARIES ${LIBWEBSOCKETS_LIBRARIES})
+
+    set(ua_architecture_directories_to_include ${ua_architecture_directories_to_include}
+                                               ${LIBWEBSOCKETS_INCLUDE_DIR})
 endif()
 
 if(MINGW)
