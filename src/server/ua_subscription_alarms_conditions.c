@@ -1589,8 +1589,7 @@ isConditionSourceInMonitoredItem(UA_Server *server, const UA_MonitoredItem *moni
 static UA_StatusCode
 refreshLogic(UA_Server *server, const UA_NodeId *refreshStartNodId,
              const UA_NodeId *refreshEndNodId, UA_MonitoredItem *monitoredItem) {
-    if(monitoredItem == NULL)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_assert(monitoredItem != NULL);
 
     /* 1. Trigger RefreshStartEvent */
     UA_DateTime fieldTimeValue = UA_DateTime_now();
@@ -1602,7 +1601,7 @@ refreshLogic(UA_Server *server, const UA_NodeId *refreshStartNodId,
     retval = UA_Event_addEventToMonitoredItem(server, refreshStartNodId, monitoredItem);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Events: Could not add the event to a listening node",);
 
-    /* 2. refresh (see 5.5.7)*/
+    /* 2. Refresh (see 5.5.7) */
     /* Get ConditionSource Entry */
     UA_ConditionSource *source;
     LIST_FOREACH(source, &server->headConditionSource, listEntry) {
@@ -1610,38 +1609,41 @@ refreshLogic(UA_Server *server, const UA_NodeId *refreshStartNodId,
         UA_NodeId serverObjectNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
         /* Check if the conditionSource is being monitored. If the Server Object
          * is being monitored, then all Events of all monitoredItems should be
-         * refreshed*/
-        if(UA_NodeId_equal(&monitoredItem->monitoredNodeId, &conditionSource) ||
-           UA_NodeId_equal(&monitoredItem->monitoredNodeId, &serverObjectNodeId) ||
-           isConditionSourceInMonitoredItem(server, monitoredItem, &conditionSource)) {
-            /* Get Condition Entry */
-            UA_Condition *cond;
-            LIST_FOREACH(cond, &source->conditionHead, listEntry) {
-                /* Get Branch Entry*/
-                UA_ConditionBranch *branch;
-                LIST_FOREACH(branch, &cond->conditionBranchHead, listEntry) {
-                    /*if no event was triggered for that branch, then check next without refreshing*/
-                    if(UA_ByteString_equal(&branch->lastEventId, &UA_BYTESTRING_NULL))
-                        continue;
+         * refreshed */
+        if(!UA_NodeId_equal(&monitoredItem->monitoredNodeId, &conditionSource) &&
+           !UA_NodeId_equal(&monitoredItem->monitoredNodeId, &serverObjectNodeId) &&
+           !isConditionSourceInMonitoredItem(server, monitoredItem, &conditionSource))
+            continue;
 
-                    UA_NodeId triggeredNode;
-                    if(UA_NodeId_isNull(&branch->conditionBranchId))
-                        triggeredNode = cond->conditionId;
-                    else
-                        triggeredNode = branch->conditionBranchId;
+        /* Get Condition Entry */
+        UA_Condition *cond;
+        LIST_FOREACH(cond, &source->conditionHead, listEntry) {
+            /* Get Branch Entry */
+            UA_ConditionBranch *branch;
+            LIST_FOREACH(branch, &cond->conditionBranchHead, listEntry) {
+                /* If no event was triggered for that branch, then check next
+                 * without refreshing */
+                if(UA_ByteString_equal(&branch->lastEventId, &UA_BYTESTRING_NULL))
+                    continue;
 
-                    /* Check if Retain is set to true*/
-                    if(isRetained(server, &triggeredNode)) {
-                        retval = UA_Event_addEventToMonitoredItem(server, &triggeredNode,
-                                                                  monitoredItem);
-                        CONDITION_ASSERT_RETURN_RETVAL(retval, "Events: Could not add the event to a listening node",);
-                    }
-                }
+                UA_NodeId triggeredNode;
+                if(UA_NodeId_isNull(&branch->conditionBranchId))
+                    triggeredNode = cond->conditionId;
+                else
+                    triggeredNode = branch->conditionBranchId;
+
+                /* Check if Retain is set to true */
+                if(!isRetained(server, &triggeredNode))
+                    continue;
+
+                /* Add the event */
+                retval = UA_Event_addEventToMonitoredItem(server, &triggeredNode, monitoredItem);
+                CONDITION_ASSERT_RETURN_RETVAL(retval, "Events: Could not add the event to a listening node",);
             }
         }
     }
 
-    /* 3. Trigger RefreshEndEvent*/
+    /* 3. Trigger RefreshEndEvent */
     fieldTimeValue = UA_DateTime_now();
     retval = UA_Server_writeObjectProperty_scalar(server, *refreshEndNodId, fieldTimeQN,
                                                   &fieldTimeValue, &UA_TYPES[UA_TYPES_DATETIME]);
