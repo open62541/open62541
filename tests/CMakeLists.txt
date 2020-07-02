@@ -65,10 +65,10 @@ set(test_plugin_sources ${PROJECT_SOURCE_DIR}/arch/network_tcp.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
-    ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_pki_default.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_ziptree.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_hashmap.c
     ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_securitypolicy_none.c
+    ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_pki_none.c
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_policy.c
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c
     )
@@ -86,7 +86,8 @@ if(UA_ENABLE_ENCRYPTION_MBEDTLS)
        ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic128rsa15.c
        ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic256.c
        ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic256sha256.c
-       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_aes128sha256rsaoaep.c)
+       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_aes128sha256rsaoaep.c
+       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_pki_mbedtls.c)
 endif()
 
 if(UA_ENABLE_ENCRYPTION_OPENSSL)
