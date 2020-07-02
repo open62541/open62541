@@ -788,11 +788,11 @@ set(default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugi
 
 set(default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
-                           ${PROJECT_SOURCE_DIR}/plugins/ua_pki_default.c
+                           ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_pki_default.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_ziptree.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_hashmap.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
-                           ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_none.c
+                           ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_securitypolicy_none.c
 )
 
 # Syslog-logging on Linux and Unices
@@ -813,23 +813,23 @@ endif()
 
 if(UA_ENABLE_ENCRYPTION_MBEDTLS)
 list(APPEND default_plugin_sources
-     ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/securitypolicy_mbedtls_common.h
-     ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/securitypolicy_mbedtls_common.c
-     ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic128rsa15.c
-     ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256.c
-     ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256sha256.c
-     ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_aes128sha256rsaoaep.c)
+     ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_mbedtls_common.h
+     ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_mbedtls_common.c
+     ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic128rsa15.c
+     ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic256.c
+     ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic256sha256.c
+     ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_aes128sha256rsaoaep.c)
 endif()
 
 if(UA_ENABLE_ENCRYPTION_OPENSSL)
 list(APPEND default_plugin_sources
-     ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/openssl/securitypolicy_openssl_common.h
-     ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/openssl/securitypolicy_openssl_common.c
-     ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/openssl/ua_openssl_basic128rsa15.c
-     ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/openssl/ua_openssl_basic256.c
-     ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/openssl/ua_openssl_basic256sha256.c
-     ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/openssl/ua_openssl_aes128sha256rsaoaep.c
-     ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/openssl/ua_pki_openssl.c)
+     ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_openssl_common.h
+     ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_openssl_common.c
+     ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_basic128rsa15.c
+     ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_basic256.c
+     ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_basic256sha256.c
+     ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_aes128sha256rsaoaep.c
+     ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_pki_openssl.c)
 endif()
 
 if(UA_ENABLE_HISTORIZING)
