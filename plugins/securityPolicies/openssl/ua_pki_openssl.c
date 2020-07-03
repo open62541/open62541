@@ -145,13 +145,12 @@ UA_skCrls_Cert2X509 (const UA_ByteString *   certificateRevocationList,
 #include <dirent.h>
 
 static int UA_Certificate_Filter_der (const struct dirent * entry) {
-    char *pszFind;
 
     /* ignore hidden files */
     if (entry->d_name[0] == '.') return 0;
 
     /* check file extension */
-    pszFind = strrchr(entry->d_name, '.');
+    const char *pszFind = strrchr(entry->d_name, '.');
     if (pszFind == 0) 
         return 0;
     pszFind++;
@@ -162,13 +161,12 @@ static int UA_Certificate_Filter_der (const struct dirent * entry) {
 }
 
 static int UA_Certificate_Filter_crl (const struct dirent * entry) {
-    char *pszFind;
 
     /* ignore hidden files */
     if (entry->d_name[0] == '.') return 0;
 
     /* check file extension */
-    pszFind = strrchr(entry->d_name, '.');
+    const char *pszFind = strrchr(entry->d_name, '.');
     if (pszFind == 0) 
         return 0;
     pszFind++;

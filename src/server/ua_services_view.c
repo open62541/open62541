@@ -902,6 +902,8 @@ Operation_TranslateBrowsePathToNodeIds(UA_Server *server, UA_Session *session,
     RefTree rt1, rt2, *current = &rt1, *next = &rt2, *tmp;
     result->statusCode |= RefTree_init(&rt1);
     result->statusCode |= RefTree_init(&rt2);
+    UA_BrowsePathTarget *tmpResults = NULL;
+    UA_QualifiedName *browseNameFilter = NULL;
     if(result->statusCode != UA_STATUSCODE_GOOD)
         goto cleanup;
 
@@ -915,7 +917,6 @@ Operation_TranslateBrowsePathToNodeIds(UA_Server *server, UA_Session *session,
 
     /* Walk the path elements. Retrieve the nodes only once from the NodeStore.
      * Hence the BrowseName is checked with one element "delay". */
-    UA_QualifiedName *browseNameFilter = NULL;
     for(size_t i = 0; i < path->relativePath.elementsSize; i++) {
         /* Switch the trees */
         tmp = current;
@@ -944,7 +945,7 @@ Operation_TranslateBrowsePathToNodeIds(UA_Server *server, UA_Session *session,
     }
 
     /* Allocate space for the results array */
-    UA_BrowsePathTarget *tmpResults = (UA_BrowsePathTarget*)
+    tmpResults = (UA_BrowsePathTarget*)
         UA_realloc(result->targets, sizeof(UA_BrowsePathTarget) *
                    (result->targetsSize + next->size));
     if(!tmpResults) {

@@ -310,6 +310,8 @@ sendSymmetricChunk(UA_MessageContext *messageContext) {
 
     size_t bodyLength = 0;
     UA_StatusCode res = checkLimitsSym(messageContext, &bodyLength);
+    size_t total_length = 0;
+    size_t pre_sig_length = 0;
     if(res != UA_STATUSCODE_GOOD)
         goto error;
 
@@ -319,9 +321,9 @@ sendSymmetricChunk(UA_MessageContext *messageContext) {
 #endif
 
     /* The total message length */
-    size_t pre_sig_length = (uintptr_t)(messageContext->buf_pos) -
+    pre_sig_length = (uintptr_t)(messageContext->buf_pos) -
         (uintptr_t)messageContext->messageBuffer.data;
-    size_t total_length = pre_sig_length;
+    total_length = pre_sig_length;
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
         total_length += securityPolicy->symmetricModule.cryptoModule.signatureAlgorithm.
