@@ -180,10 +180,10 @@ addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId) {
                              folderBrowseName, UA_NODEID_NUMERIC (0,
                              UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
 
-    UA_TargetVariablesDataType targetVars;
+    UA_TargetVariables targetVars;
     targetVars.targetVariablesSize = pDataSetReader->config.dataSetMetaData.fieldsSize;
-    targetVars.targetVariables = (UA_FieldTargetDataType*)
-        UA_calloc(targetVars.targetVariablesSize, sizeof(UA_FieldTargetDataType));
+    targetVars.targetVariables = (UA_FieldTargetVariables *)
+        UA_calloc(targetVars.targetVariablesSize, sizeof(UA_FieldTargetVariables));
 
     for (size_t i = 0; i < pDataSetReader->config.dataSetMetaData.fieldsSize; i++) {
         /* Variable to subscribe data */
@@ -201,7 +201,6 @@ addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId) {
                                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),  UA_QUALIFIEDNAME(1, "Subscribed UInt32"),
                                            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vAttr, NULL, &newnodeId);
         /* For creating Targetvariable */
-        UA_FieldTargetDataType_init(&targetVars.targetVariables[i]);
         targetVars.targetVariables[i].attributeId  = UA_ATTRIBUTEID_VALUE;
         targetVars.targetVariables[i].targetNodeId = newnodeId;
     }
@@ -209,7 +208,7 @@ addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId) {
     retval = UA_Server_DataSetReader_createTargetVariables(server, dataSetReaderId,
                                                            &targetVars);
 
-    UA_TargetVariablesDataType_deleteMembers(&targetVars);
+    UA_TargetVariablesSource_clear(&targetVars);
     UA_free(readerConfig.dataSetMetaData.fields);
     return retval;
 }
