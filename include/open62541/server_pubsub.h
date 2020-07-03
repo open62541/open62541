@@ -492,6 +492,30 @@ UA_Server_getDataSetWriterConfig(UA_Server *server, const UA_NodeId dsw,
 UA_StatusCode UA_EXPORT
 UA_Server_removeDataSetWriter(UA_Server *server, const UA_NodeId dsw);
 
+/**********************************************/
+/*               TargetVariables              */
+/**********************************************/
+
+typedef struct {
+    UA_Guid dataSetFieldId;
+    UA_String receiverIndexRange;
+    UA_NodeId targetNodeId;
+    UA_UInt32 attributeId;
+    UA_String writeIndexRange;
+    UA_OverrideValueHandling overrideValueHandling;
+    UA_Variant overrideValue;
+    // reference to the target node value backend pointer if rt fixed size is enabled
+    UA_DataValue ** externalDataValueSource;
+} UA_FieldTargetVariables;
+
+typedef struct {
+    size_t targetVariablesSize;
+    UA_FieldTargetVariables *targetVariables; // Can be modifed to use LIST or TAILQ
+} UA_TargetVariables;
+
+void UA_EXPORT
+UA_TargetVariablesSource_clear(UA_TargetVariables *subscribedDataSetTarget);
+
 /**
  * DataSetReader
  * -------------
@@ -521,7 +545,7 @@ typedef struct {
     UA_PubSubSecurityParameters securityParameters;
     UA_ExtensionObject messageSettings;
     UA_ExtensionObject transportSettings;
-    UA_TargetVariablesDataType subscribedDataSetTarget;
+    UA_TargetVariables subscribedDataSetTarget;
 } UA_DataSetReaderConfig;
 
 /* Update configuration to the dataSetReader */
@@ -549,7 +573,7 @@ UA_Server_DataSetReader_getConfig(UA_Server *server, UA_NodeId dataSetReaderIden
 /* Return Status Code after creating TargetVariables in Subscriber AddressSpace */
 UA_StatusCode UA_EXPORT
 UA_Server_DataSetReader_createTargetVariables(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
-                                             UA_TargetVariablesDataType* targetVariables);
+                                              UA_TargetVariables* subscribedDataSetTarget);
 
 /* To Do:Implementation of SubscribedDataSetMirrorType
  * UA_StatusCode

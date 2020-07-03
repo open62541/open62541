@@ -188,8 +188,11 @@ typedef struct UA_DataSetReader {
     UA_NodeId linkedReaderGroup;
     LIST_ENTRY(UA_DataSetReader) listEntry;
     UA_SubscribedDataSetEnumType subscribedDataSetType;
-    UA_TargetVariablesDataType subscribedDataSetTarget;
     /* TODO UA_SubscribedDataSetMirrorDataType subscribedDataSetMirror */
+    union {
+        UA_TargetVariables subscribedDataSetTarget;
+        // UA_SubscribedDataSetMirrorSourceEntry subscribedDataSetMirror;
+    } subscribedDataSet;
     /* non std */
     UA_PubSubState state;
     /* This flag is 'read only' and is set internally based on the PubSub state. */
@@ -202,6 +205,12 @@ void UA_Server_DataSetReader_process(UA_Server *server, UA_DataSetReader *dataSe
 
 /* Copy the configuration of DataSetReader */
 UA_StatusCode UA_DataSetReaderConfig_copy(const UA_DataSetReaderConfig *src, UA_DataSetReaderConfig *dst);
+
+/* Copy the configuration of Target Variables */
+UA_StatusCode UA_TargetVariablesSource_copy(const UA_TargetVariables *src, UA_TargetVariables *dst);
+
+/* Copy the configuration of Field Target Variables */
+UA_StatusCode UA_FieldTargetVariablesSource_copy(const UA_FieldTargetVariables *src, UA_FieldTargetVariables *dst);
 
 /* Add TargetVariables */
 UA_StatusCode
