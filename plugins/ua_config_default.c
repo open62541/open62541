@@ -13,6 +13,7 @@
  *    Copyright 2020 (c) Wind River Systems, Inc.
  */
 
+#include <open62541/client.h>
 #include <open62541/client_config_default.h>
 #include <open62541/network_tcp.h>
 #ifdef UA_ENABLE_WEBSOCKET_SERVER
@@ -122,8 +123,6 @@ setDefaultConfig(UA_ServerConfig *conf) {
         UA_Nodestore_HashMap(&conf->nodestore);
 
     /* --> Start setting the default static config <-- */
-    conf->nThreads = 1;
-
     /* Allow user to set his own logger */
     if (!conf->logger.log)
         conf->logger = UA_Log_Stdout_;
@@ -157,11 +156,11 @@ setDefaultConfig(UA_ServerConfig *conf) {
     /* conf->applicationDescription.discoveryUrls = NULL; */
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    UA_MdnsDiscoveryConfiguration_clear(&conf->discovery.mdns);
-    conf->discovery.mdnsInterfaceIP = UA_STRING_NULL;
+    UA_MdnsDiscoveryConfiguration_clear(&conf->mdnsConfig);
+    conf->mdnsInterfaceIP = UA_STRING_NULL;
 # if !defined(UA_HAS_GETIFADDR)
-    conf->discovery.ipAddressList = NULL;
-    conf->discovery.ipAddressListSize = 0;
+    conf->mdnsIpAddressList = NULL;
+    conf->mdnsIpAddressListSize = 0;
 # endif
 #endif
 
@@ -198,6 +197,7 @@ setDefaultConfig(UA_ServerConfig *conf) {
     conf->maxSessions = 100;
     conf->maxSessionTimeout = 60.0 * 60.0 * 1000.0; /* 1h */
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS
     /* Limits for Subscriptions */
     conf->publishingIntervalLimits = UA_DURATIONRANGE(100.0, 3600.0 * 1000.0);
     conf->lifeTimeCountLimits = UA_UINT32RANGE(3, 15000);
@@ -205,16 +205,17 @@ setDefaultConfig(UA_ServerConfig *conf) {
     conf->maxNotificationsPerPublish = 1000;
     conf->enableRetransmissionQueue = true;
     conf->maxRetransmissionQueueSize = 0; /* unlimited */
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+# ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     conf->maxEventsPerNode = 0; /* unlimited */
-#endif
+# endif
 
     /* Limits for MonitoredItems */
     conf->samplingIntervalLimits = UA_DURATIONRANGE(50.0, 24.0 * 3600.0 * 1000.0);
     conf->queueSizeLimits = UA_UINT32RANGE(1, 100);
+#endif
 
 #ifdef UA_ENABLE_DISCOVERY
-    conf->discovery.cleanupTimeout = 60 * 60;
+    conf->discoveryCleanupTimeout = 60 * 60;
 #endif
 
 #ifdef UA_ENABLE_HISTORIZING
@@ -242,6 +243,10 @@ setDefaultConfig(UA_ServerConfig *conf) {
 #if UA_MULTITHREADING >= 100
     conf->maxAsyncOperationQueueSize = 0;
     conf->asyncOperationTimeout = 120000; /* Async Operation Timeout in ms (2 minutes) */
+#endif
+
+#if UA_MULTITHREADING >= 200
+    conf->nThreads = 1;
 #endif
 
     /* --> Finish setting the default static config <-- */

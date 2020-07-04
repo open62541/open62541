@@ -10,7 +10,7 @@
 #ifndef UA_SERVER_CONFIG_DEFAULT_H_
 #define UA_SERVER_CONFIG_DEFAULT_H_
 
-#include <open62541/server_config.h>
+#include <open62541/server.h>
 
 _UA_BEGIN_DECLS
 

@@ -619,7 +619,7 @@ UA_Server_run_startup(UA_Server *server) {
 
     /* Start the multicast discovery server */
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    if(server->config.discovery.mdnsEnable)
+    if(server->config.mdnsEnabled)
         startMulticastDiscoveryServer(server);
 #endif
 
@@ -672,11 +672,11 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
     }
 #endif
 #if defined(UA_ENABLE_DISCOVERY_MULTICAST) && (UA_MULTITHREADING < 200)
-    if(server->config.discovery.mdnsEnable) {
-        // TODO multicastNextRepeat does not consider new input data (requests)
-        // on the socket. It will be handled on the next call. if needed, we
-        // need to use select with timeout on the multicast socket
-        // server->mdnsSocket (see example in mdnsd library) on higher level.
+    if(server->config.mdnsEnabled) {
+        /* TODO multicastNextRepeat does not consider new input data (requests)
+         * on the socket. It will be handled on the next call. if needed, we
+         * need to use select with timeout on the multicast socket
+         * server->mdnsSocket (see example in mdnsd library) on higher level. */
         UA_DateTime multicastNextRepeat = 0;
         UA_StatusCode hasNext =
             iterateMulticastDiscoveryServer(server, &multicastNextRepeat, true);
@@ -714,7 +714,7 @@ UA_Server_run_shutdown(UA_Server *server) {
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     /* Stop multicast discovery */
-    if(server->config.discovery.mdnsEnable)
+    if(server->config.mdnsEnabled)
         stopMulticastDiscoveryServer(server);
 #endif
 

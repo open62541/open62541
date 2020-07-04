@@ -6,6 +6,7 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
+#include <open62541/types_generated_handling.h>
 #include <open62541/plugin/nodestore_default.h>
 #include "ziptree.h"
 
@@ -55,7 +56,7 @@ typedef struct {
     UA_Byte referenceTypeCounter;
 } ZipContext;
 
-ZIP_PROTTYPE(NodeTree, NodeEntry, NodeEntry)
+ZIP_PROTOTYPE(NodeTree, NodeEntry, NodeEntry)
 ZIP_IMPL(NodeTree, NodeEntry, zipfields, NodeEntry, zipfields, cmpNodeId)
 
 static NodeEntry *

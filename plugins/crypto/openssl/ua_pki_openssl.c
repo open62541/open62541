@@ -4,13 +4,7 @@
  *    Copyright 2020 (c) Wind River Systems, Inc.
  */
 
-/*
-modification history
---------------------
-21feb20,lan  written
-*/
-
-#include <open62541/server_config.h>
+#include <open62541/util.h>
 #include <open62541/plugin/pki_default.h>
 #include <open62541/plugin/log_stdout.h>
 
@@ -18,6 +12,48 @@ modification history
 #include <openssl/x509.h>
 #include <openssl/x509_vfy.h>
 #include <openssl/x509v3.h>
+
+/* Find binary substring. Taken and adjusted from
+ * http://tungchingkai.blogspot.com/2011/07/binary-strstr.html */
+
+static const unsigned char *
+bstrchr(const unsigned char *s, const unsigned char ch, size_t l) {
+    /* find first occurrence of c in char s[] for length l*/
+    /* handle special case */
+    if(l == 0)
+        return (NULL);
+
+    for(; *s != ch; ++s, --l)
+        if(l == 0)
+            return (NULL);
+    return s;
+}
+
+static const unsigned char *
+UA_Bstrstr(const unsigned char *s1, size_t l1, const unsigned char *s2, size_t l2) {
+    /* find first occurrence of s2[] in s1[] for length l1*/
+    const unsigned char *ss1 = s1;
+    const unsigned char *ss2 = s2;
+    /* handle special case */
+    if(l1 == 0)
+        return (NULL);
+    if(l2 == 0)
+        return s1;
+
+    /* match prefix */
+    for (; (s1 = bstrchr(s1, *s2, (uintptr_t)ss1-(uintptr_t)s1+(uintptr_t)l1)) != NULL &&
+             (uintptr_t)ss1-(uintptr_t)s1+(uintptr_t)l1 != 0; ++s1) {
+
+        /* match rest of prefix */
+        const unsigned char *sc1, *sc2;
+        for (sc1 = s1, sc2 = s2; ;)
+            if (++sc2 >= ss2+l2)
+                return s1;
+            else if (*++sc1 != *sc2)
+                break;
+    }
+    return NULL;
+}
 
 typedef struct {
     /* 

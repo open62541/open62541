@@ -476,8 +476,11 @@ UA_ExpandedNodeId_order(const UA_ExpandedNodeId *n1,
 u32
 UA_ExpandedNodeId_hash(const UA_ExpandedNodeId *n) {
     u32 h = UA_NodeId_hash(&n->nodeId);
-    h = UA_ByteString_hash(h, (const UA_Byte*)&n->serverIndex, 4);
-    return UA_ByteString_hash(h, n->namespaceUri.data, n->namespaceUri.length);
+    if(n->serverIndex != 0)
+        h = UA_ByteString_hash(h, (const UA_Byte*)&n->serverIndex, 4);
+    if(n->namespaceUri.length != 0)
+        h = UA_ByteString_hash(h, n->namespaceUri.data, n->namespaceUri.length);
+    return h;
 }
 
 /* ExtensionObject */

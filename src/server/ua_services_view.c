@@ -59,7 +59,7 @@ cmpTarget(const void *a, const void *b) {
 
 ZIP_HEAD(RefHead, RefEntry);
 typedef struct RefHead RefHead;
-ZIP_PROTTYPE(RefHead, RefEntry, RefEntry)
+ZIP_PROTOTYPE(RefHead, RefEntry, RefEntry)
 ZIP_IMPL(RefHead, RefEntry, zipfields, RefEntry, zipfields, cmpTarget)
 
 typedef struct {
