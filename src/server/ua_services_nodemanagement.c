@@ -873,6 +873,7 @@ AddNode_raw(UA_Server *server, UA_Session *session, void *nodeContext,
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
+    UA_NodeId tmpOutId = UA_NODEID_NULL;
     /* Fill the node attributes */
     node->head.context = nodeContext;
     UA_StatusCode retval = UA_NodeId_copy(&item->requestedNewNodeId.nodeId, &node->head.nodeId);
@@ -889,7 +890,6 @@ AddNode_raw(UA_Server *server, UA_Session *session, void *nodeContext,
         goto create_error;
 
     /* Add the node to the nodestore */
-    UA_NodeId tmpOutId = UA_NODEID_NULL;
     if(!outNewNodeId)
         outNewNodeId = &tmpOutId;
     retval = UA_NODESTORE_INSERT(server, node, outNewNodeId);

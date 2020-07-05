@@ -251,6 +251,13 @@ UA_Openssl_RSA_Public_Encrypt  (const UA_ByteString * message,
     EVP_PKEY *       evpPublicKey = NULL;    
     int              opensslRet;
     UA_StatusCode    ret;
+    size_t encryptedTextLen = 0;
+    size_t dataPos =  0;
+    size_t encryptedPos = 0;
+    size_t bytesToEncrypt = 0;
+    size_t encryptedBlockSize = 0;
+    RSA *  rsa = NULL;
+    size_t keySize = 0;
 
     evpPublicKey = X509_get_pubkey (publicX509);
     if (evpPublicKey == NULL) {
@@ -274,9 +281,8 @@ UA_Openssl_RSA_Public_Encrypt  (const UA_ByteString * message,
     }
     
     /* get the encrypted block size */
-    size_t encryptedBlockSize;
-    RSA *  rsa = get_pkey_rsa (evpPublicKey);
-    size_t keySize = (size_t) RSA_size (rsa);
+    rsa = get_pkey_rsa (evpPublicKey);
+    keySize = (size_t) RSA_size (rsa);
     if (keySize == 0) {
         ret = UA_STATUSCODE_BADINTERNALERROR;
         goto errout;
@@ -299,10 +305,10 @@ UA_Openssl_RSA_Public_Encrypt  (const UA_ByteString * message,
 
     /* encrypt in reverse order so that [data] may alias [encrypted] */
 
-    size_t dataPos =  message->length;
-    size_t encryptedPos = ((dataPos - 1) / encryptedBlockSize + 1) * keySize;
-    size_t bytesToEncrypt = (dataPos - 1) % encryptedBlockSize + 1;
-    size_t encryptedTextLen = encryptedPos;
+    dataPos =  message->length;
+    encryptedPos = ((dataPos - 1) / encryptedBlockSize + 1) * keySize;
+    bytesToEncrypt = (dataPos - 1) % encryptedBlockSize + 1;
+    encryptedTextLen = encryptedPos;
 
     while (dataPos > 0) {
         size_t outlen = keySize;
@@ -469,6 +475,7 @@ UA_Openssl_RSA_Private_Sign (const UA_ByteString * message,
     EVP_PKEY_CTX *   evpKeyCtx;  
     EVP_PKEY *       evpKey       = NULL;
     UA_StatusCode    ret;
+    const unsigned char * pkey = NULL;
 
     mdctx = EVP_MD_CTX_create ();
     if (mdctx == NULL) {
@@ -476,7 +483,7 @@ UA_Openssl_RSA_Private_Sign (const UA_ByteString * message,
         goto errout;
     }
 
-    const unsigned char * pkey = privateKey->data;
+    pkey = privateKey->data;
     evpKey = d2i_PrivateKey(EVP_PKEY_RSA, NULL, 
                         &pkey, (long) privateKey->length);
     if (evpKey == NULL) {

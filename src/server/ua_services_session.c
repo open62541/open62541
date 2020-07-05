@@ -430,6 +430,8 @@ decryptPassword(UA_SecurityPolicy *securityPolicy, void *tempChannelContext,
 
     UA_UInt32 tokenSecretLength;
     UA_ByteString decryptedTokenSecret, tokenServerNonce;
+    size_t tokenpos = 0;
+    size_t offset = 0;
     if(UA_ByteString_copy(&userToken->password, &decryptedTokenSecret) != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 
@@ -438,7 +440,6 @@ decryptPassword(UA_SecurityPolicy *securityPolicy, void *tempChannelContext,
                         &decryptedTokenSecret) != UA_STATUSCODE_GOOD)
         goto cleanup;
 
-    size_t offset = 0;
     UA_UInt32_decodeBinary(&decryptedTokenSecret, &offset, &tokenSecretLength);
 
     /* The decrypted data must be large enough to include the Encrypted Token
@@ -458,7 +459,7 @@ decryptPassword(UA_SecurityPolicy *securityPolicy, void *tempChannelContext,
 
     /* The server nonce must match according to the 1.04.1 specification errata,
      * chapter 3. */
-    size_t tokenpos = sizeof(UA_UInt32) + tokenSecretLength - serverNonce->length;
+    tokenpos = sizeof(UA_UInt32) + tokenSecretLength - serverNonce->length;
     tokenServerNonce.length = serverNonce->length;
     tokenServerNonce.data = &decryptedTokenSecret.data[tokenpos];
     if(!UA_ByteString_equal(serverNonce, &tokenServerNonce))
@@ -556,6 +557,8 @@ void
 Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                         const UA_ActivateSessionRequest *request,
                         UA_ActivateSessionResponse *response) {
+    const UA_EndpointDescription *ed = NULL;
+    const UA_UserTokenPolicy *utp = NULL;
     UA_LOCK_ASSERT(server->serviceMutex, 1);
 
     UA_Session *session = getSessionByToken(server, &request->requestHeader.authenticationToken);
@@ -598,8 +601,6 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     }
 
     /* Find the matching Endpoint with UserTokenPolicy */
-    const UA_EndpointDescription *ed = NULL;
-    const UA_UserTokenPolicy *utp = NULL;
     selectEndpointAndTokenPolicy(server, channel, &request->userIdentityToken, &ed, &utp);
     if(!ed) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;

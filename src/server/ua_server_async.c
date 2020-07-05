@@ -25,6 +25,8 @@ UA_AsyncManager_sendAsyncResponse(UA_AsyncManager *am, UA_Server *server,
     UA_LOCK(server->serviceMutex);
     UA_Session* session = UA_Server_getSessionById(server, &ar->sessionId);
     UA_UNLOCK(server->serviceMutex);
+    UA_SecureChannel* channel = NULL;
+    UA_ResponseHeader *responseHeader = NULL;
     if(!session) {
         res = UA_STATUSCODE_BADSESSIONIDINVALID;
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -33,7 +35,7 @@ UA_AsyncManager_sendAsyncResponse(UA_AsyncManager *am, UA_Server *server,
     }
 
     /* Check the channel */
-    UA_SecureChannel* channel = session->header.channel;
+    channel = session->header.channel;
     if(!channel) {
         res = UA_STATUSCODE_BADSECURECHANNELCLOSED;
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -42,7 +44,7 @@ UA_AsyncManager_sendAsyncResponse(UA_AsyncManager *am, UA_Server *server,
     }
 
     /* Okay, here we go, send the UA_CallResponse */
-    UA_ResponseHeader *responseHeader = (UA_ResponseHeader*)
+    responseHeader = (UA_ResponseHeader*)
         &ar->response.callResponse.responseHeader;
     responseHeader->requestHandle = ar->requestHandle;
     res = sendResponse(server, session, channel, ar->requestId,
