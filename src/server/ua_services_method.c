@@ -27,9 +27,9 @@ getArgumentsVariableNode(UA_Server *server, const UA_NodeHead *head,
             continue;
         if(rk->referenceTypeIndex != UA_REFERENCETYPEINDEX_HASPROPERTY)
             continue;
-        for(size_t j = 0; j < rk->refTargetsSize; ++j) {
-            const UA_Node *refTarget =
-                UA_NODESTORE_GET(server, &rk->refTargets[j].targetId.nodeId);
+        UA_ReferenceTarget *target;
+        TAILQ_FOREACH(target, &rk->queueHead, queuePointers) {
+            const UA_Node *refTarget = UA_NODESTORE_GET(server, &target->targetId.nodeId);
             if(!refTarget)
                 continue;
             if(refTarget->head.nodeClass == UA_NODECLASS_VARIABLE &&
@@ -151,8 +151,9 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
             continue;
         if(!UA_ReferenceTypeSet_contains(&hasComponentRefs, rk->referenceTypeIndex))
             continue;
-        for(size_t j = 0; j < rk->refTargetsSize; ++j) {
-            if(UA_NodeId_equal(&rk->refTargets[j].targetId.nodeId, &request->methodId)) {
+        UA_ReferenceTarget *target;
+        TAILQ_FOREACH(target, &rk->queueHead, queuePointers) {
+            if(UA_NodeId_equal(&target->targetId.nodeId, &request->methodId)) {
                 found = true;
                 break;
             }
@@ -197,8 +198,11 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
             
             /* Verify that the HasTypeDefinition is equal to FunctionGroupType
              * (or sub-type) from the DI model */
-            for(size_t j = 0; j < rk->refTargetsSize && !found; ++j) {
-                if(!isNodeInTree_singleRef(server, &rk->refTargets[j].targetId.nodeId,
+            UA_ReferenceTarget *target, *target2;
+            TAILQ_FOREACH(target, &rk->queueHead, queuePointers) {
+                if(found)
+                    break;
+                if(!isNodeInTree_singleRef(server, &target->targetId.nodeId,
                                            &functionGroupNodeId, UA_REFERENCETYPEINDEX_HASSUBTYPE))
                     continue;
                 
@@ -214,9 +218,8 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
                                                UA_REFERENCETYPEINDEX_HASSUBTYPE))
                         continue;
                     
-                    for(size_t m = 0; m < rkInner->refTargetsSize; ++m) {
-                        if(UA_NodeId_equal(&rkInner->refTargets[m].targetId.nodeId,
-                                           &request->methodId)) {
+                    TAILQ_FOREACH(target2, &rkInner->queueHead, queuePointers) {
+                        if(UA_NodeId_equal(&target2->targetId.nodeId, &request->methodId)) {
                             found = true;
                             break;
                         }

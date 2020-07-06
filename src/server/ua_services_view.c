@@ -175,8 +175,9 @@ addRelevantReferences(UA_Server *server, RefTree *rt, const UA_NodeId *nodeId,
         if(!UA_ReferenceTypeSet_contains(refTypes, rk->referenceTypeIndex))
             continue;
 
-        for(size_t k = 0; k < rk->refTargetsSize; k++) {
-            retval = RefTree_add(rt, &rk->refTargets[k].targetId);
+        UA_ReferenceTarget *target;
+        TAILQ_FOREACH(target, &rk->queueHead, queuePointers) {
+            retval = RefTree_add(rt, &target->targetId);
             if(retval != UA_STATUSCODE_GOOD)
                 goto cleanup;
         }
@@ -437,15 +438,23 @@ browseReferences(UA_Server *server, const UA_NodeHead *head,
         if(!UA_ReferenceTypeSet_contains(&cp->relevantReferences, rk->referenceTypeIndex))
             continue;
 
-        /* Loop over the targets */
-        for(; targetIndex < rk->refTargetsSize; ++targetIndex) {
+        /* Loop until we arrive at the saved index */
+        size_t i = 0;
+        UA_ReferenceTarget *targetRef = NULL;
+        TAILQ_FOREACH(targetRef, &rk->queueHead, queuePointers) {
+            if(i == targetIndex)
+                break;
+            i++;
+        }
+
+        /* Loop over the remaining targets */
+        for(; targetRef; ++targetIndex, targetRef = TAILQ_NEXT(targetRef, queuePointers)) {
             target = NULL;
 
             /* Get the node if it is not a remote reference */
-            if(rk->refTargets[targetIndex].targetId.serverIndex == 0 &&
-               rk->refTargets[targetIndex].targetId.namespaceUri.data == NULL) {
-                target = UA_NODESTORE_GET(server,
-                                          &rk->refTargets[targetIndex].targetId.nodeId);
+            if(targetRef->targetId.serverIndex == 0 &&
+               targetRef->targetId.namespaceUri.data == NULL) {
+                target = UA_NODESTORE_GET(server, &targetRef->targetId.nodeId);
 
                 /* Test if the node class matches */
                 if(target && !matchClassMask(target, bd->nodeClassMask)) {
@@ -466,7 +475,7 @@ browseReferences(UA_Server *server, const UA_NodeHead *head,
 
             /* Copy the node description. Target is on top of the stack */
             retval = addReferenceDescription(server, rr, rk, bd->resultMask,
-                                             &rk->refTargets[targetIndex].targetId, target);
+                                             &targetRef->targetId, target);
             UA_NODESTORE_RELEASE(server, target);
             if(retval != UA_STATUSCODE_GOOD)
                 return retval;

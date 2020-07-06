@@ -258,7 +258,8 @@ getFieldParentNodeId(UA_Server *server, const UA_NodeId *field, UA_NodeId *paren
         if((rk->referenceTypeIndex == UA_REFERENCETYPEINDEX_HASPROPERTY ||
            rk->referenceTypeIndex == UA_REFERENCETYPEINDEX_HASCOMPONENT) &&
            true == rk->isInverse) {
-            retval = UA_NodeId_copy(&rk->refTargets->targetId.nodeId, parent);
+            /* Take the first hierarchical inverse reference */
+            retval = UA_NodeId_copy(&TAILQ_FIRST(&rk->queueHead)->targetId.nodeId, parent);
             break;
         }
     }

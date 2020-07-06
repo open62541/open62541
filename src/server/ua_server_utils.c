@@ -49,7 +49,8 @@ isNodeInTreeNoCircular(UA_Server *server, const UA_NodeId *leafNode, const UA_No
             continue;
 
         /* Match the targets or recurse */
-        for(size_t j = 0; j < refs->refTargetsSize; ++j) {
+        UA_ReferenceTarget *target;
+        TAILQ_FOREACH(target, &refs->queueHead, queuePointers) {
             /* Check if we already have seen the referenced node and skip to
              * avoid endless recursion. Do this only at every 5th depth to save
              * effort. Circular dependencies are rare and forbidden for most
@@ -58,7 +59,7 @@ isNodeInTreeNoCircular(UA_Server *server, const UA_NodeId *leafNode, const UA_No
                 struct ref_history *last = visitedRefs;
                 UA_Boolean skip = false;
                 while(!skip && last) {
-                    if(UA_NodeId_equal(last->id, &refs->refTargets[j].targetId.nodeId))
+                    if(UA_NodeId_equal(last->id, &target->targetId.nodeId))
                         skip = true;
                     last = last->parent;
                 }
@@ -67,12 +68,12 @@ isNodeInTreeNoCircular(UA_Server *server, const UA_NodeId *leafNode, const UA_No
             }
 
             /* Stack-allocate the visitedRefs structure for the next depth */
-            struct ref_history nextVisitedRefs = {visitedRefs, &refs->refTargets[j].targetId.nodeId,
+            struct ref_history nextVisitedRefs = {visitedRefs, &target->targetId.nodeId,
                                                   (UA_UInt16)(visitedRefs->depth+1)};
 
             /* Recurse */
             UA_Boolean foundRecursive =
-                isNodeInTreeNoCircular(server, &refs->refTargets[j].targetId.nodeId, nodeToFind,
+                isNodeInTreeNoCircular(server, &target->targetId.nodeId, nodeToFind,
                                        &nextVisitedRefs, relevantRefs);
             if(foundRecursive) {
                 UA_NODESTORE_RELEASE(server, node);
@@ -134,8 +135,8 @@ getNodeType(UA_Server *server, const UA_NodeHead *head) {
             continue;
         if(head->references[i].referenceTypeIndex != parentRefIndex)
             continue;
-        UA_assert(head->references[i].refTargetsSize> 0);
-        const UA_NodeId *targetId = &head->references[i].refTargets[0].targetId.nodeId;
+        UA_assert(!TAILQ_EMPTY(&head->references[i].queueHead));
+        const UA_NodeId *targetId = &TAILQ_FIRST(&head->references[i].queueHead)->targetId.nodeId;
         const UA_Node *type = UA_NODESTORE_GET(server, targetId);
         if(!type)
             continue;

@@ -510,9 +510,19 @@ START_TEST(Node_AddReadWriteNodes) {
     retval = UA_Client_forEachChildNodeCall(client, nodeReadWriteUnitTest, nodeIter, NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    ck_assert(UA_NodeId_equal(&nodeReadWriteArray, &iteratedNodes[0]));
-    ck_assert(UA_NodeId_equal(&nodeReadWriteInt, &iteratedNodes[1]));
+    UA_Boolean found = false;
+    for(unsigned int i = 0; i < iteratedNodeCount; i++) {
+        if(UA_NodeId_equal(&nodeReadWriteArray, &iteratedNodes[i]))
+            found = true;
+    }
+    ck_assert(found == true);
 
+    found = false;
+    for(unsigned int i = 0; i < iteratedNodeCount; i++) {
+        if(UA_NodeId_equal(&nodeReadWriteInt, &iteratedNodes[i]))
+            found = true;
+    }
+    ck_assert(found == true);
 }
 END_TEST
 

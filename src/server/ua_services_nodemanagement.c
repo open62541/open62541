@@ -399,8 +399,9 @@ isMandatoryChild(UA_Server *server, UA_Session *session,
             continue;
         if(refs->isInverse)
             continue;
-        for(size_t j = 0; j < refs->refTargetsSize; ++j) {
-            if(UA_NodeId_equal(&mandatoryId, &refs->refTargets[j].targetId.nodeId)) {
+        UA_ReferenceTarget *target;
+        TAILQ_FOREACH(target, &refs->queueHead, queuePointers) {
+            if(UA_NodeId_equal(&mandatoryId, &target->targetId.nodeId)) {
                 UA_NODESTORE_RELEASE(server, child);
                 return true;
             }
@@ -1441,8 +1442,9 @@ removeIncomingReferences(UA_Server *server, UA_Session *session, const UA_NodeHe
         UA_NodeReferenceKind *refs = &head->references[i];
         item.isForward = refs->isInverse;
         item.referenceTypeId = *UA_NODESTORE_GETREFERENCETYPEID(server, refs->referenceTypeIndex);
-        for(size_t j = 0; j < refs->refTargetsSize; ++j) {
-            item.sourceNodeId = refs->refTargets[j].targetId.nodeId;
+        UA_ReferenceTarget *target;
+        TAILQ_FOREACH(target, &refs->queueHead, queuePointers) {
+            item.sourceNodeId = target->targetId.nodeId;
             Operation_deleteReference(server, session, NULL, &item, &dummy);
         }
     }
@@ -1458,9 +1460,12 @@ multipleHierarchicalRefs(const UA_NodeHead *head, const UA_ReferenceTypeSet *ref
             continue;
         if(!UA_ReferenceTypeSet_contains(refSet, k->referenceTypeIndex))
             continue;
-        incomingRefs += k->refTargetsSize;
-        if(incomingRefs > 1)
-            return true;
+        UA_ReferenceTarget *target;
+        TAILQ_FOREACH(target, &k->queueHead, queuePointers) {
+            incomingRefs += 1;
+            if(incomingRefs > 1)
+                return true;
+        }
     }
     return false;
 }
