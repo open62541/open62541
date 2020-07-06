@@ -176,6 +176,10 @@ UA_ViewNode_copy(const UA_ViewNode *src, UA_ViewNode *dst) {
     return UA_STATUSCODE_GOOD;
 }
 
+static UA_StatusCode
+addReferenceTarget(UA_NodeReferenceKind *refs, const UA_ExpandedNodeId *target,
+                   UA_UInt32 targetIdHash, UA_UInt32 targetNameHash);
+
 UA_StatusCode
 UA_Node_copy(const UA_Node *src, UA_Node *dst) {
     const UA_NodeHead *srchead = &src->head;
@@ -209,53 +213,21 @@ UA_Node_copy(const UA_Node *src, UA_Node *dst) {
 
         for(size_t i = 0; i < srchead->referencesSize; ++i) {
             UA_NodeReferenceKind *srefs = &srchead->references[i];
-            UA_NodeReferenceKind *drefs = &dsthead->references[i];
-            drefs->isInverse = srefs->isInverse;
-            ZIP_INIT(&drefs->refTargetsIdTree);
-            drefs->referenceTypeIndex = srefs->referenceTypeIndex;
-            drefs->refTargets = (UA_ReferenceTarget*)
-                UA_malloc(srefs->refTargetsSize* sizeof(UA_ReferenceTarget));
-            if(!drefs->refTargets)
-                break;
-            uintptr_t arraydiff = (uintptr_t)drefs->refTargets - (uintptr_t)srefs->refTargets;
-            for(size_t j = 0; j < srefs->refTargetsSize; j++) {
-                UA_ReferenceTarget *srefTarget = &srefs->refTargets[j];
-                UA_ReferenceTarget *drefTarget = &drefs->refTargets[j];
-                retval |= UA_ExpandedNodeId_copy(&srefTarget->targetId, &drefTarget->targetId);
-                drefTarget->targetIdHash = srefTarget->targetIdHash;
-                drefTarget->targetNameHash = srefTarget->targetNameHash;
-                ZIP_RANK(drefTarget, idTreeFields) = ZIP_RANK(srefTarget, idTreeFields);
-                /* IdTree Fields */
-                ZIP_RIGHT(drefTarget, idTreeFields) = NULL;
-                if(ZIP_RIGHT(srefTarget, idTreeFields))
-                    ZIP_RIGHT(drefTarget, idTreeFields) = (UA_ReferenceTarget*)
-                        ((uintptr_t)ZIP_RIGHT(srefTarget, idTreeFields) + arraydiff);
-                ZIP_LEFT(drefTarget, idTreeFields) = NULL;
-                if(ZIP_LEFT(srefTarget, idTreeFields))
-                    ZIP_LEFT(drefTarget, idTreeFields) = (UA_ReferenceTarget*)
-                        ((uintptr_t)ZIP_LEFT(srefTarget, idTreeFields) + arraydiff);
-                /* NameTree Fields */
-                ZIP_RIGHT(drefTarget, nameTreeFields) = NULL;
-                if(ZIP_RIGHT(srefTarget, nameTreeFields))
-                    ZIP_RIGHT(drefTarget, nameTreeFields) = (UA_ReferenceTarget*)
-                        ((uintptr_t)ZIP_RIGHT(srefTarget, nameTreeFields) + arraydiff);
-                ZIP_LEFT(drefTarget, nameTreeFields) = NULL;
-                if(ZIP_LEFT(srefTarget, nameTreeFields))
-                    ZIP_LEFT(drefTarget, nameTreeFields) = (UA_ReferenceTarget*)
-                        ((uintptr_t)ZIP_LEFT(srefTarget, nameTreeFields) + arraydiff);
-            }
-            /* IdTree Root */
-            ZIP_ROOT(&drefs->refTargetsIdTree) = NULL;
-            if(ZIP_ROOT(&srefs->refTargetsIdTree))
-                ZIP_ROOT(&drefs->refTargetsIdTree) = (UA_ReferenceTarget*)
-                    ((uintptr_t)ZIP_ROOT(&srefs->refTargetsIdTree) + arraydiff);
-            /* NameTree Root */
-            ZIP_ROOT(&drefs->refTargetsNameTree) = NULL;
-            if(ZIP_ROOT(&srefs->refTargetsNameTree))
-                ZIP_ROOT(&drefs->refTargetsNameTree) = (UA_ReferenceTarget*)
-                    ((uintptr_t)ZIP_ROOT(&srefs->refTargetsNameTree) + arraydiff);
 
-            drefs->refTargetsSize = srefs->refTargetsSize;
+            UA_NodeReferenceKind *drefs = &dsthead->references[i];
+            drefs->referenceTypeIndex = srefs->referenceTypeIndex;
+            drefs->isInverse = srefs->isInverse;
+            TAILQ_INIT(&drefs->queueHead);
+            ZIP_INIT(&drefs->refTargetsIdTree);
+            ZIP_INIT(&drefs->refTargetsNameTree);
+
+            UA_ReferenceTarget *sTarget;
+            TAILQ_FOREACH(sTarget, &srefs->queueHead, queuePointers) {
+                retval = addReferenceTarget(drefs, &sTarget->targetId,
+                                            sTarget->targetIdHash, sTarget->targetNameHash);
+                if(retval != UA_STATUSCODE_GOOD)
+                    break;
+            }
             if(retval != UA_STATUSCODE_GOOD)
                 break;
         }
@@ -511,69 +483,26 @@ UA_Node_setAttributes(UA_Node *node, const void *attributes, const UA_DataType *
 /* Manage References */
 /*********************/
 
-
-static UA_StatusCode
-resizeReferenceTargets(UA_NodeReferenceKind *refs, size_t newSize) {
-
-    UA_ReferenceTarget *targets = (UA_ReferenceTarget*)
-        UA_realloc(refs->refTargets, newSize * sizeof(UA_ReferenceTarget));
-    if(!targets)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    /* Repair the pointers in the tree for the realloced array */
-    uintptr_t arraydiff = (uintptr_t)targets - (uintptr_t)refs->refTargets;
-    if(arraydiff != 0) {
-        for(size_t i = 0; i < refs->refTargetsSize; i++) {
-            if(targets[i].idTreeFields.zip_left)
-                targets[i].idTreeFields.zip_left = (UA_ReferenceTarget*)
-                    ((uintptr_t)targets[i].idTreeFields.zip_left + arraydiff);
-            if(targets[i].idTreeFields.zip_right)
-                targets[i].idTreeFields.zip_right = (UA_ReferenceTarget*)
-                    ((uintptr_t)targets[i].idTreeFields.zip_right + arraydiff);
-            if(targets[i].nameTreeFields.zip_left)
-                targets[i].nameTreeFields.zip_left = (UA_ReferenceTarget*)
-                    ((uintptr_t)targets[i].nameTreeFields.zip_left + arraydiff);
-            if(targets[i].nameTreeFields.zip_right)
-                targets[i].nameTreeFields.zip_right = (UA_ReferenceTarget*)
-                    ((uintptr_t)targets[i].nameTreeFields.zip_right + arraydiff);
-        }
-    }
-
-    if(refs->refTargetsIdTree.zip_root)
-        refs->refTargetsIdTree.zip_root = (UA_ReferenceTarget*)
-            ((uintptr_t)refs->refTargetsIdTree.zip_root + arraydiff);
-    if(refs->refTargetsNameTree.zip_root)
-        refs->refTargetsNameTree.zip_root = (UA_ReferenceTarget*)
-            ((uintptr_t)refs->refTargetsNameTree.zip_root + arraydiff);
-    refs->refTargets = targets;
-    return UA_STATUSCODE_GOOD;
-}
-
-
 static UA_StatusCode
 addReferenceTarget(UA_NodeReferenceKind *refs, const UA_ExpandedNodeId *target,
                    UA_UInt32 targetIdHash, UA_UInt32 targetNameHash) {
-    UA_StatusCode retval = resizeReferenceTargets(refs, refs->refTargetsSize + 1);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
+    UA_ReferenceTarget *entry = (UA_ReferenceTarget*)
+        UA_malloc(sizeof(UA_ReferenceTarget));
+    if(!entry)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    UA_ReferenceTarget *entry = &refs->refTargets[refs->refTargetsSize];
-    retval = UA_ExpandedNodeId_copy(target, &entry->targetId);
+    UA_StatusCode retval = UA_ExpandedNodeId_copy(target, &entry->targetId);
     if(retval != UA_STATUSCODE_GOOD) {
-        if(refs->refTargetsSize== 0) {
-            /* We had zero references before (realloc was a malloc) */
-            UA_free(refs->refTargets);
-            refs->refTargets = NULL;
-        }
+        UA_free(entry);
         return retval;
     }
 
     entry->targetIdHash = targetIdHash;
     entry->targetNameHash = targetNameHash;
     unsigned char rank = ZIP_FFS32(UA_UInt32_random());
+    TAILQ_INSERT_TAIL(&refs->queueHead, entry, queuePointers);
     ZIP_INSERT(UA_ReferenceTargetIdTree, &refs->refTargetsIdTree, entry, rank);
     ZIP_INSERT(UA_ReferenceTargetNameTree, &refs->refTargetsNameTree, entry, rank);
-    refs->refTargetsSize++;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -584,17 +513,21 @@ addReferenceKind(UA_NodeHead *head, UA_Byte refTypeIndex, UA_Boolean isForward,
         UA_realloc(head->references, sizeof(UA_NodeReferenceKind) * (head->referencesSize+1));
     if(!refs)
         return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    /* Repair the backpointer in the queue */
+    for(size_t i = 0; i < head->referencesSize; i++)
+        TAILQ_FIRST(&refs[i].queueHead)->queuePointers.tqe_prev = &refs[i].queueHead.tqh_first;
     head->references = refs;
 
     UA_NodeReferenceKind *newRef = &refs[head->referencesSize];
-    memset(newRef, 0, sizeof(UA_NodeReferenceKind));
+    newRef->referenceTypeIndex = refTypeIndex;
+    newRef->isInverse = !isForward;
+    TAILQ_INIT(&newRef->queueHead);
     ZIP_INIT(&newRef->refTargetsIdTree);
     ZIP_INIT(&newRef->refTargetsNameTree);
-    newRef->isInverse = !isForward;
-    newRef->referenceTypeIndex = refTypeIndex;
-    UA_StatusCode retval =
-        addReferenceTarget(newRef, targetNodeId, UA_ExpandedNodeId_hash(targetNodeId),
-                           targetBrowseNameHash);
+    UA_StatusCode retval = addReferenceTarget(newRef, targetNodeId,
+                                              UA_ExpandedNodeId_hash(targetNodeId),
+                                              targetBrowseNameHash);
     if(retval != UA_STATUSCODE_GOOD) {
         if(head->referencesSize == 0) {
             UA_free(head->references);
@@ -607,40 +540,39 @@ addReferenceKind(UA_NodeHead *head, UA_Byte refTypeIndex, UA_Boolean isForward,
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode
 UA_Node_addReference(UA_Node *node, UA_Byte refTypeIndex, UA_Boolean isForward,
                      const UA_ExpandedNodeId *targetNodeId,
                      UA_UInt32 targetBrowseNameHash) {
-    UA_NodeHead *head = &node->head;
-
     /* Find the matching refkind */
-    UA_NodeReferenceKind *existingRefs = NULL;
     for(size_t i = 0; i < node->head.referencesSize; ++i) {
-        UA_NodeReferenceKind *refs = &head->references[i];
-        if(refs->isInverse != isForward &&
-           refs->referenceTypeIndex == refTypeIndex) {
-            existingRefs = refs;
-            break;
-        }
+        UA_NodeReferenceKind *refs = &node->head.references[i];
+        if(refs->isInverse && isForward)
+            continue;
+        if(refs->referenceTypeIndex != refTypeIndex)
+            continue;
+
+        /* Does an identical reference already exist? */
+        UA_ReferenceTarget tmpTarget;
+        tmpTarget.targetId = *targetNodeId;
+        tmpTarget.targetIdHash = UA_ExpandedNodeId_hash(targetNodeId);
+        UA_ReferenceTarget *found =
+            ZIP_FIND(UA_ReferenceTargetIdTree, &refs->refTargetsIdTree, &tmpTarget);
+        if(found)
+            return UA_STATUSCODE_BADDUPLICATEREFERENCENOTALLOWED;
+
+        /* Add to existing ReferenceKind */
+        return addReferenceTarget(refs, targetNodeId, tmpTarget.targetIdHash,
+                                  targetBrowseNameHash);
     }
 
-    if(!existingRefs)
-        return addReferenceKind(head, refTypeIndex, isForward,
-                                targetNodeId, targetBrowseNameHash);
+    /* Add new ReferenceKind for the target */
+    return addReferenceKind(&node->head, refTypeIndex, isForward,
+                            targetNodeId, targetBrowseNameHash);
 
-    UA_ReferenceTarget tmpTarget;
-    tmpTarget.targetId = *targetNodeId;
-    tmpTarget.targetIdHash = UA_ExpandedNodeId_hash(targetNodeId);
-    UA_ReferenceTarget *found =
-        ZIP_FIND(UA_ReferenceTargetIdTree, &existingRefs->refTargetsIdTree, &tmpTarget);
-    if(found)
-        return UA_STATUSCODE_BADDUPLICATEREFERENCENOTALLOWED;
-
-    return addReferenceTarget(existingRefs, targetNodeId,
-                              tmpTarget.targetIdHash, targetBrowseNameHash);
 }
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode
 UA_Node_deleteReference(UA_Node *node, UA_Byte refTypeIndex, UA_Boolean isForward,
                         const UA_ExpandedNodeId *targetNodeId) {
     UA_NodeHead *head = &node->head;
@@ -651,58 +583,46 @@ UA_Node_deleteReference(UA_Node *node, UA_Byte refTypeIndex, UA_Boolean isForwar
         if(refTypeIndex != refs->referenceTypeIndex)
             continue;
 
-        for(size_t j = refs->refTargetsSize; j > 0; --j) {
-            UA_ReferenceTarget *target = &refs->refTargets[j-1];
-            if(!UA_ExpandedNodeId_equal(targetNodeId, &target->targetId))
-                continue;
+        UA_ReferenceTarget tmpTarget;
+        tmpTarget.targetId = *targetNodeId;
+        tmpTarget.targetIdHash = UA_ExpandedNodeId_hash(targetNodeId);
+        UA_ReferenceTarget *target =
+            ZIP_FIND(UA_ReferenceTargetIdTree, &refs->refTargetsIdTree, &tmpTarget);
+        if(!target)
+            continue;
 
-            /* Ok, delete the reference */
-            ZIP_REMOVE(UA_ReferenceTargetIdTree, &refs->refTargetsIdTree, target);
-            ZIP_REMOVE(UA_ReferenceTargetNameTree, &refs->refTargetsNameTree, target);
-            UA_ExpandedNodeId_clear(&target->targetId);
-            refs->refTargetsSize--;
+        /* Ok, delete the reference */
+        TAILQ_REMOVE(&refs->queueHead, target, queuePointers);
+        ZIP_REMOVE(UA_ReferenceTargetIdTree, &refs->refTargetsIdTree, target);
+        ZIP_REMOVE(UA_ReferenceTargetNameTree, &refs->refTargetsNameTree, target);
+        UA_ExpandedNodeId_clear(&target->targetId);
+        UA_free(target);
 
-            if(refs->refTargetsSize > 0) {
-                /* At least one target remains in buffer */ 
-                if(j-1 != refs->refTargetsSize) {
-                    /* Move last entry into the entry from where reference was removed */
-                    ZIP_REMOVE(UA_ReferenceTargetIdTree, &refs->refTargetsIdTree,
-                               &refs->refTargets[refs->refTargetsSize]);
-                    ZIP_REMOVE(UA_ReferenceTargetNameTree, &refs->refTargetsNameTree,
-                               &refs->refTargets[refs->refTargetsSize]);
-                    *target = refs->refTargets[refs->refTargetsSize];
-                    ZIP_INSERT(UA_ReferenceTargetIdTree, &refs->refTargetsIdTree,
-                               target, ZIP_RANK(target, idTreeFields));
-                    ZIP_INSERT(UA_ReferenceTargetNameTree, &refs->refTargetsNameTree,
-                               target, ZIP_RANK(target, nameTreeFields));
-                }
-                /* Shrink down allocated buffer, ignore failure */
-                (void)resizeReferenceTargets(refs, refs->refTargetsSize);
-                return UA_STATUSCODE_GOOD;
+        if(!TAILQ_EMPTY(&refs->queueHead))
+            return UA_STATUSCODE_GOOD; /* At least one target remains for the refkind */
+
+        head->referencesSize--;
+        if(head->referencesSize > 0) {
+            /* No target for the ReferenceType remaining. Remove and shrink down
+             * allocated buffer. */
+            if(i-1 != head->referencesSize)
+                head->references[i-1] = head->references[node->head.referencesSize];
+            UA_NodeReferenceKind *newRefs = (UA_NodeReferenceKind*)
+                UA_realloc(head->references, sizeof(UA_NodeReferenceKind) * head->referencesSize);
+            /* Ignore errors in case memory buffer could not be shrinked down */
+            if(newRefs) {
+                /* Repair the backpointer in the queue */
+                for(size_t j = 0; j < head->referencesSize; j++)
+                    TAILQ_FIRST(&newRefs[j].queueHead)->queuePointers.tqe_prev =
+                        &newRefs[j].queueHead.tqh_first;
+                head->references = newRefs;
             }
-
-            /* No target for the ReferenceType remaining. Remove entry. */
-            UA_free(refs->refTargets);
-            head->referencesSize--;
-            if(head->referencesSize > 0) {
-                if(i-1 != head->referencesSize) {
-                    /* Move last array node into array node from where reference kind was removed */
-                    head->references[i-1] = head->references[node->head.referencesSize];
-                }
-                /* And shrink down allocated buffer for one entry */
-                UA_NodeReferenceKind *newRefs = (UA_NodeReferenceKind*)
-                    UA_realloc(head->references, sizeof(UA_NodeReferenceKind) * head->referencesSize);
-                /* Ignore errors in case memory buffer could not be shrinked down */
-                if(newRefs)
-                    head->references = newRefs;
-                return UA_STATUSCODE_GOOD;
-            }
-
+        } else {
             /* No remaining references of any ReferenceType */
             UA_free(head->references);
             head->references = NULL;
-            return UA_STATUSCODE_GOOD;
         }
+        return UA_STATUSCODE_GOOD;
     }
     return UA_STATUSCODE_UNCERTAINREFERENCENOTDELETED;
 }
@@ -711,36 +631,43 @@ void
 UA_Node_deleteReferencesSubset(UA_Node *node, const UA_ReferenceTypeSet *keepSet) {
     UA_NodeHead *head = &node->head;
     for(size_t i = head->referencesSize; i > 0; --i) {
-        UA_NodeReferenceKind *refs = &head->references[i-1];
-
         /* Keep the references of this type? */
+        UA_NodeReferenceKind *refs = &head->references[i-1];
         if(UA_ReferenceTypeSet_contains(keepSet, refs->referenceTypeIndex))
             continue;
 
-        /* Remove references */
-        for(size_t j = 0; j < refs->refTargetsSize; j++)
-            UA_ExpandedNodeId_clear(&refs->refTargets[j].targetId);
-        UA_free(refs->refTargets);
+        /* Remove all target entries. Don't remove entries from the tree. The
+         * entire ReferenceKind will be removed anyway. */
+        UA_ReferenceTarget *target, *tmp;
+        TAILQ_FOREACH_SAFE(target, &refs->queueHead, queuePointers, tmp) {
+            TAILQ_REMOVE(&refs->queueHead, target, queuePointers);
+            UA_ExpandedNodeId_clear(&target->targetId);
+            UA_free(target);
+        }
         head->referencesSize--;
 
         /* Move last references-kind entry to this position */
-        if(i-1 == head->referencesSize) /* Don't memcpy over the same position */
-            continue;
-        head->references[i-1] = head->references[head->referencesSize];
+        if(i-1 != head->referencesSize) /* Don't memcpy over the same position */
+            head->references[i-1] = head->references[head->referencesSize];
     }
 
     if(head->referencesSize > 0) {
         /* Realloc to save memory */
         UA_NodeReferenceKind *refs = (UA_NodeReferenceKind*)
             UA_realloc(head->references, sizeof(UA_NodeReferenceKind) * head->referencesSize);
-        if(refs) /* Do nothing if realloc fails */
+        /* Ignore if realloc fails */
+        if(refs) {
+            /* Repair the backpointer in the queue */
+            for(size_t i = 0; i < head->referencesSize; i++)
+                TAILQ_FIRST(&refs[i].queueHead)->queuePointers.tqe_prev =
+                    &refs[i].queueHead.tqh_first;
             head->references = refs;
-        return;
+        }
+    } else {
+        /* The array is empty. Remove. */
+        UA_free(head->references);
+        head->references = NULL;
     }
-
-    /* The array is empty. Remove. */
-    UA_free(head->references);
-    head->references = NULL;
 }
 
 void UA_Node_deleteReferences(UA_Node *node) {
