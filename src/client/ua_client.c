@@ -191,7 +191,9 @@ static UA_StatusCode
 sendSymmetricServiceRequest(UA_Client *client, const void *request,
                             const UA_DataType *requestType, UA_UInt32 *requestId) {
     /* Renew SecureChannel if necessary */
-    renewSecureChannel(client);
+    UA_Client_renewSecureChannel(client);
+    if(client->connectStatus != UA_STATUSCODE_GOOD)
+        return client->connectStatus;
 
     /* Adjusting the request header. The const attribute is violated, but we
      * only touch the following members: */
@@ -672,7 +674,9 @@ UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout) {
     }
 
     /* Renew Secure Channel */
-    renewSecureChannel(client);
+    UA_Client_renewSecureChannel(client);
+    if(client->connectStatus != UA_STATUSCODE_GOOD)
+        return client->connectStatus;
 
     /* Feed the server PublishRequests for the Subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS

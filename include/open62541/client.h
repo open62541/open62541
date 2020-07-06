@@ -593,6 +593,18 @@ UA_Client_sendAsyncRequest(UA_Client *client, const void *request,
 UA_StatusCode UA_EXPORT
 UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout);
 
+/* Force the manual renewal of the SecureChannel. This is useful to renew the
+ * SecureChannel during a downtime when no time-critical operations are
+ * performed. This method is asynchronous. The renewal is triggered (the OPN
+ * message is sent) but not completed. The OPN response is handled with
+ * ``UA_Client_run_iterate`` or a synchronous servica-call operation.
+ *
+ * @return The return value is UA_STATUSCODE_GOODCALLAGAIN if the SecureChannel
+ *         has not elapsed at least 75% of its lifetime. Otherwise the
+ *         ``connectStatus`` is returned. */
+UA_StatusCode UA_EXPORT
+UA_Client_renewSecureChannel(UA_Client *client);
+
 /* Use the type versions of this method. See below. However, the general
  * mechanism of async service calls is explained here.
  *
