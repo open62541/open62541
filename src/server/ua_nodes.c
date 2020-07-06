@@ -437,27 +437,33 @@ UA_Node_setAttributes(UA_Node *node, const void *attributes, const UA_DataType *
     switch(node->head.nodeClass) {
     case UA_NODECLASS_OBJECT:
         CHECK_ATTRIBUTES(OBJECTATTRIBUTES);
-        retval = copyObjectNodeAttributes(&node->objectNode, (const UA_ObjectAttributes*)attributes);
+        retval = copyObjectNodeAttributes(&node->objectNode,
+                                          (const UA_ObjectAttributes*)attributes);
         break;
     case UA_NODECLASS_VARIABLE:
         CHECK_ATTRIBUTES(VARIABLEATTRIBUTES);
-        retval = copyVariableNodeAttributes(&node->variableNode, (const UA_VariableAttributes*)attributes);
+        retval = copyVariableNodeAttributes(&node->variableNode,
+                                            (const UA_VariableAttributes*)attributes);
         break;
     case UA_NODECLASS_OBJECTTYPE:
         CHECK_ATTRIBUTES(OBJECTTYPEATTRIBUTES);
-        retval = copyObjectTypeNodeAttributes(&node->objectTypeNode, (const UA_ObjectTypeAttributes*)attributes);
+        retval = copyObjectTypeNodeAttributes(&node->objectTypeNode,
+                                              (const UA_ObjectTypeAttributes*)attributes);
         break;
     case UA_NODECLASS_VARIABLETYPE:
         CHECK_ATTRIBUTES(VARIABLETYPEATTRIBUTES);
-        retval = copyVariableTypeNodeAttributes(&node->variableTypeNode, (const UA_VariableTypeAttributes*)attributes);
+        retval = copyVariableTypeNodeAttributes(&node->variableTypeNode,
+                                                (const UA_VariableTypeAttributes*)attributes);
         break;
     case UA_NODECLASS_REFERENCETYPE:
         CHECK_ATTRIBUTES(REFERENCETYPEATTRIBUTES);
-        retval = copyReferenceTypeNodeAttributes(&node->referenceTypeNode, (const UA_ReferenceTypeAttributes*)attributes);
+        retval = copyReferenceTypeNodeAttributes(&node->referenceTypeNode,
+                                                 (const UA_ReferenceTypeAttributes*)attributes);
         break;
     case UA_NODECLASS_DATATYPE:
         CHECK_ATTRIBUTES(DATATYPEATTRIBUTES);
-        retval = copyDataTypeNodeAttributes(&node->dataTypeNode, (const UA_DataTypeAttributes*)attributes);
+        retval = copyDataTypeNodeAttributes(&node->dataTypeNode,
+                                            (const UA_DataTypeAttributes*)attributes);
         break;
     case UA_NODECLASS_VIEW:
         CHECK_ATTRIBUTES(VIEWATTRIBUTES);
