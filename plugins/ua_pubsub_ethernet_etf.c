@@ -451,9 +451,8 @@ UA_PubSubChannelEthernetETF_send(UA_PubSubChannel *channel,
     /* copy payload of ethernet message */
     memcpy(ptrCur, buf->data, buf->length);
 
-    ssize_t rc;
     /* Send the packets at the given Txtime */
-    rc = sendWithTxTime(channel, transportSettings, bufSend, lenBuf);
+    UA_StatusCode rc = sendWithTxTime(channel, transportSettings, bufSend, lenBuf);
     if(rc != UA_STATUSCODE_GOOD) {
         printf("sendfailed");
         UA_free(bufSend);
