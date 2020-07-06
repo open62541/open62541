@@ -49,7 +49,7 @@ START_TEST(SinglePublishDataSetField){
         memset(&writerGroupConfig, 0, sizeof(writerGroupConfig));
 
         writerGroupConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
-        writerGroupConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_JSONDATASETWRITERMESSAGEDATATYPE];
+        writerGroupConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_JSONWRITERGROUPMESSAGEDATATYPE];
         UA_JsonDataSetWriterMessageDataType d;
         d.dataSetMessageContentMask = UA_JSONDATASETMESSAGECONTENTMASK_SEQUENCENUMBER;
         writerGroupConfig.messageSettings.content.decoded.data = &d;
@@ -57,18 +57,22 @@ START_TEST(SinglePublishDataSetField){
         writerGroupConfig.name = UA_STRING("WriterGroup 1");
         writerGroupConfig.publishingInterval = 10;
         writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_JSON;
-        UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroup1);
-        UA_Server_setWriterGroupOperational(server, writerGroup1);
+        UA_StatusCode retVal = UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroup1);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        retVal = UA_Server_setWriterGroupOperational(server, writerGroup1);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
         UA_PublishedDataSetConfig pdsConfig;
         memset(&pdsConfig, 0, sizeof(UA_PublishedDataSetConfig));
         pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
         pdsConfig.name = UA_STRING("PublishedDataSet 1");
-        UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSet1);
+        UA_AddPublishedDataSetResult result = UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSet1);
+        ck_assert_int_eq(result.addResult, UA_STATUSCODE_GOOD);
         UA_DataSetWriterConfig dataSetWriterConfig;
         memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
         dataSetWriterConfig.name = UA_STRING("DataSetWriter 1");
-        UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter1);
+        retVal = UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter1);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         UA_DataSetFieldConfig dataSetFieldConfig;
         memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
         dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
@@ -76,9 +80,11 @@ START_TEST(SinglePublishDataSetField){
         dataSetFieldConfig.field.variable.promotedField = UA_FALSE;
         dataSetFieldConfig.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_LOCALTIME);
         dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
-        UA_Server_addDataSetField(server, publishedDataSet1, &dataSetFieldConfig, NULL);
+        UA_DataSetFieldResult dsFieldResult = UA_Server_addDataSetField(server, publishedDataSet1, &dataSetFieldConfig, NULL);
+        ck_assert_int_eq(dsFieldResult.result, UA_STATUSCODE_GOOD);
 
         UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup1);
+        ck_assert(wg != 0);
         UA_WriterGroup_publishCallback(server, wg);
     } END_TEST
 
