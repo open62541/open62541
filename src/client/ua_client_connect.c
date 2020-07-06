@@ -461,14 +461,15 @@ sendOPNAsync(UA_Client *client, UA_Boolean renew) {
     return UA_STATUSCODE_GOOD;
 }
 
-void
-renewSecureChannel(UA_Client *client) {
+UA_StatusCode
+UA_Client_renewSecureChannel(UA_Client *client) {
     /* Check if OPN has been sent or the SecureChannel is still valid */
     if(client->channel.state != UA_SECURECHANNELSTATE_OPEN ||
        client->channel.renewState != UA_SECURECHANNELRENEWSTATE_NORMAL ||
        client->nextChannelRenewal > UA_DateTime_nowMonotonic())
-        return;
+        return UA_STATUSCODE_GOODCALLAGAIN;
     sendOPNAsync(client, true);
+    return client->connectStatus;
 }
 
 static void
