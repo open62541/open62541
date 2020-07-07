@@ -40,13 +40,22 @@ THREAD_CALLBACK(serverloop) {
     return 0;
 }
 
+static void runServer(void) {
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+}
+
+static void pauseServer(void) {
+    running = false;
+    THREAD_JOIN(server_thread);
+}
+
 static void setup(void) {
     UA_DataValue_init(&lastValue);
-    running = true;
     server = UA_Server_new();
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     UA_Server_run_startup(server);
-    THREAD_CREATE(server_thread, serverloop);
+    runServer();
 
     /* Define the attribute of the double variable node */
     UA_VariableAttributes attr = UA_VariableAttributes_default;
@@ -61,15 +70,12 @@ static void setup(void) {
     parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_NodeId_init(&outNodeId);
-    ck_assert_uint_eq(UA_Server_addVariableNode(server,
-                                                doubleNodeId, parentNodeId,
-                                                parentReferenceNodeId,
-                                                doubleName,
-                                                UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
-                                                attr,
-                                                NULL,
-                                                &outNodeId)
-                      , UA_STATUSCODE_GOOD);
+    UA_StatusCode retval =
+        UA_Server_addVariableNode(server, doubleNodeId, parentNodeId,
+                                  parentReferenceNodeId, doubleName,
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                  attr, NULL, &outNodeId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Add a boolean node */
     UA_Boolean myBool = false;
@@ -77,17 +83,16 @@ static void setup(void) {
     attr.description = UA_LOCALIZEDTEXT("en-US","the answer bool");
     attr.displayName = UA_LOCALIZEDTEXT("en-US","the answer bool");
     attr.dataType = UA_TYPES[UA_TYPES_BOOLEAN].typeId;
-    ck_assert_uint_eq(UA_Server_addVariableNode(server,
-                                                UA_NODEID_STRING(1, "the.bool"),
-                                                parentNodeId, parentReferenceNodeId,
-                                                UA_QUALIFIEDNAME(1, "the bool"),
-                                                UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
-                                                attr, NULL, NULL)
-                      , UA_STATUSCODE_GOOD);
+    retval = UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "the.bool"),
+                                       parentNodeId, parentReferenceNodeId,
+                                       UA_QUALIFIEDNAME(1, "the bool"),
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                       attr, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
-    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Client_recv = client->connection.recv;
@@ -104,8 +109,7 @@ static void setup(void) {
 }
 
 static void teardown(void) {
-    ck_assert_uint_eq(UA_Client_Subscriptions_deleteSingle(client, subId)
-                      , UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(UA_Client_Subscriptions_deleteSingle(client, subId), UA_STATUSCODE_GOOD);
 
     /* cleanup */
     UA_Client_disconnect(client);
@@ -113,8 +117,7 @@ static void teardown(void) {
     UA_NodeId_deleteMembers(&parentNodeId);
     UA_NodeId_deleteMembers(&parentReferenceNodeId);
     UA_NodeId_deleteMembers(&outNodeId);
-    running = false;
-    THREAD_JOIN(server_thread);
+    pauseServer();
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
     UA_DataValue_deleteMembers(&lastValue);
@@ -138,19 +141,25 @@ setDouble(UA_Client *thisClient, UA_NodeId node, UA_Double value) {
     return UA_Client_writeValueAttribute(thisClient, node, &variant);
 }
 
-static UA_StatusCode waitForNotification(UA_UInt32 notifications, UA_UInt32 maxTries) {
+static UA_StatusCode
+waitForNotification(UA_UInt32 notifications, UA_UInt32 maxTries) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    for (UA_UInt32 i = 0; i < maxTries; ++i) {
+    pauseServer();
+    for(UA_UInt32 i = 0; i < maxTries; ++i) {
         UA_fakeSleep((UA_UInt32)publishingInterval + 100);
-        retval = UA_Client_run_iterate(client, (UA_UInt16)(publishingInterval + 100));
-        if (retval != UA_STATUSCODE_GOOD)
-            return retval;
-        if (countNotificationReceived == notifications)
-            return retval;
+        UA_Server_run_iterate(server, false);
+        retval = UA_Client_run_iterate(client, 1);
+        if(retval != UA_STATUSCODE_GOOD)
+            break;
+        if(countNotificationReceived == notifications)
+            break;
     }
+    runServer();
     return retval;
 }
-static UA_Boolean fuzzyLastValueIsEqualTo(UA_Double value) {
+
+static UA_Boolean
+fuzzyLastValueIsEqualTo(UA_Double value) {
     double offset = 0.001;
     if(lastValue.hasValue
             && lastValue.value.type == &UA_TYPES[UA_TYPES_DOUBLE]) {
@@ -833,7 +842,7 @@ START_TEST(Server_MonitoredItemsPercentFilterSetOnCreate) {
     createRequest.itemsToCreateSize = 1;
     UA_CreateMonitoredItemsResponse createResponse =
        UA_Client_MonitoredItems_createDataChanges(client, createRequest, contexts,
-                                                   callbacks, deleteCallbacks);
+                                                  callbacks, deleteCallbacks);
 
     ck_assert_uint_eq(createResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(createResponse.resultsSize, 1);

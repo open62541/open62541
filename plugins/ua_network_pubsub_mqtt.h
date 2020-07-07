@@ -25,12 +25,12 @@ typedef struct {
     UA_Connection *connection;
     void * mqttClient;
     void (*callback)(UA_ByteString *encodedBuffer, UA_ByteString *topic);
+    UA_String mqttUsername;
+    UA_String mqttPassword;
 } UA_PubSubChannelDataMQTT;
 /* TODO:
  * will topic,
  * will message,
- * user name,
- * password,
  * keep alive
  * ssl: cert, flag
  */    

@@ -45,7 +45,7 @@ endpointUnconfigured(UA_Client *client) {
 
 /* Function to create a signature using remote certificate and nonce */
 static UA_StatusCode
-signActivateSessionRequest(UA_SecureChannel *channel,
+signActivateSessionRequest(UA_Client *client, UA_SecureChannel *channel,
                            UA_ActivateSessionRequest *request) {
     if(channel->securityMode != UA_MESSAGESECURITYMODE_SIGN &&
        channel->securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
@@ -67,7 +67,7 @@ signActivateSessionRequest(UA_SecureChannel *channel,
         return retval;
 
     /* Allocate a temporary buffer */
-    size_t dataToSignSize = channel->remoteCertificate.length + channel->remoteNonce.length;
+    size_t dataToSignSize = channel->remoteCertificate.length + client->remoteNonce.length;
     if(dataToSignSize > MAX_DATA_SIZE)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -80,7 +80,7 @@ signActivateSessionRequest(UA_SecureChannel *channel,
     memcpy(dataToSign.data, channel->remoteCertificate.data,
            channel->remoteCertificate.length);
     memcpy(dataToSign.data + channel->remoteCertificate.length,
-           channel->remoteNonce.data, channel->remoteNonce.length);
+           client->remoteNonce.data, client->remoteNonce.length);
     retval = sp->certificateSigningAlgorithm.sign(sp, channel->channelContext,
                                                   &dataToSign, &sd->signature);
 
@@ -133,7 +133,7 @@ encryptUserIdentityToken(UA_Client *client, const UA_String *userTokenSecurityPo
     /* Compute the encrypted length (at least one byte padding) */
     size_t plainTextBlockSize = sp->asymmetricModule.cryptoModule.
         encryptionAlgorithm.getRemotePlainTextBlockSize(sp, channelContext);
-    UA_UInt32 length = (UA_UInt32)(tokenData->length + client->channel.remoteNonce.length);
+    UA_UInt32 length = (UA_UInt32)(tokenData->length + client->remoteNonce.length);
     UA_UInt32 totalLength = length + 4; /* Including the length field */
     size_t blocks = totalLength / plainTextBlockSize;
     if(totalLength  % plainTextBlockSize != 0)
@@ -154,8 +154,7 @@ encryptUserIdentityToken(UA_Client *client, const UA_String *userTokenSecurityPo
     const UA_Byte *end = &encrypted.data[encrypted.length];
     UA_UInt32_encodeBinary(&length, &pos, end);
     memcpy(pos, tokenData->data, tokenData->length);
-    memcpy(&pos[tokenData->length], client->channel.remoteNonce.data,
-           client->channel.remoteNonce.length);
+    memcpy(&pos[tokenData->length], client->remoteNonce.data, client->remoteNonce.length);
 
     /* Add padding
      *
@@ -192,7 +191,7 @@ encryptUserIdentityToken(UA_Client *client, const UA_String *userTokenSecurityPo
 /* Function to verify the signature corresponds to ClientNonce
  * using the local certificate */
 static UA_StatusCode
-checkCreateSessionSignature(const UA_SecureChannel *channel,
+checkCreateSessionSignature(UA_Client *client, const UA_SecureChannel *channel,
                             const UA_CreateSessionResponse *response) {
     if(channel->securityMode != UA_MESSAGESECURITYMODE_SIGN &&
        channel->securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
@@ -204,7 +203,7 @@ checkCreateSessionSignature(const UA_SecureChannel *channel,
     const UA_SecurityPolicy *sp = channel->securityPolicy;
     const UA_ByteString *lc = &sp->localCertificate;
 
-    size_t dataToVerifySize = lc->length + channel->localNonce.length;
+    size_t dataToVerifySize = lc->length + client->localNonce.length;
     UA_ByteString dataToVerify = UA_BYTESTRING_NULL;
     UA_StatusCode retval = UA_ByteString_allocBuffer(&dataToVerify, dataToVerifySize);
     if(retval != UA_STATUSCODE_GOOD)
@@ -212,7 +211,7 @@ checkCreateSessionSignature(const UA_SecureChannel *channel,
 
     memcpy(dataToVerify.data, lc->data, lc->length);
     memcpy(dataToVerify.data + lc->length,
-           channel->localNonce.data, channel->localNonce.length);
+           client->localNonce.data, client->localNonce.length);
 
     retval = sp->certificateSigningAlgorithm.verify(sp, channel->channelContext, &dataToVerify,
                                                     &response->serverSignature.signature);
@@ -227,6 +226,28 @@ checkCreateSessionSignature(const UA_SecureChannel *channel,
 /***********************/
 
 void
+processERRResponse(UA_Client *client, const UA_ByteString *chunk) {
+    client->channel.state = UA_SECURECHANNELSTATE_CLOSING;
+
+    size_t offset = 0;
+    UA_TcpErrorMessage errMessage;
+    UA_StatusCode res = UA_TcpErrorMessage_decodeBinary(chunk, &offset, &errMessage);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR_CHANNEL(&client->config.logger, &client->channel,
+                             "Received an ERR response that could not be decoded with StatusCode %s",
+                             UA_StatusCode_name(res));
+        client->connectStatus = res;
+        return;
+    }
+
+    UA_LOG_ERROR_CHANNEL(&client->config.logger, &client->channel,
+                         "Received an ERR response with StatusCode %s and the following reason: %.*s",
+                         UA_StatusCode_name(errMessage.error), (int)errMessage.reason.length, errMessage.reason.data);
+    client->connectStatus = errMessage.error;
+    UA_TcpErrorMessage_clear(&errMessage);
+}
+
+void
 processACKResponse(UA_Client *client, const UA_ByteString *chunk) {
     UA_SecureChannel *channel = &client->channel;
     if(channel->state != UA_SECURECHANNELSTATE_HEL_SENT) {
@@ -239,7 +260,7 @@ processACKResponse(UA_Client *client, const UA_ByteString *chunk) {
     UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_NETWORK, "Received ACK message");
 
     /* Decode the message */
-    size_t offset = 8;
+    size_t offset = 0;
     UA_TcpAcknowledgeMessage ackMessage;
     client->connectStatus = UA_TcpAcknowledgeMessage_decodeBinary(chunk, &offset, &ackMessage);
     if(client->connectStatus != UA_STATUSCODE_GOOD) {
@@ -307,9 +328,10 @@ sendHELMessage(UA_Client *client) {
     return retval;
 }
 
-static void
-processOPNResponseDecoded(UA_Client *client, const UA_ByteString *message, size_t offset) {
+void
+processOPNResponse(UA_Client *client, const UA_ByteString *message) {
     /* Is the content of the expected type? */
+    size_t offset = 0;
     UA_NodeId responseId;
     UA_NodeId expectedId =
         UA_NODEID_NUMERIC(0, UA_NS0ID_OPENSECURECHANNELRESPONSE_ENCODING_DEFAULTBINARY);
@@ -333,6 +355,17 @@ processOPNResponseDecoded(UA_Client *client, const UA_ByteString *message, size_
         return;
     }
 
+    /* Check whether the nonce was reused */
+    if(client->channel.securityMode != UA_MESSAGESECURITYMODE_NONE &&
+       UA_ByteString_equal(&client->channel.remoteNonce,
+                           &response.serverNonce)) {
+        UA_LOG_ERROR_CHANNEL(&client->config.logger, &client->channel,
+                             "The server reused the last nonce");
+        client->connectStatus = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        closeSecureChannel(client);
+        return;
+    }
+
     /* Response.securityToken.revisedLifetime is UInt32 we need to cast it to
      * DateTime=Int64 we take 75% of lifetime to start renewing as described in
      * standard */
@@ -340,19 +373,21 @@ processOPNResponseDecoded(UA_Client *client, const UA_ByteString *message, size_
             + (UA_DateTime) (response.securityToken.revisedLifetime
                     * (UA_Double) UA_DATETIME_MSEC * 0.75);
 
-    /* Replace the token. On the client side we don't use NextSecurityToken. */
-    UA_ChannelSecurityToken_clear(&client->channel.securityToken);
-    client->channel.securityToken = response.securityToken;
-    UA_ChannelSecurityToken_init(&response.securityToken);
-
     /* Move the nonce out of the response */
     UA_ByteString_clear(&client->channel.remoteNonce);
     client->channel.remoteNonce = response.serverNonce;
     UA_ByteString_init(&response.serverNonce);
+    UA_ResponseHeader_clear(&response.responseHeader);
 
-    UA_ResponseHeader_clear(&response.responseHeader); /* the other members were moved */
+    /* Replace the token. Keep the current token as the old token. Messages
+     * might still arrive for the old token. */
+    client->channel.altSecurityToken = client->channel.securityToken;
+    client->channel.securityToken = response.securityToken;
+    client->channel.renewState = UA_SECURECHANNELRENEWSTATE_NEWTOKEN_CLIENT;
 
-    retval = UA_SecureChannel_generateNewKeys(&client->channel);
+    /* Compute the new local keys. The remote keys are updated when a message
+     * with the new SecurityToken is received. */
+    retval = UA_SecureChannel_generateLocalKeys(&client->channel);
     if(retval != UA_STATUSCODE_GOOD) {
         closeSecureChannel(client);
         return;
@@ -370,82 +405,6 @@ processOPNResponseDecoded(UA_Client *client, const UA_ByteString *message, size_
     client->channel.state = UA_SECURECHANNELSTATE_OPEN;
 }
 
-void
-processOPNResponse(UA_Client *client, UA_ByteString *chunk) {
-    client->secureChannelHandshake = false;
-
-    UA_SecureChannel *channel = &client->channel;
-    if(channel->state != UA_SECURECHANNELSTATE_OPN_SENT &&
-       channel->state != UA_SECURECHANNELSTATE_OPEN) {
-        UA_LOG_ERROR_CHANNEL(&client->config.logger, channel,
-                             "Received an unexpected OPN response");
-        channel->state = UA_SECURECHANNELSTATE_CLOSING;
-        return;
-    }
-
-    /* Skip the first header. We know length and message type. */
-    size_t offset = UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH;
-
-    /* Decode the asymmetric algorithm security header and call the callback
-     * to perform checks. */
-    UA_AsymmetricAlgorithmSecurityHeader asymHeader;
-    UA_AsymmetricAlgorithmSecurityHeader_init(&asymHeader);
-    UA_StatusCode retval =
-        UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(chunk, &offset, &asymHeader);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_CHANNEL(&client->config.logger, channel,
-                               "Could not decode the OPN header");
-        closeSecureChannel(client);
-        return;
-    }
-
-    /* Verify the certificate before creating the SecureChannel with it */
-    if(asymHeader.senderCertificate.length > 0) {
-        retval = client->config.certificateVerification.
-            verifyCertificate(client->config.certificateVerification.context,
-                              &asymHeader.senderCertificate);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING_CHANNEL(&client->config.logger, channel,
-                                   "Could not verify the server's certificate");
-            closeSecureChannel(client);
-            return;
-        }
-    }
-
-    retval = checkAsymHeader(channel, &asymHeader);
-    UA_AsymmetricAlgorithmSecurityHeader_clear(&asymHeader);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_CHANNEL(&client->config.logger, channel,
-                               "Could not verify the OPN header");
-        closeSecureChannel(client);
-        return;
-    }
-
-    retval = decryptAndVerifyChunk(channel, &channel->securityPolicy->asymmetricModule.cryptoModule,
-                                   UA_MESSAGETYPE_OPN, chunk, offset);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_CHANNEL(&client->config.logger, channel,
-                               "Could not decrypt and verify the OPN payload");
-        closeSecureChannel(client);
-        return;
-    }
-
-   /* Decode and verify the sequence header */
-    UA_SequenceHeader sequenceHeader;
-    retval = UA_SequenceHeader_decodeBinary(chunk, &offset, &sequenceHeader);
-#ifndef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
-    retval |= processSequenceNumberAsym(channel, sequenceHeader.sequenceNumber);
-#endif
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_CHANNEL(&client->config.logger, channel,
-                               "Could not process the OPN sequence number");
-        closeSecureChannel(client);
-        return;
-    }
-
-    processOPNResponseDecoded(client, chunk, offset);
-}
-
 /* OPN messges to renew the channel are sent asynchronous */
 static UA_StatusCode
 sendOPNAsync(UA_Client *client, UA_Boolean renew) {
@@ -454,6 +413,10 @@ sendOPNAsync(UA_Client *client, UA_Boolean renew) {
         closeSecureChannel(client);
         return UA_STATUSCODE_BADNOTCONNECTED;
     }
+
+    UA_StatusCode retval = UA_SecureChannel_generateLocalNonce(&client->channel);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
     /* Prepare the OpenSecureChannelRequest */
     UA_OpenSecureChannelRequest opnSecRq;
@@ -479,7 +442,7 @@ sendOPNAsync(UA_Client *client, UA_Boolean renew) {
     /* Send the OPN message */
     UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                  "Requesting to open a SecureChannel");
-    UA_StatusCode retval =
+    retval =
         UA_SecureChannel_sendAsymmetricOPNMessage(&client->channel, requestId, &opnSecRq,
                                                   &UA_TYPES[UA_TYPES_OPENSECURECHANNELREQUEST]);
     if(retval != UA_STATUSCODE_GOOD) {
@@ -491,21 +454,22 @@ sendOPNAsync(UA_Client *client, UA_Boolean renew) {
         return retval;
     }
 
-    client->secureChannelHandshake = true;
+    client->channel.renewState = UA_SECURECHANNELRENEWSTATE_SENT;
     if(client->channel.state < UA_SECURECHANNELSTATE_OPN_SENT)
         client->channel.state = UA_SECURECHANNELSTATE_OPN_SENT;
     UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "OPN message sent");
     return UA_STATUSCODE_GOOD;
 }
 
-void
-renewSecureChannel(UA_Client *client) {
+UA_StatusCode
+UA_Client_renewSecureChannel(UA_Client *client) {
     /* Check if OPN has been sent or the SecureChannel is still valid */
     if(client->channel.state != UA_SECURECHANNELSTATE_OPEN ||
-       client->secureChannelHandshake ||
+       client->channel.renewState != UA_SECURECHANNELRENEWSTATE_NORMAL ||
        client->nextChannelRenewal > UA_DateTime_nowMonotonic())
-        return;
+        return UA_STATUSCODE_GOODCALLAGAIN;
     sendOPNAsync(client, true);
+    return client->connectStatus;
 }
 
 static void
@@ -570,7 +534,7 @@ activateSessionAsync(UA_Client *client) {
     if(client->config.userTokenPolicy.securityPolicyUri.length > 0)
         userTokenPolicy = &client->config.userTokenPolicy.securityPolicyUri;
     retval |= encryptUserIdentityToken(client, userTokenPolicy, &request.userIdentityToken);
-    retval |= signActivateSessionRequest(&client->channel, &request);
+    retval |= signActivateSessionRequest(client, &client->channel, &request);
 #endif
 
     if(retval == UA_STATUSCODE_GOOD)
@@ -801,16 +765,16 @@ responseSessionCallback(UA_Client *client, void *userdata,
         }
 
         /* Verify the client signature */
-        res = checkCreateSessionSignature(&client->channel, sessionResponse);
+        res = checkCreateSessionSignature(client, &client->channel, sessionResponse);
         if(res != UA_STATUSCODE_GOOD)
             goto cleanup;
     }
 #endif
     
-    /* Copy nonce and and authenticationtoken */
-    UA_ByteString_clear(&client->channel.remoteNonce);
+    /* Copy nonce and AuthenticationToken */
+    UA_ByteString_clear(&client->remoteNonce);
     UA_NodeId_clear(&client->authenticationToken);
-    res |= UA_ByteString_copy(&sessionResponse->serverNonce, &client->channel.remoteNonce);
+    res |= UA_ByteString_copy(&sessionResponse->serverNonce, &client->remoteNonce);
     res |= UA_NodeId_copy(&sessionResponse->authenticationToken, &client->authenticationToken);
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
@@ -829,16 +793,15 @@ createSessionAsync(UA_Client *client) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
-        if(client->channel.localNonce.length != UA_SESSION_LOCALNONCELENGTH) {
-           UA_ByteString_clear(&client->channel.localNonce);
-            retval = UA_ByteString_allocBuffer(&client->channel.localNonce,
+        if(client->localNonce.length != UA_SESSION_LOCALNONCELENGTH) {
+           UA_ByteString_clear(&client->localNonce);
+            retval = UA_ByteString_allocBuffer(&client->localNonce,
                                                UA_SESSION_LOCALNONCELENGTH);
             if(retval != UA_STATUSCODE_GOOD)
                 return retval;
         }
-
         retval = client->channel.securityPolicy->symmetricModule.
-                 generateNonce(client->channel.securityPolicy, &client->channel.localNonce);
+                 generateNonce(client->channel.securityPolicy, &client->localNonce);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }
@@ -848,7 +811,7 @@ createSessionAsync(UA_Client *client) {
     request.requestHeader.requestHandle = ++client->requestHandle;
     request.requestHeader.timestamp = UA_DateTime_now();
     request.requestHeader.timeoutHint = 10000;
-    UA_ByteString_copy(&client->channel.localNonce, &request.clientNonce);
+    UA_ByteString_copy(&client->localNonce, &request.clientNonce);
     request.requestedSessionTimeout = client->config.requestedSessionTimeout;
     request.maxResponseMessageSize = UA_INT32_MAX;
     UA_String_copy(&client->config.endpoint.endpointUrl, &request.endpointUrl);
@@ -934,16 +897,6 @@ connectIterate(UA_Client *client, UA_UInt32 timeout) {
                                                &client->config.endpoint.serverCertificate);
         if(client->connectStatus != UA_STATUSCODE_GOOD)
             return client->connectStatus;
-
-        client->connectStatus = UA_SecureChannel_generateLocalNonce(&client->channel);
-        if(client->connectStatus != UA_STATUSCODE_GOOD)
-            return client->connectStatus;
-
-        if (client->channel.remoteNonce.length != 0) {
-            client->connectStatus = UA_SecureChannel_generateNewKeys(&client->channel);
-            if(client->connectStatus != UA_STATUSCODE_GOOD)
-                return client->connectStatus;
-        }
     }
 
     /* Open the SecureChannel */
@@ -1022,6 +975,13 @@ verifyClientApplicationURI(const UA_Client *client) {
 }
 
 static UA_StatusCode
+client_configure_securechannel(void *application, UA_SecureChannel *channel,
+                               const UA_AsymmetricAlgorithmSecurityHeader *asymHeader) {
+    // TODO: Verify if certificate is the same as configured in the client endpoint config
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
 initConnect(UA_Client *client, const char *endpointUrl) {
     if(client->connection.state > UA_CONNECTIONSTATE_CLOSED) {
         UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
@@ -1029,16 +989,24 @@ initConnect(UA_Client *client, const char *endpointUrl) {
         return UA_STATUSCODE_GOOD;
     }
 
+    if(client->config.initConnectionFunc == NULL) {
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "Client connection not configured");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
     /* Consistency check the client's own ApplicationURI */
     verifyClientApplicationURI(client);
 
     /* Reset the connect status */
     client->connectStatus = UA_STATUSCODE_GOOD;
-    client->secureChannelHandshake = false;
+    client->channel.renewState = UA_SECURECHANNELRENEWSTATE_NORMAL;
     client->endpointsHandshake = false;
 
     /* Initialize the SecureChannel */
     UA_SecureChannel_init(&client->channel, &client->config.localConnectionConfig);
+    client->channel.certificateVerification = &client->config.certificateVerification;
+    client->channel.processOPNHeader = client_configure_securechannel;
 
     /* Set the endpoint URL the client connects to */
     UA_String_clear(&client->endpointUrl);
@@ -1130,7 +1098,7 @@ closeSecureChannel(UA_Client *client) {
     }
 
     /* Clean up */
-    client->secureChannelHandshake = false;
+    client->channel.renewState = UA_SECURECHANNELRENEWSTATE_NORMAL;
     UA_SecureChannel_close(&client->channel);
     if(client->connection.free)
         client->connection.free(&client->connection);

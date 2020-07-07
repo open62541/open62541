@@ -11,6 +11,7 @@
 
 #define UA_INTERNAL
 
+#include <open62541/config.h>
 #include <open62541/network_tcp.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/util.h>
@@ -322,7 +323,34 @@ addServerSocket(ServerNetworkLayerTCP *layer, struct addrinfo *ai) {
     }
 
     /* Bind socket to address */
-    if(UA_bind(newsock, ai->ai_addr, (socklen_t)ai->ai_addrlen) < 0) {
+    int ret = UA_bind(newsock, ai->ai_addr, (socklen_t)ai->ai_addrlen);
+    if(ret < 0) {
+        /* If bind to specific address failed, try to bind *-socket */
+        if(ai->ai_family == AF_INET) {
+            struct sockaddr_in *sin = (struct sockaddr_in *)ai->ai_addr;
+            if(sin->sin_addr.s_addr != htonl(INADDR_ANY)) {
+                sin->sin_addr.s_addr = 0;
+                ret = 0;
+            }
+        }
+        if(ai->ai_family == AF_INET6) {
+            struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *)ai->ai_addr;
+            if(!IN6_IS_ADDR_UNSPECIFIED(&sin6->sin6_addr)) {
+                memset(&sin6->sin6_addr, 0, sizeof(sin6->sin6_addr));
+                sin6->sin6_scope_id = 0;
+                ret = 0;
+            }
+        }
+        if(ret == 0) {
+            ret = UA_bind(newsock, ai->ai_addr, (socklen_t)ai->ai_addrlen);
+            if(ret == 0) {
+                /* The second bind fixed the issue, inform the user. */
+                UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK,
+                    "Server socket bound to unspecified address");
+            }
+        }
+    }
+    if(ret < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK,
                            "Error binding a server socket: %s", errno_str));
@@ -355,11 +383,18 @@ addServerSocket(ServerNetworkLayerTCP *layer, struct addrinfo *ai) {
 
 static UA_StatusCode
 ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, const UA_String *customHostname) {
-  UA_initialize_architecture_network();
+    UA_initialize_architecture_network();
 
     ServerNetworkLayerTCP *layer = (ServerNetworkLayerTCP *)nl->handle;
 
     /* Get addrinfo of the server and create server sockets */
+    char hostname[512];
+    if(customHostname->length) {
+        if(customHostname->length >= sizeof(hostname))
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        memcpy(hostname, customHostname->data, customHostname->length);
+        hostname[customHostname->length] = '\0';
+    }
     char portno[6];
     UA_snprintf(portno, 6, "%d", layer->port);
     struct addrinfo hints, *res;
@@ -368,7 +403,8 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, const UA_String *customHo
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;
     hints.ai_protocol = IPPROTO_TCP;
-    if(UA_getaddrinfo(NULL, portno, &hints, &res) != 0)
+    if(UA_getaddrinfo(customHostname->length ? hostname : NULL,
+        portno, &hints, &res) != 0)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* There might be serveral addrinfos (for different network cards,
@@ -603,7 +639,7 @@ UA_ServerNetworkLayerTCP(UA_ConnectionConfig config, UA_UInt16 port,
 typedef struct TCPClientConnection {
     struct addrinfo hints, *server;
     UA_DateTime connStart;
-    char* endpointURL;
+    UA_String endpointUrl;
     UA_UInt32 timeout;
 } TCPClientConnection;
 
@@ -631,6 +667,7 @@ ClientNetworkLayerTCP_free(UA_Connection *connection) {
     TCPClientConnection *tcpConnection = (TCPClientConnection *)connection->handle;
     if(tcpConnection->server)
         UA_freeaddrinfo(tcpConnection->server);
+    UA_String_clear(&tcpConnection->endpointUrl);
     UA_free(tcpConnection);
     connection->handle = NULL;
 }
@@ -689,7 +726,9 @@ UA_ClientConnectionTCP_poll(UA_Client *client, void *data, UA_UInt32 timeout) {
     if((error == -1) && (UA_ERRNO != UA_ERR_CONNECTION_PROGRESS)) {
         ClientNetworkLayerTCP_close(connection);
         UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_NETWORK,
-                       "Connection to  failed with error: %s", strerror(UA_ERRNO));
+                       "Connection to %.*s failed with error: %s",
+                       (int)tcpConnection->endpointUrl.length,
+                       tcpConnection->endpointUrl.data, strerror(UA_ERRNO));
         return UA_STATUSCODE_BADDISCONNECT;
     }
 
@@ -746,7 +785,9 @@ UA_ClientConnectionTCP_poll(UA_Client *client, void *data, UA_UInt32 timeout) {
                     /* General error */
                     ClientNetworkLayerTCP_close(connection);
                     UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_NETWORK,
-                                   "Connection to failed with error: %s",
+                                   "Connection to %.*s failed with error: %s",
+                                   (int)tcpConnection->endpointUrl.length,
+                                   tcpConnection->endpointUrl.data,
                                    strerror(ret == 0 ? so_error : UA_ERRNO));
                     return UA_STATUSCODE_BADDISCONNECT;
                 }
@@ -792,8 +833,8 @@ UA_ClientConnectionTCP_init(UA_ConnectionConfig config, const UA_String endpoint
     connection.releaseSendBuffer = connection_releasesendbuffer;
     connection.releaseRecvBuffer = connection_releaserecvbuffer;
 
-    TCPClientConnection *tcpClientConnection = (TCPClientConnection*) UA_malloc(
-                    sizeof(TCPClientConnection));
+    TCPClientConnection *tcpClientConnection = (TCPClientConnection*)
+        UA_malloc(sizeof(TCPClientConnection));
     memset(tcpClientConnection, 0, sizeof(TCPClientConnection));
     connection.handle = (void*) tcpClientConnection;
     tcpClientConnection->timeout = timeout;
@@ -802,9 +843,10 @@ UA_ClientConnectionTCP_init(UA_ConnectionConfig config, const UA_String endpoint
     UA_UInt16 port = 0;
     char hostname[512];
     tcpClientConnection->connStart = UA_DateTime_nowMonotonic();
+    UA_String_copy(&endpointUrl, &tcpClientConnection->endpointUrl);
 
-    UA_StatusCode parse_retval = UA_parseEndpointUrl(&endpointUrl,
-                    &hostnameString, &port, &pathString);
+    UA_StatusCode parse_retval =
+        UA_parseEndpointUrl(&endpointUrl, &hostnameString, &port, &pathString);
     if(parse_retval != UA_STATUSCODE_GOOD || hostnameString.length > 511) {
         UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
                        "Server url is invalid: %.*s",

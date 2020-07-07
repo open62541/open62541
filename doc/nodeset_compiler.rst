@@ -339,18 +339,16 @@ Let's look at an example that will create a pump instance given the newly define
         signal(SIGINT, stopHandler);
         signal(SIGTERM, stopHandler);
 
-        UA_ServerConfig *config = UA_ServerConfig_new_default();
-        UA_Server *server = UA_Server_new(config);
+        UA_Server *server = UA_Server_new();
+        UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
-        UA_StatusCode retval;
-        /* create nodes from nodeset */
-        if (myNS(server) != UA_STATUSCODE_GOOD) {
+        UA_StatusCode retval = myNS(server);
+        /* Create nodes from nodeset */
+        if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Could not add the example nodeset. "
                 "Check previous output for any error.");
             retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
         } else {
-
-
             UA_NodeId createdNodeId;
             UA_ObjectAttributes object_attr = UA_ObjectAttributes_default;
 
@@ -371,8 +369,8 @@ Let's look at an example that will create a pump instance given the newly define
 
             retval = UA_Server_run(server, &running);
         }
+
         UA_Server_delete(server);
-        UA_ServerConfig_delete(config);
         return (int) retval;
     }
 
@@ -456,22 +454,23 @@ Finally you need to include all these files in your build process and call the c
 
 .. code-block:: c
 
-    UA_ServerConfig *config = UA_ServerConfig_new_default();
-    UA_Server *server = UA_Server_new(config);
+    UA_Server *server = UA_Server_new();
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
-    /* create nodes from nodeset */
+    /* Create nodes from nodeset */
     UA_StatusCode retval = ua_namespace_di(server);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Adding the DI namespace failed. Please check previous error output.");
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "Adding the DI namespace failed. Please check previous error output.");
         UA_Server_delete(server);
-        UA_ServerConfig_delete(config);
         return (int)UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
+
     retval |= ua_namespace_plc(server);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Adding the PLCopen namespace failed. Please check previous error output.");
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "Adding the PLCopen namespace failed. Please check previous error output.");
         UA_Server_delete(server);
-        UA_ServerConfig_delete(config);
         return (int)UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
 

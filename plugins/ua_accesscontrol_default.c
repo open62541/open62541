@@ -7,7 +7,6 @@
  */
 
 #include <open62541/plugin/accesscontrol_default.h>
-#include <open62541/server_config.h>
 
 /* Example access control management. Anonymous and username / password login.
  * The access rights are maximally permissive. */

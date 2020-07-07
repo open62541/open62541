@@ -21,7 +21,7 @@ extern "C" {
  * ZIP_FIND will only return the topmost of these elements in the tree.
  *
  * The ZIP_ENTRY definitions are to be contained in the tree entries themselves.
- * Use ZIP_PROTTYPE to define the signature of the zip tree and ZIP_IMPL (in a
+ * Use ZIP_PROTOTYPE to define the signature of the zip tree and ZIP_IMPL (in a
  * .c compilation unit) for the method implementations.
  *
  * Zip trees are a probabilistic data structure. Entries are assigned a
@@ -60,7 +60,7 @@ struct {                                        \
 #define ZIP_ITER(name, head, cb, d) name##_ZIP_ITER(head, cb, d)
 
 /* Zip tree method prototypes */
-#define ZIP_PROTTYPE(name, type, keytype)                               \
+#define ZIP_PROTOTYPE(name, type, keytype)                              \
 void name##_ZIP_INSERT(struct name *head, struct type *elm, unsigned char rank); \
 void name##_ZIP_REMOVE(struct name *head, struct type *elm);            \
 struct type *name##_ZIP_FIND(struct name *head, const keytype *key);    \

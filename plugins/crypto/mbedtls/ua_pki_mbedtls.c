@@ -6,50 +6,21 @@
  *    Copyright 2019 (c) Julius Pfrommer, Fraunhofer IOSB
  */
 
-#include <open62541/server_config.h>
+#include <open62541/util.h>
 #include <open62541/plugin/pki_default.h>
 #include <open62541/plugin/log_stdout.h>
 
 #ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+
 #include <mbedtls/x509.h>
 #include <mbedtls/x509_crt.h>
 #include <mbedtls/error.h>
-#endif
 
 #define REMOTECERTIFICATETRUSTED 1
 #define ISSUERKNOWN              2
 #define DUALPARENT               3
 #define PARENTFOUND              4
 
-/************/
-/* AllowAll */
-/************/
-
-static UA_StatusCode
-verifyCertificateAllowAll(void *verificationContext,
-               const UA_ByteString *certificate) {
-    return UA_STATUSCODE_GOOD;
-}
-
-static UA_StatusCode
-verifyApplicationURIAllowAll(void *verificationContext,
-                             const UA_ByteString *certificate,
-                             const UA_String *applicationURI) {
-    return UA_STATUSCODE_GOOD;
-}
-
-static void
-clearVerifyAllowAll(UA_CertificateVerification *cv) {
-
-}
-
-void UA_CertificateVerification_AcceptAll(UA_CertificateVerification *cv) {
-    cv->verifyCertificate = verifyCertificateAllowAll;
-    cv->verifyApplicationURI = verifyApplicationURIAllowAll;
-    cv->clear = clearVerifyAllowAll;
-}
-
-#ifdef UA_ENABLE_ENCRYPTION
 /* Find binary substring. Taken and adjusted from
  * http://tungchingkai.blogspot.com/2011/07/binary-strstr.html */
 
@@ -66,7 +37,7 @@ bstrchr(const unsigned char *s, const unsigned char ch, size_t l) {
     return s;
 }
 
-const unsigned char *
+static const unsigned char *
 UA_Bstrstr(const unsigned char *s1, size_t l1, const unsigned char *s2, size_t l2) {
     /* find first occurrence of s2[] in s1[] for length l1*/
     const unsigned char *ss1 = s1;
@@ -91,9 +62,6 @@ UA_Bstrstr(const unsigned char *s1, size_t l1, const unsigned char *s2, size_t l
     }
     return NULL;
 }
-#endif /* end of UA_ENABLE_ENCRYPTION */
-
-#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
 
 typedef struct {
     /* If the folders are defined, we use them to reload the certificates during
@@ -236,6 +204,12 @@ reloadCertificates(CertInfo *ci) {
 }
 
 #endif
+
+static UA_StatusCode
+certificateVerification_allow(void *verificationContext,
+                              const UA_ByteString *certificate) {
+    return UA_STATUSCODE_GOOD;  
+}
 
 static UA_StatusCode
 certificateVerification_verify(void *verificationContext,
@@ -531,7 +505,7 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification *cv,
     if(certificateTrustListSize > 0)
         cv->verifyCertificate = certificateVerification_verify;
     else
-        cv->verifyCertificate = verifyCertificateAllowAll;
+        cv->verifyCertificate = certificateVerification_allow;
     cv->clear = certificateVerification_clear;
     cv->verifyApplicationURI = certificateVerification_verifyApplicationURI;
 
@@ -596,5 +570,4 @@ UA_CertificateVerification_CertFolders(UA_CertificateVerification *cv,
 }
 
 #endif
-
 #endif

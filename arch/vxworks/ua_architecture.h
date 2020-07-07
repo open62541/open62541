@@ -10,8 +10,6 @@
 #ifndef PLUGINS_ARCH_VXWORKS_UA_ARCHITECTURE_H_
 #define PLUGINS_ARCH_VXWORKS_UA_ARCHITECTURE_H_
 
-#include <open62541/architecture_base.h>
-
 #include <errno.h>
 #include <time.h>
 

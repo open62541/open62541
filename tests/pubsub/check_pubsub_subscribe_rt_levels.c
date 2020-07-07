@@ -136,15 +136,11 @@ START_TEST(SubscribeSingleFieldWithFixedOffsets) {
     memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));
     // Create Variant and configure as DataSetField source
     UA_UInt32 *intValue = UA_UInt32_new();
-    *intValue = (UA_UInt32) 1000;
-    UA_Variant variant;
-    memset(&variant, 0, sizeof(UA_Variant));
-    UA_Variant_setScalar(&variant, intValue, &UA_TYPES[UA_TYPES_UINT32]);
-    UA_DataValue staticValueSource;
-    memset(&staticValueSource, 0, sizeof(staticValueSource));
-    staticValueSource.value = variant;
-    dsfConfig.field.variable.staticValueSourceEnabled = UA_TRUE;
-    dsfConfig.field.variable.staticValueSource.value = variant;
+    *intValue = 1000;
+    UA_DataValue *dataValue = UA_DataValue_new();
+    UA_Variant_setScalar(&dataValue->value, intValue, &UA_TYPES[UA_TYPES_UINT32]);
+    dsfConfig.field.variable.rtValueSource.rtFieldSourceEnabled = UA_TRUE;
+    dsfConfig.field.variable.rtValueSource.staticValueSource = &dataValue;
     dsfConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
     ck_assert(UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent).result == UA_STATUSCODE_GOOD);
 
@@ -261,6 +257,7 @@ START_TEST(SubscribeSingleFieldWithFixedOffsets) {
     UA_free(subscribedNodeData);
     ck_assert(UA_Server_unfreezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
     ck_assert(UA_Server_unfreezeWriterGroupConfiguration(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
+    UA_DataValue_delete(dataValue);
 } END_TEST
 
 START_TEST(SetupInvalidPubSubConfig) {

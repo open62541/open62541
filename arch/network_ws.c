@@ -8,6 +8,7 @@
 
 #define UA_INTERNAL
 
+#include <open62541/config.h>
 #include <open62541/network_ws.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/util.h>
@@ -49,7 +50,7 @@ typedef struct {
 } ServerNetworkLayerWS;
 
 static UA_StatusCode
-connection_getsendbuffer(UA_Connection *connection, size_t length, UA_ByteString *buf) {
+connection_ws_getsendbuffer(UA_Connection *connection, size_t length, UA_ByteString *buf) {
     UA_SecureChannel *channel = connection->channel;
     if(channel && channel->config.sendBufferSize < length)
         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
@@ -63,14 +64,14 @@ connection_getsendbuffer(UA_Connection *connection, size_t length, UA_ByteString
 }
 
 static void
-connection_releasesendbuffer(UA_Connection *connection, UA_ByteString *buf) {
+connection_ws_releasesendbuffer(UA_Connection *connection, UA_ByteString *buf) {
     buf->data -= LWS_PRE;
     buf->length += LWS_PRE;
     UA_ByteString_deleteMembers(buf);
 }
 
 static void
-connection_releaserecvbuffer(UA_Connection *connection, UA_ByteString *buf) {
+connection_ws_releaserecvbuffer(UA_Connection *connection, UA_ByteString *buf) {
     UA_ByteString_deleteMembers(buf);
 }
 
@@ -83,7 +84,7 @@ connection_send(UA_Connection *connection, UA_ByteString *buf) {
 
     ConnectionUserData *buffer = (ConnectionUserData *)connection->handle;
     if(connection->state == UA_CONNECTIONSTATE_CLOSED) {
-        connection_releasesendbuffer(connection, buf);
+        connection_ws_releasesendbuffer(connection, buf);
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
     }
 
@@ -107,7 +108,7 @@ freeConnection(UA_Connection *connection) {
         ConnectionUserData *userData = (ConnectionUserData *)connection->handle;
         while(!SIMPLEQ_EMPTY(&userData->messages)) {
             BufferEntry *entry = SIMPLEQ_FIRST(&userData->messages);
-            connection_releasesendbuffer(connection, &entry->msg);
+            connection_ws_releasesendbuffer(connection, &entry->msg);
             SIMPLEQ_REMOVE_HEAD(&userData->messages, next);
             UA_free(entry);
         }
@@ -147,9 +148,9 @@ callback_opcua(struct lws *wsi, enum lws_callback_reasons reason, void *user, vo
             c->send = connection_send;
             c->close = ServerNetworkLayerWS_close;
             c->free = freeConnection;
-            c->getSendBuffer = connection_getsendbuffer;
-            c->releaseSendBuffer = connection_releasesendbuffer;
-            c->releaseRecvBuffer = connection_releaserecvbuffer;
+            c->getSendBuffer = connection_ws_getsendbuffer;
+            c->releaseSendBuffer = connection_ws_releasesendbuffer;
+            c->releaseRecvBuffer = connection_ws_releaserecvbuffer;
             // stack sets the connection to established
             c->state = UA_CONNECTIONSTATE_OPENING;
             c->openingDate = UA_DateTime_nowMonotonic();
@@ -196,7 +197,7 @@ callback_opcua(struct lws *wsi, enum lws_callback_reasons reason, void *user, vo
                     lwsl_err("ERROR %d writing to ws\n", m);
                     return -1;
                 }
-                connection_releasesendbuffer(pss->connection, &entry->msg);
+                connection_ws_releasesendbuffer(pss->connection, &entry->msg);
                 SIMPLEQ_REMOVE_HEAD(&b->messages, next);
                 UA_free(entry);
             } while(!lws_send_pipe_choked(wsi));

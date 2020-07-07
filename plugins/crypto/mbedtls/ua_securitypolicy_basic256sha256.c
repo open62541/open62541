@@ -9,10 +9,11 @@
  */
 
 #include <open62541/plugin/securitypolicy_default.h>
-#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
-#include <open62541/plugin/securitypolicy_mbedtls_common.h>
 #include <open62541/util.h>
 
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+
+#include "securitypolicy_mbedtls_common.h"
 
 #include <mbedtls/aes.h>
 #include <mbedtls/ctr_drbg.h>
@@ -819,7 +820,7 @@ UA_SecurityPolicy_Basic256Sha256(UA_SecurityPolicy *policy, const UA_ByteString 
 
     UA_SecurityPolicyEncryptionAlgorithm *sym_encryptionAlgorithm =
         &symmetricModule->cryptoModule.encryptionAlgorithm;
-    sym_encryptionAlgorithm->uri = UA_STRING("http://www.w3.org/2001/04/xmlenc#aes128-cbc");
+    sym_encryptionAlgorithm->uri = UA_STRING("http://www.w3.org/2001/04/xmlenc#aes256-cbc");
     sym_encryptionAlgorithm->encrypt =
         (UA_StatusCode(*)(const UA_SecurityPolicy *, void *, UA_ByteString *))sym_encrypt_sp_basic256sha256;
     sym_encryptionAlgorithm->decrypt =

@@ -14,9 +14,9 @@
 UA_StatusCode
 UA_MonitoredItem_removeNodeEventCallback(UA_Server *server, UA_Session *session,
                                          UA_Node *node, void *data) {
-    if (node->nodeClass != UA_NODECLASS_OBJECT)
+    if(node->head.nodeClass != UA_NODECLASS_OBJECT)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_ObjectNode *on = (UA_ObjectNode*)node;
+    UA_ObjectNode *on = &node->objectNode;
     UA_MonitoredItem *remove = (UA_MonitoredItem*)data;
 
     if(!on->monitoredItemQueue)
@@ -69,9 +69,9 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
     }
 
     /* Make sure the eventType is a subtype of BaseEventType */
-    UA_NodeId hasSubtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
     UA_NodeId baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
-    if(!isNodeInTree(server, &eventType, &baseEventTypeId, &hasSubtypeId, 1)) {
+    if(!isNodeInTree_singleRef(server, &eventType, &baseEventTypeId,
+                               UA_REFERENCETYPEINDEX_HASSUBTYPE)) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Event type must be a subtype of BaseEventType!");
         UA_UNLOCK(server->serviceMutex);
@@ -159,11 +159,9 @@ isValidEvent(UA_Server *server, const UA_NodeId *validEventParent,
     /* check whether the EventType is a Subtype of CondtionType
      * (Part 9 first implementation) */
     UA_NodeId conditionTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
-    UA_NodeId hasSubtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
-
     if(UA_NodeId_equal(validEventParent, &conditionTypeId) &&
-       isNodeInTree(server, tEventType,
-					&conditionTypeId, &hasSubtypeId, 1)){
+       isNodeInTree_singleRef(server, tEventType, &conditionTypeId,
+                              UA_REFERENCETYPEINDEX_HASSUBTYPE)) {
         UA_BrowsePathResult_deleteMembers(&bpr);
         UA_Variant_clear(&tOutVariant);
         return true;
@@ -173,8 +171,9 @@ isValidEvent(UA_Server *server, const UA_NodeId *validEventParent,
      *(ConditionId Clause won't be present in Events, which are not Conditions)*/
     /* check whether Valid Event other than Conditions */
     UA_NodeId baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
-    UA_Boolean isSubtypeOfBaseEvent = isNodeInTree(server, tEventType,
-                                                   &baseEventTypeId, &hasSubtypeId, 1);
+    UA_Boolean isSubtypeOfBaseEvent =
+        isNodeInTree_singleRef(server, tEventType, &baseEventTypeId,
+                               UA_REFERENCETYPEINDEX_HASSUBTYPE);
 
     UA_BrowsePathResult_clear(&bpr);
     UA_Variant_clear(&tOutVariant);
@@ -316,33 +315,26 @@ UA_Server_evaluateWhereClauseContentFilter(
             }
             else {
                 UA_NodeId *pOperandNodeId = (UA_NodeId *) pOperand->value.data;
-                UA_NodeId hasSubtypeId =
-                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
-                UA_QualifiedName eventTypeQualifiedName =
-                    UA_QUALIFIEDNAME(0, "EventType");
+                UA_QualifiedName eventTypeQualifiedName = UA_QUALIFIEDNAME(0, "EventType");
                 UA_Variant typeNodeIdVariant;
                 UA_Variant_init(&typeNodeIdVariant);
                 UA_StatusCode readStatusCode =
-                    UA_Server_readObjectProperty(
-                        server, *eventNode,
-                        eventTypeQualifiedName, &typeNodeIdVariant);
+                    UA_Server_readObjectProperty(server, *eventNode,
+                                                 eventTypeQualifiedName, &typeNodeIdVariant);
                 if(readStatusCode != UA_STATUSCODE_GOOD)
-                {
                     return readStatusCode;
-                }
 
-                if(!UA_Variant_isScalar(&typeNodeIdVariant)
-                    || typeNodeIdVariant.type != &UA_TYPES[UA_TYPES_NODEID]
-                    || typeNodeIdVariant.data == NULL)
-                {
+                if(!UA_Variant_isScalar(&typeNodeIdVariant) ||
+                   typeNodeIdVariant.type != &UA_TYPES[UA_TYPES_NODEID] ||
+                   typeNodeIdVariant.data == NULL) {
                     UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "EventType has an invalid type.");
+                                 "EventType has an invalid type.");
                     UA_Variant_clear(&typeNodeIdVariant);
                     return UA_STATUSCODE_BADINTERNALERROR;
                 }
-                result = isNodeInTree(
-                    server, (UA_NodeId*) typeNodeIdVariant.data,
-                    pOperandNodeId, &hasSubtypeId, 1);
+
+                result = isNodeInTree_singleRef(server, (UA_NodeId*) typeNodeIdVariant.data,
+                                                pOperandNodeId, UA_REFERENCETYPEINDEX_HASSUBTYPE);
                 UA_Variant_clear(&typeNodeIdVariant);
             }
 
@@ -572,10 +564,11 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
     UA_NODESTORE_RELEASE(server, originNode);
 
     /* Make sure the origin is in the ObjectsFolder (TODO: or in the ViewsFolder) */
-    if(!isNodeInTree(server, &origin, &objectsFolderId,
-                     emitReferencesRoots, 2)) { /* Only use Organizes and
-                                                 * HasComponent to check if we
-                                                 * are below the ObjectsFolder */
+    /* Only use Organizes and HasComponent to check if we are below the ObjectsFolder */
+    UA_ReferenceTypeSet reftypes =
+        UA_ReferenceTypeSet_union(UA_REFTYPESET(UA_REFERENCETYPEINDEX_ORGANIZES),
+                                  UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASCOMPONENT));
+    if(!isNodeInTree(server, &origin, &objectsFolderId, &reftypes)) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Node for event must be in ObjectsFolder!");
         UA_UNLOCK(server->serviceMutex);
@@ -609,33 +602,22 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
     emitStartNodes[1] = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
 
     /* Get all ReferenceTypes over which the events propagate */
-    UA_NodeId *emitRefTypes[EMIT_REFS_ROOT_COUNT] = {NULL, NULL, NULL};
-    size_t emitRefTypesSize[EMIT_REFS_ROOT_COUNT] = {0, 0, 0, 0};
-    size_t totalEmitRefTypesSize = 0;
-    for (size_t i=0; i<EMIT_REFS_ROOT_COUNT; i++) {
-        retval |= referenceSubtypes(server, &emitReferencesRoots[i],
-                                    &emitRefTypesSize[i], &emitRefTypes[i]);
-        totalEmitRefTypesSize += emitRefTypesSize[i];
+    UA_ReferenceTypeSet emitRefTypes;
+    UA_ReferenceTypeSet_init(&emitRefTypes);
+    for(size_t i = 0; i < EMIT_REFS_ROOT_COUNT; i++) {
+        UA_ReferenceTypeSet tmpRefTypes;
+        retval = referenceTypeIndices(server, &emitReferencesRoots[i], &tmpRefTypes, true);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "Events: Could not create the list of references for event "
+                           "propagation with StatusCode %s", UA_StatusCode_name(retval));
+            goto cleanup;
+        }
+        emitRefTypes = UA_ReferenceTypeSet_union(emitRefTypes, tmpRefTypes);
     }
-    UA_STACKARRAY(UA_NodeId, totalEmitRefTypes, totalEmitRefTypesSize);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "Events: Could not create the list of references for event "
-                       "propagation with StatusCode %s", UA_StatusCode_name(retval));
-        goto cleanup;
-    }
-
-    size_t currIndex = 0;
-    for (size_t i=0; i<EMIT_REFS_ROOT_COUNT; i++) {
-        memcpy(&totalEmitRefTypes[currIndex], emitRefTypes[i],
-               emitRefTypesSize[i] * sizeof(UA_NodeId));
-        currIndex += emitRefTypesSize[i];
-    }
-
 
     /* Get the list of nodes in the hierarchy that emits the event. */
-    retval = browseRecursive(server, 2, emitStartNodes,
-                             totalEmitRefTypesSize, totalEmitRefTypes,
+    retval = browseRecursive(server, 2, emitStartNodes, &emitRefTypes,
                              UA_BROWSEDIRECTION_INVERSE, true,
                              &emitNodesSize, &emitNodes);
     if(retval != UA_STATUSCODE_GOOD) {
@@ -651,7 +633,7 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
             UA_NODESTORE_GET(server, &emitNodes[i].nodeId);
         if(!node)
             continue;
-        if(node->nodeClass != UA_NODECLASS_OBJECT) {
+        if(node->head.nodeClass != UA_NODECLASS_OBJECT) {
             UA_NODESTORE_RELEASE(server, (const UA_Node*)node);
             continue;
         }
@@ -729,9 +711,6 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
     }
 
  cleanup:
-    for (size_t i=0; i<EMIT_REFS_ROOT_COUNT; i++) {
-        UA_Array_delete(emitRefTypes[i], emitRefTypesSize[i], &UA_TYPES[UA_TYPES_NODEID]);
-    }
     UA_Array_delete(emitNodes, emitNodesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
     UA_UNLOCK(server->serviceMutex);
     return retval;

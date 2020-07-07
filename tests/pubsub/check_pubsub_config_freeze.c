@@ -336,19 +336,15 @@ START_TEST(CreateConfigWithStaticFieldSource) {
     UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSet1);
 
     UA_UInt32 *intValue = UA_UInt32_new();
-    UA_Variant variant;
-    memset(&variant, 0, sizeof(UA_Variant));
-    UA_Variant_setScalar(&variant, intValue, &UA_TYPES[UA_TYPES_UINT32]);
-    UA_DataValue staticValueSource;
-    memset(&staticValueSource, 0, sizeof(staticValueSource));
-    staticValueSource.value = variant;
+    UA_DataValue *dataValue = UA_DataValue_new();
+    UA_Variant_setScalar(&dataValue->value, intValue, &UA_TYPES[UA_TYPES_UINT32]);
 
     UA_DataSetFieldConfig fieldConfig;
     memset(&fieldConfig, 0, sizeof(UA_DataSetFieldConfig));
     fieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
     fieldConfig.field.variable.fieldNameAlias = UA_STRING("field 1");
-    fieldConfig.field.variable.staticValueSourceEnabled = UA_TRUE;
-    fieldConfig.field.variable.staticValueSource.value = variant;
+    fieldConfig.field.variable.rtValueSource.rtFieldSourceEnabled = UA_TRUE;
+    fieldConfig.field.variable.rtValueSource.staticValueSource = &dataValue;
     UA_NodeId localDataSetField;
     UA_Server_addDataSetField(server, publishedDataSet1, &fieldConfig, &localDataSetField);
 
@@ -356,7 +352,7 @@ START_TEST(CreateConfigWithStaticFieldSource) {
     memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
     dataSetWriterConfig.name = UA_STRING("DataSetWriter 1");
     UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter1);
-    UA_DataValue_deleteMembers(&staticValueSource);
+    UA_DataValue_delete(dataValue);
     } END_TEST
 
 int main(void) {

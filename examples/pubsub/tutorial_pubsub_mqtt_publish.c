@@ -41,6 +41,16 @@
 #define BROKER_ADDRESS_URL           "opc.mqtt://127.0.0.1:1883"
 #define PUBLISH_INTERVAL             500
 
+// Uncomment the following line to enable MQTT login for the example
+// #define EXAMPLE_USE_MQTT_LOGIN
+
+#ifdef EXAMPLE_USE_MQTT_LOGIN
+#define USERNAME_OPTION_NAME         "mqttUsername"
+#define PASSWORD_OPTION_NAME         "mqttPassword"
+#define MQTT_USERNAME                "open62541user"
+#define MQTT_PASSWORD                "open62541"
+#endif
+
 #ifdef UA_ENABLE_JSON_ENCODING
 static UA_Boolean useJson = true;
 #else
@@ -70,12 +80,30 @@ addPubSubConnection(UA_Server *server, char *addressUrl) {
     connectionConfig.publisherId.numeric = 2234;
 
     /* configure options, set mqtt client id */
+#ifdef EXAMPLE_USE_MQTT_LOGIN
+    UA_KeyValuePair connectionOptions[3];
+#else
     UA_KeyValuePair connectionOptions[1];
-    connectionOptions[0].key = UA_QUALIFIEDNAME(0, CONNECTIONOPTION_NAME);
+#endif
+
+    size_t connectionOptionIndex = 0;
+    connectionOptions[connectionOptionIndex].key = UA_QUALIFIEDNAME(0, CONNECTIONOPTION_NAME);
     UA_String mqttClientId = UA_STRING(MQTT_CLIENT_ID);
-    UA_Variant_setScalar(&connectionOptions[0].value, &mqttClientId, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&connectionOptions[connectionOptionIndex++].value, &mqttClientId, &UA_TYPES[UA_TYPES_STRING]);
+
+#ifdef EXAMPLE_USE_MQTT_LOGIN
+    connectionOptions[connectionOptionIndex].key = UA_QUALIFIEDNAME(0, USERNAME_OPTION_NAME);
+    UA_String mqttUsername = UA_STRING(MQTT_USERNAME);
+    UA_Variant_setScalar(&connectionOptions[connectionOptionIndex++].value, &mqttUsername, &UA_TYPES[UA_TYPES_STRING]);
+
+    connectionOptions[connectionOptionIndex].key = UA_QUALIFIEDNAME(0, PASSWORD_OPTION_NAME);
+    UA_String mqttPassword = UA_STRING(MQTT_PASSWORD);
+    UA_Variant_setScalar(&connectionOptions[connectionOptionIndex++].value, &mqttPassword, &UA_TYPES[UA_TYPES_STRING]);
+#endif
+
     connectionConfig.connectionProperties = connectionOptions;
-    connectionConfig.connectionPropertiesSize = 1;
+    connectionConfig.connectionPropertiesSize = connectionOptionIndex;
+
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
 }
 

@@ -24,8 +24,10 @@
 */
 extern "C" int
 LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
+    if(size <= 4)
+        return 0;
 
-    if (!UA_memoryManager_setLimitFromLast4Bytes(data, size))
+    if(!UA_memoryManager_setLimitFromLast4Bytes(data, size))
         return 0;
     size -= 4;
 

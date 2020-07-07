@@ -9,7 +9,9 @@
 #ifndef UA_SERVER_PUBSUB_H
 #define UA_SERVER_PUBSUB_H
 
-#include <open62541/server.h>
+#include <open62541/util.h>
+#include <open62541/types.h>
+#include <open62541/types_generated.h>
 
 _UA_BEGIN_DECLS
 
@@ -248,9 +250,19 @@ typedef struct{
     UA_String fieldNameAlias;
     UA_Boolean promotedField;
     UA_PublishedVariableDataType publishParameters;
+
     /* non std. field */
-    UA_Boolean staticValueSourceEnabled;
-    UA_DataValue staticValueSource;
+    struct {
+        UA_Boolean rtFieldSourceEnabled;
+        /* If the rtInformationModelNode is set, the nodeid in publishParameter must point
+         * to a node with external data source backend defined
+         * */
+        UA_Boolean rtInformationModelNode;
+        //TODO -> decide if suppress C++ warnings and use 'UA_DataValue * * const staticValueSource;'
+        UA_DataValue ** staticValueSource;
+    } rtValueSource;
+
+
 } UA_DataSetVariableConfig;
 
 typedef enum {
@@ -394,6 +406,8 @@ UA_StatusCode UA_EXPORT
 UA_Server_setWriterGroupDisabled(UA_Server *server, const UA_NodeId writerGroup);
 
 /**
+ * .. _dsw:
+ *
  * DataSetWriter
  * -------------
  * The DataSetWriters are the glue between the WriterGroups and the

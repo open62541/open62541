@@ -18,7 +18,6 @@
 #define UA_SERVER_INTERNAL_H_
 
 #include <open62541/server.h>
-#include <open62541/server_config.h>
 #include <open62541/plugin/nodestore.h>
 
 #include "ua_connection_internal.h"
@@ -174,7 +173,7 @@ UA_StatusCode
 UA_Server_createSecureChannel(UA_Server *server, UA_Connection *connection);
 
 UA_StatusCode
-UA_Server_configSecureChannel(UA_Server *server, UA_SecureChannel *channel,
+UA_Server_configSecureChannel(void *application, UA_SecureChannel *channel,
                               const UA_AsymmetricAlgorithmSecurityHeader *asymHeader);
 
 UA_StatusCode
@@ -188,6 +187,10 @@ UA_Server_closeSecureChannel(UA_Server *server, UA_SecureChannel *channel,
 /********************/
 /* Session Handling */
 /********************/
+
+UA_StatusCode
+getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
+                   size_t *foundIndex);
 
 UA_StatusCode
 getBoundSession(UA_Server *server, const UA_SecureChannel *channel,
@@ -218,12 +221,6 @@ UA_Server_getSessionById(UA_Server *server, const UA_NodeId *sessionId);
 /* Node Handling */
 /*****************/
 
-/* Deletes references from the node which are not matching any type in the given
- * array. Could be used to e.g. delete all the references, except
- * 'HASMODELINGRULE' */
-void UA_Node_deleteReferencesSubset(UA_Node *node, size_t referencesSkipSize,
-                                    UA_NodeId* referencesSkip);
-
 /* Calls the callback with the node retrieved from the nodestore on top of the
  * stack. Either a copy or the original node for in-situ editing. Depends on
  * multithreading and the nodestore.*/
@@ -238,37 +235,35 @@ UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session,
 /* Utility Functions */
 /*********************/
 
-/* A few global NodeId definitions */
-extern const UA_NodeId subtypeId;
-extern const UA_NodeId hierarchicalReferences;
-
 void setupNs1Uri(UA_Server *server);
 UA_UInt16 addNamespace(UA_Server *server, const UA_String name);
 
 UA_Boolean
-UA_Node_hasSubTypeOrInstances(const UA_Node *node);
+UA_Node_hasSubTypeOrInstances(const UA_NodeHead *head);
 
 /* Recursively searches "upwards" in the tree following specific reference types */
 UA_Boolean
 isNodeInTree(UA_Server *server, const UA_NodeId *leafNode,
-             const UA_NodeId *nodeToFind, const UA_NodeId *referenceTypeIds,
-             size_t referenceTypeIdsSize);
+             const UA_NodeId *nodeToFind, const UA_ReferenceTypeSet *relevantRefs);
+
+/* Convenience function with just a single ReferenceTypeIndex */
+UA_Boolean
+isNodeInTree_singleRef(UA_Server *server, const UA_NodeId *leafNode,
+                       const UA_NodeId *nodeToFind, const UA_Byte relevantRefTypeIndex);
 
 /* Returns an array with the hierarchy of nodes. The start nodes can be returned
  * as well. The returned array starts at the leaf and continues "upwards" or
  * "downwards". Duplicate entries are removed. The parameter `walkDownwards`
  * indicates the direction of search. */
 UA_StatusCode
-browseRecursive(UA_Server *server,
-                size_t startNodesSize, const UA_NodeId *startNodes,
-                size_t refTypesSize, const UA_NodeId *refTypes,
-                UA_BrowseDirection browseDirection, UA_Boolean includeStartNodes,
-                size_t *resultsSize, UA_ExpandedNodeId **results);
+browseRecursive(UA_Server *server, size_t startNodesSize, const UA_NodeId *startNodes,
+                const UA_ReferenceTypeSet *refTypes, UA_BrowseDirection browseDirection,
+                UA_Boolean includeStartNodes, size_t *resultsSize, UA_ExpandedNodeId **results);
 
-/* If refTypes is non-NULL, tries to realloc and increase the length */
+/* Sets the indices. refType must point to a ReferenceTypeNode. */
 UA_StatusCode
-referenceSubtypes(UA_Server *server, const UA_NodeId *refType,
-                  size_t *refTypesSize, UA_NodeId **refTypes);
+referenceTypeIndices(UA_Server *server, const UA_NodeId *refType,
+                     UA_ReferenceTypeSet *indices, UA_Boolean includeSubtypes);
 
 /* Returns the recursive type and interface hierarchy of the node */ 
 UA_StatusCode
@@ -292,7 +287,8 @@ isConditionOrBranch(UA_Server *server,
 #endif//UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
 /* Returns the type node from the node on the stack top. The type node is pushed
  * on the stack and returned. */
-const UA_Node * getNodeType(UA_Server *server, const UA_Node *node);
+const UA_Node *
+getNodeType(UA_Server *server, const UA_NodeHead *nodeHead);
 
 /* Write a node attribute with a defined session */
 UA_StatusCode
@@ -522,6 +518,10 @@ UA_StatusCode writeNs0VariableArray(UA_Server *server, UA_UInt32 id, void *v,
 
 #define UA_NODESTORE_REMOVE(server, nodeId)                             \
     server->config.nodestore.removeNode(server->config.nodestore.context, nodeId)
+
+#define UA_NODESTORE_GETREFERENCETYPEID(server, index)                  \
+    server->config.nodestore.getReferenceTypeId(server->config.nodestore.context, \
+                                                index)
 
 _UA_END_DECLS
 

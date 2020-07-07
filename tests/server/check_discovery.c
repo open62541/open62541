@@ -49,16 +49,16 @@ static void configure_lds_server(UA_Server *pServer)
     UA_LocalizedText_deleteMembers(&config_lds->applicationDescription.applicationName);
     config_lds->applicationDescription.applicationName
         = UA_LOCALIZEDTEXT_ALLOC("en", "LDS Server");
-    config_lds->discovery.mdnsEnable = true;
+    config_lds->mdnsEnabled = true;
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    config_lds->discovery.mdns.mdnsServerName = UA_String_fromChars("LDS_test");
-    config_lds->discovery.mdns.serverCapabilitiesSize = 2;
+    config_lds->mdnsConfig.mdnsServerName = UA_String_fromChars("LDS_test");
+    config_lds->mdnsConfig.serverCapabilitiesSize = 2;
     UA_String *caps = (UA_String *)UA_Array_new(2, &UA_TYPES[UA_TYPES_STRING]);
     caps[0] = UA_String_fromChars("LDS");
     caps[1] = UA_String_fromChars("MyFancyCap");
-    config_lds->discovery.mdns.serverCapabilities = caps;
+    config_lds->mdnsConfig.serverCapabilities = caps;
 #endif
-    config_lds->discovery.cleanupTimeout = registerTimeout;
+    config_lds->discoveryCleanupTimeout = registerTimeout;
 }
 
 static void setup_lds(void) {
@@ -113,7 +113,7 @@ static void setup_register(void) {
     config_register->applicationDescription.applicationName =
         UA_LOCALIZEDTEXT_ALLOC("de", "Anmeldungsserver");
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    config_register->discovery.mdns.mdnsServerName = UA_String_fromChars("Register_test");
+    config_register->mdnsConfig.mdnsServerName = UA_String_fromChars("Register_test");
 #endif
 
     UA_Server_run_startup(server_register);
@@ -148,7 +148,7 @@ START_TEST(Server_register) {
     UA_Client *clientRegister = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(clientRegister));
 
-    UA_StatusCode retval = UA_Client_connect_noSession(clientRegister, "opc.tcp://localhost:4840");
+    UA_StatusCode retval = UA_Client_connectSecureChannel(clientRegister, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     retval = UA_Server_register_discovery(server_register, clientRegister , NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -161,7 +161,7 @@ START_TEST(Server_unregister) {
     UA_Client *clientRegister = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(clientRegister));
 
-    UA_StatusCode retval = UA_Client_connect_noSession(clientRegister, "opc.tcp://localhost:4840");
+    UA_StatusCode retval = UA_Client_connectSecureChannel(clientRegister, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     retval = UA_Server_unregister_discovery(server_register, clientRegister);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -194,7 +194,7 @@ START_TEST(Server_register_semaphore) {
     UA_Client *clientRegister = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(clientRegister));
 
-    UA_StatusCode retval = UA_Client_connect_noSession(clientRegister, "opc.tcp://localhost:4840");
+    UA_StatusCode retval = UA_Client_connectSecureChannel(clientRegister, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     retval = UA_Server_register_discovery(server_register, clientRegister, SEMAPHORE_PATH);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);

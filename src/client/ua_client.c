@@ -83,7 +83,10 @@ UA_Client_deleteMembers(UA_Client *client) {
     UA_Client_AsyncService_removeAll(client, UA_STATUSCODE_BADSHUTDOWN);
 
     UA_Client_disconnect(client);
-    UA_String_deleteMembers(&client->endpointUrl);
+    UA_String_clear(&client->endpointUrl);
+
+    UA_String_clear(&client->remoteNonce);
+    UA_String_clear(&client->localNonce);
 
     /* Delete the subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
@@ -188,7 +191,9 @@ static UA_StatusCode
 sendSymmetricServiceRequest(UA_Client *client, const void *request,
                             const UA_DataType *requestType, UA_UInt32 *requestId) {
     /* Renew SecureChannel if necessary */
-    renewSecureChannel(client);
+    UA_Client_renewSecureChannel(client);
+    if(client->connectStatus != UA_STATUSCODE_GOOD)
+        return client->connectStatus;
 
     /* Adjusting the request header. The const attribute is violated, but we
      * only touch the following members: */
@@ -302,19 +307,20 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
     SyncResponseDescription *rd = (SyncResponseDescription*)application;
 
     /* Process ACK response */
-    if(messageType == UA_MESSAGETYPE_ACK) {
+    switch(messageType) {
+    case UA_MESSAGETYPE_ACK:
         processACKResponse(rd->client, message);
         return;
-    }
-
-    /* Process undecoded OPN forwarded from the SecureChannel */
-    if(messageType == UA_MESSAGETYPE_OPN) {
+    case UA_MESSAGETYPE_OPN:
         processOPNResponse(rd->client, message);
         return;
-    }
-
-    /* Must be OPN or MSG */
-    if(messageType != UA_MESSAGETYPE_MSG) {
+    case UA_MESSAGETYPE_ERR:
+        processERRResponse(rd->client, message);
+        return;
+    case UA_MESSAGETYPE_MSG:
+        /* Continue below */
+        break;
+    default:
         UA_LOG_TRACE_CHANNEL(&rd->client->config.logger, channel, "Invalid message type");
         channel->state = UA_SECURECHANNELSTATE_CLOSING;
         return;
@@ -444,6 +450,8 @@ __UA_Client_Service(UA_Client *client, const void *request,
     if(client->channel.state != UA_SECURECHANNELSTATE_OPEN) {
         UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                     "SecureChannel must be connected before sending requests");
+        UA_ResponseHeader *respHeader = (UA_ResponseHeader*)response;
+        respHeader->serviceResult = UA_STATUSCODE_BADCONNECTIONCLOSED;
 		return;
     }
 
@@ -666,7 +674,9 @@ UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout) {
     }
 
     /* Renew Secure Channel */
-    renewSecureChannel(client);
+    UA_Client_renewSecureChannel(client);
+    if(client->connectStatus != UA_STATUSCODE_GOOD)
+        return client->connectStatus;
 
     /* Feed the server PublishRequests for the Subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS

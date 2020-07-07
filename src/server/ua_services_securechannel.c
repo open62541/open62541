@@ -149,6 +149,8 @@ UA_Server_createSecureChannel(UA_Server *server, UA_Connection *connection) {
     entry->channel.securityToken.channelId = 0;
     entry->channel.securityToken.createdAt = UA_DateTime_nowMonotonic();
     entry->channel.securityToken.revisedLifetime = server->config.maxSecurityTokenLifetime;
+    entry->channel.certificateVerification = &server->config.certificateVerification;
+    entry->channel.processOPNHeader = UA_Server_configSecureChannel;
 
     TAILQ_INSERT_TAIL(&server->channels, entry, pointers);
     UA_Connection_attachSecureChannel(connection, &entry->channel);
@@ -158,10 +160,11 @@ UA_Server_createSecureChannel(UA_Server *server, UA_Connection *connection) {
 }
 
 UA_StatusCode
-UA_Server_configSecureChannel(UA_Server *server, UA_SecureChannel *channel,
+UA_Server_configSecureChannel(void *application, UA_SecureChannel *channel,
                               const UA_AsymmetricAlgorithmSecurityHeader *asymHeader) {
     /* Iterate over available endpoints and choose the correct one */
     UA_SecurityPolicy *securityPolicy = NULL;
+    UA_Server *const server = (UA_Server *const) application;
     for(size_t i = 0; i < server->config.securityPoliciesSize; ++i) {
         UA_SecurityPolicy *policy = &server->config.securityPolicies[i];
         if(!UA_ByteString_equal(&asymHeader->securityPolicyUri, &policy->policyUri))
@@ -211,7 +214,7 @@ UA_SecureChannelManager_open(UA_Server *server, UA_SecureChannel *channel,
 
     channel->securityMode = request->securityMode;
     channel->securityToken.channelId = server->lastChannelId++;
-    channel->securityToken.createdAt = UA_DateTime_now();
+    channel->securityToken.createdAt = UA_DateTime_nowMonotonic();
 
     /* Set the lifetime. Lifetime 0 -> set the maximum possible */
     channel->securityToken.revisedLifetime =
@@ -220,37 +223,33 @@ UA_SecureChannelManager_open(UA_Server *server, UA_SecureChannel *channel,
     if(channel->securityToken.revisedLifetime == 0)
         channel->securityToken.revisedLifetime = server->config.maxSecurityTokenLifetime;
 
-    /* Set the nonces and generate the keys */
     UA_StatusCode retval = UA_ByteString_copy(&request->clientNonce, &channel->remoteNonce);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
+    /* Generate the nonce. The syymmetric encryption keys are generated when the
+     * first symmetric message is received */
     retval = UA_SecureChannel_generateLocalNonce(channel);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    retval = UA_SecureChannel_generateNewKeys(channel);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    /* Set the response */
+    /* Set the response. The token will be revolved to the new token when the
+     * first symmetric messages is received. */
+    response->securityToken = channel->securityToken;
+    response->securityToken.createdAt = UA_DateTime_now(); /* Only for sending */
+    response->responseHeader.timestamp = UA_DateTime_now();
+    response->responseHeader.requestHandle = request->requestHeader.requestHandle;
     retval = UA_ByteString_copy(&channel->localNonce, &response->serverNonce);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    retval = UA_ChannelSecurityToken_copy(&channel->securityToken, &response->securityToken);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    response->responseHeader.timestamp = UA_DateTime_now();
-    response->responseHeader.requestHandle = request->requestHeader.requestHandle;
-
     /* The channel is open */
     channel->state = UA_SECURECHANNELSTATE_OPEN;
 
-    /* Reset the internal creation date to the monotonic clock */
-    channel->securityToken.createdAt = UA_DateTime_nowMonotonic();
-
+    /* For the first revolve */
+    channel->renewState = UA_SECURECHANNELRENEWSTATE_NEWTOKEN_SERVER;
+    channel->altSecurityToken = channel->securityToken;
+    channel->securityToken.tokenId = 0;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -264,20 +263,27 @@ UA_SecureChannelManager_renew(UA_Server *server, UA_SecureChannel *channel,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    /* If no security token is already issued */
-    if(channel->nextSecurityToken.tokenId == 0) {
-        channel->nextSecurityToken.channelId = channel->securityToken.channelId;
-        channel->nextSecurityToken.tokenId = server->lastTokenId++;
-        channel->nextSecurityToken.createdAt = UA_DateTime_now();
-        channel->nextSecurityToken.revisedLifetime =
-            (request->requestedLifetime > server->config.maxSecurityTokenLifetime) ?
-            server->config.maxSecurityTokenLifetime : request->requestedLifetime;
-        if(channel->nextSecurityToken.revisedLifetime == 0) /* lifetime 0 -> return the max lifetime */
-            channel->nextSecurityToken.revisedLifetime = server->config.maxSecurityTokenLifetime;
+    /* Check whether the nonce was reused */
+    if(channel->securityMode != UA_MESSAGESECURITYMODE_NONE &&
+       UA_ByteString_equal(&channel->remoteNonce, &request->clientNonce)) {
+        UA_LOG_ERROR_CHANNEL(&server->config.logger, channel,
+                             "The client reused the last nonce");
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
     }
 
+    /* Create a new SecurityToken. Will be switched over when the first message
+     * is received. */
+    channel->altSecurityToken = channel->securityToken;
+    channel->altSecurityToken.tokenId = server->lastTokenId++;
+    channel->altSecurityToken.createdAt = UA_DateTime_nowMonotonic();
+    channel->altSecurityToken.revisedLifetime =
+        (request->requestedLifetime > server->config.maxSecurityTokenLifetime) ?
+        server->config.maxSecurityTokenLifetime : request->requestedLifetime;
+    if(channel->altSecurityToken.revisedLifetime == 0) /* lifetime 0 -> return the max lifetime */
+        channel->altSecurityToken.revisedLifetime = server->config.maxSecurityTokenLifetime;
+
     /* Replace the nonces */
-    UA_ByteString_deleteMembers(&channel->remoteNonce);
+    UA_ByteString_clear(&channel->remoteNonce);
     UA_StatusCode retval = UA_ByteString_copy(&request->clientNonce, &channel->remoteNonce);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
@@ -287,17 +293,14 @@ UA_SecureChannelManager_renew(UA_Server *server, UA_SecureChannel *channel,
         return retval;
 
     /* Set the response */
+    response->securityToken = channel->altSecurityToken;
+    response->securityToken.createdAt = UA_DateTime_now(); /* Only for sending */
     response->responseHeader.requestHandle = request->requestHeader.requestHandle;
     retval = UA_ByteString_copy(&channel->localNonce, &response->serverNonce);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    retval = UA_ChannelSecurityToken_copy(&channel->nextSecurityToken, &response->securityToken);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    /* Reset the internal creation date to the monotonic clock */
-    channel->nextSecurityToken.createdAt = UA_DateTime_nowMonotonic();
+    channel->renewState = UA_SECURECHANNELRENEWSTATE_NEWTOKEN_SERVER;
     return UA_STATUSCODE_GOOD;
 }
 

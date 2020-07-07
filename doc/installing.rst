@@ -79,10 +79,10 @@ Here are some examples:
 These pack branches have inlined submodules and the version string is hardcoded. If you need to build from source but do not want to use git,
 use these specific pack versions.
 
-Prebuild binaries
+Prebuilt binaries
 ^^^^^^^^^^^^^^^^^
 
-You can always find prebuild binaries for every release on our `Github Release Page <https://github.com/open62541/open62541/releases>`_.
+You can always find prebuilt binaries for every release on our `Github Release Page <https://github.com/open62541/open62541/releases>`_.
 
 
 Nightly single file releases for Linux and Windows of the last 50 commits can be found here: https://open62541.org/releases/
@@ -104,7 +104,9 @@ Install them with:
     sudo apt-get update
     sudo apt-get install libopen62541-1-dev
 
-Arch packages are available in the AUR
+Arch
+^^^^
+Arch packages are available in the AUR:
 
  * Stable Builds: https://aur.archlinux.org/packages/open62541/
  * Unstable Builds (current master): https://aur.archlinux.org/packages/open62541-git/

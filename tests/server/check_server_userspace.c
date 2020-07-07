@@ -133,7 +133,7 @@ START_TEST(Server_forEachChildNodeCall) {
 
 
 START_TEST(Server_set_customHostname) {
-    UA_String customHost = UA_STRING("fancy-host");
+    UA_String customHost = UA_STRING("localhost");
     UA_UInt16 port = 10042;
 
     UA_Server *server = UA_Server_new();
@@ -152,9 +152,9 @@ START_TEST(Server_set_customHostname) {
     for (size_t i=0; i<config->networkLayersSize; i++) {
         const UA_ServerNetworkLayer *nl = &config->networkLayers[i];
         char discoveryUrl[256];
-        int len = snprintf(discoveryUrl, 255, "opc.tcp://%.*s:%d/", (int)customHost.length, customHost.data, port);
-        ck_assert_int_eq(nl->discoveryUrl.length, len);
-        ck_assert_int_eq(config->applicationDescription.discoveryUrls[i].length, len);
+        unsigned int len = (unsigned int)snprintf(discoveryUrl, 255, "opc.tcp://%.*s:%d/", (int)customHost.length, customHost.data, port);
+        ck_assert_uint_eq(nl->discoveryUrl.length, len);
+        ck_assert_uint_eq(config->applicationDescription.discoveryUrls[i].length, len);
         ck_assert(strncmp(discoveryUrl, (char*)nl->discoveryUrl.data, len)==0);
         ck_assert(strncmp(discoveryUrl, (char*)config->applicationDescription.discoveryUrls[i].data, len)==0);
     }

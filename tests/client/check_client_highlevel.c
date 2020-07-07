@@ -190,7 +190,7 @@ START_TEST(Node_Add) {
         attr.userExecutable = true;
         retval = UA_Client_addMethodNode(client, UA_NODEID_NULL,
                                          newObjectId,
-                                         UA_NODEID_NUMERIC(0, UA_NS0ID_HASORDEREDCOMPONENT),
+                                         UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                                          UA_QUALIFIEDNAME(1, "Dummy"),
                                          attr, &newMethodId);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -457,7 +457,7 @@ START_TEST(Node_AddReadWriteNodes) {
         attr.writeMask = 0xFFFFFFFF;
         retval = UA_Client_addMethodNode(client, UA_NODEID_NULL,
                                          nodeReadWriteUnitTest,
-                                         UA_NODEID_NUMERIC(0, UA_NS0ID_HASORDEREDCOMPONENT),
+                                         UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                                          UA_QUALIFIEDNAME(1, "Dummy"),
                                          attr, &nodeReadWriteMethod);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -510,9 +510,19 @@ START_TEST(Node_AddReadWriteNodes) {
     retval = UA_Client_forEachChildNodeCall(client, nodeReadWriteUnitTest, nodeIter, NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    ck_assert(UA_NodeId_equal(&nodeReadWriteArray, &iteratedNodes[0]));
-    ck_assert(UA_NodeId_equal(&nodeReadWriteInt, &iteratedNodes[1]));
+    UA_Boolean found = false;
+    for(unsigned int i = 0; i < iteratedNodeCount; i++) {
+        if(UA_NodeId_equal(&nodeReadWriteArray, &iteratedNodes[i]))
+            found = true;
+    }
+    ck_assert(found == true);
 
+    found = false;
+    for(unsigned int i = 0; i < iteratedNodeCount; i++) {
+        if(UA_NodeId_equal(&nodeReadWriteInt, &iteratedNodes[i]))
+            found = true;
+    }
+    ck_assert(found == true);
 }
 END_TEST
 
@@ -878,7 +888,7 @@ START_TEST(Node_ReadWrite_ArrayDimensions) {
     UA_StatusCode retval = UA_Client_readArrayDimensionsAttribute(client, nodeReadWriteGeneric,
                                                                   &arrayDimsReadSize, &arrayDimsRead);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(arrayDimsReadSize, 0);
+    ck_assert_uint_eq(arrayDimsReadSize, 0);
 
     // Set a vector of size 1 as the value
     UA_Double vec2[2] = {0.0, 0.0};
@@ -906,7 +916,7 @@ START_TEST(Node_ReadWrite_ArrayDimensions) {
     retval = UA_Client_readArrayDimensionsAttribute(client, nodeReadWriteGeneric,
                                                     &arrayDimsReadSize, &arrayDimsRead);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(arrayDimsReadSize, 1);
+    ck_assert_uint_eq(arrayDimsReadSize, 1);
     ck_assert_int_eq(arrayDimsRead[0], 1);
     UA_Array_delete(arrayDimsRead, arrayDimsReadSize, &UA_TYPES[UA_TYPES_UINT32]);
 }
