@@ -393,14 +393,18 @@ processOPNResponse(UA_Client *client, const UA_ByteString *message) {
         return;
     }
 
+    UA_Float lifetime = (UA_Float)response.securityToken.revisedLifetime / 1000;
     UA_Boolean renew = (client->channel.state == UA_SECURECHANNELSTATE_OPEN);
-    if(renew)
-        UA_LOG_INFO_CHANNEL(&client->config.logger, &client->channel, "SecureChannel renewed");
-    else
+    if(renew) {
+        UA_LOG_INFO_CHANNEL(&client->config.logger, &client->channel, "SecureChannel "
+                            "renewed with a revised lifetime of %.2fs", lifetime);
+    } else {
         UA_LOG_INFO_CHANNEL(&client->config.logger, &client->channel,
-                            "Opened SecureChannel with SecurityPolicy %.*s",
+                            "SecureChannel opened with SecurityPolicy %.*s "
+                            "and a revised lifetime of %.2fs",
                             (int)client->channel.securityPolicy->policyUri.length,
-                            client->channel.securityPolicy->policyUri.data);
+                            client->channel.securityPolicy->policyUri.data, lifetime);
+    }
 
     client->channel.state = UA_SECURECHANNELSTATE_OPEN;
 }
