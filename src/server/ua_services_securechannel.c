@@ -321,8 +321,9 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
 
         /* Logging */
         if(response->responseHeader.serviceResult == UA_STATUSCODE_GOOD) {
-            UA_LOG_DEBUG_CHANNEL(&server->config.logger, channel,
-                                 "SecureChannel renewed");
+            UA_Float lifetime = (UA_Float)response->securityToken.revisedLifetime / 1000;
+            UA_LOG_INFO_CHANNEL(&server->config.logger, channel, "SecureChannel renewed "
+                                "with a revised lifetime of %.2fs", lifetime);
         } else {
             UA_LOG_DEBUG_CHANNEL(&server->config.logger, channel,
                                  "Renewing SecureChannel failed");
@@ -342,8 +343,12 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
 
     /* Logging */
     if(response->responseHeader.serviceResult == UA_STATUSCODE_GOOD) {
+        UA_Float lifetime = (UA_Float)response->securityToken.revisedLifetime / 1000;
         UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
-                            "Opened SecureChannel");
+                            "SecureChannel opened with SecurityPolicy %.*s "
+                            "and a revised lifetime of %.2fs",
+                            (int)channel->securityPolicy->policyUri.length,
+                            channel->securityPolicy->policyUri.data, lifetime);
     } else {
         UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
                             "Opening a SecureChannel failed");
