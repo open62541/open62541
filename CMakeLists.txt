@@ -224,7 +224,7 @@ mark_as_advanced(UA_ENABLE_QUERY)
 
 option(UA_ENABLE_IMMUTABLE_NODES "Nodes in the information model are not edited but copied and replaced" OFF)
 mark_as_advanced(UA_ENABLE_IMMUTABLE_NODES)
-if(UA_MULTITHREADING GREATER 100)
+if(UA_MULTITHREADING GREATER 199)
     set(UA_ENABLE_IMMUTABLE_NODES ON)
 endif()
 
