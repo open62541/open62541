@@ -94,10 +94,31 @@ UA_Server_cleanupTimedOutSecureChannels(UA_Server *server,
             continue;
         }
 
-        /* The channel has timed out */
+        /* Has the SecurityToken timed out? */
         UA_DateTime timeout =
             entry->channel.securityToken.createdAt +
             (UA_DateTime)(entry->channel.securityToken.revisedLifetime * UA_DATETIME_MSEC);
+
+        /* There is a new token. But it has not been used by the client so far.
+         * Do the rollover now instead of shutting the channel down.
+         *
+         * Part 4, 5.5.2 says: Servers shall use the existing SecurityToken to
+         * secure outgoing Messages until the SecurityToken expires or the
+         * Server receives a Message secured with a new SecurityToken.*/
+        if(timeout < nowMonotonic &&
+           entry->channel.renewState == UA_SECURECHANNELRENEWSTATE_NEWTOKEN_SERVER) {
+            /* Compare with the rollover in checkSymHeader */
+            entry->channel.renewState = UA_SECURECHANNELRENEWSTATE_NORMAL;
+            entry->channel.securityToken = entry->channel.altSecurityToken;
+            UA_ChannelSecurityToken_init(&entry->channel.altSecurityToken);
+            UA_SecureChannel_generateLocalKeys(&entry->channel);
+            generateRemoteKeys(&entry->channel);
+
+            /* Use the timeout of the new SecurityToken */
+            timeout = entry->channel.securityToken.createdAt +
+                (UA_DateTime)(entry->channel.securityToken.revisedLifetime * UA_DATETIME_MSEC);
+        }
+
         if(timeout < nowMonotonic) {
             UA_LOG_INFO_CHANNEL(&server->config.logger, &entry->channel,
                                 "SecureChannel has timed out");
