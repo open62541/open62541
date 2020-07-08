@@ -272,7 +272,7 @@ addDefaultNetworkLayers(UA_ServerConfig *conf, UA_UInt16 portNumber,
 #ifdef UA_ENABLE_WEBSOCKET_SERVER
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_addNetworkLayerWS(UA_ServerConfig *conf, UA_UInt16 portNumber,
-                                   UA_UInt32 sendBufferSize, UA_UInt32 recvBufferSize) {
+                                   UA_UInt32 sendBufferSize, UA_UInt32 recvBufferSize, const UA_ByteString* certificate, const UA_ByteString* privateKey) {
     /* Add a network layer */
     UA_ServerNetworkLayer *tmp = (UA_ServerNetworkLayer *)
         UA_realloc(conf->networkLayers,
@@ -288,7 +288,7 @@ UA_ServerConfig_addNetworkLayerWS(UA_ServerConfig *conf, UA_UInt16 portNumber,
         config.recvBufferSize = recvBufferSize;
 
     conf->networkLayers[conf->networkLayersSize] =
-        UA_ServerNetworkLayerWS(config, portNumber, &conf->logger);
+        UA_ServerNetworkLayerWS(config, portNumber, &conf->logger, certificate, privateKey);
     if (!conf->networkLayers[conf->networkLayersSize].handle)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     conf->networkLayersSize++;

@@ -47,6 +47,8 @@ typedef struct {
     struct lws_context *context;
     UA_Server *server;
     UA_ConnectionConfig config;
+    UA_ByteString certificate;
+    UA_ByteString privateKey;
 } ServerNetworkLayerWS;
 
 static UA_StatusCode
@@ -287,6 +289,13 @@ ServerNetworkLayerWS_start(UA_ServerNetworkLayer *nl, const UA_String *customHos
     info.pvo = &pvo;
     info.user = layer;
 
+    if(layer->certificate.length && layer->privateKey.length) {
+        info.server_ssl_cert_mem = layer->certificate.data;
+        info.server_ssl_cert_mem_len = layer->certificate.length;
+        info.server_ssl_private_key_mem = layer->privateKey.data;
+        info.server_ssl_private_key_mem_len = layer->privateKey.length;
+    }
+
     struct lws_context *context = lws_create_context(&info);
     if(!context) {
         UA_LOG_ERROR(layer->logger, UA_LOGCATEGORY_NETWORK, "lws init failed");
@@ -324,7 +333,7 @@ ServerNetworkLayerWS_clear(UA_ServerNetworkLayer *nl) {
 }
 
 UA_ServerNetworkLayer
-UA_ServerNetworkLayerWS(UA_ConnectionConfig config, UA_UInt16 port, UA_Logger *logger) {
+UA_ServerNetworkLayerWS(UA_ConnectionConfig config, UA_UInt16 port, UA_Logger *logger, const UA_ByteString* certificate, const UA_ByteString* privateKey) {
     UA_ServerNetworkLayer nl;
     memset(&nl, 0, sizeof(UA_ServerNetworkLayer));
     nl.clear = ServerNetworkLayerWS_clear;
@@ -341,5 +350,10 @@ UA_ServerNetworkLayerWS(UA_ConnectionConfig config, UA_UInt16 port, UA_Logger *l
     layer->logger = logger;
     layer->port = port;
     layer->config = config;
-    return nl;
+
+    if(certificate && privateKey) {
+        UA_String_copy(certificate,&layer->certificate);
+        UA_String_copy(privateKey,&layer->privateKey);
+    }
+     return nl;
 }

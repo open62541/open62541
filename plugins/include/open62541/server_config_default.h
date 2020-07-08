@@ -118,11 +118,13 @@ UA_ServerConfig_addNetworkLayerTCP(UA_ServerConfig *conf, UA_UInt16 portNumber,
  *        to use defaults.
  * @param recvBufferSize The size in bytes for the network receive buffer.
  *        Pass 0 to use defaults.
+ * @param certiticate  certificate data. Pass NULL to disable WS security
+ * @param privateKey   privateKey data. Pass NULL to disable WS security
  */
 
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_addNetworkLayerWS(UA_ServerConfig *conf, UA_UInt16 portNumber,
-                                  UA_UInt32 sendBufferSize, UA_UInt32 recvBufferSize);
+                                  UA_UInt32 sendBufferSize, UA_UInt32 recvBufferSize, const UA_ByteString* certificate, const UA_ByteString* privateKey);
 #endif
 
 /* Adds the security policy ``SecurityPolicy#None`` to the server. A
