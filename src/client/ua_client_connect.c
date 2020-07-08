@@ -538,7 +538,7 @@ void
 renewSecureChannel(UA_Client *client) {
     /* Check if OPN has been sent or the SecureChannel is still valid */
     if(client->channel.state != UA_SECURECHANNELSTATE_OPEN ||
-       client->channel.renewState != UA_SECURECHANNELRENEWSTATE_NORMAL ||
+       client->channel.renewState == UA_SECURECHANNELRENEWSTATE_SENT ||
        client->nextChannelRenewal > UA_DateTime_nowMonotonic())
         return;
     sendOPNAsync(client, true);
