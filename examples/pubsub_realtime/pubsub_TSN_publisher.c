@@ -397,8 +397,9 @@ static void addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId
         valueBackend.backend.external.callback.notificationRead = externalDataReadNotificationCallback;
         UA_Server_setVariableNode_valueBackend(server, UA_NODEID_NUMERIC(1, (UA_UInt32)iterator+50000), valueBackend);
 #endif
-        targetVars.targetVariables[iterator].attributeId  = UA_ATTRIBUTEID_VALUE;
-        targetVars.targetVariables[iterator].targetNodeId = UA_NODEID_NUMERIC(1, (UA_UInt32)iterator+50000);
+        UA_FieldTargetDataType_init(&targetVars.targetVariables[iterator].targetVariable);
+        targetVars.targetVariables[iterator].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
+        targetVars.targetVariables[iterator].targetVariable.targetNodeId = UA_NODEID_NUMERIC(1, (UA_UInt32)iterator+50000);
     }
 
     UA_UInt64 *tmpValue = UA_UInt64_new();
@@ -417,11 +418,12 @@ static void addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId
     valueBackend.backend.external.callback.notificationRead = externalDataReadNotificationCallback;
     UA_Server_setVariableNode_valueBackend(server, subNodeID, valueBackend);
 #endif
-    targetVars.targetVariables[iterator].attributeId  = UA_ATTRIBUTEID_VALUE;
-    targetVars.targetVariables[iterator].targetNodeId = subNodeID;
+    UA_FieldTargetDataType_init(&targetVars.targetVariables[iterator].targetVariable);
+    targetVars.targetVariables[iterator].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
+    targetVars.targetVariables[iterator].targetVariable.targetNodeId = subNodeID;
 
     UA_Server_DataSetReader_createTargetVariables(server, dataSetReaderId, &targetVars);
-    UA_TargetVariablesSource_clear(&targetVars);
+    UA_TargetVariables_clear(&targetVars);
     UA_free(readerConfig.dataSetMetaData.fields);
 }
 
@@ -851,20 +853,6 @@ void *userApplicationPubSub(void *arg) {
         nanoSecondFieldConversion(&nextnanosleeptimeUserApplication);
     }
 
-#if defined(PUBLISHER)
-    UA_free(pubCounterData);
-    for (UA_Int32 iterator = 0; iterator <  REPEATED_NODECOUNTS; iterator++)
-    {
-        UA_free(repeatedCounterData[iterator]);
-    }
-#endif
-#if defined(SUBSCRIBER)
-    UA_free(subCounterData);
-    for (UA_Int32 iterator = 0; iterator <  REPEATED_NODECOUNTS; iterator++)
-    {
-        UA_free(subRepeatedCounterData[iterator]);
-    }
-#endif
     return (void*)NULL;
 }
 #endif
@@ -1192,6 +1180,10 @@ int main(int argc, char **argv) {
     UA_free(serverConfig);
 #endif
 #if defined(PUBLISHER)
+    UA_free(pubCounterData);
+    for (UA_Int32 iterator = 0; iterator <  REPEATED_NODECOUNTS; iterator++)
+        UA_free(repeatedCounterData[iterator]);
+
 #if defined PUBSUB_CONFIG_RT_INFORMATION_MODEL
     /* Free external data source */
     UA_free(pubDataValueRT);
@@ -1204,6 +1196,10 @@ int main(int argc, char **argv) {
 #endif
 
 #if defined(SUBSCRIBER)
+    UA_free(subCounterData);
+    for (UA_Int32 iterator = 0; iterator <  REPEATED_NODECOUNTS; iterator++)
+        UA_free(subRepeatedCounterData[iterator]);
+
 #if defined PUBSUB_CONFIG_RT_INFORMATION_MODEL
     /* Free external data source */
     UA_free(subDataValueRT);

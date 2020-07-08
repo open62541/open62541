@@ -43,6 +43,30 @@ UA_NodeId readerIdentifier;
 
 UA_DataSetReaderConfig readerConfig;
 
+UA_UInt32    *repeatedFieldValues[PUBSUB_CONFIG_FIELD_COUNT];
+UA_DataValue *repeatedDataValueRT[PUBSUB_CONFIG_FIELD_COUNT];
+
+/* If the external data source is written over the information model, the
+ * externalDataWriteCallback will be triggered. The user has to take care and assure
+ * that the write leads not to synchronization issues and race conditions. */
+static UA_StatusCode
+externalDataWriteCallback(UA_Server *server, const UA_NodeId *sessionId,
+                          void *sessionContext, const UA_NodeId *nodeId,
+                          void *nodeContext, const UA_NumericRange *range,
+                          const UA_DataValue *data){
+    //node values are updated by using variables in the memory
+    //UA_Server_write is not used for updating node values.
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+externalDataReadNotificationCallback(UA_Server *server, const UA_NodeId *sessionId,
+                                     void *sessionContext, const UA_NodeId *nodeid,
+                                     void *nodeContext, const UA_NumericRange *range){
+    //allow read without any preparation
+    return UA_STATUSCODE_GOOD;
+}
+
 /* Define MetaData for TargetVariables */
 static void fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData) {
     if(pMetaData == NULL)
@@ -200,15 +224,30 @@ addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId) {
         retval = UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, (UA_UInt32)i + 50000), folderId,
                                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),  UA_QUALIFIEDNAME(1, "Subscribed UInt32"),
                                            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vAttr, NULL, &newnodeId);
-        /* For creating Targetvariable */
-        targetVars.targetVariables[i].attributeId  = UA_ATTRIBUTEID_VALUE;
-        targetVars.targetVariables[i].targetNodeId = newnodeId;
+        UA_UInt32 *tmprepeatValue        = UA_UInt32_new();
+        *tmprepeatValue = 0;
+        repeatedFieldValues[i] = tmprepeatValue;
+        UA_DataValue *tmpDataValueRT = UA_DataValue_new();
+        tmpDataValueRT->hasValue = UA_TRUE;
+        repeatedDataValueRT[i] = tmpDataValueRT;
+        UA_Variant_setScalar(&repeatedDataValueRT[i]->value, repeatedFieldValues[i], &UA_TYPES[UA_TYPES_UINT32]);
+        /* Set the value backend of the above create node to 'external value source' */
+        UA_ValueBackend valueBackend;
+        valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
+        valueBackend.backend.external.value = &repeatedDataValueRT[i];
+        valueBackend.backend.external.callback.userWrite = externalDataWriteCallback;
+        valueBackend.backend.external.callback.notificationRead = externalDataReadNotificationCallback;
+        UA_Server_setVariableNode_valueBackend(server, newnodeId, valueBackend);
+        /* For creating Targetvariables */
+        UA_FieldTargetDataType_init(&targetVars.targetVariables[i].targetVariable);
+        targetVars.targetVariables[i].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
+        targetVars.targetVariables[i].targetVariable.targetNodeId = newnodeId;
     }
 
     retval = UA_Server_DataSetReader_createTargetVariables(server, dataSetReaderId,
                                                            &targetVars);
 
-    UA_TargetVariablesSource_clear(&targetVars);
+    UA_TargetVariables_clear(&targetVars);
     UA_free(readerConfig.dataSetMetaData.fields);
     return retval;
 }
@@ -271,6 +310,13 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
 
     UA_Server_unfreezeReaderGroupConfiguration(server, readerGroupIdentifier);
     UA_Server_delete(server);
+
+    for (UA_Int32 iterator = 0; iterator <  PUBSUB_CONFIG_FIELD_COUNT; iterator++)
+    {
+        UA_free(repeatedFieldValues[iterator]);
+        UA_free(repeatedDataValueRT[iterator]);
+    }
+
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 

@@ -492,20 +492,34 @@ UA_Server_getDataSetWriterConfig(UA_Server *server, const UA_NodeId dsw,
 UA_StatusCode UA_EXPORT
 UA_Server_removeDataSetWriter(UA_Server *server, const UA_NodeId dsw);
 
-/**********************************************/
-/*               TargetVariables              */
-/**********************************************/
+/**
+ * SubscribedDataSet
+ * -----------------
+ * SubscribedDataSet describes the processing of the received DataSet. SubscribedDataSet defines which field
+ * in the DataSet is mapped to which Variable in the OPC UA Application. SubscribedDataSet has two sub-types
+ * called the TargetVariablesType and SubscribedDataSetMirrorType.
+ * SubscribedDataSetMirrorType is currently not supported. SubscribedDataSet is set to TargetVariablesType
+ * and then the list of target Variables are created in the Subscriber AddressSpace.
+ * TargetVariables are a list of variables that are to be added in the Subscriber AddressSpace.
+ * It defines a list of Variable mappings between received DataSet fields and added Variables
+ * in the Subscriber AddressSpace. */
 
 typedef struct {
-    UA_Guid dataSetFieldId;
-    UA_String receiverIndexRange;
-    UA_NodeId targetNodeId;
-    UA_UInt32 attributeId;
-    UA_String writeIndexRange;
-    UA_OverrideValueHandling overrideValueHandling;
-    UA_Variant overrideValue;
-    // reference to the target node value backend pointer if rt fixed size is enabled
-    UA_DataValue ** externalDataValueSource;
+    /* Standard-defined FieldTargetDataType */
+    UA_FieldTargetDataType targetVariable;
+
+    /* If realtime-handling is required, set this pointer non-NULL and it will be used
+     * to memcpy the value instead of using the Write service.
+     * If the afterWrite method pointer is set, it will be called after a memcpy update
+     * to the value. */
+    UA_DataValue **externalDataValue;
+    void *targetVariableContext; /* user-defined pointer */
+    void (*afterWrite)(UA_Server *server,
+                       const UA_NodeId *readerIdentifier,
+                       const UA_NodeId *readerGroupIdentifier,
+                       const UA_NodeId *targetVariableIdentifier,
+                       void *targetVariableContext,
+                       UA_DataValue **externalDataValue);
 } UA_FieldTargetVariables;
 
 typedef struct {
@@ -514,7 +528,17 @@ typedef struct {
 } UA_TargetVariables;
 
 void UA_EXPORT
-UA_TargetVariablesSource_clear(UA_TargetVariables *subscribedDataSetTarget);
+UA_TargetVariables_clear(UA_TargetVariables *subscribedDataSetTarget);
+
+/* Return Status Code after creating TargetVariables in Subscriber AddressSpace */
+UA_StatusCode UA_EXPORT
+UA_Server_DataSetReader_createTargetVariables(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
+                                              UA_TargetVariables* subscribedDataSetTarget);
+
+/* To Do:Implementation of SubscribedDataSetMirrorType
+ * UA_StatusCode
+ * A_PubSubDataSetReader_createDataSetMirror(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
+ * UA_SubscribedDataSetMirrorDataType* mirror) */
 
 /**
  * DataSetReader
@@ -557,28 +581,6 @@ UA_Server_DataSetReader_updateConfig(UA_Server *server, UA_NodeId dataSetReaderI
 UA_StatusCode UA_EXPORT
 UA_Server_DataSetReader_getConfig(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
                                  UA_DataSetReaderConfig *config);
-
-/**
- * SubscribedDataSet
- * -----------------
- * SubscribedDataSet describes the processing of the received DataSet. SubscribedDataSet defines which field
- * in the DataSet is mapped to which Variable in the OPC UA Application. SubscribedDataSet has two sub-types
- * called the TargetVariablesType and SubscribedDataSetMirrorType.
- * SubscribedDataSetMirrorType is currently not supported. SubscribedDataSet is set to TargetVariablesType
- * and then the list of target Variables are created in the Subscriber AddressSpace.
- * TargetVariables are a list of variables that are to be added in the Subscriber AddressSpace.
- * It defines a list of Variable mappings between received DataSet fields and added Variables
- * in the Subscriber AddressSpace. */
-
-/* Return Status Code after creating TargetVariables in Subscriber AddressSpace */
-UA_StatusCode UA_EXPORT
-UA_Server_DataSetReader_createTargetVariables(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
-                                              UA_TargetVariables* subscribedDataSetTarget);
-
-/* To Do:Implementation of SubscribedDataSetMirrorType
- * UA_StatusCode
- * A_PubSubDataSetReader_createDataSetMirror(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
- * UA_SubscribedDataSetMirrorDataType* mirror) */
 
 /**
  * ReaderGroup
