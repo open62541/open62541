@@ -18,6 +18,10 @@
 UA_Server *server = NULL;
 UA_NodeId connectionIdentifier, publishedDataSetIdent, writerGroupIdent, dataSetWriterIdent, dataSetFieldIdent, readerGroupIdentifier, readerIdentifier;
 
+UA_UInt32    *subValue;
+UA_DataValue *subDataValueRT;
+UA_NodeId    subNodeId;
+
 static UA_StatusCode
 addMinimalPubSubConfiguration(void){
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
@@ -99,6 +103,28 @@ static void receiveSingleMessageRT(UA_PubSubConnection *connection, UA_DataSetRe
      }
 
     UA_ByteString_clear(&buffer);
+}
+
+/* If the external data source is written over the information model, the
+ * externalDataWriteCallback will be triggered. The user has to take care and assure
+ * that the write leads not to synchronization issues and race conditions. */
+static UA_StatusCode
+externalDataWriteCallback(UA_Server *serverLocal, const UA_NodeId *sessionId,
+                          void *sessionContext, const UA_NodeId *nodeId,
+                          void *nodeContext, const UA_NumericRange *range,
+                          const UA_DataValue *data){
+    if(UA_NodeId_equal(nodeId, &subNodeId)){
+        memcpy(subValue, data->value.data, sizeof(UA_UInt32));
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+externalDataReadNotificationCallback(UA_Server *serverLocal, const UA_NodeId *sessionId,
+                                     void *sessionContext, const UA_NodeId *nodeid,
+                                     void *nodeContext, const UA_NumericRange *range){
+    //allow read without any preparation
+    return UA_STATUSCODE_GOOD;
 }
 
 START_TEST(SubscribeSingleFieldWithFixedOffsets) {
@@ -192,7 +218,6 @@ START_TEST(SubscribeSingleFieldWithFixedOffsets) {
     UA_UadpDataSetReaderMessageDataType_delete(dataSetReaderMessage);
     /* Add Subscribed Variables */
     UA_NodeId folderId;
-    UA_NodeId newnodeId;
     UA_String folderName = readerConfig.dataSetMetaData.name;
     UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
     UA_QualifiedName folderBrowseName;
@@ -220,20 +245,33 @@ START_TEST(SubscribeSingleFieldWithFixedOffsets) {
     retVal = UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 50002),
                                        folderId,
                                        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),  UA_QUALIFIEDNAME(1, "Subscribed UInt32"),
-                                       UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vAttr, NULL, &newnodeId);
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vAttr, NULL, &subNodeId);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     UA_TargetVariables targetVars;
     targetVars.targetVariablesSize = 1;
     targetVars.targetVariables     = (UA_FieldTargetVariables *)
                                       UA_calloc(targetVars.targetVariablesSize,
                                       sizeof(UA_FieldTargetVariables));
+    subValue        = UA_UInt32_new();
+    subDataValueRT  = UA_DataValue_new();
+    subDataValueRT->hasValue = UA_TRUE;
+    UA_Variant_setScalar(&subDataValueRT->value, subValue, &UA_TYPES[UA_TYPES_UINT32]);
+    /* Set the value backend of the above create node to 'external value source' */
+    UA_ValueBackend valueBackend;
+    valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
+    valueBackend.backend.external.value = &subDataValueRT;
+    valueBackend.backend.external.callback.userWrite = externalDataWriteCallback;
+    valueBackend.backend.external.callback.notificationRead = externalDataReadNotificationCallback;
+    UA_Server_setVariableNode_valueBackend(server, subNodeId, valueBackend);
+
     /* For creating Targetvariable */
-    targetVars.targetVariables[0].attributeId  = UA_ATTRIBUTEID_VALUE;
-    targetVars.targetVariables[0].targetNodeId = newnodeId;
+    UA_FieldTargetDataType_init(&targetVars.targetVariables[0].targetVariable);
+    targetVars.targetVariables[0].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
+    targetVars.targetVariables[0].targetVariable.targetNodeId = subNodeId;
     retVal = UA_Server_DataSetReader_createTargetVariables(server, readerIdentifier,
-                                                            &targetVars);
+                                                           &targetVars);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-    UA_TargetVariablesSource_clear(&targetVars);
+    UA_TargetVariables_clear(&targetVars);
     UA_free(readerConfig.dataSetMetaData.fields);
 
     ck_assert(UA_Server_freezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
@@ -245,19 +283,19 @@ START_TEST(SubscribeSingleFieldWithFixedOffsets) {
 
     UA_DataSetReader *dataSetReader = UA_ReaderGroup_findDSRbyId(server, readerIdentifier);
     receiveSingleMessageRT(connection, dataSetReader);
-
    /* Read data received by the Subscriber */
     UA_Variant *subscribedNodeData = UA_Variant_new();
     retVal = UA_Server_readValue(server, UA_NODEID_NUMERIC(1, 50002), subscribedNodeData);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
     ck_assert((*(UA_Int32 *)subscribedNodeData->data) == 1000);
-
     UA_Variant_deleteMembers(subscribedNodeData);
     UA_free(subscribedNodeData);
     ck_assert(UA_Server_unfreezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
     ck_assert(UA_Server_unfreezeWriterGroupConfiguration(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
     UA_DataValue_delete(dataValue);
+    UA_free(subValue);
+    UA_free(subDataValueRT);
 } END_TEST
 
 START_TEST(SetupInvalidPubSubConfig) {
@@ -268,6 +306,7 @@ START_TEST(SetupInvalidPubSubConfig) {
         UA_StatusCode rv = connection->channel->regist(connection->channel, NULL, NULL);
         ck_assert(rv == UA_STATUSCODE_GOOD);
     }
+
     UA_WriterGroupConfig writerGroupConfig;
     memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
     writerGroupConfig.name = UA_STRING("Demo WriterGroup");
@@ -310,7 +349,6 @@ START_TEST(SetupInvalidPubSubConfig) {
     dsfConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
     /* Not using static value source */
     ck_assert(UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent).result == UA_STATUSCODE_GOOD);
-
     /* Reader Group */
     UA_ReaderGroupConfig readerGroupConfig;
     memset (&readerGroupConfig, 0, sizeof (UA_ReaderGroupConfig));
@@ -398,12 +436,13 @@ START_TEST(SetupInvalidPubSubConfig) {
                                       UA_calloc(targetVars.targetVariablesSize,
                                       sizeof(UA_FieldTargetVariables));
     /* For creating Targetvariable */
-    targetVars.targetVariables[0].attributeId  = UA_ATTRIBUTEID_VALUE;
-    targetVars.targetVariables[0].targetNodeId = newnodeId;
+    UA_FieldTargetDataType_init(&targetVars.targetVariables[0].targetVariable);
+    targetVars.targetVariables[0].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
+    targetVars.targetVariables[0].targetVariable.targetNodeId = newnodeId;
     retVal = UA_Server_DataSetReader_createTargetVariables(server, readerIdentifier,
-                                                            &targetVars);
+                                                           &targetVars);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-    UA_TargetVariablesSource_clear(&targetVars);
+    UA_TargetVariables_clear(&targetVars);
     UA_free(readerConfig.dataSetMetaData.fields);
     UA_Variant_deleteMembers(&variant);
 
@@ -422,8 +461,8 @@ START_TEST(SetupInvalidPubSubConfig) {
 int main(void) {
     TCase *tc_pubsub_subscribe_rt = tcase_create("PubSub RT subscribe with fixed offsets");
     tcase_add_checked_fixture(tc_pubsub_subscribe_rt, setup, teardown);
-    tcase_add_test(tc_pubsub_subscribe_rt, SubscribeSingleFieldWithFixedOffsets);
     tcase_add_test(tc_pubsub_subscribe_rt, SetupInvalidPubSubConfig);
+    tcase_add_test(tc_pubsub_subscribe_rt, SubscribeSingleFieldWithFixedOffsets);
 
     Suite *s = suite_create("PubSub RT configuration levels");
     suite_add_tcase(s, tc_pubsub_subscribe_rt);

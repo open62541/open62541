@@ -39,13 +39,12 @@ UA_PubSubDSRDataSetField_sampleValue(UA_Server *server, UA_DataSetReader *dataSe
      * TODO: Extend to support other configuration if required */
     /* Read the value */
     const UA_VariableNode *rtNode = (const UA_VariableNode *) UA_NODESTORE_GET(server,
-                                     &dataSetReader->subscribedDataSet.subscribedDataSetTarget.targetVariables[fieldNumber].targetNodeId);
+                                     &dataSetReader->subscribedDataSet.subscribedDataSetTarget.targetVariables[fieldNumber].targetVariable.targetNodeId);
     if (rtNode->valueBackend.backendType == UA_VALUEBACKENDTYPE_EXTERNAL) {
-        dataSetReader->subscribedDataSet.subscribedDataSetTarget.targetVariables[fieldNumber].externalDataValueSource = rtNode->valueBackend.backend.external.value;
-        *value = (**(dataSetReader->subscribedDataSet.subscribedDataSetTarget.targetVariables[fieldNumber].externalDataValueSource));
+        dataSetReader->subscribedDataSet.subscribedDataSetTarget.targetVariables[fieldNumber].externalDataValue = rtNode->valueBackend.backend.external.value;
+        *value = (**(dataSetReader->subscribedDataSet.subscribedDataSetTarget.targetVariables[fieldNumber].externalDataValue));
         value->value.storageType = UA_VARIANT_DATA_NODELETE;
     }
-
     UA_NODESTORE_RELEASE(server, (const UA_Node *) rtNode);
 }
 
@@ -528,7 +527,7 @@ UA_Server_freezeReaderGroupConfiguration(UA_Server *server, const UA_NodeId read
 
         size_t fieldsSize = dataSetReader->config.dataSetMetaData.fieldsSize;
         for(size_t i = 0; i < fieldsSize; i++) {
-            const UA_VariableNode *rtNode = (const UA_VariableNode *) UA_NODESTORE_GET(server, &dataSetReader->subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetNodeId);
+            const UA_VariableNode *rtNode = (const UA_VariableNode *) UA_NODESTORE_GET(server, &dataSetReader->subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariable.targetNodeId);
             if(rtNode != NULL && rtNode->valueBackend.backendType != UA_VALUEBACKENDTYPE_EXTERNAL){
                 UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                                "PubSub-RT configuration fail: PDS contains field without external data source.");
@@ -1114,14 +1113,14 @@ UA_DataSetReader_setPubSubState(UA_Server *server, UA_PubSubState state, UA_Data
 }
 
 UA_StatusCode
-UA_FieldTargetVariablesSource_copy(const UA_FieldTargetVariables *src, UA_FieldTargetVariables *dst) {
+UA_FieldTargetVariables_copy(const UA_FieldTargetVariables *src, UA_FieldTargetVariables *dst) {
     /* Do a simple memcpy */
     memcpy(dst, src, sizeof(UA_FieldTargetVariables));
     return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
-UA_TargetVariablesSource_copy(const UA_TargetVariables *src, UA_TargetVariables *dst) {
+UA_TargetVariables_copy(const UA_TargetVariables *src, UA_TargetVariables *dst) {
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     memcpy(dst, src, sizeof(UA_TargetVariables));
     if(src->targetVariablesSize > 0) {
@@ -1130,17 +1129,16 @@ UA_TargetVariablesSource_copy(const UA_TargetVariables *src, UA_TargetVariables 
             return UA_STATUSCODE_BADOUTOFMEMORY;
 
         for(size_t i = 0; i < src->targetVariablesSize; i++)
-            retVal |= UA_FieldTargetVariablesSource_copy(&src->targetVariables[i], &dst->targetVariables[i]);
+            retVal |= UA_FieldTargetVariables_copy(&src->targetVariables[i], &dst->targetVariables[i]);
     }
 
     return retVal;
 }
 
 void
-UA_TargetVariablesSource_clear(UA_TargetVariables *subscribedDataSetTarget) {
+UA_TargetVariables_clear(UA_TargetVariables *subscribedDataSetTarget) {
     if(subscribedDataSetTarget->targetVariablesSize > 0)
-          UA_free(subscribedDataSetTarget->targetVariables);
-
+        UA_free(subscribedDataSetTarget->targetVariables);
 }
 
 /* This Method is used to initially set the SubscribedDataSet to
@@ -1163,14 +1161,14 @@ UA_Server_DataSetReader_createTargetVariables(UA_Server *server,
     }
 
     if(pDS->subscribedDataSet.subscribedDataSetTarget.targetVariablesSize > 0) {
-        UA_TargetVariablesSource_clear(&pDS->subscribedDataSet.subscribedDataSetTarget);
+        UA_TargetVariables_clear(&pDS->subscribedDataSet.subscribedDataSetTarget);
         pDS->subscribedDataSet.subscribedDataSetTarget.targetVariablesSize = 0;
         pDS->subscribedDataSet.subscribedDataSetTarget.targetVariables = NULL;
     }
 
     /* Set subscribed dataset to TargetVariableType */
     pDS->subscribedDataSetType = UA_PUBSUB_SDS_TARGET;
-    retval = UA_TargetVariablesSource_copy(subscribedDataSetTarget, &pDS->subscribedDataSet.subscribedDataSetTarget);
+    retval = UA_TargetVariables_copy(subscribedDataSetTarget, &pDS->subscribedDataSet.subscribedDataSetTarget);
     return retval;
 }
 
@@ -1258,8 +1256,8 @@ UA_Server_DataSetReader_addTargetVariables(UA_Server *server, UA_NodeId *parentN
                          "addVariableNode: error 0x%" PRIx32, retval);
         }
 
-        targetVars.targetVariables[i].attributeId = UA_ATTRIBUTEID_VALUE;
-        UA_NodeId_copy(&newNode, &targetVars.targetVariables[i].targetNodeId);
+        targetVars.targetVariables[i].targetVariable.attributeId = UA_ATTRIBUTEID_VALUE;
+        UA_NodeId_copy(&newNode, &targetVars.targetVariables[i].targetVariable.targetNodeId);
         UA_NodeId_deleteMembers(&newNode);
         if(vAttr.arrayDimensionsSize > 0) {
             UA_Array_delete(vAttr.arrayDimensions, vAttr.arrayDimensionsSize,
@@ -1272,7 +1270,7 @@ UA_Server_DataSetReader_addTargetVariables(UA_Server *server, UA_NodeId *parentN
                                                                &targetVars);
     }
 
-    UA_TargetVariablesSource_clear(&targetVars);
+    UA_TargetVariables_clear(&targetVars);
     return retval;
 }
 
@@ -1314,10 +1312,23 @@ UA_Server_DataSetReader_process(UA_Server *server, UA_DataSetReader *dataSetRead
             if(rg->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE) {
                 for(UA_UInt16 i = 0; i < anzFields; i++) {
                     if(dataSetMsg->data.keyFrameData.dataSetFields[i].hasValue) {
-                        if(dataSetReader->subscribedDataSet.subscribedDataSetTarget.targetVariables[i].attributeId == UA_ATTRIBUTEID_VALUE) {
-                            memcpy((**(dataSetReader->subscribedDataSet.subscribedDataSetTarget.targetVariables[i].externalDataValueSource)).value.data,
+                        if(dataSetReader->subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariable.attributeId == UA_ATTRIBUTEID_VALUE) {
+                            memcpy((**(dataSetReader->subscribedDataSet.subscribedDataSetTarget.targetVariables[i].externalDataValue)).value.data,
                                    dataSetMsg->data.keyFrameData.dataSetFields[i].value.data,
                                    dataSetMsg->data.keyFrameData.dataSetFields[i].value.type->memSize);
+                            if(dataSetReader->subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariableContext)
+                                memcpy(dataSetReader->subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariableContext,
+                                       dataSetMsg->data.keyFrameData.dataSetFields[i].value.data,
+                                       dataSetMsg->data.keyFrameData.dataSetFields[i].value.type->memSize);
+
+                            if(dataSetReader->subscribedDataSet.subscribedDataSetTarget.targetVariables[i].afterWrite)
+                                dataSetReader->subscribedDataSet.subscribedDataSetTarget.targetVariables[i].afterWrite(server,
+                                                                                                                       &dataSetReader->identifier,
+                                                                                                                       &dataSetReader->linkedReaderGroup,
+                                                                                                                       &dataSetReader->subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariable.targetNodeId,
+                                                                                                                       dataSetReader->subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariableContext,
+                                                                                                                       dataSetReader->subscribedDataSet.subscribedDataSetTarget.targetVariables[i].externalDataValue);
+
                         }
                     }
                 }
@@ -1327,33 +1338,27 @@ UA_Server_DataSetReader_process(UA_Server *server, UA_DataSetReader *dataSetRead
 
             for(UA_UInt16 i = 0; i < anzFields; i++) {
                 if(dataSetMsg->data.keyFrameData.dataSetFields[i].hasValue) {
-                    if(dataSetReader->subscribedDataSet.subscribedDataSetTarget.targetVariables[i].attributeId == UA_ATTRIBUTEID_VALUE) {
-                        retVal = UA_Server_writeValue(server, dataSetReader->subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetNodeId, dataSetMsg->data.keyFrameData.dataSetFields[i].value);
-                        if(retVal != UA_STATUSCODE_GOOD) {
+                    if(dataSetReader->subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariable.attributeId == UA_ATTRIBUTEID_VALUE) {
+                        retVal = UA_Server_writeValue(server,
+                                                      dataSetReader->subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariable.targetNodeId,
+                                                      dataSetMsg->data.keyFrameData.dataSetFields[i].value);
+                        if(retVal != UA_STATUSCODE_GOOD)
                             UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Error Write Value KF %" PRIu16 ": 0x%"PRIx32, i, retVal);
-                        }
-
                     }
                     else {
                         UA_WriteValue writeVal;
                         UA_WriteValue_init(&writeVal);
-                        writeVal.attributeId = dataSetReader->subscribedDataSet.subscribedDataSetTarget.targetVariables[i].attributeId;
-                        writeVal.indexRange = dataSetReader->subscribedDataSet.subscribedDataSetTarget.targetVariables[i].receiverIndexRange;
-                        writeVal.nodeId = dataSetReader->subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetNodeId;
+                        writeVal.attributeId = dataSetReader->subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariable.attributeId;
+                        writeVal.indexRange = dataSetReader->subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariable.receiverIndexRange;
+                        writeVal.nodeId = dataSetReader->subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariable.targetNodeId;
                         UA_DataValue_copy(&dataSetMsg->data.keyFrameData.dataSetFields[i], &writeVal.value);
                         retVal = UA_Server_write(server, &writeVal);
-                        if(retVal != UA_STATUSCODE_GOOD) {
+                        if(retVal != UA_STATUSCODE_GOOD)
                             UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Error Write KF %" PRIu16 ": 0x%" PRIx32, i, retVal);
-                        }
-
                     }
-
                 }
-
             }
-
         }
-
     }
 }
 
@@ -1365,7 +1370,7 @@ UA_DataSetReader_clear(UA_Server *server, UA_DataSetReader *dataSetReader) {
     UA_DataSetMetaDataType_deleteMembers(&dataSetReader->config.dataSetMetaData);
     UA_ExtensionObject_clear(&dataSetReader->config.messageSettings);
     UA_ExtensionObject_clear(&dataSetReader->config.transportSettings);
-    UA_TargetVariablesSource_clear(&dataSetReader->subscribedDataSet.subscribedDataSetTarget);
+    UA_TargetVariables_clear(&dataSetReader->subscribedDataSet.subscribedDataSetTarget);
 
     /* Delete DataSetReader */
     UA_ReaderGroup* pGroup = UA_ReaderGroup_findRGbyId(server, dataSetReader->linkedReaderGroup);

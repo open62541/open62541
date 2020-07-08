@@ -210,10 +210,10 @@ void UA_Server_DataSetReader_process(UA_Server *server, UA_DataSetReader *dataSe
 UA_StatusCode UA_DataSetReaderConfig_copy(const UA_DataSetReaderConfig *src, UA_DataSetReaderConfig *dst);
 
 /* Copy the configuration of Target Variables */
-UA_StatusCode UA_TargetVariablesSource_copy(const UA_TargetVariables *src, UA_TargetVariables *dst);
+UA_StatusCode UA_TargetVariables_copy(const UA_TargetVariables *src, UA_TargetVariables *dst);
 
 /* Copy the configuration of Field Target Variables */
-UA_StatusCode UA_FieldTargetVariablesSource_copy(const UA_FieldTargetVariables *src, UA_FieldTargetVariables *dst);
+UA_StatusCode UA_FieldTargetVariables_copy(const UA_FieldTargetVariables *src, UA_FieldTargetVariables *dst);
 
 /* Add TargetVariables */
 UA_StatusCode
