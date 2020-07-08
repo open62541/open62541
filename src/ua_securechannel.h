@@ -162,6 +162,9 @@ UA_SecureChannel_generateLocalNonce(UA_SecureChannel *channel);
 UA_StatusCode
 UA_SecureChannel_generateLocalKeys(const UA_SecureChannel *channel);
 
+UA_StatusCode
+generateRemoteKeys(const UA_SecureChannel *channel);
+
 /**
  * Sending Messages
  * ---------------- */

@@ -25,18 +25,25 @@ THREAD_CALLBACK(serverloop) {
     return 0;
 }
 
-static void setup(void) {
+static void runServer(void) {
     running = true;
+    THREAD_CREATE(server_thread, serverloop);
+}
+
+static void pauseServer(void) {
+    running = false;
+    THREAD_JOIN(server_thread);
+}
+
+static void setup(void) {
     server = UA_Server_new();
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     UA_Server_run_startup(server);
-    THREAD_CREATE(server_thread, serverloop);
-    UA_realSleep(100);
+    runServer();
 }
 
 static void teardown(void) {
-    running = false;
-    THREAD_JOIN(server_thread);
+    pauseServer();
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
 }
@@ -57,6 +64,44 @@ START_TEST(SecureChannel_timeout_max) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Variant_deleteMembers(&val);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(SecureChannel_renew) {
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    pauseServer();
+
+    /* Get the channel id */
+    UA_UInt32 channelId = client->channel.securityToken.channelId;
+
+    /* Renew the channel for the first time */
+    UA_fakeSleep((UA_UInt32)(client->channel.securityToken.revisedLifetime * 0.8));
+
+    UA_Client_run_iterate(client, 1);
+    UA_Server_run_iterate(server, false);
+    UA_Client_run_iterate(client, 1);
+    UA_Server_run_iterate(server, false);
+
+    /* Renew the channel for the second time */
+    UA_fakeSleep((UA_UInt32)(client->channel.securityToken.revisedLifetime * 0.8));
+
+    UA_Client_run_iterate(client, 1);
+    UA_Server_run_iterate(server, false);
+    UA_Client_run_iterate(client, 1);
+    UA_Server_run_iterate(server, false);
+
+    /* We are still on the same channel */
+    ck_assert_uint_eq(channelId, client->channel.securityToken.channelId);
+
+    runServer();
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
@@ -178,6 +223,7 @@ END_TEST
 int main(void) {
     TCase *tc_sc = tcase_create("Client SecureChannel");
     tcase_add_checked_fixture(tc_sc, setup, teardown);
+    tcase_add_test(tc_sc, SecureChannel_renew);
     tcase_add_test(tc_sc, SecureChannel_timeout_max);
     tcase_add_test(tc_sc, SecureChannel_timeout_fail);
     tcase_add_test(tc_sc, SecureChannel_networkfail);

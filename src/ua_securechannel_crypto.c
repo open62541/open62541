@@ -89,7 +89,7 @@ UA_SecureChannel_generateLocalKeys(const UA_SecureChannel *channel) {
     return retval;
 }
 
-static UA_StatusCode
+UA_StatusCode
 generateRemoteKeys(const UA_SecureChannel *channel) {
     const UA_SecurityPolicy *sp = channel->securityPolicy;
     if(!sp)
