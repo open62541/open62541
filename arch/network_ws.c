@@ -248,18 +248,24 @@ ServerNetworkLayerWS_start(UA_ServerNetworkLayer *nl, const UA_String *customHos
 
     ServerNetworkLayerWS *layer = (ServerNetworkLayerWS *)nl->handle;
 
+    UA_Boolean isSecure = layer->certificate.length && layer->privateKey.length;
+
+    UA_String protocol = isSecure ? UA_STRING("wss") : UA_STRING("ws");
+
     /* Get the discovery url from the hostname */
     UA_String du = UA_STRING_NULL;
     char discoveryUrlBuffer[256];
     if(customHostname->length) {
-        du.length = (size_t)UA_snprintf(discoveryUrlBuffer, 255, "ws://%.*s:%d/",
+        du.length = (size_t)UA_snprintf(discoveryUrlBuffer, 255, "%.*s://%.*s:%d/",
+                                        (int)protocol.length, protocol.data,
                                         (int)customHostname->length, customHostname->data,
                                         layer->port);
         du.data = (UA_Byte *)discoveryUrlBuffer;
     } else {
         char hostnameBuffer[256];
         if(UA_gethostname(hostnameBuffer, 255) == 0) {
-            du.length = (size_t)UA_snprintf(discoveryUrlBuffer, 255, "ws://%s:%d/",
+            du.length = (size_t)UA_snprintf(discoveryUrlBuffer, 255, "%.*s://%s:%d/",
+                                            (int)protocol.length, protocol.data,
                                             hostnameBuffer, layer->port);
             du.data = (UA_Byte *)discoveryUrlBuffer;
         } else {
@@ -289,11 +295,16 @@ ServerNetworkLayerWS_start(UA_ServerNetworkLayer *nl, const UA_String *customHos
     info.pvo = &pvo;
     info.user = layer;
 
-    if(layer->certificate.length && layer->privateKey.length) {
+    if(isSecure) {
         info.server_ssl_cert_mem = layer->certificate.data;
-        info.server_ssl_cert_mem_len = layer->certificate.length;
+        info.server_ssl_cert_mem_len = (unsigned int)layer->certificate.length;
         info.server_ssl_private_key_mem = layer->privateKey.data;
-        info.server_ssl_private_key_mem_len = layer->privateKey.length;
+        info.server_ssl_private_key_mem_len = (unsigned int)layer->privateKey.length;
+        
+        info.options |= LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT;
+          UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK,
+                "Websocket network layer listening using WSS");
+
     }
 
     struct lws_context *context = lws_create_context(&info);
