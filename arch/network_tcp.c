@@ -827,6 +827,7 @@ UA_ClientConnectionTCP_init(UA_ConnectionConfig config, const UA_String endpoint
     memset(&connection, 0, sizeof(UA_Connection));
 
     connection.state = UA_CONNECTIONSTATE_OPENING;
+    connection.sockfd = UA_INVALID_SOCKET;
     connection.send = connection_write;
     connection.recv = connection_recv;
     connection.close = ClientNetworkLayerTCP_close;
