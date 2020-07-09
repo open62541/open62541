@@ -226,6 +226,8 @@ UA_AccessControl_default(UA_ServerConfig *config, UA_Boolean allowAnonymous,
                          const UA_ByteString *userTokenPolicyUri,
                          size_t usernamePasswordLoginSize,
                          const UA_UsernamePasswordLogin *usernamePasswordLogin) {
+    UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_SERVER,
+                   "AccessControl: Unconfigured AccessControl. Users have all permissions.");
     UA_AccessControl *ac = &config->accessControl;
     ac->clear = clear_default;
     ac->activateSession = activateSession_default;
@@ -248,13 +250,17 @@ UA_AccessControl_default(UA_ServerConfig *config, UA_Boolean allowAnonymous,
 
     AccessControlContext *context = (AccessControlContext*)
             UA_malloc(sizeof(AccessControlContext));
-    if (!context)
+    if(!context)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     memset(context, 0, sizeof(AccessControlContext));
     ac->context = context;
 
     /* Allow anonymous? */
     context->allowAnonymous = allowAnonymous;
+    if(allowAnonymous) {
+        UA_LOG_INFO(&config->logger, UA_LOGCATEGORY_SERVER,
+                    "AccessControl: Anonymous login is enabled");
+    }
 
     /* Copy username/password to the access control plugin */
     if(usernamePasswordLoginSize > 0) {
