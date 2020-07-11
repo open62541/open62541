@@ -1140,6 +1140,67 @@ START_TEST(Client_subscription_reconnect) {
 }
 END_TEST
 
+START_TEST(Client_subscription_transfer) {
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Client_recv = client->connection.recv;
+    client->connection.recv = UA_Client_recvTesting;
+
+    UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
+    request.requestedLifetimeCount = 5;
+    UA_CreateSubscriptionResponse response = UA_Client_Subscriptions_create(client, request,
+                                                              NULL, statusChangeHandler, NULL);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+
+    /* monitor the server state */
+    UA_MonitoredItemCreateRequest monRequest =
+        UA_MonitoredItemCreateRequest_default(UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME));
+
+    UA_MonitoredItemCreateResult monResponse =
+        UA_Client_MonitoredItems_createDataChange(client, response.subscriptionId,
+                                                  UA_TIMESTAMPSTORETURN_BOTH,
+                                                  monRequest, NULL, dataChangeHandler, NULL);
+    ck_assert_uint_eq(monResponse.statusCode, UA_STATUSCODE_GOOD);
+
+    /* Create a second client */
+    UA_Client *client2 = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client2));
+
+    retval = UA_Client_connect(client2, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Move the subscription to the second client */
+    UA_TransferSubscriptionsRequest trequest;
+    UA_TransferSubscriptionsRequest_init(&trequest);
+    trequest.subscriptionIds = &response.subscriptionId;
+    trequest.subscriptionIdsSize = 1;
+
+    UA_TransferSubscriptionsResponse tresponse;
+    __UA_Client_Service(client2,
+                        &trequest, &UA_TYPES[UA_TYPES_TRANSFERSUBSCRIPTIONSREQUEST],
+                        &tresponse,  &UA_TYPES[UA_TYPES_TRANSFERSUBSCRIPTIONSRESPONSE]);
+
+    UA_TransferSubscriptionsResponse_clear(&tresponse);
+
+    /* Iterate the clients some more to see what happens */
+    UA_Client_run_iterate(client, 1);
+    UA_Client_run_iterate(client2, 1);
+
+    UA_Client_run_iterate(client, 1);
+    UA_Client_run_iterate(client2, 1);
+
+    /* Delete */
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+    UA_Client_disconnect(client2);
+    UA_Client_delete(client2);
+}
+END_TEST
+
 #ifdef UA_ENABLE_METHODCALLS
 START_TEST(Client_methodcall) {
     UA_Client *client = UA_Client_new();
@@ -1222,6 +1283,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client, Client_subscription_without_notification);
     tcase_add_test(tc_client, Client_subscription_async_sub);
     tcase_add_test(tc_client, Client_subscription_reconnect);
+    tcase_add_test(tc_client, Client_subscription_transfer);
     suite_add_tcase(s,tc_client);
 
 #ifdef UA_ENABLE_METHODCALLS

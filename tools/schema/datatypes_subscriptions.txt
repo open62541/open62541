@@ -50,3 +50,6 @@ RepublishRequest
 RepublishResponse
 DeleteSubscriptionsRequest
 DeleteSubscriptionsResponse
+TransferResult
+TransferSubscriptionsRequest
+TransferSubscriptionsResponse

@@ -751,6 +751,17 @@ Service_CloseSession(UA_Server *server, UA_SecureChannel *channel,
 
     UA_LOG_INFO_SESSION(&server->config.logger, session, "Closing the Session");
 
+    /* If Subscriptions are not deleted, detach them from the Session */
+    if(!request->deleteSubscriptions) {
+        UA_Subscription *sub, *sub_tmp;
+        TAILQ_FOREACH_SAFE(sub, &session->subscriptions, sessionListEntry, sub_tmp) {
+            UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, sub,
+                                     "Detaching the Subscription from the Session");
+            UA_Session_detachSubscription(server, session, sub);
+        }
+    }
+
+    /* Remove the sesison */
     response->responseHeader.serviceResult =
         UA_Server_removeSessionByToken(server, &session->header.authenticationToken,
                                        UA_DIAGNOSTICEVENT_CLOSE);
