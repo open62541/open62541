@@ -359,28 +359,21 @@ UA_Server_evaluateWhereClauseContentFilter(
 static UA_StatusCode
 UA_Server_filterEvent(UA_Server *server, UA_Session *session,
                       const UA_NodeId *eventNode, UA_EventFilter *filter,
-                      UA_EventNotification *notification) {
-    if (filter->selectClausesSize == 0)
+                      UA_EventFieldList *efl) {
+    if(filter->selectClausesSize == 0)
         return UA_STATUSCODE_BADEVENTFILTERINVALID;
 
-    UA_StatusCode retVal = UA_Server_evaluateWhereClauseContentFilter(
-        server, eventNode, &filter->whereClause);
-    if(retVal != UA_STATUSCODE_GOOD)
-    {
-        return retVal;
-    }
-    UA_EventFieldList_init(&notification->fields);
-    /* EventFilterResult isn't being used currently
-    UA_EventFilterResult_init(&notification->result); */
+    UA_StatusCode res =
+        UA_Server_evaluateWhereClauseContentFilter(server, eventNode, &filter->whereClause);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
-    notification->fields.eventFields = (UA_Variant *)
+    UA_EventFieldList_init(efl);
+    efl->eventFields = (UA_Variant *)
         UA_Array_new(filter->selectClausesSize, &UA_TYPES[UA_TYPES_VARIANT]);
-    if(!notification->fields.eventFields) {
-        /* EventFilterResult currently isn't being used
-        UA_EventFiterResult_clear(&notification->result); */
+    if(!efl->eventFields)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    notification->fields.eventFieldsSize = filter->selectClausesSize;
+    efl->eventFieldsSize = filter->selectClausesSize;
 
     /* EventFilterResult currently isn't being used
     notification->result.selectClauseResultsSize = filter->selectClausesSize;
@@ -401,7 +394,7 @@ UA_Server_filterEvent(UA_Server *server, UA_Session *session,
     for(size_t i = 0; i < filter->selectClausesSize; i++) {
         if(!UA_NodeId_equal(&filter->selectClauses[i].typeDefinitionId, &baseEventTypeId) &&
            !isValidEvent(server, &filter->selectClauses[i].typeDefinitionId, eventNode)) {
-            UA_Variant_init(&notification->fields.eventFields[i]);
+            UA_Variant_init(&efl->eventFields[i]);
             /* EventFilterResult currently isn't being used
             notification->result.selectClauseResults[i] = UA_STATUSCODE_BADTYPEDEFINITIONINVALID; */
             continue;
@@ -409,8 +402,7 @@ UA_Server_filterEvent(UA_Server *server, UA_Session *session,
 
         /* TODO: Put the result into the selectClausResults */
         resolveSimpleAttributeOperand(server, session, eventNode,
-                                      &filter->selectClauses[i],
-                                      &notification->fields.eventFields[i]);
+                                      &filter->selectClauses[i], &efl->eventFields[i]);
     }
 
     return UA_STATUSCODE_GOOD;
@@ -489,33 +481,30 @@ eventSetStandardFields(UA_Server *server, const UA_NodeId *event,
 /* Filters an event according to the filter specified by mon and then adds it to
  * mons notification queue */
 UA_StatusCode
-UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event, UA_MonitoredItem *mon) {
-    UA_Notification *notification = (UA_Notification *) UA_malloc(sizeof(UA_Notification));
+UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event,
+                                 UA_MonitoredItem *mon) {
+    UA_Notification *notification = (UA_Notification *)UA_malloc(sizeof(UA_Notification));
     if(!notification)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    /* Get the session */
     UA_Subscription *sub = mon->subscription;
     UA_Session *session = sub->session;
-
 
     /* Apply the filter */
     UA_StatusCode retval =
         UA_Server_filterEvent(server, session, event, &mon->filter.eventFilter,
                               &notification->data.event);
-    if(retval == UA_STATUSCODE_BADNOMATCH)
-    {
-        UA_free(notification);
-        return UA_STATUSCODE_GOOD;
-    }
     if(retval != UA_STATUSCODE_GOOD) {
         UA_free(notification);
+        if(retval == UA_STATUSCODE_BADNOMATCH)
+            return UA_STATUSCODE_GOOD;
         return retval;
     }
+    notification->data.event.clientHandle = mon->clientHandle;
 
     /* Enqueue the notification */
     notification->mon = mon;
-    UA_Notification_enqueue(server, mon->subscription, mon, notification);
+    UA_Notification_enqueue(server, sub, mon, notification);
     return UA_STATUSCODE_GOOD;
 }
 

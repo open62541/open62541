@@ -57,13 +57,6 @@ struct UA_MonitoredItem;
 typedef struct UA_MonitoredItem UA_MonitoredItem;
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-
-typedef struct UA_EventNotification {
-    UA_EventFieldList fields;
-    /* EventFilterResult currently isn't being used
-    UA_EventFilterResult result; */
-} UA_EventNotification;
-
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
 
 typedef enum {
@@ -84,12 +77,10 @@ typedef struct {
     UA_TwoStateVariableChangeCallback activeStateCallback;
 } UA_ConditionCallbacks;
 
-/*
- * In Alarms and Conditions first implementation, conditionBranchId
- * is always equal to NULL NodeId (UA_NODEID_NULL). That ConditionBranch
- * represents the current state Condition. The current state is determined
- * by the last Event triggered (lastEventId). See Part 9, 5.5.2, BranchId.
- */
+/* In Alarms and Conditions first implementation, conditionBranchId is always
+ * equal to NULL NodeId (UA_NODEID_NULL). That ConditionBranch represents the
+ * current state Condition. The current state is determined by the last Event
+ * triggered (lastEventId). See Part 9, 5.5.2, BranchId. */
 typedef struct UA_ConditionBranch {
     LIST_ENTRY(UA_ConditionBranch) listEntry;
     UA_NodeId conditionBranchId;
@@ -97,10 +88,8 @@ typedef struct UA_ConditionBranch {
     UA_Boolean isCallerAC;
 } UA_ConditionBranch;
 
-/*
- * In Alarms and Conditions first implementation, A Condition
- * have only one ConditionBranch entry.
- */
+/* In Alarms and Conditions first implementation, A Condition
+ * have only one ConditionBranch entry. */
 typedef struct UA_Condition {
     LIST_ENTRY(UA_Condition) listEntry;
     LIST_HEAD(, UA_ConditionBranch) conditionBranchHead;
@@ -113,9 +102,7 @@ typedef struct UA_Condition {
     UA_Boolean isLimitAlarm;
 } UA_Condition;
 
-/*
- * A ConditionSource can have multiple Conditions.
- */
+/* A ConditionSource can have multiple Conditions. */
 typedef struct UA_ConditionSource {
     LIST_ENTRY(UA_ConditionSource) listEntry;
     LIST_HEAD(, UA_Condition) conditionHead;
@@ -123,21 +110,19 @@ typedef struct UA_ConditionSource {
 } UA_ConditionSource;
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */
-
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
 typedef struct UA_Notification {
-    TAILQ_ENTRY(UA_Notification) listEntry; /* Notification list for the MonitoredItem */
+    TAILQ_ENTRY(UA_Notification) listEntry;   /* Notification list for the MonitoredItem */
     TAILQ_ENTRY(UA_Notification) globalEntry; /* Notification list for the Subscription */
 
-    UA_MonitoredItem *mon;
-
-    /* See the monitoredItemType of the MonitoredItem */
+    UA_MonitoredItem *mon; /* Always set */
+    /* The event field is used if mon->attributeId is the EventNotifier */
     union {
+        UA_MonitoredItemNotification dataChange;
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-        UA_EventNotification event;
+        UA_EventFieldList event;
 #endif
-        UA_DataValue value;
     } data;
 } UA_Notification;
 
@@ -299,7 +284,7 @@ struct UA_Subscription {
 };
 
 UA_Subscription * UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptionId);
-void UA_Subscription_deleteMembers(UA_Server *server, UA_Subscription *sub);
+void UA_Subscription_clear(UA_Server *server, UA_Subscription *sub);
 UA_StatusCode Subscription_registerPublishCallback(UA_Server *server, UA_Subscription *sub);
 void Subscription_unregisterPublishCallback(UA_Server *server, UA_Subscription *sub);
 void UA_Subscription_addMonitoredItem(UA_Server *server, UA_Subscription *sub, UA_MonitoredItem *newMon);

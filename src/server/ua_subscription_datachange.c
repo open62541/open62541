@@ -207,11 +207,13 @@ sampleCallbackWithValue(UA_Server *server, UA_Session *session,
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
 
+        /* Set the MonitoredItemNotification */
+        newNotification->data.dataChange.clientHandle = mon->clientHandle;
         if(value->value.storageType == UA_VARIANT_DATA) {
-            newNotification->data.value = *value; /* Move the value to the notification */
+            newNotification->data.dataChange.value = *value; /* Move the value to the notification */
             *movedValue = true;
         } else { /* => (value->value.storageType == UA_VARIANT_DATA_NODELETE) */
-            retval = UA_DataValue_copy(value, &newNotification->data.value);
+            retval = UA_DataValue_copy(value, &newNotification->data.dataChange.value);
             if(retval != UA_STATUSCODE_GOOD) {
                 UA_ByteString_clear(&binValueEncoding);
                 UA_free(newNotification);
@@ -225,6 +227,7 @@ sampleCallbackWithValue(UA_Server *server, UA_Session *session,
                              "MonitoredItem %" PRIi32 " | Enqueue a new notification",
                              sub ? sub->subscriptionId : 0, mon->monitoredItemId);
 
+        /* Enqueue the notification */
         newNotification->mon = mon;
         UA_Notification_enqueue(server, sub, mon, newNotification);
     }
