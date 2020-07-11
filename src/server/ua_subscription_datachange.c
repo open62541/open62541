@@ -149,7 +149,7 @@ detectValueChangeWithFilter(UA_Server *server, UA_Session *session, UA_Monitored
 /* Has this sample changed from the last one? The method may allocate additional
  * space for the encoding buffer. Detect the change in encoding->data. */
 static UA_StatusCode
-    detectValueChange(UA_Server *server, UA_Session *session, UA_MonitoredItem *mon,
+detectValueChange(UA_Server *server, UA_Session *session, UA_MonitoredItem *mon,
                   UA_DataValue value, UA_ByteString *encoding, UA_Boolean *changed) {
     UA_LOCK_ASSERT(server->serviceMutex, 1);
 

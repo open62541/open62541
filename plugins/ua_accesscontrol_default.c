@@ -9,7 +9,13 @@
 #include <open62541/plugin/accesscontrol_default.h>
 
 /* Example access control management. Anonymous and username / password login.
- * The access rights are maximally permissive. */
+ * The access rights are maximally permissive.
+ *
+ * FOR PRODUCTION USE, THIS EXAMPLE PLUGIN SHOULD BE REPLACED WITH LESS
+ * PERMISSIVE ACCESS CONTROL.
+ *
+ * For TransferSubscriptions, we check whether the transfer happens between
+ * Sessions for the same user. */
 
 typedef struct {
     UA_Boolean allowAnonymous;
@@ -96,8 +102,11 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
         if(!match)
             return UA_STATUSCODE_BADUSERACCESSDENIED;
 
-        /* No userdata atm */
-        *sessionContext = NULL;
+        /* For the CTT, recognize whether two sessions are  */
+        UA_ByteString *username = UA_ByteString_new();
+        if(username)
+            UA_ByteString_copy(&userToken->userName, username);
+        *sessionContext = username;
         return UA_STATUSCODE_GOOD;
     }
 
@@ -108,7 +117,8 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
 static void
 closeSession_default(UA_Server *server, UA_AccessControl *ac,
                      const UA_NodeId *sessionId, void *sessionContext) {
-    /* no context to clean up */
+    if(sessionContext)
+        UA_ByteString_delete((UA_ByteString*)sessionContext);
 }
 
 static UA_UInt32
@@ -175,6 +185,20 @@ allowBrowseNode_default(UA_Server *server, UA_AccessControl *ac,
     return true;
 }
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+static UA_Boolean
+allowTransferSubscription_default(UA_Server *server, UA_AccessControl *ac,
+                                  const UA_NodeId *oldSessionId, void *oldSessionContext,
+                                  const UA_NodeId *newSessionId, void *newSessionContext) {
+    if(oldSessionContext == newSessionContext)
+        return true;
+    if(oldSessionContext && newSessionContext)
+        return UA_ByteString_equal((UA_ByteString*)oldSessionContext,
+                                   (UA_ByteString*)newSessionContext);
+    return false;
+}
+#endif
+
 #ifdef UA_ENABLE_HISTORIZING
 static UA_Boolean
 allowHistoryUpdateUpdateData_default(UA_Server *server, UA_AccessControl *ac,
@@ -239,6 +263,10 @@ UA_AccessControl_default(UA_ServerConfig *config, UA_Boolean allowAnonymous,
     ac->allowAddNode = allowAddNode_default;
     ac->allowAddReference = allowAddReference_default;
     ac->allowBrowseNode = allowBrowseNode_default;
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    ac->allowTransferSubscription = allowTransferSubscription_default;
+#endif
 
 #ifdef UA_ENABLE_HISTORIZING
     ac->allowHistoryUpdateUpdateData = allowHistoryUpdateUpdateData_default;

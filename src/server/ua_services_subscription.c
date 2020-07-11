@@ -339,4 +339,189 @@ Service_Republish(UA_Server *server, UA_Session *session,
         UA_NotificationMessage_copy(&entry->message, &response->notificationMessage);
 }
 
+static UA_StatusCode
+setTransferredSequenceNumbers(const UA_Subscription *sub, UA_TransferResult *result) {
+    /* Allocate memory */
+    result->availableSequenceNumbers = (UA_UInt32*)
+        UA_Array_new(sub->retransmissionQueueSize, &UA_TYPES[UA_TYPES_UINT32]);
+    if(!result->availableSequenceNumbers)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    result->availableSequenceNumbersSize = sub->retransmissionQueueSize;
+
+    /* Copy over the sequence numbers */
+    UA_NotificationMessageEntry *entry;
+    size_t i = 0;
+    TAILQ_FOREACH(entry, &sub->retransmissionQueue, listEntry) {
+        result->availableSequenceNumbers[i] = entry->message.sequenceNumber;
+        i++;
+    }
+
+    UA_assert(i == result->availableSequenceNumbersSize);
+
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+Operation_TransferSubscription(UA_Server *server, UA_Session *session,
+                               const UA_Boolean *sendInitialValues,
+                               const UA_UInt32 *subscriptionId,
+                               UA_TransferResult *result) {
+    /* Get the subscription. This requires a server-wide lookup instead of the
+     * usual session-wide lookup. */
+    UA_Subscription *sub = UA_Server_getSubscriptionById(server, *subscriptionId);
+    if(!sub) {
+        result->statusCode = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
+        return;
+    }
+
+    /* Is this the same session? Return the sequence numbers and do nothing else. */
+    UA_Session *oldSession = sub->session;
+    if(oldSession == session) {
+        result->statusCode = setTransferredSequenceNumbers(sub, result);
+        return;
+    }
+
+    /* Check with AccessControl if the transfer is allowed */
+    if(!server->config.accessControl.allowTransferSubscription ||
+       !server->config.accessControl.
+       allowTransferSubscription(server, &server->config.accessControl,
+                                 oldSession ? &oldSession->sessionId : NULL,
+                                 oldSession ? oldSession->sessionHandle : NULL,
+                                 &session->sessionId, session->sessionHandle)) {
+        result->statusCode = UA_STATUSCODE_BADUSERACCESSDENIED;
+        return;
+    }
+
+    /* Check limits for the number of subscriptions for this Session */
+    if((server->config.maxSubscriptionsPerSession != 0) &&
+       (session->numSubscriptions >= server->config.maxSubscriptionsPerSession)) {
+        result->statusCode = UA_STATUSCODE_BADTOOMANYSUBSCRIPTIONS;
+        return;
+    }
+
+    /* Allocate memory for the new subscription */
+    UA_Subscription *newSub = (UA_Subscription*)UA_malloc(sizeof(UA_Subscription));
+    if(!newSub) {
+        result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
+        return;
+    }
+
+    /* Set the available sequence numbers */
+    result->statusCode = setTransferredSequenceNumbers(sub, result);
+    if(result->statusCode != UA_STATUSCODE_GOOD) {
+        UA_free(newSub);
+        return;
+    }
+
+    /* <-- The point of no return --> */
+
+    /* Create an identical copy of the Subscription struct. The original
+     * subscription remains in place until a StatusChange notification has been
+     * sent. The elements for lists and queues are moved over manually to ensure
+     * that all backpointers are set correctly. */
+    memcpy(newSub, sub, sizeof(UA_Subscription));
+
+    /* Move over the MonitoredItems */
+    LIST_INIT(&newSub->monitoredItems);
+    UA_MonitoredItem *mon, *mon_tmp;
+    LIST_FOREACH_SAFE(mon, &sub->monitoredItems, listEntry, mon_tmp) {
+        LIST_REMOVE(mon, listEntry);
+        mon->subscription = newSub; /* Adjust backpointers from the MonitoredItem */
+        LIST_INSERT_HEAD(&newSub->monitoredItems, mon, listEntry);
+    }
+    sub->monitoredItemsSize = 0;
+
+    /* Move over the notification queue */
+    TAILQ_INIT(&newSub->notificationQueue);
+    UA_Notification *nn;
+    TAILQ_FOREACH(nn, &sub->notificationQueue, globalEntry) {
+        TAILQ_REMOVE(&sub->notificationQueue, nn, globalEntry);
+        TAILQ_INSERT_TAIL(&newSub->notificationQueue, nn, globalEntry);
+    }
+    sub->notificationQueueSize = 0;
+    sub->dataChangeNotifications = 0;
+    sub->eventNotifications = 0;
+    sub->readyNotifications = 0;
+
+    TAILQ_INIT(&newSub->retransmissionQueue);
+    UA_NotificationMessageEntry *nme, *nme_tmp;
+    TAILQ_FOREACH_SAFE(nme, &sub->retransmissionQueue, listEntry, nme_tmp) {
+        TAILQ_REMOVE(&sub->retransmissionQueue, nme, listEntry);
+        TAILQ_INSERT_TAIL(&newSub->retransmissionQueue, nme, listEntry);
+        if(oldSession)
+            oldSession->totalRetransmissionQueueSize -= 1;
+        sub->retransmissionQueueSize -= 1;
+    }
+    UA_assert(sub->retransmissionQueueSize == 0);
+    sub->retransmissionQueueSize = 0;
+
+    /* Done moving over to the new Subscription. Register the new Subscription. */
+
+    /* Add to the server. Assigns a fresh SubscriptionId. Reuse the original
+     * SubscriptionId */
+    UA_Server_addSubscription(server, newSub);
+    newSub->subscriptionId = sub->subscriptionId;
+    server->lastSubscriptionId--;
+
+    /* Attach to the session */
+    UA_Session_attachSubscription(session, newSub);
+
+    UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, newSub, "Transferred to this Session");
+
+    /* Set StatusChange in the original subscription and force publish. This
+     * also stops the registered cyclic callback and triggers a clean up. The
+     * Subscription is not necessarily immediately removed if we have to wait
+     * for a PublishRequest to send the StatusChangeNotification. */
+    sub->statusChange = UA_STATUSCODE_GOODSUBSCRIPTIONTRANSFERRED;
+    UA_Subscription_publish(server, sub);
+    UA_assert(sub->publishCallbackId == 0);
+
+    /* Create notifications with the current values */
+    if(*sendInitialValues) {
+        LIST_FOREACH(mon, &newSub->monitoredItems, listEntry) {
+
+            /* Create only DataChange notifications */
+            if(mon->attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER)
+                continue;
+
+            /* Only if the mode is monitoring */
+            if(mon->monitoringMode != UA_MONITORINGMODE_REPORTING)
+                continue;
+
+            /* If a value is queued for a data MonitoredItem, the next value in
+             * the queue is sent in the Publish response. */
+            if(mon->queueSize > 0)
+                continue;
+
+            /* Create a notification with the last sampled value */
+            UA_MonitoredItem_createDataChangeNotification(server, newSub, mon,
+                                                          &mon->lastValue);
+        }
+    }
+
+    /* Immediately try to publish. If the notification was late, include the new
+     * sample in the "ready-list" and don't wait until the next cyclic
+     * timeout. */
+    newSub->readyNotifications = newSub->notificationQueueSize;
+    UA_Subscription_publish(server, newSub);
+
+    /* Register cyclic publish callback */
+    Subscription_registerPublishCallback(server, newSub);
+}
+
+void Service_TransferSubscriptions(UA_Server *server, UA_Session *session,
+                                   const UA_TransferSubscriptionsRequest *request,
+                                   UA_TransferSubscriptionsResponse *response) {
+    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+                         "Processing TransferSubscriptionsRequest");
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
+
+    response->responseHeader.serviceResult =
+        UA_Server_processServiceOperations(server, session,
+                  (UA_ServiceOperation)Operation_TransferSubscription,
+                  &request->sendInitialValues,
+                  &request->subscriptionIdsSize, &UA_TYPES[UA_TYPES_UINT32],
+                  &response->resultsSize, &UA_TYPES[UA_TYPES_TRANSFERRESULT]);
+}
+
 #endif /* UA_ENABLE_SUBSCRIPTIONS */

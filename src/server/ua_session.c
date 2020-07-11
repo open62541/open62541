@@ -188,6 +188,19 @@ UA_Session_getSubscriptionById(UA_Session *session, UA_UInt32 subscriptionId) {
     return sub;
 }
 
+UA_Subscription *
+UA_Server_getSubscriptionById(UA_Server *server, UA_UInt32 subscriptionId) {
+    UA_Subscription *sub;
+    LIST_FOREACH(sub, &server->subscriptions, serverListEntry) {
+        /* Prevent lookup of subscriptions that are to be deleted with a statuschange */
+        if(sub->statusChange != UA_STATUSCODE_GOOD)
+            continue;
+        if(sub->subscriptionId == subscriptionId)
+            break;
+    }
+    return sub;
+}
+
 UA_PublishResponseEntry*
 UA_Session_dequeuePublishReq(UA_Session *session) {
     UA_PublishResponseEntry* entry = SIMPLEQ_FIRST(&session->responseQueue);
