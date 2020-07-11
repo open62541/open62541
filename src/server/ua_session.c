@@ -105,7 +105,7 @@ UA_Session_deleteSubscription(UA_Server *server, UA_Session *session,
     if(!sub)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
 
-    UA_Subscription_deleteMembers(server, sub);
+    UA_Subscription_clear(server, sub);
 
     /* Add a delayed callback to remove the subscription when the currently
      * scheduled jobs have completed. There is no actual delayed callback. Just

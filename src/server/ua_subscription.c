@@ -43,7 +43,7 @@ UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptionId) {
 }
 
 void
-UA_Subscription_deleteMembers(UA_Server *server, UA_Subscription *sub) {
+UA_Subscription_clear(UA_Server *server, UA_Subscription *sub) {
     UA_LOCK_ASSERT(server->serviceMutex, 1);
 
     Subscription_unregisterPublishCallback(server, sub);
@@ -195,7 +195,12 @@ prepareNotificationMessage(UA_Server *server, UA_Subscription *sub,
                            UA_NotificationMessage *message, size_t notifications) {
     UA_assert(notifications > 0);
 
-    /* Allocate an ExtensionObject for events and data */
+    /* Allocate an ExtensionObject for Event- and DataChange-Notifications. Also
+     * there can be StatusChange-Notifications. The standard says in Part 4,
+     * 7.2.1:
+     *
+     * If a Subscription contains MonitoredItems for events and data, this array
+     * should have not more than 2 elements. */
     message->notificationData = (UA_ExtensionObject*)
         UA_Array_new(2, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
     if(!message->notificationData)
@@ -281,34 +286,26 @@ prepareNotificationMessage(UA_Server *server, UA_Subscription *sub,
         if(totalNotifications >= notifications)
             break;
 
-        UA_MonitoredItem *mon = notification->mon;
-
         /* Remove from the queues and decrease the counters */
         UA_Notification_dequeue(server, notification);
 
         /* Move the content to the response */
+        switch(notification->mon->attributeId) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-        if(mon->attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) {
-
+        case UA_ATTRIBUTEID_EVENTNOTIFIER:
             UA_assert(enl != NULL); /* Have at least one event notification */
-
-            /* Move the content to the response */
-            UA_EventFieldList *efl = &enl->events[enlPos];
-            *efl = notification->data.event.fields;
-            UA_EventFieldList_init(&notification->data.event.fields);
-            efl->clientHandle = mon->clientHandle;
-
+            enl->events[enlPos] = notification->data.event;
+            UA_EventFieldList_init(&notification->data.event);
             enlPos++;
-        } else
+            break;
 #endif
-        {
+
+        default:
             UA_assert(dcn != NULL); /* Have at least one change notification */
-            /* Move the content to the response */
-            UA_MonitoredItemNotification *min = &dcn->monitoredItems[dcnPos];
-            min->clientHandle = mon->clientHandle;
-            min->value = notification->data.value;
-            UA_DataValue_init(&notification->data.value); /* Reset after the value has been moved */
+            dcn->monitoredItems[dcnPos] = notification->data.dataChange;
+            UA_DataValue_init(&notification->data.dataChange.value);
             dcnPos++;
+            break;
         }
 
         UA_Notification_delete(notification);
@@ -413,7 +410,8 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
     UA_SecureChannel *channel = sub->session->header.channel;
     if(!channel || !pre) {
         UA_LOG_DEBUG_SESSION(&server->config.logger, sub->session,
-                             "Subscription %" PRIu32 " | Want to send a publish response but can't. "
+                             "Subscription %" PRIu32 " | "
+                             "Want to send a publish response but can't. "
                              "The subscription is late.", sub->subscriptionId);
         sub->state = UA_SUBSCRIPTIONSTATE_LATE;
         if(pre)
@@ -428,10 +426,12 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
     if(notifications > 0) {
         if(server->config.enableRetransmissionQueue) {
             /* Allocate the retransmission entry */
-            retransmission = (UA_NotificationMessageEntry*)UA_malloc(sizeof(UA_NotificationMessageEntry));
+            retransmission = (UA_NotificationMessageEntry*)
+                UA_malloc(sizeof(UA_NotificationMessageEntry));
             if(!retransmission) {
                 UA_LOG_WARNING_SESSION(&server->config.logger, sub->session,
-                                       "Subscription %" PRIu32 " | Could not allocate memory for retransmission. "
+                                       "Subscription %" PRIu32 " | "
+                                       "Could not allocate memory for retransmission. "
                                        "The subscription is late.", sub->subscriptionId);
                 sub->state = UA_SUBSCRIPTIONSTATE_LATE;
                 UA_Session_queuePublishReq(sub->session, pre, true); /* Re-enqueue */
@@ -443,7 +443,8 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
         UA_StatusCode retval = prepareNotificationMessage(server, sub, message, notifications);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING_SESSION(&server->config.logger, sub->session,
-                                   "Subscription %" PRIu32 " | Could not prepare the notification message. "
+                                   "Subscription %" PRIu32 " | "
+                                   "Could not prepare the notification message. "
                                    "The subscription is late.", sub->subscriptionId);
             /* If the retransmission queue is enabled a retransmission message is allocated */
             if(retransmission)
@@ -466,22 +467,23 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
     response->moreNotifications = moreNotifications;
     message->publishTime = response->responseHeader.timestamp;
 
-    /* Set sequence number to message. Started at 1 which is given
-     * during creating a new subscription. The 1 is required for
-     * initial publish response with or without an monitored item. */
+    /* Set sequence number to message. Started at 1 which is given during
+     * creating a new subscription. The 1 is required for initial publish
+     * response with or without an monitored item. */
     message->sequenceNumber = sub->nextSequenceNumber;
 
     if(notifications > 0) {
-        /* If the retransmission queue is enabled a retransmission message is allocated */
+        /* If the retransmission queue is enabled a retransmission message is
+         * allocated */
         if(retransmission) {
             /* Put the notification message into the retransmission queue. This
-             * needs to be done here, so that the message itself is included in the
-             * available sequence numbers for acknowledgement. */
+             * needs to be done here, so that the message itself is included in
+             * the available sequence numbers for acknowledgement. */
             retransmission->message = response->notificationMessage;
             UA_Subscription_addRetransmissionMessage(server, sub, retransmission);
         }
-        /* Only if a notification was created, the sequence number must be increased.
-         * For a keepalive the sequence number can be reused. */
+        /* Only if a notification was created, the sequence number must be
+         * increased. For a keepalive the sequence number can be reused. */
         sub->nextSequenceNumber = UA_Subscription_nextSequenceNumber(sub->nextSequenceNumber);
     }
 

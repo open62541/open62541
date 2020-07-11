@@ -31,7 +31,7 @@ UA_Notification_isOverflowEvent(UA_Server *server, UA_Notification *n) {
     if(mon->attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER)
         return false;
 
-    UA_EventFieldList *efl = &n->data.event.fields;
+    UA_EventFieldList *efl = &n->data.event;
     if(efl->eventFieldsSize >= 1 &&
        efl->eventFields[0].type == &UA_TYPES[UA_TYPES_NODEID] &&
        isNodeInTree_singleRef(server, (const UA_NodeId *)efl->eventFields[0].data,
@@ -66,18 +66,18 @@ createEventOverflowNotification(UA_Server *server, UA_Subscription *sub,
 
     /* Set the notification fields */
     overflowNotification->mon = mon;
-    UA_EventFieldList_init(&overflowNotification->data.event.fields);
-    overflowNotification->data.event.fields.eventFields = UA_Variant_new();
-    if(!overflowNotification->data.event.fields.eventFields) {
+    UA_EventFieldList_init(&overflowNotification->data.event);
+    overflowNotification->data.event.eventFields = UA_Variant_new();
+    if(!overflowNotification->data.event.eventFields) {
         UA_free(overflowNotification);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
-    overflowNotification->data.event.fields.eventFieldsSize = 1;
+    overflowNotification->data.event.eventFieldsSize = 1;
     UA_StatusCode retval =
-        UA_Variant_setScalarCopy(overflowNotification->data.event.fields.eventFields,
+        UA_Variant_setScalarCopy(overflowNotification->data.event.eventFields,
                                  &simpleOverflowEventType, &UA_TYPES[UA_TYPES_NODEID]);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_EventFieldList_clear(&overflowNotification->data.event.fields);
+        UA_EventFieldList_clear(&overflowNotification->data.event);
         UA_free(overflowNotification);
         return retval;
     }
@@ -106,12 +106,14 @@ createEventOverflowNotification(UA_Server *server, UA_Subscription *sub,
 void
 UA_Notification_enqueue(UA_Server *server, UA_Subscription *sub,
                         UA_MonitoredItem *mon, UA_Notification *n) {
+    UA_assert(n->mon);
+
     /* Add to the MonitoredItem */
     TAILQ_INSERT_TAIL(&mon->queue, n, listEntry);
     ++mon->queueSize;
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-    if(mon->attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER &&
+    if(n->mon->attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER &&
        UA_Notification_isOverflowEvent(server, n))
         ++mon->eventOverflows;
 #endif
@@ -121,13 +123,16 @@ UA_Notification_enqueue(UA_Server *server, UA_Subscription *sub,
     if(mon->monitoringMode == UA_MONITORINGMODE_REPORTING) {
         TAILQ_INSERT_TAIL(&sub->notificationQueue, n, globalEntry);
         ++sub->notificationQueueSize;
+
+        switch(n->mon->attributeId) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-        if(mon->attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) {
+        case UA_ATTRIBUTEID_EVENTNOTIFIER:
             ++sub->eventNotifications;
-        } else
+            break;
 #endif
-        {
+        default:
             ++sub->dataChangeNotifications;
+            break;
         }
     }
 
@@ -139,26 +144,33 @@ UA_Notification_enqueue(UA_Server *server, UA_Subscription *sub,
 void
 UA_Notification_dequeue(UA_Server *server, UA_Notification *n) {
     UA_MonitoredItem *mon = n->mon;
-    UA_Subscription *sub = mon->subscription;
+    UA_assert(mon);
 
     /* Remove from the MonitoredItem queue */
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     if(mon->attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER &&
-       UA_Notification_isOverflowEvent(server, n))
-            --mon->eventOverflows;
+       UA_Notification_isOverflowEvent(server, n)) {
+        --mon->eventOverflows;
+    }
 #endif
+
     TAILQ_REMOVE(&mon->queue, n, listEntry);
     --mon->queueSize;
 
     /* Remove from the subscription's queue */
     if(TAILQ_NEXT(n, globalEntry) != UA_SUBSCRIPTION_QUEUE_SENTINEL) {
+        UA_Subscription *sub = mon->subscription;
+        UA_assert(sub);
+
+        switch(mon->attributeId) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-        if(mon->attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) {
+        case UA_ATTRIBUTEID_EVENTNOTIFIER:
             --sub->eventNotifications;
-        } else
+            break;
 #endif
-        {
+        default:
             --sub->dataChangeNotifications;
+            break;
         }
 
         /*
@@ -177,16 +189,15 @@ UA_Notification_dequeue(UA_Server *server, UA_Notification *n) {
 
 void
 UA_Notification_delete(UA_Notification *n) {
+    switch(n->mon->attributeId) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-    UA_MonitoredItem *mon = n->mon;
-    if(mon->attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) {
-        UA_EventFieldList_clear(&n->data.event.fields);
-        /* EventFilterResult currently isn't being used
-         * UA_EventFilterResult_delete(notification->data.event->result); */
-    } else
+    case UA_ATTRIBUTEID_EVENTNOTIFIER:
+        UA_EventFieldList_clear(&n->data.event);
+        break;
 #endif
-    {
-        UA_DataValue_clear(&n->data.value);
+    default:
+        UA_MonitoredItemNotification_clear(&n->data.dataChange);
+        break;
     }
     UA_free(n);
 }
@@ -342,18 +353,16 @@ UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
 
     /* Create an overflow notification */
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-    if(mon->attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) {
+    if(mon->attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER)
         return createEventOverflowNotification(server, sub, mon, indicator);
-    } else
 #endif
-    {
-        /* Set the infobits of a datachange notification */
-        if(mon->maxQueueSize > 1) {
-            /* Add the infobits either to the newest or the new last entry */
-            indicator->data.value.hasStatus = true;
-            indicator->data.value.status |=
-                (UA_STATUSCODE_INFOTYPE_DATAVALUE | UA_STATUSCODE_INFOBITS_OVERFLOW);
-        }
+
+    /* Set the infobits of a datachange notification */
+    if(mon->maxQueueSize > 1) {
+        /* Add the infobits either to the newest or the new last entry */
+        indicator->data.dataChange.value.hasStatus = true;
+        indicator->data.dataChange.value.status |=
+            (UA_STATUSCODE_INFOTYPE_DATAVALUE | UA_STATUSCODE_INFOBITS_OVERFLOW);
     }
     return UA_STATUSCODE_GOOD;
 }
