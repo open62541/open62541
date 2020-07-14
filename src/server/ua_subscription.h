@@ -270,7 +270,6 @@ struct UA_Subscription {
     UA_UInt32 notificationQueueSize; /* Total queue size */
     UA_UInt32 dataChangeNotifications;
     UA_UInt32 eventNotifications;
-    UA_UInt32 statusChangeNotifications;
 
     /* Notifications to be sent out now (already late). In a regular publish
      * callback, all queued notifications are sent out. In a late publish

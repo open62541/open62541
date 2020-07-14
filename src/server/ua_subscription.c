@@ -210,6 +210,7 @@ prepareNotificationMessage(UA_Server *server, UA_Subscription *sub,
     /* Pre-allocate DataChangeNotifications */
     size_t notificationDataIdx = 0;
     UA_DataChangeNotification *dcn = NULL;
+    size_t dcnPos = 0; /* How many DataChangeNotifications were moved into the list? */
     if(sub->dataChangeNotifications > 0) {
         dcn = UA_DataChangeNotification_new();
         if(!dcn) {
@@ -235,20 +236,8 @@ prepareNotificationMessage(UA_Server *server, UA_Subscription *sub,
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     UA_EventNotificationList *enl = NULL;
-    UA_StatusChangeNotification *scn = NULL;
-    /* Pre-allocate either StatusChange or EventNotifications. Sending a
-     * (single) StatusChangeNotification has priority. */
-    if(sub->statusChangeNotifications > 0) {
-        scn = UA_StatusChangeNotification_new();
-        if(!scn) {
-            UA_NotificationMessage_clear(message);
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-        }
-        message->notificationData[notificationDataIdx].encoding = UA_EXTENSIONOBJECT_DECODED;
-        message->notificationData[notificationDataIdx].content.decoded.data = scn;
-        message->notificationData[notificationDataIdx].content.decoded.type = &UA_TYPES[UA_TYPES_STATUSCHANGENOTIFICATION];
-        notificationDataIdx++;
-    } else if(sub->eventNotifications > 0) {
+    size_t enlPos = 0; /* How many EventNotifications were moved into the list? */
+    if(sub->eventNotifications > 0) {
         enl = UA_EventNotificationList_new();
         if(!enl) {
             UA_NotificationMessage_clear(message);
@@ -256,7 +245,8 @@ prepareNotificationMessage(UA_Server *server, UA_Subscription *sub,
         }
         message->notificationData[notificationDataIdx].encoding = UA_EXTENSIONOBJECT_DECODED;
         message->notificationData[notificationDataIdx].content.decoded.data = enl;
-        message->notificationData[notificationDataIdx].content.decoded.type = &UA_TYPES[UA_TYPES_EVENTNOTIFICATIONLIST];
+        message->notificationData[notificationDataIdx].content.decoded.type =
+            &UA_TYPES[UA_TYPES_EVENTNOTIFICATIONLIST];
 
         size_t enlSize = sub->eventNotifications;
         if(enlSize > notifications)
@@ -277,10 +267,6 @@ prepareNotificationMessage(UA_Server *server, UA_Subscription *sub,
     /* <-- The point of no return --> */
 
     size_t totalNotifications = 0; /* How many notifications were moved to the response overall? */
-    size_t dcnPos = 0; /* How many DataChangeNotifications were put into the list? */
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-    size_t enlPos = 0; /* How many EventNotifications were moved into the list */
-#endif
     UA_Notification *notification, *notification_tmp;
     TAILQ_FOREACH_SAFE(notification, &sub->notificationQueue, globalEntry, notification_tmp) {
         if(totalNotifications >= notifications)
@@ -299,7 +285,6 @@ prepareNotificationMessage(UA_Server *server, UA_Subscription *sub,
             enlPos++;
             break;
 #endif
-
         default:
             UA_assert(dcn != NULL); /* Have at least one change notification */
             dcn->monitoredItems[dcnPos] = notification->data.dataChange;
