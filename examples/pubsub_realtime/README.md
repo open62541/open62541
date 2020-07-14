@@ -58,7 +58,7 @@ specific systems. Please check the top definitions in
 
 The publisher code is built and linked against the main open62541 library as follows:
 
-`gcc -O2 ../examples/pubsub_realtime/pubsub_interrupt_publish.c ../examples/pubsub_realtime/bufmalloc.c -I../include -I../plugins/include -Isrc_generated -I../arch/posix -I../arch -I../plugins/networking bin/libopen62541.a -lrt -o rt_publisher`
+`gcc -O2 ../examples/pubsub_realtime/pubsub_interrupt_publish.c ../examples/pubsub_realtime/bufmalloc.c -I../include -I../plugins/include -Isrc_generated -I../arch/posix -I../arch -I../plugins/networking -I../deps bin/libopen62541.a -lrt -o rt_publisher`
 
 ## Running the RT Publisher
 
