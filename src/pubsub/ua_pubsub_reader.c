@@ -774,7 +774,8 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
     UA_PubSubConnection *connection =
         UA_PubSubConnection_findConnectionbyId(server, readerGroup->linkedConnection);
     UA_ByteString buffer;
-    if(UA_ByteString_allocBuffer(&buffer, 512) != UA_STATUSCODE_GOOD) {
+
+    if(UA_ByteString_allocBuffer(&buffer, 4096) != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Message buffer alloc failed!");
         return;
     }
@@ -783,56 +784,62 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
     connection->channel->receive(connection->channel, &buffer, NULL, 1000);
     if(buffer.length > 0) {
         if (readerGroup->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE) {
-            /* Considering max DSM as 1
-             * TODO:
-             * Process with the static value source
-             */
-            UA_DataSetReader *dataSetReader = LIST_FIRST(&readerGroup->readers);
-            /* Decode only the necessary offset and update the networkMessage */
-            if(UA_NetworkMessage_updateBufferedNwMessage(&dataSetReader->bufferedMessage, &buffer, &currentPosition) != UA_STATUSCODE_GOOD) {
-                UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                             "PubSub receive. Unknown field type.");
-                UA_ByteString_deleteMembers(&buffer);
-                return;
-            }
-
-            /* Check the decoded message is the expected one
-             * TODO: PublisherID check after modification in NM to support all datatypes
-             *  */
-            if((dataSetReader->bufferedMessage.nm->groupHeader.writerGroupId != dataSetReader->config.writerGroupId) ||
-               (*dataSetReader->bufferedMessage.nm->payloadHeader.dataSetPayloadHeader.dataSetWriterIds != dataSetReader->config.dataSetWriterId)) {
-                UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                             "PubSub receive. Unknown message received. Will not be processed.");
-                UA_ByteString_deleteMembers(&buffer);
-                return;
-            }
-
-            UA_Server_DataSetReader_process(server, dataSetReader,
-                                            dataSetReader->bufferedMessage.nm->payload.dataSetPayload.dataSetMessages);
-
-            /* Delete the payload value of every dsf's decoded */
-            UA_DataSetMessage *dsm = dataSetReader->bufferedMessage.nm->payload.dataSetPayload.dataSetMessages;
-            if(dsm->header.fieldEncoding == UA_FIELDENCODING_VARIANT) {
-                for(UA_UInt16 i = 0; i < dsm->data.keyFrameData.fieldCount; i++) {
-                    UA_Variant_deleteMembers(&dsm->data.keyFrameData.dataSetFields[i].value);
+            do {
+                /* Considering max DSM as 1
+                * TODO:
+                * Process with the static value source
+                */
+                UA_DataSetReader *dataSetReader = LIST_FIRST(&readerGroup->readers);
+                /* Decode only the necessary offset and update the networkMessage */
+                if(UA_NetworkMessage_updateBufferedNwMessage(&dataSetReader->bufferedMessage, &buffer, &currentPosition) != UA_STATUSCODE_GOOD) {
+                    UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                                "PubSub receive. Unknown field type.");
+                    UA_ByteString_deleteMembers(&buffer);
+                    return;
                 }
-            }
-            else if(dsm->header.fieldEncoding == UA_FIELDENCODING_DATAVALUE) {
-                for(UA_UInt16 i = 0; i < dsm->data.keyFrameData.fieldCount; i++) {
-                    UA_DataValue_deleteMembers(&dsm->data.keyFrameData.dataSetFields[i]);
+
+                /* Check the decoded message is the expected one
+                * TODO: PublisherID check after modification in NM to support all datatypes
+                */
+                if((dataSetReader->bufferedMessage.nm->groupHeader.writerGroupId != dataSetReader->config.writerGroupId) ||
+                   (*dataSetReader->bufferedMessage.nm->payloadHeader.dataSetPayloadHeader.dataSetWriterIds != dataSetReader->config.dataSetWriterId)) {
+                    UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                                "PubSub receive. Unknown message received. Will not be processed.");
+                    UA_ByteString_deleteMembers(&buffer);
+                    return;
                 }
-            }
+
+                UA_Server_DataSetReader_process(server, dataSetReader,
+                                                dataSetReader->bufferedMessage.nm->payload.dataSetPayload.dataSetMessages);
+
+                /* Delete the payload value of every dsf's decoded */
+                UA_DataSetMessage *dsm = dataSetReader->bufferedMessage.nm->payload.dataSetPayload.dataSetMessages;
+                if(dsm->header.fieldEncoding == UA_FIELDENCODING_VARIANT) {
+                    for(UA_UInt16 i = 0; i < dsm->data.keyFrameData.fieldCount; i++) {
+                        UA_Variant_deleteMembers(&dsm->data.keyFrameData.dataSetFields[i].value);
+                    }
+                }
+                else if(dsm->header.fieldEncoding == UA_FIELDENCODING_DATAVALUE) {
+                    for(UA_UInt16 i = 0; i < dsm->data.keyFrameData.fieldCount; i++) {
+                        UA_DataValue_deleteMembers(&dsm->data.keyFrameData.dataSetFields[i]);
+                    }
+                }
+            } while((buffer.length) > currentPosition);
 
             UA_ByteString_deleteMembers(&buffer);
             return;
-        }
 
-        UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_USERLAND, "Message received:");
-        UA_NetworkMessage currentNetworkMessage;
-        memset(&currentNetworkMessage, 0, sizeof(UA_NetworkMessage));
-        UA_NetworkMessage_decodeBinary(&buffer, &currentPosition, &currentNetworkMessage);
-        UA_Server_processNetworkMessage(server, &currentNetworkMessage, connection);
-        UA_NetworkMessage_deleteMembers(&currentNetworkMessage);
+        }
+        else {
+            UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_USERLAND, "Message received:");
+            do {
+                UA_NetworkMessage currentNetworkMessage;
+                memset(&currentNetworkMessage, 0, sizeof(UA_NetworkMessage));
+                UA_NetworkMessage_decodeBinary(&buffer, &currentPosition, &currentNetworkMessage);
+                UA_Server_processNetworkMessage(server, &currentNetworkMessage, connection);
+                UA_NetworkMessage_deleteMembers(&currentNetworkMessage);
+            } while((buffer.length) > currentPosition);
+        }
     }
 
     UA_ByteString_deleteMembers(&buffer);

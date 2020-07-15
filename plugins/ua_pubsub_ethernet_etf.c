@@ -37,7 +37,7 @@
 #define SOCKET_EE_CODE_TRANSMISSION_TIME_MISSED         2
 #endif
 
-#define TIMEOUT_REALTIME                                1
+#define TIMEOUT_REALTIME                                15
 
 /* Ethernet network layer specific internal data */
 typedef struct {
@@ -418,7 +418,7 @@ UA_PubSubChannelEthernetETF_send(UA_PubSubChannel *channel,
         (UA_PubSubChannelDataEthernet *) channel->handle;
 
     /* Allocate a buffer for the ethernet data which contains the ethernet
-     * header (without VLAN tag), the VLAN tag and the OPC-UA/Ethernet data. */
+     * header (without VLAN tag), the VLAN tag, the LLC header and the OPC-UA/Ethernet data. */
     char *bufSend, *ptrCur;
     size_t lenBuf;
     struct ether_header* ethHdr;
@@ -484,25 +484,20 @@ UA_PubSubChannelEthernetETF_send(UA_PubSubChannel *channel,
  */
 static UA_StatusCode
 UA_PubSubChannelEthernetETF_receive(UA_PubSubChannel *channel, UA_ByteString *message,
-                                 UA_ExtensionObject *transportSettings, UA_UInt32 timeout) {
+                                    UA_ExtensionObject *transportSettings, UA_UInt32 timeout) {
     UA_PubSubChannelDataEthernet *channelDataEthernet =
         (UA_PubSubChannelDataEthernet *) channel->handle;
 
-    struct ether_header eth_hdr;
-    struct msghdr msg;
-    struct iovec iov[3];
-    llc_pdu llcData;
+    struct timeval  tmptv;
+    struct timespec currentTime;
+    struct timespec maxTime;
+    UA_UInt64       currentTimeValue = 0;
+    UA_UInt64       maxTimeValue = 0;
+    UA_Int32        receiveFlags;
+    UA_StatusCode   retval;
+    UA_UInt16       rcvCount = 0;
 
-    iov[0].iov_base = &eth_hdr;
-    iov[0].iov_len = sizeof(eth_hdr);
-    iov[1].iov_base = &llcData;
-    iov[1].iov_len = sizeof(llcData);
-    iov[2].iov_base = message->data;
-    iov[2].iov_len = message->length;
-    msg.msg_namelen = 0;
-    msg.msg_iov = iov;
-    msg.msg_iovlen = 3;
-    msg.msg_controllen = 0;
+    memset(&tmptv, 0, sizeof(tmptv));
 
     /* TODO: timeout from receive API should be configurable.
      * The parameter should be inside the channel or transport settings.
@@ -515,8 +510,8 @@ UA_PubSubChannelEthernetETF_receive(UA_PubSubChannel *channel, UA_ByteString *me
         fd_set fdset;
         FD_ZERO(&fdset);
         UA_fd_set(channel->sockfd, &fdset);
-        struct timeval tmptv = {(long int)(timeout / 1000000),
-                                (long int)(timeout % 1000000)};
+        tmptv.tv_sec = (long int)(timeout / 1000000);
+        tmptv.tv_usec = (long int)(timeout % 1000000);
         int resultsize = UA_select(channel->sockfd+1, &fdset, NULL, NULL, &tmptv);
         if(resultsize == 0) {
             message->length = 0;
@@ -527,30 +522,93 @@ UA_PubSubChannelEthernetETF_receive(UA_PubSubChannel *channel, UA_ByteString *me
             return UA_STATUSCODE_BADINTERNALERROR;
         }
     }
+    clock_gettime(CLOCK_TAI, &currentTime);
+    currentTimeValue = (UA_UInt64)((currentTime.tv_sec * 1000000000) + currentTime.tv_nsec);
+    maxTime.tv_sec   = currentTime.tv_sec + tmptv.tv_sec;
+    /* UA_Select uses timespec which accpets value in microseconds
+     * but etf code requires precision of nanoseconds */
+    maxTime.tv_nsec  = currentTime.tv_nsec + (tmptv.tv_usec * 1000);
+    maxTimeValue     = (UA_UInt64)((maxTime.tv_sec * 1000000000)+ maxTime.tv_nsec);
+    /* Receive flags set to Zero which indicates it will wait inside recvmsg API untill
+     * first packet received */
+    receiveFlags     = 0;
+    size_t messageLength = 0;
+    size_t remainingMessageLength = 0;
+    remainingMessageLength = message->length;
 
-    /* Read the current packet on the socket */
-    ssize_t dataLen = recvmsg(channel->sockfd, &msg, 0);
-    if(dataLen < 0) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "PubSub connection receive failed. Receive message failed.");
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    if((size_t)dataLen < sizeof(eth_hdr)) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "PubSub connection receive failed. Packet too small.");
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    if(dataLen == 0)
-        return UA_STATUSCODE_GOODNODATA;
+    do {
+        if(maxTimeValue < currentTimeValue) {
+             retval = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+             break;
+        }
 
-    /* Make sure we match our target */
-    if(memcmp(eth_hdr.ether_dhost, channelDataEthernet->targetAddress, ETH_ALEN) != 0)
-        return UA_STATUSCODE_GOODNODATA;
+        struct ether_header eth_hdr;
+        struct iovec        iov[3];
+        struct msghdr       msg;
+        ssize_t             dataLen;
+        llc_pdu             llcData;
+        UA_UInt16           payloadLength;
+        size_t              paddingBytes;
+        memset(&dataLen, 0, sizeof(dataLen));
+        memset(&msg, 0, sizeof(msg));
 
-    /* Set the message length */
-    message->length = (size_t)dataLen - sizeof(eth_hdr) - sizeof(llcData);
+        iov[0].iov_base = &eth_hdr;
+        iov[0].iov_len  = sizeof(eth_hdr);
+        iov[1].iov_base = &llcData;
+        iov[1].iov_len  = sizeof(llcData);
+        iov[2].iov_base = message->data + messageLength;
+        iov[2].iov_len  = remainingMessageLength;
+        msg.msg_iov     = iov;
+        msg.msg_iovlen  = 3;
 
-    return UA_STATUSCODE_GOOD;
+        dataLen = recvmsg(channel->sockfd, &msg, receiveFlags);
+        if(dataLen < 0) {
+            if(rcvCount == 0) {
+                UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                             "PubSub connection receive failed. Receive message failed.");
+                retval = UA_STATUSCODE_BADINTERNALERROR;
+            }
+            else {
+                retval = UA_STATUSCODE_GOOD;
+            }
+            break;
+        }
+
+        if((size_t)(dataLen) < sizeof(struct ether_header)) {
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                         "PubSub connection receive failed. Packet too small.");
+            retval = UA_STATUSCODE_BADINTERNALERROR;
+            break;
+        }
+
+        if(dataLen == 0) {
+            retval = UA_STATUSCODE_GOODNODATA;
+            break;
+        }
+
+        /* Make sure we match our target */
+        if(memcmp(eth_hdr.ether_dhost, channelDataEthernet->targetAddress, ETH_ALEN) != 0) {
+            retval = UA_STATUSCODE_GOODNODATA;
+            break;
+        }
+
+        payloadLength = (UA_UInt16)((htons(eth_hdr.ether_type)) - sizeof(llcData));
+        paddingBytes  = (size_t)dataLen - sizeof(struct ether_header) - sizeof(llcData) - payloadLength;
+        messageLength = messageLength + ((size_t)dataLen - sizeof(struct ether_header) - sizeof(llcData) - paddingBytes);
+        remainingMessageLength -= messageLength;
+        rcvCount++;
+        clock_gettime(CLOCK_TAI, &currentTime);
+        currentTimeValue = (UA_UInt64)((currentTime.tv_sec * 1000000000) + currentTime.tv_nsec);
+        /* Receive flags set to MSG_DONTWAIT for the 2nd packet */
+        /* The recvmsg API with MSG_DONTWAIT flag will not wait for the next packet */
+        receiveFlags = MSG_DONTWAIT;
+
+    } while(remainingMessageLength >= 1496); /* 1518 bytes is the maximum size of ethernet packet
+                                              * where 18 bytes used for header size, 4 bytes of LLC
+                                              * so remaining length is 1496 */
+    message->length = messageLength;
+    return retval;
+
 }
 
 /**
