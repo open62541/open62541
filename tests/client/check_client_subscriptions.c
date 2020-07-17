@@ -53,6 +53,13 @@ static void teardown(void) {
 UA_Boolean notificationReceived = false;
 UA_UInt32 countNotificationReceived = 0;
 UA_Double publishingInterval = 500.0;
+UA_StatusCode statusChange = UA_STATUSCODE_GOOD;
+
+static void
+statusChangeHandler(UA_Client *client, UA_UInt32 subId, void *subContext,
+                    UA_StatusChangeNotification *notification) {
+    statusChange = notification->status;
+}
 
 static void
 dataChangeHandler(UA_Client *client, UA_UInt32 subId, void *subContext,
@@ -698,6 +705,60 @@ START_TEST(Client_subscription_connectionClose) {
 }
 END_TEST
 
+START_TEST(Client_subscription_statusChange) {
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Client_recv = client->connection.recv;
+    client->connection.recv = UA_Client_recvTesting;
+
+    UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
+    request.requestedLifetimeCount = 5;
+    UA_CreateSubscriptionResponse response = UA_Client_Subscriptions_create(client, request,
+                                                              NULL, statusChangeHandler, NULL);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+
+    /* monitor the server state */
+    UA_MonitoredItemCreateRequest monRequest =
+        UA_MonitoredItemCreateRequest_default(UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME));
+
+    UA_MonitoredItemCreateResult monResponse =
+        UA_Client_MonitoredItems_createDataChange(client, response.subscriptionId,
+                                                  UA_TIMESTAMPSTORETURN_BOTH,
+                                                  monRequest, NULL, dataChangeHandler, NULL);
+    ck_assert_uint_eq(monResponse.statusCode, UA_STATUSCODE_GOOD);
+
+    /* manually control the server thread */
+    running = false;
+    THREAD_JOIN(server_thread);
+
+    /* Let the subscription time out */
+    for(size_t i = 0; i < response.revisedLifetimeCount * 2; i++) {
+        UA_fakeSleep((UA_UInt32)response.revisedPublishingInterval);
+        UA_Server_run_iterate(server, false);
+    }
+
+    /* Send a publish request */
+    UA_Client_run_iterate(client, 1);
+
+    /* Server sends a StatusChange notification */
+    UA_Server_run_iterate(server, true);
+
+    /* Client receives the StatusChange */
+    UA_Client_run_iterate(client, 1);
+
+    /* The status has been received */
+    ck_assert_uint_ne(statusChange, UA_STATUSCODE_GOOD);
+
+    UA_Server_run_shutdown(server);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 START_TEST(Client_subscription_timeout) {
     UA_Client *client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
@@ -1096,6 +1157,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_checked_fixture(tc_client, setup, teardown);
     tcase_add_test(tc_client, Client_subscription);
     tcase_add_test(tc_client, Client_subscription_async);
+    tcase_add_test(tc_client, Client_subscription_statusChange);
     tcase_add_test(tc_client, Client_subscription_timeout);
     tcase_add_test(tc_client, Client_subscription_connectionClose);
     tcase_add_test(tc_client, Client_subscription_createDataChanges);
