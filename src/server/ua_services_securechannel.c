@@ -33,10 +33,10 @@ removeSecureChannel(UA_Server *server, channel_entry *entry,
     entry->channel.state = UA_SECURECHANNELSTATE_CLOSING;
 
     /* Detach from the connection and close the connection */
-    if(entry->channel.connection) {
-        if(entry->channel.connection->state != UA_CONNECTIONSTATE_CLOSED)
-            entry->channel.connection->close(entry->channel.connection);
-        UA_Connection_detachSecureChannel(entry->channel.connection);
+    if(entry->channel.socket) {
+        if(entry->channel.socket->socketState != UA_SOCKETSTATE_CLOSED)
+            entry->channel.socket->close(entry->channel.socket);
+        UA_SecureChannel_detachSocket(&entry->channel);
     }
 
     /* Detach the channel */
@@ -183,7 +183,7 @@ UA_Server_createSecureChannel(UA_Server *server, UA_Socket *socket) {
 UA_StatusCode
 UA_Server_configSecureChannel(void *application, UA_SecureChannel *channel,
                               const UA_AsymmetricAlgorithmSecurityHeader *asymHeader) {
-    if(channel->state != UA_SECURECHANNELSTATE_FRESH)
+    if(channel->state == UA_SECURECHANNELSTATE_OPEN)
         return UA_STATUSCODE_GOOD;
     /* Iterate over available endpoints and choose the correct one */
     UA_SecurityPolicy *securityPolicy = NULL;

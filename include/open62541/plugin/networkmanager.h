@@ -43,7 +43,7 @@ struct UA_NetworkManager {
      * \param timeout The process function will wait for timeout milliseconds or until
      *                one of the registered sockets is active.
      */
-    UA_StatusCode (*process)(UA_NetworkManager *networkManager, UA_UInt16 timeout);
+    UA_StatusCode (*process)(UA_NetworkManager *networkManager, UA_UInt32 timeout);
 
     /**
      * Checks if the supplied socket has pending activity and calls the activity callback chain

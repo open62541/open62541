@@ -136,7 +136,7 @@ setFDSet(UA_NetworkManager_selectBased *networkManager, fd_set *readfdset, fd_se
 }
 
 static UA_StatusCode
-select_nm_process(UA_NetworkManager *networkManager, UA_UInt16 timeout) {
+select_nm_process(UA_NetworkManager *networkManager, UA_UInt32 timeout) {
     if(networkManager == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;

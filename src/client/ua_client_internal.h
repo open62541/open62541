@@ -125,7 +125,6 @@ struct UA_Client {
     UA_Boolean noSession;              /* Don't open a session */
 
     /* Connection */
-    UA_Connection connection;
     UA_String endpointUrl; /* Only for the async connect */
 
     /* SecureChannel */
@@ -165,9 +164,6 @@ void closeSecureChannel(UA_Client *client);
 
 UA_StatusCode
 connectIterate(UA_Client *client, UA_UInt32 timeout);
-
-UA_StatusCode
-receiveResponseAsync(UA_Client *client, UA_UInt32 timeout);
 
 _UA_END_DECLS
 

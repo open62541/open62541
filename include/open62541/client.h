@@ -24,8 +24,11 @@
 #include <open62541/types_generated_handling.h>
 
 #include <open62541/plugin/log.h>
-#include <open62541/plugin/network.h>
 #include <open62541/plugin/securitypolicy.h>
+#include <open62541/securechannel.h>
+#include <open62541/plugin/networkmanager.h>
+#include <open62541/plugin/socket.h>
+#include <ua_securechannel.h>
 
 _UA_BEGIN_DECLS
 
@@ -110,7 +113,7 @@ typedef struct {
     UA_UInt32 secureChannelLifeTime; /* Lifetime in ms (then the channel needs
                                         to be renewed) */
     UA_UInt32 requestedSessionTimeout; /* Session timeout in ms */
-    UA_ConnectionConfig localConnectionConfig;
+    UA_SecureChannelConfig secureChannelConfig;
     UA_UInt32 connectivityCheckInterval;     /* Connectivity check interval in ms.
                                               * 0 = background task disabled */
     const UA_DataTypeArray *customDataTypes; /* Custom DataTypes. Attention!
@@ -126,10 +129,10 @@ typedef struct {
     /* Certificate Verification Plugin */
     UA_CertificateVerification certificateVerification;
 
-    /* Callbacks for async connection handshakes */
-    UA_ConnectClientConnection initConnectionFunc;
-    UA_StatusCode (*pollConnectionFunc)(UA_Client *client, void *context,
-                                        UA_UInt32 timeout);
+    /* Networking */
+    UA_ClientSocketConfig clientSocketConfig;
+    UA_NetworkManager *networkManager;
+    UA_Boolean deleteNetworkManagerOnShutdown; /* If true, NM will be deleted on client delete */
 
     /* Callback for state changes. The client state is differentated into the
      * SecureChannel state and the Session state. The connectStatus is set if
@@ -184,6 +187,10 @@ UA_Client_getState(UA_Client *client,
                    UA_SecureChannelState *channelState,
                    UA_SessionState *sessionState,
                    UA_StatusCode *connectStatus);
+
+UA_StatusCode
+UA_Client_processServiceResponse(UA_SecureChannel *channel, UA_MessageType messageType,
+                                 UA_UInt32 requestId, UA_ByteString *message);
 
 /* Get the client configuration */
 UA_EXPORT UA_ClientConfig *

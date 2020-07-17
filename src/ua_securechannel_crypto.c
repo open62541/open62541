@@ -523,7 +523,7 @@ decryptAndVerifyChunk(const UA_SecureChannel *channel,
 
     /* Verify the chunk signature */
     size_t sigsize = cryptoModule->signatureAlgorithm.
-        getRemoteSignatureSize(sp, channel->policyChannelContext);
+        getRemoteSignatureSize(sp, channel->channelContext);
     res = verifySignature(channel, cryptoModule, chunk, sigsize);
     if(res != UA_STATUSCODE_GOOD)
         return res;

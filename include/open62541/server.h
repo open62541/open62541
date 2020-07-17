@@ -26,9 +26,10 @@
 #include <open62541/plugin/securitypolicy.h>
 #include <open62541/plugin/accesscontrol.h>
 #include <open62541/plugin/nodestore.h>
-#include <open62541/plugin/network.h>
 #include <open62541/plugin/log.h>
 #include <open62541/plugin/pki.h>
+#include <open62541/securechannel.h>
+#include <open62541/plugin/networkmanager.h>
 
 #ifdef UA_ENABLE_PUBSUB
 #include <open62541/plugin/pubsub.h>
@@ -108,9 +109,16 @@ struct UA_ServerConfig {
      *    ``/examples/custom_datatype/``. */
 
     /* Networking */
-    size_t networkLayersSize;
-    UA_ServerNetworkLayer *networkLayers;
-    UA_String customHostname;
+    UA_NetworkManager *networkManager;
+
+    /**
+     * One ore more sockets will be created for each socket config depending on the
+     * createSocket function.
+     */
+    UA_ListenerSocketConfig *listenerSocketConfigs;
+    size_t listenerSocketConfigsSize;
+
+    UA_SecureChannelConfig secureChannelConfig;
 
 #ifdef UA_ENABLE_PUBSUB
     /*PubSub network layer */
@@ -292,8 +300,10 @@ UA_ServerConfig_clean(UA_ServerConfig *config);
 UA_DEPRECATED static UA_INLINE void 
 UA_ServerConfig_setCustomHostname(UA_ServerConfig *config,
                                   const UA_String customHostname) {
-    UA_String_clear(&config->customHostname);
-    UA_String_copy(&customHostname, &config->customHostname);
+    for(size_t i = 0; i < config->listenerSocketConfigsSize; ++i) {
+        UA_String_deleteMembers(&config->listenerSocketConfigs[i].customHostname);
+        UA_String_copy(&customHostname, &config->listenerSocketConfigs[i].customHostname);
+    }
 }
 /**
  * .. _server-lifecycle:

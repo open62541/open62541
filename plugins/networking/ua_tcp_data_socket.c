@@ -481,8 +481,9 @@ UA_TCP_DataSocket_AcceptFrom(UA_Socket *listenerSocket, const UA_SocketConfig *p
                      "Failed to allocate socket resources with error %s",
                      UA_StatusCode_name(retval));
         UA_close(newSockFd);
-        UA_free(sock);
-        return retval;
+//        UA_free(sock);
+//        return retval;
+        goto error;
     }
 
     retval = UA_socket_set_nonblocking(newSockFd);

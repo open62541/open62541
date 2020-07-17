@@ -52,7 +52,7 @@ UA_SecureChannel_attachSocket(UA_SecureChannel *secureChannel, UA_Socket *socket
     if(UA_atomic_cmpxchg((void **)&secureChannel->socket, NULL, socket) == NULL) {
         UA_atomic_xchg((void **)&socket->context, (void *)secureChannel);
         // TODO: do we need to perform some kind of locking???
-        socket->dataCallback = UA_SecureChannel_assembleChunks;
+        socket->dataCallback = UA_SecureChannel_processBuffer;
     }
 }
 
@@ -560,17 +560,17 @@ processSequenceNumberSym(UA_SecureChannel *channel, UA_UInt32 sequenceNumber) {
     return UA_STATUSCODE_GOOD;
 }
 
-#endif
 
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
 static UA_StatusCode
 processSequenceNumberNop(UA_SecureChannel *channel, UA_UInt32 sequenceNumber) {
+    (void)processSequenceNumberSym;
     return UA_STATUSCODE_GOOD;
 }
 #endif
 
 static UA_StatusCode
-decryptMessageChunk(UA_SecureChannel *channel, UA_Chunk *chunk, void *application) {
+decryptMessageChunk(UA_SecureChannel *channel, UA_Chunk *chunk) {
     size_t offset = UA_CONNECTION_PROTOCOL_MESSAGE_HEADER_SIZE; /* Skip the message header */
     UA_UInt32 secureChannelId;
     UA_StatusCode res = UA_UInt32_decodeBinary(&chunk->bytes, &offset, &secureChannelId);
@@ -608,7 +608,7 @@ decryptMessageChunk(UA_SecureChannel *channel, UA_Chunk *chunk, void *applicatio
         }
 
         if(channel->processOPNHeader != NULL && channel->securityPolicy == NULL) {
-            res = channel->processOPNHeader(application, channel, &asymHeader);
+            res = channel->processOPNHeader(channel->application, channel, &asymHeader);
             if(res != UA_STATUSCODE_GOOD)
                 goto error;
         }
@@ -683,15 +683,14 @@ error:
 }
 
 static UA_StatusCode
-assembleProcessMessage(UA_SecureChannel *channel, void *application,
-                       UA_ProcessMessageCallback callback) {
+assembleProcessMessage(UA_SecureChannel *channel) {
     UA_Chunk *chunk = SIMPLEQ_FIRST(&channel->decryptedChunks);
     UA_assert(chunk != NULL);
 
     if(chunk->chunkType == UA_CHUNKTYPE_FINAL) {
         SIMPLEQ_REMOVE_HEAD(&channel->decryptedChunks, pointers);
         UA_assert(chunk->chunkType == UA_CHUNKTYPE_FINAL);
-        callback(application, channel, chunk->messageType, chunk->requestId, &chunk->bytes);
+        channel->processMessageCallback(channel, chunk->messageType, chunk->requestId, &chunk->bytes);
         UA_Chunk_delete(chunk);
         return UA_STATUSCODE_GOOD;
     }
@@ -737,7 +736,7 @@ assembleProcessMessage(UA_SecureChannel *channel, void *application,
     }
 
     /* Process the assembled message */
-    callback(application, channel, messageType, requestId, &payload);
+    channel->processMessageCallback(channel, messageType, requestId, &payload);
     UA_ByteString_deleteMembers(&payload);
     return UA_STATUSCODE_GOOD;
 }
@@ -775,8 +774,7 @@ persistIncompleteChunk(UA_SecureChannel *channel, const UA_ByteString *buffer,
  * put into the queue, the message is assembled and the callback is called. The
  * queue will be cleared for the next message. */
 static UA_StatusCode
-processChunks(UA_SecureChannel *channel, void *application,
-              UA_ProcessMessageCallback callback) {
+processChunks(UA_SecureChannel *channel) {
     UA_Chunk *chunk;
     UA_StatusCode retval;
     while((chunk = SIMPLEQ_FIRST(&channel->completeChunks))) {
@@ -785,7 +783,7 @@ processChunks(UA_SecureChannel *channel, void *application,
         if(chunk->messageType == UA_MESSAGETYPE_OPN ||
            chunk->messageType == UA_MESSAGETYPE_MSG ||
            chunk->messageType == UA_MESSAGETYPE_CLO) {
-            retval = decryptMessageChunk(channel, chunk, application);
+            retval = decryptMessageChunk(channel, chunk);
             if(retval != UA_STATUSCODE_GOOD) {
                 UA_Chunk_delete(chunk);
                 return retval;
@@ -811,7 +809,7 @@ processChunks(UA_SecureChannel *channel, void *application,
             continue;
 
         /* The decrypted queue contains a full message. Process it. */
-        retval = assembleProcessMessage(channel, application, callback);
+        retval = assembleProcessMessage(channel);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
 
@@ -845,7 +843,7 @@ extractCompleteChunk(UA_SecureChannel *channel, const UA_ByteString *buffer,
     /* The message size is not allowed */
     if(hdr.messageSize < 16)
         return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
-    if(hdr.messageSize > channel->config.recvBufferSize)
+    if(hdr.messageSize > channel->socket->socketConfig.recvBufferSize)
         return UA_STATUSCODE_BADTCPMESSAGETOOLARGE;
 
     /* Incomplete chunk */
@@ -893,16 +891,15 @@ extractCompleteChunk(UA_SecureChannel *channel, const UA_ByteString *buffer,
 }
 
 UA_StatusCode
-UA_SecureChannel_processBuffer(UA_SecureChannel *channel, void *application,
-                               UA_ProcessMessageCallback callback,
-                               const UA_ByteString *buffer) {
+UA_SecureChannel_processBuffer(UA_ByteString *buffer, UA_Socket *socket) {
     /* Prepend the incomplete last chunk. This is usually done in the
      * networklayer. But we test for a buffered incomplete chunk here again to
      * work around "lazy" network layers. */
+    UA_SecureChannel *channel = (UA_SecureChannel *) socket->context;
     UA_ByteString appended = channel->incompleteChunk;
     if(appended.length > 0) {
         channel->incompleteChunk = UA_BYTESTRING_NULL;
-        UA_Byte *t = (UA_Byte*)UA_realloc(appended.data, appended.length + buffer->length);
+        UA_Byte *t = (UA_Byte *) UA_realloc(appended.data, appended.length + buffer->length);
         if(!t) {
             UA_ByteString_clear(&appended);
             return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -933,7 +930,7 @@ UA_SecureChannel_processBuffer(UA_SecureChannel *channel, void *application,
 
     /* Process whatever we can. Chunks of completed and processed messages are
      * removed. */
-    res = processChunks(channel, application, callback);
+    res = processChunks(channel);
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
 
@@ -945,40 +942,4 @@ UA_SecureChannel_processBuffer(UA_SecureChannel *channel, void *application,
  cleanup:
     UA_ByteString_deleteMembers(&appended);
     return res;
-}
-
-UA_StatusCode
-UA_SecureChannel_receive(UA_SecureChannel *channel, void *application,
-                         UA_ProcessMessageCallback callback, UA_UInt32 timeout) {
-    // TODO: Remove receive functions as soon as client is fully async.
-    UA_Socket *socket = channel->socket;
-    if(!socket)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    void *saved_app = channel->application;
-    channel->application = application;
-
-    UA_ProcessMessageCallback saved_callback = channel->processMessageCallback;
-    channel->processMessageCallback = callback;
-
-    /* Listen for messages to arrive */
-    UA_ByteString packet = UA_BYTESTRING_NULL;
-    UA_ByteString_allocBuffer(&packet, socket->socketConfig.recvBufferSize);
-    UA_StatusCode retval = socket->recv(socket, &packet, &timeout);
-    if(retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
-        retval = UA_STATUSCODE_GOOD;
-        goto exit;
-    }
-    if(retval != UA_STATUSCODE_GOOD)
-        goto exit;
-
-    /* Try to process one complete chunk */
-    retval = UA_SecureChannel_assembleChunks(&packet, socket);
-    goto exit;
-
-exit:
-    channel->application = saved_app;
-    channel->processMessageCallback = saved_callback;
-    UA_ByteString_clear(&packet);
-    return retval;
 }

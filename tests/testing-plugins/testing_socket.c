@@ -129,10 +129,10 @@ UA_Socket_activityTesting(UA_Socket *sock, UA_Boolean readActivity, UA_Boolean w
 UA_StatusCode UA_NetworkManager_processTesting_result = UA_STATUSCODE_GOOD;
 
 UA_StatusCode
-(*UA_NetworkManager_process)(UA_NetworkManager *networkManager, UA_UInt16 timeout);
+(*UA_NetworkManager_process)(UA_NetworkManager *networkManager, UA_UInt32 timeout);
 
 UA_StatusCode
-UA_NetworkManager_processTesting(UA_NetworkManager *networkManager, UA_UInt16 timeout) {
+UA_NetworkManager_processTesting(UA_NetworkManager *networkManager, UA_UInt32 timeout) {
     if(UA_NetworkManager_processTesting_result != UA_STATUSCODE_GOOD) {
         UA_StatusCode temp = UA_NetworkManager_processTesting_result;
         UA_NetworkManager_processTesting_result = UA_STATUSCODE_GOOD;

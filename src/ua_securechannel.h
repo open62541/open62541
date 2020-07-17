@@ -106,9 +106,6 @@ struct UA_SecureChannel {
     const UA_SecurityPolicy *securityPolicy;
     void *channelContext; /* For interaction with the security policy */
     UA_Socket *socket;
-    UA_CertificateVerification *certificateVerification;
-    UA_StatusCode (*configure)(void *application, UA_SecureChannel *channel,
-                               const UA_AsymmetricAlgorithmSecurityHeader *asymHeader);
 
     /* Asymmetric encryption info */
     UA_ByteString remoteCertificate;
@@ -256,11 +253,6 @@ UA_MessageContext_abort(UA_MessageContext *mc);
  * Receive Message
  * --------------- */
 
-typedef void
-(UA_ProcessMessageCallback)(void *application, UA_SecureChannel *channel,
-                            UA_MessageType messageType, UA_UInt32 requestId,
-                            UA_ByteString *message);
-
 /* Process a received buffer. The callback function is called with the message
  * body if the message is complete. The message is removed afterwards. Returns
  * if an irrecoverable error occured.
@@ -268,23 +260,7 @@ typedef void
  * Note that only MSG and CLO messages are decrypted. HEL/ACK/OPN/... are
  * forwarded verbatim to the application. */
 UA_StatusCode
-UA_SecureChannel_processBuffer(UA_SecureChannel *channel, void *application,
-                               UA_ProcessMessageCallback callback,
-                               const UA_ByteString *buffer);
-
-/* Try to receive at least one complete chunk on the connection. This blocks the
- * current thread up to the given timeout. It will return once the first buffer
- * has been received (and possibly processed when the message is complete).
- *
- * @param channel The SecureChannel
- * @param application The client or server application
- * @param callback The function pointer for processing complete messages
- * @param timeout The timeout (in milliseconds) the method will block at most.
- * @return Returns UA_STATUSCODE_GOOD or an error code. A timeout does not
- *         create an error. */
-UA_StatusCode
-UA_SecureChannel_receive(UA_SecureChannel *channel, void *application,
-                         UA_ProcessMessageCallback callback, UA_UInt32 timeout);
+UA_SecureChannel_processBuffer(UA_ByteString *buffer, UA_Socket *socket);
 
 /* Internal methods in ua_securechannel_crypto.h */
 

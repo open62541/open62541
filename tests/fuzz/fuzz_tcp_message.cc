@@ -36,7 +36,7 @@ static void *serverLoop(void *server_ptr) {
 */
 extern "C" int
 LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
-
+    UA_memoryManager_setLimit((unsigned long long) -1);
     UA_Server *server = UA_Server_new();
     if(server == nullptr) {
         UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
@@ -126,7 +126,7 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     pthread_join(serverThread, &status);
 
     // Process any remaining data. Just repeat a few times to empty all the buffered bytes
-    for (size_t i=0; i<5; i++) {
+    for (size_t i=0; i<20; i++) {
         UA_Server_run_iterate(server, false);
     }
     close(sockfd);
