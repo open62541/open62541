@@ -36,7 +36,7 @@ UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_Subscription *sub, *tempsub;
     LIST_FOREACH_SAFE(sub, &session->serverSubscriptions, listEntry, tempsub) {
-        UA_Session_deleteSubscription(server, session, sub->subscriptionId);
+        UA_Session_deleteSubscription(server, session, sub);
     }
 
     UA_PublishResponseEntry *entry;

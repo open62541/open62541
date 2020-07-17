@@ -349,13 +349,69 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
         ++sub->currentLifetimeCount;
 
         if(sub->currentLifetimeCount > sub->lifeTimeCount) {
-            UA_LOG_DEBUG_SESSION(&server->config.logger, sub->session,
-                                 "Subscription %" PRIu32 " | End of lifetime "
-                                 "for subscription", sub->subscriptionId);
-            UA_Session_deleteSubscription(server, sub->session, sub->subscriptionId);
-            /* TODO: send a StatusChangeNotification with Bad_Timeout */
+            UA_LOG_WARNING_SESSION(&server->config.logger, sub->session,
+                                   "Subscription %" PRIu32 " | End of lifetime "
+                                   "for subscription", sub->subscriptionId);
+            /* Set the StatusChange to delete the subscription. */
+            sub->statusChange = UA_STATUSCODE_BADTIMEOUT;
+        }
+    }
+
+    UA_PublishResponse *response = &pre->response;
+    UA_NotificationMessage *message = &response->notificationMessage;
+
+    /* Send a StatusChange Notification and delete the Subscription. */
+    if(sub->statusChange != UA_STATUSCODE_GOOD) {
+        /* Cannot send out the StatusChange. Keep the "shell" of the
+         * subscription to answer with a StatusChangeNotification when a Publish
+         * Request is available. */
+        if(!pre) {
+            /* Remove the cyclic publich callback, the MonitoredItems and queued
+             * Notifications */
+            UA_Subscription_clear(server, sub);
+            sub->state = UA_SUBSCRIPTIONSTATE_LATE;
             return;
         }
+
+        UA_LOG_DEBUG_SESSION(&server->config.logger, sub->session,
+                             "Subscription %" PRIu32 " | Sending out a StatusChange "
+                             "notification and removing the subscription");
+
+        /* Populate the response */
+        UA_StatusChangeNotification scn;
+        UA_StatusChangeNotification_init(&scn);
+        scn.status = sub->statusChange;
+
+        UA_ExtensionObject notificationData;
+        UA_ExtensionObject_init(&notificationData);
+        notificationData.encoding = UA_EXTENSIONOBJECT_DECODED;
+        notificationData.content.decoded.type = &UA_TYPES[UA_TYPES_STATUSCHANGENOTIFICATION];
+        notificationData.content.decoded.data = &scn;
+
+        response->responseHeader.timestamp = UA_DateTime_now();
+        response->notificationMessage.notificationData = &notificationData;
+        response->notificationMessage.notificationDataSize = 1;
+        response->subscriptionId = sub->subscriptionId;
+        response->notificationMessage.publishTime = response->responseHeader.timestamp;
+        response->notificationMessage.sequenceNumber = sub->nextSequenceNumber;
+
+        /* Send the response */
+        UA_LOG_DEBUG_SESSION(&server->config.logger, sub->session,
+                             "Subscription %" PRIu32 " | Sending out a publish response "
+                             "with %" PRIu32 " notifications", sub->subscriptionId,
+                             notifications);
+        sendResponse(server, sub->session, sub->session->header.channel, pre->requestId,
+                     (UA_Response*)response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
+
+        /* Clean up */
+        response->notificationMessage.notificationData = NULL;
+        response->notificationMessage.notificationDataSize = 0;
+        UA_PublishResponse_clear(&pre->response);
+        UA_free(pre);
+
+        /* Delete the subscription */
+        UA_Session_deleteSubscription(server, sub->session, sub);
+        return;
     }
 
     /* If there are several late publish responses... */
@@ -400,8 +456,6 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
     }
 
     /* Prepare the response */
-    UA_PublishResponse *response = &pre->response;
-    UA_NotificationMessage *message = &response->notificationMessage;
     UA_NotificationMessageEntry *retransmission = NULL;
     if(notifications > 0) {
         if(server->config.enableRetransmissionQueue) {
