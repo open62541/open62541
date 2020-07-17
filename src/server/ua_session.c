@@ -100,12 +100,8 @@ UA_Session_addSubscription(UA_Server *server, UA_Session *session,
 
 UA_StatusCode
 UA_Session_deleteSubscription(UA_Server *server, UA_Session *session,
-                              UA_UInt32 subscriptionId) {
+                              UA_Subscription *sub) {
     UA_LOCK_ASSERT(server->serviceMutex, 1);
-
-    UA_Subscription *sub = UA_Session_getSubscriptionById(session, subscriptionId);
-    if(!sub)
-        return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
 
     UA_Subscription_clear(server, sub);
 
@@ -124,7 +120,7 @@ UA_Session_deleteSubscription(UA_Server *server, UA_Session *session,
 
     UA_LOG_INFO_SESSION(&server->config.logger, sub->session,
                         "Subscription %" PRIu32 " | Deleted the Subscription",
-                        subscriptionId);
+                        sub->subscriptionId);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -133,6 +129,9 @@ UA_Subscription *
 UA_Session_getSubscriptionById(UA_Session *session, UA_UInt32 subscriptionId) {
     UA_Subscription *sub;
     LIST_FOREACH(sub, &session->serverSubscriptions, listEntry) {
+        /* Prevent lookup of subscriptions that are to be deleted with a statuschange */
+        if(sub->statusChange != UA_STATUSCODE_GOOD)
+            continue;
         if(sub->subscriptionId == subscriptionId)
             break;
     }

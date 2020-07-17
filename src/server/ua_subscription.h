@@ -252,6 +252,9 @@ struct UA_Subscription {
 
     /* Runtime information */
     UA_SubscriptionState state;
+    UA_StatusCode statusChange; /* If set, a notification is generated and the
+                                 * Subscription is deleted within
+                                 * UA_Subscription_publish. */
     UA_UInt32 nextSequenceNumber;
     UA_UInt32 currentKeepAliveCount;
     UA_UInt32 currentLifetimeCount;
