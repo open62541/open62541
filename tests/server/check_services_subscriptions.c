@@ -736,8 +736,10 @@ START_TEST(Server_lifeTimeCount) {
 
     count = 0;
     LIST_FOREACH(sub, &session->serverSubscriptions, listEntry) {
-        ck_assert_uint_eq(sub->currentLifetimeCount, 4);
-        count++;
+        if(sub->statusChange == UA_STATUSCODE_GOOD) {
+            ck_assert_uint_eq(sub->currentLifetimeCount, 4);
+            count++;
+        }
     }
     ck_assert_uint_eq(count, 1);
 
@@ -747,8 +749,10 @@ START_TEST(Server_lifeTimeCount) {
 
     count = 0;
     LIST_FOREACH(sub, &session->serverSubscriptions, listEntry) {
-        ck_assert_uint_eq(sub->currentLifetimeCount, 5);
-        count++;
+        if(sub->statusChange == UA_STATUSCODE_GOOD) {
+            ck_assert_uint_eq(sub->currentLifetimeCount, 5);
+            count++;
+        }
     }
     ck_assert_uint_eq(count, 1);
 
@@ -758,8 +762,10 @@ START_TEST(Server_lifeTimeCount) {
 
     count = 0;
     LIST_FOREACH(sub, &session->serverSubscriptions, listEntry) {
-        ck_assert_uint_eq(sub->currentLifetimeCount, 6);
-        count++;
+        if(sub->statusChange == UA_STATUSCODE_GOOD) {
+            ck_assert_uint_eq(sub->currentLifetimeCount, 6);
+            count++;
+        }
     }
     ck_assert_uint_eq(count, 1);
 
@@ -770,7 +776,8 @@ START_TEST(Server_lifeTimeCount) {
 
     count = 0;
     LIST_FOREACH(sub, &session->serverSubscriptions, listEntry) {
-        count++;
+        if(sub->statusChange == UA_STATUSCODE_GOOD)
+            count++;
     }
     ck_assert_uint_eq(count, 0);
 }
