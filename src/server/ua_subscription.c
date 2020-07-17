@@ -72,10 +72,6 @@ UA_Subscription_clear(UA_Server *server, UA_Subscription *sub) {
         --sub->retransmissionQueueSize;
     }
     UA_assert(sub->retransmissionQueueSize == 0);
-
-    UA_LOG_INFO_SESSION(&server->config.logger, sub->session,
-                        "Subscription %" PRIu32 " | Deleted the Subscription",
-                        sub->subscriptionId);
 }
 
 UA_MonitoredItem *

@@ -119,6 +119,11 @@ UA_Session_deleteSubscription(UA_Server *server, UA_Session *session,
     UA_assert(server->numSubscriptions > 0);
     session->numSubscriptions--;
     server->numSubscriptions--;
+
+    UA_LOG_INFO_SESSION(&server->config.logger, sub->session,
+                        "Subscription %" PRIu32 " | Deleted the Subscription",
+                        subscriptionId);
+
     return UA_STATUSCODE_GOOD;
 }
 
