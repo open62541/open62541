@@ -128,10 +128,9 @@ struct UA_Server {
 
     /* DataChange Subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    /* Num active subscriptions */
-    UA_UInt32 numSubscriptions;
-    /* Num active monitored items */
-    UA_UInt32 numMonitoredItems;
+    UA_UInt32 lastSubscriptionId; /* To generate unique SubscriptionIds */
+    UA_UInt32 numSubscriptions; /* Num active subscriptions */
+    UA_UInt32 numMonitoredItems; /* Num active monitored items */
     /* To be cast to UA_LocalMonitoredItem to get the callback and context */
     LIST_HEAD(LocalMonitoredItems, UA_MonitoredItem) localMonitoredItems;
     UA_UInt32 lastLocalMonitoredItemId;
