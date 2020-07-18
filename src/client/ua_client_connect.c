@@ -600,7 +600,8 @@ selectEndpoint(UA_Client *client, const UA_String endpointUrl) {
             UA_UserTokenPolicy* userToken = &endpoint->userIdentityTokens[j];
 
             /* Usertokens also have a security policy... */
-            if (userToken->securityPolicyUri.length > 0 &&
+            if (tokenPolicy->tokenType != UA_USERTOKENTYPE_ANONYMOUS && 
+                userToken->securityPolicyUri.length > 0 &&
                 !getSecurityPolicy(client, userToken->securityPolicyUri)) {
                 UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT, "Rejecting UserTokenPolicy %lu in endpoint %lu: security policy '%.*s' not available",
                 (long unsigned)j, (long unsigned)i,
