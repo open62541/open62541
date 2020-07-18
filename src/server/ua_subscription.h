@@ -282,7 +282,7 @@ struct UA_Subscription {
     size_t retransmissionQueueSize;
 };
 
-UA_Subscription * UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptionId);
+UA_Subscription * UA_Subscription_new(void);
 void UA_Subscription_clear(UA_Server *server, UA_Subscription *sub);
 UA_StatusCode Subscription_registerPublishCallback(UA_Server *server, UA_Subscription *sub);
 void Subscription_unregisterPublishCallback(UA_Server *server, UA_Subscription *sub);

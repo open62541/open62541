@@ -23,20 +23,19 @@
 #ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
 
 UA_Subscription *
-UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptionId) {
+UA_Subscription_new() {
     /* Allocate the memory */
-    UA_Subscription *newSub =
-        (UA_Subscription*)UA_calloc(1, sizeof(UA_Subscription));
+    UA_Subscription *newSub = (UA_Subscription*)UA_calloc(1, sizeof(UA_Subscription));
     if(!newSub)
         return NULL;
 
-    /* Remaining members are covered by calloc zeroing out the memory */
-    newSub->session = session;
-    newSub->subscriptionId = subscriptionId;
-    newSub->state = UA_SUBSCRIPTIONSTATE_NORMAL; /* The first publish response is sent immediately */
+    /* The first publish response is sent immediately */
+    newSub->state = UA_SUBSCRIPTIONSTATE_NORMAL;
+
     /* Even if the first publish response is a keepalive the sequence number is 1.
      * This can happen by a subscription without a monitored item (see CTT test scripts). */
     newSub->nextSequenceNumber = 1;
+
     TAILQ_INIT(&newSub->retransmissionQueue);
     TAILQ_INIT(&newSub->notificationQueue);
     return newSub;

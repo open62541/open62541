@@ -88,7 +88,9 @@ void UA_Session_updateLifetime(UA_Session *session) {
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 
-void UA_Session_addSubscription(UA_Server *server, UA_Session *session, UA_Subscription *newSubscription) {
+void UA_Session_addSubscription(UA_Server *server, UA_Session *session,
+                                UA_Subscription *newSubscription) {
+    newSubscription->session = session;
     newSubscription->subscriptionId = ++session->lastSubscriptionId;
 
     LIST_INSERT_HEAD(&session->serverSubscriptions, newSubscription, listEntry);
