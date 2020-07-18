@@ -695,7 +695,8 @@ responseGetEndpoints(UA_Client *client, void *userdata, UA_UInt32 requestId,
             const UA_DataType *tokenType = client->config.userIdentityToken.content.decoded.type;
 
             /* Usertokens also have a security policy... */
-            if(tokenPolicy->securityPolicyUri.length > 0 &&
+            if(tokenPolicy->tokenType != UA_USERTOKENTYPE_ANONYMOUS && 
+               tokenPolicy->securityPolicyUri.length > 0 &&
                !getSecurityPolicy(client, tokenPolicy->securityPolicyUri)) {
                 UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                             "Rejecting UserTokenPolicy %lu in endpoint %lu: "
