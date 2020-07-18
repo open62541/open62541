@@ -324,10 +324,6 @@ Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
                   (UA_ServiceOperation)Operation_DeleteSubscription, NULL,
                   &request->subscriptionIdsSize, &UA_TYPES[UA_TYPES_UINT32],
                   &response->resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
-
-    /* Send remaining publish responses if the last subscription was removed */
-    if(!LIST_FIRST(&session->serverSubscriptions))
-        UA_Subscription_answerPublishRequestsNoSubscription(server, session);
 }
 
 void

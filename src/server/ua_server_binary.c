@@ -398,6 +398,9 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
 UA_StatusCode
 sendResponse(UA_Server *server, UA_Session *session, UA_SecureChannel *channel,
              UA_UInt32 requestId, UA_Response *response, const UA_DataType *responseType) {
+    if(!channel)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     /* Prepare the ResponseHeader */
     response->responseHeader.timestamp = UA_DateTime_now();
 

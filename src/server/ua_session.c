@@ -122,6 +122,10 @@ UA_Session_deleteSubscription(UA_Server *server, UA_Session *session,
                         "Subscription %" PRIu32 " | Deleted the Subscription",
                         sub->subscriptionId);
 
+    /* Send remaining publish responses if the last subscription was removed */
+    if(!LIST_FIRST(&session->serverSubscriptions))
+        UA_Session_answerPublishRequestsNoSubscription(server, session);
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -155,6 +159,27 @@ UA_Session_queuePublishReq(UA_Session *session, UA_PublishResponseEntry* entry, 
     else
         SIMPLEQ_INSERT_HEAD(&session->responseQueue, entry, listEntry);
     session->numPublishReq++;
+}
+
+/* When the session has publish requests stored but the last subscription is
+ * deleted... Send out empty responses */
+void
+UA_Session_answerPublishRequestsNoSubscription(UA_Server *server, UA_Session *session) {
+    /* Are there subscriptions for the session? */
+    if(LIST_FIRST(&session->serverSubscriptions))
+        return;
+
+    /* Send a response for every queued request */
+    UA_PublishResponseEntry *pre;
+    while((pre = UA_Session_dequeuePublishReq(session))) {
+        UA_PublishResponse *response = &pre->response;
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOSUBSCRIPTION;
+        response->responseHeader.timestamp = UA_DateTime_now();
+        sendResponse(server, session, session->header.channel, pre->requestId,
+                     (UA_Response*)response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
+        UA_PublishResponse_clear(response);
+        UA_free(pre);
+    }
 }
 
 #endif

@@ -99,6 +99,10 @@ UA_Session_queuePublishReq(UA_Session *session,
 UA_PublishResponseEntry *
 UA_Session_dequeuePublishReq(UA_Session *session);
 
+void
+UA_Session_answerPublishRequestsNoSubscription(UA_Server *server,
+                                               UA_Session *session);
+
 #endif
 
 /**
