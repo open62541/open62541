@@ -76,7 +76,7 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
     }
 
     /* Create the subscription */
-    UA_Subscription *newSubscription = UA_Subscription_new(session, response->subscriptionId);
+    UA_Subscription *newSubscription = UA_Subscription_new();
     if(!newSubscription) {
         UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                              "Processing CreateSubscriptionRequest failed");
