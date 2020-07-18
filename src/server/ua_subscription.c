@@ -633,25 +633,4 @@ Subscription_unregisterPublishCallback(UA_Server *server, UA_Subscription *sub) 
     sub->publishCallbackIsRegistered = false;
 }
 
-/* When the session has publish requests stored but the last subscription is
- * deleted... Send out empty responses */
-void
-UA_Subscription_answerPublishRequestsNoSubscription(UA_Server *server, UA_Session *session) {
-    /* No session or there are remaining subscriptions */
-    if(!session || LIST_FIRST(&session->serverSubscriptions))
-        return;
-
-    /* Send a response for every queued request */
-    UA_PublishResponseEntry *pre;
-    while((pre = UA_Session_dequeuePublishReq(session))) {
-        UA_PublishResponse *response = &pre->response;
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOSUBSCRIPTION;
-        response->responseHeader.timestamp = UA_DateTime_now();
-        sendResponse(server, session, session->header.channel, pre->requestId,
-                     (UA_Response*)response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
-        UA_PublishResponse_clear(response);
-        UA_free(pre);
-    }
-}
-
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
