@@ -22,16 +22,14 @@
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
 
-static UA_StatusCode
+static void
 setSubscriptionSettings(UA_Server *server, UA_Subscription *subscription,
                         UA_Double requestedPublishingInterval,
                         UA_UInt32 requestedLifetimeCount,
                         UA_UInt32 requestedMaxKeepAliveCount,
-                        UA_UInt32 maxNotificationsPerPublish, UA_Byte priority) {
+                        UA_UInt32 maxNotificationsPerPublish,
+                        UA_Byte priority) {
     UA_LOCK_ASSERT(server->serviceMutex, 1);
-
-    /* deregister the callback if required */
-    Subscription_unregisterPublishCallback(server, subscription);
 
     /* re-parameterize the subscription */
     UA_BOUNDEDVALUE_SETWBOUNDS(server->config.publishingIntervalLimits,
@@ -50,14 +48,6 @@ setSubscriptionSettings(UA_Server *server, UA_Subscription *subscription,
        maxNotificationsPerPublish > server->config.maxNotificationsPerPublish)
         subscription->notificationsPerPublish = server->config.maxNotificationsPerPublish;
     subscription->priority = priority;
-
-    UA_StatusCode retval = Subscription_registerPublishCallback(server, subscription);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_DEBUG_SESSION(&server->config.logger, subscription->session,
-                             "Subscription %" PRIu32 " | Could not register publish callback with error code %s",
-                             subscription->subscriptionId, UA_StatusCode_name(retval));
-    }
-    return retval;
 }
 
 void
@@ -76,39 +66,44 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
     }
 
     /* Create the subscription */
-    UA_Subscription *newSubscription = UA_Subscription_new();
-    if(!newSubscription) {
+    UA_Subscription *sub= UA_Subscription_new();
+    if(!sub) {
         UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                              "Processing CreateSubscriptionRequest failed");
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
     }
 
-    /* Also assigns the subscription Id */
-    UA_Session_addSubscription(server, session, newSubscription);
-
     /* Set the subscription parameters */
-    newSubscription->publishingEnabled = request->publishingEnabled;
-    UA_StatusCode retval = setSubscriptionSettings(server, newSubscription, request->requestedPublishingInterval,
-                                                   request->requestedLifetimeCount, request->requestedMaxKeepAliveCount,
-                                                   request->maxNotificationsPerPublish, request->priority);
+    setSubscriptionSettings(server, sub, request->requestedPublishingInterval,
+                            request->requestedLifetimeCount, request->requestedMaxKeepAliveCount,
+                            request->maxNotificationsPerPublish, request->priority);
+    sub->publishingEnabled = request->publishingEnabled;
+    sub->currentKeepAliveCount = sub->maxKeepAliveCount; /* set settings first */
 
+    UA_StatusCode retval = Subscription_registerPublishCallback(server, sub);
     if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_DEBUG_SESSION(&server->config.logger, sub->session,
+                             "Subscription %" PRIu32 " | "
+                             "Could not register publish callback with error code %s",
+                             sub->subscriptionId, UA_StatusCode_name(retval));
         response->responseHeader.serviceResult = retval;
+        UA_free(sub);
         return;
     }
 
-    newSubscription->currentKeepAliveCount = newSubscription->maxKeepAliveCount; /* set settings first */
+    /* Also assigns the SubscriptionId */
+    UA_Session_addSubscription(server, session, sub);
 
     /* Prepare the response */
-    response->subscriptionId = newSubscription->subscriptionId;
-    response->revisedPublishingInterval = newSubscription->publishingInterval;
-    response->revisedLifetimeCount = newSubscription->lifeTimeCount;
-    response->revisedMaxKeepAliveCount = newSubscription->maxKeepAliveCount;
+    response->subscriptionId = sub->subscriptionId;
+    response->revisedPublishingInterval = sub->publishingInterval;
+    response->revisedLifetimeCount = sub->lifeTimeCount;
+    response->revisedMaxKeepAliveCount = sub->maxKeepAliveCount;
 
     UA_LOG_INFO_SESSION(&server->config.logger, session, "Subscription %" PRIu32 " | "
                         "Created the Subscription with a publishing interval of %.2f ms",
-                        response->subscriptionId, newSubscription->publishingInterval);
+                        response->subscriptionId, sub->publishingInterval);
 }
 
 void
@@ -124,16 +119,24 @@ Service_ModifySubscription(UA_Server *server, UA_Session *session,
         return;
     }
 
-    UA_StatusCode retval = setSubscriptionSettings(server, sub, request->requestedPublishingInterval,
-                                                   request->requestedLifetimeCount, request->requestedMaxKeepAliveCount,
-                                                   request->maxNotificationsPerPublish, request->priority);
+    /* Store the old publishing interval */
+    UA_Double oldPublishingInterval = sub->publishingInterval;
 
-    if(retval != UA_STATUSCODE_GOOD) {
-        response->responseHeader.serviceResult = retval;
-        return;
-    }
+    /* Change the Subscription settings */
+    setSubscriptionSettings(server, sub, request->requestedPublishingInterval,
+                            request->requestedLifetimeCount, request->requestedMaxKeepAliveCount,
+                            request->maxNotificationsPerPublish, request->priority);
 
-    sub->currentLifetimeCount = 0; /* Reset the subscription lifetime */
+    /* Reset the subscription lifetime */
+    sub->currentLifetimeCount = 0;
+
+    /* Change the repeated callback to the new interval. This cannot fail as the
+     * CallbackId must exist. */
+    if(sub->publishCallbackIsRegistered &&
+       sub->publishingInterval != oldPublishingInterval)
+        changeRepeatedCallbackInterval(server, sub->publishCallbackId, sub->publishingInterval);
+
+    /* Set the response */
     response->revisedPublishingInterval = sub->publishingInterval;
     response->revisedLifetimeCount = sub->lifeTimeCount;
     response->revisedMaxKeepAliveCount = sub->maxKeepAliveCount;

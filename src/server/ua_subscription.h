@@ -289,7 +289,7 @@ UA_Subscription * UA_Subscription_new(void);
 void UA_Subscription_clear(UA_Server *server, UA_Subscription *sub);
 UA_StatusCode Subscription_registerPublishCallback(UA_Server *server, UA_Subscription *sub);
 void Subscription_unregisterPublishCallback(UA_Server *server, UA_Subscription *sub);
-void UA_Subscription_addMonitoredItem(UA_Server *server, UA_Subscription *sub, UA_MonitoredItem *newMon);
+void UA_Subscription_addMonitoredItem(UA_Server *server, UA_Subscription *sub, UA_MonitoredItem *mon);
 UA_MonitoredItem * UA_Subscription_getMonitoredItem(UA_Subscription *sub, UA_UInt32 monitoredItemId);
 
 UA_StatusCode
