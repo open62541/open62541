@@ -398,7 +398,7 @@ UA_Server_addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
 
 UA_StatusCode
 changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
-                                         UA_Double interval_ms) {
+                               UA_Double interval_ms) {
     return UA_Timer_changeRepeatedCallbackInterval(&server->timer, callbackId,
                                                    interval_ms);
 }
