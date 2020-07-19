@@ -116,10 +116,11 @@ UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
 }
 
 void
-UA_Subscription_addMonitoredItem(UA_Server *server, UA_Subscription *sub, UA_MonitoredItem *newMon) {
+UA_Subscription_addMonitoredItem(UA_Server *server, UA_Subscription *sub,
+                                 UA_MonitoredItem *mon) {
     sub->monitoredItemsSize++;
     server->numMonitoredItems++;
-    LIST_INSERT_HEAD(&sub->monitoredItems, newMon, listEntry);
+    LIST_INSERT_HEAD(&sub->monitoredItems, mon, listEntry);
 }
 
 static void
