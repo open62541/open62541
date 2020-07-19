@@ -578,7 +578,7 @@ Subscription_registerPublishCallback(UA_Server *server, UA_Subscription *sub) {
 
     UA_StatusCode retval =
         addRepeatedCallback(server, (UA_ServerCallback)publishCallback,
-                            sub, (UA_UInt32)sub->publishingInterval, &sub->publishCallbackId);
+                            sub, sub->publishingInterval, &sub->publishCallbackId);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
