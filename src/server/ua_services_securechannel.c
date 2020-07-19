@@ -156,20 +156,13 @@ UA_Server_createSecureChannel(UA_Server *server, UA_Connection *connection) {
        !purgeFirstChannelWithoutSession(server))
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
-                "Creating a new SecureChannel");
-
     channel_entry *entry = (channel_entry *)UA_malloc(sizeof(channel_entry));
     if(!entry)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     /* Channel state is closed (0) */
     /* TODO: Use the connection config from the correct network layer */
-    UA_SecureChannel_init(&entry->channel,
-                          &server->config.networkLayers[0].localConnectionConfig);
-    entry->channel.securityToken.channelId = 0;
-    entry->channel.securityToken.createdAt = UA_DateTime_nowMonotonic();
-    entry->channel.securityToken.revisedLifetime = server->config.maxSecurityTokenLifetime;
+    UA_SecureChannel_init(&entry->channel, &server->config.networkLayers[0].localConnectionConfig);
     entry->channel.certificateVerification = &server->config.certificateVerification;
     entry->channel.processOPNHeader = UA_Server_configSecureChannel;
 
