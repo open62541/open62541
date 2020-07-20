@@ -368,6 +368,10 @@ __UA_Client_Service(UA_Client *client, const void *request,
                     const UA_DataType *responseType) {
     /* Initialize. Response is valied in case of aborting. */
     UA_init(response, responseType);
+    /* Renew SecureChannel if necessary */
+    UA_Client_renewSecureChannel(client);
+    if(client->connectStatus != UA_STATUSCODE_GOOD)
+        return;
 
     if(client->channel.state != UA_SECURECHANNELSTATE_OPEN) {
         UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
@@ -390,10 +394,9 @@ __UA_Client_Service(UA_Client *client, const void *request,
     if(retval == UA_STATUSCODE_GOOD) {
         while(!rd.received) {
             if(now > maxDate)
-                retval = UA_STATUSCODE_BADTIMEOUT;
+                retval = UA_STATUSCODE_BADCONNECTIONCLOSED;
             if(retval == UA_STATUSCODE_GOOD) {
-                UA_UInt32 timeout2 = (UA_UInt32) ((maxDate - now) / UA_DATETIME_MSEC);
-                retval = client->config.networkManager->process(client->config.networkManager, timeout2);
+                retval = client->config.networkManager->process(client->config.networkManager, 0);
             }
             if(client->channel.socket == NULL && retval == UA_STATUSCODE_GOOD)
                 retval = UA_STATUSCODE_BADCONNECTIONCLOSED;

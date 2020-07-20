@@ -88,24 +88,6 @@ select_nm_activateSocket(UA_NetworkManager *networkManager, UA_Socket *socket) {
     return UA_STATUSCODE_BADINTERNALERROR;
 }
 
-static UA_StatusCode
-select_nm_removeSocket(UA_NetworkManager *networkManager, UA_Socket *socket) {
-    UA_NetworkManager_selectBased *const internalManager = (UA_NetworkManager_selectBased *const)networkManager;
-    UA_SocketListEntry *socketListEntry, *tmp;
-
-    LIST_FOREACH_SAFE(socketListEntry, &internalManager->sockets, pointers, tmp) {
-        if(socketListEntry->socket == socket) {
-            UA_LOG_DEBUG(networkManager->logger, UA_LOGCATEGORY_NETWORK,
-                         "Removed socket with id %i",
-                         (int)socketListEntry->socket->id);
-            --internalManager->numSockets;
-            LIST_REMOVE(socketListEntry, pointers);
-            UA_free(socketListEntry);
-        }
-    }
-    return UA_STATUSCODE_GOOD;
-}
-
 static UA_Int32
 setFDSet(UA_NetworkManager_selectBased *networkManager, fd_set *readfdset, fd_set *writefdset) {
     FD_ZERO(readfdset);
@@ -205,53 +187,6 @@ select_nm_process(UA_NetworkManager *networkManager, UA_UInt32 timeout) {
 }
 
 static UA_StatusCode
-select_nm_processSocket(UA_NetworkManager *networkManager, UA_UInt32 timeout,
-                        UA_Socket *sock) {
-    if(networkManager == NULL || sock == NULL)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    fd_set readfdset;
-    FD_ZERO(&readfdset);
-    fd_set writefdset;
-    FD_ZERO(&writefdset);
-
-    if(sock->waitForWriteActivity)
-        UA_fd_set((UA_SOCKET)sock->id, &writefdset);
-    if(sock->waitForReadActivity)
-        UA_fd_set((UA_SOCKET)sock->id, &readfdset);
-
-    long int secs = (long int)timeout / 1000;
-    long int microsecs = ((long int)timeout * 1000) % 1000000;
-    struct timeval tmptv = {secs, microsecs};
-
-    int resultsize = UA_select((UA_Int32)(sock->id + 1), &readfdset, &writefdset, NULL, &tmptv);
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(resultsize == 1) {
-        if(sock->mayDelete(sock)) {
-            sock->clean(sock);
-            select_nm_removeSocket(networkManager, sock);
-            return UA_STATUSCODE_BADCONNECTIONCLOSED;
-        }
-        UA_Boolean readActivity = UA_fd_isset((UA_SOCKET)sock->id, &readfdset);
-        UA_Boolean writeActivity = UA_fd_isset((UA_SOCKET)sock->id, &writefdset);
-        retval = sock->activity(sock, readActivity, writeActivity);
-        if (retval != UA_STATUSCODE_GOOD) {
-            sock->close(sock);
-            return retval;
-        }
-    }
-    if(resultsize == 0) {
-        UA_LOG_ERROR(networkManager->logger, UA_LOGCATEGORY_NETWORK, "Socket select timed out");
-        return UA_STATUSCODE_BADTIMEOUT;
-    }
-    if(resultsize == -1) {
-        UA_LOG_SOCKET_ERRNO_WRAP(UA_LOG_ERROR(networkManager->logger, UA_LOGCATEGORY_NETWORK,
-                                              "Socket select failed with %s", errno_str));
-        retval = UA_STATUSCODE_BADINTERNALERROR;
-    }
-    return retval;
-}
-
-static UA_StatusCode
 select_nm_start(UA_NetworkManager *networkManager) {
     if(networkManager == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -341,7 +276,6 @@ UA_SelectBasedNetworkManager(const UA_Logger *logger, UA_NetworkManager **p_netw
     networkManager->baseManager.allocateSocket = select_nm_allocateSocket;
     networkManager->baseManager.activateSocket = select_nm_activateSocket;
     networkManager->baseManager.process = select_nm_process;
-    networkManager->baseManager.processSocket = select_nm_processSocket;
     networkManager->baseManager.start = select_nm_start;
     networkManager->baseManager.shutdown = select_nm_shutdown;
     networkManager->baseManager.free = select_nm_free;

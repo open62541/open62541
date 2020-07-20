@@ -842,7 +842,7 @@ createSessionAsync(UA_Client *client) {
 
 static UA_StatusCode
 on_socket_close(UA_Socket *sock) {
-    UA_SecureChannel_detachSocket(sock->context);
+    UA_SecureChannel_detachSocket((UA_SecureChannel *) sock->context);
     return UA_STATUSCODE_GOOD;
 }
 

@@ -46,17 +46,6 @@ struct UA_NetworkManager {
     UA_StatusCode (*process)(UA_NetworkManager *networkManager, UA_UInt32 timeout);
 
     /**
-     * Checks if the supplied socket has pending activity and calls the activity callback chain
-     * if there is activity.
-     *
-     * \param networkManager The NetworkManager to perform the operation on.
-     * \param timeout The processSocket function will wait for timeout milliseconds or
-     *                until the socket is active.
-     * \return
-     */
-    UA_StatusCode (*processSocket)(UA_NetworkManager *networkManager, UA_UInt32 timeout, UA_Socket *sock);
-
-    /**
      * Starts the network manager.
      * Performs initial setup and needs to be called before using the network manager.
      * \param networkManager The NetworkManager to perform the operation on.
