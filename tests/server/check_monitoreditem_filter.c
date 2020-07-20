@@ -95,8 +95,8 @@ static void setup(void) {
     retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_Socket_recv = client->channel.socket->recv;
-    client->channel.socket->recv = UA_Socket_recvTesting;
+    UA_Socket_activity = client->channel.socket->activity;
+    client->channel.socket->activity = UA_Socket_activityTesting;
 
     UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
     request.requestedMaxKeepAliveCount = 100;

@@ -143,10 +143,10 @@ START_TEST(Client_no_connection) {
 
     // Process once, so the socket is created so we can set the pseudo result
     client->config.networkManager->process(client->config.networkManager, 0);
-    UA_Socket_recv = client->channel.socket->recv;
-    client->channel.socket->recv = UA_Socket_recvTesting;
+    UA_Socket_activity = client->channel.socket->activity;
+    client->channel.socket->activity = UA_Socket_activityTesting;
     //simulating unconnected server
-    UA_Socket_recvTesting_result = UA_STATUSCODE_BADCONNECTIONCLOSED;
+    UA_Socket_activityTesting_result = UA_STATUSCODE_BADCONNECTIONCLOSED;
     UA_Server_run_iterate(server, false);
     retval = UA_Client_run_iterate(client, 0);  /* Open connection */
     UA_Server_run_iterate(server, false);

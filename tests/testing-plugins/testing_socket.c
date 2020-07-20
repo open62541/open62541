@@ -91,28 +91,9 @@ UA_StatusCode UA_Socket_activityTesting_result = UA_STATUSCODE_GOOD;
 UA_StatusCode UA_Socket_recvTesting_result = UA_STATUSCODE_GOOD;
 
 UA_UInt32 UA_Socket_activitySleepDuration;
-UA_UInt32 UA_Socket_recvSleepDuration;
 
 UA_StatusCode
 (*UA_Socket_activity)(UA_Socket *sock, UA_Boolean readActivity, UA_Boolean writeActivity);
-
-UA_StatusCode
-(*UA_Socket_recv)(UA_Socket *socket, UA_ByteString *buffer, UA_UInt32 *timeout);
-
-UA_StatusCode
-UA_Socket_recvTesting(UA_Socket *socket, UA_ByteString *buffer, UA_UInt32 *timeout) {
-    if(UA_Socket_recvTesting_result != UA_STATUSCODE_GOOD) {
-        UA_StatusCode temp = UA_Socket_recvTesting_result;
-        UA_Socket_recvTesting_result = UA_STATUSCODE_GOOD;
-        UA_fakeSleep(*timeout);
-        UA_Socket_recvSleepDuration = 0;
-        return temp;
-    }
-
-    UA_fakeSleep(UA_Socket_recvSleepDuration);
-    UA_Socket_recvSleepDuration = 0;
-    return UA_Socket_recv(socket, buffer, timeout);
-}
 
 UA_StatusCode
 UA_Socket_activityTesting(UA_Socket *sock, UA_Boolean readActivity, UA_Boolean writeActivity) {

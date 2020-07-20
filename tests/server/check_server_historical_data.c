@@ -129,8 +129,8 @@ static void setup(void) {
         exit(1);
     }
 
-    UA_Socket_recv = client->channel.socket->recv;
-    client->channel.socket->recv = UA_Socket_recvTesting;
+    UA_Socket_activity = client->channel.socket->activity;
+    client->channel.socket->activity = UA_Socket_activityTesting;
 }
 
 static void teardown(void) {

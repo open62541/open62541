@@ -218,9 +218,6 @@ START_TEST(Server_register_periodic) {
 
     clientRegisterRepeated = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(clientRegisterRepeated));
-    UA_NetworkManager_process = clientRegisterRepeated->config.networkManager->process;
-    clientRegisterRepeated->config.networkManager->process =
-        UA_NetworkManager_processTesting;
 
     ck_assert(clientRegisterRepeated != NULL);
     // periodic register every minute, first register immediately

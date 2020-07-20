@@ -141,8 +141,8 @@ static void setup(void) {
     retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_str_eq(UA_StatusCode_name(retval), UA_StatusCode_name(UA_STATUSCODE_GOOD));
 
-    UA_Socket_recv = client->channel.socket->recv;
-    client->channel.socket->recv = UA_Socket_recvTesting;
+    UA_Socket_activity = client->channel.socket->activity;
+    client->channel.socket->activity = UA_Socket_activityTesting;
 }
 
 static void

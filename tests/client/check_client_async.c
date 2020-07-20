@@ -74,8 +74,8 @@ START_TEST(Client_highlevel_async_readValue) {
         UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-        UA_Socket_recv = client->channel.socket->recv;
-        client->channel.socket->recv = UA_Socket_recvTesting;
+        UA_Socket_activity = client->channel.socket->activity;
+        client->channel.socket->activity = UA_Socket_activityTesting;
 
         UA_UInt16 asyncCounter = 0;
 
@@ -94,7 +94,7 @@ START_TEST(Client_highlevel_async_readValue) {
         ck_assert_uint_eq(asyncCounter, 1);
 
         /* Simulate network cable unplugged (no response from server) */
-        UA_Socket_recvTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+        UA_Socket_activityTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
 
         UA_Client_disconnect(client);
         UA_Client_delete(client);
@@ -151,8 +151,8 @@ START_TEST(Client_read_async_timed) {
         UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-        UA_Socket_recv = client->channel.socket->recv;
-        client->channel.socket->recv = UA_Socket_recvTesting;
+        UA_NetworkManager_process = client->config.networkManager->process;
+        client->config.networkManager->process = UA_NetworkManager_processTesting;
 
         UA_UInt16 asyncCounter = 0;
 
@@ -180,7 +180,7 @@ START_TEST(Client_read_async_timed) {
         ck_assert_uint_eq(asyncCounter, 1);
 
         /* Simulate network cable unplugged (no response from server) */
-        UA_Socket_recvTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+        UA_NetworkManager_processTesting_result = UA_STATUSCODE_BADCONNECTIONCLOSED;
 
         retval = __UA_Client_AsyncServiceEx(client, &rr,
                 &UA_TYPES[UA_TYPES_READREQUEST],
@@ -214,8 +214,8 @@ START_TEST(Client_connectivity_check) {
         UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-        UA_Socket_recv = client->channel.socket->recv;
-        client->channel.socket->recv = UA_Socket_recvTesting;
+        UA_Socket_activity = client->channel.socket->activity;
+        client->channel.socket->activity = UA_Socket_activityTesting;
 
         inactivityCallbackTriggered = false;
 
