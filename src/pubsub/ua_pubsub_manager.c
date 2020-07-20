@@ -4,8 +4,6 @@
  *
  * Copyright (c) 2017-2019 Fraunhofer IOSB (Author: Andreas Ebner)
  * Copyright (c) 2018 Fraunhofer IOSB (Author: Julius Pfrommer)
- * Copyright (c) 2020 Yannick Wallerer, Siemens AG
- * Copyright (c) 2020 Thomas Fischer, Siemens AG
  */
 
 #include "server/ua_server_internal.h"

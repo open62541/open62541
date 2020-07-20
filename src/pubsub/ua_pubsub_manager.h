@@ -22,9 +22,6 @@ typedef struct UA_PubSubManager{
     TAILQ_HEAD(UA_ListOfPubSubConnection, UA_PubSubConnection) connections;
     size_t publishedDataSetsSize;
     TAILQ_HEAD(UA_ListOfPublishedDataSet, UA_PublishedDataSet) publishedDataSets;
-#ifdef UA_ENABLE_PUBSUB_CONFIG
-    UA_String pubSubConfigFilename;
-#endif
 } UA_PubSubManager;
 
 void
