@@ -57,8 +57,8 @@ START_TEST(SecureChannel_timeout_max) {
 
     UA_NetworkManager_process = client->config.networkManager->process;
     client->config.networkManager->process = UA_NetworkManager_processTesting;
-    UA_Socket_recv = client->channel.socket->recv;
-    client->channel.socket->recv = UA_Socket_recvTesting;
+    UA_Socket_activity = client->channel.socket->activity;
+    client->channel.socket->activity = UA_Socket_activityTesting;
 
     UA_ClientConfig *cconfig = UA_Client_getConfig(client);
     UA_fakeSleep(cconfig->secureChannelLifeTime);

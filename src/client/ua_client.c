@@ -383,17 +383,25 @@ __UA_Client_Service(UA_Client *client, const void *request,
     UA_StatusCode retval = __UA_Client_AsyncServiceEx(client, request, requestType,
                                                       sync_response_callback, responseType, &rd,
                                                       &rd.requestId, 0);
+    UA_DateTime now = UA_DateTime_nowMonotonic();
+    UA_DateTime maxDate = now + ((UA_DateTime)client->config.timeout * UA_DATETIME_MSEC);
 
     UA_ResponseHeader *respHeader = (UA_ResponseHeader *) response;
     if(retval == UA_STATUSCODE_GOOD) {
         while(!rd.received) {
-            retval = client->config.networkManager->process(client->config.networkManager, 0);
+            if(now > maxDate)
+                retval = UA_STATUSCODE_BADTIMEOUT;
+            if(retval == UA_STATUSCODE_GOOD) {
+                UA_UInt32 timeout2 = (UA_UInt32) ((maxDate - now) / UA_DATETIME_MSEC);
+                retval = client->config.networkManager->process(client->config.networkManager, timeout2);
+            }
+            if(client->channel.socket == NULL && retval == UA_STATUSCODE_GOOD)
+                retval = UA_STATUSCODE_BADCONNECTIONCLOSED;
             if(retval != UA_STATUSCODE_GOOD) {
                 // We need to clean up the async call here, since it was not processed yet,
                 // and the rd is not valid anymore as soon as we return.
                 AsyncServiceCall *ac = NULL;
-                LIST_FOREACH(ac, &client->asyncServiceCalls, pointers)
-                    if(ac->requestId == rd.requestId)
+                LIST_FOREACH(ac, &client->asyncServiceCalls, pointers)if(ac->requestId == rd.requestId)
                         break;
                 if(ac != NULL) {
                     LIST_REMOVE(ac, pointers);
@@ -403,6 +411,7 @@ __UA_Client_Service(UA_Client *client, const void *request,
                 respHeader->serviceResult = retval;
                 return;
             }
+            now = UA_DateTime_nowMonotonic();
         }
     } else if(retval == UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED) {
         respHeader->serviceResult = UA_STATUSCODE_BADREQUESTTOOLARGE;

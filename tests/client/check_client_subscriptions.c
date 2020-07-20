@@ -703,8 +703,8 @@ START_TEST(Client_subscription_timeout) {
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_Client_recv = client->connection.recv;
-    client->connection.recv = UA_Client_recvTesting;
+    UA_Socket_activity = client->channel.socket->activity;
+    client->channel.socket->activity = UA_Socket_activityTesting;
 
     UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
     UA_CreateSubscriptionResponse response = UA_Client_Subscriptions_create(client, request,
@@ -971,8 +971,8 @@ START_TEST(Client_subscription_reconnect) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(sessState, UA_SESSIONSTATE_ACTIVATED);
 
-    UA_Client_recv = client->connection.recv;
-    client->connection.recv = UA_Client_recvTesting;
+    UA_Socket_activity = client->channel.socket->activity;
+    client->channel.socket->activity = UA_Socket_activityTesting;
 
     UA_Client_run_iterate(client, 1);
 

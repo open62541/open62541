@@ -44,7 +44,6 @@ setup_secureChannel(void) {
     TestingPolicy(&dummyPolicy, dummyCertificate, &fCalled, &keySizes);
     UA_SecureChannel_init(&testChannel, &UA_SecureChannelConfig_default);
     UA_SecureChannel_setSecurityPolicy(&testChannel, &dummyPolicy, &dummyCertificate);
-
     dummySocket = createDummySocket(&sentData);
     UA_SecureChannel_attachSocket(&testChannel, &dummySocket);
 
@@ -476,18 +475,19 @@ START_TEST(SecureChannel_sendSymmetricMessage_invalidParameters) {
     ck_assert_msg(retval != UA_STATUSCODE_GOOD, "Expected failure");
 } END_TEST
 
-static void
-process_callback(void *application, UA_SecureChannel *channel,
-                 UA_MessageType messageType, UA_UInt32 requestId,
-                 UA_ByteString *message) {
+static UA_StatusCode
+process_callback(UA_SecureChannel *channel, UA_MessageType messageType,
+                 UA_UInt32 requestId, UA_ByteString *message) {
     ck_assert_ptr_ne(message, NULL);
-    ck_assert_ptr_ne(application, NULL);
-    if(message == NULL || application == NULL)
-        return;
+    ck_assert_ptr_ne(channel->application, NULL);
+    if(message == NULL || channel->application == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
     ck_assert_uint_ne(message->length, 0);
     ck_assert_ptr_ne(message->data, NULL);
-    int *chunks_processed = (int *)application;
+    int *chunks_processed = (int *)channel->application;
     ++*chunks_processed;
+
+    return UA_STATUSCODE_GOOD;
 }
 
 START_TEST(SecureChannel_assemblePartialChunks) {
@@ -498,18 +498,21 @@ START_TEST(SecureChannel_assemblePartialChunks) {
                              "\x10\x00\x00\x00@\x00\x00\x00\x00\x00\x00\xff\xff\xff\xff";
     buffer.length = 32;
 
-    UA_StatusCode retval = UA_SecureChannel_processBuffer(&buffer, &testChannel);
+    testChannel.processMessageCallback = process_callback;
+    testChannel.application = &chunks_processed;
+
+    UA_StatusCode retval = UA_SecureChannel_processBuffer(&buffer, &dummySocket);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected success");
     ck_assert_int_eq(chunks_processed, 1);
 
     buffer.length = 16;
 
-        UA_SecureChannel_processBuffer(&buffer, &testChannel);
+    UA_SecureChannel_processBuffer(&buffer, &dummySocket);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected success");
     ck_assert_int_eq(chunks_processed, 1);
 
     buffer.data = &buffer.data[16];
-        UA_SecureChannel_processBuffer(&buffer, &testChannel);
+    UA_SecureChannel_processBuffer(&buffer, &dummySocket);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected success");
     ck_assert_int_eq(chunks_processed, 2);
 
@@ -521,20 +524,20 @@ START_TEST(SecureChannel_assemblePartialChunks) {
                              "\x10\x00\x00\x00@\x00\x00\x00\x00\x00\x00\xff\xff\xff\xff";
     buffer.length = 48;
 
-        UA_SecureChannel_processBuffer(&buffer, &testChannel);
+    UA_SecureChannel_processBuffer(&buffer, &dummySocket);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected success");
     ck_assert_int_eq(chunks_processed, 3);
 
     buffer.data = &buffer.data[48];
     buffer.length = 32;
 
-        UA_SecureChannel_processBuffer(&buffer, &testChannel);
+    UA_SecureChannel_processBuffer(&buffer, &dummySocket);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected success");
     ck_assert_int_eq(chunks_processed, 4);
 
     buffer.data = &buffer.data[32];
     buffer.length = 16;
-        UA_SecureChannel_processBuffer(&buffer, &testChannel);
+    UA_SecureChannel_processBuffer(&buffer, &dummySocket);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected success");
     ck_assert_int_eq(chunks_processed, 5);
 } END_TEST

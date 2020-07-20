@@ -72,9 +72,12 @@ createDummySocket(UA_ByteString *verificationBuffer) {
     sock.mayDelete = dummyMayDelete;
     sock.id = 42;
     sock.send = dummySend;
-    if(verificationBuffer != NULL)
-        sock.socketConfig.recvBufferSize = (UA_UInt32)verificationBuffer->length;
-    sock.socketConfig.sendBufferSize = (UA_UInt32)sendBufferLength;
+    if(verificationBuffer != NULL) {
+        sock.socketConfig.recvBufferSize =
+                verificationBuffer->length != 0 ? (UA_UInt32) verificationBuffer->length : (UA_UInt32) sendBufferLength;
+    } else
+        sock.socketConfig.recvBufferSize = (UA_UInt32) sendBufferLength;
+    sock.socketConfig.sendBufferSize = (UA_UInt32) sendBufferLength;
     sock.acquireSendBuffer = dummyGetSendBuffer;
     sock.releaseSendBuffer = dummyReleaseSendBuffer;
     sock.activity = dummyActivity;
