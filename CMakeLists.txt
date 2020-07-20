@@ -250,16 +250,8 @@ option(UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS "Enable PubSub informationmodel
 mark_as_advanced(UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS)
 option(UA_ENABLE_PUBSUB_DELTAFRAMES "Enable sending of delta frames with only the changes" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_DELTAFRAMES)
-
-#PubSub config file
-option(UA_ENABLE_PUBSUB_CONFIG "Enable loading PubSub Config from file extension" OFF)
-mark_as_advanced(UA_ENABLE_PUBSUB_CONFIG) 
-if(UA_ENABLE_PUBSUB_CONFIG)
-    if(NOT UA_ENABLE_PUBSUB)
-        message(FATAL_ERROR "PubSub needs to be enabled")
-    endif()
-endif()
-
+option(UA_ENABLE_PUBSUB_FILE_CONFIG "Enable loading PubSub Config from file extension" OFF)
+mark_as_advanced(UA_ENABLE_PUBSUB_FILE_CONFIG) 
 #RT and Transport PubSub settings
 option(UA_ENABLE_PUBSUB_ETH_UADP "Enable publish/subscribe UADP over Ethernet" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_ETH_UADP)
@@ -295,6 +287,12 @@ if(UA_ENABLE_PUBSUB_INFORMATIONMODEL)
     endif()
     if(UA_NAMESPACE_ZERO STREQUAL "MINIMAL")
         message(FATAL_ERROR "PubSub information model representation cannot be used with MINIMAL namespace zero.")
+    endif()
+endif()
+
+if(UA_ENABLE_PUBSUB_FILE_CONFIG)
+    if(NOT UA_ENABLE_PUBSUB)
+        message(FATAL_ERROR "PubSub needs to be enabled")
     endif()
 endif()
 

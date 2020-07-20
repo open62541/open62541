@@ -80,10 +80,12 @@ _UA_BEGIN_DECLS
  * **UA_ENABLE_PUBSUB_DELTAFRAMES**
  *  The PubSub messages differentiate between keyframe (all published values contained) and deltaframe (only changed values contained) messages.
  *  Deltaframe messages creation consumes some additional ressources and can be disabled with this flag. Disabled by default.
- *  Compile the human-readable name of the StatusCodes into the binary. Disabled by default.
+ *  Compile the human-readable name of the StatusCodes into the binary. Disabled by default.* 
+ * **UA_ENABLE_PUBSUB_FILE_CONFIG**
+ *  Enable loading OPC UA PubSub configuration from File/ByteString. Enabling PubSub informationmodel methods also will add a method to the Publish/Subscribe object which allows configuring PubSub at runtime.
  * **UA_ENABLE_PUBSUB_INFORMATIONMODEL**
- *  Enable the information model representation of the PubSub configuration. For more details take a look at the following section `PubSub Information Model Representation`. Disabled by default.
- *
+ *  Enable the information model representation of the PubSub configuration. For more details take a look at the following section `PubSub Information Model Representation`. Disabled by default. 
+ * 
  * PubSub Information Model Representation
  * ---------------------------------------
  * .. _pubsub_informationmodel:
