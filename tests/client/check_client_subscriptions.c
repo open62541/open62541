@@ -629,6 +629,14 @@ START_TEST(Client_subscription_keepAlive) {
 }
 END_TEST
 
+UA_Boolean (*may_delete_saved)(UA_Socket *sock);
+
+        static UA_Boolean
+may_delete(UA_Socket *sock) {
+    sock->mayDelete = may_delete_saved;
+    return true;
+}
+
 START_TEST(Client_subscription_connectionClose) {
     UA_Client *client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
@@ -661,9 +669,14 @@ START_TEST(Client_subscription_connectionClose) {
 
     /* Simulate BADCONNECTIONCLOSE */
     UA_Socket_activityTesting_result = UA_STATUSCODE_BADCONNECTIONCLOSED;
+    may_delete_saved = client->channel.socket->mayDelete;
+    client->channel.socket->mayDelete = may_delete;
 
     /* Reconnect a new SecureChannel and recover the Session */
     retval = UA_Client_run_iterate(client, 1);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONNECTIONCLOSED);
+    if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
+        retval = UA_Client_connectAsync(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_SessionState ss;
     UA_Client_getState(client, NULL, &ss, NULL);
@@ -879,8 +892,8 @@ START_TEST(Client_subscription_async_sub) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(sessState, UA_SESSIONSTATE_ACTIVATED);
 
-    UA_Socket_activity = client->channel.socket->activity;
-    client->channel.socket->activity = UA_Socket_activityTesting;
+    UA_NetworkManager_process = client->config.networkManager->process;
+    client->config.networkManager->process = UA_NetworkManager_processTesting;
 
     UA_Client_run_iterate(client, 1);
 
@@ -934,14 +947,14 @@ START_TEST(Client_subscription_async_sub) {
 
     notificationReceived = false;
     /* Simulate network cable unplugged (no response from server) */
-    UA_Socket_activityTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+    UA_NetworkManager_processTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
     UA_Client_run_iterate(client, (UA_UInt16)(publishingInterval + 1));
     ck_assert_uint_eq(notificationReceived, false);
     ck_assert_uint_eq(sessState, UA_SESSIONSTATE_ACTIVATED);
 
     /* Simulate network cable unplugged (no response from server) */
     ck_assert_uint_eq(inactivityCallbackCalled, false);
-    UA_Socket_activityTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+    UA_NetworkManager_processTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
     UA_Client_run_iterate(client, (UA_UInt16)cc->timeout);
     ck_assert_uint_eq(inactivityCallbackCalled, true);
     ck_assert_uint_eq(sessState, UA_SESSIONSTATE_ACTIVATED);

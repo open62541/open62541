@@ -115,6 +115,7 @@ struct UA_Client {
 
     /* Overall connection status */
     UA_StatusCode connectStatus;
+    UA_Boolean socketConnectPending;
 
     /* Old status to notify only changes */
     UA_SecureChannelState oldChannelState;

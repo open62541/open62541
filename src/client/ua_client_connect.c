@@ -866,6 +866,7 @@ link_sock_and_channel(UA_Socket *sock) {
     sock->context = &client->channel;
     client->channel.certificateVerification = &client->config.certificateVerification;
     UA_SecureChannel_attachSocket(&client->channel, sock);
+    client->socketConnectPending = false;
 
     client->channel.application = client;
     client->channel.processMessageCallback = UA_Client_processServiceResponse;
@@ -1034,20 +1035,20 @@ initConnect(UA_Client *client, const char *endpointUrl) {
     UA_String_clear(&client->endpointUrl);
     client->endpointUrl = UA_STRING_ALLOC(endpointUrl);
 
-    UA_ClientSocketConfig clientSocketConfig = client->config.clientSocketConfig;
+    if(client->channel.socket == NULL && !client->socketConnectPending) {
+        UA_ClientSocketConfig clientSocketConfig = client->config.clientSocketConfig;
 
-    if(clientSocketConfig.baseConfig.networkManager == NULL) {
-        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                    "SocketConfig has no NetworkManager configured. Using the client networkmanager");
-        clientSocketConfig.baseConfig.networkManager = client->config.networkManager;
-    }
+        if(clientSocketConfig.baseConfig.networkManager == NULL) {
+            UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                        "SocketConfig has no NetworkManager configured. Using the client networkmanager");
+            clientSocketConfig.baseConfig.networkManager = client->config.networkManager;
+        }
 
-    if(client->channel.socket == NULL) {
         UA_StatusCode retval = clientSocketConfig.createSocket(client, &clientSocketConfig,
                                                                client->endpointUrl, UA_Client_openSocket);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
-        return client->connectStatus;
+        client->socketConnectPending = true;
     }
 
     return client->connectStatus;
@@ -1121,6 +1122,8 @@ closeSecureChannel(UA_Client *client) {
 
     /* Clean up */
     client->channel.renewState = UA_SECURECHANNELRENEWSTATE_NORMAL;
+    if(client->channel.socket != NULL)
+        client->socketConnectPending = false;
     UA_SecureChannel_close(&client->channel);
 
     /* Set the Session to "Created" if it was "Activated" */

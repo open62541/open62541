@@ -785,6 +785,8 @@ UA_Server_run_shutdown(UA_Server *server) {
     UA_WorkQueue_cleanup(&server->workQueue);
 
     UA_Array_delete(server->discoveryUrls, server->discoveryUrlsSize, &UA_TYPES[UA_TYPES_STRING]);
+    server->discoveryUrls = NULL;
+    server->discoveryUrlsSize = 0;
 
     return UA_STATUSCODE_GOOD;
 }

@@ -31,6 +31,7 @@ static void
 UA_Client_init(UA_Client* client) {
     UA_SecureChannel_init(&client->channel, &client->config.secureChannelConfig);
     client->connectStatus = UA_STATUSCODE_GOOD;
+    client->socketConnectPending = false;
     UA_Timer_init(&client->timer);
     notifyClientState(client);
 }
@@ -647,6 +648,8 @@ UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout) {
         UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                        "Could not process network manager with StatusCode %s",
                        UA_StatusCode_name(retval));
+        closeSecureChannel(client);
+        client->connectStatus = retval;
     }
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
