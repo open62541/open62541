@@ -259,8 +259,9 @@ findDataType(const UA_Node *node, const UA_DataTypeArray *customTypes) {
 
 static UA_StatusCode
 getStructureDefinition(const UA_DataType *type, UA_StructureDefinition *def) {
-    def->defaultEncodingId =
-        UA_NODEID_NUMERIC(type->typeId.namespaceIndex, type->binaryEncodingId);
+    UA_StatusCode retval = UA_NodeId_copy(&type->binaryEncodingId, &def->defaultEncodingId);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
     switch(type->typeKind) {
         case UA_DATATYPEKIND_STRUCTURE:
             def->structureType = UA_STRUCTURETYPE_STRUCTURE;
@@ -278,19 +279,19 @@ getStructureDefinition(const UA_DataType *type, UA_StructureDefinition *def) {
             return UA_STATUSCODE_BADENCODINGERROR;
     }
     def->fieldsSize = type->membersSize;
-    def->fields =
-        (UA_StructureField *)UA_calloc(def->fieldsSize, sizeof(UA_StructureField));
+    def->fields = (UA_StructureField *)UA_calloc(def->fieldsSize, sizeof(UA_StructureField));
     if(!def->fields) {
+        UA_NodeId_clear(&def->defaultEncodingId);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
+
     const UA_DataType *typelists[2] = {UA_TYPES, &type[-type->typeIndex]};
     for(size_t cnt = 0; cnt < def->fieldsSize; cnt++) {
         const UA_DataTypeMember *m = &type->members[cnt];
         def->fields[cnt].valueRank = UA_TRUE == m->isArray ? 1 : -1;
         def->fields[cnt].arrayDimensions = NULL;
         def->fields[cnt].arrayDimensionsSize = 0;
-        def->fields[cnt].name =
-            UA_STRING((char *)(uintptr_t)m->memberName);
+        def->fields[cnt].name = UA_STRING((char *)(uintptr_t)m->memberName);
         def->fields[cnt].description.locale = UA_STRING_NULL;
         def->fields[cnt].description.text = UA_STRING_NULL;
         def->fields[cnt].dataType = typelists[!m->namespaceZero][m->memberTypeIndex].typeId;

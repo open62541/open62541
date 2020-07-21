@@ -200,8 +200,8 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel,
     hideBytesAsym(channel, &buf_pos, &buf_end);
 
     /* Encode the message type and content */
-    UA_NodeId typeId = UA_NODEID_NUMERIC(0, contentType->binaryEncodingId);
-    retval |= UA_encodeBinary(&typeId, &UA_TYPES[UA_TYPES_NODEID], &buf_pos, &buf_end, NULL, NULL);
+    retval |= UA_encodeBinary(&contentType->binaryEncodingId, &UA_TYPES[UA_TYPES_NODEID],
+                              &buf_pos, &buf_end, NULL, NULL);
     retval |= UA_encodeBinary(content, contentType, &buf_pos, &buf_end, NULL, NULL);
     if(retval != UA_STATUSCODE_GOOD) {
         connection->releaseSendBuffer(connection, &buf);
@@ -462,8 +462,8 @@ UA_SecureChannel_sendSymmetricMessage(UA_SecureChannel *channel, UA_UInt32 reque
     UA_assert(mc.buf_pos == &mc.messageBuffer.data[UA_SECURE_MESSAGE_HEADER_LENGTH]);
     UA_assert(mc.buf_end <= &mc.messageBuffer.data[mc.messageBuffer.length]);
 
-    UA_NodeId typeId = UA_NODEID_NUMERIC(0, payloadType->binaryEncodingId);
-    retval = UA_MessageContext_encode(&mc, &typeId, &UA_TYPES[UA_TYPES_NODEID]);
+    retval = UA_MessageContext_encode(&mc, &payloadType->binaryEncodingId,
+                                      &UA_TYPES[UA_TYPES_NODEID]);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 

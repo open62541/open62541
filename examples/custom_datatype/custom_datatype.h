@@ -52,6 +52,9 @@ static UA_DataTypeMember Point_members[3] = {
 static const UA_DataType PointType = {
         UA_TYPENAME("Point")                /* .tyspeName */
         {1, UA_NODEIDTYPE_NUMERIC, {4242}}, /* .typeId */
+        {1, UA_NODEIDTYPE_NUMERIC, {Point_binary_encoding_id}}, /* .binaryEncodingId, the numeric
+                                            identifier used on the wire (the
+                                            namespaceindex is from .typeId) */
         sizeof(Point),                      /* .memSize */
         0,                                  /* .typeIndex, in the array of custom types */
         UA_DATATYPEKIND_STRUCTURE,          /* .typeKind */
@@ -59,9 +62,6 @@ static const UA_DataType PointType = {
         false,                              /* .overlayable (depends on endianness and
                                             the absence of padding) */
         3,                                  /* .membersSize */
-        Point_binary_encoding_id,           /* .binaryEncodingId, the numeric
-                                            identifier used on the wire (the
-                                            namespaceindex is from .typeId) */
         Point_members
 };
 
@@ -96,6 +96,9 @@ static UA_DataTypeMember Measurements_members[2] = {
 static const UA_DataType MeasurementType = {
     UA_TYPENAME("Measurement")              /* .tyspeName */
     {1, UA_NODEIDTYPE_NUMERIC, {4443}},     /* .typeId */
+    {1, UA_NODEIDTYPE_NUMERIC, {Measurement_binary_encoding_id}}, /* .binaryEncodingId, the numeric
+                                            identifier used on the wire (the
+                                            namespaceindex is from .typeId) */
     sizeof(Measurements),                   /* .memSize */
     1,                                      /* .typeIndex, in the array of custom types */
     UA_DATATYPEKIND_STRUCTURE,              /* .typeKind */
@@ -103,9 +106,6 @@ static const UA_DataType MeasurementType = {
     false,                                  /* .overlayable (depends on endianness and
                                             the absence of padding) */
     2,                                      /* .membersSize */
-    Measurement_binary_encoding_id,         /* .binaryEncodingId, the numeric
-                                            identifier used on the wire (the
-                                            namespaceindex is from .typeId) */
     Measurements_members
 };
 
@@ -159,6 +159,9 @@ static UA_DataTypeMember Opt_members[3] = {
 static const UA_DataType OptType = {
     UA_TYPENAME("Opt")                  /* .typeName */
     {1, UA_NODEIDTYPE_NUMERIC, {4644}}, /* .typeId */
+    {1, UA_NODEIDTYPE_NUMERIC, {Opt_binary_encoding_id}}, /* .binaryEncodingId, the numeric
+                                        identifier used on the wire (the
+                                        namespaceindex is from .typeId) */
     sizeof(Opt),                        /* .memSize */
     2,                                  /* .typeIndex, in the array of custom types */
     UA_DATATYPEKIND_OPTSTRUCT,          /* .typeKind */
@@ -166,9 +169,6 @@ static const UA_DataType OptType = {
     false,                              /* .overlayable (depends on endianness and
                                         the absence of padding) */
     3,                                  /* .membersSize */
-    Opt_binary_encoding_id,             /* .binaryEncodingId, the numeric
-                                        identifier used on the wire (the
-                                        namespaceindex is from .typeId) */
     Opt_members
 };
 
@@ -207,6 +207,9 @@ static UA_DataTypeMember Uni_members[2] = {
 static const UA_DataType UniType = {
     UA_TYPENAME("Uni")                      /* .typeName */
     {1, UA_NODEIDTYPE_NUMERIC, {4845}},     /* .typeId */
+    {1, UA_NODEIDTYPE_NUMERIC, {Uni_binary_encoding_id}}, /* .binaryEncodingId, the numeric
+                                            identifier used on the wire (the
+                                            namespaceindex is from .typeId) */
     sizeof(Uni),                            /* .memSize */
     3,                                      /* .typeIndex, in the array of custom types */
     UA_DATATYPEKIND_UNION,                  /* .typeKind */
@@ -214,8 +217,5 @@ static const UA_DataType UniType = {
     false,                                  /* .overlayable (depends on endianness and
                                             the absence of padding) */
     2,                                      /* .membersSize */
-    Uni_binary_encoding_id,                 /* .binaryEncodingId, the numeric
-                                            identifier used on the wire (the
-                                            namespaceindex is from .typeId) */
     Uni_members
 };
