@@ -128,7 +128,6 @@ int main(int argc, char** argv) {
         UA_ByteString configuration = loadFile(argv[2]);
         UA_PubSubManager_loadPubSubConfigFromByteString(server, configuration);
     }
-
 #endif
 
     /* 5. start server */
@@ -139,14 +138,18 @@ int main(int argc, char** argv) {
         return(-1);
     }
 
-    /* 6. save current configuration to file */
-    UA_ByteString buffer = UA_BYTESTRING_NULL;
-    statusCode = UA_PubSubManager_getEncodedPubSubConfiguration(server, &buffer);
-    if(statusCode == UA_STATUSCODE_GOOD)
-        statusCode = writeFile(argv[2], buffer);
-    
-    if(statusCode != UA_STATUSCODE_GOOD) 
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Saving PubSub configuration to file failed. StatusCode: 0x%x\n", statusCode);
+#ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
+    if(loadPubSubFromFile) {
+        /* 6. save current configuration to file */
+        UA_ByteString buffer = UA_BYTESTRING_NULL;
+        statusCode = UA_PubSubManager_getEncodedPubSubConfiguration(server, &buffer);
+        if(statusCode == UA_STATUSCODE_GOOD)
+            statusCode = writeFile(argv[2], buffer);
+        
+        if(statusCode != UA_STATUSCODE_GOOD) 
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Saving PubSub configuration to file failed. StatusCode: 0x%x\n", statusCode);
+    }
+#endif
 
     UA_Server_delete(server);
 
