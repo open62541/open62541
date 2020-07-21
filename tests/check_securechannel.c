@@ -264,11 +264,9 @@ START_TEST(SecureChannel_sendAsymmetricOPNMessage_sentDataIsValid) {
                   requestId,
                   sequenceHeader.requestId);
 
-    UA_NodeId original =
-        UA_NODEID_NUMERIC(0, UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE].binaryEncodingId);
     UA_NodeId requestTypeId;
     UA_NodeId_decodeBinary(&sentData, &offset, &requestTypeId);
-    ck_assert_msg(UA_NodeId_equal(&original, &requestTypeId), "Expected nodeIds to be equal");
+    ck_assert_msg(UA_NodeId_equal(&UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE].binaryEncodingId, &requestTypeId), "Expected nodeIds to be equal");
 
     UA_OpenSecureChannelResponse sentResponse;
     UA_OpenSecureChannelResponse_decodeBinary(&sentData, &offset, &sentResponse);
@@ -340,11 +338,9 @@ START_TEST(Securechannel_sendAsymmetricOPNMessage_extraPaddingPresentWhenKeyLarg
     ck_assert_msg(sequenceHeader.requestId == requestId, "Expected requestId to be %i but was %i",
                   requestId, sequenceHeader.requestId);
 
-    UA_NodeId original =
-        UA_NODEID_NUMERIC(0, UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE].binaryEncodingId);
     UA_NodeId requestTypeId;
     UA_NodeId_decodeBinary(&sentData, &offset, &requestTypeId);
-    ck_assert_msg(UA_NodeId_equal(&original, &requestTypeId), "Expected nodeIds to be equal");
+    ck_assert_msg(UA_NodeId_equal(&UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE].binaryEncodingId, &requestTypeId), "Expected nodeIds to be equal");
 
     UA_OpenSecureChannelResponse sentResponse;
     UA_OpenSecureChannelResponse_decodeBinary(&sentData, &offset, &sentResponse);

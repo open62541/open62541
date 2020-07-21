@@ -211,7 +211,7 @@ sendSymmetricServiceRequest(UA_Client *client, const void *request,
 #else
     UA_LOG_DEBUG_CHANNEL(&client->config.logger, &client->channel,
                          "Sending request with RequestId %u of type %" PRIi16,
-                         (unsigned)rqId, requestType->binaryEncodingId);
+                         (unsigned)rqId, requestType->binaryEncodingId.identifier.numeric);
 #endif
 
     /* Send the message */
@@ -252,9 +252,8 @@ processAsyncResponse(UA_Client *client, UA_UInt32 requestId, const UA_NodeId *re
     /* Verify the type of the response */
     UA_Response response;
     const UA_DataType *responseType = ac->responseType;
-    const UA_NodeId expectedNodeId = UA_NODEID_NUMERIC(0, ac->responseType->binaryEncodingId);
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(!UA_NodeId_equal(responseTypeId, &expectedNodeId)) {
+    if(!UA_NodeId_equal(responseTypeId, &ac->responseType->binaryEncodingId)) {
         UA_init(&response, ac->responseType);
         if(UA_NodeId_equal(responseTypeId, &serviceFaultId)) {
             /* Decode as a ServiceFault, i.e. only the response header */
@@ -326,9 +325,6 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
         return;
     }
 
-    /* Forward declaration for the goto */
-    UA_NodeId expectedNodeId = UA_NODEID_NULL;
-
     /* Decode the data type identifier of the response */
     size_t offset = 0;
     UA_NodeId responseId;
@@ -347,8 +343,7 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
     rd->received = true;
 
     /* Check that the response type matches */
-    expectedNodeId = UA_NODEID_NUMERIC(0, rd->responseType->binaryEncodingId);
-    if(!UA_NodeId_equal(&responseId, &expectedNodeId)) {
+    if(!UA_NodeId_equal(&responseId, &rd->responseType->binaryEncodingId)) {
         if(UA_NodeId_equal(&responseId, &serviceFaultId)) {
             UA_init(rd->response, rd->responseType);
             retval = UA_decodeBinary(message, &offset, rd->response,

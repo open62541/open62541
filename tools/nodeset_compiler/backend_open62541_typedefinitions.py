@@ -137,13 +137,13 @@ class CGenerator(object):
         pointerfree = "true" if datatype.pointerfree else "false"
         return "{\n    UA_TYPENAME(\"%s\") /* .typeName */\n" % idName + \
                "    " + typeid + ", /* .typeId */\n" + \
+               "    {0, UA_NODEIDTYPE_NUMERIC, {" + binaryEncodingId + "}}, /* .binaryEncodingId */\n" + \
                "    sizeof(UA_" + idName + "), /* .memSize */\n" + \
                "    " + self.get_type_index(datatype) + ", /* .typeIndex */\n" + \
                "    " + self.get_type_kind(datatype) + ", /* .typeKind */\n" + \
                "    " + pointerfree + ", /* .pointerFree */\n" + \
                "    " + self.get_type_overlayable(datatype) + ", /* .overlayable */\n" + \
                "    " + str(len(datatype.members)) + ", /* .membersSize */\n" + \
-               "    " + binaryEncodingId + ", /* .binaryEncodingId */\n" + \
                "    %s_members" % idName + " /* .members */\n}"
 
     @staticmethod

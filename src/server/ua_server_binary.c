@@ -351,7 +351,7 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
 
     /* Error occurred */
     if(retval != UA_STATUSCODE_GOOD ||
-       requestType.identifier.numeric != UA_TYPES[UA_TYPES_OPENSECURECHANNELREQUEST].binaryEncodingId) {
+       !UA_NodeId_equal(&requestType, &UA_TYPES[UA_TYPES_OPENSECURECHANNELREQUEST].binaryEncodingId)) {
         UA_NodeId_clear(&requestType);
         UA_OpenSecureChannelRequest_clear(&openSecureChannelRequest);
         UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
@@ -402,7 +402,7 @@ sendResponse(UA_Server *server, UA_Session *session, UA_SecureChannel *channel,
 #else
         UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                              "Sending reponse for RequestId %u of type %" PRIi16,
-                             (unsigned)requestId, responseType->binaryEncodingId);
+                             (unsigned)requestId, responseType->binaryEncodingId.identifier.numeric);
 #endif
     } else {
 #ifdef UA_ENABLE_TYPEDESCRIPTION
@@ -412,7 +412,7 @@ sendResponse(UA_Server *server, UA_Session *session, UA_SecureChannel *channel,
 #else
         UA_LOG_DEBUG_CHANNEL(&server->config.logger, channel,
                              "Sending reponse for RequestId %u of type %" PRIi16,
-                             (unsigned)requestId, responseType->binaryEncodingId);
+                             (unsigned)requestId, responseType->binaryEncodingId.identifier.numeric);
 #endif
     }
 
@@ -427,8 +427,8 @@ sendResponse(UA_Server *server, UA_Session *session, UA_SecureChannel *channel,
     UA_assert(mc.buf_end <= &mc.messageBuffer.data[mc.messageBuffer.length]);
 
     /* Encode the response type */
-    UA_NodeId typeId = UA_NODEID_NUMERIC(0, responseType->binaryEncodingId);
-    retval = UA_MessageContext_encode(&mc, &typeId, &UA_TYPES[UA_TYPES_NODEID]);
+    retval = UA_MessageContext_encode(&mc, &responseType->binaryEncodingId,
+                                      &UA_TYPES[UA_TYPES_NODEID]);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -532,7 +532,7 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
 #else
             UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
                                    "Service %" PRIi16 " refused without a valid session",
-                                   requestType->binaryEncodingId);
+                                   requestType->binaryEncodingId.identifier.numeric);
 #endif
             return sendServiceFault(channel, requestId, requestHeader->requestHandle,
                                     responseType, UA_STATUSCODE_BADSESSIONIDINVALID);

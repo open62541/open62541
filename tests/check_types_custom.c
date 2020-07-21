@@ -63,6 +63,9 @@ static UA_DataTypeMember members[3] = {
 static const UA_DataType PointType = {
     UA_TYPENAME("Point")             /* .typeName */
     {1, UA_NODEIDTYPE_NUMERIC, {1}}, /* .typeId */
+    {1, UA_NODEIDTYPE_NUMERIC, {17}}, /* .binaryEncodingId, the numeric
+                                         identifier used on the wire (the
+                                         namespaceindex is from .typeId) */
     sizeof(Point),                   /* .memSize */
     0,                               /* .typeIndex, in the array of custom types */
     UA_DATATYPEKIND_STRUCTURE,       /* .typeKind */
@@ -70,9 +73,6 @@ static const UA_DataType PointType = {
     false,                           /* .overlayable (depends on endianness and
                                          the absence of padding) */
     3,                               /* .membersSize */
-    0,                               /* .binaryEncodingId, the numeric
-                                         identifier used on the wire (the
-                                         namespaceindex is from .typeId) */
     members
 };
 
@@ -117,6 +117,9 @@ static UA_DataTypeMember Opt_members[3] = {
 static const UA_DataType OptType = {
         UA_TYPENAME("Opt")             /* .typeName */
         {1, UA_NODEIDTYPE_NUMERIC, {4242}}, /* .typeId */
+        {1, UA_NODEIDTYPE_NUMERIC, {5}}, /* .binaryEncodingId, the numeric
+                                         identifier used on the wire (the
+                                         namespaceindex is from .typeId) */
         sizeof(Opt),                   /* .memSize */
         0,                               /* .typeIndex, in the array of custom types */
         UA_DATATYPEKIND_OPTSTRUCT,       /* .typeKind */
@@ -124,9 +127,6 @@ static const UA_DataType OptType = {
         false,                           /* .overlayable (depends on endianness and
                                          the absence of padding) */
         3,                               /* .membersSize */
-        0,                               /* .binaryEncodingId, the numeric
-                                         identifier used on the wire (the
-                                         namespaceindex is from .typeId) */
         Opt_members
 };
 
@@ -170,6 +170,9 @@ static UA_DataTypeMember ArrayOptStruct_members[3] = {
 static const UA_DataType ArrayOptType = {
     UA_TYPENAME("OptArray")             /* .tyspeName */
     {1, UA_NODEIDTYPE_NUMERIC, {4243}},     /* .typeId */
+    {1, UA_NODEIDTYPE_NUMERIC, {1337}}, /* .binaryEncodingId, the numeric
+                                         identifier used on the wire (the
+                                         namespaceindex is from .typeId) */
     sizeof(OptArray),                   /* .memSize */
     0,                               /* .typeIndex, in the array of custom types */
     UA_DATATYPEKIND_OPTSTRUCT,       /* .typeKind */
@@ -177,9 +180,6 @@ static const UA_DataType ArrayOptType = {
     false,                           /* .overlayable (depends on endianness and
                                          the absence of padding) */
     3,                               /* .membersSize */
-    0,                               /* .binaryEncodingId, the numeric
-                                         identifier used on the wire (the
-                                         namespaceindex is from .typeId) */
     ArrayOptStruct_members
 };
 
@@ -217,13 +217,13 @@ static UA_DataTypeMember Uni_members[2] = {
 static const UA_DataType UniType = {
         UA_TYPENAME("Uni")
         {1, UA_NODEIDTYPE_NUMERIC, {4245}},
+        {1, UA_NODEIDTYPE_NUMERIC, {13338}},
         sizeof(Uni),
         1,
         UA_DATATYPEKIND_UNION,
         false,
         false,
         2,
-        0,
         Uni_members
 };
 

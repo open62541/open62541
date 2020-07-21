@@ -94,13 +94,13 @@ UA_debug_dumpSetServiceName(const UA_ByteString *msg, char serviceNameTarget[100
 
     const UA_DataType *requestType = NULL;
 
-    for (size_t i=0; i<UA_TYPES_COUNT; i++) {
-        if (UA_TYPES[i].binaryEncodingId == requestTypeId.identifier.numeric) {
+    for(size_t i = 0; i < UA_TYPES_COUNT; i++) {
+        if(UA_NodeId_equal(&UA_TYPES[i].binaryEncodingId, &requestTypeId)) {
             requestType = &UA_TYPES[i];
             break;
         }
     }
-    if (requestType == NULL) {
+    if(!requestType) {
         snprintf(serviceNameTarget, 100, "invalid_request_no_type");
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
