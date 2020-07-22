@@ -3,6 +3,7 @@
  *
  *    Copyright 2016-2017 (c) Julius Pfrommer, Fraunhofer IOSB
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright (c) 2020 Wind River Systems, Inc.
  */
 
 #ifdef UA_ARCHITECTURE_VXWORKS
@@ -87,6 +88,17 @@
 #define UA_inet_pton inet_pton
 #if UA_IPV6
 # define UA_if_nametoindex if_nametoindex
+#endif
+
+#ifdef UA_ENABLE_MALLOC_SINGLETON
+extern void * (*UA_globalMalloc)(size_t size);
+extern void (*UA_globalFree)(void *ptr);
+extern void * (*UA_globalCalloc)(size_t nelem, size_t elsize);
+extern void * (*UA_globalRealloc)(void *ptr, size_t size);
+# define UA_free(ptr) UA_globalFree(ptr)
+# define UA_malloc(size) UA_globalMalloc(size)
+# define UA_calloc(num, size) UA_globalCalloc(num, size)
+# define UA_realloc(ptr, size) UA_globalRealloc(ptr, size)
 #endif
 
 #include <stdlib.h>
