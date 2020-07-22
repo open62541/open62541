@@ -39,6 +39,9 @@ static void *serverLoop(void *server_ptr) {
 extern "C" int
 LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
 
+    // Allow the fuzzer to at least create all the necessary structs before limiting memory.
+    // Otherwise fuzzing is useless
+    UA_memoryManager_setLimit((unsigned long long) -1);
     UA_Server *server = UA_Server_new();
     if(!server) {
         UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
