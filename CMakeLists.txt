@@ -250,6 +250,8 @@ option(UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS "Enable PubSub informationmodel
 mark_as_advanced(UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS)
 option(UA_ENABLE_PUBSUB_DELTAFRAMES "Enable sending of delta frames with only the changes" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_DELTAFRAMES)
+option(UA_ENABLE_PUBSUB_FILE_CONFIG "Enable loading PubSub Config from file extension" OFF)
+mark_as_advanced(UA_ENABLE_PUBSUB_FILE_CONFIG) 
 #RT and Transport PubSub settings
 option(UA_ENABLE_PUBSUB_ETH_UADP "Enable publish/subscribe UADP over Ethernet" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_ETH_UADP)
@@ -285,6 +287,12 @@ if(UA_ENABLE_PUBSUB_INFORMATIONMODEL)
     endif()
     if(UA_NAMESPACE_ZERO STREQUAL "MINIMAL")
         message(FATAL_ERROR "PubSub information model representation cannot be used with MINIMAL namespace zero.")
+    endif()
+endif()
+
+if(UA_ENABLE_PUBSUB_FILE_CONFIG)
+    if(NOT UA_ENABLE_PUBSUB)
+        message(FATAL_ERROR "PubSub needs to be enabled")
     endif()
 endif()
 
@@ -723,7 +731,8 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                      ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub.h
                      ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_manager.h
                      ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_ns0.h
-		     ${PROJECT_SOURCE_DIR}/src/server/ua_server_async.h
+                     ${PROJECT_SOURCE_DIR}/src/server/ua_server_async.h
+                     ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_config.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_server_internal.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_services.h
                      ${PROJECT_SOURCE_DIR}/src/client/ua_client_internal.h)
@@ -754,6 +763,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_reader.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_manager.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_ns0.c
+                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_config.c
                 # services
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_view.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_method.c

@@ -69,6 +69,8 @@ set(test_plugin_sources ${PROJECT_SOURCE_DIR}/arch/network_tcp.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_hashmap.c
     ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_securitypolicy_none.c
     ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_pki_none.c
+    ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_udp.c
+    ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_ethernet.c
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_policy.c
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c
     )
@@ -192,9 +194,9 @@ if(UA_ENABLE_PARSING)
     add_test_valgrind(types_parse ${TESTS_BINARY_DIR}/check_types_parse)
 endif()
 
-add_executable(check_types_custom check_types_custom.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
-target_link_libraries(check_types_custom ${LIBS})
-add_test_valgrind(types_custom ${TESTS_BINARY_DIR}/check_types_custom)
+#add_executable(check_types_custom check_types_custom.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+#target_link_libraries(check_types_custom ${LIBS})
+#add_test_valgrind(types_custom ${TESTS_BINARY_DIR}/check_types_custom)
 
 add_executable(check_chunking check_chunking.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_chunking ${LIBS})
