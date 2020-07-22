@@ -68,7 +68,7 @@ addVariable(UA_Server *server, char *name) {
 }
 
 /* If the external data source is written over the information model, the
- * ,externalDataWriteCallback, will be triggered. The user has to take care and assure
+ * externalDataWriteCallback will be triggered. The user has to take care and assure
  * that the write leads not to synchronization issues and race conditions. */
 static UA_StatusCode
 externalDataWriteCallback(UA_Server *server, const UA_NodeId *sessionId,
@@ -87,9 +87,6 @@ externalDataWriteCallback(UA_Server *server, const UA_NodeId *sessionId,
     return UA_STATUSCODE_GOOD;
 }
 
-/* If the external data source is written over the information model, the
- * ,externalDataWriteCallback, will be triggered. The user has to take care and assure
- * that the write leads not to synchronization issues and race conditions. */
 static UA_StatusCode
 externalDataReadNotificationCallback(UA_Server *server, const UA_NodeId *sessionId,
                                      void *sessionContext, const UA_NodeId *nodeid,
@@ -222,8 +219,8 @@ int main(void){
     UA_Server_delete(server);
 
     /* Free external data source */
-    UA_DataValue_clear(dataValueRT);
-    UA_DataValue_clear(dataValue2RT);
+    UA_DataValue_delete(dataValueRT);
+    UA_DataValue_delete(dataValue2RT);
 
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }

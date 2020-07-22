@@ -132,6 +132,8 @@ UA_NodeId           subRepeatedCountNodeID;
 /* Variables for counter data handling in address space */
 UA_UInt64           *pubCounterData;
 UA_UInt64           *repeatedCounterData[REPEATED_NODECOUNTS];
+UA_DataValue        *staticValueSource;
+
 UA_UInt64           subCounterData         = 0;
 
 #if defined(PUBLISHER)
@@ -465,20 +467,18 @@ addDataSetField(UA_Server *server) {
     /* Add a field to the previous created PublishedDataSet */
     UA_NodeId dataSetFieldIdent1;
     UA_DataSetFieldConfig dataSetFieldConfig;
+#if defined PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
+    staticValueSource = UA_DataValue_new();
+#endif
     for (UA_Int32 iterator = 0; iterator < REPEATED_NODECOUNTS; iterator++)
     {
        memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
 #if defined PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
        UA_UInt64 *repeatValue        = UA_UInt64_new();
        repeatedCounterData[iterator] = repeatValue;
-       UA_Variant variant;
-       memset(&variant, 0, sizeof(UA_Variant));
-       UA_Variant_setScalar(&variant, repeatValue, &UA_TYPES[UA_TYPES_UINT64]);
-       UA_DataValue staticValueSource;
-       memset(&staticValueSource, 0, sizeof(staticValueSource));
-       staticValueSource.value = variant;
-       dataSetFieldConfig.field.variable.staticValueSourceEnabled            = UA_TRUE;
-       dataSetFieldConfig.field.variable.staticValueSource.value             = variant;
+       UA_Variant_setScalar(&staticValueSource->value, repeatValue, &UA_TYPES[UA_TYPES_UINT64]);
+       dataSetFieldConfig.field.variable.rtValueSource.rtFieldSourceEnabled = UA_TRUE;
+       dataSetFieldConfig.field.variable.rtValueSource.staticValueSource = &staticValueSource;
 #else
        repeatedCounterData[iterator] = UA_UInt64_new();
        dataSetFieldConfig.dataSetFieldType                                   = UA_PUBSUB_DATASETFIELD_VARIABLE;
@@ -497,14 +497,9 @@ addDataSetField(UA_Server *server) {
 #if defined PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
     UA_UInt64 *countValue = UA_UInt64_new();
     pubCounterData = countValue;
-    UA_Variant variant;
-    memset(&variant, 0, sizeof(UA_Variant));
-    UA_Variant_setScalar(&variant, countValue, &UA_TYPES[UA_TYPES_UINT64]);
-    UA_DataValue staticValueSource;
-    memset(&staticValueSource, 0, sizeof(staticValueSource));
-    staticValueSource.value = variant;
-    counterValue.field.variable.staticValueSourceEnabled            = UA_TRUE;
-    counterValue.field.variable.staticValueSource.value             = variant;
+    UA_Variant_setScalar(&staticValueSource->value, countValue, &UA_TYPES[UA_TYPES_UINT64]);
+    counterValue.field.variable.rtValueSource.rtFieldSourceEnabled = UA_TRUE;
+    counterValue.field.variable.rtValueSource.staticValueSource = &staticValueSource;
 #else
     pubCounterData = UA_UInt64_new();
     counterValue.dataSetFieldType                                   = UA_PUBSUB_DATASETFIELD_VARIABLE;
@@ -1105,6 +1100,9 @@ UA_NetworkAddressUrlDataType networkAddressUrlSub;
     UA_free(serverConfig);
 #endif
 #if defined(PUBLISHER)
+#if defined PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
+     UA_DataValue_delete(staticValueSource);
+#endif
 #if defined(UPDATE_MEASUREMENTS)
     fclose(fpPublisher);
 #endif
