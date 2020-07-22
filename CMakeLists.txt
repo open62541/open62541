@@ -210,6 +210,17 @@ if(UA_ENABLE_COVERAGE)
   set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fprofile-arcs -ftest-coverage")
 endif()
 
+if(UA_ENABLE_CLANG_COV)
+    if(NOT "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
+        message(FATAL_ERROR "Compiler must be clang when compiling for llvm-cov")
+    endif()
+    if(UA_ENABLE_COVERAGE)
+        message(FATAL_ERROR "Only either clang cov or normal coverage is allowed.")
+    endif()
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fprofile-instr-generate -fcoverage-mapping")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprofile-instr-generate -fcoverage-mapping")
+endif()
+
 if(UA_ENABLE_DISCOVERY_MULTICAST AND NOT UA_ENABLE_DISCOVERY)
     MESSAGE(WARNING "UA_ENABLE_DISCOVERY_MULTICAST is enabled, but not UA_ENABLE_DISCOVERY. UA_ENABLE_DISCOVERY_MULTICAST will be set to OFF")
     SET(UA_ENABLE_DISCOVERY_MULTICAST OFF CACHE BOOL "Enable Discovery Service with multicast support (LDS-ME)" FORCE)
@@ -218,6 +229,9 @@ endif()
 # Advanced options
 option(UA_ENABLE_COVERAGE "Enable gcov coverage" OFF)
 mark_as_advanced(UA_ENABLE_COVERAGE)
+
+option(UA_ENABLE_CLANG_COV "Enable clang coverage" OFF)
+mark_as_advanced(UA_ENABLE_CLANG_COV)
 
 option(UA_ENABLE_QUERY "Enable query support in the client (most servers don't support it)" OFF)
 mark_as_advanced(UA_ENABLE_QUERY)
@@ -582,7 +596,10 @@ if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" ST
             # Add default sanitizer settings when using clang and Debug build.
             # This allows e.g. CLion to find memory locations for SegFaults
             message(STATUS "Sanitizer enabled")
-            set(SANITIZER_FLAGS "-g -fno-omit-frame-pointer -gline-tables-only -fsanitize=address -fsanitize-address-use-after-scope -fsanitize-coverage=trace-pc-guard,trace-cmp -fsanitize=leak -fsanitize=undefined")
+            set(SANITIZER_FLAGS "-g -fno-omit-frame-pointer -gline-tables-only -fsanitize=address -fsanitize-address-use-after-scope -fsanitize-coverage=trace-cmp -fsanitize=leak -fsanitize=undefined")
+            if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 10.0)
+                set(SANITIZER_FLAGS "${SANITIZER_FLAGS} -fsanitize-coverage=trace-pc-guard")
+            endif()
             set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${SANITIZER_FLAGS}")
             set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SANITIZER_FLAGS}")
         endif()
