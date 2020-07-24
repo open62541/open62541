@@ -161,7 +161,7 @@ callback_opcua(struct lws *wsi, enum lws_callback_reasons reason, void *user, vo
 
         case LWS_CALLBACK_CLOSED:
             // notify server
-            if(!pss->connection->state != UA_CONNECTIONSTATE_CLOSED) {
+            if(pss->connection->state != UA_CONNECTIONSTATE_CLOSED) {
                 pss->connection->state = UA_CONNECTIONSTATE_CLOSED;
             }
 
@@ -339,6 +339,16 @@ ServerNetworkLayerWS_stop(UA_ServerNetworkLayer *nl, UA_Server *server) {
 
 static void
 ServerNetworkLayerWS_clear(UA_ServerNetworkLayer *nl) {
+    ServerNetworkLayerWS *layer = (ServerNetworkLayerWS *)nl->handle;
+
+    if(layer->certificate.length) {
+        UA_String_deleteMembers(&layer->certificate);
+    }
+
+    if(layer->privateKey.length) {
+        UA_String_deleteMembers(&layer->privateKey);
+    }
+
     UA_free(nl->handle);
     UA_String_deleteMembers(&nl->discoveryUrl);
 }
