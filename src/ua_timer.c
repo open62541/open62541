@@ -13,9 +13,10 @@ struct UA_TimerEntry {
     ZIP_ENTRY(UA_TimerEntry) zipfields;
     UA_DateTime nextTime;                    /* The next time when the callback
                                               * is to be executed */
-    UA_UInt64 interval;                      /* Interval in 100ns resolution */
-    UA_Boolean repeated;                     /* Repeated callback? */
-
+    UA_UInt64 interval;                      /* Interval in 100ns resolution. If
+                                                the interval is zero, the
+                                                callback is not repeated and
+                                                removed after execution. */
     UA_ApplicationCallback callback;
     void *application;
     void *data;
@@ -63,8 +64,7 @@ UA_Timer_init(UA_Timer *t) {
 
 static UA_StatusCode
 addCallback(UA_Timer *t, UA_ApplicationCallback callback, void *application, void *data,
-            UA_DateTime nextTime, UA_UInt64 interval, UA_Boolean repeated,
-            UA_UInt64 *callbackId) {
+            UA_DateTime nextTime, UA_UInt64 interval, UA_UInt64 *callbackId) {
     /* A callback method needs to be present */
     if(!callback)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -80,7 +80,6 @@ addCallback(UA_Timer *t, UA_ApplicationCallback callback, void *application, voi
     te->callback = callback;
     te->application = application;
     te->data = data;
-    te->repeated = repeated;
     te->nextTime = nextTime;
 
     /* Set the output identifier */
@@ -96,7 +95,7 @@ UA_StatusCode
 UA_Timer_addTimedCallback(UA_Timer *t, UA_ApplicationCallback callback,
                           void *application, void *data, UA_DateTime date,
                           UA_UInt64 *callbackId) {
-    return addCallback(t, callback, application, data, date, 0, false, callbackId);
+    return addCallback(t, callback, application, data, date, 0, callbackId);
 }
 
 /* Adding repeated callbacks: Add an entry with the "nextTime" timestamp in the
@@ -111,9 +110,12 @@ UA_Timer_addRepeatedCallback(UA_Timer *t, UA_ApplicationCallback callback,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_UInt64 interval = (UA_UInt64)(interval_ms * UA_DATETIME_MSEC);
+    if(interval == 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     UA_DateTime nextTime = UA_DateTime_nowMonotonic() + (UA_DateTime)interval;
     return addCallback(t, callback, application, data, nextTime,
-                       interval, true, callbackId);
+                       interval, callbackId);
 }
 
 UA_StatusCode
@@ -160,7 +162,7 @@ UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic,
          * can interact with the zip tree and expects the same entries in the
          * root and idRoot trees. */
 
-        if(!first->repeated) {
+        if(first->interval == 0) {
             ZIP_REMOVE(UA_TimerIdZip, &t->idRoot, first);
             executionCallback(executionApplication, first->callback,
                               first->application, first->data);
