@@ -1039,7 +1039,8 @@ ua_generate_datatypes(
     TARGET_SUFFIX "transport"
     NAMESPACE_IDX 1
     FILE_CSV "${UA_FILE_NODEIDS}"
-    FILES_BSD "${UA_FILE_TYPES_BSD}" "${PROJECT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd"
+    IMPORT_BSD "TYPES#${UA_FILE_TYPES_BSD}"
+    FILES_BSD "${PROJECT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd"
     FILES_SELECTED "${PROJECT_SOURCE_DIR}/tools/schema/datatypes_transport.txt"
 )
 
