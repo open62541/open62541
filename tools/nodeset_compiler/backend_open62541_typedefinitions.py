@@ -129,7 +129,7 @@ class CGenerator(object):
                                          getNodeidTypeAndId(datatype.binaryEncodingId))
         idName = makeCIdentifier(datatype.name)
         pointerfree = "true" if datatype.pointerfree else "false"
-        return "{\n    UA_TYPENAME(\"%s\") /* .typeName */\n" % idName + \
+        return "{\n" + \
                "    " + typeid + ", /* .typeId */\n" + \
                "    " + binaryEncodingId + ", /* .binaryEncodingId */\n" + \
                "    sizeof(UA_" + idName + "), /* .memSize */\n" + \
@@ -138,7 +138,9 @@ class CGenerator(object):
                "    " + pointerfree + ", /* .pointerFree */\n" + \
                "    " + self.get_type_overlayable(datatype) + ", /* .overlayable */\n" + \
                "    " + str(len(datatype.members)) + ", /* .membersSize */\n" + \
-               "    %s_members" % idName + " /* .members */\n}"
+               "    %s_members" % idName + "  /* .members */\n" + \
+               "    UA_TYPENAME(\"%s\") /* .typeName */\n" % idName + \
+               "}"
 
     @staticmethod
     def print_members(datatype):
@@ -159,8 +161,7 @@ class CGenerator(object):
             member_name_capital = member_name
             if len(member_name) > 0:
                 member_name_capital = member_name[0].upper() + member_name[1:]
-            m = "\n{\n    UA_TYPENAME(\"%s\") /* .memberName */\n" % member_name_capital
-            m += "    UA_%s_%s, /* .memberTypeIndex */\n" % (
+            m = "\n{\n    UA_%s_%s, /* .memberTypeIndex */\n" % (
                 member.member_type.outname.upper(), makeCIdentifier(member.member_type.name.upper()))
             m += "    "
             if not before:
@@ -179,8 +180,9 @@ class CGenerator(object):
                     m += " - sizeof(UA_%s)," % makeCIdentifier(before.member_type.name)
             m += " /* .padding */\n"
             m += "    %s, /* .namespaceZero */\n" % ("true" if member.member_type.ns0 else "false")
-            m += ("    true," if member.is_array else "    false,") + " /* .isArray */\n"
-            m += ("    true" if member.is_optional else "    false") + " /* .isOptional */\n}"
+            m += ("    true" if member.is_array else "    false") + ", /* .isArray */\n"
+            m += ("    true" if member.is_optional else "    false") + "  /* .isOptional */\n"
+            m += "    UA_TYPENAME(\"%s\") /* .memberName */\n}" % member_name_capital
             if i != size:
                 m += ","
             members += m
