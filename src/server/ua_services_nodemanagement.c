@@ -1097,7 +1097,7 @@ recursiveCallConstructors(UA_Server *server, UA_Session *session,
     if(br.statusCode != UA_STATUSCODE_GOOD)
         return br.statusCode;
 
-    /* Call the constructor for every unconstructed node */
+    /* Call the constructor for every unconstructed child node */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < br.referencesSize; ++i) {
         UA_ReferenceDescription *rd = &br.references[i];
@@ -1110,8 +1110,8 @@ recursiveCallConstructors(UA_Server *server, UA_Session *session,
         }
 
         const UA_Node *targetType = NULL;
-        if(head->nodeClass == UA_NODECLASS_VARIABLE ||
-           head->nodeClass == UA_NODECLASS_OBJECT) {
+        if(target->head.nodeClass == UA_NODECLASS_VARIABLE ||
+           target->head.nodeClass == UA_NODECLASS_OBJECT) {
             targetType = getNodeType(server, &target->head);
             if(!targetType) {
                 UA_NODESTORE_RELEASE(server, target);
