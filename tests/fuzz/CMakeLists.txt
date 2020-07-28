@@ -19,7 +19,7 @@ if (UA_BUILD_FUZZING_CORPUS)
     file(MAKE_DIRECTORY ${PROJECT_BINARY_DIR}/corpus/custom)
 
     add_executable(corpus_generator ua_debug_dump_pkgs_file.c corpus_generator.c
-                                    ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c
+                                    ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_socket.c
                                     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_clock.c)
     target_link_libraries(corpus_generator open62541 ${open62541_LIBRARIES})
     assign_source_group(corpus_generator)
@@ -42,11 +42,18 @@ if (NOT UA_BUILD_OSS_FUZZ)
     if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 5.0)
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O1 -fsanitize=address")
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O1 -fsanitize=address")
-    else()
+    elseif (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 10.0)
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=fuzzer -fno-omit-frame-pointer -gline-tables-only -fsanitize=address -fsanitize-address-use-after-scope")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=fuzzer -fno-omit-frame-pointer -gline-tables-only -fsanitize=address -fsanitize-address-use-after-scope")
+        message("Fuzzer clang 10")
+    else ()
+        message("Fuzzer clang less 10")
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-omit-frame-pointer -gline-tables-only -fsanitize=address -fsanitize-address-use-after-scope -fsanitize-coverage=trace-pc-guard,trace-cmp")
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer -gline-tables-only -fsanitize=address -fsanitize-address-use-after-scope -fsanitize-coverage=trace-pc-guard,trace-cmp")
-    endif()
-    set(LIBS Fuzzer)
+    endif ()
+    if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 10.0)
+        set(LIBS Fuzzer)
+    endif ()
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 else()
     set(LIBS $ENV{LIB_FUZZING_ENGINE})
@@ -55,9 +62,9 @@ endif()
 list(APPEND LIBS "${open62541_LIBRARIES}")
 
 # Use different plugins for testing
-set(fuzzing_plugin_sources ${PROJECT_SOURCE_DIR}/arch/network_tcp.c
+set(fuzzing_plugin_sources
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_clock.c
-    ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c
+    ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_socket.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_ziptree.c
@@ -65,6 +72,9 @@ set(fuzzing_plugin_sources ${PROJECT_SOURCE_DIR}/arch/network_tcp.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
     ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_pki_none.c
     ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_securitypolicy_none.c
+    ${PROJECT_SOURCE_DIR}/plugins/networking/ua_tcp_listener_socket.c
+    ${PROJECT_SOURCE_DIR}/plugins/networking/ua_tcp_data_socket.c
+    ${PROJECT_SOURCE_DIR}/plugins/networking/ua_select_based_networkmanager.c
 )
 
 if(UA_ENABLE_ENCRYPTION)

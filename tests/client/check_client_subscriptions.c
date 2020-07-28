@@ -11,15 +11,14 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <testing_socket.h>
 
 #include "check.h"
 #include "testing_clock.h"
-#include "testing_networklayers.h"
 #include "thread_wrapper.h"
 
 UA_Server *server;
 UA_Boolean running;
-UA_ServerNetworkLayer nl;
 THREAD_HANDLE server_thread;
 static UA_Boolean noNewSubscription; /* Don't create a subscription when the
                                         session activates */
@@ -103,8 +102,8 @@ START_TEST(Client_subscription) {
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_Client_recv = client->connection.recv;
-    client->connection.recv = UA_Client_recvTesting;
+    UA_Socket_activity = client->channel.socket->activity;
+    client->channel.socket->activity = UA_Socket_activityTesting;
 
     UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
     UA_CreateSubscriptionResponse response = UA_Client_Subscriptions_create(client, request,
@@ -178,8 +177,8 @@ START_TEST(Client_subscription_async) {
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_Client_recv = client->connection.recv;
-    client->connection.recv = UA_Client_recvTesting;
+    UA_Socket_activity = client->channel.socket->activity;
+    client->channel.socket->activity = UA_Socket_activityTesting;
 
     UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
 
@@ -274,10 +273,10 @@ START_TEST(Client_subscription_async) {
                                                    &monDeleteResponse, &requestId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_Server_run_iterate(server, true);
-    retval = UA_Client_run_iterate(client, 1);
+    retval = UA_Client_run_iterate(client, 100);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_Server_run_iterate(server, true);
-    retval = UA_Client_run_iterate(client, 1);
+    retval = UA_Client_run_iterate(client, 100);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     ck_assert_uint_eq(monDeleteResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
@@ -324,9 +323,8 @@ START_TEST(Client_subscription_createDataChanges) {
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_Client_recv = client->connection.recv;
-    client->connection.recv = UA_Client_recvTesting;
-
+    UA_Socket_activity = client->channel.socket->activity;
+    client->channel.socket->activity = UA_Socket_activityTesting;
     UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
     UA_CreateSubscriptionResponse response = UA_Client_Subscriptions_create(client, request,
                                                                             NULL, NULL, NULL);
@@ -441,8 +439,8 @@ START_TEST(Client_subscription_createDataChanges_async) {
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_Client_recv = client->connection.recv;
-    client->connection.recv = UA_Client_recvTesting;
+    UA_Socket_activity = client->channel.socket->activity;
+    client->channel.socket->activity = UA_Socket_activityTesting;
 
     // Async subscription creation is tested in Client_subscription_async
     // simplify test case using synchronous here
@@ -631,6 +629,14 @@ START_TEST(Client_subscription_keepAlive) {
 }
 END_TEST
 
+UA_Boolean (*may_delete_saved)(UA_Socket *sock);
+
+        static UA_Boolean
+may_delete(UA_Socket *sock) {
+    sock->mayDelete = may_delete_saved;
+    return true;
+}
+
 START_TEST(Client_subscription_connectionClose) {
     UA_Client *client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
@@ -638,8 +644,8 @@ START_TEST(Client_subscription_connectionClose) {
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_Client_recv = client->connection.recv;
-    client->connection.recv = UA_Client_recvTesting;
+    UA_Socket_activity = client->channel.socket->activity;
+    client->channel.socket->activity = UA_Socket_activityTesting;
 
     UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
     UA_CreateSubscriptionResponse response = UA_Client_Subscriptions_create(client, request,
@@ -662,10 +668,15 @@ START_TEST(Client_subscription_connectionClose) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Simulate BADCONNECTIONCLOSE */
-    UA_Client_recvTesting_result = UA_STATUSCODE_BADCONNECTIONCLOSED;
+    UA_Socket_activityTesting_result = UA_STATUSCODE_BADCONNECTIONCLOSED;
+    may_delete_saved = client->channel.socket->mayDelete;
+    client->channel.socket->mayDelete = may_delete;
 
     /* Reconnect a new SecureChannel and recover the Session */
     retval = UA_Client_run_iterate(client, 1);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONNECTIONCLOSED);
+    if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
+        retval = UA_Client_connectAsync(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_SessionState ss;
     UA_Client_getState(client, NULL, &ss, NULL);
@@ -705,8 +716,8 @@ START_TEST(Client_subscription_timeout) {
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_Client_recv = client->connection.recv;
-    client->connection.recv = UA_Client_recvTesting;
+    UA_Socket_activity = client->channel.socket->activity;
+    client->channel.socket->activity = UA_Socket_activityTesting;
 
     UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
     UA_CreateSubscriptionResponse response = UA_Client_Subscriptions_create(client, request,
@@ -757,8 +768,8 @@ START_TEST(Client_subscription_without_notification) {
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_Client_recv = client->connection.recv;
-    client->connection.recv = UA_Client_recvTesting;
+    UA_Socket_activity = client->channel.socket->activity;
+    client->channel.socket->activity = UA_Socket_activityTesting;
 
     UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
     request.requestedMaxKeepAliveCount = 1;
@@ -881,8 +892,8 @@ START_TEST(Client_subscription_async_sub) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(sessState, UA_SESSIONSTATE_ACTIVATED);
 
-    UA_Client_recv = client->connection.recv;
-    client->connection.recv = UA_Client_recvTesting;
+    UA_NetworkManager_process = client->config.networkManager->process;
+    client->config.networkManager->process = UA_NetworkManager_processTesting;
 
     UA_Client_run_iterate(client, 1);
 
@@ -936,14 +947,14 @@ START_TEST(Client_subscription_async_sub) {
 
     notificationReceived = false;
     /* Simulate network cable unplugged (no response from server) */
-    UA_Client_recvTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+    UA_NetworkManager_processTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
     UA_Client_run_iterate(client, (UA_UInt16)(publishingInterval + 1));
     ck_assert_uint_eq(notificationReceived, false);
     ck_assert_uint_eq(sessState, UA_SESSIONSTATE_ACTIVATED);
 
     /* Simulate network cable unplugged (no response from server) */
     ck_assert_uint_eq(inactivityCallbackCalled, false);
-    UA_Client_recvTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+    UA_NetworkManager_processTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
     UA_Client_run_iterate(client, (UA_UInt16)cc->timeout);
     ck_assert_uint_eq(inactivityCallbackCalled, true);
     ck_assert_uint_eq(sessState, UA_SESSIONSTATE_ACTIVATED);
@@ -973,8 +984,8 @@ START_TEST(Client_subscription_reconnect) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(sessState, UA_SESSIONSTATE_ACTIVATED);
 
-    UA_Client_recv = client->connection.recv;
-    client->connection.recv = UA_Client_recvTesting;
+    UA_Socket_activity = client->channel.socket->activity;
+    client->channel.socket->activity = UA_Socket_activityTesting;
 
     UA_Client_run_iterate(client, 1);
 

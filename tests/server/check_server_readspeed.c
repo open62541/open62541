@@ -14,7 +14,6 @@
 #include <check.h>
 #include <time.h>
 
-#include "testing_networklayers.h"
 #include "testing_policy.h"
 
 #define READNODES 1000 /* Number of nodes to be created for reading */

@@ -60,7 +60,7 @@ endif()
 
 
 # Use different plugins for testing
-set(test_plugin_sources ${PROJECT_SOURCE_DIR}/arch/network_tcp.c
+set(test_plugin_sources
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_clock.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
@@ -69,9 +69,18 @@ set(test_plugin_sources ${PROJECT_SOURCE_DIR}/arch/network_tcp.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_hashmap.c
     ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_securitypolicy_none.c
     ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_pki_none.c
+    ${PROJECT_SOURCE_DIR}/plugins/networking/ua_tcp_listener_socket.c
+    ${PROJECT_SOURCE_DIR}/plugins/networking/ua_tcp_data_socket.c
+    ${PROJECT_SOURCE_DIR}/plugins/networking/ua_select_based_networkmanager.c
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_policy.c
-    ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c
+    ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_socket.c
     )
+
+if(UA_ENABLE_WEBSOCKET_SERVER)
+    set(test_plugin_sources ${test_plugin_sources}
+        ${PROJECT_SOURCE_DIR}/plugins/networking/ua_wss_listener_socket.c
+        ${PROJECT_SOURCE_DIR}/plugins/networking/ua_wss_data_socket.c)
+endif()
 
 if(UA_ENABLE_HISTORIZING)
     set(test_plugin_sources ${test_plugin_sources}
@@ -498,7 +507,7 @@ if(UA_ENABLE_ENCRYPTION_OPENSSL)
     add_executable(check_encryption_basic128rsa15 encryption/check_encryption_basic128rsa15.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     target_link_libraries(check_encryption_basic128rsa15 ${LIBS})
     add_test_valgrind(encryption_basic128rsa15 ${TESTS_BINARY_DIR}/check_encryption_basic128rsa15)
-    
+
     add_executable(check_encryption_basic256sha256 encryption/check_encryption_basic256sha256.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     target_link_libraries(check_encryption_basic256sha256 ${LIBS})
     add_test_valgrind(encryption_basic256sha256 ${TESTS_BINARY_DIR}/check_encryption_basic256sha256)

@@ -4,6 +4,7 @@
 
 #include <open62541/server_config_default.h>
 #include <open62541/types.h>
+#include "ua_server_internal.h"
 
 #include <check.h>
 
@@ -134,7 +135,7 @@ START_TEST(Server_forEachChildNodeCall) {
 
 START_TEST(Server_set_customHostname) {
     UA_String customHost = UA_STRING("localhost");
-    UA_UInt16 port = 10042;
+    const UA_UInt16 port = 10042;
 
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
@@ -143,19 +144,18 @@ START_TEST(Server_set_customHostname) {
 
     UA_StatusCode retval = UA_Server_run_startup(server);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Server_run_iterate(server, true);
 
     // TODO when we have more network layers, extend this
-    ck_assert_uint_ge(config->networkLayersSize, 1);
-    ck_assert_uint_eq(config->applicationDescription.discoveryUrlsSize, config->networkLayersSize);
+    ck_assert_uint_ge(config->listenerSocketConfigsSize, 1);
 
-
-    for (size_t i=0; i<config->networkLayersSize; i++) {
-        const UA_ServerNetworkLayer *nl = &config->networkLayers[i];
+    ck_assert(retval == UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < server->discoveryUrlsSize; i++) {
         char discoveryUrl[256];
         unsigned int len = (unsigned int)snprintf(discoveryUrl, 255, "opc.tcp://%.*s:%d/", (int)customHost.length, customHost.data, port);
-        ck_assert_uint_eq(nl->discoveryUrl.length, len);
+        ck_assert_uint_eq(server->discoveryUrls[i].length, len);
         ck_assert_uint_eq(config->applicationDescription.discoveryUrls[i].length, len);
-        ck_assert(strncmp(discoveryUrl, (char*)nl->discoveryUrl.data, len)==0);
+        ck_assert(strncmp(discoveryUrl, (char*)server->discoveryUrls[i].data, len)==0);
         ck_assert(strncmp(discoveryUrl, (char*)config->applicationDescription.discoveryUrls[i].data, len)==0);
     }
     UA_Server_run_shutdown(server);

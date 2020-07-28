@@ -33,10 +33,10 @@ removeSecureChannel(UA_Server *server, channel_entry *entry,
     entry->channel.state = UA_SECURECHANNELSTATE_CLOSING;
 
     /* Detach from the connection and close the connection */
-    if(entry->channel.connection) {
-        if(entry->channel.connection->state != UA_CONNECTIONSTATE_CLOSED)
-            entry->channel.connection->close(entry->channel.connection);
-        UA_Connection_detachSecureChannel(entry->channel.connection);
+    if(entry->channel.socket) {
+        if(entry->channel.socket->socketState != UA_SOCKETSTATE_CLOSED)
+            entry->channel.socket->close(entry->channel.socket);
+        UA_SecureChannel_detachSocket(&entry->channel);
     }
 
     /* Detach the channel */
@@ -81,7 +81,7 @@ UA_Server_deleteSecureChannels(UA_Server *server) {
         removeSecureChannel(server, entry, UA_DIAGNOSTICEVENT_CLOSE);
 }
 
-/* remove channels that were not renewed or who have no connection attached */
+/* remove channels that were not renewed or who have no socket attached */
 void
 UA_Server_cleanupTimedOutSecureChannels(UA_Server *server,
                                         UA_DateTime nowMonotonic) {
@@ -89,7 +89,7 @@ UA_Server_cleanupTimedOutSecureChannels(UA_Server *server,
     TAILQ_FOREACH_SAFE(entry, &server->channels, pointers, temp) {
         /* The channel was closed internally */
         if(entry->channel.state == UA_SECURECHANNELSTATE_CLOSED ||
-           !entry->channel.connection) {
+           !entry->channel.socket) {
             removeSecureChannel(server, entry, UA_DIAGNOSTICEVENT_CLOSE);
             continue;
         }
@@ -144,9 +144,9 @@ purgeFirstChannelWithoutSession(UA_Server *server) {
 }
 
 UA_StatusCode
-UA_Server_createSecureChannel(UA_Server *server, UA_Connection *connection) {
+UA_Server_createSecureChannel(UA_Server *server, UA_Socket *socket) {
     /* connection already has a channel attached. */
-    if(connection->channel != NULL)
+    if(socket->context != NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Check if there exists a free SC, otherwise try to purge one SC without a
@@ -166,7 +166,7 @@ UA_Server_createSecureChannel(UA_Server *server, UA_Connection *connection) {
     /* Channel state is closed (0) */
     /* TODO: Use the connection config from the correct network layer */
     UA_SecureChannel_init(&entry->channel,
-                          &server->config.networkLayers[0].localConnectionConfig);
+                          &server->config.secureChannelConfig);
     entry->channel.securityToken.channelId = 0;
     entry->channel.securityToken.createdAt = UA_DateTime_nowMonotonic();
     entry->channel.securityToken.revisedLifetime = server->config.maxSecurityTokenLifetime;
@@ -174,7 +174,7 @@ UA_Server_createSecureChannel(UA_Server *server, UA_Connection *connection) {
     entry->channel.processOPNHeader = UA_Server_configSecureChannel;
 
     TAILQ_INSERT_TAIL(&server->channels, entry, pointers);
-    UA_Connection_attachSecureChannel(connection, &entry->channel);
+    UA_SecureChannel_attachSocket(&entry->channel, socket);
     UA_atomic_addSize(&server->serverStats.scs.currentChannelCount, 1);
     UA_atomic_addSize(&server->serverStats.scs.cumulatedChannelCount, 1);
     return UA_STATUSCODE_GOOD;
@@ -183,6 +183,8 @@ UA_Server_createSecureChannel(UA_Server *server, UA_Connection *connection) {
 UA_StatusCode
 UA_Server_configSecureChannel(void *application, UA_SecureChannel *channel,
                               const UA_AsymmetricAlgorithmSecurityHeader *asymHeader) {
+    if(channel->state == UA_SECURECHANNELSTATE_OPEN)
+        return UA_STATUSCODE_GOOD;
     /* Iterate over available endpoints and choose the correct one */
     UA_SecurityPolicy *securityPolicy = NULL;
     UA_Server *const server = (UA_Server *const) application;

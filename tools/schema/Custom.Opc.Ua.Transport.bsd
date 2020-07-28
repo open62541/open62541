@@ -34,7 +34,15 @@
     <opc:Field Name="MessageTypeAndChunkType" TypeName="opc:UInt32" />
     <opc:Field Name="MessageSize" TypeName="opc:UInt32" />
   </opc:StructuredType>
-  
+
+  <opc:StructuredType Name="SecureConversationMessageHeader">
+    <opc:Documentation>Secure Conversation Header</opc:Documentation>
+    <opc:Field Name="MessageTypeAndChunkType" TypeName="opc:UInt32" />
+    <opc:Field Name="MessageSize" TypeName="opc:UInt32" />
+    <opc:Field Name="SecureChannelId" TypeName="opc:UInt32" />
+  </opc:StructuredType>
+
+
    <opc:StructuredType Name="TcpHelloMessage">
     <opc:Documentation>Hello Message</opc:Documentation>
     <opc:Field Name="ProtocolVersion" TypeName="opc:UInt32" />

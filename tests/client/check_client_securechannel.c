@@ -7,12 +7,12 @@
 #include <open62541/client_highlevel.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
+#include <testing_socket.h>
 
 #include "client/ua_client_internal.h"
 
 #include "check.h"
 #include "testing_clock.h"
-#include "testing_networklayers.h"
 #include "thread_wrapper.h"
 
 UA_Server *server;
@@ -54,6 +54,9 @@ START_TEST(SecureChannel_timeout_max) {
 
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_NetworkManager_process = client->config.networkManager->process;
+    client->config.networkManager->process = UA_NetworkManager_processTesting;
 
     UA_ClientConfig *cconfig = UA_Client_getConfig(client);
     UA_fakeSleep(cconfig->secureChannelLifeTime);
@@ -152,15 +155,19 @@ START_TEST(SecureChannel_networkfail) {
 
     /* Forward the clock after recv in the client */
     UA_ClientConfig *cconfig = UA_Client_getConfig(client);
-    UA_Client_recv = client->connection.recv;
-    client->connection.recv = UA_Client_recvTesting;
-    UA_Client_recvSleepDuration = cconfig->secureChannelLifeTime + 1;
+    UA_NetworkManager_process = client->config.networkManager->process;
+    client->config.networkManager->process = UA_NetworkManager_processTesting;
+    UA_Socket_activity = client->channel.socket->activity;
+    client->channel.socket->activity = UA_Socket_activityTesting;
+    UA_Socket_activitySleepDuration = cconfig->secureChannelLifeTime + 1;
 
     UA_Variant val;
     UA_Variant_init(&val);
     UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
     retval = UA_Client_readValueAttribute(client, nodeId, &val);
-    ck_assert(retval == UA_STATUSCODE_BADCONNECTIONCLOSED);
+    ck_assert_msg(retval == UA_STATUSCODE_BADCONNECTIONCLOSED ||
+                  retval == UA_STATUSCODE_BADSECURECHANNELCLOSED ||
+                  retval == UA_STATUSCODE_BADTIMEOUT, UA_StatusCode_name(retval));
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
@@ -201,11 +208,11 @@ START_TEST(SecureChannel_cableunplugged) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_Variant_deleteMembers(&val);
 
-    UA_Client_recv = client->connection.recv;
-    client->connection.recv = UA_Client_recvTesting;
+    UA_Socket_activity = client->channel.socket->activity;
+    client->channel.socket->activity = UA_Socket_activityTesting;
 
     /* Simulate network cable unplugged (no response from server) */
-    UA_Client_recvTesting_result = UA_STATUSCODE_BADINTERNALERROR;
+    UA_Socket_activityTesting_result = UA_STATUSCODE_BADCONNECTIONCLOSED;
 
     UA_Variant_init(&val);
     retval = UA_Client_readValueAttribute(client, nodeId, &val);
@@ -215,7 +222,7 @@ START_TEST(SecureChannel_cableunplugged) {
     UA_Client_getState(client, &scs, NULL, NULL);
     ck_assert_int_eq(scs, UA_SECURECHANNELSTATE_CLOSED);
 
-    UA_Client_recvTesting_result = UA_STATUSCODE_GOOD;
+    UA_Socket_activityTesting_result = UA_STATUSCODE_GOOD;
     UA_Client_delete(client);
 }
 END_TEST

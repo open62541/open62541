@@ -10,14 +10,13 @@
 
 #include <check.h>
 #include <stdlib.h>
+#include <testing_socket.h>
 
 #include "testing_clock.h"
-#include "testing_networklayers.h"
 #include "thread_wrapper.h"
 
 UA_Server *server;
 UA_Boolean running;
-UA_ServerNetworkLayer nl;
 THREAD_HANDLE server_thread;
 
 static void
@@ -349,17 +348,17 @@ START_TEST(Client_activateSessionTimeout) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_Variant_clear(&val);
 
-    UA_Client_recv = client->connection.recv;
-    client->connection.recv = UA_Client_recvTesting;
+    UA_Socket_activity = client->channel.socket->activity;
+    client->channel.socket->activity = UA_Socket_activityTesting;
 
     /* Simulate network cable unplugged (no response from server) */
-    UA_Client_recvTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+    UA_Socket_activityTesting_result = UA_STATUSCODE_BADCONNECTIONCLOSED;
 
     UA_Variant_init(&val);
     retval = UA_Client_readValueAttribute(client, nodeId, &val);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONNECTIONCLOSED);
 
-    UA_Client_recvTesting_result = UA_STATUSCODE_GOOD;
+    UA_Socket_activityTesting_result = UA_STATUSCODE_GOOD;
     retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(server->sessionCount, 1);
@@ -384,7 +383,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client, Client_endpoints);
     tcase_add_test(tc_client, Client_endpoints_empty);
     tcase_add_test(tc_client, Client_read);
-    suite_add_tcase(s,tc_client);
+    suite_add_tcase(s, tc_client);
     TCase *tc_client_reconnect = tcase_create("Client Reconnect");
     tcase_add_checked_fixture(tc_client_reconnect, setup, teardown);
     tcase_add_test(tc_client_reconnect, Client_renewSecureChannel);

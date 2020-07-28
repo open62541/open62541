@@ -6,34 +6,37 @@
  * Copyright (c) 2019 Kalycito Infotech Private Limited
  */
 
+#include <open62541/plugin/socket.h>
 #include "../../deps/mqtt-c/mqtt.h"
-#include <open62541/network_tcp.h>
 
 ssize_t
 mqtt_pal_sendall(mqtt_pal_socket_handle fd, const void* buf, size_t len, int flags) {
-    UA_Connection *connection = (UA_Connection*) fd->connection;
-    UA_ByteString sendBuffer;
-    sendBuffer.data = (UA_Byte*)UA_malloc(len);
-    sendBuffer.length = len;
-    memcpy(sendBuffer.data, buf, len);
-    UA_StatusCode ret = connection->send(connection, &sendBuffer);
-    if(ret != UA_STATUSCODE_GOOD)
+    UA_Socket *socket = (UA_Socket *)fd->connection;
+    UA_ByteString *sendBuffer;
+    UA_StatusCode retval = socket->acquireSendBuffer(socket, len, &sendBuffer);
+    if(retval != UA_STATUSCODE_GOOD) {
+        return -1;
+    }
+    memcpy(sendBuffer->data, buf, len);
+    retval = socket->send(socket, sendBuffer);
+    socket->releaseSendBuffer(socket, sendBuffer);
+    if(retval != UA_STATUSCODE_GOOD)
         return -1;
     return (ssize_t)len;
 }
 
 ssize_t
 mqtt_pal_recvall(mqtt_pal_socket_handle fd, void* buf, size_t bufsz, int flags) {
-    UA_Connection *connection = (UA_Connection*)fd->connection;
-    UA_ByteString inBuffer;
-    inBuffer.data = (UA_Byte*)buf;
-    inBuffer.length = bufsz;
-    UA_StatusCode ret = connection->recv(connection, &inBuffer, fd->timeout);
-    if(ret == UA_STATUSCODE_GOOD ) {
-        return (ssize_t)inBuffer.length;
+    UA_Socket *socket = (UA_Socket *)fd->connection;
+    UA_ByteString buffer;
+    buffer.data = (UA_Byte *)buf;
+    buffer.length = bufsz;
+    UA_StatusCode ret = socket->recv(socket, &buffer, (UA_UInt32 *)&fd->timeout);
+    if(ret == UA_STATUSCODE_GOOD) {
+        return (ssize_t)buffer.length;
     } else if(ret == UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
         return 0;
     } else {
-        return -1; //error case, no free necessary
+        return -1;
     }
 }

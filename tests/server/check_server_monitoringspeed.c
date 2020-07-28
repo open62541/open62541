@@ -12,13 +12,13 @@
 #include <check.h>
 #include <stdio.h>
 #include <time.h>
+#include <testing_socket.h>
 
-#include "testing_networklayers.h"
 #include "testing_policy.h"
 
 static UA_SecureChannel testChannel;
 static UA_SecurityPolicy dummyPolicy;
-static UA_Connection testingConnection;
+static UA_Socket dummySocket;
 static funcs_called funcsCalled;
 static key_sizes keySizes;
 static UA_Server *server;
@@ -28,18 +28,17 @@ static void setup(void) {
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     TestingPolicy(&dummyPolicy, UA_BYTESTRING_NULL, &funcsCalled, &keySizes);
-    UA_SecureChannel_init(&testChannel, &UA_ConnectionConfig_default);
+    UA_SecureChannel_init(&testChannel, &UA_SecureChannelConfig_default);
     UA_SecureChannel_setSecurityPolicy(&testChannel, &dummyPolicy, &UA_BYTESTRING_NULL);
 
-    testingConnection = createDummyConnection(65535, NULL);
-    UA_Connection_attachSecureChannel(&testingConnection, &testChannel);
-    testChannel.connection = &testingConnection;
+    UA_SecureChannel_attachSocket(&testChannel, &dummySocket);
+    dummySocket = createDummySocket(NULL);
 }
 
 static void teardown(void) {
     UA_SecureChannel_close(&testChannel);
+    dummySocket.close(&dummySocket);
     dummyPolicy.clear(&dummyPolicy);
-    testingConnection.close(&testingConnection);
 
     UA_Server_delete(server);
 }
