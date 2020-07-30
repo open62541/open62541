@@ -270,6 +270,11 @@ UA_StatusCode
 getParentTypeAndInterfaceHierarchy(UA_Server *server, const UA_NodeId *typeNode,
                                    UA_NodeId **typeHierarchy, size_t *typeHierarchySize);
 
+/* Returns the recursive interface hierarchy of the node */
+UA_StatusCode
+getInterfaceHierarchy(UA_Server *server, const UA_NodeId *objectNode,
+                                   UA_NodeId **typeHierarchy, size_t *typeHierarchySize);
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
 
 UA_StatusCode UA_EXPORT

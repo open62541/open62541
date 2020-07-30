@@ -225,6 +225,42 @@ getParentTypeAndInterfaceHierarchy(UA_Server *server, const UA_NodeId *typeNode,
     return UA_STATUSCODE_GOOD;
 }
 
+UA_StatusCode
+getInterfaceHierarchy(UA_Server *server, const UA_NodeId *objectNode,
+                                   UA_NodeId **typeHierarchy, size_t *typeHierarchySize) {
+    UA_ReferenceTypeSet reftypes_interface =
+        UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASINTERFACE);
+    UA_ExpandedNodeId *interfaces = NULL;
+    size_t interfacesSize = 0;
+    UA_StatusCode retval = browseRecursive(server, 1, objectNode, &reftypes_interface,
+                             UA_BROWSEDIRECTION_FORWARD, false,
+                             &interfacesSize, &interfaces);
+    if(retval != UA_STATUSCODE_GOOD) {
+        return retval;
+    }
+
+    UA_assert(interfacesSize < 1000);
+
+    UA_NodeId *hierarchy = (UA_NodeId*)
+        UA_malloc(sizeof(UA_NodeId) * (interfacesSize));
+    if(!hierarchy) {
+        UA_Array_delete(interfaces, interfacesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    for(size_t i = 0; i < interfacesSize; i++) {
+        hierarchy[i] = interfaces[i].nodeId;
+        UA_NodeId_init(&interfaces[i].nodeId);
+    }
+
+    *typeHierarchy = hierarchy;
+    *typeHierarchySize = interfacesSize;
+
+    UA_assert(*typeHierarchySize < 1000);
+    UA_Array_delete(interfaces, interfacesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
+    return UA_STATUSCODE_GOOD;
+}
+
 /* For mulithreading: make a copy of the node, edit and replace.
  * For singlethreading: edit the original */
 UA_StatusCode
