@@ -597,6 +597,29 @@ addTypeChildren(UA_Server *server, UA_Session *session,
 }
 
 static UA_StatusCode
+addInterfaceChildren(UA_Server *server, UA_Session *session,
+                const UA_NodeHead *head) {
+    /* Get the hierarchy of the type and all its supertypes */
+    UA_NodeId *hierarchy = NULL;
+    size_t hierarchySize = 0;
+    UA_StatusCode retval = getInterfaceHierarchy(server, &head->nodeId,
+                                                              &hierarchy, &hierarchySize);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    UA_assert(hierarchySize < 1000);
+
+    /* Copy members of the type and supertypes (and instantiate them) */
+    for(size_t i = 0; i < hierarchySize; ++i) {
+        retval = copyAllChildren(server, session, &hierarchy[i], &head->nodeId);
+        if(retval != UA_STATUSCODE_GOOD)
+            break;
+    }
+
+    UA_Array_delete(hierarchy, hierarchySize, &UA_TYPES[UA_TYPES_NODEID]);
+    return retval;
+}
+
+static UA_StatusCode
 addRef(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
        const UA_NodeId *referenceTypeId, const UA_NodeId *parentNodeId,
        UA_Boolean forward) {
@@ -1068,6 +1091,17 @@ recursiveTypeCheckAddChildren(UA_Server *server, UA_Session *session,
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_NODEID_WRAP(&node->head.nodeId, UA_LOG_INFO_SESSION(&server->config.logger, session,
                                "AddNodes: Adding child nodes of  %.*s failed with error code %s",
+                               (int)nodeIdStr.length, nodeIdStr.data, UA_StatusCode_name(retval)));
+        }
+    }
+
+    /* Add (mandatory) child nodes from the direct HasInterface reference */
+    if(node->head.nodeClass == UA_NODECLASS_OBJECT) {
+        retval = addInterfaceChildren(server, session, &node->head);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_NODEID_WRAP(&node->head.nodeId, UA_LOG_INFO_SESSION(&server->config.logger, session,
+                               "AddNodes: Adding child nodes of  %.*s interface failed "
+                                                                       "with error code %s",
                                (int)nodeIdStr.length, nodeIdStr.data, UA_StatusCode_name(retval)));
         }
     }
