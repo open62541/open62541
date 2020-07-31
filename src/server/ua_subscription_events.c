@@ -508,6 +508,52 @@ UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event,
     return UA_STATUSCODE_GOOD;
 }
 
+#ifdef UA_ENABLE_HISTORIZING
+static void
+setHistoricalEvent(UA_Server *server, const UA_NodeId *origin,
+                   const UA_NodeId *emitNodeId, const UA_NodeId *eventNodeId) {
+    UA_Variant historicalEventFilterValue;
+    UA_Variant_init(&historicalEventFilterValue);
+
+    /* A HistoricalEventNode that has event history available will provide this property */
+    UA_StatusCode retval =
+        readObjectProperty(server, *emitNodeId,
+                           UA_QUALIFIEDNAME(0, "HistoricalEventFilter"),
+                           &historicalEventFilterValue);
+    if(retval != UA_STATUSCODE_GOOD) {
+        /* Do not vex users with no match errors */
+        if(retval != UA_STATUSCODE_BADNOMATCH)
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "Cannot read the HistoricalEventFilter property of a "
+                           "listening node. StatusCode %s",
+                           UA_StatusCode_name(retval));
+        return;
+    }
+
+    /* If found then check if HistoricalEventFilter property has a valid value */
+    if(UA_Variant_isEmpty(&historicalEventFilterValue) ||
+       !UA_Variant_isScalar(&historicalEventFilterValue) ||
+       historicalEventFilterValue.type->typeIndex != UA_TYPES_EVENTFILTER) {
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "HistoricalEventFilter property of a listening node "
+                       "does not have a valid value");
+        UA_Variant_clear(&historicalEventFilterValue);
+        return;
+    }
+
+    /* Finally, if found and valid then filter */
+    UA_EventFilter *filter = (UA_EventFilter*)historicalEventFilterValue.data;
+    UA_EventFieldList efl;
+    retval = UA_Server_filterEvent(server, &server->adminSession,
+                                   eventNodeId, filter, &efl);
+    if(retval == UA_STATUSCODE_GOOD)
+        server->config.historyDatabase.setEvent(server, server->config.historyDatabase.context,
+                                                origin, emitNodeId, filter, &efl);
+    UA_Variant_clear(&historicalEventFilterValue);
+    UA_EventFieldList_clear(&efl);
+}
+#endif
+
 static const UA_NodeId objectsFolderId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_OBJECTSFOLDER}};
 #define EMIT_REFS_ROOT_COUNT 4
 static const UA_NodeId emitReferencesRoots[EMIT_REFS_ROOT_COUNT] =
@@ -618,14 +664,19 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
 
     /* Add the event to the listening MonitoredItems at each relevant node */
     for(size_t i = 0; i < emitNodesSize; i++) {
+        /* Get the node */
         const UA_ObjectNode *node = (const UA_ObjectNode*)
             UA_NODESTORE_GET(server, &emitNodes[i].nodeId);
         if(!node)
             continue;
+
+        /* Only consider objects */
         if(node->head.nodeClass != UA_NODECLASS_OBJECT) {
             UA_NODESTORE_RELEASE(server, (const UA_Node*)node);
             continue;
         }
+
+        /* Add event to monitoreditems */
         for(UA_MonitoredItem *mi = node->monitoredItemQueue; mi != NULL; mi = mi->next) {
             retval = UA_Event_addEventToMonitoredItem(server, &eventNodeId, mi);
             if(retval != UA_STATUSCODE_GOOD) {
@@ -635,57 +686,13 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
                 retval = UA_STATUSCODE_GOOD; /* Only log problems with individual emit nodes */
             }
         }
+
         UA_NODESTORE_RELEASE(server, (const UA_Node*)node);
+
+        /* Add event entry in the historical database */
 #ifdef UA_ENABLE_HISTORIZING
-        if(!server->config.historyDatabase.setEvent)
-            continue;
-        UA_EventFilter *filter = NULL;
-        UA_EventFieldList *fieldList = NULL;
-        UA_Variant historicalEventFilterValue;
-        UA_Variant_init(&historicalEventFilterValue);
-        /* a HistoricalEventNode that has event history available will provide this property */
-        retval = readObjectProperty(server, emitNodes[i].nodeId,
-                                    UA_QUALIFIEDNAME(0, "HistoricalEventFilter"),
-                                    &historicalEventFilterValue);
-        /* check if the property was found and the read was successful */
-        if(retval != UA_STATUSCODE_GOOD) {
-            /* do not vex users with no match errors */
-            if(retval != UA_STATUSCODE_BADNOMATCH)
-                UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                               "Cannot read the HistoricalEventFilter property of a "
-                               "listening node. StatusCode %s",
-                               UA_StatusCode_name(retval));
-        }
-        /* if found then check if HistoricalEventFilter property has a valid value */
-        else if(UA_Variant_isEmpty(&historicalEventFilterValue) ||
-                !UA_Variant_isScalar(&historicalEventFilterValue) ||
-                historicalEventFilterValue.type->typeIndex != UA_TYPES_EVENTFILTER) {
-            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                           "HistoricalEventFilter property of a listening node "
-                           "does not have a valid value");
-        }
-        /* finally, if found and valid then filter */
-        else {
-            filter = (UA_EventFilter*)historicalEventFilterValue.data;
-            UA_EventNotification eventNotification;
-            retval = UA_Server_filterEvent(server, &server->adminSession, &eventNodeId,
-                                           filter, &eventNotification);
-            if(retval == UA_STATUSCODE_GOOD) {
-                fieldList = UA_EventFieldList_new();
-                *fieldList = eventNotification.fields;
-            }
-            /* eventNotification structure is not cleared so that users can
-             * avoid copying the field list if they want to store it */
-            /* EventFilterResult isn't being used currently
-            UA_EventFilterResult_clear(&notification->result); */
-        }
-        server->config.historyDatabase.setEvent(server, server->config.historyDatabase.context,
-                                                &origin, &emitNodes[i].nodeId,
-                                                &eventNodeId, deleteEventNode,
-                                                filter,
-                                                fieldList);
-        UA_Variant_clear(&historicalEventFilterValue);
-        retval = UA_STATUSCODE_GOOD;
+        if(server->config.historyDatabase.setEvent)
+            setHistoricalEvent(server, &origin, &emitNodes[i].nodeId, &eventNodeId);
 #endif
     }
 
