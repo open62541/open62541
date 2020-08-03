@@ -78,6 +78,7 @@ Makefile
 /exampleClient_legacy
 /src_generated/
 /build
+/_build
 /.idea
 /cmake-build*
 /tools/certs/certs/*
