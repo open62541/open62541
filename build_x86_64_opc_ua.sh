@@ -1,10 +1,17 @@
 #!/bin/bash
+<<<<<<< HEAD
 #set -x
 
 build_dir=`pwd`/_build_x86_64_opc_ua
 
 [ -d ${build_dir} ] && { echo "found build folder: ${build_dir}"; } || { mkdir ${build_dir} \
 && { echo "build folder: ${build_dir} has been build"; } || exit 0; }
+=======
+
+build_dir=`pwd`/_build_x86_64_opc_ua
+
+[ -d ${build_dir} ] && { echo "found build folder: ${build_dir}"; } || { mkdir ${build_dir} && { echo "build folder: ${build_dir} has been build"; } || exit 0; }
+>>>>>>> bfb06c6c3f0d3ffedfef6f5a5e25aa3f215cdc75
 
 cd ${build_dir} || { echo "build directory not found"; exit 1; }
 
