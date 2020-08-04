@@ -547,6 +547,10 @@ UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
 UA_StatusCode UA_EXPORT
 UA_Server_removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier);
 
+/* Register channel for given connectionIdentifier */
+UA_StatusCode UA_EXPORT
+UA_PubSubConnection_regist(UA_Server *server, UA_NodeId *connectionIdentifier);
+
 #endif /* UA_ENABLE_PUBSUB */
 
 _UA_END_DECLS

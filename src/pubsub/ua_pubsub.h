@@ -75,9 +75,6 @@ void
 UA_PubSubConnectionConfig_clear(UA_PubSubConnectionConfig *connectionConfig);
 void
 UA_PubSubConnection_clear(UA_Server *server, UA_PubSubConnection *connection);
-/* Register channel for given connectionIdentifier */
-UA_StatusCode
-UA_PubSubConnection_regist(UA_Server *server, UA_NodeId *connectionIdentifier);
 
 /**********************************************/
 /*              DataSetWriter                 */
