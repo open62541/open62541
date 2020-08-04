@@ -22,14 +22,17 @@ UA_Server *server;
 UA_ServerNetworkLayer nl;
 
 UA_Boolean connected = false;
+void *state_context;
 
 static void
-currentState(UA_Client *client, UA_SecureChannelState channelState,
+currentState(UA_Client *client, void *context,
+             UA_SecureChannelState channelState,
              UA_SessionState sessionState, UA_StatusCode recoveryStatus) {
     if(sessionState == UA_SESSIONSTATE_ACTIVATED)
         connected = true;
     else
         connected = false;
+    state_context = context;
 }
 
 static void setup(void) {
@@ -56,6 +59,7 @@ START_TEST(Client_connect_async) {
     UA_ClientConfig *cc = UA_Client_getConfig(client);
     UA_ClientConfig_setDefault(cc);
     cc->stateCallback = currentState;
+    cc->clientContext = cc;
     connected = false;
     UA_Client_connectAsync(client, "opc.tcp://localhost:4840");
     UA_Server_run_iterate(server, false);
@@ -84,6 +88,7 @@ START_TEST(Client_connect_async) {
         if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
             break;
     } while(reqId < 10);
+    ck_assert_ptr_eq(state_context, cc);
 
     UA_BrowseRequest_deleteMembers(&bReq);
     ck_assert_uint_eq(connected, true);
@@ -101,7 +106,8 @@ END_TEST
 
 UA_SecureChannelState abortState;
 static void
-abortSecureChannelConnect(UA_Client *client, UA_SecureChannelState channelState,
+abortSecureChannelConnect(UA_Client *client, void *context,
+                          UA_SecureChannelState channelState,
                           UA_SessionState sessionState, UA_StatusCode recoveryStatus) {
     if(channelState >= abortState)
         UA_Client_disconnect(client);

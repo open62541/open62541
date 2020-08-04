@@ -49,7 +49,8 @@ subscriptionInactivityCallback (UA_Client *client, UA_UInt32 subId, void *subCon
 }
 
 static void
-stateCallback(UA_Client *client, UA_SecureChannelState channelState,
+stateCallback(UA_Client *client, void *context,
+              UA_SecureChannelState channelState,
               UA_SessionState sessionState, UA_StatusCode recoveryStatus) {
     switch(channelState) {
     case UA_SECURECHANNELSTATE_CLOSED:

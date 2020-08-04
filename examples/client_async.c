@@ -13,7 +13,7 @@
 /* async connection callback, it only gets called after the completion of the whole
  * connection process*/
 static void
-onConnect(UA_Client *client, UA_SecureChannelState channelState,
+onConnect(UA_Client *client, void *context, UA_SecureChannelState channelState,
           UA_SessionState sessionState, UA_StatusCode connectStatus) {
     printf("Async connect returned with status code %s\n",
            UA_StatusCode_name(connectStatus));

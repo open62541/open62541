@@ -881,7 +881,8 @@ static UA_SecureChannelState chanState;
 static UA_SessionState sessState;
 
 static void
-stateCallback(UA_Client *client, UA_SecureChannelState channelState,
+stateCallback(UA_Client *client, void *context,
+              UA_SecureChannelState channelState,
               UA_SessionState sessionState, UA_StatusCode recoveryStatus) {
     chanState = channelState;
     sessState = sessionState;

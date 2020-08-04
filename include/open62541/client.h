@@ -136,7 +136,7 @@ typedef struct {
      * the client connection (including reconnects) has failed and the client
      * has to "give up". If the connectStatus is not set, the client still has
      * hope to connect or recover. */
-    void (*stateCallback)(UA_Client *client,
+    void (*stateCallback)(UA_Client *client, void *context,
                           UA_SecureChannelState channelState,
                           UA_SessionState sessionState,
                           UA_StatusCode connectStatus);

@@ -167,7 +167,8 @@ notifyClientState(UA_Client *client) {
     client->oldSessionState = client->sessionState;
 
     if(client->config.stateCallback)
-        client->config.stateCallback(client, client->channel.state,
+        client->config.stateCallback(client, client->config.clientContext,
+                                     client->channel.state,
                                      client->sessionState, client->connectStatus);
 }
 
