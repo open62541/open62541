@@ -526,6 +526,10 @@ decryptMessageChunk(UA_SecureChannel *channel, UA_Chunk *chunk, void *applicatio
     UA_SequenceHeader sequenceHeader;
 
     if(chunk->messageType == UA_MESSAGETYPE_OPN) {
+        if(channel->state != UA_SECURECHANNELSTATE_OPEN &&
+           channel->state != UA_SECURECHANNELSTATE_OPN_SENT &&
+           channel->state != UA_SECURECHANNELSTATE_ACK_SENT)
+            return UA_STATUSCODE_BADINVALIDSTATE;
         processSequenceNumber = processSequenceNumberAsym;
         checkHeader = (UA_StatusCode (*)(const UA_SecureChannel *, void *)) checkAsymHeader;
         securityHeader = &asymHeader;
@@ -631,9 +635,9 @@ assembleProcessMessage(UA_SecureChannel *channel, void *application,
     if(chunk->chunkType == UA_CHUNKTYPE_FINAL) {
         SIMPLEQ_REMOVE_HEAD(&channel->decryptedChunks, pointers);
         UA_assert(chunk->chunkType == UA_CHUNKTYPE_FINAL);
-        callback(application, channel, chunk->messageType, chunk->requestId, &chunk->bytes);
+        UA_StatusCode retval = callback(application, channel, chunk->messageType, chunk->requestId, &chunk->bytes);
         UA_Chunk_delete(chunk);
-        return UA_STATUSCODE_GOOD;
+        return retval;
     }
 
     UA_UInt32 requestId = chunk->requestId;
@@ -677,9 +681,9 @@ assembleProcessMessage(UA_SecureChannel *channel, void *application,
     }
     
     /* Process the assembled message */
-    callback(application, channel, messageType, requestId, &payload);
+    UA_StatusCode retval = callback(application, channel, messageType, requestId, &payload);
     UA_ByteString_deleteMembers(&payload);
-    return UA_STATUSCODE_GOOD;
+    return retval;
 }
 
 static UA_StatusCode
