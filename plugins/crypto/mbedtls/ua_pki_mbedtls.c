@@ -130,6 +130,7 @@ static UA_StatusCode
 reloadCertificates(CertInfo *ci) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     int err = 0;
+    int internalErrorFlag = 0;
 
     /* Load the trustlists */
     if(ci->trustListFolder.length > 0) {
@@ -148,7 +149,8 @@ reloadCertificates(CertInfo *ci) {
             char errBuff[300];
             mbedtls_strerror(err, errBuff, 300);
             UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                        "Failed to load certificate from %s", f);
+                        "Failed to load certificate from %s, mbedTLS error: %s (error code: %d)", f, errBuff, err);
+            internalErrorFlag = 1;
         }
     }
 
@@ -172,9 +174,12 @@ reloadCertificates(CertInfo *ci) {
                             "Loaded certificate from %.*s",
                             (int)paths[i].length, paths[i].data);
             } else {
+                char errBuff[300];
+                mbedtls_strerror(err, errBuff, 300);
                 UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                            "Failed to load certificate from %.*s",
-                            (int)paths[i].length, paths[i].data);
+                            "Failed to load certificate from %.*s, mbedTLS error: %s (error code: %d)",
+                            (int)paths[i].length, paths[i].data, errBuff, err);
+                internalErrorFlag = 1;
             }
         }
         UA_Array_delete(paths, pathsSize, &UA_TYPES[UA_TYPES_STRING]);
@@ -195,11 +200,18 @@ reloadCertificates(CertInfo *ci) {
             UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                         "Loaded certificate from %s", f);
         } else {
+            char errBuff[300];
+            mbedtls_strerror(err, errBuff, 300);
             UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                        "Failed to load certificate from %s", f);
+                        "Failed to load certificate from %s, mbedTLS error: %s (error code: %d)", 
+                        f, errBuff, err);
+            internalErrorFlag = 1;
         }
     }
 
+    if(internalErrorFlag) {
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+    }
     return retval;
 }
 
@@ -219,7 +231,10 @@ certificateVerification_verify(void *verificationContext,
         return UA_STATUSCODE_BADINTERNALERROR;
 
 #ifdef __linux__ /* Reload certificates if folder paths are specified */
-    reloadCertificates(ci);
+    UA_StatusCode certFlag = reloadCertificates(ci);
+    if(certFlag != UA_STATUSCODE_GOOD) {
+        return certFlag;
+    }
 #endif
 
     if(ci->trustListFolder.length == 0 &&
