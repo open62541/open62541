@@ -473,18 +473,19 @@ START_TEST(SecureChannel_sendSymmetricMessage_invalidParameters) {
     ck_assert_msg(retval != UA_STATUSCODE_GOOD, "Expected failure");
 } END_TEST
 
-static void
+static UA_StatusCode
 process_callback(void *application, UA_SecureChannel *channel,
                  UA_MessageType messageType, UA_UInt32 requestId,
                  UA_ByteString *message) {
     ck_assert_ptr_ne(message, NULL);
     ck_assert_ptr_ne(application, NULL);
     if(message == NULL || application == NULL)
-        return;
+        return UA_STATUSCODE_BADINTERNALERROR;
     ck_assert_uint_ne(message->length, 0);
     ck_assert_ptr_ne(message->data, NULL);
     int *chunks_processed = (int *)application;
     ++*chunks_processed;
+    return UA_STATUSCODE_GOOD;
 }
 
 START_TEST(SecureChannel_assemblePartialChunks) {

@@ -276,6 +276,8 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
 /* HEL -> Open up the connection */
 static UA_StatusCode
 processHEL(UA_Server *server, UA_SecureChannel *channel, const UA_ByteString *msg) {
+    if(channel->state != UA_SECURECHANNELSTATE_CLOSED)
+        return UA_STATUSCODE_BADINTERNALERROR;
     size_t offset = 0; /* Go to the beginning of the TcpHelloMessage */
     UA_TcpHelloMessage helloMessage;
     UA_StatusCode retval = UA_TcpHelloMessage_decodeBinary(msg, &offset, &helloMessage);
@@ -327,13 +329,18 @@ processHEL(UA_Server *server, UA_SecureChannel *channel, const UA_ByteString *ms
     }
 
     ack_msg.length = ackHeader.messageSize;
-    return connection->send(connection, &ack_msg);
+    retval = connection->send(connection, &ack_msg);
+    if(retval == UA_STATUSCODE_GOOD)
+        channel->state = UA_SECURECHANNELSTATE_ACK_SENT;
+    return retval;
 }
 
 /* OPN -> Open up/renew the securechannel */
 static UA_StatusCode
 processOPN(UA_Server *server, UA_SecureChannel *channel,
            const UA_UInt32 requestId, const UA_ByteString *msg) {
+    if(channel->state != UA_SECURECHANNELSTATE_ACK_SENT && channel->state != UA_SECURECHANNELSTATE_OPEN)
+        return UA_STATUSCODE_BADINTERNALERROR;
     /* Decode the request */
     UA_NodeId requestType;
     UA_OpenSecureChannelRequest openSecureChannelRequest;
@@ -608,6 +615,8 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
 static UA_StatusCode
 processMSG(UA_Server *server, UA_SecureChannel *channel,
            UA_UInt32 requestId, const UA_ByteString *msg) {
+    if(channel->state != UA_SECURECHANNELSTATE_OPEN)
+        return UA_STATUSCODE_BADINTERNALERROR;
     /* Decode the nodeid */
     size_t offset = 0;
     UA_NodeId requestTypeId;
@@ -692,7 +701,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
 }
 
 /* Takes decoded messages starting at the nodeid of the content type. */
-static void
+static UA_StatusCode
 processSecureChannelMessage(void *application, UA_SecureChannel *channel,
                             UA_MessageType messagetype, UA_UInt32 requestId,
                             UA_ByteString *message) {
@@ -726,7 +735,7 @@ processSecureChannelMessage(void *application, UA_SecureChannel *channel,
             UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
                                 "Processing the message failed. Channel already closed "
                                 "with StatusCode %s. ", UA_StatusCode_name(retval));
-            return;
+            return retval;
         }
 
         UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
@@ -750,6 +759,8 @@ processSecureChannelMessage(void *application, UA_SecureChannel *channel,
             break;
         }
     }
+
+    return retval;
 }
 
 void
