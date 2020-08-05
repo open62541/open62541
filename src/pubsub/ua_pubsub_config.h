@@ -16,7 +16,7 @@
 
 /* UA_PubSubManager_loadPubSubConfigFromByteString() */
 /**
- * @brief       Decodes the information from the ByteString. If the decoded content is a PubSubConfiguration object
+ * @brief       Decodes the information from the ByteString. If the decoded content is a PubSubConfiguration in a UABinaryFileDataType-object               
  *              it will overwrite the current PubSub configuration from the server.
  * 
  * @param       server      [bi]    Pointer to Server object that shall be configured

@@ -8,7 +8,7 @@
 #include <open62541/plugin/pubsub_udp.h>
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
-#include "../examples/common.h"
+#include "../common.h"
 
 #include "open62541/types_generated_encoding_binary.h"
 
@@ -45,10 +45,16 @@ START_TEST(AddPublisherUsingBinaryFile) {
     size_t dataSetWriterCount = 0;
     TAILQ_FOREACH(connection, &server->pubSubManager.connections, listEntry) {
         connectionCount++;
+        char* expectedConnectionName = "UADP Connection 1";
+        ck_assert_str_eq(expectedConnectionName, (char*)connection->config->name.data);
         LIST_FOREACH(writerGroup, &connection->writerGroups, listEntry){
             writerGroupCount++;
+            char* expectedWgName = "Demo WriterGroup";
+            ck_assert_str_eq(expectedWgName, (char*)writerGroup->config.name.data);
             LIST_FOREACH(dataSetWriter, &writerGroup->writers, listEntry){
                 dataSetWriterCount++;
+                char* expectedWriterName = "Demo DataSetWriter";
+                ck_assert_str_eq(expectedWriterName, (char*)dataSetWriter->config.name.data);
             }
         }
     }
@@ -69,10 +75,16 @@ START_TEST(AddSubscriberUsingBinaryFile) {
     size_t dataSetReaderCount = 0;
     TAILQ_FOREACH(connection, &server->pubSubManager.connections, listEntry) {
         connectionCount++;
+        char* expectedConnectionName = "UDPMC Connection 1";
+        ck_assert_str_eq(expectedConnectionName, (char*)connection->config->name.data);
         LIST_FOREACH(readerGroup, &connection->readerGroups, listEntry){
             readerGroupCount++;
+            char* expectedRgName = "ReaderGroup1";
+            ck_assert_str_eq(expectedRgName, (char*)readerGroup->config.name.data);
             LIST_FOREACH(dataSetReader, &readerGroup->readers, listEntry){
                 dataSetReaderCount++;
+                char* expectedReaderName = "DataSet Reader 1";
+                ck_assert_str_eq(expectedReaderName, (char*)dataSetReader->config.name.data);
             }
         }
     }
