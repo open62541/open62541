@@ -1898,7 +1898,7 @@ generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
     networkMessage->version = 1;
     networkMessage->networkMessageType = UA_NETWORKMESSAGE_DATASET;
     if(connection->config->publisherIdType == UA_PUBSUB_PUBLISHERID_NUMERIC) {
-        networkMessage->publisherIdType = UA_PUBLISHERDATATYPE_UINT16;
+        networkMessage->publisherIdType = UA_PUBLISHERDATATYPE_UINT32;
         networkMessage->publisherId.publisherIdUInt32 = connection->config->publisherId.numeric;
     } else if(connection->config->publisherIdType == UA_PUBSUB_PUBLISHERID_STRING){
         networkMessage->publisherIdType = UA_PUBLISHERDATATYPE_STRING;
