@@ -7,7 +7,9 @@
  */
 
 #include <open62541/plugin/log_stdout.h>
+#ifdef UA_ENABLE_PUBSUB_ETH_UADP
 #include <open62541/plugin/pubsub_ethernet.h>
+#endif
 #include <open62541/plugin/pubsub_udp.h>
 
 #include "pubsub/ua_pubsub.h"
