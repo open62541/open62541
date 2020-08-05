@@ -375,7 +375,7 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
 
         UA_LOG_DEBUG_SESSION(&server->config.logger, sub->session,
                              "Subscription %" PRIu32 " | Sending out a StatusChange "
-                             "notification and removing the subscription");
+                             "notification and removing the subscription", sub->subscriptionId);
 
         /* Populate the response */
         UA_StatusChangeNotification scn;
@@ -397,9 +397,8 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
 
         /* Send the response */
         UA_LOG_DEBUG_SESSION(&server->config.logger, sub->session,
-                             "Subscription %" PRIu32 " | Sending out a publish response "
-                             "with %" PRIu32 " notifications", sub->subscriptionId,
-                             notifications);
+                             "Subscription %" PRIu32 " | Sending out a publish response.",
+                                sub->subscriptionId);
         sendResponse(server, sub->session, sub->session->header.channel, pre->requestId,
                      (UA_Response*)response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
 
