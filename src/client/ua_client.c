@@ -299,7 +299,7 @@ processAsyncResponse(UA_Client *client, UA_UInt32 requestId, const UA_NodeId *re
 /* Processes the received service response. Either with an async callback or by
  * decoding the message and returning it "upwards" in the
  * SyncResponseDescription. */
-static void
+static UA_StatusCode
 processServiceResponse(void *application, UA_SecureChannel *channel,
                        UA_MessageType messageType, UA_UInt32 requestId,
                        UA_ByteString *message) {
@@ -309,20 +309,20 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
     switch(messageType) {
     case UA_MESSAGETYPE_ACK:
         processACKResponse(rd->client, message);
-        return;
+        return UA_STATUSCODE_GOOD;
     case UA_MESSAGETYPE_OPN:
         processOPNResponse(rd->client, message);
-        return;
+        return UA_STATUSCODE_GOOD;
     case UA_MESSAGETYPE_ERR:
         processERRResponse(rd->client, message);
-        return;
+        return UA_STATUSCODE_GOOD;
     case UA_MESSAGETYPE_MSG:
         /* Continue below */
         break;
     default:
         UA_LOG_TRACE_CHANNEL(&rd->client->config.logger, channel, "Invalid message type");
         channel->state = UA_SECURECHANNELSTATE_CLOSING;
-        return;
+        return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
     }
 
     /* Decode the data type identifier of the response */
@@ -389,6 +389,8 @@ finish:
             respHeader->serviceResult = retval;
         }
     }
+
+    return retval;
 }
 
 /* Receive and process messages until a synchronous message arrives or the
