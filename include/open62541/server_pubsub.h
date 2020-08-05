@@ -621,6 +621,10 @@ UA_Server_setReaderGroupOperational(UA_Server *server, const UA_NodeId readerGro
 UA_StatusCode UA_EXPORT
 UA_Server_setReaderGroupDisabled(UA_Server *server, const UA_NodeId readerGroupId);
 
+/* Register channel for given connectionIdentifier */
+UA_StatusCode UA_EXPORT
+UA_PubSubConnection_regist(UA_Server *server, UA_NodeId *connectionIdentifier);
+
 #endif /* UA_ENABLE_PUBSUB */
 
 _UA_END_DECLS
