@@ -46,8 +46,10 @@ writeFile(const char* const path, const UA_ByteString buffer) {
 
     for(UA_UInt32 bufIndex = 0; bufIndex < buffer.length; bufIndex++) {
         int retVal = fputc(buffer.data[bufIndex], fp);
-        if(retVal == EOF) 
+        if(retVal == EOF) {
+            fclose(fp);
             return UA_STATUSCODE_BADINTERNALERROR;
+        }
     }
 
     fclose(fp);

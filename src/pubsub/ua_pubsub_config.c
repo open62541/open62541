@@ -488,7 +488,7 @@ UA_PubSubManager_createWriterGroup(UA_Server *server, const UA_WriterGroupDataTy
                      "[UA_PubSubManager_createWriterGroup] Adding WriterGroup to server failed: 0x%x", statusCode);
     }
 
-    return UA_STATUSCODE_GOOD;
+    return statusCode;
 }
 
 /* UA_PubSubManager_addDataSetWriterWithPdsReference() */
@@ -630,8 +630,10 @@ UA_PubSubManager_createReaderGroup(UA_Server *server, const UA_ReaderGroupDataTy
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, 
                     "[UA_PubSubManager_createReaderGroup] Adding ReaderGroup to server failed: 0x%x", statusCode);
     }
+    
+    if(statusCode == UA_STATUSCODE_GOOD)
+        UA_Server_setReaderGroupOperational(server, readerGroupIdent);
 
-    UA_Server_setReaderGroupOperational(server, readerGroupIdent);
     return statusCode;
 }
 
@@ -915,7 +917,6 @@ UA_PubSubManager_addDataSetFieldVariables(UA_Server *server, const UA_NodeId *pu
     }
 
     UA_StatusCode statusCode = UA_STATUSCODE_GOOD;
-    /* Last in first out configuration: */
     for(UA_Int32 dsFieldIndex = 0;
         dsFieldIndex < (UA_Int32)publishedDataItems->publishedDataSize && statusCode == UA_STATUSCODE_GOOD;
         dsFieldIndex++)
@@ -995,7 +996,7 @@ cleanup:
  */
 UA_StatusCode 
 UA_PubSubManager_loadPubSubConfigFromByteString(UA_Server *server, const UA_ByteString buffer) {
-    UA_StatusCode statusCode = UA_STATUSCODE_GOOD;
+    UA_StatusCode statusCode;
     UA_ExtensionObject decodedFile;
     memset(&decodedFile, 0, sizeof(UA_ExtensionObject)); /* Prevents valgrind errors in case of invalid filename */
 
@@ -1003,6 +1004,7 @@ UA_PubSubManager_loadPubSubConfigFromByteString(UA_Server *server, const UA_Byte
     statusCode = UA_ExtensionObject_decodeBinary(&buffer, &offset, &decodedFile);
     if(statusCode != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "[UA_decodeBinFile] decoding UA_Binary failed");
+            goto cleanup;
     }
         
     UA_PubSubConfigurationDataType *pubSubConfig;
@@ -1385,7 +1387,7 @@ UA_PubSubManager_generatePubSubConfigurationDataType(const UA_Server* server,
     
     UA_PublishedDataSet *pds;
     UA_UInt32 pdsIndex = 0;
-    TAILQ_FOREACH(pds, &manager.publishedDataSets, listEntry){
+    TAILQ_FOREACH(pds, &manager.publishedDataSets, listEntry) {
         statusCode = UA_PubSubManager_generatePublishedDataSetDataType(&pubSubConfiguration->publishedDataSets[pdsIndex],
                                                          pds);
         
@@ -1431,7 +1433,7 @@ UA_PubSubManager_generatePubSubConfigurationDataType(const UA_Server* server,
  */
 UA_StatusCode
 UA_PubSubManager_getEncodedPubSubConfiguration(UA_Server *server, UA_ByteString *buffer) {
-    UA_StatusCode statusCode = UA_STATUSCODE_GOOD;
+    UA_StatusCode statusCode;
     UA_PubSubConfigurationDataType config;
     memset(&config, 0, sizeof(UA_PubSubConfigurationDataType));
 
