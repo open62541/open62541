@@ -115,7 +115,7 @@ UA_debug_dumpSetServiceName(const UA_ByteString *msg, char serviceNameTarget[100
  *
  * message is the decoded message starting at the nodeid of the content type.
  */
-static void
+static UA_StatusCode
 UA_debug_dump_setName(void *application, UA_SecureChannel *channel,
                       UA_MessageType messagetype, UA_UInt32 requestId,
                       UA_ByteString *message) {
@@ -123,6 +123,7 @@ UA_debug_dump_setName(void *application, UA_SecureChannel *channel,
     dump_filename->messageType = UA_debug_dumpGetMessageTypePrefix(messagetype);
     if(messagetype == UA_MESSAGETYPE_MSG)
         UA_debug_dumpSetServiceName(message, dump_filename->serviceName);
+    return UA_STATUSCODE_GOOD;
 }
 
 /**
