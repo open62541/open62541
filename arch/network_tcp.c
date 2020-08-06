@@ -285,8 +285,9 @@ addServerSocket(ServerNetworkLayerTCP *layer, struct addrinfo *ai) {
     UA_SOCKET newsock = UA_socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
     if(newsock == UA_INVALID_SOCKET)
     {
-        UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK,
-                       "Error opening the server socket");
+        UA_LOG_SOCKET_ERRNO_WRAP(
+            UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK,
+                           "Error opening the server socket: %s", errno_str));
         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
     }
 
