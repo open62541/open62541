@@ -1328,7 +1328,7 @@ UA_Server_processNetworkMessage(UA_Server *server, UA_NetworkMessage *pMsg,
     
     /* To Do The condition pMsg->dataSetClassIdEnabled
      * Here some filtering is possible */
-    UA_Byte dsmCount = 1;
+    UA_Byte dsmCount = 0;
     if(pMsg->payloadHeaderEnabled)
         dsmCount = pMsg->payloadHeader.dataSetPayloadHeader.count;
     for(UA_Byte i = 0; i < dsmCount; i++)
