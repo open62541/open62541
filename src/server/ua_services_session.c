@@ -35,8 +35,8 @@ UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
     /* Remove the Subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_Subscription *sub, *tempsub;
-    LIST_FOREACH_SAFE(sub, &session->serverSubscriptions, listEntry, tempsub) {
-        UA_Session_deleteSubscription(server, session, sub);
+    LIST_FOREACH_SAFE(sub, &session->subscriptions, sessionListEntry, tempsub) {
+        UA_Server_deleteSubscription(server, sub);
     }
 
     UA_PublishResponseEntry *entry;
@@ -749,7 +749,20 @@ Service_CloseSession(UA_Server *server, UA_SecureChannel *channel,
         return;
     }
 
-    UA_LOG_INFO_SESSION(&server->config.logger, session, "CloseSession");
+    UA_LOG_INFO_SESSION(&server->config.logger, session, "Closing the Session");
+
+    /* If Subscriptions are not deleted, detach them from the Session */
+    if(!request->deleteSubscriptions) {
+        UA_Subscription *sub;
+        LIST_FOREACH(sub, &session->subscriptions, sessionListEntry) {
+            UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, sub,
+                                     "Detaching the Subscription from the Session");
+            LIST_REMOVE(sub, sessionListEntry);
+            sub->session = NULL;
+            session->numSubscriptions--;
+        }
+    }
+
     response->responseHeader.serviceResult =
         UA_Server_removeSessionByToken(server, &session->header.authenticationToken,
                                        UA_DIAGNOSTICEVENT_CLOSE);

@@ -22,7 +22,11 @@ typedef struct UA_AccessControl UA_AccessControl;
  * Access Control Plugin API
  * =========================
  * The access control callback is used to authenticate sessions and grant access
- * rights accordingly. */
+ * rights accordingly.
+ *
+ * The ``sessionId`` and ``sessionContext`` can be both NULL. This is the case
+ * when, for example, a MonitoredItem (the underlying Subscription) is detached
+ * from its Session but continues to run. */
 
 struct UA_AccessControl {
     void *context;

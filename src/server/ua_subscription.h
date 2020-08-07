@@ -236,10 +236,16 @@ typedef enum {
 
 typedef TAILQ_HEAD(ListOfNotificationMessages, UA_NotificationMessageEntry) ListOfNotificationMessages;
 
+/* Subscriptions are managed in a server-wide linked list. If they are attached
+ * to a Session, then they are additionaly in the per-Session linked-list. A
+ * subscription is always generated for a Session. But the CloseSession Service
+ * may keep Subscriptions intact beyond the Session lifetime. They can then be
+ * re-bound to a new Session with the TransferSubscription Service. */
 struct UA_Subscription {
     UA_DelayedCallback delayedFreePointers;
-    LIST_ENTRY(UA_Subscription) listEntry;
-    UA_Session *session;
+    LIST_ENTRY(UA_Subscription) serverListEntry;
+    LIST_ENTRY(UA_Subscription) sessionListEntry; /* Only set if session != NULL */
+    UA_Session *session; /* May be NULL if no session is attached. */
     UA_UInt32 subscriptionId;
 
     /* Settings */
@@ -299,7 +305,7 @@ UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
 void UA_Subscription_publish(UA_Server *server, UA_Subscription *sub);
 UA_StatusCode UA_Subscription_removeRetransmissionMessage(UA_Subscription *sub,
                                                           UA_UInt32 sequenceNumber);
-UA_Boolean UA_Subscription_reachedPublishReqLimit(UA_Server *server,  UA_Session *session);
+UA_Boolean UA_Session_reachedPublishReqLimit(UA_Server *server, UA_Session *session);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 
@@ -310,6 +316,70 @@ UA_Server_evaluateWhereClauseContentFilter(
     const UA_NodeId *eventNode,
     const UA_ContentFilter *contentFilter);
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
+
+/**
+ * Log Helper
+ * ----------
+ * See a description of the tricks used in ua_session.h */
+
+#define UA_LOG_SUBSCRIPTION_INTERNAL(LOGGER, LEVEL, SUB, MSG, ...) do { \
+    UA_String idString = UA_STRING_NULL;                                \
+    if((SUB) && (SUB)->session) {                                       \
+        UA_NodeId_print(&(SUB)->session->sessionId, &idString);         \
+        UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_SESSION,                  \
+                       "SecureChannel %i | Session %.*s | Subscription %" PRIu32 " | " MSG "%.0s", \
+                       ((SUB)->session->header.channel ?                \
+                        (SUB)->session->header.channel->securityToken.channelId : 0), \
+                       (int)idString.length, idString.data, (SUB)->subscriptionId, __VA_ARGS__); \
+        UA_String_clear(&idString);                                     \
+    } else {                                                            \
+        UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_SERVER,                   \
+                       "Subscription %" PRIu32 " | " MSG "%.0s",        \
+                       (SUB) ? (SUB)->subscriptionId : 0, __VA_ARGS__); \
+    }                                                                   \
+} while(0)
+
+#if UA_LOGLEVEL <= 100
+# define UA_LOG_TRACE_SUBSCRIPTION(LOGGER, SUB, ...)                     \
+    UA_MACRO_EXPAND(UA_LOG_SUBSCRIPTION_INTERNAL(LOGGER, TRACE, SUB, __VA_ARGS__, ""))
+#else
+# define UA_LOG_TRACE_SUBSCRIPTION(LOGGER, SUB, ...) do {} while(0)
+#endif
+
+#if UA_LOGLEVEL <= 200
+# define UA_LOG_DEBUG_SUBSCRIPTION(LOGGER, SUB, ...)                     \
+    UA_MACRO_EXPAND(UA_LOG_SUBSCRIPTION_INTERNAL(LOGGER, DEBUG, SUB, __VA_ARGS__, ""))
+#else
+# define UA_LOG_DEBUG_SUBSCRIPTION(LOGGER, SUB, ...) do {} while(0)
+#endif
+
+#if UA_LOGLEVEL <= 300
+# define UA_LOG_INFO_SUBSCRIPTION(LOGGER, SUB, ...)                     \
+    UA_MACRO_EXPAND(UA_LOG_SUBSCRIPTION_INTERNAL(LOGGER, INFO, SUB, __VA_ARGS__, ""))
+#else
+# define UA_LOG_INFO_SUBSCRIPTION(LOGGER, SUB, ...) do {} while(0)
+#endif
+
+#if UA_LOGLEVEL <= 400
+# define UA_LOG_WARNING_SUBSCRIPTION(LOGGER, SUB, ...)                     \
+    UA_MACRO_EXPAND(UA_LOG_SUBSCRIPTION_INTERNAL(LOGGER, WARNING, SUB, __VA_ARGS__, ""))
+#else
+# define UA_LOG_WARNING_SUBSCRIPTION(LOGGER, SUB, ...) do {} while(0)
+#endif
+
+#if UA_LOGLEVEL <= 500
+# define UA_LOG_ERROR_SUBSCRIPTION(LOGGER, SUB, ...)                     \
+    UA_MACRO_EXPAND(UA_LOG_SUBSCRIPTION_INTERNAL(LOGGER, ERROR, SUB, __VA_ARGS__, ""))
+#else
+# define UA_LOG_ERROR_SUBSCRIPTION(LOGGER, SUB, ...) do {} while(0)
+#endif
+
+#if UA_LOGLEVEL <= 600
+# define UA_LOG_FATAL_SUBSCRIPTION(LOGGER, SUB, ...)                     \
+    UA_MACRO_EXPAND(UA_LOG_SUBSCRIPTION_INTERNAL(LOGGER, FATAL, SUB, __VA_ARGS__, ""))
+#else
+# define UA_LOG_FATAL_SUBSCRIPTION(LOGGER, SUB, ...) do {} while(0)
+#endif
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
 

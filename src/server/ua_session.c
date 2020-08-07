@@ -89,18 +89,25 @@ void UA_Session_updateLifetime(UA_Session *session) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 
 void
-UA_Session_addSubscription(UA_Server *server, UA_Session *session,
-                           UA_Subscription *newSubscription) {
-    newSubscription->session = session;
-    newSubscription->subscriptionId = ++server->lastSubscriptionId;
-    LIST_INSERT_HEAD(&session->serverSubscriptions, newSubscription, listEntry);
-    session->numSubscriptions++;
+UA_Server_addSubscription(UA_Server *server, UA_Session *session,
+                          UA_Subscription *sub) {
+    UA_assert(session); /* New subscriptions must have a session */
+    
+    /* Assign the id */
+    sub->subscriptionId = ++server->lastSubscriptionId;
+
+    /* Add to the server */
+    LIST_INSERT_HEAD(&server->subscriptions, sub, serverListEntry);
     server->numSubscriptions++;
+
+    /* Add to the session */
+    sub->session = session;
+    LIST_INSERT_HEAD(&session->subscriptions, sub, sessionListEntry);
+    session->numSubscriptions++;
 }
 
-UA_StatusCode
-UA_Session_deleteSubscription(UA_Server *server, UA_Session *session,
-                              UA_Subscription *sub) {
+void
+UA_Server_deleteSubscription(UA_Server *server, UA_Subscription *sub) {
     UA_LOCK_ASSERT(server->serviceMutex, 1);
 
     UA_Subscription_clear(server, sub);
@@ -111,28 +118,31 @@ UA_Session_deleteSubscription(UA_Server *server, UA_Session *session,
     sub->delayedFreePointers.callback = NULL;
     UA_WorkQueue_enqueueDelayed(&server->workQueue, &sub->delayedFreePointers);
 
-    /* Remove from the session */
-    LIST_REMOVE(sub, listEntry);
-    UA_assert(session->numSubscriptions > 0);
-    UA_assert(server->numSubscriptions > 0);
-    session->numSubscriptions--;
+    if(sub->session) {
+        UA_Session *session = sub->session;
+        
+        /* Remove from the session */
+        LIST_REMOVE(sub, sessionListEntry);
+        UA_assert(session->numSubscriptions > 0);
+        UA_assert(server->numSubscriptions > 0);
+        session->numSubscriptions--;
+
+        /* Send remaining publish responses if the last subscription was removed */
+        if(!LIST_FIRST(&session->subscriptions))
+            UA_Session_answerPublishRequestsNoSubscription(server, session);
+    }
+
+    UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, sub, "Subscription deleted");
+
+    /* Remove from the server */
+    LIST_REMOVE(sub, serverListEntry);
     server->numSubscriptions--;
-
-    UA_LOG_INFO_SESSION(&server->config.logger, sub->session,
-                        "Subscription %" PRIu32 " | Deleted the Subscription",
-                        sub->subscriptionId);
-
-    /* Send remaining publish responses if the last subscription was removed */
-    if(!LIST_FIRST(&session->serverSubscriptions))
-        UA_Session_answerPublishRequestsNoSubscription(server, session);
-
-    return UA_STATUSCODE_GOOD;
 }
 
 UA_Subscription *
 UA_Session_getSubscriptionById(UA_Session *session, UA_UInt32 subscriptionId) {
     UA_Subscription *sub;
-    LIST_FOREACH(sub, &session->serverSubscriptions, listEntry) {
+    LIST_FOREACH(sub, &session->subscriptions, sessionListEntry) {
         /* Prevent lookup of subscriptions that are to be deleted with a statuschange */
         if(sub->statusChange != UA_STATUSCODE_GOOD)
             continue;
@@ -166,7 +176,7 @@ UA_Session_queuePublishReq(UA_Session *session, UA_PublishResponseEntry* entry, 
 void
 UA_Session_answerPublishRequestsNoSubscription(UA_Server *server, UA_Session *session) {
     /* Are there subscriptions for the session? */
-    if(LIST_FIRST(&session->serverSubscriptions))
+    if(LIST_FIRST(&session->subscriptions))
         return;
 
     /* Send a response for every queued request */
