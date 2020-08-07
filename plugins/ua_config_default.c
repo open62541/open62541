@@ -46,7 +46,7 @@ UA_Server_new() {
     UA_ServerConfig config;
     memset(&config, 0, sizeof(UA_ServerConfig));
     /* Set a default logger and NodeStore for the initialization */
-    config.logger = UA_Log_Stdout_;
+    config.logger = *UA_Log_Stdout;
     UA_Nodestore_HashMap(&config.nodestore);
     return UA_Server_newWithConfig(&config);
 }
@@ -125,7 +125,7 @@ setDefaultConfig(UA_ServerConfig *conf) {
     /* --> Start setting the default static config <-- */
     /* Allow user to set his own logger */
     if (!conf->logger.log)
-        conf->logger = UA_Log_Stdout_;
+        conf->logger = *UA_Log_Stdout;
 
     conf->shutdownDelay = 0.0;
 
@@ -730,9 +730,7 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
 UA_Client * UA_Client_new() {
     UA_ClientConfig config;
     memset(&config, 0, sizeof(UA_ClientConfig));
-    config.logger.log = UA_Log_Stdout_log;
-    config.logger.context = NULL;
-    config.logger.clear = UA_Log_Stdout_clear;
+    config.logger = *UA_Log_Stdout;
     return UA_Client_newWithConfig(&config);
 }
 
@@ -742,9 +740,7 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
     config->secureChannelLifeTime = 10 * 60 * 1000; /* 10 minutes */
 
     if(!config->logger.log) {
-       config->logger.log = UA_Log_Stdout_log;
-       config->logger.context = NULL;
-       config->logger.clear = UA_Log_Stdout_clear;
+       config->logger = *UA_Log_Stdout;
     }
 
     config->localConnectionConfig = UA_ConnectionConfig_default;
