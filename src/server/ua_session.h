@@ -40,22 +40,22 @@ typedef struct {
     UA_ApplicationDescription clientDescription;
     UA_String         sessionName;
     UA_Boolean        activated;
-    void             *sessionHandle; // pointer assigned in userland-callback
+    void             *sessionHandle; /* pointer assigned in userland-callback */
     UA_NodeId         sessionId;
     UA_UInt32         maxRequestMessageSize;
     UA_UInt32         maxResponseMessageSize;
-    UA_Double         timeout; // [ms]
+    UA_Double         timeout; /* in ms */
     UA_DateTime       validTill;
     UA_ByteString     serverNonce;
-    UA_UInt16 availableContinuationPoints;
+    UA_UInt16         availableContinuationPoints;
     ContinuationPoint *continuationPoints;
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    UA_UInt32 lastSeenSubscriptionId;
-    LIST_HEAD(UA_ListOfUASubscriptions, UA_Subscription) serverSubscriptions;
-    SIMPLEQ_HEAD(UA_ListOfQueuedPublishResponses, UA_PublishResponseEntry) responseQueue;
-    UA_UInt32        numSubscriptions;
-    UA_UInt32        numPublishReq;
-    size_t           totalRetransmissionQueueSize; /* Retransmissions of all subscriptions */
+    UA_UInt32         lastSeenSubscriptionId;
+    LIST_HEAD(, UA_Subscription) subscriptions;
+    SIMPLEQ_HEAD(, UA_PublishResponseEntry) responseQueue;
+    UA_UInt32         numSubscriptions;
+    UA_UInt32         numPublishReq;
+    size_t            totalRetransmissionQueueSize; /* Retransmissions of all subscriptions */
 #endif
 } UA_Session;
 
@@ -78,18 +78,18 @@ void UA_Session_updateLifetime(UA_Session *session);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 
+/* New subscriptions must have a session */
 void
-UA_Session_addSubscription(UA_Server *server,
-                           UA_Session *session,
-                           UA_Subscription *newSubscription);
+UA_Server_addSubscription(UA_Server *server, UA_Session *session,
+                          UA_Subscription *sub);
+
+void
+UA_Server_deleteSubscription(UA_Server *server, UA_Subscription *sub);
 
 UA_Subscription *
 UA_Session_getSubscriptionById(UA_Session *session,
                                UA_UInt32 subscriptionId);
 
-UA_StatusCode
-UA_Session_deleteSubscription(UA_Server *server, UA_Session *session,
-                              UA_Subscription *sub);
 
 void
 UA_Session_queuePublishReq(UA_Session *session,
@@ -113,18 +113,19 @@ UA_Session_answerPublishRequestsNoSubscription(UA_Server *server,
  * zero arguments. So we add a dummy argument that is not printed (%.0s is
  * string of length zero). */
 
-#define UA_LOG_SESSION_INTERNAL(LOGGER, LEVEL, SESSION, MSG, ...) do {  \
-        UA_String idString = UA_STRING_NULL;                            \
+#define UA_LOG_SESSION_INTERNAL(LOGGER, LEVEL, SESSION, MSG, ...)       \
+    do {                                                                \
+    UA_String idString = UA_STRING_NULL;                                \
+    UA_UInt32 channelId = 0;                                            \
+    if(SESSION) {                                                       \
         UA_NodeId_print(&(SESSION)->sessionId, &idString);              \
-        UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_SESSION,                  \
-                       "Connection %i | SecureChannel %i | Session %.*s | " MSG "%.0s", \
-                       ((SESSION)->header.channel ?                     \
-                        ((SESSION)->header.channel->connection ?        \
-                         (int)((SESSION)->header.channel->connection->sockfd) : 0) : 0), \
-                       ((SESSION)->header.channel ?                     \
-                        (SESSION)->header.channel->securityToken.channelId : 0), \
-                       (int)idString.length, idString.data, __VA_ARGS__); \
-        UA_String_clear(&idString);                                     \
+        channelId = (SESSION)->header.channel ?                         \
+            (SESSION)->header.channel->securityToken.channelId : 0;     \
+    }                                                                   \
+    UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_SESSION,                      \
+                   "SecureChannel %i | Session %.*s | " MSG "%.0s",     \
+                   channelId, (int)idString.length, idString.data, __VA_ARGS__); \
+    UA_String_clear(&idString);                                         \
     } while(0)
 
 #if UA_LOGLEVEL <= 100

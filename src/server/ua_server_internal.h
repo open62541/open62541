@@ -126,18 +126,22 @@ struct UA_Server {
     UA_DiscoveryManager discoveryManager;
 #endif
 
-    /* DataChange Subscriptions */
+    /* Subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
+    LIST_HEAD(, UA_Subscription) subscriptions; /* All subscriptions in the
+                                                 * server. They may be detached
+                                                 * from a session. */
     UA_UInt32 lastSubscriptionId; /* To generate unique SubscriptionIds */
-    UA_UInt32 numSubscriptions; /* Num active subscriptions */
-    UA_UInt32 numMonitoredItems; /* Num active monitored items */
+    UA_UInt32 numSubscriptions;   /* Num active subscriptions */
+    UA_UInt32 numMonitoredItems;  /* Num active monitored items */
+
     /* To be cast to UA_LocalMonitoredItem to get the callback and context */
-    LIST_HEAD(LocalMonitoredItems, UA_MonitoredItem) localMonitoredItems;
+    LIST_HEAD(, UA_MonitoredItem) localMonitoredItems;
     UA_UInt32 lastLocalMonitoredItemId;
 
-#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
-    LIST_HEAD(conditionSourcelisthead, UA_ConditionSource) headConditionSource;
-#endif//UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+# ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+    LIST_HEAD(, UA_ConditionSource) headConditionSource;
+# endif /* UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */
 
 #endif
 

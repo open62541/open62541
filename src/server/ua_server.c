@@ -199,6 +199,12 @@ void UA_Server_delete(UA_Server *server) {
         UA_UNLOCK(server->serviceMutex);
     }
 
+    /* Remove subscriptions without a session */
+    UA_Subscription *sub, *sub_tmp;
+    LIST_FOREACH_SAFE(sub, &server->subscriptions, serverListEntry, sub_tmp) {
+        UA_Server_deleteSubscription(server, sub);
+    }
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
     UA_ConditionList_delete(server);
 #endif//UA_ENABLE_ALARMS_CONDITIONS

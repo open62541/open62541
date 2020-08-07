@@ -93,7 +93,7 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
     }
 
     /* Also assigns the SubscriptionId */
-    UA_Session_addSubscription(server, session, sub);
+    UA_Server_addSubscription(server, session, sub);
 
     /* Prepare the response */
     response->subscriptionId = sub->subscriptionId;
@@ -179,7 +179,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
     UA_LOCK_ASSERT(server->serviceMutex, 1);
 
     /* Return an error if the session has no subscription */
-    if(LIST_EMPTY(&session->serverSubscriptions)) {
+    if(LIST_EMPTY(&session->subscriptions)) {
         sendServiceFault(session->header.channel, requestId, request->requestHeader.requestHandle,
                          &UA_TYPES[UA_TYPES_PUBLISHRESPONSE], UA_STATUSCODE_BADNOSUBSCRIPTION);
         return;
@@ -190,7 +190,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
      * oldest publish request shall be responded */
     if((server->config.maxPublishReqPerSession != 0) &&
        (session->numPublishReq >= server->config.maxPublishReqPerSession)) {
-        if(!UA_Subscription_reachedPublishReqLimit(server, session)) {
+        if(!UA_Session_reachedPublishReqLimit(server, session)) {
             sendServiceFault(session->header.channel, requestId, request->requestHeader.requestHandle,
                              &UA_TYPES[UA_TYPES_PUBLISHRESPONSE], UA_STATUSCODE_BADINTERNALERROR);
             return;
@@ -255,9 +255,9 @@ Service_Publish(UA_Server *server, UA_Session *session,
 
     UA_Subscription *immediate = NULL;
     if(session->lastSeenSubscriptionId > 0) {
-        LIST_FOREACH(immediate, &session->serverSubscriptions, listEntry) {
+        LIST_FOREACH(immediate, &session->subscriptions, sessionListEntry) {
             if(immediate->subscriptionId == session->lastSeenSubscriptionId) {
-                immediate = LIST_NEXT(immediate, listEntry);
+                immediate = LIST_NEXT(immediate, sessionListEntry);
                 break;
             }
         }
@@ -266,7 +266,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
     /* If no entry was found, start at the beginning and don't restart  */
     UA_Boolean found = false;
     if(!immediate)
-        immediate = LIST_FIRST(&session->serverSubscriptions);
+        immediate = LIST_FIRST(&session->subscriptions);
     else
         found = true;
 
@@ -280,12 +280,12 @@ Service_Publish(UA_Server *server, UA_Session *session,
             UA_Subscription_publish(server, immediate);
             return;
         }
-        immediate = LIST_NEXT(immediate, listEntry);
+        immediate = LIST_NEXT(immediate, sessionListEntry);
     }
 
     /* Restart at the beginning of the list */
     if(found) {
-        immediate = LIST_FIRST(&session->serverSubscriptions);
+        immediate = LIST_FIRST(&session->subscriptions);
         found = false;
         goto repeat;
     }
@@ -298,20 +298,19 @@ static void
 Operation_DeleteSubscription(UA_Server *server, UA_Session *session, void *_,
                              const UA_UInt32 *subscriptionId, UA_StatusCode *result) {
     UA_Subscription *sub = UA_Session_getSubscriptionById(session, *subscriptionId);
-    if(sub)
-        *result = UA_Session_deleteSubscription(server, session, sub);
-    else
+    if(!sub) {
         *result = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
-
-    if(*result == UA_STATUSCODE_GOOD) {
-        UA_LOG_DEBUG_SESSION(&server->config.logger, session,
-                             "Subscription %" PRIu32 " | Subscription deleted",
-                             *subscriptionId);
-    } else {
         UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                              "Deleting Subscription with Id %" PRIu32 " failed with error code %s",
                              *subscriptionId, UA_StatusCode_name(*result));
+        return;
     }
+
+    UA_Server_deleteSubscription(server, sub);
+    *result = UA_STATUSCODE_GOOD;
+    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+                         "Subscription %" PRIu32 " | Subscription deleted",
+                         *subscriptionId);
 }
 
 void

@@ -30,15 +30,20 @@
 /* Access Control */
 /******************/
 
+/* Session for read operations can be NULL. For example for a MonitoredItem
+ * where the underlying Subscription was detached during CloseSession. */
+
 static UA_UInt32
 getUserWriteMask(UA_Server *server, const UA_Session *session, const UA_NodeHead *head) {
     if(session == &server->adminSession)
         return 0xFFFFFFFF; /* the local admin user has all rights */
     UA_UInt32 mask = head->writeMask;
     UA_UNLOCK(server->serviceMutex);
-    mask &= server->config.accessControl.getUserRightsMask(server, &server->config.accessControl,
-                                                           &session->sessionId, session->sessionHandle,
-                                                           &head->nodeId, head->context);
+    mask &= server->config.accessControl.
+        getUserRightsMask(server, &server->config.accessControl,
+                          session ? &session->sessionId : NULL,
+                          session ? session->sessionHandle : NULL,
+                          &head->nodeId, head->context);
     UA_LOCK(server->serviceMutex);
     return mask;
 }
@@ -60,7 +65,8 @@ getUserAccessLevel(UA_Server *server, const UA_Session *session,
     UA_UNLOCK(server->serviceMutex);
     retval &= server->config.accessControl.
         getUserAccessLevel(server, &server->config.accessControl,
-                           &session->sessionId, session->sessionHandle,
+                           session ? &session->sessionId : NULL,
+                           session ? session->sessionHandle : NULL,
                            &node->head.nodeId, node->head.context);
     UA_LOCK(server->serviceMutex);
     return retval;
@@ -74,9 +80,11 @@ getUserExecutable(UA_Server *server, const UA_Session *session,
     UA_UNLOCK(server->serviceMutex);
     UA_Boolean userExecutable = node->executable;
     userExecutable &=
-        server->config.accessControl.getUserExecutable(server, &server->config.accessControl,
-                                                       &session->sessionId, session->sessionHandle,
-                                                       &node->head.nodeId, node->head.context);
+        server->config.accessControl.
+        getUserExecutable(server, &server->config.accessControl,
+                          session ? &session->sessionId : NULL,
+                          session ? session->sessionHandle : NULL,
+                          &node->head.nodeId, node->head.context);
     UA_LOCK(server->serviceMutex);
     return userExecutable;
 }
@@ -115,9 +123,11 @@ readValueAttributeFromNode(UA_Server *server, UA_Session *session,
     /* Update the value by the user callback */
     if(vn->value.data.callback.onRead) {
         UA_UNLOCK(server->serviceMutex);
-        vn->value.data.callback.onRead(server, &session->sessionId,
-                                       session->sessionHandle, &vn->head.nodeId,
-                                       vn->head.context, rangeptr, &vn->value.data.value);
+        vn->value.data.callback.onRead(server,
+                                       session ? &session->sessionId : NULL,
+                                       session ? session->sessionHandle : NULL,
+                                       &vn->head.nodeId, vn->head.context, rangeptr,
+                                       &vn->value.data.value);
         UA_LOCK(server->serviceMutex);
         vn = (const UA_VariableNode*)UA_NODESTORE_GET(server, &vn->head.nodeId);
         if(!vn)
@@ -148,8 +158,11 @@ readValueAttributeFromDataSource(UA_Server *server, UA_Session *session,
     UA_DataValue_init(&v2);
     UA_UNLOCK(server->serviceMutex);
     UA_StatusCode retval = vn->value.dataSource.
-        read(server, &session->sessionId, session->sessionHandle,
-             &vn->head.nodeId, vn->head.context, sourceTimeStamp, rangeptr, &v2);
+        read(server,
+             session ? &session->sessionId : NULL,
+             session ? session->sessionHandle : NULL,
+             &vn->head.nodeId, vn->head.context,
+             sourceTimeStamp, rangeptr, &v2);
     UA_LOCK(server->serviceMutex);
     if(v2.hasValue && v2.value.storageType == UA_VARIANT_DATA_NODELETE) {
         retval = UA_DataValue_copy(&v2, v);
@@ -186,12 +199,11 @@ readValueAttributeComplete(UA_Server *server, UA_Session *session,
             break;
         case UA_VALUEBACKENDTYPE_EXTERNAL:
             if(vn->valueBackend.backend.external.callback.notificationRead){
-                retval = vn->valueBackend.backend.external.callback.notificationRead(server,
-                                                                                     &session->sessionId,
-                                                                                     session->sessionHandle,
-                                                                                     &vn->head.nodeId,
-                                                                                     vn->head.context,
-                                                                                     rangeptr);
+                retval = vn->valueBackend.backend.external.callback.
+                    notificationRead(server,
+                                     session ? &session->sessionId : NULL,
+                                     session ? session->sessionHandle : NULL,
+                                     &vn->head.nodeId, vn->head.context, rangeptr);
             } else {
                 retval = UA_STATUSCODE_BADNOTREADABLE;
             }
@@ -1189,6 +1201,7 @@ writeValueAttribute(UA_Server *server, UA_Session *session,
                     UA_VariableNode *node, const UA_DataValue *value,
                     const UA_String *indexRange) {
     UA_assert(node != NULL);
+    UA_assert(session != NULL);
 
     /* Parse the range */
     UA_NumericRange range;
@@ -1383,6 +1396,7 @@ updateLocalizedText(const UA_LocalizedText *source, UA_LocalizedText *target) {
 static UA_StatusCode
 copyAttributeIntoNode(UA_Server *server, UA_Session *session,
                       UA_Node *node, const UA_WriteValue *wvalue) {
+    UA_assert(session != NULL);
     const void *value = wvalue->value.value.data;
     UA_UInt32 userWriteMask = getUserWriteMask(server, session, &node->head);
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -1535,6 +1549,7 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
 static void
 Operation_Write(UA_Server *server, UA_Session *session, void *context,
                 UA_WriteValue *wv, UA_StatusCode *result) {
+    UA_assert(session != NULL);
     *result = UA_Server_editNode(server, session, &wv->nodeId,
                         (UA_EditNodeCallback)copyAttributeIntoNode, wv);
 }
@@ -1543,6 +1558,7 @@ void
 Service_Write(UA_Server *server, UA_Session *session,
               const UA_WriteRequest *request,
               UA_WriteResponse *response) {
+    UA_assert(session != NULL);
     UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                          "Processing WriteRequest");
     UA_LOCK_ASSERT(server->serviceMutex, 1);
@@ -1639,6 +1655,7 @@ void
 Service_HistoryRead(UA_Server *server, UA_Session *session,
                     const UA_HistoryReadRequest *request,
                     UA_HistoryReadResponse *response) {
+    UA_assert(session != NULL);
     UA_LOCK_ASSERT(server->serviceMutex, 1);
 
     if(request->historyReadDetails.encoding != UA_EXTENSIONOBJECT_DECODED) {
@@ -1734,6 +1751,7 @@ void
 Service_HistoryUpdate(UA_Server *server, UA_Session *session,
                     const UA_HistoryUpdateRequest *request,
                     UA_HistoryUpdateResponse *response) {
+    UA_assert(session != NULL);
     UA_LOCK_ASSERT(server->serviceMutex, 1);
 
     response->resultsSize = request->historyUpdateDetailsSize;

@@ -251,7 +251,7 @@ UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
         UA_Session *session = NULL;
         if(monitoredItem->subscription)
             session = monitoredItem->subscription->session;
-        if(!session)
+        else
             session = &server->adminSession;
 
         /* Get the node context */
@@ -260,8 +260,9 @@ UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
 
         /* Deregister */
         UA_UNLOCK(server->serviceMutex);
-        server->config.monitoredItemRegisterCallback(server, &session->sessionId,
-                                                     session->sessionHandle,
+        server->config.monitoredItemRegisterCallback(server,
+                                                     session ? &session->sessionId : NULL,
+                                                     session ? session->sessionHandle : NULL,
                                                      &monitoredItem->monitoredNodeId,
                                                      targetContext, monitoredItem->attributeId, true);
         UA_LOCK(server->serviceMutex);
