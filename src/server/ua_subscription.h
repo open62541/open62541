@@ -244,7 +244,7 @@ typedef TAILQ_HEAD(ListOfNotificationMessages, UA_NotificationMessageEntry) List
 struct UA_Subscription {
     UA_DelayedCallback delayedFreePointers;
     LIST_ENTRY(UA_Subscription) serverListEntry;
-    LIST_ENTRY(UA_Subscription) sessionListEntry; /* Only set if session != NULL */
+    TAILQ_ENTRY(UA_Subscription) sessionListEntry; /* Only set if session != NULL */
     UA_Session *session; /* May be NULL if no session is attached. */
     UA_UInt32 subscriptionId;
 

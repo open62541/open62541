@@ -275,7 +275,7 @@ START_TEST(Server_publishCallback) {
 
     /* Keepalive is set to max initially */
     UA_Subscription *sub;
-    LIST_FOREACH(sub, &session->subscriptions, sessionListEntry)
+    TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry)
         ck_assert_uint_eq(sub->currentKeepAliveCount, sub->maxKeepAliveCount);
 
     /* Sleep until the publishing interval times out */
@@ -283,7 +283,7 @@ START_TEST(Server_publishCallback) {
     UA_Server_run_iterate(server, false);
     UA_realSleep(100);
 
-    LIST_FOREACH(sub, &session->subscriptions, sessionListEntry) {
+    TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
         if ((sub->subscriptionId == subscriptionId1) || (sub->subscriptionId == subscriptionId2))
             ck_assert_uint_eq(sub->currentKeepAliveCount, sub->maxKeepAliveCount+1);
     }
@@ -410,7 +410,7 @@ START_TEST(Server_overflow) {
 
     UA_MonitoredItem *mon = NULL;
     UA_Subscription *sub;
-    LIST_FOREACH(sub, &session->subscriptions, sessionListEntry) {
+    TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
         if(sub->subscriptionId == localSubscriptionId)
             mon = UA_Subscription_getMonitoredItem(sub, localMonitoredItemId);
     }
@@ -692,7 +692,7 @@ START_TEST(Server_lifeTimeCount) {
     UA_Server_run_iterate(server, false);
     UA_UInt32 count = 0;
     UA_Subscription *sub;
-    LIST_FOREACH(sub, &session->subscriptions, sessionListEntry) {
+    TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
         ck_assert_uint_eq(sub->currentLifetimeCount, 0);
         count++;
     }
@@ -702,7 +702,7 @@ START_TEST(Server_lifeTimeCount) {
     UA_Server_run_iterate(server, false);
 
     count = 0;
-    LIST_FOREACH(sub, &session->subscriptions, sessionListEntry) {
+    TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
         ck_assert_uint_eq(sub->currentLifetimeCount, 1);
         count++;
     }
@@ -713,7 +713,7 @@ START_TEST(Server_lifeTimeCount) {
     UA_Server_run_iterate(server, false);
 
     count = 0;
-    LIST_FOREACH(sub, &session->subscriptions, sessionListEntry) {
+    TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
         ck_assert_uint_eq(sub->currentLifetimeCount, 2);
         count++;
     }
@@ -724,7 +724,7 @@ START_TEST(Server_lifeTimeCount) {
     UA_Server_run_iterate(server, false);
 
     count = 0;
-    LIST_FOREACH(sub, &session->subscriptions, sessionListEntry) {
+    TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
         ck_assert_uint_eq(sub->currentLifetimeCount, 3);
         count++;
     }
@@ -735,7 +735,7 @@ START_TEST(Server_lifeTimeCount) {
     UA_Server_run_iterate(server, false);
 
     count = 0;
-    LIST_FOREACH(sub, &session->subscriptions, sessionListEntry) {
+    TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
         if(sub->statusChange == UA_STATUSCODE_GOOD) {
             ck_assert_uint_eq(sub->currentLifetimeCount, 4);
             count++;
@@ -748,7 +748,7 @@ START_TEST(Server_lifeTimeCount) {
     UA_Server_run_iterate(server, false);
 
     count = 0;
-    LIST_FOREACH(sub, &session->subscriptions, sessionListEntry) {
+    TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
         if(sub->statusChange == UA_STATUSCODE_GOOD) {
             ck_assert_uint_eq(sub->currentLifetimeCount, 5);
             count++;
@@ -761,7 +761,7 @@ START_TEST(Server_lifeTimeCount) {
     UA_Server_run_iterate(server, false);
 
     count = 0;
-    LIST_FOREACH(sub, &session->subscriptions, sessionListEntry) {
+    TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
         if(sub->statusChange == UA_STATUSCODE_GOOD) {
             ck_assert_uint_eq(sub->currentLifetimeCount, 6);
             count++;
@@ -775,7 +775,7 @@ START_TEST(Server_lifeTimeCount) {
     UA_Server_run_iterate(server, false);
 
     count = 0;
-    LIST_FOREACH(sub, &session->subscriptions, sessionListEntry) {
+    TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
         if(sub->statusChange == UA_STATUSCODE_GOOD)
             count++;
     }

@@ -179,7 +179,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
     UA_LOCK_ASSERT(server->serviceMutex, 1);
 
     /* Return an error if the session has no subscription */
-    if(LIST_EMPTY(&session->subscriptions)) {
+    if(TAILQ_EMPTY(&session->subscriptions)) {
         sendServiceFault(session->header.channel, requestId, request->requestHeader.requestHandle,
                          &UA_TYPES[UA_TYPES_PUBLISHRESPONSE], UA_STATUSCODE_BADNOSUBSCRIPTION);
         return;
@@ -249,49 +249,24 @@ Service_Publish(UA_Server *server, UA_Session *session,
 
     /* If there are late subscriptions, the new publish request is used to
      * answer them immediately. However, a single subscription that generates
-     * many notifications must not "starve" other late subscriptions. Therefore
-     * we keep track of the last subscription that got preferential treatment.
-     * We start searching for late subscriptions **after** the last one. */
+     * many notifications must not "starve" other late subscriptions. Hence we
+     * move it to the end of the queue when a response was sent. */
+    UA_Subscription *late = NULL;
+    TAILQ_FOREACH(late, &session->subscriptions, sessionListEntry) {
+        if(late->state != UA_SUBSCRIPTIONSTATE_LATE)
+            continue;
 
-    UA_Subscription *immediate = NULL;
-    if(session->lastSeenSubscriptionId > 0) {
-        LIST_FOREACH(immediate, &session->subscriptions, sessionListEntry) {
-            if(immediate->subscriptionId == session->lastSeenSubscriptionId) {
-                immediate = LIST_NEXT(immediate, sessionListEntry);
-                break;
-            }
+        UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, late,
+                                  "Send PublishResponse on a late subscription");
+        UA_Subscription_publish(server, late);
+        /* If the subscription was not detached from the session during publish,
+         * enqueue at the end */
+        if(late->session) {
+            TAILQ_REMOVE(&session->subscriptions, late, sessionListEntry);
+            TAILQ_INSERT_TAIL(&session->subscriptions, late, sessionListEntry);
         }
+        break;
     }
-
-    /* If no entry was found, start at the beginning and don't restart  */
-    UA_Boolean found = false;
-    if(!immediate)
-        immediate = LIST_FIRST(&session->subscriptions);
-    else
-        found = true;
-
- repeat:
-    while(immediate) {
-        if(immediate->state == UA_SUBSCRIPTIONSTATE_LATE) {
-            session->lastSeenSubscriptionId = immediate->subscriptionId;
-            UA_LOG_DEBUG_SESSION(&server->config.logger, session,
-                                 "Subscription %" PRIu32 " | Response on a late subscription",
-                                 immediate->subscriptionId);
-            UA_Subscription_publish(server, immediate);
-            return;
-        }
-        immediate = LIST_NEXT(immediate, sessionListEntry);
-    }
-
-    /* Restart at the beginning of the list */
-    if(found) {
-        immediate = LIST_FIRST(&session->subscriptions);
-        found = false;
-        goto repeat;
-    }
-
-    /* No late subscription this time */
-    session->lastSeenSubscriptionId = 0;
 }
 
 static void
