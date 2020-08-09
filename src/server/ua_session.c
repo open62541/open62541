@@ -20,6 +20,7 @@ void UA_Session_init(UA_Session *session) {
     session->availableContinuationPoints = UA_MAXCONTINUATIONPOINTS;
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     SIMPLEQ_INIT(&session->responseQueue);
+    TAILQ_INIT(&session->subscriptions);
 #endif
 }
 
@@ -102,7 +103,7 @@ UA_Server_addSubscription(UA_Server *server, UA_Session *session,
 
     /* Add to the session */
     sub->session = session;
-    LIST_INSERT_HEAD(&session->subscriptions, sub, sessionListEntry);
+    TAILQ_INSERT_TAIL(&session->subscriptions, sub, sessionListEntry);
     session->numSubscriptions++;
 }
 
@@ -122,13 +123,13 @@ UA_Server_deleteSubscription(UA_Server *server, UA_Subscription *sub) {
         UA_Session *session = sub->session;
         
         /* Remove from the session */
-        LIST_REMOVE(sub, sessionListEntry);
+        TAILQ_REMOVE(&session->subscriptions, sub, sessionListEntry);
         UA_assert(session->numSubscriptions > 0);
-        UA_assert(server->numSubscriptions > 0);
         session->numSubscriptions--;
+        sub->session = NULL;
 
         /* Send remaining publish responses if the last subscription was removed */
-        if(!LIST_FIRST(&session->subscriptions))
+        if(TAILQ_EMPTY(&session->subscriptions))
             UA_Session_answerPublishRequestsNoSubscription(server, session);
     }
 
@@ -136,13 +137,14 @@ UA_Server_deleteSubscription(UA_Server *server, UA_Subscription *sub) {
 
     /* Remove from the server */
     LIST_REMOVE(sub, serverListEntry);
+    UA_assert(server->numSubscriptions > 0);
     server->numSubscriptions--;
 }
 
 UA_Subscription *
 UA_Session_getSubscriptionById(UA_Session *session, UA_UInt32 subscriptionId) {
     UA_Subscription *sub;
-    LIST_FOREACH(sub, &session->subscriptions, sessionListEntry) {
+    TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
         /* Prevent lookup of subscriptions that are to be deleted with a statuschange */
         if(sub->statusChange != UA_STATUSCODE_GOOD)
             continue;
@@ -176,7 +178,7 @@ UA_Session_queuePublishReq(UA_Session *session, UA_PublishResponseEntry* entry, 
 void
 UA_Session_answerPublishRequestsNoSubscription(UA_Server *server, UA_Session *session) {
     /* Are there subscriptions for the session? */
-    if(LIST_FIRST(&session->subscriptions))
+    if(!TAILQ_EMPTY(&session->subscriptions))
         return;
 
     /* Send a response for every queued request */

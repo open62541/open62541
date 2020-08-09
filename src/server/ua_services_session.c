@@ -35,7 +35,7 @@ UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
     /* Remove the Subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_Subscription *sub, *tempsub;
-    LIST_FOREACH_SAFE(sub, &session->subscriptions, sessionListEntry, tempsub) {
+    TAILQ_FOREACH_SAFE(sub, &session->subscriptions, sessionListEntry, tempsub) {
         UA_Server_deleteSubscription(server, sub);
     }
 
@@ -754,12 +754,13 @@ Service_CloseSession(UA_Server *server, UA_SecureChannel *channel,
     /* If Subscriptions are not deleted, detach them from the Session */
     if(!request->deleteSubscriptions) {
         UA_Subscription *sub;
-        LIST_FOREACH(sub, &session->subscriptions, sessionListEntry) {
+        TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
             UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, sub,
                                      "Detaching the Subscription from the Session");
-            LIST_REMOVE(sub, sessionListEntry);
-            sub->session = NULL;
+            TAILQ_REMOVE(&session->subscriptions, sub, sessionListEntry);
+            UA_assert(session->numSubscriptions > 0);
             session->numSubscriptions--;
+            sub->session = NULL;
         }
     }
 

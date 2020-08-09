@@ -577,7 +577,7 @@ readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionC
     UA_Subscription* subscription = UA_Session_getSubscriptionById(session, subscriptionId);
     UA_UNLOCK(server->serviceMutex);
     if(!subscription) {
-        if(LIST_EMPTY(&session->subscriptions)) {
+        if(TAILQ_EMPTY(&session->subscriptions)) {
             UA_Variant_setArray(&output[0], UA_Array_new(0, &UA_TYPES[UA_TYPES_UINT32]),
                                 0, &UA_TYPES[UA_TYPES_UINT32]);
             UA_Variant_setArray(&output[1], UA_Array_new(0, &UA_TYPES[UA_TYPES_UINT32]),

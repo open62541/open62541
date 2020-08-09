@@ -127,7 +127,7 @@ removeOldestRetransmissionMessage(UA_Session *session) {
     UA_Subscription *oldestSub = NULL;
 
     UA_Subscription *sub;
-    LIST_FOREACH(sub, &session->subscriptions, sessionListEntry) {
+    TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
         UA_NotificationMessageEntry *first =
             TAILQ_LAST(&sub->retransmissionQueue, ListOfNotificationMessages);
         if(!first)
