@@ -13,6 +13,7 @@
 
 #ifdef UA_ENABLE_MQTT_TLS_OPENSSL
 #include <openssl/ssl.h>
+#include <openssl/err.h>
 #endif
 
 /* forward decl for callback */
@@ -167,7 +168,12 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
 #ifdef UA_ENABLE_MQTT_TLS_OPENSSL
         SSL_library_init();
 
-        SSL_CTX *ctx = SSL_CTX_new(TLSv1_client_method());
+        SSL_load_error_strings();
+        ERR_load_crypto_strings();
+
+        // OpenSSL 1.0 doesn't have TLS_client_method(), use SSLv23 and forbid SSLv2 and SSLv3
+        SSL_CTX *ctx = SSL_CTX_new(SSLv23_client_method());
+        SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3);
 
         if (!ctx) {
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Connection creation failed. Out of memory.");
@@ -242,7 +248,10 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
         result = SSL_connect(channelData->ssl);
 
         if (SSL_get_error(channelData->ssl, result) != SSL_ERROR_NONE) {
-            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: TLS connect failed.");
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: TLS connect failed");
+            const unsigned long err = ERR_get_error();
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "SSL_connect error code: %lu %s", err, ERR_error_string(err, NULL));
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Error description: %s", ERR_reason_error_string(err));
             return UA_STATUSCODE_BADCOMMUNICATIONERROR;
         }
 
