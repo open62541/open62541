@@ -135,7 +135,7 @@ Service_ModifySubscription(UA_Server *server, UA_Session *session,
 
     /* Change the repeated callback to the new interval. This cannot fail as the
      * CallbackId must exist. */
-    if(sub->publishCallbackIsRegistered &&
+    if(sub->publishCallbackId > 0 &&
        sub->publishingInterval != oldPublishingInterval)
         changeRepeatedCallbackInterval(server, sub->publishCallbackId, sub->publishingInterval);
 
