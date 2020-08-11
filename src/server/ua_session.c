@@ -90,27 +90,72 @@ void UA_Session_updateLifetime(UA_Session *session) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 
 void
-UA_Server_addSubscription(UA_Server *server, UA_Session *session,
-                          UA_Subscription *sub) {
-    UA_assert(session); /* New subscriptions must have a session */
+UA_Session_attachSubscription(UA_Session *session, UA_Subscription *sub) {
+    /* Attach to the session */
+    sub->session = session;
+    TAILQ_INSERT_TAIL(&session->subscriptions, sub, sessionListEntry);
+
+    /* Increase the count */
+    session->numSubscriptions++;
+
+    /* Increase the number of outstanding retransmissions */
+    session->totalRetransmissionQueueSize += sub->retransmissionQueueSize;
+}
+
+void
+UA_Session_detachSubscription(UA_Server *server, UA_Session *session, UA_Subscription *sub) {
+    /* Detach from the session */
+    sub->session = NULL;
+    TAILQ_REMOVE(&session->subscriptions, sub, sessionListEntry);
+
+    /* Reduce the count */
+    UA_assert(session->numSubscriptions > 0);
+    session->numSubscriptions--;
+
+    /* Reduce the number of outstanding retransmissions */
+    session->totalRetransmissionQueueSize -= sub->retransmissionQueueSize;
     
+    /* Send remaining publish responses if the last subscription was removed */
+    if(!TAILQ_EMPTY(&session->subscriptions))
+        return;
+    UA_PublishResponseEntry *pre;
+    while((pre = UA_Session_dequeuePublishReq(session))) {
+        UA_PublishResponse *response = &pre->response;
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOSUBSCRIPTION;
+        response->responseHeader.timestamp = UA_DateTime_now();
+        sendResponse(server, session, session->header.channel, pre->requestId,
+                     (UA_Response*)response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
+        UA_PublishResponse_clear(response);
+        UA_free(pre);
+    }
+}
+
+void
+UA_Server_addSubscription(UA_Server *server, UA_Subscription *sub) {
     /* Assign the id */
     sub->subscriptionId = ++server->lastSubscriptionId;
 
     /* Add to the server */
     LIST_INSERT_HEAD(&server->subscriptions, sub, serverListEntry);
     server->numSubscriptions++;
-
-    /* Add to the session */
-    sub->session = session;
-    TAILQ_INSERT_TAIL(&session->subscriptions, sub, sessionListEntry);
-    session->numSubscriptions++;
 }
 
 void
 UA_Server_deleteSubscription(UA_Server *server, UA_Subscription *sub) {
     UA_LOCK_ASSERT(server->serviceMutex, 1);
 
+    UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, sub, "Subscription deleted");
+
+    /* Detach from the session if necessary */
+    if(sub->session)
+        UA_Session_detachSubscription(server, sub->session, sub);
+
+    /* Remove from the server */
+    LIST_REMOVE(sub, serverListEntry);
+    UA_assert(server->numSubscriptions > 0);
+    server->numSubscriptions--;
+
+    /* Clean up */
     UA_Subscription_clear(server, sub);
 
     /* Add a delayed callback to remove the subscription when the currently
@@ -118,27 +163,6 @@ UA_Server_deleteSubscription(UA_Server *server, UA_Subscription *sub) {
      * free the structure. */
     sub->delayedFreePointers.callback = NULL;
     UA_WorkQueue_enqueueDelayed(&server->workQueue, &sub->delayedFreePointers);
-
-    if(sub->session) {
-        UA_Session *session = sub->session;
-        
-        /* Remove from the session */
-        TAILQ_REMOVE(&session->subscriptions, sub, sessionListEntry);
-        UA_assert(session->numSubscriptions > 0);
-        session->numSubscriptions--;
-        sub->session = NULL;
-
-        /* Send remaining publish responses if the last subscription was removed */
-        if(TAILQ_EMPTY(&session->subscriptions))
-            UA_Session_answerPublishRequestsNoSubscription(server, session);
-    }
-
-    UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, sub, "Subscription deleted");
-
-    /* Remove from the server */
-    LIST_REMOVE(sub, serverListEntry);
-    UA_assert(server->numSubscriptions > 0);
-    server->numSubscriptions--;
 }
 
 UA_Subscription *
@@ -171,27 +195,6 @@ UA_Session_queuePublishReq(UA_Session *session, UA_PublishResponseEntry* entry, 
     else
         SIMPLEQ_INSERT_HEAD(&session->responseQueue, entry, listEntry);
     session->numPublishReq++;
-}
-
-/* When the session has publish requests stored but the last subscription is
- * deleted... Send out empty responses */
-void
-UA_Session_answerPublishRequestsNoSubscription(UA_Server *server, UA_Session *session) {
-    /* Are there subscriptions for the session? */
-    if(!TAILQ_EMPTY(&session->subscriptions))
-        return;
-
-    /* Send a response for every queued request */
-    UA_PublishResponseEntry *pre;
-    while((pre = UA_Session_dequeuePublishReq(session))) {
-        UA_PublishResponse *response = &pre->response;
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOSUBSCRIPTION;
-        response->responseHeader.timestamp = UA_DateTime_now();
-        sendResponse(server, session, session->header.channel, pre->requestId,
-                     (UA_Response*)response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
-        UA_PublishResponse_clear(response);
-        UA_free(pre);
-    }
 }
 
 #endif

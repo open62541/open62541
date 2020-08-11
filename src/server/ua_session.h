@@ -80,13 +80,12 @@ void UA_Session_updateLifetime(UA_Session *session);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 
-/* New subscriptions must have a session */
 void
-UA_Server_addSubscription(UA_Server *server, UA_Session *session,
-                          UA_Subscription *sub);
+UA_Session_attachSubscription(UA_Session *session, UA_Subscription *sub);
 
 void
-UA_Server_deleteSubscription(UA_Server *server, UA_Subscription *sub);
+UA_Session_detachSubscription(UA_Server *server, UA_Session *session,
+                              UA_Subscription *sub);
 
 UA_Subscription *
 UA_Session_getSubscriptionById(UA_Session *session,
@@ -100,10 +99,6 @@ UA_Session_queuePublishReq(UA_Session *session,
 
 UA_PublishResponseEntry *
 UA_Session_dequeuePublishReq(UA_Session *session);
-
-void
-UA_Session_answerPublishRequestsNoSubscription(UA_Server *server,
-                                               UA_Session *session);
 
 #endif
 

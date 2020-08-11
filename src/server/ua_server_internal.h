@@ -373,9 +373,15 @@ UA_BrowsePathResult
 translateBrowsePathToNodeIds(UA_Server *server, const UA_BrowsePath *browsePath);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-void
-monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem);
-#endif
+
+void UA_Server_addSubscription(UA_Server *server, UA_Subscription *sub);
+void UA_Server_deleteSubscription(UA_Server *server, UA_Subscription *sub);
+void monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem);
+
+UA_Subscription *
+UA_Server_getSubscriptionById(UA_Server *server, UA_UInt32 subscriptionId);
+
+#endif /* UA_ENABLE_SUBSCRIPTIONS */
 
 UA_BrowsePathResult
 browseSimplifiedBrowsePath(UA_Server *server, const UA_NodeId origin,

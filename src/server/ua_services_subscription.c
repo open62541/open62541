@@ -81,6 +81,9 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
     sub->publishingEnabled = request->publishingEnabled;
     sub->currentKeepAliveCount = sub->maxKeepAliveCount; /* set settings first */
 
+    /* Register the subscription in the server. Also assigns the SubscriptionId. */
+    UA_Server_addSubscription(server, sub);
+
     UA_StatusCode retval = Subscription_registerPublishCallback(server, sub);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG_SESSION(&server->config.logger, sub->session,
@@ -88,12 +91,12 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
                              "Could not register publish callback with error code %s",
                              sub->subscriptionId, UA_StatusCode_name(retval));
         response->responseHeader.serviceResult = retval;
-        UA_free(sub);
+        UA_Server_deleteSubscription(server, sub);
         return;
     }
 
-    /* Also assigns the SubscriptionId */
-    UA_Server_addSubscription(server, session, sub);
+    /* Attach the Subscription to the session */
+    UA_Session_attachSubscription(session, sub);
 
     /* Prepare the response */
     response->subscriptionId = sub->subscriptionId;
@@ -101,9 +104,9 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
     response->revisedLifetimeCount = sub->lifeTimeCount;
     response->revisedMaxKeepAliveCount = sub->maxKeepAliveCount;
 
-    UA_LOG_INFO_SESSION(&server->config.logger, session, "Subscription %" PRIu32 " | "
-                        "Created the Subscription with a publishing interval of %.2f ms",
-                        response->subscriptionId, sub->publishingInterval);
+    UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, sub,
+                             "Created the Subscription with a publishing interval of %.2f ms",
+                             sub->publishingInterval);
 }
 
 void
