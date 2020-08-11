@@ -598,7 +598,7 @@ Subscription_registerPublishCallback(UA_Server *server, UA_Subscription *sub) {
                               "Register subscription publishing callback");
     UA_LOCK_ASSERT(server->serviceMutex, 1);
 
-    if(sub->publishCallbackIsRegistered)
+    if(sub->publishCallbackId > 0)
         return UA_STATUSCODE_GOOD;
 
     UA_StatusCode retval =
@@ -607,7 +607,7 @@ Subscription_registerPublishCallback(UA_Server *server, UA_Subscription *sub) {
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    sub->publishCallbackIsRegistered = true;
+    UA_assert(sub->publishCallbackId > 0);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -616,11 +616,11 @@ Subscription_unregisterPublishCallback(UA_Server *server, UA_Subscription *sub) 
     UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
                               "Unregister subscription publishing callback");
 
-    if(!sub->publishCallbackIsRegistered)
+    if(sub->publishCallbackId == 0)
         return;
 
     removeCallback(server, sub->publishCallbackId);
-    sub->publishCallbackIsRegistered = false;
+    sub->publishCallbackId = 0;
 }
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS */

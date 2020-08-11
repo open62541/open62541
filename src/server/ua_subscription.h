@@ -265,9 +265,8 @@ struct UA_Subscription {
     UA_UInt32 currentKeepAliveCount;
     UA_UInt32 currentLifetimeCount;
 
-    /* Publish Callback */
+    /* Publish Callback. Registered if id > 0. */
     UA_UInt64 publishCallbackId;
-    UA_Boolean publishCallbackIsRegistered;
 
     /* MonitoredItems */
     UA_UInt32 lastMonitoredItemId; /* increase the identifiers */

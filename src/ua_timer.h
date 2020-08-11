@@ -26,9 +26,10 @@ typedef struct UA_TimerIdZip UA_TimerIdZip;
 
 /* Only for a single thread. Protect by a mutex if required. */
 typedef struct {
-    UA_TimerZip root; /* The root of the time-sorted zip tree */
+    UA_TimerZip root;     /* The root of the time-sorted zip tree */
     UA_TimerIdZip idRoot; /* The root of the id-sorted zip tree */
-    UA_UInt64 idCounter;
+    UA_UInt64 idCounter;  /* Generate unique identifiers. Identifiers are always
+                           * above zero. */
 } UA_Timer;
 
 void UA_Timer_init(UA_Timer *t);
