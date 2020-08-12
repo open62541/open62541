@@ -508,5 +508,19 @@ if(UA_ENABLE_ENCRYPTION_OPENSSL)
     add_test_valgrind(encryption_aes128sha256rsaoaep ${TESTS_BINARY_DIR}/check_encryption_aes128sha256rsaoaep)
 endif()
 
+
+if(UA_ENABLE_MALLOC_SINGLETON)
+	add_executable(check_allocation allocation/check_allocation.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+	target_link_libraries(check_allocation ${LIBS})
+	add_test_valgrind(allocation ${TESTS_BINARY_DIR}/check_allocation)
+	
+	add_custom_command(	TARGET check_allocation POST_BUILD
+						COMMAND ${PYTHON_EXECUTABLE} ${open62541_TOOLS_DIR}/asmParser.py -f ${TESTS_BINARY_DIR}/check_allocation
+						DEPENDS 
+						${TESTS_BINARY_DIR}/check_allocation
+						${open62541_TOOLS_DIR}/asmParser.py)
+endif(UA_ENABLE_MALLOC_SINGLETON)
+					
+
 # Tests for Nodeset Compiler
 add_subdirectory(nodeset-compiler)
