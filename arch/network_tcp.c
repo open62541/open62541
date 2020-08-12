@@ -415,8 +415,10 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, const UA_String *customHo
         ai = ai->ai_next) {
         UA_StatusCode statusCode = addServerSocket(layer, ai);
         if(statusCode != UA_STATUSCODE_GOOD)
+        {
+            UA_freeaddrinfo(res);
             return statusCode;
-
+        }
     }
     UA_freeaddrinfo(res);
 
