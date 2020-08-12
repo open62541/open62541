@@ -385,6 +385,14 @@ if(UA_ENABLE_PUBSUB)
     target_link_libraries(check_pubsub_multiple_layer ${LIBS})
     add_test_valgrind(pubsub_multiple_layer ${TESTS_BINARY_DIR}/check_pubsub_multiple_layer)
 
+    if (UA_ENABLE_PUBSUB_MONITORING)
+        add_executable(check_pubsub_subscribe_msgrcvtimeout pubsub/check_pubsub_subscribe_msgrcvtimeout.c 
+            $<TARGET_OBJECTS:open62541-object>
+            $<TARGET_OBJECTS:open62541-testplugins>)
+        target_link_libraries(check_pubsub_subscribe_msgrcvtimeout ${LIBS})
+        add_test_valgrind(check_pubsub_subscribe_msgrcvtimeout ${TESTS_BINARY_DIR}/check_pubsub_subscribe_msgrcvtimeout)
+    endif()
+
     if(UA_ENABLE_PUBSUB_ETH_UADP)
         if(NOT UA_ENABLE_PUBSUB_ETH_UADP_ETF)
             add_executable(check_pubsub_connection_ethernet pubsub/check_pubsub_connection_ethernet.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
