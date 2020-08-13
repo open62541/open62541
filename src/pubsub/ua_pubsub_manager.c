@@ -58,6 +58,7 @@ UA_Server_addPubSubConnection(UA_Server *server,
                      "PubSub Connection creation failed. Out of Memory.");
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
+    newConnectionsField->componentType = UA_PUBSUB_COMPONENT_CONNECTION;
     if (server->pubSubManager.connectionsSize != 0)
         TAILQ_INSERT_TAIL(&server->pubSubManager.connections, newConnectionsField, listEntry);
     else {
@@ -332,5 +333,222 @@ UA_PubSubManager_removeRepeatedPubSubCallback(UA_Server *server, UA_UInt64 callb
 }
 
 #endif /* UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING */
+
+
+#ifndef UA_ENABLE_PUBSUB_CUSTOM_TIMEOUT_HANDLING
+
+/*  If UA_ENABLE_PUBSUB_CUSTOM_TIMEOUT_HANDLING is enabled, a custom
+ *  implementation for the following functions must be linked to the application */
+
+UA_StatusCode
+UA_PubSubComponent_createTimer(UA_Server *server, void *component, UA_ServerCallback callback) {
+    
+    if ((!server) || (!component) || (!callback)) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "Error UA_PubSubComponent_createTimer(): "
+            "null pointer param");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+
+    UA_PubSubComponentEnumType componentType = *((UA_PubSubComponentEnumType*) component);
+    switch (componentType) {
+        case UA_PUBSUB_COMPONENT_CONNECTION:
+        case UA_PUBSUB_COMPONENT_READERGROUP:
+        case UA_PUBSUB_COMPONENT_WRITERGROUP:
+        case UA_PUBSUB_COMPONENT_DATASETWRITER:
+            // intended fall through -> nothing to do
+            ret = UA_STATUSCODE_GOOD;
+        break;
+
+        case UA_PUBSUB_COMPONENT_DATASETREADER: {
+            UA_DataSetReader *reader = (UA_DataSetReader*) component;
+            UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER, "UA_PubSubComponent_createTimer(): DataSetReader '%.*s'", 
+                (UA_Int32) reader->config.name.length, reader->config.name.data);
+            reader->msgRcvTimeoutTimerCallback = callback;
+            break;
+        }
+        default:
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                "Error UA_PubSubComponent_createTimer(): Unknown component");
+            ret = UA_STATUSCODE_BADINTERNALERROR;
+            break;
+    }
+    return ret;
+}
+
+UA_StatusCode
+UA_PubSubComponent_startTimer(UA_Server *server, void *component) {
+
+    if ((!server) || (!component)) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "Error UA_PubSubComponent_startTimer(): "
+            "null pointer param");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+
+    UA_PubSubComponentEnumType componentType = *((UA_PubSubComponentEnumType*) component);
+    switch (componentType) {
+        case UA_PUBSUB_COMPONENT_CONNECTION:
+        case UA_PUBSUB_COMPONENT_READERGROUP:
+        case UA_PUBSUB_COMPONENT_WRITERGROUP:
+        case UA_PUBSUB_COMPONENT_DATASETWRITER:
+            // intended fall through -> nothing to do
+            ret = UA_STATUSCODE_GOOD;
+        break;
+
+        case UA_PUBSUB_COMPONENT_DATASETREADER: {
+
+            UA_DataSetReader *reader = (UA_DataSetReader*) component;
+            /* use a timed callback, because one notification is enough, 
+               we assume that MessageReceiveTimeout configuration is in [ms] */
+            UA_UInt64 interval = (UA_UInt64)(reader->config.messageReceiveTimeout * UA_DATETIME_MSEC);
+            ret = UA_Timer_addTimedCallback(&server->timer, (UA_ApplicationCallback) reader->msgRcvTimeoutTimerCallback, 
+                server, reader, UA_DateTime_nowMonotonic() + (UA_DateTime) interval, &(reader->msgRcvTimeoutTimerId));
+            if (ret == UA_STATUSCODE_GOOD) {
+                UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                    "UA_PubSubComponent_startTimer(): DataSetReader '%.*s': MessageReceiveTimeout = %f "
+                    "Timer Id = %u", (UA_Int32) reader->config.name.length, reader->config.name.data, 
+                        reader->config.messageReceiveTimeout, (UA_UInt32) reader->msgRcvTimeoutTimerId);
+             } else {
+                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                    "Error UA_PubSubComponent_startTimer(): DataSetReader '%.*s': start timer failed", 
+                        (UA_Int32) reader->config.name.length, reader->config.name.data);
+            }
+            break;
+        }
+        default:
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                "Error UA_PubSubComponent_startTimer(): Unknown component");
+            ret = UA_STATUSCODE_BADINTERNALERROR;
+            break;
+    }
+    return ret;
+}
+
+UA_StatusCode
+UA_PubSubComponent_stopTimer(UA_Server *server, void *component) {
+
+    if ((!server) || (!component)) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "Error UA_PubSubComponent_stopTimer(): "
+            "null pointer param");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+
+    UA_PubSubComponentEnumType componentType = *((UA_PubSubComponentEnumType*) component);
+    switch (componentType) {
+        case UA_PUBSUB_COMPONENT_CONNECTION:
+        case UA_PUBSUB_COMPONENT_READERGROUP:
+        case UA_PUBSUB_COMPONENT_WRITERGROUP:
+        case UA_PUBSUB_COMPONENT_DATASETWRITER:
+            // intended fall through -> nothing to do
+            ret = UA_STATUSCODE_GOOD;
+        break;
+
+        case UA_PUBSUB_COMPONENT_DATASETREADER: {
+            UA_DataSetReader *reader = (UA_DataSetReader*) component;
+            UA_Timer_removeCallback(&server->timer, reader->msgRcvTimeoutTimerId);
+            UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                "UA_PubSubComponent_stopTimer(): DataSetReader '%.*s': MessageReceiveTimeout = %f "
+                    "Timer Id = %u", (UA_Int32) reader->config.name.length, reader->config.name.data, 
+                        reader->config.messageReceiveTimeout, (UA_UInt32) reader->msgRcvTimeoutTimerId);
+            break;
+        }
+        default:
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                "Error UA_PubSubComponent_stopTimer(): Unknown component");
+            ret = UA_STATUSCODE_BADINTERNALERROR;
+            break;
+    }
+    return ret;
+}
+
+UA_StatusCode
+UA_PubSubComponent_updateTimerInterval(UA_Server *server, void *component)
+{
+    if ((!server) || (!component)) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "Error UA_PubSubComponent_updateTimerInterval(): "
+            "null pointer param");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+
+    UA_PubSubComponentEnumType componentType = *((UA_PubSubComponentEnumType*) component);
+    switch (componentType) {
+        case UA_PUBSUB_COMPONENT_CONNECTION:
+        case UA_PUBSUB_COMPONENT_READERGROUP:
+        case UA_PUBSUB_COMPONENT_WRITERGROUP:
+        case UA_PUBSUB_COMPONENT_DATASETWRITER:
+            // intended fall through -> nothing to do
+            ret = UA_STATUSCODE_GOOD;
+        break;
+
+        case UA_PUBSUB_COMPONENT_DATASETREADER: {
+            UA_DataSetReader *reader = (UA_DataSetReader*) component;
+            ret = UA_Timer_changeRepeatedCallbackInterval(&server->timer, reader->msgRcvTimeoutTimerId, 
+                reader->config.messageReceiveTimeout);
+            if (ret == UA_STATUSCODE_GOOD) {
+                UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                    "UA_PubSubComponent_updateTimerInterval(): DataSetReader '%.*s': new MessageReceiveTimeout = %f"
+                    "Timer Id = %u", (UA_Int32) reader->config.name.length, reader->config.name.data, 
+                        reader->config.messageReceiveTimeout, (UA_UInt32) reader->msgRcvTimeoutTimerId);
+            } else {
+                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                    "Error UA_PubSubComponent_updateTimerInterval(): DataSetReader '%.*s': update timer interval failed", 
+                        (UA_Int32) reader->config.name.length, reader->config.name.data);
+            }
+            break;
+        }
+        default:
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                "Error UA_PubSubComponent_updateTimerInterval(): Unknown component");
+            ret = UA_STATUSCODE_BADINTERNALERROR;
+            break;
+    }
+    return ret;
+}
+
+UA_StatusCode
+UA_PubSubComponent_deleteTimer(UA_Server *server, void *component) {
+
+    if ((!server) || (!component)) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "Error UA_PubSubComponent_deleteTimer(): "
+            "null pointer param");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+
+    UA_PubSubComponentEnumType componentType = *((UA_PubSubComponentEnumType*) component);
+    switch (componentType) {
+        case UA_PUBSUB_COMPONENT_CONNECTION:
+        case UA_PUBSUB_COMPONENT_READERGROUP:
+        case UA_PUBSUB_COMPONENT_WRITERGROUP:
+        case UA_PUBSUB_COMPONENT_DATASETWRITER:
+            // intended fall through -> nothing to do
+            ret = UA_STATUSCODE_GOOD;
+        break;
+
+        case UA_PUBSUB_COMPONENT_DATASETREADER: {
+            UA_DataSetReader *reader = (UA_DataSetReader*) component;
+            UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                "UA_PubSubComponent_deleteTimer(): DataSetReader '%.*s' : Timer Id = %u", 
+            (UA_Int32) reader->config.name.length, reader->config.name.data, (UA_UInt32) reader->msgRcvTimeoutTimerId);
+            break;
+        }
+        default:
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                "Error UA_PubSubComponent_deleteTimer(): Unknown component");
+            ret = UA_STATUSCODE_BADINTERNALERROR;
+            break;
+    }
+    return ret;
+}
+
+#endif /* UA_ENABLE_PUBSUB_CUSTOM_TIMEOUT_HANDLING */
 
 #endif /* UA_ENABLE_PUBSUB */

@@ -45,6 +45,25 @@ UA_PubSubManager_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 cal
 void
 UA_PubSubManager_removeRepeatedPubSubCallback(UA_Server *server, UA_UInt64 callbackId);
 
+/*************************************************/
+/*      PubSub component timeout handling        */
+/*************************************************/
+
+UA_StatusCode
+UA_PubSubComponent_createTimer(UA_Server *server, void *component, UA_ServerCallback callback);
+
+UA_StatusCode
+UA_PubSubComponent_startTimer(UA_Server *server, void *component);
+
+UA_StatusCode
+UA_PubSubComponent_stopTimer(UA_Server *server, void *component);
+
+UA_StatusCode
+UA_PubSubComponent_updateTimerInterval(UA_Server *server, void *component);
+
+UA_StatusCode
+UA_PubSubComponent_deleteTimer(UA_Server *server, void *component);
+
 #endif /* UA_ENABLE_PUBSUB */
 
 _UA_END_DECLS

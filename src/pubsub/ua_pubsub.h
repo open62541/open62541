@@ -30,6 +30,14 @@ typedef struct UA_WriterGroup UA_WriterGroup;
 struct UA_ReaderGroup;
 typedef struct UA_ReaderGroup UA_ReaderGroup;
 
+typedef enum  {
+    UA_PUBSUB_COMPONENT_CONNECTION,
+    UA_PUBSUB_COMPONENT_WRITERGROUP,
+    UA_PUBSUB_COMPONENT_DATASETWRITER,
+    UA_PUBSUB_COMPONENT_READERGROUP,
+    UA_PUBSUB_COMPONENT_DATASETREADER
+} UA_PubSubComponentEnumType;
+
 /* The configuration structs (public part of PubSub entities) are defined in include/ua_plugin_pubsub.h */
 
 /**********************************************/
@@ -60,6 +68,7 @@ UA_PublishedDataSet_clear(UA_Server *server, UA_PublishedDataSet *publishedDataS
 /**********************************************/
 //the connection config (public part of connection) object is defined in include/ua_plugin_pubsub.h
 typedef struct UA_PubSubConnection{
+    UA_PubSubComponentEnumType componentType;
     UA_PubSubConnectionConfig *config;
     //internal fields
     UA_PubSubChannel *channel;
@@ -98,6 +107,7 @@ typedef struct UA_DataSetWriterSample{
 #endif
 
 typedef struct UA_DataSetWriter{
+    UA_PubSubComponentEnumType componentType;
     UA_DataSetWriterConfig config;
     //internal fields
     LIST_ENTRY(UA_DataSetWriter) listEntry;
@@ -128,6 +138,7 @@ UA_DataSetWriter_setPubSubState(UA_Server *server, UA_PubSubState state, UA_Data
 /**********************************************/
 
 struct UA_WriterGroup{
+    UA_PubSubComponentEnumType componentType;
     UA_WriterGroupConfig config;
     //internal fields
     LIST_ENTRY(UA_WriterGroup) listEntry;
@@ -179,6 +190,7 @@ UA_DataSetField_findDSFbyId(UA_Server *server, UA_NodeId identifier);
 
 /* DataSetReader Type definition */
 typedef struct UA_DataSetReader {
+    UA_PubSubComponentEnumType componentType;
     UA_DataSetReaderConfig config;
     /* implementation defined fields */
     UA_NodeId identifier;
@@ -190,6 +202,10 @@ typedef struct UA_DataSetReader {
     /* This flag is 'read only' and is set internally based on the PubSub state. */
     UA_Boolean configurationFrozen;
     UA_NetworkMessageOffsetBuffer bufferedMessage;
+    /* MessageReceiveTimeout handling */
+    UA_ServerCallback msgRcvTimeoutTimerCallback;
+    UA_UInt64 msgRcvTimeoutTimerId;
+    UA_Boolean msgRcvTimeoutTimerRunning;
 }UA_DataSetReader;
 
 /* Process Network Message using DataSetReader */
@@ -198,8 +214,14 @@ void UA_Server_DataSetReader_process(UA_Server *server, UA_DataSetReader *dataSe
 /* Copy the configuration of DataSetReader */
 UA_StatusCode UA_DataSetReaderConfig_copy(const UA_DataSetReaderConfig *src, UA_DataSetReaderConfig *dst);
 
+/* Clear the configuration of DataSetReader */
+void UA_DataSetReaderConfig_clear(UA_DataSetReaderConfig *cfg);
+
 /* Copy the configuration of Target Variables */
 UA_StatusCode UA_TargetVariables_copy(const UA_TargetVariables *src, UA_TargetVariables *dst);
+
+/* Clear the Target Variables configuration */
+void UA_TargetVariables_clear(UA_TargetVariables *subscribedDataSetTarget);
 
 /* Copy the configuration of Field Target Variables */
 UA_StatusCode UA_FieldTargetVariable_copy(const UA_FieldTargetVariable *src,
@@ -208,12 +230,18 @@ UA_StatusCode UA_FieldTargetVariable_copy(const UA_FieldTargetVariable *src,
 UA_StatusCode
 UA_DataSetReader_setPubSubState(UA_Server *server, UA_PubSubState state, UA_DataSetReader *dataSetReader);
 
+/* DataSetReader MessageReceiveTimeout callback for generic PubSub component timeout handling */
+void
+UA_Server_DataSetReader_handleMessageReceiveTimeout(UA_Server *server, void *dataSetReader);
+
+
 /**********************************************/
 /*                ReaderGroup                 */
 /**********************************************/
 /* ReaderGroup Type Definition*/
 
 struct UA_ReaderGroup {
+    UA_PubSubComponentEnumType componentType;
     UA_ReaderGroupConfig config;
     UA_NodeId identifier;
     UA_NodeId linkedConnection;

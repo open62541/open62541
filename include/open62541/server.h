@@ -32,6 +32,7 @@
 
 #ifdef UA_ENABLE_PUBSUB
 #include <open62541/plugin/pubsub.h>
+#include <open62541/server_pubsub.h>
 #endif
 
 #ifdef UA_ENABLE_HISTORIZING
@@ -116,6 +117,7 @@ struct UA_ServerConfig {
     /*PubSub network layer */
     size_t pubsubTransportLayersSize;
     UA_PubSubTransportLayer *pubsubTransportLayers;
+    UA_PubSubConfiguration pubsubConfiguration;
 #endif
 
     /* Available security policies */

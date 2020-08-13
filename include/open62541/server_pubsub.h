@@ -117,6 +117,10 @@ _UA_BEGIN_DECLS
  * **UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING**
  *  Enable the OPC UA PubSub support with custom callback implementation for Publisher and Subscriber. The option will provide flexibility to use the user defined callback mechanism for sending
  *  packets in Publisher and receiving packets in the Subscriber. Disabled by default.
+* **UA_ENABLE_PUBSUB_CUSTOM_TIMEOUT_HANDLING**
+ *  Use a custom timer callback implementation for Publisher and Subscriber timeouts. 
+ *  This options enables realtime applications to link a custom timer implementation for PubSub timeout handling (e.g. DataSetReader MessageReceiveTimeout).
+ *  Disabled by default.
  * **UA_ENABLE_PUBSUB_ETH_UADP**
  *  Enable the OPC UA Ethernet PubSub support to transport UADP NetworkMessages as payload of Ethernet II frame without IP or UDP headers. This option will include Publish and Subscribe based on
  *  EtherType B62C. Disabled by default.
@@ -679,6 +683,19 @@ UA_Server_setReaderGroupOperational(UA_Server *server, const UA_NodeId readerGro
 
 UA_StatusCode UA_EXPORT
 UA_Server_setReaderGroupDisabled(UA_Server *server, const UA_NodeId readerGroupId);
+
+/* General PubSub configuraiton */
+typedef struct UA_PubSubConfiguration {
+
+    /* Callback for PubSub component state changes:
+    If provided this callback informs the application about PubSub component state changes, 
+    e.g. state change from operational to error in case of a DataSetReader MessageReceiveTimeout,
+    the status code provides additional information */
+    void (*pubsubStateChangeCallback)(UA_NodeId *pubsubComponentId,
+                                      UA_PubSubState state,
+                                      UA_StatusCode status);
+    /* extend struct as needed */
+} UA_PubSubConfiguration;
 
 #endif /* UA_ENABLE_PUBSUB */
 
