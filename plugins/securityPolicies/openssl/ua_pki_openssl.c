@@ -78,6 +78,8 @@ UA_CertificateVerification_clear (UA_CertificateVerification * cv) {
     UA_CertContext_sk_free (context);
     UA_free (context);
 
+    cv->context = NULL;
+
     return;
 }
 
