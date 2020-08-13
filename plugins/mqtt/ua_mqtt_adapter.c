@@ -37,7 +37,7 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-#ifdef UA_ENABLE_MQTT_TLS
+#if defined(UA_ENABLE_MQTT_TLS_OPENSSL) // Extend condition when mbedTLS support is added
     if ((channelData->mqttClientCertPath.length && !channelData->mqttClientKeyPath.length) ||
             (channelData->mqttClientKeyPath.length && !channelData->mqttClientCertPath.length)) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
@@ -109,7 +109,7 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
 
     memcpy(channelData->connection, &connection, sizeof(UA_Connection));
 
-#ifdef UA_ENABLE_MQTT_TLS
+#if defined(UA_ENABLE_MQTT_TLS_OPENSSL) // Extend condition when mbedTLS support is added
     if (channelData->mqttUseTLS) {
         char *mqttCaFilePath = NULL;
         if (channelData->mqttCaFilePath.length > 0) {
@@ -197,6 +197,8 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
         if (!result) {
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: TLS initialization failed.");
             SSL_CTX_free(ctx);
+            UA_free(mqttClientCertPath);
+            UA_free(mqttClientKeyPath);
             return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         }
 
@@ -266,7 +268,7 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: TLS connection successfully opened.");
 #endif
 
-#ifdef UA_ENABLE_MQTT_TLS
+#if defined(UA_ENABLE_MQTT_TLS_OPENSSL) // Extend condition when mbedTLS support is added
     }
 #endif
 
