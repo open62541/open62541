@@ -1257,7 +1257,13 @@ UA_DataSetMessage_encodeBinary(const UA_DataSetMessage* src, UA_Byte **bufPos,
                     return rv;
             }
         } else if(src->header.fieldEncoding == UA_FIELDENCODING_RAWDATA) {
-            return UA_STATUSCODE_BADNOTIMPLEMENTED;
+            for (UA_UInt16 i = 0; i < src->data.keyFrameData.fieldCount; i++) {
+                rv = UA_encodeBinary(src->data.keyFrameData.dataSetFields[i].value.data,
+                                     src->data.keyFrameData.dataSetFields[i].value.type,
+                                     bufPos, &bufEnd, NULL, NULL);
+                if(rv != UA_STATUSCODE_GOOD)
+                    return rv;
+            }
         } else if(src->header.fieldEncoding == UA_FIELDENCODING_DATAVALUE) {
             for (UA_UInt16 i = 0; i < src->data.keyFrameData.fieldCount; i++) {
                 rv = UA_DataValue_encodeBinary(&(src->data.keyFrameData.dataSetFields[i]), bufPos, bufEnd);
@@ -1446,7 +1452,24 @@ UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage* p, UA_NetworkMessageOffsetBu
                 size += UA_calcSizeBinary(&p->data.keyFrameData.dataSetFields[i].value, &UA_TYPES[UA_TYPES_VARIANT]);
             }
         } else if(p->header.fieldEncoding == UA_FIELDENCODING_RAWDATA) {
-            // not implemented
+            for (UA_UInt16 i = 0; i < p->data.keyFrameData.fieldCount; i++){
+                if (offsetBuffer) {
+                    size_t pos = offsetBuffer->offsetsSize;
+                    if(!increaseOffsetArray(offsetBuffer))
+                        return 0;
+                    offsetBuffer->offsets[pos].offset = size;
+                    offsetBuffer->offsets[pos].contentType = UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW;
+                    //TODO check value source and alloc!
+                    //offsetBuffer->offsets[pos].offsetData.value.value = p->data.keyFrameData.dataSetFields;
+                    offsetBuffer->offsets[pos].offsetData.value.value = UA_DataValue_new();
+                    UA_Variant_setScalar(&offsetBuffer->offsets[pos].offsetData.value.value->value,
+                                         p->data.keyFrameData.dataSetFields[i].value.data,
+                                         p->data.keyFrameData.dataSetFields[i].value.type);
+                    offsetBuffer->offsets[pos].offsetData.value.value->value.storageType = UA_VARIANT_DATA_NODELETE;
+                }
+                size += UA_calcSizeBinary(p->data.keyFrameData.dataSetFields[i].value.data,
+                                          p->data.keyFrameData.dataSetFields[i].value.type);
+            }
         } else if(p->header.fieldEncoding == UA_FIELDENCODING_DATAVALUE) {
             for (UA_UInt16 i = 0; i < p->data.keyFrameData.fieldCount; i++) {
                 if (offsetBuffer) {
