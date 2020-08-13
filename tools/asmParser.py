@@ -38,7 +38,7 @@ class TheyCallMe():
 # Get a function by name, and if not present, create it
 def get_function_create(name, address):
     function = get_function_by_name(name) 
-    if function == None:
+    if function is None:
         function = Function(name, int(address, 16))
         all_functions.append(function)
 
@@ -84,7 +84,7 @@ def parse_asm(lines):
             
             # A function pointer is being called
             if len(function_called_info) != 2: 
-                if function_pointer_to_call == None:
+                if function_pointer_to_call is None:
                     continue
                 else:
                     function_called = function_pointer_to_call
@@ -120,8 +120,8 @@ def get_function_by_name(name):
 # Given a function name and a stack, go backwards to find all points where the initial
 # function name is called.
 # The stack's purpose is to avoid recursive function calls, which will get this function stuck
-def create_traceback(function, stack):
- 
+def create_traceback(function_name, stack):
+    function = get_function_by_name(function_name)
     if None == function:
         return
 
@@ -134,7 +134,7 @@ def create_traceback(function, stack):
         if they_call_me_function not in stack:
             
             stack.append(they_call_me_function)
-            create_traceback(they_call_me_function.function, stack)
+            create_traceback(they_call_me_function.function.name, stack)
             # After the recursion finishes, we pop the recently added function from stack.
             stack.pop()
 
@@ -162,7 +162,7 @@ print("File already parsed. We'll build now all function-chains that might call 
 for function_name in function_names:
     function = get_function_by_name(function_name)
     stack = [TheyCallMe(function, 0, "")]
-    create_traceback(function, stack)
+    create_traceback(function.name, stack)
 
 print(str(len(all_address_to_break)) + " possible failure points were found")
 memoryFile = open("allocationFailurePoints", "w")
