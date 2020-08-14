@@ -28,7 +28,7 @@ typedef struct {
     uint8_t *mqttRecvBuffer; 
     UA_String *mqttClientId;
     UA_Connection *connection;
-#ifdef UA_ENABLE_MQTT_TLS
+#ifdef UA_ENABLE_MQTT_TLS_OPENSSL
     SSL *ssl;
 #endif
     void * mqttClient;

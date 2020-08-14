@@ -63,11 +63,15 @@ UA_PubSubChannelMQTT_open(const UA_PubSubConnectionConfig *connectionConfig) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT Connection creation failed. Out of memory.");
         return NULL;
     }
-    
+
     /* set default values */
     UA_String mqttClientId = UA_STRING("open62541_pub");
-    memcpy(channelDataMQTT, &(UA_PubSubChannelDataMQTT){address, 2000,2000, NULL, NULL,&mqttClientId, NULL, NULL, NULL, NULL,
-                                                        UA_STRING_NULL,UA_STRING_NULL,UA_STRING_NULL, UA_STRING_NULL,
+    memcpy(channelDataMQTT, &(UA_PubSubChannelDataMQTT){address, 2000, 2000, NULL, NULL, &mqttClientId, NULL,
+                                                    #ifdef UA_ENABLE_MQTT_TLS_OPENSSL // Initialize the "ssl" member
+                                                        NULL,
+                                                    #endif
+                                                        NULL, NULL,
+                                                        UA_STRING_NULL, UA_STRING_NULL, UA_STRING_NULL, UA_STRING_NULL,
                                                         UA_STRING_NULL, UA_STRING_NULL, UA_FALSE},
            sizeof(UA_PubSubChannelDataMQTT));
     /* iterate over the given KeyValuePair paramters */

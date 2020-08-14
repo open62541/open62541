@@ -301,7 +301,9 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
     }
     handle->client = client;
     handle->connection = channelData->connection;
+#ifdef UA_ENABLE_MQTT_TLS_OPENSSL
     handle->tls = channelData->ssl;
+#endif
 
     /* init mqtt client struct with buffers and callback */
     enum MQTTErrors mqttErr = mqtt_init(client, handle, channelData->mqttSendBuffer, channelData->mqttSendBufferSize,
