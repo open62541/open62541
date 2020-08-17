@@ -1096,7 +1096,7 @@ recursiveTypeCheckAddChildren(UA_Server *server, UA_Session *session,
     }
 
     /* Add (mandatory) child nodes from the direct HasInterface reference */
-    if(node->head.nodeClass == UA_NODECLASS_OBJECT) {
+    if(retval == UA_STATUSCODE_GOOD && node->head.nodeClass == UA_NODECLASS_OBJECT) {
         retval = addInterfaceChildren(server, session, &node->head);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_NODEID_WRAP(&node->head.nodeId, UA_LOG_INFO_SESSION(&server->config.logger, session,
@@ -1106,7 +1106,7 @@ recursiveTypeCheckAddChildren(UA_Server *server, UA_Session *session,
         }
     }
 
-    return UA_STATUSCODE_GOOD;
+    return retval;
 }
 
 /* Construct children first */
