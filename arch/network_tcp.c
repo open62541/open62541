@@ -404,9 +404,13 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, const UA_String *customHo
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;
     hints.ai_protocol = IPPROTO_TCP;
-    if(UA_getaddrinfo(customHostname->length ? hostname : NULL,
-        portno, &hints, &res) != 0)
+    int retcode = UA_getaddrinfo(customHostname->length ? hostname : NULL,
+                                 portno, &hints, &res);
+    if(retcode != 0) {
+        UA_LOG_SOCKET_ERRNO_GAI_WRAP(UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK,
+                                                    "getaddrinfo lookup of %s failed with error %s", hostname, errno_str));
         return UA_STATUSCODE_BADINTERNALERROR;
+    }
 
     /* There might be serveral addrinfos (for different network cards,
      * IPv4/IPv6). Add a server socket for all of them. */
