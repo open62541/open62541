@@ -20,8 +20,8 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
     UA_MdnsDiscoveryConfiguration_clear(&config->mdnsConfig);
     UA_String_clear(&config->mdnsInterfaceIP);
 # if !defined(UA_HAS_GETIFADDR)
-    if (config->discovery.ipAddressListSize) {
-        UA_free(config->discovery.ipAddressList);
+    if (config->mdnsIpAddressListSize) {
+        UA_free(config->mdnsIpAddressList);
     }
 # endif
 #endif
