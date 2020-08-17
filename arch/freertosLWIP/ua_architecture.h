@@ -26,6 +26,8 @@
 #define UA_LOCK_ASSERT(mutexName, num)
 #endif
 
+#define UA_strncasecmp strncasecmp
+
 // freeRTOS does not have getifaddr
 #undef UA_HAS_GETIFADDR
 
