@@ -562,7 +562,7 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
 #else
         UA_LOG_WARNING_SESSION(&server->config.logger, session,
                                "Service %" PRIi16 " refused on a non-activated session",
-                               requestType->binaryEncodingId);
+                               requestType->binaryEncodingId.identifier.numeric);
 #endif
         if(session != &anonymousSession) {
             UA_LOCK(server->serviceMutex);
