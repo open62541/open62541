@@ -591,6 +591,8 @@ UA_Server_run_startup(UA_Server *server) {
         nl->statistics = &server->serverStats.ns;
         result |= nl->start(nl, &server->config.customHostname);
     }
+    if(result != UA_STATUSCODE_GOOD)
+        return result;
 
     /* Update the application description to match the previously added discovery urls.
      * We can only do this after the network layer is started since it inits the discovery url */
