@@ -241,6 +241,11 @@ getInterfaceHierarchy(UA_Server *server, const UA_NodeId *objectNode,
 
     UA_assert(interfacesSize < 1000);
 
+    if (interfacesSize == 0) {
+        *typeHierarchySize = 0;
+        return UA_STATUSCODE_GOOD;
+    }
+
     UA_NodeId *hierarchy = (UA_NodeId*)
         UA_malloc(sizeof(UA_NodeId) * (interfacesSize));
     if(!hierarchy) {
