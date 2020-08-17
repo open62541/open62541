@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2020 (c) Wind River Systems, Inc.
+ *    Copyright 2020 (c) basysKom GmbH
  */
 
 /*
@@ -65,6 +66,12 @@ UA_Policy_Basic128Rsa15_New_Context (UA_SecurityPolicy * securityPolicy,
     if (retval != UA_STATUSCODE_GOOD) {
         UA_free (context);
         return retval; 
+    }
+
+    EVP_PKEY * evpKey = UA_OpenSSL_LoadPrivateKey(&context->localPrivateKey);
+    EVP_PKEY_free(evpKey);
+    if (evpKey == NULL) {
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
     retval = UA_Openssl_X509_GetCertificateThumbprint (
@@ -135,9 +142,7 @@ UA_ChannelModule_Basic128Rsa15_New_Context (const UA_SecurityPolicy * securityPo
     }
 
     /* decode to X509 */
-    const unsigned char * pData = context->remoteCertificate.data;    
-    context->remoteCertificateX509 = d2i_X509 (NULL, &pData, 
-                                    (long) context->remoteCertificate.length);
+    context->remoteCertificateX509 = UA_OpenSSL_LoadCertificate(&context->remoteCertificate);
     if (context->remoteCertificateX509 == NULL) {
         UA_ByteString_clear (&context->remoteCertificate); 
         UA_free (context);

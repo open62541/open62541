@@ -2,6 +2,8 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  *
  *    Copyright 2020 (c) Wind River Systems, Inc.
+ *    Copyright 2020 (c) basysKom GmbH
+
  */
 
 /*
@@ -14,10 +16,13 @@ modification history
 #include <open62541/plugin/pki_default.h>
 #include <open62541/plugin/log_stdout.h>
 
+#include "securitypolicy_openssl_common.h"
+
 #ifdef UA_ENABLE_ENCRYPTION_OPENSSL
 #include <openssl/x509.h>
 #include <openssl/x509_vfy.h>
 #include <openssl/x509v3.h>
+#include <openssl/pem.h>
 
 typedef struct {
     /* 
@@ -88,12 +93,10 @@ UA_skTrusted_Cert2X509 (const UA_ByteString *   certificateTrustList,
                         size_t                  certificateTrustListSize,
                         CertContext *           ctx) {
     size_t                i;        
-    const unsigned char * pData;          
 
     for (i = 0; i < certificateTrustListSize; i++) {
-        pData = certificateTrustList[i].data;
-        X509 * x509 = d2i_X509 (NULL, &pData, 
-                       (long) certificateTrustList[i].length);
+        X509 * x509 = UA_OpenSSL_LoadCertificate(&certificateTrustList[i]);
+
         if (x509 == NULL) {
             return UA_STATUSCODE_BADINTERNALERROR;
         }
@@ -107,13 +110,11 @@ static UA_StatusCode
 UA_skIssuer_Cert2X509 (const UA_ByteString *   certificateIssuerList,
                        size_t                  certificateIssuerListSize,
                        CertContext *           ctx) {
-    size_t                i;        
-    const unsigned char * pData;          
+    size_t                i;
 
     for (i = 0; i < certificateIssuerListSize; i++) {
-        pData = certificateIssuerList[i].data;
-        X509 * x509 = d2i_X509 (NULL, &pData, 
-                       (long) certificateIssuerList[i].length);
+        X509 * x509 = UA_OpenSSL_LoadCertificate(&certificateIssuerList[i]);
+
         if (x509 == NULL) {
             return UA_STATUSCODE_BADINTERNALERROR;
         }
@@ -128,12 +129,28 @@ UA_skCrls_Cert2X509 (const UA_ByteString *   certificateRevocationList,
                      size_t                  certificateRevocationListSize,
                      CertContext *           ctx) {
     size_t                i;        
-    const unsigned char * pData;          
+    const unsigned char * pData;
 
     for (i = 0; i < certificateRevocationListSize; i++) {
         pData = certificateRevocationList[i].data;
-        X509_CRL * crl = d2i_X509_CRL (NULL, &pData, 
-                         (long) certificateRevocationList[i].length);
+        X509_CRL * crl = NULL;
+
+        if (certificateRevocationList[i].length > 1 && pData[0] == 0x30 && pData[1] == 0x82) { // Magic number for DER encoded files
+            crl = d2i_X509_CRL (NULL, &pData, (long) certificateRevocationList[i].length);
+        } else {
+            BIO* bio = NULL;
+
+#if OPENSSL_VERSION_NUMBER < 0x1000207fL
+            bio = BIO_new_mem_buf((void *) certificateRevocationList[i].data,
+                                  (int) certificateRevocationList[i].length);
+#else
+            bio = BIO_new_mem_buf((const void *) certificateRevocationList[i].data,
+                                  (int) certificateRevocationList[i].length);
+#endif
+            crl = PEM_read_bio_X509_CRL(bio, NULL, NULL, NULL);
+            BIO_free(bio);
+        }
+
         if (crl == NULL) {
             return UA_STATUSCODE_BADINTERNALERROR;
         }
@@ -146,7 +163,7 @@ UA_skCrls_Cert2X509 (const UA_ByteString *   certificateRevocationList,
 #ifdef __linux__ 
 #include <dirent.h>
 
-static int UA_Certificate_Filter_der (const struct dirent * entry) {
+static int UA_Certificate_Filter_der_pem (const struct dirent * entry) {
     char *pszFind;
 
     /* ignore hidden files */
@@ -157,7 +174,7 @@ static int UA_Certificate_Filter_der (const struct dirent * entry) {
     if (pszFind == 0) 
         return 0;
     pszFind++;
-    if (strcmp (pszFind, "der") == 0)
+    if (strcmp (pszFind, "der") == 0 || strcmp (pszFind, "pem") == 0)
         return 1;
 
     return 0;
@@ -250,7 +267,7 @@ UA_ReloadCertFromFolder (CertContext * ctx) {
                        ctx->trustListFolder.length);
         folderPath[ctx->trustListFolder.length] = 0;
         numCertificates = scandir(folderPath, &dirlist, 
-                                  UA_Certificate_Filter_der, 
+                                  UA_Certificate_Filter_der_pem,
                                   alphasort);
         for (i = 0; i < numCertificates; i++) {
             if (UA_BuildFullPath (folderPath, dirlist[i]->d_name, 
@@ -285,7 +302,7 @@ UA_ReloadCertFromFolder (CertContext * ctx) {
         memcpy (folderPath, ctx->issuerListFolder.data, ctx->issuerListFolder.length);
         folderPath[ctx->issuerListFolder.length] = 0;
         numCertificates = scandir(folderPath, &dirlist, 
-                                  UA_Certificate_Filter_der, 
+                                  UA_Certificate_Filter_der_pem,
                                   alphasort);
         for (i = 0; i < numCertificates; i++) {
             if (UA_BuildFullPath (folderPath, dirlist[i]->d_name, 
@@ -390,7 +407,6 @@ UA_CertificateVerification_Verify (void *                verificationContext,
     CertContext *         ctx;
     UA_StatusCode         ret;
     int                   opensslRet;
-    const unsigned char * pData; 
     X509 *                certificateX509 = NULL;
 
     if (verificationContext == NULL) {
@@ -412,8 +428,7 @@ UA_CertificateVerification_Verify (void *                verificationContext,
     }
 #endif    
 
-    pData = certificate->data;
-    certificateX509 = d2i_X509 (NULL, &pData, (long) certificate->length);
+    certificateX509 = UA_OpenSSL_LoadCertificate(certificate);
     if (certificateX509 == NULL) {
         ret = UA_STATUSCODE_BADCERTIFICATEINVALID;
         goto cleanup;
@@ -468,6 +483,8 @@ cleanup:
 static UA_StatusCode
 UA_VerifyCertificateAllowAll (void *                verificationContext,
                               const UA_ByteString * certificate) {
+    (void) verificationContext;
+    (void) certificate;
     return UA_STATUSCODE_GOOD;  
 }
 
@@ -475,6 +492,8 @@ static UA_StatusCode
 UA_CertificateVerification_VerifyApplicationURI (void *                verificationContext,
                                                  const UA_ByteString * certificate,
                                                  const UA_String *     applicationURI) {
+    (void) verificationContext;
+
     const unsigned char * pData; 
     X509 *                certificateX509;
     UA_String             subjectURI;
@@ -487,7 +506,7 @@ UA_CertificateVerification_VerifyApplicationURI (void *                verificat
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
     }
 
-    certificateX509 = d2i_X509 (NULL, &pData, (long) certificate->length);
+    certificateX509 = UA_OpenSSL_LoadCertificate(certificate);
     if (certificateX509 == NULL) {
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
     } 

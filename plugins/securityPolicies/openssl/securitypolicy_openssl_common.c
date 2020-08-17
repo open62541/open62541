@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2020 (c) Wind River Systems, Inc.
+ *    Copyright 2020 (c) basysKom GmbH
  */
 
 /*
@@ -23,6 +24,7 @@ modification history
 #include <openssl/x509.h>
 #include <openssl/hmac.h>
 #include <openssl/aes.h>
+#include <openssl/pem.h>
 
 #include "securitypolicy_openssl_common.h"
 
@@ -172,8 +174,8 @@ UA_Openssl_X509_GetCertificateThumbprint (const UA_ByteString * certficate,
             return UA_STATUSCODE_BADINTERNALERROR;
         }
     }
-    const unsigned char * pTemp = certficate->data;
-    X509 * x509Certificate = d2i_X509 (NULL, &pTemp, (long) certficate->length);
+    // The client certificate must be DER encoded
+    X509 * x509Certificate = UA_OpenSSL_LoadDerCertificate(certficate);
     if (x509Certificate == NULL) {
         if (bThumbPrint) {
             UA_ByteString_deleteMembers (pThumbprint);
@@ -201,9 +203,7 @@ UA_Openssl_RSA_Private_Decrypt (UA_ByteString *       data,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-    const unsigned char * pkey = privateKey->data;
-    EVP_PKEY * evpKey = d2i_PrivateKey(EVP_PKEY_RSA, NULL, 
-                        &pkey, (long) privateKey->length);
+    EVP_PKEY * evpKey = UA_OpenSSL_LoadPrivateKey(privateKey);
     if (evpKey == NULL) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
@@ -446,9 +446,7 @@ UA_Openssl_RSA_Public_GetKeyLength (X509 *     publicKeyX509,
 UA_StatusCode 
 UA_Openssl_RSA_Private_GetKeyLength (const UA_ByteString * privateKey,
                                      UA_Int32 *            keyLen) {
-    const unsigned char * pkey = privateKey->data;
-    EVP_PKEY * evpKey = d2i_PrivateKey(EVP_PKEY_RSA, NULL, 
-                          &pkey, (long) privateKey->length);
+    EVP_PKEY * evpKey = UA_OpenSSL_LoadPrivateKey(privateKey);
     if (evpKey == NULL) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
@@ -476,9 +474,7 @@ UA_Openssl_RSA_Private_Sign (const UA_ByteString * message,
         goto errout;
     }
 
-    const unsigned char * pkey = privateKey->data;
-    evpKey = d2i_PrivateKey(EVP_PKEY_RSA, NULL, 
-                        &pkey, (long) privateKey->length);
+    evpKey = UA_OpenSSL_LoadPrivateKey(privateKey);
     if (evpKey == NULL) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
@@ -705,10 +701,7 @@ UA_OpenSSL_AES_256_CBC_Encrypt (const UA_ByteString * iv,
 UA_StatusCode 
 UA_OpenSSL_X509_compare (const UA_ByteString * cert, 
                          const X509 *          bcert) {
-
-    const unsigned char * pData = cert->data;    
-    X509 * acert = d2i_X509 (NULL, &pData, 
-                             (long) cert->length);
+    X509 * acert = UA_OpenSSL_LoadCertificate(cert);
     if (acert == NULL) {
         return UA_STATUSCODE_BADCERTIFICATEINVALID;
     }
@@ -890,6 +883,66 @@ UA_OpenSSL_AES_128_CBC_Encrypt (const UA_ByteString * iv,
                                 UA_ByteString *       data  /* [in/out]*/
                                 ) {
     return UA_OpenSSL_Encrypt (iv, key, EVP_aes_128_cbc (), data);
+}
+
+EVP_PKEY *
+UA_OpenSSL_LoadPrivateKey(const UA_ByteString *privateKey) {
+    const unsigned char * pkData = privateKey->data;
+    long len = (long) privateKey->length;
+
+    EVP_PKEY *result = NULL;
+
+    if (len > 1 && pkData[0] == 0x30 && pkData[1] == 0x82) { // Magic number for DER encoded keys
+        result = d2i_PrivateKey(EVP_PKEY_RSA, NULL,
+                                          &pkData, len);
+    } else {
+        BIO *bio = NULL;
+#if OPENSSL_VERSION_NUMBER < 0x1000207fL
+        bio = BIO_new_mem_buf((void *) privateKey->data, (int) privateKey->length);
+#else
+        bio = BIO_new_mem_buf((const void *) privateKey->data, (int) privateKey->length);
+#endif
+        result = PEM_read_bio_PrivateKey(bio, NULL, NULL, NULL);
+        BIO_free(bio);
+    }
+
+    return result;
+}
+
+X509 *
+UA_OpenSSL_LoadCertificate(const UA_ByteString *certificate) {
+    X509 * result = NULL;
+    const unsigned char *pData = certificate->data;
+
+    if (certificate->length > 1 && pData[0] == 0x30 && pData[1] == 0x82) { // Magic number for DER encoded files
+        result = UA_OpenSSL_LoadDerCertificate(certificate);
+    } else {
+        result = UA_OpenSSL_LoadPemCertificate(certificate);
+    }
+
+    return result;
+}
+
+X509 *
+UA_OpenSSL_LoadDerCertificate(const UA_ByteString *certificate) {
+    const unsigned char *pData = certificate->data;
+    return d2i_X509(NULL, &pData, (long) certificate->length);
+}
+
+X509 *
+UA_OpenSSL_LoadPemCertificate(const UA_ByteString *certificate) {
+    X509 * result = NULL;
+
+    BIO* bio = NULL;
+#if OPENSSL_VERSION_NUMBER < 0x1000207fL
+    bio = BIO_new_mem_buf((void *) certificate->data, (int) certificate->length);
+#else
+    bio = BIO_new_mem_buf((const void *) certificate->data, (int) certificate->length);
+#endif
+    result = PEM_read_bio_X509(bio, NULL, NULL, NULL);
+    BIO_free(bio);
+
+    return result;
 }
 
 #endif
