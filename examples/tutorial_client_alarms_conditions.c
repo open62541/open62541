@@ -97,18 +97,10 @@ int main(int argc, char *argv[]) {
 
 #ifdef UA_ENABLE_METHODCALLS
     /* Call a Condition refresh method */
-    UA_Variant input;
-    UA_UInt32 argString = subId;
-    UA_Variant_init(&input);
-    UA_Variant_setScalarCopy(&input, &argString, &UA_TYPES[UA_TYPES_UINT32]);
-    size_t outputSize = 0;
-    UA_Variant *output = NULL;
-    retval = UA_Client_call(client, UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE_CONDITIONREFRESH), 1, &input, &outputSize, &output);
+    retval = callConditionRefresh(client, subId);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Call ConditionRefresh method failed with error code %x", retval);
     }
-    UA_Variant_clear(&input);
 #endif
 
     while(running) {

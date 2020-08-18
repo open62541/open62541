@@ -12,9 +12,123 @@
 
 #include "ua_client_internal.h"
 
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-
+#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
 const size_t nACSelectClauses = 24;
+
+#ifdef UA_ENABLE_METHODCALLS
+
+/* Enable method */
+UA_StatusCode callEnableMethod(UA_Client *client, UA_NodeId objectId, UA_UInt32 subId) {
+    UA_Variant input;
+    size_t inputSize = 0;
+    UA_Variant_init(&input);
+    size_t outputSize = 0;
+    UA_Variant *output = NULL;
+    UA_StatusCode retval = UA_Client_call(client, objectId, UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE_ENABLE),
+                                    inputSize, &input, &outputSize, &output);
+    UA_Variant_clear(&input);
+    return retval;
+}
+
+/* Disable method */
+UA_StatusCode callDisableMethod(UA_Client *client, UA_NodeId objectId, UA_UInt32 subId) {
+    UA_Variant input;
+    size_t inputSize = 0;
+    UA_Variant_init(&input);
+    size_t outputSize = 0;
+    UA_Variant *output = NULL;
+    UA_StatusCode retval = UA_Client_call(client, objectId, UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE_DISABLE),
+                                    inputSize, &input, &outputSize, &output);
+    UA_Variant_clear(&input);
+    return retval;
+}
+
+/* Acknowledge Method */
+UA_StatusCode callAcknowledgeMethod(UA_Client *client, UA_NodeId objectId, UA_ByteString eventId,
+                                            UA_LocalizedText comment) {
+    UA_Variant input[2];
+    size_t inputSize = 2;
+    UA_Variant_init(&input[0]);
+    UA_Variant_setScalarCopy(&input[0], &eventId, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_Variant_init(&input[1]);
+    UA_Variant_setScalarCopy(&input[1], &comment, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    size_t outputSize = 0;
+    UA_Variant *output = NULL;
+    UA_StatusCode retval = UA_Client_call(client, objectId, UA_NODEID_NUMERIC(0, UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE_ACKNOWLEDGE),
+                                    inputSize, &input[0], &outputSize, &output);
+    UA_Variant_clear(&input[0]);
+    UA_Variant_clear(&input[1]);
+    return retval;
+}
+
+/* Confirm Method */
+UA_StatusCode callConfirmMethod(UA_Client *client, UA_NodeId objectId, UA_ByteString eventId,
+                                            UA_LocalizedText comment) {
+    UA_Variant input[2];
+    size_t inputSize = 2;
+    UA_Variant_init(&input[0]);
+    UA_Variant_setScalarCopy(&input[0], &eventId, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_Variant_init(&input[1]);
+    UA_Variant_setScalarCopy(&input[1], &comment, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    size_t outputSize = 0;
+    UA_Variant *output = NULL;
+    UA_StatusCode retval = UA_Client_call(client, objectId, UA_NODEID_NUMERIC(0, UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE_CONFIRM),
+                                    inputSize, &input[0], &outputSize, &output);
+    UA_Variant_clear(&input[0]);
+    UA_Variant_clear(&input[1]);
+    return retval;
+}
+
+/* Add Comment method */
+UA_StatusCode callAddCommentMethod(UA_Client *client, UA_NodeId objectId, UA_ByteString eventId,
+                                            UA_LocalizedText comment) {
+    UA_Variant input[2];
+    size_t inputSize = 2;
+    UA_Variant_init(&input[0]);
+    UA_Variant_setScalarCopy(&input[0], &eventId, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_Variant_init(&input[1]);
+    UA_Variant_setScalarCopy(&input[1], &comment, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    size_t outputSize = 0;
+    UA_Variant *output = NULL;
+    UA_StatusCode retval = UA_Client_call(client, objectId, UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE_ADDCOMMENT),
+                                    inputSize, &input[0], &outputSize, &output);
+    UA_Variant_clear(&input[0]);
+    UA_Variant_clear(&input[1]);
+    return retval;
+}
+
+/* ConditionRefresh method */
+UA_StatusCode callConditionRefresh(UA_Client *client, UA_UInt32 subId) {
+    UA_Variant input;
+    size_t inputSize = 1;
+    UA_Variant_init(&input);
+    UA_Variant_setScalarCopy(&input, &subId, &UA_TYPES[UA_TYPES_UINT32]);
+    size_t outputSize = 0;
+    UA_Variant *output = NULL;
+    UA_StatusCode retval = UA_Client_call(client, UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE),
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE_CONDITIONREFRESH), inputSize, &input, &outputSize, &output);
+    UA_Variant_clear(&input);
+    return retval;
+}
+
+/* ConditionRefresh2 method */
+UA_StatusCode callConditionRefresh2(UA_Client *client, UA_UInt32 subId, UA_UInt32 monId) {
+    UA_Variant input[2];
+    size_t inputSize = 2;
+    UA_Variant_init(&input[0]);
+    UA_Variant_setScalarCopy(&input[0], &subId, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_init(&input[1]);
+    UA_Variant_setScalarCopy(&input[1], &monId, &UA_TYPES[UA_TYPES_UINT32]);
+    size_t outputSize = 0;
+    UA_Variant *output = NULL;
+    UA_StatusCode retval = UA_Client_call(client, UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE),
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE_CONDITIONREFRESH2), inputSize, &input[0], &outputSize, &output);
+    UA_Variant_clear(&input[0]);
+    UA_Variant_clear(&input[1]);
+    return retval;
+}
+
+#endif
 
 void handler_events_alarms_condition(UA_Client *client, UA_UInt32 subId, void *subContext,
                UA_UInt32 monId, void *monContext,

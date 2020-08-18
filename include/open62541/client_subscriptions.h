@@ -227,6 +227,8 @@ UA_ModifyMonitoredItemsResponse UA_EXPORT
 UA_Client_MonitoredItems_modify(UA_Client *client,
     const UA_ModifyMonitoredItemsRequest request);
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+
 /* Parse the alarms and condition notification */
 void handler_events_alarms_condition(UA_Client *client, UA_UInt32 subId,
                                      void *subContext, UA_UInt32 monId,
@@ -236,6 +238,75 @@ void handler_events_alarms_condition(UA_Client *client, UA_UInt32 subId,
 /* Set select clause operand for alarms and condition notification */
 UA_SimpleAttributeOperand *setupSelectClausesAlarmCondition(void);
 
+/* Call Enable Method of the condition instance
+ *
+ * @param client to use
+ * @param objectId nodeId of the condition instance to enable
+ * @param subId Subscription Id of the subscription to be enabled
+ * @return Indicates whether the operation succeeded or returns an error code 
+ */
+UA_StatusCode UA_EXPORT callEnableMethod(UA_Client *client, UA_NodeId objectId, UA_UInt32 subId);
+
+/* Call Disable Method of the condition instance
+ *
+ * @param client to use
+ * @param objectId nodeId of the condition instance to disable
+ * @param subId  Subscription Id of the subscription to be disabled
+ * @return Indicates whether the operation succeeded or returns an error code 
+ */
+UA_StatusCode UA_EXPORT callDisableMethod(UA_Client *client, UA_NodeId objectId, UA_UInt32 subId);
+
+/* Call Acknowledge Method for the active alarm
+ *
+ * @param client to use
+ * @param objectId nodeId of the condition instance to acknowledge
+ * @param eventId Unique 16 byte length Id of the event notification
+ * @param comment comment to be added for the event acknowledgement
+ * @return Indicates whether the operation succeeded or returns an error code 
+ */
+UA_StatusCode UA_EXPORT callAcknowledgeMethod(UA_Client *client, UA_NodeId objectId, UA_ByteString eventId,
+                                            UA_LocalizedText comment);
+
+/* Call Confirm Method for the active alarm
+ *
+ * @param client to use
+ * @param objectId nodeId of the condition instance to confirm
+ * @param eventId Unique 16 byte length Id of the event notification
+ * @param comment comment to be added for the event to confirm
+ * @return Indicates whether the operation succeeded or returns an error code 
+ */
+UA_StatusCode UA_EXPORT callConfirmMethod(UA_Client *client, UA_NodeId objectId, UA_ByteString eventId,
+                                            UA_LocalizedText comment);
+
+/* Call comment Method to add comment for the condition instance
+ *
+ * @param client to use
+ * @param objectId nodeId of the condition instance to comment
+ * @param eventId A Unique 16 byte length Id of the latest event
+ * @param comment comment to be added for the condition Instance
+ * @return Indicates whether the operation succeeded or returns an error code 
+ */
+UA_StatusCode UA_EXPORT callAddCommentMethod(UA_Client *client, UA_NodeId objectId, UA_ByteString eventId,
+                                            UA_LocalizedText comment);
+
+/* Call refresh Method to fetch the list of enabled alarms in the server
+ *
+ * @param client to use
+ * @param subId The identifier of the Subscription containing the MonitoredItem to be refreshed
+ * @return Indicates whether the operation succeeded or returns an error code 
+ */
+UA_StatusCode UA_EXPORT callConditionRefresh(UA_Client *client, UA_UInt32 subId);
+
+/* Call refresh2 Method to fetch the list of enabled alarms confined the respective monitoredItemId
+ *
+ * @param client to use
+ * @param subId The identifier of the Subscription containing the MonitoredItem to be refreshed
+ * @param monId value of the monitoredItemId
+ * @return Indicates whether the operation succeeded or returns an error code 
+ */
+UA_StatusCode UA_EXPORT callConditionRefresh2(UA_Client *client, UA_UInt32 subId, UA_UInt32 monId);
+
+#endif
 /**
  * The following service calls go directly to the server. The MonitoredItem
  * settings are not stored in the client. */
