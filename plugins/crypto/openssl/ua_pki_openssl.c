@@ -19,6 +19,7 @@
 #include <openssl/pem.h>
 
 #include "ua_openssl_version_abstraction.h"
+#include "libc_time.h"
 
 /* Find binary substring. Taken and adjusted from
  * http://tungchingkai.blogspot.com/2011/07/binary-strstr.html */
@@ -649,6 +650,40 @@ UA_CertificateVerification_VerifyApplicationURI (void *                verificat
     return ret;
 }
 
+#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+static UA_StatusCode
+UA_GetCertificate_ExpirationDate(UA_DateTime *expiryDateTime, 
+                                 UA_ByteString *certificate) {
+    const unsigned char * pData;
+    pData = certificate->data;
+    X509 * x509 = d2i_X509 (NULL, &pData, (long) certificate->length);
+    if (x509 == NULL) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Get the certificate Expiry date */
+    ASN1_TIME *not_after = X509_get_notAfter(x509);
+
+    struct tm dtTime;
+    ASN1_TIME_to_tm(not_after, &dtTime);
+
+    struct mytm dateTime;
+    memset(&dateTime, 0, sizeof(struct mytm));
+    dateTime.tm_year = dtTime.tm_year;
+    dateTime.tm_mon = dtTime.tm_mon;
+    dateTime.tm_mday = dtTime.tm_mday;
+    dateTime.tm_hour = dtTime.tm_hour;
+    dateTime.tm_min = dtTime.tm_min;
+    dateTime.tm_sec = dtTime.tm_sec;
+
+    long long sec_epoch = __tm_to_secs(&dateTime);
+
+    *expiryDateTime = UA_DATETIME_UNIX_EPOCH;
+    *expiryDateTime += sec_epoch * UA_DATETIME_SEC;
+
+    return UA_STATUSCODE_GOOD;
+}
+#endif
 /* main entry */
 
 UA_StatusCode
@@ -681,7 +716,10 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification * cv,
         cv->verifyCertificate = UA_CertificateVerification_Verify;
     else
         cv->verifyCertificate = UA_VerifyCertificateAllowAll;
-    
+
+#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+    cv->getExpirationDate     = UA_GetCertificate_ExpirationDate;
+#endif
     if (certificateTrustListSize > 0) {
         if (UA_skTrusted_Cert2X509 (certificateTrustList, certificateTrustListSize,
                                     context) != UA_STATUSCODE_GOOD) {
