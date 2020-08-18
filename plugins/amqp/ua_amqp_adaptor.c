@@ -153,11 +153,9 @@ UA_StatusCode publishAmqp(UA_AmqpContext *ctx, UA_String queue,
         pn_link_open(sender_l);
 
         ctx->message = pn_message();
-/*
-        if (UA_STATUSCODE_GOOD != writeFlush(ctx) ) {
+        if (UA_STATUSCODE_GOOD != _write(ctx->ua_connection, ctx->driver) ) {
             return UA_STATUSCODE_BADCOMMUNICATIONERROR;
         }
-*/
     }
 
     /* Check if we have credit to send messages, otherwise discard messages.
