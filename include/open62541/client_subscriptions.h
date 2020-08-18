@@ -227,6 +227,15 @@ UA_ModifyMonitoredItemsResponse UA_EXPORT
 UA_Client_MonitoredItems_modify(UA_Client *client,
     const UA_ModifyMonitoredItemsRequest request);
 
+/* Parse the alarms and condition notification */
+void handler_events_alarms_condition(UA_Client *client, UA_UInt32 subId,
+                                     void *subContext, UA_UInt32 monId,
+                                     void *monContext, size_t nEventFields,
+                                     UA_Variant *eventFields);
+
+/* Set select clause operand for alarms and condition notification */
+UA_SimpleAttributeOperand *setupSelectClausesAlarmCondition(void);
+
 /**
  * The following service calls go directly to the server. The MonitoredItem
  * settings are not stored in the client. */

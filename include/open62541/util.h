@@ -182,6 +182,13 @@ UA_RelativePath_parse(UA_RelativePath *rp, const UA_String str);
 #define UA_PRINTF_STRING_FORMAT "\"%.*s\""
 #define UA_PRINTF_STRING_DATA(STRING) (int)(STRING).length, (STRING).data
 
+#define UA_PRITNF_EVENTID_FORMAT "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x"
+#define UA_PRITNF_EVENTID_DATA(EVENTID) (EVENTID).data[0], (EVENTID).data[1], \
+        (EVENTID).data[2], (EVENTID).data[3], (EVENTID).data[4], (EVENTID).data[5], \
+        (EVENTID).data[6], (EVENTID).data[7], (EVENTID).data[8], (EVENTID).data[9], \
+        (EVENTID).data[10], (EVENTID).data[11], (EVENTID).data[12],  (EVENTID).data[13], \
+        (EVENTID).data[14], (EVENTID).data[15]  
+
 /**
  * Helper functions for converting data types
  * ------------------------------------------ */
