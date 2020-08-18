@@ -9,7 +9,22 @@
 #include "ua_server_internal.h"
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+#ifdef UA_ENABLE_ENCRYPTION
 
+#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+#include <openssl/x509.h>
+#include <openssl/x509_vfy.h>
+#include <openssl/x509v3.h>
+#include "libc_time.h"
+#endif
+
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+#include <mbedtls/x509.h>
+#include <mbedtls/x509_crt.h>
+#include <mbedtls/error.h>
+#endif
+
+#endif
 typedef enum {
   UA_INACTIVE,
   UA_ACTIVE,
@@ -117,6 +132,12 @@ struct UA_ConditionSource {
 #define REFRESHEVENT_START_IDX                                 0
 #define REFRESHEVENT_END_IDX                                   1
 #define REFRESHEVENT_SEVERITY_DEFAULT                          100
+#define EXPIRATION_LIMIT_DEFAULT_VALUE                         15
+
+#ifdef UA_ENABLE_ENCRYPTION
+#define CONDITION_FIELD_EXPIRATION_LIMIT                       "ExpirationLimit"
+#define CONDITION_FIELD_EXPIRATION_DATE                        "ExpirationDate"
+#endif
 
 #define LOCALE                                                 "en"
 #define ENABLED_TEXT                                           "Enabled"
@@ -149,6 +170,11 @@ static const UA_QualifiedName fieldConfirmedStateQN = STATIC_QN(CONDITION_FIELD_
 static const UA_QualifiedName fieldActiveStateQN = STATIC_QN(CONDITION_FIELD_ACTIVESTATE);
 static const UA_QualifiedName fieldTimeQN = STATIC_QN(CONDITION_FIELD_TIME);
 static const UA_QualifiedName fieldSourceQN = STATIC_QN(CONDITION_FIELD_SOURCENODE);
+
+#ifdef UA_ENABLE_ENCRYPTION
+static const UA_QualifiedName fieldExpirationLimitQN = STATIC_QN(CONDITION_FIELD_EXPIRATION_LIMIT);
+static const UA_QualifiedName fieldExpirationDateQN = STATIC_QN(CONDITION_FIELD_EXPIRATION_DATE);
+#endif
 
 #define CONDITION_ASSERT_RETURN_RETVAL(retval, logMessage, deleteFunction)                \
     {                                                                                     \
@@ -1975,6 +2001,26 @@ setStandardConditionFields(UA_Server *server, const UA_NodeId* condition,
                                                          fieldConfirmedStateQN,
                                                          twoStateVariableIdQN);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Set EnabledState/Id Field failed",);
+
+#ifdef UA_ENABLE_ENCRYPTION
+    /* Add  optional property for certificate expiration alarm type*/
+    UA_NodeId certificateConditionTypeId =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_CERTIFICATEEXPIRATIONALARMTYPE);
+    if(isNodeInTree_singleRef(server, conditionType, &certificateConditionTypeId,
+                               UA_REFERENCETYPEINDEX_HASSUBTYPE)) {
+        retval = UA_Server_addConditionOptionalField(server, *condition, certificateConditionTypeId,
+                                                 fieldExpirationLimitQN, NULL);
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Adding Expiration Limit optional field failed",);
+
+        /* Set the default value for the Expiration limit property */
+        UA_Duration defaultValue = EXPIRATION_LIMIT_DEFAULT_VALUE;
+        retval |= UA_Server_writeObjectProperty_scalar(server, *condition, fieldExpirationLimitQN,
+                                                       &defaultValue,
+                                                       &UA_TYPES[UA_TYPES_DURATION]);
+
+    }
+#endif
+
 #endif//CONDITIONOPTIONALFIELDS_SUPPORT
     
     /* 2. Check if ConditionType is subType of AlarmConditionType */
@@ -2548,4 +2594,77 @@ UA_StatusCode UA_Server_deleteCondition(UA_Server *server, const UA_NodeId condi
     /* Delete from address space */
     return UA_Server_deleteNode(server, condition, true);
 }
-#endif /* UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */
+
+#ifdef UA_ENABLE_ENCRYPTION
+UA_StatusCode
+UA_Server_setExpirationDate(UA_Server *server, const UA_NodeId conditionId,
+                            UA_ByteString  cert) {
+    UA_StatusCode retval;
+
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+
+    mbedtls_x509_crt publicKey;
+    mbedtls_x509_crt_init(&publicKey);
+    int mbedErr = mbedtls_x509_crt_parse(&publicKey, cert.data, cert.length);
+    if(mbedErr) {
+        char errBuff[300];
+        mbedtls_strerror(mbedErr, errBuff, 300);
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                    "Failed to parse certificate, mbedTLS error: %s (error code: %d)", errBuff, mbedErr);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    UA_DateTimeStruct ts;
+    ts.year = (UA_UInt16)publicKey.valid_to.year;
+    ts.month = (UA_UInt16)publicKey.valid_to.mon;
+    ts.day = (UA_UInt16)publicKey.valid_to.day;
+    ts.hour = (UA_UInt16)publicKey.valid_to.hour;
+    ts.min = (UA_UInt16)publicKey.valid_to.min;
+    ts.sec = (UA_UInt16)publicKey.valid_to.sec;
+    ts.milliSec = 0;
+    ts.microSec = 0;
+    ts.nanoSec = 0;
+
+    UA_DateTime dt = UA_DateTime_fromStruct(ts);
+
+#endif
+
+#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+
+    const unsigned char * pData;
+    pData = cert.data;
+    X509 * x509 = d2i_X509 (NULL, &pData, (long) cert.length);
+    if (x509 == NULL) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Get the certificate Expiry date */
+    ASN1_TIME *not_after = X509_get_notAfter(x509);
+
+    struct tm dtTime;
+    ASN1_TIME_to_tm(not_after, &dtTime);
+
+    struct mytm dateTime;
+    memset(&dateTime, 0, sizeof(struct mytm));
+    dateTime.tm_year = dtTime.tm_year;
+    dateTime.tm_mon = dtTime.tm_mon;
+    dateTime.tm_mday = dtTime.tm_mday;
+    dateTime.tm_hour = dtTime.tm_hour;
+    dateTime.tm_min = dtTime.tm_min;
+    dateTime.tm_sec = dtTime.tm_sec;
+
+    long long sec_epoch = __tm_to_secs(&dateTime);
+
+    UA_DateTime dt = UA_DATETIME_UNIX_EPOCH;
+    dt += sec_epoch * UA_DATETIME_SEC;
+
+#endif
+
+    /* Write the expiry date to the propery of the condition instance */
+    retval = UA_Server_writeObjectProperty_scalar(server, conditionId,
+                                                    fieldExpirationDateQN,
+                                                    &dt,
+                                                    &UA_TYPES[UA_TYPES_DATETIME]);
+    return retval;
+}
+#endif//UA_ENABLE_ENCRYPTION
+#endif//UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS

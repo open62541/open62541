@@ -1668,6 +1668,17 @@ UA_Server_deleteCondition(UA_Server *server,
                           const UA_NodeId condition,
                           const UA_NodeId conditionSource);
 
+/*
+* Parse the certifcate and set Expiration date
+*
+* @param server The server object
+* @param conditionId The NodeId of the node representation of the Condition Instance
+* @param cert The certificate for parsing
+*/
+UA_StatusCode UA_EXPORT
+UA_Server_setExpirationDate(UA_Server *server, const UA_NodeId conditionId,
+                            UA_ByteString  cert);
+
 #endif /* UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */
 
 /**
