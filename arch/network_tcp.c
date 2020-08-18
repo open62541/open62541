@@ -408,7 +408,7 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, const UA_String *customHo
                                  portno, &hints, &res);
     if(retcode != 0) {
         UA_LOG_SOCKET_ERRNO_GAI_WRAP(UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK,
-                                                    "getaddrinfo lookup of %s failed with error %s", hostname, errno_str));
+                                                    "getaddrinfo lookup of %s failed with error %d - %s", hostname, retcode, errno_str));
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -879,8 +879,8 @@ UA_ClientConnectionTCP_init(UA_ConnectionConfig config, const UA_String endpoint
                     &tcpClientConnection->server);
     if(error != 0 || !tcpClientConnection->server) {
         UA_LOG_SOCKET_ERRNO_GAI_WRAP(UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
-                                                    "DNS lookup of %s failed with error %s",
-                                                    hostname, errno_str));
+                                                    "DNS lookup of %s failed with error %d - %s",
+                                                    hostname, error, errno_str));
         connection.state = UA_CONNECTIONSTATE_CLOSED;
         return connection;
     }
@@ -936,7 +936,7 @@ UA_ClientConnectionTCP(UA_ConnectionConfig config, const UA_String endpointUrl,
     int error = UA_getaddrinfo(hostname, portStr, &hints, &server);
     if(error != 0 || !server) {
         UA_LOG_SOCKET_ERRNO_GAI_WRAP(UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
-                                              "DNS lookup of %s failed with error %s", hostname, errno_str));
+                                              "DNS lookup of %s failed with error %d - %s", hostname, error, errno_str));
         return connection;
     }
 
