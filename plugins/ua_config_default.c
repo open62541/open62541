@@ -47,8 +47,16 @@ UA_Server_new() {
     memset(&config, 0, sizeof(UA_ServerConfig));
     /* Set a default logger and NodeStore for the initialization */
     config.logger = UA_Log_Stdout_;
-    UA_Nodestore_HashMap(&config.nodestore);
-    return UA_Server_newWithConfig(&config);
+    if(UA_STATUSCODE_GOOD != UA_Nodestore_HashMap(&config.nodestore)) {
+        return NULL;
+    }
+
+    UA_Server *server = UA_Server_newWithConfig(&config);
+    if(!server) {
+        config.nodestore.clear(config.nodestore.context);
+    }
+
+    return server;
 }
 
 /*******************************/
@@ -99,8 +107,11 @@ createEndpoint(UA_ServerConfig *conf, UA_EndpointDescription *endpoint,
                                          conf->accessControl.userTokenPoliciesSize,
                                          (void **)&endpoint->userIdentityTokens,
                                          &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD){
+        UA_String_clear(&endpoint->securityPolicyUri);
+        UA_String_clear(&endpoint->transportProfileUri);
         return retval;
+    }
     endpoint->userIdentityTokensSize = conf->accessControl.userTokenPoliciesSize;
 
     UA_String_copy(&securityPolicy->localCertificate, &endpoint->serverCertificate);
