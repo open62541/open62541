@@ -504,7 +504,7 @@ ServerNetworkLayerTCP_listen(UA_ServerNetworkLayer *nl, UA_Server *server,
 
         struct sockaddr_storage remote;
         socklen_t remote_size = sizeof(remote);
-        UA_SOCKET newsockfd = UA_accept((UA_SOCKET)layer->serverSockets[i],
+        UA_SOCKET newsockfd = UA_accept(layer->serverSockets[i],
                                   (struct sockaddr*)&remote, &remote_size);
         if(newsockfd == UA_INVALID_SOCKET)
             continue;
@@ -688,7 +688,6 @@ UA_ClientConnectionTCP_poll(UA_Client *client, void *data, UA_UInt32 timeout) {
         return UA_STATUSCODE_GOOD;
 
     TCPClientConnection *tcpConnection = (TCPClientConnection*) connection->handle;
-    UA_SOCKET clientsockfd = connection->sockfd;
     UA_ClientConfig *config = UA_Client_getConfig(client);
 
     /* Connection timeout? */
@@ -704,22 +703,22 @@ UA_ClientConnectionTCP_poll(UA_Client *client, void *data, UA_UInt32 timeout) {
      * reached */
 
     /* Get a socket */
-    if(clientsockfd <= 0) {
-        clientsockfd = UA_socket(tcpConnection->server->ai_family,
+    if(connection->sockfd == UA_INVALID_SOCKET) {
+        connection->sockfd = UA_socket(tcpConnection->server->ai_family,
                                  tcpConnection->server->ai_socktype,
                                  tcpConnection->server->ai_protocol);
-        connection->sockfd = (UA_Int32)clientsockfd; /* cast for win32 */
+        if(connection->sockfd == UA_INVALID_SOCKET) {
+            UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_NETWORK,
+                    "Could not create client socket: %s", strerror(UA_ERRNO));
+            ClientNetworkLayerTCP_close(connection);
+            return UA_STATUSCODE_BADDISCONNECT;
+        }
     }
 
-    if(clientsockfd == UA_INVALID_SOCKET) {
-        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_NETWORK,
-                       "Could not create client socket: %s", strerror(UA_ERRNO));
-        ClientNetworkLayerTCP_close(connection);
-        return UA_STATUSCODE_BADDISCONNECT;
-    }
+
 
     /* Non blocking connect to be able to timeout */
-    if(UA_socket_set_nonblocking(clientsockfd) != UA_STATUSCODE_GOOD) {
+    if(UA_socket_set_nonblocking(connection->sockfd) != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_NETWORK,
                        "Could not set the client socket to nonblocking");
         ClientNetworkLayerTCP_close(connection);
@@ -727,7 +726,7 @@ UA_ClientConnectionTCP_poll(UA_Client *client, void *data, UA_UInt32 timeout) {
     }
 
     /* Non blocking connect */
-    int error = UA_connect(clientsockfd, tcpConnection->server->ai_addr,
+    int error = UA_connect(connection->sockfd, tcpConnection->server->ai_addr,
                            tcpConnection->server->ai_addrlen);
 
     if((error == -1) && (UA_ERRNO != UA_ERR_CONNECTION_PROGRESS)) {
@@ -757,7 +756,7 @@ UA_ClientConnectionTCP_poll(UA_Client *client, void *data, UA_UInt32 timeout) {
                 break;
 
             _os_sleep(&time,&sig);
-            error = connect(clientsockfd, tcpConnection->server->ai_addr,
+            error = connect(connection->sockfd, tcpConnection->server->ai_addr,
                             tcpConnection->server->ai_addrlen);
             if((error == -1 && UA_ERRNO == EISCONN) || (error == 0))
                 resultsize = 1;
@@ -767,21 +766,21 @@ UA_ClientConnectionTCP_poll(UA_Client *client, void *data, UA_UInt32 timeout) {
 #else
         fd_set fdset;
         FD_ZERO(&fdset);
-        UA_fd_set(clientsockfd, &fdset);
+        UA_fd_set(connection->sockfd, &fdset);
         struct timeval tmptv = { (long int) (timeout_usec / 1000000),
                                  (int) (timeout_usec % 1000000) };
-        int resultsize = UA_select((UA_Int32) (clientsockfd + 1), NULL, &fdset, NULL, &tmptv);
+        int resultsize = UA_select((UA_Int32) (connection->sockfd + 1), NULL,
+				&fdset, NULL, &tmptv);
 #endif
         if(resultsize == 1) {
             /* Windows does not have any getsockopt equivalent and it is not needed there */
 #ifdef _WIN32
-            connection->sockfd = clientsockfd;
             connection->state = UA_CONNECTIONSTATE_ESTABLISHED;
             return UA_STATUSCODE_GOOD;
 #else
             OPTVAL_TYPE so_error;
             socklen_t len = sizeof so_error;
-            int ret = UA_getsockopt(clientsockfd, SOL_SOCKET, SO_ERROR, &so_error, &len);
+            int ret = UA_getsockopt(connection->sockfd, SOL_SOCKET, SO_ERROR, &so_error, &len);
 
             if(ret == 0 && so_error == 0) {
                 /* Connected */
@@ -832,6 +831,7 @@ UA_ClientConnectionTCP_init(UA_ConnectionConfig config, const UA_String endpoint
     memset(&connection, 0, sizeof(UA_Connection));
 
     connection.state = UA_CONNECTIONSTATE_OPENING;
+    connection.sockfd = UA_INVALID_SOCKET;
     connection.send = connection_write;
     connection.recv = connection_recv;
     connection.close = ClientNetworkLayerTCP_close;
@@ -895,6 +895,7 @@ UA_ClientConnectionTCP(UA_ConnectionConfig config, const UA_String endpointUrl,
     UA_Connection connection;
     memset(&connection, 0, sizeof(UA_Connection));
     connection.state = UA_CONNECTIONSTATE_CLOSED;
+    connection.sockfd = UA_INVALID_SOCKET;
     connection.send = connection_write;
     connection.recv = connection_recv;
     connection.close = ClientNetworkLayerTCP_close;
@@ -943,17 +944,16 @@ UA_ClientConnectionTCP(UA_ConnectionConfig config, const UA_String endpointUrl,
     UA_Boolean connected = false;
     UA_DateTime dtTimeout = timeout * UA_DATETIME_MSEC;
     UA_DateTime connStart = UA_DateTime_nowMonotonic();
-    UA_SOCKET clientsockfd;
 
     /* On linux connect may immediately return with ECONNREFUSED but we still
      * want to try to connect. So use a loop and retry until timeout is
      * reached. */
     do {
         /* Get a socket */
-        clientsockfd = UA_socket(server->ai_family,
+        connection.sockfd = UA_socket(server->ai_family,
                               server->ai_socktype,
                               server->ai_protocol);
-        if(clientsockfd == UA_INVALID_SOCKET) {
+        if(connection.sockfd == UA_INVALID_SOCKET) {
             UA_LOG_SOCKET_ERRNO_WRAP(UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
                                                     "Could not create client socket: %s", errno_str));
             UA_freeaddrinfo(server);
@@ -963,10 +963,9 @@ UA_ClientConnectionTCP(UA_ConnectionConfig config, const UA_String endpointUrl,
         connection.state = UA_CONNECTIONSTATE_OPENING;
 
         /* Connect to the server */
-        connection.sockfd = clientsockfd;
 
         /* Non blocking connect to be able to timeout */
-        if(UA_socket_set_nonblocking(clientsockfd) != UA_STATUSCODE_GOOD) {
+        if(UA_socket_set_nonblocking(connection.sockfd) != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
                            "Could not set the client socket to nonblocking");
             ClientNetworkLayerTCP_close(&connection);
@@ -975,7 +974,8 @@ UA_ClientConnectionTCP(UA_ConnectionConfig config, const UA_String endpointUrl,
         }
 
         /* Non blocking connect */
-        error = UA_connect(clientsockfd, server->ai_addr, (socklen_t)server->ai_addrlen);
+        error = UA_connect(connection.sockfd, server->ai_addr,
+		(socklen_t) server->ai_addrlen);
 
         if((error == -1) && (UA_ERRNO != UA_ERR_CONNECTION_PROGRESS)) {
             ClientNetworkLayerTCP_close(&connection);
@@ -1009,7 +1009,7 @@ UA_ClientConnectionTCP(UA_ConnectionConfig config, const UA_String endpointUrl,
                     break;
 
                 _os_sleep(&time,&sig);
-                error = connect(clientsockfd, server->ai_addr, server->ai_addrlen);
+                error = connect(connection.sockfd, server->ai_addr, server->ai_addrlen);
                 if((error == -1 && UA_ERRNO == EISCONN) || (error == 0))
                     resultsize = 1;
                 if(error == -1 && UA_ERRNO != EALREADY && UA_ERRNO != EINPROGRESS)
@@ -1019,12 +1019,14 @@ UA_ClientConnectionTCP(UA_ConnectionConfig config, const UA_String endpointUrl,
 #else
             fd_set fdset;
             FD_ZERO(&fdset);
-            UA_fd_set(clientsockfd, &fdset);
+            UA_fd_set(connection.sockfd, &fdset);
             UA_DateTime timeout_usec = (dtTimeout - timeSinceStart) / UA_DATETIME_USEC;
             struct timeval tmptv = {(long int) (timeout_usec / 1000000),
                                     (int) (timeout_usec % 1000000)};
 
-            int resultsize = UA_select((UA_Int32)(clientsockfd + 1), NULL, &fdset, NULL, &tmptv);
+            int resultsize = UA_select((UA_Int32 )(connection.sockfd + 1), NULL,
+                    &fdset, 
+			NULL, &tmptv);
 #endif
 
             if(resultsize == 1) {
@@ -1037,7 +1039,7 @@ UA_ClientConnectionTCP(UA_ConnectionConfig config, const UA_String endpointUrl,
                 OPTVAL_TYPE so_error;
                 socklen_t len = sizeof so_error;
 
-                int ret = UA_getsockopt(clientsockfd, SOL_SOCKET, SO_ERROR, &so_error, &len);
+                int ret = UA_getsockopt(connection.sockfd, SOL_SOCKET, SO_ERROR, &so_error, &len);
 
                 if(ret != 0 || so_error != 0) {
                     /* on connection refused we should still try to connect */
@@ -1082,7 +1084,7 @@ UA_ClientConnectionTCP(UA_ConnectionConfig config, const UA_String endpointUrl,
 
 
     /* We are connected. Reset socket to blocking */
-    if(UA_socket_set_blocking(clientsockfd) != UA_STATUSCODE_GOOD) {
+    if(UA_socket_set_blocking(connection.sockfd) != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
                        "Could not set the client socket to blocking");
         ClientNetworkLayerTCP_close(&connection);

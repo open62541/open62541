@@ -143,7 +143,7 @@ callback_opcua(struct lws *wsi, enum lws_callback_reasons reason, void *user, vo
             SIMPLEQ_INIT(&buffer->messages);
             buffer->wsi = wsi;
             memset(c, 0, sizeof(UA_Connection));
-            c->sockfd = 0;
+            c->sockfd = UA_INVALID_SOCKET;
             c->handle = buffer;
             c->send = connection_send;
             c->close = ServerNetworkLayerWS_close;
