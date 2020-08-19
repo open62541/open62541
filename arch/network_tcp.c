@@ -1024,9 +1024,8 @@ UA_ClientConnectionTCP(UA_ConnectionConfig config, const UA_String endpointUrl,
             struct timeval tmptv = {(long int) (timeout_usec / 1000000),
                                     (int) (timeout_usec % 1000000)};
 
-            int resultsize = UA_select((UA_Int32 )(connection.sockfd + 1), NULL,
-                    &fdset, 
-			NULL, &tmptv);
+            int resultsize = UA_select((UA_Int32)(connection.sockfd + 1), NULL,
+                    &fdset, NULL, &tmptv);
 #endif
 
             if(resultsize == 1) {
