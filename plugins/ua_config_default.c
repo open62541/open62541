@@ -53,7 +53,7 @@ UA_Server_new() {
 
     UA_Server *server = UA_Server_newWithConfig(&config);
     if(!server) {
-        UA_NodeMap_delete(config.nodestore.context);
+        config.nodestore.clear(config.nodestore.context);
     }
 
     return server;
