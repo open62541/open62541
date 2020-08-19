@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2020 (c) Wind River Systems, Inc.
+ *    Copyright 2020 (c) basysKom GmbH
  */
 
 /*
@@ -35,7 +36,7 @@ modification history
 #define UA_SECURITYPOLICY_BASIC256SHA256_MAXASYMKEYLENGTH 512
 
 typedef struct {
-    UA_ByteString             localPrivateKey;
+    EVP_PKEY *                localPrivateKey;
     UA_ByteString             localCertThumbprint;
     const UA_Logger *         logger;    
 } Policy_Context_Basic256Sha256;
@@ -64,22 +65,20 @@ UA_Policy_New_Context (UA_SecurityPolicy * securityPolicy,
     if (context == NULL) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
-
-    /* copy the local private key and add a NULL to the end */
     
-    UA_StatusCode retval = UA_copyCertificate (&context->localPrivateKey,
-                                               &localPrivateKey);
-    if (retval != UA_STATUSCODE_GOOD) {
+    context->localPrivateKey = UA_OpenSSL_LoadPrivateKey(&localPrivateKey);
+
+    if (!context->localPrivateKey) {
         UA_free (context);
-        return retval; 
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-    retval = UA_Openssl_X509_GetCertificateThumbprint (
+    UA_StatusCode retval = UA_Openssl_X509_GetCertificateThumbprint (
                          &securityPolicy->localCertificate,
                          &context->localCertThumbprint, true
                          );
     if (retval != UA_STATUSCODE_GOOD) {
-        UA_ByteString_deleteMembers (&context->localPrivateKey);
+        EVP_PKEY_free(context->localPrivateKey);
         UA_free (context);
         return retval; 
     }
@@ -103,7 +102,7 @@ UA_Policy_Clear_Context (UA_SecurityPolicy *policy) {
 
     Policy_Context_Basic256Sha256 * pc = (Policy_Context_Basic256Sha256 *)
         policy->policyContext;
-    UA_ByteString_deleteMembers (&pc->localPrivateKey);
+    EVP_PKEY_free(pc->localPrivateKey);
     UA_ByteString_deleteMembers (&pc->localCertThumbprint);
     UA_free (pc);        
     return;
@@ -140,9 +139,7 @@ UA_ChannelModule_New_Context (const UA_SecurityPolicy * securityPolicy,
     }
 
     /* decode to X509 */
-    const unsigned char * pData = context->remoteCertificate.data;    
-    context->remoteCertificateX509 = d2i_X509 (NULL, &pData, 
-                                    (long) context->remoteCertificate.length);
+    context->remoteCertificateX509 = UA_OpenSSL_LoadCertificate(&context->remoteCertificate);
     if (context->remoteCertificateX509 == NULL) {
         UA_ByteString_clear (&context->remoteCertificate); 
         UA_free (context);
@@ -242,7 +239,7 @@ UA_Asym_Basic256Sha256_Decrypt (const UA_SecurityPolicy *securityPolicy,
     Channel_Context_Basic256Sha256 * cc = (Channel_Context_Basic256Sha256 *)
                                            channelContext;
     UA_StatusCode ret = UA_Openssl_RSA_Oaep_Decrypt (data, 
-                        &cc->policyContext->localPrivateKey);
+                        cc->policyContext->localPrivateKey);
     return ret;                        
 }
 
@@ -254,7 +251,7 @@ UA_Asym_Basic256Sha256_getRemoteSignatureSize (
         return UA_STATUSCODE_BADINTERNALERROR;
 
     const Channel_Context_Basic256Sha256 * cc = (const Channel_Context_Basic256Sha256 *) channelContext;
-    UA_Int32 keyLen;
+    UA_Int32 keyLen = 0;
     UA_Openssl_RSA_Public_GetKeyLength (cc->remoteCertificateX509, &keyLen);
     UA_assert (keyLen == 256); /* 256 bytes 2048 bit */
     return (size_t) keyLen; 
@@ -268,8 +265,8 @@ UA_AsySig_Basic256Sha256_getLocalSignatureSize (const UA_SecurityPolicy *securit
 
     Policy_Context_Basic256Sha256 * pc = 
                (Policy_Context_Basic256Sha256 *) securityPolicy->policyContext;
-    UA_Int32 keyLen;
-    UA_Openssl_RSA_Private_GetKeyLength (&pc->localPrivateKey, &keyLen);
+    UA_Int32 keyLen = 0;
+    UA_Openssl_RSA_Private_GetKeyLength (pc->localPrivateKey, &keyLen);
     UA_assert (keyLen == 256); /* 256 bytes 2048 bits */
 
     return (size_t) keyLen; 
@@ -282,7 +279,7 @@ UA_AsymEn_Basic256Sha256_getRemotePlainTextBlockSize (const UA_SecurityPolicy *s
         return UA_STATUSCODE_BADINTERNALERROR;
 
     const Channel_Context_Basic256Sha256 * cc = (const Channel_Context_Basic256Sha256 *) channelContext;
-    UA_Int32 keyLen;
+    UA_Int32 keyLen = 0;
     UA_Openssl_RSA_Public_GetKeyLength (cc->remoteCertificateX509, &keyLen);
     return (size_t) keyLen - UA_SECURITYPOLICY_BASIC256SHA256_RSAPADDING_LEN;
 }
@@ -294,7 +291,7 @@ UA_AsymEn_Basic256Sha256_getRemoteBlockSize (const UA_SecurityPolicy *securityPo
         return UA_STATUSCODE_BADINTERNALERROR;
 
     const Channel_Context_Basic256Sha256 * cc = (const Channel_Context_Basic256Sha256 *) channelContext;
-    UA_Int32 keyLen;
+    UA_Int32 keyLen = 0;
     UA_Openssl_RSA_Public_GetKeyLength (cc->remoteCertificateX509, &keyLen);
     return (size_t) keyLen;
 }
@@ -306,7 +303,7 @@ UA_AsymEn_Basic256Sha256_getRemoteKeyLength (const UA_SecurityPolicy *securityPo
         return UA_STATUSCODE_BADINTERNALERROR;
 
     const Channel_Context_Basic256Sha256 * cc = (const Channel_Context_Basic256Sha256 *) channelContext;
-    UA_Int32 keyLen;
+    UA_Int32 keyLen = 0;
     UA_Openssl_RSA_Public_GetKeyLength (cc->remoteCertificateX509, &keyLen);
     return (size_t) keyLen * 8;
 }
@@ -440,7 +437,7 @@ UA_AsySig_Basic256Sha256_sign (const UA_SecurityPolicy * securityPolicy,
         return UA_STATUSCODE_BADINTERNALERROR; 
     Policy_Context_Basic256Sha256 * pc = 
                (Policy_Context_Basic256Sha256 *) securityPolicy->policyContext;
-    return UA_Openssl_RSA_PKCS1_V15_SHA256_Sign (message, &pc->localPrivateKey,
+    return UA_Openssl_RSA_PKCS1_V15_SHA256_Sign (message, pc->localPrivateKey,
                                                  signature);
 }
 
@@ -542,8 +539,8 @@ UA_AsymEn_Basic256Sha256_getLocalKeyLength (const UA_SecurityPolicy * securityPo
 
     Policy_Context_Basic256Sha256 * pc = 
                (Policy_Context_Basic256Sha256 *) securityPolicy->policyContext;
-    UA_Int32 keyLen;
-    UA_Openssl_RSA_Private_GetKeyLength (&pc->localPrivateKey, &keyLen);
+    UA_Int32 keyLen = 0;
+    UA_Openssl_RSA_Private_GetKeyLength (pc->localPrivateKey, &keyLen);
     UA_assert (keyLen == 256); /* 256 bytes 2048 bits */
 
     return (size_t) keyLen * 8; 
