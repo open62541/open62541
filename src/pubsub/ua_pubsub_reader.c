@@ -779,6 +779,7 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
         return;
     }
 
+    size_t currentPosition = 0;
     connection->channel->receive(connection->channel, &buffer, NULL, 1000);
     if(buffer.length > 0) {
         if (readerGroup->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE) {
@@ -788,7 +789,7 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
              */
             UA_DataSetReader *dataSetReader = LIST_FIRST(&readerGroup->readers);
             /* Decode only the necessary offset and update the networkMessage */
-            if(UA_NetworkMessage_updateBufferedNwMessage(&dataSetReader->bufferedMessage, &buffer) != UA_STATUSCODE_GOOD) {
+            if(UA_NetworkMessage_updateBufferedNwMessage(&dataSetReader->bufferedMessage, &buffer, &currentPosition) != UA_STATUSCODE_GOOD) {
                 UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
                              "PubSub receive. Unknown field type.");
                 UA_ByteString_deleteMembers(&buffer);
@@ -829,7 +830,6 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
         UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_USERLAND, "Message received:");
         UA_NetworkMessage currentNetworkMessage;
         memset(&currentNetworkMessage, 0, sizeof(UA_NetworkMessage));
-        size_t currentPosition = 0;
         UA_NetworkMessage_decodeBinary(&buffer, &currentPosition, &currentNetworkMessage);
         UA_Server_processNetworkMessage(server, &currentNetworkMessage, connection);
         UA_NetworkMessage_deleteMembers(&currentNetworkMessage);
