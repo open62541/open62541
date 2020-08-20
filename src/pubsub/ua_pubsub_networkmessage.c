@@ -80,12 +80,13 @@ UA_NetworkMessage_updateBufferedMessage(UA_NetworkMessageOffsetBuffer *buffer){
 
 UA_StatusCode
 UA_NetworkMessage_updateBufferedNwMessage(UA_NetworkMessageOffsetBuffer *buffer,
-                                          const UA_ByteString *src){
+                                          const UA_ByteString *src, size_t *bufferPosition){
     UA_StatusCode rv = UA_STATUSCODE_GOOD;
     size_t payloadCounter = 0;
+    size_t offset = 0;
     UA_DataSetMessage* dsm = buffer->nm->payload.dataSetPayload.dataSetMessages; // Considering one DSM in RT TODO: Clarify multiple DSM
     for (size_t i = 0; i < buffer->offsetsSize; ++i) {
-        size_t offset = buffer->offsets[i].offset;
+        offset = buffer->offsets[i].offset + *bufferPosition;
         switch (buffer->offsets[i].contentType) {
         case UA_PUBSUB_OFFSETTYPE_PUBLISHERID:
             switch (buffer->nm->publisherIdType) {
@@ -140,6 +141,7 @@ UA_NetworkMessage_updateBufferedNwMessage(UA_NetworkMessageOffsetBuffer *buffer,
             return UA_STATUSCODE_BADNOTSUPPORTED;
         }
     }
+    *bufferPosition = offset;
     return rv;
 }
 
