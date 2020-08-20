@@ -136,6 +136,9 @@ UA_OpenSSL_LoadDerCertificate(const UA_ByteString *certificate);
 X509 *
 UA_OpenSSL_LoadPemCertificate(const UA_ByteString *certificate);
 
+UA_StatusCode
+UA_OpenSSL_LoadLocalCertificate(const UA_ByteString *certificate, UA_ByteString *target);
+
 _UA_END_DECLS
 
 #endif /* UA_ENABLE_ENCRYPTION_OPENSSL */

@@ -174,8 +174,8 @@ UA_Openssl_X509_GetCertificateThumbprint (const UA_ByteString * certficate,
             return UA_STATUSCODE_BADINTERNALERROR;
         }
     }
-    // The client certificate must be DER encoded
-    X509 * x509Certificate = UA_OpenSSL_LoadDerCertificate(certficate);
+    X509 * x509Certificate = UA_OpenSSL_LoadCertificate(certficate);
+
     if (x509Certificate == NULL) {
         if (bThumbPrint) {
             UA_ByteString_deleteMembers (pThumbprint);
@@ -934,5 +934,26 @@ UA_OpenSSL_LoadPemCertificate(const UA_ByteString *certificate) {
 
     return result;
 }
+
+UA_StatusCode
+UA_OpenSSL_LoadLocalCertificate(const UA_ByteString *certificate, UA_ByteString *target) {
+    X509 *cert = UA_OpenSSL_LoadCertificate(certificate);
+
+    if (!cert)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    unsigned char *derData = NULL;
+    int length = i2d_X509(cert, &derData);
+    X509_free(cert);
+
+    if (length > 0) {
+        target->length = (size_t) length;
+        target->data = derData;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    return UA_STATUSCODE_BADINVALIDARGUMENT;
+}
+
 
 #endif

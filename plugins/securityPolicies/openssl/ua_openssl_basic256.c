@@ -566,9 +566,8 @@ UA_SecurityPolicy_Basic256 (UA_SecurityPolicy * policy,
     channelModule->setRemoteSymIv = UA_ChannelModule_Basic256_setRemoteSymIv;
     channelModule->compareCertificate = UA_ChannelModule_Basic256_compareCertificate;
 
-    /* Copy the certificate and add a NULL to the end */
+    retval = UA_OpenSSL_LoadLocalCertificate(&localCertificate, &policy->localCertificate);
 
-    retval = UA_copyCertificate (&policy->localCertificate, &localCertificate);
     if (retval != UA_STATUSCODE_GOOD)
         return retval;
 
