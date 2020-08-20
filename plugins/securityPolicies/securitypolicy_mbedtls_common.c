@@ -241,4 +241,30 @@ mbedtls_decrypt_rsaOaep(mbedtls_pk_context *localPrivateKey,
     return UA_STATUSCODE_GOOD;
 }
 
+int UA_mbedTLS_LoadPrivateKey(const UA_ByteString *key, mbedtls_pk_context *target)
+{
+    return mbedtls_pk_parse_key(target, key->data, key->length, NULL, 0);
+}
+
+UA_StatusCode UA_mbedTLS_LoadLocalCertificate(const UA_ByteString *certData, UA_ByteString *target)
+{
+    mbedtls_x509_crt cert;
+    mbedtls_x509_crt_init(&cert);
+
+    int mbedErr = mbedtls_x509_crt_parse(&cert, certData->data, certData->length);
+
+    UA_StatusCode result = UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    if (!mbedErr) {
+        UA_ByteString tmp;
+        tmp.data = cert.raw.p;
+        tmp.length = cert.raw.len;
+
+        result = UA_ByteString_copy(&tmp, target);
+    }
+
+    mbedtls_x509_crt_free(&cert);
+    return result;
+}
+
 #endif
