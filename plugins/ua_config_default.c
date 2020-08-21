@@ -51,12 +51,7 @@ UA_Server_new() {
         return NULL;
     }
 
-    UA_Server *server = UA_Server_newWithConfig(&config);
-    if(!server) {
-        config.nodestore.clear(config.nodestore.context);
-    }
-
-    return server;
+    return UA_Server_newWithConfig(&config);
 }
 
 /*******************************/

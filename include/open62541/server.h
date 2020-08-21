@@ -311,7 +311,7 @@ UA_ServerConfig_setCustomHostname(UA_ServerConfig *config,
 /* Creates a new server. Moves the config into the server with a shallow copy.
  * The config content is cleared together with the server. */
 UA_Server UA_EXPORT *
-UA_Server_newWithConfig(const UA_ServerConfig *config);
+UA_Server_newWithConfig(UA_ServerConfig *config);
 
 void UA_EXPORT UA_Server_delete(UA_Server *server);
 
