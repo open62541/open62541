@@ -143,7 +143,7 @@ setMonitoredItemSettings(UA_Server *server, UA_Session *session, UA_MonitoredIte
 
     /* Remove the old samples */
     UA_ByteString_clear(&mon->lastSampledValue);
-    UA_Variant_clear(&mon->lastValue);
+    UA_DataValue_clear(&mon->lastValue);
 
     /* ClientHandle */
     mon->clientHandle = params->clientHandle;
@@ -572,7 +572,7 @@ Operation_SetMonitoringMode(UA_Server *server, UA_Session *session,
 
         /* Initialize lastSampledValue */
         UA_ByteString_clear(&mon->lastSampledValue);
-        UA_Variant_clear(&mon->lastValue);
+        UA_DataValue_clear(&mon->lastValue);
     }
 }
 

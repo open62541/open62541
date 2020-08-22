@@ -176,7 +176,8 @@ struct UA_MonitoredItem {
          * changed at runtime of the MonitoredItem */
         UA_DataChangeFilter dataChangeFilter;
     } filter;
-    UA_Variant lastValue; // TODO: dataEncoding is hardcoded to UA binary
+
+    UA_DataValue lastValue;
 
     /* Sample Callback */
     UA_UInt64 sampleCallbackId;
@@ -194,10 +195,6 @@ struct UA_MonitoredItem {
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     UA_MonitoredItem *next;
 #endif
-
-#ifdef UA_ENABLE_DA
-    UA_StatusCode lastStatus;
-#endif
 };
 
 void UA_MonitoredItem_init(UA_MonitoredItem *mon, UA_Subscription *sub);
@@ -205,6 +202,10 @@ void UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem)
 void UA_MonitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem);
 UA_StatusCode UA_MonitoredItem_registerSampleCallback(UA_Server *server, UA_MonitoredItem *mon);
 void UA_MonitoredItem_unregisterSampleCallback(UA_Server *server, UA_MonitoredItem *mon);
+
+UA_StatusCode
+UA_MonitoredItem_createDataChangeNotification(UA_Server *server, UA_Subscription *sub,
+                                              UA_MonitoredItem *mon, const UA_DataValue *value);
 
 UA_StatusCode UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event, UA_MonitoredItem *mon);
 UA_StatusCode UA_Event_generateEventId(UA_ByteString *generatedId);
