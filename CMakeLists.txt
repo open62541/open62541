@@ -332,6 +332,21 @@ if(UA_ENABLE_PUBSUB_MQTT)
     endif()
 endif()
 
+option(UA_ENABLE_PUBSUB_AMQP "Enable publish/subscribe with AMQP" OFF)
+mark_as_advanced(UA_ENABLE_PUBSUB_AMQP)
+if (UA_ENABLE_PUBSUB_AMQP)
+    if(WIN32)
+        message(FATAL_ERROR "UA_ENABLE_PUBSUB AMQP is not supported with Windows")
+    endif()
+
+    if (NOT UA_ENABLE_PUBSUB)
+        message(FATAL_ERROR "UA_ENABLE_PUBSUB must be on")
+    endif()
+
+    find_package(Proton REQUIRED Core)
+    list (APPEND open62541_LIBRARIES ${Proton_LIBRARIES})
+endif()
+
 option(UA_ENABLE_STATUSCODE_DESCRIPTIONS "Enable conversion of StatusCode to human-readable error message" ON)
 mark_as_advanced(UA_ENABLE_STATUSCODE_DESCRIPTIONS)
 
@@ -903,6 +918,7 @@ if(UA_ENABLE_PUBSUB)
             list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt_adapter.c)
         endif()
     endif()
+
 endif()
 
 if(UA_ENABLE_JSON_ENCODING)
@@ -1236,6 +1252,9 @@ else()
     if(UA_ENABLE_ENCRYPTION_OPENSSL)
         include_directories_private(${OPENSSL_INCLUDE_DIR})
     endif()
+    if(UA_ENABLE_PUBSUB_AMQP)
+        include_directories_private(${Proton_INCLUDE_DIRS})
+    endif()
 
     # Option-specific includes
     if(UA_ENABLE_DISCOVERY)
@@ -1379,6 +1398,9 @@ endif()
 if(UA_ENABLE_DISCOVERY_MULTICAST)
     list(APPEND open62541_enabled_components "DiscoveryMulticast")
 endif()
+if(UA_ENABLE_PUBSUB_AMQP)
+    list(APPEND open62541_enabled_components "Proton")
+endif()
 
 # export library (either static or shared depending on BUILD_SHARED_LIBS)
 if(UA_PACK_DEBIAN)
@@ -1386,6 +1408,9 @@ if(UA_PACK_DEBIAN)
 else()
     set(EXTRATARGETS "")
 endif()
+
+
+
 install(TARGETS open62541 ${EXTRATARGETS}
         EXPORT open62541Targets
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
@@ -1438,6 +1463,10 @@ if(UA_ENABLE_ENCRYPTION_MBEDTLS)
             DESTINATION "${cmake_configfile_install}")
 endif()
 
+if (UA_ENABLE_PUBSUB_AMQP)
+    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/FindProton.cmake"
+            DESTINATION "${cmake_configfile_install}")
+endif()
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     install(FILES "${PROJECT_BINARY_DIR}/src_generated/open62541.pc"
             DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
