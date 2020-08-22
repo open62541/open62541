@@ -273,7 +273,7 @@ UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
         LIST_REMOVE(monitoredItem, listEntry);
     UA_String_clear(&monitoredItem->indexRange);
     UA_ByteString_clear(&monitoredItem->lastSampledValue);
-    UA_Variant_clear(&monitoredItem->lastValue);
+    UA_DataValue_clear(&monitoredItem->lastValue);
     UA_NodeId_clear(&monitoredItem->monitoredNodeId);
 
     /* No actual callback, just remove the structure */

@@ -86,7 +86,7 @@ detectValueChangeWithFilter(UA_Server *server, UA_Session *session, UA_Monitored
         UA_assert(value->value.type);
         if(mon->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUSVALUE ||
            mon->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP) {
-            if(!updateNeededForFilteredValue(&value->value, &mon->lastValue,
+            if(!updateNeededForFilteredValue(&value->value, &mon->lastValue.value,
                                              mon->filter.dataChangeFilter.deadbandValue))
                 return UA_STATUSCODE_GOOD;
         }
@@ -168,87 +168,82 @@ static UA_StatusCode
     return detectValueChangeWithFilter(server, session, mon, &value, encoding, changed);
 }
 
-/* movedValue returns whether the sample was moved to the notification. The
- * default is false. */
+UA_StatusCode
+UA_MonitoredItem_createDataChangeNotification(UA_Server *server, UA_Subscription *sub,
+                                              UA_MonitoredItem *mon, const UA_DataValue *value) {
+    /* Allocate a new notification */
+    UA_Notification *newNotification = (UA_Notification*)UA_malloc(sizeof(UA_Notification));
+    if(!newNotification)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    /* Prepare the notification */
+    newNotification->mon = mon;
+    newNotification->data.dataChange.clientHandle = mon->clientHandle;
+    UA_StatusCode retval = UA_DataValue_copy(value, &newNotification->data.dataChange.value);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_free(newNotification);
+        return retval;
+    }
+
+    /* Enqueue the notification */
+    UA_Notification_enqueue(server, sub, mon, newNotification);
+    UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub, "MonitoredItem %" PRIi32 " | "
+                              "Enqueued a new notification", mon->monitoredItemId);
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Moves the value to the MonitoredItem if successful */
 static UA_StatusCode
 sampleCallbackWithValue(UA_Server *server, UA_Session *session,
                         UA_Subscription *sub, UA_MonitoredItem *mon,
-                        UA_DataValue *value, UA_Boolean *movedValue) {
+                        UA_DataValue *value) {
     UA_assert(mon->attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER);
 
     /* Contains heap-allocated binary encoding of the value if a change was detected */
     UA_ByteString binValueEncoding = UA_BYTESTRING_NULL;
 
-    /* Has the value changed? Allocates memory in binValueEncoding if necessary.
-     * value is edited internally so we make a shallow copy. */
+    /* Has the value changed with the filter applied? Allocates memory in
+     * binValueEncoding if necessary. The value structure is edited internally.
+     * So we don't give a pointer argument and make a shallow copy instead. */
     UA_Boolean changed = false;
-    UA_StatusCode retval = detectValueChange(server, session, mon, *value, &binValueEncoding, &changed);
+    UA_StatusCode retval = detectValueChange(server, session, mon, *value,
+                                             &binValueEncoding, &changed);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_SUBSCRIPTION(&server->config.logger, sub, "MonitoredItem %" PRIi32 " | "
                                     "Value change detection failed with StatusCode %s",
                                     mon->monitoredItemId, UA_StatusCode_name(retval));
+        UA_DataValue_clear(value);
         return retval;
     }
+
+    /* No change detected */
     if(!changed) {
         UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub, "MonitoredItem %" PRIi32 " | "
                                   "The value has not changed", mon->monitoredItemId);
+        UA_DataValue_clear(value);
         return UA_STATUSCODE_GOOD;
     }
 
     /* The MonitoredItem is attached to a subscription (not server-local).
      * Prepare a notification and enqueue it. */
     if(sub) {
-        /* Allocate a new notification */
-        UA_Notification *newNotification = (UA_Notification *)UA_malloc(sizeof(UA_Notification));
-        if(!newNotification) {
+        retval = UA_MonitoredItem_createDataChangeNotification(server, sub, mon, value);
+        if(retval != UA_STATUSCODE_GOOD) {
             UA_ByteString_clear(&binValueEncoding);
-            return UA_STATUSCODE_BADOUTOFMEMORY;
+            UA_DataValue_clear(value);
+            return retval;
         }
-
-        /* Set the MonitoredItemNotification */
-        newNotification->data.dataChange.clientHandle = mon->clientHandle;
-        if(value->value.storageType == UA_VARIANT_DATA) {
-            newNotification->data.dataChange.value = *value; /* Move the value to the notification */
-            *movedValue = true;
-        } else { /* => (value->value.storageType == UA_VARIANT_DATA_NODELETE) */
-            retval = UA_DataValue_copy(value, &newNotification->data.dataChange.value);
-            if(retval != UA_STATUSCODE_GOOD) {
-                UA_ByteString_clear(&binValueEncoding);
-                UA_free(newNotification);
-                return retval;
-            }
-        }
-
-        /* <-- Point of no return --> */
-
-        UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub, "MonitoredItem %" PRIi32 " | "
-                                  "Enqueue a new notification", mon->monitoredItemId);
-
-        /* Enqueue the notification */
-        newNotification->mon = mon;
-        UA_Notification_enqueue(server, sub, mon, newNotification);
     }
+
+    /* <-- Point of no return --> */
 
     /* Store the encoding for comparison */
     UA_ByteString_clear(&mon->lastSampledValue);
     mon->lastSampledValue = binValueEncoding;
 
-    /* Store the value for filter comparison (we don't want to decode
-     * lastSampledValue in every iteration). Don't test the return code here. If
-     * this fails, lastValue is empty and a notification will be forced for the
-     * next deadband comparison. */
-    if((mon->filter.dataChangeFilter.deadbandType == UA_DEADBANDTYPE_NONE ||
-        mon->filter.dataChangeFilter.deadbandType == UA_DEADBANDTYPE_ABSOLUTE ||
-        mon->filter.dataChangeFilter.deadbandType == UA_DEADBANDTYPE_PERCENT) &&
-       (mon->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUS ||
-        mon->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUSVALUE ||
-        mon->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP)) {
-        UA_Variant_clear(&mon->lastValue);
-        UA_Variant_copy(&value->value, &mon->lastValue);
-#ifdef UA_ENABLE_DA
-        mon->lastStatus = value->status;
-#endif
-    }
+    /* Move/store the value for filter comparison and TransferSubscription */
+    UA_DataValue_clear(&mon->lastValue);
+    mon->lastValue = *value;
 
     /* Call the local callback if the MonitoredItem is not attached to a
      * subscription. Do this at the very end. Because the callback might delete
@@ -308,19 +303,14 @@ monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem)
         value.status = UA_STATUSCODE_BADNODEIDUNKNOWN;
     }
 
-    /* Operate on the sample */
-    UA_Boolean movedValue = false;
-    UA_StatusCode retval = sampleCallbackWithValue(server, session, sub, monitoredItem,
-                                                   &value, &movedValue);
+    /* Operate on the sample. Don't touch value after this. */
+    UA_StatusCode retval = sampleCallbackWithValue(server, session, sub, monitoredItem, &value);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_SUBSCRIPTION(&server->config.logger, sub, "MonitoredItem %" PRIi32 " | "
                                     "Sampling returned the statuscode %s",
                                     monitoredItem->monitoredItemId, UA_StatusCode_name(retval));
     }
 
-    /* Delete the sample if it was not moved to the notification. */
-    if(!movedValue)
-        UA_DataValue_clear(&value); /* Does nothing for UA_VARIANT_DATA_NODELETE */
     if(node)
         UA_NODESTORE_RELEASE(server, node);
 }
