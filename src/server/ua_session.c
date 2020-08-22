@@ -26,6 +26,16 @@ void UA_Session_init(UA_Session *session) {
 
 void UA_Session_deleteMembersCleanup(UA_Session *session, UA_Server* server) {
     UA_LOCK_ASSERT(server->serviceMutex, 1);
+
+    /* Remove all Subscriptions. This may send out remaining publish
+     * responses. */
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    UA_Subscription *sub, *tempsub;
+    TAILQ_FOREACH_SAFE(sub, &session->subscriptions, sessionListEntry, tempsub) {
+        UA_Server_deleteSubscription(server, sub);
+    }
+#endif
+
     UA_Session_detachFromSecureChannel(session);
     UA_ApplicationDescription_deleteMembers(&session->clientDescription);
     UA_NodeId_deleteMembers(&session->header.authenticationToken);
