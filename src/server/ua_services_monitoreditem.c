@@ -610,7 +610,13 @@ Service_SetMonitoringMode(UA_Server *server, UA_Session *session,
 static void
 Operation_DeleteMonitoredItem(UA_Server *server, UA_Session *session, UA_Subscription *sub,
                               const UA_UInt32 *monitoredItemId, UA_StatusCode *result) {
-    *result = UA_Subscription_deleteMonitoredItem(server, sub, *monitoredItemId);
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_MonitoredItem *mon = UA_Subscription_getMonitoredItem(sub, *monitoredItemId);
+    if(!mon) {
+        *result = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
+        return;
+    }
+    UA_MonitoredItem_delete(server, mon);
 }
 
 void
