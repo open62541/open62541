@@ -647,11 +647,10 @@ Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
 UA_StatusCode
 UA_Server_deleteMonitoredItem(UA_Server *server, UA_UInt32 monitoredItemId) {
     UA_LOCK(server->serviceMutex);
-    UA_MonitoredItem *mon;
-    LIST_FOREACH(mon, &server->localMonitoredItems, listEntry) {
+    UA_MonitoredItem *mon, *mon_tmp;
+    LIST_FOREACH_SAFE(mon, &server->localMonitoredItems, listEntry, mon_tmp) {
         if(mon->monitoredItemId != monitoredItemId)
             continue;
-        LIST_REMOVE(mon, listEntry);
         UA_MonitoredItem_delete(server, mon);
         UA_UNLOCK(server->serviceMutex);
         return UA_STATUSCODE_GOOD;
