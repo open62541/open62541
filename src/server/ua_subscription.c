@@ -83,36 +83,6 @@ UA_Subscription_getMonitoredItem(UA_Subscription *sub, UA_UInt32 monitoredItemId
     return mon;
 }
 
-UA_StatusCode
-UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
-                                    UA_UInt32 monitoredItemId) {
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
-
-    /* Find the MonitoredItem */
-    UA_MonitoredItem *mon;
-    LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
-        if(mon->monitoredItemId == monitoredItemId)
-            break;
-    }
-    if(!mon)
-        return UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
-
-    UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, sub, "MonitoredItem %" PRIi32 " | "
-                             "Delete the MonitoredItem", mon->monitoredItemId);
-
-    /* Remove the MonitoredItem */
-    LIST_REMOVE(mon, listEntry);
-    UA_assert(sub->monitoredItemsSize > 0);
-    UA_assert(server->numMonitoredItems > 0);
-    sub->monitoredItemsSize--;
-    server->numMonitoredItems--;
-
-    /* Remove content and delayed free */
-    UA_MonitoredItem_delete(server, mon);
-
-    return UA_STATUSCODE_GOOD;
-}
-
 void
 UA_Subscription_addMonitoredItem(UA_Server *server, UA_Subscription *sub,
                                  UA_MonitoredItem *mon) {

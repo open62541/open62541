@@ -297,10 +297,6 @@ void Subscription_unregisterPublishCallback(UA_Server *server, UA_Subscription *
 void UA_Subscription_addMonitoredItem(UA_Server *server, UA_Subscription *sub, UA_MonitoredItem *mon);
 UA_MonitoredItem * UA_Subscription_getMonitoredItem(UA_Subscription *sub, UA_UInt32 monitoredItemId);
 
-UA_StatusCode
-UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
-                                    UA_UInt32 monitoredItemId);
-
 void UA_Subscription_publish(UA_Server *server, UA_Subscription *sub);
 UA_StatusCode UA_Subscription_removeRetransmissionMessage(UA_Subscription *sub,
                                                           UA_UInt32 sequenceNumber);
