@@ -1106,10 +1106,10 @@ UA_DataSetReader_setPubSubState(UA_Server *server, UA_PubSubState state, UA_Data
 }
 
 UA_StatusCode
-UA_FieldTargetVariables_copy(const UA_FieldTargetVariables *src, UA_FieldTargetVariables *dst) {
+UA_FieldTargetVariable_copy(const UA_FieldTargetVariable *src, UA_FieldTargetVariable *dst) {
     /* Do a simple memcpy */
-    memcpy(dst, src, sizeof(UA_FieldTargetVariables));
-    return UA_STATUSCODE_GOOD;
+    memcpy(dst, src, sizeof(UA_FieldTargetVariable));
+    return UA_FieldTargetDataType_copy(&src->targetVariable, &dst->targetVariable);
 }
 
 UA_StatusCode
@@ -1117,21 +1117,25 @@ UA_TargetVariables_copy(const UA_TargetVariables *src, UA_TargetVariables *dst) 
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     memcpy(dst, src, sizeof(UA_TargetVariables));
     if(src->targetVariablesSize > 0) {
-        dst->targetVariables = (UA_FieldTargetVariables *) UA_calloc(src->targetVariablesSize, sizeof(UA_FieldTargetVariables));
+        dst->targetVariables = (UA_FieldTargetVariable*)
+            UA_calloc(src->targetVariablesSize, sizeof(UA_FieldTargetVariable));
         if(!dst->targetVariables)
             return UA_STATUSCODE_BADOUTOFMEMORY;
-
         for(size_t i = 0; i < src->targetVariablesSize; i++)
-            retVal |= UA_FieldTargetVariables_copy(&src->targetVariables[i], &dst->targetVariables[i]);
+            retVal |= UA_FieldTargetVariable_copy(&src->targetVariables[i], &dst->targetVariables[i]);
     }
 
     return retVal;
 }
 
-void
+static void
 UA_TargetVariables_clear(UA_TargetVariables *subscribedDataSetTarget) {
+    for(size_t i = 0; i < subscribedDataSetTarget->targetVariablesSize; i++) {
+        UA_FieldTargetDataType_clear(&subscribedDataSetTarget->targetVariables[i].targetVariable);
+    }
     if(subscribedDataSetTarget->targetVariablesSize > 0)
         UA_free(subscribedDataSetTarget->targetVariables);
+    memset(subscribedDataSetTarget, 0, sizeof(UA_TargetVariables));
 }
 
 /* This Method is used to initially set the SubscribedDataSet to
@@ -1140,12 +1144,11 @@ UA_TargetVariables_clear(UA_TargetVariables *subscribedDataSetTarget) {
 UA_StatusCode
 UA_Server_DataSetReader_createTargetVariables(UA_Server *server,
                                               UA_NodeId dataSetReaderIdentifier,
-                                              UA_TargetVariables *subscribedDataSetTarget) {
-    UA_StatusCode retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+                                              size_t targetVariablesSize,
+                                              const UA_FieldTargetVariable *targetVariables) {
     UA_DataSetReader* pDS = UA_ReaderGroup_findDSRbyId(server, dataSetReaderIdentifier);
-    if(pDS == NULL) {
+    if(!pDS)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
 
     if(pDS->configurationFrozen) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -1153,16 +1156,15 @@ UA_Server_DataSetReader_createTargetVariables(UA_Server *server,
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
-    if(pDS->subscribedDataSet.subscribedDataSetTarget.targetVariablesSize > 0) {
+    if(pDS->subscribedDataSet.subscribedDataSetTarget.targetVariablesSize > 0)
         UA_TargetVariables_clear(&pDS->subscribedDataSet.subscribedDataSetTarget);
-        pDS->subscribedDataSet.subscribedDataSetTarget.targetVariablesSize = 0;
-        pDS->subscribedDataSet.subscribedDataSetTarget.targetVariables = NULL;
-    }
 
     /* Set subscribed dataset to TargetVariableType */
     pDS->subscribedDataSetType = UA_PUBSUB_SDS_TARGET;
-    retval = UA_TargetVariables_copy(subscribedDataSetTarget, &pDS->subscribedDataSet.subscribedDataSetTarget);
-    return retval;
+    UA_TargetVariables tmp;
+    tmp.targetVariablesSize = targetVariablesSize;
+    tmp.targetVariables = (UA_FieldTargetVariable*)(uintptr_t)targetVariables;
+    return UA_TargetVariables_copy(&tmp, &pDS->subscribedDataSet.subscribedDataSetTarget);
 }
 
 /* Adds Subscribed Variables from the DataSetMetaData for the given DataSet into
@@ -1190,10 +1192,10 @@ UA_Server_DataSetReader_addTargetVariables(UA_Server *server, UA_NodeId *parentN
 
     UA_TargetVariables targetVars;
     targetVars.targetVariablesSize = pDataSetReader->config.dataSetMetaData.fieldsSize;
-    targetVars.targetVariables = (UA_FieldTargetVariables *)
-        UA_calloc(targetVars.targetVariablesSize, sizeof(UA_FieldTargetVariables));
+    targetVars.targetVariables = (UA_FieldTargetVariable *)
+        UA_calloc(targetVars.targetVariablesSize, sizeof(UA_FieldTargetVariable));
 
-    for (size_t i = 0; i < pDataSetReader->config.dataSetMetaData.fieldsSize; i++) {
+    for(size_t i = 0; i < pDataSetReader->config.dataSetMetaData.fieldsSize; i++) {
         UA_VariableAttributes vAttr = UA_VariableAttributes_default;
         vAttr.valueRank = pDataSetReader->config.dataSetMetaData.fields[i].valueRank;
         if(pDataSetReader->config.dataSetMetaData.fields[i].arrayDimensionsSize > 0) {
@@ -1260,7 +1262,8 @@ UA_Server_DataSetReader_addTargetVariables(UA_Server *server, UA_NodeId *parentN
 
     if(sdsType == UA_PUBSUB_SDS_TARGET) {
         retval = UA_Server_DataSetReader_createTargetVariables(server, pDataSetReader->identifier,
-                                                               &targetVars);
+                                                               targetVars.targetVariablesSize,
+                                                               targetVars.targetVariables);
     }
 
     UA_TargetVariables_clear(&targetVars);

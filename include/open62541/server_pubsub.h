@@ -522,20 +522,14 @@ typedef struct {
                        const UA_NodeId *targetVariableIdentifier,
                        void *targetVariableContext,
                        UA_DataValue **externalDataValue);
-} UA_FieldTargetVariables;
-
-typedef struct {
-    size_t targetVariablesSize;
-    UA_FieldTargetVariables *targetVariables; // Can be modifed to use LIST or TAILQ
-} UA_TargetVariables;
-
-void UA_EXPORT
-UA_TargetVariables_clear(UA_TargetVariables *subscribedDataSetTarget);
+} UA_FieldTargetVariable;
 
 /* Return Status Code after creating TargetVariables in Subscriber AddressSpace */
 UA_StatusCode UA_EXPORT
-UA_Server_DataSetReader_createTargetVariables(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
-                                              UA_TargetVariables* subscribedDataSetTarget);
+UA_Server_DataSetReader_createTargetVariables(UA_Server *server,
+                                              UA_NodeId dataSetReaderIdentifier,
+                                              size_t targetVariablesSize,
+                                              const UA_FieldTargetVariable *targetVariables);
 
 /* To Do:Implementation of SubscribedDataSetMirrorType
  * UA_StatusCode
@@ -571,18 +565,20 @@ typedef struct {
     UA_PubSubSecurityParameters securityParameters;
     UA_ExtensionObject messageSettings;
     UA_ExtensionObject transportSettings;
-    UA_TargetVariables subscribedDataSetTarget;
+    size_t targetVariablesSize;
+    UA_FieldTargetVariable *targetVariables;
 } UA_DataSetReaderConfig;
 
 /* Update configuration to the dataSetReader */
 UA_StatusCode UA_EXPORT
 UA_Server_DataSetReader_updateConfig(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
-                                   UA_NodeId readerGroupIdentifier, const UA_DataSetReaderConfig *config);
+                                     UA_NodeId readerGroupIdentifier,
+                                     const UA_DataSetReaderConfig *config);
 
 /* Get configuration of the dataSetReader */
 UA_StatusCode UA_EXPORT
 UA_Server_DataSetReader_getConfig(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
-                                 UA_DataSetReaderConfig *config);
+                                  UA_DataSetReaderConfig *config);
 
 /**
  * ReaderGroup
