@@ -183,6 +183,11 @@ typedef enum {
     UA_PUBSUB_SDS_MIRROR
 }UA_SubscribedDataSetEnumType;
 
+typedef struct {
+    size_t targetVariablesSize;
+    UA_FieldTargetVariable *targetVariables;
+} UA_TargetVariables;
+
 /* DataSetReader Type definition */
 typedef struct UA_DataSetReader {
     UA_DataSetReaderConfig config;
@@ -213,7 +218,8 @@ UA_StatusCode UA_DataSetReaderConfig_copy(const UA_DataSetReaderConfig *src, UA_
 UA_StatusCode UA_TargetVariables_copy(const UA_TargetVariables *src, UA_TargetVariables *dst);
 
 /* Copy the configuration of Field Target Variables */
-UA_StatusCode UA_FieldTargetVariables_copy(const UA_FieldTargetVariables *src, UA_FieldTargetVariables *dst);
+UA_StatusCode UA_FieldTargetVariable_copy(const UA_FieldTargetVariable *src,
+                                          UA_FieldTargetVariable *dst);
 
 /* Add TargetVariables */
 UA_StatusCode

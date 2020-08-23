@@ -198,18 +198,17 @@ addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId) {
         folderBrowseName = UA_QUALIFIEDNAME (1, "Subscribed Variables");
     }
 
-    UA_Server_addObjectNode (server, UA_NODEID_NULL,
-                             UA_NODEID_NUMERIC (0, UA_NS0ID_OBJECTSFOLDER),
-                             UA_NODEID_NUMERIC (0, UA_NS0ID_ORGANIZES),
-                             folderBrowseName, UA_NODEID_NUMERIC (0,
-                             UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
+    UA_Server_addObjectNode(server, UA_NODEID_NULL,
+                            UA_NODEID_NUMERIC (0, UA_NS0ID_OBJECTSFOLDER),
+                            UA_NODEID_NUMERIC (0, UA_NS0ID_ORGANIZES),
+                            folderBrowseName, UA_NODEID_NUMERIC (0,
+                            UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
 
-    UA_TargetVariables targetVars;
-    targetVars.targetVariablesSize = pDataSetReader->config.dataSetMetaData.fieldsSize;
-    targetVars.targetVariables = (UA_FieldTargetVariables *)
-        UA_calloc(targetVars.targetVariablesSize, sizeof(UA_FieldTargetVariables));
+    UA_FieldTargetVariable *targetVars = (UA_FieldTargetVariable*)
+        UA_calloc(pDataSetReader->config.dataSetMetaData.fieldsSize,
+                  sizeof(UA_FieldTargetVariable));
 
-    for (size_t i = 0; i < pDataSetReader->config.dataSetMetaData.fieldsSize; i++) {
+    for(size_t i = 0; i < pDataSetReader->config.dataSetMetaData.fieldsSize; i++) {
         /* Variable to subscribe data */
         UA_VariableAttributes vAttr = UA_VariableAttributes_default;
         vAttr.description = UA_LOCALIZEDTEXT ("en-US", "Subscribed UInt32");
@@ -221,16 +220,19 @@ addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId) {
         UA_UInt32 intValue = 0;
         UA_Variant_setScalar(&value, &intValue, &UA_TYPES[UA_TYPES_UINT32]);
         vAttr.value = value;
-        retval = UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, (UA_UInt32)i + 50000), folderId,
-                                           UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),  UA_QUALIFIEDNAME(1, "Subscribed UInt32"),
-                                           UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vAttr, NULL, &newnodeId);
-        UA_UInt32 *tmprepeatValue        = UA_UInt32_new();
-        *tmprepeatValue = 0;
-        repeatedFieldValues[i] = tmprepeatValue;
-        UA_DataValue *tmpDataValueRT = UA_DataValue_new();
-        tmpDataValueRT->hasValue = UA_TRUE;
-        repeatedDataValueRT[i] = tmpDataValueRT;
-        UA_Variant_setScalar(&repeatedDataValueRT[i]->value, repeatedFieldValues[i], &UA_TYPES[UA_TYPES_UINT32]);
+        retval = UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, (UA_UInt32)i + 50000),
+                                           folderId,
+                                           UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                           UA_QUALIFIEDNAME(1, "Subscribed UInt32"),
+                                           UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                           vAttr, NULL, &newnodeId);
+        repeatedFieldValues[i] = UA_UInt32_new();
+        *repeatedFieldValues[i] = 0;
+        repeatedDataValueRT[i] = UA_DataValue_new();
+        UA_Variant_setScalar(&repeatedDataValueRT[i]->value, repeatedFieldValues[i],
+                             &UA_TYPES[UA_TYPES_UINT32]);
+        repeatedDataValueRT[i]->hasValue = true;
+
         /* Set the value backend of the above create node to 'external value source' */
         UA_ValueBackend valueBackend;
         valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
@@ -238,16 +240,20 @@ addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId) {
         valueBackend.backend.external.callback.userWrite = externalDataWriteCallback;
         valueBackend.backend.external.callback.notificationRead = externalDataReadNotificationCallback;
         UA_Server_setVariableNode_valueBackend(server, newnodeId, valueBackend);
+
         /* For creating Targetvariables */
-        UA_FieldTargetDataType_init(&targetVars.targetVariables[i].targetVariable);
-        targetVars.targetVariables[i].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
-        targetVars.targetVariables[i].targetVariable.targetNodeId = newnodeId;
+        UA_FieldTargetDataType_init(&targetVars[i].targetVariable);
+        targetVars[i].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
+        targetVars[i].targetVariable.targetNodeId = newnodeId;
     }
 
     retval = UA_Server_DataSetReader_createTargetVariables(server, dataSetReaderId,
-                                                           &targetVars);
+                                     pDataSetReader->config.dataSetMetaData.fieldsSize,
+                                     targetVars);
 
-    UA_TargetVariables_clear(&targetVars);
+    for(size_t i = 0; i < pDataSetReader->config.dataSetMetaData.fieldsSize; i++)
+        UA_FieldTargetDataType_clear(&targetVars[i].targetVariable);
+    UA_free(targetVars);
     UA_free(readerConfig.dataSetMetaData.fields);
     return retval;
 }
