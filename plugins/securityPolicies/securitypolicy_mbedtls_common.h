@@ -68,6 +68,8 @@ int UA_mbedTLS_LoadPrivateKey(const UA_ByteString *key, mbedtls_pk_context *targ
 
 UA_StatusCode UA_mbedTLS_LoadLocalCertificate(const UA_ByteString *certData, UA_ByteString *target);
 
+UA_ByteString UA_mbedTLS_CopyDataFormatAware(const UA_ByteString *data);
+
 _UA_END_DECLS
 
 #endif

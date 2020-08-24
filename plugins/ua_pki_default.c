@@ -95,6 +95,9 @@ UA_Bstrstr(const unsigned char *s1, size_t l1, const unsigned char *s2, size_t l
 
 #ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
 
+// The definition is in securitypolicy_mbedtls_common.c
+UA_ByteString UA_mbedTLS_CopyDataFormatAware(const UA_ByteString *data);
+
 typedef struct {
     /* If the folders are defined, we use them to reload the certificates during
      * runtime */
@@ -536,24 +539,33 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification *cv,
     cv->verifyApplicationURI = certificateVerification_verifyApplicationURI;
 
     int err = 0;
+    UA_ByteString data;
+    UA_ByteString_init(&data);
+
     for(size_t i = 0; i < certificateTrustListSize; i++) {
+        data = UA_mbedTLS_CopyDataFormatAware(&certificateTrustList[i]);
         err = mbedtls_x509_crt_parse(&ci->certificateTrustList,
-                                     certificateTrustList[i].data,
-                                     certificateTrustList[i].length);
+                                     data.data,
+                                     data.length);
+        UA_ByteString_clear(&data);
         if(err)
             goto error;
     }
     for(size_t i = 0; i < certificateIssuerListSize; i++) {
+        data = UA_mbedTLS_CopyDataFormatAware(&certificateIssuerList[i]);
         err = mbedtls_x509_crt_parse(&ci->certificateIssuerList,
-                                     certificateIssuerList[i].data,
-                                     certificateIssuerList[i].length);
+                                     data.data,
+                                     data.length);
+        UA_ByteString_clear(&data);
         if(err)
             goto error;
     }
     for(size_t i = 0; i < certificateRevocationListSize; i++) {
+        data = UA_mbedTLS_CopyDataFormatAware(&certificateRevocationList[i]);
         err = mbedtls_x509_crl_parse(&ci->certificateRevocationList,
-                                     certificateRevocationList[i].data,
-                                     certificateRevocationList[i].length);
+                                     data.data,
+                                     data.length);
+        UA_ByteString_clear(&data);
         if(err)
             goto error;
     }
