@@ -95,8 +95,26 @@ UA_Bstrstr(const unsigned char *s1, size_t l1, const unsigned char *s2, size_t l
 
 #ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
 
-// The definition is in securitypolicy_mbedtls_common.c
-UA_ByteString UA_mbedTLS_CopyDataFormatAware(const UA_ByteString *data);
+// mbedTLS expects PEM data to be null terminated
+// The data length parameter must include the null terminator
+static UA_ByteString copyDataFormatAware(const UA_ByteString *data)
+{
+    UA_ByteString result;
+    UA_ByteString_init(&result);
+
+    if (!data->length)
+        return result;
+
+    if (data->length && data->data[0] == '-') {
+        UA_ByteString_allocBuffer(&result, data->length + 1);
+        memcpy(result.data, data->data, data->length);
+        result.data[data->length] = '\0';
+    } else {
+        UA_ByteString_copy(data, &result);
+    }
+
+    return result;
+}
 
 typedef struct {
     /* If the folders are defined, we use them to reload the certificates during
@@ -543,7 +561,7 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification *cv,
     UA_ByteString_init(&data);
 
     for(size_t i = 0; i < certificateTrustListSize; i++) {
-        data = UA_mbedTLS_CopyDataFormatAware(&certificateTrustList[i]);
+        data = copyDataFormatAware(&certificateTrustList[i]);
         err = mbedtls_x509_crt_parse(&ci->certificateTrustList,
                                      data.data,
                                      data.length);
@@ -552,7 +570,7 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification *cv,
             goto error;
     }
     for(size_t i = 0; i < certificateIssuerListSize; i++) {
-        data = UA_mbedTLS_CopyDataFormatAware(&certificateIssuerList[i]);
+        data = copyDataFormatAware(&certificateIssuerList[i]);
         err = mbedtls_x509_crt_parse(&ci->certificateIssuerList,
                                      data.data,
                                      data.length);
@@ -561,7 +579,7 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification *cv,
             goto error;
     }
     for(size_t i = 0; i < certificateRevocationListSize; i++) {
-        data = UA_mbedTLS_CopyDataFormatAware(&certificateRevocationList[i]);
+        data = copyDataFormatAware(&certificateRevocationList[i]);
         err = mbedtls_x509_crl_parse(&ci->certificateRevocationList,
                                      data.data,
                                      data.length);
