@@ -152,7 +152,7 @@ START_TEST(encryption_connect) {
                                          trustList, trustListSize,
                                          revocationList, revocationListSize);
     cc->securityPolicyUri =
-        UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
+        UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Basic256");
     ck_assert(client != NULL);
 
     for(size_t deleteCount = 0; deleteCount < trustListSize; deleteCount++) {
@@ -233,7 +233,7 @@ START_TEST(encryption_connect_pem) {
                                          trustList, trustListSize,
                                          revocationList, revocationListSize);
     cc->securityPolicyUri =
-        UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
+        UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Basic256");
     ck_assert(client != NULL);
 
     for(size_t deleteCount = 0; deleteCount < trustListSize; deleteCount++) {
@@ -258,7 +258,7 @@ END_TEST
 
 static Suite* testSuite_encryption(void) {
     Suite *s = suite_create("Encryption");
-    TCase *tc_encryption = tcase_create("Encryption basic256sha256");
+    TCase *tc_encryption = tcase_create("Encryption basic256");
     tcase_add_checked_fixture(tc_encryption, setup, teardown);
 #ifdef UA_ENABLE_ENCRYPTION
     tcase_add_test(tc_encryption, encryption_connect);
