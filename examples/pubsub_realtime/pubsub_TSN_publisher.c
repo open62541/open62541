@@ -373,22 +373,18 @@ static void addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId
         return;
     }
 
-    UA_TargetVariables targetVars;
-    targetVars.targetVariablesSize = REPEATED_NODECOUNTS + 1;
-    targetVars.targetVariables     = (UA_FieldTargetVariables *)
-                                      UA_calloc(targetVars.targetVariablesSize,
-                                      sizeof(UA_FieldTargetVariables));
+    UA_FieldTargetVariable *targetVars = (UA_FieldTargetVariable*)
+        UA_calloc((REPEATED_NODECOUNTS + 1),
+                  sizeof(UA_FieldTargetVariable));
     /* For creating Targetvariable */
     for (iterator = 0; iterator < REPEATED_NODECOUNTS; iterator++)
     {
-        UA_UInt64 *tmprepeatValue = UA_UInt64_new();
-        *tmprepeatValue = 0;
-        subRepeatedCounterData[iterator] = tmprepeatValue;
+        subRepeatedCounterData[iterator] = UA_UInt64_new();
+        *subRepeatedCounterData[iterator] = 0;
 #if defined PUBSUB_CONFIG_RT_INFORMATION_MODEL
-        UA_DataValue *tmpDataValueRT = UA_DataValue_new();
-        tmpDataValueRT->hasValue = UA_TRUE;
-        subRepeatedDataValueRT[iterator] = tmpDataValueRT;
+        subRepeatedDataValueRT[iterator] = UA_DataValue_new();
         UA_Variant_setScalar(&subRepeatedDataValueRT[iterator]->value, subRepeatedCounterData[iterator], &UA_TYPES[UA_TYPES_UINT64]);
+        subRepeatedDataValueRT[iterator]->hasValue = UA_TRUE;
         /* Set the value backend of the above create node to 'external value source' */
         UA_ValueBackend valueBackend;
         valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
@@ -397,19 +393,17 @@ static void addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId
         valueBackend.backend.external.callback.notificationRead = externalDataReadNotificationCallback;
         UA_Server_setVariableNode_valueBackend(server, UA_NODEID_NUMERIC(1, (UA_UInt32)iterator+50000), valueBackend);
 #endif
-        UA_FieldTargetDataType_init(&targetVars.targetVariables[iterator].targetVariable);
-        targetVars.targetVariables[iterator].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
-        targetVars.targetVariables[iterator].targetVariable.targetNodeId = UA_NODEID_NUMERIC(1, (UA_UInt32)iterator+50000);
+        UA_FieldTargetDataType_init(&targetVars[iterator].targetVariable);
+        targetVars[iterator].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
+        targetVars[iterator].targetVariable.targetNodeId = UA_NODEID_NUMERIC(1, (UA_UInt32)iterator + 50000);
     }
 
-    UA_UInt64 *tmpValue = UA_UInt64_new();
-    *tmpValue = 0;
-    subCounterData = tmpValue;
+    subCounterData = UA_UInt64_new();
+    *subCounterData = 0;
 #if defined PUBSUB_CONFIG_RT_INFORMATION_MODEL
-    UA_DataValue *tmpDataValueRT = UA_DataValue_new();
-    tmpDataValueRT->hasValue = UA_TRUE;
-    subDataValueRT = tmpDataValueRT;
+    subDataValueRT = UA_DataValue_new();
     UA_Variant_setScalar(&subDataValueRT->value, subCounterData, &UA_TYPES[UA_TYPES_UINT64]);
+    subDataValueRT->hasValue = UA_TRUE;
     /* Set the value backend of the above create node to 'external value source' */
     UA_ValueBackend valueBackend;
     valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
@@ -418,12 +412,14 @@ static void addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId
     valueBackend.backend.external.callback.notificationRead = externalDataReadNotificationCallback;
     UA_Server_setVariableNode_valueBackend(server, subNodeID, valueBackend);
 #endif
-    UA_FieldTargetDataType_init(&targetVars.targetVariables[iterator].targetVariable);
-    targetVars.targetVariables[iterator].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
-    targetVars.targetVariables[iterator].targetVariable.targetNodeId = subNodeID;
+    UA_FieldTargetDataType_init(&targetVars[iterator].targetVariable);
+    targetVars[iterator].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
+    targetVars[iterator].targetVariable.targetNodeId = subNodeID;
 
-    UA_Server_DataSetReader_createTargetVariables(server, dataSetReaderId, &targetVars);
-    UA_TargetVariables_clear(&targetVars);
+    UA_Server_DataSetReader_createTargetVariables(server, dataSetReaderId,
+                                                  REPEATED_NODECOUNTS + 1,
+                                                  targetVars);
+    UA_free(targetVars);
     UA_free(readerConfig.dataSetMetaData.fields);
 }
 
@@ -538,13 +534,11 @@ addDataSetField(UA_Server *server) {
     {
        memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
 #if defined PUBSUB_CONFIG_RT_INFORMATION_MODEL
-       UA_UInt64 *repeatValue        = UA_UInt64_new();
-       *repeatValue = 0;
-       repeatedCounterData[iterator] = repeatValue;
-       UA_DataValue *tmpDataValueRT = UA_DataValue_new();
-       tmpDataValueRT->hasValue = UA_TRUE;
-       repeatedDataValueRT[iterator] = tmpDataValueRT;
+       repeatedCounterData[iterator] = UA_UInt64_new();
+       *repeatedCounterData[iterator] = 0;
+       repeatedDataValueRT[iterator] = UA_DataValue_new();
        UA_Variant_setScalar(&repeatedDataValueRT[iterator]->value, repeatedCounterData[iterator], &UA_TYPES[UA_TYPES_UINT64]);
+       repeatedDataValueRT[iterator]->hasValue = UA_TRUE;
        /* Set the value backend of the above create node to 'external value source' */
        UA_ValueBackend valueBackend;
        valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
@@ -570,13 +564,11 @@ addDataSetField(UA_Server *server) {
     UA_DataSetFieldConfig dsfConfig;
     memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));
 #if defined PUBSUB_CONFIG_RT_INFORMATION_MODEL
-    UA_UInt64 *countValue = UA_UInt64_new();
-    *countValue = 0;
-    pubCounterData = countValue;
-    UA_DataValue *tmpDataValueRT = UA_DataValue_new();
-    tmpDataValueRT->hasValue = UA_TRUE;
-    pubDataValueRT = tmpDataValueRT;
+    pubCounterData = UA_UInt64_new();
+    *pubCounterData = 0;
+    pubDataValueRT = UA_DataValue_new();
     UA_Variant_setScalar(&pubDataValueRT->value, pubCounterData, &UA_TYPES[UA_TYPES_UINT64]);
+    pubDataValueRT->hasValue = UA_TRUE;
     /* Set the value backend of the above create node to 'external value source' */
     UA_ValueBackend valueBackend;
     valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
