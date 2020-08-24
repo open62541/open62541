@@ -565,8 +565,6 @@ typedef struct {
     UA_PubSubSecurityParameters securityParameters;
     UA_ExtensionObject messageSettings;
     UA_ExtensionObject transportSettings;
-    size_t targetVariablesSize;
-    UA_FieldTargetVariable *targetVariables;
 } UA_DataSetReaderConfig;
 
 /* Update configuration to the dataSetReader */
