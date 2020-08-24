@@ -13,6 +13,13 @@
 
 
 /**
+ * @brief UA_AmqpDisconnect
+ * @param ctx pointer to the AMQP context
+ * @return None
+ */
+void UA_AmqpDisconnect(UA_AmqpContext *ctx);
+
+/**
  * @brief Connect to AMQP 1.0 broker
  * @param amqpCtx pointer to the AMQP data
  * @return UA_StatusCode

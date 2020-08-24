@@ -39,6 +39,7 @@ typedef struct {
     UA_Boolean      openLink;
     /* Total 2 links, 1 link can either sender or receiver */
     pn_link_t       * links [ MAX_AMQP_LINKS ];
+    UA_Boolean      sender_link_ready;
     pn_message_t    * message;
     pn_rwbytes_t    message_buffer;
     pn_session_t    * session;

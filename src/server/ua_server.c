@@ -672,7 +672,7 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
         nl->listen(nl, server, timeout);
     }
 
-#if defined(UA_ENABLE_PUBSUB_MQTT)
+#if defined(UA_ENABLE_PUBSUB_MQTT) || defined(UA_ENABLE_PUBSUB_AMQP)
     /* Listen on the pubsublayer, but only if the yield function is set */
     UA_PubSubConnection *connection;
     TAILQ_FOREACH(connection, &server->pubSubManager.connections, listEntry){

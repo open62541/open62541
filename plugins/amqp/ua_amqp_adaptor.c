@@ -25,6 +25,8 @@
 /**
  *  Sends data to socket. Resets the AMQP write buffer
  *
+ * @return UA_STATUSCODE_GOOD,
+ *         UA_STATUSCODE_BADCONNECTIONCLOSED
  */
 static UA_StatusCode _write(UA_Connection *c, pn_connection_driver_t *d)
 {
@@ -46,6 +48,10 @@ static UA_StatusCode _write(UA_Connection *c, pn_connection_driver_t *d)
 
 /**
  *  Receive data from socket. Copy to AMQP read buffer
+ *
+ * @return UA_STATUSCODE_GOOD,
+ *         UA_STATUSCODE_GOODNONCRITICALTIMEOUT,
+ *         UA_STATUSCODE_BADCONNECTIONCLOSED
  */
 static UA_StatusCode _read(UA_Connection *c, pn_connection_driver_t *d, UA_UInt32 timeout)
 {
@@ -65,6 +71,27 @@ static UA_StatusCode _read(UA_Connection *c, pn_connection_driver_t *d, UA_UInt3
     return ret;
 }
 
+/**
+ * @brief UA_AmqpDisconnect
+ * @param ctx pointer to the AMQP context
+ * @return UA_STATUSCODE
+ */
+void UA_AmqpDisconnect(UA_AmqpContext *ctx)  {
+    UA_assert(ctx);
+
+    pn_connection_close(ctx->driver->connection);
+
+    if (UA_STATUSCODE_GOOD != _write(ctx->ua_connection, ctx->driver) )  {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Write to socket failed when closing AMQP connection: %s",
+                     pn_error_text(pn_message_error(ctx->message)) );
+    }
+    pn_collector_free(ctx->driver->collector);
+    pn_connection_driver_close(ctx->driver);
+    pn_connection_driver_destroy(ctx->driver);
+
+    UA_free(ctx->message_buffer.start);
+    pn_message_free(ctx->message);
+}
 
 /**
  * @brief Connects to the given address and initializes AMQP stack and evetns
@@ -87,6 +114,7 @@ UA_StatusCode UA_AmqpConnect(UA_AmqpContext *ctx, UA_NetworkAddressUrlDataType a
 
     pn_connection_open(ctx->driver->connection);
     ctx->openLink = true;
+    ctx->sender_link_ready = false;
     pn_session_t *s = pn_session(ctx->driver->connection);
     ctx->session = s;
     pn_session_open(s);
@@ -145,6 +173,7 @@ UA_StatusCode publishAmqp(UA_AmqpContext *ctx, UA_String queue,
          * Only open link for the first time after connection or reconnection
          */
         ctx->openLink = false;
+        ctx->sender_link_ready = false;
         sender_l = pn_sender(ctx->session, "AMQP_CLIENT_SENDER");
          /* Update the linker  */
         ctx->links[SENDER_LINK] = sender_l;
@@ -153,8 +182,15 @@ UA_StatusCode publishAmqp(UA_AmqpContext *ctx, UA_String queue,
         pn_link_open(sender_l);
 
         ctx->message = pn_message();
-        if (UA_STATUSCODE_GOOD != _write(ctx->ua_connection, ctx->driver) ) {
-            return UA_STATUSCODE_BADCOMMUNICATIONERROR;
+
+        /* yield once to let the initial messages flow and receive link creidt from the peer*/
+        UA_StatusCode ret = yieldAmqp(ctx, 5);
+
+        if (UA_STATUSCODE_GOOD == ret) {
+            if (!ctx->sender_link_ready) {
+                UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "AMQP Link: No credit received from peer");
+                return UA_STATUSCODE_BADWAITINGFORRESPONSE;
+            }
         }
     }
 
@@ -162,7 +198,8 @@ UA_StatusCode publishAmqp(UA_AmqpContext *ctx, UA_String queue,
      * AMQP lib can buffer messages if credit is not available. For now UA AMQP Adaptor
      * doesn't support this feature
      */
-    if (pn_link_credit(sender_l) > 0) {
+    int credit = pn_link_credit(sender_l);
+    if (credit > 0) {
         pn_delivery(sender_l, pn_dtag((const char *)&ctx->sequence_no,
                                     sizeof(ctx->sequence_no)));
 
@@ -179,7 +216,7 @@ UA_StatusCode publishAmqp(UA_AmqpContext *ctx, UA_String queue,
         pn_data_exit(body);
         if(pn_message_send(ctx->message, sender_l,
                            &ctx->message_buffer) < 0) {
-            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Error sending data: %s",
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "publishAmqp: Error sending data: %s",
                          pn_error_text(pn_message_error(ctx->message)) );
 
             /* TODO: Could be invalid data input that caused encoding failure. No real
@@ -194,6 +231,8 @@ UA_StatusCode publishAmqp(UA_AmqpContext *ctx, UA_String queue,
             return UA_STATUSCODE_BADCONNECTIONCLOSED;
         }
     } else {
+        ctx->sender_link_ready = false;
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "publishAmqp: AMQP link credit not availabe");
         return UA_STATUSCODE_BADWAITINGFORRESPONSE;
     }
 
@@ -205,15 +244,20 @@ UA_StatusCode publishAmqp(UA_AmqpContext *ctx, UA_String queue,
 /**
  * Helper function to handle events
  */
-static void __handle(UA_AmqpContext *aP, pn_event_t *e)
+static void __handle(UA_AmqpContext *ctx, pn_event_t *e)
 {
     /* Note: Not all events needs to be handled. */
     switch (pn_event_type(e)) {
+        case PN_LINK_FLOW: {
+            /* Credit received, ready to send messages */
+            ctx->sender_link_ready = true;
+        }
+        break;
         case PN_DELIVERY: {
             /* Acknowledgement received */
             pn_delivery_t *d = pn_event_delivery(e);
             if(pn_delivery_remote_state(d) == PN_ACCEPTED) {
-                aP->acknowledged_no++;
+                ctx->acknowledged_no++;
             }
         }
         break;
@@ -233,17 +277,23 @@ UA_StatusCode yieldAmqp(UA_AmqpContext *ctx, UA_UInt16 timeout)
 {
     UA_Connection *connection = (UA_Connection*) ctx->ua_connection;
     UA_assert(connection != NULL);
+
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
     /*
      * Write flush
      */
-    if (UA_STATUSCODE_GOOD != _write(ctx->ua_connection, ctx->driver) ) {
+    ret = _write(ctx->ua_connection, ctx->driver);
+    if (UA_STATUSCODE_GOOD != ret) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "yieldAmqp: _write failed. ret_code=%s", UA_StatusCode_name(ret));
         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
     }
 
     /*
      * Read Buffer
      */
-    if (UA_STATUSCODE_GOOD != _read(ctx->ua_connection, ctx->driver, timeout) ) {
+    ret = _read(ctx->ua_connection, ctx->driver, timeout);
+    if (UA_STATUSCODE_BADCONNECTIONCLOSED == ret) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "yieldAmqp: _read failed. ret_code=%s", UA_StatusCode_name(ret));
         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
     }
 

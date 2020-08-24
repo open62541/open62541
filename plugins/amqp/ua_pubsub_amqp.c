@@ -10,6 +10,30 @@
 #include <open62541/plugin/log_stdout.h>
 #include "open62541/util.h"
 
+
+/**
+ * Delete all allocated memory
+ * @param c pointer to the AMQP PubSubChannel
+ * @param bDisconnect Set to true if disconnect is required
+ */
+static void UA_Destroy_AmqpChannel(UA_PubSubChannel *c, UA_Boolean bDisconnect)
+{
+    if (!c) {
+        return;
+    }
+
+    /* Check and free AMQP Proactor Data */
+    if (c->handle) {
+        UA_AmqpContext *ctx = (UA_AmqpContext *)c->handle;
+
+        if (bDisconnect) { UA_AmqpDisconnect(ctx);}
+        if (ctx->ua_connection) { UA_free(ctx->ua_connection);}
+        if (ctx->driver) { UA_free(ctx->driver);}
+        UA_free(c->handle);
+    }
+    UA_free(c);
+}
+
 /**
  * @brief Deletes all memory allocated memory
  * @param channel pointer to generic pubsub channel
@@ -18,43 +42,13 @@ static UA_StatusCode UA_PubSubChannelAMQP_close(UA_PubSubChannel *channel) {
     if(channel->state == UA_PUBSUB_CHANNEL_CLOSED)
         return UA_STATUSCODE_GOOD;
 
-    UA_AmqpContext *amqpCtx = (UA_AmqpContext *) channel->handle;
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub AMQP: Closing PubSubChannel.");
-    pn_connection_close(amqpCtx->driver->connection);
-    pn_collector_free(amqpCtx->driver->collector);
+    UA_Destroy_AmqpChannel(channel, true);
 
-    pn_connection_driver_close(amqpCtx->driver);
-    pn_connection_driver_destroy(amqpCtx->driver);
-    //UA_String_deleteMembers(&channelDataMQTT->mqttUsername);
-    //UA_String_deleteMembers(&channelDataMQTT->mqttPassword);
-
-    UA_free(amqpCtx->message_buffer.start);
-    pn_message_free(amqpCtx->message);
-
-    UA_free(amqpCtx);
-    UA_free(channel);
     return UA_STATUSCODE_GOOD;
 }
 
-/**
- * Delete all allocated memory
- * @param amqpChannelConfig
- */
-static void UA_Destroy_AmqpChannel(UA_PubSubChannel *c)
-{
-    if (!c) {
-        return;
-    }
-    /* Check and free AMQP Proactor Data */
-    if (c->handle) {
-        UA_AmqpContext *aP = (UA_AmqpContext *)c->handle;
 
-        if (aP->ua_connection) { UA_free(aP->ua_connection);}
-        if (aP->driver) { UA_free(aP->driver);}
-        UA_free(c->handle);
-    }
-    UA_free(c);
-}
 
 /**
  * Open AMQP connection, connects to AMQP-1.0 broker
@@ -75,7 +69,7 @@ static UA_PubSubChannel *UA_PubSubChannelAMQP_open(UA_PubSubConnectionConfig *am
 
     if(!ua_amqpChannel || !amqpCtx){
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub AMQP Connection creation failed. Out of memory.");
-        UA_Destroy_AmqpChannel(ua_amqpChannel);
+        UA_Destroy_AmqpChannel(ua_amqpChannel, false);
         return NULL;
     }
 
@@ -85,7 +79,7 @@ static UA_PubSubChannel *UA_PubSubChannelAMQP_open(UA_PubSubConnectionConfig *am
 
     if(!amqpCtx->ua_connection || !amqpCtx->driver) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub AMQP: Proactor creation failed. Out of memory.");
-        UA_Destroy_AmqpChannel(ua_amqpChannel);
+        UA_Destroy_AmqpChannel(ua_amqpChannel, false);
         return NULL;
     }
 
@@ -114,8 +108,7 @@ static UA_PubSubChannel *UA_PubSubChannelAMQP_open(UA_PubSubConnectionConfig *am
     if(UA_parseEndpointUrl(&address.url, &hostname, &networkPort, &path) != UA_STATUSCODE_GOOD){
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "AMQP PubSub Connection creation failed. Invalid URL.");
-        UA_free(amqpCtx);
-        UA_free(ua_amqpChannel);
+        UA_Destroy_AmqpChannel(ua_amqpChannel, false);
         return NULL;
     }
 
@@ -135,8 +128,7 @@ static UA_PubSubChannel *UA_PubSubChannelAMQP_open(UA_PubSubConnectionConfig *am
     if (UA_STATUSCODE_GOOD == retVal) {
         return ua_amqpChannel;
     } else {
-        UA_free(amqpCtx);
-        UA_free(ua_amqpChannel);
+        UA_Destroy_AmqpChannel(ua_amqpChannel, true);
         return NULL;
     }
 }
@@ -155,7 +147,6 @@ static UA_StatusCode UA_PubSubChannelAMQP_send(UA_PubSubChannel *channel,
       && transportSettings->content.decoded.type->typeIndex == UA_TYPES_BROKERWRITERGROUPTRANSPORTDATATYPE) {
         UA_BrokerWriterGroupTransportDataType *brokerTransportSettings =
             (UA_BrokerWriterGroupTransportDataType*)transportSettings->content.decoded.data;
-        //UA_uaQos_toMqttQos(brokerTransportSettings->requestedDeliveryGuarantee, &qos);
 
         UA_StatusCode ret = publishAmqp(amqpCtx, brokerTransportSettings->queueName, buf);
 
