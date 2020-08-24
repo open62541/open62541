@@ -425,8 +425,11 @@ Operation_addReference(UA_Server *server, UA_Session *session, void *context,
                        const UA_AddReferencesItem *item, UA_StatusCode *retval);
 
 static UA_StatusCode
-copyChild(UA_Server *server, UA_Session *session, const UA_NodeId *destinationNodeId,
+copyChild(UA_Server *server, UA_Session *session,
+          const UA_NodeId *destinationNodeId,
           const UA_ReferenceDescription *rd) {
+    UA_assert(session);
+
     /* Is there an existing child with the browsename? */
     UA_NodeId existingChild = UA_NODEID_NULL;
     UA_StatusCode retval = findChildByBrowsename(server, session, destinationNodeId,
@@ -450,16 +453,16 @@ copyChild(UA_Server *server, UA_Session *session, const UA_NodeId *destinationNo
             return UA_STATUSCODE_GOOD;
 
         UA_UNLOCK(server->serviceMutex);
-        retval = server->config.nodeLifecycle.createOptionalChild(server,
-                                                                 &session->sessionId,
-                                                                 session->sessionHandle,
-                                                                 &rd->nodeId.nodeId,
-                                                                 destinationNodeId,
-                                                                 &rd->referenceTypeId);
+        UA_Boolean createChild =
+            server->config.nodeLifecycle.createOptionalChild(server,
+                                                             &session->sessionId,
+                                                             session->sessionHandle,
+                                                             &rd->nodeId.nodeId,
+                                                             destinationNodeId,
+                                                             &rd->referenceTypeId);
         UA_LOCK(server->serviceMutex);
-        if(retval == UA_FALSE) {
+        if(!createChild)
             return UA_STATUSCODE_GOOD;
-        }
     }
 
     /* Child is a method -> create a reference */
@@ -494,12 +497,10 @@ copyChild(UA_Server *server, UA_Session *session, const UA_NodeId *destinationNo
 
         if (server->config.nodeLifecycle.generateChildNodeId) {
             UA_UNLOCK(server->serviceMutex);
-            retval = server->config.nodeLifecycle.generateChildNodeId(server,
-                                                                      &session->sessionId, session->sessionHandle,
-                                                                      &rd->nodeId.nodeId,
-                                                                      destinationNodeId,
-                                                                      &rd->referenceTypeId,
-                                                                      &node->head.nodeId);
+            retval = server->config.nodeLifecycle.
+                generateChildNodeId(server, &session->sessionId, session->sessionHandle,
+                                    &rd->nodeId.nodeId, destinationNodeId,
+                                    &rd->referenceTypeId, &node->head.nodeId);
             UA_LOCK(server->serviceMutex);
             if(retval != UA_STATUSCODE_GOOD) {
                 UA_NODESTORE_DELETE(server, node);
@@ -1748,6 +1749,9 @@ deleteOneWayReference(UA_Server *server, UA_Session *session, UA_Node *node,
 static void
 Operation_addReference(UA_Server *server, UA_Session *session, void *context,
                        const UA_AddReferencesItem *item, UA_StatusCode *retval) {
+    (void)context;
+    UA_assert(session);
+
     /* Check access rights */
     if(session != &server->adminSession && server->config.accessControl.allowAddReference) {
         UA_UNLOCK(server->serviceMutex);
@@ -1858,6 +1862,7 @@ Service_AddReferences(UA_Server *server, UA_Session *session,
     UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                          "Processing AddReferencesRequest");
     UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_assert(session);
 
     if(server->config.maxNodesPerNodeManagement != 0 &&
        request->referencesToAddSize > server->config.maxNodesPerNodeManagement) {
