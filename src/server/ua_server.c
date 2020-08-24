@@ -345,13 +345,16 @@ UA_Server_init(UA_Server *server) {
 }
 
 UA_Server *
-UA_Server_newWithConfig(const UA_ServerConfig *config) {
+UA_Server_newWithConfig(UA_ServerConfig *config) {
     if(!config)
         return NULL;
     UA_Server *server = (UA_Server *)UA_calloc(1, sizeof(UA_Server));
-    if(!server)
+    if(!server) {
+        UA_ServerConfig_clean(config);
         return NULL;
+    }
     server->config = *config;
+    memset(config, 0, sizeof(UA_ServerConfig));
     return UA_Server_init(server);
 }
 
