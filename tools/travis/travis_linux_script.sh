@@ -464,9 +464,8 @@ if [ "$CC" != "tcc" ]; then
         -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
         -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=OFF \
         -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON \
-        -DUA_NAMESPACE_ZERO=MINIMAL \
-    	-DUA_ENABLE_MALLOC_SINGLETON=ON ..
-
+        -DUA_NAMESPACE_ZERO=MINIMAL ..
+    	
     make -j && make test ARGS="-V"
     if [ $? -ne 0 ] ; then exit 1 ; fi
     cd .. && rm build -rf
@@ -513,7 +512,9 @@ if [ "$CC" != "tcc" ]; then
         -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
         -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
         -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON \
-        -DUA_NAMESPACE_ZERO=REDUCED ..
+        -DUA_NAMESPACE_ZERO=REDUCED \
+        -DUA_ENABLE_MALLOC_SINGLETON=ON ..
+        
     make -j && make test ARGS="-V"
     if [ $? -ne 0 ] ; then exit 1 ; fi
     echo -en 'travis_fold:end:script.build.unit_test_ns0_reduced\\r'
