@@ -19,6 +19,40 @@ git:
 matrix:
   fast_finish: true
   include:
+  
+# gcc-4.8 (trusty) full host and cross build with tests:
+# doc, cert, cross-mingw32, cross-mingw64, cross-linux32, cross-raspi, linux64,
+# amalgamated, shared, multithread, encryption, discovery, json, test-ns0-full, test-ns0-minimal
+    - os: linux
+      compiler: gcc-4.8
+      addons:
+        apt:
+          sources:
+            # see https://github.com/travis-ci/apt-source-whitelist/blob/master/ubuntu.json
+            - ubuntu-toolchain-r-test
+          packages:
+            - mingw-w64
+            - gcc-mingw-w64-i686
+            - gcc-mingw-w64-x86-64
+            - binutils-mingw-w64-i686
+            - g++-multilib
+            - cmake
+            # doc
+            - python-sphinx
+            - graphviz
+            - texlive-generic-extra
+            - texlive-fonts-recommended
+            - texlive-latex-extra
+            - latexmk
+            # tests
+            - check
+            - libsubunit-dev
+            - valgrind
+      env:
+        - COVERAGE=true
+        - MINGW=true
+  
+  
 #
 # gcc-4.8 (trusty) full host and cross build with tests:
 # doc, cert, cross-mingw32, cross-mingw64, cross-linux32, cross-raspi, linux64,
