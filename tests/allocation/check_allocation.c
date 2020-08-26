@@ -67,18 +67,9 @@ static void functionToTest(void) {
   int nptrs = backtrace(stackBuffer, STACK_DEPTH); \
     for(int i = 0; i < nptrs; i++) { \
       if(stackBuffer[i] == (void*) currentInfo.addressToBreak) { \
-        printf("BREAKING at address %" PRIxPTR ",line:\n%s\n", currentInfo.addressToBreak, currentInfo.lineToBreak); \
+        printf("BREAKING at address %" PRIxPTR ": %s", currentInfo.addressToBreak, currentInfo.lineToBreak); \
         numberOfBreaks++; \
         currentInfo.alreadyBroken = !0; \
-        char** strs = backtrace_symbols(stackBuffer, nptrs); \
-        if(!strs) { \
-          printf("Error getting stack trace names\n"); \
-        } else { \
-          for(int j = 0; j < nptrs; j++) { \
-            printf("%s\n", strs[j]); \
-          } \
-          free(strs); \
-        } \
         return NULL; \
       } \
     }
@@ -120,14 +111,14 @@ START_TEST( checkAllocation) {
 
       currentInfo.alreadyBroken = 0;
       currentInfo.addressToBreak = atoi(lineBuffer);
-      printf("Line to break is %" PRIxPTR ", line:\n%s\n", currentInfo.addressToBreak, currentInfo.lineToBreak);
+      printf("Line to break is %" PRIxPTR ": %s", currentInfo.addressToBreak, currentInfo.lineToBreak);
       totalFailurePoints++;
 
       functionToTest();
 
     }
 
-    printf("No more file reading. %d of %d failure points were tested\n", numberOfBreaks, totalFailurePoints);
+    printf("No more lines to break. %d of %d failure points were tested\n", numberOfBreaks, totalFailurePoints);
 
   }
 }
@@ -163,7 +154,6 @@ int main(void) {
   srunner_set_fork_status(sr, CK_NOFORK);
   srunner_run_all(sr, CK_NORMAL);
   int number_failed = srunner_ntests_failed(sr);
-  printf("Number of failure is %d", number_failed);
   srunner_free(sr);
   return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
 }

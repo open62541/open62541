@@ -168,7 +168,7 @@ print(str(len(all_address_to_break)) + " possible failure points were found")
 memoryFile = open("allocationFailurePoints", "w")
 for address in all_address_to_break:
     lineToWrite = str(address[0]) + "," + str(address[1]) + "\n"
-    print(lineToWrite[:-1])
+    #print(lineToWrite[:-1])
     memoryFile.write(lineToWrite)
 
 memoryFile.close()
