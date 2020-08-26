@@ -515,7 +515,7 @@ if(UA_ENABLE_MALLOC_SINGLETON)
 	add_test_valgrind(allocation ${TESTS_BINARY_DIR}/check_allocation)
 	
 	add_custom_command(	TARGET check_allocation POST_BUILD
-						COMMAND ${PYTHON_EXECUTABLE} ${open62541_TOOLS_DIR}/asmParser.py -f ${TESTS_BINARY_DIR}/check_allocation
+						COMMAND ${PYTHON_EXECUTABLE} ${open62541_TOOLS_DIR}/asmParser.py -b ${TESTS_BINARY_DIR}/check_allocation -e "namespace0_generated" -f "UA_mallocSingleton" -f "UA_callocSingleton" -f "UA_reallocSingleton"
 						DEPENDS 
 						${TESTS_BINARY_DIR}/check_allocation
 						${open62541_TOOLS_DIR}/asmParser.py)

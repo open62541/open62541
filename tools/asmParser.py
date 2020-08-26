@@ -144,18 +144,26 @@ function_pointer_to_call = None
 
 # construct the argument parser and parse the arguments
 ap = argparse.ArgumentParser()
-ap.add_argument("-f", "--file", required = True, help = "Path to binary file")
+ap.add_argument("-b", "--binary", required = True, help = "Path to binary file")
+ap.add_argument("-f", "--function", required = True, help = "Functions to look for", action = "append")
+ap.add_argument("-e", "--exclude", help = "Exclude regexp pattern from source file names", action = "append")
+
 args = vars(ap.parse_args())
 
-print("Parsing assembly file from " + args["file"])
+binary = args["binary"]
+function_names = args["function"]
+exclusions = args.get("exclude")
+if exclusions is None:
+    exclusions = [] #avoids problems later when using the variable
 
-assemblyText = io.StringIO(subprocess.check_output("objdump -dl -j .text " + args["file"] +  " | tail -n +7", shell=True).decode('utf-8'))
 
+print("Parse assembly file from " + binary)
+print("Exclude source files with patterns: " + str(exclusions))
+print("Create call tree for functions: " + str(function_names))
+
+assemblyText = io.StringIO(subprocess.check_output("objdump -dl -j .text " + binary +  " | tail -n +7", shell=True).decode('utf-8'))
 lines = assemblyText.readlines()
-
 parse_asm(lines)
-        
-function_names = ["UA_mallocSingleton", "UA_callocSingleton", "UA_reallocSingleton"]
 
 print("File already parsed. We'll build now all function-chains that might call the following functions: " + str(function_names))
 
@@ -164,14 +172,24 @@ for function_name in function_names:
     stack = [TheyCallMe(function, 0, "")]
     create_traceback(function.name, stack)
 
-print(str(len(all_address_to_break)) + " possible failure points were found")
-memoryFile = open("allocationFailurePoints", "w")
-for address in all_address_to_break:
-    lineToWrite = str(address[0]) + "," + str(address[1]) + "\n"
-    #print(lineToWrite[:-1])
-    memoryFile.write(lineToWrite)
 
-memoryFile.close()
+no_of_breaks = 0
+
+with open("allocationFailurePoints", "w") as memoryFile:
+    for address in all_address_to_break:
+        include = True
+        for exclusion in exclusions:
+            if exclusion in address[1]:
+                include = False
+                break
+        
+        if not include:
+            continue
+        
+        lineToWrite = str(address[0]) + "," + str(address[1]) + "\n"
+        memoryFile.write(lineToWrite)
+        no_of_breaks += 1
+        
+    print(str(no_of_breaks) + " possible failure points were found")
 
 
-    
