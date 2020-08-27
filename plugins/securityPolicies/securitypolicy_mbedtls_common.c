@@ -243,15 +243,21 @@ mbedtls_decrypt_rsaOaep(mbedtls_pk_context *localPrivateKey,
 
 int UA_mbedTLS_LoadPrivateKey(const UA_ByteString *key, mbedtls_pk_context *target)
 {
-    return mbedtls_pk_parse_key(target, key->data, key->length, NULL, 0);
+    UA_ByteString data = UA_mbedTLS_CopyDataFormatAware(key);
+    int mbedErr = mbedtls_pk_parse_key(target, data.data, data.length, NULL, 0);
+    UA_ByteString_clear(&data);
+
+    return mbedErr;
 }
 
 UA_StatusCode UA_mbedTLS_LoadLocalCertificate(const UA_ByteString *certData, UA_ByteString *target)
 {
+    UA_ByteString data = UA_mbedTLS_CopyDataFormatAware(certData);
+
     mbedtls_x509_crt cert;
     mbedtls_x509_crt_init(&cert);
 
-    int mbedErr = mbedtls_x509_crt_parse(&cert, certData->data, certData->length);
+    int mbedErr = mbedtls_x509_crt_parse(&cert, data.data, data.length);
 
     UA_StatusCode result = UA_STATUSCODE_BADINVALIDARGUMENT;
 
@@ -263,7 +269,29 @@ UA_StatusCode UA_mbedTLS_LoadLocalCertificate(const UA_ByteString *certData, UA_
         result = UA_ByteString_copy(&tmp, target);
     }
 
+    UA_ByteString_clear(&data);
     mbedtls_x509_crt_free(&cert);
+    return result;
+}
+
+// mbedTLS expects PEM data to be null terminated
+// The data length parameter must include the null terminator
+UA_ByteString UA_mbedTLS_CopyDataFormatAware(const UA_ByteString *data)
+{
+    UA_ByteString result;
+    UA_ByteString_init(&result);
+
+    if (!data->length)
+        return result;
+
+    if (data->length && data->data[0] == '-') {
+        UA_ByteString_allocBuffer(&result, data->length + 1);
+        memcpy(result.data, data->data, data->length);
+        result.data[data->length] = '\0';
+    } else {
+        UA_ByteString_copy(data, &result);
+    }
+
     return result;
 }
 
