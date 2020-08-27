@@ -28,7 +28,7 @@ if ! [ -z ${COVERAGE+x} ]; then
     make -j && make test ARGS="-V"
     if [ $? -ne 0 ] ; then 
     	cd tests
-    	python ../tools/lookForAllocError.py $(pwd)/../  $(pwd)/../bin/tests/check_allocation
+    	/usr/bin/$PYTHON ../../tools/lookForAllocError.py $(pwd)/../../  $(pwd)/../bin/tests/check_allocation
     	exit 1
     fi
     set -e
