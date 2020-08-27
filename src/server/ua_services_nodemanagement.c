@@ -567,7 +567,7 @@ copyAllChildren(UA_Server *server, UA_Session *session,
         UA_ReferenceDescription *rd = &br.references[i];
         retval = copyChild(server, session, destination, rd);
         if(retval != UA_STATUSCODE_GOOD)
-            return retval;
+            break;
     }
 
     UA_BrowseResult_clear(&br);
