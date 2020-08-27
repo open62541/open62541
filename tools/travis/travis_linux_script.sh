@@ -24,12 +24,14 @@ if ! [ -z ${COVERAGE+x} ]; then
         -DUA_NAMESPACE_ZERO=REDUCED \
         -DUA_ENABLE_MALLOC_SINGLETON=ON ..
         
+    set +e
     make -j && make test ARGS="-V"
     if [ $? -ne 0 ] ; then 
     	cd tests
     	python ../tools/lookForAllocError.py $(pwd)/../  $(pwd)/../bin/tests/check_allocation
     	exit 1
     fi
+    set -e
     echo -en 'travis_fold:end:script.build.unit_test_ns0_reduced\\r'
 
     # only run coveralls on main repo and when MINGW=true

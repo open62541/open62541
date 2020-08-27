@@ -20,7 +20,8 @@
 
 #include <execinfo.h>
 
-#define MEMORY_FILE "allocationFailurePoints"
+#define FAILURE_POINTS_FILE "allocationFailurePoints"
+#define TESTED_FAILURE_POINTS_FILE "testedAllocationFailurePoints"
 #define STACK_DEPTH 20
 
 struct BreakingInfo {
@@ -37,6 +38,7 @@ static FILE* memoryFile;
 static int numberOfBreaks = 0;
 static int totalFailurePoints = 0;
 
+static FILE* testedPointsFile;
 
 static UA_Server* server = NULL;
 
@@ -116,6 +118,12 @@ START_TEST( checkAllocation) {
 
       functionToTest();
 
+      if (currentInfo.alreadyBroken) {
+        *startOfText = ',';
+        if(fputs(lineBuffer, testedPointsFile) < 0) {
+          printf("Error writing line %s to file\n", lineBuffer);
+        }
+      }
     }
 
     printf("No more lines to break. %d of %d failure points were tested\n", numberOfBreaks, totalFailurePoints);
@@ -126,10 +134,16 @@ END_TEST
 
 static void setup(void) {
   //open file
-  memoryFile = fopen(MEMORY_FILE, "r");
+  memoryFile = fopen(FAILURE_POINTS_FILE, "r");
   if(!memoryFile) {
-    printf("ERROR: Couldn't find file %s\n", MEMORY_FILE);
+    printf("ERROR: Couldn't find file %s\n", FAILURE_POINTS_FILE);
   }
+
+   testedPointsFile = fopen(TESTED_FAILURE_POINTS_FILE, "w");
+   if(!memoryFile) {
+     printf("ERROR: Couldn't find file %s\n", TESTED_FAILURE_POINTS_FILE);
+   }
+
   UA_mallocSingleton = mallocWrapper;
   UA_callocSingleton = callocWrapper;
   UA_reallocSingleton = reallocWrapper;
@@ -139,6 +153,9 @@ static void setup(void) {
 static void teardown(void) {
   if(memoryFile) {
     fclose(memoryFile);
+  }
+  if(testedPointsFile) {
+    fclose(testedPointsFile);
   }
 }
 
