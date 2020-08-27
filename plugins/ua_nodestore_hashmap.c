@@ -306,13 +306,19 @@ UA_NodeMap_removeNode(void *context, const UA_NodeId *nodeid) {
     return UA_STATUSCODE_GOOD;
 }
 
+/*
+ * If this function fails in any way, the node parameter is deleted here,
+ * so the caller function does not need to take care of it anymore
+ */
 static UA_StatusCode
 UA_NodeMap_insertNode(void *context, UA_Node *node,
                       UA_NodeId *addedNodeId) {
     UA_NodeMap *ns = (UA_NodeMap*)context;
     if(ns->size * 3 <= ns->count * 4) {
-        if(expand(ns) != UA_STATUSCODE_GOOD)
+        if(expand(ns) != UA_STATUSCODE_GOOD){
+            deleteNodeMapEntry(container_of(node, UA_NodeMapEntry, node));
             return UA_STATUSCODE_BADINTERNALERROR;
+        }
     }
 
     UA_NodeMapSlot *slot;
