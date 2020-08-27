@@ -598,11 +598,12 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
     }
     UA_NODESTORE_RELEASE(server, originNode);
 
-    /* Make sure the origin is in the ObjectsFolder (TODO: or in the ViewsFolder) */
-    /* Only use Organizes and HasComponent to check if we are below the ObjectsFolder */
-    UA_ReferenceTypeSet reftypes =
-        UA_ReferenceTypeSet_union(UA_REFTYPESET(UA_REFERENCETYPEINDEX_ORGANIZES),
-                                  UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASCOMPONENT));
+    /* Make sure the origin is in the ObjectsFolder (TODO: or in the ViewsFolder).
+     * Only use Organizes, HasComponent and HasOrderedComponent to check if we are
+     * below the ObjectsFolder. */
+    UA_ReferenceTypeSet reftypes = UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASORDEREDCOMPONENT);
+    reftypes = UA_ReferenceTypeSet_union(reftypes, UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASCOMPONENT));
+    reftypes = UA_ReferenceTypeSet_union(reftypes, UA_REFTYPESET(UA_REFERENCETYPEINDEX_ORGANIZES));
     if(!isNodeInTree(server, &origin, &objectsFolderId, &reftypes)) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Node for event must be in ObjectsFolder!");
