@@ -75,6 +75,66 @@ setAbsoluteFromPercentageDeadband(UA_Server *server, UA_Session *session,
 
 #endif /* UA_ENABLE_DA */
 
+void
+Service_SetTriggering(UA_Server *server, UA_Session *session,
+                      const UA_SetTriggeringRequest *request,
+                      UA_SetTriggeringResponse *response) {
+    /* Nothing to do? */
+    if(request->linksToRemoveSize == 0 &&
+       request->linksToAddSize == 0) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
+        return;
+    }
+
+    /* Get the Subscription */
+    UA_Subscription *sub = UA_Session_getSubscriptionById(session, request->subscriptionId);
+    if(!sub) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
+        return;
+    }
+    
+    /* Get the MonitoredItem */
+    UA_MonitoredItem *mon = UA_Subscription_getMonitoredItem(sub, request->triggeringItemId);
+    if(!mon) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
+        return;
+    }
+
+    /* Allocate the results arrays */
+    if(request->linksToRemoveSize > 0) {
+        response->removeResults = (UA_StatusCode*)
+            UA_Array_new(request->linksToRemoveSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
+        if(!response->removeResults) {
+            response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+            return;
+        }
+        response->removeResultsSize = request->linksToRemoveSize;
+    }
+
+    if(request->linksToAddSize> 0) {
+        response->addResults = (UA_StatusCode*)
+            UA_Array_new(request->linksToAddSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
+        if(!response->addResults) {
+            UA_Array_delete(response->removeResults,
+                            request->linksToAddSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
+            response->removeResults = NULL;
+            response->removeResultsSize = 0;
+            response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+            return;
+        }
+        response->addResultsSize = request->linksToAddSize;
+    }
+
+    /* Apply the changes */
+    for(size_t i = 0; i < request->linksToRemoveSize; i++)
+        response->removeResults[i] =
+            UA_MonitoredItem_removeLink(sub, mon, request->linksToRemove[i]);
+
+    for(size_t i = 0; i < request->linksToAddSize; i++)
+        response->addResults[i] =
+            UA_MonitoredItem_addLink(sub, mon, request->linksToAdd[i]);
+}
+
 static UA_StatusCode
 setMonitoredItemSettings(UA_Server *server, UA_Session *session, UA_MonitoredItem *mon,
                          UA_MonitoringMode monitoringMode,

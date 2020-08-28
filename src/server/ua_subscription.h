@@ -145,6 +145,7 @@ void UA_Notification_delete(UA_Server *server, UA_Notification *n);
  * might not work. */
 void UA_Notification_enqueueSub(UA_Notification *n);
 void UA_Notification_enqueueMon(UA_Server *server, UA_Notification *n);
+void UA_Notification_enqueueAndTrigger(UA_Server *server, UA_Notification *n);
 void UA_Notification_dequeueSub(UA_Notification *n);
 void UA_Notification_dequeueMon(UA_Server *server, UA_Notification *n);
 
@@ -217,7 +218,8 @@ void UA_MonitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monito
 UA_StatusCode UA_MonitoredItem_registerSampleCallback(UA_Server *server, UA_MonitoredItem *mon);
 void UA_MonitoredItem_unregisterSampleCallback(UA_Server *server, UA_MonitoredItem *mon);
 
-UA_StatusCode UA_MonitoredItem_removeLink(UA_MonitoredItem *mon, UA_UInt32 linkId);
+UA_StatusCode UA_MonitoredItem_removeLink(UA_Subscription *sub, UA_MonitoredItem *mon,
+                                          UA_UInt32 linkId);
 UA_StatusCode UA_MonitoredItem_addLink(UA_Subscription *sub, UA_MonitoredItem *mon, UA_UInt32 linkId);
 
 UA_StatusCode

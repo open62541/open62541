@@ -502,8 +502,7 @@ UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event,
     notification->data.event.clientHandle = mon->clientHandle;
     notification->mon = mon;
 
-    UA_Notification_enqueueSub(notification);
-    UA_Notification_enqueueMon(server, notification);
+    UA_Notification_enqueueAndTrigger(server, notification);
     return UA_STATUSCODE_GOOD;
 }
 

@@ -162,6 +162,7 @@ UA_Notification_new(void) {
 
 void
 UA_Notification_delete(UA_Server *server, UA_Notification *n) {
+    UA_assert(n != UA_SUBSCRIPTION_QUEUE_SENTINEL);
     UA_Notification_dequeueMon(server, n);
     UA_Notification_dequeueSub(n);
     switch(n->mon->attributeId) {
@@ -208,9 +209,6 @@ UA_Notification_enqueueSub(UA_Notification *n) {
 
     UA_assert(TAILQ_NEXT(n, globalEntry) == UA_SUBSCRIPTION_QUEUE_SENTINEL);
 
-    if(mon->monitoringMode != UA_MONITORINGMODE_REPORTING)
-        return;
-
     /* Add to the subscription if reporting is enabled */
     TAILQ_INSERT_TAIL(&sub->notificationQueue, n, globalEntry);
     ++sub->notificationQueueSize;
@@ -224,6 +222,47 @@ UA_Notification_enqueueSub(UA_Notification *n) {
     default:
         ++sub->dataChangeNotifications;
         break;
+    }
+}
+
+void
+UA_Notification_enqueueAndTrigger(UA_Server *server, UA_Notification *n) {
+    UA_MonitoredItem *mon = n->mon;
+    if(mon->monitoringMode == UA_MONITORINGMODE_REPORTING)
+        UA_Notification_enqueueSub(n);
+    UA_Notification_enqueueMon(server, n);
+
+    UA_Subscription *sub = mon->subscription;
+    for(size_t i = mon->triggeringLinksSize - 1; i < mon->triggeringLinksSize; i--) {
+        /* Get the triggered MonitoredItem. Remove if it doesn't exist. */
+        UA_MonitoredItem *triggeredMon =
+            UA_Subscription_getMonitoredItem(sub, mon->triggeringLinks[i]);
+        if(!triggeredMon) {
+            UA_MonitoredItem_removeLink(sub, mon, mon->triggeringLinks[i]);
+            continue;
+        }
+
+        /* Get the latest sampled Notification from that MonitoredItem. Report
+         * it if not already done so. */
+        UA_Notification *n2 = TAILQ_LAST(&triggeredMon->queue, NotificationQueue);
+        if(!n2) {
+            /* No Notification ready in the target MonitoredItem. This can happen,
+             * for example, if all samples from the target MonitoredItem are already
+             * sent out. Add sample "out of sync". */
+            monitoredItem_sampleCallback(server, triggeredMon);
+            n2 = TAILQ_LAST(&triggeredMon->queue, NotificationQueue);
+        }
+        if(n2 && TAILQ_NEXT(n2, globalEntry) == UA_SUBSCRIPTION_QUEUE_SENTINEL) {
+            UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
+                                      "MonitoredItem %u triggers MonitoredItem %u",
+                                      mon->monitoredItemId, triggeredMon->monitoredItemId);
+            UA_Notification_enqueueSub(n2);
+        } else {
+            UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
+                                      "MonitoredItem %u triggers MonitoredItem %u, "
+                                      "but no Notification awaits reporting",
+                                      mon->monitoredItemId, triggeredMon->monitoredItemId);
+        }
     }
 }
 
@@ -433,6 +472,12 @@ UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
 
         /* Delete the notification and remove it from the queues */
         UA_Notification_delete(server, del);
+
+        /* Assertions to help Clang's scan-analyzer */
+        UA_assert(del != TAILQ_FIRST(&mon->queue));
+        UA_assert(del != TAILQ_LAST(&mon->queue, NotificationQueue));
+        UA_assert(del != TAILQ_PREV(TAILQ_LAST(&mon->queue, NotificationQueue),
+                                    NotificationQueue, listEntry));
     }
 
         /* Leave an entry to indicate that notifications were removed */
@@ -474,7 +519,7 @@ UA_MonitoredItem_unregisterSampleCallback(UA_Server *server, UA_MonitoredItem *m
 }
 
 UA_StatusCode
-UA_MonitoredItem_removeLink(UA_MonitoredItem *mon, UA_UInt32 linkId) {
+UA_MonitoredItem_removeLink(UA_Subscription *sub, UA_MonitoredItem *mon, UA_UInt32 linkId) {
     /* Find the index */
     size_t i = 0;
     for(; i < mon->triggeringLinksSize; i++) {
@@ -484,7 +529,7 @@ UA_MonitoredItem_removeLink(UA_MonitoredItem *mon, UA_UInt32 linkId) {
 
     /* Not existing / already removed */
     if(i == mon->triggeringLinksSize)
-        return UA_STATUSCODE_GOOD;
+        return UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
 
     /* Remove the link */
     mon->triggeringLinksSize--;
@@ -499,21 +544,29 @@ UA_MonitoredItem_removeLink(UA_MonitoredItem *mon, UA_UInt32 linkId) {
             mon->triggeringLinks = tmpLinks;
     }
 
+    /* Does the target MonitoredItem exist? This is stupid, but the CTT wants us
+     * to to this. We don't auto-remove links together with the target
+     * MonitoredItem. Links to removed MonitoredItems are removed when the link
+     * triggers and the target no longer exists. */
+    UA_MonitoredItem *mon2 = UA_Subscription_getMonitoredItem(sub, linkId);
+    if(!mon2)
+        return UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
+
     return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
 UA_MonitoredItem_addLink(UA_Subscription *sub, UA_MonitoredItem *mon, UA_UInt32 linkId) {
+    /* Does the target MonitoredItem exist? */
+    UA_MonitoredItem *mon2 = UA_Subscription_getMonitoredItem(sub, linkId);
+    if(!mon2)
+        return UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
+
     /* Does the link already exist? */
     for(size_t i = 0 ; i < mon->triggeringLinksSize; i++) {
         if(mon->triggeringLinks[i] == linkId)
             return UA_STATUSCODE_GOOD;
     }
-
-    /* Does the target MonitoredItem exist? */
-    UA_MonitoredItem *mon2 = UA_Subscription_getMonitoredItem(sub, linkId);
-    if(!mon2)
-        return UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
 
     /* Allocate the memory */
     UA_UInt32 *tmpLinkIds = (UA_UInt32*)
