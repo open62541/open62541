@@ -296,6 +296,13 @@ UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
     /* Remove the sampling callback */
     UA_MonitoredItem_unregisterSampleCallback(server, monitoredItem);
 
+    /* Remove the TriggeringLinks */
+    if(monitoredItem->triggeringLinksSize > 0) {
+        UA_free(monitoredItem->triggeringLinks);
+        monitoredItem->triggeringLinks = NULL;
+        monitoredItem->triggeringLinksSize = 0;
+    }
+
     /* Remove the queued notifications if attached to a subscription (not a
      * local MonitoredItem) */
     if(monitoredItem->subscription) {
@@ -464,6 +471,61 @@ UA_MonitoredItem_unregisterSampleCallback(UA_Server *server, UA_MonitoredItem *m
         return;
     removeCallback(server, mon->sampleCallbackId);
     mon->sampleCallbackIsRegistered = false;
+}
+
+UA_StatusCode
+UA_MonitoredItem_removeLink(UA_MonitoredItem *mon, UA_UInt32 linkId) {
+    /* Find the index */
+    size_t i = 0;
+    for(; i < mon->triggeringLinksSize; i++) {
+        if(mon->triggeringLinks[i] == linkId)
+            break;
+    }
+
+    /* Not existing / already removed */
+    if(i == mon->triggeringLinksSize)
+        return UA_STATUSCODE_GOOD;
+
+    /* Remove the link */
+    mon->triggeringLinksSize--;
+    if(mon->triggeringLinksSize == 0) {
+        UA_free(mon->triggeringLinks);
+        mon->triggeringLinks = NULL;
+    } else {
+        mon->triggeringLinks[i] = mon->triggeringLinks[mon->triggeringLinksSize];
+        UA_UInt32 *tmpLinks = (UA_UInt32*)
+            UA_realloc(mon->triggeringLinks, mon->triggeringLinksSize * sizeof(UA_UInt32));
+        if(tmpLinks)
+            mon->triggeringLinks = tmpLinks;
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_MonitoredItem_addLink(UA_Subscription *sub, UA_MonitoredItem *mon, UA_UInt32 linkId) {
+    /* Does the link already exist? */
+    for(size_t i = 0 ; i < mon->triggeringLinksSize; i++) {
+        if(mon->triggeringLinks[i] == linkId)
+            return UA_STATUSCODE_GOOD;
+    }
+
+    /* Does the target MonitoredItem exist? */
+    UA_MonitoredItem *mon2 = UA_Subscription_getMonitoredItem(sub, linkId);
+    if(!mon2)
+        return UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
+
+    /* Allocate the memory */
+    UA_UInt32 *tmpLinkIds = (UA_UInt32*)
+        UA_realloc(mon->triggeringLinks, (mon->triggeringLinksSize + 1) * sizeof(UA_UInt32));
+    if(!tmpLinkIds)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    mon->triggeringLinks = tmpLinkIds;
+
+    /* Add the link */
+    mon->triggeringLinks[mon->triggeringLinksSize] = linkId;
+    mon->triggeringLinksSize++;
+    return UA_STATUSCODE_GOOD;
 }
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
