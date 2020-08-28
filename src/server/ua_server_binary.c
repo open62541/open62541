@@ -222,6 +222,11 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
         *requestType = &UA_TYPES[UA_TYPES_SETMONITORINGMODEREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_SETMONITORINGMODERESPONSE];
         break;
+    case UA_NS0ID_SETTRIGGERINGREQUEST_ENCODING_DEFAULTBINARY:
+        *service = (UA_Service)Service_SetTriggering;
+        *requestType = &UA_TYPES[UA_TYPES_SETTRIGGERINGREQUEST];
+        *responseType = &UA_TYPES[UA_TYPES_SETTRIGGERINGRESPONSE];
+        break;
 #endif
 #ifdef UA_ENABLE_HISTORIZING
         /* For History read */

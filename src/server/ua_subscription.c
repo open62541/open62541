@@ -257,6 +257,14 @@ prepareNotificationMessage(UA_Server *server, UA_Subscription *sub,
             break;
         }
 
+        /* If there are Notifications *before this one* in the MonitoredItem-
+         * local queue, remove all of them. These are earlier Notifications that
+         * are non-reporting. And we don't want them to show up after the
+         * current Notification has been sent out. */
+        UA_Notification *prev;
+        while((prev = TAILQ_PREV(notification, NotificationQueue, listEntry)))
+            UA_Notification_delete(server, prev);
+
         /* Delete the notification, remove from the queues and decrease the counters */
         UA_Notification_delete(server, notification);
 

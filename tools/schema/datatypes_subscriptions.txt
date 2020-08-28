@@ -53,3 +53,5 @@ DeleteSubscriptionsResponse
 TransferResult
 TransferSubscriptionsRequest
 TransferSubscriptionsResponse
+SetTriggeringRequest
+SetTriggeringResponse
