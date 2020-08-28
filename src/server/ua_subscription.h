@@ -194,6 +194,10 @@ struct UA_MonitoredItem {
     UA_ByteString lastSampledValue;
     UA_Boolean sampleCallbackIsRegistered;
 
+    /* Triggering Links */
+    size_t triggeringLinksSize;
+    UA_UInt32 *triggeringLinks;
+
     /* Notification Queue */
     NotificationQueue queue;
     UA_UInt32 maxQueueSize; /* The max number of enqueued notifications (not
@@ -212,6 +216,9 @@ void UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem)
 void UA_MonitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem);
 UA_StatusCode UA_MonitoredItem_registerSampleCallback(UA_Server *server, UA_MonitoredItem *mon);
 void UA_MonitoredItem_unregisterSampleCallback(UA_Server *server, UA_MonitoredItem *mon);
+
+UA_StatusCode UA_MonitoredItem_removeLink(UA_MonitoredItem *mon, UA_UInt32 linkId);
+UA_StatusCode UA_MonitoredItem_addLink(UA_Subscription *sub, UA_MonitoredItem *mon, UA_UInt32 linkId);
 
 UA_StatusCode
 UA_MonitoredItem_createDataChangeNotification(UA_Server *server, UA_Subscription *sub,
