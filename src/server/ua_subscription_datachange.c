@@ -172,7 +172,7 @@ UA_StatusCode
 UA_MonitoredItem_createDataChangeNotification(UA_Server *server, UA_Subscription *sub,
                                               UA_MonitoredItem *mon, const UA_DataValue *value) {
     /* Allocate a new notification */
-    UA_Notification *newNotification = (UA_Notification*)UA_malloc(sizeof(UA_Notification));
+    UA_Notification *newNotification = UA_Notification_new();
     if(!newNotification)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
@@ -186,7 +186,8 @@ UA_MonitoredItem_createDataChangeNotification(UA_Server *server, UA_Subscription
     }
 
     /* Enqueue the notification */
-    UA_Notification_enqueue(server, sub, mon, newNotification);
+    UA_Notification_enqueueSub(newNotification);
+    UA_Notification_enqueueMon(server, newNotification);
     UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub, "MonitoredItem %" PRIi32 " | "
                               "Enqueued a new notification", mon->monitoredItemId);
     return UA_STATUSCODE_GOOD;
