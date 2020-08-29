@@ -239,9 +239,6 @@ prepareNotificationMessage(UA_Server *server, UA_Subscription *sub,
         if(totalNotifications >= notifications)
             break;
 
-        /* Remove from the queues and decrease the counters */
-        UA_Notification_dequeue(server, notification);
-
         /* Move the content to the response */
         switch(notification->mon->attributeId) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
@@ -260,7 +257,9 @@ prepareNotificationMessage(UA_Server *server, UA_Subscription *sub,
             break;
         }
 
-        UA_Notification_delete(notification);
+        /* Delete the notification, remove from the queues and decrease the counters */
+        UA_Notification_delete(server, notification);
+
         totalNotifications++;
     }
 

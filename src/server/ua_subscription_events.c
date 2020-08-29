@@ -483,28 +483,27 @@ eventSetStandardFields(UA_Server *server, const UA_NodeId *event,
 UA_StatusCode
 UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event,
                                  UA_MonitoredItem *mon) {
-    UA_Notification *notification = (UA_Notification *)UA_malloc(sizeof(UA_Notification));
+    UA_Notification *notification = UA_Notification_new();
     if(!notification)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     UA_Subscription *sub = mon->subscription;
     UA_Session *session = sub->session;
-
-    /* Apply the filter */
     UA_StatusCode retval =
         UA_Server_filterEvent(server, session, event, &mon->filter.eventFilter,
                               &notification->data.event);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_free(notification);
+        UA_Notification_delete(server, notification);
         if(retval == UA_STATUSCODE_BADNOMATCH)
             return UA_STATUSCODE_GOOD;
         return retval;
     }
-    notification->data.event.clientHandle = mon->clientHandle;
 
-    /* Enqueue the notification */
+    notification->data.event.clientHandle = mon->clientHandle;
     notification->mon = mon;
-    UA_Notification_enqueue(server, sub, mon, notification);
+
+    UA_Notification_enqueueSub(notification);
+    UA_Notification_enqueueMon(server, notification);
     return UA_STATUSCODE_GOOD;
 }
 

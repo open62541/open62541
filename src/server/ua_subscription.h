@@ -126,17 +126,27 @@ typedef struct UA_Notification {
     } data;
 } UA_Notification;
 
-/* Ensure enough space is available; Add notification to the linked lists;
- * Increase the counters */
-void UA_Notification_enqueue(UA_Server *server, UA_Subscription *sub,
-                             UA_MonitoredItem *mon, UA_Notification *n);
+/* Notifications are always added to the queue of the MonitoredItem. That queue
+ * can overflow. If Notifications are reported, they are also added to the
+ * global queue of the Subscription. There they are picked up by the publishing
+ * callback.
+ *
+ * There are two ways Notifications can be put into the global queue of the
+ * Subscription: They are added because the MonitoringMode of the MonitoredItem
+ * is "reporting". Or the MonitoringMode is "sampling" and a link is trigered
+ * that puts the last Notification into the global queue. */
 
-/* Remove the notification from the MonitoredItem's queue and the Subscriptions
- * global queue. Reduce the respective counters. */
-void UA_Notification_dequeue(UA_Server *server, UA_Notification *n);
 
-/* Delete the notification. Must be dequeued first. */
-void UA_Notification_delete(UA_Notification *n);
+UA_Notification * UA_Notification_new(void);
+/* Dequeue and Delete the notification */
+void UA_Notification_delete(UA_Server *server, UA_Notification *n);
+/* If reporting, enqueue into the Subscription first and then into the
+ * MonitoredItem. Otherwise the reinsertion in UA_MonitoredItem_ensureQueueSpace
+ * might not work. */
+void UA_Notification_enqueueSub(UA_Notification *n);
+void UA_Notification_enqueueMon(UA_Server *server, UA_Notification *n);
+void UA_Notification_dequeueSub(UA_Notification *n);
+void UA_Notification_dequeueMon(UA_Server *server, UA_Notification *n);
 
 typedef TAILQ_HEAD(NotificationQueue, UA_Notification) NotificationQueue;
 
@@ -212,7 +222,7 @@ UA_StatusCode UA_Event_generateEventId(UA_ByteString *generatedId);
 
 /* Remove entries until mon->maxQueueSize is reached. Sets infobits for lost
  * data if required. */
-UA_StatusCode UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon);
+void UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon);
 
 UA_StatusCode UA_MonitoredItem_removeNodeEventCallback(UA_Server *server, UA_Session *session,
                                                        UA_Node *node, void *data);
