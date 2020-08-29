@@ -49,10 +49,14 @@ static UA_StatusCode
 createEventOverflowNotification(UA_Server *server, UA_Subscription *sub,
                                 UA_MonitoredItem *mon, UA_Notification *indicator) {
     /* Avoid two redundant overflow events in a row */
-    if((mon->discardOldest && UA_Notification_isOverflowEvent(server, indicator))
-       || (!mon->discardOldest && TAILQ_PREV(indicator, NotificationQueue, listEntry) != NULL &&
-           UA_Notification_isOverflowEvent(server, TAILQ_PREV(indicator, NotificationQueue, listEntry))))
-        return UA_STATUSCODE_GOOD;
+    if(mon->discardOldest) {
+        if(UA_Notification_isOverflowEvent(server, indicator))
+            return UA_STATUSCODE_GOOD;
+    } else {
+        UA_Notification *ind_prev = TAILQ_PREV(indicator, NotificationQueue, listEntry);
+        if(ind_prev && UA_Notification_isOverflowEvent(server, ind_prev))
+            return UA_STATUSCODE_GOOD;
+    }
 
     /* A notification is inserted into the queue which includes only the
      * NodeId of the overflowEventType. It is up to the client to check for
