@@ -73,12 +73,12 @@ static UA_PubSubChannel *UA_PubSubChannelAMQP_open(UA_PubSubConnectionConfig *am
         return NULL;
     }
 
-    /* Initialize sub-elements in AMQP Proactor */
+    /* Initialize sub-elements in AMQP Context */
     amqpCtx->ua_connection = (UA_Connection*)UA_calloc(1, sizeof(UA_Connection));
     amqpCtx->driver = (pn_connection_driver_t *) UA_calloc(1, sizeof(pn_connection_driver_t));
 
     if(!amqpCtx->ua_connection || !amqpCtx->driver) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub AMQP: Proactor creation failed. Out of memory.");
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub AMQP: Context creation failed. Out of memory.");
         UA_Destroy_AmqpChannel(ua_amqpChannel, false);
         return NULL;
     }
@@ -87,7 +87,7 @@ static UA_PubSubChannel *UA_PubSubChannelAMQP_open(UA_PubSubConnectionConfig *am
     ua_amqpChannel->handle = (void*) amqpCtx;
     amqpCtx->sequence_no = 0;
     /****************************************
-     *          Validate Connection Config
+     *     Validate Connection Config
      ***************************************/
 
     /* Get the url form connection config*/
@@ -98,7 +98,7 @@ static UA_PubSubChannel *UA_PubSubChannelAMQP_open(UA_PubSubConnectionConfig *am
         address = *(UA_NetworkAddressUrlDataType *)amqpConnectionConfig->address.data;
     } else {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "PubSub MQTT Connection creation failed. Invalid Address.");
+                     "PubSub AMQP Connection creation failed. Invalid Address.");
         return NULL;
     }
 
@@ -145,6 +145,7 @@ static UA_StatusCode UA_PubSubChannelAMQP_send(UA_PubSubChannel *channel,
     UA_AmqpContext *amqpCtx = (UA_AmqpContext*)channel->handle;
     if (transportSettings != NULL && transportSettings->encoding == UA_EXTENSIONOBJECT_DECODED
       && transportSettings->content.decoded.type->typeIndex == UA_TYPES_BROKERWRITERGROUPTRANSPORTDATATYPE) {
+
         UA_BrokerWriterGroupTransportDataType *brokerTransportSettings =
             (UA_BrokerWriterGroupTransportDataType*)transportSettings->content.decoded.data;
 

@@ -12,14 +12,11 @@
 #include <open62541/plugin/pubsub.h>
 #include <open62541/network_tcp.h>
 
-#include <proton/connection.h>
-#include <proton/delivery.h>
 #include <proton/connection_driver.h>
-#include <proton/event.h>
-#include <proton/terminus.h>
+#include <proton/session.h>
 #include <proton/link.h>
 #include <proton/message.h>
-#include <proton/session.h>
+
 
 #define MAX_AMQP_LINKS 2
 #define SENDER_LINK 0
@@ -30,27 +27,18 @@ typedef struct {
     UA_NetworkAddressUrlDataType address;
     UA_Connection              *ua_connection;
     pn_connection_driver_t     *driver;
-    //pn_connector_t  * connector;
-    //pn_connector_t  * driver_connector;
+    pn_session_t               *session;
 
-    /* Moved connection_driver_t */
-//    pn_connection_t * connection;
-//    pn_collector_t  * collector;
     UA_Boolean      openLink;
     /* Total 2 links, 1 link can either sender or receiver */
     pn_link_t       * links [ MAX_AMQP_LINKS ];
     UA_Boolean      sender_link_ready;
     pn_message_t    * message;
+    pn_rwbytes_t    send_buffer;
     pn_rwbytes_t    message_buffer;
-    pn_session_t    * session;
-    pn_event_t      * event;
-    pn_delivery_t   * delivery;
+
     UA_UInt32       sequence_no;
     UA_UInt32       acknowledged_no;
-
-    UA_Boolean      writeDone;
-    const char*     current;
-    UA_Int32        remainingBytes;
 
 } UA_AmqpContext;
 

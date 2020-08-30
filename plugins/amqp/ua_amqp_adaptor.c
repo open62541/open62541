@@ -13,12 +13,11 @@
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/network_tcp.h>
 #include <open62541/util.h>
+#include <proton/connection.h>
 #include <proton/delivery.h>
 #include <proton/link.h>
 #include <proton/message.h>
-#include <proton/proactor.h>
 #include <proton/session.h>
-#include <proton/transport.h>
 #include <proton/event.h>
 
 
@@ -102,12 +101,10 @@ void UA_AmqpDisconnect(UA_AmqpContext *ctx)  {
 UA_StatusCode UA_AmqpConnect(UA_AmqpContext *ctx, UA_NetworkAddressUrlDataType address)  {
     UA_assert(ctx != NULL);
 
-    int retVal = PN_OK;
-
     /*****************************************
      *      Initialize the AMQP stack
      ****************************************/
-    retVal = pn_connection_driver_init(ctx->driver, NULL, NULL);
+    int retVal = pn_connection_driver_init(ctx->driver, NULL, NULL);
     if (PN_OK != retVal)  {
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
@@ -115,11 +112,8 @@ UA_StatusCode UA_AmqpConnect(UA_AmqpContext *ctx, UA_NetworkAddressUrlDataType a
     pn_connection_open(ctx->driver->connection);
     ctx->openLink = true;
     ctx->sender_link_ready = false;
-    pn_session_t *s = pn_session(ctx->driver->connection);
-    ctx->session = s;
-    pn_session_open(s);
-    //sender_l = pn_sender(s, "AMQP_CLIENT_SENDER");
-    //receiver_l = pn_receiver(s, "AMQP_CLIENT_RECEIVER");
+    ctx->session = pn_session(ctx->driver->connection);
+    pn_session_open(ctx->session);
 
     /*******************************************************
      *          UA Socket Connection
@@ -166,15 +160,12 @@ UA_StatusCode publishAmqp(UA_AmqpContext *ctx, UA_String queue,
     pn_link_t *sender_l = ctx->links[SENDER_LINK];
 
     if (ctx->openLink) {
-        /*
-         * TODO: Move this code to registerAmqp
-         */
         /**
          * Only open link for the first time after connection or reconnection
          */
         ctx->openLink = false;
         ctx->sender_link_ready = false;
-        sender_l = pn_sender(ctx->session, "AMQP_CLIENT_SENDER");
+        sender_l = pn_sender(ctx->session, (const char*)queue.data);
          /* Update the linker  */
         ctx->links[SENDER_LINK] = sender_l;
 
@@ -199,7 +190,12 @@ UA_StatusCode publishAmqp(UA_AmqpContext *ctx, UA_String queue,
      * doesn't support this feature
      */
     int credit = pn_link_credit(sender_l);
-    if (credit > 0) {
+    if (credit <= 0) {
+        ctx->sender_link_ready = false;
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "publishAmqp: AMQP link credit not availabe");
+        return UA_STATUSCODE_BADWAITINGFORRESPONSE;
+    }
+    else {
         pn_delivery(sender_l, pn_dtag((const char *)&ctx->sequence_no,
                                     sizeof(ctx->sequence_no)));
 
@@ -214,39 +210,44 @@ UA_StatusCode publishAmqp(UA_AmqpContext *ctx, UA_String queue,
         pn_data_put_string(body, pn_bytes(sizeof("sequence") - 1, "sequence"));
         pn_data_put_int(body, (int32_t)ctx->sequence_no); /* The sequence number */
         pn_data_exit(body);
-        if(pn_message_send(ctx->message, sender_l,
-                           &ctx->message_buffer) < 0) {
-            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "publishAmqp: Error sending data: %s",
+        ssize_t ret = pn_message_send(ctx->message, sender_l, &ctx->message_buffer);
+
+        if(ret < 0) {
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "publishAmqp: Send message encoding failed: %s",
                          pn_error_text(pn_message_error(ctx->message)) );
 
-            /* TODO: Could be invalid data input that caused encoding failure. No real
-             * network communication is doen in pn_message_send(). Only buffers are filled.
-             * Look for other error codes than BADCONNECTIONCLOSED
-             */
-            return UA_STATUSCODE_BADCONNECTIONCLOSED;
+            if (PN_OUT_OF_MEMORY == ret) {
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+            } else {
+                return UA_STATUSCODE_BADINVALIDARGUMENT;
+            }
         }
 
-        /* Immediately send data */
+        /* Immediately send data on the wire*/
         if (UA_STATUSCODE_GOOD != _write(ctx->ua_connection, ctx->driver)) {
             return UA_STATUSCODE_BADCONNECTIONCLOSED;
         }
-    } else {
-        ctx->sender_link_ready = false;
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "publishAmqp: AMQP link credit not availabe");
-        return UA_STATUSCODE_BADWAITINGFORRESPONSE;
     }
 
     return UA_STATUSCODE_GOOD;
 
 }
 
+static void _handle_reciver_link_delivery(UA_AmqpContext *ctx, pn_delivery_t *d, pn_link_t *l)
+{
+    UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "AMQP receive not implemented");
+    (void)ctx;
+    (void)d;
+    (void)l;
+}
 
 /**
  * Helper function to handle events
  */
 static void __handle(UA_AmqpContext *ctx, pn_event_t *e)
 {
-    /* Note: Not all events needs to be handled. */
+    /* Note: Not all events needs to be handled.
+        Only link events are sent to wire transport*/
     switch (pn_event_type(e)) {
         case PN_LINK_FLOW: {
             /* Credit received, ready to send messages */
@@ -254,11 +255,18 @@ static void __handle(UA_AmqpContext *ctx, pn_event_t *e)
         }
         break;
         case PN_DELIVERY: {
-            /* Acknowledgement received */
-            pn_delivery_t *d = pn_event_delivery(e);
-            if(pn_delivery_remote_state(d) == PN_ACCEPTED) {
-                ctx->acknowledged_no++;
+            pn_link_t *l = pn_event_link(e);
+
+            if (pn_link_is_sender(l)) {
+                /* Acknowledgement received */
+                pn_delivery_t *d = pn_event_delivery(e);
+                if(pn_delivery_remote_state(d) == PN_ACCEPTED) {
+                    ctx->acknowledged_no++;
+                }
+            } else {
+                _handle_reciver_link_delivery(ctx, pn_event_delivery(e), l);
             }
+
         }
         break;
 
@@ -278,22 +286,12 @@ UA_StatusCode yieldAmqp(UA_AmqpContext *ctx, UA_UInt16 timeout)
     UA_Connection *connection = (UA_Connection*) ctx->ua_connection;
     UA_assert(connection != NULL);
 
-    UA_StatusCode ret = UA_STATUSCODE_GOOD;
     /*
      * Write flush
      */
-    ret = _write(ctx->ua_connection, ctx->driver);
+    UA_StatusCode ret = _write(ctx->ua_connection, ctx->driver);
     if (UA_STATUSCODE_GOOD != ret) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "yieldAmqp: _write failed. ret_code=%s", UA_StatusCode_name(ret));
-        return UA_STATUSCODE_BADCOMMUNICATIONERROR;
-    }
-
-    /*
-     * Read Buffer
-     */
-    ret = _read(ctx->ua_connection, ctx->driver, timeout);
-    if (UA_STATUSCODE_BADCONNECTIONCLOSED == ret) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "yieldAmqp: _read failed. ret_code=%s", UA_StatusCode_name(ret));
         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
     }
 
@@ -306,6 +304,17 @@ UA_StatusCode yieldAmqp(UA_AmqpContext *ctx, UA_UInt16 timeout)
     for (; e; e = pn_connection_driver_next_event(ctx->driver)) {
         __handle(ctx, e);
     }
+
+    /*
+     * Read Buffer
+     * All pending events must be handled before _read() call otherwise some unprocessed events may never complete
+     */
+    ret = _read(ctx->ua_connection, ctx->driver, timeout);
+    if (UA_STATUSCODE_BADCONNECTIONCLOSED == ret) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "yieldAmqp: _read failed. ret_code=%s", UA_StatusCode_name(ret));
+        return UA_STATUSCODE_BADCOMMUNICATIONERROR;
+    }
+
 
     return UA_STATUSCODE_GOOD;
 }
