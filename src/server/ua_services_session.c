@@ -751,6 +751,7 @@ Service_CloseSession(UA_Server *server, UA_SecureChannel *channel,
 
     UA_LOG_INFO_SESSION(&server->config.logger, session, "Closing the Session");
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS
     /* If Subscriptions are not deleted, detach them from the Session */
     if(!request->deleteSubscriptions) {
         UA_Subscription *sub, *sub_tmp;
@@ -760,6 +761,7 @@ Service_CloseSession(UA_Server *server, UA_SecureChannel *channel,
             UA_Session_detachSubscription(server, session, sub);
         }
     }
+#endif
 
     /* Remove the sesison */
     response->responseHeader.serviceResult =
