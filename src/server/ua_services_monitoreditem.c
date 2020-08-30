@@ -357,7 +357,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
                         newMon->monitoredItemId);
 
     /* Create the first sample */
-    if(request->monitoringMode == UA_MONITORINGMODE_REPORTING &&
+    if(request->monitoringMode > UA_MONITORINGMODE_DISABLED &&
        newMon->attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER)
         monitoredItem_sampleCallback(server, newMon);
 
