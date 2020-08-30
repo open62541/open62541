@@ -111,7 +111,7 @@ UA_Session_dequeuePublishReq(UA_Session *session);
  * string of length zero). */
 
 #define UA_LOG_SESSION_INTERNAL(LOGGER, LEVEL, SESSION, MSG, ...)       \
-    do {                                                                \
+    if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
     UA_String idString = UA_STRING_NULL;                                \
     UA_UInt32 channelId = 0;                                            \
     if(SESSION) {                                                       \
@@ -123,49 +123,25 @@ UA_Session_dequeuePublishReq(UA_Session *session);
                    "SecureChannel %i | Session %.*s | " MSG "%.0s",     \
                    channelId, (int)idString.length, idString.data, __VA_ARGS__); \
     UA_String_clear(&idString);                                         \
-    } while(0)
+    }
 
-#if UA_LOGLEVEL <= 100
 #define UA_LOG_TRACE_SESSION(LOGGER, SESSION, ...)                      \
     UA_MACRO_EXPAND(UA_LOG_SESSION_INTERNAL(LOGGER, TRACE, SESSION, __VA_ARGS__, ""))
-#else
-#define UA_LOG_TRACE_SESSION(LOGGER, SESSION, ...) do {} while(0)
-#endif
 
-#if UA_LOGLEVEL <= 200
 #define UA_LOG_DEBUG_SESSION(LOGGER, SESSION, ...)                      \
     UA_MACRO_EXPAND(UA_LOG_SESSION_INTERNAL(LOGGER, DEBUG, SESSION, __VA_ARGS__, ""))
-#else
-#define UA_LOG_DEBUG_SESSION(LOGGER, SESSION, ...) do {} while(0)
-#endif
 
-#if UA_LOGLEVEL <= 300
 #define UA_LOG_INFO_SESSION(LOGGER, SESSION, ...)                      \
     UA_MACRO_EXPAND(UA_LOG_SESSION_INTERNAL(LOGGER, INFO, SESSION, __VA_ARGS__, ""))
-#else
-#define UA_LOG_INFO_SESSION(LOGGER, SESSION, ...) do {} while(0)
-#endif
 
-#if UA_LOGLEVEL <= 400
 #define UA_LOG_WARNING_SESSION(LOGGER, SESSION, ...)                      \
     UA_MACRO_EXPAND(UA_LOG_SESSION_INTERNAL(LOGGER, WARNING, SESSION, __VA_ARGS__, ""))
-#else
-#define UA_LOG_WARNING_SESSION(LOGGER, SESSION, ...) do {} while(0)
-#endif
 
-#if UA_LOGLEVEL <= 500
 #define UA_LOG_ERROR_SESSION(LOGGER, SESSION, ...)                      \
     UA_MACRO_EXPAND(UA_LOG_SESSION_INTERNAL(LOGGER, ERROR, SESSION, __VA_ARGS__, ""))
-#else
-#define UA_LOG_ERROR_SESSION(LOGGER, SESSION, ...) do {} while(0)
-#endif
 
-#if UA_LOGLEVEL <= 600
 #define UA_LOG_FATAL_SESSION(LOGGER, SESSION, ...)                      \
     UA_MACRO_EXPAND(UA_LOG_SESSION_INTERNAL(LOGGER, FATAL, SESSION, __VA_ARGS__, ""))
-#else
-#define UA_LOG_FATAL_SESSION(LOGGER, SESSION, ...) do {} while(0)
-#endif
 
 _UA_END_DECLS
 

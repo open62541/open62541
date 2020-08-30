@@ -24,12 +24,13 @@ _UA_BEGIN_DECLS
 #define UA_MACRO_EXPAND(x) x
 
 /* Print a NodeId in logs */
-#define UA_LOG_NODEID_WRAP(NODEID, LOG) {   \
-    UA_String nodeIdStr = UA_STRING_NULL;   \
-    UA_NodeId_print(NODEID, &nodeIdStr);    \
-    LOG;                                    \
-    UA_String_clear(&nodeIdStr);            \
-}
+#define UA_LOG_NODEID_WRAP(LEVEL, NODEID, LOG)       \
+    if(UA_LOGLEVEL <= LEVEL) {                       \
+        UA_String nodeIdStr = UA_STRING_NULL;        \
+        UA_NodeId_print(NODEID, &nodeIdStr);         \
+        LOG;                                         \
+        UA_String_clear(&nodeIdStr);                 \
+    }
 
 /* Short names for integer. These are not exposed on the public API, since many
  * user-applications make the same definitions in their headers. */
