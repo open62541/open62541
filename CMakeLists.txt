@@ -169,6 +169,12 @@ else()
     set(UA_GENERATED_NAMESPACE_ZERO ON)
 endif()
 
+if(UA_NAMESPACE_ZERO STREQUAL "FULL")
+    set(UA_GENERATED_NAMESPACE_ZERO_FULL ON)
+else()
+    set(UA_GENERATED_NAMESPACE_ZERO_FULL OFF)
+endif()
+
 if(MSVC AND UA_NAMESPACE_ZERO STREQUAL "FULL")
     # For the full NS0 we need a stack size of 8MB (as it is default on linux)
     # See https://github.com/open62541/open62541/issues/1326
