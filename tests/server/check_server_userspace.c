@@ -68,7 +68,12 @@ struct nodeIterData {
     UA_NodeId referenceTypeID;
     UA_Boolean hit;
 };
+
+#ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
+#define NODE_ITER_DATA_SIZE 4
+#else
 #define NODE_ITER_DATA_SIZE 3
+#endif
 
 static UA_StatusCode
 nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, void *handle) {
@@ -102,7 +107,7 @@ START_TEST(Server_forEachChildNodeCall) {
 
     /* List all the children/references of the objects folder
      * The forEachChildNodeCall has to hit all of them */
-    struct nodeIterData objectsFolderChildren[3];
+    struct nodeIterData objectsFolderChildren[NODE_ITER_DATA_SIZE];
     objectsFolderChildren[0].id = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
     objectsFolderChildren[0].isInverse = UA_FALSE;
     objectsFolderChildren[0].referenceTypeID = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
@@ -117,6 +122,13 @@ START_TEST(Server_forEachChildNodeCall) {
     objectsFolderChildren[2].isInverse = UA_FALSE;
     objectsFolderChildren[2].referenceTypeID = UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION);
     objectsFolderChildren[2].hit = UA_FALSE;
+
+#ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
+    objectsFolderChildren[3].id = UA_NODEID_NUMERIC(0, UA_NS0ID_ALIASES);
+    objectsFolderChildren[3].isInverse = UA_FALSE;
+    objectsFolderChildren[3].referenceTypeID = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    objectsFolderChildren[3].hit = UA_FALSE;
+#endif
 
     UA_StatusCode retval =
         UA_Server_forEachChildNodeCall(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
