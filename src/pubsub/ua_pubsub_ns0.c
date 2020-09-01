@@ -4,10 +4,16 @@
  *
  * Copyright (c) 2017-2018 Fraunhofer IOSB (Author: Andreas Ebner)
  * Copyright (c) 2019 Kalycito Infotech Private Limited
+ * Copyright (c) 2020 Yannick Wallerer, Siemens AG
+ * Copyright (c) 2020 Thomas Fischer, Siemens AG
  */
 
 #include <open62541/types.h>
 #include "ua_pubsub_ns0.h"
+
+#ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
+#include "ua_pubsub_config.h"
+#endif
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL /* conditional compilation */
 
@@ -1080,6 +1086,124 @@ publishedDataItemsTypeDestructor(UA_Server *server,
         UA_free(childContext);
 }
 
+/*************************************/
+/*         PubSub configurator       */
+/*************************************/
+
+/* UA_loadPubSubConfigMethodCallback() */
+/**
+ * @brief   callback function that will be executed when the method "PubSub configurator (replace config)" is called.
+ */
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS 
+#ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
+static UA_StatusCode
+UA_loadPubSubConfigMethodCallback(UA_Server *server,
+                                  const UA_NodeId *sessionId, void *sessionHandle,
+                                  const UA_NodeId *methodId, void *methodContext,
+                                  const UA_NodeId *objectId, void *objectContext,
+                                  size_t inputSize, const UA_Variant *input,
+                                  size_t outputSize, UA_Variant *output) {
+    if(inputSize == 1) {
+        UA_ByteString *inputStr = (UA_ByteString*)input->data;
+        return UA_PubSubManager_loadPubSubConfigFromByteString(server, *inputStr);
+    } else if(inputSize > 1) {
+        return UA_STATUSCODE_BADTOOMANYARGUMENTS;
+    } else {
+        return UA_STATUSCODE_BADARGUMENTSMISSING;
+    }
+}
+#endif
+#endif /*UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS*/
+
+
+/* UA_addLoadPubSubConfigMethod() */
+/**
+ * @brief       Adds method node to server. This method is used to load binary files for PubSub 
+ *              configuration and delete / replace old PubSub configurations.
+ * 
+ * @param       server      [bi]    UA_Server object that shall contain the method.
+ * 
+ * @return      UA_STATUSCODE_GOOD on success
+ */
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
+#ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
+static UA_StatusCode 
+UA_addLoadPubSubConfigMethod(UA_Server *server) {
+    UA_Argument inputArgument;
+    UA_Argument_init(&inputArgument);
+    inputArgument.description = UA_LOCALIZEDTEXT("en-US", "PubSub config binfile");
+    inputArgument.name = UA_STRING("BinFile");
+    inputArgument.dataType = UA_TYPES[UA_TYPES_BYTESTRING].typeId;
+    inputArgument.valueRank = UA_VALUERANK_SCALAR;
+
+    UA_MethodAttributes configAttr = UA_MethodAttributes_default;
+    configAttr.description = UA_LOCALIZEDTEXT("en-US","Load binary configuration file");
+    configAttr.displayName = UA_LOCALIZEDTEXT("en-US","LoadPubSubConfigurationFile");
+    configAttr.executable = true;
+    configAttr.userExecutable = true;
+    UA_StatusCode retVal = UA_Server_addMethodNode(server, UA_NODEID_NULL,
+                                                   UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE),
+                                                   UA_NODEID_NUMERIC(0, UA_NS0ID_HASORDEREDCOMPONENT),
+                                                   UA_QUALIFIEDNAME(1, "PubSub configuration"),
+                                                   configAttr, &UA_loadPubSubConfigMethodCallback,
+                                                   1, &inputArgument, 0, NULL, NULL, NULL);
+    return retVal;
+}
+#endif
+#endif /*UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS*/
+
+
+/* UA_deletePubSubConfigMethodCallback() */
+/**
+ * @brief   callback function that will be executed when the method "PubSub configurator (delete config)" is called.
+ */
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
+#ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
+static UA_StatusCode
+UA_deletePubSubConfigMethodCallback(UA_Server *server,
+                                    const UA_NodeId *sessionId, void *sessionHandle,
+                                    const UA_NodeId *methodId, void *methodContext,
+                                    const UA_NodeId *objectId, void *objectContext,
+                                    size_t inputSize, const UA_Variant *input,
+                                    size_t outputSize, UA_Variant *output) {
+    UA_PubSubManager_delete(server, &(server->pubSubManager));
+    
+    return UA_STATUSCODE_GOOD;
+}
+#endif
+#endif /*UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS*/
+
+
+/* UA_addDeletePubSubConfigMethod() */
+/**
+ * @brief       Adds method node to server. This method is used to delete the current PubSub configuration.
+ * 
+ * @param       server      [bi]    UA_Server object that shall contain the method.
+ * 
+ * @return      UA_STATUSCODE_GOOD on success
+ */
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
+#ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
+static UA_StatusCode 
+UA_addDeletePubSubConfigMethod(UA_Server *server) {
+    UA_MethodAttributes configAttr = UA_MethodAttributes_default;
+    configAttr.description = UA_LOCALIZEDTEXT("en-US","Delete current PubSub configuration");
+    configAttr.displayName = UA_LOCALIZEDTEXT("en-US","DeletePubSubConfiguration");
+    configAttr.executable = true;
+    configAttr.userExecutable = true;
+    UA_StatusCode retVal = UA_Server_addMethodNode(server, UA_NODEID_NULL,
+                                                   UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE),
+                                                   UA_NODEID_NUMERIC(0, UA_NS0ID_HASORDEREDCOMPONENT),
+                                                   UA_QUALIFIEDNAME(1, "Delete PubSub config"),
+                                                   configAttr, &UA_deletePubSubConfigMethodCallback,
+                                                   0, NULL, 0, NULL, NULL, NULL);
+    return retVal;
+}
+#endif
+#endif /*UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS*/
+
+
+
 UA_StatusCode
 UA_Server_initPubSubNS0(UA_Server *server) {
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
@@ -1126,6 +1250,11 @@ UA_Server_initPubSubNS0(UA_Server *server) {
     retVal |= UA_Server_setMethodNode_callback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WRITERGROUPTYPE_REMOVEDATASETWRITER), removeDataSetWriterAction);
     retVal |= UA_Server_setMethodNode_callback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_READERGROUPTYPE_ADDDATASETREADER), addDataSetReaderAction);
     retVal |= UA_Server_setMethodNode_callback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_READERGROUPTYPE_REMOVEDATASETREADER), removeDataSetReaderAction);
+
+#ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
+    retVal |= UA_addLoadPubSubConfigMethod(server);
+    retVal |= UA_addDeletePubSubConfigMethod(server);
+#endif
 
 #else
     retVal |= UA_Server_deleteReference(server, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE), UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), true,
