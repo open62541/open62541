@@ -177,17 +177,6 @@ UA_DataSetField_findDSFbyId(UA_Server *server, UA_NodeId identifier);
 /*               DataSetReader                */
 /**********************************************/
 
-/* SubscribedDataSetDataType Definition */
-typedef enum {
-    UA_PUBSUB_SDS_TARGET,
-    UA_PUBSUB_SDS_MIRROR
-}UA_SubscribedDataSetEnumType;
-
-typedef struct {
-    size_t targetVariablesSize;
-    UA_FieldTargetVariable *targetVariables;
-} UA_TargetVariables;
-
 /* DataSetReader Type definition */
 typedef struct UA_DataSetReader {
     UA_DataSetReaderConfig config;
@@ -195,12 +184,7 @@ typedef struct UA_DataSetReader {
     UA_NodeId identifier;
     UA_NodeId linkedReaderGroup;
     LIST_ENTRY(UA_DataSetReader) listEntry;
-    UA_SubscribedDataSetEnumType subscribedDataSetType;
-    /* TODO UA_SubscribedDataSetMirrorDataType subscribedDataSetMirror */
-    union {
-        UA_TargetVariables subscribedDataSetTarget;
-        // UA_SubscribedDataSetMirrorSourceEntry subscribedDataSetMirror;
-    } subscribedDataSet;
+
     /* non std */
     UA_PubSubState state;
     /* This flag is 'read only' and is set internally based on the PubSub state. */
@@ -220,10 +204,6 @@ UA_StatusCode UA_TargetVariables_copy(const UA_TargetVariables *src, UA_TargetVa
 /* Copy the configuration of Field Target Variables */
 UA_StatusCode UA_FieldTargetVariable_copy(const UA_FieldTargetVariable *src,
                                           UA_FieldTargetVariable *dst);
-
-/* Add TargetVariables */
-UA_StatusCode
-UA_Server_DataSetReader_addTargetVariables(UA_Server* server, UA_NodeId* parentNode, UA_NodeId dataSetReaderIdentifier, UA_SubscribedDataSetEnumType sdsType);
 
 UA_StatusCode
 UA_DataSetReader_setPubSubState(UA_Server *server, UA_PubSubState state, UA_DataSetReader *dataSetReader);
