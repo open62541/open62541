@@ -307,6 +307,63 @@ addReaderGroup(UA_Server *server) {
                              &readerGroupIdentifier);
 }
 
+/* Set SubscribedDataSet type to TargetVariables data type
+ * Add SubscriberCounter variable to the DataSetReader */
+static void addSubscribedVariables (UA_Server *server) {
+    UA_Int32 iterator = 0;
+    if (server == NULL) {
+        return;
+    }
+
+    UA_FieldTargetVariable *targetVars = (UA_FieldTargetVariable*)
+        UA_calloc((REPEATED_NODECOUNTS + 1),
+                  sizeof(UA_FieldTargetVariable));
+    /* For creating Targetvariable */
+    for (iterator = 0; iterator < REPEATED_NODECOUNTS; iterator++)
+    {
+        subRepeatedCounterData[iterator] = UA_UInt64_new();
+        *subRepeatedCounterData[iterator] = 0;
+#if defined PUBSUB_CONFIG_RT_INFORMATION_MODEL
+        subRepeatedDataValueRT[iterator] = UA_DataValue_new();
+        UA_Variant_setScalar(&subRepeatedDataValueRT[iterator]->value, subRepeatedCounterData[iterator], &UA_TYPES[UA_TYPES_UINT64]);
+        subRepeatedDataValueRT[iterator]->hasValue = UA_TRUE;
+        /* Set the value backend of the above create node to 'external value source' */
+        UA_ValueBackend valueBackend;
+        valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
+        valueBackend.backend.external.value = &subRepeatedDataValueRT[iterator];
+        valueBackend.backend.external.callback.userWrite = externalDataWriteCallback;
+        valueBackend.backend.external.callback.notificationRead = externalDataReadNotificationCallback;
+        UA_Server_setVariableNode_valueBackend(server, UA_NODEID_NUMERIC(1, (UA_UInt32)iterator+50000), valueBackend);
+#endif
+        UA_FieldTargetDataType_init(&targetVars[iterator].targetVariable);
+        targetVars[iterator].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
+        targetVars[iterator].targetVariable.targetNodeId = UA_NODEID_NUMERIC(1, (UA_UInt32)iterator + 50000);
+    }
+
+    subCounterData = UA_UInt64_new();
+    *subCounterData = 0;
+#if defined PUBSUB_CONFIG_RT_INFORMATION_MODEL
+    subDataValueRT = UA_DataValue_new();
+    UA_Variant_setScalar(&subDataValueRT->value, subCounterData, &UA_TYPES[UA_TYPES_UINT64]);
+    subDataValueRT->hasValue = UA_TRUE;
+    /* Set the value backend of the above create node to 'external value source' */
+    UA_ValueBackend valueBackend;
+    valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
+    valueBackend.backend.external.value = &subDataValueRT;
+    valueBackend.backend.external.callback.userWrite = externalDataWriteCallback;
+    valueBackend.backend.external.callback.notificationRead = externalDataReadNotificationCallback;
+    UA_Server_setVariableNode_valueBackend(server, subNodeID, valueBackend);
+#endif
+    UA_FieldTargetDataType_init(&targetVars[iterator].targetVariable);
+    targetVars[iterator].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
+    targetVars[iterator].targetVariable.targetNodeId = subNodeID;
+
+    /* Set the subscribed data to TargetVariable type */
+    readerConfig.subscribedDataSetType = UA_PUBSUB_SDS_TARGET;
+    readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables = targetVars;
+    readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize = REPEATED_NODECOUNTS + 1;
+}
+
 /* Add DataSetReader to the ReaderGroup */
 static void
 addDataSetReader(UA_Server *server) {
@@ -359,70 +416,17 @@ addDataSetReader(UA_Server *server) {
     pMetaData->fields[iterator].builtInType = UA_NS0ID_UINT64;
     pMetaData->fields[iterator].valueRank   = -1; /* scalar */
 
+    /* Setup Target Variables in DSR config */
+    addSubscribedVariables(server);
+
     /* Setting up Meta data configuration in DataSetReader */
     UA_Server_addDataSetReader(server, readerGroupIdentifier, &readerConfig,
                                &readerIdentifier);
+
+    UA_free(readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables);
+    UA_free(readerConfig.dataSetMetaData.fields);
     UA_UadpDataSetReaderMessageDataType_delete(dataSetReaderMessage);
 }
-
-/* Set SubscribedDataSet type to TargetVariables data type
- * Add SubscriberCounter variable to the DataSetReader */
-static void addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId) {
-    UA_Int32 iterator = 0;
-    if (server == NULL) {
-        return;
-    }
-
-    UA_FieldTargetVariable *targetVars = (UA_FieldTargetVariable*)
-        UA_calloc((REPEATED_NODECOUNTS + 1),
-                  sizeof(UA_FieldTargetVariable));
-    /* For creating Targetvariable */
-    for (iterator = 0; iterator < REPEATED_NODECOUNTS; iterator++)
-    {
-        subRepeatedCounterData[iterator] = UA_UInt64_new();
-        *subRepeatedCounterData[iterator] = 0;
-#if defined PUBSUB_CONFIG_RT_INFORMATION_MODEL
-        subRepeatedDataValueRT[iterator] = UA_DataValue_new();
-        UA_Variant_setScalar(&subRepeatedDataValueRT[iterator]->value, subRepeatedCounterData[iterator], &UA_TYPES[UA_TYPES_UINT64]);
-        subRepeatedDataValueRT[iterator]->hasValue = UA_TRUE;
-        /* Set the value backend of the above create node to 'external value source' */
-        UA_ValueBackend valueBackend;
-        valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
-        valueBackend.backend.external.value = &subRepeatedDataValueRT[iterator];
-        valueBackend.backend.external.callback.userWrite = externalDataWriteCallback;
-        valueBackend.backend.external.callback.notificationRead = externalDataReadNotificationCallback;
-        UA_Server_setVariableNode_valueBackend(server, UA_NODEID_NUMERIC(1, (UA_UInt32)iterator+50000), valueBackend);
-#endif
-        UA_FieldTargetDataType_init(&targetVars[iterator].targetVariable);
-        targetVars[iterator].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
-        targetVars[iterator].targetVariable.targetNodeId = UA_NODEID_NUMERIC(1, (UA_UInt32)iterator + 50000);
-    }
-
-    subCounterData = UA_UInt64_new();
-    *subCounterData = 0;
-#if defined PUBSUB_CONFIG_RT_INFORMATION_MODEL
-    subDataValueRT = UA_DataValue_new();
-    UA_Variant_setScalar(&subDataValueRT->value, subCounterData, &UA_TYPES[UA_TYPES_UINT64]);
-    subDataValueRT->hasValue = UA_TRUE;
-    /* Set the value backend of the above create node to 'external value source' */
-    UA_ValueBackend valueBackend;
-    valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
-    valueBackend.backend.external.value = &subDataValueRT;
-    valueBackend.backend.external.callback.userWrite = externalDataWriteCallback;
-    valueBackend.backend.external.callback.notificationRead = externalDataReadNotificationCallback;
-    UA_Server_setVariableNode_valueBackend(server, subNodeID, valueBackend);
-#endif
-    UA_FieldTargetDataType_init(&targetVars[iterator].targetVariable);
-    targetVars[iterator].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
-    targetVars[iterator].targetVariable.targetNodeId = subNodeID;
-
-    UA_Server_DataSetReader_createTargetVariables(server, dataSetReaderId,
-                                                  REPEATED_NODECOUNTS + 1,
-                                                  targetVars);
-    UA_free(targetVars);
-    UA_free(readerConfig.dataSetMetaData.fields);
-}
-
 #endif
 
 /* Add a callback for cyclic repetition */
@@ -1105,7 +1109,6 @@ int main(int argc, char **argv) {
     addPubSubConnectionSubscriber(server, &networkAddressUrlSub);
     addReaderGroup(server);
     addDataSetReader(server);
-    addSubscribedVariables(server, readerIdentifier);
     UA_Server_freezeReaderGroupConfiguration(server, readerGroupIdentifier);
     UA_Server_setReaderGroupOperational(server, readerGroupIdentifier);
 #endif
