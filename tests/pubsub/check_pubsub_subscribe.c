@@ -381,7 +381,7 @@ START_TEST(GetDataSetReaderConfigWithValidConfiguration) {
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         retVal |= UA_Server_DataSetReader_getConfig(server, localDataSetreader, &dataSetreaderConfig);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-    } END_TEST
+} END_TEST
 
 START_TEST(GetDataSetReaderConfigWithInvalidConfiguration) {
         /* Check status of getting DataSetReader with Invalid configuration */
@@ -399,7 +399,7 @@ START_TEST(GetDataSetReaderConfigWithInvalidConfiguration) {
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         retVal |= UA_Server_DataSetReader_getConfig(server, localDataSetreader, NULL);
         ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
-    } END_TEST
+} END_TEST
 
 START_TEST(GetDataSetReaderConfigWithInvalidIdentifier) {
         /* Check status of getting DataSetReader with Invalid Identifier */
@@ -417,7 +417,98 @@ START_TEST(GetDataSetReaderConfigWithInvalidIdentifier) {
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         retVal |= UA_Server_DataSetReader_getConfig(server, UA_NODEID_NUMERIC(0, UA_UINT32_MAX), &dataSetreaderConfig);
         ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
-    } END_TEST
+} END_TEST
+
+START_TEST(UpdateDataSetReaderConfigWithValidConfiguration){
+        /* Check status of updatting DataSetReader with valid configurations */
+        UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+        UA_DataSetReaderConfig dataSetreaderConfig;
+        UA_NodeId localreaderGroup;
+        UA_NodeId localDataSetReaderId;
+        UA_ReaderGroupConfig readerGroupConfig;
+        memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
+        readerGroupConfig.name = UA_STRING("ReaderGroup Test");
+        retVal |=  UA_Server_addReaderGroup(server, connection_test, &readerGroupConfig, &localreaderGroup);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        memset(&dataSetreaderConfig, 0, sizeof(dataSetreaderConfig));
+        dataSetreaderConfig.name = UA_STRING("DataSet Reader 1");
+        UA_UInt16 publisherIdentifier        = 2234;
+        dataSetreaderConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
+        dataSetreaderConfig.publisherId.data = &publisherIdentifier;
+        dataSetreaderConfig.writerGroupId    = 100;
+        dataSetreaderConfig.dataSetWriterId  = 62541;
+        UA_NodeId folderId;
+        UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+        UA_QualifiedName folderBrowseName;
+        oAttr.displayName = UA_LOCALIZEDTEXT ("en-US", "Subscribed Variables");
+        folderBrowseName = UA_QUALIFIEDNAME (1, "Subscribed Variables");
+        UA_Server_addObjectNode (server, UA_NODEID_NULL,
+                                 UA_NODEID_NUMERIC (0, UA_NS0ID_OBJECTSFOLDER),
+                                 UA_NODEID_NUMERIC (0, UA_NS0ID_ORGANIZES),
+                                 folderBrowseName, UA_NODEID_NUMERIC (0,
+                                 UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
+        dataSetreaderConfig.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize = 1;
+        dataSetreaderConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables = (UA_FieldTargetVariable *)
+            UA_calloc(dataSetreaderConfig.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize, sizeof(UA_FieldTargetVariable));
+        /* Variable to subscribe data */
+        UA_VariableAttributes vAttr = UA_VariableAttributes_default;
+        vAttr.displayName.locale = UA_STRING("en-US");
+        vAttr.displayName.text = UA_STRING("UInt32 Variable");
+        vAttr.dataType = UA_TYPES[UA_TYPES_UINT32].typeId;
+
+        UA_NodeId nodeId1;
+        retVal |= UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, (UA_UInt32)0 + 50000),
+                                            folderId,
+                                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                            UA_QUALIFIEDNAME(1, "UInt32 Variable"),
+                                            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                            vAttr, NULL, &nodeId1);
+
+        /* For creating Targetvariables */
+        UA_FieldTargetDataType_init(&dataSetreaderConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[0].targetVariable);
+        dataSetreaderConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[0].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
+        dataSetreaderConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[0].targetVariable.targetNodeId = nodeId1;
+        retVal |= UA_Server_addDataSetReader(server, localreaderGroup,
+                                             &dataSetreaderConfig, &localDataSetReaderId);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+        dataSetreaderConfig.writerGroupId = 101;
+        dataSetreaderConfig.dataSetWriterId = 500;
+        UA_DataSetReader *localDataSetReader = UA_ReaderGroup_findDSRbyId(server, localDataSetReaderId);
+        ck_assert_int_ne(localDataSetReader->config.writerGroupId, dataSetreaderConfig.writerGroupId);
+        ck_assert_int_ne(localDataSetReader->config.dataSetWriterId, dataSetreaderConfig.dataSetWriterId);
+
+        retVal |=  UA_Server_DataSetReader_updateConfig(server, localDataSetReaderId,
+                                                        localreaderGroup, &dataSetreaderConfig);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        ck_assert_int_eq(localDataSetReader->config.writerGroupId, dataSetreaderConfig.writerGroupId);
+        ck_assert_int_eq(localDataSetReader->config.dataSetWriterId, dataSetreaderConfig.dataSetWriterId);
+
+        /* Add extra TargetVariables and update config */
+        dataSetreaderConfig.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize = 2;
+        dataSetreaderConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables = (UA_FieldTargetVariable *)
+            UA_realloc(dataSetreaderConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables, 2*sizeof(UA_FieldTargetVariable));
+        vAttr.displayName.locale = UA_STRING("en-US");
+        vAttr.displayName.text = UA_STRING("UInt64 Variable");
+        vAttr.dataType = UA_TYPES[UA_TYPES_UINT64].typeId;
+
+        UA_NodeId nodeId2;
+        retVal |= UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, (UA_UInt32)1 + 50000),
+                                            folderId,
+                                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                            UA_QUALIFIEDNAME(1, "UInt64 Variable"),
+                                            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                            vAttr, NULL, &nodeId2);
+        UA_FieldTargetDataType_init(&dataSetreaderConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[1].targetVariable);
+        dataSetreaderConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[1].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
+        dataSetreaderConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[1].targetVariable.targetNodeId = nodeId2;
+
+        retVal |=  UA_Server_DataSetReader_updateConfig(server, localDataSetReaderId,
+                                                        localreaderGroup, &dataSetreaderConfig);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        ck_assert_int_eq(2, localDataSetReader->config.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize);
+        UA_free(dataSetreaderConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables);
+} END_TEST
 
 START_TEST(CreateTargetVariableWithInvalidConfiguration) {
         /* Check status to create target variable with invalid configuration */
@@ -437,77 +528,7 @@ START_TEST(CreateTargetVariableWithInvalidConfiguration) {
                                                                 UA_NODEID_NUMERIC(0, UA_UINT32_MAX),
                                                                 0, NULL);
         ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
-    } END_TEST
-
-START_TEST(AddTargetVariableWithInvalidConfiguration) {
-        /* Check status to create target variable with invalid configuration */
-        UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-        UA_DataSetReaderConfig dataSetreaderConfig;
-        UA_NodeId localreaderGroup;
-        UA_NodeId localDataSetreader;
-        UA_ReaderGroupConfig readerGroupConfig;
-        memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
-        readerGroupConfig.name = UA_STRING("ReaderGroup Test");
-        retVal |=  UA_Server_addReaderGroup(server, connection_test, &readerGroupConfig, &localreaderGroup);
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        memset(&dataSetreaderConfig, 0, sizeof(dataSetreaderConfig));
-        retVal |= UA_Server_addDataSetReader(server, localreaderGroup, &dataSetreaderConfig, &localDataSetreader);
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        retVal |=  UA_Server_DataSetReader_addTargetVariables(NULL, &localreaderGroup, localDataSetreader, UA_PUBSUB_SDS_TARGET);
-        ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
-    } END_TEST
-
-START_TEST(AddTargetVariableWithValidConfiguration) {
-        /* Check status after creating target variables with Valid configuration */
-        UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-        UA_DataSetReaderConfig dataSetReaderConfig;
-        UA_NodeId folderId;
-        UA_QualifiedName folderBrowseName;
-        UA_NodeId localreaderGroupIdentifier;
-        UA_NodeId localDataSetreaderIdentifier;
-        UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
-        UA_ReaderGroupConfig readerGroupConfig;
-        memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
-        readerGroupConfig.name = UA_STRING("ReaderGroup Test");
-        retVal |=  UA_Server_addReaderGroup(server, connection_test, &readerGroupConfig, &localreaderGroupIdentifier);
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        memset(&dataSetReaderConfig, 0, sizeof(UA_DataSetReaderConfig));
-        UA_DataSetMetaDataType *pMetaData = &dataSetReaderConfig.dataSetMetaData;
-        UA_DataSetMetaDataType_init (pMetaData);
-        pMetaData->name = UA_STRING ("DataSet Test");
-        /* Static definition of number of fields size to 2 to create targetVariables
-         * with DateTime and ByteString datatype */
-        pMetaData->fieldsSize = 2;
-        pMetaData->fields = (UA_FieldMetaData*)UA_Array_new (pMetaData->fieldsSize,
-                             &UA_TYPES[UA_TYPES_FIELDMETADATA]);
-
-        /* DateTime DataType */
-        UA_FieldMetaData_init (&pMetaData->fields[0]);
-        UA_NodeId_copy (&UA_TYPES[UA_TYPES_DATETIME].typeId,
-                        &pMetaData->fields[0].dataType);
-        pMetaData->fields[0].builtInType = UA_NS0ID_DATETIME;
-        pMetaData->fields[0].valueRank = -1; /* scalar */
-
-        /* ByteString DataType */
-        UA_FieldMetaData_init (&pMetaData->fields[1]);
-        UA_NodeId_copy (&UA_TYPES[UA_TYPES_BYTESTRING].typeId,
-                        &pMetaData->fields[1].dataType);
-        pMetaData->fields[1].builtInType = UA_NS0ID_BYTESTRING;
-        pMetaData->fields[1].valueRank = -1; /* scalar */
-
-        retVal |= UA_Server_addDataSetReader(server, localreaderGroupIdentifier, &dataSetReaderConfig, &localDataSetreaderIdentifier);
-
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        folderBrowseName = UA_QUALIFIEDNAME (1, "Subscribed Variables");
-        UA_Server_addObjectNode (server, UA_NODEID_NULL,
-                                 UA_NODEID_NUMERIC (0, UA_NS0ID_OBJECTSFOLDER),
-                                 UA_NODEID_NUMERIC (0, UA_NS0ID_ORGANIZES),
-                                 folderBrowseName, UA_NODEID_NUMERIC (0,
-                                 UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
-        retVal |=  UA_Server_DataSetReader_addTargetVariables(server, &folderId, localDataSetreaderIdentifier, UA_PUBSUB_SDS_TARGET);
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        UA_free(pMetaData->fields);
-    } END_TEST
+} END_TEST
 
 START_TEST(SinglePublishSubscribeDateTime) {
         /* To check status after running both publisher and subscriber */
@@ -577,11 +598,10 @@ START_TEST(SinglePublishSubscribeDateTime) {
                         &pMetaData->fields[0].dataType);
         pMetaData->fields[0].builtInType = UA_NS0ID_DATETIME;
         pMetaData->fields[0].valueRank = -1; /* scalar */
-        retVal |= UA_Server_addDataSetReader (server, readerGroupTest, &readerConfig,
-                                                          &readerIdentifier);
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
         /* Add Subscribed Variables */
         UA_NodeId folderId;
+        UA_NodeId newnodeId;
         UA_String folderName = readerConfig.dataSetMetaData.name;
         UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
         UA_QualifiedName folderBrowseName;
@@ -601,15 +621,35 @@ START_TEST(SinglePublishSubscribeDateTime) {
                                  UA_NODEID_NUMERIC (0, UA_NS0ID_ORGANIZES),
                                  folderBrowseName, UA_NODEID_NUMERIC (0,
                                  UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
-        retVal |=  UA_Server_DataSetReader_addTargetVariables (server, &folderId,
-                                                             readerIdentifier, UA_PUBSUB_SDS_TARGET);
+
+        /* Variable to subscribe data */
+        UA_VariableAttributes vAttr = UA_VariableAttributes_default;
+        vAttr.description = UA_LOCALIZEDTEXT ("en-US", "DateTime");
+        vAttr.displayName = UA_LOCALIZEDTEXT ("en-US", "DateTime");
+        vAttr.dataType    = UA_TYPES[UA_TYPES_DATETIME].typeId;
+        retVal = UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, SUBSCRIBEVARIABLE_NODEID),
+                                           folderId,
+                                           UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),  UA_QUALIFIEDNAME(1, "DateTime"),
+                                           UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vAttr, NULL, &newnodeId);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+        readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize = 1;
+        readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables     = (UA_FieldTargetVariable *)
+            UA_calloc(readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize, sizeof(UA_FieldTargetVariable));
+
+        /* For creating Targetvariable */
+        UA_FieldTargetDataType_init(&readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[0].targetVariable);
+        readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[0].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
+        readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[0].targetVariable.targetNodeId = newnodeId;
+        retVal |= UA_Server_addDataSetReader(server, readerGroupTest, &readerConfig,
+                                             &readerIdentifier);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        UA_free(readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables);
         /* run server - publisher and subscriber */
         UA_Server_run_iterate(server,true);
         UA_Server_run_iterate(server,true);
         UA_free(pMetaData->fields);
-
-   }END_TEST
+}END_TEST
 
 START_TEST(SinglePublishSubscribeInt32) {
         /* To check status after running both publisher and subscriber */
@@ -1325,9 +1365,8 @@ int main(void) {
     tcase_add_test(tc_add_pubsub_readergroup, GetDataSetReaderConfigWithValidConfiguration);
     tcase_add_test(tc_add_pubsub_readergroup, GetDataSetReaderConfigWithInvalidConfiguration);
     tcase_add_test(tc_add_pubsub_readergroup, GetDataSetReaderConfigWithInvalidIdentifier);
+    tcase_add_test(tc_add_pubsub_readergroup, UpdateDataSetReaderConfigWithValidConfiguration);
     tcase_add_test(tc_add_pubsub_readergroup, CreateTargetVariableWithInvalidConfiguration);
-    tcase_add_test(tc_add_pubsub_readergroup, AddTargetVariableWithInvalidConfiguration);
-    tcase_add_test(tc_add_pubsub_readergroup, AddTargetVariableWithValidConfiguration);
 
     /*Test case to run both publisher and subscriber */
     TCase *tc_pubsub_publish_subscribe = tcase_create("Publisher publishing and Subscriber subscribing");

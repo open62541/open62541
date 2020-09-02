@@ -504,6 +504,12 @@ UA_Server_removeDataSetWriter(UA_Server *server, const UA_NodeId dsw);
  * It defines a list of Variable mappings between received DataSet fields and added Variables
  * in the Subscriber AddressSpace. */
 
+/* SubscribedDataSetDataType Definition */
+typedef enum {
+    UA_PUBSUB_SDS_TARGET,
+    UA_PUBSUB_SDS_MIRROR
+} UA_SubscribedDataSetEnumType;
+
 typedef struct {
     /* Standard-defined FieldTargetDataType */
     UA_FieldTargetDataType targetVariable;
@@ -521,6 +527,11 @@ typedef struct {
                        void *targetVariableContext,
                        UA_DataValue **externalDataValue);
 } UA_FieldTargetVariable;
+
+typedef struct {
+    size_t targetVariablesSize;
+    UA_FieldTargetVariable *targetVariables;
+} UA_TargetVariables;
 
 /* Return Status Code after creating TargetVariables in Subscriber AddressSpace */
 UA_StatusCode UA_EXPORT
@@ -563,6 +574,12 @@ typedef struct {
     UA_PubSubSecurityParameters securityParameters;
     UA_ExtensionObject messageSettings;
     UA_ExtensionObject transportSettings;
+    UA_SubscribedDataSetEnumType subscribedDataSetType;
+    /* TODO UA_SubscribedDataSetMirrorDataType subscribedDataSetMirror */
+    union {
+        UA_TargetVariables subscribedDataSetTarget;
+        // UA_SubscribedDataSetMirrorDataType subscribedDataSetMirror;
+    } subscribedDataSet;
 } UA_DataSetReaderConfig;
 
 /* Update configuration to the dataSetReader */
