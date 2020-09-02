@@ -163,17 +163,20 @@ UA_Notification_new(void) {
 void
 UA_Notification_delete(UA_Server *server, UA_Notification *n) {
     UA_assert(n != UA_SUBSCRIPTION_QUEUE_SENTINEL);
-    UA_Notification_dequeueMon(server, n);
-    UA_Notification_dequeueSub(n);
-    switch(n->mon->attributeId) {
+    if(n->mon != NULL)
+    {
+        UA_Notification_dequeueMon(server, n);
+        UA_Notification_dequeueSub(n);
+        switch(n->mon->attributeId) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-    case UA_ATTRIBUTEID_EVENTNOTIFIER:
-        UA_EventFieldList_clear(&n->data.event);
-        break;
+        case UA_ATTRIBUTEID_EVENTNOTIFIER:
+            UA_EventFieldList_clear(&n->data.event);
+            break;
 #endif
-    default:
-        UA_MonitoredItemNotification_clear(&n->data.dataChange);
-        break;
+        default:
+            UA_MonitoredItemNotification_clear(&n->data.dataChange);
+            break;
+        }
     }
     UA_free(n);
 }
