@@ -1326,14 +1326,18 @@ UA_Server_processNetworkMessage(UA_Server *server, UA_NetworkMessage *pMsg,
     
     /* To Do The condition pMsg->dataSetClassIdEnabled
      * Here some filtering is possible */
-    UA_Byte dsmCount = 0;
+    UA_Byte dsmCount = 1;
     if(pMsg->payloadHeaderEnabled)
         dsmCount = pMsg->payloadHeader.dataSetPayloadHeader.count;
     for(UA_Byte i = 0; i < dsmCount; i++)
     {
         UA_DataSetReader** dataSetReaders = NULL;
         UA_Byte dsrCount = 0;
-        retval = getReadersFromIdentifier(server, pMsg, pConnection, pMsg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds[i], &dataSetReaders, &dsrCount);
+        UA_UInt16 dataSetWriterId = 0;
+        if(pMsg->payloadHeaderEnabled) {
+            dataSetWriterId = pMsg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds[i];
+        }
+        retval = getReadersFromIdentifier(server, pMsg, pConnection, dataSetWriterId, &dataSetReaders, &dsrCount);
         if(retval != UA_STATUSCODE_GOOD)
             continue;
 
