@@ -652,23 +652,21 @@ UA_Server_setReaderGroupDisabled(UA_Server *server, const UA_NodeId readerGroupI
 
 static UA_StatusCode
 checkReaderIdentifier(UA_Server *server, UA_NetworkMessage *pMsg, UA_DataSetReader *reader, UA_UInt16 dataSetWriterId) {
-    if(!pMsg->groupHeaderEnabled &&
-       !pMsg->groupHeader.writerGroupIdEnabled &&
-       !pMsg->payloadHeaderEnabled) {
-        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                    "Cannot process DataSetReader without WriterGroup"
-                    "and DataSetWriter identifiers");
-        return UA_STATUSCODE_BADNOTIMPLEMENTED;
+
+    if(pMsg->groupHeaderEnabled &&
+       pMsg->groupHeader.writerGroupIdEnabled && 
+       (reader->config.writerGroupId != pMsg->groupHeader.writerGroupId)) {
+        return UA_STATUSCODE_BADNOTFOUND;
     }
 
-    if((reader->config.writerGroupId == pMsg->groupHeader.writerGroupId) &&
-       (reader->config.dataSetWriterId == dataSetWriterId)) {
-        UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
+    if(pMsg->payloadHeaderEnabled && (reader->config.dataSetWriterId != dataSetWriterId)) {
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "DataSetReader found. Process NetworkMessage");
-        return UA_STATUSCODE_GOOD;
-    }
 
-    return UA_STATUSCODE_BADNOTFOUND;
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
