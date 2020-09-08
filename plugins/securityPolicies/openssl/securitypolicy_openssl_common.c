@@ -947,8 +947,11 @@ UA_OpenSSL_LoadLocalCertificate(const UA_ByteString *certificate, UA_ByteString 
     X509_free(cert);
 
     if (length > 0) {
-        target->length = (size_t) length;
-        target->data = derData;
+        UA_ByteString temp;
+        temp.length = (size_t) length;
+        temp.data = derData;
+        UA_ByteString_copy(&temp, target);
+        OPENSSL_free(derData);
         return UA_STATUSCODE_GOOD;
     }
 
