@@ -252,16 +252,15 @@ UA_PubSubChannelMQTT_send(UA_PubSubChannel *channel, UA_ExtensionObject *transpo
  */
 static UA_StatusCode
 UA_PubSubChannelMQTT_close(UA_PubSubChannel *channel) {
-    /* already closed */
-    if(channel->state == UA_PUBSUB_CHANNEL_CLOSED)
-        return UA_STATUSCODE_GOOD;
     UA_PubSubChannelDataMQTT *channelDataMQTT = (UA_PubSubChannelDataMQTT *) channel->handle;
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Closing PubSubChannel.");
     disconnectMqtt(channelDataMQTT);
     UA_String_deleteMembers(&channelDataMQTT->mqttUsername);
     UA_String_deleteMembers(&channelDataMQTT->mqttPassword);
     UA_free(channelDataMQTT);
+    channelDataMQTT = NULL;
     UA_free(channel);
+    channel = NULL;
     return UA_STATUSCODE_GOOD;
 }
 
