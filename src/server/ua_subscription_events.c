@@ -566,12 +566,10 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
                        const UA_Boolean deleteEventNode) {
     UA_LOCK(server->serviceMutex);
 
-#if UA_LOGLEVEL <= 200
-    UA_LOG_NODEID_WRAP(&origin,
-                       UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                                    "Events: An event is triggered on node %.*s",
-                                    (int)nodeIdStr.length, nodeIdStr.data));
-#endif
+    UA_LOG_NODEID_WRAP(UA_LOGLEVEL_DEBUG, &origin,
+        UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
+            "Events: An event is triggered on node %.*s",
+            (int)nodeIdStr.length, nodeIdStr.data));
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
     UA_Boolean isCallerAC = false;
