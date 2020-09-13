@@ -47,6 +47,8 @@ typedef struct {
     struct lws_context *context;
     UA_Server *server;
     UA_ConnectionConfig config;
+    UA_ByteString certificate;
+    UA_ByteString privateKey;
 } ServerNetworkLayerWS;
 
 static UA_StatusCode
@@ -159,7 +161,7 @@ callback_opcua(struct lws *wsi, enum lws_callback_reasons reason, void *user, vo
 
         case LWS_CALLBACK_CLOSED:
             // notify server
-            if(!pss->connection->state != UA_CONNECTIONSTATE_CLOSED) {
+            if(pss->connection->state != UA_CONNECTIONSTATE_CLOSED) {
                 pss->connection->state = UA_CONNECTIONSTATE_CLOSED;
             }
 
@@ -246,18 +248,24 @@ ServerNetworkLayerWS_start(UA_ServerNetworkLayer *nl, const UA_String *customHos
 
     ServerNetworkLayerWS *layer = (ServerNetworkLayerWS *)nl->handle;
 
+    UA_Boolean isSecure = layer->certificate.length && layer->privateKey.length;
+
+    UA_String protocol = isSecure ? UA_STRING("wss") : UA_STRING("ws");
+
     /* Get the discovery url from the hostname */
     UA_String du = UA_STRING_NULL;
     char discoveryUrlBuffer[256];
     if(customHostname->length) {
-        du.length = (size_t)UA_snprintf(discoveryUrlBuffer, 255, "ws://%.*s:%d/",
+        du.length = (size_t)UA_snprintf(discoveryUrlBuffer, 255, "%.*s://%.*s:%d/",
+                                        (int)protocol.length, protocol.data,
                                         (int)customHostname->length, customHostname->data,
                                         layer->port);
         du.data = (UA_Byte *)discoveryUrlBuffer;
     } else {
         char hostnameBuffer[256];
         if(UA_gethostname(hostnameBuffer, 255) == 0) {
-            du.length = (size_t)UA_snprintf(discoveryUrlBuffer, 255, "ws://%s:%d/",
+            du.length = (size_t)UA_snprintf(discoveryUrlBuffer, 255, "%.*s://%s:%d/",
+                                            (int)protocol.length, protocol.data,
                                             hostnameBuffer, layer->port);
             du.data = (UA_Byte *)discoveryUrlBuffer;
         } else {
@@ -286,6 +294,18 @@ ServerNetworkLayerWS_start(UA_ServerNetworkLayer *nl, const UA_String *customHos
     info.options = LWS_SERVER_OPTION_HTTP_HEADERS_SECURITY_BEST_PRACTICES_ENFORCE;
     info.pvo = &pvo;
     info.user = layer;
+
+    if(isSecure) {
+        info.server_ssl_cert_mem = layer->certificate.data;
+        info.server_ssl_cert_mem_len = (unsigned int)layer->certificate.length;
+        info.server_ssl_private_key_mem = layer->privateKey.data;
+        info.server_ssl_private_key_mem_len = (unsigned int)layer->privateKey.length;
+        
+        info.options |= LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT;
+          UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK,
+                "Websocket network layer listening using WSS");
+
+    }
 
     struct lws_context *context = lws_create_context(&info);
     if(!context) {
@@ -319,12 +339,22 @@ ServerNetworkLayerWS_stop(UA_ServerNetworkLayer *nl, UA_Server *server) {
 
 static void
 ServerNetworkLayerWS_clear(UA_ServerNetworkLayer *nl) {
+    ServerNetworkLayerWS *layer = (ServerNetworkLayerWS *)nl->handle;
+
+    if(layer->certificate.length) {
+        UA_String_deleteMembers(&layer->certificate);
+    }
+
+    if(layer->privateKey.length) {
+        UA_String_deleteMembers(&layer->privateKey);
+    }
+
     UA_free(nl->handle);
     UA_String_deleteMembers(&nl->discoveryUrl);
 }
 
 UA_ServerNetworkLayer
-UA_ServerNetworkLayerWS(UA_ConnectionConfig config, UA_UInt16 port, UA_Logger *logger) {
+UA_ServerNetworkLayerWS(UA_ConnectionConfig config, UA_UInt16 port, UA_Logger *logger, const UA_ByteString* certificate, const UA_ByteString* privateKey) {
     UA_ServerNetworkLayer nl;
     memset(&nl, 0, sizeof(UA_ServerNetworkLayer));
     nl.clear = ServerNetworkLayerWS_clear;
@@ -341,5 +371,10 @@ UA_ServerNetworkLayerWS(UA_ConnectionConfig config, UA_UInt16 port, UA_Logger *l
     layer->logger = logger;
     layer->port = port;
     layer->config = config;
-    return nl;
+
+    if(certificate && privateKey) {
+        UA_String_copy(certificate,&layer->certificate);
+        UA_String_copy(privateKey,&layer->privateKey);
+    }
+     return nl;
 }
