@@ -15,6 +15,7 @@
 #include <open62541/plugin/pubsub_udp.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
+#include <open62541/types_generated_encoding_binary.h>
 
 #include "ua_pubsub_networkmessage.h"
 
@@ -61,7 +62,6 @@ subscriberListen(UA_PubSubChannel *psc) {
     memset(&networkMessage, 0, sizeof(UA_NetworkMessage));
     size_t currentPosition = 0;
     UA_NetworkMessage_decodeBinary(&buffer, &currentPosition, &networkMessage);
-    UA_ByteString_clear(&buffer);
 
     /* Is this the correct message type? */
     if(networkMessage.networkMessageType != UA_NETWORKMESSAGE_DATASET)
@@ -77,29 +77,43 @@ subscriberListen(UA_PubSubChannel *psc) {
         UA_DataSetMessage *dsm = &networkMessage.payload.dataSetPayload.dataSetMessages[j];
         if(dsm->header.dataSetMessageType != UA_DATASETMESSAGE_DATAKEYFRAME)
             continue;
-
-        /* Loop over the fields and print well-known content types */
-        for(int i = 0; i < dsm->data.keyFrameData.fieldCount; i++) {
-            const UA_DataType *currentType = dsm->data.keyFrameData.dataSetFields[i].value.type;
-            if(currentType == &UA_TYPES[UA_TYPES_BYTE]) {
-                UA_Byte value = *(UA_Byte *)dsm->data.keyFrameData.dataSetFields[i].value.data;
-                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                            "Message content: [Byte] \tReceived data: %i", value);
-            } else if (currentType == &UA_TYPES[UA_TYPES_UINT32]) {
-                UA_UInt32 value = *(UA_UInt32 *)dsm->data.keyFrameData.dataSetFields[i].value.data;
-                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                            "Message content: [UInt32] \tReceived data: %u", value);
-            } else if (currentType == &UA_TYPES[UA_TYPES_DATETIME]) {
-                UA_DateTime value = *(UA_DateTime *)dsm->data.keyFrameData.dataSetFields[i].value.data;
-                UA_DateTimeStruct receivedTime = UA_DateTime_toStruct(value);
-                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                            "Message content: [DateTime] \t"
-                            "Received date: %02i-%02i-%02i Received time: %02i:%02i:%02i",
-                            receivedTime.year, receivedTime.month, receivedTime.day,
-                            receivedTime.hour, receivedTime.min, receivedTime.sec);
+        if(dsm->header.fieldEncoding == UA_FIELDENCODING_RAWDATA){
+            //The RAW-Encoded payload contains no fieldCount information
+            UA_DateTime dateTime;
+            size_t offset = 0;
+            UA_DateTime_decodeBinary(&dsm->data.keyFrameData.rawFields, &offset, &dateTime);
+            //UA_DateTime value = *(UA_DateTime *)dsm->data.keyFrameData.rawFields->data;
+            UA_DateTimeStruct receivedTime = UA_DateTime_toStruct(dateTime);
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                        "Message content: [DateTime] \t"
+                        "Received date: %02i-%02i-%02i Received time: %02i:%02i:%02i",
+                        receivedTime.year, receivedTime.month, receivedTime.day,
+                        receivedTime.hour, receivedTime.min, receivedTime.sec);
+        } else {
+            /* Loop over the fields and print well-known content types */
+            for(int i = 0; i < dsm->data.keyFrameData.fieldCount; i++) {
+                const UA_DataType *currentType = dsm->data.keyFrameData.dataSetFields[i].value.type;
+                if(currentType == &UA_TYPES[UA_TYPES_BYTE]) {
+                    UA_Byte value = *(UA_Byte *)dsm->data.keyFrameData.dataSetFields[i].value.data;
+                    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                                "Message content: [Byte] \tReceived data: %i", value);
+                } else if (currentType == &UA_TYPES[UA_TYPES_UINT32]) {
+                    UA_UInt32 value = *(UA_UInt32 *)dsm->data.keyFrameData.dataSetFields[i].value.data;
+                    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                                "Message content: [UInt32] \tReceived data: %u", value);
+                } else if (currentType == &UA_TYPES[UA_TYPES_DATETIME]) {
+                    UA_DateTime value = *(UA_DateTime *)dsm->data.keyFrameData.dataSetFields[i].value.data;
+                    UA_DateTimeStruct receivedTime = UA_DateTime_toStruct(value);
+                    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                                "Message content: [DateTime] \t"
+                                "Received date: %02i-%02i-%02i Received time: %02i:%02i:%02i",
+                                receivedTime.year, receivedTime.month, receivedTime.day,
+                                receivedTime.hour, receivedTime.min, receivedTime.sec);
+                }
             }
         }
     }
+    UA_ByteString_clear(&buffer);
 
     cleanup:
     UA_NetworkMessage_clear(&networkMessage);
