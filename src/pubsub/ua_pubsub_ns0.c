@@ -17,9 +17,6 @@
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL /* conditional compilation */
 
-#define UA_MAX_STRLENGTH        512  /* Maximum String length */
-#define NULL_TERMINATING_STRING '\0' /* Null terminate the string */
-
 typedef struct{
     UA_NodeId parentNodeId;
     UA_UInt32 parentClassifier;
@@ -130,16 +127,19 @@ onRead(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
     }
     case UA_NS0ID_DATASETREADERTYPE: {
         UA_DataSetReader *dataSetReader = UA_ReaderGroup_findDSRbyId(server, *myNodeId);
-            switch(nodeContext->elementClassiefier) {
-            case UA_NS0ID_DATASETREADERTYPE_PUBLISHERID:
-                    UA_Variant_setScalar(&value, dataSetReader->config.publisherId.data,
-                                         &UA_TYPES[UA_TYPES_UINT16]);
+        if(!dataSetReader)
+            return;
+
+        switch(nodeContext->elementClassiefier) {
+        case UA_NS0ID_DATASETREADERTYPE_PUBLISHERID:
+            UA_Variant_setScalar(&value, dataSetReader->config.publisherId.data,
+                                 dataSetReader->config.publisherId.type);
             break;
-            default:
-                 UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                               "Read error! Unknown property.");
-            }
-            break;
+        default:
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "Read error! Unknown property.");
+        }
+        break;
     }
     case UA_NS0ID_WRITERGROUPTYPE: {
         UA_WriterGroup *writerGroup = UA_WriterGroup_findWGbyId(server, *myNodeId);
@@ -442,28 +442,29 @@ addDataSetReaderRepresentation(UA_Server *server, UA_DataSetReader *dataSetReade
     UA_NodeId publisherIdNode, writerGroupIdNode, dataSetwriterIdNode;
 
     /* Display DataSetReaderName */
-    if(dataSetReader->config.name.length > UA_MAX_STRLENGTH)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+    if(dataSetReader->config.name.length > 512)
+        return UA_STATUSCODE_BADCONFIGURATIONERROR;
+
     UA_STACKARRAY(char, dsrName, sizeof(char) * dataSetReader->config.name.length + 1);
     memcpy(dsrName, dataSetReader->config.name.data, dataSetReader->config.name.length);
-    dsrName[dataSetReader->config.name.length] = NULL_TERMINATING_STRING;
+    dsrName[dataSetReader->config.name.length] = '\0';
     //This code block must use a lock
     UA_NODESTORE_REMOVE(server, &dataSetReader->identifier);
     retVal |= addPubSubObjectNode(server, dsrName, dataSetReader->identifier.identifier.numeric,
-                                   dataSetReader->linkedReaderGroup.identifier.numeric,
-                                   UA_NS0ID_HASDATASETREADER, UA_NS0ID_DATASETREADERTYPE);
+                                  dataSetReader->linkedReaderGroup.identifier.numeric,
+                                  UA_NS0ID_HASDATASETREADER, UA_NS0ID_DATASETREADERTYPE);
     //End lock zone
 
     /* Add childNodes such as PublisherId, WriterGroupId and DataSetWriterId in DataSetReader object */
     publisherIdNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublisherId"),
-                                           UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                                           UA_NODEID_NUMERIC(0, dataSetReader->identifier.identifier.numeric));
+                                          UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                                          UA_NODEID_NUMERIC(0, dataSetReader->identifier.identifier.numeric));
     writerGroupIdNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "WriterGroupId"),
-                                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                                             UA_NODEID_NUMERIC(0, dataSetReader->identifier.identifier.numeric));
+                                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                                            UA_NODEID_NUMERIC(0, dataSetReader->identifier.identifier.numeric));
     dataSetwriterIdNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetWriterId"),
-                                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                                               UA_NODEID_NUMERIC(0, dataSetReader->identifier.identifier.numeric));
+                                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                                              UA_NODEID_NUMERIC(0, dataSetReader->identifier.identifier.numeric));
 
     if(UA_NodeId_equal(&publisherIdNode, &UA_NODEID_NULL)
         || UA_NodeId_equal(&writerGroupIdNode, &UA_NODEID_NULL)
@@ -968,13 +969,13 @@ addReaderGroupRepresentation(UA_Server *server, UA_ReaderGroup *readerGroup){
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
 
     /* Display ReaderGroupName */
-    if(readerGroup->config.name.length > UA_MAX_STRLENGTH) {
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+    if(readerGroup->config.name.length > 512) {
+        return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
     else {
     UA_STACKARRAY(char, rgName, sizeof(char) * readerGroup->config.name.length + 1);
     memcpy(rgName, readerGroup->config.name.data, readerGroup->config.name.length);
-    rgName[readerGroup->config.name.length] = NULL_TERMINATING_STRING;
+    rgName[readerGroup->config.name.length] = '\0';
     //This code block must use a lock
     UA_NODESTORE_REMOVE(server, &readerGroup->identifier);
 
@@ -983,6 +984,7 @@ addReaderGroupRepresentation(UA_Server *server, UA_ReaderGroup *readerGroup){
                                   readerGroup->linkedConnection.identifier.numeric,
                                   UA_NS0ID_HASCOMPONENT, UA_NS0ID_READERGROUPTYPE);
     }
+
     //End lock zone
     return retVal;
 }
