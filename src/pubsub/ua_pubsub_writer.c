@@ -613,6 +613,19 @@ generateFieldMetaData(UA_Server *server, UA_DataSetField *field, UA_FieldMetaDat
                     return UA_STATUSCODE_BADINTERNALERROR;
                 }
             }
+            if(!UA_NodeId_isNull(&fieldMetaData->dataType)){
+                const UA_DataType * currentDataType =
+                    UA_findDataTypeWithCustom(&fieldMetaData->dataType,
+                                              server->config.customDataTypes);
+                UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                               "MetaData creation. Found DataType %s.", currentDataType->typeName);
+                //check if the datatype is a builtInType, if yes set the builtinType
+                if(currentDataType->typeIndex <= 135)
+                    fieldMetaData->builtInType = (UA_Byte)currentDataType->typeIndex;
+            } else {
+                UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                               "PubSub meta data generation. DataType Node is UA_NODEID_NULL.");
+            }
             fieldMetaData->properties = NULL;
             fieldMetaData->propertiesSize = 0;
             UA_Int32 valueRank;
@@ -1729,8 +1742,7 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server, UA_DataSetMessage *da
         dataSetWriterMessageDataType->configuredSize = 0;
     }
 
-    /* The field encoding depends on the flags inside the writer config.
-     * TODO: This can be moved to the encoding layer. */
+    /* The field encoding depends on the flags inside the writer config. */
     if(dataSetWriter->config.dataSetFieldContentMask &
        (u64)UA_DATASETFIELDCONTENTMASK_RAWDATA) {
         dataSetMessage->header.fieldEncoding = UA_FIELDENCODING_RAWDATA;

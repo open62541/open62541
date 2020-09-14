@@ -13,7 +13,7 @@
 /* possible options: PUBSUB_CONFIG_FASTPATH_NONE, PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS, PUBSUB_CONFIG_FASTPATH_STATIC_VALUES */
 #define PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
 #define PUBSUB_CONFIG_PUBLISH_CYCLE_MS 100
-#define PUBSUB_CONFIG_PUBLISH_CYCLES 100
+#define PUBSUB_CONFIG_PUBLISH_CYCLES 1000000
 #define PUBSUB_CONFIG_FIELD_COUNT 10
 
 /**
@@ -30,6 +30,7 @@
  * PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS -> The published fields are not visible in the information model. After the PubSub-configuration
  * freeze, the NetworkMessages and DataSetMessages will be calculated and buffered. During the publish cycle these buffers will only be updated.
  */
+
 
 UA_NodeId publishedDataSetIdent, dataSetFieldIdent, writerGroupIdent, connectionIdentifier;
 UA_UInt32 *valueStore[PUBSUB_CONFIG_FIELD_COUNT];
@@ -142,6 +143,10 @@ int main(void) {
     dataSetWriterConfig.name = UA_STRING("Demo DataSetWriter");
     dataSetWriterConfig.dataSetWriterId = 62541;
     dataSetWriterConfig.keyFrameCount = 10;
+
+    /* Encode fields as RAW-Encoded */
+    dataSetWriterConfig.dataSetFieldContentMask = UA_DATASETFIELDCONTENTMASK_RAWDATA;
+
     UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent, &dataSetWriterConfig, &dataSetWriterIdent);
 
 #if defined PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS || defined PUBSUB_CONFIG_FASTPATH_STATIC_VALUES
