@@ -742,19 +742,23 @@ getReadersFromIdentifier(UA_Server *server, UA_NetworkMessage *pMsg, UA_PubSubCo
 
             if(retval == UA_STATUSCODE_GOOD) {
                 ++dsrCount;
-                tmpDataSetReaders = (UA_DataSetReader**)UA_realloc(tmpDataSetReaders, sizeof(UA_DataSetReader*) * dsrCount);
-                if(tmpDataSetReaders == NULL) {
+                UA_DataSetReader** tmpReaders = (UA_DataSetReader**)UA_realloc(tmpDataSetReaders, sizeof(UA_DataSetReader*) * dsrCount);
+                if(tmpReaders == NULL) {
+                    UA_free(tmpDataSetReaders);
                     return UA_STATUSCODE_BADOUTOFMEMORY;
                 }
+
+                tmpDataSetReaders = tmpReaders;
                 tmpDataSetReaders[dsrCount-1] = tmpReader;
             }
         }
     }
 
-    *dataSetReaders = tmpDataSetReaders;
-    *dataSetReaderCount = dsrCount; 
-    if(dsrCount > 0)
+    if(dsrCount > 0) {
+        *dataSetReaderCount = dsrCount; 
+        *dataSetReaders = tmpDataSetReaders;
         return UA_STATUSCODE_GOOD;
+    }
     
     UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
                 "Dataset reader not found. Check PublisherID, WriterGroupID and DatasetWriterID");
