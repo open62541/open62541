@@ -319,8 +319,8 @@ UA_Server_evaluateWhereClauseContentFilter(
                 UA_Variant typeNodeIdVariant;
                 UA_Variant_init(&typeNodeIdVariant);
                 UA_StatusCode readStatusCode =
-                    UA_Server_readObjectProperty(server, *eventNode,
-                                                 eventTypeQualifiedName, &typeNodeIdVariant);
+                    readObjectProperty(server, *eventNode, eventTypeQualifiedName,
+                                       &typeNodeIdVariant);
                 if(readStatusCode != UA_STATUSCODE_GOOD)
                     return readStatusCode;
 
