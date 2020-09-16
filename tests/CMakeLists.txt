@@ -354,6 +354,12 @@ if(UA_ENABLE_PUBSUB)
     #Link libraries for executing subscriber unit test
     add_executable(check_pubsub_subscribe pubsub/check_pubsub_subscribe.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
     target_link_libraries(check_pubsub_subscribe ${LIBS})
+
+    add_executable(check_pubsub_xx pubsub/check_pubsub_xx.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
+    target_compile_definitions(check_pubsub_xx PUBLIC -D_POSIX_C_SOURCE=199309L)
+    target_link_libraries(check_pubsub_xx ${LIBS})
+    add_test_valgrind(check_pubsub_xx ${TESTS_BINARY_DIR}/check_pubsub_xx)
+
     add_executable(check_pubsub_publishspeed pubsub/check_pubsub_publishspeed.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
     target_link_libraries(check_pubsub_publishspeed ${LIBS})
     add_test_valgrind(pubsub_publishspeed ${TESTS_BINARY_DIR}/check_pubsub_publish)

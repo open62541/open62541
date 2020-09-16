@@ -1360,6 +1360,12 @@ UA_Server_DataSetReader_process(UA_Server *server, UA_DataSetReader *dataSetRead
                                                       dataSetMsg->data.keyFrameData.dataSetFields[i].value);
                         if(retVal != UA_STATUSCODE_GOOD)
                             UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Error Write Value KF %" PRIu16 ": 0x%"PRIx32, i, retVal);
+
+                        if (dataSetMsg->data.keyFrameData.dataSetFields[i].value.type == &UA_TYPES[UA_TYPES_INT32]) {
+                            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_USERLAND, "DataSetReader '%.*s' received value: %i", 
+                                (int) dataSetReader->config.name.length, dataSetReader->config.name.data,
+                                *((UA_Int32*) dataSetMsg->data.keyFrameData.dataSetFields[i].value.data));
+                        }
                     }
                     else {
                         UA_WriteValue writeVal;

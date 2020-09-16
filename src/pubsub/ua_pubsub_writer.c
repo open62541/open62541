@@ -1438,6 +1438,10 @@ UA_PubSubDataSetField_sampleValue(UA_Server *server, UA_DataSetField *field,
         rvid.attributeId = field->config.field.variable.publishParameters.attributeId;
         rvid.indexRange = field->config.field.variable.publishParameters.indexRange;
         *value = UA_Server_read(server, &rvid, UA_TIMESTAMPSTORETURN_BOTH);
+        if (value->value.type == &UA_TYPES[UA_TYPES_INT32]) {
+            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_USERLAND, "Publisher sample value: %i", 
+                *((UA_Int32*) value->value.data));
+        }
     } else {
         *value = **field->config.field.variable.rtValueSource.staticValueSource;
         value->value.storageType = UA_VARIANT_DATA_NODELETE;
@@ -1483,6 +1487,8 @@ UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_Server *server,
 
         /* Sample the value */
         UA_DataValue *dfv = &dataSetMessage->data.keyFrameData.dataSetFields[counter];
+        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_USERLAND, "DSW '%.*s' call UA_PubSubDataSetField_sampleValue()", 
+            (UA_Int32) dataSetWriter->config.name.length, dataSetWriter->config.name.data);
         UA_PubSubDataSetField_sampleValue(server, dsf, dfv);
 
         /* Deactivate statuscode? */
