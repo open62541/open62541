@@ -48,9 +48,9 @@ def makeCIdentifier(value):
 
 def getNodeidTypeAndId(nodeId):
     if '=' not in nodeId:
-        return "UA_NODEIDTYPE_NUMERIC, {{{0}}}".format(nodeId)
+        return "UA_NODEIDTYPE_NUMERIC, {{{0}LU}}".format(nodeId)
     if nodeId.startswith("i="):
-        return "UA_NODEIDTYPE_NUMERIC, {{{0}}}".format(nodeId[2:])
+        return "UA_NODEIDTYPE_NUMERIC, {{{0}LU}}".format(nodeId[2:])
     if nodeId.startswith("s="):
         strId = nodeId[2:]
         return "UA_NODEIDTYPE_STRING, {{ .string = UA_STRING_STATIC(\"{id}\") }}".format(id=strId.replace("\"", "\\\""))
@@ -143,7 +143,7 @@ class CGenerator(object):
                "    " + pointerfree + ", /* .pointerFree */\n" + \
                "    " + self.get_type_overlayable(datatype) + ", /* .overlayable */\n" + \
                "    " + str(len(datatype.members)) + ", /* .membersSize */\n" + \
-               "    " + binaryEncodingId + ", /* .binaryEncodingId */\n" + \
+               "    " + binaryEncodingId + "LU, /* .binaryEncodingId */\n" + \
                "    %s_members" % idName + " /* .members */\n}"
 
     @staticmethod

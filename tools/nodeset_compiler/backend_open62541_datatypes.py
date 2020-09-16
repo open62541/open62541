@@ -82,7 +82,7 @@ def generateNodeIdCode(value):
     if not value:
         return "UA_NODEID_NUMERIC(0, 0)"
     if value.i != None:
-        return "UA_NODEID_NUMERIC(ns[%s], %s)" % (value.ns, value.i)
+        return "UA_NODEID_NUMERIC(ns[%s], %sLU)" % (value.ns, value.i)
     elif value.s != None:
         v = makeCLiteral(value.s)
         return u"UA_NODEID_STRING(ns[%s], \"%s\")" % (value.ns, v)
@@ -90,7 +90,7 @@ def generateNodeIdCode(value):
 
 def generateExpandedNodeIdCode(value):
     if value.i != None:
-        return "UA_EXPANDEDNODEID_NUMERIC(ns[%s], %s)" % (str(value.ns), str(value.i))
+        return "UA_EXPANDEDNODEID_NUMERIC(ns[%s], %sLU)" % (str(value.ns), str(value.i))
     elif value.s != None:
         vs = makeCLiteral(value.s)
         return u"UA_EXPANDEDNODEID_STRING(ns[%s], \"%s\")" % (str(value.ns), vs)
