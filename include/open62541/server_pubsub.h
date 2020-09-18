@@ -359,6 +359,31 @@ UA_DataSetFieldResult UA_EXPORT
 UA_Server_removeDataSetField(UA_Server *server, const UA_NodeId dsf);
 
 /**
+ * Custom Callback Implementation
+ * ----------------------------
+ * The user can use his own callback implementation for publishing
+ * and subscribing. The user must take care of the callback to call for
+ * every publishing or subscibing interval */
+
+typedef void (*UA_CustomPublishCallback)(UA_Server *server, void *data);
+
+typedef enum {
+    DEFAULT_PUBSUB_MANAGER_CALLBACK, // one which uses default timer implementation
+    CUSTOM_PUBSUB_MANAGER_CALLBACK
+} UA_PubSubCallbackType;
+
+typedef struct {
+    UA_StatusCode (*addCustomCallback)(UA_Server *server, UA_CustomPublishCallback callback,
+                                       void *data, UA_Double interval_ms, UA_UInt64 *callbackId);
+
+    UA_StatusCode (*changeCustomCallbackInterval)(UA_Server *server, UA_UInt64 callbackId,
+                                                  UA_Double interval_ms);
+
+    UA_StatusCode (*removeCustomCallback)(UA_Server *server, UA_UInt64 callbackId);
+
+} UA_PubSub_customManagerCallback;
+
+/**
  * WriterGroup
  * -----------
  * All WriterGroups are created within a PubSubConnection and automatically
@@ -422,7 +447,9 @@ typedef struct {
     size_t groupPropertiesSize;
     UA_KeyValuePair *groupProperties;
     UA_PubSubEncodingType encodingMimeType;
-
+    /* PubSub Manager Callback */
+    UA_PubSubCallbackType pubsubCallbackType;
+    UA_PubSub_customManagerCallback pubsubManagerCallback;
     /* non std. config parameter. maximum count of embedded DataSetMessage in
      * one NetworkMessage */
     UA_UInt16 maxEncapsulatedDataSetMessageCount;
@@ -643,6 +670,9 @@ UA_Server_DataSetReader_getState(UA_Server *server, UA_NodeId dataSetReaderIdent
 typedef struct {
     UA_String name;
     UA_PubSubSecurityParameters securityParameters;
+    /* PubSub Manager Callback */
+    UA_PubSubCallbackType pubsubCallbackType;
+    UA_PubSub_customManagerCallback pubsubManagerCallback;
     /* non std. field */
     UA_PubSubRTLevel rtLevel;
 } UA_ReaderGroupConfig;
