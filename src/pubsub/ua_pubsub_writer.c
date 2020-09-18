@@ -164,6 +164,17 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
+    /* Verify Custom callbacks are registered in CUSTOM_PUBSUB_MANAGER_CALLBACK mode */
+    if(writerGroupConfig->pubsubCallbackType == CUSTOM_PUBSUB_MANAGER_CALLBACK) {
+        if(!(writerGroupConfig->pubsubManagerCallback.addCustomCallback &&
+           writerGroupConfig->pubsubManagerCallback.changeCustomCallbackInterval &&
+           writerGroupConfig->pubsubManagerCallback.removeCustomCallback)) {
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "Custom callbacks are not defined. Adding WriterGroup failed.");
+            return UA_STATUSCODE_BADCONFIGURATIONERROR;
+        }
+    }
+
     /* Validate messageSettings type */
     if (writerGroupConfig->messageSettings.content.decoded.type) {
         if (writerGroupConfig->encodingMimeType == UA_PUBSUB_ENCODING_JSON &&
@@ -178,7 +189,6 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
             return UA_STATUSCODE_BADTYPEMISMATCH;
         }
     }
-
 
     //allocate memory for new WriterGroup
     UA_WriterGroup *newWriterGroup = (UA_WriterGroup *) UA_calloc(1, sizeof(UA_WriterGroup));
@@ -233,7 +243,11 @@ UA_Server_removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup) {
     }
     if(wg->state == UA_PUBSUBSTATE_OPERATIONAL){
         //unregister the publish callback
-        UA_PubSubManager_removeRepeatedPubSubCallback(server, wg->publishCallbackId);
+        if(wg->config.pubsubCallbackType == DEFAULT_PUBSUB_MANAGER_CALLBACK)
+            UA_PubSubManager_removeRepeatedPubSubCallback(server, wg->publishCallbackId);
+        else
+            wg->config.pubsubManagerCallback.removeCustomCallback(server, wg->publishCallbackId);
+
     }
 
     connection->writerGroupsSize--;
@@ -1043,7 +1057,11 @@ UA_Server_updateWriterGroupConfig(UA_Server *server, UA_NodeId writerGroupIdenti
     }
     if(currentWriterGroup->config.publishingInterval != config->publishingInterval) {
         if(currentWriterGroup->config.rtLevel == UA_PUBSUB_RT_NONE && currentWriterGroup->state == UA_PUBSUBSTATE_OPERATIONAL){
-            UA_PubSubManager_removeRepeatedPubSubCallback(server, currentWriterGroup->publishCallbackId);
+            if(currentWriterGroup->config.pubsubCallbackType == DEFAULT_PUBSUB_MANAGER_CALLBACK)
+                UA_PubSubManager_removeRepeatedPubSubCallback(server, currentWriterGroup->publishCallbackId);
+            else
+                currentWriterGroup->config.pubsubManagerCallback.removeCustomCallback(server, currentWriterGroup->publishCallbackId);   
+
             currentWriterGroup->config.publishingInterval = config->publishingInterval;
             UA_WriterGroup_addPublishCallback(server, currentWriterGroup);
         } else {
@@ -1127,7 +1145,11 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_PubSubState state, UA_Writer
                 case UA_PUBSUBSTATE_PAUSED:
                     break;
                 case UA_PUBSUBSTATE_OPERATIONAL:
-                    UA_PubSubManager_removeRepeatedPubSubCallback(server, writerGroup->publishCallbackId);
+                    if(writerGroup->config.pubsubCallbackType == DEFAULT_PUBSUB_MANAGER_CALLBACK)
+                        UA_PubSubManager_removeRepeatedPubSubCallback(server, writerGroup->publishCallbackId);
+                    else
+                        writerGroup->config.pubsubManagerCallback.removeCustomCallback(server, writerGroup->publishCallbackId);   
+
                     LIST_FOREACH(dataSetWriter, &writerGroup->writers, listEntry){
                         UA_DataSetWriter_setPubSubState(server, UA_PUBSUBSTATE_DISABLED, dataSetWriter);
                     }
@@ -1159,7 +1181,11 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_PubSubState state, UA_Writer
             switch (writerGroup->state){
                 case UA_PUBSUBSTATE_DISABLED:
                     writerGroup->state = UA_PUBSUBSTATE_OPERATIONAL;
-                    UA_PubSubManager_removeRepeatedPubSubCallback(server, writerGroup->publishCallbackId);
+                    if(writerGroup->config.pubsubCallbackType == DEFAULT_PUBSUB_MANAGER_CALLBACK)
+                        UA_PubSubManager_removeRepeatedPubSubCallback(server, writerGroup->publishCallbackId);
+                    else
+                        writerGroup->config.pubsubManagerCallback.removeCustomCallback(server, writerGroup->publishCallbackId);
+
                     LIST_FOREACH(dataSetWriter, &writerGroup->writers, listEntry){
                         UA_DataSetWriter_setPubSubState(server, UA_PUBSUBSTATE_OPERATIONAL, dataSetWriter);
                     }
@@ -2191,11 +2217,18 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
  * creation. */
 UA_StatusCode
 UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
-    UA_StatusCode retval =
-        UA_PubSubManager_addRepeatedCallback(server,
-                                             (UA_ServerCallback) UA_WriterGroup_publishCallback,
-                                             writerGroup, writerGroup->config.publishingInterval,
-                                             &writerGroup->publishCallbackId);
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(writerGroup->config.pubsubCallbackType == DEFAULT_PUBSUB_MANAGER_CALLBACK)
+        retval |= UA_PubSubManager_addRepeatedCallback(server,
+                                                       (UA_ServerCallback) UA_WriterGroup_publishCallback,
+                                                       writerGroup, writerGroup->config.publishingInterval,
+                                                       &writerGroup->publishCallbackId);
+    else
+        retval |= writerGroup->config.pubsubManagerCallback.addCustomCallback(server,
+                                                                              (UA_CustomPublishCallback) UA_WriterGroup_publishCallback,
+                                                                              writerGroup, writerGroup->config.publishingInterval,
+                                                                              &writerGroup->publishCallbackId);
+
     if(retval == UA_STATUSCODE_GOOD)
         writerGroup->publishCallbackIsRegistered = true;
 
