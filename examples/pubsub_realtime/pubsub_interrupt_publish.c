@@ -154,10 +154,10 @@ publishInterrupt(int sig, siginfo_t* si, void* uc) {
  * server control flow. */
 
 UA_StatusCode
-UA_PubSubManager_addRepeatedCallback(UA_Server *server,
-                                     UA_ServerCallback callback,
-                                     void *data, UA_Double interval_ms,
-                                     UA_UInt64 *callbackId) {
+addPubSubApplicationCallback(UA_Server *server,
+                             UA_ServerCallback callback,
+                             void *data, UA_Double interval_ms,
+                             UA_UInt64 *callbackId) {
     if(pubCallback) {
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                        "At most one publisher can be registered for interrupt callbacks");
@@ -220,9 +220,9 @@ UA_PubSubManager_addRepeatedCallback(UA_Server *server,
 }
 
 UA_StatusCode
-UA_PubSubManager_changeRepeatedCallbackInterval(UA_Server *server,
-                                                UA_UInt64 callbackId,
-                                                UA_Double interval_ms) {
+changePubSubApplicationCallbackInterval(UA_Server *server,
+                                        UA_UInt64 callbackId,
+                                        UA_Double interval_ms) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                 "Switching the publisher cycle to %lf milliseconds", interval_ms);
 
@@ -249,7 +249,7 @@ UA_PubSubManager_changeRepeatedCallbackInterval(UA_Server *server,
 }
 
 void
-UA_PubSubManager_removeRepeatedPubSubCallback(UA_Server *server, UA_UInt64 callbackId) {
+removePubSubApplicationCallback(UA_Server *server, UA_UInt64 callbackId) {
     if(!pubCallback)
         return;
     timer_delete(pubEventTimer);
@@ -307,6 +307,10 @@ addPubSubConfiguration(UA_Server* server) {
     writerGroupConfig.enabled = UA_FALSE;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
     writerGroupConfig.rtLevel = PUBSUB_RT_LEVEL;
+    writerGroupConfig.pubsubCallbackType = CUSTOM_PUBSUB_MANAGER_CALLBACK;
+    writerGroupConfig.pubsubManagerCallback.addCustomCallback = addPubSubApplicationCallback;
+    writerGroupConfig.pubsubManagerCallback.changeCustomCallbackInterval = changePubSubApplicationCallbackInterval;
+    writerGroupConfig.pubsubManagerCallback.removeCustomCallback = removePubSubApplicationCallback;
     UA_Server_addWriterGroup(server, connectionIdent,
                              &writerGroupConfig, &writerGroupIdent);
 

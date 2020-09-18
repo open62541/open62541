@@ -236,6 +236,55 @@ static void nanoSecondFieldConversion(struct timespec *timeSpecValue) {
 
 }
 
+/* Add a callback for cyclic repetition */
+UA_StatusCode
+addPubSubApplicationCallback(UA_Server *server, UA_ServerCallback callback,
+                             void *data, UA_Double interval_ms, UA_UInt64 *callbackId) {
+    /* Initialize arguments required for the thread to run */
+    threadArg *threadArguments = (threadArg *) UA_malloc(sizeof(threadArg));
+
+    /* Pass the value required for the threads */
+    threadArguments->server      = server;
+    threadArguments->data        = data;
+    threadArguments->callback    = callback;
+    threadArguments->interval_ms = interval_ms;
+    threadArguments->callbackId  = callbackId;
+
+    /* Check the writer group identifier and create the thread accordingly */
+    UA_WriterGroup *tmpWriter = (UA_WriterGroup *) data;
+    if(UA_NodeId_equal(&tmpWriter->identifier, &writerGroupIdent)) {
+#if defined(PUBLISHER)
+        /* Create the publisher thread with the required priority and core affinity */
+        char threadNamePub[10] = "Publisher";
+        pubthreadID            = threadCreation(PUB_SCHED_PRIORITY, CORE_TWO, publisherETF, threadNamePub, threadArguments);
+#endif
+    }
+    else {
+#if defined(SUBSCRIBER)
+        /* Create the subscriber thread with the required priority and core affinity */
+        char threadNameSub[11] = "Subscriber";
+        subthreadID            = threadCreation(SUB_SCHED_PRIORITY, CORE_TWO, subscriber, threadNameSub, threadArguments);
+#endif
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+changePubSubApplicationCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
+                                        UA_Double interval_ms) {
+    /* Callback interval need not be modified as it is thread based implementation.
+     * The thread uses nanosleep for calculating cycle time and modification in
+     * nanosleep value changes cycle time */
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Remove the callback added for cyclic repetition */
+void
+removePubSubApplicationCallback(UA_Server *server, UA_UInt64 callbackId) {
+    /* TODO Thread exit functions using pthread join and exit */
+}
+
 #if defined PUBSUB_CONFIG_RT_INFORMATION_MODEL
 /* If the external data source is written over the information model, the
  * externalDataWriteCallback will be triggered. The user has to take care and assure
@@ -288,6 +337,7 @@ addPubSubConnectionSubscriber(UA_Server *server, UA_NetworkAddressUrlDataType *n
     if (retval == UA_STATUSCODE_GOOD)
          UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,"The PubSub Connection was created successfully!");
 }
+
 /* Add ReaderGroup to the created connection */
 static void
 addReaderGroup(UA_Server *server) {
@@ -301,6 +351,11 @@ addReaderGroup(UA_Server *server) {
 #if defined PUBSUB_CONFIG_RT_INFORMATION_MODEL
     readerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
 #endif
+    readerGroupConfig.pubsubCallbackType = CUSTOM_PUBSUB_MANAGER_CALLBACK;
+    readerGroupConfig.pubsubManagerCallback.addCustomCallback = addPubSubApplicationCallback;
+    readerGroupConfig.pubsubManagerCallback.changeCustomCallbackInterval = changePubSubApplicationCallbackInterval;
+    readerGroupConfig.pubsubManagerCallback.removeCustomCallback = removePubSubApplicationCallback;
+
     UA_Server_addReaderGroup(server, connectionIdentSubscriber, &readerGroupConfig,
                              &readerGroupIdentifier);
 }
@@ -425,55 +480,6 @@ addDataSetReader(UA_Server *server) {
 }
 
 #endif
-
-/* Add a callback for cyclic repetition */
-UA_StatusCode
-UA_PubSubManager_addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
-                                     void *data, UA_Double interval_ms, UA_UInt64 *callbackId) {
-    /* Initialize arguments required for the thread to run */
-    threadArg *threadArguments = (threadArg *) UA_malloc(sizeof(threadArg));
-
-    /* Pass the value required for the threads */
-    threadArguments->server      = server;
-    threadArguments->data        = data;
-    threadArguments->callback    = callback;
-    threadArguments->interval_ms = interval_ms;
-    threadArguments->callbackId  = callbackId;
-
-    /* Check the writer group identifier and create the thread accordingly */
-    UA_WriterGroup *tmpWriter = (UA_WriterGroup *) data;
-    if(UA_NodeId_equal(&tmpWriter->identifier, &writerGroupIdent)) {
-#if defined(PUBLISHER)
-        /* Create the publisher thread with the required priority and core affinity */
-        char threadNamePub[10] = "Publisher";
-        pubthreadID            = threadCreation(PUB_SCHED_PRIORITY, CORE_TWO, publisherETF, threadNamePub, threadArguments);
-#endif
-    }
-    else {
-#if defined(SUBSCRIBER)
-        /* Create the subscriber thread with the required priority and core affinity */
-        char threadNameSub[11] = "Subscriber";
-        subthreadID            = threadCreation(SUB_SCHED_PRIORITY, CORE_TWO, subscriber, threadNameSub, threadArguments);
-#endif
-    }
-
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode
-UA_PubSubManager_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
-                                                UA_Double interval_ms) {
-    /* Callback interval need not be modified as it is thread based implementation.
-     * The thread uses nanosleep for calculating cycle time and modification in
-     * nanosleep value changes cycle time */
-    return UA_STATUSCODE_GOOD;
-}
-
-/* Remove the callback added for cyclic repetition */
-void
-UA_PubSubManager_removeRepeatedPubSubCallback(UA_Server *server, UA_UInt64 callbackId) {
-    /* TODO Thread exit functions using pthread join and exit */
-}
 
 #if defined(PUBLISHER)
 /**
@@ -611,6 +617,11 @@ addWriterGroup(UA_Server *server) {
 #if defined PUBSUB_CONFIG_RT_INFORMATION_MODEL
     writerGroupConfig.rtLevel                              = UA_PUBSUB_RT_FIXED_SIZE;
 #endif
+    writerGroupConfig.pubsubCallbackType = CUSTOM_PUBSUB_MANAGER_CALLBACK;
+    writerGroupConfig.pubsubManagerCallback.addCustomCallback = addPubSubApplicationCallback;
+    writerGroupConfig.pubsubManagerCallback.changeCustomCallbackInterval = changePubSubApplicationCallbackInterval;
+    writerGroupConfig.pubsubManagerCallback.removeCustomCallback = removePubSubApplicationCallback;
+
     writerGroupConfig.messageSettings.encoding             = UA_EXTENSIONOBJECT_DECODED;
     writerGroupConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
     /* The configuration flags for the messages are encapsulated inside the

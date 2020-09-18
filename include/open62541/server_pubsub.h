@@ -379,7 +379,7 @@ typedef struct {
     UA_StatusCode (*changeCustomCallbackInterval)(UA_Server *server, UA_UInt64 callbackId,
                                                   UA_Double interval_ms);
 
-    UA_StatusCode (*removeCustomCallback)(UA_Server *server, UA_UInt64 callbackId);
+    void (*removeCustomCallback)(UA_Server *server, UA_UInt64 callbackId);
 
 } UA_PubSub_customManagerCallback;
 
