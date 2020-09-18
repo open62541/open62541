@@ -101,6 +101,9 @@ def generateDateTimeCode(value):
     mSecsSinceEpoch = int((value - epoch).total_seconds() * 1000.0)
     return "( (UA_DateTime)(" + str(mSecsSinceEpoch) + " * UA_DATETIME_MSEC) + UA_DATETIME_UNIX_EPOCH)"
 
+def lowerFirstChar(inputString):
+    return inputString[0].lower() + inputString[1:]
+
 def generateNodeValueCode(prepend , node, instanceName, valueName, global_var_code, asIndirect=False):
     if type(node) in [Boolean, Byte, SByte, Int16, UInt16, Int32, UInt32, Int64, UInt64, Float, Double]:
         return prepend + " = (UA_" + node.__class__.__name__ + ") " + str(node.value) + ";"
@@ -137,7 +140,7 @@ def generateNodeValueCode(prepend , node, instanceName, valueName, global_var_co
     elif isinstance(node, Structure):
         code = []
         for subv in node.value:
-            code.append(generateNodeValueCode(prepend + "." + subv.alias.lower(), subv, instanceName, valueName, global_var_code, asIndirect))
+            code.append(generateNodeValueCode(prepend + "." + lowerFirstChar(subv.alias), subv, instanceName, valueName, global_var_code, asIndirect))
         return "\n".join(code)
 
 
