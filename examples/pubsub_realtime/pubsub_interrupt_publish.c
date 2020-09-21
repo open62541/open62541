@@ -7,12 +7,19 @@
  *    Copyright (c) 2020 Wind River Systems, Inc.
  */
 
+#if __STDC_VERSION__ >= 199901L
+#define _XOPEN_SOURCE 600
+#else
+#define _XOPEN_SOURCE 500
+#endif /* __STDC_VERSION__ */
+
 #include <signal.h>
 #include <stdio.h>
 #include <time.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/log_stdout.h>
+#include <open62541/server_pubsub.h>
 #include <open62541/plugin/pubsub_ethernet.h>
 #include "bufmalloc.h"
 
@@ -27,6 +34,10 @@
 #define DATA_SET_WRITER_ID       62541
 #define MEASUREMENT_OUTPUT       "publisher_measurement.csv"
 
+/* The RT level of the publisher */
+/* possible options: PUBSUB_CONFIG_FASTPATH_NONE, PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS, PUBSUB_CONFIG_FASTPATH_STATIC_VALUES */
+#define PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
+
 UA_NodeId counterNodePublisher = {1, UA_NODEIDTYPE_NUMERIC, {1234}};
 UA_Int64 pubIntervalNs;
 UA_ServerCallback pubCallback = NULL; /* Sentinel if a timer is active */
@@ -37,7 +48,7 @@ timer_t pubEventTimer;
 struct sigevent pubEvent;
 struct sigaction signalAction;
 
-#if (PUBSUB_RT_LEVEL == UA_PUBSUB_RT_FIXED_SIZE) || (PUBSUB_RT_LEVEL == UA_PUBSUB_RT_DIRECT_VALUE_ACCESS)
+#if defined(PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS) || (PUBSUB_CONFIG_FASTPATH_STATIC_VALUES)
 UA_DataValue *staticValueSource = NULL;
 #endif
 
@@ -47,11 +58,6 @@ struct timespec calculatedCycleStartTime[MAX_MEASUREMENTS+1];
 struct timespec cycleStartDelay[MAX_MEASUREMENTS+1];
 struct timespec cycleDuration[MAX_MEASUREMENTS+1];
 size_t publisherMeasurementsCounter  = 0;
-
-/* The RT level of the publisher */
-//#define PUBSUB_RT_LEVEL UA_PUBSUB_RT_NONE
-//#define PUBSUB_RT_LEVEL UA_PUBSUB_RT_DIRECT_VALUE_ACCESS
-#define PUBSUB_RT_LEVEL UA_PUBSUB_RT_FIXED_SIZE
 
 /* The value to published */
 static UA_UInt64 publishValue = 62541;
@@ -109,7 +115,7 @@ publishInterrupt(int sig, siginfo_t* si, void* uc) {
         return;
 
     /* Save current configured publish interval */
-    currentPublishCycleTime[publisherMeasurementsCounter] = pubIntervalNs;
+    currentPublishCycleTime[publisherMeasurementsCounter] = (UA_Int32)pubIntervalNs;
 
     /* Save the difference to the calculated time */
     timespec_diff(&calculatedCycleStartTime[publisherMeasurementsCounter],
@@ -153,7 +159,7 @@ publishInterrupt(int sig, siginfo_t* si, void* uc) {
  * use system interrupts instead if time-triggered callbacks in the OPC UA
  * server control flow. */
 
-UA_StatusCode
+static UA_StatusCode
 addPubSubApplicationCallback(UA_Server *server,
                              UA_ServerCallback callback,
                              void *data, UA_Double interval_ms,
@@ -219,7 +225,7 @@ addPubSubApplicationCallback(UA_Server *server,
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode
+static UA_StatusCode
 changePubSubApplicationCallbackInterval(UA_Server *server,
                                         UA_UInt64 callbackId,
                                         UA_Double interval_ms) {
@@ -248,7 +254,7 @@ changePubSubApplicationCallbackInterval(UA_Server *server,
     return UA_STATUSCODE_GOOD;
 }
 
-void
+static void
 removePubSubApplicationCallback(UA_Server *server, UA_UInt64 callbackId) {
     if(!pubCallback)
         return;
@@ -291,7 +297,7 @@ addPubSubConfiguration(UA_Server* server) {
     counterValue.field.variable.publishParameters.publishedVariable = counterNodePublisher;
     counterValue.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
 
-#if (PUBSUB_RT_LEVEL == UA_PUBSUB_RT_FIXED_SIZE) || (PUBSUB_RT_LEVEL == UA_PUBSUB_RT_DIRECT_VALUE_ACCESS)
+#if defined(PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS) || (PUBSUB_CONFIG_FASTPATH_STATIC_VALUES)
     staticValueSource = UA_DataValue_new();
     UA_Variant_setScalar(&staticValueSource->value, &publishValue, &UA_TYPES[UA_TYPES_UINT64]);
     counterValue.field.variable.rtValueSource.rtFieldSourceEnabled = UA_TRUE;
@@ -306,7 +312,7 @@ addPubSubConfiguration(UA_Server* server) {
     writerGroupConfig.publishingInterval = PUB_INTERVAL;
     writerGroupConfig.enabled = UA_FALSE;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
-    writerGroupConfig.rtLevel = PUBSUB_RT_LEVEL;
+    writerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
     writerGroupConfig.pubsubCallbackType = CUSTOM_PUBSUB_MANAGER_CALLBACK;
     writerGroupConfig.pubsubManagerCallback.addCustomCallback = addPubSubApplicationCallback;
     writerGroupConfig.pubsubManagerCallback.changeCustomCallbackInterval = changePubSubApplicationCallbackInterval;
@@ -329,9 +335,9 @@ addPubSubConfiguration(UA_Server* server) {
 
 static void
 addServerNodes(UA_Server* server) {
-    UA_UInt64 publishValue = 0;
+    UA_UInt64 value = 0;
     UA_VariableAttributes publisherAttr = UA_VariableAttributes_default;
-    UA_Variant_setScalar(&publisherAttr.value, &publishValue, &UA_TYPES[UA_TYPES_UINT64]);
+    UA_Variant_setScalar(&publisherAttr.value, &value, &UA_TYPES[UA_TYPES_UINT64]);
     publisherAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Publisher Counter");
     publisherAttr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
     UA_DataSource dataSource;
@@ -369,7 +375,7 @@ int main(void) {
 
     /* Run the server */
     UA_StatusCode retval = UA_Server_run(server, &running);
-#if (PUBSUB_RT_LEVEL == UA_PUBSUB_RT_FIXED_SIZE) || (PUBSUB_RT_LEVEL == UA_PUBSUB_RT_DIRECT_VALUE_ACCESS)
+#if defined(PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS) || (PUBSUB_CONFIG_FASTPATH_STATIC_VALUES)
     if(staticValueSource != NULL) {
         UA_DataValue_delete(staticValueSource);
     }

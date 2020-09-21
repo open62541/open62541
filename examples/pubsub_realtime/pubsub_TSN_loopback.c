@@ -22,6 +22,9 @@
  *         |                                                              |
  *         ----------------------------------------------------------------
  */
+
+#define _GNU_SOURCE
+
 #include <sched.h>
 #include <signal.h>
 #include <time.h>
@@ -35,7 +38,6 @@
 
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
-#include <ua_server_internal.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/log.h>
 #include <open62541/types_generated.h>
@@ -81,7 +83,7 @@ UA_DataSetReaderConfig readerConfig;
 #define             DATA_SET_WRITER_ID_SUB               62541
 #define             SUBSCRIBING_MAC_ADDRESS              "opc.eth://01-00-5E-7F-00-01:8.3"
 #endif
-#define             REPEATED_NODECOUNTS                   0
+#define             REPEATED_NODECOUNTS                   2    // Default to publish 64 bytes
 #define             PORT_NUMBER                           62541
 #define             RECEIVE_QUEUE                         2
 #define             XDP_FLAG                              XDP_FLAGS_SKB_MODE
@@ -237,7 +239,7 @@ static void nanoSecondFieldConversion(struct timespec *timeSpecValue) {
 }
 
 /* Add a callback for cyclic repetition */
-UA_StatusCode
+static UA_StatusCode
 addPubSubApplicationCallback(UA_Server *server, UA_ServerCallback callback,
                              void *data, UA_Double interval_ms, UA_UInt64 *callbackId) {
     /* Initialize arguments required for the thread to run */
@@ -270,7 +272,7 @@ addPubSubApplicationCallback(UA_Server *server, UA_ServerCallback callback,
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode
+static UA_StatusCode
 changePubSubApplicationCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
                                         UA_Double interval_ms) {
     /* Callback interval need not be modified as it is thread based implementation.
@@ -280,7 +282,7 @@ changePubSubApplicationCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
 }
 
 /* Remove the callback added for cyclic repetition */
-void
+static void
 removePubSubApplicationCallback(UA_Server *server, UA_UInt64 callbackId) {
     /* TODO Thread exit functions using pthread join and exit */
 }
@@ -712,7 +714,7 @@ void *publisherETF(void *arg) {
     server                              = threadArgumentsPublisher->server;
     pubCallback                         = threadArgumentsPublisher->callback;
     currentWriterGroup                  = (UA_WriterGroup *)threadArgumentsPublisher->data;
-    interval_ns                         = (threadArgumentsPublisher->interval_ms * MILLI_SECONDS);
+    interval_ns                         = (UA_UInt64)(threadArgumentsPublisher->interval_ms * MILLI_SECONDS);
 
     /* Get current time and compute the next nanosleeptime */
     clock_gettime(CLOCKID, &nextnanosleeptime);
@@ -742,7 +744,7 @@ void *publisherETF(void *arg) {
         ethernetETFtransportSettings.transmission_time = transmission_time;
         if(*pubCounterData > 0)
             pubCallback(server, currentWriterGroup);
-        nextnanosleeptime.tv_nsec                     += interval_ns;
+        nextnanosleeptime.tv_nsec                     += (__syscall_slong_t)interval_ns;
         nanoSecondFieldConversion(&nextnanosleeptime);
     }
 
@@ -778,7 +780,7 @@ void *subscriber(void *arg) {
         clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptimeSub, NULL);
         /* Read subscribed data from the SubscriberCounter variable */
         subCallback(server, currentReaderGroup);
-        nextnanosleeptimeSub.tv_nsec     += (CYCLE_TIME * MILLI_SECONDS);
+        nextnanosleeptimeSub.tv_nsec     += (__syscall_slong_t)(CYCLE_TIME * MILLI_SECONDS);
         nanoSecondFieldConversion(&nextnanosleeptimeSub);
     }
 
@@ -855,7 +857,7 @@ void *userApplicationPubSub(void *arg) {
         if (*pubCounterData > 0)
              updateMeasurementsPublisher(dataModificationTime, *pubCounterData);
 #endif
-        nextnanosleeptimeUserApplication.tv_nsec += (CYCLE_TIME * MILLI_SECONDS);
+        nextnanosleeptimeUserApplication.tv_nsec += (__syscall_slong_t)(CYCLE_TIME * MILLI_SECONDS);
         nanoSecondFieldConversion(&nextnanosleeptimeUserApplication);
     }
 
@@ -1024,13 +1026,13 @@ int main(int argc, char **argv) {
     UA_NetworkAddressUrlDataType networkAddressUrlPub;
 #endif
 #if defined(SUBSCRIBER)
-UA_NetworkAddressUrlDataType networkAddressUrlSub;
+    UA_NetworkAddressUrlDataType networkAddressUrlSub;
 #endif
-    if (argc == 1) {
+    if (argc != 2) {
         usage(argv[0]);
         return EXIT_SUCCESS;
     }
-    if (argc > 1) {
+    else {
         if (strcmp(argv[1], "-h") == 0) {
             usage(argv[0]);
             return EXIT_SUCCESS;
@@ -1038,19 +1040,11 @@ UA_NetworkAddressUrlDataType networkAddressUrlSub;
 
 #if defined(PUBLISHER)
         networkAddressUrlPub.networkInterface = UA_STRING(argv[1]);
+        networkAddressUrlPub.url              = UA_STRING(PUBLISHING_MAC_ADDRESS);
 #endif
 #if defined(SUBSCRIBER)
         networkAddressUrlSub.networkInterface = UA_STRING(argv[1]);
-#endif
-
-    }
-
-    else {
-#if defined(PUBLISHER)
-        networkAddressUrlPub.url = UA_STRING(PUBLISHING_MAC_ADDRESS); /* MAC address of subscribing node*/
-#endif
-#if defined(SUBSCRIBER)
-        networkAddressUrlSub.url = UA_STRING(SUBSCRIBING_MAC_ADDRESS); /* Self MAC address */
+        networkAddressUrlSub.url              = UA_STRING(SUBSCRIBING_MAC_ADDRESS);
 #endif
     }
 
