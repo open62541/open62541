@@ -160,7 +160,7 @@ publishInterrupt(int sig, siginfo_t* si, void* uc) {
  * server control flow. */
 
 static UA_StatusCode
-addPubSubApplicationCallback(UA_Server *server,
+addPubSubApplicationCallback(UA_Server *server, UA_NodeId identifier,
                              UA_ServerCallback callback,
                              void *data, UA_Double interval_ms,
                              UA_UInt64 *callbackId) {
@@ -226,7 +226,7 @@ addPubSubApplicationCallback(UA_Server *server,
 }
 
 static UA_StatusCode
-changePubSubApplicationCallbackInterval(UA_Server *server,
+changePubSubApplicationCallbackInterval(UA_Server *server, UA_NodeId identifier,
                                         UA_UInt64 callbackId,
                                         UA_Double interval_ms) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
@@ -313,7 +313,6 @@ addPubSubConfiguration(UA_Server* server) {
     writerGroupConfig.enabled = UA_FALSE;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
     writerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
-    writerGroupConfig.pubsubCallbackType = CUSTOM_PUBSUB_MANAGER_CALLBACK;
     writerGroupConfig.pubsubManagerCallback.addCustomCallback = addPubSubApplicationCallback;
     writerGroupConfig.pubsubManagerCallback.changeCustomCallbackInterval = changePubSubApplicationCallbackInterval;
     writerGroupConfig.pubsubManagerCallback.removeCustomCallback = removePubSubApplicationCallback;
