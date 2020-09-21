@@ -291,17 +291,6 @@ UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
-    /* Verify Custom callbacks are registered in CUSTOM_PUBSUB_MANAGER_CALLBACK mode */
-    if(readerGroupConfig->pubsubCallbackType == CUSTOM_PUBSUB_MANAGER_CALLBACK) {
-        if(!(readerGroupConfig->pubsubManagerCallback.addCustomCallback &&
-           readerGroupConfig->pubsubManagerCallback.changeCustomCallbackInterval &&
-           readerGroupConfig->pubsubManagerCallback.removeCustomCallback)) {
-            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                           "Custom callbacks are not defined. Adding ReaderGroup failed.");
-            return UA_STATUSCODE_BADCONFIGURATIONERROR;
-        }
-    }
-
     /* Allocate memory for new reader group */
     UA_ReaderGroup *newGroup = (UA_ReaderGroup *)UA_calloc(1, sizeof(UA_ReaderGroup));
     if(!newGroup)
@@ -345,10 +334,10 @@ UA_Server_removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier) {
 
     /* Unregister subscribe callback */
     if(readerGroup->state == UA_PUBSUBSTATE_OPERATIONAL) {
-        if(readerGroup->config.pubsubCallbackType == DEFAULT_PUBSUB_MANAGER_CALLBACK)
-            UA_PubSubManager_removeRepeatedPubSubCallback(server, readerGroup->subscribeCallbackId);
+        if(readerGroup->config.pubsubManagerCallback.removeCustomCallback)
+            readerGroup->config.pubsubManagerCallback.removeCustomCallback(server, readerGroup->identifier, readerGroup->subscribeCallbackId);
         else
-            readerGroup->config.pubsubManagerCallback.removeCustomCallback(server, readerGroup->subscribeCallbackId);
+            UA_PubSubManager_removeRepeatedPubSubCallback(server, readerGroup->subscribeCallbackId);
     }
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
@@ -441,10 +430,10 @@ UA_ReaderGroup_setPubSubState(UA_Server *server, UA_PubSubState state, UA_Reader
                 case UA_PUBSUBSTATE_PAUSED:
                     break;
                 case UA_PUBSUBSTATE_OPERATIONAL:
-                    if(readerGroup->config.pubsubCallbackType == DEFAULT_PUBSUB_MANAGER_CALLBACK)
-                        UA_PubSubManager_removeRepeatedPubSubCallback(server, readerGroup->subscribeCallbackId);
+                    if(readerGroup->config.pubsubManagerCallback.removeCustomCallback)
+                        readerGroup->config.pubsubManagerCallback.removeCustomCallback(server, readerGroup->identifier, readerGroup->subscribeCallbackId);
                     else
-                        readerGroup->config.pubsubManagerCallback.removeCustomCallback(server, readerGroup->subscribeCallbackId);
+                        UA_PubSubManager_removeRepeatedPubSubCallback(server, readerGroup->subscribeCallbackId);
 
                     LIST_FOREACH(dataSetReader, &readerGroup->readers, listEntry){
                         UA_DataSetReader_setPubSubState(server, UA_PUBSUBSTATE_DISABLED, dataSetReader);
@@ -477,10 +466,10 @@ UA_ReaderGroup_setPubSubState(UA_Server *server, UA_PubSubState state, UA_Reader
             switch (readerGroup->state){
                 case UA_PUBSUBSTATE_DISABLED:
                     readerGroup->state = UA_PUBSUBSTATE_OPERATIONAL;
-                    if(readerGroup->config.pubsubCallbackType == DEFAULT_PUBSUB_MANAGER_CALLBACK)
-                        UA_PubSubManager_removeRepeatedPubSubCallback(server, readerGroup->subscribeCallbackId);
+                    if(readerGroup->config.pubsubManagerCallback.removeCustomCallback)
+                        readerGroup->config.pubsubManagerCallback.removeCustomCallback(server, readerGroup->identifier, readerGroup->subscribeCallbackId);
                     else
-                        readerGroup->config.pubsubManagerCallback.removeCustomCallback(server, readerGroup->subscribeCallbackId);
+                        UA_PubSubManager_removeRepeatedPubSubCallback(server, readerGroup->subscribeCallbackId);
 
                     LIST_FOREACH(dataSetReader, &readerGroup->readers, listEntry){
                         UA_DataSetReader_setPubSubState(server, UA_PUBSUBSTATE_OPERATIONAL, dataSetReader);
@@ -917,14 +906,14 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
 UA_StatusCode
 UA_ReaderGroup_addSubscribeCallback(UA_Server *server, UA_ReaderGroup *readerGroup) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(readerGroup->config.pubsubCallbackType == DEFAULT_PUBSUB_MANAGER_CALLBACK)
+    if(readerGroup->config.pubsubManagerCallback.addCustomCallback)
+        retval |= readerGroup->config.pubsubManagerCallback.addCustomCallback(server, readerGroup->identifier,
+                                                                              (UA_ServerCallback) UA_ReaderGroup_subscribeCallback,
+                                                                              readerGroup, 5, &readerGroup->subscribeCallbackId);
+    else
         retval |= UA_PubSubManager_addRepeatedCallback(server,
                                                        (UA_ServerCallback) UA_ReaderGroup_subscribeCallback,
                                                        readerGroup, 5, &readerGroup->subscribeCallbackId); // TODO: Remove the hardcode of interval (5ms)
-    else
-        retval |= readerGroup->config.pubsubManagerCallback.addCustomCallback(server,
-                                                                              (UA_CustomPublishCallback) UA_ReaderGroup_subscribeCallback,
-                                                                              readerGroup, 5, &readerGroup->subscribeCallbackId);
 
     if(retval == UA_STATUSCODE_GOOD)
         readerGroup->subscribeCallbackIsRegistered = true;

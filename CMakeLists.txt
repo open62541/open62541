@@ -274,9 +274,6 @@ option(UA_ENABLE_PUBSUB_ETH_UADP "Enable publish/subscribe UADP over Ethernet" O
 mark_as_advanced(UA_ENABLE_PUBSUB_ETH_UADP)
 option(UA_ENABLE_PUBSUB_ETH_UADP_XDP "Enable Subscribe UADP over Ethernet using XDP" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_ETH_UADP_XDP)
-option(UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
-        "Use a custom implementation for the publish callback handling" OFF)
-mark_as_advanced(UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING)
 option(UA_ENABLE_PUBSUB_ETH_UADP_ETF "Use ETF implementation for the ETH_UADP publish" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_ETH_UADP_ETF)
 
@@ -310,12 +307,6 @@ endif()
 if(UA_ENABLE_PUBSUB_FILE_CONFIG)
     if(NOT UA_ENABLE_PUBSUB)
         message(FATAL_ERROR "PubSub needs to be enabled")
-    endif()
-endif()
-
-if(UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING)
-    if(NOT UA_ENABLE_PUBSUB)
-        message(FATAL_ERROR "Custom publish callback handling cannot be used with PubSub function disabled")
     endif()
 endif()
 

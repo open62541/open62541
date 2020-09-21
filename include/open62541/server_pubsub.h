@@ -115,9 +115,6 @@ _UA_BEGIN_DECLS
  *  Enable loading OPC UA PubSub configuration from File/ByteString. Enabling PubSub informationmodel methods also will add a method to the Publish/Subscribe object which allows configuring PubSub at runtime.
  * **UA_ENABLE_PUBSUB_INFORMATIONMODEL**
  *  Enable the information model representation of the PubSub configuration. For more details take a look at the following section `PubSub Information Model Representation`. Disabled by default.
- * **UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING**
- *  Enable the OPC UA PubSub support with custom callback implementation for Publisher and Subscriber. The option will provide flexibility to use the user defined callback mechanism for sending
- *  packets in Publisher and receiving packets in the Subscriber. Disabled by default.
  * **UA_ENABLE_PUBSUB_ETH_UADP**
  *  Enable the OPC UA Ethernet PubSub support to transport UADP NetworkMessages as payload of Ethernet II frame without IP or UDP headers. This option will include Publish and Subscribe based on
  *  EtherType B62C. Disabled by default.
@@ -365,23 +362,17 @@ UA_Server_removeDataSetField(UA_Server *server, const UA_NodeId dsf);
  * and subscribing. The user must take care of the callback to call for
  * every publishing or subscibing interval */
 
-typedef void (*UA_CustomPublishCallback)(UA_Server *server, void *data);
-
-typedef enum {
-    DEFAULT_PUBSUB_MANAGER_CALLBACK, // one which uses default timer implementation
-    CUSTOM_PUBSUB_MANAGER_CALLBACK
-} UA_PubSubCallbackType;
-
 typedef struct {
-    UA_StatusCode (*addCustomCallback)(UA_Server *server, UA_CustomPublishCallback callback,
+    UA_StatusCode (*addCustomCallback)(UA_Server *server, UA_NodeId identifier,
+                                       UA_ServerCallback callback,
                                        void *data, UA_Double interval_ms, UA_UInt64 *callbackId);
 
-    UA_StatusCode (*changeCustomCallbackInterval)(UA_Server *server, UA_UInt64 callbackId,
-                                                  UA_Double interval_ms);
+    UA_StatusCode (*changeCustomCallbackInterval)(UA_Server *server, UA_NodeId identifier,
+                                                  UA_UInt64 callbackId, UA_Double interval_ms);
 
-    void (*removeCustomCallback)(UA_Server *server, UA_UInt64 callbackId);
+    void (*removeCustomCallback)(UA_Server *server, UA_NodeId identifier, UA_UInt64 callbackId);
 
-} UA_PubSub_customManagerCallback;
+} UA_PubSub_CallbackLifecycle;
 
 /**
  * WriterGroup
@@ -448,8 +439,7 @@ typedef struct {
     UA_KeyValuePair *groupProperties;
     UA_PubSubEncodingType encodingMimeType;
     /* PubSub Manager Callback */
-    UA_PubSubCallbackType pubsubCallbackType;
-    UA_PubSub_customManagerCallback pubsubManagerCallback;
+    UA_PubSub_CallbackLifecycle pubsubManagerCallback;
     /* non std. config parameter. maximum count of embedded DataSetMessage in
      * one NetworkMessage */
     UA_UInt16 maxEncapsulatedDataSetMessageCount;
@@ -671,8 +661,7 @@ typedef struct {
     UA_String name;
     UA_PubSubSecurityParameters securityParameters;
     /* PubSub Manager Callback */
-    UA_PubSubCallbackType pubsubCallbackType;
-    UA_PubSub_customManagerCallback pubsubManagerCallback;
+    UA_PubSub_CallbackLifecycle pubsubManagerCallback;
     /* non std. field */
     UA_PubSubRTLevel rtLevel;
 } UA_ReaderGroupConfig;

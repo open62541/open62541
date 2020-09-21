@@ -240,7 +240,8 @@ static void nanoSecondFieldConversion(struct timespec *timeSpecValue) {
 
 /* Add a callback for cyclic repetition */
 static UA_StatusCode
-addPubSubApplicationCallback(UA_Server *server, UA_CustomPublishCallback callback,
+addPubSubApplicationCallback(UA_Server *server, UA_NodeId identifier,
+                             UA_ServerCallback callback,
                              void *data, UA_Double interval_ms, UA_UInt64 *callbackId) {
     /* Initialize arguments required for the thread to run */
     threadArg *threadArguments = (threadArg *) UA_malloc(sizeof(threadArg));
@@ -253,19 +254,22 @@ addPubSubApplicationCallback(UA_Server *server, UA_CustomPublishCallback callbac
     threadArguments->callbackId  = callbackId;
 
     /* Check the writer group identifier and create the thread accordingly */
-    UA_WriterGroup *tmpWriter  = (UA_WriterGroup *) data;
-    if(UA_NodeId_equal(&tmpWriter->identifier, &writerGroupIdent)) {
+    if(UA_NodeId_equal(&identifier, &writerGroupIdent)) {
 #if defined(PUBLISHER)
         /* Create the publisher thread with the required priority and core affinity */
         char threadNamePub[10] = "Publisher";
-        pubthreadID            = threadCreation(PUB_SCHED_PRIORITY, CORE_TWO, publisherETF, threadNamePub, threadArguments);
+        *callbackId            = threadCreation(PUB_SCHED_PRIORITY, CORE_TWO, publisherETF, threadNamePub, threadArguments);
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                    "Publisher thread callback Id: %ld\n", *callbackId);
 #endif
     }
     else {
 #if defined(SUBSCRIBER)
         /* Create the subscriber thread with the required priority and core affinity */
         char threadNameSub[11] = "Subscriber";
-        subthreadID            = threadCreation(SUB_SCHED_PRIORITY, CORE_TWO, subscriber, threadNameSub, threadArguments);
+        *callbackId            = threadCreation(SUB_SCHED_PRIORITY, CORE_TWO, subscriber, threadNameSub, threadArguments);
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                    "Subscriber thread callback Id: %ld\n", *callbackId);
 #endif
     }
 
@@ -273,8 +277,8 @@ addPubSubApplicationCallback(UA_Server *server, UA_CustomPublishCallback callbac
 }
 
 static UA_StatusCode
-changePubSubApplicationCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
-                                        UA_Double interval_ms) {
+changePubSubApplicationCallbackInterval(UA_Server *server, UA_NodeId identifier,
+                                        UA_UInt64 callbackId, UA_Double interval_ms) {
     /* Callback interval need not be modified as it is thread based implementation.
      * The thread uses nanosleep for calculating cycle time and modification in
      * nanosleep value changes cycle time */
@@ -283,8 +287,10 @@ changePubSubApplicationCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
 
 /* Remove the callback added for cyclic repetition */
 static void
-removePubSubApplicationCallback(UA_Server *server, UA_UInt64 callbackId) {
-    /* TODO Thread exit functions using pthread join and exit */
+removePubSubApplicationCallback(UA_Server *server, UA_NodeId identifier, UA_UInt64 callbackId) {
+    if(callbackId && (pthread_join(callbackId, NULL) != 0))
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                       "Pthread Join Failed thread: %ld\n", callbackId);
 }
 
 #if defined PUBSUB_CONFIG_RT_INFORMATION_MODEL
@@ -354,7 +360,6 @@ addReaderGroup(UA_Server *server) {
 #if defined PUBSUB_CONFIG_RT_INFORMATION_MODEL
     readerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
 #endif
-    readerGroupConfig.pubsubCallbackType = CUSTOM_PUBSUB_MANAGER_CALLBACK;
     readerGroupConfig.pubsubManagerCallback.addCustomCallback = addPubSubApplicationCallback;
     readerGroupConfig.pubsubManagerCallback.changeCustomCallbackInterval = changePubSubApplicationCallbackInterval;
     readerGroupConfig.pubsubManagerCallback.removeCustomCallback = removePubSubApplicationCallback;
@@ -620,7 +625,6 @@ addWriterGroup(UA_Server *server) {
 #if defined PUBSUB_CONFIG_RT_INFORMATION_MODEL
     writerGroupConfig.rtLevel            = UA_PUBSUB_RT_FIXED_SIZE;
 #endif
-    writerGroupConfig.pubsubCallbackType = CUSTOM_PUBSUB_MANAGER_CALLBACK;
     writerGroupConfig.pubsubManagerCallback.addCustomCallback = addPubSubApplicationCallback;
     writerGroupConfig.pubsubManagerCallback.changeCustomCallbackInterval = changePubSubApplicationCallbackInterval;
     writerGroupConfig.pubsubManagerCallback.removeCustomCallback = removePubSubApplicationCallback;
@@ -703,7 +707,7 @@ void *publisherETF(void *arg) {
     struct timespec   nextnanosleeptime;
     UA_ServerCallback pubCallback;
     UA_Server*        server;
-    UA_WriterGroup*   currentWriterGroup;
+    UA_WriterGroup*   currentWriterGroup; // TODO: Remove WriterGroup Usage
     UA_UInt64         interval_ns;
     UA_UInt64         transmission_time;
 
@@ -762,14 +766,14 @@ void *publisherETF(void *arg) {
 
 void *subscriber(void *arg) {
     UA_Server*        server;
-    UA_ReaderGroup*   currentReaderGroup;
+    void*             currentReaderGroup;
     UA_ServerCallback subCallback;
     struct timespec   nextnanosleeptimeSub;
 
     threadArg *threadArgumentsSubscriber = (threadArg *)arg;
-    server                               = threadArgumentsSubscriber->server;
-    subCallback                          = threadArgumentsSubscriber->callback;
-    currentReaderGroup                   = (UA_ReaderGroup *)threadArgumentsSubscriber->data;
+    server             = threadArgumentsSubscriber->server;
+    subCallback        = threadArgumentsSubscriber->callback;
+    currentReaderGroup = threadArgumentsSubscriber->data;
 
     /* Get current time and compute the next nanosleeptime */
     clock_gettime(CLOCKID, &nextnanosleeptimeSub);
@@ -918,7 +922,7 @@ static pthread_t threadCreation(UA_Int16 threadPriority, size_t coreAffinity, vo
 
     returnValue = pthread_create(&threadID, NULL, thread, serverConfig);
     if (returnValue != 0) {
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,":%s Cannot create thread\n", applicationName);
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,":%s Cannot create thread\n", applicationName);
     }
 
     if (CPU_ISSET(coreAffinity, &cpuset)) {
@@ -1129,18 +1133,6 @@ int main(int argc, char **argv) {
     retval |= UA_Server_run(server, &running);
 
     UA_Server_unfreezeReaderGroupConfiguration(server, readerGroupIdentifier);
-#if defined(PUBLISHER)
-    returnValue = pthread_join(pubthreadID, NULL);
-    if (returnValue != 0) {
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"\nPthread Join Failed for publisher thread:%d\n", returnValue);
-    }
-#endif
-#if defined(SUBSCRIBER)
-    returnValue = pthread_join(subthreadID, NULL);
-    if (returnValue != 0) {
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"\nPthread Join Failed for subscriber thread:%d\n", returnValue);
-    }
-#endif
 #if defined(PUBLISHER) || defined(SUBSCRIBER)
     returnValue = pthread_join(userThreadID, NULL);
     if (returnValue != 0) {

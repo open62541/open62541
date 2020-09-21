@@ -39,22 +39,22 @@ For ETF Transmit: (In both nodes)
     sudo tc qdisc add dev <I210 interface> parent $MQPRIO_NUM:1 etf offload clockid CLOCK_TAI delta 150000
     sudo tc qdisc add dev <I210 interface> parent $MQPRIO_NUM:2 etf offload clockid CLOCK_TAI delta 150000
 
+In both nodes:
+    for i in `seq 1 8`; do for j in `seq 0 7`;do sudo ip link set <I210 interface>.$i type vlan egress $j:$j ; done; done
+    for i in `seq 1 8`; do for j in `seq 0 7`;do sudo ip link set <I210 interface>.$i type vlan ingress $j:$j ; done; done
+
 TO RUN ETF APPLICATIONS:
 To run ETF applications over Ethernet in two nodes connected in peer-to-peer network
     mkdir build
     cd build
-    cmake -DUA_BUILD_EXAMPLES=OFF -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING=ON -DUA_ENABLE_PUBSUB_ETH_UADP=ON -DUA_ENABLE_PUBSUB_ETH_UADP_ETF=ON ..
+    cmake -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_ETH_UADP=ON -DUA_ENABLE_PUBSUB_ETH_UADP_ETF=ON ..
     make
 
-Execute the following gcc command to build publisher and subscriber applications
-gcc -O2 ../examples/pubsub_realtime/pubsub_TSN_publisher.c -I../include -I../plugins/include -Isrc_generated -I../arch/posix -I../arch -I../plugins/networking -I../deps/ -I../src/server -I../src -I../src/pubsub bin/libopen62541.a -lrt -lpthread -D_GNU_SOURCE -o ./bin/pubsub_TSN_publisher
-gcc -O2 ../examples/pubsub_realtime/pubsub_TSN_loopback.c -I../include -I../plugins/include -Isrc_generated -I../arch/posix -I../arch -I../plugins/networking -I../deps/ -I../src/server -I../src -I../src/pubsub bin/libopen62541.a -lrt -lpthread -D_GNU_SOURCE -o ./bin/pubsub_TSN_loopback
-
 The generated binaries are generated in build/bin/ folder
-    ./bin/pubsub_TSN_publisher <I210 interface> - Run in node 1
-    ./bin/pubsub_TSN_loopback <I210 interface>  - Run in node 2
-Eg: ./bin/pubsub_TSN_publisher enp2s0
-    ./bin/pubsub_TSN_loopback enp2s0
+    ./bin/examples/pubsub_TSN_publisher <I210 interface> - Run in node 1
+    ./bin/examples/pubsub_TSN_loopback <I210 interface>  - Run in node 2
+Eg: ./bin/examples/pubsub_TSN_publisher enp2s0
+    ./bin/examples/pubsub_TSN_loopback enp2s0
 
 NOTE: It is always recommended to run pubsub_TSN_loopback application first to avoid missing the initial data published by pubsub_TSN_publisher
 
@@ -79,29 +79,21 @@ Pre-requisties for XDP:
 As per the sample application, XDP listens to Rx_Queue 2; to direct the incoming ethernet packets to the second Rx_Queue, the follow the given steps
     In both nodes:
         #Configure equal weightage to queue 0 and 1
-        ethtool -X $IFACE equal 2
+        ethtool -X <I210 interface> equal 2
         #Disable VLAN offload
         ethtool -K <I210 interface> rxvlan off
-        ethtool -K $IFACE ntuple on
-        ethtool --config-ntuple $IFACE delete 15
-        ethtool --config-ntuple $IFACE delete 14
+        ethtool -K <I210 interface> ntuple on
+        ethtool --config-ntuple <I210 interface> delete 15
+        ethtool --config-ntuple <I210 interface> delete 14
         #Below command forwards the packet to Rx queue 2
-        ethtool --config-ntuple $IFACE flow-type ether proto 0x8100 dst 01:00:5E:7F:00:01 loc 15 action 2
-        ethtool --config-ntuple $IFACE flow-type ether proto 0x8100 dst 01:00:5E:7F:00:02 loc 14 action 2
-
-    In both nodes:
-        for i in `seq 1 8`; do for j in `seq 0 7`;do sudo ip link set <I210 interface>.$i type vlan egress $j:$j ; done; done
-        for i in `seq 1 8`; do for j in `seq 0 7`;do sudo ip link set <I210 interface>.$i type vlan ingress $j:$j ; done; done
+        ethtool --config-ntuple <I210 interface> flow-type ether proto 0x8100 dst 01:00:5E:7F:00:01 loc 15 action 2
+        ethtool --config-ntuple <I210 interface> flow-type ether proto 0x8100 dst 01:00:5E:7F:00:02 loc 14 action 2
 
 To run ETF in Publisher and XDP in Subscriber in two nodes connected in peer-to-peer network
-    cmake -DUA_BUILD_EXAMPLES=OFF -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING=ON -DUA_ENABLE_PUBSUB_ETH_UADP=ON -DUA_ENABLE_PUBSUB_ETH_UADP_ETF=ON -DUA_ENABLE_PUBSUB_ETH_UADP_XDP=ON ..
+    cmake -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_ETH_UADP=ON -DUA_ENABLE_PUBSUB_ETH_UADP_ETF=ON -DUA_ENABLE_PUBSUB_ETH_UADP_XDP=ON ..
     make
-    Execute the following gcc command to build publisher and subscriber applications
-    gcc -O2 ../examples/pubsub_realtime/pubsub_TSN_publisher.c -I../include -I../plugins/include -Isrc_generated -I../arch/posix -I../arch -I../plugins/networking -I../deps/ -I../src/server -I../src -I../src/pubsub bin/libopen62541.a /usr/local/src/bpf-next/tools/lib/bpf/libbpf.a -lrt -lpthread -lelf -D_GNU_SOURCE -o ./bin/pubsub_TSN_publisher
-    gcc -O2 ../examples/pubsub_realtime/pubsub_TSN_loopback.c -I../include -I../plugins/include -Isrc_generated -I../arch/posix -I../arch -I../plugins/networking -I../deps/ -I../src/server -I../src -I../src/pubsub bin/libopen62541.a /usr/local/src/bpf-next/tools/lib/bpf/libbpf.a -lrt -lpthread -lelf -D_GNU_SOURCE -o ./bin/pubsub_TSN_loopback
-    The generated binaries are generated in build/bin/ folder
-    ./bin/pubsub_TSN_publisher <I210 interface> - Run in node 1
-    ./bin/pubsub_TSN_loopback <I210 interface>  - Run in node 2
+    ./bin/examples/pubsub_TSN_publisher <I210 interface> - Run in node 1
+    ./bin/examples/pubsub_TSN_loopback <I210 interface>  - Run in node 2
 
 NOTE: To make XDP listen to other RX_Queue, change RECEIVE_QUEUE value in pubsub_TSN_publisher.c and pubsub_TSN_loopback.c applications and modify the hw_tc parameter
 
@@ -127,7 +119,7 @@ If MAC address is changed, follow INGRESS POLICY steps with dst_mac address to b
 
 To write the published counter data along with timestamp in csv uncomment #define UPDATE_MEASUREMENTS in pubsub_TSN_publisher.c and pubsub_TSN_loopback.c applications
 
-NOTE: The CSV files will be generated in the build directory containing the timestamp and counter values for benchmarking only after terminating both the applications using “Ctrl + C”
+NOTE: The CSV files will be generated in the build directory containing the timestamp and counter values for benchmarking only after terminating both the applications using Ctrl + C
 
 To increase the payload size, change the REPEATED_NODECOUNTS macro in pubsub_TSN_publisher.c and pubsub_TSN_loopback.c applications (for 1 REPEATED_NODECOUNTS, 8 bytes of data will increase in payload)
 Eg: To increase the payload to 64 bytes, change REPEATED_NODECOUNTS to 4
@@ -144,7 +136,7 @@ Change the ethernet interface in #define ETHERNET_INTERFACE macro in
 1. To test ethernet connection creation and ethernet publish unit tests(without realtime)
         cd open62541/build
         make clean
-        cmake -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING=OFF -DUA_ENABLE_PUBSUB_ETH_UADP=ON -DUA_ENABLE_PUBSUB_ETH_UADP_ETF=OFF -DUA_BUILD_UNIT_TESTS=ON ..
+        cmake -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_ETH_UADP=ON -DUA_ENABLE_PUBSUB_ETH_UADP_ETF=OFF -DUA_BUILD_UNIT_TESTS=ON ..
         make
         The following binaries are generated in build/bin/tests folder
           ./bin/tests/check_pubsub_connection_ethernet - To check ethernet connection creation
@@ -153,7 +145,7 @@ Change the ethernet interface in #define ETHERNET_INTERFACE macro in
 2. To test ethernet connection creation and ethernet publish unit tests(with realtime)
         cd open62541/build
         make clean
-        cmake -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING=OFF -DUA_ENABLE_PUBSUB_ETH_UADP=ON -DUA_ENABLE_PUBSUB_ETH_UADP_ETF=ON -DUA_BUILD_UNIT_TESTS=ON ..
+        cmake -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_ETH_UADP=ON -DUA_ENABLE_PUBSUB_ETH_UADP_ETF=ON -DUA_BUILD_UNIT_TESTS=ON ..
         make
         The following binaries are generated in build/bin/tests folder
           ./bin/tests/check_pubsub_connection_ethernet_etf - To check ethernet connection creation with etf
@@ -164,7 +156,7 @@ TO RUN THE UNIT TEST CASES FOR XDP FUNCTIONALITY:
 1. To test connection creation using XDP transport layer
         cd open62541/build
         make clean
-        cmake -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING=OFF -DUA_ENABLE_PUBSUB_ETH_UADP=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_PUBSUB_ETH_UADP_ETF=ON -DUA_ENABLE_PUBSUB_ETH_UADP_XDP=ON ..
+        cmake -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_ETH_UADP=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_PUBSUB_ETH_UADP_ETF=ON -DUA_ENABLE_PUBSUB_ETH_UADP_XDP=ON ..
         make
         The following binary is generated in build/bin/tests folder
           ./bin/tests/check_pubsub_connection_xdp <I210 interface> - To check connection creation with XDP
