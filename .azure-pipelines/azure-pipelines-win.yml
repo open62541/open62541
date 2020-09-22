@@ -52,6 +52,7 @@ jobs:
 
   - powershell: ./tools/azure-devops/win/install.ps1
     displayName: Install Requirements
+    errorActionPreference: continue # Errors are handled in the script
   - powershell: ./tools/azure-devops/win/build.ps1
     displayName: "Build: $(CC_NAME)"
     errorActionPreference: continue # If set to Stop, we only get a truncated exception message. Error is handled by checking exit code
@@ -83,6 +84,7 @@ jobs:
 
   - powershell: ./tools/azure-devops/win/install.ps1
     displayName: Install Requirements
+    errorActionPreference: continue # Errors are handled in the script
   - powershell: ./tools/azure-devops/win/build.ps1
     displayName: "Build: $(CC_NAME)"
     errorActionPreference: continue # If set to Stop, we only get a truncated exception message. Error is handled by checking exit code

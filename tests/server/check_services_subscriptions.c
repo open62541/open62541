@@ -275,7 +275,7 @@ START_TEST(Server_publishCallback) {
 
     /* Keepalive is set to max initially */
     UA_Subscription *sub;
-    LIST_FOREACH(sub, &session->serverSubscriptions, listEntry)
+    TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry)
         ck_assert_uint_eq(sub->currentKeepAliveCount, sub->maxKeepAliveCount);
 
     /* Sleep until the publishing interval times out */
@@ -283,7 +283,7 @@ START_TEST(Server_publishCallback) {
     UA_Server_run_iterate(server, false);
     UA_realSleep(100);
 
-    LIST_FOREACH(sub, &session->serverSubscriptions, listEntry) {
+    TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
         if ((sub->subscriptionId == subscriptionId1) || (sub->subscriptionId == subscriptionId2))
             ck_assert_uint_eq(sub->currentKeepAliveCount, sub->maxKeepAliveCount+1);
     }
@@ -410,7 +410,7 @@ START_TEST(Server_overflow) {
 
     UA_MonitoredItem *mon = NULL;
     UA_Subscription *sub;
-    LIST_FOREACH(sub, &session->serverSubscriptions, listEntry) {
+    TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
         if(sub->subscriptionId == localSubscriptionId)
             mon = UA_Subscription_getMonitoredItem(sub, localMonitoredItemId);
     }
@@ -420,34 +420,34 @@ START_TEST(Server_overflow) {
     ck_assert_uint_eq(mon->maxQueueSize, 3); 
     UA_Notification *notification;
     notification = TAILQ_LAST(&mon->queue, NotificationQueue);
-    ck_assert_uint_eq(notification->data.value.hasStatus, false);
+    ck_assert_uint_eq(notification->data.dataChange.value.hasStatus, false);
 
     UA_ByteString_deleteMembers(&mon->lastSampledValue);
     UA_MonitoredItem_sampleCallback(server, mon);
     ck_assert_uint_eq(mon->queueSize, 2); 
     ck_assert_uint_eq(mon->maxQueueSize, 3); 
     notification = TAILQ_LAST(&mon->queue, NotificationQueue);
-    ck_assert_uint_eq(notification->data.value.hasStatus, false);
+    ck_assert_uint_eq(notification->data.dataChange.value.hasStatus, false);
 
     UA_ByteString_deleteMembers(&mon->lastSampledValue);
     UA_MonitoredItem_sampleCallback(server, mon);
     ck_assert_uint_eq(mon->queueSize, 3); 
     ck_assert_uint_eq(mon->maxQueueSize, 3); 
     notification = TAILQ_LAST(&mon->queue, NotificationQueue);
-    ck_assert_uint_eq(notification->data.value.hasStatus, false);
+    ck_assert_uint_eq(notification->data.dataChange.value.hasStatus, false);
 
     UA_ByteString_deleteMembers(&mon->lastSampledValue);
     UA_MonitoredItem_sampleCallback(server, mon);
     ck_assert_uint_eq(mon->queueSize, 3); 
     ck_assert_uint_eq(mon->maxQueueSize, 3); 
     notification = TAILQ_FIRST(&mon->queue);
-    ck_assert_uint_eq(notification->data.value.hasStatus, true);
-    ck_assert_uint_eq(notification->data.value.status,
+    ck_assert_uint_eq(notification->data.dataChange.value.hasStatus, true);
+    ck_assert_uint_eq(notification->data.dataChange.value.status,
                       UA_STATUSCODE_INFOTYPE_DATAVALUE | UA_STATUSCODE_INFOBITS_OVERFLOW);
 
     /* Remove status for next test */
-    notification->data.value.hasStatus = false;
-    notification->data.value.status = 0;
+    notification->data.dataChange.value.hasStatus = false;
+    notification->data.dataChange.value.status = 0;
 
     /* Modify the MonitoredItem */
     UA_ModifyMonitoredItemsRequest modifyMonitoredItemsRequest;
@@ -481,8 +481,8 @@ START_TEST(Server_overflow) {
     ck_assert_uint_eq(mon->queueSize, 2); 
     ck_assert_uint_eq(mon->maxQueueSize, 2); 
     notification = TAILQ_FIRST(&mon->queue);
-    ck_assert_uint_eq(notification->data.value.hasStatus, true);
-    ck_assert_uint_eq(notification->data.value.status,
+    ck_assert_uint_eq(notification->data.dataChange.value.hasStatus, true);
+    ck_assert_uint_eq(notification->data.dataChange.value.status,
                       UA_STATUSCODE_INFOTYPE_DATAVALUE | UA_STATUSCODE_INFOBITS_OVERFLOW);
 
     /* Modify the MonitoredItem */
@@ -513,7 +513,7 @@ START_TEST(Server_overflow) {
     ck_assert_uint_eq(mon->queueSize, 1); 
     ck_assert_uint_eq(mon->maxQueueSize, 1); 
     notification = TAILQ_LAST(&mon->queue, NotificationQueue);
-    ck_assert_uint_eq(notification->data.value.hasStatus, false);
+    ck_assert_uint_eq(notification->data.dataChange.value.hasStatus, false);
 
     /* Modify the MonitoredItem */
     UA_ModifyMonitoredItemsRequest_init(&modifyMonitoredItemsRequest);
@@ -545,7 +545,7 @@ START_TEST(Server_overflow) {
     ck_assert_uint_eq(mon->queueSize, 1); 
     ck_assert_uint_eq(mon->maxQueueSize, 1); 
     notification = TAILQ_FIRST(&mon->queue);
-    ck_assert_uint_eq(notification->data.value.hasStatus, false); /* the infobit is only set if the queue is larger than one */
+    ck_assert_uint_eq(notification->data.dataChange.value.hasStatus, false); /* the infobit is only set if the queue is larger than one */
 
     /* Remove the subscriptions */
     UA_DeleteSubscriptionsRequest deleteSubscriptionsRequest;
@@ -692,7 +692,7 @@ START_TEST(Server_lifeTimeCount) {
     UA_Server_run_iterate(server, false);
     UA_UInt32 count = 0;
     UA_Subscription *sub;
-    LIST_FOREACH(sub, &session->serverSubscriptions, listEntry) {
+    TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
         ck_assert_uint_eq(sub->currentLifetimeCount, 0);
         count++;
     }
@@ -702,7 +702,7 @@ START_TEST(Server_lifeTimeCount) {
     UA_Server_run_iterate(server, false);
 
     count = 0;
-    LIST_FOREACH(sub, &session->serverSubscriptions, listEntry) {
+    TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
         ck_assert_uint_eq(sub->currentLifetimeCount, 1);
         count++;
     }
@@ -713,7 +713,7 @@ START_TEST(Server_lifeTimeCount) {
     UA_Server_run_iterate(server, false);
 
     count = 0;
-    LIST_FOREACH(sub, &session->serverSubscriptions, listEntry) {
+    TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
         ck_assert_uint_eq(sub->currentLifetimeCount, 2);
         count++;
     }
@@ -724,7 +724,7 @@ START_TEST(Server_lifeTimeCount) {
     UA_Server_run_iterate(server, false);
 
     count = 0;
-    LIST_FOREACH(sub, &session->serverSubscriptions, listEntry) {
+    TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
         ck_assert_uint_eq(sub->currentLifetimeCount, 3);
         count++;
     }
@@ -735,9 +735,11 @@ START_TEST(Server_lifeTimeCount) {
     UA_Server_run_iterate(server, false);
 
     count = 0;
-    LIST_FOREACH(sub, &session->serverSubscriptions, listEntry) {
-        ck_assert_uint_eq(sub->currentLifetimeCount, 4);
-        count++;
+    TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
+        if(sub->statusChange == UA_STATUSCODE_GOOD) {
+            ck_assert_uint_eq(sub->currentLifetimeCount, 4);
+            count++;
+        }
     }
     ck_assert_uint_eq(count, 1);
 
@@ -746,9 +748,11 @@ START_TEST(Server_lifeTimeCount) {
     UA_Server_run_iterate(server, false);
 
     count = 0;
-    LIST_FOREACH(sub, &session->serverSubscriptions, listEntry) {
-        ck_assert_uint_eq(sub->currentLifetimeCount, 5);
-        count++;
+    TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
+        if(sub->statusChange == UA_STATUSCODE_GOOD) {
+            ck_assert_uint_eq(sub->currentLifetimeCount, 5);
+            count++;
+        }
     }
     ck_assert_uint_eq(count, 1);
 
@@ -757,9 +761,11 @@ START_TEST(Server_lifeTimeCount) {
     UA_Server_run_iterate(server, false);
 
     count = 0;
-    LIST_FOREACH(sub, &session->serverSubscriptions, listEntry) {
-        ck_assert_uint_eq(sub->currentLifetimeCount, 6);
-        count++;
+    TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
+        if(sub->statusChange == UA_STATUSCODE_GOOD) {
+            ck_assert_uint_eq(sub->currentLifetimeCount, 6);
+            count++;
+        }
     }
     ck_assert_uint_eq(count, 1);
 
@@ -769,8 +775,9 @@ START_TEST(Server_lifeTimeCount) {
     UA_Server_run_iterate(server, false);
 
     count = 0;
-    LIST_FOREACH(sub, &session->serverSubscriptions, listEntry) {
-        count++;
+    TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
+        if(sub->statusChange == UA_STATUSCODE_GOOD)
+            count++;
     }
     ck_assert_uint_eq(count, 0);
 }

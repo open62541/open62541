@@ -63,6 +63,11 @@ int main(int argc, char* argv[]) {
                                                        trustList, trustListSize,
                                                        issuerList, issuerListSize,
                                                        revocationList, revocationListSize);
+
+    #ifdef UA_ENABLE_WEBSOCKET_SERVER
+    UA_ServerConfig_addNetworkLayerWS(UA_Server_getConfig(server), 7681, 0, 0, &certificate, &privateKey);
+    #endif
+
     UA_ByteString_clear(&certificate);
     UA_ByteString_clear(&privateKey);
     for(size_t i = 0; i < trustListSize; i++)

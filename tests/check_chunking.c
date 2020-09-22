@@ -51,10 +51,10 @@ START_TEST(encodeArrayIntoFiveChunksShallWork) {
                                            &pos, &end, sendChunkMockUp, NULL);
 
     ck_assert_uint_eq(retval,UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(counter,4); //5 chunks allocated - callback called 4 times
+    ck_assert_uint_eq(counter,4); //5 chunks allocated - callback called 4 times
 
     dataCount += (uintptr_t)(pos - buffers[bufIndex].data);
-    ck_assert_int_eq(UA_calcSizeBinary(&v,&UA_TYPES[UA_TYPES_VARIANT]), dataCount);
+    ck_assert_uint_eq(UA_calcSizeBinary(&v,&UA_TYPES[UA_TYPES_VARIANT]), dataCount);
 
     UA_Variant_deleteMembers(&v);
     UA_Array_delete(buffers, chunkCount, &UA_TYPES[UA_TYPES_BYTESTRING]);
@@ -73,8 +73,8 @@ START_TEST(encodeStringIntoFiveChunksShallWork) {
     UA_String_init(&string);
     string.data = (UA_Byte*)UA_malloc(stringLength);
     string.length = stringLength;
-    char tmpString[9] = {'o','p','e','n','6','2','5','4','1'};
-    //char tmpString[9] = {'1','4','5','2','6','n','e','p','o'};
+    unsigned char tmpString[9] = {'o','p','e','n','6','2','5','4','1'};
+    //unsigned char tmpString[9] = {'1','4','5','2','6','n','e','p','o'};
     buffers = (UA_ByteString*)UA_Array_new(chunkCount, &UA_TYPES[UA_TYPES_BYTESTRING]);
     for(size_t i=0;i<chunkCount;i++){
         UA_ByteString_allocBuffer(&buffers[i],chunkSize);
@@ -95,10 +95,10 @@ START_TEST(encodeStringIntoFiveChunksShallWork) {
                                            &pos, &end, sendChunkMockUp, NULL);
 
     ck_assert_uint_eq(retval,UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(counter,4); //5 chunks allocated - callback called 4 times
+    ck_assert_uint_eq(counter,4); //5 chunks allocated - callback called 4 times
 
     dataCount += (uintptr_t)(pos - buffers[bufIndex].data);
-    ck_assert_int_eq(UA_calcSizeBinary(&v,&UA_TYPES[UA_TYPES_VARIANT]), dataCount);
+    ck_assert_uint_eq(UA_calcSizeBinary(&v,&UA_TYPES[UA_TYPES_VARIANT]), dataCount);
 
     UA_Variant_deleteMembers(&v);
     UA_Array_delete(buffers, chunkCount, &UA_TYPES[UA_TYPES_BYTESTRING]);
@@ -117,7 +117,7 @@ START_TEST(encodeTwoStringsIntoTenChunksShallWork) {
     UA_String_init(&string);
     string.data = (UA_Byte*)UA_malloc(stringLength);
     string.length = stringLength;
-    char tmpString[9] = {'o','p','e','n','6','2','5','4','1'};
+    unsigned char tmpString[9] = {'o','p','e','n','6','2','5','4','1'};
     buffers = (UA_ByteString*)UA_Array_new(chunkCount, &UA_TYPES[UA_TYPES_BYTESTRING]);
     for(size_t i=0;i<chunkCount;i++){
         UA_ByteString_allocBuffer(&buffers[i],chunkSize);
@@ -135,16 +135,16 @@ START_TEST(encodeTwoStringsIntoTenChunksShallWork) {
     UA_StatusCode retval = UA_encodeBinary(&string, &UA_TYPES[UA_TYPES_STRING],
                                            &pos, &end, sendChunkMockUp, NULL);
     ck_assert_uint_eq(retval,UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(counter,4); //5 chunks allocated - callback called 4 times
+    ck_assert_uint_eq(counter,4); //5 chunks allocated - callback called 4 times
     size_t offset = (uintptr_t)(pos - buffers[bufIndex].data);
-    ck_assert_int_eq(UA_calcSizeBinary(&string,&UA_TYPES[UA_TYPES_STRING]), dataCount + offset);
+    ck_assert_uint_eq(UA_calcSizeBinary(&string,&UA_TYPES[UA_TYPES_STRING]), dataCount + offset);
 
     retval = UA_encodeBinary(&string,&UA_TYPES[UA_TYPES_STRING],
                              &pos, &end, sendChunkMockUp, NULL);
     dataCount += (uintptr_t)(pos - buffers[bufIndex].data);
     ck_assert_uint_eq(retval,UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(counter,9); //10 chunks allocated - callback called 4 times
-    ck_assert_int_eq(2 * UA_calcSizeBinary(&string,&UA_TYPES[UA_TYPES_STRING]), dataCount);
+    ck_assert_uint_eq(counter,9); //10 chunks allocated - callback called 4 times
+    ck_assert_uint_eq(2 * UA_calcSizeBinary(&string,&UA_TYPES[UA_TYPES_STRING]), dataCount);
 
     UA_Array_delete(buffers, chunkCount, &UA_TYPES[UA_TYPES_BYTESTRING]);
     UA_String_deleteMembers(&string);

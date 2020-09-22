@@ -424,7 +424,9 @@ void Service_SetMonitoringMode(UA_Server *server, UA_Session *session,
  * SetTriggering Service
  * ^^^^^^^^^^^^^^^^^^^^^
  * Used to create and delete triggering links for a triggering item. */
-/* Not Implemented */
+void Service_SetTriggering(UA_Server *server, UA_Session *session,
+                           const UA_SetTriggeringRequest *request,
+                           UA_SetTriggeringResponse *response);
 
 /**
  * Subscription Service Set
@@ -496,7 +498,9 @@ void Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
  * its Subscriptions to that Session. It may also be used by one Client to take
  * over a Subscription from another Client by transferring the Subscription to
  * its Session. */
-/* Not Implemented */
+void Service_TransferSubscriptions(UA_Server *server, UA_Session *session,
+                                   const UA_TransferSubscriptionsRequest *request,
+                                   UA_TransferSubscriptionsResponse *response);
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
 

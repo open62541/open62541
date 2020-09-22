@@ -100,7 +100,7 @@ START_TEST(Service_Browse_WithMaxResults) {
     for(UA_UInt32 i = 1; i <= total; i++) {
         size_t sum_total =
             browseWithMaxResults(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), i);
-        ck_assert_int_eq(total, sum_total);
+        ck_assert_uint_eq(total, sum_total);
     }
     
     UA_Server_delete(server);
@@ -196,9 +196,9 @@ START_TEST(Service_TranslateBrowsePathsToNodeIds) {
     UA_TranslateBrowsePathsToNodeIdsResponse response = UA_Client_Service_translateBrowsePathsToNodeIds(client, request);
 
     ck_assert_int_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(response.resultsSize, 1);
+    ck_assert_uint_eq(response.resultsSize, 1);
 
-    ck_assert_int_eq(response.results[0].targetsSize, 1);
+    ck_assert_uint_eq(response.results[0].targetsSize, 1);
     ck_assert_int_eq(response.results[0].targets[0].targetId.nodeId.identifierType, UA_NODEIDTYPE_NUMERIC);
     ck_assert_int_eq(response.results[0].targets[0].targetId.nodeId.identifier.numeric, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
 
@@ -217,7 +217,7 @@ START_TEST(BrowseSimplifiedBrowsePath) {
                                              UA_NODEID_NUMERIC(0, UA_NS0ID_ROOTFOLDER),
                                              1, &objectsName);
 
-    ck_assert_int_eq(bpr.targetsSize, 1);
+    ck_assert_uint_eq(bpr.targetsSize, 1);
 
     UA_BrowsePathResult_deleteMembers(&bpr);
 }

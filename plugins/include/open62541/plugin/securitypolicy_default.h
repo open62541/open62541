@@ -38,6 +38,12 @@ UA_SecurityPolicy_Basic256Sha256(UA_SecurityPolicy *policy,
                                  const UA_ByteString localPrivateKey,
                                  const UA_Logger *logger);
 
+UA_EXPORT UA_StatusCode
+UA_SecurityPolicy_Aes128Sha256RsaOaep(UA_SecurityPolicy *policy,
+                                 const UA_ByteString localCertificate,
+                                 const UA_ByteString localPrivateKey,
+                                 const UA_Logger *logger);
+
 #endif
 
 _UA_END_DECLS

@@ -14,13 +14,13 @@ START_TEST(parseRange) {
     UA_String str = UA_STRING("1:2,0:3,5");
     UA_StatusCode retval = UA_NumericRange_parseFromString(&range, &str);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(range.dimensionsSize,3);
-    ck_assert_int_eq(range.dimensions[0].min,1);
-    ck_assert_int_eq(range.dimensions[0].max,2);
-    ck_assert_int_eq(range.dimensions[1].min,0);
-    ck_assert_int_eq(range.dimensions[1].max,3);
-    ck_assert_int_eq(range.dimensions[2].min,5);
-    ck_assert_int_eq(range.dimensions[2].max,5);
+    ck_assert_uint_eq(range.dimensionsSize,3);
+    ck_assert_uint_eq(range.dimensions[0].min,1);
+    ck_assert_uint_eq(range.dimensions[0].max,2);
+    ck_assert_uint_eq(range.dimensions[1].min,0);
+    ck_assert_uint_eq(range.dimensions[1].max,3);
+    ck_assert_uint_eq(range.dimensions[2].min,5);
+    ck_assert_uint_eq(range.dimensions[2].max,5);
     UA_free(range.dimensions);
 } END_TEST
 
@@ -29,11 +29,11 @@ START_TEST(parseRangeMinEqualMax) {
     UA_String str = UA_STRING("1:2,1");
     UA_StatusCode retval = UA_NumericRange_parseFromString(&range, &str);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(range.dimensionsSize,2);
-    ck_assert_int_eq(range.dimensions[0].min,1);
-    ck_assert_int_eq(range.dimensions[0].max,2);
-    ck_assert_int_eq(range.dimensions[1].min,1);
-    ck_assert_int_eq(range.dimensions[1].max,1);
+    ck_assert_uint_eq(range.dimensionsSize,2);
+    ck_assert_uint_eq(range.dimensions[0].min,1);
+    ck_assert_uint_eq(range.dimensions[0].max,2);
+    ck_assert_uint_eq(range.dimensions[1].min,1);
+    ck_assert_uint_eq(range.dimensions[1].max,1);
     UA_free(range.dimensions);
 } END_TEST
 
@@ -51,8 +51,8 @@ START_TEST(copySimpleArrayRange) {
 
     retval = UA_Variant_copyRange(&v, &v2, r);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(3, v2.arrayLength);
-    ck_assert_int_eq(2, *(UA_UInt32*)v2.data);
+    ck_assert_uint_eq(3, v2.arrayLength);
+    ck_assert_uint_eq(2, *(UA_UInt32*)v2.data);
 
     UA_Variant_deleteMembers(&v2);
     UA_free(r.dimensions);
@@ -75,7 +75,7 @@ START_TEST(copyIntoStringArrayRange) {
 
     retval = UA_Variant_copyRange(&v, &v2, r);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(2, v2.arrayLength);
+    ck_assert_uint_eq(2, v2.arrayLength);
 
     UA_String s1 = UA_STRING("bc");
     UA_String s2 = UA_STRING("xy");

@@ -8,7 +8,7 @@
 #ifndef UA_PLUGIN_HISTORYDATABASE_H_
 #define UA_PLUGIN_HISTORYDATABASE_H_
 
-#include <open62541/server.h>
+#include <open62541/util.h>
 
 _UA_BEGIN_DECLS
 
@@ -45,28 +45,18 @@ struct UA_HistoryDatabase {
      *
      * server is the server this node lives in.
      * hdbContext is the context of the UA_HistoryDatabase.
-     * sessionId and sessionContext identify the session which set this value.
      * originId is the node id of the event's origin.
      * emitterId is the node id of the event emitter.
-     * eventId is the node id of the event that is being emitted.
-     * willEventNodeBeDeleted specifies whether the event node will be deleted after
-     *                        it has been triggered (this might be relevant for
-     *                        in-memory storage).
      * historicalEventFilter is the value of the HistoricalEventFilter property of
      *                       the emitter (OPC UA Part 11, 5.3.2), it is NULL if
      *                       the property does not exist or is not set.
      * fieldList is the event field list returned after application of
-     *           historicalEventFilter to the event node
-     *           (NULL if historicalEventFilter is NULL or filtering was
-     *           unsuccessful); the fieldList is not deleted so
-     *           make sure to delete it when it is no longer needed. */
+     *           historicalEventFilter to the event node. */
     void
     (*setEvent)(UA_Server *server,
                 void *hdbContext,
                 const UA_NodeId *originId,
                 const UA_NodeId *emitterId,
-                const UA_NodeId *eventId,
-                UA_Boolean willEventNodeBeDeleted,
                 const UA_EventFilter *historicalEventFilter,
                 UA_EventFieldList *fieldList);
 

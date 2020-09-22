@@ -26,8 +26,18 @@
 #define UA_LOCK_ASSERT(mutexName, num)
 #endif
 
+#define UA_strncasecmp strncasecmp
+
 // freeRTOS does not have getifaddr
 #undef UA_HAS_GETIFADDR
+
+#ifndef IN6_IS_ADDR_UNSPECIFIED
+# define IN6_IS_ADDR_UNSPECIFIED(a) \
+        (((const uint32_t *) (a))[0] == 0                                      \
+         && ((const uint32_t *) (a))[1] == 0                                      \
+         && ((const uint32_t *) (a))[2] == 0                                      \
+         && ((const uint32_t *) (a))[3] == 0)
+#endif
 
 #include <open62541/architecture_functions.h>
 

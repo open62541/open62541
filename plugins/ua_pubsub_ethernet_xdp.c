@@ -95,6 +95,15 @@ typedef struct {
     xdpsock* xdpsocket;
 } UA_PubSubChannelDataEthernetXDP;
 
+/* Structure for Logical link control based on 802.2 */
+typedef struct  {
+    UA_Byte dsap; /* Destination Service Access Point */
+    UA_Byte ssap; /* Source Service Access point */
+    UA_Byte ctrl_1; /* Control Field */
+    UA_Byte ctrl_2; /* Control Field */
+} llc_pdu;
+
+
 /* These defines shall be removed in the future when XDP and RT-Linux has been mainlined and stable */
 #ifndef SOL_XDP
 #define SOL_XDP        283
@@ -105,7 +114,7 @@ typedef struct {
 #endif
 
 // Receive buffer batch size
-#define BATCH_SIZE     16
+#define BATCH_SIZE     8
 
 #define barrier() __asm__ __volatile__("": : :"memory")
 #ifdef __aarch64__
@@ -618,29 +627,34 @@ UA_PubSubChannelEthernetXDP_open(const UA_PubSubConnectionConfig *connectionConf
  */
 static void receive_parse(UA_PubSubChannelDataEthernetXDP *channelDataEthernetXDP, void *pkt,
                           size_t length, UA_UInt64 addr,
-                          UA_ByteString* message, UA_UInt32 messageNumber) {
+                          UA_ByteString* message, size_t *offset) {
     size_t lenBuf;
-    unsigned char * buffer;
+    unsigned char* buffer;
+    /* Make sure we match our target */
+    if(memcmp((unsigned char *)pkt, channelDataEthernetXDP->targetAddress, ETH_ALEN) != 0)
+        return;
+
     /* Without VLAN Tag */
     if (channelDataEthernetXDP->vid == 0 && channelDataEthernetXDP->prio == 0) {
-        buffer = (unsigned char *)pkt + sizeof(struct ether_header);
-        lenBuf = sizeof(struct ether_header);
+        buffer = (unsigned char *)pkt + sizeof(struct ether_header) + sizeof(llc_pdu);
+        lenBuf = sizeof(struct ether_header) + sizeof(llc_pdu);
     }
     else {
         /* With VLAN Tag */
-        buffer = (unsigned char *)pkt + sizeof(struct ether_header) + 4;
-        lenBuf = sizeof(struct ether_header) + 4;
+        buffer = (unsigned char *)pkt + sizeof(struct ether_header) + sizeof(llc_pdu) + 4;
+        lenBuf = sizeof(struct ether_header) + sizeof(llc_pdu) + 4;
     }
 
     /* TODO: Convert for loop to a well defined Linux APIs */
     if (length > 0) {
-        for (size_t iterator = 0 ; iterator < length - lenBuf; iterator++) {
-            message[messageNumber].data[iterator] = buffer [iterator];
+        for (size_t iterator = *offset, j = 0 ; iterator < (*offset + length - lenBuf); iterator++, j++) {
+            message->data[iterator] = buffer [j];
         }
-        message[messageNumber].length = length - lenBuf;
+        *offset += (length - lenBuf);
+        message->length = *offset;
     }
-     else {
-         message[messageNumber].length = 0;
+    else {
+         message->length = 0;
      }
 }
 
@@ -658,13 +672,19 @@ UA_PubSubChannelEthernetXDP_receive(UA_PubSubChannel *channel, UA_ByteString *me
 
     struct xdp_desc descs[BATCH_SIZE];
     UA_UInt32 receivedData;
+    size_t    currentposition = 0;
     receivedData = xq_deq(&channelDataEthernetXDP->xdpsocket->rx, descs, BATCH_SIZE);
     if (!receivedData){
         message->length = 0;
         return UA_STATUSCODE_GOODNODATA;
     }
-    unsigned char *pkt = (unsigned char *)xq_get_data(channelDataEthernetXDP->xdpsocket, descs[0].addr);
-    receive_parse(channelDataEthernetXDP, pkt, descs[0].len, descs[0].addr, message, 0);
+
+    for (UA_UInt16 i = 0; i < receivedData; i++) {
+        unsigned char *pkt = (unsigned char *)xq_get_data(channelDataEthernetXDP->xdpsocket, descs[i].addr);
+        receive_parse(channelDataEthernetXDP, pkt, descs[i].len, descs[i].addr, message, &currentposition);
+        if (message->length == 0)
+           break;
+    }
 
     channelDataEthernetXDP->xdpsocket->rx_npkts += receivedData;
 

@@ -38,18 +38,21 @@
 /* Namespace Handling */
 /**********************/
 
-/*
- * The NS1 Uri can be changed by the user to some custom string.
- * This method is called to initialize the NS1 Uri if it is not set before to the default Application URI.
+/* The NS1 Uri can be changed by the user to some custom string. This method is
+ * called to initialize the NS1 Uri if it is not set before to the default
+ * Application URI.
  *
- * This is done as soon as the Namespace Array is read or written via node value read / write services,
- * or UA_Server_addNamespace, UA_Server_getNamespaceByName or UA_Server_run_startup is called.
+ * This is done as soon as the Namespace Array is read or written via node value
+ * read / write services, or UA_Server_addNamespace,
+ * UA_Server_getNamespaceByName or UA_Server_run_startup is called.
  *
- * Therefore one has to set the custom NS1 URI before one of the previously mentioned steps.
- */
-void setupNs1Uri(UA_Server *server) {
-    if (!server->namespaces[1].data) {
-        UA_String_copy(&server->config.applicationDescription.applicationUri, &server->namespaces[1]);
+ * Therefore one has to set the custom NS1 URI before one of the previously
+ * mentioned steps. */
+void
+setupNs1Uri(UA_Server *server) {
+    if(!server->namespaces[1].data) {
+        UA_String_copy(&server->config.applicationDescription.applicationUri,
+                       &server->namespaces[1]);
     }
 }
 
@@ -92,31 +95,35 @@ UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
 }
 
 UA_ServerConfig*
-UA_Server_getConfig(UA_Server *server)
-{
+UA_Server_getConfig(UA_Server *server) {
   if(!server)
-    return NULL;
-
+      return NULL;
   return &server->config;
 }
 
 UA_StatusCode
-UA_Server_getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
-                             size_t* foundIndex) {
-    UA_LOCK(server->serviceMutex);
-
+getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
+                   size_t *foundIndex) {
     /* ensure that the uri for ns1 is set up from the app description */
     setupNs1Uri(server);
-
+    UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
     for(size_t idx = 0; idx < server->namespacesSize; idx++) {
-        if(!UA_String_equal(&server->namespaces[idx], &namespaceUri))
-            continue;
-        (*foundIndex) = idx;
-        UA_UNLOCK(server->serviceMutex);
-        return UA_STATUSCODE_GOOD;
+        if(UA_String_equal(&server->namespaces[idx], &namespaceUri)) {
+            (*foundIndex) = idx;
+            res = UA_STATUSCODE_GOOD;
+            break;
+        }
     }
+    return res;
+}
+
+UA_StatusCode
+UA_Server_getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
+                             size_t *foundIndex) {
+    UA_LOCK(server->serviceMutex);
+    UA_StatusCode res = getNamespaceByName(server, namespaceUri, foundIndex);
     UA_UNLOCK(server->serviceMutex);
-    return UA_STATUSCODE_BADNOTFOUND;
+    return res;
 }
 
 UA_StatusCode
@@ -144,12 +151,14 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
     }
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    for(size_t i = parentCopy->referencesSize; i > 0; --i) {
-        UA_NodeReferenceKind *ref = &parentCopy->references[i - 1];
-        for(size_t j = 0; j<ref->refTargetsSize; j++) {
+    for(size_t i = parentCopy->head.referencesSize; i > 0; --i) {
+        UA_NodeReferenceKind *ref = &parentCopy->head.references[i - 1];
+        UA_NodeId refTypeId =
+            *UA_NODESTORE_GETREFERENCETYPEID(server, ref->referenceTypeIndex);
+        UA_ReferenceTarget *target;
+        TAILQ_FOREACH(target, &ref->queueHead, queuePointers) {
             UA_UNLOCK(server->serviceMutex);
-            retval = callback(ref->refTargets[j].targetId.nodeId, ref->isInverse,
-                              ref->referenceTypeId, handle);
+            retval = callback(target->targetId.nodeId, ref->isInverse, refTypeId, handle);
             UA_LOCK(server->serviceMutex);
             if(retval != UA_STATUSCODE_GOOD)
                 goto cleanup;
@@ -188,6 +197,12 @@ void UA_Server_delete(UA_Server *server) {
         UA_LOCK(server->serviceMutex);
         UA_MonitoredItem_delete(server, mon);
         UA_UNLOCK(server->serviceMutex);
+    }
+
+    /* Remove subscriptions without a session */
+    UA_Subscription *sub, *sub_tmp;
+    LIST_FOREACH_SAFE(sub, &server->subscriptions, serverListEntry, sub_tmp) {
+        UA_Server_deleteSubscription(server, sub);
     }
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
@@ -330,13 +345,16 @@ UA_Server_init(UA_Server *server) {
 }
 
 UA_Server *
-UA_Server_newWithConfig(const UA_ServerConfig *config) {
+UA_Server_newWithConfig(UA_ServerConfig *config) {
     if(!config)
         return NULL;
     UA_Server *server = (UA_Server *)UA_calloc(1, sizeof(UA_Server));
-    if(!server)
+    if(!server) {
+        UA_ServerConfig_clean(config);
         return NULL;
+    }
     server->config = *config;
+    memset(config, 0, sizeof(UA_ServerConfig));
     return UA_Server_init(server);
 }
 
@@ -389,7 +407,7 @@ UA_Server_addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
 
 UA_StatusCode
 changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
-                                         UA_Double interval_ms) {
+                               UA_Double interval_ms) {
     return UA_Timer_changeRepeatedCallbackInterval(&server->timer, callbackId,
                                                    interval_ms);
 }
@@ -493,8 +511,11 @@ verifyServerApplicationURI(const UA_Server *server) {
                                  &server->config.applicationDescription.applicationUri);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                         "The configured ApplicationURI does not match the URI "
-                         "specified in the certificate for the SecurityPolicy %.*s",
+                         "The configured ApplicationURI \"%.*s\"does not match the "
+                         "ApplicationURI specified in the certificate for the "
+                         "SecurityPolicy %.*s",
+                         (int)server->config.applicationDescription.applicationUri.length,
+                         server->config.applicationDescription.applicationUri.data,
                          (int)sp->policyUri.length, sp->policyUri.data);
             return retval;
         }
@@ -579,6 +600,8 @@ UA_Server_run_startup(UA_Server *server) {
         nl->statistics = &server->serverStats.ns;
         result |= nl->start(nl, &server->config.customHostname);
     }
+    if(result != UA_STATUSCODE_GOOD)
+        return result;
 
     /* Update the application description to match the previously added discovery urls.
      * We can only do this after the network layer is started since it inits the discovery url */
@@ -607,7 +630,7 @@ UA_Server_run_startup(UA_Server *server) {
 
     /* Start the multicast discovery server */
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    if(server->config.discovery.mdnsEnable)
+    if(server->config.mdnsEnabled)
         startMulticastDiscoveryServer(server);
 #endif
 
@@ -660,11 +683,11 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
     }
 #endif
 #if defined(UA_ENABLE_DISCOVERY_MULTICAST) && (UA_MULTITHREADING < 200)
-    if(server->config.discovery.mdnsEnable) {
-        // TODO multicastNextRepeat does not consider new input data (requests)
-        // on the socket. It will be handled on the next call. if needed, we
-        // need to use select with timeout on the multicast socket
-        // server->mdnsSocket (see example in mdnsd library) on higher level.
+    if(server->config.mdnsEnabled) {
+        /* TODO multicastNextRepeat does not consider new input data (requests)
+         * on the socket. It will be handled on the next call. if needed, we
+         * need to use select with timeout on the multicast socket
+         * server->mdnsSocket (see example in mdnsd library) on higher level. */
         UA_DateTime multicastNextRepeat = 0;
         UA_StatusCode hasNext =
             iterateMulticastDiscoveryServer(server, &multicastNextRepeat, true);
@@ -702,7 +725,7 @@ UA_Server_run_shutdown(UA_Server *server) {
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     /* Stop multicast discovery */
-    if(server->config.discovery.mdnsEnable)
+    if(server->config.mdnsEnabled)
         stopMulticastDiscoveryServer(server);
 #endif
 
