@@ -599,15 +599,15 @@ void
 mdns_set_address_record(UA_Server *server, const char *fullServiceDomain,
                         const char *localDomain) {
 
-    if (server->config.discovery.ipAddressListSize == 0) {
+    if (server->config.mdnsIpAddressListSize == 0) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "If UA_HAS_GETIFADDR is false, config.discovery.ipAddressList must be set");
+                     "If UA_HAS_GETIFADDR is false, config.mdnsIpAddressList must be set");
         return;
     }
 
-    for(size_t i=0; i<server->config.discovery.ipAddressListSize; i++) {
+    for(size_t i=0; i<server->config.mdnsIpAddressListSize; i++) {
         mdns_set_address_record_if(&server->discoveryManager, fullServiceDomain,
-                                   localDomain, (char*)&server->config.discovery.ipAddressList[i], 4);
+                                   localDomain, (char*)&server->config.mdnsIpAddressList[i], 4);
     }
 }
 

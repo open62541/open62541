@@ -10,9 +10,9 @@
 #ifndef UA_PLUGIN_SECURITYPOLICY_H_
 #define UA_PLUGIN_SECURITYPOLICY_H_
 
+#include <open62541/util.h>
 #include <open62541/plugin/log.h>
 #include <open62541/plugin/pki.h>
-#include <open62541/server.h>
 
 _UA_BEGIN_DECLS
 

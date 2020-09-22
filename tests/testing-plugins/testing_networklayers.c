@@ -60,7 +60,7 @@ UA_Connection createDummyConnection(size_t sendBufferSize,
     UA_Connection c;
     c.state = UA_CONNECTIONSTATE_ESTABLISHED;
     c.channel = NULL;
-    c.sockfd = 0;
+    c.sockfd = UA_INVALID_SOCKET;
     c.handle = NULL;
     c.getSendBuffer = dummyGetSendBuffer;
     c.releaseSendBuffer = dummyReleaseSendBuffer;

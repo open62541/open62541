@@ -13,8 +13,9 @@
  *    Copyright 2018-2020 (c) HMS Industrial Networks AB (Author: Jonas Green)
  */
 
-#include "ua_services.h"
 #include "ua_server_internal.h"
+#include "ua_services.h"
+#include <open62541/types_generated_encoding_binary.h>
 
 /* Delayed callback to free the session memory */
 static void
@@ -34,8 +35,8 @@ UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
     /* Remove the Subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_Subscription *sub, *tempsub;
-    LIST_FOREACH_SAFE(sub, &session->serverSubscriptions, listEntry, tempsub) {
-        UA_Session_deleteSubscription(server, session, sub->subscriptionId);
+    TAILQ_FOREACH_SAFE(sub, &session->subscriptions, sessionListEntry, tempsub) {
+        UA_Server_deleteSubscription(server, sub);
     }
 
     UA_PublishResponseEntry *entry;
@@ -429,6 +430,8 @@ decryptPassword(UA_SecurityPolicy *securityPolicy, void *tempChannelContext,
 
     UA_UInt32 tokenSecretLength;
     UA_ByteString decryptedTokenSecret, tokenServerNonce;
+    size_t tokenpos = 0;
+    size_t offset = 0;
     if(UA_ByteString_copy(&userToken->password, &decryptedTokenSecret) != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 
@@ -437,7 +440,7 @@ decryptPassword(UA_SecurityPolicy *securityPolicy, void *tempChannelContext,
                         &decryptedTokenSecret) != UA_STATUSCODE_GOOD)
         goto cleanup;
 
-    memcpy(&tokenSecretLength, decryptedTokenSecret.data, sizeof(UA_UInt32));
+    UA_UInt32_decodeBinary(&decryptedTokenSecret, &offset, &tokenSecretLength);
 
     /* The decrypted data must be large enough to include the Encrypted Token
      * Secret Format and the length field must indicate enough data to include
@@ -456,7 +459,7 @@ decryptPassword(UA_SecurityPolicy *securityPolicy, void *tempChannelContext,
 
     /* The server nonce must match according to the 1.04.1 specification errata,
      * chapter 3. */
-    size_t tokenpos = sizeof(UA_UInt32) + tokenSecretLength - serverNonce->length;
+    tokenpos = sizeof(UA_UInt32) + tokenSecretLength - serverNonce->length;
     tokenServerNonce.length = serverNonce->length;
     tokenServerNonce.data = &decryptedTokenSecret.data[tokenpos];
     if(!UA_ByteString_equal(serverNonce, &tokenServerNonce))
@@ -554,6 +557,8 @@ void
 Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                         const UA_ActivateSessionRequest *request,
                         UA_ActivateSessionResponse *response) {
+    const UA_EndpointDescription *ed = NULL;
+    const UA_UserTokenPolicy *utp = NULL;
     UA_LOCK_ASSERT(server->serviceMutex, 1);
 
     UA_Session *session = getSessionByToken(server, &request->requestHeader.authenticationToken);
@@ -596,8 +601,6 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     }
 
     /* Find the matching Endpoint with UserTokenPolicy */
-    const UA_EndpointDescription *ed = NULL;
-    const UA_UserTokenPolicy *utp = NULL;
     selectEndpointAndTokenPolicy(server, channel, &request->userIdentityToken, &ed, &utp);
     if(!ed) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
@@ -746,7 +749,21 @@ Service_CloseSession(UA_Server *server, UA_SecureChannel *channel,
         return;
     }
 
-    UA_LOG_INFO_SESSION(&server->config.logger, session, "CloseSession");
+    UA_LOG_INFO_SESSION(&server->config.logger, session, "Closing the Session");
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    /* If Subscriptions are not deleted, detach them from the Session */
+    if(!request->deleteSubscriptions) {
+        UA_Subscription *sub, *sub_tmp;
+        TAILQ_FOREACH_SAFE(sub, &session->subscriptions, sessionListEntry, sub_tmp) {
+            UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, sub,
+                                     "Detaching the Subscription from the Session");
+            UA_Session_detachSubscription(server, session, sub);
+        }
+    }
+#endif
+
+    /* Remove the sesison */
     response->responseHeader.serviceResult =
         UA_Server_removeSessionByToken(server, &session->header.authenticationToken,
                                        UA_DIAGNOSTICEVENT_CLOSE);

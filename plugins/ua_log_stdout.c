@@ -48,8 +48,14 @@ const char *logCategoryNames[7] = {"network", "channel", "session", "server",
 __attribute__((__format__(__printf__, 4 , 0)))
 #endif
 void
-UA_Log_Stdout_log(void *_, UA_LogLevel level, UA_LogCategory category,
+UA_Log_Stdout_log(void *context, UA_LogLevel level, UA_LogCategory category,
                   const char *msg, va_list args) {
+
+    /* Assume that context is casted to UA_LogLevel */
+    /* TODO we may later change this to a struct with bitfields to filter on category */
+    if ( context != NULL && (UA_LogLevel)(uintptr_t)context > level )
+        return;
+
     UA_Int64 tOffset = UA_DateTime_localTimeUtcOffset();
     UA_DateTimeStruct dts = UA_DateTime_toStruct(UA_DateTime_now() + tOffset);
 
@@ -76,3 +82,12 @@ UA_Log_Stdout_clear(void *logContext) {
 
 const UA_Logger UA_Log_Stdout_ = {UA_Log_Stdout_log, NULL, UA_Log_Stdout_clear};
 const UA_Logger *UA_Log_Stdout = &UA_Log_Stdout_;
+
+/* By default the client and server is configured with UA_Log_Stdout
+   This constructs a logger with a configurable max log level */
+
+UA_Logger UA_Log_Stdout_withLevel(UA_LogLevel minlevel)
+{
+    UA_Logger logger = {UA_Log_Stdout_log, (void*)minlevel, UA_Log_Stdout_clear};
+    return logger;
+}

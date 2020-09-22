@@ -4,6 +4,7 @@
  *    Copyright 2018-2019 (c) Kalycito Infotech
  *    Copyright 2019 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  *    Copyright 2019 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright (c) 2020 Wind River Systems, Inc.
  */
 
 #include <signal.h>
@@ -35,6 +36,10 @@ void *pubData;
 timer_t pubEventTimer;
 struct sigevent pubEvent;
 struct sigaction signalAction;
+
+#if (PUBSUB_RT_LEVEL == UA_PUBSUB_RT_FIXED_SIZE) || (PUBSUB_RT_LEVEL == UA_PUBSUB_RT_DIRECT_VALUE_ACCESS)
+UA_DataValue *staticValueSource = NULL;
+#endif
 
 /* Arrays to store measurement data */
 UA_Int32 currentPublishCycleTime[MAX_MEASUREMENTS+1];
@@ -287,11 +292,10 @@ addPubSubConfiguration(UA_Server* server) {
     counterValue.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
 
 #if (PUBSUB_RT_LEVEL == UA_PUBSUB_RT_FIXED_SIZE) || (PUBSUB_RT_LEVEL == UA_PUBSUB_RT_DIRECT_VALUE_ACCESS)
-    counterValue.field.variable.staticValueSourceEnabled = true;
-    UA_DataValue_init(&counterValue.field.variable.staticValueSource);
-    UA_Variant_setScalar(&counterValue.field.variable.staticValueSource.value,
-                         &publishValue, &UA_TYPES[UA_TYPES_UINT64]);
-    counterValue.field.variable.staticValueSource.value.storageType = UA_VARIANT_DATA_NODELETE;
+    staticValueSource = UA_DataValue_new();
+    UA_Variant_setScalar(&staticValueSource->value, &publishValue, &UA_TYPES[UA_TYPES_UINT64]);
+    counterValue.field.variable.rtValueSource.rtFieldSourceEnabled = UA_TRUE;
+    counterValue.field.variable.rtValueSource.staticValueSource = &staticValueSource;
 #endif
     UA_Server_addDataSetField(server, publishedDataSetIdent, &counterValue,
                               &dataSetFieldIdentCounter);
@@ -361,6 +365,11 @@ int main(void) {
 
     /* Run the server */
     UA_StatusCode retval = UA_Server_run(server, &running);
+#if (PUBSUB_RT_LEVEL == UA_PUBSUB_RT_FIXED_SIZE) || (PUBSUB_RT_LEVEL == UA_PUBSUB_RT_DIRECT_VALUE_ACCESS)
+    if(staticValueSource != NULL) {
+        UA_DataValue_delete(staticValueSource);
+    }
+#endif
     UA_Server_delete(server);
 
     return (int)retval;

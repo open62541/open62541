@@ -18,7 +18,7 @@ START_TEST(base64) {
     res = UA_ByteString_fromBase64(&test1out, &test1base64);
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
 
-    ck_assert_int_eq(test1.length, test1out.length);
+    ck_assert_uint_eq(test1.length, test1out.length);
     for(size_t i = 0; i < test1.length; i++)
         ck_assert_int_eq(test1.data[i], test1out.data[i]);
 
@@ -35,7 +35,7 @@ START_TEST(base64) {
     res = UA_ByteString_fromBase64(&test2out, &test2base64);
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
 
-    ck_assert_int_eq(test2.length, test2out.length);
+    ck_assert_uint_eq(test2.length, test2out.length);
     for(size_t i = 0; i < test2.length; i++)
         ck_assert_int_eq(test2.data[i], test2out.data[i]);
 
@@ -145,40 +145,40 @@ START_TEST(parseRelativePath) {
     UA_RelativePath rp;
     UA_StatusCode res = UA_RelativePath_parse(&rp, UA_STRING(""));
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(rp.elementsSize, 0);
+    ck_assert_uint_eq(rp.elementsSize, 0);
 
     res = UA_RelativePath_parse(&rp, UA_STRING("/2:Block&.Output"));
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(rp.elementsSize, 1);
+    ck_assert_uint_eq(rp.elementsSize, 1);
     UA_RelativePath_clear(&rp);
 
     /* Paths with no BrowseName */
     res = UA_RelativePath_parse(&rp, UA_STRING("//"));
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(rp.elementsSize, 2);
+    ck_assert_uint_eq(rp.elementsSize, 2);
     UA_RelativePath_clear(&rp);
 
     res = UA_RelativePath_parse(&rp, UA_STRING("/."));
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(rp.elementsSize, 2);
+    ck_assert_uint_eq(rp.elementsSize, 2);
     UA_RelativePath_clear(&rp);
 
     res = UA_RelativePath_parse(&rp, UA_STRING("<0:HierachicalReferences>2:Wheel"));
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(rp.elementsSize, 1);
+    ck_assert_uint_eq(rp.elementsSize, 1);
     ck_assert_int_eq(rp.elements[0].targetName.namespaceIndex, 2);
     UA_RelativePath_clear(&rp);
 
     res = UA_RelativePath_parse(&rp, UA_STRING("<0:HasComponent>1:Boiler/1:HeatSensor"));
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(rp.elementsSize, 2);
+    ck_assert_uint_eq(rp.elementsSize, 2);
     ck_assert_int_eq(rp.elements[0].targetName.namespaceIndex, 1);
     ck_assert_int_eq(rp.elements[1].targetName.namespaceIndex, 1);
     UA_RelativePath_clear(&rp);
 
     res = UA_RelativePath_parse(&rp, UA_STRING(".1:Boiler/1:HeatSensor/"));
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(rp.elementsSize, 3);
+    ck_assert_uint_eq(rp.elementsSize, 3);
     ck_assert_int_eq(rp.elements[0].targetName.namespaceIndex, 1);
     ck_assert_int_eq(rp.elements[1].targetName.namespaceIndex, 1);
     UA_String tmp = UA_STRING("HeatSensor");
@@ -188,13 +188,13 @@ START_TEST(parseRelativePath) {
 
     res = UA_RelativePath_parse(&rp, UA_STRING("<!HasChild>Truck"));
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(rp.elementsSize, 1);
+    ck_assert_uint_eq(rp.elementsSize, 1);
     ck_assert_int_eq(rp.elements[0].isInverse, true);
     UA_RelativePath_clear(&rp);
 
     res = UA_RelativePath_parse(&rp, UA_STRING("<0:HasChild>"));
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(rp.elementsSize, 1);
+    ck_assert_uint_eq(rp.elementsSize, 1);
     UA_RelativePath_clear(&rp);
 } END_TEST
 

@@ -360,7 +360,7 @@ END_TEST
 
 
 
-START_TEST(Nodes_createObjectWithInterface) {
+START_TEST(Nodes_createObjectWithInterfaceOnType) {
 
 /* Minimal nodeset does not have the Interface definitions */
 #ifdef UA_GENERATED_NAMESPACE_ZERO
@@ -388,6 +388,44 @@ START_TEST(Nodes_createObjectWithInterface) {
 }
 END_TEST
 
+START_TEST(Nodes_createObjectWithInterfaceOnObject) {
+
+/* Minimal nodeset does not have the Interface definitions */
+#ifdef UA_GENERATED_NAMESPACE_ZERO
+    /* create an object of base object type */
+    UA_ObjectAttributes oAttr2 = UA_ObjectAttributes_default;
+    oAttr2.displayName = UA_LOCALIZEDTEXT("", "ObjectInstanceWithInterface");
+    oAttr2.description = UA_LOCALIZEDTEXT("", "");
+    UA_StatusCode retval =
+        UA_Server_addNode_begin(server, UA_NODECLASS_OBJECT, UA_NODEID_NUMERIC(1, 8021),
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                UA_QUALIFIEDNAME(1, "ObjectInstanceWithInterface"),
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+                                (const UA_NodeAttributes*)&oAttr2,&UA_TYPES[UA_TYPES_OBJECTATTRIBUTES],
+                                NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Add HasInterface to object */
+    retval = UA_Server_addReference(server, UA_NODEID_NUMERIC(1, 8021), UA_NODEID_NUMERIC(0, UA_NS0ID_HASINTERFACE), UA_EXPANDEDNODEID_NUMERIC(1, 8000), true);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+
+    /* Finish object node creation */
+    retval = UA_Server_addNode_finish(server,UA_NODEID_NUMERIC(1, 8021));
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+
+    /* Check that object has inherited the interface children */
+    UA_NodeId childId;
+    findChildId(UA_NODEID_NUMERIC(1, 8021),
+                UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                UA_QUALIFIEDNAME(1, "InterfaceChild"), &childId);
+    ck_assert(!UA_NodeId_isNull(&childId));
+#endif
+}
+END_TEST
+
 static Suite *testSuite_Client(void) {
     Suite *s = suite_create("Node inheritance");
     TCase *tc_inherit_subtype = tcase_create("Inherit subtype value");
@@ -402,7 +440,8 @@ static Suite *testSuite_Client(void) {
     TCase *tc_interface_addin = tcase_create("Interfaces and Addins");
     tcase_add_unchecked_fixture(tc_interface_addin, setup, teardown);
     tcase_add_test(tc_interface_addin, Nodes_createCustomInterfaceType);
-    tcase_add_test(tc_interface_addin, Nodes_createObjectWithInterface);
+    tcase_add_test(tc_interface_addin, Nodes_createObjectWithInterfaceOnType);
+    tcase_add_test(tc_interface_addin, Nodes_createObjectWithInterfaceOnObject);
     suite_add_tcase(s, tc_interface_addin);
     return s;
 }

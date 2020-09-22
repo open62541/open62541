@@ -47,6 +47,8 @@ def makeCIdentifier(value):
 
 
 def getNodeidTypeAndId(nodeId):
+    if not nodeId:
+        return "UA_NODEIDTYPE_NUMERIC, {0}"
     if '=' not in nodeId:
         return "UA_NODEIDTYPE_NUMERIC, {{{0}}}".format(nodeId)
     if nodeId.startswith("i="):
@@ -122,29 +124,23 @@ class CGenerator(object):
         raise RuntimeError("Unknown datatype")
 
     def print_datatype(self, datatype):
-        binaryEncodingId = "0"
-        if datatype.name in self.parser.typedescriptions:
-            description = self.parser.typedescriptions[datatype.name]
-            typeid = "{%s, %s}" % (description.namespaceid, getNodeidTypeAndId(description.nodeid))
-            # xmlEncodingId = description.xmlEncodingId
-            binaryEncodingId = description.binaryEncodingId
-        else:
-            if not self.is_internal_types:
-                raise RuntimeError("NodeId for " + datatype.name + " not found in .csv file")
-            else:
-                typeid = "{0, UA_NODEIDTYPE_NUMERIC, {0}}"
+        typeid = "{%s, %s}" % (datatype.namespace, getNodeidTypeAndId(datatype.nodeId))
+        binaryEncodingId = "{%s, %s}" % (datatype.namespace,
+                                         getNodeidTypeAndId(datatype.binaryEncodingId))
         idName = makeCIdentifier(datatype.name)
         pointerfree = "true" if datatype.pointerfree else "false"
-        return "{\n    UA_TYPENAME(\"%s\") /* .typeName */\n" % idName + \
+        return "{\n" + \
                "    " + typeid + ", /* .typeId */\n" + \
+               "    " + binaryEncodingId + ", /* .binaryEncodingId */\n" + \
                "    sizeof(UA_" + idName + "), /* .memSize */\n" + \
                "    " + self.get_type_index(datatype) + ", /* .typeIndex */\n" + \
                "    " + self.get_type_kind(datatype) + ", /* .typeKind */\n" + \
                "    " + pointerfree + ", /* .pointerFree */\n" + \
                "    " + self.get_type_overlayable(datatype) + ", /* .overlayable */\n" + \
                "    " + str(len(datatype.members)) + ", /* .membersSize */\n" + \
-               "    " + binaryEncodingId + ", /* .binaryEncodingId */\n" + \
-               "    %s_members" % idName + " /* .members */\n}"
+               "    %s_members" % idName + "  /* .members */\n" + \
+               "    UA_TYPENAME(\"%s\") /* .typeName */\n" % idName + \
+               "}"
 
     @staticmethod
     def print_members(datatype):
@@ -165,8 +161,7 @@ class CGenerator(object):
             member_name_capital = member_name
             if len(member_name) > 0:
                 member_name_capital = member_name[0].upper() + member_name[1:]
-            m = "\n{\n    UA_TYPENAME(\"%s\") /* .memberName */\n" % member_name_capital
-            m += "    UA_%s_%s, /* .memberTypeIndex */\n" % (
+            m = "\n{\n    UA_%s_%s, /* .memberTypeIndex */\n" % (
                 member.member_type.outname.upper(), makeCIdentifier(member.member_type.name.upper()))
             m += "    "
             if not before:
@@ -185,8 +180,9 @@ class CGenerator(object):
                     m += " - sizeof(UA_%s)," % makeCIdentifier(before.member_type.name)
             m += " /* .padding */\n"
             m += "    %s, /* .namespaceZero */\n" % ("true" if member.member_type.ns0 else "false")
-            m += ("    true," if member.is_array else "    false,") + " /* .isArray */\n"
-            m += ("    true" if member.is_optional else "    false") + " /* .isOptional */\n}"
+            m += ("    true" if member.is_array else "    false") + ", /* .isArray */\n"
+            m += ("    true" if member.is_optional else "    false") + "  /* .isOptional */\n"
+            m += "    UA_TYPENAME(\"%s\") /* .memberName */\n}" % member_name_capital
             if i != size:
                 m += ","
             members += m
@@ -346,13 +342,13 @@ class CGenerator(object):
             l = list(filter(lambda t: t.name in self.parser.selected_types, l))
         if self.parser.no_builtin:
             l = list(filter(lambda t: not isinstance(t, BuiltinType), l))
-        l = list(filter(lambda t: t.name not in self.parser.types_imported, l))
+        l = list(filter(lambda t: t.name not in self.parser.existing_types, l))
         return l
 
     def print_header(self):
-        self.printh('''/* Generated from ''' + self.inname + ''' with script ''' + sys.argv[0] + '''
- * on host ''' + platform.uname()[1] + ''' by user ''' + getpass.getuser() + ''' at ''' + time.strftime(
-            "%Y-%m-%d %I:%M:%S") + ''' */
+        self.printh('''/* Generated from ''' + self.inname + ''' with script ''' +
+                    sys.argv[0] + ''' * on host ''' + platform.uname()[1] + ''' by user ''' +
+                    getpass.getuser() + ''' at ''' + time.strftime("%Y-%m-%d %I:%M:%S") + ''' */
 
 #ifndef ''' + self.parser.outname.upper() + '''_GENERATED_H_
 #define ''' + self.parser.outname.upper() + '''_GENERATED_H_

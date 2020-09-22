@@ -6,14 +6,14 @@
  *    Copyright 2019 (c) Julius Pfrommer, Fraunhofer IOSB
  */
 
-#include <open62541/server_config.h>
+#include <open62541/util.h>
 #include <open62541/plugin/pki_default.h>
 
 #ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+
 #include <mbedtls/x509.h>
 #include <mbedtls/x509_crt.h>
 #include <mbedtls/error.h>
-#endif
 
 #define REMOTECERTIFICATETRUSTED 1
 #define ISSUERKNOWN              2
@@ -86,7 +86,7 @@ bstrchr(const unsigned char *s, const unsigned char ch, size_t l) {
     return s;
 }
 
-const unsigned char *
+static const unsigned char *
 UA_Bstrstr(const unsigned char *s1, size_t l1, const unsigned char *s2, size_t l2) {
     /* find first occurrence of s2[] in s1[] for length l1*/
     const unsigned char *ss1 = s1;
@@ -111,9 +111,6 @@ UA_Bstrstr(const unsigned char *s1, size_t l1, const unsigned char *s2, size_t l
     }
     return NULL;
 }
-#endif /* end of UA_ENABLE_ENCRYPTION */
-
-#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
 
 typedef struct {
     /* If the folders are defined, we use them to reload the certificates during
@@ -182,6 +179,7 @@ static UA_StatusCode
 reloadCertificates(DefaultCertContext *context) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     int err = 0;
+    int internalErrorFlag = 0;
 
     CertInfo *ci = (CertInfo*) context->cert_info;
     const UA_Logger *logger = (const UA_Logger *) context->logger;
@@ -202,7 +200,8 @@ reloadCertificates(DefaultCertContext *context) {
             char errBuff[300];
             mbedtls_strerror(err, errBuff, 300);
             UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER,
-                        "Failed to load certificate from %s", f);
+                        "Failed to load certificate from %s, mbedTLS error: %s (error code: %d)", f, errBuff, err);
+            internalErrorFlag = 1;
         }
     }
 
@@ -226,9 +225,12 @@ reloadCertificates(DefaultCertContext *context) {
                             "Loaded certificate from %.*s",
                             (int)paths[i].length, paths[i].data);
             } else {
+                char errBuff[300];
+                mbedtls_strerror(err, errBuff, 300);
                 UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER,
-                            "Failed to load certificate from %.*s",
-                            (int)paths[i].length, paths[i].data);
+                            "Failed to load certificate from %.*s, mbedTLS error: %s (error code: %d)",
+                            (int)paths[i].length, paths[i].data, errBuff, err);
+                internalErrorFlag = 1;
             }
         }
         UA_Array_delete(paths, pathsSize, &UA_TYPES[UA_TYPES_STRING]);
@@ -249,15 +251,28 @@ reloadCertificates(DefaultCertContext *context) {
             UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER,
                         "Loaded certificate from %s", f);
         } else {
+            char errBuff[300];
+            mbedtls_strerror(err, errBuff, 300);
             UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER,
-                        "Failed to load certificate from %s", f);
+                        "Failed to load certificate from %s, mbedTLS error: %s (error code: %d)", 
+                        f, errBuff, err);
+            internalErrorFlag = 1;
         }
     }
 
+    if(internalErrorFlag) {
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+    }
     return retval;
 }
 
 #endif
+
+static UA_StatusCode
+certificateVerification_allow(void *verificationContext,
+                              const UA_ByteString *certificate) {
+    return UA_STATUSCODE_GOOD;  
+}
 
 static UA_StatusCode
 certificateVerification_verify(void *verificationContext,
@@ -272,7 +287,10 @@ certificateVerification_verify(void *verificationContext,
         return UA_STATUSCODE_BADINTERNALERROR;
 
 #ifdef __linux__ /* Reload certificates if folder paths are specified */
-    reloadCertificates(context);
+    UA_StatusCode certFlag = reloadCertificates(ci);
+    if(certFlag != UA_STATUSCODE_GOOD) {
+        return certFlag;
+    }
 #endif
 
     if(ci->trustListFolder.length == 0 &&
@@ -571,7 +589,7 @@ UA_CertificateVerification_Trustlist(const UA_Logger *logger,
     if(certificateTrustListSize > 0)
         cv->verifyCertificate = certificateVerification_verify;
     else
-        cv->verifyCertificate = verifyCertificateAllowAll;
+        cv->verifyCertificate = certificateVerification_allow;
     cv->clear = certificateVerification_clear;
     cv->verifyApplicationURI = certificateVerification_verifyApplicationURI;
 
@@ -646,5 +664,4 @@ UA_CertificateVerification_CertFolders(const UA_Logger *logger,
 }
 
 #endif
-
 #endif

@@ -108,7 +108,7 @@ addHellWorldMethod1(UA_Server *server) {
     helloAttr.userExecutable = true;
     UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1,62541),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASORDEREDCOMPONENT),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                             UA_QUALIFIEDNAME(1, "hello world"),
                             helloAttr, &helloWorldMethodCallback1,
                             1, &inputArgument, 1, &outputArgument, NULL, NULL);	
@@ -165,7 +165,7 @@ addHellWorldMethod2(UA_Server *server) {
 	helloAttr.userExecutable = true;
 	UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1, 62542),
 		UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-		UA_NODEID_NUMERIC(0, UA_NS0ID_HASORDEREDCOMPONENT),
+		UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
 		UA_QUALIFIEDNAME(1, "hello world 2"),
 		helloAttr, &helloWorldMethodCallback2,
 		1, &inputArgument, 1, &outputArgument, NULL, NULL);

@@ -36,7 +36,7 @@ UA_SecureChannel_generateLocalNonce(UA_SecureChannel *channel) {
     /* Is the length of the previous nonce correct? */
     size_t nonceLength = sp->symmetricModule.secureChannelNonceLength;
     if(channel->localNonce.length != nonceLength) {
-        UA_ByteString_deleteMembers(&channel->localNonce);
+        UA_ByteString_clear(&channel->localNonce);
         UA_StatusCode retval = UA_ByteString_allocBuffer(&channel->localNonce, nonceLength);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
@@ -45,10 +45,14 @@ UA_SecureChannel_generateLocalNonce(UA_SecureChannel *channel) {
     return sp->symmetricModule.generateNonce(sp, &channel->localNonce);
 }
 
-static UA_StatusCode
-generateLocalKeys(const UA_SecureChannel *channel,
-                  const UA_SecurityPolicy *sp) {
+UA_StatusCode
+UA_SecureChannel_generateLocalKeys(const UA_SecureChannel *channel) {
+    const UA_SecurityPolicy *sp = channel->securityPolicy;
+    if(!sp)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     UA_LOG_TRACE_CHANNEL(sp->logger, channel, "Generating new local keys");
+
     void *cc = channel->channelContext;
     const UA_SecurityPolicyChannelModule *cm = &sp->channelModule;
     const UA_SecurityPolicySymmetricModule *sm = &sp->symmetricModule;
@@ -62,6 +66,10 @@ generateLocalKeys(const UA_SecureChannel *channel,
     UA_StatusCode retval = UA_ByteString_allocBuffer(&buf, encrBS + signKL + encrKL);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
+
+    // No keys to generate
+    if(buf.length == 0)
+        return UA_STATUSCODE_GOOD;
 
     /* Generate key */
     retval = sm->generateKey(sp, &channel->remoteNonce, &channel->localNonce, &buf);
@@ -81,10 +89,14 @@ generateLocalKeys(const UA_SecureChannel *channel,
     return retval;
 }
 
-static UA_StatusCode
-generateRemoteKeys(const UA_SecureChannel *channel,
-                   const UA_SecurityPolicy *sp) {
+UA_StatusCode
+generateRemoteKeys(const UA_SecureChannel *channel) {
+    const UA_SecurityPolicy *sp = channel->securityPolicy;
+    if(!sp)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     UA_LOG_TRACE_CHANNEL(sp->logger, channel, "Generating new remote keys");
+
     void *cc = channel->channelContext;
     const UA_SecurityPolicyChannelModule *cm = &sp->channelModule;
     const UA_SecurityPolicySymmetricModule *sm = &sp->symmetricModule;
@@ -101,6 +113,10 @@ generateRemoteKeys(const UA_SecureChannel *channel,
         return retval;
     }
 
+    // No keys to generate.
+    if(buf.length == 0)
+        return UA_STATUSCODE_GOOD;
+
     /* Generate key */
     retval = sm->generateKey(sp, &channel->localNonce, &channel->remoteNonce, &buf);
     if(retval != UA_STATUSCODE_GOOD)
@@ -115,47 +131,6 @@ generateRemoteKeys(const UA_SecureChannel *channel,
     retval |= cm->setRemoteSymIv(cc, &remoteIv);
     UA_ByteString_clear(&buf);
     return retval;
-}
-
-UA_StatusCode
-UA_SecureChannel_generateNewKeys(UA_SecureChannel *channel) {
-    const UA_SecurityPolicy *sp = channel->securityPolicy;
-    if(!sp)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    UA_LOG_DEBUG_CHANNEL(sp->logger, channel, "Generating SecureChannel keys");
-
-    UA_StatusCode retval = generateLocalKeys(channel, sp);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(sp->logger, UA_LOGCATEGORY_SECURECHANNEL,
-                     "Could not generate a local key");
-        return retval;
-    }
-
-    retval = generateRemoteKeys(channel, sp);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(sp->logger, UA_LOGCATEGORY_SECURECHANNEL,
-                     "Could not generate a remote key");
-        return retval;
-    }
-
-    return retval;
-}
-
-UA_StatusCode
-UA_SecureChannel_revolveTokens(UA_SecureChannel *channel) {
-    const UA_SecurityPolicy *sp = channel->securityPolicy;
-    if(!sp)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    if(channel->nextSecurityToken.tokenId == 0) /* no next security token issued */
-        return UA_STATUSCODE_BADSECURECHANNELTOKENUNKNOWN;
-
-    UA_ChannelSecurityToken_clear(&channel->securityToken);
-    channel->securityToken = channel->nextSecurityToken;
-    UA_ChannelSecurityToken_init(&channel->nextSecurityToken);
-
-    /* remote keys are generated later on */
-    return generateLocalKeys(channel, sp);
 }
 
 /***************************/
@@ -589,38 +564,64 @@ checkAsymHeader(UA_SecureChannel *channel,
 }
 
 UA_StatusCode
-checkSymHeader(UA_SecureChannel *channel, UA_UInt32 tokenId) {
-    /* If the message uses a different token, check if it is the next token. */
-    if(tokenId != channel->securityToken.tokenId) {
-        if(tokenId != channel->nextSecurityToken.tokenId) {
+checkSymHeader(UA_SecureChannel *channel,
+               const UA_SymmetricAlgorithmSecurityHeader *symHeader) {
+    /* If no match, try to revolve to the next token after a
+     * RenewSecureChannel */
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_ChannelSecurityToken *token = &channel->securityToken;
+    switch(channel->renewState) {
+    case UA_SECURECHANNELRENEWSTATE_NORMAL:
+    case UA_SECURECHANNELRENEWSTATE_SENT:
+    default:
+        break;
+
+    case UA_SECURECHANNELRENEWSTATE_NEWTOKEN_SERVER:
+        /* Old token still in use */
+        if(symHeader->tokenId == channel->securityToken.tokenId)
+            break;
+
+        /* Not the new token */
+        if(symHeader->tokenId != channel->altSecurityToken.tokenId) {
             UA_LOG_WARNING_CHANNEL(channel->securityPolicy->logger, channel,
-                                 "Received an unknown SecurityToken");
+                                   "Unknown SecurityToken");
             return UA_STATUSCODE_BADSECURECHANNELTOKENUNKNOWN;
         }
 
-        UA_LOG_DEBUG_CHANNEL(channel->securityPolicy->logger, channel,
-                             "Revolving to the next SecurityToken");
+        /* Roll over to the new token, generate new local and remote keys */
+        channel->renewState = UA_SECURECHANNELRENEWSTATE_NORMAL;
+        channel->securityToken = channel->altSecurityToken;
+        UA_ChannelSecurityToken_init(&channel->altSecurityToken);
+        retval = UA_SecureChannel_generateLocalKeys(channel);
+        retval |= generateRemoteKeys(channel);
+        break;
 
-        /* If the token is indeed the next token, revolve the tokens */
-        UA_StatusCode retval = UA_SecureChannel_revolveTokens(channel);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING_CHANNEL(channel->securityPolicy->logger, channel,
-                                   "Revolving to the next SecurityToken failed");
-            return retval;
+    case UA_SECURECHANNELRENEWSTATE_NEWTOKEN_CLIENT:
+        /* The server is still using the old token. That's okay. */
+        if(symHeader->tokenId == channel->altSecurityToken.tokenId) {
+            token = &channel->altSecurityToken;
+            break;
         }
 
-        /* If the message now uses the currently active token also generate
-         * new remote keys to correctly decrypt. */
-        retval = generateRemoteKeys(channel, channel->securityPolicy);
-        if(retval != UA_STATUSCODE_GOOD) {
+        /* Not the new token */
+        if(symHeader->tokenId != channel->securityToken.tokenId) {
             UA_LOG_WARNING_CHANNEL(channel->securityPolicy->logger, channel,
-                                   "Could not generate new remote keys");
-            return retval;
+                                   "Unknown SecurityToken");
+            return UA_STATUSCODE_BADSECURECHANNELTOKENUNKNOWN;
         }
+
+        /* The remote server uses the new token for the first time. Delete the
+         * old token and roll the remote key over. The local key already uses
+         * the nonce pair from the last OPN exchange. */
+        channel->renewState = UA_SECURECHANNELRENEWSTATE_NORMAL;
+        UA_ChannelSecurityToken_init(&channel->altSecurityToken);
+        retval = generateRemoteKeys(channel);
     }
 
-    UA_DateTime timeout = channel->securityToken.createdAt +
-        (channel->securityToken.revisedLifetime * UA_DATETIME_MSEC);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    UA_DateTime timeout = token->createdAt + (token->revisedLifetime * UA_DATETIME_MSEC);
     if(channel->state == UA_SECURECHANNELSTATE_OPEN &&
        timeout < UA_DateTime_nowMonotonic()) {
         UA_LOG_WARNING_CHANNEL(channel->securityPolicy->logger, channel,

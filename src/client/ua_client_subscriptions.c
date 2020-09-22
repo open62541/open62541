@@ -28,6 +28,7 @@ UA_Client_MonitoredItem_remove(UA_Client *client, UA_Client_Subscription *sub,
 
 static void
 __Subscriptions_create_handler(UA_Client *client, void *data, UA_UInt32 requestId, void *r) {
+    UA_Client_Subscription *newSub = NULL;
     UA_CreateSubscriptionResponse *response = (UA_CreateSubscriptionResponse *)r;
     CustomCallback *cc = (CustomCallback *)data;
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
@@ -37,7 +38,7 @@ __Subscriptions_create_handler(UA_Client *client, void *data, UA_UInt32 requestI
     }
 
     /* Prepare the internal representation */
-    UA_Client_Subscription *newSub = (UA_Client_Subscription *)cc->clientData;
+    newSub = (UA_Client_Subscription *)cc->clientData;
     newSub->subscriptionId = response->subscriptionId;
     newSub->sequenceNumber = 0;
     newSub->lastActivity = UA_DateTime_nowMonotonic();
@@ -766,6 +767,7 @@ UA_Client_MonitoredItems_createEvent(UA_Client *client, UA_UInt32 subscriptionId
 
 static void
 __MonitoredItems_delete_handler(UA_Client *client, void *d, UA_UInt32 requestId, void *r) {
+    UA_Client_Subscription *sub = NULL;
     UA_DeleteMonitoredItemsResponse *response = (UA_DeleteMonitoredItemsResponse *)r;
     CustomCallback *cc = (CustomCallback *)d;
     UA_DeleteMonitoredItemsRequest *request =
@@ -773,7 +775,7 @@ __MonitoredItems_delete_handler(UA_Client *client, void *d, UA_UInt32 requestId,
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
         goto cleanup;
 
-    UA_Client_Subscription *sub = findSubscription(client, request->subscriptionId);
+    sub = findSubscription(client, request->subscriptionId);
     if(!sub) {
         UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                     "No internal representation of subscription %" PRIu32,

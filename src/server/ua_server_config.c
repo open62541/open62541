@@ -6,7 +6,7 @@
  *    Copyright 2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
  */
 
-#include <open62541/server_config.h>
+#include <open62541/server.h>
 
 void
 UA_ServerConfig_clean(UA_ServerConfig *config) {
@@ -17,11 +17,11 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
     UA_BuildInfo_deleteMembers(&config->buildInfo);
     UA_ApplicationDescription_deleteMembers(&config->applicationDescription);
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    UA_MdnsDiscoveryConfiguration_clear(&config->discovery.mdns);
-    UA_String_clear(&config->discovery.mdnsInterfaceIP);
+    UA_MdnsDiscoveryConfiguration_clear(&config->mdnsConfig);
+    UA_String_clear(&config->mdnsInterfaceIP);
 # if !defined(UA_HAS_GETIFADDR)
-    if (config->discovery.ipAddressListSize) {
-        UA_free(config->discovery.ipAddressList);
+    if (config->mdnsIpAddressListSize) {
+        UA_free(config->mdnsIpAddressList);
     }
 # endif
 #endif
@@ -78,15 +78,6 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
         config->logger.clear(config->logger.context);
     config->logger.log = NULL;
     config->logger.clear = NULL;
-}
-
-void
-UA_ServerConfig_setCustomHostname(UA_ServerConfig *config,
-                                  const UA_String customHostname) {
-    if(!config)
-        return;
-    UA_String_deleteMembers(&config->customHostname);
-    UA_String_copy(&customHostname, &config->customHostname);
 }
 
 #ifdef UA_ENABLE_PUBSUB

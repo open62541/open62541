@@ -37,13 +37,13 @@ START_TEST(checkGetConfig) {
 START_TEST(checkGetNamespaceByName) {
     size_t notFoundIndex = 62541;
     UA_StatusCode notFound = UA_Server_getNamespaceByName(server, UA_STRING("http://opcfoundation.org/UA/invalid"), &notFoundIndex);
-    ck_assert_int_eq(notFoundIndex, 62541); // not changed
-    ck_assert_int_eq(notFound, UA_STATUSCODE_BADNOTFOUND);
+    ck_assert_uint_eq(notFoundIndex, 62541); // not changed
+    ck_assert_uint_eq(notFound, UA_STATUSCODE_BADNOTFOUND);
 
     size_t foundIndex = 62541;
     UA_StatusCode found = UA_Server_getNamespaceByName(server, UA_STRING("http://opcfoundation.org/UA/"), &foundIndex);
-    ck_assert_int_eq(foundIndex, 0); // this namespace always has index 0 (defined by the standard)
-    ck_assert_int_eq(found, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(foundIndex, 0); // this namespace always has index 0 (defined by the standard)
+    ck_assert_uint_eq(found, UA_STATUSCODE_GOOD);
 } END_TEST
 
 static void timedCallbackHandler(UA_Server *s, void *data) {

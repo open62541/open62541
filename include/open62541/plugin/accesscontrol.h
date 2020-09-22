@@ -9,7 +9,7 @@
 #ifndef UA_PLUGIN_ACCESS_CONTROL_H_
 #define UA_PLUGIN_ACCESS_CONTROL_H_
 
-#include <open62541/server.h>
+#include <open62541/util.h>
 
 _UA_BEGIN_DECLS
 
@@ -22,7 +22,11 @@ typedef struct UA_AccessControl UA_AccessControl;
  * Access Control Plugin API
  * =========================
  * The access control callback is used to authenticate sessions and grant access
- * rights accordingly. */
+ * rights accordingly.
+ *
+ * The ``sessionId`` and ``sessionContext`` can be both NULL. This is the case
+ * when, for example, a MonitoredItem (the underlying Subscription) is detached
+ * from its Session but continues to run. */
 
 struct UA_AccessControl {
     void *context;
@@ -93,6 +97,16 @@ struct UA_AccessControl {
     UA_Boolean (*allowBrowseNode)(UA_Server *server, UA_AccessControl *ac,
                                   const UA_NodeId *sessionId, void *sessionContext,
                                   const UA_NodeId *nodeId, void *nodeContext);
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    /* Allow transfer of a subscription to another session. The Server shall
+     * validate that the Client of that Session is operating on behalf of the
+     * same user */
+    UA_Boolean (*allowTransferSubscription)(UA_Server *server, UA_AccessControl *ac,
+                                            const UA_NodeId *oldSessionId, void *oldSessionContext,
+                                            const UA_NodeId *newSessionId, void *newSessionContext);
+#endif
+
 #ifdef UA_ENABLE_HISTORIZING
     /* Allow insert,replace,update of historical data */
     UA_Boolean (*allowHistoryUpdateUpdateData)(UA_Server *server, UA_AccessControl *ac,

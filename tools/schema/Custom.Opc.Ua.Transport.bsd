@@ -19,6 +19,7 @@
     <opc:EnumeratedValue Name="OPN" Value="0x4E504F" />
     <opc:EnumeratedValue Name="CLO" Value="0x4F4C43" />
     <opc:EnumeratedValue Name="ERR" Value="0x525245" />
+    <opc:EnumeratedValue Name="INVALID" Value="0x0" />
   </opc:EnumeratedType>
   
   <opc:EnumeratedType Name="ChunkType" LengthInBits="32">
@@ -60,10 +61,15 @@
   </opc:StructuredType>
   
   <opc:StructuredType Name="AsymmetricAlgorithmSecurityHeader">
-    <opc:Documentation>Security Header</opc:Documentation>
+    <opc:Documentation>Asymmetric Security Header</opc:Documentation>
     <opc:Field Name="SecurityPolicyUri" TypeName="opc:ByteString" />
     <opc:Field Name="SenderCertificate" TypeName="opc:ByteString" />
     <opc:Field Name="ReceiverCertificateThumbprint" TypeName="opc:ByteString" />
+  </opc:StructuredType>
+
+  <opc:StructuredType Name="SymmetricAlgorithmSecurityHeader">
+    <opc:Documentation>Symmetric Security Header</opc:Documentation>
+    <opc:Field Name="TokenId" TypeName="opc:UInt32" />
   </opc:StructuredType>
   
   <opc:StructuredType Name="SequenceHeader">

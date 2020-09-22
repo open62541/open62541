@@ -35,3 +35,23 @@ loadFile(const char *const path) {
 
     return fileContents;
 }
+
+static UA_INLINE UA_StatusCode
+writeFile(const char* const path, const UA_ByteString buffer) {
+    FILE *fp = NULL;
+
+    fp = fopen(path, "wb");
+    if(fp == NULL) 
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    for(UA_UInt32 bufIndex = 0; bufIndex < buffer.length; bufIndex++) {
+        int retVal = fputc(buffer.data[bufIndex], fp);
+        if(retVal == EOF) {
+            fclose(fp);
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+    }
+
+    fclose(fp);
+    return UA_STATUSCODE_GOOD;
+}

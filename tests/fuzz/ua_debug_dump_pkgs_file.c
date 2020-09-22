@@ -94,13 +94,13 @@ UA_debug_dumpSetServiceName(const UA_ByteString *msg, char serviceNameTarget[100
 
     const UA_DataType *requestType = NULL;
 
-    for (size_t i=0; i<UA_TYPES_COUNT; i++) {
-        if (UA_TYPES[i].binaryEncodingId == requestTypeId.identifier.numeric) {
+    for(size_t i = 0; i < UA_TYPES_COUNT; i++) {
+        if(UA_NodeId_equal(&UA_TYPES[i].binaryEncodingId, &requestTypeId)) {
             requestType = &UA_TYPES[i];
             break;
         }
     }
-    if (requestType == NULL) {
+    if(!requestType) {
         snprintf(serviceNameTarget, 100, "invalid_request_no_type");
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
@@ -115,7 +115,7 @@ UA_debug_dumpSetServiceName(const UA_ByteString *msg, char serviceNameTarget[100
  *
  * message is the decoded message starting at the nodeid of the content type.
  */
-static void
+static UA_StatusCode
 UA_debug_dump_setName(void *application, UA_SecureChannel *channel,
                       UA_MessageType messagetype, UA_UInt32 requestId,
                       UA_ByteString *message) {
@@ -123,6 +123,7 @@ UA_debug_dump_setName(void *application, UA_SecureChannel *channel,
     dump_filename->messageType = UA_debug_dumpGetMessageTypePrefix(messagetype);
     if(messagetype == UA_MESSAGETYPE_MSG)
         UA_debug_dumpSetServiceName(message, dump_filename->serviceName);
+    return UA_STATUSCODE_GOOD;
 }
 
 /**
@@ -148,8 +149,8 @@ UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const connect
     dummy.connection = &c;
     UA_ChannelSecurityToken_copy(&connection->channel->securityToken,
                                  &dummy.securityToken);
-    UA_ChannelSecurityToken_copy(&connection->channel->nextSecurityToken,
-                                 &dummy.nextSecurityToken);
+    UA_ChannelSecurityToken_copy(&connection->channel->altSecurityToken,
+                                 &dummy.altSecurityToken);
 
     UA_ByteString messageBufferCopy;
     UA_ByteString_copy(messageBuffer, &messageBufferCopy);
