@@ -49,6 +49,28 @@ static void teardown_server(void) {
     UA_Server_delete(server_translate_browse);
 }
 
+START_TEST(Service_Browse_CheckSubTypes) {
+    UA_Server *server = UA_Server_new();
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
+
+    UA_NodeId hierarchRefs = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
+    UA_ReferenceTypeSet indices;
+    UA_StatusCode res = referenceTypeIndices(server, &hierarchRefs, &indices, true);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    /* Check that the subtypes are included */
+    UA_assert(UA_ReferenceTypeSet_contains(&indices, UA_REFERENCETYPEINDEX_ORGANIZES));
+    UA_assert(UA_ReferenceTypeSet_contains(&indices, UA_REFERENCETYPEINDEX_HASPROPERTY));
+    UA_assert(UA_ReferenceTypeSet_contains(&indices, UA_REFERENCETYPEINDEX_HASCHILD));
+    UA_assert(UA_ReferenceTypeSet_contains(&indices, UA_REFERENCETYPEINDEX_AGGREGATES));
+
+    /* Check that the non-subtypes are not included */
+    UA_assert(!UA_ReferenceTypeSet_contains(&indices, !UA_REFERENCETYPEINDEX_NONHIERARCHICALREFERENCES));
+
+    UA_Server_delete(server);
+}
+END_TEST
+
 static size_t
 browseWithMaxResults(UA_Server *server, UA_NodeId nodeId, UA_UInt32 maxResults) {
     UA_BrowseDescription bd;
@@ -226,6 +248,7 @@ END_TEST
 static Suite *testSuite_Service_TranslateBrowsePathsToNodeIds(void) {
     Suite *s = suite_create("Service_TranslateBrowsePathsToNodeIds");
     TCase *tc_browse = tcase_create("Browse Service");
+    tcase_add_test(tc_browse, Service_Browse_CheckSubTypes);
     tcase_add_test(tc_browse, Service_Browse_WithBrowseName);
     tcase_add_test(tc_browse, Service_Browse_WithMaxResults);
     tcase_add_test(tc_browse, Service_Browse_Recursive);
