@@ -115,7 +115,7 @@ static UA_StatusCode
 updateCertificateAndPrivateKey_none(UA_SecurityPolicy *policy,
                                     const UA_ByteString newCertificate,
                                     const UA_ByteString newPrivateKey) {
-    UA_ByteString_deleteMembers(&policy->localCertificate);
+    UA_ByteString_clear(&policy->localCertificate);
     UA_ByteString_copy(&newCertificate, &policy->localCertificate);
     return UA_STATUSCODE_GOOD;
 }
@@ -123,7 +123,7 @@ updateCertificateAndPrivateKey_none(UA_SecurityPolicy *policy,
 
 static void
 policy_clear_none(UA_SecurityPolicy *policy) {
-    UA_ByteString_deleteMembers(&policy->localCertificate);
+    UA_ByteString_clear(&policy->localCertificate);
 }
 
 UA_StatusCode

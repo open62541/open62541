@@ -14,9 +14,9 @@
 UA_StatusCode
 UA_MonitoredItem_removeNodeEventCallback(UA_Server *server, UA_Session *session,
                                          UA_Node *node, void *data) {
-    if (node->nodeClass != UA_NODECLASS_OBJECT)
+    if(node->head.nodeClass != UA_NODECLASS_OBJECT)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_ObjectNode *on = (UA_ObjectNode*)node;
+    UA_ObjectNode *on = &node->objectNode;
     UA_MonitoredItem *remove = (UA_MonitoredItem*)data;
 
     if(!on->monitoredItemQueue)
@@ -69,9 +69,9 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
     }
 
     /* Make sure the eventType is a subtype of BaseEventType */
-    UA_NodeId hasSubtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
     UA_NodeId baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
-    if(!isNodeInTree(server, &eventType, &baseEventTypeId, &hasSubtypeId, 1)) {
+    if(!isNodeInTree_singleRef(server, &eventType, &baseEventTypeId,
+                               UA_REFERENCETYPEINDEX_HASSUBTYPE)) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Event type must be a subtype of BaseEventType!");
         UA_UNLOCK(server->serviceMutex);
@@ -159,11 +159,9 @@ isValidEvent(UA_Server *server, const UA_NodeId *validEventParent,
     /* check whether the EventType is a Subtype of CondtionType
      * (Part 9 first implementation) */
     UA_NodeId conditionTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
-    UA_NodeId hasSubtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
-
     if(UA_NodeId_equal(validEventParent, &conditionTypeId) &&
-       isNodeInTree(server, tEventType,
-					&conditionTypeId, &hasSubtypeId, 1)){
+       isNodeInTree_singleRef(server, tEventType, &conditionTypeId,
+                              UA_REFERENCETYPEINDEX_HASSUBTYPE)) {
         UA_BrowsePathResult_deleteMembers(&bpr);
         UA_Variant_clear(&tOutVariant);
         return true;
@@ -173,8 +171,9 @@ isValidEvent(UA_Server *server, const UA_NodeId *validEventParent,
      *(ConditionId Clause won't be present in Events, which are not Conditions)*/
     /* check whether Valid Event other than Conditions */
     UA_NodeId baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
-    UA_Boolean isSubtypeOfBaseEvent = isNodeInTree(server, tEventType,
-                                                   &baseEventTypeId, &hasSubtypeId, 1);
+    UA_Boolean isSubtypeOfBaseEvent =
+        isNodeInTree_singleRef(server, tEventType, &baseEventTypeId,
+                               UA_REFERENCETYPEINDEX_HASSUBTYPE);
 
     UA_BrowsePathResult_clear(&bpr);
     UA_Variant_clear(&tOutVariant);
@@ -316,33 +315,26 @@ UA_Server_evaluateWhereClauseContentFilter(
             }
             else {
                 UA_NodeId *pOperandNodeId = (UA_NodeId *) pOperand->value.data;
-                UA_NodeId hasSubtypeId =
-                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
-                UA_QualifiedName eventTypeQualifiedName =
-                    UA_QUALIFIEDNAME(0, "EventType");
+                UA_QualifiedName eventTypeQualifiedName = UA_QUALIFIEDNAME(0, "EventType");
                 UA_Variant typeNodeIdVariant;
                 UA_Variant_init(&typeNodeIdVariant);
                 UA_StatusCode readStatusCode =
-                    UA_Server_readObjectProperty(
-                        server, *eventNode,
-                        eventTypeQualifiedName, &typeNodeIdVariant);
+                    readObjectProperty(server, *eventNode, eventTypeQualifiedName,
+                                       &typeNodeIdVariant);
                 if(readStatusCode != UA_STATUSCODE_GOOD)
-                {
                     return readStatusCode;
-                }
 
-                if(!UA_Variant_isScalar(&typeNodeIdVariant)
-                    || typeNodeIdVariant.type != &UA_TYPES[UA_TYPES_NODEID]
-                    || typeNodeIdVariant.data == NULL)
-                {
+                if(!UA_Variant_isScalar(&typeNodeIdVariant) ||
+                   typeNodeIdVariant.type != &UA_TYPES[UA_TYPES_NODEID] ||
+                   typeNodeIdVariant.data == NULL) {
                     UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "EventType has an invalid type.");
+                                 "EventType has an invalid type.");
                     UA_Variant_clear(&typeNodeIdVariant);
                     return UA_STATUSCODE_BADINTERNALERROR;
                 }
-                result = isNodeInTree(
-                    server, (UA_NodeId*) typeNodeIdVariant.data,
-                    pOperandNodeId, &hasSubtypeId, 1);
+
+                result = isNodeInTree_singleRef(server, (UA_NodeId*) typeNodeIdVariant.data,
+                                                pOperandNodeId, UA_REFERENCETYPEINDEX_HASSUBTYPE);
                 UA_Variant_clear(&typeNodeIdVariant);
             }
 
@@ -367,28 +359,21 @@ UA_Server_evaluateWhereClauseContentFilter(
 static UA_StatusCode
 UA_Server_filterEvent(UA_Server *server, UA_Session *session,
                       const UA_NodeId *eventNode, UA_EventFilter *filter,
-                      UA_EventNotification *notification) {
-    if (filter->selectClausesSize == 0)
+                      UA_EventFieldList *efl) {
+    if(filter->selectClausesSize == 0)
         return UA_STATUSCODE_BADEVENTFILTERINVALID;
 
-    UA_StatusCode retVal = UA_Server_evaluateWhereClauseContentFilter(
-        server, eventNode, &filter->whereClause);
-    if(retVal != UA_STATUSCODE_GOOD)
-    {
-        return retVal;
-    }
-    UA_EventFieldList_init(&notification->fields);
-    /* EventFilterResult isn't being used currently
-    UA_EventFilterResult_init(&notification->result); */
+    UA_StatusCode res =
+        UA_Server_evaluateWhereClauseContentFilter(server, eventNode, &filter->whereClause);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
-    notification->fields.eventFields = (UA_Variant *)
+    UA_EventFieldList_init(efl);
+    efl->eventFields = (UA_Variant *)
         UA_Array_new(filter->selectClausesSize, &UA_TYPES[UA_TYPES_VARIANT]);
-    if(!notification->fields.eventFields) {
-        /* EventFilterResult currently isn't being used
-        UA_EventFiterResult_clear(&notification->result); */
+    if(!efl->eventFields)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    notification->fields.eventFieldsSize = filter->selectClausesSize;
+    efl->eventFieldsSize = filter->selectClausesSize;
 
     /* EventFilterResult currently isn't being used
     notification->result.selectClauseResultsSize = filter->selectClausesSize;
@@ -409,7 +394,7 @@ UA_Server_filterEvent(UA_Server *server, UA_Session *session,
     for(size_t i = 0; i < filter->selectClausesSize; i++) {
         if(!UA_NodeId_equal(&filter->selectClauses[i].typeDefinitionId, &baseEventTypeId) &&
            !isValidEvent(server, &filter->selectClauses[i].typeDefinitionId, eventNode)) {
-            UA_Variant_init(&notification->fields.eventFields[i]);
+            UA_Variant_init(&efl->eventFields[i]);
             /* EventFilterResult currently isn't being used
             notification->result.selectClauseResults[i] = UA_STATUSCODE_BADTYPEDEFINITIONINVALID; */
             continue;
@@ -417,8 +402,7 @@ UA_Server_filterEvent(UA_Server *server, UA_Session *session,
 
         /* TODO: Put the result into the selectClausResults */
         resolveSimpleAttributeOperand(server, session, eventNode,
-                                      &filter->selectClauses[i],
-                                      &notification->fields.eventFields[i]);
+                                      &filter->selectClauses[i], &efl->eventFields[i]);
     }
 
     return UA_STATUSCODE_GOOD;
@@ -497,35 +481,76 @@ eventSetStandardFields(UA_Server *server, const UA_NodeId *event,
 /* Filters an event according to the filter specified by mon and then adds it to
  * mons notification queue */
 UA_StatusCode
-UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event, UA_MonitoredItem *mon) {
-    UA_Notification *notification = (UA_Notification *) UA_malloc(sizeof(UA_Notification));
+UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event,
+                                 UA_MonitoredItem *mon) {
+    UA_Notification *notification = UA_Notification_new();
     if(!notification)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    /* Get the session */
     UA_Subscription *sub = mon->subscription;
     UA_Session *session = sub->session;
-
-
-    /* Apply the filter */
     UA_StatusCode retval =
         UA_Server_filterEvent(server, session, event, &mon->filter.eventFilter,
                               &notification->data.event);
-    if(retval == UA_STATUSCODE_BADNOMATCH)
-    {
-        UA_free(notification);
-        return UA_STATUSCODE_GOOD;
-    }
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_free(notification);
+        UA_Notification_delete(server, notification);
+        if(retval == UA_STATUSCODE_BADNOMATCH)
+            return UA_STATUSCODE_GOOD;
         return retval;
     }
 
-    /* Enqueue the notification */
+    notification->data.event.clientHandle = mon->clientHandle;
     notification->mon = mon;
-    UA_Notification_enqueue(server, mon->subscription, mon, notification);
+
+    UA_Notification_enqueueAndTrigger(server, notification);
     return UA_STATUSCODE_GOOD;
 }
+
+#ifdef UA_ENABLE_HISTORIZING
+static void
+setHistoricalEvent(UA_Server *server, const UA_NodeId *origin,
+                   const UA_NodeId *emitNodeId, const UA_NodeId *eventNodeId) {
+    UA_Variant historicalEventFilterValue;
+    UA_Variant_init(&historicalEventFilterValue);
+
+    /* A HistoricalEventNode that has event history available will provide this property */
+    UA_StatusCode retval =
+        readObjectProperty(server, *emitNodeId,
+                           UA_QUALIFIEDNAME(0, "HistoricalEventFilter"),
+                           &historicalEventFilterValue);
+    if(retval != UA_STATUSCODE_GOOD) {
+        /* Do not vex users with no match errors */
+        if(retval != UA_STATUSCODE_BADNOMATCH)
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "Cannot read the HistoricalEventFilter property of a "
+                           "listening node. StatusCode %s",
+                           UA_StatusCode_name(retval));
+        return;
+    }
+
+    /* If found then check if HistoricalEventFilter property has a valid value */
+    if(UA_Variant_isEmpty(&historicalEventFilterValue) ||
+       !UA_Variant_isScalar(&historicalEventFilterValue) ||
+       historicalEventFilterValue.type->typeIndex != UA_TYPES_EVENTFILTER) {
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "HistoricalEventFilter property of a listening node "
+                       "does not have a valid value");
+        UA_Variant_clear(&historicalEventFilterValue);
+        return;
+    }
+
+    /* Finally, if found and valid then filter */
+    UA_EventFilter *filter = (UA_EventFilter*)historicalEventFilterValue.data;
+    UA_EventFieldList efl;
+    retval = UA_Server_filterEvent(server, &server->adminSession,
+                                   eventNodeId, filter, &efl);
+    if(retval == UA_STATUSCODE_GOOD)
+        server->config.historyDatabase.setEvent(server, server->config.historyDatabase.context,
+                                                origin, emitNodeId, filter, &efl);
+    UA_Variant_clear(&historicalEventFilterValue);
+    UA_EventFieldList_clear(&efl);
+}
+#endif
 
 static const UA_NodeId objectsFolderId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_OBJECTSFOLDER}};
 #define EMIT_REFS_ROOT_COUNT 4
@@ -541,12 +566,10 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
                        const UA_Boolean deleteEventNode) {
     UA_LOCK(server->serviceMutex);
 
-#if UA_LOGLEVEL <= 200
-    UA_LOG_NODEID_WRAP(&origin,
-                       UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                                    "Events: An event is triggered on node %.*s",
-                                    (int)nodeIdStr.length, nodeIdStr.data));
-#endif
+    UA_LOG_NODEID_WRAP(UA_LOGLEVEL_DEBUG, &origin,
+        UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
+            "Events: An event is triggered on node %.*s",
+            (int)nodeIdStr.length, nodeIdStr.data));
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
     UA_Boolean isCallerAC = false;
@@ -572,10 +595,11 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
     UA_NODESTORE_RELEASE(server, originNode);
 
     /* Make sure the origin is in the ObjectsFolder (TODO: or in the ViewsFolder) */
-    if(!isNodeInTree(server, &origin, &objectsFolderId,
-                     emitReferencesRoots, 2)) { /* Only use Organizes and
-                                                 * HasComponent to check if we
-                                                 * are below the ObjectsFolder */
+    /* Only use Organizes and HasComponent to check if we are below the ObjectsFolder */
+    UA_ReferenceTypeSet reftypes =
+        UA_ReferenceTypeSet_union(UA_REFTYPESET(UA_REFERENCETYPEINDEX_ORGANIZES),
+                                  UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASCOMPONENT));
+    if(!isNodeInTree(server, &origin, &objectsFolderId, &reftypes)) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Node for event must be in ObjectsFolder!");
         UA_UNLOCK(server->serviceMutex);
@@ -609,33 +633,22 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
     emitStartNodes[1] = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
 
     /* Get all ReferenceTypes over which the events propagate */
-    UA_NodeId *emitRefTypes[EMIT_REFS_ROOT_COUNT] = {NULL, NULL, NULL};
-    size_t emitRefTypesSize[EMIT_REFS_ROOT_COUNT] = {0, 0, 0, 0};
-    size_t totalEmitRefTypesSize = 0;
-    for (size_t i=0; i<EMIT_REFS_ROOT_COUNT; i++) {
-        retval |= referenceSubtypes(server, &emitReferencesRoots[i],
-                                    &emitRefTypesSize[i], &emitRefTypes[i]);
-        totalEmitRefTypesSize += emitRefTypesSize[i];
+    UA_ReferenceTypeSet emitRefTypes;
+    UA_ReferenceTypeSet_init(&emitRefTypes);
+    for(size_t i = 0; i < EMIT_REFS_ROOT_COUNT; i++) {
+        UA_ReferenceTypeSet tmpRefTypes;
+        retval = referenceTypeIndices(server, &emitReferencesRoots[i], &tmpRefTypes, true);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "Events: Could not create the list of references for event "
+                           "propagation with StatusCode %s", UA_StatusCode_name(retval));
+            goto cleanup;
+        }
+        emitRefTypes = UA_ReferenceTypeSet_union(emitRefTypes, tmpRefTypes);
     }
-    UA_STACKARRAY(UA_NodeId, totalEmitRefTypes, totalEmitRefTypesSize);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "Events: Could not create the list of references for event "
-                       "propagation with StatusCode %s", UA_StatusCode_name(retval));
-        goto cleanup;
-    }
-
-    size_t currIndex = 0;
-    for (size_t i=0; i<EMIT_REFS_ROOT_COUNT; i++) {
-        memcpy(&totalEmitRefTypes[currIndex], emitRefTypes[i],
-               emitRefTypesSize[i] * sizeof(UA_NodeId));
-        currIndex += emitRefTypesSize[i];
-    }
-
 
     /* Get the list of nodes in the hierarchy that emits the event. */
-    retval = browseRecursive(server, 2, emitStartNodes,
-                             totalEmitRefTypesSize, totalEmitRefTypes,
+    retval = browseRecursive(server, 2, emitStartNodes, &emitRefTypes,
                              UA_BROWSEDIRECTION_INVERSE, true,
                              &emitNodesSize, &emitNodes);
     if(retval != UA_STATUSCODE_GOOD) {
@@ -647,14 +660,19 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
 
     /* Add the event to the listening MonitoredItems at each relevant node */
     for(size_t i = 0; i < emitNodesSize; i++) {
+        /* Get the node */
         const UA_ObjectNode *node = (const UA_ObjectNode*)
             UA_NODESTORE_GET(server, &emitNodes[i].nodeId);
         if(!node)
             continue;
-        if(node->nodeClass != UA_NODECLASS_OBJECT) {
+
+        /* Only consider objects */
+        if(node->head.nodeClass != UA_NODECLASS_OBJECT) {
             UA_NODESTORE_RELEASE(server, (const UA_Node*)node);
             continue;
         }
+
+        /* Add event to monitoreditems */
         for(UA_MonitoredItem *mi = node->monitoredItemQueue; mi != NULL; mi = mi->next) {
             retval = UA_Event_addEventToMonitoredItem(server, &eventNodeId, mi);
             if(retval != UA_STATUSCODE_GOOD) {
@@ -664,57 +682,13 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
                 retval = UA_STATUSCODE_GOOD; /* Only log problems with individual emit nodes */
             }
         }
+
         UA_NODESTORE_RELEASE(server, (const UA_Node*)node);
+
+        /* Add event entry in the historical database */
 #ifdef UA_ENABLE_HISTORIZING
-        if(!server->config.historyDatabase.setEvent)
-            continue;
-        UA_EventFilter *filter = NULL;
-        UA_EventFieldList *fieldList = NULL;
-        UA_Variant historicalEventFilterValue;
-        UA_Variant_init(&historicalEventFilterValue);
-        /* a HistoricalEventNode that has event history available will provide this property */
-        retval = readObjectProperty(server, emitNodes[i].nodeId,
-                                    UA_QUALIFIEDNAME(0, "HistoricalEventFilter"),
-                                    &historicalEventFilterValue);
-        /* check if the property was found and the read was successful */
-        if(retval != UA_STATUSCODE_GOOD) {
-            /* do not vex users with no match errors */
-            if(retval != UA_STATUSCODE_BADNOMATCH)
-                UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                               "Cannot read the HistoricalEventFilter property of a "
-                               "listening node. StatusCode %s",
-                               UA_StatusCode_name(retval));
-        }
-        /* if found then check if HistoricalEventFilter property has a valid value */
-        else if(UA_Variant_isEmpty(&historicalEventFilterValue) ||
-                !UA_Variant_isScalar(&historicalEventFilterValue) ||
-                historicalEventFilterValue.type->typeIndex != UA_TYPES_EVENTFILTER) {
-            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                           "HistoricalEventFilter property of a listening node "
-                           "does not have a valid value");
-        }
-        /* finally, if found and valid then filter */
-        else {
-            filter = (UA_EventFilter*)historicalEventFilterValue.data;
-            UA_EventNotification eventNotification;
-            retval = UA_Server_filterEvent(server, &server->adminSession, &eventNodeId,
-                                           filter, &eventNotification);
-            if(retval == UA_STATUSCODE_GOOD) {
-                fieldList = UA_EventFieldList_new();
-                *fieldList = eventNotification.fields;
-            }
-            /* eventNotification structure is not cleared so that users can
-             * avoid copying the field list if they want to store it */
-            /* EventFilterResult isn't being used currently
-            UA_EventFilterResult_clear(&notification->result); */
-        }
-        server->config.historyDatabase.setEvent(server, server->config.historyDatabase.context,
-                                                &origin, &emitNodes[i].nodeId,
-                                                &eventNodeId, deleteEventNode,
-                                                filter,
-                                                fieldList);
-        UA_Variant_clear(&historicalEventFilterValue);
-        retval = UA_STATUSCODE_GOOD;
+        if(server->config.historyDatabase.setEvent)
+            setHistoricalEvent(server, &origin, &emitNodes[i].nodeId, &eventNodeId);
 #endif
     }
 
@@ -729,9 +703,6 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
     }
 
  cleanup:
-    for (size_t i=0; i<EMIT_REFS_ROOT_COUNT; i++) {
-        UA_Array_delete(emitRefTypes[i], emitRefTypesSize[i], &UA_TYPES[UA_TYPES_NODEID]);
-    }
     UA_Array_delete(emitNodes, emitNodesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
     UA_UNLOCK(server->serviceMutex);
     return retval;

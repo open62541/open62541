@@ -85,7 +85,7 @@ UA_DataSetReaderConfig readerConfig;
 #define             PORT_NUMBER                           62541
 #define             RECEIVE_QUEUE                         2
 #define             XDP_FLAG                              XDP_FLAGS_SKB_MODE
-#define             PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
+#define             PUBSUB_CONFIG_RT_INFORMATION_MODEL
 
 /* Non-Configurable Parameters */
 /* Milli sec and sec conversion to nano sec */
@@ -131,8 +131,14 @@ UA_NodeId           pubRepeatedCountNodeID;
 UA_NodeId           subRepeatedCountNodeID;
 /* Variables for counter data handling in address space */
 UA_UInt64           *pubCounterData;
+UA_DataValue        *pubDataValueRT;
 UA_UInt64           *repeatedCounterData[REPEATED_NODECOUNTS];
-UA_UInt64           subCounterData = 0;
+UA_DataValue        *repeatedDataValueRT[REPEATED_NODECOUNTS];
+
+UA_UInt64           *subCounterData;
+UA_DataValue        *subDataValueRT;
+UA_UInt64           *subRepeatedCounterData[REPEATED_NODECOUNTS];
+UA_DataValue        *subRepeatedDataValueRT[REPEATED_NODECOUNTS];
 
 #if defined(PUBLISHER)
 #if defined(UPDATE_MEASUREMENTS)
@@ -230,6 +236,29 @@ static void nanoSecondFieldConversion(struct timespec *timeSpecValue) {
 
 }
 
+#if defined PUBSUB_CONFIG_RT_INFORMATION_MODEL
+/* If the external data source is written over the information model, the
+ * externalDataWriteCallback will be triggered. The user has to take care and assure
+ * that the write leads not to synchronization issues and race conditions. */
+static UA_StatusCode
+externalDataWriteCallback(UA_Server *server, const UA_NodeId *sessionId,
+                          void *sessionContext, const UA_NodeId *nodeId,
+                          void *nodeContext, const UA_NumericRange *range,
+                          const UA_DataValue *data){
+    //node values are updated by using variables in the memory
+    //UA_Server_write is not used for updating node values.
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+externalDataReadNotificationCallback(UA_Server *server, const UA_NodeId *sessionId,
+                                     void *sessionContext, const UA_NodeId *nodeid,
+                                     void *nodeContext, const UA_NumericRange *range){
+    //allow read without any preparation
+    return UA_STATUSCODE_GOOD;
+}
+#endif
+
 #if defined(SUBSCRIBER)
 static void
 addPubSubConnectionSubscriber(UA_Server *server, UA_NetworkAddressUrlDataType *networkAddressUrlSubscriber){
@@ -271,11 +300,68 @@ addReaderGroup(UA_Server *server) {
     UA_ReaderGroupConfig     readerGroupConfig;
     memset (&readerGroupConfig, 0, sizeof(UA_ReaderGroupConfig));
     readerGroupConfig.name   = UA_STRING("ReaderGroup1");
-#if defined PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
+#if defined PUBSUB_CONFIG_RT_INFORMATION_MODEL
     readerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
 #endif
     UA_Server_addReaderGroup(server, connectionIdentSubscriber, &readerGroupConfig,
                              &readerGroupIdentifier);
+}
+
+/* Set SubscribedDataSet type to TargetVariables data type
+ * Add SubscriberCounter variable to the DataSetReader */
+static void addSubscribedVariables (UA_Server *server) {
+    UA_Int32 iterator = 0;
+    if (server == NULL) {
+        return;
+    }
+
+    UA_FieldTargetVariable *targetVars = (UA_FieldTargetVariable*)
+        UA_calloc((REPEATED_NODECOUNTS + 1),
+                  sizeof(UA_FieldTargetVariable));
+    /* For creating Targetvariable */
+    for (iterator = 0; iterator < REPEATED_NODECOUNTS; iterator++)
+    {
+        subRepeatedCounterData[iterator] = UA_UInt64_new();
+        *subRepeatedCounterData[iterator] = 0;
+#if defined PUBSUB_CONFIG_RT_INFORMATION_MODEL
+        subRepeatedDataValueRT[iterator] = UA_DataValue_new();
+        UA_Variant_setScalar(&subRepeatedDataValueRT[iterator]->value, subRepeatedCounterData[iterator], &UA_TYPES[UA_TYPES_UINT64]);
+        subRepeatedDataValueRT[iterator]->hasValue = UA_TRUE;
+        /* Set the value backend of the above create node to 'external value source' */
+        UA_ValueBackend valueBackend;
+        valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
+        valueBackend.backend.external.value = &subRepeatedDataValueRT[iterator];
+        valueBackend.backend.external.callback.userWrite = externalDataWriteCallback;
+        valueBackend.backend.external.callback.notificationRead = externalDataReadNotificationCallback;
+        UA_Server_setVariableNode_valueBackend(server, UA_NODEID_NUMERIC(1, (UA_UInt32)iterator+50000), valueBackend);
+#endif
+        UA_FieldTargetDataType_init(&targetVars[iterator].targetVariable);
+        targetVars[iterator].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
+        targetVars[iterator].targetVariable.targetNodeId = UA_NODEID_NUMERIC(1, (UA_UInt32)iterator + 50000);
+    }
+
+    subCounterData = UA_UInt64_new();
+    *subCounterData = 0;
+#if defined PUBSUB_CONFIG_RT_INFORMATION_MODEL
+    subDataValueRT = UA_DataValue_new();
+    UA_Variant_setScalar(&subDataValueRT->value, subCounterData, &UA_TYPES[UA_TYPES_UINT64]);
+    subDataValueRT->hasValue = UA_TRUE;
+    /* Set the value backend of the above create node to 'external value source' */
+    UA_ValueBackend valueBackend;
+    valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
+    valueBackend.backend.external.value = &subDataValueRT;
+    valueBackend.backend.external.callback.userWrite = externalDataWriteCallback;
+    valueBackend.backend.external.callback.notificationRead = externalDataReadNotificationCallback;
+    UA_Server_setVariableNode_valueBackend(server, subNodeID, valueBackend);
+#endif
+    UA_FieldTargetDataType_init(&targetVars[iterator].targetVariable);
+    targetVars[iterator].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
+    targetVars[iterator].targetVariable.targetNodeId = subNodeID;
+
+    /* Set the subscribed data to TargetVariable type */
+    readerConfig.subscribedDataSetType = UA_PUBSUB_SDS_TARGET;
+    readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables = targetVars;
+    readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize = REPEATED_NODECOUNTS + 1;
 }
 
 /* Add DataSetReader to the ReaderGroup */
@@ -319,53 +405,28 @@ addDataSetReader(UA_Server *server) {
         UA_FieldMetaData_init (&pMetaData->fields[iterator]);
         UA_NodeId_copy (&UA_TYPES[UA_TYPES_UINT64].typeId,
                         &pMetaData->fields[iterator].dataType);
-        pMetaData->fields[iterator].builtInType  = UA_NS0ID_UINT64;
-        pMetaData->fields[iterator].valueRank    = -1; /* scalar */
+        pMetaData->fields[iterator].builtInType = UA_NS0ID_UINT64;
+        pMetaData->fields[iterator].valueRank   = -1; /* scalar */
     }
 
     /* Unsigned Integer DataType */
     UA_FieldMetaData_init (&pMetaData->fields[iterator]);
     UA_NodeId_copy (&UA_TYPES[UA_TYPES_UINT64].typeId,
                     &pMetaData->fields[iterator].dataType);
-    pMetaData->fields[iterator].builtInType  = UA_NS0ID_UINT64;
-    pMetaData->fields[iterator].valueRank    = -1; /* scalar */
+    pMetaData->fields[iterator].builtInType = UA_NS0ID_UINT64;
+    pMetaData->fields[iterator].valueRank   = -1; /* scalar */
+
+    /* Setup Target Variables in DSR config */
+    addSubscribedVariables(server);
 
     /* Setting up Meta data configuration in DataSetReader */
     UA_Server_addDataSetReader(server, readerGroupIdentifier, &readerConfig,
                                &readerIdentifier);
+
+    UA_free(readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables);
+    UA_free(readerConfig.dataSetMetaData.fields);
     UA_UadpDataSetReaderMessageDataType_delete(dataSetReaderMessage);
 }
-
-/* Set SubscribedDataSet type to TargetVariables data type
- * Add SubscriberCounter variable to the DataSetReader */
-static void addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId) {
-    UA_Int32 iterator = 0;
-    if (server == NULL) {
-        return;
-    }
-
-    UA_TargetVariablesDataType targetVars;
-    targetVars.targetVariablesSize = REPEATED_NODECOUNTS + 1;
-    targetVars.targetVariables     = (UA_FieldTargetDataType *)
-                                      UA_calloc(targetVars.targetVariablesSize,
-                                      sizeof(UA_FieldTargetDataType));
-    /* For creating Targetvariable */
-    for (iterator = 0; iterator < REPEATED_NODECOUNTS; iterator++)
-    {
-        UA_FieldTargetDataType_init(&targetVars.targetVariables[iterator]);
-        targetVars.targetVariables[iterator].attributeId  = UA_ATTRIBUTEID_VALUE;
-        targetVars.targetVariables[iterator].targetNodeId = UA_NODEID_NUMERIC(1, (UA_UInt32)iterator+50000);
-    }
-
-    UA_FieldTargetDataType_init(&targetVars.targetVariables[iterator]);
-    targetVars.targetVariables[iterator].attributeId  = UA_ATTRIBUTEID_VALUE;
-    targetVars.targetVariables[iterator].targetNodeId = subNodeID;
-    UA_Server_DataSetReader_createTargetVariables(server, dataSetReaderId, &targetVars);
-
-    UA_TargetVariablesDataType_clear(&targetVars);
-    UA_free(readerConfig.dataSetMetaData.fields);
-}
-
 #endif
 
 /* Add a callback for cyclic repetition */
@@ -470,20 +531,28 @@ addDataSetField(UA_Server *server) {
     /* Add a field to the previous created PublishedDataSet */
     UA_NodeId dataSetFieldIdentRepeated;
     UA_DataSetFieldConfig dataSetFieldConfig;
+#if defined PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
+    staticValueSource = UA_DataValue_new();
+#endif
     for (UA_Int32 iterator = 0; iterator <  REPEATED_NODECOUNTS; iterator++)
     {
        memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
-#if defined PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
-       UA_UInt64 *repeatValue        = UA_UInt64_new();
-       repeatedCounterData[iterator] = repeatValue;
-       UA_Variant variant;
-       memset(&variant, 0, sizeof(UA_Variant));
-       UA_Variant_setScalar(&variant, repeatValue, &UA_TYPES[UA_TYPES_UINT64]);
-       UA_DataValue staticValueSource;
-       memset(&staticValueSource, 0, sizeof(staticValueSource));
-       staticValueSource.value = variant;
-       dataSetFieldConfig.field.variable.staticValueSourceEnabled            = UA_TRUE;
-       dataSetFieldConfig.field.variable.staticValueSource.value             = variant;
+#if defined PUBSUB_CONFIG_RT_INFORMATION_MODEL
+       repeatedCounterData[iterator] = UA_UInt64_new();
+       *repeatedCounterData[iterator] = 0;
+       repeatedDataValueRT[iterator] = UA_DataValue_new();
+       UA_Variant_setScalar(&repeatedDataValueRT[iterator]->value, repeatedCounterData[iterator], &UA_TYPES[UA_TYPES_UINT64]);
+       repeatedDataValueRT[iterator]->hasValue = UA_TRUE;
+       /* Set the value backend of the above create node to 'external value source' */
+       UA_ValueBackend valueBackend;
+       valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
+       valueBackend.backend.external.value = &repeatedDataValueRT[iterator];
+       valueBackend.backend.external.callback.userWrite = externalDataWriteCallback;
+       valueBackend.backend.external.callback.notificationRead = externalDataReadNotificationCallback;
+       UA_Server_setVariableNode_valueBackend(server, UA_NODEID_NUMERIC(1, (UA_UInt32)iterator+10000), valueBackend);
+       /* setup RT DataSetField config */
+       dataSetFieldConfig.field.variable.rtValueSource.rtInformationModelNode = UA_TRUE;
+       dataSetFieldConfig.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(1, (UA_UInt32)iterator+10000);
 #else
        repeatedCounterData[iterator] = UA_UInt64_new();
        dataSetFieldConfig.dataSetFieldType                                   = UA_PUBSUB_DATASETFIELD_VARIABLE;
@@ -496,28 +565,33 @@ addDataSetField(UA_Server *server) {
    }
 
     UA_NodeId dataSetFieldIdent;
-    UA_DataSetFieldConfig counterValue;
-    memset(&counterValue, 0, sizeof(UA_DataSetFieldConfig));
-#if defined PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
-    UA_UInt64 *countValue = UA_UInt64_new();
-    pubCounterData = countValue;
-    UA_Variant variant;
-    memset(&variant, 0, sizeof(UA_Variant));
-    UA_Variant_setScalar(&variant, countValue, &UA_TYPES[UA_TYPES_UINT64]);
-    UA_DataValue staticValueSource;
-    memset(&staticValueSource, 0, sizeof(staticValueSource));
-    staticValueSource.value = variant;
-    counterValue.field.variable.staticValueSourceEnabled            = UA_TRUE;
-    counterValue.field.variable.staticValueSource.value             = variant;
+    UA_DataSetFieldConfig dsfConfig;
+    memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));
+#if defined PUBSUB_CONFIG_RT_INFORMATION_MODEL
+    pubCounterData = UA_UInt64_new();
+    *pubCounterData = 0;
+    pubDataValueRT = UA_DataValue_new();
+    UA_Variant_setScalar(&pubDataValueRT->value, pubCounterData, &UA_TYPES[UA_TYPES_UINT64]);
+    pubDataValueRT->hasValue = UA_TRUE;
+    /* Set the value backend of the above create node to 'external value source' */
+    UA_ValueBackend valueBackend;
+    valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
+    valueBackend.backend.external.value = &pubDataValueRT;
+    valueBackend.backend.external.callback.userWrite = externalDataWriteCallback;
+    valueBackend.backend.external.callback.notificationRead = externalDataReadNotificationCallback;
+    UA_Server_setVariableNode_valueBackend(server, pubNodeID, valueBackend);
+    /* setup RT DataSetField config */
+    dsfConfig.field.variable.rtValueSource.rtInformationModelNode = UA_TRUE;
+    dsfConfig.field.variable.publishParameters.publishedVariable = pubNodeID;
 #else
     pubCounterData = UA_UInt64_new();
-    counterValue.dataSetFieldType                                   = UA_PUBSUB_DATASETFIELD_VARIABLE;
-    counterValue.field.variable.fieldNameAlias                      = UA_STRING("Counter Variable");
-    counterValue.field.variable.promotedField                       = UA_FALSE;
-    counterValue.field.variable.publishParameters.publishedVariable = pubNodeID;
-    counterValue.field.variable.publishParameters.attributeId       = UA_ATTRIBUTEID_VALUE;
+    dsfConfig.dataSetFieldType                                   = UA_PUBSUB_DATASETFIELD_VARIABLE;
+    dsfConfig.field.variable.fieldNameAlias                      = UA_STRING("Counter Variable");
+    dsfConfig.field.variable.promotedField                       = UA_FALSE;
+    dsfConfig.field.variable.publishParameters.publishedVariable = pubNodeID;
+    dsfConfig.field.variable.publishParameters.attributeId       = UA_ATTRIBUTEID_VALUE;
 #endif
-    UA_Server_addDataSetField(server, publishedDataSetIdent, &counterValue, &dataSetFieldIdent);
+    UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent);
 
 }
 
@@ -536,7 +610,7 @@ addWriterGroup(UA_Server *server) {
     writerGroupConfig.enabled            = UA_FALSE;
     writerGroupConfig.encodingMimeType   = UA_PUBSUB_ENCODING_UADP;
     writerGroupConfig.writerGroupId      = WRITER_GROUP_ID;
-#if defined PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
+#if defined PUBSUB_CONFIG_RT_INFORMATION_MODEL
     writerGroupConfig.rtLevel            = UA_PUBSUB_RT_FIXED_SIZE;
 #endif
     writerGroupConfig.messageSettings.encoding             = UA_EXTENSIONOBJECT_DECODED;
@@ -711,7 +785,6 @@ void *subscriber(void *arg) {
  *
  */
 void *userApplicationPubSub(void *arg) {
-    UA_Server* server;
     UA_UInt64  repeatedCounterValue = 10;
     struct timespec nextnanosleeptimeUserApplication;
     /* Get current time and compute the next nanosleeptime */
@@ -725,23 +798,26 @@ void *userApplicationPubSub(void *arg) {
     {
         *repeatedCounterData[iterator] = repeatedCounterValue;
     }
+#ifndef PUBSUB_CONFIG_RT_INFORMATION_MODEL
+    UA_Server* server;
     serverConfigStruct *serverConfig = (serverConfigStruct*)arg;
     server = serverConfig->ServerRun;
+#endif
     while (running) {
         clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptimeUserApplication, NULL);
 #if defined(PUBLISHER)
         *pubCounterData      = *pubCounterData + 1;
         for (UA_Int32 iterator = 0; iterator <  REPEATED_NODECOUNTS; iterator++)
-        {
             *repeatedCounterData[iterator] = *repeatedCounterData[iterator] + 1;
-        }
+#if defined PUBSUB_CONFIG_RT_INFORMATION_MODEL
         clock_gettime(CLOCKID, &dataModificationTime);
-#ifndef PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
+#else
         UA_Variant pubCounter;
         UA_Variant_init(&pubCounter);
         UA_Variant_setScalar(&pubCounter, pubCounterData, &UA_TYPES[UA_TYPES_UINT64]);
         UA_NodeId currentNodeId = UA_NODEID_STRING(1, "PublisherCounter");
         UA_Server_writeValue(server, currentNodeId, pubCounter);
+        clock_gettime(CLOCKID, &dataModificationTime);
         for (UA_Int32 iterator = 0; iterator <  REPEATED_NODECOUNTS; iterator++)
         {
             UA_Variant rpCounter;
@@ -752,30 +828,26 @@ void *userApplicationPubSub(void *arg) {
 #endif
 #endif
 #if defined(SUBSCRIBER)
+#if defined PUBSUB_CONFIG_RT_INFORMATION_MODEL
+        clock_gettime(CLOCKID, &dataReceiveTime);
+#else
         const UA_NodeId nodeid  = UA_NODEID_STRING(1,"SubscriberCounter");
         UA_Variant subCounter;
         UA_Variant_init(&subCounter);
         UA_Server_readValue(server, nodeid, &subCounter);
-        subCounterData          = *(UA_UInt64 *)subCounter.data;
         clock_gettime(CLOCKID, &dataReceiveTime);
+        *subCounterData          = *(UA_UInt64 *)subCounter.data;
         UA_Variant_clear(&subCounter);
+#endif
 #if defined(UPDATE_MEASUREMENTS)
         updateMeasurementsPublisher(dataModificationTime, *pubCounterData);
-        if (subCounterData > 0)
-            updateMeasurementsSubscriber(dataReceiveTime, subCounterData);
+        if (*subCounterData > 0)
+            updateMeasurementsSubscriber(dataReceiveTime, *subCounterData);
 #endif
 #endif
         nextnanosleeptimeUserApplication.tv_nsec += (CYCLE_TIME * MILLI_SECONDS);
         nanoSecondFieldConversion(&nextnanosleeptimeUserApplication);
     }
-
-#ifndef PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
-    UA_free(pubCounterData);
-    for (UA_Int32 iterator = 0; iterator <  REPEATED_NODECOUNTS; iterator++)
-    {
-        UA_free(repeatedCounterData[iterator]);
-    }
-#endif
 
     return (void*)NULL;
 }
@@ -787,7 +859,6 @@ void *userApplicationPubSub(void *arg) {
  * nodes.
  */
 static void removeServerNodes(UA_Server *server) {
-#ifndef PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
     /* Delete the Publisher Counter Node*/
     UA_Server_deleteNode(server, pubNodeID, UA_TRUE);
     UA_NodeId_clear(&pubNodeID);
@@ -796,7 +867,9 @@ static void removeServerNodes(UA_Server *server) {
         UA_Server_deleteNode(server, pubRepeatedCountNodeID, UA_TRUE);
         UA_NodeId_clear(&pubRepeatedCountNodeID);
     }
-#endif
+
+    UA_Server_deleteNode(server, subNodeID, UA_TRUE);
+    UA_NodeId_clear(&subNodeID);
     for (UA_Int32 iterator = 0; iterator < REPEATED_NODECOUNTS; iterator++)
     {
         UA_Server_deleteNode(server, subRepeatedCountNodeID, UA_TRUE);
@@ -859,30 +932,28 @@ static void addServerNodes(UA_Server *server) {
                             UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                             UA_QUALIFIEDNAME(1, "Counter Object"), UA_NODEID_NULL,
                             object, NULL, &objectId);
-#ifndef PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
     UA_VariableAttributes publisherAttr  = UA_VariableAttributes_default;
     UA_UInt64 publishValue               = 0;
     publisherAttr.accessLevel            = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
     UA_Variant_setScalar(&publisherAttr.value, &publishValue, &UA_TYPES[UA_TYPES_UINT64]);
     publisherAttr.displayName            = UA_LOCALIZEDTEXT("en-US", "Publisher Counter");
+    publisherAttr.dataType               = UA_TYPES[UA_TYPES_UINT64].typeId;
     newNodeId                            = UA_NODEID_STRING(1, "PublisherCounter");
     UA_Server_addVariableNode(server, newNodeId, objectId,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                               UA_QUALIFIEDNAME(1, "Publisher Counter"),
                               UA_NODEID_NULL, publisherAttr, NULL, &pubNodeID);
-#endif
     UA_VariableAttributes subscriberAttr = UA_VariableAttributes_default;
     UA_UInt64 subscribeValue             = 0;
     subscriberAttr.accessLevel           = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
     UA_Variant_setScalar(&subscriberAttr.value, &subscribeValue, &UA_TYPES[UA_TYPES_UINT64]);
     subscriberAttr.displayName           = UA_LOCALIZEDTEXT("en-US", "Subscriber Counter");
+    subscriberAttr.dataType              = UA_TYPES[UA_TYPES_UINT64].typeId;
     newNodeId                            = UA_NODEID_STRING(1, "SubscriberCounter");
     UA_Server_addVariableNode(server, newNodeId, objectId,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                               UA_QUALIFIEDNAME(1, "Subscriber Counter"),
                               UA_NODEID_NULL, subscriberAttr, NULL, &subNodeID);
-
-#ifndef PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
     for (UA_Int32 iterator = 0; iterator < REPEATED_NODECOUNTS; iterator++)
     {
         UA_VariableAttributes repeatedNodePub = UA_VariableAttributes_default;
@@ -890,13 +961,13 @@ static void addServerNodes(UA_Server *server) {
         repeatedNodePub.accessLevel           = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
         UA_Variant_setScalar(&repeatedNodePub.value, &repeatedPublishValue, &UA_TYPES[UA_TYPES_UINT64]);
         repeatedNodePub.displayName           = UA_LOCALIZEDTEXT("en-US", "Publisher RepeatedCounter");
+        repeatedNodePub.dataType              = UA_TYPES[UA_TYPES_UINT64].typeId;
         newNodeId                             = UA_NODEID_NUMERIC(1, (UA_UInt32)iterator+10000);
         UA_Server_addVariableNode(server, newNodeId, objectId,
                                  UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                                  UA_QUALIFIEDNAME(1, "Publisher RepeatedCounter"),
                                  UA_NODEID_NULL, repeatedNodePub, NULL, &pubRepeatedCountNodeID);
     }
-#endif
 
     for (UA_Int32 iterator = 0; iterator < REPEATED_NODECOUNTS; iterator++)
     {
@@ -905,6 +976,7 @@ static void addServerNodes(UA_Server *server) {
         UA_Variant_setScalar(&repeatedNodeSub.value, &repeatedSubscribeValue, &UA_TYPES[UA_TYPES_UINT64]);
         repeatedNodeSub.accessLevel           = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
         repeatedNodeSub.displayName           = UA_LOCALIZEDTEXT("en-US", "Subscriber RepeatedCounter");
+        repeatedNodeSub.dataType              = UA_TYPES[UA_TYPES_UINT64].typeId;
         newNodeId                             = UA_NODEID_NUMERIC(1, (UA_UInt32)iterator+50000);
         UA_Server_addVariableNode(server, newNodeId, objectId,
                                  UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
@@ -1037,7 +1109,6 @@ int main(int argc, char **argv) {
     addPubSubConnectionSubscriber(server, &networkAddressUrlSub);
     addReaderGroup(server);
     addDataSetReader(server);
-    addSubscribedVariables(server, readerIdentifier);
     UA_Server_freezeReaderGroupConfiguration(server, readerGroupIdentifier);
     UA_Server_setReaderGroupOperational(server, readerGroupIdentifier);
 #endif
@@ -1097,18 +1168,39 @@ int main(int argc, char **argv) {
     }
 #endif
 #endif
+
 #if defined(PUBLISHER) || defined(SUBSCRIBER)
     removeServerNodes(server);
     UA_Server_delete(server);
     UA_free(serverConfig);
 #endif
 #if defined(PUBLISHER)
+    UA_free(pubCounterData);
+    for (UA_Int32 iterator = 0; iterator <  REPEATED_NODECOUNTS; iterator++)
+        UA_free(repeatedCounterData[iterator]);
+
+#if defined PUBSUB_CONFIG_RT_INFORMATION_MODEL
+    /* Free external data source */
+    UA_free(pubDataValueRT);
+    for (UA_Int32 iterator = 0; iterator < REPEATED_NODECOUNTS; iterator++)
+        UA_free(repeatedDataValueRT[iterator]);
+#endif
 #if defined(UPDATE_MEASUREMENTS)
     fclose(fpPublisher);
 #endif
 #endif
 
 #if defined(SUBSCRIBER)
+    UA_free(subCounterData);
+    for (UA_Int32 iterator = 0; iterator <  REPEATED_NODECOUNTS; iterator++)
+        UA_free(subRepeatedCounterData[iterator]);
+
+#if defined PUBSUB_CONFIG_RT_INFORMATION_MODEL
+    /* Free external data source */
+    UA_free(subDataValueRT);
+    for (UA_Int32 iterator = 0; iterator < REPEATED_NODECOUNTS; iterator++)
+        UA_free(subRepeatedDataValueRT[iterator]);
+#endif
 #if defined(UPDATE_MEASUREMENTS)
     fclose(fpSubscriber);
 #endif

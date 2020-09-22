@@ -247,12 +247,12 @@ int main(int argc, char **argv) {
         UA_String_fromChars("urn:open62541.example.server_multicast");
 
     // Enable the mDNS announce and response functionality
-    config->discovery.mdnsEnable = true;
+    config->mdnsEnabled = true;
 
-    config->discovery.mdns.mdnsServerName = UA_String_fromChars("Sample Multicast Server");
+    config->mdnsConfig.mdnsServerName = UA_String_fromChars("Sample Multicast Server");
 
     //setting custom outbound interface
-    config->discovery.mdnsInterfaceIP = UA_String_fromChars("42.42.42.42"); //this line will produce an error and set the interface to 0.0.0.0
+    config->mdnsInterfaceIP = UA_String_fromChars("42.42.42.42"); //this line will produce an error and set the interface to 0.0.0.0
 
     // See http://www.opcfoundation.org/UA/schemas/1.03/ServerCapabilities.csv
     // For a LDS server, you should only indicate the LDS capability.
@@ -261,11 +261,11 @@ int main(int argc, char **argv) {
     // NOTE: UaExpert does not show LDS-only servers in the list.
     // See also: https://forum.unified-automation.com/topic1987.html
 
-    config->discovery.mdns.serverCapabilitiesSize = 2;
+    config->mdnsConfig.serverCapabilitiesSize = 2;
     UA_String *caps = (UA_String *) UA_Array_new(2, &UA_TYPES[UA_TYPES_STRING]);
     caps[0] = UA_String_fromChars("LDS");
     caps[1] = UA_String_fromChars("NA");
-    config->discovery.mdns.serverCapabilities = caps;
+    config->mdnsConfig.serverCapabilities = caps;
 
     // Start the server and call iterate to wait for the multicast discovery of the LDS
     UA_StatusCode retval = UA_Server_run_startup(server);

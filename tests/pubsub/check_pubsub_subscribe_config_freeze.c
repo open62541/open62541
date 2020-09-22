@@ -192,6 +192,7 @@ START_TEST(CreateLockAndEditConfiguration) {
     UA_NodeId_copy (&UA_TYPES[UA_TYPES_DATETIME].typeId,
                     &pMetaData->fields[0].dataType);
     pMetaData->fields[0].builtInType = UA_NS0ID_DATETIME;
+    pMetaData->fields[0].name =  UA_STRING ("DateTime");
     pMetaData->fields[0].valueRank = -1; /* scalar */
     UA_Server_addDataSetReader(server, readerGroup1, &dataSetReaderConfig, &dataSetReader1);
 
@@ -216,6 +217,29 @@ START_TEST(CreateLockAndEditConfiguration) {
                              folderBrowseName, UA_NODEID_NUMERIC (0,
                              UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
 
+    UA_FieldTargetVariable *targetVars = (UA_FieldTargetVariable *)
+        UA_calloc(dataSetReaderConfig.dataSetMetaData.fieldsSize, sizeof(UA_FieldTargetVariable));
+    for(size_t i = 0; i < dataSetReaderConfig.dataSetMetaData.fieldsSize; i++) {
+        /* Variable to subscribe data */
+        UA_VariableAttributes vAttr = UA_VariableAttributes_default;
+        UA_LocalizedText_copy(&dataSetReaderConfig.dataSetMetaData.fields[i].description,
+                              &vAttr.description);
+        vAttr.displayName.locale = UA_STRING("en-US");
+        vAttr.displayName.text = dataSetReaderConfig.dataSetMetaData.fields[i].name;
+        vAttr.dataType = dataSetReaderConfig.dataSetMetaData.fields[i].dataType;
+
+        UA_NodeId newNode;
+        retval |= UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, (UA_UInt32)i + 50000),
+                                            folderId,
+                                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                            UA_QUALIFIEDNAME(1, (char *)dataSetReaderConfig.dataSetMetaData.fields[i].name.data),
+                                            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                            vAttr, NULL, &newNode);
+        UA_FieldTargetDataType_init(&targetVars[i].targetVariable);
+        targetVars[i].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
+        targetVars[i].targetVariable.targetNodeId = newNode;
+    }
+
     UA_DataSetReader *dataSetReader_1 = UA_ReaderGroup_findDSRbyId(server, dataSetReader1);
     ck_assert(dataSetReader_1 != NULL);
     ck_assert(dataSetReader_1->configurationFrozen == UA_FALSE);
@@ -227,16 +251,22 @@ START_TEST(CreateLockAndEditConfiguration) {
     ck_assert(retval == UA_STATUSCODE_BADCONFIGURATIONERROR);
     retval = UA_Server_removeDataSetReader(server, dataSetReader1);
     ck_assert(retval == UA_STATUSCODE_BADCONFIGURATIONERROR);
-    retval = UA_Server_DataSetReader_addTargetVariables(server, &folderId, dataSetReader1,
-                                                        UA_PUBSUB_SDS_TARGET);
+    retval = UA_Server_DataSetReader_createTargetVariables(server, dataSetReader1,
+                                                           dataSetReaderConfig.dataSetMetaData.fieldsSize,
+                                                           targetVars);
     ck_assert(retval == UA_STATUSCODE_BADCONFIGURATIONERROR);
 
     //unlock the reader group
     UA_Server_unfreezeReaderGroupConfiguration(server, readerGroup1);
-    retval = UA_Server_DataSetReader_addTargetVariables(server, &folderId, dataSetReader1,
-                                                        UA_PUBSUB_SDS_TARGET);
+    retval = UA_Server_DataSetReader_createTargetVariables(server, dataSetReader1,
+                                                           dataSetReaderConfig.dataSetMetaData.fieldsSize,
+                                                           targetVars);
     ck_assert(retval == UA_STATUSCODE_GOOD);
     retval = UA_Server_addDataSetReader(server, readerGroup1, &dataSetReaderConfig, &dataSetReader2);
+    for(size_t i = 0; i < dataSetReaderConfig.dataSetMetaData.fieldsSize; i++)
+        UA_FieldTargetDataType_clear(&targetVars[i].targetVariable);
+
+    UA_free(targetVars);
     UA_free(dataSetReaderConfig.dataSetMetaData.fields);
     ck_assert(retval == UA_STATUSCODE_GOOD);
     retval = UA_Server_removeDataSetReader(server, dataSetReader1);

@@ -5,6 +5,8 @@
  * Copyright (c) 2017-2019 Fraunhofer IOSB (Author: Andreas Ebner)
  * Copyright (c) 2019 Fraunhofer IOSB (Author: Julius Pfrommer)
  * Copyright (c) 2019 Kalycito Infotech Private Limited
+ * Copyright (c) 2020 Yannick Wallerer, Siemens AG
+ * Copyright (c) 2020 Thomas Fischer, Siemens AG
  */
 
 #include <open62541/server_pubsub.h>
@@ -174,7 +176,7 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
                 (writerGroupConfig->messageSettings.encoding != UA_EXTENSIONOBJECT_DECODED
                         || writerGroupConfig->messageSettings.content.decoded.type->typeIndex != UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE) ) {
             return UA_STATUSCODE_BADTYPEMISMATCH;
-        }    
+        }
     }
 
 
@@ -201,6 +203,7 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
     }
     newWriterGroup->config = tmpWriterGroupConfig;
     LIST_INSERT_HEAD(&currentConnectionContext->writerGroups, newWriterGroup, listEntry);
+    currentConnectionContext->writerGroupsSize++;
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     addWriterGroupRepresentation(server, newWriterGroup);
 #endif
@@ -232,6 +235,8 @@ UA_Server_removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup) {
         //unregister the publish callback
         UA_PubSubManager_removeRepeatedPubSubCallback(server, wg->publishCallbackId);
     }
+
+    connection->writerGroupsSize--;
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     removeGroupRepresentation(server, wg);
 #endif
@@ -299,11 +304,14 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId writ
             }
             UA_DataSetField *dsf;
             TAILQ_FOREACH(dsf, &pds->fields, listEntry){
-                if(!dsf->config.field.variable.staticValueSourceEnabled){
+                const UA_VariableNode *rtNode = (const UA_VariableNode *) UA_NODESTORE_GET(server, &dsf->config.field.variable.publishParameters.publishedVariable);
+                if(rtNode != NULL && rtNode->valueBackend.backendType != UA_VALUEBACKENDTYPE_EXTERNAL){
                     UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                                   "PubSub-RT configuration fail: PDS contains variables with dynamic length types.");
+                                   "PubSub-RT configuration fail: PDS contains field without external data source.");
+                    UA_NODESTORE_RELEASE(server, (const UA_Node *) rtNode);
                     return UA_STATUSCODE_BADNOTSUPPORTED;
                 }
+                UA_NODESTORE_RELEASE(server, (const UA_Node *) rtNode);
                 if((UA_NodeId_equal(&dsf->fieldMetaData.dataType, &UA_TYPES[UA_TYPES_STRING].typeId) ||
                     UA_NodeId_equal(&dsf->fieldMetaData.dataType,
                                     &UA_TYPES[UA_TYPES_BYTESTRING].typeId)) &&
@@ -337,7 +345,9 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId writ
                                    &wg->config.messageSettings, &wg->config.transportSettings,
                                    &networkMessage);
         if(res != UA_STATUSCODE_GOOD)
+        {
             return UA_STATUSCODE_BADINTERNALERROR;
+        }
 
         memset(&wg->bufferedMessage, 0, sizeof(UA_NetworkMessageOffsetBuffer));
         UA_NetworkMessage_calcSizeBinary(&networkMessage, &wg->bufferedMessage);
@@ -346,11 +356,16 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId writ
         size_t msgSize = UA_NetworkMessage_calcSizeBinary(&networkMessage, NULL);
         res = UA_ByteString_allocBuffer(&buf, msgSize);
         if(res != UA_STATUSCODE_GOOD)
+        {
+            UA_free(networkMessage.payload.dataSetPayload.sizes);
             return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
         wg->bufferedMessage.buffer = buf;
         const UA_Byte *bufEnd = &wg->bufferedMessage.buffer.data[wg->bufferedMessage.buffer.length];
         UA_Byte *bufPos = wg->bufferedMessage.buffer.data;
         UA_NetworkMessage_encodeBinary(&networkMessage, &bufPos, bufEnd);
+        
+        UA_free(networkMessage.payload.dataSetPayload.sizes);
         /* Clean up DSM */
         for(size_t i = 0; i < dsmCount; i++){
             UA_free(dsmStore[i].data.keyFrameData.dataSetFields);
@@ -396,6 +411,9 @@ UA_Server_unfreezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId wr
         }
         dataSetWriter->configurationFrozen = UA_FALSE;
     }
+    if(wg->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE)
+        UA_ByteString_clear(&wg->bufferedMessage.buffer);
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -484,7 +502,7 @@ UA_Server_getPublishedDataSetMetaData(UA_Server *server, const UA_NodeId pds,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     UA_PublishedDataSet *currentPublishedDataSet = UA_PublishedDataSet_findPDSbyId(server, pds);
-    if(!currentPublishedDataSet) 
+    if(!currentPublishedDataSet)
         return UA_STATUSCODE_BADNOTFOUND;
 
     return UA_DataSetMetaDataType_copy(&currentPublishedDataSet->dataSetMetaData, metaData);
@@ -544,18 +562,19 @@ generateFieldMetaData(UA_Server *server, UA_DataSetField *field, UA_FieldMetaDat
             fieldMetaData->dataSetFieldId = UA_GUID_NULL;
 
             //ToDo after freeze PR, the value source must be checked (other behavior for static value source)
-            if(field->config.field.variable.staticValueSourceEnabled) {
-                if (field->config.field.variable.staticValueSource.value.arrayDimensionsSize > 0) {
+            if(field->config.field.variable.rtValueSource.rtFieldSourceEnabled &&
+               !field->config.field.variable.rtValueSource.rtInformationModelNode) {
+                if((**(field->config.field.variable.rtValueSource.staticValueSource)).value.arrayDimensionsSize > 0) {
                     fieldMetaData->arrayDimensions = (UA_UInt32 *) UA_calloc(
-                            field->config.field.variable.staticValueSource.value.arrayDimensionsSize, sizeof(UA_UInt32));
+                        (*(*(field->config.field.variable.rtValueSource.staticValueSource))).value.arrayDimensionsSize, sizeof(UA_UInt32));
                     if(fieldMetaData->arrayDimensions == NULL)
                         return UA_STATUSCODE_BADOUTOFMEMORY;
                     memcpy(fieldMetaData->arrayDimensions,
-                            field->config.field.variable.staticValueSource.value.arrayDimensions,
-                            sizeof(UA_UInt32) *field->config.field.variable.staticValueSource.value.arrayDimensionsSize);
+                           (*(field->config.field.variable.rtValueSource.staticValueSource))->value.arrayDimensions,
+                            sizeof(UA_UInt32) * ((*(*(field->config.field.variable.rtValueSource.staticValueSource))).value.arrayDimensionsSize));
                 }
-                fieldMetaData->arrayDimensionsSize = field->config.field.variable.staticValueSource.value.arrayDimensionsSize;
-                if(UA_NodeId_copy(&field->config.field.variable.staticValueSource.value.type->typeId,
+                fieldMetaData->arrayDimensionsSize = (**(field->config.field.variable.rtValueSource.staticValueSource)).value.arrayDimensionsSize;
+                if(UA_NodeId_copy(&(**field->config.field.variable.rtValueSource.staticValueSource).value.type->typeId,
                         &fieldMetaData->dataType) != UA_STATUSCODE_GOOD){
                     if(fieldMetaData->arrayDimensions){
                         UA_free(fieldMetaData->arrayDimensions);
@@ -606,7 +625,7 @@ generateFieldMetaData(UA_Server *server, UA_DataSetField *field, UA_FieldMetaDat
             } else {
                 fieldMetaData->fieldFlags = UA_DATASETFIELDFLAGS_NONE;
             }
-            //TODO collect the following fields
+            //TODO collect the following fields*/
             //fieldMetaData.builtInType
             //fieldMetaData.maxStringLength
             return UA_STATUSCODE_GOOD;
@@ -1188,7 +1207,8 @@ UA_Server_addDataSetWriter(UA_Server *server,
     if(wg->config.rtLevel != UA_PUBSUB_RT_NONE){
         UA_DataSetField *tmpDSF;
         TAILQ_FOREACH(tmpDSF, &currentDataSetContext->fields, listEntry){
-            if(tmpDSF->config.field.variable.staticValueSourceEnabled != UA_TRUE){
+            if(tmpDSF->config.field.variable.rtValueSource.rtFieldSourceEnabled != UA_TRUE &&
+               tmpDSF->config.field.variable.rtValueSource.rtInformationModelNode != UA_TRUE){
                 UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                                "Adding DataSetWriter failed. Fields in PDS are not RT capable.");
                 return UA_STATUSCODE_BADCONFIGURATIONERROR;
@@ -1218,6 +1238,10 @@ UA_Server_addDataSetWriter(UA_Server *server,
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
         newDataSetWriter->lastSamplesCount = currentDataSetContext->fieldSize;
+        for(size_t i = 0; i < newDataSetWriter->lastSamplesCount; i++) {
+            UA_DataValue_init(&newDataSetWriter->lastSamples[i].value);
+            newDataSetWriter->lastSamples[i].valueChanged = false;
+        }
     }
 #endif
 
@@ -1401,7 +1425,13 @@ static void
 UA_PubSubDataSetField_sampleValue(UA_Server *server, UA_DataSetField *field,
                                   UA_DataValue *value) {
     /* Read the value */
-    if(field->config.field.variable.staticValueSourceEnabled == UA_FALSE){
+    if(field->config.field.variable.rtValueSource.rtInformationModelNode) {
+        const UA_VariableNode *rtNode = (const UA_VariableNode *) UA_NODESTORE_GET(server,
+                          &field->config.field.variable.publishParameters.publishedVariable);
+        *value = **rtNode->valueBackend.backend.external.value;
+        value->value.storageType = UA_VARIANT_DATA_NODELETE;
+        UA_NODESTORE_RELEASE(server, (const UA_Node *) rtNode);
+    } else if(field->config.field.variable.rtValueSource.rtFieldSourceEnabled == UA_FALSE){
         UA_ReadValueId rvid;
         UA_ReadValueId_init(&rvid);
         rvid.nodeId = field->config.field.variable.publishParameters.publishedVariable;
@@ -1409,8 +1439,8 @@ UA_PubSubDataSetField_sampleValue(UA_Server *server, UA_DataSetField *field,
         rvid.indexRange = field->config.field.variable.publishParameters.indexRange;
         *value = UA_Server_read(server, &rvid, UA_TIMESTAMPSTORETURN_BOTH);
     } else {
+        *value = **field->config.field.variable.rtValueSource.staticValueSource;
         value->value.storageType = UA_VARIANT_DATA_NODELETE;
-        *value = field->config.field.variable.staticValueSource;
     }
 }
 
@@ -1882,7 +1912,10 @@ generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
     if(networkMessage->groupHeader.sequenceNumberEnabled)
         networkMessage->groupHeader.sequenceNumber = wg->sequenceNumber;
     /* Compute the length of the dsm separately for the header */
-    UA_STACKARRAY(UA_UInt16, dsmLengths, dsmCount);
+    UA_UInt16 *dsmLengths = (UA_UInt16 *) UA_calloc(dsmCount, sizeof(UA_UInt16));
+    if(!dsmLengths)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
     for(UA_Byte i = 0; i < dsmCount; i++)
         dsmLengths[i] = (UA_UInt16) UA_DataSetMessage_calcSizeBinary(&dsm[i], NULL, 0);
 
@@ -1930,7 +1963,7 @@ sendNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
     if(msgSize > UA_MAX_STACKBUF) {
         retval = UA_ByteString_allocBuffer(&buf, msgSize);
         if(retval != UA_STATUSCODE_GOOD)
-            return retval;
+            goto cleanup;
     }
 
     /* Encode the message */
@@ -1941,13 +1974,16 @@ sendNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
     if(retval != UA_STATUSCODE_GOOD) {
         if(msgSize > UA_MAX_STACKBUF)
             UA_ByteString_clear(&buf);
-        return retval;
+        goto cleanup;
     }
 
     /* Send the prepared messages */
     retval = connection->channel->send(connection->channel, transportSettings, &buf);
     if(msgSize > UA_MAX_STACKBUF)
         UA_ByteString_clear(&buf);
+
+cleanup:
+    UA_free(nm.payload.dataSetPayload.sizes);
     return retval;
 }
 

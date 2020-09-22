@@ -529,7 +529,9 @@ UA_ExpandedNodeId_equal(const UA_ExpandedNodeId *n1, const UA_ExpandedNodeId *n2
     return (UA_ExpandedNodeId_order(n1, n2) == UA_ORDER_EQ);
 }
 
-/* Returns a non-cryptographic hash for ExpandedNodeId */
+/* Returns a non-cryptographic hash for ExpandedNodeId. The hash of an
+ * ExpandedNodeId is identical to the hash of the embedded (simple) NodeId if
+ * the ServerIndex is zero and no NamespaceUri is set. */
 UA_UInt32 UA_EXPORT UA_ExpandedNodeId_hash(const UA_ExpandedNodeId *n);
 
 /**
@@ -904,9 +906,6 @@ typedef struct UA_DiagnosticInfo {
  * type operations as static inline functions. */
 
 typedef struct {
-#ifdef UA_ENABLE_TYPEDESCRIPTION
-    const char *memberName;
-#endif
     UA_UInt16 memberTypeIndex;    /* Index of the member in the array of data
                                      types */
     UA_Byte   padding;            /* How much padding is there before this
@@ -921,6 +920,9 @@ typedef struct {
                                      namespace zero only.*/
     UA_Boolean isArray       : 1; /* The member is an array */
     UA_Boolean isOptional    : 1; /* The member is an optional field */
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+    const char *memberName;       /* Human-readable member name */
+#endif
 } UA_DataTypeMember;
 
 /* The DataType "kind" is an internal type classification. It is used to
@@ -961,10 +963,9 @@ typedef enum {
 } UA_DataTypeKind;
 
 struct UA_DataType {
-#ifdef UA_ENABLE_TYPEDESCRIPTION
-    const char *typeName;
-#endif
     UA_NodeId typeId;                /* The nodeid of the type */
+    UA_NodeId binaryEncodingId;      /* NodeId of datatype when encoded as binary */
+    //UA_NodeId xmlEncodingId;       /* NodeId of datatype when encoded as XML */
     UA_UInt16 memSize;               /* Size of the struct in memory */
     UA_UInt16 typeIndex;             /* Index of the type in the datatypetable */
     UA_UInt32 typeKind         : 6;  /* Dispatch index for the handling routines */
@@ -973,9 +974,13 @@ struct UA_DataType {
     UA_UInt32 overlayable      : 1;  /* The type has the identical memory layout
                                       * in memory and on the binary stream. */
     UA_UInt32 membersSize      : 8;  /* How many members does the type have? */
-    UA_UInt32 binaryEncodingId;      /* NodeId of datatype when encoded as binary */
-    //UA_UInt16  xmlEncodingId;      /* NodeId of datatype when encoded as XML */
     UA_DataTypeMember *members;
+
+    /* The typename is only for debugging. Move last so the members pointers
+     * stays within the cacheline. */
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+    const char *typeName;
+#endif
 };
 
 /* Test if the data type is a numeric builtin data type. This includes Boolean,
@@ -1102,7 +1107,7 @@ UA_Guid UA_EXPORT UA_Guid_random(void);     /* no cryptographic entropy */
 /* The following is used to exclude type names in the definition of UA_DataType
  * structures if the feature is disabled. */
 #ifdef UA_ENABLE_TYPEDESCRIPTION
-# define UA_TYPENAME(name) name,
+# define UA_TYPENAME(name) , name
 #else
 # define UA_TYPENAME(name)
 #endif

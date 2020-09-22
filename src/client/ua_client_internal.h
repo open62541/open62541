@@ -121,7 +121,6 @@ struct UA_Client {
     UA_SessionState oldSessionState;
     UA_StatusCode oldConnectStatus;
 
-    UA_Boolean secureChannelHandshake; /* Ongoing RenewSecureChannel */
     UA_Boolean endpointsHandshake;     /* Ongoing GetEndpoints */
     UA_Boolean noSession;              /* Don't open a session */
 
@@ -138,6 +137,8 @@ struct UA_Client {
     UA_SessionState sessionState;
     UA_NodeId authenticationToken;
     UA_UInt32 requestHandle;
+    UA_ByteString remoteNonce;
+    UA_ByteString localNonce;
 
     /* Connectivity check */
     UA_DateTime lastConnectivityCheck;
@@ -157,10 +158,10 @@ struct UA_Client {
 };
 
 void notifyClientState(UA_Client *client);
+void processERRResponse(UA_Client *client, const UA_ByteString *chunk);
 void processACKResponse(UA_Client *client, const UA_ByteString *chunk);
-void processOPNResponse(UA_Client *client, UA_ByteString *chunk);
+void processOPNResponse(UA_Client *client, const UA_ByteString *message);
 void closeSecureChannel(UA_Client *client);
-void renewSecureChannel(UA_Client *client);
 
 UA_StatusCode
 connectIterate(UA_Client *client, UA_UInt32 timeout);

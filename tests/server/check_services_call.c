@@ -42,7 +42,7 @@ static void setup(void) {
     noFpAttr.userExecutable = true;
     UA_Server_addMethodNode(server, UA_NODEID_STRING(1, "nofunctionpointer"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASORDEREDCOMPONENT),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                             UA_QUALIFIEDNAME(1, "No function pointer"),
                             noFpAttr, NULL, // no callback
                             0, NULL, 0, NULL, NULL, NULL);
@@ -54,7 +54,7 @@ static void setup(void) {
     nonExecAttr.userExecutable = true;
     UA_Server_addMethodNode(server, UA_NODEID_STRING(1, "nonexec"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASORDEREDCOMPONENT),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                             UA_QUALIFIEDNAME(1, "Not executable"),
                             nonExecAttr, &methodCallback,
                             0, NULL, 0, NULL, NULL, NULL);
@@ -197,7 +197,7 @@ START_TEST(callMethodWithWronglyTypedArguments) {
     UA_CallMethodResult_init(&result);
     result = UA_Server_call(server, &callMethodRequest);
 
-    ck_assert_int_gt(result.inputArgumentResultsSize, 0);
+    ck_assert_uint_gt(result.inputArgumentResultsSize, 0);
     ck_assert_int_eq(result.inputArgumentResults[0], UA_STATUSCODE_BADTYPEMISMATCH);
     ck_assert_int_eq(result.statusCode, UA_STATUSCODE_BADINVALIDARGUMENT);
 

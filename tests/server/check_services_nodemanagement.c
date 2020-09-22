@@ -13,12 +13,16 @@
 #include <time.h>
 
 static UA_Server *server = NULL;
+static void *sessionCalled = (void *)1;
+static void *nodeCalled = (void *)2;
 static UA_Int32 handleCalled = 0;
 
 static UA_StatusCode
 globalInstantiationMethod(UA_Server *server_,
                           const UA_NodeId *sessionId, void *sessionContext,
                           const UA_NodeId *nodeId, void **nodeContext) {
+    sessionCalled = sessionContext;
+    nodeCalled = *nodeContext;
     handleCalled++;
     return UA_STATUSCODE_GOOD;
 }
@@ -34,6 +38,7 @@ static void setup(void) {
     lifecycle.createOptionalChild = NULL;
     lifecycle.generateChildNodeId = NULL;
     config->nodeLifecycle = lifecycle;
+    UA_Server_setAdminSessionContext(server, (void *)0x3);
 }
 
 static void teardown(void) {
@@ -51,9 +56,41 @@ START_TEST(AddVariableNode) {
     UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    ck_assert_ptr_eq(sessionCalled, (void *)1);
+    ck_assert_ptr_eq(nodeCalled, (void *)2);
     UA_StatusCode res =
         UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
                                   parentReferenceNodeId, myIntegerName,
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                  attr, (void *)4, NULL);
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, res);
+    ck_assert_ptr_eq(sessionCalled, (void *)3);
+    ck_assert_ptr_eq(nodeCalled, (void *)4);
+} END_TEST
+
+START_TEST(AddVariableNode_ValueRankZero) {
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "Array ValueRank 0");
+    attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+
+    /* Set the variable value constraints */
+    attr.dataType = UA_TYPES[UA_TYPES_DOUBLE].typeId;
+    attr.valueRank = UA_VALUERANK_ONE_OR_MORE_DIMENSIONS;
+
+    /* Set the value */
+    UA_UInt32 arrayDims[1] = {2};
+    UA_Double zero[2] = {0.0, 0.0};
+    UA_Variant_setArray(&attr.value, zero, 2, &UA_TYPES[UA_TYPES_DOUBLE]);
+    attr.value.arrayDimensions = arrayDims;
+    attr.value.arrayDimensionsSize = 1;
+
+    UA_NodeId myNodeId = UA_NODEID_STRING(1, "array0");
+    UA_QualifiedName myName = UA_QUALIFIEDNAME(1, "array0");
+    UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    UA_StatusCode res =
+        UA_Server_addVariableNode(server, myNodeId, parentNodeId,
+                                  parentReferenceNodeId, myName,
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
                                   attr, NULL, NULL);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, res);
@@ -386,7 +423,7 @@ START_TEST(DeleteObjectAndReferences) {
         if(UA_NodeId_equal(&br.references[i].nodeId.nodeId, &objectid))
             refCount++;
     }
-    ck_assert_int_eq(refCount, 1);
+    ck_assert_uint_eq(refCount, 1);
     UA_BrowseResult_deleteMembers(&br);
 
     /* Delete the object */
@@ -400,7 +437,7 @@ START_TEST(DeleteObjectAndReferences) {
         if(UA_NodeId_equal(&br.references[i].nodeId.nodeId, &objectid))
             refCount++;
     }
-    ck_assert_int_eq(refCount, 0);
+    ck_assert_uint_eq(refCount, 0);
     UA_BrowseResult_deleteMembers(&br);
 
     /* Add an object the second time */
@@ -423,7 +460,7 @@ START_TEST(DeleteObjectAndReferences) {
         if(UA_NodeId_equal(&br.references[i].nodeId.nodeId, &objectid))
             refCount++;
     }
-    ck_assert_int_eq(refCount, 1);
+    ck_assert_uint_eq(refCount, 1);
     UA_BrowseResult_deleteMembers(&br);
 } END_TEST
 
@@ -622,6 +659,7 @@ int main(void) {
     TCase *tc_addnodes = tcase_create("addnodes");
     tcase_add_checked_fixture(tc_addnodes, setup, teardown);
     tcase_add_test(tc_addnodes, AddVariableNode);
+    tcase_add_test(tc_addnodes, AddVariableNode_ValueRankZero);
     tcase_add_test(tc_addnodes, AddVariableNode_Matrix);
     tcase_add_test(tc_addnodes, AddVariableNode_ExtensionObject);
     tcase_add_test(tc_addnodes, InstantiateVariableTypeNode);

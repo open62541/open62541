@@ -82,12 +82,12 @@ As per the sample application, XDP listens to Rx_Queue 2; to direct the incoming
         ethtool -X $IFACE equal 2
         #Disable VLAN offload
         ethtool -K <I210 interface> rxvlan off
-        tc qdisc delete dev <I210 interface> ingress
-        tc qdisc add dev <I210 interface> ingress
-    In node 1 listening to Rx_queue 2(hw_tc) :
-        tc filter add dev <I210 interface> parent ffff: proto 0xb62c flower dst_mac 01:00:5E:00:00:01 hw_tc 2 skip_sw
-    In node 2 listening to Rx_queue 2(hw_tc) :
-        tc filter add dev <I210 interface> parent ffff: proto 0xb62c flower dst_mac 01:00:5E:7F:00:01 hw_tc 2 skip_sw
+        ethtool -K $IFACE ntuple on
+        ethtool --config-ntuple $IFACE delete 15
+        ethtool --config-ntuple $IFACE delete 14
+        #Below command forwards the packet to Rx queue 2
+        ethtool --config-ntuple $IFACE flow-type ether proto 0x8100 dst 01:00:5E:7F:00:01 loc 15 action 2
+        ethtool --config-ntuple $IFACE flow-type ether proto 0x8100 dst 01:00:5E:7F:00:02 loc 14 action 2
 
     In both nodes:
         for i in `seq 1 8`; do for j in `seq 0 7`;do sudo ip link set <I210 interface>.$i type vlan egress $j:$j ; done; done
