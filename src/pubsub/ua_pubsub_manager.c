@@ -31,6 +31,17 @@ UA_Server_addPubSubConnection(UA_Server *server,
                      "PubSub Connection creation failed. Requested transport layer not found.");
         return UA_STATUSCODE_BADNOTFOUND;
     }
+    
+    if(!(connectionConfig->publisherId.type == &UA_TYPES[UA_TYPES_BYTE] ||
+         connectionConfig->publisherId.type == &UA_TYPES[UA_TYPES_UINT16] ||
+         connectionConfig->publisherId.type == &UA_TYPES[UA_TYPES_UINT32] ||
+         connectionConfig->publisherId.type == &UA_TYPES[UA_TYPES_UINT64] ||
+         connectionConfig->publisherId.type == &UA_TYPES[UA_TYPES_STRING] ||
+         UA_Variant_isEmpty(&connectionConfig->publisherId))) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "PubSub Connection creation failed. Invalid PublisherIdType.");
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    }
 
     /* Create a copy of the connection config */
     UA_PubSubConnectionConfig *tmpConnectionConfig = (UA_PubSubConnectionConfig *)
@@ -46,6 +57,11 @@ UA_Server_addPubSubConnection(UA_Server *server,
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "PubSub Connection creation failed. Could not copy the config.");
         return retval;
+    }
+
+    if(UA_Variant_isEmpty(&tmpConnectionConfig->publisherId)){
+        UA_Byte publisherId = 0;
+        UA_Variant_setScalarCopy(&tmpConnectionConfig->publisherId, &publisherId, &UA_TYPES[UA_TYPES_BYTE]);
     }
 
     /* Create new connection and add to UA_PubSubManager */

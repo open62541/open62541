@@ -147,11 +147,6 @@ _UA_BEGIN_DECLS
  * Take a look on the PubSub Tutorials for mor details about the API usage.
  */
 
-typedef enum {
-    UA_PUBSUB_PUBLISHERID_NUMERIC,
-    UA_PUBSUB_PUBLISHERID_STRING
-} UA_PublisherIdType;
-
 #ifdef UA_ENABLE_PUBSUB_ETH_UADP_ETF
 typedef struct {
     UA_Int32 socketPriority;
@@ -165,11 +160,7 @@ typedef struct {
 typedef struct {
     UA_String name;
     UA_Boolean enabled;
-    UA_PublisherIdType publisherIdType;
-    union { /* std: valid types UInt or String */
-        UA_UInt32 numeric;
-        UA_String string;
-    } publisherId;
+    UA_Variant publisherId;
     UA_String transportProfileUri;
     UA_Variant address;
     size_t connectionPropertiesSize;

@@ -52,6 +52,7 @@ UA_PubSubConnectionConfig_copy(const UA_PubSubConnectionConfig *src,
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     memcpy(dst, src, sizeof(UA_PubSubConnectionConfig));
     res |= UA_String_copy(&src->name, &dst->name);
+    res |= UA_Variant_copy(&src->publisherId, &dst->publisherId);
     res |= UA_Variant_copy(&src->address, &dst->address);
     res |= UA_String_copy(&src->transportProfileUri, &dst->transportProfileUri);
     res |= UA_Variant_copy(&src->connectionTransportSettings, &dst->connectionTransportSettings);
@@ -102,6 +103,7 @@ void
 UA_PubSubConnectionConfig_clear(UA_PubSubConnectionConfig *connectionConfig) {
     UA_String_clear(&connectionConfig->name);
     UA_String_clear(&connectionConfig->transportProfileUri);
+    UA_Variant_clear(&connectionConfig->publisherId);
     UA_Variant_clear(&connectionConfig->connectionTransportSettings);
     UA_Variant_clear(&connectionConfig->address);
     for(size_t i = 0; i < connectionConfig->connectionPropertiesSize; i++){
@@ -1902,13 +1904,30 @@ generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
          (u64)UA_UADPNETWORKMESSAGECONTENTMASK_PROMOTEDFIELDS) != 0;
     networkMessage->version = 1;
     networkMessage->networkMessageType = UA_NETWORKMESSAGE_DATASET;
-    if(connection->config->publisherIdType == UA_PUBSUB_PUBLISHERID_NUMERIC) {
-        networkMessage->publisherIdType = UA_PUBLISHERDATATYPE_UINT16;
-        networkMessage->publisherId.publisherIdUInt32 = connection->config->publisherId.numeric;
-    } else if(connection->config->publisherIdType == UA_PUBSUB_PUBLISHERID_STRING){
-        networkMessage->publisherIdType = UA_PUBLISHERDATATYPE_STRING;
-        networkMessage->publisherId.publisherIdString = connection->config->publisherId.string;
+    if(connection->config->publisherId.type == &UA_TYPES[UA_TYPES_BYTE]){
+        networkMessage->publisherIdType = UA_PUBLISHERDATATYPE_BYTE;
+        networkMessage->publisherId.publisherIdByte = *(UA_Byte*)connection->config->publisherId.data;
     }
+    else if(connection->config->publisherId.type == &UA_TYPES[UA_TYPES_UINT16]){
+        networkMessage->publisherIdType = UA_PUBLISHERDATATYPE_UINT16;
+        networkMessage->publisherId.publisherIdUInt16 = *(UA_UInt16*)connection->config->publisherId.data;
+    }
+    else if(connection->config->publisherId.type == &UA_TYPES[UA_TYPES_UINT32]){
+        networkMessage->publisherIdType = UA_PUBLISHERDATATYPE_UINT32;
+        networkMessage->publisherId.publisherIdUInt32 = *(UA_UInt32*)connection->config->publisherId.data;
+    }
+    else if(connection->config->publisherId.type == &UA_TYPES[UA_TYPES_UINT64]){
+        networkMessage->publisherIdType = UA_PUBLISHERDATATYPE_UINT64;
+        networkMessage->publisherId.publisherIdUInt64 = *(UA_UInt64*)connection->config->publisherId.data;
+    }
+    else if(connection->config->publisherId.type == &UA_TYPES[UA_TYPES_STRING]){
+        networkMessage->publisherIdType = UA_PUBLISHERDATATYPE_STRING;
+        networkMessage->publisherId.publisherIdString = *(UA_String*)connection->config->publisherId.data;
+    }
+    else{
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
     if(networkMessage->groupHeader.sequenceNumberEnabled)
         networkMessage->groupHeader.sequenceNumber = wg->sequenceNumber;
     /* Compute the length of the dsm separately for the header */

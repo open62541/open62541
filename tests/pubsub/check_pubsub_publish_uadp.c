@@ -35,7 +35,8 @@ static void setup(void) {
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    connectionConfig.publisherId.numeric = 62541;
+    UA_UInt16 publisherId = 62541;
+    UA_Variant_setScalar(&connectionConfig.publisherId, &publisherId, &UA_TYPES[UA_TYPES_UINT16]);
     UA_Server_addPubSubConnection(server, &connectionConfig, &connection1);
 
     UA_PublishedDataSetConfig publishedDataSetConfig;

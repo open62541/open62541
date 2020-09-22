@@ -174,18 +174,12 @@ UA_PubSubManager_updatePubSubConfig(UA_Server* server, const UA_PubSubConfigurat
  */
 static UA_StatusCode
 UA_PubSubManager_setConnectionPublisherId(const UA_PubSubConnectionDataType *src, UA_PubSubConnectionConfig *dst) {
-    if(UA_NodeId_equal(&src->publisherId.type->typeId, &UA_TYPES[UA_TYPES_STRING].typeId)) {
-        dst->publisherIdType = UA_PUBSUB_PUBLISHERID_STRING;
-        dst->publisherId.string = *(UA_String*)src->publisherId.data;
-    } else if(UA_NodeId_equal(&src->publisherId.type->typeId, &UA_TYPES[UA_TYPES_BYTE].typeId) || 
-              UA_NodeId_equal(&src->publisherId.type->typeId, &UA_TYPES[UA_TYPES_UINT16].typeId) || 
-              UA_NodeId_equal(&src->publisherId.type->typeId, &UA_TYPES[UA_TYPES_UINT32].typeId)) {
-        dst->publisherIdType = UA_PUBSUB_PUBLISHERID_NUMERIC;
-        dst->publisherId.numeric =  *(UA_UInt32*)src->publisherId.data;
-    } else if(UA_NodeId_equal(&src->publisherId.type->typeId, &UA_TYPES[UA_TYPES_UINT64].typeId)) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, 
-                    "[UA_PubSubManager_setConnectionPublisherId] PublisherId is UInt64 (not implemented); Recommended dataType for PublisherId: UInt32");
-        return UA_STATUSCODE_BADNOTIMPLEMENTED;
+    if(UA_NodeId_equal(&src->publisherId.type->typeId, &UA_TYPES[UA_TYPES_STRING].typeId) ||
+       UA_NodeId_equal(&src->publisherId.type->typeId, &UA_TYPES[UA_TYPES_BYTE].typeId) || 
+       UA_NodeId_equal(&src->publisherId.type->typeId, &UA_TYPES[UA_TYPES_UINT16].typeId) || 
+       UA_NodeId_equal(&src->publisherId.type->typeId, &UA_TYPES[UA_TYPES_UINT32].typeId) ||
+       UA_NodeId_equal(&src->publisherId.type->typeId, &UA_TYPES[UA_TYPES_UINT64].typeId) {
+        UA_Variant_copy(&dst->publisherId, src->config->publisherId);
     } else {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "[UA_PubSubManager_setConnectionPublisherId] PublisherId is not valid.");
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -1295,12 +1289,8 @@ UA_PubSubManager_generatePubSubConnectionDataType(UA_PubSubConnectionDataType *d
     for(index = 0; index < src->config->connectionPropertiesSize; index++) {
         UA_KeyValuePair_copy(&src->config->connectionProperties[index], &dst->connectionProperties[index]);
     }
-
-    if(src->config->publisherIdType == UA_PUBSUB_PUBLISHERID_NUMERIC) {
-        UA_Variant_setScalarCopy(&dst->publisherId, &src->config->publisherId.numeric, &UA_TYPES[UA_TYPES_UINT32]);
-    } else if(src->config->publisherIdType == UA_PUBSUB_PUBLISHERID_STRING) {
-        UA_Variant_setScalarCopy(&dst->publisherId, &src->config->publisherId.string, &UA_TYPES[UA_TYPES_STRING]);
-    }
+    
+    UA_Variant_copy(&dst->publisherId, &src->config->publisherId);
 
     /* Possibly, array size and dimensions of src->config->address and src->config->connectionTransportSettings 
        should be checked beforehand. */

@@ -34,7 +34,8 @@ addMinimalPubSubConfiguration(UA_Server * server){
     connectionConfig.enabled = UA_TRUE;
     UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL , UA_STRING("opc.udp://224.0.0.22:4840/")};
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherId.numeric = UA_UInt32_random();
+    UA_UInt32 publisherId = UA_UInt32_random();
+    UA_Variant_setScalar(&connectionConfig.publisherId, &publisherId, &UA_TYPES[UA_TYPES_UINT32]);
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdentifier);
     /* Add one PublishedDataSet */
     UA_PublishedDataSetConfig publishedDataSetConfig;

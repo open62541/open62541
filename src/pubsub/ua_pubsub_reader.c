@@ -239,14 +239,33 @@ UA_DataSetReader_generateNetworkMessage(UA_PubSubConnection *pubSubConnection, U
          (u64)UA_UADPNETWORKMESSAGECONTENTMASK_PROMOTEDFIELDS) != 0;
     networkMessage->version = 1;
     networkMessage->networkMessageType = UA_NETWORKMESSAGE_DATASET;
-    if(UA_DataType_isNumeric(dataSetReader->config.publisherId.type)) {
-        /* TODO Support all numeric types */
-        networkMessage->publisherIdType = UA_PUBLISHERDATATYPE_UINT16;
-        networkMessage->publisherId.publisherIdUInt16 = *(UA_UInt16 *) dataSetReader->config.publisherId.data;
-    } else {
-        return UA_STATUSCODE_BADNOTSUPPORTED;
+    if(dataSetReader->config.publisherId.type == &UA_TYPES[UA_TYPES_BYTE]){
+        networkMessage->publisherIdType = UA_PUBLISHERDATATYPE_BYTE;
+        networkMessage->publisherId.publisherIdByte = *(UA_Byte*)dataSetReader->config.publisherId.data;
     }
-
+    else if(dataSetReader->config.publisherId.type == &UA_TYPES[UA_TYPES_UINT16]){
+        networkMessage->publisherIdType = UA_PUBLISHERDATATYPE_UINT16;
+        networkMessage->publisherId.publisherIdUInt16 = *(UA_UInt16*)dataSetReader->config.publisherId.data;
+    }
+    else if(dataSetReader->config.publisherId.type == &UA_TYPES[UA_TYPES_UINT32]){
+        networkMessage->publisherIdType = UA_PUBLISHERDATATYPE_UINT32;
+        networkMessage->publisherId.publisherIdUInt32 = *(UA_UInt32*)dataSetReader->config.publisherId.data;
+    }
+    else if(dataSetReader->config.publisherId.type == &UA_TYPES[UA_TYPES_UINT64]){
+        networkMessage->publisherIdType = UA_PUBLISHERDATATYPE_UINT64;
+        networkMessage->publisherId.publisherIdUInt64 = *(UA_UInt64*)dataSetReader->config.publisherId.data;
+    }
+    else if(dataSetReader->config.publisherId.type == &UA_TYPES[UA_TYPES_STRING]){
+        networkMessage->publisherIdType = UA_PUBLISHERDATATYPE_STRING;
+        networkMessage->publisherId.publisherIdString = *(UA_String*)dataSetReader->config.publisherId.data;
+    }
+    else if(UA_Variant_isEmpty(&dataSetReader->config.publisherId)) {
+        networkMessage->publisherIdEnabled = UA_FALSE;
+    } 
+    else {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    
     if(networkMessage->groupHeader.sequenceNumberEnabled)
         networkMessage->groupHeader.sequenceNumber = 1; // Will be modified when subscriber receives new nw msg.
     /* Compute the length of the dsm separately for the header */
@@ -690,55 +709,54 @@ static UA_StatusCode
 getReaderFromIdentifier(UA_Server *server, UA_NetworkMessage *pMsg,
                         UA_DataSetReader **dataSetReader, UA_PubSubConnection *pConnection) {
     UA_StatusCode retval = UA_STATUSCODE_BADNOTFOUND;
-    if(!pMsg->publisherIdEnabled) {
-        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                    "Cannot process DataSetReader without PublisherId");
-        return UA_STATUSCODE_BADNOTIMPLEMENTED; /* TODO: Handle DSR without PublisherId */
-    }
 
     UA_ReaderGroup* readerGroup;
     LIST_FOREACH(readerGroup, &pConnection->readerGroups, listEntry) {
         UA_DataSetReader *tmpReader;
         LIST_FOREACH(tmpReader, &readerGroup->readers, listEntry) {
-            switch (pMsg->publisherIdType) {
-            case UA_PUBLISHERDATATYPE_BYTE:
-                if(tmpReader->config.publisherId.type == &UA_TYPES[UA_TYPES_BYTE] &&
-                   pMsg->publisherIdType == UA_PUBLISHERDATATYPE_BYTE &&
-                   pMsg->publisherId.publisherIdByte == *(UA_Byte*)tmpReader->config.publisherId.data) {
-                    retval = checkReaderIdentifier(server, pMsg, tmpReader);
-                }
-                break;
-            case UA_PUBLISHERDATATYPE_UINT16:
-                if(tmpReader->config.publisherId.type == &UA_TYPES[UA_TYPES_UINT16] &&
-                   pMsg->publisherIdType == UA_PUBLISHERDATATYPE_UINT16 &&
-                   pMsg->publisherId.publisherIdUInt16 == *(UA_UInt16*) tmpReader->config.publisherId.data) {
-                    retval = checkReaderIdentifier(server, pMsg, tmpReader);
-                }
-                break;
-            case UA_PUBLISHERDATATYPE_UINT32:
-                if(tmpReader->config.publisherId.type == &UA_TYPES[UA_TYPES_UINT32] &&
-                   pMsg->publisherIdType == UA_PUBLISHERDATATYPE_UINT32 &&
-                   pMsg->publisherId.publisherIdUInt32 == *(UA_UInt32*)tmpReader->config.publisherId.data) {
-                    retval = checkReaderIdentifier(server, pMsg, tmpReader);
-                }
-                break;
-            case UA_PUBLISHERDATATYPE_UINT64:
-                if(tmpReader->config.publisherId.type == &UA_TYPES[UA_TYPES_UINT64] &&
-                   pMsg->publisherIdType == UA_PUBLISHERDATATYPE_UINT64 &&
-                   pMsg->publisherId.publisherIdUInt64 == *(UA_UInt64*)tmpReader->config.publisherId.data) {
-                    retval = checkReaderIdentifier(server, pMsg, tmpReader);
-                }
-                break;
-            case UA_PUBLISHERDATATYPE_STRING:
-                if(tmpReader->config.publisherId.type == &UA_TYPES[UA_TYPES_STRING] &&
-                   pMsg->publisherIdType == UA_PUBLISHERDATATYPE_STRING &&
-                   UA_String_equal(&pMsg->publisherId.publisherIdString,
+            if(pMsg->publisherIdEnabled && !UA_Variant_isEmpty(&tmpReader->config.publisherId)) {
+                switch (pMsg->publisherIdType) {
+                case UA_PUBLISHERDATATYPE_BYTE:
+                    if(tmpReader->config.publisherId.type == &UA_TYPES[UA_TYPES_BYTE] &&
+                       pMsg->publisherIdType == UA_PUBLISHERDATATYPE_BYTE &&
+                       pMsg->publisherId.publisherIdByte == *(UA_Byte*)tmpReader->config.publisherId.data) {
+                        retval = checkReaderIdentifier(server, pMsg, tmpReader);
+                    }
+                    break;
+                case UA_PUBLISHERDATATYPE_UINT16:
+                    if(tmpReader->config.publisherId.type == &UA_TYPES[UA_TYPES_UINT16] &&
+                       pMsg->publisherIdType == UA_PUBLISHERDATATYPE_UINT16 &&
+                       pMsg->publisherId.publisherIdUInt16 == *(UA_UInt16*) tmpReader->config.publisherId.data) {
+                        retval = checkReaderIdentifier(server, pMsg, tmpReader);
+                    }
+                    break;
+                case UA_PUBLISHERDATATYPE_UINT32:
+                    if(tmpReader->config.publisherId.type == &UA_TYPES[UA_TYPES_UINT32] &&
+                       pMsg->publisherIdType == UA_PUBLISHERDATATYPE_UINT32 &&
+                       pMsg->publisherId.publisherIdUInt32 == *(UA_UInt32*)tmpReader->config.publisherId.data) {
+                        retval = checkReaderIdentifier(server, pMsg, tmpReader);
+                    }
+                    break;
+                case UA_PUBLISHERDATATYPE_UINT64:
+                    if(tmpReader->config.publisherId.type == &UA_TYPES[UA_TYPES_UINT64] &&
+                       pMsg->publisherIdType == UA_PUBLISHERDATATYPE_UINT64 &&
+                       pMsg->publisherId.publisherIdUInt64 == *(UA_UInt64*)tmpReader->config.publisherId.data) {
+                        retval = checkReaderIdentifier(server, pMsg, tmpReader);
+                    }
+                    break;
+                case UA_PUBLISHERDATATYPE_STRING:
+                    if(tmpReader->config.publisherId.type == &UA_TYPES[UA_TYPES_STRING] &&
+                       pMsg->publisherIdType == UA_PUBLISHERDATATYPE_STRING &&
+                       UA_String_equal(&pMsg->publisherId.publisherIdString,
                                    (UA_String*)tmpReader->config.publisherId.data)) {
-                    retval = checkReaderIdentifier(server, pMsg, tmpReader);
+                        retval = checkReaderIdentifier(server, pMsg, tmpReader);
+                    }
+                    break;
+                default:
+                    return UA_STATUSCODE_BADINTERNALERROR;
                 }
-                break;
-            default:
-                return UA_STATUSCODE_BADINTERNALERROR;
+            } else {
+                retval = checkReaderIdentifier(server, pMsg, tmpReader);
             }
 
             if(retval == UA_STATUSCODE_GOOD) {
@@ -896,6 +914,17 @@ UA_Server_addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdentifier,
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Add DataSetReader failed. Subscriber configuration is frozen.");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
+    }
+
+    if(!(dataSetReaderConfig->publisherId.type == &UA_TYPES[UA_TYPES_BYTE] ||
+    dataSetReaderConfig->publisherId.type == &UA_TYPES[UA_TYPES_UINT16] ||
+    dataSetReaderConfig->publisherId.type == &UA_TYPES[UA_TYPES_UINT32] ||
+    dataSetReaderConfig->publisherId.type == &UA_TYPES[UA_TYPES_UINT64] ||
+    dataSetReaderConfig->publisherId.type == &UA_TYPES[UA_TYPES_STRING] || 
+    UA_Variant_isEmpty(&dataSetReaderConfig->publisherId))){
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "Add DataSetReader failed. Invalid PublisherIdType.");
+        return UA_STATUSCODE_BADTYPEMISMATCH;
     }
 
     /* Allocate memory for new DataSetReader */

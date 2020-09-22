@@ -284,7 +284,8 @@ addPubSubConnectionSubscriber(UA_Server *server, UA_NetworkAddressUrlDataType *n
     UA_NetworkAddressUrlDataType networkAddressUrlsubscribe = *networkAddressUrlSubscriber;
     connectionConfig.transportProfileUri                    = UA_STRING(ETH_TRANSPORT_PROFILE);
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrlsubscribe, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherId.numeric                    = UA_UInt32_random();
+    UA_UInt32 publisherId                                   = UA_UInt32_random();
+    UA_Variant_setScalarCopy(&connectionConfig.publisherId, &publisherId, &UA_TYPES[UA_TYPES_UINT32]);
     retval |= UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdentSubscriber);
     if (retval == UA_STATUSCODE_GOOD)
          UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,"The PubSub Connection was created successfully!");
@@ -498,7 +499,8 @@ addPubSubConnection(UA_Server *server, UA_NetworkAddressUrlDataType *networkAddr
     connectionConfig.transportProfileUri                    = UA_STRING(ETH_TRANSPORT_PROFILE);
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherId.numeric                    = PUBLISHER_ID;
+    UA_UInt16 publisherId                                   = PUBLISHER_ID;
+    UA_Variant_setScalarCopy(&connectionConfig.publisherId, &publisherId, &UA_TYPES[UA_TYPES_UINT16]);
     /* ETF configuration settings */
     connectionConfig.etfConfiguration.socketPriority        = SOCKET_PRIORITY;
     connectionConfig.etfConfiguration.sotxtimeEnabled       = UA_TRUE;

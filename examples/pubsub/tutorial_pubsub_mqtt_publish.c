@@ -77,7 +77,8 @@ addPubSubConnection(UA_Server *server, char *addressUrl) {
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     /* Changed to static publisherId from random generation to identify
      * the publisher on Subscriber side */
-    connectionConfig.publisherId.numeric = 2234;
+    UA_UInt16 publisherId = 2234;
+    UA_Variant_setScalar(&connectionConfig.publisherId, &publisherId, &UA_TYPES[UA_TYPES_UINT16]);
 
     /* configure options, set mqtt client id */
 #ifdef EXAMPLE_USE_MQTT_LOGIN
