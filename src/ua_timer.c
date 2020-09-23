@@ -60,6 +60,9 @@ ZIP_IMPL(UA_TimerIdZip, UA_TimerEntry, idZipfields, UA_UInt64, id, cmpId)
 void
 UA_Timer_init(UA_Timer *t) {
     memset(t, 0, sizeof(UA_Timer));
+#if UA_MULTITHREADING >= 100
+    UA_LOCK_INIT(t->ziptree_mutex);
+#endif
 }
 
 static UA_StatusCode
@@ -86,8 +89,14 @@ addCallback(UA_Timer *t, UA_ApplicationCallback callback, void *application, voi
     if(callbackId)
         *callbackId = te->id;
 
+#if UA_MULTITHREADING >= 100
+    UA_LOCK(t->ziptree_mutex);
+#endif
     ZIP_INSERT(UA_TimerZip, &t->root, te, ZIP_FFS32(UA_UInt32_random()));
     ZIP_INSERT(UA_TimerIdZip, &t->idRoot, te, ZIP_RANK(te, zipfields));
+#if UA_MULTITHREADING >= 100
+    UA_UNLOCK(t->ziptree_mutex);
+#endif
     return UA_STATUSCODE_GOOD;
 }
 
@@ -126,27 +135,46 @@ UA_Timer_changeRepeatedCallbackInterval(UA_Timer *t, UA_UInt64 callbackId,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Remove from the sorted list */
+#if UA_MULTITHREADING >= 100
+    UA_LOCK(t->ziptree_mutex);
+#endif
     UA_TimerEntry *te = ZIP_FIND(UA_TimerIdZip, &t->idRoot, &callbackId);
-    if(!te)
+    if(!te) {
+#if UA_MULTITHREADING >= 100
+        UA_UNLOCK(t->ziptree_mutex);
+#endif
         return UA_STATUSCODE_BADNOTFOUND;
+    }
 
     /* Set the repeated callback */
     ZIP_REMOVE(UA_TimerZip, &t->root, te);
     te->interval = (UA_UInt64)(interval_ms * UA_DATETIME_MSEC); /* in 100ns resolution */
     te->nextTime = UA_DateTime_nowMonotonic() + (UA_DateTime)te->interval;
     ZIP_INSERT(UA_TimerZip, &t->root, te, ZIP_RANK(te, zipfields));
+#if UA_MULTITHREADING >= 100
+    UA_UNLOCK(t->ziptree_mutex);
+#endif
     return UA_STATUSCODE_GOOD;
 }
 
 void
 UA_Timer_removeCallback(UA_Timer *t, UA_UInt64 callbackId) {
+#if UA_MULTITHREADING >= 100
+    UA_LOCK(t->ziptree_mutex);
+#endif
     UA_TimerEntry *te = ZIP_FIND(UA_TimerIdZip, &t->idRoot, &callbackId);
-    if(!te)
+    if(!te) {
+#if UA_MULTITHREADING >= 100 
+        UA_UNLOCK(t->ziptree_mutex);
+#endif
         return;
-
+    }
     ZIP_REMOVE(UA_TimerZip, &t->root, te);
     ZIP_REMOVE(UA_TimerIdZip, &t->idRoot, te);
     UA_free(te);
+#if UA_MULTITHREADING >= 100
+    UA_UNLOCK(t->ziptree_mutex);
+#endif
 }
 
 UA_DateTime
@@ -154,6 +182,9 @@ UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic,
                  UA_TimerExecutionCallback executionCallback,
                  void *executionApplication) {
     UA_TimerEntry *first;
+#if UA_MULTITHREADING >= 100
+    UA_LOCK(t->ziptree_mutex);
+#endif
     while((first = ZIP_MIN(UA_TimerZip, &t->root)) &&
           first->nextTime <= nowMonotonic) {
         ZIP_REMOVE(UA_TimerZip, &t->root, first);
@@ -164,8 +195,14 @@ UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic,
 
         if(first->interval == 0) {
             ZIP_REMOVE(UA_TimerIdZip, &t->idRoot, first);
+#if UA_MULTITHREADING >= 100
+            UA_UNLOCK(t->ziptree_mutex);
+#endif
             executionCallback(executionApplication, first->callback,
                               first->application, first->data);
+#if UA_MULTITHREADING >= 100
+    UA_LOCK(t->ziptree_mutex);
+#endif                              
             UA_free(first);
             continue;
         }
@@ -175,13 +212,23 @@ UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic,
         first->nextTime += (UA_Int64)first->interval;
         if(first->nextTime < nowMonotonic)
             first->nextTime = nowMonotonic + 1;
+
         ZIP_INSERT(UA_TimerZip, &t->root, first, ZIP_RANK(first, zipfields));
+#if UA_MULTITHREADING >= 100
+    UA_UNLOCK(t->ziptree_mutex);
+#endif
         executionCallback(executionApplication, first->callback,
                           first->application, first->data);
+#if UA_MULTITHREADING >= 100
+    UA_LOCK(t->ziptree_mutex);
+#endif
     }
 
     /* Return the timestamp of the earliest next callback */
     first = ZIP_MIN(UA_TimerZip, &t->root);
+#if UA_MULTITHREADING >= 100
+    UA_UNLOCK(t->ziptree_mutex);
+#endif
     return (first) ? first->nextTime : UA_INT64_MAX;
 }
 
@@ -192,7 +239,14 @@ freeEntry(UA_TimerEntry *te, void *data) {
 
 void
 UA_Timer_deleteMembers(UA_Timer *t) {
+#if UA_MULTITHREADING >= 100
+    UA_LOCK(t->ziptree_mutex);
+#endif
     /* Free all nodes and reset the root */
     ZIP_ITER(UA_TimerZip, &t->root, freeEntry, NULL);
     ZIP_INIT(&t->root);
+#if UA_MULTITHREADING >= 100
+    UA_UNLOCK(t->ziptree_mutex);
+    UA_LOCK_DESTROY(t->ziptree_mutex);
+#endif
 }

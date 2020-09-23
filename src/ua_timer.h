@@ -30,6 +30,9 @@ typedef struct {
     UA_TimerIdZip idRoot; /* The root of the id-sorted zip tree */
     UA_UInt64 idCounter;  /* Generate unique identifiers. Identifiers are always
                            * above zero. */
+#if UA_MULTITHREADING >= 100                        
+    UA_LOCK_TYPE(ziptree_mutex)
+#endif
 } UA_Timer;
 
 void UA_Timer_init(UA_Timer *t);
