@@ -425,6 +425,7 @@ endif()
 option(UA_BUILD_EXAMPLES "Build example servers and clients" OFF)
 option(UA_BUILD_TOOLS "Build OPC UA shell tools" OFF)
 option(UA_BUILD_UNIT_TESTS "Build the unit tests" OFF)
+option(UA_BUILD_UNIT_TESTS_MULTITHREADING "Build specific multithreading unit tests" OFF)
 option(UA_BUILD_FUZZING "Build the fuzzing executables" OFF)
 mark_as_advanced(UA_BUILD_FUZZING)
 if(UA_BUILD_FUZZING)
@@ -597,7 +598,7 @@ if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" ST
 
         # IPO requires too much memory for unit tests
         # GCC docu recommends to compile all files with the same options, therefore ignore it completely
-        if(NOT UA_BUILD_UNIT_TESTS)
+        if((NOT UA_BUILD_UNIT_TESTS) AND (NOT UA_BUILD_UNIT_TESTS_MULTITHREADING))
             # needed to check if IPO is supported (check needs cmake > 3.9)
             if("${CMAKE_VERSION}" VERSION_GREATER 3.9)
                 cmake_policy(SET CMP0069 NEW) # needed as long as required cmake < 3.9
@@ -1332,7 +1333,7 @@ if(UA_BUILD_EXAMPLES)
     add_subdirectory(examples)
 endif()
 
-if(UA_BUILD_UNIT_TESTS)
+if(UA_BUILD_UNIT_TESTS OR UA_BUILD_UNIT_TESTS_MULTITHREADING)
     if(UA_ENABLE_AMALGAMATION)
         # Cannot compile tests with amalgamation. Amalgamation uses the default plugins, not the testing plugins
         message(FATAL_ERROR "Unit tests cannot be generated with source amalgamation enabled")

@@ -158,6 +158,24 @@ endif()
 # the unit test are built directly on the open62541 object files. so they can
 # access symbols that are hidden/not exported to the shared library
 
+# Multithreading tests are not executed in the CI at the moment, due to increased testing time
+# if UA_BUILD_UNIT_TESTS_MULTITHREADING is enabled only the following tests shall be executed:
+if (UA_BUILD_UNIT_TESTS_MULTITHREADING)
+    if((UA_MULTITHREADING GREATER 100) AND (UA_ENABLE_PUBSUB))
+    add_executable(check_pubsub_subscribe_msgrcvtimeout pubsub/check_pubsub_subscribe_msgrcvtimeout.c 
+        $<TARGET_OBJECTS:open62541-object>
+        $<TARGET_OBJECTS:open62541-plugins>) # Note: testing-plugins do not work with pubsub
+    # TODO: why is this POSIX definition necessary here
+    target_compile_definitions(check_pubsub_subscribe_msgrcvtimeout PUBLIC -D_POSIX_C_SOURCE=199309L)
+    target_link_libraries(check_pubsub_subscribe_msgrcvtimeout ${LIBS})
+    add_test_valgrind(check_pubsub_subscribe_msgrcvtimeout ${TESTS_BINARY_DIR}/check_pubsub_subscribe_msgrcvtimeout)
+    endif()
+
+    if (NOT UA_BUILD_UNIT_TESTS)
+        return()    # do not add further tests
+    endif()
+endif()
+
 add_executable(check_types_builtin check_types_builtin.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_types_builtin ${LIBS})
 add_test_valgrind(types_builtin ${TESTS_BINARY_DIR}/check_types_builtin)
@@ -376,17 +394,6 @@ if(UA_ENABLE_PUBSUB)
     add_executable(check_pubsub_multiple_layer pubsub/check_pubsub_multiple_layer.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
     target_link_libraries(check_pubsub_multiple_layer ${LIBS})
     add_test_valgrind(pubsub_multiple_layer ${TESTS_BINARY_DIR}/check_pubsub_multiple_layer)
-
-    if(UA_MULTITHREADING GREATER 100) 
-        # Note: we can't use testplugins because PubSub does not work with testing_networklayers
-        add_executable(check_pubsub_subscribe_msgrcvtimeout pubsub/check_pubsub_subscribe_msgrcvtimeout.c 
-            $<TARGET_OBJECTS:open62541-object>
-            $<TARGET_OBJECTS:open62541-plugins>)
-        # TODO: don't know why this POSIX definition isn't needed anywhere else ... ???
-        target_compile_definitions(check_pubsub_subscribe_msgrcvtimeout PUBLIC -D_POSIX_C_SOURCE=199309L)
-        target_link_libraries(check_pubsub_subscribe_msgrcvtimeout ${LIBS})
-        add_test_valgrind(check_pubsub_subscribe_msgrcvtimeout ${TESTS_BINARY_DIR}/check_pubsub_subscribe_msgrcvtimeout)
-    endif()
 
     if(UA_ENABLE_PUBSUB_ETH_UADP)
         if(NOT UA_ENABLE_PUBSUB_ETH_UADP_ETF)
