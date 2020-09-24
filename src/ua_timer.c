@@ -9,6 +9,8 @@
 #include "ua_util_internal.h"
 #include "ua_timer.h"
 
+#include <stdio.h>
+
 struct UA_TimerEntry {
     ZIP_ENTRY(UA_TimerEntry) zipfields;
     UA_DateTime nextTime;                    /* The next time when the callback
