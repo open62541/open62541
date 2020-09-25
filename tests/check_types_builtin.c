@@ -1507,6 +1507,21 @@ START_TEST(UA_ExtensionObject_encodeDecodeShallWorkOnExtensionObject) {
 }
 END_TEST
 
+START_TEST(UA_StatusCode_utils) {
+
+    ck_assert(UA_TRUE == UA_StatusCode_isBad(UA_STATUSCODE_BADINTERNALERROR));
+    ck_assert(UA_TRUE == UA_StatusCode_isBad(UA_STATUSCODE_BADOUTOFMEMORY));
+    ck_assert(UA_TRUE == UA_StatusCode_isBad(UA_STATUSCODE_BADTIMEOUT));
+
+    ck_assert(UA_FALSE == UA_StatusCode_isBad(UA_STATUSCODE_GOOD));
+    ck_assert(UA_FALSE == UA_StatusCode_isBad(UA_STATUSCODE_GOODNODATA));
+    ck_assert(UA_FALSE == UA_StatusCode_isBad(UA_STATUSCODE_GOODOVERLOAD));
+
+    ck_assert(UA_TRUE == UA_StatusCode_isBad((UA_StatusCode) -1));
+    ck_assert(UA_FALSE == UA_StatusCode_isBad((UA_StatusCode) 1));
+
+} END_TEST
+
 static Suite *testSuite_builtin(void) {
     Suite *s = suite_create("Built-in Data Types 62541-6 Table 1");
 
@@ -1588,6 +1603,11 @@ static Suite *testSuite_builtin(void) {
     tcase_add_test(tc_copy, UA_LocalizedText_copycstringShallWorkOnInputExample);
     tcase_add_test(tc_copy, UA_DataValue_copyShallWorkOnInputExample);
     suite_add_tcase(s, tc_copy);
+
+    TCase *tc_utils = tcase_create("utils");
+    tcase_add_test(tc_utils, UA_StatusCode_utils);
+    suite_add_tcase(s, tc_utils);
+
     return s;
 }
 

@@ -988,6 +988,15 @@ DiagnosticInfo_copy(UA_DiagnosticInfo const *src, UA_DiagnosticInfo *dst,
     return retval;
 }
 
+/* StatusCode */
+UA_Boolean
+UA_StatusCode_isBad(const UA_StatusCode code) {
+    if ((code & 0x80000000) != 0) {
+        return UA_TRUE;
+    }
+    return UA_FALSE;
+} 
+
 /********************/
 /* Structured Types */
 /********************/
