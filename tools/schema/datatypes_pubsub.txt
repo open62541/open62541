@@ -44,7 +44,6 @@ PubSubConfigurationDataType
 PublishedDataSetDataType
 PublishedDataItemsDataType
 UABinaryFileDataType
-OverrideValueHandling
 PermissionType
 RolePermissionType
 SubscribedDataSetMirrorDataType
