@@ -707,10 +707,10 @@ UA_PubSubManager_createDataSetReader(UA_Server *server, const UA_DataSetReaderDa
     memset(&config, 0, sizeof(UA_DataSetReaderConfig));
 
     config.name =                   dataSetReaderParameters->name;
-    UA_Variant_copy(&dataSetReaderParameters->publisherId, &config.publisherId);
+    config.publisherId  =           dataSetReaderParameters->publisherId;
     config.writerGroupId =          dataSetReaderParameters->writerGroupId;
     config.dataSetWriterId =        dataSetReaderParameters->dataSetWriterId;
-    UA_DataSetMetaDataType_copy(&dataSetReaderParameters->dataSetMetaData, &config.dataSetMetaData);
+    config.dataSetMetaData =        dataSetReaderParameters->dataSetMetaData;
     config.dataSetFieldContentMask = dataSetReaderParameters->dataSetFieldContentMask;
     config.messageReceiveTimeout =  dataSetReaderParameters->messageReceiveTimeout;
     config.messageSettings = dataSetReaderParameters->messageSettings;
