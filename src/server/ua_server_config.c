@@ -78,6 +78,14 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
         config->logger.clear(config->logger.context);
     config->logger.log = NULL;
     config->logger.clear = NULL;
+
+#ifdef UA_ENABLE_PUBSUB
+    /* PubSub configuration */
+    if (config->pubsubConfiguration != NULL) {
+        UA_free(config->pubsubConfiguration);
+        config->pubsubConfiguration = 0;
+    }
+#endif /* UA_ENABLE_PUBSUB */
 }
 
 #ifdef UA_ENABLE_PUBSUB

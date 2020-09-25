@@ -67,6 +67,9 @@ _UA_BEGIN_DECLS
  *
  * The :ref:`tutorials` provide a good starting point for this. */
 
+struct UA_PubSubConfiguration;
+typedef struct UA_PubSubConfiguration UA_PubSubConfiguration;
+
 typedef struct {
     UA_UInt32 min;
     UA_UInt32 max;
@@ -123,7 +126,8 @@ struct UA_ServerConfig {
     /*PubSub network layer */
     size_t pubsubTransportLayersSize;
     UA_PubSubTransportLayer *pubsubTransportLayers;
-#endif
+    UA_PubSubConfiguration *pubsubConfiguration;
+#endif /* UA_ENABLE_PUBSUB */
 
     /* Available security policies */
     size_t securityPoliciesSize;
