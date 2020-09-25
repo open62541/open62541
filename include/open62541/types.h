@@ -596,6 +596,12 @@ UA_LOCALIZEDTEXT_ALLOC(const char *locale, const char *text) {
     lt.text = UA_STRING_ALLOC(text); return lt;
 }
 
+/* 
+ * Check if the StatusCode is bad.
+ * @return Returns UA_TRUE if StatusCode is bad, else UA_FALSE. */
+UA_EXPORT UA_Boolean
+UA_StatusCode_isBad(const UA_StatusCode code);
+
 /**
  * .. _numericrange:
  *
