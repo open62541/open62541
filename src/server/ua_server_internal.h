@@ -256,14 +256,15 @@ isNodeInTree_singleRef(UA_Server *server, const UA_NodeId *leafNode,
 
 /* Returns an array with the hierarchy of nodes. The start nodes can be returned
  * as well. The returned array starts at the leaf and continues "upwards" or
- * "downwards". Duplicate entries are removed. The parameter `walkDownwards`
- * indicates the direction of search. */
+ * "downwards". Duplicate entries are removed. */
 UA_StatusCode
 browseRecursive(UA_Server *server, size_t startNodesSize, const UA_NodeId *startNodes,
-                const UA_ReferenceTypeSet *refTypes, UA_BrowseDirection browseDirection,
-                UA_Boolean includeStartNodes, size_t *resultsSize, UA_ExpandedNodeId **results);
+                UA_BrowseDirection browseDirection, const UA_ReferenceTypeSet *refTypes,
+                UA_UInt32 nodeClassMask, UA_Boolean includeStartNodes,
+                size_t *resultsSize, UA_ExpandedNodeId **results);
 
-/* Sets the indices. refType must point to a ReferenceTypeNode. */
+/* Get the bitfield indices of a ReferenceType and possibly its subtypes.
+ * refType must point to a ReferenceTypeNode. */
 UA_StatusCode
 referenceTypeIndices(UA_Server *server, const UA_NodeId *refType,
                      UA_ReferenceTypeSet *indices, UA_Boolean includeSubtypes);

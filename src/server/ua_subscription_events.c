@@ -648,8 +648,8 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
     }
 
     /* Get the list of nodes in the hierarchy that emits the event. */
-    retval = browseRecursive(server, 2, emitStartNodes, &emitRefTypes,
-                             UA_BROWSEDIRECTION_INVERSE, true,
+    retval = browseRecursive(server, 2, emitStartNodes, UA_BROWSEDIRECTION_INVERSE,
+                             &emitRefTypes, UA_NODECLASS_UNSPECIFIED, true,
                              &emitNodesSize, &emitNodes);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,

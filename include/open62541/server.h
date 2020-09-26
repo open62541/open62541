@@ -743,9 +743,16 @@ UA_BrowseResult UA_EXPORT UA_THREADSAFE
 UA_Server_browseNext(UA_Server *server, UA_Boolean releaseContinuationPoint,
                      const UA_ByteString *continuationPoint);
 
-/* Nonstandard version of the browse service that recurses into child nodes.
+/* Non-standard version of the Browse service that recurses into child nodes.
+ *
  * Possible loops (that can occur for non-hierarchical references) are handled
- * by adding every target node at most once to the results array. */
+ * internally. Every node is added at most once to the results array.
+ *
+ * Nodes are only added if they match the NodeClassMask in the
+ * BrowseDescription. However, child nodes are still recursed into if the
+ * NodeClass does not match. So it is possible, for example, to get all
+ * VariableNodes below a certain ObjectNode, with additional objects in the
+ * hierarchy below. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_browseRecursive(UA_Server *server, const UA_BrowseDescription *bd,
                           size_t *resultsSize, UA_ExpandedNodeId **results);
