@@ -12,93 +12,9 @@
 
 #include "ua_server_internal.h"
 
-#define UA_MAX_TREE_RECURSE 50 /* How deep up/down the tree do we recurse at most? */
-
 /********************************/
 /* Information Model Operations */
 /********************************/
-
-/* Keeps track of already visited nodes to detect circular references */
-struct ref_history {
-    struct ref_history *parent; /* the previous element */
-    const UA_NodeId *id; /* the id of the node at this depth */
-    UA_UInt16 depth;
-};
-
-static UA_Boolean
-isNodeInTreeNoCircular(UA_Server *server, const UA_NodeId *leafNode, const UA_NodeId *nodeToFind,
-                       struct ref_history *visitedRefs, const UA_ReferenceTypeSet *relevantRefs) {
-    if(UA_NodeId_equal(nodeToFind, leafNode))
-        return true;
-
-    if(visitedRefs->depth >= UA_MAX_TREE_RECURSE)
-        return false;
-
-    const UA_Node *node = UA_NODESTORE_GET(server, leafNode);
-    if(!node)
-        return false;
-
-    for(size_t i = 0; i < node->head.referencesSize; ++i) {
-        UA_NodeReferenceKind *refs = &node->head.references[i];
-        /* Search upwards in the tree */
-        if(!refs->isInverse)
-            continue;
-
-        /* Consider only the indicated reference types */
-        if(!UA_ReferenceTypeSet_contains(relevantRefs, refs->referenceTypeIndex))
-            continue;
-
-        /* Match the targets or recurse */
-        UA_ReferenceTarget *target;
-        TAILQ_FOREACH(target, &refs->queueHead, queuePointers) {
-            /* Check if we already have seen the referenced node and skip to
-             * avoid endless recursion. Do this only at every 5th depth to save
-             * effort. Circular dependencies are rare and forbidden for most
-             * reference types. */
-            if(visitedRefs->depth % 5 == 4) {
-                struct ref_history *last = visitedRefs;
-                UA_Boolean skip = false;
-                while(!skip && last) {
-                    if(UA_NodeId_equal(last->id, &target->targetId.nodeId))
-                        skip = true;
-                    last = last->parent;
-                }
-                if(skip)
-                    continue;
-            }
-
-            /* Stack-allocate the visitedRefs structure for the next depth */
-            struct ref_history nextVisitedRefs = {visitedRefs, &target->targetId.nodeId,
-                                                  (UA_UInt16)(visitedRefs->depth+1)};
-
-            /* Recurse */
-            UA_Boolean foundRecursive =
-                isNodeInTreeNoCircular(server, &target->targetId.nodeId, nodeToFind,
-                                       &nextVisitedRefs, relevantRefs);
-            if(foundRecursive) {
-                UA_NODESTORE_RELEASE(server, node);
-                return true;
-            }
-        }
-    }
-
-    UA_NODESTORE_RELEASE(server, node);
-    return false;
-}
-
-UA_Boolean
-isNodeInTree(UA_Server *server, const UA_NodeId *leafNode,
-             const UA_NodeId *nodeToFind, const UA_ReferenceTypeSet *relevantRefs) {
-    struct ref_history visitedRefs = {NULL, leafNode, 0};
-    return isNodeInTreeNoCircular(server, leafNode, nodeToFind, &visitedRefs, relevantRefs);
-}
-
-UA_Boolean
-isNodeInTree_singleRef(UA_Server *server, const UA_NodeId *leafNode,
-                       const UA_NodeId *nodeToFind, const UA_Byte relevantRefTypeIndex) {
-    UA_ReferenceTypeSet reftypes = UA_REFTYPESET(relevantRefTypeIndex);
-    return isNodeInTree(server, leafNode, nodeToFind, &reftypes);
-}
 
 const UA_Node *
 getNodeType(UA_Server *server, const UA_NodeHead *head) {
