@@ -22,6 +22,37 @@
 
 #define UA_MAX_TREE_RECURSE 50 /* How deep up/down the tree do we recurse at most? */
 
+UA_StatusCode
+referenceTypeIndices(UA_Server *server, const UA_NodeId *refType,
+                     UA_ReferenceTypeSet *indices, UA_Boolean includeSubtypes) {
+    UA_ReferenceTypeSet_init(indices);
+
+    const UA_Node *refNode = UA_NODESTORE_GET(server, refType);
+    if(!refNode)
+        return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
+
+    if(refNode->head.nodeClass != UA_NODECLASS_REFERENCETYPE) {
+        UA_NODESTORE_RELEASE(server, refNode);
+        return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
+    }
+
+    if(!includeSubtypes)
+        *indices = UA_REFTYPESET(refNode->referenceTypeNode.referenceTypeIndex);
+    else
+        *indices = refNode->referenceTypeNode.subTypes;
+
+    UA_NODESTORE_RELEASE(server, refNode);
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_Boolean
+matchClassMask(const UA_Node *node, UA_UInt32 nodeClassMask) {
+    if(nodeClassMask != UA_NODECLASS_UNSPECIFIED &&
+       (node->head.nodeClass & nodeClassMask) == 0)
+        return false;
+    return true;
+}
+
 /****************/
 /* IsNodeInTree */
 /****************/
@@ -332,29 +363,6 @@ browseRecursive(UA_Server *server, size_t startNodesSize, const UA_NodeId *start
 }
 
 UA_StatusCode
-referenceTypeIndices(UA_Server *server, const UA_NodeId *refType,
-                     UA_ReferenceTypeSet *indices, UA_Boolean includeSubtypes) {
-    UA_ReferenceTypeSet_init(indices);
-
-    const UA_Node *refNode = UA_NODESTORE_GET(server, refType);
-    if(!refNode)
-        return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
-
-    if(refNode->head.nodeClass != UA_NODECLASS_REFERENCETYPE) {
-        UA_NODESTORE_RELEASE(server, refNode);
-        return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
-    }
-
-    if(!includeSubtypes)
-        *indices = UA_REFTYPESET(refNode->referenceTypeNode.referenceTypeIndex);
-    else
-        *indices = refNode->referenceTypeNode.subTypes;
-
-    UA_NODESTORE_RELEASE(server, refNode);
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode
 UA_Server_browseRecursive(UA_Server *server, const UA_BrowseDescription *bd,
                           size_t *resultsSize, UA_ExpandedNodeId **results) {
     UA_LOCK(server->serviceMutex);
@@ -494,14 +502,6 @@ addReferenceDescription(UA_Server *server, RefResult *rr, const UA_NodeReference
     else
         UA_ReferenceDescription_clear(descr);
     return retval;
-}
-
-static UA_Boolean
-matchClassMask(const UA_Node *node, UA_UInt32 nodeClassMask) {
-    if(nodeClassMask != UA_NODECLASS_UNSPECIFIED &&
-       (node->head.nodeClass & nodeClassMask) == 0)
-        return false;
-    return true;
 }
 
 /* Returns whether the node / continuationpoint is done */
