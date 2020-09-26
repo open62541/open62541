@@ -84,9 +84,10 @@ getParentTypeAndInterfaceHierarchy(UA_Server *server, const UA_NodeId *typeNode,
         UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASSUBTYPE);
     UA_ExpandedNodeId *subTypes = NULL;
     size_t subTypesSize = 0;
-    UA_StatusCode retval = browseRecursive(server, 1, typeNode, &reftypes_subtype,
-                                           UA_BROWSEDIRECTION_INVERSE, false,
-                                           &subTypesSize, &subTypes);
+    UA_StatusCode retval = browseRecursive(server, 1, typeNode,
+                                           UA_BROWSEDIRECTION_INVERSE,
+                                           &reftypes_subtype, UA_NODECLASS_UNSPECIFIED,
+                                           false, &subTypesSize, &subTypes);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -96,9 +97,9 @@ getParentTypeAndInterfaceHierarchy(UA_Server *server, const UA_NodeId *typeNode,
         UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASINTERFACE);
     UA_ExpandedNodeId *interfaces = NULL;
     size_t interfacesSize = 0;
-    retval = browseRecursive(server, 1, typeNode, &reftypes_interface,
-                             UA_BROWSEDIRECTION_FORWARD, false,
-                             &interfacesSize, &interfaces);
+    retval = browseRecursive(server, 1, typeNode, UA_BROWSEDIRECTION_FORWARD,
+                             &reftypes_interface, UA_NODECLASS_UNSPECIFIED,
+                             false, &interfacesSize, &interfaces);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Array_delete(subTypes, subTypesSize, &UA_TYPES[UA_TYPES_NODEID]);
         return retval;
@@ -148,9 +149,9 @@ getInterfaceHierarchy(UA_Server *server, const UA_NodeId *objectNode,
         UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASINTERFACE);
     UA_ExpandedNodeId *interfaces = NULL;
     size_t interfacesSize = 0;
-    UA_StatusCode retval = browseRecursive(server, 1, objectNode, &reftypes_interface,
-                             UA_BROWSEDIRECTION_FORWARD, false,
-                             &interfacesSize, &interfaces);
+    UA_StatusCode retval = browseRecursive(server, 1, objectNode, UA_BROWSEDIRECTION_FORWARD,
+                                           &reftypes_interface, UA_NODECLASS_UNSPECIFIED,
+                                           false, &interfacesSize, &interfaces);
     if(retval != UA_STATUSCODE_GOOD) {
         return retval;
     }

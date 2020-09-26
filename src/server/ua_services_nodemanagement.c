@@ -1288,8 +1288,9 @@ setReferenceTypeSubtypes(UA_Server *server, const UA_ReferenceTypeNode *node) {
     UA_ExpandedNodeId *parents = NULL;
     UA_ReferenceTypeSet reftypes_subtype = UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASSUBTYPE);
     UA_StatusCode res =
-        browseRecursive(server, 1, &node->head.nodeId, &reftypes_subtype,
-                        UA_BROWSEDIRECTION_INVERSE, false, &parentsSize, &parents);
+        browseRecursive(server, 1, &node->head.nodeId, UA_BROWSEDIRECTION_INVERSE,
+                        &reftypes_subtype, UA_NODECLASS_UNSPECIFIED,
+                        false, &parentsSize, &parents);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
