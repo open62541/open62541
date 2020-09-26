@@ -519,6 +519,11 @@ UA_EXPANDEDNODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex, const char *chars) {
     id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id;
 }
 
+/* Does the ExpandedNodeId point to a local node? That is, are namespaceUri and
+ * serverIndex empty? */
+UA_Boolean UA_EXPORT
+UA_ExpandedNodeId_isLocal(const UA_ExpandedNodeId *n);
+
 /* Total ordering of ExpandedNodeId */
 UA_Order UA_EXPORT
 UA_ExpandedNodeId_order(const UA_ExpandedNodeId *n1, const UA_ExpandedNodeId *n2);
