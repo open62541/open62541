@@ -452,6 +452,11 @@ ExpandedNodeId_copy(UA_ExpandedNodeId const *src, UA_ExpandedNodeId *dst,
     return retval;
 }
 
+UA_Boolean
+UA_ExpandedNodeId_isLocal(const UA_ExpandedNodeId *n) {
+    return (n->namespaceUri.length == 0 && n->serverIndex == 0);
+}
+
 UA_Order
 UA_ExpandedNodeId_order(const UA_ExpandedNodeId *n1,
                         const UA_ExpandedNodeId *n2) {
