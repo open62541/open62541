@@ -217,6 +217,60 @@ START_TEST(Service_Browse_ClassMask) {
 }
 END_TEST
 
+START_TEST(Service_Browse_ReferenceTypes) {
+    UA_Server *server = UA_Server_new();
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
+
+    /* add a variable node to the address space */
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    UA_Int32 myInteger = 42;
+    UA_Variant_setScalar(&attr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
+    attr.description = UA_LOCALIZEDTEXT("en-US","the answer");
+    attr.displayName = UA_LOCALIZEDTEXT("en-US","the answer");
+    UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
+    UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    UA_StatusCode res = UA_Server_addVariableNode(server, UA_NODEID_NULL, parentNodeId,
+                                                  parentReferenceNodeId, myIntegerName,
+                                                  UA_NODEID_NULL, attr, NULL, NULL);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    /* browse all */
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    bd.resultMask = UA_BROWSERESULTMASK_REFERENCETYPEID;
+    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
+
+    /* get the bitfield index of the hassubtype reference */
+    UA_ReferenceTypeSet subTypeIdx;
+    UA_NodeId hasSubtype = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
+    UA_NodeId hierarchTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
+    referenceTypeIndices(server, &hasSubtype, &subTypeIdx, false);
+
+    /* count how many references are hierarchical */
+    size_t hierarch_refs = 0;
+    for(size_t i = 0; i < br.referencesSize; i++) {
+        if(isNodeInTree(server, &br.references[i].referenceTypeId,
+                        &hierarchTypeId, &subTypeIdx))
+            hierarch_refs += 1;
+    }
+
+    UA_BrowseResult_deleteMembers(&br);
+
+    /* browse hierarchical */
+    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
+    bd.includeSubtypes = true;
+    br = UA_Server_browse(server, 0, &bd);
+
+    ck_assert_uint_eq(br.referencesSize, hierarch_refs);
+    UA_BrowseResult_deleteMembers(&br);
+
+    UA_Server_delete(server);
+}
+END_TEST
+
 START_TEST(Service_Browse_Recursive) {
     UA_Server *server = UA_Server_new();
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
@@ -317,6 +371,7 @@ static Suite *testSuite_Service_TranslateBrowsePathsToNodeIds(void) {
     tcase_add_test(tc_browse, Service_Browse_CheckSubTypes);
     tcase_add_test(tc_browse, Service_Browse_WithBrowseName);
     tcase_add_test(tc_browse, Service_Browse_ClassMask);
+    tcase_add_test(tc_browse, Service_Browse_ReferenceTypes);
     tcase_add_test(tc_browse, Service_Browse_WithMaxResults);
     tcase_add_test(tc_browse, Service_Browse_Recursive);
     suite_add_tcase(s, tc_browse);
