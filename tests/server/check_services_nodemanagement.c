@@ -205,7 +205,7 @@ START_TEST(InstantiateVariableTypeNode) {
     UA_Server_readValue(server, pointVariableId, &val);
     ck_assert(val.type != NULL);
 
-    UA_Variant_deleteMembers(&val);
+    UA_Variant_clear(&val);
 } END_TEST
 
 START_TEST(InstantiateVariableTypeNodeWrongDims) {
@@ -424,7 +424,7 @@ START_TEST(DeleteObjectAndReferences) {
             refCount++;
     }
     ck_assert_uint_eq(refCount, 1);
-    UA_BrowseResult_deleteMembers(&br);
+    UA_BrowseResult_clear(&br);
 
     /* Delete the object */
     UA_Server_deleteNode(server, objectid, true);
@@ -438,7 +438,7 @@ START_TEST(DeleteObjectAndReferences) {
             refCount++;
     }
     ck_assert_uint_eq(refCount, 0);
-    UA_BrowseResult_deleteMembers(&br);
+    UA_BrowseResult_clear(&br);
 
     /* Add an object the second time */
     attr = UA_ObjectAttributes_default;
@@ -461,7 +461,7 @@ START_TEST(DeleteObjectAndReferences) {
             refCount++;
     }
     ck_assert_uint_eq(refCount, 1);
-    UA_BrowseResult_deleteMembers(&br);
+    UA_BrowseResult_clear(&br);
 } END_TEST
 
 
@@ -582,9 +582,9 @@ findReference(const UA_NodeId sourceId, const UA_NodeId refTypeId) {
         }
     }
 
-	UA_BrowseDescription_deleteMembers(bDesc);
+	UA_BrowseDescription_clear(bDesc);
 	UA_BrowseDescription_delete(bDesc);
-	UA_BrowseResult_deleteMembers(&bRes);
+	UA_BrowseResult_clear(&bRes);
 	return outNodeId;
 }
 
