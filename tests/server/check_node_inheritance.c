@@ -46,7 +46,7 @@ findChildId(UA_NodeId parentNode, UA_NodeId referenceType,
     ck_assert(bpr.targetsSize > 0);
 
     UA_NodeId_copy(&bpr.targets[0].targetId.nodeId, result);
-    UA_BrowsePathResult_deleteMembers(&bpr);
+    UA_BrowsePathResult_clear(&bpr);
 }
 #endif
 
@@ -302,7 +302,7 @@ START_TEST(Nodes_checkInheritedValue) {
     UA_UInt32 *value = (UA_UInt32 *) inheritedValue.data;
 
     ck_assert_int_eq(*value, valueToBeInherited);
-    UA_Variant_deleteMembers(&inheritedValue);
+    UA_Variant_clear(&inheritedValue);
 #endif
 }
 END_TEST

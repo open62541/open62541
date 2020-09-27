@@ -34,7 +34,7 @@ static void setup_server(void) {
     UA_ServerConfig *server_translate_config = UA_Server_getConfig(server_translate_browse);
     UA_ServerConfig_setDefault(server_translate_config);
 
-    UA_String_deleteMembers(&server_translate_config->applicationDescription.applicationUri);
+    UA_String_clear(&server_translate_config->applicationDescription.applicationUri);
     server_translate_config->applicationDescription.applicationUri =
         UA_String_fromChars("urn:open62541.test.server_translate_browse");
     UA_Server_run_startup(server_translate_browse);
@@ -86,17 +86,17 @@ browseWithMaxResults(UA_Server *server, UA_NodeId nodeId, UA_UInt32 maxResults) 
     size_t total = br.referencesSize;
     UA_ByteString cp = br.continuationPoint;
     br.continuationPoint = UA_BYTESTRING_NULL;
-    UA_BrowseResult_deleteMembers(&br);
+    UA_BrowseResult_clear(&br);
 
     while(cp.length > 0) {
         br = UA_Server_browseNext(server, false, &cp);
         ck_assert(br.referencesSize > 0);
         ck_assert(br.referencesSize <= maxResults);
-        UA_ByteString_deleteMembers(&cp);
+        UA_ByteString_clear(&cp);
         cp = br.continuationPoint;
         br.continuationPoint = UA_BYTESTRING_NULL;
         total += br.referencesSize;
-        UA_BrowseResult_deleteMembers(&br);
+        UA_BrowseResult_clear(&br);
     }
 
     return total;
@@ -117,7 +117,7 @@ START_TEST(Service_Browse_WithMaxResults) {
     ck_assert(br.referencesSize > 0);
 
     size_t total = br.referencesSize;
-    UA_BrowseResult_deleteMembers(&br);
+    UA_BrowseResult_clear(&br);
 
     for(UA_UInt32 i = 1; i <= total; i++) {
         size_t sum_total =
@@ -146,7 +146,7 @@ START_TEST(Service_Browse_WithBrowseName) {
     ck_assert(br.referencesSize > 0);
     ck_assert(!UA_String_equal(&br.references[0].browseName.name, &UA_STRING_NULL));
 
-    UA_BrowseResult_deleteMembers(&br);
+    UA_BrowseResult_clear(&br);
     UA_Server_delete(server);
 }
 END_TEST
@@ -185,7 +185,7 @@ START_TEST(Service_Browse_ClassMask) {
         UA_Server_readNodeClass(server, br.references[i].nodeId.nodeId, &cl);
         UA_assert(cl == UA_NODECLASS_OBJECT);
     }
-    UA_BrowseResult_deleteMembers(&br);
+    UA_BrowseResult_clear(&br);
 
     /* browse only variables */
     bd.nodeClassMask = UA_NODECLASS_VARIABLE;
@@ -198,7 +198,7 @@ START_TEST(Service_Browse_ClassMask) {
         UA_Server_readNodeClass(server, br.references[i].nodeId.nodeId, &cl);
         UA_assert(cl == UA_NODECLASS_VARIABLE);
     }
-    UA_BrowseResult_deleteMembers(&br);
+    UA_BrowseResult_clear(&br);
 
     /* browse variables or objects */
     bd.nodeClassMask = UA_NODECLASS_VARIABLE | UA_NODECLASS_OBJECT;
@@ -211,7 +211,7 @@ START_TEST(Service_Browse_ClassMask) {
         UA_Server_readNodeClass(server, br.references[i].nodeId.nodeId, &cl);
         UA_assert(cl == UA_NODECLASS_VARIABLE || cl == UA_NODECLASS_OBJECT);
     }
-    UA_BrowseResult_deleteMembers(&br);
+    UA_BrowseResult_clear(&br);
 
     UA_Server_delete(server);
 }
@@ -257,7 +257,7 @@ START_TEST(Service_Browse_ReferenceTypes) {
             hierarch_refs += 1;
     }
 
-    UA_BrowseResult_deleteMembers(&br);
+    UA_BrowseResult_clear(&br);
 
     /* browse hierarchical */
     bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
@@ -265,7 +265,7 @@ START_TEST(Service_Browse_ReferenceTypes) {
     br = UA_Server_browse(server, 0, &bd);
 
     ck_assert_uint_eq(br.referencesSize, hierarch_refs);
-    UA_BrowseResult_deleteMembers(&br);
+    UA_BrowseResult_clear(&br);
 
     UA_Server_delete(server);
 }
@@ -344,8 +344,8 @@ START_TEST(Service_TranslateBrowsePathsToNodeIds) {
     ck_assert_int_eq(response.results[0].targets[0].targetId.nodeId.identifierType, UA_NODEIDTYPE_NUMERIC);
     ck_assert_int_eq(response.results[0].targets[0].targetId.nodeId.identifier.numeric, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
 
-    UA_BrowsePath_deleteMembers(&browsePath);
-    UA_TranslateBrowsePathsToNodeIdsResponse_deleteMembers(&response);
+    UA_BrowsePath_clear(&browsePath);
+    UA_TranslateBrowsePathsToNodeIdsResponse_clear(&response);
     retVal = UA_Client_disconnect(client);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     UA_Client_delete(client);
@@ -361,7 +361,7 @@ START_TEST(BrowseSimplifiedBrowsePath) {
 
     ck_assert_uint_eq(bpr.targetsSize, 1);
 
-    UA_BrowsePathResult_deleteMembers(&bpr);
+    UA_BrowsePathResult_clear(&bpr);
 }
 END_TEST
 

@@ -47,8 +47,8 @@ addNewEventType(void) {
                                 UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
                                 UA_QUALIFIEDNAME(0, "SimpleEventType"),
                                 attr, NULL, &eventType);
-    UA_LocalizedText_deleteMembers(&attr.displayName);
-    UA_LocalizedText_deleteMembers(&attr.description);
+    UA_LocalizedText_clear(&attr.displayName);
+    UA_LocalizedText_clear(&attr.description);
 }
 
 static void
@@ -148,7 +148,7 @@ removeSubscription(void) {
     Service_DeleteSubscriptions(server, &server->adminSession, &deleteSubscriptionsRequest,
                                 &deleteSubscriptionsResponse);
     UA_UNLOCK(server->serviceMutex);
-    UA_DeleteSubscriptionsResponse_deleteMembers(&deleteSubscriptionsResponse);
+    UA_DeleteSubscriptionsResponse_clear(&deleteSubscriptionsResponse);
 }
 
 static void serverMutexLock(void) {
@@ -283,7 +283,7 @@ eventSetup(UA_NodeId *eventNodeId) {
     retval = UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
     serverMutexUnlock();
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    UA_BrowsePathResult_deleteMembers(&bpr);
+    UA_BrowsePathResult_clear(&bpr);
 
     //add a message to the event
     rpe.targetName = UA_QUALIFIEDNAME(0, "Message");
@@ -297,7 +297,7 @@ eventSetup(UA_NodeId *eventNodeId) {
     retval = UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
     serverMutexUnlock();
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    UA_BrowsePathResult_deleteMembers(&bpr);
+    UA_BrowsePathResult_clear(&bpr);
 
     return retval;
 }
@@ -382,7 +382,7 @@ START_TEST(generateEvents) {
     ck_assert_uint_eq(deleteResponse.resultsSize, 1);
     ck_assert_uint_eq(*(deleteResponse.results), UA_STATUSCODE_GOOD);
 
-    UA_DeleteMonitoredItemsResponse_deleteMembers(&deleteResponse);
+    UA_DeleteMonitoredItemsResponse_clear(&deleteResponse);
 } END_TEST
 
 static bool hasBaseModelChangeEventType(void) {
@@ -390,7 +390,7 @@ static bool hasBaseModelChangeEventType(void) {
     UA_QualifiedName readBrowsename;
     UA_QualifiedName_init(&readBrowsename);
     UA_StatusCode retval = UA_Server_readBrowseName(server, UA_NODEID_NUMERIC(0, UA_NS0ID_BASEMODELCHANGEEVENTTYPE), &readBrowsename);
-    UA_QualifiedName_deleteMembers(&readBrowsename);
+    UA_QualifiedName_clear(&readBrowsename);
     return !(retval == UA_STATUSCODE_BADNODEIDUNKNOWN);
 }
 
@@ -516,7 +516,7 @@ START_TEST(uppropagation) {
     ck_assert_uint_eq(deleteResponse.resultsSize, 1);
     ck_assert_uint_eq(*(deleteResponse.results), UA_STATUSCODE_GOOD);
 
-    UA_DeleteMonitoredItemsResponse_deleteMembers(&deleteResponse);
+    UA_DeleteMonitoredItemsResponse_clear(&deleteResponse);
 } END_TEST
 
 static void
@@ -577,7 +577,7 @@ START_TEST(eventOverflow) {
     ck_assert_uint_eq(deleteResponse.resultsSize, 1);
     ck_assert_uint_eq(*(deleteResponse.results), UA_STATUSCODE_GOOD);
 
-    UA_DeleteMonitoredItemsResponse_deleteMembers(&deleteResponse);
+    UA_DeleteMonitoredItemsResponse_clear(&deleteResponse);
 } END_TEST
 
 START_TEST(multipleMonitoredItemsOneNode) {
@@ -623,7 +623,7 @@ START_TEST(multipleMonitoredItemsOneNode) {
         ck_assert_uint_eq(deleteResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
         ck_assert_uint_eq(deleteResponse.resultsSize, 1);
         ck_assert_uint_eq(*(deleteResponse.results), UA_STATUSCODE_GOOD);
-        UA_DeleteMonitoredItemsResponse_deleteMembers(&deleteResponse);
+        UA_DeleteMonitoredItemsResponse_clear(&deleteResponse);
     }
 } END_TEST
 
@@ -659,7 +659,7 @@ START_TEST(discardNewestOverflow) {
     ck_assert_uint_eq(deleteResponse.resultsSize, 1);
     ck_assert_uint_eq(*(deleteResponse.results), UA_STATUSCODE_GOOD);
 
-    UA_DeleteMonitoredItemsResponse_deleteMembers(&deleteResponse);
+    UA_DeleteMonitoredItemsResponse_clear(&deleteResponse);
 } END_TEST
 
 START_TEST(eventStressing) {
@@ -696,7 +696,7 @@ START_TEST(eventStressing) {
     ck_assert_uint_eq(deleteResponse.resultsSize, 1);
     ck_assert_uint_eq(*(deleteResponse.results), UA_STATUSCODE_GOOD);
 
-    UA_DeleteMonitoredItemsResponse_deleteMembers(&deleteResponse);
+    UA_DeleteMonitoredItemsResponse_clear(&deleteResponse);
 } END_TEST
 
 START_TEST(evaluateWhereClause) {

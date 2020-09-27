@@ -153,7 +153,7 @@ START_TEST(client_readValueCallbackAttribute) {
         UA_NodeId nodeId = UA_NODEID_STRING(1, "current-time-value-callback");
         retval = UA_Client_readValueAttribute(client, nodeId, &val);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-        UA_Variant_deleteMembers(&val);
+        UA_Variant_clear(&val);
 
         UA_Client_disconnect(client);
         UA_Client_delete(client);
@@ -193,7 +193,7 @@ START_TEST(client_readMultipleAttributes) {
         ck_assert_uint_eq(response.results[1].status, UA_STATUSCODE_GOOD);
         ck_assert_uint_eq(response.results[2].status, UA_STATUSCODE_BADNODEIDUNKNOWN);
 
-        UA_ReadResponse_deleteMembers(&response);
+        UA_ReadResponse_clear(&response);
 
         UA_Client_disconnect(client);
         UA_Client_delete(client);
