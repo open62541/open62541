@@ -151,6 +151,72 @@ START_TEST(Service_Browse_WithBrowseName) {
 }
 END_TEST
 
+START_TEST(Service_Browse_ClassMask) {
+    UA_Server *server = UA_Server_new();
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
+
+    /* add a variable node to the address space */
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    UA_Int32 myInteger = 42;
+    UA_Variant_setScalar(&attr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
+    attr.description = UA_LOCALIZEDTEXT("en-US","the answer");
+    attr.displayName = UA_LOCALIZEDTEXT("en-US","the answer");
+    UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
+    UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    UA_StatusCode res = UA_Server_addVariableNode(server, UA_NODEID_NULL, parentNodeId,
+                                                  parentReferenceNodeId, myIntegerName,
+                                                  UA_NODEID_NULL, attr, NULL, NULL);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    /* browse only objects */
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    bd.nodeClassMask = UA_NODECLASS_OBJECT;
+
+    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
+    ck_assert_int_eq(br.statusCode, UA_STATUSCODE_GOOD);
+    size_t vars = br.referencesSize;
+
+    for(size_t i = 0; i < br.referencesSize; i++) {
+        UA_NodeClass cl = UA_NODECLASS_UNSPECIFIED;
+        UA_Server_readNodeClass(server, br.references[i].nodeId.nodeId, &cl);
+        UA_assert(cl == UA_NODECLASS_OBJECT);
+    }
+    UA_BrowseResult_deleteMembers(&br);
+
+    /* browse only variables */
+    bd.nodeClassMask = UA_NODECLASS_VARIABLE;
+    br = UA_Server_browse(server, 0, &bd);
+    ck_assert_int_eq(br.statusCode, UA_STATUSCODE_GOOD);
+    size_t objs = br.referencesSize;
+
+    for(size_t i = 0; i < br.referencesSize; i++) {
+        UA_NodeClass cl = UA_NODECLASS_UNSPECIFIED;
+        UA_Server_readNodeClass(server, br.references[i].nodeId.nodeId, &cl);
+        UA_assert(cl == UA_NODECLASS_VARIABLE);
+    }
+    UA_BrowseResult_deleteMembers(&br);
+
+    /* browse variables or objects */
+    bd.nodeClassMask = UA_NODECLASS_VARIABLE | UA_NODECLASS_OBJECT;
+    br = UA_Server_browse(server, 0, &bd);
+    ck_assert_int_eq(br.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(br.referencesSize, vars + objs);
+
+    for(size_t i = 0; i < br.referencesSize; i++) {
+        UA_NodeClass cl = UA_NODECLASS_UNSPECIFIED;
+        UA_Server_readNodeClass(server, br.references[i].nodeId.nodeId, &cl);
+        UA_assert(cl == UA_NODECLASS_VARIABLE || cl == UA_NODECLASS_OBJECT);
+    }
+    UA_BrowseResult_deleteMembers(&br);
+
+    UA_Server_delete(server);
+}
+END_TEST
+
 START_TEST(Service_Browse_Recursive) {
     UA_Server *server = UA_Server_new();
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
@@ -250,6 +316,7 @@ static Suite *testSuite_Service_TranslateBrowsePathsToNodeIds(void) {
     TCase *tc_browse = tcase_create("Browse Service");
     tcase_add_test(tc_browse, Service_Browse_CheckSubTypes);
     tcase_add_test(tc_browse, Service_Browse_WithBrowseName);
+    tcase_add_test(tc_browse, Service_Browse_ClassMask);
     tcase_add_test(tc_browse, Service_Browse_WithMaxResults);
     tcase_add_test(tc_browse, Service_Browse_Recursive);
     suite_add_tcase(s, tc_browse);
