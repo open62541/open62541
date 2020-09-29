@@ -560,6 +560,10 @@ static const UA_NodeId emitReferencesRoots[EMIT_REFS_ROOT_COUNT] =
      {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASEVENTSOURCE}},
      {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASNOTIFIER}}};
 
+static const UA_NodeId isInFolderReferences[2] =
+    {{0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_ORGANIZES}},
+     {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASCOMPONENT}}};
+
 UA_StatusCode
 UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
                        const UA_NodeId origin, UA_ByteString *outEventId,
@@ -596,10 +600,21 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
 
     /* Make sure the origin is in the ObjectsFolder (TODO: or in the ViewsFolder) */
     /* Only use Organizes and HasComponent to check if we are below the ObjectsFolder */
-    UA_ReferenceTypeSet reftypes =
-        UA_ReferenceTypeSet_union(UA_REFTYPESET(UA_REFERENCETYPEINDEX_ORGANIZES),
-                                  UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASCOMPONENT));
-    if(!isNodeInTree(server, &origin, &objectsFolderId, &reftypes)) {
+    UA_StatusCode retval;
+    UA_ReferenceTypeSet refTypes;
+    UA_ReferenceTypeSet_init(&refTypes);
+    for(int i = 0; i < 2; ++i) {
+        UA_ReferenceTypeSet tmpRefTypes;
+        retval = referenceTypeIndices(server, &isInFolderReferences[i], &tmpRefTypes, true);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "Events: Could not create the list of references and their subtypes "
+                           "with StatusCode %s", UA_StatusCode_name(retval));
+        }
+        refTypes = UA_ReferenceTypeSet_union(refTypes, tmpRefTypes);
+    }
+
+    if(!isNodeInTree(server, &origin, &objectsFolderId, &refTypes)) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Node for event must be in ObjectsFolder!");
         UA_UNLOCK(server->serviceMutex);
@@ -607,7 +622,7 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
     }
 
     /* Update the standard fields of the event */
-    UA_StatusCode retval = eventSetStandardFields(server, &eventNodeId, &origin, outEventId);
+    retval = eventSetStandardFields(server, &eventNodeId, &origin, outEventId);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Events: Could not set the standard event fields with StatusCode %s",
