@@ -2,6 +2,7 @@ from __future__ import print_function
 import re
 import itertools
 import sys
+import copy
 import time
 import getpass
 import platform
@@ -58,12 +59,13 @@ def getNodeidTypeAndId(nodeId):
         return "UA_NODEIDTYPE_STRING, {{ .string = UA_STRING_STATIC(\"{id}\") }}".format(id=strId.replace("\"", "\\\""))
 
 class CGenerator(object):
-    def __init__(self, parser, inname, outfile, is_internal_types):
+    def __init__(self, parser, inname, outfile, is_internal_types, namespaceMap):
         self.parser = parser
         self.inname = inname
         self.outfile = outfile
         self.is_internal_types = is_internal_types
         self.filtered_types = None
+        self.namespaceMap = namespaceMap
         self.fh = None
         self.ff = None
         self.fc = None
@@ -74,7 +76,7 @@ class CGenerator(object):
         if isinstance(datatype,  BuiltinType):
             return makeCIdentifier("UA_TYPES_" + datatype.name.upper())
         if isinstance(datatype, EnumerationType):
-            return datatype.strTypeIndex;
+            return datatype.strTypeIndex
 
         if datatype.name is not None:
             return "UA_" + makeCIdentifier(datatype.outname.upper() + "_" + datatype.name.upper())
@@ -123,9 +125,9 @@ class CGenerator(object):
             return self.get_struct_overlayable(datatype)
         raise RuntimeError("Unknown datatype")
 
-    def print_datatype(self, datatype):
-        typeid = "{%s, %s}" % (datatype.namespace, getNodeidTypeAndId(datatype.nodeId))
-        binaryEncodingId = "{%s, %s}" % (datatype.namespace,
+    def print_datatype(self, datatype, namespaceMap):
+        typeid = "{%s, %s}" % (namespaceMap[datatype.namespaceUri], getNodeidTypeAndId(datatype.nodeId))
+        binaryEncodingId = "{%s, %s}" % (namespaceMap[datatype.namespaceUri],
                                          getNodeidTypeAndId(datatype.binaryEncodingId))
         idName = makeCIdentifier(datatype.name)
         pointerfree = "true" if datatype.pointerfree else "false"
@@ -143,7 +145,7 @@ class CGenerator(object):
                "}"
 
     @staticmethod
-    def print_members(datatype):
+    def print_members(datatype, namespaceMap):
         idName = makeCIdentifier(datatype.name)
         if len(datatype.members) == 0:
             return "#define %s_members NULL" % (idName)
@@ -179,7 +181,7 @@ class CGenerator(object):
                 else:
                     m += " - sizeof(UA_%s)," % makeCIdentifier(before.member_type.name)
             m += " /* .padding */\n"
-            m += "    %s, /* .namespaceZero */\n" % ("true" if member.member_type.ns0 else "false")
+            m += "    %s, /* .namespaceZero */\n" % ("true" if (namespaceMap[member.member_type.namespaceUri] == 0) else "false")
             m += ("    true" if member.is_array else "    false") + ", /* .isArray */\n"
             m += ("    true" if member.is_optional else "    false") + "  /* .isOptional */\n"
             m += "    UA_TYPENAME(\"%s\") /* .memberName */\n}" % member_name_capital
@@ -333,16 +335,23 @@ class CGenerator(object):
         print(string, end='\n', file=self.fc)
 
     def iter_types(self, v):
-        l = None
-        if sys.version_info[0] < 3:
-            l = list(v.itervalues())
-        else:
-            l = list(v.values())
+        l = copy.deepcopy(v)
         if len(self.parser.selected_types) > 0:
-            l = list(filter(lambda t: t.name in self.parser.selected_types, l))
+            for ns in v:
+                for t in v[ns]:
+                    if t not in self.parser.selected_types:
+                        if ns in l and t in l[ns]:
+                            del l[ns][t]
         if self.parser.no_builtin:
-            l = list(filter(lambda t: not isinstance(t, BuiltinType), l))
-        l = list(filter(lambda t: t.name not in self.parser.existing_types, l))
+            for ns in v:
+                for t in v[ns]:
+                    if isinstance(v[ns][t], BuiltinType):
+                        if ns in l and t in l[ns]:
+                            del l[ns][t]
+        for ns in self.parser.existing_types:
+            for t in self.parser.existing_types[ns]:
+                if ns in l and t in l[ns]:
+                    del l[ns][t]
         return l
 
     def print_header(self):
@@ -368,24 +377,29 @@ _UA_BEGIN_DECLS
  * Every type is assigned an index in an array containing the type descriptions.
  * These descriptions are used during type handling (copying, deletion,
  * binary encoding, ...). */''')
-        self.printh("#define UA_" + self.parser.outname.upper() + "_COUNT %s" % (str(len(self.filtered_types))))
+        totalCount = 0
+        for ns in self.filtered_types:
+            totalCount += len(self.filtered_types[ns])
+        self.printh("#define UA_" + self.parser.outname.upper() + "_COUNT %s" % (str(totalCount)))
 
         if len(self.filtered_types) > 0:
 
             self.printh(
                 "extern UA_EXPORT const UA_DataType UA_" + self.parser.outname.upper() + "[UA_" + self.parser.outname.upper() + "_COUNT];")
 
-            for i, t in enumerate(self.filtered_types):
-                self.printh("\n/**\n * " + t.name)
-                self.printh(" * " + "^" * len(t.name))
-                if t.description == "":
-                    self.printh(" */")
-                else:
-                    self.printh(" * " + t.description + " */")
-                if not isinstance(t, BuiltinType):
-                    self.printh(self.print_datatype_typedef(t) + "\n")
-                self.printh(
-                    "#define UA_" + makeCIdentifier(self.parser.outname.upper() + "_" + t.name.upper()) + " " + str(i))
+            for ns in self.filtered_types:
+                for i, t_name in enumerate(self.filtered_types[ns]):
+                    t = self.filtered_types[ns][t_name]
+                    self.printh("\n/**\n * " + t.name)
+                    self.printh(" * " + "^" * len(t.name))
+                    if t.description == "":
+                        self.printh(" */")
+                    else:
+                        self.printh(" * " + t.description + " */")
+                    if not isinstance(t, BuiltinType):
+                        self.printh(self.print_datatype_typedef(t) + "\n")
+                    self.printh(
+                        "#define UA_" + makeCIdentifier(self.parser.outname.upper() + "_" + t.name.upper()) + " " + str(i))
 
         self.printh('''
 
@@ -412,9 +426,11 @@ _UA_BEGIN_DECLS
 #endif
 ''')
 
-        for t in self.filtered_types:
-            self.printf("\n/* " + t.name + " */")
-            self.printf(self.print_functions(t))
+        for ns in self.filtered_types:
+            for i, t_name in enumerate(self.filtered_types[ns]):
+                t = self.filtered_types[ns][t_name]
+                self.printf("\n/* " + t.name + " */")
+                self.printf(self.print_functions(t))
 
         self.printf('''
 #if defined(__GNUC__) && __GNUC__ >= 4 && __GNUC_MINOR__ >= 6
@@ -432,18 +448,22 @@ _UA_END_DECLS
 
 #include "''' + self.parser.outname + '''_generated.h"''')
 
-        for t in self.filtered_types:
-            self.printc("")
-            self.printc("/* " + t.name + " */")
-            self.printc(CGenerator.print_members(t))
+        for ns in self.filtered_types:
+            for i, t_name in enumerate(self.filtered_types[ns]):
+                t = self.filtered_types[ns][t_name]
+                self.printc("")
+                self.printc("/* " + t.name + " */")
+                self.printc(CGenerator.print_members(t, self.namespaceMap))
 
         if len(self.filtered_types) > 0:
             self.printc(
                 "const UA_DataType UA_%s[UA_%s_COUNT] = {" % (self.parser.outname.upper(), self.parser.outname.upper()))
 
-            for t in self.filtered_types:
-                self.printc("/* " + t.name + " */")
-                self.printc(self.print_datatype(t) + ",")
+            for ns in self.filtered_types:
+                for i, t_name in enumerate(self.filtered_types[ns]):
+                    t = self.filtered_types[ns][t_name]
+                    self.printc("/* " + t.name + " */")
+                    self.printc(self.print_datatype(t, self.namespaceMap) + ",")
             self.printc("};\n")
 
     def print_encoding(self):
@@ -463,8 +483,10 @@ _UA_END_DECLS
 
 ''')
 
-        for t in self.filtered_types:
-            self.printe("\n/* " + t.name + " */")
-            self.printe(self.print_datatype_encoding(t))
+        for ns in self.filtered_types:
+            for i, t_name in enumerate(self.filtered_types[ns]):
+                t = self.filtered_types[ns][t_name]
+                self.printe("\n/* " + t.name + " */")
+                self.printe(self.print_datatype_encoding(t))
 
         self.printe("\n#endif /* " + self.parser.outname.upper() + "_GENERATED_ENCODING_BINARY_H_ */")

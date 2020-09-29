@@ -13,7 +13,7 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
         NAME "tests-di"
         FILE_CSV "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/OpcUaDiModel.csv"
         FILE_BSD "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/Opc.Ua.Di.Types.bsd"
-        NAMESPACE_IDX 2
+        NAMESPACE_MAP "2:http://opcfoundation.org/UA/DI/"
         OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
         FILE_NS "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/Opc.Ua.Di.NodeSet2.xml"
         INTERNAL
@@ -24,7 +24,7 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
         NAME "tests-adi"
         FILE_CSV "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/ADI/OpcUaAdiModel.csv"
         FILE_BSD "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/ADI/Opc.Ua.Adi.Types.bsd"
-        NAMESPACE_IDX 3
+        NAMESPACE_MAP "2:http://opcfoundation.org/UA/DI/" "3:http://opcfoundation.org/UA/ADI/"
         OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
         FILE_NS "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/ADI/Opc.Ua.Adi.NodeSet2.xml"
         DEPENDS "tests-di"
@@ -67,7 +67,7 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
             NAME "tests-autoid"
             FILE_CSV "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/Opc.Ua.AutoID.NodeIds.csv"
             FILE_BSD "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/Opc.Ua.AutoID.Types.bsd"
-            NAMESPACE_IDX 3
+            NAMESPACE_MAP "2:http://opcfoundation.org/UA/DI/" "3:http://opcfoundation.org/UA/AutoID/"
             OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
             FILE_NS "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/AutoID/Opc.Ua.AutoID.NodeSet2.xml"
             DEPENDS "tests-di"
@@ -113,7 +113,7 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
         NAME "tests-testnodeset"
         FILE_CSV "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/testnodeset.csv"
         FILE_BSD "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/testtypes.bsd"
-        NAMESPACE_IDX 2
+        NAMESPACE_MAP "2:http://yourorganisation.org/test/"
         OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
         FILE_NS "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/testnodeset.xml"
     )

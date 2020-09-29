@@ -47,7 +47,7 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
         NAME "testnodeset"
         FILE_CSV "${FILE_CSV_DIRPREFIX}/testnodeset.csv"
         FILE_BSD "${FILE_BSD_DIRPREFIX}/testtypes.bsd"
-        NAMESPACE_IDX 2
+        NAMESPACE_MAP "2:http://yourorganisation.org/test/"
         FILE_NS "${FILE_NS_DIRPREFIX}/testnodeset.xml"
         INTERNAL
     )
@@ -82,7 +82,7 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
         NAME "di"
         FILE_CSV "${FILE_CSV_DIRPREFIX}/DI/OpcUaDiModel.csv"
         FILE_BSD "${FILE_BSD_PLCOPEN_DIRPREFIX}/DI/Opc.Ua.Di.Types.bsd"
-        NAMESPACE_IDX 2
+        NAMESPACE_MAP "2:http://opcfoundation.org/UA/DI/"
         FILE_NS "${FILE_NS_DIRPREFIX}/DI/Opc.Ua.Di.NodeSet2.xml"
         INTERNAL
     )
@@ -116,7 +116,7 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
         NAME "powerlink"
         FILE_CSV "${FILE_CSV_DIRPREFIX}/POWERLINK/Opc.Ua.POWERLINK.NodeIds.csv"
         FILE_BSD "${FILE_BSD_POWERLINK_DIRPREFIX}/Opc.Ua.POWERLINK.NodeSet2.bsd"
-        NAMESPACE_IDX 3
+        NAMESPACE_MAP "2:http://opcfoundation.org/UA/DI/" "3:http://opcfoundation.org/UA/POWERLINK/"
         FILE_NS "${FILE_NS_DIRPREFIX}/POWERLINK/Opc.Ua.POWERLINK.NodeSet2.xml"
         # POWERLINK depends on the di nodeset, which must be generated before
         DEPENDS "di"
