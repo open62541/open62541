@@ -100,6 +100,11 @@ if(UA_ENABLE_ENCRYPTION_OPENSSL)
               ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_pki_openssl.c)
 endif()
 
+if(UA_ENABLE_PUBSUB)
+  list(APPEND test_plugin_sources
+              ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_udp.c)
+endif()
+
 add_library(open62541-testplugins OBJECT ${test_plugin_sources} ${PROJECT_SOURCE_DIR}/arch/${UA_ARCHITECTURE}/ua_architecture_functions.c)
 add_dependencies(open62541-testplugins open62541)
 target_compile_definitions(open62541-testplugins PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)

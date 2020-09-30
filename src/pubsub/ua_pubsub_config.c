@@ -637,85 +637,6 @@ UA_PubSubManager_createReaderGroup(UA_Server *server, const UA_ReaderGroupDataTy
     return statusCode;
 }
 
-/* UA_PubSubManager_setDataSetReaderTargetVariables() */
-/**
- * @brief   Sets TargetVariables in DataSetSReaderConfig if necessary
- * 
- * @param   dataSetReaderParameters [in]    Information for DataSetReader configuration
- * @param   config                  [bi]    DataSetReader configuration object
- * 
- * @return  UA_STATUSCODE_GOOD on success
- */
-static UA_StatusCode
-UA_PubSubManager_setDataSetReaderTargetVariables(const UA_DataSetReaderDataType *dataSetReaderParameters, 
-                                   UA_DataSetReaderConfig *config) {
-    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-    
-    if(dataSetReaderParameters->subscribedDataSet.encoding != UA_EXTENSIONOBJECT_DECODED) {
-        retVal = UA_STATUSCODE_BADINTERNALERROR;
-        goto cleanup;
-    }
-
-    if(UA_NodeId_equal(&dataSetReaderParameters->subscribedDataSet.content.decoded.type->typeId, 
-                        &UA_TYPES[UA_TYPES_TARGETVARIABLESDATATYPE].typeId)) {
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, 
-                    "[UA_PubSubManager_setDataSetReaderTargetVariables] Setting TargetVariables");
-        config->subscribedDataSetTarget = *(UA_TargetVariablesDataType*)dataSetReaderParameters->
-                                                                        subscribedDataSet.content.decoded.data;
-        if(config->dataSetMetaData.fieldsSize != config->subscribedDataSetTarget.targetVariablesSize) {
-            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, 
-                            "[UA_PubSubManager_setDataSetReaderTargetVariables] ERROR: invalid configuration");
-            retVal = UA_STATUSCODE_BADINTERNALERROR;
-        }
-
-        goto cleanup;
-    } 
-
-    if(UA_NodeId_equal(&dataSetReaderParameters->subscribedDataSet.content.decoded.type->typeId,
-                        &UA_TYPES[UA_TYPES_SUBSCRIBEDDATASETMIRRORDATATYPE].typeId)) {
-        /* Nothing to do here */
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, 
-                    "[UA_PubSubManager_setDataSetReaderTargetVariables] Type is SubscribedDataSetMirrorDataType");
-        goto cleanup;
-    } 
-
-    UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, 
-                    "[UA_PubSubManager_setDataSetReaderTargetVariables] creating subscribedDataSet failed");
-    retVal = UA_STATUSCODE_BADINTERNALERROR;
-
-cleanup:
-    return retVal;
-}
-
-/* UA_PubSubManager_addSubscribedDataSetMirrolrObject() */
-/**
- * @brief   Adds object node that shall contain the variables of a SubscribedDataSetMirror
- *          This method will not be needed anymore, as soon as DataSetMirror is supported by the Stack.
- * 
- * @param   server      [bi]    UA_Server object that shall be configured
- * @param   objectName  [in]    Name of the object
- * 
- * @return  on success: NodeId of the created object
- *          on failure: UA_NODEID_NULL;
- */
-static UA_NodeId 
-UA_PubSubManager_addSubscribedDataSetMirrorObject(UA_Server *server, const UA_String objectName) {
-    UA_NodeId subscribedDataSetObjectId = UA_NODEID_STRING(0, "PubSubObject");;
-    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
-    oAttr.displayName.locale = UA_STRING("en-US");
-    oAttr.displayName.text = objectName; /*Necessary to copy string? -> Test with Valgrind */
-    if(UA_Server_addObjectNode(server,UA_NODEID_NULL,
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), /* TODO: this should be the NodeId of the
-                                                                             corresponding DataSetReader (currently,
-                                                                             there exists no representation for DSReader) */
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                            UA_QUALIFIEDNAME(0, "SucribedDataSetMirror"), UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
-                            oAttr, NULL, &subscribedDataSetObjectId) != UA_STATUSCODE_GOOD) {
-        return UA_NODEID_NULL;
-    }
-
-    return subscribedDataSetObjectId;
-}
 
 /* UA_PubSubManager_addSubscribedDataSet() */
 /**
@@ -734,39 +655,35 @@ UA_PubSubManager_addSubscribedDataSet(UA_Server *server, const UA_NodeId dsReade
 
     if(UA_NodeId_equal(&subscribedDataSet->content.decoded.type->typeId, 
                         &UA_TYPES[UA_TYPES_TARGETVARIABLESDATATYPE].typeId)) {
-        UA_TargetVariablesDataType *targetVars = 
+        UA_TargetVariablesDataType *tmpTargetVars = 
             (UA_TargetVariablesDataType*)subscribedDataSet->content.decoded.data;
-        retVal = UA_Server_DataSetReader_createTargetVariables(server, dsReaderIdent, targetVars);
+        UA_FieldTargetVariable *targetVars = 
+                        (UA_FieldTargetVariable *)UA_calloc(tmpTargetVars->targetVariablesSize, sizeof(UA_FieldTargetVariable));
+        memset(targetVars, 0, sizeof(UA_FieldTargetVariable));
+        
+        for(size_t index = 0; index < tmpTargetVars->targetVariablesSize; index++) {
+            UA_FieldTargetDataType_copy(&tmpTargetVars->targetVariables[index] ,&targetVars[index].targetVariable);
+        }
+
+        retVal = UA_Server_DataSetReader_createTargetVariables(server, dsReaderIdent, tmpTargetVars->targetVariablesSize, targetVars);
         if(retVal != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, 
                         "[UA_PubSubManager_addSubscribedDataSet] create TargetVariables failed");
         }
 
+        for(size_t index = 0; index < tmpTargetVars->targetVariablesSize; index++) {
+            UA_FieldTargetDataType_clear(&targetVars[index].targetVariable);
+        }
+
+        UA_free(targetVars);
         return retVal;
     } 
-
-    /* The following operations for creating a SubscribedDataSetMirror is only a provisional solution, as it is 
-       currently not possible to create this type of SubscribedDataSet in the dsReader.
-       As a provisional implementation, an object will be created under the Objects folder.
-       Inside this object, TargetVariables will be created according to the DataSetMetaData of the dsReader. */
+    
     if(UA_NodeId_equal(&subscribedDataSet->content.decoded.type->typeId,
                         &UA_TYPES[UA_TYPES_SUBSCRIBEDDATASETMIRRORDATATYPE].typeId)) {
-                            
-        UA_SubscribedDataSetMirrorDataType *dsMirror =
-            (UA_SubscribedDataSetMirrorDataType*)subscribedDataSet->content.decoded.data;
-
-        UA_NodeId subscribedDataSetObjectId = UA_PubSubManager_addSubscribedDataSetMirrorObject(server, dsMirror->parentNodeName);
-        if(UA_NodeId_equal(&subscribedDataSetObjectId, &UA_NODEID_NULL)){
-            return UA_STATUSCODE_BADINTERNALERROR;
-        }
-        retVal = UA_Server_DataSetReader_addTargetVariables(server, &subscribedDataSetObjectId, 
-                                                            dsReaderIdent, UA_PUBSUB_SDS_TARGET);
-        if(retVal != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, 
-                        "[UA_PubSubManager_addSubscribedDataSet] create DataSetMirror failed");
-        }
         
-        return retVal;
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "[UA_PubSubManager_addSubscribedDataSet] DataSetMirror is currently not supported");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
     } 
 
     UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "[UA_PubSubManager_addSubscribedDataSet] Invalid Type of SubscribedDataSet");
@@ -790,26 +707,16 @@ UA_PubSubManager_createDataSetReader(UA_Server *server, const UA_DataSetReaderDa
     memset(&config, 0, sizeof(UA_DataSetReaderConfig));
 
     config.name =                   dataSetReaderParameters->name;
-    UA_Variant_copy(&dataSetReaderParameters->publisherId, &config.publisherId);
+    config.publisherId  =           dataSetReaderParameters->publisherId;
     config.writerGroupId =          dataSetReaderParameters->writerGroupId;
     config.dataSetWriterId =        dataSetReaderParameters->dataSetWriterId;
-    UA_DataSetMetaDataType_copy(&dataSetReaderParameters->dataSetMetaData, &config.dataSetMetaData);
+    config.dataSetMetaData =        dataSetReaderParameters->dataSetMetaData;
     config.dataSetFieldContentMask = dataSetReaderParameters->dataSetFieldContentMask;
     config.messageReceiveTimeout =  dataSetReaderParameters->messageReceiveTimeout;
     config.messageSettings = dataSetReaderParameters->messageSettings;
 
-    /* The DataSetReader contains information about TargetVariables twice:
-       directly and in the DataSetReaderConfig. 
-       The following operation sets the TargetVariables in the DSRaderConfig. */
-    UA_StatusCode statusCode = UA_PubSubManager_setDataSetReaderTargetVariables(dataSetReaderParameters, &config);
-    if(statusCode != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, 
-                     "[UA_PubSubManager_createDataSetReader] Configuring SubscribedDataSet failed");
-        return statusCode;
-    }
-
     UA_NodeId dsReaderIdent;
-    statusCode = UA_Server_addDataSetReader (server, readerGroupIdent, &config, &dsReaderIdent);
+    UA_StatusCode statusCode = UA_Server_addDataSetReader (server, readerGroupIdent, &config, &dsReaderIdent);
     if(statusCode == UA_STATUSCODE_GOOD) {
         statusCode = UA_PubSubManager_addSubscribedDataSet(server, dsReaderIdent, &dataSetReaderParameters->subscribedDataSet);
         if(statusCode != UA_STATUSCODE_GOOD) {
@@ -1228,7 +1135,14 @@ UA_PubSubManager_generateDataSetReaderDataType(UA_DataSetReaderDataType *dst,
     dst->subscribedDataSet.encoding = UA_EXTENSIONOBJECT_DECODED;
     dst->subscribedDataSet.content.decoded.type = &UA_TYPES[UA_TYPES_TARGETVARIABLESDATATYPE];
     dst->subscribedDataSet.content.decoded.data = (void*)UA_TargetVariablesDataType_new();
-    retVal = UA_copy(&src->subscribedDataSetTarget, 
+    UA_TargetVariablesDataType *tmpTarget = UA_TargetVariablesDataType_new();
+    tmpTarget->targetVariablesSize = src->config.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize;
+    tmpTarget->targetVariables = (UA_FieldTargetDataType *)UA_calloc(tmpTarget->targetVariablesSize, sizeof(UA_FieldTargetDataType));
+    for(size_t index = 0; index < tmpTarget->targetVariablesSize; index++) {
+        UA_FieldTargetDataType_copy(&src->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[index].targetVariable, &tmpTarget->targetVariables[index]);
+    }
+
+    retVal = UA_copy(tmpTarget, 
                     dst->subscribedDataSet.content.decoded.data, 
                     &UA_TYPES[UA_TYPES_TARGETVARIABLESDATATYPE]);
 
