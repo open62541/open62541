@@ -16,16 +16,10 @@
 #include <float.h>
 #include <math.h>
 
-#ifdef UA_ENABLE_CUSTOM_LIBC
-#include "../deps/musl/floatscan.h"
-#include "../deps/musl/vfprintf.h"
-#endif
-
 #include "../deps/itoa.h"
 #include "../deps/atoi.h"
 #include "../deps/string_escape.h"
 #include "../deps/base64.h"
-
 #include "../deps/libc_time.h"
 
 #if defined(_MSC_VER)
