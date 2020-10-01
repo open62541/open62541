@@ -938,11 +938,6 @@ if(UA_ENABLE_JSON_ENCODING)
                             ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json.c)
 endif()
 
-if(UA_ENABLE_CUSTOM_LIBC)
-     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/musl/floatscan.c
-                             ${PROJECT_SOURCE_DIR}/deps/musl/vfprintf.c)
-endif()
-
 if(UA_ENABLE_SUBSCRIPTIONS)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.c
                             ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_monitoreditem.c
