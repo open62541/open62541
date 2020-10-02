@@ -396,8 +396,6 @@ class CSVBSDTypeParser(TypeParser):
                     if isinstance(self.types[ns][t], BuiltinType):
                        del self.existing_types[ns][t]
 
-        self.existing_types = OrderedDict()
-
         # parse the new types
         for f in self.type_bsd:
             self.parseTypeDefinitions(self.outname, f)
