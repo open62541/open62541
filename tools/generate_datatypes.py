@@ -22,12 +22,6 @@ parser.add_argument('-c', '--type-csv',
                     default=[],
                     help='csv file with type descriptions')
 
-parser.add_argument('--namespaceUri',
-                    type=str,
-                    dest="namespaceUri",
-                    default="http://opcfoundation.org/UA/",
-                    help='namespace uri of the generated type nodeids (defaults to "http://opcfoundation.org/UA/")')
-
 parser.add_argument('--namespaceMap',
                     metavar="<namespaceMap>",
                     type=str,

@@ -501,12 +501,32 @@ function(ua_generate_nodeset_and_datatypes)
     set(NODESET_TYPES_ARRAY "UA_TYPES")
 
     if(NOT "${UA_GEN_FILE_BSD}" STREQUAL "")
+        set(NAMESPACE_MAP_DEPENDS "${UA_GEN_NAMESPACE_MAP}")
+
+        string(REPLACE "-" "_" GEN_NAME_UPPER ${GEN_NAME_UPPER})
+        string(TOUPPER "${GEN_NAME_UPPER}" GEN_NAME_UPPER)
+        # Create a list of namespace maps for dependent calls
+        if (UA_GEN_DEPENDS AND NOT "${UA_GEN_DEPENDS}" STREQUAL "" )
+            foreach(f ${UA_GEN_DEPENDS})
+                string(REPLACE "-" "_" DEPENDS_NAME "${f}")
+                string(TOUPPER "${DEPENDS_NAME}" DEPENDS_NAME)
+                get_property(DEPENDS_NAMESPACE_MAP GLOBAL PROPERTY "UA_GEN_DT_DEPENDS_NAMESPACE_MAP_${DEPENDS_NAME}")
+                if(NOT DEPENDS_NAMESPACE_MAP OR "${DEPENDS_NAMESPACE_MAP}" STREQUAL "")
+                    message(FATAL_ERROR "Nodeset dependency ${f} needs to be generated before ${UA_GEN_NAME}")
+                endif()
+
+                set(NAMESPACE_MAP_DEPENDS ${NAMESPACE_MAP_DEPENDS} "${DEPENDS_NAMESPACE_MAP}")
+            endforeach()
+        endif()
+
+        set_property(GLOBAL PROPERTY "UA_GEN_DT_DEPENDS_NAMESPACE_MAP_${GEN_NAME_UPPER}" ${NAMESPACE_MAP_DEPENDS})
+
         # Generate Datatypes for nodeset
         ua_generate_datatypes(
             NAME "types_${UA_GEN_NAME}"
             TARGET_PREFIX "${UA_GEN_TARGET_PREFIX}"
             TARGET_SUFFIX "types-${UA_GEN_NAME}"
-            NAMESPACE_MAP "${UA_GEN_NAMESPACE_MAP}"
+            NAMESPACE_MAP "${NAMESPACE_MAP_DEPENDS}"
             FILE_CSV "${UA_GEN_FILE_CSV}"
             FILES_BSD "${UA_GEN_FILE_BSD}"
             IMPORT_BSD "${UA_GEN_IMPORT_BSD}"

@@ -104,19 +104,13 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
                 ${UA_TYPES_PLC_SOURCES})
     add_dependencies(server_nodeset_plcopen open62541-generator-ns-plc)
 
-
-endif()
-
-# POWERLINK requires the full ns0 as basis
-
-if(UA_NAMESPACE_ZERO STREQUAL "FULL")
-
+    # POWERLINK requires the full ns0 as basis
     # generate powerlink namespace which is using DI
     ua_generate_nodeset_and_datatypes(
         NAME "powerlink"
         FILE_CSV "${FILE_CSV_DIRPREFIX}/POWERLINK/Opc.Ua.POWERLINK.NodeIds.csv"
         FILE_BSD "${FILE_BSD_POWERLINK_DIRPREFIX}/Opc.Ua.POWERLINK.NodeSet2.bsd"
-        NAMESPACE_MAP "2:http://opcfoundation.org/UA/DI/" "3:http://opcfoundation.org/UA/POWERLINK/"
+        NAMESPACE_MAP "3:http://opcfoundation.org/UA/POWERLINK/"
         FILE_NS "${FILE_NS_DIRPREFIX}/POWERLINK/Opc.Ua.POWERLINK.NodeSet2.xml"
         # POWERLINK depends on the di nodeset, which must be generated before
         DEPENDS "di"
