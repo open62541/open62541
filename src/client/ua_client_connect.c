@@ -871,7 +871,8 @@ connectIterate(UA_Client *client, UA_UInt32 timeout) {
     } else if(client->connection.state == UA_CONNECTIONSTATE_OPENING) {
         /* Poll the connection status */
         client->connectStatus =
-            client->config.pollConnectionFunc(client, &client->connection, timeout);
+            client->config.pollConnectionFunc(&client->connection, timeout,
+                                              &client->config.logger);
         return client->connectStatus;
     }
 
