@@ -31,6 +31,9 @@ UA_Connection UA_EXPORT
 UA_ClientConnectionTCP(UA_ConnectionConfig config, const UA_String endpointUrl,
                        UA_UInt32 timeout, UA_Logger *logger);
 
+/* Wait for a half-opened connection to fully open. Returns UA_STATUSCODE_GOOD
+ * even if the timeout was hit. Returns UA_STATUSCODE_BADDISCONNECT if the
+ * connection is lost. */
 UA_StatusCode UA_EXPORT
 UA_ClientConnectionTCP_poll(UA_Client *client, void *data, UA_UInt32 timeout);
 

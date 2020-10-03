@@ -693,14 +693,10 @@ UA_ClientConnectionTCP_poll(UA_Client *client, void *data, UA_UInt32 timeout) {
     /* Connection timeout? */
     if((UA_Double) (UA_DateTime_nowMonotonic() - tcpConnection->connStart)
        > tcpConnection->timeout * UA_DATETIME_MSEC ) {
-        ClientNetworkLayerTCP_close(connection);
         UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_NETWORK, "Timed out");
+        ClientNetworkLayerTCP_close(connection);
         return UA_STATUSCODE_BADDISCONNECT;
     }
-
-    /* On linux connect may immediately return with ECONNREFUSED but we still
-     * want to try to connect. Thus use a loop and retry until timeout is
-     * reached */
 
     /* Get a socket */
     if(connection->sockfd == UA_INVALID_SOCKET) {
@@ -713,111 +709,102 @@ UA_ClientConnectionTCP_poll(UA_Client *client, void *data, UA_UInt32 timeout) {
             ClientNetworkLayerTCP_close(connection);
             return UA_STATUSCODE_BADDISCONNECT;
         }
-    }
 
+        /* Non blocking connect to be able to timeout */
+        if(UA_socket_set_nonblocking(connection->sockfd) != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_NETWORK,
+                           "Could not set the client socket to nonblocking");
+            ClientNetworkLayerTCP_close(connection);
+            return UA_STATUSCODE_BADDISCONNECT;
+        }
 
-
-    /* Non blocking connect to be able to timeout */
-    if(UA_socket_set_nonblocking(connection->sockfd) != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_NETWORK,
-                       "Could not set the client socket to nonblocking");
-        ClientNetworkLayerTCP_close(connection);
-        return UA_STATUSCODE_BADDISCONNECT;
+        /* Don't have the socket create interrupt signals */
+#ifdef SO_NOSIGPIPE
+        int val = 1;
+        int sso_result = setsockopt(connection->sockfd, SOL_SOCKET,
+                                    SO_NOSIGPIPE, (void*)&val, sizeof(val));
+        if(sso_result < 0)
+            UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_NETWORK,
+                           "Couldn't set SO_NOSIGPIPE");
+#endif
     }
 
     /* Non blocking connect */
     int error = UA_connect(connection->sockfd, tcpConnection->server->ai_addr,
                            tcpConnection->server->ai_addrlen);
 
-    if((error == -1) && (UA_ERRNO != UA_ERR_CONNECTION_PROGRESS)) {
-        ClientNetworkLayerTCP_close(connection);
-        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_NETWORK,
-                       "Connection to %.*s failed with error: %s",
-                       (int)tcpConnection->endpointUrl.length,
-                       tcpConnection->endpointUrl.data, strerror(UA_ERRNO));
-        return UA_STATUSCODE_BADDISCONNECT;
-    }
-
-    /* Use select to wait and check if connected */
-    if(error == -1 && (UA_ERRNO == UA_ERR_CONNECTION_PROGRESS)) {
-        /* connection in progress. Wait until connected using select */
-        UA_UInt32 timeout_usec = timeout * 1000;
-
-#ifdef _OS9000
-        /* OS-9 can't use select for checking write sockets.
-         * Therefore, we need to use connect until success or failed */
-        int resultsize = 0;
-        do {
-            u_int32 time = 0x80000001;
-            signal_code sig;
-
-            timeout_usec -= 1000000/256;    // Sleep 1/256 second
-            if(timeout_usec < 0)
-                break;
-
-            _os_sleep(&time,&sig);
-            error = connect(connection->sockfd, tcpConnection->server->ai_addr,
-                            tcpConnection->server->ai_addrlen);
-            if((error == -1 && UA_ERRNO == EISCONN) || (error == 0))
-                resultsize = 1;
-            if(error == -1 && UA_ERRNO != EALREADY && UA_ERRNO != EINPROGRESS)
-                break;
-        } while(resultsize == 0);
-#else
-        fd_set fdset;
-        FD_ZERO(&fdset);
-        UA_fd_set(connection->sockfd, &fdset);
-        struct timeval tmptv = { (long int) (timeout_usec / 1000000),
-                                 (int) (timeout_usec % 1000000) };
-        int resultsize = UA_select((UA_Int32) (connection->sockfd + 1), NULL,
-				&fdset, NULL, &tmptv);
-#endif
-        if(resultsize == 1) {
-            /* Windows does not have any getsockopt equivalent and it is not needed there */
-#ifdef _WIN32
-            connection->state = UA_CONNECTIONSTATE_ESTABLISHED;
-            return UA_STATUSCODE_GOOD;
-#else
-            OPTVAL_TYPE so_error;
-            socklen_t len = sizeof so_error;
-            int ret = UA_getsockopt(connection->sockfd, SOL_SOCKET, SO_ERROR, &so_error, &len);
-
-            if(ret == 0 && so_error == 0) {
-                /* Connected */
-                connection->state = UA_CONNECTIONSTATE_ESTABLISHED;
-                return UA_STATUSCODE_GOOD;
-            } else {
-                if(so_error != ECONNREFUSED) {
-                    /* General error */
-                    ClientNetworkLayerTCP_close(connection);
-                    UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_NETWORK,
-                                   "Connection to %.*s failed with error: %s",
-                                   (int)tcpConnection->endpointUrl.length,
-                                   tcpConnection->endpointUrl.data,
-                                   strerror(ret == 0 ? so_error : UA_ERRNO));
-                    return UA_STATUSCODE_BADDISCONNECT;
-                }
-
-                /* On connection refused we should still try to connect.
-                 * Connection refused happens on localhost or local ip without
-                 * timeout. Wait until we try a again. Do not make this too
-                 * small, otherwise the timeout is somehow wrong */
-            }
-#endif
-        }
-    } else {
+    /* Connection successful */
+    if(error == 0) {
         connection->state = UA_CONNECTIONSTATE_ESTABLISHED;
         return UA_STATUSCODE_GOOD;
     }
 
-#ifdef SO_NOSIGPIPE
-    int val = 1;
-    int sso_result = setsockopt(connection->sockfd, SOL_SOCKET,
-                                SO_NOSIGPIPE, (void*)&val, sizeof(val));
-    if(sso_result < 0)
-    UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_NETWORK,
-                    "Couldn't set SO_NOSIGPIPE");
+    /* The connection failed */
+    if(UA_ERRNO != UA_ERR_CONNECTION_PROGRESS) {
+        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_NETWORK,
+                       "Connection to %.*s failed with error: %s",
+                       (int)tcpConnection->endpointUrl.length,
+                       tcpConnection->endpointUrl.data, strerror(UA_ERRNO));
+        ClientNetworkLayerTCP_close(connection);
+        return UA_STATUSCODE_BADDISCONNECT;
+    }
+
+    /* Use select to wait until connected. Return with a half-opened connection
+     * after a timeout. */
+    UA_UInt32 timeout_usec = timeout * 1000;
+
+#ifdef _OS9000
+    /* OS-9 can't use select for checking write sockets. Therefore, we need to
+     * use connect until success or failed */
+    int resultsize = 0;
+    do {
+        u_int32 time = 0x80000001;
+        signal_code sig;
+
+        timeout_usec -= 1000000/256;    // Sleep 1/256 second
+        if(timeout_usec < 0)
+            break;
+
+        _os_sleep(&time, &sig);
+        error = connect(connection->sockfd, tcpConnection->server->ai_addr,
+                        tcpConnection->server->ai_addrlen);
+        if((error == -1 && UA_ERRNO == EISCONN) || (error == 0))
+            resultsize = 1;
+        if(error == -1 && UA_ERRNO != EALREADY && UA_ERRNO != EINPROGRESS)
+            break;
+    } while(resultsize == 0);
+#else
+    /* Wait in a select-call until the connection fully opens or the timeout
+     * happens */
+    fd_set fdset;
+    FD_ZERO(&fdset);
+    UA_fd_set(connection->sockfd, &fdset);
+    struct timeval tmptv = { (long int) (timeout_usec / 1000000),
+                             (int) (timeout_usec % 1000000) };
+    int resultsize = UA_select((UA_Int32) (connection->sockfd + 1), NULL,
+                               &fdset, NULL, &tmptv);
 #endif
+
+#ifndef _WIN32
+    /* Any errors on the socket reported? */
+    OPTVAL_TYPE so_error = 0;
+    socklen_t len = sizeof(so_error);
+    int ret = UA_getsockopt(connection->sockfd, SOL_SOCKET, SO_ERROR, &so_error, &len);
+    if(ret != 0 || so_error != 0) {
+        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_NETWORK,
+                       "Connection to %.*s failed with error: %s",
+                       (int)tcpConnection->endpointUrl.length,
+                       tcpConnection->endpointUrl.data,
+                       strerror(ret == 0 ? so_error : UA_ERRNO));
+        ClientNetworkLayerTCP_close(connection);
+        return UA_STATUSCODE_BADDISCONNECT;
+    }
+#endif
+
+    /* The connection is fully opened. Otherwise, select has timed out. But we
+     * can retry. */
+    if(resultsize == 1)
+        connection->state = UA_CONNECTIONSTATE_ESTABLISHED;
 
     return UA_STATUSCODE_GOOD;
 }
@@ -876,7 +863,7 @@ UA_ClientConnectionTCP_init(UA_ConnectionConfig config, const UA_String endpoint
     char portStr[6];
     UA_snprintf(portStr, 6, "%d", port);
     int error = UA_getaddrinfo(hostname, portStr, &tcpClientConnection->hints,
-                    &tcpClientConnection->server);
+                               &tcpClientConnection->server);
     if(error != 0 || !tcpClientConnection->server) {
         UA_LOG_SOCKET_ERRNO_GAI_WRAP(UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
                                                     "DNS lookup of %s failed with error %d - %s",
@@ -884,6 +871,8 @@ UA_ClientConnectionTCP_init(UA_ConnectionConfig config, const UA_String endpoint
         connection.state = UA_CONNECTIONSTATE_CLOSED;
         return connection;
     }
+
+    /* Return connection with state UA_CONNECTIONSTATE_OPENING */
     return connection;
 }
 
