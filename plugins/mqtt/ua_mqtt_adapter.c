@@ -58,16 +58,15 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
     conf.remoteMaxChunkCount = 1;
 
     /* Create TCP connection: open the blocking TCP socket (connecting to the broker) */
-    UA_Connection connection = UA_ClientConnectionTCP( conf, address.url, 1000, NULL);
+    UA_Connection connection = UA_ClientConnectionTCP_init(conf, address.url,
+                                                           1000, UA_Log_Stdout);
+    UA_ClientConnectionTCP_poll(&connection, 1000, UA_Log_Stdout);
     if(connection.state != UA_CONNECTIONSTATE_ESTABLISHED &&
        connection.state != UA_CONNECTIONSTATE_OPENING){
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                      "PubSub MQTT: Connection creation failed. Tcp connection failed!");
         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
     }
-
-    /* Set socket to nonblocking!*/
-    UA_socket_set_nonblocking(connection.sockfd);
 
     /* save connection */
     channelData->connection = (UA_Connection*)UA_calloc(1, sizeof(UA_Connection));
