@@ -27,10 +27,6 @@ UA_ServerNetworkLayer UA_EXPORT
 UA_ServerNetworkLayerTCP(UA_ConnectionConfig config, UA_UInt16 port,
                          UA_UInt16 maxConnections, UA_Logger *logger);
 
-UA_Connection UA_EXPORT
-UA_ClientConnectionTCP(UA_ConnectionConfig config, const UA_String endpointUrl,
-                       UA_UInt32 timeout, UA_Logger *logger);
-
 /* Open a non-blocking client TCP socket. The connection might not be fully
  * opened yet. Drop into the _poll function withe a timeout to complete the
  * connection. */
