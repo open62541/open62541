@@ -162,8 +162,8 @@ iterateMulticastDiscoveryServer(UA_Server* server, UA_DateTime *nextRepeat,
                                 UA_Boolean processIn);
 
 typedef enum {
-    UA_DISCOVERY_TCP,     /* OPC UA TCP mapping */
-    UA_DISCOVERY_TLS     /* OPC UA HTTPS mapping */
+    UA_DISCOVERY_TCP = 0,   /* OPC UA TCP mapping */
+    UA_DISCOVERY_TLS        /* OPC UA HTTPS mapping */
 } UA_DiscoveryProtocol;
 
 /* Send a multicast probe to find any other OPC UA server on the network through mDNS. */

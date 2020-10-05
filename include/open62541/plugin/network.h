@@ -51,7 +51,7 @@ typedef struct {
 } UA_ConnectionConfig;
 
 typedef enum {
-    UA_CONNECTIONSTATE_CLOSED,     /* The socket has been closed and the connection
+    UA_CONNECTIONSTATE_CLOSED = 0, /* The socket has been closed and the connection
                                     * will be deleted */
     UA_CONNECTIONSTATE_OPENING,    /* The socket is open, but the HEL/ACK handshake
                                     * is not done */

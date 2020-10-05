@@ -148,7 +148,7 @@ _UA_BEGIN_DECLS
  */
 
 typedef enum {
-    UA_PUBSUB_PUBLISHERID_NUMERIC,
+    UA_PUBSUB_PUBLISHERID_NUMERIC = 0,
     UA_PUBSUB_PUBLISHERID_STRING
 } UA_PublisherIdType;
 
@@ -211,7 +211,7 @@ UA_Server_removePubSubConnection(UA_Server *server, const UA_NodeId connection);
  * thus no dedicated config structure. */
 
 typedef enum {
-    UA_PUBSUB_DATASET_PUBLISHEDITEMS,
+    UA_PUBSUB_DATASET_PUBLISHEDITEMS = 0,
     UA_PUBSUB_DATASET_PUBLISHEDEVENTS,
     UA_PUBSUB_DATASET_PUBLISHEDITEMS_TEMPLATE,
     UA_PUBSUB_DATASET_PUBLISHEDEVENTS_TEMPLATE,
@@ -309,7 +309,7 @@ typedef struct{
 } UA_DataSetVariableConfig;
 
 typedef enum {
-    UA_PUBSUB_DATASETFIELD_VARIABLE,
+    UA_PUBSUB_DATASETFIELD_VARIABLE = 0,
     UA_PUBSUB_DATASETFIELD_EVENT
 } UA_DataSetFieldType;
 
@@ -354,7 +354,7 @@ UA_Server_removeDataSetField(UA_Server *server, const UA_NodeId dsf);
  * contained in the WriterGroup. */
 
 typedef enum {
-    UA_PUBSUB_ENCODING_BINARY,
+    UA_PUBSUB_ENCODING_BINARY = 0,
     UA_PUBSUB_ENCODING_JSON,
     UA_PUBSUB_ENCODING_UADP
 } UA_PubSubEncodingType;
@@ -518,7 +518,7 @@ UA_Server_removeDataSetWriter(UA_Server *server, const UA_NodeId dsw);
 
 /* SubscribedDataSetDataType Definition */
 typedef enum {
-    UA_PUBSUB_SDS_TARGET,
+    UA_PUBSUB_SDS_TARGET = 0,
     UA_PUBSUB_SDS_MIRROR
 } UA_SubscribedDataSetEnumType;
 

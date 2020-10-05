@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2014-2020 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Florian Palm
@@ -57,7 +57,7 @@ typedef struct UA_Chunk {
 typedef SIMPLEQ_HEAD(UA_ChunkQueue, UA_Chunk) UA_ChunkQueue;
 
 typedef enum {
-    UA_SECURECHANNELRENEWSTATE_NORMAL,
+    UA_SECURECHANNELRENEWSTATE_NORMAL = 0,
 
     /* Client has sent an OPN, but not received a response so far. */
     UA_SECURECHANNELRENEWSTATE_SENT,

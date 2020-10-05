@@ -596,7 +596,7 @@ UA_LOCALIZEDTEXT_ALLOC(const char *locale, const char *text) {
     lt.text = UA_STRING_ALLOC(text); return lt;
 }
 
-/* 
+/*
  * Check if the StatusCode is bad.
  * @return Returns UA_TRUE if StatusCode is bad, else UA_FALSE. */
 UA_EXPORT UA_Boolean
@@ -678,9 +678,9 @@ typedef struct UA_DataType UA_DataType;
 #define UA_EMPTY_ARRAY_SENTINEL ((void*)0x01)
 
 typedef enum {
-    UA_VARIANT_DATA,          /* The data has the same lifecycle as the
+    UA_VARIANT_DATA = 0,      /* The data has the same lifecycle as the
                                  variant */
-    UA_VARIANT_DATA_NODELETE /* The data is "borrowed" by the variant and
+    UA_VARIANT_DATA_NODELETE  /* The data is "borrowed" by the variant and
                                  shall not be deleted at the end of the
                                  variant's lifecycle. */
 } UA_VariantStorageType;

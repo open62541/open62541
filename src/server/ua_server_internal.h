@@ -57,7 +57,7 @@ typedef struct {
 #endif
 
 typedef enum {
-    UA_DIAGNOSTICEVENT_CLOSE,
+    UA_DIAGNOSTICEVENT_CLOSE = 0,
     UA_DIAGNOSTICEVENT_REJECT,
     UA_DIAGNOSTICEVENT_SECURITYREJECT,
     UA_DIAGNOSTICEVENT_TIMEOUT,
@@ -78,7 +78,7 @@ typedef struct session_list_entry {
 } session_list_entry;
 
 typedef enum {
-    UA_SERVERLIFECYCLE_FRESH,
+    UA_SERVERLIFECYCLE_FRESH = 0,
     UA_SERVERLIFECYLE_RUNNING
 } UA_ServerLifecycle;
 
@@ -269,7 +269,7 @@ UA_StatusCode
 referenceTypeIndices(UA_Server *server, const UA_NodeId *refType,
                      UA_ReferenceTypeSet *indices, UA_Boolean includeSubtypes);
 
-/* Returns the recursive type and interface hierarchy of the node */ 
+/* Returns the recursive type and interface hierarchy of the node */
 UA_StatusCode
 getParentTypeAndInterfaceHierarchy(UA_Server *server, const UA_NodeId *typeNode,
                                    UA_NodeId **typeHierarchy, size_t *typeHierarchySize);

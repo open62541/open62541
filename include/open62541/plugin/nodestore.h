@@ -383,7 +383,7 @@ typedef struct {
 /* Indicates whether a variable contains data inline or whether it points to an
  * external data source */
 typedef enum {
-    UA_VALUESOURCE_DATA,
+    UA_VALUESOURCE_DATA = 0,
     UA_VALUESOURCE_DATASOURCE
 } UA_ValueSource;
 
@@ -525,7 +525,7 @@ typedef struct {
 } UA_ExternalValueCallback;
 
 typedef enum {
-    UA_VALUEBACKENDTYPE_NONE,
+    UA_VALUEBACKENDTYPE_NONE = 0,
     UA_VALUEBACKENDTYPE_INTERNAL,
     UA_VALUEBACKENDTYPE_DATA_SOURCE_CALLBACK,
     UA_VALUEBACKENDTYPE_EXTERNAL

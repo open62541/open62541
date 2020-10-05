@@ -163,18 +163,18 @@ typedef struct {
     union {
         UA_DataSetPayloadHeader dataSetPayloadHeader;
     } payloadHeader;
-    
+
     UA_DateTime timestamp;
     UA_UInt16 picoseconds;
     UA_UInt16 promotedFieldsSize;
     UA_Variant* promotedFields; /* BaseDataType */
-    
+
     UA_NetworkMessageSecurityHeader securityHeader;
 
     union {
         UA_DataSetPayload dataSetPayload;
     } payload;
-    
+
     UA_ByteString securityFooter;
     UA_ByteString signature;
 } UA_NetworkMessage;
@@ -185,7 +185,7 @@ typedef struct {
 
 /* Offsets for buffered messages in the PubSub fast path. */
 typedef enum {
-    UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE_SEQUENCENUMBER,
+    UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE_SEQUENCENUMBER = 0,
     UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_SEQUENCENUMBER,
     UA_PUBSUB_OFFSETTYPE_TIMESTAMP_PICOSECONDS,
     UA_PUBSUB_OFFSETTYPE_TIMESTAMP,     /* source pointer */

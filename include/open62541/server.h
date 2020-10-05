@@ -289,7 +289,7 @@ void UA_EXPORT
 UA_ServerConfig_clean(UA_ServerConfig *config);
 
 /* Set a custom hostname in server configuration */
-UA_DEPRECATED static UA_INLINE void 
+UA_DEPRECATED static UA_INLINE void
 UA_ServerConfig_setCustomHostname(UA_ServerConfig *config,
                                   const UA_String customHostname) {
     UA_String_clear(&config->customHostname);
@@ -1416,7 +1416,7 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
 typedef enum UA_TwoStateVariableCallbackType {
-  UA_ENTERING_ENABLEDSTATE,
+  UA_ENTERING_ENABLEDSTATE = 0,
   UA_ENTERING_ACKEDSTATE,
   UA_ENTERING_CONFIRMEDSTATE,
   UA_ENTERING_ACTIVESTATE
@@ -1529,7 +1529,7 @@ UA_Server_setConditionTwoStateVariableCallback(UA_Server *server, const UA_NodeI
                                                UA_TwoStateVariableCallbackType callbackType);
 
 /* Delete a condition from the address space and the internal lists.
- * 
+ *
  * @param server The server object
  * @param condition The NodeId of the node representation of the Condition Instance
  * @param conditionSource The NodeId of the node representation of the Condition Source
@@ -1605,7 +1605,7 @@ UA_Server_setMethodNodeAsync(UA_Server *server, const UA_NodeId id,
                              UA_Boolean isAsync);
 
 typedef enum {
-    UA_ASYNCOPERATIONTYPE_INVALID, /* 0, the default */
+    UA_ASYNCOPERATIONTYPE_INVALID = 0, /* the default */
     UA_ASYNCOPERATIONTYPE_CALL
     /* UA_ASYNCOPERATIONTYPE_READ, */
     /* UA_ASYNCOPERATIONTYPE_WRITE, */

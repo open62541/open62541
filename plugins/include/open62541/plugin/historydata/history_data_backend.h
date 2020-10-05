@@ -13,7 +13,7 @@
 _UA_BEGIN_DECLS
 
 typedef enum {
-    MATCH_EQUAL, /* Match with the exact timestamp. */
+    MATCH_EQUAL = 0, /* Match with the exact timestamp. */
     MATCH_AFTER, /* Match the value with the timestamp in the
                     database that is the first later in time from the provided timestamp. */
     MATCH_EQUAL_OR_AFTER, /* Match exactly if possible, or the first timestamp

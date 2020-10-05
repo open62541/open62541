@@ -30,7 +30,7 @@ _UA_BEGIN_DECLS
  * provides basis services like send, regist, unregist, receive, close. */
 
 typedef enum {
-    UA_PUBSUB_CHANNEL_RDY,
+    UA_PUBSUB_CHANNEL_RDY = 0,
     UA_PUBSUB_CHANNEL_PUB,
     UA_PUBSUB_CHANNEL_SUB,
     UA_PUBSUB_CHANNEL_PUB_SUB,
