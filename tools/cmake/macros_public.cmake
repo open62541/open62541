@@ -428,12 +428,6 @@ endfunction()
 #   [FILE_CSV]      Optional path to the .csv file containing the node ids, e.g. 'OpcUaDiModel.csv'
 #   [FILE_BSD]      Optional path to the .bsd file containing the type definitions, e.g. 'Opc.Ua.Di.Types.bsd'. Multiple files can be
 #                   passed which will all combined to one resulting code.
-#   [IMPORT_BSD]    Optional combination of types array and path to the .bsd file containing additional type definitions referenced by
-#                   the FILES_BSD files. The value is separated with a hash sign, i.e.
-#                   'UA_TYPES#${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.Types.bsd'
-#                   Multiple files can be passed which will all be imported.
-#   [NAMESPACE_MAP] Array of Namespace index mappings to indicate the final namespace index of a namespace uri when the server is started.
-#                   This parameter is mandatory if FILE_CSV or FILE_BSD is set.
 #   [BLACKLIST]     Blacklist file passed as --blacklist to the nodeset compiler. All the given nodes will be removed from the generated
 #                   nodeset, including all the references to and from that node. The format is a node id per line.
 #                   Supported formats: "i=123" (for NS0), "ns=2;s=asdf" (matches NS2 in that specific file), or recommended
@@ -441,6 +435,12 @@ endfunction()
 #   [TARGET_PREFIX] Optional prefix for the resulting targets. Default `open62541-generator`
 #
 #   Arguments taking multiple values:
+#   [NAMESPACE_MAP] Array of Namespace index mappings to indicate the final namespace index of a namespace uri when the server is started.
+#                   This parameter is mandatory if FILE_CSV or FILE_BSD is set.
+#   [IMPORT_BSD]    Optional combination of types array and path to the .bsd file containing additional type definitions referenced by
+#                   the FILES_BSD files. The value is separated with a hash sign, i.e.
+#                   'UA_TYPES#${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.Types.bsd'
+#                   Multiple files can be passed which will all be imported.
 #   [DEPENDS]       Optional list of nodeset names on which this nodeset depends. These names must match any name from a previous
 #                   call to this funtion. E.g. 'di' if you are generating the 'plcopen' nodeset
 #
@@ -448,8 +448,8 @@ endfunction()
 function(ua_generate_nodeset_and_datatypes)
 
     set(options INTERNAL)
-    set(oneValueArgs NAME FILE_NS FILE_CSV FILE_BSD IMPORT_BSD OUTPUT_DIR TARGET_PREFIX BLACKLIST)
-    set(multiValueArgs DEPENDS NAMESPACE_MAP)
+    set(oneValueArgs NAME FILE_NS FILE_CSV FILE_BSD OUTPUT_DIR TARGET_PREFIX BLACKLIST)
+    set(multiValueArgs DEPENDS IMPORT_BSD NAMESPACE_MAP)
     cmake_parse_arguments(UA_GEN "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
 
     if(NOT DEFINED open62541_TOOLS_DIR)
