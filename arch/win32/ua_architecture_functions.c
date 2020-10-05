@@ -20,14 +20,14 @@ unsigned int UA_socket_set_blocking(UA_SOCKET sockfd){
   u_long iMode = 0;
   if(ioctlsocket(sockfd, FIONBIO, &iMode) != NO_ERROR)
     return UA_STATUSCODE_BADINTERNALERROR;
-  return UA_STATUSCODE_GOOD;;
+  return UA_STATUSCODE_GOOD;
 }
 
 unsigned int UA_socket_set_nonblocking(UA_SOCKET sockfd){
   u_long iMode = 1;
   if(ioctlsocket(sockfd, FIONBIO, &iMode) != NO_ERROR)
     return UA_STATUSCODE_BADINTERNALERROR;
-  return UA_STATUSCODE_GOOD;;
+  return UA_STATUSCODE_GOOD;
 }
 
 void UA_initialize_architecture_network(void){

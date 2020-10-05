@@ -378,10 +378,10 @@ UA_StatusCode
 UA_Server_ReaderGroup_getState(UA_Server *server, UA_NodeId readerGroupIdentifier,
                                UA_PubSubState *state)
 {
-    if((server == NULL) || (state == NULL)) 
+    if((server == NULL) || (state == NULL))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_ReaderGroup *currentReaderGroup = UA_ReaderGroup_findRGbyId(server, readerGroupIdentifier);
-    if(currentReaderGroup == NULL) 
+    if(currentReaderGroup == NULL)
         return UA_STATUSCODE_BADNOTFOUND;
     *state = currentReaderGroup->state;
     return UA_STATUSCODE_GOOD;
@@ -509,7 +509,7 @@ UA_Server_freezeReaderGroupConfiguration(UA_Server *server, const UA_NodeId read
         return UA_STATUSCODE_BADNOTFOUND;
 
     //PubSubConnection freezeCounter++
-    UA_NodeId pubSubConnectionId =  rg->linkedConnection;;
+    UA_NodeId pubSubConnectionId =  rg->linkedConnection;
     UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_findConnectionbyId(server, pubSubConnectionId);
     pubSubConnection->configurationFreezeCounter++;
     pubSubConnection->configurationFrozen = UA_TRUE;
@@ -630,7 +630,7 @@ UA_Server_unfreezeReaderGroupConfiguration(UA_Server *server, const UA_NodeId re
     if(!rg)
         return UA_STATUSCODE_BADNOTFOUND;
     //PubSubConnection freezeCounter--
-    UA_NodeId pubSubConnectionId =  rg->linkedConnection;;
+    UA_NodeId pubSubConnectionId =  rg->linkedConnection;
     UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_findConnectionbyId(server, pubSubConnectionId);
     pubSubConnection->configurationFreezeCounter--;
     if(pubSubConnection->configurationFreezeCounter == 0){
@@ -825,7 +825,7 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
         UA_ReaderGroup_setPubSubState(server, UA_PUBSUBSTATE_ERROR, readerGroup);
         UA_ByteString_deleteMembers(&buffer);
         return;
-    } 
+    }
     size_t currentPosition = 0;
     if(buffer.length > 0) {
         if (readerGroup->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE) {
@@ -1109,7 +1109,7 @@ UA_Server_DataSetReader_getState(UA_Server *server, UA_NodeId dataSetReaderIdent
     if((server == NULL) || (state == NULL))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_DataSetReader *currentDataSetReader = UA_ReaderGroup_findDSRbyId(server, dataSetReaderIdentifier);
-    if(currentDataSetReader == NULL) 
+    if(currentDataSetReader == NULL)
         return UA_STATUSCODE_BADNOTFOUND;
     *state = currentDataSetReader->state;
     return UA_STATUSCODE_GOOD;

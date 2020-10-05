@@ -174,7 +174,7 @@ fuzzyLastValueIsEqualTo(UA_Double value) {
 START_TEST(Server_MonitoredItemsAbsoluteFilterSetLater) {
     UA_DataValue_init(&lastValue);
     /* define a monitored item with no filter */
-    UA_MonitoredItemCreateRequest item = UA_MonitoredItemCreateRequest_default(outNodeId);;
+    UA_MonitoredItemCreateRequest item = UA_MonitoredItemCreateRequest_default(outNodeId);
     UA_UInt32 newMonitoredItemIds[1];
     UA_Client_DataChangeNotificationCallback callbacks[1];
     callbacks[0] = dataChangeHandler;
@@ -320,7 +320,7 @@ END_TEST
 START_TEST(Server_MonitoredItemsAbsoluteFilterSetOnCreateRemoveLater) {
     UA_DataValue_init(&lastValue);
     /* define a monitored item with absolute filter */
-    UA_MonitoredItemCreateRequest item = UA_MonitoredItemCreateRequest_default(outNodeId);;
+    UA_MonitoredItemCreateRequest item = UA_MonitoredItemCreateRequest_default(outNodeId);
     UA_DataChangeFilter filter;
     UA_DataChangeFilter_init(&filter);
     filter.trigger = UA_DATACHANGETRIGGER_STATUSVALUE;
@@ -473,7 +473,7 @@ END_TEST
 START_TEST(Server_MonitoredItemsPercentFilterSetLater) {
     UA_DataValue_init(&lastValue);
     /* define a monitored item with no filter */
-    UA_MonitoredItemCreateRequest item = UA_MonitoredItemCreateRequest_default(outNodeId);;
+    UA_MonitoredItemCreateRequest item = UA_MonitoredItemCreateRequest_default(outNodeId);
     UA_UInt32 newMonitoredItemIds[1];
     UA_Client_DataChangeNotificationCallback callbacks[1];
     callbacks[0] = dataChangeHandler;
@@ -617,7 +617,7 @@ END_TEST
 START_TEST(Server_MonitoredItemsNoFilter) {
     UA_DataValue_init(&lastValue);
     /* define a monitored item with an absolute filter with deadbandvalue = 2.0 */
-    UA_MonitoredItemCreateRequest item = UA_MonitoredItemCreateRequest_default(outNodeId);;
+    UA_MonitoredItemCreateRequest item = UA_MonitoredItemCreateRequest_default(outNodeId);
     UA_UInt32 newMonitoredItemIds[1];
     UA_Client_DataChangeNotificationCallback callbacks[1];
     callbacks[0] = dataChangeHandler;
@@ -696,7 +696,7 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterOnBool) {
     UA_DataValue_init(&lastValue);
     /* define a monitored item with an absolute filter with deadbandvalue = 2.0 */
     UA_MonitoredItemCreateRequest item =
-        UA_MonitoredItemCreateRequest_default(UA_NODEID_STRING(1, "the.bool"));;
+        UA_MonitoredItemCreateRequest_default(UA_NODEID_STRING(1, "the.bool"));
     UA_DataChangeFilter filter;
     UA_DataChangeFilter_init(&filter);
     filter.trigger = UA_DATACHANGETRIGGER_STATUSVALUE;
@@ -731,7 +731,7 @@ END_TEST
 START_TEST(Server_MonitoredItemsAbsoluteFilterSetOnCreate) {
     UA_DataValue_init(&lastValue);
     /* define a monitored item with an absolute filter with deadbandvalue = 2.0 */
-    UA_MonitoredItemCreateRequest item = UA_MonitoredItemCreateRequest_default(outNodeId);;
+    UA_MonitoredItemCreateRequest item = UA_MonitoredItemCreateRequest_default(outNodeId);
     UA_DataChangeFilter filter;
     UA_DataChangeFilter_init(&filter);
     filter.trigger = UA_DATACHANGETRIGGER_STATUSVALUE;
@@ -818,7 +818,7 @@ END_TEST
 START_TEST(Server_MonitoredItemsPercentFilterSetOnCreate) {
     UA_DataValue_init(&lastValue);
     /* define a monitored item with an percent filter with deadbandvalue = 2.0 */
-    UA_MonitoredItemCreateRequest item = UA_MonitoredItemCreateRequest_default(outNodeId);;
+    UA_MonitoredItemCreateRequest item = UA_MonitoredItemCreateRequest_default(outNodeId);
     UA_DataChangeFilter filter;
     UA_DataChangeFilter_init(&filter);
     filter.trigger = UA_DATACHANGETRIGGER_STATUSVALUE;
