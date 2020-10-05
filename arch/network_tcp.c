@@ -270,6 +270,8 @@ ServerNetworkLayerTCP_add(UA_ServerNetworkLayer *nl, ServerNetworkLayerTCP *laye
     c->state = UA_CONNECTIONSTATE_OPENING;
     c->openingDate = UA_DateTime_nowMonotonic();
 
+    layer->connectionsSize++;
+
     /* Add to the linked list */
     LIST_INSERT_HEAD(&layer->connections, e, pointers);
     if(nl->statistics) {
@@ -579,6 +581,7 @@ ServerNetworkLayerTCP_stop(UA_ServerNetworkLayer *nl, UA_Server *server) {
     /* Close the server sockets */
     for(UA_UInt16 i = 0; i < layer->serverSocketsSize; i++) {
         UA_shutdown(layer->serverSockets[i], 2);
+        layer->connectionsSize--;
         UA_close(layer->serverSockets[i]);
     }
     layer->serverSocketsSize = 0;
@@ -670,7 +673,7 @@ static void
 ClientNetworkLayerTCP_free(UA_Connection *connection) {
     if(!connection->handle)
         return;
-    
+
     TCPClientConnection *tcpConnection = (TCPClientConnection *)connection->handle;
     if(tcpConnection->server)
         UA_freeaddrinfo(tcpConnection->server);
