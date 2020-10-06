@@ -239,7 +239,7 @@ parse_refpath_qn_name(UA_QualifiedName *qn, const char **pos, const char *end) {
     size_t maxlen = (size_t)(end - *pos);
     if(maxlen == 0) {
         qn->name.data = (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL;
-        return UA_STATUSCODE_GOOD;;
+        return UA_STATUSCODE_GOOD;
     }
     char *name = (char*)UA_malloc(maxlen);
     if(!name)

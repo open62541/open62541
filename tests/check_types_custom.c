@@ -1,5 +1,5 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public 
- * License, v. 2.0. If a copy of the MPL was not distributed with this 
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <open62541/types.h>
@@ -234,7 +234,7 @@ START_TEST(parseCustomScalar) {
     p.x = 1.0;
     p.y = 2.0;
     p.z = 3.0;
-    
+
     UA_Variant var;
     UA_Variant_init(&var);
     UA_Variant_setScalar(&var, &p, &PointType);
@@ -258,7 +258,7 @@ START_TEST(parseCustomScalar) {
 
     Point *p2 = (Point*)var2.data;
     ck_assert(p.x == p2->x);
-        
+
     UA_Variant_deleteMembers(&var2);
     UA_ByteString_deleteMembers(&buf);
 } END_TEST
@@ -297,7 +297,7 @@ START_TEST(parseCustomScalarExtensionObject) {
 
     Point *p2 = (Point*)eo2.content.decoded.data;
     ck_assert(p.x == p2->x);
-        
+
     UA_ExtensionObject_deleteMembers(&eo2);
     UA_ByteString_deleteMembers(&buf);
 } END_TEST
@@ -344,7 +344,7 @@ START_TEST(parseCustomArray) {
         ck_assert((int)p2->y == (int)ps[i].y);
         ck_assert((int)p2->z == (int)ps[i].z);
     }
-        
+
     UA_Variant_deleteMembers(&var2);
     UA_ByteString_deleteMembers(&buf);
 } END_TEST
@@ -355,7 +355,7 @@ START_TEST(parseCustomStructureWithOptionalFields) {
         o.a = 3;
         o.b = NULL;
         o.c = UA_Float_new();
-        *o.c = (UA_Float) 10.10;;
+        *o.c = (UA_Float) 10.10;
 
         UA_Variant var;
         UA_Variant_init(&var);

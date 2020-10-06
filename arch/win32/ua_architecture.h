@@ -143,7 +143,7 @@ void UA_sleep_ms(unsigned long ms);
 #define UA_LOCK_TYPE(mutexName) CRITICAL_SECTION mutexName; \
                                 int mutexName##Counter;
 #define UA_LOCK_INIT(mutexName) InitializeCriticalSection(&mutexName); \
-                                mutexName##Counter = 0;;
+                                mutexName##Counter = 0;
 #define UA_LOCK_DESTROY(mutexName) DeleteCriticalSection(&mutexName);
 #define UA_LOCK(mutexName) EnterCriticalSection(&mutexName); \
                            UA_assert(++(mutexName##Counter) == 1);
