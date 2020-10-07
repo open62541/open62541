@@ -316,7 +316,7 @@ UA_ExpandedNodeId_print(const UA_ExpandedNodeId *id, UA_String *output) {
     if(id->serverIndex == 0)
         svr[0] = 0;
     else
-        snprintf(svr, 100, "svr=%"PRIu32";", id->serverIndex);
+        UA_snprintf(svr, 100, "svr=%"PRIu32";", id->serverIndex);
     size_t svrlen = strlen(svr);
 
     /* Encode the NamespaceUri */
@@ -324,7 +324,7 @@ UA_ExpandedNodeId_print(const UA_ExpandedNodeId *id, UA_String *output) {
     if(id->namespaceUri.data == NULL)
         nsu[0] = 0;
     else
-        snprintf(nsu, 100, "nsu=%.*s;", (int)id->namespaceUri.length, id->namespaceUri.data);
+        UA_snprintf(nsu, 100, "nsu=%.*s;", (int)id->namespaceUri.length, id->namespaceUri.data);
     size_t nsulen = strlen(nsu);
 
     /* Combine everything */

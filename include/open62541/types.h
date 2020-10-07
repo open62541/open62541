@@ -1059,6 +1059,17 @@ void UA_EXPORT UA_clear(void *p, const UA_DataType *type);
  * @param type The datatype description of the variable */
 void UA_EXPORT UA_delete(void *p, const UA_DataType *type);
 
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+/* Pretty-print the value from the datatype.
+ *
+ * @param p The memory location of the variable
+ * @param type The datatype description of the variable
+ * @param output A string that is memory-allocated for the pretty-printed output
+ * @return Indicates whether the operation succeeded*/
+UA_StatusCode UA_EXPORT
+UA_print(void *p, const UA_DataType *type, UA_String *output);
+#endif
+
 /**
  * .. _array-handling:
  *
