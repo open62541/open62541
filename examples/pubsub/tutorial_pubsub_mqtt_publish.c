@@ -14,8 +14,8 @@
  * Publishing Fields
  * ^^^^^^^^^^^^^^^^^
  * The PubSub MQTT publish example demonstrate the simplest way to publish
- * informations from the information model over MQTT using the UADP (or later
- * JSON) encoding. To receive information the subscribe functionality of mqtt is
+ * informations from the information model over MQTT using the UADP (or
+ * JSON) encoding. To receive information the subscribe functionality of MQTT is
  * used. A periodical call to yield is necessary to update the mqtt stack.
  *
  * **Connection handling**
@@ -140,10 +140,9 @@ addDataSetField(UA_Server *server) {
     dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Server localtime");
     dataSetFieldConfig.field.variable.promotedField = UA_FALSE;
     dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
-    UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
     dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
     UA_Server_addDataSetField(server, publishedDataSetIdent, &dataSetFieldConfig, NULL);
-
 }
 
 /**
@@ -448,4 +447,3 @@ int main(int argc, char **argv) {
     UA_Server_delete(server);
     return 0;
 }
-
