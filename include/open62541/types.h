@@ -462,6 +462,9 @@ typedef struct {
 
 UA_EXPORT extern const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL;
 
+UA_StatusCode UA_EXPORT
+UA_ExpandedNodeId_print(const UA_ExpandedNodeId *id, UA_String *output);
+
 #ifdef UA_ENABLE_PARSING
 /* Parse the ExpandedNodeId format defined in Part 6, 5.3.1.11:
  *

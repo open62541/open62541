@@ -297,3 +297,44 @@ UA_NodeId_print(const UA_NodeId *id, UA_String *output) {
 
     return UA_STATUSCODE_GOOD;
 }
+
+UA_StatusCode
+UA_ExpandedNodeId_print(const UA_ExpandedNodeId *id, UA_String *output) {
+    /* Don't print the namespace-index if a NamespaceUri is set */
+    UA_NodeId nid = id->nodeId;
+    if(id->namespaceUri.data != NULL)
+        nid.namespaceIndex = 0;
+
+    /* Encode the NodeId */
+    UA_String outNid = UA_STRING_NULL;
+    UA_StatusCode res = UA_NodeId_print(&nid, &outNid);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* Encode the ServerIndex */
+    char svr[100];
+    if(id->serverIndex == 0)
+        svr[0] = 0;
+    else
+        snprintf(svr, 100, "svr=%"PRIu32";", id->serverIndex);
+    size_t svrlen = strlen(svr);
+
+    /* Encode the NamespaceUri */
+    char nsu[100];
+    if(id->namespaceUri.data == NULL)
+        nsu[0] = 0;
+    else
+        snprintf(nsu, 100, "nsu=%.*s;", (int)id->namespaceUri.length, id->namespaceUri.data);
+    size_t nsulen = strlen(nsu);
+
+    /* Combine everything */
+    res = UA_ByteString_allocBuffer((UA_String*)output, outNid.length + svrlen + nsulen);
+    if(res == UA_STATUSCODE_GOOD) {
+        memcpy(output->data, svr, svrlen);
+        memcpy(&output->data[svrlen], nsu, nsulen);
+        memcpy(&output->data[svrlen+nsulen], outNid.data, outNid.length);
+    }
+
+    UA_String_clear(&outNid);
+    return res;
+}
