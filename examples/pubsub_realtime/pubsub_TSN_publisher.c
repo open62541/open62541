@@ -42,7 +42,6 @@
 #include <open62541/plugin/log.h>
 #include <open62541/types_generated.h>
 #include <open62541/plugin/pubsub_ethernet.h>
-#include <open62541/plugin/pubsub_ethernet_etf.h>
 
 #include "ua_pubsub.h"
 
@@ -191,15 +190,6 @@ UA_ServerCallback            callback;
 UA_Duration                  interval_ms;
 UA_UInt64*                   callbackId;
 } threadArg;
-
-enum txtime_flags {
-    SOF_TXTIME_DEADLINE_MODE = (1 << 0),
-    SOF_TXTIME_REPORT_ERRORS = (1 << 1),
-
-    SOF_TXTIME_FLAGS_LAST = SOF_TXTIME_REPORT_ERRORS,
-    SOF_TXTIME_FLAGS_MASK = (SOF_TXTIME_FLAGS_LAST - 1) |
-                             SOF_TXTIME_FLAGS_LAST
-};
 
 /* Publisher thread routine for ETF */
 void *publisherETF(void *arg);
@@ -534,9 +524,17 @@ addPubSubConnection(UA_Server *server, UA_NetworkAddressUrlDataType *networkAddr
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.publisherId.numeric                    = PUBLISHER_ID;
-    /* ETF configuration settings */
-    connectionConfig.etfConfiguration.socketPriority        = SOCKET_PRIORITY;
-    connectionConfig.etfConfiguration.sotxtimeEnabled       = UA_TRUE;
+    /* Connection options are given as Key/Value Pairs - Sockprio and Txtime */
+    UA_KeyValuePair connectionOptions[2];
+    connectionOptions[0].key = UA_QUALIFIEDNAME(0, "sockpriority");
+    UA_UInt32 sockPriority   = SOCKET_PRIORITY;
+    UA_Variant_setScalar(&connectionOptions[0].value, &sockPriority, &UA_TYPES[UA_TYPES_UINT32]);
+    connectionOptions[1].key = UA_QUALIFIEDNAME(0, "enablesotxtime");
+    UA_Boolean enableTxTime  = UA_TRUE;
+    UA_Variant_setScalar(&connectionOptions[1].value, &enableTxTime, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    connectionConfig.connectionProperties     = connectionOptions;
+    connectionConfig.connectionPropertiesSize = 2;
+
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
 }
 
@@ -793,24 +791,23 @@ void *publisherETF(void *arg) {
     nanoSecondFieldConversion(&nextnanosleeptime);
 
     /* Define Ethernet ETF transport settings */
-    UA_EthernetETFWriterGroupTransportDataType ethernetETFtransportSettings;
-    memset(&ethernetETFtransportSettings, 0, sizeof(UA_EthernetETFWriterGroupTransportDataType));
+    UA_EthernetWriterGroupTransportDataType ethernettransportSettings;
+    memset(&ethernettransportSettings, 0, sizeof(UA_EthernetWriterGroupTransportDataType));
     /* TODO: Txtime enable shall be configured based on connectionConfig.etfConfiguration.sotxtimeEnabled parameter */
-    ethernetETFtransportSettings.txtime_enabled    = UA_TRUE;
-    ethernetETFtransportSettings.transmission_time = 0;
+    ethernettransportSettings.transmission_time = 0;
 
     /* Encapsulate ETF config in transportSettings */
     UA_ExtensionObject transportSettings;
     memset(&transportSettings, 0, sizeof(UA_ExtensionObject));
     /* TODO: transportSettings encoding and type to be defined */
-    transportSettings.content.decoded.data       = &ethernetETFtransportSettings;
+    transportSettings.content.decoded.data       = &ethernettransportSettings;
     currentWriterGroup->config.transportSettings = transportSettings;
     UA_UInt64 roundOffCycleTime                  = (CYCLE_TIME * MILLI_SECONDS) - NANO_SECONDS_SLEEP_PUB;
 
     while (running) {
         clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptime, NULL);
         transmission_time                              = ((UA_UInt64)nextnanosleeptime.tv_sec * SECONDS + (UA_UInt64)nextnanosleeptime.tv_nsec) + roundOffCycleTime + QBV_OFFSET;
-        ethernetETFtransportSettings.transmission_time = transmission_time;
+        ethernettransportSettings.transmission_time = transmission_time;
         pubCallback(server, currentWriterGroup);
         nextnanosleeptime.tv_nsec                     += (__syscall_slong_t)interval_ns;
         nanoSecondFieldConversion(&nextnanosleeptime);
@@ -1144,7 +1141,7 @@ int main(int argc, char **argv) {
 */
 
 #if defined (PUBLISHER)
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerEthernetETF();
+    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerEthernet();
     config->pubsubTransportLayersSize++;
 #endif
 
@@ -1165,7 +1162,7 @@ int main(int argc, char **argv) {
     config->pubsubTransportLayers[1] = UA_PubSubTransportLayerEthernetXDP();
     config->pubsubTransportLayersSize++;
 #else
-    config->pubsubTransportLayers[1] = UA_PubSubTransportLayerEthernetETF();
+    config->pubsubTransportLayers[1] = UA_PubSubTransportLayerEthernet();
     config->pubsubTransportLayersSize++;
 #endif
 #endif
