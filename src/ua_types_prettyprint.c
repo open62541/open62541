@@ -41,7 +41,7 @@ UA_PrintContext_addOutput(UA_PrintContext *ctx, size_t length) {
     /* Protect against overlong output in pretty-printing */
     if(length > 2<<16)
         return NULL;
-    UA_PrintOutput *output = (UA_PrintOutput*)UA_malloc(sizeof(UA_PrintOutput) + length);
+    UA_PrintOutput *output = (UA_PrintOutput*)UA_malloc(sizeof(UA_PrintOutput) + length + 1);
     if(!output)
         return NULL;
     output->length = length;
@@ -207,8 +207,10 @@ printDateTime(UA_PrintContext *ctx, const UA_DateTime *p, const UA_DataType *_) 
     UA_Int64 tOffset = UA_DateTime_localTimeUtcOffset();
     UA_DateTimeStruct dts = UA_DateTime_toStruct(*p);
     char dateString[100];
-    sprintf((char*)dateString, "%04u-%02u-%02u %02u:%02u:%02u.%03u (UTC%+05d)",
-            dts.year, dts.month, dts.day, dts.hour, dts.min, dts.sec, dts.milliSec,
+    UA_snprintf((char*)dateString, 100,
+                "%04u-%02u-%02u %02u:%02u:%02u.%03u (UTC%+05d)",
+                dts.year, dts.month, dts.day, dts.hour, dts.min,
+                dts.sec, dts.milliSec,
             (int)(tOffset / UA_DATETIME_SEC / 36));
     return UA_PrintContext_addString(ctx, dateString);
 }
@@ -221,7 +223,7 @@ printString(UA_PrintContext *ctx, const UA_String *p, const UA_DataType *_) {
     UA_PrintOutput *out = UA_PrintContext_addOutput(ctx, p->length+2);
     if(!out)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    UA_snprintf((char*)&out->data, p->length, "\"%.*s\"", (int)p->length, p->data);
+    UA_snprintf((char*)out->data, p->length+3, "\"%.*s\"", (int)p->length, p->data);
     return UA_STATUSCODE_GOOD;
 }
 
