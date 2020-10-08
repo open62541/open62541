@@ -20,6 +20,7 @@
 #else
 #include <linux/if_packet.h>
 #include <netinet/ether.h>
+#include <linux/version.h>
 #endif
 #include "time.h"
 
@@ -284,9 +285,8 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
         }
     }
 
-#if defined(__linux__)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,19,0)
     if(sockOptions.enableSocketTxTime == UA_TRUE) {
-        channelDataEthernet->useSoTxTime = UA_TRUE;
         /* Setting socket txtime with required flags to the socket */
         sock_txtime sk_txtime;
         memset(&sk_txtime, 0, sizeof(sk_txtime));
@@ -302,6 +302,8 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
             UA_free(newChannel);
             return NULL;
         }
+
+        channelDataEthernet->useSoTxTime = UA_TRUE;
     }
 #endif
 
@@ -389,7 +391,7 @@ UA_PubSubChannelEthernet_unregist(UA_PubSubChannel *channel,
     return UA_STATUSCODE_GOOD;
 }
 
-#if defined(__linux__)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,19,0)
 static UA_StatusCode
 sendWithTxTime(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings, void *bufSend, size_t lenBuf) {
     /* Send the data packet with the tx time */
@@ -439,9 +441,9 @@ sendWithTxTime(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings,
     controlMsg             = CMSG_FIRSTHDR(&message);
     controlMsg->cmsg_level = SOL_SOCKET;
     controlMsg->cmsg_type  = SCM_TXTIME;
-    controlMsg->cmsg_len   = CMSG_LEN(sizeof(__u64));
+    controlMsg->cmsg_len   = CMSG_LEN(sizeof(UA_UInt64));
     if(ethernettransportSettings && (ethernettransportSettings->transmission_time != 0))
-        *((__u64 *) CMSG_DATA(controlMsg)) = ethernettransportSettings->transmission_time;
+        *((UA_UInt64 *) CMSG_DATA(controlMsg)) = ethernettransportSettings->transmission_time;
 
     msgCount = sendmsg(channel->sockfd, &message, 0);
     if ((msgCount < 1) && (msgCount != (UA_Int32)lenBuf)) {
@@ -514,12 +516,13 @@ UA_PubSubChannelEthernet_send(UA_PubSubChannel *channel,
     /* copy payload of ethernet message */
     memcpy(ptrCur, buf->data, buf->length);
 
-#if defined(__linux__)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,19,0)
     if(channelDataEthernet->useSoTxTime) {
         /* Send the packets at the given Txtime */
         UA_StatusCode rc = sendWithTxTime(channel, transportSettings, bufSend, lenBuf);
         if(rc != UA_STATUSCODE_GOOD) {
-            printf("sendfailed");
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                         "PubSub connection send failed. Send message failed.");
             UA_free(bufSend);
             return UA_STATUSCODE_BADINTERNALERROR;
         }
@@ -538,7 +541,6 @@ UA_PubSubChannelEthernet_send(UA_PubSubChannel *channel,
     }
 
     UA_free(bufSend);
-
     return UA_STATUSCODE_GOOD;
 }
 

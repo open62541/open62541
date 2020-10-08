@@ -305,6 +305,16 @@ UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
 
     /* Deep copy of the config */
     retval |= UA_ReaderGroupConfig_copy(readerGroupConfig, &newGroup->config);
+    /* Check user configured params and define it accordingly */
+    if(newGroup->config.subscribingInterval <= 0.0)
+        newGroup->config.subscribingInterval = 5; // Set default to 5 ms
+
+    if(newGroup->config.enableBlockingSocket)
+        newGroup->config.timeout = 0; // Set timeout to 0 for blocking socket
+
+    if((!newGroup->config.enableBlockingSocket) && (!newGroup->config.timeout))
+        newGroup->config.timeout = 1000; // Set default to 1ms socket timeout when non-blocking socket allows with zero timeout
+
     LIST_INSERT_HEAD(&currentConnectionContext->readerGroups, newGroup, listEntry);
     currentConnectionContext->readerGroupsSize++;
 
@@ -353,21 +363,6 @@ UA_Server_removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier) {
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode
-UA_Server_ReaderGroup_setDefaultConfig(UA_ReaderGroupConfig *config){
-    if(!config)
-        return UA_STATUSCODE_BADNOTFOUND;
-
-    memset(config, 0, sizeof(UA_ReaderGroupConfig));
-    config->name                = UA_STRING("ReaderGroup");
-    /* TODO: securityParameters config default conf - if required */
-    config->subscribingInterval = 5;                 // Default set to 5ms
-    config->timeout             = 1000;              // Default set to 1ms
-    config->rtLevel             = UA_PUBSUB_RT_NONE; // Default set to normal RT level - none
-
-    return UA_STATUSCODE_GOOD;
-}
-
 /* TODO: Implement
 UA_StatusCode
 UA_Server_ReaderGroup_updateConfig(UA_Server *server, UA_NodeId readerGroupIdentifier,
@@ -407,9 +402,15 @@ UA_Server_ReaderGroup_getState(UA_Server *server, UA_NodeId readerGroupIdentifie
     return UA_STATUSCODE_GOOD;
 }
 
+void
+UA_ReaderGroupConfig_clear(UA_ReaderGroupConfig *readerGroupConfig) {
+    //delete readerGroup config
+    UA_String_clear(&readerGroupConfig->name);
+}
+
 static void
 UA_Server_ReaderGroup_clear(UA_Server* server, UA_ReaderGroup *readerGroup) {
-    /* To Do Call UA_ReaderGroupConfig_delete */
+    UA_ReaderGroupConfig_clear(&readerGroup->config);
     UA_DataSetReader *dataSetReader, *tmpDataSetReader;
     LIST_FOREACH_SAFE(dataSetReader, &readerGroup->readers, listEntry, tmpDataSetReader) {
         UA_Server_removeDataSetReader(server, dataSetReader->identifier);
@@ -859,15 +860,15 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
         return;
     }
 
-    UA_StatusCode res = connection->channel->receive(connection->channel, &buffer, NULL, 1000);
+    UA_StatusCode res = connection->channel->receive(connection->channel, &buffer, NULL, readerGroup->config.timeout);
     if (UA_StatusCode_isBad(res)) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "SubscribeCallback(): Connection receive failed!");
         UA_ReaderGroup_setPubSubState(server, UA_PUBSUBSTATE_ERROR, readerGroup);
         UA_ByteString_clear(&buffer);
         return;
     }
+
     size_t currentPosition = 0;
-    connection->channel->receive(connection->channel, &buffer, NULL, readerGroup->config.timeout);
     if(buffer.length > 0) {
         if (readerGroup->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE) {
             do {

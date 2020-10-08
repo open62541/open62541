@@ -123,9 +123,6 @@ _UA_BEGIN_DECLS
  * **UA_ENABLE_PUBSUB_ETH_UADP**
  *  Enable the OPC UA Ethernet PubSub support to transport UADP NetworkMessages as payload of Ethernet II frame without IP or UDP headers. This option will include Publish and Subscribe based on
  *  EtherType B62C. Disabled by default.
- * **UA_ENABLE_PUBSUB_ETH_UADP_ETF**
- *  Enable ETF feature to allow the user to transmit packets at calculated transmission time with nanosecond precision, in addition to the PubSub support to transport UADP NetworkMessages as payload of Ethernet II frame.
- *  Disabled by default.
  * **UA_ENABLE_PUBSUB_ETH_UADP_XDP**
  *  Enable XDP feature to allow the user to receive packets using the eXpress Data Path (XDP), which bypasses TCP/IP layers and transfers the frames from hardware/netdev to user application thereby reducing the receiving time,
  *  in addition to the PubSub support to transport UADP NetworkMessages as payload of Ethernet II frame. Disabled by default.
@@ -701,10 +698,14 @@ typedef struct {
     /* PubSub Manager Callback */
     UA_PubSub_CallbackLifecycle pubsubManagerCallback;
     /* non std. field */
-    UA_Duration subscribingInterval;
+    UA_Duration subscribingInterval; // Callback interval for subscriber: set the least publishingInterval value of all DSRs in this RG
+    UA_Boolean enableBlockingSocket; // To enable or disable blocking socket option
     UA_UInt32 timeout; // Timeout for receive to wait for the packets
     UA_PubSubRTLevel rtLevel;
 } UA_ReaderGroupConfig;
+
+void UA_EXPORT
+UA_ReaderGroupConfig_clear(UA_ReaderGroupConfig *readerGroupConfig);
 
 /* Add DataSetReader to the ReaderGroup */
 UA_StatusCode UA_EXPORT
@@ -731,10 +732,6 @@ UA_Server_ReaderGroup_getConfig(UA_Server *server, UA_NodeId readerGroupIdentifi
 UA_StatusCode UA_EXPORT
 UA_Server_ReaderGroup_getState(UA_Server *server, UA_NodeId readerGroupIdentifier,
                                UA_PubSubState *state);
-
-/* Set default configuraiton of ReaderGroup */
-UA_StatusCode UA_EXPORT
-UA_Server_ReaderGroup_setDefaultConfig(UA_ReaderGroupConfig *config);
 
 /* Add ReaderGroup to the created connection */
 UA_StatusCode UA_EXPORT

@@ -68,7 +68,7 @@ UA_DataSetReaderConfig readerConfig;
 /* Cycle time in milliseconds */
 #define             CYCLE_TIME                            0.25
 /* Qbv offset */
-#define             QBV_OFFSET                            25 * 1000
+#define             QBV_OFFSET                            125 * 1000
 #define             SOCKET_PRIORITY                       3
 #if defined(PUBLISHER)
 #define             PUBLISHER_ID                          2235
@@ -112,6 +112,9 @@ UA_DataSetReaderConfig readerConfig;
 #define             CORE_TWO                              2
 #define             CORE_THREE                            3
 #define             SECONDS_INCREMENT                     1
+#ifndef CLOCK_TAI
+#define             CLOCK_TAI                             11
+#endif
 #define             CLOCKID                               CLOCK_TAI
 #define             ETH_TRANSPORT_PROFILE                 "http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp"
 
@@ -344,15 +347,12 @@ addReaderGroup(UA_Server *server) {
         return;
 
     UA_ReaderGroupConfig readerGroupConfig;
-    UA_StatusCode retval = UA_Server_ReaderGroup_setDefaultConfig(&readerGroupConfig);
-    if(retval != UA_STATUSCODE_GOOD)
-        return;
-
-    /* Set custom config name */
-    readerGroupConfig.name = UA_STRING("ReaderGroup 1");
+    memset (&readerGroupConfig, 0, sizeof(UA_ReaderGroupConfig));
+    readerGroupConfig.name = UA_STRING("ReaderGroup");
 #if defined PUBSUB_CONFIG_RT_INFORMATION_MODEL
     readerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
 #endif
+    readerGroupConfig.subscribingInterval = CYCLE_TIME;
     readerGroupConfig.timeout = 50;  // As we run in 250us cycle time, modify default timeout (1ms) to 50us
     readerGroupConfig.pubsubManagerCallback.addCustomCallback = addPubSubApplicationCallback;
     readerGroupConfig.pubsubManagerCallback.changeCustomCallbackInterval = changePubSubApplicationCallbackInterval;
@@ -835,11 +835,13 @@ void *subscriber(void *arg) {
     void*   currentReaderGroup;
     UA_ServerCallback subCallback;
     struct timespec   nextnanosleeptimeSub;
+    UA_UInt64         subInterval_ns;
 
     threadArg *threadArgumentsSubscriber = (threadArg *)arg;
     server             = threadArgumentsSubscriber->server;
     subCallback        = threadArgumentsSubscriber->callback;
     currentReaderGroup = threadArgumentsSubscriber->data;
+    subInterval_ns     = (UA_UInt64)(threadArgumentsSubscriber->interval_ms * MILLI_SECONDS);
 
     /* Get current time and compute the next nanosleeptime */
     clock_gettime(CLOCKID, &nextnanosleeptimeSub);
@@ -851,7 +853,7 @@ void *subscriber(void *arg) {
         clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptimeSub, NULL);
         /* Read subscribed data from the SubscriberCounter variable */
         subCallback(server, currentReaderGroup);
-        nextnanosleeptimeSub.tv_nsec     += (__syscall_slong_t)(CYCLE_TIME * MILLI_SECONDS);
+        nextnanosleeptimeSub.tv_nsec += (__syscall_slong_t)subInterval_ns;
         nanoSecondFieldConversion(&nextnanosleeptimeSub);
     }
 
@@ -923,10 +925,14 @@ void *userApplicationPubSub(void *arg) {
 #endif
 #endif
 #if defined(UPDATE_MEASUREMENTS)
+#if defined(SUBSCRIBER)
         if (*subCounterData > 0)
              updateMeasurementsSubscriber(dataReceiveTime, *subCounterData);
+#endif
+#if defined(PUBLISHER)
         if (*pubCounterData > 0)
              updateMeasurementsPublisher(dataModificationTime, *pubCounterData);
+#endif
 #endif
         nextnanosleeptimeUserApplication.tv_nsec += (__syscall_slong_t)(CYCLE_TIME * MILLI_SECONDS);
         nanoSecondFieldConversion(&nextnanosleeptimeUserApplication);
@@ -1181,7 +1187,7 @@ int main(int argc, char **argv) {
     config->pubsubTransportLayers[0] = UA_PubSubTransportLayerEthernetXDP();
     config->pubsubTransportLayersSize++;
 #else
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerEthernetETF();
+    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerEthernet();
     config->pubsubTransportLayersSize++;
 #endif
 #endif

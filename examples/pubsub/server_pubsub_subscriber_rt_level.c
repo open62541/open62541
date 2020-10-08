@@ -126,10 +126,8 @@ addReaderGroup(UA_Server *server) {
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_ReaderGroupConfig readerGroupConfig;
-    retval = UA_Server_ReaderGroup_setDefaultConfig(&readerGroupConfig);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
+    memset (&readerGroupConfig, 0, sizeof(UA_ReaderGroupConfig));
+    readerGroupConfig.name = UA_STRING("ReaderGroup1");
     readerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
     retval |= UA_Server_addReaderGroup(server, connectionIdentifier, &readerGroupConfig,
                                        &readerGroupIdentifier);
