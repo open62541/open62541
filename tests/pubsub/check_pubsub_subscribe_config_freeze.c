@@ -49,9 +49,9 @@ START_TEST(CreateAndLockConfiguration) {
     UA_PubSubConnection_regist(server, &connection1);
 
     UA_ReaderGroupConfig readerGroupConfig;
-    memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
-    readerGroupConfig.name = UA_STRING("ReaderGroup 1");
-    readerGroupConfig.rtLevel = UA_PUBSUB_RT_NONE;
+    UA_StatusCode retVal = UA_Server_ReaderGroup_setDefaultConfig(&readerGroupConfig);
+    ck_assert(retVal == UA_STATUSCODE_GOOD);
+
     UA_Server_addReaderGroup(server, connection1, &readerGroupConfig, &readerGroup1);
 
     //get internal RG Pointer
@@ -102,7 +102,8 @@ START_TEST(CreateAndReleaseMultipleLocks) {
 
     //Add two reader groups
     UA_ReaderGroupConfig readerGroupConfig;
-    memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
+    UA_StatusCode retVal = UA_Server_ReaderGroup_setDefaultConfig(&readerGroupConfig);
+    ck_assert(retVal == UA_STATUSCODE_GOOD);
     readerGroupConfig.name = UA_STRING("ReaderGroup 1");
     readerGroupConfig.rtLevel = UA_PUBSUB_RT_NONE;
     UA_Server_addReaderGroup(server, connection1, &readerGroupConfig, &readerGroup1);
@@ -164,9 +165,9 @@ START_TEST(CreateLockAndEditConfiguration) {
     UA_PubSubConnection_regist(server, &connection1);
 
     UA_ReaderGroupConfig readerGroupConfig;
-    memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
+    UA_StatusCode retVal = UA_Server_ReaderGroup_setDefaultConfig(&readerGroupConfig);
+    ck_assert(retVal == UA_STATUSCODE_GOOD);
     readerGroupConfig.name = UA_STRING("ReaderGroup 1");
-    readerGroupConfig.rtLevel = UA_PUBSUB_RT_NONE;
     UA_Server_addReaderGroup(server, connection1, &readerGroupConfig, &readerGroup1);
 
     //get internal RG Pointer

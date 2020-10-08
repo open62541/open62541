@@ -82,7 +82,10 @@ static void addDataSetWriter(UA_NodeId parentWriterGroup, UA_NodeId connectedPDS
 
 static void addReaderGroup(UA_NodeId parentConnection, UA_String name, UA_NodeId *assignedId){
     UA_ReaderGroupConfig readerGroupConfig;
-    memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
+    UA_StatusCode retval = UA_Server_ReaderGroup_setDefaultConfig(&readerGroupConfig);
+    if(retval != UA_STATUSCODE_GOOD)
+        return;
+
     readerGroupConfig.name = name;
     UA_Server_addReaderGroup(server, parentConnection, &readerGroupConfig, assignedId);
 }

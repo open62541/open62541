@@ -353,6 +353,21 @@ UA_Server_removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier) {
     return UA_STATUSCODE_GOOD;
 }
 
+UA_StatusCode
+UA_Server_ReaderGroup_setDefaultConfig(UA_ReaderGroupConfig *config){
+    if(!config)
+        return UA_STATUSCODE_BADNOTFOUND;
+
+    memset(config, 0, sizeof(UA_ReaderGroupConfig));
+    config->name                = UA_STRING("ReaderGroup");
+    /* TODO: securityParameters config default conf - if required */
+    config->subscribingInterval = 5;                 // Default set to 5ms
+    config->timeout             = 1000;              // Default set to 1ms
+    config->rtLevel             = UA_PUBSUB_RT_NONE; // Default set to normal RT level - none
+
+    return UA_STATUSCODE_GOOD;
+}
+
 /* TODO: Implement
 UA_StatusCode
 UA_Server_ReaderGroup_updateConfig(UA_Server *server, UA_NodeId readerGroupIdentifier,
@@ -852,6 +867,7 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
         return;
     }
     size_t currentPosition = 0;
+    connection->channel->receive(connection->channel, &buffer, NULL, readerGroup->config.timeout);
     if(buffer.length > 0) {
         if (readerGroup->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE) {
             do {
@@ -919,11 +935,15 @@ UA_ReaderGroup_addSubscribeCallback(UA_Server *server, UA_ReaderGroup *readerGro
     if(readerGroup->config.pubsubManagerCallback.addCustomCallback)
         retval |= readerGroup->config.pubsubManagerCallback.addCustomCallback(server, readerGroup->identifier,
                                                                               (UA_ServerCallback) UA_ReaderGroup_subscribeCallback,
-                                                                              readerGroup, 5, &readerGroup->subscribeCallbackId);
+                                                                              readerGroup,
+                                                                              readerGroup->config.subscribingInterval,
+                                                                              &readerGroup->subscribeCallbackId);
     else
         retval |= UA_PubSubManager_addRepeatedCallback(server,
                                                        (UA_ServerCallback) UA_ReaderGroup_subscribeCallback,
-                                                       readerGroup, 5, &readerGroup->subscribeCallbackId); // TODO: Remove the hardcode of interval (5ms)
+                                                       readerGroup,
+                                                       readerGroup->config.subscribingInterval,
+                                                       &readerGroup->subscribeCallbackId);
 
     if(retval == UA_STATUSCODE_GOOD)
         readerGroup->subscribeCallbackIsRegistered = true;
