@@ -340,16 +340,20 @@ addPubSubConnectionSubscriber(UA_Server *server, UA_NetworkAddressUrlDataType *n
 /* Add ReaderGroup to the created connection */
 static void
 addReaderGroup(UA_Server *server) {
-    if (server == NULL) {
+    if (server == NULL)
         return;
-    }
 
-    UA_ReaderGroupConfig     readerGroupConfig;
-    memset (&readerGroupConfig, 0, sizeof(UA_ReaderGroupConfig));
-    readerGroupConfig.name   = UA_STRING("ReaderGroup1");
+    UA_ReaderGroupConfig readerGroupConfig;
+    UA_StatusCode retval = UA_Server_ReaderGroup_setDefaultConfig(&readerGroupConfig);
+    if(retval != UA_STATUSCODE_GOOD)
+        return;
+
+    /* Set custom config name */
+    readerGroupConfig.name = UA_STRING("ReaderGroup 1");
 #if defined PUBSUB_CONFIG_RT_INFORMATION_MODEL
     readerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
 #endif
+    readerGroupConfig.timeout = 50;  // As we run in 250us cycle time, modify default timeout (1ms) to 50us
     readerGroupConfig.pubsubManagerCallback.addCustomCallback = addPubSubApplicationCallback;
     readerGroupConfig.pubsubManagerCallback.changeCustomCallbackInterval = changePubSubApplicationCallbackInterval;
     readerGroupConfig.pubsubManagerCallback.removeCustomCallback = removePubSubApplicationCallback;

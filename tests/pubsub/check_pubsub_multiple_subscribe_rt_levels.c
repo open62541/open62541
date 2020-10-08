@@ -223,8 +223,10 @@ START_TEST(SubscribeMultipleMessagesRT) {
 
     /* Reader Group */
     UA_ReaderGroupConfig readerGroupConfig;
-    memset (&readerGroupConfig, 0, sizeof (UA_ReaderGroupConfig));
-    readerGroupConfig.name = UA_STRING ("ReaderGroup Test");
+    retVal = UA_Server_ReaderGroup_setDefaultConfig(&readerGroupConfig);
+    if(retVal != UA_STATUSCODE_GOOD)
+        return;
+
     readerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
     retVal =  UA_Server_addReaderGroup(server, connectionIdentifier, &readerGroupConfig,
                                        &readerGroupIdentifier);
@@ -424,8 +426,10 @@ START_TEST(SubscribeMultipleMessagesWithoutRT) {
 
     /* Reader Group */
     UA_ReaderGroupConfig readerGroupConfig;
-    memset (&readerGroupConfig, 0, sizeof (UA_ReaderGroupConfig));
-    readerGroupConfig.name = UA_STRING ("ReaderGroup Test");
+    retVal = UA_Server_ReaderGroup_setDefaultConfig(&readerGroupConfig);
+    if(retVal != UA_STATUSCODE_GOOD)
+        return;
+
     readerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
     retVal =  UA_Server_addReaderGroup(server, connectionIdentifier, &readerGroupConfig,
                                        &readerGroupIdentifier);
@@ -577,8 +581,10 @@ START_TEST(SetupInvalidPubSubConfig) {
 
     /* Reader Group */
     UA_ReaderGroupConfig readerGroupConfig;
-    memset (&readerGroupConfig, 0, sizeof (UA_ReaderGroupConfig));
-    readerGroupConfig.name = UA_STRING ("ReaderGroup Test");
+    retVal = UA_Server_ReaderGroup_setDefaultConfig(&readerGroupConfig);
+    if(retVal != UA_STATUSCODE_GOOD)
+        return;
+
     readerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
     retVal =  UA_Server_addReaderGroup(server, connectionIdentifier, &readerGroupConfig,
                                        &readerGroupIdentifier);

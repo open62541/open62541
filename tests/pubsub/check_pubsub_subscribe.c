@@ -75,7 +75,8 @@ START_TEST(AddReaderGroupWithValidConfiguration) {
         /* To test if ReaderGroup has been added to the connection with valid configuration */
         UA_StatusCode retVal;
         UA_ReaderGroupConfig readerGroupConfig;
-        memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
+        retVal = UA_Server_ReaderGroup_setDefaultConfig(&readerGroupConfig);
+        ck_assert(retVal == UA_STATUSCODE_GOOD);
         readerGroupConfig.name = UA_STRING("ReaderGroup Test");
         UA_NodeId localreaderGroup;
         retVal =  UA_Server_addReaderGroup(server, connection_test, &readerGroupConfig, &localreaderGroup);
@@ -109,7 +110,8 @@ START_TEST(AddReaderGroupWithInvalidConnectionId) {
         /* Check status of adding ReaderGroup with invalid connection identifier */
         UA_StatusCode retVal = UA_STATUSCODE_GOOD;
         UA_ReaderGroupConfig readerGroupConfig;
-        memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
+        retVal = UA_Server_ReaderGroup_setDefaultConfig(&readerGroupConfig);
+        ck_assert(retVal == UA_STATUSCODE_GOOD);
         readerGroupConfig.name = UA_STRING("ReaderGroup Test");
         retVal |=  UA_Server_addReaderGroup(server, UA_NODEID_NUMERIC(0, UA_UINT32_MAX), &readerGroupConfig, NULL);
         ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
@@ -127,7 +129,8 @@ START_TEST(RemoveReaderGroupWithInvalidIdentifier) {
         UA_StatusCode retVal = UA_STATUSCODE_GOOD;
         UA_ReaderGroupConfig readerGroupConfig;
         UA_NodeId localreaderGroup;
-        memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
+        retVal = UA_Server_ReaderGroup_setDefaultConfig(&readerGroupConfig);
+        ck_assert(retVal == UA_STATUSCODE_GOOD);
         readerGroupConfig.name = UA_STRING("ReaderGroup Test");
         retVal |=  UA_Server_addReaderGroup(server, connection_test, &readerGroupConfig, &localreaderGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -147,7 +150,8 @@ START_TEST(RemoveReaderGroupWithInvalidIdentifier) {
 START_TEST(AddRemoveMultipleAddReaderGroupWithValidConfiguration) {
         UA_StatusCode retVal   = UA_STATUSCODE_GOOD;
         UA_ReaderGroupConfig readerGroupConfig;
-        memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
+        retVal = UA_Server_ReaderGroup_setDefaultConfig(&readerGroupConfig);
+        ck_assert(retVal == UA_STATUSCODE_GOOD);
         readerGroupConfig.name = UA_STRING("ReaderGroup 1");
         UA_NodeId localReaderGroup;
         /* Add ReaderGroup */
@@ -185,7 +189,8 @@ START_TEST(UpdateReaderGroupWithInvalidIdentifier) {
         UA_StatusCode retVal = UA_STATUSCODE_GOOD;
         UA_ReaderGroupConfig readerGroupConfig;
         UA_NodeId localreaderGroup;
-        memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
+        retVal = UA_Server_ReaderGroup_setDefaultConfig(&readerGroupConfig);
+        ck_assert(retVal == UA_STATUSCODE_GOOD);
         readerGroupConfig.name = UA_STRING("ReaderGroup Test");
         retVal |=  UA_Server_addReaderGroup(server, connection_test, &readerGroupConfig, &localreaderGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -200,7 +205,8 @@ START_TEST(GetReaderGroupConfigWithInvalidConfig) {
         UA_StatusCode retVal = UA_STATUSCODE_GOOD;
         UA_ReaderGroupConfig readerGroupConfig;
         UA_NodeId localreaderGroup;
-        memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
+        retVal = UA_Server_ReaderGroup_setDefaultConfig(&readerGroupConfig);
+        ck_assert(retVal == UA_STATUSCODE_GOOD);
         readerGroupConfig.name = UA_STRING("ReaderGroup Test");
         retVal |=  UA_Server_addReaderGroup(server, connection_test, &readerGroupConfig, &localreaderGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -214,7 +220,8 @@ START_TEST(GetReaderGroupConfigWithInvalidIdentifier) {
         UA_StatusCode retVal = UA_STATUSCODE_GOOD;
         UA_ReaderGroupConfig readerGroupConfig;
         UA_NodeId localreaderGroup;
-        memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
+        retVal = UA_Server_ReaderGroup_setDefaultConfig(&readerGroupConfig);
+        ck_assert(retVal == UA_STATUSCODE_GOOD);
         readerGroupConfig.name = UA_STRING("ReaderGroup Test");
         retVal |=  UA_Server_addReaderGroup(server, connection_test, &readerGroupConfig, &localreaderGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -228,7 +235,8 @@ START_TEST(GetReaderGroupConfigWithValidConfig) {
         UA_StatusCode retVal = UA_STATUSCODE_GOOD;
         UA_NodeId localreaderGroup;
         UA_ReaderGroupConfig readerGroupConfig;
-        memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
+        retVal = UA_Server_ReaderGroup_setDefaultConfig(&readerGroupConfig);
+        ck_assert(retVal == UA_STATUSCODE_GOOD);
         readerGroupConfig.name = UA_STRING("ReaderGroup Test");
         retVal |=  UA_Server_addReaderGroup(server, connection_test, &readerGroupConfig, &localreaderGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -245,7 +253,8 @@ START_TEST(AddDataSetReaderWithValidConfiguration) {
         UA_NodeId localreaderGroup;
         UA_ReaderGroupConfig readerGroupConfig;
         UA_NodeId localDataSetreader;
-        memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
+        retVal = UA_Server_ReaderGroup_setDefaultConfig(&readerGroupConfig);
+        ck_assert(retVal == UA_STATUSCODE_GOOD);
         readerGroupConfig.name = UA_STRING("ReaderGroup Test");
         retVal |=  UA_Server_addReaderGroup(server, connection_test, &readerGroupConfig, &localreaderGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -261,7 +270,8 @@ START_TEST(AddDataSetReaderWithNullConfig) {
         UA_DataSetReaderConfig dataSetreaderConfig;
         UA_NodeId localreaderGroup;
         UA_ReaderGroupConfig readerGroupConfig;
-        memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
+        retVal = UA_Server_ReaderGroup_setDefaultConfig(&readerGroupConfig);
+        ck_assert(retVal == UA_STATUSCODE_GOOD);
         readerGroupConfig.name = UA_STRING("ReaderGroup Test");
         retVal |=  UA_Server_addReaderGroup(server, connection_test, &readerGroupConfig, &localreaderGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -279,7 +289,8 @@ START_TEST(RemoveDataSetReaderWithValidConfiguration) {
         UA_NodeId localreaderGroup;
         UA_ReaderGroupConfig readerGroupConfig;
         UA_NodeId localDataSetreader;
-        memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
+        retVal = UA_Server_ReaderGroup_setDefaultConfig(&readerGroupConfig);
+        ck_assert(retVal == UA_STATUSCODE_GOOD);
         readerGroupConfig.name = UA_STRING("ReaderGroup Test");
         retVal |=  UA_Server_addReaderGroup(server, connection_test, &readerGroupConfig, &localreaderGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -297,7 +308,8 @@ START_TEST(RemoveDataSetReaderWithInvalidIdentifier) {
         UA_DataSetReaderConfig dataSetreaderConfig;
         UA_NodeId localreaderGroup;
         UA_ReaderGroupConfig readerGroupConfig;
-        memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
+        retVal = UA_Server_ReaderGroup_setDefaultConfig(&readerGroupConfig);
+        ck_assert(retVal == UA_STATUSCODE_GOOD);
         readerGroupConfig.name = UA_STRING("ReaderGroup Test");
         retVal |=  UA_Server_addReaderGroup(server, connection_test, &readerGroupConfig, &localreaderGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -313,7 +325,8 @@ START_TEST(RemoveDataSetReaderWithInvalidIdentifier) {
 START_TEST(AddMultipleDataSetReaderWithValidConfiguration) {
         UA_StatusCode retVal    = UA_STATUSCODE_GOOD;
         UA_ReaderGroupConfig readerGroupConfig;
-        memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
+        retVal = UA_Server_ReaderGroup_setDefaultConfig(&readerGroupConfig);
+        ck_assert(retVal == UA_STATUSCODE_GOOD);
         readerGroupConfig.name  = UA_STRING("ReaderGroup 1");
         UA_NodeId localReaderGroup;
         UA_NodeId localReaderGroup2;
@@ -352,7 +365,8 @@ START_TEST(UpdateDataSetReaderConfigWithInvalidId) {
         UA_NodeId localreaderGroup;
         UA_NodeId localDataSetreader;
         UA_ReaderGroupConfig readerGroupConfig;
-        memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
+        retVal = UA_Server_ReaderGroup_setDefaultConfig(&readerGroupConfig);
+        ck_assert(retVal == UA_STATUSCODE_GOOD);
         readerGroupConfig.name = UA_STRING("ReaderGroup Test");
         retVal |=  UA_Server_addReaderGroup(server, connection_test, &readerGroupConfig, &localreaderGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -372,7 +386,8 @@ START_TEST(GetDataSetReaderConfigWithValidConfiguration) {
         UA_NodeId localreaderGroup;
         UA_NodeId localDataSetreader;
         UA_ReaderGroupConfig readerGroupConfig;
-        memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
+        retVal = UA_Server_ReaderGroup_setDefaultConfig(&readerGroupConfig);
+        ck_assert(retVal == UA_STATUSCODE_GOOD);
         readerGroupConfig.name = UA_STRING("ReaderGroup Test");
         retVal |=  UA_Server_addReaderGroup(server, connection_test, &readerGroupConfig, &localreaderGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -390,7 +405,8 @@ START_TEST(GetDataSetReaderConfigWithInvalidConfiguration) {
         UA_NodeId localreaderGroup;
         UA_NodeId localDataSetreader;
         UA_ReaderGroupConfig readerGroupConfig;
-        memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
+        retVal = UA_Server_ReaderGroup_setDefaultConfig(&readerGroupConfig);
+        ck_assert(retVal == UA_STATUSCODE_GOOD);
         readerGroupConfig.name = UA_STRING("ReaderGroup Test");
         retVal |=  UA_Server_addReaderGroup(server, connection_test, &readerGroupConfig, &localreaderGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -408,7 +424,8 @@ START_TEST(GetDataSetReaderConfigWithInvalidIdentifier) {
         UA_NodeId localreaderGroup;
         UA_NodeId localDataSetreader;
         UA_ReaderGroupConfig readerGroupConfig;
-        memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
+        retVal = UA_Server_ReaderGroup_setDefaultConfig(&readerGroupConfig);
+        ck_assert(retVal == UA_STATUSCODE_GOOD);
         readerGroupConfig.name = UA_STRING("ReaderGroup Test");
         retVal |=  UA_Server_addReaderGroup(server, connection_test, &readerGroupConfig, &localreaderGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -426,7 +443,8 @@ START_TEST(UpdateDataSetReaderConfigWithValidConfiguration){
         UA_NodeId localreaderGroup;
         UA_NodeId localDataSetReaderId;
         UA_ReaderGroupConfig readerGroupConfig;
-        memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
+        retVal = UA_Server_ReaderGroup_setDefaultConfig(&readerGroupConfig);
+        ck_assert(retVal == UA_STATUSCODE_GOOD);
         readerGroupConfig.name = UA_STRING("ReaderGroup Test");
         retVal |=  UA_Server_addReaderGroup(server, connection_test, &readerGroupConfig, &localreaderGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -517,7 +535,8 @@ START_TEST(CreateTargetVariableWithInvalidConfiguration) {
         UA_NodeId localreaderGroup;
         UA_NodeId localDataSetreader;
         UA_ReaderGroupConfig readerGroupConfig;
-        memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
+        retVal = UA_Server_ReaderGroup_setDefaultConfig(&readerGroupConfig);
+        ck_assert(retVal == UA_STATUSCODE_GOOD);
         readerGroupConfig.name = UA_STRING("ReaderGroup Test");
         retVal |=  UA_Server_addReaderGroup(server, connection_test, &readerGroupConfig, &localreaderGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -573,7 +592,8 @@ START_TEST(SinglePublishSubscribeDateTime) {
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         /* Reader Group */
         UA_ReaderGroupConfig readerGroupConfig;
-        memset (&readerGroupConfig, 0, sizeof (UA_ReaderGroupConfig));
+        retVal = UA_Server_ReaderGroup_setDefaultConfig(&readerGroupConfig);
+        ck_assert(retVal == UA_STATUSCODE_GOOD);
         readerGroupConfig.name = UA_STRING ("ReaderGroup Test");
         retVal |=  UA_Server_addReaderGroup (server, connection_test, &readerGroupConfig, &readerGroupTest);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -727,7 +747,8 @@ START_TEST(SinglePublishSubscribeInt32) {
 
         /* Reader Group */
         UA_ReaderGroupConfig readerGroupConfig;
-        memset (&readerGroupConfig, 0, sizeof (UA_ReaderGroupConfig));
+        retVal = UA_Server_ReaderGroup_setDefaultConfig(&readerGroupConfig);
+        ck_assert(retVal == UA_STATUSCODE_GOOD);
         readerGroupConfig.name = UA_STRING ("ReaderGroup Test");
         retVal |=  UA_Server_addReaderGroup(server, connection_test, &readerGroupConfig, &readerGroupTest);
         UA_Server_setReaderGroupOperational(server, readerGroupTest);
@@ -899,7 +920,8 @@ START_TEST(SinglePublishSubscribeInt64) {
 
         /* Reader Group */
         UA_ReaderGroupConfig readerGroupConfig;
-        memset (&readerGroupConfig, 0, sizeof (UA_ReaderGroupConfig));
+        retVal = UA_Server_ReaderGroup_setDefaultConfig(&readerGroupConfig);
+        ck_assert(retVal == UA_STATUSCODE_GOOD);
         readerGroupConfig.name = UA_STRING ("ReaderGroup Test");
         retVal |=  UA_Server_addReaderGroup(server, connection_test, &readerGroupConfig, &readerGroupTest);
         UA_Server_setReaderGroupOperational(server, readerGroupTest);
@@ -1071,7 +1093,8 @@ START_TEST(SinglePublishSubscribeBool) {
 
         /* Reader Group */
         UA_ReaderGroupConfig readerGroupConfig;
-        memset (&readerGroupConfig, 0, sizeof (UA_ReaderGroupConfig));
+        retVal = UA_Server_ReaderGroup_setDefaultConfig(&readerGroupConfig);
+        ck_assert(retVal == UA_STATUSCODE_GOOD);
         readerGroupConfig.name = UA_STRING ("ReaderGroup Test");
         retVal |=  UA_Server_addReaderGroup(server, connection_test, &readerGroupConfig, &readerGroupTest);
         UA_Server_setReaderGroupOperational(server, readerGroupTest);
@@ -1244,7 +1267,8 @@ START_TEST(SinglePublishSubscribewithValidIdentifiers) {
 
         /* Reader Group */
         UA_ReaderGroupConfig readerGroupConfig;
-        memset (&readerGroupConfig, 0, sizeof (UA_ReaderGroupConfig));
+        retVal = UA_Server_ReaderGroup_setDefaultConfig(&readerGroupConfig);
+        ck_assert(retVal == UA_STATUSCODE_GOOD);
         readerGroupConfig.name = UA_STRING ("ReaderGroup Test");
         retVal |=  UA_Server_addReaderGroup(server, connection_test, &readerGroupConfig, &readerGroupTest);
         UA_Server_setReaderGroupOperational(server, readerGroupTest);

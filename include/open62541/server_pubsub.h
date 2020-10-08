@@ -701,6 +701,8 @@ typedef struct {
     /* PubSub Manager Callback */
     UA_PubSub_CallbackLifecycle pubsubManagerCallback;
     /* non std. field */
+    UA_Duration subscribingInterval;
+    UA_UInt32 timeout; // Timeout for receive to wait for the packets
     UA_PubSubRTLevel rtLevel;
 } UA_ReaderGroupConfig;
 
@@ -729,6 +731,10 @@ UA_Server_ReaderGroup_getConfig(UA_Server *server, UA_NodeId readerGroupIdentifi
 UA_StatusCode UA_EXPORT
 UA_Server_ReaderGroup_getState(UA_Server *server, UA_NodeId readerGroupIdentifier,
                                UA_PubSubState *state);
+
+/* Set default configuraiton of ReaderGroup */
+UA_StatusCode UA_EXPORT
+UA_Server_ReaderGroup_setDefaultConfig(UA_ReaderGroupConfig *config);
 
 /* Add ReaderGroup to the created connection */
 UA_StatusCode UA_EXPORT
