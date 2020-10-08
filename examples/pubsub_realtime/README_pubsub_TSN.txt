@@ -47,7 +47,7 @@ TO RUN ETF APPLICATIONS:
 To run ETF applications over Ethernet in two nodes connected in peer-to-peer network
     mkdir build
     cd build
-    cmake -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_ETH_UADP=ON -DUA_ENABLE_PUBSUB_ETH_UADP_ETF=ON ..
+    cmake -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_ETH_UADP=ON ..
     make
 
 The generated binaries are generated in build/bin/ folder
@@ -90,7 +90,7 @@ As per the sample application, XDP listens to Rx_Queue 2; to direct the incoming
         ethtool --config-ntuple <I210 interface> flow-type ether proto 0x8100 dst 01:00:5E:7F:00:02 loc 14 action 2
 
 To run ETF in Publisher and XDP in Subscriber in two nodes connected in peer-to-peer network
-    cmake -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_ETH_UADP=ON -DUA_ENABLE_PUBSUB_ETH_UADP_ETF=ON -DUA_ENABLE_PUBSUB_ETH_UADP_XDP=ON ..
+    cmake -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_ETH_UADP=ON -DUA_ENABLE_PUBSUB_ETH_UADP_XDP=ON ..
     make
     ./bin/examples/pubsub_TSN_publisher <I210 interface> - Run in node 1
     ./bin/examples/pubsub_TSN_loopback <I210 interface>  - Run in node 2
@@ -136,7 +136,7 @@ Change the ethernet interface in #define ETHERNET_INTERFACE macro in
 1. To test ethernet connection creation and ethernet publish unit tests(without realtime)
         cd open62541/build
         make clean
-        cmake -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_ETH_UADP=ON -DUA_ENABLE_PUBSUB_ETH_UADP_ETF=OFF -DUA_BUILD_UNIT_TESTS=ON ..
+        cmake -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_ETH_UADP=ON -DUA_BUILD_UNIT_TESTS=ON ..
         make
         The following binaries are generated in build/bin/tests folder
           ./bin/tests/check_pubsub_connection_ethernet - To check ethernet connection creation
@@ -145,7 +145,7 @@ Change the ethernet interface in #define ETHERNET_INTERFACE macro in
 2. To test ethernet connection creation and ethernet publish unit tests(with realtime)
         cd open62541/build
         make clean
-        cmake -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_ETH_UADP=ON -DUA_ENABLE_PUBSUB_ETH_UADP_ETF=ON -DUA_BUILD_UNIT_TESTS=ON ..
+        cmake -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_ETH_UADP=ON -DUA_BUILD_UNIT_TESTS=ON ..
         make
         The following binaries are generated in build/bin/tests folder
           ./bin/tests/check_pubsub_connection_ethernet_etf - To check ethernet connection creation with etf
@@ -156,7 +156,7 @@ TO RUN THE UNIT TEST CASES FOR XDP FUNCTIONALITY:
 1. To test connection creation using XDP transport layer
         cd open62541/build
         make clean
-        cmake -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_ETH_UADP=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_PUBSUB_ETH_UADP_ETF=ON -DUA_ENABLE_PUBSUB_ETH_UADP_XDP=ON ..
+        cmake -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_ETH_UADP=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_PUBSUB_ETH_UADP_XDP=ON ..
         make
         The following binary is generated in build/bin/tests folder
           ./bin/tests/check_pubsub_connection_xdp <I210 interface> - To check connection creation with XDP

@@ -21,7 +21,7 @@
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/types_generated.h>
-#include <open62541/plugin/pubsub_ethernet_etf.h>
+#include <open62541/plugin/pubsub_ethernet.h>
 
 #include "ua_pubsub.h"
 #include "open62541/namespace_example_subscriber_generated.h"
@@ -152,7 +152,7 @@ static void nanoSecondFieldConversion(struct timespec *timeSpecValue) {
 
 /* Add a callback for cyclic repetition */
 static UA_StatusCode
-addPubSubApplicationCallback(UA_Server *server, UA_NodeId identifier, UA_CustomPublishCallback callback,
+addPubSubApplicationCallback(UA_Server *server, UA_NodeId identifier, UA_ServerCallback callback,
                              void *data, UA_Double interval_ms, UA_UInt64 *callbackId) {
     /* Initialize arguments required for the thread to run */
     threadArg *threadArguments = (threadArg *) UA_malloc(sizeof(threadArg));
@@ -588,7 +588,7 @@ int main(int argc, char **argv) {
         return EXIT_FAILURE;
     }
 
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerEthernetETF();
+    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerEthernet();
     config->pubsubTransportLayersSize++;
 
     addPubSubConnectionSubscriber(server, &networkAddressUrlSub);
