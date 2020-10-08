@@ -163,16 +163,6 @@ typedef enum {
     UA_PUBSUB_PUBLISHERID_STRING
 } UA_PublisherIdType;
 
-#ifdef UA_ENABLE_PUBSUB_ETH_UADP_ETF
-typedef struct {
-    UA_Int32 socketPriority;
-    UA_Boolean sotxtimeEnabled;
-    /* SO_TXTIME-specific additional socket config */
-    UA_Int32 sotxtimeDeadlinemode;
-    UA_Int32 sotxtimeReceiveerrors;
-} UA_ETFConfiguration;
-#endif
-
 struct UA_PubSubConnectionConfig {
     UA_String name;
     UA_Boolean enabled;
@@ -186,10 +176,6 @@ struct UA_PubSubConnectionConfig {
     size_t connectionPropertiesSize;
     UA_KeyValuePair *connectionProperties;
     UA_Variant connectionTransportSettings;
-#ifdef UA_ENABLE_PUBSUB_ETH_UADP_ETF
-    /* ETF related connection configuration - Not in PubSub specfication */
-    UA_ETFConfiguration etfConfiguration;
-#endif
 };
 
 #ifdef UA_ENABLE_PUBSUB_MONITORING
