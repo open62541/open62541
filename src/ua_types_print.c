@@ -364,6 +364,22 @@ printString(UA_PrintContext *ctx, const UA_String *p, const UA_DataType *_) {
 }
 
 static UA_StatusCode
+printByteString(UA_PrintContext *ctx, const UA_ByteString *p, const UA_DataType *_) {
+    if(p->data == NULL) {
+        return UA_PrintContext_addString(ctx, "NullByteString");
+    }
+
+    UA_String str = UA_BYTESTRING_NULL;
+    UA_StatusCode res = UA_ByteString_toBase64(p, &str);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    res = printString(ctx, &str, NULL);
+    UA_String_clear(&str);
+    return res;
+}
+
+static UA_StatusCode
 printQualifiedName(UA_PrintContext *ctx, const UA_QualifiedName *p, const UA_DataType *_) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     retval |= UA_PrintContext_addString(ctx, "{");
@@ -670,18 +686,18 @@ const UA_printSignature printJumpTable[UA_DATATYPEKINDS] = {
     (UA_printSignature)printDouble,
     (UA_printSignature)printString,
     (UA_printSignature)printDateTime,
-    (UA_printSignature)printNotImplemented, /* xx Guid */
-    (UA_printSignature)printString, /* ByteString */
+    (UA_printSignature)printNotImplemented, /* Guid */
+    (UA_printSignature)printByteString,
     (UA_printSignature)printString, /* XmlElement */
     (UA_printSignature)printNodeId,
     (UA_printSignature)printExpandedNodeId,
     (UA_printSignature)printStatusCode,
-    (UA_printSignature)printQualifiedName, /* QualifiedName */
-    (UA_printSignature)printLocalizedText, /* LocalizedText */
+    (UA_printSignature)printQualifiedName,
+    (UA_printSignature)printLocalizedText,
     (UA_printSignature)printNotImplemented, /* ExtensionObject */
-    (UA_printSignature)printDataValue, /* DataValue */
-    (UA_printSignature)printVariant, /* Variant */
-    (UA_printSignature)printDiagnosticInfo, /* DiagnosticValue */
+    (UA_printSignature)printDataValue,
+    (UA_printSignature)printVariant,
+    (UA_printSignature)printDiagnosticInfo,
     (UA_printSignature)printNotImplemented, /* Decimal */
     (UA_printSignature)printUInt32,         /* Enumeration */
     (UA_printSignature)printStructure,
