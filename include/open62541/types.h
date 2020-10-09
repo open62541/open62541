@@ -1067,7 +1067,7 @@ void UA_EXPORT UA_delete(void *p, const UA_DataType *type);
  * @param output A string that is memory-allocated for the pretty-printed output
  * @return Indicates whether the operation succeeded*/
 UA_StatusCode UA_EXPORT
-UA_print(void *p, const UA_DataType *type, UA_String *output);
+UA_print(const void *p, const UA_DataType *type, UA_String *output);
 #endif
 
 /**

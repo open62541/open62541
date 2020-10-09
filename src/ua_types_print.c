@@ -555,7 +555,7 @@ const UA_printSignature printJumpTable[UA_DATATYPEKINDS] = {
 };
 
 UA_StatusCode
-UA_print(void *p, const UA_DataType *type, UA_String *output) {
+UA_print(const void *p, const UA_DataType *type, UA_String *output) {
     UA_PrintContext ctx;
     ctx.depth = 0;
     TAILQ_INIT(&ctx.outputs);
