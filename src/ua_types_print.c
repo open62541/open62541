@@ -460,6 +460,65 @@ printVariant(UA_PrintContext *ctx, const UA_Variant *p, const UA_DataType *_) {
 }
 
 static UA_StatusCode
+printExtensionObject(UA_PrintContext *ctx, const UA_ExtensionObject*p,
+                     const UA_DataType *_) {
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    switch(p->encoding) {
+    case UA_EXTENSIONOBJECT_ENCODED_NOBODY:
+        return UA_PrintContext_addString(ctx, "ExtensionObject(No Body)");
+    case UA_EXTENSIONOBJECT_ENCODED_BYTESTRING:
+        res |= UA_PrintContext_addString(ctx, "ExtensionObject(Binary Encoded) {");
+        ctx->depth++;
+        res |= UA_PrintContext_addNewlineTabs(ctx, ctx->depth);
+        res |= UA_PrintContext_addName(ctx, "DataType");
+        res |= printNodeId(ctx, &p->content.encoded.typeId, NULL);
+        res |= UA_PrintContext_addString(ctx, ",");
+        res |= UA_PrintContext_addNewlineTabs(ctx, ctx->depth);
+        res |= UA_PrintContext_addName(ctx, "Body");
+        res |= printByteString(ctx, &p->content.encoded.body, NULL);
+        ctx->depth--;
+        res |= UA_PrintContext_addNewlineTabs(ctx, ctx->depth);
+        res |= UA_PrintContext_addName(ctx, "}");
+        break;
+    case UA_EXTENSIONOBJECT_ENCODED_XML:
+        res |= UA_PrintContext_addString(ctx, "ExtensionObject(XML Encoded) {");
+        ctx->depth++;
+        res |= UA_PrintContext_addNewlineTabs(ctx, ctx->depth);
+        res |= UA_PrintContext_addName(ctx, "DataType");
+        res |= printNodeId(ctx, &p->content.encoded.typeId, NULL);
+        res |= UA_PrintContext_addString(ctx, ",");
+        res |= UA_PrintContext_addNewlineTabs(ctx, ctx->depth);
+        res |= UA_PrintContext_addName(ctx, "Body");
+        res |= printString(ctx, (const UA_String*)&p->content.encoded.body, NULL);
+        ctx->depth--;
+        res |= UA_PrintContext_addNewlineTabs(ctx, ctx->depth);
+        res |= UA_PrintContext_addName(ctx, "}");
+        break;
+    case UA_EXTENSIONOBJECT_DECODED:
+    case UA_EXTENSIONOBJECT_DECODED_NODELETE:
+        res |= UA_PrintContext_addString(ctx, "ExtensionObject {");
+        ctx->depth++;
+        res |= UA_PrintContext_addNewlineTabs(ctx, ctx->depth);
+        res |= UA_PrintContext_addName(ctx, "DataType");
+        res |= UA_PrintContext_addString(ctx, p->content.decoded.type->typeName);
+        res |= UA_PrintContext_addString(ctx, ",");
+        res |= UA_PrintContext_addNewlineTabs(ctx, ctx->depth);
+        res |= UA_PrintContext_addName(ctx, "Body");
+        res |= printJumpTable[p->content.decoded.type->typeKind](ctx,
+                                                                 p->content.decoded.data,
+                                                                 p->content.decoded.type);
+        ctx->depth--;
+        res |= UA_PrintContext_addNewlineTabs(ctx, ctx->depth);
+        res |= UA_PrintContext_addName(ctx, "}");
+        break;
+    default:
+        res = UA_STATUSCODE_BADINTERNALERROR;
+        break;
+    }
+    return res;
+}
+
+static UA_StatusCode
 printDataValue(UA_PrintContext *ctx, const UA_DataValue *p, const UA_DataType *_) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     retval |= UA_PrintContext_addString(ctx, "{");
@@ -695,13 +754,13 @@ const UA_printSignature printJumpTable[UA_DATATYPEKINDS] = {
     (UA_printSignature)printDateTime,
     (UA_printSignature)printGuid,
     (UA_printSignature)printByteString,
-    (UA_printSignature)printString, /* XmlElement */
+    (UA_printSignature)printString,         /* XmlElement */
     (UA_printSignature)printNodeId,
     (UA_printSignature)printExpandedNodeId,
     (UA_printSignature)printStatusCode,
     (UA_printSignature)printQualifiedName,
     (UA_printSignature)printLocalizedText,
-    (UA_printSignature)printNotImplemented, /* ExtensionObject */
+    (UA_printSignature)printExtensionObject,
     (UA_printSignature)printDataValue,
     (UA_printSignature)printVariant,
     (UA_printSignature)printDiagnosticInfo,
@@ -710,7 +769,7 @@ const UA_printSignature printJumpTable[UA_DATATYPEKINDS] = {
     (UA_printSignature)printStructure,
     (UA_printSignature)printNotImplemented, /* Structure with Optional Fields */
     (UA_printSignature)printNotImplemented, /* Union */
-    (UA_printSignature)printNotImplemented /* BitfieldCluster*/
+    (UA_printSignature)printNotImplemented  /* BitfieldCluster*/
 };
 
 UA_StatusCode
