@@ -352,6 +352,13 @@ printDateTime(UA_PrintContext *ctx, const UA_DateTime *p, const UA_DataType *_) 
 }
 
 static UA_StatusCode
+printGuid(UA_PrintContext *ctx, const UA_Guid *p, const UA_DataType *_) {
+    char tmp[100];
+    UA_snprintf(tmp, 100, UA_PRINTF_GUID_FORMAT, UA_PRINTF_GUID_DATA(*p));
+    return UA_PrintContext_addString(ctx, tmp);
+}
+
+static UA_StatusCode
 printString(UA_PrintContext *ctx, const UA_String *p, const UA_DataType *_) {
     if(p->data == NULL) {
         return UA_PrintContext_addString(ctx, "NullString");
@@ -686,7 +693,7 @@ const UA_printSignature printJumpTable[UA_DATATYPEKINDS] = {
     (UA_printSignature)printDouble,
     (UA_printSignature)printString,
     (UA_printSignature)printDateTime,
-    (UA_printSignature)printNotImplemented, /* Guid */
+    (UA_printSignature)printGuid,
     (UA_printSignature)printByteString,
     (UA_printSignature)printString, /* XmlElement */
     (UA_printSignature)printNodeId,
