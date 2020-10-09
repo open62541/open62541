@@ -774,7 +774,7 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
 # TODO: make client optional
 set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.c
-                ${PROJECT_SOURCE_DIR}/src/ua_types_prettyprint.c
+                ${PROJECT_SOURCE_DIR}/src/ua_types_print.c
                 ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated.c
                 ${PROJECT_BINARY_DIR}/src_generated/open62541/transport_generated.c
                 ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.c
