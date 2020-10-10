@@ -361,9 +361,8 @@ printGuid(UA_PrintContext *ctx, const UA_Guid *p, const UA_DataType *_) {
 
 static UA_StatusCode
 printString(UA_PrintContext *ctx, const UA_String *p, const UA_DataType *_) {
-    if(p->data == NULL) {
+    if(!p->data)
         return UA_PrintContext_addString(ctx, "NullString");
-    }
     UA_PrintOutput *out = UA_PrintContext_addOutput(ctx, p->length+2);
     if(!out)
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -373,15 +372,12 @@ printString(UA_PrintContext *ctx, const UA_String *p, const UA_DataType *_) {
 
 static UA_StatusCode
 printByteString(UA_PrintContext *ctx, const UA_ByteString *p, const UA_DataType *_) {
-    if(p->data == NULL) {
+    if(!p->data)
         return UA_PrintContext_addString(ctx, "NullByteString");
-    }
-
     UA_String str = UA_BYTESTRING_NULL;
     UA_StatusCode res = UA_ByteString_toBase64(p, &str);
     if(res != UA_STATUSCODE_GOOD)
         return res;
-
     res = printString(ctx, &str, NULL);
     UA_String_clear(&str);
     return res;
@@ -425,9 +421,8 @@ printLocalizedText(UA_PrintContext *ctx, const UA_LocalizedText *p, const UA_Dat
 
 static UA_StatusCode
 printVariant(UA_PrintContext *ctx, const UA_Variant *p, const UA_DataType *_) {
-    if(!p->type) {
+    if(!p->type)
         return UA_PrintContext_addString(ctx, "NullVariant");
-    }
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     retval |= UA_PrintContext_addString(ctx, "{");
@@ -440,11 +435,10 @@ printVariant(UA_PrintContext *ctx, const UA_Variant *p, const UA_DataType *_) {
 
     retval |= UA_PrintContext_addNewlineTabs(ctx, ctx->depth);
     retval |= UA_PrintContext_addName(ctx, "Value");
-    if(UA_Variant_isScalar(p)) {
+    if(UA_Variant_isScalar(p))
         retval |= printJumpTable[p->type->typeKind](ctx, p->data, p->type);
-    } else {
+    else
         retval |= printArray(ctx, p->data, p->arrayLength, p->type);
-    }
 
     if(p->arrayDimensionsSize > 0) {
         retval |= UA_PrintContext_addString(ctx, ",");
@@ -670,7 +664,7 @@ static UA_StatusCode
 printArray(UA_PrintContext *ctx, const void *p, const size_t length,
            const UA_DataType *type) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(p == NULL) {
+    if(!p) {
         retval |= UA_PrintContext_addString(ctx, "Array(-1, ");
         retval |= UA_PrintContext_addString(ctx, type->typeName);
         retval |= UA_PrintContext_addString(ctx, ")");
