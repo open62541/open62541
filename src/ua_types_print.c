@@ -316,11 +316,12 @@ printNodeId(UA_PrintContext *ctx, const UA_NodeId *p, const UA_DataType *_) {
     if(res != UA_STATUSCODE_GOOD)
         return res;
     UA_PrintOutput *po = UA_PrintContext_addOutput(ctx, out.length);
-    if(!po)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    memcpy(po->data, out.data, out.length);
+    if(po)
+        memcpy(po->data, out.data, out.length);
+    else
+        res = UA_STATUSCODE_BADOUTOFMEMORY;
     UA_String_clear(&out);
-    return UA_STATUSCODE_GOOD;
+    return res;
 }
 
 static UA_StatusCode
