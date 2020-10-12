@@ -124,6 +124,9 @@ typedef struct UA_Notification {
         UA_EventFieldList event;
 #endif
     } data;
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    UA_Boolean isOverflowEvent; /* Counted manually */
+#endif
 } UA_Notification;
 
 /* Notifications are always added to the queue of the MonitoredItem. That queue
