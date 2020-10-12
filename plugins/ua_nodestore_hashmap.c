@@ -449,6 +449,10 @@ UA_NodeMap_iterate(void *context, UA_NodestoreVisitor visitor,
 
 static void
 UA_NodeMap_delete(void *context) {
+    /* Already cleaned up? */
+    if(!context)
+        return;
+
     UA_NodeMap *ns = (UA_NodeMap*)context;
     UA_UInt32 size = ns->size;
     UA_NodeMapSlot *slots = ns->slots;
