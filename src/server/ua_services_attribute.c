@@ -496,14 +496,13 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
         retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
     }
 
-    /* Return error code when reading has failed */
     if(retval != UA_STATUSCODE_GOOD) {
+        /* Reading has failed but can not return because we may need to add timestamp */
         v->hasStatus = true;
         v->status = retval;
-        return;
+    } else {
+        v->hasValue = true;
     }
-
-    v->hasValue = true;
 
     /* Create server timestamp */
     if(timestampsToReturn == UA_TIMESTAMPSTORETURN_SERVER ||
