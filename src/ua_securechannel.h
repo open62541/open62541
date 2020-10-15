@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2014-2020 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Florian Palm
@@ -133,10 +133,11 @@ struct UA_SecureChannel {
                                       const UA_AsymmetricAlgorithmSecurityHeader *asymHeader);
 };
 
-void UA_SecureChannel_init(UA_SecureChannel *channel,
-                           const UA_ConnectionConfig *config);
+void 
+UA_SecureChannel_init(UA_SecureChannel *channel, const UA_ConnectionConfig *config);
 
-void UA_SecureChannel_close(UA_SecureChannel *channel);
+void
+UA_SecureChannel_close(UA_SecureChannel *channel);
 
 /* Process the remote configuration in the HEL/ACK handshake. The connection
  * config is initialized with the local settings. */
@@ -219,14 +220,19 @@ UA_MessageContext_finish(UA_MessageContext *mc);
 void
 UA_MessageContext_abort(UA_MessageContext *mc);
 
+/* Cleans up the send buffer for a given connection, used by _abort and similar functions,
+ * that do not use UA_MessageContext */
+void
+UA_Connection_releaseSendBuffer(UA_Connection *const connection, UA_ByteString *buffer);
+
 /**
  * Receive Message
  * --------------- */
 
 typedef UA_StatusCode
 (UA_ProcessMessageCallback)(void *application, UA_SecureChannel *channel,
-                            UA_MessageType messageType, UA_UInt32 requestId,
-                            UA_ByteString *message);
+                                        UA_MessageType messageType, UA_UInt32 requestId,
+                                        UA_ByteString *message);
 
 /* Process a received buffer. The callback function is called with the message
  * body if the message is complete. The message is removed afterwards. Returns
@@ -268,7 +274,7 @@ hideBytesAsym(const UA_SecureChannel *channel, UA_Byte **buf_start,
 UA_StatusCode
 decryptAndVerifyChunk(const UA_SecureChannel *channel,
                       const UA_SecurityPolicyCryptoModule *cryptoModule,
-                      UA_MessageType messageType, UA_ByteString *chunk,
+                      UA_MessageType messageType, UA_ByteString *chunk, 
                       size_t offset);
 
 size_t
@@ -298,8 +304,8 @@ padChunkAsym(UA_SecureChannel *channel, const UA_ByteString *buf,
              size_t securityHeaderLength, UA_Byte **buf_pos);
 
 UA_StatusCode
-signAndEncryptAsym(UA_SecureChannel *channel, size_t preSignLength,
-                   UA_ByteString *buf, size_t securityHeaderLength,
+signAndEncryptAsym(UA_SecureChannel *channel, size_t preSignLength, 
+                   UA_ByteString *buf, size_t securityHeaderLength, 
                    size_t totalLength);
 
 void
@@ -329,7 +335,7 @@ encryptChunkSym(UA_MessageContext *const messageContext, size_t totalLength);
                  ((CHANNEL)->connection ? (int)((CHANNEL)->connection->sockfd) : 0), \
                  (CHANNEL)->securityToken.channelId, __VA_ARGS__)
 
-#define UA_LOG_TRACE_CHANNEL(LOGGER, CHANNEL, ...)        \
+#define UA_LOG_TRACE_CHANNEL(LOGGER, CHANNEL, ...)                                       \
     UA_MACRO_EXPAND(UA_LOG_TRACE_CHANNEL_INTERNAL(LOGGER, CHANNEL, __VA_ARGS__, ""))
 
 #define UA_LOG_DEBUG_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)              \
@@ -338,7 +344,7 @@ encryptChunkSym(UA_MessageContext *const messageContext, size_t totalLength);
                  ((CHANNEL)->connection ? (int)((CHANNEL)->connection->sockfd) : 0), \
                  (CHANNEL)->securityToken.channelId, __VA_ARGS__)
 
-#define UA_LOG_DEBUG_CHANNEL(LOGGER, CHANNEL, ...)        \
+#define UA_LOG_DEBUG_CHANNEL(LOGGER, CHANNEL, ...)                                       \
     UA_MACRO_EXPAND(UA_LOG_DEBUG_CHANNEL_INTERNAL(LOGGER, CHANNEL, __VA_ARGS__, ""))
 
 #define UA_LOG_INFO_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)               \
@@ -347,7 +353,7 @@ encryptChunkSym(UA_MessageContext *const messageContext, size_t totalLength);
                  ((CHANNEL)->connection ? (int)((CHANNEL)->connection->sockfd) : 0), \
                  (CHANNEL)->securityToken.channelId, __VA_ARGS__)
 
-#define UA_LOG_INFO_CHANNEL(LOGGER, CHANNEL, ...)        \
+#define UA_LOG_INFO_CHANNEL(LOGGER, CHANNEL, ...)                                        \
     UA_MACRO_EXPAND(UA_LOG_INFO_CHANNEL_INTERNAL(LOGGER, CHANNEL, __VA_ARGS__, ""))
 
 #define UA_LOG_WARNING_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)            \
@@ -356,7 +362,7 @@ encryptChunkSym(UA_MessageContext *const messageContext, size_t totalLength);
                  ((CHANNEL)->connection ? (int)((CHANNEL)->connection->sockfd) : 0), \
                  (CHANNEL)->securityToken.channelId, __VA_ARGS__)
 
-#define UA_LOG_WARNING_CHANNEL(LOGGER, CHANNEL, ...)        \
+#define UA_LOG_WARNING_CHANNEL(LOGGER, CHANNEL, ...)                                     \
     UA_MACRO_EXPAND(UA_LOG_WARNING_CHANNEL_INTERNAL(LOGGER, CHANNEL, __VA_ARGS__, ""))
 
 #define UA_LOG_ERROR_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)              \
@@ -365,7 +371,7 @@ encryptChunkSym(UA_MessageContext *const messageContext, size_t totalLength);
                  ((CHANNEL)->connection ? (int)((CHANNEL)->connection->sockfd) : 0), \
                  (CHANNEL)->securityToken.channelId, __VA_ARGS__)
 
-#define UA_LOG_ERROR_CHANNEL(LOGGER, CHANNEL, ...)        \
+#define UA_LOG_ERROR_CHANNEL(LOGGER, CHANNEL, ...)                                       \
     UA_MACRO_EXPAND(UA_LOG_ERROR_CHANNEL_INTERNAL(LOGGER, CHANNEL, __VA_ARGS__, ""))
 
 #define UA_LOG_FATAL_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)              \
@@ -374,7 +380,7 @@ encryptChunkSym(UA_MessageContext *const messageContext, size_t totalLength);
                  ((CHANNEL)->connection ? (CHANNEL)->connection->sockfd : 0), \
                  (CHANNEL)->securityToken.channelId, __VA_ARGS__)
 
-#define UA_LOG_FATAL_CHANNEL(LOGGER, CHANNEL, ...)        \
+#define UA_LOG_FATAL_CHANNEL(LOGGER, CHANNEL, ...)                                       \
     UA_MACRO_EXPAND(UA_LOG_FATAL_CHANNEL_INTERNAL(LOGGER, CHANNEL, __VA_ARGS__, ""))
 
 _UA_END_DECLS
