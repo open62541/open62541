@@ -205,7 +205,7 @@ class CGenerator(object):
         if datatype.pointerfree == "true":
             funcs += "static UA_INLINE UA_StatusCode\nUA_%s_copy(const UA_%s *src, UA_%s *dst) {\n    *dst = *src;\n    return UA_STATUSCODE_GOOD;\n}\n\n" % (
                 idName, idName, idName)
-            funcs += "static UA_INLINE void\nUA_%s_deleteMembers(UA_%s *p) {\n    memset(p, 0, sizeof(UA_%s));\n}\n\n" % (
+            funcs += "UA_DEPRECATED static UA_INLINE void\nUA_%s_deleteMembers(UA_%s *p) {\n    memset(p, 0, sizeof(UA_%s));\n}\n\n" % (
                 idName, idName, idName)
             funcs += "static UA_INLINE void\nUA_%s_clear(UA_%s *p) {\n    memset(p, 0, sizeof(UA_%s));\n}\n\n" % (
                 idName, idName, idName)
@@ -217,7 +217,7 @@ class CGenerator(object):
 
             funcs += "static UA_INLINE UA_StatusCode\nUA_%s_copy(const UA_%s *src, UA_%s *dst) {\n    return UA_copy(src, dst, %s);\n}\n\n" % (
                 idName, idName, idName, self.print_datatype_ptr(datatype))
-            funcs += "static UA_INLINE void\nUA_%s_deleteMembers(UA_%s *p) {\n    UA_clear(p, %s);\n}\n\n" % (
+            funcs += "UA_DEPRECATED static UA_INLINE void\nUA_%s_deleteMembers(UA_%s *p) {\n    UA_clear(p, %s);\n}\n\n" % (
                 idName, idName, self.print_datatype_ptr(datatype))
             funcs += "static UA_INLINE void\nUA_%s_clear(UA_%s *p) {\n    UA_clear(p, %s);\n}\n\n" % (
                 idName, idName, self.print_datatype_ptr(datatype))
