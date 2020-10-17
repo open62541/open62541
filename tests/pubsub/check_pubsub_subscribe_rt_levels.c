@@ -99,7 +99,7 @@ static void receiveSingleMessageRT(UA_PubSubConnection *connection, UA_DataSetRe
      UA_DataSetMessage *dsm = dataSetReader->bufferedMessage.nm->payload.dataSetPayload.dataSetMessages;
      if(dsm->header.fieldEncoding == UA_FIELDENCODING_VARIANT) {
          for(UA_UInt16 i = 0; i < dsm->data.keyFrameData.fieldCount; i++) {
-             UA_Variant_deleteMembers(&dsm->data.keyFrameData.dataSetFields[i].value);
+             UA_Variant_clear(&dsm->data.keyFrameData.dataSetFields[i].value);
          }
      }
 
@@ -291,7 +291,7 @@ START_TEST(SubscribeSingleFieldWithFixedOffsets) {
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
     ck_assert((*(UA_Int32 *)subscribedNodeData->data) == 1000);
-    UA_Variant_deleteMembers(subscribedNodeData);
+    UA_Variant_clear(subscribedNodeData);
     UA_free(subscribedNodeData);
     ck_assert(UA_Server_unfreezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
     ck_assert(UA_Server_unfreezeWriterGroupConfiguration(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
@@ -447,7 +447,7 @@ START_TEST(SetupInvalidPubSubConfig) {
     UA_FieldTargetDataType_clear(&readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[0].targetVariable);
     UA_free(readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables);
     UA_free(readerConfig.dataSetMetaData.fields);
-    UA_Variant_deleteMembers(&variant);
+    UA_Variant_clear(&variant);
 
     ck_assert(UA_Server_freezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_BADNOTIMPLEMENTED); // Multiple DSR not supported
 

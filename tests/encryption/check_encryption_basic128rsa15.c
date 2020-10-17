@@ -78,7 +78,7 @@ static void setup(void) {
         UA_STRING_ALLOC("urn:unconfigured:application");
 
     for(size_t i = 0; i < trustListSize; i++)
-        UA_ByteString_deleteMembers(&trustList[i]);
+        UA_ByteString_clear(&trustList[i]);
 
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
@@ -153,7 +153,7 @@ START_TEST(encryption_connect) {
     ck_assert(client != NULL);
 
     for(size_t deleteCount = 0; deleteCount < trustListSize; deleteCount++) {
-        UA_ByteString_deleteMembers(&trustList[deleteCount]);
+        UA_ByteString_clear(&trustList[deleteCount]);
     }
 
     /* Secure client connect */
@@ -165,7 +165,7 @@ START_TEST(encryption_connect) {
     UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
     retval = UA_Client_readValueAttribute(client, nodeId, &val);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    UA_Variant_deleteMembers(&val);
+    UA_Variant_clear(&val);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);

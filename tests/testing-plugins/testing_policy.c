@@ -372,7 +372,7 @@ compareCertificate_testing(const void *channelContext,
 
 static void
 policy_clear_testing(UA_SecurityPolicy *policy) {
-    UA_ByteString_deleteMembers(&policy->localCertificate);
+    UA_ByteString_clear(&policy->localCertificate);
 }
 
 UA_StatusCode

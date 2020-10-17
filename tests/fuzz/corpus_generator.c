@@ -211,7 +211,7 @@ registerServer2Request(UA_Client *client) {
     UA_free(request.server.discoveryUrls);
     UA_ExtensionObject_delete(request.discoveryConfiguration);
 
-    UA_RegisterServer2Response_deleteMembers(&response);
+    UA_RegisterServer2Response_clear(&response);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -226,7 +226,7 @@ readValueRequest(UA_Client *client) {
     UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_BOTH);
     ASSERT_GOOD(resp.status);
 
-    UA_DataValue_deleteMembers(&resp);
+    UA_DataValue_clear(&resp);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -271,25 +271,25 @@ browseAndBrowseNextRequest(UA_Client *client) {
     UA_BrowseNextResponse bNextResp = UA_Client_Service_browseNext(client, bNextReq);
     ASSERT_GOOD(bNextResp.responseHeader.serviceResult);
 
-    UA_BrowseNextResponse_deleteMembers(&bNextResp);
+    UA_BrowseNextResponse_clear(&bNextResp);
 
     bNextResp = UA_Client_Service_browseNext(client, bNextReq);
     ASSERT_GOOD(bNextResp.responseHeader.serviceResult);
 
-    UA_BrowseNextResponse_deleteMembers(&bNextResp);
+    UA_BrowseNextResponse_clear(&bNextResp);
 
     // release continuation point. Result is then empty
     bNextReq.releaseContinuationPoints = UA_TRUE;
     bNextResp = UA_Client_Service_browseNext(client, bNextReq);
-    UA_BrowseNextResponse_deleteMembers(&bNextResp);
+    UA_BrowseNextResponse_clear(&bNextResp);
     ASSERT_GOOD(bNextResp.responseHeader.serviceResult);
 
-    UA_BrowseRequest_deleteMembers(&bReq);
-    UA_BrowseResponse_deleteMembers(&bResp);
+    UA_BrowseRequest_clear(&bReq);
+    UA_BrowseResponse_clear(&bResp);
     // already deleted by browse request
     bNextReq.continuationPoints = NULL;
     bNextReq.continuationPointsSize = 0;
-    UA_BrowseNextRequest_deleteMembers(&bNextReq);
+    UA_BrowseNextRequest_clear(&bNextReq);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -316,10 +316,10 @@ registerUnregisterNodesRequest(UA_Client *client) {
     UA_UnregisterNodesResponse resUn = UA_Client_Service_unregisterNodes(client, reqUn);
     ASSERT_GOOD(resUn.responseHeader.serviceResult);
 
-    UA_UnregisterNodesRequest_deleteMembers(&reqUn);
-    UA_UnregisterNodesResponse_deleteMembers(&resUn);
-    UA_RegisterNodesRequest_deleteMembers(&req);
-    UA_RegisterNodesResponse_deleteMembers(&res);
+    UA_UnregisterNodesRequest_clear(&reqUn);
+    UA_UnregisterNodesResponse_clear(&resUn);
+    UA_RegisterNodesRequest_clear(&req);
+    UA_RegisterNodesResponse_clear(&res);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -353,8 +353,8 @@ translateBrowsePathsToNodeIdsRequest(UA_Client *client) {
     UA_TranslateBrowsePathsToNodeIdsResponse response = UA_Client_Service_translateBrowsePathsToNodeIds(client, request);
     ASSERT_GOOD(response.responseHeader.serviceResult);
 
-    UA_BrowsePath_deleteMembers(&browsePath);
-    UA_TranslateBrowsePathsToNodeIdsResponse_deleteMembers(&response);
+    UA_BrowsePath_clear(&browsePath);
+    UA_TranslateBrowsePathsToNodeIdsResponse_clear(&response);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -389,8 +389,8 @@ subscriptionRequests(UA_Client *client) {
     __UA_Client_Service(client, &modifySubscriptionRequest, &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONREQUEST],
                         &modifySubscriptionResponse, &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONRESPONSE]);
     ASSERT_GOOD(modifySubscriptionResponse.responseHeader.serviceResult);
-    UA_ModifySubscriptionRequest_deleteMembers(&modifySubscriptionRequest);
-    UA_ModifySubscriptionResponse_deleteMembers(&modifySubscriptionResponse);
+    UA_ModifySubscriptionRequest_clear(&modifySubscriptionRequest);
+    UA_ModifySubscriptionResponse_clear(&modifySubscriptionResponse);
 
     // setPublishingMode
     UA_SetPublishingModeRequest setPublishingModeRequest;
@@ -403,8 +403,8 @@ subscriptionRequests(UA_Client *client) {
     __UA_Client_Service(client, &setPublishingModeRequest, &UA_TYPES[UA_TYPES_SETPUBLISHINGMODEREQUEST],
                         &setPublishingModeResponse, &UA_TYPES[UA_TYPES_SETPUBLISHINGMODERESPONSE]);
     ASSERT_GOOD(setPublishingModeResponse.responseHeader.serviceResult);
-    UA_SetPublishingModeRequest_deleteMembers(&setPublishingModeRequest);
-    UA_SetPublishingModeResponse_deleteMembers(&setPublishingModeResponse);
+    UA_SetPublishingModeRequest_clear(&setPublishingModeRequest);
+    UA_SetPublishingModeResponse_clear(&setPublishingModeResponse);
     
 
     // createMonitoredItemsRequest
@@ -429,7 +429,7 @@ subscriptionRequests(UA_Client *client) {
                                &UA_TYPES[UA_TYPES_PUBLISHRESPONSE], NULL, NULL);
     // here we don't care about the return value since it may be UA_STATUSCODE_BADMESSAGENOTAVAILABLE
     // ASSERT_GOOD(publishResponse.responseHeader.serviceResult);
-    UA_PublishRequest_deleteMembers(&publishRequest);
+    UA_PublishRequest_clear(&publishRequest);
 
     // republishRequest
     UA_RepublishRequest republishRequest;
@@ -441,8 +441,8 @@ subscriptionRequests(UA_Client *client) {
                         &republishResponse, &UA_TYPES[UA_TYPES_REPUBLISHRESPONSE]);
     // here we don't care about the return value since it may be UA_STATUSCODE_BADMESSAGENOTAVAILABLE
     // ASSERT_GOOD(republishResponse.responseHeader.serviceResult);
-    UA_RepublishRequest_deleteMembers(&republishRequest);
-    UA_RepublishResponse_deleteMembers(&republishResponse);
+    UA_RepublishRequest_clear(&republishRequest);
+    UA_RepublishResponse_clear(&republishResponse);
 
     // modifyMonitoredItems
     UA_ModifyMonitoredItemsRequest modifyMonitoredItemsRequest;
@@ -456,8 +456,8 @@ subscriptionRequests(UA_Client *client) {
     __UA_Client_Service(client, &modifyMonitoredItemsRequest, &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSREQUEST],
                         &modifyMonitoredItemsResponse, &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSRESPONSE]);
     ASSERT_GOOD(modifyMonitoredItemsResponse.responseHeader.serviceResult);
-    UA_ModifyMonitoredItemsRequest_deleteMembers(&modifyMonitoredItemsRequest);
-    UA_ModifyMonitoredItemsResponse_deleteMembers(&modifyMonitoredItemsResponse);
+    UA_ModifyMonitoredItemsRequest_clear(&modifyMonitoredItemsRequest);
+    UA_ModifyMonitoredItemsResponse_clear(&modifyMonitoredItemsResponse);
     
     // setMonitoringMode
     UA_SetMonitoringModeRequest setMonitoringModeRequest;
@@ -471,8 +471,8 @@ subscriptionRequests(UA_Client *client) {
     __UA_Client_Service(client, &setMonitoringModeRequest, &UA_TYPES[UA_TYPES_SETMONITORINGMODEREQUEST],
                         &setMonitoringModeResponse, &UA_TYPES[UA_TYPES_SETMONITORINGMODERESPONSE]);
     ASSERT_GOOD(setMonitoringModeResponse.responseHeader.serviceResult);
-    UA_SetMonitoringModeRequest_deleteMembers(&setMonitoringModeRequest);
-    UA_SetMonitoringModeResponse_deleteMembers(&setMonitoringModeResponse);
+    UA_SetMonitoringModeRequest_clear(&setMonitoringModeRequest);
+    UA_SetMonitoringModeResponse_clear(&setMonitoringModeResponse);
 
     // deleteMonitoredItemsRequest
     ASSERT_GOOD(UA_Client_MonitoredItems_deleteSingle(client, subId, monId));
@@ -508,8 +508,8 @@ callRequest(UA_Client *client) {
     UA_CallResponse response = UA_Client_Service_call(client, request);
     ASSERT_GOOD(response.responseHeader.serviceResult);
 
-    UA_CallResponse_deleteMembers(&response);
-    UA_Variant_deleteMembers(&input);
+    UA_CallResponse_clear(&response);
+    UA_Variant_clear(&input);
 
     return UA_STATUSCODE_GOOD;
 }

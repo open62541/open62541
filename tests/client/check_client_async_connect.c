@@ -85,7 +85,7 @@ START_TEST(Client_connect_async) {
             break;
     } while(reqId < 10);
 
-    UA_BrowseRequest_deleteMembers(&bReq);
+    UA_BrowseRequest_clear(&bReq);
     ck_assert_uint_eq(connected, true);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     /* With default setting the client uses 4 requests to connect */

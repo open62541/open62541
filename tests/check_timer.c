@@ -54,7 +54,7 @@ START_TEST(benchmarkTimer) {
     printf("duration was %f s\n", time_spent);
     printf("%lu callbacks\n", (unsigned long)count);
 
-    UA_Timer_deleteMembers(&timer);
+    UA_Timer_clear(&timer);
 } END_TEST
 
 int main(void) {

@@ -67,10 +67,10 @@ findSingleChildNode(UA_QualifiedName targetName,
        bpr.targetsSize < 1)
         return UA_NODEID_NULL;
     if(UA_NodeId_copy(&bpr.targets[0].targetId.nodeId, &resultNodeId) != UA_STATUSCODE_GOOD){
-        UA_BrowsePathResult_deleteMembers(&bpr);
+        UA_BrowsePathResult_clear(&bpr);
         return UA_NODEID_NULL;
     }
-    UA_BrowsePathResult_deleteMembers(&bpr);
+    UA_BrowsePathResult_clear(&bpr);
     return resultNodeId;
 }
 
@@ -127,11 +127,11 @@ static UA_NodeId addPubSubConnection(void){
     ck_assert_int_eq(result.statusCode, UA_STATUSCODE_GOOD);
     if(result.outputArguments->type == &UA_TYPES[UA_TYPES_NODEID])
         connectionId =  *((UA_NodeId *) result.outputArguments->data);
-    UA_ExtensionObject_deleteMembers(&eo);
+    UA_ExtensionObject_clear(&eo);
     callMethodRequest.inputArguments = NULL;
     callMethodRequest.inputArgumentsSize = 0;
-    UA_CallMethodRequest_deleteMembers(&callMethodRequest);
-    UA_CallMethodResult_deleteMembers(&result);
+    UA_CallMethodRequest_clear(&callMethodRequest);
+    UA_CallMethodResult_clear(&result);
     return connectionId;
 }
 
@@ -162,10 +162,10 @@ START_TEST(AddNewPubSubConnectionUsingTheInformationModelMethod){
     ck_assert_int_eq(UA_Server_readValue(server, connectionPublisherId, &serverPubSubConnectionValues),
                      UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(*((UA_UInt32 *) serverPubSubConnectionValues.data), 13245);
-    UA_Variant_deleteMembers(&serverPubSubConnectionValues);
+    UA_Variant_clear(&serverPubSubConnectionValues);
     UA_Client_disconnect(client);
     UA_Client_delete(client);
-    UA_LocalizedText_deleteMembers(&connectionDisplayName);
+    UA_LocalizedText_clear(&connectionDisplayName);
     } END_TEST
 
 START_TEST(AddAndRemovePublishedDataSetFolders){
@@ -207,8 +207,8 @@ START_TEST(AddAndRemovePublishedDataSetFolders){
         ck_assert(UA_String_equal(&connectionDisplayName.text, &compareText) == UA_TRUE);
         retVal = UA_Server_readNodeId(server, createdFolder, &createdFolder);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        UA_CallMethodResult_deleteMembers(&result);
-        UA_LocalizedText_deleteMembers(&connectionDisplayName);
+        UA_CallMethodResult_clear(&result);
+        UA_LocalizedText_clear(&connectionDisplayName);
 
         //create folder inside the new folder
         folderName = UA_STRING("TestFolder2");
@@ -233,7 +233,7 @@ START_TEST(AddAndRemovePublishedDataSetFolders){
         ck_assert(UA_String_equal(&connectionDisplayName.text, &compareText) == UA_TRUE);
         retVal = UA_Server_readNodeId(server, createdFolder2, &createdFolder2);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        UA_CallMethodResult_deleteMembers(&result);
+        UA_CallMethodResult_clear(&result);
 
         //delete the folder
         UA_Variant_init(&inputArguments);
@@ -251,10 +251,10 @@ START_TEST(AddAndRemovePublishedDataSetFolders){
         retVal = UA_Server_readNodeId(server, createdFolder, NULL);
         ck_assert_int_eq(retVal, UA_STATUSCODE_BADNODEIDUNKNOWN);
 
-        UA_CallMethodResult_deleteMembers(&result);
+        UA_CallMethodResult_clear(&result);
         UA_Client_disconnect(client);
         UA_Client_delete(client);
-        UA_LocalizedText_deleteMembers(&connectionDisplayName);
+        UA_LocalizedText_clear(&connectionDisplayName);
     } END_TEST
 
 START_TEST(AddAndRemovePublishedDataSetItems){
@@ -303,7 +303,7 @@ START_TEST(AddAndRemovePublishedDataSetItems){
         ck_assert_int_eq(result.statusCode, UA_STATUSCODE_GOOD);
 
         //TODO checked correctness of created items
-        UA_CallMethodResult_deleteMembers(&result);
+        UA_CallMethodResult_clear(&result);
         UA_free(inputArguments);
         UA_free(fieldNameAliases);
         UA_free(dataSetFieldFlags);
@@ -355,10 +355,10 @@ START_TEST(AddAndRemoveWriterGroups){
         UA_String compareText = UA_STRING("TestWriterGroup");
         ck_assert(UA_String_equal(&writerGroupDisplayName.text, &compareText) == UA_TRUE);
         UA_free(inputArgument);
-        UA_CallMethodResult_deleteMembers(&result);
+        UA_CallMethodResult_clear(&result);
         UA_Client_disconnect(client);
         UA_Client_delete(client);
-        UA_LocalizedText_deleteMembers(&writerGroupDisplayName);
+        UA_LocalizedText_clear(&writerGroupDisplayName);
 } END_TEST
 
 int main(void) {
