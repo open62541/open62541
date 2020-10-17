@@ -21,7 +21,7 @@
 static void
 removeSessionCallback(UA_Server *server, session_list_entry *entry) {
     UA_LOCK_ASSERT(server->serviceMutex, 1);
-    UA_Session_deleteMembersCleanup(&entry->session, server);
+    UA_Session_clear(&entry->session, server);
 }
 
 void
@@ -40,7 +40,7 @@ UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
 
     UA_PublishResponseEntry *entry;
     while((entry = UA_Session_dequeuePublishReq(session))) {
-        UA_PublishResponse_deleteMembers(&entry->response);
+        UA_PublishResponse_clear(&entry->response);
         UA_free(entry);
     }
 #endif

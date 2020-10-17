@@ -107,7 +107,7 @@ typedef struct {
 } UA_DiscoveryManager;
 
 void UA_DiscoveryManager_init(UA_DiscoveryManager *dm, UA_Server *server);
-void UA_DiscoveryManager_deleteMembers(UA_DiscoveryManager *dm, UA_Server *server);
+void UA_DiscoveryManager_clear(UA_DiscoveryManager *dm, UA_Server *server);
 
 /* Checks if a registration timed out and removes that registration.
  * Should be called periodically in main loop */

@@ -94,7 +94,7 @@ UA_Client_deleteMembers(UA_Client *client) {
 #endif
 
     /* Delete the timed work */
-    UA_Timer_deleteMembers(&client->timer);
+    UA_Timer_clear(&client->timer);
 }
 
 void

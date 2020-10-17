@@ -162,7 +162,7 @@ isValidEvent(UA_Server *server, const UA_NodeId *validEventParent,
     if(UA_NodeId_equal(validEventParent, &conditionTypeId) &&
        isNodeInTree_singleRef(server, tEventType, &conditionTypeId,
                               UA_REFERENCETYPEINDEX_HASSUBTYPE)) {
-        UA_BrowsePathResult_deleteMembers(&bpr);
+        UA_BrowsePathResult_clear(&bpr);
         UA_Variant_clear(&tOutVariant);
         return true;
     }

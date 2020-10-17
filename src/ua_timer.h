@@ -57,7 +57,8 @@ typedef struct {
 #endif
 } UA_Timer;
 
-void UA_Timer_init(UA_Timer *t);
+void
+UA_Timer_init(UA_Timer *t);
 
 UA_StatusCode
 UA_Timer_addTimedCallback(UA_Timer *t, UA_ApplicationCallback callback,
@@ -95,7 +96,8 @@ UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic,
                  UA_TimerExecutionCallback executionCallback,
                  void *executionApplication);
 
-void UA_Timer_deleteMembers(UA_Timer *t);
+void
+UA_Timer_clear(UA_Timer *t);
 
 _UA_END_DECLS
 

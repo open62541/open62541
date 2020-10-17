@@ -24,7 +24,7 @@ void UA_Session_init(UA_Session *session) {
 #endif
 }
 
-void UA_Session_deleteMembersCleanup(UA_Session *session, UA_Server* server) {
+void UA_Session_clear(UA_Session *session, UA_Server* server) {
     UA_LOCK_ASSERT(server->serviceMutex, 1);
 
     /* Remove all Subscriptions. This may send out remaining publish
@@ -37,11 +37,11 @@ void UA_Session_deleteMembersCleanup(UA_Session *session, UA_Server* server) {
 #endif
 
     UA_Session_detachFromSecureChannel(session);
-    UA_ApplicationDescription_deleteMembers(&session->clientDescription);
-    UA_NodeId_deleteMembers(&session->header.authenticationToken);
-    UA_NodeId_deleteMembers(&session->sessionId);
-    UA_String_deleteMembers(&session->sessionName);
-    UA_ByteString_deleteMembers(&session->serverNonce);
+    UA_ApplicationDescription_clear(&session->clientDescription);
+    UA_NodeId_clear(&session->header.authenticationToken);
+    UA_NodeId_clear(&session->sessionId);
+    UA_String_clear(&session->sessionName);
+    UA_ByteString_clear(&session->serverNonce);
     struct ContinuationPoint *cp, *next = session->continuationPoints;
     while((cp = next)) {
         next = ContinuationPoint_clear(cp);
@@ -81,7 +81,7 @@ UA_Session_generateNonce(UA_Session *session) {
 
     /* Is the length of the previous nonce correct? */
     if(session->serverNonce.length != UA_SESSION_NONCELENTH) {
-        UA_ByteString_deleteMembers(&session->serverNonce);
+        UA_ByteString_clear(&session->serverNonce);
         UA_StatusCode retval =
             UA_ByteString_allocBuffer(&session->serverNonce, UA_SESSION_NONCELENTH);
         if(retval != UA_STATUSCODE_GOOD)
