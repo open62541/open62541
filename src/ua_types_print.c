@@ -81,14 +81,14 @@ UA_NodeId_print(const UA_NodeId *id, UA_String *output) {
             output->data = (UA_Byte*)UA_malloc(output->length);
             if(output->data == NULL) {
                 output->length = 0;
-                UA_String_deleteMembers(&byteStr);
+                UA_String_clear(&byteStr);
                 UA_free(nsStr);
                 return UA_STATUSCODE_BADOUTOFMEMORY;
             }
             snprintfLen = UA_snprintf((char*)output->data, output->length, "%sb=%.*s",
                                       nsLen > 0 ? nsStr : "",
                                       (int)byteStr.length, byteStr.data);
-            UA_String_deleteMembers(&byteStr);
+            UA_String_clear(&byteStr);
             break;
     }
     UA_free(nsStr);
