@@ -215,8 +215,11 @@ UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic,
 
     /* Return the timestamp of the earliest next callback */
     first = ZIP_MIN(UA_TimerZip, &t->root);
+    UA_DateTime next = (first) ? first->nextTime : UA_INT64_MAX;
+    if(next < nowMonotonic)
+        next = nowMonotonic;
     UA_UNLOCK(t->timerMutex);
-    return (first) ? first->nextTime : UA_INT64_MAX;
+    return next;
 }
 
 static void
