@@ -124,7 +124,7 @@ START_TEST(PublishSingleFieldWithStaticValueSource) {
         UA_NetworkMessage networkMessage;
         receiveSingleMessage(buffer, connection, &networkMessage);
         ck_assert((*((UA_UInt32 *)networkMessage.payload.dataSetPayload.dataSetMessages->data.keyFrameData.dataSetFields->value.data)) == 1000);
-        UA_NetworkMessage_deleteMembers(&networkMessage);
+        UA_NetworkMessage_clear(&networkMessage);
         UA_DataValue_delete(dataValue);
     } END_TEST
 
@@ -176,7 +176,7 @@ START_TEST(PublishSingleFieldWithDifferentBinarySizes) {
         receiveSingleMessage(buffer, connection, &networkMessage);
         UA_String compareString = UA_STRING("12345");
         ck_assert(UA_String_equal(((UA_String *) networkMessage.payload.dataSetPayload.dataSetMessages->data.keyFrameData.dataSetFields->value.data), &compareString) == UA_TRUE);
-        UA_NetworkMessage_deleteMembers(&networkMessage);
+        UA_NetworkMessage_clear(&networkMessage);
         compareString = UA_STRING("123456789");
         stringValue.data = (UA_Byte *) UA_realloc(stringValue.data, 9);
         stringValue.length = 9;
@@ -187,8 +187,8 @@ START_TEST(PublishSingleFieldWithDifferentBinarySizes) {
         ck_assert(UA_Server_setWriterGroupOperational(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
         receiveSingleMessage(buffer, connection, &networkMessage);
         ck_assert(UA_String_equal(((UA_String *) networkMessage.payload.dataSetPayload.dataSetMessages->data.keyFrameData.dataSetFields->value.data), &compareString) == UA_TRUE);
-        UA_NetworkMessage_deleteMembers(&networkMessage);
-        UA_String_deleteMembers(&stringValue);
+        UA_NetworkMessage_clear(&networkMessage);
+        UA_String_clear(&stringValue);
         UA_DataValue_delete(dataValue);
     } END_TEST
 
@@ -279,7 +279,7 @@ START_TEST(PublishSingleFieldWithFixedOffsets) {
         UA_NetworkMessage networkMessage;
         receiveSingleMessage(buffer, connection, &networkMessage);
         ck_assert((*((UA_UInt32 *)networkMessage.payload.dataSetPayload.dataSetMessages->data.keyFrameData.dataSetFields->value.data)) == 1000);
-        UA_NetworkMessage_deleteMembers(&networkMessage);
+        UA_NetworkMessage_clear(&networkMessage);
         UA_DataValue_delete(dataValue);
 
         UA_Server_run_shutdown(server);
@@ -341,7 +341,7 @@ START_TEST(PublishPDSWithMultipleFieldsAndFixedOffset) {
         receiveSingleMessage(buffer, connection, &networkMessage);
         ck_assert((*((UA_UInt32 *)networkMessage.payload.dataSetPayload.dataSetMessages->data.keyFrameData.dataSetFields->value.data)) == 1000);
         ck_assert(*((UA_UInt32 *) networkMessage.payload.dataSetPayload.dataSetMessages->data.keyFrameData.dataSetFields[1].value.data) == 2000);
-        UA_NetworkMessage_deleteMembers(&networkMessage);
+        UA_NetworkMessage_clear(&networkMessage);
         *intValue = (UA_UInt32) 1001;
         *intValue2 = (UA_UInt32) 2001;
         UA_ByteString_init(&buffer);
@@ -351,7 +351,7 @@ START_TEST(PublishPDSWithMultipleFieldsAndFixedOffset) {
         receiveSingleMessage(buffer, connection, &networkMessage);
         ck_assert((*((UA_UInt32 *)networkMessage.payload.dataSetPayload.dataSetMessages->data.keyFrameData.dataSetFields->value.data)) == 1001);
         ck_assert(*((UA_UInt32 *) networkMessage.payload.dataSetPayload.dataSetMessages->data.keyFrameData.dataSetFields[1].value.data) == 2001);
-        UA_NetworkMessage_deleteMembers(&networkMessage);
+        UA_NetworkMessage_clear(&networkMessage);
 
         UA_Server_run_shutdown(server);
         UA_Server_delete(server);
@@ -430,22 +430,22 @@ START_TEST(PubSubConfigWithInformationModelRTVariable) {
         UA_NodeId dsfNodeId;
         ck_assert(UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dsfNodeId).result == UA_STATUSCODE_GOOD);
         //read and update static memory directly and read new value over the information model
-        UA_Variant_deleteMembers(&variant);
+        UA_Variant_clear(&variant);
         UA_Variant_init(&variant);
         ck_assert(UA_Server_readValue(server, variableNodeId, &variant) == UA_STATUSCODE_GOOD);
         ck_assert(*((UA_UInt32 *)variant.data) == 42);
         *integerRTValue = *integerRTValue + 1;
-        UA_Variant_deleteMembers(&variant);
+        UA_Variant_clear(&variant);
         UA_Variant_init(&variant);
         UA_Server_readValue(server, variableNodeId, &variant);
         ck_assert(*((UA_UInt32 *)variant.data) == 43);
         UA_Server_removeDataSetField(server, dsfNodeId);
-        UA_Variant_deleteMembers(&variant);
+        UA_Variant_clear(&variant);
         UA_Variant_init(&variant);
         UA_Server_readValue(server, variableNodeId, &variant);
         ck_assert(*((UA_UInt32 *)variant.data) == 43);
         UA_DataValue_delete(externalValueSourceDataValue);
-        UA_Variant_deleteMembers(&variant);
+        UA_Variant_clear(&variant);
     } END_TEST
 
 START_TEST(PubSubConfigWithMultipleInformationModelRTVariables) {
@@ -516,11 +516,11 @@ START_TEST(PubSubConfigWithMultipleInformationModelRTVariables) {
             ck_assert_uint_eq(j, *((UA_UInt32 *)variant.data));
             UA_Server_removeDataSetField(server, *dsf[j]);
             UA_NodeId_delete(dsf[j]);
-            UA_Variant_deleteMembers(&variant);
+            UA_Variant_clear(&variant);
             UA_Variant_init(&variant);
             ck_assert(UA_Server_readValue(server, *nodes[j], &variant) == UA_STATUSCODE_GOOD);
             ck_assert_uint_eq(j, *((UA_UInt32 *)variant.data));
-            UA_Variant_deleteMembers(&variant);
+            UA_Variant_clear(&variant);
             UA_NodeId_delete(nodes[j]);
             UA_DataValue_delete(externalValueSources[j]);
         }

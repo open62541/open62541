@@ -58,7 +58,7 @@ void server_readValueAttribute(void * value) {
     ck_assert_int_eq(0, resp.value.arrayLength);
     ck_assert(&UA_TYPES[UA_TYPES_INT32] == resp.value.type);
     ck_assert_int_eq(42, *(UA_Int32* )resp.value.data);
-    UA_DataValue_deleteMembers(&resp);
+    UA_DataValue_clear(&resp);
 
     // read 2
     UA_Variant var;
@@ -67,7 +67,7 @@ void server_readValueAttribute(void * value) {
     ck_assert_int_eq(UA_STATUSCODE_GOOD, ret);
     ck_assert_int_eq(42, *(UA_Int32 *)var.data);
 
-    UA_Variant_deleteMembers(&var);
+    UA_Variant_clear(&var);
 }
 
 
@@ -79,7 +79,7 @@ void client_readValueAttribute(void * value) {
     UA_StatusCode retval = UA_Client_readValueAttribute(tc.clients[tmp.index], nodeId, &val);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(42, *(UA_Int32 *)val.data);
-    UA_Variant_deleteMembers(&val);
+    UA_Variant_clear(&val);
 }
 
 static

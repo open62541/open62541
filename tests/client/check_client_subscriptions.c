@@ -310,11 +310,11 @@ START_TEST(Client_subscription_async) {
     ck_assert_uint_eq(subDeleteResponse.resultsSize, 1);
     ck_assert_uint_eq(subDeleteResponse.results[0], UA_STATUSCODE_GOOD);
 
-    UA_CreateSubscriptionResponse_deleteMembers(&response);
-    UA_ModifySubscriptionResponse_deleteMembers(&modifySubscriptionResponse);
-    UA_CreateMonitoredItemsResponse_deleteMembers(&monResponse);
-    UA_DeleteMonitoredItemsResponse_deleteMembers(&monDeleteResponse);
-    UA_DeleteSubscriptionsResponse_deleteMembers(&subDeleteResponse);
+    UA_CreateSubscriptionResponse_clear(&response);
+    UA_ModifySubscriptionResponse_clear(&modifySubscriptionResponse);
+    UA_CreateMonitoredItemsResponse_clear(&monResponse);
+    UA_DeleteMonitoredItemsResponse_clear(&monDeleteResponse);
+    UA_DeleteSubscriptionsResponse_clear(&subDeleteResponse);
 
     /* run the server in an independent thread again */
     running = true;
@@ -384,7 +384,7 @@ START_TEST(Client_subscription_createDataChanges) {
     ck_assert_uint_eq(createResponse.results[2].statusCode, UA_STATUSCODE_GOOD);
     newMonitoredItemIds[2] = createResponse.results[2].monitoredItemId;
     ck_assert_uint_eq(createResponse.results[2].statusCode, UA_STATUSCODE_GOOD);
-    UA_CreateMonitoredItemsResponse_deleteMembers(&createResponse);
+    UA_CreateMonitoredItemsResponse_clear(&createResponse);
 
     /* manually control the server thread */
     running = false;
@@ -431,7 +431,7 @@ START_TEST(Client_subscription_createDataChanges) {
     ck_assert_uint_eq(deleteResponse.results[1], UA_STATUSCODE_BADMONITOREDITEMIDINVALID);
     ck_assert_uint_eq(deleteResponse.results[2], UA_STATUSCODE_GOOD);
 
-    UA_DeleteMonitoredItemsResponse_deleteMembers(&deleteResponse);
+    UA_DeleteMonitoredItemsResponse_clear(&deleteResponse);
 
     retval = UA_Client_Subscriptions_deleteSingle(client, subId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -517,7 +517,7 @@ START_TEST(Client_subscription_createDataChanges_async) {
     ck_assert_uint_eq(createResponse.results[2].statusCode, UA_STATUSCODE_GOOD);
     newMonitoredItemIds[2] = createResponse.results[2].monitoredItemId;
     ck_assert_uint_eq(createResponse.results[2].statusCode, UA_STATUSCODE_GOOD);
-    UA_CreateMonitoredItemsResponse_deleteMembers(&createResponse);
+    UA_CreateMonitoredItemsResponse_clear(&createResponse);
 
     UA_fakeSleep((UA_UInt32)publishingInterval + 1);
     UA_Server_run_iterate(server, true);
@@ -562,7 +562,7 @@ START_TEST(Client_subscription_createDataChanges_async) {
     ck_assert_uint_eq(deleteResponse.results[1], UA_STATUSCODE_BADMONITOREDITEMIDINVALID);
     ck_assert_uint_eq(deleteResponse.results[2], UA_STATUSCODE_GOOD);
 
-    UA_DeleteMonitoredItemsResponse_deleteMembers(&deleteResponse);
+    UA_DeleteMonitoredItemsResponse_clear(&deleteResponse);
 
     // Async subscription deletion is tested in Client_subscription_async
     // simplify test case using synchronous here
@@ -611,8 +611,8 @@ START_TEST(Client_subscription_keepAlive) {
                         &presponse, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
     ck_assert_uint_eq(presponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(presponse.notificationMessage.notificationDataSize, 1);
-    UA_PublishResponse_deleteMembers(&presponse);
-    UA_PublishRequest_deleteMembers(&pr);
+    UA_PublishResponse_clear(&presponse);
+    UA_PublishRequest_clear(&pr);
 
     UA_fakeSleep((UA_UInt32)(publishingInterval + 1));
 
@@ -624,8 +624,8 @@ START_TEST(Client_subscription_keepAlive) {
 
     ck_assert_uint_eq(presponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(presponse.notificationMessage.notificationDataSize, 0);
-    UA_PublishResponse_deleteMembers(&presponse);
-    UA_PublishRequest_deleteMembers(&pr);
+    UA_PublishResponse_clear(&presponse);
+    UA_PublishRequest_clear(&pr);
 
     retval = UA_Client_MonitoredItems_deleteSingle(client, subId, monId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -1247,7 +1247,7 @@ START_TEST(Client_methodcall) {
     ck_assert_uint_eq(*((UA_UInt32*)output[0].data), monId);
 
     UA_Array_delete(output, outputSize, &UA_TYPES[UA_TYPES_VARIANT]);
-    UA_Variant_deleteMembers(&input);
+    UA_Variant_clear(&input);
 
     /* call with invalid subscription id */
     UA_Variant_init(&input);
@@ -1257,7 +1257,7 @@ START_TEST(Client_methodcall) {
                             UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS),
                             1, &input, &outputSize, &output);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID);
-    UA_Variant_deleteMembers(&input);
+    UA_Variant_clear(&input);
 #endif
 
     UA_Client_disconnect(client);

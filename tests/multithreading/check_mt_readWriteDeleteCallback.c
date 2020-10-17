@@ -93,7 +93,7 @@ void server_readValue(void *value) {
     if (retval == UA_STATUSCODE_GOOD) {
         ck_assert_int_eq(42, *(UA_Int32 *)var.data);
         ck_assert_int_eq(UA_STATUSCODE_GOOD, retval);
-        UA_Variant_deleteMembers(&var);
+        UA_Variant_clear(&var);
     }
     else {
         ck_assert_int_eq(retval, UA_STATUSCODE_BADNODEIDUNKNOWN);
@@ -131,7 +131,7 @@ void client_readValue(void *value) {
     UA_StatusCode retval = UA_Client_readValueAttribute(tc.clients[tmp.index], nodeId, &val);
     if (retval == UA_STATUSCODE_GOOD) {
         ck_assert_int_eq(42, *(UA_Int32 *)val.data);
-        UA_Variant_deleteMembers(&val);
+        UA_Variant_clear(&val);
     }
     else {
         ck_assert_int_eq(retval, UA_STATUSCODE_BADNODEIDUNKNOWN);
