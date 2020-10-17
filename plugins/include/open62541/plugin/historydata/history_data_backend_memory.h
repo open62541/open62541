@@ -18,7 +18,7 @@ UA_HistoryDataBackend UA_EXPORT
 UA_HistoryDataBackend_Memory(size_t initialNodeIdStoreSize, size_t initialDataStoreSize);
 
 void UA_EXPORT
-UA_HistoryDataBackend_Memory_deleteMembers(UA_HistoryDataBackend *backend);
+UA_HistoryDataBackend_Memory_clear(UA_HistoryDataBackend *backend);
 
 _UA_END_DECLS
 

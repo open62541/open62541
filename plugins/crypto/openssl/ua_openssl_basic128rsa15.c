@@ -66,7 +66,7 @@ UA_Policy_Basic128Rsa15_New_Context (UA_SecurityPolicy * securityPolicy,
                          &context->localCertThumbprint, true
                          );
     if (retval != UA_STATUSCODE_GOOD) {
-        UA_ByteString_deleteMembers (&context->localPrivateKey);
+        UA_ByteString_clear (&context->localPrivateKey);
         UA_free (context);
         return retval; 
     }
@@ -82,7 +82,7 @@ UA_Policy_Basic128Rsa15_Clear_Context (UA_SecurityPolicy *policy) {
     if (policy == NULL) {
         return;
     }
-    UA_ByteString_deleteMembers(&policy->localCertificate);
+    UA_ByteString_clear(&policy->localCertificate);
 
     Policy_Context_Basic128Rsa15 * ctx = (Policy_Context_Basic128Rsa15 *) policy->policyContext;    
     if (ctx == NULL) {
@@ -91,8 +91,8 @@ UA_Policy_Basic128Rsa15_Clear_Context (UA_SecurityPolicy *policy) {
 
     /* delete all allocated members in the context */
 
-    UA_ByteString_deleteMembers (&ctx->localPrivateKey);
-    UA_ByteString_deleteMembers (&ctx->localCertThumbprint);
+    UA_ByteString_clear (&ctx->localPrivateKey);
+    UA_ByteString_clear (&ctx->localCertThumbprint);
     UA_free (ctx);   
 
     return;         
@@ -158,13 +158,13 @@ UA_ChannelModule_Basic128Rsa15_Delete_Context (void * channelContext) {
         Channel_Context_Basic128Rsa15 * cc = (Channel_Context_Basic128Rsa15 *)
                                               channelContext;
         X509_free (cc->remoteCertificateX509);                                           
-        UA_ByteString_deleteMembers (&cc->remoteCertificate); 
-        UA_ByteString_deleteMembers (&cc->localSymSigningKey);
-        UA_ByteString_deleteMembers (&cc->localSymEncryptingKey);
-        UA_ByteString_deleteMembers (&cc->localSymIv);
-        UA_ByteString_deleteMembers (&cc->remoteSymSigningKey);
-        UA_ByteString_deleteMembers (&cc->remoteSymEncryptingKey);
-        UA_ByteString_deleteMembers (&cc->remoteSymIv);
+        UA_ByteString_clear (&cc->remoteCertificate); 
+        UA_ByteString_clear (&cc->localSymSigningKey);
+        UA_ByteString_clear (&cc->localSymEncryptingKey);
+        UA_ByteString_clear (&cc->localSymIv);
+        UA_ByteString_clear (&cc->remoteSymSigningKey);
+        UA_ByteString_clear (&cc->remoteSymEncryptingKey);
+        UA_ByteString_clear (&cc->remoteSymIv);
         UA_LOG_INFO (cc->policyContext->logger, 
                  UA_LOGCATEGORY_SECURITYPOLICY, 
                  "The Basic128Rsa15 security policy channel with openssl is deleted.");   
@@ -181,7 +181,7 @@ UA_ChannelModule_Basic128Rsa15_setLocalSymSigningKey (void *                chan
     }
 
     Channel_Context_Basic128Rsa15 * cc = (Channel_Context_Basic128Rsa15 *) channelContext;
-    UA_ByteString_deleteMembers(&cc->localSymSigningKey);
+    UA_ByteString_clear(&cc->localSymSigningKey);
     return UA_ByteString_copy(key, &cc->localSymSigningKey);
 }
 
@@ -193,7 +193,7 @@ UA_ChannelModule_Basic128Rsa15_setLocalSymEncryptingKey (void *                c
     }
 
     Channel_Context_Basic128Rsa15 * cc = (Channel_Context_Basic128Rsa15 *) channelContext;
-    UA_ByteString_deleteMembers(&cc->localSymEncryptingKey);
+    UA_ByteString_clear(&cc->localSymEncryptingKey);
     return UA_ByteString_copy(key, &cc->localSymEncryptingKey);
 }
 
@@ -205,7 +205,7 @@ UA_ChannelModule_Basic128Rsa15_setLocalSymIv (void *                channelConte
     }
 
     Channel_Context_Basic128Rsa15 * cc = (Channel_Context_Basic128Rsa15 *) channelContext;
-    UA_ByteString_deleteMembers(&cc->localSymIv);
+    UA_ByteString_clear(&cc->localSymIv);
     return UA_ByteString_copy(iv, &cc->localSymIv);
 }
 
@@ -217,7 +217,7 @@ UA_ChannelModule_Basic128Rsa15_setRemoteSymSigningKey (void *                cha
     }
 
     Channel_Context_Basic128Rsa15 * cc = (Channel_Context_Basic128Rsa15 *) channelContext;
-    UA_ByteString_deleteMembers(&cc->remoteSymSigningKey);
+    UA_ByteString_clear(&cc->remoteSymSigningKey);
     return UA_ByteString_copy(key, &cc->remoteSymSigningKey);
 }
 
@@ -229,7 +229,7 @@ UA_ChannelModule_Basic128Rsa15_setRemoteSymEncryptingKey (void *                
     }
 
     Channel_Context_Basic128Rsa15 * cc = (Channel_Context_Basic128Rsa15 *) channelContext;
-    UA_ByteString_deleteMembers(&cc->remoteSymEncryptingKey);
+    UA_ByteString_clear(&cc->remoteSymEncryptingKey);
     return UA_ByteString_copy(key, &cc->remoteSymEncryptingKey);
 }
 
@@ -241,7 +241,7 @@ UA_ChannelModule_Basic128Rsa15_setRemoteSymIv (void *                channelCont
     }
 
     Channel_Context_Basic128Rsa15 * cc = (Channel_Context_Basic128Rsa15 *) channelContext;
-    UA_ByteString_deleteMembers(&cc->remoteSymIv);
+    UA_ByteString_clear(&cc->remoteSymIv);
     return UA_ByteString_copy(key, &cc->remoteSymIv);
 }
 

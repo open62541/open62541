@@ -16,9 +16,9 @@ typedef struct {
 } UA_DataValueMemoryStoreItem;
 
 static void
-UA_DataValueMemoryStoreItem_deleteMembers(UA_DataValueMemoryStoreItem* item) {
-    UA_DateTime_deleteMembers(&item->timestamp);
-    UA_DataValue_deleteMembers(&item->value);
+UA_DataValueMemoryStoreItem_clear(UA_DataValueMemoryStoreItem* item) {
+    UA_DateTime_clear(&item->timestamp);
+    UA_DataValue_clear(&item->value);
 }
 
 typedef struct {
@@ -29,10 +29,10 @@ typedef struct {
 } UA_NodeIdStoreContextItem_backend_memory;
 
 static void
-UA_NodeIdStoreContextItem_deleteMembers(UA_NodeIdStoreContextItem_backend_memory* item) {
-    UA_NodeId_deleteMembers(&item->nodeId);
+UA_NodeIdStoreContextItem_clear(UA_NodeIdStoreContextItem_backend_memory* item) {
+    UA_NodeId_clear(&item->nodeId);
     for (size_t i = 0; i < item->storeEnd; ++i) {
-        UA_DataValueMemoryStoreItem_deleteMembers(item->dataStore[i]);
+        UA_DataValueMemoryStoreItem_clear(item->dataStore[i]);
         UA_free(item->dataStore[i]);
     }
     UA_free(item->dataStore);
@@ -46,9 +46,9 @@ typedef struct {
 } UA_MemoryStoreContext;
 
 static void
-UA_MemoryStoreContext_deleteMembers(UA_MemoryStoreContext* ctx) {
+UA_MemoryStoreContext_clear(UA_MemoryStoreContext* ctx) {
     for (size_t i = 0; i < ctx->storeEnd; ++i) {
-        UA_NodeIdStoreContextItem_deleteMembers(&ctx->dataStore[i]);
+        UA_NodeIdStoreContextItem_clear(&ctx->dataStore[i]);
     }
     UA_free(ctx->dataStore);
     memset(ctx, 0, sizeof(UA_MemoryStoreContext));
@@ -74,7 +74,7 @@ getNewNodeIdContext_backend_memory(UA_MemoryStoreContext* context,
     UA_NodeId_copy(nodeId, &item->nodeId);
     UA_DataValueMemoryStoreItem ** store = (UA_DataValueMemoryStoreItem **)UA_calloc(ctx->initialStoreSize, sizeof(UA_DataValueMemoryStoreItem*));
     if (!store) {
-        UA_NodeIdStoreContextItem_deleteMembers(item);
+        UA_NodeIdStoreContextItem_clear(item);
         return NULL;
     }
     item->dataStore = store;
@@ -231,7 +231,7 @@ serverSetHistoryData_backend_memory(UA_Server *server,
 
 static void
 UA_MemoryStoreContext_delete(UA_MemoryStoreContext* ctx) {
-    UA_MemoryStoreContext_deleteMembers(ctx);
+    UA_MemoryStoreContext_clear(ctx);
     UA_free(ctx);
 }
 
@@ -453,7 +453,7 @@ replaceDataValue_backend_memory(UA_Server *server,
                                     MATCH_EQUAL);
     if (index == item->storeEnd)
         return UA_STATUSCODE_BADNOENTRYEXISTS;
-    UA_DataValue_deleteMembers(&item->dataStore[index]->value);
+    UA_DataValue_clear(&item->dataStore[index]->value);
     UA_DataValue_copy(value, &item->dataStore[index]->value);
     return UA_STATUSCODE_GOOD;
 }
@@ -538,7 +538,7 @@ removeDataValue_backend_memory(UA_Server *server,
     }
 #ifndef __clang_analyzer__
     for (size_t i = index1; i < index2; ++i) {
-        UA_DataValueMemoryStoreItem_deleteMembers(item->dataStore[i]);
+        UA_DataValueMemoryStoreItem_clear(item->dataStore[i]);
         UA_free(item->dataStore[i]);
     }
     memmove(&item->dataStore[index1], &item->dataStore[index2], sizeof(UA_DataValueMemoryStoreItem*) * (item->storeEnd - index2));
@@ -555,7 +555,7 @@ deleteMembers_backend_memory(UA_HistoryDataBackend *backend)
 {
     if (backend == NULL || backend->context == NULL)
         return;
-    UA_MemoryStoreContext_deleteMembers((UA_MemoryStoreContext*)backend->context);
+    UA_MemoryStoreContext_clear((UA_MemoryStoreContext*)backend->context);
 }
 
 
@@ -596,7 +596,7 @@ UA_HistoryDataBackend_Memory(size_t initialNodeIdStoreSize, size_t initialDataSt
 }
 
 void
-UA_HistoryDataBackend_Memory_deleteMembers(UA_HistoryDataBackend *backend)
+UA_HistoryDataBackend_Memory_clear(UA_HistoryDataBackend *backend)
 {
     UA_MemoryStoreContext *ctx = (UA_MemoryStoreContext*)backend->context;
     UA_MemoryStoreContext_delete(ctx);

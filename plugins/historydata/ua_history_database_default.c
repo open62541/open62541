@@ -290,7 +290,7 @@ getHistoryData_service_default(const UA_HistoryDataBackend* backend,
         if(backendOutContinuationPoint.length > 0)
             memcpy(outContinuationPoint->data + sizeof(size_t), backendOutContinuationPoint.data, backendOutContinuationPoint.length);
     }
-    UA_ByteString_deleteMembers(&backendOutContinuationPoint);
+    UA_ByteString_clear(&backendOutContinuationPoint);
     return UA_STATUSCODE_GOOD;
 }
 
