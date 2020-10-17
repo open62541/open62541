@@ -244,9 +244,6 @@ mark_as_advanced(UA_ENABLE_QUERY)
 
 option(UA_ENABLE_IMMUTABLE_NODES "Nodes in the information model are not edited but copied and replaced" OFF)
 mark_as_advanced(UA_ENABLE_IMMUTABLE_NODES)
-if(UA_MULTITHREADING GREATER 199)
-    set(UA_ENABLE_IMMUTABLE_NODES ON)
-endif()
 
 option(UA_ENABLE_EXPERIMENTAL_HISTORIZING "Enable support for experimental historical access features (client)" OFF)
 mark_as_advanced(UA_ENABLE_EXPERIMENTAL_HISTORIZING)
@@ -757,7 +754,6 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/transport_generated_encoding_binary.h
                      ${PROJECT_SOURCE_DIR}/src/ua_connection_internal.h
                      ${PROJECT_SOURCE_DIR}/src/ua_securechannel.h
-                     ${PROJECT_SOURCE_DIR}/src/ua_workqueue.h
                      ${PROJECT_SOURCE_DIR}/src/ua_timer.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_session.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.h
@@ -779,7 +775,6 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_BINARY_DIR}/src_generated/open62541/transport_generated.c
                 ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.c
                 ${PROJECT_SOURCE_DIR}/src/ua_util.c
-                ${PROJECT_SOURCE_DIR}/src/ua_workqueue.c
                 ${PROJECT_SOURCE_DIR}/src/ua_timer.c
                 ${PROJECT_SOURCE_DIR}/src/ua_connection.c
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel.c

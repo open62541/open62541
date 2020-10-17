@@ -9,22 +9,6 @@
 #include "ua_util_internal.h"
 #include "ua_timer.h"
 
-struct UA_TimerEntry {
-    ZIP_ENTRY(UA_TimerEntry) zipfields;
-    UA_DateTime nextTime;                    /* The next time when the callback
-                                              * is to be executed */
-    UA_UInt64 interval;                      /* Interval in 100ns resolution. If
-                                                the interval is zero, the
-                                                callback is not repeated and
-                                                removed after execution. */
-    UA_ApplicationCallback callback;
-    void *application;
-    void *data;
-
-    ZIP_ENTRY(UA_TimerEntry) idZipfields;
-    UA_UInt64 id;                            /* Id of the entry */
-};
-
 /* There may be several entries with the same nextTime in the tree. We give them
  * an absolute order by considering the memory address to break ties. Because of
  * this, the nextTime property cannot be used to lookup specific entries. */
@@ -61,6 +45,17 @@ void
 UA_Timer_init(UA_Timer *t) {
     memset(t, 0, sizeof(UA_Timer));
     UA_LOCK_INIT(t->timerMutex)
+}
+
+void
+UA_Timer_addTimerEntry(UA_Timer *t, UA_TimerEntry *te, UA_UInt64 *callbackId) {
+    UA_LOCK(t->timerMutex);
+    te->id = ++t->idCounter;
+    if(callbackId)
+        *callbackId = te->id;
+    ZIP_INSERT(UA_TimerZip, &t->root, te, ZIP_FFS32(UA_UInt32_random()));
+    ZIP_INSERT(UA_TimerIdZip, &t->idRoot, te, ZIP_RANK(te, zipfields));
+    UA_UNLOCK(t->timerMutex);
 }
 
 static UA_StatusCode

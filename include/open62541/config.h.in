@@ -50,9 +50,6 @@
 /* Multithreading */
 #cmakedefine UA_ENABLE_IMMUTABLE_NODES
 #define UA_MULTITHREADING ${UA_MULTITHREADING}
-#if UA_MULTITHREADING >= 200 && !defined(UA_ENABLE_IMMUTABLE_NODES)
-#error "The multithreading feature requires nodes to be immutable"
-#endif
 
 /* Advanced Options */
 #cmakedefine UA_ENABLE_STATUSCODE_DESCRIPTIONS
