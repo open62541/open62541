@@ -107,9 +107,9 @@ UA_CertificateVerification_clear (UA_CertificateVerification * cv) {
     if (context == NULL) {
         return;
     }
-    UA_ByteString_deleteMembers (&context->trustListFolder);
-    UA_ByteString_deleteMembers (&context->issuerListFolder);
-    UA_ByteString_deleteMembers (&context->revocationListFolder);
+    UA_ByteString_clear (&context->trustListFolder);
+    UA_ByteString_clear (&context->issuerListFolder);
+    UA_ByteString_clear (&context->revocationListFolder);
 
     UA_CertContext_sk_free (context);
     UA_free (context);
@@ -247,7 +247,7 @@ UA_loadCertFromFile (const char *     fileName,
     fseek(fp, 0, SEEK_SET);
     size_t readLen = fread (cert->data, 1, cert->length, fp);
     if (readLen != cert->length) {
-        UA_ByteString_deleteMembers (cert);
+        UA_ByteString_clear (cert);
         cert->length = 0;
         fclose (fp);
         return UA_STATUSCODE_BADINTERNALERROR;

@@ -73,7 +73,7 @@ UA_Policy_New_Context (UA_SecurityPolicy * securityPolicy,
                          &context->localCertThumbprint, true
                          );
     if (retval != UA_STATUSCODE_GOOD) {
-        UA_ByteString_deleteMembers (&context->localPrivateKey);
+        UA_ByteString_clear (&context->localPrivateKey);
         UA_free (context);
         return retval; 
     }
@@ -91,14 +91,14 @@ UA_Policy_Clear_Context (UA_SecurityPolicy *policy) {
     if (policy == NULL)
         return;
 
-    UA_ByteString_deleteMembers(&policy->localCertificate);
+    UA_ByteString_clear(&policy->localCertificate);
 
     /* delete all allocated members in the context */
 
     Policy_Context_Basic256Sha256 * pc = (Policy_Context_Basic256Sha256 *)
         policy->policyContext;
-    UA_ByteString_deleteMembers (&pc->localPrivateKey);
-    UA_ByteString_deleteMembers (&pc->localCertThumbprint);
+    UA_ByteString_clear (&pc->localPrivateKey);
+    UA_ByteString_clear (&pc->localCertThumbprint);
     UA_free (pc);        
     return;
 }
@@ -162,13 +162,13 @@ UA_ChannelModule_Delete_Context (void * channelContext) {
         Channel_Context_Basic256Sha256 * cc = (Channel_Context_Basic256Sha256 *)
                                            channelContext;
         X509_free (cc->remoteCertificateX509);                                           
-        UA_ByteString_deleteMembers (&cc->remoteCertificate); 
-        UA_ByteString_deleteMembers (&cc->localSymSigningKey);
-        UA_ByteString_deleteMembers (&cc->localSymEncryptingKey);
-        UA_ByteString_deleteMembers (&cc->localSymIv);
-        UA_ByteString_deleteMembers (&cc->remoteSymSigningKey);
-        UA_ByteString_deleteMembers (&cc->remoteSymEncryptingKey);
-        UA_ByteString_deleteMembers (&cc->remoteSymIv);
+        UA_ByteString_clear (&cc->remoteCertificate); 
+        UA_ByteString_clear (&cc->localSymSigningKey);
+        UA_ByteString_clear (&cc->localSymEncryptingKey);
+        UA_ByteString_clear (&cc->localSymIv);
+        UA_ByteString_clear (&cc->remoteSymSigningKey);
+        UA_ByteString_clear (&cc->remoteSymEncryptingKey);
+        UA_ByteString_clear (&cc->remoteSymIv);
 
         UA_LOG_INFO (cc->policyContext->logger, 
                  UA_LOGCATEGORY_SECURITYPOLICY, 
@@ -350,7 +350,7 @@ UA_ChannelModule_Basic256Sha256_setLocalSymSigningKey (void * channelContext,
     if (key == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
     Channel_Context_Basic256Sha256 * cc = (Channel_Context_Basic256Sha256 *) channelContext;
-    UA_ByteString_deleteMembers(&cc->localSymSigningKey);
+    UA_ByteString_clear(&cc->localSymSigningKey);
     return UA_ByteString_copy(key, &cc->localSymSigningKey);
 }
 
@@ -360,7 +360,7 @@ UA_ChannelM_Basic256Sha256_setLocalSymEncryptingKey (void * channelContext,
     if (key == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
     Channel_Context_Basic256Sha256 * cc = (Channel_Context_Basic256Sha256 *) channelContext;
-    UA_ByteString_deleteMembers(&cc->localSymEncryptingKey);
+    UA_ByteString_clear(&cc->localSymEncryptingKey);
     return UA_ByteString_copy(key, &cc->localSymEncryptingKey);
 }
 
@@ -370,7 +370,7 @@ UA_ChannelM_Basic256Sha256_setLocalSymIv (void * channelContext,
     if (iv == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
     Channel_Context_Basic256Sha256 * cc = (Channel_Context_Basic256Sha256 *) channelContext;
-    UA_ByteString_deleteMembers(&cc->localSymIv);
+    UA_ByteString_clear(&cc->localSymIv);
     return UA_ByteString_copy(iv, &cc->localSymIv);
 }
 
@@ -400,7 +400,7 @@ UA_ChannelM_Basic256Sha256_setRemoteSymSigningKey (void *channelContext,
     if (key == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
     Channel_Context_Basic256Sha256 * cc = (Channel_Context_Basic256Sha256 *) channelContext;
-    UA_ByteString_deleteMembers(&cc->remoteSymSigningKey);
+    UA_ByteString_clear(&cc->remoteSymSigningKey);
     return UA_ByteString_copy(key, &cc->remoteSymSigningKey);
 }
 
@@ -410,7 +410,7 @@ UA_ChannelM_Basic256Sha256_setRemoteSymEncryptingKey (void *channelContext,
     if (key == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
     Channel_Context_Basic256Sha256 * cc = (Channel_Context_Basic256Sha256 *) channelContext;
-    UA_ByteString_deleteMembers(&cc->remoteSymEncryptingKey);
+    UA_ByteString_clear(&cc->remoteSymEncryptingKey);
     return UA_ByteString_copy(key, &cc->remoteSymEncryptingKey);
 }
 
@@ -420,7 +420,7 @@ UA_ChannelM_Basic256Sha256_setRemoteSymIv (void *channelContext,
     if (key == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
     Channel_Context_Basic256Sha256 * cc = (Channel_Context_Basic256Sha256 *) channelContext;
-    UA_ByteString_deleteMembers(&cc->remoteSymIv);
+    UA_ByteString_clear(&cc->remoteSymIv);
     return UA_ByteString_copy(key, &cc->remoteSymIv);
 }
 

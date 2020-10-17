@@ -70,8 +70,8 @@ mbedtls_generateKey(mbedtls_md_context_t *context,
             outSegment.length = 0;
             retval = UA_ByteString_allocBuffer(&outSegment, hashLen);
             if(retval != UA_STATUSCODE_GOOD) {
-                UA_ByteString_deleteMembers(&A_and_seed);
-                UA_ByteString_deleteMembers(&ANext_and_seed);
+                UA_ByteString_clear(&A_and_seed);
+                UA_ByteString_clear(&ANext_and_seed);
                 return retval;
             }
             bufferAllocated = UA_TRUE;
@@ -82,23 +82,23 @@ mbedtls_generateKey(mbedtls_md_context_t *context,
 
         if(retval != UA_STATUSCODE_GOOD) {
             if(bufferAllocated)
-                UA_ByteString_deleteMembers(&outSegment);
-            UA_ByteString_deleteMembers(&A_and_seed);
-            UA_ByteString_deleteMembers(&ANext_and_seed);
+                UA_ByteString_clear(&outSegment);
+            UA_ByteString_clear(&A_and_seed);
+            UA_ByteString_clear(&ANext_and_seed);
             return retval;
         }
 
         if(bufferAllocated) {
             memcpy(out->data + offset, outSegment.data, out->length - offset);
-            UA_ByteString_deleteMembers(&outSegment);
+            UA_ByteString_clear(&outSegment);
         }
 
         swapBuffers(&ANext_and_seed, &A_and_seed);
         swapBuffers(&ANext, &A);
     }
 
-    UA_ByteString_deleteMembers(&A_and_seed);
-    UA_ByteString_deleteMembers(&ANext_and_seed);
+    UA_ByteString_clear(&A_and_seed);
+    UA_ByteString_clear(&ANext_and_seed);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -194,7 +194,7 @@ mbedtls_encrypt_rsaOaep(mbedtls_rsa_context *context,
                                                      label, 0, plainTextBlockSize,
                                                      data->data + inOffset, encrypted.data + offset);
         if(mbedErr) {
-            UA_ByteString_deleteMembers(&encrypted);
+            UA_ByteString_clear(&encrypted);
             return UA_STATUSCODE_BADINTERNALERROR;
         }
 
@@ -204,7 +204,7 @@ mbedtls_encrypt_rsaOaep(mbedtls_rsa_context *context,
     }
 
     memcpy(data->data, encrypted.data, offset);
-    UA_ByteString_deleteMembers(&encrypted);
+    UA_ByteString_clear(&encrypted);
     return UA_STATUSCODE_GOOD;
 }
 

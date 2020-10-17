@@ -176,7 +176,7 @@ UA_Openssl_X509_GetCertificateThumbprint (const UA_ByteString * certficate,
     X509 * x509Certificate = d2i_X509 (NULL, &pTemp, (long) certficate->length);
     if (x509Certificate == NULL) {
         if (bThumbPrint) {
-            UA_ByteString_deleteMembers (pThumbprint);
+            UA_ByteString_clear (pThumbprint);
         }
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -184,7 +184,7 @@ UA_Openssl_X509_GetCertificateThumbprint (const UA_ByteString * certficate,
     if (X509_digest (x509Certificate, EVP_sha1(), pThumbprint->data, NULL) 
         != 1) {
         if (bThumbPrint) {
-            UA_ByteString_deleteMembers (pThumbprint);
+            UA_ByteString_clear (pThumbprint);
         }
     return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -351,7 +351,7 @@ UA_Openssl_RSA_OAEP_Encrypt (UA_ByteString * data,
                                             RSA_PKCS1_OAEP_PADDING, 
                                             paddingSize,
                                             data);
-    UA_ByteString_deleteMembers (&message);
+    UA_ByteString_clear (&message);
     return ret;                                     
 }
 
@@ -617,8 +617,8 @@ UA_OpenSSL_Decrypt (const UA_ByteString * iv,
     ret = UA_STATUSCODE_GOOD;
 
 errout:
-    UA_ByteString_deleteMembers (&ivCopy);
-    UA_ByteString_deleteMembers (&cipherTxt);  
+    UA_ByteString_clear (&ivCopy);
+    UA_ByteString_clear (&cipherTxt);  
     if (ctx != NULL) {
         EVP_CIPHER_CTX_free(ctx);
     }
@@ -685,8 +685,8 @@ UA_OpenSSL_Encrypt (const UA_ByteString * iv,
     ret = UA_STATUSCODE_GOOD;
 
 errout:
-    UA_ByteString_deleteMembers (&ivCopy);
-    UA_ByteString_deleteMembers (&plainTxt);  
+    UA_ByteString_clear (&ivCopy);
+    UA_ByteString_clear (&plainTxt);  
     if (ctx != NULL) {
         EVP_CIPHER_CTX_free(ctx);
     }
@@ -879,7 +879,7 @@ UA_Openssl_RSA_PKCS1_V15_Encrypt (UA_ByteString * data,
                                          RSA_PKCS1_PADDING, 
                                          paddingSize,
                                          data);
-    UA_ByteString_deleteMembers (&message);
+    UA_ByteString_clear (&message);
     return ret; 
 }
 

@@ -145,7 +145,7 @@ asym_encrypt_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
                                          mbedtls_ctr_drbg_random,
                                          &pc->drbgContext);
         if(mbedErr) {
-            UA_ByteString_deleteMembers(&encrypted);
+            UA_ByteString_clear(&encrypted);
             return UA_STATUSCODE_BADINTERNALERROR;
         }
 
@@ -155,7 +155,7 @@ asym_encrypt_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
     }
 
     memcpy(data->data, encrypted.data, offset);
-    UA_ByteString_deleteMembers(&encrypted);
+    UA_ByteString_clear(&encrypted);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -353,7 +353,7 @@ sym_encrypt_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
                                     ivCopy.data, data->data, data->data);
     if(mbedErr)
         retval = UA_STATUSCODE_BADINTERNALERROR;
-    UA_ByteString_deleteMembers(&ivCopy);
+    UA_ByteString_clear(&ivCopy);
     return retval;
 }
 
@@ -391,7 +391,7 @@ sym_decrypt_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
                                     ivCopy.data, data->data, data->data);
     if(mbedErr)
         retval = UA_STATUSCODE_BADINTERNALERROR;
-    UA_ByteString_deleteMembers(&ivCopy);
+    UA_ByteString_clear(&ivCopy);
     return retval;
 }
 
@@ -452,13 +452,13 @@ parseRemoteCertificate_sp_basic128rsa15(Basic128Rsa15_ChannelContext *cc,
 
 static void
 channelContext_deleteContext_sp_basic128rsa15(Basic128Rsa15_ChannelContext *cc) {
-    UA_ByteString_deleteMembers(&cc->localSymSigningKey);
-    UA_ByteString_deleteMembers(&cc->localSymEncryptingKey);
-    UA_ByteString_deleteMembers(&cc->localSymIv);
+    UA_ByteString_clear(&cc->localSymSigningKey);
+    UA_ByteString_clear(&cc->localSymEncryptingKey);
+    UA_ByteString_clear(&cc->localSymIv);
 
-    UA_ByteString_deleteMembers(&cc->remoteSymSigningKey);
-    UA_ByteString_deleteMembers(&cc->remoteSymEncryptingKey);
-    UA_ByteString_deleteMembers(&cc->remoteSymIv);
+    UA_ByteString_clear(&cc->remoteSymSigningKey);
+    UA_ByteString_clear(&cc->remoteSymEncryptingKey);
+    UA_ByteString_clear(&cc->remoteSymIv);
 
     mbedtls_x509_crt_free(&cc->remoteCertificate);
 
@@ -507,7 +507,7 @@ channelContext_setLocalSymEncryptingKey_sp_basic128rsa15(Basic128Rsa15_ChannelCo
     if(key == NULL || cc == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_ByteString_deleteMembers(&cc->localSymEncryptingKey);
+    UA_ByteString_clear(&cc->localSymEncryptingKey);
     return UA_ByteString_copy(key, &cc->localSymEncryptingKey);
 }
 
@@ -517,7 +517,7 @@ channelContext_setLocalSymSigningKey_sp_basic128rsa15(Basic128Rsa15_ChannelConte
     if(key == NULL || cc == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_ByteString_deleteMembers(&cc->localSymSigningKey);
+    UA_ByteString_clear(&cc->localSymSigningKey);
     return UA_ByteString_copy(key, &cc->localSymSigningKey);
 }
 
@@ -528,7 +528,7 @@ channelContext_setLocalSymIv_sp_basic128rsa15(Basic128Rsa15_ChannelContext *cc,
     if(iv == NULL || cc == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_ByteString_deleteMembers(&cc->localSymIv);
+    UA_ByteString_clear(&cc->localSymIv);
     return UA_ByteString_copy(iv, &cc->localSymIv);
 }
 
@@ -538,7 +538,7 @@ channelContext_setRemoteSymEncryptingKey_sp_basic128rsa15(Basic128Rsa15_ChannelC
     if(key == NULL || cc == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_ByteString_deleteMembers(&cc->remoteSymEncryptingKey);
+    UA_ByteString_clear(&cc->remoteSymEncryptingKey);
     return UA_ByteString_copy(key, &cc->remoteSymEncryptingKey);
 }
 
@@ -548,7 +548,7 @@ channelContext_setRemoteSymSigningKey_sp_basic128rsa15(Basic128Rsa15_ChannelCont
     if(key == NULL || cc == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_ByteString_deleteMembers(&cc->remoteSymSigningKey);
+    UA_ByteString_clear(&cc->remoteSymSigningKey);
     return UA_ByteString_copy(key, &cc->remoteSymSigningKey);
 }
 
@@ -558,7 +558,7 @@ channelContext_setRemoteSymIv_sp_basic128rsa15(Basic128Rsa15_ChannelContext *cc,
     if(iv == NULL || cc == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_ByteString_deleteMembers(&cc->remoteSymIv);
+    UA_ByteString_clear(&cc->remoteSymIv);
     return UA_ByteString_copy(iv, &cc->remoteSymIv);
 }
 
@@ -588,7 +588,7 @@ clear_sp_basic128rsa15(UA_SecurityPolicy *securityPolicy) {
     if(securityPolicy == NULL)
         return;
 
-    UA_ByteString_deleteMembers(&securityPolicy->localCertificate);
+    UA_ByteString_clear(&securityPolicy->localCertificate);
 
     if(securityPolicy->policyContext == NULL)
         return;
@@ -601,7 +601,7 @@ clear_sp_basic128rsa15(UA_SecurityPolicy *securityPolicy) {
     mbedtls_entropy_free(&pc->entropyContext);
     mbedtls_pk_free(&pc->localPrivateKey);
     mbedtls_md_free(&pc->sha1MdContext);
-    UA_ByteString_deleteMembers(&pc->localCertThumbprint);
+    UA_ByteString_clear(&pc->localCertThumbprint);
 
     UA_LOG_DEBUG(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                  "Deleted members of EndpointContext for sp_basic128rsa15");
@@ -622,7 +622,7 @@ updateCertificateAndPrivateKey_sp_basic128rsa15(UA_SecurityPolicy *securityPolic
 
     Basic128Rsa15_PolicyContext *pc = (Basic128Rsa15_PolicyContext *)securityPolicy->policyContext;
 
-    UA_ByteString_deleteMembers(&securityPolicy->localCertificate);
+    UA_ByteString_clear(&securityPolicy->localCertificate);
 
     UA_StatusCode retval = UA_ByteString_allocBuffer(&securityPolicy->localCertificate, newCertificate.length + 1);
     if(retval != UA_STATUSCODE_GOOD)
