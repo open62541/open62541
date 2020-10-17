@@ -182,10 +182,12 @@ UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic,
 
         if(first->interval == 0) {
             ZIP_REMOVE(UA_TimerIdZip, &t->idRoot, first);
-            UA_UNLOCK(t->timerMutex);
-            executionCallback(executionApplication, first->callback,
-                              first->application, first->data);
-            UA_LOCK(t->timerMutex);
+            if(first->callback) {
+                UA_UNLOCK(t->timerMutex);
+                executionCallback(executionApplication, first->callback,
+                                  first->application, first->data);
+                UA_LOCK(t->timerMutex);
+            }
             UA_free(first);
             continue;
         }
@@ -196,6 +198,9 @@ UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic,
         if(first->nextTime < nowMonotonic)
             first->nextTime = nowMonotonic + 1;
         ZIP_INSERT(UA_TimerZip, &t->root, first, ZIP_RANK(first, zipfields));
+
+        if(!first->callback)
+            continue;
 
         /* Unlock the mutes before dropping into the callback. So that the timer
          * itself can be edited within the callback. When we return, only the
