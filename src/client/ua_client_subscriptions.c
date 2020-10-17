@@ -375,17 +375,17 @@ UA_Client_Subscriptions_deleteSingle(UA_Client *client, UA_UInt32 subscriptionId
 
     UA_StatusCode retval = response.responseHeader.serviceResult;
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_DeleteSubscriptionsResponse_deleteMembers(&response);
+        UA_DeleteSubscriptionsResponse_clear(&response);
         return retval;
     }
 
     if(response.resultsSize != 1) {
-        UA_DeleteSubscriptionsResponse_deleteMembers(&response);
+        UA_DeleteSubscriptionsResponse_clear(&response);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     retval = response.results[0];
-    UA_DeleteSubscriptionsResponse_deleteMembers(&response);
+    UA_DeleteSubscriptionsResponse_clear(&response);
     return retval;
 }
 
@@ -708,7 +708,7 @@ UA_Client_MonitoredItems_createDataChange(UA_Client *client, UA_UInt32 subscript
     
     if(result.statusCode == UA_STATUSCODE_GOOD)
        UA_MonitoredItemCreateResult_copy(&response.results[0] , &result);
-    UA_CreateMonitoredItemsResponse_deleteMembers(&response);
+    UA_CreateMonitoredItemsResponse_clear(&response);
     return result;
 }
 
@@ -756,12 +756,12 @@ UA_Client_MonitoredItems_createEvent(UA_Client *client, UA_UInt32 subscriptionId
     UA_MonitoredItemCreateResult result;
     UA_MonitoredItemCreateResult_init(&result);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_CreateMonitoredItemsResponse_deleteMembers(&response);
+        UA_CreateMonitoredItemsResponse_clear(&response);
         result.statusCode = retval;
         return result;
     }
     UA_MonitoredItemCreateResult_copy(response.results , &result);
-    UA_CreateMonitoredItemsResponse_deleteMembers(&response);
+    UA_CreateMonitoredItemsResponse_clear(&response);
     return result;
 }
 
@@ -871,17 +871,17 @@ UA_Client_MonitoredItems_deleteSingle(UA_Client *client, UA_UInt32 subscriptionI
 
     UA_StatusCode retval = response.responseHeader.serviceResult;
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_DeleteMonitoredItemsResponse_deleteMembers(&response);
+        UA_DeleteMonitoredItemsResponse_clear(&response);
         return retval;
     }
 
     if(response.resultsSize != 1) {
-        UA_DeleteMonitoredItemsResponse_deleteMembers(&response);
+        UA_DeleteMonitoredItemsResponse_clear(&response);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     retval = response.results[0];
-    UA_DeleteMonitoredItemsResponse_deleteMembers(&response);
+    UA_DeleteMonitoredItemsResponse_clear(&response);
     return retval;
 }
 
@@ -919,7 +919,7 @@ UA_Client_MonitoredItems_modify(UA_Client *client,
                         &modifiedRequest, &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSREQUEST],
                         &response, &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSRESPONSE]);
 
-    UA_ModifyMonitoredItemsRequest_deleteMembers(&modifiedRequest);
+    UA_ModifyMonitoredItemsRequest_clear(&modifiedRequest);
     return response;
 }
 
