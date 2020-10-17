@@ -14,8 +14,8 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
         return;
 
     /* Server Description */
-    UA_BuildInfo_deleteMembers(&config->buildInfo);
-    UA_ApplicationDescription_deleteMembers(&config->applicationDescription);
+    UA_BuildInfo_clear(&config->buildInfo);
+    UA_ApplicationDescription_clear(&config->applicationDescription);
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     UA_MdnsDiscoveryConfiguration_clear(&config->mdnsConfig);
     UA_String_clear(&config->mdnsInterfaceIP);
@@ -35,7 +35,7 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
     UA_free(config->networkLayers);
     config->networkLayers = NULL;
     config->networkLayersSize = 0;
-    UA_String_deleteMembers(&config->customHostname);
+    UA_String_clear(&config->customHostname);
     config->customHostname = UA_STRING_NULL;
 
     for(size_t i = 0; i < config->securityPoliciesSize; ++i) {
@@ -47,7 +47,7 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
     config->securityPoliciesSize = 0;
 
     for(size_t i = 0; i < config->endpointsSize; ++i)
-        UA_EndpointDescription_deleteMembers(&config->endpoints[i]);
+        UA_EndpointDescription_clear(&config->endpoints[i]);
 
     UA_free(config->endpoints);
     config->endpoints = NULL;

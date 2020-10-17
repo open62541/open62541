@@ -223,7 +223,7 @@ freeEntry(UA_TimerEntry *te, void *data) {
 }
 
 void
-UA_Timer_deleteMembers(UA_Timer *t) {
+UA_Timer_clear(UA_Timer *t) {
     UA_LOCK(t->timerMutex);
     /* Free all nodes and reset the root */
     ZIP_ITER(UA_TimerZip, &t->root, freeEntry, NULL);

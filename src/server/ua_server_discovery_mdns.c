@@ -211,7 +211,7 @@ UA_DiscoveryManager_removeEntryFromServersOnNetwork(UA_Server *server, const cha
 
     /* Remove from list */
     LIST_REMOVE(entry, pointers);
-    UA_ServerOnNetwork_deleteMembers(&entry->serverOnNetwork);
+    UA_ServerOnNetwork_clear(&entry->serverOnNetwork);
     if(entry->pathTmp)
         UA_free(entry->pathTmp);
     UA_free(entry);
