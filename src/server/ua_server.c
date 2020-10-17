@@ -178,6 +178,10 @@ cleanup:
 /* Server Lifecycle */
 /********************/
 
+static void
+serverExecuteRepeatedCallback(UA_Server *server, UA_ApplicationCallback cb,
+                              void *callbackApplication, void *data);
+
 /* The server needs to be stopped before it can be deleted */
 void UA_Server_delete(UA_Server *server) {
     UA_LOCK(server->serviceMutex);
@@ -223,12 +227,11 @@ void UA_Server_delete(UA_Server *server) {
     /* Clean up the Admin Session */
     UA_Session_deleteMembersCleanup(&server->adminSession, server);
 
-    /* Clean up the work queue */
-    UA_WorkQueue_cleanup(&server->workQueue);
-
     UA_UNLOCK(server->serviceMutex); /* The timer has its own mutex */
 
-    /* Delete the timed work */
+    /* Execute all remaining delayed events and clean up the timer */
+    UA_Timer_process(&server->timer, UA_DateTime_nowMonotonic() + 1,
+             (UA_TimerExecutionCallback)serverExecuteRepeatedCallback, server);
     UA_Timer_deleteMembers(&server->timer);
 
     /* Clean up the config */
@@ -286,8 +289,6 @@ UA_Server_init(UA_Server *server) {
 
     /* Initialize the handling of repeated callbacks */
     UA_Timer_init(&server->timer);
-
-    UA_WorkQueue_init(&server->workQueue);
 
     /* Initialize the adminSession */
     UA_Session_init(&server->adminSession);
@@ -618,13 +619,6 @@ UA_Server_run_startup(UA_Server *server) {
         UA_String_copy(&nl->discoveryUrl, &server->config.applicationDescription.discoveryUrls[i]);
     }
 
-    /* Spin up the worker threads */
-#if UA_MULTITHREADING >= 200
-    UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                "Spinning up %" PRIu16 " worker thread(s)", server->config.nThreads);
-    UA_WorkQueue_start(&server->workQueue, server->config.nThreads);
-#endif
-
     /* Start the multicast discovery server */
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     if(server->config.mdnsEnabled)
@@ -641,14 +635,7 @@ serverExecuteRepeatedCallback(UA_Server *server, UA_ApplicationCallback cb,
                               void *callbackApplication, void *data) {
     /* Service mutex is not set inside the timer that triggers the callback */
     UA_LOCK_ASSERT(server->serviceMutex, 0);
-
-#if UA_MULTITHREADING >= 200
-    UA_LOCK(server->serviceMutex);
-    UA_WorkQueue_enqueue(&server->workQueue, cb, callbackApplication, data);
-    UA_UNLOCK(server->serviceMutex);
-#else
     cb(callbackApplication, data);
-#endif
 }
 
 UA_UInt16
@@ -701,10 +688,6 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
     }
 #endif
 
-#if UA_MULTITHREADING < 200
-    UA_WorkQueue_manuallyProcessDelayed(&server->workQueue);
-#endif
-
     UA_UNLOCK(server->serviceMutex);
 
     now = UA_DateTime_nowMonotonic();
@@ -722,22 +705,11 @@ UA_Server_run_shutdown(UA_Server *server) {
         nl->stop(nl, server);
     }
 
-#if UA_MULTITHREADING >= 200
-    /* Shut down the workers */
-    UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                "Shutting down %u worker thread(s)",
-                (int unsigned)server->workQueue.workersSize);
-    UA_WorkQueue_stop(&server->workQueue);
-#endif
-
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     /* Stop multicast discovery */
     if(server->config.mdnsEnabled)
         stopMulticastDiscoveryServer(server);
 #endif
-
-    /* Execute all delayed callbacks */
-    UA_WorkQueue_cleanup(&server->workQueue);
 
     return UA_STATUSCODE_GOOD;
 }

@@ -168,11 +168,16 @@ UA_Server_deleteSubscription(UA_Server *server, UA_Subscription *sub) {
     /* Clean up */
     UA_Subscription_clear(server, sub);
 
-    /* Add a delayed callback to remove the subscription when the currently
-     * scheduled jobs have completed. There is no actual delayed callback. Just
-     * free the structure. */
+    /* Add a delayed callback to remove the Subscription when the current jobs
+     * have completed. Pointers to the subscription may still exist upwards in
+     * the call stack. */
     sub->delayedFreePointers.callback = NULL;
-    UA_WorkQueue_enqueueDelayed(&server->workQueue, &sub->delayedFreePointers);
+    sub->delayedFreePointers.application = server;
+    sub->delayedFreePointers.data = NULL;
+    sub->delayedFreePointers.nextTime = UA_DateTime_nowMonotonic() + 1;
+    sub->delayedFreePointers.interval = 0; /* Remove the structure */
+    UA_Timer_addTimerEntry(&server->timer, &sub->delayedFreePointers, NULL);
+
 }
 
 UA_Subscription *

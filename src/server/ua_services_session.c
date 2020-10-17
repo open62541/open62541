@@ -91,7 +91,9 @@ UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
     sentry->cleanupCallback.callback = (UA_ApplicationCallback)removeSessionCallback;
     sentry->cleanupCallback.application = server;
     sentry->cleanupCallback.data = sentry;
-    UA_WorkQueue_enqueueDelayed(&server->workQueue, &sentry->cleanupCallback);
+    sentry->cleanupCallback.nextTime = UA_DateTime_nowMonotonic() + 1;
+    sentry->cleanupCallback.interval = 0; /* Remove the structure */
+    UA_Timer_addTimerEntry(&server->timer, &sentry->cleanupCallback, NULL);
 }
 
 UA_StatusCode

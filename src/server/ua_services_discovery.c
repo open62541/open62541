@@ -426,14 +426,8 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
         // server found, remove from list
         LIST_REMOVE(registeredServer_entry, pointers);
         UA_RegisteredServer_clear(&registeredServer_entry->registeredServer);
-#if UA_MULTITHREADING >= 200
-        UA_atomic_subSize(&server->discoveryManager.registeredServersSize, 1);
-        registeredServer_entry->delayedCleanup.callback = NULL; /* only free the structure */
-        UA_WorkQueue_enqueueDelayed(&server->workQueue, &registeredServer_entry->delayedCleanup);
-#else
         UA_free(registeredServer_entry);
         server->discoveryManager.registeredServersSize--;
-#endif
         responseHeader->serviceResult = UA_STATUSCODE_GOOD;
         return;
     }
@@ -554,14 +548,8 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
             }
             LIST_REMOVE(current, pointers);
             UA_RegisteredServer_clear(&current->registeredServer);
-#if UA_MULTITHREADING >= 200
-            UA_atomic_subSize(&server->discoveryManager.registeredServersSize, 1);
-            current->delayedCleanup.callback = NULL; /* Only free the structure */
-            UA_WorkQueue_enqueueDelayed(&server->workQueue, &current->delayedCleanup);
-#else
             UA_free(current);
             server->discoveryManager.registeredServersSize--;
-#endif
         }
     }
 }

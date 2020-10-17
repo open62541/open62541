@@ -25,7 +25,6 @@
 #include "ua_server_async.h"
 #include "ua_timer.h"
 #include "ua_util_internal.h"
-#include "ua_workqueue.h"
 
 _UA_BEGIN_DECLS
 
@@ -66,13 +65,13 @@ typedef enum {
 } UA_DiagnosticEvent;
 
 typedef struct channel_entry {
-    UA_DelayedCallback cleanupCallback;
+    UA_TimerEntry cleanupCallback;
     TAILQ_ENTRY(channel_entry) pointers;
     UA_SecureChannel channel;
 } channel_entry;
 
 typedef struct session_list_entry {
-    UA_DelayedCallback cleanupCallback;
+    UA_TimerEntry cleanupCallback;
     LIST_ENTRY(session_list_entry) pointers;
     UA_Session session;
 } session_list_entry;
@@ -113,9 +112,6 @@ struct UA_Server {
 
     /* Callbacks with a repetition interval */
     UA_Timer timer;
-
-    /* WorkQueue and worker threads */
-    UA_WorkQueue workQueue;
 
     /* For bootstrapping, omit some consistency checks, creating a reference to
      * the parent and member instantiation */
