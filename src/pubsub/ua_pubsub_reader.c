@@ -400,9 +400,9 @@ UA_Server_ReaderGroup_clear(UA_Server* server, UA_ReaderGroup *readerGroup) {
         pConn->readerGroupsSize--;
 
     /* Delete ReaderGroup and its members */
-    UA_String_deleteMembers(&readerGroup->config.name);
-    UA_NodeId_deleteMembers(&readerGroup->linkedConnection);
-    UA_NodeId_deleteMembers(&readerGroup->identifier);
+    UA_String_clear(&readerGroup->config.name);
+    UA_NodeId_clear(&readerGroup->linkedConnection);
+    UA_NodeId_clear(&readerGroup->identifier);
 }
 
 UA_StatusCode
@@ -823,7 +823,7 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
     if (UA_StatusCode_isBad(res)) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "SubscribeCallback(): Connection receive failed!");
         UA_ReaderGroup_setPubSubState(server, UA_PUBSUBSTATE_ERROR, readerGroup);
-        UA_ByteString_deleteMembers(&buffer);
+        UA_ByteString_clear(&buffer);
         return;
     }
     size_t currentPosition = 0;
@@ -839,7 +839,7 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
                 if(UA_NetworkMessage_updateBufferedNwMessage(&dataSetReader->bufferedMessage, &buffer, &currentPosition) != UA_STATUSCODE_GOOD) {
                     UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
                                 "PubSub receive. Unknown field type.");
-                    UA_ByteString_deleteMembers(&buffer);
+                    UA_ByteString_clear(&buffer);
                     return;
                 }
 
@@ -849,7 +849,7 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
                    (*dataSetReader->bufferedMessage.nm->payloadHeader.dataSetPayloadHeader.dataSetWriterIds != dataSetReader->config.dataSetWriterId)) {
                     UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
                                 "PubSub receive. Unknown message received. Will not be processed.");
-                    UA_ByteString_deleteMembers(&buffer);
+                    UA_ByteString_clear(&buffer);
                     return;
                 }
 
@@ -860,17 +860,17 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
                 UA_DataSetMessage *dsm = dataSetReader->bufferedMessage.nm->payload.dataSetPayload.dataSetMessages;
                 if(dsm->header.fieldEncoding == UA_FIELDENCODING_VARIANT) {
                     for(UA_UInt16 i = 0; i < dsm->data.keyFrameData.fieldCount; i++) {
-                        UA_Variant_deleteMembers(&dsm->data.keyFrameData.dataSetFields[i].value);
+                        UA_Variant_clear(&dsm->data.keyFrameData.dataSetFields[i].value);
                     }
                 }
                 else if(dsm->header.fieldEncoding == UA_FIELDENCODING_DATAVALUE) {
                     for(UA_UInt16 i = 0; i < dsm->data.keyFrameData.fieldCount; i++) {
-                        UA_DataValue_deleteMembers(&dsm->data.keyFrameData.dataSetFields[i]);
+                        UA_DataValue_clear(&dsm->data.keyFrameData.dataSetFields[i]);
                     }
                 }
             } while((buffer.length) > currentPosition);
 
-            UA_ByteString_deleteMembers(&buffer);
+            UA_ByteString_clear(&buffer);
             return;
 
         }
@@ -881,12 +881,12 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
                 memset(&currentNetworkMessage, 0, sizeof(UA_NetworkMessage));
                 UA_NetworkMessage_decodeBinary(&buffer, &currentPosition, &currentNetworkMessage);
                 UA_Server_processNetworkMessage(server, &currentNetworkMessage, connection);
-                UA_NetworkMessage_deleteMembers(&currentNetworkMessage);
+                UA_NetworkMessage_clear(&currentNetworkMessage);
             } while((buffer.length) > currentPosition);
         }
     }
 
-    UA_ByteString_deleteMembers(&buffer);
+    UA_ByteString_clear(&buffer);
 }
 
 /* Add new subscribeCallback. The first execution is triggered directly after
@@ -1335,7 +1335,7 @@ UA_Server_DataSetReader_createDataSetMirror(UA_Server *server, UA_String *parent
 
         targetVars.targetVariables[i].targetVariable.attributeId = UA_ATTRIBUTEID_VALUE;
         UA_NodeId_copy(&newNode, &targetVars.targetVariables[i].targetVariable.targetNodeId);
-        UA_NodeId_deleteMembers(&newNode);
+        UA_NodeId_clear(&newNode);
         if(vAttr.arrayDimensionsSize > 0) {
             UA_Array_delete(vAttr.arrayDimensions, vAttr.arrayDimensionsSize,
                             &UA_TYPES[UA_TYPES_UINT32]);
@@ -1437,9 +1437,9 @@ UA_Server_DataSetReader_process(UA_Server *server, UA_DataSetReader *dataSetRead
 static void
 UA_DataSetReader_clear(UA_Server *server, UA_DataSetReader *dataSetReader) {
     /* Delete DataSetReader config */
-    UA_String_deleteMembers(&dataSetReader->config.name);
-    UA_Variant_deleteMembers(&dataSetReader->config.publisherId);
-    UA_DataSetMetaDataType_deleteMembers(&dataSetReader->config.dataSetMetaData);
+    UA_String_clear(&dataSetReader->config.name);
+    UA_Variant_clear(&dataSetReader->config.publisherId);
+    UA_DataSetMetaDataType_clear(&dataSetReader->config.dataSetMetaData);
     UA_ExtensionObject_clear(&dataSetReader->config.messageSettings);
     UA_ExtensionObject_clear(&dataSetReader->config.transportSettings);
     UA_TargetVariables_clear(&dataSetReader->config.subscribedDataSet.subscribedDataSetTarget);
@@ -1450,8 +1450,8 @@ UA_DataSetReader_clear(UA_Server *server, UA_DataSetReader *dataSetReader) {
         pGroup->readersCount--;
     }
 
-    UA_NodeId_deleteMembers(&dataSetReader->identifier);
-    UA_NodeId_deleteMembers(&dataSetReader->linkedReaderGroup);
+    UA_NodeId_clear(&dataSetReader->identifier);
+    UA_NodeId_clear(&dataSetReader->linkedReaderGroup);
 
     /* Remove DataSetReader from group */
     LIST_REMOVE(dataSetReader, listEntry);

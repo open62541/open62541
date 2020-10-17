@@ -930,7 +930,7 @@ UA_PubSubManager_loadPubSubConfigFromByteString(UA_Server *server, const UA_Byte
     }
 
 cleanup:
-    UA_ExtensionObject_deleteMembers(&decodedFile);
+    UA_ExtensionObject_clear(&decodedFile);
     return statusCode;
 }
 
@@ -1366,7 +1366,7 @@ UA_PubSubManager_getEncodedPubSubConfiguration(UA_Server *server, UA_ByteString 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Saving PubSub config was successful");
     
 cleanup:
-    UA_PubSubConfigurationDataType_deleteMembers(&config);
+    UA_PubSubConfigurationDataType_clear(&config);
 
     return statusCode;
 }

@@ -142,7 +142,7 @@ int main(int argc, char** argv) {
         if(statusCode != UA_STATUSCODE_GOOD) 
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Saving PubSub configuration to file failed. StatusCode: 0x%x\n", statusCode);
         
-        UA_ByteString_deleteMembers(&buffer);
+        UA_ByteString_clear(&buffer);
     }
 
     UA_Server_delete(server);
