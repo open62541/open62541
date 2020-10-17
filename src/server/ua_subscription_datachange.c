@@ -268,7 +268,7 @@ void
 UA_MonitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem) {
     UA_LOCK(server->serviceMutex);
     monitoredItem_sampleCallback(server, monitoredItem);
-    UA_UNLOCK(server->serviceMutex)
+    UA_UNLOCK(server->serviceMutex);
 }
 
 void
