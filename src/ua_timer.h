@@ -24,12 +24,19 @@ typedef struct UA_TimerZip UA_TimerZip;
 ZIP_HEAD(UA_TimerIdZip, UA_TimerEntry);
 typedef struct UA_TimerIdZip UA_TimerIdZip;
 
-/* Only for a single thread. Protect by a mutex if required. */
+/* The timer is protected by its own mutex. The mutex is released before calling
+ * into the callbacks. So the timer can be modified from the callbacks it is
+ * executing. Obviously, the timer must not be deleted from within one of its
+ * callbacks. */
+
 typedef struct {
     UA_TimerZip root;     /* The root of the time-sorted zip tree */
     UA_TimerIdZip idRoot; /* The root of the id-sorted zip tree */
     UA_UInt64 idCounter;  /* Generate unique identifiers. Identifiers are always
                            * above zero. */
+#if UA_MULTITHREADING >= 100
+    UA_LOCK_TYPE(timerMutex)
+#endif
 } UA_Timer;
 
 void UA_Timer_init(UA_Timer *t);

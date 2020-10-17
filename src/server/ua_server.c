@@ -180,23 +180,20 @@ cleanup:
 
 /* The server needs to be stopped before it can be deleted */
 void UA_Server_delete(UA_Server *server) {
-    /* Delete all internal data */
-    UA_Server_deleteSecureChannels(server);
     UA_LOCK(server->serviceMutex);
+
+    UA_Server_deleteSecureChannels(server);
     session_list_entry *current, *temp;
     LIST_FOREACH_SAFE(current, &server->sessions, pointers, temp) {
         UA_Server_removeSession(server, current, UA_DIAGNOSTICEVENT_CLOSE);
     }
-    UA_UNLOCK(server->serviceMutex);
     UA_Array_delete(server->namespaces, server->namespacesSize, &UA_TYPES[UA_TYPES_STRING]);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_MonitoredItem *mon, *mon_tmp;
     LIST_FOREACH_SAFE(mon, &server->localMonitoredItems, listEntry, mon_tmp) {
         LIST_REMOVE(mon, listEntry);
-        UA_LOCK(server->serviceMutex);
         UA_MonitoredItem_delete(server, mon);
-        UA_UNLOCK(server->serviceMutex);
     }
 
     /* Remove subscriptions without a session */
@@ -224,12 +221,12 @@ void UA_Server_delete(UA_Server *server) {
 #endif
 
     /* Clean up the Admin Session */
-    UA_LOCK(server->serviceMutex);
     UA_Session_deleteMembersCleanup(&server->adminSession, server);
-    UA_UNLOCK(server->serviceMutex);
 
     /* Clean up the work queue */
     UA_WorkQueue_cleanup(&server->workQueue);
+
+    UA_UNLOCK(server->serviceMutex); /* The timer has its own mutex */
 
     /* Delete the timed work */
     UA_Timer_deleteMembers(&server->timer);
@@ -641,9 +638,14 @@ UA_Server_run_startup(UA_Server *server) {
 
 static void
 serverExecuteRepeatedCallback(UA_Server *server, UA_ApplicationCallback cb,
-                        void *callbackApplication, void *data) {
+                              void *callbackApplication, void *data) {
+    /* Service mutex is not set inside the timer that triggers the callback */
+    UA_LOCK_ASSERT(server->serviceMutex, 0);
+
 #if UA_MULTITHREADING >= 200
+    UA_LOCK(server->serviceMutex);
     UA_WorkQueue_enqueue(&server->workQueue, cb, callbackApplication, data);
+    UA_UNLOCK(server->serviceMutex);
 #else
     cb(callbackApplication, data);
 #endif
@@ -682,6 +684,9 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
         }
     }
 #endif
+
+    UA_LOCK(server->serviceMutex);
+
 #if defined(UA_ENABLE_DISCOVERY_MULTICAST) && (UA_MULTITHREADING < 200)
     if(server->config.mdnsEnabled) {
         /* TODO multicastNextRepeat does not consider new input data (requests)
@@ -699,6 +704,8 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
 #if UA_MULTITHREADING < 200
     UA_WorkQueue_manuallyProcessDelayed(&server->workQueue);
 #endif
+
+    UA_UNLOCK(server->serviceMutex);
 
     now = UA_DateTime_nowMonotonic();
     timeout = 0;

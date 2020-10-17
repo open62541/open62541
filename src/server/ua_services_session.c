@@ -20,9 +20,8 @@
 /* Delayed callback to free the session memory */
 static void
 removeSessionCallback(UA_Server *server, session_list_entry *entry) {
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
     UA_Session_deleteMembersCleanup(&entry->session, server);
-    UA_UNLOCK(server->serviceMutex);
 }
 
 void

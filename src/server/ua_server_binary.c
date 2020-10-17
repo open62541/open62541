@@ -535,7 +535,9 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
     UA_Session *session = NULL;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(!UA_NodeId_isNull(&requestHeader->authenticationToken)) {
+        UA_LOCK(server->serviceMutex);
         retval = getBoundSession(server, channel, &requestHeader->authenticationToken, &session);
+        UA_UNLOCK(server->serviceMutex);
         if(retval != UA_STATUSCODE_GOOD)
             return sendServiceFault(channel, requestId, requestHeader->requestHandle,
                                     responseType, retval);
