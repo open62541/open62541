@@ -1110,7 +1110,7 @@ UA_WriterGroup_clear(UA_Server *server, UA_WriterGroup *writerGroup) {
                 UA_DataValue_delete(writerGroup->bufferedMessage.offsets[i].offsetData.value.value);
             }
         }
-        UA_ByteString_deleteMembers(&writerGroup->bufferedMessage.buffer);
+        UA_ByteString_clear(&writerGroup->bufferedMessage.buffer);
         UA_free(writerGroup->bufferedMessage.offsets);
     }
     UA_NodeId_clear(&writerGroup->identifier);
