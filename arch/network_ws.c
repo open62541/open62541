@@ -69,12 +69,12 @@ static void
 connection_ws_releasesendbuffer(UA_Connection *connection, UA_ByteString *buf) {
     buf->data -= LWS_PRE;
     buf->length += LWS_PRE;
-    UA_ByteString_deleteMembers(buf);
+    UA_ByteString_clear(buf);
 }
 
 static void
 connection_ws_releaserecvbuffer(UA_Connection *connection, UA_ByteString *buf) {
-    UA_ByteString_deleteMembers(buf);
+    UA_ByteString_clear(buf);
 }
 
 static UA_StatusCode
@@ -342,15 +342,15 @@ ServerNetworkLayerWS_clear(UA_ServerNetworkLayer *nl) {
     ServerNetworkLayerWS *layer = (ServerNetworkLayerWS *)nl->handle;
 
     if(layer->certificate.length) {
-        UA_String_deleteMembers(&layer->certificate);
+        UA_String_clear(&layer->certificate);
     }
 
     if(layer->privateKey.length) {
-        UA_String_deleteMembers(&layer->privateKey);
+        UA_String_clear(&layer->privateKey);
     }
 
     UA_free(nl->handle);
-    UA_String_deleteMembers(&nl->discoveryUrl);
+    UA_String_clear(&nl->discoveryUrl);
 }
 
 UA_ServerNetworkLayer
