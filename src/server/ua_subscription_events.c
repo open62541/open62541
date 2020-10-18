@@ -192,56 +192,52 @@ resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session, const UA_N
     rvi.indexRange = sao->indexRange;
     rvi.attributeId = sao->attributeId;
 
-    /* If this list (browsePath) is empty the Node is the instance of the
-     * TypeDefinition. */
+    UA_DataValue v;
+
     if(sao->browsePathSize == 0) {
-      UA_NodeId conditionTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
+        /* If this list (browsePath) is empty, the Node is the instance of the
+         * TypeDefinition. */
+        rvi.nodeId = sao->typeDefinitionId;
 
+        /* A Condition is an indirection. Look up the target node. */
+        /* TODO: check for Branches! One Condition could have multiple Branches */
+        UA_NodeId conditionTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
+        if(UA_NodeId_equal(&sao->typeDefinitionId, &conditionTypeId)) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
-      //TODO check for Branches! One Condition could have multiple Branches
-      // Set ConditionId
-      if(UA_NodeId_equal(&sao->typeDefinitionId, &conditionTypeId)){
-        UA_NodeId conditionId;
-        UA_StatusCode retval = UA_getConditionId(server, origin, &conditionId);
-        if(retval != UA_STATUSCODE_GOOD)
-          return retval;
-
-        rvi.nodeId = conditionId;
-      }
-      else
-        rvi.nodeId = sao->typeDefinitionId;
+            UA_StatusCode res = UA_getConditionId(server, origin, &rvi.nodeId);
+            if(res != UA_STATUSCODE_GOOD)
+                return res;
 #else
-      if(UA_NodeId_equal(&sao->typeDefinitionId, &conditionTypeId))
-        return UA_STATUSCODE_BADNOTSUPPORTED;
-      else
-        rvi.nodeId = sao->typeDefinitionId;
-#endif /*UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS*/
-        UA_DataValue v = UA_Server_readWithSession(server, session, &rvi,
-		                                           UA_TIMESTAMPSTORETURN_NEITHER);
-        if(v.status == UA_STATUSCODE_GOOD && v.hasValue)
-            *value = v.value;
-        return v.status;
-    }
+            return UA_STATUSCODE_BADNOTSUPPORTED;
+#endif
+        }
 
-    /* Resolve the browse path */
-    UA_BrowsePathResult bpr =
-        browseSimplifiedBrowsePath(server, *origin, sao->browsePathSize, sao->browsePath);
-    if(bpr.targetsSize == 0 && bpr.statusCode == UA_STATUSCODE_GOOD)
-        bpr.statusCode = UA_STATUSCODE_BADNOTFOUND;
-    if(bpr.statusCode != UA_STATUSCODE_GOOD) {
-        UA_StatusCode retval = bpr.statusCode;
+        v = UA_Server_readWithSession(server, session, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+
+    } else {
+        /* Resolve the browse path, starting from the event-source (and not the
+         * typeDefinitionId). */
+        UA_BrowsePathResult bpr =
+            browseSimplifiedBrowsePath(server, *origin, sao->browsePathSize, sao->browsePath);
+        if(bpr.targetsSize == 0 && bpr.statusCode == UA_STATUSCODE_GOOD)
+            bpr.statusCode = UA_STATUSCODE_BADNOTFOUND;
+        if(bpr.statusCode != UA_STATUSCODE_GOOD) {
+            UA_StatusCode res = bpr.statusCode;
+            UA_BrowsePathResult_clear(&bpr);
+            return res;
+        }
+
+        /* Use the first match */
+        rvi.nodeId = bpr.targets[0].targetId.nodeId;
+        v = UA_Server_readWithSession(server, session, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
         UA_BrowsePathResult_clear(&bpr);
-        return retval;
     }
 
-    /* Read the first matching element. Move the value to the output. */
-    rvi.nodeId = bpr.targets[0].targetId.nodeId;
-    UA_DataValue v = UA_Server_readWithSession(server, session, &rvi,
-                                               UA_TIMESTAMPSTORETURN_NEITHER);
+    /* Move the result to the output */
     if(v.status == UA_STATUSCODE_GOOD && v.hasValue)
         *value = v.value;
-
-    UA_BrowsePathResult_clear(&bpr);
+    else
+        UA_Variant_clear(&v.value);
     return v.status;
 }
 
