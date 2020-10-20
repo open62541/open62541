@@ -1187,7 +1187,7 @@ int main(int argc, char **argv) {
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
     config.certificateVerification.clear(&config.certificateVerification);
-    res = UA_CertificateVerification_CertFolders(&config.certificateVerification,
+    res = UA_CertificateVerification_CertFolders(&config.logger, &config.certificateVerification,
                                                  trustlistFolder, issuerlistFolder,
                                                  revocationlistFolder);
     if(res != UA_STATUSCODE_GOOD)
