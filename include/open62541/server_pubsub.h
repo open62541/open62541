@@ -175,6 +175,7 @@ typedef struct {
     size_t connectionPropertiesSize;
     UA_KeyValuePair *connectionProperties;
     UA_Variant connectionTransportSettings;
+    const UA_Logger *logger;
 #ifdef UA_ENABLE_PUBSUB_ETH_UADP_ETF
     /* ETF related connection configuration - Not in PubSub specfication */
     UA_ETFConfiguration etfConfiguration;
