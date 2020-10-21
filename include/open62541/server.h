@@ -295,6 +295,7 @@ UA_ServerConfig_setCustomHostname(UA_ServerConfig *config,
     UA_String_clear(&config->customHostname);
     UA_String_copy(&customHostname, &config->customHostname);
 }
+
 /**
  * .. _server-lifecycle:
  *
@@ -1679,5 +1680,9 @@ UA_ServerStatistics UA_EXPORT
 UA_Server_getStatistics(UA_Server *server);
 
 _UA_END_DECLS
+
+#ifdef UA_ENABLE_PUBSUB
+#include <open62541/server_pubsub.h>
+#endif
 
 #endif /* UA_SERVER_H_ */

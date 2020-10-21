@@ -13,6 +13,9 @@
  * "ua_mqtt_pal.c" forwards the network calls (send/recv) to UA_Connection (TCP).
  */
 
+#include <open62541/server_pubsub.h>
+#include <open62541/util.h>
+
 #include "mqtt/ua_mqtt_adapter.h"
 #include "open62541/plugin/log_stdout.h"
 

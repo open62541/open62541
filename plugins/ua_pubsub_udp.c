@@ -8,9 +8,11 @@
  * Copyright (c) 2020 Kalycito Infotech Private Limited
  */
 
+#include <open62541/server_pubsub.h>
+#include <open62541/util.h>
+
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pubsub_udp.h>
-#include <open62541/util.h>
 
 /* UDP multicast network layer specific internal data */
 typedef struct {
