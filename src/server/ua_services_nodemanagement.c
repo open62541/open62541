@@ -180,6 +180,87 @@ checkParentReference(UA_Server *server, UA_Session *session, UA_NodeClass nodeCl
 }
 
 static UA_StatusCode
+setDefaultValue(UA_Server *server, const UA_VariableNode *node) {
+    /* Get the DataType */
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    const UA_DataType *type = UA_Server_findDataType(server, &node->dataType);
+    if(!type) {
+        /* No description for the DataType found. It is possible that an
+         * abstract DataType is used, e.g. UInteger. Browse to see if there is a
+         * non-abstract subtype that can be used for the default value. Use the
+         * first match. */
+        UA_ReferenceTypeSet refs = UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASSUBTYPE);
+        UA_ExpandedNodeId *typeCandidates = NULL;
+        size_t typeCandidatesSize = 0;
+        res = browseRecursive(server, 1, &node->dataType,
+                              UA_BROWSEDIRECTION_FORWARD, &refs,
+                              UA_NODECLASS_DATATYPE, false,
+                              &typeCandidatesSize, &typeCandidates);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+
+        for(size_t i = 0; i < typeCandidatesSize; i++) {
+            type = UA_Server_findDataType(server, &typeCandidates[i].nodeId);
+            if(type)
+                break;
+        }
+
+        UA_Array_delete(typeCandidates, typeCandidatesSize,
+                        &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
+        if(!type)
+            return UA_STATUSCODE_BADTYPEMISMATCH;
+    }
+
+    /* Set up the value with the default content */
+    UA_Variant val;
+    UA_Variant_init(&val);
+    if(node->valueRank < 0) {
+        /* Set a scalar */
+        void *data = UA_new(type);
+        if(!data)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        UA_Variant_setScalar(&val, data, type);
+    } else if(node->valueRank == 0) {
+        /* Use an empty array of one dimension */
+        UA_Variant_setArray(&val, NULL, 0, type);
+    } else {
+        /* Write an array that matches the ArrayDimensions */
+        res = UA_Array_copy(node->arrayDimensions, node->arrayDimensionsSize,
+                            (void**)&val.arrayDimensions, &UA_TYPES[UA_TYPES_UINT32]);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        val.arrayDimensionsSize = node->arrayDimensionsSize;
+
+        /* No length restriction in the ArrayDimension -> use length 1 */
+        size_t size = 1;
+        for(size_t i = 0; i < val.arrayDimensionsSize; i++) {
+            if(val.arrayDimensions[i] == 0)
+                val.arrayDimensions[i] = 1;
+            size *= val.arrayDimensions[i];
+        }
+
+        /* Create the content array */
+        void *data = UA_Array_new(size, type);
+        if(!data) {
+            UA_Variant_clear(&val);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+
+        val.data = data;
+        val.arrayLength = size;
+        val.type = type;
+    }
+
+    /* Write the value */
+    res = writeWithWriteValue(server, &node->head.nodeId, UA_ATTRIBUTEID_VALUE,
+                              &UA_TYPES[UA_TYPES_VARIANT], &val);
+
+    /* Clean up */
+    UA_Variant_clear(&val);
+    return res;
+}
+
+static UA_StatusCode
 typeCheckVariableNode(UA_Server *server, UA_Session *session,
                       const UA_VariableNode *node,
                       const UA_VariableTypeNode *vt) {
@@ -245,7 +326,13 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
                                   "But this is only allowed for BaseDataType. "
                                   "Create a matching default value.",
                                   (int)nodeIdStr.length, nodeIdStr.data));
-            retval = UA_STATUSCODE_BADTYPEMISMATCH;
+            retval = setDefaultValue(server, node);
+            if(retval != UA_STATUSCODE_GOOD)
+                UA_LOG_NODEID_INFO(&node->head.nodeId,
+                                   UA_LOG_INFO_SESSION(&server->config.logger, session,
+                                      "AddNodes: Could not create a default value for "
+                                      "%.*s with StatusCode %s", (int)nodeIdStr.length,
+                                      nodeIdStr.data, UA_StatusCode_name(retval)));
         }
 
         UA_DataValue_clear(&value);
