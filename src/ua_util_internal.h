@@ -48,6 +48,10 @@ typedef UA_StatusCode status;
  * Utility Functions
  * ----------------- */
 
+const UA_DataType *
+UA_findDataTypeWithCustom(const UA_NodeId *typeId,
+                          const UA_DataTypeArray *customTypes);
+
 /* Get the number of optional fields contained in an structure type */
 size_t UA_EXPORT
 getCountOfOptionalFields(const UA_DataType *type);
