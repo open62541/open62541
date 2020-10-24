@@ -750,48 +750,47 @@ typeEquivalence(const UA_DataType *t) {
 static const UA_NodeId enumNodeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_ENUMERATION}};
 
 UA_Boolean
-compatibleDataType(UA_Server *server, const UA_NodeId *dataType,
-                   const UA_NodeId *constraintDataType, UA_Boolean isValue) {
+compatibleValueDataType(UA_Server *server, const UA_DataType *dataType,
+                        const UA_NodeId *constraintDataType) {
+    if(compatibleDataTypes(server, &dataType->typeId, constraintDataType))
+        return true;
+
+    /* For actual values, the constraint DataType may be a subtype of the
+     * DataType of the value. E.g. UtcTime is subtype of DateTime. But it still
+     * is a DateTime value when transferred over the wire. */
+    if(isNodeInTree_singleRef(server, constraintDataType, &dataType->typeId,
+                              UA_REFERENCETYPEINDEX_HASSUBTYPE))
+        return true;
+
+    return false;
+}
+
+UA_Boolean
+compatibleDataTypes(UA_Server *server, const UA_NodeId *dataType,
+                    const UA_NodeId *constraintDataType) {
     /* Do not allow empty datatypes */
     if(UA_NodeId_isNull(dataType))
        return false;
 
-    /* No constraint (TODO: use variant instead) */
-    if(UA_NodeId_isNull(constraintDataType))
+    /* No constraint or Variant / BaseDataType which allows any content */
+    if(UA_NodeId_isNull(constraintDataType) ||
+       UA_NodeId_equal(constraintDataType, &UA_TYPES[UA_TYPES_VARIANT].typeId))
         return true;
 
     /* Same datatypes */
     if(UA_NodeId_equal(dataType, constraintDataType))
         return true;
 
-    /* Variant allows any subtype */
-    if(UA_NodeId_equal(constraintDataType, &UA_TYPES[UA_TYPES_VARIANT].typeId))
-        return true;
-
-    /* Is the value-type a subtype of the required type? */
+    /* Is the DataType a subtype of the constraint type? */
     if(isNodeInTree_singleRef(server, dataType, constraintDataType,
                               UA_REFERENCETYPEINDEX_HASSUBTYPE))
         return true;
 
-    /* Enum allows Int32 (only) */
+    /* The constraint is an enum -> allow writing Int32 */
     if(UA_NodeId_equal(dataType, &UA_TYPES[UA_TYPES_INT32].typeId) &&
        isNodeInTree_singleRef(server, constraintDataType, &enumNodeId,
                               UA_REFERENCETYPEINDEX_HASSUBTYPE))
         return true;
-
-    /* More checks for the data type of real values (variants) */
-    if(isValue) {
-        /* If value is a built-in type: The target data type may be a sub type of
-         * the built-in type. (e.g. UtcTime is sub-type of DateTime and has a
-         * DateTime value). A type is builtin if its NodeId is in Namespace 0 and
-         * has a numeric identifier <= 25 (DiagnosticInfo) */
-        if(dataType->namespaceIndex == 0 &&
-           dataType->identifierType == UA_NODEIDTYPE_NUMERIC &&
-           dataType->identifier.numeric <= 25 &&
-           isNodeInTree_singleRef(server, constraintDataType, dataType,
-                                  UA_REFERENCETYPEINDEX_HASSUBTYPE))
-            return true;
-    }
 
     return false;
 }
@@ -975,9 +974,8 @@ compatibleValue(UA_Server *server, UA_Session *session, const UA_NodeId *targetD
         return false;
     }
 
-    /* Has the value a subtype of the required type? BaseDataType (Variant) can
-     * be anything... */
-    if(!compatibleDataType(server, &value->type->typeId, targetDataTypeId, true))
+    /* Is the datatype compatible? */
+    if(!compatibleValueDataType(server, value->type, targetDataTypeId))
         return false;
 
     /* Array dimensions are checked later when writing the range */
@@ -1155,7 +1153,7 @@ writeDataTypeAttribute(UA_Server *server, UA_Session *session,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Does the new type match the constraints of the variabletype? */
-    if(!compatibleDataType(server, dataType, &type->dataType, false))
+    if(!compatibleDataTypes(server, dataType, &type->dataType))
         return UA_STATUSCODE_BADTYPEMISMATCH;
 
     /* Check if the current value would match the new type */
