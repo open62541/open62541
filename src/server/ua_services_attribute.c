@@ -328,11 +328,11 @@ void
 ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
              UA_TimestampsToReturn timestampsToReturn,
              const UA_ReadValueId *id, UA_DataValue *v) {
-    UA_LOG_NODEID_WRAP(UA_LOGLEVEL_DEBUG, &node->head.nodeId,
-                       UA_LOG_DEBUG_SESSION(&server->config.logger, session,
-                                            "Read attribute %"PRIi32 " of Node %.*s",
-                                            id->attributeId, (int)nodeIdStr.length,
-                                            nodeIdStr.data));
+    UA_LOG_NODEID_DEBUG(&node->head.nodeId,
+                        UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+                                             "Read attribute %"PRIi32 " of Node %.*s",
+                                             id->attributeId, (int)nodeIdStr.length,
+                                             nodeIdStr.data));
 
     /* Only Binary Encoding is supported */
     if(id->dataEncoding.name.length > 0 &&
@@ -1451,11 +1451,11 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
     UA_UInt32 userWriteMask = getUserWriteMask(server, session, &node->head);
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
-    UA_LOG_NODEID_WRAP(UA_LOGLEVEL_DEBUG, &node->head.nodeId,
-                       UA_LOG_DEBUG_SESSION(&server->config.logger, session,
-                                            "Write attribute %"PRIi32 " of Node %.*s",
-                                            wvalue->attributeId, (int)nodeIdStr.length,
-                                            nodeIdStr.data));
+    UA_LOG_NODEID_DEBUG(&node->head.nodeId,
+                        UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+                                             "Write attribute %"PRIi32 " of Node %.*s",
+                                             wvalue->attributeId, (int)nodeIdStr.length,
+                                             nodeIdStr.data));
 
     const UA_VariableTypeNode *type;
 
