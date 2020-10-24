@@ -183,6 +183,50 @@ static UA_StatusCode
 typeCheckVariableNode(UA_Server *server, UA_Session *session,
                       const UA_VariableNode *node,
                       const UA_VariableTypeNode *vt) {
+    /* Check the datatype against the vt */
+    if(!compatibleDataTypes(server, &node->dataType, &vt->dataType)) {
+        UA_LOG_NODEID_INFO(&node->head.nodeId,
+                           UA_LOG_INFO_SESSION(&server->config.logger, session,
+                              "AddNodes: The value of %.*s is incompatible with "
+                              "the datatype of the VariableType",
+                              (int)nodeIdStr.length, nodeIdStr.data));
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    }
+
+    /* Check valueRank against array dimensions */
+    if(!compatibleValueRankArrayDimensions(server, session, node->valueRank,
+                                           node->arrayDimensionsSize)) {
+        UA_LOG_NODEID_INFO(&node->head.nodeId,
+                           UA_LOG_INFO_SESSION(&server->config.logger, session,
+                              "AddNodes: The value rank of %.*s is incompatible "
+                              "with its array dimensions",
+                              (int)nodeIdStr.length, nodeIdStr.data));
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    }
+
+    /* Check valueRank against the vt */
+    if(!compatibleValueRanks(node->valueRank, vt->valueRank)) {
+        UA_LOG_NODEID_INFO(&node->head.nodeId,
+                           UA_LOG_INFO_SESSION(&server->config.logger, session,
+                              "AddNodes: The value rank of %.*s is incompatible "
+                              "with the value rank of the VariableType",
+                              (int)nodeIdStr.length, nodeIdStr.data));
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    }
+
+    /* Check array dimensions against the vt */
+    if(!compatibleArrayDimensions(vt->arrayDimensionsSize, vt->arrayDimensions,
+                                  node->arrayDimensionsSize, node->arrayDimensions)) {
+        UA_LOG_NODEID_INFO(&node->head.nodeId,
+                           UA_LOG_INFO_SESSION(&server->config.logger, session,
+                              "AddNodes: The array dimensions of %.*s are "
+                              "incompatible with the array dimensions of the "
+                              "VariableType", (int)nodeIdStr.length, nodeIdStr.data));
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    }
+
+    /* Typecheck the value */
+
     /* The value might come from a datasource, so we perform a
      * regular read. */
     UA_DataValue value;
@@ -191,77 +235,40 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    UA_NodeId baseDataType = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATATYPE);
-
-    /* Check the datatype against the vt */
-    /* If the node does not have any value and the dataType is BaseDataType,
-     * then it's also fine. This is the default for empty nodes. */
-    if(!compatibleDataType(server, &node->dataType, &vt->dataType, false) &&
-       (value.hasValue || !UA_NodeId_equal(&node->dataType, &baseDataType))) {
-        UA_LOG_NODEID_WRAP(UA_LOGLEVEL_INFO, &node->head.nodeId,
-                           UA_LOG_INFO_SESSION(&server->config.logger, session,
-                                               "AddNodes: The value of %.*s is incompatible with "
-                                               "the datatype of the VariableType",
-                                               (int)nodeIdStr.length, nodeIdStr.data));
-        UA_DataValue_clear(&value);
-        return UA_STATUSCODE_BADTYPEMISMATCH;
-    }
-
-    /* Check valueRank against array dimensions */
-    if(!compatibleValueRankArrayDimensions(server, session, node->valueRank,
-                                           node->arrayDimensionsSize)) {
-        UA_LOG_NODEID_WRAP(UA_LOGLEVEL_INFO, &node->head.nodeId,
-                           UA_LOG_INFO_SESSION(&server->config.logger, session,
-                                               "AddNodes: The value rank of %.*s is incompatible "
-                                               "with its array dimensions",
-                                               (int)nodeIdStr.length, nodeIdStr.data));
-        UA_DataValue_clear(&value);
-        return UA_STATUSCODE_BADTYPEMISMATCH;
-    }
-
-    /* Check valueRank against the vt */
-    if(!compatibleValueRanks(node->valueRank, vt->valueRank)) {
-        UA_LOG_NODEID_WRAP(UA_LOGLEVEL_INFO, &node->head.nodeId,
-                           UA_LOG_INFO_SESSION(&server->config.logger, session,
-                                               "AddNodes: The value rank of %.*s is incompatible "
-                                               "with the value rank of the VariableType",
-                                               (int)nodeIdStr.length, nodeIdStr.data));
-        UA_DataValue_clear(&value);
-        return UA_STATUSCODE_BADTYPEMISMATCH;
-    }
-
-    /* Check array dimensions against the vt */
-    if(!compatibleArrayDimensions(vt->arrayDimensionsSize, vt->arrayDimensions,
-                                  node->arrayDimensionsSize, node->arrayDimensions)) {
-        UA_LOG_NODEID_WRAP(UA_LOGLEVEL_INFO, &node->head.nodeId,
-                           UA_LOG_INFO_SESSION(&server->config.logger, session,
-                                               "AddNodes: The array dimensions of %.*s are "
-                                               "incompatible with the array dimensions of the "
-                                               "VariableType", (int)nodeIdStr.length, nodeIdStr.data));
-        UA_DataValue_clear(&value);
-        return UA_STATUSCODE_BADTYPEMISMATCH;
-    }
-
-    /* Typecheck the value */
-    if(value.hasValue && value.value.data) {
-        /* If the type-check failed write the same value again. The
-         * write-service tries to convert to the correct type... */
-        if(!compatibleValue(server, session, &node->dataType, node->valueRank,
-                            node->arrayDimensionsSize, node->arrayDimensions,
-                            &value.value, NULL)) {
-            retval = writeWithWriteValue(server, &node->head.nodeId, UA_ATTRIBUTEID_VALUE, &UA_TYPES[UA_TYPES_VARIANT], &value.value);
-        }
-
-        UA_DataValue_clear(&value);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_NODEID_WRAP(UA_LOGLEVEL_INFO, &node->head.nodeId,
+    /* Only BaseDataType (Variant) can have empty values. Create default content
+     * otherwise that matches the constraints. */
+    if(!value.hasValue || !value.value.type) {
+        if(!UA_NodeId_equal(&node->dataType, &UA_TYPES[UA_TYPES_VARIANT].typeId)) {
+            UA_LOG_NODEID_INFO(&node->head.nodeId,
                                UA_LOG_INFO_SESSION(&server->config.logger, session,
-                                                   "AddNodes: The value of %.*s is incompatible "
-                                                   "with the variable definition",
-                                                   (int)nodeIdStr.length, nodeIdStr.data));
+                                  "AddNodes: The value of %.*s is empty. "
+                                  "But this is only allowed for BaseDataType. "
+                                  "Create a matching default value.",
+                                  (int)nodeIdStr.length, nodeIdStr.data));
+            retval = UA_STATUSCODE_BADTYPEMISMATCH;
+        }
+
+        UA_DataValue_clear(&value);
+        return retval;
+    }
+
+    /* Perform the value typecheck. If this fails, write the current value
+     * again. The write-service tries to convert to the correct type... */
+    if(!compatibleValue(server, session, &node->dataType, node->valueRank,
+                        node->arrayDimensionsSize, node->arrayDimensions,
+                        &value.value, NULL)) {
+        retval = writeWithWriteValue(server, &node->head.nodeId, UA_ATTRIBUTEID_VALUE,
+                                     &UA_TYPES[UA_TYPES_VARIANT], &value.value);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_NODEID_INFO(&node->head.nodeId,
+                               UA_LOG_INFO_SESSION(&server->config.logger, session,
+                                  "AddNodes: The value of %.*s is incompatible "
+                                  "with the variable definition",
+                                  (int)nodeIdStr.length, nodeIdStr.data));
         }
     }
 
+    UA_DataValue_clear(&value);
     return retval;
 }
 
