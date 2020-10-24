@@ -149,14 +149,15 @@ checkParentReference(UA_Server *server, UA_Session *session, UA_NodeClass nodeCl
        nodeClass == UA_NODECLASS_VARIABLETYPE ||
        nodeClass == UA_NODECLASS_OBJECTTYPE ||
        nodeClass == UA_NODECLASS_REFERENCETYPE) {
-        /* type needs hassubtype reference to the supertype */
-        if(referenceType->referenceTypeNode.referenceTypeIndex != UA_REFERENCETYPEINDEX_HASSUBTYPE) {
+        /* Type needs hassubtype reference to the supertype */
+        if(referenceType->referenceTypeNode.referenceTypeIndex !=
+           UA_REFERENCETYPEINDEX_HASSUBTYPE) {
             UA_LOG_INFO_SESSION(&server->config.logger, session,
                                 "AddNodes: Type nodes need to have a HasSubType "
                                 "reference to the parent");
             return UA_STATUSCODE_BADREFERENCENOTALLOWED;
         }
-        /* supertype needs to be of the same node type  */
+        /* Supertype needs to be of the same node type  */
         if(parentNodeClass != nodeClass) {
             UA_LOG_INFO_SESSION(&server->config.logger, session,
                                 "AddNodes: Type nodes needs to be of the same node "
@@ -1075,7 +1076,8 @@ recursiveTypeCheckAddChildren(UA_Server *server, UA_Session *session,
      * same for the variable and variabletype attribute structs. */
     if(node->head.nodeClass == UA_NODECLASS_VARIABLE ||
        node->head.nodeClass == UA_NODECLASS_VARIABLETYPE) {
-        retval = useVariableTypeAttributes(server, session, (const UA_VariableNode**)nodeptr,
+        retval = useVariableTypeAttributes(server, session,
+                                           (const UA_VariableNode**)nodeptr,
                                            &type->variableTypeNode);
         node = *nodeptr; /* If the node was replaced */
         if(retval != UA_STATUSCODE_GOOD) {
@@ -1088,12 +1090,14 @@ recursiveTypeCheckAddChildren(UA_Server *server, UA_Session *session,
             return retval;
         }
 
-        /* Check NodeClass for 'hasSubtype'. UA_NODECLASS_VARIABLE not allowed to have subtype */
+        /* Check NodeClass for 'hasSubtype'. UA_NODECLASS_VARIABLE not allowed
+         * to have subtype */
         if(node->head.nodeClass == UA_NODECLASS_VARIABLE) {
             for(size_t i = 0; i < node->head.referencesSize; i++) {
-                if(node->head.references[i].referenceTypeIndex == UA_REFERENCETYPEINDEX_HASSUBTYPE) {
+                if(node->head.references[i].referenceTypeIndex ==
+                   UA_REFERENCETYPEINDEX_HASSUBTYPE) {
                     UA_LOG_INFO_SESSION(&server->config.logger, session,
-                                        "AddNodes: VariableType not allowed to have HasSubType");
+                       "AddNodes: VariableType not allowed to have HasSubType");
                     return UA_STATUSCODE_BADREFERENCENOTALLOWED;
                 }
             }
@@ -1102,7 +1106,8 @@ recursiveTypeCheckAddChildren(UA_Server *server, UA_Session *session,
         /* Check if all attributes hold the constraints of the type now. The initial
          * attributes must type-check. The constructor might change the attributes
          * again. Then, the changes are type-checked by the normal write service. */
-        retval = typeCheckVariableNode(server, session, &node->variableNode, &type->variableTypeNode);
+        retval = typeCheckVariableNode(server, session, &node->variableNode,
+                                       &type->variableTypeNode);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_NODEID_WRAP(UA_LOGLEVEL_INFO, &node->head.nodeId,
                                UA_LOG_INFO_SESSION(&server->config.logger, session,
@@ -2028,8 +2033,6 @@ setValueCallback(UA_Server *server, UA_Session *session,
     node->value.data.callback = *callback;
     return UA_STATUSCODE_GOOD;
 }
-
-
 
 UA_StatusCode
 UA_Server_setVariableNode_valueCallback(UA_Server *server,
