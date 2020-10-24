@@ -408,8 +408,7 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
         if(node->head.nodeClass == UA_NODECLASS_VIEW) {
             retval = UA_Variant_setScalarCopy(&v->value, &node->viewNode.eventNotifier,
                                               &UA_TYPES[UA_TYPES_BYTE]);
-        }
-        else{
+        } else {
             retval = UA_Variant_setScalarCopy(&v->value, &node->objectNode.eventNotifier,
                                               &UA_TYPES[UA_TYPES_BYTE]);
         }
@@ -527,7 +526,7 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
     /* Create server timestamp */
     if(timestampsToReturn == UA_TIMESTAMPSTORETURN_SERVER ||
        timestampsToReturn == UA_TIMESTAMPSTORETURN_BOTH) {
-        if (!v->hasServerTimestamp) {
+        if(!v->hasServerTimestamp) {
             v->serverTimestamp = UA_DateTime_now();
             v->hasServerTimestamp = true;
         }
@@ -605,6 +604,8 @@ UA_DataValue
 UA_Server_readWithSession(UA_Server *server, UA_Session *session,
                           const UA_ReadValueId *item,
                           UA_TimestampsToReturn timestampsToReturn) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
+
     UA_DataValue dv;
     UA_DataValue_init(&dv);
 
@@ -633,7 +634,7 @@ readAttribute(UA_Server *server, const UA_ReadValueId *item,
 
 UA_StatusCode
 readWithReadValue(UA_Server *server, const UA_NodeId *nodeId,
-                                const UA_AttributeId attributeId, void *v) {
+                  const UA_AttributeId attributeId, void *v) {
     UA_LOCK_ASSERT(server->serviceMutex, 1);
 
     /* Call the read service */
@@ -692,6 +693,8 @@ readObjectProperty(UA_Server *server, const UA_NodeId objectId,
                    const UA_QualifiedName propertyName,
                    UA_Variant *value) {
     UA_LOCK_ASSERT(server->serviceMutex, 1);
+
+    /* Create a BrowsePath to get the target NodeId */
     UA_RelativePathElement rpe;
     UA_RelativePathElement_init(&rpe);
     rpe.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
@@ -713,6 +716,7 @@ readObjectProperty(UA_Server *server, const UA_NodeId objectId,
         return retval;
     }
 
+    /* Use the first result from the BrowsePath */
     retval = readWithReadValue(server, &bpr.targets[0].targetId.nodeId,
                                UA_ATTRIBUTEID_VALUE, value);
 
