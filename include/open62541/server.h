@@ -289,7 +289,7 @@ void UA_EXPORT
 UA_ServerConfig_clean(UA_ServerConfig *config);
 
 /* Set a custom hostname in server configuration */
-UA_DEPRECATED static UA_INLINE void 
+UA_DEPRECATED static UA_INLINE void
 UA_ServerConfig_setCustomHostname(UA_ServerConfig *config,
                                   const UA_String customHostname) {
     UA_String_clear(&config->customHostname);
@@ -1530,7 +1530,7 @@ UA_Server_setConditionTwoStateVariableCallback(UA_Server *server, const UA_NodeI
                                                UA_TwoStateVariableCallbackType callbackType);
 
 /* Delete a condition from the address space and the internal lists.
- * 
+ *
  * @param server The server object
  * @param condition The NodeId of the node representation of the Condition Instance
  * @param conditionSource The NodeId of the node representation of the Condition Source

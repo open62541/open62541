@@ -1,6 +1,6 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
- * 
+ *
  *    Copyright 2018 (c) Fraunhofer IOSB (Author: Lukas Meling)
  */
 
@@ -19,8 +19,8 @@ typedef struct {
     UA_NetworkAddressUrlDataType address;
     UA_UInt32 mqttRecvBufferSize;
     UA_UInt32 mqttSendBufferSize;
-    uint8_t *mqttSendBuffer; 
-    uint8_t *mqttRecvBuffer; 
+    uint8_t *mqttSendBuffer;
+    uint8_t *mqttRecvBuffer;
     UA_String *mqttClientId;
     UA_Connection *connection;
     void * mqttClient;
@@ -33,7 +33,7 @@ typedef struct {
  * will message,
  * keep alive
  * ssl: cert, flag
- */    
+ */
 
 
 UA_PubSubTransportLayer

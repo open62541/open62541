@@ -31,7 +31,7 @@ subscribeMqtt(UA_PubSubChannelDataMQTT*, UA_String topic, UA_Byte qos);
 
 UA_StatusCode
 yieldMqtt(UA_PubSubChannelDataMQTT*, UA_UInt16 timeout);
-    
+
 #ifdef __cplusplus
 } // extern "C"
 #endif
