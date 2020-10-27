@@ -8,9 +8,11 @@
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 #include <open62541/types.h>
+#include <open62541/plugin/log_stdout.h>
 
 #include "server/ua_server_internal.h"
 #include "server/ua_services.h"
+#include "testing_config.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,8 +23,7 @@
 static UA_Server *server = NULL;
 
 static void setup(void) {
-    server = UA_Server_new();
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
+    server = UA_Server_new_testing();
 }
 
 static void teardown(void) {

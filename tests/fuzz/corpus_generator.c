@@ -22,6 +22,7 @@
 
 #include "client/ua_client_internal.h"
 #include <server/ua_server_internal.h>
+#include "testing_config.h"
 
 #include <dirent.h>
 #include <fcntl.h>
@@ -44,9 +45,8 @@ static void * serverloop(void *_) {
 
 static void start_server(void) {
     running = true;
-    server = UA_Server_new();
+    server = UA_Server_new_testing();
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
 
     config->applicationDescription.applicationType = UA_APPLICATIONTYPE_SERVER;
     config->mdnsEnabled = true;

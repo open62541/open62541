@@ -6,6 +6,7 @@
 #include <open62541/server_config_default.h>
 #include <open62541/types.h>
 
+#include "testing_config.h"
 #include "check.h"
 #include "testing_clock.h"
 #include "tests/namespace_tests_testnodeset_generated.h"
@@ -15,9 +16,8 @@ UA_Server *server = NULL;
 UA_DataTypeArray customTypesArray = { NULL, UA_TYPES_TESTS_TESTNODESET_COUNT, UA_TYPES_TESTS_TESTNODESET};
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_new_testing();
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
     config->customDataTypes = &customTypesArray;
     UA_Server_run_startup(server);
 }

@@ -9,6 +9,8 @@
 #include <open62541/server_pubsub.h>
 #include <check.h>
 #include <time.h>
+
+#include "testing_config.h"
 #include "open62541/types_generated_encoding_binary.h"
 #include "ua_pubsub.h"
 #include "ua_server_internal.h"
@@ -40,10 +42,11 @@ UA_PubSubConnection *connection; /* setup() is to create an environment for test
 
 static void setup(void) {
     /*Add setup by creating new server with valid configuration */
-    server = UA_Server_new();
+    server = UA_Server_new_testing();
     config = UA_Server_getConfig(server);
     UA_ServerConfig_setMinimal(config, UA_SUBSCRIBER_PORT, NULL);
     UA_Server_run_startup(server);
+
     config->pubsubTransportLayers = (UA_PubSubTransportLayer *) UA_malloc(sizeof(UA_PubSubTransportLayer));
     if(!config->pubsubTransportLayers) {
         UA_ServerConfig_clean(config);

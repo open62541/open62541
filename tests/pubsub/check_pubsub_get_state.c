@@ -7,42 +7,30 @@
 #include <open62541/plugin/log_stdout.h>
 
 #include "ua_pubsub.h"
+#include "testing_config.h"
 
 static UA_Server *server = NULL;
 
-/***************************************************************************************************/
 static void setup(void) {
-
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "setup");
-
-    server = UA_Server_new();
-    assert(server != 0);
+    server = UA_Server_new_testing();
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
-
     config->pubsubTransportLayers = (UA_PubSubTransportLayer*)
         UA_malloc(sizeof(UA_PubSubTransportLayer));
     assert(config->pubsubTransportLayers != 0);
     config->pubsubTransportLayers[0] = UA_PubSubTransportLayerUDPMP();
     config->pubsubTransportLayersSize++;
-
     UA_Server_run_startup(server);
 }
 
-/***************************************************************************************************/
 static void teardown(void) {
-
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "teardown");
-
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
 }
 
 
-/***************************************************************************************************/
 /* utility functions to setup the PubSub configuration */
-
-/***************************************************************************************************/
 static void AddConnection(
     char *pName, 
     UA_UInt32 PublisherId,
@@ -55,8 +43,10 @@ static void AddConnection(
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
     connectionConfig.name = UA_STRING(pName);
     connectionConfig.enabled = UA_TRUE;
-    connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL, UA_STRING("opc.udp://224.0.0.22:4840/")};
+    connectionConfig.transportProfileUri =
+        UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
+    UA_NetworkAddressUrlDataType networkAddressUrl =
+        {UA_STRING_NULL, UA_STRING("opc.udp://224.0.0.22:4840/")};
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
 
@@ -67,7 +57,6 @@ static void AddConnection(
     ck_assert(UA_PubSubConnection_regist(server, opConnectionId) == UA_STATUSCODE_GOOD);
 }
 
-/***************************************************************************************************/
 static void AddWriterGroup(
     UA_NodeId *pConnectionId,
     char *pName, 
@@ -98,7 +87,6 @@ static void AddWriterGroup(
     UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
 }
 
-/***************************************************************************************************/
 static void AddPublishedDataSet(
     UA_NodeId *pWriterGroupId,
     char *pPublishedDataSetName, 
@@ -156,7 +144,6 @@ static void AddPublishedDataSet(
     ck_assert(UA_Server_addDataSetWriter(server, *pWriterGroupId, *opPublishedDataSetId, &dataSetWriterConfig, opDataSetWriterId) == UA_STATUSCODE_GOOD);
 }
 
-/***************************************************************************************************/
 static void AddReaderGroup(
     UA_NodeId *pConnectionId,
     char *pName, 
@@ -173,7 +160,6 @@ static void AddReaderGroup(
                                        opReaderGroupId) == UA_STATUSCODE_GOOD);
 }
 
-/***************************************************************************************************/
 static void AddDataSetReader(
     UA_NodeId *pReaderGroupId,
     char *pName, 
@@ -245,7 +231,6 @@ static void AddDataSetReader(
     pDataSetMetaData->fields = 0;
 }
 
-/***************************************************************************************************/
 START_TEST(Test_normal_operation) {
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "START: Test_normal_operation");
@@ -332,8 +317,6 @@ START_TEST(Test_normal_operation) {
 
 } END_TEST
 
-
-/***************************************************************************************************/
 START_TEST(Test_corner_cases) {
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "START: Test_corner_cases");
@@ -409,7 +392,6 @@ START_TEST(Test_corner_cases) {
 
 } END_TEST
 
-/***************************************************************************************************/
 int main(void) {
 
     TCase *tc_normal_operation = tcase_create("normal_operation");

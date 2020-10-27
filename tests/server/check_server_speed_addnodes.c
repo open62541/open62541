@@ -13,6 +13,7 @@
 #include <check.h>
 #include <time.h>
 
+#include "testing_config.h"
 #include "testing_networklayers.h"
 #include "testing_policy.h"
 
@@ -24,7 +25,7 @@ static key_sizes keySizes;
 static UA_Server *server;
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_new_testing();
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     TestingPolicy(&dummyPolicy, UA_BYTESTRING_NULL, &funcsCalled, &keySizes);
     UA_SecureChannel_init(&testChannel, &UA_ConnectionConfig_default);

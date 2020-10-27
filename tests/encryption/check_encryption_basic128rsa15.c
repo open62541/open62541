@@ -7,8 +7,9 @@
  */
 
 #include <open62541/client_config_default.h>
-#include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/server_config_default.h>
+#include <open62541/plugin/securitypolicy_default.h>
+#include <open62541/plugin/log_stdout.h>
 
 #include "client/ua_client_internal.h"
 #include "ua_server_internal.h"
@@ -17,6 +18,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "testing_config.h"
 #include "certificates.h"
 #include "testing_clock.h"
 #include "testing_networklayers.h"
@@ -65,12 +67,15 @@ static void setup(void) {
     UA_ByteString *revocationList = NULL;
     size_t revocationListSize = 0;
 
-    server = UA_Server_new();
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840, &certificate, &privateKey,
+    UA_ServerConfig c;
+    memset(&c, 0, sizeof(UA_ServerConfig));
+    UA_ServerConfig_setDefaultWithSecurityPolicies(&c, 4840, &certificate, &privateKey,
                                                    trustList, trustListSize,
                                                    issuerList, issuerListSize,
                                                    revocationList, revocationListSize);
+    c.logger = UA_Log_Stdout_withLevel(UA_LOGLEVEL_WARNING);
+    server = UA_Server_newWithConfig(&c);
+    UA_ServerConfig *config = UA_Server_getConfig(server);
 
     /* Set the ApplicationUri used in the certificate */
     UA_String_clear(&config->applicationDescription.applicationUri);

@@ -13,6 +13,9 @@
 #include <open62541/types_generated_encoding_binary.h>
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
+#include <open62541/plugin/log_stdout.h>
+
+#include "testing_config.h"
 #include "check.h"
 #include "thread_wrapper.h"
 
@@ -21,16 +24,15 @@ UA_Boolean running;
 THREAD_HANDLE server_thread;
 
 THREAD_CALLBACK(serverloop) {
-        while (running)
+    while (running)
         UA_Server_run_iterate(server, true);
-        return 0;
+    return 0;
 }
 
 static void setup(void) {
     running = true;
-    server = UA_Server_new();
+    server = UA_Server_new_testing();
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
     config->pubsubTransportLayers = (UA_PubSubTransportLayer *)
         UA_malloc(sizeof(UA_PubSubTransportLayer));
     config->pubsubTransportLayers[0] = UA_PubSubTransportLayerUDPMP();

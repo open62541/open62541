@@ -10,11 +10,13 @@
 #include <open62541/client_highlevel.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
+#include <open62541/plugin/log_stdout.h>
 
 #include "client/ua_client_internal.h"
 
 #include <check.h>
 
+#include "testing_config.h"
 #include "testing_clock.h"
 #include "testing_networklayers.h"
 #include "thread_wrapper.h"
@@ -52,8 +54,7 @@ static void pauseServer(void) {
 
 static void setup(void) {
     UA_DataValue_init(&lastValue);
-    server = UA_Server_new();
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
+    server = UA_Server_new_testing();
     UA_Server_run_startup(server);
     runServer();
 

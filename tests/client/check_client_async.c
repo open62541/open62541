@@ -9,6 +9,7 @@
 #include <open62541/server_config_default.h>
 
 #include "client/ua_client_internal.h"
+#include "testing_config.h"
 
 #include <check.h>
 #include <stdio.h>
@@ -30,9 +31,7 @@ THREAD_CALLBACK(serverloop) {
 
 static void setup(void) {
     running = true;
-    server = UA_Server_new();
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
-
+    server = UA_Server_new_testing();
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
 }

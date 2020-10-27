@@ -6,7 +6,11 @@
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/client_config_default.h>
 #include <open62541/client_highlevel.h>
+#include <open62541/plugin/log_stdout.h>
+
+#include "testing_config.h"
 #include <check.h>
+
 #include "thread_wrapper.h"
 
 /* While server initialization, value callbacks are called twice.
@@ -125,8 +129,8 @@ THREAD_CALLBACK(serverloop) {
 }
 static void setup(void) {
     running = true;
-    server = UA_Server_new();
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
+    server = UA_Server_new_testing();
+
     UA_Server_run_startup(server);
     addCurrentTimeVariable();
     addValueCallbackToCurrentTimeVariable();

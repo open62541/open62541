@@ -10,6 +10,9 @@
 #include "open62541/server.h"
 #include "open62541/types_generated_encoding_binary.h"
 #include "open62541/server_config_default.h"
+#include <open62541/plugin/log_stdout.h>
+
+#include "testing_config.h"
 #include "ua_network_pubsub_mqtt.h"
 #include "ua_server_internal.h"
 #include "check.h"
@@ -21,8 +24,9 @@ UA_Server *server = NULL;
 UA_ServerConfig *config = NULL;
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_new_testing();
     config = UA_Server_getConfig(server);
+
     config->pubsubTransportLayers = (UA_PubSubTransportLayer *)
         UA_malloc(1 * sizeof(UA_PubSubTransportLayer));
     if(!config->pubsubTransportLayers) {

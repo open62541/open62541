@@ -6,6 +6,7 @@
 #include <open62541/server_config_default.h>
 #include <open62541/types.h>
 
+#include "testing_config.h"
 #include "check.h"
 #include "testing_clock.h"
 #include "tests/namespace_tests_di_generated.h"
@@ -15,8 +16,7 @@
 UA_Server *server = NULL;
 
 static void setup(void) {
-    server = UA_Server_new();
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
+    server = UA_Server_new_testing();
     UA_Server_run_startup(server);
 }
 

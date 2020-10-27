@@ -4,7 +4,9 @@
 
 #include <open62541/server_config_default.h>
 #include <open62541/types.h>
+#include <open62541/plugin/log_stdout.h>
 
+#include "testing_config.h"
 #include <check.h>
 
 #ifdef __clang__
@@ -14,8 +16,7 @@
 #endif
 
 START_TEST(Server_addNamespace_ShallWork) {
-    UA_Server *server = UA_Server_new();
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
+    UA_Server *server = UA_Server_new_testing();
 
     UA_UInt16 a = UA_Server_addNamespace(server, "http://nameOfNamespace");
     UA_UInt16 b = UA_Server_addNamespace(server, "http://nameOfNamespace");
@@ -30,8 +31,7 @@ START_TEST(Server_addNamespace_ShallWork) {
 END_TEST
 
 START_TEST(Server_addNamespace_writeService) {
-    UA_Server *server = UA_Server_new();
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
+    UA_Server *server = UA_Server_new_testing();
 
     UA_Variant namespaces;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -102,8 +102,7 @@ nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, voi
 }
 
 START_TEST(Server_forEachChildNodeCall) {
-    UA_Server *server = UA_Server_new();
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
+    UA_Server *server = UA_Server_new_testing();
 
     /* List all the children/references of the objects folder
      * The forEachChildNodeCall has to hit all of them */
@@ -146,11 +145,9 @@ START_TEST(Server_forEachChildNodeCall) {
 
 START_TEST(Server_set_customHostname) {
     UA_String customHost = UA_STRING("localhost");
-    UA_UInt16 port = 10042;
 
-    UA_Server *server = UA_Server_new();
+    UA_Server *server = UA_Server_new_testing();
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setMinimal(config, port, NULL);
     UA_ServerConfig_setCustomHostname(config, customHost);
 
     UA_StatusCode retval = UA_Server_run_startup(server);
@@ -164,7 +161,9 @@ START_TEST(Server_set_customHostname) {
     for (size_t i=0; i<config->networkLayersSize; i++) {
         const UA_ServerNetworkLayer *nl = &config->networkLayers[i];
         char discoveryUrl[256];
-        unsigned int len = (unsigned int)snprintf(discoveryUrl, 255, "opc.tcp://%.*s:%d/", (int)customHost.length, customHost.data, port);
+        unsigned int len = (unsigned int)
+            snprintf(discoveryUrl, 255, "opc.tcp://%.*s:4840/",
+                     (int)customHost.length, customHost.data);
         ck_assert_uint_eq(nl->discoveryUrl.length, len);
         ck_assert_uint_eq(config->applicationDescription.discoveryUrls[i].length, len);
         ck_assert(strncmp(discoveryUrl, (char*)nl->discoveryUrl.data, len)==0);

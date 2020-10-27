@@ -8,6 +8,7 @@
 
 #include "server/ua_subscription.h"
 #include "ua_server_internal.h"
+#include "testing_config.h"
 
 #include <check.h>
 #include <stdio.h>
@@ -24,8 +25,7 @@ static key_sizes keySizes;
 static UA_Server *server;
 
 static void setup(void) {
-    server = UA_Server_new();
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
+    server = UA_Server_new_testing();
 
     TestingPolicy(&dummyPolicy, UA_BYTESTRING_NULL, &funcsCalled, &keySizes);
     UA_SecureChannel_init(&testChannel, &UA_ConnectionConfig_default);

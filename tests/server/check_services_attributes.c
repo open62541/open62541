@@ -6,6 +6,7 @@
 
 #include "server/ua_server_internal.h"
 #include "server/ua_services.h"
+#include "testing_config.h"
 
 #include <check.h>
 #include <stdio.h>
@@ -37,8 +38,7 @@ static void teardown(void) {
 }
 
 static void setup(void) {
-    server = UA_Server_new();
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
+    server = UA_Server_new_testing();
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     /* VariableNode */

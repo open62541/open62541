@@ -9,7 +9,9 @@
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/pubsub_udp.h>
 #include "open62541/server_pubsub.h"
+#include <open62541/plugin/log_stdout.h>
 
+#include "testing_config.h"
 #include "ua_pubsub.h"
 #include "ua_pubsub_networkmessage.h"
 
@@ -50,10 +52,8 @@ addMinimalPubSubConfiguration(void){
 }
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_new_testing();
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
-
     config->pubsubTransportLayers = (UA_PubSubTransportLayer*)
             UA_malloc(sizeof(UA_PubSubTransportLayer));
     config->pubsubTransportLayers[0] = UA_PubSubTransportLayerUDPMP();

@@ -5,12 +5,12 @@
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
 #include <open62541/server.h>
-#include <open62541/server_config_default.h>
 #include <open62541/types.h>
 
 #include <check.h>
 
 #include "thread_wrapper.h"
+#include "testing_config.h"
 
 UA_Server *server;
 UA_Boolean running;
@@ -25,8 +25,7 @@ THREAD_CALLBACK(serverloop) {
 
 static void setup(void) {
     running = true;
-    server = UA_Server_new();
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
+    server = UA_Server_new_testing();
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
 }

@@ -19,6 +19,7 @@
 
 #include <check.h>
 
+#include "testing_config.h"
 #include "testing_clock.h"
 #include "testing_networklayers.h"
 #include "thread_wrapper.h"
@@ -83,9 +84,8 @@ static void fillInt64DataValue(UA_DateTime timestamp, UA_Int64 value,
 
 static void setup(void) {
     running = true;
-    server = UA_Server_new();
+    server = UA_Server_new_testing();
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
 
 #ifdef UA_ENABLE_HISTORIZING
     resetReceiveBuffer();

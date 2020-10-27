@@ -3,7 +3,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <open62541/server_config_default.h>
+#include <open62541/plugin/log_stdout.h>
 
+#include "testing_config.h"
 #include "server/ua_server_internal.h"
 
 #include <check.h>
@@ -14,8 +16,7 @@ UA_Server *server = NULL;
 UA_Boolean *executed;
 
 static void setup(void) {
-    server = UA_Server_new();
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
+    server = UA_Server_new_testing();
     UA_Server_run_startup(server);
 }
 

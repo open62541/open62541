@@ -9,6 +9,7 @@
 #include <open62541/server_config_default.h>
 #include "open62541/common.h"
 
+#include "testing_config.h"
 #include "client/ua_client_internal.h"
 
 #include <check.h>
@@ -33,8 +34,7 @@ currentState(UA_Client *client, UA_SecureChannelState channelState,
 }
 
 static void setup(void) {
-    server = UA_Server_new();
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
+    server = UA_Server_new_testing();
     UA_Server_run_startup(server);
 }
 

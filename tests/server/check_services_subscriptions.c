@@ -5,6 +5,7 @@
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 
+#include "testing_config.h"
 #include "server/ua_server_internal.h"
 #include "server/ua_services.h"
 #include "server/ua_subscription.h"
@@ -40,10 +41,10 @@ createSession(void) {
 }
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_new_testing();
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
     config->monitoredItemRegisterCallback = monitoredRegisterCallback;
+
     UA_Server_run_startup(server);
     createSession();
 }

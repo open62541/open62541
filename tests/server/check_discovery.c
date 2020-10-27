@@ -5,11 +5,13 @@
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
 #include <open62541/server_config_default.h>
+#include <open62541/plugin/log_stdout.h>
 
 #include "server/ua_server_internal.h"
 
 #include <fcntl.h>
 
+#include "testing_config.h"
 #include "testing_clock.h"
 #include "thread_wrapper.h"
 #ifndef WIN32
@@ -37,11 +39,9 @@ THREAD_CALLBACK(serverloop_lds) {
     return 0;
 }
 
-static void configure_lds_server(UA_Server *pServer)
-{
+static void
+configure_lds_server(UA_Server *pServer) {
     UA_ServerConfig *config_lds = UA_Server_getConfig(pServer);
-    UA_ServerConfig_setDefault(config_lds);
-
     config_lds->applicationDescription.applicationType = UA_APPLICATIONTYPE_DISCOVERYSERVER;
     UA_String_clear(&config_lds->applicationDescription.applicationUri);
     config_lds->applicationDescription.applicationUri =
@@ -66,7 +66,7 @@ static void setup_lds(void) {
     running_lds = UA_Boolean_new();
     *running_lds = true;
 
-    server_lds = UA_Server_new();
+    server_lds = UA_Server_new_testing();
     configure_lds_server(server_lds);
 
     UA_Server_run_startup(server_lds);
@@ -102,9 +102,12 @@ static void setup_register(void) {
     running_register = UA_Boolean_new();
     *running_register = true;
 
-    server_register = UA_Server_new();
+    UA_ServerConfig config;
+    memset(&config, 0, sizeof(UA_ServerConfig));
+    config.logger = UA_Log_Stdout_withLevel(UA_LOGLEVEL_WARNING);
+    UA_ServerConfig_setMinimal(&config, 16664, NULL);
+    server_register = UA_Server_newWithConfig(&config);
     UA_ServerConfig *config_register = UA_Server_getConfig(server_register);
-    UA_ServerConfig_setMinimal(config_register, 16664, NULL);
 
     UA_String_clear(&config_register->applicationDescription.applicationUri);
     config_register->applicationDescription.applicationUri =
@@ -129,14 +132,14 @@ static void teardown_register(void) {
 }
 
 START_TEST(Server_new_delete) {
-    UA_Server *pServer = UA_Server_new();
+    UA_Server *pServer = UA_Server_new_testing();
     configure_lds_server(pServer);
     UA_Server_delete(pServer);
 }
 END_TEST
 
 START_TEST(Server_new_shutdown_delete) {
-        UA_Server *pServer = UA_Server_new();
+        UA_Server *pServer = UA_Server_new_testing();
         configure_lds_server(pServer);
         UA_StatusCode retval = UA_Server_run_shutdown(pServer);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);

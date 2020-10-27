@@ -7,6 +7,8 @@
 #include <open62541/client_config_default.h>
 #include <open62541/client_highlevel.h>
 #include <check.h>
+
+#include "testing_config.h"
 #include "thread_wrapper.h"
 #include "mt_testing.h"
 
@@ -17,8 +19,7 @@
 
 static void setup(void) {
     tc.running = true;
-    tc.server = UA_Server_new();
-    UA_ServerConfig_setDefault(UA_Server_getConfig(tc.server));
+    tc.server = UA_Server_new_testing();
     UA_Server_run_startup(tc.server);
     THREAD_CREATE(server_thread, serverloop);
 }

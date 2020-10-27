@@ -9,7 +9,9 @@
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
 #include <open62541/types_generated_encoding_binary.h>
+#include <open62541/plugin/log_stdout.h>
 
+#include "testing_config.h"
 #include "ua_server_internal.h"
 
 #include <check.h>
@@ -21,9 +23,8 @@ UA_NodeId connection1, connection2, writerGroup1, writerGroup2, writerGroup3,
         publishedDataSet1, publishedDataSet2, dataSetWriter1, dataSetWriter2, dataSetWriter3;
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_new_testing();
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
 
     config->pubsubTransportLayers = (UA_PubSubTransportLayer*)
         UA_malloc(sizeof(UA_PubSubTransportLayer));

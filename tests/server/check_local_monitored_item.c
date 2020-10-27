@@ -9,9 +9,11 @@
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 #include <open62541/types.h>
+#include <open62541/plugin/log_stdout.h>
 
 #include <stddef.h>
 
+#include "testing_config.h"
 #include "check.h"
 #include "testing_clock.h"
 #include "testing_networklayers.h"
@@ -30,8 +32,7 @@ UA_NodeId parentReferenceNodeId;
 UA_NodeId outNodeId;
 
 static void setup(void) {
-    server = UA_Server_new();
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
+    server = UA_Server_new_testing();
 
     UA_StatusCode retval = UA_Server_run_startup(server);
     ASSERT_STATUSCODE(retval, UA_STATUSCODE_GOOD);

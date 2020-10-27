@@ -15,12 +15,15 @@
 #include <open62541/plugin/historydatabase.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
+#include <open62541/plugin/log_stdout.h>
 
+#include "testing_networklayers.h"
 #include "client/ua_client_internal.h"
 #include "server/ua_server_internal.h"
 
 #include <check.h>
 
+#include "testing_config.h"
 #include "testing_clock.h"
 #include "testing_networklayers.h"
 #include "thread_wrapper.h"
@@ -75,9 +78,8 @@ static void setup(void) {
     }
     running = true;
 
-    server = UA_Server_new();
+    server = UA_Server_new_testing();
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
 
 #ifdef UA_ENABLE_HISTORIZING
     gathering = (UA_HistoryDataGathering*)UA_calloc(1, sizeof(UA_HistoryDataGathering));

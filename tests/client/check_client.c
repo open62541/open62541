@@ -11,6 +11,7 @@
 #include <check.h>
 #include <stdlib.h>
 
+#include "testing_config.h"
 #include "testing_clock.h"
 #include "testing_networklayers.h"
 #include "thread_wrapper.h"
@@ -57,8 +58,7 @@ THREAD_CALLBACK(serverloop) {
 
 static void setup(void) {
     running = true;
-    server = UA_Server_new();
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
+    server = UA_Server_new_testing();
     UA_Server_run_startup(server);
     addVariable(VARLENGTH);
     THREAD_CREATE(server_thread, serverloop);

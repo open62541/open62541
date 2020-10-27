@@ -2,10 +2,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include <open62541/server_config_default.h>
+#include <open62541/plugin/log_stdout.h>
 
 #include "server/ua_server_internal.h"
 #include "server/ua_services.h"
+#include "testing_config.h"
 
 #include <check.h>
 #include <stdio.h>
@@ -28,9 +29,8 @@ globalInstantiationMethod(UA_Server *server_,
 }
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_new_testing();
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
 
     UA_GlobalNodeLifecycle lifecycle;
     lifecycle.constructor = globalInstantiationMethod;

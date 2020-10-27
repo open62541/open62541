@@ -19,6 +19,7 @@
 #include <linux/if_packet.h>
 #include <netinet/ether.h>
 
+#include "testing_config.h"
 #include <check.h>
 
 #define             ETHERNET_INTERFACE                 "enp4s0"
@@ -27,9 +28,8 @@
 UA_Server *server = NULL;
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_new_testing();
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
 
     config->pubsubTransportLayers = (UA_PubSubTransportLayer *)
         UA_malloc(sizeof(UA_PubSubTransportLayer));

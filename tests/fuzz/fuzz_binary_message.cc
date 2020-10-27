@@ -13,6 +13,7 @@
 #include <open62541/types.h>
 
 #include "ua_server_internal.h"
+#include "testing_config.h"
 
 #include "testing_networklayers.h"
 
@@ -32,7 +33,7 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     size -= 4;
 
     UA_Connection c = createDummyConnection(RECEIVE_BUFFER_SIZE, NULL);
-    UA_Server *server = UA_Server_new();
+    UA_Server *server = UA_Server_new_testing();
     if(!server) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "Could not create server instance using UA_Server_new");

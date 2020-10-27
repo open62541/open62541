@@ -16,6 +16,7 @@
 
 #include "ua_server_internal.h"
 
+#include "testing_config.h"
 #include "testing_networklayers.h"
 
 #define RECEIVE_BUFFER_SIZE 65535
@@ -42,7 +43,7 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     // Allow the fuzzer to at least create all the necessary structs before limiting memory.
     // Otherwise fuzzing is useless
     UA_memoryManager_setLimit((unsigned long long) -1);
-    UA_Server *server = UA_Server_new();
+    UA_Server *server = UA_Server_new_testing();
     if(!server) {
         UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "Could not create server instance using UA_Server_new");

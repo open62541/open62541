@@ -10,6 +10,8 @@
 #include <open62541/client_config_default.h>
 #include <open62541/client_highlevel_async.h>
 #include <open62541/plugin/log_stdout.h>
+
+#include "testing_config.h"
 #include "testing_clock.h"
 #include "thread_wrapper.h"
 
@@ -46,9 +48,8 @@ THREAD_CALLBACK(serverloop) {
 static void setup(void) {
     clientCounter = 0;
     running = true;
-    server = UA_Server_new();
+    server = UA_Server_new_testing();
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
     config->asyncOperationTimeout = 2000.0; /* 2 seconds */
 
     UA_MethodAttributes methodAttr = UA_MethodAttributes_default;
