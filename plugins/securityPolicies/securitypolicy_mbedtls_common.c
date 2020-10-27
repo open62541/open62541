@@ -267,6 +267,8 @@ UA_StatusCode UA_mbedTLS_LoadLocalCertificate(const UA_ByteString *certData, UA_
         tmp.length = cert.raw.len;
 
         result = UA_ByteString_copy(&tmp, target);
+    } else {
+        UA_ByteString_init(target);
     }
 
     UA_ByteString_clear(&data);

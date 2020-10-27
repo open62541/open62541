@@ -939,8 +939,10 @@ UA_StatusCode
 UA_OpenSSL_LoadLocalCertificate(const UA_ByteString *certificate, UA_ByteString *target) {
     X509 *cert = UA_OpenSSL_LoadCertificate(certificate);
 
-    if (!cert)
+    if (!cert) {
+        UA_ByteString_init(target);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
 
     unsigned char *derData = NULL;
     int length = i2d_X509(cert, &derData);
@@ -953,6 +955,8 @@ UA_OpenSSL_LoadLocalCertificate(const UA_ByteString *certificate, UA_ByteString 
         UA_ByteString_copy(&temp, target);
         OPENSSL_free(derData);
         return UA_STATUSCODE_GOOD;
+    } else {
+        UA_ByteString_init(target);
     }
 
     return UA_STATUSCODE_BADINVALIDARGUMENT;
