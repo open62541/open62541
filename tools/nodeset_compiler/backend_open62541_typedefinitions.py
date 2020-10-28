@@ -269,7 +269,11 @@ class CGenerator(object):
             returnstr += "\n\n"
         if len(struct.members) == 0:
             return "typedef void * UA_%s;" % makeCIdentifier(struct.name)
-        returnstr += "typedef struct {\n"
+        if struct.is_recursive:
+            returnstr += "typedef struct UA_%s UA_%s;\n" % (makeCIdentifier(struct.name), makeCIdentifier(struct.name))
+            returnstr += "struct UA_%s {\n" % makeCIdentifier(struct.name)
+        else:
+            returnstr += "typedef struct {\n"
         if struct.is_union:
             returnstr += "    UA_%sSwitch switchField;\n" % struct.name
             returnstr += "    union {\n"
@@ -292,7 +296,10 @@ class CGenerator(object):
             count += 1
         if struct.is_union:
             returnstr += "    } fields;\n"
-        return returnstr + "} UA_%s;" % makeCIdentifier(struct.name)
+        if struct.is_recursive:
+            return returnstr + "};"
+        else:
+            return returnstr + "} UA_%s;" % makeCIdentifier(struct.name)
 
     @staticmethod
     def print_datatype_typedef(datatype):
