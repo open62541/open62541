@@ -183,7 +183,7 @@ typedef struct {
  * ReferenceTypes.
  *
  * Every ReferenceTypeNode contains a bitfield with the set of all its subtypes.
- * This speeds up the the Browse services substantially.
+ * This speeds up the Browse services substantially.
  *
  * The following ReferenceTypes have a fixed index. The NS0 bootstrapping
  * creates these ReferenceTypes in-order. */
@@ -603,7 +603,7 @@ typedef struct {
  *
  * Methods define callable functions and are invoked using the :ref:`Call
  * <method-services>` service. MethodNodes may have special properties (variable
- * childen with a ``hasProperty`` reference) with the :ref:`qualifiedname` ``(0,
+ * children with a ``hasProperty`` reference) with the :ref:`qualifiedname` ``(0,
  * "InputArguments")`` and ``(0, "OutputArguments")``. The input and output
  * arguments are both described via an array of ``UA_Argument``. While the Call
  * service uses a generic array of :ref:`variant` for input and output, the
