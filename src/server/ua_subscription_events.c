@@ -252,18 +252,13 @@ UA_Server_evaluateWhereClauseContentFilter(UA_Server *server,
         return UA_STATUSCODE_GOOD;
     }
 
-    /* The first element needs to be evaluated, this might be linked to */
-    /* other elements, which are evaluated in these cases.*/
-    /* See 7.4.1 in Part 4, v1.04-Nov 22, 2017 */
+    /* The first element needs to be evaluated, this might be linked to other
+     * elements, which are evaluated in these cases. See 7.4.1 in Part 4. */
     UA_ContentFilterElement *pElement = &contentFilter->elements[0];
-    /** @todo Verify retun types in specification or CTT */
-    switch (pElement->filterOperator)
-    {
+    switch(pElement->filterOperator) {
         case UA_FILTEROPERATOR_INVIEW:
-        case UA_FILTEROPERATOR_RELATEDTO:
-        {
-            /*Not allowed for event WhereClause according to 7.17.3 in */
-            /* Part 4, v1.04-Nov 22, 2017*/
+        case UA_FILTEROPERATOR_RELATEDTO: {
+            /* Not allowed for event WhereClause according to 7.17.3 in Part 4 */
             return UA_STATUSCODE_BADEVENTFILTERINVALID;
         }
         case UA_FILTEROPERATOR_EQUALS:
@@ -281,34 +276,25 @@ UA_Server_evaluateWhereClauseContentFilter(UA_Server *server,
         case UA_FILTEROPERATOR_CAST:
         case UA_FILTEROPERATOR_BITWISEAND:
         case UA_FILTEROPERATOR_BITWISEOR:
-        {
             return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
-        }
-        case UA_FILTEROPERATOR_OFTYPE:
-        {
+
+        case UA_FILTEROPERATOR_OFTYPE: {
             UA_Boolean result = UA_FALSE;
             if(pElement->filterOperandsSize != 1)
-            {
                 return UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
-            }
             if(pElement->filterOperands[0].content.decoded.type !=
                 &UA_TYPES[UA_TYPES_LITERALOPERAND])
-            {
                 return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
-            }
+
             UA_LiteralOperand *pOperand =
                 (UA_LiteralOperand *) pElement->filterOperands[0].content.decoded.data;
             if(!UA_Variant_isScalar(&pOperand->value))
-            {
                 return UA_STATUSCODE_BADEVENTFILTERINVALID;
-            }
 
-            if(pOperand->value.type != &UA_TYPES[UA_TYPES_NODEID]
-                || pOperand->value.data == NULL)
-            {
+            if(pOperand->value.type != &UA_TYPES[UA_TYPES_NODEID] ||
+               pOperand->value.data == NULL) {
                 result = UA_FALSE;
-            }
-            else {
+            } else {
                 UA_NodeId *pOperandNodeId = (UA_NodeId *) pOperand->value.data;
                 UA_QualifiedName eventTypeQualifiedName = UA_QUALIFIEDNAME(0, "EventType");
                 UA_Variant typeNodeIdVariant;
@@ -328,25 +314,23 @@ UA_Server_evaluateWhereClauseContentFilter(UA_Server *server,
                     return UA_STATUSCODE_BADINTERNALERROR;
                 }
 
-                result = isNodeInTree_singleRef(server, (UA_NodeId*) typeNodeIdVariant.data,
-                                                pOperandNodeId, UA_REFERENCETYPEINDEX_HASSUBTYPE);
+                result = isNodeInTree_singleRef(server,
+                                                (UA_NodeId*) typeNodeIdVariant.data,
+                                                pOperandNodeId,
+                                                UA_REFERENCETYPEINDEX_HASSUBTYPE);
                 UA_Variant_clear(&typeNodeIdVariant);
             }
 
             if(result)
-            {
                 return UA_STATUSCODE_GOOD;
-            }
             else
-            {
                 return UA_STATUSCODE_BADNOMATCH;
-            }
         }
             break;
-        default:
-            return UA_STATUSCODE_BADFILTEROPERATORINVALID;
-            break;
-        }
+    default:
+        return UA_STATUSCODE_BADFILTEROPERATORINVALID;
+        break;
+    }
 }
 
 /* Filters the given event with the given filter and writes the results into a
