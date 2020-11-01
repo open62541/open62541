@@ -243,10 +243,12 @@ const struct lws_protocol_vhost_options pvo_opt = {NULL, NULL, "default", "1"};
 const struct lws_protocol_vhost_options pvo = {NULL, &pvo_opt, "opcua", ""};
 
 static UA_StatusCode
-ServerNetworkLayerWS_start(UA_ServerNetworkLayer *nl, const UA_String *customHostname) {
+ServerNetworkLayerWS_start(UA_ServerNetworkLayer *nl, const UA_Logger *logger,
+                           const UA_String *customHostname) {
     UA_initialize_architecture_network();
 
     ServerNetworkLayerWS *layer = (ServerNetworkLayerWS *)nl->handle;
+    layer->logger = logger;
 
     UA_Boolean isSecure = layer->certificate.length && layer->privateKey.length;
 
@@ -354,7 +356,9 @@ ServerNetworkLayerWS_clear(UA_ServerNetworkLayer *nl) {
 }
 
 UA_ServerNetworkLayer
-UA_ServerNetworkLayerWS(UA_ConnectionConfig config, UA_UInt16 port, UA_Logger *logger, const UA_ByteString* certificate, const UA_ByteString* privateKey) {
+UA_ServerNetworkLayerWS(UA_ConnectionConfig config, UA_UInt16 port,
+                        const UA_ByteString* certificate,
+                        const UA_ByteString* privateKey) {
     UA_ServerNetworkLayer nl;
     memset(&nl, 0, sizeof(UA_ServerNetworkLayer));
     nl.clear = ServerNetworkLayerWS_clear;
@@ -363,12 +367,11 @@ UA_ServerNetworkLayerWS(UA_ConnectionConfig config, UA_UInt16 port, UA_Logger *l
     nl.listen = ServerNetworkLayerWS_listen;
     nl.stop = ServerNetworkLayerWS_stop;
 
-    ServerNetworkLayerWS *layer =
-        (ServerNetworkLayerWS *)UA_calloc(1, sizeof(ServerNetworkLayerWS));
+    ServerNetworkLayerWS *layer = (ServerNetworkLayerWS *)
+        UA_calloc(1, sizeof(ServerNetworkLayerWS));
     if(!layer)
         return nl;
     nl.handle = layer;
-    layer->logger = logger;
     layer->port = port;
     layer->config = config;
 
@@ -376,5 +379,5 @@ UA_ServerNetworkLayerWS(UA_ConnectionConfig config, UA_UInt16 port, UA_Logger *l
         UA_String_copy(certificate,&layer->certificate);
         UA_String_copy(privateKey,&layer->privateKey);
     }
-     return nl;
+    return nl;
 }

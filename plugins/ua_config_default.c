@@ -294,8 +294,8 @@ UA_ServerConfig_addNetworkLayerWS(UA_ServerConfig *conf, UA_UInt16 portNumber,
         config.recvBufferSize = recvBufferSize;
 
     conf->networkLayers[conf->networkLayersSize] =
-        UA_ServerNetworkLayerWS(config, portNumber, &conf->logger, certificate, privateKey);
-    if (!conf->networkLayers[conf->networkLayersSize].handle)
+        UA_ServerNetworkLayerWS(config, portNumber, certificate, privateKey);
+    if(!conf->networkLayers[conf->networkLayersSize].handle)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     conf->networkLayersSize++;
 
@@ -321,7 +321,7 @@ UA_ServerConfig_addNetworkLayerTCP(UA_ServerConfig *conf, UA_UInt16 portNumber,
         config.recvBufferSize = recvBufferSize;
 
     conf->networkLayers[conf->networkLayersSize] =
-        UA_ServerNetworkLayerTCP(config, portNumber, 0, &conf->logger);
+        UA_ServerNetworkLayerTCP(config, portNumber, 0);
     if (!conf->networkLayers[conf->networkLayersSize].handle)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     conf->networkLayersSize++;

@@ -383,10 +383,12 @@ addServerSocket(ServerNetworkLayerTCP *layer, struct addrinfo *ai) {
 }
 
 static UA_StatusCode
-ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, const UA_String *customHostname) {
+ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, const UA_Logger *logger,
+                            const UA_String *customHostname) {
     UA_initialize_architecture_network();
 
     ServerNetworkLayerTCP *layer = (ServerNetworkLayerTCP *)nl->handle;
+    layer->logger = logger;
 
     /* Get addrinfo of the server and create server sockets */
     char hostname[512];
@@ -620,7 +622,7 @@ ServerNetworkLayerTCP_clear(UA_ServerNetworkLayer *nl) {
 
 UA_ServerNetworkLayer
 UA_ServerNetworkLayerTCP(UA_ConnectionConfig config, UA_UInt16 port,
-                         UA_UInt16 maxConnections, UA_Logger *logger) {
+                         UA_UInt16 maxConnections) {
     UA_ServerNetworkLayer nl;
     memset(&nl, 0, sizeof(UA_ServerNetworkLayer));
     nl.clear = ServerNetworkLayerTCP_clear;
@@ -636,7 +638,6 @@ UA_ServerNetworkLayerTCP(UA_ConnectionConfig config, UA_UInt16 port,
         return nl;
     nl.handle = layer;
 
-    layer->logger = logger;
     layer->port = port;
     layer->maxConnections = maxConnections;
 
