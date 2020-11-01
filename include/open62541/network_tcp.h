@@ -25,7 +25,7 @@ _UA_BEGIN_DECLS
  * @return Returns the network layer instance */
 UA_ServerNetworkLayer UA_EXPORT
 UA_ServerNetworkLayerTCP(UA_ConnectionConfig config, UA_UInt16 port,
-                         UA_UInt16 maxConnections, UA_Logger *logger);
+                         UA_UInt16 maxConnections);
 
 /* Open a non-blocking client TCP socket. The connection might not be fully
  * opened yet. Drop into the _poll function withe a timeout to complete the
