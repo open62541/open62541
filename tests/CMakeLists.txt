@@ -58,27 +58,25 @@ else()
     set(TESTS_BINARY_DIR ${CMAKE_BINARY_DIR}/bin/tests)
 endif()
 
+# Use custom clock for testing
+set(test_architecture_sources ${ua_architecture_sources})
+list(REMOVE_AT test_architecture_sources
+     list(FIND test_architecture_sources "*/ua_clock.c"))
 
-# Use different plugins for testing
-set(test_plugin_sources ${PROJECT_SOURCE_DIR}/arch/network_tcp.c
+# Add custom testing plugins
+set(test_plugin_sources
+    ${default_plugin_sources}
+    ${test_architecture_sources}
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_clock.c
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_config.c
-    ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
-    ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
-    ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
-    ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_ziptree.c
-    ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_hashmap.c
-    ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_securitypolicy_none.c
-    ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_pki_none.c
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_policy.c
-    ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c
-    )
+    ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c)
 
 if(UA_ENABLE_HISTORIZING)
-    set(test_plugin_sources ${test_plugin_sources}
-        ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_history_data_backend_memory.c
-        ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_history_data_gathering_default.c
-        ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_history_database_default.c)
+    list(APPEND test_plugin_sources
+         ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_history_data_backend_memory.c
+         ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_history_data_gathering_default.c
+         ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_history_database_default.c)
 endif()
 
 if(UA_ENABLE_ENCRYPTION_MBEDTLS)
