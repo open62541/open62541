@@ -941,9 +941,14 @@ if(UA_ENABLE_SUBSCRIPTIONS)
                             ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_monitoreditem.c
                             ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_datachange.c)
     if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
-        list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_events.c)
+        if(UA_NAMESPACE_ZERO STREQUAL "MINAML")
+            message(FATAL_ERROR "Events require at least the reduced Namespace Zero")
+        endif()
+        list(APPEND lib_sources
+             ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_events.c)
         if(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS)
-            list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_alarms_conditions.c)
+            list(APPEND lib_sources
+                 ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_alarms_conditions.c)
         endif()
     endif()
 endif()
