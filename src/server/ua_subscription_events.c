@@ -242,14 +242,13 @@ resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session, const UA_N
 }
 
 UA_StatusCode
-UA_Server_evaluateWhereClauseContentFilter(
-    UA_Server *server,
-    const UA_NodeId *eventNode,
-    const UA_ContentFilter *contentFilter) {
-    if(contentFilter->elements == NULL || contentFilter->elementsSize == 0)
-    {
+UA_Server_evaluateWhereClauseContentFilter(UA_Server *server,
+                                           const UA_NodeId *eventNode,
+                                           const UA_ContentFilter *contentFilter) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
+
+    if(contentFilter->elements == NULL || contentFilter->elementsSize == 0) {
         /* Nothing to do.*/
-        /** @todo Whats the default result?*/
         return UA_STATUSCODE_GOOD;
     }
 
