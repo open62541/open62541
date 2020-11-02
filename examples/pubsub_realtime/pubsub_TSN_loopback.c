@@ -109,7 +109,7 @@ UA_DataSetReaderConfig readerConfig;
 #define             SUB_SCHED_PRIORITY                    81
 #define             USERAPPLICATION_SCHED_PRIORITY        75
 #define             SERVER_SCHED_PRIORITY                 1
-#define             MAX_MEASUREMENTS                      30000000
+#define             MAX_MEASUREMENTS                      10000000
 #define             CORE_TWO                              2
 #define             CORE_THREE                            3
 #define             SECONDS_INCREMENT                     1
@@ -132,15 +132,15 @@ UA_NodeId           subNodeID;
 UA_NodeId           pubRepeatedCountNodeID;
 UA_NodeId           subRepeatedCountNodeID;
 /* Variables for counter data handling in address space */
-UA_UInt64           *pubCounterData;
-UA_DataValue        *pubDataValueRT;
-UA_UInt64           *repeatedCounterData[REPEATED_NODECOUNTS];
-UA_DataValue        *repeatedDataValueRT[REPEATED_NODECOUNTS];
+UA_UInt64           *pubCounterData = NULL;
+UA_DataValue        *pubDataValueRT = NULL;
+UA_UInt64           *repeatedCounterData[REPEATED_NODECOUNTS] = {NULL};
+UA_DataValue        *repeatedDataValueRT[REPEATED_NODECOUNTS] = {NULL};
 
-UA_UInt64           *subCounterData;
-UA_DataValue        *subDataValueRT;
-UA_UInt64           *subRepeatedCounterData[REPEATED_NODECOUNTS];
-UA_DataValue        *subRepeatedDataValueRT[REPEATED_NODECOUNTS];
+UA_UInt64           *subCounterData = NULL;
+UA_DataValue        *subDataValueRT = NULL;
+UA_UInt64           *subRepeatedCounterData[REPEATED_NODECOUNTS] = {NULL};
+UA_DataValue        *subRepeatedDataValueRT[REPEATED_NODECOUNTS] = {NULL};
 
 #if defined(PUBLISHER)
 #if defined(UPDATE_MEASUREMENTS)
@@ -376,16 +376,29 @@ static void addSubscribedVariables (UA_Server *server) {
         return;
     }
 
-    UA_FieldTargetVariable *targetVars = (UA_FieldTargetVariable*)
-        UA_calloc((REPEATED_NODECOUNTS + 1),
-                  sizeof(UA_FieldTargetVariable));
+    UA_FieldTargetVariable *targetVars = (UA_FieldTargetVariable*) UA_calloc((REPEATED_NODECOUNTS + 1), sizeof(UA_FieldTargetVariable));
+    if(!targetVars) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "FieldTargetVariable - Bad out of memory");
+        return;
+    }
+
     /* For creating Targetvariable */
     for (iterator = 0; iterator < REPEATED_NODECOUNTS; iterator++)
     {
         subRepeatedCounterData[iterator] = UA_UInt64_new();
+        if(!subRepeatedCounterData[iterator]) {
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "SubscribeRepeatedCounterData - Bad out of memory");
+            return;
+        }
+
         *subRepeatedCounterData[iterator] = 0;
 #if defined PUBSUB_CONFIG_RT_INFORMATION_MODEL
         subRepeatedDataValueRT[iterator] = UA_DataValue_new();
+        if(!subRepeatedDataValueRT[iterator]) {
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "SubscribeRepeatedCounterDataValue - Bad out of memory");
+            return;
+        }
+
         UA_Variant_setScalar(&subRepeatedDataValueRT[iterator]->value, subRepeatedCounterData[iterator], &UA_TYPES[UA_TYPES_UINT64]);
         subRepeatedDataValueRT[iterator]->hasValue = UA_TRUE;
         /* Set the value backend of the above create node to 'external value source' */
@@ -402,9 +415,19 @@ static void addSubscribedVariables (UA_Server *server) {
     }
 
     subCounterData = UA_UInt64_new();
+    if(!subCounterData) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "SubscribeCounterData - Bad out of memory");
+        return;
+    }
+
     *subCounterData = 0;
 #if defined PUBSUB_CONFIG_RT_INFORMATION_MODEL
     subDataValueRT = UA_DataValue_new();
+    if(!subDataValueRT) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "SubscribeDataValue - Bad out of memory");
+        return;
+    }
+
     UA_Variant_setScalar(&subDataValueRT->value, subCounterData, &UA_TYPES[UA_TYPES_UINT64]);
     subDataValueRT->hasValue = UA_TRUE;
     /* Set the value backend of the above create node to 'external value source' */
@@ -550,8 +573,18 @@ addDataSetField(UA_Server *server) {
        memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
 #if defined PUBSUB_CONFIG_RT_INFORMATION_MODEL
        repeatedCounterData[iterator] = UA_UInt64_new();
+       if(!repeatedCounterData[iterator]) {
+           UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PublishRepeatedCounter - Bad out of memory");
+           return;
+       }
+
        *repeatedCounterData[iterator] = 0;
        repeatedDataValueRT[iterator] = UA_DataValue_new();
+       if(!repeatedDataValueRT[iterator]) {
+           UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PublishRepeatedCounterDataValue - Bad out of memory");
+           return;
+       }
+
        UA_Variant_setScalar(&repeatedDataValueRT[iterator]->value, repeatedCounterData[iterator], &UA_TYPES[UA_TYPES_UINT64]);
        repeatedDataValueRT[iterator]->hasValue = UA_TRUE;
        /* Set the value backend of the above create node to 'external value source' */
@@ -566,6 +599,11 @@ addDataSetField(UA_Server *server) {
        dataSetFieldConfig.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(1, (UA_UInt32)iterator+10000);
 #else
        repeatedCounterData[iterator] = UA_UInt64_new();
+       if(!repeatedCounterData[iterator]) {
+           UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PublishRepeatedCounter - Bad out of memory ");
+           return;
+       }
+
        dataSetFieldConfig.dataSetFieldType                                   = UA_PUBSUB_DATASETFIELD_VARIABLE;
        dataSetFieldConfig.field.variable.fieldNameAlias                      = UA_STRING("Repeated Counter Variable");
        dataSetFieldConfig.field.variable.promotedField                       = UA_FALSE;
@@ -581,8 +619,18 @@ addDataSetField(UA_Server *server) {
     memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));
 #if defined PUBSUB_CONFIG_RT_INFORMATION_MODEL
     pubCounterData = UA_UInt64_new();
+    if(!pubCounterData) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PublishCounter - Bad out of memory");
+        return;
+    }
+
     *pubCounterData = 0;
     pubDataValueRT = UA_DataValue_new();
+    if(!pubDataValueRT) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PublishDataValue - Bad out of memory");
+        return;
+    }
+
     UA_Variant_setScalar(&pubDataValueRT->value, pubCounterData, &UA_TYPES[UA_TYPES_UINT64]);
     pubDataValueRT->hasValue = UA_TRUE;
     /* Set the value backend of the above create node to 'external value source' */
@@ -597,6 +645,11 @@ addDataSetField(UA_Server *server) {
     dsfConfig.field.variable.publishParameters.publishedVariable = pubNodeID;
 #else
     pubCounterData = UA_UInt64_new();
+    if(!pubCounterData) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PublishCounter - Bad out of memory");
+        return;
+    }
+
     dsfConfig.dataSetFieldType                                   = UA_PUBSUB_DATASETFIELD_VARIABLE;
     dsfConfig.field.variable.fieldNameAlias                      = UA_STRING("Counter Variable");
     dsfConfig.field.variable.promotedField                       = UA_FALSE;
@@ -680,6 +733,12 @@ addDataSetWriter(UA_Server *server) {
 static void
 updateMeasurementsPublisher(struct timespec start_time,
                             UA_UInt64 counterValue) {
+    if(measurementsPublisher >= MAX_MEASUREMENTS) {
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Publisher: Maximum log measurements reached - Closing the application");
+        running = UA_FALSE;
+        return;
+    }
+
     publishTimestamp[measurementsPublisher]        = start_time;
     publishCounterValue[measurementsPublisher]     = counterValue;
     measurementsPublisher++;
@@ -692,6 +751,12 @@ updateMeasurementsPublisher(struct timespec start_time,
  */
 static void
 updateMeasurementsSubscriber(struct timespec receive_time, UA_UInt64 counterValue) {
+    if(measurementsSubscriber >= MAX_MEASUREMENTS) {
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Subscriber: Maximum log measurements reached - Closing the application");
+        running = UA_FALSE;
+        return;
+    }
+
     subscribeTimestamp[measurementsSubscriber]     = receive_time;
     subscribeCounterValue[measurementsSubscriber]  = counterValue;
     measurementsSubscriber++;
