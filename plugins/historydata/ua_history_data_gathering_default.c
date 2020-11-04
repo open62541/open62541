@@ -129,6 +129,7 @@ registerNodeId_gathering_default(UA_Server *server,
             ctx->storeSize = 0;
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
+        memset(&ctx->dataStore[ctx->storeSize], 0, (newStoreSize - ctx->storeSize) * sizeof(UA_NodeIdStoreContextItem_gathering_default));
         ctx->storeSize = newStoreSize;
     }
     UA_NodeId_copy(nodeId, &ctx->dataStore[ctx->storeEnd].nodeId);
