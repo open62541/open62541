@@ -15,7 +15,7 @@ set(open62541_COMPONENTS_ALL @open62541_enabled_components@)
 # find_dependency has no option to provide hints for modules, so temporary add the path to CMAKE_MODULE_PATH
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR})
 list (FIND open62541_COMPONENTS_ALL "EncryptionMbedTLS" _index)
-if(${_index} GREATER_EQUAL 0)
+if((${_index} GREATER 0) OR (${_index} EQUAL 0))
     find_dependency(MbedTLS REQUIRED)
 endif()
 
