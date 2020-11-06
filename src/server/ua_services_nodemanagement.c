@@ -410,8 +410,14 @@ useVariableTypeAttributes(UA_Server *server, UA_Session *session,
             modified = true;
         }
         UA_DataValue_clear(&v.value);
-        if(retval != UA_STATUSCODE_GOOD)
-            return retval;
+
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_INFO_SESSION(&server->config.logger, session, "AddNodes: "
+                                "The default content of the VariableType could "
+                                "not be used. This may happen if the VariableNode "
+                                "makes additional restrictions.");
+            retval = UA_STATUSCODE_GOOD;
+        }
     }
 
     /* If no datatype is given, use the datatype of the vt */
