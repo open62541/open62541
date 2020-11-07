@@ -116,7 +116,8 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
     UA_Variant value;
     UA_Variant_init(&value);
     UA_Variant_setScalar(&value, (void*)(uintptr_t)&eventType, &UA_TYPES[UA_TYPES_NODEID]);
-    retval = writeWithWriteValue(server, &bpr.targets[0].targetId.nodeId, UA_ATTRIBUTEID_VALUE, &UA_TYPES[UA_TYPES_VARIANT], &value);
+    retval = writeValueAttribute(server, &server->adminSession,
+                                 &bpr.targets[0].targetId.nodeId, &value);
     UA_BrowsePathResult_clear(&bpr);
     if(retval != UA_STATUSCODE_GOOD) {
         deleteNode(server, newNodeId, true);
@@ -402,8 +403,8 @@ eventSetStandardFields(UA_Server *server, const UA_NodeId *event,
     UA_Variant value;
     UA_Variant_init(&value);
     UA_Variant_setScalarCopy(&value, origin, &UA_TYPES[UA_TYPES_NODEID]);
-    retval = writeWithWriteValue(server, &bpr.targets[0].targetId.nodeId,
-                                 UA_ATTRIBUTEID_VALUE, &UA_TYPES[UA_TYPES_VARIANT], &value);
+    retval = writeValueAttribute(server, &server->adminSession,
+                                 &bpr.targets[0].targetId.nodeId, &value);
     UA_Variant_clear(&value);
     UA_BrowsePathResult_clear(&bpr);
     if(retval != UA_STATUSCODE_GOOD)
@@ -419,8 +420,8 @@ eventSetStandardFields(UA_Server *server, const UA_NodeId *event,
     }
     UA_DateTime rcvTime = UA_DateTime_now();
     UA_Variant_setScalar(&value, &rcvTime, &UA_TYPES[UA_TYPES_DATETIME]);
-    retval = writeWithWriteValue(server, &bpr.targets[0].targetId.nodeId,
-                                 UA_ATTRIBUTEID_VALUE, &UA_TYPES[UA_TYPES_VARIANT], &value);
+    retval = writeValueAttribute(server, &server->adminSession,
+                                 &bpr.targets[0].targetId.nodeId, &value);
     UA_BrowsePathResult_clear(&bpr);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
@@ -440,8 +441,8 @@ eventSetStandardFields(UA_Server *server, const UA_NodeId *event,
     }
     UA_Variant_init(&value);
     UA_Variant_setScalar(&value, &eventId, &UA_TYPES[UA_TYPES_BYTESTRING]);
-    retval = writeWithWriteValue(server, &bpr.targets[0].targetId.nodeId,
-                                 UA_ATTRIBUTEID_VALUE, &UA_TYPES[UA_TYPES_VARIANT], &value);
+    retval = writeValueAttribute(server, &server->adminSession,
+                                 &bpr.targets[0].targetId.nodeId, &value);
     UA_BrowsePathResult_clear(&bpr);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ByteString_clear(&eventId);

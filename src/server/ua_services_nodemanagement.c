@@ -257,8 +257,8 @@ setDefaultValue(UA_Server *server, const UA_VariableNode *node) {
     }
 
     /* Write the value */
-    res = writeWithWriteValue(server, &node->head.nodeId, UA_ATTRIBUTEID_VALUE,
-                              &UA_TYPES[UA_TYPES_VARIANT], &val);
+    res = writeAttribute(server, &server->adminSession, &node->head.nodeId,
+                         UA_ATTRIBUTEID_VALUE, &val, &UA_TYPES[UA_TYPES_VARIANT]);
 
     /* Clean up */
     UA_Variant_clear(&val);
@@ -337,8 +337,7 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
     if(!compatibleValue(server, session, &node->dataType, node->valueRank,
                         node->arrayDimensionsSize, node->arrayDimensions,
                         &value.value, NULL)) {
-        retval = writeWithWriteValue(server, &node->head.nodeId, UA_ATTRIBUTEID_VALUE,
-                                     &UA_TYPES[UA_TYPES_VARIANT], &value.value);
+        retval = writeValueAttribute(server, session, &node->head.nodeId, &value.value);
         if(retval != UA_STATUSCODE_GOOD) {
             logAddNode(&server->config.logger, session, &node->head.nodeId,
                        "The value is incompatible with the variable definition");
@@ -382,16 +381,15 @@ useVariableTypeAttributes(UA_Server *server, UA_Session *session,
         /* A value is present */
         UA_DataValue_clear(&orig);
     } else {
-        UA_WriteValue v;
-        UA_WriteValue_init(&v);
-        retval = readValueAttribute(server, session, (const UA_VariableNode*)vt, &v.value);
-        if(retval == UA_STATUSCODE_GOOD && v.value.hasValue) {
-            v.nodeId = node->head.nodeId;
-            v.attributeId = UA_ATTRIBUTEID_VALUE;
-            retval = writeWithSession(server, session, &v);
+        UA_DataValue v;
+        UA_DataValue_init(&v);
+        retval = readValueAttribute(server, session, (const UA_VariableNode*)vt, &v);
+        if(retval == UA_STATUSCODE_GOOD && v.hasValue) {
+            retval = writeValueAttribute(server, session, &node->head.nodeId,
+                                         &v.value);
             modified = true;
         }
-        UA_DataValue_clear(&v.value);
+        UA_DataValue_clear(&v);
 
         if(retval != UA_STATUSCODE_GOOD) {
             logAddNode(&server->config.logger, session, &node->head.nodeId,
@@ -407,14 +405,9 @@ useVariableTypeAttributes(UA_Server *server, UA_Session *session,
         logAddNode(&server->config.logger, session, &node->head.nodeId,
                    "No datatype given; Copy the datatype attribute "
                    "from the TypeDefinition");
-        UA_WriteValue v;
-        UA_WriteValue_init(&v);
-        v.nodeId = node->head.nodeId;
-        v.attributeId = UA_ATTRIBUTEID_DATATYPE;
-        v.value.hasValue = true;
-        UA_Variant_setScalar(&v.value.value, (void*)(uintptr_t)&vt->dataType,
-                             &UA_TYPES[UA_TYPES_NODEID]);
-        retval = writeWithSession(server, session, &v);
+        retval = writeAttribute(server, session, &node->head.nodeId,
+                                UA_ATTRIBUTEID_DATATYPE, &vt->dataType,
+                                &UA_TYPES[UA_TYPES_NODEID]);
         modified = true;
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
@@ -422,14 +415,13 @@ useVariableTypeAttributes(UA_Server *server, UA_Session *session,
 
     /* Use the ArrayDimensions of the vt */
     if(node->arrayDimensionsSize == 0 && vt->arrayDimensionsSize > 0) {
-        UA_WriteValue v;
-        UA_WriteValue_init(&v);
-        v.nodeId = node->head.nodeId;
-        v.attributeId = UA_ATTRIBUTEID_ARRAYDIMENSIONS;
-        v.value.hasValue = true;
-        UA_Variant_setArray(&v.value.value, vt->arrayDimensions,
-                            vt->arrayDimensionsSize, &UA_TYPES[UA_TYPES_UINT32]);
-        retval = writeWithSession(server, session, &v);
+        UA_Variant v;
+        UA_Variant_init(&v);
+        UA_Variant_setArray(&v, vt->arrayDimensions, vt->arrayDimensionsSize,
+                            &UA_TYPES[UA_TYPES_UINT32]);
+        retval = writeAttribute(server, session, &node->head.nodeId,
+                                UA_ATTRIBUTEID_ARRAYDIMENSIONS, &v,
+                                &UA_TYPES[UA_TYPES_VARIANT]);
         modified = true;
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
