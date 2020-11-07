@@ -277,10 +277,11 @@ getInterfaceHierarchy(UA_Server *server, const UA_NodeId *objectNode,
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
 
-UA_StatusCode UA_EXPORT
-UA_getConditionId(UA_Server *server, const UA_NodeId *conditionNodeId, UA_NodeId *outConditionId);
+UA_StatusCode
+UA_getConditionId(UA_Server *server, const UA_NodeId *conditionNodeId,
+                  UA_NodeId *outConditionId);
 
-void UA_EXPORT
+void
 UA_ConditionList_delete(UA_Server *server);
 
 UA_Boolean
@@ -289,7 +290,8 @@ isConditionOrBranch(UA_Server *server,
                     const UA_NodeId *conditionSource,
                     UA_Boolean *isCallerAC);
 
-#endif//UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+#endif /* UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */
+
 /* Returns the type node from the node on the stack top. The type node is pushed
  * on the stack and returned. */
 const UA_Node *
