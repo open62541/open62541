@@ -297,11 +297,6 @@ isConditionOrBranch(UA_Server *server,
 const UA_Node *
 getNodeType(UA_Server *server, const UA_NodeHead *nodeHead);
 
-/* Write a node attribute with a defined session */
-UA_StatusCode
-writeWithSession(UA_Server *server, UA_Session *session,
-                 const UA_WriteValue *value);
-
 UA_StatusCode
 sendResponse(UA_Server *server, UA_Session *session, UA_SecureChannel *channel,
              UA_UInt32 requestId, UA_Response *response, const UA_DataType *responseType);
@@ -347,13 +342,16 @@ setMethodNode_callback(UA_Server *server,
                        UA_MethodCallback methodCallback);
 
 UA_StatusCode
-writeAttribute(UA_Server *server, const UA_WriteValue *value);
+writeAttribute(UA_Server *server, UA_Session *session,
+               const UA_NodeId *nodeId, const UA_AttributeId attributeId,
+               const void *attr, const UA_DataType *attr_type);
 
-UA_StatusCode
-writeWithWriteValue(UA_Server *server, const UA_NodeId *nodeId,
-                    const UA_AttributeId attributeId,
-                    const UA_DataType *attr_type,
-                    const void *attr);
+static UA_INLINE UA_StatusCode
+writeValueAttribute(UA_Server *server, UA_Session *session,
+                    const UA_NodeId *nodeId, const UA_Variant *value) {
+    return writeAttribute(server, session, nodeId, UA_ATTRIBUTEID_VALUE,
+                          value, &UA_TYPES[UA_TYPES_VARIANT]);
+}
 
 UA_DataValue
 readAttribute(UA_Server *server, const UA_ReadValueId *item,

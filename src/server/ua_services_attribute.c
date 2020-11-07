@@ -1239,9 +1239,9 @@ writeValueAttributeWithRange(UA_VariableNode *node, const UA_DataValue *value,
 
 /* Stack layout: ... | node */
 static UA_StatusCode
-writeValueAttribute(UA_Server *server, UA_Session *session,
-                    UA_VariableNode *node, const UA_DataValue *value,
-                    const UA_String *indexRange) {
+writeNodeValueAttribute(UA_Server *server, UA_Session *session,
+                        UA_VariableNode *node, const UA_DataValue *value,
+                        const UA_String *indexRange) {
     UA_assert(node != NULL);
     UA_assert(session != NULL);
 
@@ -1536,8 +1536,8 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
         } else { /* UA_NODECLASS_VARIABLETYPE */
             CHECK_USERWRITEMASK(UA_WRITEMASK_VALUEFORVARIABLETYPE);
         }
-        retval = writeValueAttribute(server, session, &node->variableNode,
-                                     &wvalue->value, &wvalue->indexRange);
+        retval = writeNodeValueAttribute(server, session, &node->variableNode,
+                                         &wvalue->value, &wvalue->indexRange);
         break;
     case UA_ATTRIBUTEID_DATATYPE:
         CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
@@ -1604,10 +1604,11 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
 
 static void
 Operation_Write(UA_Server *server, UA_Session *session, void *context,
-                UA_WriteValue *wv, UA_StatusCode *result) {
+                const UA_WriteValue *wv, UA_StatusCode *result) {
     UA_assert(session != NULL);
     *result = UA_Server_editNode(server, session, &wv->nodeId,
-                        (UA_EditNodeCallback)copyAttributeIntoNode, wv);
+                                 (UA_EditNodeCallback)copyAttributeIntoNode,
+                                 (void*)(uintptr_t)wv);
 }
 
 void
@@ -1637,38 +1638,33 @@ Service_Write(UA_Server *server, UA_Session *session,
 }
 
 UA_StatusCode
-writeWithSession(UA_Server *server, UA_Session *session,
-                           const UA_WriteValue *value) {
-    return UA_Server_editNode(server, session, &value->nodeId,
-                              (UA_EditNodeCallback)copyAttributeIntoNode,
-                              /* casting away const qualifier because callback
-                               * uses const anyway */
-                              (UA_WriteValue *)(uintptr_t)value);
-}
-
-UA_StatusCode
-writeAttribute(UA_Server *server, const UA_WriteValue *value) {
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
-    return UA_Server_editNode(server, &server->adminSession, &value->nodeId,
-                              (UA_EditNodeCallback)copyAttributeIntoNode,
-                               /* casting away const qualifier because callback
-                                * uses const anyway */
-                              (UA_WriteValue *)(uintptr_t)value);
-}
-
-UA_StatusCode
 UA_Server_write(UA_Server *server, const UA_WriteValue *value) {
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_LOCK(server->serviceMutex);
-    UA_StatusCode retval = writeAttribute(server, value);
+    Operation_Write(server, &server->adminSession, NULL, value, &res);
     UA_UNLOCK(server->serviceMutex);
-    return retval;
+    return res;
 }
 
+/* Convenience function to be wrapped into inline functions */
 UA_StatusCode
-writeWithWriteValue(UA_Server *server, const UA_NodeId *nodeId,
+__UA_Server_write(UA_Server *server, const UA_NodeId *nodeId,
                   const UA_AttributeId attributeId,
                   const UA_DataType *attr_type, const void *attr) {
+    UA_LOCK(server->serviceMutex);
+    UA_StatusCode res = writeAttribute(server, &server->adminSession,
+                                       nodeId, attributeId, attr, attr_type);
+    UA_UNLOCK(server->serviceMutex);
+    return res;
+}
+
+/* Internal convenience function */
+UA_StatusCode
+writeAttribute(UA_Server *server, UA_Session *session,
+               const UA_NodeId *nodeId, const UA_AttributeId attributeId,
+               const void *attr, const UA_DataType *attr_type) {
     UA_LOCK_ASSERT(server->serviceMutex, 1);
+
     UA_WriteValue wvalue;
     UA_WriteValue_init(&wvalue);
     wvalue.nodeId = *nodeId;
@@ -1683,19 +1679,10 @@ writeWithWriteValue(UA_Server *server, const UA_NodeId *nodeId,
         UA_Variant_setScalar(&wvalue.value.value,
                              (void*)(uintptr_t)attr, attr_type);
     }
-    return writeAttribute(server, &wvalue);
-}
 
-/* Convenience function to be wrapped into inline functions */
-UA_StatusCode
-__UA_Server_write(UA_Server *server, const UA_NodeId *nodeId,
-                  const UA_AttributeId attributeId,
-                  const UA_DataType *attr_type, const void *attr) {
-    UA_LOCK(server->serviceMutex);
-    UA_StatusCode retval = writeWithWriteValue(server, nodeId, attributeId,
-                                               attr_type, attr);
-    UA_UNLOCK(server->serviceMutex);
-    return retval;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    Operation_Write(server, session, NULL, &wvalue, &res);
+    return res;
 }
 
 #ifdef UA_ENABLE_HISTORIZING
@@ -1877,7 +1864,7 @@ Service_HistoryUpdate(UA_Server *server, UA_Session *session,
 
 #endif
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode
 UA_Server_writeObjectProperty(UA_Server *server, const UA_NodeId objectId,
                               const UA_QualifiedName propertyName,
                               const UA_Variant value) {
@@ -1913,9 +1900,8 @@ writeObjectProperty(UA_Server *server, const UA_NodeId objectId,
         return retval;
     }
 
-    retval = writeWithWriteValue(server, &bpr.targets[0].targetId.nodeId,
-                                 UA_ATTRIBUTEID_VALUE,
-                                 &UA_TYPES[UA_TYPES_VARIANT], &value);
+    retval = writeValueAttribute(server, &server->adminSession,
+                                 &bpr.targets[0].targetId.nodeId, &value);
 
     UA_BrowsePathResult_clear(&bpr);
     return retval;
