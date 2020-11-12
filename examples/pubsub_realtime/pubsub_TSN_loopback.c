@@ -106,7 +106,7 @@ static UA_Double  userAppWakeupPercentage = 0.3;
 #define             DEFAULT_PUB_SCHED_PRIORITY              78
 #define             DEFAULT_SUB_SCHED_PRIORITY              81
 #define             DEFAULT_USERAPPLICATION_SCHED_PRIORITY  75
-#define             MAX_MEASUREMENTS                        10000000
+#define             MAX_MEASUREMENTS                        1000000
 #define             DEFAULT_PUB_CORE                        2
 #define             DEFAULT_SUB_CORE                        2
 #define             DEFAULT_USER_APP_CORE                   3
@@ -358,7 +358,7 @@ addReaderGroup(UA_Server *server) {
     memset (&readerGroupConfig, 0, sizeof(UA_ReaderGroupConfig));
     readerGroupConfig.name    = UA_STRING("ReaderGroup");
     readerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
-    readerGroupConfig.subscribingInterval = CYCLE_TIME;
+    readerGroupConfig.subscribingInterval = cycleTimeInMsec;
     readerGroupConfig.timeout = 50;  // As we run in 250us cycle time, modify default timeout (1ms) to 50us
     readerGroupConfig.pubsubManagerCallback.addCustomCallback = addPubSubApplicationCallback;
     readerGroupConfig.pubsubManagerCallback.changeCustomCallbackInterval = changePubSubApplicationCallbackInterval;
@@ -775,9 +775,7 @@ void *publisherETF(void *arg) {
     /* Define Ethernet ETF transport settings */
     UA_EthernetWriterGroupTransportDataType ethernettransportSettings;
     memset(&ethernettransportSettings, 0, sizeof(UA_EthernetWriterGroupTransportDataType));
-    /* TODO: Txtime enable shall be configured based on connectionConfig.etfConfiguration.sotxtimeEnabled parameter */
-    ethernetETFtransportSettings.txtime_enabled    = disableSoTxtime;
-    ethernetETFtransportSettings.transmission_time = 0;
+    ethernettransportSettings.transmission_time = 0;
 
     /* Encapsulate ETF config in transportSettings */
     UA_ExtensionObject transportSettings;
@@ -1038,7 +1036,7 @@ static void usage(char *appname)
         " -subMacAddress   [name] Subscriber Mac address (default %s - where 8 is the VLAN ID and 3 is the PCP)\n"
         " -qbvOffset       [num]  QBV offset value (default %d)\n"
         " -disableSoTxtime        Do not use SO_TXTIME\n"
-        " -enableCsvLog           To log the data in csv files\n"
+        " -enableCsvLog           Experimental: To log the data in csv files. Support up to 1 million samples\n"
         "\n",
         appname, DEFAULT_CYCLE_TIME, DEFAULT_SOCKET_PRIORITY, DEFAULT_PUB_SCHED_PRIORITY, \
         DEFAULT_SUB_SCHED_PRIORITY, DEFAULT_USERAPPLICATION_SCHED_PRIORITY, \
@@ -1134,6 +1132,9 @@ int main(int argc, char **argv) {
                 enableCsvLog = UA_TRUE;
                 break;
             case 'o':
+                usage(progname);
+                return -1;
+            case '?':
                 usage(progname);
                 return -1;
         }

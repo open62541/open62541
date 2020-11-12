@@ -106,7 +106,8 @@ static UA_Double  userAppWakeupPercentage = 0.3;
 #define             DEFAULT_PUB_SCHED_PRIORITY              78
 #define             DEFAULT_SUB_SCHED_PRIORITY              81
 #define             DEFAULT_USERAPPLICATION_SCHED_PRIORITY  75
-#define             MAX_MEASUREMENTS                        10000000
+#define             MAX_MEASUREMENTS                        1000000
+#define             MAX_MEASUREMENTS_FILEWRITE              100000000
 #define             DEFAULT_PUB_CORE                        2
 #define             DEFAULT_SUB_CORE                        2
 #define             DEFAULT_USER_APP_CORE                   3
@@ -116,27 +117,28 @@ static UA_Double  userAppWakeupPercentage = 0.3;
 #endif
 #define             CLOCKID                                 CLOCK_TAI
 #define             ETH_TRANSPORT_PROFILE                   "http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp"
+#define             LATENCY_CSV_FILE_NAME                   "latencyT1toT8.csv"
 
 /* If the Hardcoded publisher/subscriber MAC addresses need to be changed,
  * change PUBLISHING_MAC_ADDRESS and SUBSCRIBING_MAC_ADDRESS
  */
 
 /* Set server running as true */
-UA_Boolean        running           = UA_TRUE;
-
-char*             pubMacAddress     = DEFAULT_PUBLISHING_MAC_ADDRESS;
-char*             subMacAddress     = DEFAULT_SUBSCRIBING_MAC_ADDRESS;
-static UA_Double  cycleTimeInMsec   = DEFAULT_CYCLE_TIME;
-static UA_Int32   socketPriority    = DEFAULT_SOCKET_PRIORITY;
-static UA_Int32   pubPriority       = DEFAULT_PUB_SCHED_PRIORITY;
-static UA_Int32   subPriority       = DEFAULT_SUB_SCHED_PRIORITY;
-static UA_Int32   userAppPriority   = DEFAULT_USERAPPLICATION_SCHED_PRIORITY;
-static UA_Int32   pubCore           = DEFAULT_PUB_CORE;
-static UA_Int32   subCore           = DEFAULT_SUB_CORE;
-static UA_Int32   userAppCore       = DEFAULT_USER_APP_CORE;
-static UA_Int32   qbvOffset         = DEFAULT_QBV_OFFSET;
-static UA_Boolean disableSoTxtime   = UA_TRUE;
-static UA_Boolean enableCsvLog      = UA_FALSE;
+UA_Boolean        running             = UA_TRUE;
+char*             pubMacAddress       = DEFAULT_PUBLISHING_MAC_ADDRESS;
+char*             subMacAddress       = DEFAULT_SUBSCRIBING_MAC_ADDRESS;
+static UA_Double  cycleTimeInMsec     = DEFAULT_CYCLE_TIME;
+static UA_Int32   socketPriority      = DEFAULT_SOCKET_PRIORITY;
+static UA_Int32   pubPriority         = DEFAULT_PUB_SCHED_PRIORITY;
+static UA_Int32   subPriority         = DEFAULT_SUB_SCHED_PRIORITY;
+static UA_Int32   userAppPriority     = DEFAULT_USERAPPLICATION_SCHED_PRIORITY;
+static UA_Int32   pubCore             = DEFAULT_PUB_CORE;
+static UA_Int32   subCore             = DEFAULT_SUB_CORE;
+static UA_Int32   userAppCore         = DEFAULT_USER_APP_CORE;
+static UA_Int32   qbvOffset           = DEFAULT_QBV_OFFSET;
+static UA_Boolean disableSoTxtime     = UA_TRUE;
+static UA_Boolean enableCsvLog        = UA_FALSE;
+static UA_Boolean enableLatencyCsvLog = UA_FALSE;
 
 /* Variables corresponding to PubSub connection creation,
  * published data set and writer group */
@@ -359,7 +361,7 @@ addReaderGroup(UA_Server *server) {
     readerGroupConfig.name    = UA_STRING("ReaderGroup1");
     readerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
 
-    readerGroupConfig.subscribingInterval = CYCLE_TIME;
+    readerGroupConfig.subscribingInterval = cycleTimeInMsec;
     readerGroupConfig.timeout = 50;  // As we run in 250us cycle time, modify default timeout (1ms) to 50us
     readerGroupConfig.pubsubManagerCallback.addCustomCallback = addPubSubApplicationCallback;
     readerGroupConfig.pubsubManagerCallback.changeCustomCallbackInterval = changePubSubApplicationCallbackInterval;
@@ -779,9 +781,7 @@ void *publisherETF(void *arg) {
     /* Define Ethernet ETF transport settings */
     UA_EthernetWriterGroupTransportDataType ethernettransportSettings;
     memset(&ethernettransportSettings, 0, sizeof(UA_EthernetWriterGroupTransportDataType));
-    /* TODO: Txtime enable shall be configured based on connectionConfig.etfConfiguration.sotxtimeEnabled parameter */
-    ethernetETFtransportSettings.txtime_enabled    = disableSoTxtime;
-    ethernetETFtransportSettings.transmission_time = 0;
+    ethernettransportSettings.transmission_time = 0;
 
     /* Encapsulate ETF config in transportSettings */
     UA_ExtensionObject transportSettings;
@@ -877,8 +877,9 @@ void *userApplicationPubSub(void *arg) {
 #endif
 #if defined(SUBSCRIBER)
         clock_gettime(CLOCKID, &dataReceiveTime);
+#endif
 
-        if (enableCsvLog) {
+        if (enableCsvLog || enableLatencyCsvLog) {
 #if defined(PUBLISHER)
             updateMeasurementsPublisher(dataModificationTime, *pubCounterData);
 #endif
@@ -1029,6 +1030,80 @@ static void addServerNodes(UA_Server *server) {
 
 }
 
+static void
+timespec_diff(struct timespec *start, struct timespec *stop, struct timespec *result)
+{
+    if ((stop->tv_nsec - start->tv_nsec) < 0) {
+        result->tv_sec = stop->tv_sec - start->tv_sec - 1;
+        result->tv_nsec = stop->tv_nsec - start->tv_nsec + 1000000000;
+    } else {
+        result->tv_sec = stop->tv_sec - start->tv_sec;
+        result->tv_nsec = stop->tv_nsec - start->tv_nsec;
+    }
+
+    return;
+}
+
+static void computeLatencyAndGenerateCsv(char *latencyFileName) {
+    /* Character array of computed latency to write into a file */
+    static char latency_measurements[MAX_MEASUREMENTS_FILEWRITE];
+    struct timespec resultTime;
+    size_t latencyComputePubIndex, latencyComputeSubIndex;
+    UA_Double finalTime;
+    UA_UInt64 missed_counter         = 0;
+    UA_UInt64 repeated_counter       = 0;
+    UA_UInt64 latencyCharIndex       = 0;
+    UA_UInt64 prevLatencyCharIndex   = 0;
+    /* Create the latency file and include the headers */
+    FILE *fp_latency;
+    fp_latency = fopen(latencyFileName, "w");
+    latencyCharIndex += (UA_UInt64)sprintf(&latency_measurements[latencyCharIndex],
+                                           "%s, %s, %s\n",
+                                           "LatencyRTT", "Missed Counters", "Repeated Counters");
+
+    for (latencyComputePubIndex = 0, latencyComputeSubIndex = 0;
+         latencyComputePubIndex < measurementsPublisher && latencyComputeSubIndex < measurementsSubscriber; ) {
+        /* Compute RTT latency by equating counter values */
+        if (publishCounterValue[latencyComputePubIndex] == subscribeCounterValue[latencyComputeSubIndex]) {
+            timespec_diff(&publishTimestamp[latencyComputePubIndex], &subscribeTimestamp[latencyComputeSubIndex], &resultTime);
+            finalTime = ((UA_Double)((resultTime.tv_sec * 1000000000L) + resultTime.tv_nsec))/1000;
+            latencyComputePubIndex++;
+            latencyComputeSubIndex++;
+        }
+        else if(publishCounterValue[latencyComputePubIndex] < subscribeCounterValue[latencyComputeSubIndex]) {
+            timespec_diff(&publishTimestamp[latencyComputePubIndex], &subscribeTimestamp[latencyComputeSubIndex], &resultTime);
+            finalTime = ((UA_Double)((resultTime.tv_sec * 1000000000L) + resultTime.tv_nsec))/1000;
+            missed_counter++;
+            latencyComputePubIndex++;
+        }
+        else {
+            if (subscribeCounterValue[latencyComputeSubIndex - 1] == subscribeCounterValue[latencyComputeSubIndex])
+                repeated_counter++;
+
+            timespec_diff(&publishTimestamp[latencyComputePubIndex], &subscribeTimestamp[latencyComputeSubIndex], &resultTime);
+            finalTime = ((UA_Double)((resultTime.tv_sec * 1000000000L) + resultTime.tv_nsec))/1000;
+            latencyComputeSubIndex++;
+        }
+
+        if(((latencyCharIndex - prevLatencyCharIndex) + latencyCharIndex + 3) < MAX_MEASUREMENTS_FILEWRITE) {
+            latencyCharIndex += (UA_UInt64)sprintf(&latency_measurements[latencyCharIndex],
+                                                   "%0.3f, %ld, %ld\n",
+                                                   finalTime, missed_counter, repeated_counter);
+        }
+        else {
+            UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                           "Character array has been filled. Computation stopped and leading to latency csv generation");
+            break;
+        }
+
+        prevLatencyCharIndex = latencyCharIndex;
+    }
+
+    /* Write into the latency file */
+    fwrite(&latency_measurements[0], prevLatencyCharIndex, 1, fp_latency);
+    fclose(fp_latency);
+}
+
 static void usage(char *appname)
 {
     fprintf(stderr,
@@ -1048,7 +1123,8 @@ static void usage(char *appname)
         " -subMacAddress   [name] Subscriber Mac address (default %s - where 8 is the VLAN ID and 3 is the PCP)\n"
         " -qbvOffset       [num]  QBV offset value (default %d)\n"
         " -disableSoTxtime        Do not use SO_TXTIME\n"
-        " -enableCsvLog           To log the data in csv files\n"
+        " -enableCsvLog           Experimental: To log the data in csv files. Support up to 1 million samples\n"
+        " -enableLatencyCsvLog    Experimental: To compute and create RTT latency csv. Support up to 1 million samples\n"
         "\n",
         appname, DEFAULT_CYCLE_TIME, DEFAULT_SOCKET_PRIORITY, DEFAULT_PUB_SCHED_PRIORITY, \
         DEFAULT_SUB_SCHED_PRIORITY, DEFAULT_USERAPPLICATION_SCHED_PRIORITY, \
@@ -1073,7 +1149,8 @@ int main(int argc, char **argv) {
     char            *interface           = NULL;
     UA_Int32         argInputs           = 0;
     UA_Int32         long_index          = 0;
-    char            *progname;
+    char            *progname            = NULL;
+    char            *latencyCsvName      = LATENCY_CSV_FILE_NAME;
     pthread_t        userThreadID;
 
     /* Process the command line arguments */
@@ -1081,22 +1158,23 @@ int main(int argc, char **argv) {
     progname = progname ? 1 + progname : argv[0];
 
     static struct option long_options[] = {
-        {"interface",         required_argument, 0, 'a'},
-        {"cycleTimeInMsec",   required_argument, 0, 'b'},
-        {"socketPriority",    required_argument, 0, 'c'},
-        {"pubPriority",       required_argument, 0, 'd'},
-        {"subPriority",       required_argument, 0, 'e'},
-        {"userAppPriority",   required_argument, 0, 'f'},
-        {"pubCore",           required_argument, 0, 'g'},
-        {"subCore",           required_argument, 0, 'h'},
-        {"userAppCore",       required_argument, 0, 'i'},
-        {"pubMacAddress",     required_argument, 0, 'j'},
-        {"subMacAddress",     required_argument, 0, 'k'},
-        {"qbvOffset",         required_argument, 0, 'l'},
-        {"disableSoTxtime",   no_argument,       0, 'm'},
-        {"enableCsvLog",      no_argument,       0, 'n'},
-        {"help",              no_argument,       0, 'o'},
-        {0,                   0,                 0,  0 }
+        {"interface",           required_argument, 0, 'a'},
+        {"cycleTimeInMsec",     required_argument, 0, 'b'},
+        {"socketPriority",      required_argument, 0, 'c'},
+        {"pubPriority",         required_argument, 0, 'd'},
+        {"subPriority",         required_argument, 0, 'e'},
+        {"userAppPriority",     required_argument, 0, 'f'},
+        {"pubCore",             required_argument, 0, 'g'},
+        {"subCore",             required_argument, 0, 'h'},
+        {"userAppCore",         required_argument, 0, 'i'},
+        {"pubMacAddress",       required_argument, 0, 'j'},
+        {"subMacAddress",       required_argument, 0, 'k'},
+        {"qbvOffset",           required_argument, 0, 'l'},
+        {"disableSoTxtime",     no_argument,       0, 'm'},
+        {"enableCsvLog",        no_argument,       0, 'n'},
+        {"enableLatencyCsvLog", no_argument,       0, 'o'},
+        {"help",                no_argument,       0, 'p'},
+        {0,                     0,                 0,  0 }
     };
 
     while ((argInputs = getopt_long_only(argc, argv,"", long_options, &long_index)) != -1) {
@@ -1144,6 +1222,12 @@ int main(int argc, char **argv) {
                 enableCsvLog = UA_TRUE;
                 break;
             case 'o':
+                enableLatencyCsvLog = UA_TRUE;
+                break;
+            case 'p':
+                usage(progname);
+                return -1;
+            case '?':
                 usage(progname);
                 return -1;
         }
@@ -1268,32 +1352,33 @@ if (enableCsvLog) {
     }
 #endif
 
+    if (enableCsvLog) {
 #if defined(PUBLISHER)
-if (enableCsvLog) {
-    /* Write the published data in the publisher_T1.csv file */
-   size_t pubLoopVariable               = 0;
-   for (pubLoopVariable = 0; pubLoopVariable < measurementsPublisher;
-        pubLoopVariable++) {
-        fprintf(fpPublisher, "%ld,%ld.%09ld\n",
-                publishCounterValue[pubLoopVariable],
-                publishTimestamp[pubLoopVariable].tv_sec,
-                publishTimestamp[pubLoopVariable].tv_nsec);
-    }
-}
+        /* Write the published data in the publisher_T1.csv file */
+        size_t pubLoopVariable               = 0;
+        for (pubLoopVariable = 0; pubLoopVariable < measurementsPublisher;
+             pubLoopVariable++) {
+            fprintf(fpPublisher, "%ld,%ld.%09ld\n",
+                    publishCounterValue[pubLoopVariable],
+                    publishTimestamp[pubLoopVariable].tv_sec,
+                    publishTimestamp[pubLoopVariable].tv_nsec);
+        }
 #endif
 #if defined(SUBSCRIBER)
-if (enableCsvLog) {
-    /* Write the subscribed data in the subscriber_T8.csv file */
-    size_t subLoopVariable               = 0;
-    for (subLoopVariable = 0; subLoopVariable < measurementsSubscriber;
-         subLoopVariable++) {
-        fprintf(fpSubscriber, "%ld,%ld.%09ld\n",
-                subscribeCounterValue[subLoopVariable],
-                subscribeTimestamp[subLoopVariable].tv_sec,
-                subscribeTimestamp[subLoopVariable].tv_nsec);
-    }
-}
+        /* Write the subscribed data in the subscriber_T8.csv file */
+        size_t subLoopVariable               = 0;
+        for (subLoopVariable = 0; subLoopVariable < measurementsSubscriber;
+             subLoopVariable++) {
+            fprintf(fpSubscriber, "%ld,%ld.%09ld\n",
+                    subscribeCounterValue[subLoopVariable],
+                    subscribeTimestamp[subLoopVariable].tv_sec,
+                    subscribeTimestamp[subLoopVariable].tv_nsec);
+        }
 #endif
+    }
+
+    if(enableLatencyCsvLog)
+        computeLatencyAndGenerateCsv(latencyCsvName);
 
 #if defined(PUBLISHER) || defined(SUBSCRIBER)
     removeServerNodes(server);
