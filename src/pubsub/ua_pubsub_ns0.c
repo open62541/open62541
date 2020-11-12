@@ -111,13 +111,7 @@ onRead(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
             UA_PubSubConnection_findConnectionbyId(server, *myNodeId);
         switch(nodeContext->elementClassiefier) {
         case UA_NS0ID_PUBSUBCONNECTIONTYPE_PUBLISHERID:
-            if(pubSubConnection->config->publisherIdType == UA_PUBSUB_PUBLISHERID_STRING) {
-                UA_Variant_setScalar(&value, &pubSubConnection->config->publisherId.numeric,
-                                     &UA_TYPES[UA_TYPES_STRING]);
-            } else {
-                UA_Variant_setScalar(&value, &pubSubConnection->config->publisherId.numeric,
-                                     &UA_TYPES[UA_TYPES_UINT32]);
-            }
+            UA_Variant_copy(&pubSubConnection->config->publisherId, &value);
             break;
         default:
             UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -367,16 +361,7 @@ addPubSubConnectionAction(UA_Server *server,
     //connectionConfig.enabled = pubSubConnectionDataType.enabled;
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrlDataType,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    if(pubSubConnectionDataType.publisherId.type == &UA_TYPES[UA_TYPES_UINT32]){
-        connectionConfig.publisherId.numeric = * ((UA_UInt32 *) pubSubConnectionDataType.publisherId.data);
-    } else if(pubSubConnectionDataType.publisherId.type == &UA_TYPES[UA_TYPES_STRING]){
-        connectionConfig.publisherIdType = UA_PUBSUB_PUBLISHERID_STRING;
-        UA_String_copy((UA_String *) pubSubConnectionDataType.publisherId.data, &connectionConfig.publisherId.string);
-    } else {
-        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER, "Unsupported PublisherId Type used.");
-        //TODO what's the best default behaviour here?
-        connectionConfig.publisherId.numeric = 0;
-    }
+    UA_Variant_copy(&pubSubConnectionDataType.publisherId, &connectionConfig.publisherId);
     //call API function and create the connection
     UA_NodeId connectionId;
 
