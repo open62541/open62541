@@ -102,6 +102,7 @@ struct UA_Server {
     /* To be cast to UA_LocalMonitoredItem to get the callback and context */
     LIST_HEAD(LocalMonitoredItems, UA_MonitoredItem) localMonitoredItems;
     UA_UInt32 lastLocalMonitoredItemId;
+    UA_UInt32 lastSubscriptionId;
 #endif
 
     /* Publish/Subscribe */
