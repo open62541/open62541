@@ -1057,10 +1057,9 @@ writeValueAttribute(UA_Server *server, UA_Session *session,
         adjustedValue.hasSourceTimestamp = true;
     }
 
-    if(!adjustedValue.hasServerTimestamp) {
-        adjustedValue.serverTimestamp = now;
-        adjustedValue.hasServerTimestamp = true;
-    }
+    /* Update the timestamp when the value was last updated in the server */
+    adjustedValue.serverTimestamp = now;
+    adjustedValue.hasServerTimestamp = true;
 
     /* Ok, do it */
     if(node->valueSource == UA_VALUESOURCE_DATA) {
