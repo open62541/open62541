@@ -6,6 +6,7 @@
 
 #include "server/ua_server_internal.h"
 #include "server/ua_services.h"
+#include "testing_clock.h"
 
 #include <check.h>
 #include <stdio.h>
@@ -747,6 +748,37 @@ START_TEST(WriteSingleAttributeValue) {
     UA_DataValue_deleteMembers(&resp);
 } END_TEST
 
+/* The ServerTimestamp during a Write Request shall be ignored. Instead the
+ * server uses its own current time. */
+START_TEST(WriteSingleAttributeValueWithServerTimestamp) {
+    UA_fakeSleep(5000);
+
+    UA_WriteValue wValue;
+    UA_WriteValue_init(&wValue);
+    UA_Int32 myInteger = 20;
+    UA_Variant_setScalar(&wValue.value.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
+    wValue.value.hasValue = true;
+    wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
+    wValue.attributeId = UA_ATTRIBUTEID_VALUE;
+    wValue.value.hasServerTimestamp = true;
+    wValue.value.serverTimestamp = 1337;
+    UA_StatusCode retval = UA_Server_write(server, &wValue);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = UA_NODEID_STRING(1, "the.answer");
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_SERVER);
+
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(resp.hasValue);
+    ck_assert_int_eq(20, *(UA_Int32*)resp.value.data);
+    ck_assert(resp.hasServerTimestamp);
+    ck_assert_uint_eq(resp.serverTimestamp, UA_DateTime_now());
+    UA_DataValue_deleteMembers(&resp);
+} END_TEST
+
 START_TEST(WriteSingleAttributeValueEnum) {
     UA_WriteValue wValue;
     UA_WriteValue_init(&wValue);
@@ -944,6 +976,7 @@ static Suite * testSuite_services_attributes(void) {
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeContainsNoLoops);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeEventNotifier);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValue);
+    tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValueWithServerTimestamp);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValueEnum);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeDataType);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValueRangeFromScalar);
