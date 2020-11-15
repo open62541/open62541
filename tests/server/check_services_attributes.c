@@ -179,6 +179,24 @@ START_TEST(ReadSingleAttributeValueWithoutTimestamp) {
     UA_DataValue_deleteMembers(&resp);
 } END_TEST
 
+/* Variables under the Server object return the current time for the timestamps */
+START_TEST(ReadSingleServerAttribute) {
+    UA_fakeSleep(5000);
+
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO);
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+
+    UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_BOTH);
+
+    ck_assert_int_eq(resp.status, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(0, resp.value.arrayLength);
+    ck_assert_int_eq(resp.serverTimestamp, UA_DateTime_now());
+    ck_assert_int_eq(resp.sourceTimestamp, UA_DateTime_now());
+    UA_DataValue_deleteMembers(&resp);
+} END_TEST
+
 START_TEST(ReadSingleDataSourceAttributeValueEmptyWithoutTimestamp) {
     UA_Variant empty;
     UA_Variant_init(&empty);
@@ -933,6 +951,7 @@ static Suite * testSuite_services_attributes(void) {
     TCase *tc_readSingleAttributes = tcase_create("readSingleAttributes");
     tcase_add_checked_fixture(tc_readSingleAttributes, setup, teardown);
     tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeValueWithoutTimestamp);
+    tcase_add_test(tc_readSingleAttributes, ReadSingleServerAttribute);
     tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeValueRangeWithoutTimestamp);
     tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeNodeIdWithoutTimestamp);
     tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeNodeClassWithoutTimestamp);
