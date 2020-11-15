@@ -7,6 +7,14 @@
 
 #include <open62541/plugin/securitypolicy_default.h>
 
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+#include "mbedtls/securitypolicy_mbedtls_common.h"
+#endif
+
+#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+#include "openssl/securitypolicy_openssl_common.h"
+#endif
+
 static UA_StatusCode
 verify_none(const UA_SecurityPolicy *securityPolicy,
             void *channelContext,
@@ -132,7 +140,14 @@ UA_SecurityPolicy_None(UA_SecurityPolicy *policy, const UA_ByteString localCerti
     policy->policyContext = (void *)(uintptr_t)logger;
     policy->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
     policy->logger = logger;
+
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+    UA_mbedTLS_LoadLocalCertificate(&localCertificate, &policy->localCertificate);
+#elif defined(UA_ENABLE_ENCRYPTION_OPENSSL)
+    UA_OpenSSL_LoadLocalCertificate(&localCertificate, &policy->localCertificate);
+#else
     UA_ByteString_copy(&localCertificate, &policy->localCertificate);
+#endif
 
     policy->symmetricModule.generateKey = generateKey_none;
     policy->symmetricModule.generateNonce = generateNonce_none;

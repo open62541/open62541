@@ -81,7 +81,7 @@ static void setup(void) {
         UA_STRING_ALLOC("urn:unconfigured:application");
 
     for(size_t i = 0; i < trustListSize; i++)
-        UA_ByteString_clear(&trustList[i]);
+        UA_ByteString_deleteMembers(&trustList[i]);
 
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
@@ -152,11 +152,11 @@ START_TEST(encryption_connect) {
                                          trustList, trustListSize,
                                          revocationList, revocationListSize);
     cc->securityPolicyUri =
-        UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
+        UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Basic256");
     ck_assert(client != NULL);
 
     for(size_t deleteCount = 0; deleteCount < trustListSize; deleteCount++) {
-        UA_ByteString_clear(&trustList[deleteCount]);
+        UA_ByteString_deleteMembers(&trustList[deleteCount]);
     }
 
     /* Secure client connect */
@@ -168,7 +168,7 @@ START_TEST(encryption_connect) {
     UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
     retval = UA_Client_readValueAttribute(client, nodeId, &val);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    UA_Variant_clear(&val);
+    UA_Variant_deleteMembers(&val);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
@@ -233,7 +233,7 @@ START_TEST(encryption_connect_pem) {
                                          trustList, trustListSize,
                                          revocationList, revocationListSize);
     cc->securityPolicyUri =
-        UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
+        UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Basic256");
     ck_assert(client != NULL);
 
     for(size_t deleteCount = 0; deleteCount < trustListSize; deleteCount++) {
@@ -258,7 +258,7 @@ END_TEST
 
 static Suite* testSuite_encryption(void) {
     Suite *s = suite_create("Encryption");
-    TCase *tc_encryption = tcase_create("Encryption basic256sha256");
+    TCase *tc_encryption = tcase_create("Encryption basic256");
     tcase_add_checked_fixture(tc_encryption, setup, teardown);
 #ifdef UA_ENABLE_ENCRYPTION
     tcase_add_test(tc_encryption, encryption_connect);

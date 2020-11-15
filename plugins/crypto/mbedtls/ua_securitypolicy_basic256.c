@@ -6,6 +6,7 @@
  *    Copyright 2018 (c) Daniel Feist, Precitec GmbH & Co. KG
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
  *    Copyright 2020 (c) Wind River Systems, Inc.
+ *    Copyright 2020 (c) basysKom GmbH
  *
  */
 
@@ -573,20 +574,17 @@ updateCertificateAndPrivateKey_sp_basic256(UA_SecurityPolicy *securityPolicy,
 
     UA_ByteString_clear(&securityPolicy->localCertificate);
 
-    UA_StatusCode retval = UA_ByteString_allocBuffer(&securityPolicy->localCertificate,
-                                                     newCertificate.length + 1);
-    if(retval != UA_STATUSCODE_GOOD)
+    UA_StatusCode retval = UA_mbedTLS_LoadLocalCertificate(&newCertificate, &securityPolicy->localCertificate);
+
+    if (retval != UA_STATUSCODE_GOOD)
         return retval;
-    memcpy(securityPolicy->localCertificate.data, newCertificate.data, newCertificate.length);
-    securityPolicy->localCertificate.data[newCertificate.length] = '\0';
-    securityPolicy->localCertificate.length--;
 
     /* Set the new private key */
     mbedtls_pk_free(&pc->localPrivateKey);
     mbedtls_pk_init(&pc->localPrivateKey);
-    int mbedErr = mbedtls_pk_parse_key(&pc->localPrivateKey,
-                                       newPrivateKey.data, newPrivateKey.length,
-                                       NULL, 0);
+
+    int mbedErr = UA_mbedTLS_LoadPrivateKey(&newPrivateKey, &pc->localPrivateKey);
+
     if(mbedErr) {
         retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         goto error;
@@ -664,8 +662,7 @@ policyContext_newContext_sp_basic256(UA_SecurityPolicy *securityPolicy,
     }
 
     /* Set the private key */
-    mbedErr = mbedtls_pk_parse_key(&pc->localPrivateKey, localPrivateKey.data,
-                                   localPrivateKey.length, NULL, 0);
+    mbedErr = UA_mbedTLS_LoadPrivateKey(&localPrivateKey, &pc->localPrivateKey);
     if(mbedErr) {
         retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         goto error;
@@ -703,14 +700,10 @@ UA_SecurityPolicy_Basic256(UA_SecurityPolicy *policy, const UA_ByteString localC
     UA_SecurityPolicySymmetricModule *const symmetricModule = &policy->symmetricModule;
     UA_SecurityPolicyChannelModule *const channelModule = &policy->channelModule;
 
-    /* Copy the certificate and add a NULL to the end */
-    UA_StatusCode retval =
-        UA_ByteString_allocBuffer(&policy->localCertificate, localCertificate.length + 1);
-    if(retval != UA_STATUSCODE_GOOD)
+    UA_StatusCode retval = UA_mbedTLS_LoadLocalCertificate(&localCertificate, &policy->localCertificate);
+
+    if (retval != UA_STATUSCODE_GOOD)
         return retval;
-    memcpy(policy->localCertificate.data, localCertificate.data, localCertificate.length);
-    policy->localCertificate.data[localCertificate.length] = '\0';
-    policy->localCertificate.length--;
 
     /* AsymmetricModule */
     UA_SecurityPolicySignatureAlgorithm *asym_signatureAlgorithm =
