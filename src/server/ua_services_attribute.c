@@ -167,6 +167,18 @@ readValueAttributeComplete(UA_Server *server, UA_Session *session,
     else
         retval = readValueAttributeFromDataSource(server, session, vn, v, timestamps, rangeptr);
 
+    /* Static Variables and VariableTypes have timestamps of "now". Will be set
+     * below in the absence of predefined timestamps. */
+    if(vn->nodeClass == UA_NODECLASS_VARIABLE) {
+        if(!vn->isDynamic) {
+            v->hasServerTimestamp = false;
+            v->hasSourceTimestamp = false;
+        }
+    } else {
+        v->hasServerTimestamp = false;
+        v->hasSourceTimestamp = false;
+    }
+
     /* Clean up */
     if(rangeptr)
         UA_free(range.dimensions);
