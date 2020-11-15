@@ -989,18 +989,18 @@ set(UA_FILE_NODESETS)
 
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     if(NOT UA_FILE_NS0)
-        set(UA_FILE_NS0 ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml)
+        set(UA_FILE_NS0 ${open62541_NODESET_DIR}/Schema/Opc.Ua.NodeSet2.xml)
     endif()
     set(UA_FILE_NODESETS "${UA_FILE_NS0}")
 
     if(NOT EXISTS "${UA_FILE_NS0}")
-        message(FATAL_ERROR "File ${UA_FILE_NS0} not found. You probably need to initialize the git submodule for deps/ua-nodeset.")
+        message(FATAL_ERROR "File ${UA_FILE_NS0} not found. You probably need to initialize the git submodule for deps/ua-nodeset or set open62541_NODESET_DIR.")
     endif()
 
 
-    set(UA_FILE_NODEIDS ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/NodeIds.csv)
-    set(UA_FILE_STATUSCODES ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/StatusCode.csv)
-    set(UA_FILE_TYPES_BSD ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.Types.bsd)
+    set(UA_FILE_NODEIDS ${open62541_NODESET_DIR}/Schema/NodeIds.csv)
+    set(UA_FILE_STATUSCODES ${open62541_NODESET_DIR}/Schema/StatusCode.csv)
+    set(UA_FILE_TYPES_BSD ${open62541_NODESET_DIR}/Schema/Opc.Ua.Types.bsd)
 else()
     if(NOT UA_FILE_NS0)
         set(UA_FILE_NS0 ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.Reduced.xml)
@@ -1461,7 +1461,7 @@ endif()
 set(UA_install_tools_dirs "tools/certs"
     "tools/nodeset_compiler"
     "tools/schema"
-    "deps/ua-nodeset")
+    ${open62541_NODESET_DIR})
 
 set(UA_install_tools_files "tools/generate_datatypes.py"
     "tools/generate_nodeid_header.py"
