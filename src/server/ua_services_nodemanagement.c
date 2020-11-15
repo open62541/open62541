@@ -1227,8 +1227,6 @@ checkSetIsDynamicVariable(UA_Server *server, UA_Session *session,
     UA_NodeId typesNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_TYPESFOLDER);
     if(isNodeInTree(server->nsCtx, nodeId, &typesNodeId,
                     hierarchicalRefs2, hierarchicalRefsSize)) {
-        UA_Server_editNode(server, session, nodeId,
-                           (UA_EditNodeCallback)setVariableNodeDynamic, NULL);
         UA_Array_delete(hierarchicalRefs2, hierarchicalRefsSize, &UA_TYPES[UA_TYPES_NODEID]);
         return UA_STATUSCODE_GOOD;
     }
