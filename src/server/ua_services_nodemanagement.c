@@ -1217,6 +1217,83 @@ recursiveDeleteNode(UA_Server *server, UA_Session *session,
                     UA_ExpandedNodeId *hierarchicalReferences,
                     const UA_Node *node, UA_Boolean removeTargetRefs);
 
+static UA_StatusCode
+setVariableNodeDynamic(UA_Server *server, UA_Session *session,
+                       UA_Node *node, const void *_) {
+    (void)_; /* unused */
+    if(node->nodeClass == UA_NODECLASS_VARIABLE)
+        ((UA_VariableNode*)node)->isDynamic = true;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+checkSetIsDynamicVariable(UA_Server *server, UA_Session *session,
+                          const UA_NodeId *nodeId) {
+    /* Get all hierarchical reference types */
+    UA_ExpandedNodeId *hierarchicalRefs = NULL;
+    size_t hierarchicalRefsSize = 0;
+    UA_NodeId hr = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
+    browseRecursive(server, 1, &hr, 1, &subtypeId, UA_BROWSEDIRECTION_FORWARD, true,
+                    &hierarchicalRefsSize, &hierarchicalRefs);
+
+    UA_NodeId *hierarchicalRefs2 = (UA_NodeId*)
+        UA_Array_new(hierarchicalRefsSize, &UA_TYPES[UA_TYPES_NODEID]);
+    if(!hierarchicalRefs2) {
+        UA_Array_delete(hierarchicalRefs, hierarchicalRefsSize, &UA_TYPES[UA_TYPES_NODEID]);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    for(size_t i = 0; i < hierarchicalRefsSize; i++) {
+        hierarchicalRefs2[i] = hierarchicalRefs[i].nodeId;
+        UA_NodeId_init(&hierarchicalRefs[i].nodeId);
+    }
+    UA_Array_delete(hierarchicalRefs, hierarchicalRefsSize, &UA_TYPES[UA_TYPES_NODEID]);
+
+    /* Is the variable under the server object? */
+    UA_NodeId serverNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    if(isNodeInTree(server, nodeId, &serverNodeId,
+                    hierarchicalRefs2, hierarchicalRefsSize)) {
+        UA_Array_delete(hierarchicalRefs2, hierarchicalRefsSize, &UA_TYPES[UA_TYPES_NODEID]);
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* Is the variable in the type hierarchy? */
+    UA_NodeId typesNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_TYPESFOLDER);
+    if(isNodeInTree(server, nodeId, &typesNodeId,
+                    hierarchicalRefs2, hierarchicalRefsSize)) {
+        UA_Server_editNode(server, session, nodeId,
+                           (UA_EditNodeCallback)setVariableNodeDynamic, NULL);
+        UA_Array_delete(hierarchicalRefs2, hierarchicalRefsSize, &UA_TYPES[UA_TYPES_NODEID]);
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* Is the variable a property of a method node (InputArguments /
+     * OutputArguments)? */
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = *nodeId;
+    bd.browseDirection = UA_BROWSEDIRECTION_INVERSE;
+    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
+    bd.includeSubtypes = false;
+    bd.nodeClassMask = UA_NODECLASS_METHOD;
+    UA_BrowseResult br;
+    UA_BrowseResult_init(&br);
+    UA_UInt32 maxrefs = 0;
+    Operation_Browse(server, session, &maxrefs, &bd, &br);
+    if(br.referencesSize > 0) {
+        UA_BrowseResult_clear(&br);
+        UA_Array_delete(hierarchicalRefs2, hierarchicalRefsSize, &UA_TYPES[UA_TYPES_NODEID]);
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* Set the variable to "dynamic" */
+    UA_Server_editNode(server, session, nodeId,
+                       (UA_EditNodeCallback)setVariableNodeDynamic, NULL);
+    
+    UA_Array_delete(hierarchicalRefs2, hierarchicalRefsSize, &UA_TYPES[UA_TYPES_NODEID]);
+    return UA_STATUSCODE_GOOD;
+}
+
 /* Children, references, type-checking, constructors. */
 UA_StatusCode
 AddNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId) {
@@ -1246,6 +1323,14 @@ AddNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId) 
         }
 
         retval = recursiveTypeCheckAddChildren(server, session, &node, type);
+        if(retval != UA_STATUSCODE_GOOD)
+            goto cleanup;
+    }
+
+    /* Set variables to dynamic (source and server timestamps are meaningful) if
+     * they fulfill some conditions */
+    if(node->nodeClass == UA_NODECLASS_VARIABLE) {
+        retval = checkSetIsDynamicVariable(server, session, nodeId);
         if(retval != UA_STATUSCODE_GOOD)
             goto cleanup;
     }

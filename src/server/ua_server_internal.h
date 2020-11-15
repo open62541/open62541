@@ -129,6 +129,8 @@ struct UA_Server {
 
     /* DataChange Subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
+    /* Last generated id (to generate server-wide unique ids) */
+    UA_UInt32 lastSubscriptionId;
     /* Num active subscriptions */
     UA_UInt32 numSubscriptions;
     /* Num active monitored items */
@@ -140,7 +142,6 @@ struct UA_Server {
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
     LIST_HEAD(conditionSourcelisthead, UA_ConditionSource) headConditionSource;
 #endif//UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
-
 #endif
 
     /* Publish/Subscribe */

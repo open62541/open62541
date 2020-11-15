@@ -180,6 +180,18 @@ readValueAttributeComplete(UA_Server *server, UA_Session *session,
     else
         retval = readValueAttributeFromDataSource(server, session, vn, v, timestamps, rangeptr);
 
+    /* Static Variables and VariableTypes have timestamps of "now". Will be set
+     * below in the absence of predefined timestamps. */
+    if(vn->nodeClass == UA_NODECLASS_VARIABLE) {
+        if(!vn->isDynamic) {
+            v->hasServerTimestamp = false;
+            v->hasSourceTimestamp = false;
+        }
+    } else {
+        v->hasServerTimestamp = false;
+        v->hasSourceTimestamp = false;
+    }
+
     /* Clean up */
     if(rangeptr)
         UA_free(range.dimensions);
@@ -1191,20 +1203,19 @@ writeValueAttribute(UA_Server *server, UA_Session *session,
         }
     }
 
+    /* Set the source timestamp if there is none */
+    UA_DateTime now = UA_DateTime_now();
+    if(!adjustedValue.hasSourceTimestamp) {
+        adjustedValue.sourceTimestamp = now;
+        adjustedValue.hasSourceTimestamp = true;
+    }
+
+    /* Update the timestamp when the value was last updated in the server */
+    adjustedValue.serverTimestamp = now;
+    adjustedValue.hasServerTimestamp = true;
+
     /* Ok, do it */
     if(node->valueSource == UA_VALUESOURCE_DATA) {
-        /* Set the source timestamp if there is none */
-        UA_DateTime now = UA_DateTime_now();
-        if(!adjustedValue.hasSourceTimestamp) {
-            adjustedValue.sourceTimestamp = now;
-            adjustedValue.hasSourceTimestamp = true;
-        }
-
-        if(!adjustedValue.hasServerTimestamp) {
-            adjustedValue.serverTimestamp = now;
-            adjustedValue.hasServerTimestamp = true;
-        }
-
         if(!rangeptr)
             retval = writeValueAttributeWithoutRange(node, &adjustedValue);
         else
