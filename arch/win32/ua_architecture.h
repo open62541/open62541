@@ -143,6 +143,27 @@
 }
 #define UA_LOG_SOCKET_ERRNO_GAI_WRAP UA_LOG_SOCKET_ERRNO_WRAP
 
+#if UA_MULTITHREADING >= 100
+#define UA_LOCK_TYPE(mutexName) CRITICAL_SECTION mutexName; \
+                                int mutexName##Counter;
+#define UA_LOCK_INIT(mutexName) InitializeCriticalSection(&mutexName); \
+                                mutexName##Counter = 0;;
+#define UA_LOCK_DESTROY(mutexName) DeleteCriticalSection(&mutexName);
+#define UA_LOCK(mutexName) EnterCriticalSection(&mutexName); \
+                           UA_assert(++(mutexName##Counter) == 1);
+#define UA_UNLOCK(mutexName) UA_assert(--(mutexName##Counter) == 0); \
+                             LeaveCriticalSection(&mutexName);
+#define UA_LOCK_ASSERT(mutexName, num) UA_assert(mutexName##Counter == num);
+#else
+#define UA_LOCK_TYPE(mutexName)
+#define UA_LOCK_TYPE_POINTER(mutexName)
+#define UA_LOCK_INIT(mutexName)
+#define UA_LOCK_DESTROY(mutexName)
+#define UA_LOCK(mutexName)
+#define UA_UNLOCK(mutexName)
+#define UA_LOCK_ASSERT(mutexName, num)
+#endif
+
 #include <open62541/architecture_functions.h>
 
 /* Fix redefinition of SLIST_ENTRY on mingw winnt.h */

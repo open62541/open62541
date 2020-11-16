@@ -88,9 +88,8 @@ You can always find prebuild binaries for every release on our `Github Release P
 Nightly single file releases for Linux and Windows of the last 50 commits can be found here: https://open62541.org/releases/
 
 
-OS Specific packages
-^^^^^^^^^^^^^^^^^^^^
-
+Debian
+^^^^^^
 Debian packages can be found in our official PPA:
 
  * Daily Builds (based on master branch): https://launchpad.net/~open62541-team/+archive/ubuntu/daily
@@ -103,10 +102,20 @@ Install them with:
 
     sudo add-apt-repository ppa:open62541-team/ppa
     sudo apt-get update
-    sudo apt-get install libopen62541-dev
+    sudo apt-get install libopen62541-1-dev
 
 Arch packages are available in the AUR
 
  * Stable Builds: https://aur.archlinux.org/packages/open62541/
  * Unstable Builds (current master): https://aur.archlinux.org/packages/open62541-git/
  * In order to add custom build options (:ref:`build_options`), you can set the environment variable ``OPEN62541_CMAKE_FLAGS``
+
+OpenBSD
+^^^^^^^
+Starting with OpenBSD 6.7 the ports directory misc/open62541 can
+build the released version of open62541.
+Install the binary package from the OpenBSD mirrors:
+
+.. code-block:: bash
+   
+   pkg_add open62541

@@ -255,9 +255,14 @@ matrix:
           - '$HOME/.sonar/cache'
   allow_failures:
     #
+    # MacOS X
+    - env:
+        - HOMEBREW_NO_AUTO_UPDATE=1
     # clang-format code analysis
     - env:
         - CLANG_FORMAT=true
+    - env:
+        - SONAR=true
 
 cache:
   pip: true

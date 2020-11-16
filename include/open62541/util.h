@@ -9,6 +9,7 @@
 #define UA_HELPER_H_
 
 #include <open62541/types.h>
+#include <open62541/types_generated.h>
 
 _UA_BEGIN_DECLS
 
@@ -57,7 +58,7 @@ UA_parseEndpointUrlEthernet(const UA_String *endpointUrl, UA_String *target,
  * digits. Stops if a non-digit char is found and returns the number of digits
  * up to that point. */
 size_t UA_EXPORT
-UA_readNumber(UA_Byte *buf, size_t buflen, UA_UInt32 *number);
+UA_readNumber(const UA_Byte *buf, size_t buflen, UA_UInt32 *number);
 
 /* Same as UA_ReadNumber but with a base parameter */
 size_t UA_EXPORT
@@ -73,6 +74,48 @@ UA_readNumberWithBase(const UA_Byte *buf, size_t buflen,
 #endif
 
 /**
+ * Parse RelativePath Expressions
+ * ------------------------------
+ *
+ * Parse a RelativePath according to the format defined in Part 4, A2. This is
+ * used e.g. for the BrowsePath structure. For now, only the standard
+ * ReferenceTypes from Namespace 0 are recognized (see Part 3).
+ *
+ *   ``RelativePath := ( ReferenceType [BrowseName]? )*``
+ *
+ * The ReferenceTypes have either of the following formats:
+ *
+ * - ``/``: *HierarchicalReferences* and subtypes
+ * - ``.``: *Aggregates* ReferenceTypesand subtypes
+ * - ``< [!#]* BrowseName >``: The ReferenceType is indicated by its BrowseName
+ *   (a QualifiedName). Prefixed modifiers can be as follows: ``!`` switches to
+ *   inverse References. ``#`` excludes subtypes of the ReferenceType.
+ *
+ * QualifiedNames consist of an optional NamespaceIndex and the nameitself:
+ *
+ *   ``QualifiedName := ([0-9]+ ":")? Name``
+ *
+ * The QualifiedName representation for RelativePaths uses ``&`` as the escape
+ * character. Occurences of the characters ``/.<>:#!&`` in a QualifiedName have
+ * to be escaped (prefixed with ``&``).
+ *
+ * Example RelativePaths
+ * `````````````````````
+ *
+ * - ``/2:Block&.Output``
+ * - ``/3:Truck.0:NodeVersion``
+ * - ``<0:HasProperty>1:Boiler/1:HeatSensor``
+ * - ``<0:HasChild>2:Wheel``
+ * - ``<#Aggregates>1:Boiler/``
+ * - ``<!HasChild>Truck``
+ * - ``<HasChild>``
+ */
+#ifdef UA_ENABLE_PARSING
+UA_EXPORT UA_StatusCode
+UA_RelativePath_parse(UA_RelativePath *rp, const UA_String str);
+#endif
+
+/**
  * Convenience macros for complex types
  * ------------------------------------ */
 #define UA_PRINTF_GUID_FORMAT "%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x"
@@ -85,17 +128,14 @@ UA_readNumberWithBase(const UA_Byte *buf, size_t buflen,
 
 /**
  * Helper functions for converting data types
- * ------------------------------------ */
+ * ------------------------------------------ */
 
-/* Converts a bytestring to the corresponding base64 encoded string
- * representation.
- *
- * @param byteString the original byte string
- * @param str the resulting base64 encoded byte string
- *
- * Returns UA_STATUSCODE_GOOD on success. */
-UA_StatusCode UA_EXPORT
-UA_ByteString_toBase64String(const UA_ByteString *byteString, UA_String *str);
+/* Converts a bytestring to the corresponding base64 representation */
+UA_DEPRECATED static UA_INLINE UA_StatusCode
+UA_ByteString_toBase64String(const UA_ByteString *byteString,
+                             UA_String *str) {
+    return UA_ByteString_toBase64(byteString, str);
+}
 
 /* Converts a node id to the corresponding string representation.
  * It can be one of:
@@ -103,8 +143,10 @@ UA_ByteString_toBase64String(const UA_ByteString *byteString, UA_String *str);
  * - String: ns=0;s=Some String
  * - Guid: ns=0;g=A123456C-0ABC-1A2B-815F-687212AAEE1B
  * - ByteString: ns=0;b=AA== */
-UA_StatusCode UA_EXPORT
-UA_NodeId_toString(const UA_NodeId *nodeId, UA_String *nodeIdStr);
+UA_DEPRECATED static UA_INLINE UA_StatusCode
+UA_NodeId_toString(const UA_NodeId *nodeId, UA_String *nodeIdStr) {
+    return UA_NodeId_print(nodeId, nodeIdStr);
+}
 
 /* Compare memory in constant time to mitigate timing attacks.
  * Returns true if ptr1 and ptr2 are equal for length bytes. */

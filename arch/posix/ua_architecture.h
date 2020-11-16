@@ -147,6 +147,34 @@ extern void * (*UA_globalRealloc)(void *ptr, size_t size);
     LOG; \
 }
 
+#if UA_MULTITHREADING >= 100
+#include <pthread.h>
+#define Sleep(x) sleep(x / 1000)
+#define UA_LOCK_TYPE(mutexName) pthread_mutex_t mutexName; \
+                                        pthread_mutexattr_t mutexName##_attr; \
+                                        int mutexName##Counter;
+#define UA_LOCK_INIT(mutexName) pthread_mutexattr_init(&mutexName##_attr); \
+                                        pthread_mutexattr_settype(&mutexName##_attr, PTHREAD_MUTEX_RECURSIVE); \
+                                        pthread_mutex_init(&mutexName, &mutexName##_attr); \
+                                        mutexName##Counter = 0;
+#define UA_LOCK_DESTROY(mutexName) pthread_mutex_destroy(&mutexName); \
+                                   pthread_mutexattr_destroy(&mutexName##_attr);
+
+#define UA_LOCK(mutexName) pthread_mutex_lock(&mutexName); \
+                           UA_assert(++(mutexName##Counter) == 1); \
+
+#define UA_UNLOCK(mutexName) UA_assert(--(mutexName##Counter) == 0); \
+                             pthread_mutex_unlock(&mutexName);
+#define UA_LOCK_ASSERT(mutexName, num) UA_assert(mutexName##Counter == num);
+#else
+#define UA_LOCK_TYPE(mutexName)
+#define UA_LOCK_INIT(mutexName)
+#define UA_LOCK_DESTROY(mutexName)
+#define UA_LOCK(mutexName)
+#define UA_UNLOCK(mutexName)
+#define UA_LOCK_ASSERT(mutexName, num)
+#endif
+
 #include <open62541/architecture_functions.h>
 
 #if defined(__APPLE__)  && defined(_SYS_QUEUE_H_)

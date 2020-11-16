@@ -28,7 +28,7 @@
 
 UA_NodeId counterNodePublisher = {1, UA_NODEIDTYPE_NUMERIC, {1234}};
 UA_Int64 pubIntervalNs;
-UA_ServerCallback pubCallback = NULL;
+UA_ServerCallback pubCallback = NULL; /* Sentinel if a timer is active */
 UA_Server *pubServer;
 UA_Boolean running = true;
 void *pubData;
@@ -42,6 +42,26 @@ struct timespec calculatedCycleStartTime[MAX_MEASUREMENTS+1];
 struct timespec cycleStartDelay[MAX_MEASUREMENTS+1];
 struct timespec cycleDuration[MAX_MEASUREMENTS+1];
 size_t publisherMeasurementsCounter  = 0;
+
+/* The RT level of the publisher */
+//#define PUBSUB_RT_LEVEL UA_PUBSUB_RT_NONE
+//#define PUBSUB_RT_LEVEL UA_PUBSUB_RT_DIRECT_VALUE_ACCESS
+#define PUBSUB_RT_LEVEL UA_PUBSUB_RT_FIXED_SIZE
+
+/* The value to published */
+static UA_UInt64 publishValue = 62541;
+
+static UA_StatusCode
+readPublishValue(UA_Server *server,
+                const UA_NodeId *sessionId, void *sessionContext,
+                const UA_NodeId *nodeId, void *nodeContext,
+                UA_Boolean sourceTimeStamp, const UA_NumericRange *range,
+                UA_DataValue *dataValue) {
+    UA_Variant_setScalarCopy(&dataValue->value, &publishValue,
+                             &UA_TYPES[UA_TYPES_UINT64]);
+    dataValue->hasValue = true;
+    return UA_STATUSCODE_GOOD;
+}
 
 static void
 timespec_diff(struct timespec *start, struct timespec *stop,
@@ -144,9 +164,6 @@ UA_PubSubManager_addRepeatedCallback(UA_Server *server,
 
     /* Set global values for the publish callback */
     int resultTimerCreate = 0;
-    pubServer = server;
-    pubCallback = callback;
-    pubData = data;
     pubIntervalNs = (UA_Int64) (interval_ms * MILLI_AS_NANO_SECONDS);
 
     /* Handle the signal */
@@ -164,7 +181,8 @@ UA_PubSubManager_addRepeatedCallback(UA_Server *server,
     resultTimerCreate = timer_create(CLOCKID, &pubEvent, &pubEventTimer);
     if(resultTimerCreate != 0) {
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                       "Failed to create a system event");
+                       "Failed to create a system event with code %s",
+                       strerror(errno));
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -177,7 +195,7 @@ UA_PubSubManager_addRepeatedCallback(UA_Server *server,
     resultTimerCreate = timer_settime(pubEventTimer, 0, &timerspec, NULL);
     if(resultTimerCreate != 0) {
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                       "Failed to arm the system timer");
+                       "Failed to arm the system timer with code %i", resultTimerCreate);
         timer_delete(pubEventTimer);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -187,6 +205,11 @@ UA_PubSubManager_addRepeatedCallback(UA_Server *server,
     clock_gettime(CLOCKID, &calculatedCycleStartTime[0]);
     calculatedCycleStartTime[0].tv_nsec += pubIntervalNs;
     nanoSecondFieldConversion(&calculatedCycleStartTime[0]);
+
+    /* Set the callback -- used as a sentinel to detect an operational publisher */
+    pubServer = server;
+    pubCallback = callback;
+    pubData = data;
 
     return UA_STATUSCODE_GOOD;
 }
@@ -201,7 +224,7 @@ UA_PubSubManager_changeRepeatedCallbackInterval(UA_Server *server,
     struct itimerspec timerspec;
     int resultTimerCreate = 0;
     pubIntervalNs = (UA_Int64) (interval_ms * MILLI_AS_NANO_SECONDS);
-    timerspec.it_interval.tv_sec = (long int) (pubIntervalNs % SECONDS_AS_NANO_SECONDS);
+    timerspec.it_interval.tv_sec = (long int) (pubIntervalNs / SECONDS_AS_NANO_SECONDS);
     timerspec.it_interval.tv_nsec = (long int) (pubIntervalNs % SECONDS_AS_NANO_SECONDS);
     timerspec.it_value.tv_sec = (long int) (pubIntervalNs / (SECONDS_AS_NANO_SECONDS));
     timerspec.it_value.tv_nsec = (long int) (pubIntervalNs % SECONDS_AS_NANO_SECONDS);
@@ -222,6 +245,8 @@ UA_PubSubManager_changeRepeatedCallbackInterval(UA_Server *server,
 
 void
 UA_PubSubManager_removeRepeatedPubSubCallback(UA_Server *server, UA_UInt64 callbackId) {
+    if(!pubCallback)
+        return;
     timer_delete(pubEventTimer);
     pubCallback = NULL; /* So that a new callback can be registered */
 }
@@ -260,6 +285,14 @@ addPubSubConfiguration(UA_Server* server) {
     counterValue.field.variable.promotedField = UA_FALSE;
     counterValue.field.variable.publishParameters.publishedVariable = counterNodePublisher;
     counterValue.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
+
+#if (PUBSUB_RT_LEVEL == UA_PUBSUB_RT_FIXED_SIZE) || (PUBSUB_RT_LEVEL == UA_PUBSUB_RT_DIRECT_VALUE_ACCESS)
+    counterValue.field.variable.staticValueSourceEnabled = true;
+    UA_DataValue_init(&counterValue.field.variable.staticValueSource);
+    UA_Variant_setScalar(&counterValue.field.variable.staticValueSource.value,
+                         &publishValue, &UA_TYPES[UA_TYPES_UINT64]);
+    counterValue.field.variable.staticValueSource.value.storageType = UA_VARIANT_DATA_NODELETE;
+#endif
     UA_Server_addDataSetField(server, publishedDataSetIdent, &counterValue,
                               &dataSetFieldIdentCounter);
 
@@ -269,6 +302,7 @@ addPubSubConfiguration(UA_Server* server) {
     writerGroupConfig.publishingInterval = PUB_INTERVAL;
     writerGroupConfig.enabled = UA_FALSE;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
+    writerGroupConfig.rtLevel = PUBSUB_RT_LEVEL;
     UA_Server_addWriterGroup(server, connectionIdent,
                              &writerGroupConfig, &writerGroupIdent);
 
@@ -280,6 +314,9 @@ addPubSubConfiguration(UA_Server* server) {
     dataSetWriterConfig.keyFrameCount = 10;
     UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent,
                                &dataSetWriterConfig, &dataSetWriterIdent);
+
+    UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent);
+    UA_Server_setWriterGroupOperational(server, writerGroupIdent);
 }
 
 static void
@@ -289,12 +326,15 @@ addServerNodes(UA_Server* server) {
     UA_Variant_setScalar(&publisherAttr.value, &publishValue, &UA_TYPES[UA_TYPES_UINT64]);
     publisherAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Publisher Counter");
     publisherAttr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
-    UA_Server_addVariableNode(server, counterNodePublisher,
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                              UA_QUALIFIEDNAME(1, "Publisher Counter"),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
-                              publisherAttr, NULL, NULL);
+    UA_DataSource dataSource;
+    dataSource.read = readPublishValue;
+    dataSource.write = NULL;
+    UA_Server_addDataSourceVariableNode(server, counterNodePublisher,
+                                        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                        UA_QUALIFIEDNAME(1, "Publisher Counter"),
+                                        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                        publisherAttr, dataSource, NULL, NULL);
 }
 
 /* Stop signal */
@@ -322,7 +362,6 @@ int main(void) {
     /* Run the server */
     UA_StatusCode retval = UA_Server_run(server, &running);
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
 
     return (int)retval;
 }

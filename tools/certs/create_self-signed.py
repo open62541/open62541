@@ -10,20 +10,56 @@ import netifaces
 import sys
 import os
 import socket
+import argparse
 
-if len(sys.argv) < 2:
-    sys.exit('Usage: %s directory to output certificates' % sys.argv[0])
+parser = argparse.ArgumentParser()
 
-if not os.path.exists(sys.argv[1]):
-    sys.exit('ERROR: Directory %s was not found!' % sys.argv[1])
+parser.add_argument('outdir',
+                    type=str,
+                    nargs='?',
+                    default=os.getcwd(),
+                    metavar='<OutputDirectory>')
+
+parser.add_argument('-u', '--uri',
+                    metavar="<ApplicationUri>",
+                    type=str,
+                    default="",
+                    dest="uri")
+
+parser.add_argument('-k', '--keysize',
+                    metavar="<KeySize>",
+                    type=int,
+                    dest="keysize")
+
+parser.add_argument('-c', '--certificatename',
+                     metavar="<CertificateName>",
+                     type=str,
+                     default="",
+                     dest="certificatename")
+
+args = parser.parse_args()
+
+if not os.path.exists(args.outdir):
+    sys.exit('ERROR: Directory %s was not found!' % args.outdir)
 
 keysize = 2048
 
-if len(sys.argv) == 3:
-    keysize = int(sys.argv[2])
+if args.keysize:
+    keysize = args.keysize
+
+if args.uri == "":
+    args.uri = "urn:open62541.server.application"
+    print("No ApplicationUri given for the certificate. Setting to %s" % args.uri)
+os.environ['URI1'] = args.uri
+
+if args.certificatename == "":
+    certificatename = "server"
+    print("No Certificate name provided. Setting to %s" % certificatename)
+
+if args.certificatename:
+     certificatename = args.certificatename
 
 certsdir = os.path.dirname(os.path.abspath(__file__))
-print(certsdir)
 
 # Function return TRUE (1) when an IP address is associated with the
 # given interface
@@ -64,7 +100,7 @@ if iteratorValue < 2:
 os.environ['HOSTNAME'] = socket.gethostname()
 openssl_conf = os.path.join(certsdir, "localhost.cnf")
 
-os.chdir(os.path.abspath(sys.argv[1]))
+os.chdir(os.path.abspath(args.outdir))
 
 os.system("""openssl req \
      -config {} \
@@ -75,11 +111,10 @@ os.system("""openssl req \
      -keyout localhost.key -days 365 \
      -subj "/C=DE/O=open62541/CN=open62541Server@localhost"\
      -out localhost.crt""".format(openssl_conf, keysize))
-
-os.system("openssl x509 -in localhost.crt -outform der -out server_cert.der")
-os.system("openssl rsa -inform PEM -in localhost.key -outform DER -out server_key.der")
+os.system("openssl x509 -in localhost.crt -outform der -out %s_cert.der" % (certificatename))
+os.system("openssl rsa -inform PEM -in localhost.key -outform DER -out %s_key.der"% (certificatename))
 
 os.remove("localhost.key")
 os.remove("localhost.crt")
 
-print("Certificates generated in " + sys.argv[1])
+print("Certificates generated in " + args.outdir)

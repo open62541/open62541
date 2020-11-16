@@ -212,12 +212,22 @@ Main Build Options
    The SDK logs events of the level defined in ``UA_LOGLEVEL`` and above only.
    The logging event levels are as follows:
 
-     - 600: Fatal
-     - 500: Error
-     - 400: Warning
-     - 300: Info
-     - 200: Debug
-     - 100: Trace
+   - 600: Fatal
+   - 500: Error
+   - 400: Warning
+   - 300: Info
+   - 200: Debug
+   - 100: Trace
+
+**UA_MULTITHREADING**
+   Level of multi-threading support. The supported levels are currently as follows:
+
+  - 0-199: Multithreading support disabled.
+  - 100-199: API functions marked with the UA_THREADSAFE-macro are protected internally with mutexes.
+    Multiple threads are allowed to call these functions of the SDK at the same time without causing race conditions.
+    Furthermore, this level support the handling of asynchronous method calls from external worker threads.
+  - >=200: Work is distributed to a number of internal worker threads. Those worker threads are created within the SDK.
+    (EXPERIMENTAL FEATURE! Expect bugs.)
 
 Select build artefacts
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -244,8 +254,15 @@ Detailed SDK Features
 **UA_ENABLE_SUBSCRIPTIONS_EVENTS (EXPERIMENTAL)**
     Enable the use of events for subscriptions. This is a new feature and currently marked as EXPERIMENTAL.
 
+**UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS (EXPERIMENTAL)**
+    Enable the use of A&C for subscriptions. This is a new feature build upon events and currently marked as EXPERIMENTAL.
+
 **UA_ENABLE_METHODCALLS**
    Enable the Method service set
+
+**UA_ENABLE_PARSING**
+   Enable parsing human readable formats of builtin data types (Guid, NodeId, etc.).
+   Utility functions that are not essential to the SDK.
 
 **UA_ENABLE_NODEMANAGEMENT**
    Enable dynamic addition and removal of nodes at runtime
@@ -253,16 +270,12 @@ Detailed SDK Features
 **UA_ENABLE_AMALGAMATION**
    Compile a single-file release into the files :file:`open62541.c` and :file:`open62541.h`. Not recommended for installation.
 
-**UA_ENABLE_MULTITHREADING (EXPERIMENTAL)**
-   Enable multi-threading support. Work is distributed to a number of worker threads.
-   This is a new feature and currently marked as EXPERIMENTAL.
-
 **UA_ENABLE_IMMUTABLE_NODES**
    Nodes in the information model are not edited but copied and replaced. The
    replacement is done with atomic operations so that the information model is
    always consistent and can be accessed from an interrupt or parallel thread
    (depends on the node storage plugin implementation). This feature is a
-   prerequisite for ``UA_ENABLE_MULTITHREADING``.
+   prerequisite for ``UA_MULTITHREADING``.
 
 **UA_ENABLE_COVERAGE**
    Measure the coverage of unit tests
@@ -290,7 +303,7 @@ Detailed SDK Features
 Some options are marked as advanced. The advanced options need to be toggled to
 be visible in the cmake GUIs.
 
-**UA_ENABLE_TYPENAMES**
+**UA_ENABLE_TYPEDESCRIPTION**
    Add the type and member names to the UA_DataType structure. Enabled by default.
 
 **UA_ENABLE_STATUSCODE_DESCRIPTIONS**
@@ -345,7 +358,7 @@ communication.
 Last, logging messages take up a lot of space in the binary and might not be
 needed in embedded scenarios. Setting ``UA_LOGLEVEL`` to a value above 600
 (``FATAL``) disables all logging. In addition, the feature-flags
-``UA_ENABLE_TYPENAMES`` and ``UA_ENABLE_STATUSCODE_DESCRIPTIONS`` add static
+``UA_ENABLE_TYPEDESCRIPTION`` and ``UA_ENABLE_STATUSCODE_DESCRIPTIONS`` add static
 information to the binary that is only used for human-readable logging and
 debugging.
 

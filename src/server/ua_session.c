@@ -4,6 +4,7 @@
  *
  *    Copyright 2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2018 (c) Thomas Stalder, Blue Time Concept SA
+ *    Copyright 2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
  */
 
 #include "ua_session.h"
@@ -23,6 +24,7 @@ void UA_Session_init(UA_Session *session) {
 }
 
 void UA_Session_deleteMembersCleanup(UA_Session *session, UA_Server* server) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
     UA_Session_detachFromSecureChannel(session);
     UA_ApplicationDescription_deleteMembers(&session->clientDescription);
     UA_NodeId_deleteMembers(&session->header.authenticationToken);
@@ -38,16 +40,26 @@ void UA_Session_deleteMembersCleanup(UA_Session *session, UA_Server* server) {
     session->availableContinuationPoints = UA_MAXCONTINUATIONPOINTS;
 }
 
-void UA_Session_attachToSecureChannel(UA_Session *session, UA_SecureChannel *channel) {
-    LIST_INSERT_HEAD(&channel->sessions, &session->header, pointers);
+void
+UA_Session_attachToSecureChannel(UA_Session *session, UA_SecureChannel *channel) {
+    UA_Session_detachFromSecureChannel(session);
     session->header.channel = channel;
+    SLIST_INSERT_HEAD(&channel->sessions, &session->header, next);
 }
 
-void UA_Session_detachFromSecureChannel(UA_Session *session) {
-    if(!session->header.channel)
+void
+UA_Session_detachFromSecureChannel(UA_Session *session) {
+    UA_SecureChannel *channel = session->header.channel;
+    if(!channel)
         return;
     session->header.channel = NULL;
-    LIST_REMOVE(&session->header, pointers);
+    UA_SessionHeader *sh;
+    SLIST_FOREACH(sh, &channel->sessions, next) {
+        if((UA_Session*)sh != session)
+            continue;
+        SLIST_REMOVE(&channel->sessions, sh, UA_SessionHeader, next);
+        break;
+    }
 }
 
 UA_StatusCode
@@ -87,6 +99,8 @@ void UA_Session_addSubscription(UA_Server *server, UA_Session *session, UA_Subsc
 UA_StatusCode
 UA_Session_deleteSubscription(UA_Server *server, UA_Session *session,
                               UA_UInt32 subscriptionId) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
+
     UA_Subscription *sub = UA_Session_getSubscriptionById(session, subscriptionId);
     if(!sub)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;

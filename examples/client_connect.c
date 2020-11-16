@@ -83,7 +83,7 @@ int main(int argc, char *argv[]) {
 
         if(strcmp(argv[argpos], "-securityPolicy") == 0) {
             argpos++;
-            securityPolicyUri = UA_STRING(argv[argpos]);
+            securityPolicyUri = UA_String_fromChars(argv[argpos]);
             continue;
         }
 #endif
@@ -102,8 +102,8 @@ int main(int argc, char *argv[]) {
         UA_ByteString privateKey  = loadFile(keyfile);
         UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
                                              NULL, 0, NULL, 0);
-        UA_ByteString_deleteMembers(&certificate);
-        UA_ByteString_deleteMembers(&privateKey);
+        UA_ByteString_clear(&certificate);
+        UA_ByteString_clear(&privateKey);
     } else {
         UA_ClientConfig_setDefault(cc);
     }
@@ -117,7 +117,7 @@ int main(int argc, char *argv[]) {
     /* Connect to the server */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(username)
-        retval = UA_Client_connect_username(client, serverurl, username, password);
+        retval = UA_Client_connectUsername(client, serverurl, username, password);
     else
         retval = UA_Client_connect(client, serverurl);
     if(retval != UA_STATUSCODE_GOOD) {

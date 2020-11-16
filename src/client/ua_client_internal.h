@@ -21,7 +21,6 @@
 #include "open62541_queue.h"
 #include "ua_securechannel.h"
 #include "ua_timer.h"
-#include "ua_workqueue.h"
 
 _UA_BEGIN_DECLS
 
@@ -59,25 +58,17 @@ typedef struct UA_Client_Subscription {
     UA_Client_DeleteSubscriptionCallback deleteCallback;
     UA_UInt32 sequenceNumber;
     UA_DateTime lastActivity;
-    LIST_HEAD(UA_ListOfClientMonitoredItems, UA_Client_MonitoredItem) monitoredItems;
+    LIST_HEAD(, UA_Client_MonitoredItem) monitoredItems;
 } UA_Client_Subscription;
 
 void
 UA_Client_Subscriptions_clean(UA_Client *client);
 
-void
-UA_Client_MonitoredItem_remove(UA_Client *client, UA_Client_Subscription *sub,
-                               UA_Client_MonitoredItem *mon);
-
-void
-UA_Client_Subscriptions_processPublishResponse(UA_Client *client,
-                                               UA_PublishRequest *request,
-                                               UA_PublishResponse *response);
-
+/* Exposed for fuzzing */
 UA_StatusCode
 UA_Client_preparePublishRequest(UA_Client *client, UA_PublishRequest *request);
 
-UA_StatusCode
+void
 UA_Client_Subscriptions_backgroundPublish(UA_Client *client);
 
 void
@@ -85,13 +76,6 @@ UA_Client_Subscriptions_backgroundPublishInactivityCheck(UA_Client *client);
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
 
-/**************/
-/* Encryption */
-/**************/
-
-UA_StatusCode
-signActivateSessionRequest(UA_SecureChannel *channel,
-                           UA_ActivateSessionRequest *request);
 /**********/
 /* Client */
 /**********/
@@ -107,33 +91,42 @@ typedef struct AsyncServiceCall {
     void *responsedata;
 } AsyncServiceCall;
 
-void UA_Client_AsyncService_cancel(UA_Client *client, AsyncServiceCall *ac,
-                                   UA_StatusCode statusCode);
+void
+UA_Client_AsyncService_cancel(UA_Client *client, AsyncServiceCall *ac,
+                              UA_StatusCode statusCode);
 
-void UA_Client_AsyncService_removeAll(UA_Client *client, UA_StatusCode statusCode);
+void
+UA_Client_AsyncService_removeAll(UA_Client *client, UA_StatusCode statusCode);
 
 typedef struct CustomCallback {
-    LIST_ENTRY(CustomCallback)
-    pointers;
-    //to find the correct callback
+    LIST_ENTRY(CustomCallback) pointers;
     UA_UInt32 callbackId;
 
-    UA_ClientAsyncServiceCallback callback;
+    UA_ClientAsyncServiceCallback userCallback;
+    void *userData;
 
-    UA_AttributeId attributeId;
-    const UA_DataType *outDataType;
+    bool isAsync;
+    void *clientData;
 } CustomCallback;
 
 struct UA_Client {
-    /* State */
-    UA_ClientState state;
-
     UA_ClientConfig config;
     UA_Timer timer;
+
+    /* Overall connection status */
     UA_StatusCode connectStatus;
+
+    /* Old status to notify only changes */
+    UA_SecureChannelState oldChannelState;
+    UA_SessionState oldSessionState;
+    UA_StatusCode oldConnectStatus;
+
+    UA_Boolean endpointsHandshake;     /* Ongoing GetEndpoints */
+    UA_Boolean noSession;              /* Don't open a session */
 
     /* Connection */
     UA_Connection connection;
+    UA_String endpointUrl; /* Only for the async connect */
 
     /* SecureChannel */
     UA_SecureChannel channel;
@@ -141,92 +134,41 @@ struct UA_Client {
     UA_DateTime nextChannelRenewal;
 
     /* Session */
+    UA_SessionState sessionState;
     UA_NodeId authenticationToken;
     UA_UInt32 requestHandle;
-
-    UA_Boolean endpointsHandshake;
-    UA_String endpointUrl; /* Only for the async connect */
-
-    /* Async Service */
-    AsyncServiceCall asyncConnectCall;
-    LIST_HEAD(ListOfAsyncServiceCall, AsyncServiceCall) asyncServiceCalls;
-    /*When using highlevel functions these are the callbacks that can be accessed by the user*/
-    LIST_HEAD(ListOfCustomCallback, CustomCallback) customCallbacks;
-
-    /* Work queue */
-    UA_WorkQueue workQueue;
-
-    /* Subscriptions */
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-    UA_UInt32 monitoredItemHandles;
-    LIST_HEAD(, UA_Client_NotificationsAckNumber) pendingNotificationsAcks;
-    LIST_HEAD(, UA_Client_Subscription) subscriptions;
-    UA_UInt16 currentlyOutStandingPublishRequests;
-#endif
+    UA_ByteString remoteNonce;
+    UA_ByteString localNonce;
 
     /* Connectivity check */
     UA_DateTime lastConnectivityCheck;
     UA_Boolean pendingConnectivityCheck;
+
+    /* Async Service */
+    LIST_HEAD(, AsyncServiceCall) asyncServiceCalls;
+    LIST_HEAD(, CustomCallback) customCallbacks;
+
+    /* Subscriptions */
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    LIST_HEAD(, UA_Client_NotificationsAckNumber) pendingNotificationsAcks;
+    LIST_HEAD(, UA_Client_Subscription) subscriptions;
+    UA_UInt32 monitoredItemHandles;
+    UA_UInt16 currentlyOutStandingPublishRequests;
+#endif
 };
 
-void
-setClientState(UA_Client *client, UA_ClientState state);
-
-/* The endpointUrl must be set in the configuration. If the complete
- * endpointdescription is not set, a GetEndpoints is performed. */
-UA_StatusCode
-UA_Client_connectInternal(UA_Client *client, const UA_String endpointUrl);
-
-UA_StatusCode
-UA_Client_connectTCPSecureChannel(UA_Client *client, const UA_String endpointUrl);
+void notifyClientState(UA_Client *client);
+void processERRResponse(UA_Client *client, const UA_ByteString *chunk);
+void processACKResponse(UA_Client *client, const UA_ByteString *chunk);
+void processOPNResponse(UA_Client *client, UA_ByteString *chunk);
+void closeSecureChannel(UA_Client *client);
+void renewSecureChannel(UA_Client *client);
 
 UA_StatusCode
-UA_Client_connectSession(UA_Client *client);
+connectIterate(UA_Client *client, UA_UInt32 timeout);
 
 UA_StatusCode
-UA_Client_getEndpointsInternal(UA_Client *client, const UA_String endpointUrl,
-                               size_t *endpointDescriptionsSize,
-                               UA_EndpointDescription **endpointDescriptions);
-
-/* Receive and process messages until a synchronous message arrives or the
- * timout finishes */
-UA_StatusCode
-receivePacketAsync(UA_Client *client);
-
-UA_StatusCode
-processACKResponseAsync(void *application, UA_Connection *connection,
-                        UA_ByteString *chunk);
-
-UA_StatusCode
-processOPNResponseAsync(void *application, UA_Connection *connection,
-                        UA_ByteString *chunk);
-
-UA_StatusCode
-openSecureChannel(UA_Client *client, UA_Boolean renew);
-
-UA_StatusCode
-receiveServiceResponse(UA_Client *client, void *response,
-                       const UA_DataType *responseType, UA_DateTime maxDate,
-                       const UA_UInt32 *synchronousRequestId);
-
-UA_StatusCode
-receiveServiceResponseAsync(UA_Client *client, void *response,
-                             const UA_DataType *responseType);
-
-UA_StatusCode
-UA_Client_connect_iterate (UA_Client *client);
-
-void
-setUserIdentityPolicyId(const UA_EndpointDescription *endpoint,
-                        const UA_DataType *tokenType,
-                        UA_String *policyId, UA_String *securityPolicyUri);
-
-UA_SecurityPolicy *
-getSecurityPolicy(UA_Client *client, UA_String policyUri);
-
-UA_StatusCode
-encryptUserIdentityToken(UA_Client *client, const UA_String *userTokenSecurityPolicy,
-                         UA_ExtensionObject *userIdentityToken);
+receiveResponseAsync(UA_Client *client, UA_UInt32 timeout);
 
 _UA_END_DECLS
 

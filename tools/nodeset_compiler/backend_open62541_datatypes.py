@@ -1,4 +1,8 @@
-from datatypes import *
+from datatypes import  Boolean, Byte, SByte, \
+                        Int16, UInt16, Int32, UInt32, Int64, UInt64, Float, Double, \
+                        String, XmlElement, ByteString, Structure, ExtensionObject, LocalizedText, \
+                        NodeId, ExpandedNodeId, DateTime, QualifiedName, StatusCode, \
+                        DiagnosticInfo, Guid
 import datetime
 import re
 
@@ -78,7 +82,7 @@ def generateNodeIdCode(value):
     if not value:
         return "UA_NODEID_NUMERIC(0, 0)"
     if value.i != None:
-        return "UA_NODEID_NUMERIC(ns[%s], %s)" % (value.ns, value.i)
+        return "UA_NODEID_NUMERIC(ns[%s], %sLU)" % (value.ns, value.i)
     elif value.s != None:
         v = makeCLiteral(value.s)
         return u"UA_NODEID_STRING(ns[%s], \"%s\")" % (value.ns, v)
@@ -86,7 +90,7 @@ def generateNodeIdCode(value):
 
 def generateExpandedNodeIdCode(value):
     if value.i != None:
-        return "UA_EXPANDEDNODEID_NUMERIC(ns[%s], %s)" % (str(value.ns), str(value.i))
+        return "UA_EXPANDEDNODEID_NUMERIC(ns[%s], %sLU)" % (str(value.ns), str(value.i))
     elif value.s != None:
         vs = makeCLiteral(value.s)
         return u"UA_EXPANDEDNODEID_STRING(ns[%s], \"%s\")" % (str(value.ns), vs)
@@ -99,34 +103,42 @@ def generateDateTimeCode(value):
 
 def generateNodeValueCode(prepend , node, instanceName, valueName, global_var_code, asIndirect=False):
     if type(node) in [Boolean, Byte, SByte, Int16, UInt16, Int32, UInt32, Int64, UInt64, Float, Double]:
-        return prepend + "(UA_" + node.__class__.__name__ + ") " + str(node.value) + ";"
-    elif type(node) == String:
-        return prepend + generateStringCode(node.value, alloc=asIndirect) + ";"
-    elif type(node) == XmlElement:
-        return prepend + generateXmlElementCode(node.value, alloc=asIndirect) + ";"
-    elif type(node) == ByteString:
+        return prepend + " = (UA_" + node.__class__.__name__ + ") " + str(node.value) + ";"
+    elif isinstance(node, String):
+        return prepend + " = " + generateStringCode(node.value, alloc=asIndirect) + ";"
+    elif isinstance(node, XmlElement):
+        return prepend + " = " + generateXmlElementCode(node.value, alloc=asIndirect) + ";"
+    elif isinstance(node, ByteString):
         # replace whitespaces between tags and remove newlines
-        return prepend + "UA_BYTESTRING_NULL;" if not node.value else generateByteStringCode(
+        return prepend + " = UA_BYTESTRING_NULL;" if not node.value else generateByteStringCode(
             node.value, valueName, global_var_code, isPointer=asIndirect)
         # the replacements done here is just for the array form can be workable in C code. It doesn't couses any problem
         # because the core data used here is already in byte form. So, there is no way we disturb it.
-    elif type(node) == LocalizedText:
-        return prepend + generateLocalizedTextCode(node, alloc=asIndirect) + ";"
-    elif type(node) == NodeId:
-        return prepend + generateNodeIdCode(node) + ";"
-    elif type(node) == ExpandedNodeId:
-        return prepend + generateExpandedNodeIdCode(node) + ";"
-    elif type(node) == DateTime:
-        return prepend + generateDateTimeCode(node.value) + ";"
-    elif type(node) == QualifiedName:
-        return prepend + generateQualifiedNameCode(node.value, alloc=asIndirect) + ";"
-    elif type(node) == StatusCode:
+    elif isinstance(node, LocalizedText):
+        return prepend + " = " + generateLocalizedTextCode(node, alloc=asIndirect) + ";"
+    elif isinstance(node, NodeId):
+        return prepend + " = " + generateNodeIdCode(node) + ";"
+    elif isinstance(node, ExpandedNodeId):
+        return prepend + " = " + generateExpandedNodeIdCode(node) + ";"
+    elif isinstance(node, DateTime):
+        return prepend + " = " + generateDateTimeCode(node.value) + ";"
+    elif isinstance(node, QualifiedName):
+        return prepend + " = " + generateQualifiedNameCode(node, alloc=asIndirect) + ";"
+    elif isinstance(node, StatusCode):
         raise Exception("generateNodeValueCode for type " + node.__class__.name + " not implemented")
-    elif type(node) == DiagnosticInfo:
+    elif isinstance(node, DiagnosticInfo):
         raise Exception("generateNodeValueCode for type " + node.__class__.name + " not implemented")
-    elif type(node) == Guid:
+    elif isinstance(node, Guid):
         raise Exception("generateNodeValueCode for type " + node.__class__.name + " not implemented")
-    elif type(node) == ExtensionObject:
+    elif isinstance(node, ExtensionObject):
         if asIndirect == False:
-            return prepend + "*" + str(instanceName) + ";"
-        return prepend + str(instanceName) + ";"
+            return prepend + " = *" + str(instanceName) + ";"
+        return prepend + " = " + str(instanceName) + ";"
+    elif isinstance(node, Structure):
+        code = []
+        for subv in node.value:
+            code.append(generateNodeValueCode(prepend + "." + subv.alias.lower(), subv, instanceName, valueName, global_var_code, asIndirect))
+        return "\n".join(code)
+
+
+

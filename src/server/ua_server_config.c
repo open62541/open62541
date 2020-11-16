@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
  *    Copyright 2019 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
  */
 
 #include <open62541/server_config.h>
@@ -18,6 +19,11 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     UA_MdnsDiscoveryConfiguration_clear(&config->discovery.mdns);
     UA_String_clear(&config->discovery.mdnsInterfaceIP);
+# if !defined(UA_HAS_GETIFADDR)
+    if (config->discovery.ipAddressListSize) {
+        UA_free(config->discovery.ipAddressList);
+    }
+# endif
 #endif
 
     /* Custom DataTypes */
@@ -25,7 +31,7 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
 
     /* Networking */
     for(size_t i = 0; i < config->networkLayersSize; ++i)
-        config->networkLayers[i].deleteMembers(&config->networkLayers[i]);
+        config->networkLayers[i].clear(&config->networkLayers[i]);
     UA_free(config->networkLayers);
     config->networkLayers = NULL;
     config->networkLayersSize = 0;
@@ -34,7 +40,7 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
 
     for(size_t i = 0; i < config->securityPoliciesSize; ++i) {
         UA_SecurityPolicy *policy = &config->securityPolicies[i];
-        policy->deleteMembers(policy);
+        policy->clear(policy);
     }
     UA_free(config->securityPolicies);
     config->securityPolicies = NULL;
@@ -47,23 +53,31 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
     config->endpoints = NULL;
     config->endpointsSize = 0;
 
+    /* Nodestore */
+    if(config->nodestore.context && config->nodestore.clear) {
+        config->nodestore.clear(config->nodestore.context);
+        config->nodestore.context = NULL;
+    }
+
     /* Certificate Validation */
-    if(config->certificateVerification.deleteMembers)
-        config->certificateVerification.deleteMembers(&config->certificateVerification);
+    if(config->certificateVerification.clear)
+        config->certificateVerification.clear(&config->certificateVerification);
 
     /* Access Control */
-    if(config->accessControl.deleteMembers)
-        config->accessControl.deleteMembers(&config->accessControl);
+    if(config->accessControl.clear)
+        config->accessControl.clear(&config->accessControl);
 
     /* Historical data */
 #ifdef UA_ENABLE_HISTORIZING
-    if(config->historyDatabase.deleteMembers)
-        config->historyDatabase.deleteMembers(&config->historyDatabase);
+    if(config->historyDatabase.clear)
+        config->historyDatabase.clear(&config->historyDatabase);
 #endif
 
     /* Logger */
     if(config->logger.clear)
         config->logger.clear(config->logger.context);
+    config->logger.log = NULL;
+    config->logger.clear = NULL;
 }
 
 void

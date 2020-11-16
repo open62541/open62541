@@ -7,6 +7,7 @@
 #include <open62541/transport_generated_handling.h>
 #include <open62541/types_generated.h>
 #include <open62541/types_generated_encoding_binary.h>
+#include <open62541/server_config_default.h>
 
 #include "ua_securechannel.h"
 #include <ua_types_encoding_binary.h>
@@ -41,19 +42,20 @@ static key_sizes keySizes;
 static void
 setup_secureChannel(void) {
     TestingPolicy(&dummyPolicy, dummyCertificate, &fCalled, &keySizes);
-    UA_SecureChannel_init(&testChannel);
+    UA_SecureChannel_init(&testChannel, &UA_ConnectionConfig_default);
     UA_SecureChannel_setSecurityPolicy(&testChannel, &dummyPolicy, &dummyCertificate);
 
     testingConnection = createDummyConnection(65535, &sentData);
     UA_Connection_attachSecureChannel(&testingConnection, &testChannel);
     testChannel.connection = &testingConnection;
+
+    testChannel.state = UA_SECURECHANNELSTATE_OPEN;
 }
 
 static void
 teardown_secureChannel(void) {
     UA_SecureChannel_close(&testChannel);
-    UA_SecureChannel_deleteMembers(&testChannel);
-    dummyPolicy.deleteMembers(&dummyPolicy);
+    dummyPolicy.clear(&dummyPolicy);
     testingConnection.close(&testingConnection);
 }
 
@@ -95,62 +97,20 @@ START_TEST(SecureChannel_initAndDelete) {
     UA_StatusCode retval;
 
     UA_SecureChannel channel;
-    UA_SecureChannel_init(&channel);
+    UA_SecureChannel_init(&channel, &UA_ConnectionConfig_default);
     retval = UA_SecureChannel_setSecurityPolicy(&channel, &dummyPolicy, &dummyCertificate);
 
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected StatusCode to be good");
-    ck_assert_msg(channel.state == UA_SECURECHANNELSTATE_FRESH, "Expected state to be fresh");
+    ck_assert_msg(channel.state == UA_SECURECHANNELSTATE_CLOSED, "Expected state to be closed");
     ck_assert_msg(fCalled.newContext, "Expected newContext to have been called");
     ck_assert_msg(fCalled.makeCertificateThumbprint,
                   "Expected makeCertificateThumbprint to have been called");
     ck_assert_msg(channel.securityPolicy == &dummyPolicy, "SecurityPolicy not set correctly");
 
     UA_SecureChannel_close(&channel);
-    UA_SecureChannel_deleteMembers(&channel);
     ck_assert_msg(fCalled.deleteContext, "Expected deleteContext to have been called");
 
-    dummyPolicy.deleteMembers(&dummyPolicy);
-}END_TEST
-
-START_TEST(SecureChannel_generateNewKeys) {
-    UA_StatusCode retval = UA_SecureChannel_generateNewKeys(&testChannel);
-
-    ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected Statuscode to be good");
-    ck_assert_msg(fCalled.generateKey, "Expected generateKey to have been called");
-    ck_assert_msg(fCalled.setLocalSymEncryptingKey,
-                  "Expected setLocalSymEncryptingKey to have been called");
-    ck_assert_msg(fCalled.setLocalSymSigningKey,
-                  "Expected setLocalSymSigningKey to have been called");
-    ck_assert_msg(fCalled.setLocalSymIv, "Expected setLocalSymIv to have been called");
-    ck_assert_msg(fCalled.setRemoteSymEncryptingKey,
-                  "Expected setRemoteSymEncryptingKey to have been called");
-    ck_assert_msg(fCalled.setRemoteSymSigningKey,
-                  "Expected setRemoteSymSigningKey to have been called");
-    ck_assert_msg(fCalled.setRemoteSymIv, "Expected setRemoteSymIv to have been called");
-}END_TEST
-
-START_TEST(SecureChannel_revolveTokens) {
-    // Fake that no token was issued by setting 0
-    testChannel.nextSecurityToken.tokenId = 0;
-    UA_StatusCode retval = UA_SecureChannel_revolveTokens(&testChannel);
-    ck_assert_msg(retval == UA_STATUSCODE_BADSECURECHANNELTOKENUNKNOWN,
-                  "Expected failure because tokenId 0 signifies that no token was issued");
-
-    // Fake an issued token by setting an id
-    testChannel.nextSecurityToken.tokenId = 10;
-    retval = UA_SecureChannel_revolveTokens(&testChannel);
-    ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected function to return GOOD");
-    ck_assert_msg(fCalled.generateKey,
-                  "Expected generateKey to be called because new keys need to be generated,"
-                  "when switching to the next token.");
-
-    UA_ChannelSecurityToken testToken;
-    UA_ChannelSecurityToken_init(&testToken);
-
-    ck_assert_msg(memcmp(&testChannel.nextSecurityToken, &testToken,
-                         sizeof(UA_ChannelSecurityToken)) == 0,
-                  "Expected the next securityToken to be freshly initialized");
-    ck_assert_msg(testChannel.securityToken.tokenId == 10, "Expected token to have been copied");
+    dummyPolicy.clear(&dummyPolicy);
 }END_TEST
 
 static void
@@ -270,8 +230,10 @@ START_TEST(SecureChannel_sendAsymmetricOPNMessage_sentDataIsValid) {
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected function to succeed");
 
     size_t offset = 0;
-    UA_SecureConversationMessageHeader header;
-    UA_SecureConversationMessageHeader_decodeBinary(&sentData, &offset, &header);
+    UA_TcpMessageHeader header;
+    UA_TcpMessageHeader_decodeBinary(&sentData, &offset, &header);
+    UA_UInt32 secureChannelId;
+    UA_UInt32_decodeBinary(&sentData, &offset, &secureChannelId);
 
     UA_AsymmetricAlgorithmSecurityHeader asymSecurityHeader;
     UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(&sentData, &offset, &asymSecurityHeader);
@@ -291,7 +253,7 @@ START_TEST(SecureChannel_sendAsymmetricOPNMessage_sentDataIsValid) {
                   "in the secureChannel");
 
     /* Dummy encryption */
-    for(size_t i = offset; i < header.messageHeader.messageSize; ++i) {
+    for(size_t i = offset; i < header.messageSize; ++i) {
         sentData.data[i] = (UA_Byte)((sentData.data[i] - 1) % (UA_BYTE_MAX + 1));
     }
 #endif
@@ -327,7 +289,6 @@ START_TEST(SecureChannel_sendAsymmetricOPNMessage_sentDataIsValid) {
     ck_assert_msg(sentData.data[offset + paddingSize + 1] == '*', "Expected first byte of signature");
 #endif
 
-    UA_SecureConversationMessageHeader_deleteMembers(&header);
     UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymSecurityHeader);
     UA_SequenceHeader_deleteMembers(&sequenceHeader);
     UA_OpenSecureChannelResponse_deleteMembers(&sentResponse);
@@ -352,8 +313,10 @@ START_TEST(Securechannel_sendAsymmetricOPNMessage_extraPaddingPresentWhenKeyLarg
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected function to succeed");
 
     size_t offset = 0;
-    UA_SecureConversationMessageHeader header;
-    UA_SecureConversationMessageHeader_decodeBinary(&sentData, &offset, &header);
+    UA_TcpMessageHeader header;
+    UA_TcpMessageHeader_decodeBinary(&sentData, &offset, &header);
+    UA_UInt32 secureChannelId;
+    UA_UInt32_decodeBinary(&sentData, &offset, &secureChannelId);
 
     UA_AsymmetricAlgorithmSecurityHeader asymSecurityHeader;
     UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(&sentData, &offset, &asymSecurityHeader);
@@ -368,7 +331,7 @@ START_TEST(Securechannel_sendAsymmetricOPNMessage_extraPaddingPresentWhenKeyLarg
                   "Expected receiverCertificateThumbprint to be equal to the one set "
                   "in the secureChannel");
 
-    for(size_t i = offset; i < header.messageHeader.messageSize; ++i) {
+    for(size_t i = offset; i < header.messageSize; ++i) {
         sentData.data[i] = (UA_Byte)((sentData.data[i] - 1) % (UA_BYTE_MAX + 1));
     }
 
@@ -409,7 +372,6 @@ START_TEST(Securechannel_sendAsymmetricOPNMessage_extraPaddingPresentWhenKeyLarg
                   "Expected first byte 42 of signature but got %i",
                   sentData.data[offset + paddingSize + 2]);
 
-    UA_SecureConversationMessageHeader_deleteMembers(&header);
     UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymSecurityHeader);
     UA_SequenceHeader_deleteMembers(&sequenceHeader);
     UA_OpenSecureChannelResponse_deleteMembers(&sentResponse);
@@ -524,20 +486,6 @@ testSuite_SecureChannel(void) {
     tcase_add_checked_fixture(tc_initAndDelete, setup_key_sizes, teardown_key_sizes);
     tcase_add_test(tc_initAndDelete, SecureChannel_initAndDelete);
     suite_add_tcase(s, tc_initAndDelete);
-
-    TCase *tc_generateNewKeys = tcase_create("Test generateNewKeys function");
-    tcase_add_checked_fixture(tc_generateNewKeys, setup_funcs_called, teardown_funcs_called);
-    tcase_add_checked_fixture(tc_generateNewKeys, setup_key_sizes, teardown_key_sizes);
-    tcase_add_checked_fixture(tc_generateNewKeys, setup_secureChannel, teardown_secureChannel);
-    tcase_add_test(tc_generateNewKeys, SecureChannel_generateNewKeys);
-    suite_add_tcase(s, tc_generateNewKeys);
-
-    TCase *tc_revolveTokens = tcase_create("Test revolveTokens function");
-    tcase_add_checked_fixture(tc_revolveTokens, setup_funcs_called, teardown_funcs_called);
-    tcase_add_checked_fixture(tc_revolveTokens, setup_key_sizes, teardown_key_sizes);
-    tcase_add_checked_fixture(tc_revolveTokens, setup_secureChannel, teardown_secureChannel);
-    tcase_add_test(tc_revolveTokens, SecureChannel_revolveTokens);
-    suite_add_tcase(s, tc_revolveTokens);
 
     TCase *tc_sendAsymmetricOPNMessage = tcase_create("Test sendAsymmetricOPNMessage function");
     tcase_add_checked_fixture(tc_sendAsymmetricOPNMessage, setup_funcs_called, teardown_funcs_called);

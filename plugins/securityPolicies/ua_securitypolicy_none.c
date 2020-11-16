@@ -7,6 +7,14 @@
 
 #include <open62541/plugin/securitypolicy_default.h>
 
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+#include "securitypolicy_mbedtls_common.h"
+#endif
+
+#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+#include "openssl/securitypolicy_openssl_common.h"
+#endif
+
 static UA_StatusCode
 verify_none(const UA_SecurityPolicy *securityPolicy,
             void *channelContext,
@@ -76,14 +84,14 @@ generateNonce_none(const UA_SecurityPolicy *securityPolicy, UA_ByteString *out) 
     /* Fill blocks of four byte */
     size_t i = 0;
     while(i + 3 < out->length) {
-        UA_UInt32 rand = UA_UInt32_random();
-        memcpy(&out->data[i], &rand, 4);
+        UA_UInt32 randNumber = UA_UInt32_random();
+        memcpy(&out->data[i], &randNumber, 4);
         i = i+4;
     }
 
     /* Fill the remaining byte */
-    UA_UInt32 rand = UA_UInt32_random();
-    memcpy(&out->data[i], &rand, out->length % 4);
+    UA_UInt32 randNumber = UA_UInt32_random();
+    memcpy(&out->data[i], &randNumber, out->length % 4);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -122,20 +130,24 @@ updateCertificateAndPrivateKey_none(UA_SecurityPolicy *policy,
 
 
 static void
-policy_deletemembers_none(UA_SecurityPolicy *policy) {
+policy_clear_none(UA_SecurityPolicy *policy) {
     UA_ByteString_deleteMembers(&policy->localCertificate);
 }
 
 UA_StatusCode
-UA_SecurityPolicy_None(UA_SecurityPolicy *policy,
-                       UA_CertificateVerification *certificateVerification,
-                       const UA_ByteString localCertificate, const UA_Logger *logger) {
+UA_SecurityPolicy_None(UA_SecurityPolicy *policy, const UA_ByteString localCertificate,
+                       const UA_Logger *logger) {
     policy->policyContext = (void *)(uintptr_t)logger;
     policy->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
     policy->logger = logger;
-    UA_ByteString_copy(&localCertificate, &policy->localCertificate);
 
-    policy->certificateVerification = certificateVerification;
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+    UA_mbedTLS_LoadLocalCertificate(&localCertificate, &policy->localCertificate);
+#elif defined(UA_ENABLE_ENCRYPTION_OPENSSL)
+    UA_OpenSSL_LoadLocalCertificate(&localCertificate, &policy->localCertificate);
+#else
+    UA_ByteString_copy(&localCertificate, &policy->localCertificate);
+#endif
 
     policy->symmetricModule.generateKey = generateKey_none;
     policy->symmetricModule.generateNonce = generateNonce_none;
@@ -182,7 +194,7 @@ UA_SecurityPolicy_None(UA_SecurityPolicy *policy,
     policy->channelModule.setRemoteSymIv = setContextValue_none;
     policy->channelModule.compareCertificate = compareCertificate_none;
     policy->updateCertificateAndPrivateKey = updateCertificateAndPrivateKey_none;
-    policy->deleteMembers = policy_deletemembers_none;
+    policy->clear = policy_clear_none;
 
     return UA_STATUSCODE_GOOD;
 }

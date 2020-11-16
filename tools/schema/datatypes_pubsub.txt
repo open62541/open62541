@@ -26,6 +26,7 @@ DataSetWriterDataType
 DataSetReaderDataType
 PubSubState
 JsonDataSetWriterMessageDataType
+JsonWriterGroupMessageDataType
 JsonDataSetMessageContentMask
 JsonNetworkMessageContentMask
 BrokerTransportQualityOfService
@@ -33,7 +34,9 @@ BrokerConnectionTransportDataType
 BrokerWriterGroupTransportDataType
 BrokerDataSetWriterTransportDataType
 BrokerWriterGroupTransportType
+BrokerDataSetReaderTransportDataType
 UadpDataSetReaderMessageDataType
+JsonDataSetReaderMessageDataType
 TargetVariablesDataType
 FieldTargetDataType
 OverrideValueHandling

@@ -28,7 +28,7 @@ static void setup(void) {
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     TestingPolicy(&dummyPolicy, UA_BYTESTRING_NULL, &funcsCalled, &keySizes);
-    UA_SecureChannel_init(&testChannel);
+    UA_SecureChannel_init(&testChannel, &UA_ConnectionConfig_default);
     UA_SecureChannel_setSecurityPolicy(&testChannel, &dummyPolicy, &UA_BYTESTRING_NULL);
 
     testingConnection = createDummyConnection(65535, NULL);
@@ -38,8 +38,7 @@ static void setup(void) {
 
 static void teardown(void) {
     UA_SecureChannel_close(&testChannel);
-    UA_SecureChannel_deleteMembers(&testChannel);
-    dummyPolicy.deleteMembers(&dummyPolicy);
+    dummyPolicy.clear(&dummyPolicy);
     testingConnection.close(&testingConnection);
 
     UA_Server_delete(server);
@@ -86,7 +85,7 @@ START_TEST(monitorIntegerNoChanges) {
     clock_t begin, finish;
     begin = clock();
 
-    for(int i = 0; i < 1000000; i++) {
+    for(int i = 0; i < 1000; i++) {
         UA_MonitoredItem_sampleCallback(server, mon);
     }
 

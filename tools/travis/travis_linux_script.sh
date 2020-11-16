@@ -1,7 +1,6 @@
 #!/bin/bash
 set -e
 
-
 # Sonar code quality
 if ! [ -z ${SONAR+x} ]; then
     if ([ "${TRAVIS_REPO_SLUG}" != "open62541/open62541" ] ||
@@ -11,7 +10,6 @@ if ! [ -z ${SONAR+x} ]; then
         # Skip on forks
         exit 0;
     fi
-    git fetch --unshallow
 	mkdir -p build && cd build
 	build-wrapper-linux-x86-64 --out-dir ../bw-output cmake \
         -DCMAKE_BUILD_TYPE=Debug \
@@ -19,7 +17,7 @@ if ! [ -z ${SONAR+x} ]; then
 	    -DUA_BUILD_EXAMPLES=ON \
         -DUA_ENABLE_DISCOVERY=ON \
         -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
-        -DUA_ENABLE_ENCRYPTION .. \
+        -DUA_ENABLE_ENCRYPTION=ON .. \
     && make -j
 	cd ..
 	sonar-scanner
@@ -28,7 +26,7 @@ fi
 
 # Docker build test
 if ! [ -z ${DOCKER+x} ]; then
-    docker build -t open62541 .
+    docker build -t open62541 -f docker/Dockerfile .
     docker run -d -p 127.0.0.1:4840:4840 --name open62541 open62541 /bin/sh
     docker ps | grep -q open62541
     # disabled since it randomly fails
@@ -355,7 +353,7 @@ if [ "$CC" != "tcc" ]; then
     cmake \
     -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON \
     -DUA_BUILD_EXAMPLES=ON \
-    -DUA_ENABLE_MULTITHREADING=ON ..
+    -DUA_MULTITHREADING=200 ..
     make -j
     if [ $? -ne 0 ] ; then exit 1 ; fi
     cd .. && rm build -rf
@@ -393,7 +391,7 @@ if [ "$CC" != "tcc" ]; then
         -DUA_BUILD_EXAMPLES=ON \
         -DUA_ENABLE_DISCOVERY=ON \
         -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
-        -DUA_ENABLE_MULTITHREADING=ON ..
+        -DUA_MULTITHREADING=200 ..
     make -j
     if [ $? -ne 0 ] ; then exit 1 ; fi
     cd .. && rm build -rf
@@ -409,6 +407,16 @@ make -j
 if [ $? -ne 0 ] ; then exit 1 ; fi
 cd .. && rm build -rf
 echo -en 'travis_fold:end:script.build.json\\r'
+
+    echo -e "\r\n== Compile PubSub MQTT ==" && echo -en 'travis_fold:start:script.build.mqtt\\r'
+    mkdir -p build && cd build
+    cmake \
+        -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON \
+        -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_MQTT=ON ..
+    make -j
+    if [ $? -ne 0 ] ; then exit 1 ; fi
+    cd .. && rm build -rf
+    echo -en 'travis_fold:end:script.build.mqtt\\r'
 
 echo -e "\r\n== Unit tests (full NS0) ==" && echo -en 'travis_fold:start:script.build.unit_test_ns0_full\\r'
 mkdir -p build && cd build
@@ -427,8 +435,10 @@ cmake \
     -DUA_ENABLE_PUBSUB=ON \
     -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
     -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
+    -DUA_ENABLE_PUBSUB_MQTT=ON \
     -DUA_ENABLE_SUBSCRIPTIONS=ON \
     -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
+    -DUA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS=ON \
     -DUA_ENABLE_UNIT_TESTS_MEMCHECK=OFF \
     -DUA_NAMESPACE_ZERO=FULL ..
 make -j && make test ARGS="-V"
@@ -455,10 +465,34 @@ if [ "$CC" != "tcc" ]; then
         -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=OFF \
         -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON \
         -DUA_NAMESPACE_ZERO=MINIMAL ..
+
     make -j && make test ARGS="-V"
     if [ $? -ne 0 ] ; then exit 1 ; fi
     cd .. && rm build -rf
     echo -en 'travis_fold:end:script.build.unit_test_ns0_minimal\\r'
+
+    echo -e "\r\n== Unit tests (reduced NS0 with openssl) ==" && echo -en 'travis_fold:start:script.build.unit_test_ns0_reduced_openssl\\r'
+    mkdir -p build && cd build
+    cmake \
+        -DCMAKE_BUILD_TYPE=Debug \
+        -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON \
+        -DUA_BUILD_EXAMPLES=ON \
+        -DUA_BUILD_UNIT_TESTS=ON \
+        -DUA_ENABLE_COVERAGE=ON \
+        -DUA_ENABLE_DA=ON \
+        -DUA_ENABLE_DISCOVERY=ON \
+        -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
+        -DUA_ENABLE_ENCRYPTION_OPENSSL=ON \
+        -DUA_ENABLE_JSON_ENCODING=ON \
+        -DUA_ENABLE_PUBSUB=ON \
+        -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
+        -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
+        -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON \
+        -DUA_NAMESPACE_ZERO=REDUCED ..
+    make -j && make test
+    if [ $? -ne 0 ] ; then exit 1 ; fi
+    cd .. && rm build -rf    
+    echo -en 'travis_fold:end:script.build.unit_test_ns0_reduced_openssl\\r'
 
     echo -e "\r\n== Unit tests (reduced NS0) ==" && echo -en 'travis_fold:start:script.build.unit_test_ns0_reduced\\r'
     mkdir -p build && cd build
@@ -506,7 +540,7 @@ if [ "$CC" != "tcc" ]; then
         		echo -en "== Commit is tag build for '${TRAVIS_TAG}'. Detected branch for tag = '$BRANCH_FOR_TAG' \n"
 			fi
 
-			if [ "${REAL_BRANCH}" = "master" ] || [ "${REAL_BRANCH}" = "1.0" ]; then
+			if [ "${REAL_BRANCH}" = "master" ] || [ "${REAL_BRANCH}" = "1.0" ] || [ "${REAL_BRANCH}" = "1.1" ]; then
 				# Create a separate branch with the `pack/` prefix. This branch has the correct debian/changelog set, and
 				# The submodules are directly copied
 				echo -e "\r\n== Pushing 'pack/${REAL_BRANCH}' branch =="  && echo -en 'travis_fold:start:script.build.pack-branch\\r'

@@ -17,7 +17,7 @@
 #define UA_TYPES_H_
 
 #include <open62541/config.h>
-#include <open62541/constants.h>
+#include <open62541/common.h>
 #include <open62541/statuscodes.h>
 
 _UA_BEGIN_DECLS
@@ -155,9 +155,11 @@ typedef struct {
 } UA_String;
 
 /* Copies the content on the heap. Returns a null-string when alloc fails */
-UA_String UA_EXPORT UA_String_fromChars(const char *src) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+UA_String UA_EXPORT
+UA_String_fromChars(const char *src) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
-UA_Boolean UA_EXPORT UA_String_equal(const UA_String *s1, const UA_String *s2);
+UA_Boolean UA_EXPORT
+UA_String_equal(const UA_String *s1, const UA_String *s2);
 
 UA_EXPORT extern const UA_String UA_STRING_NULL;
 
@@ -225,6 +227,7 @@ typedef struct UA_DateTimeStruct {
 } UA_DateTimeStruct;
 
 UA_DateTimeStruct UA_EXPORT UA_DateTime_toStruct(UA_DateTime t);
+UA_DateTime UA_EXPORT UA_DateTime_fromStruct(UA_DateTimeStruct ts);
 
 /* The C99 standard (7.23.1) says: "The range and precision of times
  * representable in clock_t and time_t are implementation-defined." On most
@@ -255,9 +258,25 @@ typedef struct {
     UA_Byte   data4[8];
 } UA_Guid;
 
+UA_EXPORT extern const UA_Guid UA_GUID_NULL;
+
 UA_Boolean UA_EXPORT UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2);
 
-UA_EXPORT extern const UA_Guid UA_GUID_NULL;
+#ifdef UA_ENABLE_PARSING
+/* Parse the Guid format defined in Part 6, 5.1.3.
+ * Format: C496578A-0DFE-4B8F-870A-745238C6AEAE
+ *         |       |    |    |    |            |
+ *         0       8    13   18   23           36 */
+UA_StatusCode UA_EXPORT
+UA_Guid_parse(UA_Guid *guid, const UA_String str);
+
+static UA_INLINE UA_Guid
+UA_GUID(const char *chars) {
+    UA_Guid guid;
+    UA_Guid_parse(&guid, UA_STRING((char*)(uintptr_t)chars));
+    return guid;
+}
+#endif
 
 /**
  * ByteString
@@ -265,19 +284,23 @@ UA_EXPORT extern const UA_Guid UA_GUID_NULL;
  * A sequence of octets. */
 typedef UA_String UA_ByteString;
 
-static UA_INLINE UA_Boolean
-UA_ByteString_equal(const UA_ByteString *string1,
-                    const UA_ByteString *string2) {
-    return UA_String_equal((const UA_String*)string1,
-                           (const UA_String*)string2);
-}
+UA_EXPORT extern const UA_ByteString UA_BYTESTRING_NULL;
 
 /* Allocates memory of size length for the bytestring.
  * The content is not set to zero. */
 UA_StatusCode UA_EXPORT
 UA_ByteString_allocBuffer(UA_ByteString *bs, size_t length);
 
-UA_EXPORT extern const UA_ByteString UA_BYTESTRING_NULL;
+/* Converts a ByteString to the corresponding
+ * base64 representation */
+UA_StatusCode UA_EXPORT
+UA_ByteString_toBase64(const UA_ByteString *bs,
+                       UA_String *output);
+
+/* Parse a ByteString from a base64 representation */
+UA_StatusCode UA_EXPORT
+UA_ByteString_fromBase64(UA_ByteString *bs,
+                         const UA_String *input);
 
 static UA_INLINE UA_ByteString
 UA_BYTESTRING(char *chars) {
@@ -292,6 +315,20 @@ UA_BYTESTRING_ALLOC(const char *chars) {
     UA_String str = UA_String_fromChars(chars); UA_ByteString bstr;
     bstr.length = str.length; bstr.data = str.data; return bstr;
 }
+
+static UA_INLINE UA_Boolean
+UA_ByteString_equal(const UA_ByteString *string1,
+                    const UA_ByteString *string2) {
+    return UA_String_equal((const UA_String*)string1,
+                           (const UA_String*)string2);
+}
+
+/* Returns a non-cryptographic hash for the String.
+ * Uses FNV non-cryptographic hash function. See
+ * https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function */
+UA_UInt32 UA_EXPORT
+UA_ByteString_hash(UA_UInt32 initialHashValue,
+                   const UA_Byte *data, size_t size);
 
 /**
  * XmlElement
@@ -329,15 +366,33 @@ UA_EXPORT extern const UA_NodeId UA_NODEID_NULL;
 
 UA_Boolean UA_EXPORT UA_NodeId_isNull(const UA_NodeId *p);
 
-UA_Order UA_EXPORT UA_NodeId_order(const UA_NodeId *n1, const UA_NodeId *n2);
+/* Print the NodeId in the human-readable format defined in Part 6,
+ * 5.3.1.10.
+ *
+ * Examples:
+ *   UA_NODEID("i=13")
+ *   UA_NODEID("ns=10;i=1")
+ *   UA_NODEID("ns=10;s=Hello:World")
+ *   UA_NODEID("g=09087e75-8e5e-499b-954f-f2a9603db28a")
+ *   UA_NODEID("ns=1;b=b3BlbjYyNTQxIQ==") // base64
+ * */
+UA_StatusCode UA_EXPORT
+UA_NodeId_print(const UA_NodeId *id, UA_String *output);
 
-static UA_INLINE UA_Boolean
-UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2) {
-    return (UA_NodeId_order(n1, n2) == UA_ORDER_EQ);
+#ifdef UA_ENABLE_PARSING
+/* Parse the human-readable NodeId format. Attention! String and
+ * ByteString NodeIds have their identifier malloc'ed and need to be
+ * cleaned up. */
+UA_StatusCode UA_EXPORT
+UA_NodeId_parse(UA_NodeId *id, const UA_String str);
+
+static UA_INLINE UA_NodeId
+UA_NODEID(const char *chars) {
+    UA_NodeId id;
+    UA_NodeId_parse(&id, UA_STRING((char*)(uintptr_t)chars));
+    return id;
 }
-
-/* Returns a non-cryptographic hash for the NodeId */
-UA_UInt32 UA_EXPORT UA_NodeId_hash(const UA_NodeId *n);
+#endif
 
 /** The following functions are shorthand for creating NodeIds. */
 static UA_INLINE UA_NodeId
@@ -382,6 +437,19 @@ UA_NODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex, const char *chars) {
     id.identifier.byteString = UA_BYTESTRING_ALLOC(chars); return id;
 }
 
+/* Total ordering of NodeId */
+UA_Order UA_EXPORT
+UA_NodeId_order(const UA_NodeId *n1, const UA_NodeId *n2);
+
+/* Check for equality */
+static UA_INLINE UA_Boolean
+UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2) {
+    return (UA_NodeId_order(n1, n2) == UA_ORDER_EQ);
+}
+
+/* Returns a non-cryptographic hash for NodeId */
+UA_UInt32 UA_EXPORT UA_NodeId_hash(const UA_NodeId *n);
+
 /**
  * ExpandedNodeId
  * ^^^^^^^^^^^^^^
@@ -394,16 +462,25 @@ typedef struct {
 
 UA_EXPORT extern const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL;
 
-UA_Order UA_EXPORT
-UA_ExpandedNodeId_order(const UA_ExpandedNodeId *n1, const UA_ExpandedNodeId *n2);
+#ifdef UA_ENABLE_PARSING
+/* Parse the ExpandedNodeId format defined in Part 6, 5.3.1.11:
+ *
+ *   svr=<serverindex>;ns=<namespaceindex>;<type>=<value>
+ *     or
+ *   svr=<serverindex>;nsu=<uri>;<type>=<value>
+ *
+ * The definitions for svr, ns and nsu can be omitted and will be set to zero /
+ * the empty string.*/
+UA_StatusCode UA_EXPORT
+UA_ExpandedNodeId_parse(UA_ExpandedNodeId *id, const UA_String str);
 
-static UA_INLINE UA_Boolean
-UA_ExpandedNodeId_equal(const UA_ExpandedNodeId *n1, const UA_ExpandedNodeId *n2) {
-    return (UA_ExpandedNodeId_order(n1, n2) == UA_ORDER_EQ);
+static UA_INLINE UA_ExpandedNodeId
+UA_EXPANDEDNODEID(const char *chars) {
+    UA_ExpandedNodeId id;
+    UA_ExpandedNodeId_parse(&id, UA_STRING((char*)(uintptr_t)chars));
+    return id;
 }
-
-/* Returns a non-cryptographic hash for the NodeId */
-UA_UInt32 UA_EXPORT UA_ExpandedNodeId_hash(const UA_ExpandedNodeId *n);
+#endif
 
 /** The following functions are shorthand for creating ExpandedNodeIds. */
 static UA_INLINE UA_ExpandedNodeId
@@ -442,6 +519,19 @@ UA_EXPANDEDNODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex, const char *chars) {
     id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id;
 }
 
+/* Total ordering of ExpandedNodeId */
+UA_Order UA_EXPORT
+UA_ExpandedNodeId_order(const UA_ExpandedNodeId *n1, const UA_ExpandedNodeId *n2);
+
+/* Check for equality */
+static UA_INLINE UA_Boolean
+UA_ExpandedNodeId_equal(const UA_ExpandedNodeId *n1, const UA_ExpandedNodeId *n2) {
+    return (UA_ExpandedNodeId_order(n1, n2) == UA_ORDER_EQ);
+}
+
+/* Returns a non-cryptographic hash for ExpandedNodeId */
+UA_UInt32 UA_EXPORT UA_ExpandedNodeId_hash(const UA_ExpandedNodeId *n);
+
 /**
  * .. _qualifiedname:
  *
@@ -457,6 +547,10 @@ static UA_INLINE UA_Boolean
 UA_QualifiedName_isNull(const UA_QualifiedName *q) {
     return (q->namespaceIndex == 0 && q->name.length == 0);
 }
+
+/* Returns a non-cryptographic hash for QualifiedName */
+UA_UInt32 UA_EXPORT
+UA_QualifiedName_hash(const UA_QualifiedName *q);
 
 static UA_INLINE UA_QualifiedName
 UA_QUALIFIEDNAME(UA_UInt16 nsIndex, char *chars) {
@@ -517,8 +611,18 @@ typedef struct  {
 } UA_NumericRange;
 
 UA_StatusCode UA_EXPORT
-UA_NumericRange_parseFromString(UA_NumericRange *range, const UA_String *str);
+UA_NumericRange_parse(UA_NumericRange *range, const UA_String str);
 
+static UA_INLINE UA_NumericRange
+UA_NUMERICRANGE(const char *s) {
+    UA_NumericRange nr; nr.dimensionsSize = 0; nr.dimensions = NULL;
+    UA_NumericRange_parse(&nr, UA_STRING((char*)(uintptr_t)s)); return nr;
+}
+
+UA_DEPRECATED static UA_INLINE UA_StatusCode
+UA_NumericRange_parseFromString(UA_NumericRange *range, const UA_String *str) {
+    return UA_NumericRange_parse(range, *str);
+}
 
 /**
  * .. _variant:
@@ -800,7 +904,7 @@ typedef struct UA_DiagnosticInfo {
  * type operations as static inline functions. */
 
 typedef struct {
-#ifdef UA_ENABLE_TYPENAMES
+#ifdef UA_ENABLE_TYPEDESCRIPTION
     const char *memberName;
 #endif
     UA_UInt16 memberTypeIndex;    /* Index of the member in the array of data
@@ -816,6 +920,7 @@ typedef struct {
                                      members from the same namespace or
                                      namespace zero only.*/
     UA_Boolean isArray       : 1; /* The member is an array */
+    UA_Boolean isOptional    : 1; /* The member is an optional field */
 } UA_DataTypeMember;
 
 /* The DataType "kind" is an internal type classification. It is used to
@@ -856,7 +961,7 @@ typedef enum {
 } UA_DataTypeKind;
 
 struct UA_DataType {
-#ifdef UA_ENABLE_TYPENAMES
+#ifdef UA_ENABLE_TYPEDESCRIPTION
     const char *typeName;
 #endif
     UA_NodeId typeId;                /* The nodeid of the type */
@@ -868,7 +973,7 @@ struct UA_DataType {
     UA_UInt32 overlayable      : 1;  /* The type has the identical memory layout
                                       * in memory and on the binary stream. */
     UA_UInt32 membersSize      : 8;  /* How many members does the type have? */
-    UA_UInt32 binaryEncodingId : 16; /* NodeId of datatype when encoded as binary */
+    UA_UInt32 binaryEncodingId;      /* NodeId of datatype when encoded as binary */
     //UA_UInt16  xmlEncodingId;      /* NodeId of datatype when encoded as XML */
     UA_DataTypeMember *members;
 };
@@ -978,7 +1083,7 @@ void UA_EXPORT UA_Array_delete(void *p, size_t size, const UA_DataType *type);
 /**
  * Random Number Generator
  * -----------------------
- * If UA_ENABLE_MULTITHREADING is defined, then the seed is stored in thread
+ * If UA_MULTITHREADING is defined, then the seed is stored in thread
  * local storage. The seed is initialized for every thread in the
  * server/client. */
 void UA_EXPORT UA_random_seed(UA_UInt64 seed);
@@ -996,7 +1101,7 @@ UA_Guid UA_EXPORT UA_Guid_random(void);     /* no cryptographic entropy */
 
 /* The following is used to exclude type names in the definition of UA_DataType
  * structures if the feature is disabled. */
-#ifdef UA_ENABLE_TYPENAMES
+#ifdef UA_ENABLE_TYPEDESCRIPTION
 # define UA_TYPENAME(name) name,
 #else
 # define UA_TYPENAME(name)
@@ -1014,10 +1119,7 @@ typedef struct UA_DataTypeArray {
 } UA_DataTypeArray;
 
 /**
- *
- * .. toctree::
- *
- *    types_generated */
+ * .. include:: types_generated.rst */
 
 _UA_END_DECLS
 

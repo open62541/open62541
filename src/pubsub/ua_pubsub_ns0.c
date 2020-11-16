@@ -6,6 +6,7 @@
  * Copyright (c) 2019 Kalycito Infotech Private Limited
  */
 
+#include <open62541/types.h>
 #include "ua_pubsub_ns0.h"
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL /* conditional compilation */
@@ -143,7 +144,7 @@ onRead(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
                 UA_calloc(publishedDataSet->fieldSize, sizeof(UA_PublishedVariableDataType));
             size_t counter = 0;
             UA_DataSetField *field;
-            LIST_FOREACH(field, &publishedDataSet->fields, listEntry) {
+            TAILQ_FOREACH(field, &publishedDataSet->fields, listEntry) {
                 pvd[counter].attributeId = UA_ATTRIBUTEID_VALUE;
                 pvd[counter].publishedVariable = field->config.field.variable.publishParameters.publishedVariable;
                 //UA_NodeId_copy(&field->config.field.variable.publishParameters.publishedVariable, &pvd[counter].publishedVariable);
@@ -199,7 +200,7 @@ onWrite(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
                     writerGroupConfig.publishingInterval = *((UA_Duration *) data->value.data);
                     UA_Server_updateWriterGroupConfig(server, writerGroup->identifier, &writerGroupConfig);
                     UA_Variant_setScalar(&value, data->value.data, &UA_TYPES[UA_TYPES_DURATION]);
-                    UA_WriterGroupConfig_deleteMembers(&writerGroupConfig);
+                    UA_WriterGroupConfig_clear(&writerGroupConfig);
                     break;
                 default:
                     UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -231,7 +232,7 @@ addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connec
     memcpy(connectionName, connection->config->name.data, connection->config->name.length);
     connectionName[connection->config->name.length] = '\0';
     //This code block must use a lock
-    UA_Nodestore_removeNode(server->nsCtx, &connection->identifier);
+    UA_NODESTORE_REMOVE(server, &connection->identifier);
     UA_NodeId pubSubConnectionNodeId;
     UA_ObjectAttributes attr = UA_ObjectAttributes_default;
     attr.displayName = UA_LOCALIZEDTEXT("de-DE", connectionName);
@@ -531,7 +532,7 @@ addPublishedDataItemsRepresentation(UA_Server *server, UA_PublishedDataSet *publ
     memcpy(pdsName, publishedDataSet->config.name.data, publishedDataSet->config.name.length);
     pdsName[publishedDataSet->config.name.length] = '\0';
     //This code block must use a lock
-    UA_Nodestore_removeNode(server->nsCtx, &publishedDataSet->identifier);
+    UA_NODESTORE_REMOVE(server, &publishedDataSet->identifier);
     retVal |= addPubSubObjectNode(server, pdsName, publishedDataSet->identifier.identifier.numeric,
                                   UA_NS0ID_PUBLISHSUBSCRIBE_PUBLISHEDDATASETS,
                                   UA_NS0ID_HASPROPERTY, UA_NS0ID_PUBLISHEDDATAITEMSTYPE);
@@ -747,9 +748,9 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup){
     memcpy(wgName, writerGroup->config.name.data, writerGroup->config.name.length);
     wgName[writerGroup->config.name.length] = '\0';
     //This code block must use a lock
-    UA_Nodestore_removeNode(server->nsCtx, &writerGroup->identifier);
+    UA_NODESTORE_REMOVE(server, &writerGroup->identifier);
     retVal |= addPubSubObjectNode(server, wgName, writerGroup->identifier.identifier.numeric,
-                                  writerGroup->linkedConnection.identifier.numeric,
+                                  writerGroup->linkedConnection->identifier.identifier.numeric,
                                   UA_NS0ID_HASCOMPONENT, UA_NS0ID_WRITERGROUPTYPE);
     //End lock zone
     UA_NodeId keepAliveNode =
@@ -915,7 +916,7 @@ addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWrite
     memcpy(dswName, dataSetWriter->config.name.data, dataSetWriter->config.name.length);
     dswName[dataSetWriter->config.name.length] = '\0';
     //This code block must use a lock
-    UA_Nodestore_removeNode(server->nsCtx, &dataSetWriter->identifier);
+    UA_NODESTORE_REMOVE(server, &dataSetWriter->identifier);
     retVal |= addPubSubObjectNode(server, dswName, dataSetWriter->identifier.identifier.numeric,
                                   dataSetWriter->linkedWriterGroup.identifier.numeric,
                                   UA_NS0ID_HASDATASETWRITER, UA_NS0ID_DATASETWRITERTYPE);
@@ -942,12 +943,13 @@ addDataSetWriterAction(UA_Server *server,
     UA_DataSetWriterDataType *dataSetWriterDataType = (UA_DataSetWriterDataType *) input[0].data;
 
     UA_NodeId targetPDS = UA_NODEID_NULL;
-    for(size_t i = 0; i < server->pubSubManager.publishedDataSetsSize; ++i) {
-        if(UA_String_equal(&dataSetWriterDataType->dataSetName,
-                           &server->pubSubManager.publishedDataSets[i].config.name)){
-            targetPDS = server->pubSubManager.publishedDataSets[i].identifier;
+    UA_PublishedDataSet *tmpPDS;
+    TAILQ_FOREACH(tmpPDS, &server->pubSubManager.publishedDataSets, listEntry){
+        if(UA_String_equal(&dataSetWriterDataType->dataSetName, &tmpPDS->config.name)){
+            targetPDS = tmpPDS->identifier;
         }
     }
+
     if(UA_NodeId_isNull(&targetPDS))
         return UA_STATUSCODE_BADPARENTNODEIDINVALID;
 

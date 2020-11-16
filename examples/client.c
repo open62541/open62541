@@ -52,7 +52,7 @@ int main(int argc, char *argv[]) {
 
     /* Connect to a server */
     /* anonymous connect would be: retval = UA_Client_connect(client, "opc.tcp://localhost:4840"); */
-    retval = UA_Client_connect_username(client, "opc.tcp://localhost:4840", "user1", "password");
+    retval = UA_Client_connectUsername(client, "opc.tcp://localhost:4840", "user1", "password");
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
         return EXIT_FAILURE;

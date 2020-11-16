@@ -1,22 +1,14 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-###
-### Authors:
-### - Chris Iatrou (ichrispa@core-vector.net)
-### - Julius Pfrommer
-### - Stefan Profanter (profanter@fortiss.org)
-###
-### This program was created for educational purposes and has been
-### contributed to the open62541 project by the author. All licensing
-### terms for this source is inherited by the terms and conditions
-### specified for by the open62541 project (see the projects readme
-### file for more information on the LGPL terms and restrictions).
-###
-### This program is not meant to be used in a production environment. The
-### author is not liable for any complications arising due to the use of
-### this program.
-###
+### This Source Code Form is subject to the terms of the Mozilla Public
+### License, v. 2.0. If a copy of the MPL was not distributed with this
+### file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+###    Copyright 2014-2015 (c) TU-Dresden (Author: Chris Iatrou)
+###    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+###    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
+
 
 from __future__ import print_function
 from os.path import basename

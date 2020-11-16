@@ -1,20 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-###
-### Author:  Chris Iatrou (ichrispa@core-vector.net)
-### Version: rev 13
-###
-### This program was created for educational purposes and has been
-### contributed to the open62541 project by the author. All licensing
-### terms for this source is inherited by the terms and conditions
-### specified for by the open62541 project (see the projects readme
-### file for more information on the LGPL terms and restrictions).
-###
-### This program is not meant to be used in a production environment. The
-### author is not liable for any complications arising due to the use of
-### this program.
-###
+### This Source Code Form is subject to the terms of the Mozilla Public
+### License, v. 2.0. If a copy of the MPL was not distributed with this
+### file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+###    Copyright 2014-2015 (c) TU-Dresden (Author: Chris Iatrou)
+###    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+###    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
 
 from __future__ import print_function
 import sys
@@ -22,7 +15,7 @@ import xml.dom.minidom as dom
 import logging
 import codecs
 import re
-from datatypes import *
+from datatypes import NodeId, valueIsInternalType
 from nodes import *
 from opaque_type_mapping import opaque_type_mapping
 
@@ -120,7 +113,6 @@ class NodeSet(object):
         self.nodes = {}
         self.aliases = {}
         self.namespaces = ["http://opcfoundation.org/UA/"]
-        self.namespaceMapping = {};
 
     def sanitize(self):
         for n in self.nodes.values():
@@ -135,6 +127,7 @@ class NodeSet(object):
                 if not ref.referenceType in self.nodes:
                     raise Exception("Reference " + str(ref) + " has an unknown reference type")
                 if not ref.target in self.nodes:
+                    print(self.namespaces)
                     raise Exception("Reference " + str(ref) + " has an unknown target")
 
     def addNamespace(self, nsURL):
@@ -151,12 +144,6 @@ class NodeSet(object):
 
     def getNodeByBrowseName(self, idstring):
         return next((n for n in self.nodes.values() if idstring == n.browseName.name), None)
-
-    def getNodeById(self, namespace, id):
-        nodeId = NodeId()
-        nodeId.ns = namespace
-        nodeId.i = id
-        return self.nodes[nodeId]
 
     def getRoot(self):
         return self.getNodeByBrowseName("Root")
@@ -208,6 +195,47 @@ class NodeSet(object):
             result.update(dictionary)
         return result
 
+    def getNodeByIDString(self, idStr):
+        # Split id to namespace part and id part
+        m = re.match("ns=([^;]+);(.*)", idStr)
+        if m:
+            ns = m.group(1)
+            # Convert namespace uri to index
+            if not ns.isdigit():
+                if ns not in self.namespaces:
+                    return None
+                ns = self.namespaces.index(ns)
+                idStr = "ns={};{}".format(ns, m.group(2))
+        nodeId = NodeId(idStr)
+        if not nodeId in self.nodes:
+            return None
+        return self.nodes[nodeId]
+
+    def remove_node(self, node):
+
+        def filterRef(r, rt):
+            return (r.referenceType != rt.referenceType) or (not (
+                    rt.target == node.id or rt.source == node.id
+                ))
+
+        for r in node.references:
+            if r.target == node.id:
+                if r.source not in self.nodes:
+                    continue
+                self.nodes[r.source].references = set(filter(
+                    lambda rt: filterRef(r, rt),
+                    self.nodes[r.source].references
+                ))
+            elif r.source == node.id:
+                if r.target not in self.nodes:
+                    continue
+                self.nodes[r.target].references = set(filter(
+                    lambda rt: filterRef(r, rt),
+                    self.nodes[r.target].references
+                ))
+        del self.nodes[node.id]
+
+
     def addNodeSet(self, xmlfile, hidden=False, typesArray="UA_TYPES"):
         # Extract NodeSet DOM
 
@@ -246,7 +274,7 @@ class NodeSet(object):
 
         for ns in orig_namespaces:
             self.addNamespace(ns)
-        self.namespaceMapping[modelUri] = self.createNamespaceMapping(orig_namespaces)
+        namespaceMapping = self.createNamespaceMapping(orig_namespaces) # mapping for this file
 
         # Extract the aliases
         for nd in nodeset.childNodes:
@@ -257,7 +285,7 @@ class NodeSet(object):
                 self.aliases = self.merge_dicts(self.aliases, buildAliasList(nd))
 
         # Instantiate nodes
-        newnodes = []
+        newnodes = {}
         for nd in nodeset.childNodes:
             if nd.nodeType != nd.ELEMENT_NODE:
                 continue
@@ -265,14 +293,23 @@ class NodeSet(object):
             if not node:
                 continue
             node.replaceAliases(self.aliases)
-            node.replaceNamespaces(self.namespaceMapping[modelUri])
+            node.replaceNamespaces(namespaceMapping)
             node.typesArray = typesArray
 
             # Add the node the the global dict
             if node.id in self.nodes:
                 raise Exception("XMLElement with duplicate ID " + str(node.id))
             self.nodes[node.id] = node
-            newnodes.append(node)
+            newnodes[node.id] = node
+
+        # Parse Datatypes in order to find out what the XML keyed values actually
+        # represent.
+        # Ex. <rpm>123</rpm> is not encodable
+        #     only after parsing the datatypes, it is known that
+        #     rpm is encoded as a double
+        for n in newnodes.values():
+            if isinstance(n, DataTypeNode):
+                n.buildEncoding(self, namespaceMapping=namespaceMapping)
 
     def getBinaryEncodingIdForNode(self, nodeId):
         """
@@ -287,18 +324,6 @@ class NodeSet(object):
                 if refNode.symbolicName.value == "DefaultBinary":
                     return ref.target
         raise Exception("No DefaultBinary encoding defined for node " + str(nodeId))
-
-    def buildEncodingRules(self):
-        """ Calls buildEncoding() for all DataType nodes (opcua_node_dataType_t).
-
-            No return value
-        """
-        stat = {True: 0, False: 0}
-        for n in self.nodes.values():
-            if isinstance(n, DataTypeNode):
-                n.buildEncoding(self)
-                stat[n.isEncodable()] = stat[n.isEncodable()] + 1
-        logger.debug("Type definitions built/passed: " +  str(stat))
 
     def allocateVariables(self):
         for n in self.nodes.values():
@@ -359,7 +384,16 @@ class NodeSet(object):
         parentreftypes = list(map(lambda x: x.id, parentreftypes))
 
         for node in self.nodes.values():
+            if node.id.ns == 0 and node.id.i in [78, 80, 84]:
+                # ModellingRule, Root node do not have a parent
+                continue
+
             parentref = node.getParentReference(parentreftypes)
             if parentref is not None:
                 node.parent = self.nodes[parentref.target]
+                if not node.parent:
+                    raise RuntimeError("Node {}: Did not find parent node: ".format(str(node.id)))
                 node.parentReference = self.nodes[parentref.referenceType]
+            # Some nodes in the full nodeset do not have a parent. So accept this and do not show an error.
+            #else:
+            #    raise RuntimeError("Node {}: HierarchicalReference (or subtype of it) to parent node is missing.".format(str(node.id)))

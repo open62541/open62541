@@ -10,7 +10,7 @@
 #include <open62541/plugin/pki_default.h>
 #include <open62541/plugin/log_stdout.h>
 
-#ifdef UA_ENABLE_ENCRYPTION
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
 #include <mbedtls/x509.h>
 #include <mbedtls/x509_crt.h>
 #include <mbedtls/error.h>
@@ -39,17 +39,82 @@ verifyApplicationURIAllowAll(void *verificationContext,
 }
 
 static void
-deleteVerifyAllowAll(UA_CertificateVerification *cv) {
+clearVerifyAllowAll(UA_CertificateVerification *cv) {
 
 }
 
 void UA_CertificateVerification_AcceptAll(UA_CertificateVerification *cv) {
     cv->verifyCertificate = verifyCertificateAllowAll;
     cv->verifyApplicationURI = verifyApplicationURIAllowAll;
-    cv->deleteMembers = deleteVerifyAllowAll;
+    cv->clear = clearVerifyAllowAll;
 }
 
 #ifdef UA_ENABLE_ENCRYPTION
+/* Find binary substring. Taken and adjusted from
+ * http://tungchingkai.blogspot.com/2011/07/binary-strstr.html */
+
+static const unsigned char *
+bstrchr(const unsigned char *s, const unsigned char ch, size_t l) {
+    /* find first occurrence of c in char s[] for length l*/
+    /* handle special case */
+    if(l == 0)
+        return (NULL);
+
+    for(; *s != ch; ++s, --l)
+        if(l == 0)
+            return (NULL);
+    return s;
+}
+
+const unsigned char *
+UA_Bstrstr(const unsigned char *s1, size_t l1, const unsigned char *s2, size_t l2) {
+    /* find first occurrence of s2[] in s1[] for length l1*/
+    const unsigned char *ss1 = s1;
+    const unsigned char *ss2 = s2;
+    /* handle special case */
+    if(l1 == 0)
+        return (NULL);
+    if(l2 == 0)
+        return s1;
+
+    /* match prefix */
+    for (; (s1 = bstrchr(s1, *s2, (uintptr_t)ss1-(uintptr_t)s1+(uintptr_t)l1)) != NULL &&
+             (uintptr_t)ss1-(uintptr_t)s1+(uintptr_t)l1 != 0; ++s1) {
+
+        /* match rest of prefix */
+        const unsigned char *sc1, *sc2;
+        for (sc1 = s1, sc2 = s2; ;)
+            if (++sc2 >= ss2+l2)
+                return s1;
+            else if (*++sc1 != *sc2)
+                break;
+    }
+    return NULL;
+}
+#endif /* end of UA_ENABLE_ENCRYPTION */
+
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+
+// mbedTLS expects PEM data to be null terminated
+// The data length parameter must include the null terminator
+static UA_ByteString copyDataFormatAware(const UA_ByteString *data)
+{
+    UA_ByteString result;
+    UA_ByteString_init(&result);
+
+    if (!data->length)
+        return result;
+
+    if (data->length && data->data[0] == '-') {
+        UA_ByteString_allocBuffer(&result, data->length + 1);
+        memcpy(result.data, data->data, data->length);
+        result.data[data->length] = '\0';
+    } else {
+        UA_ByteString_copy(data, &result);
+    }
+
+    return result;
+}
 
 typedef struct {
     /* If the folders are defined, we use them to reload the certificates during
@@ -89,7 +154,11 @@ fileNamesFromFolder(const UA_String *folder, size_t *pathsSize, UA_String **path
 
     struct dirent *ent;
     char buf2[PATH_MAX + 1];
-    realpath(buf, buf2);
+    char *res = realpath(buf, buf2);
+    if(!res) {
+        closedir(dir);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
     size_t pathlen = strlen(buf2);
     *pathsSize = 0;
     while((ent = readdir (dir)) != NULL && *pathsSize < 256) {
@@ -200,26 +269,31 @@ certificateVerification_verify(void *verificationContext,
     reloadCertificates(ci);
 #endif
 
-    /* if(ci->certificateTrustList.raw.len == 0) { */
-    /*     UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, */
-    /*                    "No Trustlist loaded. Accepting the certificate."); */
-    /*     return UA_STATUSCODE_GOOD; */
-    /* } */
+    if(ci->trustListFolder.length == 0 &&
+       ci->issuerListFolder.length == 0 &&
+       ci->revocationListFolder.length == 0 &&
+       ci->certificateTrustList.raw.len == 0 &&
+       ci->certificateIssuerList.raw.len == 0 &&
+       ci->certificateRevocationList.raw.len == 0) {
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                       "PKI plugin unconfigured. Accepting the certificate.");
+        return UA_STATUSCODE_GOOD;
+    }
 
     /* Parse the certificate */
     mbedtls_x509_crt remoteCertificate;
 
     /* Temporary Object to parse the trustList */
-    mbedtls_x509_crt *tempCert;
+    mbedtls_x509_crt *tempCert = NULL;
 
     /* Temporary Object to parse the revocationList */
-    mbedtls_x509_crl *tempCrl;
+    mbedtls_x509_crl *tempCrl = NULL;
 
     /* Temporary Object to identify the parent CA when there is no intermediate CA */
-    mbedtls_x509_crt *parentCert;
+    mbedtls_x509_crt *parentCert = NULL;
 
     /* Temporary Object to identify the parent CA when there is intermediate CA */
-    mbedtls_x509_crt *parentCert_2;
+    mbedtls_x509_crt *parentCert_2 = NULL;
 
     /* Flag value to identify if the issuer certificate is found */
     int issuerKnown = 0;
@@ -390,12 +464,12 @@ certificateVerification_verify(void *verificationContext,
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(mbedErr) {
-        /* char buff[100]; */
-        /* mbedtls_x509_crt_verify_info(buff, 100, "", flags); */
-        /* UA_LOG_ERROR(channelContextData->policyContext->securityPolicy->logger, */
-        /*              UA_LOGCATEGORY_SECURITYPOLICY, */
-        /*              "Verifying the certificate failed with error: %s", buff); */
-
+#if UA_LOGLEVEL <= 400
+        char buff[100];
+        int len = mbedtls_x509_crt_verify_info(buff, 100, "", flags);
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SECURITYPOLICY,
+                       "Verifying the certificate failed with error: %.*s", len-1, buff);
+#endif
         if(flags & (uint32_t)MBEDTLS_X509_BADCERT_NOT_TRUSTED) {
             retval = UA_STATUSCODE_BADCERTIFICATEUNTRUSTED;
         } else if(flags & (uint32_t)MBEDTLS_X509_BADCERT_FUTURE ||
@@ -411,48 +485,6 @@ certificateVerification_verify(void *verificationContext,
 
     mbedtls_x509_crt_free(&remoteCertificate);
     return retval;
-}
-
-/* Find binary substring. Taken and adjusted from
- * http://tungchingkai.blogspot.com/2011/07/binary-strstr.html */
-
-static const unsigned char *
-bstrchr(const unsigned char *s, const unsigned char ch, size_t l) {
-    /* find first occurrence of c in char s[] for length l*/
-    /* handle special case */
-    if(l == 0)
-        return (NULL);
-
-    for(; *s != ch; ++s, --l)
-        if(l == 0)
-            return (NULL);
-    return s;
-}
-
-static const unsigned char *
-bstrstr(const unsigned char *s1, size_t l1, const unsigned char *s2, size_t l2) {
-    /* find first occurrence of s2[] in s1[] for length l1*/
-    const unsigned char *ss1 = s1;
-    const unsigned char *ss2 = s2;
-    /* handle special case */
-    if(l1 == 0)
-        return (NULL);
-    if(l2 == 0)
-        return s1;
-
-    /* match prefix */
-    for (; (s1 = bstrchr(s1, *s2, (uintptr_t)ss1-(uintptr_t)s1+(uintptr_t)l1)) != NULL &&
-             (uintptr_t)ss1-(uintptr_t)s1+(uintptr_t)l1 != 0; ++s1) {
-
-        /* match rest of prefix */
-        const unsigned char *sc1, *sc2;
-        for (sc1 = s1, sc2 = s2; ;)
-            if (++sc2 >= ss2+l2)
-                return s1;
-            else if (*++sc1 != *sc2)
-                break;
-    }
-    return NULL;
 }
 
 static UA_StatusCode
@@ -477,7 +509,7 @@ certificateVerification_verifyApplicationURI(void *verificationContext,
      *
      * TODO: Improve parsing of the Alternative Subject Name */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(bstrstr(remoteCertificate.v3_ext.p, remoteCertificate.v3_ext.len,
+    if(UA_Bstrstr(remoteCertificate.v3_ext.p, remoteCertificate.v3_ext.len,
                applicationURI->data, applicationURI->length) == NULL)
         retval = UA_STATUSCODE_BADCERTIFICATEURIINVALID;
 
@@ -486,7 +518,7 @@ certificateVerification_verifyApplicationURI(void *verificationContext,
 }
 
 static void
-certificateVerification_deleteMembers(UA_CertificateVerification *cv) {
+certificateVerification_clear(UA_CertificateVerification *cv) {
     CertInfo *ci = (CertInfo*)cv->context;
     if(!ci)
         return;
@@ -521,35 +553,44 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification *cv,
         cv->verifyCertificate = certificateVerification_verify;
     else
         cv->verifyCertificate = verifyCertificateAllowAll;
-    cv->deleteMembers = certificateVerification_deleteMembers;
+    cv->clear = certificateVerification_clear;
     cv->verifyApplicationURI = certificateVerification_verifyApplicationURI;
 
     int err = 0;
+    UA_ByteString data;
+    UA_ByteString_init(&data);
+
     for(size_t i = 0; i < certificateTrustListSize; i++) {
+        data = copyDataFormatAware(&certificateTrustList[i]);
         err = mbedtls_x509_crt_parse(&ci->certificateTrustList,
-                                     certificateTrustList[i].data,
-                                     certificateTrustList[i].length);
+                                     data.data,
+                                     data.length);
+        UA_ByteString_clear(&data);
         if(err)
             goto error;
     }
     for(size_t i = 0; i < certificateIssuerListSize; i++) {
+        data = copyDataFormatAware(&certificateIssuerList[i]);
         err = mbedtls_x509_crt_parse(&ci->certificateIssuerList,
-                                     certificateIssuerList[i].data,
-                                     certificateIssuerList[i].length);
+                                     data.data,
+                                     data.length);
+        UA_ByteString_clear(&data);
         if(err)
             goto error;
     }
     for(size_t i = 0; i < certificateRevocationListSize; i++) {
+        data = copyDataFormatAware(&certificateRevocationList[i]);
         err = mbedtls_x509_crl_parse(&ci->certificateRevocationList,
-                                     certificateRevocationList[i].data,
-                                     certificateRevocationList[i].length);
+                                     data.data,
+                                     data.length);
+        UA_ByteString_clear(&data);
         if(err)
             goto error;
     }
 
     return UA_STATUSCODE_GOOD;
 error:
-    certificateVerification_deleteMembers(cv);
+    certificateVerification_clear(cv);
     return UA_STATUSCODE_BADINTERNALERROR;
 }
 
@@ -578,7 +619,7 @@ UA_CertificateVerification_CertFolders(UA_CertificateVerification *cv,
 
     cv->context = (void*)ci;
     cv->verifyCertificate = certificateVerification_verify;
-    cv->deleteMembers = certificateVerification_deleteMembers;
+    cv->clear = certificateVerification_clear;
     cv->verifyApplicationURI = certificateVerification_verifyApplicationURI;
 
     return UA_STATUSCODE_GOOD;

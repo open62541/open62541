@@ -17,8 +17,7 @@ typedef struct UA_HistoryDatabase UA_HistoryDatabase;
 struct UA_HistoryDatabase {
     void *context;
 
-    void
-    (*deleteMembers)(UA_HistoryDatabase *hdb);
+    void (*clear)(UA_HistoryDatabase *hdb);
 
     /* This function will be called when a nodes value is set.
      * Use this to insert data into your database(s) if polling is not suitable
@@ -39,6 +38,37 @@ struct UA_HistoryDatabase {
                 const UA_NodeId *nodeId,
                 UA_Boolean historizing,
                 const UA_DataValue *value);
+
+    /* This function will be called when an event is triggered.
+     * Use it to insert data into your event database.
+     * No default implementation is provided by UA_HistoryDatabase_default.
+     *
+     * server is the server this node lives in.
+     * hdbContext is the context of the UA_HistoryDatabase.
+     * sessionId and sessionContext identify the session which set this value.
+     * originId is the node id of the event's origin.
+     * emitterId is the node id of the event emitter.
+     * eventId is the node id of the event that is being emitted.
+     * willEventNodeBeDeleted specifies whether the event node will be deleted after
+     *                        it has been triggered (this might be relevant for
+     *                        in-memory storage).
+     * historicalEventFilter is the value of the HistoricalEventFilter property of
+     *                       the emitter (OPC UA Part 11, 5.3.2), it is NULL if
+     *                       the property does not exist or is not set.
+     * fieldList is the event field list returned after application of
+     *           historicalEventFilter to the event node
+     *           (NULL if historicalEventFilter is NULL or filtering was
+     *           unsuccessful); the fieldList is not deleted so
+     *           make sure to delete it when it is no longer needed. */
+    void
+    (*setEvent)(UA_Server *server,
+                void *hdbContext,
+                const UA_NodeId *originId,
+                const UA_NodeId *emitterId,
+                const UA_NodeId *eventId,
+                UA_Boolean willEventNodeBeDeleted,
+                const UA_EventFilter *historicalEventFilter,
+                UA_EventFieldList *fieldList);
 
     /* This function is called if a history read is requested with
      * isRawReadModified set to false. Setting it to NULL will result in a
@@ -76,6 +106,70 @@ struct UA_HistoryDatabase {
                UA_HistoryReadResponse *response,
                UA_HistoryData * const * const historyData);
 
+    /* No default implementation is provided by UA_HistoryDatabase_default
+     * for the following function */
+    void
+    (*readModified)(UA_Server *server,
+               void *hdbContext,
+               const UA_NodeId *sessionId,
+               void *sessionContext,
+               const UA_RequestHeader *requestHeader,
+               const UA_ReadRawModifiedDetails *historyReadDetails,
+               UA_TimestampsToReturn timestampsToReturn,
+               UA_Boolean releaseContinuationPoints,
+               size_t nodesToReadSize,
+               const UA_HistoryReadValueId *nodesToRead,
+               UA_HistoryReadResponse *response,
+               UA_HistoryModifiedData * const * const historyData);
+
+    /* No default implementation is provided by UA_HistoryDatabase_default
+     * for the following function */
+    void
+    (*readEvent)(UA_Server *server,
+               void *hdbContext,
+               const UA_NodeId *sessionId,
+               void *sessionContext,
+               const UA_RequestHeader *requestHeader,
+               const UA_ReadEventDetails *historyReadDetails,
+               UA_TimestampsToReturn timestampsToReturn,
+               UA_Boolean releaseContinuationPoints,
+               size_t nodesToReadSize,
+               const UA_HistoryReadValueId *nodesToRead,
+               UA_HistoryReadResponse *response,
+               UA_HistoryEvent * const * const historyData);
+
+    /* No default implementation is provided by UA_HistoryDatabase_default
+     * for the following function */
+    void
+    (*readProcessed)(UA_Server *server,
+               void *hdbContext,
+               const UA_NodeId *sessionId,
+               void *sessionContext,
+               const UA_RequestHeader *requestHeader,
+               const UA_ReadProcessedDetails *historyReadDetails,
+               UA_TimestampsToReturn timestampsToReturn,
+               UA_Boolean releaseContinuationPoints,
+               size_t nodesToReadSize,
+               const UA_HistoryReadValueId *nodesToRead,
+               UA_HistoryReadResponse *response,
+               UA_HistoryData * const * const historyData);
+
+    /* No default implementation is provided by UA_HistoryDatabase_default
+     * for the following function */
+    void
+    (*readAtTime)(UA_Server *server,
+               void *hdbContext,
+               const UA_NodeId *sessionId,
+               void *sessionContext,
+               const UA_RequestHeader *requestHeader,
+               const UA_ReadAtTimeDetails *historyReadDetails,
+               UA_TimestampsToReturn timestampsToReturn,
+               UA_Boolean releaseContinuationPoints,
+               size_t nodesToReadSize,
+               const UA_HistoryReadValueId *nodesToRead,
+               UA_HistoryReadResponse *response,
+               UA_HistoryData * const * const historyData);
+
     void
     (*updateData)(UA_Server *server,
                   void *hdbContext,
@@ -95,7 +189,7 @@ struct UA_HistoryDatabase {
                          UA_HistoryUpdateResult *result);
 
     /* Add more function pointer here.
-     * For example for read_event, read_modified, read_processed, read_at_time */
+     * For example for read_event, read_annotation, update_details */
 };
 
 _UA_END_DECLS

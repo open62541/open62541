@@ -54,8 +54,9 @@ static void teardown(void) {
 }
 
 START_TEST(Misc_State) {
-    UA_ClientState state = UA_Client_getState(client);
-    ck_assert_uint_eq(state, UA_CLIENTSTATE_SESSION);
+    UA_SessionState ss;
+    UA_Client_getState(client, NULL, &ss, NULL);
+    ck_assert_uint_eq(ss, UA_SESSIONSTATE_ACTIVATED);
 }
 END_TEST
 
@@ -189,7 +190,7 @@ START_TEST(Node_Add) {
         attr.userExecutable = true;
         retval = UA_Client_addMethodNode(client, UA_NODEID_NULL,
                                          newObjectId,
-                                         UA_NODEID_NUMERIC(0, UA_NS0ID_HASORDEREDCOMPONENT),
+                                         UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                                          UA_QUALIFIEDNAME(1, "Dummy"),
                                          attr, &newMethodId);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -456,7 +457,7 @@ START_TEST(Node_AddReadWriteNodes) {
         attr.writeMask = 0xFFFFFFFF;
         retval = UA_Client_addMethodNode(client, UA_NODEID_NULL,
                                          nodeReadWriteUnitTest,
-                                         UA_NODEID_NUMERIC(0, UA_NS0ID_HASORDEREDCOMPONENT),
+                                         UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                                          UA_QUALIFIEDNAME(1, "Dummy"),
                                          attr, &nodeReadWriteMethod);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -568,20 +569,10 @@ START_TEST(Node_ReadWrite_BrowseName) {
     browseName = UA_QUALIFIEDNAME(1,"Int-Changed");
 
     retval = UA_Client_writeBrowseNameAttribute(client, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), &browseName);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_BADUSERACCESSDENIED);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
 
     retval = UA_Client_writeBrowseNameAttribute(client, nodeReadWriteInt, &browseName);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-
-    UA_QualifiedName browseNameChangedRead;
-    retval = UA_Client_readBrowseNameAttribute(client, nodeReadWriteInt, &browseNameChangedRead);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-
-    ck_assert_int_eq(browseName.namespaceIndex, browseNameChangedRead.namespaceIndex);
-    ck_assert(UA_String_equal(&browseName.name, &browseNameChangedRead.name));
-
-    UA_QualifiedName_deleteMembers(&browseNameChangedRead);
-
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
 }
 END_TEST
 

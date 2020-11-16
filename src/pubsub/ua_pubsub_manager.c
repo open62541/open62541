@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * Copyright (c) 2017-2018 Fraunhofer IOSB (Author: Andreas Ebner)
+ * Copyright (c) 2017-2019 Fraunhofer IOSB (Author: Andreas Ebner)
  * Copyright (c) 2018 Fraunhofer IOSB (Author: Julius Pfrommer)
  */
 
@@ -50,54 +50,45 @@ UA_Server_addPubSubConnection(UA_Server *server,
 
     /* Create new connection and add to UA_PubSubManager */
     UA_PubSubConnection *newConnectionsField = (UA_PubSubConnection *)
-        UA_realloc(server->pubSubManager.connections,
-                   sizeof(UA_PubSubConnection) * (server->pubSubManager.connectionsSize + 1));
+        UA_calloc(1, sizeof(UA_PubSubConnection));
     if(!newConnectionsField) {
-        UA_PubSubConnectionConfig_deleteMembers(tmpConnectionConfig);
+        UA_PubSubConnectionConfig_clear(tmpConnectionConfig);
         UA_free(tmpConnectionConfig);
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "PubSub Connection creation failed. Out of Memory.");
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
-    server->pubSubManager.connections = newConnectionsField;
+    if (server->pubSubManager.connectionsSize != 0)
+        TAILQ_INSERT_TAIL(&server->pubSubManager.connections, newConnectionsField, listEntry);
+    else {
+        TAILQ_INIT(&server->pubSubManager.connections);
+        TAILQ_INSERT_HEAD(&server->pubSubManager.connections, newConnectionsField, listEntry);
+    }
+
     server->pubSubManager.connectionsSize++;
 
-    UA_PubSubConnection *newConnection =
-        &server->pubSubManager.connections[server->pubSubManager.connectionsSize-1];
-
-    /* Initialize the new connection */
-    memset(newConnection, 0, sizeof(UA_PubSubConnection));
-    LIST_INIT(&newConnection->writerGroups);
-    //workaround - fixing issue with queue.h and realloc.
-    for(size_t n = 0; n < server->pubSubManager.connectionsSize; n++){
-        if(server->pubSubManager.connections[n].writerGroups.lh_first){
-            server->pubSubManager.connections[n].writerGroups.lh_first->listEntry.le_prev = &server->pubSubManager.connections[n].writerGroups.lh_first;
-        }
-    }
-    newConnection->config = tmpConnectionConfig;
+    LIST_INIT(&newConnectionsField->writerGroups);
+    newConnectionsField->config = tmpConnectionConfig;
 
     /* Open the channel */
-    newConnection->channel = tl->createPubSubChannel(newConnection->config);
-    if(!newConnection->channel) {
-        UA_PubSubConnection_deleteMembers(server, newConnection);
+    newConnectionsField->channel = tl->createPubSubChannel(newConnectionsField->config);
+    if(!newConnectionsField->channel) {
+        UA_PubSubConnection_clear(server, newConnectionsField);
+        TAILQ_REMOVE(&server->pubSubManager.connections, newConnectionsField, listEntry);
         server->pubSubManager.connectionsSize--;
-        /* Keep the realloced (longer) array if entries remain */
-        if(server->pubSubManager.connectionsSize == 0) {
-            UA_free(server->pubSubManager.connections);
-            server->pubSubManager.connections = NULL;
-        }
+        UA_free(newConnectionsField);
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "PubSub Connection creation failed. Transport layer creation problem.");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    UA_PubSubManager_generateUniqueNodeId(server, &newConnection->identifier);
+    UA_PubSubManager_generateUniqueNodeId(server, &newConnectionsField->identifier);
 
     if(connectionIdentifier)
-        UA_NodeId_copy(&newConnection->identifier, connectionIdentifier);
+        UA_NodeId_copy(&newConnectionsField->identifier, connectionIdentifier);
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    addPubSubConnectionRepresentation(server, newConnection);
+    addPubSubConnectionRepresentation(server, newConnectionsField);
 #endif
     return UA_STATUSCODE_GOOD;
 }
@@ -105,46 +96,18 @@ UA_Server_addPubSubConnection(UA_Server *server,
 UA_StatusCode
 UA_Server_removePubSubConnection(UA_Server *server, const UA_NodeId connection) {
     //search the identified Connection and store the Connection index
-    size_t connectionIndex;
-    UA_PubSubConnection *currentConnection = NULL;
-    for(connectionIndex = 0; connectionIndex < server->pubSubManager.connectionsSize; connectionIndex++){
-        if(UA_NodeId_equal(&connection, &server->pubSubManager.connections[connectionIndex].identifier)){
-            currentConnection = &server->pubSubManager.connections[connectionIndex];
-            break;
-        }
-    }
+    UA_PubSubConnection *currentConnection = UA_PubSubConnection_findConnectionbyId(server, connection);
     if(!currentConnection)
         return UA_STATUSCODE_BADNOTFOUND;
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     removePubSubConnectionRepresentation(server, currentConnection);
 #endif
-    UA_PubSubConnection_deleteMembers(server, currentConnection);
     server->pubSubManager.connectionsSize--;
-    //remove the connection from the pubSubManager, move the last connection
-    //into the allocated memory of the deleted connection
-    if(server->pubSubManager.connectionsSize != connectionIndex){
-        memcpy(&server->pubSubManager.connections[connectionIndex],
-               &server->pubSubManager.connections[server->pubSubManager.connectionsSize],
-               sizeof(UA_PubSubConnection));
-    }
 
-    if(server->pubSubManager.connectionsSize <= 0){
-        UA_free(server->pubSubManager.connections);
-        server->pubSubManager.connections = NULL;
-    } else {
-        server->pubSubManager.connections = (UA_PubSubConnection *)
-                UA_realloc(server->pubSubManager.connections, sizeof(UA_PubSubConnection) * server->pubSubManager.connectionsSize);
-        if(!server->pubSubManager.connections){
-            return UA_STATUSCODE_BADINTERNALERROR;
-        }
-        //workaround - fixing issue with queue.h and realloc.
-        for(size_t n = 0; n < server->pubSubManager.connectionsSize; n++){
-            if(server->pubSubManager.connections[n].writerGroups.lh_first){
-                server->pubSubManager.connections[n].writerGroups.lh_first->listEntry.le_prev = &server->pubSubManager.connections[n].writerGroups.lh_first;
-            }
-        }
-    }
+    UA_PubSubConnection_clear(server, currentConnection);
+    TAILQ_REMOVE(&server->pubSubManager.connections, currentConnection, listEntry);
+    UA_free(currentConnection);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -173,42 +136,80 @@ UA_Server_addPublishedDataSet(UA_Server *server, const UA_PublishedDataSetConfig
     }
     //create new PDS and add to UA_PubSubManager
     UA_PublishedDataSet *newPubSubDataSetField = (UA_PublishedDataSet *)
-            UA_realloc(server->pubSubManager.publishedDataSets,
-                       sizeof(UA_PublishedDataSet) * (server->pubSubManager.publishedDataSetsSize + 1));
+            UA_calloc(1, sizeof(UA_PublishedDataSet));
     if(!newPubSubDataSetField) {
-        UA_PublishedDataSetConfig_deleteMembers(&tmpPublishedDataSetConfig);
+        UA_PublishedDataSetConfig_clear(&tmpPublishedDataSetConfig);
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "PublishedDataSet creation failed. Out of Memory.");
         result.addResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return result;
     }
-    server->pubSubManager.publishedDataSets = newPubSubDataSetField;
-    UA_PublishedDataSet *newPubSubDataSet = &server->pubSubManager.publishedDataSets[(server->pubSubManager.publishedDataSetsSize)];
-    memset(newPubSubDataSet, 0, sizeof(UA_PublishedDataSet));
-    LIST_INIT(&newPubSubDataSet->fields);
-    //workaround - fixing issue with queue.h and realloc.
-    for(size_t n = 0; n < server->pubSubManager.publishedDataSetsSize; n++){
-        if(server->pubSubManager.publishedDataSets[n].fields.lh_first){
-            server->pubSubManager.publishedDataSets[n].fields.lh_first->listEntry.le_prev = &server->pubSubManager.publishedDataSets[n].fields.lh_first;
-        }
+    memset(newPubSubDataSetField, 0, sizeof(UA_PublishedDataSet));
+    TAILQ_INIT(&newPubSubDataSetField->fields);
+    newPubSubDataSetField->config = tmpPublishedDataSetConfig;
+
+    if (server->pubSubManager.publishedDataSetsSize != 0)
+        TAILQ_INSERT_TAIL(&server->pubSubManager.publishedDataSets, newPubSubDataSetField, listEntry);
+    else {
+        TAILQ_INIT(&server->pubSubManager.publishedDataSets);
+        TAILQ_INSERT_HEAD(&server->pubSubManager.publishedDataSets, newPubSubDataSetField, listEntry);
     }
-    newPubSubDataSet->config = tmpPublishedDataSetConfig;
     if(tmpPublishedDataSetConfig.publishedDataSetType == UA_PUBSUB_DATASET_PUBLISHEDITEMS_TEMPLATE){
         //parse template config and add fields (later PubSub batch)
     }
     //generate unique nodeId
-    UA_PubSubManager_generateUniqueNodeId(server, &newPubSubDataSet->identifier);
+    UA_PubSubManager_generateUniqueNodeId(server, &newPubSubDataSetField->identifier);
     if(pdsIdentifier != NULL){
-        UA_NodeId_copy(&newPubSubDataSet->identifier, pdsIdentifier);
+        UA_NodeId_copy(&newPubSubDataSetField->identifier, pdsIdentifier);
     }
-    server->pubSubManager.publishedDataSetsSize++;
+
     result.addResult = UA_STATUSCODE_GOOD;
     result.fieldAddResults = NULL;
     result.fieldAddResultsSize = 0;
+
+    //fill the DataSetMetaData
+    switch(tmpPublishedDataSetConfig.publishedDataSetType){
+        case UA_PUBSUB_DATASET_PUBLISHEDITEMS_TEMPLATE:
+            if(UA_DataSetMetaDataType_copy(&tmpPublishedDataSetConfig.config.itemsTemplate.metaData,
+                    &newPubSubDataSetField->dataSetMetaData) != UA_STATUSCODE_GOOD){
+                UA_Server_removeDataSetField(server, newPubSubDataSetField->identifier);
+                result.addResult = UA_STATUSCODE_BADINTERNALERROR;
+            }
+            break;
+        case UA_PUBSUB_DATASET_PUBLISHEDEVENTS_TEMPLATE:
+            if(UA_DataSetMetaDataType_copy(&tmpPublishedDataSetConfig.config.eventTemplate.metaData,
+                    &newPubSubDataSetField->dataSetMetaData) != UA_STATUSCODE_GOOD){
+                UA_Server_removeDataSetField(server, newPubSubDataSetField->identifier);
+                result.addResult = UA_STATUSCODE_BADINTERNALERROR;
+            }
+            break;
+        case UA_PUBSUB_DATASET_PUBLISHEDEVENTS:
+            newPubSubDataSetField->dataSetMetaData.configurationVersion.majorVersion = UA_PubSubConfigurationVersionTimeDifference();
+            newPubSubDataSetField->dataSetMetaData.configurationVersion.minorVersion = UA_PubSubConfigurationVersionTimeDifference();
+            newPubSubDataSetField->dataSetMetaData.dataSetClassId = UA_GUID_NULL;
+            if(UA_String_copy(&tmpPublishedDataSetConfig.name, &newPubSubDataSetField->dataSetMetaData.name) != UA_STATUSCODE_GOOD){
+                UA_Server_removeDataSetField(server, newPubSubDataSetField->identifier);
+                result.addResult = UA_STATUSCODE_BADINTERNALERROR;
+            }
+            newPubSubDataSetField->dataSetMetaData.description = UA_LOCALIZEDTEXT_ALLOC("", "");
+            break;
+        case UA_PUBSUB_DATASET_PUBLISHEDITEMS:
+            newPubSubDataSetField->dataSetMetaData.configurationVersion.majorVersion = UA_PubSubConfigurationVersionTimeDifference();
+            newPubSubDataSetField->dataSetMetaData.configurationVersion.minorVersion = UA_PubSubConfigurationVersionTimeDifference();
+            if(UA_String_copy(&tmpPublishedDataSetConfig.name, &newPubSubDataSetField->dataSetMetaData.name) != UA_STATUSCODE_GOOD){
+                UA_Server_removeDataSetField(server, newPubSubDataSetField->identifier);
+                result.addResult = UA_STATUSCODE_BADINTERNALERROR;
+            }
+            newPubSubDataSetField->dataSetMetaData.description = UA_LOCALIZEDTEXT_ALLOC("", "");
+            newPubSubDataSetField->dataSetMetaData.dataSetClassId = UA_GUID_NULL;
+            break;
+    }
+
+    server->pubSubManager.publishedDataSetsSize++;
     result.configurationVersion.majorVersion = UA_PubSubConfigurationVersionTimeDifference();
     result.configurationVersion.minorVersion = UA_PubSubConfigurationVersionTimeDifference();
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    addPublishedDataItemsRepresentation(server, newPubSubDataSet);
+    addPublishedDataItemsRepresentation(server, newPubSubDataSetField);
 #endif
     return result;
 }
@@ -216,21 +217,21 @@ UA_Server_addPublishedDataSet(UA_Server *server, const UA_PublishedDataSetConfig
 UA_StatusCode
 UA_Server_removePublishedDataSet(UA_Server *server, const UA_NodeId pds) {
     //search the identified PublishedDataSet and store the PDS index
-    UA_PublishedDataSet *publishedDataSet = NULL;
-    size_t publishedDataSetIndex;
-    for(publishedDataSetIndex = 0; publishedDataSetIndex < server->pubSubManager.publishedDataSetsSize; publishedDataSetIndex++){
-        if(UA_NodeId_equal(&server->pubSubManager.publishedDataSets[publishedDataSetIndex].identifier, &pds)){
-            publishedDataSet = &server->pubSubManager.publishedDataSets[publishedDataSetIndex];
-            break;
-        }
-    }
+    UA_PublishedDataSet *publishedDataSet = UA_PublishedDataSet_findPDSbyId(server, pds);
     if(!publishedDataSet){
         return UA_STATUSCODE_BADNOTFOUND;
     }
+    if(publishedDataSet->config.configurationFrozen){
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "Remove PublishedDataSet failed. PublishedDataSet is frozen.");
+        return UA_STATUSCODE_BADCONFIGURATIONERROR;
+    }
+
     //search for referenced writers -> delete this writers. (Standard: writer must be connected with PDS)
-    for(size_t i = 0; i < server->pubSubManager.connectionsSize; i++){
+    UA_PubSubConnection *tmpConnectoin;
+    TAILQ_FOREACH(tmpConnectoin, &server->pubSubManager.connections, listEntry){
         UA_WriterGroup *writerGroup;
-        LIST_FOREACH(writerGroup, &server->pubSubManager.connections[i].writerGroups, listEntry){
+        LIST_FOREACH(writerGroup, &tmpConnectoin->writerGroups, listEntry){
             UA_DataSetWriter *currentWriter, *tmpWriterGroup;
             LIST_FOREACH_SAFE(currentWriter, &writerGroup->writers, listEntry, tmpWriterGroup){
                 if(UA_NodeId_equal(&currentWriter->connectedDataSet, &publishedDataSet->identifier)){
@@ -242,30 +243,11 @@ UA_Server_removePublishedDataSet(UA_Server *server, const UA_NodeId pds) {
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     removePublishedDataSetRepresentation(server, publishedDataSet);
 #endif
-    UA_PublishedDataSet_deleteMembers(server, publishedDataSet);
+    UA_PublishedDataSet_clear(server, publishedDataSet);
     server->pubSubManager.publishedDataSetsSize--;
-    //copy the last PDS to the removed PDS inside the allocated memory block
-    if(server->pubSubManager.publishedDataSetsSize != publishedDataSetIndex){
-        memcpy(&server->pubSubManager.publishedDataSets[publishedDataSetIndex],
-               &server->pubSubManager.publishedDataSets[server->pubSubManager.publishedDataSetsSize],
-               sizeof(UA_PublishedDataSet));
-    }
-    if(server->pubSubManager.publishedDataSetsSize <= 0){
-        UA_free(server->pubSubManager.publishedDataSets);
-        server->pubSubManager.publishedDataSets = NULL;
-    } else {
-        server->pubSubManager.publishedDataSets = (UA_PublishedDataSet *)
-                UA_realloc(server->pubSubManager.publishedDataSets, sizeof(UA_PublishedDataSet) * server->pubSubManager.publishedDataSetsSize);
-        if(!server->pubSubManager.publishedDataSets){
-            return UA_STATUSCODE_BADINTERNALERROR;
-        }
-        //workaround - fixing issue with queue.h and realloc.
-        for(size_t n = 0; n < server->pubSubManager.publishedDataSetsSize; n++){
-            if(server->pubSubManager.publishedDataSets[n].fields.lh_first){
-                server->pubSubManager.publishedDataSets[n].fields.lh_first->listEntry.le_prev = &server->pubSubManager.publishedDataSets[n].fields.lh_first;
-            }
-        }
-    }
+
+    TAILQ_REMOVE(&server->pubSubManager.publishedDataSets, publishedDataSet, listEntry);
+    UA_free(publishedDataSet);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -282,8 +264,8 @@ UA_PubSubConfigurationVersionTimeDifference() {
 void
 UA_PubSubManager_generateUniqueNodeId(UA_Server *server, UA_NodeId *nodeId) {
     UA_NodeId newNodeId = UA_NODEID_NUMERIC(0, 0);
-    UA_Node *newNode = UA_Nodestore_newNode(server->nsCtx, UA_NODECLASS_OBJECT);
-    UA_Nodestore_insertNode(server->nsCtx, newNode, &newNodeId);
+    UA_Node *newNode = UA_NODESTORE_NEW(server, UA_NODECLASS_OBJECT);
+    UA_NODESTORE_INSERT(server, newNode, &newNodeId);
     UA_NodeId_copy(&newNodeId, nodeId);
 }
 
@@ -292,16 +274,33 @@ UA_PubSubManager_generateUniqueNodeId(UA_Server *server, UA_NodeId *nodeId) {
 void
 UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
     UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "PubSub cleanup was called.");
+
+    /* Stop and unfreeze all WriterGroups */
+    UA_PubSubConnection *tmpConnection;
+    TAILQ_FOREACH(tmpConnection, &server->pubSubManager.connections, listEntry){
+        for(size_t i = 0; i < pubSubManager->connectionsSize; i++) {
+            UA_WriterGroup *writerGroup;
+            LIST_FOREACH(writerGroup, &tmpConnection->writerGroups, listEntry) {
+                UA_WriterGroup_setPubSubState(server, UA_PUBSUBSTATE_DISABLED, writerGroup);
+                UA_Server_unfreezeWriterGroupConfiguration(server, writerGroup->identifier);
+            }
+        }
+    }
+
     //free the currently configured transport layers
-    UA_free(server->config.pubsubTransportLayers);
-    server->config.pubsubTransportLayersSize = 0;
+    if (server->config.pubsubTransportLayersSize > 0) {
+        UA_free(server->config.pubsubTransportLayers);
+        server->config.pubsubTransportLayersSize = 0;
+    }
 
     //remove Connections and WriterGroups
-    while(pubSubManager->connectionsSize > 0){
-        UA_Server_removePubSubConnection(server, pubSubManager->connections[pubSubManager->connectionsSize-1].identifier);
+    UA_PubSubConnection *tmpConnection1, *tmpConnection2;
+    TAILQ_FOREACH_SAFE(tmpConnection1, &server->pubSubManager.connections, listEntry, tmpConnection2){
+        UA_Server_removePubSubConnection(server, tmpConnection1->identifier);
     }
-    while(pubSubManager->publishedDataSetsSize > 0){
-        UA_Server_removePublishedDataSet(server, pubSubManager->publishedDataSets[pubSubManager->publishedDataSetsSize-1].identifier);
+    UA_PublishedDataSet *tmpPDS1, *tmpPDS2;
+    TAILQ_FOREACH_SAFE(tmpPDS1, &server->pubSubManager.publishedDataSets, listEntry, tmpPDS2){
+        UA_Server_removePublishedDataSet(server, tmpPDS1->identifier);
     }
 }
 
@@ -311,7 +310,7 @@ UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
 
 #ifndef UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
 
-/* If UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_INTERRUPT is enabled, a custom callback
+/* If UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING is enabled, a custom callback
  * management must be linked to the application */
 
 UA_StatusCode

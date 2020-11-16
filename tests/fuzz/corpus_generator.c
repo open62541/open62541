@@ -424,13 +424,12 @@ subscriptionRequests(UA_Client *client) {
     UA_PublishRequest publishRequest;
     UA_PublishRequest_init(&publishRequest);
     ASSERT_GOOD(UA_Client_preparePublishRequest(client, &publishRequest));
-    UA_PublishResponse publishResponse;
-    __UA_Client_Service(client, &publishRequest, &UA_TYPES[UA_TYPES_PUBLISHREQUEST],
-                        &publishResponse, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
+    UA_Client_sendAsyncRequest(client, &publishRequest,
+                               &UA_TYPES[UA_TYPES_PUBLISHREQUEST], NULL,
+                               &UA_TYPES[UA_TYPES_PUBLISHRESPONSE], NULL, NULL);
     // here we don't care about the return value since it may be UA_STATUSCODE_BADMESSAGENOTAVAILABLE
     // ASSERT_GOOD(publishResponse.responseHeader.serviceResult);
     UA_PublishRequest_deleteMembers(&publishRequest);
-    UA_PublishResponse_deleteMembers(&publishResponse);
 
     // republishRequest
     UA_RepublishRequest republishRequest;
@@ -579,7 +578,7 @@ int main(void) {
         // now also connect with user/pass so that fuzzer also knows how to do that
         client = UA_Client_new();
         UA_ClientConfig_setDefault(UA_Client_getConfig(client));
-        retval = UA_Client_connect_username(client, "opc.tcp://localhost:4840", "user", "password");
+        retval = UA_Client_connect_username(client, "opc.tcp://localhost:4840", "user1", "password");
         retval = retval == UA_STATUSCODE_BADUSERACCESSDENIED ? UA_STATUSCODE_GOOD : retval;
         UA_Client_disconnect(client);
         UA_Client_delete(client);

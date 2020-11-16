@@ -19,7 +19,7 @@ try {
     # vcpkg need to have  "C:\Tools\vcpkg\installed\x86-windows-static"
     New-Item -Force -ItemType directory -Path "C:\Tools\vcpkg\installed\x86-windows-static"
 
-    $cmake_cnf="$vcpkg_toolchain", "$vcpkg_triplet", "-G`"$env:GENERATOR`"", "-DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX"
+    $cmake_cnf="$vcpkg_toolchain", "$vcpkg_triplet", "-G`"$env:GENERATOR`"", "-DUA_FORCE_CPP:BOOL=$env:FORCE_CXX"
 
     # Collect files for .zip packing
     New-Item -ItemType directory -Path pack
@@ -57,6 +57,8 @@ try {
             -DUA_ENABLE_PUBSUB_DELTAFRAMES:BOOL=ON `
             -DUA_ENABLE_PUBSUB_INFORMATIONMODEL:BOOL=ON `
             -DUA_ENABLE_SUBSCRIPTIONS_EVENTS:BOOL=ON `
+            -DUA_ENABLE_PUBSUB_MQTT:BOOL=ON `
+	        -DUA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS:BOOL=ON `
             -DUA_NAMESPACE_ZERO:STRING=FULL ..
     & cmake --build . --config RelWithDebInfo
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {

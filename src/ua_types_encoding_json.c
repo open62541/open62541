@@ -108,25 +108,34 @@ static WRITE_JSON_ELEMENT(Quote) {
 
 WRITE_JSON_ELEMENT(ObjStart) {
     /* increase depth, save: before first key-value no comma needed. */
+    if(ctx->depth >= UA_JSON_ENCODING_MAX_RECURSION - 1)
+        return UA_STATUSCODE_BADENCODINGERROR;
     ctx->depth++;
     ctx->commaNeeded[ctx->depth] = false;
     return writeChar(ctx, '{');
 }
 
 WRITE_JSON_ELEMENT(ObjEnd) {
-    ctx->depth--; //decrease depth
+    if(ctx->depth == 0)
+        return UA_STATUSCODE_BADENCODINGERROR;
+    ctx->depth--;
     ctx->commaNeeded[ctx->depth] = true;
     return writeChar(ctx, '}');
 }
 
 WRITE_JSON_ELEMENT(ArrStart) {
     /* increase depth, save: before first array entry no comma needed. */
-    ctx->commaNeeded[++ctx->depth] = false;
+    if(ctx->depth >= UA_JSON_ENCODING_MAX_RECURSION - 1)
+        return UA_STATUSCODE_BADENCODINGERROR;
+    ctx->depth++;
+    ctx->commaNeeded[ctx->depth] = false;
     return writeChar(ctx, '[');
 }
 
 WRITE_JSON_ELEMENT(ArrEnd) {
-    ctx->depth--; //decrease depth
+    if(ctx->depth == 0)
+        return UA_STATUSCODE_BADENCODINGERROR;
+    ctx->depth--;
     ctx->commaNeeded[ctx->depth] = true;
     return writeChar(ctx, ']');
 }
@@ -222,7 +231,6 @@ writeJsonKey(CtxJson *ctx, const char* key) {
     status ret = writeJsonCommaIfNeeded(ctx);
     ctx->commaNeeded[ctx->depth] = true;
     if(ctx->calcOnly) {
-        ctx->commaNeeded[ctx->depth] = true;
         ctx->pos += 3;
         ctx->pos += size;
         return ret;
@@ -503,10 +511,14 @@ encodeJsonArray(CtxJson *ctx, const void *ptr, size_t length,
                 const UA_DataType *type) {
     encodeJsonSignature encodeType = encodeJsonJumpTable[type->typeKind];
     status ret = writeJsonArrStart(ctx);
+    if(ret != UA_STATUSCODE_GOOD)
+        return ret;
     uintptr_t uptr = (uintptr_t)ptr;
     for(size_t i = 0; i < length && ret == UA_STATUSCODE_GOOD; ++i) {
         ret |= writeJsonCommaIfNeeded(ctx);
         ret |= encodeType((const void*)uptr, type, ctx);
+        if(ret != UA_STATUSCODE_GOOD)
+            return ret;
         ctx->commaNeeded[ctx->depth] = true;
         uptr += type->memSize;
     }
@@ -1101,7 +1113,9 @@ Variant_encodeJsonWrapExtensionObject(const UA_Variant *src, const bool isArray,
     uintptr_t ptr = (uintptr_t) src->data;
 
     if(isArray) {
-        ret |= writeJsonArrStart(ctx);
+        ret = writeJsonArrStart(ctx);
+        if(ret != UA_STATUSCODE_GOOD)
+            return ret;
         ctx->commaNeeded[ctx->depth] = false;
 
         /* Iterate over the array */
@@ -1123,10 +1137,6 @@ static status
 addMultiArrayContentJSON(CtxJson *ctx, void* array, const UA_DataType *type, 
                          size_t *index, UA_UInt32 *arrayDimensions, size_t dimensionIndex, 
                          size_t dimensionSize) {
-    /* Check the recursion limit */
-    if(ctx->depth > UA_JSON_ENCODING_MAX_RECURSION)
-        return UA_STATUSCODE_BADENCODINGERROR;
-    
     /* Stop recursion: The inner Arrays are written */
     status ret;
     if(dimensionIndex == (dimensionSize - 1)) {
@@ -1138,6 +1148,8 @@ addMultiArrayContentJSON(CtxJson *ctx, void* array, const UA_DataType *type,
 
     /* Recurse to the next dimension */
     ret = writeJsonArrStart(ctx);
+    if(ret != UA_STATUSCODE_GOOD)
+        return ret;
     for(size_t i = 0; i < arrayDimensions[dimensionIndex]; i++) {
         ret |= writeJsonCommaIfNeeded(ctx);
         ret |= addMultiArrayContentJSON(ctx, array, type, index, arrayDimensions,
@@ -1154,9 +1166,8 @@ ENCODE_JSON(Variant) {
     /* If type is 0 (NULL) the Variant contains a NULL value and the containing
      * JSON object shall be omitted or replaced by the JSON literal ‘null’ (when
      * an element of a JSON array). */
-    if(!src->type) {
+    if(!src->type)
         return writeJsonNull(ctx);
-    }
         
     /* Set the content type in the encoding mask */
     const UA_Boolean isBuiltin = (src->type->typeKind <= UA_DATATYPEKIND_DIAGNOSTICINFO);
@@ -1381,12 +1392,9 @@ ENCODE_JSON(DiagnosticInfo) {
 
 static status
 encodeJsonStructure(const void *src, const UA_DataType *type, CtxJson *ctx) {
-    /* Check the recursion limit */
-    if(ctx->depth > UA_JSON_ENCODING_MAX_RECURSION)
-        return UA_STATUSCODE_BADENCODINGERROR;
-    ctx->depth++;
-
     status ret = writeJsonObjStart(ctx);
+    if(ret != UA_STATUSCODE_GOOD)
+        return ret;
 
     uintptr_t ptr = (uintptr_t) src;
     u8 membersSize = type->membersSize;
@@ -1413,8 +1421,6 @@ encodeJsonStructure(const void *src, const UA_DataType *type, CtxJson *ctx) {
     }
 
     ret |= writeJsonObjEnd(ctx);
-
-    ctx->depth--;
     return ret;
 }
 
@@ -2670,10 +2676,8 @@ DECODE_JSON(Variant) {
     UA_Boolean hasDimension = false;
     size_t searchResultDim = 0;
     ret = lookAheadForKey(UA_JSONKEY_DIMENSION, ctx, parseCtx, &searchResultDim);
-    if(ret == UA_STATUSCODE_GOOD) {
-        hasDimension = true;
-        dst->arrayDimensionsSize = (size_t)parseCtx->tokenArray[searchResultDim].size;
-    }
+    if(ret == UA_STATUSCODE_GOOD)
+        hasDimension = (parseCtx->tokenArray[searchResultDim].size > 0);
     
     /* no array but has dimension. error? */
     if(!isArray && hasDimension)
@@ -2973,6 +2977,7 @@ Variant_decodeJsonUnwrapExtensionObject(UA_Variant *dst, const UA_DataType *type
         ret = decodeFields(ctx, parseCtx, entries, encodingFound ? 3:2, typeOfBody);
         if(ret != UA_STATUSCODE_GOOD) {
             UA_free(dst->data);
+            dst->data = NULL;
         }
     } else if(encoding == 1 || encoding == 2 || typeOfBody == NULL) {
         UA_NodeId_deleteMembers(&typeId);
@@ -2987,8 +2992,10 @@ Variant_decodeJsonUnwrapExtensionObject(UA_Variant *dst, const UA_DataType *type
 
         /* decode: Does not move tokenindex. */
         ret = DECODE_DIRECT_JSON(dst->data, ExtensionObject);
-        if(ret != UA_STATUSCODE_GOOD)
+        if(ret != UA_STATUSCODE_GOOD) {
             UA_free(dst->data);
+            dst->data = NULL;
+        }
     } else {
         /*no recognized encoding type*/
         return UA_STATUSCODE_BADDECODINGERROR;
@@ -3150,7 +3157,7 @@ decodeJsonStructure(void *dst, const UA_DataType *type, CtxJson *ctx,
                     ParseCtx *parseCtx, UA_Boolean moveToken) {
     (void) moveToken;
     /* Check the recursion limit */
-    if(ctx->depth > UA_JSON_ENCODING_MAX_RECURSION)
+    if(ctx->depth >= UA_JSON_ENCODING_MAX_RECURSION - 1)
         return UA_STATUSCODE_BADENCODINGERROR;
     ctx->depth++;
 
@@ -3186,6 +3193,8 @@ decodeJsonStructure(void *dst, const UA_DataType *type, CtxJson *ctx,
     
     ret = decodeFields(ctx, parseCtx, entries, membersSize, type);
 
+    if(ctx->depth == 0)
+        return UA_STATUSCODE_BADENCODINGERROR;
     ctx->depth--;
     return ret;
 }
@@ -3270,7 +3279,7 @@ decodeJsonInternal(void *dst, const UA_DataType *type,
 status UA_FUNC_ATTR_WARN_UNUSED_RESULT
 UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type) {
     
-#ifndef UA_ENABLE_TYPENAMES
+#ifndef UA_ENABLE_TYPEDESCRIPTION
     return UA_STATUSCODE_BADNOTSUPPORTED;
 #endif
     

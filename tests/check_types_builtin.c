@@ -996,6 +996,40 @@ START_TEST(UA_DateTime_toStructShallWorkOnExample) {
 }
 END_TEST
 
+START_TEST(UA_DateTime_toStructAndBack) {
+    UA_DateTime src = 13974671891234567 + (11644473600 * 10000000);
+    UA_DateTime dst = UA_DateTime_fromStruct(UA_DateTime_toStruct(src));
+    ck_assert_int_eq(src, dst);
+
+    src = 0;
+    dst = UA_DateTime_fromStruct(UA_DateTime_toStruct(src));
+    ck_assert_int_eq(src, dst);
+
+    src = UA_DATETIME_UNIX_EPOCH;
+    dst = UA_DateTime_fromStruct(UA_DateTime_toStruct(src));
+    ck_assert_int_eq(src, dst);
+
+    src = -UA_DATETIME_UNIX_EPOCH;
+    dst = UA_DateTime_fromStruct(UA_DateTime_toStruct(src));
+    ck_assert_int_eq(src, dst);
+
+    /* Conversion to DateTimeStruct is currently broken for negative DateTimes.
+     * So dates before 1601! */
+
+    /* src = -UA_DATETIME_UNIX_EPOCH - UA_DATETIME_SEC - UA_DATETIME_MSEC - UA_DATETIME_USEC; */
+    /* dst = UA_DateTime_fromStruct(UA_DateTime_toStruct(src)); */
+    /* ck_assert_int_eq(src, dst); */
+
+    /* src = LLONG_MIN; */
+    /* dst = UA_DateTime_fromStruct(UA_DateTime_toStruct(src)); */
+    /* ck_assert_int_eq(src, dst); */
+
+    src = UA_INT64_MAX;
+    dst = UA_DateTime_fromStruct(UA_DateTime_toStruct(src));
+    ck_assert_int_eq(src, dst);
+}
+END_TEST
+
 START_TEST(UA_QualifiedName_equalShallWorkOnExample) {
     // given
     UA_QualifiedName qn1 = UA_QUALIFIEDNAME(5, "tEsT123!");
@@ -1518,6 +1552,7 @@ static Suite *testSuite_builtin(void) {
 
     TCase *tc_convert = tcase_create("convert");
     tcase_add_test(tc_convert, UA_DateTime_toStructShallWorkOnExample);
+    tcase_add_test(tc_convert, UA_DateTime_toStructAndBack);
     suite_add_tcase(s, tc_convert);
 
     TCase *tc_equal = tcase_create("equal");

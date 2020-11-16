@@ -5,19 +5,20 @@
  *    Copyright 2018 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2018 (c) Daniel Feist, Precitec GmbH & Co. KG
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
+ *    Copyright 2020 (c) Wind River Systems, Inc.
+ *    Copyright 2020 (c) basysKom GmbH
  *
  */
 
 #include <open62541/plugin/securitypolicy.h>
-
-#ifdef UA_ENABLE_ENCRYPTION
-
 #include <open62541/plugin/pki.h>
-#include <open62541/plugin/securitypolicy_default.h>
-#include <open62541/plugin/securitypolicy_mbedtls_common.h>
 #include <open62541/types.h>
 #include <open62541/util.h>
 
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+
+#include <open62541/plugin/securitypolicy_default.h>
+#include "securitypolicy_mbedtls_common.h"
 
 #include <mbedtls/aes.h>
 #include <mbedtls/entropy.h>
@@ -42,7 +43,6 @@
 #define UA_SECURITYPOLICY_BASIC256_MAXASYMKEYLENGTH 512
 
 typedef struct {
-    const UA_SecurityPolicy *securityPolicy;
     UA_ByteString localCertThumbprint;
 
     mbedtls_ctr_drbg_context drbgContext;
@@ -533,14 +533,14 @@ channelContext_compareCertificate_sp_basic256(const Basic256_ChannelContext *cc,
 }
 
 static void
-deleteMembers_sp_basic256(UA_SecurityPolicy *securityPolicy) {
+clear_sp_basic256(UA_SecurityPolicy *securityPolicy) {
     if(securityPolicy == NULL)
         return;
 
+    UA_ByteString_deleteMembers(&securityPolicy->localCertificate);
+
     if(securityPolicy->policyContext == NULL)
         return;
-
-    UA_ByteString_deleteMembers(&securityPolicy->localCertificate);
 
     /* delete all allocated members in the context */
     Basic256_PolicyContext *pc = (Basic256_PolicyContext *)
@@ -574,26 +574,23 @@ updateCertificateAndPrivateKey_sp_basic256(UA_SecurityPolicy *securityPolicy,
 
     UA_ByteString_deleteMembers(&securityPolicy->localCertificate);
 
-    UA_StatusCode retval = UA_ByteString_allocBuffer(&securityPolicy->localCertificate,
-                                                     newCertificate.length + 1);
-    if(retval != UA_STATUSCODE_GOOD)
+    UA_StatusCode retval = UA_mbedTLS_LoadLocalCertificate(&newCertificate, &securityPolicy->localCertificate);
+
+    if (retval != UA_STATUSCODE_GOOD)
         return retval;
-    memcpy(securityPolicy->localCertificate.data, newCertificate.data, newCertificate.length);
-    securityPolicy->localCertificate.data[newCertificate.length] = '\0';
-    securityPolicy->localCertificate.length--;
 
     /* Set the new private key */
     mbedtls_pk_free(&pc->localPrivateKey);
     mbedtls_pk_init(&pc->localPrivateKey);
-    int mbedErr = mbedtls_pk_parse_key(&pc->localPrivateKey,
-                                       newPrivateKey.data, newPrivateKey.length,
-                                       NULL, 0);
+
+    int mbedErr = UA_mbedTLS_LoadPrivateKey(&newPrivateKey, &pc->localPrivateKey);
+
     if(mbedErr) {
         retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         goto error;
     }
 
-    retval = asym_makeThumbprint_sp_basic256(pc->securityPolicy,
+    retval = asym_makeThumbprint_sp_basic256(securityPolicy,
                                              &securityPolicy->localCertificate,
                                              &pc->localCertThumbprint);
     if(retval != UA_STATUSCODE_GOOD)
@@ -605,7 +602,7 @@ updateCertificateAndPrivateKey_sp_basic256(UA_SecurityPolicy *securityPolicy,
     UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                  "Could not update certificate and private key");
     if(securityPolicy->policyContext != NULL)
-        deleteMembers_sp_basic256(securityPolicy);
+        clear_sp_basic256(securityPolicy);
     return retval;
 }
 
@@ -636,7 +633,6 @@ policyContext_newContext_sp_basic256(UA_SecurityPolicy *securityPolicy,
     mbedtls_entropy_init(&pc->entropyContext);
     mbedtls_pk_init(&pc->localPrivateKey);
     mbedtls_md_init(&pc->sha1MdContext);
-    pc->securityPolicy = securityPolicy;
 
     /* Initialized the message digest */
     const mbedtls_md_info_t *mdInfo = mbedtls_md_info_from_type(MBEDTLS_MD_SHA1);
@@ -648,7 +644,7 @@ policyContext_newContext_sp_basic256(UA_SecurityPolicy *securityPolicy,
 
     /* Add the system entropy source */
     mbedErr = mbedtls_entropy_add_source(&pc->entropyContext,
-                                         mbedtls_platform_entropy_poll, NULL, 0,
+                                         MBEDTLS_ENTROPY_POLL_METHOD, NULL, 0,
                                          MBEDTLS_ENTROPY_SOURCE_STRONG);
     if(mbedErr) {
         retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
@@ -666,8 +662,7 @@ policyContext_newContext_sp_basic256(UA_SecurityPolicy *securityPolicy,
     }
 
     /* Set the private key */
-    mbedErr = mbedtls_pk_parse_key(&pc->localPrivateKey, localPrivateKey.data,
-                                   localPrivateKey.length, NULL, 0);
+    mbedErr = UA_mbedTLS_LoadPrivateKey(&localPrivateKey, &pc->localPrivateKey);
     if(mbedErr) {
         retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         goto error;
@@ -677,9 +672,9 @@ policyContext_newContext_sp_basic256(UA_SecurityPolicy *securityPolicy,
     retval = UA_ByteString_allocBuffer(&pc->localCertThumbprint, UA_SHA1_LENGTH);
     if(retval != UA_STATUSCODE_GOOD)
         goto error;
-    retval = asym_makeThumbprint_sp_basic256(pc->securityPolicy,
-                                                  &securityPolicy->localCertificate,
-                                                  &pc->localCertThumbprint);
+    retval = asym_makeThumbprint_sp_basic256(securityPolicy,
+                                             &securityPolicy->localCertificate,
+                                             &pc->localCertThumbprint);
     if(retval != UA_STATUSCODE_GOOD)
         goto error;
 
@@ -689,33 +684,26 @@ error:
     UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                  "Could not create securityContext: %s", UA_StatusCode_name(retval));
     if(securityPolicy->policyContext != NULL)
-        deleteMembers_sp_basic256(securityPolicy);
+        clear_sp_basic256(securityPolicy);
     return retval;
 }
 
 UA_StatusCode
-UA_SecurityPolicy_Basic256(UA_SecurityPolicy *policy,
-                           UA_CertificateVerification *certificateVerification,
-                           const UA_ByteString localCertificate,
+UA_SecurityPolicy_Basic256(UA_SecurityPolicy *policy, const UA_ByteString localCertificate,
                            const UA_ByteString localPrivateKey, const UA_Logger *logger) {
     memset(policy, 0, sizeof(UA_SecurityPolicy));
     policy->logger = logger;
 
-    policy->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Basic256");
+    policy->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Basic256\0");
 
     UA_SecurityPolicyAsymmetricModule *const asymmetricModule = &policy->asymmetricModule;
     UA_SecurityPolicySymmetricModule *const symmetricModule = &policy->symmetricModule;
     UA_SecurityPolicyChannelModule *const channelModule = &policy->channelModule;
 
-    /* Copy the certificate and add a NULL to the end */
-    UA_StatusCode retval =
-        UA_ByteString_allocBuffer(&policy->localCertificate, localCertificate.length + 1);
-    if(retval != UA_STATUSCODE_GOOD)
+    UA_StatusCode retval = UA_mbedTLS_LoadLocalCertificate(&localCertificate, &policy->localCertificate);
+
+    if (retval != UA_STATUSCODE_GOOD)
         return retval;
-    memcpy(policy->localCertificate.data, localCertificate.data, localCertificate.length);
-    policy->localCertificate.data[localCertificate.length] = '\0';
-    policy->localCertificate.length--;
-    policy->certificateVerification = certificateVerification;
 
     /* AsymmetricModule */
     UA_SecurityPolicySignatureAlgorithm *asym_signatureAlgorithm =
@@ -826,9 +814,13 @@ UA_SecurityPolicy_Basic256(UA_SecurityPolicy *policy,
         channelContext_compareCertificate_sp_basic256;
 
     policy->updateCertificateAndPrivateKey = updateCertificateAndPrivateKey_sp_basic256;
-    policy->deleteMembers = deleteMembers_sp_basic256;
+    policy->clear = clear_sp_basic256;
 
-    return policyContext_newContext_sp_basic256(policy, localPrivateKey);
+    UA_StatusCode res = policyContext_newContext_sp_basic256(policy, localPrivateKey);
+    if(res != UA_STATUSCODE_GOOD)
+        clear_sp_basic256(policy);
+
+    return res;
 }
 
 #endif

@@ -25,18 +25,25 @@ THREAD_CALLBACK(serverloop) {
     return 0;
 }
 
-static void setup(void) {
+static void runServer(void) {
     running = true;
+    THREAD_CREATE(server_thread, serverloop);
+}
+
+static void pauseServer(void) {
+    running = false;
+    THREAD_JOIN(server_thread);
+}
+
+static void setup(void) {
     server = UA_Server_new();
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     UA_Server_run_startup(server);
-    THREAD_CREATE(server_thread, serverloop);
-    UA_realSleep(100);
+    runServer();
 }
 
 static void teardown(void) {
-    running = false;
-    THREAD_JOIN(server_thread);
+    pauseServer();
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
 }
@@ -57,6 +64,44 @@ START_TEST(SecureChannel_timeout_max) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Variant_deleteMembers(&val);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(SecureChannel_renew) {
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    pauseServer();
+
+    /* Get the channel id */
+    UA_UInt32 channelId = client->channel.securityToken.channelId;
+
+    /* Renew the channel for the first time */
+    UA_fakeSleep((UA_UInt32)(client->channel.securityToken.revisedLifetime * 0.8));
+
+    UA_Client_run_iterate(client, 1);
+    UA_Server_run_iterate(server, false);
+    UA_Client_run_iterate(client, 1);
+    UA_Server_run_iterate(server, false);
+
+    /* Renew the channel for the second time */
+    UA_fakeSleep((UA_UInt32)(client->channel.securityToken.revisedLifetime * 0.8));
+
+    UA_Client_run_iterate(client, 1);
+    UA_Server_run_iterate(server, false);
+    UA_Client_run_iterate(client, 1);
+    UA_Server_run_iterate(server, false);
+
+    /* We are still on the same channel */
+    ck_assert_uint_eq(channelId, client->channel.securityToken.channelId);
+
+    runServer();
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
@@ -115,7 +160,7 @@ START_TEST(SecureChannel_networkfail) {
     UA_Variant_init(&val);
     UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
     retval = UA_Client_readValueAttribute(client, nodeId, &val);
-    ck_assert(retval == UA_STATUSCODE_BADSECURECHANNELCLOSED);
+    ck_assert(retval == UA_STATUSCODE_BADCONNECTIONCLOSED);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
@@ -129,10 +174,7 @@ START_TEST(SecureChannel_reconnect) {
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     
-    client->state = UA_CLIENTSTATE_CONNECTED;
-
-    retval = UA_Client_disconnect(client);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Client_disconnectSecureChannel(client);
 
     UA_ClientConfig *cconfig = UA_Client_getConfig(client);
     UA_fakeSleep(cconfig->secureChannelLifeTime + 1);
@@ -163,16 +205,17 @@ START_TEST(SecureChannel_cableunplugged) {
     client->connection.recv = UA_Client_recvTesting;
 
     /* Simulate network cable unplugged (no response from server) */
-    UA_Client_recvTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+    UA_Client_recvTesting_result = UA_STATUSCODE_BADINTERNALERROR;
 
     UA_Variant_init(&val);
     retval = UA_Client_readValueAttribute(client, nodeId, &val);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONNECTIONCLOSED);
 
-    ck_assert(UA_Client_getState(client) == UA_CLIENTSTATE_DISCONNECTED);
+    UA_SecureChannelState scs;
+    UA_Client_getState(client, &scs, NULL, NULL);
+    ck_assert_int_eq(scs, UA_SECURECHANNELSTATE_CLOSED);
 
     UA_Client_recvTesting_result = UA_STATUSCODE_GOOD;
-
     UA_Client_delete(client);
 }
 END_TEST
@@ -180,6 +223,7 @@ END_TEST
 int main(void) {
     TCase *tc_sc = tcase_create("Client SecureChannel");
     tcase_add_checked_fixture(tc_sc, setup, teardown);
+    tcase_add_test(tc_sc, SecureChannel_renew);
     tcase_add_test(tc_sc, SecureChannel_timeout_max);
     tcase_add_test(tc_sc, SecureChannel_timeout_fail);
     tcase_add_test(tc_sc, SecureChannel_networkfail);

@@ -97,6 +97,7 @@ START_TEST(CheckNMandDSMcalculation){
     //maximum DSM in one NM = 10
     writerGroupConfig.maxEncapsulatedDataSetMessageCount = 10;
     UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroupIdent);
+    UA_Server_setWriterGroupOperational(server, writerGroupIdent);
     UA_UadpWriterGroupMessageDataType_delete(wgm);
 
     UA_DataSetWriterConfig dataSetWriterConfig;
@@ -129,7 +130,7 @@ START_TEST(CheckNMandDSMcalculation){
     for(size_t i = 10; i > 0; i--){
         ck_assert_int_eq(*(networkMessage.payloadHeader.dataSetPayloadHeader.dataSetWriterIds+(i-1)), 21-i);
     }
-    UA_NetworkMessage_deleteMembers(&networkMessage);
+    UA_NetworkMessage_clear(&networkMessage);
 
     //change publish interval triggers implicit one publish callback run | alternatively run UA_Server_iterate
     writerGroupConfig.publishingInterval = 200000;
@@ -141,8 +142,8 @@ START_TEST(CheckNMandDSMcalculation){
     receiveSingleMessage(buffer, connection, &networkMessage2);
     ck_assert_int_eq(networkMessage1.payloadHeader.dataSetPayloadHeader.count, 5);
     ck_assert_int_eq(networkMessage1.payloadHeader.dataSetPayloadHeader.count, 5);
-    UA_NetworkMessage_deleteMembers(&networkMessage1);
-    UA_NetworkMessage_deleteMembers(&networkMessage2);
+    UA_NetworkMessage_clear(&networkMessage1);
+    UA_NetworkMessage_clear(&networkMessage2);
 
     //change publish interval triggers implicit one publish callback run | alternatively run UA_Server_iterate
     writerGroupConfig.publishingInterval = 300000;
@@ -152,7 +153,7 @@ START_TEST(CheckNMandDSMcalculation){
     UA_NetworkMessage networkMessage3;
     receiveSingleMessage(buffer, connection, &networkMessage3);
     ck_assert_int_eq(networkMessage3.payloadHeader.dataSetPayloadHeader.count, 10);
-    UA_NetworkMessage_deleteMembers(&networkMessage3);
+    UA_NetworkMessage_clear(&networkMessage3);
 
     //change publish interval triggers implicit one publish callback run | alternatively run UA_Server_iterate
     writerGroupConfig.publishingInterval = 400000;
@@ -163,7 +164,7 @@ START_TEST(CheckNMandDSMcalculation){
     for (int j = 0; j < 10; ++j) {
         receiveSingleMessage(buffer, connection, &(messageArray[j]));
         ck_assert_int_eq(messageArray[j].payloadHeader.dataSetPayloadHeader.count, 1);
-        UA_NetworkMessage_deleteMembers(&messageArray[j]);
+        UA_NetworkMessage_clear(&messageArray[j]);
     }
 
     //change publish interval triggers implicit one publish callback run | alternatively run UA_Server_iterate
@@ -175,8 +176,48 @@ START_TEST(CheckNMandDSMcalculation){
     for (int j = 0; j < 10; ++j) {
         receiveSingleMessage(buffer, connection, &(messageArray[j]));
         ck_assert_int_eq(messageArray[j].payloadHeader.dataSetPayloadHeader.count, 1);
-        UA_NetworkMessage_deleteMembers(&messageArray[j]);
+        UA_NetworkMessage_clear(&messageArray[j]);
     }
+
+    } END_TEST
+
+START_TEST(CheckNMandDSMBufferCalculation){
+        UA_WriterGroupConfig writerGroupConfig;
+        memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
+        writerGroupConfig.name = UA_STRING("Demo WriterGroup");
+        writerGroupConfig.publishingInterval = 10;
+        writerGroupConfig.enabled = UA_FALSE;
+        writerGroupConfig.writerGroupId = 100;
+        writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
+        writerGroupConfig.rtLevel = UA_PUBSUB_RT_NONE;
+
+        UA_UadpWriterGroupMessageDataType *wgm = UA_UadpWriterGroupMessageDataType_new();
+        wgm->networkMessageContentMask = UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER;
+        writerGroupConfig.messageSettings.content.decoded.data = wgm;
+        writerGroupConfig.messageSettings.content.decoded.type =
+                &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
+        writerGroupConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
+
+        //maximum DSM in one NM = 10
+        writerGroupConfig.maxEncapsulatedDataSetMessageCount = 10;
+        UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroupIdent);
+        UA_Server_setWriterGroupOperational(server, writerGroupIdent);
+        UA_UadpWriterGroupMessageDataType_delete(wgm);
+
+        UA_DataSetWriterConfig dataSetWriterConfig;
+        memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
+        dataSetWriterConfig.name = UA_STRING("Test DataSetWriter");
+        dataSetWriterConfig.dataSetWriterId = 10;
+        dataSetWriterConfig.keyFrameCount = 1;
+        //add 10 dataSetWriter
+        for(UA_UInt16 i = 0; i < 10; i++){
+            dataSetWriterConfig.dataSetWriterId = (UA_UInt16) (dataSetWriterConfig.dataSetWriterId + 1);
+            UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent,
+                                       &dataSetWriterConfig, &dataSetWriterIdent);
+        }
+
+        UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent);
+        UA_Server_unfreezeWriterGroupConfiguration(server, writerGroupIdent);
 
     } END_TEST
 
@@ -184,6 +225,7 @@ int main(void) {
     TCase *tc_add_pubsub_DSMandNMcalculation = tcase_create("PubSub NM and DSM");
     tcase_add_checked_fixture(tc_add_pubsub_DSMandNMcalculation, setup, teardown);
     tcase_add_test(tc_add_pubsub_DSMandNMcalculation, CheckNMandDSMcalculation);
+    tcase_add_test(tc_add_pubsub_DSMandNMcalculation, CheckNMandDSMBufferCalculation);
 
     Suite *s = suite_create("PubSub NM and DSM calculation");
     suite_add_tcase(s, tc_add_pubsub_DSMandNMcalculation);

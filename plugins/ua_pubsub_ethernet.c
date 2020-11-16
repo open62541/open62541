@@ -3,14 +3,21 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *   Copyright 2018 (c) Kontron Europe GmbH (Author: Rudolf Hoyler)
+ *   Copyright 2019 (c) Wind River Systems, Inc.
  */
 
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pubsub_ethernet.h>
 #include <open62541/util.h>
 
+#if defined(__vxworks) || defined(__VXWORKS__)
+#include <netpacket/packet.h>
+#include <netinet/if_ether.h>
+#define ETH_ALEN ETHER_ADDR_LEN
+#else
 #include <linux/if_packet.h>
 #include <netinet/ether.h>
+#endif
 
 #ifndef ETHERTYPE_UADP
 #define ETHERTYPE_UADP 0xb62c
@@ -175,7 +182,11 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
         UA_free(newChannel);
         return NULL;
     }
+#if defined(__vxworks) || defined(__VXWORKS__)
+    memcpy(channelDataEthernet->ifAddress, &ifreq.ifr_ifru.ifru_addr.sa_data, ETH_ALEN);
+#else
     memcpy(channelDataEthernet->ifAddress, &ifreq.ifr_hwaddr.sa_data, ETH_ALEN);
+#endif
 
     /* bind the socket to interface and ethertype */
     struct sockaddr_ll sll = { 0 };
@@ -265,7 +276,7 @@ UA_PubSubChannelEthernet_unregist(UA_PubSubChannel *channel,
     mreq.mr_alen = ETH_ALEN;
     memcpy(mreq.mr_address, channelDataEthernet->targetAddress, ETH_ALEN);
 
-    if(UA_setsockopt(channel->sockfd, SOL_PACKET, PACKET_DROP_MEMBERSHIP, (char*) &mreq, sizeof(mreq) < 0)) {
+    if(UA_setsockopt(channel->sockfd, SOL_PACKET, PACKET_DROP_MEMBERSHIP, (char*) &mreq, sizeof(mreq)) < 0) { 
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub Connection regist failed.");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -293,6 +304,10 @@ UA_PubSubChannelEthernet_send(UA_PubSubChannel *channel,
 
     lenBuf = sizeof(*ethHdr) + 4 + buf->length;
     bufSend = (char*) UA_malloc(lenBuf);
+    if (bufSend == NULL)
+        {
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
     ethHdr = (struct ether_header*) bufSend;
 
     /* Set (own) source MAC address */

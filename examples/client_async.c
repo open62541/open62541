@@ -13,10 +13,10 @@
 /* async connection callback, it only gets called after the completion of the whole
  * connection process*/
 static void
-onConnect(UA_Client *client, void *userdata, UA_UInt32 requestId,
-          void *status) {
+onConnect(UA_Client *client, UA_SecureChannelState channelState,
+          UA_SessionState sessionState, UA_StatusCode connectStatus) {
     printf("Async connect returned with status code %s\n",
-           UA_StatusCode_name(*(UA_StatusCode *) status));
+           UA_StatusCode_name(connectStatus));
 }
 
 static
@@ -34,15 +34,11 @@ void
 readValueAttributeCallback(UA_Client *client, void *userdata,
                            UA_UInt32 requestId, UA_Variant *var) {
     printf("%-50s%i\n", "Read value attribute for request", requestId);
-
     if(UA_Variant_hasScalarType(var, &UA_TYPES[UA_TYPES_INT32])) {
         UA_Int32 int_val = *(UA_Int32*) var->data;
         printf("---%-40s%-8i\n",
                "Reading the value of node (1, \"the.answer\"):", int_val);
     }
-
-    /*more type distinctions possible*/
-    return;
 }
 
 static
@@ -91,22 +87,14 @@ methodCalled(UA_Client *client, void *userdata, UA_UInt32 requestId,
     UA_CallResponse_clear(response);
 }
 
-static void
-translateCalled(UA_Client *client, void *userdata, UA_UInt32 requestId,
-                UA_TranslateBrowsePathsToNodeIdsResponse *response) {
-    printf("%-50s%i\n", "Translated path for request ", requestId);
-
-    if(response->results[0].targetsSize == 1)
-        return;
-    UA_TranslateBrowsePathsToNodeIdsResponse_clear(response);
-}
-#endif /* UA_ENABLE_METHODCALLS */
+#endif
 #endif
 
 int
 main(int argc, char *argv[]) {
     UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    UA_ClientConfig_setDefault(cc);
     UA_UInt32 reqId = 0;
     UA_String userdata = UA_STRING("userdata");
 
@@ -118,7 +106,8 @@ main(int argc, char *argv[]) {
     bReq.nodesToBrowse[0].nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     bReq.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL; /* return everything */
 
-    UA_Client_connect_async(client, "opc.tcp://localhost:4840", onConnect, NULL);
+    cc->stateCallback = onConnect;
+    UA_Client_connectAsync(client, "opc.tcp://localhost:4840");
 
     /*Windows needs time to response*/
     UA_sleep_ms(100);
@@ -128,8 +117,9 @@ main(int argc, char *argv[]) {
 
     UA_DateTime startTime = UA_DateTime_nowMonotonic();
     do {
-        /*TODO: fix memory-related bugs if condition not checked*/
-        if(UA_Client_getState(client) == UA_CLIENTSTATE_SESSION) {
+        UA_SessionState ss;
+        UA_Client_getState(client, NULL, &ss, NULL);
+        if(ss == UA_SESSIONSTATE_ACTIVATED) {
             /* If not connected requests are not sent */
             UA_Client_sendAsyncBrowseRequest(client, &bReq, fileBrowsed, &userdata, &reqId);
         }
@@ -152,7 +142,9 @@ main(int argc, char *argv[]) {
     UA_Variant_init(&input);
 
     for(UA_UInt16 i = 0; i < 5; i++) {
-        if(UA_Client_getState(client) == UA_CLIENTSTATE_SESSION) {
+        UA_SessionState ss;
+        UA_Client_getState(client, NULL, &ss, NULL);
+        if(ss == UA_SESSIONSTATE_ACTIVATED) {
             /* writing and reading value 1 to 5 */
             UA_Variant_setScalarCopy(&myVariant, &value, &UA_TYPES[UA_TYPES_INT32]);
             value++;
@@ -178,14 +170,6 @@ main(int argc, char *argv[]) {
                                  UA_NODEID_NUMERIC(1, 62541), 1, &input,
                                  methodCalled, NULL, &reqId);
             UA_String_clear(&stringValue);
-
-    #define pathSize 3
-            char *paths[pathSize] = { "Server", "ServerStatus", "State" };
-            UA_UInt32 ids[pathSize] = { UA_NS0ID_ORGANIZES,
-            UA_NS0ID_HASCOMPONENT, UA_NS0ID_HASCOMPONENT };
-
-            UA_Cient_translateBrowsePathsToNodeIds_async(client, paths, ids, pathSize,
-                                                         translateCalled, NULL, &reqId);
 #endif /* UA_ENABLE_METHODCALLS */
 #endif
             /* How often UA_Client_run_iterate is called depends on the number of request sent */

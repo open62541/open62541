@@ -526,7 +526,7 @@ readRaw_service_default(UA_Server *server,
         range.dimensionsSize = 0;
         range.dimensions = NULL;
         if (nodesToRead[i].indexRange.length > 0) {
-            UA_StatusCode rangeParseResult = UA_NumericRange_parseFromString(&range, &nodesToRead[i].indexRange);
+            UA_StatusCode rangeParseResult = UA_NumericRange_parse(&range, nodesToRead[i].indexRange);
             if (rangeParseResult != UA_STATUSCODE_GOOD) {
                 response->results[i].statusCode = rangeParseResult;
                 continue;
@@ -602,7 +602,7 @@ setValue_service_default(UA_Server *server,
 }
 
 static void
-deleteMembers_service_default(UA_HistoryDatabase *hdb)
+clear_service_default(UA_HistoryDatabase *hdb)
 {
     if (hdb == NULL || hdb->context == NULL)
         return;
@@ -615,6 +615,7 @@ UA_HistoryDatabase
 UA_HistoryDatabase_default(UA_HistoryDataGathering gathering)
 {
     UA_HistoryDatabase hdb;
+    memset(&hdb, 0, sizeof(UA_HistoryDatabase));
     UA_HistoryDatabaseContext_default *context =
             (UA_HistoryDatabaseContext_default*)
             UA_calloc(1, sizeof(UA_HistoryDatabaseContext_default));
@@ -624,6 +625,6 @@ UA_HistoryDatabase_default(UA_HistoryDataGathering gathering)
     hdb.setValue = &setValue_service_default;
     hdb.updateData = &updateData_service_default;
     hdb.deleteRawModified = &deleteRawModified_service_default;
-    hdb.deleteMembers = &deleteMembers_service_default;
+    hdb.clear = clear_service_default;
     return hdb;
 }
