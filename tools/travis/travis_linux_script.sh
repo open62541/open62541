@@ -441,7 +441,7 @@ cmake \
     -DUA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS=ON \
     -DUA_ENABLE_UNIT_TESTS_MEMCHECK=OFF \
     -DUA_NAMESPACE_ZERO=FULL ..
-make -j && make test ARGS="-V"
+make -j && make test # ARGS="-V"
 if [ $? -ne 0 ] ; then exit 1 ; fi
 cd .. && rm build -rf
 echo -en 'travis_fold:end:script.build.unit_test_ns0_full\\r'
@@ -466,7 +466,7 @@ if [ "$CC" != "tcc" ]; then
         -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON \
         -DUA_NAMESPACE_ZERO=MINIMAL ..
 
-    make -j && make test ARGS="-V"
+    make -j && make test # ARGS="-V"
     if [ $? -ne 0 ] ; then exit 1 ; fi
     cd .. && rm build -rf
     echo -en 'travis_fold:end:script.build.unit_test_ns0_minimal\\r'
@@ -512,7 +512,7 @@ if [ "$CC" != "tcc" ]; then
         -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
         -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON \
         -DUA_NAMESPACE_ZERO=REDUCED ..
-    make -j && make test ARGS="-V"
+    make -j && make test # ARGS="-V"
     if [ $? -ne 0 ] ; then exit 1 ; fi
     echo -en 'travis_fold:end:script.build.unit_test_ns0_reduced\\r'
 

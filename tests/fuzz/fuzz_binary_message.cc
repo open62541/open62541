@@ -32,18 +32,23 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     size -= 4;
 
     UA_Connection c = createDummyConnection(RECEIVE_BUFFER_SIZE, NULL);
-    UA_Server *server = UA_Server_new();
-    if(!server) {
+
+    /* less debug output */
+    UA_ServerConfig initialConfig;
+    memset(&initialConfig, 0, sizeof(UA_ServerConfig));
+    UA_StatusCode retval = UA_ServerConfig_setDefault(&initialConfig);
+    initialConfig.allowEmptyVariables = UA_RULEHANDLING_ACCEPT;
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ServerConfig_clean(&initialConfig);
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "Could not create server instance using UA_Server_new");
+                     "Could not generate the server config");
         return 0;
     }
 
-    UA_StatusCode retval = UA_ServerConfig_setDefault(UA_Server_getConfig(server));
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_Server_delete(server);
+    UA_Server *server = UA_Server_newWithConfig(&initialConfig);
+    if(!server) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "Could not set the server config");
+                     "Could not create server instance using UA_Server_new");
         return 0;
     }
 
