@@ -352,9 +352,19 @@ browseRecursive(UA_Server *server, size_t startNodesSize, const UA_NodeId *start
         return retval;
 
     for(size_t i = 0; i < startNodesSize; i++) {
-        retval = browseRecursiveInner(server, &rt, 0, !includeStartNodes,
-                                      &startNodes[i], browseDirection,
-                                      refTypes, nodeClassMask);
+        /* Call the inner recursive browse separately for the search direction.
+         * Otherwise we might take one step up and another step down in the
+         * search tree. */
+        if(browseDirection == UA_BROWSEDIRECTION_FORWARD ||
+           browseDirection == UA_BROWSEDIRECTION_BOTH)
+            retval |= browseRecursiveInner(server, &rt, 0, !includeStartNodes,
+                                           &startNodes[i], UA_BROWSEDIRECTION_FORWARD,
+                                           refTypes, nodeClassMask);
+        if(browseDirection == UA_BROWSEDIRECTION_INVERSE ||
+           browseDirection == UA_BROWSEDIRECTION_BOTH)
+            retval |= browseRecursiveInner(server, &rt, 0, !includeStartNodes,
+                                           &startNodes[i], UA_BROWSEDIRECTION_INVERSE,
+                                           refTypes, nodeClassMask);
         if(retval != UA_STATUSCODE_GOOD)
             break;
     }
