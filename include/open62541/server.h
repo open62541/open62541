@@ -97,6 +97,13 @@ struct UA_ServerConfig {
     /* Rule Handling */
     UA_RuleHandling verifyRequestTimestamp; /* Verify that the server sends a
                                              * timestamp in the request header */
+    UA_RuleHandling allowEmptyVariables; /* Variables (that don't have a
+                                          * DataType of BaseDataType) must not
+                                          * have an empty variant value. The
+                                          * default behaviour is to auto-create
+                                          * a matching zeroed-out value for
+                                          * empty VariableNodes when they are
+                                          * added. */
 
     /* Custom DataTypes. Attention! Custom datatypes are not cleaned up together
      * with the configuration. So it is possible to allocate them on ROM. */
