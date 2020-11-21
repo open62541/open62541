@@ -316,20 +316,32 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
      * otherwise that matches the constraints. */
     if(!value.hasValue || !value.value.type) {
         if(!UA_NodeId_equal(&node->dataType, &UA_TYPES[UA_TYPES_VARIANT].typeId)) {
-            logAddNode(&server->config.logger, session, &node->head.nodeId,
-                   "The value is empty. But this is only allowed for BaseDataType. "
-                   "Create a matching default value.");
-            retval = setDefaultValue(server, node);
-            if(retval != UA_STATUSCODE_GOOD)
-                UA_LOG_NODEID_INFO(&node->head.nodeId,
-                UA_LOG_INFO_SESSION(&server->config.logger, session,
-                                    "AddNode (%.*s): Could not create a default value "
-                                    "with StatusCode %s", (int)nodeIdStr.length,
-                                    nodeIdStr.data, UA_StatusCode_name(retval)));
+            /* Warn if that is configured */
+            if(server->config.allowEmptyVariables != UA_RULEHANDLING_ACCEPT)
+                logAddNode(&server->config.logger, session, &node->head.nodeId,
+                           "The value is empty. But this is only allowed for BaseDataType. "
+                           "Create a matching default value.");
+
+            /* Abort if that is configured */
+            if(server->config.allowEmptyVariables == UA_RULEHANDLING_ABORT)
+                retval = UA_STATUSCODE_BADTYPEMISMATCH;
+
+            /* Try to generate a default value if that is configured */
+            if(server->config.allowEmptyVariables == UA_RULEHANDLING_DEFAULT) {
+                retval = setDefaultValue(server, node);
+                if(retval != UA_STATUSCODE_GOOD)
+                    UA_LOG_NODEID_INFO(&node->head.nodeId,
+                    UA_LOG_INFO_SESSION(&server->config.logger, session,
+                                        "AddNode (%.*s): Could not create a default value "
+                                        "with StatusCode %s", (int)nodeIdStr.length,
+                                        nodeIdStr.data, UA_StatusCode_name(retval)));
+            }
         }
 
-        UA_DataValue_clear(&value);
-        return retval;
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_DataValue_clear(&value);
+            return retval;
+        }
     }
 
     /* Perform the value typecheck. If this fails, write the current value
