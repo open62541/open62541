@@ -142,6 +142,25 @@ isNodeInTree_singleRef(UA_Server *server, const UA_NodeId *leafNode,
     return isNodeInTree(server, leafNode, nodeToFind, &reftypes);
 }
 
+UA_StatusCode
+UA_Server_isNodeInHierachy(UA_Server *server,
+                           const UA_NodeId *leafNode,
+                           const UA_NodeId *rootNode) {
+    UA_LOCK(server->serviceMutex);
+
+    /* Get all hierarchical reference types */
+    UA_ReferenceTypeSet hierarchRefsSet;
+    UA_NodeId hr = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
+    referenceTypeIndices(server, &hr, &hierarchRefsSet, true);
+
+    /* Call isNodeInTree */
+    UA_StatusCode res = isNodeInTree(server, leafNode, rootNode, &hierarchRefsSet);
+
+    UA_UNLOCK(server->serviceMutex);
+
+    return res;
+}
+
 /***********/
 /* RefTree */
 /***********/

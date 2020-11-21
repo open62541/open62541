@@ -775,6 +775,14 @@ UA_Server_browseSimplifiedBrowsePath(UA_Server *server, const UA_NodeId origin,
                                      size_t browsePathSize,
                                      const UA_QualifiedName *browsePath);
 
+/* Check if the leaf node is "under" the root node in the information model. For
+ * this, the hierarchical references of the leaf node are followed in the
+ * inverse (upwards) direction. */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_isNodeInHierachy(UA_Server *server,
+                           const UA_NodeId *leafNode,
+                           const UA_NodeId *rootNode);
+
 #ifndef HAVE_NODEITER_CALLBACK
 #define HAVE_NODEITER_CALLBACK
 /* Iterate over all nodes referenced by parentNodeId by calling the callback
