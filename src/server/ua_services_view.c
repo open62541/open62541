@@ -142,7 +142,7 @@ isNodeInTree_singleRef(UA_Server *server, const UA_NodeId *leafNode,
     return isNodeInTree(server, leafNode, nodeToFind, &reftypes);
 }
 
-UA_StatusCode
+UA_Boolean
 UA_Server_isNodeInHierachy(UA_Server *server,
                            const UA_NodeId *leafNode,
                            const UA_NodeId *rootNode) {
@@ -154,7 +154,7 @@ UA_Server_isNodeInHierachy(UA_Server *server,
     referenceTypeIndices(server, &hr, &hierarchRefsSet, true);
 
     /* Call isNodeInTree */
-    UA_StatusCode res = isNodeInTree(server, leafNode, rootNode, &hierarchRefsSet);
+    UA_Boolean res = isNodeInTree(server, leafNode, rootNode, &hierarchRefsSet);
 
     UA_UNLOCK(server->serviceMutex);
 
