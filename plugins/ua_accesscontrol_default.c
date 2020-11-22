@@ -8,15 +8,6 @@
 
 #include <open62541/plugin/accesscontrol_default.h>
 
-/* Example access control management. Anonymous and username / password login.
- * The access rights are maximally permissive.
- *
- * FOR PRODUCTION USE, THIS EXAMPLE PLUGIN SHOULD BE REPLACED WITH LESS
- * PERMISSIVE ACCESS CONTROL.
- *
- * For TransferSubscriptions, we check whether the transfer happens between
- * Sessions for the same user. */
-
 typedef struct {
     UA_Boolean allowAnonymous;
     size_t usernamePasswordLoginSize;
@@ -27,6 +18,9 @@ typedef struct {
 #define USERNAME_POLICY "open62541-username-policy"
 const UA_String anonymous_policy = UA_STRING_STATIC(ANONYMOUS_POLICY);
 const UA_String username_policy = UA_STRING_STATIC(USERNAME_POLICY);
+
+const UA_NodeId objectsId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_OBJECTSFOLDER}};
+const UA_NodeId serverId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_SERVER}};
 
 /************************/
 /* Access Control Logic */
@@ -132,7 +126,12 @@ static UA_Byte
 getUserAccessLevel_default(UA_Server *server, UA_AccessControl *ac,
                            const UA_NodeId *sessionId, void *sessionContext,
                            const UA_NodeId *nodeId, void *nodeContext) {
-    return 0xFF;
+    /* Grant write access only under the objects folder */
+    UA_Boolean userNode = UA_Server_isNodeInHierachy(server, nodeId, &objectsId);
+    UA_Byte accessLevel = 0xFF;
+    if(!userNode)
+        accessLevel &= (UA_Byte)~UA_ACCESSLEVELMASK_WRITE;
+    return accessLevel;
 }
 
 static UA_Boolean
@@ -154,28 +153,44 @@ static UA_Boolean
 allowAddNode_default(UA_Server *server, UA_AccessControl *ac,
                      const UA_NodeId *sessionId, void *sessionContext,
                      const UA_AddNodesItem *item) {
-    return true;
+    /* AddNodes only under the Objects folder */
+    return UA_Server_isNodeInHierachy(server, &item->parentNodeId.nodeId, &objectsId) &&
+        !UA_Server_isNodeInHierachy(server, &item->parentNodeId.nodeId, &serverId);
 }
 
 static UA_Boolean
 allowAddReference_default(UA_Server *server, UA_AccessControl *ac,
                           const UA_NodeId *sessionId, void *sessionContext,
                           const UA_AddReferencesItem *item) {
-    return true;
+    /* AddReferences only between Nodes under the Objects folder.
+     * HasTypeDefinition references are excempt from that rule. But only for the
+     * AddNodes service. */
+    return UA_Server_isNodeInHierachy(server, &item->sourceNodeId, &objectsId) &&
+        !UA_Server_isNodeInHierachy(server, &item->sourceNodeId, &serverId) &&
+        UA_Server_isNodeInHierachy(server, &item->targetNodeId.nodeId, &objectsId) &&
+        !UA_Server_isNodeInHierachy(server, &item->targetNodeId.nodeId, &serverId);
 }
 
 static UA_Boolean
 allowDeleteNode_default(UA_Server *server, UA_AccessControl *ac,
                         const UA_NodeId *sessionId, void *sessionContext,
                         const UA_DeleteNodesItem *item) {
-    return true;
+    /* DeleteNode only under the objects folder */
+    return UA_Server_isNodeInHierachy(server, &item->nodeId, &objectsId) &&
+        !UA_Server_isNodeInHierachy(server, &item->nodeId, &serverId);
 }
 
 static UA_Boolean
 allowDeleteReference_default(UA_Server *server, UA_AccessControl *ac,
                              const UA_NodeId *sessionId, void *sessionContext,
                              const UA_DeleteReferencesItem *item) {
-    return true;
+    /* DeleteReferences only between Nodes under the Objects folder. With
+     * exceptions for the DeleteNodes service if either the source or the target
+     * are deleted. */
+    return UA_Server_isNodeInHierachy(server, &item->sourceNodeId, &objectsId) &&
+        !UA_Server_isNodeInHierachy(server, &item->sourceNodeId, &serverId) &&
+        UA_Server_isNodeInHierachy(server, &item->targetNodeId.nodeId, &objectsId) &&
+        !UA_Server_isNodeInHierachy(server, &item->targetNodeId.nodeId, &serverId);
 }
 
 static UA_Boolean

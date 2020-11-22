@@ -840,7 +840,9 @@ AddNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
         }
     }
 
-    /* Add reference to the parent */
+    /* Add reference to the parent. User the server admin session as the new
+     * node is not yet in the hierarchy. So we cannot check whether it is at a
+     * writable place in the hierarchy. */
     if(!UA_NodeId_isNull(parentNodeId)) {
         if(UA_NodeId_isNull(referenceTypeId)) {
             UA_LOG_NODEID_WRAP(UA_LOGLEVEL_INFO, nodeId,
@@ -852,7 +854,8 @@ AddNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
             goto cleanup;
         }
 
-        retval = addRef(server, session, &head->nodeId, referenceTypeId, parentNodeId, false);
+        retval = addRef(server, &server->adminSession, &head->nodeId,
+                        referenceTypeId, parentNodeId, false);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_NODEID_WRAP(UA_LOGLEVEL_INFO, nodeId,
                                UA_LOG_INFO_SESSION(&server->config.logger, session,
@@ -863,11 +866,13 @@ AddNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
         }
     }
 
-    /* Add a hasTypeDefinition reference */
+    /* Add a hasTypeDefinition reference. Use the server admin session to be
+     * allowed to add a reference to the type node. */
     if(head->nodeClass == UA_NODECLASS_VARIABLE ||
        head->nodeClass == UA_NODECLASS_OBJECT) {
         UA_assert(type != NULL); /* see above */
-        retval = addRef(server, session, &head->nodeId, &hasTypeDefinition, &type->head.nodeId, true);
+        retval = addRef(server, &server->adminSession, &head->nodeId,
+                        &hasTypeDefinition, &type->head.nodeId, true);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_NODEID_WRAP(UA_LOGLEVEL_INFO, nodeId,
                                UA_LOG_INFO_SESSION(&server->config.logger, session,
@@ -1656,8 +1661,9 @@ recursiveDeleteNode(UA_Server *server, UA_Session *session,
 
     UA_BrowseResult_clear(&br);
 
+    /* Use the admin session to remove references to the deleted node */
     if(removeTargetRefs)
-        removeIncomingReferences(server, session, head);
+        removeIncomingReferences(server, &server->adminSession, head);
 
     UA_NODESTORE_REMOVE(server, &head->nodeId);
 }

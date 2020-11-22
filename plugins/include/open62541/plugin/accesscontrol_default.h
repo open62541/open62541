@@ -18,8 +18,17 @@ typedef struct {
     UA_String password;
 } UA_UsernamePasswordLogin;
 
-/* Default access control. The log-in can be anonymous or username-password. A
- * logged-in user has all access rights. */
+/* Example access control management. Anonymous and username / password login.
+ * The access rights are maximally permissive. A logged-in user has
+ * read/write/execute/nodemanagement access under the "Objects" folder (but not
+ * in the "Server" object) and read/execute access everywhere else.
+ *
+ * FOR PRODUCTION USE, THIS EXAMPLE PLUGIN SHOULD BE REPLACED WITH LESS
+ * PERMISSIVE ACCESS CONTROL.
+ *
+ * For TransferSubscriptions, we check whether the transfer happens between
+ * Sessions for the same user. */
+
 UA_EXPORT UA_StatusCode
 UA_AccessControl_default(UA_ServerConfig *config, UA_Boolean allowAnonymous,
                          const UA_ByteString *userTokenPolicyUri,

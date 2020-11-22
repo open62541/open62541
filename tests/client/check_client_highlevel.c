@@ -88,6 +88,7 @@ UA_NodeId newViewId;
 START_TEST(Node_Add) {
     UA_StatusCode retval;
 
+    /* Adding type nodes over the network is blocked by the default Access Control
     // Create custom reference type 'HasSubSubType' as child of HasSubtype
     {
         UA_ReferenceTypeAttributes attr = UA_ReferenceTypeAttributes_default;
@@ -113,7 +114,7 @@ START_TEST(Node_Add) {
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
 
-    /* Minimal nodeset does not contain UA_NS0ID_INTEGER node */
+    // Minimal nodeset does not contain UA_NS0ID_INTEGER node
     #ifdef UA_GENERATED_NAMESPACE_ZERO
     // Create Int128 DataType within Integer Datatype
     {
@@ -138,7 +139,7 @@ START_TEST(Node_Add) {
         attr.arrayDimensionsSize = 1;
         attr.displayName = UA_LOCALIZEDTEXT("en-US", "PointType");
 
-        /* a matching default value is required */
+        // a matching default value is required
         UA_Double zero[2] = {0.0, 0.0};
         UA_Variant_setArray(&attr.value, zero, 2, &UA_TYPES[UA_TYPES_INT32]);
         retval = UA_Client_addVariableTypeNode(client, UA_NODEID_NULL,
@@ -147,6 +148,7 @@ START_TEST(Node_Add) {
                                                UA_QUALIFIEDNAME(1, "PointType"), attr, &newVariableTypeId);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
+    */
 
     // create Coordinates Object within ObjectsFolder
     {
@@ -196,6 +198,7 @@ START_TEST(Node_Add) {
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
 
+    /*
     // create View 'AllTopCoordinates' whithin Views Folder
     {
         UA_ViewAttributes attr = UA_ViewAttributes_default;
@@ -227,6 +230,7 @@ START_TEST(Node_Add) {
     // Delete 'AllTopCoordinates' view
     retval = UA_Client_deleteNode(client, newViewId, UA_TRUE);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    */
 }
 END_TEST
 
@@ -463,6 +467,7 @@ START_TEST(Node_AddReadWriteNodes) {
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
 
+    /* Adding type nodes over the network is blocked by the default Access Control
     // Create TestObjectType SubType within BaseObjectType
     {
         UA_ObjectTypeAttributes attr = UA_ObjectTypeAttributes_default;
@@ -505,6 +510,7 @@ START_TEST(Node_AddReadWriteNodes) {
                                        attr, &nodeReadWriteView);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
+    */
         
     // iterate over children
     retval = UA_Client_forEachChildNodeCall(client, nodeReadWriteUnitTest, nodeIter, NULL);
