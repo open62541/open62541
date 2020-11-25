@@ -126,6 +126,7 @@ UA_VariableNode_copy(const UA_VariableNode *src, UA_VariableNode *dst) {
     dst->accessLevel = src->accessLevel;
     dst->minimumSamplingInterval = src->minimumSamplingInterval;
     dst->historizing = src->historizing;
+    dst->isDynamic = src->isDynamic;
     return UA_CommonVariableNode_copy(src, dst);
 }
 

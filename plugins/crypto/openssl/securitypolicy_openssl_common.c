@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2020 (c) Wind River Systems, Inc.
+ *    Copyright 2020 (c) basysKom GmbH
  */
 
 /*
@@ -23,6 +24,7 @@ modification history
 #include <openssl/x509.h>
 #include <openssl/hmac.h>
 #include <openssl/aes.h>
+#include <openssl/pem.h>
 
 #include "securitypolicy_openssl_common.h"
 
@@ -172,8 +174,8 @@ UA_Openssl_X509_GetCertificateThumbprint (const UA_ByteString * certficate,
             return UA_STATUSCODE_BADINTERNALERROR;
         }
     }
-    const unsigned char * pTemp = certficate->data;
-    X509 * x509Certificate = d2i_X509 (NULL, &pTemp, (long) certficate->length);
+    X509 * x509Certificate = UA_OpenSSL_LoadCertificate(certficate);
+
     if (x509Certificate == NULL) {
         if (bThumbPrint) {
             UA_ByteString_clear (pThumbprint);
@@ -195,20 +197,17 @@ UA_Openssl_X509_GetCertificateThumbprint (const UA_ByteString * certficate,
 
 static UA_StatusCode
 UA_Openssl_RSA_Private_Decrypt (UA_ByteString *       data, 
-                               const UA_ByteString * privateKey,
+                               EVP_PKEY * privateKey,
                                UA_Int16              padding) {
     if (data == NULL || privateKey == NULL) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-    const unsigned char * pkey = privateKey->data;
-    EVP_PKEY * evpKey = d2i_PrivateKey(EVP_PKEY_RSA, NULL, 
-                        &pkey, (long) privateKey->length);
-    if (evpKey == NULL) {
+    if (privateKey == NULL) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
     
-    UA_Int32 keySize = RSA_size(get_pkey_rsa(evpKey));  
+    UA_Int32 keySize = RSA_size(get_pkey_rsa(privateKey));
     size_t cipherOffset = 0;
     size_t outOffset = 0;
     unsigned char buf[2048];
@@ -218,11 +217,10 @@ UA_Openssl_RSA_Private_Decrypt (UA_ByteString *       data,
         decryptedBytes = RSA_private_decrypt (keySize, 
                            data->data + cipherOffset, /* what to decrypt  */
                            buf,                       /* where to decrypt */
-                           get_pkey_rsa(evpKey),      /* private key      */
+                           get_pkey_rsa(privateKey),      /* private key      */
                            padding
                            );
         if (decryptedBytes < 0) {
-            EVP_PKEY_free(evpKey);
             return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         }
         memcpy(data->data + outOffset, buf, (size_t) decryptedBytes);
@@ -230,13 +228,12 @@ UA_Openssl_RSA_Private_Decrypt (UA_ByteString *       data,
         outOffset += (size_t) decryptedBytes;
     }
     data->length = outOffset;
-    EVP_PKEY_free(evpKey);
     return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
 UA_Openssl_RSA_Oaep_Decrypt (UA_ByteString *       data, 
-                             const UA_ByteString * privateKey) {
+                             EVP_PKEY * privateKey) {
     return  UA_Openssl_RSA_Private_Decrypt (data, privateKey, 
                                             RSA_PKCS1_OAEP_PADDING);
 }
@@ -450,32 +447,26 @@ UA_Openssl_RSA_Public_GetKeyLength (X509 *     publicKeyX509,
 }
 
 UA_StatusCode 
-UA_Openssl_RSA_Private_GetKeyLength (const UA_ByteString * privateKey,
+UA_Openssl_RSA_Private_GetKeyLength (EVP_PKEY * privateKey,
                                      UA_Int32 *            keyLen) {
-    const unsigned char * pkey = privateKey->data;
-    EVP_PKEY * evpKey = d2i_PrivateKey(EVP_PKEY_RSA, NULL, 
-                          &pkey, (long) privateKey->length);
-    if (evpKey == NULL) {
+    if (privateKey == NULL) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
-    *keyLen = RSA_size(get_pkey_rsa(evpKey));                                           
-    EVP_PKEY_free (evpKey);
+    *keyLen = RSA_size(get_pkey_rsa(privateKey));
 
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode 
 UA_Openssl_RSA_Private_Sign (const UA_ByteString * message,
-                     const UA_ByteString * privateKey,
+                     EVP_PKEY * privateKey,
                      const EVP_MD *        evpMd,
                      UA_Int16              padding,                     
                      UA_ByteString *       outSignature) { 
     EVP_MD_CTX *     mdctx        = NULL;                                  
     int              opensslRet;
     EVP_PKEY_CTX *   evpKeyCtx;  
-    EVP_PKEY *       evpKey       = NULL;
     UA_StatusCode    ret;
-    const unsigned char * pkey = NULL;
 
     mdctx = EVP_MD_CTX_create ();
     if (mdctx == NULL) {
@@ -483,13 +474,10 @@ UA_Openssl_RSA_Private_Sign (const UA_ByteString * message,
         goto errout;
     }
 
-    pkey = privateKey->data;
-    evpKey = d2i_PrivateKey(EVP_PKEY_RSA, NULL, 
-                        &pkey, (long) privateKey->length);
-    if (evpKey == NULL) {
+    if (privateKey == NULL) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
-    opensslRet = EVP_DigestSignInit (mdctx, &evpKeyCtx, evpMd, NULL, evpKey);
+    opensslRet = EVP_DigestSignInit (mdctx, &evpKeyCtx, evpMd, NULL, privateKey);
     if (opensslRet != 1) {
         ret = UA_STATUSCODE_BADINTERNALERROR;
         goto errout;
@@ -509,18 +497,15 @@ UA_Openssl_RSA_Private_Sign (const UA_ByteString * message,
 
     ret = UA_STATUSCODE_GOOD;
 errout:
-    if (evpKey != NULL) {
-        EVP_PKEY_free (evpKey);
-    }
     if (mdctx != NULL) {
         EVP_MD_CTX_destroy (mdctx);
     }
     return ret;    
-} 
+}
 
 UA_StatusCode 
 UA_Openssl_RSA_PKCS1_V15_SHA256_Sign (const UA_ByteString * message,
-                                      const UA_ByteString * privateKey,
+                                      EVP_PKEY * privateKey,
                                       UA_ByteString *       outSignature) {
     return UA_Openssl_RSA_Private_Sign (message, privateKey, EVP_sha256(), 
                 NID_sha256, outSignature); 
@@ -712,10 +697,7 @@ UA_OpenSSL_AES_256_CBC_Encrypt (const UA_ByteString * iv,
 UA_StatusCode 
 UA_OpenSSL_X509_compare (const UA_ByteString * cert, 
                          const X509 *          bcert) {
-
-    const unsigned char * pData = cert->data;    
-    X509 * acert = d2i_X509 (NULL, &pData, 
-                             (long) cert->length);
+    X509 * acert = UA_OpenSSL_LoadCertificate(cert);
     if (acert == NULL) {
         return UA_STATUSCODE_BADCERTIFICATEINVALID;
     }
@@ -737,7 +719,7 @@ UA_OpenSSL_RSA_PKCS1_V15_SHA1_Verify (const UA_ByteString * msg,
 
 UA_StatusCode 
 UA_Openssl_RSA_PKCS1_V15_SHA1_Sign (const UA_ByteString * message,
-                                    const UA_ByteString * privateKey,
+                                    EVP_PKEY * privateKey,
                                     UA_ByteString *       outSignature) {
     return UA_Openssl_RSA_Private_Sign (message, privateKey, EVP_sha1(), 
                                         NID_sha1, outSignature); 
@@ -859,7 +841,7 @@ UA_OpenSSL_HMAC_SHA1_Sign (const UA_ByteString *     message,
 
 UA_StatusCode
 UA_Openssl_RSA_PKCS1_V15_Decrypt (UA_ByteString *       data, 
-                                  const UA_ByteString * privateKey) {
+                                  EVP_PKEY * privateKey) {
     return  UA_Openssl_RSA_Private_Decrypt (data, privateKey, 
                                             RSA_PKCS1_PADDING);                                      
 }
@@ -898,5 +880,93 @@ UA_OpenSSL_AES_128_CBC_Encrypt (const UA_ByteString * iv,
                                 ) {
     return UA_OpenSSL_Encrypt (iv, key, EVP_aes_128_cbc (), data);
 }
+
+EVP_PKEY *
+UA_OpenSSL_LoadPrivateKey(const UA_ByteString *privateKey) {
+    const unsigned char * pkData = privateKey->data;
+    long len = (long) privateKey->length;
+
+    EVP_PKEY *result = NULL;
+
+    if (len > 1 && pkData[0] == 0x30 && pkData[1] == 0x82) { // Magic number for DER encoded keys
+        result = d2i_PrivateKey(EVP_PKEY_RSA, NULL,
+                                          &pkData, len);
+    } else {
+        BIO *bio = NULL;
+#if OPENSSL_VERSION_NUMBER < 0x1000207fL
+        bio = BIO_new_mem_buf((void *) privateKey->data, (int) privateKey->length);
+#else
+        bio = BIO_new_mem_buf((const void *) privateKey->data, (int) privateKey->length);
+#endif
+        result = PEM_read_bio_PrivateKey(bio, NULL, NULL, NULL);
+        BIO_free(bio);
+    }
+
+    return result;
+}
+
+X509 *
+UA_OpenSSL_LoadCertificate(const UA_ByteString *certificate) {
+    X509 * result = NULL;
+    const unsigned char *pData = certificate->data;
+
+    if (certificate->length > 1 && pData[0] == 0x30 && pData[1] == 0x82) { // Magic number for DER encoded files
+        result = UA_OpenSSL_LoadDerCertificate(certificate);
+    } else {
+        result = UA_OpenSSL_LoadPemCertificate(certificate);
+    }
+
+    return result;
+}
+
+X509 *
+UA_OpenSSL_LoadDerCertificate(const UA_ByteString *certificate) {
+    const unsigned char *pData = certificate->data;
+    return d2i_X509(NULL, &pData, (long) certificate->length);
+}
+
+X509 *
+UA_OpenSSL_LoadPemCertificate(const UA_ByteString *certificate) {
+    X509 * result = NULL;
+
+    BIO* bio = NULL;
+#if OPENSSL_VERSION_NUMBER < 0x1000207fL
+    bio = BIO_new_mem_buf((void *) certificate->data, (int) certificate->length);
+#else
+    bio = BIO_new_mem_buf((const void *) certificate->data, (int) certificate->length);
+#endif
+    result = PEM_read_bio_X509(bio, NULL, NULL, NULL);
+    BIO_free(bio);
+
+    return result;
+}
+
+UA_StatusCode
+UA_OpenSSL_LoadLocalCertificate(const UA_ByteString *certificate, UA_ByteString *target) {
+    X509 *cert = UA_OpenSSL_LoadCertificate(certificate);
+
+    if (!cert) {
+        UA_ByteString_init(target);
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    unsigned char *derData = NULL;
+    int length = i2d_X509(cert, &derData);
+    X509_free(cert);
+
+    if (length > 0) {
+        UA_ByteString temp;
+        temp.length = (size_t) length;
+        temp.data = derData;
+        UA_ByteString_copy(&temp, target);
+        OPENSSL_free(derData);
+        return UA_STATUSCODE_GOOD;
+    } else {
+        UA_ByteString_init(target);
+    }
+
+    return UA_STATUSCODE_BADINVALIDARGUMENT;
+}
+
 
 #endif

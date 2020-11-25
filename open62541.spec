@@ -1,5 +1,5 @@
 Name:     open62541
-Version:  0.3
+Version:  1.0.1
 Release:  1%{?dist}
 Summary:  OPC UA implementation
 License:  MPLv2.0
