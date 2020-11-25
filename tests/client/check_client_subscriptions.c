@@ -703,7 +703,7 @@ START_TEST(Client_subscription_createDataChanges_async) {
     retval = UA_Client_MonitoredItems_delete_async(
         client, deleteRequest, deleteMonitoredItemsCallback, &deleteResponse, &reqId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    UA_realSleep(50);  // need to wait until response is at the client
+    UA_realSleep(500);  // need to wait until response is at the client
     retval = UA_Client_run_iterate(client, 0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
