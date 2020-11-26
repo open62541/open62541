@@ -71,6 +71,7 @@ typedef struct UA_PubSubConnection{
     size_t readerGroupsSize;
     TAILQ_ENTRY(UA_PubSubConnection) listEntry;
     UA_UInt16 configurationFreezeCounter;
+    UA_Boolean isRegistered; // Subscriber requires connection channel regist
     /* This flag is 'read only' and is set internally based on the PubSub state. */
     UA_Boolean configurationFrozen;
 } UA_PubSubConnection;

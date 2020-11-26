@@ -21,6 +21,7 @@ typedef struct {
     UA_UInt32 messageTTL;
     UA_Boolean enableLoopback;
     UA_Boolean enableReuse;
+    UA_Boolean isMulticast;
 } UA_PubSubChannelDataUDPMC;
 
 /**
@@ -54,7 +55,7 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
     }
 
     /* Set default values */
-    UA_PubSubChannelDataUDPMC defaultValues = {0, NULL, 255, UA_TRUE, UA_TRUE};
+    UA_PubSubChannelDataUDPMC defaultValues = {0, NULL, 255, UA_TRUE, UA_TRUE, UA_TRUE};
     memcpy(channelDataUDPMC, &defaultValues, sizeof(UA_PubSubChannelDataUDPMC));
     /* Iterate over the given KeyValuePair parameters */
     UA_String ttlParam = UA_STRING("ttl");
@@ -125,7 +126,7 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
         return NULL;
     }
 
-    bool isMulticast = true;
+
     /* Check if the ip address is a multicast address */
     if(requestResult->ai_family == PF_INET) {
         struct in_addr imr_interface;
@@ -134,7 +135,7 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
            (UA_ntohl(imr_interface.s_addr) & 0xF0000000) != 0xE0000000) {
             UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                 "PubSub Connection is created for a unicast address (IPv4)");
-            isMulticast = false;
+            channelDataUDPMC->isMulticast = UA_FALSE;
         }
     } else {
         struct in6_addr imr_interface;
@@ -143,7 +144,7 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
            (imr_interface.s6_addr[0] != 0xFF)) {
             UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                 "PubSub Connection is created for a unicast address (IPv6)");
-            isMulticast = false;
+            channelDataUDPMC->isMulticast = UA_FALSE;
         }
     }
 
@@ -305,22 +306,32 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
         goto cleanup;
     }
 
-    if(isMulticast){
-#if UA_IPV6
-        if(UA_setsockopt(newChannel->sockfd,
-            requestResult->ai_family == PF_INET6 ? IPPROTO_IPV6 : IPPROTO_IP,
-            requestResult->ai_family == PF_INET6 ? IPV6_JOIN_GROUP : IP_ADD_MEMBERSHIP,
-            ipVersion == IPv6 ? (const void *) &group.ipv6 : &group.ipv4,
-            ipVersion == IPv6 ? sizeof(group.ipv6) : sizeof(group.ipv4)) < 0)
-#else
-        if(UA_setsockopt(newChannel->sockfd, IPPROTO_IP, IP_ADD_MEMBERSHIP,
-                        &group.ipv4, sizeof(group.ipv4)) < 0)
-#endif
-        {
+    if(requestResult->ai_family == PF_INET){//IPv4 handling
+        struct sockaddr_in addr;
+        memset(&addr, 0, sizeof(addr));
+        addr.sin_family = AF_INET;
+        memcpy(&addr, requestResult->ai_addr, sizeof(struct sockaddr_in));
+        addr.sin_addr.s_addr = INADDR_ANY;
+        if(UA_bind(newChannel->sockfd, (const struct sockaddr *)&addr,
+                    sizeof(struct sockaddr_in)) != 0){
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                        "PubSub Connection creation problem. Join multicast group failed.");
+                         "PubSub connection creation failed (IPv4). Cannot bind socket.");
             goto cleanup;
         }
+#if UA_IPV6
+    } else if(requestResult->ai_family == PF_INET6) {//IPv6 handling
+        struct sockaddr_in6 addr;
+        memset(&addr, 0, sizeof(addr));
+        addr.sin6_family = AF_INET6;
+        memcpy(&addr, requestResult->ai_addr, sizeof(struct sockaddr_in6));
+        addr.sin6_addr = in6addr_any;
+        if(UA_bind(newChannel->sockfd, (const struct sockaddr *)&addr,
+                   sizeof(struct sockaddr_in6)) != 0){
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                        "PubSub connection creation failed (IPv6). Cannot bind socket.");
+            goto cleanup;
+        }
+#endif
     }
 
     UA_freeaddrinfo(requestResult);
@@ -350,35 +361,29 @@ UA_PubSubChannelUDPMC_regist(UA_PubSubChannel *channel, UA_ExtensionObject *tran
     }
 
     UA_PubSubChannelDataUDPMC * connectionConfig = (UA_PubSubChannelDataUDPMC *) channel->handle;
-    if(connectionConfig->ai_family == PF_INET){//IPv4 handling
-        struct sockaddr_in addr;
-        memset(&addr, 0, sizeof(addr));
-        addr.sin_family = AF_INET;
-        memcpy(&addr, connectionConfig->ai_addr, sizeof(struct sockaddr_in));
-        addr.sin_addr.s_addr = INADDR_ANY;
-        if(UA_bind(channel->sockfd, (const struct sockaddr *)&addr,
-                    sizeof(struct sockaddr_in)) != 0){
-            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                         "PubSub Connection regist failed. (IPv4)");
-            return UA_STATUSCODE_BADINTERNALERROR;
-        }
+    struct ip_mreq groupV4;
+    groupV4.imr_interface.s_addr = UA_htonl(INADDR_ANY);
+    memcpy(&groupV4.imr_multiaddr,
+           &((const struct sockaddr_in *)connectionConfig->ai_addr)->sin_addr,
+           sizeof(struct ip_mreq));
+
+    if(connectionConfig->isMulticast){
 #if UA_IPV6
-    } else if(connectionConfig->ai_family == PF_INET6) {//IPv6 handling
-        struct sockaddr_in6 addr;
-        memset(&addr, 0, sizeof(addr));
-        addr.sin6_family = AF_INET6;
-        memcpy(&addr, connectionConfig->ai_addr, sizeof(struct sockaddr_in6));
-        addr.sin6_addr = in6addr_any;
-        if(UA_bind(channel->sockfd, (const struct sockaddr *)&addr,
-                   sizeof(struct sockaddr_in6)) != 0){
+        struct ipv6_mreq groupV6;
+        if(UA_setsockopt(channel->sockfd,
+            connectionConfig->ai_family == PF_INET6 ? IPPROTO_IPV6 : IPPROTO_IP,
+            connectionConfig->ai_family == PF_INET6 ? IPV6_JOIN_GROUP : IP_ADD_MEMBERSHIP,
+            connectionConfig->ai_family == PF_INET6 ? (const void *) &groupV6 : &groupV4,
+            connectionConfig->ai_family == PF_INET6 ? sizeof(groupV6) : sizeof(groupV4)) < 0)
+#else
+        if(UA_setsockopt(channel->sockfd, IPPROTO_IP, IP_ADD_MEMBERSHIP,
+                        &groupV4, sizeof(groupV4)) < 0)
+#endif
+        {
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                         "PubSub Connection regist failed. (IPv6)");
+                         "PubSub Connection regist failed.");
             return UA_STATUSCODE_BADINTERNALERROR;
         }
-#endif
-    } else {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub Connection regist failed.");
-        return UA_STATUSCODE_BADINTERNALERROR;
     }
     return UA_STATUSCODE_GOOD;
 }

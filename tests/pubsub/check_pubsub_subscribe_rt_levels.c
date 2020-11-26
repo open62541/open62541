@@ -132,10 +132,6 @@ START_TEST(SubscribeSingleFieldWithFixedOffsets) {
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     ck_assert(addMinimalPubSubConfiguration() == UA_STATUSCODE_GOOD);
     UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, connectionIdentifier);
-    if(connection != NULL) {
-        UA_StatusCode rv = connection->channel->regist(connection->channel, NULL, NULL);
-        ck_assert(rv == UA_STATUSCODE_GOOD);
-    }
     UA_WriterGroupConfig writerGroupConfig;
     memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
     writerGroupConfig.name = UA_STRING("Demo WriterGroup");
@@ -303,12 +299,6 @@ START_TEST(SubscribeSingleFieldWithFixedOffsets) {
 START_TEST(SetupInvalidPubSubConfig) {
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     ck_assert(addMinimalPubSubConfiguration() == UA_STATUSCODE_GOOD);
-    UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, connectionIdentifier);
-    if(connection != NULL) {
-        UA_StatusCode rv = connection->channel->regist(connection->channel, NULL, NULL);
-        ck_assert(rv == UA_STATUSCODE_GOOD);
-    }
-
     UA_WriterGroupConfig writerGroupConfig;
     memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
     writerGroupConfig.name = UA_STRING("Demo WriterGroup");
