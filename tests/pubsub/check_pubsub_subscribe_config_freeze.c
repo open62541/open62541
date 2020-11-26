@@ -46,7 +46,6 @@ START_TEST(CreateAndLockConfiguration) {
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
     UA_Server_addPubSubConnection(server, &connectionConfig, &connection1);
-    UA_PubSubConnection_regist(server, &connection1);
 
     UA_ReaderGroupConfig readerGroupConfig;
     memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
@@ -98,7 +97,6 @@ START_TEST(CreateAndReleaseMultipleLocks) {
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
     UA_Server_addPubSubConnection(server, &connectionConfig, &connection1);
-    UA_PubSubConnection_regist(server, &connection1);
 
     //Add two reader groups
     UA_ReaderGroupConfig readerGroupConfig;
@@ -161,7 +159,6 @@ START_TEST(CreateLockAndEditConfiguration) {
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
     UA_Server_addPubSubConnection(server, &connectionConfig, &connection1);
-    UA_PubSubConnection_regist(server, &connection1);
 
     UA_ReaderGroupConfig readerGroupConfig;
     memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
