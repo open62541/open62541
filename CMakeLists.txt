@@ -1520,7 +1520,7 @@ if(NOT UA_ENABLE_AMALGAMATION)
         string(REPLACE ${BASE_PATH_DEPS} "" file ${file})
 
         get_filename_component( dir ${file} DIRECTORY )
-        if(${full_path} MATCHES "deps")
+        if(${full_path} MATCHES ${BASE_PATH_DEPS})
             install( FILES ${full_path} DESTINATION include${dir} )
         else()
             install( FILES ${full_path} DESTINATION include/open62541${dir} )
