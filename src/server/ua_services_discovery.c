@@ -203,7 +203,7 @@ Service_GetEndpoints(UA_Server *server, UA_Session *session,
     UA_LOCK_ASSERT(server->serviceMutex, 1);
 
     /* If the client expects to see a specific endpointurl, mirror it back. If
-       not, clone the endpoints with the discovery url of all networklayers. */
+     * not, clone the endpoints with the discovery url of all networklayers. */
     const UA_String *endpointUrl = &request->endpointUrl;
     if(endpointUrl->length > 0) {
         UA_LOG_DEBUG_SESSION(&server->config.logger, session,
@@ -214,33 +214,6 @@ Service_GetEndpoints(UA_Server *server, UA_Session *session,
                              "Processing GetEndpointsRequest with an empty endpointUrl");
     }
 
-    /* test if the supported binary profile shall be returned */
-    size_t reSize = sizeof(UA_Boolean) * server->config.endpointsSize;
-    UA_STACKARRAY(UA_Boolean, relevant_endpoints, reSize);
-    memset(relevant_endpoints, 0, reSize);
-    size_t relevant_count = 0;
-    if(request->profileUrisSize == 0) {
-        for(size_t j = 0; j < server->config.endpointsSize; ++j)
-            relevant_endpoints[j] = true;
-        relevant_count = server->config.endpointsSize;
-    } else {
-        for(size_t j = 0; j < server->config.endpointsSize; ++j) {
-            for(size_t i = 0; i < request->profileUrisSize; ++i) {
-                if(!UA_String_equal(&request->profileUris[i],
-                                    &server->config.endpoints[j].transportProfileUri))
-                    continue;
-                relevant_endpoints[j] = true;
-                ++relevant_count;
-                break;
-            }
-        }
-    }
-
-    if(relevant_count == 0) {
-        response->endpointsSize = 0;
-        return;
-    }
-
     /* Clone the endpoint for each networklayer? */
     size_t clone_times = 1;
     UA_Boolean nl_endpointurl = false;
@@ -249,41 +222,56 @@ Service_GetEndpoints(UA_Server *server, UA_Session *session,
         nl_endpointurl = true;
     }
 
-    response->endpoints =
-        (UA_EndpointDescription*)UA_Array_new(relevant_count * clone_times,
-                                              &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+    /* Allocate enough memory */
+    response->endpoints = (UA_EndpointDescription*)
+        UA_Array_new(server->config.endpointsSize * clone_times,
+                     &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
     if(!response->endpoints) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
     }
-    response->endpointsSize = relevant_count * clone_times;
 
-    size_t k = 0;
-    UA_StatusCode retval;
-    for(size_t i = 0; i < clone_times; ++i) {
-        if(nl_endpointurl)
-            endpointUrl = &server->config.networkLayers[i].discoveryUrl;
-        for(size_t j = 0; j < server->config.endpointsSize; ++j) {
-            if(!relevant_endpoints[j])
-                continue;
-            retval = UA_EndpointDescription_copy(&server->config.endpoints[j],
-                                                 &response->endpoints[k]);
+    size_t pos = 0;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    for(size_t j = 0; j < server->config.endpointsSize; ++j) {
+        /* Test if the supported binary profile shall be returned */
+        UA_Boolean usable = (request->profileUrisSize == 0);
+        if(!usable) {
+            for(size_t i = 0; i < request->profileUrisSize; ++i) {
+                if(!UA_String_equal(&request->profileUris[i],
+                                    &server->config.endpoints[j].transportProfileUri))
+                    continue;
+                usable = true;
+                break;
+            }
+        }
+        if(!usable)
+            continue;
+
+        /* Copy into the results */
+        for(size_t i = 0; i < clone_times; ++i) {
+            retval |= UA_EndpointDescription_copy(&server->config.endpoints[j],
+                                                  &response->endpoints[pos]);
+            if(nl_endpointurl)
+                endpointUrl = &server->config.networkLayers[i].discoveryUrl;
+            retval |= UA_String_copy(endpointUrl, &response->endpoints[pos].endpointUrl);
+            retval |= UA_Array_copy(endpointUrl, 1,
+                                    (void**)&response->endpoints[pos].server.discoveryUrls,
+                                    &UA_TYPES[UA_TYPES_STRING]);
             if(retval != UA_STATUSCODE_GOOD)
                 goto error;
-            retval = UA_String_copy(endpointUrl, &response->endpoints[k].endpointUrl);
-            if(retval != UA_STATUSCODE_GOOD)
-                goto error;
-            retval = UA_Array_copy(endpointUrl, 1,
-                                   (void**)&response->endpoints[k].server.discoveryUrls,
-                                   &UA_TYPES[UA_TYPES_STRING]);
-            if(retval != UA_STATUSCODE_GOOD)
-                goto error;
-            response->endpoints[k].server.discoveryUrlsSize = 1;
-            ++k;
+            response->endpoints[pos].server.discoveryUrlsSize = 1;
+            pos++;
         }
     }
 
-    return;
+    UA_assert(pos <= server->config.endpointsSize * clone_times);
+    response->endpointsSize = pos;
+
+    /* Clean up the memory of there are no usable results */
+    if(pos > 0)
+        return;
+
 error:
     response->responseHeader.serviceResult = retval;
     UA_Array_delete(response->endpoints, response->endpointsSize,
