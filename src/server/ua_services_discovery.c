@@ -155,54 +155,44 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
 
 #else
 
-    /* Temporarily store all the pointers which we found to avoid reiterating
-     * through the list */
-    size_t foundServersSize = 0;
-    UA_STACKARRAY(UA_RegisteredServer*, foundServers, server->discoveryManager.registeredServersSize+1);
-
-    registeredServer_list_entry* current;
-    LIST_FOREACH(current, &server->discoveryManager.registeredServers, pointers) {
-        if(request->serverUrisSize) {
-            /* If client only requested a specific set of servers */
-            for(size_t i = 0; i < request->serverUrisSize; i++) {
-                if(UA_String_equal(&current->registeredServer.serverUri, &request->serverUris[i])) {
-                    foundServers[foundServersSize] = &current->registeredServer;
-                    foundServersSize++;
-                    break;
-                }
-            }
-        } else {
-            /* Return all registered servers */
-            foundServers[foundServersSize] = &current->registeredServer;
-            foundServersSize++;
-        }
-    }
-
-    size_t allocSize = foundServersSize;
-    if(foundSelf)
-        allocSize++;
-
-    /* Nothing to do? */
-    if(allocSize == 0)
-        return;
-
-    /* Allocate memory */
-    response->servers = (UA_ApplicationDescription*)UA_Array_new(allocSize, &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]);
+    /* Allocate enough memory, including memory for the "self" response */
+    size_t maxResults = server->discoveryManager.registeredServersSize + 1;
+    response->servers = (UA_ApplicationDescription*)UA_Array_new(maxResults, &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]);
     if(!response->servers) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
     }
-    response->serversSize = allocSize;
 
     /* Copy into the response. TODO: Evaluate return codes */
     size_t pos = 0;
-    if(foundSelf) {
+    if(foundSelf)
         setApplicationDescriptionFromServer(&response->servers[pos++], server);
-    }
-    for(size_t i = 0; i < foundServersSize; i++) {
-        setApplicationDescriptionFromRegisteredServer(request, &response->servers[pos++], foundServers[i]);
+
+    registeredServer_list_entry* current;
+    LIST_FOREACH(current, &server->discoveryManager.registeredServers, pointers) {
+        UA_Boolean usable = (request->serverUrisSize == 0);
+        if(!usable) {
+            /* If client only requested a specific set of servers */
+            for(size_t i = 0; i < request->serverUrisSize; i++) {
+                if(UA_String_equal(&current->registeredServer.serverUri, &request->serverUris[i])) {
+                    usable = true;
+                    break;
+                }
+            }
+        }
+
+        if(usable)
+            setApplicationDescriptionFromRegisteredServer(request, &response->servers[pos++],
+                                                          &current->registeredServer);
     }
 
+    /* Set the final size */
+    if(pos > 0) {
+        response->serversSize = pos;
+    } else {
+        UA_free(response->servers);
+        response->servers = NULL;
+    }
 #endif
 }
 
