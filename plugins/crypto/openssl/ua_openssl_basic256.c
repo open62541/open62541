@@ -173,7 +173,7 @@ UA_ChannelModule_Basic256_Delete_Context (void * channelContext) {
 }
 
 /* Compares the supplied certificate with the certificate 
- * in the endpoit context 
+ * in the endpoint context 
  */
 
 static UA_StatusCode
