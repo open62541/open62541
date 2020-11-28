@@ -53,7 +53,7 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     }
 
     // we need to copy the message because it will be freed in the processing function
-    UA_ByteString msg = UA_ByteString();
+    UA_ByteString msg = UA_BYTESTRING_NULL;
     retval = UA_ByteString_allocBuffer(&msg, size);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Server_delete(server);
