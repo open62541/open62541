@@ -248,10 +248,6 @@ setDefaultConfig(UA_ServerConfig *conf) {
     conf->asyncOperationTimeout = 120000; /* Async Operation Timeout in ms (2 minutes) */
 #endif
 
-#if UA_MULTITHREADING >= 200
-    conf->nThreads = 1;
-#endif
-
     /* --> Finish setting the default static config <-- */
 
     return UA_STATUSCODE_GOOD;

@@ -164,10 +164,6 @@ struct UA_ServerConfig {
     UA_Server_AsyncOperationNotifyCallback asyncOperationNotifyCallback;
 #endif
 
-#if UA_MULTITHREADING >= 200
-    UA_UInt16 nThreads; /* Experimental feature */
-#endif
-
     /**
      * .. note:: See the section for :ref:`async
      *    operations<async-operations>`. */
