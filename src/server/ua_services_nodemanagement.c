@@ -317,7 +317,8 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
     if(!value.hasValue || !value.value.type) {
         if(!UA_NodeId_equal(&node->dataType, &UA_TYPES[UA_TYPES_VARIANT].typeId)) {
             /* Warn if that is configured */
-            if(server->config.allowEmptyVariables != UA_RULEHANDLING_ACCEPT)
+            if(!server->bootstrapNS0 &&
+               server->config.allowEmptyVariables != UA_RULEHANDLING_ACCEPT)
                 logAddNode(&server->config.logger, session, &node->head.nodeId,
                            "The value is empty. But this is only allowed for BaseDataType. "
                            "Create a matching default value.");
@@ -335,6 +336,10 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
                                         "AddNode (%.*s): Could not create a default value "
                                         "with StatusCode %s", (int)nodeIdStr.length,
                                         nodeIdStr.data, UA_StatusCode_name(retval)));
+
+                /* Reread the current value for compat tests below */
+                UA_DataValue_clear(&value);
+                retval = readValueAttribute(server, session, node, &value);
             }
         }
 

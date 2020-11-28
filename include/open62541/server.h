@@ -178,11 +178,6 @@ struct UA_ServerConfig {
     /* Certificate Verification */
     UA_CertificateVerification certificateVerification;
 
-    /* Relax constraints for the InformationModel */
-    UA_Boolean relaxEmptyValueConstraint; /* Nominally, only variables with data
-                                           * type BaseDataType can have an empty
-                                           * value. */
-
     /* Limits for SecureChannels */
     UA_UInt16 maxSecureChannels;
     UA_UInt32 maxSecurityTokenLifetime; /* in ms */

@@ -970,19 +970,20 @@ compatibleValue(UA_Server *server, UA_Session *session, const UA_NodeId *targetD
            UA_NodeId_equal(targetDataTypeId, &UA_NODEID_NULL))
             return true;
 
-        /* Allow empty node values since existing information models may have
-         * variables with no value, e.g. OldValues - ns=0;i=3024. See also
-         * #1889, https://github.com/open62541/open62541/pull/1889#issuecomment-403506538 */
-        if(server->config.relaxEmptyValueConstraint) {
-            UA_LOG_DEBUG_SESSION(&server->config.logger, session,
-                                 "Only Variables with data type BaseDataType can contain an "
-                                 "empty value. Allow via explicit constraint relaxation.");
+        /* Ignore if that is configured */
+        if(server->bootstrapNS0 ||
+           server->config.allowEmptyVariables == UA_RULEHANDLING_ACCEPT)
             return true;
-        }
 
         UA_LOG_INFO_SESSION(&server->config.logger, session,
                             "Only Variables with data type BaseDataType "
                             "can contain an empty value");
+
+        /* Ignore if that is configured */
+        if(server->config.allowEmptyVariables == UA_RULEHANDLING_WARN)
+            return true;
+
+        /* Default handling is to abort */
         return false;
     }
 

@@ -192,9 +192,6 @@ setDefaultConfig(UA_ServerConfig *conf) {
     /* conf->nodeLifecycle.createOptionalChild = NULL; */
     /* conf->nodeLifecycle.generateChildNodeId = NULL; */
 
-    /* Relax constraints for the InformationModel */
-    conf->relaxEmptyValueConstraint = true; /* Allow empty values */
-
     /* Limits for SecureChannels */
     conf->maxSecureChannels = 40;
     conf->maxSecurityTokenLifetime = 10 * 60 * 1000; /* 10 minutes */
