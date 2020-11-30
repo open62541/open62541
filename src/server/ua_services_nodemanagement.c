@@ -317,7 +317,8 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
     if(!value.hasValue || !value.value.type) {
         if(!UA_NodeId_equal(&node->dataType, &UA_TYPES[UA_TYPES_VARIANT].typeId)) {
             /* Warn if that is configured */
-            if(server->config.allowEmptyVariables != UA_RULEHANDLING_ACCEPT)
+            if(!server->bootstrapNS0 &&
+               server->config.allowEmptyVariables != UA_RULEHANDLING_ACCEPT)
                 logAddNode(&server->config.logger, session, &node->head.nodeId,
                            "The value is empty. But this is only allowed for BaseDataType. "
                            "Create a matching default value.");
@@ -335,6 +336,10 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
                                         "AddNode (%.*s): Could not create a default value "
                                         "with StatusCode %s", (int)nodeIdStr.length,
                                         nodeIdStr.data, UA_StatusCode_name(retval)));
+
+                /* Reread the current value for compat tests below */
+                UA_DataValue_clear(&value);
+                retval = readValueAttribute(server, session, node, &value);
             }
         }
 
@@ -1380,6 +1385,62 @@ setReferenceTypeSubtypes(UA_Server *server, const UA_ReferenceTypeNode *node) {
     return UA_STATUSCODE_GOOD;
 }
 
+static UA_StatusCode
+setVariableNodeDynamic(UA_Server *server, UA_Session *session,
+                       UA_Node *node, const void *_) {
+    (void)_; /* unused */
+    if(node->head.nodeClass == UA_NODECLASS_VARIABLE)
+        ((UA_VariableNode*)node)->isDynamic = true;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+checkSetIsDynamicVariable(UA_Server *server, UA_Session *session,
+                          const UA_NodeId *nodeId) {
+    /* Get all hierarchical reference types */
+    UA_ReferenceTypeSet reftypes_hierarchical;
+    UA_ReferenceTypeSet_init(&reftypes_hierarchical);
+    UA_NodeId hierarchicalRefs = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
+    UA_StatusCode res =
+        referenceTypeIndices(server, &hierarchicalRefs, &reftypes_hierarchical, true);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* Is the variable under the server object? */
+    UA_NodeId serverNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    if(isNodeInTree(server, nodeId, &serverNodeId, &reftypes_hierarchical))
+        return UA_STATUSCODE_GOOD;
+
+    /* Is the variable in the type hierarchy? */
+    UA_NodeId typesNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_TYPESFOLDER);
+    if(isNodeInTree(server, nodeId, &typesNodeId, &reftypes_hierarchical))
+        return UA_STATUSCODE_GOOD;
+
+    /* Is the variable a property of a method node (InputArguments /
+     * OutputArguments)? */
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = *nodeId;
+    bd.browseDirection = UA_BROWSEDIRECTION_INVERSE;
+    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
+    bd.includeSubtypes = false;
+    bd.nodeClassMask = UA_NODECLASS_METHOD;
+    UA_BrowseResult br;
+    UA_BrowseResult_init(&br);
+    UA_UInt32 maxrefs = 0;
+    Operation_Browse(server, session, &maxrefs, &bd, &br);
+    UA_Boolean hasParentMethod = (br.referencesSize > 0);
+    UA_BrowseResult_clear(&br);
+    if(hasParentMethod)
+        return UA_STATUSCODE_GOOD;
+
+    /* Set the variable to "dynamic" */
+    UA_Server_editNode(server, session, nodeId,
+                       (UA_EditNodeCallback)setVariableNodeDynamic, NULL);
+    
+    return UA_STATUSCODE_GOOD;
+}
+
 /* Children, references, type-checking, constructors. */
 UA_StatusCode
 AddNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId) {
@@ -1416,6 +1477,14 @@ AddNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId) 
 
         retval = recursiveTypeCheckAddChildren(server, session, &node, type);
         head = &node->head; /* Pointer might have changed */
+        if(retval != UA_STATUSCODE_GOOD)
+            goto cleanup;
+    }
+
+    /* Set variables to dynamic (source and server timestamps are meaningful) if
+     * they fulfill some conditions */
+    if(node->head.nodeClass == UA_NODECLASS_VARIABLE) {
+        retval = checkSetIsDynamicVariable(server, session, nodeId);
         if(retval != UA_STATUSCODE_GOOD)
             goto cleanup;
     }

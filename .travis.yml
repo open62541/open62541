@@ -212,23 +212,23 @@ matrix:
       compiler: gcc
       env:
         - DOCKER=true
-#
-# clang-6 FUZZER build
-    - os: linux
-      compiler: clang-6.0
-      addons:
-        apt:
-          sources:
-            - llvm-toolchain-trusty-6.0
-            - ubuntu-toolchain-r-test
-          packages:
-            - check
-            - libsubunit-dev
-            - clang-6.0
-            - clang-tidy-6.0
-            - libfuzzer-6.0-dev
-      env:
-        - FUZZER=true
+# #
+# # clang-6 FUZZER build
+#     - os: linux
+#       compiler: clang-6.0
+#       addons:
+#         apt:
+#           sources:
+#             - llvm-toolchain-trusty-6.0
+#             - ubuntu-toolchain-r-test
+#           packages:
+#             - check
+#             - libsubunit-dev
+#             - clang-6.0
+#             - clang-tidy-6.0
+#             - libfuzzer-6.0-dev
+#       env:
+#         - FUZZER=true
 #
 # OSX clang build
     - os: osx

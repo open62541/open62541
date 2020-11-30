@@ -51,9 +51,9 @@ def getNodeidTypeAndId(nodeId):
     if not nodeId:
         return "UA_NODEIDTYPE_NUMERIC, {0}"
     if '=' not in nodeId:
-        return "UA_NODEIDTYPE_NUMERIC, {{{0}}}".format(nodeId)
+        return "UA_NODEIDTYPE_NUMERIC, {{{0}LU}}".format(nodeId)
     if nodeId.startswith("i="):
-        return "UA_NODEIDTYPE_NUMERIC, {{{0}}}".format(nodeId[2:])
+        return "UA_NODEIDTYPE_NUMERIC, {{{0}LU}}".format(nodeId[2:])
     if nodeId.startswith("s="):
         strId = nodeId[2:]
         return "UA_NODEIDTYPE_STRING, {{ .string = UA_STRING_STATIC(\"{id}\") }}".format(id=strId.replace("\"", "\\\""))

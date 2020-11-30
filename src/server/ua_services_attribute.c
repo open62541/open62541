@@ -231,6 +231,18 @@ readValueAttributeComplete(UA_Server *server, UA_Session *session,
             break;
     }
 
+    /* Static Variables and VariableTypes have timestamps of "now". Will be set
+     * below in the absence of predefined timestamps. */
+    if(vn->head.nodeClass == UA_NODECLASS_VARIABLE) {
+        if(!vn->isDynamic) {
+            v->hasServerTimestamp = false;
+            v->hasSourceTimestamp = false;
+        }
+    } else {
+        v->hasServerTimestamp = false;
+        v->hasSourceTimestamp = false;
+    }
+
     /* Clean up */
     if(rangeptr)
         UA_free(range.dimensions);
@@ -958,19 +970,20 @@ compatibleValue(UA_Server *server, UA_Session *session, const UA_NodeId *targetD
            UA_NodeId_equal(targetDataTypeId, &UA_NODEID_NULL))
             return true;
 
-        /* Allow empty node values since existing information models may have
-         * variables with no value, e.g. OldValues - ns=0;i=3024. See also
-         * #1889, https://github.com/open62541/open62541/pull/1889#issuecomment-403506538 */
-        if(server->config.relaxEmptyValueConstraint) {
-            UA_LOG_DEBUG_SESSION(&server->config.logger, session,
-                                 "Only Variables with data type BaseDataType can contain an "
-                                 "empty value. Allow via explicit constraint relaxation.");
+        /* Ignore if that is configured */
+        if(server->bootstrapNS0 ||
+           server->config.allowEmptyVariables == UA_RULEHANDLING_ACCEPT)
             return true;
-        }
 
         UA_LOG_INFO_SESSION(&server->config.logger, session,
                             "Only Variables with data type BaseDataType "
                             "can contain an empty value");
+
+        /* Ignore if that is configured */
+        if(server->config.allowEmptyVariables == UA_RULEHANDLING_WARN)
+            return true;
+
+        /* Default handling is to abort */
         return false;
     }
 
@@ -1283,22 +1296,21 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
         }
     }
 
+    /* Set the source timestamp if there is none */
+    UA_DateTime now = UA_DateTime_now();
+    if(!adjustedValue.hasSourceTimestamp) {
+        adjustedValue.sourceTimestamp = now;
+        adjustedValue.hasSourceTimestamp = true;
+    }
+
+    /* Update the timestamp when the value was last updated in the server */
+    adjustedValue.serverTimestamp = now;
+    adjustedValue.hasServerTimestamp = true;
+
     switch(node->valueBackend.backendType) {
         case UA_VALUEBACKENDTYPE_NONE:
             /* Ok, do it */
             if(node->valueSource == UA_VALUESOURCE_DATA) {
-                /* Set the source timestamp if there is none */
-                UA_DateTime now = UA_DateTime_now();
-                if(!adjustedValue.hasSourceTimestamp) {
-                    adjustedValue.sourceTimestamp = now;
-                    adjustedValue.hasSourceTimestamp = true;
-                }
-
-                if(!adjustedValue.hasServerTimestamp) {
-                    adjustedValue.serverTimestamp = now;
-                    adjustedValue.hasServerTimestamp = true;
-                }
-
                 if(!rangeptr)
                     retval = writeValueAttributeWithoutRange(node, &adjustedValue);
                 else

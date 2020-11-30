@@ -81,7 +81,8 @@ if(UA_ENABLE_HISTORIZING)
 endif()
 
 if(UA_ENABLE_ENCRYPTION_MBEDTLS)
-  list(APPEND test_plugin_sources
+  list(INSERT test_plugin_sources 0
+       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_mbedtls_common.h
        ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_mbedtls_common.c
        ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic128rsa15.c
        ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic256.c
@@ -91,7 +92,8 @@ if(UA_ENABLE_ENCRYPTION_MBEDTLS)
 endif()
 
 if(UA_ENABLE_ENCRYPTION_OPENSSL)
-  list(APPEND test_plugin_sources
+  list(INSERT test_plugin_sources 0
+              ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_openssl_common.h
               ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_openssl_common.c
               ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_basic128rsa15.c
               ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_basic256.c
@@ -501,6 +503,10 @@ if(UA_ENABLE_ENCRYPTION_MBEDTLS)
     target_link_libraries(check_encryption_basic128rsa15 ${LIBS})
     add_test_valgrind(encryption_basic128rsa15 ${TESTS_BINARY_DIR}/check_encryption_basic128rsa15)
 
+    add_executable(check_encryption_basic256 encryption/check_encryption_basic256.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    target_link_libraries(check_encryption_basic256 ${LIBS})
+    add_test_valgrind(encryption_basic256 ${TESTS_BINARY_DIR}/check_encryption_basic256)
+
     add_executable(check_encryption_basic256sha256 encryption/check_encryption_basic256sha256.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     target_link_libraries(check_encryption_basic256sha256 ${LIBS})
     add_test_valgrind(encryption_basic256sha256 ${TESTS_BINARY_DIR}/check_encryption_basic256sha256)
@@ -514,6 +520,10 @@ if(UA_ENABLE_ENCRYPTION_OPENSSL)
     add_executable(check_encryption_basic128rsa15 encryption/check_encryption_basic128rsa15.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     target_link_libraries(check_encryption_basic128rsa15 ${LIBS})
     add_test_valgrind(encryption_basic128rsa15 ${TESTS_BINARY_DIR}/check_encryption_basic128rsa15)
+
+    add_executable(check_encryption_basic256 encryption/check_encryption_basic256.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    target_link_libraries(check_encryption_basic256 ${LIBS})
+    add_test_valgrind(encryption_basic256 ${TESTS_BINARY_DIR}/check_encryption_basic256)
     
     add_executable(check_encryption_basic256sha256 encryption/check_encryption_basic256sha256.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     target_link_libraries(check_encryption_basic256sha256 ${LIBS})

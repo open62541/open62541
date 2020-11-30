@@ -680,37 +680,37 @@ void
 Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxrefs,
                  const UA_BrowseDescription *descr, UA_BrowseResult *result) {
     /* Stack-allocate a temporary cp */
-    UA_STACKARRAY(ContinuationPoint, cp, 1);
-    memset(cp, 0, sizeof(ContinuationPoint));
-    cp->maxReferences = *maxrefs;
-    cp->browseDescription = *descr; /* Shallow copy. Deep-copy later if we persist the cp. */
+    ContinuationPoint cp;
+    memset(&cp, 0, sizeof(ContinuationPoint));
+    cp.maxReferences = *maxrefs;
+    cp.browseDescription = *descr; /* Shallow copy. Deep-copy later if we persist the cp. */
 
     /* How many references can we return at most? */
-    if(cp->maxReferences == 0) {
+    if(cp.maxReferences == 0) {
         if(server->config.maxReferencesPerNode != 0) {
-            cp->maxReferences = server->config.maxReferencesPerNode;
+            cp.maxReferences = server->config.maxReferencesPerNode;
         } else {
-            cp->maxReferences = UA_INT32_MAX;
+            cp.maxReferences = UA_INT32_MAX;
         }
     } else {
         if(server->config.maxReferencesPerNode != 0 &&
-           cp->maxReferences > server->config.maxReferencesPerNode) {
-            cp->maxReferences= server->config.maxReferencesPerNode;
+           cp.maxReferences > server->config.maxReferencesPerNode) {
+            cp.maxReferences= server->config.maxReferencesPerNode;
         }
     }
 
     /* Get the list of relevant reference types */
     if(UA_NodeId_isNull(&descr->referenceTypeId)) {
-        UA_ReferenceTypeSet_any(&cp->relevantReferences);
+        UA_ReferenceTypeSet_any(&cp.relevantReferences);
     } else {
         result->statusCode =
             referenceTypeIndices(server, &descr->referenceTypeId,
-                                 &cp->relevantReferences, descr->includeSubtypes);
+                                 &cp.relevantReferences, descr->includeSubtypes);
         if(result->statusCode != UA_STATUSCODE_GOOD)
             return;
     }
 
-    UA_Boolean done = browseWithContinuation(server, session, cp, result);
+    UA_Boolean done = browseWithContinuation(server, session, &cp, result);
 
     /* Exit early if done or an error occurred */
     if(done || result->statusCode != UA_STATUSCODE_GOOD)
@@ -735,10 +735,10 @@ Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxref
         goto cleanup;
     }
     memset(cp2, 0, sizeof(ContinuationPoint));
-    cp2->referenceKindIndex = cp->referenceKindIndex;
-    cp2->targetIndex = cp->targetIndex;
-    cp2->maxReferences = cp->maxReferences;
-    cp2->relevantReferences = cp->relevantReferences;
+    cp2->referenceKindIndex = cp.referenceKindIndex;
+    cp2->targetIndex = cp.targetIndex;
+    cp2->maxReferences = cp.maxReferences;
+    cp2->relevantReferences = cp.relevantReferences;
 
     /* Copy the description */
     retval = UA_BrowseDescription_copy(descr, &cp2->browseDescription);
@@ -1156,11 +1156,21 @@ browseSimplifiedBrowsePath(UA_Server *server, const UA_NodeId origin,
                            size_t browsePathSize, const UA_QualifiedName *browsePath) {
     UA_LOCK_ASSERT(server->serviceMutex, 1);
 
+    UA_BrowsePathResult bpr;
+    UA_BrowsePathResult_init(&bpr);
+    if(browsePathSize > UA_MAX_TREE_RECURSE) {
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "Simplified Browse Path too long");
+        bpr.statusCode = UA_STATUSCODE_BADINTERNALERROR;
+        return bpr;
+    }
+
     /* Construct the BrowsePath */
     UA_BrowsePath bp;
     UA_BrowsePath_init(&bp);
     bp.startingNode = origin;
-    UA_STACKARRAY(UA_RelativePathElement, rpe, browsePathSize);
+
+    UA_RelativePathElement rpe[UA_MAX_TREE_RECURSE];
     memset(rpe, 0, sizeof(UA_RelativePathElement) * browsePathSize);
     for(size_t j = 0; j < browsePathSize; j++) {
         rpe[j].referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
@@ -1171,8 +1181,6 @@ browseSimplifiedBrowsePath(UA_Server *server, const UA_NodeId origin,
     bp.relativePath.elementsSize = browsePathSize;
 
     /* Browse */
-    UA_BrowsePathResult bpr;
-    UA_BrowsePathResult_init(&bpr);
     UA_UInt32 nodeClassMask = UA_NODECLASS_OBJECT | UA_NODECLASS_VARIABLE;
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
     nodeClassMask |= UA_NODECLASS_OBJECTTYPE;

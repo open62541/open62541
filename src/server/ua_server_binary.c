@@ -697,9 +697,11 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
     /* Set the authenticationToken from the create session request to help
      * fuzzing cover more lines */
-    UA_NodeId_clear(&requestHeader->authenticationToken);
-    if(!UA_NodeId_isNull(&unsafe_fuzz_authenticationToken))
+    if(!UA_NodeId_isNull(&unsafe_fuzz_authenticationToken) &&
+       !UA_NodeId_isNull(&requestHeader->authenticationToken)) {
+        UA_NodeId_clear(&requestHeader->authenticationToken);
         UA_NodeId_copy(&unsafe_fuzz_authenticationToken, &requestHeader->authenticationToken);
+    }
 #endif
 
     /* Prepare the respone and process the request */

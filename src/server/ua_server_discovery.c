@@ -47,22 +47,23 @@ register_server_with_discovery_server(UA_Server *server,
     request.server.serverNames = &server->config.applicationDescription.applicationName;
     request.server.serverNamesSize = 1;
 
-    /* Copy the discovery urls from the server config and the network layers*/
+    /* Mirror the discovery urls from the server config and the network layers */
     size_t config_discurls = server->config.applicationDescription.discoveryUrlsSize;
     size_t nl_discurls = server->config.networkLayersSize;
     size_t total_discurls = config_discurls + nl_discurls;
-    UA_STACKARRAY(UA_String, urlsBuf, total_discurls);
-    request.server.discoveryUrls = urlsBuf;
-    request.server.discoveryUrlsSize = total_discurls;
+    request.server.discoveryUrls = (UA_String*)
+        UA_Array_new(total_discurls, &UA_TYPES[UA_TYPES_STRING]);
+    if(!request.server.discoveryUrls)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
 
     for(size_t i = 0; i < config_discurls; ++i)
         request.server.discoveryUrls[i] = server->config.applicationDescription.discoveryUrls[i];
-
     /* TODO: Add nl only if discoveryUrl not already present */
     for(size_t i = 0; i < nl_discurls; ++i) {
         UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
         request.server.discoveryUrls[config_discurls + i] = nl->discoveryUrl;
     }
+    request.server.discoveryUrlsSize = total_discurls;
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     request.discoveryConfigurationSize = 1;
@@ -84,8 +85,8 @@ register_server_with_discovery_server(UA_Server *server,
     UA_Array_delete(request.discoveryConfiguration,
                     request.discoveryConfigurationSize,
                     &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
-    request.discoveryConfiguration = NULL;
-    request.discoveryConfigurationSize = 0;
+    if(total_discurls > 0)
+        UA_free(request.server.discoveryUrls);
 
     if(serviceResult == UA_STATUSCODE_BADNOTIMPLEMENTED ||
        serviceResult == UA_STATUSCODE_BADSERVICEUNSUPPORTED) {
