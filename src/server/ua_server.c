@@ -23,6 +23,8 @@
 #include "ua_pubsub_ns0.h"
 #endif
 
+#include "ua_pubsub_manager.h"
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 #include "ua_subscription.h"
 #endif
@@ -330,11 +332,25 @@ UA_Server_init(UA_Server *server) {
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
 
+#ifdef UA_ENABLE_PUBSUB
     /* Build PubSub information model */
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     UA_Server_initPubSubNS0(server);
 #endif
 
+    server->config.pubsubConfiguration = (UA_PubSubConfiguration*) UA_calloc(1, sizeof(UA_PubSubConfiguration));
+    if (!server->config.pubsubConfiguration) {
+        goto cleanup;
+    }
+
+#ifdef UA_ENABLE_PUBSUB_MONITORING
+    /* setup default PubSub monitoring callbacks */
+    if (UA_PubSubManager_setDefaultMonitoringCallbacks(&(server->config.pubsubConfiguration->monitoringInterface)) != 
+        UA_STATUSCODE_GOOD) {
+        goto cleanup;
+    }
+#endif /* UA_ENABLE_PUBSUB_MONITORING */
+#endif /* UA_ENABLE_PUBSUB */
     return server;
 
  cleanup:
