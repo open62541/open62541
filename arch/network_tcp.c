@@ -581,7 +581,6 @@ ServerNetworkLayerTCP_stop(UA_ServerNetworkLayer *nl, UA_Server *server) {
     /* Close the server sockets */
     for(UA_UInt16 i = 0; i < layer->serverSocketsSize; i++) {
         UA_shutdown(layer->serverSockets[i], 2);
-        layer->connectionsSize--;
         UA_close(layer->serverSockets[i]);
     }
     layer->serverSocketsSize = 0;
