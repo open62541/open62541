@@ -885,24 +885,25 @@ UA_Server_browseNext(UA_Server *server, UA_Boolean releaseContinuationPoint,
 /* TranslateBrowsePath */
 /***********************/
 
+/* Recurse into left/right nodes, as long as we are on the requested hash */
 static UA_StatusCode
-addBrowseTarget(RefTree *next, const UA_ReferenceTarget *rt) {
+recursiveAddBrowseHashTarget(RefTree *next, const UA_ReferenceTarget *rt) {
     UA_assert(rt);
     UA_StatusCode res = RefTree_add(next, &rt->targetId, NULL);
     UA_ReferenceTarget *left = ZIP_LEFT(rt, nameTreeFields);
     if(left && left->targetNameHash == rt->targetNameHash)
-        res |= addBrowseTarget(next, left);
+        res |= recursiveAddBrowseHashTarget(next, left);
     UA_ReferenceTarget *right = ZIP_RIGHT(rt, nameTreeFields);
     if(right && right->targetNameHash == rt->targetNameHash)
-        res |= addBrowseTarget(next, right);
+        res |= recursiveAddBrowseHashTarget(next, right);
     return res;
 }
 
 static UA_StatusCode
 walkBrowsePathElement(UA_Server *server, UA_Session *session,
-                      const UA_RelativePath *path, const size_t pathIndex, UA_UInt32 nodeClassMask,
-                      const UA_QualifiedName *lastBrowseName, UA_BrowsePathResult *result,
-                      RefTree *current, RefTree *next) {
+                      const UA_RelativePath *path, const size_t pathIndex,
+                      UA_UInt32 nodeClassMask, const UA_QualifiedName *lastBrowseName,
+                      UA_BrowsePathResult *result, RefTree *current, RefTree *next) {
     /* For the next level. Note the difference from lastBrowseName */
     const UA_RelativePathElement *elem = &path->elements[pathIndex];
     UA_UInt32 browseNameHash = UA_QualifiedName_hash(&elem->targetName);
@@ -919,7 +920,7 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session,
             return UA_STATUSCODE_BADNOMATCH;
     }
 
-    /* Loop over all Nodes int the current depth level */
+    /* Loop over all Nodes in the current depth level */
     for(size_t i = 0; i < current->size; i++) {
         /* Remote Node. Immediately add to the results with the RemainingPathIndex set. */
         if(current->targets[i].serverIndex > 0 ||
@@ -950,9 +951,10 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session,
         /* Test whether the node fits the class mask */
         UA_Boolean skip = !matchClassMask(node, nodeClassMask);
 
-        /* Does the BrowseName match for the current node (not the rerences
+        /* Does the BrowseName match for the current node (not the references
          * going out here) */
-        skip |= (lastBrowseName && !UA_QualifiedName_equal(lastBrowseName, &node->head.browseName));
+        skip |= (lastBrowseName &&
+                 !UA_QualifiedName_equal(lastBrowseName, &node->head.browseName));
 
         if(skip) {
             UA_NODESTORE_RELEASE(server, node);
@@ -971,13 +973,16 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session,
             if(!UA_ReferenceTypeSet_contains(&refTypes, rk->referenceTypeIndex))
                 continue;
 
-            /* Retrieve by BrowseName hash */
+            /* Retrieve by BrowseName hash. We might have several nodes where
+             * the hash matches. The exact BrowseName will be verified in the
+             * next iteration of the outer loop. So we only have to retrieve
+             * every node just once. */
             UA_ReferenceTarget *rt = ZIP_FIND(UA_ReferenceTargetNameTree,
                                               &rk->refTargetsNameTree, &browseNameHash);
             if(!rt)
                 continue;
 
-            res = addBrowseTarget(next, rt);
+            res = recursiveAddBrowseHashTarget(next, rt);
             if(res != UA_STATUSCODE_GOOD)
                 break;
         }
