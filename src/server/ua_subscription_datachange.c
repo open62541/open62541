@@ -92,36 +92,43 @@ detectValueChangeWithFilter(UA_Server *server, UA_Session *session, UA_Monitored
         }
     }
 
-    /* Stack-allocate some memory for the value encoding. We might heap-allocate
-     * more memory if needed. This is just enough for scalars and small
-     * structures. */
-    UA_STACKARRAY(UA_Byte, stackValueEncoding, UA_VALUENCODING_MAXSTACK);
+    size_t binsize = UA_calcSizeBinary(value, &UA_TYPES[UA_TYPES_DATAVALUE]);
+
+    if(binsize == 0)
+        return UA_STATUSCODE_BADENCODINGERROR;
+
+    UA_Byte *bufPos = NULL;
+    const UA_Byte *bufEnd = NULL;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_Boolean isStack = false;
     UA_ByteString valueEncoding;
-    valueEncoding.data = stackValueEncoding;
-    valueEncoding.length = UA_VALUENCODING_MAXSTACK;
+    UA_ByteString_init(&valueEncoding);
 
-    /* Encode the value */
-    UA_Byte *bufPos = valueEncoding.data;
-    const UA_Byte *bufEnd = &valueEncoding.data[valueEncoding.length];
-    UA_StatusCode retval = UA_encodeBinary(value, &UA_TYPES[UA_TYPES_DATAVALUE],
-                                           &bufPos, &bufEnd, NULL, NULL);
-    if(retval == UA_STATUSCODE_BADENCODINGERROR) {
-        size_t binsize = UA_calcSizeBinary(value, &UA_TYPES[UA_TYPES_DATAVALUE]);
-        if(binsize == 0)
-            return UA_STATUSCODE_BADENCODINGERROR;
+    UA_STACKARRAY(UA_Byte, stackValueEncoding, UA_VALUENCODING_MAXSTACK);
 
-        if(binsize > UA_VALUENCODING_MAXSTACK) {
-            retval = UA_ByteString_allocBuffer(&valueEncoding, binsize);
-            if(retval == UA_STATUSCODE_GOOD) {
-                bufPos = valueEncoding.data;
-                bufEnd = &valueEncoding.data[valueEncoding.length];
-                retval = UA_encodeBinary(value, &UA_TYPES[UA_TYPES_DATAVALUE],
-                                         &bufPos, &bufEnd, NULL, NULL);
-            }
+    // Do the encoding in a stack array if the binary size fits
+    if (binsize <= UA_VALUENCODING_MAXSTACK) {
+        isStack = true;
+        valueEncoding.data = stackValueEncoding;
+        valueEncoding.length = UA_VALUENCODING_MAXSTACK;
+
+        bufPos = valueEncoding.data;
+        bufEnd = &valueEncoding.data[valueEncoding.length];
+
+        retval = UA_encodeBinary(value, &UA_TYPES[UA_TYPES_DATAVALUE],
+                                 &bufPos, &bufEnd, NULL, NULL);
+    } else {
+        retval = UA_ByteString_allocBuffer(&valueEncoding, binsize);
+        if(retval == UA_STATUSCODE_GOOD) {
+            bufPos = valueEncoding.data;
+            bufEnd = &valueEncoding.data[valueEncoding.length];
+            retval = UA_encodeBinary(value, &UA_TYPES[UA_TYPES_DATAVALUE],
+                                     &bufPos, &bufEnd, NULL, NULL);
         }
     }
+
     if(retval != UA_STATUSCODE_GOOD) {
-        if(valueEncoding.data != stackValueEncoding)
+        if(!isStack)
             UA_ByteString_clear(&valueEncoding);
         return retval;
     }
@@ -133,13 +140,13 @@ detectValueChangeWithFilter(UA_Server *server, UA_Session *session, UA_Monitored
 
     /* No change */
     if(!(*changed)) {
-        if(valueEncoding.data != stackValueEncoding)
+        if(!isStack)
             UA_ByteString_clear(&valueEncoding);
         return UA_STATUSCODE_GOOD;
     }
 
     /* Change detected. Copy encoding on the heap if necessary. */
-    if(valueEncoding.data == stackValueEncoding)
+    if(isStack)
         return UA_ByteString_copy(&valueEncoding, encoding);
 
     *encoding = valueEncoding;
