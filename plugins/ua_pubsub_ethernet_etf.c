@@ -192,7 +192,7 @@ UA_PubSubChannelEthernetETF_open(const UA_PubSubConnectionConfig *connectionConf
     struct ifreq ifreq;
     memset(&ifreq, 0, sizeof(struct ifreq));
     UA_UInt64 len = UA_MIN(address->networkInterface.length, sizeof(ifreq.ifr_name)-1);
-    UA_snprintf(ifreq.ifr_name, sizeof(struct ifreq),
+    UA_snprintf(ifreq.ifr_name, sizeof(ifreq.ifr_name),
                 "%.*s", (int)len,
                 (char*)address->networkInterface.data);
 
