@@ -386,7 +386,7 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_ByteString *messa
     UA_UInt64       currentTimeValue = 0;
     UA_UInt64       maxTimeValue = 0;
     UA_Int32        receiveFlags;
-    UA_StatusCode   retval;
+    UA_StatusCode   retval = UA_STATUSCODE_GOOD;
     UA_UInt16       rcvCount = 0;
 
     memset(&tmptv, 0, sizeof(tmptv));
