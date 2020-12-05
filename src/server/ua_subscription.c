@@ -197,10 +197,8 @@ prepareNotificationMessage(UA_Server *server, UA_Subscription *sub,
             UA_NotificationMessage_clear(message);
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
-        message->notificationData->encoding = UA_EXTENSIONOBJECT_DECODED;
-        message->notificationData->content.decoded.data = dcn;
-        message->notificationData->content.decoded.type = &UA_TYPES[UA_TYPES_DATACHANGENOTIFICATION];
-
+        UA_ExtensionObject_setValue(message->notificationData, dcn,
+                                    &UA_TYPES[UA_TYPES_DATACHANGENOTIFICATION]);
         size_t dcnSize = sub->dataChangeNotifications;
         if(dcnSize > notifications)
             dcnSize = notifications;
@@ -223,15 +221,13 @@ prepareNotificationMessage(UA_Server *server, UA_Subscription *sub,
             UA_NotificationMessage_clear(message);
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
-        message->notificationData[notificationDataIdx].encoding = UA_EXTENSIONOBJECT_DECODED;
-        message->notificationData[notificationDataIdx].content.decoded.data = enl;
-        message->notificationData[notificationDataIdx].content.decoded.type =
-            &UA_TYPES[UA_TYPES_EVENTNOTIFICATIONLIST];
-
+        UA_ExtensionObject_setValue(&message->notificationData[notificationDataIdx],
+                                    enl, &UA_TYPES[UA_TYPES_EVENTNOTIFICATIONLIST]);
         size_t enlSize = sub->eventNotifications;
         if(enlSize > notifications)
             enlSize = notifications;
-        enl->events = (UA_EventFieldList*) UA_Array_new(enlSize, &UA_TYPES[UA_TYPES_EVENTFIELDLIST]);
+        enl->events = (UA_EventFieldList*)
+            UA_Array_new(enlSize, &UA_TYPES[UA_TYPES_EVENTFIELDLIST]);
         if(!enl->events) {
             UA_NotificationMessage_clear(message);
             return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -371,10 +367,8 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
         scn.status = sub->statusChange;
 
         UA_ExtensionObject notificationData;
-        UA_ExtensionObject_init(&notificationData);
-        notificationData.encoding = UA_EXTENSIONOBJECT_DECODED;
-        notificationData.content.decoded.type = &UA_TYPES[UA_TYPES_STATUSCHANGENOTIFICATION];
-        notificationData.content.decoded.data = &scn;
+        UA_ExtensionObject_setValue(&notificationData, &scn,
+                                    &UA_TYPES[UA_TYPES_STATUSCHANGENOTIFICATION]);
 
         response->responseHeader.timestamp = UA_DateTime_now();
         response->notificationMessage.notificationData = &notificationData;
@@ -385,7 +379,8 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
 
         /* Send the response */
         UA_assert(sub->session); /* Otherwise pre is NULL */
-        UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub, "Sending out a publish response");
+        UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
+                                  "Sending out a publish response");
         sendResponse(server, sub->session, sub->session->header.channel, pre->requestId,
                      (UA_Response*)response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
 

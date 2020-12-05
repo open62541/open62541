@@ -26,9 +26,8 @@ addNode_raw(UA_Server *server, UA_NodeClass nodeClass,
     item.nodeClass = nodeClass;
     item.requestedNewNodeId.nodeId = UA_NODEID_NUMERIC(0, nodeId);
     item.browseName = UA_QUALIFIEDNAME(0, name);
-    item.nodeAttributes.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
-    item.nodeAttributes.content.decoded.data = attributes;
-    item.nodeAttributes.content.decoded.type = attributesType;
+    UA_ExtensionObject_setValueNoDelete(&item.nodeAttributes,
+                                        attributes, attributesType);
     return AddNode_raw(server, &server->adminSession, NULL, &item, NULL);
 }
 
