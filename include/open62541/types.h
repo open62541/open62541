@@ -850,6 +850,29 @@ typedef struct {
     } content;
 } UA_ExtensionObject;
 
+/* Initialize the ExtensionObject and set the "decoded" value to the given
+ * pointer. The value will be deleted when the ExtensionObject is cleared. */
+void UA_EXPORT
+UA_ExtensionObject_setValue(UA_ExtensionObject *eo,
+                            void * UA_RESTRICT p,
+                            const UA_DataType *type);
+
+/* Initialize the ExtensionObject and set the "decoded" value to the given
+ * pointer. The value will *not* be deleted when the ExtensionObject is
+ * cleared. */
+void UA_EXPORT
+UA_ExtensionObject_setValueNoDelete(UA_ExtensionObject *eo,
+                                    void * UA_RESTRICT p,
+                                    const UA_DataType *type);
+
+/* Initialize the ExtensionObject and set the "decoded" value to a fresh copy of
+ * the given value pointer. The value will be deleted when the ExtensionObject
+ * is cleared. */
+UA_StatusCode UA_EXPORT
+UA_ExtensionObject_setValueCopy(UA_ExtensionObject *eo,
+                                void * UA_RESTRICT p,
+                                const UA_DataType *type);
+
 /**
  * .. _datavalue:
  *
