@@ -584,7 +584,7 @@ UA_Variant_setScalar(UA_Variant *v, void * UA_RESTRICT p,
 }
 
 UA_StatusCode
-UA_Variant_setScalarCopy(UA_Variant *v, const void *p,
+UA_Variant_setScalarCopy(UA_Variant *v, const void * UA_RESTRICT p,
                          const UA_DataType *type) {
     void *n = UA_malloc(type->memSize);
     if(!n)
@@ -609,7 +609,7 @@ void UA_Variant_setArray(UA_Variant *v, void * UA_RESTRICT array,
 }
 
 UA_StatusCode
-UA_Variant_setArrayCopy(UA_Variant *v, const void *array,
+UA_Variant_setArrayCopy(UA_Variant *v, const void * UA_RESTRICT array,
                         size_t arraySize, const UA_DataType *type) {
     UA_Variant_init(v);
     UA_StatusCode retval = UA_Array_copy(array, arraySize, &v->data, type);
@@ -737,7 +737,7 @@ copySubString(const UA_String *src, UA_String *dst,
 }
 
 UA_StatusCode
-UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst,
+UA_Variant_copyRange(const UA_Variant *src, UA_Variant * UA_RESTRICT dst,
                      const UA_NumericRange range) {
     if(!src->type)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -917,7 +917,7 @@ UA_Variant_setRange(UA_Variant *v, void * UA_RESTRICT array,
 }
 
 UA_StatusCode
-UA_Variant_setRangeCopy(UA_Variant *v, const void *array,
+UA_Variant_setRangeCopy(UA_Variant *v, const void * UA_RESTRICT array,
                         size_t arraySize, const UA_NumericRange range) {
     return Variant_setRange(v, (void*)(uintptr_t)array,
                             arraySize, range, true);
