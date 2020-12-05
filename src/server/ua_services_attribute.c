@@ -1793,9 +1793,8 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
 
     for(size_t i = 0; i < response->resultsSize; ++i) {
         void * data = UA_new(historyDataType);
-        response->results[i].historyData.encoding = UA_EXTENSIONOBJECT_DECODED;
-        response->results[i].historyData.content.decoded.type = historyDataType;
-        response->results[i].historyData.content.decoded.data = data;
+        UA_ExtensionObject_setValue(&response->results[i].historyData,
+                                    data, historyDataType);
         historyData[i] = data;
     }
     UA_UNLOCK(server->serviceMutex);

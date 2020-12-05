@@ -1567,9 +1567,8 @@ addNode(UA_Server *server, const UA_NodeClass nodeClass, const UA_NodeId *reques
     item.parentNodeId.nodeId = *parentNodeId;
     item.referenceTypeId = *referenceTypeId;
     item.typeDefinition.nodeId = *typeDefinition;
-    item.nodeAttributes.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
-    item.nodeAttributes.content.decoded.type = attributeType;
-    item.nodeAttributes.content.decoded.data = (void*)(uintptr_t)attr;
+    UA_ExtensionObject_setValueNoDelete(&item.nodeAttributes,
+                                        (void*)(uintptr_t)attr, attributeType);
 
     /* Call the normal addnodes service */
     UA_AddNodesResult result;
@@ -1614,9 +1613,8 @@ UA_Server_addNode_begin(UA_Server *server, const UA_NodeClass nodeClass,
     item.requestedNewNodeId.nodeId = requestedNewNodeId;
     item.browseName = browseName;
     item.typeDefinition.nodeId = typeDefinition;
-    item.nodeAttributes.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
-    item.nodeAttributes.content.decoded.type = attributeType;
-    item.nodeAttributes.content.decoded.data = (void*)(uintptr_t)attr;
+    UA_ExtensionObject_setValueNoDelete(&item.nodeAttributes,
+                                        (void*)(uintptr_t)attr, attributeType);
 
     UA_LOCK(server->serviceMutex);
     UA_StatusCode retval =
@@ -2203,9 +2201,8 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_NodeId requested
     UA_ExpandedNodeId_init(&typeDefinitionId);
     typeDefinitionId.nodeId = typeDefinition;
     item.typeDefinition = typeDefinitionId;
-    item.nodeAttributes.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
-    item.nodeAttributes.content.decoded.data = (void*)(uintptr_t)&attr;
-    item.nodeAttributes.content.decoded.type = &UA_TYPES[UA_TYPES_VARIABLEATTRIBUTES];
+    UA_ExtensionObject_setValueNoDelete(&item.nodeAttributes, (void*)(uintptr_t)&attr,
+                                        &UA_TYPES[UA_TYPES_VARIABLEATTRIBUTES]);
     UA_NodeId newNodeId;
     if(!outNewNodeId) {
         newNodeId = UA_NODEID_NULL;
@@ -2480,10 +2477,8 @@ UA_Server_addMethodNodeEx(UA_Server *server, const UA_NodeId requestedNewNodeId,
     item.nodeClass = UA_NODECLASS_METHOD;
     item.requestedNewNodeId.nodeId = requestedNewNodeId;
     item.browseName = browseName;
-    item.nodeAttributes.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
-    item.nodeAttributes.content.decoded.data = (void*)(uintptr_t)&attr;
-    item.nodeAttributes.content.decoded.type = &UA_TYPES[UA_TYPES_METHODATTRIBUTES];
-
+    UA_ExtensionObject_setValueNoDelete(&item.nodeAttributes, (void*)(uintptr_t)&attr,
+                                        &UA_TYPES[UA_TYPES_METHODATTRIBUTES]);
     UA_NodeId newId;
     if(!outNewNodeId) {
         UA_NodeId_init(&newId);
