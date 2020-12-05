@@ -120,7 +120,12 @@ detectValueChangeWithFilter(UA_Server *server, UA_Session *session, UA_Monitored
             }
         }
     }
+
     if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR_SUBSCRIPTION(&server->config.logger, sub,
+                                  "MonitoredItem %" PRIi32 " | "
+                                  "Encoding the value failed with StatusCode %s",
+                                  mon->monitoredItemId, UA_StatusCode_name(retval));
         if(valueEncoding.data != stackValueEncoding)
             UA_ByteString_clear(&valueEncoding);
         return retval;
