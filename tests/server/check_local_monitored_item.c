@@ -41,7 +41,7 @@ static void setup(void) {
     UA_Variant_setScalar(&attr.value, &myUint32, &UA_TYPES[UA_TYPES_UINT32]);
     attr.description = UA_LOCALIZEDTEXT("en-US","the answer");
     attr.displayName = UA_LOCALIZEDTEXT("en-US","the answer");
-    attr.dataType = UA_TYPES[UA_TYPES_UINT32].typeId;
+    //attr.dataType = UA_TYPES[UA_TYPES_UINT32].typeId;
     attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
 
     /* Add the variable node to the information model */
@@ -87,7 +87,7 @@ dataChangeNotificationCallback(UA_Server *thisServer,
 }
 
 START_TEST(Server_LocalMonitoredItem) {
-    ck_assert_uint_eq(callbackCount, 0);
+    callbackCount = 0;
 
     UA_MonitoredItemCreateRequest monitorRequest =
             UA_MonitoredItemCreateRequest_default(outNodeId);
@@ -117,19 +117,97 @@ START_TEST(Server_LocalMonitoredItem) {
 }
 END_TEST
 
-static Suite* testSuite_Client(void)
-{
+/* Custom datatype with a String NodeId */
+typedef struct {
+    UA_Float p;
+} Point;
+
+static UA_DataTypeMember members[1] = {
+    {
+        UA_TYPES_FLOAT,  /* .memberTypeIndex, points into UA_TYPES since
+                            .namespaceZero is true */
+        0,               /* .padding */
+        true,            /* .namespaceZero, see .memberTypeIndex */
+        false,           /* .isArray */
+        false            /* .isOptional*/
+        UA_TYPENAME("p") /* .memberName */
+    }
+};
+
+static UA_DataType PointType = {
+    {1, UA_NODEIDTYPE_NUMERIC, {0}}, /* .typeId */
+    {1, UA_NODEIDTYPE_NUMERIC, {0}}, /* .binaryEncodingId, the numeric
+                                         identifier used on the wire (the
+                                         namespaceindex is from .typeId) */
+    sizeof(Point),                   /* .memSize */
+    0,                               /* .typeIndex, in the array of custom types */
+    UA_DATATYPEKIND_STRUCTURE,       /* .typeKind */
+    true,                            /* .pointerFree */
+    false,                           /* .overlayable (depends on endianness and
+                                         the absence of padding) */
+    1,                               /* .membersSize */
+    members
+    UA_TYPENAME("Point")             /* .typeName */
+};
+
+UA_DataTypeArray customDataTypes = {NULL, 1, &PointType};
+
+START_TEST(Server_LocalMonitoredItem_CustomType) {
+    callbackCount = 0;
+
+    PointType.binaryEncodingId = UA_NODEID_STRING(1, "pointbinary");
+
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    customDataTypes.next = config->customDataTypes;
+    config->customDataTypes = &customDataTypes;
+
+    UA_MonitoredItemCreateRequest monitorRequest =
+            UA_MonitoredItemCreateRequest_default(outNodeId);
+    monitorRequest.requestedParameters.samplingInterval = (double)100;
+    monitorRequest.monitoringMode = UA_MONITORINGMODE_REPORTING;
+    UA_MonitoredItemCreateResult result =
+            UA_Server_createDataChangeMonitoredItem(server,
+                                                    UA_TIMESTAMPSTORETURN_BOTH,
+                                                    monitorRequest,
+                                                    NULL,
+                                                    &dataChangeNotificationCallback);
+
+    ASSERT_STATUSCODE(result.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(callbackCount, 1);
+
+    /* Use a value that requires the ExtensionObject to encode the NodeId of the
+     * data type */
+    Point p = {0.0};
+    UA_Variant val;
+    UA_ExtensionObject arr[100];
+    UA_Variant_setArray(&val, arr, 100, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+    for(size_t i = 0; i < 100; i++) {
+        UA_ExtensionObject_setValueNoDelete(&arr[i], &p, &PointType);
+    }
+    UA_Server_writeValue(server, outNodeId, val);
+
+    UA_fakeSleep(100);
+    UA_Server_run_iterate(server, 1);
+    ck_assert_uint_eq(callbackCount, 2);
+
+    p.p = 1.0;
+    UA_fakeSleep(100);
+    UA_Server_run_iterate(server, 1);
+    ck_assert_uint_eq(callbackCount, 2);
+}
+END_TEST
+
+static Suite * testSuite_Client(void) {
     Suite *s = suite_create("Local Monitored Item");
     TCase *tc_server = tcase_create("Local Monitored Item Basic");
     tcase_add_checked_fixture(tc_server, setup, teardown);
     tcase_add_test(tc_server, Server_LocalMonitoredItem);
+    tcase_add_test(tc_server, Server_LocalMonitoredItem_CustomType);
     suite_add_tcase(s, tc_server);
-
     return s;
 }
 
-int main(void)
-{
+int main(void) {
     Suite *s = testSuite_Client();
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);
