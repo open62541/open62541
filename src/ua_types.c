@@ -538,6 +538,49 @@ ExtensionObject_copy(UA_ExtensionObject const *src, UA_ExtensionObject *dst,
     return retval;
 }
 
+void
+UA_ExtensionObject_setValue(UA_ExtensionObject *eo,
+                            void * UA_RESTRICT p,
+                            const UA_DataType *type) {
+    UA_ExtensionObject_init(eo);
+    eo->content.decoded.data = p;
+    eo->content.decoded.type = type;
+    eo->encoding = UA_EXTENSIONOBJECT_DECODED;
+}
+
+void
+UA_ExtensionObject_setValueNoDelete(UA_ExtensionObject *eo,
+                                    void * UA_RESTRICT p,
+                                    const UA_DataType *type) {
+    UA_ExtensionObject_init(eo);
+    eo->content.decoded.data = p;
+    eo->content.decoded.type = type;
+    eo->encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
+}
+
+UA_StatusCode
+UA_ExtensionObject_setValueCopy(UA_ExtensionObject *eo,
+                                void * UA_RESTRICT p,
+                                const UA_DataType *type) {
+    UA_ExtensionObject_init(eo);
+
+    /* Make a copy of the value */
+    void *val = UA_malloc(type->memSize);
+    if(!val)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    UA_StatusCode res = UA_copy(p, val, type);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_free(val);
+        return res;
+    }
+
+    /* Set the ExtensionObject */
+    eo->content.decoded.data = val;
+    eo->content.decoded.type = type;
+    eo->encoding = UA_EXTENSIONOBJECT_DECODED;
+    return UA_STATUSCODE_GOOD;
+}
+
 /* Variant */
 static void
 Variant_clear(UA_Variant *p, const UA_DataType *_) {
