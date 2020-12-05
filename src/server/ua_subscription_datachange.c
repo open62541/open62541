@@ -99,56 +99,65 @@ detectValueChangeWithFilter(UA_Server *server, UA_Session *session, UA_Monitored
     UA_ByteString valueEncoding;
     valueEncoding.data = stackValueEncoding;
     valueEncoding.length = UA_VALUENCODING_MAXSTACK;
+    UA_Byte *bufPos = stackValueEncoding;
+    const UA_Byte *bufEnd = &stackValueEncoding[UA_VALUENCODING_MAXSTACK];
 
     /* Encode the value */
-    UA_Byte *bufPos = valueEncoding.data;
-    const UA_Byte *bufEnd = &valueEncoding.data[valueEncoding.length];
-    UA_StatusCode retval = UA_encodeBinary(value, &UA_TYPES[UA_TYPES_DATAVALUE],
-                                           &bufPos, &bufEnd, NULL, NULL);
-    if(retval == UA_STATUSCODE_BADENCODINGERROR) {
-        size_t binsize = UA_calcSizeBinary(value, &UA_TYPES[UA_TYPES_DATAVALUE]);
-        if(binsize == 0)
-            return UA_STATUSCODE_BADENCODINGERROR;
-
-        if(binsize > UA_VALUENCODING_MAXSTACK) {
-            retval = UA_ByteString_allocBuffer(&valueEncoding, binsize);
-            if(retval == UA_STATUSCODE_GOOD) {
-                bufPos = valueEncoding.data;
-                bufEnd = &valueEncoding.data[valueEncoding.length];
-                retval = UA_encodeBinary(value, &UA_TYPES[UA_TYPES_DATAVALUE],
-                                         &bufPos, &bufEnd, NULL, NULL);
-            }
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    size_t binsize = 0;
+    if(mon->lastSampledValue.length <= UA_VALUENCODING_MAXSTACK) {
+        /* Encode without using calcSizeBinary first. This will fail with
+         * UA_STATUSCODE_BADENCODINGERROR once the end of the buffer is
+         * reached. */
+        retval = UA_encodeBinary(value, &UA_TYPES[UA_TYPES_DATAVALUE],
+                                 &bufPos, &bufEnd, NULL, NULL);
+        if(retval == UA_STATUSCODE_BADENCODINGERROR)
+            goto encodeOnHeap; /* The buffer was not large enough */
+    } else {
+        /* Allocate a fitting buffer on the heap. This requires us to iterate
+         * twice over the value (calcSizeBinary and encodeBinary) */
+    encodeOnHeap:
+        binsize = UA_calcSizeBinary(value, &UA_TYPES[UA_TYPES_DATAVALUE]);
+        if(binsize == 0) {
+            retval = UA_STATUSCODE_BADENCODINGERROR;
+            goto cleanup;
         }
+        retval = UA_ByteString_allocBuffer(&valueEncoding, binsize);
+        if(retval != UA_STATUSCODE_GOOD)
+            goto cleanup;
+        bufPos = valueEncoding.data;
+        bufEnd = &valueEncoding.data[valueEncoding.length];
+        retval = UA_encodeBinary(value, &UA_TYPES[UA_TYPES_DATAVALUE],
+                                 &bufPos, &bufEnd, NULL, NULL);
     }
-
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR_SUBSCRIPTION(&server->config.logger, sub,
-                                  "MonitoredItem %" PRIi32 " | "
-                                  "Encoding the value failed with StatusCode %s",
-                                  mon->monitoredItemId, UA_StatusCode_name(retval));
-        if(valueEncoding.data != stackValueEncoding)
-            UA_ByteString_clear(&valueEncoding);
-        return retval;
-    }
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
 
     /* Has the value changed? */
     valueEncoding.length = (uintptr_t)bufPos - (uintptr_t)valueEncoding.data;
-    *changed = (!mon->lastSampledValue.data ||
-                !UA_String_equal(&valueEncoding, &mon->lastSampledValue));
+    *changed = !UA_String_equal(&valueEncoding, &mon->lastSampledValue);
 
-    /* No change */
-    if(!(*changed)) {
-        if(valueEncoding.data != stackValueEncoding)
-            UA_ByteString_clear(&valueEncoding);
-        return UA_STATUSCODE_GOOD;
+    /* Change detected */
+    if(*changed) {
+        /* Move the heap-allocated encoding to the output and return */
+        if(valueEncoding.data != stackValueEncoding) {
+            *encoding = valueEncoding;
+            return UA_STATUSCODE_GOOD;
+        }
+        /* Copy stack-allocated encoding to the output */
+        retval = UA_ByteString_copy(&valueEncoding, encoding);
     }
 
-    /* Change detected. Copy encoding on the heap if necessary. */
-    if(valueEncoding.data == stackValueEncoding)
-        return UA_ByteString_copy(&valueEncoding, encoding);
-
-    *encoding = valueEncoding;
-    return UA_STATUSCODE_GOOD;
+    cleanup:
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR_SUBSCRIPTION(&server->config.logger, mon->subscription,
+                                  "MonitoredItem %" PRIi32 " | "
+                                  "Encoding the value failed with StatusCode %s",
+                                  mon->monitoredItemId, UA_StatusCode_name(retval));
+    }
+    if(valueEncoding.data != stackValueEncoding)
+        UA_ByteString_clear(&valueEncoding);
+    return retval;
 }
 
 /* Has this sample changed from the last one? The method may allocate additional
