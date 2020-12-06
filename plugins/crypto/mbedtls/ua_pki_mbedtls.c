@@ -63,6 +63,27 @@ UA_Bstrstr(const unsigned char *s1, size_t l1, const unsigned char *s2, size_t l
     return NULL;
 }
 
+// mbedTLS expects PEM data to be null terminated
+// The data length parameter must include the null terminator
+static UA_ByteString copyDataFormatAware(const UA_ByteString *data)
+{
+    UA_ByteString result;
+    UA_ByteString_init(&result);
+
+    if (!data->length)
+        return result;
+
+    if (data->length && data->data[0] == '-') {
+        UA_ByteString_allocBuffer(&result, data->length + 1);
+        memcpy(result.data, data->data, data->length);
+        result.data[data->length] = '\0';
+    } else {
+        UA_ByteString_copy(data, &result);
+    }
+
+    return result;
+}
+
 typedef struct {
     /* If the folders are defined, we use them to reload the certificates during
      * runtime */
@@ -525,24 +546,33 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification *cv,
     cv->verifyApplicationURI = certificateVerification_verifyApplicationURI;
 
     int err = 0;
+    UA_ByteString data;
+    UA_ByteString_init(&data);
+
     for(size_t i = 0; i < certificateTrustListSize; i++) {
+        data = copyDataFormatAware(&certificateTrustList[i]);
         err = mbedtls_x509_crt_parse(&ci->certificateTrustList,
-                                     certificateTrustList[i].data,
-                                     certificateTrustList[i].length);
+                                     data.data,
+                                     data.length);
+        UA_ByteString_clear(&data);
         if(err)
             goto error;
     }
     for(size_t i = 0; i < certificateIssuerListSize; i++) {
+        data = copyDataFormatAware(&certificateIssuerList[i]);
         err = mbedtls_x509_crt_parse(&ci->certificateIssuerList,
-                                     certificateIssuerList[i].data,
-                                     certificateIssuerList[i].length);
+                                     data.data,
+                                     data.length);
+        UA_ByteString_clear(&data);
         if(err)
             goto error;
     }
     for(size_t i = 0; i < certificateRevocationListSize; i++) {
+        data = copyDataFormatAware(&certificateRevocationList[i]);
         err = mbedtls_x509_crl_parse(&ci->certificateRevocationList,
-                                     certificateRevocationList[i].data,
-                                     certificateRevocationList[i].length);
+                                     data.data,
+                                     data.length);
+        UA_ByteString_clear(&data);
         if(err)
             goto error;
     }

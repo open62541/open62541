@@ -134,11 +134,11 @@ int main(int argc, char **argv) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "Could not unregister server from discovery server. StatusCode %s",
                      UA_StatusCode_name(retval));
-    
+
     UA_Server_removeCallback(server, callbackId);
 
     UA_Client_disconnect(clientRegister);
     UA_Client_delete(clientRegister);
     UA_Server_delete(server);
-    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;;
+    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }

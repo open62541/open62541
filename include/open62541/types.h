@@ -462,6 +462,9 @@ typedef struct {
 
 UA_EXPORT extern const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL;
 
+UA_StatusCode UA_EXPORT
+UA_ExpandedNodeId_print(const UA_ExpandedNodeId *id, UA_String *output);
+
 #ifdef UA_ENABLE_PARSING
 /* Parse the ExpandedNodeId format defined in Part 6, 5.3.1.11:
  *
@@ -518,6 +521,11 @@ UA_EXPANDEDNODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex, const char *chars) {
     UA_ExpandedNodeId id; id.nodeId = UA_NODEID_BYTESTRING_ALLOC(nsIndex, chars);
     id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id;
 }
+
+/* Does the ExpandedNodeId point to a local node? That is, are namespaceUri and
+ * serverIndex empty? */
+UA_Boolean UA_EXPORT
+UA_ExpandedNodeId_isLocal(const UA_ExpandedNodeId *n);
 
 /* Total ordering of ExpandedNodeId */
 UA_Order UA_EXPORT
@@ -590,6 +598,12 @@ UA_LOCALIZEDTEXT_ALLOC(const char *locale, const char *text) {
     UA_LocalizedText lt; lt.locale = UA_STRING_ALLOC(locale);
     lt.text = UA_STRING_ALLOC(text); return lt;
 }
+
+/* 
+ * Check if the StatusCode is bad.
+ * @return Returns UA_TRUE if StatusCode is bad, else UA_FALSE. */
+UA_EXPORT UA_Boolean
+UA_StatusCode_isBad(const UA_StatusCode code);
 
 /**
  * .. _numericrange:
@@ -1044,6 +1058,17 @@ void UA_EXPORT UA_clear(void *p, const UA_DataType *type);
  * @param p The memory location of the variable
  * @param type The datatype description of the variable */
 void UA_EXPORT UA_delete(void *p, const UA_DataType *type);
+
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+/* Pretty-print the value from the datatype.
+ *
+ * @param p The memory location of the variable
+ * @param type The datatype description of the variable
+ * @param output A string that is memory-allocated for the pretty-printed output
+ * @return Indicates whether the operation succeeded*/
+UA_StatusCode UA_EXPORT
+UA_print(const void *p, const UA_DataType *type, UA_String *output);
+#endif
 
 /**
  * .. _array-handling:

@@ -73,9 +73,9 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS1ValueVariantKeyFrame) {
 
     //}
 
-    UA_DataValue_deleteMembers(&dmkf.data.keyFrameData.dataSetFields[0]);
-    UA_NetworkMessage_deleteMembers(&m2);
-    UA_ByteString_deleteMembers(&buffer);
+    UA_DataValue_clear(&dmkf.data.keyFrameData.dataSetFields[0]);
+    UA_NetworkMessage_clear(&m2);
+    UA_ByteString_clear(&buffer);
     UA_Array_delete(dmkf.data.keyFrameData.dataSetFields, dmkf.data.keyFrameData.fieldCount, &UA_TYPES[UA_TYPES_DATAVALUE]);
 }
 END_TEST
@@ -141,9 +141,9 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS1ValueDataValueKeyFrame) {
 
     //}
 
-    UA_DataValue_deleteMembers(&dmkf.data.keyFrameData.dataSetFields[0]);
-    UA_NetworkMessage_deleteMembers(&m2);
-    UA_ByteString_deleteMembers(&buffer);
+    UA_DataValue_clear(&dmkf.data.keyFrameData.dataSetFields[0]);
+    UA_NetworkMessage_clear(&m2);
+    UA_ByteString_clear(&buffer);
     UA_Array_delete(dmkf.data.keyFrameData.dataSetFields, dmkf.data.keyFrameData.fieldCount, &UA_TYPES[UA_TYPES_DATAVALUE]);
 }
 END_TEST
@@ -216,10 +216,10 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantKeyFrame) {
     ck_assert(m.securityEnabled == m2.securityEnabled);
     ck_assert(m.chunkMessage == m2.chunkMessage);
 
-    UA_DataValue_deleteMembers(&dmkf.data.keyFrameData.dataSetFields[0]);
-    UA_DataValue_deleteMembers(&dmkf.data.keyFrameData.dataSetFields[1]);
-    UA_NetworkMessage_deleteMembers(&m2);
-    UA_ByteString_deleteMembers(&buffer);
+    UA_DataValue_clear(&dmkf.data.keyFrameData.dataSetFields[0]);
+    UA_DataValue_clear(&dmkf.data.keyFrameData.dataSetFields[1]);
+    UA_NetworkMessage_clear(&m2);
+    UA_ByteString_clear(&buffer);
     UA_Array_delete(dmkf.data.keyFrameData.dataSetFields, dmkf.data.keyFrameData.fieldCount, &UA_TYPES[UA_TYPES_DATAVALUE]);
 }
 END_TEST
@@ -292,10 +292,10 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesDataValueKeyFrame) {
     ck_assert(m.securityEnabled == m2.securityEnabled);
     ck_assert(m.chunkMessage == m2.chunkMessage);
 
-    UA_DataValue_deleteMembers(&dmkf.data.keyFrameData.dataSetFields[0]);
-    UA_DataValue_deleteMembers(&dmkf.data.keyFrameData.dataSetFields[1]);
-    UA_NetworkMessage_deleteMembers(&m2);
-    UA_ByteString_deleteMembers(&buffer);
+    UA_DataValue_clear(&dmkf.data.keyFrameData.dataSetFields[0]);
+    UA_DataValue_clear(&dmkf.data.keyFrameData.dataSetFields[1]);
+    UA_NetworkMessage_clear(&m2);
+    UA_ByteString_clear(&buffer);
     UA_Array_delete(dmkf.data.keyFrameData.dataSetFields, dmkf.data.keyFrameData.fieldCount, &UA_TYPES[UA_TYPES_DATAVALUE]);
 }
 END_TEST
@@ -362,9 +362,9 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS1ValueVariantDeltaFrame) {
     ck_assert(m.securityEnabled == m2.securityEnabled);
     ck_assert(m.chunkMessage == m2.chunkMessage);
 
-    UA_DataValue_deleteMembers(&dmdf.data.deltaFrameData.deltaFrameFields[0].fieldValue);
-    UA_NetworkMessage_deleteMembers(&m2);
-    UA_ByteString_deleteMembers(&buffer);
+    UA_DataValue_clear(&dmdf.data.deltaFrameData.deltaFrameFields[0].fieldValue);
+    UA_NetworkMessage_clear(&m2);
+    UA_ByteString_clear(&buffer);
     UA_free(dmdf.data.deltaFrameData.deltaFrameFields);
 }
 END_TEST
@@ -431,9 +431,9 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS1ValueDataValueDeltaFrame) {
     ck_assert(m.securityEnabled == m2.securityEnabled);
     ck_assert(m.chunkMessage == m2.chunkMessage);
 
-    UA_DataValue_deleteMembers(&dmdf.data.deltaFrameData.deltaFrameFields[0].fieldValue);
-    UA_NetworkMessage_deleteMembers(&m2);
-    UA_ByteString_deleteMembers(&buffer);
+    UA_DataValue_clear(&dmdf.data.deltaFrameData.deltaFrameFields[0].fieldValue);
+    UA_NetworkMessage_clear(&m2);
+    UA_ByteString_clear(&buffer);
     UA_free(dmdf.data.deltaFrameData.deltaFrameFields);
 }
 END_TEST
@@ -475,8 +475,8 @@ START_TEST(UA_PubSub_Encode_WithBufferTooSmallShallReturnError) {
 
     ck_assert_int_ne(rv, UA_STATUSCODE_GOOD);
 
-    UA_DataValue_deleteMembers(&dmkf.data.keyFrameData.dataSetFields[0]);
-    UA_ByteString_deleteMembers(&buffer);
+    UA_DataValue_clear(&dmkf.data.keyFrameData.dataSetFields[0]);
+    UA_ByteString_clear(&buffer);
     UA_Array_delete(dmkf.data.keyFrameData.dataSetFields, dmkf.data.keyFrameData.fieldCount, &UA_TYPES[UA_TYPES_DATAVALUE]);
 }
 END_TEST
@@ -530,10 +530,10 @@ START_TEST(UA_PubSub_Decode_WithBufferTooSmallShallReturnError) {
     rv = UA_NetworkMessage_decodeBinary(&buffer2, &offset, &m2);
     ck_assert_int_ne(rv, UA_STATUSCODE_GOOD);
 
-    UA_DataValue_deleteMembers(&dmkf.data.keyFrameData.dataSetFields[0]);
-    UA_NetworkMessage_deleteMembers(&m2);
-    UA_ByteString_deleteMembers(&buffer);
-    UA_ByteString_deleteMembers(&buffer2);
+    UA_DataValue_clear(&dmkf.data.keyFrameData.dataSetFields[0]);
+    UA_NetworkMessage_clear(&m2);
+    UA_ByteString_clear(&buffer);
+    UA_ByteString_clear(&buffer2);
     UA_Array_delete(dmkf.data.keyFrameData.dataSetFields, dmkf.data.keyFrameData.fieldCount, &UA_TYPES[UA_TYPES_DATAVALUE]);
 }
 END_TEST
@@ -625,9 +625,9 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantDeltaFrame) {
     ck_assert(m.chunkMessage == m2.chunkMessage);
 
     ((UA_String*)value.data)->data = NULL; // the string is statically allocated. do not free it.
-    UA_Variant_deleteMembers(&value);
-    UA_NetworkMessage_deleteMembers(&m2);
-    UA_ByteString_deleteMembers(&buffer);
+    UA_Variant_clear(&value);
+    UA_NetworkMessage_clear(&m2);
+    UA_ByteString_clear(&buffer);
     UA_free(dmdf.data.deltaFrameData.deltaFrameFields);
 }
 END_TEST
@@ -721,10 +721,10 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesDataValueDeltaFrame) {
     ck_assert(m.chunkMessage == m2.chunkMessage);
 
     ((UA_String*)value.data)->data = NULL; // the string is statically allocated. do not free it.
-    UA_Variant_deleteMembers(&value);
-    UA_DataValue_deleteMembers(&dmdf.data.deltaFrameData.deltaFrameFields[0].fieldValue);
-    UA_NetworkMessage_deleteMembers(&m2);
-    UA_ByteString_deleteMembers(&buffer);
+    UA_Variant_clear(&value);
+    UA_DataValue_clear(&dmdf.data.deltaFrameData.deltaFrameFields[0].fieldValue);
+    UA_NetworkMessage_clear(&m2);
+    UA_ByteString_clear(&buffer);
     UA_free(dmdf.data.deltaFrameData.deltaFrameFields);
 }
 END_TEST
@@ -812,10 +812,10 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantKeyFrameGroupHeader) {
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasSourceTimestamp);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[1].hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasSourceTimestamp);
 
-    UA_DataValue_deleteMembers(&dmkf.data.keyFrameData.dataSetFields[0]);
-    UA_DataValue_deleteMembers(&dmkf.data.keyFrameData.dataSetFields[1]);
-    UA_NetworkMessage_deleteMembers(&m2);
-    UA_ByteString_deleteMembers(&buffer);
+    UA_DataValue_clear(&dmkf.data.keyFrameData.dataSetFields[0]);
+    UA_DataValue_clear(&dmkf.data.keyFrameData.dataSetFields[1]);
+    UA_NetworkMessage_clear(&m2);
+    UA_ByteString_clear(&buffer);
     UA_Array_delete(dmkf.data.keyFrameData.dataSetFields, dmkf.data.keyFrameData.fieldCount, &UA_TYPES[UA_TYPES_DATAVALUE]);
 }
 END_TEST
@@ -918,10 +918,10 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantDeltaFramePublDSCID) {
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[1].fieldValue.hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[1].fieldValue.hasSourceTimestamp);
 
     ((UA_String*)value.data)->data = NULL; // the string is statically allocated. do not free it.
-    UA_Variant_deleteMembers(&value);
-    UA_DataValue_deleteMembers(&dmdf.data.deltaFrameData.deltaFrameFields[0].fieldValue);
-    UA_NetworkMessage_deleteMembers(&m2);
-    UA_ByteString_deleteMembers(&buffer);
+    UA_Variant_clear(&value);
+    UA_DataValue_clear(&dmdf.data.deltaFrameData.deltaFrameFields[0].fieldValue);
+    UA_NetworkMessage_clear(&m2);
+    UA_ByteString_clear(&buffer);
     UA_free(dmdf.data.deltaFrameData.deltaFrameFields);
 }
 END_TEST
@@ -1004,10 +1004,10 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesDataValueKeyFramePH) {
     ck_assert(m.chunkMessage == m2.chunkMessage);
 
     UA_Array_delete(m.payloadHeader.dataSetPayloadHeader.dataSetWriterIds, m.payloadHeader.dataSetPayloadHeader.count, &UA_TYPES[UA_TYPES_UINT16]);
-    UA_DataValue_deleteMembers(&dmkf.data.keyFrameData.dataSetFields[0]);
-    UA_DataValue_deleteMembers(&dmkf.data.keyFrameData.dataSetFields[1]);
-    UA_NetworkMessage_deleteMembers(&m2);
-    UA_ByteString_deleteMembers(&buffer);
+    UA_DataValue_clear(&dmkf.data.keyFrameData.dataSetFields[0]);
+    UA_DataValue_clear(&dmkf.data.keyFrameData.dataSetFields[1]);
+    UA_NetworkMessage_clear(&m2);
+    UA_ByteString_clear(&buffer);
     UA_Array_delete(dmkf.data.keyFrameData.dataSetFields, dmkf.data.keyFrameData.fieldCount, &UA_TYPES[UA_TYPES_DATAVALUE]);
 }
 END_TEST
@@ -1093,10 +1093,10 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantKeyFrameTSProm) {
     ck_assert(m.dataSetClassIdEnabled == m2.dataSetClassIdEnabled);
 
     UA_Array_delete(m.promotedFields, m.promotedFieldsSize, &UA_TYPES[UA_TYPES_VARIANT]);
-    UA_DataValue_deleteMembers(&dmkf.data.keyFrameData.dataSetFields[0]);
-    UA_DataValue_deleteMembers(&dmkf.data.keyFrameData.dataSetFields[1]);
-    UA_NetworkMessage_deleteMembers(&m2);
-    UA_ByteString_deleteMembers(&buffer);
+    UA_DataValue_clear(&dmkf.data.keyFrameData.dataSetFields[0]);
+    UA_DataValue_clear(&dmkf.data.keyFrameData.dataSetFields[1]);
+    UA_NetworkMessage_clear(&m2);
+    UA_ByteString_clear(&buffer);
     UA_Array_delete(dmkf.data.keyFrameData.dataSetFields, dmkf.data.keyFrameData.fieldCount, &UA_TYPES[UA_TYPES_DATAVALUE]);
 }
 END_TEST
@@ -1213,10 +1213,10 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesDataValueDeltaFrameGHProm2) {
 
     UA_Array_delete(m.promotedFields, m.promotedFieldsSize, &UA_TYPES[UA_TYPES_VARIANT]);
     ((UA_String*)value.data)->data = NULL; // the string is statically allocated. do not free it.
-    UA_Variant_deleteMembers(&value);
-    UA_DataValue_deleteMembers(&dmdf.data.deltaFrameData.deltaFrameFields[0].fieldValue);
-    UA_NetworkMessage_deleteMembers(&m2);
-    UA_ByteString_deleteMembers(&buffer);
+    UA_Variant_clear(&value);
+    UA_DataValue_clear(&dmdf.data.deltaFrameData.deltaFrameFields[0].fieldValue);
+    UA_NetworkMessage_clear(&m2);
+    UA_ByteString_clear(&buffer);
     UA_free(dmdf.data.deltaFrameData.deltaFrameFields);
 }
 END_TEST
@@ -1333,8 +1333,8 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn2DSVariant) {
     UA_Array_delete(m.payloadHeader.dataSetPayloadHeader.dataSetWriterIds, m.payloadHeader.dataSetPayloadHeader.count, &UA_TYPES[UA_TYPES_UINT16]);
     UA_Array_delete(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields, m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.fieldCount, &UA_TYPES[UA_TYPES_DATAVALUE]);
     UA_free(m.payload.dataSetPayload.dataSetMessages[1].data.deltaFrameData.deltaFrameFields);
-    UA_NetworkMessage_deleteMembers(&m2);
-    UA_ByteString_deleteMembers(&buffer);
+    UA_NetworkMessage_clear(&m2);
+    UA_ByteString_clear(&buffer);
     UA_free(m.payload.dataSetPayload.dataSetMessages);
     //UA_Array_delete(dmkf.data.keyFrameData.dataSetFields, dmkf.data.keyFrameData.fieldCount, &UA_TYPES[UA_TYPES_DATAVALUE]);
 }

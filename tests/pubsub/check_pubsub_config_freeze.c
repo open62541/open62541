@@ -78,7 +78,7 @@ START_TEST(CreateAndLockConfiguration) {
     UA_DataSetMetaDataType dataSetMetaDataType; 
     UA_DataSetMetaDataType_init(&dataSetMetaDataType);
     ck_assert(UA_Server_getPublishedDataSetMetaData(server, publishedDataSet1, &dataSetMetaDataType) == UA_STATUSCODE_GOOD);
-    UA_DataSetMetaDataType_deleteMembers(&dataSetMetaDataType);
+    UA_DataSetMetaDataType_clear(&dataSetMetaDataType);
 
     UA_PublishedDataSetConfig publishedDataSetConfig;
     memset(&publishedDataSetConfig, 0, sizeof(UA_PublishedDataSetConfig));

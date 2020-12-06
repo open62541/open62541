@@ -48,17 +48,13 @@ options. For good timings, ensure that the `CMAKE_BUILD_TYPE` is set to
 
 - UA_ENABLE_PUBSUB
 - UA_ENABLE_PUBSUB_ETH_UADP
-- UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
+- UA_BUILD_EXAMPLES
 - UA_ENABLE_MALLOC_SINGLETON
 - UA_ENABLE_IMMUTABLE_NODES
 
 The publisher contains some hard-coded values that need to be adjusted to
 specific systems. Please check the top definitions in
 `pubsub_interrupt_publish.c` and `start_rt_publish.sh`.
-
-The publisher code is built and linked against the main open62541 library as follows:
-
-`gcc -O2 ../examples/pubsub_realtime/pubsub_interrupt_publish.c ../examples/pubsub_realtime/bufmalloc.c -I../include -I../plugins/include -Isrc_generated -I../arch/posix -I../arch -I../plugins/networking -I../deps bin/libopen62541.a -lrt -o rt_publisher`
 
 ## Running the RT Publisher
 

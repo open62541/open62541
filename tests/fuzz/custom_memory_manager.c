@@ -148,14 +148,14 @@ void UA_memoryManager_setLimit(unsigned long long newLimit) {
     //printf("MemoryManager: Setting memory limit to %lld\n", newLimit);
 
     UA_mallocSingleton = UA_memoryManager_malloc;
-    UA_freeSingleton = UA_memoryManager_free;;
+    UA_freeSingleton = UA_memoryManager_free;
     UA_callocSingleton = UA_memoryManager_calloc;
     UA_reallocSingleton = UA_memoryManager_realloc;
 }
 
 int UA_memoryManager_setLimitFromLast4Bytes(const uint8_t *data, size_t size) {
     UA_mallocSingleton = UA_memoryManager_malloc;
-    UA_freeSingleton = UA_memoryManager_free;;
+    UA_freeSingleton = UA_memoryManager_free;
     UA_callocSingleton = UA_memoryManager_calloc;
     UA_reallocSingleton = UA_memoryManager_realloc;
     if(size <4)

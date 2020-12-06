@@ -6,6 +6,7 @@
 
 #include "server/ua_server_internal.h"
 #include "server/ua_services.h"
+#include "testing_clock.h"
 
 #include <check.h>
 #include <stdio.h>
@@ -183,6 +184,24 @@ START_TEST(ReadSingleAttributeValueWithoutTimestamp) {
     ck_assert_uint_eq(0, resp.value.arrayLength);
     ck_assert(&UA_TYPES[UA_TYPES_INT32] == resp.value.type);
     ck_assert_int_eq(42, *(UA_Int32* )resp.value.data);
+    UA_DataValue_clear(&resp);
+} END_TEST
+
+/* Variables under the Server object return the current time for the timestamps */
+START_TEST(ReadSingleServerAttribute) {
+    UA_fakeSleep(5000);
+
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO);
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+
+    UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_BOTH);
+
+    ck_assert_int_eq(resp.status, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(0, resp.value.arrayLength);
+    ck_assert_int_eq(resp.serverTimestamp, UA_DateTime_now());
+    ck_assert_int_eq(resp.sourceTimestamp, UA_DateTime_now());
     UA_DataValue_deleteMembers(&resp);
 } END_TEST
 
@@ -202,7 +221,7 @@ START_TEST(ReadSingleDataSourceAttributeValueEmptyWithoutTimestamp) {
     UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, resp.status);
     ck_assert_int_eq(true, resp.hasValue);
-    UA_DataValue_deleteMembers(&resp);
+    UA_DataValue_clear(&resp);
 
     // read 2
     ret = UA_Server_readValue(server, rvi.nodeId, &empty);
@@ -220,7 +239,7 @@ START_TEST(ReadSingleAttributeValueRangeWithoutTimestamp) {
 
     ck_assert_uint_eq(4, resp.value.arrayLength);
     ck_assert(&UA_TYPES[UA_TYPES_INT32] == resp.value.type);
-    UA_DataValue_deleteMembers(&resp);
+    UA_DataValue_clear(&resp);
 } END_TEST
 
 START_TEST(ReadSingleAttributeNodeIdWithoutTimestamp) {
@@ -237,7 +256,7 @@ START_TEST(ReadSingleAttributeNodeIdWithoutTimestamp) {
     UA_NodeId* respval = (UA_NodeId*) resp.value.data;
     ck_assert_int_eq(1, respval->namespaceIndex);
     ck_assert(UA_String_equal(&myIntegerNodeId.identifier.string, &respval->identifier.string));
-    UA_DataValue_deleteMembers(&resp);
+    UA_DataValue_clear(&resp);
 } END_TEST
 
 START_TEST(ReadSingleAttributeNodeClassWithoutTimestamp) {
@@ -251,7 +270,7 @@ START_TEST(ReadSingleAttributeNodeClassWithoutTimestamp) {
     ck_assert_uint_eq(0, resp.value.arrayLength);
     ck_assert(&UA_TYPES[UA_TYPES_NODECLASS] == resp.value.type);
     ck_assert_int_eq(*(UA_Int32*)resp.value.data,UA_NODECLASS_VARIABLE);
-    UA_DataValue_deleteMembers(&resp);
+    UA_DataValue_clear(&resp);
 } END_TEST
 
 START_TEST(ReadSingleAttributeBrowseNameWithoutTimestamp) {
@@ -268,7 +287,7 @@ START_TEST(ReadSingleAttributeBrowseNameWithoutTimestamp) {
     ck_assert(&UA_TYPES[UA_TYPES_QUALIFIEDNAME] == resp.value.type);
     ck_assert_int_eq(1, respval->namespaceIndex);
     ck_assert(UA_String_equal(&myIntegerName.name, &respval->name));
-    UA_DataValue_deleteMembers(&resp);
+    UA_DataValue_clear(&resp);
 } END_TEST
 
 START_TEST(ReadSingleAttributeDisplayNameWithoutTimestamp) {
@@ -286,7 +305,7 @@ START_TEST(ReadSingleAttributeDisplayNameWithoutTimestamp) {
     ck_assert(&UA_TYPES[UA_TYPES_LOCALIZEDTEXT] == resp.value.type);
     ck_assert(UA_String_equal(&comp.text, &respval->text));
     ck_assert(UA_String_equal(&compNode->head.displayName.locale, &respval->locale));
-    UA_DataValue_deleteMembers(&resp);
+    UA_DataValue_clear(&resp);
     UA_NODESTORE_DELETE(server, (UA_Node*)compNode);
 } END_TEST
 
@@ -304,7 +323,7 @@ START_TEST(ReadSingleAttributeDescriptionWithoutTimestamp) {
     ck_assert(&UA_TYPES[UA_TYPES_LOCALIZEDTEXT] == resp.value.type);
     ck_assert(UA_String_equal(&compNode->head.description.locale, &respval->locale));
     ck_assert(UA_String_equal(&compNode->head.description.text, &respval->text));
-    UA_DataValue_deleteMembers(&resp);
+    UA_DataValue_clear(&resp);
     UA_NODESTORE_DELETE(server, (UA_Node*)compNode);
 } END_TEST
 
@@ -320,7 +339,7 @@ START_TEST(ReadSingleAttributeWriteMaskWithoutTimestamp) {
     ck_assert_uint_eq(0, resp.value.arrayLength);
     ck_assert(&UA_TYPES[UA_TYPES_UINT32] == resp.value.type);
     ck_assert_int_eq(0,*respval);
-    UA_DataValue_deleteMembers(&resp);
+    UA_DataValue_clear(&resp);
 } END_TEST
 
 START_TEST(ReadSingleAttributeUserWriteMaskWithoutTimestamp) {
@@ -336,7 +355,7 @@ START_TEST(ReadSingleAttributeUserWriteMaskWithoutTimestamp) {
     /* ck_assert_uint_eq(0, resp.value.arrayLength); */
     /* ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_UINT32], resp.value.type); */
     /* ck_assert_int_eq(0,*respval); */
-    UA_DataValue_deleteMembers(&resp);
+    UA_DataValue_clear(&resp);
 } END_TEST
 
 START_TEST(ReadSingleAttributeIsAbstractWithoutTimestamp) {
@@ -350,7 +369,7 @@ START_TEST(ReadSingleAttributeIsAbstractWithoutTimestamp) {
     ck_assert_uint_eq(0, resp.value.arrayLength);
     ck_assert(&UA_TYPES[UA_TYPES_BOOLEAN] == resp.value.type);
     ck_assert(*(UA_Boolean* )resp.value.data==false);
-    UA_DataValue_deleteMembers(&resp);
+    UA_DataValue_clear(&resp);
 } END_TEST
 
 START_TEST(ReadSingleAttributeSymmetricWithoutTimestamp) {
@@ -364,7 +383,7 @@ START_TEST(ReadSingleAttributeSymmetricWithoutTimestamp) {
     ck_assert_uint_eq(0, resp.value.arrayLength);
     ck_assert(&UA_TYPES[UA_TYPES_BOOLEAN] == resp.value.type);
     ck_assert(*(UA_Boolean* )resp.value.data==false);
-    UA_DataValue_deleteMembers(&resp);
+    UA_DataValue_clear(&resp);
 } END_TEST
 
 START_TEST(ReadSingleAttributeInverseNameWithoutTimestamp) {
@@ -381,7 +400,7 @@ START_TEST(ReadSingleAttributeInverseNameWithoutTimestamp) {
     ck_assert(&UA_TYPES[UA_TYPES_LOCALIZEDTEXT] == resp.value.type);
     ck_assert(UA_String_equal(&comp.text, &respval->text));
     ck_assert(UA_String_equal(&comp.locale, &respval->locale));
-    UA_DataValue_deleteMembers(&resp);
+    UA_DataValue_clear(&resp);
 } END_TEST
 
 START_TEST(ReadSingleAttributeContainsNoLoopsWithoutTimestamp) {
@@ -395,7 +414,7 @@ START_TEST(ReadSingleAttributeContainsNoLoopsWithoutTimestamp) {
     ck_assert_uint_eq(0, resp.value.arrayLength);
     ck_assert(&UA_TYPES[UA_TYPES_BOOLEAN] == resp.value.type);
     ck_assert(*(UA_Boolean* )resp.value.data==false);
-    UA_DataValue_deleteMembers(&resp);
+    UA_DataValue_clear(&resp);
 } END_TEST
 
 START_TEST(ReadSingleAttributeEventNotifierWithoutTimestamp) {
@@ -410,7 +429,7 @@ START_TEST(ReadSingleAttributeEventNotifierWithoutTimestamp) {
     ck_assert_uint_eq(0, resp.value.arrayLength);
     ck_assert(&UA_TYPES[UA_TYPES_BYTE] == resp.value.type);
     ck_assert_int_eq(*(UA_Byte*)resp.value.data, 0);
-    UA_DataValue_deleteMembers(&resp);
+    UA_DataValue_clear(&resp);
 } END_TEST
 
 START_TEST(ReadSingleAttributeDataTypeWithoutTimestamp) {
@@ -428,7 +447,7 @@ START_TEST(ReadSingleAttributeDataTypeWithoutTimestamp) {
     UA_NodeId* respval = (UA_NodeId*)resp.value.data;
     ck_assert_int_eq(respval->namespaceIndex,0);
     ck_assert_int_eq(respval->identifier.numeric, UA_NS0ID_BASEDATATYPE);
-    UA_DataValue_deleteMembers(&resp);
+    UA_DataValue_clear(&resp);
 } END_TEST
 
 START_TEST(ReadSingleAttributeValueRankWithoutTimestamp) {
@@ -442,7 +461,7 @@ START_TEST(ReadSingleAttributeValueRankWithoutTimestamp) {
     ck_assert_uint_eq(0, resp.value.arrayLength);
     ck_assert(&UA_TYPES[UA_TYPES_INT32] == resp.value.type);
     ck_assert_int_eq(-2, *(UA_Int32* )resp.value.data);
-    UA_DataValue_deleteMembers(&resp);
+    UA_DataValue_clear(&resp);
 } END_TEST
 
 START_TEST(ReadSingleAttributeArrayDimensionsWithoutTimestamp) {
@@ -456,7 +475,7 @@ START_TEST(ReadSingleAttributeArrayDimensionsWithoutTimestamp) {
     ck_assert_uint_eq(0, resp.value.arrayLength);
     ck_assert(&UA_TYPES[UA_TYPES_UINT32] == resp.value.type);
     ck_assert_ptr_eq((UA_Int32*)resp.value.data,0);
-    UA_DataValue_deleteMembers(&resp);
+    UA_DataValue_clear(&resp);
 } END_TEST
 
 START_TEST(ReadSingleAttributeAccessLevelWithoutTimestamp) {
@@ -470,7 +489,7 @@ START_TEST(ReadSingleAttributeAccessLevelWithoutTimestamp) {
     ck_assert_uint_eq(0, resp.value.arrayLength);
     ck_assert(&UA_TYPES[UA_TYPES_BYTE] == resp.value.type);
     ck_assert_int_eq(*(UA_Byte*)resp.value.data, UA_ACCESSLEVELMASK_READ); // set by default
-    UA_DataValue_deleteMembers(&resp);
+    UA_DataValue_clear(&resp);
 } END_TEST
 
 START_TEST(ReadSingleAttributeUserAccessLevelWithoutTimestamp) {
@@ -487,7 +506,7 @@ START_TEST(ReadSingleAttributeUserAccessLevelWithoutTimestamp) {
     /* ck_assert_uint_eq(0, resp.value.arrayLength); */
     /* ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_BYTE], resp.value.type); */
     /* ck_assert_int_eq(*(UA_Byte*)resp.value.data, compNode->accessLevel & 0xFF); // 0xFF is the default userAccessLevel */
-    UA_DataValue_deleteMembers(&resp);
+    UA_DataValue_clear(&resp);
 } END_TEST
 
 START_TEST(ReadSingleAttributeMinimumSamplingIntervalWithoutTimestamp) {
@@ -504,7 +523,7 @@ START_TEST(ReadSingleAttributeMinimumSamplingIntervalWithoutTimestamp) {
     ck_assert_uint_eq(0, resp.value.arrayLength);
     ck_assert(&UA_TYPES[UA_TYPES_DOUBLE] == resp.value.type);
     ck_assert(*respval == comp);
-    UA_DataValue_deleteMembers(&resp);
+    UA_DataValue_clear(&resp);
     UA_NODESTORE_DELETE(server, (UA_Node*)compNode);
 } END_TEST
 
@@ -519,7 +538,7 @@ START_TEST(ReadSingleAttributeHistorizingWithoutTimestamp) {
     ck_assert_uint_eq(0, resp.value.arrayLength);
     ck_assert(&UA_TYPES[UA_TYPES_BOOLEAN] == resp.value.type);
     ck_assert(*(UA_Boolean*)resp.value.data==false);
-    UA_DataValue_deleteMembers(&resp);
+    UA_DataValue_clear(&resp);
 } END_TEST
 
 START_TEST(ReadSingleAttributeExecutableWithoutTimestamp) {
@@ -535,7 +554,7 @@ START_TEST(ReadSingleAttributeExecutableWithoutTimestamp) {
     ck_assert_uint_eq(0, resp.value.arrayLength);
     ck_assert(&UA_TYPES[UA_TYPES_BOOLEAN] == resp.value.type);
     ck_assert(*(UA_Boolean*)resp.value.data==true);
-    UA_DataValue_deleteMembers(&resp);
+    UA_DataValue_clear(&resp);
 #endif
 } END_TEST
 
@@ -552,7 +571,7 @@ START_TEST(ReadSingleAttributeUserExecutableWithoutTimestamp) {
     /* ck_assert_uint_eq(0, resp.value.arrayLength); */
     /* ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_BOOLEAN], resp.value.type); */
     /* ck_assert(*(UA_Boolean*)resp.value.data==false); */
-    UA_DataValue_deleteMembers(&resp);
+    UA_DataValue_clear(&resp);
 #endif
 } END_TEST
 
@@ -565,7 +584,7 @@ START_TEST(ReadSingleDataSourceAttributeValueWithoutTimestamp) {
     UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
 
     ck_assert_int_eq(UA_STATUSCODE_GOOD, resp.status);
-    UA_DataValue_deleteMembers(&resp);
+    UA_DataValue_clear(&resp);
 } END_TEST
 
 START_TEST(ReadSingleDataSourceAttributeDataTypeWithoutTimestamp) {
@@ -578,7 +597,7 @@ START_TEST(ReadSingleDataSourceAttributeDataTypeWithoutTimestamp) {
 
     ck_assert_int_eq(UA_STATUSCODE_GOOD, resp.status);
     ck_assert_int_eq(resp.hasServerTimestamp, false);
-    UA_DataValue_deleteMembers(&resp);
+    UA_DataValue_clear(&resp);
 } END_TEST
 
 START_TEST(ReadSingleDataSourceAttributeArrayDimensionsWithoutTimestamp) {
@@ -590,7 +609,7 @@ START_TEST(ReadSingleDataSourceAttributeArrayDimensionsWithoutTimestamp) {
     UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
     
     ck_assert_int_eq(UA_STATUSCODE_GOOD, resp.status);
-    UA_DataValue_deleteMembers(&resp);
+    UA_DataValue_clear(&resp);
 } END_TEST
 
 START_TEST(ReadSingleAttributeDataTypeDefinitionWithoutTimestamp) {
@@ -610,7 +629,7 @@ START_TEST(ReadSingleAttributeDataTypeDefinitionWithoutTimestamp) {
 #else
     ck_assert_int_eq(UA_STATUSCODE_BADATTRIBUTEIDINVALID, resp.status);
 #endif
-    UA_DataValue_deleteMembers(&resp);
+    UA_DataValue_clear(&resp);
 } END_TEST
 
 /* Tests for writeValue method */
@@ -772,6 +791,37 @@ START_TEST(WriteSingleAttributeValue) {
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert(resp.hasValue);
     ck_assert_int_eq(20, *(UA_Int32*)resp.value.data);
+    UA_DataValue_clear(&resp);
+} END_TEST
+
+/* The ServerTimestamp during a Write Request shall be ignored. Instead the
+ * server uses its own current time. */
+START_TEST(WriteSingleAttributeValueWithServerTimestamp) {
+    UA_fakeSleep(5000);
+
+    UA_WriteValue wValue;
+    UA_WriteValue_init(&wValue);
+    UA_Int32 myInteger = 20;
+    UA_Variant_setScalar(&wValue.value.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
+    wValue.value.hasValue = true;
+    wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
+    wValue.attributeId = UA_ATTRIBUTEID_VALUE;
+    wValue.value.hasServerTimestamp = true;
+    wValue.value.serverTimestamp = 1337;
+    UA_StatusCode retval = UA_Server_write(server, &wValue);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = UA_NODEID_STRING(1, "the.answer");
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_SERVER);
+
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(resp.hasValue);
+    ck_assert_int_eq(20, *(UA_Int32*)resp.value.data);
+    ck_assert(resp.hasServerTimestamp);
+    ck_assert_uint_eq(resp.serverTimestamp, UA_DateTime_now());
     UA_DataValue_deleteMembers(&resp);
 } END_TEST
 
@@ -795,7 +845,7 @@ START_TEST(WriteSingleAttributeValueEnum) {
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert(resp.hasValue);
     ck_assert_int_eq(4, *(UA_Int32*)resp.value.data);
-    UA_DataValue_deleteMembers(&resp);
+    UA_DataValue_clear(&resp);
 } END_TEST
 
 START_TEST(WriteSingleAttributeValueRangeFromScalar) {
@@ -929,6 +979,7 @@ static Suite * testSuite_services_attributes(void) {
     TCase *tc_readSingleAttributes = tcase_create("readSingleAttributes");
     tcase_add_checked_fixture(tc_readSingleAttributes, setup, teardown);
     tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeValueWithoutTimestamp);
+    tcase_add_test(tc_readSingleAttributes, ReadSingleServerAttribute);
     tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeValueRangeWithoutTimestamp);
     tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeNodeIdWithoutTimestamp);
     tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeNodeClassWithoutTimestamp);
@@ -973,6 +1024,7 @@ static Suite * testSuite_services_attributes(void) {
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeContainsNoLoops);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeEventNotifier);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValue);
+    tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValueWithServerTimestamp);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValueEnum);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeDataType);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValueRangeFromScalar);

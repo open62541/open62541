@@ -205,7 +205,7 @@ START_TEST(InstantiateVariableTypeNode) {
     UA_Server_readValue(server, pointVariableId, &val);
     ck_assert(val.type != NULL);
 
-    UA_Variant_deleteMembers(&val);
+    UA_Variant_clear(&val);
 } END_TEST
 
 START_TEST(InstantiateVariableTypeNodeWrongDims) {
@@ -236,7 +236,8 @@ START_TEST(InstantiateVariableTypeNodeLessDims) {
     addVariableTypeNode();
     
     /* Prepare the node attributes */
-    UA_UInt32 arrayDims[1] = {1}; /* This will match as the dimension constraints are an upper bound */
+    UA_UInt32 arrayDims[1] = {1}; /* This will match as the dimension
+                                   * constraints are an upper bound */
     UA_VariableAttributes vAttr = UA_VariableAttributes_default;
     vAttr.dataType = UA_TYPES[UA_TYPES_DOUBLE].typeId;
     vAttr.valueRank = UA_VALUERANK_ONE_DIMENSION;
@@ -244,7 +245,11 @@ START_TEST(InstantiateVariableTypeNodeLessDims) {
     vAttr.arrayDimensionsSize = 1;
     vAttr.displayName = UA_LOCALIZEDTEXT("en-US", "2DPoint Variable");
     vAttr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
-    /* vAttr.value is left empty, the server instantiates with the default value */
+
+    /* vAttr.value is left empty, the server tries to instantiate with the
+     * default value from the VariableType. This will fail. Then the server
+     * tries to auto-generate a matching zero-value of the correct
+     * dimensions. */
 
     /* Add the node */
     UA_StatusCode res =
@@ -253,7 +258,7 @@ START_TEST(InstantiateVariableTypeNodeLessDims) {
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                                   UA_QUALIFIEDNAME(1, "2DPoint Type"), pointTypeId,
                                   vAttr, NULL, NULL);
-    ck_assert_int_eq(UA_STATUSCODE_BADTYPEMISMATCH, res);
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, res);
 } END_TEST
 
 START_TEST(AddComplexTypeWithInheritance) {
@@ -424,7 +429,7 @@ START_TEST(DeleteObjectAndReferences) {
             refCount++;
     }
     ck_assert_uint_eq(refCount, 1);
-    UA_BrowseResult_deleteMembers(&br);
+    UA_BrowseResult_clear(&br);
 
     /* Delete the object */
     UA_Server_deleteNode(server, objectid, true);
@@ -438,7 +443,7 @@ START_TEST(DeleteObjectAndReferences) {
             refCount++;
     }
     ck_assert_uint_eq(refCount, 0);
-    UA_BrowseResult_deleteMembers(&br);
+    UA_BrowseResult_clear(&br);
 
     /* Add an object the second time */
     attr = UA_ObjectAttributes_default;
@@ -461,7 +466,7 @@ START_TEST(DeleteObjectAndReferences) {
             refCount++;
     }
     ck_assert_uint_eq(refCount, 1);
-    UA_BrowseResult_deleteMembers(&br);
+    UA_BrowseResult_clear(&br);
 } END_TEST
 
 
@@ -582,9 +587,9 @@ findReference(const UA_NodeId sourceId, const UA_NodeId refTypeId) {
         }
     }
 
-	UA_BrowseDescription_deleteMembers(bDesc);
+	UA_BrowseDescription_clear(bDesc);
 	UA_BrowseDescription_delete(bDesc);
-	UA_BrowseResult_deleteMembers(&bRes);
+	UA_BrowseResult_clear(&bRes);
 	return outNodeId;
 }
 

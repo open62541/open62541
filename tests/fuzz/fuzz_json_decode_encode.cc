@@ -30,7 +30,7 @@ LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {
     UA_ByteString buf2 = UA_BYTESTRING_NULL;
     retval = UA_ByteString_allocBuffer(&buf2, jsonSize);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_Variant_deleteMembers(&value);
+        UA_Variant_clear(&value);
         return 0;
     }
 
@@ -38,7 +38,7 @@ LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {
     const uint8_t *bufEnd = &buf2.data[buf2.length];
     retval = UA_encodeJson(&value, &UA_TYPES[UA_TYPES_VARIANT],
                            &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
-	UA_Variant_deleteMembers(&value);
+	UA_Variant_clear(&value);
 	if(retval != UA_STATUSCODE_GOOD || bufPos != bufEnd) {
 		return 0;
 	}
@@ -54,8 +54,8 @@ LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {
     UA_ByteString buf3 = UA_BYTESTRING_NULL;
     retval = UA_ByteString_allocBuffer(&buf3, jsonSize);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_Variant_deleteMembers(&value2);
-        UA_ByteString_deleteMembers(&buf2);
+        UA_Variant_clear(&value2);
+        UA_ByteString_clear(&buf2);
         return 0;
     }
 
@@ -63,16 +63,16 @@ LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {
     bufEnd = &buf3.data[buf3.length];
     retval = UA_encodeJson(&value2, &UA_TYPES[UA_TYPES_VARIANT],
                            &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
-	UA_Variant_deleteMembers(&value2);
+	UA_Variant_clear(&value2);
 	if(retval != UA_STATUSCODE_GOOD) {
-		UA_ByteString_deleteMembers(&buf2);
-		UA_ByteString_deleteMembers(&buf3);
+		UA_ByteString_clear(&buf2);
+		UA_ByteString_clear(&buf3);
 		return 0;
 	}
 
     UA_assert(buf2.length == buf3.length);
     UA_assert(memcmp(buf2.data, buf3.data, buf2.length) == 0);
-    UA_ByteString_deleteMembers(&buf2);
-    UA_ByteString_deleteMembers(&buf3);
+    UA_ByteString_clear(&buf2);
+    UA_ByteString_clear(&buf3);
     return 0;
 }

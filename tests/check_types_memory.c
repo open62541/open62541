@@ -128,7 +128,7 @@ START_TEST(encodeShallYieldDecode) {
                              &pos, &end, NULL, NULL);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_delete(obj1, &UA_TYPES[_i]);
-        UA_ByteString_deleteMembers(&msg1);
+        UA_ByteString_clear(&msg1);
         return;
     }
 
@@ -156,8 +156,8 @@ START_TEST(encodeShallYieldDecode) {
     // finally
     UA_delete(obj1, &UA_TYPES[_i]);
     UA_delete(obj2, &UA_TYPES[_i]);
-    UA_ByteString_deleteMembers(&msg1);
-    UA_ByteString_deleteMembers(&msg2);
+    UA_ByteString_clear(&msg1);
+    UA_ByteString_clear(&msg2);
 }
 END_TEST
 
@@ -202,7 +202,7 @@ START_TEST(decodeShallFailWithTruncatedBufferButSurvive) {
     retval |= UA_encodeBinary(obj1, &UA_TYPES[_i], &pos, &end, NULL, NULL);
     UA_delete(obj1, &UA_TYPES[_i]);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_ByteString_deleteMembers(&msg1);
+        UA_ByteString_clear(&msg1);
         return; // e.g. variants cannot be encoded after an init without failing (no datatype set)
     }
 
@@ -215,7 +215,7 @@ START_TEST(decodeShallFailWithTruncatedBufferButSurvive) {
     retval = UA_decodeBinary(&msg1, &offset, obj2, &UA_TYPES[_i], NULL);
     ck_assert_int_ne(retval, UA_STATUSCODE_GOOD);
     UA_delete(obj2, &UA_TYPES[_i]);
-    UA_ByteString_deleteMembers(&msg1);
+    UA_ByteString_clear(&msg1);
 }
 END_TEST
 
@@ -253,7 +253,7 @@ START_TEST(decodeScalarBasicTypeFromRandomBufferShallSucceed) {
         // finally
         UA_delete(obj1, &UA_TYPES[_i]);
     }
-    UA_ByteString_deleteMembers(&msg1);
+    UA_ByteString_clear(&msg1);
 }
 END_TEST
 
@@ -286,7 +286,7 @@ START_TEST(decodeComplexTypeFromRandomBufferShallSurvive) {
     }
 
     // finally
-    UA_ByteString_deleteMembers(&msg1);
+    UA_ByteString_clear(&msg1);
 }
 END_TEST
 
@@ -339,7 +339,7 @@ START_TEST(calcSizeBinaryShallBeCorrect) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq((uintptr_t)(pos - msg.data), predicted_size);
     UA_delete(obj, &UA_TYPES[_i]);
-    UA_ByteString_deleteMembers(&msg);
+    UA_ByteString_clear(&msg);
 }
 END_TEST
 

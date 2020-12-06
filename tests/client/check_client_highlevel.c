@@ -288,7 +288,7 @@ START_TEST(Node_Browse) {
     /* ref = &(bNextResp.results[0].references[0]); */
     /* ck_assert_uint_eq(ref->nodeId.nodeId.identifier.numeric, UA_NS0ID_SERVER_NAMESPACEARRAY); */
 
-    UA_BrowseNextResponse_deleteMembers(&bNextResp);
+    UA_BrowseNextResponse_clear(&bNextResp);
 
     bNextResp = UA_Client_Service_browseNext(client, bNextReq);
     ck_assert_uint_eq(bNextResp.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
@@ -299,21 +299,21 @@ START_TEST(Node_Browse) {
     /* ref = &(bNextResp.results[0].references[0]); */
     /* ck_assert_uint_eq(ref->nodeId.nodeId.identifier.numeric, UA_NS0ID_SERVER_SERVERARRAY); */
 
-    UA_BrowseNextResponse_deleteMembers(&bNextResp);
+    UA_BrowseNextResponse_clear(&bNextResp);
 
     // release continuation point. Result is then empty
     bNextReq.releaseContinuationPoints = UA_TRUE;
     bNextResp = UA_Client_Service_browseNext(client, bNextReq);
-    UA_BrowseNextResponse_deleteMembers(&bNextResp);
+    UA_BrowseNextResponse_clear(&bNextResp);
     ck_assert_uint_eq(bNextResp.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(bNextResp.resultsSize, 0);
 
-    UA_BrowseRequest_deleteMembers(&bReq);
-    UA_BrowseResponse_deleteMembers(&bResp);
+    UA_BrowseRequest_clear(&bReq);
+    UA_BrowseResponse_clear(&bResp);
     // already deleted by browse request
     bNextReq.continuationPoints = NULL;
     bNextReq.continuationPointsSize = 0;
-    UA_BrowseNextRequest_deleteMembers(&bNextReq);
+    UA_BrowseNextRequest_clear(&bNextReq);
 }
 END_TEST
 
@@ -340,10 +340,10 @@ START_TEST(Node_Register) {
     UA_UnregisterNodesResponse resUn = UA_Client_Service_unregisterNodes(client, reqUn);
     ck_assert_uint_eq(resUn.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
 
-    UA_UnregisterNodesRequest_deleteMembers(&reqUn);
-    UA_UnregisterNodesResponse_deleteMembers(&resUn);
-    UA_RegisterNodesRequest_deleteMembers(&req);
-    UA_RegisterNodesResponse_deleteMembers(&res);
+    UA_UnregisterNodesRequest_clear(&reqUn);
+    UA_UnregisterNodesResponse_clear(&resUn);
+    UA_RegisterNodesRequest_clear(&req);
+    UA_RegisterNodesResponse_clear(&res);
 }
 END_TEST
 
@@ -574,7 +574,7 @@ START_TEST(Node_ReadWrite_BrowseName) {
     ck_assert_int_eq(browseName.namespaceIndex, orig.namespaceIndex);
     ck_assert(UA_String_equal(&browseName.name, &orig.name));
 
-    UA_QualifiedName_deleteMembers(&browseName);
+    UA_QualifiedName_clear(&browseName);
 
     browseName = UA_QUALIFIEDNAME(1,"Int-Changed");
 
@@ -595,7 +595,7 @@ START_TEST(Node_ReadWrite_DisplayName) {
     UA_LocalizedText orig = UA_LOCALIZEDTEXT("en-US", "Int");
     ck_assert(UA_String_equal(&displayName.locale, &orig.locale));
     ck_assert(UA_String_equal(&displayName.text, &orig.text));
-    UA_LocalizedText_deleteMembers(&displayName);
+    UA_LocalizedText_clear(&displayName);
 
     UA_LocalizedText newLocale = UA_LOCALIZEDTEXT("en-US", "Int-Changed");
 
@@ -608,7 +608,7 @@ START_TEST(Node_ReadWrite_DisplayName) {
 
     ck_assert(UA_String_equal(&newLocale.locale, &displayNameChangedRead.locale));
     ck_assert(UA_String_equal(&newLocale.text, &displayNameChangedRead.text));
-    UA_LocalizedText_deleteMembers(&displayNameChangedRead);
+    UA_LocalizedText_clear(&displayNameChangedRead);
 
 }
 END_TEST
@@ -622,7 +622,7 @@ START_TEST(Node_ReadWrite_Description) {
     UA_LocalizedText orig = UA_LOCALIZEDTEXT("en-US", "Int");
     ck_assert(UA_String_equal(&description.locale, &orig.locale));
     ck_assert(UA_String_equal(&description.text, &orig.text));
-    UA_LocalizedText_deleteMembers(&description);
+    UA_LocalizedText_clear(&description);
 
     UA_LocalizedText newLocale = UA_LOCALIZEDTEXT("en-US", "Int-Changed");
 
@@ -635,7 +635,7 @@ START_TEST(Node_ReadWrite_Description) {
 
     ck_assert(UA_String_equal(&newLocale.locale, &descriptionChangedRead.locale));
     ck_assert(UA_String_equal(&newLocale.text, &descriptionChangedRead.text));
-    UA_LocalizedText_deleteMembers(&descriptionChangedRead);
+    UA_LocalizedText_clear(&descriptionChangedRead);
 
 }
 END_TEST
@@ -727,7 +727,7 @@ START_TEST(Node_ReadWrite_InverseName) {
     UA_LocalizedText orig = UA_LOCALIZEDTEXT("en-US", "HasParentParentType");
     ck_assert(UA_String_equal(&inverseName.locale, &orig.locale));
     ck_assert(UA_String_equal(&inverseName.text, &orig.text));
-    UA_LocalizedText_deleteMembers(&inverseName);
+    UA_LocalizedText_clear(&inverseName);
 
     UA_LocalizedText newLocale = UA_LOCALIZEDTEXT("en-US", "HasParentParentType-Changed");
 
@@ -740,7 +740,7 @@ START_TEST(Node_ReadWrite_InverseName) {
 
     ck_assert(UA_String_equal(&newLocale.locale, &inverseNameChangedRead.locale));
     ck_assert(UA_String_equal(&newLocale.text, &inverseNameChangedRead.text));
-    UA_LocalizedText_deleteMembers(&inverseNameChangedRead);
+    UA_LocalizedText_clear(&inverseNameChangedRead);
 
 }
 END_TEST

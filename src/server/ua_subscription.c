@@ -22,6 +22,8 @@
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
 
+#define UA_MAX_RETRANSMISSIONQUEUESIZE 256
+
 UA_Subscription *
 UA_Subscription_new() {
     /* Allocate the memory */
@@ -92,10 +94,21 @@ UA_Subscription_addMonitoredItem(UA_Server *server, UA_Subscription *sub,
 }
 
 static void
-removeOldestRetransmissionMessage(UA_Session *session) {
+removeOldestRetransmissionMessageFromSub(UA_Subscription *sub) {
+    UA_NotificationMessageEntry *oldestEntry =
+        TAILQ_LAST(&sub->retransmissionQueue, ListOfNotificationMessages);
+    TAILQ_REMOVE(&sub->retransmissionQueue, oldestEntry, listEntry);
+    UA_NotificationMessage_clear(&oldestEntry->message);
+    UA_free(oldestEntry);
+    --sub->retransmissionQueueSize;
+    if(sub->session)
+        --sub->session->totalRetransmissionQueueSize;
+}
+
+static void
+removeOldestRetransmissionMessageFromSession(UA_Session *session) {
     UA_NotificationMessageEntry *oldestEntry = NULL;
     UA_Subscription *oldestSub = NULL;
-
     UA_Subscription *sub;
     TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
         UA_NotificationMessageEntry *first =
@@ -110,28 +123,28 @@ removeOldestRetransmissionMessage(UA_Session *session) {
     UA_assert(oldestEntry);
     UA_assert(oldestSub);
 
-    TAILQ_REMOVE(&oldestSub->retransmissionQueue, oldestEntry, listEntry);
-    UA_NotificationMessage_clear(&oldestEntry->message);
-    UA_free(oldestEntry);
-    --session->totalRetransmissionQueueSize;
-    --oldestSub->retransmissionQueueSize;
+    removeOldestRetransmissionMessageFromSub(oldestSub);
 }
 
 static void
 UA_Subscription_addRetransmissionMessage(UA_Server *server, UA_Subscription *sub,
                                          UA_NotificationMessageEntry *entry) {
     /* Release the oldest entry if there is not enough space */
-    if(sub->session && server->config.maxRetransmissionQueueSize > 0 &&
-       sub->session->totalRetransmissionQueueSize >= server->config.maxRetransmissionQueueSize) {
-        UA_LOG_WARNING_SUBSCRIPTION(&server->config.logger, sub, "Retransmission queue overflow");
-        removeOldestRetransmissionMessage(sub->session);
+    UA_Session *session = sub->session;
+    if(sub->retransmissionQueueSize >= UA_MAX_RETRANSMISSIONQUEUESIZE) {
+        removeOldestRetransmissionMessageFromSub(sub);
+    } else if(session && server->config.maxRetransmissionQueueSize > 0 &&
+               session->totalRetransmissionQueueSize >= server->config.maxRetransmissionQueueSize) {
+        UA_LOG_WARNING_SUBSCRIPTION(&server->config.logger, sub,
+                                    "Retransmission queue overflow");
+        removeOldestRetransmissionMessageFromSession(sub->session);
     }
 
     /* Add entry */
     TAILQ_INSERT_TAIL(&sub->retransmissionQueue, entry, listEntry);
     ++sub->retransmissionQueueSize;
-    if(sub->session)
-        ++sub->session->totalRetransmissionQueueSize;
+    if(session)
+        ++session->totalRetransmissionQueueSize;
 }
 
 UA_StatusCode
@@ -305,8 +318,8 @@ UA_Subscription_nextSequenceNumber(UA_UInt32 sequenceNumber) {
 
 static void
 publishCallback(UA_Server *server, UA_Subscription *sub) {
-    sub->readyNotifications = sub->notificationQueueSize;
     UA_LOCK(server->serviceMutex);
+    sub->readyNotifications = sub->notificationQueueSize;
     UA_Subscription_publish(server, sub);
     UA_UNLOCK(server->serviceMutex);
 }
@@ -491,18 +504,17 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
     }
 
     /* Get the available sequence numbers from the retransmission queue */
-    size_t available = sub->retransmissionQueueSize;
-    UA_STACKARRAY(UA_UInt32, seqNumbers, available);
-    if(available > 0) {
-        response->availableSequenceNumbers = seqNumbers;
-        response->availableSequenceNumbersSize = available;
-        size_t i = 0;
-        UA_NotificationMessageEntry *nme;
-        TAILQ_FOREACH(nme, &sub->retransmissionQueue, listEntry) {
-            response->availableSequenceNumbers[i] = nme->message.sequenceNumber;
-            ++i;
-        }
+    UA_assert(sub->retransmissionQueueSize <= UA_MAX_RETRANSMISSIONQUEUESIZE);
+    UA_UInt32 seqNumbers[UA_MAX_RETRANSMISSIONQUEUESIZE];
+    response->availableSequenceNumbers = seqNumbers;
+    response->availableSequenceNumbersSize = sub->retransmissionQueueSize;
+    size_t i = 0;
+    UA_NotificationMessageEntry *nme;
+    TAILQ_FOREACH(nme, &sub->retransmissionQueue, listEntry) {
+        response->availableSequenceNumbers[i] = nme->message.sequenceNumber;
+        ++i;
     }
+    UA_assert(i == sub->retransmissionQueueSize);
 
     /* Send the response */
     UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub, "Sending out a publish response "

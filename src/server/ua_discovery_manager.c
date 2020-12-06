@@ -153,7 +153,7 @@ UA_DiscoveryManager_init(UA_DiscoveryManager *dm, UA_Server *server) {
 }
 
 void
-UA_DiscoveryManager_deleteMembers(UA_DiscoveryManager *dm, UA_Server *server) {
+UA_DiscoveryManager_clear(UA_DiscoveryManager *dm, UA_Server *server) {
     registeredServer_list_entry *rs, *rs_tmp;
     LIST_FOREACH_SAFE(rs, &dm->registeredServers, pointers, rs_tmp) {
         LIST_REMOVE(rs, pointers);

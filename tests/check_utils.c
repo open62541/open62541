@@ -321,7 +321,7 @@ START_TEST(idToStringNumeric) {
     UA_NodeId_toString(&n, &str);
     assertNodeIdString(&str, "ns=65535;i=4294967295");
 
-    UA_String_deleteMembers(&str);
+    UA_String_clear(&str);
 } END_TEST
 
 START_TEST(idToStringString) {
@@ -340,7 +340,7 @@ START_TEST(idToStringString) {
     UA_NodeId_toString(&n, &str);
     assertNodeIdString(&str, "s=Some String");
 
-    UA_String_deleteMembers(&str);
+    UA_String_clear(&str);
 } END_TEST
 
 START_TEST(idToStringGuid) {
@@ -385,7 +385,7 @@ START_TEST(idToStringGuid) {
     UA_NodeId_toString(&n, &str);
     assertNodeIdString(&str, "ns=65535;g=ffffffff-ffff-ffff-ffff-ffffffffffff");
 
-    UA_String_deleteMembers(&str);
+    UA_String_clear(&str);
 } END_TEST
 
 START_TEST(idToStringByte) {
@@ -432,7 +432,7 @@ START_TEST(idToStringByte) {
     assertNodeIdString(&str, "ns=599;b=IYPgVHg=");
     UA_free(bs.data);
 
-    UA_String_deleteMembers(&str);
+    UA_String_clear(&str);
 } END_TEST
 
 

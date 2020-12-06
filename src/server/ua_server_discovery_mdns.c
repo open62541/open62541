@@ -209,18 +209,12 @@ UA_DiscoveryManager_removeEntryFromServersOnNetwork(UA_Server *server, const cha
         server->discoveryManager.serverOnNetworkCallback(&entry->serverOnNetwork, false,
                                     entry->txtSet, server->discoveryManager.serverOnNetworkCallbackData);
 
-    /* remove from list */
+    /* Remove from list */
     LIST_REMOVE(entry, pointers);
-    UA_ServerOnNetwork_deleteMembers(&entry->serverOnNetwork);
+    UA_ServerOnNetwork_clear(&entry->serverOnNetwork);
     if(entry->pathTmp)
         UA_free(entry->pathTmp);
-
-#if UA_MULTITHREADING >= 200
-    entry->delayedCleanup.callback = NULL; /* Only free the structure */
-    UA_WorkQueue_enqueueDelayed(&server->workQueue, &entry->delayedCleanup);
-#else
     UA_free(entry);
-#endif
     return UA_STATUSCODE_GOOD;
 }
 

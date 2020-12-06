@@ -682,7 +682,7 @@ assembleProcessMessage(UA_SecureChannel *channel, void *application,
     
     /* Process the assembled message */
     UA_StatusCode retval = callback(application, channel, messageType, requestId, &payload);
-    UA_ByteString_deleteMembers(&payload);
+    UA_ByteString_clear(&payload);
     return retval;
 }
 
@@ -887,7 +887,7 @@ UA_SecureChannel_processBuffer(UA_SecureChannel *channel, void *application,
     res |= persistCompleteChunks(&channel->decryptedChunks);
 
  cleanup:
-    UA_ByteString_deleteMembers(&appended);
+    UA_ByteString_clear(&appended);
     return res;
 }
 

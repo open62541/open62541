@@ -63,9 +63,9 @@ static void setup(void) {
 
 static void teardown(void) {
     /* cleanup */
-    UA_NodeId_deleteMembers(&parentNodeId);
-    UA_NodeId_deleteMembers(&parentReferenceNodeId);
-    UA_NodeId_deleteMembers(&outNodeId);
+    UA_NodeId_clear(&parentNodeId);
+    UA_NodeId_clear(&parentReferenceNodeId);
+    UA_NodeId_clear(&outNodeId);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
 }

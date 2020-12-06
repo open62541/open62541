@@ -47,34 +47,34 @@ typedef void (*UA_clearSignature)(void *p, const UA_DataType *type);
 extern const UA_copySignature copyJumpTable[UA_DATATYPEKINDS];
 extern const UA_clearSignature clearJumpTable[UA_DATATYPEKINDS];
 
-/* TODO: The standard-defined types are ordered. See if binary search is
- * more efficient. */
 const UA_DataType *
-UA_findDataType(const UA_NodeId *typeId) {
-    if(typeId->identifierType != UA_NODEIDTYPE_NUMERIC)
-        return NULL;
-
-    /* Always look in built-in types first
-     * (may contain data types from all namespaces) */
+UA_findDataTypeWithCustom(const UA_NodeId *typeId,
+                          const UA_DataTypeArray *customTypes) {
+    /* Always look in built-in types first (may contain data types from all
+     * namespaces).
+     *
+     * TODO: The standard-defined types are ordered. See if binary search is
+     * more efficient. */
     for(size_t i = 0; i < UA_TYPES_COUNT; ++i) {
-        if(UA_TYPES[i].typeId.identifier.numeric == typeId->identifier.numeric
-           && UA_TYPES[i].typeId.namespaceIndex == typeId->namespaceIndex)
+        if(UA_NodeId_equal(&UA_TYPES[i].typeId, typeId))
             return &UA_TYPES[i];
     }
 
-    /* TODO When other namespace look in custom types, too, requires access to custom types array here! */
-    /*if(typeId->namespaceIndex != 0) {
-        size_t customTypesArraySize;
-        const UA_DataType *customTypesArray;
-        UA_getCustomTypes(&customTypesArraySize, &customTypesArray);
-        for(size_t i = 0; i < customTypesArraySize; ++i) {
-            if(customTypesArray[i].typeId.identifier.numeric == typeId->identifier.numeric
-               && customTypesArray[i].typeId.namespaceIndex == typeId->namespaceIndex)
-                return &customTypesArray[i];
+    /* Search in the customTypes */
+    while(customTypes) {
+        for(size_t i = 0; i < customTypes->typesSize; ++i) {
+            if(UA_NodeId_equal(&customTypes->types[i].typeId, typeId))
+                return &customTypes->types[i];
         }
-    }*/
+        customTypes = customTypes->next;
+    }
 
     return NULL;
+}
+
+const UA_DataType *
+UA_findDataType(const UA_NodeId *typeId) {
+    return UA_findDataTypeWithCustom(typeId, NULL);
 }
 
 /***************************/
@@ -450,6 +450,11 @@ ExpandedNodeId_copy(UA_ExpandedNodeId const *src, UA_ExpandedNodeId *dst,
     retval |= UA_String_copy(&src->namespaceUri, &dst->namespaceUri);
     dst->serverIndex = src->serverIndex;
     return retval;
+}
+
+UA_Boolean
+UA_ExpandedNodeId_isLocal(const UA_ExpandedNodeId *n) {
+    return (n->namespaceUri.length == 0 && n->serverIndex == 0);
 }
 
 UA_Order
@@ -982,6 +987,15 @@ DiagnosticInfo_copy(UA_DiagnosticInfo const *src, UA_DiagnosticInfo *dst,
     }
     return retval;
 }
+
+/* StatusCode */
+UA_Boolean
+UA_StatusCode_isBad(const UA_StatusCode code) {
+    if ((code & 0x80000000) != 0) {
+        return UA_TRUE;
+    }
+    return UA_FALSE;
+} 
 
 /********************/
 /* Structured Types */

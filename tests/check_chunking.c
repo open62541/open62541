@@ -56,7 +56,7 @@ START_TEST(encodeArrayIntoFiveChunksShallWork) {
     dataCount += (uintptr_t)(pos - buffers[bufIndex].data);
     ck_assert_uint_eq(UA_calcSizeBinary(&v,&UA_TYPES[UA_TYPES_VARIANT]), dataCount);
 
-    UA_Variant_deleteMembers(&v);
+    UA_Variant_clear(&v);
     UA_Array_delete(buffers, chunkCount, &UA_TYPES[UA_TYPES_BYTESTRING]);
     UA_Array_delete(ar, arraySize, &UA_TYPES[UA_TYPES_INT32]);
 } END_TEST
@@ -100,9 +100,9 @@ START_TEST(encodeStringIntoFiveChunksShallWork) {
     dataCount += (uintptr_t)(pos - buffers[bufIndex].data);
     ck_assert_uint_eq(UA_calcSizeBinary(&v,&UA_TYPES[UA_TYPES_VARIANT]), dataCount);
 
-    UA_Variant_deleteMembers(&v);
+    UA_Variant_clear(&v);
     UA_Array_delete(buffers, chunkCount, &UA_TYPES[UA_TYPES_BYTESTRING]);
-    UA_String_deleteMembers(&string);
+    UA_String_clear(&string);
 } END_TEST
 
 START_TEST(encodeTwoStringsIntoTenChunksShallWork) {
@@ -147,7 +147,7 @@ START_TEST(encodeTwoStringsIntoTenChunksShallWork) {
     ck_assert_uint_eq(2 * UA_calcSizeBinary(&string,&UA_TYPES[UA_TYPES_STRING]), dataCount);
 
     UA_Array_delete(buffers, chunkCount, &UA_TYPES[UA_TYPES_BYTESTRING]);
-    UA_String_deleteMembers(&string);
+    UA_String_clear(&string);
 } END_TEST
 
 int main(void) {

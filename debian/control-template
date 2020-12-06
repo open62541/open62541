@@ -6,7 +6,6 @@ Build-Depends: debhelper (>= 9),
  python (>= 2.7),
  python3-sphinx | python-sphinx,
  python3-sphinx-rtd-theme | python-sphinx-rtd-theme,
- base-files,
  graphviz,
  texlive-fonts-recommended,
  texlive-latex-extra,
@@ -37,7 +36,7 @@ Description: Open source implementation of OPC UA - development files
 Package: libopen62541-<soname>-tools
 Section: libdevel
 Architecture: all
-Depends: ${misc:Depends}, python
+Depends: ${misc:Depends}, python3
 Recommends: libopen62541-<soname>-dev
 Description: Open source implementation of OPC UA - tools
  open62541 (http://open62541.org) is an open source and free implementation

@@ -128,8 +128,9 @@ typedef struct {
 
     /* Callbacks for async connection handshakes */
     UA_ConnectClientConnection initConnectionFunc;
-    UA_StatusCode (*pollConnectionFunc)(UA_Client *client, void *context,
-                                        UA_UInt32 timeout);
+    UA_StatusCode (*pollConnectionFunc)(UA_Connection *connection,
+                                        UA_UInt32 timeout,
+                                        const UA_Logger *logger);
 
     /* Callback for state changes. The client state is differentated into the
      * SecureChannel state and the Session state. The connectStatus is set if
@@ -682,6 +683,15 @@ UA_Client_changeRepeatedCallbackInterval(UA_Client *client,
 
 void UA_EXPORT
 UA_Client_removeCallback(UA_Client *client, UA_UInt64 callbackId);
+
+/**
+ * Client Utility Functions
+ * ------------------------ */
+
+/* Lookup a datatype by its NodeId. Takes the custom types in the client
+ * configuration into account. Return NULL if none found. */
+UA_EXPORT const UA_DataType *
+UA_Client_findDataType(UA_Client *client, const UA_NodeId *typeId);
 
 /**
  * .. toctree::

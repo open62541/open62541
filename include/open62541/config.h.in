@@ -50,9 +50,6 @@
 /* Multithreading */
 #cmakedefine UA_ENABLE_IMMUTABLE_NODES
 #define UA_MULTITHREADING ${UA_MULTITHREADING}
-#if UA_MULTITHREADING >= 200 && !defined(UA_ENABLE_IMMUTABLE_NODES)
-#error "The multithreading feature requires nodes to be immutable"
-#endif
 
 /* Advanced Options */
 #cmakedefine UA_ENABLE_STATUSCODE_DESCRIPTIONS
@@ -70,7 +67,7 @@
 #define UA_VALGRIND_INTERACTIVE_INTERVAL ${UA_VALGRIND_INTERACTIVE_INTERVAL}
 #cmakedefine UA_GENERATED_NAMESPACE_ZERO
 #cmakedefine UA_GENERATED_NAMESPACE_ZERO_FULL
-#cmakedefine UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
+#cmakedefine UA_ENABLE_PUBSUB_MONITORING
 
 #cmakedefine UA_PACK_DEBIAN
 

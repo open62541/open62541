@@ -871,7 +871,8 @@ connectIterate(UA_Client *client, UA_UInt32 timeout) {
     } else if(client->connection.state == UA_CONNECTIONSTATE_OPENING) {
         /* Poll the connection status */
         client->connectStatus =
-            client->config.pollConnectionFunc(client, &client->connection, timeout);
+            client->config.pollConnectionFunc(&client->connection, timeout,
+                                              &client->config.logger);
         return client->connectStatus;
     }
 
@@ -1126,8 +1127,8 @@ sendCloseSession(UA_Client *client) {
     UA_CloseSessionResponse response;
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST],
                         &response, &UA_TYPES[UA_TYPES_CLOSESESSIONRESPONSE]);
-    UA_CloseSessionRequest_deleteMembers(&request);
-    UA_CloseSessionResponse_deleteMembers(&response);
+    UA_CloseSessionRequest_clear(&request);
+    UA_CloseSessionResponse_clear(&response);
 }
 
 static void
@@ -1136,7 +1137,7 @@ closeSession(UA_Client *client) {
     if(client->sessionState == UA_SESSIONSTATE_ACTIVATED)
         sendCloseSession(client);
 
-    UA_NodeId_deleteMembers(&client->authenticationToken);
+    UA_NodeId_clear(&client->authenticationToken);
     client->requestHandle = 0;
     client->sessionState = UA_SESSIONSTATE_CLOSED;
 

@@ -85,7 +85,7 @@ START_TEST(readSpeed) {
         Service_Read(server, &server->adminSession, &request, &res);
         UA_UNLOCK(server->serviceMutex);
 
-        UA_ReadResponse_deleteMembers(&res);
+        UA_ReadResponse_clear(&res);
     }
 
     finish = clock();
@@ -95,8 +95,8 @@ START_TEST(readSpeed) {
     printf("duration was %f s\n", time_spent);
     printf("retval is %s\n", UA_StatusCode_name(retval));
 
-    UA_ByteString_deleteMembers(&request_msg);
-    UA_ByteString_deleteMembers(&response_msg);
+    UA_ByteString_clear(&request_msg);
+    UA_ByteString_clear(&response_msg);
 
     for(size_t i = 0; i < READNODES; i++)
         UA_NodeId_clear(&readNodeIds[i]);
@@ -170,8 +170,8 @@ START_TEST(readSpeedWithEncoding) {
         retval |= UA_encodeBinary(&res, &UA_TYPES[UA_TYPES_READRESPONSE],
                                   &rpos, &rend, NULL, NULL);
 
-        UA_ReadRequest_deleteMembers(&req);
-        UA_ReadResponse_deleteMembers(&res);
+        UA_ReadRequest_clear(&req);
+        UA_ReadResponse_clear(&res);
     }
 
     finish = clock();
@@ -181,8 +181,8 @@ START_TEST(readSpeedWithEncoding) {
     printf("duration with encoding was %f s\n", time_spent);
     printf("retval is %s\n", UA_StatusCode_name(retval));
 
-    UA_ByteString_deleteMembers(&request_msg);
-    UA_ByteString_deleteMembers(&response_msg);
+    UA_ByteString_clear(&request_msg);
+    UA_ByteString_clear(&response_msg);
 
     for(size_t i = 0; i < READNODES; i++)
         UA_NodeId_clear(&readNodeIds[i]);

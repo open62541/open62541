@@ -10,13 +10,36 @@
 #define UA_TIMER_H_
 
 #include "ua_util_internal.h"
-#include "ua_workqueue.h"
 #include "ziptree.h"
 
 _UA_BEGIN_DECLS
 
-struct UA_TimerEntry;
-typedef struct UA_TimerEntry UA_TimerEntry;
+/* The timer is protected by its own mutex. The mutex is released before calling
+ * into the callbacks. So the timer can be modified from the callbacks it is
+ * executing. Also, the timer mutex can never lead to locking. Because the timer
+ * mutex will be left without acquiring another mutex.
+ *
+ * Obviously, the timer must not be deleted from within one of its
+ * callbacks. */
+
+/* Callback where the application is either a client or a server */
+typedef void (*UA_ApplicationCallback)(void *application, void *data);
+
+typedef struct UA_TimerEntry {
+    ZIP_ENTRY(UA_TimerEntry) zipfields;
+    UA_DateTime nextTime;                    /* The next time when the callback
+                                              * is to be executed */
+    UA_UInt64 interval;                      /* Interval in 100ns resolution. If
+                                                the interval is zero, the
+                                                callback is not repeated and
+                                                removed after execution. */
+    UA_ApplicationCallback callback;
+    void *application;
+    void *data;
+
+    ZIP_ENTRY(UA_TimerEntry) idZipfields;
+    UA_UInt64 id;                            /* Id of the entry */
+} UA_TimerEntry;
 
 ZIP_HEAD(UA_TimerZip, UA_TimerEntry);
 typedef struct UA_TimerZip UA_TimerZip;
@@ -24,20 +47,29 @@ typedef struct UA_TimerZip UA_TimerZip;
 ZIP_HEAD(UA_TimerIdZip, UA_TimerEntry);
 typedef struct UA_TimerIdZip UA_TimerIdZip;
 
-/* Only for a single thread. Protect by a mutex if required. */
 typedef struct {
     UA_TimerZip root;     /* The root of the time-sorted zip tree */
     UA_TimerIdZip idRoot; /* The root of the id-sorted zip tree */
     UA_UInt64 idCounter;  /* Generate unique identifiers. Identifiers are always
                            * above zero. */
+#if UA_MULTITHREADING >= 100
+    UA_LOCK_TYPE(timerMutex)
+#endif
 } UA_Timer;
 
-void UA_Timer_init(UA_Timer *t);
+void
+UA_Timer_init(UA_Timer *t);
 
 UA_StatusCode
 UA_Timer_addTimedCallback(UA_Timer *t, UA_ApplicationCallback callback,
                           void *application, void *data, UA_DateTime date,
                           UA_UInt64 *callbackId);
+
+/* Add a pre-allocated and pre-filled UA_TimerEntry. This cannot fail. It is
+ * used, for example, for delayed memory reclamation where the data structure
+ * begins with a UA_TimerEntry. */
+void
+UA_Timer_addTimerEntry(UA_Timer *t, UA_TimerEntry *te, UA_UInt64 *callbackId);
 
 UA_StatusCode
 UA_Timer_addRepeatedCallback(UA_Timer *t, UA_ApplicationCallback callback,
@@ -64,7 +96,8 @@ UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic,
                  UA_TimerExecutionCallback executionCallback,
                  void *executionApplication);
 
-void UA_Timer_deleteMembers(UA_Timer *t);
+void
+UA_Timer_clear(UA_Timer *t);
 
 _UA_END_DECLS
 

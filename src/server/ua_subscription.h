@@ -20,8 +20,8 @@
 #include <open62541/plugin/nodestore.h>
 
 #include "ua_session.h"
+#include "ua_timer.h"
 #include "ua_util_internal.h"
-#include "ua_workqueue.h"
 
 _UA_BEGIN_DECLS
 
@@ -124,6 +124,9 @@ typedef struct UA_Notification {
         UA_EventFieldList event;
 #endif
     } data;
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    UA_Boolean isOverflowEvent; /* Counted manually */
+#endif
 } UA_Notification;
 
 /* Notifications are always added to the queue of the MonitoredItem. That queue
@@ -152,7 +155,7 @@ void UA_Notification_dequeueMon(UA_Server *server, UA_Notification *n);
 typedef TAILQ_HEAD(NotificationQueue, UA_Notification) NotificationQueue;
 
 struct UA_MonitoredItem {
-    UA_DelayedCallback delayedFreePointers;
+    UA_TimerEntry delayedFreePointers;
     LIST_ENTRY(UA_MonitoredItem) listEntry;
     UA_Subscription *subscription; /* Local MonitoredItem if the subscription is NULL */
     UA_UInt32 monitoredItemId;
@@ -262,7 +265,7 @@ typedef TAILQ_HEAD(ListOfNotificationMessages, UA_NotificationMessageEntry) List
  * may keep Subscriptions intact beyond the Session lifetime. They can then be
  * re-bound to a new Session with the TransferSubscription Service. */
 struct UA_Subscription {
-    UA_DelayedCallback delayedFreePointers;
+    UA_TimerEntry delayedFreePointers;
     LIST_ENTRY(UA_Subscription) serverListEntry;
     TAILQ_ENTRY(UA_Subscription) sessionListEntry; /* Only set if session != NULL */
     UA_Session *session; /* May be NULL if no session is attached. */

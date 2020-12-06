@@ -74,7 +74,7 @@ createSubscription(void) {
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     subscriptionId = response.subscriptionId;
 
-    UA_CreateSubscriptionResponse_deleteMembers(&response);
+    UA_CreateSubscriptionResponse_clear(&response);
 }
 
 static void
@@ -111,8 +111,8 @@ createMonitoredItem(void) {
     monitoredItemId = response.results[0].monitoredItemId;
     ck_assert_uint_gt(monitoredItemId, 0);
 
-    UA_MonitoredItemCreateRequest_deleteMembers(&item);
-    UA_CreateMonitoredItemsResponse_deleteMembers(&response);
+    UA_MonitoredItemCreateRequest_clear(&item);
+    UA_CreateMonitoredItemsResponse_clear(&response);
 }
 
 START_TEST(Server_createSubscription) {
@@ -129,7 +129,7 @@ START_TEST(Server_createSubscription) {
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     subscriptionId = response.subscriptionId;
 
-    UA_CreateSubscriptionResponse_deleteMembers(&response);
+    UA_CreateSubscriptionResponse_clear(&response);
 }
 END_TEST
 
@@ -156,7 +156,7 @@ START_TEST(Server_modifySubscription) {
     UA_UNLOCK(server->serviceMutex);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
 
-    UA_ModifySubscriptionResponse_deleteMembers(&response);
+    UA_ModifySubscriptionResponse_clear(&response);
 }
 END_TEST
 
@@ -180,7 +180,7 @@ START_TEST(Server_setPublishingMode) {
     ck_assert_uint_eq(response.resultsSize, 1);
     ck_assert_uint_eq(response.results[0], UA_STATUSCODE_GOOD);
 
-    UA_SetPublishingModeResponse_deleteMembers(&response);
+    UA_SetPublishingModeResponse_clear(&response);
 }
 END_TEST
 
@@ -200,7 +200,7 @@ START_TEST(Server_republish) {
     UA_UNLOCK(server->serviceMutex);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_BADMESSAGENOTAVAILABLE);
 
-    UA_RepublishResponse_deleteMembers(&response);
+    UA_RepublishResponse_clear(&response);
 }
 END_TEST
 
@@ -219,7 +219,7 @@ START_TEST(Server_republish_invalid) {
     UA_UNLOCK(server->serviceMutex);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID);
 
-    UA_RepublishResponse_deleteMembers(&response);
+    UA_RepublishResponse_clear(&response);
 }
 END_TEST
 
@@ -241,7 +241,7 @@ START_TEST(Server_deleteSubscription) {
     ck_assert_uint_eq(del_response.resultsSize, 1);
     ck_assert_uint_eq(del_response.results[0], UA_STATUSCODE_GOOD);
 
-    UA_DeleteSubscriptionsResponse_deleteMembers(&del_response);
+    UA_DeleteSubscriptionsResponse_clear(&del_response);
 }
 END_TEST
 
@@ -258,7 +258,7 @@ START_TEST(Server_publishCallback) {
     UA_UNLOCK(server->serviceMutex);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     UA_UInt32 subscriptionId1 = response.subscriptionId;
-    UA_CreateSubscriptionResponse_deleteMembers(&response);
+    UA_CreateSubscriptionResponse_clear(&response);
 
     /* Create a second subscription */
     UA_CreateSubscriptionRequest_init(&request);
@@ -271,7 +271,7 @@ START_TEST(Server_publishCallback) {
     UA_UInt32 subscriptionId2 = response.subscriptionId;
     UA_Double publishingInterval = response.revisedPublishingInterval;
     ck_assert(publishingInterval > 0.0f);
-    UA_CreateSubscriptionResponse_deleteMembers(&response);
+    UA_CreateSubscriptionResponse_clear(&response);
 
     /* Keepalive is set to max initially */
     UA_Subscription *sub;
@@ -306,7 +306,7 @@ START_TEST(Server_publishCallback) {
     ck_assert_uint_eq(del_response.results[0], UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(del_response.results[1], UA_STATUSCODE_GOOD);
 
-    UA_DeleteSubscriptionsResponse_deleteMembers(&del_response);
+    UA_DeleteSubscriptionsResponse_clear(&del_response);
 }
 END_TEST
 
@@ -348,8 +348,8 @@ START_TEST(Server_modifyMonitoredItems) {
     ck_assert_uint_eq(response.resultsSize, 1);
     ck_assert_uint_eq(response.results[0].statusCode, UA_STATUSCODE_GOOD);
 
-    UA_MonitoredItemModifyRequest_deleteMembers(&item);
-    UA_ModifyMonitoredItemsResponse_deleteMembers(&response);
+    UA_MonitoredItemModifyRequest_clear(&item);
+    UA_ModifyMonitoredItemsResponse_clear(&response);
 }
 END_TEST
 
@@ -368,7 +368,7 @@ START_TEST(Server_overflow) {
     UA_UInt32 localSubscriptionId = createSubscriptionResponse.subscriptionId;
     UA_Double publishingInterval = createSubscriptionResponse.revisedPublishingInterval;
     ck_assert(publishingInterval > 0.0f);
-    UA_CreateSubscriptionResponse_deleteMembers(&createSubscriptionResponse);
+    UA_CreateSubscriptionResponse_clear(&createSubscriptionResponse);
 
     /* Create a monitoredItem */
     UA_CreateMonitoredItemsRequest createMonitoredItemsRequest;
@@ -405,8 +405,8 @@ START_TEST(Server_overflow) {
     UA_UInt32 localMonitoredItemId = createMonitoredItemsResponse.results[0].monitoredItemId;
     ck_assert_uint_gt(localMonitoredItemId, 0);
 
-    UA_MonitoredItemCreateRequest_deleteMembers(&item);
-    UA_CreateMonitoredItemsResponse_deleteMembers(&createMonitoredItemsResponse);
+    UA_MonitoredItemCreateRequest_clear(&item);
+    UA_CreateMonitoredItemsResponse_clear(&createMonitoredItemsResponse);
 
     UA_MonitoredItem *mon = NULL;
     UA_Subscription *sub;
@@ -422,21 +422,21 @@ START_TEST(Server_overflow) {
     notification = TAILQ_LAST(&mon->queue, NotificationQueue);
     ck_assert_uint_eq(notification->data.dataChange.value.hasStatus, false);
 
-    UA_ByteString_deleteMembers(&mon->lastSampledValue);
+    UA_ByteString_clear(&mon->lastSampledValue);
     UA_MonitoredItem_sampleCallback(server, mon);
     ck_assert_uint_eq(mon->queueSize, 2); 
     ck_assert_uint_eq(mon->maxQueueSize, 3); 
     notification = TAILQ_LAST(&mon->queue, NotificationQueue);
     ck_assert_uint_eq(notification->data.dataChange.value.hasStatus, false);
 
-    UA_ByteString_deleteMembers(&mon->lastSampledValue);
+    UA_ByteString_clear(&mon->lastSampledValue);
     UA_MonitoredItem_sampleCallback(server, mon);
     ck_assert_uint_eq(mon->queueSize, 3); 
     ck_assert_uint_eq(mon->maxQueueSize, 3); 
     notification = TAILQ_LAST(&mon->queue, NotificationQueue);
     ck_assert_uint_eq(notification->data.dataChange.value.hasStatus, false);
 
-    UA_ByteString_deleteMembers(&mon->lastSampledValue);
+    UA_ByteString_clear(&mon->lastSampledValue);
     UA_MonitoredItem_sampleCallback(server, mon);
     ck_assert_uint_eq(mon->queueSize, 3); 
     ck_assert_uint_eq(mon->maxQueueSize, 3); 
@@ -475,8 +475,8 @@ START_TEST(Server_overflow) {
     ck_assert_uint_eq(modifyMonitoredItemsResponse.resultsSize, 1);
     ck_assert_uint_eq(modifyMonitoredItemsResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
 
-    UA_MonitoredItemModifyRequest_deleteMembers(&itemToModify);
-    UA_ModifyMonitoredItemsResponse_deleteMembers(&modifyMonitoredItemsResponse);
+    UA_MonitoredItemModifyRequest_clear(&itemToModify);
+    UA_ModifyMonitoredItemsResponse_clear(&modifyMonitoredItemsResponse);
 
     ck_assert_uint_eq(mon->queueSize, 2); 
     ck_assert_uint_eq(mon->maxQueueSize, 2); 
@@ -507,8 +507,8 @@ START_TEST(Server_overflow) {
     ck_assert_uint_eq(modifyMonitoredItemsResponse.resultsSize, 1);
     ck_assert_uint_eq(modifyMonitoredItemsResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
 
-    UA_MonitoredItemModifyRequest_deleteMembers(&itemToModify);
-    UA_ModifyMonitoredItemsResponse_deleteMembers(&modifyMonitoredItemsResponse);
+    UA_MonitoredItemModifyRequest_clear(&itemToModify);
+    UA_ModifyMonitoredItemsResponse_clear(&modifyMonitoredItemsResponse);
 
     ck_assert_uint_eq(mon->queueSize, 1); 
     ck_assert_uint_eq(mon->maxQueueSize, 1); 
@@ -538,8 +538,8 @@ START_TEST(Server_overflow) {
     ck_assert_uint_eq(modifyMonitoredItemsResponse.resultsSize, 1);
     ck_assert_uint_eq(modifyMonitoredItemsResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
 
-    UA_MonitoredItemModifyRequest_deleteMembers(&itemToModify);
-    UA_ModifyMonitoredItemsResponse_deleteMembers(&modifyMonitoredItemsResponse);
+    UA_MonitoredItemModifyRequest_clear(&itemToModify);
+    UA_ModifyMonitoredItemsResponse_clear(&modifyMonitoredItemsResponse);
 
     UA_MonitoredItem_sampleCallback(server, mon);
     ck_assert_uint_eq(mon->queueSize, 1); 
@@ -565,7 +565,7 @@ START_TEST(Server_overflow) {
     ck_assert_uint_eq(deleteSubscriptionsResponse.resultsSize, 1);
     ck_assert_uint_eq(deleteSubscriptionsResponse.results[0], UA_STATUSCODE_GOOD);
 
-    UA_DeleteSubscriptionsResponse_deleteMembers(&deleteSubscriptionsResponse);
+    UA_DeleteSubscriptionsResponse_clear(&deleteSubscriptionsResponse);
 
 }
 END_TEST
@@ -591,7 +591,7 @@ START_TEST(Server_setMonitoringMode) {
     ck_assert_uint_eq(response.resultsSize, 1);
     ck_assert_uint_eq(response.results[0], UA_STATUSCODE_GOOD);
 
-    UA_SetMonitoringModeResponse_deleteMembers(&response);
+    UA_SetMonitoringModeResponse_clear(&response);
 }
 END_TEST
 
@@ -615,7 +615,7 @@ START_TEST(Server_deleteMonitoredItems) {
     ck_assert_uint_eq(response.resultsSize, 1);
     ck_assert_uint_eq(response.results[0], UA_STATUSCODE_GOOD);
 
-    UA_DeleteMonitoredItemsResponse_deleteMembers(&response);
+    UA_DeleteMonitoredItemsResponse_clear(&response);
 }
 END_TEST
 
@@ -635,7 +635,7 @@ START_TEST(Server_lifeTimeCount) {
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(response.revisedMaxKeepAliveCount, 1);
     ck_assert_uint_eq(response.revisedLifetimeCount, 3);
-    UA_CreateSubscriptionResponse_deleteMembers(&response);
+    UA_CreateSubscriptionResponse_clear(&response);
 
     /* Create a second subscription */
     UA_CreateSubscriptionRequest_init(&request);
@@ -653,7 +653,7 @@ START_TEST(Server_lifeTimeCount) {
     UA_Double publishingInterval = response.revisedPublishingInterval;
     ck_assert(publishingInterval > 0.0f);
     subscriptionId = response.subscriptionId;
-    UA_CreateSubscriptionResponse_deleteMembers(&response);
+    UA_CreateSubscriptionResponse_clear(&response);
 
     /* Add a MonitoredItem to the second subscription */
     UA_CreateMonitoredItemsRequest mrequest;
@@ -686,8 +686,8 @@ START_TEST(Server_lifeTimeCount) {
     ck_assert_uint_eq(mresponse.results[0].statusCode, UA_STATUSCODE_GOOD);
     monitoredItemId = mresponse.results[0].monitoredItemId;
     ck_assert_uint_gt(monitoredItemId, 0);
-    UA_MonitoredItemCreateRequest_deleteMembers(&item);
-    UA_CreateMonitoredItemsResponse_deleteMembers(&mresponse);
+    UA_MonitoredItemCreateRequest_clear(&item);
+    UA_CreateMonitoredItemsResponse_clear(&mresponse);
 
     UA_Server_run_iterate(server, false);
     UA_UInt32 count = 0;
@@ -800,7 +800,7 @@ START_TEST(Server_invalidPublishingInterval) {
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert(response.revisedPublishingInterval ==
               server->config.publishingIntervalLimits.min);
-    UA_CreateSubscriptionResponse_deleteMembers(&response);
+    UA_CreateSubscriptionResponse_clear(&response);
 
     server->config.publishingIntervalLimits.min = savedPublishingIntervalLimitsMin;
 }
@@ -843,8 +843,8 @@ START_TEST(Server_invalidSamplingInterval) {
     ck_assert(response.results[0].revisedSamplingInterval ==
               server->config.samplingIntervalLimits.min);
 
-    UA_MonitoredItemCreateRequest_deleteMembers(&item);
-    UA_CreateMonitoredItemsResponse_deleteMembers(&response);
+    UA_MonitoredItemCreateRequest_clear(&item);
+    UA_CreateMonitoredItemsResponse_clear(&response);
 
     server->config.samplingIntervalLimits.min = savedSamplingIntervalLimitsMin;
 }

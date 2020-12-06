@@ -63,7 +63,7 @@ START_TEST(SecureChannel_timeout_max) {
     retval = UA_Client_readValueAttribute(client, nodeId, &val);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_Variant_deleteMembers(&val);
+    UA_Variant_clear(&val);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
@@ -126,7 +126,7 @@ START_TEST(SecureChannel_timeout_fail) {
     retval = UA_Client_readValueAttribute(client, nodeId, &val);
     ck_assert(retval != UA_STATUSCODE_GOOD);
 
-    UA_Variant_deleteMembers(&val);
+    UA_Variant_clear(&val);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
@@ -199,7 +199,7 @@ START_TEST(SecureChannel_cableunplugged) {
     UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
     retval = UA_Client_readValueAttribute(client, nodeId, &val);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    UA_Variant_deleteMembers(&val);
+    UA_Variant_clear(&val);
 
     UA_Client_recv = client->connection.recv;
     client->connection.recv = UA_Client_recvTesting;

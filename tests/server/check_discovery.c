@@ -43,10 +43,10 @@ static void configure_lds_server(UA_Server *pServer)
     UA_ServerConfig_setDefault(config_lds);
 
     config_lds->applicationDescription.applicationType = UA_APPLICATIONTYPE_DISCOVERYSERVER;
-    UA_String_deleteMembers(&config_lds->applicationDescription.applicationUri);
+    UA_String_clear(&config_lds->applicationDescription.applicationUri);
     config_lds->applicationDescription.applicationUri =
         UA_STRING_ALLOC("urn:open62541.test.local_discovery_server");
-    UA_LocalizedText_deleteMembers(&config_lds->applicationDescription.applicationName);
+    UA_LocalizedText_clear(&config_lds->applicationDescription.applicationName);
     config_lds->applicationDescription.applicationName
         = UA_LOCALIZEDTEXT_ALLOC("en", "LDS Server");
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
@@ -106,10 +106,10 @@ static void setup_register(void) {
     UA_ServerConfig *config_register = UA_Server_getConfig(server_register);
     UA_ServerConfig_setMinimal(config_register, 16664, NULL);
 
-    UA_String_deleteMembers(&config_register->applicationDescription.applicationUri);
+    UA_String_clear(&config_register->applicationDescription.applicationUri);
     config_register->applicationDescription.applicationUri =
         UA_String_fromChars("urn:open62541.test.server_register");
-    UA_LocalizedText_deleteMembers(&config_register->applicationDescription.applicationName);
+    UA_LocalizedText_clear(&config_register->applicationDescription.applicationName);
     config_register->applicationDescription.applicationName =
         UA_LOCALIZEDTEXT_ALLOC("de", "Anmeldungsserver");
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
@@ -399,7 +399,7 @@ GetEndpoints(UA_Client *client, const UA_String* endpointUrl,
         UA_EndpointDescription_init(&(*endpointDescriptions)[i]);
         UA_EndpointDescription_copy(&response.endpoints[i], &(*endpointDescriptions)[i]);
     }
-    UA_GetEndpointsResponse_deleteMembers(&response);
+    UA_GetEndpointsResponse_clear(&response);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -417,7 +417,7 @@ GetEndpointsAndCheck(const char* discoveryUrl, const char* filterTransportProfil
     UA_StatusCode retval = GetEndpoints(client, &discoveryUrlUA, &endpointArraySize,
                                         &endpointArray, filterTransportProfileUri);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    UA_String_deleteMembers(&discoveryUrlUA);
+    UA_String_clear(&discoveryUrlUA);
 
     ck_assert_uint_eq(endpointArraySize , expectedEndpointUrlsSize);
 

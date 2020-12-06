@@ -1,0 +1,80 @@
+<?xml version='1.0' encoding='utf-8'?>
+<UANodeSet xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd" xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <NamespaceUris>
+    <Uri>http://yourorganisation.org/test/</Uri>
+  </NamespaceUris>
+  <Aliases>
+    <Alias Alias="HasModellingRule">i=37</Alias>
+    <Alias Alias="UInt64">i=9</Alias>
+    <Alias Alias="Double">i=11</Alias>
+    <Alias Alias="Organizes">i=35</Alias>
+    <Alias Alias="HasTypeDefinition">i=40</Alias>
+    <Alias Alias="HasSubtype">i=45</Alias>
+    <Alias Alias="HasComponent">i=47</Alias>
+  </Aliases>
+  <UAObjectType BrowseName="1:SubscriberInfo" NodeId="ns=1;i=2001">
+    <DisplayName>SubscriberInfo</DisplayName>
+    <Description>SubscriberInfo</Description>
+    <References>
+      <Reference IsForward="false" ReferenceType="HasSubtype">i=58</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=2002</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=2003</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable BrowseName="1:SubscriberCounterVariable" DataType="UInt64" NodeId="ns=1;i=2002" ParentNodeId="ns=1;i=2001">
+    <DisplayName>SubscriberCounterVariable</DisplayName>
+    <Description>SubscriberCounterVariable</Description>
+    <References>
+      <Reference IsForward="false" ReferenceType="HasComponent">ns=1;i=2001</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+    <Value>
+      <uax:UInt64>0</uax:UInt64>
+    </Value>
+  </UAVariable>
+  <UAVariable BrowseName="1:Pressure" DataType="Double" NodeId="ns=1;i=2003" ParentNodeId="ns=1;i=2001">
+    <DisplayName>Pressure</DisplayName>
+    <Description>Pressure</Description>
+    <References>
+      <Reference IsForward="false" ReferenceType="HasComponent">ns=1;i=2001</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+    <Value>
+      <uax:Double>0.0</uax:Double>
+    </Value>
+  </UAVariable>
+  <UAObject BrowseName="1:Subscriber" NodeId="ns=1;i=2004" ParentNodeId="i=85">
+    <DisplayName>Subscriber</DisplayName>
+    <Description>SubscriberInfo</Description>
+    <References>
+      <Reference IsForward="false" ReferenceType="Organizes">i=85</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=2001</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=2005</Reference>
+      <Reference ReferenceType="HasComponent">ns=1;i=2006</Reference>
+    </References>
+  </UAObject>
+  <UAVariable BrowseName="1:SubscriberCounterVariable" DataType="UInt64" NodeId="ns=1;i=2005" ParentNodeId="ns=1;i=2004">
+    <DisplayName>SubscriberCounterVariable</DisplayName>
+    <Description>SubscriberCounterVariable</Description>
+    <References>
+      <Reference IsForward="false" ReferenceType="HasComponent">ns=1;i=2004</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+    </References>
+    <Value>
+      <uax:UInt64>0</uax:UInt64>
+    </Value>
+  </UAVariable>
+  <UAVariable BrowseName="1:Pressure" DataType="Double" NodeId="ns=1;i=2006" ParentNodeId="ns=1;i=2004">
+    <DisplayName>Pressure</DisplayName>
+    <Description>Pressure</Description>
+    <References>
+      <Reference IsForward="false" ReferenceType="HasComponent">ns=1;i=2004</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+    </References>
+    <Value>
+      <uax:Double>0.0</uax:Double>
+    </Value>
+  </UAVariable>
+</UANodeSet>

@@ -8,7 +8,8 @@
 #ifndef UA_PLUGIN_PUBSUB_H_
 #define UA_PLUGIN_PUBSUB_H_
 
-#include <open62541/server_pubsub.h>
+#include <open62541/types.h>
+#include <open62541/types_generated.h>
 
 _UA_BEGIN_DECLS
 
@@ -29,6 +30,12 @@ _UA_BEGIN_DECLS
  * with different network implementations like UDP, MQTT, AMQP. The channel
  * provides basis services like send, regist, unregist, receive, close. */
 
+struct UA_PubSubConnectionConfig;
+typedef struct UA_PubSubConnectionConfig UA_PubSubConnectionConfig;
+
+struct UA_PubSubChannel;
+typedef struct UA_PubSubChannel UA_PubSubChannel;
+
 typedef enum {
     UA_PUBSUB_CHANNEL_RDY,
     UA_PUBSUB_CHANNEL_PUB,
@@ -37,9 +44,6 @@ typedef enum {
     UA_PUBSUB_CHANNEL_ERROR,
     UA_PUBSUB_CHANNEL_CLOSED
 } UA_PubSubChannelState;
-
-struct UA_PubSubChannel;
-typedef struct UA_PubSubChannel UA_PubSubChannel;
 
 /* Interface structure between network plugin and internal implementation */
 struct UA_PubSubChannel {
@@ -88,19 +92,6 @@ typedef struct {
     UA_String transportProfileUri;
     UA_PubSubChannel *(*createPubSubChannel)(UA_PubSubConnectionConfig *connectionConfig);
 } UA_PubSubTransportLayer;
-
-/**
- * The UA_ServerConfig_addPubSubTransportLayer is used to add a transport layer
- * to the server configuration. The list memory is allocated and will be freed
- * with UA_PubSubManager_delete.
- *
- * .. note:: If the UA_String transportProfileUri was dynamically allocated
- *           the memory has to be freed when no longer required.
- *
- * .. note:: This has to be done before the server is started with UA_Server_run. */
-UA_StatusCode UA_EXPORT
-UA_ServerConfig_addPubSubTransportLayer(UA_ServerConfig *config,
-                                        UA_PubSubTransportLayer *pubsubTransportLayer);
 
 #endif /* UA_ENABLE_PUBSUB */
 
