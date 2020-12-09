@@ -16,6 +16,7 @@
  *    Copyright 2017 (c) Julian Grothoff
  *    Copyright 2017-2020 (c) HMS Industrial Networks AB (Author: Jonas Green)
  *    Copyright 2017 (c) Henrik Norrman
+ *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart  (for VDW and umati)
  */
 
 #include "ua_server_internal.h"

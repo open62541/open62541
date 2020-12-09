@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2018 (c) Hilscher Gesellschaft für Systemautomation mbH (Author: Sameer AL-Qadasi)
+ *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
  */
 
 /*****************************************************************************/

@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2018 (c) Ari Breitkreuz, fortiss GmbH
- *    Copyright 2020 (c) Christian von Arnim
+ *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
  */
 
 #include "ua_server_internal.h"
