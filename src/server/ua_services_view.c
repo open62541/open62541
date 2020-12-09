@@ -911,7 +911,7 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session,
     /* Get the relevant ReferenceTypes */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_ReferenceTypeSet refTypes;
-    if(!UA_NodeId_isNull(&elem->referenceTypeId)) {
+    if(UA_NodeId_isNull(&elem->referenceTypeId)) {
         UA_ReferenceTypeSet_any(&refTypes);
     } else {
         res = referenceTypeIndices(server, &elem->referenceTypeId,
