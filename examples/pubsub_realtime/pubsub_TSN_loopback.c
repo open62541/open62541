@@ -137,6 +137,7 @@ static UA_Int32   userAppCore       = DEFAULT_USER_APP_CORE;
 static UA_Int32   qbvOffset         = DEFAULT_QBV_OFFSET;
 static UA_Boolean disableSoTxtime   = UA_TRUE;
 static UA_Boolean enableCsvLog      = UA_FALSE;
+static UA_Boolean consolePrint      = UA_FALSE;
 
 /* Variables corresponding to PubSub connection creation,
  * published data set and writer group */
@@ -719,6 +720,10 @@ updateMeasurementsPublisher(struct timespec start_time,
         return;
     }
 
+    if(consolePrint) {
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"Pub:%ld,%ld.%09ld\n", counterValue, start_time.tv_sec, start_time.tv_nsec);
+    }
+
     publishTimestamp[measurementsPublisher]        = start_time;
     publishCounterValue[measurementsPublisher]     = counterValue;
     measurementsPublisher++;
@@ -735,6 +740,10 @@ updateMeasurementsSubscriber(struct timespec receive_time, UA_UInt64 counterValu
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Subscriber: Maximum log measurements reached - Closing the application");
         running = UA_FALSE;
         return;
+    }
+
+    if(consolePrint) {
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"Sub:%ld,%ld.%09ld\n", counterValue, receive_time.tv_sec, receive_time.tv_nsec);
     }
 
     subscribeTimestamp[measurementsSubscriber]     = receive_time;
@@ -864,7 +873,7 @@ void *userApplicationPubSub(void *arg) {
             *repeatedCounterData[iterator] = *subRepeatedCounterData[iterator];
         clock_gettime(CLOCKID, &dataModificationTime);
 #endif
-        if (enableCsvLog) {
+        if (enableCsvLog || consolePrint) {
 #if defined(SUBSCRIBER)
             if (*subCounterData > 0)
                 updateMeasurementsSubscriber(dataReceiveTime, *subCounterData);
@@ -1037,6 +1046,7 @@ static void usage(char *appname)
         " -qbvOffset       [num]  QBV offset value (default %d)\n"
         " -disableSoTxtime        Do not use SO_TXTIME\n"
         " -enableCsvLog           Experimental: To log the data in csv files. Support up to 1 million samples\n"
+        " -enableconsolePrint     Experimental: To print the data in console output. Support for higher cycle time\n"
         "\n",
         appname, DEFAULT_CYCLE_TIME, DEFAULT_SOCKET_PRIORITY, DEFAULT_PUB_SCHED_PRIORITY, \
         DEFAULT_SUB_SCHED_PRIORITY, DEFAULT_USERAPPLICATION_SCHED_PRIORITY, \
@@ -1069,22 +1079,23 @@ int main(int argc, char **argv) {
     progname = progname ? 1 + progname : argv[0];
 
     static struct option long_options[] = {
-        {"interface",         required_argument, 0, 'a'},
-        {"cycleTimeInMsec",   required_argument, 0, 'b'},
-        {"socketPriority",    required_argument, 0, 'c'},
-        {"pubPriority",       required_argument, 0, 'd'},
-        {"subPriority",       required_argument, 0, 'e'},
-        {"userAppPriority",   required_argument, 0, 'f'},
-        {"pubCore",           required_argument, 0, 'g'},
-        {"subCore",           required_argument, 0, 'h'},
-        {"userAppCore",       required_argument, 0, 'i'},
-        {"pubMacAddress",     required_argument, 0, 'j'},
-        {"subMacAddress",     required_argument, 0, 'k'},
-        {"qbvOffset",         required_argument, 0, 'l'},
-        {"disableSoTxtime",   no_argument,       0, 'm'},
-        {"enableCsvLog",      no_argument,       0, 'n'},
-        {"help",              no_argument,       0, 'o'},
-        {0,                   0,                 0,  0 }
+        {"interface",          required_argument, 0, 'a'},
+        {"cycleTimeInMsec",    required_argument, 0, 'b'},
+        {"socketPriority",     required_argument, 0, 'c'},
+        {"pubPriority",        required_argument, 0, 'd'},
+        {"subPriority",        required_argument, 0, 'e'},
+        {"userAppPriority",    required_argument, 0, 'f'},
+        {"pubCore",            required_argument, 0, 'g'},
+        {"subCore",            required_argument, 0, 'h'},
+        {"userAppCore",        required_argument, 0, 'i'},
+        {"pubMacAddress",      required_argument, 0, 'j'},
+        {"subMacAddress",      required_argument, 0, 'k'},
+        {"qbvOffset",          required_argument, 0, 'l'},
+        {"disableSoTxtime",    no_argument,       0, 'm'},
+        {"enableCsvLog",       no_argument,       0, 'n'},
+        {"enableconsolePrint", no_argument,       0, 'o'},
+        {"help",               no_argument,       0, 'p'},
+        {0,                    0,                 0,  0 }
     };
 
     while ((argInputs = getopt_long_only(argc, argv,"", long_options, &long_index)) != -1) {
@@ -1132,6 +1143,9 @@ int main(int argc, char **argv) {
                 enableCsvLog = UA_TRUE;
                 break;
             case 'o':
+                consolePrint = UA_TRUE;
+                break;
+            case 'p':
                 usage(progname);
                 return -1;
             case '?':
@@ -1259,8 +1273,8 @@ if (enableCsvLog)
     }
 #endif
 
+    if (enableCsvLog) {
 #if defined(PUBLISHER)
-if (enableCsvLog) {
     /* Write the published data in the publisher_T1.csv file */
     size_t pubLoopVariable = 0;
     for (pubLoopVariable = 0; pubLoopVariable < measurementsPublisher;
@@ -1270,11 +1284,8 @@ if (enableCsvLog) {
                 publishTimestamp[pubLoopVariable].tv_sec,
                 publishTimestamp[pubLoopVariable].tv_nsec);
     }
-}
 #endif
-
 #if defined(SUBSCRIBER)
-if (enableCsvLog) {
     /* Write the subscribed data in the subscriber_T8.csv file */
     size_t subLoopVariable = 0;
     for (subLoopVariable = 0; subLoopVariable < measurementsSubscriber;
@@ -1284,8 +1295,8 @@ if (enableCsvLog) {
                 subscribeTimestamp[subLoopVariable].tv_sec,
                 subscribeTimestamp[subLoopVariable].tv_nsec);
     }
-}
 #endif
+    }
 
 #if defined(PUBLISHER) || defined(SUBSCRIBER)
     removeServerNodes(server);

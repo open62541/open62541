@@ -139,6 +139,7 @@ static UA_Int32   qbvOffset           = DEFAULT_QBV_OFFSET;
 static UA_Boolean disableSoTxtime     = UA_TRUE;
 static UA_Boolean enableCsvLog        = UA_FALSE;
 static UA_Boolean enableLatencyCsvLog = UA_FALSE;
+static UA_Boolean consolePrint        = UA_FALSE;
 
 /* Variables corresponding to PubSub connection creation,
  * published data set and writer group */
@@ -723,6 +724,10 @@ updateMeasurementsPublisher(struct timespec start_time,
         return;
     }
 
+    if(consolePrint) {
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"Pub:%ld,%ld.%09ld\n", counterValue, start_time.tv_sec, start_time.tv_nsec);
+    }
+
     publishTimestamp[measurementsPublisher]        = start_time;
     publishCounterValue[measurementsPublisher]     = counterValue;
     measurementsPublisher++;
@@ -740,6 +745,10 @@ updateMeasurementsSubscriber(struct timespec receive_time,
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Subscriber: Maximum log measurements reached - Closing the application");
         running = UA_FALSE;
         return;
+    }
+
+    if(consolePrint) {
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"Sub:%ld,%ld.%09ld\n", counterValue, receive_time.tv_sec, receive_time.tv_nsec);
     }
 
     subscribeTimestamp[measurementsSubscriber]     = receive_time;
@@ -879,7 +888,7 @@ void *userApplicationPubSub(void *arg) {
         clock_gettime(CLOCKID, &dataReceiveTime);
 #endif
 
-        if (enableCsvLog || enableLatencyCsvLog) {
+        if (enableCsvLog || enableLatencyCsvLog || consolePrint) {
 #if defined(PUBLISHER)
             updateMeasurementsPublisher(dataModificationTime, *pubCounterData);
 #endif
@@ -1125,6 +1134,7 @@ static void usage(char *appname)
         " -disableSoTxtime        Do not use SO_TXTIME\n"
         " -enableCsvLog           Experimental: To log the data in csv files. Support up to 1 million samples\n"
         " -enableLatencyCsvLog    Experimental: To compute and create RTT latency csv. Support up to 1 million samples\n"
+        " -enableconsolePrint     Experimental: To print the data in console output. Support for higher cycle time\n"
         "\n",
         appname, DEFAULT_CYCLE_TIME, DEFAULT_SOCKET_PRIORITY, DEFAULT_PUB_SCHED_PRIORITY, \
         DEFAULT_SUB_SCHED_PRIORITY, DEFAULT_USERAPPLICATION_SCHED_PRIORITY, \
@@ -1173,7 +1183,8 @@ int main(int argc, char **argv) {
         {"disableSoTxtime",     no_argument,       0, 'm'},
         {"enableCsvLog",        no_argument,       0, 'n'},
         {"enableLatencyCsvLog", no_argument,       0, 'o'},
-        {"help",                no_argument,       0, 'p'},
+        {"enableconsolePrint",  no_argument,       0, 'p'},
+        {"help",                no_argument,       0, 'q'},
         {0,                     0,                 0,  0 }
     };
 
@@ -1225,6 +1236,9 @@ int main(int argc, char **argv) {
                 enableLatencyCsvLog = UA_TRUE;
                 break;
             case 'p':
+                consolePrint = UA_TRUE;
+                break;
+            case 'q':
                 usage(progname);
                 return -1;
             case '?':
