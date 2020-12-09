@@ -1,12 +1,21 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 /**
+ * .. _pubsub-tutorial:
+ *
+ * Subscriber Realtime example using custom nodes
+ * ---------------------------------------------
+ *
  * The purpose of this example file is to use the custom nodes of the XML
- * file(subDataModel.xml) for subscriber
+ * file(subDataModel.xml) for subscriber.
  * This Subscriber example uses the two custom nodes (SubscriberCounterVariable and Pressure)
- * created using the XML file(subDataModel.xml) for subscribing the packet
+ * created using the XML file(subDataModel.xml) for subscribing the packet.
  * The subDataModel.csv will contain the nodeids of custom nodes(object and variables) and
  * the nodeids of the custom nodes are harcoded inside the addSubscribedVariables API
+ *
+ * This example uses two threads namely the Subscriber and UserApplication. The Subscriber thread is used to subscribe to data at every cycle.
+ * The UserApplication thread serves the functionality of the Control loop, which reads the Information Model of the Subscriber and
+ * the new counterdata will be written in the csv along with received timestamp.
  *
  * Run steps of the Subscriber application as mentioned below:
  * ./bin/examples/pubsub_nodeset_rt_subscriber -i <iface>
@@ -72,9 +81,7 @@ static UA_Int32   userAppCore     = DEFAULT_USER_APP_CORE;
 /* user data write in Information model */
 /* After 60% is left for publisher */
 static UA_Double  userAppWakeupPercentage = 0.3;
-/* Publisher will sleep for 60% of cycle time and then prepares the */
-/* transmission packet within 40% */
-/* after some prototyping and analyzing it */
+/* Subscriber will wake up at the start of cycle time and then receives the packet */
 static UA_Double  subWakeupPercentage     = 0;
 static UA_Boolean fileWrite = UA_FALSE;
 
@@ -139,7 +146,6 @@ static void stopHandler(int sign) {
  * Nanosecond field in timespec is checked for overflowing and one second
  * is added to seconds field and nanosecond field is set to zero
 */
-
 static void nanoSecondFieldConversion(struct timespec *timeSpecValue) {
     /* Check if ns field is greater than '1 ns less than 1sec' */
     while (timeSpecValue->tv_nsec > (SECONDS -1)) {
@@ -150,6 +156,11 @@ static void nanoSecondFieldConversion(struct timespec *timeSpecValue) {
 
 }
 
+/**
+ * **Custom callback handling**
+ *
+ * Custom callback thread handling overwrites the default timer based
+ * callback function with the custom (user-specified) callback interval. */
 /* Add a callback for cyclic repetition */
 static UA_StatusCode
 addPubSubApplicationCallback(UA_Server *server, UA_NodeId identifier, UA_ServerCallback callback,
@@ -186,7 +197,10 @@ removePubSubApplicationCallback(UA_Server *server, UA_NodeId identifier, UA_UInt
                        "Pthread Join Failed thread: %ld\n", callbackId);
 }
 
-/* If the external data source is written over the information model, the
+/**
+ * **External data source handling**
+ *
+ * If the external data source is written over the information model, the
  * externalDataWriteCallback will be triggered. The user has to take care and assure
  * that the write leads not to synchronization issues and race conditions. */
 static UA_StatusCode
@@ -206,6 +220,12 @@ externalDataReadNotificationCallback(UA_Server *server, const UA_NodeId *session
     //allow read without any preparation
     return UA_STATUSCODE_GOOD;
 }
+
+/**
+ * **Subscriber Connection Creation**
+ *
+ * Create Subscriber connection for the Subscriber thread
+ */
 static void
 addPubSubConnectionSubscriber(UA_Server *server, UA_NetworkAddressUrlDataType *networkAddressUrlSubscriber){
     UA_StatusCode    retval                                 = UA_STATUSCODE_GOOD;
@@ -224,6 +244,12 @@ addPubSubConnectionSubscriber(UA_Server *server, UA_NetworkAddressUrlDataType *n
          UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,"The PubSub Connection was created successfully!");
 }
 
+/**
+ * **ReaderGroup**
+ *
+ * ReaderGroup is used to group a list of DataSetReaders. All ReaderGroups are
+ * created within a PubSubConnection and automatically deleted if the connection
+ * is removed. */
 /* Add ReaderGroup to the created connection */
 static void
 addReaderGroup(UA_Server *server) {
@@ -242,7 +268,10 @@ addReaderGroup(UA_Server *server) {
                              &readerGroupIdentifier);
 }
 
-/* Set SubscribedDataSet type to TargetVariables data type
+/**
+ * **SubscribedDataSet**
+ *
+ * Set SubscribedDataSet type to TargetVariables data type
  * Add SubscriberCounter variable to the DataSetReader */
 static void addSubscribedVariables (UA_Server *server) {
     if (server == NULL) {
@@ -294,6 +323,14 @@ static void addSubscribedVariables (UA_Server *server) {
     readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize = 2;
 }
 
+/**
+ * **DataSetReader**
+ *
+ * DataSetReader can receive NetworkMessages with the DataSetMessage
+ * of interest sent by the Publisher. DataSetReader provides
+ * the configuration necessary to receive and process DataSetMessages
+ * on the Subscriber side. DataSetReader must be linked with a
+ * SubscribedDataSet and be contained within a ReaderGroup. */
 /* Add DataSetReader to the ReaderGroup */
 static void
 addDataSetReader(UA_Server *server) {
@@ -356,7 +393,8 @@ addDataSetReader(UA_Server *server) {
 }
 
 /**
- * Subscribed data handling**
+ * **Subscribed data handling**
+ *
  * The subscribed data is updated in the array using this function Subscribed data handling**
  */
 static void
@@ -370,9 +408,9 @@ updateMeasurementsSubscriber(struct timespec receive_time, UA_UInt64 counterValu
 /**
  * **Subscriber thread routine**
  *
+ * Subscriber thread will wakeup during the start of cycle at 250us interval and check if the packets are received.
  * The subscriber function is the routine used by the subscriber thread.
  */
-
 void *subscriber(void *arg) {
     UA_Server*        server;
     UA_ReaderGroup*   currentReaderGroup;
@@ -406,6 +444,8 @@ void *subscriber(void *arg) {
 /**
  * **UserApplication thread routine**
  *
+ * The userapplication thread will wakeup at 30% of cycle time and handles the userdata in the Information Model.
+ * This thread is used to write the counterdata that is subscribed by the Subscriber thread in a csv.
  */
 void *userApplicationSub(void *arg) {
     struct timespec nextnanosleeptimeUserApplication;
@@ -430,6 +470,12 @@ void *userApplicationSub(void *arg) {
     return (void*)NULL;
 }
 
+/**
+ * **Thread creation**
+ *
+ * The threadcreation functionality creates thread with given threadpriority, coreaffinity. The function returns the threadID of the newly
+ * created thread.
+ */
 static pthread_t threadCreation(UA_Int32 threadPriority, UA_Int32 coreAffinity, void *(*thread) (void *), \
                                 char *applicationName, void *serverConfig){
 
@@ -471,6 +517,13 @@ static pthread_t threadCreation(UA_Int32 threadPriority, UA_Int32 coreAffinity, 
 
 }
 
+/**
+ * **Usage function**
+ *
+ * The usage function gives the list of options that can be configured in the application.
+ *
+ * ./bin/examples/pubsub_nodeset_rt_subscriber -h gives the list of options for running the application.
+ */
 static void usage(char *appname)
 {
     fprintf(stderr,
@@ -492,7 +545,7 @@ static void usage(char *appname)
 }
 
 /**
- * ***Main Server code**
+ * **Main Server code**
  *
  * The main function contains subscriber threads running
  */
