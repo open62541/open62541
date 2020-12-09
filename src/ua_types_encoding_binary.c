@@ -30,12 +30,10 @@
  * data types and generic functions that operate on all types and arrays. This
  * requires the type description from a UA_DataType structure.
  *
- * Encoding Context
- * ^^^^^^^^^^^^^^^^
- * If possible, the encoding context is stored in a thread-local variable to
- * speed up encoding. If thread-local variables are not supported, the context
- * is "looped through" every method call. The ``_``-macro accesses either the
- * thread-local or the "looped through" context . */
+ * Breaking a message up into chunks is integrated with the encoding. When the
+ * end of a buffer is reached, a callback is executed that sends the current
+ * buffer as a chunk and exchanges the encoding buffer "underneath" the ongoing
+ * encoding. This reduces the RAM requirements and unnecessary copying. */
 
 /* Part 6 §5.1.5: Decoders shall support at least 100 nesting levels */
 #define UA_ENCODING_MAX_RECURSION 100
@@ -81,11 +79,6 @@ extern const encodeBinarySignature encodeBinaryJumpTable[UA_DATATYPEKINDS];
 extern const decodeBinarySignature decodeBinaryJumpTable[UA_DATATYPEKINDS];
 extern const calcSizeBinarySignature calcSizeBinaryJumpTable[UA_DATATYPEKINDS];
 
-/* Breaking a message up into chunks is integrated with the encoding. When the
- * end of a buffer is reached, a callback is executed that sends the current
- * buffer as a chunk and exchanges the encoding buffer "underneath" the ongoing
- * encoding. This reduces the RAM requirements and unnecessary copying. */
-
 /* Send the current chunk and replace the buffer */
 static status exchangeBuffer(Ctx *ctx) {
     if(!ctx->exchangeBufferCallback)
@@ -99,10 +92,11 @@ static status
 encodeWithExchangeBuffer(const void *ptr, const UA_DataType *type, Ctx *ctx) {
     u8 *oldpos = ctx->pos; /* Last known good position */
 #ifndef NDEBUG
-    /* Ensure that the buffer was not exchanged AND BADENCODINGLIMITSEXCEEDED
-     * was returned. If that were the case, oldpos would be invalid. That means,
-     * a type encoding must not return BADENCODINGLIMITSEXCEEDED after the
-     * buffer could have been exchanged. */
+    /* We have to ensure that the buffer was not exchanged AND
+     * BADENCODINGLIMITSEXCEEDED was returned. If that were the case, oldpos
+     * would be invalid. That means, a type encoding must never return
+     * BADENCODINGLIMITSEXCEEDED once the buffer could have been exchanged. This
+     * is achieved by the use of encodeWithExchangeBuffer. */
     const u8 *oldend = ctx->end;
     (void)oldend; /* For compilers who don't understand NDEBUG... */
 #endif
