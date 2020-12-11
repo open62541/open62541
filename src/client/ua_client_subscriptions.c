@@ -28,6 +28,7 @@ UA_Client_MonitoredItem_remove(UA_Client *client, UA_Client_Subscription *sub,
 
 static void
 __Subscriptions_create_handler(UA_Client *client, void *data, UA_UInt32 requestId, void *r) {
+    UA_Client_Subscription *newSub = NULL;
     UA_CreateSubscriptionResponse *response = (UA_CreateSubscriptionResponse *)r;
     CustomCallback *cc = (CustomCallback *)data;
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
@@ -37,7 +38,7 @@ __Subscriptions_create_handler(UA_Client *client, void *data, UA_UInt32 requestI
     }
 
     /* Prepare the internal representation */
-    UA_Client_Subscription *newSub = (UA_Client_Subscription *)cc->clientData;
+    newSub = (UA_Client_Subscription *)cc->clientData;
     newSub->subscriptionId = response->subscriptionId;
     newSub->sequenceNumber = 0;
     newSub->lastActivity = UA_DateTime_nowMonotonic();
@@ -374,17 +375,17 @@ UA_Client_Subscriptions_deleteSingle(UA_Client *client, UA_UInt32 subscriptionId
 
     UA_StatusCode retval = response.responseHeader.serviceResult;
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_DeleteSubscriptionsResponse_deleteMembers(&response);
+        UA_DeleteSubscriptionsResponse_clear(&response);
         return retval;
     }
 
     if(response.resultsSize != 1) {
-        UA_DeleteSubscriptionsResponse_deleteMembers(&response);
+        UA_DeleteSubscriptionsResponse_clear(&response);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     retval = response.results[0];
-    UA_DeleteSubscriptionsResponse_deleteMembers(&response);
+    UA_DeleteSubscriptionsResponse_clear(&response);
     return retval;
 }
 
@@ -707,7 +708,7 @@ UA_Client_MonitoredItems_createDataChange(UA_Client *client, UA_UInt32 subscript
     
     if(result.statusCode == UA_STATUSCODE_GOOD)
        UA_MonitoredItemCreateResult_copy(&response.results[0] , &result);
-    UA_CreateMonitoredItemsResponse_deleteMembers(&response);
+    UA_CreateMonitoredItemsResponse_clear(&response);
     return result;
 }
 
@@ -755,17 +756,18 @@ UA_Client_MonitoredItems_createEvent(UA_Client *client, UA_UInt32 subscriptionId
     UA_MonitoredItemCreateResult result;
     UA_MonitoredItemCreateResult_init(&result);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_CreateMonitoredItemsResponse_deleteMembers(&response);
+        UA_CreateMonitoredItemsResponse_clear(&response);
         result.statusCode = retval;
         return result;
     }
     UA_MonitoredItemCreateResult_copy(response.results , &result);
-    UA_CreateMonitoredItemsResponse_deleteMembers(&response);
+    UA_CreateMonitoredItemsResponse_clear(&response);
     return result;
 }
 
 static void
 __MonitoredItems_delete_handler(UA_Client *client, void *d, UA_UInt32 requestId, void *r) {
+    UA_Client_Subscription *sub = NULL;
     UA_DeleteMonitoredItemsResponse *response = (UA_DeleteMonitoredItemsResponse *)r;
     CustomCallback *cc = (CustomCallback *)d;
     UA_DeleteMonitoredItemsRequest *request =
@@ -773,7 +775,7 @@ __MonitoredItems_delete_handler(UA_Client *client, void *d, UA_UInt32 requestId,
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
         goto cleanup;
 
-    UA_Client_Subscription *sub = findSubscription(client, request->subscriptionId);
+    sub = findSubscription(client, request->subscriptionId);
     if(!sub) {
         UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                     "No internal representation of subscription %" PRIu32,
@@ -869,17 +871,17 @@ UA_Client_MonitoredItems_deleteSingle(UA_Client *client, UA_UInt32 subscriptionI
 
     UA_StatusCode retval = response.responseHeader.serviceResult;
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_DeleteMonitoredItemsResponse_deleteMembers(&response);
+        UA_DeleteMonitoredItemsResponse_clear(&response);
         return retval;
     }
 
     if(response.resultsSize != 1) {
-        UA_DeleteMonitoredItemsResponse_deleteMembers(&response);
+        UA_DeleteMonitoredItemsResponse_clear(&response);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     retval = response.results[0];
-    UA_DeleteMonitoredItemsResponse_deleteMembers(&response);
+    UA_DeleteMonitoredItemsResponse_clear(&response);
     return retval;
 }
 
@@ -917,7 +919,7 @@ UA_Client_MonitoredItems_modify(UA_Client *client,
                         &modifiedRequest, &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSREQUEST],
                         &response, &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSRESPONSE]);
 
-    UA_ModifyMonitoredItemsRequest_deleteMembers(&modifiedRequest);
+    UA_ModifyMonitoredItemsRequest_clear(&modifiedRequest);
     return response;
 }
 

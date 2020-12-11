@@ -789,9 +789,7 @@ void ValueAttributeRead(UA_Client *client, void *userdata,
         } else if(UA_Variant_isScalar(&res->value) &&
                   res->value.type == data->outDataType) {
             /* Unpack the value */
-            UA_STACKARRAY(UA_Byte, value, data->outDataType->memSize);
-            memcpy(&value, res->value.data, data->outDataType->memSize);
-            cc->userCallback(client, cc->userData, requestId, &value);
+            cc->userCallback(client, cc->userData, requestId, res->value.data);
             done = true;
         }
     }
@@ -938,31 +936,13 @@ UA_StatusCode __UA_Client_translateBrowsePathsToNodeIds_async(UA_Client *client,
         char *paths[], UA_UInt32 ids[], size_t pathSize,
         UA_ClientAsyncServiceCallback callback, void *userdata,
         UA_UInt32 *reqId) {
+    return UA_STATUSCODE_BADNOTIMPLEMENTED;
+}
 
-    UA_BrowsePath browsePath;
-    UA_BrowsePath_init(&browsePath);
-    browsePath.startingNode = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
-    browsePath.relativePath.elements = (UA_RelativePathElement*) UA_Array_new(
-            pathSize, &UA_TYPES[UA_TYPES_RELATIVEPATHELEMENT]);
-    if (!browsePath.relativePath.elements)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    browsePath.relativePath.elementsSize = pathSize;
-
-    UA_TranslateBrowsePathsToNodeIdsRequest request;
-    UA_TranslateBrowsePathsToNodeIdsRequest_init(&request);
-    request.browsePaths = &browsePath;
-    request.browsePathsSize = 1;
-
-    UA_StatusCode retval = __UA_Client_AsyncService(client, &request,
-            &UA_TYPES[UA_TYPES_TRANSLATEBROWSEPATHSTONODEIDSREQUEST], callback,
-            &UA_TYPES[UA_TYPES_TRANSLATEBROWSEPATHSTONODEIDSRESPONSE], userdata,
-            reqId);
-    if (retval != UA_STATUSCODE_GOOD) {
-        UA_Array_delete(browsePath.relativePath.elements,
-                browsePath.relativePath.elementsSize,
-                &UA_TYPES[UA_TYPES_RELATIVEPATHELEMENT]);
-        return retval;
-    }
-    UA_BrowsePath_clear(&browsePath);
-    return retval;
+UA_StatusCode
+UA_Cient_translateBrowsePathsToNodeIds_async(UA_Client *client, char **paths,
+                                             UA_UInt32 *ids, size_t pathSize,
+                                             UA_ClientAsyncTranslateCallback callback,
+                                             void *userdata, UA_UInt32 *reqId) {
+    return UA_STATUSCODE_BADNOTIMPLEMENTED;
 }

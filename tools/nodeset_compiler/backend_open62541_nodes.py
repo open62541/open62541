@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 ### This Source Code Form is subject to the terms of the Mozilla Public
@@ -228,10 +228,6 @@ def generateVariableNodeCode(node, nodeset):
     code.append("attr.minimumSamplingInterval = %f;" % node.minimumSamplingInterval)
     code.append("attr.userAccessLevel = %d;" % node.userAccessLevel)
     code.append("attr.accessLevel = %d;" % node.accessLevel)
-    # in order to be compatible with mostly OPC UA client
-    # force valueRank = -1 for scalar VariableNode
-    if node.valueRank == -2 and node.value is not None and len(node.value.value) == 1:
-        node.valueRank = -1
     [code1, codeCleanup1, codeGlobal1] = generateCommonVariableCode(node, nodeset)
     code += code1
     codeCleanup += codeCleanup1

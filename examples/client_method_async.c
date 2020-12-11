@@ -123,6 +123,7 @@ static void stopHandler(int sign) {
     running = 0;
 }
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS
 static void
 handler_currentTimeChanged(UA_Client *client, UA_UInt32 subId, void *subContext,
     UA_UInt32 monId, void *monContext, UA_DataValue *value) {
@@ -146,6 +147,7 @@ static void
 subscriptionInactivityCallback(UA_Client *client, UA_UInt32 subId, void *subContext) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Inactivity for subscription %u", subId);
 }
+#endif
 
 static void
 stateCallback(UA_Client *client, UA_SecureChannelState channelState,
@@ -154,6 +156,7 @@ stateCallback(UA_Client *client, UA_SecureChannelState channelState,
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                     "A session with the server is activated");
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS
         /* A new session was created. We need to create the subscription. */
         /* Create a subscription */
         UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
@@ -178,6 +181,7 @@ stateCallback(UA_Client *client, UA_SecureChannelState channelState,
             UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                 "Monitoring UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME', id %u",
                 monResponse.monitoredItemId);
+#endif
 
         //TODO: check the existance of the nodes inside these functions (otherwise seg faults)
 #ifdef UA_ENABLE_METHODCALLS		
@@ -227,7 +231,9 @@ main(int argc, char *argv[]) {
 
     /* Set stateCallback */
     cc->stateCallback = stateCallback;
+#ifdef UA_ENABLE_SUBSCRIPTIONS
     cc->subscriptionInactivityCallback = subscriptionInactivityCallback;
+#endif
 
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     if(retval != UA_STATUSCODE_GOOD) {

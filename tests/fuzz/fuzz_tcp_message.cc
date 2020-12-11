@@ -39,7 +39,23 @@ static void *serverLoop(void *server_ptr) {
 extern "C" int
 LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
 
-    UA_Server *server = UA_Server_new();
+    // Allow the fuzzer to at least create all the necessary structs before limiting memory.
+    // Otherwise fuzzing is useless
+    UA_memoryManager_setLimit((unsigned long long) -1);
+
+    /* less debug output */
+    UA_ServerConfig initialConfig;
+    memset(&initialConfig, 0, sizeof(UA_ServerConfig));
+    UA_StatusCode retval = UA_ServerConfig_setMinimal(&initialConfig, SERVER_PORT, NULL);
+    initialConfig.allowEmptyVariables = UA_RULEHANDLING_ACCEPT;
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ServerConfig_clean(&initialConfig);
+        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "Could not generate the server config");
+        return EXIT_FAILURE;
+    }
+
+    UA_Server *server = UA_Server_newWithConfig(&initialConfig);
     if(!server) {
         UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "Could not create server instance using UA_Server_new");
@@ -47,18 +63,10 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     }
 
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_StatusCode retval = UA_ServerConfig_setMinimal(config, SERVER_PORT, NULL);
-    if (retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "Could not create server instance using UA_Server_new. %s", UA_StatusCode_name(retval));
-        UA_Server_delete(server);
-        return EXIT_FAILURE;
-    }
 
     // Enable the mDNS announce and response functionality
-    config->discovery.mdnsEnable = true;
-
-    config->discovery.mdns.mdnsServerName = UA_String_fromChars("Sample Multicast Server");
+    config->mdnsEnabled = true;
+    config->mdnsConfig.mdnsServerName = UA_String_fromChars("Sample Multicast Server");
 
     retval = UA_Server_run_startup(server);
     if(retval != UA_STATUSCODE_GOOD) {

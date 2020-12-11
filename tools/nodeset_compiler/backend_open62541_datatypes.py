@@ -82,7 +82,7 @@ def generateNodeIdCode(value):
     if not value:
         return "UA_NODEID_NUMERIC(0, 0)"
     if value.i != None:
-        return "UA_NODEID_NUMERIC(ns[%s], %s)" % (value.ns, value.i)
+        return "UA_NODEID_NUMERIC(ns[%s], %sLU)" % (value.ns, value.i)
     elif value.s != None:
         v = makeCLiteral(value.s)
         return u"UA_NODEID_STRING(ns[%s], \"%s\")" % (value.ns, v)
@@ -90,7 +90,7 @@ def generateNodeIdCode(value):
 
 def generateExpandedNodeIdCode(value):
     if value.i != None:
-        return "UA_EXPANDEDNODEID_NUMERIC(ns[%s], %s)" % (str(value.ns), str(value.i))
+        return "UA_EXPANDEDNODEID_NUMERIC(ns[%s], %sLU)" % (str(value.ns), str(value.i))
     elif value.s != None:
         vs = makeCLiteral(value.s)
         return u"UA_EXPANDEDNODEID_STRING(ns[%s], \"%s\")" % (str(value.ns), vs)
@@ -100,6 +100,9 @@ def generateDateTimeCode(value):
     epoch = datetime.datetime.utcfromtimestamp(0)
     mSecsSinceEpoch = int((value - epoch).total_seconds() * 1000.0)
     return "( (UA_DateTime)(" + str(mSecsSinceEpoch) + " * UA_DATETIME_MSEC) + UA_DATETIME_UNIX_EPOCH)"
+
+def lowerFirstChar(inputString):
+    return inputString[0].lower() + inputString[1:]
 
 def generateNodeValueCode(prepend , node, instanceName, valueName, global_var_code, asIndirect=False):
     if type(node) in [Boolean, Byte, SByte, Int16, UInt16, Int32, UInt32, Int64, UInt64, Float, Double]:
@@ -137,7 +140,7 @@ def generateNodeValueCode(prepend , node, instanceName, valueName, global_var_co
     elif isinstance(node, Structure):
         code = []
         for subv in node.value:
-            code.append(generateNodeValueCode(prepend + "." + subv.alias.lower(), subv, instanceName, valueName, global_var_code, asIndirect))
+            code.append(generateNodeValueCode(prepend + "." + lowerFirstChar(subv.alias), subv, instanceName, valueName, global_var_code, asIndirect))
         return "\n".join(code)
 
 

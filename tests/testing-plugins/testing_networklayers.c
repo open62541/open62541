@@ -35,7 +35,7 @@ dummySend(UA_Connection *connection, UA_ByteString *buf) {
     assert(buf != NULL);
 
     if(vBuffer) {
-        UA_ByteString_deleteMembers(vBuffer);
+        UA_ByteString_clear(vBuffer);
         UA_ByteString_copy(buf, vBuffer);
     }
     return UA_STATUSCODE_GOOD;
@@ -48,8 +48,8 @@ dummyReleaseRecvBuffer(UA_Connection *connection, UA_ByteString *buf) {
 static void
 dummyClose(UA_Connection *connection) {
     if(vBuffer)
-        UA_ByteString_deleteMembers(vBuffer);
-    UA_ByteString_deleteMembers(&sendBuffer);
+        UA_ByteString_clear(vBuffer);
+    UA_ByteString_clear(&sendBuffer);
 }
 
 UA_Connection createDummyConnection(size_t sendBufferSize,
@@ -60,7 +60,7 @@ UA_Connection createDummyConnection(size_t sendBufferSize,
     UA_Connection c;
     c.state = UA_CONNECTIONSTATE_ESTABLISHED;
     c.channel = NULL;
-    c.sockfd = 0;
+    c.sockfd = UA_INVALID_SOCKET;
     c.handle = NULL;
     c.getSendBuffer = dummyGetSendBuffer;
     c.releaseSendBuffer = dummyReleaseSendBuffer;

@@ -100,8 +100,8 @@ START_TEST(UA_PubSub_EncodeAllOptionalFields) {
     char* result = "{\"MessageId\":\"ABCDEFGH\",\"MessageType\":\"ua-data\",\"PublisherId\":65535,\"DataSetClassId\":\"00000001-0002-0003-0000-000000000000\",\"Messages\":[{\"DataSetWriterId\":12345,\"SequenceNumber\":4711,\"MetaDataVersion\":{\"MajorVersion\":42,\"MinorVersion\":7},\"Timestamp\":\"1601-01-13T20:38:31.1111111Z\",\"Status\":2764857,\"Payload\":{\"Field1\":{\"Type\":7,\"Body\":27}}}]}";
     ck_assert_str_eq(result, (char*)buffer.data);
 
-    UA_ByteString_deleteMembers(&buffer);
-    UA_NetworkMessage_deleteMembers(&m);
+    UA_ByteString_clear(&buffer);
+    UA_NetworkMessage_clear(&m);
 }
 END_TEST
 
@@ -205,9 +205,9 @@ START_TEST(UA_PubSub_EnDecode) {
 
     ck_assert(m.payload.dataSetPayload.dataSetMessages[1].header.dataSetMessageValid == m2.payload.dataSetPayload.dataSetMessages[1].header.dataSetMessageValid);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[1].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[1].data.deltaFrameData.deltaFrameFields[0].fieldValue.hasSourceTimestamp);
-    UA_ByteString_deleteMembers(&buffer);
-    UA_NetworkMessage_deleteMembers(&m);
-    UA_NetworkMessage_deleteMembers(&m2);
+    UA_ByteString_clear(&buffer);
+    UA_NetworkMessage_clear(&m);
+    UA_NetworkMessage_clear(&m2);
 }
 END_TEST
 
@@ -267,7 +267,7 @@ START_TEST(UA_NetworkMessage_oneMessage_twoFields_json_decode) {
     ck_assert_int_eq(dts.microSec, 0);
     ck_assert_int_eq(dts.nanoSec, 0);
 
-    UA_NetworkMessage_deleteMembers(&out);
+    UA_NetworkMessage_clear(&out);
 }
 END_TEST
 
@@ -320,7 +320,7 @@ START_TEST(UA_NetworkMessage_json_decode) {
     ck_assert_int_eq(out.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[1].hasValue, true);
     ck_assert_int_eq(*((UA_Boolean*)out.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[1].value.data), 1);
 
-    UA_NetworkMessage_deleteMembers(&out);
+    UA_NetworkMessage_clear(&out);
 }
 END_TEST
 
@@ -341,7 +341,7 @@ START_TEST(UA_Networkmessage_DataSetFieldsNull_json_decode) {
     ck_assert_int_eq(out.payload.dataSetPayload.dataSetMessages->header.dataSetMessageSequenceNr, 224);
     ck_assert_ptr_eq(out.payload.dataSetPayload.dataSetMessages->data.keyFrameData.dataSetFields, NULL);
 
-    UA_NetworkMessage_deleteMembers(&out);
+    UA_NetworkMessage_clear(&out);
 }
 END_TEST
 
@@ -371,7 +371,7 @@ START_TEST(UA_NetworkMessage_fieldNames_json_decode) {
     ck_assert_int_eq(out.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.fieldNames[1].data[3], 't');
     ck_assert_int_eq(out.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.fieldNames[1].data[4], '2');
 
-    UA_NetworkMessage_deleteMembers(&out);
+    UA_NetworkMessage_clear(&out);
 }
 END_TEST
 

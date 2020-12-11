@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2017-2020 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Thomas Bender
  *    Copyright 2017 (c) Julian Grothoff
@@ -39,7 +39,7 @@ addNode_finish(UA_Server *server, UA_UInt32 nodeId,
     const UA_NodeId refTypeId = UA_NODEID_NUMERIC(0, referenceTypeId);
     const UA_ExpandedNodeId targetId = UA_EXPANDEDNODEID_NUMERIC(0, parentNodeId);
     UA_StatusCode retval = UA_Server_addReference(server, sourceId, refTypeId, targetId, false);
-    if (retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD)
         return retval;
     return AddNode_finish(server, &server->adminSession, &sourceId);
 }
@@ -80,7 +80,10 @@ addReferenceTypeNode(UA_Server *server, char* name, char *inverseName, UA_UInt32
  * compiler. */
 static UA_StatusCode
 UA_Server_createNS0_base(UA_Server *server) {
-    /* Bootstrap References and HasSubtype */
+    /* Bootstrap ReferenceTypes. The order of these is important for the
+     * ReferenceTypeIndex. The ReferenceTypeIndex is created with the raw node.
+     * The ReferenceTypeSet of subtypes for every ReferenceType is created
+     * during the call to AddNode_finish. */
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     UA_ReferenceTypeAttributes references_attr = UA_ReferenceTypeAttributes_default;
     references_attr.displayName = UA_LOCALIZEDTEXT("", "References");
@@ -153,6 +156,9 @@ UA_Server_createNS0_base(UA_Server *server) {
 
     ret |= addReferenceTypeNode(server, "HasOrderedComponent", "OrderedComponentOf",
                          UA_NS0ID_HASORDEREDCOMPONENT, false, false, UA_NS0ID_HASCOMPONENT);
+
+    ret |= addReferenceTypeNode(server, "HasInterface", "InterfaceOf",
+                         UA_NS0ID_HASINTERFACE, false, false, UA_NS0ID_NONHIERARCHICALREFERENCES);
 
     /**************/
     /* Data Types */
@@ -322,7 +328,8 @@ readStatus(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
         statustype->secondsTillShutdown = 0;
         if(server->endTime != 0) {
             statustype->state = UA_SERVERSTATE_SHUTDOWN;
-            statustype->secondsTillShutdown = (UA_UInt32)((server->endTime - UA_DateTime_now()) / UA_DATETIME_SEC);
+            statustype->secondsTillShutdown = (UA_UInt32)
+                ((server->endTime - UA_DateTime_now()) / UA_DATETIME_SEC);
         }
 
         value->value.data = statustype;
@@ -534,9 +541,13 @@ readMinSamplingInterval(UA_Server *server, const UA_NodeId *sessionId, void *ses
     }
 
     UA_StatusCode retval;
-    retval = UA_Variant_setScalarCopy(&value->value,
-                                      &server->config.samplingIntervalLimits.min,
-                                      &UA_TYPES[UA_TYPES_DURATION]);
+    UA_Duration minInterval;
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    minInterval = server->config.samplingIntervalLimits.min;
+#else
+    minInterval = 0.0;
+#endif
+    retval = UA_Variant_setScalarCopy(&value->value, &minInterval, &UA_TYPES[UA_TYPES_DURATION]);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     value->hasValue = true;
@@ -552,32 +563,27 @@ readMinSamplingInterval(UA_Server *server, const UA_NodeId *sessionId, void *ses
 static UA_StatusCode
 readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
                    const UA_NodeId *methodId, void *methodContext, const UA_NodeId *objectId,
-                   void *objectContext, size_t inputSize,
-                   const UA_Variant *input, size_t outputSize,
-                   UA_Variant *output) {
+                   void *objectContext, size_t inputSize, const UA_Variant *input,
+                   size_t outputSize, UA_Variant *output) {
     UA_LOCK(server->serviceMutex);
     UA_Session *session = UA_Server_getSessionById(server, sessionId);
     UA_UNLOCK(server->serviceMutex);
     if(!session)
         return UA_STATUSCODE_BADINTERNALERROR;
-    if (inputSize == 0 || !input[0].data)
+    if(inputSize == 0 || !input[0].data)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
     UA_UInt32 subscriptionId = *((UA_UInt32*)(input[0].data));
     UA_LOCK(server->serviceMutex);
     UA_Subscription* subscription = UA_Session_getSubscriptionById(session, subscriptionId);
     UA_UNLOCK(server->serviceMutex);
-    if(!subscription)
-    {
-        if(LIST_EMPTY(&session->serverSubscriptions))
-        {
-          UA_Variant_setArray(&output[0], UA_Array_new(0, &UA_TYPES[UA_TYPES_UINT32]),
-                              0, &UA_TYPES[UA_TYPES_UINT32]);
-          UA_Variant_setArray(&output[1], UA_Array_new(0, &UA_TYPES[UA_TYPES_UINT32]),
-                              0, &UA_TYPES[UA_TYPES_UINT32]);
-
-          return UA_STATUSCODE_BADNOMATCH;
+    if(!subscription) {
+        if(TAILQ_EMPTY(&session->subscriptions)) {
+            UA_Variant_setArray(&output[0], UA_Array_new(0, &UA_TYPES[UA_TYPES_UINT32]),
+                                0, &UA_TYPES[UA_TYPES_UINT32]);
+            UA_Variant_setArray(&output[1], UA_Array_new(0, &UA_TYPES[UA_TYPES_UINT32]),
+                                0, &UA_TYPES[UA_TYPES_UINT32]);
+            return UA_STATUSCODE_BADNOMATCH;
         }
-
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
     }
 
@@ -641,6 +647,7 @@ UA_Server_minimalServerObject(UA_Server *server) {
     retval |= addVariableNode(server, "ServerArray", UA_NS0ID_SERVER_SERVERARRAY,
                               UA_NS0ID_SERVER, UA_NS0ID_HASPROPERTY,
                               UA_VALUERANK_ANY, UA_NS0ID_BASEDATATYPE);
+
     retval |= addVariableNode(server, "NamespaceArray", UA_NS0ID_SERVER_NAMESPACEARRAY,
                               UA_NS0ID_SERVER, UA_NS0ID_HASPROPERTY,
                               UA_VALUERANK_ANY, UA_NS0ID_BASEDATATYPE);
@@ -757,27 +764,25 @@ addModellingRules(UA_Server *server) {
  * example server time. */
 UA_StatusCode
 UA_Server_initNS0(UA_Server *server) {
-
     /* Initialize base nodes which are always required an cannot be created
      * through the NS compiler */
     server->bootstrapNS0 = true;
     UA_StatusCode retVal = UA_Server_createNS0_base(server);
-    server->bootstrapNS0 = false;
-    if(retVal != UA_STATUSCODE_GOOD)
-        return retVal;
 
 #ifdef UA_GENERATED_NAMESPACE_ZERO
     /* Load nodes and references generated from the XML ns0 definition */
-    retVal = namespace0_generated(server);
+    retVal |= namespace0_generated(server);
 #else
     /* Create a minimal server object */
-    retVal = UA_Server_minimalServerObject(server);
+    retVal |= UA_Server_minimalServerObject(server);
 #endif
+
+    server->bootstrapNS0 = false;
 
     if(retVal != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "Initialization of Namespace 0 (before bootstrapping) "
-                     "failed with %s. See previous outputs for any error messages.",
+                     "Initialization of Namespace 0 failed with %s. "
+                     "See previous outputs for any error messages.",
                      UA_StatusCode_name(retVal));
         return UA_STATUSCODE_BADINTERNALERROR;
     }

@@ -18,7 +18,6 @@
 #define UA_SERVER_INTERNAL_H_
 
 #include <open62541/server.h>
-#include <open62541/server_config.h>
 #include <open62541/plugin/nodestore.h>
 
 #include "ua_connection_internal.h"
@@ -26,7 +25,6 @@
 #include "ua_server_async.h"
 #include "ua_timer.h"
 #include "ua_util_internal.h"
-#include "ua_workqueue.h"
 
 _UA_BEGIN_DECLS
 
@@ -67,13 +65,13 @@ typedef enum {
 } UA_DiagnosticEvent;
 
 typedef struct channel_entry {
-    UA_DelayedCallback cleanupCallback;
+    UA_TimerEntry cleanupCallback;
     TAILQ_ENTRY(channel_entry) pointers;
     UA_SecureChannel channel;
 } channel_entry;
 
 typedef struct session_list_entry {
-    UA_DelayedCallback cleanupCallback;
+    UA_TimerEntry cleanupCallback;
     LIST_ENTRY(session_list_entry) pointers;
     UA_Session session;
 } session_list_entry;
@@ -115,9 +113,6 @@ struct UA_Server {
     /* Callbacks with a repetition interval */
     UA_Timer timer;
 
-    /* WorkQueue and worker threads */
-    UA_WorkQueue workQueue;
-
     /* For bootstrapping, omit some consistency checks, creating a reference to
      * the parent and member instantiation */
     UA_Boolean bootstrapNS0;
@@ -127,19 +122,22 @@ struct UA_Server {
     UA_DiscoveryManager discoveryManager;
 #endif
 
-    /* DataChange Subscriptions */
+    /* Subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    /* Num active subscriptions */
-    UA_UInt32 numSubscriptions;
-    /* Num active monitored items */
-    UA_UInt32 numMonitoredItems;
+    LIST_HEAD(, UA_Subscription) subscriptions; /* All subscriptions in the
+                                                 * server. They may be detached
+                                                 * from a session. */
+    UA_UInt32 lastSubscriptionId; /* To generate unique SubscriptionIds */
+    UA_UInt32 numSubscriptions;   /* Num active subscriptions */
+    UA_UInt32 numMonitoredItems;  /* Num active monitored items */
+
     /* To be cast to UA_LocalMonitoredItem to get the callback and context */
-    LIST_HEAD(LocalMonitoredItems, UA_MonitoredItem) localMonitoredItems;
+    LIST_HEAD(, UA_MonitoredItem) localMonitoredItems;
     UA_UInt32 lastLocalMonitoredItemId;
 
-#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
-    LIST_HEAD(conditionSourcelisthead, UA_ConditionSource) headConditionSource;
-#endif//UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+# ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+    LIST_HEAD(, UA_ConditionSource) headConditionSource;
+# endif /* UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */
 
 #endif
 
@@ -174,7 +172,7 @@ UA_StatusCode
 UA_Server_createSecureChannel(UA_Server *server, UA_Connection *connection);
 
 UA_StatusCode
-UA_Server_configSecureChannel(UA_Server *server, UA_SecureChannel *channel,
+UA_Server_configSecureChannel(void *application, UA_SecureChannel *channel,
                               const UA_AsymmetricAlgorithmSecurityHeader *asymHeader);
 
 UA_StatusCode
@@ -188,6 +186,10 @@ UA_Server_closeSecureChannel(UA_Server *server, UA_SecureChannel *channel,
 /********************/
 /* Session Handling */
 /********************/
+
+UA_StatusCode
+getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
+                   size_t *foundIndex);
 
 UA_StatusCode
 getBoundSession(UA_Server *server, const UA_SecureChannel *channel,
@@ -218,12 +220,6 @@ UA_Server_getSessionById(UA_Server *server, const UA_NodeId *sessionId);
 /* Node Handling */
 /*****************/
 
-/* Deletes references from the node which are not matching any type in the given
- * array. Could be used to e.g. delete all the references, except
- * 'HASMODELINGRULE' */
-void UA_Node_deleteReferencesSubset(UA_Node *node, size_t referencesSkipSize,
-                                    UA_NodeId* referencesSkip);
-
 /* Calls the callback with the node retrieved from the nodestore on top of the
  * stack. Either a copy or the original node for in-situ editing. Depends on
  * multithreading and the nodestore.*/
@@ -238,49 +234,54 @@ UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session,
 /* Utility Functions */
 /*********************/
 
-/* A few global NodeId definitions */
-extern const UA_NodeId subtypeId;
-extern const UA_NodeId hierarchicalReferences;
-
 void setupNs1Uri(UA_Server *server);
 UA_UInt16 addNamespace(UA_Server *server, const UA_String name);
 
 UA_Boolean
-UA_Node_hasSubTypeOrInstances(const UA_Node *node);
+UA_Node_hasSubTypeOrInstances(const UA_NodeHead *head);
 
 /* Recursively searches "upwards" in the tree following specific reference types */
 UA_Boolean
 isNodeInTree(UA_Server *server, const UA_NodeId *leafNode,
-             const UA_NodeId *nodeToFind, const UA_NodeId *referenceTypeIds,
-             size_t referenceTypeIdsSize);
+             const UA_NodeId *nodeToFind, const UA_ReferenceTypeSet *relevantRefs);
+
+/* Convenience function with just a single ReferenceTypeIndex */
+UA_Boolean
+isNodeInTree_singleRef(UA_Server *server, const UA_NodeId *leafNode,
+                       const UA_NodeId *nodeToFind, const UA_Byte relevantRefTypeIndex);
 
 /* Returns an array with the hierarchy of nodes. The start nodes can be returned
  * as well. The returned array starts at the leaf and continues "upwards" or
- * "downwards". Duplicate entries are removed. The parameter `walkDownwards`
- * indicates the direction of search. */
+ * "downwards". Duplicate entries are removed. */
 UA_StatusCode
-browseRecursive(UA_Server *server,
-                size_t startNodesSize, const UA_NodeId *startNodes,
-                size_t refTypesSize, const UA_NodeId *refTypes,
-                UA_BrowseDirection browseDirection, UA_Boolean includeStartNodes,
+browseRecursive(UA_Server *server, size_t startNodesSize, const UA_NodeId *startNodes,
+                UA_BrowseDirection browseDirection, const UA_ReferenceTypeSet *refTypes,
+                UA_UInt32 nodeClassMask, UA_Boolean includeStartNodes,
                 size_t *resultsSize, UA_ExpandedNodeId **results);
 
-/* If refTypes is non-NULL, tries to realloc and increase the length */
+/* Get the bitfield indices of a ReferenceType and possibly its subtypes.
+ * refType must point to a ReferenceTypeNode. */
 UA_StatusCode
-referenceSubtypes(UA_Server *server, const UA_NodeId *refType,
-                  size_t *refTypesSize, UA_NodeId **refTypes);
+referenceTypeIndices(UA_Server *server, const UA_NodeId *refType,
+                     UA_ReferenceTypeSet *indices, UA_Boolean includeSubtypes);
 
 /* Returns the recursive type and interface hierarchy of the node */ 
 UA_StatusCode
 getParentTypeAndInterfaceHierarchy(UA_Server *server, const UA_NodeId *typeNode,
                                    UA_NodeId **typeHierarchy, size_t *typeHierarchySize);
 
+/* Returns the recursive interface hierarchy of the node */
+UA_StatusCode
+getInterfaceHierarchy(UA_Server *server, const UA_NodeId *objectNode,
+                                   UA_NodeId **typeHierarchy, size_t *typeHierarchySize);
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
 
-UA_StatusCode UA_EXPORT
-UA_getConditionId(UA_Server *server, const UA_NodeId *conditionNodeId, UA_NodeId *outConditionId);
+UA_StatusCode
+UA_getConditionId(UA_Server *server, const UA_NodeId *conditionNodeId,
+                  UA_NodeId *outConditionId);
 
-void UA_EXPORT
+void
 UA_ConditionList_delete(UA_Server *server);
 
 UA_Boolean
@@ -289,15 +290,12 @@ isConditionOrBranch(UA_Server *server,
                     const UA_NodeId *conditionSource,
                     UA_Boolean *isCallerAC);
 
-#endif//UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+#endif /* UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */
+
 /* Returns the type node from the node on the stack top. The type node is pushed
  * on the stack and returned. */
-const UA_Node * getNodeType(UA_Server *server, const UA_Node *node);
-
-/* Write a node attribute with a defined session */
-UA_StatusCode
-writeWithSession(UA_Server *server, UA_Session *session,
-                 const UA_WriteValue *value);
+const UA_Node *
+getNodeType(UA_Server *server, const UA_NodeHead *nodeHead);
 
 UA_StatusCode
 sendResponse(UA_Server *server, UA_Session *session, UA_SecureChannel *channel,
@@ -344,13 +342,16 @@ setMethodNode_callback(UA_Server *server,
                        UA_MethodCallback methodCallback);
 
 UA_StatusCode
-writeAttribute(UA_Server *server, const UA_WriteValue *value);
+writeAttribute(UA_Server *server, UA_Session *session,
+               const UA_NodeId *nodeId, const UA_AttributeId attributeId,
+               const void *attr, const UA_DataType *attr_type);
 
-UA_StatusCode
-writeWithWriteValue(UA_Server *server, const UA_NodeId *nodeId,
-                    const UA_AttributeId attributeId,
-                    const UA_DataType *attr_type,
-                    const void *attr);
+static UA_INLINE UA_StatusCode
+writeValueAttribute(UA_Server *server, UA_Session *session,
+                    const UA_NodeId *nodeId, const UA_Variant *value) {
+    return writeAttribute(server, session, nodeId, UA_ATTRIBUTEID_VALUE,
+                          value, &UA_TYPES[UA_TYPES_VARIANT]);
+}
 
 UA_DataValue
 readAttribute(UA_Server *server, const UA_ReadValueId *item,
@@ -369,9 +370,15 @@ UA_BrowsePathResult
 translateBrowsePathToNodeIds(UA_Server *server, const UA_BrowsePath *browsePath);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-void
-monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem);
-#endif
+
+void UA_Server_addSubscription(UA_Server *server, UA_Subscription *sub);
+void UA_Server_deleteSubscription(UA_Server *server, UA_Subscription *sub);
+void monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem);
+
+UA_Subscription *
+UA_Server_getSubscriptionById(UA_Server *server, UA_UInt32 subscriptionId);
+
+#endif /* UA_ENABLE_SUBSCRIPTIONS */
 
 UA_BrowsePathResult
 browseSimplifiedBrowsePath(UA_Server *server, const UA_NodeId origin,
@@ -430,6 +437,18 @@ compatibleValue(UA_Server *server, UA_Session *session, const UA_NodeId *targetD
                 const UA_UInt32 *targetArrayDimensions, const UA_Variant *value,
                 const UA_NumericRange *range);
 
+/* Is the DataType compatible */
+UA_Boolean
+compatibleDataTypes(UA_Server *server, const UA_NodeId *dataType,
+                    const UA_NodeId *constraintDataType);
+
+/* Is the Value compatible with the DataType? Can perform additional checks
+ * compared to compatibleDataTypes. */
+UA_Boolean
+compatibleValueDataType(UA_Server *server, const UA_DataType *dataType,
+                        const UA_NodeId *constraintDataType);
+
+
 UA_Boolean
 compatibleArrayDimensions(size_t constraintArrayDimensionsSize,
                           const UA_UInt32 *constraintArrayDimensions,
@@ -443,10 +462,6 @@ compatibleValueArrayDimensions(const UA_Variant *value, size_t targetArrayDimens
 UA_Boolean
 compatibleValueRankArrayDimensions(UA_Server *server, UA_Session *session,
                                    UA_Int32 valueRank, size_t arrayDimensionsSize);
-
-UA_Boolean
-compatibleDataType(UA_Server *server, const UA_NodeId *dataType,
-                   const UA_NodeId *constraintDataType, UA_Boolean isValue);
 
 UA_Boolean
 compatibleValueRanks(UA_Int32 valueRank, UA_Int32 constraintValueRank);
@@ -522,6 +537,10 @@ UA_StatusCode writeNs0VariableArray(UA_Server *server, UA_UInt32 id, void *v,
 
 #define UA_NODESTORE_REMOVE(server, nodeId)                             \
     server->config.nodestore.removeNode(server->config.nodestore.context, nodeId)
+
+#define UA_NODESTORE_GETREFERENCETYPEID(server, index)                  \
+    server->config.nodestore.getReferenceTypeId(server->config.nodestore.context, \
+                                                index)
 
 _UA_END_DECLS
 

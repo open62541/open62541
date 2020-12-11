@@ -49,7 +49,7 @@ START_TEST(Server_addNamespace_writeService) {
     retval = UA_Server_writeValue(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY),
                                   namespaces);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    UA_Variant_deleteMembers(&namespaces);
+    UA_Variant_clear(&namespaces);
 
     /* Now read again */
     UA_Server_readValue(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY),
@@ -57,7 +57,7 @@ START_TEST(Server_addNamespace_writeService) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(namespaces.arrayLength, nsSize);
 
-    UA_Variant_deleteMembers(&namespaces);
+    UA_Variant_clear(&namespaces);
     UA_Server_delete(server);
 }
 END_TEST
@@ -68,7 +68,12 @@ struct nodeIterData {
     UA_NodeId referenceTypeID;
     UA_Boolean hit;
 };
+
+#ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
+#define NODE_ITER_DATA_SIZE 4
+#else
 #define NODE_ITER_DATA_SIZE 3
+#endif
 
 static UA_StatusCode
 nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, void *handle) {
@@ -102,7 +107,7 @@ START_TEST(Server_forEachChildNodeCall) {
 
     /* List all the children/references of the objects folder
      * The forEachChildNodeCall has to hit all of them */
-    struct nodeIterData objectsFolderChildren[3];
+    struct nodeIterData objectsFolderChildren[NODE_ITER_DATA_SIZE];
     objectsFolderChildren[0].id = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
     objectsFolderChildren[0].isInverse = UA_FALSE;
     objectsFolderChildren[0].referenceTypeID = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
@@ -117,6 +122,13 @@ START_TEST(Server_forEachChildNodeCall) {
     objectsFolderChildren[2].isInverse = UA_FALSE;
     objectsFolderChildren[2].referenceTypeID = UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION);
     objectsFolderChildren[2].hit = UA_FALSE;
+
+#ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
+    objectsFolderChildren[3].id = UA_NODEID_NUMERIC(0, UA_NS0ID_ALIASES);
+    objectsFolderChildren[3].isInverse = UA_FALSE;
+    objectsFolderChildren[3].referenceTypeID = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    objectsFolderChildren[3].hit = UA_FALSE;
+#endif
 
     UA_StatusCode retval =
         UA_Server_forEachChildNodeCall(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
@@ -133,7 +145,7 @@ START_TEST(Server_forEachChildNodeCall) {
 
 
 START_TEST(Server_set_customHostname) {
-    UA_String customHost = UA_STRING("fancy-host");
+    UA_String customHost = UA_STRING("localhost");
     UA_UInt16 port = 10042;
 
     UA_Server *server = UA_Server_new();

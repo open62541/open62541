@@ -72,8 +72,8 @@ int main(int argc, char **argv) {
     UA_String_clear(&config->applicationDescription.applicationUri);
     config->applicationDescription.applicationUri =
         UA_String_fromChars("urn:open62541.example.server_register");
-    config->discovery.mdns.mdnsServerName = UA_String_fromChars("Sample Server");
-    // See http://www.opcfoundation.org/UA/schemas/1.03/ServerCapabilities.csv
+    config->mdnsConfig.mdnsServerName = UA_String_fromChars("Sample Server");
+    // See http://www.opcfoundation.org/UA/schemas/1.04/ServerCapabilities.csv
     //config.serverCapabilitiesSize = 1;
     //UA_String caps = UA_String_fromChars("LDS");
     //config.serverCapabilities = &caps;
@@ -99,9 +99,10 @@ int main(int argc, char **argv) {
     UA_ClientConfig_setDefault(UA_Client_getConfig(clientRegister));
 
     // periodic server register after 10 Minutes, delay first register for 500ms
+    UA_UInt64 callbackId;
     UA_StatusCode retval =
         UA_Server_addPeriodicServerRegisterCallback(server, clientRegister, DISCOVERY_SERVER_ENDPOINT,
-                                                    10 * 60 * 1000, 500, NULL);
+                                                    10 * 60 * 1000, 500, &callbackId);
     // UA_StatusCode retval = UA_Server_addPeriodicServerRegisterJob(server,
     // "opc.tcp://localhost:4840", 10*60*1000, 500, NULL);
     if(retval != UA_STATUSCODE_GOOD) {
@@ -110,7 +111,6 @@ int main(int argc, char **argv) {
                      UA_StatusCode_name(retval));
         UA_Client_disconnect(clientRegister);
         UA_Client_delete(clientRegister);
-        UA_Server_delete(server);
         UA_Server_delete(server);
         return EXIT_FAILURE;
     }
@@ -135,8 +135,10 @@ int main(int argc, char **argv) {
                      "Could not unregister server from discovery server. StatusCode %s",
                      UA_StatusCode_name(retval));
 
+    UA_Server_removeCallback(server, callbackId);
+
     UA_Client_disconnect(clientRegister);
     UA_Client_delete(clientRegister);
     UA_Server_delete(server);
-    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;;
+    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }

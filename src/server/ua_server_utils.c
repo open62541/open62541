@@ -12,109 +12,29 @@
 
 #include "ua_server_internal.h"
 
-#define UA_MAX_TREE_RECURSE 50 /* How deep up/down the tree do we recurse at most? */
+const UA_DataType *
+UA_Server_findDataType(UA_Server *server, const UA_NodeId *typeId) {
+    return UA_findDataTypeWithCustom(typeId, server->config.customDataTypes);
+}
 
 /********************************/
 /* Information Model Operations */
 /********************************/
 
-/* Keeps track of already visited nodes to detect circular references */
-struct ref_history {
-    struct ref_history *parent; /* the previous element */
-    const UA_NodeId *id; /* the id of the node at this depth */
-    UA_UInt16 depth;
-};
-
-static UA_Boolean
-isNodeInTreeNoCircular(UA_Server *server, const UA_NodeId *leafNode, const UA_NodeId *nodeToFind,
-                       struct ref_history *visitedRefs, const UA_NodeId *referenceTypeIds,
-                       size_t referenceTypeIdsSize) {
-    if(UA_NodeId_equal(nodeToFind, leafNode))
-        return true;
-
-    if(visitedRefs->depth >= UA_MAX_TREE_RECURSE)
-        return false;
-
-    const UA_Node *node = UA_NODESTORE_GET(server, leafNode);
-    if(!node)
-        return false;
-
-    for(size_t i = 0; i < node->referencesSize; ++i) {
-        UA_NodeReferenceKind *refs = &node->references[i];
-        /* Search upwards in the tree */
-        if(!refs->isInverse)
-            continue;
-
-        /* Consider only the indicated reference types */
-        UA_Boolean match = false;
-        for(size_t j = 0; j < referenceTypeIdsSize; ++j) {
-            if(UA_NodeId_equal(&refs->referenceTypeId, &referenceTypeIds[j])) {
-                match = true;
-                break;
-            }
-        }
-        if(!match)
-            continue;
-
-        /* Match the targets or recurse */
-        for(size_t j = 0; j < refs->refTargetsSize; ++j) {
-            /* Check if we already have seen the referenced node and skip to
-             * avoid endless recursion. Do this only at every 5th depth to save
-             * effort. Circular dependencies are rare and forbidden for most
-             * reference types. */
-            if(visitedRefs->depth % 5 == 4) {
-                struct ref_history *last = visitedRefs;
-                UA_Boolean skip = false;
-                while(!skip && last) {
-                    if(UA_NodeId_equal(last->id, &refs->refTargets[j].targetId.nodeId))
-                        skip = true;
-                    last = last->parent;
-                }
-                if(skip)
-                    continue;
-            }
-
-            /* Stack-allocate the visitedRefs structure for the next depth */
-            struct ref_history nextVisitedRefs = {visitedRefs, &refs->refTargets[j].targetId.nodeId,
-                                                  (UA_UInt16)(visitedRefs->depth+1)};
-
-            /* Recurse */
-            UA_Boolean foundRecursive =
-                isNodeInTreeNoCircular(server, &refs->refTargets[j].targetId.nodeId, nodeToFind,
-                                       &nextVisitedRefs, referenceTypeIds, referenceTypeIdsSize);
-            if(foundRecursive) {
-                UA_NODESTORE_RELEASE(server, node);
-                return true;
-            }
-        }
-    }
-
-    UA_NODESTORE_RELEASE(server, node);
-    return false;
-}
-
-UA_Boolean
-isNodeInTree(UA_Server *server, const UA_NodeId *leafNode, const UA_NodeId *nodeToFind,
-             const UA_NodeId *referenceTypeIds, size_t referenceTypeIdsSize) {
-    struct ref_history visitedRefs = {NULL, leafNode, 0};
-    return isNodeInTreeNoCircular(server, leafNode, nodeToFind, &visitedRefs,
-                                  referenceTypeIds, referenceTypeIdsSize);
-}
-
 const UA_Node *
-getNodeType(UA_Server *server, const UA_Node *node) {
+getNodeType(UA_Server *server, const UA_NodeHead *head) {
     /* The reference to the parent is different for variable and variabletype */
-    UA_NodeId parentRef;
+    UA_Byte parentRefIndex;
     UA_Boolean inverse;
     UA_NodeClass typeNodeClass;
-    switch(node->nodeClass) {
+    switch(head->nodeClass) {
     case UA_NODECLASS_OBJECT:
-        parentRef = UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION);
+        parentRefIndex = UA_REFERENCETYPEINDEX_HASTYPEDEFINITION;
         inverse = false;
         typeNodeClass = UA_NODECLASS_OBJECTTYPE;
         break;
     case UA_NODECLASS_VARIABLE:
-        parentRef = UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION);
+        parentRefIndex = UA_REFERENCETYPEINDEX_HASTYPEDEFINITION;
         inverse = false;
         typeNodeClass = UA_NODECLASS_VARIABLETYPE;
         break;
@@ -122,26 +42,26 @@ getNodeType(UA_Server *server, const UA_Node *node) {
     case UA_NODECLASS_VARIABLETYPE:
     case UA_NODECLASS_REFERENCETYPE:
     case UA_NODECLASS_DATATYPE:
-        parentRef = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
+        parentRefIndex = UA_REFERENCETYPEINDEX_HASSUBTYPE;
         inverse = true;
-        typeNodeClass = node->nodeClass;
+        typeNodeClass = head->nodeClass;
         break;
     default:
         return NULL;
     }
 
     /* Return the first matching candidate */
-    for(size_t i = 0; i < node->referencesSize; ++i) {
-        if(node->references[i].isInverse != inverse)
+    for(size_t i = 0; i < head->referencesSize; ++i) {
+        if(head->references[i].isInverse != inverse)
             continue;
-        if(!UA_NodeId_equal(&node->references[i].referenceTypeId, &parentRef))
+        if(head->references[i].referenceTypeIndex != parentRefIndex)
             continue;
-        UA_assert(node->references[i].refTargetsSize> 0);
-        const UA_NodeId *targetId = &node->references[i].refTargets[0].targetId.nodeId;
+        UA_assert(!TAILQ_EMPTY(&head->references[i].queueHead));
+        const UA_NodeId *targetId = &TAILQ_FIRST(&head->references[i].queueHead)->targetId.nodeId;
         const UA_Node *type = UA_NODESTORE_GET(server, targetId);
         if(!type)
             continue;
-        if(type->nodeClass == typeNodeClass)
+        if(type->head.nodeClass == typeNodeClass)
             return type;
         UA_NODESTORE_RELEASE(server, type);
     }
@@ -150,41 +70,41 @@ getNodeType(UA_Server *server, const UA_Node *node) {
 }
 
 UA_Boolean
-UA_Node_hasSubTypeOrInstances(const UA_Node *node) {
-    const UA_NodeId hasSubType = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
-    const UA_NodeId hasTypeDefinition = UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION);
-    for(size_t i = 0; i < node->referencesSize; ++i) {
-        if(node->references[i].isInverse == false &&
-           UA_NodeId_equal(&node->references[i].referenceTypeId, &hasSubType))
+UA_Node_hasSubTypeOrInstances(const UA_NodeHead *head) {
+    for(size_t i = 0; i < head->referencesSize; ++i) {
+        if(head->references[i].isInverse == false &&
+           head->references[i].referenceTypeIndex == UA_REFERENCETYPEINDEX_HASSUBTYPE)
             return true;
-        if(node->references[i].isInverse == true &&
-           UA_NodeId_equal(&node->references[i].referenceTypeId, &hasTypeDefinition))
+        if(head->references[i].isInverse == true &&
+           head->references[i].referenceTypeIndex == UA_REFERENCETYPEINDEX_HASTYPEDEFINITION)
             return true;
     }
     return false;
 }
 
-static const UA_NodeId hasInterfaceNodeId =
-    {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASINTERFACE}};
-
 UA_StatusCode
 getParentTypeAndInterfaceHierarchy(UA_Server *server, const UA_NodeId *typeNode,
                                    UA_NodeId **typeHierarchy, size_t *typeHierarchySize) {
+    UA_ReferenceTypeSet reftypes_subtype =
+        UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASSUBTYPE);
     UA_ExpandedNodeId *subTypes = NULL;
     size_t subTypesSize = 0;
-    UA_StatusCode retval = browseRecursive(server, 1, typeNode, 1, &subtypeId,
-                                           UA_BROWSEDIRECTION_INVERSE, false,
-                                           &subTypesSize, &subTypes);
+    UA_StatusCode retval = browseRecursive(server, 1, typeNode,
+                                           UA_BROWSEDIRECTION_INVERSE,
+                                           &reftypes_subtype, UA_NODECLASS_UNSPECIFIED,
+                                           false, &subTypesSize, &subTypes);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
     UA_assert(subTypesSize < 1000);
 
+    UA_ReferenceTypeSet reftypes_interface =
+        UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASINTERFACE);
     UA_ExpandedNodeId *interfaces = NULL;
     size_t interfacesSize = 0;
-    retval = browseRecursive(server, 1, typeNode, 1, &hasInterfaceNodeId,
-                             UA_BROWSEDIRECTION_FORWARD, false,
-                             &interfacesSize, &interfaces);
+    retval = browseRecursive(server, 1, typeNode, UA_BROWSEDIRECTION_FORWARD,
+                             &reftypes_interface, UA_NODECLASS_UNSPECIFIED,
+                             false, &interfacesSize, &interfaces);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Array_delete(subTypes, subTypesSize, &UA_TYPES[UA_TYPES_NODEID]);
         return retval;
@@ -223,6 +143,47 @@ getParentTypeAndInterfaceHierarchy(UA_Server *server, const UA_NodeId *typeNode,
     UA_assert(*typeHierarchySize < 1000);
 
     UA_Array_delete(subTypes, subTypesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
+    UA_Array_delete(interfaces, interfacesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+getInterfaceHierarchy(UA_Server *server, const UA_NodeId *objectNode,
+                                   UA_NodeId **typeHierarchy, size_t *typeHierarchySize) {
+    UA_ReferenceTypeSet reftypes_interface =
+        UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASINTERFACE);
+    UA_ExpandedNodeId *interfaces = NULL;
+    size_t interfacesSize = 0;
+    UA_StatusCode retval = browseRecursive(server, 1, objectNode, UA_BROWSEDIRECTION_FORWARD,
+                                           &reftypes_interface, UA_NODECLASS_UNSPECIFIED,
+                                           false, &interfacesSize, &interfaces);
+    if(retval != UA_STATUSCODE_GOOD) {
+        return retval;
+    }
+
+    UA_assert(interfacesSize < 1000);
+
+    if (interfacesSize == 0) {
+        *typeHierarchySize = 0;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    UA_NodeId *hierarchy = (UA_NodeId*)
+        UA_malloc(sizeof(UA_NodeId) * (interfacesSize));
+    if(!hierarchy) {
+        UA_Array_delete(interfaces, interfacesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    for(size_t i = 0; i < interfacesSize; i++) {
+        hierarchy[i] = interfaces[i].nodeId;
+        UA_NodeId_init(&interfaces[i].nodeId);
+    }
+
+    *typeHierarchy = hierarchy;
+    *typeHierarchySize = interfacesSize;
+
+    UA_assert(*typeHierarchySize < 1000);
     UA_Array_delete(interfaces, interfacesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
     return UA_STATUSCODE_GOOD;
 }

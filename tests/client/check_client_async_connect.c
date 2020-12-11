@@ -57,7 +57,7 @@ START_TEST(Client_connect_async) {
     UA_ClientConfig_setDefault(cc);
     cc->stateCallback = currentState;
     connected = false;
-    UA_Client_connect_async(client, "opc.tcp://localhost:4840");
+    UA_Client_connectAsync(client, "opc.tcp://localhost:4840");
     UA_Server_run_iterate(server, false);
 
     UA_UInt32 reqId = 0;
@@ -74,8 +74,8 @@ START_TEST(Client_connect_async) {
     do {
         if(connected) {
             /* If not connected requests are not sent */
-            UA_Client_sendAsyncBrowseRequest (client, &bReq, asyncBrowseCallback,
-                                              &asyncCounter, &reqId);
+            UA_Client_sendAsyncBrowseRequest(client, &bReq, asyncBrowseCallback,
+                                             &asyncCounter, &reqId);
         }
         /* Manual clock for unit tests */
         UA_Server_run_iterate(server, false);
@@ -85,7 +85,7 @@ START_TEST(Client_connect_async) {
             break;
     } while(reqId < 10);
 
-    UA_BrowseRequest_deleteMembers(&bReq);
+    UA_BrowseRequest_clear(&bReq);
     ck_assert_uint_eq(connected, true);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     /* With default setting the client uses 4 requests to connect */
@@ -117,7 +117,7 @@ START_TEST(Client_connect_async_abort) {
     for(int i = UA_SECURECHANNELSTATE_HEL_SENT;
         i < UA_SECURECHANNELSTATE_CLOSED; i++) {
         abortState = (UA_SecureChannelState)i;
-        UA_StatusCode retval = UA_Client_connect_async(client, "opc.tcp://localhost:4840");
+        UA_StatusCode retval = UA_Client_connectAsync(client, "opc.tcp://localhost:4840");
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
         UA_SecureChannelState currentState;
@@ -138,7 +138,7 @@ START_TEST(Client_no_connection) {
     UA_ClientConfig_setDefault(cc);
     cc->stateCallback = currentState;
     connected = false;
-    UA_StatusCode retval = UA_Client_connect_async(client, "opc.tcp://localhost:4840");
+    UA_StatusCode retval = UA_Client_connectAsync(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Client_recv = client->connection.recv;
@@ -163,7 +163,7 @@ START_TEST(Client_without_run_iterate) {
     UA_ClientConfig_setDefault(cc);
     cc->stateCallback = currentState;
     connected = false;
-    UA_Client_connect_async(client, "opc.tcp://localhost:4840");
+    UA_Client_connectAsync(client, "opc.tcp://localhost:4840");
     UA_Client_delete(client);
 }
 END_TEST

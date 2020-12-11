@@ -45,6 +45,17 @@ UA_PubSubManager_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 cal
 void
 UA_PubSubManager_removeRepeatedPubSubCallback(UA_Server *server, UA_UInt64 callbackId);
 
+/*************************************************/
+/*      PubSub component monitoring              */
+/*************************************************/
+
+#ifdef UA_ENABLE_PUBSUB_MONITORING
+
+UA_StatusCode
+UA_PubSubManager_setDefaultMonitoringCallbacks(UA_PubSubMonitoringInterface *monitoringInterface);
+
+#endif /* UA_ENABLE_PUBSUB_MONITORING */
+
 #endif /* UA_ENABLE_PUBSUB */
 
 _UA_END_DECLS

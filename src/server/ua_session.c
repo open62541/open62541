@@ -8,8 +8,8 @@
  */
 
 #include "ua_session.h"
-#ifdef UA_ENABLE_SUBSCRIPTIONS
 #include "ua_server_internal.h"
+#ifdef UA_ENABLE_SUBSCRIPTIONS
 #include "ua_subscription.h"
 #endif
 
@@ -20,17 +20,28 @@ void UA_Session_init(UA_Session *session) {
     session->availableContinuationPoints = UA_MAXCONTINUATIONPOINTS;
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     SIMPLEQ_INIT(&session->responseQueue);
+    TAILQ_INIT(&session->subscriptions);
 #endif
 }
 
-void UA_Session_deleteMembersCleanup(UA_Session *session, UA_Server* server) {
+void UA_Session_clear(UA_Session *session, UA_Server* server) {
     UA_LOCK_ASSERT(server->serviceMutex, 1);
+
+    /* Remove all Subscriptions. This may send out remaining publish
+     * responses. */
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    UA_Subscription *sub, *tempsub;
+    TAILQ_FOREACH_SAFE(sub, &session->subscriptions, sessionListEntry, tempsub) {
+        UA_Server_deleteSubscription(server, sub);
+    }
+#endif
+
     UA_Session_detachFromSecureChannel(session);
-    UA_ApplicationDescription_deleteMembers(&session->clientDescription);
-    UA_NodeId_deleteMembers(&session->header.authenticationToken);
-    UA_NodeId_deleteMembers(&session->sessionId);
-    UA_String_deleteMembers(&session->sessionName);
-    UA_ByteString_deleteMembers(&session->serverNonce);
+    UA_ApplicationDescription_clear(&session->clientDescription);
+    UA_NodeId_clear(&session->header.authenticationToken);
+    UA_NodeId_clear(&session->sessionId);
+    UA_String_clear(&session->sessionName);
+    UA_ByteString_clear(&session->serverNonce);
     struct ContinuationPoint *cp, *next = session->continuationPoints;
     while((cp = next)) {
         next = ContinuationPoint_clear(cp);
@@ -70,7 +81,7 @@ UA_Session_generateNonce(UA_Session *session) {
 
     /* Is the length of the previous nonce correct? */
     if(session->serverNonce.length != UA_SESSION_NONCELENTH) {
-        UA_ByteString_deleteMembers(&session->serverNonce);
+        UA_ByteString_clear(&session->serverNonce);
         UA_StatusCode retval =
             UA_ByteString_allocBuffer(&session->serverNonce, UA_SESSION_NONCELENTH);
         if(retval != UA_STATUSCODE_GOOD)
@@ -88,44 +99,107 @@ void UA_Session_updateLifetime(UA_Session *session) {
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 
-void UA_Session_addSubscription(UA_Server *server, UA_Session *session, UA_Subscription *newSubscription) {
-    newSubscription->subscriptionId = ++session->lastSubscriptionId;
+void
+UA_Session_attachSubscription(UA_Session *session, UA_Subscription *sub) {
+    /* Attach to the session */
+    sub->session = session;
+    TAILQ_INSERT_TAIL(&session->subscriptions, sub, sessionListEntry);
 
-    LIST_INSERT_HEAD(&session->serverSubscriptions, newSubscription, listEntry);
+    /* Increase the count */
     session->numSubscriptions++;
+
+    /* Increase the number of outstanding retransmissions */
+    session->totalRetransmissionQueueSize += sub->retransmissionQueueSize;
+}
+
+void
+UA_Session_detachSubscription(UA_Server *server, UA_Session *session, UA_Subscription *sub) {
+    /* Detach from the session */
+    sub->session = NULL;
+    TAILQ_REMOVE(&session->subscriptions, sub, sessionListEntry);
+
+    /* Reduce the count */
+    UA_assert(session->numSubscriptions > 0);
+    session->numSubscriptions--;
+
+    /* Reduce the number of outstanding retransmissions */
+    session->totalRetransmissionQueueSize -= sub->retransmissionQueueSize;
+    
+    /* Send remaining publish responses if the last subscription was removed */
+    if(!TAILQ_EMPTY(&session->subscriptions))
+        return;
+    UA_PublishResponseEntry *pre;
+    while((pre = UA_Session_dequeuePublishReq(session))) {
+        UA_PublishResponse *response = &pre->response;
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOSUBSCRIPTION;
+        response->responseHeader.timestamp = UA_DateTime_now();
+        sendResponse(server, session, session->header.channel, pre->requestId,
+                     (UA_Response*)response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
+        UA_PublishResponse_clear(response);
+        UA_free(pre);
+    }
+}
+
+void
+UA_Server_addSubscription(UA_Server *server, UA_Subscription *sub) {
+    /* Assign the id */
+    sub->subscriptionId = ++server->lastSubscriptionId;
+
+    /* Add to the server */
+    LIST_INSERT_HEAD(&server->subscriptions, sub, serverListEntry);
     server->numSubscriptions++;
 }
 
-UA_StatusCode
-UA_Session_deleteSubscription(UA_Server *server, UA_Session *session,
-                              UA_UInt32 subscriptionId) {
+void
+UA_Server_deleteSubscription(UA_Server *server, UA_Subscription *sub) {
     UA_LOCK_ASSERT(server->serviceMutex, 1);
 
-    UA_Subscription *sub = UA_Session_getSubscriptionById(session, subscriptionId);
-    if(!sub)
-        return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
+    UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, sub, "Subscription deleted");
 
-    UA_Subscription_deleteMembers(server, sub);
+    /* Detach from the session if necessary */
+    if(sub->session)
+        UA_Session_detachSubscription(server, sub->session, sub);
 
-    /* Add a delayed callback to remove the subscription when the currently
-     * scheduled jobs have completed. There is no actual delayed callback. Just
-     * free the structure. */
-    sub->delayedFreePointers.callback = NULL;
-    UA_WorkQueue_enqueueDelayed(&server->workQueue, &sub->delayedFreePointers);
-
-    /* Remove from the session */
-    LIST_REMOVE(sub, listEntry);
-    UA_assert(session->numSubscriptions > 0);
+    /* Remove from the server */
+    LIST_REMOVE(sub, serverListEntry);
     UA_assert(server->numSubscriptions > 0);
-    session->numSubscriptions--;
     server->numSubscriptions--;
-    return UA_STATUSCODE_GOOD;
+
+    /* Clean up */
+    UA_Subscription_clear(server, sub);
+
+    /* Add a delayed callback to remove the Subscription when the current jobs
+     * have completed. Pointers to the subscription may still exist upwards in
+     * the call stack. */
+    sub->delayedFreePointers.callback = NULL;
+    sub->delayedFreePointers.application = server;
+    sub->delayedFreePointers.data = NULL;
+    sub->delayedFreePointers.nextTime = UA_DateTime_nowMonotonic() + 1;
+    sub->delayedFreePointers.interval = 0; /* Remove the structure */
+    UA_Timer_addTimerEntry(&server->timer, &sub->delayedFreePointers, NULL);
+
 }
 
 UA_Subscription *
 UA_Session_getSubscriptionById(UA_Session *session, UA_UInt32 subscriptionId) {
     UA_Subscription *sub;
-    LIST_FOREACH(sub, &session->serverSubscriptions, listEntry) {
+    TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
+        /* Prevent lookup of subscriptions that are to be deleted with a statuschange */
+        if(sub->statusChange != UA_STATUSCODE_GOOD)
+            continue;
+        if(sub->subscriptionId == subscriptionId)
+            break;
+    }
+    return sub;
+}
+
+UA_Subscription *
+UA_Server_getSubscriptionById(UA_Server *server, UA_UInt32 subscriptionId) {
+    UA_Subscription *sub;
+    LIST_FOREACH(sub, &server->subscriptions, serverListEntry) {
+        /* Prevent lookup of subscriptions that are to be deleted with a statuschange */
+        if(sub->statusChange != UA_STATUSCODE_GOOD)
+            continue;
         if(sub->subscriptionId == subscriptionId)
             break;
     }

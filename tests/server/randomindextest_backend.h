@@ -75,7 +75,7 @@ deleteMembers_randomindextest(UA_HistoryDataBackend *backend)
 {
     struct context_randomindextest* context = (struct context_randomindextest*)backend->context;
     for (size_t i = 0; i < context->tupelSize; ++i) {
-        UA_DataValue_deleteMembers(&context->tupels[i].value);
+        UA_DataValue_clear(&context->tupels[i].value);
     }
     UA_free(context->tupels);
     UA_free(context);
@@ -334,10 +334,10 @@ UA_HistoryDataBackend_randomindextest(UA_DateTime *data)
 }
 
 void
-UA_HistoryDataBackend_randomindextest_deleteMembers(UA_HistoryDataBackend *backend);
+UA_HistoryDataBackend_randomindextest_clear(UA_HistoryDataBackend *backend);
 
 void
-UA_HistoryDataBackend_randomindextest_deleteMembers(UA_HistoryDataBackend *backend)
+UA_HistoryDataBackend_randomindextest_clear(UA_HistoryDataBackend *backend)
 {
     deleteMembers_randomindextest(backend);
 }

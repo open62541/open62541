@@ -441,7 +441,7 @@ cmake \
     -DUA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS=ON \
     -DUA_ENABLE_UNIT_TESTS_MEMCHECK=OFF \
     -DUA_NAMESPACE_ZERO=FULL ..
-make -j && make test ARGS="-V"
+make -j && make test # ARGS="-V"
 if [ $? -ne 0 ] ; then exit 1 ; fi
 cd .. && rm build -rf
 echo -en 'travis_fold:end:script.build.unit_test_ns0_full\\r'
@@ -463,10 +463,11 @@ if [ "$CC" != "tcc" ]; then
         -DUA_ENABLE_PUBSUB=ON \
         -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
         -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=OFF \
+        -DUA_ENABLE_PUBSUB_MONITORING=ON \
         -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON \
         -DUA_NAMESPACE_ZERO=MINIMAL ..
 
-    make -j && make test ARGS="-V"
+    make -j && make test # ARGS="-V"
     if [ $? -ne 0 ] ; then exit 1 ; fi
     cd .. && rm build -rf
     echo -en 'travis_fold:end:script.build.unit_test_ns0_minimal\\r'
@@ -512,7 +513,7 @@ if [ "$CC" != "tcc" ]; then
         -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
         -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON \
         -DUA_NAMESPACE_ZERO=REDUCED ..
-    make -j && make test ARGS="-V"
+    make -j && make test # ARGS="-V"
     if [ $? -ne 0 ] ; then exit 1 ; fi
     echo -en 'travis_fold:end:script.build.unit_test_ns0_reduced\\r'
 
@@ -540,7 +541,7 @@ if [ "$CC" != "tcc" ]; then
         		echo -en "== Commit is tag build for '${TRAVIS_TAG}'. Detected branch for tag = '$BRANCH_FOR_TAG' \n"
 			fi
 
-			if [ "${REAL_BRANCH}" = "master" ] || [ "${REAL_BRANCH}" = "1.0" ]; then
+			if [ "${REAL_BRANCH}" = "master" ] || [ "${REAL_BRANCH}" = "1.0" ] || [ "${REAL_BRANCH}" = "1.1" ]; then
 				# Create a separate branch with the `pack/` prefix. This branch has the correct debian/changelog set, and
 				# The submodules are directly copied
 				echo -e "\r\n== Pushing 'pack/${REAL_BRANCH}' branch =="  && echo -en 'travis_fold:start:script.build.pack-branch\\r'

@@ -87,16 +87,7 @@ methodCalled(UA_Client *client, void *userdata, UA_UInt32 requestId,
     UA_CallResponse_clear(response);
 }
 
-static void
-translateCalled(UA_Client *client, void *userdata, UA_UInt32 requestId,
-                UA_TranslateBrowsePathsToNodeIdsResponse *response) {
-    printf("%-50s%i\n", "Translated path for request ", requestId);
-
-    if(response->results[0].targetsSize == 1)
-        return;
-    UA_TranslateBrowsePathsToNodeIdsResponse_clear(response);
-}
-#endif /* UA_ENABLE_METHODCALLS */
+#endif
 #endif
 
 int
@@ -179,14 +170,6 @@ main(int argc, char *argv[]) {
                                  UA_NODEID_NUMERIC(1, 62541), 1, &input,
                                  methodCalled, NULL, &reqId);
             UA_String_clear(&stringValue);
-
-    #define pathSize 3
-            char *paths[pathSize] = { "Server", "ServerStatus", "State" };
-            UA_UInt32 ids[pathSize] = { UA_NS0ID_ORGANIZES,
-            UA_NS0ID_HASCOMPONENT, UA_NS0ID_HASCOMPONENT };
-
-            UA_Cient_translateBrowsePathsToNodeIds_async(client, paths, ids, pathSize,
-                                                         translateCalled, NULL, &reqId);
 #endif /* UA_ENABLE_METHODCALLS */
 #endif
             /* How often UA_Client_run_iterate is called depends on the number of request sent */

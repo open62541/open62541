@@ -10,8 +10,6 @@
 #ifndef PLUGINS_ARCH_WIN32_UA_ARCHITECTURE_H_
 #define PLUGINS_ARCH_WIN32_UA_ARCHITECTURE_H_
 
-#include <open62541/architecture_base.h>
-
 #ifndef _BSD_SOURCE
 # define _BSD_SOURCE
 #endif
@@ -54,7 +52,9 @@
 
 #define ssize_t int
 #define OPTVAL_TYPE char
-#ifndef UA_sleep_ms
+#ifdef UA_sleep_ms
+void UA_sleep_ms(unsigned long ms);
+#else
 # define UA_sleep_ms(X) Sleep(X)
 #endif
 
@@ -116,17 +116,12 @@
 # undef maxStringLength
 #endif
 
+/* Use the standard malloc */
 #ifndef UA_free
-#define UA_free free
-#endif
-#ifndef UA_malloc
-#define UA_malloc malloc
-#endif
-#ifndef UA_calloc
-#define UA_calloc calloc
-#endif
-#ifndef UA_realloc
-#define UA_realloc realloc
+# define UA_free free
+# define UA_malloc malloc
+# define UA_calloc calloc
+# define UA_realloc realloc
 #endif
 
 /* 3rd Argument is the string */
@@ -148,7 +143,7 @@
 #define UA_LOCK_TYPE(mutexName) CRITICAL_SECTION mutexName; \
                                 int mutexName##Counter;
 #define UA_LOCK_INIT(mutexName) InitializeCriticalSection(&mutexName); \
-                                mutexName##Counter = 0;;
+                                mutexName##Counter = 0;
 #define UA_LOCK_DESTROY(mutexName) DeleteCriticalSection(&mutexName);
 #define UA_LOCK(mutexName) EnterCriticalSection(&mutexName); \
                            UA_assert(++(mutexName##Counter) == 1);

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 ### This Source Code Form is subject to the terms of the Mozilla Public
@@ -617,8 +617,8 @@ class DataTypeNode(Node):
             else:
                 logger.debug( "Encodable as: " + str(self.__baseTypeEncoding__))
                 self.__isEnum__ = False
-                self.__definition__ = typeDict
             logger.debug( "")
+        self.__definition__ = typeDict
         return self.__baseTypeEncoding__
 
 class ViewNode(Node):

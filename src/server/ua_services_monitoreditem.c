@@ -13,6 +13,7 @@
  *    Copyright 2017 (c) Henrik Norrman
  *    Copyright 2017-2018 (c) Thomas Stalder, Blue Time Concept SA
  *    Copyright 2018 (c) Fabian Arndt, Root-Core
+ *    Copyright 2020 (c) Kalycito Infotech Private Limited
  */
 
 #include "ua_server_internal.h"
@@ -73,6 +74,66 @@ setAbsoluteFromPercentageDeadband(UA_Server *server, UA_Session *session,
 }
 
 #endif /* UA_ENABLE_DA */
+
+void
+Service_SetTriggering(UA_Server *server, UA_Session *session,
+                      const UA_SetTriggeringRequest *request,
+                      UA_SetTriggeringResponse *response) {
+    /* Nothing to do? */
+    if(request->linksToRemoveSize == 0 &&
+       request->linksToAddSize == 0) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
+        return;
+    }
+
+    /* Get the Subscription */
+    UA_Subscription *sub = UA_Session_getSubscriptionById(session, request->subscriptionId);
+    if(!sub) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
+        return;
+    }
+    
+    /* Get the MonitoredItem */
+    UA_MonitoredItem *mon = UA_Subscription_getMonitoredItem(sub, request->triggeringItemId);
+    if(!mon) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
+        return;
+    }
+
+    /* Allocate the results arrays */
+    if(request->linksToRemoveSize > 0) {
+        response->removeResults = (UA_StatusCode*)
+            UA_Array_new(request->linksToRemoveSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
+        if(!response->removeResults) {
+            response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+            return;
+        }
+        response->removeResultsSize = request->linksToRemoveSize;
+    }
+
+    if(request->linksToAddSize> 0) {
+        response->addResults = (UA_StatusCode*)
+            UA_Array_new(request->linksToAddSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
+        if(!response->addResults) {
+            UA_Array_delete(response->removeResults,
+                            request->linksToAddSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
+            response->removeResults = NULL;
+            response->removeResultsSize = 0;
+            response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+            return;
+        }
+        response->addResultsSize = request->linksToAddSize;
+    }
+
+    /* Apply the changes */
+    for(size_t i = 0; i < request->linksToRemoveSize; i++)
+        response->removeResults[i] =
+            UA_MonitoredItem_removeLink(sub, mon, request->linksToRemove[i]);
+
+    for(size_t i = 0; i < request->linksToAddSize; i++)
+        response->addResults[i] =
+            UA_MonitoredItem_addLink(sub, mon, request->linksToAdd[i]);
+}
 
 static UA_StatusCode
 setMonitoredItemSettings(UA_Server *server, UA_Session *session, UA_MonitoredItem *mon,
@@ -142,7 +203,7 @@ setMonitoredItemSettings(UA_Server *server, UA_Session *session, UA_MonitoredIte
 
     /* Remove the old samples */
     UA_ByteString_clear(&mon->lastSampledValue);
-    UA_Variant_clear(&mon->lastValue);
+    UA_DataValue_clear(&mon->lastValue);
 
     /* ClientHandle */
     mon->clientHandle = params->clientHandle;
@@ -154,7 +215,7 @@ setMonitoredItemSettings(UA_Server *server, UA_Session *session, UA_MonitoredIte
         const UA_VariableNode *vn = (const UA_VariableNode *)
             UA_NODESTORE_GET(server, &mon->monitoredNodeId);
         if(vn) {
-            if(vn->nodeClass == UA_NODECLASS_VARIABLE &&
+            if(vn->head.nodeClass == UA_NODECLASS_VARIABLE &&
                samplingInterval < vn->minimumSamplingInterval)
                 samplingInterval = vn->minimumSamplingInterval;
             UA_NODESTORE_RELEASE(server, (const UA_Node *)vn);
@@ -293,6 +354,35 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
         UA_Subscription_addMonitoredItem(server, cmc->sub, newMon);
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
         if(newMon->attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) {
+            UA_Byte eventNotifierValue = 0;
+
+            /* Read the value stored in EventNotifier attribute of the object
+             * node, requested for monitoring by the client */
+            UA_ReadValueId item;
+            UA_ReadValueId_init(&item);
+            item.nodeId = newMon->monitoredNodeId;
+            item.attributeId = newMon->attributeId;
+            UA_DataValue dv = readAttribute(server, &item, UA_TIMESTAMPSTORETURN_NEITHER);
+
+            eventNotifierValue = *((UA_Byte *)dv.value.data);
+
+            UA_DataValue_clear(&dv);
+
+            /* Check if the EventNotifier attribute has 'SubscribeToEvents'
+             * bit set */
+            if((eventNotifierValue & 0x01) != 1) {
+                /* If the 'SubscribeToEvents' bit of EventNotifier attribute
+                 * is zero, then the object cannot be subscribed to monitor
+                 * events */
+                result->statusCode = UA_STATUSCODE_BADNOTSUPPORTED;
+                UA_LOG_INFO_SESSION(&server->config.logger, session,
+                                    "Subscription %" PRIu32 " | Could not create a MonitoredItem as "
+                                    "'SubscribeToEvents' bit of EventNotifier attribute is not set "
+                                    "with StatusCode %s", cmc->sub ? cmc->sub->subscriptionId : 0,
+                                    UA_StatusCode_name(result->statusCode));
+                UA_MonitoredItem_delete(server, newMon);
+                return;
+            }
             /* Insert the monitored item into the node's queue */
             UA_Server_editNode(server, NULL, &newMon->monitoredNodeId,
                                UA_Server_addMonitoredItemToNodeEditNodeCallback, newMon);
@@ -327,7 +417,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
                         newMon->monitoredItemId);
 
     /* Create the first sample */
-    if(request->monitoringMode == UA_MONITORINGMODE_REPORTING &&
+    if(request->monitoringMode > UA_MONITORINGMODE_DISABLED &&
        newMon->attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER)
         monitoredItem_sampleCallback(server, newMon);
 
@@ -478,7 +568,6 @@ Operation_SetMonitoringMode(UA_Server *server, UA_Session *session,
         *result = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
         return;
     }
-    UA_Subscription *sub = mon->subscription;
 
     /* Check if the MonitoringMode is valid or not */
     if(smc->monitoringMode > UA_MONITORINGMODE_REPORTING) {
@@ -497,52 +586,38 @@ Operation_SetMonitoringMode(UA_Server *server, UA_Session *session,
      * enabled, remove all notifications from the global queue. !!! This needs
      * to be the same operation as in UA_Notification_enqueue !!! */
     if(mon->monitoringMode == UA_MONITORINGMODE_REPORTING) {
+        /* Make all notifications reporting. Re-enqueue to ensure they have the
+         * right order if some notifications are already reported by a trigger
+         * link. */
         UA_Notification *notification;
         TAILQ_FOREACH(notification, &mon->queue, listEntry) {
-            TAILQ_INSERT_TAIL(&sub->notificationQueue, notification, globalEntry);
-            ++sub->notificationQueueSize;
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-            if(mon->attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) {
-                ++sub->eventNotifications;
-            } else
-#endif
-            {
-                ++sub->dataChangeNotifications;
-            }
+            UA_Notification_dequeueSub(notification);
+            UA_Notification_enqueueSub(notification);
         }
+
         /* Register the sampling callback with an interval */
         *result = UA_MonitoredItem_registerSampleCallback(server, mon);
     } else if(mon->monitoringMode == UA_MONITORINGMODE_SAMPLING) {
+        /* Make all notifications non-reporting */
         UA_Notification *notification;
-        TAILQ_FOREACH(notification, &mon->queue, listEntry) {
-            TAILQ_REMOVE(&sub->notificationQueue, notification, globalEntry);
-            TAILQ_NEXT(notification, globalEntry) = UA_SUBSCRIPTION_QUEUE_SENTINEL;
-            --sub->notificationQueueSize;
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-            if(mon->attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) {
-                --sub->eventNotifications;
-            } else
-#endif
-            {
-                --sub->dataChangeNotifications;
-            }
-        }
+        TAILQ_FOREACH(notification, &mon->queue, listEntry)
+            UA_Notification_dequeueSub(notification);
+
         /* Register the sampling callback with an interval */
         *result = UA_MonitoredItem_registerSampleCallback(server, mon);
     } else {
         /* UA_MONITORINGMODE_DISABLED */
         UA_MonitoredItem_unregisterSampleCallback(server, mon);
 
-        /* Setting the mode to DISABLED or SAMPLING causes all queued Notifications to be deleted */
+        /* Setting the mode to DISABLED causes all Notifications to
+         * be dequeued and deleted */
         UA_Notification *notification, *notification_tmp;
-        TAILQ_FOREACH_SAFE(notification, &mon->queue, listEntry, notification_tmp) {
-            UA_Notification_dequeue(server, notification);
-            UA_Notification_delete(notification);
-        }
+        TAILQ_FOREACH_SAFE(notification, &mon->queue, listEntry, notification_tmp)
+            UA_Notification_delete(server, notification);
 
         /* Initialize lastSampledValue */
         UA_ByteString_clear(&mon->lastSampledValue);
-        UA_Variant_clear(&mon->lastValue);
+        UA_DataValue_clear(&mon->lastValue);
     }
 }
 
@@ -580,7 +655,13 @@ Service_SetMonitoringMode(UA_Server *server, UA_Session *session,
 static void
 Operation_DeleteMonitoredItem(UA_Server *server, UA_Session *session, UA_Subscription *sub,
                               const UA_UInt32 *monitoredItemId, UA_StatusCode *result) {
-    *result = UA_Subscription_deleteMonitoredItem(server, sub, *monitoredItemId);
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_MonitoredItem *mon = UA_Subscription_getMonitoredItem(sub, *monitoredItemId);
+    if(!mon) {
+        *result = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
+        return;
+    }
+    UA_MonitoredItem_delete(server, mon);
 }
 
 void
@@ -617,11 +698,10 @@ Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
 UA_StatusCode
 UA_Server_deleteMonitoredItem(UA_Server *server, UA_UInt32 monitoredItemId) {
     UA_LOCK(server->serviceMutex);
-    UA_MonitoredItem *mon;
-    LIST_FOREACH(mon, &server->localMonitoredItems, listEntry) {
+    UA_MonitoredItem *mon, *mon_tmp;
+    LIST_FOREACH_SAFE(mon, &server->localMonitoredItems, listEntry, mon_tmp) {
         if(mon->monitoredItemId != monitoredItemId)
             continue;
-        LIST_REMOVE(mon, listEntry);
         UA_MonitoredItem_delete(server, mon);
         UA_UNLOCK(server->serviceMutex);
         return UA_STATUSCODE_GOOD;

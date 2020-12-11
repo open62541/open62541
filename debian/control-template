@@ -4,13 +4,14 @@ Maintainer: open62541 Team <open62541-core@googlegroups.com>
 Build-Depends: debhelper (>= 9),
  cmake (>= 2.8),
  python (>= 2.7),
- python-sphinx,
- python-sphinx-rtd-theme | base-files (<= 7.2ubuntu5.6~),
+ python3-sphinx | python-sphinx,
+ python3-sphinx-rtd-theme | python-sphinx-rtd-theme,
  graphviz,
  texlive-fonts-recommended,
  texlive-latex-extra,
  texlive-plain-generic | texlive-generic-extra,
- latexmk
+ latexmk,
+ libmbedtls-dev
 Standards-Version: 4.4.1
 Section: libs
 Homepage: https://open62541.org/
@@ -35,7 +36,7 @@ Description: Open source implementation of OPC UA - development files
 Package: libopen62541-<soname>-tools
 Section: libdevel
 Architecture: all
-Depends: ${misc:Depends}, python
+Depends: ${misc:Depends}, python3
 Recommends: libopen62541-<soname>-dev
 Description: Open source implementation of OPC UA - tools
  open62541 (http://open62541.org) is an open source and free implementation
@@ -50,7 +51,7 @@ Description: Open source implementation of OPC UA - tools
 Package: libopen62541-<soname>
 Architecture: any
 Multi-Arch: same
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Depends: ${shlibs:Depends}, ${misc:Depends}, libmbedtls10 | libmbedtls12
 Description: Open source implementation of OPC UA - shared library
  open62541 (http://open62541.org) is an open source and free implementation
  of OPC UA (OPC Unified Architecture) written in the common subset of the

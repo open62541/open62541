@@ -6,26 +6,20 @@
  *    Copyright 2018 (c) Fraunhofer IOSB (Author: Lukas Meling)
  */
 
-#include "ua_types_encoding_json.h"
-
+#include <open62541/config.h>
 #include <open62541/types_generated.h>
 #include <open62541/types_generated_handling.h>
 
+#include "ua_types_encoding_json.h"
 #include "ua_types_encoding_binary.h"
 
 #include <float.h>
 #include <math.h>
 
-#ifdef UA_ENABLE_CUSTOM_LIBC
-#include "../deps/musl/floatscan.h"
-#include "../deps/musl/vfprintf.h"
-#endif
-
 #include "../deps/itoa.h"
 #include "../deps/atoi.h"
 #include "../deps/string_escape.h"
 #include "../deps/base64.h"
-
 #include "../deps/libc_time.h"
 
 #if defined(_MSC_VER)
@@ -1166,9 +1160,8 @@ ENCODE_JSON(Variant) {
     /* If type is 0 (NULL) the Variant contains a NULL value and the containing
      * JSON object shall be omitted or replaced by the JSON literal ‘null’ (when
      * an element of a JSON array). */
-    if(!src->type) {
+    if(!src->type)
         return writeJsonNull(ctx);
-    }
         
     /* Set the content type in the encoding mask */
     const UA_Boolean isBuiltin = (src->type->typeKind <= UA_DATATYPEKIND_DIAGNOSTICINFO);
@@ -2677,10 +2670,8 @@ DECODE_JSON(Variant) {
     UA_Boolean hasDimension = false;
     size_t searchResultDim = 0;
     ret = lookAheadForKey(UA_JSONKEY_DIMENSION, ctx, parseCtx, &searchResultDim);
-    if(ret == UA_STATUSCODE_GOOD) {
-        hasDimension = true;
-        dst->arrayDimensionsSize = (size_t)parseCtx->tokenArray[searchResultDim].size;
-    }
+    if(ret == UA_STATUSCODE_GOOD)
+        hasDimension = (parseCtx->tokenArray[searchResultDim].size > 0);
     
     /* no array but has dimension. error? */
     if(!isArray && hasDimension)
@@ -2787,7 +2778,7 @@ DECODE_JSON(ExtensionObject) {
             
             /*Check if Object in Extentionobject*/
             if(getJsmnType(parseCtx) != JSMN_OBJECT) {
-                UA_NodeId_deleteMembers(&typeId);
+                UA_NodeId_clear(&typeId);
                 return UA_STATUSCODE_BADDECODINGERROR;
             }
             
@@ -2796,13 +2787,13 @@ DECODE_JSON(ExtensionObject) {
             ret = lookAheadForKey(UA_JSONKEY_BODY, ctx, parseCtx, &searchBodyResult);
             if(ret != UA_STATUSCODE_GOOD) {
                 /*No Body*/
-                UA_NodeId_deleteMembers(&typeId);
+                UA_NodeId_clear(&typeId);
                 return UA_STATUSCODE_BADDECODINGERROR;
             }
             
             if(searchBodyResult >= (size_t)parseCtx->tokenCount) {
                 /*index not in Tokenarray*/
-                UA_NodeId_deleteMembers(&typeId);
+                UA_NodeId_clear(&typeId);
                 return UA_STATUSCODE_BADDECODINGERROR;
             }
 
@@ -2813,14 +2804,14 @@ DECODE_JSON(ExtensionObject) {
             char* bodyJsonString = (char*)(ctx->pos + parseCtx->tokenArray[searchBodyResult].start);
             
             if(sizeOfJsonString <= 0) {
-                UA_NodeId_deleteMembers(&typeId);
+                UA_NodeId_clear(&typeId);
                 return UA_STATUSCODE_BADDECODINGERROR;
             }
             
             /* Save encoded as bytestring. */
             ret = UA_ByteString_allocBuffer(&dst->content.encoded.body, (size_t)sizeOfJsonString);
             if(ret != UA_STATUSCODE_GOOD) {
-                UA_NodeId_deleteMembers(&typeId);
+                UA_NodeId_clear(&typeId);
                 return ret;
             }
 
@@ -2831,8 +2822,8 @@ DECODE_JSON(ExtensionObject) {
             
             if(tokenAfteExtensionObject == 0) {
                 /*next object token not found*/
-                UA_NodeId_deleteMembers(&typeId);
-                UA_ByteString_deleteMembers(&dst->content.encoded.body);
+                UA_NodeId_clear(&typeId);
+                UA_ByteString_clear(&dst->content.encoded.body);
                 return UA_STATUSCODE_BADDECODINGERROR;
             }
             
@@ -2842,7 +2833,7 @@ DECODE_JSON(ExtensionObject) {
         }
         
         /*Type id not used anymore, typeOfBody has type*/
-        UA_NodeId_deleteMembers(&typeId);
+        UA_NodeId_clear(&typeId);
         
         /*Set Found Type*/
         dst->content.decoded.type = typeOfBody;
@@ -2924,7 +2915,7 @@ Variant_decodeJsonUnwrapExtensionObject(UA_Variant *dst, const UA_DataType *type
         parseCtx->index = (UA_UInt16)searchTypeIdResult;
         ret = NodeId_decodeJson(&typeId, &UA_TYPES[UA_TYPES_NODEID], ctx, parseCtx, true);
         if(ret != UA_STATUSCODE_GOOD) {
-            UA_NodeId_deleteMembers(&typeId);
+            UA_NodeId_clear(&typeId);
             return ret;
         }
 
@@ -2964,7 +2955,7 @@ Variant_decodeJsonUnwrapExtensionObject(UA_Variant *dst, const UA_DataType *type
         /* Allocate memory for type*/
         dst->data = UA_new(dst->type);
         if(!dst->data) {
-            UA_NodeId_deleteMembers(&typeId);
+            UA_NodeId_clear(&typeId);
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
 
@@ -2983,7 +2974,7 @@ Variant_decodeJsonUnwrapExtensionObject(UA_Variant *dst, const UA_DataType *type
             dst->data = NULL;
         }
     } else if(encoding == 1 || encoding == 2 || typeOfBody == NULL) {
-        UA_NodeId_deleteMembers(&typeId);
+        UA_NodeId_clear(&typeId);
             
         /* decode as ExtensionObject */
         dst->type = &UA_TYPES[UA_TYPES_EXTENSIONOBJECT];
@@ -3330,6 +3321,6 @@ UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type) {
     }
     
     if(ret != UA_STATUSCODE_GOOD)
-        UA_deleteMembers(dst, type); /* Clean up */
+        UA_clear(dst, type); /* Clean up */
     return ret;
 }

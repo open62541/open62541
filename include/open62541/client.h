@@ -17,11 +17,15 @@
 #ifndef UA_CLIENT_H_
 #define UA_CLIENT_H_
 
-#include <open62541/client_config.h>
+#include <open62541/config.h>
 #include <open62541/nodeids.h>
 #include <open62541/types.h>
 #include <open62541/types_generated.h>
 #include <open62541/types_generated_handling.h>
+
+#include <open62541/plugin/log.h>
+#include <open62541/plugin/network.h>
+#include <open62541/plugin/securitypolicy.h>
 
 _UA_BEGIN_DECLS
 
@@ -36,15 +40,130 @@ _UA_BEGIN_DECLS
  * abstractions <client-highlevel>`.
  *
  * **However**: At this time, the client does not yet contain its own thread or
- * event-driven main-loop. So the client will not perform any actions
+ * event-driven main-loop, meaning that the client will not perform any actions
  * automatically in the background. This is especially relevant for
- * subscriptions. The user will have to periodically call
- * `UA_Client_Subscriptions_manuallySendPublishRequest`. See also :ref:`here
- * <client-subscriptions>`.
+ * connection/session management and subscriptions. The user will have to
+ * periodically call `UA_Client_run_iterate` to ensure that asynchronous events
+ * are handled, including keeping a secure connection established.
+ * See more about :ref:`asynchronicity<client-async-services>` and
+ * :ref:`subscriptions<client-subscriptions>`.
  *
+ * .. _client-config:
  *
- * .. include:: client_config.rst
+ * Client Configuration
+ * --------------------
  *
+ * The client configuration is used for setting connection parameters and
+ * additional settings used by the client.
+ * The configuration should not be modified after it is passed to a client.
+ * Currently, only one client can use a configuration at a time.
+ *
+ * Examples for configurations are provided in the ``/plugins`` folder.
+ * The usual usage is as follows:
+ *
+ * 1. Create a client configuration with default settings as a starting point
+ * 2. Modifiy the configuration, e.g. modifying the timeout
+ * 3. Instantiate a client with it
+ * 4. After shutdown of the client, clean up the configuration (free memory)
+ *
+ * The :ref:`tutorials` provide a good starting point for this. */
+
+typedef struct {
+    /* Basic client configuration */
+    void *clientContext; /* User-defined data attached to the client */
+    UA_Logger logger;   /* Logger used by the client */
+    UA_UInt32 timeout;  /* Response timeout in ms */
+
+    /* The description must be internally consistent.
+     * - The ApplicationUri set in the ApplicationDescription must match the
+     *   URI set in the server certificate */
+    UA_ApplicationDescription clientDescription;
+
+    /* Basic connection configuration */
+    UA_ExtensionObject userIdentityToken; /* Configured User-Identity Token */
+    UA_MessageSecurityMode securityMode;  /* None, Sign, SignAndEncrypt. The
+                                           * default is invalid. This indicates
+                                           * the client to select any matching
+                                           * endpoint. */
+    UA_String securityPolicyUri; /* SecurityPolicy for the SecureChannel. An
+                                  * empty string indicates the client to select
+                                  * any matching SecurityPolicy. */
+
+    /* Advanced connection configuration
+     *
+     * If either endpoint or userTokenPolicy has been set (at least one non-zero
+     * byte in either structure), then the selected Endpoint and UserTokenPolicy
+     * overwrite the settings in the basic connection configuration. The
+     * userTokenPolicy array in the EndpointDescription is ignored. The selected
+     * userTokenPolicy is set in the dedicated configuration field.
+     *
+     * If the advanced configuration is not set, the client will write to it the
+     * selected Endpoint and UserTokenPolicy during GetEndpoints.
+     *
+     * The information in the advanced configuration is used during reconnect
+     * when the SecureChannel was broken. */
+    UA_EndpointDescription endpoint;
+    UA_UserTokenPolicy userTokenPolicy;
+
+    /* Advanced client configuration */
+
+    UA_UInt32 secureChannelLifeTime; /* Lifetime in ms (then the channel needs
+                                        to be renewed) */
+    UA_UInt32 requestedSessionTimeout; /* Session timeout in ms */
+    UA_ConnectionConfig localConnectionConfig;
+    UA_UInt32 connectivityCheckInterval;     /* Connectivity check interval in ms.
+                                              * 0 = background task disabled */
+    const UA_DataTypeArray *customDataTypes; /* Custom DataTypes. Attention!
+                                              * Custom datatypes are not cleaned
+                                              * up together with the
+                                              * configuration. So it is possible
+                                              * to allocate them on ROM. */
+
+    /* Available SecurityPolicies */
+    size_t securityPoliciesSize;
+    UA_SecurityPolicy *securityPolicies;
+
+    /* Certificate Verification Plugin */
+    UA_CertificateVerification certificateVerification;
+
+    /* Callbacks for async connection handshakes */
+    UA_ConnectClientConnection initConnectionFunc;
+    UA_StatusCode (*pollConnectionFunc)(UA_Connection *connection,
+                                        UA_UInt32 timeout,
+                                        const UA_Logger *logger);
+
+    /* Callback for state changes. The client state is differentated into the
+     * SecureChannel state and the Session state. The connectStatus is set if
+     * the client connection (including reconnects) has failed and the client
+     * has to "give up". If the connectStatus is not set, the client still has
+     * hope to connect or recover. */
+    void (*stateCallback)(UA_Client *client,
+                          UA_SecureChannelState channelState,
+                          UA_SessionState sessionState,
+                          UA_StatusCode connectStatus);
+
+    /* When connectivityCheckInterval is greater than 0, every
+     * connectivityCheckInterval (in ms), a async read request is performed on
+     * the server. inactivityCallback is called when the client receive no
+     * response for this read request The connection can be closed, this in an
+     * attempt to recreate a healthy connection. */
+    void (*inactivityCallback)(UA_Client *client);
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    /* Number of PublishResponse queued up in the server */
+    UA_UInt16 outStandingPublishRequests;
+
+    /* If the client does not receive a PublishResponse after the defined delay
+     * of ``(sub->publishingInterval * sub->maxKeepAliveCount) +
+     * client->config.timeout)``, then subscriptionInactivityCallback is called
+     * for the subscription.. */
+    void (*subscriptionInactivityCallback)(UA_Client *client,
+                                           UA_UInt32 subscriptionId,
+                                           void *subContext);
+#endif
+} UA_ClientConfig;
+
+ /**
  * Client Lifecycle
  * ---------------- */
 
@@ -157,35 +276,6 @@ UA_Client_disconnectAsync(UA_Client *client);
  * This is always an async (non-blocking) operation. */
 UA_StatusCode UA_EXPORT
 UA_Client_disconnectSecureChannel(UA_Client *client);
-
-/* Deprecated methods */
-
-UA_DEPRECATED static UA_INLINE UA_StatusCode
-UA_Client_connect_async(UA_Client *client, const char *endpointUrl) {
-    return UA_Client_connectAsync(client, endpointUrl);
-}
-
-UA_DEPRECATED static UA_INLINE UA_StatusCode
-UA_Client_connect_noSession(UA_Client *client, const char *endpointUrl) {
-    return UA_Client_connectSecureChannel(client, endpointUrl);
-}
-
-UA_DEPRECATED static UA_INLINE UA_StatusCode
-UA_Client_connect_username(UA_Client *client, const char *endpointUrl,
-                           const char *username, const char *password) {
-    return UA_Client_connectUsername(client, endpointUrl,
-                                     username, password);
-}
-
-UA_DEPRECATED static UA_INLINE UA_StatusCode
-UA_Client_disconnect_async(UA_Client *client, UA_UInt32 *requestId) {
-    return UA_Client_disconnect(client);
-}
-
-UA_DEPRECATED static UA_INLINE UA_StatusCode
-UA_Client_close(UA_Client *client) {
-    return UA_Client_disconnect(client);
-}
 
 /**
  * Discovery
@@ -445,8 +535,22 @@ UA_Client_Service_queryNext(UA_Client *client,
  * Asynchronous Services
  * ---------------------
  * All OPC UA services are asynchronous in nature. So several service calls can
- * be made without waiting for a response first. Responess may come in a
- * different ordering. */
+ * be made without waiting for the individual responses. Depending on the
+ * server's priorities responses may come in a different ordering than sent.
+ *
+ * As noted in :ref:`the client overview<client>` currently no means
+ * of handling asynchronous events automatically is provided. However, some
+ * synchronous function calls will trigger handling, but to ensure this
+ * happens a client should periodically call `UA_Client_run_iterate`
+ * explicitly.
+ *
+ * Connection and session management are also performed in
+ * `UA_Client_run_iterate`, so to keep a connection healthy any client need to
+ * consider how and when it is appropriate to do the call.
+ * This is especially true for the periodic renewal of a SecureChannel's
+ * SecurityToken which is designed to have a limited lifetime and will
+ * invalidate the connection if not renewed.
+ */
 
 /* Use the type versions of this method. See below. However, the general
  * mechanism of async service calls is explained here.
@@ -490,15 +594,17 @@ UA_Client_sendAsyncRequest(UA_Client *client, const void *request,
 UA_StatusCode UA_EXPORT
 UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout);
 
-UA_DEPRECATED static UA_INLINE UA_StatusCode
-UA_Client_runAsync(UA_Client *client, UA_UInt32 timeout) {
-    return UA_Client_run_iterate(client, timeout);
-}
-
-UA_DEPRECATED static UA_INLINE UA_StatusCode
-UA_Client_manuallyRenewSecureChannel(UA_Client *client) {
-    return UA_Client_run_iterate(client, 0);
-}
+/* Force the manual renewal of the SecureChannel. This is useful to renew the
+ * SecureChannel during a downtime when no time-critical operations are
+ * performed. This method is asynchronous. The renewal is triggered (the OPN
+ * message is sent) but not completed. The OPN response is handled with
+ * ``UA_Client_run_iterate`` or a synchronous servica-call operation.
+ *
+ * @return The return value is UA_STATUSCODE_GOODCALLAGAIN if the SecureChannel
+ *         has not elapsed at least 75% of its lifetime. Otherwise the
+ *         ``connectStatus`` is returned. */
+UA_StatusCode UA_EXPORT
+UA_Client_renewSecureChannel(UA_Client *client);
 
 /* Use the type versions of this method. See below. However, the general
  * mechanism of async service calls is explained here.
@@ -578,10 +684,14 @@ UA_Client_changeRepeatedCallbackInterval(UA_Client *client,
 void UA_EXPORT
 UA_Client_removeCallback(UA_Client *client, UA_UInt64 callbackId);
 
-UA_DEPRECATED static UA_INLINE void
-UA_Client_removeRepeatedCallback(UA_Client *client, UA_UInt64 callbackId) {
-    UA_Client_removeCallback(client, callbackId);
-}
+/**
+ * Client Utility Functions
+ * ------------------------ */
+
+/* Lookup a datatype by its NodeId. Takes the custom types in the client
+ * configuration into account. Return NULL if none found. */
+UA_EXPORT const UA_DataType *
+UA_Client_findDataType(UA_Client *client, const UA_NodeId *typeId);
 
 /**
  * .. toctree::

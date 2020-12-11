@@ -38,7 +38,7 @@ void checkServer(void) {
         ck_assert_int_eq(0, resp.value.arrayLength);
         ck_assert(&UA_TYPES[UA_TYPES_INT32] == resp.value.type);
         ck_assert_int_eq(42, *(UA_Int32* )resp.value.data);
-        UA_DataValue_deleteMembers(&resp);
+        UA_DataValue_clear(&resp);
     }
 
     for (size_t i = 0; i < NUMBER_OF_CLIENTS * ITERATIONS_PER_CLIENT; i++) {
@@ -56,7 +56,7 @@ void checkServer(void) {
         ck_assert(&UA_TYPES[UA_TYPES_INT32] == resp.value.type);
         ck_assert_int_eq(10, *(UA_Int32 *)resp.value.data);
         ck_assert_int_eq(20, *((UA_Int32 *)resp.value.data + 1));
-        UA_DataValue_deleteMembers(&resp);
+        UA_DataValue_clear(&resp);
     }
 }
 

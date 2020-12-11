@@ -88,9 +88,6 @@ endfunction()
 #   NAME            Full name of the generated files, e.g. ua_types_di
 #   TARGET_SUFFIX   Suffix for the resulting target. e.g. types-di
 #   [TARGET_PREFIX] Optional prefix for the resulting target. Default `open62541-generator`
-#   NAMESPACE_IDX   Namespace index of the nodeset, when it is loaded into the server. This index
-#                   is used for the node ids withing the types array and is currently not determined automatically.
-#                   Make sure that it matches the namespace index in the server.
 #   [OUTPUT_DIR]    Optional target directory for the generated files. Default is '${PROJECT_BINARY_DIR}/src_generated'
 #   FILE_CSV        Path to the .csv file containing the node ids, e.g. 'OpcUaDiModel.csv'
 #
@@ -104,12 +101,16 @@ endfunction()
 #                   Multiple files can be passed which will all be imported.
 #   [FILES_SELECTED] Optional path to a simple text file which contains a list of types which should be included in the generation.
 #                   The file should contain one type per line. Multiple files can be passed to this argument.
+#   NAMESPACE_MAP   Array of Namespace index mappings to indicate the final namespace index of a namespace uri when the server is started.
+#                   This is required to correctly map datatype node ids to the resulting server namespace index.
+#                   "0:http://opcfoundation.org/UA/" is added by default.
+#                   Example: ["2:http://example.org/UA/"]
 #
 #
 function(ua_generate_datatypes)
     set(options BUILTIN INTERNAL)
-    set(oneValueArgs NAME TARGET_SUFFIX TARGET_PREFIX NAMESPACE_IDX OUTPUT_DIR FILE_CSV)
-    set(multiValueArgs FILES_BSD IMPORT_BSD FILES_SELECTED)
+    set(oneValueArgs NAME TARGET_SUFFIX TARGET_PREFIX OUTPUT_DIR FILE_CSV)
+    set(multiValueArgs FILES_BSD IMPORT_BSD FILES_SELECTED NAMESPACE_MAP)
     cmake_parse_arguments(UA_GEN_DT "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
 
     if(NOT DEFINED open62541_TOOLS_DIR)
@@ -117,8 +118,8 @@ function(ua_generate_datatypes)
     endif()
 
     # ------ Argument checking -----
-    if(NOT DEFINED UA_GEN_DT_NAMESPACE_IDX AND NOT "${UA_GEN_DT_NAMESPACE_IDX}" STREQUAL "0")
-        message(FATAL_ERROR "ua_generate_datatype function requires a value for the NAMESPACE_IDX argument")
+    if(NOT DEFINED UA_GEN_DT_NAMESPACE_MAP AND NOT "${UA_GEN_DT_NAMESPACE_MAP}" STREQUAL "")
+        message(FATAL_ERROR "ua_generate_datatype function requires a value for the NAMESPACE_MAP argument")
     endif()
     if(NOT UA_GEN_DT_NAME OR "${UA_GEN_DT_NAME}" STREQUAL "")
         message(FATAL_ERROR "ua_generate_datatype function requires a value for the NAME argument")
@@ -143,6 +144,11 @@ function(ua_generate_datatypes)
     endif()
 
     # ------ Add custom command and target -----
+
+    set(NAMESPACE_MAP_TMP "")
+    foreach(f ${UA_GEN_DT_NAMESPACE_MAP})
+        set(NAMESPACE_MAP_TMP ${NAMESPACE_MAP_TMP} "--namespaceMap=${f}")
+    endforeach()
 
     set(UA_GEN_DT_NO_BUILTIN "--no-builtin")
     if (UA_GEN_DT_BUILTIN)
@@ -183,7 +189,7 @@ function(ua_generate_datatypes)
         ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_encoding_binary.h
         PRE_BUILD
         COMMAND ${PYTHON_EXECUTABLE} ${open62541_TOOLS_DIR}/generate_datatypes.py
-        --namespace=${UA_GEN_DT_NAMESPACE_IDX}
+        ${NAMESPACE_MAP_TMP}
         ${SELECTED_TYPES_TMP}
         ${BSD_FILES_TMP}
         ${IMPORT_BSD_TMP}
@@ -397,7 +403,7 @@ endfunction()
 # This is a combination of the ua_generate_datatypes, ua_generate_nodeset, and
 # ua_generate_nodeid_header macros.
 # This function can also be used to just create a nodeset without datatypes by
-# omitting the CSV, BSD, and NAMESPACE_IDX parameter.
+# omitting the CSV, BSD, and NAMESPACE_MAP parameter.
 # If only one of the previous parameters is given, all of them are required.
 #
 # It is possible to define dependencies of nodesets by using the DEPENDS argument.
@@ -422,12 +428,6 @@ endfunction()
 #   [FILE_CSV]      Optional path to the .csv file containing the node ids, e.g. 'OpcUaDiModel.csv'
 #   [FILE_BSD]      Optional path to the .bsd file containing the type definitions, e.g. 'Opc.Ua.Di.Types.bsd'. Multiple files can be
 #                   passed which will all combined to one resulting code.
-#   [IMPORT_BSD]    Optional combination of types array and path to the .bsd file containing additional type definitions referenced by
-#                   the FILES_BSD files. The value is separated with a hash sign, i.e.
-#                   'UA_TYPES#${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.Types.bsd'
-#                   Multiple files can be passed which will all be imported.
-#   [NAMESPACE_IDX] Optional namespace index of the nodeset, when it is loaded into the server. This parameter is mandatory if FILE_CSV
-#                   or FILE_BSD is set. See ua_generate_datatypes function.
 #   [BLACKLIST]     Blacklist file passed as --blacklist to the nodeset compiler. All the given nodes will be removed from the generated
 #                   nodeset, including all the references to and from that node. The format is a node id per line.
 #                   Supported formats: "i=123" (for NS0), "ns=2;s=asdf" (matches NS2 in that specific file), or recommended
@@ -435,6 +435,12 @@ endfunction()
 #   [TARGET_PREFIX] Optional prefix for the resulting targets. Default `open62541-generator`
 #
 #   Arguments taking multiple values:
+#   [NAMESPACE_MAP] Array of Namespace index mappings to indicate the final namespace index of a namespace uri when the server is started.
+#                   This parameter is mandatory if FILE_CSV or FILE_BSD is set.
+#   [IMPORT_BSD]    Optional combination of types array and path to the .bsd file containing additional type definitions referenced by
+#                   the FILES_BSD files. The value is separated with a hash sign, i.e.
+#                   'UA_TYPES#${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.Types.bsd'
+#                   Multiple files can be passed which will all be imported.
 #   [DEPENDS]       Optional list of nodeset names on which this nodeset depends. These names must match any name from a previous
 #                   call to this funtion. E.g. 'di' if you are generating the 'plcopen' nodeset
 #
@@ -442,8 +448,8 @@ endfunction()
 function(ua_generate_nodeset_and_datatypes)
 
     set(options INTERNAL)
-    set(oneValueArgs NAME FILE_NS FILE_CSV FILE_BSD IMPORT_BSD NAMESPACE_IDX OUTPUT_DIR TARGET_PREFIX BLACKLIST)
-    set(multiValueArgs DEPENDS)
+    set(oneValueArgs NAME FILE_NS FILE_CSV FILE_BSD OUTPUT_DIR TARGET_PREFIX BLACKLIST)
+    set(multiValueArgs DEPENDS IMPORT_BSD NAMESPACE_MAP)
     cmake_parse_arguments(UA_GEN "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
 
     if(NOT DEFINED open62541_TOOLS_DIR)
@@ -466,20 +472,20 @@ function(ua_generate_nodeset_and_datatypes)
 
     if((NOT UA_GEN_FILE_CSV OR "${UA_GEN_FILE_CSV}" STREQUAL "") AND
     (NOT "${UA_GEN_FILE_BSD}" STREQUAL "" OR
-        NOT "${UA_GEN_NAMESPACE_IDX}" STREQUAL ""))
-        message(FATAL_ERROR "ua_generate_nodeset_and_datatypes function requires FILE_CSV argument if any of FILE_BSD or NAMESPACE_IDX are set")
+        NOT "${UA_GEN_NAMESPACE_MAP}" STREQUAL ""))
+        message(FATAL_ERROR "ua_generate_nodeset_and_datatypes function requires FILE_CSV argument if any of FILE_BSD or NAMESPACE_MAP are set")
     endif()
 
     if((NOT UA_GEN_FILE_BSD OR "${UA_GEN_FILE_BSD}" STREQUAL "") AND
     (NOT "${UA_GEN_FILE_CSV}" STREQUAL "" OR
-        NOT "${UA_GEN_NAMESPACE_IDX}" STREQUAL ""))
-        message(FATAL_ERROR "ua_generate_nodeset_and_datatypes function requires FILE_BSD argument if any of FILE_CSV or NAMESPACE_IDX are set")
+        NOT "${UA_GEN_NAMESPACE_MAP}" STREQUAL ""))
+        message(FATAL_ERROR "ua_generate_nodeset_and_datatypes function requires FILE_BSD argument if any of FILE_CSV or NAMESPACE_MAP are set")
     endif()
 
-    if(NOT UA_GEN_NAMESPACE_IDX OR "${UA_GEN_NAMESPACE_IDX}" STREQUAL "" AND
+    if(NOT UA_GEN_NAMESPACE_MAP OR "${UA_GEN_NAMESPACE_MAP}" STREQUAL "" AND
     (NOT "${UA_GEN_FILE_CSV}" STREQUAL "" OR
         NOT "${UA_GEN_FILE_BSD}" STREQUAL ""))
-        message(FATAL_ERROR "ua_generate_nodeset_and_datatypes function requires NAMESPACE_IDX argument if any of FILE_CSV or FILE_BSD are set")
+        message(FATAL_ERROR "ua_generate_nodeset_and_datatypes function requires NAMESPACE_MAP argument if any of FILE_CSV or FILE_BSD are set")
     endif()
 
     # Set default value for output dir
@@ -495,12 +501,32 @@ function(ua_generate_nodeset_and_datatypes)
     set(NODESET_TYPES_ARRAY "UA_TYPES")
 
     if(NOT "${UA_GEN_FILE_BSD}" STREQUAL "")
+        set(NAMESPACE_MAP_DEPENDS "${UA_GEN_NAMESPACE_MAP}")
+
+        string(REPLACE "-" "_" GEN_NAME_UPPER ${GEN_NAME_UPPER})
+        string(TOUPPER "${GEN_NAME_UPPER}" GEN_NAME_UPPER)
+        # Create a list of namespace maps for dependent calls
+        if (UA_GEN_DEPENDS AND NOT "${UA_GEN_DEPENDS}" STREQUAL "" )
+            foreach(f ${UA_GEN_DEPENDS})
+                string(REPLACE "-" "_" DEPENDS_NAME "${f}")
+                string(TOUPPER "${DEPENDS_NAME}" DEPENDS_NAME)
+                get_property(DEPENDS_NAMESPACE_MAP GLOBAL PROPERTY "UA_GEN_DT_DEPENDS_NAMESPACE_MAP_${DEPENDS_NAME}")
+                if(NOT DEPENDS_NAMESPACE_MAP OR "${DEPENDS_NAMESPACE_MAP}" STREQUAL "")
+                    message(FATAL_ERROR "Nodeset dependency ${f} needs to be generated before ${UA_GEN_NAME}")
+                endif()
+
+                set(NAMESPACE_MAP_DEPENDS ${NAMESPACE_MAP_DEPENDS} "${DEPENDS_NAMESPACE_MAP}")
+            endforeach()
+        endif()
+
+        set_property(GLOBAL PROPERTY "UA_GEN_DT_DEPENDS_NAMESPACE_MAP_${GEN_NAME_UPPER}" ${NAMESPACE_MAP_DEPENDS})
+
         # Generate Datatypes for nodeset
         ua_generate_datatypes(
             NAME "types_${UA_GEN_NAME}"
             TARGET_PREFIX "${UA_GEN_TARGET_PREFIX}"
             TARGET_SUFFIX "types-${UA_GEN_NAME}"
-            NAMESPACE_IDX ${UA_GEN_NAMESPACE_IDX}
+            NAMESPACE_MAP "${NAMESPACE_MAP_DEPENDS}"
             FILE_CSV "${UA_GEN_FILE_CSV}"
             FILES_BSD "${UA_GEN_FILE_BSD}"
             IMPORT_BSD "${UA_GEN_IMPORT_BSD}"

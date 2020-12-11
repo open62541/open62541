@@ -10,8 +10,6 @@
 #ifndef PLUGINS_ARCH_POSIX_UA_ARCHITECTURE_H_
 #define PLUGINS_ARCH_POSIX_UA_ARCHITECTURE_H_
 
-#include <open62541/architecture_base.h>
-
 /* Enable POSIX features */
 #if !defined(_XOPEN_SOURCE)
 # define _XOPEN_SOURCE 600
@@ -25,6 +23,8 @@
 # define _BSD_SOURCE
 #endif
 
+#include <open62541/architecture_definitions.h>
+
 #include <errno.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -33,7 +33,9 @@
 #include <sys/select.h>
 #include <sys/types.h>
 #include <net/if.h>
-#ifndef UA_sleep_ms
+#ifdef UA_sleep_ms
+void UA_sleep_ms(unsigned long ms);
+#else
 # include <unistd.h>
 # define UA_sleep_ms(X) usleep(X * 1000)
 #endif
@@ -110,32 +112,17 @@
 # define UA_if_nametoindex if_nametoindex
 #endif
 
-#ifdef UA_ENABLE_MALLOC_SINGLETON
-extern void * (*UA_globalMalloc)(size_t size);
-extern void (*UA_globalFree)(void *ptr);
-extern void * (*UA_globalCalloc)(size_t nelem, size_t elsize);
-extern void * (*UA_globalRealloc)(void *ptr, size_t size);
-# define UA_free(ptr) UA_globalFree(ptr)
-# define UA_malloc(size) UA_globalMalloc(size)
-# define UA_calloc(num, size) UA_globalCalloc(num, size)
-# define UA_realloc(ptr, size) UA_globalRealloc(ptr, size)
-#endif
-
+/* Use the standard malloc */
 #include <stdlib.h>
 #ifndef UA_free
 # define UA_free free
-#endif
-#ifndef UA_malloc
 # define UA_malloc malloc
-#endif
-#ifndef UA_calloc
 # define UA_calloc calloc
-#endif
-#ifndef UA_realloc
 # define UA_realloc realloc
 #endif
 
 #include <stdio.h>
+#include <strings.h>
 #define UA_snprintf snprintf
 #define UA_strncasecmp strncasecmp
 
@@ -285,7 +272,6 @@ extern void * (*UA_globalRealloc)(void *ptr, size_t size);
 #undef _SYS_QUEUE_H_
 
 #endif /* defined(__APPLE__)  && defined(_SYS_QUEUE_H_) */
-
 
 #endif /* PLUGINS_ARCH_POSIX_UA_ARCHITECTURE_H_ */
 

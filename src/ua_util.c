@@ -11,7 +11,6 @@
 #include <open62541/util.h>
 
 #include "ua_util_internal.h"
-
 #include "base64.h"
 
 size_t
@@ -204,96 +203,5 @@ UA_ByteString_fromBase64(UA_ByteString *bs,
     /* TODO: Differentiate between encoding and memory errors */
     if(!bs->data)
         return UA_STATUSCODE_BADINTERNALERROR;
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode
-UA_NodeId_print(const UA_NodeId *id, UA_String *output) {
-    UA_String_clear(output);
-    if(!id)
-        return UA_STATUSCODE_GOOD;
-
-    char *nsStr = NULL;
-    long snprintfLen = 0;
-    size_t nsLen = 0;
-    if(id->namespaceIndex != 0) {
-        nsStr = (char*)UA_malloc(9+1); // strlen("ns=XXXXX;") = 9 + Nullbyte
-        snprintfLen = UA_snprintf(nsStr, 10, "ns=%d;", id->namespaceIndex);
-        if(snprintfLen < 0 || snprintfLen >= 10) {
-            UA_free(nsStr);
-            return UA_STATUSCODE_BADINTERNALERROR;
-        }
-        nsLen = (size_t)(snprintfLen);
-    }
-
-    UA_ByteString byteStr = UA_BYTESTRING_NULL;
-    switch (id->identifierType) {
-        case UA_NODEIDTYPE_NUMERIC:
-            /* ns (2 byte, 65535) = 5 chars, numeric (4 byte, 4294967295) = 10
-             * chars, delim = 1 , nullbyte = 1-> 17 chars */
-            output->length = nsLen + 2 + 10 + 1;
-            output->data = (UA_Byte*)UA_malloc(output->length);
-            if(output->data == NULL) {
-                output->length = 0;
-                UA_free(nsStr);
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-            }
-            snprintfLen = UA_snprintf((char*)output->data, output->length, "%si=%lu",
-                                      nsLen > 0 ? nsStr : "",
-                                      (unsigned long )id->identifier.numeric);
-            break;
-        case UA_NODEIDTYPE_STRING:
-            /* ns (16bit) = 5 chars, strlen + nullbyte */
-            output->length = nsLen + 2 + id->identifier.string.length + 1;
-            output->data = (UA_Byte*)UA_malloc(output->length);
-            if(output->data == NULL) {
-                output->length = 0;
-                UA_free(nsStr);
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-            }
-            snprintfLen = UA_snprintf((char*)output->data, output->length, "%ss=%.*s",
-                                      nsLen > 0 ? nsStr : "", (int)id->identifier.string.length,
-                                      id->identifier.string.data);
-            break;
-        case UA_NODEIDTYPE_GUID:
-            /* ns (16bit) = 5 chars + strlen(A123456C-0ABC-1A2B-815F-687212AAEE1B)=36 + nullbyte */
-            output->length = nsLen + 2 + 36 + 1;
-            output->data = (UA_Byte*)UA_malloc(output->length);
-            if(output->data == NULL) {
-                output->length = 0;
-                UA_free(nsStr);
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-            }
-            snprintfLen = UA_snprintf((char*)output->data, output->length,
-                                      "%sg=" UA_PRINTF_GUID_FORMAT, nsLen > 0 ? nsStr : "",
-                                      UA_PRINTF_GUID_DATA(id->identifier.guid));
-            break;
-        case UA_NODEIDTYPE_BYTESTRING:
-            UA_ByteString_toBase64(&id->identifier.byteString, &byteStr);
-            /* ns (16bit) = 5 chars + LEN + nullbyte */
-            output->length = nsLen + 2 + byteStr.length + 1;
-            output->data = (UA_Byte*)UA_malloc(output->length);
-            if(output->data == NULL) {
-                output->length = 0;
-                UA_String_deleteMembers(&byteStr);
-                UA_free(nsStr);
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-            }
-            snprintfLen = UA_snprintf((char*)output->data, output->length, "%sb=%.*s",
-                                      nsLen > 0 ? nsStr : "",
-                                      (int)byteStr.length, byteStr.data);
-            UA_String_deleteMembers(&byteStr);
-            break;
-    }
-    UA_free(nsStr);
-
-    if(snprintfLen < 0 || snprintfLen >= (long) output->length) {
-        UA_free(output->data);
-        output->data = NULL;
-        output->length = 0;
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    output->length = (size_t)snprintfLen;
-
     return UA_STATUSCODE_GOOD;
 }

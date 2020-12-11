@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 ### This Source Code Form is subject to the terms of the Mozilla Public
@@ -220,6 +220,7 @@ _UA_END_DECLS
     functionNumber = 0
 
     printed_ids = set()
+    reftypes_functionNumbers = set()
     for node in sorted_nodes:
         printed_ids.add(node.id)
 
@@ -274,7 +275,23 @@ _UA_END_DECLS
             writec("#endif /* UA_ENABLE_METHODCALLS */")
         writec("}");
 
+        # ReferenceTypeNodes have to be _finished immediately. The _begin phase
+        # of other nodes might depend on the subtyping information of the
+        # referencetype to be complete.
+        if isinstance(node, ReferenceTypeNode):
+            reftypes_functionNumbers.add(functionNumber)
+
         functionNumber = functionNumber + 1
+
+
+    # Load generated types
+    for arr in set(typesArray):
+        if arr == "UA_TYPES":
+            continue
+        writec("\nstatic UA_DataTypeArray custom" + arr + " = {")
+        writec("    NULL,")
+        writec("    " + arr + "_COUNT,")
+        writec("    " + arr + "\n};")
 
     writec("""
 UA_StatusCode %s(UA_Server *server) {
@@ -287,6 +304,14 @@ UA_StatusCode retVal = UA_STATUSCODE_GOOD;""" % (outfilebase))
         nsid = nsid.replace("\"", "\\\"")
         writec("ns[" + str(i) + "] = UA_Server_addNamespace(server, \"" + nsid + "\");")
 
+    # Add generated types to the server
+    writec("\n/* Load custom datatype definitions into the server */")
+    for arr in set(typesArray):
+        if arr == "UA_TYPES":
+            continue
+        writec("custom" + arr + ".next = UA_Server_getConfig(server)->customDataTypes;")
+        writec("UA_Server_getConfig(server)->customDataTypes = &custom" + arr + ";\n")
+
     if functionNumber > 0:
 
         # concatenate method calls with "&&" operator.
@@ -294,12 +319,17 @@ UA_StatusCode retVal = UA_STATUSCODE_GOOD;""" % (outfilebase))
         # the remaining calls and retVal will be set to that error code.
         writec("bool dummy = (")
         for i in range(0, functionNumber):
-            writec("!(retVal = function_{outfilebase}_{idx}_begin(server, ns)) &&".format(
-                outfilebase=outfilebase, idx=str(i)))
+            writec("{concat}!(retVal = function_{outfilebase}_{idx}_begin(server, ns))".format(
+                outfilebase=outfilebase, idx=str(i), concat= "" if i == 0 else "&& "))
+            if i in reftypes_functionNumbers:
+                writec("&& !(retVal = function_{outfilebase}_{idx}_finish(server, ns))".format(
+                    outfilebase=outfilebase, idx=str(i)))
 
         for i in reversed(range(0, functionNumber)):
-            writec("!(retVal = function_{outfilebase}_{idx}_finish(server, ns)) {concat}".format(
-                outfilebase=outfilebase, idx=str(i), concat= "&&" if i>0 else ""))
+            if i in reftypes_functionNumbers:
+                continue
+            writec("&& !(retVal = function_{outfilebase}_{idx}_finish(server, ns))".format(
+                outfilebase=outfilebase, idx=str(i)))
 
         # use (void)(dummy) to avoid unused variable error.
         writec("); (void)(dummy);")

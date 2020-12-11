@@ -155,54 +155,44 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
 
 #else
 
-    /* Temporarily store all the pointers which we found to avoid reiterating
-     * through the list */
-    size_t foundServersSize = 0;
-    UA_STACKARRAY(UA_RegisteredServer*, foundServers, server->discoveryManager.registeredServersSize+1);
-
-    registeredServer_list_entry* current;
-    LIST_FOREACH(current, &server->discoveryManager.registeredServers, pointers) {
-        if(request->serverUrisSize) {
-            /* If client only requested a specific set of servers */
-            for(size_t i = 0; i < request->serverUrisSize; i++) {
-                if(UA_String_equal(&current->registeredServer.serverUri, &request->serverUris[i])) {
-                    foundServers[foundServersSize] = &current->registeredServer;
-                    foundServersSize++;
-                    break;
-                }
-            }
-        } else {
-            /* Return all registered servers */
-            foundServers[foundServersSize] = &current->registeredServer;
-            foundServersSize++;
-        }
-    }
-
-    size_t allocSize = foundServersSize;
-    if(foundSelf)
-        allocSize++;
-
-    /* Nothing to do? */
-    if(allocSize == 0)
-        return;
-
-    /* Allocate memory */
-    response->servers = (UA_ApplicationDescription*)UA_Array_new(allocSize, &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]);
+    /* Allocate enough memory, including memory for the "self" response */
+    size_t maxResults = server->discoveryManager.registeredServersSize + 1;
+    response->servers = (UA_ApplicationDescription*)UA_Array_new(maxResults, &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]);
     if(!response->servers) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
     }
-    response->serversSize = allocSize;
 
     /* Copy into the response. TODO: Evaluate return codes */
     size_t pos = 0;
-    if(foundSelf) {
+    if(foundSelf)
         setApplicationDescriptionFromServer(&response->servers[pos++], server);
-    }
-    for(size_t i = 0; i < foundServersSize; i++) {
-        setApplicationDescriptionFromRegisteredServer(request, &response->servers[pos++], foundServers[i]);
+
+    registeredServer_list_entry* current;
+    LIST_FOREACH(current, &server->discoveryManager.registeredServers, pointers) {
+        UA_Boolean usable = (request->serverUrisSize == 0);
+        if(!usable) {
+            /* If client only requested a specific set of servers */
+            for(size_t i = 0; i < request->serverUrisSize; i++) {
+                if(UA_String_equal(&current->registeredServer.serverUri, &request->serverUris[i])) {
+                    usable = true;
+                    break;
+                }
+            }
+        }
+
+        if(usable)
+            setApplicationDescriptionFromRegisteredServer(request, &response->servers[pos++],
+                                                          &current->registeredServer);
     }
 
+    /* Set the final size */
+    if(pos > 0) {
+        response->serversSize = pos;
+    } else {
+        UA_free(response->servers);
+        response->servers = NULL;
+    }
 #endif
 }
 
@@ -213,7 +203,7 @@ Service_GetEndpoints(UA_Server *server, UA_Session *session,
     UA_LOCK_ASSERT(server->serviceMutex, 1);
 
     /* If the client expects to see a specific endpointurl, mirror it back. If
-       not, clone the endpoints with the discovery url of all networklayers. */
+     * not, clone the endpoints with the discovery url of all networklayers. */
     const UA_String *endpointUrl = &request->endpointUrl;
     if(endpointUrl->length > 0) {
         UA_LOG_DEBUG_SESSION(&server->config.logger, session,
@@ -224,33 +214,6 @@ Service_GetEndpoints(UA_Server *server, UA_Session *session,
                              "Processing GetEndpointsRequest with an empty endpointUrl");
     }
 
-    /* test if the supported binary profile shall be returned */
-    size_t reSize = sizeof(UA_Boolean) * server->config.endpointsSize;
-    UA_STACKARRAY(UA_Boolean, relevant_endpoints, reSize);
-    memset(relevant_endpoints, 0, reSize);
-    size_t relevant_count = 0;
-    if(request->profileUrisSize == 0) {
-        for(size_t j = 0; j < server->config.endpointsSize; ++j)
-            relevant_endpoints[j] = true;
-        relevant_count = server->config.endpointsSize;
-    } else {
-        for(size_t j = 0; j < server->config.endpointsSize; ++j) {
-            for(size_t i = 0; i < request->profileUrisSize; ++i) {
-                if(!UA_String_equal(&request->profileUris[i],
-                                    &server->config.endpoints[j].transportProfileUri))
-                    continue;
-                relevant_endpoints[j] = true;
-                ++relevant_count;
-                break;
-            }
-        }
-    }
-
-    if(relevant_count == 0) {
-        response->endpointsSize = 0;
-        return;
-    }
-
     /* Clone the endpoint for each networklayer? */
     size_t clone_times = 1;
     UA_Boolean nl_endpointurl = false;
@@ -259,41 +222,56 @@ Service_GetEndpoints(UA_Server *server, UA_Session *session,
         nl_endpointurl = true;
     }
 
-    response->endpoints =
-        (UA_EndpointDescription*)UA_Array_new(relevant_count * clone_times,
-                                              &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+    /* Allocate enough memory */
+    response->endpoints = (UA_EndpointDescription*)
+        UA_Array_new(server->config.endpointsSize * clone_times,
+                     &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
     if(!response->endpoints) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
     }
-    response->endpointsSize = relevant_count * clone_times;
 
-    size_t k = 0;
-    UA_StatusCode retval;
-    for(size_t i = 0; i < clone_times; ++i) {
-        if(nl_endpointurl)
-            endpointUrl = &server->config.networkLayers[i].discoveryUrl;
-        for(size_t j = 0; j < server->config.endpointsSize; ++j) {
-            if(!relevant_endpoints[j])
-                continue;
-            retval = UA_EndpointDescription_copy(&server->config.endpoints[j],
-                                                 &response->endpoints[k]);
+    size_t pos = 0;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    for(size_t j = 0; j < server->config.endpointsSize; ++j) {
+        /* Test if the supported binary profile shall be returned */
+        UA_Boolean usable = (request->profileUrisSize == 0);
+        if(!usable) {
+            for(size_t i = 0; i < request->profileUrisSize; ++i) {
+                if(!UA_String_equal(&request->profileUris[i],
+                                    &server->config.endpoints[j].transportProfileUri))
+                    continue;
+                usable = true;
+                break;
+            }
+        }
+        if(!usable)
+            continue;
+
+        /* Copy into the results */
+        for(size_t i = 0; i < clone_times; ++i) {
+            retval |= UA_EndpointDescription_copy(&server->config.endpoints[j],
+                                                  &response->endpoints[pos]);
+            if(nl_endpointurl)
+                endpointUrl = &server->config.networkLayers[i].discoveryUrl;
+            retval |= UA_String_copy(endpointUrl, &response->endpoints[pos].endpointUrl);
+            retval |= UA_Array_copy(endpointUrl, 1,
+                                    (void**)&response->endpoints[pos].server.discoveryUrls,
+                                    &UA_TYPES[UA_TYPES_STRING]);
             if(retval != UA_STATUSCODE_GOOD)
                 goto error;
-            retval = UA_String_copy(endpointUrl, &response->endpoints[k].endpointUrl);
-            if(retval != UA_STATUSCODE_GOOD)
-                goto error;
-            retval = UA_Array_copy(endpointUrl, 1,
-                                   (void**)&response->endpoints[k].server.discoveryUrls,
-                                   &UA_TYPES[UA_TYPES_STRING]);
-            if(retval != UA_STATUSCODE_GOOD)
-                goto error;
-            response->endpoints[k].server.discoveryUrlsSize = 1;
-            ++k;
+            response->endpoints[pos].server.discoveryUrlsSize = 1;
+            pos++;
         }
     }
 
-    return;
+    UA_assert(pos <= server->config.endpointsSize * clone_times);
+    response->endpointsSize = pos;
+
+    /* Clean up the memory of there are no usable results */
+    if(pos > 0)
+        return;
+
 error:
     response->responseHeader.serviceResult = retval;
     UA_Array_delete(response->endpoints, response->endpointsSize,
@@ -392,7 +370,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
     }
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    if(server->config.discovery.mdnsEnable) {
+    if(server->config.mdnsEnabled) {
         for(size_t i = 0; i < requestServer->discoveryUrlsSize; i++) {
             /* create TXT if is online and first index, delete TXT if is offline and last index */
             UA_Boolean updateTxt = (requestServer->isOnline && i==0) ||
@@ -426,14 +404,8 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
         // server found, remove from list
         LIST_REMOVE(registeredServer_entry, pointers);
         UA_RegisteredServer_clear(&registeredServer_entry->registeredServer);
-#if UA_MULTITHREADING >= 200
-        UA_atomic_subSize(&server->discoveryManager.registeredServersSize, 1);
-        registeredServer_entry->delayedCleanup.callback = NULL; /* only free the structure */
-        UA_WorkQueue_enqueueDelayed(&server->workQueue, &registeredServer_entry->delayedCleanup);
-#else
         UA_free(registeredServer_entry);
         server->discoveryManager.registeredServersSize--;
-#endif
         responseHeader->serviceResult = UA_STATUSCODE_GOOD;
         return;
     }
@@ -510,8 +482,8 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
     UA_DateTime timedOut = nowMonotonic;
     // registration is timed out if lastSeen is older than 60 minutes (default
     // value, can be modified by user).
-    if(server->config.discovery.cleanupTimeout)
-        timedOut -= server->config.discovery.cleanupTimeout*UA_DATETIME_SEC;
+    if(server->config.discoveryCleanupTimeout)
+        timedOut -= server->config.discoveryCleanupTimeout * UA_DATETIME_SEC;
 
     registeredServer_list_entry* current, *temp;
     LIST_FOREACH_SAFE(current, &server->discoveryManager.registeredServers, pointers, temp) {
@@ -535,7 +507,7 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
         }
 #endif
 
-        if(semaphoreDeleted || (server->config.discovery.cleanupTimeout &&
+        if(semaphoreDeleted || (server->config.discoveryCleanupTimeout &&
                                 current->lastSeen < timedOut)) {
             if(semaphoreDeleted) {
                 UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -554,14 +526,8 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
             }
             LIST_REMOVE(current, pointers);
             UA_RegisteredServer_clear(&current->registeredServer);
-#if UA_MULTITHREADING >= 200
-            UA_atomic_subSize(&server->discoveryManager.registeredServersSize, 1);
-            current->delayedCleanup.callback = NULL; /* Only free the structure */
-            UA_WorkQueue_enqueueDelayed(&server->workQueue, &current->delayedCleanup);
-#else
             UA_free(current);
             server->discoveryManager.registeredServersSize--;
-#endif
         }
     }
 }

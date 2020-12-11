@@ -43,8 +43,6 @@ UA_realSleep(UA_UInt32 duration) {
 #endif
 }
 
-/* Defined for the architecture via
- * add_definitions(-DUA_sleep_ms=UA_comboSleep) */
 void
 UA_comboSleep(unsigned long duration) {
     UA_fakeSleep((UA_UInt32)duration);

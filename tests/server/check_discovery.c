@@ -43,22 +43,22 @@ static void configure_lds_server(UA_Server *pServer)
     UA_ServerConfig_setDefault(config_lds);
 
     config_lds->applicationDescription.applicationType = UA_APPLICATIONTYPE_DISCOVERYSERVER;
-    UA_String_deleteMembers(&config_lds->applicationDescription.applicationUri);
+    UA_String_clear(&config_lds->applicationDescription.applicationUri);
     config_lds->applicationDescription.applicationUri =
         UA_STRING_ALLOC("urn:open62541.test.local_discovery_server");
-    UA_LocalizedText_deleteMembers(&config_lds->applicationDescription.applicationName);
+    UA_LocalizedText_clear(&config_lds->applicationDescription.applicationName);
     config_lds->applicationDescription.applicationName
         = UA_LOCALIZEDTEXT_ALLOC("en", "LDS Server");
-    config_lds->discovery.mdnsEnable = true;
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    config_lds->discovery.mdns.mdnsServerName = UA_String_fromChars("LDS_test");
-    config_lds->discovery.mdns.serverCapabilitiesSize = 2;
+    config_lds->mdnsEnabled = true;
+    config_lds->mdnsConfig.mdnsServerName = UA_String_fromChars("LDS_test");
+    config_lds->mdnsConfig.serverCapabilitiesSize = 2;
     UA_String *caps = (UA_String *)UA_Array_new(2, &UA_TYPES[UA_TYPES_STRING]);
     caps[0] = UA_String_fromChars("LDS");
     caps[1] = UA_String_fromChars("MyFancyCap");
-    config_lds->discovery.mdns.serverCapabilities = caps;
+    config_lds->mdnsConfig.serverCapabilities = caps;
 #endif
-    config_lds->discovery.cleanupTimeout = registerTimeout;
+    config_lds->discoveryCleanupTimeout = registerTimeout;
 }
 
 static void setup_lds(void) {
@@ -106,14 +106,14 @@ static void setup_register(void) {
     UA_ServerConfig *config_register = UA_Server_getConfig(server_register);
     UA_ServerConfig_setMinimal(config_register, 16664, NULL);
 
-    UA_String_deleteMembers(&config_register->applicationDescription.applicationUri);
+    UA_String_clear(&config_register->applicationDescription.applicationUri);
     config_register->applicationDescription.applicationUri =
         UA_String_fromChars("urn:open62541.test.server_register");
-    UA_LocalizedText_deleteMembers(&config_register->applicationDescription.applicationName);
+    UA_LocalizedText_clear(&config_register->applicationDescription.applicationName);
     config_register->applicationDescription.applicationName =
         UA_LOCALIZEDTEXT_ALLOC("de", "Anmeldungsserver");
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    config_register->discovery.mdns.mdnsServerName = UA_String_fromChars("Register_test");
+    config_register->mdnsConfig.mdnsServerName = UA_String_fromChars("Register_test");
 #endif
 
     UA_Server_run_startup(server_register);
@@ -148,7 +148,7 @@ START_TEST(Server_register) {
     UA_Client *clientRegister = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(clientRegister));
 
-    UA_StatusCode retval = UA_Client_connect_noSession(clientRegister, "opc.tcp://localhost:4840");
+    UA_StatusCode retval = UA_Client_connectSecureChannel(clientRegister, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     retval = UA_Server_register_discovery(server_register, clientRegister , NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -161,7 +161,7 @@ START_TEST(Server_unregister) {
     UA_Client *clientRegister = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(clientRegister));
 
-    UA_StatusCode retval = UA_Client_connect_noSession(clientRegister, "opc.tcp://localhost:4840");
+    UA_StatusCode retval = UA_Client_connectSecureChannel(clientRegister, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     retval = UA_Server_unregister_discovery(server_register, clientRegister);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -194,7 +194,7 @@ START_TEST(Server_register_semaphore) {
     UA_Client *clientRegister = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(clientRegister));
 
-    UA_StatusCode retval = UA_Client_connect_noSession(clientRegister, "opc.tcp://localhost:4840");
+    UA_StatusCode retval = UA_Client_connectSecureChannel(clientRegister, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     retval = UA_Server_register_discovery(server_register, clientRegister, SEMAPHORE_PATH);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -399,7 +399,7 @@ GetEndpoints(UA_Client *client, const UA_String* endpointUrl,
         UA_EndpointDescription_init(&(*endpointDescriptions)[i]);
         UA_EndpointDescription_copy(&response.endpoints[i], &(*endpointDescriptions)[i]);
     }
-    UA_GetEndpointsResponse_deleteMembers(&response);
+    UA_GetEndpointsResponse_clear(&response);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -417,7 +417,7 @@ GetEndpointsAndCheck(const char* discoveryUrl, const char* filterTransportProfil
     UA_StatusCode retval = GetEndpoints(client, &discoveryUrlUA, &endpointArraySize,
                                         &endpointArray, filterTransportProfileUri);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    UA_String_deleteMembers(&discoveryUrlUA);
+    UA_String_clear(&discoveryUrlUA);
 
     ck_assert_uint_eq(endpointArraySize , expectedEndpointUrlsSize);
 

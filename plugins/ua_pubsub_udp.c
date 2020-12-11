@@ -5,11 +5,14 @@
  * Copyright (c) 2017-2018 Fraunhofer IOSB (Author: Andreas Ebner)
  * Copyright 2018 (c) Jose Cabral, fortiss GmbH
  * Copyright (c) 2020 Fraunhofer IOSB (Author: Julius Pfrommer)
+ * Copyright (c) 2020 Kalycito Infotech Private Limited
  */
+
+#include <open62541/server_pubsub.h>
+#include <open62541/util.h>
 
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pubsub_udp.h>
-#include <open62541/util.h>
 
 /* UDP multicast network layer specific internal data */
 typedef struct {
@@ -459,41 +462,78 @@ UA_PubSubChannelUDPMC_receive(UA_PubSubChannel *channel, UA_ByteString *message,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     UA_PubSubChannelDataUDPMC *channelConfigUDPMC = (UA_PubSubChannelDataUDPMC *) channel->handle;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_UInt16 rcvCount = 0;
+    struct timeval tmptv;
+    struct timeval receiveTime;
+    fd_set fdset;
+    size_t remainingMessageLength = 0;
+    size_t dataLength = 0;
 
-    if(timeout > 0) {
-        fd_set fdset;
-        FD_ZERO(&fdset);
-        UA_fd_set(channel->sockfd, &fdset);
-        struct timeval tmptv = {(long int)(timeout / 1000000),
-                                (long int)(timeout % 1000000)};
-        int resultsize = UA_select(channel->sockfd+1, &fdset, NULL,
-                                NULL, &tmptv);
-        if(resultsize == 0) {
-            message->length = 0;
-            return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
-        }
-        if (resultsize == -1) {
-            message->length = 0;
-            return UA_STATUSCODE_BADINTERNALERROR;
-        }
-    }
+    memset(&tmptv, 0, sizeof(tmptv));
+    memset(&receiveTime, 0, sizeof(receiveTime));
+    FD_ZERO(&fdset);
+    tmptv.tv_sec  = (long int)(timeout / 1000000);
+    tmptv.tv_usec = (long int)(timeout % 1000000);
+    remainingMessageLength = message->length;
+    do {
+        if(timeout > 0) {
+            UA_fd_set(channel->sockfd, &fdset);
+            /* Select API will return the remaining time in the struct
+             * timeval */
+            int resultsize = UA_select(channel->sockfd+1, &fdset, NULL,
+                                       NULL, &tmptv);
+            if(resultsize == 0) {
+                retval = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+                if(rcvCount > 0)
+                    retval = UA_STATUSCODE_GOOD;
+                break;
+            }
 
-    if(channelConfigUDPMC->ai_family == PF_INET){
-        ssize_t messageLength;
-        messageLength = UA_recvfrom(channel->sockfd, message->data, message->length, 0, NULL, NULL);
-        if(messageLength > 0){
-            message->length = (size_t) messageLength;
-        } else {
-            message->length = 0;
+            if (resultsize == -1) {
+                retval = UA_STATUSCODE_BADINTERNALERROR;
+                break;
+            }
         }
+
+        UA_DateTime now = UA_DateTime_nowMonotonic();
+        if(channelConfigUDPMC->ai_family == PF_INET){
+            ssize_t messageLength = UA_recvfrom(channel->sockfd, (message->data + dataLength), remainingMessageLength, 0, NULL, NULL);
+            if(messageLength > 0){
+                dataLength += (size_t)messageLength;
+                remainingMessageLength -= (size_t)dataLength;
+            } else {
+                retval = UA_STATUSCODE_BADINTERNALERROR;
+                break;
+            }
 #if UA_IPV6
-    } else {
+        } else {
         //TODO implement recieve for IPv6
 #endif
-    }
-    return UA_STATUSCODE_GOOD;
-}
+        }
 
+        rcvCount++;
+        UA_DateTime endtTime = UA_DateTime_nowMonotonic();
+        UA_DateTime dataReceiveTime = endtTime - now;
+        receiveTime.tv_sec = (long int)(dataReceiveTime / UA_DATETIME_SEC);
+        receiveTime.tv_usec = (long int)(dataReceiveTime % UA_DATETIME_SEC);
+        UA_DateTime receiveTimeoutValue = (receiveTime.tv_sec * 1000000) + receiveTime.tv_usec;
+        UA_DateTime remainingTimeoutValue = (tmptv.tv_sec * 1000000) + tmptv.tv_usec;
+        if(remainingTimeoutValue < receiveTimeoutValue) {
+            retval = UA_STATUSCODE_GOOD;
+            break;
+        }
+
+        UA_DateTime newTimeoutValue = remainingTimeoutValue - receiveTimeoutValue;
+        tmptv.tv_sec = (long int)(newTimeoutValue  / 1000000);
+        tmptv.tv_usec = (long int)(newTimeoutValue % 1000000);
+    } while(remainingMessageLength >= 1472); /* TODO:Need to handle for jumbo frames*/
+                                             /* 1518 bytes is the maximum size of ethernet packet
+                                              * where 18 bytes used for header size, 28 bytes of header
+                                              * used for IP and UDP header so remaining length is 1472 */
+    message->length = dataLength;
+    return retval;
+}
 /**
  * Close channel and free the channel data.
  *

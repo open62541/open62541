@@ -8,6 +8,7 @@
 
 #define UA_INTERNAL
 
+#include <open62541/config.h>
 #include <open62541/network_ws.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/util.h>
@@ -46,10 +47,12 @@ typedef struct {
     struct lws_context *context;
     UA_Server *server;
     UA_ConnectionConfig config;
+    UA_ByteString certificate;
+    UA_ByteString privateKey;
 } ServerNetworkLayerWS;
 
 static UA_StatusCode
-connection_getsendbuffer(UA_Connection *connection, size_t length, UA_ByteString *buf) {
+connection_ws_getsendbuffer(UA_Connection *connection, size_t length, UA_ByteString *buf) {
     UA_SecureChannel *channel = connection->channel;
     if(channel && channel->config.sendBufferSize < length)
         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
@@ -63,15 +66,15 @@ connection_getsendbuffer(UA_Connection *connection, size_t length, UA_ByteString
 }
 
 static void
-connection_releasesendbuffer(UA_Connection *connection, UA_ByteString *buf) {
+connection_ws_releasesendbuffer(UA_Connection *connection, UA_ByteString *buf) {
     buf->data -= LWS_PRE;
     buf->length += LWS_PRE;
-    UA_ByteString_deleteMembers(buf);
+    UA_ByteString_clear(buf);
 }
 
 static void
-connection_releaserecvbuffer(UA_Connection *connection, UA_ByteString *buf) {
-    UA_ByteString_deleteMembers(buf);
+connection_ws_releaserecvbuffer(UA_Connection *connection, UA_ByteString *buf) {
+    UA_ByteString_clear(buf);
 }
 
 static UA_StatusCode
@@ -83,7 +86,7 @@ connection_send(UA_Connection *connection, UA_ByteString *buf) {
 
     ConnectionUserData *buffer = (ConnectionUserData *)connection->handle;
     if(connection->state == UA_CONNECTIONSTATE_CLOSED) {
-        connection_releasesendbuffer(connection, buf);
+        connection_ws_releasesendbuffer(connection, buf);
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
     }
 
@@ -107,7 +110,7 @@ freeConnection(UA_Connection *connection) {
         ConnectionUserData *userData = (ConnectionUserData *)connection->handle;
         while(!SIMPLEQ_EMPTY(&userData->messages)) {
             BufferEntry *entry = SIMPLEQ_FIRST(&userData->messages);
-            connection_releasesendbuffer(connection, &entry->msg);
+            connection_ws_releasesendbuffer(connection, &entry->msg);
             SIMPLEQ_REMOVE_HEAD(&userData->messages, next);
             UA_free(entry);
         }
@@ -142,14 +145,14 @@ callback_opcua(struct lws *wsi, enum lws_callback_reasons reason, void *user, vo
             SIMPLEQ_INIT(&buffer->messages);
             buffer->wsi = wsi;
             memset(c, 0, sizeof(UA_Connection));
-            c->sockfd = 0;
+            c->sockfd = UA_INVALID_SOCKET;
             c->handle = buffer;
             c->send = connection_send;
             c->close = ServerNetworkLayerWS_close;
             c->free = freeConnection;
-            c->getSendBuffer = connection_getsendbuffer;
-            c->releaseSendBuffer = connection_releasesendbuffer;
-            c->releaseRecvBuffer = connection_releaserecvbuffer;
+            c->getSendBuffer = connection_ws_getsendbuffer;
+            c->releaseSendBuffer = connection_ws_releasesendbuffer;
+            c->releaseRecvBuffer = connection_ws_releaserecvbuffer;
             // stack sets the connection to established
             c->state = UA_CONNECTIONSTATE_OPENING;
             c->openingDate = UA_DateTime_nowMonotonic();
@@ -158,7 +161,7 @@ callback_opcua(struct lws *wsi, enum lws_callback_reasons reason, void *user, vo
 
         case LWS_CALLBACK_CLOSED:
             // notify server
-            if(!pss->connection->state != UA_CONNECTIONSTATE_CLOSED) {
+            if(pss->connection->state != UA_CONNECTIONSTATE_CLOSED) {
                 pss->connection->state = UA_CONNECTIONSTATE_CLOSED;
             }
 
@@ -196,7 +199,7 @@ callback_opcua(struct lws *wsi, enum lws_callback_reasons reason, void *user, vo
                     lwsl_err("ERROR %d writing to ws\n", m);
                     return -1;
                 }
-                connection_releasesendbuffer(pss->connection, &entry->msg);
+                connection_ws_releasesendbuffer(pss->connection, &entry->msg);
                 SIMPLEQ_REMOVE_HEAD(&b->messages, next);
                 UA_free(entry);
             } while(!lws_send_pipe_choked(wsi));
@@ -240,23 +243,31 @@ const struct lws_protocol_vhost_options pvo_opt = {NULL, NULL, "default", "1"};
 const struct lws_protocol_vhost_options pvo = {NULL, &pvo_opt, "opcua", ""};
 
 static UA_StatusCode
-ServerNetworkLayerWS_start(UA_ServerNetworkLayer *nl, const UA_String *customHostname) {
+ServerNetworkLayerWS_start(UA_ServerNetworkLayer *nl, const UA_Logger *logger,
+                           const UA_String *customHostname) {
     UA_initialize_architecture_network();
 
     ServerNetworkLayerWS *layer = (ServerNetworkLayerWS *)nl->handle;
+    layer->logger = logger;
+
+    UA_Boolean isSecure = layer->certificate.length && layer->privateKey.length;
+
+    UA_String protocol = isSecure ? UA_STRING("wss") : UA_STRING("ws");
 
     /* Get the discovery url from the hostname */
     UA_String du = UA_STRING_NULL;
     char discoveryUrlBuffer[256];
     if(customHostname->length) {
-        du.length = (size_t)UA_snprintf(discoveryUrlBuffer, 255, "ws://%.*s:%d/",
+        du.length = (size_t)UA_snprintf(discoveryUrlBuffer, 255, "%.*s://%.*s:%d/",
+                                        (int)protocol.length, protocol.data,
                                         (int)customHostname->length, customHostname->data,
                                         layer->port);
         du.data = (UA_Byte *)discoveryUrlBuffer;
     } else {
         char hostnameBuffer[256];
         if(UA_gethostname(hostnameBuffer, 255) == 0) {
-            du.length = (size_t)UA_snprintf(discoveryUrlBuffer, 255, "ws://%s:%d/",
+            du.length = (size_t)UA_snprintf(discoveryUrlBuffer, 255, "%.*s://%s:%d/",
+                                            (int)protocol.length, protocol.data,
                                             hostnameBuffer, layer->port);
             du.data = (UA_Byte *)discoveryUrlBuffer;
         } else {
@@ -285,6 +296,18 @@ ServerNetworkLayerWS_start(UA_ServerNetworkLayer *nl, const UA_String *customHos
     info.options = LWS_SERVER_OPTION_HTTP_HEADERS_SECURITY_BEST_PRACTICES_ENFORCE;
     info.pvo = &pvo;
     info.user = layer;
+
+    if(isSecure) {
+        info.server_ssl_cert_mem = layer->certificate.data;
+        info.server_ssl_cert_mem_len = (unsigned int)layer->certificate.length;
+        info.server_ssl_private_key_mem = layer->privateKey.data;
+        info.server_ssl_private_key_mem_len = (unsigned int)layer->privateKey.length;
+        
+        info.options |= LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT;
+          UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK,
+                "Websocket network layer listening using WSS");
+
+    }
 
     struct lws_context *context = lws_create_context(&info);
     if(!context) {
@@ -318,12 +341,24 @@ ServerNetworkLayerWS_stop(UA_ServerNetworkLayer *nl, UA_Server *server) {
 
 static void
 ServerNetworkLayerWS_clear(UA_ServerNetworkLayer *nl) {
+    ServerNetworkLayerWS *layer = (ServerNetworkLayerWS *)nl->handle;
+
+    if(layer->certificate.length) {
+        UA_String_clear(&layer->certificate);
+    }
+
+    if(layer->privateKey.length) {
+        UA_String_clear(&layer->privateKey);
+    }
+
     UA_free(nl->handle);
-    UA_String_deleteMembers(&nl->discoveryUrl);
+    UA_String_clear(&nl->discoveryUrl);
 }
 
 UA_ServerNetworkLayer
-UA_ServerNetworkLayerWS(UA_ConnectionConfig config, UA_UInt16 port, UA_Logger *logger) {
+UA_ServerNetworkLayerWS(UA_ConnectionConfig config, UA_UInt16 port,
+                        const UA_ByteString* certificate,
+                        const UA_ByteString* privateKey) {
     UA_ServerNetworkLayer nl;
     memset(&nl, 0, sizeof(UA_ServerNetworkLayer));
     nl.clear = ServerNetworkLayerWS_clear;
@@ -332,13 +367,17 @@ UA_ServerNetworkLayerWS(UA_ConnectionConfig config, UA_UInt16 port, UA_Logger *l
     nl.listen = ServerNetworkLayerWS_listen;
     nl.stop = ServerNetworkLayerWS_stop;
 
-    ServerNetworkLayerWS *layer =
-        (ServerNetworkLayerWS *)UA_calloc(1, sizeof(ServerNetworkLayerWS));
+    ServerNetworkLayerWS *layer = (ServerNetworkLayerWS *)
+        UA_calloc(1, sizeof(ServerNetworkLayerWS));
     if(!layer)
         return nl;
     nl.handle = layer;
-    layer->logger = logger;
     layer->port = port;
     layer->config = config;
+
+    if(certificate && privateKey) {
+        UA_String_copy(certificate,&layer->certificate);
+        UA_String_copy(privateKey,&layer->privateKey);
+    }
     return nl;
 }

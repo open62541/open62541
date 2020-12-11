@@ -258,7 +258,7 @@ UA_NetworkMessage_updateBufferedMessage(UA_NetworkMessageOffsetBuffer *buffer);
 
 UA_StatusCode
 UA_NetworkMessage_updateBufferedNwMessage(UA_NetworkMessageOffsetBuffer *buffer,
-                                          const UA_ByteString *src);
+                                          const UA_ByteString *src, size_t *bufferPosition);
 
 UA_StatusCode
 UA_NetworkMessage_encodeBinary(const UA_NetworkMessage* src,
@@ -272,9 +272,7 @@ size_t
 UA_NetworkMessage_calcSizeBinary(UA_NetworkMessage *p, UA_NetworkMessageOffsetBuffer *offsetBuffer);
 
 void
-UA_NetworkMessage_deleteMembers(UA_NetworkMessage* p);
-
-#define UA_NetworkMessage_clear(p) UA_NetworkMessage_deleteMembers(p)
+UA_NetworkMessage_clear(UA_NetworkMessage* p);
 
 void
 UA_NetworkMessage_delete(UA_NetworkMessage* p);

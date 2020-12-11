@@ -34,7 +34,7 @@ static void setup_server(void) {
     UA_ServerConfig *server_translate_config = UA_Server_getConfig(server_translate_browse);
     UA_ServerConfig_setDefault(server_translate_config);
 
-    UA_String_deleteMembers(&server_translate_config->applicationDescription.applicationUri);
+    UA_String_clear(&server_translate_config->applicationDescription.applicationUri);
     server_translate_config->applicationDescription.applicationUri =
         UA_String_fromChars("urn:open62541.test.server_translate_browse");
     UA_Server_run_startup(server_translate_browse);
@@ -48,6 +48,28 @@ static void teardown_server(void) {
     UA_Boolean_delete(running_translate_browse);
     UA_Server_delete(server_translate_browse);
 }
+
+START_TEST(Service_Browse_CheckSubTypes) {
+    UA_Server *server = UA_Server_new();
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
+
+    UA_NodeId hierarchRefs = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
+    UA_ReferenceTypeSet indices;
+    UA_StatusCode res = referenceTypeIndices(server, &hierarchRefs, &indices, true);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    /* Check that the subtypes are included */
+    UA_assert(UA_ReferenceTypeSet_contains(&indices, UA_REFERENCETYPEINDEX_ORGANIZES));
+    UA_assert(UA_ReferenceTypeSet_contains(&indices, UA_REFERENCETYPEINDEX_HASPROPERTY));
+    UA_assert(UA_ReferenceTypeSet_contains(&indices, UA_REFERENCETYPEINDEX_HASCHILD));
+    UA_assert(UA_ReferenceTypeSet_contains(&indices, UA_REFERENCETYPEINDEX_AGGREGATES));
+
+    /* Check that the non-subtypes are not included */
+    UA_assert(!UA_ReferenceTypeSet_contains(&indices, !UA_REFERENCETYPEINDEX_NONHIERARCHICALREFERENCES));
+
+    UA_Server_delete(server);
+}
+END_TEST
 
 static size_t
 browseWithMaxResults(UA_Server *server, UA_NodeId nodeId, UA_UInt32 maxResults) {
@@ -64,17 +86,17 @@ browseWithMaxResults(UA_Server *server, UA_NodeId nodeId, UA_UInt32 maxResults) 
     size_t total = br.referencesSize;
     UA_ByteString cp = br.continuationPoint;
     br.continuationPoint = UA_BYTESTRING_NULL;
-    UA_BrowseResult_deleteMembers(&br);
+    UA_BrowseResult_clear(&br);
 
     while(cp.length > 0) {
         br = UA_Server_browseNext(server, false, &cp);
         ck_assert(br.referencesSize > 0);
         ck_assert(br.referencesSize <= maxResults);
-        UA_ByteString_deleteMembers(&cp);
+        UA_ByteString_clear(&cp);
         cp = br.continuationPoint;
         br.continuationPoint = UA_BYTESTRING_NULL;
         total += br.referencesSize;
-        UA_BrowseResult_deleteMembers(&br);
+        UA_BrowseResult_clear(&br);
     }
 
     return total;
@@ -95,7 +117,7 @@ START_TEST(Service_Browse_WithMaxResults) {
     ck_assert(br.referencesSize > 0);
 
     size_t total = br.referencesSize;
-    UA_BrowseResult_deleteMembers(&br);
+    UA_BrowseResult_clear(&br);
 
     for(UA_UInt32 i = 1; i <= total; i++) {
         size_t sum_total =
@@ -124,7 +146,127 @@ START_TEST(Service_Browse_WithBrowseName) {
     ck_assert(br.referencesSize > 0);
     ck_assert(!UA_String_equal(&br.references[0].browseName.name, &UA_STRING_NULL));
 
-    UA_BrowseResult_deleteMembers(&br);
+    UA_BrowseResult_clear(&br);
+    UA_Server_delete(server);
+}
+END_TEST
+
+START_TEST(Service_Browse_ClassMask) {
+    UA_Server *server = UA_Server_new();
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
+
+    /* add a variable node to the address space */
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    UA_Int32 myInteger = 42;
+    UA_Variant_setScalar(&attr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
+    attr.description = UA_LOCALIZEDTEXT("en-US","the answer");
+    attr.displayName = UA_LOCALIZEDTEXT("en-US","the answer");
+    UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
+    UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    UA_StatusCode res = UA_Server_addVariableNode(server, UA_NODEID_NULL, parentNodeId,
+                                                  parentReferenceNodeId, myIntegerName,
+                                                  UA_NODEID_NULL, attr, NULL, NULL);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    /* browse only objects */
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    bd.nodeClassMask = UA_NODECLASS_OBJECT;
+
+    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
+    ck_assert_int_eq(br.statusCode, UA_STATUSCODE_GOOD);
+    size_t vars = br.referencesSize;
+
+    for(size_t i = 0; i < br.referencesSize; i++) {
+        UA_NodeClass cl = UA_NODECLASS_UNSPECIFIED;
+        UA_Server_readNodeClass(server, br.references[i].nodeId.nodeId, &cl);
+        UA_assert(cl == UA_NODECLASS_OBJECT);
+    }
+    UA_BrowseResult_clear(&br);
+
+    /* browse only variables */
+    bd.nodeClassMask = UA_NODECLASS_VARIABLE;
+    br = UA_Server_browse(server, 0, &bd);
+    ck_assert_int_eq(br.statusCode, UA_STATUSCODE_GOOD);
+    size_t objs = br.referencesSize;
+
+    for(size_t i = 0; i < br.referencesSize; i++) {
+        UA_NodeClass cl = UA_NODECLASS_UNSPECIFIED;
+        UA_Server_readNodeClass(server, br.references[i].nodeId.nodeId, &cl);
+        UA_assert(cl == UA_NODECLASS_VARIABLE);
+    }
+    UA_BrowseResult_clear(&br);
+
+    /* browse variables or objects */
+    bd.nodeClassMask = UA_NODECLASS_VARIABLE | UA_NODECLASS_OBJECT;
+    br = UA_Server_browse(server, 0, &bd);
+    ck_assert_int_eq(br.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(br.referencesSize, vars + objs);
+
+    for(size_t i = 0; i < br.referencesSize; i++) {
+        UA_NodeClass cl = UA_NODECLASS_UNSPECIFIED;
+        UA_Server_readNodeClass(server, br.references[i].nodeId.nodeId, &cl);
+        UA_assert(cl == UA_NODECLASS_VARIABLE || cl == UA_NODECLASS_OBJECT);
+    }
+    UA_BrowseResult_clear(&br);
+
+    UA_Server_delete(server);
+}
+END_TEST
+
+START_TEST(Service_Browse_ReferenceTypes) {
+    UA_Server *server = UA_Server_new();
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
+
+    /* add a variable node to the address space */
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    UA_Int32 myInteger = 42;
+    UA_Variant_setScalar(&attr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
+    attr.description = UA_LOCALIZEDTEXT("en-US","the answer");
+    attr.displayName = UA_LOCALIZEDTEXT("en-US","the answer");
+    UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
+    UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    UA_StatusCode res = UA_Server_addVariableNode(server, UA_NODEID_NULL, parentNodeId,
+                                                  parentReferenceNodeId, myIntegerName,
+                                                  UA_NODEID_NULL, attr, NULL, NULL);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    /* browse all */
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    bd.resultMask = UA_BROWSERESULTMASK_REFERENCETYPEID;
+    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
+
+    /* get the bitfield index of the hassubtype reference */
+    UA_ReferenceTypeSet subTypeIdx;
+    UA_NodeId hasSubtype = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
+    UA_NodeId hierarchTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
+    referenceTypeIndices(server, &hasSubtype, &subTypeIdx, false);
+
+    /* count how many references are hierarchical */
+    size_t hierarch_refs = 0;
+    for(size_t i = 0; i < br.referencesSize; i++) {
+        if(isNodeInTree(server, &br.references[i].referenceTypeId,
+                        &hierarchTypeId, &subTypeIdx))
+            hierarch_refs += 1;
+    }
+
+    UA_BrowseResult_clear(&br);
+
+    /* browse hierarchical */
+    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
+    bd.includeSubtypes = true;
+    br = UA_Server_browse(server, 0, &bd);
+
+    ck_assert_uint_eq(br.referencesSize, hierarch_refs);
+    UA_BrowseResult_clear(&br);
+
     UA_Server_delete(server);
 }
 END_TEST
@@ -202,11 +344,53 @@ START_TEST(Service_TranslateBrowsePathsToNodeIds) {
     ck_assert_int_eq(response.results[0].targets[0].targetId.nodeId.identifierType, UA_NODEIDTYPE_NUMERIC);
     ck_assert_int_eq(response.results[0].targets[0].targetId.nodeId.identifier.numeric, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
 
-    UA_BrowsePath_deleteMembers(&browsePath);
-    UA_TranslateBrowsePathsToNodeIdsResponse_deleteMembers(&response);
+    UA_BrowsePath_clear(&browsePath);
+    UA_TranslateBrowsePathsToNodeIdsResponse_clear(&response);
     retVal = UA_Client_disconnect(client);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     UA_Client_delete(client);
+}
+END_TEST
+
+/* Force a hash collision for the the browsename by using all zeros.. */
+START_TEST(Service_TranslateBrowsePathsWithHashCollision) {
+    UA_Byte browseNames[4] = {0, 0, 0, 0};
+
+    for(size_t i = 0; i < 3; i++) {
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    UA_QualifiedName browseName;
+    browseName.namespaceIndex = 0;
+    browseName.name.data = browseNames;
+    browseName.name.length = i+1;
+    UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+        UA_Server_addVariableNode(server_translate_browse, UA_NODEID_NULL, parentNodeId,
+                                  parentReferenceNodeId, browseName,
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                  attr, NULL, NULL);
+    }
+
+    UA_BrowsePath browsePath;
+    UA_BrowsePath_init(&browsePath);
+    UA_RelativePathElement rpe;
+    UA_RelativePathElement_init(&rpe);
+    browsePath.startingNode = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    browsePath.relativePath.elements = &rpe;
+    browsePath.relativePath.elementsSize = 1;
+
+    for(size_t i = 0; i < 3; i++) {
+        rpe.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+        rpe.targetName.name.data = browseNames;
+        rpe.targetName.name.length = i+1;
+
+        UA_BrowsePathResult bpr =
+            UA_Server_translateBrowsePathToNodeIds(server_translate_browse, &browsePath);
+
+        ck_assert_int_eq(bpr.statusCode, UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(bpr.targetsSize, 1);
+
+        UA_BrowsePathResult_clear(&bpr);
+    }
 }
 END_TEST
 
@@ -219,14 +403,17 @@ START_TEST(BrowseSimplifiedBrowsePath) {
 
     ck_assert_uint_eq(bpr.targetsSize, 1);
 
-    UA_BrowsePathResult_deleteMembers(&bpr);
+    UA_BrowsePathResult_clear(&bpr);
 }
 END_TEST
 
 static Suite *testSuite_Service_TranslateBrowsePathsToNodeIds(void) {
     Suite *s = suite_create("Service_TranslateBrowsePathsToNodeIds");
     TCase *tc_browse = tcase_create("Browse Service");
+    tcase_add_test(tc_browse, Service_Browse_CheckSubTypes);
     tcase_add_test(tc_browse, Service_Browse_WithBrowseName);
+    tcase_add_test(tc_browse, Service_Browse_ClassMask);
+    tcase_add_test(tc_browse, Service_Browse_ReferenceTypes);
     tcase_add_test(tc_browse, Service_Browse_WithMaxResults);
     tcase_add_test(tc_browse, Service_Browse_Recursive);
     suite_add_tcase(s, tc_browse);
@@ -234,6 +421,7 @@ static Suite *testSuite_Service_TranslateBrowsePathsToNodeIds(void) {
     TCase *tc_translate = tcase_create("TranslateBrowsePathsToNodeIds");
     tcase_add_unchecked_fixture(tc_translate, setup_server, teardown_server);
     tcase_add_test(tc_translate, Service_TranslateBrowsePathsToNodeIds);
+    tcase_add_test(tc_translate, Service_TranslateBrowsePathsWithHashCollision);
     tcase_add_test(tc_translate, BrowseSimplifiedBrowsePath);
 
     suite_add_tcase(s, tc_translate);

@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  * Copyright (c) 2017 - 2018 Fraunhofer IOSB (Author: Andreas Ebner)
+ * Copyright (c) 2019 Kalycito Infotech Private Limited
  */
 
 #include <open62541/plugin/pubsub.h>
@@ -22,7 +23,8 @@
 UA_Server *server = NULL;
 
 UA_NodeId connection1, connection2, writerGroup1, writerGroup2, writerGroup3,
-        publishedDataSet1, publishedDataSet2, dataSetWriter1, dataSetWriter2, dataSetWriter3;
+        publishedDataSet1, publishedDataSet2, dataSetWriter1, dataSetWriter2, dataSetWriter3,
+        readerGroup1, dataSetReader1;
 
 static void setup(void) {
     server = UA_Server_new();
@@ -78,6 +80,20 @@ static void addDataSetWriter(UA_NodeId parentWriterGroup, UA_NodeId connectedPDS
     UA_Server_addDataSetWriter(server, parentWriterGroup, connectedPDS, &dataSetWriterConfig, assignedId);
 }
 
+static void addReaderGroup(UA_NodeId parentConnection, UA_String name, UA_NodeId *assignedId){
+    UA_ReaderGroupConfig readerGroupConfig;
+    memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
+    readerGroupConfig.name = name;
+    UA_Server_addReaderGroup(server, parentConnection, &readerGroupConfig, assignedId);
+}
+
+static void addDataSetReader(UA_NodeId parentReaderGroup, UA_String name, UA_NodeId *assignedId){
+    UA_DataSetReaderConfig readerConfig;
+    memset(&readerConfig, 0, sizeof(readerConfig));
+    readerConfig.name = name;
+    UA_Server_addDataSetReader(server, parentReaderGroup, &readerConfig, assignedId);
+}
+
 static UA_Boolean doubleEqual(UA_Double a, UA_Double b, UA_Double maxAbsDelta){
     return fabs(a-b) < maxAbsDelta;
 }
@@ -102,7 +118,7 @@ findSingleChildNode(UA_Server *server_, UA_QualifiedName targetName, UA_NodeId r
        bpr.targetsSize < 1)
         return UA_NODEID_NULL;
     UA_NodeId_copy(&bpr.targets[0].targetId.nodeId, &resultNodeId);
-    UA_BrowsePathResult_deleteMembers(&bpr);
+    UA_BrowsePathResult_clear(&bpr);
     return resultNodeId;
 }
 
@@ -120,6 +136,8 @@ static void setupBasicPubSubConfiguration(void){
     addDataSetWriter(writerGroup1, publishedDataSet1, UA_STRING("DataSetWriter 1"), &dataSetWriter1);
     addDataSetWriter(writerGroup1, publishedDataSet2, UA_STRING("DataSetWriter 2"), &dataSetWriter2);
     addDataSetWriter(writerGroup2, publishedDataSet2, UA_STRING("DataSetWriter 3"), &dataSetWriter3);
+    addReaderGroup(connection1, UA_STRING("ReaderGroup 1"), &readerGroup1);
+    addDataSetReader(readerGroup1, UA_STRING("DataSetReader 1"), &dataSetReader1);
 }
 
 START_TEST(AddSignlePubSubConnectionAndCheckInformationModelRepresentation){
@@ -130,7 +148,7 @@ START_TEST(AddSignlePubSubConnectionAndCheckInformationModelRepresentation){
     retVal |= UA_Server_readBrowseName(server, connection1, &browseName);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(UA_String_equal(&browseName.name, &connectionName), UA_TRUE);
-    UA_QualifiedName_deleteMembers(&browseName);
+    UA_QualifiedName_clear(&browseName);
     } END_TEST
 
 START_TEST(AddRemoveAddSignlePubSubConnectionAndCheckInformationModelRepresentation){
@@ -145,7 +163,7 @@ START_TEST(AddRemoveAddSignlePubSubConnectionAndCheckInformationModelRepresentat
     retVal = UA_Server_readBrowseName(server, connection1, &browseName);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(UA_String_equal(&browseName.name, &connectionName), UA_TRUE);
-    UA_QualifiedName_deleteMembers(&browseName);
+    UA_QualifiedName_clear(&browseName);
     } END_TEST
 
 START_TEST(AddSinglePublishedDataSetAndCheckInformationModelRepresentation){
@@ -154,7 +172,7 @@ START_TEST(AddSinglePublishedDataSetAndCheckInformationModelRepresentation){
     UA_QualifiedName browseName;
     ck_assert_int_eq(UA_Server_readBrowseName(server, publishedDataSet1, &browseName), UA_STATUSCODE_GOOD);
     ck_assert_int_eq(UA_String_equal(&browseName.name, &pdsName), UA_TRUE);
-    UA_QualifiedName_deleteMembers(&browseName);
+    UA_QualifiedName_clear(&browseName);
     } END_TEST
 
 START_TEST(AddRemoveAddSinglePublishedDataSetAndCheckInformationModelRepresentation){
@@ -169,7 +187,7 @@ START_TEST(AddRemoveAddSinglePublishedDataSetAndCheckInformationModelRepresentat
     retVal = UA_Server_readBrowseName(server, publishedDataSet1, &browseName);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(UA_String_equal(&browseName.name, &pdsName), UA_TRUE);
-    UA_QualifiedName_deleteMembers(&browseName);
+    UA_QualifiedName_clear(&browseName);
     } END_TEST
 
 START_TEST(AddSingleWriterGroupAndCheckInformationModelRepresentation){
@@ -183,7 +201,7 @@ START_TEST(AddSingleWriterGroupAndCheckInformationModelRepresentation){
     UA_QualifiedName browseName;
     ck_assert_int_eq(UA_Server_readBrowseName(server, writerGroup1, &browseName), UA_STATUSCODE_GOOD);
     ck_assert_int_eq(UA_String_equal(&browseName.name, &wgName), UA_TRUE);
-    UA_QualifiedName_deleteMembers(&browseName);
+    UA_QualifiedName_clear(&browseName);
     } END_TEST
 
 START_TEST(AddRemoveAddSingleWriterGroupAndCheckInformationModelRepresentation){
@@ -204,7 +222,7 @@ START_TEST(AddRemoveAddSingleWriterGroupAndCheckInformationModelRepresentation){
     retVal = UA_Server_readBrowseName(server, writerGroup1, &browseName);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(UA_String_equal(&browseName.name, &wgName), UA_TRUE);
-    UA_QualifiedName_deleteMembers(&browseName);
+    UA_QualifiedName_clear(&browseName);
     } END_TEST
 
 START_TEST(AddSingleDataSetWriterAndCheckInformationModelRepresentation){
@@ -220,7 +238,7 @@ START_TEST(AddSingleDataSetWriterAndCheckInformationModelRepresentation){
     UA_QualifiedName browseName;
     ck_assert_int_eq(UA_Server_readBrowseName(server, dataSetWriter1, &browseName), UA_STATUSCODE_GOOD);
     ck_assert_int_eq(UA_String_equal(&browseName.name, &dswName), UA_TRUE);
-    UA_QualifiedName_deleteMembers(&browseName);
+    UA_QualifiedName_clear(&browseName);
     } END_TEST
 
 START_TEST(AddRemoveAddSingleDataSetWriterAndCheckInformationModelRepresentation){
@@ -242,7 +260,7 @@ START_TEST(AddRemoveAddSingleDataSetWriterAndCheckInformationModelRepresentation
     retVal = UA_Server_readBrowseName(server, dataSetWriter1, &browseName);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(UA_String_equal(&browseName.name, &dswName), UA_TRUE);
-    UA_QualifiedName_deleteMembers(&browseName);
+    UA_QualifiedName_clear(&browseName);
     } END_TEST
 
 START_TEST(ReadPublishIntervalAndCompareWithInternalValue){
@@ -254,7 +272,7 @@ START_TEST(ReadPublishIntervalAndCompareWithInternalValue){
     ck_assert_int_eq(UA_Server_readValue(server, publishIntervalId, &value), UA_STATUSCODE_GOOD);
     ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_DURATION]));
     ck_assert(doubleEqual((UA_Double) *((UA_Duration *) value.data), 10, 0.05));
-    UA_Variant_deleteMembers(&value);
+    UA_Variant_clear(&value);
     } END_TEST
 
 START_TEST(WritePublishIntervalAndCompareWithInternalValue){
@@ -270,7 +288,7 @@ START_TEST(WritePublishIntervalAndCompareWithInternalValue){
         ck_assert_int_eq(UA_Server_readValue(server, publishIntervalId, &value), UA_STATUSCODE_GOOD);
         ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_DURATION]));
         ck_assert(doubleEqual((UA_Double) *((UA_Duration *) value.data), 100, 0.05));
-        UA_Variant_deleteMembers(&value);
+        UA_Variant_clear(&value);
     } END_TEST
 
 START_TEST(ReadAddressAndCompareWithInternalValue){
@@ -290,11 +308,101 @@ START_TEST(ReadAddressAndCompareWithInternalValue){
         UA_NetworkAddressUrlDataType *networkAddressUrlDataType = (UA_NetworkAddressUrlDataType *)connectionConfig.address.data;
         ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_STRING]));
         ck_assert(UA_String_equal(((UA_String *) value.data), &networkAddressUrlDataType->url));
-        UA_Variant_deleteMembers(&value);
+        UA_Variant_clear(&value);
         ck_assert_int_eq(UA_Server_readValue(server, networkInterface, &value), UA_STATUSCODE_GOOD);
         ck_assert(UA_String_equal(((UA_String *) value.data), &networkAddressUrlDataType->networkInterface));
         UA_PubSubConnectionConfig_clear(&connectionConfig);
-        UA_Variant_deleteMembers(&value);
+        UA_Variant_clear(&value);
+    } END_TEST
+
+START_TEST(AddSingleDataSetReaderAndCheckInformationModelRepresentation){
+    UA_String connectionName = UA_STRING("Connection 1");
+    addPubSubConnection(connectionName, UA_STRING("opc.udp://224.0.0.22:4840/"), &connection1);
+    UA_String rgName = UA_STRING("ReaderGroup 1");
+    addReaderGroup(connection1, rgName, &readerGroup1);
+    UA_String dsrName = UA_STRING("DataSetReader 1");
+    addDataSetReader(readerGroup1, dsrName, &dataSetReader1);
+    UA_QualifiedName browseName;
+    ck_assert_int_eq(UA_Server_readBrowseName(server, dataSetReader1, &browseName), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(UA_String_equal(&browseName.name, &dsrName), UA_TRUE);
+    UA_QualifiedName_clear(&browseName);
+    } END_TEST
+
+START_TEST(AddRemoveAddSingleDataSetReaderAndCheckInformationModelRepresentation){
+    UA_StatusCode retVal;
+    UA_String connectionName = UA_STRING("Connection 1");
+    addPubSubConnection(connectionName, UA_STRING("opc.udp://224.0.0.22:4840/"), &connection1);
+    UA_String rgName = UA_STRING("ReaderGroup 1");
+    addReaderGroup(connection1,  rgName, &readerGroup1);
+    UA_String dsrName = UA_STRING("DataSetReader 1");
+    addDataSetReader(readerGroup1, dsrName, &dataSetReader1);
+    UA_QualifiedName browseName;
+    ck_assert_int_eq(UA_Server_removeDataSetReader(server, dataSetReader1), UA_STATUSCODE_GOOD);
+    retVal = UA_Server_readBrowseName(server, dataSetReader1, &browseName);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_BADNODEIDUNKNOWN);
+    addDataSetReader(readerGroup1, dsrName, &dataSetReader1);
+    retVal = UA_Server_readBrowseName(server, dataSetReader1, &browseName);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(UA_String_equal(&browseName.name, &dsrName), UA_TRUE);
+    UA_QualifiedName_clear(&browseName);
+    } END_TEST
+
+START_TEST(AddSingleReaderGroupAndCheckInformationModelRepresentation){
+    UA_String connectionName = UA_STRING("Connection 1");
+    addPubSubConnection(connectionName, UA_STRING("opc.udp://224.0.0.22:4840/"), &connection1);
+    UA_String rgName = UA_STRING("ReaderGroup 1");
+    addReaderGroup(connection1, rgName, &readerGroup1);
+    UA_QualifiedName browseName;
+    ck_assert_int_eq(UA_Server_readBrowseName(server, readerGroup1, &browseName), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(UA_String_equal(&browseName.name, &rgName), UA_TRUE);
+    UA_QualifiedName_clear(&browseName);
+    } END_TEST
+
+START_TEST(AddRemoveAddSingleReaderGroupAndCheckInformationModelRepresentation){
+    UA_String connectionName = UA_STRING("Connection 1");
+    addPubSubConnection(connectionName, UA_STRING("opc.udp://224.0.0.22:4840/"), &connection1);
+    UA_String rgName = UA_STRING("ReaderGroup 1");
+    addReaderGroup(connection1, rgName, &readerGroup1);
+    UA_QualifiedName browseName;
+    UA_StatusCode retVal;
+    ck_assert_int_eq(UA_Server_removeReaderGroup(server, readerGroup1), UA_STATUSCODE_GOOD);
+    retVal = UA_Server_readBrowseName(server, readerGroup1, &browseName);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_BADNODEIDUNKNOWN);
+    addReaderGroup(connection1, rgName, &readerGroup1);
+    retVal = UA_Server_readBrowseName(server, readerGroup1, &browseName);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(UA_String_equal(&browseName.name, &rgName), UA_TRUE);
+    UA_QualifiedName_clear(&browseName);
+    } END_TEST
+
+START_TEST(ReadWriterGroupIdAndCompareWithInternalValue){
+    setupBasicPubSubConfiguration();
+    UA_NodeId writerGroupIdNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "WriterGroupId"),
+                                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), dataSetReader1);
+    UA_Variant value;
+    UA_Variant_init(&value);
+    UA_UInt16 writerGroupId = 100;
+    UA_Variant_setScalar(&value, &writerGroupId, &UA_TYPES[UA_TYPES_UINT16]);
+    ck_assert_int_eq(UA_Server_writeValue(server, writerGroupIdNode, value), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(UA_Server_readValue(server, writerGroupIdNode, &value), UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_UINT16]));
+    ck_assert(doubleEqual((UA_Double) *((UA_UInt16 *) value.data), 100, 0.05));
+    UA_Variant_clear(&value);
+    } END_TEST
+
+START_TEST(ReadDataSetWriterIdAndCompareWithInternalValue){
+    setupBasicPubSubConfiguration();
+    UA_NodeId dataSetwriterIdNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetWriterId"),
+                                                         UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), dataSetReader1);
+    UA_Variant value;
+    UA_Variant_init(&value);
+    UA_UInt16 dataSetwriterId = 62541;
+    UA_Variant_setScalar(&value, &dataSetwriterId, &UA_TYPES[UA_TYPES_UINT16]);
+    ck_assert_int_eq(UA_Server_writeValue(server, dataSetwriterIdNode, value), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(UA_Server_readValue(server, dataSetwriterIdNode, &value), UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_UINT16]));
+    ck_assert(doubleEqual((UA_Double) *((UA_UInt16 *) value.data), 62541, 0.05));
+    UA_Variant_clear(&value);
     } END_TEST
 
 int main(void) {
@@ -308,6 +416,10 @@ int main(void) {
     tcase_add_test(tc_add_pubsub_informationmodel, AddRemoveAddSingleWriterGroupAndCheckInformationModelRepresentation);
     tcase_add_test(tc_add_pubsub_informationmodel, AddSingleDataSetWriterAndCheckInformationModelRepresentation);
     tcase_add_test(tc_add_pubsub_informationmodel, AddRemoveAddSingleDataSetWriterAndCheckInformationModelRepresentation);
+    tcase_add_test(tc_add_pubsub_informationmodel, AddSingleReaderGroupAndCheckInformationModelRepresentation);
+    tcase_add_test(tc_add_pubsub_informationmodel, AddSingleDataSetReaderAndCheckInformationModelRepresentation);
+    tcase_add_test(tc_add_pubsub_informationmodel, AddRemoveAddSingleDataSetReaderAndCheckInformationModelRepresentation);
+    tcase_add_test(tc_add_pubsub_informationmodel, AddRemoveAddSingleReaderGroupAndCheckInformationModelRepresentation);
 
     TCase *tc_add_pubsub_writergroupelements = tcase_create("PubSub WriterGroup check properties");
     tcase_add_checked_fixture(tc_add_pubsub_writergroupelements, setup, teardown);
@@ -318,10 +430,16 @@ int main(void) {
     tcase_add_checked_fixture(tc_add_pubsub_pubsubconnectionelements, setup, teardown);
     tcase_add_test(tc_add_pubsub_pubsubconnectionelements, ReadAddressAndCompareWithInternalValue);
 
-    Suite *s = suite_create("PubSub WriterGroups/Writer/Fields handling and publishing");
+    TCase *tc_add_pubsub_dataSetReaderElements = tcase_create("PubSub DataSetReader check properties");
+    tcase_add_checked_fixture(tc_add_pubsub_dataSetReaderElements, setup, teardown);
+    tcase_add_test(tc_add_pubsub_dataSetReaderElements, ReadWriterGroupIdAndCompareWithInternalValue);
+    tcase_add_test(tc_add_pubsub_dataSetReaderElements, ReadDataSetWriterIdAndCompareWithInternalValue);
+
+    Suite *s = suite_create("PubSub WriterGroups/DataSetReader/Fields handling and publishing");
     suite_add_tcase(s, tc_add_pubsub_informationmodel);
     suite_add_tcase(s, tc_add_pubsub_writergroupelements);
     suite_add_tcase(s, tc_add_pubsub_pubsubconnectionelements);
+    suite_add_tcase(s, tc_add_pubsub_dataSetReaderElements);
 
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);

@@ -13,6 +13,9 @@
  * "ua_mqtt_pal.c" forwards the network calls (send/recv) to UA_Connection (TCP).
  */
 
+#include <open62541/server_pubsub.h>
+#include <open62541/util.h>
+
 #include "mqtt/ua_mqtt_adapter.h"
 #include "open62541/plugin/log_stdout.h"
 
@@ -97,8 +100,8 @@ UA_PubSubChannelMQTT_open(const UA_PubSubConnectionConfig *connectionConfig) {
     UA_PubSubChannel *newChannel = (UA_PubSubChannel *) UA_calloc(1, sizeof(UA_PubSubChannel));
     if(!newChannel){
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT Connection creation failed. Out of memory.");
-        UA_String_deleteMembers(&channelDataMQTT->mqttUsername);
-        UA_String_deleteMembers(&channelDataMQTT->mqttPassword);
+        UA_String_clear(&channelDataMQTT->mqttUsername);
+        UA_String_clear(&channelDataMQTT->mqttPassword);
         UA_free(channelDataMQTT);
         return NULL;
     }
@@ -107,8 +110,8 @@ UA_PubSubChannelMQTT_open(const UA_PubSubConnectionConfig *connectionConfig) {
     if(channelDataMQTT->mqttRecvBufferSize > 0){
         channelDataMQTT->mqttRecvBuffer = (uint8_t*)UA_calloc(channelDataMQTT->mqttRecvBufferSize, sizeof(uint8_t));
         if(channelDataMQTT->mqttRecvBuffer == NULL){
-            UA_String_deleteMembers(&channelDataMQTT->mqttUsername);
-            UA_String_deleteMembers(&channelDataMQTT->mqttPassword);
+            UA_String_clear(&channelDataMQTT->mqttUsername);
+            UA_String_clear(&channelDataMQTT->mqttPassword);
             UA_free(channelDataMQTT);
             UA_free(newChannel);
             return NULL;
@@ -122,8 +125,8 @@ UA_PubSubChannelMQTT_open(const UA_PubSubConnectionConfig *connectionConfig) {
             if(channelDataMQTT->mqttRecvBufferSize > 0){
                 UA_free(channelDataMQTT->mqttRecvBuffer);
             }
-            UA_String_deleteMembers(&channelDataMQTT->mqttUsername);
-            UA_String_deleteMembers(&channelDataMQTT->mqttPassword);
+            UA_String_clear(&channelDataMQTT->mqttUsername);
+            UA_String_clear(&channelDataMQTT->mqttPassword);
             UA_free(channelDataMQTT);
             UA_free(newChannel);
             return NULL;
@@ -141,8 +144,8 @@ UA_PubSubChannelMQTT_open(const UA_PubSubConnectionConfig *connectionConfig) {
         disconnectMqtt(channelDataMQTT);
         UA_free(channelDataMQTT->mqttSendBuffer);
         UA_free(channelDataMQTT->mqttRecvBuffer);
-        UA_String_deleteMembers(&channelDataMQTT->mqttUsername);
-        UA_String_deleteMembers(&channelDataMQTT->mqttPassword);
+        UA_String_clear(&channelDataMQTT->mqttUsername);
+        UA_String_clear(&channelDataMQTT->mqttPassword);
         UA_free(channelDataMQTT);
         UA_free(newChannel);
         return NULL;
@@ -258,8 +261,8 @@ UA_PubSubChannelMQTT_close(UA_PubSubChannel *channel) {
     UA_PubSubChannelDataMQTT *channelDataMQTT = (UA_PubSubChannelDataMQTT *) channel->handle;
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Closing PubSubChannel.");
     disconnectMqtt(channelDataMQTT);
-    UA_String_deleteMembers(&channelDataMQTT->mqttUsername);
-    UA_String_deleteMembers(&channelDataMQTT->mqttPassword);
+    UA_String_clear(&channelDataMQTT->mqttUsername);
+    UA_String_clear(&channelDataMQTT->mqttPassword);
     UA_free(channelDataMQTT);
     UA_free(channel);
     return UA_STATUSCODE_GOOD;

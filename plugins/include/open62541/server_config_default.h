@@ -10,7 +10,7 @@
 #ifndef UA_SERVER_CONFIG_DEFAULT_H_
 #define UA_SERVER_CONFIG_DEFAULT_H_
 
-#include <open62541/server_config.h>
+#include <open62541/server.h>
 
 _UA_BEGIN_DECLS
 
@@ -118,11 +118,13 @@ UA_ServerConfig_addNetworkLayerTCP(UA_ServerConfig *conf, UA_UInt16 portNumber,
  *        to use defaults.
  * @param recvBufferSize The size in bytes for the network receive buffer.
  *        Pass 0 to use defaults.
+ * @param certificate  certificate data. Pass NULL to disable WS security
+ * @param privateKey   privateKey data. Pass NULL to disable WS security
  */
 
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_addNetworkLayerWS(UA_ServerConfig *conf, UA_UInt16 portNumber,
-                                  UA_UInt32 sendBufferSize, UA_UInt32 recvBufferSize);
+                                  UA_UInt32 sendBufferSize, UA_UInt32 recvBufferSize, const UA_ByteString* certificate, const UA_ByteString* privateKey);
 #endif
 
 /* Adds the security policy ``SecurityPolicy#None`` to the server. A
@@ -181,6 +183,21 @@ UA_EXPORT UA_StatusCode
 UA_ServerConfig_addSecurityPolicyBasic256Sha256(UA_ServerConfig *config, 
                                                 const UA_ByteString *certificate,
                                                 const UA_ByteString *privateKey);
+
+/* Adds the security policy ``SecurityPolicy#Aes128Sha256RsaOaep`` to the server. A
+ * server certificate may be supplied but is optional.
+ *
+ * Certificate verification should be configured before calling this
+ * function. See PKI plugin.
+ *
+ * @param config The configuration to manipulate
+ * @param certificate The server certificate.
+ * @param privateKey The private key that corresponds to the certificate.
+ */
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyAes128Sha256RsaOaep(UA_ServerConfig *config,
+                                                     const UA_ByteString *certificate,
+                                                     const UA_ByteString *privateKey);
 
 /* Adds all supported security policies and sets up certificate
  * validation procedures.
