@@ -279,6 +279,12 @@ UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
     if(!readerGroupConfig)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
+    if ((!readerGroupConfig->pubsubManagerCallback.addCustomCallback) && (readerGroupConfig->enableBlockingSocket == UA_TRUE)) {
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "Adding ReaderGroup failed, blocking socket functionality only supported in customcallback");
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+    }
+
     /* Search the connection by the given connectionIdentifier */
     UA_PubSubConnection *currentConnectionContext =
         UA_PubSubConnection_findConnectionbyId(server, connectionIdentifier);
@@ -939,18 +945,29 @@ UA_ReaderGroup_addSubscribeCallback(UA_Server *server, UA_ReaderGroup *readerGro
                                                                               readerGroup,
                                                                               readerGroup->config.subscribingInterval,
                                                                               &readerGroup->subscribeCallbackId);
-    else
+    else {
+        if (readerGroup->config.enableBlockingSocket == UA_TRUE) {
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "addSubscribeCallback() failed, blocking socket functionality only supported in customcallback");
+            return UA_STATUSCODE_BADNOTSUPPORTED;
+        }
+
         retval |= UA_PubSubManager_addRepeatedCallback(server,
                                                        (UA_ServerCallback) UA_ReaderGroup_subscribeCallback,
                                                        readerGroup,
                                                        readerGroup->config.subscribingInterval,
                                                        &readerGroup->subscribeCallbackId);
+    }
 
     if(retval == UA_STATUSCODE_GOOD)
         readerGroup->subscribeCallbackIsRegistered = true;
 
     /* Run once after creation */
-    UA_ReaderGroup_subscribeCallback(server, readerGroup);
+    /* When using blocking socket functionality, the server mechanism might get blocked.
+     * It is highly recommended to use custom callback when using blockingsocket. */
+    if(readerGroup->config.enableBlockingSocket != UA_TRUE)
+        UA_ReaderGroup_subscribeCallback(server, readerGroup);
+
     return retval;
 }
 
