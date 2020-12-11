@@ -2,25 +2,60 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
 /**
- * **Trace point setup**
+ * .. _pubsub-tutorial:
  *
- *            +--------------+                        +----------------+
- *         T1 | OPCUA PubSub |  T8                 T5 | OPCUA loopback |  T4
- *         |  |  Application |  ^                  |  |  Application   |  ^
- *         |  +--------------+  |                  |  +----------------+  |
- *  User   |  |              |  |                  |  |                |  |
- *  Space  |  |              |  |                  |  |                |  |
- *         |  |              |  |                  |  |                |  |
- *------------|--------------|------------------------|----------------|--------
- *         |  |    Node 1    |  |                  |  |     Node 2     |  |
- *  Kernel |  |              |  |                  |  |                |  |
- *  Space  |  |              |  |                  |  |                |  |
- *         |  |              |  |                  |  |                |  |
- *         v  +--------------+  |                  v  +----------------+  |
- *         T2 |  TX tcpdump  |  T7<----------------T6 |   RX tcpdump   |  T3
- *         |  +--------------+                        +----------------+  ^
- *         |                                                              |
- *         ----------------------------------------------------------------
+ * Realtime Loopback Example
+ * ------------------------
+ *
+ * This tutorial shows publishing and subscribing information in Realtime.
+ * This example has both Publisher and Subscriber(used as threads, running in same core), the Subscriber thread subscribes to the
+ * counterdata published by the Publisher thread of pubsub_TSN_publisher.c example. The subscribed counterdata is again published,
+ * which is subscribed by the Subscriber thread of pubsub_TSN_publisher.c example. Thus a round-trip of counterdata is achieved.
+ * The flow of this communication and the trace points are given in the diagram below.
+ *
+ * Another thread called the UserApplication thread is also used in the example, which serves the functionality of the Control loop.
+ * In this example, UserApplication threads increments the counterData, which is published by the Publisher thread
+ * and also reads the subscribed data from the Information Model and writes the updated counterdata into distinct csv files
+ * during each cycle. Buffered Network Message will be used for publishing and subscribing in the RT path.
+ * Further, DataSetField will be accessed via direct pointer access between the user interface and the Information Model.
+ *
+ * Another additional feature called the Blocking Socket is employed in the Subscriber thread. This feature is optional and can be
+ * enabled or disabled when running application by using command line argument "-enableBlockingSocket". When using Blocking Socket,
+ * the Publisher and Subscriber threads are made to run in different cores, and the Subscriber thread remains in "blocking mode" until
+ * a message is received, in other words the timeout is overwritten and the thread continuously waits for the message.
+ * Once the message is received, the Subscriber thread updates the value in the Information Model and again waits for the next message.
+ * This process is repeated until the application is terminated.
+ *
+ * To ensure realtime capabilities, Publisher uses ETF(Earliest Tx-time First) to publish information at the calculated tranmission
+ * time over Ethernet. Subscriber can be used with or without XDP(Xpress Data Processing) over Ethernet
+ *
+ * Run step of the example is as mentioned below:
+ *
+ * ./bin/examples/pubsub_TSN_loopback -interface <interface>
+ *
+ * For more options, run ./bin/examples/pubsub_TSN_loopback -h
+ */
+
+/**
+ *  Trace point setup
+ *
+ *             +--------------+                        +----------------+
+ *          T1 | OPCUA PubSub |  T8                 T5 | OPCUA loopback |  T4
+ *          |  |  Application |  ^                  |  |  Application   |  ^
+ *          |  +--------------+  |                  |  +----------------+  |
+ *   User   |  |              |  |                  |  |                |  |
+ *   Space  |  |              |  |                  |  |                |  |
+ *          |  |              |  |                  |  |                |  |
+ *  -----------|--------------|------------------------|----------------|--------
+ *          |  |    Node 1    |  |                  |  |     Node 2     |  |
+ *   Kernel |  |              |  |                  |  |                |  |
+ *   Space  |  |              |  |                  |  |                |  |
+ *          |  |              |  |                  |  |                |  |
+ *          v  +--------------+  |                  v  +----------------+  |
+ *          T2 |  TX tcpdump  |  T7<----------------T6 |   RX tcpdump   |  T3
+ *          |  +--------------+                        +----------------+  ^
+ *          |                                                              |
+ *          ----------------------------------------------------------------
  */
 
 #define _GNU_SOURCE
@@ -44,7 +79,7 @@
 #include <open62541/types_generated.h>
 #include <open62541/plugin/pubsub_ethernet.h>
 
-#ifdef UA_ENABLE_PUBSUB_ETH_UADP_XDP
+#if defined (UA_ENABLE_PUBSUB_ETH_UADP_XDP)
 #include <linux/if_link.h>
 #include <open62541/plugin/pubsub_ethernet_xdp.h>
 #endif
@@ -122,22 +157,24 @@ static UA_Double  userAppWakeupPercentage = 0.3;
  */
 
 /* Set server running as true */
-UA_Boolean        running           = UA_TRUE;
+UA_Boolean        runningServer           = UA_TRUE;
 
-char*             pubMacAddress     = DEFAULT_PUBLISHING_MAC_ADDRESS;
-char*             subMacAddress     = DEFAULT_SUBSCRIBING_MAC_ADDRESS;
-static UA_Double  cycleTimeInMsec   = DEFAULT_CYCLE_TIME;
-static UA_Int32   socketPriority    = DEFAULT_SOCKET_PRIORITY;
-static UA_Int32   pubPriority       = DEFAULT_PUB_SCHED_PRIORITY;
-static UA_Int32   subPriority       = DEFAULT_SUB_SCHED_PRIORITY;
-static UA_Int32   userAppPriority   = DEFAULT_USERAPPLICATION_SCHED_PRIORITY;
-static UA_Int32   pubCore           = DEFAULT_PUB_CORE;
-static UA_Int32   subCore           = DEFAULT_SUB_CORE;
-static UA_Int32   userAppCore       = DEFAULT_USER_APP_CORE;
-static UA_Int32   qbvOffset         = DEFAULT_QBV_OFFSET;
-static UA_Boolean disableSoTxtime   = UA_TRUE;
-static UA_Boolean enableCsvLog      = UA_FALSE;
-static UA_Boolean consolePrint      = UA_FALSE;
+char*             pubMacAddress        = DEFAULT_PUBLISHING_MAC_ADDRESS;
+char*             subMacAddress        = DEFAULT_SUBSCRIBING_MAC_ADDRESS;
+static UA_Double  cycleTimeInMsec      = DEFAULT_CYCLE_TIME;
+static UA_Int32   socketPriority       = DEFAULT_SOCKET_PRIORITY;
+static UA_Int32   pubPriority          = DEFAULT_PUB_SCHED_PRIORITY;
+static UA_Int32   subPriority          = DEFAULT_SUB_SCHED_PRIORITY;
+static UA_Int32   userAppPriority      = DEFAULT_USERAPPLICATION_SCHED_PRIORITY;
+static UA_Int32   pubCore              = DEFAULT_PUB_CORE;
+static UA_Int32   subCore              = DEFAULT_SUB_CORE;
+static UA_Int32   userAppCore          = DEFAULT_USER_APP_CORE;
+static UA_Int32   qbvOffset            = DEFAULT_QBV_OFFSET;
+static UA_Boolean disableSoTxtime      = UA_TRUE;
+static UA_Boolean enableCsvLog         = UA_FALSE;
+static UA_Boolean consolePrint         = UA_FALSE;
+static UA_Boolean enableBlockingSocket = UA_FALSE;
+static UA_Boolean signalTerm           = UA_FALSE;
 
 /* Variables corresponding to PubSub connection creation,
  * published data set and writer group */
@@ -148,17 +185,35 @@ UA_NodeId           pubNodeID;
 UA_NodeId           subNodeID;
 UA_NodeId           pubRepeatedCountNodeID;
 UA_NodeId           subRepeatedCountNodeID;
+UA_NodeId           runningPubStatusNodeID;
+UA_NodeId           runningSubStatusNodeID;
 /* Variables for counter data handling in address space */
 UA_UInt64           *pubCounterData = NULL;
 UA_DataValue        *pubDataValueRT = NULL;
+UA_Boolean          *runningPub = NULL;
+UA_DataValue        *runningPubDataValueRT = NULL;
 UA_UInt64           *repeatedCounterData[REPEATED_NODECOUNTS] = {NULL};
 UA_DataValue        *repeatedDataValueRT[REPEATED_NODECOUNTS] = {NULL};
 
 UA_UInt64           *subCounterData = NULL;
 UA_DataValue        *subDataValueRT = NULL;
+UA_Boolean          *runningSub = NULL;
+UA_DataValue        *runningSubDataValueRT =  NULL;
 UA_UInt64           *subRepeatedCounterData[REPEATED_NODECOUNTS] = {NULL};
 UA_DataValue        *subRepeatedDataValueRT[REPEATED_NODECOUNTS] = {NULL};
 
+/**
+ * **CSV file handling**
+ *
+ * csv files are written for Publisher and Subscriber thread.
+ * csv files include the counterdata that is being either Published or Subscribed
+ * along with the timestamp. These csv files can be used to compute latency for following
+ * combinations of Tracepoints, T1-T4 and T1-T8.
+ *
+ * T1-T8 - Gives the Round-trip time of a counterdata, as the value published by the Publisher thread
+ * in pubsub_TSN_publisher.c example is subscribed by the Subscriber thread in pubsub_TSN_loopback.c example and is
+ * published back to the pubsub_TSN_publisher.c example
+ */
 #if defined(PUBLISHER)
 /* File to store the data and timestamps for different traffic */
 FILE               *fpPublisher;
@@ -205,6 +260,8 @@ UA_Duration                  interval_ms;
 UA_UInt64*                   callbackId;
 } threadArg;
 
+/**
+ * Function calls for different threads */
 /* Publisher thread routine for ETF */
 void *publisherETF(void *arg);
 /* Subscriber thread routine */
@@ -222,7 +279,7 @@ static pthread_t threadCreation(UA_Int16 threadPriority, size_t coreAffinity, vo
 /* Stop signal */
 static void stopHandler(int sign) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
-    running = UA_FALSE;
+    signalTerm = UA_TRUE;
 }
 
 /**
@@ -231,7 +288,6 @@ static void stopHandler(int sign) {
  * Nanosecond field in timespec is checked for overflowing and one second
  * is added to seconds field and nanosecond field is set to zero
 */
-
 static void nanoSecondFieldConversion(struct timespec *timeSpecValue) {
     /* Check if ns field is greater than '1 ns less than 1sec' */
     while (timeSpecValue->tv_nsec > (SECONDS -1)) {
@@ -242,6 +298,12 @@ static void nanoSecondFieldConversion(struct timespec *timeSpecValue) {
 
 }
 
+/**
+ * **Custom callback handling**
+ *
+ * Custom callback thread handling overwrites the default timer based
+ * callback function with the custom (user-specified) callback interval.
+ */
 /* Add a callback for cyclic repetition */
 static UA_StatusCode
 addPubSubApplicationCallback(UA_Server *server, UA_NodeId identifier,
@@ -298,7 +360,10 @@ removePubSubApplicationCallback(UA_Server *server, UA_NodeId identifier, UA_UInt
 
 }
 
-/* If the external data source is written over the information model, the
+/**
+ * **External data source handling**
+ *
+ * If the external data source is written over the information model, the
  * externalDataWriteCallback will be triggered. The user has to take care and assure
  * that the write leads not to synchronization issues and race conditions. */
 static UA_StatusCode
@@ -319,6 +384,11 @@ externalDataReadNotificationCallback(UA_Server *server, const UA_NodeId *session
     return UA_STATUSCODE_GOOD;
 }
 
+/**
+ * **Subscriber**
+ *
+ * Create connection, readergroup, datasetreader, subscribedvariables for the Subscriber thread.
+ */
 #if defined(SUBSCRIBER)
 static void
 addPubSubConnectionSubscriber(UA_Server *server, UA_NetworkAddressUrlDataType *networkAddressUrlSubscriber){
@@ -329,7 +399,7 @@ addPubSubConnectionSubscriber(UA_Server *server, UA_NetworkAddressUrlDataType *n
     memset(&connectionConfig, 0, sizeof(connectionConfig));
     connectionConfig.name                                   = UA_STRING("Subscriber Connection");
     connectionConfig.enabled                                = UA_TRUE;
-#ifdef UA_ENABLE_PUBSUB_ETH_UADP_XDP
+#if defined (UA_ENABLE_PUBSUB_ETH_UADP_XDP)
     UA_KeyValuePair connectionOptions[2];
     connectionOptions[0].key                  = UA_QUALIFIEDNAME(0, "xdpflag");
     UA_UInt32 flags                           = XDP_FLAG;
@@ -340,6 +410,7 @@ addPubSubConnectionSubscriber(UA_Server *server, UA_NetworkAddressUrlDataType *n
     connectionConfig.connectionProperties     = connectionOptions;
     connectionConfig.connectionPropertiesSize = 2;
 #endif
+
     UA_NetworkAddressUrlDataType networkAddressUrlsubscribe = *networkAddressUrlSubscriber;
     connectionConfig.transportProfileUri                    = UA_STRING(ETH_TRANSPORT_PROFILE);
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrlsubscribe, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
@@ -360,7 +431,14 @@ addReaderGroup(UA_Server *server) {
     readerGroupConfig.name    = UA_STRING("ReaderGroup");
     readerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
     readerGroupConfig.subscribingInterval = cycleTimeInMsec;
-    readerGroupConfig.timeout = 50;  // As we run in 250us cycle time, modify default timeout (1ms) to 50us
+    /* Timeout is modified when blocking socket is enabled, and the default timeout is used when blocking socket is disabled */
+    if (enableBlockingSocket == UA_FALSE)
+        readerGroupConfig.timeout = 50;  // As we run in 250us cycle time, modify default timeout (1ms) to 50us
+    else {
+        readerGroupConfig.enableBlockingSocket = UA_TRUE;
+        readerGroupConfig.timeout = 0;  //Blocking  socket
+    }
+
     readerGroupConfig.pubsubManagerCallback.addCustomCallback = addPubSubApplicationCallback;
     readerGroupConfig.pubsubManagerCallback.changeCustomCallbackInterval = changePubSubApplicationCallbackInterval;
     readerGroupConfig.pubsubManagerCallback.removeCustomCallback = removePubSubApplicationCallback;
@@ -373,45 +451,75 @@ addReaderGroup(UA_Server *server) {
  * Add subscribedvariables to the DataSetReader */
 static void addSubscribedVariables (UA_Server *server) {
     UA_Int32 iterator = 0;
+    UA_Int32 iteratorRepeatedCount = 0;
+
     if(server == NULL) {
         return;
     }
 
-    UA_FieldTargetVariable *targetVars = (UA_FieldTargetVariable*) UA_calloc((REPEATED_NODECOUNTS + 1), sizeof(UA_FieldTargetVariable));
+    UA_FieldTargetVariable *targetVars = (UA_FieldTargetVariable*) UA_calloc((REPEATED_NODECOUNTS + 2), sizeof(UA_FieldTargetVariable));
     if(!targetVars) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "FieldTargetVariable - Bad out of memory");
         return;
     }
 
+    runningSub = UA_Boolean_new();
+    if(!runningSub) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "runningsub - Bad out of memory");
+        return;
+    }
+
+    *runningSub = UA_TRUE;
+    runningSubDataValueRT = UA_DataValue_new();
+    if(!runningSubDataValueRT) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "runningsubDatavalue - Bad out of memory");
+        return;
+    }
+
+    UA_Variant_setScalar(&runningSubDataValueRT->value, runningSub, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    runningSubDataValueRT->hasValue = UA_TRUE;
+
+    /* Set the value backend of the above create node to 'external value source' */
+    UA_ValueBackend runningSubvalueBackend;
+    runningSubvalueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
+    runningSubvalueBackend.backend.external.value = &runningSubDataValueRT;
+    runningSubvalueBackend.backend.external.callback.userWrite = externalDataWriteCallback;
+    runningSubvalueBackend.backend.external.callback.notificationRead = externalDataReadNotificationCallback;
+    UA_Server_setVariableNode_valueBackend(server, UA_NODEID_NUMERIC(1, (UA_UInt32)30000), runningSubvalueBackend);
+
+    UA_FieldTargetDataType_init(&targetVars[iterator].targetVariable);
+    targetVars[iterator].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
+    targetVars[iterator].targetVariable.targetNodeId = UA_NODEID_NUMERIC(1, (UA_UInt32)30000);
+    iterator++;
     /* For creating Targetvariable */
-    for (iterator = 0; iterator < REPEATED_NODECOUNTS; iterator++)
+    for (iterator = 1, iteratorRepeatedCount = 0; iterator <= REPEATED_NODECOUNTS; iterator++, iteratorRepeatedCount++)
     {
-        subRepeatedCounterData[iterator] = UA_UInt64_new();
-        if(!subRepeatedCounterData[iterator]) {
+        subRepeatedCounterData[iteratorRepeatedCount] = UA_UInt64_new();
+        if(!subRepeatedCounterData[iteratorRepeatedCount]) {
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "SubscribeRepeatedCounterData - Bad out of memory");
             return;
         }
 
-        *subRepeatedCounterData[iterator] = 0;
-        subRepeatedDataValueRT[iterator] = UA_DataValue_new();
-        if(!subRepeatedDataValueRT[iterator]) {
+        *subRepeatedCounterData[iteratorRepeatedCount] = 0;
+        subRepeatedDataValueRT[iteratorRepeatedCount] = UA_DataValue_new();
+        if(!subRepeatedDataValueRT[iteratorRepeatedCount]) {
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "SubscribeRepeatedCounterDataValue - Bad out of memory");
             return;
         }
 
-        UA_Variant_setScalar(&subRepeatedDataValueRT[iterator]->value, subRepeatedCounterData[iterator], &UA_TYPES[UA_TYPES_UINT64]);
-        subRepeatedDataValueRT[iterator]->hasValue = UA_TRUE;
+        UA_Variant_setScalar(&subRepeatedDataValueRT[iteratorRepeatedCount]->value, subRepeatedCounterData[iteratorRepeatedCount], &UA_TYPES[UA_TYPES_UINT64]);
+        subRepeatedDataValueRT[iteratorRepeatedCount]->hasValue = UA_TRUE;
         /* Set the value backend of the above create node to 'external value source' */
         UA_ValueBackend valueBackend;
         valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
-        valueBackend.backend.external.value = &subRepeatedDataValueRT[iterator];
+        valueBackend.backend.external.value = &subRepeatedDataValueRT[iteratorRepeatedCount];
         valueBackend.backend.external.callback.userWrite = externalDataWriteCallback;
         valueBackend.backend.external.callback.notificationRead = externalDataReadNotificationCallback;
-        UA_Server_setVariableNode_valueBackend(server, UA_NODEID_NUMERIC(1, (UA_UInt32)iterator+50000), valueBackend);
+        UA_Server_setVariableNode_valueBackend(server, UA_NODEID_NUMERIC(1, (UA_UInt32)iteratorRepeatedCount+50000), valueBackend);
 
         UA_FieldTargetDataType_init(&targetVars[iterator].targetVariable);
         targetVars[iterator].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
-        targetVars[iterator].targetVariable.targetNodeId = UA_NODEID_NUMERIC(1, (UA_UInt32)iterator + 50000);
+        targetVars[iterator].targetVariable.targetNodeId = UA_NODEID_NUMERIC(1, (UA_UInt32)iteratorRepeatedCount + 50000);
     }
 
     subCounterData = UA_UInt64_new();
@@ -445,7 +553,7 @@ static void addSubscribedVariables (UA_Server *server) {
     /* Set the subscribed data to TargetVariable type */
     readerConfig.subscribedDataSetType = UA_PUBSUB_SDS_TARGET;
     readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables = targetVars;
-    readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize = REPEATED_NODECOUNTS + 1;
+    readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize = REPEATED_NODECOUNTS + 2;
 }
 
 /* Add DataSetReader to the ReaderGroup */
@@ -478,11 +586,17 @@ addDataSetReader(UA_Server *server) {
     UA_DataSetMetaDataType_init (pMetaData);
     /* Static definition of number of fields size to 1 to create one
        targetVariable */
-    pMetaData->fieldsSize             = REPEATED_NODECOUNTS + 1;
+    pMetaData->fieldsSize             = REPEATED_NODECOUNTS + 2;
     pMetaData->fields                 = (UA_FieldMetaData*)UA_Array_new (pMetaData->fieldsSize,
                                                                          &UA_TYPES[UA_TYPES_FIELDMETADATA]);
-
-    for (iterator = 0; iterator < REPEATED_NODECOUNTS; iterator++)
+    /* Boolean  DataType */
+    UA_FieldMetaData_init (&pMetaData->fields[iterator]);
+    UA_NodeId_copy (&UA_TYPES[UA_TYPES_BOOLEAN].typeId,
+                    &pMetaData->fields[iterator].dataType);
+    pMetaData->fields[iterator].builtInType = UA_NS0ID_BOOLEAN;
+    pMetaData->fields[iterator].valueRank   = -1; /* scalar */
+    iterator++;
+    for (iterator = 1; iterator <= REPEATED_NODECOUNTS; iterator++)
     {
         UA_FieldMetaData_init (&pMetaData->fields[iterator]);
         UA_NodeId_copy (&UA_TYPES[UA_TYPES_UINT64].typeId,
@@ -514,11 +628,9 @@ addDataSetReader(UA_Server *server) {
 
 #if defined(PUBLISHER)
 /**
- * **PubSub connection handling**
+ * **Publisher**
  *
- * Create a new ConnectionConfig. The addPubSubConnection function takes the
- * config and create a new connection. The Connection identifier is
- * copied to the NodeId parameter.
+ * Create connection, writergroup, datasetwriter and publisheddataset for Publisher thread.
  */
 static void
 addPubSubConnection(UA_Server *server, UA_NetworkAddressUrlDataType *networkAddressUrlPub){
@@ -545,12 +657,7 @@ addPubSubConnection(UA_Server *server, UA_NetworkAddressUrlDataType *networkAddr
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
 }
 
-/**
- * **PublishedDataset handling**
- *
- * Details about the connection configuration and handling are located
- * in the pubsub connection tutorial
- */
+/* PublishedDataset handling */
 static void
 addPublishedDataSet(UA_Server *server) {
     UA_PublishedDataSetConfig publishedDataSetConfig;
@@ -560,12 +667,7 @@ addPublishedDataSet(UA_Server *server) {
     UA_Server_addPublishedDataSet(server, &publishedDataSetConfig, &publishedDataSetIdent);
 }
 
-/**
- * **DataSetField handling**
- *
- * The DataSetField (DSF) is part of the PDS and describes exactly one
- * published field.
- */
+/* DataSetField handling */
 static void
 addDataSetField(UA_Server *server) {
     /* Add a field to the previous created PublishedDataSet */
@@ -574,6 +676,40 @@ addDataSetField(UA_Server *server) {
 #if defined PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
     staticValueSource = UA_DataValue_new();
 #endif
+
+    UA_NodeId dataSetFieldIdentRunning;
+    UA_DataSetFieldConfig dsfConfigPubStatus;
+    memset(&dsfConfigPubStatus, 0, sizeof(UA_DataSetFieldConfig));
+
+    runningPub = UA_Boolean_new();
+    if(!runningPub) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "runningPub - Bad out of memory");
+        return;
+    }
+
+    *runningPub = UA_TRUE;
+    runningPubDataValueRT = UA_DataValue_new();
+    if(!runningPubDataValueRT) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "runningPubDataValue - Bad out of memory");
+        return;
+    }
+
+    UA_Variant_setScalar(&runningPubDataValueRT->value, runningPub, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    runningPubDataValueRT->hasValue = UA_TRUE;
+
+    /* Set the value backend of the above create node to 'external value source' */
+    UA_ValueBackend runningPubvalueBackend;
+    runningPubvalueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
+    runningPubvalueBackend.backend.external.value = &runningPubDataValueRT;
+    runningPubvalueBackend.backend.external.callback.userWrite = externalDataWriteCallback;
+    runningPubvalueBackend.backend.external.callback.notificationRead = externalDataReadNotificationCallback;
+    UA_Server_setVariableNode_valueBackend(server, UA_NODEID_NUMERIC(1, (UA_UInt32)20000), runningPubvalueBackend);
+
+    /* setup RT DataSetField config */
+    dsfConfigPubStatus.field.variable.rtValueSource.rtInformationModelNode = UA_TRUE;
+    dsfConfigPubStatus.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(1, (UA_UInt32)20000);
+
+    UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfigPubStatus, &dataSetFieldIdentRunning);
     for (UA_Int32 iterator = 0; iterator < REPEATED_NODECOUNTS; iterator++)
     {
        memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
@@ -642,15 +778,9 @@ addDataSetField(UA_Server *server) {
     dsfConfig.field.variable.publishParameters.publishedVariable = pubNodeID;
 
     UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent);
-
 }
 
-/**
- * **WriterGroup handling**
- *
- * The WriterGroup (WG) is part of the connection and contains the primary
- * configuration parameters for the message creation.
- */
+/* WriterGroup handling */
 static void
 addWriterGroup(UA_Server *server) {
     UA_WriterGroupConfig writerGroupConfig;
@@ -685,13 +815,7 @@ addWriterGroup(UA_Server *server) {
     UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
 }
 
-/**
- * **DataSetWriter handling**
- *
- * A DataSetWriter (DSW) is the glue between the WG and the PDS. The DSW is
- * linked to exactly one PDS and contains additional informations for the
- * message generation.
- */
+/* DataSetWriter handling */
 static void
 addDataSetWriter(UA_Server *server) {
     UA_NodeId dataSetWriterIdent;
@@ -716,47 +840,55 @@ updateMeasurementsPublisher(struct timespec start_time,
                             UA_UInt64 counterValue) {
     if(measurementsPublisher >= MAX_MEASUREMENTS) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Publisher: Maximum log measurements reached - Closing the application");
-        running = UA_FALSE;
+        signalTerm = UA_TRUE;
         return;
     }
 
-    if(consolePrint) {
+    if(consolePrint)
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"Pub:%ld,%ld.%09ld\n", counterValue, start_time.tv_sec, start_time.tv_nsec);
-    }
 
-    publishTimestamp[measurementsPublisher]        = start_time;
-    publishCounterValue[measurementsPublisher]     = counterValue;
-    measurementsPublisher++;
+    if (signalTerm != UA_TRUE){
+        publishTimestamp[measurementsPublisher]        = start_time;
+        publishCounterValue[measurementsPublisher]     = counterValue;
+        measurementsPublisher++;
+    }
 }
 #endif
+
 #if defined(SUBSCRIBER)
 /**
- * Subscribed data handling**
+ * **Subscribed data handling**
+ *
  * The subscribed data is updated in the array using this function Subscribed data handling**
  */
 static void
 updateMeasurementsSubscriber(struct timespec receive_time, UA_UInt64 counterValue) {
     if(measurementsSubscriber >= MAX_MEASUREMENTS) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Subscriber: Maximum log measurements reached - Closing the application");
-        running = UA_FALSE;
+        signalTerm = UA_TRUE;
         return;
     }
 
-    if(consolePrint) {
+    if(consolePrint)
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"Sub:%ld,%ld.%09ld\n", counterValue, receive_time.tv_sec, receive_time.tv_nsec);
-    }
 
-    subscribeTimestamp[measurementsSubscriber]     = receive_time;
-    subscribeCounterValue[measurementsSubscriber]  = counterValue;
-    measurementsSubscriber++;
+    if (signalTerm != UA_TRUE){
+        subscribeTimestamp[measurementsSubscriber]     = receive_time;
+        subscribeCounterValue[measurementsSubscriber]  = counterValue;
+        measurementsSubscriber++;
+    }
 }
 #endif
 
 /**
  * **Publisher thread routine**
  *
+ * This is the Publisher thread that sleeps for 60% of the cycletime (250us) and prepares the tranmission packet within 40% of
+ * cycletime. The priority of this thread is lower than the priority of the Subscriber thread, so the subscriber thread executes first during
+ * every cycle. The data published by this thread in one cycle is subscribed by the subscriber thread of pubsub_TSN_loopback in the next
+ * cycle (two cycle timing model).
+ *
  * The publisherETF function is the routine used by the publisher thread.
- * This routine publishes the data at a cycle time of 100us.
  */
 void *publisherETF(void *arg) {
     struct timespec   nextnanosleeptime;
@@ -794,17 +926,23 @@ void *publisherETF(void *arg) {
     currentWriterGroup->config.transportSettings   = transportSettings;
     UA_UInt64 roundOffCycleTime                    = (UA_UInt64)((cycleTimeInMsec * MILLI_SECONDS) - (cycleTimeInMsec * MILLI_SECONDS * pubWakeupPercentage));
 
-    while (running) {
+    while (*runningPub) {
         clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptime, NULL);
+        if (signalTerm == UA_TRUE)
+            *runningPub = UA_FALSE;
+
         transmission_time                              = ((UA_UInt64)nextnanosleeptime.tv_sec * SECONDS + (UA_UInt64)nextnanosleeptime.tv_nsec) + roundOffCycleTime + (UA_UInt64)(qbvOffset * 1000);
         ethernettransportSettings.transmission_time = transmission_time;
         if(*pubCounterData > 0)
             pubCallback(server, currentWriterGroup);
+
         nextnanosleeptime.tv_nsec                     += (__syscall_slong_t)interval_ns;
         nanoSecondFieldConversion(&nextnanosleeptime);
     }
 
     UA_free(threadArgumentsPublisher);
+    sleep(1);
+    runningServer = UA_FALSE;
     return (void*)NULL;
 }
 
@@ -812,9 +950,11 @@ void *publisherETF(void *arg) {
 /**
  * **Subscriber thread routine**
  *
+ * This Subscriber thread will wakeup during the start of cycle at 250us interval and check if the packets are received. Subscriber thread has
+ * the highest priority. This Subscriber thread subscribes to the data published by the Publisher thread of pubsub_TSN_loopback in the previous cycle.
  * The subscriber function is the routine used by the subscriber thread.
+ *
  */
-
 void *subscriber(void *arg) {
     UA_Server*        server;
     void*   currentReaderGroup;
@@ -834,13 +974,23 @@ void *subscriber(void *arg) {
     nextnanosleeptimeSub.tv_sec         += SECONDS_SLEEP;
     nextnanosleeptimeSub.tv_nsec         = (__syscall_slong_t)subWakeupPercentage;
     nanoSecondFieldConversion(&nextnanosleeptimeSub);
-    while (running) {
-        clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptimeSub, NULL);
+    while (*runningSub) {
+        /* When blocking socket is disabled, the Subscriber threads wakes up at the start of each cycle */
+        if (enableBlockingSocket != UA_TRUE)
+            clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptimeSub, NULL);
+
         /* Read subscribed data from the SubscriberCounter variable */
         subCallback(server, currentReaderGroup);
-        nextnanosleeptimeSub.tv_nsec += (__syscall_slong_t)subInterval_ns;
-        nanoSecondFieldConversion(&nextnanosleeptimeSub);
+        if (enableBlockingSocket != UA_TRUE) {
+            nextnanosleeptimeSub.tv_nsec += (__syscall_slong_t)subInterval_ns;
+            nanoSecondFieldConversion(&nextnanosleeptimeSub);
+        }
+
+        if (signalTerm == UA_TRUE)
+            *runningSub = UA_FALSE;
     }
+    if (*runningSub == UA_FALSE)
+        signalTerm = UA_TRUE;
 
     UA_free(threadArgumentsSubscriber);
     return (void*)NULL;
@@ -851,6 +1001,9 @@ void *subscriber(void *arg) {
 /**
  * **UserApplication thread routine**
  *
+ * The userapplication thread will wakeup at 30% of cycle time and handles the userdata(read and write in Information Model).
+ * This thread serves the purpose of a Control loop, which is used to increment the counterdata to be published by the Publisher thread and
+ * read the data from Information Model for the Subscriber thread and writes the updated counterdata in distinct csv files for both threads
  */
 void *userApplicationPubSub(void *arg) {
     struct timespec nextnanosleeptimeUserApplication;
@@ -861,7 +1014,7 @@ void *userApplicationPubSub(void *arg) {
     nextnanosleeptimeUserApplication.tv_nsec      = (__syscall_slong_t)(cycleTimeInMsec * MILLI_SECONDS * userAppWakeupPercentage);
     nanoSecondFieldConversion(&nextnanosleeptimeUserApplication);
 
-    while (running) {
+    while (*runningSub || *runningPub) {
         clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptimeUserApplication, NULL);
 #if defined(SUBSCRIBER)
         clock_gettime(CLOCKID, &dataReceiveTime);
@@ -873,11 +1026,13 @@ void *userApplicationPubSub(void *arg) {
             *repeatedCounterData[iterator] = *subRepeatedCounterData[iterator];
         clock_gettime(CLOCKID, &dataModificationTime);
 #endif
+
         if (enableCsvLog || consolePrint) {
 #if defined(SUBSCRIBER)
             if (*subCounterData > 0)
                 updateMeasurementsSubscriber(dataReceiveTime, *subCounterData);
 #endif
+
 #if defined(PUBLISHER)
             if (*pubCounterData > 0)
                 updateMeasurementsPublisher(dataModificationTime, *pubCounterData);
@@ -893,29 +1048,11 @@ void *userApplicationPubSub(void *arg) {
 #endif
 
 /**
- * **Deletion of nodes**
+ * **Thread creation**
  *
- * The removeServerNodes function is used to delete the publisher and subscriber
- * nodes.
+ * The threadcreation functionality creates thread with given threadpriority, coreaffinity. The function returns the threadID of the newly
+ * created thread.
  */
-static void removeServerNodes(UA_Server *server) {
-    /* Delete the Publisher Counter Node*/
-    UA_Server_deleteNode(server, pubNodeID, UA_TRUE);
-    UA_NodeId_clear(&pubNodeID);
-    for (UA_Int32 iterator = 0; iterator < REPEATED_NODECOUNTS; iterator++)
-    {
-        UA_Server_deleteNode(server, pubRepeatedCountNodeID, UA_TRUE);
-        UA_NodeId_clear(&pubRepeatedCountNodeID);
-    }
-
-    UA_Server_deleteNode(server, subNodeID, UA_TRUE);
-    UA_NodeId_clear(&subNodeID);
-    for (UA_Int32 iterator = 0; iterator < REPEATED_NODECOUNTS; iterator++)
-    {
-        UA_Server_deleteNode(server, subRepeatedCountNodeID, UA_TRUE);
-        UA_NodeId_clear(&subRepeatedCountNodeID);
-    }
-}
 
 static pthread_t threadCreation(UA_Int16 threadPriority, size_t coreAffinity, void *(*thread) (void *), char *applicationName, \
                                 void *serverConfig){
@@ -933,6 +1070,7 @@ static pthread_t threadCreation(UA_Int16 threadPriority, size_t coreAffinity, vo
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"pthread_setschedparam: failed\n");
         exit(1);
     }
+
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,\
                 "\npthread_setschedparam:%s Thread priority is %d \n", \
                 applicationName, schedParam.sched_priority);
@@ -945,19 +1083,18 @@ static pthread_t threadCreation(UA_Int16 threadPriority, size_t coreAffinity, vo
     }
 
     returnValue = pthread_create(&threadID, NULL, thread, serverConfig);
-    if (returnValue != 0) {
+    if (returnValue != 0)
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,":%s Cannot create thread\n", applicationName);
-    }
 
-    if (CPU_ISSET(coreAffinity, &cpuset)) {
+    if (CPU_ISSET(coreAffinity, &cpuset))
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"%s CPU CORE: %ld\n", applicationName, coreAffinity);
-    }
 
    return threadID;
-
 }
+
 /**
  * **Creation of nodes**
+ *
  * The addServerNodes function is used to create the publisher and subscriber
  * nodes.
  */
@@ -1008,6 +1145,17 @@ static void addServerNodes(UA_Server *server) {
                                  UA_QUALIFIEDNAME(1, "Publisher RepeatedCounter"),
                                  UA_NODEID_NULL, repeatedNodePub, NULL, &pubRepeatedCountNodeID);
     }
+    UA_VariableAttributes runningStatusPub = UA_VariableAttributes_default;
+    UA_Boolean runningPubStatus            = 0;
+    runningStatusPub.accessLevel           = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    UA_Variant_setScalar(&runningStatusPub.value, &runningPubStatus, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    runningStatusPub.displayName           = UA_LOCALIZEDTEXT("en-US", "RunningStatus Pub");
+    runningStatusPub.dataType              = UA_TYPES[UA_TYPES_BOOLEAN].typeId;
+    newNodeId                              = UA_NODEID_NUMERIC(1, (UA_UInt32)20000);
+    UA_Server_addVariableNode(server, newNodeId, objectId,
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                              UA_QUALIFIEDNAME(1, "RunningStatus Pub"),
+                              UA_NODEID_NULL, runningStatusPub, NULL, &runningPubStatusNodeID);
 
     for (UA_Int32 iterator = 0; iterator < REPEATED_NODECOUNTS; iterator++)
     {
@@ -1023,8 +1171,58 @@ static void addServerNodes(UA_Server *server) {
                                   UA_QUALIFIEDNAME(1, "Subscriber RepeatedCounter"),
                                   UA_NODEID_NULL, repeatedNodeSub, NULL, &subRepeatedCountNodeID);
     }
-
+    UA_VariableAttributes runningStatusSubscriber = UA_VariableAttributes_default;
+    UA_Boolean runningSubStatusValue              = 0;
+    runningStatusSubscriber.accessLevel           = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    UA_Variant_setScalar(&runningStatusSubscriber.value, &runningSubStatusValue, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    runningStatusSubscriber.displayName           = UA_LOCALIZEDTEXT("en-US", "RunningStatus Sub");
+    runningStatusSubscriber.dataType              = UA_TYPES[UA_TYPES_BOOLEAN].typeId;
+    newNodeId                                     = UA_NODEID_NUMERIC(1, (UA_UInt32)30000);
+    UA_Server_addVariableNode(server, newNodeId, objectId,
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                              UA_QUALIFIEDNAME(1, "RunningStatus Sub"),
+                              UA_NODEID_NULL, runningStatusSubscriber, NULL, &runningSubStatusNodeID);
 }
+
+/**
+ * **Deletion of nodes**
+ *
+ * The removeServerNodes function is used to delete the publisher and subscriber
+ * nodes.
+ */
+
+static void removeServerNodes(UA_Server *server) {
+    /* Delete the Publisher Counter Node*/
+    UA_Server_deleteNode(server, pubNodeID, UA_TRUE);
+    UA_NodeId_clear(&pubNodeID);
+    for (UA_Int32 iterator = 0; iterator < REPEATED_NODECOUNTS; iterator++)
+    {
+        UA_Server_deleteNode(server, pubRepeatedCountNodeID, UA_TRUE);
+        UA_NodeId_clear(&pubRepeatedCountNodeID);
+    }
+    UA_Server_deleteNode(server, runningPubStatusNodeID, UA_TRUE);
+    UA_NodeId_clear(&runningPubStatusNodeID);
+
+    UA_Server_deleteNode(server, subNodeID, UA_TRUE);
+    UA_NodeId_clear(&subNodeID);
+    for (UA_Int32 iterator = 0; iterator < REPEATED_NODECOUNTS; iterator++)
+    {
+        UA_Server_deleteNode(server, subRepeatedCountNodeID, UA_TRUE);
+        UA_NodeId_clear(&subRepeatedCountNodeID);
+    }
+    UA_Server_deleteNode(server, runningSubStatusNodeID, UA_TRUE);
+    UA_NodeId_clear(&runningSubStatusNodeID);
+}
+
+/**
+ * **Usage function**
+ *
+ * The usage function gives the information to run the application.
+ *
+ * ./bin/examples/pubsub_TSN_loopback -interface <ethernet_interface> runs the application.
+ *
+ * For more options, use ./bin/examples/pubsub_TSN_loopback -h.
+ */
 
 static void usage(char *appname)
 {
@@ -1047,6 +1245,8 @@ static void usage(char *appname)
         " -disableSoTxtime        Do not use SO_TXTIME\n"
         " -enableCsvLog           Experimental: To log the data in csv files. Support up to 1 million samples\n"
         " -enableconsolePrint     Experimental: To print the data in console output. Support for higher cycle time\n"
+        " -enableBlockingSocket   Run application with blocking socket option. While using blocking socket option need to\n"
+        "                         run both the Publisher and Loopback application. Otherwise application will not terminate.\n"
         "\n",
         appname, DEFAULT_CYCLE_TIME, DEFAULT_SOCKET_PRIORITY, DEFAULT_PUB_SCHED_PRIORITY, \
         DEFAULT_SUB_SCHED_PRIORITY, DEFAULT_USERAPPLICATION_SCHED_PRIORITY, \
@@ -1079,23 +1279,24 @@ int main(int argc, char **argv) {
     progname = progname ? 1 + progname : argv[0];
 
     static struct option long_options[] = {
-        {"interface",          required_argument, 0, 'a'},
-        {"cycleTimeInMsec",    required_argument, 0, 'b'},
-        {"socketPriority",     required_argument, 0, 'c'},
-        {"pubPriority",        required_argument, 0, 'd'},
-        {"subPriority",        required_argument, 0, 'e'},
-        {"userAppPriority",    required_argument, 0, 'f'},
-        {"pubCore",            required_argument, 0, 'g'},
-        {"subCore",            required_argument, 0, 'h'},
-        {"userAppCore",        required_argument, 0, 'i'},
-        {"pubMacAddress",      required_argument, 0, 'j'},
-        {"subMacAddress",      required_argument, 0, 'k'},
-        {"qbvOffset",          required_argument, 0, 'l'},
-        {"disableSoTxtime",    no_argument,       0, 'm'},
-        {"enableCsvLog",       no_argument,       0, 'n'},
-        {"enableconsolePrint", no_argument,       0, 'o'},
-        {"help",               no_argument,       0, 'p'},
-        {0,                    0,                 0,  0 }
+        {"interface",            required_argument, 0, 'a'},
+        {"cycleTimeInMsec",      required_argument, 0, 'b'},
+        {"socketPriority",       required_argument, 0, 'c'},
+        {"pubPriority",          required_argument, 0, 'd'},
+        {"subPriority",          required_argument, 0, 'e'},
+        {"userAppPriority",      required_argument, 0, 'f'},
+        {"pubCore",              required_argument, 0, 'g'},
+        {"subCore",              required_argument, 0, 'h'},
+        {"userAppCore",          required_argument, 0, 'i'},
+        {"pubMacAddress",        required_argument, 0, 'j'},
+        {"subMacAddress",        required_argument, 0, 'k'},
+        {"qbvOffset",            required_argument, 0, 'l'},
+        {"disableSoTxtime",      no_argument,       0, 'm'},
+        {"enableCsvLog",         no_argument,       0, 'n'},
+        {"enableconsolePrint",   no_argument,       0, 'o'},
+        {"enableBlockingSocket", no_argument,       0, 'p'},
+        {"help",                 no_argument,       0, 'q'},
+        {0,                      0,                 0,  0 }
     };
 
     while ((argInputs = getopt_long_only(argc, argv,"", long_options, &long_index)) != -1) {
@@ -1146,6 +1347,10 @@ int main(int argc, char **argv) {
                 consolePrint = UA_TRUE;
                 break;
             case 'p':
+                /* TODO: Application need to be exited independently */
+                enableBlockingSocket = UA_TRUE;
+                break;
+            case 'q':
                 usage(progname);
                 return -1;
             case '?':
@@ -1166,11 +1371,17 @@ int main(int argc, char **argv) {
         return -1;
     }
 
+    if (enableBlockingSocket == UA_TRUE) {
+        if (pubCore == subCore)
+            pubCore = 3;
+    }
+
     UA_ServerConfig_setMinimal(config, PORT_NUMBER, NULL);
 
 #if defined(PUBLISHER)
     UA_NetworkAddressUrlDataType networkAddressUrlPub;
 #endif
+
 #if defined(SUBSCRIBER)
     UA_NetworkAddressUrlDataType networkAddressUrlSub;
 #endif
@@ -1179,6 +1390,7 @@ int main(int argc, char **argv) {
         networkAddressUrlPub.networkInterface = UA_STRING(interface);
         networkAddressUrlPub.url              = UA_STRING(pubMacAddress);
 #endif
+
 #if defined(SUBSCRIBER)
         networkAddressUrlSub.networkInterface = UA_STRING(interface);
         networkAddressUrlSub.url              = UA_STRING(subMacAddress);
@@ -1188,6 +1400,7 @@ int main(int argc, char **argv) {
 if (enableCsvLog)
     fpPublisher                   = fopen(filePublishedData, "w");
 #endif
+
 #if defined(SUBSCRIBER)
 if (enableCsvLog)
     fpSubscriber                  = fopen(fileSubscribedData, "w");
@@ -1210,7 +1423,6 @@ if (enableCsvLog)
  * The correct factory is selected on runtime by the standard defined
  * PubSub TransportProfileUri's.
  */
-
 #if defined (PUBLISHER)
     config->pubsubTransportLayers[0] = UA_PubSubTransportLayerEthernet();
     config->pubsubTransportLayersSize++;
@@ -1256,6 +1468,7 @@ if (enableCsvLog)
     UA_Server_freezeReaderGroupConfiguration(server, readerGroupIdentifier);
     UA_Server_setReaderGroupOperational(server, readerGroupIdentifier);
 #endif
+
     serverConfigStruct *serverConfig;
     serverConfig                = (serverConfigStruct*)UA_malloc(sizeof(serverConfigStruct));
     serverConfig->ServerRun     = server;
@@ -1263,38 +1476,37 @@ if (enableCsvLog)
     char threadNameUserAppl[22] = "UserApplicationPubSub";
     userThreadID                = threadCreation((UA_Int16)userAppPriority, (size_t)userAppCore, userApplicationPubSub, threadNameUserAppl, serverConfig);
 #endif
-    retval |= UA_Server_run(server, &running);
 
+    retval |= UA_Server_run(server, &runningServer);
     UA_Server_unfreezeReaderGroupConfiguration(server, readerGroupIdentifier);
 #if defined(PUBLISHER) || defined(SUBSCRIBER)
     returnValue = pthread_join(userThreadID, NULL);
-    if (returnValue != 0) {
+    if (returnValue != 0)
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"\nPthread Join Failed for User thread:%d\n", returnValue);
-    }
 #endif
 
     if (enableCsvLog) {
 #if defined(PUBLISHER)
-    /* Write the published data in the publisher_T1.csv file */
-    size_t pubLoopVariable = 0;
-    for (pubLoopVariable = 0; pubLoopVariable < measurementsPublisher;
-         pubLoopVariable++) {
-        fprintf(fpPublisher, "%ld,%ld.%09ld\n",
-                publishCounterValue[pubLoopVariable],
-                publishTimestamp[pubLoopVariable].tv_sec,
-                publishTimestamp[pubLoopVariable].tv_nsec);
-    }
+        /* Write the published data in the publisher_T1.csv file */
+        size_t pubLoopVariable = 0;
+        for (pubLoopVariable = 0; pubLoopVariable < measurementsPublisher;
+             pubLoopVariable++) {
+            fprintf(fpPublisher, "%ld,%ld.%09ld\n",
+                    publishCounterValue[pubLoopVariable],
+                    publishTimestamp[pubLoopVariable].tv_sec,
+                    publishTimestamp[pubLoopVariable].tv_nsec);
+        }
 #endif
 #if defined(SUBSCRIBER)
-    /* Write the subscribed data in the subscriber_T8.csv file */
-    size_t subLoopVariable = 0;
-    for (subLoopVariable = 0; subLoopVariable < measurementsSubscriber;
-         subLoopVariable++) {
-        fprintf(fpSubscriber, "%ld,%ld.%09ld\n",
-                subscribeCounterValue[subLoopVariable],
-                subscribeTimestamp[subLoopVariable].tv_sec,
-                subscribeTimestamp[subLoopVariable].tv_nsec);
-    }
+        /* Write the subscribed data in the subscriber_T8.csv file */
+        size_t subLoopVariable = 0;
+        for (subLoopVariable = 0; subLoopVariable < measurementsSubscriber;
+             subLoopVariable++) {
+            fprintf(fpSubscriber, "%ld,%ld.%09ld\n",
+                    subscribeCounterValue[subLoopVariable],
+                    subscribeTimestamp[subLoopVariable].tv_sec,
+                    subscribeTimestamp[subLoopVariable].tv_nsec);
+        }
 #endif
     }
 
@@ -1304,31 +1516,35 @@ if (enableCsvLog)
     UA_free(serverConfig);
 #endif
 #if defined(PUBLISHER)
+    UA_free(runningPub);
     UA_free(pubCounterData);
     for (UA_Int32 iterator = 0; iterator <  REPEATED_NODECOUNTS; iterator++)
         UA_free(repeatedCounterData[iterator]);
 
     /* Free external data source */
     UA_free(pubDataValueRT);
+    UA_free(runningPubDataValueRT);
     for (UA_Int32 iterator = 0; iterator < REPEATED_NODECOUNTS; iterator++)
         UA_free(repeatedDataValueRT[iterator]);
 
-if (enableCsvLog)
-    fclose(fpPublisher);
+    if (enableCsvLog)
+        fclose(fpPublisher);
 #endif
 
 #if defined(SUBSCRIBER)
+    UA_free(runningSub);
     UA_free(subCounterData);
     for (UA_Int32 iterator = 0; iterator <  REPEATED_NODECOUNTS; iterator++)
         UA_free(subRepeatedCounterData[iterator]);
 
     /* Free external data source */
     UA_free(subDataValueRT);
+    UA_free(runningSubDataValueRT);
     for (UA_Int32 iterator = 0; iterator < REPEATED_NODECOUNTS; iterator++)
         UA_free(subRepeatedDataValueRT[iterator]);
 
-if (enableCsvLog)
-    fclose(fpSubscriber);
+    if (enableCsvLog)
+        fclose(fpSubscriber);
 #endif
 
     return (int)retval;
