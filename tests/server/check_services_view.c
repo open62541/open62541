@@ -357,17 +357,19 @@ START_TEST(Service_TranslateBrowsePathsWithHashCollision) {
     UA_Byte browseNames[4] = {0, 0, 0, 0};
 
     for(size_t i = 0; i < 3; i++) {
-    UA_VariableAttributes attr = UA_VariableAttributes_default;
-    UA_QualifiedName browseName;
-    browseName.namespaceIndex = 0;
-    browseName.name.data = browseNames;
-    browseName.name.length = i+1;
-    UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
-    UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
-        UA_Server_addVariableNode(server_translate_browse, UA_NODEID_NULL, parentNodeId,
-                                  parentReferenceNodeId, browseName,
-                                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
-                                  attr, NULL, NULL);
+        UA_VariableAttributes attr = UA_VariableAttributes_default;
+        UA_QualifiedName browseName;
+        browseName.namespaceIndex = 0;
+        browseName.name.data = browseNames;
+        browseName.name.length = i+1;
+        UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+        UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+        UA_StatusCode res =
+            UA_Server_addVariableNode(server_translate_browse, UA_NODEID_NULL, parentNodeId,
+                                      parentReferenceNodeId, browseName,
+                                      UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                      attr, NULL, NULL);
+        ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
     }
 
     UA_BrowsePath browsePath;
