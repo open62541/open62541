@@ -13,39 +13,36 @@
 
 #include "ua_server_internal.h"
 #include "ua_types_encoding_binary.h"
-#include "ziptree.h"
+#include "aa_tree.h"
 
-/* ZipTree for the lookup of references by their identifier */
-
-static enum ZIP_CMP
+static enum aa_cmp
 cmpRefTargetId(const void *a, const void *b) {
     const UA_ReferenceTarget *aa = (const UA_ReferenceTarget*)a;
     const UA_ReferenceTarget *bb = (const UA_ReferenceTarget*)b;
     if(aa->targetIdHash < bb->targetIdHash)
-        return ZIP_CMP_LESS;
+        return AA_CMP_LESS;
     if(aa->targetIdHash > bb->targetIdHash)
-        return ZIP_CMP_MORE;
-    return (enum ZIP_CMP)UA_ExpandedNodeId_order(&aa->targetId, &bb->targetId);
+        return AA_CMP_MORE;
+    return (enum aa_cmp)UA_ExpandedNodeId_order(&aa->targetId, &bb->targetId);
 }
 
-ZIP_IMPL(UA_ReferenceTargetIdTree, UA_ReferenceTarget, idTreeFields,
-         UA_ReferenceTarget, idTreeFields, cmpRefTargetId)
-
-/* ZipTree for the lookup of references by their BrowseName. UA_ReferenceTarget
- * stores only the hash. A full node lookup is in order to do the actual
- * comparison. */
-
-static enum ZIP_CMP
-cmpRefTargetName(const UA_UInt32 *nameHashA, const UA_UInt32 *nameHashB) {
+static enum aa_cmp
+cmpRefTargetName(const void *a, const void *b) {
+    const UA_UInt32 *nameHashA = (const UA_UInt32*)a;
+    const UA_UInt32 *nameHashB = (const UA_UInt32*)b;
     if(*nameHashA < *nameHashB)
-        return ZIP_CMP_LESS;
+        return AA_CMP_LESS;
     if(*nameHashA > *nameHashB)
-        return ZIP_CMP_MORE;
-    return ZIP_CMP_EQ;
+        return AA_CMP_MORE;
+    return AA_CMP_EQ;
 }
 
-ZIP_IMPL(UA_ReferenceTargetNameTree, UA_ReferenceTarget, nameTreeFields,
-         UA_UInt32, targetNameHash, cmpRefTargetName)
+/* Reusable binary search tree "heads". Just switch out the root pointer. */
+static const struct aa_head idTreeHead =
+    { NULL, cmpRefTargetId, offsetof(UA_ReferenceTarget, idTreeEntry), 0 };
+const struct aa_head nameTreeHead =
+    { NULL, cmpRefTargetName, offsetof(UA_ReferenceTarget, nameTreeEntry),
+      offsetof(UA_ReferenceTarget, targetNameHash) };
 
 /* General node handling methods. There is no UA_Node_new() method here.
  * Creating nodes is part of the Nodestore layer */
@@ -219,8 +216,8 @@ UA_Node_copy(const UA_Node *src, UA_Node *dst) {
             drefs->referenceTypeIndex = srefs->referenceTypeIndex;
             drefs->isInverse = srefs->isInverse;
             TAILQ_INIT(&drefs->queueHead);
-            ZIP_INIT(&drefs->refTargetsIdTree);
-            ZIP_INIT(&drefs->refTargetsNameTree);
+            drefs->idTreeRoot = NULL;
+            drefs->nameTreeRoot = NULL;
 
             UA_ReferenceTarget *sTarget;
             TAILQ_FOREACH(sTarget, &srefs->queueHead, queuePointers) {
@@ -506,10 +503,21 @@ addReferenceTarget(UA_NodeReferenceKind *refs, const UA_ExpandedNodeId *target,
 
     entry->targetIdHash = targetIdHash;
     entry->targetNameHash = targetNameHash;
-    unsigned char rank = ZIP_FFS32(UA_UInt32_random());
     TAILQ_INSERT_TAIL(&refs->queueHead, entry, queuePointers);
-    ZIP_INSERT(UA_ReferenceTargetIdTree, &refs->refTargetsIdTree, entry, rank);
-    ZIP_INSERT(UA_ReferenceTargetNameTree, &refs->refTargetsNameTree, entry, rank);
+
+    /* Insert to the id lookup binary search tree. Only the root is kept in refs
+     * to save space. */
+    struct aa_head _idTreeHead = idTreeHead;
+    _idTreeHead.root = refs->idTreeRoot;
+    aa_insert(&_idTreeHead, entry);
+    refs->idTreeRoot = _idTreeHead.root;
+
+    /* Insert to the name lookup binary search tree */
+    struct aa_head _nameTreeHead = nameTreeHead;
+    _nameTreeHead.root = refs->nameTreeRoot;
+    aa_insert(&_nameTreeHead, entry);
+    refs->nameTreeRoot = _nameTreeHead.root;
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -530,11 +538,12 @@ addReferenceKind(UA_NodeHead *head, UA_Byte refTypeIndex, UA_Boolean isForward,
     newRef->referenceTypeIndex = refTypeIndex;
     newRef->isInverse = !isForward;
     TAILQ_INIT(&newRef->queueHead);
-    ZIP_INIT(&newRef->refTargetsIdTree);
-    ZIP_INIT(&newRef->refTargetsNameTree);
-    UA_StatusCode retval = addReferenceTarget(newRef, targetNodeId,
-                                              UA_ExpandedNodeId_hash(targetNodeId),
-                                              targetBrowseNameHash);
+    newRef->idTreeRoot = NULL;
+    newRef->nameTreeRoot = NULL;
+    UA_StatusCode retval =
+        addReferenceTarget(newRef, targetNodeId,
+                           UA_ExpandedNodeId_hash(targetNodeId),
+                           targetBrowseNameHash);
     if(retval != UA_STATUSCODE_GOOD) {
         if(head->referencesSize == 0) {
             UA_free(head->references);
@@ -551,6 +560,8 @@ UA_StatusCode
 UA_Node_addReference(UA_Node *node, UA_Byte refTypeIndex, UA_Boolean isForward,
                      const UA_ExpandedNodeId *targetNodeId,
                      UA_UInt32 targetBrowseNameHash) {
+    struct aa_head _idTreeHead = idTreeHead;
+
     /* Find the matching refkind */
     for(size_t i = 0; i < node->head.referencesSize; ++i) {
         UA_NodeReferenceKind *refs = &node->head.references[i];
@@ -563,8 +574,9 @@ UA_Node_addReference(UA_Node *node, UA_Byte refTypeIndex, UA_Boolean isForward,
         UA_ReferenceTarget tmpTarget;
         tmpTarget.targetId = *targetNodeId;
         tmpTarget.targetIdHash = UA_ExpandedNodeId_hash(targetNodeId);
-        UA_ReferenceTarget *found =
-            ZIP_FIND(UA_ReferenceTargetIdTree, &refs->refTargetsIdTree, &tmpTarget);
+        _idTreeHead.root = refs->idTreeRoot;
+        UA_ReferenceTarget *found = (UA_ReferenceTarget*)
+            aa_find(&_idTreeHead, &tmpTarget);
         if(found)
             return UA_STATUSCODE_BADDUPLICATEREFERENCENOTALLOWED;
 
@@ -582,6 +594,9 @@ UA_Node_addReference(UA_Node *node, UA_Byte refTypeIndex, UA_Boolean isForward,
 UA_StatusCode
 UA_Node_deleteReference(UA_Node *node, UA_Byte refTypeIndex, UA_Boolean isForward,
                         const UA_ExpandedNodeId *targetNodeId) {
+    struct aa_head _idTreeHead = idTreeHead;
+    struct aa_head _nameTreeHead = nameTreeHead;
+
     UA_NodeHead *head = &node->head;
     for(size_t i = head->referencesSize; i > 0; --i) {
         UA_NodeReferenceKind *refs = &head->references[i-1];
@@ -590,20 +605,26 @@ UA_Node_deleteReference(UA_Node *node, UA_Byte refTypeIndex, UA_Boolean isForwar
         if(refTypeIndex != refs->referenceTypeIndex)
             continue;
 
+        _idTreeHead.root = refs->idTreeRoot;
+        _nameTreeHead.root = refs->nameTreeRoot;
+
         UA_ReferenceTarget tmpTarget;
         tmpTarget.targetId = *targetNodeId;
         tmpTarget.targetIdHash = UA_ExpandedNodeId_hash(targetNodeId);
-        UA_ReferenceTarget *target =
-            ZIP_FIND(UA_ReferenceTargetIdTree, &refs->refTargetsIdTree, &tmpTarget);
+        UA_ReferenceTarget *target = (UA_ReferenceTarget*)
+            aa_find(&_idTreeHead, &tmpTarget);
         if(!target)
             continue;
 
         /* Ok, delete the reference */
         TAILQ_REMOVE(&refs->queueHead, target, queuePointers);
-        ZIP_REMOVE(UA_ReferenceTargetIdTree, &refs->refTargetsIdTree, target);
-        ZIP_REMOVE(UA_ReferenceTargetNameTree, &refs->refTargetsNameTree, target);
+        aa_remove(&_idTreeHead, target);
+        aa_remove(&_nameTreeHead, target);
         UA_ExpandedNodeId_clear(&target->targetId);
         UA_free(target);
+
+        refs->idTreeRoot = _idTreeHead.root;
+        refs->nameTreeRoot = _nameTreeHead.root;
 
         if(!TAILQ_EMPTY(&refs->queueHead))
             return UA_STATUSCODE_GOOD; /* At least one target remains for the refkind */
