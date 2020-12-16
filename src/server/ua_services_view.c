@@ -885,17 +885,23 @@ UA_Server_browseNext(UA_Server *server, UA_Boolean releaseContinuationPoint,
 /* TranslateBrowsePath */
 /***********************/
 
-/* Recurse into left/right nodes, as long as we are on the requested hash */
+/* Find all entries for that hash. There are duplicate for the possible hash
+ * collisions. The exact browsename is checked afterwards. */
 static UA_StatusCode
-recursiveAddBrowseHashTarget(RefTree *next, const UA_ReferenceTarget *rt) {
+recursiveAddBrowseHashTarget(RefTree *results, struct aa_head *head,
+                             const UA_ReferenceTarget *rt) {
     UA_assert(rt);
-    UA_StatusCode res = RefTree_add(next, &rt->targetId, NULL);
-    UA_ReferenceTarget *left = ZIP_LEFT(rt, nameTreeFields);
-    if(left && left->targetNameHash == rt->targetNameHash)
-        res |= recursiveAddBrowseHashTarget(next, left);
-    UA_ReferenceTarget *right = ZIP_RIGHT(rt, nameTreeFields);
-    if(right && right->targetNameHash == rt->targetNameHash)
-        res |= recursiveAddBrowseHashTarget(next, right);
+    UA_StatusCode res = RefTree_add(results, &rt->targetId, NULL);
+    UA_ReferenceTarget *prev = (UA_ReferenceTarget*)aa_prev(head, rt);
+    while(prev && prev->targetNameHash == rt->targetNameHash) {
+        res |= RefTree_add(results, &prev->targetId, NULL);
+        prev = (UA_ReferenceTarget*)aa_prev(head, prev);
+    }
+    UA_ReferenceTarget *next= (UA_ReferenceTarget*)aa_next(head, rt);
+    while(next && next->targetNameHash == rt->targetNameHash) {
+        res |= RefTree_add(results, &next->targetId, NULL);
+        next = (UA_ReferenceTarget*)aa_next(head, next);
+    }
     return res;
 }
 
@@ -919,6 +925,8 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session,
         if(res != UA_STATUSCODE_GOOD)
             return UA_STATUSCODE_BADNOMATCH;
     }
+
+    struct aa_head _nameTreeHead = nameTreeHead;
 
     /* Loop over all Nodes in the current depth level */
     for(size_t i = 0; i < current->size; i++) {
@@ -977,12 +985,13 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session,
              * the hash matches. The exact BrowseName will be verified in the
              * next iteration of the outer loop. So we only have to retrieve
              * every node just once. */
-            UA_ReferenceTarget *rt = ZIP_FIND(UA_ReferenceTargetNameTree,
-                                              &rk->refTargetsNameTree, &browseNameHash);
+            _nameTreeHead.root = rk->nameTreeRoot;
+            UA_ReferenceTarget *rt = (UA_ReferenceTarget*)
+                aa_find(&_nameTreeHead, &browseNameHash);
             if(!rt)
                 continue;
 
-            res = recursiveAddBrowseHashTarget(next, rt);
+            res = recursiveAddBrowseHashTarget(next, &_nameTreeHead, rt);
             if(res != UA_STATUSCODE_GOOD)
                 break;
         }
