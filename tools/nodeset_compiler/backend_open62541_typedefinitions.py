@@ -41,7 +41,6 @@ whitelistFuncAttrWarnUnusedResult = []  # for instances [ "String", "ByteString"
 def makeCLiteral(value):
     return re.sub(r'(?<!\\)"', r'\\"', value.replace('\\', r'\\\\').replace('\n', r'\\n').replace('\r', r''))
 
-
 # Strip invalid characters to create valid C identifiers (variable names etc):
 def makeCIdentifier(value):
     keywords = frozenset(["double", "int", "float", "char"])
@@ -170,10 +169,10 @@ class CGenerator(object):
             m = "\n{\n    UA_%s_%s, /* .memberTypeIndex */\n" % (
                 member.member_type.outname.upper(), makeCIdentifier(member.member_type.name.upper()))
             m += "    "
-            if not before:
+            if not before and not isUnion:
                 m += "0,"
             elif isUnion:
-                m += "sizeof(UA_UInt32),"
+                    m += "offsetof(UA_%s, fields.%s)," % (idName, member_name)
             else:
                 if member.is_array:
                     m += "offsetof(UA_%s, %sSize)" % (idName, member_name)
@@ -284,9 +283,15 @@ class CGenerator(object):
         count = 0
         for member in struct.members:
             if member.is_array:
+                if struct.is_union:
+                    returnstr += "        struct {\n        "
                 returnstr += "    size_t %sSize;\n" % makeCIdentifier(member.name)
+                if struct.is_union:
+                    returnstr += "        "
                 returnstr += "    UA_%s *%s;\n" % (
                     makeCIdentifier(member.member_type.name), makeCIdentifier(member.name))
+                if struct.is_union:
+                    returnstr += "        } " + makeCIdentifier(member.name) + ";\n"
             elif struct.is_union:
                 if count > 0:
                     returnstr += "        UA_%s %s;\n" % (
