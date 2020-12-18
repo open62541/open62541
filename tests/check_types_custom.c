@@ -274,7 +274,7 @@ static const UA_DataType selfContainingUnionType = {
     UA_DATATYPEKIND_UNION, /* .typeKind */
     false, /* .pointerFree */
     false, /* .overlayable */
-    3, /* .membersSize */
+    2, /* .membersSize */
     SelfContainingUnion_members  /* .members */
     UA_TYPENAME("SelfContainingStruct") /* .typeName */
 };

@@ -154,6 +154,7 @@ class StructType(Type):
         Type.__init__(self, outname, xml, namespace)
         length_fields = []
         optional_fields = []
+        switch_fields = []
         self.is_recursive = False
 
         typename = type_aliases.get(xml.get("Name"), xml.get("Name"))
@@ -165,6 +166,10 @@ class StructType(Type):
             if length_field:
                 length_fields.append(length_field)
         for child in xml:
+            switch_field = child.get("SwitchField")
+            if switch_field:
+                switch_fields.append(switch_field)
+        for child in xml:
             child_type = child.get("TypeName")
             if child_type and get_type_name(child_type)[1] == "Bit":
                 optional_fields.append(child.get("Name"))
@@ -174,6 +179,8 @@ class StructType(Type):
             if child.get("Name") in length_fields:
                 continue
             if get_type_name(child.get("TypeName"))[1] == "Bit":
+                continue
+            if self.is_union and child.get("Name") in switch_fields:
                 continue
             switch_field = child.get("SwitchField")
             if switch_field and switch_field in optional_fields:
