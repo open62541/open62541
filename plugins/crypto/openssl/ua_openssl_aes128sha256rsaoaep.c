@@ -200,7 +200,7 @@ UA_AsySig_Aes128Sha256RsaOaep_Verify(const UA_SecurityPolicy *securityPolicy,
 }
 
 /* Compares the supplied certificate with the certificate
- * in the endpoit context
+ * in the endpoint context
  */
 
 static UA_StatusCode

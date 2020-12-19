@@ -197,7 +197,7 @@ UA_AsySig_Basic256Sha256_Verify (const UA_SecurityPolicy * securityPolicy,
 }
 
 /* Compares the supplied certificate with the certificate 
- * in the endpoit context 
+ * in the endpoint context 
  */
 
 static UA_StatusCode
