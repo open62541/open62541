@@ -13,7 +13,6 @@
 #include "ua_pubsub.h"
 #include "ua_server_internal.h"
 #include "ua_pubsub_networkmessage.h"
-#include <open62541/plugin/pubsub_ethernet_etf.h>
 
 #define PUBLISHING_MULTICAST_MAC_ADDRESS1 "opc.eth://01-00-5E-7F-00-01"
 #define PUBLISHING_MULTICAST_MAC_ADDRESS2 "opc.eth://01-00-5E-7F-00-01:8.4"
@@ -48,7 +47,7 @@ static void setup(void) {
     if(!config->pubsubTransportLayers) {
         UA_ServerConfig_clean(config);
     }
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerEthernetETF();
+    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerEthernet();
     config->pubsubTransportLayersSize++;
 }
 
@@ -75,9 +74,16 @@ START_TEST(EthernetSendWithoutVLANTag) {
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING(TRANSPORT_PROFILE_URI);
     connectionConfig.publisherId.numeric = PUBLISHER_ID;
-    /* ETF configuration settings */
-    connectionConfig.etfConfiguration.socketPriority = SOCKET_PRIORITY;
-    connectionConfig.etfConfiguration.sotxtimeEnabled = UA_TRUE;
+    /* Connection options are given as Key/Value Pairs - Sockprio and Txtime */
+    UA_KeyValuePair connectionOptions[2];
+    connectionOptions[0].key = UA_QUALIFIEDNAME(0, "sockpriority");
+    UA_UInt32 sockPriority   = SOCKET_PRIORITY;
+    UA_Variant_setScalar(&connectionOptions[0].value, &sockPriority, &UA_TYPES[UA_TYPES_UINT32]);
+    connectionOptions[1].key = UA_QUALIFIEDNAME(0, "enablesotxtime");
+    UA_Boolean enableTxTime  = UA_TRUE;
+    UA_Variant_setScalar(&connectionOptions[1].value, &enableTxTime, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    connectionConfig.connectionProperties     = connectionOptions;
+    connectionConfig.connectionPropertiesSize = 2;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connection_test);
     connection = UA_PubSubConnection_findConnectionbyId(server, connection_test);
     if(!connection) {
@@ -85,19 +91,18 @@ START_TEST(EthernetSendWithoutVLANTag) {
     }
 
     /* Define Ethernet ETF transport settings */
-    UA_EthernetETFWriterGroupTransportDataType ethernetETFtransportSettings;
-    memset(&ethernetETFtransportSettings, 0, sizeof(UA_EthernetETFWriterGroupTransportDataType));
-    ethernetETFtransportSettings.txtime_enabled = UA_TRUE;
-    ethernetETFtransportSettings.transmission_time = 0;
+    UA_EthernetWriterGroupTransportDataType ethernettransportSettings;
+    memset(&ethernettransportSettings, 0, sizeof(UA_EthernetWriterGroupTransportDataType));
+    ethernettransportSettings.transmission_time = 0;
 
     /* Encapsulate ETF config in transportSettings */
     UA_ExtensionObject transportSettings;
     memset(&transportSettings, 0, sizeof(UA_ExtensionObject));
     transportSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
-    transportSettings.content.decoded.data = &ethernetETFtransportSettings;
+    transportSettings.content.decoded.data = &ethernettransportSettings;
     clock_gettime(CLOCKID, &nextnanosleeptime);
     transmission_time = ((UA_UInt64)nextnanosleeptime.tv_sec * SECONDS + (UA_UInt64)nextnanosleeptime.tv_nsec) + roundOffCycleTime + QBV_OFFSET;
-    ethernetETFtransportSettings.transmission_time = transmission_time;
+    ethernettransportSettings.transmission_time = transmission_time;
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
 
     /* Initialize a buffer to send data */
@@ -121,28 +126,34 @@ START_TEST(EthernetSendWithVLANTag) {
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING(TRANSPORT_PROFILE_URI);
     connectionConfig.publisherId.numeric = PUBLISHER_ID;
-    /* ETF configuration settings */
-    connectionConfig.etfConfiguration.socketPriority = SOCKET_PRIORITY;
-    connectionConfig.etfConfiguration.sotxtimeEnabled = UA_TRUE;
+    /* Connection options are given as Key/Value Pairs - Sockprio and Txtime */
+    UA_KeyValuePair connectionOptions[2];
+    connectionOptions[0].key = UA_QUALIFIEDNAME(0, "sockpriority");
+    UA_UInt32 sockPriority   = SOCKET_PRIORITY;
+    UA_Variant_setScalar(&connectionOptions[0].value, &sockPriority, &UA_TYPES[UA_TYPES_UINT32]);
+    connectionOptions[1].key = UA_QUALIFIEDNAME(0, "enablesotxtime");
+    UA_Boolean enableTxTime  = UA_TRUE;
+    UA_Variant_setScalar(&connectionOptions[1].value, &enableTxTime, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    connectionConfig.connectionProperties     = connectionOptions;
+    connectionConfig.connectionPropertiesSize = 2;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connection_test);
     connection = UA_PubSubConnection_findConnectionbyId(server, connection_test);
     if(!connection) {
         UA_Server_delete(server);
     }
     /* Define Ethernet ETF transport settings */
-    UA_EthernetETFWriterGroupTransportDataType ethernetETFtransportSettings;
-    memset(&ethernetETFtransportSettings, 0, sizeof(UA_EthernetETFWriterGroupTransportDataType));
-    ethernetETFtransportSettings.txtime_enabled = UA_TRUE;
-    ethernetETFtransportSettings.transmission_time = 0;
+    UA_EthernetWriterGroupTransportDataType ethernettransportSettings;
+    memset(&ethernettransportSettings, 0, sizeof(UA_EthernetWriterGroupTransportDataType));
+    ethernettransportSettings.transmission_time = 0;
 
     /* Encapsulate ETF config in transportSettings */
     UA_ExtensionObject transportSettings;
     memset(&transportSettings, 0, sizeof(UA_ExtensionObject));
     transportSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
-    transportSettings.content.decoded.data = &ethernetETFtransportSettings;
+    transportSettings.content.decoded.data = &ethernettransportSettings;
     clock_gettime(CLOCKID, &nextnanosleeptime);
     transmission_time = ((UA_UInt64)nextnanosleeptime.tv_sec * SECONDS + (UA_UInt64)nextnanosleeptime.tv_nsec) + roundOffCycleTime + QBV_OFFSET;
-    ethernetETFtransportSettings.transmission_time = transmission_time;
+    ethernettransportSettings.transmission_time = transmission_time;
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
 
     /* Initialize a buffer to send data */

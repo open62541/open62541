@@ -789,9 +789,7 @@ void ValueAttributeRead(UA_Client *client, void *userdata,
         } else if(UA_Variant_isScalar(&res->value) &&
                   res->value.type == data->outDataType) {
             /* Unpack the value */
-            UA_STACKARRAY(UA_Byte, value, data->outDataType->memSize);
-            memcpy(&value, res->value.data, data->outDataType->memSize);
-            cc->userCallback(client, cc->userData, requestId, &value);
+            cc->userCallback(client, cc->userData, requestId, res->value.data);
             done = true;
         }
     }

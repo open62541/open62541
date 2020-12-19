@@ -45,7 +45,7 @@ START_TEST(checkScalarValues) {
     UA_Variant_clear(&out);
     // Point_scalar_noInit
     UA_Server_readValue(server, UA_NODEID_NUMERIC(2, 10005), &out);
-    ck_assert(out.data == NULL);
+    ck_assert(out.data != NULL); /* a default value is generated */
     UA_Variant_clear(&out);
 }
 END_TEST
@@ -56,7 +56,7 @@ START_TEST(check1dimValues) {
     // Point_1dim_noInit
     UA_Server_readValue(server, UA_NODEID_NUMERIC(2, 10007), &out);
     ck_assert(!UA_Variant_isScalar(&out));
-    ck_assert(out.arrayDimensionsSize == 0);
+    ck_assert(out.arrayDimensionsSize == 1);
     UA_Variant_clear(&out);
     // Point_1dim_init
     UA_Server_readValue(server, UA_NODEID_NUMERIC(2, 10004), &out);

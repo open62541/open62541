@@ -44,10 +44,15 @@ static void * serverloop(void *_) {
 
 static void start_server(void) {
     running = true;
-    server = UA_Server_new();
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
 
+    /* less log output */
+    UA_ServerConfig initialConfig;
+    memset(&initialConfig, 0, sizeof(UA_ServerConfig));
+    UA_ServerConfig_setDefault(&initialConfig);
+    initialConfig.allowEmptyVariables = UA_RULEHANDLING_ACCEPT;
+    server = UA_Server_newWithConfig(&initialConfig);
+
+    UA_ServerConfig *config = UA_Server_getConfig(server);
     config->applicationDescription.applicationType = UA_APPLICATIONTYPE_SERVER;
     config->mdnsEnabled = true;
     config->mdnsConfig.mdnsServerName = UA_String_fromChars("Sample Multicast Server");

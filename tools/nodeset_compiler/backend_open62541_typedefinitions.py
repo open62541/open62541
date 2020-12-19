@@ -51,9 +51,9 @@ def getNodeidTypeAndId(nodeId):
     if not nodeId:
         return "UA_NODEIDTYPE_NUMERIC, {0}"
     if '=' not in nodeId:
-        return "UA_NODEIDTYPE_NUMERIC, {{{0}}}".format(nodeId)
+        return "UA_NODEIDTYPE_NUMERIC, {{{0}LU}}".format(nodeId)
     if nodeId.startswith("i="):
-        return "UA_NODEIDTYPE_NUMERIC, {{{0}}}".format(nodeId[2:])
+        return "UA_NODEIDTYPE_NUMERIC, {{{0}LU}}".format(nodeId[2:])
     if nodeId.startswith("s="):
         strId = nodeId[2:]
         return "UA_NODEIDTYPE_STRING, {{ .string = UA_STRING_STATIC(\"{id}\") }}".format(id=strId.replace("\"", "\\\""))
@@ -382,7 +382,7 @@ _UA_BEGIN_DECLS
             totalCount += len(self.filtered_types[ns])
         self.printh("#define UA_" + self.parser.outname.upper() + "_COUNT %s" % (str(totalCount)))
 
-        if len(self.filtered_types) > 0:
+        if totalCount > 0:
 
             self.printh(
                 "extern UA_EXPORT const UA_DataType UA_" + self.parser.outname.upper() + "[UA_" + self.parser.outname.upper() + "_COUNT];")
@@ -448,14 +448,16 @@ _UA_END_DECLS
 
 #include "''' + self.parser.outname + '''_generated.h"''')
 
+        totalCount = 0
         for ns in self.filtered_types:
+            totalCount += len(self.filtered_types[ns])
             for i, t_name in enumerate(self.filtered_types[ns]):
                 t = self.filtered_types[ns][t_name]
                 self.printc("")
                 self.printc("/* " + t.name + " */")
                 self.printc(CGenerator.print_members(t, self.namespaceMap))
 
-        if len(self.filtered_types) > 0:
+        if totalCount > 0:
             self.printc(
                 "const UA_DataType UA_%s[UA_%s_COUNT] = {" % (self.parser.outname.upper(), self.parser.outname.upper()))
 

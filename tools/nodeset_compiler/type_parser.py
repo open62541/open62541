@@ -20,10 +20,12 @@ builtin_types = ["Boolean", "SByte", "Byte", "Int16", "UInt16", "Int32", "UInt32
 
 excluded_types = ["NodeIdType", "InstanceNode", "TypeNode", "Node", "ObjectNode",
                   "ObjectTypeNode", "VariableNode", "VariableTypeNode", "ReferenceTypeNode",
-                  "MethodNode", "ViewNode", "DataTypeNode", "NumericRange", "NumericRangeDimensions",
+                  "MethodNode", "ViewNode", "DataTypeNode", "NumericRangeDimensions",
                   "UA_ServerDiagnosticsSummaryDataType", "UA_SamplingIntervalDiagnosticsDataType",
                   "UA_SessionSecurityDiagnosticsDataType", "UA_SubscriptionDiagnosticsDataType",
                   "UA_SessionDiagnosticsDataType"]
+
+rename_types = {"NumericRange": "OpaqueNumericRange"}
 
 builtin_overlayable = ["Boolean", "SByte", "Byte", "Int16", "UInt16", "Int32", "UInt32",
                        "Int64", "UInt64", "Float", "Double", "DateTime", "StatusCode", "Guid"]
@@ -41,7 +43,6 @@ def get_base_type_for_opaque(name):
         return user_opaque_type_mapping[name]
     else:
         return get_base_type_for_opaque_ns0(name)
-
 
 def get_type_name(xml_type_name):
     [namespace, type_name] = xml_type_name.split(':', 1)
@@ -348,6 +349,10 @@ class TypeParser():
     def insert_type(self, typeObject):
         if typeObject.namespaceUri not in self.types:
             self.types[typeObject.namespaceUri] = OrderedDict()
+
+        if typeObject.name in rename_types:
+            typeObject.name = rename_types[typeObject.name]
+
         if typeObject.name not in self.types[typeObject.namespaceUri]:
             self.types[typeObject.namespaceUri][typeObject.name] = typeObject
 
@@ -429,6 +434,8 @@ class CSVBSDTypeParser(TypeParser):
                 typeName = "Variant"
             elif typeName == "Structure":
                 typeName = "ExtensionObject"
+            if typeName in rename_types:
+                typeName = rename_types[typeName]
             for ns in self.types:
                 if typeName in self.types[ns]:
                     self.types[ns][typeName].nodeId = row[1]

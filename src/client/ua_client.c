@@ -706,3 +706,8 @@ UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout) {
 
     return client->connectStatus;
 }
+
+const UA_DataType *
+UA_Client_findDataType(UA_Client *client, const UA_NodeId *typeId) {
+    return UA_findDataTypeWithCustom(typeId, client->config.customDataTypes);
+}

@@ -23,6 +23,8 @@
 #include "ua_pubsub_ns0.h"
 #endif
 
+#include "ua_pubsub_manager.h"
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 #include "ua_subscription.h"
 #endif
@@ -330,11 +332,25 @@ UA_Server_init(UA_Server *server) {
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
 
+#ifdef UA_ENABLE_PUBSUB
     /* Build PubSub information model */
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     UA_Server_initPubSubNS0(server);
 #endif
 
+    server->config.pubsubConfiguration = (UA_PubSubConfiguration*) UA_calloc(1, sizeof(UA_PubSubConfiguration));
+    if (!server->config.pubsubConfiguration) {
+        goto cleanup;
+    }
+
+#ifdef UA_ENABLE_PUBSUB_MONITORING
+    /* setup default PubSub monitoring callbacks */
+    if (UA_PubSubManager_setDefaultMonitoringCallbacks(&(server->config.pubsubConfiguration->monitoringInterface)) != 
+        UA_STATUSCODE_GOOD) {
+        goto cleanup;
+    }
+#endif /* UA_ENABLE_PUBSUB_MONITORING */
+#endif /* UA_ENABLE_PUBSUB */
     return server;
 
  cleanup:
@@ -352,6 +368,14 @@ UA_Server_newWithConfig(UA_ServerConfig *config) {
         return NULL;
     }
     server->config = *config;
+
+
+    /* The config might have been "moved" into the server struct. Ensure that
+     * the logger pointer is correct. */
+    for(size_t i = 0; i < server->config.securityPoliciesSize; i++)
+        server->config.securityPolicies[i].logger = &server->config.logger;
+
+    /* Reset the old config */
     memset(config, 0, sizeof(UA_ServerConfig));
     return UA_Server_init(server);
 }
@@ -550,16 +574,18 @@ UA_Server_run_startup(UA_Server *server) {
      * E.g. if fuzzing is enabled, and two clients are connected, subscriptions do not work properly,
      * since the tokens will be overridden to allow easier fuzzing. */
     UA_LOG_FATAL(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "Server was built with unsafe fuzzing mode. This should only be used for specific fuzzing builds.");
+                 "Server was built with unsafe fuzzing mode. "
+                 "This should only be used for specific fuzzing builds.");
 #endif
 
     /* ensure that the uri for ns1 is set up from the app description */
     setupNs1Uri(server);
 
     /* write ServerArray with same ApplicationURI value as NamespaceArray */
-    UA_StatusCode retVal = writeNs0VariableArray(server, UA_NS0ID_SERVER_SERVERARRAY,
-                                    &server->config.applicationDescription.applicationUri,
-                                    1, &UA_TYPES[UA_TYPES_STRING]);
+    UA_StatusCode retVal =
+        writeNs0VariableArray(server, UA_NS0ID_SERVER_SERVERARRAY,
+                              &server->config.applicationDescription.applicationUri,
+                              1, &UA_TYPES[UA_TYPES_STRING]);
     if(retVal != UA_STATUSCODE_GOOD)
         return retVal;
 
@@ -598,13 +624,14 @@ UA_Server_run_startup(UA_Server *server) {
     for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
         UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
         nl->statistics = &server->serverStats.ns;
-        result |= nl->start(nl, &server->config.customHostname);
+        result |= nl->start(nl, &server->config.logger, &server->config.customHostname);
     }
     if(result != UA_STATUSCODE_GOOD)
         return result;
 
-    /* Update the application description to match the previously added discovery urls.
-     * We can only do this after the network layer is started since it inits the discovery url */
+    /* Update the application description to match the previously added
+     * discovery urls. We can only do this after the network layer is started
+     * since it inits the discovery url */
     if(server->config.applicationDescription.discoveryUrlsSize != 0) {
         UA_Array_delete(server->config.applicationDescription.discoveryUrls,
                         server->config.applicationDescription.discoveryUrlsSize,
@@ -615,10 +642,12 @@ UA_Server_run_startup(UA_Server *server) {
         UA_Array_new(server->config.networkLayersSize, &UA_TYPES[UA_TYPES_STRING]);
     if(!server->config.applicationDescription.discoveryUrls)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    server->config.applicationDescription.discoveryUrlsSize = server->config.networkLayersSize;
+    server->config.applicationDescription.discoveryUrlsSize =
+        server->config.networkLayersSize;
     for(size_t i = 0; i < server->config.applicationDescription.discoveryUrlsSize; i++) {
         UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
-        UA_String_copy(&nl->discoveryUrl, &server->config.applicationDescription.discoveryUrls[i]);
+        UA_String_copy(&nl->discoveryUrl,
+                       &server->config.applicationDescription.discoveryUrls[i]);
     }
 
     /* Start the multicast discovery server */

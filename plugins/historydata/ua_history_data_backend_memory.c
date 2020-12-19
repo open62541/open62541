@@ -556,6 +556,7 @@ deleteMembers_backend_memory(UA_HistoryDataBackend *backend)
     if (backend == NULL || backend->context == NULL)
         return;
     UA_MemoryStoreContext_clear((UA_MemoryStoreContext*)backend->context);
+    UA_free(backend->context);
 }
 
 

@@ -47,34 +47,34 @@ typedef void (*UA_clearSignature)(void *p, const UA_DataType *type);
 extern const UA_copySignature copyJumpTable[UA_DATATYPEKINDS];
 extern const UA_clearSignature clearJumpTable[UA_DATATYPEKINDS];
 
-/* TODO: The standard-defined types are ordered. See if binary search is
- * more efficient. */
 const UA_DataType *
-UA_findDataType(const UA_NodeId *typeId) {
-    if(typeId->identifierType != UA_NODEIDTYPE_NUMERIC)
-        return NULL;
-
-    /* Always look in built-in types first
-     * (may contain data types from all namespaces) */
+UA_findDataTypeWithCustom(const UA_NodeId *typeId,
+                          const UA_DataTypeArray *customTypes) {
+    /* Always look in built-in types first (may contain data types from all
+     * namespaces).
+     *
+     * TODO: The standard-defined types are ordered. See if binary search is
+     * more efficient. */
     for(size_t i = 0; i < UA_TYPES_COUNT; ++i) {
-        if(UA_TYPES[i].typeId.identifier.numeric == typeId->identifier.numeric
-           && UA_TYPES[i].typeId.namespaceIndex == typeId->namespaceIndex)
+        if(UA_NodeId_equal(&UA_TYPES[i].typeId, typeId))
             return &UA_TYPES[i];
     }
 
-    /* TODO When other namespace look in custom types, too, requires access to custom types array here! */
-    /*if(typeId->namespaceIndex != 0) {
-        size_t customTypesArraySize;
-        const UA_DataType *customTypesArray;
-        UA_getCustomTypes(&customTypesArraySize, &customTypesArray);
-        for(size_t i = 0; i < customTypesArraySize; ++i) {
-            if(customTypesArray[i].typeId.identifier.numeric == typeId->identifier.numeric
-               && customTypesArray[i].typeId.namespaceIndex == typeId->namespaceIndex)
-                return &customTypesArray[i];
+    /* Search in the customTypes */
+    while(customTypes) {
+        for(size_t i = 0; i < customTypes->typesSize; ++i) {
+            if(UA_NodeId_equal(&customTypes->types[i].typeId, typeId))
+                return &customTypes->types[i];
         }
-    }*/
+        customTypes = customTypes->next;
+    }
 
     return NULL;
+}
+
+const UA_DataType *
+UA_findDataType(const UA_NodeId *typeId) {
+    return UA_findDataTypeWithCustom(typeId, NULL);
 }
 
 /***************************/

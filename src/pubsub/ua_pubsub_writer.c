@@ -184,6 +184,7 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
     if(!newWriterGroup)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
+    newWriterGroup->componentType = UA_PUBSUB_COMPONENT_WRITERGROUP;
     newWriterGroup->linkedConnection = currentConnectionContext;
     UA_PubSubManager_generateUniqueNodeId(server, &newWriterGroup->identifier);
     if(writerGroupIdentifier)
@@ -1191,7 +1192,7 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_PubSubState state, UA_Writer
                                    "Received unknown PubSub state!");
             }
             break;
-        case UA_PUBSUBSTATE_ERROR:
+        case UA_PUBSUBSTATE_ERROR: {
             switch (writerGroup->state){
                 case UA_PUBSUBSTATE_DISABLED:
                     break;
@@ -1207,10 +1208,16 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_PubSubState state, UA_Writer
                     return UA_STATUSCODE_GOOD;
                 default:
                     UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                                   "Received unknown PubSub state!");
+                                    "Received unknown PubSub state!");
             }
             writerGroup->state = UA_PUBSUBSTATE_ERROR;
+            /* TODO: WIP - example usage of pubsubStateChangeCallback -> inform application about error state, reason param necessary */
+            UA_ServerConfig *pConfig = UA_Server_getConfig(server);
+            if (pConfig->pubsubConfiguration->pubsubStateChangeCallback != 0) {
+                pConfig->pubsubConfiguration->pubsubStateChangeCallback(&writerGroup->identifier, UA_PUBSUBSTATE_ERROR, UA_STATUSCODE_BADINTERNALERROR);
+            }
             break;
+        }
         default:
             UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                            "Received unknown PubSub state!");
@@ -1263,6 +1270,8 @@ UA_Server_addDataSetWriter(UA_Server *server,
     UA_DataSetWriter *newDataSetWriter = (UA_DataSetWriter *) UA_calloc(1, sizeof(UA_DataSetWriter));
     if(!newDataSetWriter)
         return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    newDataSetWriter->componentType = UA_PUBSUB_COMPONENT_DATASETWRITER;
 
     if (wg->state == UA_PUBSUBSTATE_OPERATIONAL) {
         retVal = UA_DataSetWriter_setPubSubState(server, UA_PUBSUBSTATE_OPERATIONAL, newDataSetWriter);

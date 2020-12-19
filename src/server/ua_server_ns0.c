@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2017-2020 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Thomas Bender
  *    Copyright 2017 (c) Julian Grothoff
@@ -768,22 +768,21 @@ UA_Server_initNS0(UA_Server *server) {
      * through the NS compiler */
     server->bootstrapNS0 = true;
     UA_StatusCode retVal = UA_Server_createNS0_base(server);
-    server->bootstrapNS0 = false;
-    if(retVal != UA_STATUSCODE_GOOD)
-        return retVal;
 
 #ifdef UA_GENERATED_NAMESPACE_ZERO
     /* Load nodes and references generated from the XML ns0 definition */
-    retVal = namespace0_generated(server);
+    retVal |= namespace0_generated(server);
 #else
     /* Create a minimal server object */
-    retVal = UA_Server_minimalServerObject(server);
+    retVal |= UA_Server_minimalServerObject(server);
 #endif
+
+    server->bootstrapNS0 = false;
 
     if(retVal != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "Initialization of Namespace 0 (before bootstrapping) "
-                     "failed with %s. See previous outputs for any error messages.",
+                     "Initialization of Namespace 0 failed with %s. "
+                     "See previous outputs for any error messages.",
                      UA_StatusCode_name(retVal));
         return UA_STATUSCODE_BADINTERNALERROR;
     }
