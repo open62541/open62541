@@ -270,6 +270,8 @@ ServerNetworkLayerTCP_add(UA_ServerNetworkLayer *nl, ServerNetworkLayerTCP *laye
     c->state = UA_CONNECTIONSTATE_OPENING;
     c->openingDate = UA_DateTime_nowMonotonic();
 
+    layer->connectionsSize++;
+
     /* Add to the linked list */
     LIST_INSERT_HEAD(&layer->connections, e, pointers);
     if(nl->statistics) {
@@ -671,7 +673,7 @@ static void
 ClientNetworkLayerTCP_free(UA_Connection *connection) {
     if(!connection->handle)
         return;
-    
+
     TCPClientConnection *tcpConnection = (TCPClientConnection *)connection->handle;
     if(tcpConnection->server)
         UA_freeaddrinfo(tcpConnection->server);

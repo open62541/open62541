@@ -155,6 +155,9 @@ struct UA_Server {
     UA_ServerStatistics serverStats;
 };
 
+
+extern const struct aa_head nameTreeHead;
+
 /**************************/
 /* SecureChannel Handling */
 /**************************/
