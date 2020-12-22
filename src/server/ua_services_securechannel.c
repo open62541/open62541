@@ -96,6 +96,12 @@ UA_Server_cleanupTimedOutSecureChannels(UA_Server *server,
             continue;
         }
 
+        /* Is the SecurityToken already created? */
+        if(entry->channel.securityToken.createdAt == 0) {
+        	/* No -> channel is still in progress of being opened, do not remove */
+        	continue;
+        }
+
         /* Has the SecurityToken timed out? */
         UA_DateTime timeout =
             entry->channel.securityToken.createdAt +
