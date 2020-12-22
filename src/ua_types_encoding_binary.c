@@ -1237,8 +1237,9 @@ ENCODE_BINARY(DiagnosticInfo) {
     encodingMask |= (u8)(src->hasLocalizedText << 2u);
     encodingMask |= (u8)(src->hasLocale << 3u);
     encodingMask |= (u8)(src->hasAdditionalInfo << 4u);
-    encodingMask |= (u8)(src->hasInnerDiagnosticInfo << 5u);
-
+    encodingMask |= (u8)(src->hasInnerStatusCode << 5u);
+    encodingMask |= (u8)(src->hasInnerDiagnosticInfo << 6u);
+    
     /* Encode the numeric content */
     status ret = ENCODE_DIRECT(&encodingMask, Byte);
     if(src->hasSymbolicId)

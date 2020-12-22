@@ -201,10 +201,6 @@ setMonitoredItemSettings(UA_Server *server, UA_Session *session, UA_MonitoredIte
     /* Unregister the callback */
     UA_MonitoredItem_unregisterSampleCallback(server, mon);
 
-    /* Remove the old samples */
-    UA_ByteString_clear(&mon->lastSampledValue);
-    UA_DataValue_clear(&mon->lastValue);
-
     /* ClientHandle */
     mon->clientHandle = params->clientHandle;
 
@@ -233,6 +229,13 @@ setMonitoredItemSettings(UA_Server *server, UA_Session *session, UA_MonitoredIte
 
     /* DiscardOldest */
     mon->discardOldest = params->discardOldest;
+
+    /* Remove the last sample (for comparison with the current value) only when
+     * monitoring is switched off. */
+    if(monitoringMode == UA_MONITORINGMODE_DISABLED) {
+        UA_ByteString_clear(&mon->lastSampledValue);
+        UA_Variant_clear(&mon->lastValue);
+    }
 
     /* Register sample callback if reporting is enabled */
     mon->monitoringMode = monitoringMode;
