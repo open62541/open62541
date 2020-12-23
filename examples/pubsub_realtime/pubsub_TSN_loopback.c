@@ -81,6 +81,7 @@
 
 #if defined (UA_ENABLE_PUBSUB_ETH_UADP_XDP)
 #include <linux/if_link.h>
+#include "linux/if_xdp.h"
 #include <open62541/plugin/pubsub_ethernet_xdp.h>
 #endif
 
@@ -119,8 +120,10 @@ UA_DataSetReaderConfig readerConfig;
 #endif
 #define             REPEATED_NODECOUNTS                   2    // Default to publish 64 bytes
 #define             PORT_NUMBER                           62541
-#define             RECEIVE_QUEUE                         2
+#define             XDP_QUEUE                             2
 #define             XDP_FLAG                              XDP_FLAGS_SKB_MODE
+#define             XDP_BIND_FLAG                         XDP_COPY
+#define             PUBSUB_CONFIG_RT_INFORMATION_MODEL
 
 /* Non-Configurable Parameters */
 /* Milli sec and sec conversion to nano sec */
@@ -400,15 +403,18 @@ addPubSubConnectionSubscriber(UA_Server *server, UA_NetworkAddressUrlDataType *n
     connectionConfig.name                                   = UA_STRING("Subscriber Connection");
     connectionConfig.enabled                                = UA_TRUE;
 #if defined (UA_ENABLE_PUBSUB_ETH_UADP_XDP)
-    UA_KeyValuePair connectionOptions[2];
+    UA_KeyValuePair connectionOptions[3];
     connectionOptions[0].key                  = UA_QUALIFIEDNAME(0, "xdpflag");
     UA_UInt32 flags                           = XDP_FLAG;
     UA_Variant_setScalar(&connectionOptions[0].value, &flags, &UA_TYPES[UA_TYPES_UINT32]);
     connectionOptions[1].key                  = UA_QUALIFIEDNAME(0, "hwreceivequeue");
-    UA_UInt32 rxqueue                         = RECEIVE_QUEUE;
+    UA_UInt32 rxqueue                         = XDP_QUEUE;
     UA_Variant_setScalar(&connectionOptions[1].value, &rxqueue, &UA_TYPES[UA_TYPES_UINT32]);
+    connectionOptions[2].key                  = UA_QUALIFIEDNAME(0, "xdpbindflag");
+    UA_UInt16 bindflags                       = XDP_BIND_FLAG;
+    UA_Variant_setScalar(&connectionOptions[2].value, &bindflags, &UA_TYPES[UA_TYPES_UINT16]);
     connectionConfig.connectionProperties     = connectionOptions;
-    connectionConfig.connectionPropertiesSize = 2;
+    connectionConfig.connectionPropertiesSize = 3;
 #endif
 
     UA_NetworkAddressUrlDataType networkAddressUrlsubscribe = *networkAddressUrlSubscriber;
@@ -653,7 +659,7 @@ addPubSubConnection(UA_Server *server, UA_NetworkAddressUrlDataType *networkAddr
     UA_Variant_setScalar(&connectionOptions[1].value, &disableSoTxtime, &UA_TYPES[UA_TYPES_BOOLEAN]);
     connectionConfig.connectionProperties     = connectionOptions;
     connectionConfig.connectionPropertiesSize = 2;
-
+    /* TODO: Bring XDP in tx as well */
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
 }
 

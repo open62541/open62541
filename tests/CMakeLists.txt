@@ -158,7 +158,7 @@ add_custom_target(test-verbose COMMAND ${CMAKE_CTEST_COMMAND} --verbose)
 if(UA_ENABLE_PUBSUB)
     if(UA_ENABLE_PUBSUB_ETH_UADP_XDP)
         list(APPEND open62541_LIBRARIES ${XDP_LIBRARY})
-        list(APPEND LIBS elf)
+        list(APPEND LIBS elf bpf)
     endif()
 endif()
 
