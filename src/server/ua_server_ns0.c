@@ -564,38 +564,59 @@ readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionC
                    const UA_NodeId *methodId, void *methodContext, const UA_NodeId *objectId,
                    void *objectContext, size_t inputSize, const UA_Variant *input,
                    size_t outputSize, UA_Variant *output) {
+    /* Return two empty arrays by default */
+    UA_Variant_setArray(&output[0], UA_Array_new(0, &UA_TYPES[UA_TYPES_UINT32]),
+                        0, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setArray(&output[1], UA_Array_new(0, &UA_TYPES[UA_TYPES_UINT32]),
+                        0, &UA_TYPES[UA_TYPES_UINT32]);
+
+    /* Get the Session */
     UA_LOCK(server->serviceMutex);
     UA_Session *session = UA_Server_getSessionById(server, sessionId);
-    UA_UNLOCK(server->serviceMutex);
-    if(!session)
+    if(!session) {
+        UA_UNLOCK(server->serviceMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
-    if(inputSize == 0 || !input[0].data)
-        return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
-    UA_UInt32 subscriptionId = *((UA_UInt32*)(input[0].data));
-    UA_LOCK(server->serviceMutex);
-    UA_Subscription* subscription = UA_Session_getSubscriptionById(session, subscriptionId);
-    UA_UNLOCK(server->serviceMutex);
-    if(!subscription) {
-        if(TAILQ_EMPTY(&session->subscriptions)) {
-            UA_Variant_setArray(&output[0], UA_Array_new(0, &UA_TYPES[UA_TYPES_UINT32]),
-                                0, &UA_TYPES[UA_TYPES_UINT32]);
-            UA_Variant_setArray(&output[1], UA_Array_new(0, &UA_TYPES[UA_TYPES_UINT32]),
-                                0, &UA_TYPES[UA_TYPES_UINT32]);
-            return UA_STATUSCODE_BADNOMATCH;
-        }
+    }
+    if(inputSize == 0 || !input[0].data) {
+        UA_UNLOCK(server->serviceMutex);
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
     }
 
+    /* Get the Subscription */
+    UA_UInt32 subscriptionId = *((UA_UInt32*)(input[0].data));
+    UA_Subscription *subscription = UA_Session_getSubscriptionById(session, subscriptionId);
+    if(!subscription) {
+        UA_UNLOCK(server->serviceMutex);
+        return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
+    }
+
+    /* Count the MonitoredItems */
     UA_UInt32 sizeOfOutput = 0;
     UA_MonitoredItem* monitoredItem;
     LIST_FOREACH(monitoredItem, &subscription->monitoredItems, listEntry) {
         ++sizeOfOutput;
     }
-    if(sizeOfOutput==0)
+    if(sizeOfOutput == 0) {
+        UA_UNLOCK(server->serviceMutex);
         return UA_STATUSCODE_GOOD;
+    }
 
-    UA_UInt32* clientHandles = (UA_UInt32 *)UA_Array_new(sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
-    UA_UInt32* serverHandles = (UA_UInt32 *)UA_Array_new(sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
+    /* Allocate the output arrays */
+    UA_UInt32 *clientHandles = (UA_UInt32*)
+        UA_Array_new(sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
+    if(!clientHandles) {
+        UA_UNLOCK(server->serviceMutex);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    UA_UInt32 *serverHandles = (UA_UInt32*)
+        UA_Array_new(sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
+    if(!serverHandles) {
+        UA_UNLOCK(server->serviceMutex);
+        UA_free(clientHandles);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    /* Fill the array */
     UA_UInt32 i = 0;
     LIST_FOREACH(monitoredItem, &subscription->monitoredItems, listEntry) {
         clientHandles[i] = monitoredItem->clientHandle;
@@ -604,6 +625,8 @@ readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionC
     }
     UA_Variant_setArray(&output[0], serverHandles, sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
     UA_Variant_setArray(&output[1], clientHandles, sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
+
+    UA_UNLOCK(server->serviceMutex);
     return UA_STATUSCODE_GOOD;
 }
 #endif /* defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS) */
