@@ -12,6 +12,7 @@
  *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2018 (c) Thomas Stalder, Blue Time Concept SA
  *    Copyright 2018 (c) Kalycito Infotech Private Limited
+ *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart
  */
 
 #ifndef UA_CLIENT_H_
@@ -587,6 +588,21 @@ UA_StatusCode UA_EXPORT
 UA_Client_sendAsyncRequest(UA_Client *client, const void *request,
         const UA_DataType *requestType, UA_ClientAsyncServiceCallback callback,
         const UA_DataType *responseType, void *userdata, UA_UInt32 *requestId);
+
+/**
+ * Set new userdata and callback for an existing request.
+ *
+ * @param client Pointer to the UA_Client
+ * @param requestId RequestId of the request, which was returned by
+ *        UA_Client_sendAsyncRequest before
+ * @param userdata The new userdata.
+ * @param callback The new callback
+ * @return UA_StatusCode UA_STATUSCODE_GOOD on success
+ *         UA_STATUSCODE_BADNOTFOUND when no request with requestId is found.
+ */
+UA_StatusCode UA_EXPORT
+UA_Client_modifyAsyncCallback(UA_Client *client, UA_UInt32 requestId,
+        void *userdata, UA_ClientAsyncServiceCallback callback);
 
 /* Listen on the network and process arriving asynchronous responses in the
  * background. Internal housekeeping, renewal of SecureChannels and subscription
