@@ -315,10 +315,20 @@ UA_Notification_dequeueSub(UA_Notification *n) {
 /* MonitoredItem */
 /*****************/
 
+#if (UA_FLOAT_IEEE754 == 1) && (UA_LITTLE_ENDIAN == UA_FLOAT_LITTLE_ENDIAN)
+# define MY_NAN ((UA_Double)(0xfff8000000000000L))
+#else
+# include <math.h>
+# define MY_NAN NAN
+#endif
+
 void
 UA_MonitoredItem_init(UA_MonitoredItem *mon, UA_Subscription *sub) {
     memset(mon, 0, sizeof(UA_MonitoredItem));
     mon->subscription = sub;
+    mon->samplingInterval = MY_NAN; /* Set to NaN so the comparison with the initial
+                                     * SamplingInterval (often == 0.0) must fail and we
+                                     * register the cyclic callback. */
     TAILQ_INIT(&mon->queue);
 }
 

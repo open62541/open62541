@@ -136,6 +136,10 @@ Service_SetTriggering(UA_Server *server, UA_Session *session,
 }
 
 static UA_StatusCode
+setMonitoringMode(UA_Server *server, UA_MonitoredItem *mon,
+                  UA_MonitoringMode monitoringMode);
+
+static UA_StatusCode
 setMonitoredItemSettings(UA_Server *server, UA_Session *session, UA_MonitoredItem *mon,
                          UA_MonitoringMode monitoringMode,
                          const UA_MonitoringParameters *params,
@@ -196,36 +200,35 @@ setMonitoredItemSettings(UA_Server *server, UA_Session *session, UA_MonitoredIte
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    /* <-- The point of no return --> */
-
-    /* Unregister the callback */
-    UA_MonitoredItem_unregisterSampleCallback(server, mon);
-
-    /* Remove the old samples */
-    UA_ByteString_clear(&mon->lastSampledValue);
-    UA_DataValue_clear(&mon->lastValue);
-
     /* ClientHandle */
     mon->clientHandle = params->clientHandle;
 
-    /* SamplingInterval */
+    /* Set a new SamplingInterval. Unregister the callback only if the interval
+     * has changed. Will be re-registered in setMonitoringMode. */
+    UA_Double oldSamplingInterval = mon->samplingInterval;
     UA_Double samplingInterval = params->samplingInterval;
+    if(oldSamplingInterval != samplingInterval) {
+        /* Unregister the callback */
+        UA_MonitoredItem_unregisterSampleCallback(server, mon);
 
-    if(mon->attributeId == UA_ATTRIBUTEID_VALUE) {
-        const UA_VariableNode *vn = (const UA_VariableNode *)
-            UA_NODESTORE_GET(server, &mon->monitoredNodeId);
-        if(vn) {
-            if(vn->head.nodeClass == UA_NODECLASS_VARIABLE &&
-               samplingInterval < vn->minimumSamplingInterval)
-                samplingInterval = vn->minimumSamplingInterval;
-            UA_NODESTORE_RELEASE(server, (const UA_Node *)vn);
+        /* Read the minimum sampling interval for the variable */
+        if(mon->attributeId == UA_ATTRIBUTEID_VALUE) {
+            const UA_VariableNode *vn = (const UA_VariableNode *)
+                UA_NODESTORE_GET(server, &mon->monitoredNodeId);
+            if(vn) {
+                if(vn->head.nodeClass == UA_NODECLASS_VARIABLE &&
+                   samplingInterval < vn->minimumSamplingInterval)
+                    samplingInterval = vn->minimumSamplingInterval;
+                UA_NODESTORE_RELEASE(server, (const UA_Node *)vn);
+            }
         }
+        
+        /* Set the new sampling interval */
+        UA_BOUNDEDVALUE_SETWBOUNDS(server->config.samplingIntervalLimits,
+                                   samplingInterval, mon->samplingInterval);
+        if(samplingInterval != samplingInterval) /* Check for nan */
+            mon->samplingInterval = server->config.samplingIntervalLimits.min;
     }
-
-    UA_BOUNDEDVALUE_SETWBOUNDS(server->config.samplingIntervalLimits,
-                               samplingInterval, mon->samplingInterval);
-    if(samplingInterval != samplingInterval) /* Check for nan */
-        mon->samplingInterval = server->config.samplingIntervalLimits.min;
 
     /* QueueSize */
     UA_BOUNDEDVALUE_SETWBOUNDS(server->config.queueSizeLimits,
@@ -234,13 +237,8 @@ setMonitoredItemSettings(UA_Server *server, UA_Session *session, UA_MonitoredIte
     /* DiscardOldest */
     mon->discardOldest = params->discardOldest;
 
-    /* Register sample callback if reporting is enabled */
-    mon->monitoringMode = monitoringMode;
-    if(monitoringMode == UA_MONITORINGMODE_SAMPLING ||
-       monitoringMode == UA_MONITORINGMODE_REPORTING)
-        return UA_MonitoredItem_registerSampleCallback(server, mon);
-
-    return UA_STATUSCODE_GOOD;
+    /* Set the MonitoringMode and register the callback */
+    return setMonitoringMode(server, mon, monitoringMode);
 }
 
 static const UA_String binaryEncoding = {sizeof("Default Binary") - 1, (UA_Byte *)"Default Binary"};
@@ -559,27 +557,29 @@ struct setMonitoringContext {
     UA_MonitoringMode monitoringMode;
 };
 
-static void
-Operation_SetMonitoringMode(UA_Server *server, UA_Session *session,
-                            struct setMonitoringContext *smc,
-                            const UA_UInt32 *monitoredItemId, UA_StatusCode *result) {
-    UA_MonitoredItem *mon = UA_Subscription_getMonitoredItem(smc->sub, *monitoredItemId);
-    if(!mon) {
-        *result = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
-        return;
-    }
-
+static UA_StatusCode
+setMonitoringMode(UA_Server *server, UA_MonitoredItem *mon,
+                  UA_MonitoringMode monitoringMode) {
     /* Check if the MonitoringMode is valid or not */
-    if(smc->monitoringMode > UA_MONITORINGMODE_REPORTING) {
-        *result = UA_STATUSCODE_BADMONITORINGMODEINVALID;
-        return;
+    if(monitoringMode > UA_MONITORINGMODE_REPORTING)
+        return UA_STATUSCODE_BADMONITORINGMODEINVALID;
+
+    /* Set the MonitoringMode */
+    mon->monitoringMode = monitoringMode;
+
+    UA_Notification *notification;
+    /* Reporting is disabled. This causes all Notifications to be dequeued and
+     * deleted. Also remove the last samples so that we immediately generate a
+     * Notification when re-activated. */
+    if(mon->monitoringMode == UA_MONITORINGMODE_DISABLED) {
+        UA_Notification *notification_tmp;
+        UA_MonitoredItem_unregisterSampleCallback(server, mon);
+        TAILQ_FOREACH_SAFE(notification, &mon->queue, listEntry, notification_tmp)
+            UA_Notification_delete(server, notification);
+        UA_ByteString_clear(&mon->lastSampledValue);
+        UA_DataValue_clear(&mon->lastValue);
+        return UA_STATUSCODE_GOOD;
     }
-
-    /* Nothing has changed */
-    if(mon->monitoringMode == smc->monitoringMode)
-        return;
-
-    mon->monitoringMode = smc->monitoringMode;
 
     /* When reporting is enabled, put all notifications that were already
      * sampled into the global queue of the subscription. When sampling is
@@ -589,36 +589,35 @@ Operation_SetMonitoringMode(UA_Server *server, UA_Session *session,
         /* Make all notifications reporting. Re-enqueue to ensure they have the
          * right order if some notifications are already reported by a trigger
          * link. */
-        UA_Notification *notification;
         TAILQ_FOREACH(notification, &mon->queue, listEntry) {
             UA_Notification_dequeueSub(notification);
             UA_Notification_enqueueSub(notification);
         }
-
-        /* Register the sampling callback with an interval */
-        *result = UA_MonitoredItem_registerSampleCallback(server, mon);
-    } else if(mon->monitoringMode == UA_MONITORINGMODE_SAMPLING) {
+    } else /* mon->monitoringMode == UA_MONITORINGMODE_SAMPLING */ {
         /* Make all notifications non-reporting */
-        UA_Notification *notification;
         TAILQ_FOREACH(notification, &mon->queue, listEntry)
             UA_Notification_dequeueSub(notification);
-
-        /* Register the sampling callback with an interval */
-        *result = UA_MonitoredItem_registerSampleCallback(server, mon);
-    } else {
-        /* UA_MONITORINGMODE_DISABLED */
-        UA_MonitoredItem_unregisterSampleCallback(server, mon);
-
-        /* Setting the mode to DISABLED causes all Notifications to
-         * be dequeued and deleted */
-        UA_Notification *notification, *notification_tmp;
-        TAILQ_FOREACH_SAFE(notification, &mon->queue, listEntry, notification_tmp)
-            UA_Notification_delete(server, notification);
-
-        /* Initialize lastSampledValue */
-        UA_ByteString_clear(&mon->lastSampledValue);
-        UA_DataValue_clear(&mon->lastValue);
     }
+
+    /* Register the sampling callback with an interval. If registering the
+     * sampling callback failed, set to disabled. But don't delete the current
+     * notifications. */
+    UA_StatusCode res = UA_MonitoredItem_registerSampleCallback(server, mon);
+    if(res != UA_STATUSCODE_GOOD)
+        mon->monitoringMode = UA_MONITORINGMODE_DISABLED;
+    return res;
+}
+
+static void
+Operation_SetMonitoringMode(UA_Server *server, UA_Session *session,
+                            struct setMonitoringContext *smc,
+                            const UA_UInt32 *monitoredItemId, UA_StatusCode *result) {
+    UA_MonitoredItem *mon = UA_Subscription_getMonitoredItem(smc->sub, *monitoredItemId);
+    if(!mon) {
+        *result = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
+        return;
+    }
+    *result = setMonitoringMode(server, mon, smc->monitoringMode);
 }
 
 void
