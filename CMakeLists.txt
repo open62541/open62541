@@ -16,7 +16,6 @@ include(GNUInstallDirs)
 # Set when installed via make install
 set(open62541_TOOLS_DIR ${PROJECT_SOURCE_DIR}/tools)
 set(open62541_NODESET_DIR ${PROJECT_SOURCE_DIR}/deps/ua-nodeset)
-set(XDP_LIBRARY "/usr/local/src/bpf-next/tools/lib/bpf/libbpf.a")
 
 include(macros_internal)
 include(macros_public)
@@ -504,7 +503,7 @@ function(check_add_cc_flag CC_FLAG)
 endfunction()
 
 if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang"))
-    check_add_cc_flag("-std=c99")   # C99 mode
+#    check_add_cc_flag("-std=c99")   # C99 mode
     check_add_cc_flag("-pipe")      # Avoid writing temporary files (for compiler speed)
     check_add_cc_flag("-Wall")      # Warnings
     check_add_cc_flag("-Wextra")    # More warnings
@@ -898,12 +897,9 @@ if(UA_ENABLE_PUBSUB)
         list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_ethernet.c)
     endif()
     if(UA_ENABLE_PUBSUB_ETH_UADP_XDP)
-        if(EXISTS "${XDP_LIBRARY}")
-            list(APPEND open62541_LIBRARIES ${XDP_LIBRARY})
+            list(APPEND open62541_LIBRARIES bpf)
+            list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/pubsub_ethernet_xdp.h)
             list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_ethernet_xdp.c)
-        else()
-            MESSAGE(WARNING "samples in bpf-next directory were not built. Build the bpf-next to use XDP")
-        endif()
     endif()
     if(UA_ENABLE_PUBSUB_MQTT)
         if(WIN32)
@@ -997,7 +993,6 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     if(NOT EXISTS "${UA_FILE_NS0}")
         message(FATAL_ERROR "File ${UA_FILE_NS0} not found. You probably need to initialize the git submodule for deps/ua-nodeset or set open62541_NODESET_DIR.")
     endif()
-
 
     set(UA_FILE_NODEIDS ${open62541_NODESET_DIR}/Schema/NodeIds.csv)
     set(UA_FILE_STATUSCODES ${open62541_NODESET_DIR}/Schema/StatusCode.csv)

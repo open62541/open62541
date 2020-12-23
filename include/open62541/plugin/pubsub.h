@@ -71,6 +71,11 @@ struct UA_PubSubChannel {
     UA_StatusCode (*receive)(UA_PubSubChannel * channel, UA_ByteString *,
                              UA_ExtensionObject *transportSettings, UA_UInt32 timeout);
 
+#ifdef UA_ENABLE_PUBSUB_ETH_UADP_XDP
+    /* Release the umem buffer back to the kernel */
+    UA_StatusCode (*release)(UA_PubSubChannel * channel);
+#endif
+
     /* Closing the connection and implicit free of the channel structures. */
     UA_StatusCode (*close)(UA_PubSubChannel *channel);
 

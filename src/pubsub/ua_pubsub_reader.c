@@ -969,8 +969,18 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
                 previousPosition = currentPosition;
             } while((buffer.length) > currentPosition);
         }
-    }
+#ifdef UA_ENABLE_PUBSUB_ETH_UADP_XDP
+        if (connection->channel->release)
+            connection->channel->release(connection->channel);
+#endif
+    } 
+
+#ifdef UA_ENABLE_PUBSUB_ETH_UADP_XDP
+    if (!connection->channel->release)
+        UA_ByteString_clear(&buffer);	
+#else
     UA_ByteString_clear(&buffer);
+#endif
 }
 
 /* Add new subscribeCallback. The first execution is triggered directly after
