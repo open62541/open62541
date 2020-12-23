@@ -330,12 +330,13 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
             /* Try to generate a default value if that is configured */
             if(server->config.allowEmptyVariables == UA_RULEHANDLING_DEFAULT) {
                 retval = setDefaultValue(server, node);
-                if(retval != UA_STATUSCODE_GOOD)
+                if(retval != UA_STATUSCODE_GOOD) {
                     UA_LOG_NODEID_INFO(&node->head.nodeId,
                     UA_LOG_INFO_SESSION(&server->config.logger, session,
                                         "AddNode (%.*s): Could not create a default value "
                                         "with StatusCode %s", (int)nodeIdStr.length,
                                         nodeIdStr.data, UA_StatusCode_name(retval)));
+                }
 
                 /* Reread the current value for compat tests below */
                 UA_DataValue_clear(&value);
