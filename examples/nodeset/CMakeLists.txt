@@ -20,10 +20,10 @@ if(NOT CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     ua_generate_nodeset_and_datatypes(
         NAME "example"
         FILE_NS "${FILE_NS_DIRPREFIX}/server_nodeset.xml"
-        DEPENDS "${CMAKE_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.Reduced.xml"
+        DEPENDS "${CMAKE_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.Minimal.xml"
     )
 else()
-    # standalone examples build expects already installed Opc.Ua.NodeSet2.Reduced.xml
+    # standalone examples build expects already installed Opc.Ua.NodeSet2.Minimal.xml
     ua_generate_nodeset_and_datatypes(
         NAME "example"
         FILE_NS "${FILE_NS_DIRPREFIX}/server_nodeset.xml"

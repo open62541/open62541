@@ -3,7 +3,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
  *    Copyright 2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
- *    Copyright 2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
  */
 
 #ifndef UA_SESSION_H_
@@ -111,7 +110,7 @@ UA_Session_dequeuePublishReq(UA_Session *session);
 
 #define UA_LOG_SESSION_INTERNAL(LOGGER, LEVEL, SESSION, MSG, ...) do {  \
         UA_String idString = UA_STRING_NULL;                            \
-        UA_NodeId_print(&(SESSION)->sessionId, &idString);              \
+        UA_NodeId_toString(&(SESSION)->sessionId, &idString);           \
         UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_SESSION,                  \
                        "Connection %i | SecureChannel %i | Session %.*s | " MSG "%.0s", \
                        ((SESSION)->header.channel ?                     \
@@ -120,7 +119,7 @@ UA_Session_dequeuePublishReq(UA_Session *session);
                        ((SESSION)->header.channel ?                     \
                         (SESSION)->header.channel->securityToken.channelId : 0), \
                        (int)idString.length, idString.data, __VA_ARGS__); \
-        UA_String_clear(&idString);                                     \
+        UA_String_deleteMembers(&idString);                             \
     } while(0)
 
 #if UA_LOGLEVEL <= 100

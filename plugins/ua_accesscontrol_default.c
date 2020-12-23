@@ -3,7 +3,6 @@
  *
  *    Copyright 2016-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
- *    Copyright 2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
  */
 
 #include <open62541/plugin/accesscontrol_default.h>
@@ -169,13 +168,6 @@ allowDeleteReference_default(UA_Server *server, UA_AccessControl *ac,
     return true;
 }
 
-static UA_Boolean
-allowBrowseNode_default(UA_Server *server, UA_AccessControl *ac,
-                        const UA_NodeId *sessionId, void *sessionContext,
-                        const UA_NodeId *nodeId, void *nodeContext) {
-    return true;
-}
-
 #ifdef UA_ENABLE_HISTORIZING
 static UA_Boolean
 allowHistoryUpdateUpdateData_default(UA_Server *server, UA_AccessControl *ac,
@@ -201,7 +193,7 @@ allowHistoryUpdateDeleteRawModified_default(UA_Server *server, UA_AccessControl 
 /* Create Delete Access Control Plugin */
 /***************************************/
 
-static void clear_default(UA_AccessControl *ac) {
+static void deleteMembers_default(UA_AccessControl *ac) {
     UA_Array_delete((void*)(uintptr_t)ac->userTokenPolicies,
                     ac->userTokenPoliciesSize,
                     &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
@@ -218,7 +210,6 @@ static void clear_default(UA_AccessControl *ac) {
         if(context->usernamePasswordLoginSize > 0)
             UA_free(context->usernamePasswordLogin);
         UA_free(ac->context);
-        ac->context = NULL;
     }
 }
 
@@ -228,7 +219,7 @@ UA_AccessControl_default(UA_ServerConfig *config, UA_Boolean allowAnonymous,
                          size_t usernamePasswordLoginSize,
                          const UA_UsernamePasswordLogin *usernamePasswordLogin) {
     UA_AccessControl *ac = &config->accessControl;
-    ac->clear = clear_default;
+    ac->deleteMembers = deleteMembers_default;
     ac->activateSession = activateSession_default;
     ac->closeSession = closeSession_default;
     ac->getUserRightsMask = getUserRightsMask_default;
@@ -237,7 +228,6 @@ UA_AccessControl_default(UA_ServerConfig *config, UA_Boolean allowAnonymous,
     ac->getUserExecutableOnObject = getUserExecutableOnObject_default;
     ac->allowAddNode = allowAddNode_default;
     ac->allowAddReference = allowAddReference_default;
-    ac->allowBrowseNode = allowBrowseNode_default;
 
 #ifdef UA_ENABLE_HISTORIZING
     ac->allowHistoryUpdateUpdateData = allowHistoryUpdateUpdateData_default;

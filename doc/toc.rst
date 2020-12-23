@@ -13,6 +13,6 @@ open62541 Documentation
    nodestore
    server
    client
-   common
+   constants
    nodeset_compiler
    internal

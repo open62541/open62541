@@ -9,43 +9,11 @@
 
 #include "ua_client_internal.h"
 
-/* Gets a list of endpoints. Memory is allocated for endpointDescription array */
-static UA_StatusCode
-UA_Client_getEndpointsInternal(UA_Client *client, const UA_String endpointUrl,
-                               size_t *endpointDescriptionsSize,
-                               UA_EndpointDescription **endpointDescriptions) {
-    UA_GetEndpointsRequest request;
-    UA_GetEndpointsRequest_init(&request);
-    request.requestHeader.timestamp = UA_DateTime_now();
-    request.requestHeader.timeoutHint = 10000;
-    // assume the endpointurl outlives the service call
-    request.endpointUrl = endpointUrl;
-
-    UA_GetEndpointsResponse response;
-    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST],
-                        &response, &UA_TYPES[UA_TYPES_GETENDPOINTSRESPONSE]);
-
-    if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_StatusCode retval = response.responseHeader.serviceResult;
-        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "GetEndpointRequest failed with error code %s",
-                     UA_StatusCode_name(retval));
-        UA_GetEndpointsResponse_deleteMembers(&response);
-        return retval;
-    }
-    *endpointDescriptions = response.endpoints;
-    *endpointDescriptionsSize = response.endpointsSize;
-    response.endpoints = NULL;
-    response.endpointsSize = 0;
-    UA_GetEndpointsResponse_deleteMembers(&response);
-    return UA_STATUSCODE_GOOD;
-}
-
 UA_StatusCode
 UA_Client_getEndpoints(UA_Client *client, const char *serverUrl,
                        size_t* endpointDescriptionsSize,
                        UA_EndpointDescription** endpointDescriptions) {
-    UA_Boolean connected = (client->channel.state == UA_SECURECHANNELSTATE_OPEN);
+    UA_Boolean connected = (client->state > UA_CLIENTSTATE_DISCONNECTED);
     /* Client is already connected to a different server */
     if(connected && strncmp((const char*)client->config.endpoint.endpointUrl.data, serverUrl,
                             client->config.endpoint.endpointUrl.length) != 0) {
@@ -55,7 +23,7 @@ UA_Client_getEndpoints(UA_Client *client, const char *serverUrl,
     UA_StatusCode retval;
     const UA_String url = UA_STRING((char*)(uintptr_t)serverUrl);
     if(!connected) {
-        retval = UA_Client_connectSecureChannel(client, serverUrl);
+        retval = UA_Client_connectTCPSecureChannel(client, url);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }
@@ -73,7 +41,7 @@ UA_Client_findServers(UA_Client *client, const char *serverUrl,
                       size_t localeIdsSize, UA_String *localeIds,
                       size_t *registeredServersSize,
                       UA_ApplicationDescription **registeredServers) {
-    UA_Boolean connected = (client->channel.state == UA_SECURECHANNELSTATE_OPEN);
+    UA_Boolean connected = (client->state > UA_CLIENTSTATE_DISCONNECTED);
     /* Client is already connected to a different server */
     if(connected && strncmp((const char*)client->config.endpoint.endpointUrl.data, serverUrl,
                             client->config.endpoint.endpointUrl.length) != 0) {
@@ -81,8 +49,9 @@ UA_Client_findServers(UA_Client *client, const char *serverUrl,
     }
 
     UA_StatusCode retval;
+    const UA_String url = UA_STRING((char*)(uintptr_t)serverUrl);
     if(!connected) {
-        retval = UA_Client_connectSecureChannel(client, serverUrl);
+        retval = UA_Client_connectTCPSecureChannel(client, url);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }
@@ -126,7 +95,7 @@ UA_Client_findServersOnNetwork(UA_Client *client, const char *serverUrl,
                                UA_UInt32 startingRecordId, UA_UInt32 maxRecordsToReturn,
                                size_t serverCapabilityFilterSize, UA_String *serverCapabilityFilter,
                                size_t *serverOnNetworkSize, UA_ServerOnNetwork **serverOnNetwork) {
-    UA_Boolean connected = (client->channel.state == UA_SECURECHANNELSTATE_OPEN);
+    UA_Boolean connected = (client->state > UA_CLIENTSTATE_DISCONNECTED);
     /* Client is already connected to a different server */
     if(connected && strncmp((const char*)client->config.endpoint.endpointUrl.data, serverUrl,
                             client->config.endpoint.endpointUrl.length) != 0) {
@@ -134,8 +103,9 @@ UA_Client_findServersOnNetwork(UA_Client *client, const char *serverUrl,
     }
 
     UA_StatusCode retval;
+    const UA_String url = UA_STRING((char*)(uintptr_t)serverUrl);
     if(!connected) {
-        retval = UA_Client_connectSecureChannel(client, serverUrl);
+        retval = UA_Client_connectTCPSecureChannel(client, url);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }

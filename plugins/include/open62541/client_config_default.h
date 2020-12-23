@@ -10,11 +10,8 @@
 #define UA_CLIENT_CONFIG_DEFAULT_H_
 
 #include <open62541/client_config.h>
-#include <open62541/client.h>
 
 _UA_BEGIN_DECLS
-
-UA_Client UA_EXPORT * UA_Client_new(void);
 
 UA_StatusCode UA_EXPORT
 UA_ClientConfig_setDefault(UA_ClientConfig *config);

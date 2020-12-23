@@ -16,9 +16,7 @@ extern "C" {
  * sys/queue.h linked list definition.
  *
  * Zip trees were developed in: Tarjan, R. E., Levy, C. C., and Timmel, S. "Zip
- * Trees." arXiv preprint arXiv:1806.06726 (2018). The original definition was
- * modified so that several elements with the same key can be inserted. However,
- * ZIP_FIND will only return the topmost of these elements in the tree.
+ * Trees." arXiv preprint arXiv:1806.06726 (2018).
  *
  * The ZIP_ENTRY definitions are to be contained in the tree entries themselves.
  * Use ZIP_PROTTYPE to define the signature of the zip tree and ZIP_IMPL (in a
@@ -150,35 +148,28 @@ __##name##ZIP(struct type *x, struct type *y) {                         \
     return x;                                                           \
 }                                                                       \
                                                                         \
-/* Modified from the original algorithm. Allow multiple */              \
-/* elements with the same key. */                                       \
 static struct type *                                                    \
 __##name##_ZIP_REMOVE(struct type *root, struct type *elm) {            \
     if(root == elm)                                                     \
         return __##name##ZIP(ZIP_LEFT(root, field),                     \
                              ZIP_RIGHT(root, field));                   \
     enum ZIP_CMP eq = (cmp)(&(elm)->keyfield, &(root)->keyfield);       \
-    struct type *left = ZIP_LEFT(root, field);                          \
-    struct type *right = ZIP_RIGHT(root, field);                        \
     if(eq == ZIP_CMP_LESS) {                                            \
+        struct type *left = ZIP_LEFT(root, field);                      \
         if(elm == left)                                                 \
             ZIP_LEFT(root, field) =                                     \
                 __##name##ZIP(ZIP_LEFT(left, field),                    \
                               ZIP_RIGHT(left, field));                  \
-        else if(left)                                                   \
+        else                                                            \
             __##name##_ZIP_REMOVE(left, elm);                           \
-    } else if(eq == ZIP_CMP_MORE) {                                     \
+    } else {                                                            \
+        struct type *right = ZIP_RIGHT(root, field);                    \
         if(elm == right)                                                \
             ZIP_RIGHT(root, field) =                                    \
                 __##name##ZIP(ZIP_LEFT(right, field),                   \
                               ZIP_RIGHT(right, field));                 \
-        else if(right)                                                  \
+        else                                                            \
             __##name##_ZIP_REMOVE(right, elm);                          \
-    } else { /* ZIP_CMP_EQ, but root != elm */                          \
-        if(right)                                                       \
-            ZIP_RIGHT(root, field) = __##name##_ZIP_REMOVE(right, elm); \
-        if(left)                                                        \
-            ZIP_LEFT(root, field) = __##name##_ZIP_REMOVE(left, elm);   \
     }                                                                   \
     return root;                                                        \
 }                                                                       \

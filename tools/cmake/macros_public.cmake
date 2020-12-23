@@ -207,7 +207,7 @@ function(ua_generate_datatypes)
     set(UA_${GEN_NAME_UPPER}_HEADERS "${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.h;${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_handling.h;${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_encoding_binary.h"
         CACHE INTERNAL "${UA_GEN_DT_NAME} header files")
 
-    if(UA_FORCE_CPP)
+    if(UA_COMPILE_AS_CXX)
         set_source_files_properties(${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.c PROPERTIES LANGUAGE CXX)
     endif()
 endfunction()
@@ -237,10 +237,6 @@ endfunction()
 #   [OUTPUT_DIR]    Optional target directory for the generated files. Default is '${PROJECT_BINARY_DIR}/src_generated'
 #   [IGNORE]        Optional file containing a list of node ids which should be ignored. The file should have one id per line.
 #   [TARGET_PREFIX] Optional prefix for the resulting target. Default `open62541-generator`
-#   [BLACKLIST]     Blacklist file passed as --blacklist to the nodeset compiler. All the given nodes will be removed from the generated
-#                   nodeset, including all the references to and from that node. The format is a node id per line.
-#                   Supported formats: "i=123" (for NS0), "ns=2;s=asdf" (matches NS2 in that specific file), or recommended
-#                   "ns=http://opcfoundation.org/UA/DI/;i=123" namespace index independent node id
 #
 #   Arguments taking multiple values:
 #
@@ -253,7 +249,7 @@ endfunction()
 function(ua_generate_nodeset)
 
     set(options INTERNAL )
-    set(oneValueArgs NAME TYPES_ARRAY OUTPUT_DIR IGNORE TARGET_PREFIX BLACKLIST)
+    set(oneValueArgs NAME TYPES_ARRAY OUTPUT_DIR IGNORE TARGET_PREFIX)
     set(multiValueArgs FILE DEPENDS_TYPES DEPENDS_NS DEPENDS_TARGET)
     cmake_parse_arguments(UA_GEN_NS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
 
@@ -279,14 +275,6 @@ function(ua_generate_nodeset)
     # Set default target prefix
     if(NOT UA_GEN_NS_TARGET_PREFIX OR "${UA_GEN_NS_TARGET_PREFIX}" STREQUAL "")
         set(UA_GEN_NS_TARGET_PREFIX "open62541-generator")
-    endif()
-
-    # Set blacklist file
-    set(GEN_BLACKLIST "")
-    set(GEN_BLACKLIST_DEPENDS "")
-    if(UA_GEN_NS_BLACKLIST)
-        set(GEN_BLACKLIST "--blacklist=${UA_GEN_NS_BLACKLIST}")
-        set(GEN_BLACKLIST_DEPENDS "${UA_GEN_NS_BLACKLIST}")
     endif()
 
     # ------ Add custom command and target -----
@@ -346,7 +334,6 @@ function(ua_generate_nodeset)
                        ${GEN_NS0}
                        ${GEN_BIN_SIZE}
                        ${GEN_IGNORE}
-                       ${GEN_BLACKLIST}
                        ${TYPES_ARRAY_LIST}
                        ${DEPENDS_FILE_LIST}
                        ${FILE_LIST}
@@ -361,7 +348,6 @@ function(ua_generate_nodeset)
                        ${open62541_TOOLS_DIR}/nodeset_compiler/backend_open62541_datatypes.py
                        ${UA_GEN_NS_FILE}
                        ${UA_GEN_NS_DEPENDS_NS}
-                       ${GEN_BLACKLIST_DEPENDS}
                        )
 
     add_custom_target(${UA_GEN_NS_TARGET_PREFIX}-${TARGET_SUFFIX}
@@ -372,7 +358,7 @@ function(ua_generate_nodeset)
         add_dependencies(${UA_GEN_NS_TARGET_PREFIX}-${TARGET_SUFFIX} ${UA_GEN_NS_DEPENDS_TARGET})
     endif()
 
-    if(UA_FORCE_CPP)
+    if(UA_COMPILE_AS_CXX)
         set_source_files_properties(${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.c PROPERTIES LANGUAGE CXX)
     endif()
 
@@ -428,10 +414,6 @@ endfunction()
 #                   Multiple files can be passed which will all be imported.
 #   [NAMESPACE_IDX] Optional namespace index of the nodeset, when it is loaded into the server. This parameter is mandatory if FILE_CSV
 #                   or FILE_BSD is set. See ua_generate_datatypes function.
-#   [BLACKLIST]     Blacklist file passed as --blacklist to the nodeset compiler. All the given nodes will be removed from the generated
-#                   nodeset, including all the references to and from that node. The format is a node id per line.
-#                   Supported formats: "i=123" (for NS0), "ns=2;s=asdf" (matches NS2 in that specific file), or recommended
-#                   "ns=http://opcfoundation.org/UA/DI/;i=123" namespace index independent node id
 #   [TARGET_PREFIX] Optional prefix for the resulting targets. Default `open62541-generator`
 #
 #   Arguments taking multiple values:
@@ -442,7 +424,7 @@ endfunction()
 function(ua_generate_nodeset_and_datatypes)
 
     set(options INTERNAL)
-    set(oneValueArgs NAME FILE_NS FILE_CSV FILE_BSD IMPORT_BSD NAMESPACE_IDX OUTPUT_DIR TARGET_PREFIX BLACKLIST)
+    set(oneValueArgs NAME FILE_NS FILE_CSV FILE_BSD IMPORT_BSD NAMESPACE_IDX OUTPUT_DIR TARGET_PREFIX)
     set(multiValueArgs DEPENDS)
     cmake_parse_arguments(UA_GEN "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
 
@@ -522,11 +504,7 @@ function(ua_generate_nodeset_and_datatypes)
 
     # Create a list of nodesets on which this nodeset depends on
     if (NOT UA_GEN_DEPENDS OR "${UA_GEN_DEPENDS}" STREQUAL "" )
-        if(NOT UA_FILE_NS0)
-            set(NODESET_DEPENDS "${open62541_NODESET_DIR}/Schema/Opc.Ua.NodeSet2.xml")
-        else()
-            set(NODESET_DEPENDS "${UA_FILE_NS0}")
-        endif()
+        set(NODESET_DEPENDS "${open62541_NODESET_DIR}/Schema/Opc.Ua.NodeSet2.xml")
         set(TYPES_DEPENDS "UA_TYPES")
     else()
         foreach(f ${UA_GEN_DEPENDS})
@@ -557,7 +535,6 @@ function(ua_generate_nodeset_and_datatypes)
         NAME "${UA_GEN_NAME}"
         FILE "${UA_GEN_FILE_NS}"
         TYPES_ARRAY "${NODESET_TYPES_ARRAY}"
-        BLACKLIST "${UA_GEN_BLACKLIST}"
         ${NODESET_INTERNAL}
         DEPENDS_TYPES ${TYPES_DEPENDS}
         DEPENDS_NS ${NODESET_DEPENDS}

@@ -1,13 +1,8 @@
-$ErrorActionPreference = "Continue"
+$ErrorActionPreference = "Stop"
 
 try {
     & git submodule sync
-    & git submodule update --init --recursive
-
-    if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
-        Write-Host -ForegroundColor Red "`n`n***Cloning submodules failed. Exiting ... ***"
-        exit $LASTEXITCODE
-    }
+    & git submodule --quiet update --init --recursive
 
     Write-Host -ForegroundColor Green "`n### Installing sphinx ###`n"
     & cinst sphinx --source python

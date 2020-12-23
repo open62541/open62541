@@ -24,18 +24,36 @@
 #else
 # include <sys/time.h> // for struct timeval
 # include <netinet/in.h> // for struct ip_mreq
-# if defined(UA_HAS_GETIFADDR)
-#  include <ifaddrs.h>
-# endif /* UA_HAS_GETIFADDR */
+# include <ifaddrs.h>
 # include <net/if.h> /* for IFF_RUNNING */
 # include <netdb.h> // for recvfrom in cygwin
 #endif
 
+/* FIXME: Is this a required algorithm? Otherwise, reuse hashing for nodeids */
+/* Generates a hash code for a string.
+ * This function uses the ELF hashing algorithm as reprinted in
+ * Andrew Binstock, "Hashing Rehashed," Dr. Dobb's Journal, April 1996.
+ */
+static int
+mdns_hash_record(const char *s) {
+    /* ELF hash uses unsigned chars and unsigned arithmetic for portability */
+    const unsigned char *name = (const unsigned char *) s;
+    unsigned long h = 0;
+    while(*name) {
+        h = (h << 4) + (unsigned long) (*name++);
+        unsigned long g;
+        if((g = (h & 0xF0000000UL)) != 0)
+            h ^= (g >> 24);
+        h &= ~g;
+    }
+    return (int) h;
+}
+
 static struct serverOnNetwork_list_entry *
-mdns_record_add_or_get(UA_Server *server, const char *record, const char *serverName,
+mdns_record_add_or_get(UA_DiscoveryManager *dm, const char *record, const char *serverName,
                        size_t serverNameLen, UA_Boolean createNew) {
-    UA_UInt32 hashIdx = UA_ByteString_hash(0, (const UA_Byte*)record, strlen(record)) % SERVER_ON_NETWORK_HASH_SIZE;
-    struct serverOnNetwork_hash_entry *hash_entry = server->discoveryManager.serverOnNetworkHash[hashIdx];
+    int hashIdx = mdns_hash_record(record) % SERVER_ON_NETWORK_HASH_PRIME;
+    struct serverOnNetwork_hash_entry *hash_entry = dm->serverOnNetworkHash[hashIdx];
 
     while(hash_entry) {
         size_t maxLen;
@@ -53,73 +71,35 @@ mdns_record_add_or_get(UA_Server *server, const char *record, const char *server
     if(!createNew)
         return NULL;
 
-    struct serverOnNetwork_list_entry *listEntry;
-    UA_StatusCode retval = UA_DiscoveryManager_addEntryToServersOnNetwork(server, record, serverName, serverNameLen, &listEntry);
-    if (retval != UA_STATUSCODE_GOOD)
-        return NULL;
-
-    return listEntry;
-}
-
-
-UA_StatusCode
-UA_DiscoveryManager_addEntryToServersOnNetwork(UA_Server *server, const char *fqdnMdnsRecord, const char *serverName,
-                                               size_t serverNameLen, struct serverOnNetwork_list_entry **addedEntry) {
-
-    struct serverOnNetwork_list_entry *entry =
-            mdns_record_add_or_get(server, fqdnMdnsRecord, serverName,
-                                   serverNameLen, UA_FALSE);
-    if (entry) {
-        if (addedEntry != NULL)
-            *addedEntry = entry;
-        return UA_STATUSCODE_BADALREADYEXISTS;
-    }
-
-
-    UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                "Multicast DNS: Add entry to ServersOnNetwork: %s (%*.s)", fqdnMdnsRecord, (int)serverNameLen, serverName);
-
+    /* not yet in list, create new one */
+    /* todo: malloc may fail: return a statuscode */
     struct serverOnNetwork_list_entry *listEntry = (serverOnNetwork_list_entry*)
-            UA_malloc(sizeof(struct serverOnNetwork_list_entry));
-    if (!listEntry)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+        UA_malloc(sizeof(struct serverOnNetwork_list_entry));
     listEntry->created = UA_DateTime_now();
     listEntry->pathTmp = NULL;
     listEntry->txtSet = false;
     listEntry->srvSet = false;
     UA_ServerOnNetwork_init(&listEntry->serverOnNetwork);
-    listEntry->serverOnNetwork.recordId = server->discoveryManager.serverOnNetworkRecordIdCounter;
-    listEntry->serverOnNetwork.serverName.data = (UA_Byte*)UA_malloc(serverNameLen);
-    if (!listEntry->serverOnNetwork.serverName.data) {
-        UA_free(listEntry);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
+    listEntry->serverOnNetwork.recordId = dm->serverOnNetworkRecordIdCounter;
     listEntry->serverOnNetwork.serverName.length = serverNameLen;
+    /* todo: malloc may fail: return a statuscode */
+    listEntry->serverOnNetwork.serverName.data = (UA_Byte*)UA_malloc(serverNameLen);
     memcpy(listEntry->serverOnNetwork.serverName.data, serverName, serverNameLen);
-    UA_atomic_addUInt32(&server->discoveryManager.serverOnNetworkRecordIdCounter, 1);
-    if(server->discoveryManager.serverOnNetworkRecordIdCounter == 0)
-        server->discoveryManager.serverOnNetworkRecordIdLastReset = UA_DateTime_now();
-    listEntry->lastSeen = UA_DateTime_nowMonotonic();
+    UA_atomic_addUInt32(&dm->serverOnNetworkRecordIdCounter, 1);
+    if(dm->serverOnNetworkRecordIdCounter == 0)
+        dm->serverOnNetworkRecordIdLastReset = UA_DateTime_now();
 
     /* add to hash */
-    UA_UInt32 hashIdx = UA_ByteString_hash(0, (const UA_Byte*)fqdnMdnsRecord, strlen(fqdnMdnsRecord)) % SERVER_ON_NETWORK_HASH_SIZE;
+    /* todo: malloc may fail: return a statuscode */
     struct serverOnNetwork_hash_entry *newHashEntry = (struct serverOnNetwork_hash_entry*)
-            UA_malloc(sizeof(struct serverOnNetwork_hash_entry));
-    if (!newHashEntry) {
-        UA_free(listEntry->serverOnNetwork.serverName.data);
-        UA_free(listEntry);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    newHashEntry->next = server->discoveryManager.serverOnNetworkHash[hashIdx];
-    server->discoveryManager.serverOnNetworkHash[hashIdx] = newHashEntry;
+        UA_malloc(sizeof(struct serverOnNetwork_hash_entry));
+    newHashEntry->next = dm->serverOnNetworkHash[hashIdx];
+    dm->serverOnNetworkHash[hashIdx] = newHashEntry;
     newHashEntry->entry = listEntry;
 
-    LIST_INSERT_HEAD(&server->discoveryManager.serverOnNetwork, listEntry, pointers);
+    LIST_INSERT_HEAD(&dm->serverOnNetwork, listEntry, pointers);
 
-    if (addedEntry != NULL)
-        *addedEntry = listEntry;
-
-    return UA_STATUSCODE_GOOD;
+    return listEntry;
 }
 
 #ifdef _WIN32
@@ -170,31 +150,168 @@ getInterfaces(const UA_Server *server) {
 
 #endif /* _WIN32 */
 
-UA_StatusCode
-UA_DiscoveryManager_removeEntryFromServersOnNetwork(UA_Server *server, const char *fqdnMdnsRecord, const char *serverName,
-                                                    size_t serverNameLen) {
+static UA_Boolean
+mdns_is_self_announce(const UA_Server *server, const struct serverOnNetwork_list_entry *entry) {
+    for (size_t i=0; i<server->config.networkLayersSize; i++) {
+        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
+        if(UA_String_equal(&entry->serverOnNetwork.discoveryUrl,
+                           &nl->discoveryUrl))
+            return true;
+        // check discoveryUrl ignoring tailing slash
+        if (((
+                nl->discoveryUrl.length == entry->serverOnNetwork.discoveryUrl.length +1 &&
+                nl->discoveryUrl.data[nl->discoveryUrl.length-1] == '/'
+              ) || (
+                entry->serverOnNetwork.discoveryUrl.length == nl->discoveryUrl.length +1 &&
+                entry->serverOnNetwork.discoveryUrl.data[entry->serverOnNetwork.discoveryUrl.length-1] == '/'
+              )
+            ) &&
+            memcmp(nl->discoveryUrl.data, entry->serverOnNetwork.discoveryUrl.data,
+                    UA_MIN(nl->discoveryUrl.length, entry->serverOnNetwork.discoveryUrl.length)) == 0
+        ) {
+            return true;
+        }
+        if (nl->discoveryUrl.length == entry->serverOnNetwork.discoveryUrl.length +1 &&
+            nl->discoveryUrl.data[nl->discoveryUrl.length-1] == '/' &&
+            memcmp(nl->discoveryUrl.data, entry->serverOnNetwork.discoveryUrl.data, nl->discoveryUrl.length-1) == 0
+                ) {
+            return true;
+        }
+    }
 
-    UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                 "Multicast DNS: Remove entry from ServersOnNetwork: %s (%*.s)", fqdnMdnsRecord, (int)serverNameLen, serverName);
+    /* The discovery URL may also just contain the IP address, but in our
+     * discovery URL we are using hostname thus previous check may not detect
+     * the same URL. Therefore we also check if the name matches: */
+    UA_String hostnameRemote = UA_STRING_NULL;
+    UA_UInt16 portRemote = 4840;
+    UA_String pathRemote = UA_STRING_NULL;
+    UA_StatusCode retval =
+        UA_parseEndpointUrl(&entry->serverOnNetwork.discoveryUrl,
+                            &hostnameRemote, &portRemote, &pathRemote);
+    if(retval != UA_STATUSCODE_GOOD) {
+        /* skip invalid url */
+        return false;
+    }
 
-    struct serverOnNetwork_list_entry *entry =
-            mdns_record_add_or_get(server, fqdnMdnsRecord, serverName,
-                                   serverNameLen, UA_FALSE);
-    if (!entry)
-        return UA_STATUSCODE_BADNOTFOUND;
+#ifdef _WIN32
+    IP_ADAPTER_ADDRESSES* adapter_addresses = getInterfaces(server);
+    if(!adapter_addresses) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "getifaddrs returned an unexpected error. Not setting mDNS A records.");
+        return false;
+    }
+#else
+    struct ifaddrs *ifaddr, *ifa;
+    if(getifaddrs(&ifaddr) == -1) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "getifaddrs returned an unexpected error. Not setting mDNS A records.");
+        return false;
+    }
+#endif
 
-    UA_String recordStr;
-    recordStr.data = (UA_Byte*)(uintptr_t)fqdnMdnsRecord;
-    recordStr.length = strlen(fqdnMdnsRecord);
+
+    UA_Boolean isSelf = false;
+
+    for (size_t i=0; i<server->config.networkLayersSize; i++) {
+        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
+
+        UA_String hostnameSelf = UA_STRING_NULL;
+        UA_UInt16 portSelf = 4840;
+        UA_String pathSelf = UA_STRING_NULL;
+
+        retval = UA_parseEndpointUrl(&nl->discoveryUrl, &hostnameSelf,
+                                     &portSelf, &pathSelf);
+        if(retval != UA_STATUSCODE_GOOD) {
+            /* skip invalid url */
+            continue;
+        }
+        if (portRemote != portSelf)
+            continue;
+
+#ifdef _WIN32
+        /* Iterate through all of the adapters */
+        IP_ADAPTER_ADDRESSES* adapter = adapter_addresses;
+        for(; adapter != NULL; adapter = adapter->Next) {
+            /* Skip loopback adapters */
+            if(IF_TYPE_SOFTWARE_LOOPBACK == adapter->IfType)
+                continue;
+
+            /* Parse all IPv4 and IPv6 addresses */
+            IP_ADAPTER_UNICAST_ADDRESS* address = adapter->FirstUnicastAddress;
+            for(; NULL != address; address = address->Next) {
+                int family = address->Address.lpSockaddr->sa_family;
+                if(AF_INET == family) {
+                    SOCKADDR_IN* ipv4 = (SOCKADDR_IN*)(address->Address.lpSockaddr); /* IPv4 */
+                    char *ipStr = inet_ntoa(ipv4->sin_addr);
+                    if(strncmp((const char*)hostnameRemote.data, ipStr,
+                               hostnameRemote.length) == 0) {
+                        isSelf = true;
+                        break;
+                    }
+                } else if(AF_INET6 == family) {
+                    /* IPv6 not implemented yet */
+                }
+            }
+            if (isSelf)
+                break;
+        }
+#else
+        /* Walk through linked list, maintaining head pointer so we can free
+         * list later */
+        int n;
+        for(ifa = ifaddr, n = 0; ifa != NULL; ifa = ifa->ifa_next, n++) {
+            if(!ifa->ifa_addr)
+                continue;
+
+            if((strcmp("lo", ifa->ifa_name) == 0) ||
+               !(ifa->ifa_flags & (IFF_RUNNING))||
+               !(ifa->ifa_flags & (IFF_MULTICAST)))
+                continue;
+
+            /* IPv4 */
+            if(ifa->ifa_addr->sa_family == AF_INET) {
+                struct sockaddr_in* sa = (struct sockaddr_in*) ifa->ifa_addr;
+
+                char *ipStr = inet_ntoa(sa->sin_addr);
+                if(strncmp((const char*)hostnameRemote.data, ipStr,
+                           hostnameRemote.length) == 0) {
+                    isSelf = true;
+                    break;
+                }
+            }
+
+            /* IPv6 not implemented yet */
+        }
+#endif
+        if (isSelf)
+            break;
+    }
+
+#ifdef _WIN32
+    /* Cleanup */
+    UA_free(adapter_addresses);
+    adapter_addresses = NULL;
+#else
+    /* Clean up */
+    freeifaddrs(ifaddr);
+#endif
+
+    return isSelf;
+}
+
+static void
+mdns_record_remove(UA_Server *server, const char *record,
+                   struct serverOnNetwork_list_entry *entry) {
+    UA_DiscoveryManager *dm = &server->discoveryManager;
 
     /* remove from hash */
-    UA_UInt32 hashIdx = UA_ByteString_hash(0, (const UA_Byte*)recordStr.data, recordStr.length) % SERVER_ON_NETWORK_HASH_SIZE;
-    struct serverOnNetwork_hash_entry *hash_entry = server->discoveryManager.serverOnNetworkHash[hashIdx];
+    int hashIdx = mdns_hash_record(record) % SERVER_ON_NETWORK_HASH_PRIME;
+    struct serverOnNetwork_hash_entry *hash_entry = dm->serverOnNetworkHash[hashIdx];
     struct serverOnNetwork_hash_entry *prevEntry = hash_entry;
     while(hash_entry) {
         if(hash_entry->entry == entry) {
-            if(server->discoveryManager.serverOnNetworkHash[hashIdx] == hash_entry)
-                server->discoveryManager.serverOnNetworkHash[hashIdx] = hash_entry->next;
+            if(dm->serverOnNetworkHash[hashIdx] == hash_entry)
+                dm->serverOnNetworkHash[hashIdx] = hash_entry->next;
             else if(prevEntry)
                 prevEntry->next = hash_entry->next;
             break;
@@ -204,10 +321,9 @@ UA_DiscoveryManager_removeEntryFromServersOnNetwork(UA_Server *server, const cha
     }
     UA_free(hash_entry);
 
-    if(server->discoveryManager.serverOnNetworkCallback &&
-        !UA_String_equal(&server->discoveryManager.selfFqdnMdnsRecord, &recordStr))
-        server->discoveryManager.serverOnNetworkCallback(&entry->serverOnNetwork, false,
-                                    entry->txtSet, server->discoveryManager.serverOnNetworkCallbackData);
+    if(dm->serverOnNetworkCallback && !mdns_is_self_announce(server, entry))
+        dm->serverOnNetworkCallback(&entry->serverOnNetwork, false,
+                                    entry->txtSet, dm->serverOnNetworkCallbackData);
 
     /* remove from list */
     LIST_REMOVE(entry, pointers);
@@ -215,13 +331,14 @@ UA_DiscoveryManager_removeEntryFromServersOnNetwork(UA_Server *server, const cha
     if(entry->pathTmp)
         UA_free(entry->pathTmp);
 
-#if UA_MULTITHREADING >= 200
+#ifndef UA_ENABLE_MULTITHREADING
+    dm->serverOnNetworkSize--;
+    UA_free(entry);
+#else
+    UA_atomic_subSize(&dm->serverOnNetworkSize, 1);
     entry->delayedCleanup.callback = NULL; /* Only free the structure */
     UA_WorkQueue_enqueueDelayed(&server->workQueue, &entry->delayedCleanup);
-#else
-    UA_free(entry);
 #endif
-    return UA_STATUSCODE_GOOD;
 }
 
 static void
@@ -309,7 +426,7 @@ setSrv(UA_Server *server, const struct resource *r,
         /* cut off last dot */
         srvNameLen--;
     /* opc.tcp://[servername]:[port][path] */
-    char *newUrl = (char*)UA_malloc(10 + srvNameLen + 8 + 1);
+    char *newUrl = (char*)UA_malloc(10 + srvNameLen + 8);
     if (!newUrl) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "Cannot allocate char for discovery url. Out of memory.");
         return;
@@ -317,9 +434,10 @@ setSrv(UA_Server *server, const struct resource *r,
     UA_snprintf(newUrl, 10 + srvNameLen + 8, "opc.tcp://%.*s:%d", (int) srvNameLen,
              r->known.srv.name, r->known.srv.port);
 
-    entry->serverOnNetwork.discoveryUrl = UA_String_fromChars(newUrl);
+
     UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                "Multicast DNS: found server: %.*s", (int)entry->serverOnNetwork.discoveryUrl.length, (char*)entry->serverOnNetwork.discoveryUrl.data);
+                "Multicast DNS: found server: %s", newUrl);
+    entry->serverOnNetwork.discoveryUrl = UA_String_fromChars(newUrl);
     UA_free(newUrl);
 
     if(entry->pathTmp) {
@@ -343,14 +461,6 @@ mdns_record_received(const struct resource *r, void *data) {
     if(!opcStr)
         return;
 
-    UA_String recordStr;
-    recordStr.data = (UA_Byte*)(uintptr_t)r->name;
-    recordStr.length = strlen(r->name);
-    UA_Boolean isSelfAnnounce = UA_String_equal(&server->discoveryManager.selfFqdnMdnsRecord, &recordStr);
-    if (isSelfAnnounce)
-        // ignore itself
-        return;
-
     /* Compute the length of the servername */
     size_t servernameLen = (size_t) (opcStr - r->name);
     if(servernameLen == 0)
@@ -359,7 +469,7 @@ mdns_record_received(const struct resource *r, void *data) {
 
     /* Get entry */
     struct serverOnNetwork_list_entry *entry =
-            mdns_record_add_or_get(server, r->name, r->name,
+            mdns_record_add_or_get(&server->discoveryManager, r->name, r->name,
                                    servernameLen, r->ttl > 0);
     if(!entry)
         return;
@@ -370,7 +480,7 @@ mdns_record_received(const struct resource *r, void *data) {
                     "Multicast DNS: remove server (TTL=0): %.*s",
                     (int)entry->serverOnNetwork.discoveryUrl.length,
                     entry->serverOnNetwork.discoveryUrl.data);
-        UA_DiscoveryManager_removeEntryFromServersOnNetwork(server, r->name, r->name, servernameLen);
+        mdns_record_remove(server, r->name, entry);
         return;
     }
 
@@ -381,7 +491,8 @@ mdns_record_received(const struct resource *r, void *data) {
     if(entry->txtSet && entry->srvSet) {
         // call callback for every mdns package we received.
         // This will also call the callback multiple times
-        if (server->discoveryManager.serverOnNetworkCallback)
+        if (server->discoveryManager.serverOnNetworkCallback &&
+            !mdns_is_self_announce(server, entry))
             server->discoveryManager.
                 serverOnNetworkCallback(&entry->serverOnNetwork, true, entry->txtSet,
                                         server->discoveryManager.serverOnNetworkCallbackData);
@@ -395,7 +506,8 @@ mdns_record_received(const struct resource *r, void *data) {
         setSrv(server, r, entry);
 
     /* Call callback to announce a new server */
-    if(entry->srvSet && server->discoveryManager.serverOnNetworkCallback)
+    if(entry->srvSet && server->discoveryManager.serverOnNetworkCallback &&
+       !mdns_is_self_announce(server, entry))
         server->discoveryManager.
             serverOnNetworkCallback(&entry->serverOnNetwork, true, entry->txtSet,
                                     server->discoveryManager.serverOnNetworkCallbackData);
@@ -557,7 +669,7 @@ void mdns_set_address_record(UA_Server *server, const char *fullServiceDomain,
     adapter_addresses = NULL;
 }
 
-#elif defined(UA_HAS_GETIFADDR)
+#else /* _WIN32 */
 
 void
 mdns_set_address_record(UA_Server *server, const char *fullServiceDomain,
@@ -592,23 +704,6 @@ mdns_set_address_record(UA_Server *server, const char *fullServiceDomain,
 
     /* Clean up */
     freeifaddrs(ifaddr);
-}
-#else /* _WIN32 */
-
-void
-mdns_set_address_record(UA_Server *server, const char *fullServiceDomain,
-                        const char *localDomain) {
-
-    if (server->config.discovery.ipAddressListSize == 0) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "If UA_HAS_GETIFADDR is false, config.discovery.ipAddressList must be set");
-        return;
-    }
-
-    for(size_t i=0; i<server->config.discovery.ipAddressListSize; i++) {
-        mdns_set_address_record_if(&server->discoveryManager, fullServiceDomain,
-                                   localDomain, (char*)&server->config.discovery.ipAddressList[i], 4);
-    }
 }
 
 #endif /* _WIN32 */

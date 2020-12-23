@@ -20,7 +20,7 @@
 #include "ua_util_internal.h"
 #include "open62541_queue.h"
 
-#if UA_MULTITHREADING >= 200
+#ifdef UA_ENABLE_MULTITHREADING
 #include <pthread.h>
 #endif
 
@@ -43,7 +43,7 @@ typedef struct UA_DelayedCallback {
 struct UA_WorkQueue;
 typedef struct UA_WorkQueue UA_WorkQueue;
 
-#if UA_MULTITHREADING >= 200
+#ifdef UA_ENABLE_MULTITHREADING
 
 /* Workers take out callbacks from the work queue and execute them.
  *
@@ -68,22 +68,22 @@ typedef struct {
 struct UA_WorkQueue {
     /* Worker threads and work queue. Without multithreading, work is executed
        immediately. */
-#if UA_MULTITHREADING >= 200
+#ifdef UA_ENABLE_MULTITHREADING
     UA_Worker *workers;
     size_t workersSize;
 
     /* Work queue */
     SIMPLEQ_HEAD(, UA_DelayedCallback) dispatchQueue; /* Dispatch queue for the worker threads */
-    UA_LOCK_TYPE(dispatchQueue_accessMutex) /* mutex for access to queue */
+    pthread_mutex_t dispatchQueue_accessMutex; /* mutex for access to queue */
     pthread_cond_t dispatchQueue_condition; /* so the workers don't spin if the queue is empty */
-    UA_LOCK_TYPE(dispatchQueue_conditionMutex) /* mutex for access to condition variable */
+    pthread_mutex_t dispatchQueue_conditionMutex; /* mutex for access to condition variable */
 #endif
 
     /* Delayed callbacks
      * To be executed after all curretly dispatched works has finished */
     SIMPLEQ_HEAD(, UA_DelayedCallback) delayedCallbacks;
-#if UA_MULTITHREADING >= 200
-    UA_LOCK_TYPE(delayedCallbacks_accessMutex)
+#ifdef UA_ENABLE_MULTITHREADING
+    pthread_mutex_t delayedCallbacks_accessMutex;
     UA_DelayedCallback *delayedCallbacks_checkpoint;
     size_t delayedCallbacks_sinceDispatch; /* How many have been added since we
                                             * tried to dispatch callbacks? */
@@ -104,7 +104,14 @@ void UA_WorkQueue_enqueueDelayed(UA_WorkQueue *wq, UA_DelayedCallback *cb);
  * mutexes etc. */
 void UA_WorkQueue_cleanup(UA_WorkQueue *wq);
 
-#if UA_MULTITHREADING >= 200
+#ifndef UA_ENABLE_MULTITHREADING
+
+/* Process all enqueued delayed work. This is not needed when workers are
+ * running for the multithreading case. (UA_WorkQueue_cleanup still calls this
+ * method during cleanup when the workers are shut down.) */
+void UA_WorkQueue_manuallyProcessDelayed(UA_WorkQueue *wq);
+
+#else
 
 /* Spin up a number of worker threads that listen on the work queue */
 UA_StatusCode UA_WorkQueue_start(UA_WorkQueue *wq, size_t workersCount);
@@ -114,13 +121,6 @@ void UA_WorkQueue_stop(UA_WorkQueue *wq);
 /* Enqueue work for the worker threads */
 void UA_WorkQueue_enqueue(UA_WorkQueue *wq, UA_ApplicationCallback cb,
                           void *application, void *data);
-
-#else
-
-/* Process all enqueued delayed work. This is not needed when workers are
- * running for the multithreading case. (UA_WorkQueue_cleanup still calls this
- * method during cleanup when the workers are shut down.) */
-void UA_WorkQueue_manuallyProcessDelayed(UA_WorkQueue *wq);
 
 #endif
 

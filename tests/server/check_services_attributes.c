@@ -129,14 +129,6 @@ static void setup(void) {
                                    UA_QUALIFIEDNAME(0, "Viewtest"), view_attr, NULL, NULL);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
-    /* DataTypeNode */
-    UA_DataTypeAttributes typeattr = UA_DataTypeAttributes_default;
-    typeattr.displayName = UA_LOCALIZEDTEXT("en-US", "TestDataType");
-    UA_Server_addDataTypeNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_ARGUMENT),
-                                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATATYPE),
-                                  UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
-                                  UA_QUALIFIEDNAME(0, "Argument"), typeattr, NULL, NULL);
-
 #ifdef UA_ENABLE_METHODCALLS
     /* MethodNode */
     UA_MethodAttributes ma = UA_MethodAttributes_default;
@@ -153,7 +145,7 @@ static void setup(void) {
 
 static UA_VariableNode* makeCompareSequence(void) {
     UA_VariableNode *node = (UA_VariableNode*)
-        UA_NODESTORE_NEW(server, UA_NODECLASS_VARIABLE);
+        UA_Nodestore_newNode(server->nsCtx, UA_NODECLASS_VARIABLE);
 
     UA_Int32 myInteger = 42;
     UA_Variant_setScalarCopy(&node->value.data.value.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
@@ -306,7 +298,7 @@ START_TEST(ReadSingleAttributeDisplayNameWithoutTimestamp) {
     ck_assert(UA_String_equal(&comp.text, &respval->text));
     ck_assert(UA_String_equal(&compNode->displayName.locale, &respval->locale));
     UA_DataValue_deleteMembers(&resp);
-    UA_NODESTORE_DELETE(server, (UA_Node*)compNode);
+    UA_Nodestore_deleteNode(server->nsCtx, (UA_Node*)compNode);
 } END_TEST
 
 START_TEST(ReadSingleAttributeDescriptionWithoutTimestamp) {
@@ -324,7 +316,7 @@ START_TEST(ReadSingleAttributeDescriptionWithoutTimestamp) {
     ck_assert(UA_String_equal(&compNode->description.locale, &respval->locale));
     ck_assert(UA_String_equal(&compNode->description.text, &respval->text));
     UA_DataValue_deleteMembers(&resp);
-    UA_NODESTORE_DELETE(server, (UA_Node*)compNode);
+    UA_Nodestore_deleteNode(server->nsCtx, (UA_Node*)compNode);
 } END_TEST
 
 START_TEST(ReadSingleAttributeWriteMaskWithoutTimestamp) {
@@ -524,7 +516,7 @@ START_TEST(ReadSingleAttributeMinimumSamplingIntervalWithoutTimestamp) {
     ck_assert(&UA_TYPES[UA_TYPES_DOUBLE] == resp.value.type);
     ck_assert(*respval == comp);
     UA_DataValue_deleteMembers(&resp);
-    UA_NODESTORE_DELETE(server, (UA_Node*)compNode);
+    UA_Nodestore_deleteNode(server->nsCtx, (UA_Node*)compNode);
 } END_TEST
 
 START_TEST(ReadSingleAttributeHistorizingWithoutTimestamp) {
@@ -612,26 +604,6 @@ START_TEST(ReadSingleDataSourceAttributeArrayDimensionsWithoutTimestamp) {
     UA_DataValue_deleteMembers(&resp);
 } END_TEST
 
-START_TEST(ReadSingleAttributeDataTypeDefinitionWithoutTimestamp) {
-    UA_ReadValueId rvi;
-    UA_ReadValueId_init(&rvi);
-    rvi.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ARGUMENT);
-    rvi.attributeId = UA_ATTRIBUTEID_DATATYPEDEFINITION;
-
-    UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
-
-
-#ifdef UA_ENABLE_TYPEDESCRIPTION
-    ck_assert_int_eq(UA_STATUSCODE_GOOD, resp.status);
-    ck_assert_uint_eq(resp.value.type->typeIndex, UA_TYPES_STRUCTUREDEFINITION);
-    UA_StructureDefinition *def = (UA_StructureDefinition*)resp.value.data;
-    ck_assert_uint_eq(def->fieldsSize, 5);
-#else
-    ck_assert_int_eq(UA_STATUSCODE_BADATTRIBUTEIDINVALID, resp.status);
-#endif
-    UA_DataValue_deleteMembers(&resp);
-} END_TEST
-
 /* Tests for writeValue method */
 
 START_TEST(WriteSingleAttributeNodeId) {
@@ -669,7 +641,7 @@ START_TEST(WriteSingleAttributeBrowseName) {
     wValue.attributeId = UA_ATTRIBUTEID_BROWSENAME;
     wValue.value.hasValue = true;
     UA_StatusCode retval = UA_Server_write(server, &wValue);
-    ck_assert_int_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 } END_TEST
 
 START_TEST(WriteSingleAttributeDisplayName) {
@@ -1006,7 +978,6 @@ static Suite * testSuite_services_attributes(void) {
     tcase_add_test(tc_readSingleAttributes, ReadSingleDataSourceAttributeValueEmptyWithoutTimestamp);
     tcase_add_test(tc_readSingleAttributes, ReadSingleDataSourceAttributeDataTypeWithoutTimestamp);
     tcase_add_test(tc_readSingleAttributes, ReadSingleDataSourceAttributeArrayDimensionsWithoutTimestamp);
-    tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeDataTypeDefinitionWithoutTimestamp);
 
     suite_add_tcase(s, tc_readSingleAttributes);
 

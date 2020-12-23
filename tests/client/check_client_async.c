@@ -19,7 +19,9 @@
 #include "thread_wrapper.h"
 
 UA_Server *server;
+UA_ServerConfig *config;
 UA_Boolean running;
+UA_ServerNetworkLayer nl;
 THREAD_HANDLE server_thread;
 
 THREAD_CALLBACK(serverloop) {
@@ -67,9 +69,7 @@ START_TEST(Client_highlevel_async_readValue) {
         UA_Client *client = UA_Client_new();
         UA_ClientConfig *clientConfig = UA_Client_getConfig(client);
         UA_ClientConfig_setDefault(clientConfig);
-#ifdef UA_ENABLE_SUBSCRIPTIONS
         clientConfig->outStandingPublishRequests = 0;
-#endif
 
         UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -132,9 +132,9 @@ START_TEST(Client_read_async) {
         }
 
         /* Process async responses during 1s */
-        while(asyncCounter < 100)
-            retval |= UA_Client_run_iterate(client, 999);
+        retval = UA_Client_run_iterate(client, 999);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(asyncCounter, 100);
 
         UA_Client_disconnect(client);
         UA_Client_delete(client);
@@ -144,9 +144,7 @@ START_TEST(Client_read_async_timed) {
         UA_Client *client = UA_Client_new();
         UA_ClientConfig *clientConfig = UA_Client_getConfig(client);
         UA_ClientConfig_setDefault(clientConfig);
-#ifdef UA_ENABLE_SUBSCRIPTIONS
         clientConfig->outStandingPublishRequests = 0;
-#endif
 
         UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -205,9 +203,7 @@ START_TEST(Client_connectivity_check) {
         UA_Client *client = UA_Client_new();
         UA_ClientConfig *clientConfig = UA_Client_getConfig(client);
         UA_ClientConfig_setDefault(clientConfig);
-#ifdef UA_ENABLE_SUBSCRIPTIONS
         clientConfig->outStandingPublishRequests = 0;
-#endif
         clientConfig->inactivityCallback = inactivityCallback;
         clientConfig->connectivityCheckInterval = 1000;
 
@@ -224,21 +220,12 @@ START_TEST(Client_connectivity_check) {
         ck_assert_uint_eq(inactivityCallbackTriggered, false);
 
         /* Simulate network cable unplugged (no response from server) */
-        running = false;
-        THREAD_JOIN(server_thread);
+        UA_Client_recvTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
 
-        UA_fakeSleep(1000 + 1 + clientConfig->connectivityCheckInterval);
-        retval = UA_Client_run_iterate(client, 1);
-        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-
-        UA_fakeSleep(1000 + 1 + clientConfig->timeout);
-        retval = UA_Client_run_iterate(client, 1);
+        retval = UA_Client_run_iterate(client,
+                (UA_UInt16) (1000 + 1 + clientConfig->timeout));
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
         ck_assert_uint_eq(inactivityCallbackTriggered, true);
-
-        /* Get the server back up */
-        running = true;
-        THREAD_CREATE(server_thread, serverloop);
 
         UA_Client_disconnect(client);
         UA_Client_delete(client);

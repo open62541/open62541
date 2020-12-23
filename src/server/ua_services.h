@@ -47,9 +47,6 @@ _UA_BEGIN_DECLS
 typedef void (*UA_Service)(UA_Server*, UA_Session*,
                            const void *request, void *response);
 
-typedef void (*UA_ChannelService)(UA_Server*, UA_SecureChannel*,
-                                  const void *request, void *response);
-
 /**
  * Discovery Service Set
  * ---------------------
@@ -156,6 +153,7 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
  * any other Service request after CreateSession. Failure to do so shall cause
  * the Server to close the Session. */
 void Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
+                             UA_Session *session,
                              const UA_ActivateSessionRequest *request,
                              UA_ActivateSessionResponse *response);
 
@@ -163,7 +161,7 @@ void Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
  * CloseSession
  * ^^^^^^^^^^^^
  * Used to terminate a Session. */
-void Service_CloseSession(UA_Server *server, UA_SecureChannel *channel,
+void Service_CloseSession(UA_Server *server, UA_Session *session,
                           const UA_CloseSessionRequest *request,
                           UA_CloseSessionResponse *response);
 
@@ -305,8 +303,7 @@ void Service_UnregisterNodes(UA_Server *server, UA_Session *session,
  * the entire set of indexed values as a composite, to read individual elements
  * or to read ranges of elements of the composite. */
 void Service_Read(UA_Server *server, UA_Session *session,
-                  const UA_ReadRequest *request,
-                  UA_ReadResponse *response);
+                  const UA_ReadRequest *request, UA_ReadResponse *response);
 
 /**
  * Write Service
@@ -316,8 +313,7 @@ void Service_Read(UA_Server *server, UA_Session *session,
  * the entire set of indexed values as a composite, to write individual elements
  * or to write ranges of elements of the composite. */
 void Service_Write(UA_Server *server, UA_Session *session,
-                   const UA_WriteRequest *request,
-                   UA_WriteResponse *response);
+                   const UA_WriteRequest *request, UA_WriteResponse *response);
 
 /**
  * HistoryRead Service
@@ -360,12 +356,6 @@ Service_HistoryUpdate(UA_Server *server, UA_Session *session,
 void Service_Call(UA_Server *server, UA_Session *session,
                   const UA_CallRequest *request,
                   UA_CallResponse *response);
-
-# if UA_MULTITHREADING >= 100
-void Service_CallAsync(UA_Server *server, UA_Session *session, UA_UInt32 requestId,
-                       const UA_CallRequest *request, UA_CallResponse *response,
-                       UA_Boolean *finished);
-#endif
 #endif
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
