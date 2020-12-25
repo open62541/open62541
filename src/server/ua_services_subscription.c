@@ -81,9 +81,14 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
     sub->publishingEnabled = request->publishingEnabled;
     sub->currentKeepAliveCount = sub->maxKeepAliveCount; /* set settings first */
 
-    /* Register the subscription in the server. Also assigns the SubscriptionId. */
-    UA_Server_addSubscription(server, sub);
+    /* Assign the SubscriptionId */
+    sub->subscriptionId = ++server->lastSubscriptionId;
 
+    /* Register the subscription in the server */
+    LIST_INSERT_HEAD(&server->subscriptions, sub, serverListEntry);
+    server->numSubscriptions++;
+
+    /* Register the cyclic callback */
     UA_StatusCode retval = Subscription_registerPublishCallback(server, sub);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG_SESSION(&server->config.logger, sub->session,
@@ -91,7 +96,7 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
                              "Could not register publish callback with error code %s",
                              sub->subscriptionId, UA_StatusCode_name(retval));
         response->responseHeader.serviceResult = retval;
-        UA_Server_deleteSubscription(server, sub);
+        UA_Subscription_delete(server, sub);
         return;
     }
 
@@ -284,7 +289,7 @@ Operation_DeleteSubscription(UA_Server *server, UA_Session *session, void *_,
         return;
     }
 
-    UA_Server_deleteSubscription(server, sub);
+    UA_Subscription_delete(server, sub);
     *result = UA_STATUSCODE_GOOD;
     UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                          "Subscription %" PRIu32 " | Subscription deleted",
@@ -457,11 +462,10 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
 
     /* Done moving over to the new Subscription. Register the new Subscription. */
 
-    /* Add to the server. This assigns a fresh SubscriptionId internally.
-     * Undo this to reuse the original SubscriptionId */
-    UA_Server_addSubscription(server, newSub);
-    newSub->subscriptionId = sub->subscriptionId;
-    server->lastSubscriptionId--;
+    /* Add to the server */
+    UA_assert(newSub->subscriptionId == sub->subscriptionId);
+    LIST_INSERT_HEAD(&server->subscriptions, newSub, serverListEntry);
+    server->numSubscriptions++;
 
     /* Attach to the session */
     UA_Session_attachSubscription(session, newSub);
@@ -469,9 +473,8 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
     UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, newSub, "Transferred to this Session");
 
     /* Set StatusChange in the original subscription and force publish. This
-     * also stops the registered cyclic callback and triggers a clean up. The
-     * Subscription is not necessarily immediately removed if we have to wait
-     * for a PublishRequest to send the StatusChangeNotification. */
+     * also removes the Subscription, even if there was no PublishResponse
+     * queued to send a StatusChangeNotification. */
     sub->statusChange = UA_STATUSCODE_GOODSUBSCRIPTIONTRANSFERRED;
     UA_Subscription_publish(server, sub);
     UA_assert(sub->publishCallbackId == 0);

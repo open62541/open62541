@@ -205,7 +205,7 @@ void UA_Server_delete(UA_Server *server) {
     /* Remove subscriptions without a session */
     UA_Subscription *sub, *sub_tmp;
     LIST_FOREACH_SAFE(sub, &server->subscriptions, serverListEntry, sub_tmp) {
-        UA_Server_deleteSubscription(server, sub);
+        UA_Subscription_delete(server, sub);
     }
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
