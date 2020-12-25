@@ -44,10 +44,24 @@ UA_Subscription_new() {
 }
 
 void
-UA_Subscription_clear(UA_Server *server, UA_Subscription *sub) {
+UA_Subscription_delete(UA_Server *server, UA_Subscription *sub) {
     UA_LOCK_ASSERT(server->serviceMutex, 1);
 
+    /* Unregister the publish callback */
     Subscription_unregisterPublishCallback(server, sub);
+
+    UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, sub, "Subscription deleted");
+
+    /* Detach from the session if necessary */
+    if(sub->session)
+        UA_Session_detachSubscription(server, sub->session, sub);
+
+    /* Remove from the server if not previously registered */
+    if(sub->serverListEntry.le_prev) {
+        LIST_REMOVE(sub, serverListEntry);
+        UA_assert(server->numSubscriptions > 0);
+        server->numSubscriptions--;
+    }
 
     /* Delete monitored Items */
     UA_MonitoredItem *mon, *tmp_mon;
@@ -73,6 +87,16 @@ UA_Subscription_clear(UA_Server *server, UA_Subscription *sub) {
         --sub->retransmissionQueueSize;
     }
     UA_assert(sub->retransmissionQueueSize == 0);
+
+    /* Add a delayed callback to remove the Subscription when the current jobs
+     * have completed. Pointers to the subscription may still exist upwards in
+     * the call stack. */
+    sub->delayedFreePointers.callback = NULL;
+    sub->delayedFreePointers.application = server;
+    sub->delayedFreePointers.data = NULL;
+    sub->delayedFreePointers.nextTime = UA_DateTime_nowMonotonic() + 1;
+    sub->delayedFreePointers.interval = 0; /* Remove the structure */
+    UA_Timer_addTimerEntry(&server->timer, &sub->delayedFreePointers, NULL);
 }
 
 UA_MonitoredItem *
@@ -329,7 +353,7 @@ sendStatusChangeDelete(UA_Server *server, UA_Subscription *sub,
         UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
                                   "Cannot send the StatusChange notification. "
                                   "Removing the subscription.");
-        UA_Server_deleteSubscription(server, sub);
+        UA_Subscription_delete(server, sub);
         return;
     }
 
@@ -369,7 +393,7 @@ sendStatusChangeDelete(UA_Server *server, UA_Subscription *sub,
     UA_free(pre);
 
     /* Delete the subscription */
-    UA_Server_deleteSubscription(server, sub);
+    UA_Subscription_delete(server, sub);
 }
 
 void

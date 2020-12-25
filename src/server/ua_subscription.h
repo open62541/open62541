@@ -315,7 +315,7 @@ struct UA_Subscription {
 };
 
 UA_Subscription * UA_Subscription_new(void);
-void UA_Subscription_clear(UA_Server *server, UA_Subscription *sub);
+void UA_Subscription_delete(UA_Server *server, UA_Subscription *sub);
 UA_StatusCode Subscription_registerPublishCallback(UA_Server *server, UA_Subscription *sub);
 void Subscription_unregisterPublishCallback(UA_Server *server, UA_Subscription *sub);
 void UA_Subscription_addMonitoredItem(UA_Server *server, UA_Subscription *sub, UA_MonitoredItem *mon);

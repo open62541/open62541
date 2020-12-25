@@ -36,7 +36,7 @@ UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_Subscription *sub, *tempsub;
     TAILQ_FOREACH_SAFE(sub, &session->subscriptions, sessionListEntry, tempsub) {
-        UA_Server_deleteSubscription(server, sub);
+        UA_Subscription_delete(server, sub);
     }
 
     UA_PublishResponseEntry *entry;

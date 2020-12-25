@@ -374,8 +374,6 @@ translateBrowsePathToNodeIds(UA_Server *server, const UA_BrowsePath *browsePath)
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 
-void UA_Server_addSubscription(UA_Server *server, UA_Subscription *sub);
-void UA_Server_deleteSubscription(UA_Server *server, UA_Subscription *sub);
 void monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem);
 
 UA_Subscription *
