@@ -751,6 +751,7 @@ Service_CloseSession(UA_Server *server, UA_SecureChannel *channel,
         return;
     }
 
+    UA_assert(session); /* Assured by the previous section */
     UA_LOG_INFO_SESSION(&server->config.logger, session, "Closing the Session");
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
