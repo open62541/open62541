@@ -566,8 +566,7 @@ browseReferences(UA_Server *server, const UA_NodeHead *head,
 
                 /* Test if the node class matches */
                 if(target && !matchClassMask(target, bd->nodeClassMask)) {
-                    if(target)
-                        UA_NODESTORE_RELEASE(server, target);
+                    UA_NODESTORE_RELEASE(server, target);
                     continue;
                 }
             }
