@@ -1281,14 +1281,6 @@ recursiveCallConstructors(UA_Server *server, UA_Session *session,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    /* Get the node type constructor */
-    const UA_NodeTypeLifecycle *lifecycle = NULL;
-    if(type && head->nodeClass == UA_NODECLASS_OBJECT) {
-        lifecycle = &type->objectTypeNode.lifecycle;
-    } else if(type && head->nodeClass == UA_NODECLASS_VARIABLE) {
-        lifecycle = &type->variableTypeNode.lifecycle;
-    }
-
     /* Call the global constructor */
     void *context = head->context;
     if(server->config.nodeLifecycle.constructor) {
@@ -1297,40 +1289,46 @@ recursiveCallConstructors(UA_Server *server, UA_Session *session,
                                                           session->sessionHandle,
                                                           &head->nodeId, &context);
         UA_LOCK(server->serviceMutex);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
     }
 
-    /* Call the type constructor */
-    if(retval == UA_STATUSCODE_GOOD && lifecycle && lifecycle->constructor) {
+    /* Call the local (per-type) constructor */
+    const UA_NodeTypeLifecycle *lifecycle = NULL;
+    if(type && head->nodeClass == UA_NODECLASS_OBJECT)
+        lifecycle = &type->objectTypeNode.lifecycle;
+    else if(type && head->nodeClass == UA_NODECLASS_VARIABLE)
+        lifecycle = &type->variableTypeNode.lifecycle;
+    if(lifecycle && lifecycle->constructor) {
         UA_UNLOCK(server->serviceMutex)
         retval = lifecycle->constructor(server, &session->sessionId,
                                         session->sessionHandle, &type->head.nodeId,
                                         type->head.context, &head->nodeId, &context);
         UA_LOCK(server->serviceMutex);
+        if(retval != UA_STATUSCODE_GOOD)
+            goto global_destructor;
     }
-    if(retval != UA_STATUSCODE_GOOD)
-        goto fail1;
 
     /* Set the context *and* mark the node as constructed */
-    if(retval == UA_STATUSCODE_GOOD)
-        retval = UA_Server_editNode(server, &server->adminSession, &head->nodeId,
-                                    (UA_EditNodeCallback)setConstructedNodeContext,
-                                    context);
+    retval = UA_Server_editNode(server, &server->adminSession, &head->nodeId,
+                                (UA_EditNodeCallback)setConstructedNodeContext, context);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto local_destructor;
 
     /* All good, return */
-    if(retval == UA_STATUSCODE_GOOD)
-        return retval;
+    return retval;
 
     /* Fail. Call the destructors. */
+  local_destructor:
     if(lifecycle && lifecycle->destructor) {
         UA_UNLOCK(server->serviceMutex);
-        lifecycle->destructor(server, &session->sessionId,
-                              session->sessionHandle, &type->head.nodeId,
-                              type->head.context, &head->nodeId, &context);
+        lifecycle->destructor(server, &session->sessionId, session->sessionHandle,
+                              &type->head.nodeId, type->head.context, &head->nodeId,
+                              &context);
         UA_LOCK(server->serviceMutex)
     }
 
-
- fail1:
+  global_destructor:
     if(server->config.nodeLifecycle.destructor) {
         UA_UNLOCK(server->serviceMutex);
         server->config.nodeLifecycle.destructor(server, &session->sessionId,
@@ -1338,7 +1336,6 @@ recursiveCallConstructors(UA_Server *server, UA_Session *session,
                                                 &head->nodeId, context);
         UA_LOCK(server->serviceMutex);
     }
-
     return retval;
 }
 
