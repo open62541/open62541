@@ -457,8 +457,8 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
 
     /* Done moving over to the new Subscription. Register the new Subscription. */
 
-    /* Add to the server. Assigns a fresh SubscriptionId. Reuse the original
-     * SubscriptionId */
+    /* Add to the server. This assigns a fresh SubscriptionId internally.
+     * Undo this to reuse the original SubscriptionId */
     UA_Server_addSubscription(server, newSub);
     newSub->subscriptionId = sub->subscriptionId;
     server->lastSubscriptionId--;
