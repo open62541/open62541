@@ -215,7 +215,7 @@ zipNsInsertNode(void *nsCtx, UA_Node *node, UA_NodeId *addedNodeId) {
 
     /* For new ReferencetypeNodes add to the index map */
     if(node->head.nodeClass == UA_NODECLASS_REFERENCETYPE) {
-        UA_ReferenceTypeNode *refNode = (UA_ReferenceTypeNode*)node;
+        UA_ReferenceTypeNode *refNode = &node->referenceTypeNode;
         if(ns->referenceTypeCounter >= UA_REFERENCETYPESET_MAX) {
             deleteEntry(entry);
             return UA_STATUSCODE_BADINTERNALERROR;
