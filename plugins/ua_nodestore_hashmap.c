@@ -368,7 +368,7 @@ UA_NodeMap_insertNode(void *context, UA_Node *node,
 
     /* For new ReferencetypeNodes add to the index map */
     if(node->head.nodeClass == UA_NODECLASS_REFERENCETYPE) {
-        UA_ReferenceTypeNode *refNode = (UA_ReferenceTypeNode*)node;
+        UA_ReferenceTypeNode *refNode = &node->referenceTypeNode;
         if(ns->referenceTypeCounter >= UA_REFERENCETYPESET_MAX) {
             deleteNodeMapEntry(container_of(node, UA_NodeMapEntry, node));
             return UA_STATUSCODE_BADINTERNALERROR;
