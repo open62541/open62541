@@ -24,6 +24,8 @@ UA_NodeId_print(const UA_NodeId *id, UA_String *output) {
     size_t nsLen = 0;
     if(id->namespaceIndex != 0) {
         nsStr = (char*)UA_malloc(9+1); // strlen("ns=XXXXX;") = 9 + Nullbyte
+        if(!nsStr)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
         snprintfLen = UA_snprintf(nsStr, 10, "ns=%d;", id->namespaceIndex);
         if(snprintfLen < 0 || snprintfLen >= 10) {
             UA_free(nsStr);
