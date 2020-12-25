@@ -323,12 +323,13 @@ publishCallback(UA_Server *server, UA_Subscription *sub) {
 static void
 sendStatusChangeDelete(UA_Server *server, UA_Subscription *sub,
                        UA_PublishResponseEntry *pre) {
-    /* Cannot send out the StatusChange. Keep only the "shell" of the
-     * subscription to answer later with a StatusChangeNotification when a Publish
-     * Request is available. */
+    /* Cannot send out the StatusChange because no response is queued.
+     * Delete the Subscription without sending the StatusChange. */
     if(!pre) {
-        UA_Subscription_clear(server, sub);
-        sub->state = UA_SUBSCRIPTIONSTATE_LATE;
+        UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
+                                  "Cannot send the StatusChange notification. "
+                                  "Removing the subscription.");
+        UA_Server_deleteSubscription(server, sub);
         return;
     }
 
@@ -386,16 +387,19 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
     if(pre) {
         sub->currentLifetimeCount = 0;
     } else {
-        UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub, "The publish queue is empty");
+        UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
+                                  "The publish queue is empty");
         ++sub->currentLifetimeCount;
         if(sub->currentLifetimeCount > sub->lifeTimeCount) {
-            UA_LOG_WARNING_SUBSCRIPTION(&server->config.logger, sub, "End of subscription lifetime");
+            UA_LOG_WARNING_SUBSCRIPTION(&server->config.logger, sub,
+                                        "End of subscription lifetime");
             /* Set the StatusChange to delete the subscription. */
             sub->statusChange = UA_STATUSCODE_BADTIMEOUT;
         }
     }
 
-    /* Send a StatusChange Notification and delete the Subscription. */
+    /* Send a StatusChange notification if possible and delete the
+     * Subscription */
     if(sub->statusChange != UA_STATUSCODE_GOOD) {
         sendStatusChangeDelete(server, sub, pre);
         return;
