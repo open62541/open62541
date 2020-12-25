@@ -320,21 +320,74 @@ publishCallback(UA_Server *server, UA_Subscription *sub) {
     UA_UNLOCK(server->serviceMutex);
 }
 
+static void
+sendStatusChangeDelete(UA_Server *server, UA_Subscription *sub,
+                       UA_PublishResponseEntry *pre) {
+    /* Cannot send out the StatusChange. Keep only the "shell" of the
+     * subscription to answer later with a StatusChangeNotification when a Publish
+     * Request is available. */
+    if(!pre) {
+        UA_Subscription_clear(server, sub);
+        sub->state = UA_SUBSCRIPTIONSTATE_LATE;
+        return;
+    }
+
+    UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
+                              "Sending out a StatusChange "
+                              "notification and removing the subscription");
+
+    /* Populate the response */
+    UA_PublishResponse *response = &pre->response;
+
+    UA_StatusChangeNotification scn;
+    UA_StatusChangeNotification_init(&scn);
+    scn.status = sub->statusChange;
+
+    UA_ExtensionObject notificationData;
+    UA_ExtensionObject_setValue(&notificationData, &scn,
+                                &UA_TYPES[UA_TYPES_STATUSCHANGENOTIFICATION]);
+
+    response->responseHeader.timestamp = UA_DateTime_now();
+    response->notificationMessage.notificationData = &notificationData;
+    response->notificationMessage.notificationDataSize = 1;
+    response->subscriptionId = sub->subscriptionId;
+    response->notificationMessage.publishTime = response->responseHeader.timestamp;
+    response->notificationMessage.sequenceNumber = sub->nextSequenceNumber;
+
+    /* Send the response */
+    UA_assert(sub->session); /* Otherwise pre is NULL */
+    UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
+                              "Sending out a publish response");
+    sendResponse(server, sub->session, sub->session->header.channel, pre->requestId,
+                 (UA_Response *)response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
+
+    /* Clean up */
+    response->notificationMessage.notificationData = NULL;
+    response->notificationMessage.notificationDataSize = 0;
+    UA_PublishResponse_clear(&pre->response);
+    UA_free(pre);
+
+    /* Delete the subscription */
+    UA_Server_deleteSubscription(server, sub);
+}
+
 void
 UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
     UA_LOCK_ASSERT(server->serviceMutex, 1);
     UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub, "Publish Callback");
+    UA_assert(sub);
 
     /* Dequeue a response */
     UA_PublishResponseEntry *pre = NULL;
     if(sub->session)
         pre = UA_Session_dequeuePublishReq(sub->session);
+
+    /* Update the LifetimeCounter */
     if(pre) {
-        sub->currentLifetimeCount = 0; /* Reset the LifetimeCounter */
+        sub->currentLifetimeCount = 0;
     } else {
         UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub, "The publish queue is empty");
         ++sub->currentLifetimeCount;
-
         if(sub->currentLifetimeCount > sub->lifeTimeCount) {
             UA_LOG_WARNING_SUBSCRIPTION(&server->config.logger, sub, "End of subscription lifetime");
             /* Set the StatusChange to delete the subscription. */
@@ -342,56 +395,9 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
         }
     }
 
-    UA_PublishResponse *response = &pre->response;
-    UA_NotificationMessage *message = &response->notificationMessage;
-
     /* Send a StatusChange Notification and delete the Subscription. */
     if(sub->statusChange != UA_STATUSCODE_GOOD) {
-        /* Cannot send out the StatusChange. Keep the "shell" of the
-         * subscription to answer with a StatusChangeNotification when a Publish
-         * Request is available. */
-        if(!pre) {
-            /* Remove the cyclic publich callback, the MonitoredItems and queued
-             * Notifications */
-            UA_Subscription_clear(server, sub);
-            sub->state = UA_SUBSCRIPTIONSTATE_LATE;
-            return;
-        }
-
-        UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub, "Sending out a StatusChange "
-                                  "notification and removing the subscription");
-
-        /* Populate the response */
-        UA_StatusChangeNotification scn;
-        UA_StatusChangeNotification_init(&scn);
-        scn.status = sub->statusChange;
-
-        UA_ExtensionObject notificationData;
-        UA_ExtensionObject_setValue(&notificationData, &scn,
-                                    &UA_TYPES[UA_TYPES_STATUSCHANGENOTIFICATION]);
-
-        response->responseHeader.timestamp = UA_DateTime_now();
-        response->notificationMessage.notificationData = &notificationData;
-        response->notificationMessage.notificationDataSize = 1;
-        response->subscriptionId = sub->subscriptionId;
-        response->notificationMessage.publishTime = response->responseHeader.timestamp;
-        response->notificationMessage.sequenceNumber = sub->nextSequenceNumber;
-
-        /* Send the response */
-        UA_assert(sub->session); /* Otherwise pre is NULL */
-        UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
-                                  "Sending out a publish response");
-        sendResponse(server, sub->session, sub->session->header.channel, pre->requestId,
-                     (UA_Response*)response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
-
-        /* Clean up */
-        response->notificationMessage.notificationData = NULL;
-        response->notificationMessage.notificationDataSize = 0;
-        UA_PublishResponse_clear(&pre->response);
-        UA_free(pre);
-
-        /* Delete the subscription */
-        UA_Server_deleteSubscription(server, sub);
+        sendStatusChangeDelete(server, sub, pre);
         return;
     }
 
@@ -400,10 +406,7 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
         sub->readyNotifications = sub->notificationQueueSize;
 
     /* Count the available notifications */
-    UA_UInt32 notifications = sub->readyNotifications;
-    if(!sub->publishingEnabled)
-        notifications = 0;
-
+    UA_UInt32 notifications = (sub->publishingEnabled) ? sub->readyNotifications : 0;
     UA_Boolean moreNotifications = false;
     if(notifications > sub->notificationsPerPublish) {
         notifications = sub->notificationsPerPublish;
@@ -421,8 +424,10 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
         UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub, "Sending a KeepAlive");
     }
 
-    /* We want to send a response. Is the channel open? */
-    if(!pre || !sub->session->header.channel) {
+    /* We want to send a response, but cannot. Either because there is no queued
+     * response or because the Subscription is detached from a Session or because
+     * the SecureChannel for the Session is closed. */
+    if(!pre || !sub->session || !sub->session->header.channel) {
         UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
                                   "Want to send a publish response but can't. "
                                   "The subscription is late.");
@@ -435,6 +440,8 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
     UA_assert(sub->session); /* Otherwise pre is NULL */
 
     /* Prepare the response */
+    UA_PublishResponse *response = &pre->response;
+    UA_NotificationMessage *message = &response->notificationMessage;
     UA_NotificationMessageEntry *retransmission = NULL;
     if(notifications > 0) {
         if(server->config.enableRetransmissionQueue) {
