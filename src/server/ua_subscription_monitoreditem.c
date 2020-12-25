@@ -141,9 +141,11 @@ setOverflowInfoBits(UA_MonitoredItem *mon) {
 UA_Notification *
 UA_Notification_new(void) {
     UA_Notification *n = (UA_Notification*)UA_calloc(1, sizeof(UA_Notification));
-    /* Set the sentinel for a notification that is not enqueued */
-    TAILQ_NEXT(n, globalEntry) = UA_SUBSCRIPTION_QUEUE_SENTINEL;
-    TAILQ_NEXT(n, listEntry) = UA_SUBSCRIPTION_QUEUE_SENTINEL;
+    if(n) {
+        /* Set the sentinel for a notification that is not enqueued */
+        TAILQ_NEXT(n, globalEntry) = UA_SUBSCRIPTION_QUEUE_SENTINEL;
+        TAILQ_NEXT(n, listEntry) = UA_SUBSCRIPTION_QUEUE_SENTINEL;
+    }
     return n;
 }
 
