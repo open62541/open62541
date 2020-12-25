@@ -834,8 +834,6 @@ AddNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
                 typeOk = typeHead->nodeClass == UA_NODECLASS_METHOD;
                 break;
             case UA_NODECLASS_OBJECT:
-                typeOk = typeHead->nodeClass == UA_NODECLASS_OBJECTTYPE;
-                break;
             case UA_NODECLASS_OBJECTTYPE:
                 typeOk = typeHead->nodeClass == UA_NODECLASS_OBJECTTYPE;
                 break;
@@ -843,8 +841,6 @@ AddNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
                 typeOk = typeHead->nodeClass == UA_NODECLASS_REFERENCETYPE;
                 break;
             case UA_NODECLASS_VARIABLE:
-                typeOk = typeHead->nodeClass == UA_NODECLASS_VARIABLETYPE;
-                break;
             case UA_NODECLASS_VARIABLETYPE:
                 typeOk = typeHead->nodeClass == UA_NODECLASS_VARIABLETYPE;
                 break;
