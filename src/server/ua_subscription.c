@@ -59,22 +59,17 @@ UA_Subscription_delete(UA_Server *server, UA_Subscription *sub) {
     /* Remove from the server if not previously registered */
     if(sub->serverListEntry.le_prev) {
         LIST_REMOVE(sub, serverListEntry);
-        UA_assert(server->numSubscriptions > 0);
-        server->numSubscriptions--;
+        UA_assert(server->subscriptionsSize > 0);
+        server->subscriptionsSize--;
     }
 
     /* Delete monitored Items */
+    UA_assert(server->monitoredItemsSize >= sub->monitoredItemsSize);
     UA_MonitoredItem *mon, *tmp_mon;
     LIST_FOREACH_SAFE(mon, &sub->monitoredItems, listEntry, tmp_mon) {
-        LIST_REMOVE(mon, listEntry);
-        UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, sub,
-                                 "MonitoredItem %" PRIi32 " | Deleted the MonitoredItem", 
-                                 mon->monitoredItemId);
         UA_MonitoredItem_delete(server, mon);
     }
-    UA_assert(server->numMonitoredItems >= sub->monitoredItemsSize);
-    server->numMonitoredItems -= sub->monitoredItemsSize;
-    sub->monitoredItemsSize = 0;
+    UA_assert(sub->monitoredItemsSize == 0);
 
     /* Delete Retransmission Queue */
     UA_NotificationMessageEntry *nme, *nme_tmp;
@@ -107,14 +102,6 @@ UA_Subscription_getMonitoredItem(UA_Subscription *sub, UA_UInt32 monitoredItemId
             break;
     }
     return mon;
-}
-
-void
-UA_Subscription_addMonitoredItem(UA_Server *server, UA_Subscription *sub,
-                                 UA_MonitoredItem *mon) {
-    sub->monitoredItemsSize++;
-    server->numMonitoredItems++;
-    LIST_INSERT_HEAD(&sub->monitoredItems, mon, listEntry);
 }
 
 static void

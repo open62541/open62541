@@ -58,9 +58,9 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
 
     /* Check limits for the number of subscriptions */
     if(((server->config.maxSubscriptions != 0) &&
-        (server->numSubscriptions >= server->config.maxSubscriptions)) ||
+        (server->subscriptionsSize >= server->config.maxSubscriptions)) ||
        ((server->config.maxSubscriptionsPerSession != 0) &&
-        (session->numSubscriptions >= server->config.maxSubscriptionsPerSession))) {
+        (session->subscriptionsSize >= server->config.maxSubscriptionsPerSession))) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYSUBSCRIPTIONS;
         return;
     }
@@ -84,10 +84,6 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
     /* Assign the SubscriptionId */
     sub->subscriptionId = ++server->lastSubscriptionId;
 
-    /* Register the subscription in the server */
-    LIST_INSERT_HEAD(&server->subscriptions, sub, serverListEntry);
-    server->numSubscriptions++;
-
     /* Register the cyclic callback */
     UA_StatusCode retval = Subscription_registerPublishCallback(server, sub);
     if(retval != UA_STATUSCODE_GOOD) {
@@ -99,6 +95,10 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
         UA_Subscription_delete(server, sub);
         return;
     }
+
+    /* Register the subscription in the server */
+    LIST_INSERT_HEAD(&server->subscriptions, sub, serverListEntry);
+    server->subscriptionsSize++;
 
     /* Attach the Subscription to the session */
     UA_Session_attachSubscription(session, sub);
@@ -399,7 +399,7 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
 
     /* Check limits for the number of subscriptions for this Session */
     if((server->config.maxSubscriptionsPerSession != 0) &&
-       (session->numSubscriptions >= server->config.maxSubscriptionsPerSession)) {
+       (session->subscriptionsSize >= server->config.maxSubscriptionsPerSession)) {
         result->statusCode = UA_STATUSCODE_BADTOOMANYSUBSCRIPTIONS;
         return;
     }
@@ -474,7 +474,7 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
     /* Add to the server */
     UA_assert(newSub->subscriptionId == sub->subscriptionId);
     LIST_INSERT_HEAD(&server->subscriptions, newSub, serverListEntry);
-    server->numSubscriptions++;
+    server->subscriptionsSize++;
 
     /* Attach to the session */
     UA_Session_attachSubscription(session, newSub);

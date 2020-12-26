@@ -216,8 +216,10 @@ struct UA_MonitoredItem {
 #endif
 };
 
-void UA_MonitoredItem_init(UA_MonitoredItem *mon, UA_Subscription *sub);
+void UA_MonitoredItem_init(UA_MonitoredItem *mon);
+UA_StatusCode UA_Server_registerMonitoredItem(UA_Server *server, UA_MonitoredItem *mon);
 void UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem);
+
 void UA_MonitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem);
 UA_StatusCode UA_MonitoredItem_registerSampleCallback(UA_Server *server, UA_MonitoredItem *mon);
 void UA_MonitoredItem_unregisterSampleCallback(UA_Server *server, UA_MonitoredItem *mon);
@@ -236,9 +238,6 @@ UA_StatusCode UA_Event_generateEventId(UA_ByteString *generatedId);
 /* Remove entries until mon->maxQueueSize is reached. Sets infobits for lost
  * data if required. */
 void UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon);
-
-UA_StatusCode UA_MonitoredItem_removeNodeEventCallback(UA_Server *server, UA_Session *session,
-                                                       UA_Node *node, void *data);
 
 /****************/
 /* Subscription */
@@ -318,7 +317,6 @@ UA_Subscription * UA_Subscription_new(void);
 void UA_Subscription_delete(UA_Server *server, UA_Subscription *sub);
 UA_StatusCode Subscription_registerPublishCallback(UA_Server *server, UA_Subscription *sub);
 void Subscription_unregisterPublishCallback(UA_Server *server, UA_Subscription *sub);
-void UA_Subscription_addMonitoredItem(UA_Server *server, UA_Subscription *sub, UA_MonitoredItem *mon);
 UA_MonitoredItem * UA_Subscription_getMonitoredItem(UA_Subscription *sub, UA_UInt32 monitoredItemId);
 
 void UA_Subscription_publish(UA_Server *server, UA_Subscription *sub);

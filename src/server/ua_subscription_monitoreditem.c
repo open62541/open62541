@@ -326,18 +326,150 @@ UA_Notification_dequeueSub(UA_Notification *n) {
 #endif
 
 void
-UA_MonitoredItem_init(UA_MonitoredItem *mon, UA_Subscription *sub) {
+UA_MonitoredItem_init(UA_MonitoredItem *mon) {
     memset(mon, 0, sizeof(UA_MonitoredItem));
-    mon->subscription = sub;
     mon->samplingInterval = MY_NAN; /* Set to NaN so the comparison with the initial
                                      * SamplingInterval (often == 0.0) must fail and we
                                      * register the cyclic callback. */
     TAILQ_INIT(&mon->queue);
 }
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+static UA_StatusCode
+addMonitoredItemNodeCallback(UA_Server *server, UA_Session *session,
+                             UA_Node *node, void *data) {
+    if(node->head.nodeClass != UA_NODECLASS_OBJECT)
+        return UA_STATUSCODE_BADNODECLASSINVALID;
+    UA_MonitoredItem *mon = (UA_MonitoredItem*)data;
+    UA_ObjectNode *on = &node->objectNode;
+    mon->next = on->monitoredItemQueue;
+    on->monitoredItemQueue = mon;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+removeMonitoredItemNodeCallback(UA_Server *server, UA_Session *session,
+                                UA_Node *node, void *data) {
+    if(node->head.nodeClass != UA_NODECLASS_OBJECT)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_ObjectNode *on = &node->objectNode;
+    UA_MonitoredItem *remove = (UA_MonitoredItem*)data;
+
+    if(!on->monitoredItemQueue)
+        return UA_STATUSCODE_GOOD;
+
+    /* Edge case that it's the first element */
+    if(on->monitoredItemQueue == remove) {
+        on->monitoredItemQueue = remove->next;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    UA_MonitoredItem *prev = on->monitoredItemQueue;
+    UA_MonitoredItem *entry = prev->next;
+    for(; entry != NULL; prev = entry, entry = entry->next) {
+        if(entry == remove) {
+            prev->next = entry->next;
+            return UA_STATUSCODE_GOOD;
+        }
+    }
+
+    return UA_STATUSCODE_BADNOTFOUND;
+}
+#endif
+
+UA_StatusCode
+UA_Server_registerMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
+    UA_Subscription *sub = mon->subscription;
+    UA_Session *session = &server->adminSession;
+    if(sub)
+        session = sub->session;
+
+    /* Attach to the Node */
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    if(sub && mon->attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) {
+        UA_StatusCode res = UA_Server_editNode(server, NULL, &mon->monitoredNodeId,
+                                               addMonitoredItemNodeCallback, mon);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    }
+#endif
+
+    /* Register in Subscription and Server */
+    if(sub) {
+        mon->monitoredItemId = ++sub->lastMonitoredItemId;
+        mon->subscription = sub;
+        sub->monitoredItemsSize++;
+        LIST_INSERT_HEAD(&sub->monitoredItems, mon, listEntry);
+    } else {
+        mon->monitoredItemId = ++server->lastLocalMonitoredItemId;
+        LIST_INSERT_HEAD(&server->localMonitoredItems, mon, listEntry);
+    }
+    server->monitoredItemsSize++;
+
+    /* Register the MonitoredItem in userland */
+    if(server->config.monitoredItemRegisterCallback) {
+        void *targetContext = NULL;
+        getNodeContext(server, mon->monitoredNodeId, &targetContext);
+        UA_UNLOCK(server->serviceMutex);
+        server->config.monitoredItemRegisterCallback(server, &session->sessionId,
+                                                     session->sessionHandle,
+                                                     &mon->monitoredNodeId,
+                                                     targetContext, mon->attributeId, false);
+        UA_LOCK(server->serviceMutex);
+    }
+
+    mon->registered = true;
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+UA_Server_unregisterMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
+    UA_Subscription *sub = mon->subscription;
+    UA_Session *session = &server->adminSession;
+    if(sub)
+        session = sub->session;
+
+    UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, sub,
+                             "MonitoredItem %" PRIi32 " | Deleting the MonitoredItem",
+                             mon->monitoredItemId);
+
+    /* Deregister MonitoredItem in userland */
+    if(server->config.monitoredItemRegisterCallback) {
+        void *targetContext = NULL;
+        getNodeContext(server, mon->monitoredNodeId, &targetContext);
+        UA_UNLOCK(server->serviceMutex);
+        server->config.monitoredItemRegisterCallback(server,
+                                                     session ? &session->sessionId : NULL,
+                                                     session ? session->sessionHandle : NULL,
+                                                     &mon->monitoredNodeId,
+                                                     targetContext, mon->attributeId, true);
+        UA_LOCK(server->serviceMutex);
+    }
+
+    /* Remove from the node */
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    if(sub && mon->attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) {
+        UA_Server_editNode(server, session, &mon->monitoredNodeId,
+                           removeMonitoredItemNodeCallback, mon);
+    }
+#endif
+
+    /* Deregister in Subscription and Server */
+    if(sub)
+        sub->monitoredItemsSize--;
+    LIST_REMOVE(mon, listEntry); /* Also for LocalMonitoredItems */
+    server->monitoredItemsSize--;
+
+    mon->registered = false;
+}
+
 void
 UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon) {
     UA_LOCK_ASSERT(server->serviceMutex, 1);
+
+    /* Deregister in Server and Subscription */
+    if(mon->registered)
+        UA_Server_unregisterMonitoredItem(server, mon);
 
     /* Remove the sampling callback */
     UA_MonitoredItem_unregisterSampleCallback(server, mon);
@@ -349,60 +481,26 @@ UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon) {
         mon->triggeringLinksSize = 0;
     }
 
-    /* Remove the queued notifications if attached to a subscription (not a
-     * local MonitoredItem) */
-    if(mon->subscription) {
-        UA_Notification *notification, *notification_tmp;
-        TAILQ_FOREACH_SAFE(notification, &mon->queue,
-                           listEntry, notification_tmp) {
-            /* Remove the item from the queues and free the memory */
-            UA_Notification_delete(server, notification);
-        }
+    /* Remove the queued notifications attached to the subscription */
+    UA_Notification *notification, *notification_tmp;
+    TAILQ_FOREACH_SAFE(notification, &mon->queue, listEntry, notification_tmp) {
+        UA_Notification_delete(server, notification);
     }
 
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-    if(mon->attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) {
-        /* Remove the monitored item from the node queue */
-        UA_Server_editNode(server, NULL, &mon->monitoredNodeId,
-                           UA_MonitoredItem_removeNodeEventCallback, mon);
-        UA_EventFilter_clear(&mon->filter.eventFilter);
-    } else
-#endif
-    {
-        /* UA_DataChangeFilter does not hold dynamic content we need to free */
-        /* UA_DataChangeFilter_clear(&mon->filter.dataChangeFilter); */
-    }
-
-    /* Deregister MonitoredItem in userland */
-    if(server->config.monitoredItemRegisterCallback && mon->registered) {
-        /* Get the session context. Local MonitoredItems don't have a subscription. */
-        UA_Session *session = NULL;
-        if(mon->subscription)
-            session = mon->subscription->session;
-        else
-            session = &server->adminSession;
-
-        /* Get the node context */
-        void *targetContext = NULL;
-        getNodeContext(server, mon->monitoredNodeId, &targetContext);
-
-        /* Deregister */
-        UA_UNLOCK(server->serviceMutex);
-        server->config.monitoredItemRegisterCallback(server,
-                                                     session ? &session->sessionId : NULL,
-                                                     session ? session->sessionHandle : NULL,
-                                                     &mon->monitoredNodeId,
-                                                     targetContext, mon->attributeId, true);
-        UA_LOCK(server->serviceMutex);
-    }
-
-    /* Remove the monitored item */
-    if(mon->listEntry.le_prev != NULL)
-        LIST_REMOVE(mon, listEntry);
+    /* Remove the settings */
     UA_String_clear(&mon->indexRange);
     UA_ByteString_clear(&mon->lastSampledValue);
     UA_DataValue_clear(&mon->lastValue);
     UA_NodeId_clear(&mon->monitoredNodeId);
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    if(mon->attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) {
+        UA_EventFilter_clear(&mon->filter.eventFilter);
+    }
+#endif
+    /* else {
+     *     No dynamic content for
+     *     UA_DataChangeFilter_clear(&mon->filter.dataChangeFilter);
+     * } */
 
     /* Add a delayed callback to remove the MonitoredItem when the current jobs
      * have completed. This is needed to allow that a local MonitoredItem can
@@ -411,7 +509,7 @@ UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon) {
     mon->delayedFreePointers.application = server;
     mon->delayedFreePointers.data = NULL;
     mon->delayedFreePointers.nextTime = UA_DateTime_nowMonotonic() + 1;
-    mon->delayedFreePointers.interval = 0; /* Remove the structure */
+    mon->delayedFreePointers.interval = 0;
     UA_Timer_addTimerEntry(&server->timer, &mon->delayedFreePointers, NULL);
 }
 
@@ -527,6 +625,7 @@ UA_MonitoredItem_unregisterSampleCallback(UA_Server *server, UA_MonitoredItem *m
     UA_LOCK_ASSERT(server->serviceMutex, 1);
     if(!mon->sampleCallbackIsRegistered)
         return;
+
     removeCallback(server, mon->sampleCallbackId);
     mon->sampleCallbackIsRegistered = false;
 }

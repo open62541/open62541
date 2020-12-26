@@ -241,21 +241,10 @@ setMonitoredItemSettings(UA_Server *server, UA_Session *session, UA_MonitoredIte
     return setMonitoringMode(server, mon, monitoringMode);
 }
 
-static const UA_String binaryEncoding = {sizeof("Default Binary") - 1, (UA_Byte *)"Default Binary"};
+static const UA_String
+binaryEncoding = {sizeof("Default Binary") - 1, (UA_Byte *)"Default Binary"};
 
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-static UA_StatusCode
-UA_Server_addMonitoredItemToNodeEditNodeCallback(UA_Server *server, UA_Session *session,
-                                                 UA_Node *node, void *data) {
-    /* data is the MonitoredItem */
-    /* SLIST_INSERT_HEAD */
-    ((UA_MonitoredItem *)data)->next = ((UA_ObjectNode *)node)->monitoredItemQueue;
-    ((UA_ObjectNode *)node)->monitoredItemQueue = (UA_MonitoredItem *)data;
-    return UA_STATUSCODE_GOOD;
-}
-#endif
-
-/* Thread-local variables to pass additional arguments into the operation */
+/* Structure to pass additional arguments into the operation */
 struct createMonContext {
     UA_Subscription *sub;
     UA_TimestampsToReturn timestampsToReturn;
@@ -266,7 +255,8 @@ struct createMonContext {
 };
 
 static void
-Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct createMonContext *cmc,
+Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
+                              struct createMonContext *cmc,
                               const UA_MonitoredItemCreateRequest *request,
                               UA_MonitoredItemCreateResult *result) {
     UA_LOCK_ASSERT(server->serviceMutex, 1);
@@ -274,7 +264,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
     /* Check available capacity */
     if(cmc->sub &&
        (((server->config.maxMonitoredItems != 0) &&
-         (server->numMonitoredItems >= server->config.maxMonitoredItems)) ||
+         (server->monitoredItemsSize >= server->config.maxMonitoredItems)) ||
         ((server->config.maxMonitoredItemsPerSubscription != 0) &&
          (cmc->sub->monitoredItemsSize >= server->config.maxMonitoredItemsPerSubscription)))) {
         result->statusCode = UA_STATUSCODE_BADTOOMANYMONITOREDITEMS;
@@ -315,11 +305,52 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
         return;
     }
 
+    /* Adding an Event MonitoredItem */
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    if(request->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) {
+        /* TODO: Only remote clients can add Event-MonitoredItems at the moment */
+        if(!cmc->sub) {
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "Only remote clients can add Event-MonitoredItems");
+            result->statusCode = UA_STATUSCODE_BADNOTSUPPORTED;
+            UA_DataValue_clear(&v);
+            return;
+        }
+
+        /* If the 'SubscribeToEvents' bit of EventNotifier attribute is
+         * zero, then the object cannot be subscribed to monitor events */
+        if(!v.hasValue || !v.value.data) {
+            result->statusCode = UA_STATUSCODE_BADINTERNALERROR;
+            UA_DataValue_clear(&v);
+            return;
+        }
+        UA_Byte eventNotifierValue = *((UA_Byte *)v.value.data);
+        if((eventNotifierValue & 0x01) != 1) {
+            result->statusCode = UA_STATUSCODE_BADNOTSUPPORTED;
+            UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, cmc->sub,
+                                     "Could not create a MonitoredItem as the "
+                                     "'SubscribeToEvents' bit of the EventNotifier "
+                                     "attribute is not set");
+            UA_DataValue_clear(&v);
+            return;
+        }
+    }
+#endif
+
     /* Allocate the MonitoredItem */
-    size_t nmsize = sizeof(UA_MonitoredItem);
-    if(!cmc->sub)
-        nmsize = sizeof(UA_LocalMonitoredItem);
-    UA_MonitoredItem *newMon = (UA_MonitoredItem*)UA_malloc(nmsize);
+    UA_MonitoredItem *newMon = NULL;
+    if(cmc->sub) {
+        newMon = (UA_MonitoredItem*)UA_malloc(sizeof(UA_MonitoredItem));
+    } else {
+        UA_LocalMonitoredItem *localMon = (UA_LocalMonitoredItem*)
+            UA_malloc(sizeof(UA_LocalMonitoredItem));
+        if(localMon) {
+            /* Set special values only for the LocalMonitoredItem */
+            localMon->context = cmc->context;
+            localMon->callback.dataChangeCallback = cmc->dataChangeCallback;
+        }
+        newMon = &localMon->monitoredItem;
+    }
     if(!newMon) {
         result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
         UA_DataValue_clear(&v);
@@ -327,92 +358,37 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
     }
 
     /* Initialize the MonitoredItem */
-    UA_MonitoredItem_init(newMon, cmc->sub);
+    UA_MonitoredItem_init(newMon);
+    newMon->subscription = cmc->sub; /* Can be NULL for local MonitoredItems */
     newMon->attributeId = request->itemToMonitor.attributeId;
     newMon->timestampsToReturn = cmc->timestampsToReturn;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     retval |= UA_NodeId_copy(&request->itemToMonitor.nodeId, &newMon->monitoredNodeId);
     retval |= UA_String_copy(&request->itemToMonitor.indexRange, &newMon->indexRange);
+    /* Also registers the cyclic callback... */
     retval |= setMonitoredItemSettings(server, session, newMon, request->monitoringMode,
                                        &request->requestedParameters, v.value.type);
     UA_DataValue_clear(&v);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO_SESSION(&server->config.logger, session,
-                            "Subscription %" PRIu32 " | Could not create a MonitoredItem "
-                            "with StatusCode %s", cmc->sub ? cmc->sub->subscriptionId : 0,
-                            UA_StatusCode_name(retval));
+        UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, cmc->sub,
+                                 "Could not create a MonitoredItem "
+                                 "with StatusCode %s", UA_StatusCode_name(retval));
         result->statusCode = retval;
         UA_MonitoredItem_delete(server, newMon);
         return;
     }
 
-    /* Add to the subscriptions or the local MonitoredItems */
-    if(cmc->sub) {
-        newMon->monitoredItemId = ++cmc->sub->lastMonitoredItemId;
-        UA_Subscription_addMonitoredItem(server, cmc->sub, newMon);
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-        if(newMon->attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) {
-            UA_Byte eventNotifierValue = 0;
-
-            /* Read the value stored in EventNotifier attribute of the object
-             * node, requested for monitoring by the client */
-            UA_ReadValueId item;
-            UA_ReadValueId_init(&item);
-            item.nodeId = newMon->monitoredNodeId;
-            item.attributeId = newMon->attributeId;
-            UA_DataValue dv = readAttribute(server, &item, UA_TIMESTAMPSTORETURN_NEITHER);
-
-            eventNotifierValue = *((UA_Byte *)dv.value.data);
-
-            UA_DataValue_clear(&dv);
-
-            /* Check if the EventNotifier attribute has 'SubscribeToEvents'
-             * bit set */
-            if((eventNotifierValue & 0x01) != 1) {
-                /* If the 'SubscribeToEvents' bit of EventNotifier attribute
-                 * is zero, then the object cannot be subscribed to monitor
-                 * events */
-                result->statusCode = UA_STATUSCODE_BADNOTSUPPORTED;
-                UA_LOG_INFO_SESSION(&server->config.logger, session,
-                                    "Subscription %" PRIu32 " | Could not create a MonitoredItem as "
-                                    "'SubscribeToEvents' bit of EventNotifier attribute is not set "
-                                    "with StatusCode %s", cmc->sub ? cmc->sub->subscriptionId : 0,
-                                    UA_StatusCode_name(result->statusCode));
-                UA_MonitoredItem_delete(server, newMon);
-                return;
-            }
-            /* Insert the monitored item into the node's queue */
-            UA_Server_editNode(server, NULL, &newMon->monitoredNodeId,
-                               UA_Server_addMonitoredItemToNodeEditNodeCallback, newMon);
-        }
-#endif
-    } else {
-        //TODO support events for local monitored items
-        UA_LocalMonitoredItem *localMon = (UA_LocalMonitoredItem*)newMon;
-        localMon->context = cmc->context;
-        localMon->callback.dataChangeCallback = cmc->dataChangeCallback;
-        newMon->monitoredItemId = ++server->lastLocalMonitoredItemId;
-        LIST_INSERT_HEAD(&server->localMonitoredItems, newMon, listEntry);
+    /* Register the Monitoreditem in the server and subscription. Add Events as
+     * "listeners" to the monitored Node. */
+    result->statusCode = UA_Server_registerMonitoredItem(server, newMon);
+    if(result->statusCode != UA_STATUSCODE_GOOD) {
+        UA_MonitoredItem_delete(server, newMon);
+        return;
     }
 
-    /* Register MonitoredItem in userland */
-    if(server->config.monitoredItemRegisterCallback) {
-        void *targetContext = NULL;
-        getNodeContext(server, request->itemToMonitor.nodeId, &targetContext);
-        UA_UNLOCK(server->serviceMutex);
-        server->config.monitoredItemRegisterCallback(server, &session->sessionId,
-                                                     session->sessionHandle,
-                                                     &request->itemToMonitor.nodeId,
-                                                     targetContext, newMon->attributeId, false);
-        UA_LOCK(server->serviceMutex);
-        newMon->registered = true;
-    }
-
-    UA_LOG_INFO_SESSION(&server->config.logger, session,
-                        "Subscription %" PRIu32 " | MonitoredItem %" PRIi32 " | "
-                        "Created the MonitoredItem",
-                        cmc->sub ? cmc->sub->subscriptionId : 0,
-                        newMon->monitoredItemId);
+    UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, cmc->sub,
+                        "MonitoredItem %" PRIi32 " | "
+                        "Created the MonitoredItem", newMon->monitoredItemId);
 
     /* Create the first sample */
     if(request->monitoringMode > UA_MONITORINGMODE_DISABLED &&
@@ -429,7 +405,8 @@ void
 Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
                              const UA_CreateMonitoredItemsRequest *request,
                              UA_CreateMonitoredItemsResponse *response) {
-    UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Processing CreateMonitoredItemsRequest");
+    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+                         "Processing CreateMonitoredItemsRequest");
     UA_LOCK_ASSERT(server->serviceMutex, 1);
 
     if(server->config.maxMonitoredItemsPerCall != 0 &&
@@ -521,7 +498,8 @@ void
 Service_ModifyMonitoredItems(UA_Server *server, UA_Session *session,
                              const UA_ModifyMonitoredItemsRequest *request,
                              UA_ModifyMonitoredItemsResponse *response) {
-    UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Processing ModifyMonitoredItemsRequest");
+    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+                         "Processing ModifyMonitoredItemsRequest");
     UA_LOCK_ASSERT(server->serviceMutex, 1);
 
     if(server->config.maxMonitoredItemsPerCall != 0 &&

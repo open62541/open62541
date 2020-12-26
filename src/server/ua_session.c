@@ -106,21 +106,22 @@ UA_Session_attachSubscription(UA_Session *session, UA_Subscription *sub) {
     TAILQ_INSERT_TAIL(&session->subscriptions, sub, sessionListEntry);
 
     /* Increase the count */
-    session->numSubscriptions++;
+    session->subscriptionsSize++;
 
     /* Increase the number of outstanding retransmissions */
     session->totalRetransmissionQueueSize += sub->retransmissionQueueSize;
 }
 
 void
-UA_Session_detachSubscription(UA_Server *server, UA_Session *session, UA_Subscription *sub) {
+UA_Session_detachSubscription(UA_Server *server, UA_Session *session,
+                              UA_Subscription *sub) {
     /* Detach from the session */
     sub->session = NULL;
     TAILQ_REMOVE(&session->subscriptions, sub, sessionListEntry);
 
     /* Reduce the count */
-    UA_assert(session->numSubscriptions > 0);
-    session->numSubscriptions--;
+    UA_assert(session->subscriptionsSize > 0);
+    session->subscriptionsSize--;
 
     /* Reduce the number of outstanding retransmissions */
     session->totalRetransmissionQueueSize -= sub->retransmissionQueueSize;
