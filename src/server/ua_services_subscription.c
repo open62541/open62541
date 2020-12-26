@@ -418,20 +418,31 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
         return;
     }
 
-    /* <-- The point of no return --> */
-
     /* Create an identical copy of the Subscription struct. The original
      * subscription remains in place until a StatusChange notification has been
      * sent. The elements for lists and queues are moved over manually to ensure
      * that all backpointers are set correctly. */
     memcpy(newSub, sub, sizeof(UA_Subscription));
 
-    /* Move over the MonitoredItems */
+    /* Register cyclic publish callback */
+    result->statusCode = Subscription_registerPublishCallback(server, newSub);
+    if(result->statusCode != UA_STATUSCODE_GOOD) {
+        UA_Array_delete(result->availableSequenceNumbers,
+                        sub->retransmissionQueueSize, &UA_TYPES[UA_TYPES_UINT32]);
+        result->availableSequenceNumbers = NULL;
+        result->availableSequenceNumbersSize = 0;
+        UA_free(newSub);
+        return;
+    }
+
+    /* <-- The point of no return --> */
+
+    /* Move over the MonitoredItems and adjust the backpointers */
     LIST_INIT(&newSub->monitoredItems);
     UA_MonitoredItem *mon, *mon_tmp;
     LIST_FOREACH_SAFE(mon, &sub->monitoredItems, listEntry, mon_tmp) {
         LIST_REMOVE(mon, listEntry);
-        mon->subscription = newSub; /* Adjust backpointers from the MonitoredItem */
+        mon->subscription = newSub;
         LIST_INSERT_HEAD(&newSub->monitoredItems, mon, listEntry);
     }
     sub->monitoredItemsSize = 0;
@@ -459,8 +470,6 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
     }
     UA_assert(sub->retransmissionQueueSize == 0);
     sub->retransmissionQueueSize = 0;
-
-    /* Done moving over to the new Subscription. Register the new Subscription. */
 
     /* Add to the server */
     UA_assert(newSub->subscriptionId == sub->subscriptionId);
@@ -507,9 +516,6 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
      * timeout. */
     newSub->readyNotifications = newSub->notificationQueueSize;
     UA_Subscription_publish(server, newSub);
-
-    /* Register cyclic publish callback */
-    Subscription_registerPublishCallback(server, newSub);
 }
 
 void Service_TransferSubscriptions(UA_Server *server, UA_Session *session,
