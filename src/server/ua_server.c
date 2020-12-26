@@ -207,10 +207,12 @@ void UA_Server_delete(UA_Server *server) {
     LIST_FOREACH_SAFE(sub, &server->subscriptions, serverListEntry, sub_tmp) {
         UA_Subscription_delete(server, sub);
     }
+    UA_assert(server->monitoredItemsSize == 0);
+    UA_assert(server->subscriptionsSize == 0);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
     UA_ConditionList_delete(server);
-#endif//UA_ENABLE_ALARMS_CONDITIONS
+#endif
 
 #endif
 

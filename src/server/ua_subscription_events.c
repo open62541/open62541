@@ -11,35 +11,6 @@
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 
-UA_StatusCode
-UA_MonitoredItem_removeNodeEventCallback(UA_Server *server, UA_Session *session,
-                                         UA_Node *node, void *data) {
-    if(node->head.nodeClass != UA_NODECLASS_OBJECT)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_ObjectNode *on = &node->objectNode;
-    UA_MonitoredItem *remove = (UA_MonitoredItem*)data;
-
-    if(!on->monitoredItemQueue)
-        return UA_STATUSCODE_GOOD;
-
-    /* Edge case that it's the first element */
-    if(on->monitoredItemQueue == remove) {
-        on->monitoredItemQueue = remove->next;
-        return UA_STATUSCODE_GOOD;
-    }
-
-    UA_MonitoredItem *prev = on->monitoredItemQueue;
-    UA_MonitoredItem *entry = prev->next;
-    for(; entry != NULL; prev = entry, entry = entry->next) {
-        if(entry == remove) {
-            prev->next = entry->next;
-            return UA_STATUSCODE_GOOD;
-        }
-    }
-
-    return UA_STATUSCODE_BADNOTFOUND;
-}
-
 /* We use a 16-Byte ByteString as an identifier */
 UA_StatusCode
 UA_Event_generateEventId(UA_ByteString *generatedId) {
