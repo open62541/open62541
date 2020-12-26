@@ -722,7 +722,7 @@ Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxref
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     /* Enough space for the continuation point? */
-    if(session->availableContinuationPoints <= 0) {
+    if(session->availableContinuationPoints == 0) {
         retval = UA_STATUSCODE_BADNOCONTINUATIONPOINTS;
         goto cleanup;
     }
