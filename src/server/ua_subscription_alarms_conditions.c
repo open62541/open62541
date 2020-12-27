@@ -1585,7 +1585,8 @@ isConditionSourceInMonitoredItem(UA_Server *server, const UA_MonitoredItem *moni
     refs = UA_ReferenceTypeSet_union(refs, UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASCOMPONENT));
     refs = UA_ReferenceTypeSet_union(refs, UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASEVENTSOURCE));
     refs = UA_ReferenceTypeSet_union(refs, UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASNOTIFIER));
-    return isNodeInTree(server, conditionSource, &monitoredItem->monitoredNodeId, &refs);
+    return isNodeInTree(server, conditionSource,
+                        &monitoredItem->itemToMonitor.nodeId, &refs);
 }
 
 static UA_StatusCode
@@ -1612,8 +1613,8 @@ refreshLogic(UA_Server *server, const UA_NodeId *refreshStartNodId,
         /* Check if the conditionSource is being monitored. If the Server Object
          * is being monitored, then all Events of all monitoredItems should be
          * refreshed */
-        if(!UA_NodeId_equal(&monitoredItem->monitoredNodeId, &conditionSource) &&
-           !UA_NodeId_equal(&monitoredItem->monitoredNodeId, &serverObjectNodeId) &&
+        if(!UA_NodeId_equal(&monitoredItem->itemToMonitor.nodeId, &conditionSource) &&
+           !UA_NodeId_equal(&monitoredItem->itemToMonitor.nodeId, &serverObjectNodeId) &&
            !isConditionSourceInMonitoredItem(server, monitoredItem, &conditionSource))
             continue;
 

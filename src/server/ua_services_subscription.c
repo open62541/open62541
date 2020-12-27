@@ -493,7 +493,7 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
         LIST_FOREACH(mon, &newSub->monitoredItems, listEntry) {
 
             /* Create only DataChange notifications */
-            if(mon->attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER)
+            if(mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER)
                 continue;
 
             /* Only if the mode is monitoring */

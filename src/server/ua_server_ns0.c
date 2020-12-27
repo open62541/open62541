@@ -619,7 +619,7 @@ readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionC
     /* Fill the array */
     UA_UInt32 i = 0;
     LIST_FOREACH(monitoredItem, &subscription->monitoredItems, listEntry) {
-        clientHandles[i] = monitoredItem->clientHandle;
+        clientHandles[i] = monitoredItem->parameters.clientHandle;
         serverHandles[i] = monitoredItem->monitoredItemId;
         ++i;
     }

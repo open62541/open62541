@@ -260,7 +260,7 @@ prepareNotificationMessage(UA_Server *server, UA_Subscription *sub,
             break;
 
         /* Move the content to the response */
-        switch(notification->mon->attributeId) {
+        switch(notification->mon->itemToMonitor.attributeId) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
         case UA_ATTRIBUTEID_EVENTNOTIFIER:
             UA_assert(enl != NULL); /* Have at least one event notification */
