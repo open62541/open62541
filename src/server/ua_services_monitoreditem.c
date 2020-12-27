@@ -57,9 +57,8 @@ setAbsoluteFromPercentageDeadband(UA_Server *server, UA_Session *session,
     }
 
     /* Compute the abs deadband */
-    UA_Range* euRange = (UA_Range*)rangeVal.value.data;
-    UA_Double absDeadband =
-        (filter->deadbandValue/100.0) * (euRange->high - euRange->low);
+    UA_Range *euRange = (UA_Range*)rangeVal.value.data;
+    UA_Double absDeadband = (filter->deadbandValue/100.0) * (euRange->high - euRange->low);
 
     /* EURange invalid or NaN? */
     if(absDeadband < 0.0 || absDeadband != absDeadband) {
@@ -271,6 +270,21 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
         return;
     }
 
+    /* Check if the encoding is supported */
+    if(request->itemToMonitor.dataEncoding.name.length > 0 &&
+       (!UA_String_equal(&binaryEncoding, &request->itemToMonitor.dataEncoding.name) ||
+        request->itemToMonitor.dataEncoding.namespaceIndex != 0)) {
+        result->statusCode = UA_STATUSCODE_BADDATAENCODINGUNSUPPORTED;
+        return;
+    }
+
+    /* Check if the encoding is set for a value */
+    if(request->itemToMonitor.attributeId != UA_ATTRIBUTEID_VALUE &&
+       request->itemToMonitor.dataEncoding.name.length > 0) {
+        result->statusCode = UA_STATUSCODE_BADDATAENCODINGINVALID;
+        return;
+    }
+
     /* Make an example read to get errors in the itemToMonitor. Allow return
      * codes "good" and "uncertain", as well as a list of statuscodes that might
      * be repaired inside the data source. */
@@ -284,23 +298,6 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
        v.status != UA_STATUSCODE_BADNOTREADABLE &&
        v.status != UA_STATUSCODE_BADINDEXRANGENODATA) {
         result->statusCode = v.status;
-        UA_DataValue_clear(&v);
-        return;
-    }
-
-    /* Check if the encoding is supported */
-    if(request->itemToMonitor.dataEncoding.name.length > 0 &&
-       (!UA_String_equal(&binaryEncoding, &request->itemToMonitor.dataEncoding.name) ||
-        request->itemToMonitor.dataEncoding.namespaceIndex != 0)) {
-        result->statusCode = UA_STATUSCODE_BADDATAENCODINGUNSUPPORTED;
-        UA_DataValue_clear(&v);
-        return;
-    }
-
-    /* Check if the encoding is set for a value */
-    if(request->itemToMonitor.attributeId != UA_ATTRIBUTEID_VALUE &&
-       request->itemToMonitor.dataEncoding.name.length > 0) {
-        result->statusCode = UA_STATUSCODE_BADDATAENCODINGINVALID;
         UA_DataValue_clear(&v);
         return;
     }

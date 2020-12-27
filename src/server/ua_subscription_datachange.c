@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2017-2020 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2018 (c) Ari Breitkreuz, fortiss GmbH
  *    Copyright 2018 (c) Thomas Stalder, Blue Time Concept SA
@@ -184,7 +184,8 @@ detectValueChange(UA_Server *server, UA_Session *session, UA_MonitoredItem *mon,
 
 UA_StatusCode
 UA_MonitoredItem_createDataChangeNotification(UA_Server *server, UA_Subscription *sub,
-                                              UA_MonitoredItem *mon, const UA_DataValue *value) {
+                                              UA_MonitoredItem *mon,
+                                              const UA_DataValue *value) {
     /* Allocate a new notification */
     UA_Notification *newNotification = UA_Notification_new();
     if(!newNotification)
@@ -201,7 +202,8 @@ UA_MonitoredItem_createDataChangeNotification(UA_Server *server, UA_Subscription
 
     /* Enqueue the notification */
     UA_Notification_enqueueAndTrigger(server, newNotification);
-    UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub, "MonitoredItem %" PRIi32 " | "
+    UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
+                              "MonitoredItem %" PRIi32 " | "
                               "Enqueued a new notification", mon->monitoredItemId);
     return UA_STATUSCODE_GOOD;
 }
@@ -223,7 +225,8 @@ sampleCallbackWithValue(UA_Server *server, UA_Session *session,
     UA_StatusCode retval = detectValueChange(server, session, mon, *value,
                                              &binValueEncoding, &changed);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_SUBSCRIPTION(&server->config.logger, sub, "MonitoredItem %" PRIi32 " | "
+        UA_LOG_WARNING_SUBSCRIPTION(&server->config.logger, sub,
+                                    "MonitoredItem %" PRIi32 " | "
                                     "Value change detection failed with StatusCode %s",
                                     mon->monitoredItemId, UA_StatusCode_name(retval));
         UA_DataValue_clear(value);
@@ -232,7 +235,8 @@ sampleCallbackWithValue(UA_Server *server, UA_Session *session,
 
     /* No change detected */
     if(!changed) {
-        UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub, "MonitoredItem %" PRIi32 " | "
+        UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
+                                  "MonitoredItem %" PRIi32 " | "
                                   "The value has not changed", mon->monitoredItemId);
         UA_DataValue_clear(value);
         return UA_STATUSCODE_GOOD;
@@ -294,7 +298,8 @@ monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem)
     if(sub)
         session = sub->session;
 
-    UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub, "MonitoredItem %" PRIi32 " | "
+    UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
+                              "MonitoredItem %" PRIi32 " | "
                               "Sample callback called", monitoredItem->monitoredItemId);
 
     UA_assert(monitoredItem->attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER);
@@ -318,11 +323,14 @@ monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem)
     }
 
     /* Operate on the sample. Don't touch value after this. */
-    UA_StatusCode retval = sampleCallbackWithValue(server, session, sub, monitoredItem, &value);
+    UA_StatusCode retval = sampleCallbackWithValue(server, session, sub,
+                                                   monitoredItem, &value);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_SUBSCRIPTION(&server->config.logger, sub, "MonitoredItem %" PRIi32 " | "
+        UA_LOG_WARNING_SUBSCRIPTION(&server->config.logger, sub,
+                                    "MonitoredItem %" PRIi32 " | "
                                     "Sampling returned the statuscode %s",
-                                    monitoredItem->monitoredItemId, UA_StatusCode_name(retval));
+                                    monitoredItem->monitoredItemId,
+                                    UA_StatusCode_name(retval));
     }
 
     if(node)
