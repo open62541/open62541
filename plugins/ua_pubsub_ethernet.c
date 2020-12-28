@@ -17,6 +17,7 @@
 #if defined(__vxworks) || defined(__VXWORKS__)
 #include <netpacket/packet.h>
 #include <netinet/if_ether.h>
+#include <ipcom_sock.h>
 #define ETH_ALEN ETHER_ADDR_LEN
 #else
 #include <linux/if_packet.h>
@@ -629,7 +630,11 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_ByteString *messa
             return UA_STATUSCODE_BADINTERNALERROR;
         }
     }
+#ifdef UA_ARCHITECTURE_VXWORKS
+    clock_gettime(CLOCK_REALTIME, &currentTime);
+#else
     clock_gettime(CLOCK_TAI, &currentTime);
+#endif
     currentTimeValue = (UA_UInt64)((currentTime.tv_sec * 1000000000) + currentTime.tv_nsec);
     maxTime.tv_sec   = currentTime.tv_sec + tmptv.tv_sec;
     /* UA_Select uses timespec which accpets value in microseconds
@@ -704,7 +709,11 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_ByteString *messa
         messageLength = messageLength + ((size_t)dataLen - sizeof(struct ether_header) - sizeof(llcData) - paddingBytes);
         remainingMessageLength -= messageLength;
         rcvCount++;
+#ifdef UA_ARCHITECTURE_VXWORKS
+        clock_gettime(CLOCK_REALTIME, &currentTime);
+#else
         clock_gettime(CLOCK_TAI, &currentTime);
+#endif
         currentTimeValue = (UA_UInt64)((currentTime.tv_sec * 1000000000) + currentTime.tv_nsec);
         /* Receive flags set to MSG_DONTWAIT for the 2nd packet */
         /* The recvmsg API with MSG_DONTWAIT flag will not wait for the next packet */

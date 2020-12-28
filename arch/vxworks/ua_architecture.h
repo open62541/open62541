@@ -90,17 +90,6 @@
 # define UA_if_nametoindex if_nametoindex
 #endif
 
-#ifdef UA_ENABLE_MALLOC_SINGLETON
-extern void * (*UA_globalMalloc)(size_t size);
-extern void (*UA_globalFree)(void *ptr);
-extern void * (*UA_globalCalloc)(size_t nelem, size_t elsize);
-extern void * (*UA_globalRealloc)(void *ptr, size_t size);
-# define UA_free(ptr) UA_globalFree(ptr)
-# define UA_malloc(size) UA_globalMalloc(size)
-# define UA_calloc(num, size) UA_globalCalloc(num, size)
-# define UA_realloc(ptr, size) UA_globalRealloc(ptr, size)
-#endif
-
 #include <stdlib.h>
 #define UA_free free
 #define UA_malloc malloc
