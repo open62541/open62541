@@ -901,7 +901,9 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
                 if(UA_NetworkMessage_updateBufferedNwMessage(&dataSetReader->bufferedMessage, &buffer, &currentPosition) != UA_STATUSCODE_GOOD) {
                     UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
                                 "PubSub receive. Unknown field type.");
-                    UA_ByteString_clear(&buffer);
+                    if (!connection->channel->release)
+                        UA_ByteString_clear(&buffer);
+
                     return;
                 }
 
@@ -911,7 +913,9 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
                    (*dataSetReader->bufferedMessage.nm->payloadHeader.dataSetPayloadHeader.dataSetWriterIds != dataSetReader->config.dataSetWriterId)) {
                     UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
                                 "PubSub receive. Unknown message received. Will not be processed.");
-                    UA_ByteString_clear(&buffer);
+                    if (!connection->channel->release)
+                        UA_ByteString_clear(&buffer);
+
                     return;
                 }
 
@@ -942,7 +946,15 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
 
                 previousPosition = currentPosition;
             } while((buffer.length) > currentPosition);
+#ifdef UA_ENABLE_PUBSUB_ETH_UADP_XDP
+            if (connection->channel->release)
+                connection->channel->release(connection->channel);
+
+            if (!connection->channel->release)
+                UA_ByteString_clear(&buffer);
+#else
             UA_ByteString_clear(&buffer);
+#endif
             return;
 
         } else {
