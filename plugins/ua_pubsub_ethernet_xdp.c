@@ -415,6 +415,94 @@ UA_PubSubChannelEthernetXDP_open(const UA_PubSubConnectionConfig *connectionConf
 }
 
 /**
+ * Send messages to the connection defined address
+ *
+ * @return UA_STATUSCODE_GOOD if success
+ */
+static UA_StatusCode
+UA_PubSubChannelEthernetXDP_send(UA_PubSubChannel *channel,
+                                 UA_ExtensionObject *transportSettings,
+                                 const UA_ByteString *buf) {
+    UA_PubSubChannelDataEthernetXDP *channelDataEthernetXDP;
+    struct ether_header* ethHdr;
+    UA_Byte *bufSend, *ptr;
+    xdpsock *xdp_socket;
+    UA_UInt16 vlanTag;
+    UA_UInt32 idx;
+    size_t lenBuf;
+    ssize_t rc;
+
+    channelDataEthernetXDP = (UA_PubSubChannelDataEthernetXDP *) channel->handle;
+    xdp_socket = channelDataEthernetXDP->xdpsocket;
+
+    bufSend = (UA_Byte *) xsk_umem__get_data(xdp_socket->umem->buffer,
+                                             xdp_socket->cur_tx << XDP_FRAME_SHIFT);
+    ethHdr = (struct ether_header *) bufSend;
+
+    /* Set (own) source MAC address */
+    memcpy(ethHdr->ether_shost, channelDataEthernetXDP->ifAddress, ETH_ALEN);
+    /* Set destination MAC address */
+    memcpy(ethHdr->ether_dhost, channelDataEthernetXDP->targetAddress, ETH_ALEN);
+    /* Set ethertype */
+    lenBuf = sizeof(*ethHdr) + buf->length;
+    ptr = sizeof(*ethHdr) + bufSend;
+
+    if(channelDataEthernetXDP->vid > 0) {
+        lenBuf += 4;
+        ethHdr->ether_type = htons(ETHERTYPE_VLAN);
+        vlanTag = (UA_UInt16) (channelDataEthernetXDP->vid
+                  + (channelDataEthernetXDP->prio << VLAN_SHIFT));
+
+        *((UA_UInt16 *) ptr) = htons(vlanTag);
+        ptr += sizeof(UA_UInt16);
+
+        *((UA_UInt16 *) ptr) = htons(ETHERTYPE_UADP);
+        ptr += sizeof(UA_UInt16);
+    } else {
+        ethHdr->ether_type = htons(ETHERTYPE_UADP);
+    }
+
+    if (lenBuf > default_values.frame_size)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* copy payload of ethernet message */
+    memcpy(ptr, buf->data, buf->length);
+
+    if (xsk_ring_prod__reserve(&xdp_socket->tx_ring, 1, &idx) != 1){
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "PubSub connection send failed. xsk_prod_reserve failed.");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    xsk_ring_prod__tx_desc(&xdp_socket->tx_ring, idx)->addr = xdp_socket->cur_tx << XDP_FRAME_SHIFT;
+    xsk_ring_prod__tx_desc(&xdp_socket->tx_ring, idx)->len = (UA_UInt32) lenBuf;
+
+    xsk_ring_prod__submit(&xdp_socket->tx_ring, 1);
+    xdp_socket->outstanding_tx += 1;
+
+    /* Increase the cur_tx pointer, rollover if exceed */
+    xdp_socket->cur_tx += 1;
+    xdp_socket->cur_tx %= default_values.frame_size;
+
+    rc = UA_sendto(xsk_socket__fd(xdp_socket->xskfd), NULL, 0, MSG_DONTWAIT, NULL, 0);
+    if (rc >= 0 || errno == ENOBUFS || errno == EAGAIN || errno == EBUSY) {
+        UA_UInt64 rcvd = xsk_ring_cons__peek(&xdp_socket->umem->cq, 1, &idx);
+        if (rcvd > 0) {
+            xsk_ring_cons__release(&xdp_socket->umem->cq, rcvd);
+            xdp_socket->outstanding_tx -= (UA_UInt32) rcvd;
+            xdp_socket->tx_npkts += (UA_UInt32) rcvd;
+        }
+
+        return UA_STATUSCODE_GOOD;
+    }
+
+    UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                 "PubSub connection send failed."
+                 " XSK Send message failed: %s", strerror(errno));
+    return UA_STATUSCODE_BADINTERNALERROR;
+}
+
+/**
  * Receive messages.
  *
  * @param timeout in usec -> not used
@@ -538,6 +626,7 @@ TransportLayerEthernetXDP_addChannel(UA_PubSubConnectionConfig *connectionConfig
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "PubSub channel requested");
     UA_PubSubChannel * pubSubChannel = UA_PubSubChannelEthernetXDP_open(connectionConfig);
     if(pubSubChannel) {
+        pubSubChannel->send    = UA_PubSubChannelEthernetXDP_send;
         pubSubChannel->receive = UA_PubSubChannelEthernetXDP_receive;
         pubSubChannel->close   = UA_PubSubChannelEthernetXDP_close;
         pubSubChannel->release = UA_PubSubChannelEthernetXDP_release;
