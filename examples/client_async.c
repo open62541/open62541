@@ -23,7 +23,7 @@ static
 void
 fileBrowsed(UA_Client *client, void *userdata, UA_UInt32 requestId,
             UA_BrowseResponse *response) {
-    printf("%-50s%i\n", "Received BrowseResponse for request ", requestId);
+    printf("%-50s%u\n", "Received BrowseResponse for request ", requestId);
     UA_String us = *(UA_String *) userdata;
     printf("---%.*s passed safely \n", (int) us.length, us.data);
 }
@@ -33,7 +33,7 @@ static
 void
 readValueAttributeCallback(UA_Client *client, void *userdata,
                            UA_UInt32 requestId, UA_Variant *var) {
-    printf("%-50s%i\n", "Read value attribute for request", requestId);
+    printf("%-50s%u\n", "Read value attribute for request", requestId);
     if(UA_Variant_hasScalarType(var, &UA_TYPES[UA_TYPES_INT32])) {
         UA_Int32 int_val = *(UA_Int32*) var->data;
         printf("---%-40s%-8i\n",
@@ -46,7 +46,7 @@ void
 attrWritten(UA_Client *client, void *userdata, UA_UInt32 requestId,
             UA_WriteResponse *response) {
     /*assuming no data to be retrieved by writing attributes*/
-    printf("%-50s%i\n", "Wrote value attribute for request ", requestId);
+    printf("%-50s%u\n", "Wrote value attribute for request ", requestId);
     UA_WriteResponse_clear(response);
 }
 
@@ -56,7 +56,7 @@ static void
 methodCalled(UA_Client *client, void *userdata, UA_UInt32 requestId,
              UA_CallResponse *response) {
 
-    printf("%-50s%i\n", "Called method for request ", requestId);
+    printf("%-50s%u\n", "Called method for request ", requestId);
     size_t outputSize;
     UA_Variant *output;
     UA_StatusCode retval = response->responseHeader.serviceResult;

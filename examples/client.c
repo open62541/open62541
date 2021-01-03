@@ -21,7 +21,7 @@ nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, voi
     if(isInverse)
         return UA_STATUSCODE_GOOD;
     UA_NodeId *parent = (UA_NodeId *)handle;
-    printf("%d, %d --- %d ---> NodeId %d, %d\n",
+    printf("%u, %u --- %u ---> NodeId %u, %u\n",
            parent->namespaceIndex, parent->identifier.numeric,
            referenceTypeId.identifier.numeric, childId.namespaceIndex,
            childId.identifier.numeric);
