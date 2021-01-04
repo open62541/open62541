@@ -274,18 +274,10 @@ mark_as_advanced(UA_ENABLE_PUBSUB_MONITORING)
 #RT and Transport PubSub settings
 option(UA_ENABLE_PUBSUB_ETH_UADP "Enable publish/subscribe UADP over Ethernet" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_ETH_UADP)
-option(UA_ENABLE_PUBSUB_ETH_UADP_XDP "Enable Subscribe UADP over Ethernet using XDP" OFF)
-mark_as_advanced(UA_ENABLE_PUBSUB_ETH_UADP_XDP)
 
 if(UA_ENABLE_PUBSUB_ETH_UADP)
     if(NOT CMAKE_SYSTEM MATCHES "Linux")
     message(FATAL_ERROR "UADP over Ethernet is only available on Linux.")
-	endif()
-endif()
-
-if(UA_ENABLE_PUBSUB_ETH_UADP_XDP)
-    if(NOT CMAKE_SYSTEM MATCHES "Linux")
-        message(FATAL_ERROR "XDP is only available on Linux.")
     endif()
 endif()
 
@@ -510,7 +502,7 @@ function(check_add_cc_flag CC_FLAG)
 endfunction()
 
 if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang"))
-#    check_add_cc_flag("-std=c99")   # C99 mode
+    check_add_cc_flag("-std=c99")   # C99 mode
     check_add_cc_flag("-pipe")      # Avoid writing temporary files (for compiler speed)
     check_add_cc_flag("-Wall")      # Warnings
     check_add_cc_flag("-Wextra")    # More warnings
@@ -902,11 +894,12 @@ if(UA_ENABLE_PUBSUB)
     if(UA_ENABLE_PUBSUB_ETH_UADP)
         list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/pubsub_ethernet.h)
         list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_ethernet.c)
-    endif()
-    if(UA_ENABLE_PUBSUB_ETH_UADP_XDP)
+        find_library(LIB_BPF bpf)
+        if(LIB_BPF)
             list(APPEND open62541_LIBRARIES bpf)
-            list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/pubsub_ethernet_xdp.h)
-            list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_ethernet_xdp.c)
+        else()
+            message("bpf library not found. XDP functionalities will not be available.")
+        endif()
     endif()
     if(UA_ENABLE_PUBSUB_MQTT)
         if(WIN32)

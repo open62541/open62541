@@ -155,13 +155,6 @@ endmacro()
 
 add_custom_target(test-verbose COMMAND ${CMAKE_CTEST_COMMAND} --verbose)
 
-if(UA_ENABLE_PUBSUB)
-    if(UA_ENABLE_PUBSUB_ETH_UADP_XDP)
-        list(APPEND open62541_LIBRARIES ${XDP_LIBRARY})
-        list(APPEND LIBS elf bpf)
-    endif()
-endif()
-
 # the unit test are built directly on the open62541 object files. so they can
 # access symbols that are hidden/not exported to the shared library
 
@@ -408,7 +401,7 @@ if(UA_ENABLE_PUBSUB)
         add_executable(check_pubsub_publish_ethernet_etf pubsub/check_pubsub_publish_ethernet_etf.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
         target_link_libraries(check_pubsub_publish_ethernet_etf ${LIBS})
         add_test_valgrind(pubsub_publish_ethernet_etf ${TESTS_BINARY_DIR}/check_pubsub_publish_ethernet_etf)
-        if(UA_ENABLE_PUBSUB_ETH_UADP_XDP)
+        if(LIB_BPF)
             add_executable(check_pubsub_connection_xdp pubsub/check_pubsub_connection_xdp.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
             target_link_libraries(check_pubsub_connection_xdp ${LIBS})
             add_test_valgrind(pubsub_connection_xdp ${TESTS_BINARY_DIR}/check_pubsub_connection_xdp)
