@@ -58,9 +58,9 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
 
     /* Check limits for the number of subscriptions */
     if(((server->config.maxSubscriptions != 0) &&
-        (server->numSubscriptions >= server->config.maxSubscriptions)) ||
+        (server->subscriptionsSize >= server->config.maxSubscriptions)) ||
        ((server->config.maxSubscriptionsPerSession != 0) &&
-        (session->numSubscriptions >= server->config.maxSubscriptionsPerSession))) {
+        (session->subscriptionsSize >= server->config.maxSubscriptionsPerSession))) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYSUBSCRIPTIONS;
         return;
     }
@@ -81,9 +81,10 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
     sub->publishingEnabled = request->publishingEnabled;
     sub->currentKeepAliveCount = sub->maxKeepAliveCount; /* set settings first */
 
-    /* Register the subscription in the server. Also assigns the SubscriptionId. */
-    UA_Server_addSubscription(server, sub);
+    /* Assign the SubscriptionId */
+    sub->subscriptionId = ++server->lastSubscriptionId;
 
+    /* Register the cyclic callback */
     UA_StatusCode retval = Subscription_registerPublishCallback(server, sub);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG_SESSION(&server->config.logger, sub->session,
@@ -91,9 +92,13 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
                              "Could not register publish callback with error code %s",
                              sub->subscriptionId, UA_StatusCode_name(retval));
         response->responseHeader.serviceResult = retval;
-        UA_Server_deleteSubscription(server, sub);
+        UA_Subscription_delete(server, sub);
         return;
     }
+
+    /* Register the subscription in the server */
+    LIST_INSERT_HEAD(&server->subscriptions, sub, serverListEntry);
+    server->subscriptionsSize++;
 
     /* Attach the Subscription to the session */
     UA_Session_attachSubscription(session, sub);
@@ -284,7 +289,7 @@ Operation_DeleteSubscription(UA_Server *server, UA_Session *session, void *_,
         return;
     }
 
-    UA_Server_deleteSubscription(server, sub);
+    UA_Subscription_delete(server, sub);
     *result = UA_STATUSCODE_GOOD;
     UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                          "Subscription %" PRIu32 " | Subscription deleted",
@@ -394,7 +399,7 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
 
     /* Check limits for the number of subscriptions for this Session */
     if((server->config.maxSubscriptionsPerSession != 0) &&
-       (session->numSubscriptions >= server->config.maxSubscriptionsPerSession)) {
+       (session->subscriptionsSize >= server->config.maxSubscriptionsPerSession)) {
         result->statusCode = UA_STATUSCODE_BADTOOMANYSUBSCRIPTIONS;
         return;
     }
@@ -413,20 +418,31 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
         return;
     }
 
-    /* <-- The point of no return --> */
-
     /* Create an identical copy of the Subscription struct. The original
      * subscription remains in place until a StatusChange notification has been
      * sent. The elements for lists and queues are moved over manually to ensure
      * that all backpointers are set correctly. */
     memcpy(newSub, sub, sizeof(UA_Subscription));
 
-    /* Move over the MonitoredItems */
+    /* Register cyclic publish callback */
+    result->statusCode = Subscription_registerPublishCallback(server, newSub);
+    if(result->statusCode != UA_STATUSCODE_GOOD) {
+        UA_Array_delete(result->availableSequenceNumbers,
+                        sub->retransmissionQueueSize, &UA_TYPES[UA_TYPES_UINT32]);
+        result->availableSequenceNumbers = NULL;
+        result->availableSequenceNumbersSize = 0;
+        UA_free(newSub);
+        return;
+    }
+
+    /* <-- The point of no return --> */
+
+    /* Move over the MonitoredItems and adjust the backpointers */
     LIST_INIT(&newSub->monitoredItems);
     UA_MonitoredItem *mon, *mon_tmp;
     LIST_FOREACH_SAFE(mon, &sub->monitoredItems, listEntry, mon_tmp) {
         LIST_REMOVE(mon, listEntry);
-        mon->subscription = newSub; /* Adjust backpointers from the MonitoredItem */
+        mon->subscription = newSub;
         LIST_INSERT_HEAD(&newSub->monitoredItems, mon, listEntry);
     }
     sub->monitoredItemsSize = 0;
@@ -455,13 +471,10 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
     UA_assert(sub->retransmissionQueueSize == 0);
     sub->retransmissionQueueSize = 0;
 
-    /* Done moving over to the new Subscription. Register the new Subscription. */
-
-    /* Add to the server. Assigns a fresh SubscriptionId. Reuse the original
-     * SubscriptionId */
-    UA_Server_addSubscription(server, newSub);
-    newSub->subscriptionId = sub->subscriptionId;
-    server->lastSubscriptionId--;
+    /* Add to the server */
+    UA_assert(newSub->subscriptionId == sub->subscriptionId);
+    LIST_INSERT_HEAD(&server->subscriptions, newSub, serverListEntry);
+    server->subscriptionsSize++;
 
     /* Attach to the session */
     UA_Session_attachSubscription(session, newSub);
@@ -469,9 +482,8 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
     UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, newSub, "Transferred to this Session");
 
     /* Set StatusChange in the original subscription and force publish. This
-     * also stops the registered cyclic callback and triggers a clean up. The
-     * Subscription is not necessarily immediately removed if we have to wait
-     * for a PublishRequest to send the StatusChangeNotification. */
+     * also removes the Subscription, even if there was no PublishResponse
+     * queued to send a StatusChangeNotification. */
     sub->statusChange = UA_STATUSCODE_GOODSUBSCRIPTIONTRANSFERRED;
     UA_Subscription_publish(server, sub);
     UA_assert(sub->publishCallbackId == 0);
@@ -481,7 +493,7 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
         LIST_FOREACH(mon, &newSub->monitoredItems, listEntry) {
 
             /* Create only DataChange notifications */
-            if(mon->attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER)
+            if(mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER)
                 continue;
 
             /* Only if the mode is monitoring */
@@ -504,9 +516,6 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
      * timeout. */
     newSub->readyNotifications = newSub->notificationQueueSize;
     UA_Subscription_publish(server, newSub);
-
-    /* Register cyclic publish callback */
-    Subscription_registerPublishCallback(server, newSub);
 }
 
 void Service_TransferSubscriptions(UA_Server *server, UA_Session *session,

@@ -2,11 +2,20 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  *
  *    Copyright 2018 (c) Jose Cabral, fortiss GmbH
+ *    Copyright (c) 2020 Wind River Systems, Inc.
  */
 
 #ifdef UA_ARCHITECTURE_VXWORKS
 
 #include <open62541/types.h>
+
+/* Global malloc singletons */
+#ifdef UA_ENABLE_MALLOC_SINGLETON
+void * (*UA_globalMalloc)(size_t size) = malloc;
+void (*UA_globalFree)(void *ptr) = free;
+void * (*UA_globalCalloc)(size_t nelem, size_t elsize) = calloc;
+void * (*UA_globalRealloc)(void *ptr, size_t size) = realloc;
+#endif
 
 unsigned int UA_socket_set_blocking(UA_SOCKET sockfd){
   int on = FALSE;

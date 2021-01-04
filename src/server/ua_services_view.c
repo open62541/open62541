@@ -566,8 +566,7 @@ browseReferences(UA_Server *server, const UA_NodeHead *head,
 
                 /* Test if the node class matches */
                 if(target && !matchClassMask(target, bd->nodeClassMask)) {
-                    if(target)
-                        UA_NODESTORE_RELEASE(server, target);
+                    UA_NODESTORE_RELEASE(server, target);
                     continue;
                 }
             }
@@ -723,7 +722,7 @@ Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxref
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     /* Enough space for the continuation point? */
-    if(session->availableContinuationPoints <= 0) {
+    if(session->availableContinuationPoints == 0) {
         retval = UA_STATUSCODE_BADNOCONTINUATIONPOINTS;
         goto cleanup;
     }

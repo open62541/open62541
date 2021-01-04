@@ -273,18 +273,19 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterSetLater) {
 
     UA_ModifyMonitoredItemsResponse_clear(&modifyResponse);
 
-    // This should trigger only once for the new filter
+    // This should not yet trigger as the previously sent value is 40
     notificationReceived = false;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeId, 39.0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(notificationReceived, true);
-    ck_assert_uint_eq(countNotificationReceived, 1);
+    ck_assert_uint_eq(notificationReceived, false);
+    ck_assert_uint_eq(countNotificationReceived, 0);
     ck_assert_uint_eq(setDouble(client, outNodeId, 41.0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(waitForNotification(2, 10), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(countNotificationReceived, 1);
+    ck_assert_uint_eq(notificationReceived, false);
+    ck_assert_uint_eq(countNotificationReceived, 0);
 
-    ck_assert(fuzzyLastValueIsEqualTo(39.0));
+    ck_assert(fuzzyLastValueIsEqualTo(40.0));
 
     // This should trigger once at 43.0.
     notificationReceived = false;

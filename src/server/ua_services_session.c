@@ -36,7 +36,7 @@ UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_Subscription *sub, *tempsub;
     TAILQ_FOREACH_SAFE(sub, &session->subscriptions, sessionListEntry, tempsub) {
-        UA_Server_deleteSubscription(server, sub);
+        UA_Subscription_delete(server, sub);
     }
 
     UA_PublishResponseEntry *entry;
@@ -751,6 +751,7 @@ Service_CloseSession(UA_Server *server, UA_SecureChannel *channel,
         return;
     }
 
+    UA_assert(session); /* Assured by the previous section */
     UA_LOG_INFO_SESSION(&server->config.logger, session, "Closing the Session");
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS

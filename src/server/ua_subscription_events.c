@@ -3,42 +3,13 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2018 (c) Ari Breitkreuz, fortiss GmbH
- *    Copyright 2020 (c) Christian von Arnim
+ *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
  */
 
 #include "ua_server_internal.h"
 #include "ua_subscription.h"
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-
-UA_StatusCode
-UA_MonitoredItem_removeNodeEventCallback(UA_Server *server, UA_Session *session,
-                                         UA_Node *node, void *data) {
-    if(node->head.nodeClass != UA_NODECLASS_OBJECT)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_ObjectNode *on = &node->objectNode;
-    UA_MonitoredItem *remove = (UA_MonitoredItem*)data;
-
-    if(!on->monitoredItemQueue)
-        return UA_STATUSCODE_GOOD;
-
-    /* Edge case that it's the first element */
-    if(on->monitoredItemQueue == remove) {
-        on->monitoredItemQueue = remove->next;
-        return UA_STATUSCODE_GOOD;
-    }
-
-    UA_MonitoredItem *prev = on->monitoredItemQueue;
-    UA_MonitoredItem *entry = prev->next;
-    for(; entry != NULL; prev = entry, entry = entry->next) {
-        if(entry == remove) {
-            prev->next = entry->next;
-            return UA_STATUSCODE_GOOD;
-        }
-    }
-
-    return UA_STATUSCODE_BADNOTFOUND;
-}
 
 /* We use a 16-Byte ByteString as an identifier */
 UA_StatusCode
@@ -467,11 +438,15 @@ UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event,
     if(!notification)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
+    if(mon->parameters.filter.content.decoded.type != &UA_TYPES[UA_TYPES_EVENTFILTER])
+        return UA_STATUSCODE_BADFILTERNOTALLOWED;
+    UA_EventFilter *eventFilter = (UA_EventFilter*)
+        mon->parameters.filter.content.decoded.data;
+
     UA_Subscription *sub = mon->subscription;
     UA_Session *session = sub->session;
-    UA_StatusCode retval =
-        UA_Server_filterEvent(server, session, event, &mon->filter.eventFilter,
-                              &notification->data.event);
+    UA_StatusCode retval = UA_Server_filterEvent(server, session, event,
+                                                 eventFilter, &notification->data.event);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Notification_delete(server, notification);
         if(retval == UA_STATUSCODE_BADNOMATCH)
@@ -479,7 +454,7 @@ UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event,
         return retval;
     }
 
-    notification->data.event.clientHandle = mon->clientHandle;
+    notification->data.event.clientHandle = mon->parameters.clientHandle;
     notification->mon = mon;
 
     UA_Notification_enqueueAndTrigger(server, notification);
