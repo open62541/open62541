@@ -123,9 +123,6 @@ _UA_BEGIN_DECLS
  * **UA_ENABLE_PUBSUB_ETH_UADP**
  *  Enable the OPC UA Ethernet PubSub support to transport UADP NetworkMessages as payload of Ethernet II frame without IP or UDP headers. This option will include Publish and Subscribe based on
  *  EtherType B62C. Disabled by default.
- * **UA_ENABLE_PUBSUB_ETH_UADP_XDP**
- *  Enable XDP feature to allow the user to receive packets using the eXpress Data Path (XDP), which bypasses TCP/IP layers and transfers the frames from hardware/netdev to user application thereby reducing the receiving time,
- *  in addition to the PubSub support to transport UADP NetworkMessages as payload of Ethernet II frame. Disabled by default.
  *
  * PubSub Information Model Representation
  * ---------------------------------------
@@ -173,6 +170,8 @@ struct UA_PubSubConnectionConfig {
     size_t connectionPropertiesSize;
     UA_KeyValuePair *connectionProperties;
     UA_Variant connectionTransportSettings;
+    /* non-std */
+    UA_Boolean enableXdpSocket;
 };
 
 #ifdef UA_ENABLE_PUBSUB_MONITORING

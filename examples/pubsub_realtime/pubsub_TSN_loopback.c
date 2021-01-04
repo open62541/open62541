@@ -79,11 +79,8 @@
 #include <open62541/types_generated.h>
 #include <open62541/plugin/pubsub_ethernet.h>
 
-#if defined (UA_ENABLE_PUBSUB_ETH_UADP_XDP)
 #include <linux/if_link.h>
-#include "linux/if_xdp.h"
-#include <open62541/plugin/pubsub_ethernet_xdp.h>
-#endif
+#include <linux/if_xdp.h>
 
 #include "ua_pubsub.h"
 
@@ -101,6 +98,7 @@ UA_DataSetReaderConfig readerConfig;
 #define             PUBLISHER
 /* To run only subscriber, enable SUBSCRIBER define alone (comment PUBLISHER) */
 #define             SUBSCRIBER
+#define             UPDATE_MEASUREMENTS
 /* Cycle time in milliseconds */
 #define             DEFAULT_CYCLE_TIME                    0.25
 /* Qbv offset */
@@ -402,7 +400,8 @@ addPubSubConnectionSubscriber(UA_Server *server, UA_NetworkAddressUrlDataType *n
     memset(&connectionConfig, 0, sizeof(connectionConfig));
     connectionConfig.name                                   = UA_STRING("Subscriber Connection");
     connectionConfig.enabled                                = UA_TRUE;
-#if defined (UA_ENABLE_PUBSUB_ETH_UADP_XDP)
+    connectionConfig.enableXdpSocket                        = UA_TRUE;
+
     UA_KeyValuePair connectionOptions[3];
     connectionOptions[0].key                  = UA_QUALIFIEDNAME(0, "xdpflag");
     UA_UInt32 flags                           = XDP_FLAG;
@@ -415,7 +414,7 @@ addPubSubConnectionSubscriber(UA_Server *server, UA_NetworkAddressUrlDataType *n
     UA_Variant_setScalar(&connectionOptions[2].value, &bindflags, &UA_TYPES[UA_TYPES_UINT16]);
     connectionConfig.connectionProperties     = connectionOptions;
     connectionConfig.connectionPropertiesSize = 3;
-#endif
+
 
     UA_NetworkAddressUrlDataType networkAddressUrlsubscribe = *networkAddressUrlSubscriber;
     connectionConfig.transportProfileUri                    = UA_STRING(ETH_TRANSPORT_PROFILE);
@@ -1448,23 +1447,13 @@ if (enableCsvLog)
 #endif
 
 #if defined (PUBLISHER) && defined(SUBSCRIBER)
-#if defined (UA_ENABLE_PUBSUB_ETH_UADP_XDP)
-    config->pubsubTransportLayers[1] = UA_PubSubTransportLayerEthernetXDP();
-    config->pubsubTransportLayersSize++;
-#else
     config->pubsubTransportLayers[1] = UA_PubSubTransportLayerEthernet();
     config->pubsubTransportLayersSize++;
 #endif
-#endif
 
 #if defined(SUBSCRIBER) && !defined(PUBLISHER)
-#if defined (UA_ENABLE_PUBSUB_ETH_UADP_XDP)
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerEthernetXDP();
-    config->pubsubTransportLayersSize++;
-#else
     config->pubsubTransportLayers[0] = UA_PubSubTransportLayerEthernet();
     config->pubsubTransportLayersSize++;
-#endif
 #endif
 
 #if defined(SUBSCRIBER)

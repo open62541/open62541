@@ -11,7 +11,6 @@
 #include <open62541/types_generated_encoding_binary.h>
 #include <open62541/types_generated.h>
 #include <open62541/plugin/pubsub_ethernet.h>
-#include <open62541/plugin/pubsub_ethernet_xdp.h>
 #include "ua_pubsub.h"
 
 #include <linux/if_packet.h>
@@ -19,18 +18,16 @@
 
 #include <linux/bpf.h>
 #include <linux/if_link.h>
-#include "/usr/local/src/bpf-next/include/uapi/linux/if_xdp.h"
-#include "/usr/local/src/bpf-next/tools/testing/selftests/bpf/bpf_util.h"
-#include "/usr/local/src/bpf-next/tools/lib/bpf/bpf.h"
-#include "/usr/local/src/bpf-next/tools/lib/bpf/libbpf.h"
-#include "/usr/local/src/bpf-next/samples/bpf/xdpsock.h"
 #include <sys/resource.h>
 #include <sys/mman.h>
 
 #include <check.h>
 
 #define             MULTICAST_MAC_ADDRESS              "opc.eth://01-00-5E-00-00-01"
-#define             RECEIVE_QUEUE                      2
+#define             RECEIVE_QUEUE_0                    0
+#define             RECEIVE_QUEUE_1                    1
+#define             RECEIVE_QUEUE_2                    2
+#define             RECEIVE_QUEUE_3                    3
 #define             XDP_FLAG                           XDP_FLAGS_SKB_MODE
 
 UA_Server *server = NULL;
@@ -43,7 +40,7 @@ static void setup(void) {
 
     config->pubsubTransportLayers = (UA_PubSubTransportLayer *)
         UA_malloc(sizeof(UA_PubSubTransportLayer));
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerEthernetXDP();
+    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerEthernet();
     config->pubsubTransportLayersSize++;
     UA_Server_run_startup(server);
 }
@@ -68,13 +65,14 @@ START_TEST(AddConnectionsWithMinimalValidConfiguration){
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp");
+    connectionConfig.enableXdpSocket     = UA_TRUE;
     /* Connection options are given as Key/Value Pairs. */
     UA_KeyValuePair connectionOptions[2];
     connectionOptions[0].key = UA_QUALIFIEDNAME(0, "xdpflag");
     UA_UInt32 flags = XDP_FLAG;
     UA_Variant_setScalar(&connectionOptions[0].value, &flags, &UA_TYPES[UA_TYPES_UINT32]);
     connectionOptions[1].key = UA_QUALIFIEDNAME(0, "hwreceivequeue");
-    UA_UInt32 rxqueue = RECEIVE_QUEUE;
+    UA_UInt32 rxqueue = RECEIVE_QUEUE_2;
     UA_Variant_setScalar(&connectionOptions[1].value, &rxqueue, &UA_TYPES[UA_TYPES_UINT32]);
     connectionConfig.connectionProperties = connectionOptions;
     connectionConfig.connectionPropertiesSize = 2;
@@ -82,6 +80,9 @@ START_TEST(AddConnectionsWithMinimalValidConfiguration){
     ck_assert_int_eq(server->pubSubManager.connectionsSize, 1);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     ck_assert(! TAILQ_EMPTY(&server->pubSubManager.connections));
+    rxqueue = RECEIVE_QUEUE_1;
+    UA_Variant_setScalar(&connectionOptions[1].value, &rxqueue, &UA_TYPES[UA_TYPES_UINT32]);
+    connectionConfig.connectionProperties = connectionOptions;
     retVal = UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     ck_assert(&server->pubSubManager.connections.tqh_first->listEntry.tqe_next != NULL);
@@ -98,6 +99,7 @@ START_TEST(AddRemoveAddConnectionWithMinimalValidConfiguration){
         UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                              &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
         connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp");
+        connectionConfig.enableXdpSocket     = UA_TRUE;
         UA_NodeId connectionIdent;
         retVal = UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
         ck_assert_int_eq(server->pubSubManager.connectionsSize, 1);
@@ -121,6 +123,7 @@ START_TEST(AddConnectionWithInvalidAddress){
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp");
+    connectionConfig.enableXdpSocket                        = UA_TRUE;
     retVal = UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
     ck_assert_int_eq(server->pubSubManager.connectionsSize, 0);
     ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
@@ -134,10 +137,11 @@ START_TEST(AddConnectionWithInvalidInterface){
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
     connectionConfig.name = UA_STRING("XDP Connection");
-    UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL, UA_STRING(MULTICAST_MAC_ADDRESS)};
+    UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING("eth0"), UA_STRING(MULTICAST_MAC_ADDRESS)};
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp");
+    connectionConfig.enableXdpSocket                        = UA_TRUE;
     retVal = UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
     ck_assert_int_eq(server->pubSubManager.connectionsSize, 0);
     ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
@@ -155,6 +159,7 @@ START_TEST(AddConnectionWithUnknownTransportURL){
         UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                              &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
         connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/unknown-eth-uadp");
+        connectionConfig.enableXdpSocket                        = UA_TRUE;
         UA_NodeId connectionIdent;
         retVal = UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
         ck_assert_int_eq(server->pubSubManager.connectionsSize, 0);
@@ -192,6 +197,7 @@ START_TEST(AddSingleConnectionWithMaximalConfiguration){
     connectionConf.connectionPropertiesSize = 3;
     connectionConf.connectionProperties = connectionOptions;
     connectionConf.address = address;
+    connectionConf.enableXdpSocket = UA_TRUE;
     UA_NodeId connection;
     UA_StatusCode retVal = UA_Server_addPubSubConnection(server, &connectionConf, &connection);
     ck_assert_int_eq(server->pubSubManager.connectionsSize, 1);
@@ -223,6 +229,7 @@ START_TEST(GetMaximalConnectionConfigurationAndCompareValues){
     connectionConf.connectionPropertiesSize = 3;
     connectionConf.connectionProperties = connectionOptions;
     connectionConf.address = address;
+    connectionConf.enableXdpSocket = UA_TRUE;
     UA_NodeId connection;
     UA_StatusCode retVal = UA_Server_addPubSubConnection(server, &connectionConf, &connection);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
