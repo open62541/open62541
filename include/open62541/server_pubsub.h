@@ -170,8 +170,6 @@ struct UA_PubSubConnectionConfig {
     size_t connectionPropertiesSize;
     UA_KeyValuePair *connectionProperties;
     UA_Variant connectionTransportSettings;
-    /* non-std */
-    UA_Boolean enableXdpSocket;
 };
 
 #ifdef UA_ENABLE_PUBSUB_MONITORING

@@ -33,7 +33,6 @@
 /* XSK kernel headers */
 #include <linux/bpf.h>
 #include <linux/if_link.h>
-#include <linux/if_xdp.h>
 
 #if __has_include(<bpf/bpf.h>) && __has_include(<bpf/libbpf.h>) && __has_include(<bpf/xsk.h>)
 #define LIBBPF_EBPF
@@ -60,7 +59,7 @@
 #define XDP_FRAME_SHIFT                      11 //match the frame size 2048
 
 // Receive buffer batch size
-#define BATCH_SIZE                           8
+#define BATCH_SIZE                           16
 
 #ifndef XDP_COPY
 #define XDP_COPY                             (1 << 1)
@@ -136,6 +135,7 @@ typedef struct {
 typedef struct {
     UA_UInt32  *socketPriority;
     /* XDP related param - Linux specific */
+    UA_Boolean enableXdpSocket;
     UA_UInt32 xdp_flags;
     UA_UInt32 hw_receive_queue;
     UA_UInt16 xdp_bind_flags;
@@ -238,6 +238,8 @@ static xdp_umem *xdp_umem_configure(xskconfparam *xskparam) {
     if (ret) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "PubSub XSK UMEM creation failed. Out of memory.");
+        UA_free(umem->buffer);
+        UA_free(umem);
         return NULL;
     }
 
@@ -245,8 +247,11 @@ static xdp_umem *xdp_umem_configure(xskconfparam *xskparam) {
     frames_per_ring = xskparam->fill_queue_no_of_desc;
 
     sret = xsk_ring_prod__reserve(&umem->fq, frames_per_ring, &idx);
-    if (sret != frames_per_ring)
+    if (sret != frames_per_ring){
+        UA_free(umem->buffer);
+        UA_free(umem);
         return NULL;
+    }
 
     for (UA_UInt64 i = 0; i < frames_per_ring; i++)
         *xsk_ring_prod__fill_addr(&umem->fq, idx++) = i * frames_per_ring;
@@ -285,6 +290,8 @@ static xdpsock *xsk_configure(xdp_umem *umem, UA_UInt32 hw_receive_queue,
     if (!xdp_socket->umem) {
         UA_close(xsk_socket__fd(xdp_socket->xskfd));
         bpf_set_link_xdp_fd(ifindex, -1, xdp_flags);
+        UA_free(xskparam);
+        UA_free(xdp_socket);
         return NULL;
     }
 
@@ -311,13 +318,23 @@ static xdpsock *xsk_configure(xdp_umem *umem, UA_UInt32 hw_receive_queue,
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                       "PubSub connection creation failed."
                       " xsk_socket__create not supported.");
+        UA_free(xdp_socket->umem->buffer);
+        (void)xsk_umem__delete(xdp_socket->umem->umem);
+        UA_free(xdp_socket->umem);
+        UA_free(xskparam);
+        UA_free(xdp_socket);
         return NULL;
     } else if (ret < 0) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                     "PubSub connection creation failed."
                     " xsk_socket__create failed: %s", strerror(errno));
+        UA_free(xdp_socket->umem->buffer);
+        (void)xsk_umem__delete(xdp_socket->umem->umem);
+        UA_free(xdp_socket->umem);
         UA_close(xsk_socket__fd(xdp_socket->xskfd));
         bpf_set_link_xdp_fd(ifindex, -1, xdp_flags);
+        UA_free(xskparam);
+        UA_free(xdp_socket);
         return NULL;
     }
 
@@ -325,8 +342,13 @@ static xdpsock *xsk_configure(xdp_umem *umem, UA_UInt32 hw_receive_queue,
     if (ret) {
         UA_LOG_ERROR (UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
             "PubSub Connection creation failed. Unable to retrieve XDP program.");
+        UA_free(xdp_socket->umem->buffer);
+        (void)xsk_umem__delete(xdp_socket->umem->umem);
+        UA_free(xdp_socket->umem);
         UA_close(xsk_socket__fd(xdp_socket->xskfd));
         bpf_set_link_xdp_fd(ifindex, -1, xdp_flags);
+        UA_free(xskparam);
+        UA_free(xdp_socket);
         return NULL;
     }
 
@@ -407,7 +429,8 @@ UA_PubSubChannelEthernetXDP_send(UA_PubSubChannelDataEthernet *channelDataEthern
     /* copy payload of ethernet message */
     memcpy(ptr, buf->data, buf->length);
 
-    if (xsk_ring_prod__reserve(&xdp_socket->tx_ring, 1, &idx) != 1){
+    /* TODO: Modify XDP TX to handle packet count upto BATCH_SIZE */
+    if (xsk_ring_prod__reserve(&xdp_socket->tx_ring, 1, &idx) != 1) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "PubSub connection send failed. xsk_prod_reserve failed.");
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -449,52 +472,73 @@ UA_PubSubChannelEthernetXDP_receive(UA_PubSubChannelDataEthernet *channelDataEth
     xdpsock *xdp_socket;
     UA_UInt64 addr;
     UA_UInt64 ret;
-    UA_Byte *pkt;
+    size_t rcvd;
+    UA_Byte *pkt, *buf;
     ssize_t len;
 
     xdp_socket = channelDataEthernet->xdpsocket;
     message->length = 0;
 
-    ret = xsk_ring_cons__peek(&xdp_socket->rx_ring, 1, &xdp_socket->idx_rx);
-    if (!ret)
+    rcvd = xsk_ring_cons__peek(&xdp_socket->rx_ring, BATCH_SIZE, &xdp_socket->idx_rx);
+    if (!rcvd)
         return UA_STATUSCODE_GOODNODATA; //No packets even after select/poll
 
-    ret = xsk_ring_prod__reserve(&xdp_socket->umem->fq, 1, &xdp_socket->idx_fq);
-    if(ret != 1)
+    ret = xsk_ring_prod__reserve(&xdp_socket->umem->fq, rcvd, &xdp_socket->idx_fq);
+    if(ret != rcvd)
         return UA_STATUSCODE_BADINTERNALERROR; //Got data but failed to reserve, something's wrong
 
-    addr = xsk_ring_cons__rx_desc(&xdp_socket->rx_ring, xdp_socket->idx_rx)->addr;
-    len  = (UA_UInt32) xsk_ring_cons__rx_desc(&xdp_socket->rx_ring, xdp_socket->idx_rx++)->len;
-    pkt  = (UA_Byte *) xsk_umem__get_data(xdp_socket->umem->buffer, addr);
+    buf = message->data;
+    for(size_t i = 0; i < rcvd; i++) {
+        addr = xsk_ring_cons__rx_desc(&xdp_socket->rx_ring, xdp_socket->idx_rx)->addr;
+        len  = (UA_UInt32) xsk_ring_cons__rx_desc(&xdp_socket->rx_ring, xdp_socket->idx_rx++)->len;
+        pkt  = (UA_Byte *) xsk_umem__get_data(xdp_socket->umem->buffer, addr);
 
-    /* AF_XDP does not do any filtering on ethertype or protocol.
-     * Manually check for VLAN headers and ETH UADP ethertype.
-     * Note: we use UA_UInt16 to compare ethertype, which is 2-bytes
-     */
-    UA_UInt16 *pkt_proto = (UA_UInt16 *) (pkt + (ETH_ALEN * 2));
-    if(channelDataEthernet->vid > 0 && *pkt_proto == htons(ETHERTYPE_VLAN))
-        pkt_proto += 2;
+        /* AF_XDP does not do any filtering on ethertype or protocol.
+         * Manually check for VLAN headers and ETH UADP ethertype.
+         * Note: we use UA_UInt16 to compare ethertype, which is 2-bytes
+         */
+        UA_UInt16 *pkt_proto = (UA_UInt16 *) (pkt + (ETH_ALEN * 2));
+        if(channelDataEthernet->vid > 0 && *pkt_proto == htons(ETHERTYPE_VLAN))
+            pkt_proto += 2;
 
-    if(*pkt_proto != htons(ETHERTYPE_UADP))
-        return UA_STATUSCODE_GOODNODATA;
+        if(*pkt_proto != htons(ETHERTYPE_UADP))
+            return UA_STATUSCODE_GOODNODATA;
 
-    eth_hdr = (struct ether_header *) pkt;
+        eth_hdr = (struct ether_header *) pkt;
+        /* Make sure we match our target */
+        if(memcmp(eth_hdr->ether_dhost, channelDataEthernet->targetAddress, ETH_ALEN) != 0) {
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                         "Invalid hardware address - XDP socket receive");
+            return UA_STATUSCODE_GOODNODATA;
+        }
 
-    /* Make sure we match our target */
-    if(memcmp(eth_hdr->ether_dhost, channelDataEthernet->targetAddress, ETH_ALEN) != 0) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "Invalid hardware address - XDP socket receive");
-        return UA_STATUSCODE_GOODNODATA;
+        UA_Byte *dataReceived = (UA_Byte *)pkt + sizeof(struct ether_header);
+        size_t dataLength = (size_t)len - sizeof(struct ether_header);
+        if(channelDataEthernet->vid > 0) {
+            dataReceived += 4;
+            dataLength -= 4;
+        }
+
+        /* Max buffer size allocated to receive a multiple messages is 4096 */
+        if ((message->length + dataLength) > 4096) {
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                        "During multiple receive max buffer size reached");
+            break;
+        }
+
+        if((dataLength < 46) && (i > 0)) {
+            message->length += 4;
+            buf += 4;
+        }
+
+        memcpy(buf, dataReceived, dataLength);
+        buf += dataLength;
+        message->length += dataLength;
     }
 
-    message->data   = (UA_Byte *) pkt + sizeof(struct ether_header);
-    message->length = (size_t) len - sizeof(struct ether_header);
-
-    if(channelDataEthernet->vid > 0) {
-        message->data += 4;
-        message->length -= 4;
-    }
-
+    xsk_ring_prod__submit(&xdp_socket->umem->fq, rcvd);
+    xsk_ring_cons__release(&xdp_socket->rx_ring, rcvd);
+    xdp_socket->rx_npkts += rcvd;
     return UA_STATUSCODE_GOOD;
 }
 #endif
@@ -569,9 +613,10 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
             UA_MIN(address->networkInterface.length, sizeof(ifreq.ifr_name)-1));
 
     /* Set default socket options */
-    ethernetSocketOptions sockOptions = {NULL, XDP_FLAGS_SKB_MODE, 0, XDP_COPY, UA_FALSE, 0, 0};
+    ethernetSocketOptions sockOptions = {NULL, UA_FALSE, XDP_FLAGS_SKB_MODE, 0, XDP_COPY, UA_FALSE, 0, 0};
 
     /* XDP parameters - Flags, hw queue option and binding flags */
+    UA_String xdpSocketParam = UA_STRING("enableXdpSocket");
     UA_String xdpFlagParam = UA_STRING("xdpflag");
     UA_String hwReceiveQueueParam = UA_STRING("hwreceivequeue");
     UA_String xdpBindFlagParam = UA_STRING("xdpbindflag");
@@ -604,6 +649,10 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
                 if(*(UA_Boolean *) connectionConfig->connectionProperties[i].value.data == UA_TRUE)
                     sockOptions.sotxtimeDeadlinemode = SOF_TXTIME_REPORT_ERRORS;
             }
+        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &xdpSocketParam)){
+            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_BOOLEAN])){
+                sockOptions.enableXdpSocket = *(UA_Boolean *) connectionConfig->connectionProperties[i].value.data;
+            }
         } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &xdpFlagParam)){
             if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_UINT32])){
                 sockOptions.xdp_flags = *(UA_UInt32 *) connectionConfig->connectionProperties[i].value.data;
@@ -622,12 +671,15 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
     }
 
 #if defined(LIBBPF_EBPF)
-    if(connectionConfig->enableXdpSocket) {
-        channelDataEthernet->enableXdpSocket = connectionConfig->enableXdpSocket;
+    if(sockOptions.enableXdpSocket) {
+        channelDataEthernet->enableXdpSocket = sockOptions.enableXdpSocket;
         channelDataEthernet->xdp_flags = sockOptions.xdp_flags;
         channelDataEthernet->ifindex = (int)if_nametoindex(ifreq.ifr_name);
-        if((UA_PubSubChannelEthernetXDP_open(channelDataEthernet, &sockOptions, address)) != UA_STATUSCODE_GOOD)
+        if((UA_PubSubChannelEthernetXDP_open(channelDataEthernet, &sockOptions, address)) != UA_STATUSCODE_GOOD) {
+            UA_free(channelDataEthernet);
+            UA_free(newChannel);
             return NULL;
+        }
 
         newChannel->sockfd = xsk_socket__fd(channelDataEthernet->xdpsocket->xskfd);
         newChannel->handle = channelDataEthernet;
@@ -640,7 +692,7 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
     }
 #endif
 
-    if(connectionConfig->enableXdpSocket)
+    if(sockOptions.enableXdpSocket)
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                        "XDP dependent libraries not found. Use above 5.4 kernel and install libbpf for XDP support. Using AF_PACKET socket");
 
@@ -1174,18 +1226,6 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_ByteString *messa
     return retval;
 }
 
-static UA_StatusCode
-UA_PubSubChannelEthernet_release(UA_PubSubChannel *channel) {
-#if defined(LIBBPF_EBPF)
-    UA_PubSubChannelDataEthernet *channelDataEthernet = (UA_PubSubChannelDataEthernet *) channel->handle;
-    xdpsock *xdp_socket = channelDataEthernet->xdpsocket;
-    xsk_ring_prod__submit(&xdp_socket->umem->fq, 1);
-    xsk_ring_cons__release(&xdp_socket->rx_ring, 1);
-    xdp_socket->rx_npkts += 1;
-#endif
-    return UA_STATUSCODE_GOOD;
-}
-
 /**
  * Close channel and free the channel data.
  *
@@ -1200,6 +1240,7 @@ UA_PubSubChannelEthernet_close(UA_PubSubChannel *channel) {
         (void)xsk_umem__delete(channelDataEthernet->xdpsocket->umem->umem);
         /* Detach XDP program from the interface */
         bpf_set_link_xdp_fd(channelDataEthernet->ifindex, -1, channelDataEthernet->xdp_flags);
+        UA_free(channelDataEthernet->xdpsocket->umem->buffer);
         UA_free(channelDataEthernet->xdpsocket->umem);
         UA_free(channelDataEthernet->xdpsocket);
         UA_free(channelDataEthernet);
@@ -1230,8 +1271,6 @@ TransportLayerEthernet_addChannel(UA_PubSubConnectionConfig *connectionConfig) {
         pubSubChannel->send = UA_PubSubChannelEthernet_send;
         pubSubChannel->receive = UA_PubSubChannelEthernet_receive;
         pubSubChannel->close = UA_PubSubChannelEthernet_close;
-        if(connectionConfig->enableXdpSocket)
-            pubSubChannel->release = UA_PubSubChannelEthernet_release;
         pubSubChannel->connectionConfig = connectionConfig;
     }
     return pubSubChannel;
