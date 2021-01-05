@@ -901,9 +901,7 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
                 if(UA_NetworkMessage_updateBufferedNwMessage(&dataSetReader->bufferedMessage, &buffer, &currentPosition) != UA_STATUSCODE_GOOD) {
                     UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
                                 "PubSub receive. Unknown field type.");
-                    if (!connection->channel->release)
-                        UA_ByteString_clear(&buffer);
-
+                    UA_ByteString_clear(&buffer);
                     return;
                 }
 
@@ -913,9 +911,7 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
                    (*dataSetReader->bufferedMessage.nm->payloadHeader.dataSetPayloadHeader.dataSetWriterIds != dataSetReader->config.dataSetWriterId)) {
                     UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
                                 "PubSub receive. Unknown message received. Will not be processed.");
-                    if (!connection->channel->release)
-                        UA_ByteString_clear(&buffer);
-
+                    UA_ByteString_clear(&buffer);
                     return;
                 }
 
@@ -947,11 +943,7 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
                 previousPosition = currentPosition;
             } while((buffer.length) > currentPosition);
 
-            if(connection->channel->release)
-                connection->channel->release(connection->channel);
-            else
-                UA_ByteString_clear(&buffer);
-
+            UA_ByteString_clear(&buffer);
             return;
 
         } else {
@@ -976,13 +968,9 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
                 previousPosition = currentPosition;
             } while((buffer.length) > currentPosition);
         }
-
-        if(connection->channel->release)
-            connection->channel->release(connection->channel);
     }
 
-    if(!connection->channel->release)
-        UA_ByteString_clear(&buffer);
+    UA_ByteString_clear(&buffer);
 }
 
 /* Add new subscribeCallback. The first execution is triggered directly after
