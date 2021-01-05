@@ -1,0 +1,4090 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+ * Copyright (c) 2005-2019 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<ModelDesign 
+  xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd" 
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:OpcUa="http://opcfoundation.org/UA/"
+  xmlns:DI="http://opcfoundation.org/UA/DI/"
+  xmlns:ADI="http://opcfoundation.org/UA/ADI/"
+  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+  TargetNamespace="http://opcfoundation.org/UA/ADI/"
+  TargetXmlNamespace="http://opcfoundation.org/UA/ADI/"
+  TargetVersion="1.01"
+  TargetPublicationDate="2013-07-31T00:00:00Z"
+  xmlns="http://opcfoundation.org/UA/ModelDesign.xsd">
+
+  <Namespaces>
+    <Namespace Name="OpcUaAdi" Prefix="Opc.Ua.Adi" XmlNamespace="http://opcfoundation.org/UA/ADI/Types.xsd" XmlPrefix="ADI">http://opcfoundation.org/UA/ADI/</Namespace>
+    <Namespace Name="OpcUaDi" Prefix="Opc.Ua.Di" XmlNamespace="http://opcfoundation.org/UA/DI/Types.xsd" XmlPrefix="DI" FilePath="OpcUaDiModel">http://opcfoundation.org/UA/DI/</Namespace>
+    <Namespace Name="OpcUa" Prefix="Opc.Ua" InternalPrefix="Opc.Ua.Server" XmlNamespace="http://opcfoundation.org/UA/2008/02/Types.xsd" XmlPrefix="OpcUa">http://opcfoundation.org/UA/</Namespace>
+  </Namespaces>
+
+  <Object SymbolicName="ADI:OpcUaAdiNamespaceMetadata" TypeDefinition="OpcUa:NamespaceMetadataType">
+    <BrowseName>http://opcfoundation.org/UA/ADI/</BrowseName>
+    <Children>
+      <Property SymbolicName="OpcUa:NamespaceUri" DataType="OpcUa:String">
+        <DefaultValue>
+          <uax:String>http://opcfoundation.org/UA/ADI/</uax:String>
+        </DefaultValue>
+      </Property>
+      <Property SymbolicName="OpcUa:NamespaceVersion" DataType="OpcUa:String">
+        <DefaultValue>
+          <uax:String>1.01</uax:String>
+        </DefaultValue>
+      </Property>
+      <Property SymbolicName="OpcUa:NamespacePublicationDate" DataType="OpcUa:DateTime">
+        <DefaultValue>
+          <uax:DateTime>2013-07-31</uax:DateTime>
+        </DefaultValue>
+      </Property>
+      <Property SymbolicName="OpcUa:IsNamespaceSubset" DataType="OpcUa:Boolean">
+        <DefaultValue>
+          <uax:Boolean>false</uax:Boolean>
+        </DefaultValue>
+      </Property>
+      <Property SymbolicName="OpcUa:StaticNodeIdTypes" DataType="OpcUa:IdType" ValueRank="Array">
+        <DefaultValue>
+          <uax:ListOfInt32>
+            <uax:Int32>0</uax:Int32>
+          </uax:ListOfInt32>
+        </DefaultValue>
+      </Property>
+      <Property SymbolicName="OpcUa:StaticNumericNodeIdRange" DataType="OpcUa:NumericRange" ValueRank="Array">
+        <DefaultValue>
+          <uax:ListOfString>
+            <uax:String>1:65535</uax:String>
+          </uax:ListOfString>
+        </DefaultValue>
+      </Property>
+      <Property SymbolicName="OpcUa:StaticStringNodeIdPattern" DataType="OpcUa:String">
+        <DefaultValue>
+          <uax:String></uax:String>
+        </DefaultValue>
+      </Property>
+      <Property SymbolicName="OpcUa:DefaultRolePermissions" ModellingRule="Mandatory" />
+      <Property SymbolicName="OpcUa:DefaultUserRolePermissions" ModellingRule="Mandatory" />
+      <Property SymbolicName="OpcUa:DefaultAccessRestrictions" ModellingRule="Mandatory" />
+    </Children>
+    <References>
+      <Reference IsInverse="true">
+        <ReferenceType>OpcUa:HasComponent</ReferenceType>
+        <TargetId>OpcUa:Server_Namespaces</TargetId>
+      </Reference>
+    </References>
+  </Object>
+  
+    <!-- AnalyserDeviceType -->
+  <ObjectType SymbolicName="ADI:AnalyserDeviceType" BaseType="DI:DeviceType" IsAbstract="true" SupportsEvents="true">
+    <Children>
+      <Object SymbolicName="DI:MethodSet" ModellingRule="Mandatory">
+        <Children>
+          <Method SymbolicName="ADI:GetConfiguration" TypeDefinition="ADI:AnalyserDeviceTypeGetConfigurationMethodType">
+            <Description>Read the complete configuration of the AnalyserDevice and all of its components to the analyser server.</Description>
+          </Method>
+          <Method SymbolicName="ADI:SetConfiguration" TypeDefinition="ADI:AnalyserDeviceTypeSetConfigurationMethodType">
+            <Description>Write the complete configuration of the AnalyserDevice and all of its components to the analyser server and make the new configuration active.</Description>
+          </Method>
+          <Method SymbolicName="ADI:GetConfigDataDigest" TypeDefinition="ADI:AnalyserDeviceTypeGetConfigDataDigestMethodType">
+            <Description>Read the digest of the complete analyser configuration as computed by the server.</Description>
+          </Method>
+          <Method SymbolicName="ADI:CompareConfigDataDigest" TypeDefinition="ADI:AnalyserDeviceTypeCompareConfigDataDigestMethodType">
+            <Description>Compare the digest of the complete analyser configuration as computed by the server with ConfigDataDigest.</Description>
+          </Method>
+          <Method SymbolicName="ADI:ResetAllChannels">
+            <Description>Reset all AnalyserChannels belonging to this AnalyserDevice.</Description>
+          </Method>
+          <Method SymbolicName="ADI:StartAllChannels">
+            <Description>Start all AnalyserChannels belonging to this AnalyserDevice.</Description>
+          </Method>
+          <Method SymbolicName="ADI:StopAllChannels">
+            <Description>Stop all AnalyserChannels belonging to this AnalyserDevice.</Description>
+          </Method>
+          <Method SymbolicName="ADI:AbortAllChannels">
+            <Description>Abort all AnalyserChannels belonging to this AnalyserDevice.</Description>
+          </Method>
+          <Method SymbolicName="ADI:GotoOperating">
+            <Description>AnalyserDeviceStateMachine to go to Operating state, forcing all AnalyserChannels to leave the SlaveMode state and go to the Operating state.</Description>
+          </Method>
+          <Method SymbolicName="ADI:GotoMaintenance">
+            <Description>AnalyserDeviceStateMachine to go to Maintenance state, forcing all AnalyserChannels to SlaveMode state.</Description>
+          </Method>
+        </Children>
+      </Object>
+      <Object SymbolicName="DI:ParameterSet">
+        <Children>
+          <Variable SymbolicName="ADI:DiagnosticStatus" TypeDefinition="OpcUa:DataItemType" DataType="DI:DeviceHealthEnumeration">
+            <Description>General health status of the analyser </Description>
+          </Variable>
+          <Object SymbolicName="ADI:ConfigData" TypeDefinition="OpcUa:FileType" ModellingRule="Optional">
+            <Description>Optional analyser device large configuration </Description>
+          </Object>
+        </Children>
+      </Object>
+      
+      <Object SymbolicName="DI:Identification" ModellingRule="Mandatory">
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>DI:DeviceType_Manufacturer</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>DI:DeviceType_Model</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>DI:DeviceType_SerialNumber</TargetId>
+          </Reference>
+        </References>
+      </Object>
+
+      <Object SymbolicName="ADI:Configuration" TypeDefinition="DI:FunctionalGroupType">
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:AnalyserDeviceType_ParameterSet_ConfigData</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:Status" TypeDefinition="DI:FunctionalGroupType">
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:AnalyserDeviceType_ParameterSet_DiagnosticStatus</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:FactorySettings" TypeDefinition="DI:FunctionalGroupType" />
+
+      <Object SymbolicName="ADI:AnalyserStateMachine" TypeDefinition="ADI:AnalyserDeviceStateMachineType"/>
+      
+      <Object SymbolicName="ADI:ChannelIdentifier" TypeDefinition="ADI:AnalyserChannelType" ModellingRule="OptionalPlaceholder">
+        <BrowseName>&lt;ChannelIdentifier&gt;</BrowseName>
+        <Description>Channel definition</Description>
+      </Object>
+      
+      <Object SymbolicName="ADI:AccessorySlotIdentifier" TypeDefinition="ADI:AccessorySlotType" ModellingRule="OptionalPlaceholder">
+        <BrowseName>&lt;AccessorySlotIdentifier&gt;</BrowseName>
+        <Description>AccessorySlot definition</Description>
+      </Object>
+    </Children>
+  </ObjectType>
+
+  <Method SymbolicName="ADI:AnalyserDeviceTypeGetConfigurationMethodType">
+    <OutputArguments>
+      <Argument Name="ConfigData" DataType="OpcUa:ByteString"/>
+    </OutputArguments>
+  </Method>
+  
+  <Method SymbolicName="ADI:AnalyserDeviceTypeSetConfigurationMethodType">
+    <InputArguments>
+      <Argument Name="ConfigData" DataType="OpcUa:ByteString"/>
+    </InputArguments>
+    <OutputArguments>
+      <Argument Name="ConfigDataDigest" DataType="OpcUa:String"/>
+    </OutputArguments>
+  </Method>
+  <Method SymbolicName="ADI:AnalyserDeviceTypeGetConfigDataDigestMethodType">
+    <OutputArguments>
+      <Argument Name="ConfigDataDigest" DataType="OpcUa:String"/>
+    </OutputArguments>
+  </Method>
+  <Method SymbolicName="ADI:AnalyserDeviceTypeCompareConfigDataDigestMethodType">
+    <InputArguments>
+      <Argument Name="ConfigDataDigest" DataType="OpcUa:String"/>
+    </InputArguments>
+    <OutputArguments>
+      <Argument Name="IsEqual" DataType="OpcUa:Boolean"/>
+    </OutputArguments>
+  </Method>
+
+
+  <!-- AnalyserDeviceStateMachineType state machine -->
+  <ObjectType SymbolicName="ADI:AnalyserDeviceStateMachineType" BaseType="OpcUa:FiniteStateMachineType" SupportsEvents="true">
+    <Children>
+      <!-- AnalyserDeviceStateMachineType state machine states -->
+      <Object SymbolicName="ADI:Powerup" TypeDefinition="OpcUa:InitialStateType" ModellingRule="None">
+        <Description>The AnalyserDevice is in its power-up sequence and cannot perform any other task.</Description>
+        <Children>
+          <Property SymbolicName="OpcUa:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>100</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:Operating" TypeDefinition="OpcUa:StateType" ModellingRule="None">
+        <Description>The AnalyserDevice is in the Operating mode.</Description>
+        <Children>
+          <Property SymbolicName="OpcUa:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>200</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:Local" TypeDefinition="OpcUa:StateType" ModellingRule="None">
+        <Description>The AnalyserDevice is in the Local mode. This mode is normally used to perform local physical maintenance on the analyser.</Description>
+        <Children>
+          <Property SymbolicName="OpcUa:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>300</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:Maintenance" TypeDefinition="OpcUa:StateType" ModellingRule="None">
+        <Description>The AnalyserDevice is in the Maintenance mode. This mode is used to perform remote maintenance on the analyser like firmware upgrade.</Description>
+        <Children>
+          <Property SymbolicName="OpcUa:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>400</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:Shutdown" TypeDefinition="OpcUa:StateType" ModellingRule="None">
+        <Description>The AnalyserDevice is in its power-down sequence and cannot perform any other task.</Description>
+        <Children>
+          <Property SymbolicName="OpcUa:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>500</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+
+      <!-- AnalyserDeviceStateMachineType state machine  transitions -->
+      <Object SymbolicName="ADI:PowerupToOperatingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>1</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserDeviceStateMachineType_Powerup</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserDeviceStateMachineType_Operating</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:OperatingToLocalTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>2</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserDeviceStateMachineType_Operating</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserDeviceStateMachineType_Local</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:OperatingToMaintenanceTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>3</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserDeviceStateMachineType_Operating</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserDeviceStateMachineType_Maintenance</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:HasCause</ReferenceType>
+            <TargetId>ADI:AnalyserDeviceType_MethodSet_GotoMaintenance</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:LocalToOperatingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>4</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserDeviceStateMachineType_Local</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserDeviceStateMachineType_Operating</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:LocalToMaintenanceTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>5</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserDeviceStateMachineType_Local</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserDeviceStateMachineType_Maintenance</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:MaintenanceToOperatingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>6</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserDeviceStateMachineType_Maintenance</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserDeviceStateMachineType_Operating</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:HasCause</ReferenceType>
+            <TargetId>ADI:AnalyserDeviceType_MethodSet_GotoOperating</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:MaintenanceToLocalTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>7</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserDeviceStateMachineType_Maintenance</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserDeviceStateMachineType_Local</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:OperatingToShutdownTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>8</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserDeviceStateMachineType_Operating</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserDeviceStateMachineType_Shutdown</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:LocalToShutdownTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>9</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserDeviceStateMachineType_Local</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserDeviceStateMachineType_Shutdown</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:MaintenanceToShutdownTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>10</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserDeviceStateMachineType_Maintenance</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserDeviceStateMachineType_Shutdown</TargetId>
+          </Reference>
+        </References>
+      </Object>
+    </Children>
+  </ObjectType>
+  
+  <!-- AnalyserChannelType -->
+  <ObjectType SymbolicName="ADI:AnalyserChannelType" BaseType="DI:TopologyElementType" SupportsEvents="true">
+    <Children>
+      <Object SymbolicName="DI:MethodSet" ModellingRule="Mandatory">
+        <Children>
+          <Method SymbolicName="ADI:GotoOperating">
+            <Description>Transitions the AnalyserChannel to Operating mode.</Description>
+          </Method>
+          <Method SymbolicName="ADI:GotoMaintenance">
+            <Description>Transitions the AnalyserChannel to Maintenance mode.</Description>
+          </Method>
+          <Method SymbolicName="ADI:StartSingleAcquisition" TypeDefinition="ADI:AnalyserChannelTypeStartSingleAcquisitionMethodType"/>
+          <Method SymbolicName="ADI:Reset">
+            <Description>Causes transition to the Resetting state.</Description>
+          </Method>
+          <Method SymbolicName="ADI:Start">
+            <Description>Causes transition to the Starting state.</Description>
+          </Method>
+          <Method SymbolicName="ADI:Stop">
+            <Description>Causes transition to the Stopping state.</Description>
+          </Method>
+          <Method SymbolicName="ADI:Hold">
+            <Description>Causes transition to the Holding state.</Description>
+          </Method>
+          <Method SymbolicName="ADI:Unhold">
+            <Description>Causes transition to the Unholding state.</Description>
+          </Method>
+          <Method SymbolicName="ADI:Suspend">
+            <Description>Causes transition to the Suspending state.</Description>
+          </Method>
+          <Method SymbolicName="ADI:Unsuspend">
+            <Description>Causes transition to the Unsuspending state.</Description>
+          </Method>
+          <Method SymbolicName="ADI:Abort">
+            <Description>Causes transition to the Aborting state.</Description>
+          </Method>
+          <Method SymbolicName="ADI:Clear">
+            <Description>Causes transition to the Clearing state.</Description>
+          </Method>
+        </Children>
+      </Object>
+      <Object SymbolicName="DI:ParameterSet">
+        <Children>
+          <Variable SymbolicName="ADI:ChannelId" TypeDefinition="OpcUa:DataItemType" ModellingRule="Optional" DataType="OpcUa:String">
+            <Description>Channel Id defined by user</Description>
+          </Variable>
+          <Variable SymbolicName="ADI:IsEnabled" TypeDefinition="OpcUa:DataItemType" DataType="OpcUa:Boolean">
+            <Description>True if the channel is enabled and accepting commands</Description>
+          </Variable>
+          <Variable SymbolicName="ADI:DiagnosticStatus" TypeDefinition="OpcUa:DataItemType" DataType="DI:DeviceHealthEnumeration">
+            <Description>AnalyserChannel health status</Description>
+          </Variable>
+          <Variable SymbolicName="ADI:ActiveStream" TypeDefinition="OpcUa:DataItemType" DataType="OpcUa:String">
+            <Description>Active stream for this AnalyserChannel</Description>
+          </Variable>
+        </Children>
+      </Object>
+      
+      <Object SymbolicName="ADI:Configuration" TypeDefinition="DI:FunctionalGroupType">
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:AnalyserChannelType_ParameterSet_IsEnabled</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:Status" TypeDefinition="DI:FunctionalGroupType">
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:AnalyserChannelType_ParameterSet_DiagnosticStatus</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:AnalyserChannelType_ParameterSet_ActiveStream</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      
+      <Object SymbolicName="ADI:ChannelStateMachine" TypeDefinition="ADI:AnalyserChannelStateMachineType" SupportsEvents="true"/>
+      <Object SymbolicName="ADI:GroupIdentifier" TypeDefinition="DI:FunctionalGroupType" ModellingRule="OptionalPlaceholder">
+        <BrowseName>&lt;GroupIdentifier&gt;</BrowseName>
+        <Description>Group definition</Description>
+      </Object>
+      <Object SymbolicName="ADI:StreamIdentifier" TypeDefinition="ADI:StreamType" ModellingRule="OptionalPlaceholder">
+        <BrowseName>&lt;StreamIdentifier&gt;</BrowseName>
+        <Description>Stream definition</Description>
+      </Object>
+      <Object SymbolicName="ADI:AccessorySlotIdentifier" TypeDefinition="ADI:AccessorySlotType" ModellingRule="OptionalPlaceholder">
+        <BrowseName>&lt;AccessorySlotIdentifier&gt;</BrowseName>
+        <Description>AccessorySlot definition</Description>
+      </Object>
+    </Children>
+  </ObjectType>
+
+  <Method SymbolicName="ADI:AnalyserChannelTypeStartSingleAcquisitionMethodType">
+    <InputArguments>
+      <Argument Name="ExecutionCycle" DataType="ADI:ExecutionCycleEnumeration"/>
+      <Argument Name="ExecutionCycleSubcode" DataType="OpcUa:UInt32"/>
+      <Argument Name="SelectedStream" DataType="OpcUa:String"/>
+    </InputArguments>
+  </Method>
+
+  <ObjectType SymbolicName="ADI:AnalyserChannelOperatingStateType" BaseType="OpcUa:StateType" SupportsEvents="true">
+      <References>
+          <Reference>
+            <ReferenceType>OpcUa:HasSubStateMachine</ReferenceType>
+            <TargetId>ADI:AnalyserChannelStateMachineType_OperatingSubStateMachine</TargetId>
+          </Reference>
+        </References>
+  </ObjectType>
+  <ObjectType SymbolicName="ADI:AnalyserChannelLocalStateType" BaseType="OpcUa:StateType"/>
+  <ObjectType SymbolicName="ADI:AnalyserChannelMaintenanceStateType" BaseType="OpcUa:StateType"/>
+  
+  <!-- AnalyserChannelStateMachineType -->
+  <ObjectType SymbolicName="ADI:AnalyserChannelStateMachineType" BaseType="OpcUa:FiniteStateMachineType"  SupportsEvents="true">
+    <Description>Contains a nested state model that defines the top level states Operating, Local and Maintenance</Description>
+    <Children>
+      <Object SymbolicName="ADI:OperatingSubStateMachine" TypeDefinition="ADI:AnalyserChannel_OperatingModeSubStateMachineType"  ModellingRule="Mandatory" />
+      <Object SymbolicName="ADI:LocalSubStateMachine" TypeDefinition="OpcUa:FiniteStateMachineType" ModellingRule="Optional"/>
+      <Object SymbolicName="ADI:MaintenanceSubStateMachine" TypeDefinition="OpcUa:FiniteStateMachineType" ModellingRule="Optional"/>
+
+      <!-- AnalyserChannelStateMachineType states -->
+      <Object SymbolicName="ADI:SlaveMode" TypeDefinition="OpcUa:InitialStateType" ModellingRule="None">
+        <Description>The AnalyserDevice is in Local or Maintenance mode and all AnalyserChannels are in SlaveMode</Description>
+        <Children>
+          <Property SymbolicName="OpcUa:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>100</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:Operating" TypeDefinition="ADI:AnalyserChannelOperatingStateType" SupportsEvents="true" ModellingRule="None">
+        <Description>The AnalyserChannel is in the Operating mode.</Description>
+        <Children>
+          <Property SymbolicName="OpcUa:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>200</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:HasSubStateMachine</ReferenceType>
+            <TargetId>ADI:AnalyserChannelStateMachineType_OperatingSubStateMachine</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:Local" TypeDefinition="ADI:AnalyserChannelLocalStateType" ModellingRule="None">
+        <Description>The AnalyserChannel is in the Local mode. This mode is normally used to perform local physical maintenance on the analyser.</Description>
+        <Children>
+          <Property SymbolicName="OpcUa:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>300</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:HasSubStateMachine</ReferenceType>
+            <TargetId>ADI:AnalyserChannelStateMachineType_LocalSubStateMachine</TargetId>
+          </Reference>
+        </References>
+        
+      </Object>
+      <Object SymbolicName="ADI:Maintenance" TypeDefinition="ADI:AnalyserChannelMaintenanceStateType" ModellingRule="None">
+        <Description>The AnalyserChannel is in the Maintenance mode. This mode is used to perform remote maintenance on the analyser like firmware upgrade.</Description>
+        <Children>
+          <Property SymbolicName="OpcUa:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>400</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:HasSubStateMachine</ReferenceType>
+            <TargetId>ADI:AnalyserChannelStateMachineType_MaintenanceSubStateMachine</TargetId>
+          </Reference>
+        </References>
+        
+      </Object>
+
+      <!-- AnalyserChannelStateMachineType transitions -->
+      <Object SymbolicName="ADI:SlaveModeToOperatingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>1</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannelStateMachineType_SlaveMode</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannelStateMachineType_Operating</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:OperatingToLocalTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>2</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannelStateMachineType_Operating</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannelStateMachineType_Local</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:OperatingToMaintenanceTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>3</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannelStateMachineType_Operating</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannelStateMachineType_Maintenance</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:HasCause</ReferenceType>
+            <TargetId>ADI:AnalyserChannelType_MethodSet_GotoMaintenance</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:LocalToOperatingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>4</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannelStateMachineType_Local</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannelStateMachineType_Operating</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:LocalToMaintenanceTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>5</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannelStateMachineType_Local</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannelStateMachineType_Maintenance</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:MaintenanceToOperatingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>6</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannelStateMachineType_Maintenance</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannelStateMachineType_Operating</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:HasCause</ReferenceType>
+            <TargetId>ADI:AnalyserChannelType_MethodSet_GotoOperating</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:MaintenanceToLocalTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>7</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannelStateMachineType_Maintenance</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannelStateMachineType_Local</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:OperatingToSlaveModeTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>8</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannelStateMachineType_Operating</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannelStateMachineType_SlaveMode</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:LocalToSlaveModeTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>9</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannelStateMachineType_Local</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannelStateMachineType_SlaveMode</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:MaintenanceToSlaveModeTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>10</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannelStateMachineType_Maintenance</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannelStateMachineType_SlaveMode</TargetId>
+          </Reference>
+        </References>
+      </Object>
+    </Children>
+  </ObjectType>
+
+  <ObjectType SymbolicName="ADI:AnalyserChannelOperatingExecuteStateType" BaseType="OpcUa:StateType" SupportsEvents="true">
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:HasSubStateMachine</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_OperatingExecuteSubStateMachine</TargetId>
+          </Reference>
+        </References>
+  </ObjectType>
+
+  <!-- AnalyserChannel_OperatingModeSubStateMachineType -->
+  <ObjectType SymbolicName="ADI:AnalyserChannel_OperatingModeSubStateMachineType" BaseType="OpcUa:FiniteStateMachineType" SupportsEvents="true">
+    <Description>AnalyserChannel OperatingMode SubStateMachine</Description>
+    <Children>
+    
+      <Object SymbolicName="ADI:OperatingExecuteSubStateMachine" TypeDefinition="ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType" ModellingRule="Mandatory"  />
+
+      <!-- AnalyserChannel_OperatingModeSubStateMachineType states -->
+      <Object SymbolicName="ADI:Stopped" TypeDefinition="OpcUa:InitialStateType" ModellingRule="None">
+        <Description>This is the initial state after AnalyserDeviceStateMachine state Powerup</Description>
+        <Children>
+          <Property SymbolicName="OpcUa:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>2</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:Resetting" TypeDefinition="OpcUa:StateType" ModellingRule="None">
+        <Description>This state is the result of a Reset or SetConfiguration Method call from the Stopped state.  </Description>
+        <Children>
+          <Property SymbolicName="OpcUa:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>15</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:Idle" TypeDefinition="OpcUa:StateType" ModellingRule="None">
+        <Description>The Resetting state is completed, all parameters have been committed and ready to start acquisition</Description>
+        <Children>
+          <Property SymbolicName="OpcUa:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>4</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:Starting" TypeDefinition="OpcUa:StateType" ModellingRule="None">
+        <Description>The analyser has received the Start or SingleAcquisitionStart Method call and it is preparing to enter in Execute state. </Description>
+        <Children>
+          <Property SymbolicName="OpcUa:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>3</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:Execute" TypeDefinition="ADI:AnalyserChannelOperatingExecuteStateType" ModellingRule="None">
+        <Description>All repetitive acquisition cycles are done in this state:</Description>
+        <Children>
+          <Property SymbolicName="OpcUa:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>6</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:HasSubStateMachine</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_OperatingExecuteSubStateMachine</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:Completing" TypeDefinition="OpcUa:StateType" ModellingRule="None">
+        <Description>This state is an automatic or commanded exit from the Execute state.  </Description>
+        <Children>
+          <Property SymbolicName="OpcUa:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>16</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:Complete" TypeDefinition="OpcUa:StateType" ModellingRule="None">
+        <Description>At this point, the Completing state is done and it transitions automatically to Stopped state to wait.</Description>
+        <Children>
+          <Property SymbolicName="OpcUa:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>17</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:Suspending" TypeDefinition="OpcUa:StateType" ModellingRule="None">
+        <Description>This state is a result of a change in monitored conditions due to process conditions or factors. </Description>
+        <Children>
+          <Property SymbolicName="OpcUa:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>13</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:Suspended" TypeDefinition="OpcUa:StateType" ModellingRule="None">
+        <Description>The analyser or channel may be running but no results are being generated while the analyser or channel is waiting for external process conditions to return to normal.</Description>
+        <Children>
+          <Property SymbolicName="OpcUa:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>5</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:Unsuspending" TypeDefinition="OpcUa:StateType" ModellingRule="None">
+        <Description>This state is a result of a device request from Suspended state to transition back to the Execute state by calling the Unsuspend Method.  </Description>
+        <Children>
+          <Property SymbolicName="OpcUa:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>14</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:Holding" TypeDefinition="OpcUa:StateType" ModellingRule="None">
+        <Description>Brings the analyser or channel to a controlled stop or to a state which represents Held for the particular unit control mode</Description>
+        <Children>
+          <Property SymbolicName="OpcUa:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>10</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:Held" TypeDefinition="OpcUa:StateType" ModellingRule="None">
+        <Description>The Held state holds the analyser or channel's operation. At this state, no acquisition cycle is performed.</Description>
+        <Children>
+          <Property SymbolicName="OpcUa:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>11</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:Unholding" TypeDefinition="OpcUa:StateType" ModellingRule="None">
+        <Description>The Unholding state is a response to an operator command to resume the Execute state.</Description>
+        <Children>
+          <Property SymbolicName="OpcUa:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>12</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:Stopping" TypeDefinition="OpcUa:StateType" ModellingRule="None">
+        <Description>Initiated by a Stop Method call, this state:</Description>
+        <Children>
+          <Property SymbolicName="OpcUa:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>7</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:Aborting" TypeDefinition="OpcUa:StateType" ModellingRule="None">
+        <Description>The Aborting state can be entered at any time in response to the Abort command or on the occurrence of a machine fault. </Description>
+        <Children>
+          <Property SymbolicName="OpcUa:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>8</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:Aborted" TypeDefinition="OpcUa:StateType" ModellingRule="None">
+        <Description>This state maintains machine status information relevant to the Abort condition. </Description>
+        <Children>
+          <Property SymbolicName="OpcUa:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>9</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:Clearing" TypeDefinition="OpcUa:StateType" ModellingRule="None">
+        <Description>Clears faults that may have occurred when Aborting and are present in the Aborted state before proceeding to a Stopped state</Description>
+        <Children>
+          <Property SymbolicName="OpcUa:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>1</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:StoppedToResettingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>1</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Stopped</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Resetting</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:HasCause</ReferenceType>
+            <TargetId>ADI:AnalyserChannelType_MethodSet_Reset</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:HasCause</ReferenceType>
+            <TargetId>ADI:AnalyserDeviceType_MethodSet_SetConfiguration</TargetId>
+          </Reference>
+        </References>
+      </Object>
+
+      <!-- AnalyserChannel_OperatingModeSubStateMachineType transitions -->
+      <Object SymbolicName="ADI:ResettingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>2</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Resetting</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Resetting</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:ResettingToIdleTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>3</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Resetting</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Idle</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:IdleToStartingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>4</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Idle</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Starting</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:HasCause</ReferenceType>
+            <TargetId>ADI:AnalyserChannelType_MethodSet_Start</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:HasCause</ReferenceType>
+            <TargetId>ADI:AnalyserChannelType_MethodSet_StartSingleAcquisition</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:StartingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>5</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Starting</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Starting</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:StartingToExecuteTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>6</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Starting</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Execute</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:ExecuteToCompletingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>7</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Execute</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Completing</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:CompletingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>8</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Completing</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Completing</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:CompletingToCompleteTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>9</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Completing</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Complete</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:CompleteToStoppedTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>10</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Complete</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Stopped</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:ExecuteToHoldingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>11</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Execute</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Holding</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:HasCause</ReferenceType>
+            <TargetId>ADI:AnalyserChannelType_MethodSet_Hold</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:HoldingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>12</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Holding</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Holding</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:HoldingToHeldTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>13</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Holding</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Held</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:HeldToUnholdingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>14</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Held</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Unholding</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:HasCause</ReferenceType>
+            <TargetId>ADI:AnalyserChannelType_MethodSet_Unhold</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:UnholdingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>15</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Unholding</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Unholding</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:UnholdingToHoldingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>16</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Unholding</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Holding</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:HasCause</ReferenceType>
+            <TargetId>ADI:AnalyserChannelType_MethodSet_Hold</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:UnholdingToExecuteTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>17</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Unholding</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Execute</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:ExecuteToSuspendingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>18</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Execute</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Suspending</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:HasCause</ReferenceType>
+            <TargetId>ADI:AnalyserChannelType_MethodSet_Suspend</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:SuspendingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>19</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Suspending</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Suspending</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:SuspendingToSuspendedTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>20</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Suspending</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Suspended</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:SuspendedToUnsuspendingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>21</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Suspended</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Unsuspending</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:HasCause</ReferenceType>
+            <TargetId>ADI:AnalyserChannelType_MethodSet_Unsuspend</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:UnsuspendingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>22</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Unsuspending</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Unsuspending</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:UnsuspendingToSuspendingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>23</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Unsuspending</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Suspending</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:HasCause</ReferenceType>
+            <TargetId>ADI:AnalyserChannelType_MethodSet_Suspend</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:UnsuspendingToExecuteTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>24</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Unsuspending</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Execute</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:StoppingToStoppedTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>25</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Stopping</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Stopped</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:AbortingToAbortedTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>26</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Aborting</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Aborted</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:AbortedToClearingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>27</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Aborted</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Clearing</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:HasCause</ReferenceType>
+            <TargetId>ADI:AnalyserChannelType_MethodSet_Clear</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:ClearingToStoppedTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>28</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Clearing</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Stopped</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:ResettingToStoppingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>29</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Resetting</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Stopping</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:HasCause</ReferenceType>
+            <TargetId>ADI:AnalyserChannelType_MethodSet_Stop</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:IdleToStoppingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>30</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Idle</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Stopping</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:HasCause</ReferenceType>
+            <TargetId>ADI:AnalyserChannelType_MethodSet_Stop</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:StartingToStoppingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>31</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Starting</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Stopping</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:HasCause</ReferenceType>
+            <TargetId>ADI:AnalyserChannelType_MethodSet_Stop</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:ExecuteToStoppingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>32</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Execute</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Stopping</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:HasCause</ReferenceType>
+            <TargetId>ADI:AnalyserChannelType_MethodSet_Stop</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:CompletingToStoppingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>33</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Completing</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Stopping</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:HasCause</ReferenceType>
+            <TargetId>ADI:AnalyserChannelType_MethodSet_Stop</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:CompleteToStoppingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>34</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Complete</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Stopping</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:HasCause</ReferenceType>
+            <TargetId>ADI:AnalyserChannelType_MethodSet_Stop</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:SuspendingToStoppingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>35</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Suspending</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Stopping</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:HasCause</ReferenceType>
+            <TargetId>ADI:AnalyserChannelType_MethodSet_Stop</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:SuspendedToStoppingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>36</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Suspended</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Stopping</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:HasCause</ReferenceType>
+            <TargetId>ADI:AnalyserChannelType_MethodSet_Stop</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:UnsuspendingToStoppingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>37</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Unsuspending</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Stopping</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:HasCause</ReferenceType>
+            <TargetId>ADI:AnalyserChannelType_MethodSet_Stop</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:HoldingToStoppingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>38</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Holding</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Stopping</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:HasCause</ReferenceType>
+            <TargetId>ADI:AnalyserChannelType_MethodSet_Stop</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:HeldToStoppingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>39</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Held</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Stopping</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:HasCause</ReferenceType>
+            <TargetId>ADI:AnalyserChannelType_MethodSet_Stop</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:UnholdingToStoppingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>40</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Unholding</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Stopping</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:HasCause</ReferenceType>
+            <TargetId>ADI:AnalyserChannelType_MethodSet_Stop</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:StoppedToAbortingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>41</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Stopped</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Aborting</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:HasCause</ReferenceType>
+            <TargetId>ADI:AnalyserChannelType_MethodSet_Abort</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:ResettingToAbortingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>42</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Resetting</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Aborting</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:HasCause</ReferenceType>
+            <TargetId>ADI:AnalyserChannelType_MethodSet_Abort</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:IdleToAbortingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>43</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Idle</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Aborting</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:HasCause</ReferenceType>
+            <TargetId>ADI:AnalyserChannelType_MethodSet_Abort</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:StartingToAbortingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>44</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Starting</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Aborting</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:HasCause</ReferenceType>
+            <TargetId>ADI:AnalyserChannelType_MethodSet_Abort</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:ExecuteToAbortingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>45</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Execute</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Aborting</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:HasCause</ReferenceType>
+            <TargetId>ADI:AnalyserChannelType_MethodSet_Abort</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:CompletingToAbortingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>46</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Completing</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Aborting</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:HasCause</ReferenceType>
+            <TargetId>ADI:AnalyserChannelType_MethodSet_Abort</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:CompleteToAbortingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>47</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Complete</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Aborting</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:HasCause</ReferenceType>
+            <TargetId>ADI:AnalyserChannelType_MethodSet_Abort</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:SuspendingToAbortingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>48</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Suspending</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Aborting</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:HasCause</ReferenceType>
+            <TargetId>ADI:AnalyserChannelType_MethodSet_Abort</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:SuspendedToAbortingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>49</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Suspended</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Aborting</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:HasCause</ReferenceType>
+            <TargetId>ADI:AnalyserChannelType_MethodSet_Abort</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:UnsuspendingToAbortingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>50</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Unsuspending</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Aborting</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:HasCause</ReferenceType>
+            <TargetId>ADI:AnalyserChannelType_MethodSet_Abort</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:HoldingToAbortingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>51</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Holding</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Aborting</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:HasCause</ReferenceType>
+            <TargetId>ADI:AnalyserChannelType_MethodSet_Abort</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:HeldToAbortingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>52</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Held</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Aborting</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:HasCause</ReferenceType>
+            <TargetId>ADI:AnalyserChannelType_MethodSet_Abort</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:UnholdingToAbortingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>53</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Unholding</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Aborting</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:HasCause</ReferenceType>
+            <TargetId>ADI:AnalyserChannelType_MethodSet_Abort</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:StoppingToAbortingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="ADI:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>54</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Stopping</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeSubStateMachineType_Aborting</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:HasCause</ReferenceType>
+            <TargetId>ADI:AnalyserChannelType_MethodSet_Abort</TargetId>
+          </Reference>
+        </References>
+      </Object>
+    </Children>
+  </ObjectType>
+
+  <!-- AnalyserChannel_OperatingModeExecuteSubStateMachineType -->
+  <ObjectType SymbolicName="ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType" BaseType="OpcUa:FiniteStateMachineType" SupportsEvents="true">
+    <Children>
+      <!-- AnalyserChannel_OperatingModeExecuteSubStateMachineType states -->
+      <Object SymbolicName="ADI:SelectExecutionCycle" TypeDefinition="OpcUa:InitialStateType" ModellingRule="None">
+        <Description>This pseudo-state is used to decide which execution path shall be taken.</Description>
+        <Children>
+          <Property SymbolicName="ADI:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>100</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:WaitForCalibrationTrigger" TypeDefinition="OpcUa:StateType" ModellingRule="None">
+        <Description>Wait until the analyser channel is ready to perform the Calibration acquisition cycle</Description>
+        <Children>
+          <Property SymbolicName="ADI:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>200</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:ExtractCalibrationSample" TypeDefinition="OpcUa:StateType" ModellingRule="None">
+        <Description>Collect / setup the sampling system to perform the acquisition cycle of a Calibration cycle</Description>
+        <Children>
+          <Property SymbolicName="ADI:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>300</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:PrepareCalibrationSample" TypeDefinition="OpcUa:StateType" ModellingRule="None">
+        <Description>Prepare the Calibration sample for the AnalyseCalibrationSample state </Description>
+        <Children>
+          <Property SymbolicName="ADI:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>400</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:AnalyseCalibrationSample" TypeDefinition="OpcUa:StateType" ModellingRule="None">
+        <Description>Perform the analysis of the Calibration Sample </Description>
+        <Children>
+          <Property SymbolicName="ADI:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>500</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:WaitForValidationTrigger" TypeDefinition="OpcUa:StateType" ModellingRule="None">
+        <Description>Wait until the analyser channel is ready to perform the Validation acquisition cycle</Description>
+        <Children>
+          <Property SymbolicName="ADI:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>600</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:ExtractValidationSample" TypeDefinition="OpcUa:StateType" ModellingRule="None">
+        <Description>Collect / setup the sampling system to perform the acquisition cycle of a Validation cycle</Description>
+        <Children>
+          <Property SymbolicName="ADI:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>700</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:PrepareValidationSample" TypeDefinition="OpcUa:StateType" ModellingRule="None">
+        <Description>Prepare the Validation sample for the AnalyseValidationSample state </Description>
+        <Children>
+          <Property SymbolicName="ADI:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>800</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:AnalyseValidationSample" TypeDefinition="OpcUa:StateType" ModellingRule="None">
+        <Description>Perform the analysis of the Validation Sample </Description>
+        <Children>
+          <Property SymbolicName="ADI:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>900</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:WaitForSampleTrigger" TypeDefinition="OpcUa:StateType" ModellingRule="None">
+        <Description>Wait until the analyser channel is ready to perform the Sample acquisition cycle</Description>
+        <Children>
+          <Property SymbolicName="ADI:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>1000</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:ExtractSample" TypeDefinition="OpcUa:StateType" ModellingRule="None">
+        <Description>Collect the Sample from the process </Description>
+        <Children>
+          <Property SymbolicName="ADI:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>1100</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:PrepareSample" TypeDefinition="OpcUa:StateType" ModellingRule="None">
+        <Description>Prepare the Sample for the AnalyseSample state</Description>
+        <Children>
+          <Property SymbolicName="ADI:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>1200</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:AnalyseSample" TypeDefinition="OpcUa:StateType" ModellingRule="None">
+        <Description>Perform the analysis of the Sample</Description>
+        <Children>
+          <Property SymbolicName="ADI:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>1300</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:WaitForDiagnosticTrigger" TypeDefinition="OpcUa:StateType" ModellingRule="None">
+        <Description>Wait until the analyser channel is ready to perform the diagnostic cycle, </Description>
+        <Children>
+          <Property SymbolicName="ADI:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>1400</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:Diagnostic" TypeDefinition="OpcUa:StateType" ModellingRule="None">
+        <Description>Perform the diagnostic cycle. </Description>
+        <Children>
+          <Property SymbolicName="ADI:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>1500</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:WaitForCleaningTrigger" TypeDefinition="OpcUa:StateType" ModellingRule="None">
+        <Description>Wait until the analyser channel is ready to perform the cleaning cycle, </Description>
+        <Children>
+          <Property SymbolicName="ADI:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>1600</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:Cleaning" TypeDefinition="OpcUa:StateType" ModellingRule="None">
+        <Description>Perform the cleaning cycle. </Description>
+        <Children>
+          <Property SymbolicName="ADI:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>1700</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:PublishResults" TypeDefinition="OpcUa:StateType" ModellingRule="None">
+        <Description>Publish the results of the previous acquisition cycle</Description>
+        <Children>
+          <Property SymbolicName="ADI:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>1800</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:EjectGrabSample" TypeDefinition="OpcUa:StateType" ModellingRule="None">
+        <Description>The Sample that was just analysed is ejected from the system to allow the operator or another system to grab it</Description>
+        <Children>
+          <Property SymbolicName="ADI:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>1900</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:CleanupSamplingSystem" TypeDefinition="OpcUa:StateType" ModellingRule="None">
+        <Description>Cleanup the sampling sub-system to be ready for the next acquisition</Description>
+        <Children>
+          <Property SymbolicName="ADI:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>2000</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+
+      <!-- AnalyserChannel_OperatingModeExecuteSubStateMachineType transitions -->
+      <Object SymbolicName="ADI:SelectExecutionCycleToWaitForCalibrationTriggerTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>1</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_SelectExecutionCycle</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_WaitForCalibrationTrigger</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:WaitForCalibrationTriggerToExtractCalibrationSampleTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>2</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_WaitForCalibrationTrigger</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_ExtractCalibrationSample</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:ExtractCalibrationSampleTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>3</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_ExtractCalibrationSample</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_ExtractCalibrationSample</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:ExtractCalibrationSampleToPrepareCalibrationSampleTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>4</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_ExtractCalibrationSample</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_PrepareCalibrationSample</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:PrepareCalibrationSampleTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>5</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_PrepareCalibrationSample</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_PrepareCalibrationSample</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:PrepareCalibrationSampleToAnalyseCalibrationSampleTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>6</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_PrepareCalibrationSample</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_AnalyseCalibrationSample</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:AnalyseCalibrationSampleTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>7</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_AnalyseCalibrationSample</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_AnalyseCalibrationSample</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:AnalyseCalibrationSampleToPublishResultsTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>8</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_AnalyseCalibrationSample</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_PublishResults</TargetId>
+          </Reference>
+        </References>
+      </Object>
+
+      <Object SymbolicName="ADI:SelectExecutionCycleToWaitForValidationTriggerTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>9</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_SelectExecutionCycle</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_WaitForValidationTrigger</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:WaitForValidationTriggerToExtractValidationSampleTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>10</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_WaitForValidationTrigger</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_ExtractValidationSample</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:ExtractValidationSampleTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>11</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_ExtractValidationSample</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_ExtractValidationSample</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:ExtractValidationSampleToPrepareValidationSampleTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>12</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_ExtractValidationSample</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_PrepareValidationSample</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:PrepareValidationSampleTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>13</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_PrepareValidationSample</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_PrepareValidationSample</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:PrepareValidationSampleToAnalyseValidationSampleTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>14</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_PrepareValidationSample</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_AnalyseValidationSample</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:AnalyseValidationSampleTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>15</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_AnalyseValidationSample</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_AnalyseValidationSample</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:AnalyseValidationSampleToPublishResultsTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>16</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_AnalyseValidationSample</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_PublishResults</TargetId>
+          </Reference>
+        </References>
+      </Object>
+
+      <Object SymbolicName="ADI:SelectExecutionCycleToWaitForSampleTriggerTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>17</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_SelectExecutionCycle</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_WaitForSampleTrigger</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:WaitForSampleTriggerToExtractSampleTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>18</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_WaitForSampleTrigger</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_ExtractSample</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:ExtractSampleTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>19</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_ExtractSample</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_ExtractSample</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:ExtractSampleToPrepareSampleTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>20</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_ExtractSample</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_PrepareSample</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:PrepareSampleTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>21</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_PrepareSample</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_PrepareSample</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:PrepareSampleToAnalyseSampleTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>22</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_PrepareSample</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_AnalyseSample</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:AnalyseSampleTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>23</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_AnalyseSample</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_AnalyseSample</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:AnalyseSampleToPublishResultsTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>24</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_AnalyseSample</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_PublishResults</TargetId>
+          </Reference>
+        </References>
+      </Object>
+
+      <Object SymbolicName="ADI:SelectExecutionCycleToWaitForDiagnosticTriggerTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>25</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_SelectExecutionCycle</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_WaitForDiagnosticTrigger</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:WaitForDiagnosticTriggerToDiagnosticTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>26</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_WaitForDiagnosticTrigger</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_Diagnostic</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:DiagnosticTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>27</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_Diagnostic</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_Diagnostic</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:DiagnosticToPublishResultsTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>28</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_Diagnostic</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_PublishResults</TargetId>
+          </Reference>
+        </References>
+      </Object>
+
+      <Object SymbolicName="ADI:SelectExecutionCycleToWaitForCleaningTriggerTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>29</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_SelectExecutionCycle</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_WaitForCleaningTrigger</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:WaitForCleaningTriggerToCleaningTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>30</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_WaitForCleaningTrigger</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_Cleaning</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:CleaningTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>31</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_Cleaning</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_Cleaning</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:CleaningToPublishResultsTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>32</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_Cleaning</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_PublishResults</TargetId>
+          </Reference>
+        </References>
+      </Object>
+
+      <Object SymbolicName="ADI:PublishResultsToCleanupSamplingSystemTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber">
+            <DefaultValue>
+              <uax:UInt32>33</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_PublishResults</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_CleanupSamplingSystem</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:PublishResultsToEjectGrabSampleTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber">
+            <DefaultValue>
+              <uax:UInt32>34</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_PublishResults</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_EjectGrabSample</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:EjectGrabSampleTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber">
+            <DefaultValue>
+              <uax:UInt32>35</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_EjectGrabSample</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_EjectGrabSample</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:EjectGrabSampleToCleanupSamplingSystemTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber">
+            <DefaultValue>
+              <uax:UInt32>36</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_EjectGrabSample</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_CleanupSamplingSystem</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:CleanupSamplingSystemTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber">
+            <DefaultValue>
+              <uax:UInt32>37</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_CleanupSamplingSystem</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_CleanupSamplingSystem</TargetId>
+          </Reference>
+        </References>
+      </Object>
+
+      <Object SymbolicName="ADI:CleanupSamplingSystemToSelectExecutionCycleTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber">
+            <DefaultValue>
+              <uax:UInt32>38</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_CleanupSamplingSystem</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AnalyserChannel_OperatingModeExecuteSubStateMachineType_SelectExecutionCycle</TargetId>
+          </Reference>
+        </References>
+      </Object>
+    </Children>
+  </ObjectType>
+
+  <ObjectType SymbolicName="ADI:StreamType" BaseType="DI:TopologyElementType">
+    <Children>
+      <Object SymbolicName="DI:ParameterSet">
+        <Children>
+          <Variable SymbolicName="ADI:IsEnabled" TypeDefinition="OpcUa:DataItemType" DataType="OpcUa:Boolean">
+            <Description>True if this stream maybe used to perform acquisition</Description>
+          </Variable>
+          <Variable SymbolicName="ADI:IsForced" TypeDefinition="OpcUa:DataItemType" DataType="OpcUa:Boolean" ModellingRule="Optional" >
+            <Description>True if this stream is forced, which means that is the only Stream on this AnalyserChannel that can be used to perform acquisition</Description>
+          </Variable>
+          <Variable SymbolicName="ADI:DiagnosticStatus" TypeDefinition="OpcUa:DataItemType" DataType="DI:DeviceHealthEnumeration">
+            <Description>Stream health status</Description>
+          </Variable>
+          <Variable SymbolicName="ADI:LastCalibrationTime" TypeDefinition="OpcUa:DataItemType" DataType="OpcUa:DateTime"  ModellingRule="Optional">
+            <Description>Time at which the last calibration was run</Description>
+          </Variable>
+          <Variable SymbolicName="ADI:LastValidationTime" TypeDefinition="OpcUa:DataItemType" DataType="OpcUa:DateTime"  ModellingRule="Optional">
+            <Description>Time at which the last validation was run</Description>
+          </Variable>
+          <Variable SymbolicName="ADI:LastSampleTime" TypeDefinition="OpcUa:DataItemType" DataType="OpcUa:DateTime">
+            <Description>Time at which the last sample was acquired</Description>
+          </Variable>
+          <Variable SymbolicName="ADI:TimeBetweenSamples" TypeDefinition="OpcUa:AnalogItemType" DataType="OpcUa:Duration"  ModellingRule="Optional">
+            <Description>Number of milliseconds between two consecutive starts of acquisition</Description>
+          </Variable>
+          <Variable SymbolicName="ADI:IsActive" TypeDefinition="OpcUa:DataItemType" DataType="OpcUa:Boolean">
+            <Description>True if this stream is actually running, acquiring data</Description>
+          </Variable>
+          <Variable SymbolicName="ADI:ExecutionCycle" TypeDefinition="OpcUa:DataItemType" DataType="ADI:ExecutionCycleEnumeration">
+            <Description>Indicates which Execution cycle is in progress</Description>
+          </Variable>
+          <Variable SymbolicName="ADI:ExecutionCycleSubcode" TypeDefinition="OpcUa:MultiStateDiscreteType">
+            <Description>Indicates which Execution cycle subcode is in progress</Description>
+          </Variable>
+          <Variable SymbolicName="ADI:Progress" TypeDefinition="OpcUa:DataItemType" DataType="OpcUa:Float">
+            <Description>Indicates the progress of an acquisition in terms of percentage of completion. Its value shall be between 0 and 100.</Description>
+          </Variable>
+          <Variable SymbolicName="ADI:AcquisitionCounter" TypeDefinition="OpcUa:AnalogItemType" DataType="OpcUa:Counter">
+              <Description>Simple counter incremented after each Sampling acquisition performed on this Stream</Description>
+          </Variable>
+          <Variable SymbolicName="ADI:AcquisitionResultStatus" TypeDefinition="OpcUa:DataItemType" DataType="ADI:AcquisitionResultStatusEnumeration">
+            <Description>Quality of the acquisition</Description>
+          </Variable>
+          <Variable SymbolicName="ADI:RawData" TypeDefinition="OpcUa:DataItemType" ModellingRule="Optional">
+            <Description>Raw data produced as a result of data acquisition on the Stream </Description>
+          </Variable>
+          <Variable SymbolicName="ADI:ScaledData" TypeDefinition="OpcUa:DataItemType">
+            <Description>Scaled data produced as a result of data acquisition on the Stream and application of the analyser model</Description>
+          </Variable>
+          <Variable SymbolicName="ADI:Offset" TypeDefinition="OpcUa:DataItemType" DataType="OpcUa:Duration" ModellingRule="Optional">
+            <Description>Difference in milliseconds between the start of sample extraction and the start of the analysis.</Description>
+          </Variable>
+          <Variable SymbolicName="ADI:AcquisitionEndTime" TypeDefinition="OpcUa:DataItemType" DataType="OpcUa:DateTime">
+            <Description>The end time of the AnalyseSample or AnalyseCalibrationSample or AnalyseValidationSample state of the AnalyserChannel_OperatingModeExecuteSubStateMachine state machine</Description>
+          </Variable>
+          <Variable SymbolicName="ADI:CampaignId" TypeDefinition="OpcUa:DataItemType" ModellingRule="Optional" DataType="OpcUa:String" AccessLevel="ReadWrite">
+            <Description>Defines the current campaign</Description>
+          </Variable>
+          <Variable SymbolicName="ADI:BatchId" TypeDefinition="OpcUa:DataItemType" ModellingRule="Optional" DataType="OpcUa:String" AccessLevel="ReadWrite">
+            <Description>Defines the current batch</Description>
+          </Variable>
+          <Variable SymbolicName="ADI:SubBatchId" TypeDefinition="OpcUa:DataItemType" ModellingRule="Optional" DataType="OpcUa:String" AccessLevel="ReadWrite">
+            <Description>Defines the current sub-batch</Description>
+          </Variable>
+          <Variable SymbolicName="ADI:LotId" TypeDefinition="OpcUa:DataItemType" ModellingRule="Optional" DataType="OpcUa:String" AccessLevel="ReadWrite">
+            <Description>Defines the current lot</Description>
+          </Variable>
+          <Variable SymbolicName="ADI:MaterialId" TypeDefinition="OpcUa:DataItemType" ModellingRule="Optional" DataType="OpcUa:String" AccessLevel="ReadWrite">
+            <Description>Defines the current material</Description>
+          </Variable>
+          <Variable SymbolicName="ADI:Process" TypeDefinition="OpcUa:DataItemType" ModellingRule="Optional" DataType="OpcUa:String" AccessLevel="ReadWrite">
+            <Description>Current Process name</Description>
+          </Variable>
+          <Variable SymbolicName="ADI:Unit" TypeDefinition="OpcUa:DataItemType" ModellingRule="Optional" DataType="OpcUa:String" AccessLevel="ReadWrite">
+            <Description>Current Unit name</Description>
+          </Variable>
+          <Variable SymbolicName="ADI:Operation" TypeDefinition="OpcUa:DataItemType" ModellingRule="Optional" DataType="OpcUa:String" AccessLevel="ReadWrite">
+            <Description>Current Operation name</Description>
+          </Variable>
+          <Variable SymbolicName="ADI:Phase" TypeDefinition="OpcUa:DataItemType" ModellingRule="Optional" DataType="OpcUa:String" AccessLevel="ReadWrite">
+            <Description>Current Phase name</Description>
+          </Variable>
+          <Variable SymbolicName="ADI:UserId" TypeDefinition="OpcUa:DataItemType" ModellingRule="Optional" DataType="OpcUa:String" AccessLevel="ReadWrite">
+            <Description>Login name of the user who is logged on at the device console</Description>
+          </Variable>
+          <Variable SymbolicName="ADI:SampleId" TypeDefinition="OpcUa:DataItemType" ModellingRule="Optional" DataType="OpcUa:String" AccessLevel="ReadWrite">
+            <Description>Identifier for the sample</Description>
+          </Variable>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:Configuration" TypeDefinition="DI:FunctionalGroupType">
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:StreamType_ParameterSet_IsEnabled</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:StreamType_ParameterSet_IsForced</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:Status" TypeDefinition="DI:FunctionalGroupType">
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:StreamType_ParameterSet_DiagnosticStatus</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:StreamType_ParameterSet_LastCalibrationTime</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:StreamType_ParameterSet_LastValidationTime</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:StreamType_ParameterSet_LastSampleTime</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:AcquisitionSettings" TypeDefinition="DI:FunctionalGroupType">
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:StreamType_ParameterSet_TimeBetweenSamples</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:AcquisitionStatus" TypeDefinition="DI:FunctionalGroupType">
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:StreamType_ParameterSet_IsActive</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:StreamType_ParameterSet_ExecutionCycle</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:StreamType_ParameterSet_ExecutionCycleSubcode</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:StreamType_ParameterSet_Progress</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:AcquisitionData" TypeDefinition="DI:FunctionalGroupType">
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:StreamType_ParameterSet_AcquisitionCounter</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:StreamType_ParameterSet_AcquisitionResultStatus</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:StreamType_ParameterSet_RawData</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:StreamType_ParameterSet_ScaledData</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:StreamType_ParameterSet_Offset</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:StreamType_ParameterSet_AcquisitionEndTime</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:ChemometricModelSettings" TypeDefinition="DI:FunctionalGroupType"/>
+      <Object SymbolicName="ADI:Context" TypeDefinition="DI:FunctionalGroupType">
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:StreamType_ParameterSet_CampaignId</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:StreamType_ParameterSet_BatchId</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:StreamType_ParameterSet_SubBatchId</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:StreamType_ParameterSet_LotId</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:StreamType_ParameterSet_MaterialId</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:StreamType_ParameterSet_Process</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:StreamType_ParameterSet_Unit</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:StreamType_ParameterSet_Operation</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:StreamType_ParameterSet_Phase</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:StreamType_ParameterSet_UserId</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:StreamType_ParameterSet_SampleId</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:GroupIdentifier" TypeDefinition="DI:FunctionalGroupType" ModellingRule="OptionalPlaceholder">
+        <BrowseName>&lt;GroupIdentifier&gt;</BrowseName>
+        <Description>Group definition</Description>
+      </Object>
+    </Children>
+  </ObjectType>
+
+  <!-- SpectrometerDeviceStreamType -->
+  <ObjectType SymbolicName="ADI:SpectrometerDeviceStreamType" BaseType="ADI:StreamType">
+    <Children>
+      <Object SymbolicName="DI:ParameterSet">
+        <Children>
+          <Variable SymbolicName="ADI:ActiveBackground" TypeDefinition="OpcUa:YArrayItemType" DataType="OpcUa:Float"/>
+          <Variable SymbolicName="ADI:ActiveBackground1" TypeDefinition="OpcUa:YArrayItemType" DataType="OpcUa:Float" ModellingRule="Optional"/>
+          <Variable SymbolicName="ADI:SpectralRange" TypeDefinition="OpcUa:DataItemType" DataType="OpcUa:Range" ValueRank="Array" ModellingRule="Optional"/>
+          <Variable SymbolicName="ADI:Resolution" TypeDefinition="OpcUa:DataItemType" ModellingRule="Optional"/>
+          <Variable SymbolicName="ADI:RequestedNumberOfScans" TypeDefinition="OpcUa:DataItemType" DataType="OpcUa:Int32" ModellingRule="Optional"/>
+          <Variable SymbolicName="ADI:Gain" TypeDefinition="OpcUa:DataItemType" ModellingRule="Optional"/>
+          <Variable SymbolicName="ADI:TransmittanceCutoff" TypeDefinition="OpcUa:DataItemType" DataType="OpcUa:Range" ModellingRule="Optional"/>
+          <Variable SymbolicName="ADI:AbsorbanceCutoff" TypeDefinition="OpcUa:DataItemType" DataType="OpcUa:Range" ModellingRule="Optional"/>
+          <Variable SymbolicName="ADI:NumberOfScansDone" TypeDefinition="OpcUa:DataItemType" DataType="OpcUa:Int32" ModellingRule="Optional"/>
+          <Variable SymbolicName="ADI:TotalNumberOfScansDone" TypeDefinition="OpcUa:DataItemType" DataType="OpcUa:Int32"/>
+          <Variable SymbolicName="ADI:BackgroundAcquisitionTime" TypeDefinition="OpcUa:DataItemType" DataType="OpcUa:DateTime"/>
+          <Variable SymbolicName="ADI:PendingBackground" TypeDefinition="OpcUa:YArrayItemType" DataType="OpcUa:Float"/>
+          <Variable SymbolicName="ADI:PendingBackground1" TypeDefinition="OpcUa:YArrayItemType" DataType="OpcUa:Float" ModellingRule="Optional"/>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:Configuration">
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:SpectrometerDeviceStreamType_ParameterSet_ActiveBackground</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:SpectrometerDeviceStreamType_ParameterSet_ActiveBackground1</TargetId>
+          </Reference>
+        </References>
+      </Object>
+
+      <Object SymbolicName="ADI:FactorySettings">
+      </Object>
+      <Object SymbolicName="ADI:AcquisitionSettings">
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:SpectrometerDeviceStreamType_ParameterSet_SpectralRange</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:SpectrometerDeviceStreamType_ParameterSet_Resolution</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:SpectrometerDeviceStreamType_ParameterSet_RequestedNumberOfScans</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:SpectrometerDeviceStreamType_ParameterSet_Gain</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:SpectrometerDeviceStreamType_ParameterSet_TransmittanceCutoff</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:SpectrometerDeviceStreamType_ParameterSet_AbsorbanceCutoff</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:AcquisitionStatus">
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:SpectrometerDeviceStreamType_ParameterSet_NumberOfScansDone</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:AcquisitionData">
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:SpectrometerDeviceStreamType_ParameterSet_TotalNumberOfScansDone</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:SpectrometerDeviceStreamType_ParameterSet_BackgroundAcquisitionTime</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:SpectrometerDeviceStreamType_ParameterSet_PendingBackground</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:SpectrometerDeviceStreamType_ParameterSet_PendingBackground1</TargetId>
+          </Reference>
+        </References>
+      </Object>
+    </Children>
+  </ObjectType>
+
+  <!-- MassSpectrometerDeviceStreamType -->
+  <ObjectType SymbolicName="ADI:MassSpectrometerDeviceStreamType" BaseType="ADI:StreamType"/>
+
+  <!-- ParticleSizeMonitorDeviceStreamType -->
+  <ObjectType SymbolicName="ADI:ParticleSizeMonitorDeviceStreamType" BaseType="ADI:StreamType">
+    <Children>
+      <Object SymbolicName="DI:ParameterSet">
+        <Children>
+          <Variable SymbolicName="ADI:Background" TypeDefinition="OpcUa:YArrayItemType" DataType="OpcUa:Float" ModellingRule="Optional"/>
+          <Variable SymbolicName="ADI:SizeDistribution" TypeDefinition="OpcUa:YArrayItemType" DataType="OpcUa:Float"/>
+          <Variable SymbolicName="ADI:BackgroundAcquisitionTime" TypeDefinition="OpcUa:DataItemType" DataType="OpcUa:DateTime"/>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:AcquisitionData">
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:ParticleSizeMonitorDeviceStreamType_ParameterSet_Background</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:ParticleSizeMonitorDeviceStreamType_ParameterSet_SizeDistribution</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:Organizes</ReferenceType>
+            <TargetId>ADI:ParticleSizeMonitorDeviceStreamType_ParameterSet_BackgroundAcquisitionTime</TargetId>
+          </Reference>
+        </References>
+      </Object>
+    </Children>
+  </ObjectType>
+
+  <!-- AcousticSpectrometerDeviceStreamType -->
+  <ObjectType SymbolicName="ADI:AcousticSpectrometerDeviceStreamType" BaseType="ADI:StreamType"/>
+  <!-- ChromatographDeviceStreamType -->
+  <ObjectType SymbolicName="ADI:ChromatographDeviceStreamType" BaseType="ADI:StreamType"/>
+  <!-- NMRDeviceStreamType -->
+  <ObjectType SymbolicName="ADI:MNRDeviceStreamType" BaseType="ADI:StreamType"/>
+  
+  <!-- SpectrometerDeviceType -->
+  <ObjectType SymbolicName="ADI:SpectrometerDeviceType" BaseType="ADI:AnalyserDeviceType">
+    <Children>
+      <Object SymbolicName="DI:ParameterSet">
+        <Children>
+          <Variable SymbolicName="ADI:SpectralRange" TypeDefinition="OpcUa:DataItemType" DataType="OpcUa:Range" ValueRank="Array" ModellingRule="Optional"/>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:FactorySettings">
+        
+      </Object>
+    </Children>
+  </ObjectType>
+  
+  <ObjectType SymbolicName="ADI:ParticleSizeMonitorDeviceType" BaseType="ADI:AnalyserDeviceType"/>
+  <ObjectType SymbolicName="ADI:ChromatographDeviceType" BaseType="ADI:AnalyserDeviceType"/>
+  <ObjectType SymbolicName="ADI:MassSpectrometerDeviceType" BaseType="ADI:AnalyserDeviceType"/>
+  <ObjectType SymbolicName="ADI:AcousticSpectrometerDeviceType" BaseType="ADI:AnalyserDeviceType"/>
+  <ObjectType SymbolicName="ADI:NMRDeviceType" BaseType="ADI:AnalyserDeviceType"/>
+  
+  <!-- AccessorySlotType -->
+  <ObjectType SymbolicName="ADI:AccessorySlotType" BaseType="DI:ConfigurableObjectType">
+    <Description>Organizes zero or more Accessory objects identified by "AccessoryIdentifier" which represent Accessories currently being used on that AccessorySlot.</Description>
+    <Children>
+      <Property SymbolicName="ADI:IsHotSwappable" DataType="OpcUa:Boolean">
+        <Description>True if an accessory can be inserted in the accessory slot while it is powered</Description>
+      </Property>
+      <Property SymbolicName="ADI:IsEnabled" DataType="OpcUa:Boolean">
+        <Description>True if this accessory slot is capable of accepting an accessory in it</Description>
+      </Property>
+      <Object SymbolicName="ADI:AccessorySlotStateMachine" TypeDefinition="ADI:AccessorySlotStateMachineType"/>
+      <Object SymbolicName="ADI:AccessoryIdentifier" TypeDefinition="ADI:AccessoryType" ModellingRule="OptionalPlaceholder">
+        <BrowseName>&lt;AccessoryIdentifier&gt;</BrowseName>
+        <Description>Accessory definition</Description>
+      </Object>
+    </Children>
+  </ObjectType>
+  
+  <!-- AccessorySlotStateMachineType -->
+  <ObjectType SymbolicName="ADI:AccessorySlotStateMachineType" BaseType="OpcUa:FiniteStateMachineType">
+    <Description>Describes the behaviour of an AccessorySlot when a physical accessory is inserted or removed.</Description>
+    <Children>
+
+      <!-- AccessorySlotStateMachineType states -->
+      <Object SymbolicName="ADI:Powerup" TypeDefinition="OpcUa:InitialStateType" ModellingRule="None">
+        <Description>The AccessorySlot is in its power-up sequence and cannot perform any other task.</Description>
+        <Children>
+          <Property SymbolicName="OpcUa:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>100</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:Empty" TypeDefinition="OpcUa:StateType" ModellingRule="None">
+        <Description>This represents an AccessorySlot where no Accessory is installed.</Description>
+        <Children>
+          <Property SymbolicName="OpcUa:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>200</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:Inserting" TypeDefinition="OpcUa:StateType" ModellingRule="None">
+        <Description>This represents an AccessorySlot when an Accessory is being inserted and initializing.</Description>
+        <Children>
+          <Property SymbolicName="OpcUa:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>300</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:Installed" TypeDefinition="OpcUa:StateType" ModellingRule="None">
+        <Description>This represents an AccessorySlot where an Accessory is installed and ready to use.</Description>
+        <Children>
+          <Property SymbolicName="OpcUa:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>400</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:Removing" TypeDefinition="OpcUa:StateType" ModellingRule="None">
+        <Description>This represents an AccessorySlot where no Accessory is installed.</Description>
+        <Children>
+          <Property SymbolicName="OpcUa:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>500</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+      <Object SymbolicName="ADI:Shutdown" TypeDefinition="OpcUa:StateType" ModellingRule="None">
+        <Description>The AccessorySlot is in its power-down sequence and cannot perform any other task.</Description>
+        <Children>
+          <Property SymbolicName="OpcUa:StateNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>600</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+      </Object>
+
+      <!-- AccessorySlotStateMachineType transitions -->
+      <Object SymbolicName="ADI:PowerupToEmptyTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>1</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AccessorySlotStateMachineType_Powerup</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AccessorySlotStateMachineType_Empty</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:EmptyToInsertingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>2</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AccessorySlotStateMachineType_Empty</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AccessorySlotStateMachineType_Inserting</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:InsertingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>3</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AccessorySlotStateMachineType_Inserting</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AccessorySlotStateMachineType_Inserting</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:InsertingToRemovingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>4</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AccessorySlotStateMachineType_Inserting</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AccessorySlotStateMachineType_Removing</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:InsertingToInstalledTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>5</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AccessorySlotStateMachineType_Inserting</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AccessorySlotStateMachineType_Installed</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:InstalledToRemovingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>6</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AccessorySlotStateMachineType_Installed</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AccessorySlotStateMachineType_Removing</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:RemovingTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>7</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AccessorySlotStateMachineType_Removing</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AccessorySlotStateMachineType_Removing</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:RemovingToEmptyTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>8</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AccessorySlotStateMachineType_Removing</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AccessorySlotStateMachineType_Empty</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:EmptyToShutdownTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>9</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AccessorySlotStateMachineType_Empty</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AccessorySlotStateMachineType_Shutdown</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:InsertingToShutdownTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>10</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AccessorySlotStateMachineType_Inserting</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AccessorySlotStateMachineType_Shutdown</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:InstalledToShutdownTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>11</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AccessorySlotStateMachineType_Installed</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AccessorySlotStateMachineType_Shutdown</TargetId>
+          </Reference>
+        </References>
+      </Object>
+      <Object SymbolicName="ADI:RemovingToShutdownTransition" TypeDefinition="OpcUa:TransitionType" ModellingRule="None">
+        <Children>
+          <Property SymbolicName="OpcUa:TransitionNumber" DataType="OpcUa:UInt32">
+            <DefaultValue>
+              <uax:UInt32>12</uax:UInt32>
+            </DefaultValue>
+          </Property>
+        </Children>
+        <References>
+          <Reference>
+            <ReferenceType>OpcUa:FromState</ReferenceType>
+            <TargetId>ADI:AccessorySlotStateMachineType_Removing</TargetId>
+          </Reference>
+          <Reference>
+            <ReferenceType>OpcUa:ToState</ReferenceType>
+            <TargetId>ADI:AccessorySlotStateMachineType_Shutdown</TargetId>
+          </Reference>
+        </References>
+      </Object>
+    </Children>
+  </ObjectType>
+  
+  <!-- AccessoryType -->
+  <ObjectType SymbolicName="ADI:AccessoryType" BaseType="DI:TopologyElementType">
+    <Children>
+      <Object SymbolicName="ADI:Configuration" TypeDefinition="DI:FunctionalGroupType"/>
+      <Object SymbolicName="ADI:Status" TypeDefinition="DI:FunctionalGroupType"/>
+      <Object SymbolicName="ADI:FactorySettings" TypeDefinition="DI:FunctionalGroupType"/>
+      <Property SymbolicName="ADI:IsHotSwappable" DataType="OpcUa:Boolean">
+        <Description>True if this accessory can be inserted in the accessory slot while it is powered</Description>
+      </Property>
+      <Property SymbolicName="ADI:IsReady" DataType="OpcUa:Boolean">
+        <Description>True if this accessory is ready for use</Description>
+      </Property>
+    </Children>
+  </ObjectType>
+  <!-- AccessoryType subtypes -->
+  <ObjectType SymbolicName="ADI:DetectorType" BaseType="ADI:AccessoryType"/>
+  <ObjectType SymbolicName="ADI:SmartSamplingSystemType" BaseType="ADI:AccessoryType"/>
+  <ObjectType SymbolicName="ADI:SourceType" BaseType="ADI:AccessoryType"/>
+  <ObjectType SymbolicName="ADI:GcOvenType" BaseType="ADI:AccessoryType"/>
+
+  <!-- ExecutionCycleEnumeration -->
+  <DataType SymbolicName="ADI:ExecutionCycleEnumeration" BaseType="OpcUa:Enumeration">
+    <Fields>
+      <Field Name="IDLE" Identifier="0">
+        <Description>Idle, no cleaning or acquisition cycle in progress</Description>
+      </Field>
+      <Field Name="DIAGNOSTIC" Identifier="1">
+        <Description>Scquisition cycle collecting data for diagnostic purpose</Description>
+      </Field>
+      <Field Name="CLEANING" Identifier="2">
+        <Description>Cleaning cycle</Description>
+      </Field>
+      <Field Name="CALIBRATION" Identifier="4">
+        <Description>Calibration acquisition cycle</Description>
+      </Field>
+      <Field Name="VALIDATION" Identifier="8">
+        <Description>Validation acquisition cycle</Description>
+      </Field>
+      <Field Name="SAMPLING" Identifier="16">
+        <Description>Sample acquisition cycle</Description>
+      </Field>
+      <Field Name="DIAGNOSTIC_WITH_GRAB_SAMPLE" Identifier="32769">
+        <Description>Scquisition cycle collecting data for diagnostic purpose and sample is extracted from the process to be sent in control lab</Description>
+      </Field>
+      <Field Name="CLEANING_WITH_GRAB_SAMPLE" Identifier="32770">
+        <Description>Cleaning cycle with or without acquisition and sample is extracted from the process to be sent in control lab</Description>
+      </Field>
+      <Field Name="CALIBRATION_WITH_GRAB_SAMPLE" Identifier="32772">
+        <Description>Calibration acquisition cycle and sample is extracted from the process to be sent in control lab</Description>
+      </Field>
+      <Field Name="VALIDATION_WITH_GRAB_SAMPLE" Identifier="32776">
+        <Description>Validation acquisition cycle and sample is extracted from the process to be sent in control lab</Description>
+      </Field>
+      <Field Name="SAMPLING_WITH_GRAB_SAMPLE" Identifier="32784">
+        <Description>Sample acquisition cycle and sample is extracted from the process to be sent in control lab</Description>
+      </Field>
+    </Fields>
+  </DataType>
+
+  <!-- AcquisitionResultStatusEnumeration -->
+  <DataType SymbolicName="ADI:AcquisitionResultStatusEnumeration" BaseType="OpcUa:Enumeration">
+    <Fields>
+      <Field Name="NOT_USED" Identifier="0">
+        <Description>No longer used.</Description>
+      </Field>
+      <Field Name="GOOD" Identifier="1">
+        <Description>The acquisition has been completed as requested without any error.</Description>
+      </Field>
+      <Field Name="BAD" Identifier="2">
+        <Description>The acquisition has been completed as requested with error.</Description>
+      </Field>
+      <Field Name="UNKNOWN" Identifier="3">
+        <Description>The acquisition has been completed but nothing can be said about the quality of the result.</Description>
+      </Field>
+      <Field Name="PARTIAL" Identifier="4">
+        <Description>The acquisition has been partially completed as requested without any error.</Description>
+      </Field>
+    </Fields>
+  </DataType>
+
+  <!-- EngineeringValueType -->
+  <VariableType SymbolicName="ADI:EngineeringValueType" BaseType="OpcUa:DataItemType">
+    <Description>Expose key results of an analyser and the associated values that qualified it</Description>
+    <Children>
+      <Variable SymbolicName="ADI:Identifier" TypeDefinition="OpcUa:DataItemType" ModellingRule="OptionalPlaceholder">
+        <BrowseName>&lt;Identifier&gt;</BrowseName>
+        <Description>Point to the data source</Description>
+      </Variable>
+    </Children>
+  </VariableType>
+  
+  <!-- ChemometricModelType -->
+  <VariableType SymbolicName="ADI:ChemometricModelType" BaseType="OpcUa:BaseDataVariableType" DataType="OpcUa:ByteString">
+    <Description>Hold the descriptions of a mathematical process and associated information to convert scaled data into one or more process values.</Description>
+    <Children>
+      <Property SymbolicName="ADI:Name" DataType="OpcUa:LocalizedText"/>
+      <Property SymbolicName="ADI:CreationDate" DataType="OpcUa:DateTime"/>
+      <Property SymbolicName="ADI:ModelDescription" DataType="OpcUa:LocalizedText"/>
+      <Variable SymbolicName="ADI:User_defined_Input" TypeDefinition="OpcUa:BaseVariableType" ModellingRule="MandatoryPlaceholder">
+        <BrowseName>&lt;User defined Input#&gt;</BrowseName>
+        <Description>Point to model input parameters</Description>
+        <ReferenceType>ADI:HasInput</ReferenceType>
+      </Variable>
+      <Variable SymbolicName="ADI:User_defined_Output" TypeDefinition="OpcUa:BaseVariableType" ModellingRule="MandatoryPlaceholder">
+        <BrowseName>&lt;User defined Output#&gt;</BrowseName>
+        <Description>Point to model output parameters</Description>
+        <ReferenceType>ADI:HasOutput</ReferenceType>
+      </Variable>
+    </Children>
+  </VariableType>
+  
+  <!-- ProcessVariableType -->
+  <VariableType SymbolicName="ADI:ProcessVariableType" BaseType="OpcUa:DataItemType">
+    <Description>Provides a stable address space view from the user point of view even if the ADI server address space changes, after the new configuration is loaded.</Description>
+    <Children>
+     <Variable SymbolicName="ADI:SourceName" TypeDefinition="OpcUa:BaseVariableType" ModellingRule="MandatoryPlaceholder">
+       <BrowseName>&lt;Source&gt;</BrowseName>
+       <Description>Point to source parameter</Description>
+       <ReferenceType>ADI:HasDataSource</ReferenceType>
+     </Variable>
+    </Children>
+  </VariableType>
+
+  <!-- ADI Reference types -->
+  <ReferenceType SymbolicName="ADI:HasDataSource" BaseType="OpcUa:HasOrderedComponent">
+    <Description>TargetNode is providing the value for the SourceNode.</Description>
+    <InverseName>DataSourceOf</InverseName>
+  </ReferenceType>
+  <ReferenceType SymbolicName="ADI:HasInput" BaseType="OpcUa:HasOrderedComponent">
+    <Description>TargetNode is providing an input value for a ChemometricModel.</Description>
+    <InverseName>InputOf</InverseName>
+  </ReferenceType>
+  <ReferenceType SymbolicName="ADI:HasOutput" BaseType="OpcUa:HasOrderedComponent">
+    <Description>TargetNode is exposing an output value of a ChemometricModel.</Description>
+    <InverseName>OutputOf</InverseName>
+  </ReferenceType>
+
+  <!-- Annex G -->
+  <!-- MVAModelType -->
+  <VariableType SymbolicName="ADI:MVAModelType" BaseType="ADI:ChemometricModelType" DataType="OpcUa:ByteString">
+    <Description>Hold the descriptions of a mathematical process and associated information to convert scaled data into one or more process values.</Description>
+    <Children>
+      <Property SymbolicName="ADI:MainDataIndex" DataType="OpcUa:Int32"/>
+      <Variable SymbolicName="ADI:User_defined_Output" TypeDefinition="ADI:MVAOutputParameterType" ModellingRule="OptionalPlaceholder">
+        <BrowseName>&lt;User defined Output#&gt;</BrowseName>
+        <Description>Point to model output parameters</Description>
+        <ReferenceType>ADI:HasOutput</ReferenceType>
+      </Variable>
+    </Children>
+  </VariableType>
+ 
+    <!-- MVAPredictMethodType -->
+  <Method SymbolicName="ADI:MVAPredictMethodType">
+    <InputArguments>
+      <Argument Name="TargetModel" DataType="OpcUa:NodeId"/>
+      <Argument Name="MainDataIndex" DataType="OpcUa:Int32"/>
+      <Argument Name="Inputs" DataType="OpcUa:BaseDataType" ValueRank="Array"/>
+    </InputArguments>
+    <OutputArguments>
+      <Argument Name="Outputs" DataType="OpcUa:BaseDataType" ValueRank="Array"/>
+    </OutputArguments>
+  </Method>
+ 
+  <!-- MVAOutputParameterType -->
+  <VariableType SymbolicName="ADI:MVAOutputParameterType" BaseType="OpcUa:BaseDataVariableType" >
+    <Description>Hold the descriptions of a mathematical process and associated information to convert scaled data into one or more process values.</Description>
+    <Children>
+      <Property SymbolicName="ADI:WarningLimits" DataType="OpcUa:Range"  ModellingRule="Optional"/>
+      <Property SymbolicName="ADI:AlarmLimits" DataType="OpcUa:Range"  ModellingRule="Optional"/>
+      <Property SymbolicName="ADI:AlarmState" DataType="ADI:AlarmStateEnumeration"/>
+      <Property SymbolicName="ADI:VendorSpecificError" DataType="OpcUa:String"  ModellingRule="Optional"/>
+      <Variable SymbolicName="ADI:Statistics" TypeDefinition="ADI:MVAOutputParameterType" ValueRank="Array" ModellingRule="OptionalPlaceholder"/>
+    </Children>
+  </VariableType>
+  
+  <!-- AlarmStateEnumeration -->
+  <DataType SymbolicName="ADI:AlarmStateEnumeration" BaseType="OpcUa:Enumeration">
+    <Fields>
+      <Field Name="NORMAL_0" Identifier="0">
+        <Description>Normal</Description>
+      </Field>
+      <Field Name="WARNING_LOW_1" Identifier="1">
+        <Description>In low warning range</Description>
+      </Field>
+      <Field Name="WARNING_HIGH_2" Identifier="2">
+        <Description>In high warning range</Description>
+      </Field>
+      <Field Name="WARNING_4" Identifier="4">
+        <Description>In warning range (low or high) or some other warning cause</Description>
+      </Field>
+      <Field Name="ALARM_LOW_8" Identifier="8">
+        <Description>In low alarm range</Description>
+      </Field>
+      <Field Name="ALARM_HIGH_16" Identifier="16">
+        <Description>In high alarm range</Description>
+      </Field>
+      <Field Name="ALARM_32" Identifier="32">
+        <Description>In alarm range (low or high) or some other alarm cause</Description>
+      </Field>
+    </Fields>
+  </DataType>
+
+</ModelDesign>

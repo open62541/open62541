@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+ * Copyright (c) 2005-2019 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<opc:TypeDictionary
+  xmlns:opc="http://opcfoundation.org/BinarySchema/"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:ua="http://opcfoundation.org/UA/"
+  xmlns:tns="http://opcfoundation.org/UA/MDIS"
+  DefaultByteOrder="LittleEndian"
+  TargetNamespace="http://opcfoundation.org/UA/MDIS"
+>
+  <opc:Import Namespace="http://opcfoundation.org/UA/" Location="Opc.Ua.BinarySchema.bsd"/>
+
+  <opc:EnumeratedType Name="SignatureStatusEnum" LengthInBits="32">
+    <opc:EnumeratedValue Name="NotAvailable" Value="1" />
+    <opc:EnumeratedValue Name="Completed" Value="2" />
+    <opc:EnumeratedValue Name="Failed" Value="4" />
+  </opc:EnumeratedType>
+
+  <opc:EnumeratedType Name="SetCalculatedPositionEnum" LengthInBits="32">
+    <opc:EnumeratedValue Name="Initial" Value="0" />
+    <opc:EnumeratedValue Name="Inprogress" Value="1" />
+    <opc:EnumeratedValue Name="Complete" Value="2" />
+    <opc:EnumeratedValue Name="Fault" Value="4" />
+  </opc:EnumeratedType>
+
+  <opc:EnumeratedType Name="CommandEnum" LengthInBits="32">
+    <opc:EnumeratedValue Name="Close" Value="1" />
+    <opc:EnumeratedValue Name="Open" Value="2" />
+    <opc:EnumeratedValue Name="None" Value="4" />
+  </opc:EnumeratedType>
+
+  <opc:EnumeratedType Name="ChokeCommandEnum" LengthInBits="32">
+    <opc:EnumeratedValue Name="Close" Value="1" />
+    <opc:EnumeratedValue Name="Open" Value="2" />
+  </opc:EnumeratedType>
+
+  <opc:EnumeratedType Name="SEMEnum" LengthInBits="32">
+    <opc:EnumeratedValue Name="SEM_A" Value="1" />
+    <opc:EnumeratedValue Name="SEM_B" Value="2" />
+    <opc:EnumeratedValue Name="Auto" Value="4" />
+  </opc:EnumeratedType>
+
+  <opc:EnumeratedType Name="ValvePositionEnum" LengthInBits="32">
+    <opc:EnumeratedValue Name="Closed" Value="1" />
+    <opc:EnumeratedValue Name="Open" Value="2" />
+    <opc:EnumeratedValue Name="Moving" Value="4" />
+    <opc:EnumeratedValue Name="Unknown" Value="8" />
+  </opc:EnumeratedType>
+
+  <opc:EnumeratedType Name="ChokeMoveEnum" LengthInBits="32">
+    <opc:EnumeratedValue Name="Moving" Value="1" />
+    <opc:EnumeratedValue Name="Stopped" Value="2" />
+  </opc:EnumeratedType>
+
+  <opc:StructuredType Name="MDISVersionDataType" BaseType="ua:ExtensionObject">
+    <opc:Field Name="MajorVersion" TypeName="opc:Byte" />
+    <opc:Field Name="MinorVersion" TypeName="opc:Byte" />
+    <opc:Field Name="Build" TypeName="opc:Byte" />
+  </opc:StructuredType>
+
+</opc:TypeDictionary>

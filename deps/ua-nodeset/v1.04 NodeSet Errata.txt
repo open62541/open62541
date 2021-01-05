@@ -1,0 +1,62 @@
+﻿The following mismatches between the specification have been corrected in the v1.04 NodeSet since the release of the specification:
+
+0004202 - v1.04 Part 12: 7.5.14 UserCredentialCertificateType is missing from the nodeset files on github;
+0004180 - RolePermissionType::permissions has wrong data type in UANodeSet;
+0004201 - Wrong usage of MandatoryPlaceholder in DI model
+0004209 - DataTypeField: ArrayDimensions and MaxStringLength missing from UANodeSet schema; 
+0004259 - 1.04 NodeSet2 (and Ua Defined Types xml) have wrong supertypes for EventNotifierType and PermissionType
+0004234 - Missing references in FileTransferStateMachineType;
+0004213 - Wrong ReferenceType at Namespaces Object
+0004216 - v1.04 Part 3: 8.58 NonatomicRead/Write define false bits in the nodeset files on github
+0004214 - v1.04 Part 12: 7.5.14 QueryApplications lacks the applicationType field in the nodeset files on github
+0004274 - DataSetFieldFlags broken in Opc.Ua.Types.xsd
+0004282 - Typo for AccessRestrictionType
+0004283 - NamespacePublicationDate not correct
+0004290 - PermissionType is missing in Opc.Ua.Types.bsd
+0004291 - All OptionSet field values wrong in NodeSet2 file
+0004075 - The regex in the specifications allows Unicode characters in SymbolicName which makes no sense.
+0004190 - V 1.04 - "SymbolicName" in "ModelTableEntry" is missing in Part 6 Table F.1 – UANodeSet
+0004296	- PermissionType is also missing in Opc.Ua.Types.xsd
+0004221: Support for additional information about method arguments
+0004303: VariableType with Mandatory EngineeringUnits
+0004293: ServerCapabilities > Roles v.s RoleSet inconsistency between Nodeset and Part 5
+0004308: LocaleIds field inconsistency between WriterGroupDataType and WriterGroupType
+0004309: Extend documentation capabilities in UANodeSet XML schema
+0004299: KeyCredentialManagement needs to support ECC
+0004262: UnregisterApplication should imply certificate revocation
+0004104: We need a way to add/remove instance of KeyCredentialConfigurationType in Push model
+0004348: BrokerDataSetWriterTransportDataType misses field in Nodeset
+0004338: Value of NamespacePublicationDate has wrong data type
+0004322: DataSetFieldFlags in "Ua Defined Types.xml" uses enum-style instead of optionset style
+0004354: The bits of AccessLevelType are incomplete and wrong.
+0004355: Add Categories and Service DataTypes to NodeSet
+0004389: Server Object CurrentTimeZone to LocalTime
+0004379: DataType Union should be abstract in NodeSet
+0004372: RoleType method argument names are wrong
+0004345: Encoding node for GenericAttributeValue missing
+0004318: Generated 1.04 resources contains references to types not in the specification
+0004408: DataSetReader is missing the KeyFrameCount
+0004407: We need a header layout setting in PubSub communication parameters
+0004395: DataSetReaderType::MessageReceiveTimeout has wrong DataType in Nodeset
+0004420: SubscribedDataSetType has properties not longer defined in specification
+0004432: Encodings for Services still in Core NodeSet
+0004450: Add Types for Released Amendments 1, 2 and 3
+0004451: Fix Part 14 Inconsistencies
+0004465: UANodeSet.xsd some attributes should not be optional
+0004477: Various Part 14 Inconsistencies
+0004482: Various Part 10 Inconsistencies
+0004481: Various Part 9 Inconsistencies
+0004480: Various Part 5 Inconsistencies
+0004479: BrowseNames of well known roles to not match specification
+0004470: UadpDataSetReaderMessageType does not have a DataSetOrdering variable
+0004605: StateType::StateNumber has wrong ModelingRule in Nodeset
+0004625: NamespacePublicationDate in 1.1 DI NodeSet-File has wrong data type
+0004652: Wrong order of DataValue fields in Opc.Ua.Types.bsd
+0004654: Duplicated PubSub Diagnostics nodes
+0004713: Default descriptions need to be removed from UA nodeset.
+0004714: Code generator should not place restrictions on method arguments
+0004724: UADataType.Definition.Name wrong value; Companion spec NodeSets need Update.
+0004725: Wrong order of DiagnosticsInfo fields in Opc.Ua.Types.bsd
+0004731: Add Models for Released Amendments 1,2,3,5 and 7.
+
+	

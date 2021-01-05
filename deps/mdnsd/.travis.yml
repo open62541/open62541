@@ -1,0 +1,165 @@
+# using c for language overwrites our compilers
+language: generic
+
+dist: trusty
+sudo: false
+
+matrix:
+  include:
+    - os: linux
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - binutils-mingw-w64-i686
+            - build-essential
+            - check
+            - cppcheck
+            - gcc-multilib
+            - gcc-4.9
+            - gcc-mingw-w64-i686
+            - g++-4.9
+            - g++-multilib
+            - g++-mingw-w64
+            - libc6-dev-i386
+            - linux-libc-dev:i386
+            - mingw-w64
+            - valgrind
+      env:
+         - ANALYZE=false
+         - MINGW=true
+         - CC=gcc-4.9
+         - CXX=g++-4.9
+    - os: linux
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - check
+            - cppcheck
+            - gcc-7
+            - gcc-7-multilib
+            - g++-7
+            - g++-7-multilib
+            - linux-libc-dev:i386
+            - valgrind
+      env:
+         - ANALYZE=false
+         - CC=gcc-7
+         - CXX=g++-7
+    - os: linux
+      addons:
+        apt:
+          sources:
+            - llvm-toolchain-trusty-6.0
+            - ubuntu-toolchain-r-test
+          packages:
+            - check
+            - cppcheck
+            - clang-3.9
+            - valgrind
+      env:
+         - ANALYZE=false
+         - CC=clang-3.9
+         - CXX=clang++-3.9
+    - os: linux
+      addons:
+        apt:
+          sources:
+            - llvm-toolchain-trusty-6.0
+            - ubuntu-toolchain-r-test
+          packages:
+            - check
+            - cppcheck
+            - clang-6.0
+            - clang-tidy-6.0
+            - valgrind
+      env:
+         - ANALYZE=false
+         - CC=clang-6.0
+         - CXX=clang++-6.0
+    - os: linux
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - check
+            - cppcheck
+            - gcc-7
+            - gcc-7-multilib
+            - g++-7
+            - g++-7-multilib
+            - linux-libc-dev:i386
+            - valgrind
+      env:
+         - ANALYZE=true
+         - CC=gcc-7
+         - CXX=g++-7
+    - os: linux
+      addons:
+        apt:
+          sources:
+            - llvm-toolchain-trusty-6.0
+            - ubuntu-toolchain-r-test
+          packages:
+            - check
+            - cppcheck
+            - clang-6.0
+            - clang-tidy-6.0
+            - valgrind
+      env:
+         - ANALYZE=true
+         - CC=clang-6.0
+         - CXX=clang++-6.0
+    - os: osx
+      compiler: clang
+      env:
+         - ANALYZE=false
+
+#addons:
+#  apt:
+#    sources:
+#      # see https://github.com/travis-ci/apt-source-whitelist/blob/master/ubuntu.json
+#    packages:
+#      - binutils-mingw-w64-i686
+#      - build-essential
+#      - cmake
+#      - mingw32-gcc
+#      - gcc-mingw-w64-i686
+#      - gcc-mingw-w64
+#      - g++-mingw-w64
+#      - gcc-multilib
+#      - g++-multilib
+#      - libc6-dbg # for valgrind compilation
+
+cache:
+  pip: true
+  apt: true
+  directories:
+    - $HOME/install
+
+before_install:
+# set paths for locally installed libs (like liburcu)
+- export LOCAL_PKG=$HOME/install
+- mkdir -p $LOCAL_PKG/lib
+- mkdir -p $LOCAL_PKG/include
+- mkdir -p $LOCAL_PKG/bin
+- export LIBRARY_PATH=$LOCAL_PKG/lib:$LIBRARY_PATH
+- export C_INCLUDE_PATH=$LOCAL_PKG/include:$C_INCLUDE_PATH
+- export CPLUS_INCLUDE_PATH=$LOCAL_PKG/include:$CPLUS_INCLUDE_PATH
+- export PKG_CONFIG_PATH=$LOCAL_PKG/lib/pkgconfig:$PKG_CONFIG_PATH
+- export PATH=$LOCAL_PKG:$LOCAL_PKG/bin:$PATH
+# set local path for python packages
+- export PATH=$PATH:$HOME/.local/bin # linux
+- export PATH=$PATH:$HOME/Library/Python #OS X
+- export PATH=$PATH:$HOME/Library/Python/2.7/bin #OS X
+
+- if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis/travis_linux_before_install.sh; fi
+- if [ ${TRAVIS_OS_NAME} == "osx" ]; then sh ./tools/travis/travis_osx_before_install.sh; fi
+
+script:
+- if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis/travis_linux_script.sh; fi
+- if [ ${TRAVIS_OS_NAME} == "osx" ]; then sh ./tools/travis/travis_osx_script.sh; fi
