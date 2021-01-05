@@ -571,14 +571,14 @@ readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionC
                         0, &UA_TYPES[UA_TYPES_UINT32]);
 
     /* Get the Session */
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
     UA_Session *session = UA_Server_getSessionById(server, sessionId);
     if(!session) {
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     if(inputSize == 0 || !input[0].data) {
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
     }
 
@@ -586,7 +586,7 @@ readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionC
     UA_UInt32 subscriptionId = *((UA_UInt32*)(input[0].data));
     UA_Subscription *subscription = UA_Session_getSubscriptionById(session, subscriptionId);
     if(!subscription) {
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
     }
 
@@ -597,7 +597,7 @@ readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionC
         ++sizeOfOutput;
     }
     if(sizeOfOutput == 0) {
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_GOOD;
     }
 
@@ -605,13 +605,13 @@ readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionC
     UA_UInt32 *clientHandles = (UA_UInt32*)
         UA_Array_new(sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
     if(!clientHandles) {
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
     UA_UInt32 *serverHandles = (UA_UInt32*)
         UA_Array_new(sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
     if(!serverHandles) {
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         UA_free(clientHandles);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
@@ -626,7 +626,7 @@ readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionC
     UA_Variant_setArray(&output[0], serverHandles, sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
     UA_Variant_setArray(&output[1], clientHandles, sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
 
-    UA_UNLOCK(server->serviceMutex);
+    UA_UNLOCK(&server->serviceMutex);
     return UA_STATUSCODE_GOOD;
 }
 #endif /* defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS) */

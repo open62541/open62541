@@ -381,7 +381,7 @@ browseRecursive(UA_Server *server, size_t startNodesSize, const UA_NodeId *start
 UA_StatusCode
 UA_Server_browseRecursive(UA_Server *server, const UA_BrowseDescription *bd,
                           size_t *resultsSize, UA_ExpandedNodeId **results) {
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
 
     /* Set the list of relevant reference types */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -391,7 +391,7 @@ UA_Server_browseRecursive(UA_Server *server, const UA_BrowseDescription *bd,
         retval = referenceTypeIndices(server, &bd->referenceTypeId,
                                       &refTypes, bd->includeSubtypes);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_UNLOCK(server->serviceMutex);
+            UA_UNLOCK(&server->serviceMutex);
             return retval;
         }
     }
@@ -400,7 +400,7 @@ UA_Server_browseRecursive(UA_Server *server, const UA_BrowseDescription *bd,
     retval = browseRecursive(server, 1, &bd->nodeId, bd->browseDirection,
                              &refTypes, bd->nodeClassMask, false, resultsSize, results);
 
-    UA_UNLOCK(server->serviceMutex);
+    UA_UNLOCK(&server->serviceMutex);
     return retval;
 }
 
@@ -777,7 +777,7 @@ Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxref
 void Service_Browse(UA_Server *server, UA_Session *session,
                     const UA_BrowseRequest *request, UA_BrowseResponse *response) {
     UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Processing BrowseRequest");
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* Test the number of operations in the request */
     if(server->config.maxNodesPerBrowse != 0 &&
@@ -804,9 +804,9 @@ UA_Server_browse(UA_Server *server, UA_UInt32 maxReferences,
                  const UA_BrowseDescription *bd) {
     UA_BrowseResult result;
     UA_BrowseResult_init(&result);
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
     Operation_Browse(server, &server->adminSession, &maxReferences, bd, &result);
-    UA_UNLOCK(server->serviceMutex);
+    UA_UNLOCK(&server->serviceMutex);
     return result;
 }
 
@@ -858,7 +858,7 @@ Service_BrowseNext(UA_Server *server, UA_Session *session,
                    UA_BrowseNextResponse *response) {
     UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                          "Processing BrowseNextRequest");
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     UA_Boolean releaseContinuationPoints = request->releaseContinuationPoints; /* request is const */
     response->responseHeader.serviceResult =
@@ -873,10 +873,10 @@ UA_Server_browseNext(UA_Server *server, UA_Boolean releaseContinuationPoint,
                      const UA_ByteString *continuationPoint) {
     UA_BrowseResult result;
     UA_BrowseResult_init(&result);
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
     Operation_BrowseNext(server, &server->adminSession, &releaseContinuationPoint,
                          continuationPoint, &result);
-    UA_UNLOCK(server->serviceMutex);
+    UA_UNLOCK(&server->serviceMutex);
     return result;
 }
 
@@ -1005,7 +1005,7 @@ Operation_TranslateBrowsePathToNodeIds(UA_Server *server, UA_Session *session,
                                        const UA_UInt32 *nodeClassMask,
                                        const UA_BrowsePath *path,
                                        UA_BrowsePathResult *result) {
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     if(path->relativePath.elementsSize <= 0) {
         result->statusCode = UA_STATUSCODE_BADNOTHINGTODO;
@@ -1122,7 +1122,7 @@ Operation_TranslateBrowsePathToNodeIds(UA_Server *server, UA_Session *session,
 UA_BrowsePathResult
 translateBrowsePathToNodeIds(UA_Server *server,
                                        const UA_BrowsePath *browsePath) {
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_BrowsePathResult result;
     UA_BrowsePathResult_init(&result);
     UA_UInt32 nodeClassMask = 0; /* All node classes */
@@ -1134,9 +1134,9 @@ translateBrowsePathToNodeIds(UA_Server *server,
 UA_BrowsePathResult
 UA_Server_translateBrowsePathToNodeIds(UA_Server *server,
                                        const UA_BrowsePath *browsePath) {
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
     UA_BrowsePathResult result = translateBrowsePathToNodeIds(server, browsePath);
-    UA_UNLOCK(server->serviceMutex);
+    UA_UNLOCK(&server->serviceMutex);
     return result;
 }
 
@@ -1146,7 +1146,7 @@ Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
                                       UA_TranslateBrowsePathsToNodeIdsResponse *response) {
     UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                          "Processing TranslateBrowsePathsToNodeIdsRequest");
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* Test the number of operations in the request */
     if(server->config.maxNodesPerTranslateBrowsePathsToNodeIds != 0 &&
@@ -1167,7 +1167,7 @@ Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
 UA_BrowsePathResult
 browseSimplifiedBrowsePath(UA_Server *server, const UA_NodeId origin,
                            size_t browsePathSize, const UA_QualifiedName *browsePath) {
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     UA_BrowsePathResult bpr;
     UA_BrowsePathResult_init(&bpr);
@@ -1206,9 +1206,9 @@ browseSimplifiedBrowsePath(UA_Server *server, const UA_NodeId origin,
 UA_BrowsePathResult
 UA_Server_browseSimplifiedBrowsePath(UA_Server *server, const UA_NodeId origin,
                            size_t browsePathSize, const UA_QualifiedName *browsePath) {
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
     UA_BrowsePathResult bpr = browseSimplifiedBrowsePath(server, origin, browsePathSize, browsePath);
-    UA_UNLOCK(server->serviceMutex);
+    UA_UNLOCK(&server->serviceMutex);
     return bpr;
 }
 
@@ -1221,7 +1221,7 @@ void Service_RegisterNodes(UA_Server *server, UA_Session *session,
                            UA_RegisterNodesResponse *response) {
     UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                          "Processing RegisterNodesRequest");
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     //TODO: hang the nodeids to the session if really needed
     if(request->nodesToRegisterSize == 0) {
@@ -1248,7 +1248,7 @@ void Service_UnregisterNodes(UA_Server *server, UA_Session *session,
                              UA_UnregisterNodesResponse *response) {
     UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                          "Processing UnRegisterNodesRequest");
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     //TODO: remove the nodeids from the session if really needed
     if(request->nodesToUnregisterSize == 0)

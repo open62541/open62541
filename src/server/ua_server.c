@@ -90,9 +90,9 @@ UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
     UA_String nameString;
     nameString.length = strlen(name);
     nameString.data = (UA_Byte*)(uintptr_t)name;
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
     UA_UInt16 retVal = addNamespace(server, nameString);
-    UA_UNLOCK(server->serviceMutex);
+    UA_UNLOCK(&server->serviceMutex);
     return retVal;
 }
 
@@ -122,19 +122,19 @@ getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
 UA_StatusCode
 UA_Server_getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
                              size_t *foundIndex) {
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
     UA_StatusCode res = getNamespaceByName(server, namespaceUri, foundIndex);
-    UA_UNLOCK(server->serviceMutex);
+    UA_UNLOCK(&server->serviceMutex);
     return res;
 }
 
 UA_StatusCode
 UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
                                UA_NodeIteratorCallback callback, void *handle) {
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
     const UA_Node *parent = UA_NODESTORE_GET(server, &parentNodeId);
     if(!parent) {
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADNODEIDINVALID;
     }
 
@@ -148,7 +148,7 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
     UA_Node *parentCopy = UA_Node_copy_alloc(parent);
     if(!parentCopy) {
         UA_NODESTORE_RELEASE(server, parent);
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
 
@@ -159,9 +159,9 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
             *UA_NODESTORE_GETREFERENCETYPEID(server, ref->referenceTypeIndex);
         UA_ReferenceTarget *target;
         TAILQ_FOREACH(target, &ref->queueHead, queuePointers) {
-            UA_UNLOCK(server->serviceMutex);
+            UA_UNLOCK(&server->serviceMutex);
             retval = callback(target->targetId.nodeId, ref->isInverse, refTypeId, handle);
-            UA_LOCK(server->serviceMutex);
+            UA_LOCK(&server->serviceMutex);
             if(retval != UA_STATUSCODE_GOOD)
                 goto cleanup;
         }
@@ -172,7 +172,7 @@ cleanup:
     UA_free(parentCopy);
 
     UA_NODESTORE_RELEASE(server, parent);
-    UA_UNLOCK(server->serviceMutex);
+    UA_UNLOCK(&server->serviceMutex);
     return retval;
 }
 
@@ -186,7 +186,7 @@ serverExecuteRepeatedCallback(UA_Server *server, UA_ApplicationCallback cb,
 
 /* The server needs to be stopped before it can be deleted */
 void UA_Server_delete(UA_Server *server) {
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
 
     UA_Server_deleteSecureChannels(server);
     session_list_entry *current, *temp;
@@ -231,7 +231,7 @@ void UA_Server_delete(UA_Server *server) {
     /* Clean up the Admin Session */
     UA_Session_clear(&server->adminSession, server);
 
-    UA_UNLOCK(server->serviceMutex); /* The timer has its own mutex */
+    UA_UNLOCK(&server->serviceMutex); /* The timer has its own mutex */
 
     /* Execute all remaining delayed events and clean up the timer */
     UA_Timer_process(&server->timer, UA_DateTime_nowMonotonic() + 1,
@@ -242,8 +242,8 @@ void UA_Server_delete(UA_Server *server) {
     UA_ServerConfig_clean(&server->config);
 
 #if UA_MULTITHREADING >= 100
-    UA_LOCK_DESTROY(server->networkMutex)
-    UA_LOCK_DESTROY(server->serviceMutex)
+    UA_LOCK_DESTROY(&server->networkMutex);
+    UA_LOCK_DESTROY(&server->serviceMutex);
 #endif
 
     /* Delete the server itself */
@@ -253,14 +253,14 @@ void UA_Server_delete(UA_Server *server) {
 /* Recurring cleanup. Removing unused and timed-out channels and sessions */
 static void
 UA_Server_cleanup(UA_Server *server, void *_) {
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
     UA_DateTime nowMonotonic = UA_DateTime_nowMonotonic();
     UA_Server_cleanupSessions(server, nowMonotonic);
     UA_Server_cleanupTimedOutSecureChannels(server, nowMonotonic);
 #ifdef UA_ENABLE_DISCOVERY
     UA_Discovery_cleanupTimedOut(server, nowMonotonic);
 #endif
-    UA_UNLOCK(server->serviceMutex);
+    UA_UNLOCK(&server->serviceMutex);
 }
 
 /********************/
@@ -287,8 +287,8 @@ UA_Server_init(UA_Server *server) {
 #endif
 
 #if UA_MULTITHREADING >= 100
-    UA_LOCK_INIT(server->networkMutex)
-    UA_LOCK_INIT(server->serviceMutex)
+    UA_LOCK_INIT(&server->networkMutex);
+    UA_LOCK_INIT(&server->serviceMutex);
 #endif
 
     /* Initialize the handling of repeated callbacks */
@@ -402,11 +402,12 @@ setServerShutdown(UA_Server *server) {
 UA_StatusCode
 UA_Server_addTimedCallback(UA_Server *server, UA_ServerCallback callback,
                            void *data, UA_DateTime date, UA_UInt64 *callbackId) {
-    UA_LOCK(server->serviceMutex);
-    UA_StatusCode retval = UA_Timer_addTimedCallback(&server->timer,
-                                                     (UA_ApplicationCallback)callback,
-                                                      server, data, date, callbackId);
-    UA_UNLOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode retval =
+        UA_Timer_addTimedCallback(&server->timer,
+                                  (UA_ApplicationCallback)callback,
+                                  server, data, date, callbackId);
+    UA_UNLOCK(&server->serviceMutex);
     return retval;
 }
 
@@ -423,9 +424,10 @@ UA_StatusCode
 UA_Server_addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
                               void *data, UA_Double interval_ms,
                               UA_UInt64 *callbackId) {
-    UA_LOCK(server->serviceMutex);
-    UA_StatusCode retval = addRepeatedCallback(server, callback, data, interval_ms, callbackId);
-    UA_UNLOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode retval =
+        addRepeatedCallback(server, callback, data, interval_ms, callbackId);
+    UA_UNLOCK(&server->serviceMutex);
     return retval;
 }
 
@@ -439,9 +441,10 @@ changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
 UA_StatusCode
 UA_Server_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
                                          UA_Double interval_ms) {
-    UA_LOCK(server->serviceMutex);
-    UA_StatusCode retval = changeRepeatedCallbackInterval(server, callbackId, interval_ms);
-    UA_UNLOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode retval =
+        changeRepeatedCallbackInterval(server, callbackId, interval_ms);
+    UA_UNLOCK(&server->serviceMutex);
     return retval;
 }
 
@@ -452,9 +455,9 @@ removeCallback(UA_Server *server, UA_UInt64 callbackId) {
 
 void
 UA_Server_removeCallback(UA_Server *server, UA_UInt64 callbackId) {
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
     removeCallback(server, callbackId);
-    UA_UNLOCK(server->serviceMutex);
+    UA_UNLOCK(&server->serviceMutex);
 }
 
 UA_StatusCode
@@ -473,10 +476,10 @@ UA_Server_updateCertificate(UA_Server *server,
         LIST_FOREACH(current, &server->sessions, pointers) {
             if(UA_ByteString_equal(oldCertificate,
                                     &current->session.header.channel->securityPolicy->localCertificate)) {
-                UA_LOCK(server->serviceMutex);
+                UA_LOCK(&server->serviceMutex);
                 UA_Server_removeSessionByToken(server, &current->session.header.authenticationToken,
                                                UA_DIAGNOSTICEVENT_CLOSE);
-                UA_UNLOCK(server->serviceMutex);
+                UA_UNLOCK(&server->serviceMutex);
             }
         }
 
@@ -667,7 +670,7 @@ static void
 serverExecuteRepeatedCallback(UA_Server *server, UA_ApplicationCallback cb,
                               void *callbackApplication, void *data) {
     /* Service mutex is not set inside the timer that triggers the callback */
-    UA_LOCK_ASSERT(server->serviceMutex, 0);
+    UA_LOCK_ASSERT(&server->serviceMutex, 0);
     cb(callbackApplication, data);
 }
 
@@ -705,7 +708,7 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
     }
 #endif
 
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
 
 #if defined(UA_ENABLE_DISCOVERY_MULTICAST) && (UA_MULTITHREADING < 200)
     if(server->config.mdnsEnabled) {
@@ -721,7 +724,7 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
     }
 #endif
 
-    UA_UNLOCK(server->serviceMutex);
+    UA_UNLOCK(&server->serviceMutex);
 
     now = UA_DateTime_nowMonotonic();
     timeout = 0;

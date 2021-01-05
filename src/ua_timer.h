@@ -53,7 +53,7 @@ typedef struct {
     UA_UInt64 idCounter;  /* Generate unique identifiers. Identifiers are always
                            * above zero. */
 #if UA_MULTITHREADING >= 100
-    UA_LOCK_TYPE(timerMutex)
+    UA_Lock timerMutex;
 #endif
 } UA_Timer;
 

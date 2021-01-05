@@ -400,12 +400,12 @@ UA_Server_registerMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
     if(server->config.monitoredItemRegisterCallback) {
         void *targetContext = NULL;
         getNodeContext(server, mon->itemToMonitor.nodeId, &targetContext);
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         server->config.monitoredItemRegisterCallback(server, &session->sessionId,
                                                      session->sessionHandle,
                                                      &mon->itemToMonitor.nodeId, targetContext,
                                                      mon->itemToMonitor.attributeId, false);
-        UA_LOCK(server->serviceMutex);
+        UA_LOCK(&server->serviceMutex);
     }
 
     mon->registered = true;
@@ -427,13 +427,13 @@ UA_Server_unregisterMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
     if(server->config.monitoredItemRegisterCallback) {
         void *targetContext = NULL;
         getNodeContext(server, mon->itemToMonitor.nodeId, &targetContext);
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         server->config.monitoredItemRegisterCallback(server,
                                                      session ? &session->sessionId : NULL,
                                                      session ? session->sessionHandle : NULL,
                                                      &mon->itemToMonitor.nodeId, targetContext,
                                                      mon->itemToMonitor.attributeId, true);
-        UA_LOCK(server->serviceMutex);
+        UA_LOCK(&server->serviceMutex);
     }
 
     /* Remove from the node */
@@ -455,7 +455,7 @@ UA_Server_unregisterMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
 
 void
 UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon) {
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* Deregister in Server and Subscription */
     if(mon->registered)
@@ -587,7 +587,7 @@ UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
 
 UA_StatusCode
 UA_MonitoredItem_registerSampleCallback(UA_Server *server, UA_MonitoredItem *mon) {
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     if(mon->sampleCallbackIsRegistered)
         return UA_STATUSCODE_GOOD;
 
@@ -605,7 +605,7 @@ UA_MonitoredItem_registerSampleCallback(UA_Server *server, UA_MonitoredItem *mon
 
 void
 UA_MonitoredItem_unregisterSampleCallback(UA_Server *server, UA_MonitoredItem *mon) {
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     if(!mon->sampleCallbackIsRegistered)
         return;
 

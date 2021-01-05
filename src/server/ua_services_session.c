@@ -20,9 +20,9 @@
 /* Delayed callback to free the session memory */
 static void
 removeSessionCallback(UA_Server *server, session_list_entry *entry) {
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
     UA_Session_clear(&entry->session, server);
-    UA_UNLOCK(server->serviceMutex);
+    UA_UNLOCK(&server->serviceMutex);
 }
 
 void
@@ -30,7 +30,7 @@ UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
                         UA_DiagnosticEvent event) {
     UA_Session *session = &sentry->session;
 
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* Remove the Subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
@@ -48,10 +48,10 @@ UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
 
     /* Callback into userland access control */
     if(server->config.accessControl.closeSession) {
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         server->config.accessControl.closeSession(server, &server->config.accessControl,
                                                   &session->sessionId, session->sessionHandle);
-        UA_LOCK(server->serviceMutex);
+        UA_LOCK(&server->serviceMutex);
     }
 
     /* Detach the Session from the SecureChannel */
@@ -100,7 +100,7 @@ UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
 UA_StatusCode
 UA_Server_removeSessionByToken(UA_Server *server, const UA_NodeId *token,
                                UA_DiagnosticEvent event) {
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     session_list_entry *entry;
     LIST_FOREACH(entry, &server->sessions, pointers) {
         if(UA_NodeId_equal(&entry->session.header.authenticationToken, token)) {
@@ -113,7 +113,7 @@ UA_Server_removeSessionByToken(UA_Server *server, const UA_NodeId *token,
 
 void
 UA_Server_cleanupSessions(UA_Server *server, UA_DateTime nowMonotonic) {
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     session_list_entry *sentry, *temp;
     LIST_FOREACH_SAFE(sentry, &server->sessions, pointers, temp) {
         /* Session has timed out? */
@@ -130,7 +130,7 @@ UA_Server_cleanupSessions(UA_Server *server, UA_DateTime nowMonotonic) {
 
 UA_Session *
 getSessionByToken(UA_Server *server, const UA_NodeId *token) {
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     session_list_entry *current = NULL;
     LIST_FOREACH(current, &server->sessions, pointers) {
@@ -153,7 +153,7 @@ getSessionByToken(UA_Server *server, const UA_NodeId *token) {
 
 UA_Session *
 UA_Server_getSessionById(UA_Server *server, const UA_NodeId *sessionId) {
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     session_list_entry *current = NULL;
     LIST_FOREACH(current, &server->sessions, pointers) {
@@ -217,7 +217,7 @@ signCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
 UA_StatusCode
 UA_Server_createSession(UA_Server *server, UA_SecureChannel *channel,
                         const UA_CreateSessionRequest *request, UA_Session **session) {
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     if(server->sessionCount >= server->config.maxSessions)
         return UA_STATUSCODE_BADTOOMANYSESSIONS;
@@ -251,7 +251,7 @@ void
 Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
                       const UA_CreateSessionRequest *request,
                       UA_CreateSessionResponse *response) {
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_LOG_DEBUG_CHANNEL(&server->config.logger, channel, "Trying to create session");
 
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
@@ -561,7 +561,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                         UA_ActivateSessionResponse *response) {
     const UA_EndpointDescription *ed = NULL;
     const UA_UserTokenPolicy *utp = NULL;
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     UA_Session *session = getSessionByToken(server, &request->requestHeader.authenticationToken);
     if(!session) {
@@ -731,7 +731,7 @@ void
 Service_CloseSession(UA_Server *server, UA_SecureChannel *channel,
                      const UA_CloseSessionRequest *request,
                      UA_CloseSessionResponse *response) {
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* Part 4, 5.6.4: When the CloseSession Service is called before the Session
      * is successfully activated, the Server shall reject the request if the
