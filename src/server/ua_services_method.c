@@ -236,12 +236,12 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
     /* Verify access rights */
     UA_Boolean executable = method->executable;
     if(session != &server->adminSession) {
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         executable = executable && server->config.accessControl.
             getUserExecutableOnObject(server, &server->config.accessControl, &session->sessionId,
                                       session->sessionHandle, &request->methodId, method->head.context,
                                       &request->objectId, object->head.context);
-        UA_LOCK(server->serviceMutex);
+        UA_LOCK(&server->serviceMutex);
     }
 
     if(!executable) {
@@ -294,13 +294,13 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
     UA_NODESTORE_RELEASE(server, (const UA_Node*)outputArguments);
 
     /* Call the method */
-    UA_UNLOCK(server->serviceMutex);
+    UA_UNLOCK(&server->serviceMutex);
     result->statusCode = method->method(server, &session->sessionId, session->sessionHandle,
                                         &method->head.nodeId, method->head.context,
                                         &object->head.nodeId, object->head.context,
                                         request->inputArgumentsSize, request->inputArguments,
                                         result->outputArgumentsSize, result->outputArguments);
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
     /* TODO: Verify Output matches the argument definition */
 }
 
@@ -421,7 +421,7 @@ Operation_CallMethod(UA_Server *server, UA_Session *session, void *context,
 void Service_Call(UA_Server *server, UA_Session *session,
                   const UA_CallRequest *request, UA_CallResponse *response) {
     UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Processing CallRequest");
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     if(server->config.maxNodesPerMethodCall != 0 &&
        request->methodsToCallSize > server->config.maxNodesPerMethodCall) {
@@ -440,9 +440,9 @@ UA_CallMethodResult
 UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request) {
     UA_CallMethodResult result;
     UA_CallMethodResult_init(&result);
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
     Operation_CallMethod(server, &server->adminSession, NULL, request, &result);
-    UA_UNLOCK(server->serviceMutex);
+    UA_UNLOCK(&server->serviceMutex);
     return result;
 }
 

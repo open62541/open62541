@@ -116,7 +116,7 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
                          const UA_FindServersRequest *request,
                          UA_FindServersResponse *response) {
     UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Processing FindServersRequest");
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* Return the server itself? */
     UA_Boolean foundSelf = false;
@@ -200,7 +200,7 @@ void
 Service_GetEndpoints(UA_Server *server, UA_Session *session,
                      const UA_GetEndpointsRequest *request,
                      UA_GetEndpointsResponse *response) {
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* If the client expects to see a specific endpointurl, mirror it back. If
      * not, clone the endpoints with the discovery url of all networklayers. */
@@ -293,7 +293,8 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
                        UA_StatusCode **responseConfigurationResults,
                        size_t *responseDiagnosticInfosSize,
                        UA_DiagnosticInfo *responseDiagnosticInfos) {
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     /* Find the server from the request in the registered list */
     registeredServer_list_entry* current;
     registeredServer_list_entry *registeredServer_entry = NULL;
@@ -394,11 +395,11 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
         }
 
         if(server->discoveryManager.registerServerCallback) {
-            UA_UNLOCK(server->serviceMutex);
+            UA_UNLOCK(&server->serviceMutex);
             server->discoveryManager.
                     registerServerCallback(requestServer,
                                            server->discoveryManager.registerServerCallbackData);
-            UA_LOCK(server->serviceMutex);
+            UA_LOCK(&server->serviceMutex);
         }
 
         // server found, remove from list
@@ -438,11 +439,11 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
     // registered before, then crashed, restarts and registeres again. In that case the entry is not deleted
     // and the callback would not be called.
     if(server->discoveryManager.registerServerCallback) {
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         server->discoveryManager.
                 registerServerCallback(requestServer,
                                        server->discoveryManager.registerServerCallbackData);
-        UA_LOCK(server->serviceMutex)
+        UA_LOCK(&server->serviceMutex);
     }
 
     // copy the data from the request into the list
@@ -456,7 +457,7 @@ void Service_RegisterServer(UA_Server *server, UA_Session *session,
                             UA_RegisterServerResponse *response) {
     UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                          "Processing RegisterServerRequest");
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     process_RegisterServer(server, session, &request->requestHeader, &request->server, 0,
                            NULL, &response->responseHeader, 0, NULL, 0, NULL);
 }
@@ -466,7 +467,7 @@ void Service_RegisterServer2(UA_Server *server, UA_Session *session,
                              UA_RegisterServer2Response *response) {
     UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                          "Processing RegisterServer2Request");
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     process_RegisterServer(server, session, &request->requestHeader, &request->server,
                            request->discoveryConfigurationSize, request->discoveryConfiguration,
                            &response->responseHeader, &response->configurationResultsSize,
@@ -544,7 +545,7 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
 static void
 periodicServerRegister(UA_Server *server, void *data) {
     UA_assert(data != NULL);
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
 
     struct PeriodicServerRegisterCallback *cb = (struct PeriodicServerRegisterCallback *)data;
 
@@ -589,7 +590,7 @@ periodicServerRegister(UA_Server *server, void *data) {
 
         cb->this_interval = nextInterval;
         changeRepeatedCallbackInterval(server, cb->id, nextInterval);
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         return;
     }
 
@@ -604,7 +605,7 @@ periodicServerRegister(UA_Server *server, void *data) {
         if(retval == UA_STATUSCODE_GOOD)
             cb->registered = true;
     }
-    UA_UNLOCK(server->serviceMutex);
+    UA_UNLOCK(&server->serviceMutex);
 }
 
 UA_StatusCode
@@ -614,18 +615,18 @@ UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
                                             UA_Double intervalMs,
                                             UA_Double delayFirstRegisterMs,
                                             UA_UInt64 *periodicCallbackId) {
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
     /* No valid server URL */
     if(!discoveryServerUrl) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "No discovery server URL provided");
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
 
     if (client->connection.state != UA_CONNECTIONSTATE_CLOSED) {
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADINVALIDSTATE;
     }
 
@@ -651,7 +652,7 @@ UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
     struct PeriodicServerRegisterCallback* cb = (struct PeriodicServerRegisterCallback*)
         UA_malloc(sizeof(struct PeriodicServerRegisterCallback));
     if(!cb) {
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
@@ -666,7 +667,7 @@ UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
     cb->discovery_server_url = (char*)UA_malloc(len+1);
     if (!cb->discovery_server_url) {
         UA_free(cb);
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
     memcpy(cb->discovery_server_url, discoveryServerUrl, len+1);
@@ -680,7 +681,7 @@ UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
                      "Could not create periodic job for server register. "
                      "StatusCode %s", UA_StatusCode_name(retval));
         UA_free(cb);
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         return retval;
     }
 
@@ -691,7 +692,7 @@ UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
     if(!newEntry) {
         removeCallback(server, cb->id);
         UA_free(cb);
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
     newEntry->callback = cb;
@@ -700,7 +701,7 @@ UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
 
     if(periodicCallbackId)
         *periodicCallbackId = cb->id;
-    UA_UNLOCK(server->serviceMutex);
+    UA_UNLOCK(&server->serviceMutex);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -708,10 +709,10 @@ void
 UA_Server_setRegisterServerCallback(UA_Server *server,
                                     UA_Server_registerServerCallback cb,
                                     void* data) {
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
     server->discoveryManager.registerServerCallback = cb;
     server->discoveryManager.registerServerCallbackData = data;
-    UA_UNLOCK(server->serviceMutex);
+    UA_UNLOCK(&server->serviceMutex);
 }
 
 #endif /* UA_ENABLE_DISCOVERY */

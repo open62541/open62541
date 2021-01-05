@@ -140,24 +140,45 @@ void UA_sleep_ms(unsigned long ms);
 #define UA_LOG_SOCKET_ERRNO_GAI_WRAP UA_LOG_SOCKET_ERRNO_WRAP
 
 #if UA_MULTITHREADING >= 100
-#define UA_LOCK_TYPE(mutexName) CRITICAL_SECTION mutexName; \
-                                int mutexName##Counter;
-#define UA_LOCK_INIT(mutexName) InitializeCriticalSection(&mutexName); \
-                                mutexName##Counter = 0;
-#define UA_LOCK_DESTROY(mutexName) DeleteCriticalSection(&mutexName);
-#define UA_LOCK(mutexName) EnterCriticalSection(&mutexName); \
-                           UA_assert(++(mutexName##Counter) == 1);
-#define UA_UNLOCK(mutexName) UA_assert(--(mutexName##Counter) == 0); \
-                             LeaveCriticalSection(&mutexName);
-#define UA_LOCK_ASSERT(mutexName, num) UA_assert(mutexName##Counter == num);
+
+typedef struct {
+    CRITICAL_SECTION mutex;
+    int mutexCounter;
+} UA_Lock;
+
+static UA_INLINE void
+UA_LOCK_INIT(UA_Lock *lock) {
+    InitializeCriticalSection(&lock->mutex);
+    lock->mutexCounter = 0;
+}
+
+static UA_INLINE void
+UA_LOCK_DESTROY(UA_Lock *lock) {
+    DeleteCriticalSection(&lock->mutex);
+}
+
+static UA_INLINE void
+UA_LOCK(UA_Lock *lock) {
+    EnterCriticalSection(&lock->mutex);
+    UA_assert(++(lock->mutexCounter) == 1);
+}
+
+static UA_INLINE void
+UA_UNLOCK(UA_Lock *lock) {
+    UA_assert(--(lock->mutexCounter) == 0);
+    LeaveCriticalSection(&lock->mutex);
+}
+
+static UA_INLINE void
+UA_LOCK_ASSERT(UA_Lock *lock, int num) {
+    UA_assert(lock->mutexCounter == num);
+}
 #else
-#define UA_LOCK_TYPE(mutexName)
-#define UA_LOCK_TYPE_POINTER(mutexName)
-#define UA_LOCK_INIT(mutexName)
-#define UA_LOCK_DESTROY(mutexName)
-#define UA_LOCK(mutexName)
-#define UA_UNLOCK(mutexName)
-#define UA_LOCK_ASSERT(mutexName, num)
+#define UA_LOCK_INIT(lock)
+#define UA_LOCK_DESTROY(lock)
+#define UA_LOCK(lock)
+#define UA_UNLOCK(lock)
+#define UA_LOCK_ASSERT(lock, num)
 #endif
 
 #include <open62541/architecture_functions.h>

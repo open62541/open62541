@@ -517,9 +517,9 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
     if(requestType == &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST] ||
        requestType == &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST] ||
        requestType == &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST]) {
-        UA_LOCK(server->serviceMutex);
+        UA_LOCK(&server->serviceMutex);
         ((UA_ChannelService)(uintptr_t)service)(server, channel, request, response);
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
         /* Store the authentication token so we can help fuzzing by setting
          * these values in the next request automatically */
@@ -535,9 +535,10 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
     UA_Session *session = NULL;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(!UA_NodeId_isNull(&requestHeader->authenticationToken)) {
-        UA_LOCK(server->serviceMutex);
-        retval = getBoundSession(server, channel, &requestHeader->authenticationToken, &session);
-        UA_UNLOCK(server->serviceMutex);
+        UA_LOCK(&server->serviceMutex);
+        retval = getBoundSession(server, channel, &requestHeader->authenticationToken,
+                                 &session);
+        UA_UNLOCK(&server->serviceMutex);
         if(retval != UA_STATUSCODE_GOOD)
             return sendServiceFault(channel, requestId, requestHeader->requestHandle,
                                     responseType, retval);
@@ -580,10 +581,10 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
                                requestType->binaryEncodingId.identifier.numeric);
 #endif
         if(session != &anonymousSession) {
-            UA_LOCK(server->serviceMutex);
+            UA_LOCK(&server->serviceMutex);
             UA_Server_removeSessionByToken(server, &session->header.authenticationToken,
                                            UA_DIAGNOSTICEVENT_ABORT);
-            UA_UNLOCK(server->serviceMutex);
+            UA_UNLOCK(&server->serviceMutex);
         }
         return sendServiceFault(channel, requestId, requestHeader->requestHandle,
                                 responseType, UA_STATUSCODE_BADSESSIONNOTACTIVATED);
@@ -595,9 +596,9 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* The publish request is not answered immediately */
     if(requestType == &UA_TYPES[UA_TYPES_PUBLISHREQUEST]) {
-        UA_LOCK(server->serviceMutex);
+        UA_LOCK(&server->serviceMutex);
         Service_Publish(server, session, &request->publishRequest, requestId);
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_GOOD;
     }
 #endif
@@ -606,10 +607,10 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
     /* The call request might not be answered immediately */
     if(requestType == &UA_TYPES[UA_TYPES_CALLREQUEST]) {
         UA_Boolean finished = true;
-        UA_LOCK(server->serviceMutex);
+        UA_LOCK(&server->serviceMutex);
         Service_CallAsync(server, session, requestId, &request->callRequest,
                           &response->callResponse, &finished);
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
 
         /* Async method calls remain. Don't send a response now */
         if(!finished)
@@ -621,9 +622,9 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
 #endif
 
     /* Dispatch the synchronous service call and send the response */
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
     service(server, session, request, response);
-    UA_UNLOCK(server->serviceMutex);
+    UA_UNLOCK(&server->serviceMutex);
     return sendResponse(server, session, channel, requestId, response, responseType);
 }
 

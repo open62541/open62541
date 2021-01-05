@@ -147,8 +147,8 @@ struct UA_Server {
 #endif
 
 #if UA_MULTITHREADING >= 100
-    UA_LOCK_TYPE(networkMutex)
-    UA_LOCK_TYPE(serviceMutex)
+    UA_Lock networkMutex;
+    UA_Lock serviceMutex;
 #endif
 
     /* Statistics */
