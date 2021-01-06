@@ -241,4 +241,26 @@ mbedtls_decrypt_rsaOaep(mbedtls_pk_context *localPrivateKey,
     return UA_STATUSCODE_GOOD;
 }
 
+/* Helper to do logging. Notice it will use space on stack which may be a problem for small embedded systems */
+void 
+mbedtls_log_error( const char *message, int err, const UA_Logger *logger, UA_LogCategory category ) 
+{
+    if ( !err )
+        return;
+    char errBuff[60];
+    mbedtls_strerror(err, errBuff, 60);
+
+    UA_LOG_DEBUG(logger, category,
+             "%s: %d, %s", message, err, errBuff);
+}
+
+void 
+mbedtls_log_flags( const char *message, uint32_t flags, const UA_Logger *logger, UA_LogCategory category ) 
+{
+    char buff[100]; 
+    mbedtls_x509_crt_verify_info(buff, 100, "", flags); 
+    UA_LOG_DEBUG(logger, category,
+             "%s: %X, %s", message, flags, buff);
+}
+
 #endif
