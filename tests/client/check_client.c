@@ -25,7 +25,8 @@ addVariable(size_t size) {
     /* Define the attribute of the myInteger variable node */
     UA_VariableAttributes attr = UA_VariableAttributes_default;
     UA_Int32* array = (UA_Int32*)UA_malloc(size * sizeof(UA_Int32));
-    memset(array, 0, size * sizeof(UA_Int32));
+    for(size_t i = 0; i < size; i++)
+        array[i] = (UA_Int32)i;
     UA_Variant_setArray(&attr.value, array, size, &UA_TYPES[UA_TYPES_INT32]);
 
     char name[] = "my.variable";
@@ -52,12 +53,14 @@ THREAD_CALLBACK(serverloop) {
     return 0;
 }
 
+#define VARLENGTH 16366
+
 static void setup(void) {
     running = true;
     server = UA_Server_new();
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     UA_Server_run_startup(server);
-    addVariable(16366);
+    addVariable(VARLENGTH);
     THREAD_CREATE(server_thread, serverloop);
 }
 
@@ -154,8 +157,12 @@ START_TEST(Client_read) {
     retval = UA_Client_readValueAttribute(client, nodeId, &val);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_Variant_deleteMembers(&val);
+    ck_assert(val.type == &UA_TYPES[UA_TYPES_INT32]);
+    UA_Int32 *var = (UA_Int32*)val.data;
+    for(size_t i = 0; i < VARLENGTH; i++)
+        ck_assert_uint_eq((size_t)var[i], i);
 
+    UA_Variant_deleteMembers(&val);
     UA_Client_disconnect(client);
     UA_Client_delete(client);
 }
