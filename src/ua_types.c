@@ -117,6 +117,10 @@ UA_String_fromChars(const char *src) {
 
 UA_Boolean
 UA_String_equal(const UA_String *s1, const UA_String *s2) {
+    if((s1->data == NULL) && (s2->data == NULL))
+        return true;
+    if((s1->data == NULL) || (s2->data == NULL))
+        return false;
     if(s1->length != s2->length)
         return false;
     if(s1->length == 0)

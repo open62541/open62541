@@ -66,10 +66,6 @@ START_TEST(EndpointUrl_split) {
     ck_assert_uint_eq(port, 1234);
     ck_assert(UA_String_equal(&path, &expectedPath));
 
-    // invalid IPv6: missing ]
-    endPointUrl = UA_STRING("opc.tcp://[2001:0db8:85a3::8a2e:0370:7334");
-    ck_assert_uint_eq(UA_parseEndpointUrl(&endPointUrl, &hostname, &port, &path), UA_STATUSCODE_BADTCPENDPOINTURLINVALID);
-
     // empty hostname
     endPointUrl = UA_STRING("opc.tcp://:");
     port = 0;
@@ -79,6 +75,10 @@ START_TEST(EndpointUrl_split) {
     ck_assert(UA_String_equal(&hostname, &UA_STRING_NULL));
     ck_assert_uint_eq(port, 0);
     ck_assert(UA_String_equal(&path, &UA_STRING_NULL));
+
+    // invalid IPv6: missing ]
+    endPointUrl = UA_STRING("opc.tcp://[2001:0db8:85a3::8a2e:0370:7334");
+    ck_assert_uint_eq(UA_parseEndpointUrl(&endPointUrl, &hostname, &port, &path), UA_STATUSCODE_BADTCPENDPOINTURLINVALID);
 
     // empty hostname and no port
     endPointUrl = UA_STRING("opc.tcp:///");
