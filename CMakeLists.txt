@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0...3.12)
-project(open62541)
+project(open62541 C)
 # set(CMAKE_VERBOSE_MAKEFILE ON)
 if(${CMAKE_VERSION} VERSION_LESS 3.12)
     cmake_policy(VERSION ${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION})
@@ -254,6 +254,7 @@ mark_as_advanced(UA_FORCE_32BIT)
 option(UA_FORCE_CPP "Force compilation with a C++ compiler" OFF)
 mark_as_advanced(UA_FORCE_CPP)
 if(UA_FORCE_CPP)
+    enable_language(CXX)
     add_definitions(-D__STDC_CONSTANT_MACROS) # We need the UINT32_C define
 endif()
 
@@ -676,7 +677,11 @@ if(UA_ENABLE_DISCOVERY_MULTICAST)
     set(MDNSD_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported" FORCE)
     # create a "fake" empty library to generate the export header macros
     add_library(libmdnsd ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.h)
-    set_property(TARGET libmdnsd PROPERTY LINKER_LANGUAGE CXX)
+    if (UA_FORCE_CPP)
+        set_property(TARGET libmdnsd PROPERTY LINKER_LANGUAGE CXX)
+    else()
+        set_property(TARGET libmdnsd PROPERTY LINKER_LANGUAGE C)
+    endif()
     set_property(TARGET libmdnsd PROPERTY DEFINE_SYMBOL "MDNSD_DYNAMIC_LINKING_EXPORT")
     configure_file("deps/mdnsd/libmdnsd/mdnsd_config_extra.in"
                    "${PROJECT_BINARY_DIR}/src_generated/mdnsd_config_extra")
