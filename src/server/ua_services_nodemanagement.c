@@ -35,7 +35,7 @@ UA_Server_getNodeContext(UA_Server *server, UA_NodeId nodeId,
 
 UA_StatusCode
 getNodeContext(UA_Server *server, UA_NodeId nodeId,
-                         void **nodeContext) {
+               void **nodeContext) {
     const UA_Node *node = UA_NODESTORE_GET(server, &nodeId);
     if(!node)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
@@ -509,14 +509,16 @@ isMandatoryChild(UA_Server *server, UA_Session *session,
 
     /* Look for the reference making the child mandatory */
     for(size_t i = 0; i < child->head.referencesSize; ++i) {
-        UA_NodeReferenceKind *refs = &child->head.references[i];
-        if(refs->referenceTypeIndex != UA_REFERENCETYPEINDEX_HASMODELLINGRULE)
+        UA_NodeReferenceKind *rk = &child->head.references[i];
+        if(rk->referenceTypeIndex != UA_REFERENCETYPEINDEX_HASMODELLINGRULE)
             continue;
-        if(refs->isInverse)
+        if(rk->isInverse)
             continue;
-        UA_ReferenceTarget *target;
-        TAILQ_FOREACH(target, &refs->queueHead, queuePointers) {
-            if(UA_NodeId_equal(&mandatoryId, &target->targetId.nodeId)) {
+
+        for(UA_ReferenceTarget *t = UA_NodeReferenceKind_firstTarget(rk);
+            t; t = UA_NodeReferenceKind_nextTarget(rk, t)) {
+            if(UA_ExpandedNodeId_isLocal(&t->targetId) &&
+               UA_NodeId_equal(&mandatoryId, &t->targetId.nodeId)) {
                 UA_NODESTORE_RELEASE(server, child);
                 return true;
             }
@@ -1629,32 +1631,39 @@ removeIncomingReferences(UA_Server *server, UA_Session *session, const UA_NodeHe
     UA_DeleteReferencesItem_init(&item);
     item.targetNodeId.nodeId = head->nodeId;
     item.deleteBidirectional = false;
+
     UA_StatusCode dummy;
     for(size_t i = 0; i < head->referencesSize; ++i) {
-        UA_NodeReferenceKind *refs = &head->references[i];
-        item.isForward = refs->isInverse;
-        item.referenceTypeId = *UA_NODESTORE_GETREFERENCETYPEID(server, refs->referenceTypeIndex);
-        UA_ReferenceTarget *target;
-        TAILQ_FOREACH(target, &refs->queueHead, queuePointers) {
-            item.sourceNodeId = target->targetId.nodeId;
+        const UA_NodeReferenceKind *rk = &head->references[i];
+        item.isForward = rk->isInverse;
+        item.referenceTypeId =
+            *UA_NODESTORE_GETREFERENCETYPEID(server, rk->referenceTypeIndex);
+        for(UA_ReferenceTarget *t = UA_NodeReferenceKind_firstTarget(rk);
+            t; t = UA_NodeReferenceKind_nextTarget(rk, t)) {
+            if(!UA_ExpandedNodeId_isLocal(&t->targetId))
+                continue;
+            item.sourceNodeId = t->targetId.nodeId;
             Operation_deleteReference(server, session, NULL, &item, &dummy);
         }
     }
 }
 
-/* A node is auto-deleted if all its hierarchical parents are being deleted */
+/* A node can only be deleted if it has at most one incoming hierarchical reference */
 static UA_Boolean
 hasParentRef(const UA_NodeHead *head, const UA_ReferenceTypeSet *refSet,
              RefTree *refTree) {
     for(size_t i = 0; i < head->referencesSize; i++) {
-        const UA_NodeReferenceKind *k = &head->references[i];
-        if(!k->isInverse)
+        const UA_NodeReferenceKind *rk = &head->references[i];
+        if(!rk->isInverse)
             continue;
-        if(!UA_ReferenceTypeSet_contains(refSet, k->referenceTypeIndex))
+        if(!UA_ReferenceTypeSet_contains(refSet, rk->referenceTypeIndex))
             continue;
-        UA_ReferenceTarget *target;
-        TAILQ_FOREACH(target, &k->queueHead, queuePointers) {
-            if(!RefTree_containsNodeId(refTree, &target->targetId.nodeId)){
+        for(UA_ReferenceTarget *t = UA_NodeReferenceKind_firstTarget(rk);
+            t; t = UA_NodeReferenceKind_nextTarget(rk, t)) {
+            if(!UA_ExpandedNodeId_isLocal(&t->targetId))
+                continue;
+            incomingRefs += 1;
+            if(incomingRefs > 1)
                 return true;
             }
         }

@@ -56,13 +56,16 @@ getNodeType(UA_Server *server, const UA_NodeHead *head) {
             continue;
         if(head->references[i].referenceTypeIndex != parentRefIndex)
             continue;
-        UA_assert(!TAILQ_EMPTY(&head->references[i].queueHead));
-        const UA_NodeId *targetId = &TAILQ_FIRST(&head->references[i].queueHead)->targetId.nodeId;
-        const UA_Node *type = UA_NODESTORE_GET(server, targetId);
+
+        UA_assert(head->references[i].idTreeRoot);
+        const UA_ReferenceTarget *rt =
+            UA_NodeReferenceKind_firstTarget(&head->references[i]);
+        UA_assert(rt);
+        const UA_Node *type = UA_NODESTORE_GET(server, &rt->targetId.nodeId);
         if(!type)
             continue;
         if(type->head.nodeClass == typeNodeClass)
-            return type;
+            return type; /* Don't release the node that is returned */
         UA_NODESTORE_RELEASE(server, type);
     }
 
