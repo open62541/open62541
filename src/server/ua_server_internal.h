@@ -155,8 +155,22 @@ struct UA_Server {
     UA_ServerStatistics serverStats;
 };
 
+/***********************/
+/* References Handling */
+/***********************/
 
-extern const struct aa_head nameTreeHead;
+extern const struct aa_head refNameTree;
+
+UA_ReferenceTarget *
+UA_NodeReferenceKind_firstTarget(const UA_NodeReferenceKind *kind);
+
+UA_ReferenceTarget *
+UA_NodeReferenceKind_nextTarget(const UA_NodeReferenceKind *kind,
+                                const UA_ReferenceTarget *current);
+
+UA_ReferenceTarget *
+UA_NodeReferenceKind_findTarget(const UA_NodeReferenceKind *kind,
+                                const UA_ExpandedNodeId *targetId);
 
 /**************************/
 /* SecureChannel Handling */
@@ -521,6 +535,10 @@ UA_StatusCode writeNs0VariableArray(UA_Server *server, UA_UInt32 id, void *v,
 
 #define UA_NODESTORE_GET(server, nodeid)                                \
     server->config.nodestore.getNode(server->config.nodestore.context, nodeid)
+
+/* Returns NULL if the target is an external Reference (per the ExpandedNodeId) */
+const UA_Node *
+UA_NODESTORE_GETFROMREF(UA_Server *server, const UA_ReferenceTarget *target);
 
 #define UA_NODESTORE_RELEASE(server, node)                              \
     server->config.nodestore.releaseNode(server->config.nodestore.context, node)

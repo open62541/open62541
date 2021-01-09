@@ -256,14 +256,21 @@ getFieldParentNodeId(UA_Server *server, const UA_NodeId *field, UA_NodeId *paren
     UA_StatusCode retval = UA_STATUSCODE_BADNOTFOUND;
     for(size_t i = 0; i < fieldNode->head.referencesSize; i++) {
         UA_NodeReferenceKind *rk = &fieldNode->head.references[i];
-        if((rk->referenceTypeIndex == UA_REFERENCETYPEINDEX_HASPROPERTY ||
-           rk->referenceTypeIndex == UA_REFERENCETYPEINDEX_HASCOMPONENT) &&
-           true == rk->isInverse) {
-            /* Take the first hierarchical inverse reference */
-            retval = UA_NodeId_copy(&TAILQ_FIRST(&rk->queueHead)->targetId.nodeId, parent);
-            break;
+        if(rk->referenceTypeIndex != UA_REFERENCETYPEINDEX_HASPROPERTY &&
+           rk->referenceTypeIndex != UA_REFERENCETYPEINDEX_HASCOMPONENT)
+            continue;
+        if(!rk->isInverse)
+            continue;
+        /* Take the first hierarchical inverse reference */
+        for(UA_ReferenceTarget *target = UA_NodeReferenceKind_firstTarget(rk);
+            target; target = UA_NodeReferenceKind_nextTarget(rk, target)) {
+            if(!UA_ExpandedNodeId_isLocal(&target->targetId))
+                continue;
+            retval = UA_NodeId_copy(&target->targetId.nodeId, parent);
+            goto finish;
         }
     }
+ finish:
     UA_NODESTORE_RELEASE(server, (const UA_Node *)fieldNode);
     return retval;
 }
