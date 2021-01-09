@@ -1648,7 +1648,7 @@ removeIncomingReferences(UA_Server *server, UA_Session *session, const UA_NodeHe
     }
 }
 
-/* A node can only be deleted if it has at most one incoming hierarchical reference */
+/* A node is auto-deleted if all its hierarchical parents are being deleted */
 static UA_Boolean
 hasParentRef(const UA_NodeHead *head, const UA_ReferenceTypeSet *refSet,
              RefTree *refTree) {
@@ -1662,10 +1662,8 @@ hasParentRef(const UA_NodeHead *head, const UA_ReferenceTypeSet *refSet,
             t; t = UA_NodeReferenceKind_nextTarget(rk, t)) {
             if(!UA_ExpandedNodeId_isLocal(&t->targetId))
                 continue;
-            incomingRefs += 1;
-            if(incomingRefs > 1)
+            if(!RefTree_containsNodeId(refTree, &t->targetId.nodeId))
                 return true;
-            }
         }
     }
     return false;
