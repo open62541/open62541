@@ -123,12 +123,12 @@ initTsnTimer(uint32_t period) {
  * use system interrupts instead of time-triggered callbacks in the OPC UA
  * server control flow. */
 
-UA_StatusCode
-UA_PubSubManager_addRepeatedCallback(UA_Server *server,
-                                     UA_ServerCallback callback,
-                                     void *data,
-                                     UA_Double interval_ms,
-                                     UA_UInt64 *callbackId) {
+static UA_StatusCode
+addApplicationCallback(UA_Server *server, UA_NodeId identifier,
+                       UA_ServerCallback callback,
+                       void *data,
+                       UA_Double interval_ms,
+                       UA_UInt64 *callbackId) {
     if(pubCallback) {
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                        "At most one publisher can be registered for interrupt callbacks");
@@ -160,10 +160,10 @@ UA_PubSubManager_addRepeatedCallback(UA_Server *server,
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode
-UA_PubSubManager_changeRepeatedCallbackInterval(UA_Server *server,
-                                                UA_UInt64 callbackId,
-                                                UA_Double interval_ms) {
+static UA_StatusCode
+changeApplicationCallbackInterval(UA_Server *server, UA_NodeId identifier,
+                                  UA_UInt64 callbackId,
+                                  UA_Double interval_ms) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                 "Switching the publisher cycle to %lf milliseconds", interval_ms);
 
@@ -172,8 +172,8 @@ UA_PubSubManager_changeRepeatedCallbackInterval(UA_Server *server,
     return UA_STATUSCODE_GOOD;
 }
 
-void
-UA_PubSubManager_removeRepeatedPubSubCallback(UA_Server *server, UA_UInt64 callbackId) {
+static void
+removeApplicationPubSubCallback(UA_Server *server, UA_NodeId identifier, UA_UInt64 callbackId) {
     if(!pubCallback) {
         return;
     }
@@ -307,6 +307,9 @@ addPubSubConfiguration(UA_Server* server) {
     writerGroupConfig.enabled = UA_FALSE;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
     writerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
+    writerGroupConfig.pubsubManagerCallback.addCustomCallback = addApplicationCallback;
+    writerGroupConfig.pubsubManagerCallback.changeCustomCallbackInterval = changeApplicationCallbackInterval;
+    writerGroupConfig.pubsubManagerCallback.removeCustomCallback = removeApplicationPubSubCallback;
     UA_Server_addWriterGroup(server, connectionIdent,
                              &writerGroupConfig, &writerGroupIdent);
 
@@ -351,6 +354,10 @@ addServerNodes(UA_Server* server) {
                               UA_QUALIFIEDNAME(1, "Sequence Number"),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
                               publisherAttr, NULL, NULL);
+    UA_ValueBackend valueBackend;
+    valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
+    valueBackend.backend.external.value = &staticValueSeqNum;
+    UA_Server_setVariableNode_valueBackend(server, seqNumNodeId, valueBackend);
 
     UA_NodeId_init(&cycleTriggerTimeNodeId);
     cycleTriggerTimeNodeId = UA_NODEID_STRING(1, "cycle.trigger.time");
@@ -365,6 +372,8 @@ addServerNodes(UA_Server* server) {
                               UA_QUALIFIEDNAME(1, "Cycle Trigger Time"),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
                               publisherAttr, NULL, NULL);
+    valueBackend.backend.external.value = &staticValueCycTrig;
+    UA_Server_setVariableNode_valueBackend(server, cycleTriggerTimeNodeId, valueBackend);
 
     UA_NodeId_init(&taskBeginTimeNodeId);
     taskBeginTimeNodeId = UA_NODEID_STRING(1, "task.begin.time");
@@ -379,6 +388,8 @@ addServerNodes(UA_Server* server) {
                               UA_QUALIFIEDNAME(1, "Task Begin Time"),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
                               publisherAttr, NULL, NULL);
+    valueBackend.backend.external.value = &staticValueCycBegin;
+    UA_Server_setVariableNode_valueBackend(server, taskBeginTimeNodeId, valueBackend);
 
     UA_NodeId_init(&taskEndTimeNodeId);
     taskEndTimeNodeId = UA_NODEID_STRING(1, "task.end.time");
@@ -393,6 +404,8 @@ addServerNodes(UA_Server* server) {
                               UA_QUALIFIEDNAME(1, "Task End Time"),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
                               publisherAttr, NULL, NULL);
+    valueBackend.backend.external.value = &staticValueCycEnd;
+    UA_Server_setVariableNode_valueBackend(server, taskEndTimeNodeId, valueBackend);
 }
 
 static void open62541EthTSNTask(void) {
@@ -417,6 +430,7 @@ static void open62541EthTSNTask(void) {
         }
         pubCallback(pubServer, pubData);
         useNormalAlloc();
+
         sequenceNumber++;
         lastCycleTriggerTime = cycleTriggerTime;
         lastTaskBeginTime = t;
