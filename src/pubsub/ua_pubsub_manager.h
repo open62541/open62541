@@ -17,11 +17,13 @@ _UA_BEGIN_DECLS
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
 typedef struct UA_PubSubManager{
-    //Connections and PublishedDataSets can exist alone (own lifecycle) -> top level components
+    /* Connections and PublishedDataSets can exist alone (own lifecycle) -> top
+     * level components */
     size_t connectionsSize;
-    TAILQ_HEAD(UA_ListOfPubSubConnection, UA_PubSubConnection) connections;
+    TAILQ_HEAD(, UA_PubSubConnection) connections;
+
     size_t publishedDataSetsSize;
-    TAILQ_HEAD(UA_ListOfPublishedDataSet, UA_PublishedDataSet) publishedDataSets;
+    TAILQ_HEAD(, UA_PublishedDataSet) publishedDataSets;
 } UA_PubSubManager;
 
 void
@@ -33,23 +35,25 @@ UA_PubSubManager_generateUniqueNodeId(UA_Server *server, UA_NodeId *nodeId);
 UA_UInt32
 UA_PubSubConfigurationVersionTimeDifference(void);
 
-/***********************************/
-/*      PubSub Jobs abstraction    */
-/***********************************/
+/***************************************/
+/*  PubSub Cyclic Callback Management  */
+/***************************************/
+
 UA_StatusCode
 UA_PubSubManager_addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
-                                     void *data, UA_Double interval_ms, UA_UInt64 *callbackId);
+                                     void *data, UA_Double interval_ms,
+                                     UA_UInt64 *callbackId);
 UA_StatusCode
 UA_PubSubManager_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
                                                 UA_Double interval_ms);
 void
 UA_PubSubManager_removeRepeatedPubSubCallback(UA_Server *server, UA_UInt64 callbackId);
 
+#ifdef UA_ENABLE_PUBSUB_MONITORING
+
 /*************************************************/
 /*      PubSub component monitoring              */
 /*************************************************/
-
-#ifdef UA_ENABLE_PUBSUB_MONITORING
 
 UA_StatusCode
 UA_PubSubManager_setDefaultMonitoringCallbacks(UA_PubSubMonitoringInterface *monitoringInterface);
