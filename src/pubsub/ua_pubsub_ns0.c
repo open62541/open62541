@@ -1304,10 +1304,8 @@ UA_addDeletePubSubConfigMethod(UA_Server *server) {
 #endif
 #endif /*UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS*/
 
-
-
 UA_StatusCode
-UA_Server_initPubSubNS0(UA_Server *server) {
+initPubSubNS0(UA_Server *server) {
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_String profileArray[1];
     profileArray[0] = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");

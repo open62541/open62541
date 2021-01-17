@@ -337,7 +337,7 @@ UA_Server_init(UA_Server *server) {
 #ifdef UA_ENABLE_PUBSUB
     /* Build PubSub information model */
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    UA_Server_initPubSubNS0(server);
+    initPubSubNS0(server);
 #endif
 
     server->config.pubsubConfiguration = (UA_PubSubConfiguration*) UA_calloc(1, sizeof(UA_PubSubConfiguration));

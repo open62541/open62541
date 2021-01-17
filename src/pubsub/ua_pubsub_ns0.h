@@ -17,7 +17,7 @@ _UA_BEGIN_DECLS
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL /* conditional compilation */
 
 UA_StatusCode
-UA_Server_initPubSubNS0(UA_Server *server);
+initPubSubNS0(UA_Server *server);
 
 UA_StatusCode
 addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connection);
