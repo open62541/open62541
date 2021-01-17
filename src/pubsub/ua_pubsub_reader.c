@@ -878,8 +878,8 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
                     return;
                 }
 
-                UA_Server_DataSetReader_process(server, dataSetReader,
-                                                dataSetReader->bufferedMessage.nm->payload.dataSetPayload.dataSetMessages);
+                UA_DataSetReader_process(server, dataSetReader,
+                                         dataSetReader->bufferedMessage.nm->payload.dataSetPayload.dataSetMessages);
 
                 /* Delete the payload value of every dsf's decoded */
                 UA_DataSetMessage *dsm = dataSetReader->bufferedMessage.nm->payload.dataSetPayload.dataSetMessages;
@@ -903,7 +903,8 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
                 UA_NetworkMessage currentNetworkMessage;
                 memset(&currentNetworkMessage, 0, sizeof(UA_NetworkMessage));
                 UA_NetworkMessage_decodeBinary(&buffer, &currentPosition, &currentNetworkMessage);
-                UA_Server_processNetworkMessage(server, &currentNetworkMessage, connection);
+                UA_PubSubConnection_processNetworkMessage(server, &currentNetworkMessage,
+                                                          connection);
                 UA_NetworkMessage_clear(&currentNetworkMessage);
             } while((buffer.length) > currentPosition);
         }
@@ -1451,7 +1452,7 @@ UA_Server_DataSetReader_createDataSetMirror(UA_Server *server, UA_String *parent
 }*/
 
 void
-UA_Server_DataSetReader_process(UA_Server *server, UA_DataSetReader *dataSetReader,
+UA_DataSetReader_process(UA_Server *server, UA_DataSetReader *dataSetReader,
                                 UA_DataSetMessage* dataSetMsg) {
     if((dataSetReader == NULL) || (dataSetMsg == NULL) || (server == NULL)) {
         return;
@@ -1631,8 +1632,8 @@ UA_DataSetReader_clear(UA_Server *server, UA_DataSetReader *dataSetReader) {
 }
 
 UA_StatusCode
-UA_Server_processNetworkMessage(UA_Server *server, UA_NetworkMessage *pMsg,
-                                UA_PubSubConnection *pConnection) {
+UA_PubSubConnection_processNetworkMessage(UA_Server *server, UA_NetworkMessage *pMsg,
+                                          UA_PubSubConnection *pConnection) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(!pMsg || !pConnection)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -1655,7 +1656,7 @@ UA_Server_processNetworkMessage(UA_Server *server, UA_NetworkMessage *pMsg,
         anzDataSets = pMsg->payloadHeader.dataSetPayloadHeader.count;
     for(UA_Byte iterator = 0; iterator < anzDataSets; iterator++) {
         UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER, "Process Msg with DataSetReader!");
-        UA_Server_DataSetReader_process(server, dataSetReader,
+        UA_DataSetReader_process(server, dataSetReader,
                                         &pMsg->payload.dataSetPayload.dataSetMessages[iterator]);
     }
 
