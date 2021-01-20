@@ -147,23 +147,17 @@ class Variant:
         dims = self.val['arrayDimensions'].cast(dims_type).dereference()
         return "UA_Variant<%s[%i]>(%s, arrayDimensions = %s)" % (tt, array_length, content, dims)
 
-def lookup_type (val):
-    if str(val.type) == 'UA_String':
-        return String(val)
-    if str(val.type) == 'UA_ByteString':
-        return ByteString(val)
-    if str(val.type) == 'UA_LocalizedText':
-        return LocalizedText(val)
-    if str(val.type) == 'UA_QualifiedName':
-        return QualifiedName(val)
-    if str(val.type) == 'UA_Guid':
-        return Guid(val)
-    if str(val.type) == 'UA_NodeId':
-        return NodeId(val)
-    if str(val.type) == 'UA_ExtensionObject':
-        return ExtensionObject(val)
-    if str(val.type) == 'UA_Variant':
-        return Variant(val)
-    return None
+def build_open62541_printer():
+   pp = gdb.printing.RegexpCollectionPrettyPrinter("open62541")
+   pp.add_printer('UA_String', '^UA_String$', String)
+   pp.add_printer('UA_ByteString', '^UA_ByteString$', ByteString)
+   pp.add_printer('UA_LocalizedText', '^UA_LocalizedText$', LocalizedText)
+   pp.add_printer('UA_QualifiedName', '^UA_QualifiedName$', QualifiedName)
+   pp.add_printer('UA_Guid', '^UA_Guid$', Guid)
+   pp.add_printer('UA_NodeId', '^UA_NodeId$', NodeId)
+   pp.add_printer('UA_ExtensionObject', '^UA_ExtensionObject$', ExtensionObject)
+   pp.add_printer('UA_Variant', '^UA_Variant$', Variant)
+   return pp
 
-gdb.pretty_printers.append(lookup_type)
+gdb.printing.register_pretty_printer(gdb.current_objfile(),
+                                     build_open62541_printer())
