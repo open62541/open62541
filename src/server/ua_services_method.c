@@ -313,6 +313,29 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
 
 #if UA_MULTITHREADING >= 100
 
+static UA_StatusCode
+Operation_CreateAsyncResponseAndOp(UA_Server *server, UA_Session *session, UA_UInt32 requestId,
+		                           UA_UInt32 requestHandle, size_t opIndex,
+								   UA_CallMethodRequest *opRequest, UA_CallMethodResult *opResult,
+								   UA_AsyncResponse **ar) {
+	/* No AsyncResponse allocated so far */
+	if(!*ar) {
+        opResult->statusCode =
+            UA_AsyncManager_createAsyncResponse(&server->asyncManager, server,
+                                                &session->sessionId, requestId,
+                                                requestHandle, UA_ASYNCOPERATIONTYPE_CALL,
+                                                ar);
+        if(opResult->statusCode != UA_STATUSCODE_GOOD)
+            return opResult->statusCode;
+    }
+    /* Create the Async Request to be taken by workers */
+    opResult->statusCode =
+        UA_AsyncManager_createAsyncOp(&server->asyncManager,
+                                      server, *ar, opIndex, opRequest);
+
+    return UA_STATUSCODE_GOOD;
+}
+
 static void
 Operation_CallMethodAsync(UA_Server *server, UA_Session *session, UA_UInt32 requestId,
                           UA_UInt32 requestHandle, size_t opIndex,
@@ -333,6 +356,17 @@ Operation_CallMethodAsync(UA_Server *server, UA_Session *session, UA_UInt32 requ
         return;
     }
 
+    /* deferred method calls: create async response BEFORE calling method,
+     * so that client code can access it (using UA_AsyncManager_GetLastAsyncResponse)
+     */
+    if(method->methodNode.deferred) {
+    	UA_StatusCode status = Operation_CreateAsyncResponseAndOp(
+    		server, session, requestId, requestHandle, opIndex, opRequest, opResult, ar);
+    	if (status != UA_STATUSCODE_GOOD) {
+    		goto cleanup;
+    	}
+    }
+
     /* Synchronous execution */
     if(!method->methodNode.async) {
         callWithMethodAndObject(server, session, opRequest, opResult,
@@ -342,20 +376,11 @@ Operation_CallMethodAsync(UA_Server *server, UA_Session *session, UA_UInt32 requ
 
     /* <-- Async method call --> */
 
-    /* No AsyncResponse allocated so far */
-    if(!*ar) {
-        opResult->statusCode =
-            UA_AsyncManager_createAsyncResponse(&server->asyncManager, server,
-                            &session->sessionId, requestId, requestHandle,
-                            UA_ASYNCOPERATIONTYPE_CALL, ar);
-        if(opResult->statusCode != UA_STATUSCODE_GOOD)
-            goto cleanup;
-    }
-
-    /* Create the Async Request to be taken by workers */
-    opResult->statusCode =
-        UA_AsyncManager_createAsyncOp(&server->asyncManager,
-                                      server, *ar, opIndex, opRequest);
+	UA_StatusCode status = Operation_CreateAsyncResponseAndOp(
+		server, session, requestId, requestHandle, opIndex, opRequest, opResult, ar);
+	if (status != UA_STATUSCODE_GOOD) {
+		goto cleanup;
+	}
 
  cleanup:
     /* Release the method and object node */

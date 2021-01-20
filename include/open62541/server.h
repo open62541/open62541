@@ -1586,6 +1586,16 @@ UA_Server_getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
 * ready. See the examples in ``/examples/tutorial_server_method_async.c`` for
 * the usage.
 *
+* Marking a method as deferred has a similar but slightly different effect:
+* Here, the method is called immediately, but its result is not (yet) sent to the client.
+* Instead, the method can access its pending operation using
+* UA_Server_getLastAsyncResponse and pass ("defer") it to an arbitrary thread
+* or event handler. Eventually, this thread or event handler can call
+* UA_Server_sendAsyncResponse to send the final result to the client.
+* The advantage over the 'async' method call is that client code does not need
+* to block/wait in their UA_MethodCallback implementation until the result is
+* ready, while still maintaining only a constant number of worker threads.
+*
 * Note that the operation can time out (see the asyncOperationTimeout setting in
 * the server config) also when it has been retrieved by the worker. */
 
@@ -1595,6 +1605,11 @@ UA_Server_getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
 UA_StatusCode UA_EXPORT
 UA_Server_setMethodNodeAsync(UA_Server *server, const UA_NodeId id,
                              UA_Boolean isAsync);
+
+/* Set the deferred flag in a method node */
+UA_StatusCode UA_EXPORT
+UA_Server_setMethodNodeDeferred(UA_Server *server, const UA_NodeId id,
+                                UA_Boolean isDeferred);
 
 typedef enum {
     UA_ASYNCOPERATIONTYPE_INVALID, /* 0, the default */

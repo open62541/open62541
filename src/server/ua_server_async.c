@@ -158,6 +158,7 @@ UA_AsyncManager_init(UA_AsyncManager *am, UA_Server *server) {
     TAILQ_INIT(&am->dispatchedQueue);
     TAILQ_INIT(&am->resultQueue);
     UA_LOCK_INIT(&am->queueLock);
+    UA_LOCK_INIT(&am->asyncResponsesLock);
 
     /* Add a regular callback for cleanup and sending finished responses at a
      * 100s interval. */
@@ -195,6 +196,7 @@ UA_AsyncManager_clear(UA_AsyncManager *am, UA_Server *server) {
 
     /* Delete all locks */
     UA_LOCK_DESTROY(&am->queueLock);
+    UA_LOCK_DESTROY(&am->asyncResponsesLock);
 }
 
 UA_StatusCode
@@ -213,6 +215,7 @@ UA_AsyncManager_createAsyncResponse(UA_AsyncManager *am, UA_Server *server,
         return res;
     }
 
+    UA_LOCK(&am->asyncResponsesLock);
     am->asyncResponsesCount += 1;
     newentry->requestId = requestId;
     newentry->requestHandle = requestHandle;
@@ -221,6 +224,7 @@ UA_AsyncManager_createAsyncResponse(UA_AsyncManager *am, UA_Server *server,
         newentry->timeout += (UA_DateTime)
             (server->config.asyncOperationTimeout * (UA_DateTime)UA_DATETIME_MSEC);
     TAILQ_INSERT_TAIL(&am->asyncResponses, newentry, pointers);
+    UA_UNLOCK(&am->asyncResponsesLock);
 
     *outAr = newentry;
     return UA_STATUSCODE_GOOD;
@@ -229,8 +233,11 @@ UA_AsyncManager_createAsyncResponse(UA_AsyncManager *am, UA_Server *server,
 /* Remove entry and free all allocated data */
 void
 UA_AsyncManager_removeAsyncResponse(UA_AsyncManager *am, UA_AsyncResponse *ar) {
+    UA_LOCK(&am->asyncResponsesLock);
     TAILQ_REMOVE(&am->asyncResponses, ar, pointers);
     am->asyncResponsesCount -= 1;
+    UA_UNLOCK(&am->asyncResponsesLock);
+
     UA_CallResponse_clear(&ar->response.callResponse);
     UA_NodeId_clear(&ar->sessionId);
     UA_free(ar);
@@ -390,6 +397,22 @@ UA_Server_setMethodNodeAsync(UA_Server *server, const UA_NodeId id,
                               (UA_EditNodeCallback)setMethodNodeAsync, &isAsync);
 }
 
+static UA_StatusCode
+setMethodNodeDeferred(UA_Server *server, UA_Session *session,
+                   UA_Node *node, UA_Boolean *isDeferred) {
+    if(node->head.nodeClass != UA_NODECLASS_METHOD)
+        return UA_STATUSCODE_BADNODECLASSINVALID;
+    node->methodNode.deferred = *isDeferred;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_setMethodNodeDeferred(UA_Server *server, const UA_NodeId id,
+                             UA_Boolean isDeferred) {
+    return UA_Server_editNode(server, &server->adminSession, &id,
+                              (UA_EditNodeCallback)setMethodNodeDeferred, &isDeferred);
+}
+
 UA_StatusCode
 UA_Server_processServiceOperationsAsync(UA_Server *server, UA_Session *session,
                                         UA_UInt32 requestId, UA_UInt32 requestHandle,
@@ -421,6 +444,21 @@ UA_Server_processServiceOperationsAsync(UA_Server *server, UA_Session *session,
     }
 
     return UA_STATUSCODE_GOOD;
+}
+
+UA_AsyncResponse*
+UA_Server_getLastAsyncResponse(UA_Server *server) {
+    UA_AsyncManager *am = &server->asyncManager;
+    UA_LOCK(&am->asyncResponsesLock);
+    UA_AsyncResponse *ar = TAILQ_LAST(&am->asyncResponses, UA_AsyncResponseQueue);
+    UA_UNLOCK(&am->asyncResponsesLock);
+    return ar;
+}
+
+UA_StatusCode
+UA_Server_sendAsyncResponse(UA_Server *server, UA_AsyncResponse *ar) {
+    UA_AsyncManager *am = &server->asyncManager;
+    return UA_AsyncManager_sendAsyncResponse(am, server, ar);
 }
 
 #endif

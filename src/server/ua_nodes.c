@@ -176,6 +176,7 @@ UA_MethodNode_copy(const UA_MethodNode *src, UA_MethodNode *dst) {
     dst->method = src->method;
 #if UA_MULTITHREADING >= 100
     dst->async = src->async;
+    dst->deferred = src->deferred;
 #endif
     return UA_STATUSCODE_GOOD;
 }
