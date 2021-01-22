@@ -988,8 +988,27 @@ compatibleValue(UA_Server *server, UA_Session *session, const UA_NodeId *targetD
         return false;
     }
 
+    /* The value may be an extension object, especially the nodeset compiler
+    * uses extension objects to write variable values. If value is an
+    * extension object we check if the current node value is also an
+    * extension object. 
+    * TODO: Nodeset compiler should be cleaned up to direcly include structures 
+    * into the value-variant. Afterwards clean up this workaround as well.*/
+    const UA_NodeId nodeDataType = UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE);
+    const UA_DataType *valueType = value->type;
+    if(value->type->typeId.identifierType == UA_NODEIDTYPE_NUMERIC &&
+        value->type->typeId.identifier.numeric == UA_NS0ID_STRUCTURE)
+    {
+        UA_ExtensionObject *pData = (UA_ExtensionObject *)value->data;
+        if(pData && pData->encoding == UA_EXTENSIONOBJECT_DECODED){
+            valueType = pData->content.decoded.type;
+        } else {
+            targetDataTypeId = &nodeDataType;
+        }
+    }
+
     /* Is the datatype compatible? */
-    if(!compatibleValueDataType(server, value->type, targetDataTypeId))
+    if(!compatibleValueDataType(server, valueType, targetDataTypeId))
         return false;
 
     /* Array dimensions are checked later when writing the range */
@@ -1278,17 +1297,7 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
     if(value->hasValue && value->value.type) {
         adjustValue(server, &adjustedValue.value, &node->dataType);
 
-        /* The value may be an extension object, especially the nodeset compiler
-         * uses extension objects to write variable values. If value is an
-         * extension object we check if the current node value is also an
-         * extension object. */
-        const UA_NodeId nodeDataType = UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE);
-        const UA_NodeId *nodeDataTypePtr = &node->dataType;
-        if(value->value.type->typeId.identifierType == UA_NODEIDTYPE_NUMERIC &&
-           value->value.type->typeId.identifier.numeric == UA_NS0ID_STRUCTURE)
-            nodeDataTypePtr = &nodeDataType;
-
-        if(!compatibleValue(server, session, nodeDataTypePtr, node->valueRank,
+        if(!compatibleValue(server, session, &node->dataType, node->valueRank,
                             node->arrayDimensionsSize, node->arrayDimensions,
                             &adjustedValue.value, rangeptr)) {
             if(rangeptr)
