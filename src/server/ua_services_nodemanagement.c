@@ -2271,6 +2271,34 @@ UA_Server_setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
     return retval;
 }
 
+static UA_StatusCode
+setAccessLevelCallback(UA_Server *server, UA_Session *session, UA_VariableNode *node,
+              UA_AccessLevelCallback* accessLevelCallback) {
+    if(node->head.nodeClass != UA_NODECLASS_VARIABLE)
+        return UA_STATUSCODE_BADNODECLASSINVALID;
+    node->accessLevelCallback = *accessLevelCallback;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+setVariableNode_accessLevelCallback(UA_Server *server, const UA_NodeId nodeId,
+                           const UA_AccessLevelCallback accessLevelCallback) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    return UA_Server_editNode(
+        server, &server->adminSession, &nodeId, (UA_EditNodeCallback)setAccessLevelCallback, (UA_AccessLevelCallback*)(uintptr_t)&accessLevelCallback);
+}
+
+UA_StatusCode
+UA_Server_setVariableNode_accessLevelCallback(
+    UA_Server *server, const UA_NodeId nodeId,
+    const UA_AccessLevelCallback accessLevelCallback)
+{
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode retval = setVariableNode_accessLevelCallback(server, nodeId, accessLevelCallback);
+    UA_UNLOCK(&server->serviceMutex);
+    return retval;
+}
+
 /******************************/
 /* Set External Value Source  */
 /******************************/

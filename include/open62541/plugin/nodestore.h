@@ -18,6 +18,7 @@
  * / OPC UA services to interact with the information model. */
 
 #include <open62541/util.h>
+
 #include "aa_tree.h"
 
 _UA_BEGIN_DECLS
@@ -100,15 +101,14 @@ struct UA_MonitoredItem;
 
 typedef struct {
     /* Can be NULL. May replace the nodeContext */
-    UA_StatusCode (*constructor)(UA_Server *server,
-                                 const UA_NodeId *sessionId, void *sessionContext,
-                                 const UA_NodeId *nodeId, void **nodeContext);
+    UA_StatusCode (*constructor)(UA_Server *server, const UA_NodeId *sessionId,
+                                 void *sessionContext, const UA_NodeId *nodeId,
+                                 void **nodeContext);
 
     /* Can be NULL. The context cannot be replaced since the node is destroyed
      * immediately afterwards anyway. */
-    void (*destructor)(UA_Server *server,
-                       const UA_NodeId *sessionId, void *sessionContext,
-                       const UA_NodeId *nodeId, void *nodeContext);
+    void (*destructor)(UA_Server *server, const UA_NodeId *sessionId,
+                       void *sessionContext, const UA_NodeId *nodeId, void *nodeContext);
 
     /* Can be NULL. Called during recursive node instantiation. While mandatory
      * child nodes are automatically created if not already present, optional child
@@ -126,10 +126,8 @@ typedef struct {
      *        node has to the new node.
      * @return Return UA_TRUE if the child node shall be instantiated,
      *         UA_FALSE otherwise. */
-    UA_Boolean (*createOptionalChild)(UA_Server *server,
-                                      const UA_NodeId *sessionId,
-                                      void *sessionContext,
-                                      const UA_NodeId *sourceNodeId,
+    UA_Boolean (*createOptionalChild)(UA_Server *server, const UA_NodeId *sessionId,
+                                      void *sessionContext, const UA_NodeId *sourceNodeId,
                                       const UA_NodeId *targetParentNodeId,
                                       const UA_NodeId *referenceTypeId);
 
@@ -147,8 +145,8 @@ typedef struct {
      * @param targetParentNodeId Parent node of the new node
      * @param referenceTypeId Identifies the reference type which that the parent
      *        node has to the new node. */
-    UA_StatusCode (*generateChildNodeId)(UA_Server *server,
-                                         const UA_NodeId *sessionId, void *sessionContext,
+    UA_StatusCode (*generateChildNodeId)(UA_Server *server, const UA_NodeId *sessionId,
+                                         void *sessionContext,
                                          const UA_NodeId *sourceNodeId,
                                          const UA_NodeId *targetParentNodeId,
                                          const UA_NodeId *referenceTypeId,
@@ -161,16 +159,16 @@ typedef struct {
  * Constructor and destructors for specific object and variable types. */
 typedef struct {
     /* Can be NULL. May replace the nodeContext */
-    UA_StatusCode (*constructor)(UA_Server *server,
-                                 const UA_NodeId *sessionId, void *sessionContext,
-                                 const UA_NodeId *typeNodeId, void *typeNodeContext,
-                                 const UA_NodeId *nodeId, void **nodeContext);
+    UA_StatusCode (*constructor)(UA_Server *server, const UA_NodeId *sessionId,
+                                 void *sessionContext, const UA_NodeId *typeNodeId,
+                                 void *typeNodeContext, const UA_NodeId *nodeId,
+                                 void **nodeContext);
 
     /* Can be NULL. May replace the nodeContext. */
-    void (*destructor)(UA_Server *server,
-                       const UA_NodeId *sessionId, void *sessionContext,
-                       const UA_NodeId *typeNodeId, void *typeNodeContext,
-                       const UA_NodeId *nodeId, void **nodeContext);
+    void (*destructor)(UA_Server *server, const UA_NodeId *sessionId,
+                       void *sessionContext, const UA_NodeId *typeNodeId,
+                       void *typeNodeContext, const UA_NodeId *nodeId,
+                       void **nodeContext);
 } UA_NodeTypeLifecycle;
 
 /**
@@ -208,7 +206,9 @@ typedef struct {
 
 /* The maximum number of ReferrenceTypes. Must be a multiple of 32. */
 #define UA_REFERENCETYPESET_MAX 128
-typedef struct { UA_UInt32 bits[UA_REFERENCETYPESET_MAX / 32]; } UA_ReferenceTypeSet;
+typedef struct {
+    UA_UInt32 bits[UA_REFERENCETYPESET_MAX / 32];
+} UA_ReferenceTypeSet;
 
 static UA_INLINE void
 UA_ReferenceTypeSet_init(UA_ReferenceTypeSet *set) {
@@ -261,8 +261,8 @@ UA_ReferenceTypeSet_contains(const UA_ReferenceTypeSet *set, UA_Byte index) {
 typedef struct {
     struct aa_entry idTreeEntry; /* Binary-Tree for fast lookup */
     struct aa_entry nameTreeEntry;
-    UA_UInt32 targetIdHash;      /* Hash of the target's NodeId */
-    UA_UInt32 targetNameHash;    /* Hash of the target's BrowseName */
+    UA_UInt32 targetIdHash;   /* Hash of the target's NodeId */
+    UA_UInt32 targetNameHash; /* Hash of the target's BrowseName */
     UA_ExpandedNodeId targetId;
 } UA_ReferenceTarget;
 
@@ -358,10 +358,7 @@ typedef struct {
 
 /* Indicates whether a variable contains data inline or whether it points to an
  * external data source */
-typedef enum {
-    UA_VALUESOURCE_DATA,
-    UA_VALUESOURCE_DATASOURCE
-} UA_ValueSource;
+typedef enum { UA_VALUESOURCE_DATA, UA_VALUESOURCE_DATASOURCE } UA_ValueSource;
 
 typedef struct {
     /* Called before the value attribute is read. It is possible to write into the
@@ -374,10 +371,9 @@ typedef struct {
      * @param data Points to the current node value.
      * @param range Points to the numeric range the client wants to read from
      *        (or NULL). */
-    void (*onRead)(UA_Server *server, const UA_NodeId *sessionId,
-                   void *sessionContext, const UA_NodeId *nodeid,
-                   void *nodeContext, const UA_NumericRange *range,
-                   const UA_DataValue *value);
+    void (*onRead)(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
+                   const UA_NodeId *nodeid, void *nodeContext,
+                   const UA_NumericRange *range, const UA_DataValue *value);
 
     /* Called after writing the value attribute. The node is re-opened after
      * writing so that the new value is visible in the callback.
@@ -393,10 +389,9 @@ typedef struct {
      *        by the type constructor(s).
      * @param range Points to the numeric range the client wants to write to (or
      *        NULL). */
-    void (*onWrite)(UA_Server *server, const UA_NodeId *sessionId,
-                    void *sessionContext, const UA_NodeId *nodeId,
-                    void *nodeContext, const UA_NumericRange *range,
-                    const UA_DataValue *data);
+    void (*onWrite)(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
+                    const UA_NodeId *nodeId, void *nodeContext,
+                    const UA_NumericRange *range, const UA_DataValue *data);
 } UA_ValueCallback;
 
 typedef struct {
@@ -475,7 +470,7 @@ typedef struct {
     /* Called before the value attribute is read. The external value source can be
      * be updated and/or locked during this notification call. After this function returns
      * to the core, the external value source is readed immediately.
-    */
+     */
     UA_StatusCode (*notificationRead)(UA_Server *server, const UA_NodeId *sessionId,
                                       void *sessionContext, const UA_NodeId *nodeid,
                                       void *nodeContext, const UA_NumericRange *range);
@@ -522,29 +517,36 @@ typedef struct {
     } backend;
 } UA_ValueBackend;
 
-#define UA_NODE_VARIABLEATTRIBUTES                                      \
-    /* Constraints on possible values */                                \
-    UA_NodeId dataType;                                                 \
-    UA_Int32 valueRank;                                                 \
-    size_t arrayDimensionsSize;                                         \
-    UA_UInt32 *arrayDimensions;                                         \
-                                                                        \
-    UA_ValueBackend valueBackend;                                       \
-                                                                        \
-    /* The current value */                                             \
-    UA_ValueSource valueSource;                                         \
-    union {                                                             \
-        struct {                                                        \
-            UA_DataValue value;                                         \
-            UA_ValueCallback callback;                                  \
-        } data;                                                         \
-        UA_DataSource dataSource;                                       \
+#define UA_NODE_VARIABLEATTRIBUTES                                                       \
+    /* Constraints on possible values */                                                 \
+    UA_NodeId dataType;                                                                  \
+    UA_Int32 valueRank;                                                                  \
+    size_t arrayDimensionsSize;                                                          \
+    UA_UInt32 *arrayDimensions;                                                          \
+                                                                                         \
+    UA_ValueBackend valueBackend;                                                        \
+                                                                                         \
+    /* The current value */                                                              \
+    UA_ValueSource valueSource;                                                          \
+    union {                                                                              \
+        struct {                                                                         \
+            UA_DataValue value;                                                          \
+            UA_ValueCallback callback;                                                   \
+        } data;                                                                          \
+        UA_DataSource dataSource;                                                        \
     } value;
+
+typedef UA_StatusCode (*UA_AccessLevelCallback)(UA_Server *server,
+                                                const UA_NodeId *sessionId,
+                                                void *sessionContext,
+                                                const UA_NodeId *nodeId,
+                                                void *nodeContext, UA_Byte* accessLevel);
 
 typedef struct {
     UA_NodeHead head;
     UA_NODE_VARIABLEATTRIBUTES
     UA_Byte accessLevel;
+    UA_AccessLevelCallback accessLevelCallback;
     UA_Double minimumSamplingInterval;
     UA_Boolean historizing;
 
@@ -596,13 +598,12 @@ typedef struct {
  * object types). For this, the NodeId of the method *and of the object
  * providing context* is part of a Call request message. */
 
-typedef UA_StatusCode
-(*UA_MethodCallback)(UA_Server *server, const UA_NodeId *sessionId,
-                     void *sessionContext, const UA_NodeId *methodId,
-                     void *methodContext, const UA_NodeId *objectId,
-                     void *objectContext, size_t inputSize,
-                     const UA_Variant *input, size_t outputSize,
-                     UA_Variant *output);
+typedef UA_StatusCode (*UA_MethodCallback)(UA_Server *server, const UA_NodeId *sessionId,
+                                           void *sessionContext,
+                                           const UA_NodeId *methodId, void *methodContext,
+                                           const UA_NodeId *objectId, void *objectContext,
+                                           size_t inputSize, const UA_Variant *input,
+                                           size_t outputSize, UA_Variant *output);
 
 typedef struct {
     UA_NodeHead head;
@@ -679,8 +680,8 @@ typedef struct {
  *    hierarchical_references [label="HierarchicalReferences\n(Abstract)"]
  *    references -> hierarchical_references
  *
- *    nonhierarchical_references [label="NonHierarchicalReferences\n(Abstract, Symmetric)"]
- *    references -> nonhierarchical_references
+ *    nonhierarchical_references [label="NonHierarchicalReferences\n(Abstract,
+ * Symmetric)"] references -> nonhierarchical_references
  *
  *    haschild [label="HasChild\n(Abstract)"]
  *    hierarchical_references -> haschild
@@ -843,26 +844,24 @@ typedef struct {
      * node types. The memory is managed by the nodestore. Therefore, the node
      * has to be removed via a special deleteNode function. (If the new node is
      * not added to the nodestore.) */
-    UA_Node * (*newNode)(void *nsCtx, UA_NodeClass nodeClass);
+    UA_Node *(*newNode)(void *nsCtx, UA_NodeClass nodeClass);
 
     void (*deleteNode)(void *nsCtx, UA_Node *node);
 
     /* ``Get`` returns a pointer to an immutable node. ``Release`` indicates
      * that the pointer is no longer accessed afterwards. */
-    const UA_Node * (*getNode)(void *nsCtx, const UA_NodeId *nodeId);
+    const UA_Node *(*getNode)(void *nsCtx, const UA_NodeId *nodeId);
 
     void (*releaseNode)(void *nsCtx, const UA_Node *node);
 
     /* Returns an editable copy of a node (needs to be deleted with the
      * deleteNode function or inserted / replaced into the nodestore). */
-    UA_StatusCode (*getNodeCopy)(void *nsCtx, const UA_NodeId *nodeId,
-                                 UA_Node **outNode);
+    UA_StatusCode (*getNodeCopy)(void *nsCtx, const UA_NodeId *nodeId, UA_Node **outNode);
 
     /* Inserts a new node into the nodestore. If the NodeId is zero, then a
      * fresh numeric NodeId is assigned. If insertion fails, the node is
      * deleted. */
-    UA_StatusCode (*insertNode)(void *nsCtx, UA_Node *node,
-                                UA_NodeId *addedNodeId);
+    UA_StatusCode (*insertNode)(void *nsCtx, UA_Node *node, UA_NodeId *addedNodeId);
 
     /* To replace a node, get an editable copy of the node, edit and replace
      * with this function. If the node was already replaced since the copy was
@@ -877,11 +876,10 @@ typedef struct {
     /* Maps the ReferenceTypeIndex used for the references to the NodeId of the
      * ReferenceType. The returned pointer is stable until the Nodestore is
      * deleted. */
-    const UA_NodeId * (*getReferenceTypeId)(void *nsCtx, UA_Byte refTypeIndex);
+    const UA_NodeId *(*getReferenceTypeId)(void *nsCtx, UA_Byte refTypeIndex);
 
     /* Execute a callback for every node in the nodestore. */
-    void (*iterate)(void *nsCtx, UA_NodestoreVisitor visitor,
-                    void *visitorCtx);
+    void (*iterate)(void *nsCtx, UA_NodestoreVisitor visitor, void *visitorCtx);
 } UA_Nodestore;
 
 /* Attributes must be of a matching type (VariableAttributes, ObjectAttributes,

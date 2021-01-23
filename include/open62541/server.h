@@ -962,6 +962,10 @@ UA_Server_setVariableNode_valueBackend(UA_Server *server,
                                        const UA_NodeId nodeId,
                                        const UA_ValueBackend valueBackend);
 
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_setVariableNode_accessLevelCallback(UA_Server *server, const UA_NodeId nodeId,
+                                     const UA_AccessLevelCallback accessLevelCallback);
+
 /**
  * .. _local-monitoreditems:
  *

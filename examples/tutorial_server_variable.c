@@ -42,6 +42,40 @@ addVariable(UA_Server *server) {
                               UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr, NULL, NULL);
 }
 
+static UA_StatusCode myAccessLevelCallback(UA_Server *server,
+                                                const UA_NodeId *sessionId,
+                                                void *sessionContext,
+                                                const UA_NodeId *nodeId,
+                                                void *nodeContext, UA_Byte *accessLevel)
+{
+    *accessLevel=1;
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+addVariableWithAccessLevelCallback(UA_Server *server) {
+    /* Define the attribute of the myInteger variable node */
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    UA_Int32 myInteger = 42;
+    UA_Variant_setScalar(&attr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
+    attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    
+    //attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+
+    /* Add the variable node to the information model */
+    UA_NodeId myStringId = UA_NODEID_STRING(1, "myNode");
+    UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "myNode");
+    UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    UA_Server_addVariableNode(
+        server, myStringId, parentNodeId, parentReferenceNodeId, myIntegerName,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr, NULL, NULL);
+
+    UA_Server_setVariableNode_accessLevelCallback(
+        server, myStringId,
+        &myAccessLevelCallback);
+}
+
 static void
 addMatrixVariable(UA_Server *server) {
     UA_VariableAttributes attr = UA_VariableAttributes_default;
@@ -150,6 +184,7 @@ int main(void) {
     addMatrixVariable(server);
     writeVariable(server);
     writeWrongVariable(server);
+    addVariableWithAccessLevelCallback(server);
 
     UA_StatusCode retval = UA_Server_run(server, &running);
 
