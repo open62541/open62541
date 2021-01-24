@@ -482,12 +482,12 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
                                          node->variableTypeNode.arrayDimensionsSize,
                                          &UA_TYPES[UA_TYPES_UINT32]);
         break;
-    case UA_ATTRIBUTEID_ACCESSLEVEL:
+    case UA_ATTRIBUTEID_ACCESSLEVEL: {
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE);
         UA_Byte accessLevel = getAccessLevel(server, session, &node->variableNode);
-        retval = UA_Variant_setScalarCopy(&v->value, &accessLevel,
-                                          &UA_TYPES[UA_TYPES_BYTE]);
-        break;
+        retval =
+            UA_Variant_setScalarCopy(&v->value, &accessLevel, &UA_TYPES[UA_TYPES_BYTE]);
+        break; }
     case UA_ATTRIBUTEID_USERACCESSLEVEL: {
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE);
         UA_Byte userAccessLevel = getUserAccessLevel(server, session, &node->variableNode);
