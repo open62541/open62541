@@ -34,6 +34,8 @@
 # include <malloc.h>
 #endif
 
+#include <open62541/architecture_definitions.h>
+
 #include <stdio.h>
 #include <errno.h>
 #include <winsock2.h>
