@@ -541,6 +541,18 @@ typedef struct {
         UA_DataSource dataSource;                                       \
     } value;
 
+/* Called instead of reading the access level from from the variable node.
+ *
+ * @param server The server executing the callback
+ * @sessionId The identifier of the session
+ * @sessionContext Additional data attached to the session
+ *                 in the access control layer
+ * @param nodeid The identifier of the node.
+ * @param nodeContext Additional data attached to the node by
+ *        the user.
+ * @param accessLevel Points to the access level, implementation should store the access level on it
+*/
+
 typedef UA_StatusCode (*UA_AccessLevelCallback)(UA_Server *server,
                                                 const UA_NodeId *sessionId,
                                                 void *sessionContext,
