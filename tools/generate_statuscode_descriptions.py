@@ -47,7 +47,6 @@ printh(u'''/*---------------------------------------------------------
  * with the OPC UA standard. */
 
 /* These StatusCodes are manually generated. */
-#define UA_STATUSCODE_GOOD 0x00
 #define UA_STATUSCODE_INFOTYPE_DATAVALUE 0x00000400
 #define UA_STATUSCODE_INFOBITS_OVERFLOW 0x00000080
 ''' % (args.statuscodes, sys.argv[0]))
