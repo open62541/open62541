@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  * 
- *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
+ *    Copyright 2020-2021 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
  */
 
 #include <open62541/client_config_default.h>
@@ -530,7 +530,7 @@ handler_events_overflow(UA_Client *lclient, UA_UInt32 subId, void *subContext,
     if(nEventFields == 1) {
         /* overflow was received */
         ck_assert(eventFields->type == &UA_TYPES[UA_TYPES_NODEID]);
-        UA_NodeId comp = UA_NODEID_NUMERIC(0, UA_NS0ID_SIMPLEOVERFLOWEVENTTYPE);
+        UA_NodeId comp = UA_NODEID_NUMERIC(0, UA_NS0ID_EVENTQUEUEOVERFLOWEVENTTYPE);
         ck_assert((UA_NodeId_equal((UA_NodeId *) eventFields->data, &comp)));
         overflowNotificationReceived = UA_TRUE;
     } else if(nEventFields == 4) {
