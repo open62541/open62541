@@ -966,8 +966,8 @@ UA_Server_setVariableNode_valueBackend(UA_Server *server,
 */
 
 UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_setVariableNode_accessLevelCallback(UA_Server *server, const UA_NodeId nodeId,
-                                     const UA_AccessLevelCallback accessLevelCallback);
+UA_Server_setNode_attributeCallback(UA_Server *server, const UA_NodeId nodeId, UA_UInt32 attributeMask,
+                                     const UA_AttributeCallback attributeCallback);
 
 /**
  * .. _local-monitoreditems:

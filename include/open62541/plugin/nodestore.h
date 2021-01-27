@@ -274,6 +274,25 @@ typedef struct {
     UA_Boolean isInverse;
 } UA_NodeReferenceKind;
 
+/* Called instead of reading the attribute from the node
+ *
+ * @param server The server executing the callback
+ * @sessionId The identifier of the session
+ * @sessionContext Additional data attached to the session
+ *                 in the access control layer
+ * @param nodeid The identifier of the node.
+ * @param nodeContext Additional data attached to the node by
+ *        the user.
+ * @param accessLevel Points to the access level, implementation should store the access
+ * level on it
+ */
+
+typedef UA_StatusCode (*UA_AttributeCallback)(UA_Server *server,
+                                                const UA_NodeId *sessionId,
+                                                void *sessionContext,
+                                                const UA_NodeId *nodeId,
+                                                void *nodeContext, UA_AttributeId attributeId, UA_DataValue *value);
+
 /* Every Node starts with these attributes */
 typedef struct {
     UA_NodeId nodeId;
@@ -288,7 +307,11 @@ typedef struct {
     /* Members specific to open62541 */
     void *context;
     UA_Boolean constructed; /* Constructors were called */
+    UA_UInt32 attributeCallbackMask; /* stores the for which attributes the attribute callback should be invoked */
+    UA_AttributeCallback attributeCallback; /* the function */
 } UA_NodeHead;
+
+
 
 /**
  * VariableNode
@@ -541,29 +564,10 @@ typedef struct {
         UA_DataSource dataSource;                                       \
     } value;
 
-/* Called instead of reading the access level from from the variable node.
- *
- * @param server The server executing the callback
- * @sessionId The identifier of the session
- * @sessionContext Additional data attached to the session
- *                 in the access control layer
- * @param nodeid The identifier of the node.
- * @param nodeContext Additional data attached to the node by
- *        the user.
- * @param accessLevel Points to the access level, implementation should store the access level on it
-*/
-
-typedef UA_StatusCode (*UA_AccessLevelCallback)(UA_Server *server,
-                                                const UA_NodeId *sessionId,
-                                                void *sessionContext,
-                                                const UA_NodeId *nodeId,
-                                                void *nodeContext, UA_Byte *accessLevel);
-
 typedef struct {
     UA_NodeHead head;
     UA_NODE_VARIABLEATTRIBUTES
     UA_Byte accessLevel;
-    UA_AccessLevelCallback accessLevelCallback;
     UA_Double minimumSamplingInterval;
     UA_Boolean historizing;
 

@@ -42,18 +42,29 @@ addVariable(UA_Server *server) {
                               UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr, NULL, NULL);
 }
 
-static UA_StatusCode myAccessLevelCallback(UA_Server *server,
+static UA_StatusCode myAttributeCallback(UA_Server *server,
                                                 const UA_NodeId *sessionId,
                                                 void *sessionContext,
                                                 const UA_NodeId *nodeId,
-                                                void *nodeContext, UA_Byte *accessLevel)
+                                                void *nodeContext, UA_AttributeId attributeId, UA_DataValue *value)
 {
-    *accessLevel=1;
-    return UA_STATUSCODE_GOOD;
+    if(UA_ATTRIBUTEID_DISPLAYNAME==attributeId)
+    {
+        UA_LocalizedText s = UA_LOCALIZEDTEXT("en", "displayname from backend");
+        UA_Variant_setScalarCopy(&value->value, &s, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+        return UA_STATUSCODE_GOOD;
+    }
+    if(UA_ATTRIBUTEID_ACCESSLEVEL==attributeId)
+    {
+        UA_Byte calculatedAccessLevel = 0x03;
+        UA_Variant_setScalarCopy(&value->value, &calculatedAccessLevel, &UA_TYPES[UA_TYPES_BYTE]);
+        return UA_STATUSCODE_GOOD;
+    }
+    return UA_STATUSCODE_BADNOTCONNECTED;
 }
 
 static void
-addVariableWithAccessLevelCallback(UA_Server *server) {
+addVariableWithAttributeCallback(UA_Server *server) {
     /* Define the attribute of the myInteger variable node */
     UA_VariableAttributes attr = UA_VariableAttributes_default;
     UA_Int32 myInteger = 42;
@@ -71,9 +82,7 @@ addVariableWithAccessLevelCallback(UA_Server *server) {
         server, myStringId, parentNodeId, parentReferenceNodeId, myIntegerName,
         UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr, NULL, NULL);
 
-    UA_Server_setVariableNode_accessLevelCallback(
-        server, myStringId,
-        &myAccessLevelCallback);
+    UA_Server_setNode_attributeCallback(server, myStringId, UA_ATTRIBUTEID_DISPLAYNAME | UA_ATTRIBUTEID_ACCESSLEVEL, &myAttributeCallback);
 }
 
 static void
@@ -184,7 +193,7 @@ int main(void) {
     addMatrixVariable(server);
     writeVariable(server);
     writeWrongVariable(server);
-    addVariableWithAccessLevelCallback(server);
+    addVariableWithAttributeCallback(server);
 
     UA_StatusCode retval = UA_Server_run(server, &running);
 

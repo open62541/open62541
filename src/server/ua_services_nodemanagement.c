@@ -2271,30 +2271,36 @@ UA_Server_setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
     return retval;
 }
 
+typedef struct AttributeCallbackData
+{
+    UA_UInt32 attributeMask;
+    UA_AttributeCallback callback;
+} AttributeCallbackData;
+
 static UA_StatusCode
-setAccessLevelCallback(UA_Server *server, UA_Session *session, UA_VariableNode *node,
-              UA_AccessLevelCallback* accessLevelCallback) {
-    if(node->head.nodeClass != UA_NODECLASS_VARIABLE)
-        return UA_STATUSCODE_BADNODECLASSINVALID;
-    node->accessLevelCallback = *accessLevelCallback;
+setAttributeCallback(UA_Server *server, UA_Session *session, UA_Node*node,
+              const AttributeCallbackData* data) {
+    node->head.attributeCallback = data->callback;
+    node->head.attributeCallbackMask = data->attributeMask;
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
-setVariableNode_accessLevelCallback(UA_Server *server, const UA_NodeId nodeId,
-                           const UA_AccessLevelCallback accessLevelCallback) {
+setNode_attributeCallback(UA_Server *server, const UA_NodeId nodeId,
+                           const AttributeCallbackData* data) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
     return UA_Server_editNode(
-        server, &server->adminSession, &nodeId, (UA_EditNodeCallback)setAccessLevelCallback, (UA_AccessLevelCallback*)(uintptr_t)&accessLevelCallback);
+        server, &server->adminSession, &nodeId, (UA_EditNodeCallback)setAttributeCallback, (AttributeCallbackData*)(uintptr_t)data);
 }
 
 UA_StatusCode
-UA_Server_setVariableNode_accessLevelCallback(
-    UA_Server *server, const UA_NodeId nodeId,
-    const UA_AccessLevelCallback accessLevelCallback)
+UA_Server_setNode_attributeCallback(
+    UA_Server *server, const UA_NodeId nodeId, UA_UInt32 attributeMask,
+    const UA_AttributeCallback attributeCallback)
 {
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode retval = setVariableNode_accessLevelCallback(server, nodeId, accessLevelCallback);
+    AttributeCallbackData data = {attributeMask, attributeCallback};
+    UA_StatusCode retval = setNode_attributeCallback(server, nodeId, &data);
     UA_UNLOCK(&server->serviceMutex);
     return retval;
 }

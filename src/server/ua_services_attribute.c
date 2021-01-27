@@ -53,13 +53,14 @@ getUserWriteMask(UA_Server *server, const UA_Session *session,
 static UA_Byte
 getAccessLevel(UA_Server *server, const UA_Session *session,
                const UA_VariableNode *node) {
-    if(node->accessLevelCallback) {
-        UA_Byte accessLevel = 0;
-        UA_StatusCode retval = node->accessLevelCallback(
+    if(node->head.attributeCallbackMask & UA_ATTRIBUTEID_ACCESSLEVEL) {
+        UA_DataValue value;
+        UA_DataValue_init(&value);
+        UA_StatusCode retval = node->head.attributeCallback(
             server, &session->sessionId, session->sessionHandle, &node->head.nodeId,
-            node->head.context, &accessLevel);
+            node->head.context, UA_ATTRIBUTEID_ACCESSLEVEL, &value);
         if(UA_STATUSCODE_GOOD == retval) {
-            return accessLevel;
+            return *(UA_Byte*)value.value.data;
         } else {
             return 0x00;
         }
@@ -81,7 +82,7 @@ getUserAccessLevel(UA_Server *server, const UA_Session *session,
                    const UA_VariableNode *node) {
     if(session == &server->adminSession)
         return 0xFF; /* the local admin user has all rights */
-    UA_Byte retval = node->accessLevel;
+    UA_Byte retval = getAccessLevel(server, session, node)
     UA_UNLOCK(&server->serviceMutex);
     retval &= server->config.accessControl.
         getUserAccessLevel(server, &server->config.accessControl,
@@ -352,6 +353,14 @@ getStructureDefinition(const UA_DataType *type, UA_StructureDefinition *def) {
 }
 #endif
 
+#define CHECK_AND_INVOKE_ATTRIBUTE_CALLBACK(ATTRIBUTE)                                                      \
+    if(node->head.attributeCallbackMask & (ATTRIBUTE))                                                      \
+    {                                                                                                       \
+        retval = node->head.attributeCallback(server, &session->sessionId, &node, &node->head.nodeId,       \
+                                 node->head.context, (ATTRIBUTE), v);                                       \
+                break;                                                                                      \
+    }
+
 /* Returns a datavalue that may point into the node via the
  * UA_VARIANT_DATA_NODELETE tag. Don't access the returned DataValue once the
  * node has been released! */
@@ -400,6 +409,7 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
                                           &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
         break;
     case UA_ATTRIBUTEID_DISPLAYNAME:
+        CHECK_AND_INVOKE_ATTRIBUTE_CALLBACK(UA_ATTRIBUTEID_DISPLAYNAME);
         retval = UA_Variant_setScalarCopy(&v->value, &node->head.displayName,
                                           &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
         break;
@@ -1603,11 +1613,6 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
         CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE);
         CHECK_USERWRITEMASK(UA_WRITEMASK_ACCESSLEVEL);
         CHECK_DATATYPE_SCALAR(BYTE);
-        if(node->variableNode.accessLevelCallback)
-        {
-            retval = UA_STATUSCODE_BADNOTIMPLEMENTED;
-            break;
-        }
         node->variableNode.accessLevel = *(const UA_Byte*)value;
         break;
     case UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL:
