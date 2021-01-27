@@ -9,6 +9,7 @@
  *    Copyright 2017 (c) Henrik Norrman
  *    Copyright 2018 (c) Fabian Arndt, Root-Core
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
+ *    Copyright 2021 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
  */
 
 #include "open62541/namespace0_generated.h"
@@ -1100,21 +1101,6 @@ UA_Server_initNS0(UA_Server *server) {
     addModellingRules(server);
 
 #endif /* UA_GENERATED_NAMESPACE_ZERO */
-
-    /* create the OverFlowEventType
-     * The EventQueueOverflowEventType is defined as abstract, therefore we can not create an instance of that type
-     * directly, but need to create a subtype. This is already posted on the OPC Foundation bug tracker under the
-     * following link for clarification: https://opcfoundation-onlineapplications.org/mantis/view.php?id=4206 */
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-    UA_ObjectTypeAttributes overflowAttr = UA_ObjectTypeAttributes_default;
-    overflowAttr.description = UA_LOCALIZEDTEXT("en-US", "A simple event for indicating a queue overflow.");
-    overflowAttr.displayName = UA_LOCALIZEDTEXT("en-US", "SimpleOverflowEventType");
-    retVal |= UA_Server_addObjectTypeNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SIMPLEOVERFLOWEVENTTYPE),
-                                          UA_NODEID_NUMERIC(0, UA_NS0ID_EVENTQUEUEOVERFLOWEVENTTYPE),
-                                          UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
-                                          UA_QUALIFIEDNAME(0, "SimpleOverflowEventType"),
-                                          overflowAttr, NULL, NULL);
-#endif
 
     if(retVal != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
