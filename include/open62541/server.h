@@ -11,7 +11,7 @@
  *    Copyright 2017 (c) Henrik Norrman
  *    Copyright 2018 (c) Fabian Arndt, Root-Core
  *    Copyright 2017-2020 (c) HMS Industrial Networks AB (Author: Jonas Green)
- *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart  (for VDW and umati)
+ *    Copyright 2020-2021 (c) Christian von Arnim, ISW University of Stuttgart  (for VDW and umati)
  */
 
 #ifndef UA_SERVER_H_
@@ -1385,14 +1385,6 @@ UA_Server_deleteReference(UA_Server *server, const UA_NodeId sourceNodeId,
  * would cause the node to be deleted. */
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-
-/* The EventQueueOverflowEventType is defined as abstract, therefore we can not
- * create an instance of that type directly, but need to create a subtype. The
- * following is an arbitrary number which shall refer to our internal overflow
- * type. This is already posted on the OPC Foundation bug tracker under the
- * following link for clarification:
- * https://opcfoundation-onlineapplications.org/mantis/view.php?id=4206 */
-# define UA_NS0ID_SIMPLEOVERFLOWEVENTTYPE 4035
 
 /* Creates a node representation of an event
  *
