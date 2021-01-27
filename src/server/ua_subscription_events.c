@@ -242,6 +242,22 @@ resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session, const UA_N
     return v.status;
 }
 
+UA_ContentFilterResult
+UA_Server_initialWhereClauseValidation(UA_Server *server,
+                              const UA_NodeId *eventNode,
+                              const UA_ContentFilter *contentFilter) {
+
+}
+
+
+UA_StatusCode*
+UA_Server_initialSelectClauseValidation(UA_Server *server,
+                                        const UA_NodeId *eventNode,
+                                        const UA_ContentFilter *contentFilter) {
+
+}
+
+
 UA_StatusCode
 UA_Server_evaluateWhereClauseContentFilter(UA_Server *server,
                                            const UA_NodeId *eventNode,
