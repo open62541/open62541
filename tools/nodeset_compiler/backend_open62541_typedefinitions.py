@@ -153,15 +153,10 @@ class CGenerator(object):
         if len(datatype.members) == 0:
             return "#define %s_members NULL" % (idName)
         isUnion = isinstance(datatype, StructType) and datatype.is_union
-        if isUnion:
-            members = "static UA_DataTypeMember %s_members[%s] = {" % (idName, len(datatype.members)-1)
-        else:
-            members = "static UA_DataTypeMember %s_members[%s] = {" % (idName, len(datatype.members))
+        members = "static UA_DataTypeMember %s_members[%s] = {" % (idName, len(datatype.members))
         before = None
         size = len(datatype.members)
         for i, member in enumerate(datatype.members):
-            if isUnion and i == 0:
-                continue
             member_name = makeCIdentifier(member.name)
             member_name_capital = member_name
             if len(member_name) > 0:
@@ -265,8 +260,7 @@ class CGenerator(object):
             obj.elements['None'] = str(0)
             count = 0
             for member in struct.members:
-                if(count > 0):
-                    obj.elements[member.name] = str(count)
+                obj.elements[member.name] = str(count)
                 count += 1
             returnstr += CGenerator.print_enum_typedef(obj)
             returnstr += "\n\n"
@@ -280,7 +274,6 @@ class CGenerator(object):
         if struct.is_union:
             returnstr += "    UA_%sSwitch switchField;\n" % struct.name
             returnstr += "    union {\n"
-        count = 0
         for member in struct.members:
             if member.is_array:
                 if struct.is_union:
@@ -293,16 +286,14 @@ class CGenerator(object):
                 if struct.is_union:
                     returnstr += "        } " + makeCIdentifier(member.name) + ";\n"
             elif struct.is_union:
-                if count > 0:
-                    returnstr += "        UA_%s %s;\n" % (
-                    makeCIdentifier(member.member_type.name), makeCIdentifier(member.name))
+                returnstr += "        UA_%s %s;\n" % (
+                makeCIdentifier(member.member_type.name), makeCIdentifier(member.name))
             elif member.is_optional:
                 returnstr += "    UA_%s *%s;\n" % (
                     makeCIdentifier(member.member_type.name), makeCIdentifier(member.name))
             else:
                 returnstr += "    UA_%s %s;\n" % (
                     makeCIdentifier(member.member_type.name), makeCIdentifier(member.name))
-            count += 1
         if struct.is_union:
             returnstr += "    } fields;\n"
         if struct.is_recursive:
