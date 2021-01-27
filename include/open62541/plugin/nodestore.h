@@ -283,8 +283,7 @@ typedef struct {
  * @param nodeid The identifier of the node.
  * @param nodeContext Additional data attached to the node by
  *        the user.
- * @param accessLevel Points to the access level, implementation should store the access
- * level on it
+ * @param value Points to the value of the attribute, implementation should store the new value on it
  */
 
 typedef UA_StatusCode (*UA_AttributeCallback)(UA_Server *server,
@@ -308,7 +307,7 @@ typedef struct {
     void *context;
     UA_Boolean constructed; /* Constructors were called */
     UA_UInt32 attributeCallbackMask; /* stores the for which attributes the attribute callback should be invoked */
-    UA_AttributeCallback attributeCallback; /* the function */
+    UA_AttributeCallback attributeCallback; /* the function pointer through which attribute values may be provided */
 } UA_NodeHead;
 
 
