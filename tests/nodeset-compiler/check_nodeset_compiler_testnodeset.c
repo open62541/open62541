@@ -58,6 +58,13 @@ START_TEST(checkSelfContainingUnion) {
     UA_SelfContainingUnion data;
     UA_SelfContainingUnion_init(&data);
 
+    data.fields._double = 23.0;
+
+    data.switchField = UA_SELFCONTAININGUNIONSWITCH_DOUBLE;
+
+    data.fields.array.arraySize = 0;
+    data.fields.array.array = NULL;
+
     UA_Variant_setScalar(&in, &data, &UA_TYPES_TESTS_TESTNODESET[UA_TYPES_TESTS_TESTNODESET_SELFCONTAININGUNION]);
 
     UA_StatusCode result = UA_Server_writeValue(server, UA_NODEID_NUMERIC(2, 5110), in);
