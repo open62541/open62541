@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+ * Copyright (c) 2005-2019 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<opc:TypeDictionary
+  xmlns:DI="http://opcfoundation.org/UA/DI/"
+  xmlns:opc="http://opcfoundation.org/BinarySchema/"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:ua="http://opcfoundation.org/UA/"
+  xmlns:tns="http://opcfoundation.org/UA/ADI/"
+  DefaultByteOrder="LittleEndian"
+  TargetNamespace="http://opcfoundation.org/UA/ADI/"
+>
+  <opc:Import Namespace="http://opcfoundation.org/UA/DI/" Location="Opc.Ua.Di.BinarySchema.bsd"/>
+  <opc:Import Namespace="http://opcfoundation.org/UA/" Location="Opc.Ua.BinarySchema.bsd"/>
+
+  <opc:EnumeratedType Name="ExecutionCycleEnumeration" LengthInBits="32">
+    <opc:EnumeratedValue Name="IDLE" Value="0" />
+    <opc:EnumeratedValue Name="DIAGNOSTIC" Value="1" />
+    <opc:EnumeratedValue Name="CLEANING" Value="2" />
+    <opc:EnumeratedValue Name="CALIBRATION" Value="4" />
+    <opc:EnumeratedValue Name="VALIDATION" Value="8" />
+    <opc:EnumeratedValue Name="SAMPLING" Value="16" />
+    <opc:EnumeratedValue Name="DIAGNOSTIC_WITH_GRAB_SAMPLE" Value="32769" />
+    <opc:EnumeratedValue Name="CLEANING_WITH_GRAB_SAMPLE" Value="32770" />
+    <opc:EnumeratedValue Name="CALIBRATION_WITH_GRAB_SAMPLE" Value="32772" />
+    <opc:EnumeratedValue Name="VALIDATION_WITH_GRAB_SAMPLE" Value="32776" />
+    <opc:EnumeratedValue Name="SAMPLING_WITH_GRAB_SAMPLE" Value="32784" />
+  </opc:EnumeratedType>
+
+  <opc:EnumeratedType Name="AcquisitionResultStatusEnumeration" LengthInBits="32">
+    <opc:EnumeratedValue Name="NOT_USED" Value="0" />
+    <opc:EnumeratedValue Name="GOOD" Value="1" />
+    <opc:EnumeratedValue Name="BAD" Value="2" />
+    <opc:EnumeratedValue Name="UNKNOWN" Value="3" />
+    <opc:EnumeratedValue Name="PARTIAL" Value="4" />
+  </opc:EnumeratedType>
+
+  <opc:EnumeratedType Name="AlarmStateEnumeration" LengthInBits="32">
+    <opc:EnumeratedValue Name="NORMAL_0" Value="0" />
+    <opc:EnumeratedValue Name="WARNING_LOW_1" Value="1" />
+    <opc:EnumeratedValue Name="WARNING_HIGH_2" Value="2" />
+    <opc:EnumeratedValue Name="WARNING_4" Value="4" />
+    <opc:EnumeratedValue Name="ALARM_LOW_8" Value="8" />
+    <opc:EnumeratedValue Name="ALARM_HIGH_16" Value="16" />
+    <opc:EnumeratedValue Name="ALARM_32" Value="32" />
+  </opc:EnumeratedType>
+
+</opc:TypeDictionary>

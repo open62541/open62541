@@ -1,0 +1,804 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+ * Copyright (c) 2005-2019 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<ModelDesign
+  xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:ua="http://opcfoundation.org/UA/"
+  xmlns:DI="http://opcfoundation.org/UA/DI/"
+  xmlns:FDI="http://fdi-cooperation.com/OPCUA/FDI7/"
+  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+  TargetNamespace="http://fdi-cooperation.com/OPCUA/FDI7/"
+  TargetXmlNamespace="http://fdi-cooperation.com/OPCUA/FDI7/"
+  TargetNamespaceVersion="1.3"
+  TargetPublicationDate="2017-07-14T00:00:00Z"
+  xmlns="http://opcfoundation.org/UA/ModelDesign.xsd">
+
+  <Namespaces>
+    <Namespace Name="OpcUaFdi7" Prefix="Opc.Ua.Fdi7" XmlNamespace="http://fdi-cooperation.com/OPCUA/FDI7/Types.xsd" XmlPrefix="FDI7">http://fdi-cooperation.com/OPCUA/FDI7/</Namespace>
+    <Namespace Name="OpcUaDi" Prefix="Opc.Ua.Di" XmlNamespace="http://opcfoundation.org/UA/DI/Types.xsd" XmlPrefix="DI" FilePath="OpcUaDiModel">http://opcfoundation.org/UA/DI/</Namespace>
+    <Namespace Name="OpcUa" Prefix="Opc.Ua" InternalPrefix="Opc.Ua.Server" XmlNamespace="http://opcfoundation.org/UA/2008/02/Types.xsd" XmlPrefix="OpcUa">http://opcfoundation.org/UA/</Namespace>
+  </Namespaces>
+  
+  <Object SymbolicName="FDI:OpcUaFdi7NamespaceMetadata" TypeDefinition="ua:NamespaceMetadataType">
+    <BrowseName>http://fdi-cooperation.com/OPCUA/FDI7/</BrowseName>
+    <Children>
+      <Property SymbolicName="ua:NamespaceUri" DataType="ua:String">
+        <DefaultValue>
+          <uax:String>http://fdi-cooperation.com/OPCUA/FDI7/</uax:String>
+        </DefaultValue>
+      </Property>
+      <Property SymbolicName="ua:NamespaceVersion" DataType="ua:String">
+        <DefaultValue>
+          <uax:String>1.3</uax:String>
+        </DefaultValue>
+      </Property>
+      <Property SymbolicName="ua:NamespacePublicationDate" DataType="ua:DateTime">
+        <DefaultValue>
+          <uax:DateTime>2017-07-14</uax:DateTime>
+        </DefaultValue>
+      </Property>
+      <Property SymbolicName="ua:IsNamespaceSubset" DataType="ua:Boolean">
+        <DefaultValue>
+          <uax:Boolean>false</uax:Boolean>
+        </DefaultValue>
+      </Property>
+      <Property SymbolicName="ua:StaticNodeIdTypes" DataType="ua:IdType" ValueRank="Array">
+        <DefaultValue>
+          <uax:ListOfInt32>
+            <uax:Int32>0</uax:Int32>
+          </uax:ListOfInt32>
+        </DefaultValue>
+      </Property>
+      <Property SymbolicName="ua:StaticNumericNodeIdRange" DataType="ua:NumericRange" ValueRank="Array">
+        <DefaultValue>
+          <uax:ListOfString>
+            <uax:String>1:65535</uax:String>
+          </uax:ListOfString>
+        </DefaultValue>
+      </Property>
+      <Property SymbolicName="ua:StaticStringNodeIdPattern" DataType="ua:String">
+        <DefaultValue>
+          <uax:String></uax:String>
+        </DefaultValue>
+      </Property>
+      <Property SymbolicName="ua:DefaultRolePermissions" ModellingRule="Mandatory" />
+      <Property SymbolicName="ua:DefaultUserRolePermissions" ModellingRule="Mandatory" />
+      <Property SymbolicName="ua:DefaultAccessRestrictions" ModellingRule="Mandatory" />
+    </Children>
+    <References>
+      <Reference IsInverse="true">
+        <ReferenceType>ua:HasComponent</ReferenceType>
+        <TargetId>ua:Server_Namespaces</TargetId>
+      </Reference>
+    </References>
+  </Object>
+
+  <ObjectType SymbolicName="FDI:Foundation_H1" BaseType="DI:ProtocolType" IsAbstract="false"/>
+  <ObjectType SymbolicName="FDI:Foundation_HSE" BaseType="DI:ProtocolType" IsAbstract="false"/>
+  <ObjectType SymbolicName="FDI:Profibus_DP" BaseType="DI:ProtocolType" IsAbstract="false"/>
+  <ObjectType SymbolicName="FDI:Profibus_PA" BaseType="DI:ProtocolType" IsAbstract="false"/>
+  <ObjectType SymbolicName="FDI:Profinet_IO" BaseType="DI:ProtocolType" IsAbstract="false"/>
+  <ObjectType SymbolicName="FDI:HART" BaseType="DI:ProtocolType" IsAbstract="false"/>
+  <ObjectType SymbolicName="FDI:ISA100_Wireless" BaseType="DI:ProtocolType" IsAbstract="false"/>
+  <ObjectType SymbolicName="FDI:GenericProtocol" BaseType="DI:ProtocolType" IsAbstract="false">
+    <Children>
+      <Property SymbolicName="FDI:ProtocolIdentifier" DataType="ua:String" ModellingRule="Mandatory" />
+    </Children>
+  </ObjectType>
+
+
+  <ObjectType SymbolicName="FDI:ConnectionPoint_Foundation_H1" BaseType="DI:ConnectionPointType" IsAbstract="false">
+    <Children>
+      <Property SymbolicName="FDI:Address" DataType="ua:Byte" ModellingRule="Mandatory" />
+      <Property SymbolicName="FDI:OrdinalNumber" DataType="ua:Int32" ModellingRule="Optional" />
+      <Property SymbolicName="FDI:SIFConnection" DataType="ua:Boolean" ModellingRule="Optional" />
+    </Children>
+  </ObjectType>
+
+  <ObjectType SymbolicName="FDI:ConnectionPoint_Foundation_HSE" BaseType="DI:ConnectionPointType" IsAbstract="false">
+    <Children>
+      <Property SymbolicName="FDI:Address" DataType="ua:Byte" ModellingRule="Mandatory" ValueRank="Array" ArrayDimensions="16" />
+      <Property SymbolicName="FDI:OrdinalNumber" DataType="ua:Int32" ModellingRule="Optional" />
+    </Children>
+  </ObjectType>
+
+  <ObjectType SymbolicName="FDI:ConnectionPoint_Profibus_DP" BaseType="DI:ConnectionPointType" IsAbstract="false">
+    <Children>
+      <Property SymbolicName="FDI:Address" DataType="ua:Byte" ModellingRule="Mandatory" />
+    </Children>
+  </ObjectType>
+
+  <ObjectType SymbolicName="FDI:ConnectionPoint_Profinet_IO" BaseType="DI:ConnectionPointType" IsAbstract="false">
+    <Children>
+      <Property SymbolicName="FDI:MAC" DataType="ua:Byte" ModellingRule="Mandatory" ValueRank="Array" ArrayDimensions="16" />
+      <Property SymbolicName="FDI:IPv4" DataType="ua:Byte" ModellingRule="Mandatory" ValueRank="Array" ArrayDimensions="4" />
+      <Property SymbolicName="FDI:DNSNAME" DataType="ua:String" ModellingRule="Mandatory" />
+      <Property SymbolicName="FDI:VALID" DataType="ua:Boolean" ModellingRule="Mandatory" />
+    </Children>
+  </ObjectType>
+
+  <ObjectType SymbolicName="FDI:ConnectionPoint_HART_TP5" BaseType="DI:ConnectionPointType" IsAbstract="false">
+    <Children>
+      <Property SymbolicName="FDI:DevAddr" DataType="ua:Byte" ModellingRule="Mandatory" ValueRank="Array" ArrayDimensions="5" />
+      <Property SymbolicName="FDI:DevMfg" DataType="ua:UInt16" ModellingRule="Optional" />
+      <Property SymbolicName="FDI:DevType" DataType="ua:UInt16" ModellingRule="Optional" />
+      <Property SymbolicName="FDI:DevRev" DataType="ua:UInt16" ModellingRule="Optional" />
+      <Property SymbolicName="FDI:DevTag" DataType="ua:String" ModellingRule="Optional" />
+      <Property SymbolicName="FDI:DevPollAddr" DataType="ua:Byte" ModellingRule="Optional" />
+    </Children>
+  </ObjectType>
+
+  <ObjectType SymbolicName="FDI:ConnectionPoint_HART_TP6" BaseType="DI:ConnectionPointType" IsAbstract="false">
+    <Children>
+      <Property SymbolicName="FDI:DevAddr" DataType="ua:Byte" ModellingRule="Mandatory" ValueRank="Array" ArrayDimensions="5" />
+      <Property SymbolicName="FDI:DevMfg" DataType="ua:UInt16" ModellingRule="Optional" />
+      <Property SymbolicName="FDI:DevType" DataType="ua:UInt16" ModellingRule="Optional" />
+      <Property SymbolicName="FDI:DevRev" DataType="ua:UInt16" ModellingRule="Optional" />
+      <Property SymbolicName="FDI:DevTag" DataType="ua:String" ModellingRule="Optional" />
+      <Property SymbolicName="FDI:DevPollAddr" DataType="ua:Byte" ModellingRule="Optional" />
+    </Children>
+  </ObjectType>
+
+  <ObjectType SymbolicName="FDI:ConnectionPoint_HART_TP7" BaseType="DI:ConnectionPointType" IsAbstract="false">
+    <Children>
+      <Property SymbolicName="FDI:DevAddr" DataType="ua:Byte" ModellingRule="Mandatory" ValueRank="Array" ArrayDimensions="5" />
+      <Property SymbolicName="FDI:DevMfg" DataType="ua:UInt16" ModellingRule="Optional" />
+      <Property SymbolicName="FDI:DevType" DataType="ua:UInt16" ModellingRule="Optional" />
+      <Property SymbolicName="FDI:DevRev" DataType="ua:UInt16" ModellingRule="Optional" />
+      <Property SymbolicName="FDI:DevTag" DataType="ua:String" ModellingRule="Optional" />
+      <Property SymbolicName="FDI:DevPollAddr" DataType="ua:Byte" ModellingRule="Optional" />
+    </Children>
+  </ObjectType>
+
+  <ObjectType SymbolicName="FDI:ConnectionPoint_ISA100_Wireless" BaseType="DI:ConnectionPointType" IsAbstract="false">
+    <Children>
+      <Property SymbolicName="FDI:IPAddress" DataType="ua:ByteString" ModellingRule="Mandatory" />
+      <Property SymbolicName="FDI:DevMfg" DataType="ua:UInt32" ModellingRule="Optional" />
+      <Property SymbolicName="FDI:DevType" DataType="ua:UInt16" ModellingRule="Optional" />
+      <Property SymbolicName="FDI:DevRev" DataType="ua:UInt16" ModellingRule="Optional" />
+      <Property SymbolicName="FDI:DevTag" DataType="ua:String" ModellingRule="Optional" />
+      <Property SymbolicName="FDI:DevPollAddr" DataType="ua:Byte" ModellingRule="Optional" />
+    </Children>
+  </ObjectType>
+
+  <ObjectType SymbolicName="FDI:GenericConnectionPoint" BaseType="DI:ConnectionPointType" IsAbstract="false">
+    <Children>
+      <Property SymbolicName="FDI:Address" DataType="ua:ByteString" ModellingRule="Mandatory" />
+      <Property SymbolicName="FDI:ProtocolIdentifier" DataType="ua:String" ModellingRule="Mandatory" />
+    </Children>
+  </ObjectType>
+
+
+  <Method SymbolicName="FDI:CommunicationServerTypeInitializeMethodType">
+    <OutputArguments>
+      <Argument Name="ServiceError" DataType="ua:Integer" ValueRank="Scalar" />
+    </OutputArguments>
+  </Method>
+
+  <Method SymbolicName="FDI:CommunicationServerTypeResetMethodType">
+    <OutputArguments>
+      <Argument Name="ServiceError" DataType="ua:Integer" ValueRank="Scalar" />
+    </OutputArguments>
+  </Method>
+
+  <Method SymbolicName="FDI:AddComponentMethodType">
+    <InputArguments>
+      <Argument Name="ModuleTypeName" DataType="ua:String" ValueRank="Scalar" />
+      <Argument Name="InstanceName" DataType="ua:String" ValueRank="Scalar" />
+      <Argument Name="InstanceLabel" DataType="ua:String" ValueRank="Scalar" />
+    </InputArguments>
+    <OutputArguments>
+      <Argument Name="InstanceNodeId" DataType="ua:NodeId" ValueRank="Scalar" />
+      <Argument Name="ServiceError" DataType="ua:Integer" ValueRank="Scalar" />
+    </OutputArguments>
+  </Method>
+
+  <Method SymbolicName="FDI:RemoveComponentMethodType">
+    <InputArguments>
+      <Argument Name="ModuleNodeId" DataType="ua:NodeId" ValueRank="Scalar" />
+    </InputArguments>
+    <OutputArguments>
+      <Argument Name="ServiceError" DataType="ua:Integer" ValueRank="Scalar" />
+    </OutputArguments>
+  </Method>
+
+  <ObjectType SymbolicName="FDI:CommunicationServerType" BaseType="DI:DeviceType" IsAbstract="false">
+    <Children>
+      <Object SymbolicName="DI:MethodSet" TypeDefinition="ua:BaseObjectType" ModellingRule="Mandatory">
+        <Children>
+          <Method SymbolicName="FDI:Initialize" TypeDefinition="FDI:CommunicationServerTypeInitializeMethodType" ModellingRule="Mandatory" />
+          <Method SymbolicName="FDI:Reset" TypeDefinition="FDI:CommunicationServerTypeResetMethodType" ModellingRule="Mandatory" />
+          <Method SymbolicName="FDI:AddComponent" TypeDefinition="FDI:AddComponentMethodType" ModellingRule="Optional" />
+          <Method SymbolicName="FDI:RemoveComponent" TypeDefinition="FDI:RemoveComponentMethodType" ModellingRule="Optional" />
+        </Children>
+      </Object>
+      <Object SymbolicName="DI:ParameterSet" TypeDefinition="ua:BaseObjectType" ModellingRule="Optional" />
+      <Object SymbolicName="FDI:SubDevices" TypeDefinition="ua:FolderType" ModellingRule="Mandatory" />
+    </Children>
+  </ObjectType>
+
+  <Method SymbolicName="FDI:ScanMethodType">
+    <OutputArguments>
+      <Argument Name="TopologyScanResult" DataType="ua:XmlElement" ValueRank="Scalar" />
+      <Argument Name="ServiceError" DataType="ua:Integer" ValueRank="Scalar" />
+    </OutputArguments>
+  </Method>
+
+  <Method SymbolicName="FDI:ResetScanMethodType">
+    <OutputArguments>
+      <Argument Name="ServiceError" DataType="ua:Integer" ValueRank="Scalar" />
+    </OutputArguments>
+  </Method>
+
+  <Method SymbolicName="FDI:SetAddressMethodFFH1Type">
+    <InputArguments>
+      <Argument Name="OPERATION" DataType="ua:String" ValueRank="Scalar" />
+      <Argument Name="LinkId" DataType="ua:UInt16" ValueRank="Scalar" />
+      <Argument Name="OldAddress" DataType="ua:Byte" ValueRank="Scalar" />
+      <Argument Name="NewAddress" DataType="ua:Byte" ValueRank="Scalar" />
+      <Argument Name="NewPDTag" DataType="ua:String" ValueRank="Scalar" />
+      <Argument Name="ServiceId" DataType="ua:UInt32" ValueRank="Scalar" />
+    </InputArguments>
+    <OutputArguments>
+      <Argument Name="DelayForNextCall" DataType="ua:UInt32" ValueRank="Scalar" />
+      <Argument Name="ServiceError" DataType="ua:Integer" ValueRank="Scalar" />
+    </OutputArguments>
+  </Method>
+
+  <Method SymbolicName="FDI:SetAddressMethodFFHSEType">
+    <InputArguments>
+      <Argument Name="OPERATION" DataType="ua:String" ValueRank="Scalar" />
+      <Argument Name="NewPDTag" DataType="ua:String" ValueRank="Scalar" />
+      <Argument Name="ServiceId" DataType="ua:UInt32" ValueRank="Scalar" />
+    </InputArguments>
+    <OutputArguments>
+      <Argument Name="DelayForNextCall" DataType="ua:UInt32" ValueRank="Scalar" />
+      <Argument Name="ServiceError" DataType="ua:Integer" ValueRank="Scalar" />
+    </OutputArguments>
+  </Method>
+
+  <Method SymbolicName="FDI:SetAddressMethodPROFIBUSType">
+    <InputArguments>
+      <Argument Name="OldAddress" DataType="ua:Byte" ValueRank="Scalar" />
+      <Argument Name="NewAddress" DataType="ua:Byte" ValueRank="Scalar" />
+    </InputArguments>
+    <OutputArguments>
+      <Argument Name="ServiceError" DataType="ua:Integer" ValueRank="Scalar" />
+    </OutputArguments>
+  </Method>
+
+  <Method SymbolicName="FDI:SetAddressMethodPROFINETType">
+    <InputArguments>
+      <Argument Name="MAC" DataType="ua:Byte" ValueRank="Array" ArrayDimensions="6" />
+      <Argument Name="IP" DataType="ua:Byte" ValueRank="Array" ArrayDimensions="4" />
+      <Argument Name="DNSNAME" DataType="ua:String" ValueRank="Scalar" />
+      <Argument Name="SubnetMask" DataType="ua:Byte" ValueRank="Array" ArrayDimensions="4" />
+      <Argument Name="Gateway" DataType="ua:Byte" ValueRank="Array" ArrayDimensions="4" />
+    </InputArguments>
+    <OutputArguments>
+      <Argument Name="ServiceError" DataType="ua:Integer" ValueRank="Scalar" />
+    </OutputArguments>
+  </Method>
+
+  <Method SymbolicName="FDI:SetAddressMethodHARTType">
+    <InputArguments>
+      <Argument Name="OldPollAddress" DataType="ua:Byte" ValueRank="Scalar" />
+      <Argument Name="NewPollAddress" DataType="ua:Byte" ValueRank="Scalar" />
+    </InputArguments>
+    <OutputArguments>
+      <Argument Name="ServiceError" DataType="ua:Integer" ValueRank="Scalar" />
+    </OutputArguments>
+  </Method>
+
+  <Method SymbolicName="FDI:SetAddressMethodGENERICType">
+    <InputArguments>
+      <Argument Name="OldAddress" DataType="ua:ByteString" ValueRank="Scalar" />
+      <Argument Name="NewAddress" DataType="ua:ByteString" ValueRank="Scalar" />
+    </InputArguments>
+    <OutputArguments>
+      <Argument Name="ServiceError" DataType="ua:Integer" ValueRank="Scalar" />
+    </OutputArguments>
+  </Method>
+
+  <ObjectType SymbolicName="FDI:ServerCommunicationDeviceType" BaseType="DI:DeviceType" IsAbstract="true">
+    <Children>
+      <Property SymbolicName="FDI:ListOfCommunicationProfiles" DataType="ua:String" ModellingRule="Mandatory" ValueRank="Array" />
+      <Object SymbolicName="DI:MethodSet" TypeDefinition="ua:BaseObjectType" ModellingRule="Optional">
+        <Children>
+          <Method SymbolicName="FDI:Scan" TypeDefinition="FDI:ScanMethodType" ModellingRule="Optional" />
+          <Method SymbolicName="FDI:ResetScan" TypeDefinition="FDI:ResetScanMethodType" ModellingRule="Optional" />
+          <Method SymbolicName="FDI:AddComponent" TypeDefinition="FDI:AddComponentMethodType" ModellingRule="Optional" />
+          <Method SymbolicName="FDI:RemoveComponent" TypeDefinition="FDI:RemoveComponentMethodType" ModellingRule="Optional" />
+        </Children>
+      </Object>
+    </Children>
+  </ObjectType>
+
+  <ObjectType SymbolicName="FDI:ServerCommunicationFFH1DeviceType" BaseType="FDI:ServerCommunicationDeviceType" IsAbstract="false">
+    <Children>
+      <Object SymbolicName="DI:MethodSet" TypeDefinition="ua:BaseObjectType" ModellingRule="Optional">
+        <Children>
+          <Method SymbolicName="FDI:SetAddress" TypeDefinition="FDI:SetAddressMethodFFH1Type" ModellingRule="Optional" />
+        </Children>
+      </Object>
+      <Object SymbolicName="FDI:ServiceProvider" TypeDefinition="FDI:ServerCommunicationFFH1ServiceType" ModellingRule="Mandatory" />
+    </Children>
+  </ObjectType>
+
+  <ObjectType SymbolicName="FDI:ServerCommunicationFFHSEDeviceType" BaseType="FDI:ServerCommunicationDeviceType" IsAbstract="false">
+    <Children>
+      <Object SymbolicName="DI:MethodSet" TypeDefinition="ua:BaseObjectType" ModellingRule="Optional">
+        <Children>
+          <Method SymbolicName="FDI:SetAddress" TypeDefinition="FDI:SetAddressMethodFFHSEType" ModellingRule="Optional" />
+        </Children>
+      </Object>
+      <Object SymbolicName="FDI:ServiceProvider" TypeDefinition="FDI:ServerCommunicationFFHSEServiceType" ModellingRule="Mandatory" />
+    </Children>
+  </ObjectType>
+
+  <ObjectType SymbolicName="FDI:ServerCommunicationPROFIBUSDeviceType" BaseType="FDI:ServerCommunicationDeviceType" IsAbstract="false">
+    <Children>
+      <Object SymbolicName="DI:MethodSet" TypeDefinition="ua:BaseObjectType" ModellingRule="Optional">
+        <Children>
+          <Method SymbolicName="FDI:SetAddress" TypeDefinition="FDI:SetAddressMethodPROFIBUSType" ModellingRule="Optional" />
+        </Children>
+      </Object>
+      <Object SymbolicName="FDI:ServiceProvider" TypeDefinition="FDI:ServerCommunicationPROFIBUSServiceType" ModellingRule="Mandatory" />
+    </Children>
+  </ObjectType>
+
+  <ObjectType SymbolicName="FDI:ServerCommunicationPROFINETDeviceType" BaseType="FDI:ServerCommunicationDeviceType" IsAbstract="false">
+    <Children>
+      <Object SymbolicName="DI:MethodSet" TypeDefinition="ua:BaseObjectType" ModellingRule="Optional">
+        <Children>
+          <Method SymbolicName="FDI:SetAddress" TypeDefinition="FDI:SetAddressMethodPROFINETType" ModellingRule="Optional" />
+        </Children>
+      </Object>
+      <Object SymbolicName="FDI:ServiceProvider" TypeDefinition="FDI:ServerCommunicationPROFINETServiceType" ModellingRule="Mandatory" />
+    </Children>
+  </ObjectType>
+
+  <ObjectType SymbolicName="FDI:ServerCommunicationHARType" BaseType="FDI:ServerCommunicationDeviceType" IsAbstract="false">
+    <Children>
+      <Object SymbolicName="DI:MethodSet" TypeDefinition="ua:BaseObjectType" ModellingRule="Optional">
+        <Children>
+          <Method SymbolicName="FDI:SetAddress" TypeDefinition="FDI:SetAddressMethodHARTType" ModellingRule="Optional" />
+        </Children>
+      </Object>
+      <Object SymbolicName="FDI:ServiceProvider" TypeDefinition="FDI:ServerCommunicationHARTServiceType" ModellingRule="Mandatory" />
+    </Children>
+  </ObjectType>
+
+  <ObjectType SymbolicName="FDI:ServerCommunicationISA100_WirelessDeviceType" BaseType="FDI:ServerCommunicationDeviceType" IsAbstract="false">
+    <Children>
+      <!--<Object SymbolicName="DI:MethodSet" TypeDefinition="ua:BaseObjectType" ModellingRule="Optional">
+        <Children>
+          <Method SymbolicName="FDI:SetAddress" TypeDefinition="FDI:SetAddressMethodPROFIBUSType" ModellingRule="Optional" />
+        </Children>
+      </Object> -->
+      <Object SymbolicName="FDI:ServiceProvider" TypeDefinition="FDI:ServerCommunicationISA100_WirelessServiceType" ModellingRule="Mandatory" />
+    </Children>
+  </ObjectType>
+
+  <ObjectType SymbolicName="FDI:ServerCommunicationGENERICDeviceType" BaseType="FDI:ServerCommunicationDeviceType" IsAbstract="false">
+    <Children>
+      <Property SymbolicName="FDI:ProtocolIdentifier" DataType="ua:String" ModellingRule="Mandatory" />
+      <Object SymbolicName="DI:MethodSet" TypeDefinition="ua:BaseObjectType" ModellingRule="Optional">
+        <Children>
+          <Method SymbolicName="FDI:SetAddress" TypeDefinition="FDI:SetAddressMethodGENERICType" ModellingRule="Optional" />
+        </Children>
+      </Object>
+      <Object SymbolicName="FDI:ServiceProvider" TypeDefinition="FDI:ServerCommunicationGENERICServiceType" ModellingRule="Mandatory" />
+    </Children>
+  </ObjectType>
+
+  <Method SymbolicName="FDI:ConnectMethodFFH1Type">
+    <InputArguments>
+      <Argument Name="CommunicationRelationId" DataType="ua:ByteString" />
+      <Argument Name="LinkId" DataType="ua:UInt16" ValueRank="Scalar" />
+      <Argument Name="Address" DataType="ua:Byte" ValueRank="Scalar" />
+      <Argument Name="OrdinalNumber" DataType="ua:Int32" ValueRank="Scalar" />
+      <Argument Name="SIFConnection" DataType="ua:Boolean" ValueRank="Scalar" />
+      <Argument Name="ServiceId" DataType="ua:UInt32" ValueRank="Scalar" />
+    </InputArguments>
+    <OutputArguments>
+      <Argument Name="DelayForNextCall" DataType="ua:UInt32" ValueRank="Scalar" />
+      <Argument Name="ServiceError" DataType="ua:Integer" ValueRank="Scalar" />
+    </OutputArguments>
+  </Method>
+
+  <Method SymbolicName="FDI:ConnectMethodFFHSEType">
+    <InputArguments>
+      <Argument Name="CommunicationRelationId" DataType="ua:ByteString" />
+      <Argument Name="Address" DataType="ua:ByteString" ValueRank="Scalar" />
+      <Argument Name="OrdinalNumber" DataType="ua:Int32" ValueRank="Scalar" />
+      <Argument Name="ServiceId" DataType="ua:UInt32" ValueRank="Scalar" />
+    </InputArguments>
+    <OutputArguments>
+      <Argument Name="DelayForNextCall" DataType="ua:UInt32" ValueRank="Scalar" />
+      <Argument Name="ServiceError" DataType="ua:Integer" ValueRank="Scalar" />
+    </OutputArguments>
+  </Method>
+
+  <Method SymbolicName="FDI:ConnectMethodPROFIBUSType">
+    <InputArguments>
+      <Argument Name="CommunicationRelationId" DataType="ua:ByteString" />
+      <Argument Name="Address" DataType="ua:Byte" ValueRank="Scalar" />
+      <Argument Name="ManufacturerId" DataType="ua:UInt16" ValueRank="Scalar" />
+    </InputArguments>
+    <OutputArguments>
+      <Argument Name="ServiceError" DataType="ua:Integer" ValueRank="Scalar" />
+    </OutputArguments>
+  </Method>
+
+  <Method SymbolicName="FDI:ConnectMethodPROFINETType">
+    <InputArguments>
+      <Argument Name="CommunicationRelationId" DataType="ua:ByteString" />
+      <Argument Name="DNSNAME" DataType="ua:String" ValueRank="Scalar" />
+      <Argument Name="DeviceID" DataType="ua:UInt16" ValueRank="Scalar" />
+      <Argument Name="VendorID" DataType="ua:UInt16" ValueRank="Scalar" />
+    </InputArguments>
+    <OutputArguments>
+      <Argument Name="ServiceError" DataType="ua:Integer" ValueRank="Scalar" />
+    </OutputArguments>
+  </Method>
+
+  <Method SymbolicName="FDI:ConnectMethodHARTType">
+    <InputArguments>
+      <Argument Name="CommunicationRelationId" DataType="ua:ByteString" />
+      <Argument Name="LongAddress" DataType="ua:ByteString" ValueRank="Scalar" />
+    </InputArguments>
+    <OutputArguments>
+      <Argument Name="ServiceError" DataType="ua:Integer" ValueRank="Scalar" />
+    </OutputArguments>
+  </Method>
+
+  <Method SymbolicName="FDI:ConnectMethodISA100_WirelessType">
+    <InputArguments>
+      <Argument Name="CommunicationRelationId" DataType="ua:ByteString" />
+      <Argument Name="IPAddress" DataType="ua:ByteString" ValueRank="Scalar" />
+      <Argument Name="ConnectType" DataType="ua:UInt32" ValueRank="Scalar" />
+    </InputArguments>
+    <OutputArguments>
+      <Argument Name="ServiceError" DataType="ua:Integer" ValueRank="Scalar" />
+    </OutputArguments>
+  </Method>
+
+  <Method SymbolicName="FDI:ConnectMethodGENERICType">
+    <InputArguments>
+      <Argument Name="CommunicationRelationId" DataType="ua:ByteString" />
+      <Argument Name="Address" DataType="ua:ByteString" ValueRank="Scalar" />
+    </InputArguments>
+    <OutputArguments>
+      <Argument Name="ServiceError" DataType="ua:Integer" ValueRank="Scalar" />
+    </OutputArguments>
+  </Method>
+
+  <Method SymbolicName="FDI:DisconnectMethodType">
+    <InputArguments>
+      <Argument Name="CommunicationRelationId" DataType="ua:ByteString" />
+    </InputArguments>
+    <OutputArguments>
+      <Argument Name="ServiceError" DataType="ua:Integer" ValueRank="Scalar" />
+    </OutputArguments>
+  </Method>
+
+  <Method SymbolicName="FDI:TransferMethodFFH1Type">
+    <InputArguments>
+      <Argument Name="CommunicationRelationId" DataType="ua:ByteString" />
+      <Argument Name="OPERATION" DataType="ua:String" ValueRank="Scalar" />
+      <Argument Name="BlockTag" DataType="ua:String" ValueRank="Scalar" />
+      <Argument Name="INDEX" DataType="ua:UInt32" ValueRank="Scalar" />
+      <Argument Name="SUB_INDEX" DataType="ua:UInt32" ValueRank="Scalar" />
+      <Argument Name="WriteData" DataType="ua:Byte" ValueRank="Array" />
+      <Argument Name="ServiceId" DataType="ua:UInt32" ValueRank="Scalar" />
+    </InputArguments>
+    <OutputArguments>
+      <Argument Name="ReadData" DataType="ua:Byte" ValueRank="Array" />
+      <Argument Name="DelayForNextCall" DataType="ua:UInt32" ValueRank="Scalar" />
+      <Argument Name="ServiceError" DataType="ua:Integer" ValueRank="Scalar" />
+    </OutputArguments>
+  </Method>
+
+  <Method SymbolicName="FDI:TransferMethodFFHSEType">
+    <InputArguments>
+      <Argument Name="CommunicationRelationId" DataType="ua:ByteString" />
+      <Argument Name="OPERATION" DataType="ua:String" ValueRank="Scalar" />
+      <Argument Name="BlockTag" DataType="ua:String" ValueRank="Scalar" />
+      <Argument Name="INDEX" DataType="ua:UInt32" ValueRank="Scalar" />
+      <Argument Name="SUB_INDEX" DataType="ua:UInt32" ValueRank="Scalar" />
+      <Argument Name="WriteData" DataType="ua:Byte" ValueRank="Array" />
+      <Argument Name="ServiceId" DataType="ua:UInt32" ValueRank="Scalar" />
+    </InputArguments>
+    <OutputArguments>
+      <Argument Name="ReadData" DataType="ua:Byte" ValueRank="Array" />
+      <Argument Name="DelayForNextCall" DataType="ua:UInt32" ValueRank="Scalar" />
+      <Argument Name="ServiceError" DataType="ua:Integer" ValueRank="Scalar" />
+    </OutputArguments>
+  </Method>
+
+  <Method SymbolicName="FDI:TransferMethodPROFIBUSType">
+    <InputArguments>
+      <Argument Name="CommunicationRelationId" DataType="ua:ByteString" />
+      <Argument Name="OPERATION" DataType="ua:String" ValueRank="Scalar" />
+      <Argument Name="SLOT" DataType="ua:Byte" ValueRank="Scalar" />
+      <Argument Name="INDEX" DataType="ua:Byte" ValueRank="Scalar" />
+      <Argument Name="REQUEST" DataType="ua:ByteString" ValueRank="Scalar" />
+    </InputArguments>
+    <OutputArguments>
+      <Argument Name="REPLY" DataType="ua:ByteString" ValueRank="Scalar" />
+      <Argument Name="RESPONSE_CODES" DataType="ua:ByteString" ValueRank="Scalar" />
+      <Argument Name="ServiceError" DataType="ua:Integer" ValueRank="Scalar" />
+    </OutputArguments>
+  </Method>
+
+  <Method SymbolicName="FDI:TransferMethodPROFINETType">
+    <InputArguments>
+      <Argument Name="CommunicationRelationId" DataType="ua:ByteString" />
+      <Argument Name="OPERATION" DataType="ua:String" ValueRank="Scalar" />
+      <Argument Name="SLOT" DataType="ua:UInt16" ValueRank="Scalar" />
+      <Argument Name="SUBSLOT" DataType="ua:UInt16" ValueRank="Scalar" />
+      <Argument Name="INDEX" DataType="ua:UInt16" ValueRank="Scalar" />
+      <Argument Name="API" DataType="ua:UInt32" ValueRank="Scalar" />
+      <Argument Name="REQUEST" DataType="ua:ByteString" ValueRank="Scalar" />
+    </InputArguments>
+    <OutputArguments>
+      <Argument Name="REPLY" DataType="ua:ByteString" ValueRank="Scalar" />
+      <Argument Name="RESPONSE_CODES" DataType="ua:ByteString" ValueRank="Scalar" />
+      <Argument Name="ServiceError" DataType="ua:Integer" ValueRank="Scalar" />
+    </OutputArguments>
+  </Method>
+
+  <Method SymbolicName="FDI:TransferMethodHARTType">
+    <InputArguments>
+      <Argument Name="CommunicationRelationId" DataType="ua:ByteString" />
+      <Argument Name="Command" DataType="ua:UInt16" ValueRank="Scalar" />
+      <Argument Name="Request" DataType="ua:ByteString" ValueRank="Scalar" />
+    </InputArguments>
+    <OutputArguments>
+      <Argument Name="Reply" DataType="ua:ByteString" ValueRank="Scalar" />
+      <Argument Name="ServiceError" DataType="ua:Integer" ValueRank="Scalar" />
+    </OutputArguments>
+  </Method>
+
+  <Method SymbolicName="FDI:TransferMethodISA100_WirelessType">
+    <InputArguments>
+      <Argument Name="CommunicationRelationId" DataType="ua:ByteString" />
+      <Argument Name="OPERATION" DataType="ua:String" ValueRank="Scalar" />
+      <Argument Name="AppID" DataType="ua:UInt16" ValueRank="Scalar" />
+      <Argument Name="ObjectID" DataType="ua:UInt16" ValueRank="Scalar" />
+      <Argument Name="AttrOrMethID" DataType="ua:UInt16" ValueRank="Scalar" />
+      <Argument Name="SUB_INDEX" DataType="ua:UInt32" ValueRank="Scalar" />
+      <Argument Name="WriteData" DataType="ua:Byte" ValueRank="Array" />
+      <Argument Name="RequestId" DataType="ua:UInt32" ValueRank="Scalar" />
+    </InputArguments>
+    <OutputArguments>
+      <Argument Name="ReadData" DataType="ua:Byte" ValueRank="Array" />
+      <Argument Name="ServiceError" DataType="ua:Integer" ValueRank="Scalar" />
+    </OutputArguments>
+  </Method>
+
+
+  <DataType SymbolicName="FDI:EddDataTypeEnum" BaseType="ua:Enumeration">
+    <Fields>
+      <Field Name="BOOLEAN" Identifier="1" />
+      <Field Name="DOUBLE" Identifier="2" />
+      <Field Name="FLOAT" Identifier="3" />
+      <Field Name="INTEGER" Identifier="4" />
+      <Field Name="UNSIGNED_INTEGER" Identifier="5" />
+      <Field Name="DATE" Identifier="6" />
+      <Field Name="DATE_AND_TIME" Identifier="7" />
+      <Field Name="DURATION" Identifier="8" />
+      <Field Name="TIME" Identifier="9" />
+      <Field Name="TIME_VALUE" Identifier="10" />
+      <Field Name="BIT_ENUMERATED" Identifier="11" />
+      <Field Name="ENUMERATED" Identifier="12" />
+      <Field Name="ASCII" Identifier="13" />
+      <Field Name="BITSTRING" Identifier="14" />
+      <Field Name="EUC" Identifier="15" />
+      <Field Name="OCTET" Identifier="16" />
+      <Field Name="PACKED_ASCII" Identifier="17" />
+      <Field Name="PASSWORD" Identifier="18" />
+      <Field Name="VISIBLE" Identifier="19" />
+    </Fields>
+  </DataType>
+
+  <DataType SymbolicName="FDI:EddDataTypeInfo" BaseType="ua:Structure">
+    <Fields>
+      <Field Name="EddDataType" DataType="FDI:EddDataTypeEnum" />
+      <Field Name="Size" DataType="ua:UInt32" />
+    </Fields>
+  </DataType>
+
+  <Method SymbolicName="FDI:TransferMethodGENERICType">
+    <InputArguments>
+      <Argument Name="CommunicationRelationId" DataType="ua:ByteString" />
+      <Argument Name="Header" DataType="ua:String" ValueRank="Scalar" />
+      <Argument Name="RequestData" DataType="ua:ByteString" ValueRank="Scalar" />
+      <Argument Name="RequestDataTypes" DataType="FDI:EddDataTypeInfo" ValueRank="Array" />
+      <Argument Name="ResponseDataTypes" DataType="FDI:EddDataTypeInfo" ValueRank="Array" />
+    </InputArguments>
+    <OutputArguments>
+      <Argument Name="ResponseData" DataType="ua:ByteString" ValueRank="Scalar" />
+      <Argument Name="RESPONSE_CODES" DataType="ua:ByteString" ValueRank="Scalar" />
+      <Argument Name="ServiceError" DataType="ua:Integer" ValueRank="Scalar" />
+    </OutputArguments>
+  </Method>
+
+
+  <Method SymbolicName="FDI:GetPublishedDataMethodFFH1Type">
+    <InputArguments>
+      <Argument Name="CommunicationRelationId" DataType="ua:ByteString" />
+      <Argument Name="ServiceId" DataType="ua:UInt32" ValueRank="Scalar" />
+    </InputArguments>
+    <OutputArguments>
+      <Argument Name="BlockTag" DataType="ua:String" ValueRank="Scalar" />
+      <Argument Name="AlarmEventData" DataType="ua:Byte" ValueRank="Array" />
+      <Argument Name="AlarmEventType" DataType="ua:NodeId" ValueRank="Scalar" />
+      <Argument Name="TimeStamp" DataType="ua:DateTime" ValueRank="Scalar" />
+      <Argument Name="DelayForNextCall" DataType="ua:UInt32" ValueRank="Scalar" />
+      <Argument Name="ServiceError" DataType="ua:Integer" ValueRank="Scalar" />
+    </OutputArguments>
+  </Method>
+
+  <Method SymbolicName="FDI:GetPublishedDataMethodFFHSEType">
+    <InputArguments>
+      <Argument Name="CommunicationRelationId" DataType="ua:ByteString" />
+      <Argument Name="ServiceId" DataType="ua:UInt32" ValueRank="Scalar" />
+    </InputArguments>
+    <OutputArguments>
+      <Argument Name="BlockTag" DataType="ua:String" ValueRank="Scalar" />
+      <Argument Name="AlarmEventData" DataType="ua:Byte" ValueRank="Array" />
+      <Argument Name="AlarmEventType" DataType="ua:NodeId" ValueRank="Scalar" />
+      <Argument Name="TimeStamp" DataType="ua:DateTime" ValueRank="Scalar" />
+      <Argument Name="DelayForNextCall" DataType="ua:UInt32" ValueRank="Scalar" />
+      <Argument Name="ServiceError" DataType="ua:Integer" ValueRank="Scalar" />
+    </OutputArguments>
+  </Method>
+
+  <Method SymbolicName="FDI:GetPublishedDataMethodHARTType">
+    <InputArguments>
+      <Argument Name="CommunicationRelationId" DataType="ua:ByteString" />
+    </InputArguments>
+    <OutputArguments>
+      <Argument Name="Command" DataType="ua:UInt16" ValueRank="Scalar" />
+      <Argument Name="Reply" DataType="ua:ByteString" ValueRank="Scalar" />
+      <Argument Name="TimeStamp" DataType="ua:DateTime" ValueRank="Scalar" />
+      <Argument Name="ServiceError" DataType="ua:Integer" ValueRank="Scalar" />
+    </OutputArguments>
+  </Method>
+
+  <Method SymbolicName="FDI:GetPublishedDataMethodISA100_WirelessType">
+    <InputArguments>
+      <Argument Name="CommunicationRelationId" DataType="ua:ByteString" />
+    </InputArguments>
+    <OutputArguments>
+      <Argument Name="AppID" DataType="ua:UInt16" ValueRank="Scalar" />
+      <Argument Name="ObjectID" DataType="ua:UInt16" ValueRank="Scalar" />
+      <Argument Name="AlarmEventData" DataType="ua:Byte" ValueRank="Array" />
+      <Argument Name="AlarmEventType" DataType="ua:UInt16" ValueRank="Scalar" />
+      <Argument Name="TimeStamp" DataType="ua:DateTime" ValueRank="Scalar" />
+      <Argument Name="ServiceError" DataType="ua:Integer" ValueRank="Scalar" />
+    </OutputArguments>
+  </Method>
+
+  <ObjectType SymbolicName="FDI:ServerCommunicationServiceType" BaseType="DI:DeviceType" IsAbstract="true">
+    <Children>
+      <Object SymbolicName="DI:MethodSet" TypeDefinition="ua:BaseObjectType" ModellingRule="Mandatory">
+        <Children>
+          <Method SymbolicName="FDI:Disconnect" TypeDefinition="FDI:DisconnectMethodType" ModellingRule="Mandatory" />
+        </Children>
+      </Object>
+    </Children>
+  </ObjectType>
+
+  <ObjectType SymbolicName="FDI:ServerCommunicationFFH1ServiceType" BaseType="FDI:ServerCommunicationServiceType" IsAbstract="false">
+    <Children>
+      <Object SymbolicName="DI:MethodSet" TypeDefinition="ua:BaseObjectType" ModellingRule="Mandatory">
+        <Children>
+          <Method SymbolicName="FDI:Connect" TypeDefinition="FDI:ConnectMethodFFH1Type" ModellingRule="Mandatory" />
+          <Method SymbolicName="FDI:Transfer" TypeDefinition="FDI:TransferMethodFFH1Type" ModellingRule="Mandatory" />
+          <Method SymbolicName="FDI:GetPublishedData" TypeDefinition="FDI:GetPublishedDataMethodFFH1Type" ModellingRule="Optional" />
+        </Children>
+      </Object>
+    </Children>
+  </ObjectType>
+
+  <ObjectType SymbolicName="FDI:ServerCommunicationFFHSEServiceType" BaseType="FDI:ServerCommunicationServiceType" IsAbstract="false">
+    <Children>
+      <Object SymbolicName="DI:MethodSet" TypeDefinition="ua:BaseObjectType" ModellingRule="Mandatory">
+        <Children>
+          <Method SymbolicName="FDI:Connect" TypeDefinition="FDI:ConnectMethodFFHSEType" ModellingRule="Mandatory" />
+          <Method SymbolicName="FDI:Transfer" TypeDefinition="FDI:TransferMethodFFHSEType" ModellingRule="Mandatory" />
+          <Method SymbolicName="FDI:GetPublishedData" TypeDefinition="FDI:GetPublishedDataMethodFFHSEType" ModellingRule="Optional" />
+        </Children>
+      </Object>
+    </Children>
+  </ObjectType>
+
+  <ObjectType SymbolicName="FDI:ServerCommunicationPROFIBUSServiceType" BaseType="FDI:ServerCommunicationServiceType" IsAbstract="false">
+    <Children>
+      <Object SymbolicName="DI:MethodSet" TypeDefinition="ua:BaseObjectType" ModellingRule="Mandatory">
+        <Children>
+          <Method SymbolicName="FDI:Connect" TypeDefinition="FDI:ConnectMethodPROFIBUSType" ModellingRule="Mandatory" />
+          <Method SymbolicName="FDI:Transfer" TypeDefinition="FDI:TransferMethodPROFIBUSType" ModellingRule="Mandatory" />
+        </Children>
+      </Object>
+    </Children>
+  </ObjectType>
+
+  <ObjectType SymbolicName="FDI:ServerCommunicationPROFINETServiceType" BaseType="FDI:ServerCommunicationServiceType" IsAbstract="false">
+    <Children>
+      <Object SymbolicName="DI:MethodSet" TypeDefinition="ua:BaseObjectType" ModellingRule="Mandatory">
+        <Children>
+          <Method SymbolicName="FDI:Connect" TypeDefinition="FDI:ConnectMethodPROFINETType" ModellingRule="Mandatory" />
+          <Method SymbolicName="FDI:Transfer" TypeDefinition="FDI:TransferMethodPROFINETType" ModellingRule="Mandatory" />
+        </Children>
+      </Object>
+    </Children>
+  </ObjectType>
+
+  <ObjectType SymbolicName="FDI:ServerCommunicationHARTServiceType" BaseType="FDI:ServerCommunicationServiceType" IsAbstract="false">
+    <Children>
+      <Object SymbolicName="DI:MethodSet" TypeDefinition="ua:BaseObjectType" ModellingRule="Mandatory">
+        <Children>
+          <Method SymbolicName="FDI:Connect" TypeDefinition="FDI:ConnectMethodHARTType" ModellingRule="Mandatory" />
+          <Method SymbolicName="FDI:Transfer" TypeDefinition="FDI:TransferMethodHARTType" ModellingRule="Mandatory" />
+          <Method SymbolicName="FDI:GetPublishedData" TypeDefinition="FDI:GetPublishedDataMethodHARTType" ModellingRule="Optional" />
+        </Children>
+      </Object>
+    </Children>
+  </ObjectType>
+
+  <ObjectType SymbolicName="FDI:ServerCommunicationISA100_WirelessServiceType" BaseType="FDI:ServerCommunicationServiceType" IsAbstract="false">
+    <Children>
+      <Object SymbolicName="DI:MethodSet" TypeDefinition="ua:BaseObjectType" ModellingRule="Mandatory">
+        <Children>
+          <Method SymbolicName="FDI:Connect" TypeDefinition="FDI:ConnectMethodISA100_WirelessType" ModellingRule="Mandatory" />
+          <Method SymbolicName="FDI:Transfer" TypeDefinition="FDI:TransferMethodISA100_WirelessType" ModellingRule="Mandatory" />
+          <Method SymbolicName="FDI:GetPublishedData" TypeDefinition="FDI:GetPublishedDataMethodISA100_WirelessType" ModellingRule="Optional" />
+        </Children>
+      </Object>
+    </Children>
+  </ObjectType>
+
+  <ObjectType SymbolicName="FDI:ServerCommunicationGENERICServiceType" BaseType="FDI:ServerCommunicationServiceType" IsAbstract="false">
+    <Children>
+      <Object SymbolicName="DI:MethodSet" TypeDefinition="ua:BaseObjectType" ModellingRule="Mandatory">
+        <Children>
+          <Method SymbolicName="FDI:Connect" TypeDefinition="FDI:ConnectMethodGENERICType" ModellingRule="Mandatory" />
+          <Method SymbolicName="FDI:Transfer" TypeDefinition="FDI:TransferMethodGENERICType" ModellingRule="Mandatory" />
+        </Children>
+      </Object>
+    </Children>
+  </ObjectType>
+
+</ModelDesign>

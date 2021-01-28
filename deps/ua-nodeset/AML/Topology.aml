@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<CAEXFile FileName="Topology.aml" SchemaVersion="2.15" xsi:noNamespaceSchemaLocation="./Source/CAEX_ClassModel_V2.15.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+	<AdditionalInformation AutomationMLVersion="2.0"/>
+	<AdditionalInformation>
+		<WriterHeader>
+			<WriterName>AutomationML e.V.</WriterName>
+			<WriterID>AutomationML e.V.</WriterID>
+			<WriterVendor>AutomationML e.V.</WriterVendor>
+			<WriterVendorURL>www.AutomationML.org</WriterVendorURL>
+			<WriterVersion>1.0</WriterVersion>
+			<WriterRelease>1.0</WriterRelease>
+			<LastWritingDateTime>2012-02-20
+			</LastWritingDateTime>
+			<WriterProjectTitle>AutomationML Tutorial Examples</WriterProjectTitle>
+			<WriterProjectID>AutomationML Tutorial Examples
+			</WriterProjectID>
+		</WriterHeader>
+	</AdditionalInformation>
+	<ExternalReference Path="Libs/RoleClass Libraries/AutomationMLBaseRoleClassLib.aml" Alias="BaseRoleClassLib"/>
+	<ExternalReference Path="Libs/InterfaceClass Libraries/AutomationMLInterfaceClassLib.aml" Alias="BaseInterfaceClassLib"/>
+	<InstanceHierarchy Name="ManufacturingSystem">
+		<InternalElement Name="firstScrewdriver" ID="{788eb291-f103-4fdc-aba0-4893b599f556}" RefBaseSystemUnitPath="LibOfCommonTools/ElectricScrewdriver">
+			<Attribute Name="New Attribute"/>
+			<ExternalInterface Name="EnergySupply" ID="{5f535d4c-dd46-4c1c-898c-4e58419048b6}" RefBaseClassPath="MyInterfaces/Energy"/>
+			<SupportedRoleClass RefRoleClassPath="ManufacturingRoleClasses/Tool"/>
+			<RoleRequirements RefBaseRoleClassPath="ManufacturingRoleClasses/Tool"/>
+		</InternalElement>
+		<InternalElement Name="secondScrewdriver" ID="{19dcf818-4716-4fc1-a85f-28e1938c4c3a}" RefBaseSystemUnitPath="LibOfCommonTools/ElectricScrewdriver">
+			<ExternalInterface Name="EnergySupply" ID="50e10905-ac18-413c-afab-ad8ed1569fff" RefBaseClassPath="MyInterfaces/Energy"/>
+			<SupportedRoleClass RefRoleClassPath="ManufacturingRoleClasses/Tool"/>
+			<RoleRequirements RefBaseRoleClassPath="ManufacturingRoleClasses/Tool"/>
+		</InternalElement>
+	</InstanceHierarchy>
+	<InterfaceClassLib Name="MyInterfaces">
+		<Version>1.0</Version>
+		<InterfaceClass Name="Energy" RefBaseClassPath="BaseInterfaceClassLib@AutomationMLInterfaceClassLib/AutomationMLBaseInterface"/>
+	</InterfaceClassLib>
+	<RoleClassLib Name="ManufacturingRoleClasses">
+		<Version>1.0</Version>
+		<RoleClass Name="Tool" RefBaseClassPath="BaseRoleClassLib@AutomationMLBaseRoleClassLib/AutomationMLBaseRole"/>
+	</RoleClassLib>
+	<SystemUnitClassLib Name="LibOfCommonTools">
+		<Version>1.0</Version>
+		<SystemUnitClass Name="ElectricScrewdriver">
+			<ExternalInterface Name="EnergySupply" ID="dd0e0dfe-10f8-4068-845b-9c29699ac79b" RefBaseClassPath="MyInterfaces/Energy"/>
+			<SupportedRoleClass RefRoleClassPath="ManufacturingRoleClasses/Tool"/>
+		</SystemUnitClass>
+	</SystemUnitClassLib>
+</CAEXFile>

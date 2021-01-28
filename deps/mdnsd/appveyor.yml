@@ -1,0 +1,63 @@
+version: '{build}'
+
+clone_folder: c:\projects\mdnsd
+clone_depth: 20
+
+environment:
+    global:
+        CYG_ARCH: x86
+        CYG_ROOT: C:/cygwin
+        CYG_SETUP_URL: http://cygwin.com/setup-x86.exe
+        CYG_MIRROR: http://cygwin.mirror.constant.com
+        CYG_CACHE: C:\cygwin\var\cache\setup
+        CYG_BASH: C:/cygwin/bin/bash
+
+    matrix:
+        - CC_NAME: MinGW Makefiles
+          CC_SHORTNAME: mingw
+          MAKE: mingw32-make
+          FORCE_CXX: OFF
+        - CC_NAME: Visual Studio 9 2008
+          CC_SHORTNAME: vs2008
+          MAKE: msbuild mdnsd.sln /m
+          FORCE_CXX: ON
+        - CC_NAME: Visual Studio 12 2013
+          CC_SHORTNAME: vs2013
+          MAKE: msbuild mdnsd.sln /m
+          FORCE_CXX: OFF
+        - CC_NAME: Visual Studio 12 2013 Win64
+          CC_SHORTNAME: vs2013-x64
+          MAKE: msbuild mdnsd.sln /m
+          FORCE_CXX: OFF
+
+
+cache:
+  - '%CYG_CACHE%'
+
+init:
+  - git config --global core.autocrlf input # Attempt to ensure we don't try to convert line endings to Win32 CRLF as this will cause build to fail
+
+# Install needed build dependencies
+install:
+  - git submodule update --init --recursive
+  - if not exist "%CYG_ROOT%" mkdir "%CYG_ROOT%"
+  - ps: echo "Installing Cygwin from $env:CYG_SETUP_URL to $env:CYG_ROOT/setup-x86.exe"
+  - appveyor DownloadFile %CYG_SETUP_URL% -FileName %CYG_ROOT%/setup-x86.exe
+  - ps: echo "Downloaded. Now ready to install."
+  - cmd: '"%CYG_ROOT%/setup-x86.exe" --quiet-mode --no-shortcuts --only-site -R "%CYG_ROOT%" -s "%CYG_MIRROR%" -l "%CYG_CACHE%" --packages cmake,python'
+  - cmd: '%CYG_BASH% -lc "cygcheck -dc cygwin"'
+
+before_build:
+  # use MinGW64
+  - set PATH=C:\mingw-w64\i686-5.3.0-posix-dwarf-rt_v4-rev0\mingw32\bin;%PATH%
+  # Workaround for CMake not wanting sh.exe on PATH for MinGW
+  - set PATH=%PATH:C:\Program Files\Git\usr\bin;=%
+
+build_script:
+  - cd c:\projects\mdnsd
+  - md build
+  - cd build
+  - echo "Testing %CC_NAME%"
+  - cmake -DMDNSD_COMPILE_AS_CXX:BOOL=%FORCE_CXX% -G"%CC_NAME%" ..
+  - '%MAKE%'
+  - echo "Build done"

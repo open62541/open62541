@@ -1,0 +1,588 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+ * Copyright (c) 2005-2019 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<opc:ModelDesign
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+	xmlns:opc="http://opcfoundation.org/UA/ModelDesign.xsd"
+  xmlns:ua="http://opcfoundation.org/UA/"
+  xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd"
+  xmlns="http://opcfoundation.org/UA/MDIS"
+  TargetNamespace="http://opcfoundation.org/UA/MDIS"
+>
+  <!-- Updated file to include valve transfer sample -->
+  
+  <opc:Namespaces>
+    <opc:Namespace Name="OpcUa" Prefix="Opc.Ua" XmlNamespace="http://opcfoundation.org/UA/2008/02/Types.xsd">http://opcfoundation.org/UA/</opc:Namespace>
+    <opc:Namespace Name="MDIS" Prefix="Opc.MDIS">http://opcfoundation.org/UA/MDIS</opc:Namespace>
+  </opc:Namespaces>
+
+  <!--  EnableDisable -->
+  <opc:Method SymbolicName="EnableDisableMethodType" >
+     <opc:InputArguments>
+      <opc:Argument Name="Enable" DataType="ua:Boolean" >
+        <opc:Description>Disable the device (false), or enable the device (true)</opc:Description>
+      </opc:Argument>
+    </opc:InputArguments>
+  </opc:Method>
+
+  <opc:ReferenceType SymbolicName="HasInterlock"  BaseType="ua:HasComponent" IsAbstract="false" Symmetric="false">
+    <opc:Description>Reference used to indicate an interlock variable (all Options)</opc:Description>
+    <opc:InverseName>InterlockOf</opc:InverseName>
+  </opc:ReferenceType>
+
+  <opc:ReferenceType SymbolicName="HasSignature"  BaseType="ua:HasComponent" IsAbstract="false" Symmetric="false" >
+    <opc:Description>Reference used to indicate an interlock variable (all Options)</opc:Description>
+    <opc:InverseName>SignatureOf</opc:InverseName>
+  </opc:ReferenceType>
+
+  <opc:ReferenceType SymbolicName="InterlockFor"  BaseType="ua:NonHierarchicalReferences" IsAbstract="false" Symmetric="false">
+    <opc:Description>Reference used to indicate an interlock variable associated with the given boolean summary interlock</opc:Description>
+    <opc:InverseName>HasInterlockInformation</opc:InverseName>
+  </opc:ReferenceType>
+  
+  <opc:ObjectType SymbolicName="MDISBaseObjectType" BaseType="ua:BaseObjectType" IsAbstract="true" SupportsEvents="true" >
+    <opc:Description>The base Object type from which all other station types are built</opc:Description>
+    <opc:Children>
+      <opc:Variable SymbolicName="Fault" TypeDefinition="ua:BaseDataVariableType" DataType="ua:Boolean"
+                    AccessLevel="Read" ModellingRule="Mandatory">
+      </opc:Variable>
+      <opc:Variable SymbolicName="FaultCode" TypeDefinition="ua:BaseDataVariableType" DataType="ua:UInt32"
+                    AccessLevel="Read" ModellingRule="Optional">
+      </opc:Variable>
+      <opc:Variable SymbolicName="Warning" TypeDefinition="ua:BaseDataVariableType" DataType="ua:Boolean"
+                    AccessLevel="Read" ModellingRule="Optional">
+      </opc:Variable>
+      <opc:Variable SymbolicName="WarningCode" TypeDefinition="ua:BaseDataVariableType" DataType="ua:UInt32"
+                    AccessLevel="Read" ModellingRule="Optional">
+      </opc:Variable>
+      <opc:Variable SymbolicName="Enabled" TypeDefinition="ua:BaseDataVariableType" DataType="ua:Boolean"
+                    AccessLevel="Read" ModellingRule="Optional">        
+      </opc:Variable>      
+      <opc:Method SymbolicName="EnableDisable" TypeDefinition="EnableDisableMethodType" ModellingRule="Optional">
+      </opc:Method>
+      <opc:Property SymbolicName="TagId" TypeDefinition="ua:PropertyType" DataType="ua:String"
+                    AccessLevel="Read" ModellingRule="Optional">
+        <opc:DisplayName>Tag ID</opc:DisplayName>
+        <opc:Description>The id used in other parts of the system</opc:Description>
+      </opc:Property>
+    </opc:Children>
+  </opc:ObjectType>
+
+  <!-- Valve Object-->
+  <!--DataTypes-->
+  <!--******************************************************8-->
+  <opc:DataType SymbolicName="SignatureStatusEnum" BaseType="ua:Enumeration">
+    <opc:Fields>
+      <opc:Field Name="NotAvailable" Identifier="1" />
+      <opc:Field Name="Completed" Identifier="2" />
+      <opc:Field Name="Failed" Identifier="4" />
+    </opc:Fields>
+  </opc:DataType>
+  
+  <opc:DataType SymbolicName="SetCalculatedPositionEnum" BaseType="ua:Enumeration">
+    <opc:Fields>
+      <opc:Field Name="Initial" Identifier="0" />
+      <opc:Field Name="Inprogress" Identifier="1" />
+      <opc:Field Name="Complete" Identifier="2" />
+      <opc:Field Name="Fault" Identifier="4" />
+    </opc:Fields>
+  </opc:DataType>
+
+  <opc:DataType SymbolicName="CommandEnum" BaseType="ua:Enumeration">
+    <opc:Fields>
+      <opc:Field Name="Close" Identifier="1" />
+      <opc:Field Name="Open" Identifier="2" />
+      <opc:Field Name="None" Identifier="4" />
+    </opc:Fields>
+  </opc:DataType>
+
+  <opc:DataType SymbolicName="ChokeCommandEnum" BaseType="ua:Enumeration">
+    <opc:Fields>
+      <opc:Field Name="Close" Identifier="1" />
+      <opc:Field Name="Open" Identifier="2" />
+    </opc:Fields>
+  </opc:DataType>
+  
+  <opc:DataType SymbolicName="SEMEnum" BaseType="ua:Enumeration">
+    <opc:Fields>
+      <opc:Field Name="SEM_A" Identifier="1" />
+      <opc:Field Name="SEM_B" Identifier="2" />
+      <opc:Field Name="Auto" Identifier="4" />
+    </opc:Fields>
+  </opc:DataType>
+
+  <opc:DataType SymbolicName="ValvePositionEnum" BaseType="ua:Enumeration">
+    <opc:Fields>
+      <opc:Field Name="Closed" Identifier="1" />
+      <opc:Field Name="Open" Identifier="2" />
+      <opc:Field Name="Moving" Identifier="4" />
+      <opc:Field Name="Unknown" Identifier="8" />
+    </opc:Fields>
+  </opc:DataType>
+
+  <opc:DataType SymbolicName="ChokeMoveEnum" BaseType="ua:Enumeration">
+    <opc:Fields>
+      <opc:Field Name="Moving" Identifier="1" />
+      <opc:Field Name="Stopped" Identifier="2" />
+    </opc:Fields>
+  </opc:DataType>
+
+
+  <opc:DataType SymbolicName="MDISVersionDataType" BaseType="ua:Structure">
+    <opc:Fields>
+      <opc:Field Name="MajorVersion"  DataType="ua:Byte" />
+      <opc:Field Name="MinorVersion" DataType="ua:Byte" />
+      <opc:Field Name="Build" DataType="ua:Byte" />
+    </opc:Fields>
+  </opc:DataType>
+
+  <!-- VariableTypes -->
+  <opc:VariableType SymbolicName="InterlockVariableType" BaseType="ua:BaseDataVariableType" DataType="ua:Boolean" ValueRank="Scalar" IsAbstract="false">
+    <opc:Description>This Variable type returns a Boolean indicating if the interlock is active, it shall also contain an InterlockFor reference</opc:Description>
+  </opc:VariableType>
+
+  <opc:VariableType SymbolicName="MDISVersionVariableType" BaseType="ua:BaseDataVariableType" DataType="MDISVersionDataType" ExposesItsChildren="1"  AccessLevel ="Read" ValueRank="Scalar" IsAbstract="false"  >
+    <opc:Description>a standard representation of the version information that is related the MDIS Specification</opc:Description>
+    <opc:Children>
+      <opc:Property SymbolicName="MajorVersion" TypeDefinition="ua:BaseDataVariableType" DataType="ua:Byte"
+                    AccessLevel="Read" ModellingRule="Mandatory">
+      </opc:Property>
+      <opc:Property SymbolicName="MinorVersion" TypeDefinition="ua:BaseDataVariableType" DataType="ua:Byte"
+                    AccessLevel="Read" ModellingRule="Mandatory">
+      </opc:Property>
+      <opc:Property SymbolicName="Build" TypeDefinition="ua:BaseDataVariableType" DataType="ua:Byte"
+                    AccessLevel="Read" ModellingRule="Mandatory">
+      </opc:Property>
+    </opc:Children>
+  </opc:VariableType>
+
+
+  <!-- Method Types -->
+  <!--  move valve (open or close) -->
+  <opc:Method SymbolicName="MoveMethodType" >
+    <opc:InputArguments>
+      <opc:Argument Name="Direction" DataType="CommandEnum">
+        <opc:Description>The enumeration indicates whether the command is to open the valve or to close the valve</opc:Description>
+      </opc:Argument>
+      <opc:Argument Name="OverrideInterlock" DataType="ua:Boolean">
+        <opc:Description>Boolean indicating if the open or close command should override any defeat able interlocks</opc:Description>
+      </opc:Argument>
+      <opc:Argument Name="SEM" DataType="SEMEnum">
+        <opc:Description>The selection of which SEM to send the command to. </opc:Description>
+      </opc:Argument>
+      <opc:Argument Name="Signature" DataType="ua:Boolean">
+        <opc:Description>Boolean indicating if a profile should be generated by this move command request.</opc:Description>
+      </opc:Argument>
+      <opc:Argument Name="ShutdownRequest" DataType="ua:Boolean">
+        <opc:Description>Boolean indicates that this command is a shutdown move command.</opc:Description>
+      </opc:Argument>
+    </opc:InputArguments>
+  </opc:Method>
+
+  <!--  Move a choke valve -->
+  <opc:Method SymbolicName="ChokeMoveMethodType" >
+    <opc:InputArguments>
+      <opc:Argument Name="Position" DataType="ua:Float">
+        <opc:Description>A number (in prercent) indicating the percent open</opc:Description>
+      </opc:Argument>
+      <opc:Argument Name="OverrideInterlock" DataType="ua:Boolean">
+        <opc:Description>Boolean indicating if the open or close command should override any defeat able interlocks</opc:Description>
+      </opc:Argument>
+      <opc:Argument Name="SEM" DataType="SEMEnum">
+        <opc:Description>The selection of which SEM to send the command to. </opc:Description>
+      </opc:Argument>
+    </opc:InputArguments>
+  </opc:Method>
+
+  <!--  Move a choke valve -->
+  <opc:Method SymbolicName="ChokeStepMethodType" >
+    <opc:InputArguments>
+      <opc:Argument Name="Direction" DataType="ChokeCommandEnum">
+        <opc:Description>true is opening a valve, false if closing the valve</opc:Description>
+      </opc:Argument>
+      <opc:Argument Name="Steps" DataType="ua:UInt16">
+        <opc:Description>number of steps to open/close the valve</opc:Description>
+      </opc:Argument>
+      <opc:Argument Name="OverrideInterlock" DataType="ua:Boolean">
+        <opc:Description>Boolean indicating if the open or close command should override any defeat able interlocks</opc:Description>
+      </opc:Argument>
+      <opc:Argument Name="SEM" DataType="SEMEnum">
+        <opc:Description>The selection of which SEM to send the command to. </opc:Description>
+      </opc:Argument>
+    </opc:InputArguments>
+  </opc:Method>
+
+  <!--  abort a choke Move on a choke valve -->
+  <opc:Method SymbolicName="ChokeAbortMethodType" >
+  </opc:Method>
+  
+  <!--  Move a choke valve -->
+  <opc:Method SymbolicName="ChokeSetCalculatedPositionMethodType" >
+    <opc:InputArguments>
+      <opc:Argument Name="Position" DataType="ua:Float">
+        <opc:Description>A number (in percent) indicating the percent open</opc:Description>
+      </opc:Argument>
+    </opc:InputArguments>
+  </opc:Method>
+
+  <!--  Write state -->
+  <opc:Method SymbolicName="WriteStateMethodType" >
+    <opc:InputArguments>
+      <opc:Argument Name="State" DataType="ua:Boolean">
+        <opc:Description>Boolean state that is being written to the object</opc:Description>
+      </opc:Argument>
+    </opc:InputArguments>
+  </opc:Method>
+
+  <!--  Write discrete -->
+  <opc:Method SymbolicName="WriteValueMethodType" >
+    <opc:InputArguments>
+      <opc:Argument Name="State" DataType="ua:UInt32">
+        <opc:Description>Unit32 state that is being written to the object</opc:Description>
+      </opc:Argument>
+    </opc:InputArguments>
+  </opc:Method>
+
+  <!--  Write Instrument -->
+  <opc:Method SymbolicName="WriteInstrumentValueMethodType" >
+    <opc:InputArguments>
+      <opc:Argument Name="Value" DataType="ua:Float">
+        <opc:Description>Float value that is being written to the object</opc:Description>
+      </opc:Argument>
+    </opc:InputArguments>
+  </opc:Method>
+
+  <!-- ObjectTypes -->
+  <!-- Valve -->
+  <opc:ObjectType SymbolicName="MDISValveObjectType" BaseType="MDISBaseObjectType" IsAbstract="false" >
+    <opc:Description>The definition of a standard MDIS Valve Object</opc:Description>
+    <opc:Children>
+      <opc:Variable SymbolicName="Position" TypeDefinition="ua:BaseDataVariableType" DataType="ValvePositionEnum"
+                      AccessLevel="Read" ModellingRule="Mandatory">
+      </opc:Variable>
+      <opc:Variable SymbolicName="CommandRejected" TypeDefinition="ua:BaseDataVariableType" DataType="ua:Boolean"
+                      AccessLevel="Read" ModellingRule="Optional">
+      </opc:Variable>
+      <opc:Variable SymbolicName="SignatureRequestStatus" TypeDefinition="ua:BaseDataVariableType" DataType="SignatureStatusEnum"
+                    AccessLevel="Read" ModellingRule="Optional">
+      </opc:Variable>
+      <opc:Variable SymbolicName="LastCommand" TypeDefinition="ua:BaseDataVariableType" DataType="CommandEnum"
+                    AccessLevel="Read" ModellingRule="Optional">
+      </opc:Variable>
+      <opc:Variable SymbolicName="NonDefeatableOpenInterlock" TypeDefinition="ua:BaseDataVariableType" DataType="ua:Boolean"
+                    AccessLevel="Read" ModellingRule="Optional">
+      </opc:Variable>
+      <opc:Variable SymbolicName="DefeatableOpenInterlock" TypeDefinition="ua:BaseDataVariableType" DataType="ua:Boolean"
+                    AccessLevel="Read" ModellingRule="Optional">
+      </opc:Variable>
+      <opc:Variable SymbolicName="NonDefeatableCloseInterlock" TypeDefinition="ua:BaseDataVariableType" DataType="ua:Boolean"
+                    AccessLevel="Read" ModellingRule="Optional">
+      </opc:Variable>
+      <opc:Variable SymbolicName="DefeatableCloseInterlock" TypeDefinition="ua:BaseDataVariableType" DataType="ua:Boolean"
+                    AccessLevel="Read" ModellingRule="Optional">
+      </opc:Variable>
+      <opc:Method SymbolicName="Move" TypeDefinition="MoveMethodType">
+      </opc:Method>
+      <opc:Variable SymbolicName="InterlockPlaceholder" TypeDefinition="InterlockVariableType"
+                    ModellingRule="OptionalPlaceholder" >
+        <opc:BrowseName>&lt;InterlockPlaceholder&gt;</opc:BrowseName>
+        <opc:DisplayName>&lt;InterlockPlaceholder&gt;</opc:DisplayName>
+        <opc:ReferenceType>HasInterlock</opc:ReferenceType>
+      </opc:Variable>
+      <opc:Property SymbolicName="OpenTimeDuration" TypeDefinition="ua:PropertyType" DataType="ua:Duration"
+                    AccessLevel="Read" ModellingRule="Optional">
+     </opc:Property>
+      <opc:Property SymbolicName="CloseTimeDuration" TypeDefinition="ua:PropertyType" DataType="ua:Duration"
+                    AccessLevel="Read" ModellingRule="Optional">
+      </opc:Property>
+      <opc:Object SymbolicName="ValveSignature" TypeDefinition="ua:FileType" ModellingRule="OptionalPlaceholder" >
+        <opc:BrowseName>&lt;ValveSignature&gt;</opc:BrowseName>
+        <opc:DisplayName>&lt;ValveSignature&gt;</opc:DisplayName>
+        <opc:ReferenceType>HasSignature</opc:ReferenceType>
+      </opc:Object>
+
+    </opc:Children>
+  </opc:ObjectType>
+
+
+  <!--  Digital point -->
+  <opc:ObjectType SymbolicName="MDISDigitalInstrumentObjectType" BaseType="MDISBaseObjectType" IsAbstract="false" >
+    <opc:Description>The definition of a MDIS standard Digital Instrument </opc:Description>
+    <opc:Children>
+      <opc:Variable SymbolicName="State" TypeDefinition="ua:BaseDataVariableType" DataType="ua:Boolean"
+                    AccessLevel="Read" ModellingRule="Mandatory">
+      </opc:Variable>
+    </opc:Children>
+  </opc:ObjectType>
+
+  <!--  Digital Out point -->
+  <opc:ObjectType SymbolicName="MDISDigitalOutObjectType" BaseType="MDISDigitalInstrumentObjectType" IsAbstract="false" >
+    <opc:Description>The definition of a MDIS standard Digital Output </opc:Description>
+    <opc:Children>
+      <opc:Method SymbolicName="WriteState" TypeDefinition="WriteStateMethodType">
+      </opc:Method>
+    </opc:Children>
+  </opc:ObjectType>
+
+  <!--  Discrete point -->
+  <opc:ObjectType SymbolicName="MDISDiscreteInstrumentObjectType" BaseType="MDISBaseObjectType" IsAbstract="false" >
+    <opc:Description>The definition of a MDIS standard Discrete Instrument </opc:Description>
+    <opc:Children>
+      <opc:Variable SymbolicName="State" TypeDefinition="ua:BaseDataVariableType" DataType="ua:UInt32"
+                    AccessLevel="Read" ModellingRule="Mandatory">
+      </opc:Variable>
+    </opc:Children>
+  </opc:ObjectType>
+
+  <!--  Discrete out point -->
+  <opc:ObjectType SymbolicName="MDISDiscreteOutObjectType" BaseType="MDISDiscreteInstrumentObjectType" IsAbstract="false" >
+    <opc:Description>The definition of a MDIS standard Discrete Instrument </opc:Description>
+    <opc:Children>
+      <opc:Method SymbolicName="WriteValue" TypeDefinition="WriteValueMethodType">
+      </opc:Method>
+    </opc:Children>
+  </opc:ObjectType> 
+  
+  <!-- Instrument Object-->  
+  <opc:ObjectType SymbolicName="MDISInstrumentObjectType" BaseType="MDISBaseObjectType" IsAbstract="false" >
+    <opc:Description>The definition of a MDIS standard Instrument</opc:Description>
+    <opc:Children>
+      <opc:Variable SymbolicName="ProcessVariable" TypeDefinition="ua:AnalogItemType" DataType="ua:Float"
+                    AccessLevel="Read" ModellingRule="Mandatory">
+        <opc:Children>
+          <opc:Property SymbolicName="ua:EngineeringUnits" DataType="ua:EUInformation" ModellingRule="Mandatory"  />
+        </opc:Children>
+      </opc:Variable>
+      <opc:Variable SymbolicName="HHlimit" TypeDefinition="ua:BaseDataVariableType" DataType="ua:Boolean"
+                    AccessLevel="Read" ModellingRule="Optional">
+      </opc:Variable>
+      <opc:Variable SymbolicName="Hlimit" TypeDefinition="ua:BaseDataVariableType" DataType="ua:Boolean"
+                    AccessLevel="Read" ModellingRule="Optional">
+      </opc:Variable>
+      <opc:Variable SymbolicName="Llimit" TypeDefinition="ua:BaseDataVariableType" DataType="ua:Boolean"
+                    AccessLevel="Read" ModellingRule="Optional">
+      </opc:Variable>
+      <opc:Variable SymbolicName="LLlimit" TypeDefinition="ua:BaseDataVariableType" DataType="ua:Boolean"
+                    AccessLevel="Read" ModellingRule="Optional">
+      </opc:Variable>
+      <opc:Property SymbolicName="HHSetPoint" DataType="ua:Float" TypeDefinition="ua:PropertyType"
+                    AccessLevel="ReadWrite" ModellingRule="Optional" >        
+      </opc:Property>
+      <opc:Property SymbolicName="HSetPoint" DataType="ua:Float" TypeDefinition="ua:PropertyType"
+                    AccessLevel="ReadWrite" ModellingRule="Optional" >
+      </opc:Property>
+      <opc:Property SymbolicName="LSetPoint" DataType="ua:Float" TypeDefinition="ua:PropertyType"
+                    AccessLevel="ReadWrite" ModellingRule="Optional" >
+      </opc:Property>
+      <opc:Property SymbolicName="LLSetPoint" DataType="ua:Float" TypeDefinition="ua:PropertyType"
+                    AccessLevel="ReadWrite" ModellingRule="Optional" >
+      </opc:Property>
+    </opc:Children>
+  </opc:ObjectType>
+
+  <!--  Instrument out point -->
+  <opc:ObjectType SymbolicName="MDISInstrumentOutObjectType" BaseType="MDISInstrumentObjectType" IsAbstract="false" >
+    <opc:Description>The definition of a MDIS standard instrument Output</opc:Description>
+    <opc:Children>
+      <opc:Method SymbolicName="WriteValue" TypeDefinition="WriteInstrumentValueMethodType">
+      </opc:Method>
+    </opc:Children>
+  </opc:ObjectType>
+
+
+  <!-- Choke Object-->
+  <opc:ObjectType SymbolicName="MDISChokeObjectType" BaseType="MDISBaseObjectType" IsAbstract="false" >
+    <opc:Description>The definition of a standard MDIS Valve Object</opc:Description>
+    <opc:Children>
+      <opc:Variable SymbolicName="CalculatedPosition" TypeDefinition="ua:BaseDataVariableType" DataType="ua:Float"
+                      AccessLevel="Read" ModellingRule="Mandatory">
+      </opc:Variable>
+      <opc:Variable SymbolicName="SetCalculatedPositionStatus" TypeDefinition="ua:BaseDataVariableType" DataType="SetCalculatedPositionEnum"
+                AccessLevel="Read" ModellingRule="Optional">
+      </opc:Variable>
+      <opc:Variable SymbolicName="PositionInSteps" TypeDefinition="ua:BaseDataVariableType" DataType="ua:Int16"
+                      AccessLevel="Read" ModellingRule="Optional">
+      </opc:Variable>
+      <opc:Variable SymbolicName="Moving" TypeDefinition="ua:BaseDataVariableType" DataType="ChokeMoveEnum"
+                      AccessLevel="Read" ModellingRule="Mandatory">
+      </opc:Variable>
+      <opc:Variable SymbolicName="CommandRejected" TypeDefinition="ua:BaseDataVariableType" DataType="ua:Boolean"
+                      AccessLevel="Read" ModellingRule="Optional">
+      </opc:Variable>
+
+      <opc:Variable SymbolicName="NonDefeatableOpenInterlock" TypeDefinition="ua:BaseDataVariableType" DataType="ua:Boolean"
+                    AccessLevel="Read" ModellingRule="Optional">
+      </opc:Variable>
+      <opc:Variable SymbolicName="DefeatableOpenInterlock" TypeDefinition="ua:BaseDataVariableType" DataType="ua:Boolean"
+                    AccessLevel="Read" ModellingRule="Optional">
+      </opc:Variable>
+      <opc:Variable SymbolicName="NonDefeatableCloseInterlock" TypeDefinition="ua:BaseDataVariableType" DataType="ua:Boolean"
+                    AccessLevel="Read" ModellingRule="Optional">
+      </opc:Variable>
+      <opc:Variable SymbolicName="DefeatableCloseInterlock" TypeDefinition="ua:BaseDataVariableType" DataType="ua:Boolean"
+                    AccessLevel="Read" ModellingRule="Optional">
+      </opc:Variable>
+      
+      <opc:Method SymbolicName="Move" TypeDefinition="ChokeMoveMethodType">
+      </opc:Method>
+
+      <opc:Method SymbolicName="Step" TypeDefinition="ChokeStepMethodType" ModellingRule="Optional">
+      </opc:Method>
+
+      <opc:Method SymbolicName="Abort" TypeDefinition="ChokeAbortMethodType">
+      </opc:Method>
+
+      <opc:Method SymbolicName="SetCalculatedPosition" TypeDefinition="ChokeSetCalculatedPositionMethodType">
+      </opc:Method>
+
+      <opc:Variable SymbolicName="InterlockPlaceholder" TypeDefinition="InterlockVariableType"
+                    ModellingRule="OptionalPlaceholder" >
+        <opc:BrowseName>&lt;InterlockPlaceholder&gt;</opc:BrowseName>
+        <opc:DisplayName>&lt;InterlockPlaceholder&gt;</opc:DisplayName>
+        <opc:ReferenceType>HasInterlock</opc:ReferenceType>
+      </opc:Variable>
+      
+      <opc:Property SymbolicName="StepDurationOpen" TypeDefinition="ua:PropertyType" DataType="ua:Duration"
+                    AccessLevel="Read" ModellingRule="Optional">
+      </opc:Property>
+      <opc:Property SymbolicName="StepDurationClose" TypeDefinition="ua:PropertyType" DataType="ua:Duration"
+                    AccessLevel="Read" ModellingRule="Optional">
+      </opc:Property>
+      <opc:Property SymbolicName="TotalSteps" TypeDefinition="ua:PropertyType" DataType="ua:UInt16"
+                    AccessLevel="Read" ModellingRule="Optional">
+      </opc:Property>
+    </opc:Children>
+  </opc:ObjectType>
+
+
+  <!-- Choke Object-->
+  <opc:ObjectType SymbolicName="MDISAggregateObjectType" BaseType="MDISBaseObjectType" IsAbstract="true" >
+    <opc:Description>The definition of a standard MDIS Valve Object</opc:Description>
+    <opc:Children>
+      
+      <opc:Object SymbolicName="InstrumentPlaceholder" TypeDefinition="MDISInstrumentObjectType" ModellingRule="OptionalPlaceholder" >
+        <opc:BrowseName>&lt;InstrumentPlaceholder&gt;</opc:BrowseName>
+        <opc:DisplayName>&lt;InstrumentPlaceholder&gt;</opc:DisplayName>
+      </opc:Object>
+      
+      <opc:Object SymbolicName="InstrumentOutPlaceholder" TypeDefinition="MDISInstrumentOutObjectType" ModellingRule="OptionalPlaceholder" >
+        <opc:BrowseName>&lt;InstrumentOutPlaceholder&gt;</opc:BrowseName>
+        <opc:DisplayName>&lt;InstrumentOutPlaceholder&gt;</opc:DisplayName>
+      </opc:Object>
+
+      <opc:Object SymbolicName="DigitalInstrumentPlaceholder" TypeDefinition="MDISDigitalInstrumentObjectType" ModellingRule="OptionalPlaceholder" >
+        <opc:BrowseName>&lt;DigitalInstrumentPlaceholder&gt;</opc:BrowseName>
+        <opc:DisplayName>&lt;DigitalInstrumentPlaceholder&gt;</opc:DisplayName>
+      </opc:Object>
+
+      <opc:Object SymbolicName="DiscreteInstrumentPlaceholder" TypeDefinition="MDISDiscreteInstrumentObjectType" ModellingRule="OptionalPlaceholder" >
+        <opc:BrowseName>&lt;DiscreteInstrumentPlaceholder&gt;</opc:BrowseName>
+        <opc:DisplayName>&lt;DiscreteInstrumentPlaceholder&gt;</opc:DisplayName>
+      </opc:Object>
+
+      <opc:Object SymbolicName="DigitalOutPlaceholder" TypeDefinition="MDISDigitalOutObjectType" ModellingRule="OptionalPlaceholder" >
+        <opc:BrowseName>&lt;DigitalOutPlaceholder&gt;</opc:BrowseName>
+        <opc:DisplayName>&lt;DigitalOutPlaceholder&gt;</opc:DisplayName>
+      </opc:Object>
+      
+      <opc:Object SymbolicName="DiscreteOutPlaceholder" TypeDefinition="MDISDiscreteOutObjectType" ModellingRule="OptionalPlaceholder" >
+        <opc:BrowseName>&lt;DiscreteOutPlaceholder&gt;</opc:BrowseName>
+        <opc:DisplayName>&lt;DiscreteOutPlaceholder&gt;</opc:DisplayName>
+      </opc:Object>
+
+      <opc:Object SymbolicName="ValvePlaceholder" TypeDefinition="MDISValveObjectType" ModellingRule="OptionalPlaceholder" >
+        <opc:BrowseName>&lt;ValvePlaceholder&gt;</opc:BrowseName>
+        <opc:DisplayName>&lt;ValvePlaceholder&gt;</opc:DisplayName>
+      </opc:Object>
+
+      <opc:Object SymbolicName="ChokePlaceholder" TypeDefinition="MDISChokeObjectType" ModellingRule="OptionalPlaceholder" >
+        <opc:BrowseName>&lt;ChokePlaceholder&gt;</opc:BrowseName>
+        <opc:DisplayName>&lt;ChokePlaceholder&gt;</opc:DisplayName>
+      </opc:Object>
+
+      <opc:Variable SymbolicName="InterlockPlaceholder" TypeDefinition="InterlockVariableType" ModellingRule="OptionalPlaceholder" >
+        <opc:BrowseName>&lt;InterlockPlaceholder&gt;</opc:BrowseName>
+        <opc:DisplayName>&lt;InterlockPlaceholder&gt;</opc:DisplayName>
+        <opc:ReferenceType>HasInterlock</opc:ReferenceType>
+      </opc:Variable>
+
+    </opc:Children>
+  </opc:ObjectType>
+
+<!-- add 1.2 objcets and instance in -->
+
+  <!--  SetTime -->
+  <opc:Method SymbolicName="SetTimeMethodType" >
+    <opc:InputArguments>
+      <opc:Argument Name="TargetTime" DataType="ua:UtcTime">
+        <opc:Description>The UTC Time that the Server shall use to update its internal clock.</opc:Description>
+      </opc:Argument>
+    </opc:InputArguments>
+  </opc:Method>
+
+  <!--  TimeSync object -->
+  <opc:ObjectType SymbolicName="MDISTimeSyncObjectType" BaseType="ua:BaseObjectType" IsAbstract="false" >
+    <opc:Description>The definition of a MDIS Time Sync object </opc:Description>
+    <opc:Children>
+      <opc:Method SymbolicName="SetTime" TypeDefinition="SetTimeMethodType" ModellingRule="Mandatory">
+      </opc:Method>
+    </opc:Children>
+  </opc:ObjectType>
+
+  <!--  Information Object -->
+  <opc:ObjectType SymbolicName="MDISInformationObjectType" BaseType="ua:BaseObjectType" IsAbstract="false" >
+    <opc:Description>The definition of a MDIS standard Information </opc:Description>
+    <opc:Children>
+      <opc:Object SymbolicName="TimeSynchronization" TypeDefinition="MDISTimeSyncObjectType" ModellingRule="Optional" >
+      </opc:Object>
+      <opc:Object SymbolicName="Signatures" TypeDefinition="ua:FolderType" ModellingRule="Optional" >
+      </opc:Object>
+      <opc:Variable SymbolicName="MDISVersion" TypeDefinition="MDISVersionVariableType" DataType="MDISVersionDataType"
+                    AccessLevel="Read" ModellingRule="Mandatory">
+      </opc:Variable>
+    </opc:Children>
+  </opc:ObjectType>
+  
+  <opc:Object SymbolicName="MDISInformation" TypeDefinition="MDISInformationObjectType">
+    <opc:Children>
+      <opc:Object SymbolicName="TimeSynchronization" ModellingRule="Mandatory" />
+      <opc:Object SymbolicName="Signatures" ModellingRule="Mandatory"/>
+      <opc:Variable SymbolicName="MDISVersion" ModellingRule="Mandatory" />
+    </opc:Children>
+    <opc:References>
+      <opc:Reference IsInverse="true">
+        <opc:ReferenceType>ua:Organizes</opc:ReferenceType>
+        <opc:TargetId>ua:ObjectsFolder</opc:TargetId>
+      </opc:Reference>
+    </opc:References>
+  </opc:Object>
+
+</opc:ModelDesign>

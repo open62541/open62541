@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+ * Copyright (c) 2005-2019 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<xs:schema
+  xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  xmlns:ua="http://opcfoundation.org/UA/2008/02/Types.xsd"
+  xmlns:tns="http://opcfoundation.org/UA/MDIS"
+  targetNamespace="http://opcfoundation.org/UA/MDIS"
+  elementFormDefault="qualified"
+>
+  <xs:import namespace="http://opcfoundation.org/UA/2008/02/Types.xsd" />
+
+  <xs:simpleType  name="SignatureStatusEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="NotAvailable_1" />
+      <xs:enumeration value="Completed_2" />
+      <xs:enumeration value="Failed_4" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="SignatureStatusEnum" type="tns:SignatureStatusEnum" />
+
+  <xs:complexType name="ListOfSignatureStatusEnum">
+    <xs:sequence>
+      <xs:element name="SignatureStatusEnum" type="tns:SignatureStatusEnum" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfSignatureStatusEnum" type="tns:ListOfSignatureStatusEnum" nillable="true"></xs:element>
+
+  <xs:simpleType  name="SetCalculatedPositionEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Initial_0" />
+      <xs:enumeration value="Inprogress_1" />
+      <xs:enumeration value="Complete_2" />
+      <xs:enumeration value="Fault_4" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="SetCalculatedPositionEnum" type="tns:SetCalculatedPositionEnum" />
+
+  <xs:complexType name="ListOfSetCalculatedPositionEnum">
+    <xs:sequence>
+      <xs:element name="SetCalculatedPositionEnum" type="tns:SetCalculatedPositionEnum" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfSetCalculatedPositionEnum" type="tns:ListOfSetCalculatedPositionEnum" nillable="true"></xs:element>
+
+  <xs:simpleType  name="CommandEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Close_1" />
+      <xs:enumeration value="Open_2" />
+      <xs:enumeration value="None_4" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="CommandEnum" type="tns:CommandEnum" />
+
+  <xs:complexType name="ListOfCommandEnum">
+    <xs:sequence>
+      <xs:element name="CommandEnum" type="tns:CommandEnum" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfCommandEnum" type="tns:ListOfCommandEnum" nillable="true"></xs:element>
+
+  <xs:simpleType  name="ChokeCommandEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Close_1" />
+      <xs:enumeration value="Open_2" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="ChokeCommandEnum" type="tns:ChokeCommandEnum" />
+
+  <xs:complexType name="ListOfChokeCommandEnum">
+    <xs:sequence>
+      <xs:element name="ChokeCommandEnum" type="tns:ChokeCommandEnum" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfChokeCommandEnum" type="tns:ListOfChokeCommandEnum" nillable="true"></xs:element>
+
+  <xs:simpleType  name="SEMEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="SEM_A_1" />
+      <xs:enumeration value="SEM_B_2" />
+      <xs:enumeration value="Auto_4" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="SEMEnum" type="tns:SEMEnum" />
+
+  <xs:complexType name="ListOfSEMEnum">
+    <xs:sequence>
+      <xs:element name="SEMEnum" type="tns:SEMEnum" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfSEMEnum" type="tns:ListOfSEMEnum" nillable="true"></xs:element>
+
+  <xs:simpleType  name="ValvePositionEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Closed_1" />
+      <xs:enumeration value="Open_2" />
+      <xs:enumeration value="Moving_4" />
+      <xs:enumeration value="Unknown_8" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="ValvePositionEnum" type="tns:ValvePositionEnum" />
+
+  <xs:complexType name="ListOfValvePositionEnum">
+    <xs:sequence>
+      <xs:element name="ValvePositionEnum" type="tns:ValvePositionEnum" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfValvePositionEnum" type="tns:ListOfValvePositionEnum" nillable="true"></xs:element>
+
+  <xs:simpleType  name="ChokeMoveEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Moving_1" />
+      <xs:enumeration value="Stopped_2" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="ChokeMoveEnum" type="tns:ChokeMoveEnum" />
+
+  <xs:complexType name="ListOfChokeMoveEnum">
+    <xs:sequence>
+      <xs:element name="ChokeMoveEnum" type="tns:ChokeMoveEnum" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfChokeMoveEnum" type="tns:ListOfChokeMoveEnum" nillable="true"></xs:element>
+
+  <xs:complexType name="MDISVersionDataType">
+    <xs:sequence>
+      <xs:element name="MajorVersion" type="xs:unsignedByte" minOccurs="0" />
+      <xs:element name="MinorVersion" type="xs:unsignedByte" minOccurs="0" />
+      <xs:element name="Build" type="xs:unsignedByte" minOccurs="0" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="MDISVersionDataType" type="tns:MDISVersionDataType" />
+
+  <xs:complexType name="ListOfMDISVersionDataType">
+    <xs:sequence>
+      <xs:element name="MDISVersionDataType" type="tns:MDISVersionDataType" minOccurs="0" maxOccurs="unbounded" nillable="true" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfMDISVersionDataType" type="tns:ListOfMDISVersionDataType" nillable="true"></xs:element>
+
+</xs:schema>
