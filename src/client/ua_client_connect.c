@@ -515,6 +515,15 @@ activateSessionAsync(UA_Client *client) {
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
+    if (client->config.sessionLocaleIdsSize && client->config.sessionLocaleIds) {
+        retval = UA_Array_copy(client->config.sessionLocaleIds, client->config.sessionLocaleIdsSize,
+                               (void **)&request.localeIds, &UA_TYPES[UA_TYPES_LOCALEID]);
+        if (retval != UA_STATUSCODE_GOOD)
+            return retval;
+
+        request.localeIdsSize = client->config.sessionLocaleIdsSize;
+    }
+
     /* If not token is set, use anonymous */
     if(request.userIdentityToken.encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY) {
         UA_AnonymousIdentityToken *t = UA_AnonymousIdentityToken_new();
