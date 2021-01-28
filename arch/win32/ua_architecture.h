@@ -126,7 +126,7 @@ void UA_sleep_ms(unsigned long ms);
 # define UA_realloc realloc
 #endif
 
-#ifdef(__CODEGEARC__)
+#ifdef __CODEGEARC__
 #define _snprintf_s(a,b,c,...) snprintf(a,b,__VA_ARGS__)
 #endif
 
