@@ -126,6 +126,10 @@ void UA_sleep_ms(unsigned long ms);
 # define UA_realloc realloc
 #endif
 
+#ifdef(__CODEGEARC__)
+#define _snprintf_s(a,b,c,...) snprintf(a,b,__VA_ARGS__)
+#endif
+
 /* 3rd Argument is the string */
 #define UA_snprintf(source, size, ...) _snprintf_s(source, size, _TRUNCATE, __VA_ARGS__)
 #define UA_strncasecmp _strnicmp
