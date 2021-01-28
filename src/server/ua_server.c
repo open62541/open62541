@@ -23,6 +23,8 @@
 #include "ua_pubsub_ns0.h"
 #endif
 
+#include "ua_pubsub_manager.h"
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 #include "ua_subscription.h"
 #endif
@@ -88,9 +90,9 @@ UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
     UA_String nameString;
     nameString.length = strlen(name);
     nameString.data = (UA_Byte*)(uintptr_t)name;
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
     UA_UInt16 retVal = addNamespace(server, nameString);
-    UA_UNLOCK(server->serviceMutex);
+    UA_UNLOCK(&server->serviceMutex);
     return retVal;
 }
 
@@ -120,58 +122,39 @@ getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
 UA_StatusCode
 UA_Server_getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
                              size_t *foundIndex) {
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
     UA_StatusCode res = getNamespaceByName(server, namespaceUri, foundIndex);
-    UA_UNLOCK(server->serviceMutex);
+    UA_UNLOCK(&server->serviceMutex);
     return res;
 }
 
 UA_StatusCode
 UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
                                UA_NodeIteratorCallback callback, void *handle) {
-    UA_LOCK(server->serviceMutex);
-    const UA_Node *parent = UA_NODESTORE_GET(server, &parentNodeId);
-    if(!parent) {
-        UA_UNLOCK(server->serviceMutex);
-        return UA_STATUSCODE_BADNODEIDINVALID;
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = parentNodeId;
+    bd.browseDirection = UA_BROWSEDIRECTION_BOTH;
+    bd.resultMask = UA_BROWSERESULTMASK_REFERENCETYPEID | UA_BROWSERESULTMASK_ISFORWARD;
+
+    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
+    UA_StatusCode res = br.statusCode;
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_BrowseResult_clear(&br);
+        return res;
     }
 
-    /* TODO: We need to do an ugly copy of the references array since users may
-     * delete references from within the callback. In single-threaded mode this
-     * changes the same node we point at here. In multi-threaded mode, this
-     * creates a new copy as nodes are truly immutable.
-     * The callback could remove a node via the regular public API.
-     * This can remove a member of the nodes-array we iterate over...
-     * */
-    UA_Node *parentCopy = UA_Node_copy_alloc(parent);
-    if(!parentCopy) {
-        UA_NODESTORE_RELEASE(server, parent);
-        UA_UNLOCK(server->serviceMutex);
-        return UA_STATUSCODE_BADUNEXPECTEDERROR;
+    for(size_t i = 0; i < br.referencesSize; i++) {
+        if(!UA_ExpandedNodeId_isLocal(&br.references[i].nodeId))
+            continue;
+        res = callback(br.references[i].nodeId.nodeId, !br.references[i].isForward,
+                       br.references[i].referenceTypeId, handle);
+        if(res != UA_STATUSCODE_GOOD)
+            break;
     }
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    for(size_t i = parentCopy->head.referencesSize; i > 0; --i) {
-        UA_NodeReferenceKind *ref = &parentCopy->head.references[i - 1];
-        UA_NodeId refTypeId =
-            *UA_NODESTORE_GETREFERENCETYPEID(server, ref->referenceTypeIndex);
-        UA_ReferenceTarget *target;
-        TAILQ_FOREACH(target, &ref->queueHead, queuePointers) {
-            UA_UNLOCK(server->serviceMutex);
-            retval = callback(target->targetId.nodeId, ref->isInverse, refTypeId, handle);
-            UA_LOCK(server->serviceMutex);
-            if(retval != UA_STATUSCODE_GOOD)
-                goto cleanup;
-        }
-    }
-
-cleanup:
-    UA_Node_clear(parentCopy);
-    UA_free(parentCopy);
-
-    UA_NODESTORE_RELEASE(server, parent);
-    UA_UNLOCK(server->serviceMutex);
-    return retval;
+    UA_BrowseResult_clear(&br);
+    return res;
 }
 
 /********************/
@@ -184,7 +167,7 @@ serverExecuteRepeatedCallback(UA_Server *server, UA_ApplicationCallback cb,
 
 /* The server needs to be stopped before it can be deleted */
 void UA_Server_delete(UA_Server *server) {
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
 
     UA_Server_deleteSecureChannels(server);
     session_list_entry *current, *temp;
@@ -203,12 +186,14 @@ void UA_Server_delete(UA_Server *server) {
     /* Remove subscriptions without a session */
     UA_Subscription *sub, *sub_tmp;
     LIST_FOREACH_SAFE(sub, &server->subscriptions, serverListEntry, sub_tmp) {
-        UA_Server_deleteSubscription(server, sub);
+        UA_Subscription_delete(server, sub);
     }
+    UA_assert(server->monitoredItemsSize == 0);
+    UA_assert(server->subscriptionsSize == 0);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
     UA_ConditionList_delete(server);
-#endif//UA_ENABLE_ALARMS_CONDITIONS
+#endif
 
 #endif
 
@@ -227,7 +212,7 @@ void UA_Server_delete(UA_Server *server) {
     /* Clean up the Admin Session */
     UA_Session_clear(&server->adminSession, server);
 
-    UA_UNLOCK(server->serviceMutex); /* The timer has its own mutex */
+    UA_UNLOCK(&server->serviceMutex); /* The timer has its own mutex */
 
     /* Execute all remaining delayed events and clean up the timer */
     UA_Timer_process(&server->timer, UA_DateTime_nowMonotonic() + 1,
@@ -238,8 +223,8 @@ void UA_Server_delete(UA_Server *server) {
     UA_ServerConfig_clean(&server->config);
 
 #if UA_MULTITHREADING >= 100
-    UA_LOCK_DESTROY(server->networkMutex)
-    UA_LOCK_DESTROY(server->serviceMutex)
+    UA_LOCK_DESTROY(&server->networkMutex);
+    UA_LOCK_DESTROY(&server->serviceMutex);
 #endif
 
     /* Delete the server itself */
@@ -249,14 +234,14 @@ void UA_Server_delete(UA_Server *server) {
 /* Recurring cleanup. Removing unused and timed-out channels and sessions */
 static void
 UA_Server_cleanup(UA_Server *server, void *_) {
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
     UA_DateTime nowMonotonic = UA_DateTime_nowMonotonic();
     UA_Server_cleanupSessions(server, nowMonotonic);
     UA_Server_cleanupTimedOutSecureChannels(server, nowMonotonic);
 #ifdef UA_ENABLE_DISCOVERY
     UA_Discovery_cleanupTimedOut(server, nowMonotonic);
 #endif
-    UA_UNLOCK(server->serviceMutex);
+    UA_UNLOCK(&server->serviceMutex);
 }
 
 /********************/
@@ -283,8 +268,8 @@ UA_Server_init(UA_Server *server) {
 #endif
 
 #if UA_MULTITHREADING >= 100
-    UA_LOCK_INIT(server->networkMutex)
-    UA_LOCK_INIT(server->serviceMutex)
+    UA_LOCK_INIT(&server->networkMutex);
+    UA_LOCK_INIT(&server->serviceMutex);
 #endif
 
     /* Initialize the handling of repeated callbacks */
@@ -330,11 +315,25 @@ UA_Server_init(UA_Server *server) {
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
 
+#ifdef UA_ENABLE_PUBSUB
     /* Build PubSub information model */
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     UA_Server_initPubSubNS0(server);
 #endif
 
+    server->config.pubsubConfiguration = (UA_PubSubConfiguration*) UA_calloc(1, sizeof(UA_PubSubConfiguration));
+    if (!server->config.pubsubConfiguration) {
+        goto cleanup;
+    }
+
+#ifdef UA_ENABLE_PUBSUB_MONITORING
+    /* setup default PubSub monitoring callbacks */
+    if (UA_PubSubManager_setDefaultMonitoringCallbacks(&(server->config.pubsubConfiguration->monitoringInterface)) != 
+        UA_STATUSCODE_GOOD) {
+        goto cleanup;
+    }
+#endif /* UA_ENABLE_PUBSUB_MONITORING */
+#endif /* UA_ENABLE_PUBSUB */
     return server;
 
  cleanup:
@@ -352,6 +351,14 @@ UA_Server_newWithConfig(UA_ServerConfig *config) {
         return NULL;
     }
     server->config = *config;
+
+
+    /* The config might have been "moved" into the server struct. Ensure that
+     * the logger pointer is correct. */
+    for(size_t i = 0; i < server->config.securityPoliciesSize; i++)
+        server->config.securityPolicies[i].logger = &server->config.logger;
+
+    /* Reset the old config */
     memset(config, 0, sizeof(UA_ServerConfig));
     return UA_Server_init(server);
 }
@@ -376,11 +383,12 @@ setServerShutdown(UA_Server *server) {
 UA_StatusCode
 UA_Server_addTimedCallback(UA_Server *server, UA_ServerCallback callback,
                            void *data, UA_DateTime date, UA_UInt64 *callbackId) {
-    UA_LOCK(server->serviceMutex);
-    UA_StatusCode retval = UA_Timer_addTimedCallback(&server->timer,
-                                                     (UA_ApplicationCallback)callback,
-                                                      server, data, date, callbackId);
-    UA_UNLOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode retval =
+        UA_Timer_addTimedCallback(&server->timer,
+                                  (UA_ApplicationCallback)callback,
+                                  server, data, date, callbackId);
+    UA_UNLOCK(&server->serviceMutex);
     return retval;
 }
 
@@ -397,9 +405,10 @@ UA_StatusCode
 UA_Server_addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
                               void *data, UA_Double interval_ms,
                               UA_UInt64 *callbackId) {
-    UA_LOCK(server->serviceMutex);
-    UA_StatusCode retval = addRepeatedCallback(server, callback, data, interval_ms, callbackId);
-    UA_UNLOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode retval =
+        addRepeatedCallback(server, callback, data, interval_ms, callbackId);
+    UA_UNLOCK(&server->serviceMutex);
     return retval;
 }
 
@@ -413,9 +422,10 @@ changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
 UA_StatusCode
 UA_Server_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
                                          UA_Double interval_ms) {
-    UA_LOCK(server->serviceMutex);
-    UA_StatusCode retval = changeRepeatedCallbackInterval(server, callbackId, interval_ms);
-    UA_UNLOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode retval =
+        changeRepeatedCallbackInterval(server, callbackId, interval_ms);
+    UA_UNLOCK(&server->serviceMutex);
     return retval;
 }
 
@@ -426,9 +436,9 @@ removeCallback(UA_Server *server, UA_UInt64 callbackId) {
 
 void
 UA_Server_removeCallback(UA_Server *server, UA_UInt64 callbackId) {
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
     removeCallback(server, callbackId);
-    UA_UNLOCK(server->serviceMutex);
+    UA_UNLOCK(&server->serviceMutex);
 }
 
 UA_StatusCode
@@ -447,10 +457,10 @@ UA_Server_updateCertificate(UA_Server *server,
         LIST_FOREACH(current, &server->sessions, pointers) {
             if(UA_ByteString_equal(oldCertificate,
                                     &current->session.header.channel->securityPolicy->localCertificate)) {
-                UA_LOCK(server->serviceMutex);
+                UA_LOCK(&server->serviceMutex);
                 UA_Server_removeSessionByToken(server, &current->session.header.authenticationToken,
                                                UA_DIAGNOSTICEVENT_CLOSE);
-                UA_UNLOCK(server->serviceMutex);
+                UA_UNLOCK(&server->serviceMutex);
             }
         }
 
@@ -550,16 +560,18 @@ UA_Server_run_startup(UA_Server *server) {
      * E.g. if fuzzing is enabled, and two clients are connected, subscriptions do not work properly,
      * since the tokens will be overridden to allow easier fuzzing. */
     UA_LOG_FATAL(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "Server was built with unsafe fuzzing mode. This should only be used for specific fuzzing builds.");
+                 "Server was built with unsafe fuzzing mode. "
+                 "This should only be used for specific fuzzing builds.");
 #endif
 
     /* ensure that the uri for ns1 is set up from the app description */
     setupNs1Uri(server);
 
     /* write ServerArray with same ApplicationURI value as NamespaceArray */
-    UA_StatusCode retVal = writeNs0VariableArray(server, UA_NS0ID_SERVER_SERVERARRAY,
-                                    &server->config.applicationDescription.applicationUri,
-                                    1, &UA_TYPES[UA_TYPES_STRING]);
+    UA_StatusCode retVal =
+        writeNs0VariableArray(server, UA_NS0ID_SERVER_SERVERARRAY,
+                              &server->config.applicationDescription.applicationUri,
+                              1, &UA_TYPES[UA_TYPES_STRING]);
     if(retVal != UA_STATUSCODE_GOOD)
         return retVal;
 
@@ -603,8 +615,9 @@ UA_Server_run_startup(UA_Server *server) {
     if(result != UA_STATUSCODE_GOOD)
         return result;
 
-    /* Update the application description to match the previously added discovery urls.
-     * We can only do this after the network layer is started since it inits the discovery url */
+    /* Update the application description to match the previously added
+     * discovery urls. We can only do this after the network layer is started
+     * since it inits the discovery url */
     if(server->config.applicationDescription.discoveryUrlsSize != 0) {
         UA_Array_delete(server->config.applicationDescription.discoveryUrls,
                         server->config.applicationDescription.discoveryUrlsSize,
@@ -615,10 +628,12 @@ UA_Server_run_startup(UA_Server *server) {
         UA_Array_new(server->config.networkLayersSize, &UA_TYPES[UA_TYPES_STRING]);
     if(!server->config.applicationDescription.discoveryUrls)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    server->config.applicationDescription.discoveryUrlsSize = server->config.networkLayersSize;
+    server->config.applicationDescription.discoveryUrlsSize =
+        server->config.networkLayersSize;
     for(size_t i = 0; i < server->config.applicationDescription.discoveryUrlsSize; i++) {
         UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
-        UA_String_copy(&nl->discoveryUrl, &server->config.applicationDescription.discoveryUrls[i]);
+        UA_String_copy(&nl->discoveryUrl,
+                       &server->config.applicationDescription.discoveryUrls[i]);
     }
 
     /* Start the multicast discovery server */
@@ -636,7 +651,7 @@ static void
 serverExecuteRepeatedCallback(UA_Server *server, UA_ApplicationCallback cb,
                               void *callbackApplication, void *data) {
     /* Service mutex is not set inside the timer that triggers the callback */
-    UA_LOCK_ASSERT(server->serviceMutex, 0);
+    UA_LOCK_ASSERT(&server->serviceMutex, 0);
     cb(callbackApplication, data);
 }
 
@@ -674,7 +689,7 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
     }
 #endif
 
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
 
 #if defined(UA_ENABLE_DISCOVERY_MULTICAST) && (UA_MULTITHREADING < 200)
     if(server->config.mdnsEnabled) {
@@ -690,7 +705,7 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
     }
 #endif
 
-    UA_UNLOCK(server->serviceMutex);
+    UA_UNLOCK(&server->serviceMutex);
 
     now = UA_DateTime_nowMonotonic();
     timeout = 0;

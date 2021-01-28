@@ -127,26 +127,6 @@ matrix:
       env:
         - PYTHON=python3
 #
-# tcc full host build:
-# doc, cert, linux64,
-# amalgamated, shared, multithread, encryption, discovery, json, test-ns0-full, test-ns0-minimal
-    - os: linux
-      compiler: tcc
-      addons:
-        apt:
-          packages:
-            # doc
-            - python-sphinx
-            - graphviz
-            - texlive-generic-extra
-            - texlive-fonts-recommended
-            - texlive-latex-extra
-            - latexmk
-            # tests
-            - check
-            - libsubunit-dev
-            - valgrind
-#
 # clang-6 python-3 install build and minimal example:
 # linux64, minimal-example
     - os: linux
@@ -212,23 +192,23 @@ matrix:
       compiler: gcc
       env:
         - DOCKER=true
-#
-# clang-6 FUZZER build
-    - os: linux
-      compiler: clang-6.0
-      addons:
-        apt:
-          sources:
-            - llvm-toolchain-trusty-6.0
-            - ubuntu-toolchain-r-test
-          packages:
-            - check
-            - libsubunit-dev
-            - clang-6.0
-            - clang-tidy-6.0
-            - libfuzzer-6.0-dev
-      env:
-        - FUZZER=true
+# #
+# # clang-6 FUZZER build
+#     - os: linux
+#       compiler: clang-6.0
+#       addons:
+#         apt:
+#           sources:
+#             - llvm-toolchain-trusty-6.0
+#             - ubuntu-toolchain-r-test
+#           packages:
+#             - check
+#             - libsubunit-dev
+#             - clang-6.0
+#             - clang-tidy-6.0
+#             - libfuzzer-6.0-dev
+#       env:
+#         - FUZZER=true
 #
 # OSX clang build
     - os: osx

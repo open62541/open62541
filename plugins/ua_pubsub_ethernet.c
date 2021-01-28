@@ -5,6 +5,7 @@
  *   Copyright 2018 (c) Kontron Europe GmbH (Author: Rudolf Hoyler)
  *   Copyright 2019 (c) Wind River Systems, Inc.
  *   Copyright (c) 2019-2020 Kalycito Infotech Private Limited
+ *   Copyright 2019-2020 (c) Wind River Systems, Inc.
  */
 
 #include <open62541/server_pubsub.h>
@@ -16,10 +17,12 @@
 #if defined(__vxworks) || defined(__VXWORKS__)
 #include <netpacket/packet.h>
 #include <netinet/if_ether.h>
+#include <ipcom_sock.h>
 #define ETH_ALEN ETHER_ADDR_LEN
 #else
 #include <linux/if_packet.h>
 #include <netinet/ether.h>
+#include <linux/version.h>
 #endif
 #include "time.h"
 
@@ -30,6 +33,8 @@ typedef struct {
     UA_Byte prio;
     UA_Byte ifAddress[ETH_ALEN];
     UA_Byte targetAddress[ETH_ALEN];
+    /* Send the packets with txtime ability - Linux specific */
+    UA_Boolean useSoTxTime;
 } UA_PubSubChannelDataEthernet;
 
 /* Structure for Logical link control based on 802.2 */
@@ -39,6 +44,30 @@ typedef struct  {
     UA_Byte ctrl_1; /* Control Field */
     UA_Byte ctrl_2; /* Control Field */
 } llc_pdu;
+
+/* Additional socket options */
+typedef struct {
+    UA_UInt32  *socketPriority;
+    /* ETF related socket options - Linux specific */
+    UA_Boolean enableSocketTxTime;
+    UA_Int32   sotxtimeDeadlinemode;
+    UA_Int32   sotxtimeReceiveerrors;
+} ethernetSocketOptions;
+
+/* ETF related structures - Required to send the packets with configured txtime */
+typedef struct {
+    clockid_t clockId;
+    uint16_t flags;
+} sock_txtime;
+
+enum txtime_flags {
+    SOF_TXTIME_DEADLINE_MODE = (1 << 0),
+    SOF_TXTIME_REPORT_ERRORS = (1 << 1),
+
+    SOF_TXTIME_FLAGS_LAST = SOF_TXTIME_REPORT_ERRORS,
+    SOF_TXTIME_FLAGS_MASK = (SOF_TXTIME_FLAGS_LAST - 1) |
+                             SOF_TXTIME_FLAGS_LAST
+};
 
 /*
  * OPC-UA specification Part 14:
@@ -143,6 +172,9 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
         return NULL;
     }
 
+    /* Set default socket options */
+    ethernetSocketOptions sockOptions = {NULL, UA_FALSE, 0, 0};
+
     /* Open a packet socket */
     int sockFd = UA_socket(PF_PACKET, SOCK_RAW, 0);
     if(sockFd < 0) {
@@ -164,6 +196,50 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
         UA_free(newChannel);
         return NULL;
     }
+
+#ifdef UA_ARCHITECTURE_VXWORKS
+    size_t i = 0;
+    UA_String streamName = UA_STRING("streamName");
+    UA_String stackIdx = UA_STRING("stackIdx");
+    UA_String * sName = NULL;
+    UA_UInt32 stkIdx = 0;
+    for(i = 0; i < connectionConfig->connectionPropertiesSize; i++) {
+        if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &streamName)) {
+            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_STRING])) {
+                sName = (UA_String *)connectionConfig->connectionProperties[i].value.data;
+            }
+        }
+        else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &stackIdx)) {
+            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_UINT32])) {
+                stkIdx = *(UA_UInt32 *) connectionConfig->connectionProperties[i].value.data;
+            }
+        }
+    }
+    if((sName != NULL) && !UA_String_equal(sName, &UA_STRING_NULL) && (sName->length < TSN_STREAMNAMSIZ)) {
+        /* Bind the PubSub packet socket to a TSN stream */
+        char sNameStr[TSN_STREAMNAMSIZ];
+        memcpy(sNameStr, sName->data, sName->length);
+        sNameStr[sName->length] = '\0';
+        if(UA_setsockopt(sockFd, SOL_SOCKET, SO_X_QBV, sNameStr, TSN_STREAMNAMSIZ) < 0) {
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                "PubSub connection creation failed. Cannot set stream name: %s.", sNameStr);
+            UA_close(sockFd);
+            UA_free(channelDataEthernet);
+            UA_free(newChannel);
+            return NULL;
+        }
+    }
+
+    /* Bind the PubSub packet socket to a specific network stack instance */
+    if((stkIdx > 0) && (UA_setsockopt(sockFd, SOL_SOCKET, SO_X_STACK_IDX, &stkIdx, sizeof(stkIdx)) < 0)) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+            "PubSub connection creation failed. Cannot set stack index.");
+        UA_close(sockFd);
+        UA_free(channelDataEthernet);
+        UA_free(newChannel);
+        return NULL;
+    }
+#endif
 
     /* get interface index */
     struct ifreq ifreq;
@@ -211,8 +287,77 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
         return NULL;
     }
 
+    /* Socket priority and socket txtime option */
+    UA_String socketPriority = UA_STRING("sockpriority");
+    UA_String enableSocketTxtime = UA_STRING("enablesotxtime");
+    /* Additional flags for soTxTime */
+    UA_String enableDeadlineMode = UA_STRING("enabledeadlinemode");
+    UA_String enableErrorReport = UA_STRING("enableerrorreport");
+    /* iterate over the given KeyValuePair paramters */
+    for(size_t i = 0; i < connectionConfig->connectionPropertiesSize; i++){
+        if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &socketPriority)){
+            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_UINT32])){
+                sockOptions.socketPriority = (UA_UInt32 *) UA_malloc(sizeof(UA_UInt32));
+                UA_UInt32_copy((UA_UInt32 *) connectionConfig->connectionProperties[i].value.data, sockOptions.socketPriority);
+            }
+        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &enableSocketTxtime)){
+            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_BOOLEAN])){
+                sockOptions.enableSocketTxTime = *(UA_Boolean *) connectionConfig->connectionProperties[i].value.data;
+            }
+        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &enableDeadlineMode)){
+            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_BOOLEAN])){
+                if(*(UA_Boolean *) connectionConfig->connectionProperties[i].value.data == UA_TRUE)
+                    sockOptions.sotxtimeDeadlinemode = SOF_TXTIME_DEADLINE_MODE;
+            }
+        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &enableErrorReport)){
+            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_BOOLEAN])){
+                if(*(UA_Boolean *) connectionConfig->connectionProperties[i].value.data == UA_TRUE)
+                    sockOptions.sotxtimeDeadlinemode = SOF_TXTIME_REPORT_ERRORS;
+            }
+        } else {
+            UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub Ethernet Connection creation. Unknown connection parameter.");
+        }
+    }
+
+    /* Setting the socket priority to the socket */
+    if(sockOptions.socketPriority) {
+        if (setsockopt(sockFd, SOL_SOCKET, SO_PRIORITY, sockOptions.socketPriority, sizeof(int))) {
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "setsockopt SO_PRIORITY failed");
+            UA_close(sockFd);
+            UA_free(sockOptions.socketPriority);
+            UA_free(channelDataEthernet);
+            UA_free(newChannel);
+            return NULL;
+        }
+    }
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,19,0)
+    if(sockOptions.enableSocketTxTime == UA_TRUE) {
+        /* Setting socket txtime with required flags to the socket */
+        sock_txtime sk_txtime;
+        memset(&sk_txtime, 0, sizeof(sk_txtime));
+        sk_txtime.clockId = CLOCK_TAI;
+        sk_txtime.flags   = (UA_UInt16)(sockOptions.sotxtimeDeadlinemode | sockOptions.sotxtimeReceiveerrors);
+        if (setsockopt(sockFd, SOL_SOCKET, SO_TXTIME, &sk_txtime, sizeof(&sk_txtime))) {
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "setsockopt SO_TXTIME failed");
+            UA_close(sockFd);
+            if(sockOptions.socketPriority)
+                UA_free(sockOptions.socketPriority);
+
+            UA_free(channelDataEthernet);
+            UA_free(newChannel);
+            return NULL;
+        }
+
+        channelDataEthernet->useSoTxTime = UA_TRUE;
+    }
+#endif
+
     newChannel->handle = channelDataEthernet;
     newChannel->state = UA_PUBSUB_CHANNEL_PUB;
+
+    if(sockOptions.socketPriority)
+        UA_free(sockOptions.socketPriority);
 
     return newChannel;
 }
@@ -292,6 +437,69 @@ UA_PubSubChannelEthernet_unregist(UA_PubSubChannel *channel,
     return UA_STATUSCODE_GOOD;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,19,0)
+static UA_StatusCode
+sendWithTxTime(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings, void *bufSend, size_t lenBuf) {
+    /* Send the data packet with the tx time */
+    char dataPacket[CMSG_SPACE(sizeof(UA_UInt64))] = {0};
+    /* Structure for messages sent and received */
+    struct msghdr message;
+    /* Structure for scattering or gathering of input/output */
+    struct iovec  inputOutputVec;
+    ssize_t       msgCount;
+
+    UA_PubSubChannelDataEthernet *channelDataEthernet =
+        (UA_PubSubChannelDataEthernet *) channel->handle;
+
+    /* Structure for socket internet address */
+    struct sockaddr_ll socketAddress = { 0 };
+
+    socketAddress.sll_family   = AF_PACKET;
+    socketAddress.sll_ifindex  = channelDataEthernet->ifindex;
+
+    inputOutputVec.iov_base   = bufSend;
+    inputOutputVec.iov_len    = lenBuf;
+
+    memset(&message, 0, sizeof(message));
+    /* Provide message name / optional address */
+    message.msg_name          = &socketAddress;
+    /* Provide message address size in bytes */
+    message.msg_namelen       = sizeof(socketAddress);
+    /* Provide array of input/output buffers */
+    message.msg_iov           = &inputOutputVec;
+    /* Provide the number of elements in the array */
+    message.msg_iovlen        = 1;
+
+    /* Get ethernet ETF transport settings */
+    UA_EthernetWriterGroupTransportDataType *ethernettransportSettings;
+    ethernettransportSettings = (UA_EthernetWriterGroupTransportDataType *)transportSettings->content.decoded.data;
+
+    /*
+     * We specify the transmission time in the CMSG.
+     */
+    /* Provide the necessary data */
+    message.msg_control    = dataPacket;
+    /* Provide the size of necessary bytes */
+    message.msg_controllen = sizeof(dataPacket);
+    /* Structure for storing the necessary data */
+    struct cmsghdr*       controlMsg;
+    /* Control message created for tx time */
+    controlMsg             = CMSG_FIRSTHDR(&message);
+    controlMsg->cmsg_level = SOL_SOCKET;
+    controlMsg->cmsg_type  = SCM_TXTIME;
+    controlMsg->cmsg_len   = CMSG_LEN(sizeof(UA_UInt64));
+    if(ethernettransportSettings && (ethernettransportSettings->transmission_time != 0))
+        *((UA_UInt64 *) CMSG_DATA(controlMsg)) = ethernettransportSettings->transmission_time;
+
+    msgCount = sendmsg(channel->sockfd, &message, 0);
+    if ((msgCount < 1) && (msgCount != (UA_Int32)lenBuf)) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+#endif
+
 /**
  * Send messages to the connection defined address
  *
@@ -315,9 +523,8 @@ UA_PubSubChannelEthernet_send(UA_PubSubChannel *channel,
     lenBuf = sizeof(*ethHdr) + 4 + sizeof(*llcData) + buf->length;
     bufSend = (char*) UA_malloc(lenBuf);
     if (bufSend == NULL)
-        {
         return UA_STATUSCODE_BADOUTOFMEMORY;
-        }
+
     ethHdr = (struct ether_header*) bufSend;
 
     /* Set (own) source MAC address */
@@ -355,16 +562,31 @@ UA_PubSubChannelEthernet_send(UA_PubSubChannel *channel,
     /* copy payload of ethernet message */
     memcpy(ptrCur, buf->data, buf->length);
 
-    ssize_t rc;
-    rc = UA_send(channel->sockfd, bufSend, lenBuf, 0);
-    if(rc  < 0) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-            "PubSub connection send failed. Send message failed.");
-        UA_free(bufSend);
-        return UA_STATUSCODE_BADINTERNALERROR;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,19,0)
+    if(channelDataEthernet->useSoTxTime) {
+        /* Send the packets at the given Txtime */
+        UA_StatusCode rc = sendWithTxTime(channel, transportSettings, bufSend, lenBuf);
+        if(rc != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                         "PubSub connection send failed. Send message failed.");
+            UA_free(bufSend);
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
     }
-    UA_free(bufSend);
+    else
+#endif
+    {
+        ssize_t rc;
+        rc = UA_send(channel->sockfd, bufSend, lenBuf, 0);
+        if(rc  < 0) {
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                         "PubSub connection send failed. Send message failed.");
+            UA_free(bufSend);
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+    }
 
+    UA_free(bufSend);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -386,7 +608,7 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_ByteString *messa
     UA_UInt64       currentTimeValue = 0;
     UA_UInt64       maxTimeValue = 0;
     UA_Int32        receiveFlags;
-    UA_StatusCode   retval;
+    UA_StatusCode   retval = UA_STATUSCODE_GOOD;
     UA_UInt16       rcvCount = 0;
 
     memset(&tmptv, 0, sizeof(tmptv));
@@ -408,7 +630,11 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_ByteString *messa
             return UA_STATUSCODE_BADINTERNALERROR;
         }
     }
+#ifdef UA_ARCHITECTURE_VXWORKS
+    clock_gettime(CLOCK_REALTIME, &currentTime);
+#else
     clock_gettime(CLOCK_TAI, &currentTime);
+#endif
     currentTimeValue = (UA_UInt64)((currentTime.tv_sec * 1000000000) + currentTime.tv_nsec);
     maxTime.tv_sec   = currentTime.tv_sec + tmptv.tv_sec;
     /* UA_Select uses timespec which accpets value in microseconds
@@ -483,7 +709,11 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_ByteString *messa
         messageLength = messageLength + ((size_t)dataLen - sizeof(struct ether_header) - sizeof(llcData) - paddingBytes);
         remainingMessageLength -= messageLength;
         rcvCount++;
+#ifdef UA_ARCHITECTURE_VXWORKS
+        clock_gettime(CLOCK_REALTIME, &currentTime);
+#else
         clock_gettime(CLOCK_TAI, &currentTime);
+#endif
         currentTimeValue = (UA_UInt64)((currentTime.tv_sec * 1000000000) + currentTime.tv_nsec);
         /* Receive flags set to MSG_DONTWAIT for the 2nd packet */
         /* The recvmsg API with MSG_DONTWAIT flag will not wait for the next packet */

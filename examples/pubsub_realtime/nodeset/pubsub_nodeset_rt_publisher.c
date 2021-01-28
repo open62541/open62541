@@ -2,14 +2,23 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
 /**
+ * .. _pubsub-tutorial:
+ *
+ * Publisher Realtime example using custom nodes
+ * ---------------------------------------------
+ *
  * The purpose of this example file is to use the custom nodes of the XML
- * file(pubDataModel.xml) for publisher
+ * file(pubDataModel.xml) for publisher.
  * This Publisher example uses the two custom nodes (PublisherCounterVariable and Pressure)
- * created using the XML file(pubDataModel.xml) for publishing the packet
+ * created using the XML file(pubDataModel.xml) for publishing the packet.
  * The pubDataModel.csv will contain the nodeids of custom nodes(object and variables) and
- * the nodeids of the custom nodes are harcoded inside the addDataSetField API
+ * the nodeids of the custom nodes are harcoded inside the addDataSetField API.
+ * This example uses two threads namely the Publisher and UserApplication. The Publisher thread is used to publish data at every cycle.
+ * The UserApplication thread serves the functionality of the Control loop, which increments the counterdata to be published
+ * by the Publisher and also writes the published data in a csv along with transmission timestamp.
  *
  * Run steps of the Publisher application as mentioned below:
+ *
  * ./bin/examples/pubsub_nodeset_rt_publisher -i <iface>
  * For more information run ./bin/examples/pubsub_nodeset_rt_publisher -h */
 
@@ -22,7 +31,7 @@
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/types_generated.h>
-#include <open62541/plugin/pubsub_ethernet_etf.h>
+#include <open62541/plugin/pubsub_ethernet.h>
 
 #include "ua_pubsub.h"
 #include "open62541/namespace_example_publisher_generated.h"
@@ -147,7 +156,6 @@ static void stopHandler(int sign) {
  * Nanosecond field in timespec is checked for overflowing and one second
  * is added to seconds field and nanosecond field is set to zero
 */
-
 static void nanoSecondFieldConversion(struct timespec *timeSpecValue) {
     /* Check if ns field is greater than '1 ns less than 1sec' */
     while (timeSpecValue->tv_nsec > (SECONDS -1)) {
@@ -158,10 +166,15 @@ static void nanoSecondFieldConversion(struct timespec *timeSpecValue) {
 
 }
 
+/**
+ * **Custom callback handling**
+ *
+ * Custom callback thread handling overwrites the default timer based
+ * callback function with the custom (user-specified) callback interval. */
 /* Add a callback for cyclic repetition */
 static UA_StatusCode
 addPubSubApplicationCallback(UA_Server *server, UA_NodeId identifier,
-                             UA_CustomPublishCallback callback,
+                             UA_ServerCallback callback,
                              void *data, UA_Double interval_ms, UA_UInt64 *callbackId) {
     /* Initialize arguments required for the thread to run */
     threadArg *threadArguments = (threadArg *) UA_malloc(sizeof(threadArg));
@@ -195,7 +208,10 @@ removePubSubApplicationCallback(UA_Server *server, UA_NodeId identifier, UA_UInt
                        "Pthread Join Failed thread: %ld\n", callbackId);
 }
 
-/* If the external data source is written over the information model, the
+/**
+ * **External data source handling**
+ *
+ * If the external data source is written over the information model, the
  * externalDataWriteCallback will be triggered. The user has to take care and assure
  * that the write leads not to synchronization issues and race conditions. */
 static UA_StatusCode
@@ -236,9 +252,16 @@ addPubSubConnection(UA_Server *server, UA_NetworkAddressUrlDataType *networkAddr
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.publisherId.numeric                    = PUBLISHER_ID;
-    /* ETF configuration settings */
-    connectionConfig.etfConfiguration.socketPriority        = socketPriority;
-    connectionConfig.etfConfiguration.sotxtimeEnabled       = useSoTxtime;
+    /* Connection options are given as Key/Value Pairs - Sockprio and Txtime */
+    UA_KeyValuePair connectionOptions[2];
+    connectionOptions[0].key = UA_QUALIFIEDNAME(0, "sockpriority");
+    UA_UInt32 sockPriority   = (UA_UInt32)socketPriority;
+    UA_Variant_setScalar(&connectionOptions[0].value, &sockPriority, &UA_TYPES[UA_TYPES_UINT32]);
+    connectionOptions[1].key = UA_QUALIFIEDNAME(0, "enablesotxtime");
+    UA_Boolean enableTxTime  = UA_TRUE;
+    UA_Variant_setScalar(&connectionOptions[1].value, &enableTxTime, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    connectionConfig.connectionProperties     = connectionOptions;
+    connectionConfig.connectionPropertiesSize = 2;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
 }
 
@@ -385,12 +408,14 @@ updateMeasurementsPublisher(struct timespec start_time,
     measurementsPublisher++;
 }
 
-
 /**
  * **Publisher thread routine**
  *
+ * The Publisher thread sleeps for 60% of the cycletime (250us) and prepares the tranmission packet within 40% of
+ * cycletime. The data published by this thread in one cycle is subscribed by the subscriber thread of pubsub_nodeset_rt_subscriber in the
+ * next cycle (two cycle timing model).
+ *
  * The publisherETF function is the routine used by the publisher thread.
- * This routine publishes the data at a cycle time of 250us.
  */
 void *publisherETF(void *arg) {
     struct timespec   nextnanosleeptime;
@@ -417,26 +442,24 @@ void *publisherETF(void *arg) {
     nanoSecondFieldConversion(&nextnanosleeptime);
 
     /* Define Ethernet ETF transport settings */
-    UA_EthernetETFWriterGroupTransportDataType ethernetETFtransportSettings;
-    memset(&ethernetETFtransportSettings, 0, sizeof(UA_EthernetETFWriterGroupTransportDataType));
-    /* TODO: Txtime enable shall be configured based on connectionConfig.etfConfiguration.sotxtimeEnabled parameter */
-    ethernetETFtransportSettings.txtime_enabled    = useSoTxtime;
-    ethernetETFtransportSettings.transmission_time = 0;
+    UA_EthernetWriterGroupTransportDataType ethernettransportSettings;
+    memset(&ethernettransportSettings, 0, sizeof(UA_EthernetWriterGroupTransportDataType));
+    ethernettransportSettings.transmission_time = 0;
 
     /* Encapsulate ETF config in transportSettings */
     UA_ExtensionObject transportSettings;
     memset(&transportSettings, 0, sizeof(UA_ExtensionObject));
     /* TODO: transportSettings encoding and type to be defined */
-    transportSettings.content.decoded.data       = &ethernetETFtransportSettings;
+    transportSettings.content.decoded.data       = &ethernettransportSettings;
     currentWriterGroup->config.transportSettings = transportSettings;
     UA_UInt64 roundOffCycleTime                  = (UA_UInt64)((cycleTimeMsec * MILLI_SECONDS) - (cycleTimeMsec * pubWakeupPercentage * MILLI_SECONDS));
 
     while (running) {
         clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptime, NULL);
-        transmission_time                              = ((UA_UInt64)nextnanosleeptime.tv_sec * SECONDS + (UA_UInt64)nextnanosleeptime.tv_nsec) + roundOffCycleTime + QBV_OFFSET;
-        ethernetETFtransportSettings.transmission_time = transmission_time;
+        transmission_time                           = ((UA_UInt64)nextnanosleeptime.tv_sec * SECONDS + (UA_UInt64)nextnanosleeptime.tv_nsec) + roundOffCycleTime + QBV_OFFSET;
+        ethernettransportSettings.transmission_time = transmission_time;
         pubCallback(server, currentWriterGroup);
-        nextnanosleeptime.tv_nsec                     += (__syscall_slong_t)interval_ns;
+        nextnanosleeptime.tv_nsec                   += (__syscall_slong_t)interval_ns;
         nanoSecondFieldConversion(&nextnanosleeptime);
     }
 
@@ -448,6 +471,8 @@ void *publisherETF(void *arg) {
 /**
  * **UserApplication thread routine**
  *
+ * The userapplication thread will wakeup at 30% of cycle time and handles the userdata in the Information Model.
+ * This thread is used to increment the counterdata that will be published by the Publisher thread and also writes the published data in a csv.
  */
 void *userApplicationPub(void *arg) {
     struct timespec nextnanosleeptimeUserApplication;
@@ -472,6 +497,12 @@ void *userApplicationPub(void *arg) {
     return (void*)NULL;
 }
 
+/**
+ * **Thread creation**
+ *
+ * The threadcreation functionality creates thread with given threadpriority, coreaffinity. The function returns the threadID of the newly
+ * created thread.
+ */
 static pthread_t threadCreation(UA_Int32 threadPriority, UA_Int32 coreAffinity, void *(*thread) (void *), char *applicationName, void *serverConfig){
 
     /* Core affinity set */
@@ -512,6 +543,13 @@ static pthread_t threadCreation(UA_Int32 threadPriority, UA_Int32 coreAffinity, 
 
 }
 
+/**
+ * **Usage function**
+ *
+ * The usage function gives the list of options that can be configured in the application.
+ *
+ * ./bin/examples/pubsub_nodeset_rt_publisher -h gives the list of options for running the application.
+ */
 static void usage(char *appname)
 {
     fprintf(stderr,
@@ -535,9 +573,9 @@ static void usage(char *appname)
 }
 
 /**
- * ***Main Server code**
+ * **Main Server code**
  *
- * The main function contains publisher threads running 
+ * The main function contains publisher threads running
  */
 int main(int argc, char **argv) {
     signal(SIGINT, stopHandler);
@@ -644,7 +682,7 @@ int main(int argc, char **argv) {
      * The correct factory is selected on runtime by the standard defined
      * PubSub TransportProfileUri's.
     */
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerEthernetETF();
+    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerEthernet();
     config->pubsubTransportLayersSize++;
 
     addPubSubConnection(server, &networkAddressUrlPub);

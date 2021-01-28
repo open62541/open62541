@@ -306,9 +306,12 @@ UA_Client_Subscriptions_delete_async(UA_Client *client,
 
     Subscriptions_DeleteData *data = (Subscriptions_DeleteData *)
         UA_calloc(1, sizeof(Subscriptions_DeleteData));
-    if(cc->clientData)
-        goto cleanup;
+    if(!data) {
+        UA_free(cc);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
     cc->clientData = data;
+
     data->subs = (UA_Client_Subscription **)
         UA_calloc(request.subscriptionIdsSize, sizeof(UA_Client_Subscription *));
     if(!data->subs)

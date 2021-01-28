@@ -192,9 +192,6 @@ setDefaultConfig(UA_ServerConfig *conf) {
     /* conf->nodeLifecycle.createOptionalChild = NULL; */
     /* conf->nodeLifecycle.generateChildNodeId = NULL; */
 
-    /* Relax constraints for the InformationModel */
-    conf->relaxEmptyValueConstraint = true; /* Allow empty values */
-
     /* Limits for SecureChannels */
     conf->maxSecureChannels = 40;
     conf->maxSecurityTokenLifetime = 10 * 60 * 1000; /* 10 minutes */
@@ -249,10 +246,6 @@ setDefaultConfig(UA_ServerConfig *conf) {
 #if UA_MULTITHREADING >= 100
     conf->maxAsyncOperationQueueSize = 0;
     conf->asyncOperationTimeout = 120000; /* Async Operation Timeout in ms (2 minutes) */
-#endif
-
-#if UA_MULTITHREADING >= 200
-    conf->nThreads = 1;
 #endif
 
     /* --> Finish setting the default static config <-- */

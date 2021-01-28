@@ -115,12 +115,14 @@ _UA_BEGIN_DECLS
  *  Enable loading OPC UA PubSub configuration from File/ByteString. Enabling PubSub informationmodel methods also will add a method to the Publish/Subscribe object which allows configuring PubSub at runtime.
  * **UA_ENABLE_PUBSUB_INFORMATIONMODEL**
  *  Enable the information model representation of the PubSub configuration. For more details take a look at the following section `PubSub Information Model Representation`. Disabled by default.
+ * **UA_ENABLE_PUBSUB_MONITORING**
+ *  Enable the experimental PubSub monitoring. This feature provides a basic framework to implement monitoring/timeout checks for PubSub components. 
+ *  Initially the MessageReceiveTimeout check of a DataSetReader is provided. It uses the internal server callback implementation.
+ *  The monitoring backend can be changed by the application to satisfy realtime requirements.
+ *  Disabled by default.
  * **UA_ENABLE_PUBSUB_ETH_UADP**
  *  Enable the OPC UA Ethernet PubSub support to transport UADP NetworkMessages as payload of Ethernet II frame without IP or UDP headers. This option will include Publish and Subscribe based on
  *  EtherType B62C. Disabled by default.
- * **UA_ENABLE_PUBSUB_ETH_UADP_ETF**
- *  Enable ETF feature to allow the user to transmit packets at calculated transmission time with nanosecond precision, in addition to the PubSub support to transport UADP NetworkMessages as payload of Ethernet II frame.
- *  Disabled by default.
  * **UA_ENABLE_PUBSUB_ETH_UADP_XDP**
  *  Enable XDP feature to allow the user to receive packets using the eXpress Data Path (XDP), which bypasses TCP/IP layers and transfers the frames from hardware/netdev to user application thereby reducing the receiving time,
  *  in addition to the PubSub support to transport UADP NetworkMessages as payload of Ethernet II frame. Disabled by default.
@@ -145,20 +147,18 @@ _UA_BEGIN_DECLS
  * Take a look on the PubSub Tutorials for mor details about the API usage.
  */
 
+typedef enum  {
+    UA_PUBSUB_COMPONENT_CONNECTION,
+    UA_PUBSUB_COMPONENT_WRITERGROUP,
+    UA_PUBSUB_COMPONENT_DATASETWRITER,
+    UA_PUBSUB_COMPONENT_READERGROUP,
+    UA_PUBSUB_COMPONENT_DATASETREADER
+} UA_PubSubComponentEnumType;
+
 typedef enum {
     UA_PUBSUB_PUBLISHERID_NUMERIC,
     UA_PUBSUB_PUBLISHERID_STRING
 } UA_PublisherIdType;
-
-#ifdef UA_ENABLE_PUBSUB_ETH_UADP_ETF
-typedef struct {
-    UA_Int32 socketPriority;
-    UA_Boolean sotxtimeEnabled;
-    /* SO_TXTIME-specific additional socket config */
-    UA_Int32 sotxtimeDeadlinemode;
-    UA_Int32 sotxtimeReceiveerrors;
-} UA_ETFConfiguration;
-#endif
 
 struct UA_PubSubConnectionConfig {
     UA_String name;
@@ -173,11 +173,46 @@ struct UA_PubSubConnectionConfig {
     size_t connectionPropertiesSize;
     UA_KeyValuePair *connectionProperties;
     UA_Variant connectionTransportSettings;
-#ifdef UA_ENABLE_PUBSUB_ETH_UADP_ETF
-    /* ETF related connection configuration - Not in PubSub specfication */
-    UA_ETFConfiguration etfConfiguration;
-#endif
 };
+
+#ifdef UA_ENABLE_PUBSUB_MONITORING
+
+typedef enum {
+    UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT
+    // extend as needed
+} UA_PubSubMonitoringType;
+
+/* PubSub monitoring interface */
+typedef struct {
+    UA_StatusCode (*createMonitoring)(UA_Server *server, UA_NodeId Id, UA_PubSubComponentEnumType eComponentType, 
+                                      UA_PubSubMonitoringType eMonitoringType, void *data, UA_ServerCallback callback);
+    UA_StatusCode (*startMonitoring)(UA_Server *server, UA_NodeId Id, UA_PubSubComponentEnumType eComponentType, 
+                                     UA_PubSubMonitoringType eMonitoringType, void *data);
+    UA_StatusCode (*stopMonitoring)(UA_Server *server, UA_NodeId Id, UA_PubSubComponentEnumType eComponentType, 
+                                    UA_PubSubMonitoringType eMonitoringType, void *data);
+    UA_StatusCode (*updateMonitoringInterval)(UA_Server *server, UA_NodeId Id, UA_PubSubComponentEnumType eComponentType, 
+                                              UA_PubSubMonitoringType eMonitoringType, void *data);
+    UA_StatusCode (*deleteMonitoring)(UA_Server *server, UA_NodeId Id, UA_PubSubComponentEnumType eComponentType, 
+                                      UA_PubSubMonitoringType eMonitoringType, void *data);
+} UA_PubSubMonitoringInterface;
+
+#endif /* UA_ENABLE_PUBSUB_MONITORING */
+
+/* General PubSub configuration */
+struct UA_PubSubConfiguration {
+
+    /* Callback for PubSub component state changes:
+    If provided this callback informs the application about PubSub component state changes. 
+    E.g. state change from operational to error in case of a DataSetReader MessageReceiveTimeout.
+    The status code provides additional information. */
+    void (*pubsubStateChangeCallback)(UA_NodeId *Id,
+                                      UA_PubSubState state,
+                                      UA_StatusCode status);// TODO: maybe status code provides not enough information about the state change
+#ifdef UA_ENABLE_PUBSUB_MONITORING
+    UA_PubSubMonitoringInterface monitoringInterface;
+#endif /* UA_ENABLE_PUBSUB_MONITORING */
+};
+
 
 /**
  * The UA_ServerConfig_addPubSubTransportLayer is used to add a transport layer
@@ -663,8 +698,14 @@ typedef struct {
     /* PubSub Manager Callback */
     UA_PubSub_CallbackLifecycle pubsubManagerCallback;
     /* non std. field */
+    UA_Duration subscribingInterval; // Callback interval for subscriber: set the least publishingInterval value of all DSRs in this RG
+    UA_Boolean enableBlockingSocket; // To enable or disable blocking socket option
+    UA_UInt32 timeout; // Timeout for receive to wait for the packets
     UA_PubSubRTLevel rtLevel;
 } UA_ReaderGroupConfig;
+
+void UA_EXPORT
+UA_ReaderGroupConfig_clear(UA_ReaderGroupConfig *readerGroupConfig);
 
 /* Add DataSetReader to the ReaderGroup */
 UA_StatusCode UA_EXPORT

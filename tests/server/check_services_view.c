@@ -352,6 +352,50 @@ START_TEST(Service_TranslateBrowsePathsToNodeIds) {
 }
 END_TEST
 
+/* Force a hash collision for the the browsename by using all zeros.. */
+START_TEST(Service_TranslateBrowsePathsWithHashCollision) {
+    UA_Byte browseNames[4] = {0, 0, 0, 0};
+
+    for(size_t i = 0; i < 3; i++) {
+        UA_VariableAttributes attr = UA_VariableAttributes_default;
+        UA_QualifiedName browseName;
+        browseName.namespaceIndex = 0;
+        browseName.name.data = browseNames;
+        browseName.name.length = i+1;
+        UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+        UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+        UA_StatusCode res =
+            UA_Server_addVariableNode(server_translate_browse, UA_NODEID_NULL, parentNodeId,
+                                      parentReferenceNodeId, browseName,
+                                      UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                      attr, NULL, NULL);
+        ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    }
+
+    UA_BrowsePath browsePath;
+    UA_BrowsePath_init(&browsePath);
+    UA_RelativePathElement rpe;
+    UA_RelativePathElement_init(&rpe);
+    browsePath.startingNode = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    browsePath.relativePath.elements = &rpe;
+    browsePath.relativePath.elementsSize = 1;
+
+    for(size_t i = 0; i < 3; i++) {
+        rpe.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+        rpe.targetName.name.data = browseNames;
+        rpe.targetName.name.length = i+1;
+
+        UA_BrowsePathResult bpr =
+            UA_Server_translateBrowsePathToNodeIds(server_translate_browse, &browsePath);
+
+        ck_assert_int_eq(bpr.statusCode, UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(bpr.targetsSize, 1);
+
+        UA_BrowsePathResult_clear(&bpr);
+    }
+}
+END_TEST
+
 START_TEST(BrowseSimplifiedBrowsePath) {
     UA_QualifiedName objectsName = UA_QUALIFIEDNAME(0, "Objects");
     UA_BrowsePathResult bpr =
@@ -379,6 +423,7 @@ static Suite *testSuite_Service_TranslateBrowsePathsToNodeIds(void) {
     TCase *tc_translate = tcase_create("TranslateBrowsePathsToNodeIds");
     tcase_add_unchecked_fixture(tc_translate, setup_server, teardown_server);
     tcase_add_test(tc_translate, Service_TranslateBrowsePathsToNodeIds);
+    tcase_add_test(tc_translate, Service_TranslateBrowsePathsWithHashCollision);
     tcase_add_test(tc_translate, BrowseSimplifiedBrowsePath);
 
     suite_add_tcase(s, tc_translate);

@@ -5,8 +5,6 @@
  * Copyright (c) 2017 - 2018 Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
-#include <string.h>
-#include <math.h>
 #include <open62541/plugin/pubsub_udp.h>
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
@@ -15,6 +13,9 @@
 #include <open62541/client_config_default.h>
 #include "check.h"
 #include "thread_wrapper.h"
+
+#include <string.h>
+#include <math.h>
 
 UA_Server *server = NULL;
 UA_Boolean running;

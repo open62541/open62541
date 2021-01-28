@@ -270,6 +270,8 @@ ServerNetworkLayerTCP_add(UA_ServerNetworkLayer *nl, ServerNetworkLayerTCP *laye
     c->state = UA_CONNECTIONSTATE_OPENING;
     c->openingDate = UA_DateTime_nowMonotonic();
 
+    layer->connectionsSize++;
+
     /* Add to the linked list */
     LIST_INSERT_HEAD(&layer->connections, e, pointers);
     if(nl->statistics) {
@@ -671,7 +673,7 @@ static void
 ClientNetworkLayerTCP_free(UA_Connection *connection) {
     if(!connection->handle)
         return;
-    
+
     TCPClientConnection *tcpConnection = (TCPClientConnection *)connection->handle;
     if(tcpConnection->server)
         UA_freeaddrinfo(tcpConnection->server);
@@ -691,7 +693,7 @@ UA_ClientConnectionTCP_poll(UA_Connection *connection, UA_UInt32 timeout,
     /* Connection timeout? */
     TCPClientConnection *tcpConnection = (TCPClientConnection*) connection->handle;
     if((UA_Double) (UA_DateTime_nowMonotonic() - tcpConnection->connStart)
-       > tcpConnection->timeout * UA_DATETIME_MSEC ) {
+       > (UA_Double) tcpConnection->timeout * UA_DATETIME_MSEC ) {
         UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK, "Timed out");
         ClientNetworkLayerTCP_close(connection);
         return UA_STATUSCODE_BADDISCONNECT;
@@ -828,6 +830,10 @@ UA_ClientConnectionTCP_init(UA_ConnectionConfig config, const UA_String endpoint
 
     TCPClientConnection *tcpClientConnection = (TCPClientConnection*)
         UA_malloc(sizeof(TCPClientConnection));
+    if(!tcpClientConnection) {
+        connection.state = UA_CONNECTIONSTATE_CLOSED;
+        return connection;
+    }
     memset(tcpClientConnection, 0, sizeof(TCPClientConnection));
     connection.handle = (void*) tcpClientConnection;
     tcpClientConnection->timeout = timeout;

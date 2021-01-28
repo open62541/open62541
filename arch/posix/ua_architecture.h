@@ -136,31 +136,51 @@ void UA_sleep_ms(unsigned long ms);
 }
 
 #if UA_MULTITHREADING >= 100
+
 #include <pthread.h>
-#define Sleep(x) sleep(x / 1000)
-#define UA_LOCK_TYPE(mutexName) pthread_mutex_t mutexName; \
-                                        pthread_mutexattr_t mutexName##_attr; \
-                                        int mutexName##Counter;
-#define UA_LOCK_INIT(mutexName) pthread_mutexattr_init(&mutexName##_attr); \
-                                        pthread_mutexattr_settype(&mutexName##_attr, PTHREAD_MUTEX_RECURSIVE); \
-                                        pthread_mutex_init(&mutexName, &mutexName##_attr); \
-                                        mutexName##Counter = 0;
-#define UA_LOCK_DESTROY(mutexName) pthread_mutex_destroy(&mutexName); \
-                                   pthread_mutexattr_destroy(&mutexName##_attr);
 
-#define UA_LOCK(mutexName) pthread_mutex_lock(&mutexName); \
-                           UA_assert(++(mutexName##Counter) == 1); \
+typedef struct {
+    pthread_mutex_t mutex;
+    pthread_mutexattr_t mutexAttr;
+    int mutexCounter;
+} UA_Lock;
 
-#define UA_UNLOCK(mutexName) UA_assert(--(mutexName##Counter) == 0); \
-                             pthread_mutex_unlock(&mutexName);
-#define UA_LOCK_ASSERT(mutexName, num) UA_assert(mutexName##Counter == num);
+static UA_INLINE void
+UA_LOCK_INIT(UA_Lock *lock) {
+    pthread_mutexattr_init(&lock->mutexAttr);
+    pthread_mutexattr_settype(&lock->mutexAttr, PTHREAD_MUTEX_RECURSIVE);
+    pthread_mutex_init(&lock->mutex, &lock->mutexAttr);
+    lock->mutexCounter = 0;
+}
+
+static UA_INLINE void
+UA_LOCK_DESTROY(UA_Lock *lock) {
+    pthread_mutex_destroy(&lock->mutex);
+    pthread_mutexattr_destroy(&lock->mutexAttr);
+}
+
+static UA_INLINE void
+UA_LOCK(UA_Lock *lock) {
+    pthread_mutex_lock(&lock->mutex);
+    UA_assert(++(lock->mutexCounter) == 1);
+}
+
+static UA_INLINE void
+UA_UNLOCK(UA_Lock *lock) {
+    UA_assert(--(lock->mutexCounter) == 0);
+    pthread_mutex_unlock(&lock->mutex);
+}
+
+static UA_INLINE void
+UA_LOCK_ASSERT(UA_Lock *lock, int num) {
+    UA_assert(lock->mutexCounter == num);
+}
 #else
-#define UA_LOCK_TYPE(mutexName)
-#define UA_LOCK_INIT(mutexName)
-#define UA_LOCK_DESTROY(mutexName)
-#define UA_LOCK(mutexName)
-#define UA_UNLOCK(mutexName)
-#define UA_LOCK_ASSERT(mutexName, num)
+#define UA_LOCK_INIT(lock)
+#define UA_LOCK_DESTROY(lock)
+#define UA_LOCK(lock)
+#define UA_UNLOCK(lock)
+#define UA_LOCK_ASSERT(lock, num)
 #endif
 
 #include <open62541/architecture_functions.h>

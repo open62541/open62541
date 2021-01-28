@@ -18,7 +18,7 @@
  * / OPC UA services to interact with the information model. */
 
 #include <open62541/util.h>
-#include "ziptree.h"
+#include "aa_tree.h"
 
 _UA_BEGIN_DECLS
 
@@ -258,44 +258,20 @@ UA_ReferenceTypeSet_contains(const UA_ReferenceTypeSet *set, UA_Byte index) {
  * correctness of casting from ``UA_Node`` to a specific node type. */
 
 /* Ordered tree structure for fast member check */
-typedef struct UA_ReferenceTarget {
-    /* Zip-Tree for fast lookup */
-    ZIP_ENTRY(UA_ReferenceTarget) idTreeFields; /* Must be the first member */
-    ZIP_ENTRY(UA_ReferenceTarget) nameTreeFields;
-    UA_UInt32 targetIdHash;   /* Hash of the target's NodeId */
-    UA_UInt32 targetNameHash; /* Hash of the target's BrowseName */
-
-    /* Emulate the queue.h structure so we don't have to include it in the
-     * public API */
-    struct {
-        struct UA_ReferenceTarget *tqe_next;
-        struct UA_ReferenceTarget **tqe_prev;
-    } queuePointers;
-
+typedef struct {
+    struct aa_entry idTreeEntry; /* Binary-Tree for fast lookup */
+    struct aa_entry nameTreeEntry;
+    UA_UInt32 targetIdHash;      /* Hash of the target's NodeId */
+    UA_UInt32 targetNameHash;    /* Hash of the target's BrowseName */
     UA_ExpandedNodeId targetId;
 } UA_ReferenceTarget;
 
-ZIP_HEAD(UA_ReferenceTargetIdTree, UA_ReferenceTarget);
-typedef struct UA_ReferenceTargetIdTree UA_ReferenceTargetIdTree;
-ZIP_PROTOTYPE(UA_ReferenceTargetIdTree, UA_ReferenceTarget, UA_ReferenceTarget)
-
-ZIP_HEAD(UA_ReferenceTargetNameTree, UA_ReferenceTarget);
-typedef struct UA_ReferenceTargetNameTree UA_ReferenceTargetNameTree;
-ZIP_PROTOTYPE(UA_ReferenceTargetNameTree, UA_ReferenceTarget, UA_UInt32)
-
 /* List of reference targets with the same reference type and direction */
 typedef struct {
+    struct aa_entry *idTreeRoot;   /* Fast lookup based on the target id */
+    struct aa_entry *nameTreeRoot; /* Fast lookup based on the target browseName*/
     UA_Byte referenceTypeIndex;
     UA_Boolean isInverse;
-
-    /* Emulate the queue.h structure so we don't have to include it in the
-     * public API */
-    struct {
-        struct UA_ReferenceTarget *tqh_first;
-        struct UA_ReferenceTarget **tqh_last;
-    } queueHead;
-    UA_ReferenceTargetIdTree refTargetsIdTree;
-    UA_ReferenceTargetNameTree refTargetsNameTree;
 } UA_NodeReferenceKind;
 
 /* Every Node starts with these attributes */
@@ -571,6 +547,13 @@ typedef struct {
     UA_Byte accessLevel;
     UA_Double minimumSamplingInterval;
     UA_Boolean historizing;
+
+    /* Members specific to open62541 */
+    UA_Boolean isDynamic; /* Some variables are "static" in the sense that they
+                           * are not attached to a dynamic process in the
+                           * background. Only dynamic variables conserve source
+                           * and server timestamp for the value attribute.
+                           * Static variables have timestamps of "now". */
 } UA_VariableNode;
 
 /**
