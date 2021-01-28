@@ -242,198 +242,206 @@ resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session, const UA_N
     return v.status;
 }
 
-static UA_ContentFilterResult*
-UA_Server_initialWhereClauseValidation(UA_Server *server,
+UA_ContentFilterElementResult*
+UA_Server_initialWhereClauseElementValidation(UA_Server *server,
                               const UA_NodeId *eventNode,
-                              const UA_ContentFilter *contentFilter) {
+                              const UA_ContentFilterElement *contentFilterElement) {
+
+    UA_ContentFilterElementResult *result = UA_ContentFilterElementResult_new();
+    UA_ContentFilterElementResult_init(result);
+    result->operandStatusCodesSize = contentFilterElement->filterOperandsSize;
+
+    switch(contentFilterElement->filterOperator) {
+        case UA_FILTEROPERATOR_INVIEW:
+        case UA_FILTEROPERATOR_RELATEDTO: {
+            /* Not allowed for event WhereClause according to 7.17.3 in Part 4 */
+            result->statusCode =  UA_STATUSCODE_BADEVENTFILTERINVALID;
+            return result;
+        }
+        case UA_FILTEROPERATOR_EQUALS:{
+            if (contentFilterElement->filterOperandsSize != 2){
+                result->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                return result;
+            }
+            break;
+        }
+        case UA_FILTEROPERATOR_GREATERTHAN:{
+            if (contentFilterElement->filterOperandsSize != 2){
+                result->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+            }
+            break;
+        }
+        case UA_FILTEROPERATOR_LESSTHAN:{
+            if (contentFilterElement->filterOperandsSize != 2){
+                result->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+            }
+            break;
+        }
+        case UA_FILTEROPERATOR_GREATERTHANOREQUAL:{
+            if (contentFilterElement->filterOperandsSize != 2){
+                result->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+            }
+            break;
+        }
+        case UA_FILTEROPERATOR_LESSTHANOREQUAL:{
+            if (contentFilterElement->filterOperandsSize != 2){
+                result->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+            }
+            break;
+        }
+        case UA_FILTEROPERATOR_LIKE:{
+            if (contentFilterElement->filterOperandsSize != 2){
+                result->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+            }
+            break;
+        }
+        case UA_FILTEROPERATOR_AND:{
+            if (contentFilterElement->filterOperandsSize != 2){
+                result->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+            }
+            break;
+        }
+        case UA_FILTEROPERATOR_OR:{
+            if (contentFilterElement->filterOperandsSize != 2){
+                result->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                return result;
+            }
 
 
-    UA_ContentFilterResult *contentFilterResult = UA_ContentFilterResult_new();
-    UA_ContentFilterResult_init(contentFilterResult);
-    contentFilterResult->elementResultsSize = contentFilter->elementsSize;
+            UA_ContentFilterElement *pFirstOperand =
+                (UA_ContentFilterElement *) contentFilterElement->filterOperands[0].content.decoded.data;
+            UA_ContentFilterElement *pSecondOperand =
+                (UA_ContentFilterElement *) contentFilterElement->filterOperands[1].content.decoded.data;
 
-    contentFilterResult->elementResults = (UA_ContentFilterElementResult*)
-        UA_Array_new(contentFilterResult->elementResultsSize,&UA_TYPES[UA_TYPES_CONTENTFILTERELEMENTRESULT]);
-
-    for(size_t i =0; i<contentFilterResult->elementResultsSize; ++i) {
-        UA_ContentFilterElementResult_init(&contentFilterResult->elementResults[i]);
-    }
-
-
-    UA_ContentFilterElementResult *elementResult = UA_ContentFilterElementResult_new();
-    UA_ContentFilterElementResult_init(elementResult);
-
-    UA_ContentFilterElement *contentFilterElement = UA_ContentFilterElement_new();
-    UA_ContentFilterElement_init(contentFilterElement);
-
-    for(size_t i =0; i<contentFilterResult->elementResultsSize; ++i) {
-        elementResult = &contentFilterResult->elementResults[i];
-        contentFilterElement = &contentFilter->elements[i];
-
-        switch(contentFilterElement->filterOperator) {
-            case UA_FILTEROPERATOR_INVIEW:
-            case UA_FILTEROPERATOR_RELATEDTO: {
-                /* Not allowed for event WhereClause according to 7.17.3 in Part 4 */
-                elementResult->statusCode =  UA_STATUSCODE_BADEVENTFILTERINVALID;
-                break;
-            }
-            case UA_FILTEROPERATOR_EQUALS:{
-                if (contentFilterElement->filterOperandsSize != 2){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
-                    break;
-                }
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
-                break;
-            }
-            case UA_FILTEROPERATOR_GREATERTHAN:{
-                if (contentFilterElement->filterOperandsSize != 2){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
-                    break;
-                }
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
-                break;
-            }
-            case UA_FILTEROPERATOR_LESSTHAN:{
-                if (contentFilterElement->filterOperandsSize != 2){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
-                    break;
-                }
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
-                break;
-            }
-            case UA_FILTEROPERATOR_GREATERTHANOREQUAL:{
-                if (contentFilterElement->filterOperandsSize != 2){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
-                    break;
-                }
-                break;
-            }
-            case UA_FILTEROPERATOR_LESSTHANOREQUAL:{
-                if (contentFilterElement->filterOperandsSize != 2){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
-                    break;
-                }
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
-                break;
-            }
-            case UA_FILTEROPERATOR_LIKE:{
-                if (contentFilterElement->filterOperandsSize != 2){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
-                    break;
-                }
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
-                break;
-            }
-            case UA_FILTEROPERATOR_AND:{
-                if (contentFilterElement->filterOperandsSize != 2){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
-                    break;
-                }
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
-                break;
-            }
-            case UA_FILTEROPERATOR_OR:{
-                if (contentFilterElement->filterOperandsSize != 2){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
-                    break;
-                }
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
-                break;
-            }
-            case UA_FILTEROPERATOR_CAST:{
-                if (contentFilterElement->filterOperandsSize != 2){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
-                    break;
-                }
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
-                break;
-            }
-            case UA_FILTEROPERATOR_BITWISEAND:{
-                if (contentFilterElement->filterOperandsSize != 2){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
-                    break;
-                }
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
-                break;
-            }
-            case UA_FILTEROPERATOR_BITWISEOR:{
-                if (contentFilterElement->filterOperandsSize != 2){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
-                    break;
-                }
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
-                break;
-            }
-            case UA_FILTEROPERATOR_ISNULL:{
-                if (contentFilterElement->filterOperandsSize != 1){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
-                    break;
-                }
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
-                break;
-            }
-            case UA_FILTEROPERATOR_NOT:{
-                if (contentFilterElement->filterOperandsSize != 1){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
-                    break;
-                }
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
-                break;
+            if(!pFirstOperand){
+                result->statusCode = UA_STATUSCODE_BADFILTEROPERANDINVALID;
+                return result;
             }
 
-            case UA_FILTEROPERATOR_INLIST:{
-                if (contentFilterElement->filterOperandsSize >= 2){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
-                    break;
-                }
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
-                break;
+            if(!pSecondOperand){
+                result->statusCode = UA_STATUSCODE_BADFILTEROPERANDINVALID;
+                return result;
             }
-            case UA_FILTEROPERATOR_BETWEEN:{
-                if (contentFilterElement->filterOperandsSize != 3){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
-                    break;
-                }
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
-                break;
+
+            UA_ContentFilterElementResult* result1 = UA_ContentFilterElementResult_new();
+            UA_ContentFilterElementResult_init(result1);
+            UA_ContentFilterElementResult* result2 = UA_ContentFilterElementResult_new();
+            UA_ContentFilterElementResult_init(result2);
+
+            result1 = UA_Server_initialWhereClauseElementValidation(server,eventNode,pFirstOperand);
+            result2 = UA_Server_initialWhereClauseElementValidation(server,eventNode,pSecondOperand);
+
+            if (result1 || result2){
+                result->statusCode = UA_STATUSCODE_GOOD;
             }
-            case UA_FILTEROPERATOR_OFTYPE: {
-                if(contentFilterElement->filterOperandsSize != 1){
-                    elementResult->statusCode =  UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
-                    break;
-                }
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
-                elementResult->operandStatusCodesSize = contentFilterElement->filterOperandsSize;
+            return result;
 
-                if(contentFilterElement->filterOperands[0].content.decoded.type !=
-                   &UA_TYPES[UA_TYPES_LITERALOPERAND]){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
-                    break;
-                }
-
-                UA_LiteralOperand *pOperand =
-                    (UA_LiteralOperand *) contentFilterElement->filterOperands[0].content.decoded.data;
-                if(!UA_Variant_isScalar(&pOperand->value)){
-                    elementResult->statusCode =  UA_STATUSCODE_BADEVENTFILTERINVALID;
-                    break;
-                }
-
-                if(pOperand->value.type != &UA_TYPES[UA_TYPES_NODEID] ||
-                   pOperand->value.data == NULL) {
-                    elementResult->statusCode = UA_STATUSCODE_BADNODEIDINVALID;
-                    break;
-                }
-
+        }
+        case UA_FILTEROPERATOR_CAST:{
+            if (contentFilterElement->filterOperandsSize != 2){
+                result->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                return result;
             }
-                break;
-            default:
-                elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
-                break;
+            break;
+        }
+        case UA_FILTEROPERATOR_BITWISEAND:{
+            if (contentFilterElement->filterOperandsSize != 2){
+                result->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+            }
+            break;
+        }
+        case UA_FILTEROPERATOR_BITWISEOR:{
+            if (contentFilterElement->filterOperandsSize != 2){
+                result->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+            }
+            break;
+        }
+        case UA_FILTEROPERATOR_ISNULL:{
+            if (contentFilterElement->filterOperandsSize != 1){
+                result->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+            }
+            break;
+        }
+        case UA_FILTEROPERATOR_NOT:{
+            if (contentFilterElement->filterOperandsSize != 1){
+                result->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+            }
+            break;
         }
 
-    }
+        case UA_FILTEROPERATOR_INLIST:{
+            if (contentFilterElement->filterOperandsSize >= 2){
+                result->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+            }
+            break;
+        }
+        case UA_FILTEROPERATOR_BETWEEN:{
+            if (contentFilterElement->filterOperandsSize != 3){
+                result->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+            }
+            break;
+        }
+        case UA_FILTEROPERATOR_OFTYPE: {
+            if(contentFilterElement->filterOperandsSize != 1){
+                result->statusCode =  UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                return result;
+            }
+            result->operandStatusCodesSize = contentFilterElement->filterOperandsSize;
 
-    return contentFilterResult;
+            if(contentFilterElement->filterOperands[0].content.decoded.type !=
+               &UA_TYPES[UA_TYPES_LITERALOPERAND]){
+                result->statusCode = UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
+                return result;
+            }
+
+
+            UA_LiteralOperand *pOperand =
+                (UA_LiteralOperand *) contentFilterElement->filterOperands[0].content.decoded.data;
+            if(!UA_Variant_isScalar(&pOperand->value)){
+                result->statusCode =  UA_STATUSCODE_BADEVENTFILTERINVALID;
+                return  result;
+            }
+
+            if(pOperand->value.type != &UA_TYPES[UA_TYPES_NODEID] ||
+               pOperand->value.data == NULL) {
+                result->statusCode = UA_STATUSCODE_BADNODEIDINVALID;
+                return result;
+            } else {
+                UA_NodeId *pOperandNodeId = (UA_NodeId *) pOperand->value.data;
+                UA_QualifiedName eventTypeQualifiedName = UA_QUALIFIEDNAME(0, "EventType");
+                UA_Variant typeNodeIdVariant;
+                UA_Variant_init(&typeNodeIdVariant);
+                UA_StatusCode readStatusCode =
+                    readObjectProperty(server, *eventNode, eventTypeQualifiedName,
+                                       &typeNodeIdVariant);
+                if(readStatusCode != UA_STATUSCODE_GOOD){
+                    result->statusCode =  readStatusCode;
+                }
+
+
+                if(!UA_Variant_isScalar(&typeNodeIdVariant) ||
+                   typeNodeIdVariant.type != &UA_TYPES[UA_TYPES_NODEID] ||
+                   typeNodeIdVariant.data == NULL) {
+                    UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                                 "EventType has an invalid type.");
+                    UA_Variant_clear(&typeNodeIdVariant);
+                    result->statusCode = UA_STATUSCODE_BADINTERNALERROR;
+                }
+
+                result->statusCode = isNodeInTree_singleRef(server,
+                                                            (UA_NodeId*) typeNodeIdVariant.data,
+                                                            pOperandNodeId,
+                                                            UA_REFERENCETYPEINDEX_HASSUBTYPE);
+                UA_Variant_clear(&typeNodeIdVariant);
+            }
+
+        }
+            break;
+        default:
+            result->statusCode = UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
+            break;
+    }
+    return result;
 
 }
 
