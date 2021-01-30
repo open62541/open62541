@@ -191,6 +191,8 @@ extern void * (*UA_reallocSingleton)(void *ptr, size_t size);
 # define UA_RESTRICT __restrict
 #elif defined(__GNUC__)
 # define UA_RESTRICT __restrict__
+#elif defined(__CODEGEARC__)
+# define UA_RESTRICT _RESTRICT
 #else
 # define UA_RESTRICT restrict
 #endif
