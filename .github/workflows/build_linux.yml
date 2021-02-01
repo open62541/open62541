@@ -4,7 +4,7 @@ on: [push, pull_request]
 
 jobs:
   standard:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
     - uses: actions/checkout@v2
       with:
@@ -12,7 +12,7 @@ jobs:
     - name: Install Dependencies
       run: |
         sudo apt update
-        sudo apt install -y -qq python-sphinx graphviz check
+        sudo apt install -y -qq python3-sphinx graphviz check
         sudo apt install -y -qq tcc clang-10 clang++-10 clang-tools-10 valgrind
         sudo apt install -y -qq libmbedtls-dev openssl
     - name: Debug Build & Unit Tests (gcc)
