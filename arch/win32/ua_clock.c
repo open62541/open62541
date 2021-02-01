@@ -46,7 +46,11 @@ UA_Int64 UA_DateTime_localTimeUtcOffset(void) {
     time_t gmt, rawtime = time(NULL);
 
     struct tm ptm;
+#ifdef __CODEGEARC__
     gmtime_s(&rawtime, &ptm);
+#else
+    gmtime_s(&ptm, &rawtime);
+#endif    
     // Request that mktime() looksup dst in timezone database
     ptm.tm_isdst = -1;
     gmt = mktime(&ptm);
