@@ -649,6 +649,9 @@ Operation_DeleteMonitoredItem(UA_Server *server, UA_Session *session, UA_Subscri
         *result = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
         return;
     }
+	
+    mon->subscription->monitoredItemsSize--;
+    server->numMonitoredItems--;
     UA_MonitoredItem_delete(server, mon);
 }
 
