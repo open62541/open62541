@@ -134,7 +134,7 @@ function unit_tests_valgrind {
 
 function build_clang_analyzer {
     mkdir -p build; cd build; rm -rf *
-    scan-build-10 cmake -DCMAKE_BUILD_TYPE=Debug \
+    scan-build-11 cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_DISCOVERY=ON \
@@ -147,5 +147,5 @@ function build_clang_analyzer {
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=OFF \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
           ..
-    scan-build-10 make ${MAKEOPTS}
+    scan-build-11 make ${MAKEOPTS}
 }
