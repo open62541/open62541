@@ -187,7 +187,7 @@ static UA_DataTypeMember Uni_members[2] = {
     {
         UA_TYPES_DOUBLE,            /* .memberTypeIndex, points into UA_TYPES since
                                     namespaceZero is true */
-        sizeof(UA_UInt32),          /* .padding */
+        offsetof(Uni, fields.optionA), /* .padding */
         true,                       /* .namespaceZero, see .memberTypeIndex */
         false,                      /* .isArray */
         false                       /* .isOptional */
@@ -196,7 +196,7 @@ static UA_DataTypeMember Uni_members[2] = {
     {
         UA_TYPES_STRING,            /* .memberTypeIndex, points into UA_TYPES since
                                     namespaceZero is true */
-        sizeof(UA_UInt32),          /* .padding */
+        offsetof(Uni, fields.optionB), /* .padding */
         true,                       /* .namespaceZero, see .memberTypeIndex */
         false,                      /* .isArray */
         false                       /* .isOptional */
