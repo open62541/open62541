@@ -511,6 +511,7 @@ function(ua_generate_nodeset_and_datatypes)
                 string(REPLACE "-" "_" DEPENDS_NAME "${f}")
                 string(TOUPPER "${DEPENDS_NAME}" DEPENDS_NAME)
                 get_property(DEPENDS_NAMESPACE_MAP GLOBAL PROPERTY "UA_GEN_DT_DEPENDS_NAMESPACE_MAP_${DEPENDS_NAME}")
+
                 if(NOT DEPENDS_NAMESPACE_MAP OR "${DEPENDS_NAMESPACE_MAP}" STREQUAL "")
                     message(FATAL_ERROR "Nodeset dependency ${f} needs to be generated before ${UA_GEN_NAME}")
                 endif()
@@ -544,6 +545,23 @@ function(ua_generate_nodeset_and_datatypes)
             TARGET_SUFFIX "ids-${UA_GEN_NAME}"
         )
         set(NODESET_DEPENDS_TARGET ${NODESET_DEPENDS_TARGET} "${UA_GEN_TARGET_PREFIX}-ids-${UA_GEN_NAME}")
+    else() # Handle nodesets without types in the dependency chain
+        if (UA_GEN_DEPENDS AND NOT "${UA_GEN_DEPENDS}" STREQUAL "")
+            foreach(f ${UA_GEN_DEPENDS})
+                string(REPLACE "-" "_" DEPENDS_NAME "${f}")
+                string(TOUPPER "${DEPENDS_NAME}" DEPENDS_NAME)
+                get_property(DEPENDS_NAMESPACE_MAP GLOBAL PROPERTY "UA_GEN_DT_DEPENDS_NAMESPACE_MAP_${DEPENDS_NAME}")
+
+                set(NAMESPACE_MAP_DEPENDS ${NAMESPACE_MAP_DEPENDS} "${DEPENDS_NAMESPACE_MAP}")
+            endforeach()
+        endif()
+
+        # Use namespace 0 as default value
+        if (NOT NAMESPACE_MAP_DEPENDS OR "${NAMESPACE_MAP_DEPENDS}" STREQUAL "")
+            set(NAMESPACE_MAP_DEPENDS "0:http://opcfoundation.org/UA/")
+        endif()
+
+        set_property(GLOBAL PROPERTY "UA_GEN_DT_DEPENDS_NAMESPACE_MAP_${GEN_NAME_UPPER}" ${NAMESPACE_MAP_DEPENDS})
     endif()
 
     # Create a list of nodesets on which this nodeset depends on

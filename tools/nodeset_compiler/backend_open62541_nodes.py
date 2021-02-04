@@ -289,7 +289,7 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, global_var_code, i
         values = []
     for idx,subv in enumerate(values):
         encField = node.encodingRule[idx]
-        memberName = lowerFirstChar(encField[0])
+        memberName = makeCIdentifier(lowerFirstChar(encField[0]))
 
         # Check if this is an array
         accessor = "." if isArrayElement else "->"
@@ -298,7 +298,7 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, global_var_code, i
             if len(subv) == 0:
                 continue
             logger.info("ExtensionObject contains array")
-            memberName = lowerFirstChar(encField[0])
+            memberName = makeCIdentifier(lowerFirstChar(encField[0]))
             encTypeString = "UA_" + subv[0].__class__.__name__
             instanceNameSafe = makeCIdentifier(instanceName)
             code.append("UA_STACKARRAY(" + encTypeString + ", " + instanceNameSafe + "_" + memberName+", {0});".format(len(subv)))
@@ -322,7 +322,7 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, global_var_code, i
                 code.append(generateNodeValueCode(valueName,
                             subv, instanceName,valueName, global_var_code, asIndirect=False))
         else:
-            memberName = lowerFirstChar(encField[0])
+            memberName = makeCIdentifier(lowerFirstChar(encField[0]))
             code.append(generateNodeValueCode(instanceName + accessor + memberName + "Size", subv,
                                               instanceName,valueName, global_var_code, asIndirect=False))
 
