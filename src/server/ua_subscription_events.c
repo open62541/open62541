@@ -244,7 +244,6 @@ resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session, const UA_N
 
 UA_ContentFilterElementResult*
 UA_Server_initialWhereClauseElementValidation(UA_Server *server,
-                              const UA_NodeId *eventNode,
                               const UA_ContentFilterElement *contentFilterElement) {
 
     UA_ContentFilterElementResult *result = UA_ContentFilterElementResult_new();
@@ -328,8 +327,8 @@ UA_Server_initialWhereClauseElementValidation(UA_Server *server,
             UA_ContentFilterElementResult* result2 = UA_ContentFilterElementResult_new();
             UA_ContentFilterElementResult_init(result2);
 
-            result1 = UA_Server_initialWhereClauseElementValidation(server,eventNode,pFirstOperand);
-            result2 = UA_Server_initialWhereClauseElementValidation(server,eventNode,pSecondOperand);
+            result1 = UA_Server_initialWhereClauseElementValidation(server,pFirstOperand);
+            result2 = UA_Server_initialWhereClauseElementValidation(server,pSecondOperand);
 
             if (result1 || result2){
                 result->statusCode = UA_STATUSCODE_GOOD;
@@ -447,8 +446,10 @@ UA_Server_initialWhereClauseElementValidation(UA_Server *server,
 
 UA_StatusCode*
 UA_Server_initialSelectClauseValidation(UA_Server *server,
-                                        const UA_NodeId *eventNode,
                                         const UA_EventFilter *eventFilter) {
+    if(eventFilter->selectClauses == NULL){
+        return (UA_StatusCode *) UA_STATUSCODE_BADSTRUCTUREMISSING;
+    }
     if(eventFilter->selectClausesSize == 0){
         /* Nothing to do.*/
         return UA_STATUSCODE_GOOD;
@@ -462,16 +463,23 @@ UA_Server_initialSelectClauseValidation(UA_Server *server,
         UA_NodeId baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
         if(!isNodeInTree_singleRef(server, &eventFilter->selectClauses[i].typeDefinitionId, &baseEventTypeId,
                                    UA_REFERENCETYPEINDEX_HASSUBTYPE))
-            selectClauseCodes[i] = UA_STATUSCODE_BADTYPEMISMATCH;
+            selectClauseCodes[i] = UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
+
+        //TODO: Check if valid attribute id
+
         //prüft das im speicher des servers oder generell ?
         for(size_t j =0; j<eventFilter->selectClauses[i].browsePathSize; ++j) {
             if(UA_String_equal(&eventFilter->selectClauses[i].browsePath[j].name, &UA_STRING_NULL)){ //ist das richtig ??
                 selectClauseCodes[i] = UA_STATUSCODE_BADBROWSENAMEINVALID;
             }
         }
-        UA_NumericRange _; //Wie nutzt man das parsen ohne den Value zu bekommen?
-        if(UA_NumericRange_parse(&_, eventFilter->selectClauses[i].indexRange) != UA_STATUSCODE_GOOD)
+        UA_NumericRange* numericRange; //Wie nutzt man das parsen ohne den Value zu bekommen?
+        if(UA_NumericRange_parse(numericRange, eventFilter->selectClauses[i].indexRange) != UA_STATUSCODE_GOOD)
             selectClauseCodes[i] = UA_STATUSCODE_BADINDEXRANGEINVALID;
+
+        //TODO: Check if attribute id is value
+
+        selectClauseCodes[i] = UA_STATUSCODE_GOOD;
     }
     return selectClauseCodes;
 }
@@ -482,7 +490,6 @@ UA_Server_evaluateWhereClauseContentFilter(UA_Server *server,
                                            const UA_NodeId *eventNode,
                                            const UA_ContentFilter *contentFilter) {
     UA_LOCK_ASSERT(server->serviceMutex, 1);
-
     if(contentFilter->elements == NULL || contentFilter->elementsSize == 0) {
         /* Nothing to do.*/
         return UA_STATUSCODE_GOOD;
