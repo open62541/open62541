@@ -406,26 +406,33 @@ UA_Server_initialWhereClauseValidation(UA_Server *server,
                 elementResult->operandStatusCodesSize = contentFilterElement->filterOperandsSize;
 
                 if(contentFilterElement->filterOperands[0].content.decoded.type !=
-                   &UA_TYPES[UA_TYPES_LITERALOPERAND]){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
+                   &UA_TYPES[UA_TYPES_ATTRIBUTEOPERAND]){
+                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDINVALID;
                     break;
                 }
 
-                UA_LiteralOperand *pOperand =
-                    (UA_LiteralOperand *) contentFilterElement->filterOperands[0].content.decoded.data;
-                if(!UA_Variant_isScalar(&pOperand->value)){
-                    elementResult->statusCode =  UA_STATUSCODE_BADEVENTFILTERINVALID;
+                UA_AttributeOperand *pOperand =
+                    (UA_AttributeOperand *) contentFilterElement->filterOperands[0].content.decoded.data;
+
+                if(pOperand->attributeId != UA_ATTRIBUTEID_VALUE ) {
+                    elementResult->statusCode = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
                     break;
                 }
 
-                if(pOperand->value.type != &UA_TYPES[UA_TYPES_NODEID] ||
-                   pOperand->value.data == NULL) {
+
+                /* Make sure the &pOperand->nodeId is a subtype of BaseEventType */
+                UA_NodeId baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+                if(!isNodeInTree_singleRef(server, &pOperand->nodeId , &baseEventTypeId,
+                                           UA_REFERENCETYPEINDEX_HASSUBTYPE)) {
                     elementResult->statusCode = UA_STATUSCODE_BADNODEIDINVALID;
                     break;
                 }
 
-            }
+                elementResult->statusCode = UA_STATUSCODE_GOOD;
                 break;
+
+
+            }
             default:
                 elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
                 break;
