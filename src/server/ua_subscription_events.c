@@ -459,19 +459,30 @@ UA_Server_initialSelectClauseValidation(UA_Server *server,
                                    UA_REFERENCETYPEINDEX_HASSUBTYPE))
             selectClauseCodes[i] = UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
 
-        //TODO: Check if valid attribute id
+        //Check if attributeId is valid
+        if(0 < eventFilter->selectClauses[i].attributeId && eventFilter->selectClauses[i].attributeId < 28)
+            selectClauseCodes[i] = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
 
-        //prüft das im speicher des servers oder generell ?
+        //Check if browsePath contains null
         for(size_t j =0; j<eventFilter->selectClauses[i].browsePathSize; ++j) {
-            if(UA_String_equal(&eventFilter->selectClauses[i].browsePath[j].name, &UA_STRING_NULL)){ //ist das richtig ??
+            if(UA_String_equal(&eventFilter->selectClauses[i].browsePath[j].name, &UA_STRING_NULL)) //TODO: ist das richtig ?? (Check if null)
                 selectClauseCodes[i] = UA_STATUSCODE_BADBROWSENAMEINVALID;
-            }
         }
-        UA_NumericRange* numericRange; //Wie nutzt man das parsen ohne den Value zu bekommen?
-        if(UA_NumericRange_parse(numericRange, eventFilter->selectClauses[i].indexRange) != UA_STATUSCODE_GOOD)
-            selectClauseCodes[i] = UA_STATUSCODE_BADINDEXRANGEINVALID;
 
-        //TODO: Check if attribute id is value
+        //Check if indexRange is defined
+        if(UA_String_equal(&eventFilter->selectClauses[i].indexRange, &UA_STRING_NULL)) {//TODO: ist das richtig ?? (Check if null)
+            // Check if indexRange is parsable
+            UA_NumericRange
+                *numericRange;  // TODO: Wie nutzt man das parsen ohne den Value zu bekommen?
+            if(UA_NumericRange_parse(numericRange,
+                                     eventFilter->selectClauses[i].indexRange) !=
+               UA_STATUSCODE_GOOD)
+                selectClauseCodes[i] = UA_STATUSCODE_BADINDEXRANGEINVALID;
+
+            // Check if attributeId is value
+            if(eventFilter->selectClauses[i].attributeId == UA_ATTRIBUTEID_VALUE)
+                selectClauseCodes[i] = UA_STATUSCODE_BADTYPEMISMATCH;
+        }
 
         selectClauseCodes[i] = UA_STATUSCODE_GOOD;
     }
