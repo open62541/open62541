@@ -5,6 +5,7 @@
  *   Copyright 2018 (c) Kontron Europe GmbH (Author: Rudolf Hoyler)
  *   Copyright 2019 (c) Wind River Systems, Inc.
  *   Copyright (c) 2019-2020 Kalycito Infotech Private Limited
+ *   Copyright 2019-2020 (c) Wind River Systems, Inc.
  */
 
 #include <open62541/server_pubsub.h>
@@ -16,6 +17,8 @@
 #if defined(__vxworks) || defined(__VXWORKS__)
 #include <netpacket/packet.h>
 #include <netinet/if_ether.h>
+
+#define ETH_P_802_2 NET_ETH_P_802_2
 #define ETH_ALEN ETHER_ADDR_LEN
 #else
 #include <linux/if_packet.h>
@@ -164,6 +167,50 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
         UA_free(newChannel);
         return NULL;
     }
+
+#ifdef UA_ARCHITECTURE_VXWORKS
+    size_t i = 0;
+    UA_String streamName = UA_STRING("streamName");
+    UA_String stackIdx = UA_STRING("stackIdx");
+    UA_String * sName = NULL;
+    UA_UInt32 stkIdx = 0;
+    for(i = 0; i < connectionConfig->connectionPropertiesSize; i++) {
+        if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &streamName)) {
+            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_STRING])) {
+                sName = (UA_String *)connectionConfig->connectionProperties[i].value.data;
+            }
+        }
+        else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &stackIdx)) {
+            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_UINT32])) {
+                stkIdx = *(UA_UInt32 *) connectionConfig->connectionProperties[i].value.data;
+            }
+        }
+    }
+    if((sName != NULL) && !UA_String_equal(sName, &UA_STRING_NULL) && (sName->length < TSN_STREAMNAMSIZ)) {
+        /* Bind the PubSub packet socket to a TSN stream */
+        char sNameStr[TSN_STREAMNAMSIZ];
+        memcpy(sNameStr, sName->data, sName->length);
+        sNameStr[sName->length] = '\0';
+        if(UA_setsockopt(sockFd, SOL_SOCKET, SO_X_QBV, sNameStr, TSN_STREAMNAMSIZ) < 0) {
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                "PubSub connection creation failed. Cannot set stream name: %s.", sNameStr);
+            UA_close(sockFd);
+            UA_free(channelDataEthernet);
+            UA_free(newChannel);
+            return NULL;
+        }
+    }
+
+    /* Bind the PubSub packet socket to a specific network stack instance */
+    if((stkIdx > 0) && (UA_setsockopt(sockFd, SOL_SOCKET, SO_X_STACK_IDX, &stkIdx, sizeof(stkIdx)) < 0)) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+            "PubSub connection creation failed. Cannot set stack index.");
+        UA_close(sockFd);
+        UA_free(channelDataEthernet);
+        UA_free(newChannel);
+        return NULL;
+    }
+#endif
 
     /* get interface index */
     struct ifreq ifreq;
@@ -408,7 +455,11 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_ByteString *messa
             return UA_STATUSCODE_BADINTERNALERROR;
         }
     }
+#ifdef UA_ARCHITECTURE_VXWORKS
+    clock_gettime(CLOCK_REALTIME, &currentTime);
+#else
     clock_gettime(CLOCK_TAI, &currentTime);
+#endif
     currentTimeValue = (UA_UInt64)((currentTime.tv_sec * 1000000000) + currentTime.tv_nsec);
     maxTime.tv_sec   = currentTime.tv_sec + tmptv.tv_sec;
     /* UA_Select uses timespec which accpets value in microseconds
@@ -483,7 +534,11 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_ByteString *messa
         messageLength = messageLength + ((size_t)dataLen - sizeof(struct ether_header) - sizeof(llcData) - paddingBytes);
         remainingMessageLength -= messageLength;
         rcvCount++;
+#ifdef UA_ARCHITECTURE_VXWORKS
+        clock_gettime(CLOCK_REALTIME, &currentTime);
+#else
         clock_gettime(CLOCK_TAI, &currentTime);
+#endif
         currentTimeValue = (UA_UInt64)((currentTime.tv_sec * 1000000000) + currentTime.tv_nsec);
         /* Receive flags set to MSG_DONTWAIT for the 2nd packet */
         /* The recvmsg API with MSG_DONTWAIT flag will not wait for the next packet */

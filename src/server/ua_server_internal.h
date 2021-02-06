@@ -124,12 +124,12 @@ struct UA_Server {
 
     /* Subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
+    size_t subscriptionsSize;  /* Number of active subscriptions */
+    size_t monitoredItemsSize; /* Number of active monitored items */
     LIST_HEAD(, UA_Subscription) subscriptions; /* All subscriptions in the
                                                  * server. They may be detached
                                                  * from a session. */
     UA_UInt32 lastSubscriptionId; /* To generate unique SubscriptionIds */
-    UA_UInt32 numSubscriptions;   /* Num active subscriptions */
-    UA_UInt32 numMonitoredItems;  /* Num active monitored items */
 
     /* To be cast to UA_LocalMonitoredItem to get the callback and context */
     LIST_HEAD(, UA_MonitoredItem) localMonitoredItems;
@@ -137,7 +137,7 @@ struct UA_Server {
 
 # ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
     LIST_HEAD(, UA_ConditionSource) headConditionSource;
-# endif /* UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */
+# endif
 
 #endif
 
@@ -154,6 +154,9 @@ struct UA_Server {
     /* Statistics */
     UA_ServerStatistics serverStats;
 };
+
+
+extern const struct aa_head nameTreeHead;
 
 /**************************/
 /* SecureChannel Handling */
@@ -371,8 +374,6 @@ translateBrowsePathToNodeIds(UA_Server *server, const UA_BrowsePath *browsePath)
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 
-void UA_Server_addSubscription(UA_Server *server, UA_Subscription *sub);
-void UA_Server_deleteSubscription(UA_Server *server, UA_Subscription *sub);
 void monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem);
 
 UA_Subscription *

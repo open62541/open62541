@@ -36,7 +36,7 @@ UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_Subscription *sub, *tempsub;
     TAILQ_FOREACH_SAFE(sub, &session->subscriptions, sessionListEntry, tempsub) {
-        UA_Server_deleteSubscription(server, sub);
+        UA_Subscription_delete(server, sub);
     }
 
     UA_PublishResponseEntry *entry;
@@ -666,6 +666,11 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
            if(securityPolicy != channel->securityPolicy)
                securityPolicy->channelModule.deleteContext(tempChannelContext);
        }
+       /* If SecurityPolicy is None there shall be no EncryptionAlgorithm  */
+       else if( userToken->encryptionAlgorithm.length != 0 ) {
+          response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+          return;
+       }
 
        if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
            UA_LOG_WARNING_SESSION(&server->config.logger, session, "ActivateSession: "
@@ -751,6 +756,7 @@ Service_CloseSession(UA_Server *server, UA_SecureChannel *channel,
         return;
     }
 
+    UA_assert(session); /* Assured by the previous section */
     UA_LOG_INFO_SESSION(&server->config.logger, session, "Closing the Session");
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
