@@ -784,6 +784,11 @@ START_TEST(validateSelectClause) {
     retval = UA_Server_initialSelectClauseValidation(server, &eventFilter);
     ck_assert_uint_eq(retvals[0], UA_STATUSCODE_BADSTRUCTUREMISSING);
 
+    eventFilter.selectClauses[1].attributeId = -1;
+
+    eventFilter.selectClauses[2].browsePath[0].name = UA_STRING_NULL;
+
+    eventFilter.selectClauses[3].indexRange = 3,2
 
 
     retvals = UA_Server_initialSelectClauseValidation(server, &eventFilter);
