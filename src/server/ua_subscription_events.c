@@ -531,30 +531,7 @@ static UA_StatusCode insertVariant(UA_Server *server, UA_DataSetWriter *dsw, UA_
     return UA_STATUSCODE_BADARGUMENTSMISSING; //TODO: this must be changed the current Statuscode isn't describing it very well
 }
 
-UA_StatusCode
-UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
-                       const UA_NodeId origin, UA_ByteString *outEventId,
-                       const UA_Boolean deleteEventNode) {
-    UA_LOCK(&server->serviceMutex);
-
-    UA_LOG_NODEID_DEBUG(&origin,
-        UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
-            "Events: An event is triggered on node %.*s",
-            (int)nodeIdStr.length, nodeIdStr.data));
-
-#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
-    UA_Boolean isCallerAC = false;
-    if(isConditionOrBranch(server, &eventNodeId, &origin, &isCallerAC)) {
-        if(!isCallerAC) {
-          UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                                 "Condition Events: Please use A&C API to trigger Condition Events 0x%08X",
-                                  UA_STATUSCODE_BADINVALIDARGUMENT);
-          UA_UNLOCK(&server->serviceMutex);
-          return UA_STATUSCODE_BADINVALIDARGUMENT;
-        }
-    }
-#endif /*UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS*/
-
+static UA_StatusCode addingEventToDataSetWriter(UA_Server *server, UA_NodeId eventNodeId){
 #ifdef UA_ENABLE_PUBSUB_EVENTS
     /*
      * Wir können ober den pubsubmanager auf die connections zugreifen, darüber wiederum auf die writerGroups und darüber
@@ -562,10 +539,9 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
      * zu welchem DataSetWriter das aktuelle Event gehört und es dort in die Queue schreiben.
      */
     // TODO: optimieren des Codes, da er unter Umständen viel Laufzeit schlucken könnte
-    // -> auslagern in eine eigene Methode und nach dem hinzufügen zu der Queue returnen
     UA_PubSubConnection *conn;
     // schaue in jeder connection nach
-    for(size_t connidx = 0; connidx<server->pubSubManager.connectionsSize; ++connidx){
+    for(size_t connidx = 0; connidx < server->pubSubManager.connectionsSize; ++connidx){
         conn = server->pubSubManager.connections.tqh_first[connidx];
         // gehe durch jede writerGroup
         for(size_t i = 0; i < conn->writerGroupsSize; i++){
@@ -595,12 +571,43 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
                         UA_Variant *variant = UA_Variant_new();
                         UA_Variant_init(variant);
                         // TODO: decide which type of data the Variant should contain
-                        insertVariant(server, &dsw, variant);
+                        return insertVariant(server, &dsw, variant);
                     }
                 }
             }
         }
     }
+    return UA_STATUSCODE_BADNOTFOUND;
+#endif
+    return UA_STATUSCODE_BADARGUMENTSMISSING; //TODO: this must be changed the current Statuscode isn't describing it very well
+}
+
+UA_StatusCode
+UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
+                       const UA_NodeId origin, UA_ByteString *outEventId,
+                       const UA_Boolean deleteEventNode) {
+    UA_LOCK(&server->serviceMutex);
+
+    UA_LOG_NODEID_DEBUG(&origin,
+        UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
+            "Events: An event is triggered on node %.*s",
+            (int)nodeIdStr.length, nodeIdStr.data));
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+    UA_Boolean isCallerAC = false;
+    if(isConditionOrBranch(server, &eventNodeId, &origin, &isCallerAC)) {
+        if(!isCallerAC) {
+          UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                                 "Condition Events: Please use A&C API to trigger Condition Events 0x%08X",
+                                  UA_STATUSCODE_BADINVALIDARGUMENT);
+          UA_UNLOCK(&server->serviceMutex);
+          return UA_STATUSCODE_BADINVALIDARGUMENT;
+        }
+    }
+#endif /*UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS*/
+
+#ifdef UA_ENABLE_PUBSUB_EVENTS
+    addingEventToDataSetWriter(server, eventNodeId);
 #endif /*UA_ENABLE_PUBSUB_EVENTS*/
 
     /* Check that the origin node exists */
