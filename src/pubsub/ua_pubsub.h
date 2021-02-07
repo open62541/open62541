@@ -115,7 +115,7 @@ typedef struct UA_DataSetWriter{
 #endif
 #ifdef UA_ENABLE_PUBSUB_EVENTS
     // TODO: here the queue must be added
-    TAILQ_HEAD(NotificationQueue, UA_Variant) eventQueue;
+    TAILQ_HEAD(EventQueue, UA_Variant) eventQueue;
 #endif
     UA_UInt16 actualDataSetMessageSequenceCount;
     /* This flag is 'read only' and is set internally based on the PubSub state. */
