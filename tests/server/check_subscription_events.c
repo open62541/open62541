@@ -772,7 +772,7 @@ START_TEST(validateSelectClause) {
     UA_NodeId eventNodeId;
     UA_StatusCode *retval;
     UA_StatusCode *retvals = (UA_StatusCode*)
-        UA_Array_new(8, &UA_TYPES[UA_TYPES_STATUSCODE]);
+        UA_Array_new(7, &UA_TYPES[UA_TYPES_STATUSCODE]);
     UA_EventFilter eventFilter;
     UA_EventFilter_init(&eventFilter);
 
@@ -784,12 +784,36 @@ START_TEST(validateSelectClause) {
     retval = UA_Server_initialSelectClauseValidation(server, &eventFilter);
     ck_assert_uint_eq(retvals[0], UA_STATUSCODE_BADSTRUCTUREMISSING);
 
+    eventFilter.selectClauses = (UA_SimpleAttributeOperand *)
+        UA_Array_new(7, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);;
+
+    /*Initialization*/
+    for(int i = 0; i < 7; i++){
+        selectClauses[i].typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+        selectClauses[i].browsePathSize = 1;
+        selectClauses[i].browsePath = (UA_QualifiedName*)
+            UA_Array_new(selectClauses[0].browsePathSize, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
+        selectClauses[i].browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "Test");
+        selectClauses[i].attributeId = UA_ATTRIBUTEID_VALUE;
+    }
+    /*typeDefinitionId not subtype of BaseEventType*/
+    selectClauses[0].typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_NUMBER);
+
+    /*attributeId not valid*/
     eventFilter.selectClauses[1].attributeId = -1;
 
+    /*browsePath contains null*/
     eventFilter.selectClauses[2].browsePath[0].name = UA_STRING_NULL;
 
-    eventFilter.selectClauses[3].indexRange = 3,2
+    /*indexRange not valid*/
+    eventFilter.selectClauses[3].indexRange = UA_STRING("3,2");
 
+    /*attributeId not value when indexRange is set*/
+    selectClauses[4].attributeId = UA_ATTRIBUTEID_DATATYPE;
+    selectClauses[4].indexRange = UA_STRING("1");
+
+    /*attributeId not value (should return UA_STATUSCODE_GOOD)*/
+    selectClauses[5].attributeId = UA_ATTRIBUTEID_DATATYPE;
 
     retvals = UA_Server_initialSelectClauseValidation(server, &eventFilter);
     ck_assert_uint_eq(retvals[0], UA_STATUSCODE_BADTYPEDEFINITIONINVALID);
@@ -798,6 +822,7 @@ START_TEST(validateSelectClause) {
     ck_assert_uint_eq(retvals[3], UA_STATUSCODE_BADINDEXRANGEINVALID);
     ck_assert_uint_eq(retvals[4], UA_STATUSCODE_BADTYPEMISMATCH);
     ck_assert_uint_eq(retvals[5], UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(retvals[6], UA_STATUSCODE_GOOD);
 }
 END_TEST
 
