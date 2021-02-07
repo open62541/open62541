@@ -551,6 +551,7 @@ static UA_StatusCode addingEventToDataSetWriter(UA_Server *server, UA_NodeId eve
                 UA_DataSetWriter dsw = wg.writers.lh_first[j];
                 // hole dir das PublishedDataSet des DataSetWriters
                 UA_PublishedDataSet *pds = UA_PublishedDataSet_findPDSbyId(server, dsw.connectedDataSet);
+                // findest du das PublishedDataSet nicht, gib eine Fehlernachricht aus
                 if (!pds){
                     UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                                  "PublishedDataSet not found.");
@@ -606,6 +607,7 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
     }
 #endif /*UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS*/
 
+    // TODO: decide whether this following part should be here or at another position in this method
 #ifdef UA_ENABLE_PUBSUB_EVENTS
     addingEventToDataSetWriter(server, eventNodeId);
 #endif /*UA_ENABLE_PUBSUB_EVENTS*/
