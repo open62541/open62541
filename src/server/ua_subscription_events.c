@@ -461,6 +461,22 @@ UA_Server_initialSelectClauseValidation(UA_Server *server,
     for(size_t i =0; i<eventFilter->selectClausesSize; ++i) {
         selectClauseCodes[i] = UA_STATUSCODE_GOOD;
 
+        /* Check if browsepath, typedefenitionid, attributeid are NULL*/
+        if(&eventFilter->selectClauses[i].typeDefinitionId == NULL){
+            selectClauseCodes[i] = UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
+            continue;
+        }
+
+        if(&eventFilter->selectClauses[i].browsePath[j] == NULL){
+            selectClauseCodes[i] = UA_STATUSCODE_BADBROWSENAMEINVALID;
+            continue;
+        }
+
+        if(eventFilter->selectClauses[i].attributeId == NULL) {
+            selectClauseCodes[i] = UA_STATUSCODE_BADTYPEMISMATCH;
+            continue;
+        }
+
         /* Check if the eventType is a subtype of BaseEventType */
         UA_NodeId baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
         if(!isNodeInTree_singleRef(server, &eventFilter->selectClauses[i].typeDefinitionId, &baseEventTypeId,
@@ -486,7 +502,7 @@ UA_Server_initialSelectClauseValidation(UA_Server *server,
             continue;
 
         //Check if indexRange is defined
-        if(!UA_String_equal(&eventFilter->selectClauses[i].indexRange, &UA_STRING_NULL)) {//TODO: ist das richtig ?? (Check if null)
+        if(UA_String_equal(&eventFilter->selectClauses[i].indexRange, &UA_STRING_NULL)) {//TODO: ist das richtig ?? (Check if null)
             // Check if indexRange is parsable
             UA_NumericRange *numericRange = NULL;  // TODO: Wie nutzt man das parsen ohne den Value zu bekommen?
             if(UA_NumericRange_parse(numericRange,
