@@ -326,6 +326,9 @@ UA_StatusCode UA_Subscription_removeRetransmissionMessage(UA_Subscription *sub,
 UA_Boolean UA_Session_reachedPublishReqLimit(UA_Server *server, UA_Session *session);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+UA_StatusCode*
+UA_Server_initialSelectClauseValidation(UA_Server *server,
+                                        const UA_EventFilter *eventFilter);
 
 /* Only for unit testing */
 UA_StatusCode

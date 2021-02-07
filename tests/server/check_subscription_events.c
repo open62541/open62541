@@ -767,6 +767,27 @@ START_TEST(evaluateWhereClause) {
 }
 END_TEST
 
+START_TEST(validateSelectClause) {
+    /* Everything is on the stack, so no memory cleaning required.*/
+    UA_NodeId eventNodeId;
+    UA_StatusCode *retvals = (UA_StatusCode*)
+        UA_Array_new(8, &UA_TYPES[UA_TYPES_STATUSCODE]);
+    UA_EventFilter eventFilter;
+    UA_EventFilter_init(&eventFilter);
+
+
+    retvals = UA_Server_initialSelectClauseValidation(server, &eventFilter);
+    ck_assert_uint_eq(retvals[0], UA_STATUSCODE_BADSTRUCTUREMISSING);
+    ck_assert_uint_eq(retvals[1], UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(retvals[2], UA_STATUSCODE_BADTYPEDEFINITIONINVALID);
+    ck_assert_uint_eq(retvals[3], UA_STATUSCODE_BADATTRIBUTEIDINVALID);
+    ck_assert_uint_eq(retvals[4], UA_STATUSCODE_BADBROWSENAMEINVALID);
+    ck_assert_uint_eq(retvals[5], UA_STATUSCODE_BADINDEXRANGEINVALID);
+    ck_assert_uint_eq(retvals[6], UA_STATUSCODE_BADTYPEMISMATCH);
+    ck_assert_uint_eq(retvals[7], UA_STATUSCODE_GOOD);
+}
+END_TEST
+
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
 /* Assumes subscriptions work fine with data change because of other unit test */
