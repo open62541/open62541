@@ -115,6 +115,7 @@ typedef struct UA_DataSetWriter{
 #endif
 #ifdef UA_ENABLE_PUBSUB_EVENTS
     // TODO: change it to a SimpleQ, we don't need the double link in this case
+    // TODO: check if Variant is the right type for the queue
     TAILQ_HEAD(EventQueue, UA_Variant) eventQueue;
 #endif
     UA_UInt16 actualDataSetMessageSequenceCount;
