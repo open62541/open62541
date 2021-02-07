@@ -285,13 +285,15 @@ typedef struct {
 } UA_PublishedDataItemsTemplateConfig;
 
 typedef struct {
-    UA_NodeId eventNotfier;
+    UA_NodeId eventNotifier;
     UA_ContentFilter filter;
+    size_t selectedFieldsSize;
+    UA_SimpleAttributeOperand *selectedFields;
 } UA_PublishedEventConfig;
 
 typedef struct {
     UA_DataSetMetaDataType metaData;
-    UA_NodeId eventNotfier;
+    UA_NodeId eventNotifier;
     size_t selectedFieldsSize;
     UA_SimpleAttributeOperand *selectedFields;
     UA_ContentFilter filter;
@@ -375,9 +377,14 @@ typedef enum {
 } UA_DataSetFieldType;
 
 typedef struct {
+    UA_SimpleAttributeOperand selectedField;
+} UA_DataSetEventConfig;
+
+typedef struct {
     UA_DataSetFieldType dataSetFieldType;
     union {
         /* events need other config later */
+        UA_DataSetEventConfig events;
         UA_DataSetVariableConfig variable;
     } field;
 } UA_DataSetFieldConfig;
