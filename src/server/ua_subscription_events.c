@@ -520,7 +520,7 @@ static const UA_NodeId isInFolderReferences[2] =
      {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASCOMPONENT}}};
 
 // TODO: decide where the method insertVariant should be
-static UA_StatusCode insertVariant(UA_Server *server, UA_DataSetWriter *dsw, UA_Variant *variant)  {
+static UA_StatusCode insertVariantToDSWQueue(UA_Server *server, UA_DataSetWriter *dsw, UA_Variant *variant)  {
 #ifdef UA_ENABLE_PUBSUB_EVENTS
     //hier nochmal schauen, ob das wirklich so funktioniert, vorallem bei next unsicher
     TAILQ_INSERT_TAIL(&dsw->eventQueue->tqh_first, variant, next);
@@ -571,7 +571,7 @@ static UA_StatusCode addingEventToDataSetWriter(UA_Server *server, UA_NodeId eve
                         UA_Variant *variant = UA_Variant_new();
                         UA_Variant_init(variant);
                         // TODO: decide which type of data the Variant should contain
-                        return insertVariant(server, &dsw, variant);
+                        return insertVariantToDSWQueue(server, &dsw, variant);
                     }
                 }
             }
