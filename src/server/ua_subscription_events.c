@@ -519,6 +519,18 @@ static const UA_NodeId isInFolderReferences[2] =
     {{0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_ORGANIZES}},
      {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASCOMPONENT}}};
 
+// TODO: decide where the method insertVariant should be
+static UA_StatusCode insertVariant(UA_Server *server, UA_DataSetWriter *dsw, UA_Variant *variant)  {
+#ifdef UA_ENABLE_PUBSUB_EVENTS
+    //hier nochmal schauen, ob das wirklich so funktioniert, vorallem bei next unsicher
+    TAILQ_INSERT_TAIL(&dsw->eventQueue->tqh_first, variant, next);
+    return UA_STATUSCODE_GOOD;
+#endif
+    UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
+                 "Events in PubSub are not allowed. Missing Flag: UA_ENABLE_PUBSUB_EVENTS");
+    return UA_STATUSCODE_BADARGUMENTSMISSING; //TODO: this must be changed the current Statuscode isn't describing it very well
+}
+
 UA_StatusCode
 UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
                        const UA_NodeId origin, UA_ByteString *outEventId,
@@ -580,12 +592,10 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
                     // füge etwas in die Queue des DataSetWriters ein
                     if(UA_NodeId_equal(&dsf.identifier,&eventNodeId)){
                         // TODO: insert values into queue of dsw
-                        // TODO: writeMethod insertVariant(UA_DataSetWriter *dsw, Variant *var)
                         UA_Variant *variant = UA_Variant_new();
                         UA_Variant_init(variant);
                         // TODO: decide which type of data the Variant should contain
-                        // TODO: decide where the method insertVariant should be
-                        // insertVariant(dsw, variant)
+                        insertVariant(server, &dsw, variant);
                     }
                 }
             }
