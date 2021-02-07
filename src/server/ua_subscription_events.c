@@ -449,48 +449,59 @@ UA_StatusCode*
 UA_Server_initialSelectClauseValidation(UA_Server *server,
                                         const UA_EventFilter *eventFilter) {
     if(eventFilter->selectClauses == NULL){
-        return (UA_StatusCode *) UA_STATUSCODE_BADSTRUCTUREMISSING;
+        UA_StatusCode *selectClauseCode = (UA_StatusCode*)
+            UA_Array_new(1, &UA_TYPES[UA_TYPES_STATUSCODE]);
+        selectClauseCode[0] = UA_STATUSCODE_BADSTRUCTUREMISSING;
+        return selectClauseCode;
     }
-    if(eventFilter->selectClausesSize == 0){
-        /* Nothing to do.*/
-        return UA_STATUSCODE_GOOD;
-    }
+
     UA_StatusCode *selectClauseCodes = (UA_StatusCode*)
         UA_Array_new(eventFilter->selectClausesSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
 
-
     for(size_t i =0; i<eventFilter->selectClausesSize; ++i) {
+        selectClauseCodes[i] = UA_STATUSCODE_GOOD;
+
         /* Check if the eventType is a subtype of BaseEventType */
         UA_NodeId baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
         if(!isNodeInTree_singleRef(server, &eventFilter->selectClauses[i].typeDefinitionId, &baseEventTypeId,
-                                   UA_REFERENCETYPEINDEX_HASSUBTYPE))
+                                   UA_REFERENCETYPEINDEX_HASSUBTYPE)) {
             selectClauseCodes[i] = UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
+            continue;
+        }
 
         //Check if attributeId is valid
-        if(0 < eventFilter->selectClauses[i].attributeId && eventFilter->selectClauses[i].attributeId < 28)
+        if(0 < eventFilter->selectClauses[i].attributeId && eventFilter->selectClauses[i].attributeId < 28){
             selectClauseCodes[i] = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+            continue;
+        }
 
         //Check if browsePath contains null
         for(size_t j =0; j<eventFilter->selectClauses[i].browsePathSize; ++j) {
-            if(UA_String_equal(&eventFilter->selectClauses[i].browsePath[j].name, &UA_STRING_NULL)) //TODO: ist das richtig ?? (Check if null)
+            if(UA_String_equal(&eventFilter->selectClauses[i].browsePath[j].name, &UA_STRING_NULL)) {  // TODO: ist das richtig ?? (Check if null)
                 selectClauseCodes[i] = UA_STATUSCODE_BADBROWSENAMEINVALID;
+                break;
+            }
         }
+        if(selectClauseCodes[i] != UA_STATUSCODE_GOOD)
+            continue;
 
         //Check if indexRange is defined
-        if(UA_String_equal(&eventFilter->selectClauses[i].indexRange, &UA_STRING_NULL)) {//TODO: ist das richtig ?? (Check if null)
+        if(!UA_String_equal(&eventFilter->selectClauses[i].indexRange, &UA_STRING_NULL)) {//TODO: ist das richtig ?? (Check if null)
             // Check if indexRange is parsable
             UA_NumericRange *numericRange = NULL;  // TODO: Wie nutzt man das parsen ohne den Value zu bekommen?
             if(UA_NumericRange_parse(numericRange,
                                      eventFilter->selectClauses[i].indexRange) !=
-               UA_STATUSCODE_GOOD)
+               UA_STATUSCODE_GOOD) {
                 selectClauseCodes[i] = UA_STATUSCODE_BADINDEXRANGEINVALID;
+                continue;
+            }
 
             // Check if attributeId is value
-            if(eventFilter->selectClauses[i].attributeId == UA_ATTRIBUTEID_VALUE)
+            if(eventFilter->selectClauses[i].attributeId != UA_ATTRIBUTEID_VALUE){
                 selectClauseCodes[i] = UA_STATUSCODE_BADTYPEMISMATCH;
+                continue;
+            }
         }
-
-        selectClauseCodes[i] = UA_STATUSCODE_GOOD;
     }
     return selectClauseCodes;
 }
