@@ -519,6 +519,96 @@ static const UA_NodeId isInFolderReferences[2] =
     {{0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_ORGANIZES}},
      {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASCOMPONENT}}};
 
+#ifdef UA_ENABLE_PUBSUB_EVENTS
+// TODO: decide where the method insertVariant should be
+static UA_StatusCode insertVariantToDSWQueue(UA_Server *server, UA_DataSetWriter *dsw, UA_Variant *var)  {
+    if(dsw == NULL){
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                 "The given DataSetWriter is NULL");
+        return UA_STATUSCODE_BADARGUMENTSMISSING; //TODO: this must be changed the current Statuscode isn't describing it very well
+    }
+    if (var == NULL){
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
+                     "The given Variant is NULL");
+        return UA_STATUSCODE_BADARGUMENTSMISSING; //TODO: this must be changed the current Statuscode isn't describing it very well
+    }
+
+    //event_queue_entry ist ein neu erstelltes struct, einfach ein wrapper für Variant, da wir die Queue-Funktionalität der Makros brauchen
+    UA_EventQueueEntry *entry = (UA_EventQueueEntry *)malloc(sizeof(UA_EventQueueEntry));
+    entry->variant = *var;
+
+    SIMPLEQ_INSERT_TAIL(&dsw->eventQueue, entry, listEntry);
+
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode addEventToDataSetWriter(UA_Server *server, UA_NodeId eventNodeId){
+    /*
+     * Wir können ober den pubsubmanager auf die connections zugreifen, darüber wiederum auf die writerGroups und darüber
+     * auf die datasetwriter. Über die publishedDataSets die mit einem writer verbunden sind sollten wir merken können,
+     * zu welchem DataSetWriter das aktuelle Event gehört und es dort in die Queue schreiben.
+     */
+    // TODO: optimieren des Codes, da er unter Umständen viel Laufzeit schlucken könnte
+    UA_PubSubConnection *tmpConnection;
+    TAILQ_FOREACH(tmpConnection, &server->pubSubManager.connections, listEntry){
+        UA_WriterGroup *tmpWriterGroup;
+        LIST_FOREACH(tmpWriterGroup, &tmpConnection->writerGroups, listEntry) {
+            UA_DataSetWriter *tmpDataSetWriter;
+            LIST_FOREACH(tmpDataSetWriter, &tmpWriterGroup->writers, listEntry) {
+                UA_PublishedDataSet *publishedDataSet = UA_PublishedDataSet_findPDSbyId(server, tmpDataSetWriter->connectedDataSet);
+
+                if (!publishedDataSet){
+                    UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
+                                 "PublishedDataSet not found.");
+                    return UA_STATUSCODE_BADBOUNDNOTFOUND;
+                }
+                //Ist das PDS nicht vom PublishedEventsType, dann kann es übersprungen werden
+                if(publishedDataSet->config.publishedDataSetType != UA_PUBSUB_DATASET_PUBLISHEDEVENTS){
+                    continue;
+                }
+
+                //Published dieses PDS dieses Event?
+                if(UA_NodeId_equal(&publishedDataSet->config.config.event.eventNotfier, &eventNodeId)){
+                    //hier würden die Event-Felder selektiert, die von der PubSub-config gewuenscht sind
+                    /*UA_DataSetField dsf;
+                    for(size_t k = 0; k < pds->fieldSize; ++k) {
+                        dsf = pds->fields.tqh_first[i];
+                        //wenn es kein Event ist, kannst du es überspringen
+                        if(dsf.config.dataSetFieldType != UA_PUBSUB_DATASETFIELD_EVENT){
+                            continue;
+                        }
+                    }*/
+
+                    UA_Variant *v = UA_Variant_new();
+                    UA_Variant_init(v);
+
+                    //Die Erstellung des "Message" Feldes dient hier nur zur Test-/Verständniszwecken, die Selektion der Felder wäre ja Aufgabe des DataSetFields
+                    //TODO: ich bin mir nicht sicher ob das hier der beste weg ist Event-Fields in PubSub zu selektieren (das orientiert sich an tutorial_client_events)
+                    UA_SimpleAttributeOperand selectedField = *UA_SimpleAttributeOperand_new();
+                    UA_SimpleAttributeOperand_init(&selectedField);
+
+                    selectedField.typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+                    selectedField.browsePathSize = 1;
+                    selectedField.browsePath = (UA_QualifiedName*)
+                        UA_Array_new(selectedField.browsePathSize, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
+                    if(!selectedField.browsePath) {
+                        UA_SimpleAttributeOperand_delete(&selectedField);
+                    }
+                    selectedField.attributeId = UA_ATTRIBUTEID_VALUE;
+                    selectedField.browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "Message");
+
+                    //Speichere den Wert des Event-Feldes "Message" in das Variant
+                    resolveSimpleAttributeOperand(server, &server->adminSession, &eventNodeId, &selectedField, v);
+
+                    return insertVariantToDSWQueue(server, tmpDataSetWriter, v);
+                }
+            }
+        }
+    }
+    return UA_STATUSCODE_BADNOTFOUND;
+}
+#endif /*UA_ENABLE_PUBSUB_EVENTS*/
+
 UA_StatusCode
 UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
                        const UA_NodeId origin, UA_ByteString *outEventId,
@@ -661,6 +751,10 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
             setHistoricalEvent(server, &origin, &emitNodes[i].nodeId, &eventNodeId);
 #endif
     }
+
+#ifdef UA_ENABLE_PUBSUB_EVENTS
+    addEventToDataSetWriter(server, eventNodeId);
+#endif /*UA_ENABLE_PUBSUB_EVENTS*/
 
     /* Delete the node representation of the event */
     if(deleteEventNode) {

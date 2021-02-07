@@ -264,6 +264,8 @@ option(UA_ENABLE_PUBSUB_FILE_CONFIG "Enable loading PubSub Config from file exte
 mark_as_advanced(UA_ENABLE_PUBSUB_FILE_CONFIG)
 option(UA_ENABLE_PUBSUB_MONITORING "Enable monitoring of PubSub components (e.g. MessageReceiveTimeout)" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_MONITORING)
+option(UA_ENABLE_PUBSUB_EVENTS "Enable events in PubSub" OFF)
+mark_as_advanced(UA_ENABLE_PUBSUB_EVENTS)
 #RT and Transport PubSub settings
 option(UA_ENABLE_PUBSUB_ETH_UADP "Enable publish/subscribe UADP over Ethernet" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_ETH_UADP)
@@ -298,6 +300,12 @@ endif()
 if(UA_ENABLE_PUBSUB_MONITORING)
     if(NOT UA_ENABLE_PUBSUB)
         message(FATAL_ERROR "PubSub monitoring cannot be used with PubSub function disabled")
+    endif()
+endif()
+
+if(UA_ENABLE_PUBSUB_EVENTS)
+    if(NOT UA_ENABLE_PUBSUB)
+        message(FATAL_ERROR "PubSub needs to be enabled")
     endif()
 endif()
 

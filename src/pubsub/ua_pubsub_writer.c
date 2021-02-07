@@ -670,6 +670,9 @@ UA_Server_addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
     }
 
     if(currentDataSet->config.publishedDataSetType != UA_PUBSUB_DATASET_PUBLISHEDITEMS){
+
+        //TODO: hier fehlt was für Event-PDS
+
         result.result = UA_STATUSCODE_BADNOTIMPLEMENTED;
         return result;
     }
