@@ -543,6 +543,56 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
     }
 #endif /*UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS*/
 
+#ifdef UA_ENABLE_PUBSUB_EVENTS
+    /*
+     * Wir können ober den pubsubmanager auf die connections zugreifen, darüber wiederum auf die writerGroups und darüber
+     * auf die datasetwriter. Über die publishedDataSets die mit einem writer verbunden sind sollten wir merken können,
+     * zu welchem DataSetWriter das aktuelle Event gehört und es dort in die Queue schreiben.
+     */
+    // TODO: optimieren des Codes, da er unter Umständen viel Laufzeit schlucken könnte
+    // -> auslagern in eine eigene Methode und nach dem hinzufügen zu der Queue returnen
+    UA_PubSubConnection *conn;
+    // schaue in jeder connection nach
+    for(size_t connidx = 0; connidx<server->pubSubManager.connectionsSize; ++connidx){
+        conn = server->pubSubManager.connections.tqh_first[connidx];
+        // gehe durch jede writerGroup
+        for(size_t i = 0; i < conn->writerGroupsSize; i++){
+            struct UA_WriterGroup wg = conn->writerGroups.lh_first[i];
+            // gehe durch alle DataSetWriter
+            for(size_t j = 0; j < wg.writersCount; ++j) {
+                UA_DataSetWriter dsw = wg.writers.lh_first[j];
+                // hole dir das PublishedDataSet des DataSetWriters
+                UA_PublishedDataSet *pds = UA_PublishedDataSet_findPDSbyId(server, dsw.connectedDataSet);
+                if (!pds){
+                    UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
+                                 "PublishedDataSet not found.");
+                    return UA_STATUSCODE_BADBOUNDNOTFOUND;
+                }
+                UA_DataSetField dsf;
+                // schaue dir alle DataSetFields des DataSets an
+                for(size_t k = 0; k < pds->fieldSize; ++k) {
+                    dsf = pds->fields.tqh_first[i];
+                    // wenn es kein Event ist, kannst du es überspringen
+                    if(dsf.config.dataSetFieldType != UA_PUBSUB_DATASETFIELD_EVENT){
+                        continue;
+                    }
+                    // wenn es ein Event ist und die NodeIds zueinander passen,
+                    // füge etwas in die Queue des DataSetWriters ein
+                    if(UA_NodeId_equal(&dsf.identifier,&eventNodeId)){
+                        // TODO: insert values into queue of dsw
+                        // TODO: writeMethod insertVariant(UA_DataSetWriter *dsw, Variant *var)
+                        UA_Variant *variant = UA_Variant_new();
+                        UA_Variant_init(variant);
+                        // TODO: decide which type of data the Variant should contain
+                        // TODO: decide where the method insertVariant should be
+                        // insertVariant(dsw, variant)
+                    }
+                }
+            }
+        }
+    }
+#endif /*UA_ENABLE_PUBSUB_EVENTS*/
+
     /* Check that the origin node exists */
     const UA_Node *originNode = UA_NODESTORE_GET(server, &origin);
     if(!originNode) {

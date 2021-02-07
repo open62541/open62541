@@ -113,6 +113,10 @@ typedef struct UA_DataSetWriter{
     size_t lastSamplesCount;
     UA_DataSetWriterSample *lastSamples;
 #endif
+#ifdef UA_ENABLE_PUBSUB_EVENTS
+    // TODO: here the queue must be added
+    TAILQ_HEAD(NotificationQueue, UA_Variant) eventQueue;
+#endif
     UA_UInt16 actualDataSetMessageSequenceCount;
     /* This flag is 'read only' and is set internally based on the PubSub state. */
     UA_Boolean configurationFrozen;
