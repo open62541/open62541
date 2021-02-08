@@ -247,9 +247,14 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
 
         SSL_set_fd(channelData->ssl, connection.sockfd);
 
-        result = SSL_connect(channelData->ssl);
+        int connectError = SSL_ERROR_NONE;
 
-        if (SSL_get_error(channelData->ssl, result) != SSL_ERROR_NONE) {
+        do {
+            result = SSL_connect(channelData->ssl);
+            connectError = SSL_get_error(channelData->ssl, result);
+        } while (connectError == SSL_ERROR_WANT_READ);
+
+        if (connectError != SSL_ERROR_NONE) {
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: TLS connect failed");
             const unsigned long err = ERR_get_error();
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "SSL_connect error code: %lu %s", err, ERR_error_string(err, NULL));
