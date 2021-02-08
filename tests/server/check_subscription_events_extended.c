@@ -492,6 +492,9 @@ START_TEST(createNonAbstractEventWithParent) {
 } END_TEST
 
 
+
+
+
 static void
 handler_events_overflow(UA_Client *lclient, UA_UInt32 subId, void *subContext,
                         UA_UInt32 monId, void *monContext,
@@ -809,6 +812,72 @@ START_TEST(initialWhereClauseValidation) {
     }
 END_TEST
 
+
+START_TEST(validateSelectClause) {
+/* Everything is on the stack, so no memory cleaning required.*/
+        UA_StatusCode *retval;
+        UA_StatusCode *retvals = (UA_StatusCode*)
+            UA_Array_new(7, &UA_TYPES[UA_TYPES_STATUSCODE]);
+        UA_EventFilter eventFilter;
+        UA_EventFilter_init(&eventFilter);
+
+
+        retval = UA_Server_initialSelectClauseValidation(server, &eventFilter);
+        ck_assert_uint_eq(*retval, UA_STATUSCODE_BADSTRUCTUREMISSING);
+
+
+        eventFilter.selectClauses = (UA_SimpleAttributeOperand *)
+            UA_Array_new(7, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);;
+
+        eventFilter.selectClausesSize = 0;
+        retval = UA_Server_initialSelectClauseValidation(server, &eventFilter);
+        ck_assert_uint_eq(*retval, UA_STATUSCODE_GOOD);
+
+        eventFilter.selectClausesSize = 7;
+/*Initialization*/
+        for(int i = 0; i < 7; i++){
+            eventFilter.selectClauses[i].typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+            eventFilter.selectClauses[i].browsePathSize = 1;
+            eventFilter.selectClauses[i].browsePath = (UA_QualifiedName*)
+                UA_Array_new(eventFilter.selectClauses[i].browsePathSize, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
+            eventFilter.selectClauses[i].browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "Test");
+            eventFilter.selectClauses[i].attributeId = UA_ATTRIBUTEID_VALUE;
+        }
+/*typeDefinitionId not subtype of BaseEventType*/
+        eventFilter.selectClauses[0].typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_NUMBER);
+
+/*attributeId not valid*/
+        eventFilter.selectClauses[1].attributeId = 28;
+
+        //   UA_QualifiedName *name = UA_QualifiedName_new();
+        //  UA_QualifiedName_init(name);
+
+
+/*browsePath contains null*/
+
+   //    UA_QualifiedName_clear(&eventFilter.selectClauses[2].browsePath[0]);
+
+/*indexRange not valid*/
+        eventFilter.selectClauses[3].indexRange = UA_STRING("3,2");
+
+/*attributeId not value when indexRange is set*/
+        eventFilter.selectClauses[4].attributeId = UA_ATTRIBUTEID_DATATYPE;
+        eventFilter.selectClauses[4].indexRange = UA_STRING("1");
+
+/*attributeId not value (should return UA_STATUSCODE_GOOD)*/
+        eventFilter.selectClauses[5].attributeId = UA_ATTRIBUTEID_DATATYPE;
+
+        retvals = UA_Server_initialSelectClauseValidation(server, &eventFilter);
+        ck_assert_uint_eq(retvals[0], UA_STATUSCODE_BADTYPEDEFINITIONINVALID);
+        ck_assert_uint_eq(retvals[1], UA_STATUSCODE_BADATTRIBUTEIDINVALID);
+        ck_assert_uint_eq(retvals[2], UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(retvals[3], UA_STATUSCODE_BADINDEXRANGEINVALID);
+        ck_assert_uint_eq(retvals[4], UA_STATUSCODE_BADTYPEMISMATCH);
+        ck_assert_uint_eq(retvals[5], UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(retvals[6], UA_STATUSCODE_GOOD);
+    }
+END_TEST
+
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
 /* Assumes subscriptions work fine with data change because of other unit test */
@@ -828,6 +897,7 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_server, eventStressing);
     tcase_add_test(tc_server, evaluateWhereClause);
     tcase_add_test(tc_server, initialWhereClauseValidation);
+    tcase_add_test(tc_server, validateSelectClause);
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
     suite_add_tcase(s, tc_server);
 

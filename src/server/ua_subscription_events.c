@@ -467,8 +467,17 @@ UA_Server_initialSelectClauseValidation(UA_Server *server,
         return selectClauseCode;
     }
 
+    if (eventFilter->selectClausesSize == 0){
+        UA_StatusCode *selectClauseCode = (UA_StatusCode*)
+            UA_Array_new(1, &UA_TYPES[UA_TYPES_STATUSCODE]);
+        selectClauseCode[0] = UA_STATUSCODE_GOOD;
+        return selectClauseCode;
+    }
+
     UA_StatusCode *selectClauseCodes = (UA_StatusCode*)
         UA_Array_new(eventFilter->selectClausesSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
+
+
 
     for(size_t i =0; i<eventFilter->selectClausesSize; ++i) {
         selectClauseCodes[i] = UA_STATUSCODE_GOOD;
@@ -482,10 +491,7 @@ UA_Server_initialSelectClauseValidation(UA_Server *server,
             selectClauseCodes[i] = UA_STATUSCODE_BADBROWSENAMEINVALID;
             continue;
         }
-        if(!eventFilter->selectClauses[i].attributeId) {
-            selectClauseCodes[i] = UA_STATUSCODE_BADTYPEMISMATCH;
-            continue;
-        }
+
 
         /* Check if the eventType is a subtype of BaseEventType */
         UA_NodeId baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
@@ -496,14 +502,14 @@ UA_Server_initialSelectClauseValidation(UA_Server *server,
         }
 
         //Check if attributeId is valid
-        if(0 < eventFilter->selectClauses[i].attributeId && eventFilter->selectClauses[i].attributeId < 28){
+        if(!((0 < eventFilter->selectClauses[i].attributeId) && (eventFilter->selectClauses[i].attributeId < 28))){
             selectClauseCodes[i] = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
             continue;
         }
 
         //Check if browsePath contains null
         for(size_t j =0; j<eventFilter->selectClauses[i].browsePathSize; ++j) {
-            if(UA_String_equal(&eventFilter->selectClauses[i].browsePath[j].name, &UA_STRING_NULL)) {  // TODO: ist das richtig ?? (Check if null)
+            if(UA_QualifiedName_isNull(&eventFilter->selectClauses[i].browsePath[j])) {  // TODO: ist das richtig ?? (Check if null)
                 selectClauseCodes[i] = UA_STATUSCODE_BADBROWSENAMEINVALID;
                 break;
             }
