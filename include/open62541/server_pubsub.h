@@ -364,6 +364,7 @@ typedef struct {
     UA_DataSetFieldType dataSetFieldType;
     union {
         /* events need other config later */
+        UA_PublishedEventConfig events;
         UA_DataSetVariableConfig variable;
     } field;
 } UA_DataSetFieldConfig;

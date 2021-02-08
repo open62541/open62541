@@ -567,7 +567,8 @@ static UA_StatusCode addingEventToDataSetWriter(UA_Server *server, UA_NodeId eve
                     }
                     // wenn es ein Event ist und die NodeIds zueinander passen,
                     // füge etwas in die Queue des DataSetWriters ein
-                    if(UA_NodeId_equal(&dsf.identifier,&eventNodeId)){
+                    //old: if(UA_NodeId_equal(&dsf.identifier,&eventNodeId)){
+                    if(UA_NodeId_equal(&dsf.config.field.events.eventNotifier,&eventNodeId)){
                         // TODO: insert values into queue of dsw
                         UA_Variant *variant = UA_Variant_new();
                         UA_Variant_init(variant);
