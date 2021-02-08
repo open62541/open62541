@@ -519,20 +519,25 @@ static const UA_NodeId isInFolderReferences[2] =
     {{0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_ORGANIZES}},
      {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASCOMPONENT}}};
 
+#ifdef UA_ENABLE_PUBSUB_EVENTS
 // TODO: decide where the method insertVariant should be
 static UA_StatusCode insertVariantToDSWQueue(UA_Server *server, UA_DataSetWriter *dsw, UA_Variant *variant)  {
-#ifdef UA_ENABLE_PUBSUB_EVENTS
-    //hier nochmal schauen, ob das wirklich so funktioniert, vorallem bei next unsicher
+    if(dsw == NULL){
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                 "The given DataSetWriter is NULL");
+        return UA_STATUSCODE_BADARGUMENTSMISSING; //TODO: this must be changed the current Statuscode isn't describing it very well
+    }
+    if (variant == NULL){
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
+                     "The given Variant is NULL");
+        return UA_STATUSCODE_BADARGUMENTSMISSING; //TODO: this must be changed the current Statuscode isn't describing it very well
+    }
+    //TODO: hier nochmal schauen, ob das wirklich so funktioniert, vorallem bei next unsicher
     TAILQ_INSERT_TAIL(&dsw->eventQueue->tqh_first, variant, next);
     return UA_STATUSCODE_GOOD;
-#endif
-    UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
-                 "Events in PubSub are not allowed. Missing Flag: UA_ENABLE_PUBSUB_EVENTS");
-    return UA_STATUSCODE_BADARGUMENTSMISSING; //TODO: this must be changed the current Statuscode isn't describing it very well
 }
 
 static UA_StatusCode addingEventToDataSetWriter(UA_Server *server, UA_NodeId eventNodeId){
-#ifdef UA_ENABLE_PUBSUB_EVENTS
     /*
      * Wir können ober den pubsubmanager auf die connections zugreifen, darüber wiederum auf die writerGroups und darüber
      * auf die datasetwriter. Über die publishedDataSets die mit einem writer verbunden sind sollten wir merken können,
@@ -580,9 +585,8 @@ static UA_StatusCode addingEventToDataSetWriter(UA_Server *server, UA_NodeId eve
         }
     }
     return UA_STATUSCODE_BADNOTFOUND;
-#endif
-    return UA_STATUSCODE_BADARGUMENTSMISSING; //TODO: this must be changed the current Statuscode isn't describing it very well
 }
+#endif /*UA_ENABLE_PUBSUB_EVENTS*/
 
 UA_StatusCode
 UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
