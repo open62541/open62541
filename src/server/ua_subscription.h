@@ -333,7 +333,31 @@ UA_Server_evaluateWhereClauseContentFilter(
     UA_Server *server,
     const UA_NodeId *eventNode,
     const UA_ContentFilter *contentFilter);
+
+
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
+
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+
+UA_StatusCode*
+UA_Server_initialSelectClauseValidation(UA_Server *server,
+                                        const UA_EventFilter *eventFilter);
+
+
+#endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
+
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+
+UA_ContentFilterResult*
+UA_Server_initialWhereClauseValidation(UA_Server *server,
+                                       const UA_NodeId *eventNode,
+                                       const UA_ContentFilter *contentFilter);
+
+
+#endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
+
 
 /**
  * Log Helper
