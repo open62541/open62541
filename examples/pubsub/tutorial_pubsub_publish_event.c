@@ -38,6 +38,9 @@ addPublishedDataSet(UA_Server *server) {
     memset(&publishedDataSetConfig, 0, sizeof(UA_PublishedDataSetConfig));
     publishedDataSetConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDEVENTS;
     publishedDataSetConfig.name = UA_STRING("Demo PDS PubSub Events");
+
+    publishedDataSetConfig.config.event.eventNotfier = eventNodeId;
+
     /* Create new PublishedDataSet based on the PublishedDataSetConfig. */
     UA_Server_addPublishedDataSet(server, &publishedDataSetConfig, &publishedDataSetIdent);
 }
@@ -49,11 +52,16 @@ addDataSetField(UA_Server *server) {
     UA_DataSetFieldConfig dataSetFieldConfig;
     memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
     dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_EVENT;
+
     /*
      * Hier müssen dann die Eventspezifischen Eigenschaften der dataSetFieldConfig
      * beschrieben werden, analog zu der folgenden Zeile.
      */
-    dataSetFieldConfig.field.events.eventNotfier = eventNodeId;
+    UA_SimpleAttributeOperand *sf = UA_SimpleAttributeOperand_new();
+    UA_SimpleAttributeOperand_init(sf);
+
+    dataSetFieldConfig.field.events.selectedField = *sf;
+
     UA_Server_addDataSetField(server, publishedDataSetIdent,
                               &dataSetFieldConfig, &dataSetFieldIdent);
 }

@@ -98,6 +98,11 @@ typedef struct UA_DataSetWriterSample{
 } UA_DataSetWriterSample;
 #endif
 
+typedef struct event_queue_entry {
+    UA_Variant variant;
+    SIMPLEQ_ENTRY(event_queue_entry) listEntry;
+} event_queue_entry;
+
 typedef struct UA_DataSetWriter{
     UA_PubSubComponentEnumType componentType;
     UA_DataSetWriterConfig config;
@@ -114,9 +119,7 @@ typedef struct UA_DataSetWriter{
     UA_DataSetWriterSample *lastSamples;
 #endif
 #ifdef UA_ENABLE_PUBSUB_EVENTS
-    // TODO: change it to a SimpleQ, we don't need the double link in this case
-    // TODO: check if Variant is the right type for the queue
-    TAILQ_HEAD(EventQueue, UA_Variant) eventQueue;
+    SIMPLEQ_HEAD(EventQueue, event_queue_entry) eventQueue;
 #endif
     UA_UInt16 actualDataSetMessageSequenceCount;
     /* This flag is 'read only' and is set internally based on the PubSub state. */
