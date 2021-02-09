@@ -10,6 +10,7 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017-2018 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2018-2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
+ *    Copyright 2018-2021 (c) Hilscher Gesellschaft für Systemautomation mbH (Author: Martin Lang)
  */
 
 #include <open62541/transport_generated_encoding_binary.h>
@@ -723,7 +724,7 @@ assembleProcessMessage(UA_SecureChannel *channel, void *application,
     UA_StatusCode res = UA_ByteString_allocBuffer(&payload, messageSize);
     if(res != UA_STATUSCODE_GOOD)
         return res;
-
+    
     /* Assemble the full message */
     size_t offset = 0;
     while(true) {
@@ -736,7 +737,7 @@ assembleProcessMessage(UA_SecureChannel *channel, void *application,
         if(ct == UA_CHUNKTYPE_FINAL)
             break;
     }
-
+    
     /* Process the assembled message */
     UA_StatusCode retval = callback(application, channel, messageType, requestId, &payload);
     UA_ByteString_clear(&payload);
@@ -954,7 +955,7 @@ UA_SecureChannel_receive(UA_SecureChannel *channel, void *application,
     UA_Connection *connection = channel->connection;
     if(!connection)
         return UA_STATUSCODE_BADINTERNALERROR;
-
+    
     /* Listen for messages to arrive */
     UA_ByteString buffer = UA_BYTESTRING_NULL;
     UA_StatusCode retval = connection->recv(connection, &buffer, timeout);
