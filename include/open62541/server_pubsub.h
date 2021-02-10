@@ -359,7 +359,11 @@ typedef enum {
 
 typedef struct {
     /*Testweise, UA_PublishedEventTemplateConfig benutzt auch UA_SimpleAttributeOperand*/
-    UA_SimpleAttributeOperand selectedField;
+    UA_ConfigurationVersionDataType configurationVersion;
+    UA_String fieldNameAlias;
+    UA_PublishedEventsDataType publishParameters;
+    //UA_Boolean promotedFields;
+    //UA_SimpleAttributeOperand selectedFields;
 } UA_DataSetEventConfig;
 
 typedef struct {
