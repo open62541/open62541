@@ -336,7 +336,8 @@ addServerSocket(ServerNetworkLayerTCP *layer, struct addrinfo *ai) {
                 ret = 0;
             }
         }
-        if(ai->ai_family == AF_INET6) {
+#if UA_IPV6
+        else if(ai->ai_family == AF_INET6) {
             struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *)ai->ai_addr;
             if(!IN6_IS_ADDR_UNSPECIFIED(&sin6->sin6_addr)) {
                 memset(&sin6->sin6_addr, 0, sizeof(sin6->sin6_addr));
@@ -344,6 +345,7 @@ addServerSocket(ServerNetworkLayerTCP *layer, struct addrinfo *ai) {
                 ret = 0;
             }
         }
+#endif // UA_IPV6
         if(ret == 0) {
             ret = UA_bind(newsock, ai->ai_addr, (socklen_t)ai->ai_addrlen);
             if(ret == 0) {
