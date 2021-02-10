@@ -33,7 +33,7 @@
 
 #define CONNECTION_NAME              "MQTT Publisher Connection"
 #define TRANSPORT_PROFILE_URI        "http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt"
-#define MQTT_CLIENT_ID               "TESTCLIENTPUBSUBMQTT"
+#define MQTT_CLIENT_ID               "TESTCLIENTPUBSUBMQTT_PUB"
 #define CONNECTIONOPTION_NAME        "mqttClientId"
 #define PUBLISHER_TOPIC              "customTopic"
 #define PUBLISHER_METADATAQUEUENAME  "MetaDataTopic"
