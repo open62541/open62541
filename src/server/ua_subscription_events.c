@@ -520,8 +520,8 @@ UA_Server_initialSelectClauseValidation(UA_Server *server,
         //Check if indexRange is defined
         if(!UA_String_equal(&eventFilter->selectClauses[i].indexRange, &UA_STRING_NULL)) {//TODO: ist das richtig ?? (Check if null)
             // Check if indexRange is parsable
-            UA_NumericRange *numericRange = NULL;  // TODO: Wie nutzt man das parsen ohne den Value zu bekommen?
-            if(UA_NumericRange_parse(numericRange,
+            UA_NumericRange numericRange = UA_NUMERICRANGE("");  // TODO: Wie nutzt man das parsen ohne den Value zu bekommen?
+            if(UA_NumericRange_parse(&numericRange,
                                      eventFilter->selectClauses[i].indexRange) !=
                UA_STATUSCODE_GOOD) {
                 selectClauseCodes[i] = UA_STATUSCODE_BADINDEXRANGEINVALID;

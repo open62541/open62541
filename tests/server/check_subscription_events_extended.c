@@ -849,16 +849,12 @@ START_TEST(validateSelectClause) {
 /*attributeId not valid*/
         eventFilter.selectClauses[1].attributeId = 28;
 
-        //   UA_QualifiedName *name = UA_QualifiedName_new();
-        //  UA_QualifiedName_init(name);
-
-
 /*browsePath contains null*/
+        eventFilter.selectClauses[2].browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "");
 
-   //    UA_QualifiedName_clear(&eventFilter.selectClauses[2].browsePath[0]);
 
 /*indexRange not valid*/
-        eventFilter.selectClauses[3].indexRange = UA_STRING("3,2");
+        eventFilter.selectClauses[3].indexRange = UA_STRING("test");
 
 /*attributeId not value when indexRange is set*/
         eventFilter.selectClauses[4].attributeId = UA_ATTRIBUTEID_DATATYPE;
@@ -870,7 +866,7 @@ START_TEST(validateSelectClause) {
         retvals = UA_Server_initialSelectClauseValidation(server, &eventFilter);
         ck_assert_uint_eq(retvals[0], UA_STATUSCODE_BADTYPEDEFINITIONINVALID);
         ck_assert_uint_eq(retvals[1], UA_STATUSCODE_BADATTRIBUTEIDINVALID);
-        ck_assert_uint_eq(retvals[2], UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(retvals[2], UA_STATUSCODE_BADBROWSENAMEINVALID);
         ck_assert_uint_eq(retvals[3], UA_STATUSCODE_BADINDEXRANGEINVALID);
         ck_assert_uint_eq(retvals[4], UA_STATUSCODE_BADTYPEMISMATCH);
         ck_assert_uint_eq(retvals[5], UA_STATUSCODE_GOOD);
