@@ -718,7 +718,7 @@ START_TEST(initialWhereClauseValidation) {
         UA_ContentFilterElement contentFilterElement;
         UA_ContentFilterElement_init(&contentFilterElement);
         contentFilter.elements = &contentFilterElement;
-        contentFilter.elementsSize = 1;
+        contentFilter.elementsSize = 3;
 
 
         /* Illegal filter operators */
@@ -732,6 +732,62 @@ START_TEST(initialWhereClauseValidation) {
         contentFilterResult = UA_Server_initialWhereClauseValidation(server, &eventNodeId, &contentFilter);
         UA_UNLOCK(server->serviceMutex);
         ck_assert_uint_eq(contentFilterResult->elementResults[0].statusCode, UA_STATUSCODE_BADEVENTFILTERINVALID);
+
+
+        /*************************** UA_FILTEROPERATOR_OR ***************************/
+        contentFilterElement.filterOperator = UA_FILTEROPERATOR_OR;
+        /* No operand provided */
+        UA_LOCK(server->serviceMutex);
+        contentFilterResult = UA_Server_initialWhereClauseValidation(server, &eventNodeId, &contentFilter);
+        UA_UNLOCK(server->serviceMutex);
+        ck_assert_uint_eq(contentFilterResult->elementResults[0].statusCode, UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH);
+        /* Illegal filter operands size */
+        contentFilterElement.filterOperandsSize = 1;
+        UA_LOCK(server->serviceMutex);
+        contentFilterResult = UA_Server_initialWhereClauseValidation(server, &eventNodeId, &contentFilter);
+        UA_UNLOCK(server->serviceMutex);
+        ck_assert_uint_eq(contentFilterResult->elementResults[0].statusCode, UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH);
+
+
+        /* Illegal filter operands type */
+        contentFilterElement.filterOperandsSize = 2;
+        contentFilterElement.filterOperands = (UA_ExtensionObject*)
+            UA_Array_new(contentFilterElement.filterOperandsSize, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+
+        contentFilterElement.filterOperands[0].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
+        contentFilterElement.filterOperands[1].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
+        UA_LOCK(server->serviceMutex);
+        contentFilterResult = UA_Server_initialWhereClauseValidation(server, &eventNodeId, &contentFilter);
+        UA_UNLOCK(server->serviceMutex);
+        ck_assert_uint_eq(contentFilterResult->elementResults[0].statusCode, UA_STATUSCODE_BADFILTEROPERANDINVALID);
+
+        contentFilterElement.filterOperands[0].content.decoded.type = &UA_TYPES[UA_TYPES_ELEMENTOPERAND];
+        contentFilterElement.filterOperands[1].content.decoded.type = &UA_TYPES[UA_TYPES_ELEMENTOPERAND];
+
+        /* Illegal filter operands INDEXRANGE */
+        UA_ElementOperand *elementOperand;
+        elementOperand = UA_ElementOperand_new();
+        UA_ElementOperand_init(elementOperand);
+        elementOperand->index = 1;
+
+        UA_ElementOperand *secondElementOperand;
+        secondElementOperand = UA_ElementOperand_new();
+        UA_ElementOperand_init(secondElementOperand);
+        secondElementOperand->index = 3;
+
+        contentFilterElement.filterOperands[0].content.decoded.data = elementOperand;
+        contentFilterElement.filterOperands[1].content.decoded.data = secondElementOperand;
+
+        UA_LOCK(server->serviceMutex);
+        contentFilterResult = UA_Server_initialWhereClauseValidation(server, &eventNodeId, &contentFilter);
+        UA_UNLOCK(server->serviceMutex);
+        ck_assert_uint_eq(contentFilterResult->elementResults[0].statusCode, UA_STATUSCODE_BADINDEXRANGEINVALID);
+
+
+
+        /*************************** UA_FILTEROPERATOR_OFTYPE ***************************/
+        contentFilterElement.filterOperandsSize = 0;
+        contentFilter.elementsSize = 1;
 
         /* No operand provided */
         contentFilterElement.filterOperator = UA_FILTEROPERATOR_OFTYPE;
