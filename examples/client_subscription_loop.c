@@ -52,6 +52,7 @@ static void
 stateCallback(UA_Client *client, UA_SecureChannelState channelState,
               UA_SessionState sessionState, UA_StatusCode recoveryStatus) {
     switch(channelState) {
+    case UA_SECURECHANNELSTATE_FRESH:
     case UA_SECURECHANNELSTATE_CLOSED:
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "The client is disconnected");
         break;

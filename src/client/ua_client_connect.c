@@ -907,7 +907,7 @@ connectIterate(UA_Client *client, UA_UInt32 timeout) {
 
     /* Open the SecureChannel */
     switch(client->channel.state) {
-    case UA_SECURECHANNELSTATE_CLOSED:
+    case UA_SECURECHANNELSTATE_FRESH:
         client->connectStatus = sendHELMessage(client);
         if(client->connectStatus == UA_STATUSCODE_GOOD) {
             client->channel.state = UA_SECURECHANNELSTATE_HEL_SENT;
