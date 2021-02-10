@@ -105,10 +105,10 @@ typedef struct UA_DataSetWriterSample{
 } UA_DataSetWriterSample;
 #endif
 
-typedef struct UA_EventQueueEntry {
+typedef struct EventQueueEntry {
     UA_Variant variant;
-    SIMPLEQ_ENTRY(UA_EventQueueEntry) listEntry;
-} UA_EventQueueEntry;
+    SIMPLEQ_ENTRY(EventQueueEntry) listEntry;
+} EventQueueEntry;
 
 typedef struct UA_DataSetWriter{
     UA_PubSubComponentEnumType componentType;
@@ -126,7 +126,7 @@ typedef struct UA_DataSetWriter{
     UA_DataSetWriterSample *lastSamples;
 #endif
 #ifdef UA_ENABLE_PUBSUB_EVENTS
-    SIMPLEQ_HEAD(EventQueue, UA_EventQueueEntry) eventQueue;
+    SIMPLEQ_HEAD(EventQueue, EventQueueEntry) eventQueue;
 #endif
     UA_UInt16 actualDataSetMessageSequenceCount;
     /* This flag is 'read only' and is set internally based on the PubSub state. */

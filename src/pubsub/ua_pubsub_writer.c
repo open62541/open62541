@@ -465,7 +465,10 @@ UA_PublishedDataSetConfig_copy(const UA_PublishedDataSetConfig *src,
             res |= UA_DataSetMetaDataType_copy(&src->config.itemsTemplate.metaData,
                                                &dst->config.itemsTemplate.metaData);
             break;
-
+        case UA_PUBSUB_DATASET_PUBLISHEDEVENTS:
+            // TODO: check this
+            // ich glaube hier muss nichts hin, weil am Anfang ja alles mit memcpy kopiert wird
+            break;
         default:
             res = UA_STATUSCODE_BADINVALIDARGUMENT;
             break;
@@ -641,7 +644,10 @@ generateFieldMetaData(UA_Server *server, UA_DataSetField *field, UA_FieldMetaDat
             //fieldMetaData.maxStringLength
             return UA_STATUSCODE_GOOD;
         case UA_PUBSUB_DATASETFIELD_EVENT:
-            return UA_STATUSCODE_BADNOTSUPPORTED;
+            //TODO: adjustments needed
+            //UA_String_copy(&field->config.field.events.fieldNameAlias,&fieldMetaData->name);
+            //fieldMetaData->description = UA_LOCALIZEDTEXT_ALLOC("", "");
+            return UA_STATUSCODE_GOOD;
         default:
             return UA_STATUSCODE_BADNOTSUPPORTED;
     }
@@ -669,14 +675,6 @@ UA_Server_addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
         return result;
     }
 
-    if(currentDataSet->config.publishedDataSetType != UA_PUBSUB_DATASET_PUBLISHEDITEMS){
-
-        //TODO: hier fehlt was für Event-PDS
-
-        result.result = UA_STATUSCODE_BADNOTIMPLEMENTED;
-        return result;
-    }
-
     UA_DataSetField *newField = (UA_DataSetField *) UA_calloc(1, sizeof(UA_DataSetField));
     if(!newField){
         result.result = UA_STATUSCODE_BADINTERNALERROR;
@@ -699,6 +697,14 @@ UA_Server_addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
         TAILQ_INSERT_TAIL(&currentDataSet->fields, newField, listEntry);
     else
         TAILQ_INSERT_HEAD(&currentDataSet->fields, newField, listEntry);
+
+    if(currentDataSet->config.publishedDataSetType != UA_PUBSUB_DATASET_PUBLISHEDITEMS){
+
+        //TODO: hier fehlt was für Event-PDS
+
+        //result.result = UA_STATUSCODE_BADNOTIMPLEMENTED;
+        //return result;
+    }
 
     if(newField->config.field.variable.promotedField)
         currentDataSet->promotedFieldsCount++;
