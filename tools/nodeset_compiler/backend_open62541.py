@@ -283,6 +283,16 @@ _UA_END_DECLS
 
         functionNumber = functionNumber + 1
 
+
+    # Load generated types
+    for arr in set(typesArray):
+        if arr == "UA_TYPES":
+            continue
+        writec("\nstatic UA_DataTypeArray custom" + arr + " = {")
+        writec("    NULL,")
+        writec("    " + arr + "_COUNT,")
+        writec("    " + arr + "\n};")
+
     writec("""
 UA_StatusCode %s(UA_Server *server) {
 UA_StatusCode retVal = UA_STATUSCODE_GOOD;""" % (outfilebase))
@@ -293,6 +303,14 @@ UA_StatusCode retVal = UA_STATUSCODE_GOOD;""" % (outfilebase))
     for i, nsid in enumerate(nodeset.namespaces):
         nsid = nsid.replace("\"", "\\\"")
         writec("ns[" + str(i) + "] = UA_Server_addNamespace(server, \"" + nsid + "\");")
+
+    # Add generated types to the server
+    writec("\n/* Load custom datatype definitions into the server */")
+    for arr in set(typesArray):
+        if arr == "UA_TYPES":
+            continue
+        writec("custom" + arr + ".next = UA_Server_getConfig(server)->customDataTypes;")
+        writec("UA_Server_getConfig(server)->customDataTypes = &custom" + arr + ";\n")
 
     if functionNumber > 0:
 

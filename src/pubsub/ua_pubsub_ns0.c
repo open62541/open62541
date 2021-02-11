@@ -89,10 +89,10 @@ findSingleChildNode(UA_Server *server, UA_QualifiedName targetName,
        bpr.targetsSize < 1)
         return UA_NODEID_NULL;
     if(UA_NodeId_copy(&bpr.targets[0].targetId.nodeId, &resultNodeId) != UA_STATUSCODE_GOOD){
-        UA_BrowsePathResult_deleteMembers(&bpr);
+        UA_BrowsePathResult_clear(&bpr);
         return UA_NODEID_NULL;
     }
-    UA_BrowsePathResult_deleteMembers(&bpr);
+    UA_BrowsePathResult_clear(&bpr);
     return resultNodeId;
 }
 
@@ -391,7 +391,7 @@ addPubSubConnectionAction(UA_Server *server,
     for(size_t i = 0; i < pubSubConnectionDataType.readerGroupsSize; i++){
         //UA_Server_addReaderGroup(server, NULL, NULL, NULL);
     }
-    UA_NetworkAddressUrlDataType_deleteMembers(&networkAddressUrlDataType);
+    UA_NetworkAddressUrlDataType_clear(&networkAddressUrlDataType);
     //set ouput value
     UA_Variant_setScalarCopy(output, &connectionId, &UA_TYPES[UA_TYPES_NODEID]);
     return UA_STATUSCODE_GOOD;

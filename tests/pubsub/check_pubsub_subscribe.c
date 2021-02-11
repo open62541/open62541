@@ -234,7 +234,7 @@ START_TEST(GetReaderGroupConfigWithValidConfig) {
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         retVal |= UA_Server_ReaderGroup_getConfig(server, localreaderGroup, &readerGroupConfig);
         /* To Do: DeleteMembers of readergroup config has to be a separate function */
-        UA_String_deleteMembers (&readerGroupConfig.name);
+        UA_String_clear (&readerGroupConfig.name);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     } END_TEST
 

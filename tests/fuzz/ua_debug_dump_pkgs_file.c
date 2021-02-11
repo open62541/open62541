@@ -155,7 +155,7 @@ UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const connect
     UA_ByteString messageBufferCopy;
     UA_ByteString_copy(messageBuffer, &messageBufferCopy);
     UA_SecureChannel_processBuffer(&dummy, &dump_filename, UA_debug_dump_setName, &messageBufferCopy);
-    UA_ByteString_deleteMembers(&messageBufferCopy);
+    UA_ByteString_clear(&messageBufferCopy);
 
     dummy.securityPolicy = NULL;
     UA_SecureChannel_deleteBuffered(&dummy);

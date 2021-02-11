@@ -45,7 +45,7 @@ ssize_t UA_send(UA_SOCKET sockfd, const void *buf, size_t len, int flags); //equ
 #endif
 
 #ifndef UA_sendto
-ssize_t sendto(UA_SOCKET sockfd, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t addrlen); //equivalent to posix sendto implementation
+ssize_t UA_sendto(UA_SOCKET sockfd, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t addrlen); //equivalent to posix sendto implementation
 #endif
 
 #ifndef UA_select
@@ -57,7 +57,7 @@ ssize_t UA_recv(UA_SOCKET sockfd, void *buf, size_t len, int flags); //equivalen
 #endif
 
 #ifndef UA_recvfrom
-ssize_t recvfrom(UA_SOCKET sockfd, void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen);
+ssize_t UA_recvfrom(UA_SOCKET sockfd, void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen);
 #endif
 
 #ifndef UA_shutdown

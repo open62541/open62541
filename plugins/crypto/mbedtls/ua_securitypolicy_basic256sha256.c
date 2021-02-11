@@ -6,6 +6,7 @@
  *    Copyright 2018 (c) Daniel Feist, Precitec GmbH & Co. KG
  *    Copyright 2018 (c) HMS Industrial Networks AB (Author: Jonas Green)
  *    Copyright 2020 (c) Wind River Systems, Inc.
+ *    Copyright 2020 (c) basysKom GmbH
  */
 
 #include <open62541/plugin/securitypolicy_default.h>
@@ -346,7 +347,7 @@ sym_encrypt_sp_basic256sha256(const UA_SecurityPolicy *securityPolicy,
                                     ivCopy.data, data->data, data->data);
     if(mbedErr)
         retval = UA_STATUSCODE_BADINTERNALERROR;
-    UA_ByteString_deleteMembers(&ivCopy);
+    UA_ByteString_clear(&ivCopy);
     return retval;
 }
 
@@ -384,7 +385,7 @@ sym_decrypt_sp_basic256sha256(const UA_SecurityPolicy *securityPolicy,
                                     ivCopy.data, data->data, data->data);
     if(mbedErr)
         retval = UA_STATUSCODE_BADINTERNALERROR;
-    UA_ByteString_deleteMembers(&ivCopy);
+    UA_ByteString_clear(&ivCopy);
     return retval;
 }
 
@@ -443,13 +444,13 @@ parseRemoteCertificate_sp_basic256sha256(Basic256Sha256_ChannelContext *cc,
 
 static void
 channelContext_deleteContext_sp_basic256sha256(Basic256Sha256_ChannelContext *cc) {
-    UA_ByteString_deleteMembers(&cc->localSymSigningKey);
-    UA_ByteString_deleteMembers(&cc->localSymEncryptingKey);
-    UA_ByteString_deleteMembers(&cc->localSymIv);
+    UA_ByteString_clear(&cc->localSymSigningKey);
+    UA_ByteString_clear(&cc->localSymEncryptingKey);
+    UA_ByteString_clear(&cc->localSymIv);
 
-    UA_ByteString_deleteMembers(&cc->remoteSymSigningKey);
-    UA_ByteString_deleteMembers(&cc->remoteSymEncryptingKey);
-    UA_ByteString_deleteMembers(&cc->remoteSymIv);
+    UA_ByteString_clear(&cc->remoteSymSigningKey);
+    UA_ByteString_clear(&cc->remoteSymEncryptingKey);
+    UA_ByteString_clear(&cc->remoteSymIv);
 
     mbedtls_x509_crt_free(&cc->remoteCertificate);
 
@@ -498,7 +499,7 @@ channelContext_setLocalSymEncryptingKey_sp_basic256sha256(Basic256Sha256_Channel
     if(key == NULL || cc == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_ByteString_deleteMembers(&cc->localSymEncryptingKey);
+    UA_ByteString_clear(&cc->localSymEncryptingKey);
     return UA_ByteString_copy(key, &cc->localSymEncryptingKey);
 }
 
@@ -508,7 +509,7 @@ channelContext_setLocalSymSigningKey_sp_basic256sha256(Basic256Sha256_ChannelCon
     if(key == NULL || cc == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_ByteString_deleteMembers(&cc->localSymSigningKey);
+    UA_ByteString_clear(&cc->localSymSigningKey);
     return UA_ByteString_copy(key, &cc->localSymSigningKey);
 }
 
@@ -519,7 +520,7 @@ channelContext_setLocalSymIv_sp_basic256sha256(Basic256Sha256_ChannelContext *cc
     if(iv == NULL || cc == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_ByteString_deleteMembers(&cc->localSymIv);
+    UA_ByteString_clear(&cc->localSymIv);
     return UA_ByteString_copy(iv, &cc->localSymIv);
 }
 
@@ -529,7 +530,7 @@ channelContext_setRemoteSymEncryptingKey_sp_basic256sha256(Basic256Sha256_Channe
     if(key == NULL || cc == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_ByteString_deleteMembers(&cc->remoteSymEncryptingKey);
+    UA_ByteString_clear(&cc->remoteSymEncryptingKey);
     return UA_ByteString_copy(key, &cc->remoteSymEncryptingKey);
 }
 
@@ -539,7 +540,7 @@ channelContext_setRemoteSymSigningKey_sp_basic256sha256(Basic256Sha256_ChannelCo
     if(key == NULL || cc == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_ByteString_deleteMembers(&cc->remoteSymSigningKey);
+    UA_ByteString_clear(&cc->remoteSymSigningKey);
     return UA_ByteString_copy(key, &cc->remoteSymSigningKey);
 }
 
@@ -549,7 +550,7 @@ channelContext_setRemoteSymIv_sp_basic256sha256(Basic256Sha256_ChannelContext *c
     if(iv == NULL || cc == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_ByteString_deleteMembers(&cc->remoteSymIv);
+    UA_ByteString_clear(&cc->remoteSymIv);
     return UA_ByteString_copy(iv, &cc->remoteSymIv);
 }
 
@@ -579,7 +580,7 @@ clear_sp_basic256sha256(UA_SecurityPolicy *securityPolicy) {
     if(securityPolicy == NULL)
         return;
 
-    UA_ByteString_deleteMembers(&securityPolicy->localCertificate);
+    UA_ByteString_clear(&securityPolicy->localCertificate);
 
     if(securityPolicy->policyContext == NULL)
         return;
@@ -592,7 +593,7 @@ clear_sp_basic256sha256(UA_SecurityPolicy *securityPolicy) {
     mbedtls_entropy_free(&pc->entropyContext);
     mbedtls_pk_free(&pc->localPrivateKey);
     mbedtls_md_free(&pc->sha256MdContext);
-    UA_ByteString_deleteMembers(&pc->localCertThumbprint);
+    UA_ByteString_clear(&pc->localCertThumbprint);
 
     UA_LOG_DEBUG(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                  "Deleted members of EndpointContext for sp_basic256sha256");
@@ -614,21 +615,17 @@ updateCertificateAndPrivateKey_sp_basic256sha256(UA_SecurityPolicy *securityPoli
     Basic256Sha256_PolicyContext *pc =
             (Basic256Sha256_PolicyContext *) securityPolicy->policyContext;
 
-    UA_ByteString_deleteMembers(&securityPolicy->localCertificate);
+    UA_ByteString_clear(&securityPolicy->localCertificate);
 
-    UA_StatusCode retval = UA_ByteString_allocBuffer(&securityPolicy->localCertificate,
-                                                     newCertificate.length + 1);
-    if(retval != UA_STATUSCODE_GOOD)
+    UA_StatusCode retval = UA_mbedTLS_LoadLocalCertificate(&newCertificate, &securityPolicy->localCertificate);
+
+    if (retval != UA_STATUSCODE_GOOD)
         return retval;
-    memcpy(securityPolicy->localCertificate.data, newCertificate.data, newCertificate.length);
-    securityPolicy->localCertificate.data[newCertificate.length] = '\0';
-    securityPolicy->localCertificate.length--;
 
     /* Set the new private key */
     mbedtls_pk_free(&pc->localPrivateKey);
     mbedtls_pk_init(&pc->localPrivateKey);
-    int mbedErr = mbedtls_pk_parse_key(&pc->localPrivateKey, newPrivateKey.data,
-                                       newPrivateKey.length, NULL, 0);
+    int mbedErr = UA_mbedTLS_LoadPrivateKey(&newPrivateKey, &pc->localPrivateKey);
     if(mbedErr) {
         retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         goto error;
@@ -706,8 +703,7 @@ policyContext_newContext_sp_basic256sha256(UA_SecurityPolicy *securityPolicy,
     }
 
     /* Set the private key */
-    mbedErr = mbedtls_pk_parse_key(&pc->localPrivateKey, localPrivateKey.data,
-                                   localPrivateKey.length, NULL, 0);
+    mbedErr = UA_mbedTLS_LoadPrivateKey(&localPrivateKey, &pc->localPrivateKey);
     if(mbedErr) {
         retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         goto error;
@@ -745,14 +741,10 @@ UA_SecurityPolicy_Basic256Sha256(UA_SecurityPolicy *policy, const UA_ByteString 
     UA_SecurityPolicySymmetricModule *const symmetricModule = &policy->symmetricModule;
     UA_SecurityPolicyChannelModule *const channelModule = &policy->channelModule;
 
-    /* Copy the certificate and add a NULL to the end */
-    UA_StatusCode retval =
-        UA_ByteString_allocBuffer(&policy->localCertificate, localCertificate.length + 1);
-    if(retval != UA_STATUSCODE_GOOD)
+    UA_StatusCode retval = UA_mbedTLS_LoadLocalCertificate(&localCertificate, &policy->localCertificate);
+
+    if (retval != UA_STATUSCODE_GOOD)
         return retval;
-    memcpy(policy->localCertificate.data, localCertificate.data, localCertificate.length);
-    policy->localCertificate.data[localCertificate.length] = '\0';
-    policy->localCertificate.length--;
 
     /* AsymmetricModule */
     UA_SecurityPolicySignatureAlgorithm *asym_signatureAlgorithm =

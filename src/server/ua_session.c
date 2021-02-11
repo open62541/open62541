@@ -24,7 +24,7 @@ void UA_Session_init(UA_Session *session) {
 #endif
 }
 
-void UA_Session_deleteMembersCleanup(UA_Session *session, UA_Server* server) {
+void UA_Session_clear(UA_Session *session, UA_Server* server) {
     UA_LOCK_ASSERT(server->serviceMutex, 1);
 
     /* Remove all Subscriptions. This may send out remaining publish
@@ -37,11 +37,11 @@ void UA_Session_deleteMembersCleanup(UA_Session *session, UA_Server* server) {
 #endif
 
     UA_Session_detachFromSecureChannel(session);
-    UA_ApplicationDescription_deleteMembers(&session->clientDescription);
-    UA_NodeId_deleteMembers(&session->header.authenticationToken);
-    UA_NodeId_deleteMembers(&session->sessionId);
-    UA_String_deleteMembers(&session->sessionName);
-    UA_ByteString_deleteMembers(&session->serverNonce);
+    UA_ApplicationDescription_clear(&session->clientDescription);
+    UA_NodeId_clear(&session->header.authenticationToken);
+    UA_NodeId_clear(&session->sessionId);
+    UA_String_clear(&session->sessionName);
+    UA_ByteString_clear(&session->serverNonce);
     struct ContinuationPoint *cp, *next = session->continuationPoints;
     while((cp = next)) {
         next = ContinuationPoint_clear(cp);
@@ -81,7 +81,7 @@ UA_Session_generateNonce(UA_Session *session) {
 
     /* Is the length of the previous nonce correct? */
     if(session->serverNonce.length != UA_SESSION_NONCELENTH) {
-        UA_ByteString_deleteMembers(&session->serverNonce);
+        UA_ByteString_clear(&session->serverNonce);
         UA_StatusCode retval =
             UA_ByteString_allocBuffer(&session->serverNonce, UA_SESSION_NONCELENTH);
         if(retval != UA_STATUSCODE_GOOD)
@@ -168,11 +168,16 @@ UA_Server_deleteSubscription(UA_Server *server, UA_Subscription *sub) {
     /* Clean up */
     UA_Subscription_clear(server, sub);
 
-    /* Add a delayed callback to remove the subscription when the currently
-     * scheduled jobs have completed. There is no actual delayed callback. Just
-     * free the structure. */
+    /* Add a delayed callback to remove the Subscription when the current jobs
+     * have completed. Pointers to the subscription may still exist upwards in
+     * the call stack. */
     sub->delayedFreePointers.callback = NULL;
-    UA_WorkQueue_enqueueDelayed(&server->workQueue, &sub->delayedFreePointers);
+    sub->delayedFreePointers.application = server;
+    sub->delayedFreePointers.data = NULL;
+    sub->delayedFreePointers.nextTime = UA_DateTime_nowMonotonic() + 1;
+    sub->delayedFreePointers.interval = 0; /* Remove the structure */
+    UA_Timer_addTimerEntry(&server->timer, &sub->delayedFreePointers, NULL);
+
 }
 
 UA_Subscription *

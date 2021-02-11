@@ -8,7 +8,7 @@ OPC UA Stack
 | --------------------------------------- |:------------------:| -------------------- |
 | **Encoding**                            |                    |                      |
 | OPC UA Binary                           | :heavy_check_mark: |                      |
-| OPC UA JSON                             |     :new_moon:     | WIP for Release 0.4  |
+| OPC UA JSON                             |     :full_moon:    |                      |
 | OPC UA XML                              |     :new_moon:     |                      |
 | **Transport**                           |                    |                      |
 | UA-TCP UA-SC UA Binary                  | :heavy_check_mark: |                      |
@@ -18,9 +18,9 @@ OPC UA Stack
 | SOAP-HTTP WS-SC UA XML-UA Binary        |     :new_moon:     |                      |
 | **Encryption**                          |                    |                      |
 | None                                    | :heavy_check_mark: |                      |
-| Basic128Rsa15                           | :heavy_check_mark: | master, Release 0.3  |
-| Basic256                                | :heavy_check_mark: | master, Release 0.3  |
-| Basic256Sha256                          | :heavy_check_mark: | master, Release 0.3  |
+| Basic128Rsa15                           | :heavy_check_mark: |                      |
+| Basic256                                | :heavy_check_mark: |                      |
+| Basic256Sha256                          | :heavy_check_mark: |                      |
 | **Authentication**                      |                    |                      |
 | Anonymous                               | :heavy_check_mark: |                      |
 | User Name Password                      | :heavy_check_mark: |                      |
@@ -32,10 +32,10 @@ OPC UA Server
 | **Service-Set**             | **Service**                     | **Support**          | **Comment**          |
 | --------------------------- | ------------------------------- |:--------------------:| -------------------- |
 | Discovery Service Set       | FindServers()                   |  :heavy_check_mark:  |                      |
-|                             | FindServersOnNetwork()          |     :full_moon:      | master, Release 0.3  |
+|                             | FindServersOnNetwork()          |     :full_moon:      |                      |
 |                             | GetEndpoints()                  |  :heavy_check_mark:  |                      |
 |                             | RegisterServer()                |  :heavy_check_mark:  |                      |
-|                             | RegisterServer2()               |     :full_moon:      | master, Release 0.3  |
+|                             | RegisterServer2()               |     :full_moon:      |                      |
 | Secure Channel Service Set  | OpenSecureChannel()             |  :heavy_check_mark:  |                      |
 |                             | CloseSecureChannel()            |  :heavy_check_mark:  |                      |
 | Session Service Set         | CreateSession()                 |  :heavy_check_mark:  |                      |
@@ -55,33 +55,33 @@ OPC UA Server
 |                             | QueryNext()                     |      :new_moon:      |                      |
 | Attribute Service Set       | Read()                          |  :heavy_check_mark:  |                      |
 |                             | Write()                         |  :heavy_check_mark:  |                      |
-|                             | HistoryRead()                   | :waning_gibbous_moon: | [WIP](https://github.com/open62541/open62541/pull/1740), Release 0.4 |
-|                             | HistoryUpdate()                 | :waning_gibbous_moon: | [WIP](https://github.com/open62541/open62541/pull/1740), Release 0.4 |
+|                             | HistoryRead()                   |     :full_moon:      |                      |
+|                             | HistoryUpdate()                 |     :full_moon:      |                      |
 | Method Service Set          | Call()                          |  :heavy_check_mark:  |                      |
-| MonitoredItems Service Set  | CreateMonitoredItems()          |  :heavy_check_mark:  | See below for Events |
+| MonitoredItems Service Set  | CreateMonitoredItems()          |  :heavy_check_mark:  |                      |
 |                             | DeleteMonitoredItems()          |  :heavy_check_mark:  |                      |
 |                             | ModifyMonitoredItems()          |  :heavy_check_mark:  |                      |
 |                             | SetMonitoringMode()             |  :heavy_check_mark:  |                      |
-|                             | SetTriggering()                 |      :new_moon:      |                      |
+|                             | SetTriggering()                 |  :heavy_check_mark:  |  master              |
 | Subscription Service Set    | CreateSubscription()            |  :heavy_check_mark:  |                      |
 |                             | ModifySubscription()            |  :heavy_check_mark:  |                      |
 |                             | SetPublishingMode()             |  :heavy_check_mark:  |                      |
 |                             | Publish()                       |  :heavy_check_mark:  |                      |
 |                             | Republish()                     |  :heavy_check_mark:  |                      |
 |                             | DeleteSubscriptions()           |  :heavy_check_mark:  |                      |
-|                             | TransferSubscriptions()         |      :new_moon:      |                      |
+|                             | TransferSubscriptions()         |  :heavy_check_mark:  |  master              |
 
 | **Subscriptions**                       |                    |                      |
 | --------------------------------------- |:------------------:| -------------------- |
-| DataChange MonitoredItems               | :heavy_check_mark: | master, Release 0.3  |
-| DataChange Filters                      | :heavy_check_mark: | master               |
-| Event MonitoredItems                    | :heavy_check_mark: | master               |
-| Event Filters                           |     :new_moon:     |                      |
+| DataChange MonitoredItems               | :heavy_check_mark: |                      |
+| DataChange Filters                      | :heavy_check_mark: |                      |
+| Event MonitoredItems                    | :heavy_check_mark: |                      |
+| Event Filters                           | :first_quarter_moon: | only select filter (no where filters) |
 
 | **Discovery**                           |                    | See Discovery Service Set |
 | --------------------------------------- |:------------------:| -------------------- |
-| Local Discovery Server                  | :heavy_check_mark: | master, Release 0.3  |
-| Local Discovery Server Multicast Ext.   | :heavy_check_mark: | master, Release 0.3  |
+| Local Discovery Server                  | :heavy_check_mark: |                      |
+| Local Discovery Server Multicast Ext.   | :heavy_check_mark: |                      |
 | Global Discovery Server                 |     :new_moon:     |                      |
 
 OPC UA Client
@@ -97,11 +97,11 @@ OPC UA PubSub
 | ------------------------------------------------- |:---------------------:| ---------------------- |
 | **NetworkMessage decoding/encoding**              |                       |                        |
 | Binary (UADP)                                     |   :heavy_check_mark:  |                        |
-| JSON                                              |       :new_moon:      | WIP                    |
+| JSON                                              |   :heavy_check_mark:  |                        |
 | **PubSub Transport**                              |                       |                        |
 | UDP/multicast (send and receive)                  |   :heavy_check_mark:  |                        |
-| Ethernet (TSN)                                    | :waning_gibbous_moon: | Defined API to plug in custom networking implementation |
-| MQTT                                              |      :new_moon:       | WIP                    |
+| Ethernet (TSN)                                    |   :heavy_check_mark:  |                        |
+| MQTT                                              |   :heavy_check_mark:  |                        |
 | AMQP                                              |      :new_moon:       |                        |
 | **Publisher Configuration**                       |                       |                        |
 | Configure (server-side) Publisher at runtime      |  :heavy_check_mark:   |                        |

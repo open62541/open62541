@@ -919,7 +919,7 @@ DECODE_BINARY(ExtensionObject) {
     switch(encoding) {
     case UA_EXTENSIONOBJECT_ENCODED_BYTESTRING:
         ret = ExtensionObject_decodeBinaryContent(dst, &binTypeId, ctx);
-        UA_NodeId_deleteMembers(&binTypeId);
+        UA_NodeId_clear(&binTypeId);
         break;
     case UA_EXTENSIONOBJECT_ENCODED_NOBODY:
         dst->encoding = (UA_ExtensionObjectEncoding)encoding;

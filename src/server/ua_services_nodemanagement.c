@@ -86,25 +86,31 @@ const UA_NodeId parentReferences[UA_PARENT_REFERENCES_COUNT] = {
     {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASCOMPONENT}}
 };
 
+static void
+logAddNode(const UA_Logger *logger, UA_Session *session,
+           const UA_NodeId *nodeId, const char *msg) {
+    UA_LOG_NODEID_INFO(nodeId,
+    UA_LOG_INFO_SESSION(logger, session, "AddNode (%.*s): %s",
+                        (int)nodeIdStr.length, nodeIdStr.data, msg));
+}
+
 /* Check if the requested parent node exists, has the right node class and is
  * referenced with an allowed (hierarchical) reference type. For "type" nodes,
  * only hasSubType references are allowed. */
 static UA_StatusCode
-checkParentReference(UA_Server *server, UA_Session *session, UA_NodeClass nodeClass,
+checkParentReference(UA_Server *server, UA_Session *session, const UA_NodeHead *head,
                      const UA_NodeId *parentNodeId, const UA_NodeId *referenceTypeId) {
     /* Objects do not need a parent (e.g. mandatory/optional modellingrules) */
     /* Also, there are some variables which do not have parents, e.g. EnumStrings, EnumValues */
-    if((nodeClass == UA_NODECLASS_OBJECT || nodeClass == UA_NODECLASS_VARIABLE) &&
+    if((head->nodeClass == UA_NODECLASS_OBJECT || head->nodeClass == UA_NODECLASS_VARIABLE) &&
        UA_NodeId_isNull(parentNodeId) && UA_NodeId_isNull(referenceTypeId))
         return UA_STATUSCODE_GOOD;
 
     /* See if the parent exists */
     const UA_Node *parent = UA_NODESTORE_GET(server, parentNodeId);
     if(!parent) {
-        UA_LOG_NODEID_WRAP(UA_LOGLEVEL_INFO, parentNodeId,
-                           UA_LOG_INFO_SESSION(&server->config.logger, session,
-                                               "AddNodes: Parent node %.*s not found",
-                                               (int)nodeIdStr.length, nodeIdStr.data));
+        logAddNode(&server->config.logger, session, &head->nodeId,
+                   "Parent node not found");
         return UA_STATUSCODE_BADPARENTNODEIDINVALID;
     }
 
@@ -114,20 +120,15 @@ checkParentReference(UA_Server *server, UA_Session *session, UA_NodeClass nodeCl
     /* Check the referencetype exists */
     const UA_Node *referenceType = UA_NODESTORE_GET(server, referenceTypeId);
     if(!referenceType) {
-        UA_LOG_NODEID_WRAP(UA_LOGLEVEL_INFO, referenceTypeId,
-                           UA_LOG_INFO_SESSION(&server->config.logger, session,
-                                               "AddNodes: Reference type %.*s to the parent not found",
-                                               (int)nodeIdStr.length, nodeIdStr.data));
+        logAddNode(&server->config.logger, session, &head->nodeId,
+                   "Reference type to the parent not found");
         return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
     }
 
     /* Check if the referencetype is a reference type node */
     if(referenceType->head.nodeClass != UA_NODECLASS_REFERENCETYPE) {
-        UA_LOG_NODEID_WRAP(UA_LOGLEVEL_INFO, referenceTypeId,
-                           UA_LOG_INFO_SESSION(&server->config.logger, session,
-                                               "AddNodes: Reference type %.*s to the parent "
-                                               "is not a ReferenceTypeNode",
-                                               (int)nodeIdStr.length, nodeIdStr.data));
+        logAddNode(&server->config.logger, session, &head->nodeId,
+                   "Reference type to the parent is not a ReferenceTypeNode");
         UA_NODESTORE_RELEASE(server, referenceType);
         return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
     }
@@ -136,31 +137,28 @@ checkParentReference(UA_Server *server, UA_Session *session, UA_NodeClass nodeCl
     UA_Boolean referenceTypeIsAbstract = referenceType->referenceTypeNode.isAbstract;
     UA_NODESTORE_RELEASE(server, referenceType);
     if(referenceTypeIsAbstract == true) {
-        UA_LOG_NODEID_WRAP(UA_LOGLEVEL_INFO, referenceTypeId,
-                           UA_LOG_INFO_SESSION(&server->config.logger, session,
-                                               "AddNodes: Abstract reference type %.*s to "
-                                               "the parent not allowed",
-                                               (int)nodeIdStr.length, nodeIdStr.data));
+        logAddNode(&server->config.logger, session, &head->nodeId,
+                   "Abstract reference type to the parent not allowed");
         return UA_STATUSCODE_BADREFERENCENOTALLOWED;
     }
 
     /* Check hassubtype relation for type nodes */
-    if(nodeClass == UA_NODECLASS_DATATYPE ||
-       nodeClass == UA_NODECLASS_VARIABLETYPE ||
-       nodeClass == UA_NODECLASS_OBJECTTYPE ||
-       nodeClass == UA_NODECLASS_REFERENCETYPE) {
-        /* type needs hassubtype reference to the supertype */
-        if(referenceType->referenceTypeNode.referenceTypeIndex != UA_REFERENCETYPEINDEX_HASSUBTYPE) {
-            UA_LOG_INFO_SESSION(&server->config.logger, session,
-                                "AddNodes: Type nodes need to have a HasSubType "
-                                "reference to the parent");
+    if(head->nodeClass == UA_NODECLASS_DATATYPE ||
+       head->nodeClass == UA_NODECLASS_VARIABLETYPE ||
+       head->nodeClass == UA_NODECLASS_OBJECTTYPE ||
+       head->nodeClass == UA_NODECLASS_REFERENCETYPE) {
+        /* Type needs hassubtype reference to the supertype */
+        if(referenceType->referenceTypeNode.referenceTypeIndex !=
+           UA_REFERENCETYPEINDEX_HASSUBTYPE) {
+            logAddNode(&server->config.logger, session, &head->nodeId,
+                       "Type nodes need to have a HasSubType reference to the parent");
             return UA_STATUSCODE_BADREFERENCENOTALLOWED;
         }
-        /* supertype needs to be of the same node type  */
-        if(parentNodeClass != nodeClass) {
-            UA_LOG_INFO_SESSION(&server->config.logger, session,
-                                "AddNodes: Type nodes needs to be of the same node "
-                                "type as their parent");
+        /* Supertype needs to be of the same node type  */
+        if(parentNodeClass != head->nodeClass) {
+            logAddNode(&server->config.logger, session, &head->nodeId,
+                       "Type nodes needs to be of the same node "
+                       "type as their parent");
             return UA_STATUSCODE_BADPARENTNODEIDINVALID;
         }
         return UA_STATUSCODE_GOOD;
@@ -170,8 +168,8 @@ checkParentReference(UA_Server *server, UA_Session *session, UA_NodeClass nodeCl
     const UA_NodeId hierarchRefs = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
     if(!isNodeInTree_singleRef(server, referenceTypeId, &hierarchRefs,
                                UA_REFERENCETYPEINDEX_HASSUBTYPE)) {
-        UA_LOG_INFO_SESSION(&server->config.logger, session,
-                            "AddNodes: Reference type to the parent is not hierarchical");
+        logAddNode(&server->config.logger, session, &head->nodeId,
+                   "Reference type to the parent is not hierarchical");
         return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
     }
 
@@ -179,9 +177,133 @@ checkParentReference(UA_Server *server, UA_Session *session, UA_NodeClass nodeCl
 }
 
 static UA_StatusCode
+setDefaultValue(UA_Server *server, const UA_VariableNode *node) {
+    /* Get the DataType */
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    const UA_DataType *type = UA_Server_findDataType(server, &node->dataType);
+    if(!type) {
+        /* No description for the DataType found. It is possible that an
+         * abstract DataType is used, e.g. UInteger. Browse to see if there is a
+         * non-abstract subtype that can be used for the default value.
+         *
+         * Look up and downwards in the hierarchy. Some data types (e.g.
+         * UtcTime) are derived from a non-abstract data type. This is then used
+         * for the actual value, Use the first match. */
+        UA_ReferenceTypeSet refs = UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASSUBTYPE);
+        UA_ExpandedNodeId *typeCandidates = NULL;
+        size_t typeCandidatesSize = 0;
+        res = browseRecursive(server, 1, &node->dataType,
+                              UA_BROWSEDIRECTION_BOTH, &refs,
+                              UA_NODECLASS_DATATYPE, false,
+                              &typeCandidatesSize, &typeCandidates);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+
+        for(size_t i = 0; i < typeCandidatesSize; i++) {
+            /* Skip BaseDataType (Variant). This is the root of the DataType
+             * hierarchy. Variables of BaseDataType can be empty. */
+            if(UA_NodeId_equal(&UA_TYPES[UA_TYPES_VARIANT].typeId,
+                               &typeCandidates[i].nodeId))
+                continue;
+            type = UA_Server_findDataType(server, &typeCandidates[i].nodeId);
+            if(type)
+                break;
+        }
+
+        UA_Array_delete(typeCandidates, typeCandidatesSize,
+                        &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
+        if(!type)
+            return UA_STATUSCODE_BADTYPEMISMATCH;
+    }
+
+    /* Set up the value with the default content */
+    UA_Variant val;
+    UA_Variant_init(&val);
+    if(node->valueRank < 0) {
+        /* Set a scalar */
+        void *data = UA_new(type);
+        if(!data)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        UA_Variant_setScalar(&val, data, type);
+    } else if(node->valueRank == 0) {
+        /* Use an empty array of one dimension */
+        UA_Variant_setArray(&val, NULL, 0, type);
+    } else {
+        /* Write an array that matches the ArrayDimensions */
+        res = UA_Array_copy(node->arrayDimensions, node->arrayDimensionsSize,
+                            (void**)&val.arrayDimensions, &UA_TYPES[UA_TYPES_UINT32]);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        val.arrayDimensionsSize = node->arrayDimensionsSize;
+
+        /* No length restriction in the ArrayDimension -> use length 1 */
+        size_t size = 1;
+        for(size_t i = 0; i < val.arrayDimensionsSize; i++) {
+            if(val.arrayDimensions[i] == 0)
+                val.arrayDimensions[i] = 1;
+            size *= val.arrayDimensions[i];
+        }
+
+        /* Create the content array */
+        void *data = UA_Array_new(size, type);
+        if(!data) {
+            UA_Variant_clear(&val);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+
+        val.data = data;
+        val.arrayLength = size;
+        val.type = type;
+    }
+
+    /* Write the value */
+    res = writeAttribute(server, &server->adminSession, &node->head.nodeId,
+                         UA_ATTRIBUTEID_VALUE, &val, &UA_TYPES[UA_TYPES_VARIANT]);
+
+    /* Clean up */
+    UA_Variant_clear(&val);
+    return res;
+}
+
+static UA_StatusCode
 typeCheckVariableNode(UA_Server *server, UA_Session *session,
                       const UA_VariableNode *node,
                       const UA_VariableTypeNode *vt) {
+    /* Check the datatype against the vt */
+    if(!compatibleDataTypes(server, &node->dataType, &vt->dataType)) {
+        logAddNode(&server->config.logger, session, &node->head.nodeId,
+                   "The value of is incompatible with "
+                   "the datatype of the VariableType");
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    }
+
+    /* Check valueRank against array dimensions */
+    if(!compatibleValueRankArrayDimensions(server, session, node->valueRank,
+                                           node->arrayDimensionsSize)) {
+        logAddNode(&server->config.logger, session, &node->head.nodeId,
+                   "The value rank of is incompatible with its array dimensions");
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    }
+
+    /* Check valueRank against the vt */
+    if(!compatibleValueRanks(node->valueRank, vt->valueRank)) {
+        logAddNode(&server->config.logger, session, &node->head.nodeId,
+                   "The value rank is incompatible "
+                   "with the value rank of the VariableType");
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    }
+
+    /* Check array dimensions against the vt */
+    if(!compatibleArrayDimensions(vt->arrayDimensionsSize, vt->arrayDimensions,
+                                  node->arrayDimensionsSize, node->arrayDimensions)) {
+        logAddNode(&server->config.logger, session, &node->head.nodeId,
+                   "The array dimensions are incompatible with the "
+                   "array dimensions of the VariableType");
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    }
+
+    /* Typecheck the value */
+
     /* The value might come from a datasource, so we perform a
      * regular read. */
     UA_DataValue value;
@@ -190,77 +312,56 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    UA_NodeId baseDataType = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATATYPE);
+    /* Only BaseDataType (Variant) can have empty values. Create default content
+     * otherwise that matches the constraints. */
+    if(!value.hasValue || !value.value.type) {
+        if(!UA_NodeId_equal(&node->dataType, &UA_TYPES[UA_TYPES_VARIANT].typeId)) {
+            /* Warn if that is configured */
+            if(!server->bootstrapNS0 &&
+               server->config.allowEmptyVariables != UA_RULEHANDLING_ACCEPT)
+                logAddNode(&server->config.logger, session, &node->head.nodeId,
+                           "The value is empty. But this is only allowed for BaseDataType. "
+                           "Create a matching default value.");
 
-    /* Check the datatype against the vt */
-    /* If the node does not have any value and the dataType is BaseDataType,
-     * then it's also fine. This is the default for empty nodes. */
-    if(!compatibleDataType(server, &node->dataType, &vt->dataType, false) &&
-       (value.hasValue || !UA_NodeId_equal(&node->dataType, &baseDataType))) {
-        UA_LOG_NODEID_WRAP(UA_LOGLEVEL_INFO, &node->head.nodeId,
-                           UA_LOG_INFO_SESSION(&server->config.logger, session,
-                                               "AddNodes: The value of %.*s is incompatible with "
-                                               "the datatype of the VariableType",
-                                               (int)nodeIdStr.length, nodeIdStr.data));
-        UA_DataValue_clear(&value);
-        return UA_STATUSCODE_BADTYPEMISMATCH;
-    }
+            /* Abort if that is configured */
+            if(server->config.allowEmptyVariables == UA_RULEHANDLING_ABORT)
+                retval = UA_STATUSCODE_BADTYPEMISMATCH;
 
-    /* Check valueRank against array dimensions */
-    if(!compatibleValueRankArrayDimensions(server, session, node->valueRank,
-                                           node->arrayDimensionsSize)) {
-        UA_LOG_NODEID_WRAP(UA_LOGLEVEL_INFO, &node->head.nodeId,
-                           UA_LOG_INFO_SESSION(&server->config.logger, session,
-                                               "AddNodes: The value rank of %.*s is incompatible "
-                                               "with its array dimensions",
-                                               (int)nodeIdStr.length, nodeIdStr.data));
-        UA_DataValue_clear(&value);
-        return UA_STATUSCODE_BADTYPEMISMATCH;
-    }
+            /* Try to generate a default value if that is configured */
+            if(server->config.allowEmptyVariables == UA_RULEHANDLING_DEFAULT) {
+                retval = setDefaultValue(server, node);
+                if(retval != UA_STATUSCODE_GOOD)
+                    UA_LOG_NODEID_INFO(&node->head.nodeId,
+                    UA_LOG_INFO_SESSION(&server->config.logger, session,
+                                        "AddNode (%.*s): Could not create a default value "
+                                        "with StatusCode %s", (int)nodeIdStr.length,
+                                        nodeIdStr.data, UA_StatusCode_name(retval)));
 
-    /* Check valueRank against the vt */
-    if(!compatibleValueRanks(node->valueRank, vt->valueRank)) {
-        UA_LOG_NODEID_WRAP(UA_LOGLEVEL_INFO, &node->head.nodeId,
-                           UA_LOG_INFO_SESSION(&server->config.logger, session,
-                                               "AddNodes: The value rank of %.*s is incompatible "
-                                               "with the value rank of the VariableType",
-                                               (int)nodeIdStr.length, nodeIdStr.data));
-        UA_DataValue_clear(&value);
-        return UA_STATUSCODE_BADTYPEMISMATCH;
-    }
-
-    /* Check array dimensions against the vt */
-    if(!compatibleArrayDimensions(vt->arrayDimensionsSize, vt->arrayDimensions,
-                                  node->arrayDimensionsSize, node->arrayDimensions)) {
-        UA_LOG_NODEID_WRAP(UA_LOGLEVEL_INFO, &node->head.nodeId,
-                           UA_LOG_INFO_SESSION(&server->config.logger, session,
-                                               "AddNodes: The array dimensions of %.*s are "
-                                               "incompatible with the array dimensions of the "
-                                               "VariableType", (int)nodeIdStr.length, nodeIdStr.data));
-        UA_DataValue_clear(&value);
-        return UA_STATUSCODE_BADTYPEMISMATCH;
-    }
-
-    /* Typecheck the value */
-    if(value.hasValue && value.value.data) {
-        /* If the type-check failed write the same value again. The
-         * write-service tries to convert to the correct type... */
-        if(!compatibleValue(server, session, &node->dataType, node->valueRank,
-                            node->arrayDimensionsSize, node->arrayDimensions,
-                            &value.value, NULL)) {
-            retval = writeWithWriteValue(server, &node->head.nodeId, UA_ATTRIBUTEID_VALUE, &UA_TYPES[UA_TYPES_VARIANT], &value.value);
+                /* Reread the current value for compat tests below */
+                UA_DataValue_clear(&value);
+                retval = readValueAttribute(server, session, node, &value);
+            }
         }
 
-        UA_DataValue_clear(&value);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_NODEID_WRAP(UA_LOGLEVEL_INFO, &node->head.nodeId,
-                               UA_LOG_INFO_SESSION(&server->config.logger, session,
-                                                   "AddNodes: The value of %.*s is incompatible "
-                                                   "with the variable definition",
-                                                   (int)nodeIdStr.length, nodeIdStr.data));
+            UA_DataValue_clear(&value);
+            return retval;
         }
     }
 
+    /* Perform the value typecheck. If this fails, write the current value
+     * again. The write-service tries to convert to the correct type... */
+    if(!compatibleValue(server, session, &node->dataType, node->valueRank,
+                        node->arrayDimensionsSize, node->arrayDimensions,
+                        &value.value, NULL)) {
+        retval = writeValueAttribute(server, session, &node->head.nodeId, &value.value);
+        if(retval != UA_STATUSCODE_GOOD) {
+            logAddNode(&server->config.logger, session, &node->head.nodeId,
+                       "The value is incompatible with the variable definition");
+        }
+    }
+
+    UA_DataValue_clear(&value);
     return retval;
 }
 
@@ -297,33 +398,33 @@ useVariableTypeAttributes(UA_Server *server, UA_Session *session,
         /* A value is present */
         UA_DataValue_clear(&orig);
     } else {
-        UA_WriteValue v;
-        UA_WriteValue_init(&v);
-        retval = readValueAttribute(server, session, (const UA_VariableNode*)vt, &v.value);
-        if(retval == UA_STATUSCODE_GOOD && v.value.hasValue) {
-            v.nodeId = node->head.nodeId;
-            v.attributeId = UA_ATTRIBUTEID_VALUE;
-            retval = writeWithSession(server, session, &v);
+        UA_DataValue v;
+        UA_DataValue_init(&v);
+        retval = readValueAttribute(server, session, (const UA_VariableNode*)vt, &v);
+        if(retval == UA_STATUSCODE_GOOD && v.hasValue) {
+            retval = writeValueAttribute(server, session, &node->head.nodeId,
+                                         &v.value);
             modified = true;
         }
-        UA_DataValue_clear(&v.value);
-        if(retval != UA_STATUSCODE_GOOD)
-            return retval;
+        UA_DataValue_clear(&v);
+
+        if(retval != UA_STATUSCODE_GOOD) {
+            logAddNode(&server->config.logger, session, &node->head.nodeId,
+                       "The default content of the VariableType could "
+                       "not be used. This may happen if the VariableNode "
+                       "makes additional restrictions.");
+            retval = UA_STATUSCODE_GOOD;
+        }
     }
 
     /* If no datatype is given, use the datatype of the vt */
     if(UA_NodeId_isNull(&node->dataType)) {
-        UA_LOG_INFO_SESSION(&server->config.logger, session, "AddNodes: "
-                            "No datatype given; Copy the datatype attribute "
-                            "from the TypeDefinition");
-        UA_WriteValue v;
-        UA_WriteValue_init(&v);
-        v.nodeId = node->head.nodeId;
-        v.attributeId = UA_ATTRIBUTEID_DATATYPE;
-        v.value.hasValue = true;
-        UA_Variant_setScalar(&v.value.value, (void*)(uintptr_t)&vt->dataType,
-                             &UA_TYPES[UA_TYPES_NODEID]);
-        retval = writeWithSession(server, session, &v);
+        logAddNode(&server->config.logger, session, &node->head.nodeId,
+                   "No datatype given; Copy the datatype attribute "
+                   "from the TypeDefinition");
+        retval = writeAttribute(server, session, &node->head.nodeId,
+                                UA_ATTRIBUTEID_DATATYPE, &vt->dataType,
+                                &UA_TYPES[UA_TYPES_NODEID]);
         modified = true;
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
@@ -331,14 +432,13 @@ useVariableTypeAttributes(UA_Server *server, UA_Session *session,
 
     /* Use the ArrayDimensions of the vt */
     if(node->arrayDimensionsSize == 0 && vt->arrayDimensionsSize > 0) {
-        UA_WriteValue v;
-        UA_WriteValue_init(&v);
-        v.nodeId = node->head.nodeId;
-        v.attributeId = UA_ATTRIBUTEID_ARRAYDIMENSIONS;
-        v.value.hasValue = true;
-        UA_Variant_setArray(&v.value.value, vt->arrayDimensions,
-                            vt->arrayDimensionsSize, &UA_TYPES[UA_TYPES_UINT32]);
-        retval = writeWithSession(server, session, &v);
+        UA_Variant v;
+        UA_Variant_init(&v);
+        UA_Variant_setArray(&v, vt->arrayDimensions, vt->arrayDimensionsSize,
+                            &UA_TYPES[UA_TYPES_UINT32]);
+        retval = writeAttribute(server, session, &node->head.nodeId,
+                                UA_ATTRIBUTEID_ARRAYDIMENSIONS, &v,
+                                &UA_TYPES[UA_TYPES_VARIANT]);
         modified = true;
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
@@ -353,7 +453,7 @@ useVariableTypeAttributes(UA_Server *server, UA_Session *session,
         *node_ptr = (const UA_VariableNode*)updated;
     }
 
-    return UA_STATUSCODE_GOOD;
+    return retval;
 }
 
 /* Search for an instance of "browseName" in node searchInstance. Used during
@@ -683,27 +783,19 @@ AddNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
 
     UA_StatusCode retval;
     /* Make sure newly created node does not have itself as parent */
-    if (UA_NodeId_equal(nodeId, parentNodeId)) {
-        UA_LOG_NODEID_WRAP(UA_LOGLEVEL_INFO, nodeId,
-                           UA_LOG_INFO_SESSION(&server->config.logger, session,
-                                               "AddNodes: The node %.*s can not have "
-                                               "itself as parent",
-                                               (int)nodeIdStr.length, nodeIdStr.data));
+    if(UA_NodeId_equal(nodeId, parentNodeId)) {
+        logAddNode(&server->config.logger, session, nodeId,
+                   "A node cannot have itself as parent");
         retval = UA_STATUSCODE_BADINVALIDARGUMENT;
         goto cleanup;
     }
 
 
     /* Check parent reference. Objects may have no parent. */
-    retval = checkParentReference(server, session, head->nodeClass,
-                                  parentNodeId, referenceTypeId);
+    retval = checkParentReference(server, session, head, parentNodeId, referenceTypeId);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_NODEID_WRAP(UA_LOGLEVEL_INFO, nodeId,
-                           UA_LOG_INFO_SESSION(&server->config.logger, session,
-                                               "AddNodes: The parent reference for %.*s is invalid "
-                                               "with status code %s",
-                                               (int)nodeIdStr.length, nodeIdStr.data,
-                                               UA_StatusCode_name(retval)));
+        logAddNode(&server->config.logger, session, nodeId,
+                   "The parent reference for is invalid");
         goto cleanup;
     }
 
@@ -711,11 +803,9 @@ AddNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
     if((head->nodeClass == UA_NODECLASS_VARIABLE ||
         head->nodeClass == UA_NODECLASS_OBJECT) &&
        UA_NodeId_isNull(typeDefinitionId)) {
-        UA_LOG_NODEID_WRAP(UA_LOGLEVEL_INFO, nodeId,
-                           UA_LOG_INFO_SESSION(&server->config.logger, session,
-                                               "AddNodes: No TypeDefinition for %.*s; Use the default "
-                                               "TypeDefinition for the Variable/Object",
-                            (int)nodeIdStr.length, nodeIdStr.data));
+        logAddNode(&server->config.logger, session, nodeId,
+                   "No TypeDefinition. Use the default "
+                   "TypeDefinition for the Variable/Object");
         if(head->nodeClass == UA_NODECLASS_VARIABLE)
             typeDefinitionId = &baseDataVariableType;
         else
@@ -728,10 +818,7 @@ AddNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
         /* Get the type node */
         type = UA_NODESTORE_GET(server, typeDefinitionId);
         if(!type) {
-            UA_LOG_NODEID_WRAP(UA_LOGLEVEL_INFO, typeDefinitionId,
-                               UA_LOG_INFO_SESSION(&server->config.logger, session,
-                                                   "AddNodes: Node type %.*s not found",
-                                                   (int)nodeIdStr.length, nodeIdStr.data));
+            logAddNode(&server->config.logger, session, nodeId, "Node type not found");
             retval = UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
             goto cleanup;
         }
@@ -767,10 +854,8 @@ AddNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
                 typeOk = false;
         }
         if(!typeOk) {
-            UA_LOG_NODEID_WRAP(UA_LOGLEVEL_INFO, nodeId,
-                               UA_LOG_INFO_SESSION(&server->config.logger, session,
-                                                   "AddNodes: Type for %.*s does not match node class",
-                                                   (int)nodeIdStr.length, nodeIdStr.data));
+            logAddNode(&server->config.logger, session, nodeId,
+                       "Type does not match the NodeClass");
             retval = UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
             goto cleanup;
         }
@@ -794,11 +879,9 @@ AddNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
             const UA_NodeId objectTypes = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE);
             if(!isNodeInTree(server, parentNodeId, &variableTypes, &refTypes) &&
                !isNodeInTree(server, parentNodeId, &objectTypes, &refTypes)) {
-                UA_LOG_NODEID_WRAP(UA_LOGLEVEL_INFO, nodeId,
-                                   UA_LOG_INFO_SESSION(&server->config.logger, session,
-                                                       "AddNodes: Type of variable node %.*s must "
-                                                       "be VariableType and not cannot be abstract",
-                                                       (int)nodeIdStr.length, nodeIdStr.data));
+                logAddNode(&server->config.logger, session, nodeId,
+                           "Type of variable node must be a "
+                           "VariableType and not cannot be abstract");
                 retval = UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
                 goto cleanup;
             }
@@ -827,12 +910,10 @@ AddNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
                 isNodeInTree_singleRef(server, &type->head.nodeId, &eventTypes,
                                        UA_REFERENCETYPEINDEX_HASSUBTYPE);
             
-            if(!isInBaseObjectType && !(isInBaseEventType && UA_NodeId_isNull(parentNodeId))) {
-                UA_LOG_NODEID_WRAP(UA_LOGLEVEL_INFO, nodeId,
-                                   UA_LOG_INFO_SESSION(&server->config.logger, session,
-                                                       "AddNodes: Type of object node %.*s must "
-                                                       "be ObjectType and not be abstract",
-                                                       (int)nodeIdStr.length, nodeIdStr.data));
+            if(!isInBaseObjectType &&
+               !(isInBaseEventType && UA_NodeId_isNull(parentNodeId))) {
+                logAddNode(&server->config.logger, session, nodeId,
+                           "Type of ObjectNode must be ObjectType and not be abstract");
                 retval = UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
                 goto cleanup;
             }
@@ -842,22 +923,17 @@ AddNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
     /* Add reference to the parent */
     if(!UA_NodeId_isNull(parentNodeId)) {
         if(UA_NodeId_isNull(referenceTypeId)) {
-            UA_LOG_NODEID_WRAP(UA_LOGLEVEL_INFO, nodeId,
-                               UA_LOG_INFO_SESSION(&server->config.logger, session,
-                                                   "AddNodes: Reference to parent of %.*s "
-                                                   "cannot be null", (int)nodeIdStr.length,
-                                                   nodeIdStr.data));
+            logAddNode(&server->config.logger, session, nodeId,
+                       "Reference to parent cannot be null");
             retval = UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
             goto cleanup;
         }
 
-        retval = addRef(server, session, &head->nodeId, referenceTypeId, parentNodeId, false);
+        retval = addRef(server, session, &head->nodeId, referenceTypeId,
+                        parentNodeId, false);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_NODEID_WRAP(UA_LOGLEVEL_INFO, nodeId,
-                               UA_LOG_INFO_SESSION(&server->config.logger, session,
-                                                   "AddNodes: Adding reference to parent of "
-                                                   "%.*s failed", (int)nodeIdStr.length,
-                                                   nodeIdStr.data));
+            logAddNode(&server->config.logger, session, nodeId,
+                       "Adding reference to parent failed");
             goto cleanup;
         }
     }
@@ -868,12 +944,8 @@ AddNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
         UA_assert(type != NULL); /* see above */
         retval = addRef(server, session, &head->nodeId, &hasTypeDefinition, &type->head.nodeId, true);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_NODEID_WRAP(UA_LOGLEVEL_INFO, nodeId,
-                               UA_LOG_INFO_SESSION(&server->config.logger, session,
-                                                   "AddNodes: Adding a reference to the type "
-                                                   "definition of %.*s failed with error code %s",
-                                                   (int)nodeIdStr.length, nodeIdStr.data,
-                                                   UA_StatusCode_name(retval)));
+            logAddNode(&server->config.logger, session, nodeId,
+                       "Adding a reference to the type definition failed");
         }
     }
 
@@ -903,14 +975,14 @@ AddNode_raw(UA_Server *server, UA_Session *session, void *nodeContext,
     /* Check the namespaceindex */
     if(item->requestedNewNodeId.nodeId.namespaceIndex >= server->namespacesSize) {
         UA_LOG_INFO_SESSION(&server->config.logger, session,
-                            "AddNodes: Namespace invalid");
+                            "AddNode: Namespace invalid");
         return UA_STATUSCODE_BADNODEIDINVALID;
     }
 
     if(item->nodeAttributes.encoding != UA_EXTENSIONOBJECT_DECODED &&
        item->nodeAttributes.encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE) {
         UA_LOG_INFO_SESSION(&server->config.logger, session,
-                            "AddNodes: Node attributes invalid");
+                            "AddNode: Node attributes invalid");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -918,7 +990,7 @@ AddNode_raw(UA_Server *server, UA_Session *session, void *nodeContext,
     UA_Node *node = UA_NODESTORE_NEW(server, item->nodeClass);
     if(!node) {
         UA_LOG_INFO_SESSION(&server->config.logger, session,
-                            "AddNodes: Node could not create a node "
+                            "AddNode: Node could not create a node "
                             "in the nodestore");
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
@@ -945,7 +1017,7 @@ AddNode_raw(UA_Server *server, UA_Session *session, void *nodeContext,
     retval = UA_NODESTORE_INSERT(server, node, outNewNodeId);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO_SESSION(&server->config.logger, session,
-                            "AddNodes: Node could not add the new node "
+                            "AddNode: Node could not add the new node "
                             "to the nodestore with error code %s",
                             UA_StatusCode_name(retval));
         return retval;
@@ -958,7 +1030,7 @@ AddNode_raw(UA_Server *server, UA_Session *session, void *nodeContext,
 
 create_error:
     UA_LOG_INFO_SESSION(&server->config.logger, session,
-                        "AddNodes: Node could not create a node "
+                        "AddNode: Node could not create a node "
                         "with error code %s", UA_StatusCode_name(retval));
     UA_NODESTORE_DELETE(server, node);
     return retval;
@@ -1075,25 +1147,30 @@ recursiveTypeCheckAddChildren(UA_Server *server, UA_Session *session,
      * same for the variable and variabletype attribute structs. */
     if(node->head.nodeClass == UA_NODECLASS_VARIABLE ||
        node->head.nodeClass == UA_NODECLASS_VARIABLETYPE) {
-        retval = useVariableTypeAttributes(server, session, (const UA_VariableNode**)nodeptr,
+        retval = useVariableTypeAttributes(server, session,
+                                           (const UA_VariableNode**)nodeptr,
                                            &type->variableTypeNode);
         node = *nodeptr; /* If the node was replaced */
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_NODEID_WRAP(UA_LOGLEVEL_INFO, &node->head.nodeId,
-                               UA_LOG_INFO_SESSION(&server->config.logger, session,
-                                                   "AddNodes: Using attributes for %.*s from "
-                                                   "the variable type failed with error code %s",
-                                                   (int)nodeIdStr.length, nodeIdStr.data,
-                                                   UA_StatusCode_name(retval)));
+            UA_LOG_NODEID_INFO(&node->head.nodeId,
+            UA_LOG_INFO_SESSION(&server->config.logger, session,
+                                "AddNode (%.*s): Using attributes for from "
+                                "the variable type failed with error code %s",
+                                (int)nodeIdStr.length, nodeIdStr.data,
+                                UA_StatusCode_name(retval)));
             return retval;
         }
 
-        /* Check NodeClass for 'hasSubtype'. UA_NODECLASS_VARIABLE not allowed to have subtype */
+        /* Check NodeClass for 'hasSubtype'. UA_NODECLASS_VARIABLE not allowed
+         * to have subtype */
         if(node->head.nodeClass == UA_NODECLASS_VARIABLE) {
             for(size_t i = 0; i < node->head.referencesSize; i++) {
-                if(node->head.references[i].referenceTypeIndex == UA_REFERENCETYPEINDEX_HASSUBTYPE) {
+                if(node->head.references[i].referenceTypeIndex ==
+                   UA_REFERENCETYPEINDEX_HASSUBTYPE) {
+                    UA_LOG_NODEID_INFO(&node->head.nodeId,
                     UA_LOG_INFO_SESSION(&server->config.logger, session,
-                                        "AddNodes: VariableType not allowed to have HasSubType");
+                                        "AddNode (%.*s): VariableType not allowed to have HasSubType",
+                                        (int)nodeIdStr.length, nodeIdStr.data));
                     return UA_STATUSCODE_BADREFERENCENOTALLOWED;
                 }
             }
@@ -1102,13 +1179,14 @@ recursiveTypeCheckAddChildren(UA_Server *server, UA_Session *session,
         /* Check if all attributes hold the constraints of the type now. The initial
          * attributes must type-check. The constructor might change the attributes
          * again. Then, the changes are type-checked by the normal write service. */
-        retval = typeCheckVariableNode(server, session, &node->variableNode, &type->variableTypeNode);
+        retval = typeCheckVariableNode(server, session, &node->variableNode,
+                                       &type->variableTypeNode);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_NODEID_WRAP(UA_LOGLEVEL_INFO, &node->head.nodeId,
-                               UA_LOG_INFO_SESSION(&server->config.logger, session,
-                                                   "AddNodes: Type-checking the variable node %.*s "
-                                                   "failed with error code %s", (int)nodeIdStr.length,
-                                                   nodeIdStr.data, UA_StatusCode_name(retval)));
+            UA_LOG_NODEID_INFO(&node->head.nodeId,
+            UA_LOG_INFO_SESSION(&server->config.logger, session,
+                                "AddNode (%.*s): Type-checking "
+                                "failed with error code %s", (int)nodeIdStr.length,
+                                nodeIdStr.data, UA_StatusCode_name(retval)));
             return retval;
         }
     }
@@ -1118,28 +1196,30 @@ recursiveTypeCheckAddChildren(UA_Server *server, UA_Session *session,
        node->head.nodeClass == UA_NODECLASS_OBJECT) {
         retval = addTypeChildren(server, session, &node->head, &type->head);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_NODEID_WRAP(UA_LOGLEVEL_INFO, &node->head.nodeId,
-                               UA_LOG_INFO_SESSION(&server->config.logger, session,
-                                                   "AddNodes: Adding child nodes of  %.*s "
-                                                   "failed with error code %s", (int)nodeIdStr.length,
-                                                   nodeIdStr.data, UA_StatusCode_name(retval)));
+            UA_LOG_NODEID_INFO(&node->head.nodeId,
+            UA_LOG_INFO_SESSION(&server->config.logger, session,
+                                "AddNode (%.*s): Adding child nodes "
+                                "failed with error code %s", (int)nodeIdStr.length,
+                                nodeIdStr.data, UA_StatusCode_name(retval)));
+            return retval;
         }
     }
 
     /* Add (mandatory) child nodes from the direct HasInterface reference */
-    if(retval == UA_STATUSCODE_GOOD && node->head.nodeClass == UA_NODECLASS_OBJECT) {
+    if(node->head.nodeClass == UA_NODECLASS_OBJECT) {
         retval = addInterfaceChildren(server, session, &node->head);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_NODEID_WRAP(UA_LOGLEVEL_INFO, &node->head.nodeId,
-                               UA_LOG_INFO_SESSION(&server->config.logger, session,
-                                                   "AddNodes: Adding child nodes of %.*s "
-                                                   "interface failed with error code %s",
-                                                   (int)nodeIdStr.length, nodeIdStr.data,
-                                                   UA_StatusCode_name(retval)));
+            UA_LOG_NODEID_INFO(&node->head.nodeId,
+            UA_LOG_INFO_SESSION(&server->config.logger, session,
+                                "AddNode (%.*s): Adding child nodes "
+                                "interface failed with error code %s",
+                                (int)nodeIdStr.length, nodeIdStr.data,
+                                  UA_StatusCode_name(retval)));
+            return retval;
         }
     }
 
-    return retval;
+    return UA_STATUSCODE_GOOD;
 }
 
 /* Construct children first */
@@ -1305,6 +1385,62 @@ setReferenceTypeSubtypes(UA_Server *server, const UA_ReferenceTypeNode *node) {
     return UA_STATUSCODE_GOOD;
 }
 
+static UA_StatusCode
+setVariableNodeDynamic(UA_Server *server, UA_Session *session,
+                       UA_Node *node, const void *_) {
+    (void)_; /* unused */
+    if(node->head.nodeClass == UA_NODECLASS_VARIABLE)
+        ((UA_VariableNode*)node)->isDynamic = true;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+checkSetIsDynamicVariable(UA_Server *server, UA_Session *session,
+                          const UA_NodeId *nodeId) {
+    /* Get all hierarchical reference types */
+    UA_ReferenceTypeSet reftypes_hierarchical;
+    UA_ReferenceTypeSet_init(&reftypes_hierarchical);
+    UA_NodeId hierarchicalRefs = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
+    UA_StatusCode res =
+        referenceTypeIndices(server, &hierarchicalRefs, &reftypes_hierarchical, true);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* Is the variable under the server object? */
+    UA_NodeId serverNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    if(isNodeInTree(server, nodeId, &serverNodeId, &reftypes_hierarchical))
+        return UA_STATUSCODE_GOOD;
+
+    /* Is the variable in the type hierarchy? */
+    UA_NodeId typesNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_TYPESFOLDER);
+    if(isNodeInTree(server, nodeId, &typesNodeId, &reftypes_hierarchical))
+        return UA_STATUSCODE_GOOD;
+
+    /* Is the variable a property of a method node (InputArguments /
+     * OutputArguments)? */
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = *nodeId;
+    bd.browseDirection = UA_BROWSEDIRECTION_INVERSE;
+    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
+    bd.includeSubtypes = false;
+    bd.nodeClassMask = UA_NODECLASS_METHOD;
+    UA_BrowseResult br;
+    UA_BrowseResult_init(&br);
+    UA_UInt32 maxrefs = 0;
+    Operation_Browse(server, session, &maxrefs, &bd, &br);
+    UA_Boolean hasParentMethod = (br.referencesSize > 0);
+    UA_BrowseResult_clear(&br);
+    if(hasParentMethod)
+        return UA_STATUSCODE_GOOD;
+
+    /* Set the variable to "dynamic" */
+    UA_Server_editNode(server, session, nodeId,
+                       (UA_EditNodeCallback)setVariableNodeDynamic, NULL);
+    
+    return UA_STATUSCODE_GOOD;
+}
+
 /* Children, references, type-checking, constructors. */
 UA_StatusCode
 AddNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId) {
@@ -1333,10 +1469,8 @@ AddNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId) 
         if(!type) {
             if(server->bootstrapNS0)
                 goto constructor;
-            UA_LOG_NODEID_WRAP(UA_LOGLEVEL_INFO, &head->nodeId,
-                               UA_LOG_INFO_SESSION(&server->config.logger, session,
-                                                   "AddNodes: Node type for %.*s not found",
-                                                   (int)nodeIdStr.length, nodeIdStr.data));
+            logAddNode(&server->config.logger, session, &head->nodeId,
+                       "Node type not found");
             retval = UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
             goto cleanup;
         }
@@ -1347,16 +1481,23 @@ AddNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId) 
             goto cleanup;
     }
 
+    /* Set variables to dynamic (source and server timestamps are meaningful) if
+     * they fulfill some conditions */
+    if(node->head.nodeClass == UA_NODECLASS_VARIABLE) {
+        retval = checkSetIsDynamicVariable(server, session, nodeId);
+        if(retval != UA_STATUSCODE_GOOD)
+            goto cleanup;
+    }
+
     /* Call the constructor(s) */
  constructor:
     retval = recursiveCallConstructors(server, session, head, type);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_NODEID_WRAP(UA_LOGLEVEL_INFO, &node->head.nodeId,
-                           UA_LOG_INFO_SESSION(&server->config.logger, session,
-                                               "AddNodes: Calling the node constructor(s) of "
-                                               "%.*s failed with status code %s",
-                                               (int)nodeIdStr.length,
-                                               nodeIdStr.data, UA_StatusCode_name(retval)));
+        UA_LOG_NODEID_INFO(&node->head.nodeId,
+        UA_LOG_INFO_SESSION(&server->config.logger, session,
+                            "AddNode (%.*s): Calling the node constructor(s) "
+                            "failed with status code %s", (int)nodeIdStr.length,
+                            nodeIdStr.data, UA_StatusCode_name(retval)));
     }
 
  cleanup:
@@ -1663,7 +1804,7 @@ deleteNodeOperation(UA_Server *server, UA_Session *session, void *context,
     /* Do not check access for server */
     if(session != &server->adminSession && server->config.accessControl.allowDeleteNode) {
         UA_UNLOCK(server->serviceMutex);
-        if ( !server->config.accessControl.allowDeleteNode(server, &server->config.accessControl,
+        if( !server->config.accessControl.allowDeleteNode(server, &server->config.accessControl,
                 &session->sessionId, session->sessionHandle, item)) {
             UA_LOCK(server->serviceMutex);
             *result = UA_STATUSCODE_BADUSERACCESSDENIED;
@@ -1679,9 +1820,10 @@ deleteNodeOperation(UA_Server *server, UA_Session *session, void *context,
     }
 
     if(UA_Node_hasSubTypeOrInstances(&node->head)) {
-        UA_LOG_INFO_SESSION(&server->config.logger, session,
-                            "Delete Nodes: Cannot delete a type node "
-                            "with active instances or subtypes");
+        UA_LOG_NODEID_INFO(&node->head.nodeId,
+        UA_LOG_INFO_SESSION(&server->config.logger, session, "DeleteNode (%.*s): "
+                            "Cannot delete a type node with active instances or "
+                            "subtypes", (int)nodeIdStr.length, nodeIdStr.data));
         UA_NODESTORE_RELEASE(server, node);
         *result = UA_STATUSCODE_BADINTERNALERROR;
         return;
@@ -2028,8 +2170,6 @@ setValueCallback(UA_Server *server, UA_Session *session,
     node->value.data.callback = *callback;
     return UA_STATUSCODE_GOOD;
 }
-
-
 
 UA_StatusCode
 UA_Server_setVariableNode_valueCallback(UA_Server *server,

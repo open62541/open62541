@@ -94,7 +94,7 @@ static void receiveMultipleMessageRT(UA_PubSubConnection *connection, UA_DataSet
             UA_DataSetMessage *dsm = dataSetReader->bufferedMessage.nm->payload.dataSetPayload.dataSetMessages;
             if(dsm->header.fieldEncoding == UA_FIELDENCODING_VARIANT) {
                 for(UA_UInt16 i = 0; i < dsm->data.keyFrameData.fieldCount; i++) {
-                    UA_Variant_deleteMembers(&dsm->data.keyFrameData.dataSetFields[i].value);
+                    UA_Variant_clear(&dsm->data.keyFrameData.dataSetFields[i].value);
                 }
             }
             rcvCount++;
@@ -125,7 +125,7 @@ static void receiveSingleMessage(UA_PubSubConnection *connection) {
         memset(&currentNetworkMessage, 0, sizeof(UA_NetworkMessage));
         UA_NetworkMessage_decodeBinary(&buffer, &currentPosition, &currentNetworkMessage);
         ck_assert((*((UA_UInt32 *)currentNetworkMessage.payload.dataSetPayload.dataSetMessages->data.keyFrameData.dataSetFields->value.data)) == 1000);
-        UA_NetworkMessage_deleteMembers(&currentNetworkMessage);
+        UA_NetworkMessage_clear(&currentNetworkMessage);
         rcvCount++;
     } while((buffer.length) > currentPosition);
 
@@ -346,7 +346,7 @@ START_TEST(SubscribeMultipleMessagesRT) {
 
     ck_assert((*(UA_Int32 *)subscribedNodeData->data) == 1000);
 
-    UA_Variant_deleteMembers(subscribedNodeData);
+    UA_Variant_clear(subscribedNodeData);
     UA_free(subscribedNodeData);
     ck_assert(UA_Server_unfreezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
     ck_assert(UA_Server_unfreezeWriterGroupConfiguration(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
@@ -670,7 +670,7 @@ START_TEST(SetupInvalidPubSubConfig) {
     UA_FieldTargetDataType_clear(&readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[0].targetVariable);
     UA_free(readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables);
     UA_free(readerConfig.dataSetMetaData.fields);
-    UA_Variant_deleteMembers(&variant);
+    UA_Variant_clear(&variant);
 
     ck_assert(UA_Server_freezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_BADNOTIMPLEMENTED); // Multiple DSR not supported
 

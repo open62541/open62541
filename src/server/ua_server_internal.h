@@ -25,7 +25,6 @@
 #include "ua_server_async.h"
 #include "ua_timer.h"
 #include "ua_util_internal.h"
-#include "ua_workqueue.h"
 
 _UA_BEGIN_DECLS
 
@@ -66,13 +65,13 @@ typedef enum {
 } UA_DiagnosticEvent;
 
 typedef struct channel_entry {
-    UA_DelayedCallback cleanupCallback;
+    UA_TimerEntry cleanupCallback;
     TAILQ_ENTRY(channel_entry) pointers;
     UA_SecureChannel channel;
 } channel_entry;
 
 typedef struct session_list_entry {
-    UA_DelayedCallback cleanupCallback;
+    UA_TimerEntry cleanupCallback;
     LIST_ENTRY(session_list_entry) pointers;
     UA_Session session;
 } session_list_entry;
@@ -113,9 +112,6 @@ struct UA_Server {
 
     /* Callbacks with a repetition interval */
     UA_Timer timer;
-
-    /* WorkQueue and worker threads */
-    UA_WorkQueue workQueue;
 
     /* For bootstrapping, omit some consistency checks, creating a reference to
      * the parent and member instantiation */
@@ -281,10 +277,11 @@ getInterfaceHierarchy(UA_Server *server, const UA_NodeId *objectNode,
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
 
-UA_StatusCode UA_EXPORT
-UA_getConditionId(UA_Server *server, const UA_NodeId *conditionNodeId, UA_NodeId *outConditionId);
+UA_StatusCode
+UA_getConditionId(UA_Server *server, const UA_NodeId *conditionNodeId,
+                  UA_NodeId *outConditionId);
 
-void UA_EXPORT
+void
 UA_ConditionList_delete(UA_Server *server);
 
 UA_Boolean
@@ -293,16 +290,12 @@ isConditionOrBranch(UA_Server *server,
                     const UA_NodeId *conditionSource,
                     UA_Boolean *isCallerAC);
 
-#endif//UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+#endif /* UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */
+
 /* Returns the type node from the node on the stack top. The type node is pushed
  * on the stack and returned. */
 const UA_Node *
 getNodeType(UA_Server *server, const UA_NodeHead *nodeHead);
-
-/* Write a node attribute with a defined session */
-UA_StatusCode
-writeWithSession(UA_Server *server, UA_Session *session,
-                 const UA_WriteValue *value);
 
 UA_StatusCode
 sendResponse(UA_Server *server, UA_Session *session, UA_SecureChannel *channel,
@@ -349,13 +342,16 @@ setMethodNode_callback(UA_Server *server,
                        UA_MethodCallback methodCallback);
 
 UA_StatusCode
-writeAttribute(UA_Server *server, const UA_WriteValue *value);
+writeAttribute(UA_Server *server, UA_Session *session,
+               const UA_NodeId *nodeId, const UA_AttributeId attributeId,
+               const void *attr, const UA_DataType *attr_type);
 
-UA_StatusCode
-writeWithWriteValue(UA_Server *server, const UA_NodeId *nodeId,
-                    const UA_AttributeId attributeId,
-                    const UA_DataType *attr_type,
-                    const void *attr);
+static UA_INLINE UA_StatusCode
+writeValueAttribute(UA_Server *server, UA_Session *session,
+                    const UA_NodeId *nodeId, const UA_Variant *value) {
+    return writeAttribute(server, session, nodeId, UA_ATTRIBUTEID_VALUE,
+                          value, &UA_TYPES[UA_TYPES_VARIANT]);
+}
 
 UA_DataValue
 readAttribute(UA_Server *server, const UA_ReadValueId *item,
@@ -441,6 +437,18 @@ compatibleValue(UA_Server *server, UA_Session *session, const UA_NodeId *targetD
                 const UA_UInt32 *targetArrayDimensions, const UA_Variant *value,
                 const UA_NumericRange *range);
 
+/* Is the DataType compatible */
+UA_Boolean
+compatibleDataTypes(UA_Server *server, const UA_NodeId *dataType,
+                    const UA_NodeId *constraintDataType);
+
+/* Is the Value compatible with the DataType? Can perform additional checks
+ * compared to compatibleDataTypes. */
+UA_Boolean
+compatibleValueDataType(UA_Server *server, const UA_DataType *dataType,
+                        const UA_NodeId *constraintDataType);
+
+
 UA_Boolean
 compatibleArrayDimensions(size_t constraintArrayDimensionsSize,
                           const UA_UInt32 *constraintArrayDimensions,
@@ -454,10 +462,6 @@ compatibleValueArrayDimensions(const UA_Variant *value, size_t targetArrayDimens
 UA_Boolean
 compatibleValueRankArrayDimensions(UA_Server *server, UA_Session *session,
                                    UA_Int32 valueRank, size_t arrayDimensionsSize);
-
-UA_Boolean
-compatibleDataType(UA_Server *server, const UA_NodeId *dataType,
-                   const UA_NodeId *constraintDataType, UA_Boolean isValue);
 
 UA_Boolean
 compatibleValueRanks(UA_Int32 valueRank, UA_Int32 constraintValueRank);

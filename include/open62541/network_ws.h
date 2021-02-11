@@ -14,8 +14,9 @@
 _UA_BEGIN_DECLS
 
 UA_ServerNetworkLayer UA_EXPORT
-UA_ServerNetworkLayerWS(UA_ConnectionConfig config, UA_UInt16 port, UA_Logger *logger, const UA_ByteString* certificate, const UA_ByteString* privateKey);
-
+UA_ServerNetworkLayerWS(UA_ConnectionConfig config, UA_UInt16 port,
+                        const UA_ByteString* certificate,
+                        const UA_ByteString* privateKey);
 
 _UA_END_DECLS
 

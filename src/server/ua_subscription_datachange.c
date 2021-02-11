@@ -95,7 +95,7 @@ detectValueChangeWithFilter(UA_Server *server, UA_Session *session, UA_Monitored
     /* Stack-allocate some memory for the value encoding. We might heap-allocate
      * more memory if needed. This is just enough for scalars and small
      * structures. */
-    UA_STACKARRAY(UA_Byte, stackValueEncoding, UA_VALUENCODING_MAXSTACK);
+    UA_Byte stackValueEncoding[UA_VALUENCODING_MAXSTACK];
     UA_ByteString valueEncoding;
     valueEncoding.data = stackValueEncoding;
     valueEncoding.length = UA_VALUENCODING_MAXSTACK;
@@ -268,7 +268,7 @@ void
 UA_MonitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem) {
     UA_LOCK(server->serviceMutex);
     monitoredItem_sampleCallback(server, monitoredItem);
-    UA_UNLOCK(server->serviceMutex)
+    UA_UNLOCK(server->serviceMutex);
 }
 
 void

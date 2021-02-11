@@ -12,6 +12,11 @@
 
 #include "ua_server_internal.h"
 
+const UA_DataType *
+UA_Server_findDataType(UA_Server *server, const UA_NodeId *typeId) {
+    return UA_findDataTypeWithCustom(typeId, server->config.customDataTypes);
+}
+
 /********************************/
 /* Information Model Operations */
 /********************************/

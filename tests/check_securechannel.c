@@ -287,9 +287,9 @@ START_TEST(SecureChannel_sendAsymmetricOPNMessage_sentDataIsValid) {
     ck_assert_msg(sentData.data[offset + paddingSize + 1] == '*', "Expected first byte of signature");
 #endif
 
-    UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymSecurityHeader);
-    UA_SequenceHeader_deleteMembers(&sequenceHeader);
-    UA_OpenSecureChannelResponse_deleteMembers(&sentResponse);
+    UA_AsymmetricAlgorithmSecurityHeader_clear(&asymSecurityHeader);
+    UA_SequenceHeader_clear(&sequenceHeader);
+    UA_OpenSecureChannelResponse_clear(&sentResponse);
 } END_TEST
 
 #ifdef UA_ENABLE_ENCRYPTION
@@ -368,9 +368,9 @@ START_TEST(Securechannel_sendAsymmetricOPNMessage_extraPaddingPresentWhenKeyLarg
                   "Expected first byte 42 of signature but got %i",
                   sentData.data[offset + paddingSize + 2]);
 
-    UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymSecurityHeader);
-    UA_SequenceHeader_deleteMembers(&sequenceHeader);
-    UA_OpenSecureChannelResponse_deleteMembers(&sentResponse);
+    UA_AsymmetricAlgorithmSecurityHeader_clear(&asymSecurityHeader);
+    UA_SequenceHeader_clear(&sequenceHeader);
+    UA_OpenSecureChannelResponse_clear(&sentResponse);
 }END_TEST
 
 #endif /* UA_ENABLE_ENCRYPTION */

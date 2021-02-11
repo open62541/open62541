@@ -21,7 +21,7 @@
 static void
 removeSessionCallback(UA_Server *server, session_list_entry *entry) {
     UA_LOCK(server->serviceMutex);
-    UA_Session_deleteMembersCleanup(&entry->session, server);
+    UA_Session_clear(&entry->session, server);
     UA_UNLOCK(server->serviceMutex);
 }
 
@@ -41,7 +41,7 @@ UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
 
     UA_PublishResponseEntry *entry;
     while((entry = UA_Session_dequeuePublishReq(session))) {
-        UA_PublishResponse_deleteMembers(&entry->response);
+        UA_PublishResponse_clear(&entry->response);
         UA_free(entry);
     }
 #endif
@@ -92,7 +92,9 @@ UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
     sentry->cleanupCallback.callback = (UA_ApplicationCallback)removeSessionCallback;
     sentry->cleanupCallback.application = server;
     sentry->cleanupCallback.data = sentry;
-    UA_WorkQueue_enqueueDelayed(&server->workQueue, &sentry->cleanupCallback);
+    sentry->cleanupCallback.nextTime = UA_DateTime_nowMonotonic() + 1;
+    sentry->cleanupCallback.interval = 0; /* Remove the structure */
+    UA_Timer_addTimerEntry(&server->timer, &sentry->cleanupCallback, NULL);
 }
 
 UA_StatusCode

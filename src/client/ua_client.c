@@ -50,14 +50,14 @@ UA_Client_newWithConfig(const UA_ClientConfig *config) {
 }
 
 static void
-UA_ClientConfig_deleteMembers(UA_ClientConfig *config) {
-    UA_ApplicationDescription_deleteMembers(&config->clientDescription);
+UA_ClientConfig_clear(UA_ClientConfig *config) {
+    UA_ApplicationDescription_clear(&config->clientDescription);
 
-    UA_ExtensionObject_deleteMembers(&config->userIdentityToken);
-    UA_String_deleteMembers(&config->securityPolicyUri);
+    UA_ExtensionObject_clear(&config->userIdentityToken);
+    UA_String_clear(&config->securityPolicyUri);
 
-    UA_EndpointDescription_deleteMembers(&config->endpoint);
-    UA_UserTokenPolicy_deleteMembers(&config->userTokenPolicy);
+    UA_EndpointDescription_clear(&config->endpoint);
+    UA_UserTokenPolicy_clear(&config->userTokenPolicy);
 
     if(config->certificateVerification.clear)
         config->certificateVerification.clear(&config->certificateVerification);
@@ -78,7 +78,7 @@ UA_ClientConfig_deleteMembers(UA_ClientConfig *config) {
 }
 
 static void
-UA_Client_deleteMembers(UA_Client *client) {
+UA_Client_clear(UA_Client *client) {
     /* Delete the async service calls with BADHSUTDOWN */
     UA_Client_AsyncService_removeAll(client, UA_STATUSCODE_BADSHUTDOWN);
 
@@ -94,13 +94,13 @@ UA_Client_deleteMembers(UA_Client *client) {
 #endif
 
     /* Delete the timed work */
-    UA_Timer_deleteMembers(&client->timer);
+    UA_Timer_clear(&client->timer);
 }
 
 void
 UA_Client_delete(UA_Client* client) {
-    UA_Client_deleteMembers(client);
-    UA_ClientConfig_deleteMembers(&client->config);
+    UA_Client_clear(client);
+    UA_ClientConfig_clear(&client->config);
     UA_free(client);
 }
 
@@ -376,7 +376,7 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
                              rd->client->config.customDataTypes);
 
 finish:
-    UA_NodeId_deleteMembers(&responseId);
+    UA_NodeId_clear(&responseId);
     if(retval != UA_STATUSCODE_GOOD) {
         if(retval == UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED)
             retval = UA_STATUSCODE_BADRESPONSETOOLARGE;
@@ -705,4 +705,9 @@ UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout) {
     notifyClientState(client);
 
     return client->connectStatus;
+}
+
+const UA_DataType *
+UA_Client_findDataType(UA_Client *client, const UA_NodeId *typeId) {
+    return UA_findDataTypeWithCustom(typeId, client->config.customDataTypes);
 }

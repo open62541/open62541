@@ -23,9 +23,6 @@ _UA_BEGIN_DECLS
 #ifdef UA_ENABLE_DISCOVERY
 
 typedef struct registeredServer_list_entry {
-#if UA_MULTITHREADING >= 200
-    UA_DelayedCallback delayedCleanup;
-#endif
     LIST_ENTRY(registeredServer_list_entry) pointers;
     UA_RegisteredServer registeredServer;
     UA_DateTime lastSeen;
@@ -41,9 +38,6 @@ struct PeriodicServerRegisterCallback {
 };
 
 typedef struct periodicServerRegisterCallback_entry {
-#if UA_MULTITHREADING >= 200
-    UA_DelayedCallback delayedCleanup;
-#endif
     LIST_ENTRY(periodicServerRegisterCallback_entry) pointers;
     struct PeriodicServerRegisterCallback *callback;
 } periodicServerRegisterCallback_entry;
@@ -62,9 +56,6 @@ typedef struct periodicServerRegisterCallback_entry {
  */
 
 typedef struct serverOnNetwork_list_entry {
-#if UA_MULTITHREADING >= 200
-    UA_DelayedCallback delayedCleanup;
-#endif
     LIST_ENTRY(serverOnNetwork_list_entry) pointers;
     UA_ServerOnNetwork serverOnNetwork;
     UA_DateTime created;
@@ -116,7 +107,7 @@ typedef struct {
 } UA_DiscoveryManager;
 
 void UA_DiscoveryManager_init(UA_DiscoveryManager *dm, UA_Server *server);
-void UA_DiscoveryManager_deleteMembers(UA_DiscoveryManager *dm, UA_Server *server);
+void UA_DiscoveryManager_clear(UA_DiscoveryManager *dm, UA_Server *server);
 
 /* Checks if a registration timed out and removes that registration.
  * Should be called periodically in main loop */

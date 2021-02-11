@@ -3,6 +3,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2020 (c) Wind River Systems, Inc.
+ *    Copyright 2020 (c) basysKom GmbH
+ *
  */
 
 #ifndef SECURITYPOLICY_OPENSSL_COMMON_H_
@@ -14,6 +16,7 @@
 #ifdef UA_ENABLE_ENCRYPTION_OPENSSL
 
 #include <openssl/x509.h>
+#include <openssl/evp.h>
 
 _UA_BEGIN_DECLS
 
@@ -50,7 +53,7 @@ UA_Openssl_RSA_Public_GetKeyLength(X509 *publicKeyX509, UA_Int32 *keyLen);
 
 UA_StatusCode
 UA_Openssl_RSA_PKCS1_V15_SHA256_Sign(const UA_ByteString *data,
-                                     const UA_ByteString *privateKey,
+                                     EVP_PKEY *privateKey,
                                      UA_ByteString *outSignature);
 
 UA_StatusCode
@@ -87,7 +90,7 @@ UA_OpenSSL_RSA_PKCS1_V15_SHA1_Verify(const UA_ByteString *msg,
 
 UA_StatusCode
 UA_Openssl_RSA_PKCS1_V15_SHA1_Sign(const UA_ByteString *message,
-                                   const UA_ByteString *privateKey,
+                                   EVP_PKEY *privateKey,
                                    UA_ByteString *outSignature);
 UA_StatusCode
 UA_Openssl_Random_Key_PSHA1_Derive(const UA_ByteString *secret,
@@ -121,6 +124,21 @@ UA_StatusCode
 UA_OpenSSL_AES_128_CBC_Encrypt(const UA_ByteString *iv,
                                const UA_ByteString *key,
                                UA_ByteString *data  /* [in/out]*/);
+
+EVP_PKEY *
+UA_OpenSSL_LoadPrivateKey(const UA_ByteString *privateKey);
+
+X509 *
+UA_OpenSSL_LoadCertificate(const UA_ByteString *certificate);
+
+X509 *
+UA_OpenSSL_LoadDerCertificate(const UA_ByteString *certificate);
+
+X509 *
+UA_OpenSSL_LoadPemCertificate(const UA_ByteString *certificate);
+
+UA_StatusCode
+UA_OpenSSL_LoadLocalCertificate(const UA_ByteString *certificate, UA_ByteString *target);
 
 _UA_END_DECLS
 

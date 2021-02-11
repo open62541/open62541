@@ -366,7 +366,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
 
             eventNotifierValue = *((UA_Byte *)dv.value.data);
 
-            UA_DataValue_deleteMembers(&dv);
+            UA_DataValue_clear(&dv);
 
             /* Check if the EventNotifier attribute has 'SubscribeToEvents'
              * bit set */

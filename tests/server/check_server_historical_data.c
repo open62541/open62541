@@ -629,7 +629,7 @@ START_TEST(Server_HistorizingUpdateDelete)
 
     testResult(testDataAfterDelete, NULL);
 
-    UA_HistoryDataBackend_Memory_deleteMembers(&setting.historizingBackend);
+    UA_HistoryDataBackend_Memory_clear(&setting.historizingBackend);
 }
 END_TEST
 
@@ -661,7 +661,7 @@ START_TEST(Server_HistorizingUpdateInsert)
     }
 
     UA_HistoryData_clear(&data);
-    UA_HistoryDataBackend_Memory_deleteMembers(&setting.historizingBackend);
+    UA_HistoryDataBackend_Memory_clear(&setting.historizingBackend);
 }
 END_TEST
 
@@ -697,7 +697,7 @@ START_TEST(Server_HistorizingUpdateReplace)
     }
 
     UA_HistoryData_clear(&data);
-    UA_HistoryDataBackend_Memory_deleteMembers(&setting.historizingBackend);
+    UA_HistoryDataBackend_Memory_clear(&setting.historizingBackend);
 }
 END_TEST
 
@@ -748,7 +748,7 @@ START_TEST(Server_HistorizingUpdateUpdate)
     }
 
     UA_HistoryData_clear(&data);
-    UA_HistoryDataBackend_Memory_deleteMembers(&setting.historizingBackend);
+    UA_HistoryDataBackend_Memory_clear(&setting.historizingBackend);
 }
 END_TEST
 
@@ -813,7 +813,7 @@ START_TEST(Server_HistorizingStrategyUser)
         }
     }
     UA_HistoryReadResponse_clear(&response);
-    UA_HistoryDataBackend_Memory_deleteMembers(&setting.historizingBackend);
+    UA_HistoryDataBackend_Memory_clear(&setting.historizingBackend);
 }
 END_TEST
 
@@ -886,7 +886,7 @@ START_TEST(Server_HistorizingStrategyPoll)
         }
     }
     UA_HistoryReadResponse_clear(&response);
-    UA_HistoryDataBackend_Memory_deleteMembers(&setting.historizingBackend);
+    UA_HistoryDataBackend_Memory_clear(&setting.historizingBackend);
 }
 END_TEST
 
@@ -942,7 +942,7 @@ START_TEST(Server_HistorizingStrategyValueSet)
         }
     }
     UA_HistoryReadResponse_clear(&response);
-    UA_HistoryDataBackend_Memory_deleteMembers(&setting.historizingBackend);
+    UA_HistoryDataBackend_Memory_clear(&setting.historizingBackend);
 }
 END_TEST
 
@@ -979,7 +979,7 @@ START_TEST(Server_HistorizingBackendMemory)
     retval = testHistoricalDataBackend(2);
     fprintf(stderr, "%d tests failed.\n", retval);
     ck_assert_uint_eq(retval, 0);
-    UA_HistoryDataBackend_Memory_deleteMembers(&setting.historizingBackend);
+    UA_HistoryDataBackend_Memory_clear(&setting.historizingBackend);
 }
 END_TEST
 

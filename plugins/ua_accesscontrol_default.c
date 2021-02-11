@@ -235,8 +235,8 @@ static void clear_default(UA_AccessControl *ac) {
 
     if (context) {
         for(size_t i = 0; i < context->usernamePasswordLoginSize; i++) {
-            UA_String_deleteMembers(&context->usernamePasswordLogin[i].username);
-            UA_String_deleteMembers(&context->usernamePasswordLogin[i].password);
+            UA_String_clear(&context->usernamePasswordLogin[i].username);
+            UA_String_clear(&context->usernamePasswordLogin[i].password);
         }
         if(context->usernamePasswordLoginSize > 0)
             UA_free(context->usernamePasswordLogin);

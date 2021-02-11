@@ -2778,7 +2778,7 @@ DECODE_JSON(ExtensionObject) {
             
             /*Check if Object in Extentionobject*/
             if(getJsmnType(parseCtx) != JSMN_OBJECT) {
-                UA_NodeId_deleteMembers(&typeId);
+                UA_NodeId_clear(&typeId);
                 return UA_STATUSCODE_BADDECODINGERROR;
             }
             
@@ -2787,13 +2787,13 @@ DECODE_JSON(ExtensionObject) {
             ret = lookAheadForKey(UA_JSONKEY_BODY, ctx, parseCtx, &searchBodyResult);
             if(ret != UA_STATUSCODE_GOOD) {
                 /*No Body*/
-                UA_NodeId_deleteMembers(&typeId);
+                UA_NodeId_clear(&typeId);
                 return UA_STATUSCODE_BADDECODINGERROR;
             }
             
             if(searchBodyResult >= (size_t)parseCtx->tokenCount) {
                 /*index not in Tokenarray*/
-                UA_NodeId_deleteMembers(&typeId);
+                UA_NodeId_clear(&typeId);
                 return UA_STATUSCODE_BADDECODINGERROR;
             }
 
@@ -2804,14 +2804,14 @@ DECODE_JSON(ExtensionObject) {
             char* bodyJsonString = (char*)(ctx->pos + parseCtx->tokenArray[searchBodyResult].start);
             
             if(sizeOfJsonString <= 0) {
-                UA_NodeId_deleteMembers(&typeId);
+                UA_NodeId_clear(&typeId);
                 return UA_STATUSCODE_BADDECODINGERROR;
             }
             
             /* Save encoded as bytestring. */
             ret = UA_ByteString_allocBuffer(&dst->content.encoded.body, (size_t)sizeOfJsonString);
             if(ret != UA_STATUSCODE_GOOD) {
-                UA_NodeId_deleteMembers(&typeId);
+                UA_NodeId_clear(&typeId);
                 return ret;
             }
 
@@ -2822,8 +2822,8 @@ DECODE_JSON(ExtensionObject) {
             
             if(tokenAfteExtensionObject == 0) {
                 /*next object token not found*/
-                UA_NodeId_deleteMembers(&typeId);
-                UA_ByteString_deleteMembers(&dst->content.encoded.body);
+                UA_NodeId_clear(&typeId);
+                UA_ByteString_clear(&dst->content.encoded.body);
                 return UA_STATUSCODE_BADDECODINGERROR;
             }
             
@@ -2833,7 +2833,7 @@ DECODE_JSON(ExtensionObject) {
         }
         
         /*Type id not used anymore, typeOfBody has type*/
-        UA_NodeId_deleteMembers(&typeId);
+        UA_NodeId_clear(&typeId);
         
         /*Set Found Type*/
         dst->content.decoded.type = typeOfBody;
@@ -2915,7 +2915,7 @@ Variant_decodeJsonUnwrapExtensionObject(UA_Variant *dst, const UA_DataType *type
         parseCtx->index = (UA_UInt16)searchTypeIdResult;
         ret = NodeId_decodeJson(&typeId, &UA_TYPES[UA_TYPES_NODEID], ctx, parseCtx, true);
         if(ret != UA_STATUSCODE_GOOD) {
-            UA_NodeId_deleteMembers(&typeId);
+            UA_NodeId_clear(&typeId);
             return ret;
         }
 
@@ -2955,7 +2955,7 @@ Variant_decodeJsonUnwrapExtensionObject(UA_Variant *dst, const UA_DataType *type
         /* Allocate memory for type*/
         dst->data = UA_new(dst->type);
         if(!dst->data) {
-            UA_NodeId_deleteMembers(&typeId);
+            UA_NodeId_clear(&typeId);
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
 
@@ -2974,7 +2974,7 @@ Variant_decodeJsonUnwrapExtensionObject(UA_Variant *dst, const UA_DataType *type
             dst->data = NULL;
         }
     } else if(encoding == 1 || encoding == 2 || typeOfBody == NULL) {
-        UA_NodeId_deleteMembers(&typeId);
+        UA_NodeId_clear(&typeId);
             
         /* decode as ExtensionObject */
         dst->type = &UA_TYPES[UA_TYPES_EXTENSIONOBJECT];
@@ -3321,6 +3321,6 @@ UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type) {
     }
     
     if(ret != UA_STATUSCODE_GOOD)
-        UA_deleteMembers(dst, type); /* Clean up */
+        UA_clear(dst, type); /* Clean up */
     return ret;
 }

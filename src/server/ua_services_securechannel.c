@@ -71,7 +71,9 @@ removeSecureChannel(UA_Server *server, channel_entry *entry,
     entry->cleanupCallback.callback = (UA_ApplicationCallback)removeSecureChannelCallback;
     entry->cleanupCallback.application = NULL;
     entry->cleanupCallback.data = entry;
-    UA_WorkQueue_enqueueDelayed(&server->workQueue, &entry->cleanupCallback);
+    entry->cleanupCallback.nextTime = UA_DateTime_nowMonotonic() + 1;
+    entry->cleanupCallback.interval = 0; /* Remove the structure */
+    UA_Timer_addTimerEntry(&server->timer, &entry->cleanupCallback, NULL);
 }
 
 void

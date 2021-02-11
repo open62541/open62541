@@ -41,19 +41,19 @@ connection_getsendbuffer(UA_Connection *connection,
 static void
 connection_releasesendbuffer(UA_Connection *connection,
                              UA_ByteString *buf) {
-    UA_ByteString_deleteMembers(buf);
+    UA_ByteString_clear(buf);
 }
 
 static void
 connection_releaserecvbuffer(UA_Connection *connection,
                              UA_ByteString *buf) {
-    UA_ByteString_deleteMembers(buf);
+    UA_ByteString_clear(buf);
 }
 
 static UA_StatusCode
 connection_write(UA_Connection *connection, UA_ByteString *buf) {
     if(connection->state == UA_CONNECTIONSTATE_CLOSED) {
-        UA_ByteString_deleteMembers(buf);
+        UA_ByteString_clear(buf);
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
     }
 
@@ -72,7 +72,7 @@ connection_write(UA_Connection *connection, UA_ByteString *buf) {
                      bytes_to_send, flags);
             if(n < 0 && UA_ERRNO != UA_INTERRUPTED && UA_ERRNO != UA_AGAIN) {
                 connection->close(connection);
-                UA_ByteString_deleteMembers(buf);
+                UA_ByteString_clear(buf);
                 return UA_STATUSCODE_BADCONNECTIONCLOSED;
             }
         } while(n < 0);
@@ -80,7 +80,7 @@ connection_write(UA_Connection *connection, UA_ByteString *buf) {
     } while(nWritten < buf->length);
 
     /* Free the buffer */
-    UA_ByteString_deleteMembers(buf);
+    UA_ByteString_clear(buf);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -132,7 +132,7 @@ connection_recv(UA_Connection *connection, UA_ByteString *response,
     /* The remote side closed the connection */
     if(ret == 0) {
         if(internallyAllocated)
-            UA_ByteString_deleteMembers(response);
+            UA_ByteString_clear(response);
         connection->close(connection);
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
     }
@@ -140,7 +140,7 @@ connection_recv(UA_Connection *connection, UA_ByteString *response,
     /* Error case */
     if(ret < 0) {
         if(internallyAllocated)
-            UA_ByteString_deleteMembers(response);
+            UA_ByteString_clear(response);
         if(UA_ERRNO == UA_INTERRUPTED || (timeout > 0) ?
            false : (UA_ERRNO == UA_EAGAIN || UA_ERRNO == UA_WOULDBLOCK))
             return UA_STATUSCODE_GOOD; /* statuscode_good but no data -> retry */
@@ -383,10 +383,12 @@ addServerSocket(ServerNetworkLayerTCP *layer, struct addrinfo *ai) {
 }
 
 static UA_StatusCode
-ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, const UA_String *customHostname) {
+ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, const UA_Logger *logger,
+                            const UA_String *customHostname) {
     UA_initialize_architecture_network();
 
     ServerNetworkLayerTCP *layer = (ServerNetworkLayerTCP *)nl->handle;
+    layer->logger = logger;
 
     /* Get addrinfo of the server and create server sockets */
     char hostname[512];
@@ -597,9 +599,9 @@ ServerNetworkLayerTCP_stop(UA_ServerNetworkLayer *nl, UA_Server *server) {
 
 /* run only when the server is stopped */
 static void
-ServerNetworkLayerTCP_deleteMembers(UA_ServerNetworkLayer *nl) {
+ServerNetworkLayerTCP_clear(UA_ServerNetworkLayer *nl) {
     ServerNetworkLayerTCP *layer = (ServerNetworkLayerTCP *)nl->handle;
-    UA_String_deleteMembers(&nl->discoveryUrl);
+    UA_String_clear(&nl->discoveryUrl);
 
     /* Hard-close and remove remaining connections. The server is no longer
      * running. So this is safe. */
@@ -620,10 +622,10 @@ ServerNetworkLayerTCP_deleteMembers(UA_ServerNetworkLayer *nl) {
 
 UA_ServerNetworkLayer
 UA_ServerNetworkLayerTCP(UA_ConnectionConfig config, UA_UInt16 port,
-                         UA_UInt16 maxConnections, UA_Logger *logger) {
+                         UA_UInt16 maxConnections) {
     UA_ServerNetworkLayer nl;
     memset(&nl, 0, sizeof(UA_ServerNetworkLayer));
-    nl.clear = ServerNetworkLayerTCP_deleteMembers;
+    nl.clear = ServerNetworkLayerTCP_clear;
     nl.localConnectionConfig = config;
     nl.start = ServerNetworkLayerTCP_start;
     nl.listen = ServerNetworkLayerTCP_listen;
@@ -636,7 +638,6 @@ UA_ServerNetworkLayerTCP(UA_ConnectionConfig config, UA_UInt16 port,
         return nl;
     nl.handle = layer;
 
-    layer->logger = logger;
     layer->port = port;
     layer->maxConnections = maxConnections;
 
