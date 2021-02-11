@@ -361,7 +361,6 @@ typedef enum {
 } UA_DataSetFieldType;
 
 typedef struct {
-    /*Testweise, UA_PublishedEventTemplateConfig benutzt auch UA_SimpleAttributeOperand*/
     UA_SimpleAttributeOperand selectedField;
 } UA_DataSetEventConfig;
 
@@ -369,7 +368,6 @@ typedef struct {
     UA_DataSetFieldType dataSetFieldType;
     union {
         /* events need other config later */
-        //UA_PublishedEventConfig events; warum nochmal dieselbe config die das PDS schon hat?
         UA_DataSetEventConfig events;
         UA_DataSetVariableConfig variable;
     } field;

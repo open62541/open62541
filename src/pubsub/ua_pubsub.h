@@ -98,9 +98,9 @@ typedef struct UA_DataSetWriterSample{
 } UA_DataSetWriterSample;
 #endif
 
-typedef struct event_queue_entry {
+typedef struct EventQueueEntry {
     UA_Variant variant;
-    SIMPLEQ_ENTRY(event_queue_entry) listEntry;
+    SIMPLEQ_ENTRY(EventQueueEntry) listEntry;
 } event_queue_entry;
 
 typedef struct UA_DataSetWriter{
@@ -119,7 +119,7 @@ typedef struct UA_DataSetWriter{
     UA_DataSetWriterSample *lastSamples;
 #endif
 #ifdef UA_ENABLE_PUBSUB_EVENTS
-    SIMPLEQ_HEAD(EventQueue, event_queue_entry) eventQueue;
+    SIMPLEQ_HEAD(EventQueue, EventQueueEntry) eventQueue;
 #endif
     UA_UInt16 actualDataSetMessageSequenceCount;
     /* This flag is 'read only' and is set internally based on the PubSub state. */
