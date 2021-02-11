@@ -57,10 +57,20 @@ addDataSetField(UA_Server *server) {
      * Hier müssen dann die Eventspezifischen Eigenschaften der dataSetFieldConfig
      * beschrieben werden, analog zu der folgenden Zeile.
      */
-    UA_SimpleAttributeOperand *sf = UA_SimpleAttributeOperand_new();
-    UA_SimpleAttributeOperand_init(sf);
+    UA_SimpleAttributeOperand *sao = UA_SimpleAttributeOperand_new();
+    UA_SimpleAttributeOperand_init(&sao);
 
-    dataSetFieldConfig.field.events.selectedField = *sf;
+    sao->typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+    sao->browsePathSize = 1;
+    sao->browsePath = (UA_QualifiedName*)
+        UA_Array_new(selectClauses[0].browsePathSize, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
+    if(!sao->.browsePath) {
+        UA_SimpleAttributeOperand_delete(selectClauses);
+    }
+    sao->attributeId = UA_ATTRIBUTEID_VALUE;
+    sao->browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "Message");
+
+    dataSetFieldConfig.field.events.selectedField = sao;
 
     UA_Server_addDataSetField(server, publishedDataSetIdent,
                               &dataSetFieldConfig, &dataSetFieldIdent);
