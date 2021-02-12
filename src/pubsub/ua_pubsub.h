@@ -101,7 +101,7 @@ typedef struct UA_DataSetWriterSample{
 typedef struct EventQueueEntry {
     UA_Variant variant;
     SIMPLEQ_ENTRY(EventQueueEntry) listEntry;
-} event_queue_entry;
+} EventQueueEntry;
 
 typedef struct UA_DataSetWriter{
     UA_PubSubComponentEnumType componentType;
