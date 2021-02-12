@@ -534,7 +534,7 @@ static UA_StatusCode insertVariantToDSWQueue(UA_Server *server, UA_DataSetWriter
     }
 
     //event_queue_entry ist ein neu erstelltes struct, einfach ein wrapper für Variant, da wir die Queue-Funktionalität der Makros brauchen
-    UA_EventQueueEntry *entry = (UA_EventQueueEntry *)malloc(sizeof(UA_EventQueueEntry));
+    EventQueueEntry *entry = (EventQueueEntry *)malloc(sizeof(EventQueueEntry));
     entry->variant = *var;
 
     SIMPLEQ_INSERT_TAIL(&dsw->eventQueue, entry, listEntry);
