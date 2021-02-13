@@ -1303,8 +1303,9 @@ UA_Server_addDataSetWriter(UA_Server *server,
             return retVal;
         }
     }
-
+#ifdef UA_ENABLE_PUBSUB_EVENTS
     SIMPLEQ_INIT(&newDataSetWriter->eventQueue);
+#endif /*UA_ENABLE_PUBSUB_EVENTS*/
 
     //copy the config into the new dataSetWriter
     UA_DataSetWriterConfig tmpDataSetWriterConfig;
