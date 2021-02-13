@@ -192,7 +192,7 @@ UA_PubSubChannelEthernetETF_open(const UA_PubSubConnectionConfig *connectionConf
     struct ifreq ifreq;
     memset(&ifreq, 0, sizeof(struct ifreq));
     UA_UInt64 len = UA_MIN(address->networkInterface.length, sizeof(ifreq.ifr_name)-1);
-    UA_snprintf(ifreq.ifr_name, sizeof(struct ifreq),
+    UA_snprintf(ifreq.ifr_name, sizeof(ifreq.ifr_name),
                 "%.*s", (int)len,
                 (char*)address->networkInterface.data);
 
@@ -496,7 +496,7 @@ UA_PubSubChannelEthernetETF_receive(UA_PubSubChannel *channel, UA_ByteString *me
     UA_UInt64       currentTimeValue = 0;
     UA_UInt64       maxTimeValue = 0;
     UA_Int32        receiveFlags;
-    UA_StatusCode   retval;
+    UA_StatusCode   retval = UA_STATUSCODE_GOOD;
     UA_UInt16       rcvCount = 0;
 
     memset(&tmptv, 0, sizeof(tmptv));

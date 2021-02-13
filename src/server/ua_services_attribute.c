@@ -16,6 +16,7 @@
  *    Copyright 2017 (c) Julian Grothoff
  *    Copyright 2017-2020 (c) HMS Industrial Networks AB (Author: Jonas Green)
  *    Copyright 2017 (c) Henrik Norrman
+ *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart  (for VDW and umati)
  */
 
 #include "ua_server_internal.h"
@@ -1607,10 +1608,11 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
         retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
         break;
     }
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO_SESSION(&server->config.logger, session,
                             "WriteRequest returned status code %s",
                             UA_StatusCode_name(retval));
+    }
     return retval;
 }
 
@@ -1793,9 +1795,8 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
 
     for(size_t i = 0; i < response->resultsSize; ++i) {
         void * data = UA_new(historyDataType);
-        response->results[i].historyData.encoding = UA_EXTENSIONOBJECT_DECODED;
-        response->results[i].historyData.content.decoded.type = historyDataType;
-        response->results[i].historyData.content.decoded.data = data;
+        UA_ExtensionObject_setValue(&response->results[i].historyData,
+                                    data, historyDataType);
         historyData[i] = data;
     }
     UA_UNLOCK(server->serviceMutex);

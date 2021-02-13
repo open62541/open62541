@@ -111,7 +111,7 @@ extern void * (*UA_reallocSingleton)(void *ptr, size_t size);
 #  define UA_alloca(SIZE) alloca(SIZE)
 # endif
 #  define UA_STACKARRAY(TYPE, NAME, SIZE) \
-    TYPE *NAME = (TYPE*)UA_alloca(sizeof(TYPE) * SIZE)
+    TYPE *(NAME) = (TYPE*)UA_alloca(sizeof(TYPE) * (SIZE))
 # endif
 #endif
 
@@ -191,6 +191,8 @@ extern void * (*UA_reallocSingleton)(void *ptr, size_t size);
 # define UA_RESTRICT __restrict
 #elif defined(__GNUC__)
 # define UA_RESTRICT __restrict__
+#elif defined(__CODEGEARC__)
+# define UA_RESTRICT _RESTRICT
 #else
 # define UA_RESTRICT restrict
 #endif

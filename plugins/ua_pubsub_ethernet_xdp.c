@@ -534,7 +534,7 @@ UA_PubSubChannelEthernetXDP_open(const UA_PubSubConnectionConfig *connectionConf
     struct ifreq ifreq;
     memset(&ifreq, 0, sizeof(struct ifreq));
     UA_UInt64 length = UA_MIN(address->networkInterface.length, sizeof(ifreq.ifr_name)-1);
-    UA_snprintf(ifreq.ifr_name, sizeof(struct ifreq), "%.*s", (int)length,
+    UA_snprintf(ifreq.ifr_name, sizeof(ifreq.ifr_name), "%.*s", (int)length,
                 (char*)address->networkInterface.data);
 
     /* TODO: ifreq has to be checked with ioctl commands */

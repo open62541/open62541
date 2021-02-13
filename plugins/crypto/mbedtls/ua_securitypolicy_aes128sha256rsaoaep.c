@@ -706,8 +706,7 @@ policyContext_newContext_sp_aes128sha256rsaoaep(UA_SecurityPolicy *securityPolic
     }
 
     /* Set the private key */
-    mbedErr = mbedtls_pk_parse_key(&pc->localPrivateKey, localPrivateKey.data,
-                                   localPrivateKey.length, NULL, 0);
+    mbedErr = UA_mbedTLS_LoadPrivateKey(&localPrivateKey, &pc->localPrivateKey);
     if(mbedErr) {
         retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         goto error;
@@ -745,14 +744,10 @@ UA_SecurityPolicy_Aes128Sha256RsaOaep(UA_SecurityPolicy *policy, const UA_ByteSt
     UA_SecurityPolicySymmetricModule *const symmetricModule = &policy->symmetricModule;
     UA_SecurityPolicyChannelModule *const channelModule = &policy->channelModule;
 
-    /* Copy the certificate and add a NULL to the end */
-    UA_StatusCode retval =
-        UA_ByteString_allocBuffer(&policy->localCertificate, localCertificate.length + 1);
-    if(retval != UA_STATUSCODE_GOOD)
+    UA_StatusCode retval = UA_mbedTLS_LoadLocalCertificate(&localCertificate, &policy->localCertificate);
+
+    if (retval != UA_STATUSCODE_GOOD)
         return retval;
-    memcpy(policy->localCertificate.data, localCertificate.data, localCertificate.length);
-    policy->localCertificate.data[localCertificate.length] = '\0';
-    policy->localCertificate.length--;
 
     /* AsymmetricModule */
     UA_SecurityPolicySignatureAlgorithm *asym_signatureAlgorithm =

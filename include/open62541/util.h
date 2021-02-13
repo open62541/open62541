@@ -81,11 +81,11 @@ UA_readNumberWithBase(const UA_Byte *buf, size_t buflen,
                       UA_UInt32 *number, UA_Byte base);
 
 #ifndef UA_MIN
-#define UA_MIN(A,B) (A > B ? B : A)
+#define UA_MIN(A, B) ((A) > (B) ? (B) : (A))
 #endif
 
 #ifndef UA_MAX
-#define UA_MAX(A,B) (A > B ? A : B)
+#define UA_MAX(A, B) ((A) > (B) ? (A) : (B))
 #endif
 
 /**

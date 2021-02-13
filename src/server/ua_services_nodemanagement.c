@@ -330,12 +330,13 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
             /* Try to generate a default value if that is configured */
             if(server->config.allowEmptyVariables == UA_RULEHANDLING_DEFAULT) {
                 retval = setDefaultValue(server, node);
-                if(retval != UA_STATUSCODE_GOOD)
+                if(retval != UA_STATUSCODE_GOOD) {
                     UA_LOG_NODEID_INFO(&node->head.nodeId,
                     UA_LOG_INFO_SESSION(&server->config.logger, session,
                                         "AddNode (%.*s): Could not create a default value "
                                         "with StatusCode %s", (int)nodeIdStr.length,
                                         nodeIdStr.data, UA_StatusCode_name(retval)));
+                }
 
                 /* Reread the current value for compat tests below */
                 UA_DataValue_clear(&value);
@@ -833,8 +834,6 @@ AddNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
                 typeOk = typeHead->nodeClass == UA_NODECLASS_METHOD;
                 break;
             case UA_NODECLASS_OBJECT:
-                typeOk = typeHead->nodeClass == UA_NODECLASS_OBJECTTYPE;
-                break;
             case UA_NODECLASS_OBJECTTYPE:
                 typeOk = typeHead->nodeClass == UA_NODECLASS_OBJECTTYPE;
                 break;
@@ -842,8 +841,6 @@ AddNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
                 typeOk = typeHead->nodeClass == UA_NODECLASS_REFERENCETYPE;
                 break;
             case UA_NODECLASS_VARIABLE:
-                typeOk = typeHead->nodeClass == UA_NODECLASS_VARIABLETYPE;
-                break;
             case UA_NODECLASS_VARIABLETYPE:
                 typeOk = typeHead->nodeClass == UA_NODECLASS_VARIABLETYPE;
                 break;
@@ -1280,14 +1277,6 @@ recursiveCallConstructors(UA_Server *server, UA_Session *session,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    /* Get the node type constructor */
-    const UA_NodeTypeLifecycle *lifecycle = NULL;
-    if(type && head->nodeClass == UA_NODECLASS_OBJECT) {
-        lifecycle = &type->objectTypeNode.lifecycle;
-    } else if(type && head->nodeClass == UA_NODECLASS_VARIABLE) {
-        lifecycle = &type->variableTypeNode.lifecycle;
-    }
-
     /* Call the global constructor */
     void *context = head->context;
     if(server->config.nodeLifecycle.constructor) {
@@ -1296,40 +1285,46 @@ recursiveCallConstructors(UA_Server *server, UA_Session *session,
                                                           session->sessionHandle,
                                                           &head->nodeId, &context);
         UA_LOCK(server->serviceMutex);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
     }
 
-    /* Call the type constructor */
-    if(retval == UA_STATUSCODE_GOOD && lifecycle && lifecycle->constructor) {
+    /* Call the local (per-type) constructor */
+    const UA_NodeTypeLifecycle *lifecycle = NULL;
+    if(type && head->nodeClass == UA_NODECLASS_OBJECT)
+        lifecycle = &type->objectTypeNode.lifecycle;
+    else if(type && head->nodeClass == UA_NODECLASS_VARIABLE)
+        lifecycle = &type->variableTypeNode.lifecycle;
+    if(lifecycle && lifecycle->constructor) {
         UA_UNLOCK(server->serviceMutex)
         retval = lifecycle->constructor(server, &session->sessionId,
                                         session->sessionHandle, &type->head.nodeId,
                                         type->head.context, &head->nodeId, &context);
         UA_LOCK(server->serviceMutex);
+        if(retval != UA_STATUSCODE_GOOD)
+            goto global_destructor;
     }
-    if(retval != UA_STATUSCODE_GOOD)
-        goto fail1;
 
     /* Set the context *and* mark the node as constructed */
-    if(retval == UA_STATUSCODE_GOOD)
-        retval = UA_Server_editNode(server, &server->adminSession, &head->nodeId,
-                                    (UA_EditNodeCallback)setConstructedNodeContext,
-                                    context);
+    retval = UA_Server_editNode(server, &server->adminSession, &head->nodeId,
+                                (UA_EditNodeCallback)setConstructedNodeContext, context);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto local_destructor;
 
     /* All good, return */
-    if(retval == UA_STATUSCODE_GOOD)
-        return retval;
+    return retval;
 
     /* Fail. Call the destructors. */
+  local_destructor:
     if(lifecycle && lifecycle->destructor) {
         UA_UNLOCK(server->serviceMutex);
-        lifecycle->destructor(server, &session->sessionId,
-                              session->sessionHandle, &type->head.nodeId,
-                              type->head.context, &head->nodeId, &context);
+        lifecycle->destructor(server, &session->sessionId, session->sessionHandle,
+                              &type->head.nodeId, type->head.context, &head->nodeId,
+                              &context);
         UA_LOCK(server->serviceMutex)
     }
 
-
- fail1:
+  global_destructor:
     if(server->config.nodeLifecycle.destructor) {
         UA_UNLOCK(server->serviceMutex);
         server->config.nodeLifecycle.destructor(server, &session->sessionId,
@@ -1337,7 +1332,6 @@ recursiveCallConstructors(UA_Server *server, UA_Session *session,
                                                 &head->nodeId, context);
         UA_LOCK(server->serviceMutex);
     }
-
     return retval;
 }
 
@@ -1567,9 +1561,8 @@ addNode(UA_Server *server, const UA_NodeClass nodeClass, const UA_NodeId *reques
     item.parentNodeId.nodeId = *parentNodeId;
     item.referenceTypeId = *referenceTypeId;
     item.typeDefinition.nodeId = *typeDefinition;
-    item.nodeAttributes.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
-    item.nodeAttributes.content.decoded.type = attributeType;
-    item.nodeAttributes.content.decoded.data = (void*)(uintptr_t)attr;
+    UA_ExtensionObject_setValueNoDelete(&item.nodeAttributes,
+                                        (void*)(uintptr_t)attr, attributeType);
 
     /* Call the normal addnodes service */
     UA_AddNodesResult result;
@@ -1614,9 +1607,8 @@ UA_Server_addNode_begin(UA_Server *server, const UA_NodeClass nodeClass,
     item.requestedNewNodeId.nodeId = requestedNewNodeId;
     item.browseName = browseName;
     item.typeDefinition.nodeId = typeDefinition;
-    item.nodeAttributes.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
-    item.nodeAttributes.content.decoded.type = attributeType;
-    item.nodeAttributes.content.decoded.data = (void*)(uintptr_t)attr;
+    UA_ExtensionObject_setValueNoDelete(&item.nodeAttributes,
+                                        (void*)(uintptr_t)attr, attributeType);
 
     UA_LOCK(server->serviceMutex);
     UA_StatusCode retval =
@@ -2203,9 +2195,8 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_NodeId requested
     UA_ExpandedNodeId_init(&typeDefinitionId);
     typeDefinitionId.nodeId = typeDefinition;
     item.typeDefinition = typeDefinitionId;
-    item.nodeAttributes.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
-    item.nodeAttributes.content.decoded.data = (void*)(uintptr_t)&attr;
-    item.nodeAttributes.content.decoded.type = &UA_TYPES[UA_TYPES_VARIABLEATTRIBUTES];
+    UA_ExtensionObject_setValueNoDelete(&item.nodeAttributes, (void*)(uintptr_t)&attr,
+                                        &UA_TYPES[UA_TYPES_VARIABLEATTRIBUTES]);
     UA_NodeId newNodeId;
     if(!outNewNodeId) {
         newNodeId = UA_NODEID_NULL;
@@ -2480,10 +2471,8 @@ UA_Server_addMethodNodeEx(UA_Server *server, const UA_NodeId requestedNewNodeId,
     item.nodeClass = UA_NODECLASS_METHOD;
     item.requestedNewNodeId.nodeId = requestedNewNodeId;
     item.browseName = browseName;
-    item.nodeAttributes.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
-    item.nodeAttributes.content.decoded.data = (void*)(uintptr_t)&attr;
-    item.nodeAttributes.content.decoded.type = &UA_TYPES[UA_TYPES_METHODATTRIBUTES];
-
+    UA_ExtensionObject_setValueNoDelete(&item.nodeAttributes, (void*)(uintptr_t)&attr,
+                                        &UA_TYPES[UA_TYPES_METHODATTRIBUTES]);
     UA_NodeId newId;
     if(!outNewNodeId) {
         UA_NodeId_init(&newId);

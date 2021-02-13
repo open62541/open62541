@@ -10,6 +10,7 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Mattias Bornhager
  *    Copyright 2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
+ *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
  */
 
 #ifndef UA_SUBSCRIPTION_H_
@@ -139,7 +140,6 @@ typedef struct UA_Notification {
  * is "reporting". Or the MonitoringMode is "sampling" and a link is trigered
  * that puts the last Notification into the global queue. */
 
-
 UA_Notification * UA_Notification_new(void);
 /* Dequeue and Delete the notification */
 void UA_Notification_delete(UA_Server *server, UA_Notification *n);
@@ -157,46 +157,38 @@ typedef TAILQ_HEAD(NotificationQueue, UA_Notification) NotificationQueue;
 struct UA_MonitoredItem {
     UA_TimerEntry delayedFreePointers;
     LIST_ENTRY(UA_MonitoredItem) listEntry;
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    UA_MonitoredItem *next; /* Linked list of MonitoredItems directly attached
+                             * to a Node */
+#endif
     UA_Subscription *subscription; /* Local MonitoredItem if the subscription is NULL */
     UA_UInt32 monitoredItemId;
-    UA_UInt32 clientHandle;
-    UA_Boolean registered; /* Was the MonitoredItem registered in Userland with
-                              the callback? */
 
-    /* Settings */
-    UA_TimestampsToReturn timestampsToReturn;
+    /* Status and Settings */
+    UA_ReadValueId itemToMonitor;
     UA_MonitoringMode monitoringMode;
-    UA_NodeId monitoredNodeId;
-    UA_UInt32 attributeId;
-    UA_String indexRange;
-    UA_Double samplingInterval; // [ms]
-    UA_Boolean discardOldest;
-    union {
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-        /* If attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER */
-        UA_EventFilter eventFilter;
-#endif
-        /* The DataChangeFilter always contains an absolute deadband definition.
-         * Part 8, §6.2 gives the following formula to test for percentage
-         * deadbands:
-         *
-         * DataChange if (absolute value of (last cached value - current value)
-         *                > (deadbandValue/100.0) * ((high–low) of EURange)))
-         *
-         * So we can convert from a percentage to an absolute deadband and keep
-         * the hot code path simple.
-         *
-         * TODO: Store the percentage deadband to recompute when the UARange is
-         * changed at runtime of the MonitoredItem */
-        UA_DataChangeFilter dataChangeFilter;
-    } filter;
+    UA_TimestampsToReturn timestampsToReturn;
+    UA_Boolean sampleCallbackIsRegistered;
+    UA_Boolean registered; /* Registered in the server / Subscription */
 
-    UA_DataValue lastValue;
+    /* If the filter is a UA_DataChangeFilter: The DataChangeFilter always
+     * contains an absolute deadband definition. Part 8, §6.2 gives the
+     * following formula to test for percentage deadbands:
+     *
+     * DataChange if (absolute value of (last cached value - current value)
+     *                > (deadbandValue/100.0) * ((high–low) of EURange)))
+     *
+     * So we can convert from a percentage to an absolute deadband and keep
+     * the hot code path simple.
+     *
+     * TODO: Store the percentage deadband to recompute when the UARange is
+     * changed at runtime of the MonitoredItem */
+    UA_MonitoringParameters parameters;
 
-    /* Sample Callback */
+    /* Sampling Callback */
     UA_UInt64 sampleCallbackId;
     UA_ByteString lastSampledValue;
-    UA_Boolean sampleCallbackIsRegistered;
+    UA_DataValue lastValue;
 
     /* Triggering Links */
     size_t triggeringLinksSize;
@@ -204,19 +196,16 @@ struct UA_MonitoredItem {
 
     /* Notification Queue */
     NotificationQueue queue;
-    UA_UInt32 maxQueueSize; /* The max number of enqueued notifications (not
-                             * counting overflow events) */
-    UA_UInt32 queueSize;
-    UA_UInt32 eventOverflows; /* Separate counter for the queue. Can at most
-                               * double the queue size */
-
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-    UA_MonitoredItem *next;
-#endif
+    size_t queueSize; /* This is the current size. See also the configured
+                       * (maximum) queueSize in the parameters. */
+    size_t eventOverflows; /* Separate counter for the queue. Can at most double
+                            * the queue size */
 };
 
-void UA_MonitoredItem_init(UA_MonitoredItem *mon, UA_Subscription *sub);
+void UA_MonitoredItem_init(UA_MonitoredItem *mon);
+UA_StatusCode UA_Server_registerMonitoredItem(UA_Server *server, UA_MonitoredItem *mon);
 void UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem);
+
 void UA_MonitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem);
 UA_StatusCode UA_MonitoredItem_registerSampleCallback(UA_Server *server, UA_MonitoredItem *mon);
 void UA_MonitoredItem_unregisterSampleCallback(UA_Server *server, UA_MonitoredItem *mon);
@@ -235,9 +224,6 @@ UA_StatusCode UA_Event_generateEventId(UA_ByteString *generatedId);
 /* Remove entries until mon->maxQueueSize is reached. Sets infobits for lost
  * data if required. */
 void UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon);
-
-UA_StatusCode UA_MonitoredItem_removeNodeEventCallback(UA_Server *server, UA_Session *session,
-                                                       UA_Node *node, void *data);
 
 /****************/
 /* Subscription */
@@ -314,10 +300,9 @@ struct UA_Subscription {
 };
 
 UA_Subscription * UA_Subscription_new(void);
-void UA_Subscription_clear(UA_Server *server, UA_Subscription *sub);
+void UA_Subscription_delete(UA_Server *server, UA_Subscription *sub);
 UA_StatusCode Subscription_registerPublishCallback(UA_Server *server, UA_Subscription *sub);
 void Subscription_unregisterPublishCallback(UA_Server *server, UA_Subscription *sub);
-void UA_Subscription_addMonitoredItem(UA_Server *server, UA_Subscription *sub, UA_MonitoredItem *mon);
 UA_MonitoredItem * UA_Subscription_getMonitoredItem(UA_Subscription *sub, UA_UInt32 monitoredItemId);
 
 void UA_Subscription_publish(UA_Server *server, UA_Subscription *sub);
