@@ -539,7 +539,7 @@ static UA_StatusCode insertVariantToDSWQueue(UA_Server *server, UA_DataSetWriter
     entry->variant = *var;
 
     SIMPLEQ_INSERT_TAIL(&dsw->eventQueue, entry, listEntry);
-
+    dsw->eventQueueEntries++;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -598,8 +598,11 @@ static UA_StatusCode addEventToDataSetWriter(UA_Server *server, UA_NodeId eventN
                     selectedField.browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "Message");
 
                     //Speichere den Wert des Event-Feldes "Message" in das Variant
-                    resolveSimpleAttributeOperand(server, &server->adminSession, &eventNodeId, &selectedField, v);
-                    // TODO: insertVariantToDSWQueue makes some problems
+                    if(resolveSimpleAttributeOperand(server, &server->adminSession, &eventNodeId, &selectedField, v) != UA_STATUSCODE_GOOD){
+                        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                                     "SimpleAttributeOperand wasn't able to be resolved as a Variant.");
+                        return UA_STATUSCODE_BAD; // TODO: replace this with better one
+                    };
                     return insertVariantToDSWQueue(server, tmpDataSetWriter, v);
                 }
             }
