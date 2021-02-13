@@ -270,6 +270,8 @@ typedef struct {
 typedef struct {
     UA_NodeId eventNotfier;
     UA_ContentFilter filter;
+    size_t selectedFieldsSize;
+    UA_SimpleAttributeOperand *selectedFields;
 } UA_PublishedEventConfig;
 
 typedef struct {

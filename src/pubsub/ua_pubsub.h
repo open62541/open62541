@@ -126,6 +126,7 @@ typedef struct UA_DataSetWriter{
     UA_DataSetWriterSample *lastSamples;
 #endif
 #ifdef UA_ENABLE_PUBSUB_EVENTS
+    size_t eventQueueEntries;
     SIMPLEQ_HEAD(EventQueue, EventQueueEntry) eventQueue;
 #endif
     UA_UInt16 actualDataSetMessageSequenceCount;
