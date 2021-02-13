@@ -522,7 +522,7 @@ static const UA_NodeId isInFolderReferences[2] =
 #ifdef UA_ENABLE_PUBSUB_EVENTS
 // TODO: decide where the method insertVariant should be
 // TODO: insertVariantToDSWQueue makes some problems
-/*static UA_StatusCode insertVariantToDSWQueue(UA_Server *server, UA_DataSetWriter *dsw, UA_Variant *var)  {
+static UA_StatusCode insertVariantToDSWQueue(UA_Server *server, UA_DataSetWriter *dsw, UA_Variant *var)  {
     if(dsw == NULL){
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                  "The given DataSetWriter is NULL");
@@ -541,7 +541,7 @@ static const UA_NodeId isInFolderReferences[2] =
     SIMPLEQ_INSERT_TAIL(&dsw->eventQueue, entry, listEntry);
 
     return UA_STATUSCODE_GOOD;
-}*/
+}
 
 static UA_StatusCode addEventToDataSetWriter(UA_Server *server, UA_NodeId eventNodeId, UA_NodeId origin){
     /*
@@ -600,7 +600,7 @@ static UA_StatusCode addEventToDataSetWriter(UA_Server *server, UA_NodeId eventN
                     //Speichere den Wert des Event-Feldes "Message" in das Variant
                     resolveSimpleAttributeOperand(server, &server->adminSession, &eventNodeId, &selectedField, v);
                     // TODO: insertVariantToDSWQueue makes some problems
-                    //return insertVariantToDSWQueue(server, tmpDataSetWriter, v);
+                    return insertVariantToDSWQueue(server, tmpDataSetWriter, v);
                 }
             }
         }
