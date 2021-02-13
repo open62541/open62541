@@ -1304,6 +1304,8 @@ UA_Server_addDataSetWriter(UA_Server *server,
         }
     }
 
+    SIMPLEQ_INIT(&newDataSetWriter->eventQueue);
+
     //copy the config into the new dataSetWriter
     UA_DataSetWriterConfig tmpDataSetWriterConfig;
     retVal |= UA_DataSetWriterConfig_copy(dataSetWriterConfig, &tmpDataSetWriterConfig);
