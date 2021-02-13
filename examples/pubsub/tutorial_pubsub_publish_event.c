@@ -1,6 +1,7 @@
 //
 // Created by Florian on 08.02.2021.
 //
+// TODO: maybe there need to be made changes in UA_Server_addPublishedDataSet and 
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pubsub_ethernet.h>
 #include <open62541/plugin/pubsub_udp.h>
@@ -14,7 +15,8 @@
 
 UA_NodeId connectionIdent, publishedDataSetIdent, writerGroupIdent;
 static UA_NodeId eventType;
-static UA_NodeId eventNodeId;
+
+/*********************** PubSub Methods ***********************/
 
 static void
 addPubSubConnection(UA_Server *server, UA_String *transportProfile,
@@ -43,15 +45,16 @@ addPublishedDataSet(UA_Server *server) {
     publishedDataSetConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDEVENTS;
     publishedDataSetConfig.name = UA_STRING("Demo PDS PubSub Events");
 
-    publishedDataSetConfig.config.event.eventNotfier = eventNodeId;
+    // TODO: hier ziemlich sicher, aber noch nicht 100%
+    publishedDataSetConfig.config.event.eventNotfier = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
 
     /* Create new PublishedDataSet based on the PublishedDataSetConfig. */
     UA_Server_addPublishedDataSet(server, &publishedDataSetConfig, &publishedDataSetIdent);
 }
 
-static void
+/*static void
 addDataSetField(UA_Server *server) {
-    /* Add a field to the previous created PublishedDataSet */
+    //Add a field to the previous created PublishedDataSet
     UA_NodeId dataSetFieldIdent;
     UA_DataSetFieldConfig dataSetFieldConfig;
     memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
@@ -68,17 +71,28 @@ addDataSetField(UA_Server *server) {
     sf->browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "Message");
     dataSetFieldConfig.field.events.publishParameters.selectedFields = sf;
     dataSetFieldConfig.field.events.publishParameters.selectedFieldsSize = 1;
-    /*
-     * Hier müssen dann die Eventspezifischen Eigenschaften der dataSetFieldConfig
-     * beschrieben werden, analog zu der folgenden Zeile.
-     */
-    /*UA_SimpleAttributeOperand *sf = UA_SimpleAttributeOperand_new();
-    UA_SimpleAttributeOperand_init(sf);
-    dataSetFieldConfig.field.events.publishParameters.selectedFields = sf;
-    dataSetFieldConfig.field.events.publishParameters.selectedFieldsSize = 1;*/
+
+    // Hier müssen dann die Eventspezifischen Eigenschaften der dataSetFieldConfig
+    // beschrieben werden, analog zu der folgenden Zeile.
+
+    UA_SimpleAttributeOperand *sao = UA_SimpleAttributeOperand_new();
+    UA_SimpleAttributeOperand_init(&sao);
+
+    sao->typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+    sao->browsePathSize = 1;
+    sao->browsePath = (UA_QualifiedName*)
+        UA_Array_new(selectClauses[0].browsePathSize, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
+    if(!sao->.browsePath) {
+        UA_SimpleAttributeOperand_delete(selectClauses);
+    }
+    sao->attributeId = UA_ATTRIBUTEID_VALUE;
+    sao->browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "Message");
+
+    dataSetFieldConfig.field.events.selectedField = sao;
+
     UA_Server_addDataSetField(server, publishedDataSetIdent,
                               &dataSetFieldConfig, &dataSetFieldIdent);
-}
+}*/
 
 static void
 addWriterGroup(UA_Server *server) {
@@ -116,7 +130,9 @@ addDataSetWriter(UA_Server *server) {
                                &dataSetWriterConfig, &dataSetWriterIdent);
 }
 
-/*Events Part*/
+/*********************** Event Methods ***********************/
+void callEvent(UA_Server *server, void *data);
+
 static UA_StatusCode
 setUpEvent(UA_Server *server, UA_NodeId *outId) {
     UA_StatusCode retval = UA_Server_createEvent(server, eventType, outId);
@@ -126,8 +142,8 @@ setUpEvent(UA_Server *server, UA_NodeId *outId) {
         return retval;
     }
 
-    /* Set the Event Attributes */
-    /* Setting the Time is required or else the event will not show up in UAExpert! */
+    // Set the Event Attributes
+    // Setting the Time is required or else the event will not show up in UAExpert!
     UA_DateTime eventTime = UA_DateTime_now();
     UA_Server_writeObjectProperty_scalar(server, *outId, UA_QUALIFIEDNAME(0, "Time"),
                                          &eventTime, &UA_TYPES[UA_TYPES_DATETIME]);
@@ -143,75 +159,33 @@ setUpEvent(UA_Server *server, UA_NodeId *outId) {
     UA_String eventSourceName = UA_STRING("Server");
     UA_Server_writeObjectProperty_scalar(server, *outId, UA_QUALIFIEDNAME(0, "SourceName"),
                                          &eventSourceName, &UA_TYPES[UA_TYPES_STRING]);
-
     return UA_STATUSCODE_GOOD;
 }
 
-static void
-updateEventNodeIdOfPDS(UA_Server *server, UA_NodeId publishedDataSetNodeId,
-                       UA_NodeId newEventNodeId) {
-    UA_PublishedDataSet *tmpPds = UA_PublishedDataSet_findPDSbyId(server, publishedDataSetNodeId);
-    tmpPds->config.config.event.eventNotfier = newEventNodeId;
-}
-
-static UA_StatusCode
-generateEventMethodCallback(UA_Server *server,
-                            const UA_NodeId *sessionId, void *sessionHandle,
-                            const UA_NodeId *methodId, void *methodContext,
-                            const UA_NodeId *objectId, void *objectContext,
-                            size_t inputSize, const UA_Variant *input,
-                            size_t outputSize, UA_Variant *output) {
+void
+callEvent(UA_Server *server, void *data) {
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Creating event");
 
-    /* set up event */
-    //UA_NodeId eventNodeId;
-    UA_StatusCode retval = setUpEvent(server, &eventNodeId);
-    updateEventNodeIdOfPDS(server, publishedDataSetIdent, eventNodeId);
-
-    //debugEvents(server, eventNodeId);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                       "Creating event failed. StatusCode %s", UA_StatusCode_name(retval));
-        return retval;
-    }
-
-    retval = UA_Server_triggerEvent(server, eventNodeId,
+    UA_NodeId eventNodeId;
+    setUpEvent(server, &eventNodeId);
+    UA_Server_triggerEvent(server, eventNodeId,
                                     UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
                                     NULL, UA_TRUE);
-    if(retval != UA_STATUSCODE_GOOD)
-        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                       "Triggering event failed. StatusCode %s", UA_StatusCode_name(retval));
 
-    return retval;
 }
 
 
 static UA_StatusCode
 addNewEventType(UA_Server *server) {
     UA_ObjectTypeAttributes attr = UA_ObjectTypeAttributes_default;
-    attr.displayName = UA_LOCALIZEDTEXT("en-US", "SimpleEventType");
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "PublishEventsExampleEventType");
     attr.description = UA_LOCALIZEDTEXT("en-US", "The simple event type we created");
     return UA_Server_addObjectTypeNode(server, UA_NODEID_NULL,
                                        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE),
                                        UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
-                                       UA_QUALIFIEDNAME(0, "SimpleEventType"),
+                                       UA_QUALIFIEDNAME(0, "PublishEventsExampleEventType"),
                                        attr, NULL, &eventType);
-}
-
-static void
-addGenerateEventMethod(UA_Server *server) {
-UA_MethodAttributes generateAttr = UA_MethodAttributes_default;
-generateAttr.description = UA_LOCALIZEDTEXT("en-US","Generate an event.");
-generateAttr.displayName = UA_LOCALIZEDTEXT("en-US","Generate Event");
-generateAttr.executable = true;
-generateAttr.userExecutable = true;
-UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1, 62541),
-UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-UA_QUALIFIEDNAME(1, "Generate Event"),
-generateAttr, &generateEventMethodCallback,
-0, NULL, 0, NULL, NULL, NULL);
 }
 
 UA_Boolean running = true;
@@ -244,18 +218,27 @@ static int run(UA_String *transportProfile,
     config->pubsubTransportLayersSize++;
 #endif
     addNewEventType(server);
-    addGenerateEventMethod(server);
 
     addPubSubConnection(server, transportProfile, networkAddressUrl);
     addPublishedDataSet(server);
-    addDataSetField(server);
+    //addDataSetField(server);
     addWriterGroup(server);
     addDataSetWriter(server);
+    const UA_Double interval = (UA_Double)5000;
+    // hier noch unsicher
+    UA_String *name = UA_String_new();
+    UA_UInt64 *identifier = UA_UInt64_new();
+    UA_Server_addRepeatedCallback(server, (UA_ServerCallback)callEvent, name, interval, identifier);
 
     UA_StatusCode retval = UA_Server_run(server, &running);
 
     UA_Server_delete(server);
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
+}
+
+static void
+usage(char *progname) {
+    printf("usage: %s <uri> [device]\n", progname);
 }
 
 int main(int argc, char *argv[]){
@@ -266,7 +249,7 @@ int main(int argc, char *argv[]){
 
     if (argc > 1) {
         if (strcmp(argv[1], "-h") == 0) {
-            //usage(argv[0]);
+            usage(argv[0]);
             return EXIT_SUCCESS;
         } else if (strncmp(argv[1], "opc.udp://", 10) == 0) {
             networkAddressUrl.url = UA_STRING(argv[1]);

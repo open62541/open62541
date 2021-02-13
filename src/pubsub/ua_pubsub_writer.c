@@ -473,7 +473,7 @@ UA_PublishedDataSetConfig_copy(const UA_PublishedDataSetConfig *src,
             break;
         case UA_PUBSUB_DATASET_PUBLISHEDEVENTS:
             // TODO: check this
-            // ich glaube hier muss nichts hin
+            // ich glaube hier muss nichts hin, weil am Anfang ja alles mit memcpy kopiert wird
             break;
         default:
             res = UA_STATUSCODE_BADINVALIDARGUMENT;
