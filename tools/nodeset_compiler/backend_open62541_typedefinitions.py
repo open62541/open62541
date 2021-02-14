@@ -400,6 +400,8 @@ _UA_BEGIN_DECLS
                         self.printh(self.print_datatype_typedef(t) + "\n")
                     self.printh(
                         "#define UA_" + makeCIdentifier(self.parser.outname.upper() + "_" + t.name.upper()) + " " + str(i))
+        else:
+            self.printh("#define UA_" + self.parser.outname.upper() + " NULL")
 
         self.printh('''
 

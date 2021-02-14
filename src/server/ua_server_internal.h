@@ -124,12 +124,12 @@ struct UA_Server {
 
     /* Subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
+    size_t subscriptionsSize;  /* Number of active subscriptions */
+    size_t monitoredItemsSize; /* Number of active monitored items */
     LIST_HEAD(, UA_Subscription) subscriptions; /* All subscriptions in the
                                                  * server. They may be detached
                                                  * from a session. */
     UA_UInt32 lastSubscriptionId; /* To generate unique SubscriptionIds */
-    UA_UInt32 numSubscriptions;   /* Num active subscriptions */
-    UA_UInt32 numMonitoredItems;  /* Num active monitored items */
 
     /* To be cast to UA_LocalMonitoredItem to get the callback and context */
     LIST_HEAD(, UA_MonitoredItem) localMonitoredItems;
@@ -137,7 +137,7 @@ struct UA_Server {
 
 # ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
     LIST_HEAD(, UA_ConditionSource) headConditionSource;
-# endif /* UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */
+# endif
 
 #endif
 
@@ -147,16 +147,30 @@ struct UA_Server {
 #endif
 
 #if UA_MULTITHREADING >= 100
-    UA_LOCK_TYPE(networkMutex)
-    UA_LOCK_TYPE(serviceMutex)
+    UA_Lock networkMutex;
+    UA_Lock serviceMutex;
 #endif
 
     /* Statistics */
     UA_ServerStatistics serverStats;
 };
 
+/***********************/
+/* References Handling */
+/***********************/
 
-extern const struct aa_head nameTreeHead;
+extern const struct aa_head refNameTree;
+
+UA_ReferenceTarget *
+UA_NodeReferenceKind_firstTarget(const UA_NodeReferenceKind *kind);
+
+UA_ReferenceTarget *
+UA_NodeReferenceKind_nextTarget(const UA_NodeReferenceKind *kind,
+                                const UA_ReferenceTarget *current);
+
+UA_ReferenceTarget *
+UA_NodeReferenceKind_findTarget(const UA_NodeReferenceKind *kind,
+                                const UA_ExpandedNodeId *targetId);
 
 /**************************/
 /* SecureChannel Handling */
@@ -374,8 +388,6 @@ translateBrowsePathToNodeIds(UA_Server *server, const UA_BrowsePath *browsePath)
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 
-void UA_Server_addSubscription(UA_Server *server, UA_Subscription *sub);
-void UA_Server_deleteSubscription(UA_Server *server, UA_Subscription *sub);
 void monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem);
 
 UA_Subscription *
@@ -523,6 +535,10 @@ UA_StatusCode writeNs0VariableArray(UA_Server *server, UA_UInt32 id, void *v,
 
 #define UA_NODESTORE_GET(server, nodeid)                                \
     server->config.nodestore.getNode(server->config.nodestore.context, nodeid)
+
+/* Returns NULL if the target is an external Reference (per the ExpandedNodeId) */
+const UA_Node *
+UA_NODESTORE_GETFROMREF(UA_Server *server, const UA_ReferenceTarget *target);
 
 #define UA_NODESTORE_RELEASE(server, node)                              \
     server->config.nodestore.releaseNode(server->config.nodestore.context, node)

@@ -44,18 +44,18 @@ ZIP_IMPL(UA_TimerIdZip, UA_TimerEntry, idZipfields, UA_UInt64, id, cmpId)
 void
 UA_Timer_init(UA_Timer *t) {
     memset(t, 0, sizeof(UA_Timer));
-    UA_LOCK_INIT(t->timerMutex)
+    UA_LOCK_INIT(&t->timerMutex);
 }
 
 void
 UA_Timer_addTimerEntry(UA_Timer *t, UA_TimerEntry *te, UA_UInt64 *callbackId) {
-    UA_LOCK(t->timerMutex);
+    UA_LOCK(&t->timerMutex);
     te->id = ++t->idCounter;
     if(callbackId)
         *callbackId = te->id;
     ZIP_INSERT(UA_TimerZip, &t->root, te, ZIP_FFS32(UA_UInt32_random()));
     ZIP_INSERT(UA_TimerIdZip, &t->idRoot, te, ZIP_RANK(te, zipfields));
-    UA_UNLOCK(t->timerMutex);
+    UA_UNLOCK(&t->timerMutex);
 }
 
 static UA_StatusCode
@@ -91,9 +91,9 @@ UA_StatusCode
 UA_Timer_addTimedCallback(UA_Timer *t, UA_ApplicationCallback callback,
                           void *application, void *data, UA_DateTime date,
                           UA_UInt64 *callbackId) {
-    UA_LOCK(t->timerMutex);
+    UA_LOCK(&t->timerMutex);
     UA_StatusCode res = addCallback(t, callback, application, data, date, 0, callbackId);
-    UA_UNLOCK(t->timerMutex);
+    UA_UNLOCK(&t->timerMutex);
     return res;
 }
 
@@ -113,10 +113,10 @@ UA_Timer_addRepeatedCallback(UA_Timer *t, UA_ApplicationCallback callback,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_DateTime nextTime = UA_DateTime_nowMonotonic() + (UA_DateTime)interval;
-    UA_LOCK(t->timerMutex);
+    UA_LOCK(&t->timerMutex);
     UA_StatusCode res = addCallback(t, callback, application, data, nextTime,
                                     interval, callbackId);
-    UA_UNLOCK(t->timerMutex);
+    UA_UNLOCK(&t->timerMutex);
     return res;
 }
 
@@ -127,12 +127,12 @@ UA_Timer_changeRepeatedCallbackInterval(UA_Timer *t, UA_UInt64 callbackId,
     if(interval_ms <= 0.0)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_LOCK(t->timerMutex);
+    UA_LOCK(&t->timerMutex);
 
     /* Remove from the sorted list */
     UA_TimerEntry *te = ZIP_FIND(UA_TimerIdZip, &t->idRoot, &callbackId);
     if(!te) {
-        UA_UNLOCK(t->timerMutex);
+        UA_UNLOCK(&t->timerMutex);
         return UA_STATUSCODE_BADNOTFOUND;
     }
 
@@ -142,30 +142,30 @@ UA_Timer_changeRepeatedCallbackInterval(UA_Timer *t, UA_UInt64 callbackId,
     te->nextTime = UA_DateTime_nowMonotonic() + (UA_DateTime)te->interval;
     ZIP_INSERT(UA_TimerZip, &t->root, te, ZIP_RANK(te, zipfields));
 
-    UA_UNLOCK(t->timerMutex);
+    UA_UNLOCK(&t->timerMutex);
     return UA_STATUSCODE_GOOD;
 }
 
 void
 UA_Timer_removeCallback(UA_Timer *t, UA_UInt64 callbackId) {
-    UA_LOCK(t->timerMutex);
+    UA_LOCK(&t->timerMutex);
     UA_TimerEntry *te = ZIP_FIND(UA_TimerIdZip, &t->idRoot, &callbackId);
     if(!te) {
-        UA_UNLOCK(t->timerMutex);
+        UA_UNLOCK(&t->timerMutex);
         return;
     }
 
     ZIP_REMOVE(UA_TimerZip, &t->root, te);
     ZIP_REMOVE(UA_TimerIdZip, &t->idRoot, te);
     UA_free(te);
-    UA_UNLOCK(t->timerMutex);
+    UA_UNLOCK(&t->timerMutex);
 }
 
 UA_DateTime
 UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic,
                  UA_TimerExecutionCallback executionCallback,
                  void *executionApplication) {
-    UA_LOCK(t->timerMutex);
+    UA_LOCK(&t->timerMutex);
     UA_TimerEntry *first;
     while((first = ZIP_MIN(UA_TimerZip, &t->root)) &&
           first->nextTime <= nowMonotonic) {
@@ -178,10 +178,10 @@ UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic,
         if(first->interval == 0) {
             ZIP_REMOVE(UA_TimerIdZip, &t->idRoot, first);
             if(first->callback) {
-                UA_UNLOCK(t->timerMutex);
+                UA_UNLOCK(&t->timerMutex);
                 executionCallback(executionApplication, first->callback,
                                   first->application, first->data);
-                UA_LOCK(t->timerMutex);
+                UA_LOCK(&t->timerMutex);
             }
             UA_free(first);
             continue;
@@ -203,9 +203,9 @@ UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic,
         UA_ApplicationCallback cb = first->callback;
         void *app = first->application;
         void *data = first->data;
-        UA_UNLOCK(t->timerMutex);
+        UA_UNLOCK(&t->timerMutex);
         executionCallback(executionApplication, cb, app, data);
-        UA_LOCK(t->timerMutex);
+        UA_LOCK(&t->timerMutex);
     }
 
     /* Return the timestamp of the earliest next callback */
@@ -213,7 +213,7 @@ UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic,
     UA_DateTime next = (first) ? first->nextTime : UA_INT64_MAX;
     if(next < nowMonotonic)
         next = nowMonotonic;
-    UA_UNLOCK(t->timerMutex);
+    UA_UNLOCK(&t->timerMutex);
     return next;
 }
 
@@ -224,12 +224,12 @@ freeEntry(UA_TimerEntry *te, void *data) {
 
 void
 UA_Timer_clear(UA_Timer *t) {
-    UA_LOCK(t->timerMutex);
+    UA_LOCK(&t->timerMutex);
     /* Free all nodes and reset the root */
     ZIP_ITER(UA_TimerZip, &t->root, freeEntry, NULL);
-    UA_UNLOCK(t->timerMutex);
+    UA_UNLOCK(&t->timerMutex);
 #if UA_MULTITHREADING >= 100
-    UA_LOCK_DESTROY(t->timerMutex)
+    UA_LOCK_DESTROY(&t->timerMutex);
 #endif
     ZIP_INIT(&t->root);
 }

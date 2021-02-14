@@ -309,8 +309,10 @@ UA_StatusCode retVal = UA_STATUSCODE_GOOD;""" % (outfilebase))
     for arr in set(typesArray):
         if arr == "UA_TYPES":
             continue
+        writec("if(" + arr + "_COUNT > 0) {")
         writec("custom" + arr + ".next = UA_Server_getConfig(server)->customDataTypes;")
         writec("UA_Server_getConfig(server)->customDataTypes = &custom" + arr + ";\n")
+        writec("}")
 
     if functionNumber > 0:
 

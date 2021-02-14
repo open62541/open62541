@@ -96,15 +96,6 @@ typedef struct {
     xdpsock* xdpsocket;
 } UA_PubSubChannelDataEthernetXDP;
 
-/* Structure for Logical link control based on 802.2 */
-typedef struct  {
-    UA_Byte dsap; /* Destination Service Access Point */
-    UA_Byte ssap; /* Source Service Access point */
-    UA_Byte ctrl_1; /* Control Field */
-    UA_Byte ctrl_2; /* Control Field */
-} llc_pdu;
-
-
 /* These defines shall be removed in the future when XDP and RT-Linux has been mainlined and stable */
 #ifndef SOL_XDP
 #define SOL_XDP        283
@@ -115,7 +106,8 @@ typedef struct  {
 #endif
 
 // Receive buffer batch size
-#define BATCH_SIZE     8
+#define BATCH_SIZE                           8
+#define VLAN_HEADER_SIZE                     4
 
 #define barrier() __asm__ __volatile__("": : :"memory")
 #ifdef __aarch64__
@@ -637,13 +629,21 @@ static void receive_parse(UA_PubSubChannelDataEthernetXDP *channelDataEthernetXD
 
     /* Without VLAN Tag */
     if (channelDataEthernetXDP->vid == 0 && channelDataEthernetXDP->prio == 0) {
-        buffer = (unsigned char *)pkt + sizeof(struct ether_header) + sizeof(llc_pdu);
-        lenBuf = sizeof(struct ether_header) + sizeof(llc_pdu);
+        buffer = (unsigned char *)pkt + sizeof(struct ether_header);
+        lenBuf = sizeof(struct ether_header);
     }
     else {
         /* With VLAN Tag */
-        buffer = (unsigned char *)pkt + sizeof(struct ether_header) + sizeof(llc_pdu) + 4;
-        lenBuf = sizeof(struct ether_header) + sizeof(llc_pdu) + 4;
+        buffer = (unsigned char *)pkt + sizeof(struct ether_header) + VLAN_HEADER_SIZE;
+        lenBuf = sizeof(struct ether_header) + VLAN_HEADER_SIZE;
+        if (*offset != 0)
+            *offset += 4; /* In ua_pubsub_reader file we have considered minimum payload
+                           * size of ethernet packet as 46 bytes (i.e without vlan scenario) because
+                           * we cannot find whether the packet is received with vlan or without vlan
+                           * tagging in the src file ua_pubsub_reader.c, so we set the minimum payload
+                           * size as 46 bytes.In the plugin file we moved the buffer position to 4 bytes for 2nd receive if
+                           * the packet received with vlan so it does not affect while processing multiple receive packets in
+                           * the src file */
     }
 
     /* TODO: Convert for loop to a well defined Linux APIs */

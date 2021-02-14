@@ -96,6 +96,12 @@ UA_Server_cleanupTimedOutSecureChannels(UA_Server *server,
             continue;
         }
 
+        /* Is the SecurityToken already created? */
+        if(entry->channel.securityToken.createdAt == 0) {
+        	/* No -> channel is still in progress of being opened, do not remove */
+        	continue;
+        }
+
         /* Has the SecurityToken timed out? */
         UA_DateTime timeout =
             entry->channel.securityToken.createdAt +
@@ -253,7 +259,7 @@ UA_SecureChannelManager_open(UA_Server *server, UA_SecureChannel *channel,
      * first symmetric messages is received. */
     response->securityToken = channel->securityToken;
     response->securityToken.createdAt = UA_DateTime_now(); /* Only for sending */
-    response->responseHeader.timestamp = UA_DateTime_now();
+    response->responseHeader.timestamp = response->securityToken.createdAt;
     response->responseHeader.requestHandle = request->requestHeader.requestHandle;
     retval = UA_ByteString_copy(&channel->localNonce, &response->serverNonce);
     if(retval != UA_STATUSCODE_GOOD)

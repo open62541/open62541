@@ -3,42 +3,13 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2018 (c) Ari Breitkreuz, fortiss GmbH
- *    Copyright 2020 (c) Christian von Arnim
+ *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
  */
 
 #include "ua_server_internal.h"
 #include "ua_subscription.h"
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-
-UA_StatusCode
-UA_MonitoredItem_removeNodeEventCallback(UA_Server *server, UA_Session *session,
-                                         UA_Node *node, void *data) {
-    if(node->head.nodeClass != UA_NODECLASS_OBJECT)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_ObjectNode *on = &node->objectNode;
-    UA_MonitoredItem *remove = (UA_MonitoredItem*)data;
-
-    if(!on->monitoredItemQueue)
-        return UA_STATUSCODE_GOOD;
-
-    /* Edge case that it's the first element */
-    if(on->monitoredItemQueue == remove) {
-        on->monitoredItemQueue = remove->next;
-        return UA_STATUSCODE_GOOD;
-    }
-
-    UA_MonitoredItem *prev = on->monitoredItemQueue;
-    UA_MonitoredItem *entry = prev->next;
-    for(; entry != NULL; prev = entry, entry = entry->next) {
-        if(entry == remove) {
-            prev->next = entry->next;
-            return UA_STATUSCODE_GOOD;
-        }
-    }
-
-    return UA_STATUSCODE_BADNOTFOUND;
-}
 
 /* We use a 16-Byte ByteString as an identifier */
 UA_StatusCode
@@ -59,12 +30,12 @@ UA_Event_generateEventId(UA_ByteString *generatedId) {
 UA_StatusCode
 UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
                       UA_NodeId *outNodeId) {
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
     if(!outNodeId) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "outNodeId must not be NULL. The event's NodeId must be returned "
                      "so it can be triggered.");
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
@@ -74,7 +45,7 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
                                UA_REFERENCETYPEINDEX_HASSUBTYPE)) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Event type must be a subtype of BaseEventType!");
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
@@ -108,7 +79,7 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
         UA_BrowsePathResult_clear(&bpr);
         deleteNode(server, newNodeId, true);
         UA_NodeId_clear(&newNodeId);
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         return retval;
     }
 
@@ -122,12 +93,12 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
     if(retval != UA_STATUSCODE_GOOD) {
         deleteNode(server, newNodeId, true);
         UA_NodeId_clear(&newNodeId);
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         return retval;
     }
 
     *outNodeId = newNodeId;
-    UA_UNLOCK(server->serviceMutex);
+    UA_UNLOCK(&server->serviceMutex);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -369,6 +340,7 @@ UA_Server_initialWhereClauseValidation(UA_Server *server,
                     break;
                 }
 
+
                 elementOperand =
                     (UA_ElementOperand *)contentFilterElement->filterOperands[1]
                         .content.decoded.data;
@@ -571,7 +543,7 @@ UA_Server_initialSelectClauseValidation(UA_Server *server,
 
         //Check if browsePath contains null
         for(size_t j =0; j<eventFilter->selectClauses[i].browsePathSize; ++j) {
-            if(UA_QualifiedName_isNull(&eventFilter->selectClauses[i].browsePath[j])) {  // TODO: ist das richtig ?? (Check if null)
+            if(UA_QualifiedName_isNull(&eventFilter->selectClauses[i].browsePath[j])) {
                 selectClauseCodes[i] = UA_STATUSCODE_BADBROWSENAMEINVALID;
                 break;
             }
@@ -580,9 +552,9 @@ UA_Server_initialSelectClauseValidation(UA_Server *server,
             continue;
 
         //Check if indexRange is defined
-        if(!UA_String_equal(&eventFilter->selectClauses[i].indexRange, &UA_STRING_NULL)) {//TODO: ist das richtig ?? (Check if null)
+        if(!UA_String_equal(&eventFilter->selectClauses[i].indexRange, &UA_STRING_NULL)) {
             // Check if indexRange is parsable
-            UA_NumericRange numericRange = UA_NUMERICRANGE("");  // TODO: Wie nutzt man das parsen ohne den Value zu bekommen?
+            UA_NumericRange numericRange = UA_NUMERICRANGE("");
             if(UA_NumericRange_parse(&numericRange,
                                      eventFilter->selectClauses[i].indexRange) !=
                UA_STATUSCODE_GOOD) {
@@ -601,13 +573,11 @@ UA_Server_initialSelectClauseValidation(UA_Server *server,
 }
 
 
-
-
 UA_StatusCode
 UA_Server_evaluateWhereClauseContentFilter(UA_Server *server,
                                            const UA_NodeId *eventNode,
                                            const UA_ContentFilter *contentFilter) {
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     if(contentFilter->elements == NULL || contentFilter->elementsSize == 0) {
         /* Nothing to do.*/
@@ -645,7 +615,7 @@ UA_Server_evaluateWhereClauseContentFilter(UA_Server *server,
             if(pElement->filterOperandsSize != 1)
                 return UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
             if(pElement->filterOperands[0].content.decoded.type !=
-               &UA_TYPES[UA_TYPES_LITERALOPERAND])
+                &UA_TYPES[UA_TYPES_LITERALOPERAND])
                 return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
 
             UA_LiteralOperand *pOperand =
@@ -689,12 +659,11 @@ UA_Server_evaluateWhereClauseContentFilter(UA_Server *server,
                 return UA_STATUSCODE_BADNOMATCH;
         }
             break;
-        default:
-            return UA_STATUSCODE_BADFILTEROPERATORINVALID;
-            break;
+    default:
+        return UA_STATUSCODE_BADFILTEROPERATORINVALID;
+        break;
     }
 }
-
 
 /* Filters the given event with the given filter and writes the results into a
  * notification */
@@ -834,9 +803,8 @@ UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event,
 
     UA_Subscription *sub = mon->subscription;
     UA_Session *session = sub->session;
-    UA_StatusCode retval =
-        UA_Server_filterEvent(server, session, event, &mon->filter.eventFilter,
-                              &notification->data.event);
+    UA_StatusCode retval = UA_Server_filterEvent(server, session, event,
+                                                 eventFilter, &notification->data.event);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Notification_delete(server, notification);
         if(retval == UA_STATUSCODE_BADNOMATCH)
@@ -844,7 +812,7 @@ UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event,
         return retval;
     }
 
-    notification->data.event.clientHandle = mon->clientHandle;
+    notification->data.event.clientHandle = mon->parameters.clientHandle;
     notification->mon = mon;
 
     UA_Notification_enqueueAndTrigger(server, notification);
@@ -913,7 +881,7 @@ UA_StatusCode
 UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
                        const UA_NodeId origin, UA_ByteString *outEventId,
                        const UA_Boolean deleteEventNode) {
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
 
     UA_LOG_NODEID_DEBUG(&origin,
         UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -927,7 +895,7 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
           UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                                  "Condition Events: Please use A&C API to trigger Condition Events 0x%08X",
                                   UA_STATUSCODE_BADINVALIDARGUMENT);
-          UA_UNLOCK(server->serviceMutex);
+          UA_UNLOCK(&server->serviceMutex);
           return UA_STATUSCODE_BADINVALIDARGUMENT;
         }
     }
@@ -938,7 +906,7 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
     if(!originNode) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Origin node for event does not exist.");
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADNOTFOUND;
     }
     UA_NODESTORE_RELEASE(server, originNode);
@@ -962,7 +930,7 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
     if(!isNodeInTree(server, &origin, &objectsFolderId, &refTypes)) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Node for event must be in ObjectsFolder!");
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
@@ -972,7 +940,7 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Events: Could not set the standard event fields with StatusCode %s",
                        UA_StatusCode_name(retval));
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         return retval;
     }
 
@@ -1064,7 +1032,7 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
 
  cleanup:
     UA_Array_delete(emitNodes, emitNodesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
-    UA_UNLOCK(server->serviceMutex);
+    UA_UNLOCK(&server->serviceMutex);
     return retval;
 }
 

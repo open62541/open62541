@@ -336,7 +336,8 @@ addServerSocket(ServerNetworkLayerTCP *layer, struct addrinfo *ai) {
                 ret = 0;
             }
         }
-        if(ai->ai_family == AF_INET6) {
+#if UA_IPV6
+        else if(ai->ai_family == AF_INET6) {
             struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *)ai->ai_addr;
             if(!IN6_IS_ADDR_UNSPECIFIED(&sin6->sin6_addr)) {
                 memset(&sin6->sin6_addr, 0, sizeof(sin6->sin6_addr));
@@ -344,6 +345,7 @@ addServerSocket(ServerNetworkLayerTCP *layer, struct addrinfo *ai) {
                 ret = 0;
             }
         }
+#endif // UA_IPV6
         if(ret == 0) {
             ret = UA_bind(newsock, ai->ai_addr, (socklen_t)ai->ai_addrlen);
             if(ret == 0) {
@@ -693,7 +695,7 @@ UA_ClientConnectionTCP_poll(UA_Connection *connection, UA_UInt32 timeout,
     /* Connection timeout? */
     TCPClientConnection *tcpConnection = (TCPClientConnection*) connection->handle;
     if((UA_Double) (UA_DateTime_nowMonotonic() - tcpConnection->connStart)
-       > tcpConnection->timeout * UA_DATETIME_MSEC ) {
+       > (UA_Double) tcpConnection->timeout * UA_DATETIME_MSEC ) {
         UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK, "Timed out");
         ClientNetworkLayerTCP_close(connection);
         return UA_STATUSCODE_BADDISCONNECT;
@@ -830,6 +832,10 @@ UA_ClientConnectionTCP_init(UA_ConnectionConfig config, const UA_String endpoint
 
     TCPClientConnection *tcpClientConnection = (TCPClientConnection*)
         UA_malloc(sizeof(TCPClientConnection));
+    if(!tcpClientConnection) {
+        connection.state = UA_CONNECTIONSTATE_CLOSED;
+        return connection;
+    }
     memset(tcpClientConnection, 0, sizeof(TCPClientConnection));
     connection.handle = (void*) tcpClientConnection;
     tcpClientConnection->timeout = timeout;

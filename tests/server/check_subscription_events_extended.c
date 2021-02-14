@@ -709,11 +709,14 @@ START_TEST(initialWhereClauseValidation) {
         UA_ContentFilter contentFilter;
         UA_ContentFilter_init(&contentFilter);
 
+
         /* Empty Filter */
         UA_LOCK(server->serviceMutex);
         contentFilterResult = UA_Server_initialWhereClauseValidation(server, &eventNodeId, &contentFilter);
         UA_UNLOCK(server->serviceMutex);
         ck_assert_uint_eq(contentFilterResult->elementResults->statusCode, UA_STATUSCODE_GOOD);
+
+
 
         UA_ContentFilterElement contentFilterElement;
         UA_ContentFilterElement_init(&contentFilterElement);
@@ -741,6 +744,10 @@ START_TEST(initialWhereClauseValidation) {
         contentFilterResult = UA_Server_initialWhereClauseValidation(server, &eventNodeId, &contentFilter);
         UA_UNLOCK(server->serviceMutex);
         ck_assert_uint_eq(contentFilterResult->elementResults[0].statusCode, UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH);
+
+
+
+
         /* Illegal filter operands size */
         contentFilterElement.filterOperandsSize = 1;
         UA_LOCK(server->serviceMutex);
@@ -753,23 +760,27 @@ START_TEST(initialWhereClauseValidation) {
         contentFilterElement.filterOperandsSize = 2;
         contentFilterElement.filterOperands = (UA_ExtensionObject*)
             UA_Array_new(contentFilterElement.filterOperandsSize, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
-
         contentFilterElement.filterOperands[0].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
         contentFilterElement.filterOperands[1].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
+
+
         UA_LOCK(server->serviceMutex);
         contentFilterResult = UA_Server_initialWhereClauseValidation(server, &eventNodeId, &contentFilter);
         UA_UNLOCK(server->serviceMutex);
         ck_assert_uint_eq(contentFilterResult->elementResults[0].statusCode, UA_STATUSCODE_BADFILTEROPERANDINVALID);
 
+
+
+
         contentFilterElement.filterOperands[0].content.decoded.type = &UA_TYPES[UA_TYPES_ELEMENTOPERAND];
         contentFilterElement.filterOperands[1].content.decoded.type = &UA_TYPES[UA_TYPES_ELEMENTOPERAND];
+
 
         /* Illegal filter operands INDEXRANGE */
         UA_ElementOperand *elementOperand;
         elementOperand = UA_ElementOperand_new();
         UA_ElementOperand_init(elementOperand);
         elementOperand->index = 1;
-
         UA_ElementOperand *secondElementOperand;
         secondElementOperand = UA_ElementOperand_new();
         UA_ElementOperand_init(secondElementOperand);
@@ -777,7 +788,6 @@ START_TEST(initialWhereClauseValidation) {
 
         contentFilterElement.filterOperands[0].content.decoded.data = elementOperand;
         contentFilterElement.filterOperands[1].content.decoded.data = secondElementOperand;
-
         UA_LOCK(server->serviceMutex);
         contentFilterResult = UA_Server_initialWhereClauseValidation(server, &eventNodeId, &contentFilter);
         UA_UNLOCK(server->serviceMutex);
@@ -819,19 +829,16 @@ START_TEST(initialWhereClauseValidation) {
         /* Illegal filter operands attributeId */
         contentFilterElement.filterOperands[0].content.decoded.type = &UA_TYPES[UA_TYPES_ATTRIBUTEOPERAND];
         contentFilterElement.filterOperands[0].encoding = UA_EXTENSIONOBJECT_DECODED;
-
         UA_AttributeOperand *pOperand;
         pOperand = UA_AttributeOperand_new();
         UA_AttributeOperand_init(pOperand);
-
-
         pOperand->attributeId = UA_NODEIDTYPE_NUMERIC;
+
         UA_NodeId *baseEventTypeId;
         baseEventTypeId = UA_NodeId_new();
         UA_NodeId_init(baseEventTypeId);
         *baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);  // filtern nach BaseEventType
         pOperand->nodeId = *baseEventTypeId;
-
         contentFilterElement.filterOperands[0].content.decoded.data = pOperand;
 
         UA_LOCK(server->serviceMutex);
@@ -842,7 +849,6 @@ START_TEST(initialWhereClauseValidation) {
 
 
         /* Illegal filter operands EventTypeId */
-
         pOperand->attributeId = UA_ATTRIBUTEID_VALUE;
         *baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NODEIDTYPE_NUMERIC);
         pOperand->nodeId = *baseEventTypeId;
@@ -852,6 +858,7 @@ START_TEST(initialWhereClauseValidation) {
         contentFilterResult = UA_Server_initialWhereClauseValidation(server, &eventNodeId, &contentFilter);
         UA_UNLOCK(server->serviceMutex);
         ck_assert_uint_eq(contentFilterResult->elementResults[0].statusCode, UA_STATUSCODE_BADNODEIDINVALID);
+
 
 
         /* Filter operands EventTypeId is a subtype of BaseEventType */
