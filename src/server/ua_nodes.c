@@ -587,10 +587,12 @@ UA_StatusCode
 UA_Node_addReference(UA_Node *node, UA_Byte refTypeIndex, UA_Boolean isForward,
                      const UA_ExpandedNodeId *targetNodeId,
                      UA_UInt32 targetBrowseNameHash) {
-    /* Find the matching refkind */
+    /* Find the matching reference kind */
     for(size_t i = 0; i < node->head.referencesSize; ++i) {
         UA_NodeReferenceKind *refs = &node->head.references[i];
-        if(refs->isInverse && isForward)
+
+        /* Reference direction does not match */
+        if(refs->isInverse == isForward)
             continue;
 
         /* Reference type does not match */
