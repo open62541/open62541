@@ -522,7 +522,7 @@ static const UA_NodeId isInFolderReferences[2] =
 #ifdef UA_ENABLE_PUBSUB_EVENTS
 // TODO: decide where the method insertVariant should be
 // TODO: insertVariantToDSWQueue makes some problems
-static UA_StatusCode insertVariantToDSWQueue(UA_Server *server, UA_DataSetWriter *dsw, UA_Variant *var)  {
+static UA_StatusCode insertVariantToDSWQueue(UA_Server *server, UA_DataSetWriter *dsw, UA_DataValue *var)  {
     if(dsw == NULL){
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                  "The given DataSetWriter is NULL");
@@ -536,7 +536,7 @@ static UA_StatusCode insertVariantToDSWQueue(UA_Server *server, UA_DataSetWriter
 
     //event_queue_entry ist ein neu erstelltes struct, einfach ein wrapper für Variant, da wir die Queue-Funktionalität der Makros brauchen
     EventQueueEntry *entry = (EventQueueEntry *)malloc(sizeof(EventQueueEntry));
-    entry->variant = *var;
+    entry->value = *var;
 
     SIMPLEQ_INSERT_TAIL(&dsw->eventQueue, entry, listEntry);
     dsw->eventQueueEntries++;
@@ -583,6 +583,7 @@ static UA_StatusCode addEventToDataSetWriter(UA_Server *server, UA_NodeId eventN
                     UA_Variant *v = UA_Variant_new();
                     UA_Variant_init(v);
 
+
                     //Die Erstellung des "Message" Feldes dient hier nur zur Test-/Verständniszwecken, die Selektion der Felder wäre ja Aufgabe des DataSetFields
                     UA_SimpleAttributeOperand selectedField = *UA_SimpleAttributeOperand_new();
                     UA_SimpleAttributeOperand_init(&selectedField);
@@ -603,7 +604,13 @@ static UA_StatusCode addEventToDataSetWriter(UA_Server *server, UA_NodeId eventN
                                      "SimpleAttributeOperand wasn't able to be resolved as a Variant.");
                         return UA_STATUSCODE_BAD; // TODO: replace this with better one
                     };
-                    return insertVariantToDSWQueue(server, tmpDataSetWriter, v);
+
+                    UA_DataValue *dataValue = UA_DataValue_new();
+                    UA_DataValue_init(dataValue);
+                    dataValue->value = *v;
+                    dataValue->serverTimestamp = UA_DateTime_now();
+
+                    return insertVariantToDSWQueue(server, tmpDataSetWriter, dataValue);
                 }
             }
         }
