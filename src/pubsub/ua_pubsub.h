@@ -106,7 +106,7 @@ typedef struct UA_DataSetWriterSample{
 #endif
 
 typedef struct EventQueueEntry {
-    UA_Variant variant;
+    UA_DataValue value;
     SIMPLEQ_ENTRY(EventQueueEntry) listEntry;
 } EventQueueEntry;
 
