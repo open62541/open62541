@@ -215,6 +215,13 @@ extern void * (*UA_reallocSingleton)(void *ptr, size_t size);
 # define UA_FUNC_ATTR_CONST __attribute__((const))
 # define UA_FUNC_ATTR_WARN_UNUSED_RESULT __attribute__((warn_unused_result))
 # define UA_FORMAT(X,Y) __attribute__ ((format (printf, X, Y)))
+#elif defined(_MSC_VER) && _MSC_VER >= 1800
+# include <sal.h>
+# define UA_FUNC_ATTR_MALLOC
+# define UA_FUNC_ATTR_PURE
+# define UA_FUNC_ATTR_CONST
+# define UA_FUNC_ATTR_WARN_UNUSED_RESULT _Check_return_
+# define UA_FORMAT(X,Y)
 #else
 # define UA_FUNC_ATTR_MALLOC
 # define UA_FUNC_ATTR_PURE
