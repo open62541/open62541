@@ -239,13 +239,15 @@ extern void * (*UA_reallocSingleton)(void *ptr, size_t size);
  * warnings are only triggered for internal code. */
 
 #if defined(UA_INTERNAL) && (defined(__GNUC__) || defined(__clang__))
-# define UA_INTERNAL_DEPRECATED _Pragma ("GCC warning \"Macro is deprecated for internal use\"")
+# define UA_INTERNAL_DEPRECATED \
+    _Pragma ("GCC warning \"Macro is deprecated for internal use\"")
 #else
 # define UA_INTERNAL_DEPRECATED
 #endif
 
 #if defined(UA_INTERNAL) && (defined(__GNUC__) || defined(__clang__))
-# define UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT __attribute__((warn_unused_result))
+# define UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT \
+    __attribute__((warn_unused_result))
 #else
 # define UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
 #endif
