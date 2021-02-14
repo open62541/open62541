@@ -207,6 +207,18 @@ extern void * (*UA_reallocSingleton)(void *ptr, size_t size);
 #endif
 
 /**
+ * Likely/Unlikely Conditions
+ * --------------------------
+ * Condition is likely/unlikely, to help branch prediction. */
+#if defined(__GNUC__) || defined(__clang__)
+# define UA_LIKELY(x) __builtin_expect((x), 1)
+# define UA_UNLIKELY(x) __builtin_expect((x), 0)
+#else
+# define UA_LIKELY(x) x
+# define UA_UNLIKELY(x) x
+#endif
+
+/**
  * Function attributes
  * ------------------- */
 #if defined(__GNUC__) || defined(__clang__)
