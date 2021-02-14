@@ -177,6 +177,13 @@ extern void * (*UA_reallocSingleton)(void *ptr, size_t size);
 # define UA_EXPORT /* fallback to default */
 #endif
 
+/**
+ * Threadsafe functions
+ * --------------------
+ * Functions that can be called from independent threads are marked with
+ * the UA_THREADSAFE macro. This is currently only an information for the
+ * developer. It can be used in the future for instrumentation and static
+ * code analysis. */
 #define UA_THREADSAFE
 
 /**
