@@ -146,11 +146,11 @@ UA_Server_addPublishedDataSet(UA_Server *server, const UA_PublishedDataSetConfig
                      "PublishedDataSet creation failed. No config passed in.");
         return result;
     }
-    /*if(publishedDataSetConfig->publishedDataSetType != UA_PUBSUB_DATASET_PUBLISHEDITEMS){
+    if(publishedDataSetConfig->publishedDataSetType != UA_PUBSUB_DATASET_PUBLISHEDITEMS){
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "PublishedDataSet creation failed. Unsupported PublishedDataSet type.");
         return result;
-    }*/
+    }
     //deep copy the given connection config
     UA_PublishedDataSetConfig tmpPublishedDataSetConfig;
     memset(&tmpPublishedDataSetConfig, 0, sizeof(UA_PublishedDataSetConfig));
@@ -234,6 +234,21 @@ UA_Server_addPublishedDataSet(UA_Server *server, const UA_PublishedDataSetConfig
     server->pubSubManager.publishedDataSetsSize++;
     result.configurationVersion.majorVersion = UA_PubSubConfigurationVersionTimeDifference();
     result.configurationVersion.minorVersion = UA_PubSubConfigurationVersionTimeDifference();
+#ifdef UA_ENABLE_PUBSUB_EVENTS
+    if(newPubSubDataSetField->config.publishedDataSetType == UA_PUBSUB_DATASET_PUBLISHEDEVENTS){
+        /*If nothing was added it needs to be initalized*/
+        if(server->pubSubManager.publishedDataSetEventsSize == 0){
+            LIST_INIT(&server->pubSubManager.publishedDataSetEvents);
+        }
+        /*Im PubSubManager hinzufügen, um später besser selektieren zu können*/
+        PublishedDataSetEventEntry *entry = (PublishedDataSetEventEntry *)
+            UA_malloc(sizeof(PublishedDataSetEventEntry));
+        entry->pds = newPubSubDataSetField;
+        entry->originNodeId = newPubSubDataSetField->config.config.event.eventNotfier;
+        LIST_INSERT_HEAD(&server->pubSubManager.publishedDataSetEvents, entry, listEntry);
+        server->pubSubManager.publishedDataSetEventsSize++;
+    }
+#endif
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     addPublishedDataItemsRepresentation(server, newPubSubDataSetField);
 #endif

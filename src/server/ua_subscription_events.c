@@ -763,7 +763,12 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
     }
 
 #ifdef UA_ENABLE_PUBSUB_EVENTS
-    addEventToDataSetWriter(server, eventNodeId, origin);
+    PublishedDataSetEventEntry *entry;
+    LIST_FOREACH(entry, &server->pubSubManager.publishedDataSetEvents, listEntry){
+        if(UA_NodeId_equal(&entry->originNodeId, &origin)){
+            addEventToDataSetWriter(server, eventNodeId, origin);
+        }
+    }
 #endif /*UA_ENABLE_PUBSUB_EVENTS*/
 
     /* Delete the node representation of the event */

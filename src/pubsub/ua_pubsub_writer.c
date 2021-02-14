@@ -1534,6 +1534,51 @@ UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_Server *server,
     if(!currentDataSet)
         return UA_STATUSCODE_BADNOTFOUND;
 
+#ifdef UA_ENABLE_PUSBUB_EVENTS
+    if(currentDataSet->config.publishedDataSetType == UA_PUBSUB_DATASET_PUBLISHEDEVENTS){
+        if(dataSetWriter->eventQueueEntries == 0) return UA_STATUSCODE_GOOD;
+        UA_UInt16 eventSize = (UA_UInt16)dataSetWriter->eventQueueEntries;
+        dataSetMessage->header.dataSetMessageValid = true;
+        dataSetMessage->header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
+        dataSetMessage->data.keyFrameData.fieldCount = eventSize;
+        dataSetMessage->data.keyFrameData.dataSetFields = (UA_DataValue *)
+            UA_Array_new(eventSize, &UA_TYPES[UA_TYPES_DATAVALUE]);
+        if(!dataSetMessage->data.keyFrameData.dataSetFields)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+
+        // Add every event to DataSetMessage
+        for(size_t i = 0; i < eventSize; i++){
+            // Extract First Item and Remove it
+            EventQueueEntry *eventQueueEntry = SIMPLEQ_FIRST(&dataSetWriter->eventQueue);
+            SIMPLEQ_REMOVE_HEAD(&dataSetWriter->eventQueue, listEntry);
+            dataSetWriter->eventQueueEntries--;
+
+            // Create DataValue for Message
+            UA_DataValue dataValue = eventQueueEntry->value;
+
+            if(((u64)dataSetWriter->config.dataSetFieldContentMask &
+                (u64)UA_DATASETFIELDCONTENTMASK_STATUSCODE) == 0)
+                dataValue.hasStatus = false;
+
+            /* Deactivate timestamps */
+            if(((u64)dataSetWriter->config.dataSetFieldContentMask &
+                (u64)UA_DATASETFIELDCONTENTMASK_SOURCETIMESTAMP) == 0)
+                dataValue.hasSourceTimestamp = false;
+            if(((u64)dataSetWriter->config.dataSetFieldContentMask &
+                (u64)UA_DATASETFIELDCONTENTMASK_SOURCEPICOSECONDS) == 0)
+                dataValue.hasSourcePicoseconds = false;
+            if(((u64)dataSetWriter->config.dataSetFieldContentMask &
+                (u64)UA_DATASETFIELDCONTENTMASK_SERVERTIMESTAMP) == 0)
+                dataValue.hasServerTimestamp = false;
+            if(((u64)dataSetWriter->config.dataSetFieldContentMask &
+                (u64)UA_DATASETFIELDCONTENTMASK_SERVERPICOSECONDS) == 0)
+                dataValue.hasServerPicoseconds = false;
+            dataSetMessage->data.keyFrameData.dataSetFields[i] = dataValue;
+        }
+        return UA_STATUSCODE_GOOD;
+    }
+#endif /*UA_ENABLE_PUBSUB_EVENTS*/
+
     /* Prepare DataSetMessageContent */
     dataSetMessage->header.dataSetMessageValid = true;
     dataSetMessage->header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
