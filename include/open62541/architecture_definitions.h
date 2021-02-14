@@ -150,6 +150,10 @@ extern void * (*UA_reallocSingleton)(void *ptr, size_t size);
 # define UA_STATIC_ASSERT(cond,msg) typedef char static_assertion_##msg[(cond)?1:-1]
 #endif
 
+/**
+ * Dynamic Linking
+ * ---------------
+ * Explicit attribute for functions to be exported in a shared library. */
 #if defined(_WIN32) && defined(UA_DYNAMIC_LINKING)
 # ifdef UA_DYNAMIC_LINKING_EXPORT /* export dll */
 #  ifdef __GNUC__
