@@ -9,6 +9,7 @@
 #include "ua_server_internal.h"
 #include "ua_subscription.h"
 
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 
 /* We use a 16-Byte ByteString as an identifier */
