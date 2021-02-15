@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2018 (c) Hilscher Gesellschaft für Systemautomation mbH (Author: Sameer AL-Qadasi)
+ *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
  */
 
 /*****************************************************************************/
@@ -255,14 +256,21 @@ getFieldParentNodeId(UA_Server *server, const UA_NodeId *field, UA_NodeId *paren
     UA_StatusCode retval = UA_STATUSCODE_BADNOTFOUND;
     for(size_t i = 0; i < fieldNode->head.referencesSize; i++) {
         UA_NodeReferenceKind *rk = &fieldNode->head.references[i];
-        if((rk->referenceTypeIndex == UA_REFERENCETYPEINDEX_HASPROPERTY ||
-           rk->referenceTypeIndex == UA_REFERENCETYPEINDEX_HASCOMPONENT) &&
-           true == rk->isInverse) {
-            /* Take the first hierarchical inverse reference */
-            retval = UA_NodeId_copy(&TAILQ_FIRST(&rk->queueHead)->targetId.nodeId, parent);
-            break;
+        if(rk->referenceTypeIndex != UA_REFERENCETYPEINDEX_HASPROPERTY &&
+           rk->referenceTypeIndex != UA_REFERENCETYPEINDEX_HASCOMPONENT)
+            continue;
+        if(!rk->isInverse)
+            continue;
+        /* Take the first hierarchical inverse reference */
+        for(UA_ReferenceTarget *target = UA_NodeReferenceKind_firstTarget(rk);
+            target; target = UA_NodeReferenceKind_nextTarget(rk, target)) {
+            if(!UA_ExpandedNodeId_isLocal(&target->targetId))
+                continue;
+            retval = UA_NodeId_copy(&target->targetId.nodeId, parent);
+            goto finish;
         }
     }
+ finish:
     UA_NODESTORE_RELEASE(server, (const UA_Node *)fieldNode);
     return retval;
 }
@@ -1584,7 +1592,8 @@ isConditionSourceInMonitoredItem(UA_Server *server, const UA_MonitoredItem *moni
     refs = UA_ReferenceTypeSet_union(refs, UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASCOMPONENT));
     refs = UA_ReferenceTypeSet_union(refs, UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASEVENTSOURCE));
     refs = UA_ReferenceTypeSet_union(refs, UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASNOTIFIER));
-    return isNodeInTree(server, conditionSource, &monitoredItem->monitoredNodeId, &refs);
+    return isNodeInTree(server, conditionSource,
+                        &monitoredItem->itemToMonitor.nodeId, &refs);
 }
 
 static UA_StatusCode
@@ -1611,8 +1620,8 @@ refreshLogic(UA_Server *server, const UA_NodeId *refreshStartNodId,
         /* Check if the conditionSource is being monitored. If the Server Object
          * is being monitored, then all Events of all monitoredItems should be
          * refreshed */
-        if(!UA_NodeId_equal(&monitoredItem->monitoredNodeId, &conditionSource) &&
-           !UA_NodeId_equal(&monitoredItem->monitoredNodeId, &serverObjectNodeId) &&
+        if(!UA_NodeId_equal(&monitoredItem->itemToMonitor.nodeId, &conditionSource) &&
+           !UA_NodeId_equal(&monitoredItem->itemToMonitor.nodeId, &serverObjectNodeId) &&
            !isConditionSourceInMonitoredItem(server, monitoredItem, &conditionSource))
             continue;
 

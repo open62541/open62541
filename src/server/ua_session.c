@@ -25,14 +25,14 @@ void UA_Session_init(UA_Session *session) {
 }
 
 void UA_Session_clear(UA_Session *session, UA_Server* server) {
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* Remove all Subscriptions. This may send out remaining publish
      * responses. */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_Subscription *sub, *tempsub;
     TAILQ_FOREACH_SAFE(sub, &session->subscriptions, sessionListEntry, tempsub) {
-        UA_Server_deleteSubscription(server, sub);
+        UA_Subscription_delete(server, sub);
     }
 #endif
 
@@ -106,21 +106,22 @@ UA_Session_attachSubscription(UA_Session *session, UA_Subscription *sub) {
     TAILQ_INSERT_TAIL(&session->subscriptions, sub, sessionListEntry);
 
     /* Increase the count */
-    session->numSubscriptions++;
+    session->subscriptionsSize++;
 
     /* Increase the number of outstanding retransmissions */
     session->totalRetransmissionQueueSize += sub->retransmissionQueueSize;
 }
 
 void
-UA_Session_detachSubscription(UA_Server *server, UA_Session *session, UA_Subscription *sub) {
+UA_Session_detachSubscription(UA_Server *server, UA_Session *session,
+                              UA_Subscription *sub) {
     /* Detach from the session */
     sub->session = NULL;
     TAILQ_REMOVE(&session->subscriptions, sub, sessionListEntry);
 
     /* Reduce the count */
-    UA_assert(session->numSubscriptions > 0);
-    session->numSubscriptions--;
+    UA_assert(session->subscriptionsSize > 0);
+    session->subscriptionsSize--;
 
     /* Reduce the number of outstanding retransmissions */
     session->totalRetransmissionQueueSize -= sub->retransmissionQueueSize;
@@ -138,46 +139,6 @@ UA_Session_detachSubscription(UA_Server *server, UA_Session *session, UA_Subscri
         UA_PublishResponse_clear(response);
         UA_free(pre);
     }
-}
-
-void
-UA_Server_addSubscription(UA_Server *server, UA_Subscription *sub) {
-    /* Assign the id */
-    sub->subscriptionId = ++server->lastSubscriptionId;
-
-    /* Add to the server */
-    LIST_INSERT_HEAD(&server->subscriptions, sub, serverListEntry);
-    server->numSubscriptions++;
-}
-
-void
-UA_Server_deleteSubscription(UA_Server *server, UA_Subscription *sub) {
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
-
-    UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, sub, "Subscription deleted");
-
-    /* Detach from the session if necessary */
-    if(sub->session)
-        UA_Session_detachSubscription(server, sub->session, sub);
-
-    /* Remove from the server */
-    LIST_REMOVE(sub, serverListEntry);
-    UA_assert(server->numSubscriptions > 0);
-    server->numSubscriptions--;
-
-    /* Clean up */
-    UA_Subscription_clear(server, sub);
-
-    /* Add a delayed callback to remove the Subscription when the current jobs
-     * have completed. Pointers to the subscription may still exist upwards in
-     * the call stack. */
-    sub->delayedFreePointers.callback = NULL;
-    sub->delayedFreePointers.application = server;
-    sub->delayedFreePointers.data = NULL;
-    sub->delayedFreePointers.nextTime = UA_DateTime_nowMonotonic() + 1;
-    sub->delayedFreePointers.interval = 0; /* Remove the structure */
-    UA_Timer_addTimerEntry(&server->timer, &sub->delayedFreePointers, NULL);
-
 }
 
 UA_Subscription *

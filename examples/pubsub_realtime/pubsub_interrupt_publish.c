@@ -255,7 +255,7 @@ changePubSubApplicationCallbackInterval(UA_Server *server, UA_NodeId identifier,
 }
 
 static void
-removePubSubApplicationCallback(UA_Server *server, UA_UInt64 callbackId) {
+removePubSubApplicationCallback(UA_Server *server, UA_NodeId identifier, UA_UInt64 callbackId) {
     if(!pubCallback)
         return;
     timer_delete(pubEventTimer);
