@@ -147,10 +147,10 @@ removeSubscription(void) {
 
     UA_DeleteSubscriptionsResponse deleteSubscriptionsResponse;
     UA_DeleteSubscriptionsResponse_init(&deleteSubscriptionsResponse);
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
     Service_DeleteSubscriptions(server, &server->adminSession, &deleteSubscriptionsRequest,
                                 &deleteSubscriptionsResponse);
-    UA_UNLOCK(server->serviceMutex);
+    UA_UNLOCK(&server->serviceMutex);
     UA_DeleteSubscriptionsResponse_clear(&deleteSubscriptionsResponse);
 }
 
@@ -530,7 +530,7 @@ handler_events_overflow(UA_Client *lclient, UA_UInt32 subId, void *subContext,
     if(nEventFields == 1) {
         /* overflow was received */
         ck_assert(eventFields->type == &UA_TYPES[UA_TYPES_NODEID]);
-        UA_NodeId comp = UA_NODEID_NUMERIC(0, UA_NS0ID_SIMPLEOVERFLOWEVENTTYPE);
+        UA_NodeId comp = UA_NODEID_NUMERIC(0, UA_NS0ID_EVENTQUEUEOVERFLOWEVENTTYPE);
         ck_assert((UA_NodeId_equal((UA_NodeId *) eventFields->data, &comp)));
         overflowNotificationReceived = UA_TRUE;
     } else if(nEventFields == 4) {

@@ -801,6 +801,11 @@ UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event,
     if(!notification)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
+    if(mon->parameters.filter.content.decoded.type != &UA_TYPES[UA_TYPES_EVENTFILTER])
+        return UA_STATUSCODE_BADFILTERNOTALLOWED;
+    UA_EventFilter *eventFilter = (UA_EventFilter*)
+        mon->parameters.filter.content.decoded.data;
+
     UA_Subscription *sub = mon->subscription;
     UA_Session *session = sub->session;
     UA_StatusCode retval = UA_Server_filterEvent(server, session, event,
