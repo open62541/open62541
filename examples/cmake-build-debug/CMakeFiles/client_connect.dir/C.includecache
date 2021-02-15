@@ -1,0 +1,26 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/ammar/open62541/examples/client_connect.c
+open62541/client_config_default.h
+-
+open62541/client_highlevel.h
+-
+open62541/client_subscriptions.h
+-
+open62541/plugin/log_stdout.h
+-
+common.h
+/home/ammar/open62541/examples/common.h
+
+/home/ammar/open62541/examples/common.h
+open62541/types.h
+-
+open62541/types_generated_handling.h
+-
+

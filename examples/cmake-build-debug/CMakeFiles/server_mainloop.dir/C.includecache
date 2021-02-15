@@ -1,0 +1,20 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/ammar/open62541/examples/server_mainloop.c
+open62541/plugin/log_stdout.h
+-
+open62541/server.h
+-
+open62541/server_config_default.h
+-
+signal.h
+-
+stdlib.h
+-
+

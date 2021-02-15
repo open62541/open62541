@@ -1,0 +1,1 @@
+/usr/bin/cc -g   CMakeFiles/tutorial_datatypes.dir/tutorial_datatypes.c.o  -o bin/examples/tutorial_datatypes  /usr/lib/x86_64-linux-gnu/libopen62541.so.1.1.5 -lm -lpthread -lrt 

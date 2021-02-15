@@ -1,0 +1,1379 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CodeBlocks_project_file>
+	<FileVersion major="1" minor="6"/>
+	<Project>
+		<Option title="open62541-examples"/>
+		<Option makefile_is_custom="1"/>
+		<Option compiler="gcc"/>
+		<Option virtualFolders="CMake Files\;CMake Files\..\;CMake Files\..\..\;CMake Files\..\..\..\;CMake Files\..\..\..\..\;CMake Files\..\..\..\..\usr\;CMake Files\..\..\..\..\usr\lib\;CMake Files\..\..\..\..\usr\lib\x86_64-linux-gnu\;CMake Files\..\..\..\..\usr\lib\x86_64-linux-gnu\cmake\;CMake Files\..\..\..\..\usr\lib\x86_64-linux-gnu\cmake\open62541\;CMake Files\nodeset\;"/>
+		<Build>
+			<Target title="all">
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 all"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="install/strip">
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 install/strip"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="install/local">
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 install/local"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="install">
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 install"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="edit_cache">
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 edit_cache"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="server_ctt">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/server_ctt" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 server_ctt"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="server_ctt/fast">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/server_ctt" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 server_ctt/fast"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="server_mainloop">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/server_mainloop" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 server_mainloop"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="server_mainloop/fast">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/server_mainloop" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 server_mainloop/fast"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="client_connectivitycheck_loop">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/client_connectivitycheck_loop" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 client_connectivitycheck_loop"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="client_connectivitycheck_loop/fast">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/client_connectivitycheck_loop" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 client_connectivitycheck_loop/fast"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="tutorial_datatypes">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/tutorial_datatypes" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 tutorial_datatypes"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="tutorial_datatypes/fast">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/tutorial_datatypes" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 tutorial_datatypes/fast"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="tutorial_server_datasource">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/tutorial_server_datasource" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 tutorial_server_datasource"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="tutorial_server_datasource/fast">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/tutorial_server_datasource" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 tutorial_server_datasource/fast"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="client_connect">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/client_connect" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 client_connect"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="client_connect/fast">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/client_connect" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 client_connect/fast"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="client_connect_loop">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/client_connect_loop" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 client_connect_loop"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="client_connect_loop/fast">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/client_connect_loop" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 client_connect_loop/fast"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="custom_datatype_server">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/custom_datatype_server" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 custom_datatype_server"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="custom_datatype_server/fast">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/custom_datatype_server" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 custom_datatype_server/fast"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="tutorial_server_variabletype">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/tutorial_server_variabletype" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 tutorial_server_variabletype"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="tutorial_server_variabletype/fast">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/tutorial_server_variabletype" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 tutorial_server_variabletype/fast"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="tutorial_client_firststeps">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/tutorial_client_firststeps" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 tutorial_client_firststeps"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="tutorial_client_firststeps/fast">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/tutorial_client_firststeps" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 tutorial_client_firststeps/fast"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="list_install_components">
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 list_install_components"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="server_inheritance">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/server_inheritance" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 server_inheritance"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="server_inheritance/fast">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/server_inheritance" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 server_inheritance/fast"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="tutorial_client_events">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/tutorial_client_events" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 tutorial_client_events"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="tutorial_client_events/fast">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/tutorial_client_events" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 tutorial_client_events/fast"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="tutorial_server_object">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/tutorial_server_object" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 tutorial_server_object"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="tutorial_server_object/fast">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/tutorial_server_object" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 tutorial_server_object/fast"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="tutorial_server_firststeps">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/tutorial_server_firststeps" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 tutorial_server_firststeps"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="tutorial_server_firststeps/fast">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/tutorial_server_firststeps" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 tutorial_server_firststeps/fast"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="tutorial_server_variable">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/tutorial_server_variable" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 tutorial_server_variable"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="tutorial_server_variable/fast">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/tutorial_server_variable" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 tutorial_server_variable/fast"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="rebuild_cache">
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 rebuild_cache"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="client">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/client" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 client"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="client/fast">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/client" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 client/fast"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="server_repeated_job">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/server_repeated_job" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 server_repeated_job"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="server_repeated_job/fast">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/server_repeated_job" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 server_repeated_job/fast"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="server_settimestamp">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/server_settimestamp" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 server_settimestamp"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="server_settimestamp/fast">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/server_settimestamp" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 server_settimestamp/fast"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="client_async">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/client_async" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 client_async"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="client_async/fast">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/client_async" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 client_async/fast"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="server_instantiation">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/server_instantiation" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 server_instantiation"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="server_instantiation/fast">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/server_instantiation" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 server_instantiation/fast"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="server_loglevel">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/server_loglevel" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 server_loglevel"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="server_loglevel/fast">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/server_loglevel" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 server_loglevel/fast"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="custom_datatype_client">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/custom_datatype_client" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 custom_datatype_client"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="custom_datatype_client/fast">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/custom_datatype_client" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 custom_datatype_client/fast"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="open62541-generator-ns-example">
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/nodeset"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/nodeset/Makefile&quot;  VERBOSE=1 open62541-generator-ns-example"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/nodeset/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/nodeset/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/nodeset/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="open62541-generator-ids_example">
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/nodeset"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/nodeset/Makefile&quot;  VERBOSE=1 open62541-generator-ids_example"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/nodeset/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/nodeset/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/nodeset/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="server_nodeset">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/server_nodeset" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/nodeset/Makefile&quot;  VERBOSE=1 server_nodeset"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/nodeset/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/nodeset/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/nodeset/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="server_nodeset/fast">
+				<Option output="/home/ammar/open62541/examples/cmake-build-debug/bin/examples/server_nodeset" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/ammar/open62541/examples/cmake-build-debug/bin/examples"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add option="-DUA_ARCHITECTURE_POSIX"/>
+					<Add directory="/home/ammar/open62541/examples/cmake-build-debug/src_generated"/>
+					<Add directory="/home/ammar/open62541/examples"/>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/nodeset/Makefile&quot;  VERBOSE=1 server_nodeset/fast"/>
+					<CompileFile command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/nodeset/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/nodeset/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j8 -f &quot;/home/ammar/open62541/examples/cmake-build-debug/nodeset/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+		</Build>
+		<Unit filename="/home/ammar/open62541/examples/client.c">
+			<Option target="client"/>
+		</Unit>
+		<Unit filename="/home/ammar/open62541/examples/client_async.c">
+			<Option target="client_async"/>
+		</Unit>
+		<Unit filename="/home/ammar/open62541/examples/client_connect.c">
+			<Option target="client_connect"/>
+		</Unit>
+		<Unit filename="/home/ammar/open62541/examples/client_connect_loop.c">
+			<Option target="client_connect_loop"/>
+		</Unit>
+		<Unit filename="/home/ammar/open62541/examples/client_connectivitycheck_loop.c">
+			<Option target="client_connectivitycheck_loop"/>
+		</Unit>
+		<Unit filename="/home/ammar/open62541/examples/cmake-build-debug/src_generated/open62541/example_nodeids.h">
+			<Option target="server_nodeset"/>
+		</Unit>
+		<Unit filename="/home/ammar/open62541/examples/cmake-build-debug/src_generated/open62541/example_nodeids.h.rule">
+			<Option target="server_nodeset"/>
+		</Unit>
+		<Unit filename="/home/ammar/open62541/examples/cmake-build-debug/src_generated/open62541/namespace_example_generated.c">
+			<Option target="server_nodeset"/>
+		</Unit>
+		<Unit filename="/home/ammar/open62541/examples/cmake-build-debug/src_generated/open62541/namespace_example_generated.c.rule">
+			<Option target="server_nodeset"/>
+		</Unit>
+		<Unit filename="/home/ammar/open62541/examples/common.h">
+			<Option target="server_ctt"/>
+			<Option target="server_mainloop"/>
+			<Option target="client_connectivitycheck_loop"/>
+			<Option target="tutorial_datatypes"/>
+			<Option target="tutorial_server_datasource"/>
+			<Option target="client_connect"/>
+			<Option target="client_connect_loop"/>
+			<Option target="custom_datatype_server"/>
+			<Option target="tutorial_server_variabletype"/>
+			<Option target="tutorial_client_firststeps"/>
+			<Option target="server_inheritance"/>
+			<Option target="tutorial_client_events"/>
+			<Option target="tutorial_server_object"/>
+			<Option target="tutorial_server_firststeps"/>
+			<Option target="tutorial_server_variable"/>
+			<Option target="client"/>
+			<Option target="server_repeated_job"/>
+			<Option target="server_settimestamp"/>
+			<Option target="client_async"/>
+			<Option target="server_instantiation"/>
+			<Option target="server_loglevel"/>
+			<Option target="custom_datatype_client"/>
+			<Option target="server_nodeset"/>
+		</Unit>
+		<Unit filename="/home/ammar/open62541/examples/custom_datatype/client_types_custom.c">
+			<Option target="custom_datatype_client"/>
+		</Unit>
+		<Unit filename="/home/ammar/open62541/examples/custom_datatype/server_types_custom.c">
+			<Option target="custom_datatype_server"/>
+		</Unit>
+		<Unit filename="/home/ammar/open62541/examples/nodeset/server_nodeset.c">
+			<Option target="server_nodeset"/>
+		</Unit>
+		<Unit filename="/home/ammar/open62541/examples/server_ctt.c">
+			<Option target="server_ctt"/>
+		</Unit>
+		<Unit filename="/home/ammar/open62541/examples/server_inheritance.c">
+			<Option target="server_inheritance"/>
+		</Unit>
+		<Unit filename="/home/ammar/open62541/examples/server_instantiation.c">
+			<Option target="server_instantiation"/>
+		</Unit>
+		<Unit filename="/home/ammar/open62541/examples/server_loglevel.c">
+			<Option target="server_loglevel"/>
+		</Unit>
+		<Unit filename="/home/ammar/open62541/examples/server_mainloop.c">
+			<Option target="server_mainloop"/>
+		</Unit>
+		<Unit filename="/home/ammar/open62541/examples/server_repeated_job.c">
+			<Option target="server_repeated_job"/>
+		</Unit>
+		<Unit filename="/home/ammar/open62541/examples/server_settimestamp.c">
+			<Option target="server_settimestamp"/>
+		</Unit>
+		<Unit filename="/home/ammar/open62541/examples/tutorial_client_events.c">
+			<Option target="tutorial_client_events"/>
+		</Unit>
+		<Unit filename="/home/ammar/open62541/examples/tutorial_client_firststeps.c">
+			<Option target="tutorial_client_firststeps"/>
+		</Unit>
+		<Unit filename="/home/ammar/open62541/examples/tutorial_datatypes.c">
+			<Option target="tutorial_datatypes"/>
+		</Unit>
+		<Unit filename="/home/ammar/open62541/examples/tutorial_server_datasource.c">
+			<Option target="tutorial_server_datasource"/>
+		</Unit>
+		<Unit filename="/home/ammar/open62541/examples/tutorial_server_firststeps.c">
+			<Option target="tutorial_server_firststeps"/>
+		</Unit>
+		<Unit filename="/home/ammar/open62541/examples/tutorial_server_object.c">
+			<Option target="tutorial_server_object"/>
+		</Unit>
+		<Unit filename="/home/ammar/open62541/examples/tutorial_server_variable.c">
+			<Option target="tutorial_server_variable"/>
+		</Unit>
+		<Unit filename="/home/ammar/open62541/examples/tutorial_server_variabletype.c">
+			<Option target="tutorial_server_variabletype"/>
+		</Unit>
+		<Unit filename="/home/ammar/open62541/examples/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\"/>
+		</Unit>
+		<Unit filename="/home/ammar/open62541/examples/../../../../usr/lib/x86_64-linux-gnu/cmake/open62541/open62541Config.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\usr\lib\x86_64-linux-gnu\cmake\open62541\"/>
+		</Unit>
+		<Unit filename="/home/ammar/open62541/examples/../../../../usr/lib/x86_64-linux-gnu/cmake/open62541/open62541ConfigVersion.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\usr\lib\x86_64-linux-gnu\cmake\open62541\"/>
+		</Unit>
+		<Unit filename="/home/ammar/open62541/examples/../../../../usr/lib/x86_64-linux-gnu/cmake/open62541/open62541Macros.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\usr\lib\x86_64-linux-gnu\cmake\open62541\"/>
+		</Unit>
+		<Unit filename="/home/ammar/open62541/examples/../../../../usr/lib/x86_64-linux-gnu/cmake/open62541/open62541Targets-relwithdebinfo.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\usr\lib\x86_64-linux-gnu\cmake\open62541\"/>
+		</Unit>
+		<Unit filename="/home/ammar/open62541/examples/../../../../usr/lib/x86_64-linux-gnu/cmake/open62541/open62541Targets.cmake">
+			<Option virtualFolder="CMake Files\..\..\..\..\usr\lib\x86_64-linux-gnu\cmake\open62541\"/>
+		</Unit>
+		<Unit filename="/home/ammar/open62541/examples/nodeset/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\nodeset\"/>
+		</Unit>
+	</Project>
+</CodeBlocks_project_file>

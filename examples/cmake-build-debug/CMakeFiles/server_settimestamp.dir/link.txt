@@ -1,0 +1,1 @@
+/usr/bin/cc -g   CMakeFiles/server_settimestamp.dir/server_settimestamp.c.o  -o bin/examples/server_settimestamp  /usr/lib/x86_64-linux-gnu/libopen62541.so.1.1.5 -lm -lpthread -lrt 

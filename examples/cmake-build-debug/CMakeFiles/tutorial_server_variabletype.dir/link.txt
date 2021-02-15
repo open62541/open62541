@@ -1,0 +1,1 @@
+/usr/bin/cc -g   CMakeFiles/tutorial_server_variabletype.dir/tutorial_server_variabletype.c.o  -o bin/examples/tutorial_server_variabletype  /usr/lib/x86_64-linux-gnu/libopen62541.so.1.1.5 -lm -lpthread -lrt 
