@@ -34,7 +34,7 @@ addMinimalPubSubConfiguration(UA_Server * server){
     connectionConfig.enabled = UA_TRUE;
     UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL , UA_STRING("opc.udp://224.0.0.22:4840/")};
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherId.numeric = UA_UInt32_random();
+    connectionConfig.publisherId.numeric = 2234;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdentifier);
     /* Add one PublishedDataSet */
     UA_PublishedDataSetConfig publishedDataSetConfig;
@@ -157,6 +157,8 @@ int main(void){
     dataSetWriterConfig.name = UA_STRING("Demo DataSetWriter");
     dataSetWriterConfig.dataSetWriterId = 62541;
     dataSetWriterConfig.keyFrameCount = 10;
+    /* Encode fields as RAW-Encoded */
+    dataSetWriterConfig.dataSetFieldContentMask = UA_DATASETFIELDCONTENTMASK_RAWDATA;
     UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent, &dataSetWriterConfig, &dataSetWriterIdent);
 
     /* add new node to the information model with external data source backend*/
@@ -179,6 +181,7 @@ int main(void){
     memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));
     dsfConfig.field.variable.rtValueSource.rtInformationModelNode = UA_TRUE;
     dsfConfig.field.variable.publishParameters.publishedVariable = rtNodeId1;
+    dsfConfig.field.variable.fieldNameAlias = UA_STRING("Field 1");
     UA_NodeId dsfNodeId;
     UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dsfNodeId);
 
@@ -203,6 +206,7 @@ int main(void){
     memset(&dsfConfig2, 0, sizeof(UA_DataSetFieldConfig));
     dsfConfig2.field.variable.rtValueSource.rtInformationModelNode = UA_TRUE;
     dsfConfig2.field.variable.publishParameters.publishedVariable = rtNodeId2;
+    dsfConfig2.field.variable.fieldNameAlias = UA_STRING("Field 2");
     UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig2, NULL);
 
     /* Freeze the PubSub configuration (and start implicitly the publish callback) */
