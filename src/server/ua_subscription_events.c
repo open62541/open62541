@@ -213,6 +213,7 @@ resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session, const UA_N
     return v.status;
 }
 
+
 UA_ContentFilterResult*
 UA_Server_initialWhereClauseValidation(UA_Server *server,
                                        const UA_NodeId *eventNode,
@@ -572,7 +573,6 @@ UA_Server_initialSelectClauseValidation(UA_Server *server,
     return selectClauseCodes;
 }
 
-
 UA_StatusCode
 UA_Server_evaluateWhereClauseContentFilter(UA_Server *server,
                                            const UA_NodeId *eventNode,
@@ -615,7 +615,7 @@ UA_Server_evaluateWhereClauseContentFilter(UA_Server *server,
             if(pElement->filterOperandsSize != 1)
                 return UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
             if(pElement->filterOperands[0].content.decoded.type !=
-                &UA_TYPES[UA_TYPES_LITERALOPERAND])
+               &UA_TYPES[UA_TYPES_LITERALOPERAND])
                 return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
 
             UA_LiteralOperand *pOperand =
@@ -659,9 +659,9 @@ UA_Server_evaluateWhereClauseContentFilter(UA_Server *server,
                 return UA_STATUSCODE_BADNOMATCH;
         }
             break;
-    default:
-        return UA_STATUSCODE_BADFILTEROPERATORINVALID;
-        break;
+        default:
+            return UA_STATUSCODE_BADFILTEROPERATORINVALID;
+            break;
     }
 }
 
@@ -678,9 +678,6 @@ UA_Server_filterEvent(UA_Server *server, UA_Session *session,
         UA_Server_evaluateWhereClauseContentFilter(server, eventNode, &filter->whereClause);
     if(res != UA_STATUSCODE_GOOD)
         return res;
-
-    UA_Server_initialWhereClauseValidation(server, eventNode, &filter->whereClause);
-    UA_Server_initialSelectClauseValidation(server, filter);
 
     UA_EventFieldList_init(efl);
     efl->eventFields = (UA_Variant *)
@@ -889,9 +886,9 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
     UA_LOCK(&server->serviceMutex);
 
     UA_LOG_NODEID_DEBUG(&origin,
-        UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
-            "Events: An event is triggered on node %.*s",
-            (int)nodeIdStr.length, nodeIdStr.data));
+                        UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                                     "Events: An event is triggered on node %.*s",
+                                     (int)nodeIdStr.length, nodeIdStr.data));
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
     UA_Boolean isCallerAC = false;
@@ -1035,7 +1032,7 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
         }
     }
 
- cleanup:
+    cleanup:
     UA_Array_delete(emitNodes, emitNodesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
     UA_UNLOCK(&server->serviceMutex);
     return retval;
