@@ -217,8 +217,25 @@ checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
         params->samplingInterval = server->config.samplingIntervalLimits.min;
 
     /* Adjust the maximum queue size */
-    UA_BOUNDEDVALUE_SETWBOUNDS(server->config.queueSizeLimits,
-                               params->queueSize, params->queueSize);
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    if(mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) {
+        /* 0 => Set to the configured maximum. Otherwise adjust with configured limits */
+        if(params->queueSize == 0) {
+            params->queueSize = server->config.queueSizeLimits.max;
+        } else {
+            UA_BOUNDEDVALUE_SETWBOUNDS(server->config.queueSizeLimits,
+                                       params->queueSize, params->queueSize);
+        }
+    } else
+#endif
+    {
+        /* 0 or 1 => queue-size 1. Otherwise adjust with configured limits */
+        if(params->queueSize == 0)
+            params->queueSize = 1;
+        if(params->queueSize != 1)
+            UA_BOUNDEDVALUE_SETWBOUNDS(server->config.queueSizeLimits,
+                                       params->queueSize, params->queueSize);
+    }
 
     return UA_STATUSCODE_GOOD;
 }
