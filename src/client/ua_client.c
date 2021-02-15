@@ -123,9 +123,9 @@ UA_Client_getConfig(UA_Client *client) {
 }
 
 #if UA_LOGLEVEL <= 300
-static const char *channelStateTexts[8] = {
-    "Closed", "HELSent", "HELReceived", "ACKSent",
-    "AckReceived", "OPNSent", "Open", "Closing"};
+static const char *channelStateTexts[9] = {
+    "Fresh", "HELSent", "HELReceived", "ACKSent",
+    "AckReceived", "OPNSent", "Open", "Closing", "Closed"};
 static const char *sessionStateTexts[6] =
     {"Closed", "CreateRequested", "Created",
      "ActivateRequested", "Activated", "Closing"};
