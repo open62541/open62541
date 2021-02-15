@@ -395,8 +395,12 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
     }
 
     UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, cmc->sub,
-                        "MonitoredItem %" PRIi32 " | "
-                        "Created the MonitoredItem", newMon->monitoredItemId);
+                             "MonitoredItem %" PRIi32 " | "
+                             "Created the MonitoredItem "
+                             "(Sampling Interval: %fms, Queue Size: %lu)",
+                             newMon->monitoredItemId,
+                             newMon->parameters.samplingInterval,
+                             (unsigned long)newMon->queueSize);
 
     /* Create the first sample */
     if(request->monitoringMode > UA_MONITORINGMODE_DISABLED &&
@@ -520,6 +524,14 @@ Operation_ModifyMonitoredItem(UA_Server *server, UA_Session *session, UA_Subscri
 
     /* Remove some notifications if the queue is now too small */
     UA_MonitoredItem_ensureQueueSpace(server, mon);
+
+    UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, sub,
+                             "MonitoredItem %" PRIi32 " | "
+                             "Modified the MonitoredItem "
+                             "(Sampling Interval: %fms, Queue Size: %lu)",
+                             mon->monitoredItemId,
+                             mon->parameters.samplingInterval,
+                             (unsigned long)mon->queueSize);
 }
 
 void
