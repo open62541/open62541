@@ -84,6 +84,9 @@
 
 #include "ua_pubsub.h"
 
+/* Circular buffer - Used for 24*7 long run */
+#include "circular_buffer.h"
+
 #include <linux/if_link.h>
 #include <linux/if_xdp.h>
 
@@ -200,6 +203,7 @@ static UA_Boolean consolePrint         = UA_FALSE;
 static UA_Boolean enableBlockingSocket = UA_FALSE;
 static UA_Boolean signalTerm           = UA_FALSE;
 static UA_Boolean enableXdpSubscribe   = UA_FALSE;
+static UA_Boolean enableLongRunMeas    = UA_FALSE;
 
 /* Variables corresponding to PubSub connection creation,
  * published data set and writer group */
@@ -309,6 +313,8 @@ static pthread_t threadCreation(UA_Int16 threadPriority, size_t coreAffinity, vo
 static void stopHandler(int sign) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
     signalTerm = UA_TRUE;
+    if(enableLongRunMeas)
+        printQueueDepth();
 }
 
 /**
@@ -1148,8 +1154,17 @@ void *userApplicationPubSub(void *arg) {
         clock_gettime(CLOCKID, &dataReceiveTime);
 #endif
 
-        /* Update the T1, T8 time with the counter data in the user defined publisher and subscriber arrays */
-        if (enableCsvLog || enableLatencyCsvLog || consolePrint) {
+        if(enableLongRunMeas) {
+#if defined(PUBLISHER)
+            updateLRMeasurementsPublisher(dataModificationTime, *pubCounterData);
+#endif
+
+#if defined(SUBSCRIBER)
+            if (*subCounterData > 0)
+                updateLRMeasurementsSubscriber(dataReceiveTime, *subCounterData);
+#endif
+        }
+        else if (enableCsvLog || enableLatencyCsvLog || consolePrint) {
 #if defined(PUBLISHER)
             updateMeasurementsPublisher(dataModificationTime, *pubCounterData);
 #endif
@@ -1435,28 +1450,30 @@ static void usage(char *appname)
         "\n"
         "usage: %s [options]\n"
         "\n"
-        " -interface       [name] Use network interface 'name'\n"
-        " -cycleTimeInMsec [num]  Cycle time in milli seconds (default %lf)\n"
-        " -socketPriority  [num]  Set publisher SO_PRIORITY to (default %d)\n"
-        " -pubPriority     [num]  Publisher thread priority value (default %d)\n"
-        " -subPriority     [num]  Subscriber thread priority value (default %d)\n"
-        " -userAppPriority [num]  User application thread priority value (default %d)\n"
-        " -pubCore         [num]  Run on CPU for publisher (default %d)\n"
-        " -subCore         [num]  Run on CPU for subscriber (default %d)\n"
-        " -userAppCore     [num]  Run on CPU for userApplication (default %d)\n"
-        " -pubMacAddress   [name] Publisher Mac address (default %s - where 8 is the VLAN ID and 3 is the PCP)\n"
-        " -subMacAddress   [name] Subscriber Mac address (default %s - where 8 is the VLAN ID and 3 is the PCP)\n"
-        " -qbvOffset       [num]  QBV offset value (default %d)\n"
-        " -disableSoTxtime        Do not use SO_TXTIME\n"
-        " -enableCsvLog           Experimental: To log the data in csv files. Support up to 1 million samples\n"
-        " -enableLatencyCsvLog    Experimental: To compute and create RTT latency csv. Support up to 1 million samples\n"
-        " -enableconsolePrint     Experimental: To print the data in console output. Support for higher cycle time\n"
-        " -enableBlockingSocket   Run application with blocking socket option. While using blocking socket option need to\n"
-        "                         run both the Publisher and Loopback application. Otherwise application will not terminate.\n"
-        " -enableXdpSubscribe     Enable XDP feature for subscriber. XDP_COPY and XDP_FLAGS_SKB_MODE is used by default. Not recommended to be enabled along with blocking socket.\n"
-        " -xdpQueue        [num]  XDP queue value (default %d)\n"
-        " -xdpFlagDrvMode         Use XDP in DRV mode\n"
-        " -xdpBindFlagZeroCopy    Use Zero-Copy mode in XDP\n"
+        " -interface       [name]    Use network interface 'name'\n"
+        " -cycleTimeInMsec [num]     Cycle time in milli seconds (default %lf)\n"
+        " -socketPriority  [num]     Set publisher SO_PRIORITY to (default %d)\n"
+        " -pubPriority     [num]     Publisher thread priority value (default %d)\n"
+        " -subPriority     [num]     Subscriber thread priority value (default %d)\n"
+        " -userAppPriority [num]     User application thread priority value (default %d)\n"
+        " -pubCore         [num]     Run on CPU for publisher (default %d)\n"
+        " -subCore         [num]     Run on CPU for subscriber (default %d)\n"
+        " -userAppCore     [num]     Run on CPU for userApplication (default %d)\n"
+        " -pubMacAddress   [name]    Publisher Mac address (default %s - where 8 is the VLAN ID and 3 is the PCP)\n"
+        " -subMacAddress   [name]    Subscriber Mac address (default %s - where 8 is the VLAN ID and 3 is the PCP)\n"
+        " -qbvOffset       [num]     QBV offset value (default %d)\n"
+        " -disableSoTxtime           Do not use SO_TXTIME\n"
+        " -enableCsvLog              Experimental: To log the data in csv files. Support up to 1 million samples\n"
+        " -enableLatencyCsvLog       Experimental: To compute and create RTT latency csv. Support up to 1 million samples\n"
+        " -enableconsolePrint        Experimental: To print the data in console output. Support for higher cycle time\n"
+        " -enableBlockingSocket      Run application with blocking socket option. While using blocking socket option need to\n"
+        "                            run both the Publisher and Loopback application. Otherwise application will not terminate.\n"
+        " -enableXdpSubscribe        Enable XDP feature for subscriber. XDP_COPY and XDP_FLAGS_SKB_MODE is used by default. Not recommended to be enabled along with blocking socket.\n"
+        " -xdpQueue        [num]     XDP queue value (default %d)\n"
+        " -xdpFlagDrvMode            Use XDP in DRV mode\n"
+        " -xdpBindFlagZeroCopy       Use Zero-Copy mode in XDP\n"
+        " -enableLongRunMeasurements Log the computed latency data in multiple csv files. Supported for 24*7"
+        "                            Do not run with other logs - csvlog, latencycsvlog, consolelog"
         "\n",
         appname, DEFAULT_CYCLE_TIME, DEFAULT_SOCKET_PRIORITY, DEFAULT_PUB_SCHED_PRIORITY, \
         DEFAULT_SUB_SCHED_PRIORITY, DEFAULT_USERAPPLICATION_SCHED_PRIORITY, \
@@ -1483,6 +1500,8 @@ int main(int argc, char **argv) {
     UA_Int32         long_index          = 0;
     char            *progname            = NULL;
     pthread_t        userThreadID;
+    pthread_t        latencyComputationID;
+    pthread_t        latencyFileWriteID;
 
     /* Process the command line arguments */
     progname = strrchr(argv[0], '/');
@@ -1510,7 +1529,8 @@ int main(int argc, char **argv) {
         {"xdpFlagDrvMode",       no_argument,       0, 's'},
         {"xdpBindFlagZeroCopy",  no_argument,       0, 't'},
         {"enableXdpSubscribe",   no_argument,       0, 'u'},
-        {"help",                 no_argument,       0, 'v'},
+        {"enableLongRunMeasurements", no_argument,  0, 'v'},
+        {"help",                 no_argument,       0, 'w'},
         {0,                      0,                 0,  0 }
     };
 
@@ -1581,6 +1601,9 @@ int main(int argc, char **argv) {
                 enableXdpSubscribe = UA_TRUE;
                 break;
             case 'v':
+                enableLongRunMeas = UA_TRUE;
+                break;
+            case 'w':
                 usage(progname);
                 return -1;
             case '?':
@@ -1599,6 +1622,14 @@ int main(int argc, char **argv) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "%f Bad cycle time", cycleTimeInMsec);
         usage(progname);
         return -1;
+    }
+
+    if (enableLongRunMeas) {
+        if (enableCsvLog || enableLatencyCsvLog || consolePrint) {
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Do not enable long run with other logs");
+            usage(progname);
+            return -1;
+        }
     }
 
     if (enableBlockingSocket == UA_TRUE) {
@@ -1710,6 +1741,19 @@ if (enableCsvLog) {
     userThreadID                       = threadCreation((UA_Int16)userAppPriority, (size_t)userAppCore, userApplicationPubSub, threadNameUserApplication, serverConfig);
 #endif
 
+    if(enableLongRunMeas) {
+        char threadNameComputation[33] = "ComputationRTT";
+        char threadNamefileWrite[33]   = "latencyFileWrite";
+        UA_UInt64 *cycleTime = UA_UInt64_new();
+        *cycleTime = (UA_UInt64)(cycleTimeInMsec * MILLI_SECONDS);
+        /* Run the latency file write thread to core 0 - as the block write won't disturb other threads
+         * Priority will be set to 20. It should be minimum priority of all threads */
+        latencyFileWriteID = threadCreation(20, 0, fileWriteLatency, threadNamefileWrite, NULL);
+        /* Run the latency file computation to core 3 - as the block write won't disturb other threads
+         * Priority will be set to 22. */
+        latencyComputationID = threadCreation(22, 3, latency_computation, threadNameComputation, cycleTime);
+    }
+
     retval |= UA_Server_run(server, &runningServer);
 #if defined(SUBSCRIBER)
     UA_Server_unfreezeReaderGroupConfiguration(server, readerGroupIdentifier);
@@ -1718,6 +1762,16 @@ if (enableCsvLog) {
     returnValue = pthread_join(userThreadID, NULL);
     if (returnValue != 0)
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"\nPthread Join Failed for User thread:%d\n", returnValue);
+
+    if(enableLongRunMeas) {
+        returnValue = pthread_join(latencyComputationID, NULL);
+        if(returnValue != 0)
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"\nPthread Join Failed for latency thread:%d\n", returnValue);
+
+        returnValue = pthread_join(latencyFileWriteID, NULL);
+        if(returnValue != 0)
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"\nPthread Join Failed for latency filw write thread:%d\n", returnValue);
+    }
 #endif
     if (enableCsvLog) {
 #if defined(PUBLISHER)
