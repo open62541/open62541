@@ -478,7 +478,11 @@ UA_CertificateVerification_Verify (void *                verificationContext,
         ret = UA_STATUSCODE_BADINTERNALERROR;
         goto cleanup;
     }
-    (void) X509_STORE_CTX_trusted_stack (storeCtx, ctx->skTrusted);
+#if OPENSSL_API_COMPAT < 0x10100000L
+	(void) X509_STORE_CTX_trusted_stack (storeCtx, ctx->skTrusted);
+#else
+	(void) X509_STORE_CTX_set0_trusted_stack (storeCtx, ctx->skTrusted);
+#endif
 
     /* Set crls to ctx */
     if (sk_X509_CRL_num (ctx->skCrls) > 0) {
