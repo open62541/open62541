@@ -3,42 +3,13 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2018 (c) Ari Breitkreuz, fortiss GmbH
- *    Copyright 2020 (c) Christian von Arnim
+ *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
  */
 
 #include "ua_server_internal.h"
 #include "ua_subscription.h"
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-
-UA_StatusCode
-UA_MonitoredItem_removeNodeEventCallback(UA_Server *server, UA_Session *session,
-                                         UA_Node *node, void *data) {
-    if(node->head.nodeClass != UA_NODECLASS_OBJECT)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_ObjectNode *on = &node->objectNode;
-    UA_MonitoredItem *remove = (UA_MonitoredItem*)data;
-
-    if(!on->monitoredItemQueue)
-        return UA_STATUSCODE_GOOD;
-
-    /* Edge case that it's the first element */
-    if(on->monitoredItemQueue == remove) {
-        on->monitoredItemQueue = remove->next;
-        return UA_STATUSCODE_GOOD;
-    }
-
-    UA_MonitoredItem *prev = on->monitoredItemQueue;
-    UA_MonitoredItem *entry = prev->next;
-    for(; entry != NULL; prev = entry, entry = entry->next) {
-        if(entry == remove) {
-            prev->next = entry->next;
-            return UA_STATUSCODE_GOOD;
-        }
-    }
-
-    return UA_STATUSCODE_BADNOTFOUND;
-}
 
 /* We use a 16-Byte ByteString as an identifier */
 UA_StatusCode
@@ -59,12 +30,12 @@ UA_Event_generateEventId(UA_ByteString *generatedId) {
 UA_StatusCode
 UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
                       UA_NodeId *outNodeId) {
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
     if(!outNodeId) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "outNodeId must not be NULL. The event's NodeId must be returned "
                      "so it can be triggered.");
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
@@ -74,7 +45,7 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
                                UA_REFERENCETYPEINDEX_HASSUBTYPE)) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Event type must be a subtype of BaseEventType!");
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
@@ -108,7 +79,7 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
         UA_BrowsePathResult_clear(&bpr);
         deleteNode(server, newNodeId, true);
         UA_NodeId_clear(&newNodeId);
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         return retval;
     }
 
@@ -122,12 +93,12 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
     if(retval != UA_STATUSCODE_GOOD) {
         deleteNode(server, newNodeId, true);
         UA_NodeId_clear(&newNodeId);
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         return retval;
     }
 
     *outNodeId = newNodeId;
-    UA_UNLOCK(server->serviceMutex);
+    UA_UNLOCK(&server->serviceMutex);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -242,11 +213,389 @@ resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session, const UA_N
     return v.status;
 }
 
+UA_ContentFilterResult*
+UA_Server_initialWhereClauseValidation(UA_Server *server,
+                                       const UA_NodeId *eventNode,
+                                       const UA_ContentFilter *contentFilter) {
+
+
+    UA_ContentFilterResult *contentFilterResult = UA_ContentFilterResult_new();
+    UA_ContentFilterResult_init(contentFilterResult);
+
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    if(contentFilter->elements == NULL || contentFilter->elementsSize == 0) {
+        /* Nothing to do.*/
+        contentFilterResult->elementResultsSize = 1;
+        contentFilterResult->elementResults = (UA_ContentFilterElementResult*)
+            UA_Array_new(contentFilterResult->elementResultsSize,&UA_TYPES[UA_TYPES_CONTENTFILTERELEMENTRESULT]);
+        contentFilterResult->elementResults->statusCode = UA_STATUSCODE_GOOD;
+        return contentFilterResult;
+    }
+
+
+
+    contentFilterResult->elementResultsSize = contentFilter->elementsSize;
+
+    contentFilterResult->elementResults = (UA_ContentFilterElementResult*)
+        UA_Array_new(contentFilterResult->elementResultsSize,&UA_TYPES[UA_TYPES_CONTENTFILTERELEMENTRESULT]);
+
+    for(size_t i =0; i<contentFilterResult->elementResultsSize; ++i) {
+        UA_ContentFilterElementResult_init(&contentFilterResult->elementResults[i]);
+    }
+
+
+    UA_ContentFilterElementResult *elementResult = UA_ContentFilterElementResult_new();
+    UA_ContentFilterElementResult_init(elementResult);
+
+    UA_ContentFilterElement *contentFilterElement = UA_ContentFilterElement_new();
+    UA_ContentFilterElement_init(contentFilterElement);
+
+    UA_ElementOperand *elementOperand;
+    elementOperand = UA_ElementOperand_new();
+    UA_ElementOperand_init(elementOperand);
+
+    for(size_t i =0; i<contentFilterResult->elementResultsSize; ++i) {
+        elementResult = &contentFilterResult->elementResults[i];
+        contentFilterElement = &contentFilter->elements[i];
+
+        switch(contentFilterElement->filterOperator) {
+            case UA_FILTEROPERATOR_INVIEW:
+            case UA_FILTEROPERATOR_RELATEDTO: {
+                /* Not allowed for event WhereClause according to 7.17.3 in Part 4 */
+                elementResult->statusCode =  UA_STATUSCODE_BADEVENTFILTERINVALID;
+                break;
+            }
+            case UA_FILTEROPERATOR_EQUALS:{
+                if (contentFilterElement->filterOperandsSize != 2){
+                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                    break;
+                }
+                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                break;
+            }
+            case UA_FILTEROPERATOR_GREATERTHAN:{
+                if (contentFilterElement->filterOperandsSize != 2){
+                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                    break;
+                }
+                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                break;
+            }
+            case UA_FILTEROPERATOR_LESSTHAN:{
+                if (contentFilterElement->filterOperandsSize != 2){
+                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                    break;
+                }
+                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                break;
+            }
+            case UA_FILTEROPERATOR_GREATERTHANOREQUAL:{
+                if (contentFilterElement->filterOperandsSize != 2){
+                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                    break;
+                }
+                break;
+            }
+            case UA_FILTEROPERATOR_LESSTHANOREQUAL:{
+                if (contentFilterElement->filterOperandsSize != 2){
+                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                    break;
+                }
+                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                break;
+            }
+            case UA_FILTEROPERATOR_LIKE:{
+                if (contentFilterElement->filterOperandsSize != 2){
+                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                    break;
+                }
+                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                break;
+            }
+            case UA_FILTEROPERATOR_AND: {
+                if(contentFilterElement->filterOperandsSize != 2) {
+                    elementResult->statusCode =
+                        UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                    break;
+                }
+
+                if(contentFilterElement->filterOperands[0].content.decoded.type !=
+                   &UA_TYPES[UA_TYPES_ELEMENTOPERAND]) {
+                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDINVALID;
+                    break;
+                }
+
+                if(contentFilterElement->filterOperands[1].content.decoded.type !=
+                   &UA_TYPES[UA_TYPES_ELEMENTOPERAND]) {
+                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDINVALID;
+                    break;
+                }
+
+                elementOperand =
+                    (UA_ElementOperand *)contentFilterElement->filterOperands[0]
+                        .content.decoded.data;
+
+                if(elementOperand->index > contentFilter->elementsSize - 1) {
+                    elementResult->statusCode = UA_STATUSCODE_BADINDEXRANGEINVALID;
+                    break;
+                }
+
+<<<<<<<<< Temporary merge branch 1
+=========
+
+>>>>>>>>> Temporary merge branch 2
+                elementOperand =
+                    (UA_ElementOperand *)contentFilterElement->filterOperands[1]
+                        .content.decoded.data;
+
+                if(elementOperand->index > contentFilter->elementsSize - 1) {
+                    elementResult->statusCode = UA_STATUSCODE_BADINDEXRANGEINVALID;
+                    break;
+                }
+
+                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                break;
+            }
+            case UA_FILTEROPERATOR_OR:{
+                if (contentFilterElement->filterOperandsSize != 2){
+                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                    break;
+                }
+
+                if (contentFilterElement->filterOperands[0].content.decoded.type != &UA_TYPES[UA_TYPES_ELEMENTOPERAND]){
+                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDINVALID;
+                    break;
+                }
+
+                if (contentFilterElement->filterOperands[1].content.decoded.type != &UA_TYPES[UA_TYPES_ELEMENTOPERAND]){
+                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDINVALID;
+                    break;
+                }
+
+                elementOperand = (UA_ElementOperand * ) contentFilterElement->filterOperands[0].content.decoded.data;
+
+                if (elementOperand->index > contentFilter->elementsSize-1){
+                    elementResult->statusCode = UA_STATUSCODE_BADINDEXRANGEINVALID;
+                    break;
+                }
+
+                elementOperand = (UA_ElementOperand * ) contentFilterElement->filterOperands[1].content.decoded.data;
+
+                if (elementOperand->index > contentFilter->elementsSize-1){
+                    elementResult->statusCode = UA_STATUSCODE_BADINDEXRANGEINVALID;
+                    break;
+                }
+
+                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                break;
+            }
+            case UA_FILTEROPERATOR_CAST:{
+                if (contentFilterElement->filterOperandsSize != 2){
+                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                    break;
+                }
+                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                break;
+            }
+            case UA_FILTEROPERATOR_BITWISEAND:{
+                if (contentFilterElement->filterOperandsSize != 2){
+                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                    break;
+                }
+                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                break;
+            }
+            case UA_FILTEROPERATOR_BITWISEOR:{
+                if (contentFilterElement->filterOperandsSize != 2){
+                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                    break;
+                }
+                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                break;
+            }
+            case UA_FILTEROPERATOR_ISNULL:{
+                if (contentFilterElement->filterOperandsSize != 1){
+                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                    break;
+                }
+                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                break;
+            }
+            case UA_FILTEROPERATOR_NOT:{
+                if (contentFilterElement->filterOperandsSize != 1){
+                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                    break;
+                }
+                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                break;
+            }
+
+            case UA_FILTEROPERATOR_INLIST:{
+                if (contentFilterElement->filterOperandsSize >= 2){
+                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                    break;
+                }
+                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                break;
+            }
+            case UA_FILTEROPERATOR_BETWEEN:{
+                if (contentFilterElement->filterOperandsSize != 3){
+                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                    break;
+                }
+                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                break;
+            }
+            case UA_FILTEROPERATOR_OFTYPE: {
+                if(contentFilterElement->filterOperandsSize != 1){
+                    elementResult->statusCode =  UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                    break;
+                }
+
+                elementResult->operandStatusCodesSize = contentFilterElement->filterOperandsSize;
+
+                if(contentFilterElement->filterOperands[0].content.decoded.type !=
+                   &UA_TYPES[UA_TYPES_ATTRIBUTEOPERAND]){
+                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDINVALID;
+                    break;
+                }
+
+                UA_AttributeOperand *pOperand =
+                    (UA_AttributeOperand *) contentFilterElement->filterOperands[0].content.decoded.data;
+
+                if(pOperand->attributeId != UA_ATTRIBUTEID_VALUE ) {
+                    elementResult->statusCode = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+                    break;
+                }
+
+                /* Make sure the &pOperand->nodeId is a subtype of BaseEventType */
+                UA_NodeId baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+                if(!isNodeInTree_singleRef(server, &pOperand->nodeId , &baseEventTypeId,
+                                           UA_REFERENCETYPEINDEX_HASSUBTYPE)) {
+                    elementResult->statusCode = UA_STATUSCODE_BADNODEIDINVALID;
+                    break;
+                }
+
+
+                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                break;
+
+
+            }
+            default:
+                elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
+                break;
+        }
+
+    }
+
+    return contentFilterResult;
+
+}
+
+
+UA_StatusCode*
+UA_Server_initialSelectClauseValidation(UA_Server *server,
+                                        const UA_EventFilter *eventFilter) {
+    if(eventFilter->selectClauses == NULL){
+        UA_StatusCode *selectClauseCode = (UA_StatusCode*)
+            UA_Array_new(1, &UA_TYPES[UA_TYPES_STATUSCODE]);
+        selectClauseCode[0] = UA_STATUSCODE_BADSTRUCTUREMISSING;
+        return selectClauseCode;
+    }
+
+    if (eventFilter->selectClausesSize == 0){
+        UA_StatusCode *selectClauseCode = (UA_StatusCode*)
+            UA_Array_new(1, &UA_TYPES[UA_TYPES_STATUSCODE]);
+        selectClauseCode[0] = UA_STATUSCODE_GOOD;
+        return selectClauseCode;
+    }
+
+    UA_StatusCode *selectClauseCodes = (UA_StatusCode*)
+        UA_Array_new(eventFilter->selectClausesSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
+
+
+
+    for(size_t i =0; i<eventFilter->selectClausesSize; ++i) {
+        selectClauseCodes[i] = UA_STATUSCODE_GOOD;
+
+        /* Check if browsepath, typedefenitionid, attributeid are NULL */
+        if(UA_NodeId_isNull(&eventFilter->selectClauses[i].typeDefinitionId)){
+            selectClauseCodes[i] = UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
+            continue;
+        }
+        if(&eventFilter->selectClauses[i].browsePath[0] == NULL){
+            selectClauseCodes[i] = UA_STATUSCODE_BADBROWSENAMEINVALID;
+            continue;
+        }
+
+
+        /* Check if the eventType is a subtype of BaseEventType */
+        UA_NodeId baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+        if(!isNodeInTree_singleRef(server, &eventFilter->selectClauses[i].typeDefinitionId, &baseEventTypeId,
+                                   UA_REFERENCETYPEINDEX_HASSUBTYPE)) {
+            selectClauseCodes[i] = UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
+            continue;
+        }
+
+        //Check if attributeId is valid
+        if(!((0 < eventFilter->selectClauses[i].attributeId) && (eventFilter->selectClauses[i].attributeId < 28))){
+            selectClauseCodes[i] = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+            continue;
+        }
+
+        //Check if browsePath contains null
+        for(size_t j =0; j<eventFilter->selectClauses[i].browsePathSize; ++j) {
+<<<<<<<<< Temporary merge branch 1
+            if(UA_QualifiedName_isNull(&eventFilter->selectClauses[i].browsePath[j])) {  // TODO: ist das richtig ?? (Check if null)
+=========
+            if(UA_QualifiedName_isNull(&eventFilter->selectClauses[i].browsePath[j])) {
+>>>>>>>>> Temporary merge branch 2
+                selectClauseCodes[i] = UA_STATUSCODE_BADBROWSENAMEINVALID;
+                break;
+            }
+        }
+        if(selectClauseCodes[i] != UA_STATUSCODE_GOOD)
+            continue;
+
+        //Check if indexRange is defined
+<<<<<<<<< Temporary merge branch 1
+        if(!UA_String_equal(&eventFilter->selectClauses[i].indexRange, &UA_STRING_NULL)) {//TODO: ist das richtig ?? (Check if null)
+            // Check if indexRange is parsable
+            UA_NumericRange numericRange = UA_NUMERICRANGE("");  // TODO: Wie nutzt man das parsen ohne den Value zu bekommen?
+=========
+        if(!UA_String_equal(&eventFilter->selectClauses[i].indexRange, &UA_STRING_NULL)) {
+            // Check if indexRange is parsable
+            UA_NumericRange numericRange = UA_NUMERICRANGE("");
+>>>>>>>>> Temporary merge branch 2
+            if(UA_NumericRange_parse(&numericRange,
+                                     eventFilter->selectClauses[i].indexRange) !=
+               UA_STATUSCODE_GOOD) {
+                selectClauseCodes[i] = UA_STATUSCODE_BADINDEXRANGEINVALID;
+                continue;
+            }
+
+            // Check if attributeId is value
+            if(eventFilter->selectClauses[i].attributeId != UA_ATTRIBUTEID_VALUE){
+                selectClauseCodes[i] = UA_STATUSCODE_BADTYPEMISMATCH;
+                continue;
+            }
+        }
+    }
+    return selectClauseCodes;
+}
+
+
+<<<<<<<<< Temporary merge branch 1
+
+
+=========
+>>>>>>>>> Temporary merge branch 2
 UA_StatusCode
 UA_Server_evaluateWhereClauseContentFilter(UA_Server *server,
                                            const UA_NodeId *eventNode,
                                            const UA_ContentFilter *contentFilter) {
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     if(contentFilter->elements == NULL || contentFilter->elementsSize == 0) {
         /* Nothing to do.*/
@@ -284,7 +633,7 @@ UA_Server_evaluateWhereClauseContentFilter(UA_Server *server,
             if(pElement->filterOperandsSize != 1)
                 return UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
             if(pElement->filterOperands[0].content.decoded.type !=
-                &UA_TYPES[UA_TYPES_LITERALOPERAND])
+               &UA_TYPES[UA_TYPES_LITERALOPERAND])
                 return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
 
             UA_LiteralOperand *pOperand =
@@ -328,11 +677,12 @@ UA_Server_evaluateWhereClauseContentFilter(UA_Server *server,
                 return UA_STATUSCODE_BADNOMATCH;
         }
             break;
-    default:
-        return UA_STATUSCODE_BADFILTEROPERATORINVALID;
-        break;
+        default:
+            return UA_STATUSCODE_BADFILTEROPERATORINVALID;
+            break;
     }
 }
+
 
 /* Filters the given event with the given filter and writes the results into a
  * notification */
@@ -347,6 +697,9 @@ UA_Server_filterEvent(UA_Server *server, UA_Session *session,
         UA_Server_evaluateWhereClauseContentFilter(server, eventNode, &filter->whereClause);
     if(res != UA_STATUSCODE_GOOD)
         return res;
+
+    UA_Server_initialWhereClauseValidation(server, eventNode, &filter->whereClause);
+    UA_Server_initialSelectClauseValidation(server, filter);
 
     UA_EventFieldList_init(efl);
     efl->eventFields = (UA_Variant *)
@@ -467,11 +820,15 @@ UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event,
     if(!notification)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
+    if(mon->parameters.filter.content.decoded.type != &UA_TYPES[UA_TYPES_EVENTFILTER])
+        return UA_STATUSCODE_BADFILTERNOTALLOWED;
+    UA_EventFilter *eventFilter = (UA_EventFilter*)
+        mon->parameters.filter.content.decoded.data;
+
     UA_Subscription *sub = mon->subscription;
     UA_Session *session = sub->session;
-    UA_StatusCode retval =
-        UA_Server_filterEvent(server, session, event, &mon->filter.eventFilter,
-                              &notification->data.event);
+    UA_StatusCode retval = UA_Server_filterEvent(server, session, event,
+                                                 eventFilter, &notification->data.event);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Notification_delete(server, notification);
         if(retval == UA_STATUSCODE_BADNOMATCH)
@@ -479,7 +836,7 @@ UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event,
         return retval;
     }
 
-    notification->data.event.clientHandle = mon->clientHandle;
+    notification->data.event.clientHandle = mon->parameters.clientHandle;
     notification->mon = mon;
 
     UA_Notification_enqueueAndTrigger(server, notification);
@@ -548,7 +905,7 @@ UA_StatusCode
 UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
                        const UA_NodeId origin, UA_ByteString *outEventId,
                        const UA_Boolean deleteEventNode) {
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
 
     UA_LOG_NODEID_DEBUG(&origin,
         UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -562,7 +919,7 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
           UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                                  "Condition Events: Please use A&C API to trigger Condition Events 0x%08X",
                                   UA_STATUSCODE_BADINVALIDARGUMENT);
-          UA_UNLOCK(server->serviceMutex);
+          UA_UNLOCK(&server->serviceMutex);
           return UA_STATUSCODE_BADINVALIDARGUMENT;
         }
     }
@@ -573,7 +930,7 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
     if(!originNode) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Origin node for event does not exist.");
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADNOTFOUND;
     }
     UA_NODESTORE_RELEASE(server, originNode);
@@ -597,7 +954,7 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
     if(!isNodeInTree(server, &origin, &objectsFolderId, &refTypes)) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Node for event must be in ObjectsFolder!");
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
@@ -607,7 +964,7 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Events: Could not set the standard event fields with StatusCode %s",
                        UA_StatusCode_name(retval));
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         return retval;
     }
 
@@ -699,7 +1056,7 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
 
  cleanup:
     UA_Array_delete(emitNodes, emitNodesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
-    UA_UNLOCK(server->serviceMutex);
+    UA_UNLOCK(&server->serviceMutex);
     return retval;
 }
 
