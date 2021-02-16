@@ -246,224 +246,217 @@ UA_Server_initialWhereClauseValidation(UA_Server *server,
     }
 
 
-    UA_ContentFilterElementResult *elementResult = UA_ContentFilterElementResult_new();
-    UA_ContentFilterElementResult_init(elementResult);
 
-    UA_ContentFilterElement *contentFilterElement = UA_ContentFilterElement_new();
-    UA_ContentFilterElement_init(contentFilterElement);
 
-    UA_ElementOperand *elementOperand;
-    elementOperand = UA_ElementOperand_new();
-    UA_ElementOperand_init(elementOperand);
 
     for(size_t i =0; i<contentFilterResult->elementResultsSize; ++i) {
-        elementResult = &contentFilterResult->elementResults[i];
-        contentFilterElement = &contentFilter->elements[i];
 
-        switch(contentFilterElement->filterOperator) {
+        switch(contentFilter->elements[i].filterOperator) {
             case UA_FILTEROPERATOR_INVIEW:
             case UA_FILTEROPERATOR_RELATEDTO: {
                 /* Not allowed for event WhereClause according to 7.17.3 in Part 4 */
-                elementResult->statusCode =  UA_STATUSCODE_BADEVENTFILTERINVALID;
+                contentFilterResult->elementResults[i].statusCode =  UA_STATUSCODE_BADEVENTFILTERINVALID;
                 break;
             }
             case UA_FILTEROPERATOR_EQUALS:{
-                if (contentFilterElement->filterOperandsSize != 2){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                if (contentFilter->elements[i].filterOperandsSize != 2){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
                     break;
                 }
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
                 break;
             }
             case UA_FILTEROPERATOR_GREATERTHAN:{
-                if (contentFilterElement->filterOperandsSize != 2){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                if (contentFilter->elements[i].filterOperandsSize != 2){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
                     break;
                 }
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
                 break;
             }
             case UA_FILTEROPERATOR_LESSTHAN:{
-                if (contentFilterElement->filterOperandsSize != 2){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                if (contentFilter->elements[i].filterOperandsSize != 2){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
                     break;
                 }
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
                 break;
             }
             case UA_FILTEROPERATOR_GREATERTHANOREQUAL:{
-                if (contentFilterElement->filterOperandsSize != 2){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                if (contentFilter->elements[i].filterOperandsSize != 2){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
                     break;
                 }
                 break;
             }
             case UA_FILTEROPERATOR_LESSTHANOREQUAL:{
-                if (contentFilterElement->filterOperandsSize != 2){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                if (contentFilter->elements[i].filterOperandsSize != 2){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
                     break;
                 }
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
                 break;
             }
             case UA_FILTEROPERATOR_LIKE:{
-                if (contentFilterElement->filterOperandsSize != 2){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                if (contentFilter->elements[i].filterOperandsSize != 2){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
                     break;
                 }
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
                 break;
             }
             case UA_FILTEROPERATOR_AND: {
-                if(contentFilterElement->filterOperandsSize != 2) {
-                    elementResult->statusCode =
+                if(contentFilter->elements[i].filterOperandsSize != 2) {
+                    contentFilterResult->elementResults[i].statusCode =
                         UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
                     break;
                 }
 
-                if(contentFilterElement->filterOperands[0].content.decoded.type !=
+                if(contentFilter->elements[i].filterOperands[0].content.decoded.type !=
                    &UA_TYPES[UA_TYPES_ELEMENTOPERAND]) {
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDINVALID;
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDINVALID;
                     break;
                 }
 
-                if(contentFilterElement->filterOperands[1].content.decoded.type !=
+                if(contentFilter->elements[i].filterOperands[1].content.decoded.type !=
                    &UA_TYPES[UA_TYPES_ELEMENTOPERAND]) {
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDINVALID;
-                    break;
-                }
-
-                elementOperand =
-                    (UA_ElementOperand *)contentFilterElement->filterOperands[0]
-                        .content.decoded.data;
-
-                if(elementOperand->index > contentFilter->elementsSize - 1) {
-                    elementResult->statusCode = UA_STATUSCODE_BADINDEXRANGEINVALID;
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDINVALID;
                     break;
                 }
 
 
-                elementOperand =
-                    (UA_ElementOperand *)contentFilterElement->filterOperands[1]
-                        .content.decoded.data;
 
-                if(elementOperand->index > contentFilter->elementsSize - 1) {
-                    elementResult->statusCode = UA_STATUSCODE_BADINDEXRANGEINVALID;
+                if(((UA_ElementOperand * ) contentFilter->elements[i].filterOperands[0].content.decoded.data)->index> contentFilter->elementsSize - 1) {
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADINDEXRANGEINVALID;
+
                     break;
                 }
 
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
+
+
+
+                if(((UA_ElementOperand * ) contentFilter->elements[i].filterOperands[1].content.decoded.data)->index > contentFilter->elementsSize - 1) {
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADINDEXRANGEINVALID;
+
+                    break;
+                }
+
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
+
                 break;
             }
             case UA_FILTEROPERATOR_OR:{
-                if (contentFilterElement->filterOperandsSize != 2){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                if (contentFilter->elements[i].filterOperandsSize != 2){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
                     break;
                 }
 
-                if (contentFilterElement->filterOperands[0].content.decoded.type != &UA_TYPES[UA_TYPES_ELEMENTOPERAND]){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDINVALID;
+                if (contentFilter->elements[i].filterOperands[0].content.decoded.type != &UA_TYPES[UA_TYPES_ELEMENTOPERAND]){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDINVALID;
                     break;
                 }
 
-                if (contentFilterElement->filterOperands[1].content.decoded.type != &UA_TYPES[UA_TYPES_ELEMENTOPERAND]){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDINVALID;
+                if (contentFilter->elements[i].filterOperands[1].content.decoded.type != &UA_TYPES[UA_TYPES_ELEMENTOPERAND]){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDINVALID;
                     break;
                 }
 
-                elementOperand = (UA_ElementOperand * ) contentFilterElement->filterOperands[0].content.decoded.data;
 
-                if (elementOperand->index > contentFilter->elementsSize-1){
-                    elementResult->statusCode = UA_STATUSCODE_BADINDEXRANGEINVALID;
+
+                if (((UA_ElementOperand * ) contentFilter->elements[i].filterOperands[0].content.decoded.data)->index > contentFilter->elementsSize-1){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADINDEXRANGEINVALID;
+
                     break;
                 }
 
-                elementOperand = (UA_ElementOperand * ) contentFilterElement->filterOperands[1].content.decoded.data;
 
-                if (elementOperand->index > contentFilter->elementsSize-1){
-                    elementResult->statusCode = UA_STATUSCODE_BADINDEXRANGEINVALID;
+
+                if (((UA_ElementOperand * ) contentFilter->elements[i].filterOperands[1].content.decoded.data)->index > contentFilter->elementsSize-1){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADINDEXRANGEINVALID;
+
                     break;
                 }
 
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
+
                 break;
             }
             case UA_FILTEROPERATOR_CAST:{
-                if (contentFilterElement->filterOperandsSize != 2){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                if (contentFilter->elements[i].filterOperandsSize != 2){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
                     break;
                 }
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
                 break;
             }
             case UA_FILTEROPERATOR_BITWISEAND:{
-                if (contentFilterElement->filterOperandsSize != 2){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                if (contentFilter->elements[i].filterOperandsSize != 2){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
                     break;
                 }
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
                 break;
             }
             case UA_FILTEROPERATOR_BITWISEOR:{
-                if (contentFilterElement->filterOperandsSize != 2){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                if (contentFilter->elements[i].filterOperandsSize != 2){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
                     break;
                 }
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
                 break;
             }
             case UA_FILTEROPERATOR_ISNULL:{
-                if (contentFilterElement->filterOperandsSize != 1){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                if (contentFilter->elements[i].filterOperandsSize != 1){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
                     break;
                 }
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
                 break;
             }
             case UA_FILTEROPERATOR_NOT:{
-                if (contentFilterElement->filterOperandsSize != 1){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                if (contentFilter->elements[i].filterOperandsSize != 1){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
                     break;
                 }
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
                 break;
             }
 
             case UA_FILTEROPERATOR_INLIST:{
-                if (contentFilterElement->filterOperandsSize >= 2){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                if (contentFilter->elements[i].filterOperandsSize >= 2){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
                     break;
                 }
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
                 break;
             }
             case UA_FILTEROPERATOR_BETWEEN:{
-                if (contentFilterElement->filterOperandsSize != 3){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                if (contentFilter->elements[i].filterOperandsSize != 3){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
                     break;
                 }
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
                 break;
             }
             case UA_FILTEROPERATOR_OFTYPE: {
-                if(contentFilterElement->filterOperandsSize != 1){
-                    elementResult->statusCode =  UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                if(contentFilter->elements[i].filterOperandsSize != 1){
+                    contentFilterResult->elementResults[i].statusCode =  UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
                     break;
                 }
 
-                elementResult->operandStatusCodesSize = contentFilterElement->filterOperandsSize;
+                contentFilterResult->elementResults[i].operandStatusCodesSize = contentFilter->elements[i].filterOperandsSize;
 
-                if(contentFilterElement->filterOperands[0].content.decoded.type !=
+                if(contentFilter->elements[i].filterOperands[0].content.decoded.type !=
                    &UA_TYPES[UA_TYPES_ATTRIBUTEOPERAND]){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDINVALID;
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDINVALID;
                     break;
                 }
 
                 UA_AttributeOperand *pOperand =
-                    (UA_AttributeOperand *) contentFilterElement->filterOperands[0].content.decoded.data;
+                    (UA_AttributeOperand *) contentFilter->elements[i].filterOperands[0].content.decoded.data;
 
                 if(pOperand->attributeId != UA_ATTRIBUTEID_VALUE ) {
-                    elementResult->statusCode = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
                     break;
                 }
 
@@ -471,22 +464,24 @@ UA_Server_initialWhereClauseValidation(UA_Server *server,
                 UA_NodeId baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
                 if(!isNodeInTree_singleRef(server, &pOperand->nodeId , &baseEventTypeId,
                                            UA_REFERENCETYPEINDEX_HASSUBTYPE)) {
-                    elementResult->statusCode = UA_STATUSCODE_BADNODEIDINVALID;
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADNODEIDINVALID;
                     break;
                 }
 
 
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
                 break;
 
 
             }
             default:
-                elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
                 break;
         }
 
     }
+
+
 
     return contentFilterResult;
 
@@ -553,7 +548,7 @@ UA_Server_initialSelectClauseValidation(UA_Server *server,
         if(selectClauseCodes[i] != UA_STATUSCODE_GOOD)
             continue;
 
-        //Check if indexRange is defined
+      /* //Check if indexRange is defined
         if(!UA_String_equal(&eventFilter->selectClauses[i].indexRange, &UA_STRING_NULL)) {
             // Check if indexRange is parsable
             UA_NumericRange numericRange = UA_NUMERICRANGE("");
@@ -569,8 +564,11 @@ UA_Server_initialSelectClauseValidation(UA_Server *server,
                 selectClauseCodes[i] = UA_STATUSCODE_BADTYPEMISMATCH;
                 continue;
             }
-        }
+        }*/
+
+
     }
+
     return selectClauseCodes;
 }
 
