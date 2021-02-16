@@ -1,0 +1,104 @@
+#!/bin/bash
+# -*- sh -*-
+
+: << =cut
+
+=head1 NAME
+
+load - Plugin to monitor the jitter of PTP network time synchronization
+
+=head1 CONFIGURATION
+
+=head1 NOTES
+
+If run with the "autoconf"-parameter, give our opinion on whether we
+should be run on this system or not. This is optional, and only used
+by munin-config. In the case of this plugin, we should most probably
+always be included.
+
+=head1 MAGIC MARKERS
+
+ #%# family=auto
+ #%# capabilities=autoconf
+
+=cut
+
+. $MUNIN_LIBDIR/plugins/plugin.sh
+
+if [ "$1" = "autoconf" ]; then
+        echo yes
+        exit 0
+fi
+
+# If run with the "config"-parameter, give out information on how the
+# graphs should look.
+
+if [ "$1" = "config" ]; then
+
+        # The host name this plugin is for. (Can be overridden to have
+        # one machine answer for several)
+
+        # The title of the graph
+        echo 'graph_title PTP sync jitter'
+        # Arguments to "rrdtool graph". In this case, tell it that the
+        # lower limit of the graph is '0', and that 1k=1000 (not 1024)
+        echo 'graph_args --base 1000'
+        # The Y-axis label
+        echo 'graph_vlabel Jitter (ns)'
+        # We want Cur/Min/Avg/Max unscaled (i.e. 0.42 load instead of
+        # 420 milliload)
+        echo 'graph_scale no'
+        # Graph category. Defaults to 'other'
+        echo 'graph_category time'
+        # The fields. "label" is used in the legend. "label" is the only
+        # required subfield.
+        echo 'min.label min'
+        echo 'max.label max'
+        # These two read the environment for warning values for the field
+        # "load".  If "load_warning" or "warning" aren't set in the
+        # environment, no warning levels are set.  Likewise for "load_critical"
+        # and "critical".
+        print_warning min
+        print_critical min
+        print_warning max
+        print_critical max
+        # This one is purely to add an explanation to the web page. The first
+        # one is for the graph itself, while the second one is for the field
+        # "load".
+        echo 'graph_info The jitter describes the quality of the time synchronization between the remote and net local network.'
+        echo 'min.info 5 minute minimum jitter'
+        echo 'max.info 5 minute maximum jitter'
+
+        # Last, if run with the "config"-parameter, quit here (don't
+        # display any data)
+        exit 0
+fi
+
+# If not run with any parameters at all (or only unknown ones), do the
+# real work - i.e. display the data. Almost always this will be
+# "value" subfield for every data field.
+now=`tail -1 /var/log/ptp4l.log  | sed 's/^ptp4l\[\([0-9]*\).*/\1/'`
+start=`expr $now - 300`
+linetostart=`grep -n $start /var/log/ptp4l.log | head -1 | cut -d: -f1`
+
+#Ensure the line before 5 minutes is present in ptp4l log
+while [ -z "$linetostart" ]
+do
+  start=`expr $start + 1`
+  linetostart=`grep -n $start /var/log/ptp4l.log | head -1 | cut -d: -f1`
+done
+
+max=-999999999
+min=999999999
+for i in `tail -n +$linetostart /var/log/ptp4l.log | tr -s " " | cut -d" " -f4`
+do
+  if test $i -lt $min
+  then
+    min=$i
+  elif test $i -gt $max
+  then
+    max=$i
+  fi
+done
+echo "min.value $min"
+echo "max.value $max"

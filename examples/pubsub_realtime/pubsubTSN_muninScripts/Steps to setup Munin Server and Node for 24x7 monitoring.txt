@@ -1,0 +1,110 @@
+Steps to setup Munin Server and Node for 24*7 monitoring:
+Note: Perform all the steps mentioned in this document as a root user
+
+1. Setup a Munin Master Webserver:
+
+   Setup a Munin Master Webserver in one of the systems in the office network which is accessible to both the nodes connected in a peer-to-peer manner.
+
+	1.1 Install Apache2 server and dependency packages:	    
+ 	            sudo apt-get install -y apache2 libcgi-fast-perl libapache2-mod-fcgid
+
+	1.2 Check the fcgid module status
+	    After installing the dependency packages, the fcgid module shall be enabled. Double-check using the command
+		    /usr/sbin/apachectl -M | grep -i cgi
+
+            The command shall return “fcgid_module (shared)”. If the output is blank, the fcgid module is not enabled. Enable the fcgid module using the command
+		    sudo a2enmod fcgid
+
+	1.3 Install Munin Master Webserver:
+		    sudo apt-get install -y munin
+
+	1.4 Configure the Munin Master Webserver:
+		1. Open /etc/munin/munin.conf
+		2. Uncomment the following lines in /etc/munin/munin.conf
+			dbdir /var/lib/munin
+			htmldir /var/cache/munin/www
+			logdir /var/log/munin
+			rundir /var/run/munin
+			tmpldir /etc/munin/templates
+                3. Open the apache2 configuration file in the path /etc/munin/ and perform the 2 changes mentioned below.
+                Note: Apache2 configuration filename shall vary based on the OS that is being used. It shall be either apache2.conf or apache24.conf.
+
+			CHANGE 1: Replace the following lines 
+					<Directory /var/cache/munin/www>
+					Require local
+					Options None
+					</Directory>
+				  with the following lines
+					<Directory /var/cache/munin/www>
+					Require all granted
+					Options FollowSymLinks SymLinksIfOwnerMatch
+					</Directory>
+
+			CHANGE 2: Replace the following lines (if found)
+					<Location /munin-cgi/munin-cgi-graph>
+					Require local
+				  with the following lines
+					<Location /munin-cgi/munin-cgi-graph>
+					Require all granted
+					Options FollowSymLinks SymLinksIfOwnerMatch
+
+	1.5 Activate Munin master webserver:
+		Restart Apache2 and Munin services using the commands
+			/etc/init.d/apache2 restart
+			/etc/init.d/munin restart
+			/etc/init.d/munin-node restart
+
+ 	1.6 Verify Munin Master Webserver:
+            To verify if the Munin Webservice has been hosted successfully, access the webservice from the URL: http://<munin_master_ipaddress>/munin/
+
+            Example: If the IP Address of the system in which the Munin Master Webserver is installed is 123.456.78.100, access the Munin Master Webserver at http://123.456.78.100/munin/
+
+2. Setup Munin Client – (In both peer-to-peer nodes):
+
+Setup both the nodes as Munin Client to monitor its RTT latency, PTP and PHC2SYS values continuously. 
+Follow the below steps in both the nodes to setup as a Munin client. 
+
+	2.1 Install munin node:
+		sudo apt-get install munin-node -y
+
+	2.2 Configure Munin Node:
+		2.2.1 To make the Munin node communicate with Munin Master Webserver, modify the /etc/munin/munin-node.conf file.
+		2.2.2 Add your Munin server IP address after the line 
+			allow ^127.0.0.1$” in the /etc/munin/munin-node.conf file.
+			Note that the IP address is in regex format, so assuming that the Munin server IP address is 123.456.78.100, the line should be
+			allow ^123\.456\.78\.100$
+
+	2.3 Restart the Munin Node:
+		/etc/init.d/munin-node restart
+
+3. Add Munin Nodes to Munin Master Webserver:
+
+	Munin server must be configured with the installed Munin nodes to its configuration to reflect in the browser. 
+	To add the Munin Nodes to Munin Master Webserver, follow the below steps.
+
+	3.1 Configure Munin Master Configuration
+		Open the file /etc/munin/munin.conf in Munin Master and insert the following lines:
+		[MuninNode1]
+		    address <munin_node1_ip_address>
+		    use_node_name yes
+		[MuninNode2]
+		    address <munin_node2_ip_address>
+		    use_node_name yes
+
+		Example:
+		[MuninNodeIPC1]
+		    address 123.456.78.108
+		    use_node_name yes
+		
+	Note: The Node name specified within square brackets shall be the name of the Munin node that is displayed in the Munin Master Webserver.
+
+	3.2 Restart Munin Master Webserver and Munin Node
+		Restart the Munin master to enable the configuration changes
+			/etc/init.d/munin restart
+			/etc/init.d/munin-node restart
+
+	Note: Wait for at least 5 minutes to see the newly installed nodes in Munin Master Webserver. This wait is because the Munin Master is configured in such a way that it executes all its scripts and collects the values from the Munin nodes after every 5 minutes. So, any configuration change made to Munin nodes and Munin Master shall reflect only after 5 minutes.
+
+	3.3. Install additional munin plugins
+		sudo apt-get install munin-plugins-extra -y
+
