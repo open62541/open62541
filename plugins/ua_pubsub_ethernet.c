@@ -18,6 +18,8 @@
 #include <netpacket/packet.h>
 #include <netinet/if_ether.h>
 #include <ipcom_sock.h>
+
+#define ETH_P_802_2 NET_ETH_P_802_2
 #define ETH_ALEN ETHER_ADDR_LEN
 #else
 #include <linux/if_packet.h>
