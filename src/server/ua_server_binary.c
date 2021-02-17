@@ -286,7 +286,7 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
 /* HEL -> Open up the connection */
 static UA_StatusCode
 processHEL(UA_Server *server, UA_SecureChannel *channel, const UA_ByteString *msg) {
-    if(channel->state != UA_SECURECHANNELSTATE_CLOSED)
+    if(channel->state != UA_SECURECHANNELSTATE_FRESH)
         return UA_STATUSCODE_BADINTERNALERROR;
     size_t offset = 0; /* Go to the beginning of the TcpHelloMessage */
     UA_TcpHelloMessage helloMessage;

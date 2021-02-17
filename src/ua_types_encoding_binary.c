@@ -1469,8 +1469,16 @@ encodeBinaryUnion(const void *src, const UA_DataType *type, Ctx *ctx) {
     const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
     const UA_DataTypeMember *m = &type->members[selection-1];
     const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
-    uintptr_t ptr = ((uintptr_t)src) + UA_TYPES[UA_TYPES_UINT32].memSize + m->padding;
-    ret = encodeWithExchangeBuffer((const void*)ptr, mt, ctx);
+    uintptr_t ptr = ((uintptr_t)src) + m->padding;
+
+    if(m->isArray) {
+        const size_t length = *((const size_t*)ptr);
+        ptr += sizeof(size_t);
+        ret = Array_encodeBinary(*(void *UA_RESTRICT const *)ptr, length, mt, ctx);
+    } else {
+        ret = encodeWithExchangeBuffer((const void*)ptr, mt, ctx);
+    }
+
     UA_assert(ret != UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
 
     ctx->depth--;
@@ -1663,10 +1671,16 @@ decodeBinaryUnion(void *UA_RESTRICT dst, const UA_DataType *type, Ctx *ctx) {
     const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
     const UA_DataTypeMember *m = &type->members[selection-1];
     const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
-    uintptr_t ptr = ((uintptr_t)dst) + UA_TYPES[UA_TYPES_UINT32].memSize + m->padding;
+    uintptr_t ptr = ((uintptr_t)dst) + m->padding;
 
     ctx->depth++;
-    ret = decodeBinaryJumpTable[mt->typeKind]((void *UA_RESTRICT)ptr, mt, ctx);
+    if (m->isArray) {
+        size_t *length = (size_t *)ptr;
+        ptr += sizeof(size_t);
+        ret = Array_decodeBinary((void *UA_RESTRICT *UA_RESTRICT)ptr, length, mt, ctx);
+    } else {
+        ret = decodeBinaryJumpTable[mt->typeKind]((void *UA_RESTRICT)ptr, mt, ctx);
+    }
     ctx->depth--;
     return ret;
 }
@@ -1982,9 +1996,15 @@ calcSizeBinaryUnion(const void *p, const UA_DataType *type) {
     const UA_DataTypeMember *m = &type->members[selection-1];
     const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
     s += UA_TYPES[UA_TYPES_UINT32].memSize;
-    ptr += UA_TYPES[UA_TYPES_UINT32].memSize;
     ptr += m->padding;
-    s += UA_calcSizeBinary((const void *) ptr, mt);
+    if (m->isArray) {
+        const size_t length = *((const size_t*)ptr);
+        ptr += sizeof(size_t);
+        s += Array_calcSizeBinary(*(void *UA_RESTRICT const *)ptr, length, mt);
+        ptr += sizeof(void *);
+    } else {
+        s += UA_calcSizeBinary((const void *) ptr, mt);
+    }
     return s;
 }
 

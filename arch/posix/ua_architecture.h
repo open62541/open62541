@@ -54,9 +54,8 @@ void UA_sleep_ms(unsigned long ms);
 #  include<sys/socket.h>
 # endif
 #endif
-#if !defined(__CYGWIN__)
-# include <netinet/tcp.h>
-#endif
+
+#include <netinet/tcp.h>
 
 /* unsigned int for windows and workaround to a glibc bug */
 /* Additionally if GNU_LIBRARY is not defined, it may be using
