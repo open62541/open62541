@@ -106,7 +106,7 @@ UA_String_fromChars(const char *src) {
     s.length = strlen(src);
     if(s.length > 0) {
         s.data = (u8*)UA_malloc(s.length);
-        if(!s.data) {
+        if(UA_UNLIKELY(!s.data)) {
             s.length = 0;
             return s;
         }
@@ -277,7 +277,7 @@ UA_ByteString_allocBuffer(UA_ByteString *bs, size_t length) {
     if(length == 0)
         return UA_STATUSCODE_GOOD;
     bs->data = (u8*)UA_malloc(length);
-    if(!bs->data)
+    if(UA_UNLIKELY(!bs->data))
         return UA_STATUSCODE_BADOUTOFMEMORY;
     bs->length = length;
     return UA_STATUSCODE_GOOD;
@@ -566,10 +566,10 @@ UA_ExtensionObject_setValueCopy(UA_ExtensionObject *eo,
 
     /* Make a copy of the value */
     void *val = UA_malloc(type->memSize);
-    if(!val)
+    if(UA_UNLIKELY(!val))
         return UA_STATUSCODE_BADOUTOFMEMORY;
     UA_StatusCode res = UA_copy(p, val, type);
-    if(res != UA_STATUSCODE_GOOD) {
+    if(UA_UNLIKELY(res != UA_STATUSCODE_GOOD)) {
         UA_free(val);
         return res;
     }
@@ -630,10 +630,10 @@ UA_StatusCode
 UA_Variant_setScalarCopy(UA_Variant *v, const void * UA_RESTRICT p,
                          const UA_DataType *type) {
     void *n = UA_malloc(type->memSize);
-    if(!n)
+    if(UA_UNLIKELY(!n))
         return UA_STATUSCODE_BADOUTOFMEMORY;
     UA_StatusCode retval = UA_copy(p, n, type);
-    if(retval != UA_STATUSCODE_GOOD) {
+    if(UA_UNLIKELY(retval != UA_STATUSCODE_GOOD)) {
         UA_free(n);
         //cppcheck-suppress memleak
         return retval;
@@ -1018,8 +1018,9 @@ DiagnosticInfo_copy(UA_DiagnosticInfo const *src, UA_DiagnosticInfo *dst,
     if(src->hasAdditionalInfo)
        retval = UA_String_copy(&src->additionalInfo, &dst->additionalInfo);
     if(src->hasInnerDiagnosticInfo && src->innerDiagnosticInfo) {
-        dst->innerDiagnosticInfo = (UA_DiagnosticInfo*)UA_malloc(sizeof(UA_DiagnosticInfo));
-        if(dst->innerDiagnosticInfo) {
+        dst->innerDiagnosticInfo = (UA_DiagnosticInfo*)
+            UA_malloc(sizeof(UA_DiagnosticInfo));
+        if(UA_LIKELY(dst->innerDiagnosticInfo != NULL)) {
             retval |= DiagnosticInfo_copy(src->innerDiagnosticInfo,
                                           dst->innerDiagnosticInfo, NULL);
             dst->hasInnerDiagnosticInfo = true;

@@ -61,6 +61,7 @@ typedef struct {
 typedef struct {
     UA_UInt16 fieldCount;
     UA_DataValue* dataSetFields;
+    UA_ByteString rawFields;
     /* Json keys for the dataSetFields: TODO: own dataSetMessageType for json? */
     UA_String* fieldNames;
 } UA_DataSetMessage_DataKeyFrameData;
@@ -241,7 +242,7 @@ UA_DataSetMessage_encodeBinary(const UA_DataSetMessage* src, UA_Byte **bufPos,
 
 UA_StatusCode
 UA_DataSetMessage_decodeBinary(const UA_ByteString *src, size_t *offset,
-                               UA_DataSetMessage* dst);
+                               UA_DataSetMessage* dst, UA_UInt16 dsmSize);
 
 size_t
 UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage *p, UA_NetworkMessageOffsetBuffer *offsetBuffer,
