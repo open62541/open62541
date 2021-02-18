@@ -1534,7 +1534,7 @@ UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_Server *server,
     if(!currentDataSet)
         return UA_STATUSCODE_BADNOTFOUND;
 
-#ifdef UA_ENABLE_PUSBUB_EVENTS
+#ifdef UA_ENABLE_PUBSUB_EVENTS
     if(currentDataSet->config.publishedDataSetType == UA_PUBSUB_DATASET_PUBLISHEDEVENTS){
         if(dataSetWriter->eventQueueEntries == 0) return UA_STATUSCODE_GOOD;
         UA_UInt16 eventSize = (UA_UInt16)dataSetWriter->eventQueueEntries;

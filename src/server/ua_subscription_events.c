@@ -579,13 +579,27 @@ static UA_StatusCode addEventToDataSetWriter(UA_Server *server, UA_NodeId eventN
                             continue;
                         }
                     }*/
-
-                    UA_Variant *v = UA_Variant_new();
-                    UA_Variant_init(v);
-
+                    //TODO: multiple declaration must be changed to single one
+                    for(size_t i = 0; i < publishedDataSet->config.config.event.selectedFieldsSize; i++){
+                        UA_SimpleAttributeOperand selectedField = publishedDataSet->config.config.event.selectedFields[i];
+                        UA_Variant *v = UA_Variant_new();
+                        UA_Variant_init(v);
+                        UA_DataValue *dataValue = UA_DataValue_new();
+                        UA_DataValue_init(dataValue);
+                        if(resolveSimpleAttributeOperand(server, &server->adminSession, &eventNodeId, &selectedField, v) != UA_STATUSCODE_GOOD){
+                            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                                         "SimpleAttributeOperand wasn't able to be resolved as a Variant.");
+                            return UA_STATUSCODE_BAD; // TODO: replace this with better one
+                        };
+                        dataValue->value = *v;
+                        dataValue->serverTimestamp = UA_DateTime_now();
+                        if(insertVariantToDSWQueue(server, tmpDataSetWriter, dataValue) != UA_STATUSCODE_GOOD){
+                            return UA_STATUSCODE_BAD; // TODO: replace with more precise Statuscode
+                        }
+                    }
 
                     //Die Erstellung des "Message" Feldes dient hier nur zur Test-/Verständniszwecken, die Selektion der Felder wäre ja Aufgabe des DataSetFields
-                    UA_SimpleAttributeOperand selectedField = *UA_SimpleAttributeOperand_new();
+                    /*UA_SimpleAttributeOperand selectedField = *UA_SimpleAttributeOperand_new();
                     UA_SimpleAttributeOperand_init(&selectedField);
 
                     selectedField.typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
@@ -603,14 +617,12 @@ static UA_StatusCode addEventToDataSetWriter(UA_Server *server, UA_NodeId eventN
                         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                                      "SimpleAttributeOperand wasn't able to be resolved as a Variant.");
                         return UA_STATUSCODE_BAD; // TODO: replace this with better one
-                    };
+                    };*/
 
-                    UA_DataValue *dataValue = UA_DataValue_new();
-                    UA_DataValue_init(dataValue);
-                    dataValue->value = *v;
-                    dataValue->serverTimestamp = UA_DateTime_now();
 
-                    return insertVariantToDSWQueue(server, tmpDataSetWriter, dataValue);
+
+                    return UA_STATUSCODE_GOOD;
+                    //return insertVariantToDSWQueue(server, tmpDataSetWriter, dataValue);
                 }
             }
         }

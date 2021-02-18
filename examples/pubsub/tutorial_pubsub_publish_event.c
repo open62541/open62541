@@ -47,7 +47,28 @@ addPublishedDataSet(UA_Server *server) {
 
     // TODO: hier ziemlich sicher, aber noch nicht 100%
     publishedDataSetConfig.config.event.eventNotfier = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    publishedDataSetConfig.config.event.selectedFieldsSize = 2;
+    UA_SimpleAttributeOperand *selectedFields = (UA_SimpleAttributeOperand *)UA_calloc(2, sizeof(UA_SimpleAttributeOperand));
+    selectedFields[0].typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+    selectedFields[0].browsePathSize = 1;
+    selectedFields[0].browsePath = (UA_QualifiedName*)
+        UA_Array_new(1, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
+    if(!selectedFields[0].browsePath) {
+        UA_SimpleAttributeOperand_delete(&selectedFields[0]);
+    }
+    selectedFields[0].attributeId = UA_ATTRIBUTEID_VALUE;
+    selectedFields[0].browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "Severity");
 
+    selectedFields[1].typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+    selectedFields[1].browsePathSize = 1;
+    selectedFields[1].browsePath = (UA_QualifiedName*)
+        UA_Array_new(1, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
+    if(!selectedFields[1].browsePath) {
+        UA_SimpleAttributeOperand_delete(&selectedFields[1]);
+    }
+    selectedFields[1].attributeId = UA_ATTRIBUTEID_VALUE;
+    selectedFields[1].browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "Message");
+    publishedDataSetConfig.config.event.selectedFields = selectedFields;
     /* Create new PublishedDataSet based on the PublishedDataSetConfig. */
     UA_Server_addPublishedDataSet(server, &publishedDataSetConfig, &publishedDataSetIdent);
 }
