@@ -116,6 +116,27 @@ UA_Server_removePubSubConnection(UA_Server *server, const UA_NodeId connection) 
     return UA_STATUSCODE_GOOD;
 }
 
+UA_StatusCode
+UA_PubSubConnection_regist(UA_Server *server, UA_NodeId *connectionIdentifier) {
+    UA_PubSubConnection *connection =
+        UA_PubSubConnection_findConnectionbyId(server, *connectionIdentifier);
+    if(!connection)
+        return UA_STATUSCODE_BADNOTFOUND;
+
+    if(connection->isRegistered) {
+        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Connection already registered");
+        return UA_STATUSCODE_GOOD;
+    }
+
+    UA_StatusCode retval = connection->channel->regist(connection->channel, NULL, NULL);
+    if(retval != UA_STATUSCODE_GOOD)
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "register channel failed: 0x%" PRIx32 "!", retval);
+
+    connection->isRegistered = UA_TRUE;
+    return retval;
+}
+
 UA_AddPublishedDataSetResult
 UA_Server_addPublishedDataSet(UA_Server *server, const UA_PublishedDataSetConfig *publishedDataSetConfig,
                               UA_NodeId *pdsIdentifier) {
