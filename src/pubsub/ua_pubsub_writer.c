@@ -1298,7 +1298,17 @@ UA_Server_addDataSetWriter(UA_Server *server,
         }
     }
 #ifdef UA_ENABLE_PUBSUB_EVENTS
-    SIMPLEQ_INIT(&newDataSetWriter->eventQueue);
+    if(currentDataSetContext->config.publishedDataSetType == UA_PUBSUB_DATASET_PUBLISHEDEVENTS){
+        SIMPLEQ_INIT(&newDataSetWriter->eventQueue); // only needs to be initalized if the linked publishedDataSet is for event
+        if(server->pubSubManager.publishedDataSetEventsSize == 0){ // init list if nothing was added before
+            LIST_INIT(&server->pubSubManager.publishedDataSetEvents);
+        }
+        PublishedDataSetEventEntry *pdsEventEntry = (PublishedDataSetEventEntry *)UA_malloc(sizeof(PublishedDataSetEventEntry));
+        pdsEventEntry->pds = currentDataSetContext;
+        pdsEventEntry->dsw = newDataSetWriter;
+        LIST_INSERT_HEAD(&server->pubSubManager.publishedDataSetEvents, pdsEventEntry, listEntry);
+        server->pubSubManager.publishedDataSetEventsSize++;
+    }
 #endif /*UA_ENABLE_PUBSUB_EVENTS*/
 
     //copy the config into the new dataSetWriter
