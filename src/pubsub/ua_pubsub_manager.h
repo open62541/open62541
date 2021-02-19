@@ -19,7 +19,7 @@ _UA_BEGIN_DECLS
 #ifdef UA_ENABLE_PUBSUB_EVENTS
 typedef struct PublishedDataSetEventEntry {
     UA_PublishedDataSet *pds;
-    UA_NodeId originNodeId;
+    UA_DataSetWriter *dsw;
     LIST_ENTRY(PublishedDataSetEventEntry) listEntry;
 } PublishedDataSetEventEntry;
 #endif /*UA_ENABLE_PUBSUB_EVENTS*/
