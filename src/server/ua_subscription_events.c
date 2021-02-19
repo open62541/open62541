@@ -519,6 +519,118 @@ static const UA_NodeId isInFolderReferences[2] =
     {{0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_ORGANIZES}},
      {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASCOMPONENT}}};
 
+#ifdef UA_ENABLE_PUBSUB_EVENTS
+// TODO: decide where the method insertVariant should be
+// TODO: insertVariantToDSWQueue makes some problems
+static UA_StatusCode insertVariantToDSWQueue(UA_Server *server, UA_DataSetWriter *dsw, UA_DataValue *var)  {
+    if(dsw == NULL){
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                 "The given DataSetWriter is NULL");
+        return UA_STATUSCODE_BADARGUMENTSMISSING; //TODO: this must be changed the current Statuscode isn't describing it very well
+    }
+    if (var == NULL){
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
+                     "The given Variant is NULL");
+        return UA_STATUSCODE_BADARGUMENTSMISSING; //TODO: this must be changed the current Statuscode isn't describing it very well
+    }
+
+    //event_queue_entry ist ein neu erstelltes struct, einfach ein wrapper für Variant, da wir die Queue-Funktionalität der Makros brauchen
+    EventQueueEntry *entry = (EventQueueEntry *)malloc(sizeof(EventQueueEntry));
+    entry->value = *var;
+
+    SIMPLEQ_INSERT_TAIL(&dsw->eventQueue, entry, listEntry);
+    dsw->eventQueueEntries++;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode addEventToDataSetWriter(UA_Server *server, UA_NodeId eventNodeId, UA_NodeId origin){
+    /*
+     * Wir können ober den pubsubmanager auf die connections zugreifen, darüber wiederum auf die writerGroups und darüber
+     * auf die datasetwriter. Über die publishedDataSets die mit einem writer verbunden sind sollten wir merken können,
+     * zu welchem DataSetWriter das aktuelle Event gehört und es dort in die Queue schreiben.
+     */
+    UA_PubSubConnection *tmpConnection;
+    TAILQ_FOREACH(tmpConnection, &server->pubSubManager.connections, listEntry){
+        UA_WriterGroup *tmpWriterGroup;
+        LIST_FOREACH(tmpWriterGroup, &tmpConnection->writerGroups, listEntry) {
+            UA_DataSetWriter *tmpDataSetWriter;
+            LIST_FOREACH(tmpDataSetWriter, &tmpWriterGroup->writers, listEntry) {
+                UA_PublishedDataSet *publishedDataSet = UA_PublishedDataSet_findPDSbyId(server, tmpDataSetWriter->connectedDataSet);
+
+                if (!publishedDataSet){
+                    UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
+                                 "PublishedDataSet not found.");
+                    return UA_STATUSCODE_BADBOUNDNOTFOUND;
+                }
+                //Ist das PDS nicht vom PublishedEventsType, dann kann es übersprungen werden
+                if(publishedDataSet->config.publishedDataSetType != UA_PUBSUB_DATASET_PUBLISHEDEVENTS){
+                    continue;
+                }
+
+                //Published dieses PDS diese EventNotifier-Node?
+                if(UA_NodeId_equal(&publishedDataSet->config.config.event.eventNotfier, &origin)){
+                    UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Found a match :D");
+                    //hier würden die Event-Felder selektiert, die von der PubSub-config gewuenscht sind
+                    /*UA_DataSetField dsf;
+                    for(size_t k = 0; k < pds->fieldSize; ++k) {
+                        dsf = pds->fields.tqh_first[i];
+                        //wenn es kein Event ist, kannst du es überspringen
+                        if(dsf.config.dataSetFieldType != UA_PUBSUB_DATASETFIELD_EVENT){
+                            continue;
+                        }
+                    }*/
+                    //TODO: multiple declaration must be changed to single one
+                    for(size_t i = 0; i < publishedDataSet->config.config.event.selectedFieldsSize; i++){
+                        UA_SimpleAttributeOperand selectedField = publishedDataSet->config.config.event.selectedFields[i];
+                        UA_Variant *v = UA_Variant_new();
+                        UA_Variant_init(v);
+                        UA_DataValue *dataValue = UA_DataValue_new();
+                        UA_DataValue_init(dataValue);
+                        if(resolveSimpleAttributeOperand(server, &server->adminSession, &eventNodeId, &selectedField, v) != UA_STATUSCODE_GOOD){
+                            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                                         "SimpleAttributeOperand wasn't able to be resolved as a Variant.");
+                            return UA_STATUSCODE_BAD; // TODO: replace this with better one
+                        };
+                        dataValue->value = *v;
+                        dataValue->serverTimestamp = UA_DateTime_now();
+                        if(insertVariantToDSWQueue(server, tmpDataSetWriter, dataValue) != UA_STATUSCODE_GOOD){
+                            return UA_STATUSCODE_BAD; // TODO: replace with more precise Statuscode
+                        }
+                    }
+
+                    //Die Erstellung des "Message" Feldes dient hier nur zur Test-/Verständniszwecken, die Selektion der Felder wäre ja Aufgabe des DataSetFields
+                    /*UA_SimpleAttributeOperand selectedField = *UA_SimpleAttributeOperand_new();
+                    UA_SimpleAttributeOperand_init(&selectedField);
+
+                    selectedField.typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+                    selectedField.browsePathSize = 1;
+                    selectedField.browsePath = (UA_QualifiedName*)
+                        UA_Array_new(selectedField.browsePathSize, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
+                    if(!selectedField.browsePath) {
+                        UA_SimpleAttributeOperand_delete(&selectedField);
+                    }
+                    selectedField.attributeId = UA_ATTRIBUTEID_VALUE;
+                    selectedField.browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "Message");
+
+                    //Speichere den Wert des Event-Feldes "Message" in das Variant
+                    if(resolveSimpleAttributeOperand(server, &server->adminSession, &eventNodeId, &selectedField, v) != UA_STATUSCODE_GOOD){
+                        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                                     "SimpleAttributeOperand wasn't able to be resolved as a Variant.");
+                        return UA_STATUSCODE_BAD; // TODO: replace this with better one
+                    };*/
+
+
+
+                    return UA_STATUSCODE_GOOD;
+                    //return insertVariantToDSWQueue(server, tmpDataSetWriter, dataValue);
+                }
+            }
+        }
+    }
+    return UA_STATUSCODE_BADNOTFOUND;
+}
+#endif /*UA_ENABLE_PUBSUB_EVENTS*/
+
 UA_StatusCode
 UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
                        const UA_NodeId origin, UA_ByteString *outEventId,
@@ -661,6 +773,15 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
             setHistoricalEvent(server, &origin, &emitNodes[i].nodeId, &eventNodeId);
 #endif
     }
+
+#ifdef UA_ENABLE_PUBSUB_EVENTS
+    PublishedDataSetEventEntry *entry;
+    LIST_FOREACH(entry, &server->pubSubManager.publishedDataSetEvents, listEntry){
+        if(UA_NodeId_equal(&entry->originNodeId, &origin)){
+            addEventToDataSetWriter(server, eventNodeId, origin);
+        }
+    }
+#endif /*UA_ENABLE_PUBSUB_EVENTS*/
 
     /* Delete the node representation of the event */
     if(deleteEventNode) {

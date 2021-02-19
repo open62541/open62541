@@ -1146,7 +1146,7 @@ START_TEST(Client_subscription_async_sub) {
     /* Activate background publish request */
     cc->outStandingPublishRequests = 10;
 
-    ck_assert_uint_eq(chanState, UA_SECURECHANNELSTATE_CLOSED);
+    ck_assert_uint_eq(chanState, UA_SECURECHANNELSTATE_FRESH);
 
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);

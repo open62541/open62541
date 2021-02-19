@@ -17,7 +17,12 @@ def generateBooleanCode(value):
 
 # Strip invalid characters to create valid C identifiers (variable names etc):
 def makeCIdentifier(value):
-    return re.sub(r'[^\w]', '', value)
+    keywords = frozenset(["double", "int", "float", "char"])
+    sanitized = re.sub(r'[^\w]', '', value)
+    if sanitized in keywords:
+        return "_" + sanitized
+    else:
+        return sanitized
 
 # Escape C strings:
 def makeCLiteral(value):

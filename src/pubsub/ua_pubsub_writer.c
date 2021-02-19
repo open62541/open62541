@@ -132,24 +132,11 @@ UA_PubSubConnection_clear(UA_Server *server, UA_PubSubConnection *connection) {
 }
 
 UA_StatusCode
-UA_PubSubConnection_regist(UA_Server *server, UA_NodeId *connectionIdentifier) {
-    UA_PubSubConnection *connection =
-        UA_PubSubConnection_findConnectionbyId(server, *connectionIdentifier);
-    if(!connection)
-        return UA_STATUSCODE_BADNOTFOUND;
-
-    UA_StatusCode retval = connection->channel->regist(connection->channel, NULL, NULL);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "register channel failed: 0x%" PRIx32 "!", retval);
-    }
-    return retval;
-}
-
-UA_StatusCode
 UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
                          const UA_WriterGroupConfig *writerGroupConfig,
                          UA_NodeId *writerGroupIdentifier) {
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+
     if(!writerGroupConfig)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     //search the connection by the given connectionIdentifier
@@ -179,6 +166,13 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
         }
     }
 
+    /* Regist (bind) the connection channel if it is not already registered */
+    if(!currentConnectionContext->isRegistered) {
+        retVal |= UA_PubSubConnection_regist(server, &currentConnectionContext->identifier);
+        if(retVal != UA_STATUSCODE_GOOD)
+            return retVal;
+    }
+
     //allocate memory for new WriterGroup
     UA_WriterGroup *newWriterGroup = (UA_WriterGroup *) UA_calloc(1, sizeof(UA_WriterGroup));
     if(!newWriterGroup)
@@ -192,7 +186,7 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
 
     //deep copy of the config
     UA_WriterGroupConfig tmpWriterGroupConfig;
-    UA_StatusCode retVal = UA_WriterGroupConfig_copy(writerGroupConfig, &tmpWriterGroupConfig);
+    retVal = UA_WriterGroupConfig_copy(writerGroupConfig, &tmpWriterGroupConfig);
 
     if(!tmpWriterGroupConfig.messageSettings.content.decoded.type) {
         UA_UadpWriterGroupMessageDataType *wgm = UA_UadpWriterGroupMessageDataType_new();
@@ -471,7 +465,10 @@ UA_PublishedDataSetConfig_copy(const UA_PublishedDataSetConfig *src,
             res |= UA_DataSetMetaDataType_copy(&src->config.itemsTemplate.metaData,
                                                &dst->config.itemsTemplate.metaData);
             break;
-
+        case UA_PUBSUB_DATASET_PUBLISHEDEVENTS:
+            // TODO: check this
+            // ich glaube hier muss nichts hin, weil am Anfang ja alles mit memcpy kopiert wird
+            break;
         default:
             res = UA_STATUSCODE_BADINVALIDARGUMENT;
             break;
@@ -647,7 +644,10 @@ generateFieldMetaData(UA_Server *server, UA_DataSetField *field, UA_FieldMetaDat
             //fieldMetaData.maxStringLength
             return UA_STATUSCODE_GOOD;
         case UA_PUBSUB_DATASETFIELD_EVENT:
-            return UA_STATUSCODE_BADNOTSUPPORTED;
+            //TODO: adjustments needed
+            //UA_String_copy(&field->config.field.events.fieldNameAlias,&fieldMetaData->name);
+            //fieldMetaData->description = UA_LOCALIZEDTEXT_ALLOC("", "");
+            return UA_STATUSCODE_GOOD;
         default:
             return UA_STATUSCODE_BADNOTSUPPORTED;
     }
@@ -675,11 +675,6 @@ UA_Server_addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
         return result;
     }
 
-    if(currentDataSet->config.publishedDataSetType != UA_PUBSUB_DATASET_PUBLISHEDITEMS){
-        result.result = UA_STATUSCODE_BADNOTIMPLEMENTED;
-        return result;
-    }
-
     UA_DataSetField *newField = (UA_DataSetField *) UA_calloc(1, sizeof(UA_DataSetField));
     if(!newField){
         result.result = UA_STATUSCODE_BADINTERNALERROR;
@@ -702,6 +697,14 @@ UA_Server_addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
         TAILQ_INSERT_TAIL(&currentDataSet->fields, newField, listEntry);
     else
         TAILQ_INSERT_HEAD(&currentDataSet->fields, newField, listEntry);
+
+    if(currentDataSet->config.publishedDataSetType != UA_PUBSUB_DATASET_PUBLISHEDITEMS){
+
+        //TODO: hier fehlt was für Event-PDS
+
+        //result.result = UA_STATUSCODE_BADNOTIMPLEMENTED;
+        //return result;
+    }
 
     if(newField->config.field.variable.promotedField)
         currentDataSet->promotedFieldsCount++;
@@ -1294,6 +1297,9 @@ UA_Server_addDataSetWriter(UA_Server *server,
             return retVal;
         }
     }
+#ifdef UA_ENABLE_PUBSUB_EVENTS
+    SIMPLEQ_INIT(&newDataSetWriter->eventQueue);
+#endif /*UA_ENABLE_PUBSUB_EVENTS*/
 
     //copy the config into the new dataSetWriter
     UA_DataSetWriterConfig tmpDataSetWriterConfig;
@@ -1527,6 +1533,51 @@ UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_Server *server,
         UA_PublishedDataSet_findPDSbyId(server, dataSetWriter->connectedDataSet);
     if(!currentDataSet)
         return UA_STATUSCODE_BADNOTFOUND;
+
+#ifdef UA_ENABLE_PUBSUB_EVENTS
+    if(currentDataSet->config.publishedDataSetType == UA_PUBSUB_DATASET_PUBLISHEDEVENTS){
+        if(dataSetWriter->eventQueueEntries == 0) return UA_STATUSCODE_GOOD;
+        UA_UInt16 eventSize = (UA_UInt16)dataSetWriter->eventQueueEntries;
+        dataSetMessage->header.dataSetMessageValid = true;
+        dataSetMessage->header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
+        dataSetMessage->data.keyFrameData.fieldCount = eventSize;
+        dataSetMessage->data.keyFrameData.dataSetFields = (UA_DataValue *)
+            UA_Array_new(eventSize, &UA_TYPES[UA_TYPES_DATAVALUE]);
+        if(!dataSetMessage->data.keyFrameData.dataSetFields)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+
+        // Add every event to DataSetMessage
+        for(size_t i = 0; i < eventSize; i++){
+            // Extract First Item and Remove it
+            EventQueueEntry *eventQueueEntry = SIMPLEQ_FIRST(&dataSetWriter->eventQueue);
+            SIMPLEQ_REMOVE_HEAD(&dataSetWriter->eventQueue, listEntry);
+            dataSetWriter->eventQueueEntries--;
+
+            // Create DataValue for Message
+            UA_DataValue dataValue = eventQueueEntry->value;
+
+            if(((u64)dataSetWriter->config.dataSetFieldContentMask &
+                (u64)UA_DATASETFIELDCONTENTMASK_STATUSCODE) == 0)
+                dataValue.hasStatus = false;
+
+            /* Deactivate timestamps */
+            if(((u64)dataSetWriter->config.dataSetFieldContentMask &
+                (u64)UA_DATASETFIELDCONTENTMASK_SOURCETIMESTAMP) == 0)
+                dataValue.hasSourceTimestamp = false;
+            if(((u64)dataSetWriter->config.dataSetFieldContentMask &
+                (u64)UA_DATASETFIELDCONTENTMASK_SOURCEPICOSECONDS) == 0)
+                dataValue.hasSourcePicoseconds = false;
+            if(((u64)dataSetWriter->config.dataSetFieldContentMask &
+                (u64)UA_DATASETFIELDCONTENTMASK_SERVERTIMESTAMP) == 0)
+                dataValue.hasServerTimestamp = false;
+            if(((u64)dataSetWriter->config.dataSetFieldContentMask &
+                (u64)UA_DATASETFIELDCONTENTMASK_SERVERPICOSECONDS) == 0)
+                dataValue.hasServerPicoseconds = false;
+            dataSetMessage->data.keyFrameData.dataSetFields[i] = dataValue;
+        }
+        return UA_STATUSCODE_GOOD;
+    }
+#endif /*UA_ENABLE_PUBSUB_EVENTS*/
 
     /* Prepare DataSetMessageContent */
     dataSetMessage->header.dataSetMessageValid = true;

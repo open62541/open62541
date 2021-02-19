@@ -269,6 +269,7 @@ UA_DataSetReader_generateNetworkMessage(UA_PubSubConnection *pubSubConnection, U
     networkMessage->payload.dataSetPayload.dataSetMessages = dsm;
     return UA_STATUSCODE_GOOD;
 }
+
 /***************/
 /* ReaderGroup */
 /***************/
@@ -299,6 +300,13 @@ UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Adding ReaderGroup failed. Subscriber configuration is frozen.");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
+    }
+
+    /* Regist (bind) the connection channel if it is not already registered */
+    if(!currentConnectionContext->isRegistered) {
+        retval |= UA_PubSubConnection_regist(server, &connectionIdentifier);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
     }
 
     /* Allocate memory for new reader group */

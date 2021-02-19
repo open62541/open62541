@@ -116,6 +116,27 @@ UA_Server_removePubSubConnection(UA_Server *server, const UA_NodeId connection) 
     return UA_STATUSCODE_GOOD;
 }
 
+UA_StatusCode
+UA_PubSubConnection_regist(UA_Server *server, UA_NodeId *connectionIdentifier) {
+    UA_PubSubConnection *connection =
+        UA_PubSubConnection_findConnectionbyId(server, *connectionIdentifier);
+    if(!connection)
+        return UA_STATUSCODE_BADNOTFOUND;
+
+    if(connection->isRegistered) {
+        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Connection already registered");
+        return UA_STATUSCODE_GOOD;
+    }
+
+    UA_StatusCode retval = connection->channel->regist(connection->channel, NULL, NULL);
+    if(retval != UA_STATUSCODE_GOOD)
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "register channel failed: 0x%" PRIx32 "!", retval);
+
+    connection->isRegistered = UA_TRUE;
+    return retval;
+}
+
 UA_AddPublishedDataSetResult
 UA_Server_addPublishedDataSet(UA_Server *server, const UA_PublishedDataSetConfig *publishedDataSetConfig,
                               UA_NodeId *pdsIdentifier) {
@@ -125,11 +146,11 @@ UA_Server_addPublishedDataSet(UA_Server *server, const UA_PublishedDataSetConfig
                      "PublishedDataSet creation failed. No config passed in.");
         return result;
     }
-    if(publishedDataSetConfig->publishedDataSetType != UA_PUBSUB_DATASET_PUBLISHEDITEMS){
+    /*if(publishedDataSetConfig->publishedDataSetType != UA_PUBSUB_DATASET_PUBLISHEDITEMS){
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "PublishedDataSet creation failed. Unsupported PublishedDataSet type.");
         return result;
-    }
+    }*/
     //deep copy the given connection config
     UA_PublishedDataSetConfig tmpPublishedDataSetConfig;
     memset(&tmpPublishedDataSetConfig, 0, sizeof(UA_PublishedDataSetConfig));
@@ -213,6 +234,21 @@ UA_Server_addPublishedDataSet(UA_Server *server, const UA_PublishedDataSetConfig
     server->pubSubManager.publishedDataSetsSize++;
     result.configurationVersion.majorVersion = UA_PubSubConfigurationVersionTimeDifference();
     result.configurationVersion.minorVersion = UA_PubSubConfigurationVersionTimeDifference();
+#ifdef UA_ENABLE_PUBSUB_EVENTS
+    if(newPubSubDataSetField->config.publishedDataSetType == UA_PUBSUB_DATASET_PUBLISHEDEVENTS){
+        /*If nothing was added it needs to be initalized*/
+        if(server->pubSubManager.publishedDataSetEventsSize == 0){
+            LIST_INIT(&server->pubSubManager.publishedDataSetEvents);
+        }
+        /*Im PubSubManager hinzufügen, um später besser selektieren zu können*/
+        PublishedDataSetEventEntry *entry = (PublishedDataSetEventEntry *)
+            UA_malloc(sizeof(PublishedDataSetEventEntry));
+        entry->pds = newPubSubDataSetField;
+        entry->originNodeId = newPubSubDataSetField->config.config.event.eventNotfier;
+        LIST_INSERT_HEAD(&server->pubSubManager.publishedDataSetEvents, entry, listEntry);
+        server->pubSubManager.publishedDataSetEventsSize++;
+    }
+#endif
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     addPublishedDataItemsRepresentation(server, newPubSubDataSetField);
 #endif
