@@ -234,21 +234,6 @@ UA_Server_addPublishedDataSet(UA_Server *server, const UA_PublishedDataSetConfig
     server->pubSubManager.publishedDataSetsSize++;
     result.configurationVersion.majorVersion = UA_PubSubConfigurationVersionTimeDifference();
     result.configurationVersion.minorVersion = UA_PubSubConfigurationVersionTimeDifference();
-#ifdef UA_ENABLE_PUBSUB_EVENTS
-    if(newPubSubDataSetField->config.publishedDataSetType == UA_PUBSUB_DATASET_PUBLISHEDEVENTS){
-        /*If nothing was added it needs to be initalized*/
-        if(server->pubSubManager.publishedDataSetEventsSize == 0){
-            LIST_INIT(&server->pubSubManager.publishedDataSetEvents);
-        }
-        /*Im PubSubManager hinzufügen, um später besser selektieren zu können*/
-        PublishedDataSetEventEntry *entry = (PublishedDataSetEventEntry *)
-            UA_malloc(sizeof(PublishedDataSetEventEntry));
-        entry->pds = newPubSubDataSetField;
-        entry->originNodeId = newPubSubDataSetField->config.config.event.eventNotfier;
-        LIST_INSERT_HEAD(&server->pubSubManager.publishedDataSetEvents, entry, listEntry);
-        server->pubSubManager.publishedDataSetEventsSize++;
-    }
-#endif
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     addPublishedDataItemsRepresentation(server, newPubSubDataSetField);
 #endif
