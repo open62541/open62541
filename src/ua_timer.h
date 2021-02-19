@@ -27,6 +27,7 @@ typedef void (*UA_ApplicationCallback)(void *application, void *data);
 
 typedef struct UA_TimerEntry {
     ZIP_ENTRY(UA_TimerEntry) zipfields;
+    UA_TimerPolicy timerPolicy;              /* Timer policy to handle cycle misses */
     UA_DateTime nextTime;                    /* The next time when the callback
                                               * is to be executed */
     UA_UInt64 interval;                      /* Interval in 100ns resolution. If
@@ -74,11 +75,13 @@ UA_Timer_addTimerEntry(UA_Timer *t, UA_TimerEntry *te, UA_UInt64 *callbackId);
 UA_StatusCode
 UA_Timer_addRepeatedCallback(UA_Timer *t, UA_ApplicationCallback callback,
                              void *application, void *data, UA_Double interval_ms,
+                             UA_DateTime *baseTime, UA_TimerPolicy timerPolicy,
                              UA_UInt64 *callbackId);
 
 UA_StatusCode
-UA_Timer_changeRepeatedCallbackInterval(UA_Timer *t, UA_UInt64 callbackId,
-                                        UA_Double interval_ms);
+UA_Timer_changeRepeatedCallback(UA_Timer *t, UA_UInt64 callbackId,
+                                UA_Double interval_ms, UA_DateTime *baseTime,
+                                UA_TimerPolicy timerPolicy);
 
 void
 UA_Timer_removeCallback(UA_Timer *t, UA_UInt64 callbackId);

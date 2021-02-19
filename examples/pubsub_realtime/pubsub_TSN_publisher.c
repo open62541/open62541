@@ -311,7 +311,9 @@ static void nanoSecondFieldConversion(struct timespec *timeSpecValue) {
 static UA_StatusCode
 addPubSubApplicationCallback(UA_Server *server, UA_NodeId identifier,
                              UA_ServerCallback callback,
-                             void *data, UA_Double interval_ms, UA_UInt64 *callbackId) {
+                             void *data, UA_Double interval_ms,
+                             UA_DateTime *baseTime, UA_TimerPolicy timerPolicy,
+                             UA_UInt64 *callbackId) {
     /* Initialize arguments required for the thread to run */
     threadArg *threadArguments = (threadArg *) UA_malloc(sizeof(threadArg));
 
@@ -346,8 +348,9 @@ addPubSubApplicationCallback(UA_Server *server, UA_NodeId identifier,
 }
 
 static UA_StatusCode
-changePubSubApplicationCallbackInterval(UA_Server *server, UA_NodeId identifier,
-                                        UA_UInt64 callbackId, UA_Double interval_ms) {
+changePubSubApplicationCallback(UA_Server *server, UA_NodeId identifier,
+                                UA_UInt64 callbackId, UA_Double interval_ms,
+                                UA_DateTime *baseTime, UA_TimerPolicy timerPolicy) {
     /* Callback interval need not be modified as it is thread based implementation.
      * The thread uses nanosleep for calculating cycle time and modification in
      * nanosleep value changes cycle time */
@@ -444,7 +447,7 @@ addReaderGroup(UA_Server *server) {
     }
 
     readerGroupConfig.pubsubManagerCallback.addCustomCallback = addPubSubApplicationCallback;
-    readerGroupConfig.pubsubManagerCallback.changeCustomCallbackInterval = changePubSubApplicationCallbackInterval;
+    readerGroupConfig.pubsubManagerCallback.changeCustomCallback = changePubSubApplicationCallback;
     readerGroupConfig.pubsubManagerCallback.removeCustomCallback = removePubSubApplicationCallback;
 
     UA_Server_addReaderGroup(server, connectionIdentSubscriber, &readerGroupConfig,
@@ -799,7 +802,7 @@ addWriterGroup(UA_Server *server) {
     writerGroupConfig.rtLevel            = UA_PUBSUB_RT_FIXED_SIZE;
 
     writerGroupConfig.pubsubManagerCallback.addCustomCallback = addPubSubApplicationCallback;
-    writerGroupConfig.pubsubManagerCallback.changeCustomCallbackInterval = changePubSubApplicationCallbackInterval;
+    writerGroupConfig.pubsubManagerCallback.changeCustomCallback = changePubSubApplicationCallback;
     writerGroupConfig.pubsubManagerCallback.removeCustomCallback = removePubSubApplicationCallback;
 
     writerGroupConfig.messageSettings.encoding             = UA_EXTENSIONOBJECT_DECODED;

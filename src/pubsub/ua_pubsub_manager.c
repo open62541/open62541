@@ -338,15 +338,17 @@ UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
 
 UA_StatusCode
 UA_PubSubManager_addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
-                                     void *data, UA_Double interval_ms, UA_UInt64 *callbackId) {
+                                     void *data, UA_Double interval_ms, UA_DateTime *baseTime,
+                                     UA_TimerPolicy timerPolicy, UA_UInt64 *callbackId) {
     return UA_Timer_addRepeatedCallback(&server->timer, (UA_ApplicationCallback)callback,
-                                        server, data, interval_ms, callbackId);
+                                        server, data, interval_ms, baseTime, timerPolicy, callbackId);
 }
 
 UA_StatusCode
-UA_PubSubManager_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
-                                                UA_Double interval_ms) {
-    return UA_Timer_changeRepeatedCallbackInterval(&server->timer, callbackId, interval_ms);
+UA_PubSubManager_changeRepeatedCallback(UA_Server *server, UA_UInt64 callbackId,
+                                        UA_Double interval_ms, UA_DateTime *baseTime,
+                                        UA_TimerPolicy timerPolicy) {
+    return UA_Timer_changeRepeatedCallback(&server->timer, callbackId, interval_ms, baseTime, timerPolicy);
 }
 
 void
@@ -501,8 +503,9 @@ UA_PubSubComponent_updateMonitoringInterval(UA_Server *server, UA_NodeId Id, UA_
             UA_DataSetReader *reader = (UA_DataSetReader*) data;
             switch (eMonitoringType) {
                 case UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT: {
-                    ret = UA_Timer_changeRepeatedCallbackInterval(&server->timer, reader->msgRcvTimeoutTimerId, 
-                        reader->config.messageReceiveTimeout);
+                    ret = UA_Timer_changeRepeatedCallback(&server->timer, reader->msgRcvTimeoutTimerId,
+                                                          reader->config.messageReceiveTimeout, NULL,
+                                                          UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME);
                     if (ret == UA_STATUSCODE_GOOD) {
                         UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
                             "UA_PubSubComponent_updateMonitoringInterval(): DataSetReader '%.*s' - MessageReceiveTimeout: new MessageReceiveTimeout = '%f' "

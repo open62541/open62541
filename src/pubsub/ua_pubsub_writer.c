@@ -2226,11 +2226,15 @@ UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *writerGroup
         retval |= writerGroup->config.pubsubManagerCallback.addCustomCallback(server, writerGroup->identifier,
                                                                               (UA_ServerCallback) UA_WriterGroup_publishCallback,
                                                                               writerGroup, writerGroup->config.publishingInterval,
+                                                                              NULL,                                        // TODO: Send base time from writer group config
+                                                                              UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,  // TODO: Send timer policy from writer group config
                                                                               &writerGroup->publishCallbackId);
     else
         retval |= UA_PubSubManager_addRepeatedCallback(server,
                                                        (UA_ServerCallback) UA_WriterGroup_publishCallback,
                                                        writerGroup, writerGroup->config.publishingInterval,
+                                                       NULL,                                        // TODO: Send base time from writer group config
+                                                       UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,  // TODO: Send timer policy from writer group config
                                                        &writerGroup->publishCallbackId);
 
     if(retval == UA_STATUSCODE_GOOD)
