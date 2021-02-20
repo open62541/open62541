@@ -733,36 +733,35 @@ UA_Server_setReaderGroupDisabled(UA_Server *server, const UA_NodeId readerGroupI
 }
 
 static UA_StatusCode
-checkReaderIdentifier(UA_Server *server, UA_NetworkMessage *pMsg, UA_DataSetReader *reader) {
-    if(!pMsg->groupHeaderEnabled &&
-       !pMsg->groupHeader.writerGroupIdEnabled &&
-       !pMsg->payloadHeaderEnabled) {
-        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                    "Cannot process DataSetReader without WriterGroup"
-                    "and DataSetWriter identifiers");
-        return UA_STATUSCODE_BADNOTIMPLEMENTED;
+checkReaderIdentifier(UA_Server *server, UA_NetworkMessage *pMsg, UA_DataSetReader *reader, UA_UInt16 dataSetWriterId) {
+
+    if(pMsg->groupHeaderEnabled &&
+       pMsg->groupHeader.writerGroupIdEnabled && 
+       (reader->config.writerGroupId != pMsg->groupHeader.writerGroupId)) {
+        return UA_STATUSCODE_BADNOTFOUND;
     }
 
-    if((reader->config.writerGroupId == pMsg->groupHeader.writerGroupId) &&
-       (reader->config.dataSetWriterId == *pMsg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds)) {
-        UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
+    if(pMsg->payloadHeaderEnabled && (reader->config.dataSetWriterId != dataSetWriterId)) {
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "DataSetReader found. Process NetworkMessage");
-        return UA_STATUSCODE_GOOD;
-    }
 
-    return UA_STATUSCODE_BADNOTFOUND;
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
-getReaderFromIdentifier(UA_Server *server, UA_NetworkMessage *pMsg,
-                        UA_DataSetReader **dataSetReader, UA_PubSubConnection *pConnection) {
+getReadersFromIdentifier(UA_Server *server, UA_NetworkMessage *pMsg, UA_PubSubConnection *pConnection, UA_UInt16 dataSetWriterId,
+                        UA_DataSetReader ***dataSetReaders, UA_Byte* dataSetReaderCount) {
     UA_StatusCode retval = UA_STATUSCODE_BADNOTFOUND;
     if(!pMsg->publisherIdEnabled) {
         UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
                     "Cannot process DataSetReader without PublisherId");
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
     }
-
+    UA_DataSetReader** tmpDataSetReaders = NULL;
+    UA_Byte dsrCount = 0;
     UA_ReaderGroup* readerGroup;
     LIST_FOREACH(readerGroup, &pConnection->readerGroups, listEntry) {
         UA_DataSetReader *tmpReader;
@@ -772,28 +771,28 @@ getReaderFromIdentifier(UA_Server *server, UA_NetworkMessage *pMsg,
                 if(tmpReader->config.publisherId.type == &UA_TYPES[UA_TYPES_BYTE] &&
                    pMsg->publisherIdType == UA_PUBLISHERDATATYPE_BYTE &&
                    pMsg->publisherId.publisherIdByte == *(UA_Byte*)tmpReader->config.publisherId.data) {
-                    retval = checkReaderIdentifier(server, pMsg, tmpReader);
+                    retval = checkReaderIdentifier(server, pMsg, tmpReader, dataSetWriterId);
                 }
                 break;
             case UA_PUBLISHERDATATYPE_UINT16:
                 if(tmpReader->config.publisherId.type == &UA_TYPES[UA_TYPES_UINT16] &&
                    pMsg->publisherIdType == UA_PUBLISHERDATATYPE_UINT16 &&
                    pMsg->publisherId.publisherIdUInt16 == *(UA_UInt16*) tmpReader->config.publisherId.data) {
-                    retval = checkReaderIdentifier(server, pMsg, tmpReader);
+                    retval = checkReaderIdentifier(server, pMsg, tmpReader, dataSetWriterId);
                 }
                 break;
             case UA_PUBLISHERDATATYPE_UINT32:
                 if(tmpReader->config.publisherId.type == &UA_TYPES[UA_TYPES_UINT32] &&
                    pMsg->publisherIdType == UA_PUBLISHERDATATYPE_UINT32 &&
                    pMsg->publisherId.publisherIdUInt32 == *(UA_UInt32*)tmpReader->config.publisherId.data) {
-                    retval = checkReaderIdentifier(server, pMsg, tmpReader);
+                    retval = checkReaderIdentifier(server, pMsg, tmpReader, dataSetWriterId);
                 }
                 break;
             case UA_PUBLISHERDATATYPE_UINT64:
                 if(tmpReader->config.publisherId.type == &UA_TYPES[UA_TYPES_UINT64] &&
                    pMsg->publisherIdType == UA_PUBLISHERDATATYPE_UINT64 &&
                    pMsg->publisherId.publisherIdUInt64 == *(UA_UInt64*)tmpReader->config.publisherId.data) {
-                    retval = checkReaderIdentifier(server, pMsg, tmpReader);
+                    retval = checkReaderIdentifier(server, pMsg, tmpReader, dataSetWriterId);
                 }
                 break;
             case UA_PUBLISHERDATATYPE_STRING:
@@ -801,7 +800,7 @@ getReaderFromIdentifier(UA_Server *server, UA_NetworkMessage *pMsg,
                    pMsg->publisherIdType == UA_PUBLISHERDATATYPE_STRING &&
                    UA_String_equal(&pMsg->publisherId.publisherIdString,
                                    (UA_String*)tmpReader->config.publisherId.data)) {
-                    retval = checkReaderIdentifier(server, pMsg, tmpReader);
+                    retval = checkReaderIdentifier(server, pMsg, tmpReader, dataSetWriterId);
                 }
                 break;
             default:
@@ -809,12 +808,25 @@ getReaderFromIdentifier(UA_Server *server, UA_NetworkMessage *pMsg,
             }
 
             if(retval == UA_STATUSCODE_GOOD) {
-                *dataSetReader = tmpReader;
-                return UA_STATUSCODE_GOOD;
+                ++dsrCount;
+                UA_DataSetReader** tmpReaders = (UA_DataSetReader**)UA_realloc(tmpDataSetReaders, sizeof(UA_DataSetReader*) * dsrCount);
+                if(tmpReaders == NULL) {
+                    UA_free(tmpDataSetReaders);
+                    return UA_STATUSCODE_BADOUTOFMEMORY;
+                }
+
+                tmpDataSetReaders = tmpReaders;
+                tmpDataSetReaders[dsrCount-1] = tmpReader;
             }
         }
     }
 
+    if(dsrCount > 0) {
+        *dataSetReaderCount = dsrCount; 
+        *dataSetReaders = tmpDataSetReaders;
+        return UA_STATUSCODE_GOOD;
+    }
+    
     UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
                 "Dataset reader not found. Check PublisherID, WriterGroupID and DatasetWriterID");
     return UA_STATUSCODE_BADNOTFOUND;
@@ -951,7 +963,9 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
                 size_t paddingBytes = 0;
                 UA_NetworkMessage currentNetworkMessage;
                 memset(&currentNetworkMessage, 0, sizeof(UA_NetworkMessage));
-                UA_NetworkMessage_decodeBinary(&buffer, &currentPosition, &currentNetworkMessage);
+                UA_StatusCode retVal = UA_NetworkMessage_decodeBinary(&buffer, &currentPosition, &currentNetworkMessage);
+                if(retVal != UA_STATUSCODE_GOOD)
+                	break;
                 UA_Server_processNetworkMessage(server, &currentNetworkMessage, connection);
                 UA_NetworkMessage_clear(&currentNetworkMessage);
 
@@ -1744,27 +1758,34 @@ UA_Server_processNetworkMessage(UA_Server *server, UA_NetworkMessage *pMsg,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(!pMsg || !pConnection)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-
-    /* To Do Handle multiple DataSetMessage for one NetworkMessage */
+    
     /* To Do The condition pMsg->dataSetClassIdEnabled
      * Here some filtering is possible */
-
-    UA_DataSetReader *dataSetReader;
-    retval = getReaderFromIdentifier(server, pMsg, &dataSetReader, pConnection);
-    if(retval != UA_STATUSCODE_GOOD) {
-        return retval;
-    }
-
-    UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                 "DataSetReader found with PublisherId");
-
-    UA_Byte anzDataSets = 1;
+    UA_Byte dsmCount = 1;
     if(pMsg->payloadHeaderEnabled)
-        anzDataSets = pMsg->payloadHeader.dataSetPayloadHeader.count;
-    for(UA_Byte iterator = 0; iterator < anzDataSets; iterator++) {
+        dsmCount = pMsg->payloadHeader.dataSetPayloadHeader.count;
+    for(UA_Byte i = 0; i < dsmCount; i++)
+    {
+        UA_DataSetReader** dataSetReaders = NULL;
+        UA_Byte dsrCount = 0;
+        UA_UInt16 dataSetWriterId = 0;
+        if(pMsg->payloadHeaderEnabled) {
+            dataSetWriterId = pMsg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds[i];
+        }
+        retval = getReadersFromIdentifier(server, pMsg, pConnection, dataSetWriterId, &dataSetReaders, &dsrCount);
+        if(retval != UA_STATUSCODE_GOOD)
+            continue;
+
+        UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                    "DataSetReader found with PublisherId");
+
         UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER, "Process Msg with DataSetReader!");
-        UA_Server_DataSetReader_process(server, dataSetReader,
-                                        &pMsg->payload.dataSetPayload.dataSetMessages[iterator]);
+        for(UA_Byte j = 0; j < dsrCount; j++) {
+            UA_Server_DataSetReader_process(server, dataSetReaders[j],
+                                            &pMsg->payload.dataSetPayload.dataSetMessages[i]);
+        }
+        if(dataSetReaders != NULL)
+            UA_free(dataSetReaders);
     }
 
     for(int i = 0; i < pMsg->payloadHeader.dataSetPayloadHeader.count; ++i) {
