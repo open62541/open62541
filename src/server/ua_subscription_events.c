@@ -726,7 +726,7 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
 #ifdef UA_ENABLE_PUBSUB_EVENTS
     PublishedDataSetEventEntry *entry;
     LIST_FOREACH(entry, &server->pubSubManager.publishedDataSetEvents, listEntry){
-        if(UA_NodeId_equal(&entry->pds->config.config.event.eventNotfier, &origin)){
+        if(UA_NodeId_equal(&entry->pds->config.config.event.eventNotifier, &origin)){
             retval = addEventToDataSetWriter(server, eventNodeId, entry->dsw, entry->pds);
             if(retval != UA_STATUSCODE_GOOD) {
                 UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,

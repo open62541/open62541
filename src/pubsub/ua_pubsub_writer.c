@@ -486,8 +486,8 @@ UA_PublishedDataSetConfig_copy(const UA_PublishedDataSetConfig *src,
                                                          &dst->config.event.selectedFields[i]);
             }
 
-            res |= UA_NodeId_copy(&src->config.event.eventNotfier,
-                                               &dst->config.event.eventNotfier);
+            res |= UA_NodeId_copy(&src->config.event.eventNotifier,
+                                               &dst->config.event.eventNotifier);
 
             res |= UA_ContentFilter_copy(&src->config.event.filter,
                                   &dst->config.event.filter);
@@ -559,6 +559,16 @@ UA_PublishedDataSetConfig_clear(UA_PublishedDataSetConfig *pdsConfig) {
                 UA_free(pdsConfig->config.itemsTemplate.variablesToAdd);
             }
             UA_DataSetMetaDataType_clear(&pdsConfig->config.itemsTemplate.metaData);
+            break;
+        case UA_PUBSUB_DATASET_PUBLISHEDEVENTS:
+            if(pdsConfig->config.event.selectedFieldsSize > 0){
+                for(size_t i = 0; i < pdsConfig->config.event.selectedFieldsSize; i++){
+                    UA_SimpleAttributeOperand_clear(&pdsConfig->config.event.selectedFields[i]);
+                }
+                UA_free(pdsConfig->config.event.selectedFields);
+            }
+            UA_NodeId_clear(&pdsConfig->config.event.eventNotifier);
+            UA_ContentFilter_clear(&pdsConfig->config.event.filter);
             break;
         default:
             break;

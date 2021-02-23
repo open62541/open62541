@@ -268,7 +268,7 @@ typedef struct {
 } UA_PublishedDataItemsTemplateConfig;
 
 typedef struct {
-    UA_NodeId eventNotfier;
+    UA_NodeId eventNotifier;
     UA_ContentFilter filter;
     size_t selectedFieldsSize;
     UA_SimpleAttributeOperand *selectedFields;
@@ -276,7 +276,7 @@ typedef struct {
 
 typedef struct {
     UA_DataSetMetaDataType metaData;
-    UA_NodeId eventNotfier;
+    UA_NodeId eventNotifier;
     size_t selectedFieldsSize;
     UA_SimpleAttributeOperand *selectedFields;
     UA_ContentFilter filter;
