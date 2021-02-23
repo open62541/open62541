@@ -1,1 +1,0 @@
-/usr/bin/cc -g   CMakeFiles/server_ctt.dir/server_ctt.c.o  -o bin/examples/server_ctt  /usr/lib/x86_64-linux-gnu/libopen62541.so.1.1.5 -lm -lpthread -lrt 

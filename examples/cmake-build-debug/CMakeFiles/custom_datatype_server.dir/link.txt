@@ -1,1 +1,0 @@
-/usr/bin/cc -g   CMakeFiles/custom_datatype_server.dir/custom_datatype/server_types_custom.c.o  -o bin/examples/custom_datatype_server  /usr/lib/x86_64-linux-gnu/libopen62541.so.1.1.5 -lm -lpthread -lrt 
