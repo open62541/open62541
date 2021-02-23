@@ -548,6 +548,7 @@ UA_Server_initialSelectClauseValidation(UA_Server *server,
         if(selectClauseCodes[i] != UA_STATUSCODE_GOOD)
             continue;
 
+        
       /* //Check if indexRange is defined
         if(!UA_String_equal(&eventFilter->selectClauses[i].indexRange, &UA_STRING_NULL)) {
             // Check if indexRange is parsable
