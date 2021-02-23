@@ -161,7 +161,7 @@ isNodeInTree_singleRef(UA_Server *server, const UA_NodeId *leafNode,
  *
  * | Targets [ExpandedNodeId] | Tree [RefEntry] | */
 
-#define UA_BROWSE_INITIAL_SIZE 16
+#define UA_REFTREE_INITIAL_SIZE 16
 
 typedef struct RefEntry {
     ZIP_ENTRY(RefEntry) zipfields;
@@ -197,11 +197,11 @@ RefTree_init(RefTree *rt) {
     rt->size = 0;
     rt->capacity = 0;
     ZIP_INIT(&rt->head);
-    size_t space = (sizeof(UA_ExpandedNodeId) + sizeof(RefEntry)) * UA_BROWSE_INITIAL_SIZE;
+    size_t space = (sizeof(UA_ExpandedNodeId) + sizeof(RefEntry)) * UA_REFTREE_INITIAL_SIZE;
     rt->targets = (UA_ExpandedNodeId*)UA_malloc(space);
     if(!rt->targets)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    rt->capacity = UA_BROWSE_INITIAL_SIZE;
+    rt->capacity = UA_REFTREE_INITIAL_SIZE;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -418,10 +418,10 @@ static UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
 RefResult_init(RefResult *rr) {
     memset(rr, 0, sizeof(RefResult));
     rr->descr = (UA_ReferenceDescription*)
-        UA_Array_new(UA_BROWSE_INITIAL_SIZE, &UA_TYPES[UA_TYPES_REFERENCEDESCRIPTION]);
+        UA_Array_new(UA_REFTREE_INITIAL_SIZE, &UA_TYPES[UA_TYPES_REFERENCEDESCRIPTION]);
     if(!rr->descr)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    rr->capacity = UA_BROWSE_INITIAL_SIZE;
+    rr->capacity = UA_REFTREE_INITIAL_SIZE;
     rr->size = 0;
     return UA_STATUSCODE_GOOD;
 }
