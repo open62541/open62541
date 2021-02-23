@@ -12,6 +12,7 @@
 #include <open62541/server_pubsub.h>
 #include "server/ua_server_internal.h"
 #include <open62541/types_generated_encoding_binary.h>
+#include "server/ua_subscription.h"
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
@@ -625,11 +626,13 @@ generateFieldMetaData(UA_Server *server, UA_DataSetField *field, UA_FieldMetaDat
                 UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                                "PubSub meta data generation. Reading ArrayDimension failed.");
             } else {
-                if (value.arrayDimensionsSize > 0) {
-                    fieldMetaData->arrayDimensions = (UA_UInt32 *) UA_calloc(value.arrayDimensionsSize, sizeof(UA_UInt32));
+                if(value.arrayDimensionsSize > 0) {
+                    fieldMetaData->arrayDimensions = (UA_UInt32 *)UA_calloc(
+                        value.arrayDimensionsSize, sizeof(UA_UInt32));
                     if(fieldMetaData->arrayDimensions == NULL)
                         return UA_STATUSCODE_BADOUTOFMEMORY;
-                    memcpy(fieldMetaData->arrayDimensions, value.arrayDimensions, sizeof(UA_UInt32)*value.arrayDimensionsSize);
+                    memcpy(fieldMetaData->arrayDimensions, value.arrayDimensions,
+                           sizeof(UA_UInt32) * value.arrayDimensionsSize);
                 }
                 fieldMetaData->arrayDimensionsSize = value.arrayDimensionsSize;
             }
@@ -674,9 +677,18 @@ generateFieldMetaData(UA_Server *server, UA_DataSetField *field, UA_FieldMetaDat
             //fieldMetaData.maxStringLength
             return UA_STATUSCODE_GOOD;
         case UA_PUBSUB_DATASETFIELD_EVENT:
-            //TODO: adjustments needed
-            //UA_String_copy(&field->config.field.events.fieldNameAlias,&fieldMetaData->name);
-            //fieldMetaData->description = UA_LOCALIZEDTEXT_ALLOC("", "");
+            // [WIP]: maybe needs some adjustments
+            if(UA_String_copy(&field->config.field.events.fieldNameAlias, &fieldMetaData->name) != UA_STATUSCODE_GOOD)
+                return UA_STATUSCODE_BADINTERNALERROR;
+            fieldMetaData->description = UA_LOCALIZEDTEXT_ALLOC("", "");
+            fieldMetaData->dataSetFieldId = UA_GUID_NULL;
+            fieldMetaData->properties = NULL;
+            fieldMetaData->propertiesSize = 0;
+            if(field->config.field.variable.promotedField){
+                fieldMetaData->fieldFlags = UA_DATASETFIELDFLAGS_PROMOTEDFIELD;
+            } else {
+                fieldMetaData->fieldFlags = UA_DATASETFIELDFLAGS_NONE;
+            }
             return UA_STATUSCODE_GOOD;
         default:
             return UA_STATUSCODE_BADNOTSUPPORTED;
@@ -730,15 +742,24 @@ UA_Server_addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
 
     if(currentDataSet->config.publishedDataSetType != UA_PUBSUB_DATASET_PUBLISHEDITEMS){
 
-        //TODO: hier fehlt was für Event-PDS
+        //TODO: make some adjustments for PublishedItems
 
         //result.result = UA_STATUSCODE_BADNOTIMPLEMENTED;
         //return result;
     }
 
-    if(newField->config.field.variable.promotedField)
-        currentDataSet->promotedFieldsCount++;
-    currentDataSet->fieldSize++;
+    if (newField->config.dataSetFieldType == UA_PUBSUB_DATASETFIELD_VARIABLE){
+        if(newField->config.field.variable.promotedField)
+            currentDataSet->promotedFieldsCount++;
+        currentDataSet->fieldSize++;
+    } else if(newField->config.dataSetFieldType == UA_PUBSUB_DATASETFIELD_EVENT){
+        if(newField->config.field.events.promotedField)
+            currentDataSet->promotedFieldsCount++;
+        currentDataSet->fieldSize++;
+    } else {
+        result.result = UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
+        return result;
+    }
 
     //generate fieldMetadata within the DataSetMetaData
     currentDataSet->dataSetMetaData.fieldsSize++;
@@ -1621,7 +1642,6 @@ UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_Server *server,
 
 #ifdef UA_ENABLE_PUBSUB_EVENTS
     if(currentDataSet->config.publishedDataSetType == UA_PUBSUB_DATASET_PUBLISHEDEVENTS){
-        if(dataSetWriter->eventQueueEntries == 0) return UA_STATUSCODE_GOOD;
         UA_UInt16 eventSize = (UA_UInt16)dataSetWriter->eventQueueEntries;
         dataSetMessage->header.dataSetMessageValid = true;
         dataSetMessage->header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;

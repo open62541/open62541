@@ -377,6 +377,8 @@ typedef enum {
 } UA_DataSetFieldType;
 
 typedef struct {
+    UA_String fieldNameAlias;
+    UA_Boolean promotedField;
     UA_SimpleAttributeOperand selectedField;
 } UA_DataSetEventConfig;
 
