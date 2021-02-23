@@ -572,7 +572,7 @@ addEventToDataSetWriter(UA_Server *server, UA_NodeId eventNodeId,
         }
     }
 
-    UA_free(selectedField);
+    //UA_free(selectedField); //warum den pointer in die config freen?
     UA_free(variant);
     UA_free(dataValue);
     return UA_STATUSCODE_GOOD;
