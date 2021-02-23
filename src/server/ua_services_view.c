@@ -212,7 +212,7 @@ RefTree_double(RefTree *rt) {
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
+UA_StatusCode
 RefTree_add(RefTree *rt, const UA_ExpandedNodeId *target, UA_Boolean *duplicate) {
     /* Is the target already in the tree? */
     RefEntry dummy;
@@ -241,6 +241,32 @@ RefTree_add(RefTree *rt, const UA_ExpandedNodeId *target, UA_Boolean *duplicate)
     ZIP_INSERT(RefHead, &rt->head, re, ZIP_FFS32(UA_UInt32_random()));
     rt->size++;
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+RefTree_addNodeId(RefTree *rt, const UA_NodeId *target, UA_Boolean *duplicate) {
+    UA_ExpandedNodeId en;
+    en.nodeId = *target;
+    en.namespaceUri = UA_STRING_NULL;
+    en.serverIndex = 0;
+    return RefTree_add(rt, &en, duplicate);
+}
+
+UA_Boolean
+RefTree_contains(RefTree *rt, const UA_ExpandedNodeId *target) {
+    RefEntry dummy;
+    dummy.target = target;
+    dummy.targetHash = UA_ExpandedNodeId_hash(target);
+    return !!ZIP_FIND(RefHead, &rt->head, &dummy);
+}
+
+UA_Boolean
+RefTree_containsNodeId(RefTree *rt, const UA_NodeId *target) {
+    UA_ExpandedNodeId en;
+    en.nodeId = *target;
+    en.namespaceUri = UA_STRING_NULL;
+    en.serverIndex = 0;
+    return RefTree_contains(rt, &en);
 }
 
 /********************/

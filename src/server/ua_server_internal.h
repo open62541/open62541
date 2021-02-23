@@ -447,10 +447,19 @@ typedef struct {
 UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
 RefTree_init(RefTree *rt);
 
+void RefTree_clear(RefTree *rt);
+
 UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
 RefTree_add(RefTree *rt, const UA_ExpandedNodeId *target, UA_Boolean *duplicate);
 
-void RefTree_clear(RefTree *rt);
+UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
+RefTree_addNodeId(RefTree *rt, const UA_NodeId *target, UA_Boolean *duplicate);
+
+UA_Boolean
+RefTree_contains(RefTree *rt, const UA_ExpandedNodeId *target);
+
+UA_Boolean
+RefTree_containsNodeId(RefTree *rt, const UA_NodeId *target);
 
 /***************************************/
 /* Check Information Model Consistency */
