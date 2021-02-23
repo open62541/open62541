@@ -712,6 +712,77 @@ addPublishedDataItemsAction(UA_Server *server,
     UA_PublishedVariableDataType_clear(variablesToAddField);
     return retVal;
 }
+
+
+static UA_StatusCode
+addPublishedEventsAction(UA_Server *server,
+                         const UA_NodeId *sessionId, void *sessionHandle,
+                         const UA_NodeId *methodId, void *methodContext,
+                         const UA_NodeId *objectId, void *objectContext,
+                         size_t inputSize, const UA_Variant *input,
+                         size_t outputSize, UA_Variant *output){
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+
+    //0. Config name
+    UA_String *configName = (UA_String *) input[0].data;
+
+    //1. NodeId	EventNotifier
+    UA_NodeId *eventNotifier = (UA_NodeId *) input[1].data;
+
+    //2. String[] FieldNameAliases
+    size_t fieldNameAliasesSize = input[2].arrayLength;
+    UA_String *fieldNameAliases = (UA_String *) input[2].data;
+
+    //3. DataSetFieldFlags[] FieldFlags
+    size_t fieldFlagsSize = input[3].arrayLength;
+    UA_DataSetFieldFlags *fieldFlags = (UA_DataSetFieldFlags *) input[3].data;
+
+    //4. SimpleAttributeOperand[] SelectedFields
+    size_t selectedFieldsSize = input[4].arrayLength;
+    UA_SimpleAttributeOperand *selectedFields = (UA_SimpleAttributeOperand *) input[4].data;
+
+    //5. ContentFilter	Filter
+    UA_ContentFilter *filter = (UA_ContentFilter*) input[5].data;
+
+    if(!(fieldNameAliasesSize == fieldFlagsSize || fieldFlagsSize == selectedFieldsSize))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    //Create config
+    UA_PublishedDataSetConfig publishedDataSetConfig;
+    memset(&publishedDataSetConfig, 0, sizeof(publishedDataSetConfig));
+    publishedDataSetConfig.name = *configName;
+    publishedDataSetConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDEVENTS;
+    publishedDataSetConfig.config.event.eventNotifier = *eventNotifier;
+    publishedDataSetConfig.config.event.filter = *filter;
+    publishedDataSetConfig.config.event.selectedFieldsSize = selectedFieldsSize;
+    publishedDataSetConfig.config.event.selectedFields = (UA_SimpleAttributeOperand *)UA_calloc(selectedFieldsSize, sizeof(UA_SimpleAttributeOperand));
+    //TODO: nicht ganz sicher
+    for(size_t i = 0; i < publishedDataSetConfig.config.event.selectedFieldsSize; i++){
+        UA_SimpleAttributeOperand_copy(&selectedFields[i],
+                                       &publishedDataSetConfig.config.event.selectedFields[i]);
+    }
+
+    UA_NodeId dataSetId;
+    retVal |= UA_Server_addPublishedDataSet(server, &publishedDataSetConfig, &dataSetId).addResult;
+
+    //actual dataSetFields
+    UA_DataSetFieldConfig dataSetFieldConfig;
+    for(size_t j = 0; j < selectedFieldsSize; ++j) {
+        memset(&dataSetFieldConfig, 0, sizeof(dataSetFieldConfig));
+        dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_EVENT;
+        dataSetFieldConfig.field.events.fieldNameAlias = fieldNameAliases[j];
+        if(fieldFlags[j] == UA_DATASETFIELDFLAGS_PROMOTEDFIELD){
+            dataSetFieldConfig.field.events.promotedField = UA_TRUE;
+        }
+        dataSetFieldConfig.field.events.selectedField = selectedFields[j];
+        UA_Server_addDataSetField(server, dataSetId, &dataSetFieldConfig, NULL); //TODO: method not complete for events
+    }
+
+    UA_SimpleAttributeOperand_clear(selectedFields);
+
+    return retVal;
+}
+
 #endif
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
@@ -1339,6 +1410,8 @@ UA_Server_initPubSubNS0(UA_Server *server) {
                                                UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETFOLDERTYPE_REMOVEDATASETFOLDER), removeDataSetFolderAction);
     retVal |= UA_Server_setMethodNode_callback(server,
                                                UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETFOLDERTYPE_ADDPUBLISHEDDATAITEMS), addPublishedDataItemsAction);
+    retVal |= UA_Server_setMethodNode_callback(server,
+                                               UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETFOLDERTYPE_ADDPUBLISHEDEVENTS), addPublishedEventsAction);
     retVal |= UA_Server_setMethodNode_callback(server,
                                                UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETFOLDERTYPE_REMOVEPUBLISHEDDATASET), removePublishedDataSetAction);
     retVal |= UA_Server_setMethodNode_callback(server,
