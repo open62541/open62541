@@ -486,8 +486,8 @@ UA_PublishedDataSetConfig_copy(const UA_PublishedDataSetConfig *src,
                                                          &dst->config.event.selectedFields[i]);
             }
 
-            res |= UA_NodeId_copy(&src->config.event.eventNotfier,
-                                               &dst->config.event.eventNotfier);
+            res |= UA_NodeId_copy(&src->config.event.eventNotifier,
+                                               &dst->config.event.eventNotifier);
 
             res |= UA_ContentFilter_copy(&src->config.event.filter,
                                   &dst->config.event.filter);
@@ -567,7 +567,7 @@ UA_PublishedDataSetConfig_clear(UA_PublishedDataSetConfig *pdsConfig) {
                 }
                 UA_free(pdsConfig->config.event.selectedFields);
             }
-            UA_NodeId_clear(&pdsConfig->config.event.eventNotfier);
+            UA_NodeId_clear(&pdsConfig->config.event.eventNotifier);
             UA_ContentFilter_clear(&pdsConfig->config.event.filter);
             break;
         default:

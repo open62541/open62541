@@ -46,7 +46,7 @@ addPublishedDataSet(UA_Server *server) {
     publishedDataSetConfig.name = UA_STRING("Demo PDS PubSub Events");
 
     // TODO: hier ziemlich sicher, aber noch nicht 100%
-    publishedDataSetConfig.config.event.eventNotfier = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    publishedDataSetConfig.config.event.eventNotifier = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
     publishedDataSetConfig.config.event.selectedFieldsSize = 2;
     UA_SimpleAttributeOperand *selectedFields = (UA_SimpleAttributeOperand *)UA_calloc(2, sizeof(UA_SimpleAttributeOperand));
     selectedFields[0].typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
