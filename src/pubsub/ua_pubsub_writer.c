@@ -560,6 +560,16 @@ UA_PublishedDataSetConfig_clear(UA_PublishedDataSetConfig *pdsConfig) {
             }
             UA_DataSetMetaDataType_clear(&pdsConfig->config.itemsTemplate.metaData);
             break;
+        case UA_PUBSUB_DATASET_PUBLISHEDEVENTS:
+            if(pdsConfig->config.event.selectedFieldsSize > 0){
+                for(size_t i = 0; i < pdsConfig->config.event.selectedFieldsSize; i++){
+                    UA_SimpleAttributeOperand_clear(&pdsConfig->config.event.selectedFields[i]);
+                }
+                UA_free(pdsConfig->config.event.selectedFields);
+            }
+            UA_NodeId_clear(&pdsConfig->config.event.eventNotfier);
+            UA_ContentFilter_clear(&pdsConfig->config.event.filter);
+            break;
         default:
             break;
     }
