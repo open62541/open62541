@@ -468,6 +468,30 @@ UA_PublishedDataSetConfig_copy(const UA_PublishedDataSetConfig *src,
         case UA_PUBSUB_DATASET_PUBLISHEDEVENTS:
             // TODO: check this
             // ich glaube hier muss nichts hin, weil am Anfang ja alles mit memcpy kopiert wird
+            // memcpy only does a shallow copy, this function is supposed to make a deep copy
+            if(src->config.event.selectedFieldsSize > 0){
+                dst->config.event.selectedFields = (UA_SimpleAttributeOperand *)
+                    UA_calloc(src->config.event.selectedFieldsSize,
+                              sizeof(UA_SimpleAttributeOperand));
+                if(!dst->config.event.selectedFields) {
+                    res = UA_STATUSCODE_BADOUTOFMEMORY;
+                    break;
+                }
+                dst->config.event.selectedFieldsSize =
+                    src->config.event.selectedFieldsSize;
+            }
+
+            for(size_t i = 0; i < src->config.event.selectedFieldsSize; i++){
+                res |= UA_SimpleAttributeOperand_copy(&src->config.event.selectedFields[i],
+                                                         &dst->config.event.selectedFields[i]);
+            }
+
+            res |= UA_NodeId_copy(&src->config.event.eventNotfier,
+                                               &dst->config.event.eventNotfier);
+
+            res |= UA_ContentFilter_copy(&src->config.event.filter,
+                                  &dst->config.event.filter);
+
             break;
         default:
             res = UA_STATUSCODE_BADINVALIDARGUMENT;

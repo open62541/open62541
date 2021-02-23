@@ -520,23 +520,21 @@ static const UA_NodeId isInFolderReferences[2] =
      {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASCOMPONENT}}};
 
 #ifdef UA_ENABLE_PUBSUB_EVENTS
-// TODO: decide where the method insertVariant should be
-// TODO: insertVariantToDSWQueue makes some problems
-static UA_StatusCode insertVariantToDSWQueue(UA_Server *server, UA_DataSetWriter *dsw, UA_DataValue *var)  {
+//TODO: decide where the method insertDataValue should be
+static UA_StatusCode insertDataValueIntoDSWQueue(UA_Server *server, UA_DataSetWriter *dsw, UA_DataValue *value)  {
     if(dsw == NULL){
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                  "The given DataSetWriter is NULL");
-        return UA_STATUSCODE_BADARGUMENTSMISSING; //TODO: this must be changed the current Statuscode isn't describing it very well
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
-    if (var == NULL){
+    if(value == NULL){
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "The given Variant is NULL");
-        return UA_STATUSCODE_BADARGUMENTSMISSING; //TODO: this must be changed the current Statuscode isn't describing it very well
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-    //event_queue_entry ist ein neu erstelltes struct, einfach ein wrapper für Variant, da wir die Queue-Funktionalität der Makros brauchen
     EventQueueEntry *entry = (EventQueueEntry *)malloc(sizeof(EventQueueEntry));
-    entry->value = *var;
+    entry->value = *value;
 
     SIMPLEQ_INSERT_TAIL(&dsw->eventQueue, entry, listEntry);
     dsw->eventQueueEntries++;
@@ -546,32 +544,38 @@ static UA_StatusCode insertVariantToDSWQueue(UA_Server *server, UA_DataSetWriter
 static UA_StatusCode
 addEventToDataSetWriter(UA_Server *server, UA_NodeId eventNodeId,
                         UA_DataSetWriter *dataSetWriter, UA_PublishedDataSet *publishedDataSet) {
-        if (!publishedDataSet){
-            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
-                         "PublishedDataSet not found.");
-            return UA_STATUSCODE_BADBOUNDNOTFOUND;
+    if(!publishedDataSet){
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
+                    "PublishedDataSet not found.");
+        return UA_STATUSCODE_BADBOUNDNOTFOUND;
+    }
+    UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Still a match :D");
+    UA_SimpleAttributeOperand *selectedField;
+    UA_Variant *variant = UA_Variant_new();
+    UA_DataValue *dataValue = UA_DataValue_new();
+    UA_StatusCode retval;
+    for(size_t i = 0; i < publishedDataSet->config.config.event.selectedFieldsSize; i++){ // must be a for loop, because it isn't a list or queue
+        selectedField = &publishedDataSet->config.config.event.selectedFields[i];
+        retval = resolveSimpleAttributeOperand(server, &server->adminSession, &eventNodeId, selectedField, variant);
+        if(retval != UA_STATUSCODE_GOOD){
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "SimpleAttributeOperand wasn't able to be resolved as a Variant. StatusCode %s", UA_StatusCode_name(retval));
+            return retval;
+        };
+        dataValue->value = *variant;
+        dataValue->serverTimestamp = UA_DateTime_now();
+        retval = insertDataValueIntoDSWQueue(server, dataSetWriter, dataValue);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "Inserting DataValue into DSW-queue failed. StatusCode %s", UA_StatusCode_name(retval));
+            return retval;
         }
-        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Still a match :D");
-        UA_SimpleAttributeOperand *selectedField;
-        UA_Variant *variant = UA_Variant_new();
-        UA_DataValue *dataValue = UA_DataValue_new();
-        for(size_t i = 0; i < publishedDataSet->config.config.event.selectedFieldsSize; i++){ // must be a for loop, because it isn't a list or queue
-            selectedField = &publishedDataSet->config.config.event.selectedFields[i];
-            if(resolveSimpleAttributeOperand(server, &server->adminSession, &eventNodeId, selectedField, variant) != UA_STATUSCODE_GOOD){
-                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                             "SimpleAttributeOperand wasn't able to be resolved as a Variant.");
-                return UA_STATUSCODE_BAD; // TODO: replace this with better one
-            };
-            dataValue->value = *variant;
-            dataValue->serverTimestamp = UA_DateTime_now();
-            if(insertVariantToDSWQueue(server, dataSetWriter, dataValue) != UA_STATUSCODE_GOOD){
-                return UA_STATUSCODE_BAD; // TODO: replace with more precise Statuscode
-            }
-        }
-        UA_free(selectedField);
-        UA_free(variant);
-        UA_free(dataValue);
-        return UA_STATUSCODE_GOOD;
+    }
+
+    UA_free(selectedField);
+    UA_free(variant);
+    UA_free(dataValue);
+    return UA_STATUSCODE_GOOD;
 }
 
 #endif /*UA_ENABLE_PUBSUB_EVENTS*/
@@ -723,7 +727,13 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
     PublishedDataSetEventEntry *entry;
     LIST_FOREACH(entry, &server->pubSubManager.publishedDataSetEvents, listEntry){
         if(UA_NodeId_equal(&entry->pds->config.config.event.eventNotfier, &origin)){
-            addEventToDataSetWriter(server, eventNodeId, entry->dsw, entry->pds);
+            retval = addEventToDataSetWriter(server, eventNodeId, entry->dsw, entry->pds);
+            if(retval != UA_STATUSCODE_GOOD) {
+                UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                               "Events: Could not add the event to the DataSetWriter with StatusCode %s",
+                               UA_StatusCode_name(retval));
+                retval = UA_STATUSCODE_GOOD;
+            }
         }
     }
 #endif /*UA_ENABLE_PUBSUB_EVENTS*/
