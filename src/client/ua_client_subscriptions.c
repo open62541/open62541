@@ -101,9 +101,6 @@ UA_Client_Subscriptions_create_async(UA_Client *client, const UA_CreateSubscript
     CustomCallback *cc = (CustomCallback *)UA_calloc(1, sizeof(CustomCallback));
     if(!cc)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    cc->isAsync = true;
-    cc->userCallback = createCallback;
-    cc->userData = userdata;
 
     UA_Client_Subscription *sub = (UA_Client_Subscription *)
         UA_malloc(sizeof(UA_Client_Subscription));
@@ -114,6 +111,10 @@ UA_Client_Subscriptions_create_async(UA_Client *client, const UA_CreateSubscript
     sub->context = subscriptionContext;
     sub->statusChangeCallback = statusChangeCallback;
     sub->deleteCallback = deleteCallback;
+
+    cc->isAsync = true;
+    cc->userCallback = createCallback;
+    cc->userData = userdata;
     cc->clientData = sub;
 
     /* Send the request as asynchronous service call */
