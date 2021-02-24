@@ -69,8 +69,8 @@ UA_Openssl_Init (void) {
     static UA_Int16 bInit = 0;
     if (bInit == 1)
         return;
-#if OPENSSL_API_COMPAT < 0x10100000L
-	/* only needed, if OpenSSL < V1.1 */
+#if defined(OPENSSL_API_COMPAT) && (OPENSSL_API_COMPAT < 0x10100000L)
+    /* only needed, if OpenSSL < V1.1 */
     OpenSSL_add_all_algorithms ();
 	ERR_load_crypto_strings ();
 #endif	
