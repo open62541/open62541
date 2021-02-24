@@ -770,23 +770,9 @@ UA_Client_MonitoredItems_createEvent(UA_Client *client, UA_UInt32 subscriptionId
 }
 
 static void
-__MonitoredItems_delete_handler(UA_Client *client, void *d, UA_UInt32 requestId, void *r) {
-    UA_Client_Subscription *sub = NULL;
-    UA_DeleteMonitoredItemsResponse *response = (UA_DeleteMonitoredItemsResponse *)r;
-    CustomCallback *cc = (CustomCallback *)d;
-    UA_DeleteMonitoredItemsRequest *request =
-        (UA_DeleteMonitoredItemsRequest *)cc->clientData;
-    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
-        goto cleanup;
-
-    sub = findSubscription(client, request->subscriptionId);
-    if(!sub) {
-        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                    "No internal representation of subscription %" PRIu32,
-                    request->subscriptionId);
-        goto cleanup;
-    }
-
+__MonitoredItems_delete(UA_Client *client, UA_Client_Subscription *sub,
+                        const UA_DeleteMonitoredItemsRequest *request,
+                        const UA_DeleteMonitoredItemsResponse *response) {
     /* Loop over deleted MonitoredItems */
     for(size_t i = 0; i < response->resultsSize; i++) {
         if(response->results[i] != UA_STATUSCODE_GOOD &&
@@ -794,25 +780,42 @@ __MonitoredItems_delete_handler(UA_Client *client, void *d, UA_UInt32 requestId,
             continue;
         }
 
-#ifndef __clang_analyzer__
         /* Delete the internal representation */
         UA_Client_MonitoredItem *mon;
         LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
-            // NOLINTNEXTLINE
             if(mon->monitoredItemId == request->monitoredItemIds[i]) {
                 UA_Client_MonitoredItem_remove(client, sub, mon);
                 break;
             }
         }
-#endif
     }
+}
+
+static void
+__MonitoredItems_delete_handler(UA_Client *client, void *d, UA_UInt32 requestId, void *r) {
+    UA_DeleteMonitoredItemsResponse *response = (UA_DeleteMonitoredItemsResponse *)r;
+    CustomCallback *cc = (CustomCallback *)d;
+    UA_DeleteMonitoredItemsRequest *request =
+        (UA_DeleteMonitoredItemsRequest *)cc->clientData;
+    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
+    UA_Client_Subscription *sub = findSubscription(client, request->subscriptionId);
+    if(!sub) {
+        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                    "No internal representation of subscription %" PRIu32,
+                    request->subscriptionId);
+        goto cleanup;
+    }
+
+    /* Delete MonitoredItems from the internal representation */
+    __MonitoredItems_delete(client, sub, request, response);
+
 cleanup:
-    if(cc->isAsync) {
-        if(cc->userCallback)
-            cc->userCallback(client, cc->userData, requestId, response);
-        UA_DeleteMonitoredItemsRequest_delete(request);
-        UA_free(cc);
-    }
+    if(cc->userCallback)
+        cc->userCallback(client, cc->userData, requestId, response);
+    UA_DeleteMonitoredItemsRequest_delete(request);
+    UA_free(cc);
 }
 
 UA_DeleteMonitoredItemsResponse
@@ -820,17 +823,24 @@ UA_Client_MonitoredItems_delete(UA_Client *client,
                                 const UA_DeleteMonitoredItemsRequest request) {
     /* Send the request */
     UA_DeleteMonitoredItemsResponse response;
-    CustomCallback cc;
-    memset(&cc, 0, sizeof(CustomCallback));
-#ifdef __clang_analyzer__
-    cc.isAsync = false;
-#endif
-    cc.clientData = (void *)(uintptr_t)&request;
-
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_DELETEMONITOREDITEMSREQUEST],
                         &response, &UA_TYPES[UA_TYPES_DELETEMONITOREDITEMSRESPONSE]);
 
-    __MonitoredItems_delete_handler(client, &cc, 0, &response);
+    /* A problem occured remote? */
+    if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+        return response;
+
+    /* Find the internal subscription representation */
+    UA_Client_Subscription *sub = findSubscription(client, request.subscriptionId);
+    if(!sub) {
+        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                    "No internal representation of subscription %" PRIu32,
+                    request.subscriptionId);
+        return response;
+    }
+
+    /* Remove MonitoredItems in the internal representation */
+    __MonitoredItems_delete(client, sub, &request, &response);
     return response;
 }
 
