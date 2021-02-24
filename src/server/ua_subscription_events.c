@@ -213,6 +213,7 @@ resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session, const UA_N
     return v.status;
 }
 
+
 UA_ContentFilterResult*
 UA_Server_initialWhereClauseValidation(UA_Server *server,
                                        const UA_NodeId *eventNode,
@@ -340,10 +341,7 @@ UA_Server_initialWhereClauseValidation(UA_Server *server,
                     break;
                 }
 
-<<<<<<<<< Temporary merge branch 1
-=========
 
->>>>>>>>> Temporary merge branch 2
                 elementOperand =
                     (UA_ElementOperand *)contentFilterElement->filterOperands[1]
                         .content.decoded.data;
@@ -546,11 +544,7 @@ UA_Server_initialSelectClauseValidation(UA_Server *server,
 
         //Check if browsePath contains null
         for(size_t j =0; j<eventFilter->selectClauses[i].browsePathSize; ++j) {
-<<<<<<<<< Temporary merge branch 1
-            if(UA_QualifiedName_isNull(&eventFilter->selectClauses[i].browsePath[j])) {  // TODO: ist das richtig ?? (Check if null)
-=========
             if(UA_QualifiedName_isNull(&eventFilter->selectClauses[i].browsePath[j])) {
->>>>>>>>> Temporary merge branch 2
                 selectClauseCodes[i] = UA_STATUSCODE_BADBROWSENAMEINVALID;
                 break;
             }
@@ -559,15 +553,9 @@ UA_Server_initialSelectClauseValidation(UA_Server *server,
             continue;
 
         //Check if indexRange is defined
-<<<<<<<<< Temporary merge branch 1
-        if(!UA_String_equal(&eventFilter->selectClauses[i].indexRange, &UA_STRING_NULL)) {//TODO: ist das richtig ?? (Check if null)
-            // Check if indexRange is parsable
-            UA_NumericRange numericRange = UA_NUMERICRANGE("");  // TODO: Wie nutzt man das parsen ohne den Value zu bekommen?
-=========
         if(!UA_String_equal(&eventFilter->selectClauses[i].indexRange, &UA_STRING_NULL)) {
             // Check if indexRange is parsable
             UA_NumericRange numericRange = UA_NUMERICRANGE("");
->>>>>>>>> Temporary merge branch 2
             if(UA_NumericRange_parse(&numericRange,
                                      eventFilter->selectClauses[i].indexRange) !=
                UA_STATUSCODE_GOOD) {
@@ -585,12 +573,6 @@ UA_Server_initialSelectClauseValidation(UA_Server *server,
     return selectClauseCodes;
 }
 
-
-<<<<<<<<< Temporary merge branch 1
-
-
-=========
->>>>>>>>> Temporary merge branch 2
 UA_StatusCode
 UA_Server_evaluateWhereClauseContentFilter(UA_Server *server,
                                            const UA_NodeId *eventNode,
@@ -683,7 +665,6 @@ UA_Server_evaluateWhereClauseContentFilter(UA_Server *server,
     }
 }
 
-
 /* Filters the given event with the given filter and writes the results into a
  * notification */
 static UA_StatusCode
@@ -697,9 +678,6 @@ UA_Server_filterEvent(UA_Server *server, UA_Session *session,
         UA_Server_evaluateWhereClauseContentFilter(server, eventNode, &filter->whereClause);
     if(res != UA_STATUSCODE_GOOD)
         return res;
-
-    UA_Server_initialWhereClauseValidation(server, eventNode, &filter->whereClause);
-    UA_Server_initialSelectClauseValidation(server, filter);
 
     UA_EventFieldList_init(efl);
     efl->eventFields = (UA_Variant *)
@@ -908,9 +886,9 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
     UA_LOCK(&server->serviceMutex);
 
     UA_LOG_NODEID_DEBUG(&origin,
-        UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
-            "Events: An event is triggered on node %.*s",
-            (int)nodeIdStr.length, nodeIdStr.data));
+                        UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                                     "Events: An event is triggered on node %.*s",
+                                     (int)nodeIdStr.length, nodeIdStr.data));
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
     UA_Boolean isCallerAC = false;
@@ -1054,7 +1032,7 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
         }
     }
 
- cleanup:
+    cleanup:
     UA_Array_delete(emitNodes, emitNodesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
     UA_UNLOCK(&server->serviceMutex);
     return retval;

@@ -31,10 +31,8 @@ static UA_UInt32 monitoredItemId;
 static UA_NodeId eventType;
 static size_t nSelectClauses = 4;
 static UA_Boolean notificationReceived;
-static UA_Boolean overflowNotificationReceived;
 static UA_SimpleAttributeOperand *selectClauses;
 static const size_t nWhereClauses = 1;
-
 UA_Double publishingInterval = 500.0;
 
 static void
@@ -493,26 +491,6 @@ START_TEST(createNonAbstractEventWithParent) {
 
 
 
-
-
-static void
-handler_events_overflow(UA_Client *lclient, UA_UInt32 subId, void *subContext,
-                        UA_UInt32 monId, void *monContext,
-                        size_t nEventFields, UA_Variant *eventFields) {
-    ck_assert_uint_eq(*(UA_UInt32 *) monContext, monitoredItemId);
-    if(nEventFields == 1) {
-        /* overflow was received */
-        ck_assert(eventFields->type == &UA_TYPES[UA_TYPES_NODEID]);
-        UA_NodeId comp = UA_NODEID_NUMERIC(0, UA_NS0ID_SIMPLEOVERFLOWEVENTTYPE);
-        ck_assert((UA_NodeId_equal((UA_NodeId *) eventFields->data, &comp)));
-        overflowNotificationReceived = UA_TRUE;
-    } else if(nEventFields == 4) {
-        /* other event was received */
-        handler_events_simple(lclient, subId, subContext, monId,
-                              monContext, nEventFields, eventFields);
-    }
-}
-
 START_TEST(multipleMonitoredItemsOneNode) {
     UA_UInt32 monitoredItemIdAr[3];
 
@@ -560,77 +538,7 @@ START_TEST(multipleMonitoredItemsOneNode) {
     }
 } END_TEST
 
-START_TEST(discardNewestOverflow) {
-    // add a monitored item
-    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_overflow, true, false);
-    ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
-    monitoredItemId = createResult.monitoredItemId;
 
-    // trigger a large amount of events, ensure the server doesnt crash because of it
-    UA_NodeId eventNodeId;
-    UA_StatusCode retval = eventSetup(&eventNodeId);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    for(size_t j = 0; j < 3; j++) {
-        retval = triggerEventLocked(eventNodeId,
-                                    UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), NULL, UA_FALSE);
-        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    }
-    retval = UA_Client_run_iterate(client, 0);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-
-    // delete the monitoredItem
-    UA_DeleteMonitoredItemsRequest deleteRequest;
-    UA_DeleteMonitoredItemsRequest_init(&deleteRequest);
-    deleteRequest.subscriptionId = subscriptionId;
-    deleteRequest.monitoredItemIds = &monitoredItemId;
-    deleteRequest.monitoredItemIdsSize = 1;
-
-    UA_DeleteMonitoredItemsResponse deleteResponse =
-            UA_Client_MonitoredItems_delete(client, deleteRequest);
-
-    ck_assert_uint_eq(deleteResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(deleteResponse.resultsSize, 1);
-    ck_assert_uint_eq(*(deleteResponse.results), UA_STATUSCODE_GOOD);
-
-    UA_DeleteMonitoredItemsResponse_clear(&deleteResponse);
-} END_TEST
-
-START_TEST(eventStressing) {
-    // add a monitored item
-    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_overflow, true, true);
-    ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
-    monitoredItemId = createResult.monitoredItemId;
-
-    // trigger a large amount of events, ensure the server doesnt crash because of it
-    UA_NodeId eventNodeId;
-    UA_StatusCode retval = eventSetup(&eventNodeId);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    for(size_t i = 0; i < 2; i++) {
-        for(size_t j = 0; j < 3; j++) {
-            retval = triggerEventLocked(eventNodeId,
-                                            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), NULL, UA_FALSE);
-            ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-        }
-        retval = UA_Client_run_iterate(client, 0);
-        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    }
-
-    // delete the monitoredItem
-    UA_DeleteMonitoredItemsRequest deleteRequest;
-    UA_DeleteMonitoredItemsRequest_init(&deleteRequest);
-    deleteRequest.subscriptionId = subscriptionId;
-    deleteRequest.monitoredItemIds = &monitoredItemId;
-    deleteRequest.monitoredItemIdsSize = 1;
-
-    UA_DeleteMonitoredItemsResponse deleteResponse =
-        UA_Client_MonitoredItems_delete(client, deleteRequest);
-
-    ck_assert_uint_eq(deleteResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(deleteResponse.resultsSize, 1);
-    ck_assert_uint_eq(*(deleteResponse.results), UA_STATUSCODE_GOOD);
-
-    UA_DeleteMonitoredItemsResponse_clear(&deleteResponse);
-} END_TEST
 
 START_TEST(evaluateWhereClause) {
     /* Everything is on the stack, so no memory cleaning required.*/
@@ -709,21 +617,15 @@ START_TEST(initialWhereClauseValidation) {
         UA_ContentFilter contentFilter;
         UA_ContentFilter_init(&contentFilter);
 
-<<<<<<<<< Temporary merge branch 1
-=========
 
->>>>>>>>> Temporary merge branch 2
         /* Empty Filter */
         UA_LOCK(server->serviceMutex);
         contentFilterResult = UA_Server_initialWhereClauseValidation(server, &eventNodeId, &contentFilter);
         UA_UNLOCK(server->serviceMutex);
         ck_assert_uint_eq(contentFilterResult->elementResults->statusCode, UA_STATUSCODE_GOOD);
 
-<<<<<<<<< Temporary merge branch 1
-=========
 
 
->>>>>>>>> Temporary merge branch 2
         UA_ContentFilterElement contentFilterElement;
         UA_ContentFilterElement_init(&contentFilterElement);
         contentFilter.elements = &contentFilterElement;
@@ -750,13 +652,10 @@ START_TEST(initialWhereClauseValidation) {
         contentFilterResult = UA_Server_initialWhereClauseValidation(server, &eventNodeId, &contentFilter);
         UA_UNLOCK(server->serviceMutex);
         ck_assert_uint_eq(contentFilterResult->elementResults[0].statusCode, UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH);
-<<<<<<<<< Temporary merge branch 1
-=========
 
 
 
 
->>>>>>>>> Temporary merge branch 2
         /* Illegal filter operands size */
         contentFilterElement.filterOperandsSize = 1;
         UA_LOCK(server->serviceMutex);
@@ -769,26 +668,15 @@ START_TEST(initialWhereClauseValidation) {
         contentFilterElement.filterOperandsSize = 2;
         contentFilterElement.filterOperands = (UA_ExtensionObject*)
             UA_Array_new(contentFilterElement.filterOperandsSize, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
-<<<<<<<<< Temporary merge branch 1
-
-        contentFilterElement.filterOperands[0].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
-        contentFilterElement.filterOperands[1].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
-=========
         contentFilterElement.filterOperands[0].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
         contentFilterElement.filterOperands[1].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
 
 
->>>>>>>>> Temporary merge branch 2
         UA_LOCK(server->serviceMutex);
         contentFilterResult = UA_Server_initialWhereClauseValidation(server, &eventNodeId, &contentFilter);
         UA_UNLOCK(server->serviceMutex);
         ck_assert_uint_eq(contentFilterResult->elementResults[0].statusCode, UA_STATUSCODE_BADFILTEROPERANDINVALID);
 
-<<<<<<<<< Temporary merge branch 1
-        contentFilterElement.filterOperands[0].content.decoded.type = &UA_TYPES[UA_TYPES_ELEMENTOPERAND];
-        contentFilterElement.filterOperands[1].content.decoded.type = &UA_TYPES[UA_TYPES_ELEMENTOPERAND];
-
-=========
 
 
 
@@ -796,16 +684,11 @@ START_TEST(initialWhereClauseValidation) {
         contentFilterElement.filterOperands[1].content.decoded.type = &UA_TYPES[UA_TYPES_ELEMENTOPERAND];
 
 
->>>>>>>>> Temporary merge branch 2
         /* Illegal filter operands INDEXRANGE */
         UA_ElementOperand *elementOperand;
         elementOperand = UA_ElementOperand_new();
         UA_ElementOperand_init(elementOperand);
         elementOperand->index = 1;
-<<<<<<<<< Temporary merge branch 1
-
-=========
->>>>>>>>> Temporary merge branch 2
         UA_ElementOperand *secondElementOperand;
         secondElementOperand = UA_ElementOperand_new();
         UA_ElementOperand_init(secondElementOperand);
@@ -813,10 +696,6 @@ START_TEST(initialWhereClauseValidation) {
 
         contentFilterElement.filterOperands[0].content.decoded.data = elementOperand;
         contentFilterElement.filterOperands[1].content.decoded.data = secondElementOperand;
-<<<<<<<<< Temporary merge branch 1
-
-=========
->>>>>>>>> Temporary merge branch 2
         UA_LOCK(server->serviceMutex);
         contentFilterResult = UA_Server_initialWhereClauseValidation(server, &eventNodeId, &contentFilter);
         UA_UNLOCK(server->serviceMutex);
@@ -858,30 +737,16 @@ START_TEST(initialWhereClauseValidation) {
         /* Illegal filter operands attributeId */
         contentFilterElement.filterOperands[0].content.decoded.type = &UA_TYPES[UA_TYPES_ATTRIBUTEOPERAND];
         contentFilterElement.filterOperands[0].encoding = UA_EXTENSIONOBJECT_DECODED;
-<<<<<<<<< Temporary merge branch 1
-
-        UA_AttributeOperand *pOperand;
-        pOperand = UA_AttributeOperand_new();
-        UA_AttributeOperand_init(pOperand);
-
-
-        pOperand->attributeId = UA_NODEIDTYPE_NUMERIC;
-=========
         UA_AttributeOperand *pOperand;
         pOperand = UA_AttributeOperand_new();
         UA_AttributeOperand_init(pOperand);
         pOperand->attributeId = UA_NODEIDTYPE_NUMERIC;
 
->>>>>>>>> Temporary merge branch 2
         UA_NodeId *baseEventTypeId;
         baseEventTypeId = UA_NodeId_new();
         UA_NodeId_init(baseEventTypeId);
         *baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);  // filtern nach BaseEventType
         pOperand->nodeId = *baseEventTypeId;
-<<<<<<<<< Temporary merge branch 1
-
-=========
->>>>>>>>> Temporary merge branch 2
         contentFilterElement.filterOperands[0].content.decoded.data = pOperand;
 
         UA_LOCK(server->serviceMutex);
@@ -892,10 +757,6 @@ START_TEST(initialWhereClauseValidation) {
 
 
         /* Illegal filter operands EventTypeId */
-<<<<<<<<< Temporary merge branch 1
-
-=========
->>>>>>>>> Temporary merge branch 2
         pOperand->attributeId = UA_ATTRIBUTEID_VALUE;
         *baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NODEIDTYPE_NUMERIC);
         pOperand->nodeId = *baseEventTypeId;
@@ -907,10 +768,7 @@ START_TEST(initialWhereClauseValidation) {
         ck_assert_uint_eq(contentFilterResult->elementResults[0].statusCode, UA_STATUSCODE_BADNODEIDINVALID);
 
 
-<<<<<<<<< Temporary merge branch 1
-=========
 
->>>>>>>>> Temporary merge branch 2
         /* Filter operands EventTypeId is a subtype of BaseEventType */
         *baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
         pOperand->nodeId = *baseEventTypeId;
@@ -1000,10 +858,7 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_server, createAbstractEvent);
     tcase_add_test(tc_server, createAbstractEventWithParent);
     tcase_add_test(tc_server, createNonAbstractEventWithParent);
-   // tcase_add_test(tc_server, eventOverflow);
     tcase_add_test(tc_server, multipleMonitoredItemsOneNode);
-    tcase_add_test(tc_server, discardNewestOverflow);
-    tcase_add_test(tc_server, eventStressing);
     tcase_add_test(tc_server, evaluateWhereClause);
     tcase_add_test(tc_server, initialWhereClauseValidation);
     tcase_add_test(tc_server, validateSelectClause);
