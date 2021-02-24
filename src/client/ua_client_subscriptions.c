@@ -27,18 +27,8 @@ UA_Client_MonitoredItem_remove(UA_Client *client, UA_Client_Subscription *sub,
                                UA_Client_MonitoredItem *mon);
 
 static void
-__Subscriptions_create_handler(UA_Client *client, void *data, UA_UInt32 requestId, void *r) {
-    UA_Client_Subscription *newSub = NULL;
-    UA_CreateSubscriptionResponse *response = (UA_CreateSubscriptionResponse *)r;
-    CustomCallback *cc = (CustomCallback *)data;
-    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        if(cc->clientData)
-            UA_free(cc->clientData);
-        goto cleanup;
-    }
-
-    /* Prepare the internal representation */
-    newSub = (UA_Client_Subscription *)cc->clientData;
+__Subscriptions_create(UA_Client *client, UA_Client_Subscription *newSub,
+                       UA_CreateSubscriptionResponse *response) {
     newSub->subscriptionId = response->subscriptionId;
     newSub->sequenceNumber = 0;
     newSub->lastActivity = UA_DateTime_nowMonotonic();
@@ -46,13 +36,25 @@ __Subscriptions_create_handler(UA_Client *client, void *data, UA_UInt32 requestI
     newSub->maxKeepAliveCount = response->revisedMaxKeepAliveCount;
     LIST_INIT(&newSub->monitoredItems);
     LIST_INSERT_HEAD(&client->subscriptions, newSub, listEntry);
+}
+
+static void
+__Subscriptions_create_handler(UA_Client *client, void *data, UA_UInt32 requestId, void *r) {
+    UA_CreateSubscriptionResponse *response = (UA_CreateSubscriptionResponse *)r;
+    CustomCallback *cc = (CustomCallback *)data;
+    UA_Client_Subscription *newSub = (UA_Client_Subscription *)cc->clientData;
+    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+        UA_free(newSub);
+        goto cleanup;
+    }
+
+    /* Prepare the internal representation */
+    __Subscriptions_create(client, newSub, response);
 
 cleanup:
-    if(cc->isAsync) {
-        if(cc->userCallback)
-            cc->userCallback(client, cc->userData, requestId, response);
-        UA_free(cc);
-    }
+    if(cc->userCallback)
+        cc->userCallback(client, cc->userData, requestId, response);
+    UA_free(cc);
 }
 
 UA_CreateSubscriptionResponse
@@ -62,31 +64,23 @@ UA_Client_Subscriptions_create(UA_Client *client,
                                UA_Client_StatusChangeNotificationCallback statusChangeCallback,
                                UA_Client_DeleteSubscriptionCallback deleteCallback) {
     UA_CreateSubscriptionResponse response;
-    UA_CreateSubscriptionResponse_init(&response);
-
-    CustomCallback cc;
-    memset(&cc, 0, sizeof(CustomCallback));
-#ifdef __clang_analyzer__
-    cc.isAsync = false;
-#endif
-
     UA_Client_Subscription *sub = (UA_Client_Subscription *)
         UA_malloc(sizeof(UA_Client_Subscription));
     if(!sub) {
+        UA_CreateSubscriptionResponse_init(&response);
         response.responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return response;
     }
     sub->context = subscriptionContext;
     sub->statusChangeCallback = statusChangeCallback;
     sub->deleteCallback = deleteCallback;
-    cc.clientData = sub;
 
     /* Send the request as a synchronous service call */
     __UA_Client_Service(client,
                         &request, &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONREQUEST],
                         &response, &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONRESPONSE]);
 
-    __Subscriptions_create_handler(client, &cc, 0, &response);
+    __Subscriptions_create(client, sub, &response);
 
     return response;
 }
