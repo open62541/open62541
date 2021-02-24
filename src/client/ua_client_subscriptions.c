@@ -136,19 +136,29 @@ findSubscription(const UA_Client *client, UA_UInt32 subscriptionId) {
 }
 
 static void
+__Subscriptions_modify(UA_Client *client, UA_Client_Subscription *sub,
+                       const UA_ModifySubscriptionResponse *response) {
+    sub->publishingInterval = response->revisedPublishingInterval;
+    sub->maxKeepAliveCount = response->revisedMaxKeepAliveCount;
+}
+
+static void
 __Subscriptions_modify_handler(UA_Client *client, void *data, UA_UInt32 requestId, void *r) {
     UA_ModifySubscriptionResponse *response = (UA_ModifySubscriptionResponse *)r;
     CustomCallback *cc = (CustomCallback *)data;
-    UA_Client_Subscription *sub = (UA_Client_Subscription *)cc->clientData;
-
-    sub->publishingInterval = response->revisedPublishingInterval;
-    sub->maxKeepAliveCount = response->revisedMaxKeepAliveCount;
-
-    if(cc->isAsync) {
-        if(cc->userCallback)
-            cc->userCallback(client, cc->userData, requestId, response);
-        UA_free(cc);
+    UA_Client_Subscription *sub =
+        findSubscription(client, (UA_UInt32)(uintptr_t)cc->clientData);
+    if(!sub) {
+        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                    "No internal representation of subscription %" PRIu32,
+                    (UA_UInt32)(uintptr_t)cc->clientData);
     }
+
+    __Subscriptions_modify(client, sub, response);
+
+    if(cc->userCallback)
+        cc->userCallback(client, cc->userData, requestId, response);
+    UA_free(cc);
 }
 
 UA_ModifySubscriptionResponse
@@ -169,8 +179,7 @@ UA_Client_Subscriptions_modify(UA_Client *client, const UA_ModifySubscriptionReq
                         &response, &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONRESPONSE]);
 
     /* Adjust the internal representation */
-    sub->publishingInterval = response.revisedPublishingInterval;
-    sub->maxKeepAliveCount = response.revisedMaxKeepAliveCount;
+    __Subscriptions_modify(client, sub, &response);
     return response;
 }
 
@@ -189,7 +198,7 @@ UA_Client_Subscriptions_modify_async(UA_Client *client,
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     cc->isAsync = true;
-    cc->clientData = sub;
+    cc->clientData = (void*)(uintptr_t)request.subscriptionId;
     cc->userData = userdata;
     cc->userCallback = callback;
 
