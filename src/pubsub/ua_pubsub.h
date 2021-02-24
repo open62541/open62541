@@ -84,9 +84,15 @@ void
 UA_PubSubConnectionConfig_clear(UA_PubSubConnectionConfig *connectionConfig);
 void
 UA_PubSubConnection_clear(UA_Server *server, UA_PubSubConnection *connection);
+
 /* Register channel for given connectionIdentifier */
 UA_StatusCode
 UA_PubSubConnection_regist(UA_Server *server, UA_NodeId *connectionIdentifier);
+
+/* Process Network Message for a ReaderGroup. But we the ReaderGroup needs to be identified first. */
+UA_StatusCode
+UA_PubSubConnection_processNetworkMessage(UA_Server *server, UA_PubSubConnection *pConnection,
+                                          UA_NetworkMessage* pMsg);
 
 /**********************************************/
 /*              DataSetWriter                 */
@@ -204,7 +210,7 @@ typedef struct UA_DataSetReader {
 }UA_DataSetReader;
 
 /* Process Network Message using DataSetReader */
-void UA_Server_DataSetReader_process(UA_Server *server, UA_DataSetReader *dataSetReader, UA_DataSetMessage* dataSetMsg);
+void UA_DataSetReader_process(UA_Server *server, UA_DataSetReader *dataSetReader, UA_DataSetMessage* dataSetMsg);
 
 /* Copy the configuration of DataSetReader */
 UA_StatusCode UA_DataSetReaderConfig_copy(const UA_DataSetReaderConfig *src, UA_DataSetReaderConfig *dst);
@@ -255,10 +261,6 @@ struct UA_ReaderGroup {
 /* Copy configuration of ReaderGroup */
 UA_StatusCode
 UA_ReaderGroupConfig_copy(const UA_ReaderGroupConfig *src, UA_ReaderGroupConfig *dst);
-
-/* Process Network Message */
-UA_StatusCode
-UA_Server_processNetworkMessage(UA_Server *server, UA_NetworkMessage* pMsg, UA_PubSubConnection *pConnection);
 
 /* Prototypes for internal util functions - some functions maybe removed later
  *(currently moved from public to internal)*/
