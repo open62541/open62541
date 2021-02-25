@@ -113,6 +113,7 @@ class NodeSet(object):
         self.nodes = {}
         self.aliases = {}
         self.namespaces = ["http://opcfoundation.org/UA/"]
+        self.namespaceMapping = {}
 
     def sanitize(self):
         for n in self.nodes.values():
@@ -137,10 +138,9 @@ class NodeSet(object):
     def createNamespaceMapping(self, orig_namespaces):
         """Creates a dict that maps from the nsindex in the original nodeset to the
            nsindex in the combined nodeset"""
-        m = {}
+        self.namespaceMapping = {}
         for index, name in enumerate(orig_namespaces):
-            m[index] = self.namespaces.index(name)
-        return m
+            self.namespaceMapping[index] = self.namespaces.index(name)
 
     def getNodeByBrowseName(self, idstring):
         return next((n for n in self.nodes.values() if idstring == n.browseName.name), None)
@@ -274,7 +274,7 @@ class NodeSet(object):
 
         for ns in orig_namespaces:
             self.addNamespace(ns)
-        namespaceMapping = self.createNamespaceMapping(orig_namespaces) # mapping for this file
+        self.createNamespaceMapping(orig_namespaces) # mapping for this file
 
         # Extract the aliases
         for nd in nodeset.childNodes:
@@ -293,7 +293,7 @@ class NodeSet(object):
             if not node:
                 continue
             node.replaceAliases(self.aliases)
-            node.replaceNamespaces(namespaceMapping)
+            node.replaceNamespaces(self.namespaceMapping)
             node.typesArray = typesArray
 
             # Add the node the the global dict
@@ -309,7 +309,7 @@ class NodeSet(object):
         #     rpm is encoded as a double
         for n in newnodes.values():
             if isinstance(n, DataTypeNode):
-                n.buildEncoding(self, namespaceMapping=namespaceMapping)
+                n.buildEncoding(self, namespaceMapping=self.namespaceMapping)
 
     def getBinaryEncodingIdForNode(self, nodeId):
         """

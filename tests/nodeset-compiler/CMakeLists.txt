@@ -113,13 +113,16 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
         NAME "tests-testnodeset"
         FILE_CSV "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/testnodeset.csv"
         FILE_BSD "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/testtypes.bsd"
-        NAMESPACE_MAP "2:http://yourorganisation.org/test/"
+        NAMESPACE_MAP "3:http://yourorganisation.org/test/"
         OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
         FILE_NS "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/testnodeset.xml"
+        DEPENDS "tests-di"
     )
 
     add_executable(check_nodeset_compiler_testnodeset check_nodeset_compiler_testnodeset.c
+                   ${UA_NODESET_TESTS_DI_SOURCES}
                    ${UA_NODESET_TESTS_TESTNODESET_SOURCES}
+                   ${UA_TYPES_TESTS_DI_SOURCES}
                    ${UA_TYPES_TESTS_TESTNODESET_SOURCES}
                 $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     add_dependencies(check_nodeset_compiler_testnodeset open62541-generator-ns-tests-testnodeset)

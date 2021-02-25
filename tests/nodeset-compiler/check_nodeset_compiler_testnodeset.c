@@ -10,10 +10,12 @@
 #include "testing_clock.h"
 #include "tests/namespace_tests_testnodeset_generated.h"
 #include "tests/types_tests_testnodeset_generated_handling.h"
+#include "namespace_tests_di_generated.h"
 #include "unistd.h"
 
 UA_Server *server = NULL;
 UA_DataTypeArray customTypesArray = { NULL, UA_TYPES_TESTS_TESTNODESET_COUNT, UA_TYPES_TESTS_TESTNODESET};
+UA_UInt16 testNamespaceIndex = (UA_UInt16) -1;
 
 static void setup(void) {
     server = UA_Server_new();
@@ -31,6 +33,10 @@ static void teardown(void) {
 START_TEST(Server_addTestNodeset) {
     UA_StatusCode retval = namespace_tests_testnodeset_generated(server);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    size_t nsIndex = (size_t) -1;
+    UA_Server_getNamespaceByName(server, UA_STRING("http://yourorganisation.org/test/"), &nsIndex);
+    ck_assert(nsIndex != (size_t)-1);
+    testNamespaceIndex = (UA_UInt16) nsIndex;
 }
 END_TEST
 
@@ -38,14 +44,14 @@ START_TEST(checkScalarValues) {
     UA_Variant out;
     UA_Variant_init(&out);
     // Point_scalar_Init
-    UA_Server_readValue(server, UA_NODEID_NUMERIC(2, 10002), &out);
+    UA_Server_readValue(server, UA_NODEID_NUMERIC(testNamespaceIndex, 10002), &out);
     ck_assert(UA_Variant_isScalar(&out));
     UA_Point *p = (UA_Point *)out.data;
     ck_assert(p->x == (UA_Double)1.0);
     ck_assert(p->y == (UA_Double)2.0);
     UA_Variant_clear(&out);
     // Point_scalar_noInit
-    UA_Server_readValue(server, UA_NODEID_NUMERIC(2, 10005), &out);
+    UA_Server_readValue(server, UA_NODEID_NUMERIC(testNamespaceIndex, 10005), &out);
     ck_assert(out.data != NULL); /* a default value is generated */
     UA_Variant_clear(&out);
 }
@@ -67,7 +73,7 @@ START_TEST(checkSelfContainingUnion) {
 
     UA_Variant_setScalar(&in, &data, &UA_TYPES_TESTS_TESTNODESET[UA_TYPES_TESTS_TESTNODESET_SELFCONTAININGUNION]);
 
-    UA_StatusCode result = UA_Server_writeValue(server, UA_NODEID_NUMERIC(2, 5110), in);
+    UA_StatusCode result = UA_Server_writeValue(server, UA_NODEID_NUMERIC(testNamespaceIndex, 5110), in);
 
     ck_assert(result == UA_STATUSCODE_GOOD);
 }
@@ -77,12 +83,12 @@ START_TEST(check1dimValues) {
     UA_Variant out;
     UA_Variant_init(&out);
     // Point_1dim_noInit
-    UA_Server_readValue(server, UA_NODEID_NUMERIC(2, 10007), &out);
+    UA_Server_readValue(server, UA_NODEID_NUMERIC(testNamespaceIndex, 10007), &out);
     ck_assert(!UA_Variant_isScalar(&out));
     ck_assert(out.arrayDimensionsSize == 1);
     UA_Variant_clear(&out);
     // Point_1dim_init
-    UA_Server_readValue(server, UA_NODEID_NUMERIC(2, 10004), &out);
+    UA_Server_readValue(server, UA_NODEID_NUMERIC(testNamespaceIndex, 10004), &out);
     UA_Point *p = (UA_Point *)out.data;
     ck_assert(!UA_Variant_isScalar(&out));
     ck_assert(out.arrayLength == 4);
@@ -97,31 +103,31 @@ START_TEST(readValueRank) {
     UA_Int32 rank;
     UA_Variant dims;
     // scalar
-    UA_Server_readValueRank(server, UA_NODEID_NUMERIC(2, 10002), &rank);
+    UA_Server_readValueRank(server, UA_NODEID_NUMERIC(testNamespaceIndex, 10002), &rank);
     ck_assert_int_eq(rank, -1);
-    UA_Server_readValueRank(server, UA_NODEID_NUMERIC(2, 10002), &rank);
+    UA_Server_readValueRank(server, UA_NODEID_NUMERIC(testNamespaceIndex, 10002), &rank);
     ck_assert_int_eq(rank, -1);
     UA_Variant_init(&dims);
-    UA_Server_readArrayDimensions(server, UA_NODEID_NUMERIC(2, 10002), &dims);
+    UA_Server_readArrayDimensions(server, UA_NODEID_NUMERIC(testNamespaceIndex, 10002), &dims);
     ck_assert_int_eq(dims.arrayLength, 0);
     UA_Variant_clear(&dims);
     // 1-dim
-    UA_Server_readValueRank(server, UA_NODEID_NUMERIC(2, 10007), &rank);
+    UA_Server_readValueRank(server, UA_NODEID_NUMERIC(testNamespaceIndex, 10007), &rank);
     ck_assert_int_eq(rank, 1);
-    UA_Server_readArrayDimensions(server, UA_NODEID_NUMERIC(2, 10007), &dims);
+    UA_Server_readArrayDimensions(server, UA_NODEID_NUMERIC(testNamespaceIndex, 10007), &dims);
     ck_assert_int_eq(dims.arrayLength, 1);
     ck_assert_int_eq(*((UA_UInt32 *)dims.data), 0);
     UA_Variant_clear(&dims);
-    UA_Server_readValueRank(server, UA_NODEID_NUMERIC(2, 10004), &rank);
+    UA_Server_readValueRank(server, UA_NODEID_NUMERIC(testNamespaceIndex, 10004), &rank);
     ck_assert_int_eq(rank, 1);
-    UA_Server_readArrayDimensions(server, UA_NODEID_NUMERIC(2, 10004), &dims);
+    UA_Server_readArrayDimensions(server, UA_NODEID_NUMERIC(testNamespaceIndex, 10004), &dims);
     ck_assert_int_eq(dims.arrayLength, 1);
     ck_assert_int_eq(*((UA_UInt32 *)dims.data), 4);
     UA_Variant_clear(&dims);
     // 2-dim
-    UA_Server_readValueRank(server, UA_NODEID_NUMERIC(2, 10006), &rank);
+    UA_Server_readValueRank(server, UA_NODEID_NUMERIC(testNamespaceIndex, 10006), &rank);
     ck_assert_int_eq(rank, 2);
-    UA_Server_readArrayDimensions(server, UA_NODEID_NUMERIC(2, 10006), &dims);
+    UA_Server_readArrayDimensions(server, UA_NODEID_NUMERIC(testNamespaceIndex, 10006), &dims);
     ck_assert_int_eq(dims.arrayLength, 2);
     UA_UInt32 *dimensions = (UA_UInt32 *)dims.data;
     ck_assert_int_eq(dimensions[0], 2);
@@ -134,7 +140,7 @@ START_TEST(checkFrameValues) {
         UA_Variant out;
         UA_Variant_init(&out);
         // Frame variable
-        UA_Server_readValue(server, UA_NODEID_NUMERIC(2, 15235), &out);
+        UA_Server_readValue(server, UA_NODEID_NUMERIC(testNamespaceIndex, 15235), &out);
         ck_assert(out.type == &UA_TYPES[UA_TYPES_THREEDFRAME]);
         UA_ThreeDFrame *f = (UA_ThreeDFrame *)out.data;
         ck_assert(UA_Variant_isScalar(&out));
@@ -150,6 +156,21 @@ START_TEST(checkFrameValues) {
     }
 END_TEST
 
+START_TEST(checkInputArguments) {
+    UA_Variant out;
+    UA_Variant_init(&out);
+    // Check argument
+    UA_StatusCode status = UA_Server_readValue(server, UA_NODEID_NUMERIC(testNamespaceIndex, 6020), &out);
+    ck_assert(status == UA_STATUSCODE_GOOD);
+    ck_assert(out.type == &UA_TYPES[UA_TYPES_ARGUMENT]);
+    UA_Argument *p = (UA_Argument *)out.data;
+    ck_assert(p->dataType.identifierType == UA_NODEIDTYPE_NUMERIC);
+    ck_assert(p->dataType.identifier.numeric == (UA_UInt32) 3006);
+    ck_assert(p->dataType.namespaceIndex == (UA_UInt16) testNamespaceIndex);
+    UA_Variant_clear(&out);
+}
+END_TEST
+
 static Suite *testSuite_Client(void) {
     Suite *s = suite_create("Server Nodeset Compiler");
     TCase *tc_server = tcase_create("Server Testnodeset");
@@ -160,6 +181,7 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_server, check1dimValues);
     tcase_add_test(tc_server, readValueRank);
     tcase_add_test(tc_server, checkFrameValues);
+    tcase_add_test(tc_server, checkInputArguments);
     suite_add_tcase(s, tc_server);
     return s;
 }
