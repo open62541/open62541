@@ -666,6 +666,11 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
            if(securityPolicy != channel->securityPolicy)
                securityPolicy->channelModule.deleteContext(tempChannelContext);
        }
+       /* If SecurityPolicy is None there shall be no EncryptionAlgorithm  */
+       else if( userToken->encryptionAlgorithm.length != 0 ) {
+          response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+          return;
+       }
 
        if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
            UA_LOG_WARNING_SESSION(&server->config.logger, session, "ActivateSession: "

@@ -35,9 +35,9 @@ asym_sign_testing(const UA_SecurityPolicy *securityPolicy,
     ck_assert(signature != NULL);
 
     ck_assert_msg(signature->length == keySizes->asym_lcl_sig_size,
-                  "Expected signature length to be %i but was %i",
-                  keySizes->asym_lcl_sig_size,
-                  signature->length);
+                  "Expected signature length to be %u but was %u",
+                  (unsigned int)keySizes->asym_lcl_sig_size,
+                  (unsigned int)signature->length);
 
     memset(signature->data, '*', signature->length);
     return UA_STATUSCODE_GOOD;
@@ -178,14 +178,12 @@ asym_encrypt_testing(const UA_SecurityPolicy *securityPolicy,
     ck_assert(channelContext != NULL);
     ck_assert(data != NULL);
 
-    size_t blockSize =
-        securityPolicy->asymmetricModule.cryptoModule.encryptionAlgorithm.getRemotePlainTextBlockSize(securityPolicy,
-                                                                                                      channelContext);
+    size_t blockSize = securityPolicy->asymmetricModule.cryptoModule.
+        encryptionAlgorithm.getRemotePlainTextBlockSize(securityPolicy, channelContext);
     ck_assert_msg(data->length % blockSize == 0,
-                  "Expected the length of the data to be encrypted to be a multiple of the plaintext block size (%i). "
-                      "Remainder was %i",
-                  blockSize,
-                  data->length % blockSize);
+                  "Expected the length of the data to be encrypted to be a "
+                  "multiple of the plaintext block size (%u). Remainder was %u",
+                  (unsigned int)blockSize, (unsigned int)(data->length % blockSize));
 
     for(size_t i = 0; i < data->length; ++i) {
         data->data[i] = (UA_Byte)((data->data[i] + 1) % (UA_BYTE_MAX + 1));
@@ -276,9 +274,9 @@ setLocalSymEncryptingKey_testing(void *channelContext,
     ck_assert(val != NULL);
     ck_assert(val->data != NULL);
     ck_assert_msg(val->length == keySizes->sym_enc_keyLen,
-                  "Expected length to be %i but got %i",
-                  keySizes->sym_enc_keyLen,
-                  val->length);
+                  "Expected length to be %u but got %u",
+                  (unsigned int)keySizes->sym_enc_keyLen,
+                  (unsigned int)val->length);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -290,9 +288,9 @@ setLocalSymSigningKey_testing(void *channelContext,
     ck_assert(val != NULL);
     ck_assert(val->data != NULL);
     ck_assert_msg(val->length == keySizes->sym_sig_keyLen,
-                  "Expected length to be %i but got %i",
-                  keySizes->sym_sig_keyLen,
-                  val->length);
+                  "Expected length to be %u but got %u",
+                  (unsigned int)keySizes->sym_sig_keyLen,
+                  (unsigned int)val->length);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -304,9 +302,9 @@ setLocalSymIv_testing(void *channelContext,
     ck_assert(val != NULL);
     ck_assert(val->data != NULL);
     ck_assert_msg(val->length == keySizes->sym_enc_blockSize,
-                  "Expected length to be %i but got %i",
-                  keySizes->sym_enc_blockSize,
-                  val->length);
+                  "Expected length to be %u but got %u",
+                  (unsigned int)keySizes->sym_enc_blockSize,
+                  (unsigned int)val->length);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -318,9 +316,9 @@ setRemoteSymEncryptingKey_testing(void *channelContext,
     ck_assert(val != NULL);
     ck_assert(val->data != NULL);
     ck_assert_msg(val->length == keySizes->sym_enc_keyLen,
-                  "Expected length to be %i but got %i",
-                  keySizes->sym_enc_keyLen,
-                  val->length);
+                  "Expected length to be %u but got %u",
+                  (unsigned int)keySizes->sym_enc_keyLen,
+                  (unsigned int)val->length);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -332,9 +330,9 @@ setRemoteSymSigningKey_testing(void *channelContext,
     ck_assert(val != NULL);
     ck_assert(val->data != NULL);
     ck_assert_msg(val->length == keySizes->sym_sig_keyLen,
-                  "Expected length to be %i but got %i",
-                  keySizes->sym_sig_keyLen,
-                  val->length);
+                  "Expected length to be %u but got %u",
+                  (unsigned int)keySizes->sym_sig_keyLen,
+                  (unsigned int)val->length);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -346,9 +344,9 @@ setRemoteSymIv_testing(void *channelContext,
     ck_assert(val != NULL);
     ck_assert(val->data != NULL);
     ck_assert_msg(val->length == keySizes->sym_enc_blockSize,
-                  "Expected length to be %i but got %i",
-                  keySizes->sym_enc_blockSize,
-                  val->length);
+                  "Expected length to be %u but got %u",
+                  (unsigned int)keySizes->sym_enc_blockSize,
+                  (unsigned int)val->length);
     return UA_STATUSCODE_GOOD;
 }
 
