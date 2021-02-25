@@ -19,6 +19,8 @@
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
 #include "ua_pubsub_ns0.h"
+#include "ua_pubsub_networkmessage.h"
+
 #endif
 
 #ifdef UA_ENABLE_PUBSUB_DELTAFRAMES
@@ -244,9 +246,27 @@ UA_DataSetReader_generateNetworkMessage(UA_PubSubConnection *pubSubConnection, U
     networkMessage->version = 1;
     networkMessage->networkMessageType = UA_NETWORKMESSAGE_DATASET;
     if(UA_DataType_isNumeric(dataSetReader->config.publisherId.type)) {
-        /* TODO Support all numeric types */
-        networkMessage->publisherIdType = UA_PUBLISHERDATATYPE_UINT16;
-        networkMessage->publisherId.publisherIdUInt16 = *(UA_UInt16 *) dataSetReader->config.publisherId.data;
+        switch(dataSetReader->config.publisherId.type->typeIndex){
+            case UA_DATATYPEKIND_BYTE:
+                networkMessage->publisherIdType = UA_PUBLISHERDATATYPE_BYTE;
+                networkMessage->publisherId.publisherIdByte = *(UA_Byte *) dataSetReader->config.publisherId.data;
+                break;
+
+            case UA_DATATYPEKIND_UINT16:
+                networkMessage->publisherIdType = UA_PUBLISHERDATATYPE_UINT16;
+                networkMessage->publisherId.publisherIdUInt16 = *(UA_UInt16 *) dataSetReader->config.publisherId.data;
+                break;
+
+            case UA_DATATYPEKIND_UINT32:
+                networkMessage->publisherIdType = UA_PUBLISHERDATATYPE_UINT32;
+                networkMessage->publisherId.publisherIdUInt32 = *(UA_UInt32 *) dataSetReader->config.publisherId.data;
+                break;
+
+            case UA_DATATYPEKIND_UINT64:
+                networkMessage->publisherIdType = UA_PUBLISHERDATATYPE_UINT64;
+                networkMessage->publisherId.publisherIdUInt64 = *(UA_UInt64 *) dataSetReader->config.publisherId.data;
+                break;
+        }
     } else {
         return UA_STATUSCODE_BADNOTSUPPORTED;
     }
