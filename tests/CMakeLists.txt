@@ -241,6 +241,10 @@ add_executable(check_server_callbacks server/check_server_callbacks.c $<TARGET_O
 target_link_libraries(check_server_callbacks ${LIBS})
 add_test_valgrind(server_callbacks ${TESTS_BINARY_DIR}/check_server_callbacks)
 
+add_executable(check_server_localization server/check_server_localization.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+target_link_libraries(check_server_localization ${LIBS})
+add_test_valgrind(server_localization ${TESTS_BINARY_DIR}/check_server_localization)
+
 if (UA_MULTITHREADING GREATER 100)
     add_executable(check_mt_addVariableNode multithreading/check_mt_addVariableNode.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     target_link_libraries(check_mt_addVariableNode ${LIBS})

@@ -539,6 +539,25 @@ UA_ServerStatistics UA_Server_getStatistics(UA_Server *server)
    return server->serverStats;
 }
 
+const UA_LocaleId *
+UA_Server_getLocaleIdsForSession(UA_Server *server, const UA_NodeId *sessionId, size_t *localeIdsSize)
+{
+    UA_Session *session = UA_Server_getSessionById(server, sessionId);
+
+    size_t size = 0;
+    UA_LocaleId *result = NULL;
+
+    if (session) {
+        result = session->localeIds;
+        size = session->localeIdsSize;
+    }
+
+    if (localeIdsSize)
+        *localeIdsSize = size;
+
+    return result;
+}
+
 /********************/
 /* Main Server Loop */
 /********************/

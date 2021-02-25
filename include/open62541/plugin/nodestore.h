@@ -274,6 +274,66 @@ typedef struct {
     UA_Boolean isInverse;
 } UA_NodeReferenceKind;
 
+typedef struct {
+    /* Read the localized DisplayName attribute of a node
+     * @param server The server executing the callback
+     * @param sessionId The identifier of the session
+     * @param sessionContext Additional data attached to the session in the
+     *        access control layer
+     * @param nodeId The identifier of the node being written to
+     * @param nodeContext Additional data attached to the node by the user
+     * @param localeIdsSize The number of locale IDs for the reading session
+     * @param localeIds The locale IDs for the reading session
+     * @param value The localized value of the DisplayName attribute
+     */
+    UA_StatusCode (*readDisplayName)(UA_Server *server, const UA_NodeId *sessionId,
+                                     void *sessionContext, const UA_NodeId *nodeId,
+                                     void *nodeContext, size_t localeIdsSize,
+                                     const UA_LocaleId *localeIds, UA_LocalizedText *value);
+
+    /* Write the localized DisplayName attribute of a node
+     * @param server The server executing the callback
+     * @param sessionId The identifier of the session
+     * @param sessionContext Additional data attached to the session in the
+     *        access control layer
+     * @param nodeId The identifier of the node being written to
+     * @param nodeContext Additional data attached to the node by the user
+     * @param value The localized value for the DisplayName attribute
+     */
+    UA_StatusCode (*writeDisplayName)(UA_Server *server, const UA_NodeId *sessionId,
+                                      void *sessionContext, const UA_NodeId *nodeId,
+                                      void *nodeContext, const UA_LocalizedText *value);
+
+    /* Read the localized Description attribute of a node
+     * @param server The server executing the callback
+     * @param sessionId The identifier of the session
+     * @param sessionContext Additional data attached to the session in the
+     *        access control layer
+     * @param nodeId The identifier of the node being written to
+     * @param nodeContext Additional data attached to the node by the user
+     * @param localeIdsSize The number of locale IDs for the reading session
+     * @param localeIds The locale IDs for the reading session
+     * @param value The localized value of the DisplayName attribute
+     */
+    UA_StatusCode (*readDescription)(UA_Server *server, const UA_NodeId *sessionId,
+                                     void *sessionContext, const UA_NodeId *nodeId,
+                                     void *nodeContext, size_t localeIdsSize,
+                                     const UA_LocaleId *localeIds, UA_LocalizedText *value);
+
+    /* Write the localized Description attribute of a node
+     * @param server The server executing the callback
+     * @param sessionId The identifier of the session
+     * @param sessionContext Additional data attached to the session in the
+     *        access control layer
+     * @param nodeId The identifier of the node being written to
+     * @param nodeContext Additional data attached to the node by the user
+     * @param value The localized value for the DisplayName attribute
+     */
+    UA_StatusCode (*writeDescription)(UA_Server *server, const UA_NodeId *sessionId,
+                                      void *sessionContext, const UA_NodeId *nodeId,
+                                      void *nodeContext, const UA_LocalizedText *value);
+} UA_LocalizedAttributeSource;
+
 /* Every Node starts with these attributes */
 typedef struct {
     UA_NodeId nodeId;
@@ -288,6 +348,7 @@ typedef struct {
     /* Members specific to open62541 */
     void *context;
     UA_Boolean constructed; /* Constructors were called */
+    UA_LocalizedAttributeSource localizedAttributeSource;
 } UA_NodeHead;
 
 /**

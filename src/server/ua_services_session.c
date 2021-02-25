@@ -681,6 +681,29 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
 #endif
     }
 
+    /* Part 4, §5.6.3.2: This parameter only needs to be specified during the first call to
+     * ActivateSession during a single application Session. If it is not specified the
+     * Server shall keep using the current localeIds for the Session.
+    */
+    if (request->localeIdsSize > 0) {
+        UA_Session_clearLocaleIds(session);
+
+        UA_StatusCode result = UA_Array_copy(request->localeIds, request->localeIdsSize,
+                                             (void **)&session->localeIds, &UA_TYPES[UA_TYPES_LOCALEID]);
+
+        if (result != UA_STATUSCODE_GOOD) {
+            response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
+
+            UA_LOG_WARNING_SESSION(&server->config.logger, session, "ActivateSession: Copying the localeIds "
+                                   "failed with StatusCode %s",
+                                   UA_StatusCode_name(response->responseHeader.serviceResult));
+
+            return;
+        }
+
+        session->localeIdsSize = request->localeIdsSize;
+    }
+
     /* Callback into userland access control */
     response->responseHeader.serviceResult =
         server->config.accessControl.

@@ -746,6 +746,12 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
        config->logger.clear = UA_Log_Stdout_clear;
     }
 
+    if (config->sessionLocaleIdsSize > 0 && config->sessionLocaleIds) {
+        UA_Array_delete(config->sessionLocaleIds, config->sessionLocaleIdsSize, &UA_TYPES[UA_TYPES_LOCALEID]);
+    }
+    config->sessionLocaleIds = NULL;
+    config->sessionLocaleIds = 0;
+
     config->localConnectionConfig = UA_ConnectionConfig_default;
 
     /* Certificate Verification that accepts every certificate. Can be

@@ -2274,6 +2274,7 @@ UA_Server_setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
 /******************************/
 /* Set External Value Source  */
 /******************************/
+
 static UA_StatusCode
 setExternalValueSource(UA_Server *server, UA_Session *session,
                  UA_VariableNode *node, const UA_ValueBackend *externalValueSource) {
@@ -2325,6 +2326,33 @@ UA_Server_setVariableNode_valueBackend(UA_Server *server, const UA_NodeId nodeId
     return retval;
 }
 
+/*************************************/
+/* Set localized attributes backend  */
+/*************************************/
+
+static UA_StatusCode
+setLocalizedAttributeSource(UA_Server *server, UA_Session *session,
+                            UA_VariableNode *node, const UA_LocalizedAttributeSource *callback) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    if(node->head.nodeClass != UA_NODECLASS_VARIABLE)
+        return UA_STATUSCODE_BADNODECLASSINVALID;
+    node->head.localizedAttributeSource = *callback;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_setNodeLocalizedAttributeSource(UA_Server *server,
+                                           const UA_NodeId nodeId,
+                                           const UA_LocalizedAttributeSource localizedAttributeSource) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode retval = UA_Server_editNode(server, &server->adminSession, &nodeId,
+                                              (UA_EditNodeCallback)setLocalizedAttributeSource,
+                                              /* casting away const because callback casts it back anyway */
+                                              (UA_LocalizedAttributeSource *) (uintptr_t)&localizedAttributeSource);
+    UA_UNLOCK(&server->serviceMutex);
+
+    return retval;
+}
 
 /************************************/
 /* Special Handling of Method Nodes */

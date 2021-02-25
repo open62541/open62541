@@ -59,6 +59,8 @@ typedef struct {
     UA_UInt32 numPublishReq;
     size_t totalRetransmissionQueueSize; /* Retransmissions of all subscriptions */
 #endif
+    UA_LocaleId *localeIds;
+    size_t localeIdsSize;
 } UA_Session;
 
 /**
@@ -66,6 +68,7 @@ typedef struct {
  * ----------------- */
 
 void UA_Session_init(UA_Session *session);
+void UA_Session_clearLocaleIds(UA_Session *session);
 void UA_Session_clear(UA_Session *session, UA_Server *server);
 void UA_Session_attachToSecureChannel(UA_Session *session, UA_SecureChannel *channel);
 void UA_Session_detachFromSecureChannel(UA_Session *session);

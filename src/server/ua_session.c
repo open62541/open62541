@@ -24,6 +24,17 @@ void UA_Session_init(UA_Session *session) {
 #endif
 }
 
+void UA_Session_clearLocaleIds(UA_Session *session) {
+    if (!session)
+        return;
+
+    if (session->localeIdsSize > 0) {
+        UA_Array_delete(session->localeIds, session->localeIdsSize, &UA_TYPES[UA_TYPES_LOCALEID]);
+    }
+    session->localeIds = NULL;
+    session->localeIdsSize = 0;
+}
+
 void UA_Session_clear(UA_Session *session, UA_Server* server) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
@@ -49,6 +60,8 @@ void UA_Session_clear(UA_Session *session, UA_Server* server) {
     }
     session->continuationPoints = NULL;
     session->availableContinuationPoints = UA_MAXCONTINUATIONPOINTS;
+
+    UA_Session_clearLocaleIds(session);
 }
 
 void

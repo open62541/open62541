@@ -963,6 +963,29 @@ UA_Server_setVariableNode_valueBackend(UA_Server *server,
                                        const UA_ValueBackend valueBackend);
 
 /**
+ * Localized Attribute Source
+ * ^^^^^^^^^^^^^^^^^^^^^^^^^^
+ *
+ * The DisplayName and Description attributes of the Base node type are localized.
+ * A client can influence the localization of these values by passing an array of
+ * LocaleId values in the ActivateSession request.
+ *
+ * By attaching a LocalizedAttributeSource to a node, the value of the DisplayName
+ * and Description attributes can be determined using the two read callback functions.
+ * Writes are also supported and must be handled using the two write callbacks.
+ * If a read callback but no write callback is specified for an attribute, the write
+ * is denied with UA_STATUSCODE_BADNOTWRITABLE.
+ *
+ * Part 4, 5.6.3.2 of the OPC UA specification describes the expected handling of
+ * the requested locale IDs for read operations, Part 4, 5.10.4.1 covers the handling
+ * of localed for write access.
+ */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_setNodeLocalizedAttributeSource(UA_Server *server,
+                                           const UA_NodeId nodeId,
+                                           const UA_LocalizedAttributeSource localizedAttributeSource);
+
+/**
  * .. _local-monitoreditems:
  *
  * Local MonitoredItems
@@ -1661,6 +1684,17 @@ typedef struct {
 
 UA_ServerStatistics UA_EXPORT
 UA_Server_getStatistics(UA_Server *server);
+
+/**
+* Localization
+* ------------
+*
+* A client may pass an array of locale IDs in the ActivateSession request (Part 4, 5.6.3.2).
+* This information can be used to return localized text to the client depending on its preferred
+* language(s).
+*/
+UA_EXPORT const UA_LocaleId *
+UA_Server_getLocaleIdsForSession(UA_Server *server, const UA_NodeId *sessionId, size_t *localeIdsSize);
 
 _UA_END_DECLS
 

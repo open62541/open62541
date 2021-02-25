@@ -382,12 +382,44 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
                                           &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
         break;
     case UA_ATTRIBUTEID_DISPLAYNAME:
-        retval = UA_Variant_setScalarCopy(&v->value, &node->head.displayName,
-                                          &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+        if (node->head.localizedAttributeSource.readDisplayName) {
+            UA_LocalizedText *displayName = UA_LocalizedText_new();
+
+            retval = node->head.localizedAttributeSource.readDisplayName(server, &session->sessionId,
+                                                                         session->sessionHandle,
+                                                                         &node->head.nodeId, node->head.context,
+                                                                         session->localeIdsSize,
+                                                                         session->localeIds, displayName);
+            if (retval == UA_STATUSCODE_GOOD)
+                UA_Variant_setScalar(&v->value, displayName,
+                                     &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+            else
+                UA_LocalizedText_delete(displayName);
+        } else {
+            retval = UA_Variant_setScalarCopy(&v->value, &node->head.displayName,
+                                              &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+        }
+
         break;
     case UA_ATTRIBUTEID_DESCRIPTION:
-        retval = UA_Variant_setScalarCopy(&v->value, &node->head.description,
-                                          &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+        if (node->head.localizedAttributeSource.readDescription) {
+            UA_LocalizedText *description = UA_LocalizedText_new();
+            retval = node->head.localizedAttributeSource.readDescription(server, &session->sessionId,
+                                                                         session->sessionHandle,
+                                                                         &node->head.nodeId, node->head.context,
+                                                                         session->localeIdsSize,
+                                                                         session->localeIds, description);
+            if (retval == UA_STATUSCODE_GOOD)
+                UA_Variant_setScalar(&v->value, description,
+                                     &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+            else
+                UA_LocalizedText_delete(description);
+
+        } else {
+            retval = UA_Variant_setScalarCopy(&v->value, &node->head.description,
+                                              &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+        }
+
         break;
     case UA_ATTRIBUTEID_WRITEMASK:
         retval = UA_Variant_setScalarCopy(&v->value, &node->head.writeMask,
@@ -1483,12 +1515,40 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
     case UA_ATTRIBUTEID_DISPLAYNAME:
         CHECK_USERWRITEMASK(UA_WRITEMASK_DISPLAYNAME);
         CHECK_DATATYPE_SCALAR(LOCALIZEDTEXT);
+
+        if (node->head.localizedAttributeSource.readDisplayName) {
+            if (!node->head.localizedAttributeSource.writeDisplayName) {
+                retval = UA_STATUSCODE_BADNOTWRITABLE;
+            } else {
+                retval = node->head.localizedAttributeSource.writeDisplayName(server, &session->sessionId,
+                                                                              session->sessionHandle,
+                                                                              &node->head.nodeId,
+                                                                              node->head.context,
+                                                                              (const UA_LocalizedText *)value);
+            }
+            break;
+        }
+
         retval = updateLocalizedText((const UA_LocalizedText *)value,
                                      &node->head.displayName);
         break;
     case UA_ATTRIBUTEID_DESCRIPTION:
         CHECK_USERWRITEMASK(UA_WRITEMASK_DESCRIPTION);
         CHECK_DATATYPE_SCALAR(LOCALIZEDTEXT);
+
+        if (node->head.localizedAttributeSource.readDisplayName) {
+            if (node->head.localizedAttributeSource.writeDisplayName) {
+                retval = UA_STATUSCODE_BADNOTWRITABLE;
+            } else {
+                retval = node->head.localizedAttributeSource.writeDescription(server, &session->sessionId,
+                                                                              session->sessionHandle,
+                                                                              &node->head.nodeId,
+                                                                              node->head.context,
+                                                                              (const UA_LocalizedText *)value);
+            }
+            break;
+        }
+
         retval = updateLocalizedText((const UA_LocalizedText *)value,
                                      &node->head.description);
         break;
