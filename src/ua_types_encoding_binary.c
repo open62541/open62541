@@ -319,7 +319,7 @@ static long double
 unpack754(uint64_t i, unsigned bits, unsigned expbits) {
     unsigned significandbits = bits - expbits - 1;
     long double result = (long double)(i&(uint64_t)((1LL<<significandbits)-1));
-    result /= (1LL<<significandbits);
+    result /= (long double)(1LL<<significandbits);
     result += 1.0f;
     unsigned bias = (unsigned)(1<<(expbits-1)) - 1;
     long long shift = (long long)((i>>significandbits) & (uint64_t)((1LL<<expbits)-1)) - bias;
