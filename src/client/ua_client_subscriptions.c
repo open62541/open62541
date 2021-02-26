@@ -361,55 +361,39 @@ UA_Client_MonitoredItem_remove(UA_Client *client, UA_Client_Subscription *sub,
 }
 
 typedef struct {
-    UA_Client_Subscription *sub;
-
-    UA_Client_MonitoredItem **mis;
     void **contexts;
     UA_Client_DeleteMonitoredItemCallback *deleteCallbacks;
     void **handlingCallbacks;
-
     UA_CreateMonitoredItemsRequest request;
 } MonitoredItems_CreateData;
 
 static void
-MonitoredItems_CreateData_deleteItems(UA_Client_MonitoredItem **mis,
-                                      MonitoredItems_CreateData *data, UA_Client *client) {
-    bool hasCallbacks = (data->deleteCallbacks && data->contexts);
-    for(size_t i = 0; i < data->request.itemsToCreateSize; i++) {
-        if(!mis[i])
-            continue;
-        UA_free(mis[i]);
-        mis[i] = NULL;
-        if(hasCallbacks && data->deleteCallbacks[i]) {
-            if(data->sub)
-                data->deleteCallbacks[i](client, data->sub->subscriptionId,
-                                         data->sub->context, 0, data->contexts[i]);
-            else
-                data->deleteCallbacks[i](client, 0, NULL, 0, data->contexts[i]);
-        }
-    }
+MonitoredItems_CreateData_clear(UA_Client *client, MonitoredItems_CreateData *data) {
+    UA_free(data->contexts);
+    UA_free(data->deleteCallbacks);
+    UA_free(data->handlingCallbacks);
+    UA_CreateMonitoredItemsRequest_clear(&data->request);
 }
 
 static void
 __MonitoredItems_create_handler(UA_Client *client, CustomCallback *cc, UA_UInt32 requestId,
                                 UA_CreateMonitoredItemsResponse *response) {
     MonitoredItems_CreateData *data = (MonitoredItems_CreateData *)cc->clientData;
-
-    // introduce local pointers to the variables/parameters in the CreateData
-    // to keep the code completely intact
     UA_CreateMonitoredItemsRequest *request = &data->request;
     UA_Client_DeleteMonitoredItemCallback *deleteCallbacks = data->deleteCallbacks;
-    UA_Client_Subscription *sub = data->sub;
     void **contexts = data->contexts;
-    UA_Client_MonitoredItem **mis = data->mis;
     void **handlingCallbacks = data->handlingCallbacks;
 
+    UA_Client_Subscription *sub = findSubscription(client, data->request.subscriptionId);
+    if(!sub)
+        goto cleanup;
+
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
-        return;
+        goto cleanup;
 
     if(response->resultsSize != request->itemsToCreateSize) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
-        return;
+        goto cleanup;
     }
 
     /* Add internally */
@@ -417,15 +401,19 @@ __MonitoredItems_create_handler(UA_Client *client, CustomCallback *cc, UA_UInt32
         if(response->results[i].statusCode != UA_STATUSCODE_GOOD) {
             if(deleteCallbacks[i])
                 deleteCallbacks[i](client, sub->subscriptionId, sub->context, 0, contexts[i]);
-            UA_free(mis[i]);
-            mis[i] = NULL;
             continue;
         }
 
-        UA_assert(mis[i] != NULL);
-        UA_Client_MonitoredItem *newMon = mis[i];
-        newMon->clientHandle = request->itemsToCreate[i].requestedParameters.clientHandle;
+        UA_Client_MonitoredItem *newMon = (UA_Client_MonitoredItem *)
+            UA_malloc(sizeof(UA_Client_MonitoredItem));
+        if(!newMon) {
+            if(deleteCallbacks[i])
+                deleteCallbacks[i](client, sub->subscriptionId, sub->context, 0, contexts[i]);
+            continue;
+        }
+
         newMon->monitoredItemId = response->results[i].monitoredItemId;
+        newMon->clientHandle = request->itemsToCreate[i].requestedParameters.clientHandle;
         newMon->context = contexts[i];
         newMon->deleteCallback = deleteCallbacks[i];
         newMon->handler.dataChangeCallback =
@@ -438,7 +426,14 @@ __MonitoredItems_create_handler(UA_Client *client, CustomCallback *cc, UA_UInt32
         UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                     "Subscription %" PRIu32 " | Added a MonitoredItem with handle %" PRIu32,
                      sub->subscriptionId, newMon->clientHandle);
-        mis[i] = NULL;
+    }
+    return;
+
+    /* Adding failed */
+ cleanup:
+    for(size_t i = 0; i < request->itemsToCreateSize; i++) {
+        if(deleteCallbacks[i])
+            deleteCallbacks[i](client, sub->subscriptionId, sub->context, 0, contexts[i]);
     }
 }
 
@@ -450,32 +445,55 @@ __MonitoredItems_create_async_handler(UA_Client *client, void *d,
     MonitoredItems_CreateData *data = (MonitoredItems_CreateData *)cc->clientData;
 
     __MonitoredItems_create_handler(client, cc, requestId, response);
-    MonitoredItems_CreateData_deleteItems(data->mis, data, client);
     if(cc->userCallback)
         cc->userCallback(client, cc->userData, requestId, response);
-    UA_free(cc);
-    if(data->mis)
-        UA_free(data->mis);
-    UA_CreateMonitoredItemsRequest_clear(&data->request);
+    MonitoredItems_CreateData_clear(client, data);
     UA_free(data);
+    UA_free(cc);
 }
 
 static UA_StatusCode
-MonitoredItems_CreateData_prepare(UA_Client_MonitoredItem **mis,
-                                  MonitoredItems_CreateData *data, UA_Client *client) {
-    /* Allocate the memory for internal representations */
-    for(size_t i = 0; i < data->request.itemsToCreateSize; i++) {
-        mis[i] = (UA_Client_MonitoredItem *)UA_malloc(sizeof(UA_Client_MonitoredItem));
-        if(!mis[i])
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
+MonitoredItems_CreateData_prepare(UA_Client *client,
+                                  const UA_CreateMonitoredItemsRequest *request,
+                                  void **contexts, void **handlingCallbacks,
+                                  UA_Client_DeleteMonitoredItemCallback *deleteCallbacks,
+                                  MonitoredItems_CreateData *data) {
+    /* Align arrays and copy over */
+    UA_StatusCode retval = UA_STATUSCODE_BADOUTOFMEMORY;
+    data->contexts = (void **)UA_malloc(sizeof(void *) * request->itemsToCreateSize);
+    if(!data->contexts)
+        goto cleanup;
+    memcpy(data->contexts, contexts, request->itemsToCreateSize * sizeof(void *));
+
+    data->deleteCallbacks = (UA_Client_DeleteMonitoredItemCallback *)
+        UA_malloc(request->itemsToCreateSize * sizeof(UA_Client_DeleteMonitoredItemCallback));
+    if(!data->deleteCallbacks)
+        goto cleanup;
+    memcpy(data->deleteCallbacks, deleteCallbacks,
+           request->itemsToCreateSize * sizeof(UA_Client_DeleteMonitoredItemCallback));
+
+    data->handlingCallbacks = (void **)
+        UA_malloc(request->itemsToCreateSize * sizeof(void *));
+    if(!data->handlingCallbacks)
+        goto cleanup;
+    memcpy(data->handlingCallbacks, handlingCallbacks,
+           request->itemsToCreateSize * sizeof(void *));
+
+    retval = UA_CreateMonitoredItemsRequest_copy(request, &data->request);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
 
     /* Set the clientHandle */
     for(size_t i = 0; i < data->request.itemsToCreateSize; i++)
         data->request.itemsToCreate[i].requestedParameters.clientHandle =
-            ++(client->monitoredItemHandles);
+            ++client->monitoredItemHandles;
 
     return UA_STATUSCODE_GOOD;
+
+cleanup:
+    MonitoredItems_CreateData_clear(client, data);
+    UA_free(data);
+    return retval;
 }
 
 static void
@@ -491,46 +509,37 @@ __UA_Client_MonitoredItems_create(UA_Client *client,
         return;
     }
 
-    /* Get the subscription */
+    /* Test if the subscription is valid */
     UA_Client_Subscription *sub = findSubscription(client, request->subscriptionId);
     if(!sub) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
         return;
     }
 
-    size_t itemsToCreateSize = request->itemsToCreateSize;
-    UA_STACKARRAY(UA_Client_MonitoredItem *, mis, itemsToCreateSize);
-    memset(mis, 0, sizeof(void *) * itemsToCreateSize);
-
     MonitoredItems_CreateData data;
     memset(&data, 0, sizeof(MonitoredItems_CreateData));
-    data.request = *request;
-    data.contexts = contexts;
-    data.handlingCallbacks = handlingCallbacks;
-    data.deleteCallbacks = deleteCallbacks;
-    data.mis = mis;
-    data.sub = sub;
+
+    UA_StatusCode res =
+        MonitoredItems_CreateData_prepare(client, request, contexts, handlingCallbacks,
+                                          deleteCallbacks, &data);
+    if(res != UA_STATUSCODE_GOOD) {
+        response->responseHeader.serviceResult = res;
+        return;
+    }
 
     CustomCallback cc;
     memset(&cc, 0, sizeof(CustomCallback));
     cc.clientData = &data;
 
-    UA_StatusCode retval = MonitoredItems_CreateData_prepare(mis, &data, client);
-    if(retval != UA_STATUSCODE_GOOD) {
-        response->responseHeader.serviceResult = retval;
-        MonitoredItems_CreateData_deleteItems(mis, &data, client);
-        return;
-    }
-
-    /* Call the service */
-    __UA_Client_Service(client, request, &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSREQUEST],
+    /* Call the service. Use data->request as it contains the client handle
+     * information. */
+    __UA_Client_Service(client, &data.request,
+                        &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSREQUEST],
                         response, &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSRESPONSE]);
 
     __MonitoredItems_create_handler(client, &cc, 0, response);
-    MonitoredItems_CreateData_deleteItems(mis, &data, client);
 
-    for(size_t i = 0; i < itemsToCreateSize; i++)
-        UA_assert(mis[i] == NULL);
+    MonitoredItems_CreateData_clear(client, &data);
 }
 
 static UA_StatusCode
@@ -555,51 +564,24 @@ __UA_Client_MonitoredItems_createDataChanges_async(UA_Client *client,
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
-    data->sub = sub;
     cc->userCallback = createCallback;
     cc->userData = userdata;
     cc->clientData = data;
 
-    /* Create a big array that holds the monitored items and parameters */
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    void **array = (void **)UA_calloc(4 * request.itemsToCreateSize, sizeof(void *));
-    if(!array) {
-        retval = UA_STATUSCODE_BADOUTOFMEMORY;
-        goto cleanup;
+    UA_StatusCode res =
+        MonitoredItems_CreateData_prepare(client, &request, contexts, callbacks,
+                                          deleteCallbacks, data);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_free(data);
+        UA_free(cc);
+        return res;
     }
-    data->mis = (UA_Client_MonitoredItem **)array;
-    data->contexts = (void **)
-        ((uintptr_t)array + (sizeof(void *) * request.itemsToCreateSize));
-    memcpy(data->contexts, contexts, request.itemsToCreateSize * sizeof(void *));
-    data->deleteCallbacks = (UA_Client_DeleteMonitoredItemCallback *)
-        ((uintptr_t)array + (2 * request.itemsToCreateSize * sizeof(void *)));
-    memcpy(data->deleteCallbacks, deleteCallbacks,
-           request.itemsToCreateSize * sizeof(UA_Client_DeleteMonitoredItemCallback));
-    data->handlingCallbacks = (void **)
-        ((uintptr_t)array + (3 * request.itemsToCreateSize * sizeof(void *)));
-    memcpy(data->handlingCallbacks, callbacks, request.itemsToCreateSize * sizeof(void *));
-
-    retval = UA_CreateMonitoredItemsRequest_copy(&request, &data->request);
-    if(retval != UA_STATUSCODE_GOOD)
-        goto cleanup;
-
-    retval = MonitoredItems_CreateData_prepare(data->mis, data, client);
-    if(retval != UA_STATUSCODE_GOOD)
-        goto cleanup;
 
     return __UA_Client_AsyncService(client, &data->request,
                                     &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSREQUEST],
                                     __MonitoredItems_create_async_handler,
                                     &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSRESPONSE],
                                     cc, requestId);
-cleanup:
-    MonitoredItems_CreateData_deleteItems(data->mis, data, client);
-    if(data->mis)
-        UA_free(data->mis);
-    UA_CreateMonitoredItemsRequest_clear(&data->request);
-    UA_free(data);
-    UA_free(cc);
-    return retval;
 }
 
 UA_CreateMonitoredItemsResponse
@@ -942,16 +924,16 @@ processDataChangeNotification(UA_Client *client, UA_Client_Subscription *sub,
         }
 
         if(!mon) {
-            UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                         "Could not process a notification with clienthandle %" PRIu32
-                         " on subscription %" PRIu32, min->clientHandle, sub->subscriptionId);
+            UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                           "Could not process a notification with clienthandle %" PRIu32
+                           " on subscription %" PRIu32, min->clientHandle, sub->subscriptionId);
             continue;
         }
 
         if(mon->isEventMonitoredItem) {
-            UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                         "MonitoredItem is configured for Events. But received a "
-                         "DataChangeNotification.");
+            UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                           "MonitoredItem is configured for Events. But received a "
+                           "DataChangeNotification.");
             continue;
         }
 
