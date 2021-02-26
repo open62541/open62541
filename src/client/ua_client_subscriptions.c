@@ -106,7 +106,6 @@ UA_Client_Subscriptions_create_async(UA_Client *client, const UA_CreateSubscript
     sub->statusChangeCallback = statusChangeCallback;
     sub->deleteCallback = deleteCallback;
 
-    cc->isAsync = true;
     cc->userCallback = createCallback;
     cc->userData = userdata;
     cc->clientData = sub;
@@ -191,7 +190,6 @@ UA_Client_Subscriptions_modify_async(UA_Client *client,
     if(!cc)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    cc->isAsync = true;
     cc->clientData = (void*)(uintptr_t)request.subscriptionId;
     cc->userData = userdata;
     cc->userCallback = callback;
@@ -510,9 +508,6 @@ __UA_Client_MonitoredItems_create(UA_Client *client,
 
     CustomCallback cc;
     memset(&cc, 0, sizeof(CustomCallback));
-#ifdef __clang_analyzer__
-    cc.isAsync = false;
-#endif
     cc.clientData = &data;
 
     UA_StatusCode retval = MonitoredItems_CreateData_prepare(mis, &data, client);
@@ -558,7 +553,6 @@ __UA_Client_MonitoredItems_createDataChanges_async(UA_Client *client,
     data->sub = sub;
     cc->userCallback = createCallback;
     cc->userData = userdata;
-    cc->isAsync = true;
     cc->clientData = data;
 
     /* Create a big array that holds the monitored items and parameters */
@@ -809,7 +803,6 @@ UA_Client_MonitoredItems_delete_async(UA_Client *client,
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
     UA_DeleteMonitoredItemsRequest_copy(&request, req_copy);
-    cc->isAsync = true;
     cc->clientData = req_copy;
     cc->userCallback = callback;
     cc->userData = userdata;
