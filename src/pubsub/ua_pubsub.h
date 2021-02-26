@@ -307,6 +307,8 @@ struct UA_WriterGroup {
     UA_PubSubState state;
     UA_NetworkMessageOffsetBuffer bufferedMessage;
     UA_UInt16 sequenceNumber; /* Increased after every succressuly sent message */
+    UA_DateTime *callbackTime; /* Time when publish callback is called for every cycle - used for publishingOffset and samplingOffset implementation */
+    /* This flag is 'read only' and is set internally based on the PubSub state. */
     UA_Boolean configurationFrozen;
     UA_DateTime lastPublishTimeStamp;
     UA_PubSubChannel *channel; /* channel used for udp unicast communication */
@@ -547,6 +549,8 @@ struct UA_ReaderGroup {
     UA_UInt32 readersCount;
     UA_UInt64 subscribeCallbackId;
     UA_PubSubState state;
+    UA_DateTime *callbackTime; /* Time when subscribe callback is called for every cycle - used for receiveOffset implementation */
+    /* This flag is 'read only' and is set internally based on the PubSub state. */
     UA_Boolean configurationFrozen;
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION

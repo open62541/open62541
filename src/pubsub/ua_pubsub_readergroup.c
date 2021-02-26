@@ -793,12 +793,8 @@ UA_ReaderGroup_addSubscribeCallback(UA_Server *server, UA_ReaderGroup *readerGro
         el->addCyclicCallback(el, (UA_Callback)UA_ReaderGroup_subscribeCallback,
                               server, readerGroup,
                               readerGroup->config.subscribingInterval,
-                              NULL /* TODO: use basetime */,
-                              UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME /* TODO: Send
-                                                                          * timer policy
-                                                                          * from writer
-                                                                          * group
-                                                                          * config */,
+                              readerGroup->config.baseTime,
+                              readerGroup->config.timerPolicy,
                               &readerGroup->subscribeCallbackId);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;

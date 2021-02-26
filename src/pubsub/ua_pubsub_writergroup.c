@@ -12,6 +12,7 @@
  */
 
 #include "ua_pubsub.h"
+#include "pubsub_timer.h"
 #include "server/ua_server_internal.h"
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
@@ -76,6 +77,24 @@ UA_WriterGroup_create(UA_Server *server, const UA_NodeId connection,
            (ms->encoding != UA_EXTENSIONOBJECT_DECODED ||
             ms->content.decoded.type != &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE])) {
             return UA_STATUSCODE_BADTYPEMISMATCH;
+        }
+    }
+
+    /* Validate whether the user has set publishingOffset and not enabled the handling of cycle miss with base time */
+    if(writerGroupConfig->encodingMimeType == UA_PUBSUB_ENCODING_UADP) {
+        UA_UadpWriterGroupMessageDataType *wgm = (UA_UadpWriterGroupMessageDataType *) writerGroupConfig->messageSettings.content.decoded.data;
+        if(wgm && wgm->publishingOffset) {
+            if(!writerGroupConfig->baseTime) {
+                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                             "Adding WriterGroup failed. Base time should be set by the user when publishingOffset is enabled. Set the base time.");
+                return UA_STATUSCODE_BADCONFIGURATIONERROR;
+            }
+
+            if(writerGroupConfig->timerPolicy != UA_TIMER_HANDLE_CYCLEMISS_WITH_BASETIME) {
+                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                             "Adding WriterGroup failed. Cycle miss should be handled with base time when publishingOffset is enabled. Enable CYCLEMISS_WITH_BASETIME in timerPolicy.");
+                return UA_STATUSCODE_BADCONFIGURATIONERROR;
+            }
         }
     }
 
@@ -571,6 +590,12 @@ UA_WriterGroupConfig_copy(const UA_WriterGroupConfig *src,
     res |= UA_ExtensionObject_copy(&src->transportSettings, &dst->transportSettings);
     res |= UA_ExtensionObject_copy(&src->messageSettings, &dst->messageSettings);
     res |= UA_KeyValueMap_copy(&src->groupProperties, &dst->groupProperties);
+
+    if(src->baseTime) {
+        dst->baseTime = UA_DateTime_new();
+        memcpy(dst->baseTime, src->baseTime, sizeof(UA_DateTime));
+    }
+
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     res |= UA_String_copy(&src->securityGroupId, &dst->securityGroupId);
 #endif
@@ -770,6 +795,10 @@ UA_WriterGroupConfig_clear(UA_WriterGroupConfig *writerGroupConfig) {
     UA_ExtensionObject_clear(&writerGroupConfig->transportSettings);
     UA_ExtensionObject_clear(&writerGroupConfig->messageSettings);
     UA_KeyValueMap_clear(&writerGroupConfig->groupProperties);
+
+    if(writerGroupConfig->baseTime)
+        UA_free(writerGroupConfig->baseTime);
+
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     UA_String_clear(&writerGroupConfig->securityGroupId);
 #endif
@@ -778,6 +807,9 @@ UA_WriterGroupConfig_clear(UA_WriterGroupConfig *writerGroupConfig) {
 
 static void
 UA_WriterGroup_clear(UA_Server *server, UA_WriterGroup *writerGroup) {
+    if(writerGroup->callbackTime)
+        UA_free(writerGroup->callbackTime);
+
     /* Delete all writers */
     UA_DataSetWriter *dataSetWriter, *tmpDataSetWriter;
     LIST_FOREACH_SAFE(dataSetWriter, &writerGroup->writers, listEntry, tmpDataSetWriter){
@@ -1029,6 +1061,10 @@ sendNetworkMessageBuffer(UA_Server *server, UA_WriterGroup *wg,
 
     /* Sending successful - increase the sequence number */
     wg->sequenceNumber++;
+
+    if(writerGroup->callbackTime)
+        *writerGroup->callbackTime = *writerGroup->callbackTime + (UA_DateTime)(writerGroup->config.publishingInterval * UA_DATETIME_MSEC);
+
 }
 
 #ifdef UA_ENABLE_JSON_ENCODING
@@ -1317,6 +1353,8 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
 
     UA_LOG_DEBUG_WRITERGROUP(&server->config.logger, writerGroup, "Publish Callback");
 
+    UA_DateTime currentTime = UA_DateTime_nowMonotonic();
+
     /* Nothing to do? */
     if(writerGroup->writersCount == 0) {
         UA_UNLOCK(&server->serviceMutex);
@@ -1334,8 +1372,48 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
         return;
     }
 
+    UA_Int64 interval = (UA_Int64)(writerGroup->config.publishingInterval * UA_DATETIME_MSEC);
+    if(writerGroup->config.baseTime) {
+        if(writerGroup->callbackTime == NULL) {
+            // First packet - Setting up the callback time
+            writerGroup->callbackTime = UA_DateTime_new();
+            *writerGroup->callbackTime = (currentTime - ((currentTime - *writerGroup->config.baseTime) % interval)) + interval;
+        }
+        else if((currentTime > (*writerGroup->callbackTime + interval)) &&
+                (writerGroup->config.timerPolicy == UA_TIMER_HANDLE_CYCLEMISS_WITH_BASETIME)) {
+            // Assuming a packet miss occured and handling it with the base time
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "Packet miss occured. Handling the packet miss with the base time");
+            *writerGroup->callbackTime = (currentTime - ((currentTime - *writerGroup->config.baseTime) % interval)) + interval;
+        }
+    }
+
+    if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_UADP){
+        UA_UadpWriterGroupMessageDataType *wgm = (UA_UadpWriterGroupMessageDataType *) writerGroup->config.messageSettings.content.decoded.data;
+        if(wgm && wgm->publishingOffset) {
+            /* Check the current time with the first value of publishingOffset array */
+            if((*writerGroup->callbackTime + (UA_DateTime)((*wgm->publishingOffset) * UA_DATETIME_MSEC)) < currentTime)
+                UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                               "Delayed publish. Publish may fail, modify PublishingOffset configuration. Use custom callback implementation for better accuracy");
+        }
+    }
+
     /* Realtime path - update the buffer message and send directly */
     if(writerGroup->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE) {
+        UA_UadpWriterGroupMessageDataType *wgm = (UA_UadpWriterGroupMessageDataType *) writerGroup->config.messageSettings.content.decoded.data;
+        if(wgm) {
+            if(wgm->publishingOffsetSize > 1)
+                UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                               "PublishingOffset array not supported in RT pubsub path as it has only one DSM. Initial publishingOffset value taken");
+
+            if(wgm->publishingOffset) {
+                // TODO: PublishingOffset calculation and passing it to the structure
+                UA_PubSubTimedSend *pubsubTimedSend = (UA_PubSubTimedSend *)connection->channel->pubsubTimedSend;
+                if(pubsubTimedSend)
+                    pubsubTimedSend->publishingTime = *writerGroup->callbackTime  + (UA_DateTime)((*wgm->publishingOffset) * UA_DATETIME_MSEC);
+            }
+        }
+
         publishRT(server, writerGroup, connection);
         UA_UNLOCK(&server->serviceMutex);
         return;
@@ -1387,6 +1465,19 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
         /* There is no promoted field -> send right away */
         if(pds && pds->promotedFieldsCount > 0) {
             writerGroup->lastPublishTimeStamp = UA_DateTime_nowMonotonic();
+
+            UA_UadpWriterGroupMessageDataType *wgm = (UA_UadpWriterGroupMessageDataType *) writerGroup->config.messageSettings.content.decoded.data;
+            if(wgm && wgm->publishingOffset) {
+                if((dsmCount > 1) && (wgm->publishingOffsetSize > 1))
+                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                                   "PublishingOffset array not implemented. Initial publishingOffset value taken");
+
+                // TODO: PublishingOffset array calculation with multiple dsm counts and pass them into the structure
+                UA_PubSubTimedSend *pubsubTimedSend = (UA_PubSubTimedSend *)connection->channel->pubsubTimedSend;
+                if(pubsubTimedSend)
+                    pubsubTimedSend->publishingTime = *writerGroup->callbackTime  + (UA_DateTime)((*wgm->publishingOffset) * UA_DATETIME_MSEC);
+            }
+
             sendNetworkMessage(server, writerGroup, connection, &dsmStore[dsmCount],
                                &dsWriterIds[dsmCount], 1);
 
@@ -1411,10 +1502,27 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
         nmDsmCount = (i + maxDSM > dsmCount) ? (UA_Byte)(dsmCount - i) : maxDSM;
 
         writerGroup->lastPublishTimeStamp = UA_DateTime_nowMonotonic();
+
+               if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_UADP) {
+            UA_UadpWriterGroupMessageDataType *wgm = (UA_UadpWriterGroupMessageDataType *) writerGroup->config.messageSettings.content.decoded.data;
+            if(wgm && wgm->publishingOffset) {
+                if((dsmCount > 1) && (wgm->publishingOffsetSize > 1))
+                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                                    "PublishingOffset array not implemented. Initial publishingOffset value taken");
+
+                // TODO: PublishingOffset array calculation with multiple dsm counts and pass them into the structure
+                UA_PubSubTimedSend *pubsubTimedSend = (UA_PubSubTimedSend *)connection->channel->pubsubTimedSend;
+                if(pubsubTimedSend)
+                    pubsubTimedSend->publishingTime = *writerGroup->callbackTime  + (UA_DateTime)((*wgm->publishingOffset) * UA_DATETIME_MSEC);
+            }
+
         /* Send the batched messages */
         sendNetworkMessage(server, writerGroup, connection, &dsmStore[i],
                            &dsWriterIds[i], nmDsmCount);
     }
+
+    if(writerGroup->callbackTime)
+        *writerGroup->callbackTime = *writerGroup->callbackTime + (UA_DateTime)(writerGroup->config.publishingInterval * UA_DATETIME_MSEC);
 
     /* Clean up DSM */
     for(size_t i = 0; i < dsmCount; i++) {
@@ -1447,12 +1555,8 @@ UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *writerGroup
         el->addCyclicCallback(el, (UA_Callback)UA_WriterGroup_publishCallback,
                               server, writerGroup,
                               writerGroup->config.publishingInterval,
-                              NULL /* TODO: use basetime */,
-                              UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME /* TODO: Send
-                                                                          * timer policy
-                                                                          * from writer
-                                                                          * group
-                                                                          * config */,
+                              writerGroup->config.baseTime,
+                              writerGroup->config.timerPolicy,
                               &writerGroup->publishCallbackId);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
