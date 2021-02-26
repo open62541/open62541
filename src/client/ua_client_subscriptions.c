@@ -39,7 +39,8 @@ __Subscriptions_create(UA_Client *client, UA_Client_Subscription *newSub,
 }
 
 static void
-__Subscriptions_create_handler(UA_Client *client, void *data, UA_UInt32 requestId, void *r) {
+__Subscriptions_create_handler(UA_Client *client, void *data,
+                               UA_UInt32 requestId, void *r) {
     UA_CreateSubscriptionResponse *response = (UA_CreateSubscriptionResponse *)r;
     CustomCallback *cc = (CustomCallback *)data;
     UA_Client_Subscription *newSub = (UA_Client_Subscription *)cc->clientData;
@@ -86,11 +87,13 @@ UA_Client_Subscriptions_create(UA_Client *client,
 }
 
 UA_StatusCode
-UA_Client_Subscriptions_create_async(UA_Client *client, const UA_CreateSubscriptionRequest request,
+UA_Client_Subscriptions_create_async(UA_Client *client,
+                                     const UA_CreateSubscriptionRequest request,
                                      void *subscriptionContext,
                                      UA_Client_StatusChangeNotificationCallback statusChangeCallback,
                                      UA_Client_DeleteSubscriptionCallback deleteCallback,
-                                     UA_ClientAsyncServiceCallback createCallback, void *userdata,
+                                     UA_ClientAsyncServiceCallback createCallback,
+                                     void *userdata,
                                      UA_UInt32 *requestId) {
     CustomCallback *cc = (CustomCallback *)UA_calloc(1, sizeof(CustomCallback));
     if(!cc)
@@ -136,7 +139,8 @@ __Subscriptions_modify(UA_Client *client, UA_Client_Subscription *sub,
 }
 
 static void
-__Subscriptions_modify_handler(UA_Client *client, void *data, UA_UInt32 requestId, void *r) {
+__Subscriptions_modify_handler(UA_Client *client, void *data,
+                               UA_UInt32 requestId, void *r) {
     UA_ModifySubscriptionResponse *response = (UA_ModifySubscriptionResponse *)r;
     CustomCallback *cc = (CustomCallback *)data;
     UA_Client_Subscription *sub =
@@ -155,7 +159,8 @@ __Subscriptions_modify_handler(UA_Client *client, void *data, UA_UInt32 requestI
 }
 
 UA_ModifySubscriptionResponse
-UA_Client_Subscriptions_modify(UA_Client *client, const UA_ModifySubscriptionRequest request) {
+UA_Client_Subscriptions_modify(UA_Client *client,
+                               const UA_ModifySubscriptionRequest request) {
     UA_ModifySubscriptionResponse response;
     UA_ModifySubscriptionResponse_init(&response);
 
@@ -426,7 +431,8 @@ __MonitoredItems_create_handler(UA_Client *client, CustomCallback *cc, UA_UInt32
         newMon->handler.dataChangeCallback =
             (UA_Client_DataChangeNotificationCallback)(uintptr_t)handlingCallbacks[i];
         newMon->isEventMonitoredItem =
-            (request->itemsToCreate[i].itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER);
+            (request->itemsToCreate[i].itemToMonitor.attributeId ==
+             UA_ATTRIBUTEID_EVENTNOTIFIER);
         LIST_INSERT_HEAD(&sub->monitoredItems, newMon, listEntry);
 
         UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_CLIENT,
@@ -611,7 +617,8 @@ UA_Client_MonitoredItems_createDataChanges(UA_Client *client,
                                            UA_Client_DeleteMonitoredItemCallback *deleteCallbacks) {
     UA_CreateMonitoredItemsResponse response;
     __UA_Client_MonitoredItems_create(client, &request, contexts,
-                                      (void**)(uintptr_t)callbacks, deleteCallbacks, &response);
+                                      (void**)(uintptr_t)callbacks,
+                                      deleteCallbacks, &response);
     return response;
 }
 
@@ -632,7 +639,8 @@ UA_Client_MonitoredItems_createDataChanges_async(UA_Client *client,
 UA_MonitoredItemCreateResult
 UA_Client_MonitoredItems_createDataChange(UA_Client *client, UA_UInt32 subscriptionId,
                                           UA_TimestampsToReturn timestampsToReturn,
-                                          const UA_MonitoredItemCreateRequest item, void *context,
+                                          const UA_MonitoredItemCreateRequest item,
+                                          void *context,
                                           UA_Client_DataChangeNotificationCallback callback,
                                           UA_Client_DeleteMonitoredItemCallback deleteCallback) {
     UA_CreateMonitoredItemsRequest request;
@@ -660,8 +668,10 @@ UA_Client_MonitoredItems_createDataChange(UA_Client *client, UA_UInt32 subscript
 }
 
 UA_CreateMonitoredItemsResponse
-UA_Client_MonitoredItems_createEvents(UA_Client *client, const UA_CreateMonitoredItemsRequest request,
-                                      void **contexts, UA_Client_EventNotificationCallback *callback,
+UA_Client_MonitoredItems_createEvents(UA_Client *client,
+                                      const UA_CreateMonitoredItemsRequest request,
+                                      void **contexts,
+                                      UA_Client_EventNotificationCallback *callback,
                                       UA_Client_DeleteMonitoredItemCallback *deleteCallback) {
     UA_CreateMonitoredItemsResponse response;
     __UA_Client_MonitoredItems_create(client, &request, contexts,
@@ -736,8 +746,9 @@ __MonitoredItems_delete(UA_Client *client, UA_Client_Subscription *sub,
 
 static void
 __MonitoredItems_delete_handler(UA_Client *client, void *d, UA_UInt32 requestId, void *r) {
-    UA_DeleteMonitoredItemsResponse *response = (UA_DeleteMonitoredItemsResponse *)r;
     CustomCallback *cc = (CustomCallback *)d;
+    UA_DeleteMonitoredItemsResponse *response =
+        (UA_DeleteMonitoredItemsResponse *)r;
     UA_DeleteMonitoredItemsRequest *request =
         (UA_DeleteMonitoredItemsRequest *)cc->clientData;
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
@@ -802,15 +813,17 @@ UA_Client_MonitoredItems_delete_async(UA_Client *client,
         UA_free(cc);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
+
     UA_DeleteMonitoredItemsRequest_copy(&request, req_copy);
     cc->clientData = req_copy;
     cc->userCallback = callback;
     cc->userData = userdata;
 
-    return __UA_Client_AsyncService(
-        client, &request, &UA_TYPES[UA_TYPES_DELETEMONITOREDITEMSREQUEST],
-        __MonitoredItems_delete_handler, &UA_TYPES[UA_TYPES_DELETEMONITOREDITEMSRESPONSE],
-        cc, requestId);
+    return __UA_Client_AsyncService(client, &request,
+                                    &UA_TYPES[UA_TYPES_DELETEMONITOREDITEMSREQUEST],
+                                    __MonitoredItems_delete_handler,
+                                    &UA_TYPES[UA_TYPES_DELETEMONITOREDITEMSRESPONSE],
+                                    cc, requestId);
 }
 
 UA_StatusCode
@@ -1019,7 +1032,8 @@ processNotificationMessage(UA_Client *client, UA_Client_Subscription *sub,
                                       (UA_StatusChangeNotification*)msg->content.decoded.data);
         } else {
             UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                           "Dropped a StatusChangeNotification since no callback is registered");
+                           "Dropped a StatusChangeNotification since no "
+                           "callback is registered");
         }
         return;
     }
@@ -1039,8 +1053,8 @@ UA_Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishRequ
         if(client->config.outStandingPublishRequests > 1) {
             client->config.outStandingPublishRequests--;
             UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                          "Too many publishrequest, reduce outStandingPublishRequests to %" PRId16,
-                           client->config.outStandingPublishRequests);
+                           "Too many publishrequest, reduce outStandingPublishRequests "
+                           "to %" PRId16, client->config.outStandingPublishRequests);
         } else {
             UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                          "Too many publishrequest when outStandingPublishRequests = 1");
@@ -1061,7 +1075,7 @@ UA_Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishRequ
         if(client->sessionState != UA_SESSIONSTATE_ACTIVATED) {
             UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                            "Received Publish Response with code %s",
-                            UA_StatusCode_name(response->responseHeader.serviceResult));
+                           UA_StatusCode_name(response->responseHeader.serviceResult));
             UA_Client_Subscription* sub = findSubscription(client, response->subscriptionId);
             if (sub != NULL)
               UA_Client_Subscription_deleteInternal(client, sub);
@@ -1104,19 +1118,20 @@ UA_Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishRequ
     /* Detect missing message - OPC Unified Architecture, Part 4 5.13.1.1 e) */
     if(UA_Client_Subscriptions_nextSequenceNumber(sub->sequenceNumber) != msg->sequenceNumber) {
         UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "Invalid subscription sequence number: expected %" PRIu32 " but got %" PRIu32,
-                     UA_Client_Subscriptions_nextSequenceNumber(sub->sequenceNumber),
-                     msg->sequenceNumber);
+                       "Invalid subscription sequence number: expected %" PRIu32
+                       " but got %" PRIu32,
+                       UA_Client_Subscriptions_nextSequenceNumber(sub->sequenceNumber),
+                       msg->sequenceNumber);
         /* This is an error. But we do not abort the connection. Some server
          * SDKs misbehave from time to time and send out-of-order sequence
          * numbers. (Probably some multi-threading synchronization issue.) */
         /* UA_Client_disconnect(client);
            return; */
     }
-    /* According to f), a keep-alive message contains no notifications and has the sequence number
-     * of the next NotificationMessage that is to be sent => More than one consecutive keep-alive
-     * message or a NotificationMessage following a keep-alive message will share the same sequence
-     * number. */
+    /* According to f), a keep-alive message contains no notifications and has
+     * the sequence number of the next NotificationMessage that is to be sent =>
+     * More than one consecutive keep-alive message or a NotificationMessage
+     * following a keep-alive message will share the same sequence number. */
     if (msg->notificationDataSize)
         sub->sequenceNumber = msg->sequenceNumber;
 
@@ -1144,8 +1159,8 @@ UA_Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishRequ
 }
 
 static void
-processPublishResponseAsync(UA_Client *client, void *userdata, UA_UInt32 requestId,
-                            void *response) {
+processPublishResponseAsync(UA_Client *client, void *userdata,
+                            UA_UInt32 requestId, void *response) {
     UA_PublishRequest *req = (UA_PublishRequest*)userdata;
     UA_PublishResponse *res = (UA_PublishResponse*)response;
 
@@ -1227,7 +1242,8 @@ UA_Client_Subscriptions_backgroundPublish(UA_Client *client) {
 
         /* Disable the timeout, it is treat in
          * UA_Client_Subscriptions_backgroundPublishInactivityCheck */
-        retval = __UA_Client_AsyncServiceEx(client, request, &UA_TYPES[UA_TYPES_PUBLISHREQUEST],
+        retval = __UA_Client_AsyncServiceEx(client, request,
+                                            &UA_TYPES[UA_TYPES_PUBLISHREQUEST],
                                             processPublishResponseAsync,
                                             &UA_TYPES[UA_TYPES_PUBLISHRESPONSE],
                                             (void*)request, &requestId, 0);
