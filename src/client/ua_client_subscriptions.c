@@ -204,7 +204,8 @@ UA_Client_Subscriptions_modify_async(UA_Client *client,
 }
 
 static void
-UA_Client_Subscription_deleteInternal(UA_Client *client, UA_Client_Subscription *sub) {
+UA_Client_Subscription_deleteInternal(UA_Client *client,
+                                      UA_Client_Subscription *sub) {
     /* Remove the MonitoredItems */
     UA_Client_MonitoredItem *mon, *mon_tmp;
     LIST_FOREACH_SAFE(mon, &sub->monitoredItems, listEntry, mon_tmp)
@@ -219,84 +220,61 @@ UA_Client_Subscription_deleteInternal(UA_Client *client, UA_Client_Subscription 
     UA_free(sub);
 }
 
-typedef struct {
-    UA_DeleteSubscriptionsRequest *request;
-    UA_Client_Subscription **subs;
-} Subscriptions_DeleteData;
-
 static void
-__Subscriptions_DeleteData_free(Subscriptions_DeleteData *data) {
-    if(!data)
-        return;
-    if(data->subs)
-        UA_free(data->subs);
-    if(data->request)
-        UA_delete(data->request, &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSREQUEST]);
-    UA_free(data);
-}
-
-static UA_INLINE void
-__Subscriptions_delete_prepare(UA_Client *client, Subscriptions_DeleteData *data) {
-    /* temporary remove the subscriptions from the list */
-    for(size_t i = 0; i < data->request->subscriptionIdsSize; i++) {
-        data->subs[i] = findSubscription(client, data->request->subscriptionIds[i]);
-        if(data->subs[i])
-            LIST_REMOVE(data->subs[i], listEntry);
-    }
-}
-
-static void
-__Subscriptions_delete_handler(UA_Client *client, void *data, UA_UInt32 requestId, void *r) {
-    UA_DeleteSubscriptionsResponse *response = (UA_DeleteSubscriptionsResponse *)r;
-    CustomCallback *cc = (CustomCallback *)data;
-    Subscriptions_DeleteData *delData = (Subscriptions_DeleteData *)cc->clientData;
-    UA_DeleteSubscriptionsRequest *request = delData->request;
-    UA_Client_Subscription **subs = delData->subs;
-
+UA_Client_Subscription_processDelete(UA_Client *client,
+                                     const UA_DeleteSubscriptionsRequest *request,
+                                     const UA_DeleteSubscriptionsResponse *response)  {
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
-        goto cleanup;
+        return;
 
-    if(request->subscriptionIdsSize != response->resultsSize) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
-        goto cleanup;
-    }
+    /* Check that the request and response size -- use the same index for both */
+    if(request->subscriptionIdsSize != response->resultsSize)
+        return;
 
-    /* Loop over the removed subscriptions and remove internally */
     for(size_t i = 0; i < request->subscriptionIdsSize; i++) {
         if(response->results[i] != UA_STATUSCODE_GOOD &&
-           response->results[i] != UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID) {
-            /* Something was wrong, reinsert the subscription in the list */
-            if(subs[i])
-                LIST_INSERT_HEAD(&client->subscriptions, subs[i], listEntry);
+           response->results[i] != UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID)
             continue;
-        }
 
-        if(!subs[i]) {
+        /* Get the Subscription */
+        UA_Client_Subscription *sub =
+            findSubscription(client, request->subscriptionIds[i]);
+        if(!sub) {
             UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                         "No internal representation of subscription %" PRIu32,
-                        delData->request->subscriptionIds[i]);
+                        request->subscriptionIds[i]);
             continue;
         }
 
-        LIST_INSERT_HEAD(&client->subscriptions, subs[i], listEntry);
-        UA_Client_Subscription_deleteInternal(client, subs[i]);
+        /* Delete the Subscription */
+        UA_Client_Subscription_deleteInternal(client, sub);
     }
 
-cleanup:
-    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        for(size_t i = 0; i < request->subscriptionIdsSize; i++) {
-            if(subs[i]) {
-                LIST_INSERT_HEAD(&client->subscriptions, subs[i], listEntry);
-            }
-        }
-    }
+}
 
-    if(cc->isAsync) {
-        if(cc->userCallback)
-            cc->userCallback(client, cc->userData, requestId, response);
-        __Subscriptions_DeleteData_free(delData);
-        UA_free(cc);
-    }
+typedef struct {
+    UA_DeleteSubscriptionsRequest request;
+    UA_ClientAsyncServiceCallback userCallback;
+    void *userData;
+} DeleteSubscriptionCallback;
+
+static void
+__Subscriptions_delete_handler(UA_Client *client, void *data,
+                               UA_UInt32 requestId, void *r) {
+    UA_DeleteSubscriptionsResponse *response =
+        (UA_DeleteSubscriptionsResponse *)r;
+    DeleteSubscriptionCallback *dsc =
+        (DeleteSubscriptionCallback*)data;
+
+    /* Delete */
+    UA_Client_Subscription_processDelete(client, &dsc->request, response);
+
+    /* Userland Callback */
+    dsc->userCallback(client, dsc->userData, requestId, response);
+
+    /* Cleanup */
+    UA_DeleteSubscriptionsRequest_clear(&dsc->request);
+    UA_free(dsc);
 }
 
 UA_StatusCode
@@ -304,69 +282,37 @@ UA_Client_Subscriptions_delete_async(UA_Client *client,
                                      const UA_DeleteSubscriptionsRequest request,
                                      UA_ClientAsyncServiceCallback callback,
                                      void *userdata, UA_UInt32 *requestId) {
-    CustomCallback *cc = (CustomCallback *)UA_calloc(1, sizeof(CustomCallback));
-    if(!cc)
+    /* Make a copy of the request that persists into the async callback */
+    DeleteSubscriptionCallback *dsc =
+        (DeleteSubscriptionCallback*)UA_malloc(sizeof(DeleteSubscriptionCallback));
+    if(!dsc)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    Subscriptions_DeleteData *data = (Subscriptions_DeleteData *)
-        UA_calloc(1, sizeof(Subscriptions_DeleteData));
-    if(!data) {
-        UA_free(cc);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+    dsc->userCallback = callback;
+    dsc->userData = userdata;
+    UA_StatusCode res = UA_DeleteSubscriptionsRequest_copy(&request, &dsc->request);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_free(dsc);
+        return res;
     }
-    cc->clientData = data;
 
-    data->subs = (UA_Client_Subscription **)
-        UA_calloc(request.subscriptionIdsSize, sizeof(UA_Client_Subscription *));
-    if(!data->subs)
-        goto cleanup;
-
-    data->request = UA_DeleteSubscriptionsRequest_new();
-    if(!data->request)
-        goto cleanup;
-    UA_DeleteSubscriptionsRequest_copy(&request, data->request);
-
-    __Subscriptions_delete_prepare(client, data);
-    cc->isAsync = true;
-    cc->userCallback = callback;
-    cc->userData = userdata;
-
-    return __UA_Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSREQUEST],
+    /* Make the async call */
+    return __UA_Client_AsyncService(client, &request,
+                                    &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSREQUEST],
                                     __Subscriptions_delete_handler,
                                     &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSRESPONSE],
-                                    cc, requestId);
-cleanup:
-    __Subscriptions_DeleteData_free(data);
-    UA_free(cc);
-    return UA_STATUSCODE_BADOUTOFMEMORY;
+                                    dsc, requestId);
 }
 
 UA_DeleteSubscriptionsResponse
 UA_Client_Subscriptions_delete(UA_Client *client,
                                const UA_DeleteSubscriptionsRequest request) {
-    UA_STACKARRAY(UA_Client_Subscription *, subs, request.subscriptionIdsSize);
-    memset(subs, 0, sizeof(void *) * request.subscriptionIdsSize);
-
-    CustomCallback cc;
-    memset(&cc, 0, sizeof(CustomCallback));
-#ifdef __clang_analyzer__
-    cc.isAsync = false;
-#endif
-
-    Subscriptions_DeleteData data;
-    cc.clientData = &data;
-    data.request = (UA_DeleteSubscriptionsRequest *)(uintptr_t)&request;
-    data.subs = subs;
-
-    __Subscriptions_delete_prepare(client, &data);
-
     /* Send the request */
     UA_DeleteSubscriptionsResponse response;
-
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSREQUEST],
                         &response, &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSRESPONSE]);
 
-    __Subscriptions_delete_handler(client, &cc, 0, &response);
+    /* Process */
+    UA_Client_Subscription_processDelete(client, &request, &response);
     return response;
 }
 
