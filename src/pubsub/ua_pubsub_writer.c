@@ -151,6 +151,15 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
+    if(writerGroupConfig->baseTime) {
+        UA_DateTime currentTime = UA_DateTime_nowMonotonic();
+        if(*writerGroupConfig->baseTime > currentTime) {
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "Adding WriterGroup failed. Future baseTime is not supported. Provide a past baseTime.");
+            return UA_STATUSCODE_BADCONFIGURATIONERROR;
+        }
+    }
+
     /* Validate messageSettings type */
     if (writerGroupConfig->messageSettings.content.decoded.type) {
         if (writerGroupConfig->encodingMimeType == UA_PUBSUB_ENCODING_JSON &&
@@ -171,6 +180,24 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
         retVal |= UA_PubSubConnection_regist(server, &currentConnectionContext->identifier);
         if(retVal != UA_STATUSCODE_GOOD)
             return retVal;
+    }
+
+    /* Validate whether the user has set publishingOffset and not enabled the handling of cycle miss with base time */
+    if(writerGroupConfig->encodingMimeType == UA_PUBSUB_ENCODING_UADP) {
+        UA_UadpWriterGroupMessageDataType *wgm = (UA_UadpWriterGroupMessageDataType *) writerGroupConfig->messageSettings.content.decoded.data;
+        if(wgm->publishingOffset) {
+            if(!writerGroupConfig->baseTime) {
+                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                             "Adding WriterGroup failed. Base time should be set by the user when publishingOffset is enabled. Set the base time.");
+                return UA_STATUSCODE_BADCONFIGURATIONERROR;
+            }
+
+            if(writerGroupConfig->timerPolicy != UA_TIMER_HANDLE_CYCLEMISS_WITH_BASETIME) {
+                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                             "Adding WriterGroup failed. Cycle miss should be handled with base time when publishingOffset is enabled. Enable CYCLEMISS_WITH_BASETIME in timerPolicy.");
+                return UA_STATUSCODE_BADCONFIGURATIONERROR;
+            }
+        }
     }
 
     //allocate memory for new WriterGroup
@@ -2060,6 +2087,7 @@ cleanup:
 void
 UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER, "Publish Callback");
+    UA_DateTime currentTime = UA_DateTime_nowMonotonic();
 
     if(!writerGroup) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -2089,17 +2117,56 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
         return;
     }
 
+    UA_Int64 interval = (UA_Int64)(writerGroup->config.publishingInterval * UA_DATETIME_MSEC);
+    if(writerGroup->config.baseTime) {
+        if(writerGroup->callbackTime == NULL) {
+            // First packet - Setting up the callback time
+            writerGroup->callbackTime = UA_DateTime_new();
+            *writerGroup->callbackTime = currentTime - ((currentTime - *writerGroup->config.baseTime) % interval);
+        }
+        else if((currentTime > (*writerGroup->callbackTime + interval)) &&
+                (writerGroup->config.timerPolicy == UA_TIMER_HANDLE_CYCLEMISS_WITH_BASETIME)) {
+            // Assuming a packet miss occured and handling it with the base time
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "Packet miss occured. Handling the packet miss with the base time");
+            *writerGroup->callbackTime = currentTime - ((currentTime - *writerGroup->config.baseTime) % interval);
+        }
+    }
+
+    if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_UADP){
+        UA_UadpWriterGroupMessageDataType *wgm = (UA_UadpWriterGroupMessageDataType *) writerGroup->config.messageSettings.content.decoded.data;
+        if(wgm->publishingOffset) {
+            /* Check the current time with the first value of publishingOffset array */
+            if((*writerGroup->callbackTime + (UA_DateTime)((*wgm->publishingOffset) * UA_DATETIME_MSEC)) < currentTime)
+                UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                               "Delayed publish. Publish may fail, modify PublishingOffset configuration. Use custom callback implementation for better accuracy");
+        }
+    }
+
     if(writerGroup->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE) {
+        UA_UadpWriterGroupMessageDataType *wgm = (UA_UadpWriterGroupMessageDataType *) writerGroup->config.messageSettings.content.decoded.data;
+        if(wgm->publishingOffsetSize > 1)
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "PublishingOffset array not supported in RT pubsub path as it has only one DSM. Initial publishingOffset value taken");
+
+        if(wgm->publishingOffset) {
+            // TODO: PublishingOffset calculation and passing it to the structure
+            // UA_DateTime publishingTime = *writerGroup->callbackTime + (UA_DateTime)((*wgm->publishingOffset) * UA_DATETIME_MSEC);
+        }
+
         UA_StatusCode res =
             sendBufferedNetworkMessage(server, connection, &writerGroup->bufferedMessage,
                                        &writerGroup->config.transportSettings);
         if(res == UA_STATUSCODE_GOOD) {
             writerGroup->sequenceNumber++;
+            if(writerGroup->config.baseTime)
+                *writerGroup->callbackTime = *writerGroup->callbackTime + (UA_DateTime)(writerGroup->config.publishingInterval * UA_DATETIME_MSEC);
         } else {
             UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Publish failed. RT fixed size. sendBufferedNetworkMessage failed");
             UA_WriterGroup_setPubSubState(server, UA_PUBSUBSTATE_ERROR, writerGroup);
         }
+
         return;
     }
 
@@ -2151,6 +2218,16 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
 
         /* Send right away */
         if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_UADP){
+            UA_UadpWriterGroupMessageDataType *wgm = (UA_UadpWriterGroupMessageDataType *) writerGroup->config.messageSettings.content.decoded.data;
+            if(wgm->publishingOffset) {
+                if((dsmCount > 1) && (wgm->publishingOffsetSize > 1))
+                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                                   "PublishingOffset array not implemented. Initial publishingOffset value taken");
+
+                // TODO: PublishingOffset array calculation with multiple dsm counts and pass them into the structure
+                // UA_DateTime publishingTime = *writerGroup->callbackTime  + (UA_DateTime)((*wgm->publishingOffset) * UA_DATETIME_MSEC);
+            }
+
             res = sendNetworkMessage(connection, writerGroup, &dsmStore[dsmCount],
                                      &dsw->config.dataSetWriterId, 1,
                                      &writerGroup->config.messageSettings,
@@ -2185,7 +2262,17 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
             nmDsmCount = (UA_Byte)(dsmCount - i);
         }
 
-        if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_UADP){
+        if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_UADP) {
+            UA_UadpWriterGroupMessageDataType *wgm = (UA_UadpWriterGroupMessageDataType *) writerGroup->config.messageSettings.content.decoded.data;
+            if(wgm->publishingOffset) {
+                if((dsmCount > 1) && (wgm->publishingOffsetSize > 1))
+                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                                    "PublishingOffset array not implemented. Initial publishingOffset value taken");
+
+                // TODO: PublishingOffset array calculation with multiple dsm counts and pass them into the structure
+                // UA_DateTime publishingTime = *writerGroup->callbackTime  + (UA_DateTime)((*wgm->publishingOffset) * UA_DATETIME_MSEC);
+            }
+
             res = sendNetworkMessage(connection, writerGroup, &dsmStore[i],
                                      &dsWriterIds[i], nmDsmCount,
                                      &writerGroup->config.messageSettings,
@@ -2211,6 +2298,9 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
         /* Forward the position for the next iteration */
         i += nmDsmCount;
     }
+
+    if(writerGroup->config.baseTime)
+        *writerGroup->callbackTime = *writerGroup->callbackTime + (UA_DateTime)(writerGroup->config.publishingInterval * UA_DATETIME_MSEC);
 
     /* Clean up DSM */
     for(i = 0; i < dsmCount; i++)

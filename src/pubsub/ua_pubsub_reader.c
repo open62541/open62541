@@ -290,6 +290,15 @@ UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
         return UA_STATUSCODE_BADNOTSUPPORTED;
     }
 
+    if(readerGroupConfig->baseTime) {
+        UA_DateTime currentTime = UA_DateTime_nowMonotonic();
+        if(*readerGroupConfig->baseTime > currentTime) {
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "Adding ReaderGroup failed. Future baseTime is not supported. Provide a past baseTime.");
+            return UA_STATUSCODE_BADCONFIGURATIONERROR;
+        }
+    }
+
     /* Search the connection by the given connectionIdentifier */
     UA_PubSubConnection *currentConnectionContext =
         UA_PubSubConnection_findConnectionbyId(server, connectionIdentifier);
