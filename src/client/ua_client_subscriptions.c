@@ -368,14 +368,14 @@ typedef struct {
     UA_Client_DeleteMonitoredItemCallback *deleteCallbacks;
     void **handlingCallbacks;
 
-    UA_CreateMonitoredItemsRequest *request;
+    UA_CreateMonitoredItemsRequest request;
 } MonitoredItems_CreateData;
 
 static void
 MonitoredItems_CreateData_deleteItems(UA_Client_MonitoredItem **mis,
                                       MonitoredItems_CreateData *data, UA_Client *client) {
     bool hasCallbacks = (data->deleteCallbacks && data->contexts);
-    for(size_t i = 0; i < data->request->itemsToCreateSize; i++) {
+    for(size_t i = 0; i < data->request.itemsToCreateSize; i++) {
         if(!mis[i])
             continue;
         UA_free(mis[i]);
@@ -397,7 +397,7 @@ __MonitoredItems_create_handler(UA_Client *client, CustomCallback *cc, UA_UInt32
 
     // introduce local pointers to the variables/parameters in the CreateData
     // to keep the code completely intact
-    UA_CreateMonitoredItemsRequest *request = data->request;
+    UA_CreateMonitoredItemsRequest *request = &data->request;
     UA_Client_DeleteMonitoredItemCallback *deleteCallbacks = data->deleteCallbacks;
     UA_Client_Subscription *sub = data->sub;
     void **contexts = data->contexts;
@@ -456,8 +456,7 @@ __MonitoredItems_create_async_handler(UA_Client *client, void *d,
     UA_free(cc);
     if(data->mis)
         UA_free(data->mis);
-    if(data->request)
-        UA_CreateMonitoredItemsRequest_delete(data->request);
+    UA_CreateMonitoredItemsRequest_clear(&data->request);
     UA_free(data);
 }
 
@@ -465,15 +464,15 @@ static UA_StatusCode
 MonitoredItems_CreateData_prepare(UA_Client_MonitoredItem **mis,
                                   MonitoredItems_CreateData *data, UA_Client *client) {
     /* Allocate the memory for internal representations */
-    for(size_t i = 0; i < data->request->itemsToCreateSize; i++) {
+    for(size_t i = 0; i < data->request.itemsToCreateSize; i++) {
         mis[i] = (UA_Client_MonitoredItem *)UA_malloc(sizeof(UA_Client_MonitoredItem));
         if(!mis[i])
             return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
     /* Set the clientHandle */
-    for(size_t i = 0; i < data->request->itemsToCreateSize; i++)
-        data->request->itemsToCreate[i].requestedParameters.clientHandle =
+    for(size_t i = 0; i < data->request.itemsToCreateSize; i++)
+        data->request.itemsToCreate[i].requestedParameters.clientHandle =
             ++(client->monitoredItemHandles);
 
     return UA_STATUSCODE_GOOD;
@@ -505,7 +504,7 @@ __UA_Client_MonitoredItems_create(UA_Client *client,
 
     MonitoredItems_CreateData data;
     memset(&data, 0, sizeof(MonitoredItems_CreateData));
-    data.request = (UA_CreateMonitoredItemsRequest *)(uintptr_t)request;
+    data.request = *request;
     data.contexts = contexts;
     data.handlingCallbacks = handlingCallbacks;
     data.deleteCallbacks = deleteCallbacks;
@@ -580,12 +579,7 @@ __UA_Client_MonitoredItems_createDataChanges_async(UA_Client *client,
         ((uintptr_t)array + (3 * request.itemsToCreateSize * sizeof(void *)));
     memcpy(data->handlingCallbacks, callbacks, request.itemsToCreateSize * sizeof(void *));
 
-    data->request = UA_CreateMonitoredItemsRequest_new();
-    if(!data->request) {
-        retval = UA_STATUSCODE_BADOUTOFMEMORY;
-        goto cleanup;
-    }
-    retval = UA_CreateMonitoredItemsRequest_copy(&request, data->request);
+    retval = UA_CreateMonitoredItemsRequest_copy(&request, &data->request);
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
 
@@ -593,7 +587,7 @@ __UA_Client_MonitoredItems_createDataChanges_async(UA_Client *client,
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
 
-    return __UA_Client_AsyncService(client, data->request,
+    return __UA_Client_AsyncService(client, &data->request,
                                     &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSREQUEST],
                                     __MonitoredItems_create_async_handler,
                                     &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSRESPONSE],
@@ -602,8 +596,7 @@ cleanup:
     MonitoredItems_CreateData_deleteItems(data->mis, data, client);
     if(data->mis)
         UA_free(data->mis);
-    if(data->request)
-        UA_CreateMonitoredItemsRequest_delete(data->request);
+    UA_CreateMonitoredItemsRequest_clear(&data->request);
     UA_free(data);
     UA_free(cc);
     return retval;
