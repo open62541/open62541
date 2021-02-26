@@ -105,7 +105,6 @@ typedef struct CustomCallback {
     UA_ClientAsyncServiceCallback userCallback;
     void *userData;
 
-    bool isAsync;
     void *clientData;
 } CustomCallback;
 
