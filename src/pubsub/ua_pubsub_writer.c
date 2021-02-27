@@ -2109,65 +2109,67 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
      * But only if they do not contain promoted fields. NM with only DSM are
      * sent out right away. The others are kept in a buffer for "batching". */
     size_t dsmCount = 0;
-    UA_DataSetWriter *dsw;
     UA_STACKARRAY(UA_UInt16, dsWriterIds, writerGroup->writersCount);
     UA_STACKARRAY(UA_DataSetMessage, dsmStore, writerGroup->writersCount);
+    UA_DataSetWriter *dsw;
     LIST_FOREACH(dsw, &writerGroup->writers, listEntry) {
-        if (dsw->state == UA_PUBSUBSTATE_OPERATIONAL) {
-            /* Find the dataset */
-            UA_PublishedDataSet *pds =
-                UA_PublishedDataSet_findPDSbyId(server, dsw->connectedDataSet);
-            if(!pds) {
-                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                            "PubSub Publish: PublishedDataSet not found");
-                UA_DataSetWriter_setPubSubState(server, UA_PUBSUBSTATE_ERROR, dsw);
-                continue;
-            }
+        if(dsw->state != UA_PUBSUBSTATE_OPERATIONAL)
+            continue;
 
-            /* Generate the DSM */
-            UA_StatusCode res =
-                UA_DataSetWriter_generateDataSetMessage(server, &dsmStore[dsmCount], dsw);
-            if(res != UA_STATUSCODE_GOOD) {
-                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                            "PubSub Publish: DataSetMessage creation failed");
-                UA_DataSetWriter_setPubSubState(server, UA_PUBSUBSTATE_ERROR, dsw);
-                continue;
-            }
+        /* Find the dataset */
+        UA_PublishedDataSet *pds =
+            UA_PublishedDataSet_findPDSbyId(server, dsw->connectedDataSet);
+        if(!pds) {
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "PubSub Publish: PublishedDataSet not found");
+            UA_DataSetWriter_setPubSubState(server, UA_PUBSUBSTATE_ERROR, dsw);
+            continue;
+        }
 
-            /* Send right away if there is only this DSM in a NM. If promoted fields
-            * are contained in the PublishedDataSet, then this DSM must go into a
-            * dedicated NM as well. */
-            if(pds->promotedFieldsCount > 0 || maxDSM == 1) {
-                if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_UADP){
-                    res = sendNetworkMessage(connection, writerGroup, &dsmStore[dsmCount],
-                                            &dsw->config.dataSetWriterId, 1,
-                                            &writerGroup->config.messageSettings,
-                                            &writerGroup->config.transportSettings);
-                } else if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) {
-                    res = sendNetworkMessageJson(connection, &dsmStore[dsmCount],
-                                                &dsw->config.dataSetWriterId, 1,
-                                                &writerGroup->config.transportSettings);
-                }
+        /* Generate the DSM */
+        UA_StatusCode res =
+            UA_DataSetWriter_generateDataSetMessage(server, &dsmStore[dsmCount], dsw);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "PubSub Publish: DataSetMessage creation failed");
+            UA_DataSetWriter_setPubSubState(server, UA_PUBSUBSTATE_ERROR, dsw);
+            continue;
+        }
 
-                if(res != UA_STATUSCODE_GOOD) {
-                    UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                                "PubSub Publish: Could not send a NetworkMessage");
-                    UA_DataSetWriter_setPubSubState(server, UA_PUBSUBSTATE_ERROR, dsw);
-                }
-
-                if(writerGroup->config.rtLevel == UA_PUBSUB_RT_DIRECT_VALUE_ACCESS) {
-                    for(size_t i = 0; i < dsmStore[dsmCount].data.keyFrameData.fieldCount; ++i) {
-                        dsmStore[dsmCount].data.keyFrameData.dataSetFields[i].value.data = NULL;
-                    }
-                }
-
-                UA_DataSetMessage_free(&dsmStore[dsmCount]);
-                continue;
-            }
-
+        /* There is no promoted field and we can batch dsm. So do the batching. */
+        if(pds->promotedFieldsCount == 0 && maxDSM > 1) {
             dsWriterIds[dsmCount] = dsw->config.dataSetWriterId;
             dsmCount++;
+            continue;
         }
+
+        /* Send right away */
+        if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_UADP){
+            res = sendNetworkMessage(connection, writerGroup, &dsmStore[dsmCount],
+                                     &dsw->config.dataSetWriterId, 1,
+                                     &writerGroup->config.messageSettings,
+                                     &writerGroup->config.transportSettings);
+        } else if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) {
+            res = sendNetworkMessageJson(connection, &dsmStore[dsmCount],
+                                         &dsw->config.dataSetWriterId, 1,
+                                         &writerGroup->config.transportSettings);
+        } else {
+            res = UA_STATUSCODE_BADINTERNALERROR;
+        }
+
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "PubSub Publish: Could not send a NetworkMessage");
+            UA_DataSetWriter_setPubSubState(server, UA_PUBSUBSTATE_ERROR, dsw);
+        }
+
+        /* Clean up */
+        if(writerGroup->config.rtLevel == UA_PUBSUB_RT_DIRECT_VALUE_ACCESS) {
+            for(size_t i = 0; i < dsmStore[dsmCount].data.keyFrameData.fieldCount; ++i) {
+                dsmStore[dsmCount].data.keyFrameData.dataSetFields[i].value.data = NULL;
+            }
+        }
+        UA_DataSetMessage_free(&dsmStore[dsmCount]);
     }
 
     /* Send the NetworkMessages with batched DataSetMessages */
