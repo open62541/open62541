@@ -521,7 +521,7 @@ UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
         if(mon->parameters.discardOldest) {
             /* Remove the oldest */
             del = TAILQ_FIRST(&mon->queue);
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+#if defined(UA_ENABLE_SUBSCRIPTIONS_EVENTS) && !defined(__clang_analyzer__)
             while(del->isOverflowEvent)
                 del = TAILQ_NEXT(del, listEntry); /* skip overflow events */
 #endif
@@ -530,7 +530,7 @@ UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
              * The last entry is not an OverflowEvent -- we just added it. */
             del = TAILQ_LAST(&mon->queue, NotificationQueue);
             del = TAILQ_PREV(del, NotificationQueue, listEntry);
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+#if defined(UA_ENABLE_SUBSCRIPTIONS_EVENTS) && !defined(__clang_analyzer__)
             while(del->isOverflowEvent)
                 del = TAILQ_PREV(del, NotificationQueue, listEntry); /* skip overflow events */
 #endif
