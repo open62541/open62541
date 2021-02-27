@@ -2109,6 +2109,7 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
      * But only if they do not contain promoted fields. NM with only DSM are
      * sent out right away. The others are kept in a buffer for "batching". */
     size_t dsmCount = 0;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_STACKARRAY(UA_UInt16, dsWriterIds, writerGroup->writersCount);
     UA_STACKARRAY(UA_DataSetMessage, dsmStore, writerGroup->writersCount);
     UA_DataSetWriter *dsw;
@@ -2127,8 +2128,7 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
         }
 
         /* Generate the DSM */
-        UA_StatusCode res =
-            UA_DataSetWriter_generateDataSetMessage(server, &dsmStore[dsmCount], dsw);
+        res = UA_DataSetWriter_generateDataSetMessage(server, &dsmStore[dsmCount], dsw);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                          "PubSub Publish: DataSetMessage creation failed");
@@ -2149,12 +2149,10 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
                                      &dsw->config.dataSetWriterId, 1,
                                      &writerGroup->config.messageSettings,
                                      &writerGroup->config.transportSettings);
-        } else if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) {
+        } else { /* if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) */
             res = sendNetworkMessageJson(connection, &dsmStore[dsmCount],
                                          &dsw->config.dataSetWriterId, 1,
                                          &writerGroup->config.transportSettings);
-        } else {
-            res = UA_STATUSCODE_BADINTERNALERROR;
         }
 
         if(res != UA_STATUSCODE_GOOD) {
@@ -2173,39 +2171,39 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     }
 
     /* Send the NetworkMessages with batched DataSetMessages */
-    size_t nmCount = (dsmCount / maxDSM) + ((dsmCount % maxDSM) == 0 ? 0 : 1);
-    for(UA_UInt32 i = 0; i < nmCount; i++) {
+    size_t i = 0;
+    while(i < dsmCount) {
+        /* How many dsm in this iteration? */
         UA_Byte nmDsmCount = maxDSM;
-        if(i == nmCount - 1  && (dsmCount % maxDSM))
-            nmDsmCount = (UA_Byte)dsmCount % maxDSM;
-        UA_StatusCode res3 = UA_STATUSCODE_GOOD;
+        if(i + nmDsmCount > dsmCount) {
+            nmDsmCount = (UA_Byte)(dsmCount - i);
+        }
+
         if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_UADP){
-            res3 = sendNetworkMessage(connection, writerGroup, &dsmStore[i * maxDSM],
-                                      &dsWriterIds[i * maxDSM], nmDsmCount,
-                                      &writerGroup->config.messageSettings,
-                                      &writerGroup->config.transportSettings);
-        } else if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON){
-            res3 = sendNetworkMessageJson(connection, &dsmStore[i * maxDSM],
-                                          &dsWriterIds[i * maxDSM], nmDsmCount,
-                                          &writerGroup->config.transportSettings);
+            res = sendNetworkMessage(connection, writerGroup, &dsmStore[i],
+                                     &dsWriterIds[i], nmDsmCount,
+                                     &writerGroup->config.messageSettings,
+                                     &writerGroup->config.transportSettings);
+        } else { /* if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) */
+            res = sendNetworkMessageJson(connection, &dsmStore[i],
+                                         &dsWriterIds[i], nmDsmCount,
+                                         &writerGroup->config.transportSettings);
         }
 
-        if(res3 != UA_STATUSCODE_GOOD) {
+        if(res == UA_STATUSCODE_GOOD) {
+            writerGroup->sequenceNumber++; /* TODO: Why not in the direct-send case? */
+        } else {
             UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                           "PubSub Publish: Sending a NetworkMessage failed");
+                         "PubSub Publish: Sending a NetworkMessage failed");
             LIST_FOREACH(dsw, &writerGroup->writers, listEntry) {
-                if (dsWriterIds[i * maxDSM] == dsw->config.dataSetWriterId) {
-                    if (UA_DataSetWriter_setPubSubState(server, UA_PUBSUBSTATE_ERROR, dsw) != 
-                            UA_STATUSCODE_GOOD) {
-                        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                           "PubSub Publish: Setting DataSetWriter state to error failed");
-                    }
-                }
+                if(dsWriterIds[i * maxDSM] != dsw->config.dataSetWriterId)
+                    continue;
+                UA_DataSetWriter_setPubSubState(server, UA_PUBSUBSTATE_ERROR, dsw);
             }
-            continue;
         }
 
-        writerGroup->sequenceNumber++;
+        /* Forward the position for the next iteration */
+        i += nmDsmCount;
     }
 
     /* Clean up DSM */
