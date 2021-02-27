@@ -94,6 +94,7 @@ START_TEST(AddRemoveAddWriterGroupWithMinimalValidConfiguration){
         }
         ck_assert_int_eq(writerGroupCount, 1);
         retVal |= UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &localWriterGroup);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         UA_Server_setWriterGroupOperational(server, localWriterGroup);
         writerGroupCount = 0;
         LIST_FOREACH(writerGroup, &UA_PubSubConnection_findConnectionbyId(server, connection1)->writerGroups, listEntry){
