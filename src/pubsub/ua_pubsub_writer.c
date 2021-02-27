@@ -1528,7 +1528,7 @@ UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_Server *server,
     dataSetMessage->data.keyFrameData.fieldNames = (UA_String *)
         UA_Array_new(currentDataSet->fieldSize, &UA_TYPES[UA_TYPES_STRING]);
     if(!dataSetMessage->data.keyFrameData.fieldNames) {
-        UA_DataSetMessage_free(dataSetMessage);
+        UA_DataSetMessage_clear(dataSetMessage);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 #endif
@@ -2169,7 +2169,7 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
                 dsmStore[dsmCount].data.keyFrameData.dataSetFields[i].value.data = NULL;
             }
         }
-        UA_DataSetMessage_free(&dsmStore[dsmCount]);
+        UA_DataSetMessage_clear(&dsmStore[dsmCount]);
     }
 
     /* Send the NetworkMessages with batched DataSetMessages */
@@ -2209,8 +2209,8 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     }
 
     /* Clean up DSM */
-    for(size_t i = 0; i < dsmCount; i++)
-        UA_DataSetMessage_free(&dsmStore[i]);
+    for(i = 0; i < dsmCount; i++)
+        UA_DataSetMessage_clear(&dsmStore[i]);
 }
 
 /* Add new publishCallback. The first execution is triggered directly after
