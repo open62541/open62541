@@ -16,6 +16,7 @@
 
 #include "ua_pubsub.h"
 #include "ua_pubsub_networkmessage.h"
+#include "pubsub_timer.h"
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
 #include "ua_pubsub_ns0.h"
@@ -2151,7 +2152,9 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
 
         if(wgm->publishingOffset) {
             // TODO: PublishingOffset calculation and passing it to the structure
-            // UA_DateTime publishingTime = *writerGroup->callbackTime + (UA_DateTime)((*wgm->publishingOffset) * UA_DATETIME_MSEC);
+            UA_PubSubTimedSend *pubsubTimedSend = (UA_PubSubTimedSend *)connection->channel->pubsubTimedSend;
+            if(pubsubTimedSend)
+                pubsubTimedSend->publishingTime = *writerGroup->callbackTime  + (UA_DateTime)((*wgm->publishingOffset) * UA_DATETIME_MSEC);
         }
 
         UA_StatusCode res =
@@ -2225,7 +2228,9 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
                                    "PublishingOffset array not implemented. Initial publishingOffset value taken");
 
                 // TODO: PublishingOffset array calculation with multiple dsm counts and pass them into the structure
-                // UA_DateTime publishingTime = *writerGroup->callbackTime  + (UA_DateTime)((*wgm->publishingOffset) * UA_DATETIME_MSEC);
+                UA_PubSubTimedSend *pubsubTimedSend = (UA_PubSubTimedSend *)connection->channel->pubsubTimedSend;
+                if(pubsubTimedSend)
+                    pubsubTimedSend->publishingTime = *writerGroup->callbackTime  + (UA_DateTime)((*wgm->publishingOffset) * UA_DATETIME_MSEC);
             }
 
             res = sendNetworkMessage(connection, writerGroup, &dsmStore[dsmCount],
@@ -2270,7 +2275,9 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
                                     "PublishingOffset array not implemented. Initial publishingOffset value taken");
 
                 // TODO: PublishingOffset array calculation with multiple dsm counts and pass them into the structure
-                // UA_DateTime publishingTime = *writerGroup->callbackTime  + (UA_DateTime)((*wgm->publishingOffset) * UA_DATETIME_MSEC);
+                UA_PubSubTimedSend *pubsubTimedSend = (UA_PubSubTimedSend *)connection->channel->pubsubTimedSend;
+                if(pubsubTimedSend)
+                    pubsubTimedSend->publishingTime = *writerGroup->callbackTime  + (UA_DateTime)((*wgm->publishingOffset) * UA_DATETIME_MSEC);
             }
 
             res = sendNetworkMessage(connection, writerGroup, &dsmStore[i],

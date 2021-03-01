@@ -14,6 +14,8 @@
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pubsub_ethernet.h>
 
+#include <pubsub_timer.h>
+
 #if defined(__vxworks) || defined(__VXWORKS__)
 #include <netpacket/packet.h>
 #include <netinet/if_ether.h>
@@ -836,6 +838,21 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
     }
 #endif
 
+    /* Set the timedSend to pubsub connection channel for timed publish */
+    UA_PubSubTimedSend *pubsubTimedSend = (UA_PubSubTimedSend *) UA_calloc(1, sizeof(UA_PubSubTimedSend));
+    if(!pubsubTimedSend){
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "PubSub Connection creation failed. Bad out of memory");
+        UA_close(sockFd);
+        if(sockOptions.socketPriority)
+            UA_free(sockOptions.socketPriority);
+
+        UA_free(channelDataEthernet);
+        UA_free(newChannel);
+        return NULL;
+    }
+
+    newChannel->pubsubTimedSend = pubsubTimedSend;
     newChannel->handle = channelDataEthernet;
     newChannel->state = UA_PUBSUB_CHANNEL_PUB;
 

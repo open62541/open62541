@@ -11,6 +11,8 @@
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
+#include <pubsub_timer.h>
+
 #ifdef UA_ENABLE_PUBSUB_MONITORING
 #include <open62541/server_pubsub.h>
 #endif /* UA_ENABLE_PUBSUB_MONITORING */
@@ -85,6 +87,12 @@ UA_Server_addPubSubConnection(UA_Server *server,
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "PubSub Connection creation failed. Transport layer creation problem.");
         return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Set the server timer to pubsub timed send function */
+    if(newConnectionsField->channel->pubsubTimedSend) {
+        UA_PubSubTimedSend *pubsubTimedSend = (UA_PubSubTimedSend *)newConnectionsField->channel->pubsubTimedSend;
+        pubsubTimedSend->timer = &server->timer;
     }
 
     UA_PubSubManager_generateUniqueNodeId(server, &newConnectionsField->identifier);

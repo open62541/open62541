@@ -14,6 +14,8 @@
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pubsub_udp.h>
 
+#include <pubsub_timer.h>
+
 /* UDP multicast network layer specific internal data */
 typedef struct {
     int ai_family;                    /* Protocol family for socket. IPv4/IPv6 */
@@ -334,6 +336,15 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
 #endif
     }
 
+    /* Set the timedSend to pubsub connection channel for timed publish */
+    UA_PubSubTimedSend *pubsubTimedSend = (UA_PubSubTimedSend *) UA_calloc(1, sizeof(UA_PubSubTimedSend));
+    if(!pubsubTimedSend) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "PubSub Connection creation failed. Bad out of memory");
+        goto cleanup;
+    }
+
+    newChannel->pubsubTimedSend = pubsubTimedSend;
     UA_freeaddrinfo(requestResult);
     newChannel->state = UA_PUBSUB_CHANNEL_PUB;
     return newChannel;
