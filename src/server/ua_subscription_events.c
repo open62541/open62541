@@ -9,6 +9,7 @@
 #include "ua_server_internal.h"
 #include "ua_subscription.h"
 
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 
 /* We use a 16-Byte ByteString as an identifier */
@@ -214,15 +215,163 @@ resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session, const UA_N
 }
 
 
+UA_StatusCode
+UA_Server_WhereClauseValidation(UA_Server *server,
+                                const UA_NodeId *eventNode,
+                                const UA_ContentFilter *contentFilter,
+                                UA_ContentFilterResult *contentFilterResult,
+                                UA_Int32 index) {
+    switch(contentFilter->elements[index].filterOperator) {
+        case UA_FILTEROPERATOR_INVIEW:
+        case UA_FILTEROPERATOR_RELATEDTO: {
+            /* Not allowed for event WhereClause according to 7.17.3 in Part 4 */
+            contentFilterResult->elementResults[index].statusCode =  UA_STATUSCODE_BADEVENTFILTERINVALID;
+            break;
+        }
+        case UA_FILTEROPERATOR_EQUALS:{
+            contentFilterResult->elementResults[index].statusCode = UA_STATUSCODE_GOOD;
+            break;
+        }
+        case UA_FILTEROPERATOR_GREATERTHAN:{
+            contentFilterResult->elementResults[index].statusCode = UA_STATUSCODE_GOOD;
+            break;
+        }
+        case UA_FILTEROPERATOR_LESSTHAN:{
+            contentFilterResult->elementResults[index].statusCode = UA_STATUSCODE_GOOD;
+            break;
+        }
+        case UA_FILTEROPERATOR_GREATERTHANOREQUAL:{
+            break;
+        }
+        case UA_FILTEROPERATOR_LESSTHANOREQUAL:{
+            contentFilterResult->elementResults[index].statusCode = UA_STATUSCODE_GOOD;
+            break;
+        }
+        case UA_FILTEROPERATOR_LIKE:{
+
+            contentFilterResult->elementResults[index].statusCode = UA_STATUSCODE_GOOD;
+            break;
+        }
+        case UA_FILTEROPERATOR_AND: {
+            if (UA_Server_WhereClauseValidation(server, eventNode,  // First Operand
+                                                contentFilter,
+                                                contentFilterResult,
+                                                (UA_Int32) ((UA_ElementOperand *)contentFilter->elements[index]
+                                                    .filterOperands[0].content.decoded.data)->index) == UA_STATUSCODE_GOOD){
+                if (UA_Server_WhereClauseValidation(server, eventNode,  // Second Operand
+                                                    contentFilter,
+                                                    contentFilterResult,
+                                                    (UA_Int32)  ((UA_ElementOperand *)contentFilter->elements[index]
+                                                        .filterOperands[1].content.decoded.data)->index) == UA_STATUSCODE_GOOD ){
+                    contentFilterResult->elementResults[index].statusCode = UA_STATUSCODE_GOOD;
+                    break;
+                }else{
+                    contentFilterResult->elementResults[index].statusCode = UA_STATUSCODE_BAD;
+                    //contentFilterResult->elementResults[index].operandStatusCodes[1] = UA_STATUSCODE_BAD;
+                    break;
+                }
+            }else{
+                contentFilterResult->elementResults[index].statusCode = UA_STATUSCODE_BAD;
+                //contentFilterResult->elementResults[index].operandStatusCodes[0] = UA_STATUSCODE_BAD;
+                break;
+            }
+        }
+        case UA_FILTEROPERATOR_OR: {
+            if(UA_Server_WhereClauseValidation(
+                server, eventNode,  // First Operand
+                contentFilter, contentFilterResult,
+                (UA_Int32)((UA_ElementOperand *)contentFilter->elements[index]
+                    .filterOperands[0]
+                    .content.decoded.data)
+                    ->index) == UA_STATUSCODE_GOOD) {
+                contentFilterResult->elementResults[index].statusCode = UA_STATUSCODE_GOOD;
+                break;
+            }
+            //contentFilterResult->elementResults[index].operandStatusCodes[0] = UA_STATUSCODE_BAD;
+            if(UA_Server_WhereClauseValidation(
+                server, eventNode,  // Second Operand
+                contentFilter, contentFilterResult,
+                (UA_Int32)((UA_ElementOperand *)contentFilter->elements[index]
+                    .filterOperands[1]
+                    .content.decoded.data)
+                    ->index) == UA_STATUSCODE_GOOD) {
+                contentFilterResult->elementResults[index].statusCode = UA_STATUSCODE_GOOD;
+                break;
+            }
+            contentFilterResult->elementResults[index].statusCode = UA_STATUSCODE_BAD;
+            //contentFilterResult->elementResults[index].operandStatusCodes[1] = UA_STATUSCODE_BAD;
+            break;
+        }
+        case UA_FILTEROPERATOR_CAST:{
+            contentFilterResult->elementResults[index].statusCode = UA_STATUSCODE_GOOD;
+            break;
+        }
+        case UA_FILTEROPERATOR_BITWISEAND:{
+            contentFilterResult->elementResults[index].statusCode = UA_STATUSCODE_GOOD;
+            break;
+        }
+        case UA_FILTEROPERATOR_BITWISEOR:{
+            contentFilterResult->elementResults[index].statusCode = UA_STATUSCODE_GOOD;
+            break;
+        }
+        case UA_FILTEROPERATOR_ISNULL:{
+            contentFilterResult->elementResults[index].statusCode = UA_STATUSCODE_GOOD;
+            break;
+        }
+        case UA_FILTEROPERATOR_NOT:{
+            contentFilterResult->elementResults[index].statusCode = UA_STATUSCODE_GOOD;
+            break;
+        }
+        case UA_FILTEROPERATOR_INLIST:{
+
+            contentFilterResult->elementResults[index].statusCode = UA_STATUSCODE_GOOD;
+            break;
+        }
+        case UA_FILTEROPERATOR_BETWEEN:{
+
+            contentFilterResult->elementResults[index].statusCode = UA_STATUSCODE_GOOD;
+            break;
+        }
+        case UA_FILTEROPERATOR_OFTYPE: {
+            UA_AttributeOperand * pOperand =
+                (UA_AttributeOperand * ) contentFilter->elements[index].filterOperands[0].content.decoded.data;
+
+            UA_NodeId *pOperandNodeId = (UA_NodeId *) &pOperand->nodeId;
+
+            UA_QualifiedName eventTypeQualifiedName = UA_QUALIFIEDNAME(0, "EventType");
+            UA_Variant typeNodeIdVariant;
+            UA_Variant_init(&typeNodeIdVariant);
+            UA_StatusCode readStatusCode =
+                readObjectProperty(server, *eventNode, eventTypeQualifiedName,
+                                   &typeNodeIdVariant);
+            if(readStatusCode != UA_STATUSCODE_GOOD)
+                return readStatusCode;
+
+            if(isNodeInTree_singleRef(server,
+                                      (UA_NodeId*) typeNodeIdVariant.data,
+                                      pOperandNodeId,
+                                      UA_REFERENCETYPEINDEX_HASSUBTYPE)){
+                UA_Variant_clear(&typeNodeIdVariant);
+                return UA_STATUSCODE_GOOD;
+            }else{
+                UA_Variant_clear(&typeNodeIdVariant);
+                return UA_STATUSCODE_BADNOMATCH;
+            }
+        }
+        default:
+            contentFilterResult->elementResults[index].statusCode = UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
+            break;
+    }
+    return UA_STATUSCODE_BADNOMATCH;
+}
+
+
 UA_ContentFilterResult*
 UA_Server_initialWhereClauseValidation(UA_Server *server,
                                        const UA_NodeId *eventNode,
                                        const UA_ContentFilter *contentFilter) {
-
-
     UA_ContentFilterResult *contentFilterResult = UA_ContentFilterResult_new();
     UA_ContentFilterResult_init(contentFilterResult);
-
     UA_LOCK_ASSERT(server->serviceMutex, 1);
     if(contentFilter->elements == NULL || contentFilter->elementsSize == 0) {
         /* Nothing to do.*/
@@ -232,265 +381,211 @@ UA_Server_initialWhereClauseValidation(UA_Server *server,
         contentFilterResult->elementResults->statusCode = UA_STATUSCODE_GOOD;
         return contentFilterResult;
     }
-
-
-
     contentFilterResult->elementResultsSize = contentFilter->elementsSize;
-
     contentFilterResult->elementResults = (UA_ContentFilterElementResult*)
         UA_Array_new(contentFilterResult->elementResultsSize,&UA_TYPES[UA_TYPES_CONTENTFILTERELEMENTRESULT]);
-
     for(size_t i =0; i<contentFilterResult->elementResultsSize; ++i) {
         UA_ContentFilterElementResult_init(&contentFilterResult->elementResults[i]);
     }
-
-
-    UA_ContentFilterElementResult *elementResult = UA_ContentFilterElementResult_new();
-    UA_ContentFilterElementResult_init(elementResult);
-
-    UA_ContentFilterElement *contentFilterElement = UA_ContentFilterElement_new();
-    UA_ContentFilterElement_init(contentFilterElement);
-
-    UA_ElementOperand *elementOperand;
-    elementOperand = UA_ElementOperand_new();
-    UA_ElementOperand_init(elementOperand);
-
     for(size_t i =0; i<contentFilterResult->elementResultsSize; ++i) {
-        elementResult = &contentFilterResult->elementResults[i];
-        contentFilterElement = &contentFilter->elements[i];
-
-        switch(contentFilterElement->filterOperator) {
+        switch(contentFilter->elements[i].filterOperator) {
             case UA_FILTEROPERATOR_INVIEW:
             case UA_FILTEROPERATOR_RELATEDTO: {
                 /* Not allowed for event WhereClause according to 7.17.3 in Part 4 */
-                elementResult->statusCode =  UA_STATUSCODE_BADEVENTFILTERINVALID;
+                contentFilterResult->elementResults[i].statusCode =  UA_STATUSCODE_BADEVENTFILTERINVALID;
                 break;
             }
             case UA_FILTEROPERATOR_EQUALS:{
-                if (contentFilterElement->filterOperandsSize != 2){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                if (contentFilter->elements[i].filterOperandsSize != 2){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
                     break;
                 }
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
                 break;
             }
             case UA_FILTEROPERATOR_GREATERTHAN:{
-                if (contentFilterElement->filterOperandsSize != 2){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                if (contentFilter->elements[i].filterOperandsSize != 2){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
                     break;
                 }
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
                 break;
             }
             case UA_FILTEROPERATOR_LESSTHAN:{
-                if (contentFilterElement->filterOperandsSize != 2){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                if (contentFilter->elements[i].filterOperandsSize != 2){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
                     break;
                 }
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
                 break;
             }
             case UA_FILTEROPERATOR_GREATERTHANOREQUAL:{
-                if (contentFilterElement->filterOperandsSize != 2){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                if (contentFilter->elements[i].filterOperandsSize != 2){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
                     break;
                 }
                 break;
             }
             case UA_FILTEROPERATOR_LESSTHANOREQUAL:{
-                if (contentFilterElement->filterOperandsSize != 2){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                if (contentFilter->elements[i].filterOperandsSize != 2){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
                     break;
                 }
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
                 break;
             }
             case UA_FILTEROPERATOR_LIKE:{
-                if (contentFilterElement->filterOperandsSize != 2){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                if (contentFilter->elements[i].filterOperandsSize != 2){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
                     break;
                 }
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
                 break;
             }
             case UA_FILTEROPERATOR_AND: {
-                if(contentFilterElement->filterOperandsSize != 2) {
-                    elementResult->statusCode =
+                if(contentFilter->elements[i].filterOperandsSize != 2) {
+                    contentFilterResult->elementResults[i].statusCode =
                         UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
                     break;
                 }
-
-                if(contentFilterElement->filterOperands[0].content.decoded.type !=
+                if(contentFilter->elements[i].filterOperands[0].content.decoded.type !=
                    &UA_TYPES[UA_TYPES_ELEMENTOPERAND]) {
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDINVALID;
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDINVALID;
                     break;
                 }
-
-                if(contentFilterElement->filterOperands[1].content.decoded.type !=
+                if(contentFilter->elements[i].filterOperands[1].content.decoded.type !=
                    &UA_TYPES[UA_TYPES_ELEMENTOPERAND]) {
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDINVALID;
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDINVALID;
                     break;
                 }
+                if(((UA_ElementOperand * ) contentFilter->elements[i].filterOperands[0].content.decoded.data)->index> contentFilter->elementsSize - 1) {
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADINDEXRANGEINVALID;
 
-                elementOperand =
-                    (UA_ElementOperand *)contentFilterElement->filterOperands[0]
-                        .content.decoded.data;
-
-                if(elementOperand->index > contentFilter->elementsSize - 1) {
-                    elementResult->statusCode = UA_STATUSCODE_BADINDEXRANGEINVALID;
                     break;
                 }
+                if(((UA_ElementOperand * ) contentFilter->elements[i].filterOperands[1].content.decoded.data)->index > contentFilter->elementsSize - 1) {
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADINDEXRANGEINVALID;
 
-
-                elementOperand =
-                    (UA_ElementOperand *)contentFilterElement->filterOperands[1]
-                        .content.decoded.data;
-
-                if(elementOperand->index > contentFilter->elementsSize - 1) {
-                    elementResult->statusCode = UA_STATUSCODE_BADINDEXRANGEINVALID;
                     break;
                 }
-
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
                 break;
             }
             case UA_FILTEROPERATOR_OR:{
-                if (contentFilterElement->filterOperandsSize != 2){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                if (contentFilter->elements[i].filterOperandsSize != 2){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
                     break;
                 }
-
-                if (contentFilterElement->filterOperands[0].content.decoded.type != &UA_TYPES[UA_TYPES_ELEMENTOPERAND]){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDINVALID;
+                if (contentFilter->elements[i].filterOperands[0].content.decoded.type != &UA_TYPES[UA_TYPES_ELEMENTOPERAND]){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDINVALID;
                     break;
                 }
-
-                if (contentFilterElement->filterOperands[1].content.decoded.type != &UA_TYPES[UA_TYPES_ELEMENTOPERAND]){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDINVALID;
+                if (contentFilter->elements[i].filterOperands[1].content.decoded.type != &UA_TYPES[UA_TYPES_ELEMENTOPERAND]){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDINVALID;
                     break;
                 }
-
-                elementOperand = (UA_ElementOperand * ) contentFilterElement->filterOperands[0].content.decoded.data;
-
-                if (elementOperand->index > contentFilter->elementsSize-1){
-                    elementResult->statusCode = UA_STATUSCODE_BADINDEXRANGEINVALID;
+                if (((UA_ElementOperand * ) contentFilter->elements[i].filterOperands[0].content.decoded.data)->index > contentFilter->elementsSize-1){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADINDEXRANGEINVALID;
                     break;
                 }
-
-                elementOperand = (UA_ElementOperand * ) contentFilterElement->filterOperands[1].content.decoded.data;
-
-                if (elementOperand->index > contentFilter->elementsSize-1){
-                    elementResult->statusCode = UA_STATUSCODE_BADINDEXRANGEINVALID;
+                if (((UA_ElementOperand * ) contentFilter->elements[i].filterOperands[1].content.decoded.data)->index > contentFilter->elementsSize-1){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADINDEXRANGEINVALID;
                     break;
                 }
-
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
                 break;
             }
             case UA_FILTEROPERATOR_CAST:{
-                if (contentFilterElement->filterOperandsSize != 2){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                if (contentFilter->elements[i].filterOperandsSize != 2){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
                     break;
                 }
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
                 break;
             }
             case UA_FILTEROPERATOR_BITWISEAND:{
-                if (contentFilterElement->filterOperandsSize != 2){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                if (contentFilter->elements[i].filterOperandsSize != 2){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
                     break;
                 }
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
                 break;
             }
             case UA_FILTEROPERATOR_BITWISEOR:{
-                if (contentFilterElement->filterOperandsSize != 2){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                if (contentFilter->elements[i].filterOperandsSize != 2){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
                     break;
                 }
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
                 break;
             }
             case UA_FILTEROPERATOR_ISNULL:{
-                if (contentFilterElement->filterOperandsSize != 1){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                if (contentFilter->elements[i].filterOperandsSize != 1){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
                     break;
                 }
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
                 break;
             }
             case UA_FILTEROPERATOR_NOT:{
-                if (contentFilterElement->filterOperandsSize != 1){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                if (contentFilter->elements[i].filterOperandsSize != 1){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
                     break;
                 }
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
                 break;
             }
-
             case UA_FILTEROPERATOR_INLIST:{
-                if (contentFilterElement->filterOperandsSize >= 2){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                if (contentFilter->elements[i].filterOperandsSize >= 2){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
                     break;
                 }
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
                 break;
             }
             case UA_FILTEROPERATOR_BETWEEN:{
-                if (contentFilterElement->filterOperandsSize != 3){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                if (contentFilter->elements[i].filterOperandsSize != 3){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
                     break;
                 }
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
                 break;
             }
             case UA_FILTEROPERATOR_OFTYPE: {
-                if(contentFilterElement->filterOperandsSize != 1){
-                    elementResult->statusCode =  UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                if(contentFilter->elements[i].filterOperandsSize != 1){
+                    contentFilterResult->elementResults[i].statusCode =  UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
                     break;
                 }
-
-                elementResult->operandStatusCodesSize = contentFilterElement->filterOperandsSize;
-
-                if(contentFilterElement->filterOperands[0].content.decoded.type !=
+                contentFilterResult->elementResults[i].operandStatusCodesSize = contentFilter->elements[i].filterOperandsSize;
+                if(contentFilter->elements[i].filterOperands[0].content.decoded.type !=
                    &UA_TYPES[UA_TYPES_ATTRIBUTEOPERAND]){
-                    elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERANDINVALID;
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDINVALID;
                     break;
                 }
-
                 UA_AttributeOperand *pOperand =
-                    (UA_AttributeOperand *) contentFilterElement->filterOperands[0].content.decoded.data;
+                    (UA_AttributeOperand *) contentFilter->elements[i].filterOperands[0].content.decoded.data;
 
                 if(pOperand->attributeId != UA_ATTRIBUTEID_VALUE ) {
-                    elementResult->statusCode = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
                     break;
                 }
-
                 /* Make sure the &pOperand->nodeId is a subtype of BaseEventType */
                 UA_NodeId baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
                 if(!isNodeInTree_singleRef(server, &pOperand->nodeId , &baseEventTypeId,
                                            UA_REFERENCETYPEINDEX_HASSUBTYPE)) {
-                    elementResult->statusCode = UA_STATUSCODE_BADNODEIDINVALID;
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADNODEIDINVALID;
                     break;
                 }
-
-
-                elementResult->statusCode = UA_STATUSCODE_GOOD;
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
                 break;
-
-
             }
             default:
-                elementResult->statusCode = UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
                 break;
         }
-
     }
-
     return contentFilterResult;
-
 }
-
 
 UA_StatusCode*
 UA_Server_initialSelectClauseValidation(UA_Server *server,
@@ -501,22 +596,16 @@ UA_Server_initialSelectClauseValidation(UA_Server *server,
         selectClauseCode[0] = UA_STATUSCODE_BADSTRUCTUREMISSING;
         return selectClauseCode;
     }
-
     if (eventFilter->selectClausesSize == 0){
         UA_StatusCode *selectClauseCode = (UA_StatusCode*)
             UA_Array_new(1, &UA_TYPES[UA_TYPES_STATUSCODE]);
         selectClauseCode[0] = UA_STATUSCODE_GOOD;
         return selectClauseCode;
     }
-
     UA_StatusCode *selectClauseCodes = (UA_StatusCode*)
         UA_Array_new(eventFilter->selectClausesSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
-
-
-
     for(size_t i =0; i<eventFilter->selectClausesSize; ++i) {
         selectClauseCodes[i] = UA_STATUSCODE_GOOD;
-
         /* Check if browsepath, typedefenitionid, attributeid are NULL */
         if(UA_NodeId_isNull(&eventFilter->selectClauses[i].typeDefinitionId)){
             selectClauseCodes[i] = UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
@@ -526,8 +615,6 @@ UA_Server_initialSelectClauseValidation(UA_Server *server,
             selectClauseCodes[i] = UA_STATUSCODE_BADBROWSENAMEINVALID;
             continue;
         }
-
-
         /* Check if the eventType is a subtype of BaseEventType */
         UA_NodeId baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
         if(!isNodeInTree_singleRef(server, &eventFilter->selectClauses[i].typeDefinitionId, &baseEventTypeId,
@@ -535,13 +622,11 @@ UA_Server_initialSelectClauseValidation(UA_Server *server,
             selectClauseCodes[i] = UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
             continue;
         }
-
         //Check if attributeId is valid
         if(!((0 < eventFilter->selectClauses[i].attributeId) && (eventFilter->selectClauses[i].attributeId < 28))){
             selectClauseCodes[i] = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
             continue;
         }
-
         //Check if browsePath contains null
         for(size_t j =0; j<eventFilter->selectClauses[i].browsePathSize; ++j) {
             if(UA_QualifiedName_isNull(&eventFilter->selectClauses[i].browsePath[j])) {
@@ -551,24 +636,23 @@ UA_Server_initialSelectClauseValidation(UA_Server *server,
         }
         if(selectClauseCodes[i] != UA_STATUSCODE_GOOD)
             continue;
+        /* //Check if indexRange is defined
+          if(!UA_String_equal(&eventFilter->selectClauses[i].indexRange, &UA_STRING_NULL)) {
+              // Check if indexRange is parsable
+              UA_NumericRange numericRange = UA_NUMERICRANGE("");
+              if(UA_NumericRange_parse(&numericRange,
+                                       eventFilter->selectClauses[i].indexRange) !=
+                 UA_STATUSCODE_GOOD) {
+                  selectClauseCodes[i] = UA_STATUSCODE_BADINDEXRANGEINVALID;
+                  continue;
+              }
 
-        //Check if indexRange is defined
-        if(!UA_String_equal(&eventFilter->selectClauses[i].indexRange, &UA_STRING_NULL)) {
-            // Check if indexRange is parsable
-            UA_NumericRange numericRange = UA_NUMERICRANGE("");
-            if(UA_NumericRange_parse(&numericRange,
-                                     eventFilter->selectClauses[i].indexRange) !=
-               UA_STATUSCODE_GOOD) {
-                selectClauseCodes[i] = UA_STATUSCODE_BADINDEXRANGEINVALID;
-                continue;
-            }
-
-            // Check if attributeId is value
-            if(eventFilter->selectClauses[i].attributeId != UA_ATTRIBUTEID_VALUE){
-                selectClauseCodes[i] = UA_STATUSCODE_BADTYPEMISMATCH;
-                continue;
-            }
-        }
+              // Check if attributeId is value
+              if(eventFilter->selectClauses[i].attributeId != UA_ATTRIBUTEID_VALUE){
+                  selectClauseCodes[i] = UA_STATUSCODE_BADTYPEMISMATCH;
+                  continue;
+              }
+          }*/
     }
     return selectClauseCodes;
 }
@@ -894,11 +978,11 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
     UA_Boolean isCallerAC = false;
     if(isConditionOrBranch(server, &eventNodeId, &origin, &isCallerAC)) {
         if(!isCallerAC) {
-          UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                                 "Condition Events: Please use A&C API to trigger Condition Events 0x%08X",
-                                  UA_STATUSCODE_BADINVALIDARGUMENT);
-          UA_UNLOCK(&server->serviceMutex);
-          return UA_STATUSCODE_BADINVALIDARGUMENT;
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "Condition Events: Please use A&C API to trigger Condition Events 0x%08X",
+                           UA_STATUSCODE_BADINVALIDARGUMENT);
+            UA_UNLOCK(&server->serviceMutex);
+            return UA_STATUSCODE_BADINVALIDARGUMENT;
         }
     }
 #endif /*UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS*/

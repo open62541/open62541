@@ -315,6 +315,7 @@ UA_Boolean UA_Session_reachedPublishReqLimit(UA_Server *server, UA_Session *sess
 /* Only for unit testing */
 UA_StatusCode
 UA_Server_evaluateWhereClauseContentFilter(
+
     UA_Server *server,
     const UA_NodeId *eventNode,
     const UA_ContentFilter *contentFilter);
@@ -323,7 +324,12 @@ UA_Server_evaluateWhereClauseContentFilter(
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 
-
+UA_StatusCode
+UA_Server_WhereClauseValidation(UA_Server *server,
+                                const UA_NodeId *eventNode,
+                                const UA_ContentFilter *contentFilter,
+                                UA_ContentFilterResult *contentFilterResult,
+                                UA_Int32 index);
 UA_ContentFilterResult*
 UA_Server_initialWhereClauseValidation(UA_Server *server,
                                        const UA_NodeId *eventNode,
