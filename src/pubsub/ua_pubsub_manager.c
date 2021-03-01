@@ -15,6 +15,8 @@
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
+#include <pubsub_timer.h>
+
 #include "ua_pubsub_ns0.h"
 #ifdef UA_ENABLE_PUBSUB_SKS
 #include "ua_pubsub_keystorage.h"

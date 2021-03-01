@@ -16,6 +16,8 @@
 #include <open62541/plugin/pubsub_udp.h>
 #include <open62541/server.h>
 
+#include <pubsub_timer.h>
+
 #define RECEIVE_MSG_BUFFER_SIZE   4096
 #define UA_MAX_DEFAULT_PARAM_SIZE 6
 
@@ -64,7 +66,6 @@ typedef struct UA_UDPConnectionContext {
                                                     void *connection,
                                                     UA_ByteString *buffer);
 } UA_UDPConnectionContext;
-
 
 /* Callback of a TCP socket (server socket or an active connection) */
 static void
@@ -317,6 +318,17 @@ UA_PubSubChannelUDP_open(UA_ConnectionManager *connectionManager, UA_TransportLa
     if(res != UA_STATUSCODE_GOOD) {
         goto error;
     }
+
+    /* Set the timedSend to pubsub connection channel for timed publish */
+    UA_PubSubTimedSend *pubsubTimedSend = (UA_PubSubTimedSend *) UA_calloc(1, sizeof(UA_PubSubTimedSend));
+    if(!pubsubTimedSend) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "PubSub Connection creation failed. Bad out of memory");
+        goto error;
+    }
+
+    newChannel->pubsubTimedSend = pubsubTimedSend;
+
     return newChannel;
 error:
     if(context != NULL) {

@@ -208,6 +208,7 @@ setupNetworkInterface(UA_PubSubChannelDataUDPMC *channelDataUDPMC,
                      "unknown address family");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
+
     return UA_STATUSCODE_GOOD;
 }
 
