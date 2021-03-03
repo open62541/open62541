@@ -1486,12 +1486,16 @@ UA_DataSetReader_generateDataSetMessage(UA_Server *server,
     if((u64)dsrMessageDataType->dataSetMessageContentMask &
        (u64)UA_UADPDATASETMESSAGECONTENTMASK_TIMESTAMP) {
         dsm->header.timestampEnabled = true;
-        dsm->header.timestamp = UA_DateTime_now();
+        UA_EventLoop *el = server->config.eventLoop;
+        dsm->header.timestamp = el->dateTime_now(el);
     }
 
-    if((u64)dsrMessageDataType->dataSetMessageContentMask &
-       (u64)UA_UADPDATASETMESSAGECONTENTMASK_PICOSECONDS)
-        dsm->header.picoSecondsIncluded = false;
+    /* The EventLoop clock has 100 ns resolution, so the remainder is zero.
+     * PicoSeconds can only be included together with a Timestamp. */
+    dsm->header.picoSeconds = 0;
+    dsm->header.picoSecondsIncluded = dsm->header.timestampEnabled &&
+        ((u64)dsrMessageDataType->dataSetMessageContentMask &
+         (u64)UA_UADPDATASETMESSAGECONTENTMASK_PICOSECONDS) != 0;
 
     if((u64)dsrMessageDataType->dataSetMessageContentMask &
        (u64)UA_UADPDATASETMESSAGECONTENTMASK_STATUS)
