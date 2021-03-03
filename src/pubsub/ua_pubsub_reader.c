@@ -10,6 +10,8 @@
 
 #include <open62541/server_pubsub.h>
 #include <open62541/types_generated_encoding_binary.h>
+#include <time.h>
+#include <errno.h>
 
 #include "server/ua_server_internal.h"
 
@@ -185,10 +187,16 @@ UA_DataSetReader_generateDataSetMessage(UA_Server *server, UA_DataSetMessage *da
         dataSetMessage->header.timestamp = UA_DateTime_now();
     }
 
-    /* TODO: Picoseconds resolution not supported atm */
     if((u64)dataSetReaderMessageDataType->dataSetMessageContentMask &
        (u64)UA_UADPDATASETMESSAGECONTENTMASK_PICOSECONDS) {
-        dataSetMessage->header.picoSecondsIncluded = false;
+        dataSetMessage->header.picoSecondsIncluded = true;
+        struct timespec tp;
+        if(clock_gettime(CLOCK_MONOTONIC,&tp) == -1){
+            UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT,
+                    "clock_gettime failed.\n Errno msg: %s",strerror(errno));
+        } else {
+            dataSetMessage->header.picoSeconds = tp.tv_nsec * 100;
+        }
     }
     /* TODO: Statuscode not supported yet */
     if((u64)dataSetReaderMessageDataType->dataSetMessageContentMask &
