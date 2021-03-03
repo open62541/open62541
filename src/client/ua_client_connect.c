@@ -546,8 +546,15 @@ activateSessionAsync(UA_Client *client) {
                                             &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST],
                                             (UA_ClientAsyncServiceCallback) responseActivateSession,
                                             &UA_TYPES[UA_TYPES_ACTIVATESESSIONRESPONSE], NULL, NULL);
+
     UA_ActivateSessionRequest_clear(&request);
-    client->sessionState = UA_SESSIONSTATE_ACTIVATE_REQUESTED;
+    if(retval == UA_STATUSCODE_GOOD)
+        client->sessionState = UA_SESSIONSTATE_ACTIVATE_REQUESTED;
+    else
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                           "ActivateSession failed when sending the request with error code %s",
+                           UA_StatusCode_name(retval));
+
     return retval;
 }
 
@@ -741,13 +748,17 @@ requestGetEndpoints(UA_Client *client) {
     request.requestHeader.timestamp = UA_DateTime_now();
     request.requestHeader.timeoutHint = 10000;
     request.endpointUrl = client->endpointUrl;
-    client->connectStatus =
+    UA_StatusCode retval =
         UA_Client_sendAsyncRequest(client, &request, &UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST],
                                    (UA_ClientAsyncServiceCallback) responseGetEndpoints,
                                    &UA_TYPES[UA_TYPES_GETENDPOINTSRESPONSE], NULL, NULL);
-    if(client->connectStatus == UA_STATUSCODE_GOOD)
+    if(retval == UA_STATUSCODE_GOOD)
         client->endpointsHandshake = true;
-    return client->connectStatus;
+    else
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                           "RequestGetEndpoints failed when sending the request with error code %s",
+                           UA_StatusCode_name(retval));
+    return retval;
 }
 
 static void
@@ -836,9 +847,12 @@ createSessionAsync(UA_Client *client) {
 
     if(retval == UA_STATUSCODE_GOOD)
         client->sessionState = UA_SESSIONSTATE_CREATE_REQUESTED;
+    else
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                           "CreateSession failed when sending the request with error code %s",
+                           UA_StatusCode_name(retval));
 
-    client->connectStatus = retval;
-    return client->connectStatus;
+    return retval;
 }
 
 static UA_StatusCode
@@ -935,11 +949,11 @@ connectIterate(UA_Client *client, UA_UInt32 timeout) {
     switch(client->sessionState) {
     case UA_SESSIONSTATE_CLOSED:
         if(!endpointUnconfigured(client)) {
-            createSessionAsync(client);
+            client->connectStatus = createSessionAsync(client);
             return client->connectStatus;
         }
         if(!client->endpointsHandshake) {
-            requestGetEndpoints(client);
+            client->connectStatus = requestGetEndpoints(client);
             return client->connectStatus;
         }
         receiveResponseAsync(client, timeout);
@@ -949,7 +963,7 @@ connectIterate(UA_Client *client, UA_UInt32 timeout) {
         receiveResponseAsync(client, timeout);
         return client->connectStatus;
     case UA_SESSIONSTATE_CREATED:
-        activateSessionAsync(client);
+        client->connectStatus = activateSessionAsync(client);
         return client->connectStatus;
     default:
         break;
