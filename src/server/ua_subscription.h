@@ -325,7 +325,8 @@ UA_Server_evaluateWhereClauseContentFilter(
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 
 UA_StatusCode
-UA_Server_WhereClauseValidation(UA_Server *server,
+UA_Server_evaluateWhereClause(UA_Server *server,
+                                UA_Session *session,
                                 const UA_NodeId *eventNode,
                                 const UA_ContentFilter *contentFilter,
                                 UA_ContentFilterResult *contentFilterResult,

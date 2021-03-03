@@ -685,7 +685,7 @@ START_TEST(WhereClauseValidation){
             UA_ContentFilterElementResult_init(&contentFilterRes[0].elementResults[i]);
         }
         UA_LOCK(server->serviceMutex);
-        UA_Server_WhereClauseValidation(server,&eventNodeId,contentFilter ,contentFilterRes,0);
+        UA_Server_evaluateWhereClause(server,&eventNodeId,contentFilter ,contentFilterRes,0);
         UA_UNLOCK(server->serviceMutex);
         ck_assert_uint_eq(contentFilterRes->elementResults[0].statusCode, UA_STATUSCODE_GOOD);
         UA_ContentFilterResult_delete(contentFilterRes);

@@ -214,13 +214,44 @@ resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session, const UA_N
     return v.status;
 }
 
+UA_StatusCode
+resolveRelationalOperatorOperands(UA_Server *server, UA_Session *session, const UA_NodeId *origin,
+                                  UA_ExtensionObject *firstOperand, UA_ExtensionObject *secondOperand,
+                                  UA_Variant *firstValue, UA_Variant *secondValue){
+    //First operand
+    if(firstOperand->content.decoded.type == &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]){
+        UA_StatusCode res = resolveSimpleAttributeOperand(server, session, origin, (UA_SimpleAttributeOperand*) firstOperand->content.decoded.data, firstValue);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    } else if (firstOperand->content.decoded.type == &UA_TYPES[UA_TYPES_LITERALOPERAND]) {
+        *firstValue = ((UA_LiteralOperand*) firstOperand->content.decoded.data)->value;
+    } else {
+        return UA_STATUSCODE_BADFILTERELEMENTINVALID;
+    }
+
+    //Second operand
+    if(secondOperand->content.decoded.type == &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]){
+        UA_StatusCode res = resolveSimpleAttributeOperand(server, session, origin, (UA_SimpleAttributeOperand*) firstOperand->content.decoded.data, secondValue);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    } else if (secondOperand->content.decoded.type == &UA_TYPES[UA_TYPES_LITERALOPERAND]) {
+        *secondValue = ((UA_LiteralOperand*) firstOperand->content.decoded.data)->value;
+    } else {
+        return UA_STATUSCODE_BADFILTERELEMENTINVALID;
+    }
+    return UA_STATUSCODE_GOOD;
+}
 
 UA_StatusCode
-UA_Server_WhereClauseValidation(UA_Server *server,
+UA_Server_evaluateWhereClause(UA_Server *server,
+                                UA_Session *session,
                                 const UA_NodeId *eventNode,
                                 const UA_ContentFilter *contentFilter,
                                 UA_ContentFilterResult *contentFilterResult,
                                 UA_Int32 index) {
+    if(index > contentFilter->elementsSize){
+    }
+
     switch(contentFilter->elements[index].filterOperator) {
         case UA_FILTEROPERATOR_INVIEW:
         case UA_FILTEROPERATOR_RELATEDTO: {
@@ -229,7 +260,42 @@ UA_Server_WhereClauseValidation(UA_Server *server,
             break;
         }
         case UA_FILTEROPERATOR_EQUALS:{
-            contentFilterResult->elementResults[index].statusCode = UA_STATUSCODE_GOOD;
+            UA_Variant* firstOperand = UA_Variant_new();
+            UA_Variant_init(firstOperand);
+            UA_Variant* secondOperand = UA_Variant_new();
+            UA_Variant_init(secondOperand);
+            UA_StatusCode ret =
+                resolveRelationalOperatorOperands(server, session, eventNode,
+                                                  (UA_ExtensionObject*) &contentFilter->elements[index].filterOperands[0],
+                                                  (UA_ExtensionObject*) &contentFilter->elements[index].filterOperands[1],
+                                                  firstOperand, secondOperand);
+            if(ret != UA_STATUSCODE_GOOD){
+                contentFilterResult->elementResults[index].operandStatusCodes[0] = ret;
+                break;
+            } else {
+                if(UA_Variant_isScalar(firstOperand) &&
+                   UA_Variant_isScalar(secondOperand)) {
+                    if(firstOperand->type == &UA_TYPES[UA_TYPES_INT32] &&
+                       secondOperand->type == &UA_TYPES[UA_TYPES_INT32]) {
+                        if(*((UA_Int32 *)firstOperand->data) ==
+                           *((UA_Int32 *)secondOperand->data)) {
+                            contentFilterResult->elementResults[index].statusCode =
+                                UA_STATUSCODE_GOOD;
+                        } else {
+                            contentFilterResult->elementResults[index].statusCode =
+                                UA_STATUSCODE_BADNOMATCH;
+                        }
+                    } else {
+                        contentFilterResult->elementResults[index].operandStatusCodes[0] =
+                            UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
+                    }
+                } else {
+                    contentFilterResult->elementResults[index].operandStatusCodes[0] =
+                        UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
+                }
+            }
+            UA_Variant_clear(firstOperand);
+            UA_Variant_clear(secondOperand);
             break;
         }
         case UA_FILTEROPERATOR_GREATERTHAN:{
@@ -253,16 +319,20 @@ UA_Server_WhereClauseValidation(UA_Server *server,
             break;
         }
         case UA_FILTEROPERATOR_AND: {
-            if (UA_Server_WhereClauseValidation(server, eventNode,  // First Operand
-                                                contentFilter,
-                                                contentFilterResult,
-                                                (UA_Int32) ((UA_ElementOperand *)contentFilter->elements[index]
-                                                    .filterOperands[0].content.decoded.data)->index) == UA_STATUSCODE_GOOD){
-                if (UA_Server_WhereClauseValidation(server, eventNode,  // Second Operand
-                                                    contentFilter,
-                                                    contentFilterResult,
-                                                    (UA_Int32)  ((UA_ElementOperand *)contentFilter->elements[index]
-                                                        .filterOperands[1].content.decoded.data)->index) == UA_STATUSCODE_GOOD ){
+            if (UA_Server_evaluateWhereClause(
+                   server, session, eventNode,  // First Operand
+                   contentFilter, contentFilterResult,
+                   (UA_Int32)((UA_ElementOperand *)contentFilter->elements[index]
+                                  .filterOperands[0]
+                                  .content.decoded.data)
+                       ->index) == UA_STATUSCODE_GOOD){
+                if (UA_Server_evaluateWhereClause(
+                       server, session, eventNode,  // Second Operand
+                       contentFilter, contentFilterResult,
+                       (UA_Int32)((UA_ElementOperand *)contentFilter->elements[index]
+                                      .filterOperands[1]
+                                      .content.decoded.data)
+                           ->index) == UA_STATUSCODE_GOOD ){
                     contentFilterResult->elementResults[index].statusCode = UA_STATUSCODE_GOOD;
                     break;
                 }else{
@@ -277,24 +347,24 @@ UA_Server_WhereClauseValidation(UA_Server *server,
             }
         }
         case UA_FILTEROPERATOR_OR: {
-            if(UA_Server_WhereClauseValidation(
-                server, eventNode,  // First Operand
-                contentFilter, contentFilterResult,
-                (UA_Int32)((UA_ElementOperand *)contentFilter->elements[index]
-                    .filterOperands[0]
-                    .content.decoded.data)
-                    ->index) == UA_STATUSCODE_GOOD) {
+            if(UA_Server_evaluateWhereClause(
+                   server, session, eventNode,  // First Operand
+                   contentFilter, contentFilterResult,
+                   (UA_Int32)((UA_ElementOperand *)contentFilter->elements[index]
+                                  .filterOperands[0]
+                                  .content.decoded.data)
+                       ->index) == UA_STATUSCODE_GOOD) {
                 contentFilterResult->elementResults[index].statusCode = UA_STATUSCODE_GOOD;
                 break;
             }
             //contentFilterResult->elementResults[index].operandStatusCodes[0] = UA_STATUSCODE_BAD;
-            if(UA_Server_WhereClauseValidation(
-                server, eventNode,  // Second Operand
-                contentFilter, contentFilterResult,
-                (UA_Int32)((UA_ElementOperand *)contentFilter->elements[index]
-                    .filterOperands[1]
-                    .content.decoded.data)
-                    ->index) == UA_STATUSCODE_GOOD) {
+            if(UA_Server_evaluateWhereClause(
+                   server, session, eventNode,  // Second Operand
+                   contentFilter, contentFilterResult,
+                   (UA_Int32)((UA_ElementOperand *)contentFilter->elements[index]
+                                  .filterOperands[1]
+                                  .content.decoded.data)
+                       ->index) == UA_STATUSCODE_GOOD) {
                 contentFilterResult->elementResults[index].statusCode = UA_STATUSCODE_GOOD;
                 break;
             }
@@ -315,7 +385,17 @@ UA_Server_WhereClauseValidation(UA_Server *server,
             break;
         }
         case UA_FILTEROPERATOR_ISNULL:{
-            contentFilterResult->elementResults[index].statusCode = UA_STATUSCODE_GOOD;
+            if(contentFilter->elements[index].filterOperands[0].content.decoded.type !=
+               &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]){
+                contentFilterResult->elementResultsSize = 1;
+                contentFilterResult->elementResults[index].operandStatusCodes = UA_Array_new(contentFilterResult->elementResultsSize,&UA_TYPES[UA_TYPES_STATUSCODE]);
+                contentFilterResult->elementResults[index].operandStatusCodes[0] = UA_STATUSCODE_BADFILTERELEMENTINVALID;
+            }
+            UA_Variant* value = UA_Variant_new();
+            UA_Variant_init(value);
+            resolveSimpleAttributeOperand(server, session, eventNode,
+                                          (UA_SimpleAttributeOperand *) contentFilter->elements[index].filterOperands[0].content.decoded.data, value);
+            UA_Variant_isEmpty(value); //TODO: Ist das überhaupt richtig
             break;
         }
         case UA_FILTEROPERATOR_NOT:{
