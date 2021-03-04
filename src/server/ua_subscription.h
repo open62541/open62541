@@ -335,6 +335,11 @@ UA_ContentFilterResult*
 UA_Server_initialWhereClauseValidation(UA_Server *server,
                                        const UA_NodeId *eventNode,
                                        const UA_ContentFilter *contentFilter);
+
+UA_StatusCode
+resolveRelationalOperatorOperands(UA_Server *server, UA_Session *session, const UA_NodeId *origin,
+                                  UA_ExtensionObject *firstOperand, UA_ExtensionObject *secondOperand,
+                                  UA_Variant *firstValue, UA_Variant *secondValue);
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
 
@@ -345,6 +350,14 @@ UA_StatusCode*
 UA_Server_initialSelectClauseValidation(UA_Server *server,
                                         const UA_EventFilter *eventFilter);
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
+
+
+UA_StatusCode
+UA_Server_WhereClauseValidation(UA_Server *server,
+                                const UA_NodeId *eventNode,
+                                const UA_ContentFilter *contentFilter,
+                                UA_ContentFilterResult *contentFilterResult,
+                                UA_Int32 index);
 
 
 /**

@@ -249,9 +249,6 @@ UA_Server_evaluateWhereClause(UA_Server *server,
                                 const UA_ContentFilter *contentFilter,
                                 UA_ContentFilterResult *contentFilterResult,
                                 UA_Int32 index) {
-    if(index > contentFilter->elementsSize){
-    }
-
     switch(contentFilter->elements[index].filterOperator) {
         case UA_FILTEROPERATOR_INVIEW:
         case UA_FILTEROPERATOR_RELATEDTO: {
@@ -272,7 +269,7 @@ UA_Server_evaluateWhereClause(UA_Server *server,
             if(ret != UA_STATUSCODE_GOOD){
                 contentFilterResult->elementResults[index].operandStatusCodes[0] = ret;
                 break;
-            } else {
+            }
                 if(UA_Variant_isScalar(firstOperand) &&
                    UA_Variant_isScalar(secondOperand)) {
                     if(firstOperand->type == &UA_TYPES[UA_TYPES_INT32] &&
@@ -293,14 +290,13 @@ UA_Server_evaluateWhereClause(UA_Server *server,
                     contentFilterResult->elementResults[index].operandStatusCodes[0] =
                         UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
                 }
-            }
             UA_Variant_clear(firstOperand);
             UA_Variant_clear(secondOperand);
             break;
         }
         case UA_FILTEROPERATOR_GREATERTHAN:{
             contentFilterResult->elementResults[index].statusCode = UA_STATUSCODE_GOOD;
-            break;
+            return UA_STATUSCODE_GOOD;
         }
         case UA_FILTEROPERATOR_LESSTHAN:{
             contentFilterResult->elementResults[index].statusCode = UA_STATUSCODE_GOOD;
@@ -314,9 +310,8 @@ UA_Server_evaluateWhereClause(UA_Server *server,
             break;
         }
         case UA_FILTEROPERATOR_LIKE:{
-
             contentFilterResult->elementResults[index].statusCode = UA_STATUSCODE_GOOD;
-            break;
+            return UA_STATUSCODE_GOOD;
         }
         case UA_FILTEROPERATOR_AND: {
             if (UA_Server_evaluateWhereClause(
@@ -334,17 +329,13 @@ UA_Server_evaluateWhereClause(UA_Server *server,
                                       .content.decoded.data)
                            ->index) == UA_STATUSCODE_GOOD ){
                     contentFilterResult->elementResults[index].statusCode = UA_STATUSCODE_GOOD;
-                    break;
-                }else{
-                    contentFilterResult->elementResults[index].statusCode = UA_STATUSCODE_BAD;
-                    //contentFilterResult->elementResults[index].operandStatusCodes[1] = UA_STATUSCODE_BAD;
-                    break;
+                    return UA_STATUSCODE_GOOD;
                 }
-            }else{
-                contentFilterResult->elementResults[index].statusCode = UA_STATUSCODE_BAD;
-                //contentFilterResult->elementResults[index].operandStatusCodes[0] = UA_STATUSCODE_BAD;
-                break;
+                    contentFilterResult->elementResults[index].statusCode = UA_STATUSCODE_BAD;
+                return UA_STATUSCODE_BAD;
             }
+                contentFilterResult->elementResults[index].statusCode = UA_STATUSCODE_BAD;
+            return UA_STATUSCODE_BAD;
         }
         case UA_FILTEROPERATOR_OR: {
             if(UA_Server_evaluateWhereClause(
@@ -355,9 +346,8 @@ UA_Server_evaluateWhereClause(UA_Server *server,
                                   .content.decoded.data)
                        ->index) == UA_STATUSCODE_GOOD) {
                 contentFilterResult->elementResults[index].statusCode = UA_STATUSCODE_GOOD;
-                break;
+                return UA_STATUSCODE_GOOD;
             }
-            //contentFilterResult->elementResults[index].operandStatusCodes[0] = UA_STATUSCODE_BAD;
             if(UA_Server_evaluateWhereClause(
                    server, session, eventNode,  // Second Operand
                    contentFilter, contentFilterResult,
@@ -366,11 +356,10 @@ UA_Server_evaluateWhereClause(UA_Server *server,
                                   .content.decoded.data)
                        ->index) == UA_STATUSCODE_GOOD) {
                 contentFilterResult->elementResults[index].statusCode = UA_STATUSCODE_GOOD;
-                break;
+                return UA_STATUSCODE_GOOD;
             }
             contentFilterResult->elementResults[index].statusCode = UA_STATUSCODE_BAD;
-            //contentFilterResult->elementResults[index].operandStatusCodes[1] = UA_STATUSCODE_BAD;
-            break;
+            return UA_STATUSCODE_BAD;
         }
         case UA_FILTEROPERATOR_CAST:{
             contentFilterResult->elementResults[index].statusCode = UA_STATUSCODE_GOOD;
@@ -388,7 +377,7 @@ UA_Server_evaluateWhereClause(UA_Server *server,
             if(contentFilter->elements[index].filterOperands[0].content.decoded.type !=
                &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]){
                 contentFilterResult->elementResultsSize = 1;
-                contentFilterResult->elementResults[index].operandStatusCodes = UA_Array_new(contentFilterResult->elementResultsSize,&UA_TYPES[UA_TYPES_STATUSCODE]);
+                contentFilterResult->elementResults[index].operandStatusCodes = (UA_StatusCode *) UA_Array_new(contentFilterResult->elementResultsSize,&UA_TYPES[UA_TYPES_STATUSCODE]);
                 contentFilterResult->elementResults[index].operandStatusCodes[0] = UA_STATUSCODE_BADFILTERELEMENTINVALID;
             }
             UA_Variant* value = UA_Variant_new();
@@ -403,9 +392,8 @@ UA_Server_evaluateWhereClause(UA_Server *server,
             break;
         }
         case UA_FILTEROPERATOR_INLIST:{
-
             contentFilterResult->elementResults[index].statusCode = UA_STATUSCODE_GOOD;
-            break;
+            return UA_STATUSCODE_GOOD;
         }
         case UA_FILTEROPERATOR_BETWEEN:{
 
@@ -433,10 +421,9 @@ UA_Server_evaluateWhereClause(UA_Server *server,
                                       UA_REFERENCETYPEINDEX_HASSUBTYPE)){
                 UA_Variant_clear(&typeNodeIdVariant);
                 return UA_STATUSCODE_GOOD;
-            }else{
+            }
                 UA_Variant_clear(&typeNodeIdVariant);
                 return UA_STATUSCODE_BADNOMATCH;
-            }
         }
         default:
             contentFilterResult->elementResults[index].statusCode = UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
@@ -822,10 +809,8 @@ UA_Server_evaluateWhereClauseContentFilter(UA_Server *server,
             else
                 return UA_STATUSCODE_BADNOMATCH;
         }
-            break;
         default:
             return UA_STATUSCODE_BADFILTEROPERATORINVALID;
-            break;
     }
 }
 

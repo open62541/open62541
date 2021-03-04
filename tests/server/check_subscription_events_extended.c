@@ -622,7 +622,6 @@ static UA_ContentFilter *setupWhereClausesComplex(void){
             UA_ExtensionObject_init(&conFilter[0].elements[i].filterOperands[n]);
         }
     }
-
     // Second Element
     conFilter[0].elements[1].filterOperands[0].content.decoded.type = &UA_TYPES[UA_TYPES_ATTRIBUTEOPERAND];
     conFilter[0].elements[1].filterOperands[0].encoding = UA_EXTENSIONOBJECT_DECODED;
@@ -635,7 +634,6 @@ static UA_ContentFilter *setupWhereClausesComplex(void){
     pOperandSecondElement->nodeId = *baseEventTypeIdSecondElement;
     pOperandSecondElement->attributeId = UA_ATTRIBUTEID_VALUE;
     conFilter[0].elements[1].filterOperands[0].content.decoded.data = pOperandSecondElement;
-
     // Third Element
     conFilter[0].elements[2].filterOperands[0].content.decoded.type = &UA_TYPES[UA_TYPES_ATTRIBUTEOPERAND];
     conFilter[0].elements[2].filterOperands[0].encoding = UA_EXTENSIONOBJECT_DECODED;
@@ -649,7 +647,6 @@ static UA_ContentFilter *setupWhereClausesComplex(void){
     pOperandThirdElement->nodeId = *baseEventTypeIdThirdElement;
     pOperandThirdElement->attributeId = UA_ATTRIBUTEID_VALUE;
     conFilter[0].elements[2].filterOperands[0].content.decoded.data = pOperandThirdElement;
-
     //First Element
     UA_ElementOperand *elementOperand;
     elementOperand = UA_ElementOperand_new();
@@ -670,9 +667,10 @@ static UA_ContentFilter *setupWhereClausesComplex(void){
 
 
 
-START_TEST(WhereClauseValidation){
-        UA_ContentFilter *contentFilter = setupWhereClausesComplex();  // ContentFilter Setup  (SYSTEMEVENTTYPE) OR (ProgressEventType)
+START_TEST(validateWhereClause){
+        UA_ContentFilter *contentFilter = setupWhereClausesComplex();  // Filter Structure  (SYSTEMEVENTTYPE) OR (ProgressEventType)
         UA_NodeId eventNodeId;
+        UA_Session session;
         UA_StatusCode retval = eventSetup(&eventNodeId);    // Event Setup (ProgressEventType)
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
         /* init contentFilterResult */
@@ -685,14 +683,12 @@ START_TEST(WhereClauseValidation){
             UA_ContentFilterElementResult_init(&contentFilterRes[0].elementResults[i]);
         }
         UA_LOCK(server->serviceMutex);
-        UA_Server_evaluateWhereClause(server,&eventNodeId,contentFilter ,contentFilterRes,0);
+        UA_Server_evaluateWhereClause(server,&session,&eventNodeId,contentFilter ,contentFilterRes,0);
         UA_UNLOCK(server->serviceMutex);
         ck_assert_uint_eq(contentFilterRes->elementResults[0].statusCode, UA_STATUSCODE_GOOD);
         UA_ContentFilterResult_delete(contentFilterRes);
     }
 END_TEST
-
-
 
 START_TEST(initialWhereClauseValidation) {
         /* Everything is on the stack, so no memory cleaning required.*/
@@ -958,7 +954,6 @@ START_TEST(validateSelectClause) {
         ck_assert_uint_eq(retvals[4], UA_STATUSCODE_GOOD);
         ck_assert_uint_eq(retvals[5], UA_STATUSCODE_GOOD);
         ck_assert_uint_eq(retvals[6], UA_STATUSCODE_GOOD);
-        // UA_Array_delete(retvals,7, &UA_TYPES[UA_TYPES_STATUSCODE]);
     }
 END_TEST
 
@@ -980,7 +975,7 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_server, evaluateWhereClause);
     tcase_add_test(tc_server, initialWhereClauseValidation);
     tcase_add_test(tc_server, validateSelectClause);
-    tcase_add_test(tc_server, WhereClauseValidation);
+    tcase_add_test(tc_server, validateWhereClause);
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
     suite_add_tcase(s, tc_server);
