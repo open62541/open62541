@@ -76,6 +76,12 @@ UA_ClientConfig_clear(UA_ClientConfig *config) {
         config->logger.clear(config->logger.context);
     config->logger.log = NULL;
     config->logger.clear = NULL;
+
+    if (config->sessionLocaleIdsSize > 0 && config->sessionLocaleIds) {
+        UA_Array_delete(config->sessionLocaleIds, config->sessionLocaleIdsSize, &UA_TYPES[UA_TYPES_LOCALEID]);
+    }
+    config->sessionLocaleIds = NULL;
+    config->sessionLocaleIdsSize = 0;
 }
 
 static void
