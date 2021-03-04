@@ -42,33 +42,33 @@
 # define __PRI_8_LENGTH_MODIFIER__ "hh"
 # define __PRI_64_LENGTH_MODIFIER__ "ll"
 
-# define PRId8         __PRI_8_LENGTH_MODIFIER__ "d"
-# define PRIi8         __PRI_8_LENGTH_MODIFIER__ "i"
-# define PRIo8         __PRI_8_LENGTH_MODIFIER__ "o"
-# define PRIu8         __PRI_8_LENGTH_MODIFIER__ "u"
-# define PRIx8         __PRI_8_LENGTH_MODIFIER__ "x"
-# define PRIX8         __PRI_8_LENGTH_MODIFIER__ "X"
+# define PRId8 __PRI_8_LENGTH_MODIFIER__ "d"
+# define PRIi8 __PRI_8_LENGTH_MODIFIER__ "i"
+# define PRIo8 __PRI_8_LENGTH_MODIFIER__ "o"
+# define PRIu8 __PRI_8_LENGTH_MODIFIER__ "u"
+# define PRIx8 __PRI_8_LENGTH_MODIFIER__ "x"
+# define PRIX8 __PRI_8_LENGTH_MODIFIER__ "X"
 
-# define PRId16        "hd"
-# define PRIi16        "hi"
-# define PRIo16        "ho"
-# define PRIu16        "hu"
-# define PRIx16        "hx"
-# define PRIX16        "hX"
+# define PRId16 "hd"
+# define PRIi16 "hi"
+# define PRIo16 "ho"
+# define PRIu16 "hu"
+# define PRIx16 "hx"
+# define PRIX16 "hX"
 
-# define PRId32        "ld"
-# define PRIi32        "li"
-# define PRIo32        "lo"
-# define PRIu32        "lu"
-# define PRIx32        "lx"
-# define PRIX32        "lX"
+# define PRId32 "ld"
+# define PRIi32 "li"
+# define PRIo32 "lo"
+# define PRIu32 "lu"
+# define PRIx32 "lx"
+# define PRIX32 "lX"
 
-# define PRId64        __PRI_64_LENGTH_MODIFIER__ "d"
-# define PRIi64        __PRI_64_LENGTH_MODIFIER__ "i"
-# define PRIo64        __PRI_64_LENGTH_MODIFIER__ "o"
-# define PRIu64        __PRI_64_LENGTH_MODIFIER__ "u"
-# define PRIx64        __PRI_64_LENGTH_MODIFIER__ "x"
-# define PRIX64        __PRI_64_LENGTH_MODIFIER__ "X"
+# define PRId64 __PRI_64_LENGTH_MODIFIER__ "d"
+# define PRIi64 __PRI_64_LENGTH_MODIFIER__ "i"
+# define PRIo64 __PRI_64_LENGTH_MODIFIER__ "o"
+# define PRIu64 __PRI_64_LENGTH_MODIFIER__ "u"
+# define PRIx64 __PRI_64_LENGTH_MODIFIER__ "x"
+# define PRIX64 __PRI_64_LENGTH_MODIFIER__ "X"
 #endif
 
 /**
@@ -150,6 +150,10 @@ extern void * (*UA_reallocSingleton)(void *ptr, size_t size);
 # define UA_STATIC_ASSERT(cond,msg) typedef char static_assertion_##msg[(cond)?1:-1]
 #endif
 
+/**
+ * Dynamic Linking
+ * ---------------
+ * Explicit attribute for functions to be exported in a shared library. */
 #if defined(_WIN32) && defined(UA_DYNAMIC_LINKING)
 # ifdef UA_DYNAMIC_LINKING_EXPORT /* export dll */
 #  ifdef __GNUC__
@@ -173,6 +177,13 @@ extern void * (*UA_reallocSingleton)(void *ptr, size_t size);
 # define UA_EXPORT /* fallback to default */
 #endif
 
+/**
+ * Threadsafe functions
+ * --------------------
+ * Functions that can be called from independent threads are marked with
+ * the UA_THREADSAFE macro. This is currently only an information for the
+ * developer. It can be used in the future for instrumentation and static
+ * code analysis. */
 #define UA_THREADSAFE
 
 /**
@@ -191,8 +202,22 @@ extern void * (*UA_reallocSingleton)(void *ptr, size_t size);
 # define UA_RESTRICT __restrict
 #elif defined(__GNUC__)
 # define UA_RESTRICT __restrict__
+#elif defined(__CODEGEARC__)
+# define UA_RESTRICT _RESTRICT
 #else
 # define UA_RESTRICT restrict
+#endif
+
+/**
+ * Likely/Unlikely Conditions
+ * --------------------------
+ * Condition is likely/unlikely, to help branch prediction. */
+#if defined(__GNUC__) || defined(__clang__)
+# define UA_LIKELY(x) __builtin_expect((x), 1)
+# define UA_UNLIKELY(x) __builtin_expect((x), 0)
+#else
+# define UA_LIKELY(x) x
+# define UA_UNLIKELY(x) x
 #endif
 
 /**
@@ -204,6 +229,13 @@ extern void * (*UA_reallocSingleton)(void *ptr, size_t size);
 # define UA_FUNC_ATTR_CONST __attribute__((const))
 # define UA_FUNC_ATTR_WARN_UNUSED_RESULT __attribute__((warn_unused_result))
 # define UA_FORMAT(X,Y) __attribute__ ((format (printf, X, Y)))
+#elif defined(_MSC_VER) && _MSC_VER >= 1800
+# include <sal.h>
+# define UA_FUNC_ATTR_MALLOC
+# define UA_FUNC_ATTR_PURE
+# define UA_FUNC_ATTR_CONST
+# define UA_FUNC_ATTR_WARN_UNUSED_RESULT _Check_return_
+# define UA_FORMAT(X,Y)
 #else
 # define UA_FUNC_ATTR_MALLOC
 # define UA_FUNC_ATTR_PURE
@@ -228,13 +260,15 @@ extern void * (*UA_reallocSingleton)(void *ptr, size_t size);
  * warnings are only triggered for internal code. */
 
 #if defined(UA_INTERNAL) && (defined(__GNUC__) || defined(__clang__))
-# define UA_INTERNAL_DEPRECATED _Pragma ("GCC warning \"Macro is deprecated for internal use\"")
+# define UA_INTERNAL_DEPRECATED \
+    _Pragma ("GCC warning \"Macro is deprecated for internal use\"")
 #else
 # define UA_INTERNAL_DEPRECATED
 #endif
 
 #if defined(UA_INTERNAL) && (defined(__GNUC__) || defined(__clang__))
-# define UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT __attribute__((warn_unused_result))
+# define UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT \
+    __attribute__((warn_unused_result))
 #else
 # define UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
 #endif

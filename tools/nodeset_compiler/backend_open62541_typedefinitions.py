@@ -41,11 +41,14 @@ whitelistFuncAttrWarnUnusedResult = []  # for instances [ "String", "ByteString"
 def makeCLiteral(value):
     return re.sub(r'(?<!\\)"', r'\\"', value.replace('\\', r'\\\\').replace('\n', r'\\n').replace('\r', r''))
 
-
 # Strip invalid characters to create valid C identifiers (variable names etc):
 def makeCIdentifier(value):
-    return re.sub(r'[^\w]', '', value)
-
+    keywords = frozenset(["double", "int", "float", "char"])
+    sanitized = re.sub(r'[^\w]', '', value)
+    if sanitized in keywords:
+        return "_" + sanitized
+    else:
+        return sanitized
 
 def getNodeidTypeAndId(nodeId):
     if not nodeId:
@@ -150,15 +153,10 @@ class CGenerator(object):
         if len(datatype.members) == 0:
             return "#define %s_members NULL" % (idName)
         isUnion = isinstance(datatype, StructType) and datatype.is_union
-        if isUnion:
-            members = "static UA_DataTypeMember %s_members[%s] = {" % (idName, len(datatype.members)-1)
-        else:
-            members = "static UA_DataTypeMember %s_members[%s] = {" % (idName, len(datatype.members))
+        members = "static UA_DataTypeMember %s_members[%s] = {" % (idName, len(datatype.members))
         before = None
         size = len(datatype.members)
         for i, member in enumerate(datatype.members):
-            if isUnion and i == 0:
-                continue
             member_name = makeCIdentifier(member.name)
             member_name_capital = member_name
             if len(member_name) > 0:
@@ -166,10 +164,10 @@ class CGenerator(object):
             m = "\n{\n    UA_%s_%s, /* .memberTypeIndex */\n" % (
                 member.member_type.outname.upper(), makeCIdentifier(member.member_type.name.upper()))
             m += "    "
-            if not before:
+            if not before and not isUnion:
                 m += "0,"
             elif isUnion:
-                m += "sizeof(UA_UInt32),"
+                    m += "offsetof(UA_%s, fields.%s)," % (idName, member_name)
             else:
                 if member.is_array:
                     m += "offsetof(UA_%s, %sSize)" % (idName, member_name)
@@ -262,37 +260,46 @@ class CGenerator(object):
             obj.elements['None'] = str(0)
             count = 0
             for member in struct.members:
-                if(count > 0):
-                    obj.elements[member.name] = str(count)
+                obj.elements[member.name] = str(count)
                 count += 1
             returnstr += CGenerator.print_enum_typedef(obj)
             returnstr += "\n\n"
         if len(struct.members) == 0:
             return "typedef void * UA_%s;" % makeCIdentifier(struct.name)
-        returnstr += "typedef struct {\n"
+        if struct.is_recursive:
+            returnstr += "typedef struct UA_%s UA_%s;\n" % (makeCIdentifier(struct.name), makeCIdentifier(struct.name))
+            returnstr += "struct UA_%s {\n" % makeCIdentifier(struct.name)
+        else:
+            returnstr += "typedef struct {\n"
         if struct.is_union:
             returnstr += "    UA_%sSwitch switchField;\n" % struct.name
             returnstr += "    union {\n"
-        count = 0
         for member in struct.members:
             if member.is_array:
+                if struct.is_union:
+                    returnstr += "        struct {\n        "
                 returnstr += "    size_t %sSize;\n" % makeCIdentifier(member.name)
+                if struct.is_union:
+                    returnstr += "        "
                 returnstr += "    UA_%s *%s;\n" % (
                     makeCIdentifier(member.member_type.name), makeCIdentifier(member.name))
+                if struct.is_union:
+                    returnstr += "        } " + makeCIdentifier(member.name) + ";\n"
             elif struct.is_union:
-                if count > 0:
-                    returnstr += "        UA_%s %s;\n" % (
-                    makeCIdentifier(member.member_type.name), makeCIdentifier(member.name))
+                returnstr += "        UA_%s %s;\n" % (
+                makeCIdentifier(member.member_type.name), makeCIdentifier(member.name))
             elif member.is_optional:
                 returnstr += "    UA_%s *%s;\n" % (
                     makeCIdentifier(member.member_type.name), makeCIdentifier(member.name))
             else:
                 returnstr += "    UA_%s %s;\n" % (
                     makeCIdentifier(member.member_type.name), makeCIdentifier(member.name))
-            count += 1
         if struct.is_union:
             returnstr += "    } fields;\n"
-        return returnstr + "} UA_%s;" % makeCIdentifier(struct.name)
+        if struct.is_recursive:
+            return returnstr + "};"
+        else:
+            return returnstr + "} UA_%s;" % makeCIdentifier(struct.name)
 
     @staticmethod
     def print_datatype_typedef(datatype):

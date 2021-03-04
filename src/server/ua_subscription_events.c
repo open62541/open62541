@@ -30,12 +30,12 @@ UA_Event_generateEventId(UA_ByteString *generatedId) {
 UA_StatusCode
 UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
                       UA_NodeId *outNodeId) {
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
     if(!outNodeId) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "outNodeId must not be NULL. The event's NodeId must be returned "
                      "so it can be triggered.");
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
@@ -45,7 +45,7 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
                                UA_REFERENCETYPEINDEX_HASSUBTYPE)) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Event type must be a subtype of BaseEventType!");
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
@@ -79,7 +79,7 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
         UA_BrowsePathResult_clear(&bpr);
         deleteNode(server, newNodeId, true);
         UA_NodeId_clear(&newNodeId);
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         return retval;
     }
 
@@ -93,12 +93,12 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
     if(retval != UA_STATUSCODE_GOOD) {
         deleteNode(server, newNodeId, true);
         UA_NodeId_clear(&newNodeId);
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         return retval;
     }
 
     *outNodeId = newNodeId;
-    UA_UNLOCK(server->serviceMutex);
+    UA_UNLOCK(&server->serviceMutex);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -217,7 +217,7 @@ UA_StatusCode
 UA_Server_evaluateWhereClauseContentFilter(UA_Server *server,
                                            const UA_NodeId *eventNode,
                                            const UA_ContentFilter *contentFilter) {
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     if(contentFilter->elements == NULL || contentFilter->elementsSize == 0) {
         /* Nothing to do.*/
@@ -523,7 +523,7 @@ UA_StatusCode
 UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
                        const UA_NodeId origin, UA_ByteString *outEventId,
                        const UA_Boolean deleteEventNode) {
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
 
     UA_LOG_NODEID_DEBUG(&origin,
         UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -537,7 +537,7 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
           UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                                  "Condition Events: Please use A&C API to trigger Condition Events 0x%08X",
                                   UA_STATUSCODE_BADINVALIDARGUMENT);
-          UA_UNLOCK(server->serviceMutex);
+          UA_UNLOCK(&server->serviceMutex);
           return UA_STATUSCODE_BADINVALIDARGUMENT;
         }
     }
@@ -548,7 +548,7 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
     if(!originNode) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Origin node for event does not exist.");
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADNOTFOUND;
     }
     UA_NODESTORE_RELEASE(server, originNode);
@@ -572,7 +572,7 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
     if(!isNodeInTree(server, &origin, &objectsFolderId, &refTypes)) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Node for event must be in ObjectsFolder!");
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
@@ -582,7 +582,7 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Events: Could not set the standard event fields with StatusCode %s",
                        UA_StatusCode_name(retval));
-        UA_UNLOCK(server->serviceMutex);
+        UA_UNLOCK(&server->serviceMutex);
         return retval;
     }
 
@@ -674,7 +674,7 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
 
  cleanup:
     UA_Array_delete(emitNodes, emitNodesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
-    UA_UNLOCK(server->serviceMutex);
+    UA_UNLOCK(&server->serviceMutex);
     return retval;
 }
 

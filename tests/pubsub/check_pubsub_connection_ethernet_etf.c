@@ -15,7 +15,6 @@
 #include "ua_pubsub.h"
 #include "ua_server_internal.h"
 #include "ua_pubsub_networkmessage.h"
-#include <open62541/plugin/pubsub_ethernet_etf.h>
 
 #define TRANSPORT_PROFILE_URI            "http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp"
 #define SOCKET_PRIORITY                  3
@@ -31,7 +30,7 @@ static void setup(void) {
 
     config->pubsubTransportLayers = (UA_PubSubTransportLayer *)
         UA_malloc(sizeof(UA_PubSubTransportLayer));
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerEthernetETF();
+    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerEthernet();
     config->pubsubTransportLayersSize++;
     UA_Server_run_startup(server);
 }
@@ -50,9 +49,16 @@ START_TEST(AddConnectionsWithMinimalValidConfiguration){
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING(TRANSPORT_PROFILE_URI);
-    /* ETF configuration settings */
-    connectionConfig.etfConfiguration.socketPriority = SOCKET_PRIORITY;
-    connectionConfig.etfConfiguration.sotxtimeEnabled = UA_TRUE;
+    /* Connection options are given as Key/Value Pairs - Sockprio and Txtime */
+    UA_KeyValuePair connectionOptions[2];
+    connectionOptions[0].key = UA_QUALIFIEDNAME(0, "sockpriority");
+    UA_UInt32 sockPriority   = SOCKET_PRIORITY;
+    UA_Variant_setScalar(&connectionOptions[0].value, &sockPriority, &UA_TYPES[UA_TYPES_UINT32]);
+    connectionOptions[1].key = UA_QUALIFIEDNAME(0, "enablesotxtime");
+    UA_Boolean enableTxTime  = UA_TRUE;
+    UA_Variant_setScalar(&connectionOptions[1].value, &enableTxTime, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    connectionConfig.connectionProperties     = connectionOptions;
+    connectionConfig.connectionPropertiesSize = 2;
     retVal = UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
     ck_assert_int_eq(server->pubSubManager.connectionsSize, 1);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -72,9 +78,16 @@ START_TEST(AddRemoveAddConnectionWithMinimalValidConfiguration){
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING(TRANSPORT_PROFILE_URI);
-   /* ETF configuration settings */
-    connectionConfig.etfConfiguration.socketPriority = SOCKET_PRIORITY;
-    connectionConfig.etfConfiguration.sotxtimeEnabled = UA_TRUE;
+    /* Connection options are given as Key/Value Pairs - Sockprio and Txtime */
+    UA_KeyValuePair connectionOptions[2];
+    connectionOptions[0].key = UA_QUALIFIEDNAME(0, "sockpriority");
+    UA_UInt32 sockPriority   = SOCKET_PRIORITY;
+    UA_Variant_setScalar(&connectionOptions[0].value, &sockPriority, &UA_TYPES[UA_TYPES_UINT32]);
+    connectionOptions[1].key = UA_QUALIFIEDNAME(0, "enablesotxtime");
+    UA_Boolean enableTxTime  = UA_TRUE;
+    UA_Variant_setScalar(&connectionOptions[1].value, &enableTxTime, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    connectionConfig.connectionProperties     = connectionOptions;
+    connectionConfig.connectionPropertiesSize = 2;
     UA_NodeId connectionIdent;
     retVal = UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
     ck_assert_int_eq(server->pubSubManager.connectionsSize, 1);
@@ -98,9 +111,16 @@ START_TEST(AddConnectionWithInvalidAddress){
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING(TRANSPORT_PROFILE_URI);
-    /* ETF configuration settings */
-    connectionConfig.etfConfiguration.socketPriority = SOCKET_PRIORITY;
-    connectionConfig.etfConfiguration.sotxtimeEnabled = UA_TRUE;
+    /* Connection options are given as Key/Value Pairs - Sockprio and Txtime */
+    UA_KeyValuePair connectionOptions[2];
+    connectionOptions[0].key = UA_QUALIFIEDNAME(0, "sockpriority");
+    UA_UInt32 sockPriority   = SOCKET_PRIORITY;
+    UA_Variant_setScalar(&connectionOptions[0].value, &sockPriority, &UA_TYPES[UA_TYPES_UINT32]);
+    connectionOptions[1].key = UA_QUALIFIEDNAME(0, "enablesotxtime");
+    UA_Boolean enableTxTime  = UA_TRUE;
+    UA_Variant_setScalar(&connectionOptions[1].value, &enableTxTime, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    connectionConfig.connectionProperties     = connectionOptions;
+    connectionConfig.connectionPropertiesSize = 2;
     retVal = UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
     ck_assert_int_eq(server->pubSubManager.connectionsSize, 0);
     ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
@@ -118,9 +138,16 @@ START_TEST(AddConnectionWithInvalidInterface){
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING(TRANSPORT_PROFILE_URI);
-   /* ETF configuration settings */
-    connectionConfig.etfConfiguration.socketPriority = SOCKET_PRIORITY;
-    connectionConfig.etfConfiguration.sotxtimeEnabled = UA_TRUE;
+    /* Connection options are given as Key/Value Pairs - Sockprio and Txtime */
+    UA_KeyValuePair connectionOptions[2];
+    connectionOptions[0].key = UA_QUALIFIEDNAME(0, "sockpriority");
+    UA_UInt32 sockPriority   = SOCKET_PRIORITY;
+    UA_Variant_setScalar(&connectionOptions[0].value, &sockPriority, &UA_TYPES[UA_TYPES_UINT32]);
+    connectionOptions[1].key = UA_QUALIFIEDNAME(0, "enablesotxtime");
+    UA_Boolean enableTxTime  = UA_TRUE;
+    UA_Variant_setScalar(&connectionOptions[1].value, &enableTxTime, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    connectionConfig.connectionProperties     = connectionOptions;
+    connectionConfig.connectionPropertiesSize = 2;
     retVal = UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
     ck_assert_int_eq(server->pubSubManager.connectionsSize, 0);
     ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
@@ -155,7 +182,7 @@ START_TEST(AddSingleConnectionWithMaximalConfiguration){
     UA_NetworkAddressUrlDataType networkAddressUrlData = {UA_STRING(ETHERNET_INTERFACE), UA_STRING(MULTICAST_MAC_ADDRESS)};
     UA_Variant address;
     UA_Variant_setScalar(&address, &networkAddressUrlData, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    UA_KeyValuePair connectionOptions[3];
+    UA_KeyValuePair connectionOptions[5];
     connectionOptions[0].key = UA_QUALIFIEDNAME(0, "ttl");
     UA_UInt32 ttl = 10;
     UA_Variant_setScalar(&connectionOptions[0].value, &ttl, &UA_TYPES[UA_TYPES_UINT32]);
@@ -165,6 +192,13 @@ START_TEST(AddSingleConnectionWithMaximalConfiguration){
     connectionOptions[2].key = UA_QUALIFIEDNAME(0, "reuse");
     UA_Boolean reuse = UA_TRUE;
     UA_Variant_setScalar(&connectionOptions[2].value, &reuse, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    /* Connection options are given as Key/Value Pairs - Sockprio and Txtime */
+    connectionOptions[3].key = UA_QUALIFIEDNAME(0, "sockpriority");
+    UA_UInt32 sockPriority   = SOCKET_PRIORITY;
+    UA_Variant_setScalar(&connectionOptions[3].value, &sockPriority, &UA_TYPES[UA_TYPES_UINT32]);
+    connectionOptions[4].key = UA_QUALIFIEDNAME(0, "enablesotxtime");
+    UA_Boolean enableTxTime  = UA_TRUE;
+    UA_Variant_setScalar(&connectionOptions[4].value, &enableTxTime, &UA_TYPES[UA_TYPES_BOOLEAN]);
 
     UA_PubSubConnectionConfig connectionConf;
     memset(&connectionConf, 0, sizeof(UA_PubSubConnectionConfig));
@@ -172,13 +206,10 @@ START_TEST(AddSingleConnectionWithMaximalConfiguration){
     connectionConf.transportProfileUri = UA_STRING(TRANSPORT_PROFILE_URI);
     connectionConf.enabled = true;
     connectionConf.publisherId.numeric = 223344;
-    connectionConf.connectionPropertiesSize = 3;
+    connectionConf.connectionPropertiesSize = 5;
     connectionConf.connectionProperties = connectionOptions;
     connectionConf.address = address;
     UA_NodeId connection;
-    /* ETF configuration settings */
-    connectionConf.etfConfiguration.socketPriority = SOCKET_PRIORITY;
-    connectionConf.etfConfiguration.sotxtimeEnabled = UA_TRUE;
     UA_StatusCode retVal = UA_Server_addPubSubConnection(server, &connectionConf, &connection);
     ck_assert_int_eq(server->pubSubManager.connectionsSize, 1);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -189,7 +220,7 @@ START_TEST(GetMaximalConnectionConfigurationAndCompareValues){
     UA_NetworkAddressUrlDataType networkAddressUrlData = {UA_STRING(ETHERNET_INTERFACE), UA_STRING(MULTICAST_MAC_ADDRESS)};
     UA_Variant address;
     UA_Variant_setScalar(&address, &networkAddressUrlData, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    UA_KeyValuePair connectionOptions[3];
+    UA_KeyValuePair connectionOptions[5];
     connectionOptions[0].key = UA_QUALIFIEDNAME(0, "ttl");
     UA_UInt32 ttl = 10;
     UA_Variant_setScalar(&connectionOptions[0].value, &ttl, &UA_TYPES[UA_TYPES_UINT32]);
@@ -199,6 +230,13 @@ START_TEST(GetMaximalConnectionConfigurationAndCompareValues){
     connectionOptions[2].key = UA_QUALIFIEDNAME(0, "reuse");
     UA_Boolean reuse = UA_TRUE;
     UA_Variant_setScalar(&connectionOptions[2].value, &reuse, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    /* Connection options are given as Key/Value Pairs - Sockprio and Txtime */
+    connectionOptions[3].key = UA_QUALIFIEDNAME(0, "sockpriority");
+    UA_UInt32 sockPriority   = SOCKET_PRIORITY;
+    UA_Variant_setScalar(&connectionOptions[3].value, &sockPriority, &UA_TYPES[UA_TYPES_UINT32]);
+    connectionOptions[4].key = UA_QUALIFIEDNAME(0, "enablesotxtime");
+    UA_Boolean enableTxTime  = UA_TRUE;
+    UA_Variant_setScalar(&connectionOptions[4].value, &enableTxTime, &UA_TYPES[UA_TYPES_BOOLEAN]);
 
     UA_PubSubConnectionConfig connectionConf;
     memset(&connectionConf, 0, sizeof(UA_PubSubConnectionConfig));
@@ -206,12 +244,9 @@ START_TEST(GetMaximalConnectionConfigurationAndCompareValues){
     connectionConf.transportProfileUri = UA_STRING(TRANSPORT_PROFILE_URI);
     connectionConf.enabled = true;
     connectionConf.publisherId.numeric = 223344;
-    connectionConf.connectionPropertiesSize = 3;
+    connectionConf.connectionPropertiesSize = 5;
     connectionConf.connectionProperties = connectionOptions;
     connectionConf.address = address;
-    /* ETF configuration settings */
-    connectionConf.etfConfiguration.socketPriority = SOCKET_PRIORITY;
-    connectionConf.etfConfiguration.sotxtimeEnabled = UA_TRUE;
 
     UA_NodeId connection;
     UA_StatusCode retVal = UA_Server_addPubSubConnection(server, &connectionConf, &connection);

@@ -45,7 +45,7 @@ UA_Subscription_new() {
 
 void
 UA_Subscription_delete(UA_Server *server, UA_Subscription *sub) {
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* Unregister the publish callback */
     Subscription_unregisterPublishCallback(server, sub);
@@ -325,10 +325,10 @@ UA_Subscription_nextSequenceNumber(UA_UInt32 sequenceNumber) {
 
 static void
 publishCallback(UA_Server *server, UA_Subscription *sub) {
-    UA_LOCK(server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
     sub->readyNotifications = sub->notificationQueueSize;
     UA_Subscription_publish(server, sub);
-    UA_UNLOCK(server->serviceMutex);
+    UA_UNLOCK(&server->serviceMutex);
 }
 
 static void
@@ -385,7 +385,7 @@ sendStatusChangeDelete(UA_Server *server, UA_Subscription *sub,
 
 void
 UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub, "Publish Callback");
     UA_assert(sub);
 
@@ -602,7 +602,7 @@ UA_StatusCode
 Subscription_registerPublishCallback(UA_Server *server, UA_Subscription *sub) {
     UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
                               "Register subscription publishing callback");
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     if(sub->publishCallbackId > 0)
         return UA_STATUSCODE_GOOD;

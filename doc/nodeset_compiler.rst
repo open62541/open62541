@@ -302,7 +302,7 @@ Here are some examples for the ``DI`` and ``PLCOpen`` nodesets::
     ua_generate_nodeset_and_datatypes(
         NAME "plc"
         # PLCopen does not define custom types. Only generate the nodeset
-        FILE_NS "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/PLCopen/Opc.Ua.Plc.NodeSet2.xml"
+        FILE_NS "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/PLCopen/Opc.Ua.PLCopen.NodeSet2_V1.02.xml"
         # PLCopen depends on the di nodeset, which must be generated before
         DEPENDS "di"
     )
@@ -393,7 +393,7 @@ As you can see the pump has inherited it's parents attributes (ManufacturerName 
 Combination of multiple nodesets
 ................................
 
-In previous section you have seen how you can use the nodeset compiler with one single nodeset which depends on the default nodeset (NS0) ``Opc.Ua.NodeSet2.xml``. The nodeset compiler also supports nodesets which depend on more than one nodeset. We will show this use-case with the PLCopen nodeset. The PLCopen nodeset ``Opc.Ua.Plc.NodeSet2.xml`` depends on the DI nodeset ``Opc.Ua.Di.NodeSet2.xml`` which then depends on NS0. This example is also shown in ``examples/nodeset/CMakeLists.txt``.
+In previous section you have seen how you can use the nodeset compiler with one single nodeset which depends on the default nodeset (NS0) ``Opc.Ua.NodeSet2.xml``. The nodeset compiler also supports nodesets which depend on more than one nodeset. We will show this use-case with the PLCopen nodeset. The PLCopen nodeset ``Opc.Ua.PLCopen.NodeSet2_V1.02.xml`` depends on the DI nodeset ``Opc.Ua.Di.NodeSet2.xml`` which then depends on NS0. This example is also shown in ``examples/nodeset/CMakeLists.txt``.
 
 This DI nodeset makes use of some additional data types in ``deps/ua-nodeset/DI/Opc.Ua.Di.Types.bsd``. Since we also need these types within the generated code, we first need to compile the types into C code. The generated code is mainly a definition of the binary representation of the types required for encoding and decoding. The generation can be done using the ``ua_generate_datatypes`` CMake function, which uses the ``tools/generate_datatypes.py`` script::
 
@@ -429,7 +429,7 @@ Next we can generate the PLCopen nodeset. Since it doesn't require any additiona
 
     ua_generate_nodeset(
         NAME "plc"
-        FILE "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/PLCopen/Opc.Ua.Plc.NodeSet2.xml"
+        FILE "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/PLCopen/Opc.Ua.PLCopen.NodeSet2_V1.02.xml"
         INTERNAL
         DEPENDS_TYPES
             "UA_TYPES" "UA_TYPES_DI"
@@ -439,7 +439,7 @@ Next we can generate the PLCopen nodeset. Since it doesn't require any additiona
         DEPENDS_TARGET "open62541-generator-ns-di"
     )
 
-This call is quite similar to the compilation of the DI nodeset. As you can see, we do not define any specific types array for the PLCopen nodeset. Since the PLCopen nodeset depends on the NS0 and DI nodeset, we need to tell the nodeset compiler that these two nodesets should be seen as already existing. Make sure that the order is the same as in your XML file, e.g., in this case the order indicated in ``Opc.Ua.Plc.NodeSet2.xml -> UANodeSet -> Models -> Model``.
+This call is quite similar to the compilation of the DI nodeset. As you can see, we do not define any specific types array for the PLCopen nodeset. Since the PLCopen nodeset depends on the NS0 and DI nodeset, we need to tell the nodeset compiler that these two nodesets should be seen as already existing. Make sure that the order is the same as in your XML file, e.g., in this case the order indicated in ``Opc.Ua.PLCopen.NodeSet2_V1.02.xml -> UANodeSet -> Models -> Model``.
 
 As a result of the previous scripts you will have multiple source files:
 

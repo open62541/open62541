@@ -187,7 +187,7 @@ START_TEST(Client_renewSecureChannel) {
     UA_Variant val;
     UA_NodeId nodeId = UA_NODEID_STRING(1, "my.variable");
     retval = UA_Client_readValueAttribute(client, nodeId, &val);
-    ck_assert_msg(retval == UA_STATUSCODE_GOOD, UA_StatusCode_name(retval));
+    ck_assert(retval == UA_STATUSCODE_GOOD);
     UA_Variant_clear(&val);
 
     UA_Client_disconnect(client);

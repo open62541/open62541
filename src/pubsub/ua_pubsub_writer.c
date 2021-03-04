@@ -132,24 +132,11 @@ UA_PubSubConnection_clear(UA_Server *server, UA_PubSubConnection *connection) {
 }
 
 UA_StatusCode
-UA_PubSubConnection_regist(UA_Server *server, UA_NodeId *connectionIdentifier) {
-    UA_PubSubConnection *connection =
-        UA_PubSubConnection_findConnectionbyId(server, *connectionIdentifier);
-    if(!connection)
-        return UA_STATUSCODE_BADNOTFOUND;
-
-    UA_StatusCode retval = connection->channel->regist(connection->channel, NULL, NULL);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "register channel failed: 0x%" PRIx32 "!", retval);
-    }
-    return retval;
-}
-
-UA_StatusCode
 UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
                          const UA_WriterGroupConfig *writerGroupConfig,
                          UA_NodeId *writerGroupIdentifier) {
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+
     if(!writerGroupConfig)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     //search the connection by the given connectionIdentifier
@@ -179,6 +166,13 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
         }
     }
 
+    /* Regist (bind) the connection channel if it is not already registered */
+    if(!currentConnectionContext->isRegistered) {
+        retVal |= UA_PubSubConnection_regist(server, &currentConnectionContext->identifier);
+        if(retVal != UA_STATUSCODE_GOOD)
+            return retVal;
+    }
+
     //allocate memory for new WriterGroup
     UA_WriterGroup *newWriterGroup = (UA_WriterGroup *) UA_calloc(1, sizeof(UA_WriterGroup));
     if(!newWriterGroup)
@@ -192,7 +186,7 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
 
     //deep copy of the config
     UA_WriterGroupConfig tmpWriterGroupConfig;
-    UA_StatusCode retVal = UA_WriterGroupConfig_copy(writerGroupConfig, &tmpWriterGroupConfig);
+    retVal = UA_WriterGroupConfig_copy(writerGroupConfig, &tmpWriterGroupConfig);
 
     if(!tmpWriterGroupConfig.messageSettings.content.decoded.type) {
         UA_UadpWriterGroupMessageDataType *wgm = UA_UadpWriterGroupMessageDataType_new();
@@ -612,6 +606,19 @@ generateFieldMetaData(UA_Server *server, UA_DataSetField *field, UA_FieldMetaDat
                     UA_free(fieldMetaData->arrayDimensions);
                     return UA_STATUSCODE_BADINTERNALERROR;
                 }
+            }
+            if(!UA_NodeId_isNull(&fieldMetaData->dataType)){
+                const UA_DataType * currentDataType =
+                    UA_findDataTypeWithCustom(&fieldMetaData->dataType,
+                                              server->config.customDataTypes);
+                UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                               "MetaData creation. Found DataType %s.", currentDataType->typeName);
+                //check if the datatype is a builtInType, if yes set the builtinType
+                if(currentDataType->typeIndex <= 135)
+                    fieldMetaData->builtInType = (UA_Byte)currentDataType->typeIndex;
+            } else {
+                UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                               "PubSub meta data generation. DataType Node is UA_NODEID_NULL.");
             }
             fieldMetaData->properties = NULL;
             fieldMetaData->propertiesSize = 0;
@@ -1729,8 +1736,7 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server, UA_DataSetMessage *da
         dataSetWriterMessageDataType->configuredSize = 0;
     }
 
-    /* The field encoding depends on the flags inside the writer config.
-     * TODO: This can be moved to the encoding layer. */
+    /* The field encoding depends on the flags inside the writer config. */
     if(dataSetWriter->config.dataSetFieldContentMask &
        (u64)UA_DATASETFIELDCONTENTMASK_RAWDATA) {
         dataSetMessage->header.fieldEncoding = UA_FIELDENCODING_RAWDATA;

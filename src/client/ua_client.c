@@ -15,6 +15,7 @@
  *    Copyright 2016 (c) Lykurg
  *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2018 (c) Kalycito Infotech Private Limited
+ *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart
  */
 
 #include <open62541/types_generated_encoding_binary.h>
@@ -129,9 +130,9 @@ UA_Client_getConfig(UA_Client *client) {
 }
 
 #if UA_LOGLEVEL <= 300
-static const char *channelStateTexts[8] = {
-    "Closed", "HELSent", "HELReceived", "ACKSent",
-    "AckReceived", "OPNSent", "Open", "Closing"};
+static const char *channelStateTexts[9] = {
+    "Fresh", "HELSent", "HELReceived", "ACKSent",
+    "AckReceived", "OPNSent", "Open", "Closing", "Closed"};
 static const char *sessionStateTexts[6] =
     {"Closed", "CreateRequested", "Created",
      "ActivateRequested", "Activated", "Closing"};
@@ -510,6 +511,20 @@ void UA_Client_AsyncService_removeAll(UA_Client *client, UA_StatusCode statusCod
     }
 }
 
+UA_StatusCode UA_Client_modifyAsyncCallback(UA_Client *client, UA_UInt32 requestId,
+        void *userdata, UA_ClientAsyncServiceCallback callback) {
+    AsyncServiceCall *ac;
+    LIST_FOREACH(ac, &client->asyncServiceCalls, pointers) {
+        if(ac->requestId == requestId) {
+            ac->callback = callback;
+            ac->userdata = userdata;
+            return UA_STATUSCODE_GOOD;
+        }
+    }
+
+    return UA_STATUSCODE_BADNOTFOUND;
+}
+
 UA_StatusCode
 __UA_Client_AsyncServiceEx(UA_Client *client, const void *request,
                            const UA_DataType *requestType,
@@ -520,7 +535,7 @@ __UA_Client_AsyncServiceEx(UA_Client *client, const void *request,
     if(client->channel.state != UA_SECURECHANNELSTATE_OPEN) {
         UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                     "SecureChannel must be connected before sending requests");
-		return UA_STATUSCODE_BADSERVERNOTCONNECTED;
+        return UA_STATUSCODE_BADSERVERNOTCONNECTED;
     }
 
     /* Prepare the entry for the linked list */

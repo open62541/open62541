@@ -135,12 +135,11 @@ UA_ChannelModule_Aes128Sha256RsaOaep_New_Context(const UA_SecurityPolicy *securi
     }
 
     /* decode to X509 */
-    const unsigned char *pData = context->remoteCertificate.data;
-    context->remoteCertificateX509 =
-        d2i_X509(NULL, &pData, (long)context->remoteCertificate.length);
-    if(context->remoteCertificateX509 == NULL) {
-        UA_ByteString_clear(&context->remoteCertificate);
-        UA_free(context);
+    context->remoteCertificateX509 = UA_OpenSSL_LoadCertificate(&context->remoteCertificate);
+    if (context->remoteCertificateX509 == NULL) {
+        UA_ByteString_clear (&context->remoteCertificate);
+        UA_free (context);
+        return UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE;
     }
 
     context->policyContext =

@@ -106,7 +106,7 @@ UA_String_fromChars(const char *src) {
     s.length = strlen(src);
     if(s.length > 0) {
         s.data = (u8*)UA_malloc(s.length);
-        if(!s.data) {
+        if(UA_UNLIKELY(!s.data)) {
             s.length = 0;
             return s;
         }
@@ -277,7 +277,7 @@ UA_ByteString_allocBuffer(UA_ByteString *bs, size_t length) {
     if(length == 0)
         return UA_STATUSCODE_GOOD;
     bs->data = (u8*)UA_malloc(length);
-    if(!bs->data)
+    if(UA_UNLIKELY(!bs->data))
         return UA_STATUSCODE_BADOUTOFMEMORY;
     bs->length = length;
     return UA_STATUSCODE_GOOD;
@@ -566,10 +566,10 @@ UA_ExtensionObject_setValueCopy(UA_ExtensionObject *eo,
 
     /* Make a copy of the value */
     void *val = UA_malloc(type->memSize);
-    if(!val)
+    if(UA_UNLIKELY(!val))
         return UA_STATUSCODE_BADOUTOFMEMORY;
     UA_StatusCode res = UA_copy(p, val, type);
-    if(res != UA_STATUSCODE_GOOD) {
+    if(UA_UNLIKELY(res != UA_STATUSCODE_GOOD)) {
         UA_free(val);
         return res;
     }
@@ -630,10 +630,10 @@ UA_StatusCode
 UA_Variant_setScalarCopy(UA_Variant *v, const void * UA_RESTRICT p,
                          const UA_DataType *type) {
     void *n = UA_malloc(type->memSize);
-    if(!n)
+    if(UA_UNLIKELY(!n))
         return UA_STATUSCODE_BADOUTOFMEMORY;
     UA_StatusCode retval = UA_copy(p, n, type);
-    if(retval != UA_STATUSCODE_GOOD) {
+    if(UA_UNLIKELY(retval != UA_STATUSCODE_GOOD)) {
         UA_free(n);
         //cppcheck-suppress memleak
         return retval;
@@ -1018,8 +1018,9 @@ DiagnosticInfo_copy(UA_DiagnosticInfo const *src, UA_DiagnosticInfo *dst,
     if(src->hasAdditionalInfo)
        retval = UA_String_copy(&src->additionalInfo, &dst->additionalInfo);
     if(src->hasInnerDiagnosticInfo && src->innerDiagnosticInfo) {
-        dst->innerDiagnosticInfo = (UA_DiagnosticInfo*)UA_malloc(sizeof(UA_DiagnosticInfo));
-        if(dst->innerDiagnosticInfo) {
+        dst->innerDiagnosticInfo = (UA_DiagnosticInfo*)
+            UA_malloc(sizeof(UA_DiagnosticInfo));
+        if(UA_LIKELY(dst->innerDiagnosticInfo != NULL)) {
             retval |= DiagnosticInfo_copy(src->innerDiagnosticInfo,
                                           dst->innerDiagnosticInfo, NULL);
             dst->hasInnerDiagnosticInfo = true;
@@ -1147,11 +1148,26 @@ copyUnion(const void *src, void *dst, const UA_DataType *type) {
     const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
     const UA_DataTypeMember *m = &type->members[selection-1];
     const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
-    ptrs += UA_TYPES[UA_TYPES_UINT32].memSize;
-    ptrd += UA_TYPES[UA_TYPES_UINT32].memSize;
     ptrs += m->padding;
     ptrd += m->padding;
-    return UA_copy((const void *) ptrs, (void *) ptrd, mt);
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+    if (m->isArray) {
+        size_t *dst_size = (size_t*)ptrd;
+        const size_t size = *((const size_t*)ptrs);
+        ptrs += sizeof(size_t);
+        ptrd += sizeof(size_t);
+        retval = UA_Array_copy(*(void* const*)ptrs, size, (void**)ptrd, mt);
+        if(retval == UA_STATUSCODE_GOOD)
+            *dst_size = size;
+        else
+            *dst_size = 0;
+    } else {
+        retval = copyJumpTable[mt->typeKind]((const void *)ptrs, (void *)ptrd, mt);
+    }
+
+    return retval;
 }
 
 static UA_StatusCode
@@ -1251,9 +1267,14 @@ clearUnion(void *p, const UA_DataType *type) {
     const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
     const UA_DataTypeMember *m = &type->members[selection-1];
     const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
-    ptr += UA_TYPES[UA_TYPES_UINT32].memSize;
     ptr += m->padding;
-    UA_clear((void *) ptr, mt);
+    if (m->isArray) {
+        size_t length = *(size_t *)ptr;
+        ptr += sizeof(size_t);
+        UA_Array_delete(*(void **)ptr, length, mt);
+    } else {
+        UA_clear((void *) ptr, mt);
+    }
 }
 
 static void nopClear(void *p, const UA_DataType *type) { }
