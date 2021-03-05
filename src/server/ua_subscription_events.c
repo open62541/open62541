@@ -213,6 +213,297 @@ resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session, const UA_N
     return v.status;
 }
 
+UA_ContentFilterResult*
+UA_Server_initialWhereClauseValidation(UA_Server *server,
+                                       const UA_NodeId *eventNode,
+                                       const UA_ContentFilter *contentFilter) {
+    UA_ContentFilterResult *contentFilterResult = UA_ContentFilterResult_new();
+    UA_ContentFilterResult_init(contentFilterResult);
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    if(contentFilter->elements == NULL || contentFilter->elementsSize == 0) {
+        /* Nothing to do.*/
+        contentFilterResult->elementResultsSize = 1;
+        contentFilterResult->elementResults = (UA_ContentFilterElementResult*)
+            UA_Array_new(contentFilterResult->elementResultsSize,&UA_TYPES[UA_TYPES_CONTENTFILTERELEMENTRESULT]);
+        contentFilterResult->elementResults->statusCode = UA_STATUSCODE_GOOD;
+        return contentFilterResult;
+    }
+    contentFilterResult->elementResultsSize = contentFilter->elementsSize;
+    contentFilterResult->elementResults = (UA_ContentFilterElementResult*)
+        UA_Array_new(contentFilterResult->elementResultsSize,&UA_TYPES[UA_TYPES_CONTENTFILTERELEMENTRESULT]);
+    for(size_t i =0; i<contentFilterResult->elementResultsSize; ++i) {
+        UA_ContentFilterElementResult_init(&contentFilterResult->elementResults[i]);
+    }
+    for(size_t i =0; i<contentFilterResult->elementResultsSize; ++i) {
+        switch(contentFilter->elements[i].filterOperator) {
+            case UA_FILTEROPERATOR_INVIEW:
+            case UA_FILTEROPERATOR_RELATEDTO: {
+                /* Not allowed for event WhereClause according to 7.17.3 in Part 4 */
+                contentFilterResult->elementResults[i].statusCode =  UA_STATUSCODE_BADEVENTFILTERINVALID;
+                break;
+            }
+            case UA_FILTEROPERATOR_EQUALS:{
+                if (contentFilter->elements[i].filterOperandsSize != 2){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                    break;
+                }
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
+                break;
+            }
+            case UA_FILTEROPERATOR_GREATERTHAN:{
+                if (contentFilter->elements[i].filterOperandsSize != 2){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                    break;
+                }
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
+                break;
+            }
+            case UA_FILTEROPERATOR_LESSTHAN:{
+                if (contentFilter->elements[i].filterOperandsSize != 2){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                    break;
+                }
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
+                break;
+            }
+            case UA_FILTEROPERATOR_GREATERTHANOREQUAL:{
+                if (contentFilter->elements[i].filterOperandsSize != 2){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                    break;
+                }
+                break;
+            }
+            case UA_FILTEROPERATOR_LESSTHANOREQUAL:{
+                if (contentFilter->elements[i].filterOperandsSize != 2){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                    break;
+                }
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
+                break;
+            }
+            case UA_FILTEROPERATOR_LIKE:{
+                if (contentFilter->elements[i].filterOperandsSize != 2){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                    break;
+                }
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
+                break;
+            }
+            case UA_FILTEROPERATOR_AND: {
+                if(contentFilter->elements[i].filterOperandsSize != 2) {
+                    contentFilterResult->elementResults[i].statusCode =
+                        UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                    break;
+                }
+                if(contentFilter->elements[i].filterOperands[0].content.decoded.type !=
+                   &UA_TYPES[UA_TYPES_ELEMENTOPERAND]) {
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDINVALID;
+                    break;
+                }
+                if(contentFilter->elements[i].filterOperands[1].content.decoded.type !=
+                   &UA_TYPES[UA_TYPES_ELEMENTOPERAND]) {
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDINVALID;
+                    break;
+                }
+                if(((UA_ElementOperand * ) contentFilter->elements[i].filterOperands[0].content.decoded.data)->index> contentFilter->elementsSize - 1) {
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADINDEXRANGEINVALID;
+
+                    break;
+                }
+                if(((UA_ElementOperand * ) contentFilter->elements[i].filterOperands[1].content.decoded.data)->index > contentFilter->elementsSize - 1) {
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADINDEXRANGEINVALID;
+
+                    break;
+                }
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
+                break;
+            }
+            case UA_FILTEROPERATOR_OR:{
+                if (contentFilter->elements[i].filterOperandsSize != 2){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                    break;
+                }
+                if (contentFilter->elements[i].filterOperands[0].content.decoded.type != &UA_TYPES[UA_TYPES_ELEMENTOPERAND]){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDINVALID;
+                    break;
+                }
+                if (contentFilter->elements[i].filterOperands[1].content.decoded.type != &UA_TYPES[UA_TYPES_ELEMENTOPERAND]){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDINVALID;
+                    break;
+                }
+                if (((UA_ElementOperand * ) contentFilter->elements[i].filterOperands[0].content.decoded.data)->index > contentFilter->elementsSize-1){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADINDEXRANGEINVALID;
+                    break;
+                }
+                if (((UA_ElementOperand * ) contentFilter->elements[i].filterOperands[1].content.decoded.data)->index > contentFilter->elementsSize-1){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADINDEXRANGEINVALID;
+                    break;
+                }
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
+                break;
+            }
+            case UA_FILTEROPERATOR_CAST:{
+                if (contentFilter->elements[i].filterOperandsSize != 2){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                    break;
+                }
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
+                break;
+            }
+            case UA_FILTEROPERATOR_BITWISEAND:{
+                if (contentFilter->elements[i].filterOperandsSize != 2){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                    break;
+                }
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
+                break;
+            }
+            case UA_FILTEROPERATOR_BITWISEOR:{
+                if (contentFilter->elements[i].filterOperandsSize != 2){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                    break;
+                }
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
+                break;
+            }
+            case UA_FILTEROPERATOR_ISNULL:{
+                if (contentFilter->elements[i].filterOperandsSize != 1){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                    break;
+                }
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
+                break;
+            }
+            case UA_FILTEROPERATOR_NOT:{
+                if (contentFilter->elements[i].filterOperandsSize != 1){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                    break;
+                }
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
+                break;
+            }
+            case UA_FILTEROPERATOR_INLIST:{
+                if (contentFilter->elements[i].filterOperandsSize >= 2){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                    break;
+                }
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
+                break;
+            }
+            case UA_FILTEROPERATOR_BETWEEN:{
+                if (contentFilter->elements[i].filterOperandsSize != 3){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                    break;
+                }
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
+                break;
+            }
+            case UA_FILTEROPERATOR_OFTYPE: {
+                if(contentFilter->elements[i].filterOperandsSize != 1){
+                    contentFilterResult->elementResults[i].statusCode =  UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH;
+                    break;
+                }
+                contentFilterResult->elementResults[i].operandStatusCodesSize = contentFilter->elements[i].filterOperandsSize;
+                if(contentFilter->elements[i].filterOperands[0].content.decoded.type !=
+                   &UA_TYPES[UA_TYPES_ATTRIBUTEOPERAND]){
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERANDINVALID;
+                    break;
+                }
+                UA_AttributeOperand *pOperand =
+                    (UA_AttributeOperand *) contentFilter->elements[i].filterOperands[0].content.decoded.data;
+
+                if(pOperand->attributeId != UA_ATTRIBUTEID_VALUE ) {
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+                    break;
+                }
+                /* Make sure the &pOperand->nodeId is a subtype of BaseEventType */
+                UA_NodeId baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+                if(!isNodeInTree_singleRef(server, &pOperand->nodeId , &baseEventTypeId,
+                                           UA_REFERENCETYPEINDEX_HASSUBTYPE)) {
+                    contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADNODEIDINVALID;
+                    break;
+                }
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_GOOD;
+                break;
+            }
+            default:
+                contentFilterResult->elementResults[i].statusCode = UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
+                break;
+        }
+    }
+    return contentFilterResult;
+}
+
+UA_StatusCode*
+UA_Server_initialSelectClauseValidation(UA_Server *server,
+                                        const UA_EventFilter *eventFilter) {
+    if(eventFilter->selectClauses == NULL){
+        UA_StatusCode *selectClauseCode = (UA_StatusCode*)
+            UA_Array_new(1, &UA_TYPES[UA_TYPES_STATUSCODE]);
+        selectClauseCode[0] = UA_STATUSCODE_BADSTRUCTUREMISSING;
+        return selectClauseCode;
+    }
+    if (eventFilter->selectClausesSize == 0){
+        UA_StatusCode *selectClauseCode = (UA_StatusCode*)
+            UA_Array_new(1, &UA_TYPES[UA_TYPES_STATUSCODE]);
+        selectClauseCode[0] = UA_STATUSCODE_GOOD;
+        return selectClauseCode;
+    }
+    UA_StatusCode *selectClauseCodes = (UA_StatusCode*)
+        UA_Array_new(eventFilter->selectClausesSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
+    for(size_t i =0; i<eventFilter->selectClausesSize; ++i) {
+        selectClauseCodes[i] = UA_STATUSCODE_GOOD;
+        /* Check if browsepath, typedefenitionid, attributeid are NULL */
+        if(UA_NodeId_isNull(&eventFilter->selectClauses[i].typeDefinitionId)){
+            selectClauseCodes[i] = UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
+            continue;
+        }
+        if(&eventFilter->selectClauses[i].browsePath[0] == NULL){
+            selectClauseCodes[i] = UA_STATUSCODE_BADBROWSENAMEINVALID;
+            continue;
+        }
+        /* Check if the eventType is a subtype of BaseEventType */
+        UA_NodeId baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+        if(!isNodeInTree_singleRef(server, &eventFilter->selectClauses[i].typeDefinitionId, &baseEventTypeId,
+                                   UA_REFERENCETYPEINDEX_HASSUBTYPE)) {
+            selectClauseCodes[i] = UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
+            continue;
+        }
+        //Check if attributeId is valid
+        if(!((0 < eventFilter->selectClauses[i].attributeId) && (eventFilter->selectClauses[i].attributeId < 28))){
+            selectClauseCodes[i] = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+            continue;
+        }
+        //Check if browsePath contains null
+        for(size_t j =0; j<eventFilter->selectClauses[i].browsePathSize; ++j) {
+            if(UA_QualifiedName_isNull(&eventFilter->selectClauses[i].browsePath[j])) {
+                selectClauseCodes[i] = UA_STATUSCODE_BADBROWSENAMEINVALID;
+                break;
+            }
+        }
+        if(selectClauseCodes[i] != UA_STATUSCODE_GOOD)
+            continue;
+        /* //Check if indexRange is defined
+          if(!UA_String_equal(&eventFilter->selectClauses[i].indexRange, &UA_STRING_NULL)) {
+              // Check if indexRange is parsable
+              UA_NumericRange numericRange = UA_NUMERICRANGE("");
+              if(UA_NumericRange_parse(&numericRange,
+                                       eventFilter->selectClauses[i].indexRange) !=
+                 UA_STATUSCODE_GOOD) {
+                  selectClauseCodes[i] = UA_STATUSCODE_BADINDEXRANGEINVALID;
+                  continue;
+              }
+
+              // Check if attributeId is value
+              if(eventFilter->selectClauses[i].attributeId != UA_ATTRIBUTEID_VALUE){
+                  selectClauseCodes[i] = UA_STATUSCODE_BADTYPEMISMATCH;
+                  continue;
+              }
+          }*/
+    }
+    return selectClauseCodes;
+}
+
 UA_StatusCode
 UA_Server_evaluateWhereClauseContentFilter(UA_Server *server,
                                            const UA_NodeId *eventNode,
