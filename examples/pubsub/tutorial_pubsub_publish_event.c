@@ -1,7 +1,10 @@
-//
-// Created by Florian on 08.02.2021.
-//
-// TODO: maybe there need to be made changes in UA_Server_addPublishedDataSet and 
+/* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
+ *
+ * Copyright (c) 2021 Stefan Joachim Hahn, Technische Hochschule Mittelhessen
+ * Copyright (c) 2021 Florian Fischer, Technische Hochschule Mittelhessen
+ */
+
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pubsub_ethernet.h>
 #include <open62541/plugin/pubsub_udp.h>
@@ -25,7 +28,7 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
      * in the pubsub connection tutorial */
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(connectionConfig));
-    connectionConfig.name = UA_STRING("UADP Connection PubSub Events");
+    connectionConfig.name = UA_STRING("Demo Connection PubSub Events");
     connectionConfig.transportProfileUri = *transportProfile;
     connectionConfig.enabled = UA_TRUE;
     UA_Variant_setScalar(&connectionConfig.address, networkAddressUrl,
@@ -44,8 +47,6 @@ addPublishedDataSet(UA_Server *server) {
     memset(&publishedDataSetConfig, 0, sizeof(UA_PublishedDataSetConfig));
     publishedDataSetConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDEVENTS;
     publishedDataSetConfig.name = UA_STRING("Demo PDS PubSub Events");
-
-    // TODO: hier ziemlich sicher, aber noch nicht 100%
     publishedDataSetConfig.config.event.eventNotifier = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
     publishedDataSetConfig.config.event.selectedFieldsSize = 2;
     UA_SimpleAttributeOperand *selectedFields = (UA_SimpleAttributeOperand *)UA_calloc(2, sizeof(UA_SimpleAttributeOperand));
@@ -73,15 +74,14 @@ addPublishedDataSet(UA_Server *server) {
     UA_Server_addPublishedDataSet(server, &publishedDataSetConfig, &publishedDataSetIdent);
 }
 
-/*static void
+static void
 addDataSetField(UA_Server *server) {
     //Add a field to the previous created PublishedDataSet
     UA_NodeId dataSetFieldIdent;
     UA_DataSetFieldConfig dataSetFieldConfig;
     memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
     dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_EVENT;
-    dataSetFieldConfig.field.events.fieldNameAlias = UA_STRING("Generate Event");
-    //dataSetFieldConfig.field.events.publishParameters.eventNotifier = eventNodeId;
+    dataSetFieldConfig.field.events.fieldNameAlias = UA_STRING("Message");
     UA_SimpleAttributeOperand *sf = UA_SimpleAttributeOperand_new();
     UA_SimpleAttributeOperand_init(sf);
     sf->typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
@@ -90,36 +90,39 @@ addDataSetField(UA_Server *server) {
         UA_Array_new(sf->browsePathSize, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
     sf->attributeId = UA_ATTRIBUTEID_VALUE;
     sf->browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "Message");
-    dataSetFieldConfig.field.events.publishParameters.selectedFields = sf;
-    dataSetFieldConfig.field.events.publishParameters.selectedFieldsSize = 1;
-
-    // Hier müssen dann die Eventspezifischen Eigenschaften der dataSetFieldConfig
-    // beschrieben werden, analog zu der folgenden Zeile.
-
-    UA_SimpleAttributeOperand *sao = UA_SimpleAttributeOperand_new();
-    UA_SimpleAttributeOperand_init(&sao);
-
-    sao->typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
-    sao->browsePathSize = 1;
-    sao->browsePath = (UA_QualifiedName*)
-        UA_Array_new(selectClauses[0].browsePathSize, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
-    if(!sao->.browsePath) {
-        UA_SimpleAttributeOperand_delete(selectClauses);
-    }
-    sao->attributeId = UA_ATTRIBUTEID_VALUE;
-    sao->browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "Message");
-
-    dataSetFieldConfig.field.events.selectedField = sao;
+    dataSetFieldConfig.field.events.selectedField = *sf;
 
     UA_Server_addDataSetField(server, publishedDataSetIdent,
                               &dataSetFieldConfig, &dataSetFieldIdent);
-}*/
+}
+
+static void
+addDataSetField1(UA_Server *server) {
+    //Add a field to the previous created PublishedDataSet
+    UA_NodeId dataSetFieldIdent;
+    UA_DataSetFieldConfig dataSetFieldConfig;
+    memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
+    dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_EVENT;
+    dataSetFieldConfig.field.events.fieldNameAlias = UA_STRING("Severity");
+    UA_SimpleAttributeOperand *sf = UA_SimpleAttributeOperand_new();
+    UA_SimpleAttributeOperand_init(sf);
+    sf->typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+    sf->browsePathSize = 1;
+    sf->browsePath = (UA_QualifiedName *)
+        UA_Array_new(sf->browsePathSize, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
+    sf->attributeId = UA_ATTRIBUTEID_VALUE;
+    sf->browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "Severity");
+    dataSetFieldConfig.field.events.selectedField = *sf;
+
+    UA_Server_addDataSetField(server, publishedDataSetIdent,
+                              &dataSetFieldConfig, &dataSetFieldIdent);
+}
 
 static void
 addWriterGroup(UA_Server *server) {
     UA_WriterGroupConfig writerGroupConfig;
     memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
-    writerGroupConfig.name = UA_STRING("Demo WriterGroup");
+    writerGroupConfig.name = UA_STRING("Demo WriterGroup PubSub Events");
     writerGroupConfig.publishingInterval = 100;
     writerGroupConfig.enabled = UA_FALSE;
     writerGroupConfig.writerGroupId = 100;
@@ -144,7 +147,7 @@ addDataSetWriter(UA_Server *server) {
     UA_NodeId dataSetWriterIdent;
     UA_DataSetWriterConfig dataSetWriterConfig;
     memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
-    dataSetWriterConfig.name = UA_STRING("Demo DataSetWriter");
+    dataSetWriterConfig.name = UA_STRING("Demo DSW PubSub Events");
     dataSetWriterConfig.dataSetWriterId = 62541;
     dataSetWriterConfig.keyFrameCount = 10;
     UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent,
@@ -242,7 +245,8 @@ static int run(UA_String *transportProfile,
 
     addPubSubConnection(server, transportProfile, networkAddressUrl);
     addPublishedDataSet(server);
-    //addDataSetField(server);
+    addDataSetField(server);
+    addDataSetField1(server);
     addWriterGroup(server);
     addDataSetWriter(server);
     const UA_Double interval = (UA_Double)5000;
