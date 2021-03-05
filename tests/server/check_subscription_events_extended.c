@@ -27,17 +27,13 @@ static MUTEX_HANDLE serverMutex;
 UA_Client *client;
 
 static UA_UInt32 subscriptionId;
-static UA_UInt32 monitoredItemId;
 static UA_NodeId eventType;
 static size_t nSelectClauses = 4;
-static UA_Boolean notificationReceived;
 static UA_SimpleAttributeOperand *selectClauses;
 static UA_SimpleAttributeOperand *selectClausesTest;
 static UA_StatusCode *retvals;
 static UA_ContentFilterResult *contentFilterResult;
 static UA_ContentFilter *conFilter;
-static UA_NodeId *baseEventTypeIdSecondElement;
-static UA_NodeId *baseEventTypeIdThirdElement;
 static UA_ContentFilter *whereClauses;
 static UA_ContentFilterElement *elements;
 static const size_t nWhereClauses = 1;
@@ -50,7 +46,7 @@ addNewEventType(void) {
     attr.description = UA_LOCALIZEDTEXT_ALLOC("en-US", "The simple event type we created");
 
     UA_Server_addObjectTypeNode(server, UA_NODEID_NULL,
-                                UA_NODEID_NUMERIC(0, UA_NS0ID_PROGRESSEVENTTYPE),
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE),
                                 UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
                                 UA_QUALIFIEDNAME(0, "SimpleEventType"),
                                 attr, NULL, &eventType);
@@ -85,7 +81,6 @@ setupSelectClauses(void) {
     selectClauses[3].browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "SourceNode");
 }
 
-
 static void setupWhereClauses(void){
     whereClauses = (UA_ContentFilter*)
         UA_Array_new(nWhereClauses,&UA_TYPES[UA_TYPES_CONTENTFILTER]);
@@ -102,65 +97,17 @@ static void setupWhereClauses(void){
     if (!whereClauses->elements[0].filterOperands){
         UA_ContentFilter_clear(whereClauses);
     }
-    whereClauses->elements[0].filterOperands[0].content.decoded.type = &UA_TYPES[UA_TYPES_ATTRIBUTEOPERAND];
+    whereClauses->elements[0].filterOperands[0].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
     whereClauses->elements[0].filterOperands[0].encoding = UA_EXTENSIONOBJECT_DECODED;
-    UA_AttributeOperand *pOperand;
-    pOperand = UA_AttributeOperand_new();
-    UA_AttributeOperand_init(pOperand);
-    UA_NodeId *baseEventTypeId;
-    baseEventTypeId = UA_NodeId_new();
-    UA_NodeId_init(baseEventTypeId);
-    *baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);  // filtern nach BaseEventType
-    pOperand->nodeId = *baseEventTypeId;
-    pOperand->attributeId = UA_ATTRIBUTEID_VALUE;
-    whereClauses->elements[0].filterOperands[0].content.decoded.data = pOperand;
-    UA_NodeId_delete(baseEventTypeId);
-}
-
-static void
-handler_events_simple(UA_Client *lclient, UA_UInt32 subId, void *subContext,
-                      UA_UInt32 monId, void *monContext,
-                      size_t nEventFields, UA_Variant *eventFields) {
-    UA_Boolean foundSeverity = UA_FALSE;
-    UA_Boolean foundMessage = UA_FALSE;
-    UA_Boolean foundType = UA_FALSE;
-    UA_Boolean foundSource = UA_FALSE;
-    ck_assert_uint_eq(*(UA_UInt32 *) monContext, monitoredItemId);
-    ck_assert_uint_eq(nEventFields, nSelectClauses);
-    // check all event fields
-    for(size_t i = 0; i < nEventFields; i++) {
-        // find out which attribute of the event is being looked at
-        if(UA_Variant_hasScalarType(&eventFields[i], &UA_TYPES[UA_TYPES_UINT16])) {
-            // Severity
-            ck_assert_uint_eq(*((UA_UInt16 *) (eventFields[i].data)), 1000);
-            foundSeverity = UA_TRUE;
-        } else if(UA_Variant_hasScalarType(&eventFields[i], &UA_TYPES[UA_TYPES_LOCALIZEDTEXT])) {
-            // Message
-            UA_LocalizedText comp = UA_LOCALIZEDTEXT("en-US", "Generated Event");
-            ck_assert(UA_String_equal(&((UA_LocalizedText *) eventFields[i].data)->locale, &comp.locale));
-            ck_assert(UA_String_equal(&((UA_LocalizedText *) eventFields[i].data)->text, &comp.text));
-            foundMessage = UA_TRUE;
-        } else if(UA_Variant_hasScalarType(&eventFields[i], &UA_TYPES[UA_TYPES_NODEID])) {
-            // either SourceNode or EventType
-            UA_NodeId serverId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
-            if(UA_NodeId_equal((UA_NodeId *) eventFields[i].data, &eventType)) {
-                // EventType
-                foundType = UA_TRUE;
-            } else if(UA_NodeId_equal((UA_NodeId *) eventFields[i].data, &serverId)) {
-                // SourceNode
-                foundSource = UA_TRUE;
-            } else {
-                ck_assert_msg(UA_FALSE, "NodeId doesn't match");
-            }
-        } else {
-            ck_assert_msg(UA_FALSE, "Field doesn't match");
-        }
-    }
-    ck_assert_uint_eq(foundMessage, UA_TRUE);
-    ck_assert_uint_eq(foundSeverity, UA_TRUE);
-    ck_assert_uint_eq(foundType, UA_TRUE);
-    ck_assert_uint_eq(foundSource, UA_TRUE);
-    notificationReceived = true;
+    UA_LiteralOperand *literalOperand = UA_LiteralOperand_new();
+    UA_LiteralOperand_init(literalOperand);
+    UA_NodeId *nodeId = UA_NodeId_new();
+    UA_NodeId_init(nodeId);
+    nodeId->namespaceIndex = 0;
+    nodeId->identifierType = UA_NODEIDTYPE_NUMERIC;
+    nodeId->identifier.numeric = UA_NS0ID_BASEEVENTTYPE;
+    UA_Variant_setScalar(&literalOperand->value, nodeId, &UA_TYPES[UA_TYPES_NODEID]);
+    whereClauses->elements[0].filterOperands[0].content.decoded.data = literalOperand;
 }
 
 // create a subscription and add a monitored item to it
@@ -283,16 +230,6 @@ teardown(void) {
 }
 
 static UA_StatusCode
-triggerEventLocked(const UA_NodeId eventNodeId, const UA_NodeId origin,
-                   UA_ByteString *outEventId, const UA_Boolean deleteEventNode) {
-    serverMutexLock();
-    UA_StatusCode retval = UA_Server_triggerEvent(server, eventNodeId, origin,
-                                                  outEventId, deleteEventNode);
-    serverMutexUnlock();
-    return retval;
-}
-
-static UA_StatusCode
 eventSetup(UA_NodeId *eventNodeId) {
     UA_StatusCode retval;
     serverMutexLock();
@@ -342,36 +279,6 @@ eventSetup(UA_NodeId *eventNodeId) {
     return retval;
 }
 
-static UA_MonitoredItemCreateResult
-addMonitoredItem(UA_Client_EventNotificationCallback handler, bool setFilter, bool discardOldest) {
-    UA_MonitoredItemCreateRequest item;
-    UA_MonitoredItemCreateRequest_init(&item);
-    item.itemToMonitor.nodeId = UA_NODEID_NUMERIC(0, 2253); // Root->Objects->Server
-    item.itemToMonitor.attributeId = UA_ATTRIBUTEID_EVENTNOTIFIER;
-    item.monitoringMode = UA_MONITORINGMODE_REPORTING;
-
-    UA_EventFilter filter;
-    UA_EventFilter_init(&filter);
-    filter.selectClauses = selectClauses;
-    filter.selectClausesSize = nSelectClauses;
-    filter.whereClause = *whereClauses;
-
-    if (setFilter) {
-        item.requestedParameters.filter.encoding = UA_EXTENSIONOBJECT_DECODED;
-        item.requestedParameters.filter.content.decoded.data = &filter;
-        item.requestedParameters.filter.content.decoded.type = &UA_TYPES[UA_TYPES_EVENTFILTER];
-    }
-
-    item.requestedParameters.queueSize = 1;
-    item.requestedParameters.discardOldest = discardOldest;
-
-    return UA_Client_MonitoredItems_createEvent(client, subscriptionId,
-                                                UA_TIMESTAMPSTORETURN_BOTH, item,
-                                                &monitoredItemId, handler, NULL);
-}
-
-
-
 
 static UA_ContentFilter *setupWhereClausesComplex(void){
     conFilter = (UA_ContentFilter*)
@@ -379,19 +286,41 @@ static UA_ContentFilter *setupWhereClausesComplex(void){
     for(size_t i =0; i<nWhereClauses; ++i) {
         UA_ContentFilter_init(&conFilter[i]);
     }
-    conFilter[0].elementsSize = 3;
+    conFilter[0].elementsSize = 13;
     conFilter[0].elements  = (UA_ContentFilterElement*)
         UA_Array_new(
             conFilter->elementsSize, &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENT] );
     for(size_t i =0; i< conFilter[0].elementsSize; ++i) {
         UA_ContentFilterElement_init(&conFilter[0].elements[i]);
     }
-    conFilter[0].elements[0].filterOperator = UA_FILTEROPERATOR_OR; // set the first Operator
-    conFilter[0].elements[1].filterOperator = UA_FILTEROPERATOR_OFTYPE; // set the second Operator
-    conFilter[0].elements[2].filterOperator = UA_FILTEROPERATOR_OFTYPE; // set the third Operator
+    conFilter[0].elements[0].filterOperator = UA_FILTEROPERATOR_AND; // set the first Operator
+    conFilter[0].elements[1].filterOperator = UA_FILTEROPERATOR_OR; // set the second Operator
+    conFilter[0].elements[2].filterOperator = UA_FILTEROPERATOR_INLIST; // set the third Operator
+    conFilter[0].elements[3].filterOperator = UA_FILTEROPERATOR_OFTYPE; // set the fourth Operator
+    conFilter[0].elements[4].filterOperator = UA_FILTEROPERATOR_AND; // set the fifth Operator
+    conFilter[0].elements[5].filterOperator = UA_FILTEROPERATOR_AND; // set the sixth Operator
+    conFilter[0].elements[6].filterOperator = UA_FILTEROPERATOR_AND; // set the seventh Operator
+    conFilter[0].elements[7].filterOperator = UA_FILTEROPERATOR_EQUALS; // set the eighth Operator
+    conFilter[0].elements[8].filterOperator = UA_FILTEROPERATOR_BITWISEAND; // set the ninth Operator
+    conFilter[0].elements[9].filterOperator = UA_FILTEROPERATOR_NOT; // set the tenth Operator
+    conFilter[0].elements[10].filterOperator = UA_FILTEROPERATOR_ISNULL ; // set the eleventh Operator
+    conFilter[0].elements[11].filterOperator = UA_FILTEROPERATOR_GREATERTHAN; // set the twelfth Operator
+    conFilter[0].elements[12].filterOperator = UA_FILTEROPERATOR_BETWEEN; // set the thirteenth Operator
+
+
     conFilter[0].elements[0].filterOperandsSize = 2;            // set Operands size of first Operator
-    conFilter[0].elements[1].filterOperandsSize = 1;            // set Operands size of second Operator
-    conFilter[0].elements[2].filterOperandsSize = 1;            // set Operands size of third Operator
+    conFilter[0].elements[1].filterOperandsSize = 2;            // set Operands size of second Operator
+    conFilter[0].elements[2].filterOperandsSize = 4;            // set Operands size of third Operator
+    conFilter[0].elements[3].filterOperandsSize = 1;            // set Operands size of fourth Operator
+    conFilter[0].elements[4].filterOperandsSize = 2;            // set Operands size of fifth Operator
+    conFilter[0].elements[5].filterOperandsSize = 2;            // set Operands size of sixth Operator
+    conFilter[0].elements[6].filterOperandsSize = 2;            // set Operands size of seventh Operator
+    conFilter[0].elements[7].filterOperandsSize = 2;            // set Operands size of eighth Operator
+    conFilter[0].elements[8].filterOperandsSize = 2;            // set Operands size of ninth Operator
+    conFilter[0].elements[9].filterOperandsSize = 1;            // set Operands size of tenth Operator
+    conFilter[0].elements[10].filterOperandsSize = 1;            // set Operands size of eleventh Operator
+    conFilter[0].elements[11].filterOperandsSize = 2;            // set Operands size of twelfth Operator
+    conFilter[0].elements[12].filterOperandsSize = 3;           // set Operands size of thirteenth Operator
     for(size_t i =0; i< conFilter[0].elementsSize; ++i) {  // Set Operands Arrays
         conFilter[0].elements[i].filterOperands = (UA_ExtensionObject*)
             UA_Array_new(
@@ -405,54 +334,349 @@ static UA_ContentFilter *setupWhereClausesComplex(void){
         }
     }
 
-    // Second Element
-    conFilter[0].elements[1].filterOperands[0].content.decoded.type = &UA_TYPES[UA_TYPES_ATTRIBUTEOPERAND];
-    conFilter[0].elements[1].filterOperands[0].encoding = UA_EXTENSIONOBJECT_DECODED;
-    UA_AttributeOperand *pOperandSecondElement;
-    pOperandSecondElement = UA_AttributeOperand_new();
-    UA_AttributeOperand_init(pOperandSecondElement);
-    baseEventTypeIdSecondElement = UA_NodeId_new();
-    UA_NodeId_init(baseEventTypeIdSecondElement);
-    *baseEventTypeIdSecondElement = UA_NODEID_NUMERIC(0, UA_NS0ID_SYSTEMEVENTTYPE);      // filtern nach SYSTEMEVENTTYPE
-    pOperandSecondElement->nodeId = *baseEventTypeIdSecondElement;
-    pOperandSecondElement->attributeId = UA_ATTRIBUTEID_VALUE;
-    conFilter[0].elements[1].filterOperands[0].content.decoded.data = pOperandSecondElement;
+    // thirteenth Element  (24 UA_FILTEROPERATOR_BETWEEN (12 - 50))
+    conFilter->elements[12].filterOperands[0].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
+    conFilter->elements[12].filterOperands[1].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
+    conFilter->elements[12].filterOperands[2].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
+    UA_LiteralOperand *firstLiteralOperand = UA_LiteralOperand_new();
+    UA_LiteralOperand_init(firstLiteralOperand);
+    UA_LiteralOperand *secondLiteralOperand = UA_LiteralOperand_new();
+    UA_LiteralOperand_init(secondLiteralOperand);
+    UA_LiteralOperand *thirdLiteralOperand = UA_LiteralOperand_new();
+    UA_LiteralOperand_init(thirdLiteralOperand);
+    UA_Variant firstVariant;
+    UA_Variant secondVariant;
+    UA_Variant thirdVariant;
+    firstVariant.type = &UA_TYPES[UA_TYPES_UINT16];
+    firstVariant.arrayDimensionsSize = 0;
+    firstVariant.arrayDimensions = NULL;
+    firstVariant.arrayLength = 0;
+    firstVariant.storageType = UA_VARIANT_DATA;
+    secondVariant.type = &UA_TYPES[UA_TYPES_UINT32];
+    secondVariant.arrayDimensionsSize = 0;
+    secondVariant.arrayDimensions = NULL;
+    secondVariant.arrayLength = 0;
+    secondVariant.storageType = UA_VARIANT_DATA;
+    thirdVariant.type = &UA_TYPES[UA_TYPES_UINT32];
+    thirdVariant.arrayDimensionsSize = 0;
+    thirdVariant.arrayDimensions = NULL;
+    thirdVariant.arrayLength = 0;
+    thirdVariant.storageType = UA_VARIANT_DATA;
+    UA_UInt32 *value1 = UA_UInt32_new();
+    UA_UInt32_init(value1);
+    *value1 = 24;
+    UA_UInt32  *value2 = UA_UInt32_new();
+    UA_UInt32_init(value2);
+    *value2 = 12;
+    UA_UInt32  *value3 = UA_UInt32_new();
+    UA_UInt32_init(value3);
+    *value3 = 50;
+    firstVariant.data =  value1;
+    secondVariant.data =  value2;
+    thirdVariant.data = value3;
+    firstLiteralOperand->value = firstVariant;
+    secondLiteralOperand->value = secondVariant;
+    thirdLiteralOperand->value = thirdVariant;
+    conFilter->elements[12].filterOperands[0].content.decoded.data = firstLiteralOperand;
+    conFilter->elements[12].filterOperands[1].content.decoded.data = secondLiteralOperand;
+    conFilter->elements[12].filterOperands[2].content.decoded.data = thirdLiteralOperand;
 
-    // Third Element
-    conFilter[0].elements[2].filterOperands[0].content.decoded.type = &UA_TYPES[UA_TYPES_ATTRIBUTEOPERAND];
-    conFilter[0].elements[2].filterOperands[0].encoding = UA_EXTENSIONOBJECT_DECODED;
-    UA_AttributeOperand *pOperandThirdElement;
-    pOperandThirdElement = UA_AttributeOperand_new();
-    UA_AttributeOperand_init(pOperandThirdElement);
-    baseEventTypeIdThirdElement = UA_NodeId_new();
-    UA_NodeId_init(baseEventTypeIdThirdElement);
-    *baseEventTypeIdThirdElement = UA_NODEID_NUMERIC(0, UA_NS0ID_PROGRESSEVENTTYPE);  // filtern nach ProgressEventType
-    // *baseEventTypeIdThirdElement = UA_NODEID_NUMERIC(0, UA_NS0ID_AUDITEVENTTYPE);  // filtern nach AuditCertificateEventType
-    pOperandThirdElement->nodeId = *baseEventTypeIdThirdElement;
-    pOperandThirdElement->attributeId = UA_ATTRIBUTEID_VALUE;
-    conFilter[0].elements[2].filterOperands[0].content.decoded.data = pOperandThirdElement;
+    // twelfth Element  (50 UA_FILTEROPERATOR_GREATERTHAN 24)
+    UA_LiteralOperand *fifthLiteralOperand = UA_LiteralOperand_new();
+    UA_LiteralOperand_init(fifthLiteralOperand);
+    UA_LiteralOperand *sixthLiteralOperand = UA_LiteralOperand_new();
+    UA_LiteralOperand_init(sixthLiteralOperand);
+    UA_Variant fifthVariant;
+    UA_Variant sixthVariant;
+    fifthVariant.type = &UA_TYPES[UA_TYPES_UINT16];
+    fifthVariant.arrayDimensionsSize = 0;
+    fifthVariant.arrayDimensions = NULL;
+    fifthVariant.arrayLength = 0;
+    fifthVariant.storageType = UA_VARIANT_DATA;
+    sixthVariant.type = &UA_TYPES[UA_TYPES_UINT32];
+    sixthVariant.arrayDimensionsSize = 0;
+    sixthVariant.arrayDimensions = NULL;
+    sixthVariant.arrayLength = 0;
+    sixthVariant.storageType = UA_VARIANT_DATA;
+    UA_UInt32 *value5 = UA_UInt32_new();
+    UA_UInt32_init(value5);
+    *value5 = 50;
+    fifthVariant.data =  value5;
+    UA_UInt32  *value6 = UA_UInt32_new();
+    UA_UInt32_init(value6);
+    *value6 = 24;
+    sixthVariant.data =  value6;
+    fifthLiteralOperand->value = fifthVariant;
+    sixthLiteralOperand->value = sixthVariant;
+    conFilter->elements[11].filterOperands[0].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
+    conFilter->elements[11].filterOperands[1].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
+    conFilter->elements[11].filterOperands[0].content.decoded.data = fifthLiteralOperand;
+    conFilter->elements[11].filterOperands[1].content.decoded.data = sixthLiteralOperand;
 
-    //First Element
+    //  eleventh Element (UA_FILTEROPERATOR_ISNULL)
+    conFilter->elements[10].filterOperands[0].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
+    UA_LiteralOperand *twelfthLiteralOperand = UA_LiteralOperand_new();
+    UA_LiteralOperand_init(twelfthLiteralOperand);
+    UA_Variant twelfthVariant;
+    twelfthVariant.type = &UA_TYPES[UA_TYPES_UINT16];
+    twelfthVariant.arrayDimensionsSize = 0;
+    twelfthVariant.arrayDimensions = NULL;
+    twelfthVariant.arrayLength = 0;
+    twelfthVariant.storageType = UA_VARIANT_DATA;
+    UA_UInt32  *value12 = UA_UInt32_new();
+    UA_UInt32_init(value12);
+    *value12 = 24;
+    twelfthVariant.data =  value12;
+    twelfthLiteralOperand->value = twelfthVariant;
+    conFilter->elements[10].filterOperands[0].content.decoded.data = twelfthLiteralOperand;
+
+    // tenth Element (UA_FILTEROPERATOR_NOT)
+    conFilter->elements[9].filterOperands[0].content.decoded.type = &UA_TYPES[UA_TYPES_ELEMENTOPERAND];
+    conFilter->elements[9].filterOperands[0].encoding = UA_EXTENSIONOBJECT_DECODED;
     UA_ElementOperand *elementOperand;
     elementOperand = UA_ElementOperand_new();
     UA_ElementOperand_init(elementOperand);
-    elementOperand->index = 1;
+    elementOperand->index = 10;
+    conFilter->elements[9].filterOperands[0].content.decoded.data = elementOperand;
+
+    // ninth Element ( 24 UA_FILTEROPERATOR_BITWISEAND 24 )
+    UA_LiteralOperand *seventhLiteralOperand = UA_LiteralOperand_new();
+    UA_LiteralOperand_init(seventhLiteralOperand);
+    UA_LiteralOperand *eighthLiteralOperand = UA_LiteralOperand_new();
+    UA_LiteralOperand_init(eighthLiteralOperand);
+    UA_Variant seventhVariant;
+    UA_Variant eighthVariant;
+    seventhVariant.type = &UA_TYPES[UA_TYPES_UINT16];
+    seventhVariant.arrayDimensionsSize = 0;
+    seventhVariant.arrayDimensions = NULL;
+    seventhVariant.arrayLength = 0;
+    seventhVariant.storageType = UA_VARIANT_DATA;
+    eighthVariant.type = &UA_TYPES[UA_TYPES_UINT32];
+    eighthVariant.arrayDimensionsSize = 0;
+    eighthVariant.arrayDimensions = NULL;
+    eighthVariant.arrayLength = 0;
+    eighthVariant.storageType = UA_VARIANT_DATA;
+    UA_UInt32 *value7 = UA_UInt32_new();
+    UA_UInt32_init(value7);
+    *value7 = 24;
+    UA_UInt32  *value8 = UA_UInt32_new();
+    UA_UInt32_init(value8);
+    *value8 = 24;
+    seventhVariant.data =  value7;
+    eighthVariant.data =  value8;
+    seventhLiteralOperand->value = seventhVariant;
+    eighthLiteralOperand->value = eighthVariant;
+    conFilter->elements[8].filterOperands[0].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
+    conFilter->elements[8].filterOperands[1].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
+    conFilter->elements[8].filterOperands[0].content.decoded.data = seventhLiteralOperand;
+    conFilter->elements[8].filterOperands[1].content.decoded.data = eighthLiteralOperand;
+
+    // eighth Element (UA_FILTEROPERATOR_EQUALS)
+    conFilter->elements[7].filterOperands[0].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
+    conFilter->elements[7].filterOperands[1].content.decoded.type = &UA_TYPES[UA_TYPES_ELEMENTOPERAND];
+    UA_LiteralOperand *elemLiteralOperand = UA_LiteralOperand_new();
+    UA_LiteralOperand_init(elemLiteralOperand);
+    UA_ElementOperand *indexOperand = UA_ElementOperand_new();
+    UA_ElementOperand_init(indexOperand);
+    UA_Variant Variant;
+    Variant.type = &UA_TYPES[UA_TYPES_UINT16];
+    Variant.arrayDimensionsSize = 0;
+    Variant.arrayDimensions = NULL;
+    Variant.arrayLength = 0;
+    Variant.storageType = UA_VARIANT_DATA;
+    UA_UInt32 *value15 = UA_UInt32_new();
+    UA_UInt32_init(value15);
+    *value15 = 24;
+    Variant.data =  value15;
+    elemLiteralOperand->value = Variant;
+    indexOperand->index = 8;
+    conFilter->elements[7].filterOperands[0].content.decoded.data = elemLiteralOperand;
+    conFilter->elements[7].filterOperands[1].content.decoded.data = indexOperand;
+
+    // seventh Element (UA_FILTEROPERATOR_AND)
+    conFilter->elements[6].filterOperands[0].content.decoded.type = &UA_TYPES[UA_TYPES_ELEMENTOPERAND];
+    conFilter->elements[6].filterOperands[0].encoding = UA_EXTENSIONOBJECT_DECODED;
+    conFilter->elements[6].filterOperands[1].content.decoded.type = &UA_TYPES[UA_TYPES_ELEMENTOPERAND];
+    conFilter->elements[6].filterOperands[1].encoding = UA_EXTENSIONOBJECT_DECODED;
     UA_ElementOperand *secondElementOperand;
     secondElementOperand = UA_ElementOperand_new();
     UA_ElementOperand_init(secondElementOperand);
-    secondElementOperand->index = 2;
-    conFilter[0].elements[0].filterOperands[0].content.decoded.type = &UA_TYPES[UA_TYPES_ELEMENTOPERAND];
-    conFilter[0].elements[0].filterOperands[0].encoding = UA_EXTENSIONOBJECT_DECODED;
-    conFilter[0].elements[0].filterOperands[0].content.decoded.data = elementOperand;
-    conFilter[0].elements[0].filterOperands[1].content.decoded.type = &UA_TYPES[UA_TYPES_ELEMENTOPERAND];
-    conFilter[0].elements[0].filterOperands[1].encoding = UA_EXTENSIONOBJECT_DECODED;
-    conFilter[0].elements[0].filterOperands[1].content.decoded.data = secondElementOperand;
+    secondElementOperand->index = 7;
+    UA_ElementOperand *thirdElementOperand;
+    thirdElementOperand = UA_ElementOperand_new();
+    UA_ElementOperand_init(thirdElementOperand);
+    thirdElementOperand->index = 9;
+    conFilter->elements[6].filterOperands[0].content.decoded.data = secondElementOperand;
+    conFilter->elements[6].filterOperands[1].content.decoded.data = thirdElementOperand;
+
+    // sixth Element (UA_FILTEROPERATOR_AND)
+    conFilter->elements[5].filterOperands[0].content.decoded.type = &UA_TYPES[UA_TYPES_ELEMENTOPERAND];
+    conFilter->elements[5].filterOperands[0].encoding = UA_EXTENSIONOBJECT_DECODED;
+    conFilter->elements[5].filterOperands[1].content.decoded.type = &UA_TYPES[UA_TYPES_ELEMENTOPERAND];
+    conFilter->elements[5].filterOperands[1].encoding = UA_EXTENSIONOBJECT_DECODED;
+    UA_ElementOperand *fourthElementOperand;
+    fourthElementOperand = UA_ElementOperand_new();
+    UA_ElementOperand_init(fourthElementOperand);
+    fourthElementOperand->index = 6;
+    UA_ElementOperand *fifthElementOperand;
+    fifthElementOperand = UA_ElementOperand_new();
+    UA_ElementOperand_init(fifthElementOperand);
+    fifthElementOperand->index = 11;
+    conFilter->elements[5].filterOperands[0].content.decoded.data = fourthElementOperand;
+    conFilter->elements[5].filterOperands[1].content.decoded.data = fifthElementOperand;
+
+    // fifth Element (UA_FILTEROPERATOR_AND)
+    conFilter->elements[4].filterOperands[0].content.decoded.type = &UA_TYPES[UA_TYPES_ELEMENTOPERAND];
+    conFilter->elements[4].filterOperands[0].encoding = UA_EXTENSIONOBJECT_DECODED;
+    conFilter->elements[4].filterOperands[1].content.decoded.type = &UA_TYPES[UA_TYPES_ELEMENTOPERAND];
+    conFilter->elements[4].filterOperands[1].encoding = UA_EXTENSIONOBJECT_DECODED;
+    UA_ElementOperand *sixthElementOperand;
+    sixthElementOperand = UA_ElementOperand_new();
+    UA_ElementOperand_init(sixthElementOperand);
+    sixthElementOperand->index = 5;
+    UA_ElementOperand *seventhElementOperand;
+    seventhElementOperand = UA_ElementOperand_new();
+    UA_ElementOperand_init(seventhElementOperand);
+    seventhElementOperand->index = 12;
+    conFilter->elements[4].filterOperands[0].content.decoded.data = sixthElementOperand;
+    conFilter->elements[4].filterOperands[1].content.decoded.data = seventhElementOperand;
+
+    // fourth Element (UA_FILTEROPERATOR_OFTYPE)
+    conFilter->elements[3].filterOperands[0].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
+    UA_LiteralOperand *literalOperand = UA_LiteralOperand_new();
+    UA_LiteralOperand_init(literalOperand);
+    UA_NodeId *nodeId = UA_NodeId_new();
+    UA_NodeId_init(nodeId);
+    nodeId->namespaceIndex = 0;
+    nodeId->identifierType = UA_NODEIDTYPE_NUMERIC;
+    nodeId->identifier.numeric = UA_NS0ID_BASEEVENTTYPE;
+    UA_Variant_setScalar(&literalOperand->value, nodeId, &UA_TYPES[UA_TYPES_NODEID]);
+    conFilter->elements[3].filterOperands[0].content.decoded.data = literalOperand;
+
+    // Third Element (24 UA_FILTEROPERATOR_INLIST (12,50,70))
+    conFilter->elements[2].filterOperands[0].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
+    conFilter->elements[2].filterOperands[1].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
+    conFilter->elements[2].filterOperands[2].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
+    conFilter->elements[2].filterOperands[3].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
+    UA_LiteralOperand *fourthLiteralOperand = UA_LiteralOperand_new();
+    UA_LiteralOperand_init(fourthLiteralOperand);
+    UA_Variant fourthVariant;
+    fourthVariant.type = &UA_TYPES[UA_TYPES_UINT16];
+    fourthVariant.arrayDimensionsSize = 0;
+    fourthVariant.arrayDimensions = NULL;
+    fourthVariant.arrayLength = 0;
+    fourthVariant.storageType = UA_VARIANT_DATA;
+    UA_UInt32  *value4 = UA_UInt32_new();
+    UA_UInt32_init(value4);
+    *value4 = 24;
+    fourthVariant.data =  value4;
+    fourthLiteralOperand->value = fourthVariant;
+    UA_LiteralOperand *ninthLiteralOperand = UA_LiteralOperand_new();
+    UA_LiteralOperand_init(ninthLiteralOperand);
+    UA_Variant ninthVariant;
+    ninthVariant.type = &UA_TYPES[UA_TYPES_UINT16];
+    ninthVariant.arrayDimensionsSize = 0;
+    ninthVariant.arrayDimensions = NULL;
+    ninthVariant.arrayLength = 0;
+    ninthVariant.storageType = UA_VARIANT_DATA;
+    UA_UInt32  *value9 = UA_UInt32_new();
+    UA_UInt32_init(value9);
+    *value9 = 12;
+    ninthVariant.data =  value9;
+    ninthLiteralOperand->value = ninthVariant;
+    UA_LiteralOperand *tenthLiteralOperand = UA_LiteralOperand_new();
+    UA_LiteralOperand_init(tenthLiteralOperand);
+    UA_Variant tenthVariant;
+    tenthVariant.type = &UA_TYPES[UA_TYPES_UINT16];
+    tenthVariant.arrayDimensionsSize = 0;
+    tenthVariant.arrayDimensions = NULL;
+    tenthVariant.arrayLength = 0;
+    tenthVariant.storageType = UA_VARIANT_DATA;
+    UA_UInt32  *value10 = UA_UInt32_new();
+    UA_UInt32_init(value10);
+    *value10 = 50;
+    tenthVariant.data =  value10;
+    tenthLiteralOperand->value = tenthVariant;
+    UA_LiteralOperand *eleventhLiteralOperand = UA_LiteralOperand_new();
+    UA_LiteralOperand_init(eleventhLiteralOperand);
+    UA_Variant eleventhVariant;
+    eleventhVariant.type = &UA_TYPES[UA_TYPES_UINT16];
+    eleventhVariant.arrayDimensionsSize = 0;
+    eleventhVariant.arrayDimensions = NULL;
+    eleventhVariant.arrayLength = 0;
+    eleventhVariant.storageType = UA_VARIANT_DATA;
+    UA_UInt32  *value11 = UA_UInt32_new();
+    UA_UInt32_init(value11);
+    *value11 = 70;
+    eleventhVariant.data =  value11;
+    eleventhLiteralOperand->value = eleventhVariant;
+    conFilter->elements[2].filterOperands[0].content.decoded.data = fourthLiteralOperand;
+    conFilter->elements[2].filterOperands[1].content.decoded.data = ninthLiteralOperand;
+    conFilter->elements[2].filterOperands[2].content.decoded.data = tenthLiteralOperand;
+    conFilter->elements[2].filterOperands[3].content.decoded.data = eleventhLiteralOperand;
+
+    // second Element ( UA_FILTEROPERATOR_OR)
+    conFilter->elements[1].filterOperands[0].content.decoded.type = &UA_TYPES[UA_TYPES_ELEMENTOPERAND];
+    conFilter->elements[1].filterOperands[0].encoding = UA_EXTENSIONOBJECT_DECODED;
+    conFilter->elements[1].filterOperands[1].content.decoded.type = &UA_TYPES[UA_TYPES_ELEMENTOPERAND];
+    conFilter->elements[1].filterOperands[1].encoding = UA_EXTENSIONOBJECT_DECODED;
+    UA_ElementOperand *eighthElementOperand;
+    eighthElementOperand = UA_ElementOperand_new();
+    UA_ElementOperand_init(eighthElementOperand);
+    eighthElementOperand->index = 2;
+    UA_ElementOperand *ninthElementOperand;
+    ninthElementOperand = UA_ElementOperand_new();
+    UA_ElementOperand_init(ninthElementOperand);
+    ninthElementOperand->index = 3;
+    conFilter->elements[1].filterOperands[0].content.decoded.data = eighthElementOperand;
+    conFilter->elements[1].filterOperands[1].content.decoded.data = ninthElementOperand;
+
+    //First Element (UA_FILTEROPERATOR_AND)
+    conFilter->elements[0].filterOperands[0].content.decoded.type = &UA_TYPES[UA_TYPES_ELEMENTOPERAND];
+    conFilter->elements[0].filterOperands[0].encoding = UA_EXTENSIONOBJECT_DECODED;
+    conFilter->elements[0].filterOperands[1].content.decoded.type = &UA_TYPES[UA_TYPES_ELEMENTOPERAND];
+    conFilter->elements[0].filterOperands[1].encoding = UA_EXTENSIONOBJECT_DECODED;
+    UA_ElementOperand *tenthElementOperand;
+    tenthElementOperand = UA_ElementOperand_new();
+    UA_ElementOperand_init(tenthElementOperand);
+    tenthElementOperand->index = 1;
+    UA_ElementOperand *eleventhElementOperand;
+    eleventhElementOperand = UA_ElementOperand_new();
+    UA_ElementOperand_init(eleventhElementOperand);
+    eleventhElementOperand->index = 4;
+    conFilter->elements[0].filterOperands[0].content.decoded.data = tenthElementOperand;
+    conFilter->elements[0].filterOperands[1].content.decoded.data = eleventhElementOperand;
     return conFilter;
 }
 
+START_TEST(evaluateWhereClause){
+        UA_ContentFilter *contentFilter = setupWhereClausesComplex();  // Filter Structure  (YARRAYITEMTYPE) OR (ProgressEventType)
+        UA_NodeId eventNodeId;
+        UA_Session session;
+        UA_StatusCode retval = eventSetup(&eventNodeId);    // Event Setup (BaseEventType)
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        /* init contentFilterResult */
+        UA_ContentFilterResult *contentFilterRes = (UA_ContentFilterResult*)
+            UA_Array_new(nWhereClauses,&UA_TYPES[UA_TYPES_CONTENTFILTERRESULT]);
+        contentFilterRes[0].elementResultsSize = contentFilter->elementsSize;
+        contentFilterRes[0].elementResults  = (UA_ContentFilterElementResult *)
+            UA_Array_new(contentFilterRes[0].elementResultsSize, &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENTRESULT] );
+        for(size_t i =0; i<contentFilterRes[0].elementResultsSize; ++i) {
+            UA_ContentFilterElementResult_init(&contentFilterRes[0].elementResults[i]);
+            contentFilterRes[0].elementResults[i].operandStatusCodes = (UA_StatusCode *)
+                UA_Array_new(contentFilter[0].elements->filterOperandsSize,&UA_TYPES[UA_TYPES_STATUSCODE]);
+        }
+        UA_LOCK(server->serviceMutex);
+        UA_StatusCode  res = UA_Server_startWhereClauseEvaluation(server,&session,&eventNodeId,contentFilter,contentFilterRes);
+        UA_UNLOCK(server->serviceMutex);
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+        UA_ContentFilterResult_delete(contentFilterRes);
+}
+END_TEST
+
 START_TEST(initialWhereClauseValidation) {
         /* Everything is on the stack, so no memory cleaning required.*/
-        UA_NodeId eventNodeId;
+//        UA_NodeId eventNodeId;
         UA_ContentFilter contentFilter;
         contentFilter.elementsSize = 0;
         elements  = (UA_ContentFilterElement*)
@@ -460,9 +684,9 @@ START_TEST(initialWhereClauseValidation) {
         contentFilter.elements = elements;
         /* Empty Filter */
         UA_LOCK(server->serviceMutex);
-        contentFilterResult = UA_Server_initialWhereClauseValidation(server, &eventNodeId, &contentFilter);
+        contentFilterResult = UA_Server_initialWhereClauseValidation(server, &contentFilter);
         UA_UNLOCK(server->serviceMutex);
-        ck_assert_uint_eq(contentFilterResult->elementResults->statusCode, UA_STATUSCODE_GOOD);
+        ck_assert_ptr_eq(contentFilterResult->elementResults,NULL);
         UA_ContentFilterResult_delete(contentFilterResult);
         /* clear */
         for(size_t i =0; i<contentFilter.elementsSize; ++i) {
@@ -475,13 +699,13 @@ START_TEST(initialWhereClauseValidation) {
         /* Illegal filter operators */
         contentFilter.elements[0].filterOperator = UA_FILTEROPERATOR_RELATEDTO;
         UA_LOCK(server->serviceMutex);
-        contentFilterResult = UA_Server_initialWhereClauseValidation(server, &eventNodeId, &contentFilter);
+        contentFilterResult = UA_Server_initialWhereClauseValidation(server, &contentFilter);
         UA_UNLOCK(server->serviceMutex);
         ck_assert_uint_eq(contentFilterResult->elementResults[0].statusCode, UA_STATUSCODE_BADEVENTFILTERINVALID);
         UA_ContentFilterResult_delete(contentFilterResult);
         contentFilter.elements[0].filterOperator = UA_FILTEROPERATOR_INVIEW;
         UA_LOCK(server->serviceMutex);
-        contentFilterResult = UA_Server_initialWhereClauseValidation(server, &eventNodeId, &contentFilter);
+        contentFilterResult = UA_Server_initialWhereClauseValidation(server, &contentFilter);
         UA_UNLOCK(server->serviceMutex);
         ck_assert_uint_eq(contentFilterResult->elementResults[0].statusCode, UA_STATUSCODE_BADEVENTFILTERINVALID);
         UA_ContentFilterResult_delete(contentFilterResult);
@@ -490,14 +714,14 @@ START_TEST(initialWhereClauseValidation) {
         contentFilter.elements[0].filterOperator = UA_FILTEROPERATOR_OR;
         /* No operand provided */
         UA_LOCK(server->serviceMutex);
-        contentFilterResult = UA_Server_initialWhereClauseValidation(server, &eventNodeId, &contentFilter);
+        contentFilterResult = UA_Server_initialWhereClauseValidation(server, &contentFilter);
         UA_UNLOCK(server->serviceMutex);
         ck_assert_uint_eq(contentFilterResult->elementResults[0].statusCode, UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH);
         UA_ContentFilterResult_delete(contentFilterResult);
         /* Illegal filter operands size */
         contentFilter.elements[0].filterOperandsSize = 1;
         UA_LOCK(server->serviceMutex);
-        contentFilterResult = UA_Server_initialWhereClauseValidation(server, &eventNodeId, &contentFilter);
+        contentFilterResult = UA_Server_initialWhereClauseValidation(server, &contentFilter);
         UA_UNLOCK(server->serviceMutex);
         ck_assert_uint_eq(contentFilterResult->elementResults[0].statusCode, UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH);
         UA_ContentFilterResult_delete(contentFilterResult);
@@ -508,7 +732,7 @@ START_TEST(initialWhereClauseValidation) {
         contentFilter.elements[0].filterOperands[0].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
         contentFilter.elements[0].filterOperands[1].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
         UA_LOCK(server->serviceMutex);
-        contentFilterResult = UA_Server_initialWhereClauseValidation(server, &eventNodeId, &contentFilter);
+        contentFilterResult = UA_Server_initialWhereClauseValidation(server, &contentFilter);
         UA_UNLOCK(server->serviceMutex);
         ck_assert_uint_eq(contentFilterResult->elementResults[0].statusCode, UA_STATUSCODE_BADFILTEROPERANDINVALID);
         UA_ContentFilterResult_delete(contentFilterResult);
@@ -540,29 +764,29 @@ START_TEST(initialWhereClauseValidation) {
             }
         }
         // Second Element
-        contentFilter.elements[1].filterOperands[0].content.decoded.type = &UA_TYPES[UA_TYPES_ATTRIBUTEOPERAND];
+        contentFilter.elements[1].filterOperands[0].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
         contentFilter.elements[1].filterOperands[0].encoding = UA_EXTENSIONOBJECT_DECODED;
-        UA_AttributeOperand *pOperandSecondElement;
-        pOperandSecondElement = UA_AttributeOperand_new();
-        UA_AttributeOperand_init(pOperandSecondElement);
-        baseEventTypeIdSecondElement = UA_NodeId_new();
-        UA_NodeId_init(baseEventTypeIdSecondElement);
-        *baseEventTypeIdSecondElement = UA_NODEID_NUMERIC(0, UA_NS0ID_AUDITEVENTTYPE);      // filtern nach AuditEventType
-        pOperandSecondElement->nodeId = *baseEventTypeIdSecondElement;
-        pOperandSecondElement->attributeId = UA_ATTRIBUTEID_VALUE;
-        contentFilter.elements[1].filterOperands[0].content.decoded.data = pOperandSecondElement;
+        UA_LiteralOperand *literalOperand = UA_LiteralOperand_new();
+        UA_LiteralOperand_init(literalOperand);
+        UA_NodeId *nodeId = UA_NodeId_new();
+        UA_NodeId_init(nodeId);
+        nodeId->namespaceIndex = 0;
+        nodeId->identifierType = UA_NODEIDTYPE_NUMERIC;
+        nodeId->identifier.numeric = UA_NS0ID_AUDITEVENTTYPE;
+        UA_Variant_setScalar(&literalOperand->value, nodeId, &UA_TYPES[UA_TYPES_NODEID]);
+        contentFilter.elements[1].filterOperands[0].content.decoded.data = literalOperand;
         // Third Element
-        contentFilter.elements[2].filterOperands[0].content.decoded.type = &UA_TYPES[UA_TYPES_ATTRIBUTEOPERAND];
+        contentFilter.elements[2].filterOperands[0].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
         contentFilter.elements[2].filterOperands[0].encoding = UA_EXTENSIONOBJECT_DECODED;
-        UA_AttributeOperand *pOperandThirdElement;
-        pOperandThirdElement = UA_AttributeOperand_new();
-        UA_AttributeOperand_init(pOperandThirdElement);
-        baseEventTypeIdThirdElement = UA_NodeId_new();
-        UA_NodeId_init(baseEventTypeIdThirdElement);
-        *baseEventTypeIdThirdElement = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);  // filtern nach BaseEventType
-        pOperandThirdElement->nodeId = *baseEventTypeIdThirdElement;
-        pOperandThirdElement->attributeId = UA_ATTRIBUTEID_VALUE;
-        contentFilter.elements[2].filterOperands[0].content.decoded.data = pOperandThirdElement;
+        UA_LiteralOperand *secondliteralOperand = UA_LiteralOperand_new();
+        UA_LiteralOperand_init(secondliteralOperand);
+        UA_NodeId *secondnodeId = UA_NodeId_new();
+        UA_NodeId_init(secondnodeId);
+        secondnodeId->namespaceIndex = 0;
+        secondnodeId->identifierType = UA_NODEIDTYPE_NUMERIC;
+        secondnodeId->identifier.numeric = UA_NS0ID_BASEEVENTTYPE;
+        UA_Variant_setScalar(&secondliteralOperand->value, secondnodeId, &UA_TYPES[UA_TYPES_NODEID]);
+        contentFilter.elements[2].filterOperands[0].content.decoded.data = secondliteralOperand;
         //First Element
         UA_ElementOperand *elementOperand;
         elementOperand = UA_ElementOperand_new();
@@ -579,7 +803,7 @@ START_TEST(initialWhereClauseValidation) {
         contentFilter.elements[0].filterOperands[0].content.decoded.type = &UA_TYPES[UA_TYPES_ELEMENTOPERAND];
         contentFilter.elements[0].filterOperands[1].content.decoded.type = &UA_TYPES[UA_TYPES_ELEMENTOPERAND];
         UA_LOCK(server->serviceMutex);
-        contentFilterResult = UA_Server_initialWhereClauseValidation(server, &eventNodeId, &contentFilter);
+        contentFilterResult = UA_Server_initialWhereClauseValidation(server, &contentFilter);
         UA_UNLOCK(server->serviceMutex);
         ck_assert_uint_eq(contentFilterResult->elementResults[0].statusCode, UA_STATUSCODE_BADINDEXRANGEINVALID);
         UA_ContentFilterResult_delete(contentFilterResult);
@@ -598,14 +822,14 @@ START_TEST(initialWhereClauseValidation) {
         // No operand provided
         contentFilter.elements[0].filterOperator = UA_FILTEROPERATOR_OFTYPE;
         UA_LOCK(server->serviceMutex);
-        contentFilterResult = UA_Server_initialWhereClauseValidation(server, &eventNodeId, &contentFilter);
+        contentFilterResult = UA_Server_initialWhereClauseValidation(server, &contentFilter);
         UA_UNLOCK(server->serviceMutex);
         ck_assert_uint_eq(contentFilterResult->elementResults[0].statusCode, UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH);
         UA_ContentFilterResult_delete(contentFilterResult);
         /* Illegal filter operands size */
         contentFilter.elements[0].filterOperandsSize = 2;
         UA_LOCK(server->serviceMutex);
-        contentFilterResult = UA_Server_initialWhereClauseValidation(server, &eventNodeId, &contentFilter);
+        contentFilterResult = UA_Server_initialWhereClauseValidation(server, &contentFilter);
         UA_UNLOCK(server->serviceMutex);
         ck_assert_uint_eq(contentFilterResult->elementResults[0].statusCode, UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH);
         UA_ContentFilterResult_delete(contentFilterResult);
@@ -613,46 +837,43 @@ START_TEST(initialWhereClauseValidation) {
         contentFilter.elements[0].filterOperandsSize = 1;
         contentFilter.elements[0].filterOperands = (UA_ExtensionObject*)
             UA_Array_new(contentFilter.elements[0].filterOperandsSize, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
-        contentFilter.elements[0].filterOperands[0].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
+        contentFilter.elements[0].filterOperands[0].content.decoded.type = &UA_TYPES[UA_TYPES_ATTRIBUTEOPERAND];
         UA_LOCK(server->serviceMutex);
-        contentFilterResult = UA_Server_initialWhereClauseValidation(server, &eventNodeId, &contentFilter);
+        contentFilterResult = UA_Server_initialWhereClauseValidation(server, &contentFilter);
         UA_UNLOCK(server->serviceMutex);
         ck_assert_uint_eq(contentFilterResult->elementResults[0].statusCode, UA_STATUSCODE_BADFILTEROPERANDINVALID);
         UA_ContentFilterResult_delete(contentFilterResult);
-        /* Illegal filter operands attributeId */
-        contentFilter.elements[0].filterOperands[0].content.decoded.type = &UA_TYPES[UA_TYPES_ATTRIBUTEOPERAND];
+        /* Illegal filter operands identifierType */
+        contentFilter.elements[0].filterOperands[0].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
         contentFilter.elements[0].filterOperands[0].encoding = UA_EXTENSIONOBJECT_DECODED;
-        UA_AttributeOperand *pOperand;
-        pOperand = UA_AttributeOperand_new();
-        UA_AttributeOperand_init(pOperand);
-        pOperand->attributeId = UA_NODEIDTYPE_NUMERIC;
-        UA_NodeId *baseEventTypeId;
-        baseEventTypeId = UA_NodeId_new();
-        UA_NodeId_init(baseEventTypeId);
-        *baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);  // filtern nach BaseEventType
-        pOperand->nodeId = *baseEventTypeId;
-        contentFilter.elements[0].filterOperands[0].content.decoded.data = pOperand;
+        UA_LiteralOperand *thirdliteralOperand = UA_LiteralOperand_new();
+        UA_LiteralOperand_init(thirdliteralOperand);
+        UA_NodeId *thirdnodeId = UA_NodeId_new();
+        UA_NodeId_init(thirdnodeId);
+        thirdnodeId->namespaceIndex = 0;
+        thirdnodeId->identifierType = UA_NODEIDTYPE_BYTESTRING;
+        thirdnodeId->identifier.numeric = UA_NS0ID_AUDITEVENTTYPE;
+        UA_Variant_setScalar(&thirdliteralOperand->value, thirdnodeId, &UA_TYPES[UA_TYPES_NODEID]);
+        contentFilter.elements[0].filterOperands[0].content.decoded.data = thirdliteralOperand;
         UA_LOCK(server->serviceMutex);
-        contentFilterResult = UA_Server_initialWhereClauseValidation(server, &eventNodeId, &contentFilter);
+        contentFilterResult = UA_Server_initialWhereClauseValidation(server, &contentFilter);
         UA_UNLOCK(server->serviceMutex);
         ck_assert_uint_eq(contentFilterResult->elementResults[0].statusCode, UA_STATUSCODE_BADATTRIBUTEIDINVALID);
         UA_ContentFilterResult_delete(contentFilterResult);
         /* Illegal filter operands EventTypeId */
-        pOperand->attributeId = UA_ATTRIBUTEID_VALUE;
-        *baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NODEIDTYPE_NUMERIC);
-        pOperand->nodeId = *baseEventTypeId;
-        contentFilter.elements[0].filterOperands[0].content.decoded.data = pOperand;
+        thirdnodeId->identifierType = UA_NODEIDTYPE_NUMERIC;
+        thirdnodeId->identifier.numeric = UA_NODEIDTYPE_NUMERIC;
+        contentFilter.elements[0].filterOperands[0].content.decoded.data = thirdliteralOperand;
         UA_LOCK(server->serviceMutex);
-        contentFilterResult = UA_Server_initialWhereClauseValidation(server, &eventNodeId, &contentFilter);
+        contentFilterResult = UA_Server_initialWhereClauseValidation(server, &contentFilter);
         UA_UNLOCK(server->serviceMutex);
         ck_assert_uint_eq(contentFilterResult->elementResults[0].statusCode, UA_STATUSCODE_BADNODEIDINVALID);
         UA_ContentFilterResult_delete(contentFilterResult);
         /* Filter operands EventTypeId is a subtype of BaseEventType */
-        *baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
-        pOperand->nodeId = *baseEventTypeId;
-        contentFilter.elements[0].filterOperands[0].content.decoded.data = pOperand;
+        thirdnodeId->identifier.numeric = UA_NS0ID_BASEEVENTTYPE;
+        contentFilter.elements[0].filterOperands[0].content.decoded.data = thirdliteralOperand;
         UA_LOCK(server->serviceMutex);
-        contentFilterResult = UA_Server_initialWhereClauseValidation(server, &eventNodeId, &contentFilter);
+        contentFilterResult = UA_Server_initialWhereClauseValidation(server, &contentFilter);
         UA_UNLOCK(server->serviceMutex);
         ck_assert_uint_eq(contentFilterResult->elementResults[0].statusCode, UA_STATUSCODE_GOOD);
         UA_ContentFilterResult_delete(contentFilterResult);
@@ -660,27 +881,24 @@ START_TEST(initialWhereClauseValidation) {
         for(size_t i =0; i<contentFilter.elementsSize; ++i) {
             UA_ContentFilterElement_clear(&contentFilter.elements[i]);
         }
-        UA_NodeId_delete(baseEventTypeIdSecondElement);
-        UA_NodeId_delete(baseEventTypeIdThirdElement);
-        UA_NodeId_delete(baseEventTypeId);
     }
 END_TEST
 
 
-START_TEST(initialSelectClauseValidation) {
+START_TEST(validateSelectClause) {
 /* Everything is on the stack, so no memory cleaning required.*/
         UA_StatusCode *retval;
         UA_EventFilter eventFilter;
         UA_EventFilter_init(&eventFilter);
         retval = UA_Server_initialSelectClauseValidation(server, &eventFilter);
-        ck_assert_uint_eq(*retval, UA_STATUSCODE_BADSTRUCTUREMISSING);
+        ck_assert_ptr_eq(retval,NULL);
         UA_StatusCode_delete(retval);
         selectClausesTest = (UA_SimpleAttributeOperand *)
             UA_Array_new(7, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
         eventFilter.selectClausesSize = 0;
         eventFilter.selectClauses = selectClausesTest;
         retval = UA_Server_initialSelectClauseValidation(server, &eventFilter);
-        ck_assert_uint_eq(*retval, UA_STATUSCODE_GOOD);
+        ck_assert_ptr_eq(retval,NULL);
         UA_StatusCode_delete(retval);
         eventFilter.selectClausesSize = 7;
 /*Initialization*/
@@ -710,11 +928,10 @@ START_TEST(initialSelectClauseValidation) {
         ck_assert_uint_eq(retvals[0], UA_STATUSCODE_BADTYPEDEFINITIONINVALID);
         ck_assert_uint_eq(retvals[1], UA_STATUSCODE_BADATTRIBUTEIDINVALID);
         ck_assert_uint_eq(retvals[2], UA_STATUSCODE_BADBROWSENAMEINVALID);
-        ck_assert_uint_eq(retvals[3], UA_STATUSCODE_GOOD);
-        ck_assert_uint_eq(retvals[4], UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(retvals[3], UA_STATUSCODE_BADINDEXRANGEINVALID);
+        ck_assert_uint_eq(retvals[4], UA_STATUSCODE_BADTYPEMISMATCH);
         ck_assert_uint_eq(retvals[5], UA_STATUSCODE_GOOD);
         ck_assert_uint_eq(retvals[6], UA_STATUSCODE_GOOD);
-        // UA_Array_delete(retvals,7, &UA_TYPES[UA_TYPES_STATUSCODE]);
     }
 END_TEST
 
@@ -728,7 +945,9 @@ static Suite *testSuite_Client(void) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     tcase_add_unchecked_fixture(tc_server, setup, teardown);
     tcase_add_test(tc_server, initialWhereClauseValidation);
-    tcase_add_test(tc_server, initialSelectClauseValidation);
+    tcase_add_test(tc_server, validateSelectClause);
+    tcase_add_test(tc_server, evaluateWhereClause);
+
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
     suite_add_tcase(s, tc_server);
 
