@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2015-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2015-2021 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2015 (c) Oleksiy Vasylyev
  *    Copyright 2017 (c) Florian Palm
  *    Copyright 2016 (c) Chris Iatrou
@@ -14,7 +14,8 @@
 #include <open62541/client_highlevel.h>
 #include <open62541/client_highlevel_async.h>
 
-#include "ua_client_internal.h"
+/* The highlevel client API is an "outer onion layer". This file does not
+ * include ua_client_internal.h on purpose. */
 
 UA_StatusCode
 UA_Client_NamespaceGetIndex(UA_Client *client, UA_String *namespaceUri,
@@ -868,7 +869,7 @@ static void
 AttributeReadCallback(UA_Client *client, void *userdata,
                       UA_UInt32 requestId, UA_ReadResponse *rr) {
     UA_AttributeReadContext *ctx = (UA_AttributeReadContext*)userdata;
-    UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+    UA_LOG_DEBUG(&UA_Client_getConfig(client)->logger, UA_LOGCATEGORY_CLIENT,
                 "Async read response for request %" PRIu32, requestId);
 
     /* Check the ServiceResult */
