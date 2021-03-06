@@ -2798,8 +2798,8 @@ DECODE_JSON(ExtensionObject) {
             size_t tokenAfteExtensionObject = 0;
             ret = jumpOverObject(ctx, parseCtx, &tokenAfteExtensionObject);
             if(ret != UA_STATUSCODE_GOOD) {
-                UA_NodeId_deleteMembers(&typeId);
-                UA_ByteString_deleteMembers(&dst->content.encoded.body);
+                UA_NodeId_clear(&typeId);
+                UA_ByteString_clear(&dst->content.encoded.body);
                 return UA_STATUSCODE_BADDECODINGERROR;
             }
             
