@@ -1781,10 +1781,14 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server, UA_DataSetMessage *da
         /* TODO: Picoseconds resolution not supported atm */
         if((u64)dataSetWriterMessageDataType->dataSetMessageContentMask &
            (u64)UA_UADPDATASETMESSAGECONTENTMASK_PICOSECONDS) {
-            struct timeval tv;
-            gettimeofday(&tv, NULL);
-            return (tv.tv_sec * UA_DATETIME_SEC) + (tv.tv_usec * UA_DATETIME_USEC) + UA_DATETIME_UNIX_EPOCH;
-            dataSetMessage->header.picoSecondsIncluded = false;
+            dataSetMessage->header.picoSecondsIncluded = true;
+            struct timespec tp;
+            if(clock_gettime(CLOCK_MONOTONIC,&tp) == -1){
+                UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT,
+                               "clock_gettime failed.\n Errno msg: %s",strerror(errno));
+            } else {
+                dataSetMessage->header.picoSeconds = tp.tv_nsec * 100;
+            }
         }
 
         /* TODO: Statuscode not supported yet */
