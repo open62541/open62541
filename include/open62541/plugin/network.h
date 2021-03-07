@@ -67,6 +67,7 @@ struct UA_Connection {
                                     * sockets. Having the socket id here
                                     * simplifies the design. */
     UA_DateTime openingDate;       /* The date the connection was created */
+    struct sockaddr_storage remote_ip; /* ip info for this connection */
     void *handle;                  /* A pointer to internal data */
 
     /* Get a buffer for sending */

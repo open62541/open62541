@@ -721,11 +721,13 @@ endif()
 
 set(exported_headers ${exported_headers}
                      ${PROJECT_SOURCE_DIR}/deps/ms_stdint.h
+                     ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/architecture_definitions.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/nodeids.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/common.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/types.h
+                     ${PROJECT_BINARY_DIR}/src_generated/open62541/transport_generated.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated_handling.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/util.h
@@ -744,22 +746,20 @@ set(exported_headers ${exported_headers}
                      ${PROJECT_SOURCE_DIR}/include/open62541/client.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/client_highlevel.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/client_subscriptions.h
-                     ${PROJECT_SOURCE_DIR}/include/open62541/client_highlevel_async.h)
+                     ${PROJECT_SOURCE_DIR}/include/open62541/client_highlevel_async.h
+                     ${PROJECT_SOURCE_DIR}/src/ua_securechannel.h
+                     ${PROJECT_SOURCE_DIR}/src/server/ua_session.h)
 
-set(internal_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
-                     ${PROJECT_SOURCE_DIR}/deps/pcg_basic.h
+set(internal_headers ${PROJECT_SOURCE_DIR}/deps/pcg_basic.h
                      ${PROJECT_SOURCE_DIR}/deps/libc_time.h
                      ${PROJECT_SOURCE_DIR}/deps/base64.h
                      ${PROJECT_SOURCE_DIR}/src/ua_util_internal.h
                      ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated_encoding_binary.h
-                     ${PROJECT_BINARY_DIR}/src_generated/open62541/transport_generated.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/transport_generated_handling.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/transport_generated_encoding_binary.h
                      ${PROJECT_SOURCE_DIR}/src/ua_connection_internal.h
-                     ${PROJECT_SOURCE_DIR}/src/ua_securechannel.h
                      ${PROJECT_SOURCE_DIR}/src/ua_timer.h
-                     ${PROJECT_SOURCE_DIR}/src/server/ua_session.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.h
                      ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage.h
                      ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub.h

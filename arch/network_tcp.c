@@ -269,6 +269,7 @@ ServerNetworkLayerTCP_add(UA_ServerNetworkLayer *nl, ServerNetworkLayerTCP *laye
     c->releaseRecvBuffer = connection_releaserecvbuffer;
     c->state = UA_CONNECTIONSTATE_OPENING;
     c->openingDate = UA_DateTime_nowMonotonic();
+    memcpy(&c->remote_ip, remote, sizeof(struct sockaddr_storage));
 
     layer->connectionsSize++;
 
