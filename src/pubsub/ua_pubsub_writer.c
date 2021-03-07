@@ -616,6 +616,18 @@ generateFieldMetaData(UA_Server *server, UA_DataSetField *field, UA_FieldMetaDat
                 //check if the datatype is a builtInType, if yes set the builtinType
                 if(currentDataType->typeIndex <= 135)
                     fieldMetaData->builtInType = (UA_Byte)currentDataType->typeIndex;
+                //TODO collect the following field
+                //fieldMetaData.maxStringLength
+                // MaxStringLength is relevant realtime ethernet because of its capped frame size
+                // -> set maxStringLength when known
+                if(currentDataType->typeIndex == UA_DATATYPEKIND_STRING ||
+                    currentDataType->typeIndex == UA_DATATYPEKIND_BYTESTRING
+                    /*&& maxstringlength != unknown*/){
+                    //"If the dataType field is a String or ByteString then this field specifies the maximum supported length"
+                    fieldMetaData->maxStringLength = 0;
+                } else {
+                    fieldMetaData->maxStringLength = 0;
+                }
             } else {
                 UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                                "PubSub meta data generation. DataType Node is UA_NODEID_NULL.");
@@ -636,9 +648,6 @@ generateFieldMetaData(UA_Server *server, UA_DataSetField *field, UA_FieldMetaDat
             } else {
                 fieldMetaData->fieldFlags = UA_DATASETFIELDFLAGS_NONE;
             }
-            //TODO collect the following fields*/
-            //fieldMetaData.builtInType
-            //fieldMetaData.maxStringLength
             return UA_STATUSCODE_GOOD;
         case UA_PUBSUB_DATASETFIELD_EVENT:
             return UA_STATUSCODE_BADNOTSUPPORTED;
@@ -1778,7 +1787,6 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server, UA_DataSetMessage *da
             dataSetMessage->header.timestampEnabled = true;
             dataSetMessage->header.timestamp = UA_DateTime_now();
         }
-        /* TODO: Picoseconds resolution not supported atm */
         if((u64)dataSetWriterMessageDataType->dataSetMessageContentMask &
            (u64)UA_UADPDATASETMESSAGECONTENTMASK_PICOSECONDS) {
             dataSetMessage->header.picoSecondsIncluded = false;
