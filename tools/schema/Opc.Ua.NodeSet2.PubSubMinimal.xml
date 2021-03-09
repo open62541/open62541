@@ -1010,6 +1010,368 @@
       </ListOfExtensionObject>
     </Value>
   </UAVariable>
+
+  <UAObjectType NodeId="i=14572" BrowseName="PublishedEventsType">
+    <DisplayName>PublishedEventsType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=14586</Reference> <!--EventNotifier-->
+      <Reference ReferenceType="HasProperty">i=14587</Reference> <!--SelectedFields-->
+      <Reference ReferenceType="HasProperty">i=14588</Reference> <!--Filter-->
+      <Reference ReferenceType="HasComponent">i=15052</Reference> <!--ModifyFieldSelection-->
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=14509</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="i=14586" BrowseName="EventNotifier" ParentNodeId="i=14572" DataType="i=17">
+    <DisplayName>EventNotifier</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=14572</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=14587" BrowseName="SelectedFields" ParentNodeId="i=14572" DataType="i=601" ValueRank="1">
+    <DisplayName>SelectedFields</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=14572</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=14588" BrowseName="Filter" ParentNodeId="i=14572" DataType="i=586">
+    <DisplayName>Filter</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=14572</Reference>
+    </References>
+  </UAVariable>
+  <UAMethod NodeId="i=15052" BrowseName="ModifyFieldSelection" ParentNodeId="i=14572">
+    <DisplayName>ModifyFieldSelection</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=15053</Reference>
+      <Reference ReferenceType="HasProperty">i=15517</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=14572</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="i=15053" BrowseName="InputArguments" ParentNodeId="i=15052" DataType="i=296" ValueRank="1">
+    <DisplayName>InputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=15052</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>ConfigurationVersion</Name>
+              <DataType>
+                <Identifier>i=14593</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+              <Description p5:nil="true" xmlns:p5="http://www.w3.org/2001/XMLSchema-instance" />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>FieldNameAliases</Name>
+              <DataType>
+                <Identifier>i=12</Identifier>
+              </DataType>
+              <ValueRank>1</ValueRank>
+              <ArrayDimensions />
+              <Description p5:nil="true" xmlns:p5="http://www.w3.org/2001/XMLSchema-instance" />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>PromotedFields</Name>
+              <DataType>
+                <Identifier>i=1</Identifier>
+              </DataType>
+              <ValueRank>1</ValueRank>
+              <ArrayDimensions />
+              <Description p5:nil="true" xmlns:p5="http://www.w3.org/2001/XMLSchema-instance" />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>SelectedFields</Name>
+              <DataType>
+                <Identifier>i=601</Identifier>
+              </DataType>
+              <ValueRank>1</ValueRank>
+              <ArrayDimensions />
+              <Description p5:nil="true" xmlns:p5="http://www.w3.org/2001/XMLSchema-instance" />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="i=15517" BrowseName="OutputArguments" ParentNodeId="i=15052" DataType="i=296" ValueRank="1">
+    <DisplayName>OutputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=15052</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>NewConfigurationVersion</Name>
+              <DataType>
+                <Identifier>i=14593</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+              <Description p5:nil="true" xmlns:p5="http://www.w3.org/2001/XMLSchema-instance" />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+
+  <UAVariable NodeId="i=7605" BrowseName="EnumStrings" ParentNodeId="i=576" DataType="LocalizedText" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>EnumStrings</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=576</Reference>
+    </References>
+    <Value>
+      <ListOfLocalizedText xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>Equals</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>IsNull</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>GreaterThan</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>LessThan</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>GreaterThanOrEqual</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>LessThanOrEqual</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>Like</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>Not</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>Between</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>InList</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>And</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>Or</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>Cast</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>InView</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>OfType</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>RelatedTo</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>BitwiseAnd</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>BitwiseOr</Text>
+        </LocalizedText>
+      </ListOfLocalizedText>
+    </Value>
+  </UAVariable>
+  <UADataType NodeId="i=576" BrowseName="FilterOperator">
+    <DisplayName>FilterOperator</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=7605</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=29</Reference>
+    </References>
+    <Definition Name="FilterOperator">
+      <Field Name="Equals" Value="0" />
+      <Field Name="IsNull" Value="1" />
+      <Field Name="GreaterThan" Value="2" />
+      <Field Name="LessThan" Value="3" />
+      <Field Name="GreaterThanOrEqual" Value="4" />
+      <Field Name="LessThanOrEqual" Value="5" />
+      <Field Name="Like" Value="6" />
+      <Field Name="Not" Value="7" />
+      <Field Name="Between" Value="8" />
+      <Field Name="InList" Value="9" />
+      <Field Name="And" Value="10" />
+      <Field Name="Or" Value="11" />
+      <Field Name="Cast" Value="12" />
+      <Field Name="InView" Value="13" />
+      <Field Name="OfType" Value="14" />
+      <Field Name="RelatedTo" Value="15" />
+      <Field Name="BitwiseAnd" Value="16" />
+      <Field Name="BitwiseOr" Value="17" />
+    </Definition>
+  </UADataType>
+  <UADataType NodeId="i=583" BrowseName="ContentFilterElement">
+    <DisplayName>ContentFilterElement</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+    </References>
+    <Definition Name="ContentFilterElement">
+      <Field Name="FilterOperator" DataType="i=576" />
+      <Field Name="FilterOperands" DataType="i=22" ValueRank="1" />
+    </Definition>
+  </UADataType>
+  <UADataType NodeId="i=586" BrowseName="ContentFilter">
+    <DisplayName>ContentFilter</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+    </References>
+    <Definition Name="ContentFilter">
+      <Field Name="Elements" DataType="i=583" ValueRank="1" />
+    </Definition>
+  </UADataType>
+  <UADataType NodeId="i=537" BrowseName="RelativePathElement">
+    <DisplayName>RelativePathElement</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+    </References>
+    <Definition Name="RelativePathElement">
+      <Field Name="ReferenceTypeId" DataType="i=17" />
+      <Field Name="IsInverse" DataType="i=1" />
+      <Field Name="IncludeSubtypes" DataType="i=1" />
+      <Field Name="TargetName" DataType="i=20" />
+    </Definition>
+  </UADataType>
+  <UADataType NodeId="i=540" BrowseName="RelativePath">
+    <DisplayName>RelativePath</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+    </References>
+    <Definition Name="RelativePath">
+      <Field Name="Elements" DataType="i=537" ValueRank="1" />
+    </Definition>
+  </UADataType>
+  <UADataType NodeId="i=291" BrowseName="NumericRange">
+    <DisplayName>NumericRange</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=12</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=288" BrowseName="IntegerId">
+    <DisplayName>IntegerId</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=7</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=589" BrowseName="FilterOperand">
+    <DisplayName>FilterOperand</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="i=598" BrowseName="AttributeOperand">
+    <DisplayName>AttributeOperand</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=589</Reference>
+    </References>
+    <Definition Name="AttributeOperand">
+      <Field Name="NodeId" DataType="i=17" />
+      <Field Name="Alias" DataType="i=12" />
+      <Field Name="BrowsePath" DataType="i=540" />
+      <Field Name="AttributeId" DataType="i=288" />
+      <Field Name="IndexRange" DataType="i=291" />
+    </Definition>
+  </UADataType>
+  <UADataType NodeId="i=601" BrowseName="SimpleAttributeOperand">
+    <DisplayName>SimpleAttributeOperand</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=589</Reference>
+    </References>
+    <Definition Name="SimpleAttributeOperand">
+      <Field Name="TypeDefinitionId" DataType="i=17" />
+      <Field Name="BrowsePath" DataType="i=20" ValueRank="1" />
+      <Field Name="AttributeId" DataType="i=288" />
+      <Field Name="IndexRange" DataType="i=291" />
+    </Definition>
+  </UADataType>
+
   <UAObject NodeId="i=11508" BrowseName="OptionalPlaceholder" SymbolicName="ModellingRule_OptionalPlaceholder">
     <DisplayName>OptionalPlaceholder</DisplayName>
     <Description>Specifies that zero or more instances with the attributes and references of the instance declaration may appear when a type is instantiated.</Description>
