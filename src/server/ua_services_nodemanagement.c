@@ -1757,15 +1757,14 @@ findSetOfSingleRefChilds(UA_Server *server, UA_Session *session,
                          const UA_ReferenceTypeSet *hierarchRefsSet,
                          const UA_NodeHead *head, UA_Boolean removeTargetRefs,
                          RefTree *refTree) {
-    UA_UInt32 currentRefTreePosition = 0;
-
     UA_StatusCode addResult = RefTree_addNodeId(refTree, &head->nodeId, NULL);
-    if(addResult != UA_STATUSCODE_GOOD){
+    if(addResult != UA_STATUSCODE_GOOD)
         return addResult;
-    }
 
-    while (currentRefTreePosition != refTree->size){
-        const UA_Node *member = UA_NODESTORE_GET(server, &refTree->targets[currentRefTreePosition++].nodeId);
+    size_t currentRefTreePosition = 0;
+    while(currentRefTreePosition != refTree->size){
+        const UA_Node *member =
+            UA_NODESTORE_GET(server, &refTree->targets[currentRefTreePosition++].nodeId);
         if(!member)
             continue;
         processNodeLayer(server, session, refTree, hierarchRefsSet, &member->head);
@@ -1776,9 +1775,10 @@ findSetOfSingleRefChilds(UA_Server *server, UA_Session *session,
 
 static void
 deleteNodeTree(UA_Server *server, UA_Session *session,
-                    const UA_ReferenceTypeSet *hierarchRefsSet,
-                    const UA_NodeHead *head, UA_Boolean removeTargetRefs, RefTree *refTree) {
-    //Delete the nodes based on the RefTree entries
+               const UA_ReferenceTypeSet *hierarchRefsSet,
+               const UA_NodeHead *head, UA_Boolean removeTargetRefs,
+               RefTree *refTree) {
+    /* Delete the nodes based on the RefTree entries */
     for(size_t i = refTree->size; i > 0; --i) {
         const UA_Node *member = UA_NODESTORE_GET(server, &refTree->targets[i-1].nodeId);
         if(!member)
