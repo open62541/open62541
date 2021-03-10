@@ -167,13 +167,6 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
         }
     }
 
-    /* Regist (bind) the connection channel if it is not already registered */
-    if(!currentConnectionContext->isRegistered) {
-        retVal |= UA_PubSubConnection_regist(server, &currentConnectionContext->identifier);
-        if(retVal != UA_STATUSCODE_GOOD)
-            return retVal;
-    }
-
     //allocate memory for new WriterGroup
     UA_WriterGroup *newWriterGroup = (UA_WriterGroup *) UA_calloc(1, sizeof(UA_WriterGroup));
     if(!newWriterGroup)
