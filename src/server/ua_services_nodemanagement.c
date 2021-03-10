@@ -1856,11 +1856,14 @@ deleteNodeOperation(UA_Server *server, UA_Session *session, void *context,
      * which can be deleted beside the parent node */
     RefTree refTree;
     UA_StatusCode retval = RefTree_init(&refTree);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_NODESTORE_RELEASE(server, node);
         return;
+    }
     retval = findSetOfSingleRefChilds(server, session, &hierarchRefsSet, &node->head,
                              item->deleteTargetReferences, &refTree);
     if(retval != UA_STATUSCODE_GOOD){
+        UA_NODESTORE_RELEASE(server, node);
         UA_LOG_WARNING_SESSION(&server->config.logger, session,
                             "DeleteNode: Incomplete lookup of nodes to delete");
         return;
