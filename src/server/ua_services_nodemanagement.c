@@ -1666,17 +1666,16 @@ static void
 deconstructRefTree(UA_Server *server, UA_Session *session,
                    UA_ReferenceTypeSet *hierarchRefsSet, const UA_NodeHead *head,
                    RefTree *refTree) {
-    //Deconstruct the nodes based on the RefTree entries, parent nodes first
+    /* Deconstruct the nodes based on the RefTree entries, parent nodes first */
     for(size_t i = 0; i < refTree->size; i++) {
         const UA_Node *member = UA_NODESTORE_GET(server, &refTree->targets[i].nodeId);
         if(!member)
             continue;
-        UA_NODESTORE_RELEASE(server, member);
 
         /* Call the type-level destructor */
         void *context = member->head.context; /* No longer needed after this function */
         if(member->head.nodeClass == UA_NODECLASS_OBJECT ||
-            member->head.nodeClass == UA_NODECLASS_VARIABLE) {
+           member->head.nodeClass == UA_NODECLASS_VARIABLE) {
             const UA_Node *type = getNodeType(server, &member->head);
             if(type) {
                 const UA_NodeTypeLifecycle *lifecycle;
@@ -1705,9 +1704,12 @@ deconstructRefTree(UA_Server *server, UA_Session *session,
             UA_LOCK(server->serviceMutex);
         }
 
+        /* Release the node. Don't access the node context from here on. */
+        UA_NODESTORE_RELEASE(server, member);
+
         /* Set the constructed flag to false */
-        UA_Server_editNode(server, &server->adminSession, &member->head.nodeId,
-                           (UA_EditNodeCallback)setDeconstructedNode, context);
+        UA_Server_editNode(server, &server->adminSession, &refTree->targets[i].nodeId,
+                           (UA_EditNodeCallback)setDeconstructedNode, NULL);
     }
 }
 
