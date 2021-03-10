@@ -1757,20 +1757,23 @@ findSetOfSingleRefChilds(UA_Server *server, UA_Session *session,
                          const UA_ReferenceTypeSet *hierarchRefsSet,
                          const UA_NodeHead *head, UA_Boolean removeTargetRefs,
                          RefTree *refTree) {
-    UA_StatusCode addResult = RefTree_addNodeId(refTree, &head->nodeId, NULL);
-    if(addResult != UA_STATUSCODE_GOOD)
-        return addResult;
+    /* Add the node to delete */
+    UA_StatusCode res = RefTree_addNodeId(refTree, &head->nodeId, NULL);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
+    /* Find out which hierarchical children should also be deleted. We know
+     * there are no "external" ExpandedNodeId in the RefTree. */
     size_t currentRefTreePosition = 0;
-    while(currentRefTreePosition != refTree->size){
+    while(currentRefTreePosition != refTree->size) {
         const UA_Node *member =
             UA_NODESTORE_GET(server, &refTree->targets[currentRefTreePosition++].nodeId);
         if(!member)
             continue;
-        processNodeLayer(server, session, refTree, hierarchRefsSet, &member->head);
+        res |= processNodeLayer(server, session, refTree, hierarchRefsSet, &member->head);
         UA_NODESTORE_RELEASE(server, member);
     }
-    return UA_STATUSCODE_GOOD;
+    return res;
 }
 
 static void
