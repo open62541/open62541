@@ -138,7 +138,6 @@ function build_clang_analyzer {
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_DISCOVERY=ON \
-          -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
           -DUA_ENABLE_ENCRYPTION=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
@@ -147,5 +146,5 @@ function build_clang_analyzer {
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=OFF \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
           ..
-    scan-build-11 make ${MAKEOPTS}
+    scan-build-11 --status-bugs make ${MAKEOPTS}
 }

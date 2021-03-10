@@ -248,7 +248,7 @@ size_t
 UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage *p, UA_NetworkMessageOffsetBuffer *offsetBuffer,
                                  size_t currentOffset);
 
-void UA_DataSetMessage_free(const UA_DataSetMessage* p);
+void UA_DataSetMessage_clear(const UA_DataSetMessage* p);
 
 /**
  * NetworkMessage
