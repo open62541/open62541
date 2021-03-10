@@ -1671,8 +1671,7 @@ hasParentRef(const UA_NodeHead *head, const UA_ReferenceTypeSet *refSet,
 
 static void
 deconstructNodeSet(UA_Server *server, UA_Session *session,
-                   UA_ReferenceTypeSet *hierarchRefsSet, const UA_NodeHead *head,
-                   RefTree *refTree) {
+                   UA_ReferenceTypeSet *hierarchRefsSet, RefTree *refTree) {
     /* Deconstruct the nodes based on the RefTree entries, parent nodes first */
     for(size_t i = 0; i < refTree->size; i++) {
         const UA_Node *member = UA_NODESTORE_GET(server, &refTree->targets[i].nodeId);
@@ -1796,8 +1795,7 @@ buildDeleteNodeSet(UA_Server *server, UA_Session *session,
 static void
 deleteNodeSet(UA_Server *server, UA_Session *session,
               const UA_ReferenceTypeSet *hierarchRefsSet,
-              const UA_NodeHead *head, UA_Boolean removeTargetRefs,
-              RefTree *refTree) {
+              UA_Boolean removeTargetRefs, RefTree *refTree) {
     /* Delete the nodes based on the RefTree entries */
     for(size_t i = refTree->size; i > 0; --i) {
         const UA_Node *member = UA_NODESTORE_GET(server, &refTree->targets[i-1].nodeId);
@@ -1871,8 +1869,8 @@ deleteNodeOperation(UA_Server *server, UA_Session *session, void *context,
         return;
     }
 
-    deconstructNodeSet(server, session, &hierarchRefsSet, &node->head, &refTree);
-    deleteNodeSet(server, session, &hierarchRefsSet, &node->head,
+    deconstructNodeSet(server, session, &hierarchRefsSet, &refTree);
+    deleteNodeSet(server, session, &hierarchRefsSet,
                   item->deleteTargetReferences, &refTree);
     
     UA_NODESTORE_RELEASE(server, node);
