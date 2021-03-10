@@ -1852,21 +1852,25 @@ deleteNodeOperation(UA_Server *server, UA_Session *session, void *context,
      * nodes are always deleted. */
     UA_ReferenceTypeSet hierarchRefsSet;
     UA_NodeId hr = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
-    referenceTypeIndices(server, &hr, &hierarchRefsSet, true);
+    *result = referenceTypeIndices(server, &hr, &hierarchRefsSet, true);
+    if(*result != UA_STATUSCODE_GOOD)
+        return;
 
     /* The list of childs is needed for the deconstructing and deleting phase.
      * Within the processNodeLayer we generate a RefTree based set of childs
      * which can be deleted beside the parent node. */
     RefTree refTree;
-    UA_StatusCode retval = RefTree_init(&refTree);
-    if(retval != UA_STATUSCODE_GOOD)
+    *result = RefTree_init(&refTree);
+    if(*result != UA_STATUSCODE_GOOD)
         return;
-    retval = buildDeleteNodeSet(server, session, &hierarchRefsSet, &item->nodeId,
-                                item->deleteTargetReferences, &refTree);
-    if(retval != UA_STATUSCODE_GOOD) {
+    *result = buildDeleteNodeSet(server, session, &hierarchRefsSet, &item->nodeId,
+                                 item->deleteTargetReferences, &refTree);
+    if(*result != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_SESSION(&server->config.logger, session,
-                            "DeleteNode: Incomplete lookup of nodes to delete");
-        return;
+                               "DeleteNode: Incomplete lookup of nodes. "
+                               "Still deleting what we have.");
+        /* Continue, so the RefTree is cleaned up. Return the error message
+         * anyway. */
     }
 
     /* Deconstruct, then delete, then clean up the set */
