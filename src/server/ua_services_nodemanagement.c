@@ -1764,10 +1764,10 @@ autoDeleteChildren(UA_Server *server, UA_Session *session, RefTree *refTree,
 static UA_StatusCode
 buildDeleteNodeSet(UA_Server *server, UA_Session *session,
                    const UA_ReferenceTypeSet *hierarchRefsSet,
-                   const UA_NodeHead *head, UA_Boolean removeTargetRefs,
+                   const UA_NodeId *initial, UA_Boolean removeTargetRefs,
                    RefTree *refTree) {
     /* Add the initial node to delete */
-    UA_StatusCode res = RefTree_addNodeId(refTree, &head->nodeId, NULL);
+    UA_StatusCode res = RefTree_addNodeId(refTree, initial, NULL);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
@@ -1835,6 +1835,9 @@ deleteNodeOperation(UA_Server *server, UA_Session *session, void *context,
     /* TODO: Check if the information model consistency is violated */
     /* TODO: Check if the node is a mandatory child of a parent */
 
+    /* Relase the node. Don't access the pointer after this! */
+    UA_NODESTORE_RELEASE(server, node);
+
     /* A node can be referenced with hierarchical references from several
      * parents in the information model. (But not in a circular way.) The
      * hierarchical references are checked to see if a node can be deleted.
@@ -1849,24 +1852,20 @@ deleteNodeOperation(UA_Server *server, UA_Session *session, void *context,
      * which can be deleted beside the parent node. */
     RefTree refTree;
     UA_StatusCode retval = RefTree_init(&refTree);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_NODESTORE_RELEASE(server, node);
+    if(retval != UA_STATUSCODE_GOOD)
         return;
-    }
-    retval = buildDeleteNodeSet(server, session, &hierarchRefsSet, &node->head,
+    retval = buildDeleteNodeSet(server, session, &hierarchRefsSet, &item->nodeId,
                                 item->deleteTargetReferences, &refTree);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_NODESTORE_RELEASE(server, node);
         UA_LOG_WARNING_SESSION(&server->config.logger, session,
                             "DeleteNode: Incomplete lookup of nodes to delete");
         return;
     }
 
+    /* Deconstruct, then delete, then clean up the set */
     deconstructNodeSet(server, session, &hierarchRefsSet, &refTree);
     deleteNodeSet(server, session, &hierarchRefsSet,
                   item->deleteTargetReferences, &refTree);
-    
-    UA_NODESTORE_RELEASE(server, node);
     RefTree_clear(&refTree);
 }
 
