@@ -1718,36 +1718,42 @@ deconstructRefTree(UA_Server *server, UA_Session *session,
     }
 }
 
-/*
- * The processNodeLayer function searches all children's of the head node and adds the
- * children node to the RefTree if all incoming references sources are contained in the
- * RefTree (No external references to this node --> node can be deleted)
- */
+/* The processNodeLayer function searches all children's of the head node and
+ * adds the children node to the RefTree if all incoming references sources are
+ * contained in the RefTree (No external references to this node --> node can be
+ * deleted) */
 static UA_StatusCode
 processNodeLayer(UA_Server *server, UA_Session *session, RefTree *refTree,
-                       const UA_ReferenceTypeSet *hierarchRefsSet, const UA_NodeHead *head){
-
+                 const UA_ReferenceTypeSet *hierarchRefsSet, const UA_NodeHead *head){
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < head->referencesSize; ++i) {
+        /* Check if the ReferenceType is hierarchical */
         UA_NodeReferenceKind *refs = &head->references[i];
-        //check if the nodeID is hierarchical
         if(!UA_ReferenceTypeSet_contains(hierarchRefsSet, refs->referenceTypeIndex))
             continue;
+
+        /* Check if the references are forward (to a child) */
+        if(refs->isInverse)
+            continue;
+
+        /* Loop over the references */
         for(UA_ReferenceTarget *t = UA_NodeReferenceKind_firstTarget(refs);
             t; t = UA_NodeReferenceKind_nextTarget(refs, t)) {
+            /* References an external server? */
             if(!UA_ExpandedNodeId_isLocal(&t->targetId))
                continue;
+
+            /* Get the child */
             const UA_Node *child = UA_NODESTORE_GET(server, &t->targetId.nodeId);
             if(!child)
                 continue;
+
             /* Only delete child nodes that have no other parent */
-            if(!multipleHierarchicalRefs(&child->head, hierarchRefsSet, refTree)){
-                UA_Boolean contained;
-                UA_StatusCode addResult =
-                    RefTree_addNodeId(refTree, &child->head.nodeId, &contained);
-                if(addResult != UA_STATUSCODE_GOOD)
-                    return addResult;
-            }
+            if(!multipleHierarchicalRefs(&child->head, hierarchRefsSet, refTree))
+                res = RefTree_addNodeId(refTree, &child->head.nodeId, NULL);
             UA_NODESTORE_RELEASE(server, child);
+            if(res != UA_STATUSCODE_GOOD)
+                return res;
         }
     }
     return UA_STATUSCODE_GOOD;
@@ -1755,8 +1761,9 @@ processNodeLayer(UA_Server *server, UA_Session *session, RefTree *refTree,
 
 static UA_StatusCode
 findSetOfSingleRefChilds(UA_Server *server, UA_Session *session,
-                    const UA_ReferenceTypeSet *hierarchRefsSet,
-                    const UA_NodeHead *head, UA_Boolean removeTargetRefs, RefTree *refTree) {
+                         const UA_ReferenceTypeSet *hierarchRefsSet,
+                         const UA_NodeHead *head, UA_Boolean removeTargetRefs,
+                         RefTree *refTree) {
     UA_UInt32 currentRefTreePosition = 0;
 
     UA_StatusCode addResult = RefTree_addNodeId(refTree, &head->nodeId, NULL);
