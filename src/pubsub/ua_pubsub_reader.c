@@ -11,7 +11,6 @@
 #include <open62541/server_pubsub.h>
 #include <open62541/types_generated_encoding_binary.h>
 #include <time.h>
-#include <errno.h>
 
 #include "server/ua_server_internal.h"
 
@@ -192,10 +191,15 @@ UA_DataSetReader_generateDataSetMessage(UA_Server *server, UA_DataSetMessage *da
         dataSetMessage->header.picoSecondsIncluded = true;
         struct timespec tp;
         if(clock_gettime(CLOCK_MONOTONIC,&tp) == -1){
-            UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT,
-                    "clock_gettime failed.\n Errno msg: %s",strerror(errno));
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "clock_gettime failed.");
         } else {
-            dataSetMessage->header.picoSeconds = tp.tv_nsec * 100;
+            /* tp.tv_nsec is the rest of the current second since 01. January 1970 in nanoseconds
+             * -> tp.tv_nsec % 100 is the amount of nanoseconds which are not displayed
+             * in the 100s of nanoseconds resolution of the UA_DateTime timestamp
+             * -> multiply the result by 100 to get 10s of picosends
+             */
+            dataSetMessage->header.picoSeconds = (UA_UInt16) ((tp.tv_nsec % 100) * 100);
         }
     }
     /* TODO: Statuscode not supported yet */
