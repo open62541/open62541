@@ -72,8 +72,12 @@ static void receiveSingleMessageRT(UA_PubSubConnection *connection, UA_DataSetRe
         ck_abort_msg("Message buffer allocation failed!");
     }
 
-    UA_StatusCode retval =
-            connection->channel->receive(connection->channel, &buffer, NULL, 1000000);
+    if(!connection->channel) {
+        ck_abort_msg("No connection established");
+        return;
+    }
+
+    UA_StatusCode retval = connection->channel->receive(connection->channel, &buffer, NULL, 1000000);
     if(retval != UA_STATUSCODE_GOOD || buffer.length == 0) {
         buffer.length = 512;
         UA_ByteString_clear(&buffer);

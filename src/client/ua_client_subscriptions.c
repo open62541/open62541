@@ -23,8 +23,8 @@
 /*****************/
 
 static void
-UA_Client_MonitoredItem_remove(UA_Client *client, UA_Client_Subscription *sub,
-                               UA_Client_MonitoredItem *mon);
+MonitoredItem_delete(UA_Client *client, UA_Client_Subscription *sub,
+                     UA_Client_MonitoredItem *mon);
 
 static void
 __Subscriptions_create(UA_Client *client, UA_Client_Subscription *newSub,
@@ -145,13 +145,13 @@ __Subscriptions_modify_handler(UA_Client *client, void *data,
     CustomCallback *cc = (CustomCallback *)data;
     UA_Client_Subscription *sub =
         findSubscription(client, (UA_UInt32)(uintptr_t)cc->clientData);
-    if(!sub) {
+    if(sub) {
+        __Subscriptions_modify(client, sub, response);
+    } else {
         UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                     "No internal representation of subscription %" PRIu32,
                     (UA_UInt32)(uintptr_t)cc->clientData);
     }
-
-    __Subscriptions_modify(client, sub, response);
 
     if(cc->userCallback)
         cc->userCallback(client, cc->userData, requestId, response);
@@ -212,7 +212,7 @@ UA_Client_Subscription_deleteInternal(UA_Client *client,
     /* Remove the MonitoredItems */
     UA_Client_MonitoredItem *mon, *mon_tmp;
     LIST_FOREACH_SAFE(mon, &sub->monitoredItems, listEntry, mon_tmp)
-        UA_Client_MonitoredItem_remove(client, sub, mon);
+        MonitoredItem_delete(client, sub, mon);
 
     /* Call the delete callback */
     if(sub->deleteCallback)
@@ -350,9 +350,8 @@ UA_Client_Subscriptions_deleteSingle(UA_Client *client, UA_UInt32 subscriptionId
 /******************/
 
 static void
-UA_Client_MonitoredItem_remove(UA_Client *client, UA_Client_Subscription *sub,
-                               UA_Client_MonitoredItem *mon) {
-    // NOLINTNEXTLINE
+MonitoredItem_delete(UA_Client *client, UA_Client_Subscription *sub,
+                     UA_Client_MonitoredItem *mon) {
     LIST_REMOVE(mon, listEntry);
     if(mon->deleteCallback)
         mon->deleteCallback(client, sub->subscriptionId, sub->context,
@@ -436,8 +435,8 @@ __MonitoredItems_create(UA_Client *client,MonitoredItems_CreateData *data,
  cleanup:
     for(size_t i = 0; i < request->itemsToCreateSize; i++) {
         if(deleteCallbacks[i])
-            deleteCallbacks[i](client, sub->subscriptionId, sub->context,
-                               0, data->contexts[i]);
+            deleteCallbacks[i](client, data->request.subscriptionId,
+                               sub ? sub->context : NULL, 0, data->contexts[i]);
     }
 }
 
@@ -496,7 +495,6 @@ MonitoredItems_CreateData_prepare(UA_Client *client,
 
 cleanup:
     MonitoredItems_CreateData_clear(client, data);
-    UA_free(data);
     return retval;
 }
 
@@ -693,6 +691,10 @@ static void
 __MonitoredItems_delete(UA_Client *client, UA_Client_Subscription *sub,
                         const UA_DeleteMonitoredItemsRequest *request,
                         const UA_DeleteMonitoredItemsResponse *response) {
+#ifdef __clang_analyzer__
+    return;
+#endif
+
     /* Loop over deleted MonitoredItems */
     for(size_t i = 0; i < response->resultsSize; i++) {
         if(response->results[i] != UA_STATUSCODE_GOOD &&
@@ -704,7 +706,7 @@ __MonitoredItems_delete(UA_Client *client, UA_Client_Subscription *sub,
         UA_Client_MonitoredItem *mon;
         LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
             if(mon->monitoredItemId == request->monitoredItemIds[i]) {
-                UA_Client_MonitoredItem_remove(client, sub, mon);
+                MonitoredItem_delete(client, sub, mon);
                 break;
             }
         }

@@ -971,8 +971,8 @@ UA_NetworkMessage_clear(UA_NetworkMessage* p) {
             if(p->payloadHeaderEnabled)
                 count = p->payloadHeader.dataSetPayloadHeader.count;
             
-            for (size_t i = 0; i < count; i++)
-                UA_DataSetMessage_free(&(p->payload.dataSetPayload.dataSetMessages[i]));
+            for(size_t i = 0; i < count; i++)
+                UA_DataSetMessage_clear(&(p->payload.dataSetPayload.dataSetMessages[i]));
 
             UA_free(p->payload.dataSetPayload.dataSetMessages);
         }
@@ -1525,16 +1525,19 @@ UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage* p, UA_NetworkMessageOffsetBu
     return size;
 }
 
-void UA_DataSetMessage_free(const UA_DataSetMessage* p) {
+void
+UA_DataSetMessage_clear(const UA_DataSetMessage* p) {
     if(p->header.dataSetMessageType == UA_DATASETMESSAGE_DATAKEYFRAME) {
-        if(p->data.keyFrameData.dataSetFields != NULL){
-            UA_Array_delete(p->data.keyFrameData.dataSetFields, p->data.keyFrameData.fieldCount,
+        if(p->data.keyFrameData.dataSetFields != NULL) {
+            UA_Array_delete(p->data.keyFrameData.dataSetFields,
+                            p->data.keyFrameData.fieldCount,
                             &UA_TYPES[UA_TYPES_DATAVALUE]);
         }
 
         /* Json keys */
         if(p->data.keyFrameData.fieldNames != NULL){
-            UA_Array_delete(p->data.keyFrameData.fieldNames, p->data.keyFrameData.fieldCount,
+            UA_Array_delete(p->data.keyFrameData.fieldNames,
+                            p->data.keyFrameData.fieldCount,
                             &UA_TYPES[UA_TYPES_STRING]);
         }
     } else if(p->header.dataSetMessageType == UA_DATASETMESSAGE_DATADELTAFRAME) {

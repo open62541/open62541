@@ -147,33 +147,6 @@ isNodeInTree_singleRef(UA_Server *server, const UA_NodeId *leafNode,
     UA_ReferenceTypeSet reftypes = UA_REFTYPESET(relevantRefTypeIndex);
     return isNodeInTree(server, leafNode, nodeToFind, &reftypes);
 }
-
-/***********/
-/* RefTree */
-/***********/
-
-/* A RefTree is a sorted tree that ensures we consider each node just once
- * during a Browse. It holds a single array for both the NodeIds encountered
- * during recursive browsing and the entries for a tree-structure to check for
- * duplicates. Once the (recursive) browse has finished, the tree-structure part
- * can be simply cut away. A single realloc operation (with some pointer
- * repairing) can be used to increase the capacity of the RefTree.
- *
- * If an ExpandedNodeId is encountered, it has to be processed right away.
- * Remote ExpandedNodeId are not put into the tree, since it is not possible to
- * recurse into them anyway.
- *
- * The layout of the results array is as follows:
- *
- * | Targets [ExpandedNodeId] | Tree [RefEntry] | */
-
-#define UA_BROWSE_INITIAL_SIZE 16
-
-typedef struct RefEntry {
-    ZIP_ENTRY(RefEntry) zipfields;
-    const UA_ExpandedNodeId *target;
-    UA_UInt32 targetHash; /* Hash of the target nodeid */
-} RefEntry;
  
 static enum ZIP_CMP
 cmpTarget(const void *a, const void *b) {
@@ -186,32 +159,23 @@ cmpTarget(const void *a, const void *b) {
     return (enum ZIP_CMP)UA_ExpandedNodeId_order(aa->target, bb->target);
 }
 
-ZIP_HEAD(RefHead, RefEntry);
-typedef struct RefHead RefHead;
 ZIP_PROTOTYPE(RefHead, RefEntry, RefEntry)
 ZIP_IMPL(RefHead, RefEntry, zipfields, RefEntry, zipfields, cmpTarget)
 
-typedef struct {
-    UA_ExpandedNodeId *targets;
-    RefHead head;
-    size_t capacity; /* available space */
-    size_t size;     /* used space */
-} RefTree;
-
-static UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
+UA_StatusCode
 RefTree_init(RefTree *rt) {
     rt->size = 0;
     rt->capacity = 0;
     ZIP_INIT(&rt->head);
-    size_t space = (sizeof(UA_ExpandedNodeId) + sizeof(RefEntry)) * UA_BROWSE_INITIAL_SIZE;
+    size_t space = (sizeof(UA_ExpandedNodeId) + sizeof(RefEntry)) * UA_REFTREE_INITIAL_SIZE;
     rt->targets = (UA_ExpandedNodeId*)UA_malloc(space);
     if(!rt->targets)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    rt->capacity = UA_BROWSE_INITIAL_SIZE;
+    rt->capacity = UA_REFTREE_INITIAL_SIZE;
     return UA_STATUSCODE_GOOD;
 }
 
-static void
+void
 RefTree_clear(RefTree *rt) {
     for(size_t i = 0; i < rt->size; i++)
         UA_ExpandedNodeId_clear(&rt->targets[i]);
@@ -254,7 +218,7 @@ RefTree_double(RefTree *rt) {
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
+UA_StatusCode
 RefTree_add(RefTree *rt, const UA_ExpandedNodeId *target, UA_Boolean *duplicate) {
     /* Is the target already in the tree? */
     RefEntry dummy;
@@ -283,6 +247,32 @@ RefTree_add(RefTree *rt, const UA_ExpandedNodeId *target, UA_Boolean *duplicate)
     ZIP_INSERT(RefHead, &rt->head, re, ZIP_FFS32(UA_UInt32_random()));
     rt->size++;
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+RefTree_addNodeId(RefTree *rt, const UA_NodeId *target, UA_Boolean *duplicate) {
+    UA_ExpandedNodeId en;
+    en.nodeId = *target;
+    en.namespaceUri = UA_STRING_NULL;
+    en.serverIndex = 0;
+    return RefTree_add(rt, &en, duplicate);
+}
+
+UA_Boolean
+RefTree_contains(RefTree *rt, const UA_ExpandedNodeId *target) {
+    RefEntry dummy;
+    dummy.target = target;
+    dummy.targetHash = UA_ExpandedNodeId_hash(target);
+    return !!ZIP_FIND(RefHead, &rt->head, &dummy);
+}
+
+UA_Boolean
+RefTree_containsNodeId(RefTree *rt, const UA_NodeId *target) {
+    UA_ExpandedNodeId en;
+    en.nodeId = *target;
+    en.namespaceUri = UA_STRING_NULL;
+    en.serverIndex = 0;
+    return RefTree_contains(rt, &en);
 }
 
 /********************/
@@ -424,10 +414,10 @@ static UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
 RefResult_init(RefResult *rr) {
     memset(rr, 0, sizeof(RefResult));
     rr->descr = (UA_ReferenceDescription*)
-        UA_Array_new(UA_BROWSE_INITIAL_SIZE, &UA_TYPES[UA_TYPES_REFERENCEDESCRIPTION]);
+        UA_Array_new(UA_REFTREE_INITIAL_SIZE, &UA_TYPES[UA_TYPES_REFERENCEDESCRIPTION]);
     if(!rr->descr)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    rr->capacity = UA_BROWSE_INITIAL_SIZE;
+    rr->capacity = UA_REFTREE_INITIAL_SIZE;
     rr->size = 0;
     return UA_STATUSCODE_GOOD;
 }

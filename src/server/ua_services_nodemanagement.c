@@ -14,6 +14,7 @@
  *    Copyright 2017-2018 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Christian von Arnim
  *    Copyright 2017 (c) Henrik Norrman
+ *    Copyright 2021 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
 #include "ua_server_internal.h"
@@ -1337,16 +1338,6 @@ recursiveCallConstructors(UA_Server *server, UA_Session *session,
     return retval;
 }
 
-static void
-recursiveDeconstructNode(UA_Server *server, UA_Session *session,
-                         UA_ReferenceTypeSet *hierarchRefsSet,
-                         const UA_NodeHead *head);
-
-static void
-recursiveDeleteNode(UA_Server *server, UA_Session *session,
-                    const UA_ReferenceTypeSet *hierarchRefsSet,
-                    const UA_NodeHead *head, UA_Boolean removeTargetRefs);
-
 /* Add new ReferenceType to the subtypes bitfield */
 static UA_StatusCode
 addReferenceTypeSubtype(UA_Server *server, UA_Session *session,
@@ -1500,10 +1491,7 @@ AddNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId) 
     if(type)
         UA_NODESTORE_RELEASE(server, type);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_ReferenceTypeSet emptyRefs;
-        UA_ReferenceTypeSet_init(&emptyRefs);
-        recursiveDeconstructNode(server, session, &emptyRefs, head);
-        recursiveDeleteNode(server, session, &emptyRefs, head, true);
+        deleteNode(server, head->nodeId, true);
     }
     UA_NODESTORE_RELEASE(server, node);
     return retval;
@@ -1660,10 +1648,10 @@ removeIncomingReferences(UA_Server *server, UA_Session *session, const UA_NodeHe
     }
 }
 
-/* A node can only be deleted if it has at most one incoming hierarchical reference */
+/* A node is auto-deleted if all its hierarchical parents are being deleted */
 static UA_Boolean
-multipleHierarchicalRefs(const UA_NodeHead *head, const UA_ReferenceTypeSet *refSet) {
-    size_t incomingRefs = 0;
+hasParentRef(const UA_NodeHead *head, const UA_ReferenceTypeSet *refSet,
+             RefTree *refTree) {
     for(size_t i = 0; i < head->referencesSize; i++) {
         const UA_NodeReferenceKind *rk = &head->references[i];
         if(!rk->isInverse)
@@ -1674,128 +1662,150 @@ multipleHierarchicalRefs(const UA_NodeHead *head, const UA_ReferenceTypeSet *ref
             t; t = UA_NodeReferenceKind_nextTarget(rk, t)) {
             if(!UA_ExpandedNodeId_isLocal(&t->targetId))
                 continue;
-            incomingRefs += 1;
-            if(incomingRefs > 1)
+            if(!RefTree_containsNodeId(refTree, &t->targetId.nodeId))
                 return true;
         }
     }
     return false;
 }
 
-/* Recursively call the destructors of this node and all child nodes.
- * Deconstructs the parent before its children. */
 static void
-recursiveDeconstructNode(UA_Server *server, UA_Session *session,
-                         UA_ReferenceTypeSet *hierarchRefsSet, const UA_NodeHead *head) {
-    /* Was the constructor called for the node? */
-    if(!head->constructed)
-        return;
+deconstructNodeSet(UA_Server *server, UA_Session *session,
+                   UA_ReferenceTypeSet *hierarchRefsSet, RefTree *refTree) {
+    /* Deconstruct the nodes based on the RefTree entries, parent nodes first */
+    for(size_t i = 0; i < refTree->size; i++) {
+        const UA_Node *member = UA_NODESTORE_GET(server, &refTree->targets[i].nodeId);
+        if(!member)
+            continue;
 
-    /* Call the type-level destructor */
-    void *context = head->context; /* No longer needed after this function */
-    if(head->nodeClass == UA_NODECLASS_OBJECT ||
-       head->nodeClass == UA_NODECLASS_VARIABLE) {
-        const UA_Node *type = getNodeType(server, head);
-        if(type) {
+        /* Call the type-level destructor */
+        void *context = member->head.context; /* No longer needed after this function */
+        if(member->head.nodeClass == UA_NODECLASS_OBJECT ||
+           member->head.nodeClass == UA_NODECLASS_VARIABLE) {
+            const UA_Node *type = getNodeType(server, &member->head);
+            if(!type)
+                continue;
+
+            /* Get the lifecycle */
             const UA_NodeTypeLifecycle *lifecycle;
-            if(head->nodeClass == UA_NODECLASS_OBJECT)
+            if(member->head.nodeClass == UA_NODECLASS_OBJECT)
                 lifecycle = &type->objectTypeNode.lifecycle;
             else
                 lifecycle = &type->variableTypeNode.lifecycle;
+
+            /* Call the destructor */
             if(lifecycle->destructor) {
-                UA_UNLOCK(&server->serviceMutex);
+                UA_UNLOCK(server->serviceMutex);
                 lifecycle->destructor(server,
                                       &session->sessionId, session->sessionHandle,
                                       &type->head.nodeId, type->head.context,
-                                      &head->nodeId, &context);
-                UA_LOCK(&server->serviceMutex);
+                                      &member->head.nodeId, &context);
+                UA_LOCK(server->serviceMutex);
             }
+
+            /* Release the type node */
             UA_NODESTORE_RELEASE(server, type);
         }
+
+        /* Call the global destructor */
+        if(server->config.nodeLifecycle.destructor) {
+            UA_UNLOCK(server->serviceMutex);
+            server->config.nodeLifecycle.destructor(server, &session->sessionId,
+                                                    session->sessionHandle,
+                                                    &member->head.nodeId, context);
+            UA_LOCK(server->serviceMutex);
+        }
+
+        /* Release the node. Don't access the node context from here on. */
+        UA_NODESTORE_RELEASE(server, member);
+
+        /* Set the constructed flag to false */
+        UA_Server_editNode(server, &server->adminSession, &refTree->targets[i].nodeId,
+                           (UA_EditNodeCallback)setDeconstructedNode, NULL);
     }
+}
 
-    /* Call the global destructor */
-    if(server->config.nodeLifecycle.destructor) {
-        UA_UNLOCK(&server->serviceMutex);
-        server->config.nodeLifecycle.destructor(server, &session->sessionId,
-                                                session->sessionHandle,
-                                                &head->nodeId, context);
-        UA_LOCK(&server->serviceMutex);
-    }
-
-    /* Set the constructed flag to false */
-    UA_Server_editNode(server, &server->adminSession, &head->nodeId,
-                       (UA_EditNodeCallback)setDeconstructedNode, context);
-
-    /* Browse to get all children of the node */
-    UA_BrowseDescription bd;
-    UA_BrowseDescription_init(&bd);
-    bd.nodeId = head->nodeId;
-    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_AGGREGATES);
-    bd.includeSubtypes = true;
-    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
-
-    UA_BrowseResult br;
-    UA_BrowseResult_init(&br);
-    UA_UInt32 maxrefs = 0;
-    Operation_Browse(server, session, &maxrefs, &bd, &br);
-    if(br.statusCode != UA_STATUSCODE_GOOD)
-        return;
-
-    /* Deconstruct every child node that has not other parent */
-    for(size_t i = 0; i < br.referencesSize; ++i) {
-        UA_ReferenceDescription *rd = &br.references[i];
-        const UA_Node *child = UA_NODESTORE_GET(server, &rd->nodeId.nodeId);
-        if(!child)
+/* The processNodeLayer function searches all children's of the head node and
+ * adds the children node to the RefTree if all incoming references sources are
+ * contained in the RefTree (No external references to this node --> node can be
+ * deleted) */
+static UA_StatusCode
+autoDeleteChildren(UA_Server *server, UA_Session *session, RefTree *refTree,
+                   const UA_ReferenceTypeSet *hierarchRefsSet, const UA_NodeHead *head){
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    for(size_t i = 0; i < head->referencesSize; ++i) {
+        /* Check if the ReferenceType is hierarchical */
+        UA_NodeReferenceKind *refs = &head->references[i];
+        if(!UA_ReferenceTypeSet_contains(hierarchRefsSet, refs->referenceTypeIndex))
             continue;
-        if(!multipleHierarchicalRefs(&child->head, hierarchRefsSet))
-            recursiveDeconstructNode(server, session, hierarchRefsSet, &child->head);
-        UA_NODESTORE_RELEASE(server, child);
-    }
 
-    UA_BrowseResult_clear(&br);
+        /* Check if the references are forward (to a child) */
+        if(refs->isInverse)
+            continue;
+
+        /* Loop over the references */
+        for(UA_ReferenceTarget *t = UA_NodeReferenceKind_firstTarget(refs);
+            t; t = UA_NodeReferenceKind_nextTarget(refs, t)) {
+            /* References an external server? */
+            if(!UA_ExpandedNodeId_isLocal(&t->targetId))
+               continue;
+
+            /* Get the child */
+            const UA_Node *child = UA_NODESTORE_GET(server, &t->targetId.nodeId);
+            if(!child)
+                continue;
+
+            /* Only delete child nodes that have no other parent */
+            if(!hasParentRef(&child->head, hierarchRefsSet, refTree))
+                res = RefTree_addNodeId(refTree, &child->head.nodeId, NULL);
+            UA_NODESTORE_RELEASE(server, child);
+            if(res != UA_STATUSCODE_GOOD)
+                return res;
+        }
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Build up an ordered set (tree) of all nodes that can be deleted. Step through
+ * the ordered set in order to avoid recursion. */
+static UA_StatusCode
+buildDeleteNodeSet(UA_Server *server, UA_Session *session,
+                   const UA_ReferenceTypeSet *hierarchRefsSet,
+                   const UA_NodeId *initial, UA_Boolean removeTargetRefs,
+                   RefTree *refTree) {
+    /* Add the initial node to delete */
+    UA_StatusCode res = RefTree_addNodeId(refTree, initial, NULL);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* Find out which hierarchical children should also be deleted. We know
+     * there are no "external" ExpandedNodeId in the RefTree. */
+    size_t pos = 0;
+    while(pos < refTree->size) {
+        const UA_Node *member = UA_NODESTORE_GET(server, &refTree->targets[pos].nodeId);
+        pos++;
+        if(!member)
+            continue;
+        res |= autoDeleteChildren(server, session, refTree, hierarchRefsSet, &member->head);
+        UA_NODESTORE_RELEASE(server, member);
+    }
+    return res;
 }
 
 static void
-recursiveDeleteNode(UA_Server *server, UA_Session *session,
-                    const UA_ReferenceTypeSet *hierarchRefsSet,
-                    const UA_NodeHead *head, UA_Boolean removeTargetRefs) {
-    /* Browse to get all children of the node */
-    UA_BrowseDescription bd;
-    UA_BrowseDescription_init(&bd);
-    bd.nodeId = head->nodeId;
-    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_AGGREGATES);
-    bd.includeSubtypes = true;
-    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
-
-    UA_BrowseResult br;
-    UA_BrowseResult_init(&br);
-    UA_UInt32 maxrefs = 0;
-    Operation_Browse(server, session, &maxrefs, &bd, &br);
-    if(br.statusCode != UA_STATUSCODE_GOOD)
-        return;
-
-    /* Remove every child that has no other parent */
-    for(size_t i = 0; i < br.referencesSize; ++i) {
-        UA_ReferenceDescription *rd = &br.references[i];
-        /* Check for self-reference to avoid endless loop */
-        if(UA_NodeId_equal(&head->nodeId, &rd->nodeId.nodeId))
+deleteNodeSet(UA_Server *server, UA_Session *session,
+              const UA_ReferenceTypeSet *hierarchRefsSet,
+              UA_Boolean removeTargetRefs, RefTree *refTree) {
+    /* Delete the nodes based on the RefTree entries */
+    for(size_t i = refTree->size; i > 0; --i) {
+        const UA_Node *member = UA_NODESTORE_GET(server, &refTree->targets[i-1].nodeId);
+        if(!member)
             continue;
-        const UA_Node *child = UA_NODESTORE_GET(server, &rd->nodeId.nodeId);
-        if(!child)
-            continue;
-        /* Only delete child nodes that have no other parent */
-        if(!multipleHierarchicalRefs(&child->head, hierarchRefsSet))
-            recursiveDeleteNode(server, session, hierarchRefsSet, &child->head, true);
-        UA_NODESTORE_RELEASE(server, child);
+        UA_NODESTORE_RELEASE(server, member);
+        if(removeTargetRefs)
+            removeIncomingReferences(server, session, &member->head);
+        UA_NODESTORE_REMOVE(server, &member->head.nodeId);
     }
-
-    UA_BrowseResult_clear(&br);
-
-    if(removeTargetRefs)
-        removeIncomingReferences(server, session, head);
-
-    UA_NODESTORE_REMOVE(server, &head->nodeId);
 }
 
 static void
@@ -1832,6 +1842,9 @@ deleteNodeOperation(UA_Server *server, UA_Session *session, void *context,
     /* TODO: Check if the information model consistency is violated */
     /* TODO: Check if the node is a mandatory child of a parent */
 
+    /* Relase the node. Don't access the pointer after this! */
+    UA_NODESTORE_RELEASE(server, node);
+
     /* A node can be referenced with hierarchical references from several
      * parents in the information model. (But not in a circular way.) The
      * hierarchical references are checked to see if a node can be deleted.
@@ -1839,13 +1852,32 @@ deleteNodeOperation(UA_Server *server, UA_Session *session, void *context,
      * nodes are always deleted. */
     UA_ReferenceTypeSet hierarchRefsSet;
     UA_NodeId hr = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
-    referenceTypeIndices(server, &hr, &hierarchRefsSet, true);
+    *result = referenceTypeIndices(server, &hr, &hierarchRefsSet, true);
+    if(*result != UA_STATUSCODE_GOOD)
+        return;
 
-    recursiveDeconstructNode(server, session, &hierarchRefsSet, &node->head);
-    recursiveDeleteNode(server, session, &hierarchRefsSet, &node->head,
-                        item->deleteTargetReferences);
-    
-    UA_NODESTORE_RELEASE(server, node);
+    /* The list of childs is needed for the deconstructing and deleting phase.
+     * Within the processNodeLayer we generate a RefTree based set of childs
+     * which can be deleted beside the parent node. */
+    RefTree refTree;
+    *result = RefTree_init(&refTree);
+    if(*result != UA_STATUSCODE_GOOD)
+        return;
+    *result = buildDeleteNodeSet(server, session, &hierarchRefsSet, &item->nodeId,
+                                 item->deleteTargetReferences, &refTree);
+    if(*result != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING_SESSION(&server->config.logger, session,
+                               "DeleteNode: Incomplete lookup of nodes. "
+                               "Still deleting what we have.");
+        /* Continue, so the RefTree is cleaned up. Return the error message
+         * anyway. */
+    }
+
+    /* Deconstruct, then delete, then clean up the set */
+    deconstructNodeSet(server, session, &hierarchRefsSet, &refTree);
+    deleteNodeSet(server, session, &hierarchRefsSet,
+                  item->deleteTargetReferences, &refTree);
+    RefTree_clear(&refTree);
 }
 
 void

@@ -61,10 +61,19 @@ static void teardown(void) {
     UA_Server_delete(server);
 }
 
-static void receiveSingleMessage(UA_ByteString buffer, UA_PubSubConnection *connection, UA_NetworkMessage *networkMessage) {
-    if (UA_ByteString_allocBuffer(&buffer, 512) != UA_STATUSCODE_GOOD) {
+static void
+receiveSingleMessage(UA_ByteString buffer, UA_PubSubConnection *connection,
+                     UA_NetworkMessage *networkMessage) {
+    if(UA_ByteString_allocBuffer(&buffer, 512) != UA_STATUSCODE_GOOD) {
         ck_abort_msg("Message buffer allocation failed!");
+        return;
     }
+
+    if(!connection->channel) {
+        ck_abort_msg("No connection established");
+        return;
+    }
+
     UA_StatusCode retval =
         connection->channel->receive(connection->channel, &buffer, NULL, 1000000);
     if(retval != UA_STATUSCODE_GOOD || buffer.length == 0) {

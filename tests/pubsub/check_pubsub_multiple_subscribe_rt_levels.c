@@ -65,7 +65,8 @@ static void teardown(void) {
     UA_Server_delete(server);
 }
 
-static void receiveMultipleMessageRT(UA_PubSubConnection *connection, UA_DataSetReader *dataSetReader) {
+static void
+receiveMultipleMessageRT(UA_PubSubConnection *connection, UA_DataSetReader *dataSetReader) {
     UA_ByteString buffer;
     if (UA_ByteString_allocBuffer(&buffer, 4096) != UA_STATUSCODE_GOOD) {
         ck_abort_msg("Message buffer allocation failed!");
@@ -159,6 +160,7 @@ START_TEST(SubscribeMultipleMessagesRT) {
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     ck_assert(addMinimalPubSubConfiguration() == UA_STATUSCODE_GOOD);
     UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, connectionIdentifier);
+    ck_assert(connection);
     UA_WriterGroupConfig writerGroupConfig;
     memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
     writerGroupConfig.name = UA_STRING("Demo WriterGroup");
@@ -356,6 +358,7 @@ START_TEST(SubscribeMultipleMessagesWithoutRT) {
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     ck_assert(addMinimalPubSubConfiguration() == UA_STATUSCODE_GOOD);
     UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, connectionIdentifier);
+    ck_assert(connection);
     UA_WriterGroupConfig writerGroupConfig;
     memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
     writerGroupConfig.name = UA_STRING("Demo WriterGroup");
