@@ -22,10 +22,10 @@
  *
  * Another additional feature called the Blocking Socket is employed in the Subscriber thread. This feature is optional and can be
  * enabled or disabled when running application by using command line argument "-enableBlockingSocket". When using Blocking Socket,
- * the Publisher and Subscriber threads are made to run in different cores, and the Subscriber thread remains in "blocking mode" until
- * a message is received, in other words the timeout is overwritten and the thread continuously waits for the message.
- * Once the message is received, the Subscriber thread updates the value in the Information Model and again waits for the next message.
- * This process is repeated until the application is terminated.
+ * the Subscriber thread remains in "blocking mode" until a message is received from every wake up time of the thread. In other words,
+ * the timeout is overwritten and the thread continuously waits for the message from every wake up time of the thread.
+ * Once the message is received, the Subscriber thread updates the value in the Information Model, sleeps up to wake up time and
+ * again waits for the next message. This process is repeated until the application is terminated.
  *
  * To ensure realtime capabilities, Publisher uses ETF(Earliest Tx-time First) to publish information at the calculated tranmission
  * time over Ethernet. Subscriber can be used with or without XDP(Xpress Data Processing) over Ethernet
@@ -252,6 +252,9 @@ struct timespec     dataReceiveTime;
 /* Thread for user application*/
 pthread_t           userApplicationThreadID;
 
+/* Base time handling for the threads */
+struct timespec     threadBaseTime;
+UA_Boolean          baseTimeCalculated = UA_FALSE;
 
 typedef struct {
 UA_Server*                   ServerRun;
@@ -916,20 +919,24 @@ void *publisherETF(void *arg) {
     UA_UInt64         interval_ns;
     UA_UInt64         transmission_time;
 
-    /* Initialise value for nextnanosleeptime timespec */
-    nextnanosleeptime.tv_nsec                      = 0;
-
     threadArg *threadArgumentsPublisher = (threadArg *)arg;
     server                              = threadArgumentsPublisher->server;
     pubCallback                         = threadArgumentsPublisher->callback;
     currentWriterGroup                  = (UA_WriterGroup *)threadArgumentsPublisher->data;
     interval_ns                         = (UA_UInt64)(threadArgumentsPublisher->interval_ms * MILLI_SECONDS);
+    /* Verify whether baseTime has already been calculated */
+    if(!baseTimeCalculated) {
+        /* Get current time and compute the next nanosleeptime */
+        clock_gettime(CLOCKID, &threadBaseTime);
+        /* Variable to nano Sleep until SECONDS_SLEEP second boundary */
+        threadBaseTime.tv_sec  += SECONDS_SLEEP;
+        threadBaseTime.tv_nsec  = 0;
+        baseTimeCalculated = UA_TRUE;
+    }
 
-    /* Get current time and compute the next nanosleeptime */
-    clock_gettime(CLOCKID, &nextnanosleeptime);
-    /* Variable to nano Sleep until 1ms before a 1 second boundary */
-    nextnanosleeptime.tv_sec                      += SECONDS_SLEEP;
-    nextnanosleeptime.tv_nsec                      = (__syscall_slong_t)(cycleTimeInMsec * MILLI_SECONDS * pubWakeupPercentage);
+    nextnanosleeptime.tv_sec  = threadBaseTime.tv_sec;
+    /* Modify the nanosecond field to wake up at the pubWakeUp percentage */
+    nextnanosleeptime.tv_nsec = threadBaseTime.tv_nsec + (__syscall_slong_t)(cycleTimeInMsec * MILLI_SECONDS * pubWakeupPercentage);
     nanoSecondFieldConversion(&nextnanosleeptime);
 
     /* Define Ethernet ETF transport settings */
@@ -946,14 +953,19 @@ void *publisherETF(void *arg) {
     UA_UInt64 roundOffCycleTime                  = (UA_UInt64)((cycleTimeInMsec * MILLI_SECONDS) - (cycleTimeInMsec * MILLI_SECONDS * pubWakeupPercentage));
 
     while (*runningPub) {
+        /* The Publisher threads wakes up at the configured publisher wake up percentage (60%) of each cycle */
         clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptime, NULL);
+        /* Whenever Ctrl + C pressed, publish running boolean as false to stop the subscriber before terminating the application */
         if (signalTerm == UA_TRUE)
             *runningPub = UA_FALSE;
 
-        transmission_time                              = ((UA_UInt64)nextnanosleeptime.tv_sec * SECONDS + (UA_UInt64)nextnanosleeptime.tv_nsec) + roundOffCycleTime + (UA_UInt64)(qbvOffset * 1000);
+        /* Calculation of transmission time using the configured qbv offset by the user - Will be handled by publishingOffset in the future */
+        transmission_time = ((UA_UInt64)nextnanosleeptime.tv_sec * SECONDS + (UA_UInt64)nextnanosleeptime.tv_nsec) + roundOffCycleTime + (UA_UInt64)(qbvOffset * 1000);
         ethernettransportSettings.transmission_time = transmission_time;
+        /* Publish the data using the pubcallback - UA_WriterGroup_publishCallback() */
         pubCallback(server, currentWriterGroup);
-        nextnanosleeptime.tv_nsec                     += (__syscall_slong_t)interval_ns;
+        /* Calculation of the next wake up time by adding the interval with the previous wake up time */
+        nextnanosleeptime.tv_nsec += (__syscall_slong_t)interval_ns;
         nanoSecondFieldConversion(&nextnanosleeptime);
     }
 
@@ -983,32 +995,37 @@ void *subscriber(void *arg) {
     subCallback        = threadArgumentsSubscriber->callback;
     currentReaderGroup = threadArgumentsSubscriber->data;
     subInterval_ns     = (UA_UInt64)(threadArgumentsSubscriber->interval_ms * MILLI_SECONDS);
+    /* Verify whether baseTime has already been calculated */
+    if(!baseTimeCalculated) {
+        /* Get current time and compute the next nanosleeptime */
+        clock_gettime(CLOCKID, &threadBaseTime);
+        /* Variable to nano Sleep until SECONDS_SLEEP second boundary */
+        threadBaseTime.tv_sec  += SECONDS_SLEEP;
+        threadBaseTime.tv_nsec  = 0;
+        baseTimeCalculated = UA_TRUE;
+    }
 
-    /* Get current time and compute the next nanosleeptime */
-    clock_gettime(CLOCKID, &nextnanosleeptimeSub);
-    /* Variable to nano Sleep until 1ms before a 1 second boundary */
-    nextnanosleeptimeSub.tv_sec         += SECONDS_SLEEP;
-    nextnanosleeptimeSub.tv_nsec         = (__syscall_slong_t)subWakeupPercentage;
+    nextnanosleeptimeSub.tv_sec  = threadBaseTime.tv_sec;
+    /* Modify the nanosecond field to wake up at the subWakeUp percentage */
+    nextnanosleeptimeSub.tv_nsec = threadBaseTime.tv_nsec + (__syscall_slong_t)(cycleTimeInMsec * MILLI_SECONDS * subWakeupPercentage);
     nanoSecondFieldConversion(&nextnanosleeptimeSub);
     while (*runningSub) {
-        /* When blocking socket is disabled, the Subscriber threads wakes up at the start of each cycle */
-        if (enableBlockingSocket != UA_TRUE)
-            clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptimeSub, NULL);
-
-        /* Read subscribed data from the SubscriberCounter variable */
+        /* The Subscriber threads wakes up at the configured subscriber wake up percentage (0%) of each cycle */
+        clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptimeSub, NULL);
+        /* Receive and process the incoming data using the subcallback - UA_ReaderGroup_subscribeCallback() */
         subCallback(server, currentReaderGroup);
-        if (enableBlockingSocket != UA_TRUE) {
-            nextnanosleeptimeSub.tv_nsec += (__syscall_slong_t)subInterval_ns;
-            nanoSecondFieldConversion(&nextnanosleeptimeSub);
-        }
+        /* Calculation of the next wake up time by adding the interval with the previous wake up time */
+        nextnanosleeptimeSub.tv_nsec += (__syscall_slong_t)subInterval_ns;
+        nanoSecondFieldConversion(&nextnanosleeptimeSub);
 
+        /* Whenever Ctrl + C pressed, modify the runningSub boolean to false to end this while loop */
         if (signalTerm == UA_TRUE)
             *runningSub = UA_FALSE;
     }
 
     UA_free(threadArgumentsSubscriber);
     /* While ctrl+c is provided in publisher side then loopback application
-     * need to be closed by after sending *running=0 for subscriber T8 */
+     * need to be closed by after sending *running=0 for subscriber T4 */
     if (*runningSub == UA_FALSE)
         signalTerm = UA_TRUE;
 
@@ -1029,11 +1046,19 @@ void *subscriber(void *arg) {
 void *userApplicationPubSub(void *arg) {
     UA_UInt64  repeatedCounterValue = 10;
     struct timespec nextnanosleeptimeUserApplication;
-    /* Get current time and compute the next nanosleeptime */
-    clock_gettime(CLOCKID, &nextnanosleeptimeUserApplication);
-    /* Variable to nano Sleep until 1ms before a 1 second boundary */
-    nextnanosleeptimeUserApplication.tv_sec                      += SECONDS_SLEEP;
-    nextnanosleeptimeUserApplication.tv_nsec                      = (__syscall_slong_t)(cycleTimeInMsec * MILLI_SECONDS * userAppWakeupPercentage);
+    /* Verify whether baseTime has already been calculated */
+    if(!baseTimeCalculated) {
+        /* Get current time and compute the next nanosleeptime */
+        clock_gettime(CLOCKID, &threadBaseTime);
+        /* Variable to nano Sleep until SECONDS_SLEEP second boundary */
+        threadBaseTime.tv_sec  += SECONDS_SLEEP;
+        threadBaseTime.tv_nsec  = 0;
+        baseTimeCalculated = UA_TRUE;
+    }
+
+    nextnanosleeptimeUserApplication.tv_sec  = threadBaseTime.tv_sec;
+    /* Modify the nanosecond field to wake up at the userAppWakeUp percentage */
+    nextnanosleeptimeUserApplication.tv_nsec = threadBaseTime.tv_nsec + (__syscall_slong_t)(cycleTimeInMsec * MILLI_SECONDS * userAppWakeupPercentage);
     nanoSecondFieldConversion(&nextnanosleeptimeUserApplication);
     *pubCounterData      = 0;
     for (UA_Int32 iterator = 0; iterator <  REPEATED_NODECOUNTS; iterator++)
@@ -1042,19 +1067,29 @@ void *userApplicationPubSub(void *arg) {
     }
 
     while (*runningPub || *runningSub) {
+        /* The User application threads wakes up at the configured userApp wake up percentage (30%) of each cycle */
         clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptimeUserApplication, NULL);
 #if defined(PUBLISHER)
+        /* Increment the counter data and repeated counter data for the next cycle publish */
         *pubCounterData      = *pubCounterData + 1;
         for (UA_Int32 iterator = 0; iterator <  REPEATED_NODECOUNTS; iterator++)
             *repeatedCounterData[iterator] = *repeatedCounterData[iterator] + 1;
 
+        /* Get the time - T1, time where the counter data and repeated counter data gets incremented.
+         * As this application uses FPM, we do not require explicit call of UA_Server_write() to
+         * write the counter values to the Information model. Hence, we take publish T1 time here */
         clock_gettime(CLOCKID, &dataModificationTime);
 #endif
 
 #if defined(SUBSCRIBER)
+        /* Get the time - T8, time where subscribed varibles are read from the Information model.
+         * At this point, the packet will be already subscribed and written into the
+         * Information model. As this application uses FPM, we do not require explicit call of UA_Server_read() to
+         * read the subscribed value from the Information model. Hence, we take subscribed T8 time here */
         clock_gettime(CLOCKID, &dataReceiveTime);
 #endif
 
+        /* Update the T1, T8 time with the counter data in the user defined publisher and subscriber arrays */
         if (enableCsvLog || enableLatencyCsvLog || consolePrint) {
 #if defined(PUBLISHER)
             updateMeasurementsPublisher(dataModificationTime, *pubCounterData);
@@ -1066,6 +1101,7 @@ void *userApplicationPubSub(void *arg) {
 #endif
         }
 
+        /* Calculation of the next wake up time by adding the interval with the previous wake up time */
         nextnanosleeptimeUserApplication.tv_nsec += (__syscall_slong_t)(cycleTimeInMsec * MILLI_SECONDS);
         nanoSecondFieldConversion(&nextnanosleeptimeUserApplication);
     }
@@ -1513,9 +1549,6 @@ int main(int argc, char **argv) {
             usage(progname);
             return -1;
         }
-
-        if (pubCore == subCore)
-            pubCore = 3;
     }
 
     if (xdpFlag == XDP_FLAGS_DRV_MODE || xdpBindFlag == XDP_ZEROCOPY) {
