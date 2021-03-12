@@ -191,6 +191,7 @@ setDefaultConfig(UA_ServerConfig *conf) {
     /* conf->nodeLifecycle.destructor = NULL; */
     /* conf->nodeLifecycle.createOptionalChild = NULL; */
     /* conf->nodeLifecycle.generateChildNodeId = NULL; */
+    conf->modellingRulesOnInstances = UA_TRUE;
 
     /* Limits for SecureChannels */
     conf->maxSecureChannels = 40;

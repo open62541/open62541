@@ -13,6 +13,7 @@
  *    Copyright 2017 (c) frax2222
  *    Copyright 2017-2018 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Christian von Arnim
+ *    Copyright 2021 (c) Christian von Arnim, ISW University of Stuttgart  (for VDW and umati)
  *    Copyright 2017 (c) Henrik Norrman
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  */
@@ -630,9 +631,20 @@ copyChild(UA_Server *server, UA_Session *session,
          * addnode_finish. That way, we can call addnode_finish also on children that were
          * manually added by the user during addnode_begin and addnode_finish. */
         /* For now we keep all the modelling rule references and delete all others */
-        UA_ReferenceTypeSet reftypes_modellingrule =
-            UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASMODELLINGRULE);
-        UA_Node_deleteReferencesSubset(node, &reftypes_modellingrule);
+        const UA_NodeId nodeId_typesFolder= UA_NODEID_NUMERIC(0, UA_NS0ID_TYPESFOLDER);
+        const UA_ReferenceTypeSet reftypes_aggregates = 
+            UA_REFTYPESET(UA_REFERENCETYPEINDEX_AGGREGATES);
+        UA_ReferenceTypeSet reftypes_skipped;
+        /* Check if the hasModellingRule-reference is required (configured or node in an 
+            instance declaration) */
+        if(server->config.modellingRulesOnInstances ||
+         isNodeInTree(server, destinationNodeId, &nodeId_typesFolder, &reftypes_aggregates)) {
+            reftypes_skipped =
+                UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASMODELLINGRULE);
+        } else {
+            UA_ReferenceTypeSet_init(&reftypes_skipped);
+        }
+        UA_Node_deleteReferencesSubset(node, &reftypes_skipped);
 
         /* Add the node to the nodestore */
         UA_NodeId newNodeId;
