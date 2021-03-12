@@ -150,6 +150,16 @@ struct UA_ServerConfig {
     /* Node Lifecycle callbacks */
     UA_GlobalNodeLifecycle nodeLifecycle;
 
+    /** Copy the HasModellingRule reference in instances from the type
+     * definition in UA_Server_addObjectNode and UA_Server_addVariableNode.
+     * Part 3 - 6.4.4
+     * https://reference.opcfoundation.org/v104/Core/docs/Part3/6.4.4/#6.4.4.4
+     *   [...] it is not required that newly created or referenced instances
+     *   based on InstanceDeclarations have a ModellingRule, however, it is
+     *   allowed that they have any ModellingRule independent of the
+     *   ModellingRule of their InstanceDeclaration */
+    UA_Boolean modellingRulesOnInstances;
+
     /**
      * .. note:: See the section for :ref:`node lifecycle
      *    handling<node-lifecycle>`. */
