@@ -1014,7 +1014,6 @@ UA_Server_initNS0(UA_Server *server) {
     UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_DICTIONARIES), true);
     UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_ESTIMATEDRETURNTIME), true);
     UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_LOCALTIME), true);
-    UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACES), true);
     UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_REQUESTSERVERSTATECHANGE), true);
     UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_RESENDDATA), true);
     UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION), true);
