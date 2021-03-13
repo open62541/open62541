@@ -39,15 +39,21 @@ cmpId(const UA_UInt64 *a, const UA_UInt64 *b) {
 }
 
 static UA_DateTime
-calculateNextTime_withPastBaseTime(UA_DateTime currentTime, UA_DateTime baseTime,
-                                   UA_DateTime interval) {
-    UA_DateTime timeToAdd;
-    /* Base time is always lesser than the current time. Take the difference between current and base time */
+calculateNextTime(UA_DateTime currentTime, UA_DateTime baseTime,
+                  UA_DateTime interval) {
+    /* Take the difference between current and base time */
     UA_DateTime diffCurrentTimeBaseTime = currentTime - baseTime;
-    /* Take modulo of the diff time with the interval and subtract it with the interval to get the time to be added with the current time.
-     * This added time will match the current time to base time cycle with respect to the interval */
-    timeToAdd = interval - (diffCurrentTimeBaseTime % interval);
-    return (currentTime + timeToAdd);
+
+    /* Take modulo of the diff time with the interval. This is the duration we
+     * are already "into" the current interval. Subtract it from (current +
+     * interval) to get the next execution time. */
+    UA_DateTime cycleDelay = diffCurrentTimeBaseTime % interval;
+
+    /* Handle the special case where the baseTime is in the future */
+    if(UA_UNLIKELY(cycleDelay < 0))
+        cycleDelay += interval;
+
+    return currentTime + interval - cycleDelay;
 }
 
 ZIP_PROTOTYPE(UA_TimerIdZip, UA_TimerEntry, UA_UInt64)
@@ -126,17 +132,14 @@ UA_Timer_addRepeatedCallback(UA_Timer *t, UA_ApplicationCallback callback,
     if(interval == 0)
         return UA_STATUSCODE_BADINTERNALERROR;
 
+    /* Compute the first time for execution */
     UA_DateTime currentTime = UA_DateTime_nowMonotonic();
     UA_DateTime nextTime;
     if(baseTime == NULL) {
+        /* Use "now" as the basetime */
         nextTime = currentTime + (UA_DateTime)interval;
-    }
-    else {
-        if(*baseTime > currentTime)
-            return UA_STATUSCODE_BADINTERNALERROR; // Future base time not supported
-
-        // Next time calculation with respect to past base time.
-        nextTime = calculateNextTime_withPastBaseTime((currentTime + UA_DATETIME_MSEC), *baseTime, (UA_DateTime)interval);
+    } else {
+        nextTime = calculateNextTime(currentTime, *baseTime, (UA_DateTime)interval);
     }
 
     UA_LOCK(&t->timerMutex);
@@ -156,7 +159,7 @@ UA_Timer_changeRepeatedCallback(UA_Timer *t, UA_UInt64 callbackId,
 
     UA_LOCK(&t->timerMutex);
 
-    /* Remove from the sorted list */
+    /* Remove from the sorted tree */
     UA_TimerEntry *te = ZIP_FIND(UA_TimerIdZip, &t->idRoot, &callbackId);
     if(!te) {
         UA_UNLOCK(&t->timerMutex);
@@ -166,22 +169,16 @@ UA_Timer_changeRepeatedCallback(UA_Timer *t, UA_UInt64 callbackId,
     /* Set the repeated callback */
     ZIP_REMOVE(UA_TimerZip, &t->root, te);
     te->interval = (UA_UInt64)(interval_ms * UA_DATETIME_MSEC); /* in 100ns resolution */
-    UA_DateTime currentTime = UA_DateTime_nowMonotonic();
-    // As the previous callback will be removed and added, the nextTime can be handled with baseTime and timer policy
-    if(baseTime == NULL) {
-        if(te->timerPolicy == UA_TIMER_HANDLE_CYCLEMISS_WITH_BASETIME)
-            te->nextTime = calculateNextTime_withPastBaseTime((currentTime + UA_DATETIME_MSEC), te->nextTime, (UA_DateTime)te->interval);
-        else
-            te->nextTime = currentTime + (UA_DateTime)te->interval;
-    }
-    else {
-        if(*baseTime > currentTime)
-            return UA_STATUSCODE_BADINTERNALERROR; // Future base time not supported
 
-        if(te->timerPolicy == UA_TIMER_HANDLE_CYCLEMISS_WITH_BASETIME)
-            te->nextTime = calculateNextTime_withPastBaseTime((currentTime + UA_DATETIME_MSEC), *baseTime, (UA_DateTime)te->interval);
-        else
-            te->nextTime = currentTime + (UA_DateTime)te->interval;
+    /* Compute the next time for execution. The logic is identical to the
+     * creation of a new repeated callback. */
+    UA_DateTime currentTime = UA_DateTime_nowMonotonic();
+    if(baseTime == NULL) {
+        /* Use "now" as the basetime */
+        te->nextTime = currentTime + (UA_DateTime)te->interval;
+    } else {
+        te->nextTime = calculateNextTime(currentTime, *baseTime,
+                                         (UA_DateTime)te->interval);
     }
 
     ZIP_INSERT(UA_TimerZip, &t->root, te, ZIP_RANK(te, zipfields));
@@ -236,7 +233,8 @@ UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic,
         first->nextTime += (UA_DateTime)first->interval;
         if(first->nextTime < nowMonotonic) {
             if(first->timerPolicy == UA_TIMER_HANDLE_CYCLEMISS_WITH_BASETIME)
-                first->nextTime = calculateNextTime_withPastBaseTime((nowMonotonic + UA_DATETIME_MSEC), first->nextTime, (UA_DateTime)first->interval);
+                first->nextTime = calculateNextTime(nowMonotonic, first->nextTime,
+                                                    (UA_DateTime)first->interval);
             else
                 first->nextTime = nowMonotonic + 1;
         }
