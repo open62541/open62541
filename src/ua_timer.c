@@ -127,7 +127,6 @@ UA_Timer_addRepeatedCallback(UA_Timer *t, UA_ApplicationCallback callback,
     /* The interval needs to be positive */
     if(interval_ms <= 0.0)
         return UA_STATUSCODE_BADINTERNALERROR;
-
     UA_UInt64 interval = (UA_UInt64)(interval_ms * UA_DATETIME_MSEC);
     if(interval == 0)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -155,6 +154,9 @@ UA_Timer_changeRepeatedCallback(UA_Timer *t, UA_UInt64 callbackId,
                                 UA_TimerPolicy timerPolicy) {
     /* The interval needs to be positive */
     if(interval_ms <= 0.0)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_UInt64 interval = (UA_UInt64)(interval_ms * UA_DATETIME_MSEC);
+    if(interval == 0)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_LOCK(&t->timerMutex);
