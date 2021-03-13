@@ -146,20 +146,13 @@ unlink_pred(struct aa_entry *n, struct aa_entry **pred) {
 }
 
 static struct aa_entry *
-_aa_remove(struct aa_head *h, struct aa_entry *n, void *elem) {
+_aa_remove(struct aa_head *h, void *elem, struct aa_entry *n) {
     if(!n)
         return NULL;
+
+    const void *elem_key = aa_container_key(h, elem);
     const void *n_key = aa_entry_key(h, n);
-    const void *key = aa_container_key(h, elem);
-    if(n_key != key) {
-        enum aa_cmp eq = h->cmp(key, n_key);
-        if(eq == AA_CMP_EQ)
-            eq = (key > n_key) ? AA_CMP_MORE : AA_CMP_LESS;
-        if(eq == AA_CMP_LESS)
-            n->left = _aa_remove(h, n->left, elem);
-        else
-            n->right = _aa_remove(h, n->right, elem);
-    } else {
+    if(n_key == elem_key) {
         if(!n->left && !n->right)
             return NULL;
         struct aa_entry *replace = NULL;
@@ -170,14 +163,22 @@ _aa_remove(struct aa_head *h, struct aa_entry *n, void *elem) {
         replace->left = n->left;
         replace->right = n->right;
         replace->level = n->level;
-        n = replace;
+        return _aa_fixup(replace);
     }
+
+    enum aa_cmp eq = h->cmp(elem_key, n_key);
+    if(eq == AA_CMP_EQ)
+        eq = (elem_key > n_key) ? AA_CMP_MORE : AA_CMP_LESS;
+    if(eq == AA_CMP_LESS)
+        n->left = _aa_remove(h, elem, n->left);
+    else
+        n->right = _aa_remove(h, elem, n->right);
     return _aa_fixup(n);
 }
 
 void
 aa_remove(struct aa_head *head, void *elem) {
-    head->root = _aa_remove(head, head->root, elem);
+    head->root = _aa_remove(head, elem, head->root);
 }
 
 void *
