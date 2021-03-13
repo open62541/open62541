@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2017, 2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2017, 2018, 2021 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
@@ -10,7 +10,7 @@
 #define UA_TIMER_H_
 
 #include "ua_util_internal.h"
-#include "ziptree.h"
+#include "aa_tree.h"
 
 _UA_BEGIN_DECLS
 
@@ -26,7 +26,7 @@ _UA_BEGIN_DECLS
 typedef void (*UA_ApplicationCallback)(void *application, void *data);
 
 typedef struct UA_TimerEntry {
-    ZIP_ENTRY(UA_TimerEntry) zipfields;
+    struct aa_entry treeEntry;
     UA_TimerPolicy timerPolicy;              /* Timer policy to handle cycle misses */
     UA_DateTime nextTime;                    /* The next time when the callback
                                               * is to be executed */
@@ -38,21 +38,15 @@ typedef struct UA_TimerEntry {
     void *application;
     void *data;
 
-    ZIP_ENTRY(UA_TimerEntry) idZipfields;
+    struct aa_entry idTreeEntry;
     UA_UInt64 id;                            /* Id of the entry */
 } UA_TimerEntry;
 
-ZIP_HEAD(UA_TimerZip, UA_TimerEntry);
-typedef struct UA_TimerZip UA_TimerZip;
-
-ZIP_HEAD(UA_TimerIdZip, UA_TimerEntry);
-typedef struct UA_TimerIdZip UA_TimerIdZip;
-
 typedef struct {
-    UA_TimerZip root;     /* The root of the time-sorted zip tree */
-    UA_TimerIdZip idRoot; /* The root of the id-sorted zip tree */
-    UA_UInt64 idCounter;  /* Generate unique identifiers. Identifiers are always
-                           * above zero. */
+    struct aa_head root;   /* The root of the time-sorted tree */
+    struct aa_head idRoot; /* The root of the id-sorted tree */
+    UA_UInt64 idCounter;   /* Generate unique identifiers. Identifiers are
+                            * always above zero. */
 #if UA_MULTITHREADING >= 100
     UA_Lock timerMutex;
 #endif

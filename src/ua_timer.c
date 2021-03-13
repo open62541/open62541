@@ -12,30 +12,27 @@
 /* There may be several entries with the same nextTime in the tree. We give them
  * an absolute order by considering the memory address to break ties. Because of
  * this, the nextTime property cannot be used to lookup specific entries. */
-static enum ZIP_CMP
+static enum aa_cmp
 cmpDateTime(const UA_DateTime *a, const UA_DateTime *b) {
     if(*a < *b)
-        return ZIP_CMP_LESS;
+        return AA_CMP_LESS;
     if(*a > *b)
-        return ZIP_CMP_MORE;
+        return AA_CMP_MORE;
     if(a == b)
-        return ZIP_CMP_EQ;
+        return AA_CMP_EQ;
     if(a < b)
-        return ZIP_CMP_LESS;
-    return ZIP_CMP_MORE;
+        return AA_CMP_LESS;
+    return AA_CMP_MORE;
 }
 
-ZIP_PROTOTYPE(UA_TimerZip, UA_TimerEntry, UA_DateTime)
-ZIP_IMPL(UA_TimerZip, UA_TimerEntry, zipfields, UA_DateTime, nextTime, cmpDateTime)
-
 /* The identifiers of entries are unique */
-static enum ZIP_CMP
+static enum aa_cmp
 cmpId(const UA_UInt64 *a, const UA_UInt64 *b) {
     if(*a < *b)
-        return ZIP_CMP_LESS;
+        return AA_CMP_LESS;
     if(*a == *b)
-        return ZIP_CMP_EQ;
-    return ZIP_CMP_MORE;
+        return AA_CMP_EQ;
+    return AA_CMP_MORE;
 }
 
 static UA_DateTime
@@ -56,12 +53,17 @@ calculateNextTime(UA_DateTime currentTime, UA_DateTime baseTime,
     return currentTime + interval - cycleDelay;
 }
 
-ZIP_PROTOTYPE(UA_TimerIdZip, UA_TimerEntry, UA_UInt64)
-ZIP_IMPL(UA_TimerIdZip, UA_TimerEntry, idZipfields, UA_UInt64, id, cmpId)
-
 void
 UA_Timer_init(UA_Timer *t) {
     memset(t, 0, sizeof(UA_Timer));
+    aa_init(&t->root,
+            (enum aa_cmp (*)(const void*, const void*))cmpDateTime,
+            offsetof(UA_TimerEntry, treeEntry),
+            offsetof(UA_TimerEntry, nextTime));
+    aa_init(&t->idRoot,
+            (enum aa_cmp (*)(const void*, const void*))cmpId,
+            offsetof(UA_TimerEntry, idTreeEntry),
+            offsetof(UA_TimerEntry, id));
     UA_LOCK_INIT(&t->timerMutex);
 }
 
@@ -71,8 +73,8 @@ UA_Timer_addTimerEntry(UA_Timer *t, UA_TimerEntry *te, UA_UInt64 *callbackId) {
     te->id = ++t->idCounter;
     if(callbackId)
         *callbackId = te->id;
-    ZIP_INSERT(UA_TimerZip, &t->root, te, ZIP_FFS32(UA_UInt32_random()));
-    ZIP_INSERT(UA_TimerIdZip, &t->idRoot, te, ZIP_RANK(te, zipfields));
+    aa_insert(&t->root, te);
+    aa_insert(&t->idRoot, te);
     UA_UNLOCK(&t->timerMutex);
 }
 
@@ -102,8 +104,8 @@ addCallback(UA_Timer *t, UA_ApplicationCallback callback, void *application,
     if(callbackId)
         *callbackId = te->id;
 
-    ZIP_INSERT(UA_TimerZip, &t->root, te, ZIP_FFS32(UA_UInt32_random()));
-    ZIP_INSERT(UA_TimerIdZip, &t->idRoot, te, ZIP_RANK(te, zipfields));
+    aa_insert(&t->root, te);
+    aa_insert(&t->idRoot, te);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -165,12 +167,12 @@ UA_Timer_changeRepeatedCallback(UA_Timer *t, UA_UInt64 callbackId,
     UA_LOCK(&t->timerMutex);
 
     /* Remove from the sorted tree */
-    UA_TimerEntry *te = ZIP_FIND(UA_TimerIdZip, &t->idRoot, &callbackId);
+    UA_TimerEntry *te = (UA_TimerEntry*)aa_find(&t->idRoot, &callbackId);
     if(!te) {
         UA_UNLOCK(&t->timerMutex);
         return UA_STATUSCODE_BADNOTFOUND;
     }
-    ZIP_REMOVE(UA_TimerZip, &t->root, te);
+    aa_remove(&t->root, te);
 
     /* Compute the next time for execution. The logic is identical to the
      * creation of a new repeated callback. */
@@ -185,7 +187,7 @@ UA_Timer_changeRepeatedCallback(UA_Timer *t, UA_UInt64 callbackId,
     /* Update the remaining parameters and re-insert */
     te->interval = interval;
     te->timerPolicy = timerPolicy;
-    ZIP_INSERT(UA_TimerZip, &t->root, te, ZIP_RANK(te, zipfields));
+    aa_insert(&t->root, te);
 
     UA_UNLOCK(&t->timerMutex);
     return UA_STATUSCODE_GOOD;
@@ -194,15 +196,12 @@ UA_Timer_changeRepeatedCallback(UA_Timer *t, UA_UInt64 callbackId,
 void
 UA_Timer_removeCallback(UA_Timer *t, UA_UInt64 callbackId) {
     UA_LOCK(&t->timerMutex);
-    UA_TimerEntry *te = ZIP_FIND(UA_TimerIdZip, &t->idRoot, &callbackId);
-    if(!te) {
-        UA_UNLOCK(&t->timerMutex);
-        return;
+    UA_TimerEntry *te = (UA_TimerEntry*)aa_find(&t->idRoot, &callbackId);
+    if(UA_LIKELY(te != NULL)) {
+        aa_remove(&t->root, te);
+        aa_remove(&t->idRoot, te);
+        UA_free(te);
     }
-
-    ZIP_REMOVE(UA_TimerZip, &t->root, te);
-    ZIP_REMOVE(UA_TimerIdZip, &t->idRoot, te);
-    UA_free(te);
     UA_UNLOCK(&t->timerMutex);
 }
 
@@ -212,16 +211,16 @@ UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic,
                  void *executionApplication) {
     UA_LOCK(&t->timerMutex);
     UA_TimerEntry *first;
-    while((first = ZIP_MIN(UA_TimerZip, &t->root)) &&
+    while((first = (UA_TimerEntry*)aa_min(&t->root)) &&
           first->nextTime <= nowMonotonic) {
-        ZIP_REMOVE(UA_TimerZip, &t->root, first);
+        aa_remove(&t->root, first);
 
         /* Reinsert / remove to their new position first. Because the callback
          * can interact with the zip tree and expects the same entries in the
          * root and idRoot trees. */
 
         if(first->interval == 0) {
-            ZIP_REMOVE(UA_TimerIdZip, &t->idRoot, first);
+            aa_remove(&t->idRoot, first);
             if(first->callback) {
                 UA_UNLOCK(&t->timerMutex);
                 executionCallback(executionApplication, first->callback,
@@ -249,7 +248,7 @@ UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic,
                 first->nextTime = nowMonotonic + (UA_DateTime)first->interval;
         }
 
-        ZIP_INSERT(UA_TimerZip, &t->root, first, ZIP_RANK(first, zipfields));
+        aa_insert(&t->root, first);
 
         if(!first->callback)
             continue;
@@ -266,7 +265,7 @@ UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic,
     }
 
     /* Return the timestamp of the earliest next callback */
-    first = ZIP_MIN(UA_TimerZip, &t->root);
+    first = (UA_TimerEntry*)aa_min(&t->root);
     UA_DateTime next = (first) ? first->nextTime : UA_INT64_MAX;
     if(next < nowMonotonic)
         next = nowMonotonic;
@@ -274,19 +273,23 @@ UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic,
     return next;
 }
 
-static void
-freeEntry(UA_TimerEntry *te, void *data) {
-    UA_free(te);
-}
-
 void
 UA_Timer_clear(UA_Timer *t) {
     UA_LOCK(&t->timerMutex);
-    /* Free all nodes and reset the root */
-    ZIP_ITER(UA_TimerZip, &t->root, freeEntry, NULL);
+
+    /* Free all entries */
+    UA_TimerEntry *top;
+    while((top = (UA_TimerEntry*)aa_min(&t->idRoot))) {
+        aa_remove(&t->idRoot, top);
+        UA_free(top);
+    }
+
+    /* Reset the trees to avoid future access */
+    t->root.root = NULL;
+    t->idRoot.root = NULL;
+
     UA_UNLOCK(&t->timerMutex);
 #if UA_MULTITHREADING >= 100
     UA_LOCK_DESTROY(&t->timerMutex);
 #endif
-    ZIP_INIT(&t->root);
 }
