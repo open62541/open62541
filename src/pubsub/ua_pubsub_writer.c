@@ -748,8 +748,8 @@ UA_Server_addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
 
         //TODO: make some adjustments for PublishedItems
 
-        result.result = UA_STATUSCODE_BADNOTIMPLEMENTED;
-        return result;
+        //result.result = UA_STATUSCODE_BADNOTIMPLEMENTED;
+        //return result;
     }
 
     if (newField->config.dataSetFieldType == UA_PUBSUB_DATASETFIELD_VARIABLE){
@@ -1601,7 +1601,6 @@ UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_Server *server,
 
 #ifdef UA_ENABLE_PUBSUB_EVENTS
     if(currentDataSet->config.publishedDataSetType == UA_PUBSUB_DATASET_PUBLISHEDEVENTS){
-        if(dataSetWriter->eventQueueEntries == 0) return UA_STATUSCODE_GOOD;
         UA_UInt16 eventSize = (UA_UInt16)dataSetWriter->eventQueueEntries;
         dataSetMessage->header.dataSetMessageValid = true;
         dataSetMessage->header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
