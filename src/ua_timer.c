@@ -167,22 +167,21 @@ UA_Timer_changeRepeatedCallback(UA_Timer *t, UA_UInt64 callbackId,
         UA_UNLOCK(&t->timerMutex);
         return UA_STATUSCODE_BADNOTFOUND;
     }
-
-    /* Set the repeated callback */
     ZIP_REMOVE(UA_TimerZip, &t->root, te);
-    te->interval = (UA_UInt64)(interval_ms * UA_DATETIME_MSEC); /* in 100ns resolution */
 
     /* Compute the next time for execution. The logic is identical to the
      * creation of a new repeated callback. */
     UA_DateTime currentTime = UA_DateTime_nowMonotonic();
     if(baseTime == NULL) {
         /* Use "now" as the basetime */
-        te->nextTime = currentTime + (UA_DateTime)te->interval;
+        te->nextTime = currentTime + (UA_DateTime)interval;
     } else {
-        te->nextTime = calculateNextTime(currentTime, *baseTime,
-                                         (UA_DateTime)te->interval);
+        te->nextTime = calculateNextTime(currentTime, *baseTime, (UA_DateTime)interval);
     }
 
+    /* Update the remaining parameters and re-insert */
+    te->interval = interval;
+    te->timerPolicy = timerPolicy;
     ZIP_INSERT(UA_TimerZip, &t->root, te, ZIP_RANK(te, zipfields));
 
     UA_UNLOCK(&t->timerMutex);
@@ -231,14 +230,20 @@ UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic,
         }
 
         /* Set the time for the next execution. Prevent an infinite loop by
-         * forcing the next processing into the next iteration. */
+         * forcing the execution time in the next iteration.
+         *
+         * If the timer policy is "CurrentTime", then there is at least the
+         * interval between executions. This is used for Monitoreditems, for
+         * which the spec says: The sampling interval indicates the fastest rate
+         * at which the Server should sample its underlying source for data
+         * changes. (Part 4, 5.12.1.2) */
         first->nextTime += (UA_DateTime)first->interval;
         if(first->nextTime < nowMonotonic) {
             if(first->timerPolicy == UA_TIMER_HANDLE_CYCLEMISS_WITH_BASETIME)
                 first->nextTime = calculateNextTime(nowMonotonic, first->nextTime,
                                                     (UA_DateTime)first->interval);
             else
-                first->nextTime = nowMonotonic + 1;
+                first->nextTime = nowMonotonic + (UA_DateTime)first->interval;
         }
 
         ZIP_INSERT(UA_TimerZip, &t->root, first, ZIP_RANK(first, zipfields));
