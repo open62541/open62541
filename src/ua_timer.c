@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2017, 2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2017, 2018, 2021 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
@@ -77,8 +77,9 @@ UA_Timer_addTimerEntry(UA_Timer *t, UA_TimerEntry *te, UA_UInt64 *callbackId) {
 }
 
 static UA_StatusCode
-addCallback(UA_Timer *t, UA_ApplicationCallback callback, void *application, void *data,
-            UA_DateTime nextTime, UA_UInt64 interval, UA_TimerPolicy timerPolicy, UA_UInt64 *callbackId) {
+addCallback(UA_Timer *t, UA_ApplicationCallback callback, void *application,
+            void *data, UA_DateTime nextTime, UA_UInt64 interval,
+            UA_TimerPolicy timerPolicy, UA_UInt64 *callbackId) {
     /* A callback method needs to be present */
     if(!callback)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -111,7 +112,9 @@ UA_Timer_addTimedCallback(UA_Timer *t, UA_ApplicationCallback callback,
                           void *application, void *data, UA_DateTime date,
                           UA_UInt64 *callbackId) {
     UA_LOCK(&t->timerMutex);
-    UA_StatusCode res = addCallback(t, callback, application, data, date, 0, UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME, callbackId);
+    UA_StatusCode res = addCallback(t, callback, application, data, date,
+                                    0, UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
+                                    callbackId);
     UA_UNLOCK(&t->timerMutex);
     return res;
 }
