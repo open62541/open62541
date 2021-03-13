@@ -113,24 +113,16 @@ aa_insert(struct aa_head *h, void *elem) {
     h->root = _aa_insert(h, h->root, elem);
 }
 
-static struct aa_entry *
-_aa_find(const struct aa_head *h, struct aa_entry *n, const void *key) {
-    if(!n)
-        return NULL;
-    enum aa_cmp eq = h->cmp(key, aa_entry_key(h, n));
-    if(eq == AA_CMP_EQ)
-        return n;
-    if(eq == AA_CMP_LESS)
-        return _aa_find(h, n->left, key);
-    return _aa_find(h, n->right, key);
-}
-
 void *
 aa_find(const struct aa_head *h, const void *key) {
-    struct aa_entry *n = _aa_find(h, h->root, key);
-    if(!n)
-        return NULL;
-    return aa_entry_container(h, n);
+    struct aa_entry *n = h->root;
+    while(n) {
+        enum aa_cmp eq = h->cmp(key, aa_entry_key(h, n));
+        if(eq == AA_CMP_EQ)
+            return aa_entry_container(h, n);
+        n = (eq == AA_CMP_LESS) ? n->left : n->right;
+    }
+    return NULL;
 }
 
 static struct aa_entry *
