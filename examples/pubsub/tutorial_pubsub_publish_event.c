@@ -5,6 +5,21 @@
  * Copyright (c) 2021 Florian Fischer, Technische Hochschule Mittelhessen
  */
 
+/*
+ * In this tutorial, an custom event gets triggered cyclically. Once it's triggered, it
+ * gets published the next time the publishing interval expires.
+ *
+ * Therefore you need to create a PublishedDataSet of PublishedDataSetType UA_PUBSUB_DATASET_PUBLISHEDEVENTS
+ * and set the EventNotifier to a node (e.g. the server node), whose events you would like to publish.
+ * It would also be good to define some selectedFields for the PublishedDataSet, in this case, the
+ * selected Fields are describing the information of an event.
+ *
+ * After creating the PublishedDataSet, you can add some DataSetFields to it. Make sure, they are of the type
+ * UA_PUBSUB_DATASETFIELD_EVENT and get a selectedField.
+ *
+ * The rest of the config is equal to the tutorial_pubsub_publish.
+ */
+
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pubsub_ethernet.h>
 #include <open62541/plugin/pubsub_udp.h>
@@ -72,6 +87,9 @@ addPublishedDataSet(UA_Server *server) {
     publishedDataSetConfig.config.event.selectedFields = selectedFields;
     /* Create new PublishedDataSet based on the PublishedDataSetConfig. */
     UA_Server_addPublishedDataSet(server, &publishedDataSetConfig, &publishedDataSetIdent);
+
+    /*The config is deep-copied, free fields again*/
+    UA_free(selectedFields);
 }
 
 static void
@@ -98,7 +116,7 @@ addDataSetField(UA_Server *server) {
 
 static void
 addDataSetField1(UA_Server *server) {
-    //Add a field to the previous created PublishedDataSet
+    //Add another field to the previous created PublishedDataSet
     UA_NodeId dataSetFieldIdent;
     UA_DataSetFieldConfig dataSetFieldConfig;
     memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
@@ -120,6 +138,7 @@ addDataSetField1(UA_Server *server) {
 
 static void
 addWriterGroup(UA_Server *server) {
+    // adds a writerGroup to the connection
     UA_WriterGroupConfig writerGroupConfig;
     memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
     writerGroupConfig.name = UA_STRING("Demo WriterGroup PubSub Events");
@@ -142,8 +161,7 @@ addWriterGroup(UA_Server *server) {
 
 static void
 addDataSetWriter(UA_Server *server) {
-    /* We need now a DataSetWriter within the WriterGroup. This means we must
-     * create a new DataSetWriterConfig and add call the addWriterGroup function. */
+    // adds a DataSetwriter to the WriterGroup
     UA_NodeId dataSetWriterIdent;
     UA_DataSetWriterConfig dataSetWriterConfig;
     memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
@@ -188,8 +206,8 @@ setUpEvent(UA_Server *server, UA_NodeId *outId) {
 
 void
 callEvent(UA_Server *server, void *data) {
-
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Creating event");
+    // Is called cyclically to fill the queue of the DataSetWriter
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Trigger event");
 
     UA_NodeId eventNodeId;
     setUpEvent(server, &eventNodeId);
@@ -202,6 +220,7 @@ callEvent(UA_Server *server, void *data) {
 
 static UA_StatusCode
 addNewEventType(UA_Server *server) {
+    // creates the event, which gets published
     UA_ObjectTypeAttributes attr = UA_ObjectTypeAttributes_default;
     attr.displayName = UA_LOCALIZEDTEXT("en-US", "PublishEventsExampleEventType");
     attr.description = UA_LOCALIZEDTEXT("en-US", "The simple event type we created");
@@ -250,7 +269,6 @@ static int run(UA_String *transportProfile,
     addWriterGroup(server);
     addDataSetWriter(server);
     const UA_Double interval = (UA_Double)5000;
-    // hier noch unsicher
     UA_String *name = UA_String_new();
     UA_UInt64 *identifier = UA_UInt64_new();
     UA_Server_addRepeatedCallback(server, (UA_ServerCallback)callEvent, name, interval, identifier);

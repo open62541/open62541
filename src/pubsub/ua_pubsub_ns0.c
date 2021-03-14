@@ -6,6 +6,7 @@
  * Copyright (c) 2019 Kalycito Infotech Private Limited
  * Copyright (c) 2020 Yannick Wallerer, Siemens AG
  * Copyright (c) 2020 Thomas Fischer, Siemens AG
+ * Copyright (c) 2021 Stefan Joachim Hahn, Technische Hochschule Mittelhessen
  */
 
 #include <open62541/types.h>
@@ -188,6 +189,52 @@ onRead(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
         default:
             UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                            "Read error! Unknown property.");
+        }
+        break;
+    }
+    case UA_NS0ID_PUBLISHEDEVENTSTYPE: {
+        UA_PublishedDataSet *publishedDataSet = UA_PublishedDataSet_findPDSbyId(server, *myNodeId);
+        if(!publishedDataSet)
+            return;
+        switch(nodeContext->elementClassiefier) {
+            case UA_NS0ID_PUBLISHEDEVENTSTYPE_CONFIGURATIONVERSION:{
+                UA_Variant_setScalarCopy(&value, &publishedDataSet->dataSetMetaData.configurationVersion,
+                                         &UA_TYPES[UA_TYPES_CONFIGURATIONVERSIONDATATYPE]);
+                break;
+            }
+            case UA_NS0ID_PUBLISHEDEVENTSTYPE_DATASETMETADATA:{
+                UA_Variant_setScalarCopy(&value, &publishedDataSet->dataSetMetaData,
+                                         &UA_TYPES[UA_TYPES_DATASETMETADATATYPE]);
+                break;
+            }
+            case UA_NS0ID_PUBLISHEDEVENTSTYPE_SELECTEDFIELDS:{
+                UA_SimpleAttributeOperand *sao = (UA_SimpleAttributeOperand *)
+                    UA_calloc(publishedDataSet->config.config.event.selectedFieldsSize, sizeof(UA_SimpleAttributeOperand));
+
+                for(size_t i = 0; i < publishedDataSet->config.config.event.selectedFieldsSize; i++){
+                    sao[i].attributeId = UA_ATTRIBUTEID_VALUE;
+                    sao[i].browsePath = publishedDataSet->config.config.event.selectedFields[i].browsePath;
+                    sao[i].browsePathSize = publishedDataSet->config.config.event.selectedFields[i].browsePathSize;
+                    sao[i].typeDefinitionId = publishedDataSet->config.config.event.selectedFields[i].typeDefinitionId;
+                }
+
+                UA_Variant_setArray(&value, sao, publishedDataSet->config.config.event.selectedFieldsSize,
+                                    &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
+                break;
+            }
+            case UA_NS0ID_PUBLISHEDEVENTSTYPE_PUBSUBEVENTNOTIFIER:{
+                UA_Variant_setScalarCopy(&value, &publishedDataSet->config.config.event.eventNotifier,
+                                         &UA_TYPES[UA_TYPES_NODEID]);
+                break;
+            }
+            case UA_NS0ID_PUBLISHEDEVENTSTYPE_FILTER:{
+                UA_Variant_setScalarCopy(&value, &publishedDataSet->config.config.event.filter,
+                                         &UA_TYPES[UA_TYPES_CONTENTFILTER]);
+                break;
+            }
+            default:
+                UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                               "Read error! Unknown property.");
         }
         break;
     }
@@ -602,6 +649,108 @@ removeDataSetFolderAction(UA_Server *server,
 #endif
 
 UA_StatusCode
+addPublishedEventsRepresentation(UA_Server *server, UA_PublishedDataSet *publishedDataSet) {
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    if(publishedDataSet->config.name.length > 512)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    UA_STACKARRAY(char, pdsName, sizeof(char) * publishedDataSet->config.name.length +1);
+    memcpy(pdsName, publishedDataSet->config.name.data, publishedDataSet->config.name.length);
+    pdsName[publishedDataSet->config.name.length] = '\0';
+    //This code block must use a lock
+    UA_NODESTORE_REMOVE(server, &publishedDataSet->identifier);
+    retVal |= addPubSubObjectNode(server, pdsName, publishedDataSet->identifier.identifier.numeric,
+                                  UA_NS0ID_PUBLISHSUBSCRIBE_PUBLISHEDDATASETS,
+                                  UA_NS0ID_HASPROPERTY, UA_NS0ID_PUBLISHEDEVENTSTYPE);
+    //End lock zone
+
+    UA_ValueCallback valueCallback;
+    valueCallback.onRead = onRead;
+    valueCallback.onWrite = NULL;
+
+    UA_NodeId configurationVersionNode =
+        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "ConfigurationVersion"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                            UA_NODEID_NUMERIC(0, publishedDataSet->identifier.identifier.numeric));
+    if(UA_NodeId_equal(&configurationVersionNode, &UA_NODEID_NULL))
+        return UA_STATUSCODE_BADNOTFOUND;
+
+    UA_NodePropertyContext * configurationVersionContext = (UA_NodePropertyContext *)
+        UA_malloc(sizeof(UA_NodePropertyContext));
+    configurationVersionContext->parentNodeId = publishedDataSet->identifier;
+    configurationVersionContext->parentClassifier = UA_NS0ID_PUBLISHEDEVENTSTYPE;
+    configurationVersionContext->elementClassiefier =
+        UA_NS0ID_PUBLISHEDEVENTSTYPE_CONFIGURATIONVERSION;
+    retVal |= addVariableValueSource(server, valueCallback, configurationVersionNode,
+                                     configurationVersionContext);
+
+    UA_NodeId dataSetMetaDataNode =
+        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetMetaData"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                            UA_NODEID_NUMERIC(0, publishedDataSet->identifier.identifier.numeric));
+    if(UA_NodeId_equal(&dataSetMetaDataNode, &UA_NODEID_NULL))
+        return UA_STATUSCODE_BADNOTFOUND;
+
+    UA_NodePropertyContext * metaDataContext = (UA_NodePropertyContext *)
+        UA_malloc(sizeof(UA_NodePropertyContext));
+    metaDataContext->parentNodeId = publishedDataSet->identifier;
+    metaDataContext->parentClassifier = UA_NS0ID_PUBLISHEDEVENTSTYPE;
+    metaDataContext->elementClassiefier = UA_NS0ID_PUBLISHEDEVENTSTYPE_DATASETMETADATA;
+    retVal |= addVariableValueSource(server, valueCallback, dataSetMetaDataNode, metaDataContext);
+
+    UA_NodeId selectedFieldsNode =
+        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "SelectedFields"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                            UA_NODEID_NUMERIC(0, publishedDataSet->identifier.identifier.numeric));
+    if(UA_NodeId_equal(&selectedFieldsNode, &UA_NODEID_NULL))
+        return UA_STATUSCODE_BADNOTFOUND;
+
+    UA_NodePropertyContext * selectedFieldsContext = (UA_NodePropertyContext *)
+        UA_malloc(sizeof(UA_NodePropertyContext));
+    selectedFieldsContext->parentNodeId = publishedDataSet->identifier;
+    selectedFieldsContext->parentClassifier = UA_NS0ID_PUBLISHEDEVENTSTYPE;
+    selectedFieldsContext->elementClassiefier = UA_NS0ID_PUBLISHEDEVENTSTYPE_SELECTEDFIELDS;
+    retVal |= addVariableValueSource(server, valueCallback, selectedFieldsNode,
+                                     selectedFieldsContext);
+
+    UA_NodeId eventNotifierNode =
+        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "EventNotifier"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                            UA_NODEID_NUMERIC(0, publishedDataSet->identifier.identifier.numeric));
+    if(UA_NodeId_equal(&eventNotifierNode, &UA_NODEID_NULL))
+        return UA_STATUSCODE_BADNOTFOUND;
+
+    UA_NodePropertyContext * eventNotifierContext = (UA_NodePropertyContext *)
+        UA_malloc(sizeof(UA_NodePropertyContext));
+    eventNotifierContext->parentNodeId = publishedDataSet->identifier;
+    eventNotifierContext->parentClassifier = UA_NS0ID_PUBLISHEDEVENTSTYPE;
+    eventNotifierContext->elementClassiefier = UA_NS0ID_PUBLISHEDEVENTSTYPE_PUBSUBEVENTNOTIFIER;
+    retVal |= addVariableValueSource(server, valueCallback, eventNotifierNode,
+                                     eventNotifierContext);
+
+    UA_NodeId filterNode =
+        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Filter"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                            UA_NODEID_NUMERIC(0, publishedDataSet->identifier.identifier.numeric));
+    if(UA_NodeId_equal(&filterNode, &UA_NODEID_NULL))
+        return UA_STATUSCODE_BADNOTFOUND;
+
+    UA_NodePropertyContext * filterContext = (UA_NodePropertyContext *)
+        UA_malloc(sizeof(UA_NodePropertyContext));
+    filterContext->parentNodeId = publishedDataSet->identifier;
+    filterContext->parentClassifier = UA_NS0ID_PUBLISHEDEVENTSTYPE;
+    filterContext->elementClassiefier = UA_NS0ID_PUBLISHEDEVENTSTYPE_FILTER;
+    retVal |= addVariableValueSource(server, valueCallback, filterNode,
+                                     filterContext);
+
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
+    retVal |= UA_Server_addReference(server, publishedDataSet->identifier,
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                     UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_PUBLISHEDEVENTSTYPE_MODIFYFIELDSELECTION), true);
+#endif
+    return retVal;
+}
+
+UA_StatusCode
 addPublishedDataItemsRepresentation(UA_Server *server, UA_PublishedDataSet *publishedDataSet) {
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     if(publishedDataSet->config.name.length > 512)
@@ -781,7 +930,7 @@ addPublishedEventsAction(UA_Server *server,
     publishedDataSetConfig.config.event.filter = *filter;
     publishedDataSetConfig.config.event.selectedFieldsSize = selectedFieldsSize;
     publishedDataSetConfig.config.event.selectedFields = (UA_SimpleAttributeOperand *)UA_calloc(selectedFieldsSize, sizeof(UA_SimpleAttributeOperand));
-    //TODO: nicht ganz sicher
+
     for(size_t i = 0; i < publishedDataSetConfig.config.event.selectedFieldsSize; i++){
         UA_SimpleAttributeOperand_copy(&selectedFields[i],
                                        &publishedDataSetConfig.config.event.selectedFields[i]);
@@ -800,7 +949,7 @@ addPublishedEventsAction(UA_Server *server,
             dataSetFieldConfig.field.events.promotedField = UA_TRUE;
         }
         dataSetFieldConfig.field.events.selectedField = selectedFields[j];
-        UA_Server_addDataSetField(server, dataSetId, &dataSetFieldConfig, NULL); //TODO: method not complete for events
+        UA_Server_addDataSetField(server, dataSetId, &dataSetFieldConfig, NULL);
     }
 
     UA_SimpleAttributeOperand_clear(selectedFields);
@@ -1284,6 +1433,47 @@ publishedDataItemsTypeDestructor(UA_Server *server,
         UA_free(childContext);
 }
 
+static void
+publishedEventsTypeDestructor(UA_Server *server,
+                                 const UA_NodeId *sessionId, void *sessionContext,
+                                 const UA_NodeId *typeId, void *typeContext,
+                                 const UA_NodeId *nodeId, void **nodeContext) {
+    UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_USERLAND,
+                "PublishedEvents destructor called!");
+    void *childContext;
+
+    UA_NodeId node = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "ConfigurationVersion"),
+                                         UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), *nodeId);
+    UA_Server_getNodeContext(server, node, (void**)&childContext);
+    if(!UA_NodeId_equal(&UA_NODEID_NULL , &node))
+        UA_free(childContext);
+
+    node = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetMetaData"),
+                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                               *nodeId);
+    UA_Server_getNodeContext(server, node, (void**)&childContext);
+    if(!UA_NodeId_equal(&UA_NODEID_NULL , &node))
+        UA_free(childContext);
+
+    node = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "SelectedFields"),
+                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), *nodeId);
+    UA_Server_getNodeContext(server, node, (void**)&childContext);
+    if(!UA_NodeId_equal(&node, &UA_NODEID_NULL))
+        UA_free(childContext);
+
+    node = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "EventNotifier"),
+                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), *nodeId);
+    UA_Server_getNodeContext(server, node, (void**)&childContext);
+    if(!UA_NodeId_equal(&node, &UA_NODEID_NULL))
+        UA_free(childContext);
+
+    node = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Filter"),
+                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), *nodeId);
+    UA_Server_getNodeContext(server, node, (void**)&childContext);
+    if(!UA_NodeId_equal(&node, &UA_NODEID_NULL))
+        UA_free(childContext);
+}
+
 /*************************************/
 /*         PubSub configurator       */
 /*************************************/
@@ -1479,6 +1669,8 @@ UA_Server_initPubSubNS0(UA_Server *server) {
     UA_Server_setNodeTypeLifecycle(server, UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETWRITERDATATYPE), lifeCycle);
     lifeCycle.destructor = publishedDataItemsTypeDestructor;
     UA_Server_setNodeTypeLifecycle(server, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHEDDATAITEMSTYPE), lifeCycle);
+    lifeCycle.destructor = publishedEventsTypeDestructor;
+    UA_Server_setNodeTypeLifecycle(server, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHEDEVENTSTYPE), lifeCycle);
     lifeCycle.destructor = dataSetReaderTypeDestructor;
     UA_Server_setNodeTypeLifecycle(server, UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETREADERTYPE), lifeCycle);
 

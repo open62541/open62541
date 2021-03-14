@@ -4,6 +4,8 @@
  *
  *    Copyright 2018 (c) Ari Breitkreuz, fortiss GmbH
  *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
+ *    Copyright (c) 2021 Stefan Joachim Hahn, Technische Hochschule Mittelhessen
+ *    Copyright (c) 2021 Florian Fischer, Technische Hochschule Mittelhessen
  */
 
 #include "ua_server_internal.h"
@@ -520,27 +522,24 @@ static const UA_NodeId isInFolderReferences[2] =
      {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASCOMPONENT}}};
 
 #ifdef UA_ENABLE_PUBSUB_EVENTS
-//TODO: decide where the method insertDataValue should be
-static UA_StatusCode insertDataValueIntoDSWQueue(UA_Server *server, UA_DataSetWriter *dsw, UA_DataValue *value)  {
+static UA_StatusCode
+insertDataValueIntoDSWQueue(UA_Server *server, UA_DataSetWriter *dsw, UA_DataValue value)  {
     if(dsw == NULL){
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                  "The given DataSetWriter is NULL");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
-    if(value == NULL){
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
-                     "The given Variant is NULL");
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
 
     EventQueueEntry *entry = (EventQueueEntry *)malloc(sizeof(EventQueueEntry));
-    entry->value = *value;
+    UA_DataValue_copy(&value, &entry->value);
+    UA_DataValue_clear(&value);
 
     SIMPLEQ_INSERT_TAIL(&dsw->eventQueue, entry, listEntry);
     dsw->eventQueueEntries++;
     return UA_STATUSCODE_GOOD;
 }
 
+/* Adds all DataSetFields of the given PublishedDataSet to the eventQueue of the given DataSetWriter*/
 static UA_StatusCode
 addEventToDataSetWriter(UA_Server *server, UA_NodeId eventNodeId,
                         UA_DataSetWriter *dataSetWriter, UA_PublishedDataSet *publishedDataSet) {
@@ -549,22 +548,19 @@ addEventToDataSetWriter(UA_Server *server, UA_NodeId eventNodeId,
                     "PublishedDataSet not found.");
         return UA_STATUSCODE_BADBOUNDNOTFOUND;
     }
-    UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Found a PublishedDataSet, which publishes this Event");
     UA_SimpleAttributeOperand selectedField;
-    UA_Variant *variant = UA_Variant_new();
-    UA_DataValue *dataValue = UA_DataValue_new();
+    UA_DataValue dataValue;
+    UA_DataValue_init(&dataValue);
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_DataSetField *dataSetField;
     TAILQ_FOREACH(dataSetField, &publishedDataSet->fields, listEntry){
         selectedField = dataSetField->config.field.events.selectedField;
-        retval = resolveSimpleAttributeOperand(server, &server->adminSession, &eventNodeId, &selectedField, variant);
+        retval = resolveSimpleAttributeOperand(server, &server->adminSession, &eventNodeId, &selectedField, &dataValue.value);
         if(retval != UA_STATUSCODE_GOOD){
             UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                          "SimpleAttributeOperand wasn't able to be resolved as a Variant. StatusCode %s", UA_StatusCode_name(retval));
             return retval;
         };
-        dataValue->value = *variant;
-        dataValue->serverTimestamp = UA_DateTime_now();
         retval |= insertDataValueIntoDSWQueue(server, dataSetWriter, dataValue);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -572,28 +568,6 @@ addEventToDataSetWriter(UA_Server *server, UA_NodeId eventNodeId,
             return retval;
         }
     }
-    /*for(size_t i = 0; i < publishedDataSet->fieldSize; i++){ // must be a for loop, because it isn't a list or queue
-        dataSetField = TAILQ_FIRST(&publishedDataSet->fields);
-        selectedField = dataSetField->config.field.events.selectedField;
-        retval = resolveSimpleAttributeOperand(server, &server->adminSession, &eventNodeId, &selectedField, variant);
-        if(retval != UA_STATUSCODE_GOOD){
-            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                         "SimpleAttributeOperand wasn't able to be resolved as a Variant. StatusCode %s", UA_StatusCode_name(retval));
-            return retval;
-        };
-        dataValue->value = *variant;
-        dataValue->serverTimestamp = UA_DateTime_now();
-        retval = insertDataValueIntoDSWQueue(server, dataSetWriter, dataValue);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                         "Inserting DataValue into DSW-queue failed. StatusCode %s", UA_StatusCode_name(retval));
-            return retval;
-        }
-    }*/
-
-    //UA_free(selectedField); //warum den pointer in die config freen?
-    UA_free(variant);
-    UA_free(dataValue);
     return retval;
 }
 
@@ -744,6 +718,7 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
 
 #ifdef UA_ENABLE_PUBSUB_EVENTS
     PublishedDataSetEventEntry *entry;
+    /* Looks up, whether the eventNotifier of a PublishedDataSet matches the origin of the triggered event */
     LIST_FOREACH(entry, &server->pubSubManager.publishedDataSetEvents, listEntry){
         if(UA_NodeId_equal(&entry->pds->config.config.event.eventNotifier, &origin)){
             retval = addEventToDataSetWriter(server, eventNodeId, entry->dsw, entry->pds);

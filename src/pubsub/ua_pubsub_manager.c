@@ -152,7 +152,7 @@ UA_Server_addPublishedDataSet(UA_Server *server, const UA_PublishedDataSetConfig
                      "PublishedDataSet creation failed. Unsupported PublishedDataSet type.");
         return result;
     }
-#endif
+#endif /*UA_ENABLE_PUBSUB_EVENTS*/
     //deep copy the given connection config
     UA_PublishedDataSetConfig tmpPublishedDataSetConfig;
     memset(&tmpPublishedDataSetConfig, 0, sizeof(UA_PublishedDataSetConfig));
@@ -237,8 +237,21 @@ UA_Server_addPublishedDataSet(UA_Server *server, const UA_PublishedDataSetConfig
     result.configurationVersion.majorVersion = UA_PubSubConfigurationVersionTimeDifference();
     result.configurationVersion.minorVersion = UA_PubSubConfigurationVersionTimeDifference();
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    addPublishedDataItemsRepresentation(server, newPubSubDataSetField);
-#endif
+    switch(tmpPublishedDataSetConfig.publishedDataSetType){
+        case UA_PUBSUB_DATASET_PUBLISHEDITEMS_TEMPLATE:
+            addPublishedDataItemsRepresentation(server, newPubSubDataSetField);
+            break;
+        case UA_PUBSUB_DATASET_PUBLISHEDEVENTS_TEMPLATE:
+            addPublishedEventsRepresentation(server, newPubSubDataSetField);
+            break;
+        case UA_PUBSUB_DATASET_PUBLISHEDEVENTS:
+            addPublishedEventsRepresentation(server, newPubSubDataSetField);
+            break;
+        case UA_PUBSUB_DATASET_PUBLISHEDITEMS:
+            addPublishedDataItemsRepresentation(server, newPubSubDataSetField);
+            break;
+    }
+#endif /*UA_ENABLE_PUBSUB_INFORMATIONMODEL*/
     return result;
 }
 

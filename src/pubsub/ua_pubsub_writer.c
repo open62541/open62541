@@ -7,6 +7,8 @@
  * Copyright (c) 2019 Kalycito Infotech Private Limited
  * Copyright (c) 2020 Yannick Wallerer, Siemens AG
  * Copyright (c) 2020 Thomas Fischer, Siemens AG
+ * Copyright (c) 2021 Stefan Joachim Hahn, Technische Hochschule Mittelhessen
+ * Copyright (c) 2021 Florian Fischer, Technische Hochschule Mittelhessen
  */
 
 #include <open62541/server_pubsub.h>
@@ -463,9 +465,6 @@ UA_PublishedDataSetConfig_copy(const UA_PublishedDataSetConfig *src,
                                                &dst->config.itemsTemplate.metaData);
             break;
         case UA_PUBSUB_DATASET_PUBLISHEDEVENTS:
-            // TODO: check this
-            // ich glaube hier muss nichts hin, weil am Anfang ja alles mit memcpy kopiert wird
-            // memcpy only does a shallow copy, this function is supposed to make a deep copy
             if(src->config.event.selectedFieldsSize > 0){
                 dst->config.event.selectedFields = (UA_SimpleAttributeOperand *)
                     UA_calloc(src->config.event.selectedFieldsSize,
@@ -584,6 +583,36 @@ UA_PublishedDataSet_clear(UA_Server *server, UA_PublishedDataSet *publishedDataS
     UA_NodeId_clear(&publishedDataSet->identifier);
 }
 
+#ifdef UA_ENABLE_PUBSUB_EVENTS
+static UA_NodeId
+findSingleChildNode(UA_Server *server, UA_QualifiedName targetName,
+                    UA_NodeId referenceTypeId, UA_NodeId startingNode){
+    UA_NodeId resultNodeId;
+    UA_RelativePathElement rpe;
+    UA_RelativePathElement_init(&rpe);
+    rpe.referenceTypeId = referenceTypeId;
+    rpe.isInverse = false;
+    rpe.includeSubtypes = false;
+    rpe.targetName = targetName;
+    UA_BrowsePath bp;
+    UA_BrowsePath_init(&bp);
+    bp.startingNode = startingNode;
+    bp.relativePath.elementsSize = 1;
+    bp.relativePath.elements = &rpe;
+    UA_BrowsePathResult bpr =
+        UA_Server_translateBrowsePathToNodeIds(server, &bp);
+    if(bpr.statusCode != UA_STATUSCODE_GOOD ||
+       bpr.targetsSize < 1)
+        return UA_NODEID_NULL;
+    if(UA_NodeId_copy(&bpr.targets[0].targetId.nodeId, &resultNodeId) != UA_STATUSCODE_GOOD){
+        UA_BrowsePathResult_clear(&bpr);
+        return UA_NODEID_NULL;
+    }
+    UA_BrowsePathResult_clear(&bpr);
+    return resultNodeId;
+}
+#endif /*UA_ENABLE_PUBSUB_EVENTS*/
+
 static UA_StatusCode
 generateFieldMetaData(UA_Server *server, UA_DataSetField *field, UA_FieldMetaData *fieldMetaData) {
     switch (field->config.dataSetFieldType){
@@ -678,18 +707,54 @@ generateFieldMetaData(UA_Server *server, UA_DataSetField *field, UA_FieldMetaDat
             return UA_STATUSCODE_GOOD;
         case UA_PUBSUB_DATASETFIELD_EVENT:
             // [WIP]: maybe needs some adjustments
+#ifdef UA_ENABLE_PUBSUB_EVENTS
             if(UA_String_copy(&field->config.field.events.fieldNameAlias, &fieldMetaData->name) != UA_STATUSCODE_GOOD)
                 return UA_STATUSCODE_BADINTERNALERROR;
             fieldMetaData->description = UA_LOCALIZEDTEXT_ALLOC("", "");
             fieldMetaData->dataSetFieldId = UA_GUID_NULL;
             fieldMetaData->properties = NULL;
             fieldMetaData->propertiesSize = 0;
-            if(field->config.field.variable.promotedField){
+            fieldMetaData->arrayDimensionsSize = 0;
+            UA_NodeId childNodeId = findSingleChildNode(server,
+                                                        *field->config.field.events.selectedField.browsePath,
+                                                        UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                                                        field->config.field.events.selectedField.typeDefinitionId);
+            if(!UA_NodeId_isNull(&childNodeId)){
+                if(UA_Server_readDataType(server, childNodeId,
+                                          &fieldMetaData->dataType) !=
+                   UA_STATUSCODE_GOOD) {
+                    if(fieldMetaData->arrayDimensions) {
+                        UA_free(fieldMetaData->arrayDimensions);
+                        return UA_STATUSCODE_BADINTERNALERROR;
+                    }
+                }
+                if(!UA_NodeId_isNull(&fieldMetaData->dataType)) {
+                    const UA_DataType *currentDataType = UA_findDataTypeWithCustom(
+                        &fieldMetaData->dataType, server->config.customDataTypes);
+                    UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                                "MetaData creation. Found DataType %s.",
+                                currentDataType->typeName);
+                    // check if the datatype is a builtInType, if yes set the builtinType
+                    if(currentDataType->typeIndex <= 135)
+                        fieldMetaData->builtInType = (UA_Byte)currentDataType->typeIndex;
+                } else {
+                    UA_LOG_WARNING(
+                        &server->config.logger, UA_LOGCATEGORY_SERVER,
+                        "PubSub meta data generation. DataType Node is UA_NODEID_NULL.");
+                }
+            } else {
+                UA_LOG_WARNING(
+                    &server->config.logger, UA_LOGCATEGORY_SERVER,
+                    "The searched Field wasn't found");
+            }
+            if(field->config.field.events.promotedField){
                 fieldMetaData->fieldFlags = UA_DATASETFIELDFLAGS_PROMOTEDFIELD;
             } else {
                 fieldMetaData->fieldFlags = UA_DATASETFIELDFLAGS_NONE;
             }
             return UA_STATUSCODE_GOOD;
+#endif /*UA_ENABLE_PUBSUB_EVENTS*/
+            return UA_STATUSCODE_BADNOTSUPPORTED;
         default:
             return UA_STATUSCODE_BADNOTSUPPORTED;
     }
@@ -739,14 +804,6 @@ UA_Server_addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
         TAILQ_INSERT_TAIL(&currentDataSet->fields, newField, listEntry);
     else
         TAILQ_INSERT_HEAD(&currentDataSet->fields, newField, listEntry);
-
-    if(currentDataSet->config.publishedDataSetType != UA_PUBSUB_DATASET_PUBLISHEDITEMS){
-
-        //TODO: make some adjustments for PublishedItems
-
-        //result.result = UA_STATUSCODE_BADNOTIMPLEMENTED;
-        //return result;
-    }
 
     if (newField->config.dataSetFieldType == UA_PUBSUB_DATASETFIELD_VARIABLE){
         if(newField->config.field.variable.promotedField)
@@ -1475,6 +1532,27 @@ UA_Server_removeDataSetWriter(UA_Server *server, const UA_NodeId dsw){
     if(!publishedDataSet)
         return UA_STATUSCODE_BADNOTFOUND;
 
+#ifdef UA_ENABLE_PUBSUB_EVENTS
+    if(publishedDataSet->config.publishedDataSetType == UA_PUBSUB_DATASET_PUBLISHEDEVENTS){
+        /*Cleans up the DSW EventQueue*/
+        size_t eventSize = dataSetWriter->eventQueueEntries;
+        for(size_t i = 0; i < eventSize; i++){
+            EventQueueEntry *eventQueueEntry = SIMPLEQ_FIRST(&dataSetWriter->eventQueue);
+            SIMPLEQ_REMOVE_HEAD(&dataSetWriter->eventQueue, listEntry);
+            dataSetWriter->eventQueueEntries--;
+            UA_free(eventQueueEntry);
+        }
+        /*Cleans up the Event-PDS list*/
+        PublishedDataSetEventEntry *entry, *entry_tmp;
+        LIST_FOREACH_SAFE(entry, &server->pubSubManager.publishedDataSetEvents, listEntry, entry_tmp){
+            if(UA_NodeId_equal(&entry->dsw->identifier, &dataSetWriter->identifier)){
+                LIST_REMOVE(entry, listEntry);
+                UA_free(entry);
+            }
+        }
+    }
+#endif /*UA_ENABLE_PUBSUB_EVENTS*/
+
     linkedWriterGroup->writersCount--;
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     removeDataSetWriterRepresentation(server, dataSetWriter);
@@ -1494,11 +1572,16 @@ UA_Server_removeDataSetWriter(UA_Server *server, const UA_NodeId dsw){
 UA_StatusCode
 UA_DataSetFieldConfig_copy(const UA_DataSetFieldConfig *src, UA_DataSetFieldConfig *dst){
     memcpy(dst, src, sizeof(UA_DataSetFieldConfig));
-    if(src->dataSetFieldType == UA_PUBSUB_DATASETFIELD_VARIABLE) {
+    if(src->dataSetFieldType == UA_PUBSUB_DATASETFIELD_VARIABLE){
         UA_String_copy(&src->field.variable.fieldNameAlias, &dst->field.variable.fieldNameAlias);
         UA_PublishedVariableDataType_copy(&src->field.variable.publishParameters,
                                           &dst->field.variable.publishParameters);
-    } else {
+    }else if(src->dataSetFieldType == UA_PUBSUB_DATASETFIELD_EVENT){
+        UA_String_copy(&src->field.events.fieldNameAlias, &dst->field.events.fieldNameAlias);
+        UA_SimpleAttributeOperand_copy(&src->field.events.selectedField,
+                                       &dst->field.events.selectedField);
+        //Todo: deep copy of DataType necessary?
+    }else{
         return UA_STATUSCODE_BADNOTSUPPORTED;
     }
 
@@ -1540,6 +1623,9 @@ UA_DataSetFieldConfig_clear(UA_DataSetFieldConfig *dataSetFieldConfig){
     if(dataSetFieldConfig->dataSetFieldType == UA_PUBSUB_DATASETFIELD_VARIABLE){
         UA_String_clear(&dataSetFieldConfig->field.variable.fieldNameAlias);
         UA_PublishedVariableDataType_clear(&dataSetFieldConfig->field.variable.publishParameters);
+    }else if(dataSetFieldConfig->dataSetFieldType == UA_PUBSUB_DATASETFIELD_EVENT){
+        UA_String_clear(&dataSetFieldConfig->field.events.fieldNameAlias);
+        UA_SimpleAttributeOperand_clear(&dataSetFieldConfig->field.events.selectedField);
     }
 }
 
@@ -1660,6 +1746,7 @@ UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_Server *server,
 
             // Create DataValue for Message
             UA_DataValue dataValue = eventQueueEntry->value;
+            UA_free(eventQueueEntry);
 
             if(((u64)dataSetWriter->config.dataSetFieldContentMask &
                 (u64)UA_DATASETFIELDCONTENTMASK_STATUSCODE) == 0)

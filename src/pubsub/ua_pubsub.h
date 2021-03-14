@@ -128,7 +128,7 @@ typedef struct UA_DataSetWriter{
 #ifdef UA_ENABLE_PUBSUB_EVENTS
     size_t eventQueueEntries;
     SIMPLEQ_HEAD(EventQueue, EventQueueEntry) eventQueue;
-#endif
+#endif /*UA_ENABLE_PUBSUB_EVENTS*/
     UA_UInt16 actualDataSetMessageSequenceCount;
     /* This flag is 'read only' and is set internally based on the PubSub state. */
     UA_Boolean configurationFrozen;
