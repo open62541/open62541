@@ -388,6 +388,12 @@ if(UA_ENABLE_PUBSUB)
         add_test_valgrind(check_pubsub_subscribe_msgrcvtimeout ${TESTS_BINARY_DIR}/check_pubsub_subscribe_msgrcvtimeout)
     endif()
 
+    if (UA_ENABLE_PUBSUB_EVENTS)
+        add_executable(check_pubsub_publish_events pubsub/check_pubsub_publish_events.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
+        target_link_libraries(check_pubsub_publish_events ${LIBS})
+        add_test_valgrind(pubsub_publish_events ${TESTS_BINARY_DIR}/check_pubsub_publish_events)
+    endif ()
+
     if(UA_ENABLE_PUBSUB_ETH_UADP)
         add_executable(check_pubsub_connection_ethernet pubsub/check_pubsub_connection_ethernet.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
         target_link_libraries(check_pubsub_connection_ethernet ${LIBS})
