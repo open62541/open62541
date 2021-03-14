@@ -82,6 +82,7 @@ addDataSetField(UA_Server *server) {
     memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
     dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_EVENT;
     dataSetFieldConfig.field.events.fieldNameAlias = UA_STRING("Message");
+    dataSetFieldConfig.field.events.type = UA_TYPES[UA_TYPES_LOCALIZEDTEXT];
     UA_SimpleAttributeOperand *sf = UA_SimpleAttributeOperand_new();
     UA_SimpleAttributeOperand_init(sf);
     sf->typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
@@ -104,6 +105,7 @@ addDataSetField1(UA_Server *server) {
     memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
     dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_EVENT;
     dataSetFieldConfig.field.events.fieldNameAlias = UA_STRING("Severity");
+    dataSetFieldConfig.field.events.type = UA_TYPES[UA_TYPES_UINT16];
     UA_SimpleAttributeOperand *sf = UA_SimpleAttributeOperand_new();
     UA_SimpleAttributeOperand_init(sf);
     sf->typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);

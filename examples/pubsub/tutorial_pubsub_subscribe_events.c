@@ -188,7 +188,7 @@ static void fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData) {
     UA_FieldMetaData_init (&pMetaData->fields[0]);
     UA_NodeId_copy (&UA_TYPES[UA_TYPES_LOCALIZEDTEXT].typeId,
                     &pMetaData->fields[0].dataType);
-    pMetaData->fields[0].builtInType = UA_NS0ID_LOCALIZEDTEXT;
+    pMetaData->fields[0].builtInType = UA_TYPES_LOCALIZEDTEXT;
     pMetaData->fields[0].name =  UA_STRING ("Message");
     pMetaData->fields[0].valueRank = -1; /* scalar */
 
