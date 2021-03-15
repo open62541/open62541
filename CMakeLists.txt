@@ -797,6 +797,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/deps/libc_time.c
                 ${PROJECT_SOURCE_DIR}/deps/pcg_basic.c
                 ${PROJECT_SOURCE_DIR}/deps/base64.c
+                ${PROJECT_SOURCE_DIR}/deps/json5.c
                 ${PROJECT_SOURCE_DIR}/deps/aa_tree.c
                 
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_config.c)
