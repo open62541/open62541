@@ -409,6 +409,10 @@ typedef struct {
 
 } UA_PubSub_CallbackLifecycle;
 
+/* Check if two UA_PubSub_CallbackLifecycle have the same callback implementations */
+UA_Boolean UA_EXPORT
+UA_PubSub_CallbackLifecycle_equal(const UA_PubSub_CallbackLifecycle *cbl1, const UA_PubSub_CallbackLifecycle *cbl2);
+
 /**
  * WriterGroup
  * -----------
@@ -640,6 +644,10 @@ typedef struct {
     size_t keyServersSize;
     UA_Int32 *keyServers;
 } UA_PubSubSecurityParameters;
+
+/* Check if two UA_PubSubSecurityParameters structs are equal */
+UA_Boolean UA_EXPORT
+UA_PubSubSecurityParameters_equal(const UA_PubSubSecurityParameters *sp1, const UA_PubSubSecurityParameters *sp2);
 
 /* Parameters for PubSub DataSetReader Configuration */
 typedef struct {

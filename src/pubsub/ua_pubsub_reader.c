@@ -381,13 +381,129 @@ UA_Server_removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier) {
     return UA_STATUSCODE_GOOD;
 }
 
-/* TODO: Implement
+UA_Boolean
+UA_PubSubSecurityParameters_equal(const UA_PubSubSecurityParameters *sp1, const UA_PubSubSecurityParameters *sp2){
+    if(sp1->keyServersSize == sp2->keyServersSize &&
+        sp1->securityMode == sp2->securityMode &&
+        UA_String_equal(sp1->securityGroupId,sp2->securityGroupId)){
+        for (int i = 0; i<=sp1->keyServersSize; i++){
+            if(sp1->keyServers[i] != sp2->keyServers[i])
+                return UA_FALSE;
+        }
+    }
+    return UA_TRUE;
+}
+
+UA_Boolean
+UA_PubSub_CallbackLifecycle_equal(const UA_PubSub_CallbackLifecycle *cbl1, const UA_PubSub_CallbackLifecycle *cbl2){
+    if (&(cbl1->addCustomCallback) == &(cbl2->addCustomCallback) &&
+        &(cbl1->changeCustomCallbackInterval) == &(cbl2->changeCustomCallbackInterval) &&
+        &(cbl1->removeCustomCallback) == &(cbl2->removeCustomCallback))
+            return UA_TRUE;
+    return UA_FALSE;
+}
+
 UA_StatusCode
 UA_Server_ReaderGroup_updateConfig(UA_Server *server, UA_NodeId readerGroupIdentifier,
                                    const UA_ReaderGroupConfig *config) {
-    return UA_STATUSCODE_BADNOTIMPLEMENTED;
+    if(!config)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    UA_ReaderGroup *currentReaderGroup = UA_ReaderGroup_findRGbyId(server, readerGroupIdentifier);
+    if(!currentReaderGroup)
+        return UA_STATUSCODE_BADNOTFOUND;
+
+    if(currentReaderGroup->configurationFrozen){
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "Modify ReaderGroup failed. ReaderGroup is frozen.");
+        return UA_STATUSCODE_BADCONFIGURATIONERROR;
+    }
+
+    /* Because the function pointers of the pubsubManagerCallback struct (dataype UA_PubSub_CallbackLifecycle)
+     * should always point to the implementations of "addCustomCallback", "changeCustomCallbackInterval" and
+     * "removeCustomCallback", in order to enable the user to implement his own callback implementations,
+     * it is not advisable to change the function pointers of this struct to anything else than the implementations
+     * of these functions.
+    */
+    if(!config->pubsubManagerCallback){
+        if(!UA_PubSub_CallbackLifecycle_equal(currentReaderGroup->config.pubsubManagerCallback,
+                config->pubsubManagerCallback)){
+            memcpy(currentReaderGroup->config.pubsubManagerCallback, config->pubsubManagerCallback,
+                   sizeof(UA_PubSub_CallbackLifecycle));
+        }
+    } else {
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "New pubsubManagerCallback field is null and was not updated.");
+    }
+
+    if(!config->enableBlockingSocket) {
+        if (currentReaderGroup->config.enableBlockingSocket != config->enableBlockingSocket) {
+            currentReaderGroup->config.enableBlockingSocket = config->enableBlockingSocket;
+        }
+    } else {
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "New enableBlockingSocket field is null and was not updated.");
+    }
+
+    if(!config->name) {
+        if (!UA_String_equal(currentReaderGroup->config.name, config->name)) {
+            currentReaderGroup->config.name = config->name;
+        }
+    } else {
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "New name field is null and was not updated.");
+    }
+
+    if(!config->rtLevel){
+        if(currentReaderGroup->config.rtLevel != config->rtLevel) {
+            currentReaderGroup->config.rtLevel = config->rtLevel;
+        }
+    } else {
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "New rtLevel field is null and was not updated.");
+    }
+
+    if(!config->securityParameters){
+        if(!UA_PubSubSecurityParameters_equal(currentReaderGroup->config.securityParameters,
+            config->securityParameters)) {
+            memccpy(currentReaderGroup->config.securityParameters,config->securityParameters,
+                    sizeof(UA_PubSubSecurityParameters));
+        }
+    } else {
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "New securityParameters field is null and was not updated.");
+    }
+
+    if(!config->subscribingInterval){
+        if(currentReaderGroup->config.subscribingInterval != config->subscribingInterval) {
+            if(currentReaderGroup->config.rtLevel == UA_PUBSUB_RT_NONE && currentReaderGroup->state == UA_PUBSUBSTATE_OPERATIONAL){
+                if(currentReaderGroup->config.pubsubManagerCallback.removeCustomCallback)
+                    currentReaderGroup->config.pubsubManagerCallback.removeCustomCallback(server, currentReaderGroup->identifier, currentReaderGroup->subscribeCallbackId);
+                else
+                    UA_PubSubManager_removeRepeatedPubSubCallback(server, currentReaderGroup->subscribeCallbackId);
+
+                currentReaderGroup->config.subscribingInterval = config->subscribingInterval;
+                UA_WriterGroup_addPublishCallback(server, currentReaderGroup);
+            } else {
+                currentReaderGroup->config.subscribingInterval = config->subscribingInterval;
+            }
+        }
+    } else {
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "New subscribingInterval field is null and was not updated.");
+    }
+
+    if(!config->timeout){
+        if(currentReaderGroup->config.timeout != config->timeout) {
+            currentReaderGroup->config.timeout = config->timeout;
+        }
+    } else {
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "New timeout field is null and was not updated.");
+    }
+    return UA_STATUSCODE_GOOD;
 }
-*/
+
 
 UA_StatusCode
 UA_Server_ReaderGroup_getConfig(UA_Server *server, UA_NodeId readerGroupIdentifier,
