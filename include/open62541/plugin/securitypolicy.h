@@ -320,6 +320,63 @@ struct UA_SecurityPolicy {
     void (*clear)(UA_SecurityPolicy *policy);
 };
 
+/**
+ * PubSub SecurityPolicy
+ * ---------------------
+ *
+ * For PubSub encryption, the message nonce is part of the (unencrypted)
+ * SecurityHeader. The nonce is required for the de- and encryption and has to
+ * be set in the channel context before de/encrypting. */
+
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+
+struct UA_PubSubSecurityPolicy;
+typedef struct UA_PubSubSecurityPolicy UA_PubSubSecurityPolicy;
+
+struct UA_PubSubSecurityPolicy {
+    UA_ByteString policyUri; /* The policy uri that identifies the implemented
+                              * algorithms */
+    UA_SecurityPolicySymmetricModule symmetricModule;
+
+    /* Create the context for the WriterGroup. The keys and nonce can be NULL
+     * here. Then they have to be set before the first encryption or signing
+     * operation. */
+    UA_StatusCode
+    (*newContext)(void *policyContext,
+                  const UA_ByteString *signingKey,
+                  const UA_ByteString *encryptingKey,
+                  const UA_ByteString *keyNonce,
+                  void **wgContext);
+
+    /* Delete the WriterGroup SecurityPolicy context */
+    void (*deleteContext)(void *wgContext);
+
+    /* Set the keys and nonce for the WriterGroup. This is returned from the
+     * GetSecurityKeys method of a Security Key Service (SKS). Otherwise, set
+     * manually via out-of-band transmission of the keys. */
+    UA_StatusCode
+    (*setSecurityKeys)(void *wgContext,
+                       const UA_ByteString *signingKey,
+                       const UA_ByteString *encryptingKey,
+                       const UA_ByteString *keyNonce)
+    UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+
+    /* The nonce is contained in the NetworkMessage SecurityHeader. Set before
+     * each en-/decryption step. */
+    UA_StatusCode
+    (*setMessageNonce)(void *wgContext,
+                       const UA_ByteString *nonce)
+    UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+
+    const UA_Logger *logger;
+
+    /* Deletes the dynamic content of the policy */
+    void (*clear)(UA_PubSubSecurityPolicy *policy);
+    void *policyContext;
+};
+
+#endif
+
 _UA_END_DECLS
 
 #endif /* UA_PLUGIN_SECURITYPOLICY_H_ */
