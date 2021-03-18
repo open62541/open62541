@@ -97,15 +97,15 @@ UA_StatusCode
 UA_ServerConfig_addPubSubTransportLayer(UA_ServerConfig *config,
                                         UA_PubSubTransportLayer pubsubTransportLayer) {
     UA_PubSubTransportLayer *tmpLayers = (UA_PubSubTransportLayer*)
-        UA_realloc(config->pubsubConfiguration.transportLayers,
+        UA_realloc(config->pubSubConfig.transportLayers,
                    sizeof(UA_PubSubTransportLayer) *
-                   (config->pubsubConfiguration.transportLayersSize + 1));
+                   (config->pubSubConfig.transportLayersSize + 1));
     if(tmpLayers == NULL)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    config->pubsubConfiguration.transportLayers = tmpLayers;
-    config->pubsubConfiguration.transportLayers[config->pubsubConfiguration.transportLayersSize] = pubsubTransportLayer;
-    config->pubsubConfiguration.transportLayersSize++;
+    config->pubSubConfig.transportLayers = tmpLayers;
+    config->pubSubConfig.transportLayers[config->pubSubConfig.transportLayersSize] = pubsubTransportLayer;
+    config->pubSubConfig.transportLayersSize++;
     return UA_STATUSCODE_GOOD;
 }
 #endif /* UA_ENABLE_PUBSUB */
