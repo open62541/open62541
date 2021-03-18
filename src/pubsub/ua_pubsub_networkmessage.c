@@ -147,7 +147,7 @@ UA_NetworkMessage_updateBufferedNwMessage(UA_NetworkMessageOffsetBuffer *buffer,
 
 UA_StatusCode
 UA_NetworkMessage_encodeBinary(const UA_NetworkMessage* src, UA_Byte **bufPos,
-                               const UA_Byte *bufEnd) {
+                               const UA_Byte *bufEnd, UA_Byte **dataToEncryptStart) {
     /* UADPVersion + UADP Flags */
     UA_Byte v = src->version;
     if(src->publisherIdEnabled)
@@ -376,6 +376,9 @@ UA_NetworkMessage_encodeBinary(const UA_NetworkMessage* src, UA_Byte **bufPos,
                 return rv;
         }
     }
+
+    if(dataToEncryptStart)
+        *dataToEncryptStart = *bufPos;
 
     // Payload
     if(src->networkMessageType != UA_NETWORKMESSAGE_DATASET)
