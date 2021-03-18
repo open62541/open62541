@@ -289,18 +289,26 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
         return;
     }
 
-    /* Make an example read to get errors in the itemToMonitor. Allow return
-     * codes "good" and "uncertain", as well as a list of statuscodes that might
-     * be repaired inside the data source. */
+    /* Make an example read to check the itemToMonitor. The DataSource itself
+     * could return a (temporary) error. This should still result in a valid
+     * MonitoredItem. Only a few StatusCodes are considered unrecoverable and
+     * lead to an abort:
+     * - The Node does not exist
+     * - The AttributeId does not match the NodeClass
+     * - The Session does not have sufficient access rights
+     * - The indicated encoding is not supported or not valid */
     UA_DataValue v = UA_Server_readWithSession(server, session, &request->itemToMonitor,
                                                cmc->timestampsToReturn);
-    if(v.hasStatus && (v.status >> 30) > 1 &&
-       v.status != UA_STATUSCODE_BADRESOURCEUNAVAILABLE &&
-       v.status != UA_STATUSCODE_BADCOMMUNICATIONERROR &&
-       v.status != UA_STATUSCODE_BADWAITINGFORINITIALDATA &&
-       v.status != UA_STATUSCODE_BADUSERACCESSDENIED &&
-       v.status != UA_STATUSCODE_BADNOTREADABLE &&
-       v.status != UA_STATUSCODE_BADINDEXRANGENODATA) {
+    if(v.hasStatus &&
+       (v.status == UA_STATUSCODE_BADNODEIDUNKNOWN ||
+        v.status == UA_STATUSCODE_BADATTRIBUTEIDINVALID ||
+        v.status == UA_STATUSCODE_BADUSERACCESSDENIED ||
+        v.status == UA_STATUSCODE_BADDATAENCODINGUNSUPPORTED ||
+        v.status == UA_STATUSCODE_BADDATAENCODINGINVALID
+        /* Remember that these codes do not lead to an abort:
+         * v.status == UA_STATUSCODE_BADNOTREADABLE
+         * v.status == UA_STATUSCODE_BADINDEXRANGENODATA */
+        )) {
         result->statusCode = v.status;
         UA_DataValue_clear(&v);
         return;
