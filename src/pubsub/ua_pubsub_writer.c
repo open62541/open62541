@@ -1098,6 +1098,42 @@ UA_WriterGroup_findWGbyId(UA_Server *server, UA_NodeId identifier){
     return NULL;
 }
 
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+UA_StatusCode
+UA_Server_setWriterGroupEncryptionKeys(UA_Server *server, const UA_NodeId writerGroup,
+                                       UA_UInt32 securityTokenId,
+                                       const UA_ByteString signingKey,
+                                       const UA_ByteString encryptingKey,
+                                       const UA_ByteString keyNonce) {
+    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
+    if(!wg)
+        return UA_STATUSCODE_BADNOTFOUND;
+
+    if(!wg->config.securityPolicy) {
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "No SecurityPolicy configured for the WriterGroup");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    if(securityTokenId != wg->securityTokenId) {
+        wg->securityTokenId = securityTokenId;
+        wg->nonceSequenceNumber = 1;
+    }
+
+    /* Create a new context */
+    if(!wg->securityPolicyContext) {
+        return wg->config.securityPolicy->
+            newContext(wg->config.securityPolicy->policyContext,
+                       &signingKey, &encryptingKey, &keyNonce,
+                       &wg->securityPolicyContext);
+    }
+
+    /* Update the context */
+    return wg->config.securityPolicy->
+        setSecurityKeys(wg->securityPolicyContext, &signingKey, &encryptingKey, &keyNonce);
+}
+#endif
+
 void
 UA_WriterGroupConfig_clear(UA_WriterGroupConfig *writerGroupConfig){
     //delete writerGroup config
@@ -1129,6 +1165,13 @@ UA_WriterGroup_clear(UA_Server *server, UA_WriterGroup *writerGroup) {
         UA_free(writerGroup->bufferedMessage.offsets);
     }
     UA_NodeId_clear(&writerGroup->identifier);
+
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    if(writerGroup->config.securityPolicy && writerGroup->securityPolicyContext) {
+        writerGroup->config.securityPolicy->deleteContext(writerGroup->securityPolicyContext);
+        writerGroup->securityPolicyContext = NULL;
+    }
+#endif
 }
 
 UA_StatusCode
