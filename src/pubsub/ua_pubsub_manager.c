@@ -23,11 +23,11 @@ UA_Server_addPubSubConnection(UA_Server *server,
                               UA_NodeId *connectionIdentifier) {
     /* Find the matching UA_PubSubTransportLayers */
     UA_PubSubTransportLayer *tl = NULL;
-    for(size_t i = 0; i < server->config.pubsubTransportLayersSize; i++) {
+    for(size_t i = 0; i < server->config.pubsubConfiguration.transportLayersSize; i++) {
         if(connectionConfig &&
-           UA_String_equal(&server->config.pubsubTransportLayers[i].transportProfileUri,
+           UA_String_equal(&server->config.pubsubConfiguration.transportLayers[i].transportProfileUri,
                            &connectionConfig->transportProfileUri)) {
-            tl = &server->config.pubsubTransportLayers[i];
+            tl = &server->config.pubsubConfiguration.transportLayers[i];
         }
     }
     if(!tl) {
@@ -314,9 +314,9 @@ UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
     }
 
     //free the currently configured transport layers
-    if (server->config.pubsubTransportLayersSize > 0) {
-        UA_free(server->config.pubsubTransportLayers);
-        server->config.pubsubTransportLayersSize = 0;
+    if(server->config.pubsubConfiguration.transportLayersSize > 0) {
+        UA_free(server->config.pubsubConfiguration.transportLayers);
+        server->config.pubsubConfiguration.transportLayersSize = 0;
     }
 
     //remove Connections and WriterGroups

@@ -453,7 +453,7 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
 #endif
 
     /* provide a callback to get notifications of specific PubSub state changes or timeouts (e.g. subscriber MessageReceiveTimeout) */
-    config->pubsubConfiguration->pubsubStateChangeCallback = pubsubStateChangeCallback;
+    config->pubSubConfig.stateChangeCallback = pubsubStateChangeCallback;
 
     if (*useCustomMonitoring == UA_TRUE) {
         /* provide own backend by setting the monitoring callbacks */
@@ -464,8 +464,7 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
         monitoringInterface.stopMonitoring = pubSubComponent_stopMonitoring;
         monitoringInterface.updateMonitoringInterval = pubSubComponent_updateMonitoringInterval;
         monitoringInterface.deleteMonitoring = pubSubComponent_deleteMonitoring;
-
-        config->pubsubConfiguration->monitoringInterface = monitoringInterface;
+        config->pubSubConfig.monitoringInterface = monitoringInterface;
     }
 
     /* API calls */
