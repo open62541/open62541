@@ -687,7 +687,7 @@ generateFieldMetaData(UA_Server *server, UA_DataSetField *field, UA_FieldMetaDat
             fieldMetaData->dataSetFieldId = UA_GUID_NULL;
             fieldMetaData->properties = NULL;
             fieldMetaData->propertiesSize = 0;
-            fieldMetaData->arrayDimensionsSize = 0;
+            //fieldMetaData->arrayDimensionsSize = 0;
             fieldMetaData->dataType = field->config.field.events.type.typeId;
             const UA_DataType * currentDataType =
                 UA_findDataTypeWithCustom(&fieldMetaData->dataType,server->config.customDataTypes);
