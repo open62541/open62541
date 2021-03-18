@@ -188,6 +188,8 @@ UA_DataSetReader_generateDataSetMessage(UA_Server *server, UA_DataSetMessage *da
 
     if((u64)dataSetReaderMessageDataType->dataSetMessageContentMask &
        (u64)UA_UADPDATASETMESSAGECONTENTMASK_PICOSECONDS) {
+        dataSetMessage->header.picoSecondsIncluded = false;
+#ifdef __USE_POSIX199309
         dataSetMessage->header.picoSecondsIncluded = true;
         struct timespec tp;
         if(clock_gettime(CLOCK_MONOTONIC,&tp) == -1){
@@ -201,6 +203,7 @@ UA_DataSetReader_generateDataSetMessage(UA_Server *server, UA_DataSetMessage *da
              */
             dataSetMessage->header.picoSeconds = (UA_UInt16) ((tp.tv_nsec % 100) * 100);
         }
+#endif
     }
     /* TODO: Statuscode not supported yet */
     if((u64)dataSetReaderMessageDataType->dataSetMessageContentMask &
