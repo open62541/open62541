@@ -152,6 +152,12 @@ struct UA_WriterGroup{
     UA_UInt16 sequenceNumber; /* Increased after every succressuly sent message */
     /* This flag is 'read only' and is set internally based on the PubSub state. */
     UA_Boolean configurationFrozen;
+
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    UA_UInt32 securityTokenId;
+    UA_UInt32 nonceSequenceNumber; /* To be part of the MessageNonce */
+    void *securityPolicyContext;
+#endif
 };
 
 UA_StatusCode

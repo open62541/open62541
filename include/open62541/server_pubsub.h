@@ -487,7 +487,6 @@ typedef struct {
     UA_Duration publishingInterval;
     UA_Double keepAliveTime;
     UA_Byte priority;
-    UA_MessageSecurityMode securityMode;
     UA_ExtensionObject transportSettings;
     UA_ExtensionObject messageSettings;
     size_t groupPropertiesSize;
@@ -500,6 +499,14 @@ typedef struct {
     UA_UInt16 maxEncapsulatedDataSetMessageCount;
     /* non std. field */
     UA_PubSubRTLevel rtLevel;
+
+    /* Message are encrypted if a SecurityPolicy is configured and the
+     * securityMode set accordingly. The symmetric key is a runtime information
+     * and has to be set set via UA_Server_setWriterGroupEncryptionKey. */
+    UA_MessageSecurityMode securityMode; /* via the UA_WriterGroupDataType */
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    UA_PubSubSecurityPolicy *securityPolicy;
+#endif
 } UA_WriterGroupConfig;
 
 void UA_EXPORT
@@ -539,6 +546,17 @@ UA_Server_setWriterGroupOperational(UA_Server *server, const UA_NodeId writerGro
 
 UA_StatusCode UA_EXPORT
 UA_Server_setWriterGroupDisabled(UA_Server *server, const UA_NodeId writerGroup);
+
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+/* Set the group key for the message encryption */
+UA_StatusCode UA_EXPORT
+UA_Server_setWriterGroupEncryptionKeys(UA_Server *server, const UA_NodeId writerGroup,
+                                       UA_UInt32 securityTokenId,
+                                       const UA_ByteString signingKey,
+                                       const UA_ByteString encryptingKey,
+                                       const UA_ByteString keyNonce);
+#endif
+
 
 /**
  * .. _dsw:
