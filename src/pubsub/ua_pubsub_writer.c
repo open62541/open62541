@@ -681,7 +681,8 @@ generateFieldMetaData(UA_Server *server, UA_DataSetField *field, UA_FieldMetaDat
             return UA_STATUSCODE_GOOD;
         case UA_PUBSUB_DATASETFIELD_EVENT:
             // [WIP]: maybe needs some adjustments
-            /*if(UA_String_copy(&field->config.field.events.fieldNameAlias, &fieldMetaData->name) != UA_STATUSCODE_GOOD)
+            #ifdef UA_ENABLE_PUBSUB_EVENTS
+            if(UA_String_copy(&field->config.field.events.fieldNameAlias, &fieldMetaData->name) != UA_STATUSCODE_GOOD)
                 return UA_STATUSCODE_BADINTERNALERROR;
             fieldMetaData->description = UA_LOCALIZEDTEXT_ALLOC("", "");
             fieldMetaData->dataSetFieldId = UA_GUID_NULL;
@@ -697,8 +698,10 @@ generateFieldMetaData(UA_Server *server, UA_DataSetField *field, UA_FieldMetaDat
                 fieldMetaData->fieldFlags = UA_DATASETFIELDFLAGS_PROMOTEDFIELD;
             } else {
                 fieldMetaData->fieldFlags = UA_DATASETFIELDFLAGS_NONE;
-            }*/
+            }
             return UA_STATUSCODE_GOOD;
+            #endif
+            return UA_STATUSCODE_BADNOTSUPPORTED;
         default:
             return UA_STATUSCODE_BADNOTSUPPORTED;
     }
