@@ -323,10 +323,9 @@ UA_Server_init(UA_Server *server) {
 
 #ifdef UA_ENABLE_PUBSUB_MONITORING
     /* setup default PubSub monitoring callbacks */
-    if (UA_PubSubManager_setDefaultMonitoringCallbacks(&(server->config.pubsubConfiguration->monitoringInterface)) != 
-        UA_STATUSCODE_GOOD) {
+    res = UA_PubSubManager_setDefaultMonitoringCallbacks(&server->config.pubSubConfig.monitoringInterface);
+    if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
-    }
 #endif /* UA_ENABLE_PUBSUB_MONITORING */
 #endif /* UA_ENABLE_PUBSUB */
     return server;

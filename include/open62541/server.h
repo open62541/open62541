@@ -126,7 +126,7 @@ struct UA_ServerConfig {
 
     /* PubSub */
 #ifdef UA_ENABLE_PUBSUB
-    UA_PubSubConfiguration pubsubConfiguration;
+    UA_PubSubConfiguration pubSubConfig;
 #endif
 
     /* Available security policies */

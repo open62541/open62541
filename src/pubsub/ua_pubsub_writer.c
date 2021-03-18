@@ -1220,8 +1220,8 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_PubSubState state, UA_Writer
             writerGroup->state = UA_PUBSUBSTATE_ERROR;
             /* TODO: WIP - example usage of pubsubStateChangeCallback -> inform application about error state, reason param necessary */
             UA_ServerConfig *pConfig = UA_Server_getConfig(server);
-            if(pConfig->pubsubConfiguration.stateChangeCallback != 0) {
-                pConfig->pubsubConfiguration.stateChangeCallback(&writerGroup->identifier,
+            if(pConfig->pubSubConfig.stateChangeCallback != 0) {
+                pConfig->pubSubConfig.stateChangeCallback(&writerGroup->identifier,
                                                                  UA_PUBSUBSTATE_ERROR,
                                                                  UA_STATUSCODE_BADINTERNALERROR);
             }
