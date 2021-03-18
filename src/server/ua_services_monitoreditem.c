@@ -302,11 +302,16 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
     if(v.hasStatus &&
        (v.status == UA_STATUSCODE_BADNODEIDUNKNOWN ||
         v.status == UA_STATUSCODE_BADATTRIBUTEIDINVALID ||
-        v.status == UA_STATUSCODE_BADUSERACCESSDENIED ||
         v.status == UA_STATUSCODE_BADDATAENCODINGUNSUPPORTED ||
         v.status == UA_STATUSCODE_BADDATAENCODINGINVALID
-        /* Remember that these codes do not lead to an abort:
+        /* Part 4, 5.12.2 CreateMonitoredItems: When a user adds a monitored
+         * item that the user is denied read access to, the add operation for
+         * the item shall succeed and the bad status Bad_NotReadable or
+         * Bad_UserAccessDenied shall be returned in the Publish response.
          * v.status == UA_STATUSCODE_BADNOTREADABLE
+         * v.status == UA_STATUSCODE_BADUSERACCESSDENIED
+         *
+         * The IndexRange error can change depending on the value.
          * v.status == UA_STATUSCODE_BADINDEXRANGENODATA */
         )) {
         result->statusCode = v.status;
