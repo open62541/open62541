@@ -361,7 +361,7 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId writ
         wg->bufferedMessage.buffer = buf;
         const UA_Byte *bufEnd = &wg->bufferedMessage.buffer.data[wg->bufferedMessage.buffer.length];
         UA_Byte *bufPos = wg->bufferedMessage.buffer.data;
-        UA_NetworkMessage_encodeBinary(&networkMessage, &bufPos, bufEnd);
+        UA_NetworkMessage_encodeBinary(&networkMessage, &bufPos, bufEnd, NULL);
         
         UA_free(networkMessage.payload.dataSetPayload.sizes);
         /* Clean up DSM */
@@ -2081,7 +2081,7 @@ sendNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
     UA_Byte *bufPos = buf.data;
     memset(bufPos, 0, msgSize);
     const UA_Byte *bufEnd = &buf.data[buf.length];
-    retval = UA_NetworkMessage_encodeBinary(&nm, &bufPos, bufEnd);
+    retval = UA_NetworkMessage_encodeBinary(&nm, &bufPos, bufEnd, NULL);
     if(retval != UA_STATUSCODE_GOOD) {
         if(msgSize > UA_MAX_STACKBUF)
             UA_ByteString_clear(&buf);
