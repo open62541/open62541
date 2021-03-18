@@ -33,6 +33,7 @@
 
 #ifdef UA_ENABLE_PUBSUB
 #include <open62541/plugin/pubsub.h>
+#include <open62541/server_pubsub.h>
 #endif
 
 #ifdef UA_ENABLE_HISTORIZING
@@ -123,12 +124,10 @@ struct UA_ServerConfig {
     UA_ServerNetworkLayer *networkLayers;
     UA_String customHostname;
 
+    /* PubSub */
 #ifdef UA_ENABLE_PUBSUB
-    /*PubSub network layer */
-    size_t pubsubTransportLayersSize;
-    UA_PubSubTransportLayer *pubsubTransportLayers;
-    UA_PubSubConfiguration *pubsubConfiguration;
-#endif /* UA_ENABLE_PUBSUB */
+    UA_PubSubConfiguration pubsubConfiguration;
+#endif
 
     /* Available security policies */
     size_t securityPoliciesSize;
@@ -366,7 +365,6 @@ UA_Server_run_shutdown(UA_Server *server);
 /**
  * Timed Callbacks
  * --------------- */
-typedef void (*UA_ServerCallback)(UA_Server *server, void *data);
 
 /* Add a callback for execution at a specified time. If the indicated time lies
  * in the past, then the callback is executed at the next iteration of the

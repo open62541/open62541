@@ -321,11 +321,6 @@ UA_Server_init(UA_Server *server) {
     UA_Server_initPubSubNS0(server);
 #endif
 
-    server->config.pubsubConfiguration = (UA_PubSubConfiguration*) UA_calloc(1, sizeof(UA_PubSubConfiguration));
-    if (!server->config.pubsubConfiguration) {
-        goto cleanup;
-    }
-
 #ifdef UA_ENABLE_PUBSUB_MONITORING
     /* setup default PubSub monitoring callbacks */
     if (UA_PubSubManager_setDefaultMonitoringCallbacks(&(server->config.pubsubConfiguration->monitoringInterface)) != 

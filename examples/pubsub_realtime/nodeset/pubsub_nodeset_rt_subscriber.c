@@ -635,16 +635,7 @@ int main(int argc, char **argv) {
     networkAddressUrlSub.networkInterface = UA_STRING(interface);
     networkAddressUrlSub.url              = UA_STRING(SUBSCRIBING_MAC_ADDRESS);
 
-    /* Details about the connection configuration and handling are located in the pubsub connection tutorial */
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer *)
-                                    UA_malloc(sizeof(UA_PubSubTransportLayer));
-    if (!config->pubsubTransportLayers) {
-        UA_Server_delete(server);
-        return EXIT_FAILURE;
-    }
-
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerEthernet();
-    config->pubsubTransportLayersSize++;
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
 
     addPubSubConnectionSubscriber(server, &networkAddressUrlSub);
     addReaderGroup(server);
