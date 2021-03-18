@@ -216,6 +216,12 @@ struct UA_PubSubConfiguration {
                                 UA_StatusCode status);
     /* TODO: maybe status code provides not enough information about the state change */
 
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    /* PubSub security policies */
+    size_t securityPoliciesSize;
+    UA_PubSubSecurityPolicy *securityPolicies;
+#endif
+
 #ifdef UA_ENABLE_PUBSUB_MONITORING
     UA_PubSubMonitoringInterface monitoringInterface;
 #endif

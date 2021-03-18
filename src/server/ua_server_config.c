@@ -81,10 +81,13 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
 
 #ifdef UA_ENABLE_PUBSUB
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
-    if(config->pubsubConfiguration.securityPolicies != NULL) {
-        UA_free(config->pubsubConfiguration.securityPolicies);
-        config->pubsubConfiguration.securityPolicies = NULL;
-        config->pubsubConfiguration.securityPoliciesSize = 0;
+    if(config->pubSubConfig.securityPolicies != NULL) {
+        for(size_t i = 0; i < config->pubSubConfig.securityPoliciesSize; i++) {
+            config->pubSubConfig.securityPolicies[i].clear(&config->pubSubConfig.securityPolicies[i]);
+        }
+        UA_free(config->pubSubConfig.securityPolicies);
+        config->pubSubConfig.securityPolicies = NULL;
+        config->pubSubConfig.securityPoliciesSize = 0;
     }
 #endif
 #endif /* UA_ENABLE_PUBSUB */
