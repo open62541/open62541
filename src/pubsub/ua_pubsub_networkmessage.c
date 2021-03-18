@@ -1110,6 +1110,48 @@ UA_DataSetMessageHeader_encodeBinary(const UA_DataSetMessageHeader* src, UA_Byte
     return UA_STATUSCODE_GOOD;
 }
 
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+UA_StatusCode
+UA_NetworkMessage_signEncrypt(UA_NetworkMessage *nm, UA_MessageSecurityMode securityMode,
+                              UA_PubSubSecurityPolicy *policy, void *policyContext,
+                              UA_Byte *messageStart, UA_Byte *encryptStart,
+                              UA_Byte *sigStart) {
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+
+    /* Encrypt the payload */
+    if(securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+        /* Set the temporary MessageNonce in the SecurityPolicy */
+        res = policy->setMessageNonce(policyContext, &nm->securityHeader.messageNonce);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+
+        /* The encryption is done in-place, no need to encode again */
+        UA_ByteString encryptBuf;
+        encryptBuf.data = encryptStart;
+        encryptBuf.length = (uintptr_t)sigStart - (uintptr_t)encryptStart;
+        res = policy->symmetricModule.cryptoModule.encryptionAlgorithm.
+            encrypt(policyContext, &encryptBuf);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    }
+
+    /* Sign the entire message */
+    if(securityMode == UA_MESSAGESECURITYMODE_SIGN ||
+       securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+        UA_ByteString sigBuf;
+        sigBuf.length = (uintptr_t)sigStart - (uintptr_t)messageStart;
+        sigBuf.data = messageStart;
+        size_t sigSize = policy->symmetricModule.cryptoModule.
+            signatureAlgorithm.getLocalSignatureSize(policyContext);
+        UA_ByteString sig = {sigSize, sigStart};
+        res = policy->symmetricModule.cryptoModule.
+            signatureAlgorithm.sign(policyContext, &sigBuf, &sig);
+    }
+
+    return res;
+}
+#endif
+
 UA_StatusCode
 UA_DataSetMessageHeader_decodeBinary(const UA_ByteString *src, size_t *offset,
                                      UA_DataSetMessageHeader* dst) {
