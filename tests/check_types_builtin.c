@@ -810,8 +810,8 @@ START_TEST(UA_Float_encodeShallWorkOnExample) {
         {0x00, 0x00, 0x80, 0x7F}, // INF
         {0x00, 0x00, 0x80, 0xFF} // -INF
     };
-#if defined(_MSC_VER) || defined(__TINYC__)
-    /* On Visual Studio or TinyCC -NAN is encoded differently */
+#if defined(_MSC_VER)
+    /* On Visual Studio, -NAN is encoded differently */
     result[4][3] = 127;
 #endif
 

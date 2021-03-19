@@ -1,0 +1,33 @@
+name: Linux Build & Test
+
+on: [push, pull_request]
+
+jobs:
+  standard:
+    runs-on: ubuntu-18.04
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: true
+    - name: Install Dependencies
+      run: |
+        sudo apt update
+        sudo apt install -y -qq python-sphinx graphviz check
+        sudo apt install -y -qq tcc clang-10 clang++-10 clang-tools-10 valgrind
+        sudo apt install -y -qq libmbedtls-dev openssl
+    - name: Debug Build & Unit Tests (gcc)
+      run: source tools/ci.sh && unit_tests
+    - name: Debug Build & Unit Tests (clang)
+      run: source tools/ci.sh && CC=clang-10 CXX=clang++-10 unit_tests
+    - name: Debug Build & Unit Tests (tcc)
+      run: source tools/ci.sh && CC=tcc unit_tests
+    - name: Encryption (MbedTLS) Build & Unit Tests (gcc)
+      run: source tools/ci.sh && unit_tests_encryption_mbedtls
+    - name: Encryption (OpenSSL) Build & Unit Tests (gcc)
+      run: source tools/ci.sh && unit_tests_encryption_openssl
+    - name: Release Build
+      run: source tools/ci.sh && build_release
+    - name: Valgrind Build & Unit Tests (gcc)
+      run: source tools/ci.sh && unit_tests_valgrind
+    - name: Clang Static Analyzer
+      run: source tools/ci.sh && build_clang_analyzer

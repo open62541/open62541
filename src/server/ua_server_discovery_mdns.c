@@ -410,15 +410,20 @@ mdns_create_txt(UA_Server *server, const char *fullServiceDomain, const char *pa
         size_t pathLen = strlen(path);
         if(path[0] == '/') {
             allocPath = (char*)UA_malloc(pathLen+1);
-            if (!allocPath) {
-                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "Cannot alloc memory for txt path");
+            if(!allocPath) {
+                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                             "Cannot alloc memory for txt path");
                 return;
             }
-            memcpy(&allocPath, &path, pathLen);
+            memcpy(allocPath, path, pathLen);
             allocPath[pathLen] = '\0';
         } else {
-            /* todo: malloc may fail: return a statuscode */
             allocPath = (char*)UA_malloc(pathLen + 2);
+            if(!allocPath) {
+                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                             "Cannot alloc memory for txt path");
+                return;
+            }
             allocPath[0] = '/';
             memcpy(allocPath + 1, path, pathLen);
             allocPath[pathLen + 1] = '\0';

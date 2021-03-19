@@ -124,12 +124,12 @@ struct UA_Server {
 
     /* Subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
+    size_t subscriptionsSize;  /* Number of active subscriptions */
+    size_t monitoredItemsSize; /* Number of active monitored items */
     LIST_HEAD(, UA_Subscription) subscriptions; /* All subscriptions in the
                                                  * server. They may be detached
                                                  * from a session. */
     UA_UInt32 lastSubscriptionId; /* To generate unique SubscriptionIds */
-    UA_UInt32 numSubscriptions;   /* Num active subscriptions */
-    UA_UInt32 numMonitoredItems;  /* Num active monitored items */
 
     /* To be cast to UA_LocalMonitoredItem to get the callback and context */
     LIST_HEAD(, UA_MonitoredItem) localMonitoredItems;
@@ -137,7 +137,7 @@ struct UA_Server {
 
 # ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
     LIST_HEAD(, UA_ConditionSource) headConditionSource;
-# endif /* UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */
+# endif
 
 #endif
 
@@ -154,6 +154,9 @@ struct UA_Server {
     /* Statistics */
     UA_ServerStatistics serverStats;
 };
+
+
+extern const struct aa_head nameTreeHead;
 
 /**************************/
 /* SecureChannel Handling */
@@ -371,8 +374,6 @@ translateBrowsePathToNodeIds(UA_Server *server, const UA_BrowsePath *browsePath)
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 
-void UA_Server_addSubscription(UA_Server *server, UA_Subscription *sub);
-void UA_Server_deleteSubscription(UA_Server *server, UA_Subscription *sub);
 void monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem);
 
 UA_Subscription *
@@ -408,6 +409,58 @@ register_server_with_discovery_server(UA_Server *server,
                                       const UA_Boolean isUnregister,
                                       const char* semaphoreFilePath);
 #endif
+
+/***********/
+/* RefTree */
+/***********/
+
+/* A RefTree is a sorted set of NodeIds that ensures we consider each node just
+ * once. It holds a single array for both the ExpandedNodeIds and the entries of
+ * a tree-structure for fast lookup. A single realloc operation (with some
+ * pointer repairing) can be used to increase the capacity of the RefTree.
+ *
+ * When the RefTree is complete, the tree-part at the end of the targets array
+ * can be ignored / cut away to use it as a simple ExpandedNodeId array.
+ *
+ * The layout of the targets array is as follows:
+ *
+ * | Targets [ExpandedNodeId, n times] | Tree [RefEntry, n times] | */
+
+#define UA_REFTREE_INITIAL_SIZE 16
+
+typedef struct RefEntry {
+    ZIP_ENTRY(RefEntry) zipfields;
+    const UA_ExpandedNodeId *target;
+    UA_UInt32 targetHash; /* Hash of the target nodeid */
+} RefEntry;
+
+ZIP_HEAD(RefHead, RefEntry);
+typedef struct RefHead RefHead;
+
+typedef struct {
+    UA_ExpandedNodeId *targets;
+    RefHead head;
+    size_t capacity; /* available space */
+    size_t size;     /* used space */
+} RefTree;
+
+UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
+RefTree_init(RefTree *rt);
+
+void RefTree_clear(RefTree *rt);
+
+UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
+RefTree_add(RefTree *rt, const UA_ExpandedNodeId *target, UA_Boolean *duplicate);
+
+UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
+RefTree_addNodeId(RefTree *rt, const UA_NodeId *target, UA_Boolean *duplicate);
+
+UA_Boolean
+RefTree_contains(RefTree *rt, const UA_ExpandedNodeId *target);
+
+UA_Boolean
+RefTree_containsNodeId(RefTree *rt, const UA_NodeId *target);
+
 /***************************************/
 /* Check Information Model Consistency */
 /***************************************/

@@ -416,30 +416,30 @@ START_TEST(Server_overflow) {
     }
     ck_assert_ptr_ne(mon, NULL);
     UA_assert(mon);
-    ck_assert_uint_eq(mon->queueSize, 1); 
-    ck_assert_uint_eq(mon->maxQueueSize, 3); 
+    ck_assert_uint_eq(mon->queueSize, 1);
+    ck_assert_uint_eq(mon->parameters.queueSize, 3);
     UA_Notification *notification;
     notification = TAILQ_LAST(&mon->queue, NotificationQueue);
     ck_assert_uint_eq(notification->data.dataChange.value.hasStatus, false);
 
     UA_ByteString_clear(&mon->lastSampledValue);
     UA_MonitoredItem_sampleCallback(server, mon);
-    ck_assert_uint_eq(mon->queueSize, 2); 
-    ck_assert_uint_eq(mon->maxQueueSize, 3); 
+    ck_assert_uint_eq(mon->queueSize, 2);
+    ck_assert_uint_eq(mon->parameters.queueSize, 3);
     notification = TAILQ_LAST(&mon->queue, NotificationQueue);
     ck_assert_uint_eq(notification->data.dataChange.value.hasStatus, false);
 
     UA_ByteString_clear(&mon->lastSampledValue);
     UA_MonitoredItem_sampleCallback(server, mon);
-    ck_assert_uint_eq(mon->queueSize, 3); 
-    ck_assert_uint_eq(mon->maxQueueSize, 3); 
+    ck_assert_uint_eq(mon->queueSize, 3);
+    ck_assert_uint_eq(mon->parameters.queueSize, 3);
     notification = TAILQ_LAST(&mon->queue, NotificationQueue);
     ck_assert_uint_eq(notification->data.dataChange.value.hasStatus, false);
 
     UA_ByteString_clear(&mon->lastSampledValue);
     UA_MonitoredItem_sampleCallback(server, mon);
-    ck_assert_uint_eq(mon->queueSize, 3); 
-    ck_assert_uint_eq(mon->maxQueueSize, 3); 
+    ck_assert_uint_eq(mon->queueSize, 3);
+    ck_assert_uint_eq(mon->parameters.queueSize, 3);
     notification = TAILQ_FIRST(&mon->queue);
     ck_assert_uint_eq(notification->data.dataChange.value.hasStatus, true);
     ck_assert_uint_eq(notification->data.dataChange.value.status,
@@ -478,8 +478,8 @@ START_TEST(Server_overflow) {
     UA_MonitoredItemModifyRequest_clear(&itemToModify);
     UA_ModifyMonitoredItemsResponse_clear(&modifyMonitoredItemsResponse);
 
-    ck_assert_uint_eq(mon->queueSize, 2); 
-    ck_assert_uint_eq(mon->maxQueueSize, 2); 
+    ck_assert_uint_eq(mon->queueSize, 2);
+    ck_assert_uint_eq(mon->parameters.queueSize, 2);
     notification = TAILQ_FIRST(&mon->queue);
     ck_assert_uint_eq(notification->data.dataChange.value.hasStatus, true);
     ck_assert_uint_eq(notification->data.dataChange.value.status,
@@ -510,8 +510,8 @@ START_TEST(Server_overflow) {
     UA_MonitoredItemModifyRequest_clear(&itemToModify);
     UA_ModifyMonitoredItemsResponse_clear(&modifyMonitoredItemsResponse);
 
-    ck_assert_uint_eq(mon->queueSize, 1); 
-    ck_assert_uint_eq(mon->maxQueueSize, 1); 
+    ck_assert_uint_eq(mon->queueSize, 1);
+    ck_assert_uint_eq(mon->parameters.queueSize, 1);
     notification = TAILQ_LAST(&mon->queue, NotificationQueue);
     ck_assert_uint_eq(notification->data.dataChange.value.hasStatus, false);
 
@@ -542,8 +542,8 @@ START_TEST(Server_overflow) {
     UA_ModifyMonitoredItemsResponse_clear(&modifyMonitoredItemsResponse);
 
     UA_MonitoredItem_sampleCallback(server, mon);
-    ck_assert_uint_eq(mon->queueSize, 1); 
-    ck_assert_uint_eq(mon->maxQueueSize, 1); 
+    ck_assert_uint_eq(mon->queueSize, 1);
+    ck_assert_uint_eq(mon->parameters.queueSize, 1);
     notification = TAILQ_FIRST(&mon->queue);
     ck_assert_uint_eq(notification->data.dataChange.value.hasStatus, false); /* the infobit is only set if the queue is larger than one */
 
