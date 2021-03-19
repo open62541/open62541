@@ -47,6 +47,8 @@ struct timespec resultTime;
 struct timespec csv_timestamp;
 UA_UInt64 time_in_ns;
 UA_Double finalTime;
+UA_Double pub_execution_time_in_us;
+UA_Double user_execution_time_in_us;
 
 pthread_mutex_t pub_lock_rw;
 pthread_mutex_t sub_lock_rw;
@@ -72,6 +74,7 @@ static UA_UInt64 filewrite_latency       = 0;
 static UA_UInt64 csvCounter_latency      = 1;
 
 UA_Boolean latencyWrite_flag;
+UA_Boolean publisherUpdate = UA_FALSE;
 UA_UInt64 missed_counter   = 0;
 UA_UInt64 repeated_counter = 0;
 size_t computational_index = 0;
@@ -81,10 +84,22 @@ struct publishMeasurement{
     UA_UInt64           publishCounterValue[MAX_MEASUREMENTS];
     /* Array to store timestamp */
     struct timespec     publishTimestamp[MAX_MEASUREMENTS];
+    /* Array to store publisher timestamp */
+    struct timespec     pubExecutionTimestamp[MAX_MEASUREMENTS];
+    /* Array to store user timestamp */
+    struct timespec     userExecutionTimestamp[MAX_MEASUREMENTS];
 } pub;
+
+struct publishMeasurementlb{
+    /* Array to store publisher timestamp */
+    struct timespec     pubExecutionTimestamp[MAX_MEASUREMENTS];
+    /* Array to store user timestamp */
+    struct timespec     userExecutionTimestamp[MAX_MEASUREMENTS];
+} publb;
 
 size_t measurementsLRPublisher = 0;
 size_t index_pub  = 0;
+size_t index_execution_time = 0;
 
 struct subscribeMeasurement{
     /* Array to store subscribed counter data */
@@ -176,7 +191,7 @@ static int isEmpty_latency(void)
 }
 
 void
-updateLRMeasurementsPublisher(struct timespec start_time, UA_UInt64 countValue) {
+updateLRMeasurementsPublisher(struct timespec start_time, UA_UInt64 countValue, struct timespec pub_execution_time, struct timespec user_execution_time) {
     /* Check whether the publisher circular queue is full */
     if (isFull_publisher()) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
@@ -213,10 +228,61 @@ updateLRMeasurementsPublisher(struct timespec start_time, UA_UInt64 countValue) 
      * Pass the counter value to countervalue in publisher structure */
     pub.publishTimestamp[measurementsLRPublisher]    = start_time;
     pub.publishCounterValue[measurementsLRPublisher] = countValue;
+    pub.pubExecutionTimestamp[measurementsLRPublisher] = pub_execution_time;
+    pub.userExecutionTimestamp[measurementsLRPublisher] = user_execution_time;
+
     measurementsLRPublisher++;
 
     if (measurementsLRPublisher == MAX_MEASUREMENTS) {
         /* Reset the array index after MAX_MEASUREMENTS reached to start from initial pointer of the circular buffer */
+        measurementsLRPublisher = 0;
+    }
+}
+
+void
+updateLRMeasurementsPublisherlb(struct timespec pub_execution_time, struct timespec user_execution_time) {
+    publisherUpdate = UA_TRUE;
+    /* Check whether the publisher circular queue is full */
+    if (isFull_publisher())
+    {
+        printf("\n Publisher Queue is full!! \n");
+        runningFilethread = false;
+        printQueueDepth();
+        exit(1); // Exiting the application if publisher queue is full
+    }
+
+    /* To find the maximum queue depth */
+    /* It is checked because to find out whether the circular queue starts the next queue */
+    if (measurementsLRPublisher >= index_pub) { /* TODO: Solve this check. This should be > alone. changing it to >= for first packet */
+        pthread_mutex_lock(&pub_lock_rw);
+        /* Subtract measurementsLRPublisher and index_pub to get queue depth */
+        tmp_depth_pub = measurementsLRPublisher - index_pub;
+        if (tmp_depth_pub > max_queue_depth_pub)
+        {
+            /* Store queue depth in a temporary variable to compare and update new queue depth */
+            max_queue_depth_pub = tmp_depth_pub;
+        }
+        pthread_mutex_unlock(&pub_lock_rw);
+    }
+    else {
+        /* Check for negative scenarios when measurementsLRPublisher is lesser than index_pub */
+        pthread_mutex_lock(&pub_lock_rw);
+        tmp_depth_pub = (MAX_MEASUREMENTS - index_pub) + measurementsLRPublisher;
+        if (tmp_depth_pub > max_queue_depth_pub)
+        {
+            max_queue_depth_pub = tmp_depth_pub;
+        }
+
+        pthread_mutex_unlock(&pub_lock_rw);
+    }
+
+    publb.pubExecutionTimestamp[measurementsLRPublisher] = pub_execution_time;
+    publb.userExecutionTimestamp[measurementsLRPublisher] = user_execution_time;
+
+    measurementsLRPublisher++;
+
+    if (measurementsLRPublisher == MAX_MEASUREMENTS) {
+        /* Reset the array index after MAX_MEASUREMENTS is reached */
         measurementsLRPublisher = 0;
     }
 }
@@ -355,13 +421,18 @@ void* latency_computation(void *arg) {
             index_sub++;
         }
 
+        pub_execution_time_in_us = ((UA_Double)((pub.pubExecutionTimestamp[index_execution_time].tv_sec * 1000000000L) + pub.pubExecutionTimestamp[index_execution_time].tv_nsec))/1000;
+        user_execution_time_in_us = ((UA_Double)((pub.userExecutionTimestamp[index_execution_time].tv_sec * 1000000000L) + pub.userExecutionTimestamp[index_execution_time].tv_nsec))/1000;
+        index_execution_time++;
+
         /* Write the current time, latency value, missed counters and repeated counters to the latency circular queue using sprintf function */
         if (((rear_latency - rear_latency_copy) + rear_latency) < MAX_MEASUREMENTS_FW) {
             rear_latency_copy = rear_latency;
             rear_latency += (UA_UInt64)sprintf(&latency_measurements[rear_latency],
-                                               "%ld.%09ld, %0.3f, %ld, %ld\n",
+                                               "%ld.%09ld, %0.3f, %ld, %ld, %0.3f, %0.3f\n",
                                                csv_timestamp.tv_sec, csv_timestamp.tv_nsec,
-                                               finalTime, missed_counter, repeated_counter);
+                                               finalTime, missed_counter, repeated_counter,
+                                               pub_execution_time_in_us, user_execution_time_in_us);
             computational_index++;
             rear_latency_diff = (rear_latency - rear_latency_copy);
         }
@@ -371,9 +442,10 @@ void* latency_computation(void *arg) {
              * will be stored into the local buffer at first. This buffer will be copied to the circular buffer up to the end of MAX_MEASUREMENTS.
              * Then the remaining buffer will be copied into the start of the the circular buffer from the index 0 */
             local_buffer_count += (UA_UInt64)sprintf(&local_buffer[local_buffer_count],
-                                                     "%ld.%09ld, %0.3f, %ld, %ld\n",
+                                                     "%ld.%09ld, %0.3f, %ld, %ld, %0.3f, %0.3f\n",
                                                      csv_timestamp.tv_sec, csv_timestamp.tv_nsec,
-                                                     finalTime, missed_counter, repeated_counter);
+                                                     finalTime, missed_counter, repeated_counter,
+                                                     pub_execution_time_in_us, user_execution_time_in_us);
             for (index = 0; index < local_buffer_count; index++) {
                 if (rear_latency < MAX_MEASUREMENTS_FW) {
                     latency_measurements[rear_latency] = local_buffer[index];
@@ -403,6 +475,12 @@ void* latency_computation(void *arg) {
             csvCounter_latency++;
         }
 
+        /* Create multiple csvs to write latency values, i.e., each csv with PACKETS_IN_A_CSV count */
+        if ((csvCounter_latency * PACKETS_IN_A_CSV) <= computational_index) {
+            filewrite_latency = rear_latency;
+           csvCounter_latency++;
+        }
+
         /* Queue depth calculation - This determines how much user can provide maximum queue length to the circular buffer */
         if (rear_latency > front_latency_copy) {
             pthread_mutex_lock(&latency_lock_rw);
@@ -430,6 +508,134 @@ void* latency_computation(void *arg) {
         if (index_sub == MAX_MEASUREMENTS)
             index_sub = 0; /* Reset the array index after MAX_MEASUREMENTS is reached */
 
+        if (index_execution_time == MAX_MEASUREMENTS) {
+            /* Reset the array index after MAX_MEASUREMENTS is reached */
+            index_execution_time = 0;
+        }
+
+        nextnanosleeptime_latency.tv_nsec += (__syscall_slong_t)*interval_ns;
+        nsFieldConversion(&nextnanosleeptime_latency);
+    }
+
+    UA_free(interval_ns);
+    return (void*)NULL;
+}
+
+void* latency_computation_lb(void *arg) {
+    /* Local buffer to hold the computed latency buffer for a single cycle when the circular buffer
+     * gets filled for every rotation */
+    char local_buffer[100];
+    UA_UInt64 index = 0;
+    struct timespec nextnanosleeptime_latency;
+    /* Obtain the interval from the thread argument */
+    UA_UInt64 *interval_ns = (UA_UInt64 *)arg;
+
+    if (pthread_mutex_init(&latency_lock_rw, NULL) != 0) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                     "Mutex init has failed");
+        exit(1);
+    }
+
+    /* Get current time and compute the next nanosleeptime */
+    clock_gettime(CLOCKID, &nextnanosleeptime_latency);
+
+    /* Variable to nano Sleep - start computation after 7 seconds as publisher and subscriber
+     * starts at 5 seconds. Provide time lapse for publisher and subscriber to transfer packets */
+    nextnanosleeptime_latency.tv_sec  += 7;
+    nextnanosleeptime_latency.tv_nsec = (__syscall_slong_t)(((*(UA_Double *)interval_ns)) * 0.6);
+    nsFieldConversion(&nextnanosleeptime_latency);
+
+    while(runningFilethread)
+    {
+        UA_UInt64 local_buffer_count = 0;
+        clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptime_latency, NULL);
+
+        /* Check whether the latency queue is full */
+        if (isFull_latency()) {
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                         "Latency queue is full!");
+            exit(1);
+        }
+
+    if (publisherUpdate) {
+        pub_execution_time_in_us = ((UA_Double)((publb.pubExecutionTimestamp[index_execution_time].tv_sec * 1000000000L) + publb.pubExecutionTimestamp[index_execution_time].tv_nsec))/1000;
+        user_execution_time_in_us = ((UA_Double)((publb.userExecutionTimestamp[index_execution_time].tv_sec * 1000000000L) + publb.userExecutionTimestamp[index_execution_time].tv_nsec))/1000;
+        index_execution_time++;
+
+        /* Write the current time, latency value, missed counters and repeated counters to the latency circular queue using sprintf function */
+        if (((rear_latency - rear_latency_copy) + rear_latency) < MAX_MEASUREMENTS_FW) {
+            rear_latency_copy = rear_latency;
+            rear_latency += (UA_UInt64)sprintf(&latency_measurements[rear_latency],
+                                               "%0.3f, %0.3f\n",
+                                               pub_execution_time_in_us, user_execution_time_in_us);
+            computational_index++;
+            rear_latency_diff = (rear_latency - rear_latency_copy);
+        }
+        else {
+            /* If the circular buffer reaches the end of the buffer, then it cannot be handled with a simple sprintf that may lead to unallocated
+             * memory which leads to seg fault. So there needs a separation in the copy of the buffer i.e., the buffer to be copied into the circular buffer
+             * will be stored into the local buffer at first. This buffer will be copied to the circular buffer up to the end of MAX_MEASUREMENTS.
+             * Then the remaining buffer will be copied into the start of the the circular buffer from the index 0 */
+            local_buffer_count += (UA_UInt64)sprintf(&local_buffer[local_buffer_count],
+                                                     "%0.3f, %0.3f\n",
+                                                     pub_execution_time_in_us, user_execution_time_in_us);
+            for (index = 0; index < local_buffer_count; index++) {
+                if (rear_latency < MAX_MEASUREMENTS_FW) {
+                    latency_measurements[rear_latency] = local_buffer[index];
+                    rear_latency++;
+                }
+                else
+                    break;
+            }
+
+            rear_latency_diff = ((rear_latency + local_buffer_count) - rear_latency_copy);
+            rear_latency      = 0;
+            rear_latency_copy = 0;
+            while(index < local_buffer_count) {
+                latency_measurements[rear_latency] = local_buffer[index];
+                rear_latency++;
+                index++;
+            }
+            computational_index++;
+        }
+
+        /* Create multiple csvs to write latency values, i.e., each csv with PACKETS_IN_A_CSV count */
+        if ((csvCounter_latency * PACKETS_IN_A_CSV) <= computational_index) {
+            filewrite_latency = rear_latency;
+            csvCounter_latency++;
+        }
+
+        /* Queue depth calculation - This determines how much user can provide maximum queue length to the circular buffer */
+        if (rear_latency > front_latency_copy) {
+            pthread_mutex_lock(&latency_lock_rw);
+            /* Subtract rear_sub and front_sub to get queue depth */
+            tmp_depth_latency = rear_latency - front_latency_copy;
+            if (tmp_depth_latency > max_queue_depth_latency)
+                max_queue_depth_latency = tmp_depth_latency;
+            pthread_mutex_unlock(&latency_lock_rw);
+        }
+        else {
+            /* As the enqueue is in next cycle, rear_sub is added with MAX_MEASUREMENTS
+               and subtracting it with front_sub */
+            pthread_mutex_lock(&latency_lock_rw);
+            tmp_depth_latency = (rear_latency + MAX_MEASUREMENTS_FW) - front_latency_copy;
+            if (tmp_depth_latency > max_queue_depth_latency)
+                max_queue_depth_latency = tmp_depth_latency;
+
+            pthread_mutex_unlock(&latency_lock_rw);
+        }
+
+        if (index_pub == MAX_MEASUREMENTS)
+            index_pub = 0; /* Reset the array index after MAX_MEASUREMENTS is reached */
+
+        if (index_sub == MAX_MEASUREMENTS)
+            index_sub = 0; /* Reset the array index after MAX_MEASUREMENTS is reached */
+
+        if (index_execution_time == MAX_MEASUREMENTS) {
+            /* Reset the array index after MAX_MEASUREMENTS is reached */
+            index_execution_time = 0;
+        }
+    }
         nextnanosleeptime_latency.tv_nsec += (__syscall_slong_t)*interval_ns;
         nsFieldConversion(&nextnanosleeptime_latency);
     }
@@ -528,7 +734,94 @@ void* fileWriteLatency(void *arg)
     return (void*)NULL;
 }
 
-/* Print the queue depth of the publisher and subscriber */
+void* fileWriteLatencylb(void *arg)
+{
+    UA_UInt64 csvCount = 0;
+    UA_UInt64 write_count_latency = 0;
+
+    /* Wait for the other threads to start - Once the latency has been computed, write
+     * the computed values to the files */
+    sleep(8);
+    while(runningFilethread)
+    {
+        FILE *fp_capture;
+        /* For every PACKETS_IN_A_CSV packets, filewrite_latency will be changed and new csv file will be created for writing into it */
+        if (rear_latency_copy_fw != filewrite_latency) {
+            char csvNameLatency[255];
+            snprintf(csvNameLatency, 255, "LB_latency_%09ld.csv", csvCount);
+            char *fileRTTData = csvNameLatency;
+            fp_capture = fopen(fileRTTData, "w");
+            csvCount++;
+            latencyWrite_flag = 1;
+        }
+
+        /* Check whether latency queue is empty */
+        if(isEmpty_latency())
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                         "Latency Queue is empty");
+        else {
+            /* Check whether enqueue and dequeue variable of latency buffer are equal */
+            if (front_latency_copy == rear_latency) {
+                UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                             "Resetting the publisher queue");
+                printQueueDepth();
+                exit(1);
+            }
+            else
+            {
+                if(latencyWrite_flag == 1  && publisherUpdate) {
+                    rear_latency_copy_fw  = filewrite_latency;
+                    /* To find the maximum queue depth - This determines how much user can provide maximum queue length to the circular buffer */
+                    /* It is checked because to find out whether the circular queue starts the next queue */
+                    if (rear_latency_copy_fw > front_latency_copy) {
+                        pthread_mutex_lock(&latency_lock_rw);
+                        /* Subtract rear_pub and front_pub to get queue depth */
+                        tmp_depth_latency = rear_latency_copy_fw - front_latency_copy;
+                        if (tmp_depth_latency > max_queue_depth_latency)
+                            max_queue_depth_latency = tmp_depth_latency;
+
+                        pthread_mutex_unlock(&latency_lock_rw);
+                    }
+                    else {
+                        pthread_mutex_lock(&latency_lock_rw);
+                        /* As the enqueue is in next cycle, rear_pub is added with MAX_MEASUREMENTS_FW
+                         * and subtracting it with front_pub */
+                        tmp_depth_latency = (rear_latency_copy_fw + MAX_MEASUREMENTS_FW) - front_latency_copy;
+                        if (tmp_depth_latency > max_queue_depth_latency)
+                            max_queue_depth_latency = tmp_depth_latency;
+
+                        pthread_mutex_unlock(&latency_lock_rw);
+                    }
+
+                    /* Write the queued PACKETS_IN_A_CSV packets to the created csv file */
+                    if (rear_latency_copy_fw > front_latency_copy) {
+                        write_count_latency = rear_latency_copy_fw - front_latency_copy;
+                        fwrite(&latency_measurements[front_latency_copy], write_count_latency, 1, fp_capture);
+                        front_latency_copy = rear_latency_copy_fw;
+                    }
+                    /* If the queued packets are separated by the circular buffer like some buffer at the last and the remaining at the start,
+                     * then the file write will proceed accordingly by writing the end buffer of the circular queue at first and then
+                     * writing the remaining to that csv file */
+                    else {
+                       write_count_latency = MAX_MEASUREMENTS_FW - front_latency_copy;
+                       fwrite(&latency_measurements[front_latency_copy], write_count_latency, 1, fp_capture);
+                       front_latency_copy = 0;
+                       fwrite(&latency_measurements[front_latency_copy], rear_latency_copy_fw, 1, fp_capture);
+                       front_latency_copy = rear_latency_copy_fw;
+                    }
+
+                    latencyWrite_flag = 0;
+                    /* Close the written csv file */
+                    fclose(fp_capture);
+                }
+            }
+        }
+
+        /* Sleep for 1ms and and check for the latency computed values to write into the csv */
+        usleep(1000);
+    }
+}
+
 void printQueueDepth() {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                 "Max publisher queue depth: %ld", max_queue_depth_pub);

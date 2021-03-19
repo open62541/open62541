@@ -8,15 +8,21 @@
 #include <linux/types.h>
 
 /* Update publisher counter value and timestamp */
-void updateLRMeasurementsPublisher(struct timespec start_time, uint64_t countValue);
+void updateLRMeasurementsPublisher(struct timespec start_time, uint64_t countValue, struct timespec pub_time, struct timespec user_time);
 /* Update subscriber counter value and timestamp */
 void updateLRMeasurementsSubscriber(struct timespec receive_time, uint64_t countValue);
+void updateLRMeasurementsPublisherlb(struct timespec pub_time, struct timespec user_time);
 
-/* Write the computed RTT in multiple csvs */
+/* Write the computed RTT in multiple csvs publisher side */
 void* fileWriteLatency(void *arg);
 
-/* Compute the latency for RTT */
+/* Write the computed RTT in multiple csvs loop back side */
+void* fileWriteLatencylb(void *arg);
+
+/* Compute the latency for RTT publisher side*/
 void* latency_computation(void *arg);
 
-/* Print the queue depth */
-void printQueueDepth(void);
+/* Compute the latency for RTT loopback side*/
+void* latency_computation_lb(void *arg);
+
+void printQueueDepth();

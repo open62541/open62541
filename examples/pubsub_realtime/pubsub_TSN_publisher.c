@@ -231,6 +231,9 @@ UA_DataValue        *runningSubDataValueRT =  NULL;
 UA_UInt64           *subRepeatedCounterData[REPEATED_NODECOUNTS] = {NULL};
 UA_DataValue        *subRepeatedDataValueRT[REPEATED_NODECOUNTS] = {NULL};
 
+struct timespec pubResultime;
+struct timespec userResultime;
+
 /**
  * **CSV file handling**
  *
@@ -960,6 +963,26 @@ updateMeasurementsSubscriber(struct timespec receive_time,
 #endif
 
 /**
+ * **Time Difference Calculation**
+ *
+ * This function is used to calculate the difference between the publishertimestamp and
+ * subscribertimestamp and store the result
+ */
+static void
+timespec_diff(struct timespec *start, struct timespec *stop, struct timespec *result)
+{
+    if ((stop->tv_nsec - start->tv_nsec) < 0) {
+        result->tv_sec = stop->tv_sec - start->tv_sec - 1;
+        result->tv_nsec = stop->tv_nsec - start->tv_nsec + 1000000000;
+    } else {
+        result->tv_sec = stop->tv_sec - start->tv_sec;
+        result->tv_nsec = stop->tv_nsec - start->tv_nsec;
+    }
+
+    return;
+}
+
+/**
  * **Publisher thread routine**
  *
  * This is the Publisher thread that sleeps for 60% of the cycletime (250us) and prepares the tranmission packet within 40% of
@@ -971,6 +994,8 @@ updateMeasurementsSubscriber(struct timespec receive_time,
  */
 void *publisherETF(void *arg) {
     struct timespec   nextnanosleeptime;
+    struct timespec   executionstarttime;
+    struct timespec   executionendtime;
     UA_ServerCallback pubCallback;
     UA_Server*        server;
     UA_WriterGroup*   currentWriterGroup; // TODO: Remove WriterGroup Usage
@@ -1020,10 +1045,12 @@ void *publisherETF(void *arg) {
         /* Calculation of transmission time using the configured qbv offset by the user - Will be handled by publishingOffset in the future */
         transmission_time = ((UA_UInt64)nextnanosleeptime.tv_sec * SECONDS + (UA_UInt64)nextnanosleeptime.tv_nsec) + roundOffCycleTime + (UA_UInt64)(qbvOffset * 1000);
         ethernettransportSettings.transmission_time = transmission_time;
-        /* Publish the data using the pubcallback - UA_WriterGroup_publishCallback() */
+
+        clock_gettime(CLOCKID, &executionstarttime);
         pubCallback(server, currentWriterGroup);
-        /* Calculation of the next wake up time by adding the interval with the previous wake up time */
-        nextnanosleeptime.tv_nsec += (__syscall_slong_t)interval_ns;
+        clock_gettime(CLOCKID, &executionendtime);
+        timespec_diff(&executionstarttime, &executionendtime, &pubResultime);
+        nextnanosleeptime.tv_nsec                     += (__syscall_slong_t)interval_ns;
         nanoSecondFieldConversion(&nextnanosleeptime);
     }
 
@@ -1031,6 +1058,7 @@ void *publisherETF(void *arg) {
     runningServer = UA_FALSE;
 #endif
     UA_free(threadArgumentsPublisher);
+
     return (void*)NULL;
 }
 #endif
@@ -1107,7 +1135,8 @@ void *subscriber(void *arg) {
 void *userApplicationPubSub(void *arg) {
     UA_UInt64  repeatedCounterValue = 10;
     struct timespec nextnanosleeptimeUserApplication;
-    /* Verify whether baseTime has already been calculated */
+    struct timespec   executionstarttime;
+    struct timespec   executionendtime;    /* Verify whether baseTime has already been calculated */
     if(!baseTimeCalculated) {
         /* Get current time and compute the next nanosleeptime */
         clock_gettime(CLOCKID, &threadBaseTime);
@@ -1134,6 +1163,8 @@ void *userApplicationPubSub(void *arg) {
 #endif
         /* The User application threads wakes up at the configured userApp wake up percentage (30%) of each cycle */
         clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptimeUserApplication, NULL);
+
+        clock_gettime(CLOCKID, &executionstarttime);
 #if defined(PUBLISHER)
         /* Increment the counter data and repeated counter data for the next cycle publish */
         *pubCounterData      = *pubCounterData + 1;
@@ -1156,7 +1187,7 @@ void *userApplicationPubSub(void *arg) {
 
         if(enableLongRunMeas) {
 #if defined(PUBLISHER)
-            updateLRMeasurementsPublisher(dataModificationTime, *pubCounterData);
+            updateLRMeasurementsPublisher(dataModificationTime, *pubCounterData, pubResultime, userResultime);
 #endif
 
 #if defined(SUBSCRIBER)
@@ -1175,7 +1206,8 @@ void *userApplicationPubSub(void *arg) {
 #endif
         }
 
-        /* Calculation of the next wake up time by adding the interval with the previous wake up time */
+        clock_gettime(CLOCKID, &executionendtime);
+        timespec_diff(&executionstarttime, &executionendtime, &userResultime);
         nextnanosleeptimeUserApplication.tv_nsec += (__syscall_slong_t)(cycleTimeInMsec * MILLI_SECONDS);
         nanoSecondFieldConversion(&nextnanosleeptimeUserApplication);
     }
@@ -1348,26 +1380,6 @@ static void removeServerNodes(UA_Server *server) {
     UA_NodeId_clear(&runningSubStatusNodeID);
 }
 #if defined (PUBLISHER) && defined(SUBSCRIBER)
-/**
- * **Time Difference Calculation**
- *
- * This function is used to calculate the difference between the publishertimestamp and
- * subscribertimestamp and store the result
- */
-static void
-timespec_diff(struct timespec *start, struct timespec *stop, struct timespec *result)
-{
-    if ((stop->tv_nsec - start->tv_nsec) < 0) {
-        result->tv_sec = stop->tv_sec - start->tv_sec - 1;
-        result->tv_nsec = stop->tv_nsec - start->tv_nsec + 1000000000;
-    } else {
-        result->tv_sec = stop->tv_sec - start->tv_sec;
-        result->tv_nsec = stop->tv_nsec - start->tv_nsec;
-    }
-
-    return;
-}
-
 /**
  * **Latency Calculation**
  *
