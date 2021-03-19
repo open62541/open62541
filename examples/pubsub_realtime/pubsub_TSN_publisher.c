@@ -147,6 +147,7 @@ static UA_Double  userAppWakeupPercentage = 0.3;
 #define             DEFAULT_USERAPPLICATION_SCHED_PRIORITY  75
 #define             MAX_MEASUREMENTS                        1000000
 #define             MAX_MEASUREMENTS_FILEWRITE              100000000
+#define             NSEC_PER_SEC                            1000000000L
 #define             DEFAULT_PUB_CORE                        2
 #define             DEFAULT_SUB_CORE                        2
 #define             DEFAULT_USER_APP_CORE                   3
@@ -234,6 +235,11 @@ UA_DataValue        *subRepeatedDataValueRT[REPEATED_NODECOUNTS] = {NULL};
 struct timespec pubResultime;
 struct timespec userResultime;
 
+
+struct timespec subThreadJitter;
+struct timespec pubThreadJitter;
+struct timespec userThreadJitter;
+
 /**
  * **CSV file handling**
  *
@@ -318,6 +324,12 @@ static void stopHandler(int sign) {
     signalTerm = UA_TRUE;
     if(enableLongRunMeas)
         printQueueDepth();
+}
+
+/* Function which converts timespec value to nano seconds value */
+static inline long long timespec_to_ns(const struct timespec *ts)
+{
+    return ((long long) ts->tv_sec * NSEC_PER_SEC) + ts->tv_nsec;
 }
 
 /**
@@ -994,6 +1006,7 @@ timespec_diff(struct timespec *start, struct timespec *stop, struct timespec *re
  */
 void *publisherETF(void *arg) {
     struct timespec   nextnanosleeptime;
+    struct timespec   actualpubthreadtime;
     struct timespec   executionstarttime;
     struct timespec   executionendtime;
     UA_ServerCallback pubCallback;
@@ -1038,7 +1051,10 @@ void *publisherETF(void *arg) {
     while (*runningPub) {
         /* The Publisher threads wakes up at the configured publisher wake up percentage (60%) of each cycle */
         clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptime, NULL);
-        /* Whenever Ctrl + C pressed, publish running boolean as false to stop the subscriber before terminating the application */
+        clock_gettime(CLOCKID, &actualpubthreadtime);
+        /* Compute jitter with difference between publisher thread start time and computed publisher thread start time */
+        timespec_diff(&nextnanosleeptime, &actualpubthreadtime, &pubThreadJitter);
+
         if (signalTerm == UA_TRUE)
             *runningPub = UA_FALSE;
 
@@ -1077,7 +1093,11 @@ void *subscriber(void *arg) {
     void*             currentReaderGroup;
     UA_ServerCallback subCallback;
     struct timespec   nextnanosleeptimeSub;
+    struct timespec   actualsubthreadtime;
+    struct timespec   currenttime;
     UA_UInt64         subInterval_ns;
+    UA_UInt64         currenttime_in_ns;
+    UA_UInt64         nextnanosleeptimeSub_in_ns;
 
     threadArg *threadArgumentsSubscriber = (threadArg *)arg;
     server             = threadArgumentsSubscriber->server;
@@ -1101,11 +1121,25 @@ void *subscriber(void *arg) {
     while (*runningSub) {
         /* The Subscriber threads wakes up at the configured subscriber wake up percentage (0%) of each cycle */
         clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptimeSub, NULL);
-        /* Receive and process the incoming data using the subcallback - UA_ReaderGroup_subscribeCallback() */
+        clock_gettime(CLOCKID, &actualsubthreadtime);
+        /* Compute jitter with difference between publisher thread start time and computed publisher thread start time */
+        timespec_diff(&nextnanosleeptimeSub, &actualsubthreadtime, &subThreadJitter);
         subCallback(server, currentReaderGroup);
-        /* Calculation of the next wake up time by adding the interval with the previous wake up time */
-        nextnanosleeptimeSub.tv_nsec += (__syscall_slong_t)subInterval_ns;
-        nanoSecondFieldConversion(&nextnanosleeptimeSub);
+
+        clock_gettime(CLOCKID, &currenttime);
+        currenttime_in_ns = (UA_UInt64)timespec_to_ns(&currenttime);
+        nextnanosleeptimeSub_in_ns = (UA_UInt64)timespec_to_ns(&nextnanosleeptimeSub);
+        if(currenttime_in_ns > (nextnanosleeptimeSub_in_ns + subInterval_ns))
+        {
+            UA_UInt64 nextsleeptime = (currenttime_in_ns + subInterval_ns) - ((currenttime_in_ns - nextnanosleeptimeSub_in_ns) % subInterval_ns);
+            nextnanosleeptimeSub.tv_sec = (__time_t)(nextsleeptime / 1000000000);
+            nextnanosleeptimeSub.tv_nsec = (__syscall_slong_t)(nextsleeptime % 1000000000);
+        }
+        else
+        {
+            nextnanosleeptimeSub.tv_nsec += (__syscall_slong_t)subInterval_ns;
+            nanoSecondFieldConversion(&nextnanosleeptimeSub);
+        }
 
         /* Whenever Ctrl + C pressed, modify the runningSub boolean to false to end this while loop */
         if (signalTerm == UA_TRUE)
@@ -1135,6 +1169,7 @@ void *subscriber(void *arg) {
 void *userApplicationPubSub(void *arg) {
     UA_UInt64  repeatedCounterValue = 10;
     struct timespec nextnanosleeptimeUserApplication;
+    struct timespec   actualuserthreadtime;
     struct timespec   executionstarttime;
     struct timespec   executionendtime;    /* Verify whether baseTime has already been calculated */
     if(!baseTimeCalculated) {
@@ -1163,6 +1198,9 @@ void *userApplicationPubSub(void *arg) {
 #endif
         /* The User application threads wakes up at the configured userApp wake up percentage (30%) of each cycle */
         clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptimeUserApplication, NULL);
+        clock_gettime(CLOCKID, &actualuserthreadtime);
+        /* Compute jitter with difference between publisher thread start time and computed publisher thread start time */
+        timespec_diff(&nextnanosleeptimeUserApplication, &actualuserthreadtime, &userThreadJitter);
 
         clock_gettime(CLOCKID, &executionstarttime);
 #if defined(PUBLISHER)
@@ -1187,7 +1225,7 @@ void *userApplicationPubSub(void *arg) {
 
         if(enableLongRunMeas) {
 #if defined(PUBLISHER)
-            updateLRMeasurementsPublisher(dataModificationTime, *pubCounterData, pubResultime, userResultime);
+            updateLRMeasurementsPublisher(dataModificationTime, *pubCounterData, pubResultime, userResultime, subThreadJitter, pubThreadJitter, userThreadJitter);
 #endif
 
 #if defined(SUBSCRIBER)

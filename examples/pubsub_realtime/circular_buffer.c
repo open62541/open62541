@@ -50,6 +50,10 @@ UA_Double finalTime;
 UA_Double pub_execution_time_in_us;
 UA_Double user_execution_time_in_us;
 
+UA_Double sub_thread_jitter_in_us;
+UA_Double pub_thread_jitter_in_us;
+UA_Double user_thread_jitter_in_us;
+
 pthread_mutex_t pub_lock_rw;
 pthread_mutex_t sub_lock_rw;
 pthread_mutex_t latency_lock_rw;
@@ -88,6 +92,12 @@ struct publishMeasurement{
     struct timespec     pubExecutionTimestamp[MAX_MEASUREMENTS];
     /* Array to store user timestamp */
     struct timespec     userExecutionTimestamp[MAX_MEASUREMENTS];
+    /* Array to store subscriber Thread Jitter */
+    struct timespec     subscriberThreadJitter[MAX_MEASUREMENTS];
+    /* Array to store publisher  Thread Jitter */
+    struct timespec     publisherThreadJitter[MAX_MEASUREMENTS];
+    /* Array to store user  Thread Jitter */
+    struct timespec     userThreadJitter[MAX_MEASUREMENTS];
 } pub;
 
 struct publishMeasurementlb{
@@ -95,6 +105,12 @@ struct publishMeasurementlb{
     struct timespec     pubExecutionTimestamp[MAX_MEASUREMENTS];
     /* Array to store user timestamp */
     struct timespec     userExecutionTimestamp[MAX_MEASUREMENTS];
+    /* Array to store subscriber Thread Jitter */
+    struct timespec     subscriberThreadJitter[MAX_MEASUREMENTS];
+    /* Array to store publisher  Thread Jitter */
+    struct timespec     publisherThreadJitter[MAX_MEASUREMENTS];
+    /* Array to store user  Thread Jitter */
+    struct timespec     userThreadJitter[MAX_MEASUREMENTS];
 } publb;
 
 size_t measurementsLRPublisher = 0;
@@ -191,7 +207,7 @@ static int isEmpty_latency(void)
 }
 
 void
-updateLRMeasurementsPublisher(struct timespec start_time, UA_UInt64 countValue, struct timespec pub_execution_time, struct timespec user_execution_time) {
+updateLRMeasurementsPublisher(struct timespec start_time, UA_UInt64 countValue, struct timespec pub_execution_time, struct timespec user_execution_time, struct timespec subscriber_thread_jitter, struct timespec publisher_thread_jitter, struct timespec user_thread_jitter) {
     /* Check whether the publisher circular queue is full */
     if (isFull_publisher()) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
@@ -230,6 +246,9 @@ updateLRMeasurementsPublisher(struct timespec start_time, UA_UInt64 countValue, 
     pub.publishCounterValue[measurementsLRPublisher] = countValue;
     pub.pubExecutionTimestamp[measurementsLRPublisher] = pub_execution_time;
     pub.userExecutionTimestamp[measurementsLRPublisher] = user_execution_time;
+    pub.subscriberThreadJitter[measurementsLRPublisher] = subscriber_thread_jitter;
+    pub.publisherThreadJitter[measurementsLRPublisher] = publisher_thread_jitter;
+    pub.userThreadJitter[measurementsLRPublisher] = user_thread_jitter;
 
     measurementsLRPublisher++;
 
@@ -240,7 +259,7 @@ updateLRMeasurementsPublisher(struct timespec start_time, UA_UInt64 countValue, 
 }
 
 void
-updateLRMeasurementsPublisherlb(struct timespec pub_execution_time, struct timespec user_execution_time) {
+updateLRMeasurementsPublisherlb(struct timespec pub_execution_time, struct timespec user_execution_time, struct timespec subscriber_thread_jitter, struct timespec publisher_thread_jitter, struct timespec user_thread_jitter) {
     publisherUpdate = UA_TRUE;
     /* Check whether the publisher circular queue is full */
     if (isFull_publisher())
@@ -278,6 +297,9 @@ updateLRMeasurementsPublisherlb(struct timespec pub_execution_time, struct times
 
     publb.pubExecutionTimestamp[measurementsLRPublisher] = pub_execution_time;
     publb.userExecutionTimestamp[measurementsLRPublisher] = user_execution_time;
+    publb.subscriberThreadJitter[measurementsLRPublisher] = subscriber_thread_jitter;
+    publb.publisherThreadJitter[measurementsLRPublisher] = publisher_thread_jitter;
+    publb.userThreadJitter[measurementsLRPublisher] = user_thread_jitter;
 
     measurementsLRPublisher++;
 
@@ -423,16 +445,20 @@ void* latency_computation(void *arg) {
 
         pub_execution_time_in_us = ((UA_Double)((pub.pubExecutionTimestamp[index_execution_time].tv_sec * 1000000000L) + pub.pubExecutionTimestamp[index_execution_time].tv_nsec))/1000;
         user_execution_time_in_us = ((UA_Double)((pub.userExecutionTimestamp[index_execution_time].tv_sec * 1000000000L) + pub.userExecutionTimestamp[index_execution_time].tv_nsec))/1000;
+        sub_thread_jitter_in_us = ((UA_Double)((pub.subscriberThreadJitter[index_execution_time].tv_sec * 1000000000L) + pub.subscriberThreadJitter[index_execution_time].tv_nsec))/1000;
+        pub_thread_jitter_in_us = ((UA_Double)((pub.publisherThreadJitter[index_execution_time].tv_sec * 1000000000L) + pub.publisherThreadJitter[index_execution_time].tv_nsec))/1000;
+        user_thread_jitter_in_us = ((UA_Double)((pub.userThreadJitter[index_execution_time].tv_sec * 1000000000L) + pub.userThreadJitter[index_execution_time].tv_nsec))/1000;
         index_execution_time++;
 
         /* Write the current time, latency value, missed counters and repeated counters to the latency circular queue using sprintf function */
         if (((rear_latency - rear_latency_copy) + rear_latency) < MAX_MEASUREMENTS_FW) {
             rear_latency_copy = rear_latency;
             rear_latency += (UA_UInt64)sprintf(&latency_measurements[rear_latency],
-                                               "%ld.%09ld, %0.3f, %ld, %ld, %0.3f, %0.3f\n",
+                                               "%ld.%09ld, %0.3f, %ld, %ld, %0.3f, %0.3f, %0.3f, %0.3f, %0.3f\n",
                                                csv_timestamp.tv_sec, csv_timestamp.tv_nsec,
                                                finalTime, missed_counter, repeated_counter,
-                                               pub_execution_time_in_us, user_execution_time_in_us);
+                                               pub_execution_time_in_us, user_execution_time_in_us,
+                                               sub_thread_jitter_in_us, pub_thread_jitter_in_us, user_thread_jitter_in_us);
             computational_index++;
             rear_latency_diff = (rear_latency - rear_latency_copy);
         }
@@ -442,10 +468,11 @@ void* latency_computation(void *arg) {
              * will be stored into the local buffer at first. This buffer will be copied to the circular buffer up to the end of MAX_MEASUREMENTS.
              * Then the remaining buffer will be copied into the start of the the circular buffer from the index 0 */
             local_buffer_count += (UA_UInt64)sprintf(&local_buffer[local_buffer_count],
-                                                     "%ld.%09ld, %0.3f, %ld, %ld, %0.3f, %0.3f\n",
+                                                     "%ld.%09ld, %0.3f, %ld, %ld, %0.3f, %0.3f, %0.3f, %0.3f, %0.3f\n",
                                                      csv_timestamp.tv_sec, csv_timestamp.tv_nsec,
                                                      finalTime, missed_counter, repeated_counter,
-                                                     pub_execution_time_in_us, user_execution_time_in_us);
+                                                     pub_execution_time_in_us, user_execution_time_in_us,
+                                                     sub_thread_jitter_in_us, pub_thread_jitter_in_us, user_thread_jitter_in_us);
             for (index = 0; index < local_buffer_count; index++) {
                 if (rear_latency < MAX_MEASUREMENTS_FW) {
                     latency_measurements[rear_latency] = local_buffer[index];
@@ -560,27 +587,29 @@ void* latency_computation_lb(void *arg) {
     if (publisherUpdate) {
         pub_execution_time_in_us = ((UA_Double)((publb.pubExecutionTimestamp[index_execution_time].tv_sec * 1000000000L) + publb.pubExecutionTimestamp[index_execution_time].tv_nsec))/1000;
         user_execution_time_in_us = ((UA_Double)((publb.userExecutionTimestamp[index_execution_time].tv_sec * 1000000000L) + publb.userExecutionTimestamp[index_execution_time].tv_nsec))/1000;
+        sub_thread_jitter_in_us = ((UA_Double)((publb.subscriberThreadJitter[index_execution_time].tv_sec * 1000000000L) + publb.subscriberThreadJitter[index_execution_time].tv_nsec))/1000;
+        pub_thread_jitter_in_us = ((UA_Double)((publb.publisherThreadJitter[index_execution_time].tv_sec * 1000000000L) + publb.publisherThreadJitter[index_execution_time].tv_nsec))/1000;
+        user_thread_jitter_in_us = ((UA_Double)((publb.userThreadJitter[index_execution_time].tv_sec * 1000000000L) + publb.userThreadJitter[index_execution_time].tv_nsec))/1000;
         index_execution_time++;
 
         /* Write the current time, latency value, missed counters and repeated counters to the latency circular queue using sprintf function */
         if (((rear_latency - rear_latency_copy) + rear_latency) < MAX_MEASUREMENTS_FW) {
             rear_latency_copy = rear_latency;
-            rear_latency += (UA_UInt64)sprintf(&latency_measurements[rear_latency],
-                                               "%0.3f, %0.3f\n",
-                                               pub_execution_time_in_us, user_execution_time_in_us);
+            rear_latency += (UA_UInt64)sprintf(&latency_measurements[rear_latency], " %0.3f, %0.3f, %0.3f, %0.3f, %0.3f\n", pub_execution_time_in_us, user_execution_time_in_us, sub_thread_jitter_in_us, pub_thread_jitter_in_us, user_thread_jitter_in_us);
             computational_index++;
             rear_latency_diff = (rear_latency - rear_latency_copy);
         }
-        else {
+        else
+        {
             /* If the circular buffer reaches the end of the buffer, then it cannot be handled with a simple sprintf that may lead to unallocated
              * memory which leads to seg fault. So there needs a separation in the copy of the buffer i.e., the buffer to be copied into the circular buffer
              * will be stored into the local buffer at first. This buffer will be copied to the circular buffer up to the end of MAX_MEASUREMENTS.
              * Then the remaining buffer will be copied into the start of the the circular buffer from the index 0 */
-            local_buffer_count += (UA_UInt64)sprintf(&local_buffer[local_buffer_count],
-                                                     "%0.3f, %0.3f\n",
-                                                     pub_execution_time_in_us, user_execution_time_in_us);
-            for (index = 0; index < local_buffer_count; index++) {
-                if (rear_latency < MAX_MEASUREMENTS_FW) {
+            local_buffer_count += (UA_UInt64)sprintf(&local_buffer[local_buffer_count], "%0.3f, %0.3f, %0.3f, %0.3f, %0.3f\n", pub_execution_time_in_us, user_execution_time_in_us, sub_thread_jitter_in_us, pub_thread_jitter_in_us, user_thread_jitter_in_us);
+            for (index = 0; index < local_buffer_count; index++)
+            {
+                if (rear_latency < MAX_MEASUREMENTS_FW)
+                {
                     latency_measurements[rear_latency] = local_buffer[index];
                     rear_latency++;
                 }
