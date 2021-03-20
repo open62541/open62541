@@ -145,8 +145,7 @@ calculateAsymAlgSecurityHeaderLength(const UA_SecureChannel *channel) {
 
     size_t asymHeaderLength = UA_ASYMMETRIC_ALG_SECURITY_HEADER_FIXED_LENGTH +
                               sp->policyUri.length;
-    if(channel->securityMode != UA_MESSAGESECURITYMODE_SIGN &&
-       channel->securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+    if(channel->securityMode == UA_MESSAGESECURITYMODE_NONE)
         return asymHeaderLength;
 
     /* OPN is always encrypted even if the mode is sign only */
