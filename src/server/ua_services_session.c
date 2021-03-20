@@ -618,9 +618,9 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         * policy of the secure channel is used. */
        UA_SecurityPolicy* securityPolicy;
        if(!utp->securityPolicyUri.data)
-           securityPolicy = UA_SecurityPolicy_getSecurityPolicyByUri(server, &ed->securityPolicyUri);
+           securityPolicy = getSecurityPolicyByUri(server, &ed->securityPolicyUri);
        else
-           securityPolicy = UA_SecurityPolicy_getSecurityPolicyByUri(server, &utp->securityPolicyUri);
+           securityPolicy = getSecurityPolicyByUri(server, &utp->securityPolicyUri);
        if(!securityPolicy) {
           response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
           goto rejected;

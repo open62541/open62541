@@ -481,9 +481,8 @@ UA_Server_updateCertificate(UA_Server *server,
         if(UA_ByteString_equal(&ed->serverCertificate, oldCertificate)) {
             UA_String_clear(&ed->serverCertificate);
             UA_String_copy(newCertificate, &ed->serverCertificate);
-            UA_SecurityPolicy *sp =
-                UA_SecurityPolicy_getSecurityPolicyByUri(server,
-                   &server->config.endpoints[i].securityPolicyUri);
+            UA_SecurityPolicy *sp = getSecurityPolicyByUri(server,
+                            &server->config.endpoints[i].securityPolicyUri);
             if(!sp)
                 return UA_STATUSCODE_BADINTERNALERROR;
             sp->updateCertificateAndPrivateKey(sp, *newCertificate, *newPrivateKey);
@@ -499,8 +498,7 @@ UA_Server_updateCertificate(UA_Server *server,
 /***************************/
 
 UA_SecurityPolicy *
-UA_SecurityPolicy_getSecurityPolicyByUri(const UA_Server *server,
-                                         const UA_ByteString *securityPolicyUri) {
+getSecurityPolicyByUri(const UA_Server *server, const UA_ByteString *securityPolicyUri) {
     for(size_t i = 0; i < server->config.securityPoliciesSize; i++) {
         UA_SecurityPolicy *securityPolicyCandidate = &server->config.securityPolicies[i];
         if(UA_ByteString_equal(securityPolicyUri, &securityPolicyCandidate->policyUri))
