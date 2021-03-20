@@ -201,6 +201,13 @@ void
 UA_Server_closeSecureChannel(UA_Server *server, UA_SecureChannel *channel,
                              UA_DiagnosticEvent event);
 
+/* Gets the a pointer to the context of a security policy supported by the
+ * server matched by the security policy uri. */
+UA_SecurityPolicy *
+getSecurityPolicyByUri(const UA_Server *server,
+                       const UA_ByteString *securityPolicyUri);
+
+
 /********************/
 /* Session Handling */
 /********************/
