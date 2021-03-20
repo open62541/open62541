@@ -143,19 +143,19 @@ sym_getRemoteEncryptionKeyLength_testing(const UA_SecurityPolicy *securityPolicy
 }
 
 static size_t
-sym_getLocalEncryptionBlockSize_testing(const UA_SecurityPolicy *securityPolicy,
-                                        const void *channelContext) {
+sym_getEncryptionBlockSize_testing(const UA_SecurityPolicy *securityPolicy,
+                                   const void *channelContext) {
     ck_assert(securityPolicy != NULL);
     ck_assert(channelContext != NULL);
     return keySizes->sym_enc_blockSize;
 }
 
 static size_t
-sym_getRemoteEncryptionBlockSize_testing(const UA_SecurityPolicy *securityPolicy,
-                                         const void *channelContext) {
+sym_getPlainTextBlockSize_testing(const UA_SecurityPolicy *securityPolicy,
+                                  const void *channelContext) {
     ck_assert(securityPolicy != NULL);
     ck_assert(channelContext != NULL);
-    return keySizes->sym_enc_blockSize; // TODO: Different size for remote
+    return keySizes->sym_enc_blockSize;
 }
 
 static UA_StatusCode
@@ -422,8 +422,10 @@ TestingPolicy(UA_SecurityPolicy *policy, UA_ByteString localCertificate,
     sym_encryptionAlgorithm->decrypt = decrypt_testing;
     sym_encryptionAlgorithm->getLocalKeyLength = sym_getLocalEncryptionKeyLength_testing;
     sym_encryptionAlgorithm->getRemoteKeyLength = sym_getRemoteEncryptionKeyLength_testing;
-    sym_encryptionAlgorithm->getLocalBlockSize = sym_getLocalEncryptionBlockSize_testing;
-    sym_encryptionAlgorithm->getRemoteBlockSize = sym_getRemoteEncryptionBlockSize_testing;
+    sym_encryptionAlgorithm->getLocalBlockSize = sym_getEncryptionBlockSize_testing;
+    sym_encryptionAlgorithm->getRemoteBlockSize = sym_getEncryptionBlockSize_testing;
+    sym_encryptionAlgorithm->getRemotePlainTextBlockSize = sym_getPlainTextBlockSize_testing;
+    sym_encryptionAlgorithm->getLocalPlainTextBlockSize = sym_getPlainTextBlockSize_testing;
 
     policy->channelModule.newContext = newContext_testing;
     policy->channelModule.deleteContext = deleteContext_testing;
