@@ -159,20 +159,30 @@ UA_StatusCode
 prependHeadersAsym(UA_SecureChannel *const channel, UA_Byte *header_pos,
                    const UA_Byte *buf_end, size_t totalLength,
                    size_t securityHeaderLength, UA_UInt32 requestId,
-                   size_t *const finalLength) {
+                   size_t *const encryptedLength) {
     const UA_SecurityPolicy *sp = channel->securityPolicy;
     if(!sp)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    size_t dataToEncryptLength =
-        totalLength - (UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH + securityHeaderLength);
+    if(channel->securityMode == UA_MESSAGESECURITYMODE_NONE) {
+        *encryptedLength = totalLength;
+    } else {
+        size_t dataToEncryptLength = totalLength -
+            (UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH + securityHeaderLength);
+        size_t plainTextBlockSize = sp->asymmetricModule.cryptoModule.
+            encryptionAlgorithm.getRemotePlainTextBlockSize(sp, channel->channelContext);
+        size_t encryptedBlockSize = sp->asymmetricModule.cryptoModule.
+            encryptionAlgorithm.getRemoteBlockSize(sp, channel->channelContext);
+
+        /* Padding always fills up the last block */
+        UA_assert(dataToEncryptLength % plainTextBlockSize == 0);
+        size_t blocks = dataToEncryptLength / plainTextBlockSize;
+        *encryptedLength = totalLength + blocks * (encryptedBlockSize - plainTextBlockSize);
+    }
 
     UA_TcpMessageHeader messageHeader;
     messageHeader.messageTypeAndChunkType = UA_MESSAGETYPE_OPN + UA_CHUNKTYPE_FINAL;
-    messageHeader.messageSize = (UA_UInt32)
-        (totalLength +
-         UA_SecurityPolicy_getRemoteAsymEncryptionBufferLengthOverhead(sp, channel->channelContext,
-                                                                       dataToEncryptLength));
+    messageHeader.messageSize = (UA_UInt32)*encryptedLength;
     UA_UInt32 secureChannelId = channel->securityToken.channelId;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     retval |= UA_encodeBinary(&messageHeader, &UA_TRANSPORT[UA_TRANSPORT_TCPMESSAGEHEADER],
@@ -202,9 +212,6 @@ prependHeadersAsym(UA_SecureChannel *const channel, UA_Byte *header_pos,
     seqHeader.sequenceNumber = UA_atomic_addUInt32(&channel->sendSequenceNumber, 1);
     retval = UA_encodeBinary(&seqHeader, &UA_TRANSPORT[UA_TRANSPORT_SEQUENCEHEADER],
                              &header_pos, &buf_end, NULL, NULL);
-
-    *finalLength = messageHeader.messageSize;
-
     return retval;
 }
 
