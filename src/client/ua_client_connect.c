@@ -133,18 +133,18 @@ encryptUserIdentityToken(UA_Client *client, const UA_String *userTokenSecurityPo
     /* Compute the encrypted length (at least one byte padding) */
     size_t plainTextBlockSize = sp->asymmetricModule.cryptoModule.
         encryptionAlgorithm.getRemotePlainTextBlockSize(sp, channelContext);
+    size_t encryptedBlockSize = sp->asymmetricModule.cryptoModule.
+        encryptionAlgorithm.getRemoteBlockSize(sp, channelContext);
     UA_UInt32 length = (UA_UInt32)(tokenData->length + client->remoteNonce.length);
     UA_UInt32 totalLength = length + 4; /* Including the length field */
     size_t blocks = totalLength / plainTextBlockSize;
-    if(totalLength  % plainTextBlockSize != 0)
+    if(totalLength % plainTextBlockSize != 0)
         blocks++;
-    size_t overHead =
-        UA_SecurityPolicy_getRemoteAsymEncryptionBufferLengthOverhead(sp, channelContext,
-                                                                      blocks * plainTextBlockSize);
+    size_t encryptedLength = blocks * encryptedBlockSize;
 
     /* Allocate memory for encryption overhead */
     UA_ByteString encrypted;
-    retval = UA_ByteString_allocBuffer(&encrypted, (blocks * plainTextBlockSize) + overHead);
+    retval = UA_ByteString_allocBuffer(&encrypted, encryptedLength);
     if(retval != UA_STATUSCODE_GOOD) {
         sp->channelModule.deleteContext(channelContext);
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -169,7 +169,7 @@ encryptUserIdentityToken(UA_Client *client, const UA_String *userTokenSecurityPo
 
     retval = sp->asymmetricModule.cryptoModule.encryptionAlgorithm.
         encrypt(sp, channelContext, &encrypted);
-    encrypted.length = (blocks * plainTextBlockSize) + overHead;
+    encrypted.length = encryptedLength;
 
     if(iit) {
         retval |= UA_String_copy(&sp->asymmetricModule.cryptoModule.encryptionAlgorithm.uri,
