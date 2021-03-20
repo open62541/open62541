@@ -324,21 +324,6 @@ signAndEncryptAsym(UA_SecureChannel *channel, size_t preSignLength,
 /* Send Symmetric Message */
 /**************************/
 
-static UA_UInt16
-calculatePaddingSym(const UA_SecurityPolicy *sp, const void *channelContext,
-                    size_t bytesToWrite, UA_Byte *paddingSize, UA_Byte *extraPaddingSize) {
-    size_t encryptionBlockSize = sp->symmetricModule.cryptoModule.
-        encryptionAlgorithm.getLocalBlockSize(sp, channelContext);
-    size_t signatureSize = sp->symmetricModule.cryptoModule.signatureAlgorithm.
-        getLocalSignatureSize(sp, channelContext);
-
-    size_t padding = (encryptionBlockSize -
-                      ((bytesToWrite + signatureSize + 1) % encryptionBlockSize));
-    *paddingSize = (UA_Byte)padding;
-    *extraPaddingSize = (UA_Byte)(padding >> 8u);
-    return (UA_UInt16)padding;
-}
-
 void
 padChunkSym(UA_MessageContext *messageContext, size_t bodyLength) {
     if(messageContext->channel->securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
@@ -348,22 +333,30 @@ padChunkSym(UA_MessageContext *messageContext, size_t bodyLength) {
      * encoding the payload. So we don't have to check if there is enough
      * space. */
 
-    size_t bytesToWrite = bodyLength + UA_SEQUENCE_HEADER_LENGTH;
-    UA_Byte paddingSize = 0;
-    UA_Byte extraPaddingSize = 0;
-    UA_UInt16 totalPaddingSize =
-        calculatePaddingSym(messageContext->channel->securityPolicy,
-                            messageContext->channel->channelContext,
-                            bytesToWrite, &paddingSize, &extraPaddingSize);
+    UA_SecureChannel *channel = messageContext->channel;
+    const UA_SecurityPolicy *sp = channel->securityPolicy;
+
+    size_t signatureSize = sp->symmetricModule.cryptoModule.signatureAlgorithm.
+        getLocalSignatureSize(sp, channel->channelContext);
+    size_t bytesToEncrypt = bodyLength + UA_SEQUENCE_HEADER_LENGTH + signatureSize;
+
+    size_t encryptionBlockSize = sp->symmetricModule.cryptoModule.
+        encryptionAlgorithm.getLocalBlockSize(sp, channel->channelContext);
+    UA_Boolean extraPadding = (sp->symmetricModule.cryptoModule.encryptionAlgorithm.
+                               getRemoteKeyLength(sp, channel->channelContext) > 2048);
+    UA_Byte paddingBytesSize = (UA_LIKELY(!extraPadding)) ? 1u : 2u;
+    size_t totalPaddingSize = (encryptionBlockSize -
+                      ((bytesToEncrypt + paddingBytesSize) % encryptionBlockSize));
 
     /* This is <= because the paddingSize byte also has to be written. */
+    UA_Byte paddingByte = (UA_Byte)(totalPaddingSize & 0xffu);
     for(UA_UInt16 i = 0; i <= totalPaddingSize; ++i) {
-        *messageContext->buf_pos = paddingSize;
-        ++(messageContext->buf_pos);
+        *messageContext->buf_pos = paddingByte;
+        ++messageContext->buf_pos;
     }
-    if(extraPaddingSize > 0) {
-        *messageContext->buf_pos = extraPaddingSize;
-        ++(messageContext->buf_pos);
+    if(extraPadding) {
+        *messageContext->buf_pos = (UA_Byte)(totalPaddingSize >> 8u);
+        ++messageContext->buf_pos;
     }
 }
 
