@@ -367,21 +367,6 @@ struct UA_SecurityPolicy {
     void (*clear)(UA_SecurityPolicy *policy);
 };
 
-/* Gets the number of bytes that are needed by the encryption function in
- * addition to the length of the plaintext message. This is needed, since
- * most RSA encryption methods have their own padding mechanism included.
- * This makes the encrypted message larger than the plainText, so we need to
- * have enough room in the buffer for the overhead.
- *
- * @param securityPolicy the algorithms to use.
- * @param channelContext the retrieve data from.
- * @param maxEncryptionLength the maximum number of bytes that the data to
- *                            encrypt can be. */
-size_t
-UA_SecurityPolicy_getRemoteAsymEncryptionBufferLengthOverhead(const UA_SecurityPolicy *securityPolicy,
-                                                              const void *channelContext,
-                                                              size_t maxEncryptionLength);
-
 /* Gets the a pointer to the context of a security policy supported by the
  * server matched by the security policy uri.
  *
