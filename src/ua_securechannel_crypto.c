@@ -211,27 +211,33 @@ prependHeadersAsym(UA_SecureChannel *const channel, UA_Byte *header_pos,
 void
 hideBytesAsym(const UA_SecureChannel *channel, UA_Byte **buf_start,
               const UA_Byte **buf_end) {
+    /* Set buf_start to the beginning of the payload body */
     *buf_start += UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH;
     *buf_start += calculateAsymAlgSecurityHeaderLength(channel);
     *buf_start += UA_SEQUENCE_HEADER_LENGTH;
 
 #ifdef UA_ENABLE_ENCRYPTION
-    if(channel->securityMode != UA_MESSAGESECURITYMODE_SIGN &&
-       channel->securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+    if(channel->securityMode == UA_MESSAGESECURITYMODE_NONE)
         return;
 
+    /* Block sizes depend on the remote key (certificate) */
     const UA_SecurityPolicy *sp = channel->securityPolicy;
-
-    /* Hide bytes for signature and padding */
-    size_t potentialEncryptMaxSize = (size_t)(*buf_end - *buf_start) + UA_SEQUENCE_HEADER_LENGTH;
-    *buf_end -= sp->asymmetricModule.cryptoModule.signatureAlgorithm.
+    size_t signatureSize = sp->asymmetricModule.cryptoModule.signatureAlgorithm.
         getLocalSignatureSize(sp, channel->channelContext);
-    *buf_end -= 2; /* padding byte and extraPadding byte */
+    size_t plainTextBlockSize = sp->asymmetricModule.cryptoModule.
+        encryptionAlgorithm.getRemotePlainTextBlockSize(sp, channel->channelContext);
+    size_t encryptedBlockSize = sp->asymmetricModule.cryptoModule.
+        encryptionAlgorithm.getRemoteBlockSize(sp, channel->channelContext);
+    UA_Boolean extraPadding = (sp->asymmetricModule.cryptoModule.encryptionAlgorithm.
+                               getRemoteKeyLength(sp, channel->channelContext) > 2048);
 
-    /* Add some overhead length due to RSA implementations adding a signature themselves */
-    *buf_end -= UA_SecurityPolicy_getRemoteAsymEncryptionBufferLengthOverhead(sp,
-                                                                              channel->channelContext,
-                                                                              potentialEncryptMaxSize);
+    /* Encrypted plaintext is sequence header + body + padding + signature.
+     * Set buf_end to the worst-case lower bound for the payload body end. */
+    size_t plainTextMaxLength = (size_t)(*buf_end - *buf_start) + UA_SEQUENCE_HEADER_LENGTH;
+    size_t max_blocks = plainTextMaxLength / plainTextBlockSize;
+    size_t max_overhead = max_blocks * (encryptedBlockSize - plainTextBlockSize);
+    size_t paddingBytes = (UA_LIKELY(!extraPadding)) ? 1u : 2u;
+    *buf_end -= max_overhead + paddingBytes + signatureSize;
 #endif
 }
 
