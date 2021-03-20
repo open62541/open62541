@@ -362,8 +362,7 @@ padChunkSym(UA_MessageContext *messageContext, size_t bodyLength) {
 UA_StatusCode
 signChunkSym(UA_MessageContext *const messageContext, size_t preSigLength) {
     const UA_SecureChannel *channel = messageContext->channel;
-    if(channel->securityMode != UA_MESSAGESECURITYMODE_SIGN &&
-       channel->securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+    if(channel->securityMode == UA_MESSAGESECURITYMODE_NONE)
         return UA_STATUSCODE_GOOD;
 
     const UA_SecurityPolicy *sp = channel->securityPolicy;
