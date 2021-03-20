@@ -240,44 +240,38 @@ hideBytesAsym(const UA_SecureChannel *channel, UA_Byte **buf_start,
 void
 padChunkAsym(UA_SecureChannel *channel, const UA_ByteString *buf,
              size_t securityHeaderLength, UA_Byte **buf_pos) {
-    const UA_SecurityPolicy *sp = channel->securityPolicy;
-
     /* Also pad if the securityMode is SIGN_ONLY, since we are using
      * asymmetric communication to exchange keys and thus need to encrypt. */
-    if(channel->securityMode != UA_MESSAGESECURITYMODE_SIGN &&
-       channel->securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+    if(channel->securityMode == UA_MESSAGESECURITYMODE_NONE)
         return;
 
     const UA_Byte *buf_body_start =
-        &buf->data[UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH +
-                   UA_SEQUENCE_HEADER_LENGTH + securityHeaderLength];
-    const size_t bytesToWrite =
-        (uintptr_t)*buf_pos - (uintptr_t)buf_body_start + UA_SEQUENCE_HEADER_LENGTH;
+        &buf->data[UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH + securityHeaderLength];
+    const size_t bytesToWrite = (uintptr_t)*buf_pos - (uintptr_t)buf_body_start;
 
     /* Compute the padding length */
-    size_t plainTextBlockSize = sp->asymmetricModule.cryptoModule.encryptionAlgorithm.
-        getRemotePlainTextBlockSize(sp, channel->channelContext);
+    const UA_SecurityPolicy *sp = channel->securityPolicy;
     size_t signatureSize = sp->asymmetricModule.cryptoModule.signatureAlgorithm.
         getLocalSignatureSize(sp, channel->channelContext);
-    size_t paddingBytes = 1;
-    if(sp->asymmetricModule.cryptoModule.encryptionAlgorithm.
-        getRemoteKeyLength(sp, channel->channelContext) > 2048)
-        ++paddingBytes; /* extra padding */
-    size_t totalPaddingSize =
-        (plainTextBlockSize - ((bytesToWrite + signatureSize + paddingBytes) % plainTextBlockSize));
+    size_t plainTextBlockSize = sp->asymmetricModule.cryptoModule.encryptionAlgorithm.
+        getRemotePlainTextBlockSize(sp, channel->channelContext);
+    UA_Boolean extraPadding = (sp->asymmetricModule.cryptoModule.encryptionAlgorithm.
+                               getRemoteKeyLength(sp, channel->channelContext) > 2048);
+    size_t paddingBytes = (UA_LIKELY(!extraPadding)) ? 1u : 2u;
+    size_t totalPaddingSize = plainTextBlockSize -
+                ((bytesToWrite + signatureSize + paddingBytes) % plainTextBlockSize);
 
-    /* Write the padding. This is <= because the paddingSize byte also has to be written */
-    UA_Byte paddingSize = (UA_Byte)(totalPaddingSize & 0xffu);
+    /* Write the padding. This is <= because the paddingSize byte also has to be
+     * written */
+    UA_Byte paddingByte = (UA_Byte)(totalPaddingSize & 0xffu);
     for(UA_UInt16 i = 0; i <= totalPaddingSize; ++i) {
-        **buf_pos = paddingSize;
+        **buf_pos = paddingByte;
         ++*buf_pos;
     }
 
     /* Write the extra padding byte if required */
-    if(sp->asymmetricModule.cryptoModule.encryptionAlgorithm.
-       getRemoteKeyLength(sp, channel->channelContext) > 2048) {
-        UA_Byte extraPaddingSize = (UA_Byte)(totalPaddingSize >> 8u);
-        **buf_pos = extraPaddingSize;
+    if(extraPadding) {
+        **buf_pos = (UA_Byte)(totalPaddingSize >> 8u);
         ++*buf_pos;
     }
 }
