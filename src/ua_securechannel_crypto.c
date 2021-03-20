@@ -398,12 +398,16 @@ encryptChunkSym(UA_MessageContext *const messageContext, size_t totalLength) {
 
 void
 setBufPos(UA_MessageContext *mc) {
-    /* Forward the data pointer so that the payload is encoded after the
-     * message header */
+    /* Forward the data pointer so that the payload is encoded after the message
+     * header. This has to be a symmetric message because OPN (with asymmetric
+     * encryption) does not support chunking. */
     mc->buf_pos = &mc->messageBuffer.data[UA_SECURE_MESSAGE_HEADER_LENGTH];
     mc->buf_end = &mc->messageBuffer.data[mc->messageBuffer.length];
 
 #ifdef UA_ENABLE_ENCRYPTION
+    if(mc->channel->securityMode == UA_MESSAGESECURITYMODE_NONE)
+        return;
+
     const UA_SecureChannel *channel = mc->channel;
     const UA_SecurityPolicy *sp = channel->securityPolicy;
 
@@ -411,10 +415,8 @@ setBufPos(UA_MessageContext *mc) {
      * is signed and/or encrypted. The footer includes the fields PaddingSize,
      * Padding, ExtraPadding and Signature. The padding fields are only present
      * if the chunk is encrypted. */
-    if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
-       channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
-        mc->buf_end -= sp->symmetricModule.cryptoModule.signatureAlgorithm.
-            getLocalSignatureSize(sp, channel->channelContext);
+    mc->buf_end -= sp->symmetricModule.cryptoModule.signatureAlgorithm.
+        getLocalSignatureSize(sp, channel->channelContext);
 
     /* The size of the padding depends on the amount of data that shall be sent
      * and is unknown at this point. Reserve space for the PaddingSize byte,
@@ -425,18 +427,18 @@ setBufPos(UA_MessageContext *mc) {
      * calculatePaddingSym(). */
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
         /* PaddingSize and ExtraPaddingSize fields */
-        size_t encryptionBlockSize = sp->symmetricModule.cryptoModule.
-            encryptionAlgorithm.getLocalBlockSize(sp, channel->channelContext);
-        mc->buf_end -= 1 + ((encryptionBlockSize >> 8u) ? 1 : 0);
+        UA_Boolean extraPadding =
+            (sp->symmetricModule.cryptoModule.encryptionAlgorithm.
+             getRemoteKeyLength(sp, channel->channelContext) > 2048);
+        mc->buf_end -= (UA_LIKELY(!extraPadding)) ? 1 : 2;
 
-        /* Reduce the message body size with the remainder of the operation
-         * maxEncryptedDataSize modulo EncryptionBlockSize to get a whole
-         * number of blocks to encrypt later. Also reserve one byte for
-         * padding (1 <= paddingSize <= encryptionBlockSize). */
-        size_t maxEncryptDataSize = mc->messageBuffer.length -
-            UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH -
-            UA_SYMMETRIC_ALG_SECURITY_HEADER_LENGTH;
-        mc->buf_end -= (maxEncryptDataSize % encryptionBlockSize) + 1;
+        /* Assuming that for symmetric encryption the plainTextBlockSize ==
+         * cypherTextBlockSize. */
+        UA_assert(sp->symmetricModule.cryptoModule.encryptionAlgorithm.
+                  getLocalPlainTextBlockSize(sp, channel->channelContext)
+                  ==
+                  sp->symmetricModule.cryptoModule.encryptionAlgorithm.
+                  getLocalBlockSize(sp, channel->channelContext));
     }
 #endif
 }
