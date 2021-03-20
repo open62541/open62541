@@ -225,16 +225,17 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel,
 
     /* The total message length is known here which is why we encode the headers
      * at this step and not earlier. */
-    size_t finalLength = 0;
+    size_t encryptedLength = 0;
     retval = prependHeadersAsym(channel, buf.data, buf_end, total_length,
-                                securityHeaderLength, requestId, &finalLength);
+                                securityHeaderLength, requestId, &encryptedLength);
     if(retval != UA_STATUSCODE_GOOD) {
         connection->releaseSendBuffer(connection, &buf);
         return retval;
     }
 
 #ifdef UA_ENABLE_ENCRYPTION
-    retval = signAndEncryptAsym(channel, pre_sig_length, &buf, securityHeaderLength, total_length);
+    retval = signAndEncryptAsym(channel, pre_sig_length, &buf,
+                                securityHeaderLength, total_length);
     if(retval != UA_STATUSCODE_GOOD) {
         connection->releaseSendBuffer(connection, &buf);
         return retval;
@@ -242,7 +243,7 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel,
 #endif
 
     /* Send the message, the buffer is freed in the network layer */
-    buf.length = finalLength;
+    buf.length = encryptedLength;
     retval = connection->send(connection, &buf);
 #ifdef UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
     retval |= sendAsym_sendFailure;
