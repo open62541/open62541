@@ -348,23 +348,33 @@ START_TEST(Securechannel_sendAsymmetricOPNMessage_extraPaddingPresentWhenKeyLarg
     ck_assert_msg(memcmp(&sentResponse, &dummyResponse, sizeof(UA_OpenSecureChannelResponse)) == 0,
                   "Expected the sent response to be equal to the one supplied to the send function");
 
-    UA_Byte paddingByte = sentData.data[offset];
-    UA_Byte extraPaddingByte = sentData.data[sentData.length - keySizes.asym_lcl_sig_size - 1];
+    UA_Byte paddingByte = sentData.data[sentData.length - keySizes.asym_lcl_sig_size - 1];
     size_t paddingSize = (size_t)paddingByte;
-    paddingSize |= extraPaddingByte << 8;
+    UA_Boolean extraPadding =
+        (testChannel.securityPolicy->asymmetricModule.cryptoModule.encryptionAlgorithm.
+         getRemoteKeyLength(testChannel.securityPolicy, testChannel.channelContext) > 2048);
+    UA_Byte extraPaddingByte = 0;
+    if(extraPadding) {
+        extraPaddingByte = paddingByte;
+        paddingByte = sentData.data[sentData.length - keySizes.asym_lcl_sig_size - 2];
+        paddingSize = (extraPaddingByte << 8u) + paddingByte;
+        paddingSize += 1;
+    }
 
-    for(size_t i = 0; i <= paddingSize; ++i) {
+    for(size_t i = 0; i < paddingSize; ++i) {
         ck_assert_msg(sentData.data[offset + i] == paddingByte,
                       "Expected padding byte %i to be %i but got value %i",
                       (int)i, paddingByte, sentData.data[offset + i]);
     }
 
-    ck_assert_msg(sentData.data[offset + paddingSize + 1] == extraPaddingByte,
-                  "Expected extra padding byte to be %i but got %i",
-                  extraPaddingByte, sentData.data[offset + paddingSize + 1]);
-    ck_assert_msg(sentData.data[offset + paddingSize + 2] == '*',
+    if(extraPadding) {
+        ck_assert_msg(sentData.data[offset + paddingSize] == extraPaddingByte,
+                      "Expected extra padding byte to be %i but got %i",
+                      extraPaddingByte, sentData.data[offset + paddingSize]);
+    }
+    ck_assert_msg(sentData.data[offset + paddingSize + 1] == '*',
                   "Expected first byte 42 of signature but got %i",
-                  sentData.data[offset + paddingSize + 2]);
+                  sentData.data[offset + paddingSize + 1]);
 
     UA_AsymmetricAlgorithmSecurityHeader_clear(&asymSecurityHeader);
     UA_SequenceHeader_clear(&sequenceHeader);
