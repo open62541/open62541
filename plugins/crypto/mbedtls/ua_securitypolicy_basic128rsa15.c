@@ -117,19 +117,16 @@ asym_encrypt_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
     if(securityPolicy == NULL || cc == NULL || data == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    const size_t plainTextBlockSize = securityPolicy->asymmetricModule.cryptoModule.encryptionAlgorithm.
-        getRemotePlainTextBlockSize(securityPolicy, cc);
-
-    if(data->length % plainTextBlockSize != 0)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
     mbedtls_rsa_context *remoteRsaContext = mbedtls_pk_rsa(cc->remoteCertificate.pk);
     mbedtls_rsa_set_padding(remoteRsaContext, MBEDTLS_RSA_PKCS_V15, 0);
 
+    size_t plainTextBlockSize = remoteRsaContext->len - UA_SECURITYPOLICY_BASIC128RSA15_RSAPADDING_LEN;
+    if(data->length % plainTextBlockSize != 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    size_t blocks = data->length / plainTextBlockSize;
     UA_ByteString encrypted;
-    const size_t bufferOverhead =
-        UA_SecurityPolicy_getRemoteAsymEncryptionBufferLengthOverhead(securityPolicy, cc, data->length);
-    UA_StatusCode retval = UA_ByteString_allocBuffer(&encrypted, data->length + bufferOverhead);
+    UA_StatusCode retval = UA_ByteString_allocBuffer(&encrypted, blocks * remoteRsaContext->len);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -328,13 +325,11 @@ sym_encrypt_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
        securityPolicy->symmetricModule.cryptoModule.encryptionAlgorithm.getLocalBlockSize(securityPolicy, cc))
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    size_t plainTextBlockSize =
-        securityPolicy->symmetricModule.cryptoModule.encryptionAlgorithm.getLocalPlainTextBlockSize(securityPolicy, cc);
-
+    size_t plainTextBlockSize = UA_SECURITYPOLICY_BASIC128RSA15_SYM_PLAIN_TEXT_BLOCK_SIZE;
     if(data->length % plainTextBlockSize != 0) {
         UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                      "Length of data to encrypt is not a multiple of the plain text block size."
-                         "Padding might not have been calculated appropriately.");
+                     "Padding might not have been calculated appropriately.");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
