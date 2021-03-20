@@ -95,7 +95,8 @@ typedef struct {
 typedef struct {
     UA_String uri;
 
-    /* Encrypt the given data in place using an asymmetric algorithm and keys.
+    /* Encrypt the given data in place. For asymmetric encryption, the block
+     * size for plaintext and cypher depend on the remote key (certificate).
      *
      * @param securityPolicy the securityPolicy the function is invoked on.
      * @param channelContext the channelContext which contains information about
@@ -106,8 +107,8 @@ typedef struct {
                              void *channelContext,
                              UA_ByteString *data) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
-    /* Decrypts the given ciphertext in place using an asymmetric algorithm and
-     * key.
+    /* Decrypts the given ciphertext in place. For asymmetric encryption, the
+     * block size for plaintext and cypher depend on the local private key.
      *
      * @param securityPolicy the securityPolicy the function is invoked on.
      * @param channelContext the channelContext which contains information about
@@ -117,7 +118,8 @@ typedef struct {
                              void *channelContext,
                              UA_ByteString *data) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
-    /* Returns the length of the key used locally to encrypt messages in bits
+    /* Returns the length of the key used to encrypt messages in bits. For
+     * asymmetric encryption the key length is for the local private key.
      *
      * @param securityPolicy the securityPolicy the function is invoked on.
      * @param channelContext the context to retrieve data from.
@@ -126,7 +128,8 @@ typedef struct {
     size_t (*getLocalKeyLength)(const UA_SecurityPolicy *securityPolicy,
                                 const void *channelContext);
 
-    /* Returns the length of the key used remotely to encrypt messages in bits
+    /* Returns the length of the key to encrypt messages in bits. Depends on the
+     * key (certificate) from the remote side.
      *
      * @param securityPolicy the securityPolicy the function is invoked on.
      * @param channelContext the context to retrieve data from.
@@ -135,7 +138,8 @@ typedef struct {
     size_t (*getRemoteKeyLength)(const UA_SecurityPolicy *securityPolicy,
                                  const void *channelContext);
 
-    /* Returns the size of encrypted blocks used by the local encryption algorithm.
+    /* Returns the size of encrypted blocks for receiving. For asymmetric
+     * encryption this depends on the local private key.
      *
      * @param securityPolicy the securityPolicy the function is invoked on.
      * @param channelContext the context to retrieve data from.
@@ -144,7 +148,8 @@ typedef struct {
     size_t (*getLocalBlockSize)(const UA_SecurityPolicy *securityPolicy,
                                 const void *channelContext);
 
-    /* Returns the size of encrypted blocks used by the remote encryption algorithm.
+    /* Returns the size of encrypted blocks for sending. For asymmetric
+     * encryption this depends on the remote key (certificate).
      *
      * @param securityPolicy the securityPolicy the function is invoked on.
      * @param channelContext the context to retrieve data from.
@@ -153,7 +158,8 @@ typedef struct {
     size_t (*getRemoteBlockSize)(const UA_SecurityPolicy *securityPolicy,
                                  const void *channelContext);
 
-    /* Returns the size of plaintext blocks used by the local encryption algorithm.
+    /* Returns the size of plaintext blocks for receiving. For asymmetric
+     * encryption this depends on the local private key (certificate).
      *
      * @param securityPolicy the securityPolicy the function is invoked on.
      * @param channelContext the context to retrieve data from.
@@ -162,7 +168,8 @@ typedef struct {
     size_t (*getLocalPlainTextBlockSize)(const UA_SecurityPolicy *securityPolicy,
                                          const void *channelContext);
 
-    /* Returns the size of plaintext blocks used by the remote encryption algorithm.
+    /* Returns the size of plaintext blocks for sending. For asymmetric
+     * encryption this depends on the remote key (certificate).
      *
      * @param securityPolicy the securityPolicy the function is invoked on.
      * @param channelContext the context to retrieve data from.
