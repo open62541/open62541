@@ -187,7 +187,7 @@ signCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
 
     /* Prepare the signature */
     size_t signatureSize = securityPolicy->certificateSigningAlgorithm.
-        getLocalSignatureSize(securityPolicy, channel->channelContext);
+        getLocalSignatureSize(channel->channelContext);
     UA_StatusCode retval = UA_String_copy(&securityPolicy->certificateSigningAlgorithm.uri,
                                           &signatureData->algorithm);
     retval |= UA_ByteString_allocBuffer(&signatureData->signature, signatureSize);
@@ -206,7 +206,7 @@ signCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
     memcpy(dataToSign.data + request->clientCertificate.length,
            request->clientNonce.data, request->clientNonce.length);
     retval = securityPolicy->certificateSigningAlgorithm.
-        sign(securityPolicy, channel->channelContext, &dataToSign, &signatureData->signature);
+        sign(channel->channelContext, &dataToSign, &signatureData->signature);
 
     /* Clean up */
     UA_ByteString_clear(&dataToSign);
@@ -415,7 +415,7 @@ checkSignature(const UA_Server *server, const UA_SecureChannel *channel,
     memcpy(dataToVerify.data + localCertificate->length,
            session->serverNonce.data, session->serverNonce.length);
     retval = securityPolicy->certificateSigningAlgorithm.
-        verify(securityPolicy, channel->channelContext, &dataToVerify,
+        verify(channel->channelContext, &dataToVerify,
                &request->clientSignature.signature);
     UA_ByteString_clear(&dataToVerify);
     return retval;
@@ -438,8 +438,7 @@ decryptPassword(UA_SecurityPolicy *securityPolicy, void *tempChannelContext,
         return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 
     UA_StatusCode retval = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-    if(asymEnc->decrypt(securityPolicy, tempChannelContext,
-                        &decryptedTokenSecret) != UA_STATUSCODE_GOOD)
+    if(asymEnc->decrypt(tempChannelContext, &decryptedTokenSecret) != UA_STATUSCODE_GOOD)
         goto cleanup;
 
     UA_UInt32_decodeBinary(&decryptedTokenSecret, &offset, &tokenSecretLength);
