@@ -352,7 +352,7 @@ START_TEST(Securechannel_sendAsymmetricOPNMessage_extraPaddingPresentWhenKeyLarg
     size_t paddingSize = (size_t)paddingByte;
     UA_Boolean extraPadding =
         (testChannel.securityPolicy->asymmetricModule.cryptoModule.encryptionAlgorithm.
-         getRemoteKeyLength(testChannel.securityPolicy, testChannel.channelContext) > 2048);
+         getRemoteKeyLength(testChannel.channelContext) > 2048);
     UA_Byte extraPaddingByte = 0;
     if(extraPadding) {
         extraPaddingByte = paddingByte;

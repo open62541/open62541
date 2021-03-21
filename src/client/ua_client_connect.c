@@ -56,7 +56,7 @@ signActivateSessionRequest(UA_Client *client, UA_SecureChannel *channel,
 
     /* Prepare the signature */
     size_t signatureSize = sp->certificateSigningAlgorithm.
-        getLocalSignatureSize(sp, channel->channelContext);
+        getLocalSignatureSize(channel->channelContext);
     UA_StatusCode retval = UA_String_copy(&sp->certificateSigningAlgorithm.uri,
                                           &sd->algorithm);
     if(retval != UA_STATUSCODE_GOOD)
@@ -81,7 +81,7 @@ signActivateSessionRequest(UA_Client *client, UA_SecureChannel *channel,
            channel->remoteCertificate.length);
     memcpy(dataToSign.data + channel->remoteCertificate.length,
            client->remoteNonce.data, client->remoteNonce.length);
-    retval = sp->certificateSigningAlgorithm.sign(sp, channel->channelContext,
+    retval = sp->certificateSigningAlgorithm.sign(channel->channelContext,
                                                   &dataToSign, &sd->signature);
 
     /* Clean up */
@@ -132,9 +132,9 @@ encryptUserIdentityToken(UA_Client *client, const UA_String *userTokenSecurityPo
     
     /* Compute the encrypted length (at least one byte padding) */
     size_t plainTextBlockSize = sp->asymmetricModule.cryptoModule.
-        encryptionAlgorithm.getRemotePlainTextBlockSize(sp, channelContext);
+        encryptionAlgorithm.getRemotePlainTextBlockSize(channelContext);
     size_t encryptedBlockSize = sp->asymmetricModule.cryptoModule.
-        encryptionAlgorithm.getRemoteBlockSize(sp, channelContext);
+        encryptionAlgorithm.getRemoteBlockSize(channelContext);
     UA_UInt32 length = (UA_UInt32)(tokenData->length + client->remoteNonce.length);
     UA_UInt32 totalLength = length + 4; /* Including the length field */
     size_t blocks = totalLength / plainTextBlockSize;
@@ -168,7 +168,7 @@ encryptUserIdentityToken(UA_Client *client, const UA_String *userTokenSecurityPo
     encrypted.length = paddedLength;
 
     retval = sp->asymmetricModule.cryptoModule.encryptionAlgorithm.
-        encrypt(sp, channelContext, &encrypted);
+        encrypt(channelContext, &encrypted);
     encrypted.length = encryptedLength;
 
     if(iit) {
@@ -213,7 +213,7 @@ checkCreateSessionSignature(UA_Client *client, const UA_SecureChannel *channel,
     memcpy(dataToVerify.data + lc->length,
            client->localNonce.data, client->localNonce.length);
 
-    retval = sp->certificateSigningAlgorithm.verify(sp, channel->channelContext, &dataToVerify,
+    retval = sp->certificateSigningAlgorithm.verify(channel->channelContext, &dataToVerify,
                                                     &response->serverSignature.signature);
     UA_ByteString_clear(&dataToVerify);
     return retval;

@@ -221,7 +221,7 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel,
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
         total_length += sp->asymmetricModule.cryptoModule.signatureAlgorithm.
-            getLocalSignatureSize(sp, channel->channelContext);
+            getLocalSignatureSize(channel->channelContext);
 
     /* The total message length is known here which is why we encode the headers
      * at this step and not earlier. */
@@ -328,7 +328,7 @@ sendSymmetricChunk(UA_MessageContext *messageContext) {
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
         total_length += securityPolicy->symmetricModule.cryptoModule.signatureAlgorithm.
-            getLocalSignatureSize(securityPolicy, channel->channelContext);
+            getLocalSignatureSize(channel->channelContext);
     /* Space for the padding and the signature have been reserved in setBufPos() */
     UA_assert(total_length <= channel->config.sendBufferSize);
 

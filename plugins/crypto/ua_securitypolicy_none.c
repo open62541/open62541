@@ -16,38 +16,30 @@
 #endif
 
 static UA_StatusCode
-verify_none(const UA_SecurityPolicy *securityPolicy,
-            void *channelContext,
+verify_none(void *channelContext,
             const UA_ByteString *message,
             const UA_ByteString *signature) {
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
-sign_none(const UA_SecurityPolicy *securityPolicy,
-          void *channelContext,
-          const UA_ByteString *message,
+sign_none(void *channelContext, const UA_ByteString *message,
           UA_ByteString *signature) {
     return UA_STATUSCODE_GOOD;
 }
 
 static size_t
-length_none(const UA_SecurityPolicy *securityPolicy,
-            const void *channelContext) {
+length_none(const void *channelContext) {
     return 0;
 }
 
 static UA_StatusCode
-encrypt_none(const UA_SecurityPolicy *securityPolicy,
-             void *channelContext,
-             UA_ByteString *data) {
+encrypt_none(void *channelContext, UA_ByteString *data) {
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
-decrypt_none(const UA_SecurityPolicy *securityPolicy,
-             void *channelContext,
-             UA_ByteString *data) {
+decrypt_none(void *channelContext, UA_ByteString *data) {
     return UA_STATUSCODE_GOOD;
 }
 
