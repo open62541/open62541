@@ -310,11 +310,6 @@ UA_SymEn_Basic256Sha256_getLocalKeyLength (const void *channelContext) {
 }
 
 static size_t 
-UA_SymEn_Basic256Sha256_getLocalBlockSize (const void *channelContext) {
-    return UA_SECURITYPOLICY_BASIC256SHA256_SYM_ENCRYPTION_BLOCK_SIZE;
-}
-
-static size_t 
 UA_SymSig_Basic256Sha256_getLocalKeyLength (const void *channelContext) {
     /* 32 bytes 256 bits */                                                
     return UA_SECURITYPOLICY_BASIC256SHA256_SYM_SIGNING_KEY_LENGTH; 
@@ -491,11 +486,6 @@ UA_ChannelM_Basic256Sha256_compareCertificate (const void *channelContext,
 }
 
 static size_t 
-UA_SymEn_Basic256Sha256_getLocalPlainTextBlockSize (const void *channelContext) {
-    return UA_SECURITYPOLICY_BASIC256SHA256_SYM_PLAIN_TEXT_BLOCK_SIZE;                                                        
-}
-
-static size_t 
 UA_AsymEn_Basic256Sha256_getLocalKeyLength (const void *channelContext) {
     if (channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -571,8 +561,6 @@ UA_SecurityPolicy_Basic256Sha256(UA_SecurityPolicy * policy,
     asymEncryAlg->getRemoteKeyLength = UA_AsymEn_Basic256Sha256_getRemoteKeyLength;
     asymEncryAlg->encrypt = UA_AsymEn_Basic256Sha256_encrypt;
     asymEncryAlg->getLocalKeyLength = UA_AsymEn_Basic256Sha256_getLocalKeyLength;
-    asymEncryAlg->getLocalPlainTextBlockSize = NULL;
-    asymEncryAlg->getLocalBlockSize = NULL;
 
     /* asymmetricModule */
 
@@ -591,13 +579,10 @@ UA_SecurityPolicy_Basic256Sha256(UA_SecurityPolicy * policy,
         &symmetricModule->cryptoModule.encryptionAlgorithm;
     symEncryptionAlgorithm->uri = UA_STRING("http://www.w3.org/2001/04/xmlenc#aes256-cbc\0");        
     symEncryptionAlgorithm->getLocalKeyLength = UA_SymEn_Basic256Sha256_getLocalKeyLength;
-    symEncryptionAlgorithm->getLocalBlockSize = UA_SymEn_Basic256Sha256_getLocalBlockSize;
     symEncryptionAlgorithm->getRemoteKeyLength = UA_SymEn_Basic256Sha256_getRemoteKeyLength;
     symEncryptionAlgorithm->getRemoteBlockSize = UA_SymEn_Basic256Sha256_getRemoteBlockSize;
     symEncryptionAlgorithm->decrypt = UA_SymEn_Basic256Sha256_decrypt;
     symEncryptionAlgorithm->encrypt = UA_SymEn_Basic256Sha256_encrypt;
-    symEncryptionAlgorithm->getLocalPlainTextBlockSize = 
-                  UA_SymEn_Basic256Sha256_getLocalPlainTextBlockSize;
 
     /* Symmetric signature Algorithm */
 

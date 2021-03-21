@@ -566,8 +566,6 @@ UA_SecurityPolicy_Basic256 (UA_SecurityPolicy * policy,
     asymEncryAlg->getRemoteBlockSize = UA_AsymEn_Basic256_getRemoteBlockSize;
     asymEncryAlg->getRemoteKeyLength = UA_AsymEn_Basic256_getRemoteKeyLength;
     asymEncryAlg->getLocalKeyLength = UA_AsymEn_Basic256_getLocalKeyLength;
-    asymEncryAlg->getLocalPlainTextBlockSize = NULL;
-    asymEncryAlg->getLocalBlockSize = NULL;    
     asymEncryAlg->decrypt = UA_AsymEn_Basic256_Decrypt;
     asymEncryAlg->encrypt = UA_AsymEn_Basic256_Encrypt;
 
@@ -583,10 +581,8 @@ UA_SecurityPolicy_Basic256 (UA_SecurityPolicy * policy,
         &symmetricModule->cryptoModule.encryptionAlgorithm;
     symEncryptionAlgorithm->uri = UA_STRING("http://www.w3.org/2001/04/xmlenc#aes256-cbc\0");   
     symEncryptionAlgorithm->getLocalKeyLength = UA_SymEn_Basic256_getLocalKeyLength;
-    symEncryptionAlgorithm->getLocalBlockSize = UA_SymEn_Basic256_getBlockSize;
     symEncryptionAlgorithm->getRemoteKeyLength = UA_SymEn_Basic256_getRemoteKeyLength;
     symEncryptionAlgorithm->getRemoteBlockSize = UA_SymEn_Basic256_getBlockSize;
-    symEncryptionAlgorithm->getLocalPlainTextBlockSize = UA_SymEn_Basic256_getPlainTextBlockSize;
     symEncryptionAlgorithm->getRemotePlainTextBlockSize = UA_SymEn_Basic256_getPlainTextBlockSize;
     symEncryptionAlgorithm->decrypt = UA_SymEn_Basic256_Decrypt;
     symEncryptionAlgorithm->encrypt = UA_SymEn_Basic256_Encrypt;

@@ -379,10 +379,8 @@ TestingPolicy(UA_SecurityPolicy *policy, UA_ByteString localCertificate,
     sym_encryptionAlgorithm->decrypt = decrypt_testing;
     sym_encryptionAlgorithm->getLocalKeyLength = sym_getLocalEncryptionKeyLength_testing;
     sym_encryptionAlgorithm->getRemoteKeyLength = sym_getRemoteEncryptionKeyLength_testing;
-    sym_encryptionAlgorithm->getLocalBlockSize = sym_getEncryptionBlockSize_testing;
     sym_encryptionAlgorithm->getRemoteBlockSize = sym_getEncryptionBlockSize_testing;
     sym_encryptionAlgorithm->getRemotePlainTextBlockSize = sym_getPlainTextBlockSize_testing;
-    sym_encryptionAlgorithm->getLocalPlainTextBlockSize = sym_getPlainTextBlockSize_testing;
 
     policy->channelModule.newContext = newContext_testing;
     policy->channelModule.deleteContext = deleteContext_testing;

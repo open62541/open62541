@@ -118,32 +118,18 @@ typedef struct {
      *         key length is known. */
     size_t (*getRemoteKeyLength)(const void *channelContext);
 
-    /* Returns the size of encrypted blocks for receiving. For asymmetric
-     * encryption this depends on the local private key.
-     *
-     * @param channelContext the context to retrieve data from.
-     * @return the size of encrypted blocks in bytes. Returns 0 if no key length is known.
-     */
-    size_t (*getLocalBlockSize)(const void *channelContext);
-
     /* Returns the size of encrypted blocks for sending. For asymmetric
-     * encryption this depends on the remote key (certificate).
+     * encryption this depends on the remote key (certificate). For symmetric
+     * encryption the local and remote encrypted block size are identical.
      *
      * @param channelContext the context to retrieve data from.
      * @return the size of encrypted blocks in bytes. Returns 0 if no key length is known.
      */
     size_t (*getRemoteBlockSize)(const void *channelContext);
 
-    /* Returns the size of plaintext blocks for receiving. For asymmetric
-     * encryption this depends on the local private key (certificate).
-     *
-     * @param channelContext the context to retrieve data from.
-     * @return the size of plaintext blocks in bytes. Returns 0 if no key length is known.
-     */
-    size_t (*getLocalPlainTextBlockSize)(const void *channelContext);
-
     /* Returns the size of plaintext blocks for sending. For asymmetric
-     * encryption this depends on the remote key (certificate).
+     * encryption this depends on the remote key (certificate). For symmetric
+     * encryption the local and remote plaintext block size are identical.
      *
      * @param channelContext the context to retrieve data from.
      * @return the size of plaintext blocks in bytes. Returns 0 if no key length is known.

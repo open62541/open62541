@@ -58,10 +58,11 @@ UA_SecureChannel_generateLocalKeys(const UA_SecureChannel *channel) {
     const UA_SecurityPolicySymmetricModule *sm = &sp->symmetricModule;
     const UA_SecurityPolicyCryptoModule *crm = &sm->cryptoModule;
 
-    /* Generate symmetric key buffer of the required length */
+    /* Generate symmetric key buffer of the required length. The block size is
+     * identical for local/remote. */
     UA_ByteString buf;
     size_t encrKL = crm->encryptionAlgorithm.getLocalKeyLength(cc);
-    size_t encrBS = crm->encryptionAlgorithm.getLocalBlockSize(cc);
+    size_t encrBS = crm->encryptionAlgorithm.getRemoteBlockSize(cc);
     size_t signKL = crm->signatureAlgorithm.getLocalKeyLength(cc);
     UA_StatusCode retval = UA_ByteString_allocBuffer(&buf, encrBS + signKL + encrKL);
     if(retval != UA_STATUSCODE_GOOD)
@@ -339,8 +340,9 @@ padChunkSym(UA_MessageContext *messageContext, size_t bodyLength) {
         getLocalSignatureSize(channel->channelContext);
     size_t bytesToEncrypt = bodyLength + UA_SEQUENCE_HEADER_LENGTH + signatureSize;
 
+    /* For symmetric encryption, the local/remote block sizes are identical */
     size_t encryptionBlockSize = sp->symmetricModule.cryptoModule.
-        encryptionAlgorithm.getLocalBlockSize(channel->channelContext);
+        encryptionAlgorithm.getRemoteBlockSize(channel->channelContext);
     UA_Boolean extraPadding = (sp->symmetricModule.cryptoModule.encryptionAlgorithm.
                                getRemoteKeyLength(channel->channelContext) > 2048);
     UA_Byte paddingBytesSize = (UA_LIKELY(!extraPadding)) ? 1u : 2u;
@@ -431,12 +433,13 @@ setBufPos(UA_MessageContext *mc) {
         mc->buf_end -= (UA_LIKELY(!extraPadding)) ? 1 : 2;
 
         /* Assuming that for symmetric encryption the plainTextBlockSize ==
-         * cypherTextBlockSize. */
+         * cypherTextBlockSize. For symmetric encryption the remote/local block
+         * sizes are identical. */
         UA_assert(sp->symmetricModule.cryptoModule.encryptionAlgorithm.
-                  getLocalPlainTextBlockSize(channel->channelContext)
+                  getRemotePlainTextBlockSize(channel->channelContext)
                   ==
                   sp->symmetricModule.cryptoModule.encryptionAlgorithm.
-                  getLocalBlockSize(channel->channelContext));
+                  getRemoteBlockSize(channel->channelContext));
     }
 #endif
 }

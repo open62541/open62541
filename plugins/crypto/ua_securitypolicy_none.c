@@ -161,9 +161,7 @@ UA_SecurityPolicy_None(UA_SecurityPolicy *policy, const UA_ByteString localCerti
     sym_encryptionAlgorithm->decrypt = decrypt_none;
     sym_encryptionAlgorithm->getLocalKeyLength = length_none;
     sym_encryptionAlgorithm->getRemoteKeyLength = length_none;
-    sym_encryptionAlgorithm->getLocalBlockSize = length_none;
     sym_encryptionAlgorithm->getRemoteBlockSize = length_none;
-    sym_encryptionAlgorithm->getLocalPlainTextBlockSize = length_none;
     sym_encryptionAlgorithm->getRemotePlainTextBlockSize = length_none;
     policy->symmetricModule.secureChannelNonceLength = 0;
 

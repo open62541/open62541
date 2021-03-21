@@ -734,9 +734,7 @@ UA_SecurityPolicy_Aes128Sha256RsaOaep(UA_SecurityPolicy *policy, const UA_ByteSt
         (size_t (*)(const void *))asym_getLocalEncryptionKeyLength_sp_aes128sha256rsaoaep;
     asym_encryptionAlgorithm->getRemoteKeyLength =
         (size_t (*)(const void *))asym_getRemoteEncryptionKeyLength_sp_aes128sha256rsaoaep;
-    asym_encryptionAlgorithm->getLocalBlockSize = NULL; // TODO: Write function
     asym_encryptionAlgorithm->getRemoteBlockSize = (size_t (*)(const void *))asym_getRemoteBlockSize_sp_aes128sha256rsaoaep;
-    asym_encryptionAlgorithm->getLocalPlainTextBlockSize = NULL; // TODO: Write function
     asym_encryptionAlgorithm->getRemotePlainTextBlockSize =
         (size_t (*)(const void *))asym_getRemotePlainTextBlockSize_sp_aes128sha256rsaoaep;
 
@@ -772,12 +770,8 @@ UA_SecurityPolicy_Aes128Sha256RsaOaep(UA_SecurityPolicy *policy, const UA_ByteSt
         (UA_StatusCode(*)(void *, UA_ByteString *))sym_decrypt_sp_aes128sha256rsaoaep;
     sym_encryptionAlgorithm->getLocalKeyLength = sym_getEncryptionKeyLength_sp_aes128sha256rsaoaep;
     sym_encryptionAlgorithm->getRemoteKeyLength = sym_getEncryptionKeyLength_sp_aes128sha256rsaoaep;
-    sym_encryptionAlgorithm->getLocalBlockSize =
-        (size_t (*)(const void *))sym_getEncryptionBlockSize_sp_aes128sha256rsaoaep;
     sym_encryptionAlgorithm->getRemoteBlockSize =
         (size_t (*)(const void *))sym_getEncryptionBlockSize_sp_aes128sha256rsaoaep;
-    sym_encryptionAlgorithm->getLocalPlainTextBlockSize =
-        (size_t (*)(const void *))sym_getPlainTextBlockSize_sp_aes128sha256rsaoaep;
     sym_encryptionAlgorithm->getRemotePlainTextBlockSize =
         (size_t (*)(const void *))sym_getPlainTextBlockSize_sp_aes128sha256rsaoaep;
     symmetricModule->secureChannelNonceLength = 32;
