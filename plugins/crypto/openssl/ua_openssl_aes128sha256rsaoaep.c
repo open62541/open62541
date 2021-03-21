@@ -311,11 +311,6 @@ UA_SymEn_Aes128Sha256RsaOaep_getLocalKeyLength(const void *channelContext) {
 }
 
 static size_t
-UA_SymEn_Aes128Sha256RsaOaep_getLocalBlockSize(const void *channelContext) {
-    return UA_SECURITYPOLICY_AES128SHA256RSAOAEP_SYM_ENCRYPTION_BLOCK_SIZE;
-}
-
-static size_t
 UA_SymSig_Aes128Sha256RsaOaep_getLocalKeyLength(const void *channelContext) {
     /* 32 bytes 256 bits */
     return UA_SECURITYPOLICY_AES128SHA256RSAOAEP_SYM_SIGNING_KEY_LENGTH;
@@ -498,11 +493,6 @@ UA_ChannelM_Aes128Sha256RsaOaep_compareCertificate(const void *channelContext,
 }
 
 static size_t
-UA_SymEn_Aes128Sha256RsaOaep_getLocalPlainTextBlockSize(const void *channelContext) {
-    return UA_SECURITYPOLICY_AES128SHA256RSAOAEP_SYM_PLAIN_TEXT_BLOCK_SIZE;
-}
-
-static size_t
 UA_AsymEn_Aes128Sha256RsaOaep_getLocalKeyLength(const void *channelContext) {
     if(channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -588,8 +578,6 @@ UA_SecurityPolicy_Aes128Sha256RsaOaep(UA_SecurityPolicy *policy,
     asymEncryAlg->getRemoteKeyLength = UA_AsymEn_Aes128Sha256RsaOaep_getRemoteKeyLength;
     asymEncryAlg->encrypt = UA_AsymEn_Aes128Sha256RsaOaep_encrypt;
     asymEncryAlg->getLocalKeyLength = UA_AsymEn_Aes128Sha256RsaOaep_getLocalKeyLength;
-    asymEncryAlg->getLocalPlainTextBlockSize = NULL;
-    asymEncryAlg->getLocalBlockSize = NULL;
 
     /* asymmetricModule */
 
@@ -610,35 +598,23 @@ UA_SecurityPolicy_Aes128Sha256RsaOaep(UA_SecurityPolicy *policy,
         &symmetricModule->cryptoModule.encryptionAlgorithm;
     symEncryptionAlgorithm->uri =
         UA_STRING("http://www.w3.org/2001/04/xmlenc#aes128-cbc\0");
-    symEncryptionAlgorithm->getLocalKeyLength =
-        UA_SymEn_Aes128Sha256RsaOaep_getLocalKeyLength;
-    symEncryptionAlgorithm->getLocalBlockSize =
-        UA_SymEn_Aes128Sha256RsaOaep_getLocalBlockSize;
-    symEncryptionAlgorithm->getRemoteKeyLength =
-        UA_SymEn_Aes128Sha256RsaOaep_getRemoteKeyLength;
-    symEncryptionAlgorithm->getRemoteBlockSize =
-        UA_SymEn_Aes128Sha256RsaOaep_getRemoteBlockSize;
+    symEncryptionAlgorithm->getLocalKeyLength = UA_SymEn_Aes128Sha256RsaOaep_getLocalKeyLength;
+    symEncryptionAlgorithm->getRemoteKeyLength = UA_SymEn_Aes128Sha256RsaOaep_getRemoteKeyLength;
+    symEncryptionAlgorithm->getRemoteBlockSize = UA_SymEn_Aes128Sha256RsaOaep_getRemoteBlockSize;
     symEncryptionAlgorithm->decrypt = UA_SymEn_Aes128Sha256RsaOaep_decrypt;
     symEncryptionAlgorithm->encrypt = UA_SymEn_Aes128Sha256RsaOaep_encrypt;
-    symEncryptionAlgorithm->getLocalPlainTextBlockSize =
-        UA_SymEn_Aes128Sha256RsaOaep_getLocalPlainTextBlockSize;
 
     /* Symmetric signature Algorithm */
 
     UA_SecurityPolicySignatureAlgorithm *symSignatureAlgorithm =
         &symmetricModule->cryptoModule.signatureAlgorithm;
-    symSignatureAlgorithm->uri =
-        UA_STRING("http://www.w3.org/2000/09/xmldsig#hmac-sha2-256\0");
-    symSignatureAlgorithm->getLocalKeyLength =
-        UA_SymSig_Aes128Sha256RsaOaep_getLocalKeyLength;
-    symSignatureAlgorithm->getRemoteKeyLength =
-        UA_SymSig_Aes128Sha256RsaOaep_getRemoteKeyLength;
-    symSignatureAlgorithm->getRemoteSignatureSize =
-        UA_SymSig_Aes128Sha256RsaOaep_getRemoteSignatureSize;
+    symSignatureAlgorithm->uri = UA_STRING("http://www.w3.org/2000/09/xmldsig#hmac-sha2-256\0");
+    symSignatureAlgorithm->getLocalKeyLength = UA_SymSig_Aes128Sha256RsaOaep_getLocalKeyLength;
+    symSignatureAlgorithm->getRemoteKeyLength = UA_SymSig_Aes128Sha256RsaOaep_getRemoteKeyLength;
+    symSignatureAlgorithm->getRemoteSignatureSize = UA_SymSig_Aes128Sha256RsaOaep_getRemoteSignatureSize;
     symSignatureAlgorithm->verify = UA_SymSig_Aes128Sha256RsaOaep_verify;
     symSignatureAlgorithm->sign = UA_SymSig_Aes128Sha256RsaOaep_sign;
-    symSignatureAlgorithm->getLocalSignatureSize =
-        UA_SymSig_Aes128Sha256RsaOaep_getLocalSignatureSize;
+    symSignatureAlgorithm->getLocalSignatureSize = UA_SymSig_Aes128Sha256RsaOaep_getLocalSignatureSize;
 
     retval = UA_Policy_Aes128Sha256RsaOaep_New_Context(policy, localPrivateKey, logger);
     if(retval != UA_STATUSCODE_GOOD) {
