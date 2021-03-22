@@ -21,10 +21,10 @@
  *
  * Another additional feature called the Blocking Socket is employed in the Subscriber thread. This feature is optional and can be
  * enabled or disabled when running application by using command line argument "-enableBlockingSocket". When using Blocking Socket,
- * the Subscriber thread remains in "blocking mode" until a message is received from every wake up time of the thread. In other words,
- * the timeout is overwritten and the thread continuously waits for the message from every wake up time of the thread.
- * Once the message is received, the Subscriber thread updates the value in the Information Model, sleeps up to wake up time and
- * again waits for the next message. This process is repeated until the application is terminated.
+ * the Subscriber thread remains in "blocking mode" until a message is received. In other words the timeout is overwritten and the
+ * thread continuously waits for the message from every wake up time of the thread. Once the message is received, the Subscriber thread
+ * updates the value in the Information Model, sleeps up to wake up time and again waits for the next message.
+ * This process is repeated until the application is terminated.
  *
  * To ensure realtime capabilities, Publisher uses ETF(Earliest Tx-time First) to publish information at the calculated tranmission
  * time over Ethernet. Subscriber can be used with or without XDP(Xpress Data Processing) over Ethernet
