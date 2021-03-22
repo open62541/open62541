@@ -667,7 +667,9 @@ static void
 serverExecuteRepeatedCallback(UA_Server *server, UA_ApplicationCallback cb,
                               void *callbackApplication, void *data) {
     /* Service mutex is not set inside the timer that triggers the callback */
-    UA_LOCK_ASSERT(server->serviceMutex, 0);
+    /* The following check can't be used since another thread can take the
+     * serviceMutex during a server_iterate_call. */
+    //UA_LOCK_ASSERT(server->serviceMutex, 0);
     cb(callbackApplication, data);
 }
 
