@@ -25,4 +25,4 @@ void* latency_computation(void *arg);
 /* Compute the latency for RTT loopback side*/
 void* latency_computation_lb(void *arg);
 
-void printQueueDepth();
+void printQueueDepth(void);

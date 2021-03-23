@@ -820,6 +820,7 @@ void* fileWriteLatencylb(void *arg)
         /* Sleep for 1ms and and check for the latency computed values to write into the csv */
         usleep(1000);
     }
+    return (void*)NULL;
 }
 
 void printQueueDepth() {
