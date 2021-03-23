@@ -14,7 +14,7 @@
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pubsub_ethernet.h>
 
-#include <pubsub_timer.h>
+#include "pubsub_timer.h"
 
 #include "open62541_queue.h"
 
@@ -50,7 +50,7 @@
 #endif
 #endif
 
-#include "time.h"
+#include <time.h>
 
 #ifndef ETHERTYPE_UADP
 #define ETHERTYPE_UADP                       0xb62c
@@ -170,7 +170,6 @@ enum txtime_flags {
 static void
 timedEthernetPublish(UA_PubSubChannel *channel, UA_PublishEntry *publishPacket) {
     ssize_t rc;
-    // printf("publish time at send while calling timedEthernet %ld\n", UA_DateTime_nowMonotonic());
     UA_PubSubTimedSend *pubsubTimedSend = (UA_PubSubTimedSend *) channel->pubsubTimedSend;
     if((pubsubTimedSend) && (publishPacket->buffer.data)) {
         rc = UA_send(channel->sockfd, (char *)publishPacket->buffer.data, publishPacket->buffer.length, 0);

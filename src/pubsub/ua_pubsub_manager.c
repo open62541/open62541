@@ -11,7 +11,7 @@
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
-#include <pubsub_timer.h>
+#include "pubsub_timer.h"
 
 #ifdef UA_ENABLE_PUBSUB_MONITORING
 #include <open62541/server_pubsub.h>

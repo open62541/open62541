@@ -262,11 +262,12 @@ UA_Server*                   ServerRun;
 
 /* Structure to define thread parameters */
 typedef struct {
-UA_Server*                   server;
-void*                        data;
-UA_ServerCallback            callback;
-UA_Duration                  interval_ms;
-UA_UInt64*                   callbackId;
+UA_Server*        server;
+void*             data;
+UA_ServerCallback callback;
+UA_Duration       interval_ms;
+UA_UInt64*        callbackId;
+UA_DateTime*      baseTime;
 } threadArg;
 
 /**
@@ -328,6 +329,7 @@ addPubSubApplicationCallback(UA_Server *server, UA_NodeId identifier,
     threadArguments->callback    = callback;
     threadArguments->interval_ms = interval_ms;
     threadArguments->callbackId  = callbackId;
+    threadArguments->baseTime    = baseTime;
 
     /* Check the writer group identifier and create the thread accordingly */
     if(UA_NodeId_equal(&identifier, &writerGroupIdent)) {
@@ -815,6 +817,12 @@ addWriterGroup(UA_Server *server) {
     writerGroupConfig.pubsubManagerCallback.changeCustomCallback = changePubSubApplicationCallback;
     writerGroupConfig.pubsubManagerCallback.removeCustomCallback = removePubSubApplicationCallback;
 
+    writerGroupConfig.baseTime = UA_DateTime_new();
+    UA_DateTime baseTimeApp = (UA_DateTime_nowMonotonic() + (5 * UA_DATETIME_SEC));
+    baseTimeApp -= (baseTimeApp % UA_DATETIME_SEC);
+    *writerGroupConfig.baseTime = baseTimeApp;
+    writerGroupConfig.timerPolicy = UA_TIMER_HANDLE_CYCLEMISS_WITH_BASETIME;
+
     writerGroupConfig.messageSettings.encoding             = UA_EXTENSIONOBJECT_DECODED;
     writerGroupConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
     /* The configuration flags for the messages are encapsulated inside the
@@ -829,9 +837,15 @@ addWriterGroup(UA_Server *server) {
                                                               (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_GROUPHEADER |
                                                               (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_WRITERGROUPID |
                                                               (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
+    /* Set publishingOffset to publish at the particular offset of the cycle */
+    writerGroupMessage->publishingOffset = (UA_Double *) UA_calloc(1, sizeof(UA_Double));
+    writerGroupMessage->publishingOffsetSize = 1;
+    *writerGroupMessage->publishingOffset = 0.125; // Send packets at 125us for every cycle
+
     writerGroupConfig.messageSettings.content.decoded.data = writerGroupMessage;
     UA_Server_addWriterGroup(server, connectionIdent, &writerGroupConfig, &writerGroupIdent);
     UA_Server_setWriterGroupOperational(server, writerGroupIdent);
+    UA_free(writerGroupConfig.baseTime);
     UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
 }
 
@@ -915,22 +929,21 @@ void *publisherETF(void *arg) {
     struct timespec   nextnanosleeptime;
     UA_ServerCallback pubCallback;
     UA_Server*        server;
-    UA_WriterGroup*   currentWriterGroup; // TODO: Remove WriterGroup Usage
+    UA_DateTime       baseTimePub;
+    void*             currentWriterGroup;
     UA_UInt64         interval_ns;
-    UA_UInt64         transmission_time;
 
     threadArg *threadArgumentsPublisher = (threadArg *)arg;
     server                              = threadArgumentsPublisher->server;
     pubCallback                         = threadArgumentsPublisher->callback;
-    currentWriterGroup                  = (UA_WriterGroup *)threadArgumentsPublisher->data;
+    currentWriterGroup                  = (void *)threadArgumentsPublisher->data;
     interval_ns                         = (UA_UInt64)(threadArgumentsPublisher->interval_ms * MILLI_SECONDS);
+    baseTimePub                         = *threadArgumentsPublisher->baseTime;
     /* Verify whether baseTime has already been calculated */
     if(!baseTimeCalculated) {
-        /* Get current time and compute the next nanosleeptime */
-        clock_gettime(CLOCKID, &threadBaseTime);
         /* Variable to nano Sleep until SECONDS_SLEEP second boundary */
-        threadBaseTime.tv_sec  += SECONDS_SLEEP;
-        threadBaseTime.tv_nsec  = 0;
+        threadBaseTime.tv_sec   = baseTimePub / UA_DATETIME_SEC;
+        threadBaseTime.tv_nsec  = (__syscall_slong_t)((baseTimePub % UA_DATETIME_SEC) * 100);
         baseTimeCalculated = UA_TRUE;
     }
 
@@ -938,20 +951,6 @@ void *publisherETF(void *arg) {
     /* Modify the nanosecond field to wake up at the pubWakeUp percentage */
     nextnanosleeptime.tv_nsec = threadBaseTime.tv_nsec + (__syscall_slong_t)(cycleTimeInMsec * MILLI_SECONDS * pubWakeupPercentage);
     nanoSecondFieldConversion(&nextnanosleeptime);
-
-    /* Define Ethernet ETF transport settings */
-    UA_EthernetWriterGroupTransportDataType ethernettransportSettings;
-    memset(&ethernettransportSettings, 0, sizeof(UA_EthernetWriterGroupTransportDataType));
-    ethernettransportSettings.transmission_time = 0;
-
-    /* Encapsulate ETF config in transportSettings */
-    UA_ExtensionObject transportSettings;
-    memset(&transportSettings, 0, sizeof(UA_ExtensionObject));
-    /* TODO: transportSettings encoding and type to be defined */
-    transportSettings.content.decoded.data       = &ethernettransportSettings;
-    currentWriterGroup->config.transportSettings = transportSettings;
-    UA_UInt64 roundOffCycleTime                  = (UA_UInt64)((cycleTimeInMsec * MILLI_SECONDS) - (cycleTimeInMsec * MILLI_SECONDS * pubWakeupPercentage));
-
     while (*runningPub) {
         /* The Publisher threads wakes up at the configured publisher wake up percentage (60%) of each cycle */
         clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptime, NULL);
@@ -959,9 +958,6 @@ void *publisherETF(void *arg) {
         if (signalTerm == UA_TRUE)
             *runningPub = UA_FALSE;
 
-        /* Calculation of transmission time using the configured qbv offset by the user - Will be handled by publishingOffset in the future */
-        transmission_time = ((UA_UInt64)nextnanosleeptime.tv_sec * SECONDS + (UA_UInt64)nextnanosleeptime.tv_nsec) + roundOffCycleTime + (UA_UInt64)(qbvOffset * 1000);
-        ethernettransportSettings.transmission_time = transmission_time;
         /* Publish the data using the pubcallback - UA_WriterGroup_publishCallback() */
         pubCallback(server, currentWriterGroup);
         /* Calculation of the next wake up time by adding the interval with the previous wake up time */

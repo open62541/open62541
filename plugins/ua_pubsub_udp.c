@@ -14,7 +14,7 @@
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pubsub_udp.h>
 
-#include <pubsub_timer.h>
+#include "pubsub_timer.h"
 
 #include "open62541_queue.h"
 
