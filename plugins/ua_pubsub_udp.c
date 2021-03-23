@@ -16,6 +16,8 @@
 
 #include <pubsub_timer.h>
 
+#include "open62541_queue.h"
+
 /* UDP multicast network layer specific internal data */
 typedef struct {
     int ai_family;                    /* Protocol family for socket. IPv4/IPv6 */
@@ -25,6 +27,34 @@ typedef struct {
     UA_Boolean enableReuse;
     UA_Boolean isMulticast;
 } UA_PubSubChannelDataUDPMC;
+
+/**
+ * Publish at the exact time interval using timed callbacks
+ */
+static void
+timedUdpPublish(UA_PubSubChannel *channel, UA_PublishEntry *publishPacket) {
+    UA_PubSubChannelDataUDPMC *channelConfigUDPMC = (UA_PubSubChannelDataUDPMC *) channel->handle;
+    long nWritten = 0;
+    UA_PubSubTimedSend *pubsubTimedSend = (UA_PubSubTimedSend *) channel->pubsubTimedSend;
+    if((pubsubTimedSend)) {
+        while (nWritten < (long)publishPacket->buffer.length) {
+            long n = (long)UA_sendto(channel->sockfd, publishPacket->buffer.data,
+                                     publishPacket->buffer.length, 0,
+                                     (struct sockaddr *) channelConfigUDPMC->ai_addr,
+                                     sizeof(struct sockaddr_storage));
+            if(n == -1L) {
+                UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub Connection Timed send failed.");
+                return;
+            }
+
+            nWritten += n;
+        }
+
+        UA_ByteString_clear(&publishPacket->buffer);
+        LIST_REMOVE(publishPacket, listEntry);
+        UA_free(publishPacket);
+    }
+}
 
 /**
  * Open communication socket based on the connectionConfig. Protocol specific parameters are
@@ -344,6 +374,9 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
         goto cleanup;
     }
 
+    LIST_INIT(&pubsubTimedSend->sendBuffers);
+    pubsubTimedSend->timedSend = timedUdpPublish;
+
     newChannel->pubsubTimedSend = pubsubTimedSend;
     UA_freeaddrinfo(requestResult);
     newChannel->state = UA_PUBSUB_CHANNEL_PUB;
@@ -448,18 +481,37 @@ UA_PubSubChannelUDPMC_send(UA_PubSubChannel *channel, UA_ExtensionObject *transp
                        "PubSub Connection sending failed. Invalid state.");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
+
     //TODO evalute: chunk messages or check against MTU?
-    long nWritten = 0;
-    while (nWritten < (long)buf->length) {
-        long n = (long)UA_sendto(channel->sockfd, buf->data, buf->length, 0,
-                                 (struct sockaddr *) channelConfigUDPMC->ai_addr,
-                                 sizeof(struct sockaddr_storage));
-        if(n == -1L) {
-            UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub Connection sending failed.");
-            return UA_STATUSCODE_BADINTERNALERROR;
+    UA_PubSubTimedSend *pubsubTimedSend = (UA_PubSubTimedSend *)channel->pubsubTimedSend;
+    UA_DateTime currentTime = UA_DateTime_nowMonotonic();
+    if((currentTime + UA_DATETIME_MSEC) > pubsubTimedSend->publishingTime) {
+        long nWritten = 0;
+        while (nWritten < (long)buf->length) {
+            long n = (long)UA_sendto(channel->sockfd, buf->data, buf->length, 0,
+                                     (struct sockaddr *) channelConfigUDPMC->ai_addr,
+                                     sizeof(struct sockaddr_storage));
+            if(n == -1L) {
+                UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub Connection sending failed.");
+                return UA_STATUSCODE_BADINTERNALERROR;
+            }
+
+            nWritten += n;
         }
-        nWritten += n;
     }
+    else {
+        UA_UInt64 callbackId;
+        UA_PublishEntry *publishPacket = (UA_PublishEntry *) UA_calloc(1, sizeof(UA_PublishEntry));
+        char *bufSend = (char*) UA_malloc(buf->length);
+        memcpy(bufSend, buf->data, buf->length);
+        publishPacket->buffer.data = (UA_Byte *)bufSend;
+        publishPacket->buffer.length = buf->length;
+        LIST_INSERT_HEAD(&pubsubTimedSend->sendBuffers, publishPacket, listEntry);
+        UA_Timer_addTimedCallback(pubsubTimedSend->timer, (UA_ApplicationCallback)pubsubTimedSend->timedSend, channel,
+                                  publishPacket, pubsubTimedSend->publishingTime,
+                                  &callbackId);
+    }
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -562,6 +614,19 @@ UA_PubSubChannelUDPMC_close(UA_PubSubChannel *channel) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     UA_deinitialize_architecture_network();
+    UA_PubSubTimedSend *pubsubTimedSend = (UA_PubSubTimedSend *) channel->pubsubTimedSend;
+    if(pubsubTimedSend) {
+        /* Clear if any holding packets */
+        UA_PublishEntry *timedPublishFrames, *tmpPublishFrames;
+        LIST_FOREACH_SAFE(timedPublishFrames, &pubsubTimedSend->sendBuffers, listEntry, tmpPublishFrames) {
+            UA_ByteString_clear(&timedPublishFrames->buffer);
+            LIST_REMOVE(timedPublishFrames, listEntry);
+            UA_free(timedPublishFrames);
+        }
+
+        UA_free(pubsubTimedSend);
+    }
+
     //cleanup the internal NetworkLayer data
     UA_PubSubChannelDataUDPMC *networkLayerData = (UA_PubSubChannelDataUDPMC *) channel->handle;
     UA_free(networkLayerData->ai_addr);

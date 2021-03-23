@@ -1132,6 +1132,9 @@ UA_WriterGroupConfig_clear(UA_WriterGroupConfig *writerGroupConfig){
     UA_String_clear(&writerGroupConfig->name);
     UA_ExtensionObject_clear(&writerGroupConfig->transportSettings);
     UA_ExtensionObject_clear(&writerGroupConfig->messageSettings);
+    if(writerGroupConfig->baseTime)
+        UA_free(writerGroupConfig->baseTime);
+
     UA_Array_delete(writerGroupConfig->groupProperties,
                     writerGroupConfig->groupPropertiesSize,
                     &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
@@ -1141,6 +1144,9 @@ UA_WriterGroupConfig_clear(UA_WriterGroupConfig *writerGroupConfig){
 static void
 UA_WriterGroup_clear(UA_Server *server, UA_WriterGroup *writerGroup) {
     UA_WriterGroupConfig_clear(&writerGroup->config);
+    if(writerGroup->callbackTime)
+        UA_free(writerGroup->callbackTime);
+
     //delete WriterGroup
     //delete all writers. Therefore removeDataSetWriter is called from PublishedDataSet
     UA_DataSetWriter *dataSetWriter, *tmpDataSetWriter;
