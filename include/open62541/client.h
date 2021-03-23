@@ -200,6 +200,19 @@ UA_Client_getContext(UA_Client *client) {
     return UA_Client_getConfig(client)->clientContext; /* Cannot fail */
 }
 
+/* Returns the current socket of the connection. Returns UA_SOCKET_INVALID, if
+ * connection is not opened. The user should monitor the state of the connection
+ * ``UA_Client_getState`` or ``UA_ClientConfig.stateCallback`` to identify when
+ * a socket becomes available or invalid.
+ *
+ * Useful for calling ``UA_Client_run_iterate`` with timeout 0, e.g. when having
+ * multiple UA_Client handles in an application. If the socket activity is
+ * monitored, for example using epoll on linux, UA_Client_run_iterate can be
+ * called immediately when new server responses arrive.
+ */
+UA_EXPORT UA_SOCKET
+UA_Client_getSocket(UA_Client *client);
+
 /* (Disconnect and) delete the client */
 void UA_EXPORT
 UA_Client_delete(UA_Client *client);
