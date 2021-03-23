@@ -2168,7 +2168,7 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
                                        &writerGroup->config.transportSettings);
         if(res == UA_STATUSCODE_GOOD) {
             writerGroup->sequenceNumber++;
-            if(writerGroup->config.baseTime)
+            if(writerGroup->callbackTime)
                 *writerGroup->callbackTime = *writerGroup->callbackTime + (UA_DateTime)(writerGroup->config.publishingInterval * UA_DATETIME_MSEC);
         } else {
             UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -2312,7 +2312,7 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
         i += nmDsmCount;
     }
 
-    if(writerGroup->config.baseTime)
+    if(writerGroup->callbackTime)
         *writerGroup->callbackTime = *writerGroup->callbackTime + (UA_DateTime)(writerGroup->config.publishingInterval * UA_DATETIME_MSEC);
 
     /* Clean up DSM */

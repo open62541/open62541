@@ -1130,7 +1130,6 @@ UA_PubSubChannelEthernet_send(UA_PubSubChannel *channel,
             publishPacket->buffer.data = (UA_Byte *)bufSend;
             publishPacket->buffer.length = lenBuf;
             LIST_INSERT_HEAD(&pubsubTimedSend->sendBuffers, publishPacket, listEntry);
-            // printf("publish time at send while calling timedcallback %ld\n", currentTime);
             UA_Timer_addTimedCallback(pubsubTimedSend->timer, (UA_ApplicationCallback)pubsubTimedSend->timedSend, channel,
                                       publishPacket, pubsubTimedSend->publishingTime,
                                       &callbackId);

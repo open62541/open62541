@@ -45,6 +45,10 @@ UA_DateTime UA_DateTime_nowMonotonic(void) {
     clock_get_time(cclock, &mts);
     mach_port_deallocate(mach_task_self(), cclock);
     return (mts.tv_sec * UA_DATETIME_SEC) + (mts.tv_nsec / 100);
+#elif defined(UA_ENABLE_CLOCK_TAI)
+    struct timespec ts;
+    clock_gettime(CLOCK_TAI, &ts);
+    return (ts.tv_sec * UA_DATETIME_SEC) + (ts.tv_nsec / 100);
 #elif !defined(CLOCK_MONOTONIC_RAW)
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);

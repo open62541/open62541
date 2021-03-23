@@ -304,6 +304,15 @@ endif()
 option(UA_ENABLE_JSON_ENCODING "Enable Json encoding (EXPERIMENTAL)" OFF)
 mark_as_advanced(UA_ENABLE_JSON_ENCODING)
 
+option(UA_ENABLE_CLOCK_TAI "Enable clock TAI (International Atomic Time) for clock usage" OFF)
+mark_as_advanced(UA_ENABLE_CLOCK_TAI)
+
+if(UA_ENABLE_CLOCK_TAI)
+    if(NOT CMAKE_SYSTEM MATCHES "Linux")
+    message(FATAL_ERROR "Clock TAI is only available on Linux.")
+    endif()
+endif()
+
 option(UA_ENABLE_PUBSUB_MQTT "Enable publish/subscribe with mqtt (experimental)" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_MQTT)
 if(UA_ENABLE_PUBSUB_MQTT)
