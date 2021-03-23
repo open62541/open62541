@@ -2123,7 +2123,7 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
         if(writerGroup->callbackTime == NULL) {
             // First packet - Setting up the callback time
             writerGroup->callbackTime = UA_DateTime_new();
-            *writerGroup->callbackTime = currentTime - ((currentTime - *writerGroup->config.baseTime) % interval);
+            *writerGroup->callbackTime = (currentTime - ((currentTime - *writerGroup->config.baseTime) % interval)) + interval;
         }
         else if((currentTime > (*writerGroup->callbackTime + interval)) &&
                 (writerGroup->config.timerPolicy == UA_TIMER_HANDLE_CYCLEMISS_WITH_BASETIME)) {
@@ -2337,8 +2337,6 @@ UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *writerGroup
     if(retval == UA_STATUSCODE_GOOD)
         writerGroup->publishCallbackIsRegistered = true;
 
-    /* Run once after creation */
-    UA_WriterGroup_publishCallback(server, writerGroup);
     return retval;
 }
 
