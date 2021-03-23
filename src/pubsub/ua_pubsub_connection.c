@@ -181,13 +181,11 @@ UA_PubSubConnection_create(UA_Server *server,
     UA_CHECK_MEM(newConnectionsField->channel,
                  return channelErrorHandling(server, newConnectionsField));
 
-    /* Set the server timer to pubsub timed send function */
+        /* Set the server timer to pubsub timed send function */
     if(newConnectionsField->channel->pubsubTimedSend) {
         UA_PubSubTimedSend *pubsubTimedSend = (UA_PubSubTimedSend *)newConnectionsField->channel->pubsubTimedSend;
         pubsubTimedSend->timer = &server->timer;
     }
-
-
 
 #ifdef UA_ENABLE_PUBSUB_MQTT
     /* If the transport layer is MQTT, attach the server pointer to the callback function
