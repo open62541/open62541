@@ -10,7 +10,8 @@ Build-Depends: debhelper (>= 9),
  texlive-fonts-recommended,
  texlive-latex-extra,
  texlive-plain-generic | texlive-generic-extra,
- latexmk
+ latexmk,
+ libmbedtls-dev
 Standards-Version: 4.4.1
 Section: libs
 Homepage: https://open62541.org/

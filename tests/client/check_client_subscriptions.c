@@ -551,8 +551,7 @@ START_TEST(Client_subscription_modifyMonitoredItem) {
     ck_assert_uint_eq(notificationReceived, false);
     ck_assert_uint_eq(countNotificationReceived, 0);
 
-    /* Sleep long enough to trigger the next sampling.
-     * This should now generate a value with the timestamp. */
+    /* Sleep long enough to trigger the next sampling. */
     UA_fakeSleep((UA_UInt32)(publishingInterval * 0.6));
     UA_realSleep((UA_UInt32)(publishingInterval * 0.6));
 
@@ -560,8 +559,9 @@ START_TEST(Client_subscription_modifyMonitoredItem) {
     UA_fakeSleep((UA_UInt32)publishingInterval + 1);
     retval = UA_Client_run_iterate(client, (UA_UInt16)(publishingInterval + 1));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(notificationReceived, true);
-    ck_assert_uint_eq(countNotificationReceived, 1);
+    /* No change here, as the value subscribed value has no source timestamp. */
+    ck_assert_uint_eq(notificationReceived, false);
+    ck_assert_uint_eq(countNotificationReceived, 0);
 
     /* Delete and clean up */
     UA_DeleteMonitoredItemsRequest deleteRequest;
