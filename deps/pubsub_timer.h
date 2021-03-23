@@ -5,8 +5,8 @@
  * Copyright (c) 2020-2021 Kalycito Infotech Private Limited (Author: Suriya Narayanan)
  */
 
-#ifndef UA_NETWORK_PUBSUB_INTERNAL_H_
-#define UA_NETWORK_PUBSUB_INTERNAL_H_
+#ifndef _UA_NETWORK_PUBSUB_INTERNAL_H_
+#define _UA_NETWORK_PUBSUB_INTERNAL_H_
 
 #include <open62541/plugin/pubsub.h>
 #include "open62541_queue.h"
@@ -30,4 +30,4 @@ typedef struct {
 
 _UA_END_DECLS
 
-#endif /* UA_PLUGIN_PUBSUB_INTERNAL */
+#endif /* !_UA_NETWORK_PUBSUB_INTERNAL_H_ */
