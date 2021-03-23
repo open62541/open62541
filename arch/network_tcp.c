@@ -734,6 +734,17 @@ UA_ClientConnectionTCP_poll(UA_Connection *connection, UA_UInt32 timeout,
     int error = UA_connect(connection->sockfd, tcpConnection->server->ai_addr,
                            tcpConnection->server->ai_addrlen);
 
+#ifdef _WIN32
+    /* https://docs.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-connect
+     * - Successfull async connect will fail but set WSALastError() to WSAEISCONN
+     * - Checking on WSAEWOULDBLOCK (UA_ERR_CONNECTION_PROGRESS) is not enough, if async
+     *   connect runs, WSAEALREADY can be set as well
+     */
+    if (error == -1 && UA_ERRNO == WSAEISCONN) {
+        error = 0;
+    }
+#endif
+
     /* Connection successful */
     if(error == 0) {
         connection->state = UA_CONNECTIONSTATE_ESTABLISHED;
@@ -741,7 +752,11 @@ UA_ClientConnectionTCP_poll(UA_Connection *connection, UA_UInt32 timeout,
     }
 
     /* The connection failed */
-    if(UA_ERRNO != UA_ERR_CONNECTION_PROGRESS) {
+    if((UA_ERRNO != UA_ERR_CONNECTION_PROGRESS)
+#ifdef _WIN32
+       && (UA_ERRNO != WSAEALREADY)
+#endif
+      ) {
         UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
                        "Connection to %.*s failed with error: %s",
                        (int)tcpConnection->endpointUrl.length,
