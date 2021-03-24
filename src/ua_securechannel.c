@@ -210,9 +210,14 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel,
 
     const size_t securityHeaderLength = calculateAsymAlgSecurityHeaderLength(channel);
 
-    /* Add padding to the chunk */
 #ifdef UA_ENABLE_ENCRYPTION
-    padChunkAsym(channel, &buf, securityHeaderLength, &buf_pos);
+    /* Add padding to the chunk. Also pad if the securityMode is SIGN_ONLY,
+     * since we are using asymmetric communication to exchange keys and thus
+     * need to encrypt. */
+    if(channel->securityMode != UA_MESSAGESECURITYMODE_NONE)
+        padChunk(channel, &channel->securityPolicy->asymmetricModule.cryptoModule,
+                 &buf.data[UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH +
+                           securityHeaderLength], &buf_pos);
 #endif
 
     /* The total message length */
@@ -316,9 +321,12 @@ sendSymmetricChunk(UA_MessageContext *messageContext) {
     if(res != UA_STATUSCODE_GOOD)
         goto error;
 
-    /* Add padding */
 #ifdef UA_ENABLE_ENCRYPTION
-    padChunkSym(messageContext, bodyLength);
+    /* Add padding if the message is encrypted */
+    if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+        padChunk(channel, &channel->securityPolicy->symmetricModule.cryptoModule,
+                 &messageContext->messageBuffer.data[UA_SECURE_MESSAGE_HEADER_LENGTH],
+                 &messageContext->buf_pos);
 #endif
 
     /* The total message length */
