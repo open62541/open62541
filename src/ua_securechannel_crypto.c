@@ -276,7 +276,7 @@ padChunkAsym(UA_SecureChannel *channel, const UA_ByteString *buf,
 
     /* Write the padding. This is <= because the paddingSize byte also has to be
      * written */
-    UA_Byte paddingByte = (UA_Byte)(totalPaddingSize & 0xffu);
+    UA_Byte paddingByte = (UA_Byte)totalPaddingSize;
     for(UA_UInt16 i = 0; i <= totalPaddingSize; ++i) {
         **buf_pos = paddingByte;
         ++*buf_pos;
@@ -349,12 +349,15 @@ padChunkSym(UA_MessageContext *messageContext, size_t bodyLength) {
     size_t totalPaddingSize = (encryptionBlockSize -
                       ((bytesToEncrypt + paddingBytesSize) % encryptionBlockSize));
 
-    /* This is <= because the paddingSize byte also has to be written. */
-    UA_Byte paddingByte = (UA_Byte)(totalPaddingSize & 0xffu);
+    /* Write the padding. This is <= because the paddingSize byte also has to be
+     * written */
+    UA_Byte paddingByte = (UA_Byte)totalPaddingSize;
     for(UA_UInt16 i = 0; i <= totalPaddingSize; ++i) {
         *messageContext->buf_pos = paddingByte;
         ++messageContext->buf_pos;
     }
+
+    /* Write the extra padding byte if required */
     if(extraPadding) {
         *messageContext->buf_pos = (UA_Byte)(totalPaddingSize >> 8u);
         ++messageContext->buf_pos;
