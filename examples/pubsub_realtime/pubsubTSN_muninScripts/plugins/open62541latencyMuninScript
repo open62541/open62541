@@ -5,7 +5,7 @@
 
 =head1 NAME
 
-load - Plugin to monitor the round trip time jitter of open62541 PubSub application
+load - Plugin to monitor the round trip time latency of open62541 PubSub application
 
 =head1 CONFIGURATION
 
@@ -35,35 +35,46 @@ if [ "$1" = "autoconf" ]; then
         exit 0
 fi
 
+#Mention the PubSub cycle time in nanoseconds
+cycleTime=250000
+warningTime=`expr $cycleTime*5|bc`
+criticalTime=`expr $cycleTime*9|bc`
+#echo $warningTime
+#echo $criticalTime
 if [ "$1" = "config" ]; then
         #Warnings and critical messages can be created using below commands. For now, it has been commented.
-        #OPEN62541_LATENCY_WARN=${open62541_latency_warn:=500000}
-        #OPEN62541_LATENCY_CRIT=${open62541_latency_crit:=5000000}
+        #OPEN62541_LATENCY_WARN=${open62541_latency_warn:=1500000}
+        #OPEN62541_LATENCY_CRIT=${open62541_latency_crit:=2250000}
 
         # The title of the graph
-        echo "graph_title open62541 PubSub latency - Round Trip Time Jitter"
+        echo "graph_title open62541 PubSub Latency - Round Trip Time Absolute"
         # Arguments to "rrdtool graph". In this case, tell it that
         # 1k=1000 (not 1024)
         echo 'graph_args --base 1000'
         # The Y-axis label
-        echo 'graph_vlabel Latency (s)'
+        echo 'graph_vlabel Latency (ns)'
         # Graph category. Defaults to 'other'
         echo 'graph_category network'
+        echo 'graph_scale no'
+        echo 'graph_printf %3.0lf'
         # This one is purely to add an explanation to the web page. The first
         # one is for the graph itself, while the second one is for the field
         # "open62541latency".
-        echo 'graph_info RTT Jitter of the open62541 pubsub application running at 250us cycle time'
+        echo 'graph_info RTT latency of the open62541 pubsub application running at 250 us cycle time P2P between two systems'
 
-        echo 'open62541latency.label open62541 RTT Jitter'
-        echo 'open62541latency.cdef open62541latency,1000000000,/,0.001,-'
-        echo 'open62541latency.info 5 minute open62541 RTT Jitter'
+        echo 'open62541latency.label open62541 RTT latency'
+        echo 'open62541latency.info 5 minute open62541 RTT latency'
+        echo "open62541latency.warning $warningTime"
+        echo "open62541latency.critical $criticalTime"
 
         # Last, if run with the "config"-parameter, quit here (don't
         # display any data)
         exit 0
 fi
 
-#Obtain the maximum latency from the open62541_pubsub_maxlatency.txt file and convert it using cdef function and plot the jitter of the maximum latencies
-max=`cat /usr/local/src/open62541_pubsub_maxlatency.txt |  tr -s " " | cut -d" " -f2`
+if [ -s /usr/local/src/open62541_pubsub_maxlatency.txt ]; then
+        #Obtain the maximum latency from the open62541_pubsub_maxlatency.txt file
+        max=`cat /usr/local/src/open62541_pubsub_maxlatency.txt |  tr -s " " | cut -d" " -f2`
 
-echo "open62541latency.value $max"
+        echo "open62541latency.value $max"
+fi

@@ -1,0 +1,121 @@
+#!/bin/bash
+#------------------------------------------------------------------------------
+# Copyright (C) 2021 Kalycito Infotech Private Limited
+# Author: Kalycito Infotech Private Limited
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# -----------------------------------------------------------------------------
+
+################################################################################
+# Global Variable - constant                                                   #
+################################################################################
+#Directory in which the latency csv files are generated
+# by the pubsub application
+GENLATENCYDIR=/home/svradmin/carsten_test/INTEL_OPCUA_SRC/build/
+#Directory to store the csv files. It is currently not used as the csv files
+# are being deleted once it is calculated.
+# (In future a ext hard disk directory or mounted nfs directory can be used)
+CSVSTOREDIR=/
+
+#Test whether the csv files are generated in the directory.
+#If not, remove the open62541_pubsub_maxlatency.txt text file which lets the
+# Munin knows maximum latency value, repeated and missed counters
+for i in $GENLATENCYDIR/latency_*.csv
+do
+    if test -f $i
+    then
+        break
+    else
+        if test -f /usr/local/src/open62541_pubsub_maxlatency.txt
+        then
+            #Remove the file if latency generation stopped
+            # (Assuming the applications are stopped)
+            rm /usr/local/src/open62541_pubsub_maxlatency.txt 
+        fi
+        exit 0
+    fi
+done
+pubLatMax=0
+usrLatMax=0
+SubJitMax=0
+PubJitMax=0
+UsrJitMax=0
+max=0
+
+declare -a files
+files=($GENLATENCYDIR/latency_*.csv)
+fileCount=$(( ${#files[*]} - 1 ))
+#Identify the last latency file in the directory
+lastFile=${files[$fileCount]}
+
+for FILE in "${files[@]}"
+do
+    #Get the maximum value of latency, missed and repeated counters by taking
+    # its particular column, descend sorting and taking the first value
+    tmpMaxLatValue=`cat $FILE | cut -d, -f2 | tr -d '.' | sort -nrk1,1 | \
+                    head -1`
+    missedCounter=`cat $FILE | cut -d, -f3 | tr -d '.' | sort -nrk1,1 | \
+                    head -1`
+    repeatedCounter=`cat $FILE | cut -d, -f4 | tr -d '.' | sort -nrk1,1 | \
+                    head -1`
+    tmpMaxPubLatValue=`cat $FILE | cut -d, -f5 | tr -d '.' | sort -nrk1,1 | \
+                    head -1`
+    tmpMaxUsrLatValue=`cat $FILE | cut -d, -f6 | tr -d '.' | sort -nrk1,1 | \
+                    head -1`
+    tmpMaxSubJitValue=`cat $FILE | cut -d, -f7 | tr -d '.' | sort -nrk1,1 | \
+                    head -1`
+    tmpMaxPubJitValue=`cat $FILE | cut -d, -f8 | tr -d '.' | sort -nrk1,1 | \
+                    head -1`
+    tmpMaxUsrJitValue=`cat $FILE | cut -d, -f9 | tr -d '.' | sort -nrk1,1 | \
+                    head -1`
+
+    #Update the maximum latency value
+    if test $tmpMaxLatValue -gt $max
+    then
+        max=$tmpMaxLatValue
+    fi
+    #Update the maximum publisher latency value
+    if test $tmpMaxPubLatValue -gt $pubLatMax
+    then
+        pubLatMax=$tmpMaxPubLatValue
+    fi
+    #Update the maximum user latency value
+    if test $tmpMaxUsrLatValue -gt $usrLatMax
+    then
+        usrLatMax=$tmpMaxUsrLatValue
+    fi
+    #Update the maximum subscriber latency value
+    if test $tmpMaxSubJitValue -gt $SubJitMax
+    then
+        SubJitMax=$tmpMaxSubJitValue
+    fi
+    #Update the maximum publisher jitter value
+    if test $tmpMaxPubJitValue -gt $PubJitMax
+    then
+        PubJitMax=$tmpMaxPubJitValue
+    fi
+    #Update the maximum user jitter value
+    if test $tmpMaxUsrJitValue -gt $UsrJitMax
+    then
+        UsrJitMax=$tmpMaxUsrJitValue
+    fi
+    #Move the latecy files to the directory where it can be stored
+    #mv $FILE $CSVSTOREDIR
+    #Removing csv files after the computation
+    rm $FILE
+done
+
+#Write the maximum latency, missed and repeated counters values to
+# open62541_pubsub_maxlatency.txt text file which will be used by Munin scripts
+echo Max_latency_withMCnRC $max $missedCounter $repeatedCounter $pubLatMax \
+    $usrLatMax $SubJitMax $PubJitMax $UsrJitMax > \
+    /usr/local/src/open62541_pubsub_maxlatency.txt
+

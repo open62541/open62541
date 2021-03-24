@@ -1,0 +1,55 @@
+#!/bin/bash
+#------------------------------------------------------------------------------
+# Copyright (C) 2021 Kalycito Infotech Private Limited
+# Author: Kalycito Infotech Private Limited
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# -----------------------------------------------------------------------------
+
+###############################################################################
+# Global Variable - constant                                                  #
+###############################################################################
+INTERFACE=${0##*/txrxstatistics_}
+
+touch /usr/local/src/ethtool_receive_statistics_$INTERFACE.txt
+touch /usr/local/src/tc_statistics_$INTERFACE.txt
+transmitstatisticsFile=/usr/local/src/tc_statistics_$INTERFACE.txt
+receivestatisticsFile=/usr/local/src/ethtool_receive_statistics_$INTERFACE.txt
+
+#Check received and dropped packets count
+received_packet_queue_2=`sudo ethtool -S $INTERFACE | \
+                         grep rx_queue_2_packets | \
+                         cut -d ':' -f2`
+dropped_packet_queue_2=`sudo ethtool -S $INTERFACE | \
+                         grep rx_queue_2_drops | \
+                         cut -d ':' -f2`
+sudo bash -c "echo $received_packet_queue_2 $dropped_packet_queue_2 > \
+              $receivestatisticsFile"
+
+#Check the packets sent, dropped and overlimits
+sent_packet_now=`sudo tc -s qdisc show dev $INTERFACE | \
+                 grep -A1 "$MQPRIO_NUM:1" | \
+                 tail -1 | \
+                 cut -d ' ' -f5`
+dropped_packet_now=`sudo tc -s qdisc show dev $INTERFACE | \
+                    grep -A1 "$MQPRIO_NUM:1" | \
+                    tail -1 | \
+                    cut -d '(' -f2 | \
+                    cut -d ',' -f1 | \
+                    cut -d ' ' -f2`
+overlimits_now=`sudo tc -s qdisc show dev $INTERFACE | \
+                grep -A1 "$MQPRIO_NUM:1" | \
+                tail -1 | \
+                cut -d '(' -f2 | \
+                cut -d ',' -f2 | \
+                cut -d' ' -f3`
+sudo bash -c "echo Sent $sent_packet_now Dropped $dropped_packet_now \
+              OverLimits $overlimits_now > $transmitstatisticsFile"

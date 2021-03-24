@@ -1,0 +1,72 @@
+#!/bin/bash
+#------------------------------------------------------------------------------
+# Copyright (C) 2021 Kalycito Infotech Private Limited
+# Author: Kalycito Infotech Private Limited
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# -----------------------------------------------------------------------------
+
+###############################################################################
+# Global Variable - constant                                                  #
+###############################################################################
+INTERFACE=${0##*/tc_qdisc_statistics_compute_}
+MQPRIO_NUM=`sudo tc qdisc show | \
+            grep "$INTERFACE" | \
+            grep "mqprio" |\
+            cut -d ':' -f1 | \
+            cut -d ' ' -f3`
+
+statisticsFile=/usr/local/src/tc_statistics_$INTERFACE.txt
+
+if test -z "$MQPRIO_NUM"; then
+    exit 0
+fi
+
+if test -s $statisticsFile
+then
+    sent_packet_before=`cat $statisticsFile| \
+                        head -1 | \
+                        tr -s " " | \
+                        cut -d" " -f2`
+    dropped_packet_before=`cat $statisticsFile | \
+                        head -1 | \
+                        tr -s " " | \
+                        cut -d" " -f4`
+    overlimits_before=`cat $statisticsFile | \
+                        head -1 | \
+                        tr -s " " | \
+                        cut -d" " -f6`
+
+    #Check the packets sent, dropped and overlimits
+    sent_packet_now=`sudo tc -s qdisc show dev $INTERFACE | \
+                     grep -A1 "$MQPRIO_NUM:1" | \
+                     tail -1 | \
+                     cut -d ' ' -f5`
+    dropped_packet_now=`sudo tc -s qdisc show dev $INTERFACE | \
+                        grep -A1 "$MQPRIO_NUM:1" | \
+                        tail -1 | \
+                        cut -d '(' -f2 | \
+                        cut -d ',' -f1 | \
+                        cut -d ' ' -f2`
+    overlimits_now=`sudo tc -s qdisc show dev $INTERFACE | \
+                     grep -A1 "$MQPRIO_NUM:1" | \
+                     tail -1 | \
+                     cut -d '(' -f2 | \
+                     cut -d ',' -f2 | \
+                     cut -d' ' -f3`
+
+    sent_packet="$(($sent_packet_now-$sent_packet_before))"
+    dropped_packet="$(($dropped_packet_now-$dropped_packet_before))"
+    overlimits="$(($overlimits_now-$overlimits_before))"
+
+    sudo bash -c "echo Sent $sent_packet_now Dropped $dropped_packet_now \
+                  OverLimits $overlimits_now > $statisticsFile"
+fi

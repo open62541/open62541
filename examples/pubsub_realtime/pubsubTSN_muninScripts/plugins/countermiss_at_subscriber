@@ -1,0 +1,73 @@
+#!/bin/bash
+# -*- sh -*-
+
+: << =cut
+
+=head1 NAME
+
+countermiss_at_subscriber - Plugin to monitor counter data miss in open62541 Subscriber
+
+=head1 CONFIGURATION
+
+=head1 NOTES
+
+If run with the "autoconf"-parameter, give our opinion on whether we
+should be run on this system or not. This is optional, and only used
+by munin-config. In the case of this plugin, we should most probably
+always be included.
+
+=head1 MAGIC MARKERS
+
+ #%# family=auto
+ #%# capabilities=autoconf
+
+=cut
+
+. $MUNIN_LIBDIR/plugins/plugin.sh
+
+# If run with the "autoconf"-parameter, give our opinion on wether we
+# should be run on this system or not. This is optinal, and only used by
+# munin-config. In the case of this plugin, we should most probably
+# always be included.
+if [ "$1" = "autoconf" ]; then
+        echo yes
+        exit 0
+fi
+
+if [ "$1" = "config" ]; then
+        #Warnings and critical messages can be created using below commands. For now, it has been commented.
+
+        # The title of the graph
+        echo "graph_title open62541 Subscriber - Counter data miss at T4/T8"
+        # Arguments to "rrdtool graph". In this case, tell it that the
+        # lower limit of the graph is '0', and that 1k=1000 (not 1024)
+        #echo 'graph_args --base 0'
+        # The Y-axis label
+        echo 'graph_vlabel Count'
+        # We want Cur/Min/Avg/Max unscaled (i.e. 0.42 microseconds instead of
+        # 420 millimicroseconds)
+        echo 'graph_scale no'
+        # Graph category. Defaults to 'other'
+        echo 'graph_category network'
+        echo 'graph_printf %3.0lf'
+        # This one is purely to add an explanation to the web page. The first
+        # one is for the graph itself, while the second one is for the
+        # individual fields.
+        echo 'graph_info open62541 Subscriber - Counter data miss at T4/T8 Delayed packet (in node 1 (Publisher node) this shows drop between T1 to T8, in node 2 (loopback node) it shows drop between T1 to T4)'
+
+        echo "missedCounter.label Missed counters"
+        echo "missedCounter.info Missed counters in open62541 Subscriber"
+        echo "repeatedCounter.label Repeated counters"
+        echo "repeatedCounter.info Repeated counters in open62541 Subscriber"
+
+        # Last, if run with the "config"-parameter, quit here (don't
+        # display any data)
+        exit 0
+fi
+
+if [ -s /usr/local/src/open62541_subscriber_countermiss.txt ]; then
+        missedCounter=`cat /usr/local/src/open62541_subscriber_countermiss.txt | tr -s " " | cut -d" " -f1`
+        repeatedCounter=`cat /usr/local/src/open62541_subscriber_countermiss.txt | tr -s " " | cut -d" " -f2`
+        echo "missedCounter.value ${missedCounter#0}"
+        echo "repeatedCounter.value ${repeatedCounter#0}"
+fi

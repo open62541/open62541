@@ -1,0 +1,88 @@
+#!/bin/bash
+# -*- sh -*-
+
+: << =cut
+
+=head1 NAME
+
+cpu_utilization_statistics - Plugin to monitor CPU utilization of each core
+
+=head1 CONFIGURATION
+
+This is a wildcard plugin. To monitor CPU utilization of each core, link
+cpu_utilization_statistics file in /etc/munin/plugins/ folder to this file. E.g.
+
+  ln -s /usr/share/munin/plugins/cpu_utilization_statistics \
+        /etc/munin/plugins/cpu_utilization_statistics
+
+=head1 NOTES
+
+If run with the "autoconf"-parameter, give our opinion on whether we
+should be run on this system or not. This is optional, and only used
+by munin-config. In the case of this plugin, we should most probably
+always be included.
+
+=head1 MAGIC MARKERS
+
+ #%# family=auto
+ #%# capabilities=autoconf
+
+=cut
+
+. $MUNIN_LIBDIR/plugins/plugin.sh
+
+# If run with the "autoconf"-parameter, give our opinion on wether we
+# should be run on this system or not. This is optinal, and only used by
+# munin-config. In the case of this plugin, we should most probably
+# always be included.
+if [ "$1" = "autoconf" ]; then
+        echo yes
+        exit 0
+fi
+
+if [ "$1" = "config" ]; then
+        #Warnings and critical messages can be created using below commands. For now, it has been commented.
+
+        # The title of the graph
+        echo "graph_title CPU utilization statistics"
+        # Arguments to "rrdtool graph". In this case, tell it that the
+        # lower limit of the graph is '0', and that 1k=1000 (not 1024)
+        #echo 'graph_args --base 0'
+        # The Y-axis label
+        echo 'graph_vlabel CPU utilization'
+        # We want Cur/Min/Avg/Max unscaled (i.e. 0.42 microseconds instead of
+        # 420 millimicroseconds)
+        echo 'graph_scale no'
+        # Graph category. Defaults to 'other'
+        echo 'graph_category system'
+        # This one is purely to add an explanation to the web page. The first
+        # one is for the graph itself, while the second one is for the
+        # individual fields.
+        echo 'graph_info CPU utilization for each core'
+
+        echo "cpu_utilization_core0.label cpu utilization in core 0"
+        echo "cpu_utilization_core0.info cpu utilization in core 0"
+        echo "cpu_utilization_core1.label cpu utilization in core 1"
+        echo "cpu_utilization_core1.info cpu utilization in core 1"
+        echo "cpu_utilization_core2.label cpu utilization in core 2"
+        echo "cpu_utilization_core2.info cpu utilization in core 2"
+        echo "cpu_utilization_core3.label cpu utilization in core 3"
+        echo "cpu_utilization_core3.info cpu utilization in core 3"
+
+        # Last, if run with the "config"-parameter, quit here (don't
+        # display any data)
+        exit 0
+fi
+
+if [ -s /usr/local/src/cpu_utility.txt ]; then
+        cpu_utilization_core0=`cat /usr/local/src/cpu_utility.txt | awk '{sum=0; for(i=1; i<=9; i++) sum += $i; print sum}' | awk '{if(NR==1) print $0}'`
+        cpu_utilization_core1=`cat /usr/local/src/cpu_utility.txt | awk '{sum=0; for(i=1; i<=9; i++) sum += $i; print sum}' | awk '{if(NR==2) print $0}'`
+        cpu_utilization_core2=`cat /usr/local/src/cpu_utility.txt | awk '{sum=0; for(i=1; i<=9; i++) sum += $i; print sum}' | awk '{if(NR==3) print $0}'`
+        cpu_utilization_core3=`cat /usr/local/src/cpu_utility.txt | awk '{sum=0; for(i=1; i<=9; i++) sum += $i; print sum}' | awk '{if(NR==4) print $0}'`
+
+        echo "cpu_utilization_core0.value $cpu_utilization_core0"
+        echo "cpu_utilization_core1.value $cpu_utilization_core1"
+        echo "cpu_utilization_core2.value $cpu_utilization_core2"
+        echo "cpu_utilization_core3.value $cpu_utilization_core3"
+fi
+

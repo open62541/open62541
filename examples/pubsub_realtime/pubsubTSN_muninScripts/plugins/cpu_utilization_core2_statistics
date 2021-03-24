@@ -1,0 +1,107 @@
+#!/bin/bash
+# -*- sh -*-
+
+: << =cut
+
+=head1 NAME
+
+cpu_utilization_core2_statistics - Plugin to monitor CPU utilization of core 2
+
+=head1 CONFIGURATION
+
+This is a wildcard plugin. To monitor CPU utilization of core 2, link
+cpu_utilization_core2_statistics file in /etc/munin/plugins/ folder to this file. E.g.
+
+  ln -s /usr/share/munin/plugins/cpu_utilization_core2_statistics \
+        /etc/munin/plugins/cpu_utilization_core2_statistics
+
+=head1 NOTES
+
+If run with the "autoconf"-parameter, give our opinion on whether we
+should be run on this system or not. This is optional, and only used
+by munin-config. In the case of this plugin, we should most probably
+always be included.
+
+=head1 MAGIC MARKERS
+
+ #%# family=auto
+ #%# capabilities=autoconf
+
+=cut
+
+. $MUNIN_LIBDIR/plugins/plugin.sh
+
+# If run with the "autoconf"-parameter, give our opinion on wether we
+# should be run on this system or not. This is optinal, and only used by
+# munin-config. In the case of this plugin, we should most probably
+# always be included.
+if [ "$1" = "autoconf" ]; then
+        echo yes
+        exit 0
+fi
+
+if [ "$1" = "config" ]; then
+        #Warnings and critical messages can be created using below commands. For now, it has been commented.
+
+        # The title of the graph
+        echo "graph_title CPU utilization core 2 statistics"
+        # Arguments to "rrdtool graph". In this case, tell it that the
+        # lower limit of the graph is '0', and that 1k=1000 (not 1024)
+        #echo 'graph_args --base 0'
+        # The Y-axis label
+        echo 'graph_vlabel CPU utilization'
+        # We want Cur/Min/Avg/Max unscaled (i.e. 0.42 microseconds instead of
+        # 420 millimicroseconds)
+        echo 'graph_scale no'
+        # Graph category. Defaults to 'other'
+        echo 'graph_category system'
+        # This one is purely to add an explanation to the web page. The first
+        # one is for the graph itself, while the second one is for the
+        # individual fields.
+        echo 'graph_info CPU utilization for core 2'
+
+        echo "user.label user"
+        echo "user.info CPU utilized by normal programs and daemons"
+        echo "nice.label nice"
+        echo "nice.info CPU utilized by nice(1)d programs"
+        echo "system.label system "
+        echo "system.info CPU utilized by kernel in system activities"
+        echo "iowait.label iowait "
+        echo "iowait.info Time spent waiting for I/O operations to finish when there is nothing else to do"
+        echo "irq.label irq "
+        echo "irq.info Time spent handling interupts"
+        echo "soft.label soft "
+        echo "soft.info Time spent handling software interupts"
+        echo "steal.label steal "
+        echo "steal.info Time that a virtual CPU had runnable tasks, but the virtual CPU itself was not running"
+        echo "guest.label guest "
+        echo "guest.info Time spent running a virtual CPU for guest operating systems under the control of the Linux kernel"
+        echo "gnice.label gnice "
+        echo "gnice.info Time spent by the CPU or CPUs to run a niced guest"
+
+        # Last, if run with the "config"-parameter, quit here (don't
+        # display any data)
+        exit 0
+fi
+
+if [ -s /usr/local/src/cpu_utility.txt ]; then
+        user=`cat /usr/local/src/cpu_utility.txt | awk '{print $1}' | awk '{if(NR==3) print $0}'`
+        nice=`cat /usr/local/src/cpu_utility.txt | awk '{print $2}' | awk '{if(NR==3) print $0}'`
+        system=`cat /usr/local/src/cpu_utility.txt | awk '{print $3}' | awk '{if(NR==3) print $0}'`
+        iowait=`cat /usr/local/src/cpu_utility.txt | awk '{print $4}' | awk '{if(NR==3) print $0}'`
+        irq=`cat /usr/local/src/cpu_utility.txt | awk '{print $5}' | awk '{if(NR==3) print $0}'`
+        soft=`cat /usr/local/src/cpu_utility.txt | awk '{print $6}' | awk '{if(NR==3) print $0}'`
+        steal=`cat /usr/local/src/cpu_utility.txt | awk '{print $7}' | awk '{if(NR==3) print $0}'`
+        guest=`cat /usr/local/src/cpu_utility.txt | awk '{print $8}' | awk '{if(NR==3) print $0}'`
+        gnice=`cat /usr/local/src/cpu_utility.txt | awk '{print $9}' | awk '{if(NR==3) print $0}'`
+
+        echo "user.value $user"
+        echo "nice.value $nice"
+        echo "system.value $system"
+        echo "iowait.value $iowait"
+        echo "irq.value $irq"
+        echo "soft.value $soft"
+        echo "steal.value $steal"
+        echo "guest.value $guest"
+        echo "gnice.value $gnice"
+fi
