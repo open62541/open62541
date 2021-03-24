@@ -33,6 +33,7 @@
 
 UA_NodeId connectionIdent, publishedDataSetIdent, writerGroupIdent;
 static UA_NodeId eventType;
+static UA_NodeId eventType2;
 
 /*********************** PubSub Methods ***********************/
 
@@ -58,82 +59,83 @@ static void
 addPublishedDataSet(UA_Server *server) {
     /* The PublishedDataSetConfig contains all necessary public
     * informations for the creation of a new PublishedDataSet */
+
+    size_t selectedFieldSize = 2;
     UA_PublishedDataSetConfig publishedDataSetConfig;
     memset(&publishedDataSetConfig, 0, sizeof(UA_PublishedDataSetConfig));
     publishedDataSetConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDEVENTS;
     publishedDataSetConfig.name = UA_STRING("Demo PDS PubSub Events");
     publishedDataSetConfig.config.event.eventNotifier = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
-    publishedDataSetConfig.config.event.selectedFieldsSize = 2;
-    UA_SimpleAttributeOperand *selectedFields = (UA_SimpleAttributeOperand *)UA_calloc(2, sizeof(UA_SimpleAttributeOperand));
-    selectedFields[0].typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
-    selectedFields[0].browsePathSize = 1;
-    selectedFields[0].browsePath = (UA_QualifiedName*)
-        UA_Array_new(1, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
-    if(!selectedFields[0].browsePath) {
-        UA_SimpleAttributeOperand_delete(&selectedFields[0]);
+    publishedDataSetConfig.config.event.selectedFieldsSize = selectedFieldSize;
+
+    UA_SimpleAttributeOperand selectedFields [selectedFieldSize];
+    for(size_t i = 0; i < selectedFieldSize; ++i) {
+        UA_SimpleAttributeOperand_init(&selectedFields[i]);
     }
+
+    selectedFields[0].typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
     selectedFields[0].attributeId = UA_ATTRIBUTEID_VALUE;
-    selectedFields[0].browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "Severity");
+    selectedFields[0].browsePathSize = 1;
+    UA_QualifiedName browsePathSeverity[1];
+    browsePathSeverity[0] = UA_QUALIFIEDNAME(0, "Severity");
+    selectedFields[0].browsePath = browsePathSeverity;
 
     selectedFields[1].typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
-    selectedFields[1].browsePathSize = 1;
-    selectedFields[1].browsePath = (UA_QualifiedName*)
-        UA_Array_new(1, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
-    if(!selectedFields[1].browsePath) {
-        UA_SimpleAttributeOperand_delete(&selectedFields[1]);
-    }
     selectedFields[1].attributeId = UA_ATTRIBUTEID_VALUE;
-    selectedFields[1].browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "Message");
+    selectedFields[1].browsePathSize = 1;
+    UA_QualifiedName browsePathMessage[1];
+    browsePathMessage[0] = UA_QUALIFIEDNAME(0, "Message");
+    selectedFields[1].browsePath = browsePathMessage;
+
     publishedDataSetConfig.config.event.selectedFields = selectedFields;
+
+    /* Adds a ContentFilter to the PDS*/
+    UA_ContentFilter contentFilter;
+    UA_ContentFilter_init(&contentFilter);
+    UA_ContentFilterElement contentFilterElement;
+    UA_ContentFilterElement_init(&contentFilterElement);
+    UA_ExtensionObject filterOperandExObj;
+    UA_ExtensionObject_init(&filterOperandExObj);
+    UA_LiteralOperand literalOperand;
+    UA_LiteralOperand_init(&literalOperand);
+
+    contentFilter.elementsSize = 1;
+    contentFilter.elements = &contentFilterElement;
+
+    contentFilterElement.filterOperandsSize = 1;
+    contentFilterElement.filterOperands = &filterOperandExObj;
+    contentFilterElement.filterOperator = UA_FILTEROPERATOR_OFTYPE;
+
+    filterOperandExObj.encoding             = UA_EXTENSIONOBJECT_DECODED;
+    filterOperandExObj.content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
+    filterOperandExObj.content.decoded.data = &literalOperand;
+
+    UA_Variant_setScalar(&literalOperand.value, &eventType, &UA_TYPES[UA_TYPES_NODEID]);
+
+    publishedDataSetConfig.config.event.filter = contentFilter;
+
     /* Create new PublishedDataSet based on the PublishedDataSetConfig. */
     UA_Server_addPublishedDataSet(server, &publishedDataSetConfig, &publishedDataSetIdent);
-
-    /*The config is deep-copied, free fields again*/
-    UA_free(selectedFields);
 }
 
-static void
-addDataSetField(UA_Server *server) {
-    //Add a field to the previous created PublishedDataSet
-    UA_NodeId dataSetFieldIdent;
-    UA_DataSetFieldConfig dataSetFieldConfig;
-    memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
-    dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_EVENT;
-    dataSetFieldConfig.field.events.fieldNameAlias = UA_STRING("Message");
-    UA_SimpleAttributeOperand *sf = UA_SimpleAttributeOperand_new();
-    UA_SimpleAttributeOperand_init(sf);
-    sf->typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
-    sf->browsePathSize = 1;
-    sf->browsePath = (UA_QualifiedName *)
-        UA_Array_new(sf->browsePathSize, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
-    sf->attributeId = UA_ATTRIBUTEID_VALUE;
-    sf->browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "Message");
-    dataSetFieldConfig.field.events.selectedField = *sf;
 
-    UA_Server_addDataSetField(server, publishedDataSetIdent,
-                              &dataSetFieldConfig, &dataSetFieldIdent);
-}
+static void addDataSetFields(UA_Server *server){
+    /*Creates DataSetFields based on the PDS selectedFields*/
+    UA_PublishedDataSet *publishedDataSet = UA_PublishedDataSet_findPDSbyId(server, publishedDataSetIdent);
+    for(size_t i = 0; i < publishedDataSet->config.config.event.selectedFieldsSize; i++){
+        UA_SimpleAttributeOperand sao = publishedDataSet->config.config.event.selectedFields[i];
+        UA_String name = sao.browsePath[0].name;
 
-static void
-addDataSetField1(UA_Server *server) {
-    //Add another field to the previous created PublishedDataSet
-    UA_NodeId dataSetFieldIdent;
-    UA_DataSetFieldConfig dataSetFieldConfig;
-    memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
-    dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_EVENT;
-    dataSetFieldConfig.field.events.fieldNameAlias = UA_STRING("Severity");
-    UA_SimpleAttributeOperand *sf = UA_SimpleAttributeOperand_new();
-    UA_SimpleAttributeOperand_init(sf);
-    sf->typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
-    sf->browsePathSize = 1;
-    sf->browsePath = (UA_QualifiedName *)
-        UA_Array_new(sf->browsePathSize, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
-    sf->attributeId = UA_ATTRIBUTEID_VALUE;
-    sf->browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "Severity");
-    dataSetFieldConfig.field.events.selectedField = *sf;
+        UA_NodeId dataSetFieldIdent;
+        UA_DataSetFieldConfig dataSetFieldConfig;
+        memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
+        dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_EVENT;
+        dataSetFieldConfig.field.events.fieldNameAlias = name;
+        dataSetFieldConfig.field.events.selectedField = sao;
 
-    UA_Server_addDataSetField(server, publishedDataSetIdent,
-                              &dataSetFieldConfig, &dataSetFieldIdent);
+        UA_Server_addDataSetField(server, publishedDataSetIdent,
+                                  &dataSetFieldConfig, &dataSetFieldIdent);
+    }
 }
 
 static void
@@ -224,11 +226,20 @@ addNewEventType(UA_Server *server) {
     UA_ObjectTypeAttributes attr = UA_ObjectTypeAttributes_default;
     attr.displayName = UA_LOCALIZEDTEXT("en-US", "PublishEventsExampleEventType");
     attr.description = UA_LOCALIZEDTEXT("en-US", "The simple event type we created");
-    return UA_Server_addObjectTypeNode(server, UA_NODEID_NULL,
+    UA_Server_addObjectTypeNode(server, UA_NODEID_NULL,
                                        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE),
                                        UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
                                        UA_QUALIFIEDNAME(0, "PublishEventsExampleEventType"),
                                        attr, NULL, &eventType);
+
+    UA_ObjectTypeAttributes attr1 = UA_ObjectTypeAttributes_default;
+    attr1.displayName = UA_LOCALIZEDTEXT("en-US", "PublishEventsExampleEventType2");
+    attr1.description = UA_LOCALIZEDTEXT("en-US", "A simple event type we created to test the ContentFilter");
+    return UA_Server_addObjectTypeNode(server, UA_NODEID_NULL,
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE),
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                       UA_QUALIFIEDNAME(0, "PublishEventsExampleEventType2"),
+                                       attr1, NULL, &eventType2);
 }
 
 UA_Boolean running = true;
@@ -264,14 +275,15 @@ static int run(UA_String *transportProfile,
 
     addPubSubConnection(server, transportProfile, networkAddressUrl);
     addPublishedDataSet(server);
-    addDataSetField(server);
-    addDataSetField1(server);
+    addDataSetFields(server);
     addWriterGroup(server);
     addDataSetWriter(server);
     const UA_Double interval = (UA_Double)5000;
-    UA_String *name = UA_String_new();
-    UA_UInt64 *identifier = UA_UInt64_new();
-    UA_Server_addRepeatedCallback(server, (UA_ServerCallback)callEvent, name, interval, identifier);
+    UA_String name;
+    UA_String_init(&name);
+    UA_UInt64 identifier;
+    UA_UInt64_init(&identifier);
+    UA_Server_addRepeatedCallback(server, (UA_ServerCallback)callEvent, &name, interval, &identifier);
 
     UA_StatusCode retval = UA_Server_run(server, &running);
 

@@ -523,7 +523,7 @@ static const UA_NodeId isInFolderReferences[2] =
 
 #ifdef UA_ENABLE_PUBSUB_EVENTS
 static UA_StatusCode
-insertDataValueIntoDSWQueue(UA_Server *server, UA_DataSetWriter *dsw, UA_DataValue value)  {
+insertDataValueIntoDSWQueue(UA_Server *server, UA_DataSetWriter *dsw, UA_DataValue *value)  {
     if(dsw == NULL){
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                  "The given DataSetWriter is NULL");
@@ -531,8 +531,7 @@ insertDataValueIntoDSWQueue(UA_Server *server, UA_DataSetWriter *dsw, UA_DataVal
     }
 
     EventQueueEntry *entry = (EventQueueEntry *)malloc(sizeof(EventQueueEntry));
-    UA_DataValue_copy(&value, &entry->value);
-    UA_DataValue_clear(&value);
+    UA_DataValue_copy(value, &entry->value);
 
     SIMPLEQ_INSERT_TAIL(&dsw->eventQueue, entry, listEntry);
     dsw->eventQueueEntries++;
@@ -561,12 +560,13 @@ addEventToDataSetWriter(UA_Server *server, UA_NodeId eventNodeId,
                          "SimpleAttributeOperand wasn't able to be resolved as a Variant. StatusCode %s", UA_StatusCode_name(retval));
             return retval;
         };
-        retval |= insertDataValueIntoDSWQueue(server, dataSetWriter, dataValue);
+        retval |= insertDataValueIntoDSWQueue(server, dataSetWriter, &dataValue);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                          "Inserting DataValue into DSW-queue failed. StatusCode %s", UA_StatusCode_name(retval));
             return retval;
         }
+        UA_DataValue_clear(&dataValue);
     }
     return retval;
 }
@@ -721,6 +721,15 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
     /* Looks up, whether the eventNotifier of a PublishedDataSet matches the origin of the triggered event */
     LIST_FOREACH(entry, &server->pubSubManager.publishedDataSetEvents, listEntry){
         if(UA_NodeId_equal(&entry->pds->config.config.event.eventNotifier, &origin)){
+            retval = UA_Server_evaluateWhereClauseContentFilter(server, &eventNodeId, &entry->pds->config.config.event.filter);
+            if(retval != UA_STATUSCODE_GOOD){
+                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                             "Filtered out by ContentFilter. StatusCode %s", UA_StatusCode_name(retval));
+                continue;
+            }else{
+                UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "ContentFilter GOOD");
+            };
+
             retval = addEventToDataSetWriter(server, eventNodeId, entry->dsw, entry->pds);
             if(retval != UA_STATUSCODE_GOOD) {
                 UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
