@@ -294,16 +294,13 @@ checkAsymHeader(UA_SecureChannel *channel,
                 const UA_AsymmetricAlgorithmSecurityHeader *asymHeader);
 
 void
-padChunkAsym(UA_SecureChannel *channel, const UA_ByteString *buf,
-             size_t securityHeaderLength, UA_Byte **buf_pos);
+padChunk(UA_SecureChannel *channel, const UA_SecurityPolicyCryptoModule *cm,
+         const UA_Byte *start, UA_Byte **pos);
 
 UA_StatusCode
 signAndEncryptAsym(UA_SecureChannel *channel, size_t preSignLength,
                    UA_ByteString *buf, size_t securityHeaderLength,
                    size_t totalLength);
-
-void
-padChunkSym(UA_MessageContext *messageContext, size_t bodyLength);
 
 UA_StatusCode
 signChunkSym(UA_MessageContext *const messageContext, size_t preSigLength);

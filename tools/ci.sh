@@ -75,6 +75,20 @@ function unit_tests {
     make test ARGS="-V"
 }
 
+function unit_tests_mt {
+    mkdir -p build; cd build; rm -rf *
+    cmake -DCMAKE_BUILD_TYPE=Debug \
+          -DUA_MULTITHREADING=200 \
+          -DUA_BUILD_EXAMPLES=ON \
+          -DUA_BUILD_UNIT_TESTS=ON \
+          -DUA_ENABLE_DISCOVERY=ON \
+          -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
+          -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
+          ..
+    make ${MAKEOPTS}
+    make test ARGS="-V"
+}
+
 function unit_tests_encryption_mbedtls {
     mkdir -p build; cd build; rm -rf *
     cmake -DCMAKE_BUILD_TYPE=Debug \
