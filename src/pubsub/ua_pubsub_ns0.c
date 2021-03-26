@@ -684,7 +684,7 @@ addPublishedDataItemsAction(UA_Server *server,
     size_t fieldFlagsSize = input[2].arrayLength;
     UA_DataSetFieldFlags * fieldFlags = (UA_DataSetFieldFlags *) input[2].data;
     size_t variablesToAddSize = input[3].arrayLength;
-    UA_PublishedVariableDataType *variablesToAddField = (UA_PublishedVariableDataType *) input[3].data;
+    UA_ExtensionObject *eoAddVar = (UA_ExtensionObject *)input[3].data;
 
     if(!(fieldNameAliasesSize == fieldFlagsSize || fieldFlagsSize == variablesToAddSize))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -696,6 +696,10 @@ addPublishedDataItemsAction(UA_Server *server,
 
     UA_NodeId dataSetItemsNodeId;
     retVal |= UA_Server_addPublishedDataSet(server, &publishedDataSetConfig, &dataSetItemsNodeId).addResult;
+    if (retVal != UA_STATUSCODE_GOOD){
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "addPublishedDataset failed");
+        return retVal;
+    }
 
     UA_DataSetFieldConfig dataSetFieldConfig;
     dataSetFieldConfig.field.variable.rtValueSource.staticValueSource = NULL;
@@ -706,10 +710,26 @@ addPublishedDataItemsAction(UA_Server *server,
         if(fieldFlags[j] == UA_DATASETFIELDFLAGS_PROMOTEDFIELD){
             dataSetFieldConfig.field.variable.promotedField = UA_TRUE;
         }
-        dataSetFieldConfig.field.variable.publishParameters = variablesToAddField[j];
-        UA_Server_addDataSetField(server, dataSetItemsNodeId, &dataSetFieldConfig, NULL);
+
+        UA_PublishedVariableDataType variablesToAddField;
+        if(eoAddVar[j].encoding == UA_EXTENSIONOBJECT_DECODED){
+            if(eoAddVar[j].content.decoded.type == &UA_TYPES[UA_TYPES_PUBLISHEDVARIABLEDATATYPE]){
+                if(UA_PublishedVariableDataType_copy((UA_PublishedVariableDataType *) eoAddVar[j].content.decoded.data,
+                                                      &variablesToAddField) != UA_STATUSCODE_GOOD){
+                    return UA_STATUSCODE_BADOUTOFMEMORY;
+                }
+            }
+        }
+
+        dataSetFieldConfig.field.variable.publishParameters = variablesToAddField;
+        retVal |= UA_Server_addDataSetField(server, dataSetItemsNodeId, &dataSetFieldConfig, NULL).result;
+        if (retVal != UA_STATUSCODE_GOOD){
+           UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "addDataSetField failed");
+           return retVal;
+        }
+
+        UA_PublishedVariableDataType_clear(&variablesToAddField);
     }
-    UA_PublishedVariableDataType_clear(variablesToAddField);
     return retVal;
 }
 #endif
