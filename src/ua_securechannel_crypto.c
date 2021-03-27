@@ -18,13 +18,6 @@
 #include "ua_securechannel.h"
 #include "ua_util_internal.h"
 
-#define UA_ASYMMETRIC_ALG_SECURITY_HEADER_FIXED_LENGTH 12
-#define UA_SEQUENCE_HEADER_LENGTH 8
-#define UA_SYMMETRIC_ALG_SECURITY_HEADER_LENGTH 4
-#define UA_SECUREMH_AND_SYMALGH_LENGTH              \
-    (UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH + \
-    UA_SYMMETRIC_ALG_SECURITY_HEADER_LENGTH)
-
 UA_StatusCode
 UA_SecureChannel_generateLocalNonce(UA_SecureChannel *channel) {
     const UA_SecurityPolicy *sp = channel->securityPolicy;
