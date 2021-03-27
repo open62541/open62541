@@ -498,12 +498,6 @@ decryptAndVerifyChunk(const UA_SecureChannel *channel,
 }
 
 UA_StatusCode
-processSequenceNumberAsym(UA_SecureChannel *channel, UA_UInt32 sequenceNumber) {
-    channel->receiveSequenceNumber = sequenceNumber;
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode
 checkAsymHeader(UA_SecureChannel *channel,
                 const UA_AsymmetricAlgorithmSecurityHeader *asymHeader) {
     const UA_SecurityPolicy *sp = channel->securityPolicy;

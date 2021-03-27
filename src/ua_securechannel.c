@@ -510,15 +510,8 @@ processSequenceNumberSym(UA_SecureChannel *channel, UA_UInt32 sequenceNumber) {
 
 #endif
 
-#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
 static UA_StatusCode
-processSequenceNumberNop(UA_SecureChannel *channel, UA_UInt32 sequenceNumber) {
-    return UA_STATUSCODE_GOOD;
-}
-#endif
-
-static UA_StatusCode
-decryptMessageChunk(UA_SecureChannel *channel, UA_Chunk *chunk, void *application) {
+unpackPayloadOPN(UA_SecureChannel *channel, UA_Chunk *chunk, void *application) {
     size_t offset = UA_CONNECTION_PROTOCOL_MESSAGE_HEADER_SIZE; /* Skip the message header */
     UA_UInt32 secureChannelId;
     UA_StatusCode res = UA_UInt32_decodeBinary(&chunk->bytes, &offset, &secureChannelId);
@@ -526,74 +519,34 @@ decryptMessageChunk(UA_SecureChannel *channel, UA_Chunk *chunk, void *applicatio
         return res;
 
     UA_AsymmetricAlgorithmSecurityHeader asymHeader;
-    UA_SymmetricAlgorithmSecurityHeader symHeader;
-    UA_StatusCode (*processSequenceNumber)(UA_SecureChannel *, UA_UInt32);
-    UA_StatusCode (*checkHeader)(const UA_SecureChannel *, void *);
-    void (*clearHeader)(void *);
-    void *securityHeader;
-    const UA_SecurityPolicyCryptoModule *cryptoModule;
-    UA_SequenceHeader sequenceHeader;
+    res = UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(&chunk->bytes, &offset, &asymHeader);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
-    if(chunk->messageType == UA_MESSAGETYPE_OPN) {
-        if(channel->state != UA_SECURECHANNELSTATE_OPEN &&
-           channel->state != UA_SECURECHANNELSTATE_OPN_SENT &&
-           channel->state != UA_SECURECHANNELSTATE_ACK_SENT)
-            return UA_STATUSCODE_BADINVALIDSTATE;
-        processSequenceNumber = processSequenceNumberAsym;
-        checkHeader = (UA_StatusCode (*)(const UA_SecureChannel *, void *)) checkAsymHeader;
-        securityHeader = &asymHeader;
-        clearHeader = (void (*)(void *)) UA_AsymmetricAlgorithmSecurityHeader_clear;
-        res = UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(&chunk->bytes, &offset, &asymHeader);
-        if(res != UA_STATUSCODE_GOOD)
-            goto error;
-
-        if(asymHeader.senderCertificate.length > 0) {
-            if(channel->certificateVerification == NULL) {
-                res = UA_STATUSCODE_BADINTERNALERROR;
-                goto error;
-            }
+    if(asymHeader.senderCertificate.length > 0) {
+        if(channel->certificateVerification)
             res = channel->certificateVerification->
                 verifyCertificate(channel->certificateVerification->context,
                                   &asymHeader.senderCertificate);
-            if(res != UA_STATUSCODE_GOOD)
-                goto error;
-        }
-
-        if(channel->processOPNHeader != NULL && channel->securityPolicy == NULL) {
-            res = channel->processOPNHeader(application, channel, &asymHeader);
-            if(res != UA_STATUSCODE_GOOD)
-                goto error;
-        }
-
-        if(secureChannelId != 0 && channel->securityToken.channelId == 0)
-            channel->securityToken.channelId = secureChannelId;
-
-        if(!channel->securityPolicy) {
+        else
             res = UA_STATUSCODE_BADINTERNALERROR;
-            goto error;
-        }
-        cryptoModule = &channel->securityPolicy->asymmetricModule.cryptoModule;
-    } else {
-        if(channel->state == UA_SECURECHANNELSTATE_CLOSED)
-            return UA_STATUSCODE_BADSECURECHANNELCLOSED;
-#ifndef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
-        processSequenceNumber = processSequenceNumberSym;
-#else
-        processSequenceNumber = processSequenceNumberNop;
-#endif
-        checkHeader = (UA_StatusCode (*)(const UA_SecureChannel *, void *)) checkSymHeader;
-        securityHeader = &symHeader;
-        clearHeader = (void (*)(void *)) UA_SymmetricAlgorithmSecurityHeader_clear;
-        res = UA_SymmetricAlgorithmSecurityHeader_decodeBinary(&chunk->bytes, &offset, &symHeader);
         if(res != UA_STATUSCODE_GOOD)
             goto error;
-
-        if(!channel->securityPolicy) {
-            res = UA_STATUSCODE_BADINTERNALERROR;
-            goto error;
-        }
-        cryptoModule = &channel->securityPolicy->symmetricModule.cryptoModule;
     }
+
+    /* New channel, create a security policy context and attach */
+    if(!channel->securityPolicy) {
+        if(channel->processOPNHeader)
+            res = channel->processOPNHeader(application, channel, &asymHeader);
+        if(!channel->securityPolicy)
+            res = UA_STATUSCODE_BADINTERNALERROR;
+        if(res != UA_STATUSCODE_GOOD)
+            goto error;
+    }
+
+    /* On the client side, take the SecureChannelId from the first response */
+    if(secureChannelId != 0 && channel->securityToken.channelId == 0)
+        channel->securityToken.channelId = secureChannelId;
 
 #if !defined(FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION)
     /* Check the ChannelId. Non-opened channels have the id zero. */
@@ -603,36 +556,90 @@ decryptMessageChunk(UA_SecureChannel *channel, UA_Chunk *chunk, void *applicatio
     }
 #endif
 
-    /* Check (and revolve) the SecurityToken */
-    res = checkHeader(channel, securityHeader);
-    clearHeader(securityHeader);
+    /* Check the header */
+    res = checkAsymHeader(channel, &asymHeader);
+    UA_AsymmetricAlgorithmSecurityHeader_clear(&asymHeader);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
     /* Decrypt the chunk payload */
-    res = decryptAndVerifyChunk(channel, cryptoModule, chunk->messageType,
-                                &chunk->bytes, offset);
+    res = decryptAndVerifyChunk(channel, &channel->securityPolicy->asymmetricModule.cryptoModule,
+                                chunk->messageType, &chunk->bytes, offset);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* Decode the SequenceHeader */
+    UA_SequenceHeader sequenceHeader;
+    res = UA_SequenceHeader_decodeBinary(&chunk->bytes, &offset, &sequenceHeader);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* Set the sequence number for the channel from which to count up */
+    channel->receiveSequenceNumber = sequenceHeader.sequenceNumber;
+    chunk->requestId = sequenceHeader.requestId; /* Set the RequestId of the chunk */
+
+    /* Use only the payload */
+    chunk->bytes.data += offset;
+    chunk->bytes.length -= offset;
+    return UA_STATUSCODE_GOOD;
+
+error:
+    UA_AsymmetricAlgorithmSecurityHeader_clear(&asymHeader);
+    return res;
+}
+
+static UA_StatusCode
+unpackPayloadMSG(UA_SecureChannel *channel, UA_Chunk *chunk) {
+    size_t offset = UA_CONNECTION_PROTOCOL_MESSAGE_HEADER_SIZE; /* Skip the message header */
+    UA_UInt32 secureChannelId;
+    UA_StatusCode res = UA_UInt32_decodeBinary(&chunk->bytes, &offset, &secureChannelId);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    if(!channel->securityPolicy)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_SymmetricAlgorithmSecurityHeader symHeader;
+    res = UA_SymmetricAlgorithmSecurityHeader_decodeBinary(&chunk->bytes, &offset, &symHeader);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+#if !defined(FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION)
+    /* Check the ChannelId. Non-opened channels have the id zero. */
+    if(secureChannelId != channel->securityToken.channelId) {
+        UA_SymmetricAlgorithmSecurityHeader_clear(&symHeader);
+        return UA_STATUSCODE_BADSECURECHANNELIDINVALID;
+    }
+#endif
+
+    /* Check (and revolve) the SecurityToken */
+    res = checkSymHeader(channel, &symHeader);
+    UA_SymmetricAlgorithmSecurityHeader_clear(&symHeader);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* Decrypt the chunk payload */
+    res = decryptAndVerifyChunk(channel, &channel->securityPolicy->symmetricModule.cryptoModule,
+                                chunk->messageType, &chunk->bytes, offset);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
     /* Check the sequence number. Skip sequence number checking for fuzzer to
      * improve coverage */
+    UA_SequenceHeader sequenceHeader;
     res = UA_SequenceHeader_decodeBinary(&chunk->bytes, &offset, &sequenceHeader);
 #ifndef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
-    res |= processSequenceNumber(channel, sequenceHeader.sequenceNumber);
+    res |= processSequenceNumberSym(channel, sequenceHeader.sequenceNumber);
 #endif
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
-    chunk->requestId = sequenceHeader.requestId;
+    chunk->requestId = sequenceHeader.requestId; /* Set the RequestId of the chunk */
+
+    /* Use only the payload */
     chunk->bytes.data += offset;
     chunk->bytes.length -= offset;
-    return res;
-
-error:
-    if(securityHeader != NULL)
-        clearHeader(securityHeader);
-    return res;
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
@@ -731,22 +738,36 @@ static UA_StatusCode
 processChunks(UA_SecureChannel *channel, void *application,
               UA_ProcessMessageCallback callback) {
     UA_Chunk *chunk;
-    UA_StatusCode retval;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     while((chunk = SIMPLEQ_FIRST(&channel->completeChunks))) {
-        /* Decrypt and add to the decrypted queue */
+        /* Remove from the complete-chunk queue */
         SIMPLEQ_REMOVE_HEAD(&channel->completeChunks, pointers);
-        if(chunk->messageType == UA_MESSAGETYPE_OPN ||
-           chunk->messageType == UA_MESSAGETYPE_MSG ||
-           chunk->messageType == UA_MESSAGETYPE_CLO) {
-            retval = decryptMessageChunk(channel, chunk, application);
-            if(retval != UA_STATUSCODE_GOOD) {
-                UA_Chunk_delete(chunk);
-                return retval;
-            }
+
+        /* Check, decrypt and unpack the payload */
+        if(chunk->messageType == UA_MESSAGETYPE_OPN) {
+            if(channel->state != UA_SECURECHANNELSTATE_OPEN &&
+               channel->state != UA_SECURECHANNELSTATE_OPN_SENT &&
+               channel->state != UA_SECURECHANNELSTATE_ACK_SENT)
+                retval = UA_STATUSCODE_BADINVALIDSTATE;
+            else
+                retval = unpackPayloadOPN(channel, chunk, application);
+        } else if(chunk->messageType == UA_MESSAGETYPE_MSG ||
+                  chunk->messageType == UA_MESSAGETYPE_CLO) {
+            if(channel->state == UA_SECURECHANNELSTATE_CLOSED)
+                retval = UA_STATUSCODE_BADSECURECHANNELCLOSED;
+            else
+                retval = unpackPayloadMSG(channel, chunk);
         } else {
             chunk->bytes.data += UA_CONNECTION_PROTOCOL_MESSAGE_HEADER_SIZE;
             chunk->bytes.length -= UA_CONNECTION_PROTOCOL_MESSAGE_HEADER_SIZE;
         }
+
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_Chunk_delete(chunk);
+            return retval;
+        }
+
+        /* Add to the decrypted queue */
         SIMPLEQ_INSERT_TAIL(&channel->decryptedChunks, chunk, pointers);
 
         /* Check the ressource limits */
