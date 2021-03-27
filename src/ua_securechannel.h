@@ -287,9 +287,6 @@ UA_StatusCode
 checkSymHeader(UA_SecureChannel *channel, const UA_SymmetricAlgorithmSecurityHeader *symHeader);
 
 UA_StatusCode
-processSequenceNumberAsym(UA_SecureChannel *channel, UA_UInt32 sequenceNumber);
-
-UA_StatusCode
 checkAsymHeader(UA_SecureChannel *channel,
                 const UA_AsymmetricAlgorithmSecurityHeader *asymHeader);
 
