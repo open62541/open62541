@@ -131,13 +131,16 @@ generateRemoteKeys(const UA_SecureChannel *channel) {
 /* Send Asymmetric Message */
 /***************************/
 
+/* The length of the static header content */
+#define UA_SECURECHANNEL_ASYMMETRIC_SECURITYHEADER_FIXED_LENGTH 12
+
 size_t
 calculateAsymAlgSecurityHeaderLength(const UA_SecureChannel *channel) {
     const UA_SecurityPolicy *sp = channel->securityPolicy;
     if(!sp)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    size_t asymHeaderLength = UA_ASYMMETRIC_ALG_SECURITY_HEADER_FIXED_LENGTH +
+    size_t asymHeaderLength = UA_SECURECHANNEL_ASYMMETRIC_SECURITYHEADER_FIXED_LENGTH +
                               sp->policyUri.length;
     if(channel->securityMode == UA_MESSAGESECURITYMODE_NONE)
         return asymHeaderLength;
@@ -161,7 +164,7 @@ prependHeadersAsym(UA_SecureChannel *const channel, UA_Byte *header_pos,
         *encryptedLength = totalLength;
     } else {
         size_t dataToEncryptLength = totalLength -
-            (UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH + securityHeaderLength);
+            (UA_SECURECHANNEL_CHANNELHEADER_LENGTH + securityHeaderLength);
         size_t plainTextBlockSize = sp->asymmetricModule.cryptoModule.
             encryptionAlgorithm.getRemotePlainTextBlockSize(channel->channelContext);
         size_t encryptedBlockSize = sp->asymmetricModule.cryptoModule.
@@ -212,9 +215,9 @@ void
 hideBytesAsym(const UA_SecureChannel *channel, UA_Byte **buf_start,
               const UA_Byte **buf_end) {
     /* Set buf_start to the beginning of the payload body */
-    *buf_start += UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH;
+    *buf_start += UA_SECURECHANNEL_CHANNELHEADER_LENGTH;
     *buf_start += calculateAsymAlgSecurityHeaderLength(channel);
-    *buf_start += UA_SEQUENCE_HEADER_LENGTH;
+    *buf_start += UA_SECURECHANNEL_SEQUENCEHEADER_LENGTH;
 
 #ifdef UA_ENABLE_ENCRYPTION
     if(channel->securityMode == UA_MESSAGESECURITYMODE_NONE)
@@ -233,7 +236,8 @@ hideBytesAsym(const UA_SecureChannel *channel, UA_Byte **buf_start,
 
     /* Encrypted plaintext is sequence header + body + padding + signature.
      * Set buf_end to the worst-case lower bound for the payload body end. */
-    size_t plainTextMaxLength = (size_t)(*buf_end - *buf_start) + UA_SEQUENCE_HEADER_LENGTH;
+    size_t plainTextMaxLength = (size_t)(*buf_end - *buf_start) +
+        UA_SECURECHANNEL_SEQUENCEHEADER_LENGTH;
     size_t max_blocks = plainTextMaxLength / plainTextBlockSize;
     size_t max_overhead = max_blocks * (encryptedBlockSize - plainTextBlockSize);
     size_t paddingBytes = (UA_LIKELY(!extraPadding)) ? 1u : 2u;
@@ -297,7 +301,7 @@ signAndEncryptAsym(UA_SecureChannel *channel, size_t preSignLength,
      * signed and encrypted if the SecurityMode is not None (even if the
      * SecurityMode is SignOnly). */
     size_t unencrypted_length =
-        UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH + securityHeaderLength;
+        UA_SECURECHANNEL_CHANNELHEADER_LENGTH + securityHeaderLength;
     UA_ByteString dataToEncrypt = {totalLength - unencrypted_length,
                                    &buf->data[unencrypted_length]};
     return sp->asymmetricModule.cryptoModule.encryptionAlgorithm.
@@ -333,8 +337,12 @@ encryptChunkSym(UA_MessageContext *const messageContext, size_t totalLength) {
         return UA_STATUSCODE_GOOD;
         
     UA_ByteString dataToEncrypt;
-    dataToEncrypt.data = messageContext->messageBuffer.data + UA_SECUREMH_AND_SYMALGH_LENGTH;
-    dataToEncrypt.length = totalLength - UA_SECUREMH_AND_SYMALGH_LENGTH;
+    dataToEncrypt.data = messageContext->messageBuffer.data +
+        UA_SECURECHANNEL_CHANNELHEADER_LENGTH + 
+        UA_SECURECHANNEL_SYMMETRIC_SECURITYHEADER_LENGTH;
+    dataToEncrypt.length = totalLength -
+        (UA_SECURECHANNEL_CHANNELHEADER_LENGTH + 
+         UA_SECURECHANNEL_SYMMETRIC_SECURITYHEADER_LENGTH);
 
     const UA_SecurityPolicy *sp = channel->securityPolicy;
     return sp->symmetricModule.cryptoModule.encryptionAlgorithm.
@@ -348,7 +356,7 @@ setBufPos(UA_MessageContext *mc) {
     /* Forward the data pointer so that the payload is encoded after the message
      * header. This has to be a symmetric message because OPN (with asymmetric
      * encryption) does not support chunking. */
-    mc->buf_pos = &mc->messageBuffer.data[UA_SECURE_MESSAGE_HEADER_LENGTH];
+    mc->buf_pos = &mc->messageBuffer.data[UA_SECURECHANNEL_SYMMETRIC_HEADER_TOTALLENGTH];
     mc->buf_end = &mc->messageBuffer.data[mc->messageBuffer.length];
 
 #ifdef UA_ENABLE_ENCRYPTION
