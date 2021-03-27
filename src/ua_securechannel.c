@@ -215,7 +215,7 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel,
      * need to encrypt. */
     if(channel->securityMode != UA_MESSAGESECURITYMODE_NONE)
         padChunk(channel, &channel->securityPolicy->asymmetricModule.cryptoModule,
-                 &buf.data[UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH +
+                 &buf.data[UA_SECURECHANNEL_CHANNELHEADER_LENGTH +
                            securityHeaderLength], &buf_pos);
 #endif
 
@@ -258,7 +258,8 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel,
 /* Will this chunk surpass the capacity of the SecureChannel for the message? */
 static UA_StatusCode
 checkLimitsSym(UA_MessageContext *const mc, size_t *const bodyLength) {
-    UA_Byte *buf_body_start = mc->messageBuffer.data + UA_SECURE_MESSAGE_HEADER_LENGTH;
+    UA_Byte *buf_body_start = mc->messageBuffer.data +
+        UA_SECURECHANNEL_SYMMETRIC_HEADER_TOTALLENGTH;
     const UA_Byte *buf_body_end = mc->buf_pos;
     *bodyLength = (uintptr_t)buf_body_end - (uintptr_t)buf_body_start;
     mc->messageSizeSoFar += *bodyLength;
@@ -324,7 +325,7 @@ sendSymmetricChunk(UA_MessageContext *messageContext) {
     /* Add padding if the message is encrypted */
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
         padChunk(channel, &channel->securityPolicy->symmetricModule.cryptoModule,
-                 &messageContext->messageBuffer.data[UA_SECURE_MESSAGE_HEADER_LENGTH],
+                 &messageContext->messageBuffer.data[UA_SECURECHANNEL_SYMMETRIC_HEADER_TOTALLENGTH],
                  &messageContext->buf_pos);
 #endif
 
@@ -467,7 +468,7 @@ UA_SecureChannel_sendSymmetricMessage(UA_SecureChannel *channel, UA_UInt32 reque
         return retval;
 
     /* Assert's required for clang-analyzer */
-    UA_assert(mc.buf_pos == &mc.messageBuffer.data[UA_SECURE_MESSAGE_HEADER_LENGTH]);
+    UA_assert(mc.buf_pos == &mc.messageBuffer.data[UA_SECURECHANNEL_SYMMETRIC_HEADER_TOTALLENGTH]);
     UA_assert(mc.buf_end <= &mc.messageBuffer.data[mc.messageBuffer.length]);
 
     retval = UA_MessageContext_encode(&mc, &payloadType->binaryEncodingId,
@@ -511,7 +512,7 @@ processSequenceNumberSym(UA_SecureChannel *channel, UA_UInt32 sequenceNumber) {
 
 static UA_StatusCode
 unpackPayloadOPN(UA_SecureChannel *channel, UA_Chunk *chunk, void *application) {
-    size_t offset = UA_CONNECTION_PROTOCOL_MESSAGE_HEADER_SIZE; /* Skip the message header */
+    size_t offset = UA_SECURECHANNEL_MESSAGEHEADER_LENGTH; /* Skip the message header */
     UA_UInt32 secureChannelId;
     UA_StatusCode res = UA_UInt32_decodeBinary(&chunk->bytes, &offset, &secureChannelId);
     if(res != UA_STATUSCODE_GOOD)
@@ -589,7 +590,7 @@ error:
 
 static UA_StatusCode
 unpackPayloadMSG(UA_SecureChannel *channel, UA_Chunk *chunk) {
-    size_t offset = UA_CONNECTION_PROTOCOL_MESSAGE_HEADER_SIZE; /* Skip the message header */
+    size_t offset = UA_SECURECHANNEL_MESSAGEHEADER_LENGTH; /* Skip the message header */
     UA_UInt32 secureChannelId;
     UA_StatusCode res = UA_UInt32_decodeBinary(&chunk->bytes, &offset, &secureChannelId);
     if(res != UA_STATUSCODE_GOOD)
@@ -757,8 +758,8 @@ processChunks(UA_SecureChannel *channel, void *application,
             else
                 retval = unpackPayloadMSG(channel, chunk);
         } else {
-            chunk->bytes.data += UA_CONNECTION_PROTOCOL_MESSAGE_HEADER_SIZE;
-            chunk->bytes.length -= UA_CONNECTION_PROTOCOL_MESSAGE_HEADER_SIZE;
+            chunk->bytes.data += UA_SECURECHANNEL_MESSAGEHEADER_LENGTH;
+            chunk->bytes.length -= UA_SECURECHANNEL_MESSAGEHEADER_LENGTH;
         }
 
         if(retval != UA_STATUSCODE_GOOD) {
@@ -802,7 +803,7 @@ extractCompleteChunk(UA_SecureChannel *channel, const UA_ByteString *buffer,
     /* At least 8 byte needed for the header. Wait for the next chunk. */
     size_t initial_offset = *offset;
     size_t remaining = buffer->length - initial_offset;
-    if(remaining < UA_CONNECTION_PROTOCOL_MESSAGE_HEADER_SIZE) {
+    if(remaining < UA_SECURECHANNEL_MESSAGEHEADER_LENGTH) {
         *done = true;
         return UA_STATUSCODE_GOOD;
     }
