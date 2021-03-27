@@ -22,7 +22,6 @@
 
 #define UA_BITMASK_MESSAGETYPE 0x00ffffffu
 #define UA_BITMASK_CHUNKTYPE 0xff000000u
-#define UA_CONNECTION_PROTOCOL_MESSAGE_HEADER_SIZE 8
 
 const UA_ByteString UA_SECURITY_POLICY_NONE_URI =
     {47, (UA_Byte *)"http://opcfoundation.org/UA/SecurityPolicy#None"};
