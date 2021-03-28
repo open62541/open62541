@@ -817,7 +817,7 @@ extractCompleteChunk(UA_SecureChannel *channel, const UA_ByteString *buffer,
         (hdr.messageTypeAndChunkType & UA_BITMASK_CHUNKTYPE);
 
     /* The message size is not allowed */
-    if(hdr.messageSize < 16)
+    if(hdr.messageSize < UA_SECURECHANNEL_MESSAGE_MIN_LENGTH)
         return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
     if(hdr.messageSize > channel->config.recvBufferSize)
         return UA_STATUSCODE_BADTCPMESSAGETOOLARGE;

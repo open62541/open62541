@@ -45,6 +45,9 @@ _UA_BEGIN_DECLS
     UA_SECURECHANNEL_SYMMETRIC_SECURITYHEADER_LENGTH +  \
      UA_SECURECHANNEL_SEQUENCEHEADER_LENGTH)
 
+/* Minimum length of a valid message (ERR message with an empty reason) */
+#define UA_SECURECHANNEL_MESSAGE_MIN_LENGTH 16
+
 /* Thread-local variables to force failure modes during testing */
 #ifdef UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
 extern UA_StatusCode decrypt_verifySignatureFailure;
