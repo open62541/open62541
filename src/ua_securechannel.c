@@ -512,14 +512,15 @@ processSequenceNumberSym(UA_SecureChannel *channel, UA_UInt32 sequenceNumber) {
 
 static UA_StatusCode
 unpackPayloadOPN(UA_SecureChannel *channel, UA_Chunk *chunk, void *application) {
+    UA_assert(chunk->bytes.length >= UA_SECURECHANNEL_MESSAGE_MIN_LENGTH);
     size_t offset = UA_SECURECHANNEL_MESSAGEHEADER_LENGTH; /* Skip the message header */
     UA_UInt32 secureChannelId;
-    UA_StatusCode res = UA_UInt32_decodeBinary(&chunk->bytes, &offset, &secureChannelId);
-    if(res != UA_STATUSCODE_GOOD)
-        return res;
+    UA_UInt32_decodeBinary(&chunk->bytes, &offset, &secureChannelId);
 
     UA_AsymmetricAlgorithmSecurityHeader asymHeader;
-    res = UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(&chunk->bytes, &offset, &asymHeader);
+    UA_StatusCode res =
+        UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(&chunk->bytes, &offset,
+                                                          &asymHeader);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
@@ -590,19 +591,16 @@ error:
 
 static UA_StatusCode
 unpackPayloadMSG(UA_SecureChannel *channel, UA_Chunk *chunk) {
-    size_t offset = UA_SECURECHANNEL_MESSAGEHEADER_LENGTH; /* Skip the message header */
-    UA_UInt32 secureChannelId;
-    UA_StatusCode res = UA_UInt32_decodeBinary(&chunk->bytes, &offset, &secureChannelId);
-    if(res != UA_STATUSCODE_GOOD)
-        return res;
-
     if(!channel->securityPolicy)
         return UA_STATUSCODE_BADINTERNALERROR;
 
+    UA_assert(chunk->bytes.length >= UA_SECURECHANNEL_MESSAGE_MIN_LENGTH);
+    size_t offset = UA_SECURECHANNEL_MESSAGEHEADER_LENGTH; /* Skip the message header */
+    UA_UInt32 secureChannelId;
     UA_SymmetricAlgorithmSecurityHeader symHeader;
-    res = UA_SymmetricAlgorithmSecurityHeader_decodeBinary(&chunk->bytes, &offset, &symHeader);
-    if(res != UA_STATUSCODE_GOOD)
-        return res;
+    UA_UInt32_decodeBinary(&chunk->bytes, &offset, &secureChannelId);
+    UA_SymmetricAlgorithmSecurityHeader_decodeBinary(&chunk->bytes, &offset, &symHeader);
+    UA_assert(offset == UA_SECURECHANNEL_MESSAGE_MIN_LENGTH);
 
 #if !defined(FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION)
     /* Check the ChannelId. Non-opened channels have the id zero. */
@@ -613,7 +611,7 @@ unpackPayloadMSG(UA_SecureChannel *channel, UA_Chunk *chunk) {
 #endif
 
     /* Check (and revolve) the SecurityToken */
-    res = checkSymHeader(channel, &symHeader);
+    UA_StatusCode res = checkSymHeader(channel, &symHeader);
     UA_SymmetricAlgorithmSecurityHeader_clear(&symHeader);
     if(res != UA_STATUSCODE_GOOD)
         return res;
