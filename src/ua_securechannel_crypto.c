@@ -403,36 +403,27 @@ setBufPos(UA_MessageContext *mc) {
 /* Process a received Chunk */
 /****************************/
 
-static UA_UInt16
-decodeChunkPadding(const UA_SecureChannel *channel,
-                   const UA_SecurityPolicyCryptoModule *cryptoModule,
-                   UA_MessageType messageType, const UA_ByteString *chunk,
-                   size_t sigsize) {
-    /* Is padding used? */
-    if(channel->securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT &&
-       !(messageType == UA_MESSAGETYPE_OPN &&
-         !UA_String_equal(&cryptoModule->encryptionAlgorithm.uri, &UA_STRING_NULL)))
-        return 0;
-
+static size_t
+decodePadding(const UA_SecureChannel *channel,
+              const UA_SecurityPolicyCryptoModule *cryptoModule,
+              const UA_ByteString *chunk, size_t sigsize) {
     size_t paddingSize = chunk->data[chunk->length - sigsize - 1];
-
-    /* Extra padding size */
     size_t keyLength = cryptoModule->encryptionAlgorithm.
         getLocalKeyLength(channel->channelContext);
     if(keyLength > 2048) {
+        /* Extra padding size */
         paddingSize <<= 8u;
-        paddingSize += 1;
         paddingSize += chunk->data[chunk->length - sigsize - 2];
+        paddingSize += 1; /* Extra padding byte itself */
     }
 
-    /* We need to add one to the padding size since the paddingSize byte itself
-     * need to be removed as well. */
+    /* Add one since the paddingSize byte itself needs to be removed as well */
     paddingSize += 1;
 
     UA_LOG_TRACE_CHANNEL(channel->securityPolicy->logger, channel,
                          "Calculated padding size to be %lu",
                          (long unsigned int)paddingSize);
-    return (UA_UInt16)paddingSize;
+    return paddingSize;
 }
 
 static UA_StatusCode
@@ -464,12 +455,11 @@ decryptAndVerifyChunk(const UA_SecureChannel *channel,
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT ||
        messageType == UA_MESSAGETYPE_OPN) {
-        UA_ByteString cipherText = {chunk->length - offset, chunk->data + offset};
-        res = cryptoModule->encryptionAlgorithm.
-            decrypt(channel->channelContext, &cipherText);
+        UA_ByteString cipher = {chunk->length - offset, chunk->data + offset};
+        res = cryptoModule->encryptionAlgorithm.decrypt(channel->channelContext, &cipher);
         if(res != UA_STATUSCODE_GOOD)
             return res;
-        chunk->length = cipherText.length + offset;
+        chunk->length = cipher.length + offset;
     }
 
     /* Does the message have a signature? */
@@ -485,16 +475,21 @@ decryptAndVerifyChunk(const UA_SecureChannel *channel,
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
-    /* Compute and verify the padding. The encrypted payload has to be at least
-     * 9 bytes long (8 byte for the SequenceHeader and one byte for the actual
-     * message). */
-    size_t paddingSize =
-        decodeChunkPadding(channel, cryptoModule, messageType, chunk, sigsize);
-    if(offset + paddingSize + sigsize + 9 >= chunk->length)
+    /* Compute the padding if the payload as encrypted */
+    size_t padSize = 0;
+    if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT ||
+       (messageType == UA_MESSAGETYPE_OPN &&
+        cryptoModule->encryptionAlgorithm.uri.length > 0))
+        padSize = decodePadding(channel, cryptoModule, chunk, sigsize);
+
+    /* Verify the content length. The encrypted payload has to be at least 9
+     * bytes long: 8 byte for the SequenceHeader and one byte for the actual
+     * message */
+    if(offset + padSize + sigsize + 9 >= chunk->length)
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
     /* Hide the signature and padding */
-    chunk->length -= (sigsize + paddingSize);
+    chunk->length -= (sigsize + padSize);
     return UA_STATUSCODE_GOOD;
 }
 
