@@ -515,8 +515,7 @@ checkAsymHeader(UA_SecureChannel *channel,
 }
 
 UA_StatusCode
-checkSymHeader(UA_SecureChannel *channel,
-               const UA_SymmetricAlgorithmSecurityHeader *symHeader) {
+checkSymHeader(UA_SecureChannel *channel, const UA_UInt32 tokenId) {
     /* If no match, try to revolve to the next token after a
      * RenewSecureChannel */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -529,11 +528,11 @@ checkSymHeader(UA_SecureChannel *channel,
 
     case UA_SECURECHANNELRENEWSTATE_NEWTOKEN_SERVER:
         /* Old token still in use */
-        if(symHeader->tokenId == channel->securityToken.tokenId)
+        if(tokenId == channel->securityToken.tokenId)
             break;
 
         /* Not the new token */
-        if(symHeader->tokenId != channel->altSecurityToken.tokenId) {
+        if(tokenId != channel->altSecurityToken.tokenId) {
             UA_LOG_WARNING_CHANNEL(channel->securityPolicy->logger, channel,
                                    "Unknown SecurityToken");
             return UA_STATUSCODE_BADSECURECHANNELTOKENUNKNOWN;
@@ -549,13 +548,13 @@ checkSymHeader(UA_SecureChannel *channel,
 
     case UA_SECURECHANNELRENEWSTATE_NEWTOKEN_CLIENT:
         /* The server is still using the old token. That's okay. */
-        if(symHeader->tokenId == channel->altSecurityToken.tokenId) {
+        if(tokenId == channel->altSecurityToken.tokenId) {
             token = &channel->altSecurityToken;
             break;
         }
 
         /* Not the new token */
-        if(symHeader->tokenId != channel->securityToken.tokenId) {
+        if(tokenId != channel->securityToken.tokenId) {
             UA_LOG_WARNING_CHANNEL(channel->securityPolicy->logger, channel,
                                    "Unknown SecurityToken");
             return UA_STATUSCODE_BADSECURECHANNELTOKENUNKNOWN;
