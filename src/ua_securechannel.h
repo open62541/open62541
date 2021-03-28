@@ -30,7 +30,7 @@ _UA_BEGIN_DECLS
  * *** UA_SECURECHANNEL_MESSAGEHEADER_LENGTH ***
  * - SecureChannelId (4 Byte)
  * *** UA_SECURECHANNEL_CHANNELHEADER_LENGTH ***
- * - SecurityHeader (4 Byte for symmetric, otherwise dynamic length)
+ * - SecurityHeader (4 Byte TokenId for symmetric, otherwise dynamic length)
  * - SequenceHeader (8 Byte)
  *   - SequenceNumber
  *   - RequestId
@@ -307,7 +307,7 @@ void
 setBufPos(UA_MessageContext *mc);
 
 UA_StatusCode
-checkSymHeader(UA_SecureChannel *channel, const UA_SymmetricAlgorithmSecurityHeader *symHeader);
+checkSymHeader(UA_SecureChannel *channel, const UA_UInt32 tokenId);
 
 UA_StatusCode
 checkAsymHeader(UA_SecureChannel *channel,
