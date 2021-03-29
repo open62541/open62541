@@ -276,6 +276,16 @@ UA_NodeId           connectionIdentSubscriber;
 struct timespec     dataReceiveTime;
 #endif
 
+/* File to store the missed and repeated counter data due to delay */
+FILE               *fpDelayedPackets;
+char               *fileDelayedPackets     = "delayed_packets.txt";
+/* To find the misses at the stack level so we can find out the real misses
+ * as we now handle misses in multiple receive messages */
+static UA_Boolean missedReceiveCounter = UA_FALSE;
+UA_UInt64 previousValue        = 0;
+UA_UInt64 repeatedCounter_recv = 0;
+UA_UInt64 missedCounter_recv   = 0;
+
 /* Thread for user application*/
 pthread_t           userApplicationThreadID;
 
@@ -324,6 +334,24 @@ static void stopHandler(int sign) {
 static inline long long timespec_to_ns(const struct timespec *ts)
 {
     return ((long long) ts->tv_sec * NSEC_PER_SEC) + ts->tv_nsec;
+}
+
+/* Missed and repeated counters verification - Call from the stack is used */
+void missedRepeatedCounter_callback(UA_Server *server, const UA_NodeId *readerIdentifier,
+                                    const UA_NodeId *readerGroupIdentifier, const UA_NodeId *targetVariableIdentifier,
+                                    void *targetVariableContext, UA_DataValue **externalDataValue) {
+
+    UA_UInt64 currentValue = *(UA_UInt64 *)((**externalDataValue).value.data);
+    if(previousValue && (currentValue == previousValue)) {
+        repeatedCounter_recv++;
+        missedReceiveCounter = UA_TRUE;
+    }
+    else if(previousValue && (currentValue > (previousValue + 1))) {
+        missedCounter_recv = missedCounter_recv + (currentValue - previousValue - 1);
+        missedReceiveCounter = UA_TRUE;
+    }
+
+    previousValue = currentValue;
 }
 
 /**
@@ -619,6 +647,7 @@ static void addSubscribedVariables (UA_Server *server) {
     UA_FieldTargetDataType_init(&targetVars[iterator].targetVariable);
     targetVars[iterator].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
     targetVars[iterator].targetVariable.targetNodeId = subNodeID;
+    targetVars[iterator].afterWrite = missedRepeatedCounter_callback;
 
     /* Set the subscribed data to TargetVariable type */
     readerConfig.subscribedDataSetType = UA_PUBSUB_SDS_TARGET;
@@ -1167,9 +1196,10 @@ void *subscriber(void *arg) {
  */
 void *userApplicationPubSub(void *arg) {
     struct timespec nextnanosleeptimeUserApplication;
-    struct timespec   executionstarttime;
-    struct timespec   executionendtime;    /* Verify whether baseTime has already been calculated */
-    struct timespec   actualuserthreadtime;
+    struct timespec executionstarttime;
+    struct timespec executionendtime;
+    struct timespec actualuserthreadtime;
+    fpDelayedPackets = fopen(fileDelayedPackets, "w+");
     if(!baseTimeCalculated) {
         /* Get current time and compute the next nanosleeptime */
         clock_gettime(CLOCKID, &threadBaseTime);
@@ -1218,6 +1248,12 @@ void *userApplicationPubSub(void *arg) {
         clock_gettime(CLOCKID, &dataModificationTime);
 #endif
 
+        if(missedReceiveCounter) {
+            fprintf(fpDelayedPackets, "%ld,%ld\n", missedCounter_recv, repeatedCounter_recv);
+            fflush(fpDelayedPackets);
+            missedReceiveCounter = UA_FALSE;
+        }
+
         if(enableLongRunMeas) {
             if(*pubCounterData > 0)
                 updateLRMeasurementsPublisherlb(pubResultime, userResultime, subThreadJitter, pubThreadJitter, userThreadJitter);
@@ -1242,6 +1278,7 @@ void *userApplicationPubSub(void *arg) {
         nanoSecondFieldConversion(&nextnanosleeptimeUserApplication);
     }
 
+    fclose(fpDelayedPackets);
     return (void*)NULL;
 }
 #endif
