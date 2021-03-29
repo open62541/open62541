@@ -349,11 +349,7 @@ sendSymmetricChunk(UA_MessageContext *messageContext) {
         goto error;
 
 #ifdef UA_ENABLE_ENCRYPTION
-    res = signChunkSym(messageContext, pre_sig_length);
-    if(res != UA_STATUSCODE_GOOD)
-        goto error;
-
-    res = encryptChunkSym(messageContext, total_length);
+    res = signAndEncryptSym(messageContext, pre_sig_length, total_length);
     if(res != UA_STATUSCODE_GOOD)
         goto error;
 #endif
