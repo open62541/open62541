@@ -323,10 +323,8 @@ signAndEncryptAsym(UA_SecureChannel *channel, size_t preSignLength,
                    size_t totalLength);
 
 UA_StatusCode
-signChunkSym(UA_MessageContext *const messageContext, size_t preSigLength);
-
-UA_StatusCode
-encryptChunkSym(UA_MessageContext *const messageContext, size_t totalLength);
+signAndEncryptSym(UA_MessageContext *messageContext,
+                  size_t preSigLength, size_t totalLength);
 
 /**
  * Log Helper

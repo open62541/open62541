@@ -313,11 +313,13 @@ signAndEncryptAsym(UA_SecureChannel *channel, size_t preSignLength,
 /**************************/
 
 UA_StatusCode
-signChunkSym(UA_MessageContext *const messageContext, size_t preSigLength) {
+signAndEncryptSym(UA_MessageContext *messageContext,
+                  size_t preSigLength, size_t totalLength) {
     const UA_SecureChannel *channel = messageContext->channel;
     if(channel->securityMode == UA_MESSAGESECURITYMODE_NONE)
         return UA_STATUSCODE_GOOD;
 
+    /* Sign */
     const UA_SecurityPolicy *sp = channel->securityPolicy;
     UA_ByteString dataToSign = messageContext->messageBuffer;
     dataToSign.length = preSigLength;
@@ -325,17 +327,15 @@ signChunkSym(UA_MessageContext *const messageContext, size_t preSigLength) {
     signature.length = sp->symmetricModule.cryptoModule.signatureAlgorithm.
         getLocalSignatureSize(channel->channelContext);
     signature.data = messageContext->buf_pos;
-
-    return sp->symmetricModule.cryptoModule.signatureAlgorithm.
+    UA_StatusCode res = sp->symmetricModule.cryptoModule.signatureAlgorithm.
         sign(channel->channelContext, &dataToSign, &signature);
-}
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
-UA_StatusCode
-encryptChunkSym(UA_MessageContext *const messageContext, size_t totalLength) {
-    const UA_SecureChannel *channel = messageContext->channel;
     if(channel->securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
         return UA_STATUSCODE_GOOD;
-        
+
+    /* Encrypt */
     UA_ByteString dataToEncrypt;
     dataToEncrypt.data = messageContext->messageBuffer.data +
         UA_SECURECHANNEL_CHANNELHEADER_LENGTH + 
@@ -343,8 +343,6 @@ encryptChunkSym(UA_MessageContext *const messageContext, size_t totalLength) {
     dataToEncrypt.length = totalLength -
         (UA_SECURECHANNEL_CHANNELHEADER_LENGTH + 
          UA_SECURECHANNEL_SYMMETRIC_SECURITYHEADER_LENGTH);
-
-    const UA_SecurityPolicy *sp = channel->securityPolicy;
     return sp->symmetricModule.cryptoModule.encryptionAlgorithm.
         encrypt(channel->channelContext, &dataToEncrypt);
 }
