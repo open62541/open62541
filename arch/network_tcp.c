@@ -700,7 +700,8 @@ UA_ClientConnectionTCP_poll(UA_Connection *connection, UA_UInt32 timeout,
     }
 
     /* Get a socket */
-    if(connection->sockfd == UA_INVALID_SOCKET) {
+    bool create_socket = connection->sockfd == UA_INVALID_SOCKET;
+    if(create_socket) {
         connection->sockfd = UA_socket(tcpConnection->server->ai_family,
                                        tcpConnection->server->ai_socktype,
                                        tcpConnection->server->ai_protocol);
@@ -731,38 +732,26 @@ UA_ClientConnectionTCP_poll(UA_Connection *connection, UA_UInt32 timeout,
     }
 
     /* Non-blocking connect */
-    int error = UA_connect(connection->sockfd, tcpConnection->server->ai_addr,
+    int error = 0;
+    if(create_socket) {
+        error = UA_connect(connection->sockfd, tcpConnection->server->ai_addr,
                            tcpConnection->server->ai_addrlen);
 
-#ifdef _WIN32
-    /* https://docs.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-connect
-     * - Successfull async connect will fail but set WSALastError() to WSAEISCONN
-     * - Checking on WSAEWOULDBLOCK (UA_ERR_CONNECTION_PROGRESS) is not enough, if async
-     *   connect runs, WSAEALREADY can be set as well
-     */
-    if (error == -1 && UA_ERRNO == WSAEISCONN) {
-        error = 0;
-    }
-#endif
+        /* Connection successful */
+        if(error == 0) {
+            connection->state = UA_CONNECTIONSTATE_ESTABLISHED;
+            return UA_STATUSCODE_GOOD;
+        }
 
-    /* Connection successful */
-    if(error == 0) {
-        connection->state = UA_CONNECTIONSTATE_ESTABLISHED;
-        return UA_STATUSCODE_GOOD;
-    }
-
-    /* The connection failed */
-    if((UA_ERRNO != UA_ERR_CONNECTION_PROGRESS)
-#ifdef _WIN32
-       && (UA_ERRNO != WSAEALREADY)
-#endif
-      ) {
-        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
-                       "Connection to %.*s failed with error: %s",
-                       (int)tcpConnection->endpointUrl.length,
-                       tcpConnection->endpointUrl.data, strerror(UA_ERRNO));
-        ClientNetworkLayerTCP_close(connection);
-        return UA_STATUSCODE_BADDISCONNECT;
+        /* The connection failed */
+        if((UA_ERRNO != UA_ERR_CONNECTION_PROGRESS)) {
+            UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+                           "Connection to %.*s failed with error: %s",
+                           (int)tcpConnection->endpointUrl.length,
+                           tcpConnection->endpointUrl.data, strerror(UA_ERRNO));
+            ClientNetworkLayerTCP_close(connection);
+            return UA_STATUSCODE_BADDISCONNECT;
+        }
     }
 
     /* Use select to wait until connected. Return with a half-opened connection
@@ -801,21 +790,32 @@ UA_ClientConnectionTCP_poll(UA_Connection *connection, UA_UInt32 timeout,
                                &fdset, NULL, &tmptv);
 #endif
 
-#ifndef _WIN32
     /* Any errors on the socket reported? */
     OPTVAL_TYPE so_error = 0;
     socklen_t len = sizeof(so_error);
     int ret = UA_getsockopt(connection->sockfd, SOL_SOCKET, SO_ERROR, &so_error, &len);
     if(ret != 0 || so_error != 0) {
+        // UA_LOG_SOCKET_ERRNO_GAI_WRAP because of so_error
+#ifndef _WIN32
+        char *errno_str = strerror(ret == 0 ? so_error : UA_ERRNO);
+#else
+        char *errno_str = NULL;
+        FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM |
+                           FORMAT_MESSAGE_IGNORE_INSERTS,
+                       NULL, ret == 0 ? so_error : WSAGetLastError(),
+                       MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&errno_str, 0,
+                       NULL);
+#endif
         UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
                        "Connection to %.*s failed with error: %s",
                        (int)tcpConnection->endpointUrl.length,
-                       tcpConnection->endpointUrl.data,
-                       strerror(ret == 0 ? so_error : UA_ERRNO));
+                       tcpConnection->endpointUrl.data, errno_str);
+#ifdef _WIN32
+        LocalFree(errno_str);
+#endif
         ClientNetworkLayerTCP_close(connection);
         return UA_STATUSCODE_BADDISCONNECT;
     }
-#endif
 
     /* The connection is fully opened. Otherwise, select has timed out. But we
      * can retry. */
