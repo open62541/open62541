@@ -531,6 +531,8 @@ insertDataValueIntoDSWQueue(UA_Server *server, UA_DataSetWriter *dsw, UA_DataVal
     }
 
     EventQueueEntry *entry = (EventQueueEntry *)malloc(sizeof(EventQueueEntry));
+    if(!entry)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     UA_DataValue_copy(value, &entry->value);
 
     SIMPLEQ_INSERT_TAIL(&dsw->eventQueue, entry, listEntry);

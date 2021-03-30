@@ -76,16 +76,16 @@ addPublishedDataSet(UA_Server *server) {
     selectedFields[0].typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
     selectedFields[0].attributeId = UA_ATTRIBUTEID_VALUE;
     selectedFields[0].browsePathSize = 1;
-    UA_QualifiedName browsePathSeverity[1];
-    browsePathSeverity[0] = UA_QUALIFIEDNAME(0, "Severity");
-    selectedFields[0].browsePath = browsePathSeverity;
+    UA_QualifiedName browsePathMessage[1];
+    browsePathMessage[0] = UA_QUALIFIEDNAME(0, "Message");
+    selectedFields[0].browsePath = browsePathMessage;
 
     selectedFields[1].typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
     selectedFields[1].attributeId = UA_ATTRIBUTEID_VALUE;
     selectedFields[1].browsePathSize = 1;
-    UA_QualifiedName browsePathMessage[1];
-    browsePathMessage[0] = UA_QUALIFIEDNAME(0, "Message");
-    selectedFields[1].browsePath = browsePathMessage;
+    UA_QualifiedName browsePathSeverity[1];
+    browsePathSeverity[0] = UA_QUALIFIEDNAME(0, "Severity");
+    selectedFields[1].browsePath = browsePathSeverity;
 
     publishedDataSetConfig.config.event.selectedFields = selectedFields;
 

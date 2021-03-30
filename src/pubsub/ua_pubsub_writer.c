@@ -1457,6 +1457,8 @@ UA_Server_addDataSetWriter(UA_Server *server,
             LIST_INIT(&server->pubSubManager.publishedDataSetEvents);
         }
         PublishedDataSetEventEntry *pdsEventEntry = (PublishedDataSetEventEntry *)UA_malloc(sizeof(PublishedDataSetEventEntry));
+        if(!pdsEventEntry)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
         pdsEventEntry->pds = currentDataSetContext;
         pdsEventEntry->dsw = newDataSetWriter;
         LIST_INSERT_HEAD(&server->pubSubManager.publishedDataSetEvents, pdsEventEntry, listEntry);
@@ -1491,6 +1493,7 @@ UA_Server_addDataSetWriter(UA_Server *server,
 
     //connect PublishedDataSet with DataSetWriter
     newDataSetWriter->connectedDataSet = currentDataSetContext->identifier;
+    UA_String_copy(&currentDataSetContext->config.name, &newDataSetWriter->config.dataSetName); //needed for loading in pubsub-config files
     newDataSetWriter->linkedWriterGroup = wg->identifier;
     UA_PubSubManager_generateUniqueNodeId(server, &newDataSetWriter->identifier);
     if(writerIdentifier != NULL)
@@ -1580,7 +1583,6 @@ UA_DataSetFieldConfig_copy(const UA_DataSetFieldConfig *src, UA_DataSetFieldConf
         UA_String_copy(&src->field.events.fieldNameAlias, &dst->field.events.fieldNameAlias);
         UA_SimpleAttributeOperand_copy(&src->field.events.selectedField,
                                        &dst->field.events.selectedField);
-        //Todo: deep copy of DataType necessary?
     }else{
         return UA_STATUSCODE_BADNOTSUPPORTED;
     }
@@ -1728,17 +1730,20 @@ UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_Server *server,
 
 #ifdef UA_ENABLE_PUBSUB_EVENTS
     if(currentDataSet->config.publishedDataSetType == UA_PUBSUB_DATASET_PUBLISHEDEVENTS){
-        UA_UInt16 eventSize = (UA_UInt16)dataSetWriter->eventQueueEntries;
+        size_t fieldCount = currentDataSet->fieldSize;
+        if(SIMPLEQ_EMPTY(&dataSetWriter->eventQueue))
+            fieldCount = 0;
+
         dataSetMessage->header.dataSetMessageValid = true;
         dataSetMessage->header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
-        dataSetMessage->data.keyFrameData.fieldCount = eventSize;
+        dataSetMessage->data.keyFrameData.fieldCount = (UA_UInt16)fieldCount;
         dataSetMessage->data.keyFrameData.dataSetFields = (UA_DataValue *)
-            UA_Array_new(eventSize, &UA_TYPES[UA_TYPES_DATAVALUE]);
+            UA_Array_new(fieldCount, &UA_TYPES[UA_TYPES_DATAVALUE]);
         if(!dataSetMessage->data.keyFrameData.dataSetFields)
             return UA_STATUSCODE_BADOUTOFMEMORY;
 
         // Add every event to DataSetMessage
-        for(size_t i = 0; i < eventSize; i++){
+        for(size_t i = 0; i < fieldCount; i++){
             // Extract First Item and Remove it
             EventQueueEntry *eventQueueEntry = SIMPLEQ_FIRST(&dataSetWriter->eventQueue);
             SIMPLEQ_REMOVE_HEAD(&dataSetWriter->eventQueue, listEntry);

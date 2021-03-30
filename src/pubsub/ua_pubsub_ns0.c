@@ -897,31 +897,20 @@ addPublishedEventsAction(UA_Server *server,
                          size_t outputSize, UA_Variant *output){
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
 
-    //0. Config name
     UA_String *configName = (UA_String *) input[0].data;
-
-    //1. NodeId	EventNotifier
     UA_NodeId *eventNotifier = (UA_NodeId *) input[1].data;
-
-    //2. String[] FieldNameAliases
     size_t fieldNameAliasesSize = input[2].arrayLength;
     UA_String *fieldNameAliases = (UA_String *) input[2].data;
-
-    //3. DataSetFieldFlags[] FieldFlags
     size_t fieldFlagsSize = input[3].arrayLength;
     UA_DataSetFieldFlags *fieldFlags = (UA_DataSetFieldFlags *) input[3].data;
-
-    //4. SimpleAttributeOperand[] SelectedFields
     size_t selectedFieldsSize = input[4].arrayLength;
     UA_SimpleAttributeOperand *selectedFields = (UA_SimpleAttributeOperand *) input[4].data;
-
-    //5. ContentFilter	Filter
     UA_ContentFilter *filter = (UA_ContentFilter*) input[5].data;
 
     if(!(fieldNameAliasesSize == fieldFlagsSize || fieldFlagsSize == selectedFieldsSize))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    //Create config
+    /* Create the DataSetFields */
     UA_PublishedDataSetConfig publishedDataSetConfig;
     memset(&publishedDataSetConfig, 0, sizeof(publishedDataSetConfig));
     publishedDataSetConfig.name = *configName;
