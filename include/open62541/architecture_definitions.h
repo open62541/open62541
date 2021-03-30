@@ -99,10 +99,10 @@
  */
 
 #ifdef UA_ENABLE_MALLOC_SINGLETON
-extern void * (*UA_mallocSingleton)(size_t size);
-extern void (*UA_freeSingleton)(void *ptr);
-extern void * (*UA_callocSingleton)(size_t nelem, size_t elsize);
-extern void * (*UA_reallocSingleton)(void *ptr, size_t size);
+extern UA_THREAD_LOCAL void * (*UA_mallocSingleton)(size_t size);
+extern UA_THREAD_LOCAL void (*UA_freeSingleton)(void *ptr);
+extern UA_THREAD_LOCAL void * (*UA_callocSingleton)(size_t nelem, size_t elsize);
+extern UA_THREAD_LOCAL void * (*UA_reallocSingleton)(void *ptr, size_t size);
 # define UA_malloc(size) UA_mallocSingleton(size)
 # define UA_free(ptr) UA_freeSingleton(ptr)
 # define UA_calloc(num, size) UA_callocSingleton(num, size)
