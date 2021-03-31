@@ -21,8 +21,8 @@
 
 #include <check.h>
 
-#define             ETHERNET_INTERFACE                 "enp4s0"
-#define             MULTICAST_MAC_ADDRESS              "opc.eth://01-00-5E-00-00-01"
+/* Adjust your configuration globally for the ethernet tests here: */
+#include "ethernet_config.h"
 
 UA_Server *server = NULL;
 
