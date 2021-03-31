@@ -702,16 +702,15 @@ addPublishedDataItemsAction(UA_Server *server,
     }
 
     UA_DataSetFieldConfig dataSetFieldConfig;
-    dataSetFieldConfig.field.variable.rtValueSource.staticValueSource = NULL;
     for(size_t j = 0; j < variablesToAddSize; ++j) {
-        memset(&dataSetFieldConfig, 0, sizeof(dataSetFieldConfig));
+        memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
         dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
         dataSetFieldConfig.field.variable.fieldNameAlias = fieldNameAliases[j];
-        if(fieldFlags[j] == UA_DATASETFIELDFLAGS_PROMOTEDFIELD){
+        if(fieldFlags[j] == UA_DATASETFIELDFLAGS_PROMOTEDFIELD)
             dataSetFieldConfig.field.variable.promotedField = UA_TRUE;
-        }
 
         UA_PublishedVariableDataType variablesToAddField;
+        UA_PublishedVariableDataType_init(&variablesToAddField);
         if(eoAddVar[j].encoding == UA_EXTENSIONOBJECT_DECODED){
             if(eoAddVar[j].content.decoded.type == &UA_TYPES[UA_TYPES_PUBLISHEDVARIABLEDATATYPE]){
                 if(UA_PublishedVariableDataType_copy((UA_PublishedVariableDataType *) eoAddVar[j].content.decoded.data,
