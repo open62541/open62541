@@ -64,7 +64,7 @@ START_TEST(EthernetSendWithoutVLANTag) {
     connection = UA_PubSubConnection_findConnectionbyId(server, connection_test);
     /* Remove the connection if invalid*/
     if(!connection) {
-        UA_Server_delete(server);
+        return;
     }
 
     /* Initialize a buffer to send data */
@@ -92,7 +92,7 @@ START_TEST(EthernetSendWithVLANTag) {
     connection = UA_PubSubConnection_findConnectionbyId(server, connection_test);
     /* Remove the connection if invalid*/
     if(!connection) {
-        UA_Server_delete(server);
+        return;
     }
 
     /* Initialize a buffer to send data */
