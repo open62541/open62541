@@ -25,6 +25,10 @@
 #include "ua_types_encoding_binary.h"
 #endif
 
+#ifdef UA_ENABLE_PUBSUB_BUFMALLOC
+#include "ua_pubsub_bufmalloc.h"
+#endif
+
 #define UA_MAX_SIZENAME           64  /* Max size of Qualified Name of Subscribed Variable */
 #define MIN_PAYLOAD_SIZE_ETHERNET 46
 
@@ -857,6 +861,28 @@ UA_DataSetReader *UA_ReaderGroup_findDSRbyId(UA_Server *server, UA_NodeId identi
     return NULL;
 }
 
+/* Delete the payload value of every decoded DataSet field */
+static void UA_DataSetMessage_freeDecodedPayload(UA_DataSetMessage *dsm) {
+    if(dsm->header.fieldEncoding == UA_FIELDENCODING_VARIANT) {
+        for(UA_UInt16 i = 0; i < dsm->data.keyFrameData.fieldCount; i++) {
+#ifdef UA_ENABLE_PUBSUB_BUFMALLOC
+            UA_Variant_init(&dsm->data.keyFrameData.dataSetFields[i].value);
+#else
+            UA_Variant_clear(&dsm->data.keyFrameData.dataSetFields[i].value);
+#endif
+        }
+    }
+    else if(dsm->header.fieldEncoding == UA_FIELDENCODING_DATAVALUE) {
+        for(UA_UInt16 i = 0; i < dsm->data.keyFrameData.fieldCount; i++) {
+#ifdef UA_ENABLE_PUBSUB_BUFMALLOC
+            UA_DataValue_init(&dsm->data.keyFrameData.dataSetFields[i]);
+#else
+            UA_DataValue_clear(&dsm->data.keyFrameData.dataSetFields[i]);
+#endif
+        }
+    }
+}
+
 /* This callback triggers the collection and reception of NetworkMessages and the
  * contained DataSetMessages. */
 void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerGroup) {
@@ -898,6 +924,10 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
         size_t previousPosition = 0;
         if (readerGroup->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE) {
             do {
+#ifdef UA_ENABLE_PUBSUB_BUFMALLOC
+                useMembufAlloc();
+#endif /* UA_ENABLE_PUBSUB_BUFMALLOC */
+
                 /* Considering max DSM as 1
                 * TODO:
                 * Process with the static value source
@@ -908,6 +938,10 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
                 if(UA_NetworkMessage_updateBufferedNwMessage(&dataSetReader->bufferedMessage, &buffer, &currentPosition) != UA_STATUSCODE_GOOD) {
                     UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
                                 "PubSub receive. Unknown field type.");
+                    UA_DataSetMessage_freeDecodedPayload(dataSetReader->bufferedMessage.nm->payload.dataSetPayload.dataSetMessages);
+#ifdef UA_ENABLE_PUBSUB_BUFMALLOC
+                    useNormalAlloc();
+#endif /* UA_ENABLE_PUBSUB_BUFMALLOC */
                     UA_ByteString_clear(&buffer);
                     return;
                 }
@@ -918,6 +952,10 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
                    (*dataSetReader->bufferedMessage.nm->payloadHeader.dataSetPayloadHeader.dataSetWriterIds != dataSetReader->config.dataSetWriterId)) {
                     UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
                                 "PubSub receive. Unknown message received. Will not be processed.");
+                    UA_DataSetMessage_freeDecodedPayload(dataSetReader->bufferedMessage.nm->payload.dataSetPayload.dataSetMessages);
+#ifdef UA_ENABLE_PUBSUB_BUFMALLOC
+                    useNormalAlloc();
+#endif /* UA_ENABLE_PUBSUB_BUFMALLOC */
                     UA_ByteString_clear(&buffer);
                     return;
                 }
@@ -925,18 +963,11 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
                 UA_DataSetReader_process(server, dataSetReader,
                                          dataSetReader->bufferedMessage.nm->payload.dataSetPayload.dataSetMessages);
 
-                /* Delete the payload value of every dsf's decoded */
-                UA_DataSetMessage *dsm = dataSetReader->bufferedMessage.nm->payload.dataSetPayload.dataSetMessages;
-                if(dsm->header.fieldEncoding == UA_FIELDENCODING_VARIANT) {
-                    for(UA_UInt16 i = 0; i < dsm->data.keyFrameData.fieldCount; i++) {
-                        UA_Variant_clear(&dsm->data.keyFrameData.dataSetFields[i].value);
-                    }
-                }
-                else if(dsm->header.fieldEncoding == UA_FIELDENCODING_DATAVALUE) {
-                    for(UA_UInt16 i = 0; i < dsm->data.keyFrameData.fieldCount; i++) {
-                        UA_DataValue_clear(&dsm->data.keyFrameData.dataSetFields[i]);
-                    }
-                }
+                UA_DataSetMessage_freeDecodedPayload(dataSetReader->bufferedMessage.nm->payload.dataSetPayload.dataSetMessages);
+
+#ifdef UA_ENABLE_PUBSUB_BUFMALLOC
+                useNormalAlloc();
+#endif /* UA_ENABLE_PUBSUB_BUFMALLOC */
 
                 /* Minimum ethernet packet size is 64 bytes where the header size is 14 bytes and FCS size is 4 bytes
                  * so remaining minimum payload size of ethernet packet is 46 bytes */
