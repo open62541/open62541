@@ -16,10 +16,11 @@
 #include "ua_server_internal.h"
 #include "ua_pubsub_networkmessage.h"
 
-#define TRANSPORT_PROFILE_URI            "http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp"
-#define SOCKET_PRIORITY                  3
-#define ETHERNET_INTERFACE               "enp4s0"
-#define MULTICAST_MAC_ADDRESS            "opc.eth://01-00-5E-7F-00-01"
+/* Adjust your configuration globally for the ethernet tests here: */
+#include "ethernet_config.h"
+
+#define TRANSPORT_PROFILE_URI "http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp"
+#define SOCKET_PRIORITY 3
 
 UA_Server *server = NULL;
 
