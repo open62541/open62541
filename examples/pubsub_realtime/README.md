@@ -50,6 +50,7 @@ options. For good timings, ensure that the `CMAKE_BUILD_TYPE` is set to
 - UA_ENABLE_PUBSUB_ETH_UADP
 - UA_BUILD_EXAMPLES
 - UA_ENABLE_MALLOC_SINGLETON
+- UA_ENABLE_PUBSUB_BUFMALLOC
 - UA_ENABLE_IMMUTABLE_NODES
 
 The publisher contains some hard-coded values that need to be adjusted to
