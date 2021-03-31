@@ -10,9 +10,8 @@
 #define UA_SERVER_PUBSUB_H
 
 #include <open62541/util.h>
-#include <open62541/server.h>
-
 #include <open62541/plugin/pubsub.h>
+#include <open62541/plugin/securitypolicy.h>
 
 _UA_BEGIN_DECLS
 
@@ -181,15 +180,22 @@ typedef enum {
 
 /* PubSub monitoring interface */
 typedef struct {
-    UA_StatusCode (*createMonitoring)(UA_Server *server, UA_NodeId Id, UA_PubSubComponentEnumType eComponentType, 
-                                      UA_PubSubMonitoringType eMonitoringType, void *data, UA_ServerCallback callback);
-    UA_StatusCode (*startMonitoring)(UA_Server *server, UA_NodeId Id, UA_PubSubComponentEnumType eComponentType, 
+    UA_StatusCode (*createMonitoring)(UA_Server *server, UA_NodeId Id,
+                                      UA_PubSubComponentEnumType eComponentType,
+                                      UA_PubSubMonitoringType eMonitoringType,
+                                      void *data, UA_ServerCallback callback);
+    UA_StatusCode (*startMonitoring)(UA_Server *server, UA_NodeId Id,
+                                     UA_PubSubComponentEnumType eComponentType,
                                      UA_PubSubMonitoringType eMonitoringType, void *data);
-    UA_StatusCode (*stopMonitoring)(UA_Server *server, UA_NodeId Id, UA_PubSubComponentEnumType eComponentType, 
+    UA_StatusCode (*stopMonitoring)(UA_Server *server, UA_NodeId Id,
+                                    UA_PubSubComponentEnumType eComponentType,
                                     UA_PubSubMonitoringType eMonitoringType, void *data);
-    UA_StatusCode (*updateMonitoringInterval)(UA_Server *server, UA_NodeId Id, UA_PubSubComponentEnumType eComponentType, 
-                                              UA_PubSubMonitoringType eMonitoringType, void *data);
-    UA_StatusCode (*deleteMonitoring)(UA_Server *server, UA_NodeId Id, UA_PubSubComponentEnumType eComponentType, 
+    UA_StatusCode (*updateMonitoringInterval)(UA_Server *server, UA_NodeId Id,
+                                              UA_PubSubComponentEnumType eComponentType,
+                                              UA_PubSubMonitoringType eMonitoringType,
+                                              void *data);
+    UA_StatusCode (*deleteMonitoring)(UA_Server *server, UA_NodeId Id,
+                                      UA_PubSubComponentEnumType eComponentType,
                                       UA_PubSubMonitoringType eMonitoringType, void *data);
 } UA_PubSubMonitoringInterface;
 
@@ -197,17 +203,22 @@ typedef struct {
 
 /* General PubSub configuration */
 struct UA_PubSubConfiguration {
+    /* PubSub network layer */
+    size_t transportLayersSize;
+    UA_PubSubTransportLayer *transportLayers;
 
-    /* Callback for PubSub component state changes:
-    If provided this callback informs the application about PubSub component state changes. 
-    E.g. state change from operational to error in case of a DataSetReader MessageReceiveTimeout.
-    The status code provides additional information. */
-    void (*pubsubStateChangeCallback)(UA_NodeId *Id,
-                                      UA_PubSubState state,
-                                      UA_StatusCode status);// TODO: maybe status code provides not enough information about the state change
+    /* Callback for PubSub component state changes: If provided this callback
+     * informs the application about PubSub component state changes. E.g. state
+     * change from operational to error in case of a DataSetReader
+     * MessageReceiveTimeout. The status code provides additional
+     * information. */
+    void (*stateChangeCallback)(UA_NodeId *Id, UA_PubSubState state,
+                                UA_StatusCode status);
+    /* TODO: maybe status code provides not enough information about the state change */
+
 #ifdef UA_ENABLE_PUBSUB_MONITORING
     UA_PubSubMonitoringInterface monitoringInterface;
-#endif /* UA_ENABLE_PUBSUB_MONITORING */
+#endif
 };
 
 
@@ -223,7 +234,7 @@ struct UA_PubSubConfiguration {
 
 UA_StatusCode UA_EXPORT
 UA_ServerConfig_addPubSubTransportLayer(UA_ServerConfig *config,
-                                        UA_PubSubTransportLayer *pubsubTransportLayer);
+                                        UA_PubSubTransportLayer pubsubTransportLayer);
 
 UA_StatusCode UA_EXPORT
 UA_Server_addPubSubConnection(UA_Server *server,
@@ -678,7 +689,7 @@ UA_Server_DataSetReader_getConfig(UA_Server *server, UA_NodeId dataSetReaderIden
 /* Get state of DataSetReader */
 UA_StatusCode UA_EXPORT
 UA_Server_DataSetReader_getState(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
-                               UA_PubSubState *state);
+                                 UA_PubSubState *state);
 
 /**
  * ReaderGroup
@@ -713,8 +724,8 @@ UA_ReaderGroupConfig_clear(UA_ReaderGroupConfig *readerGroupConfig);
 /* Add DataSetReader to the ReaderGroup */
 UA_StatusCode UA_EXPORT
 UA_Server_addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdentifier,
-                                      const UA_DataSetReaderConfig *dataSetReaderConfig,
-                                      UA_NodeId *readerIdentifier);
+                           const UA_DataSetReaderConfig *dataSetReaderConfig,
+                           UA_NodeId *readerIdentifier);
 
 /* Remove DataSetReader from ReaderGroup */
 UA_StatusCode UA_EXPORT
@@ -729,7 +740,7 @@ UA_Server_removeDataSetReader(UA_Server *server, UA_NodeId readerIdentifier);
 /* Get configuraiton of ReaderGroup */
 UA_StatusCode UA_EXPORT
 UA_Server_ReaderGroup_getConfig(UA_Server *server, UA_NodeId readerGroupIdentifier,
-                               UA_ReaderGroupConfig *config);
+                                UA_ReaderGroupConfig *config);
 
 /* Get state of ReaderGroup */
 UA_StatusCode UA_EXPORT
@@ -739,8 +750,8 @@ UA_Server_ReaderGroup_getState(UA_Server *server, UA_NodeId readerGroupIdentifie
 /* Add ReaderGroup to the created connection */
 UA_StatusCode UA_EXPORT
 UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
-                                   const UA_ReaderGroupConfig *readerGroupConfig,
-                                   UA_NodeId *readerGroupIdentifier);
+                         const UA_ReaderGroupConfig *readerGroupConfig,
+                         UA_NodeId *readerGroupIdentifier);
 
 /* Remove ReaderGroup from connection */
 UA_StatusCode UA_EXPORT

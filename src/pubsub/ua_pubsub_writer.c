@@ -25,7 +25,7 @@
 #include "ua_types_encoding_binary.h"
 #endif
 
-#define UA_MAX_STACKBUF 512 /* Max size of network messages on the stack */
+#define UA_MAX_STACKBUF 128 /* Max size of network messages on the stack */
 
 /* Forward declaration */
 static void
@@ -1220,8 +1220,10 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_PubSubState state, UA_Writer
             writerGroup->state = UA_PUBSUBSTATE_ERROR;
             /* TODO: WIP - example usage of pubsubStateChangeCallback -> inform application about error state, reason param necessary */
             UA_ServerConfig *pConfig = UA_Server_getConfig(server);
-            if (pConfig->pubsubConfiguration->pubsubStateChangeCallback != 0) {
-                pConfig->pubsubConfiguration->pubsubStateChangeCallback(&writerGroup->identifier, UA_PUBSUBSTATE_ERROR, UA_STATUSCODE_BADINTERNALERROR);
+            if(pConfig->pubSubConfig.stateChangeCallback != 0) {
+                pConfig->pubSubConfig.stateChangeCallback(&writerGroup->identifier,
+                                                                 UA_PUBSUBSTATE_ERROR,
+                                                                 UA_STATUSCODE_BADINTERNALERROR);
             }
             break;
         }
@@ -2021,14 +2023,12 @@ sendNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
     /* Allocate the buffer. Allocate on the stack if the buffer is small. */
     UA_ByteString buf;
     size_t msgSize = UA_NetworkMessage_calcSizeBinary(&nm, NULL);
-    size_t stackSize = 1;
-    if(msgSize <= UA_MAX_STACKBUF)
-        stackSize = msgSize;
-    UA_STACKARRAY(UA_Byte, stackBuf, stackSize);
-    buf.data = stackBuf;
-    buf.length = msgSize;
+    UA_Byte stackBuf[UA_MAX_STACKBUF];
     UA_StatusCode retval;
-    if(msgSize > UA_MAX_STACKBUF) {
+    if(msgSize <= UA_MAX_STACKBUF) {
+        buf.data = stackBuf;
+        buf.length = msgSize;
+    } else {
         retval = UA_ByteString_allocBuffer(&buf, msgSize);
         if(retval != UA_STATUSCODE_GOOD)
             goto cleanup;

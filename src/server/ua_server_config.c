@@ -80,11 +80,13 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
     config->logger.clear = NULL;
 
 #ifdef UA_ENABLE_PUBSUB
-    /* PubSub configuration */
-    if (config->pubsubConfiguration != NULL) {
-        UA_free(config->pubsubConfiguration);
-        config->pubsubConfiguration = 0;
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    if(config->pubsubConfiguration.securityPolicies != NULL) {
+        UA_free(config->pubsubConfiguration.securityPolicies);
+        config->pubsubConfiguration.securityPolicies = NULL;
+        config->pubsubConfiguration.securityPoliciesSize = 0;
     }
+#endif
 #endif /* UA_ENABLE_PUBSUB */
 }
 
@@ -93,24 +95,17 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
  * demand. */
 UA_StatusCode
 UA_ServerConfig_addPubSubTransportLayer(UA_ServerConfig *config,
-        UA_PubSubTransportLayer *pubsubTransportLayer) {
-
-    if(config->pubsubTransportLayersSize == 0) {
-        config->pubsubTransportLayers = (UA_PubSubTransportLayer *)
-                UA_malloc(sizeof(UA_PubSubTransportLayer));
-    } else {
-        config->pubsubTransportLayers = (UA_PubSubTransportLayer*)
-                UA_realloc(config->pubsubTransportLayers,
-                sizeof(UA_PubSubTransportLayer) * (config->pubsubTransportLayersSize + 1));
-    }
-
-    if(config->pubsubTransportLayers == NULL)
+                                        UA_PubSubTransportLayer pubsubTransportLayer) {
+    UA_PubSubTransportLayer *tmpLayers = (UA_PubSubTransportLayer*)
+        UA_realloc(config->pubSubConfig.transportLayers,
+                   sizeof(UA_PubSubTransportLayer) *
+                   (config->pubSubConfig.transportLayersSize + 1));
+    if(tmpLayers == NULL)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    memcpy(&config->pubsubTransportLayers[config->pubsubTransportLayersSize],
-            pubsubTransportLayer, sizeof(UA_PubSubTransportLayer));
-    config->pubsubTransportLayersSize++;
-
+    config->pubSubConfig.transportLayers = tmpLayers;
+    config->pubSubConfig.transportLayers[config->pubSubConfig.transportLayersSize] = pubsubTransportLayer;
+    config->pubSubConfig.transportLayersSize++;
     return UA_STATUSCODE_GOOD;
 }
 #endif /* UA_ENABLE_PUBSUB */
