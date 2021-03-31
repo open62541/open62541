@@ -14,6 +14,10 @@
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pubsub_ethernet.h>
 
+#include "pubsub_timer.h"
+
+#include "open62541_queue.h"
+
 #if defined(__vxworks) || defined(__VXWORKS__)
 #include <netpacket/packet.h>
 #include <netinet/if_ether.h>
@@ -46,7 +50,7 @@
 #endif
 #endif
 
-#include "time.h"
+#include <time.h>
 
 #ifndef ETHERTYPE_UADP
 #define ETHERTYPE_UADP                       0xb62c
@@ -159,6 +163,30 @@ enum txtime_flags {
     SOF_TXTIME_FLAGS_MASK = (SOF_TXTIME_FLAGS_LAST - 1) |
                              SOF_TXTIME_FLAGS_LAST
 };
+
+/**
+ * Publish at the exact time interval using timed callbacks
+ */
+static void
+timedEthernetPublish(UA_PubSubChannel *channel, UA_PublishEntry *publishPacket) {
+    ssize_t rc;
+    UA_PubSubTimedSend *pubsubTimedSend = (UA_PubSubTimedSend *) channel->pubsubTimedSend;
+    if((pubsubTimedSend) && (publishPacket->buffer.data)) {
+        rc = UA_send(channel->sockfd, (char *)publishPacket->buffer.data, publishPacket->buffer.length, 0);
+        if(rc  < 0) {
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                         "PubSub connection send failed. Send message failed.");
+            UA_ByteString_clear(&publishPacket->buffer);
+            LIST_REMOVE(publishPacket, listEntry);
+            UA_free(publishPacket);
+            return;
+        }
+
+        UA_ByteString_clear(&publishPacket->buffer);
+        LIST_REMOVE(publishPacket, listEntry);
+        UA_free(publishPacket);
+    }
+}
 
 /*
  * OPC-UA specification Part 14:
@@ -836,6 +864,25 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
     }
 #endif
 
+    /* Set the timedSend to pubsub connection channel for timed publish */
+    UA_PubSubTimedSend *pubsubTimedSend = (UA_PubSubTimedSend *) UA_calloc(1, sizeof(UA_PubSubTimedSend));
+    if(!pubsubTimedSend){
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "PubSub Connection creation failed. Bad out of memory");
+        UA_close(sockFd);
+        if(sockOptions.socketPriority)
+            UA_free(sockOptions.socketPriority);
+
+        UA_free(channelDataEthernet);
+        UA_free(newChannel);
+        return NULL;
+    }
+
+    LIST_INIT(&pubsubTimedSend->sendBuffers);
+    pubsubTimedSend->timedSend = timedEthernetPublish;
+
+    /* Set the newChannel */
+    newChannel->pubsubTimedSend = pubsubTimedSend;
     newChannel->handle = channelDataEthernet;
     newChannel->state = UA_PUBSUB_CHANNEL_PUB;
 
@@ -928,7 +975,7 @@ UA_PubSubChannelEthernet_unregist(UA_PubSubChannel *channel,
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,19,0)
 static UA_StatusCode
-sendWithTxTime(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings, void *bufSend, size_t lenBuf) {
+sendWithTxTime(UA_PubSubChannel *channel, UA_DateTime publishingTime, void *bufSend, size_t lenBuf) {
     /* Send the data packet with the tx time */
     char dataPacket[CMSG_SPACE(sizeof(UA_UInt64))] = {0};
     /* Structure for messages sent and received */
@@ -960,10 +1007,6 @@ sendWithTxTime(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings,
     /* Provide the number of elements in the array */
     message.msg_iovlen        = 1;
 
-    /* Get ethernet ETF transport settings */
-    UA_EthernetWriterGroupTransportDataType *ethernettransportSettings;
-    ethernettransportSettings = (UA_EthernetWriterGroupTransportDataType *)transportSettings->content.decoded.data;
-
     /*
      * We specify the transmission time in the CMSG.
      */
@@ -978,8 +1021,9 @@ sendWithTxTime(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings,
     controlMsg->cmsg_level = SOL_SOCKET;
     controlMsg->cmsg_type  = SCM_TXTIME;
     controlMsg->cmsg_len   = CMSG_LEN(sizeof(UA_UInt64));
-    if(ethernettransportSettings && (ethernettransportSettings->transmission_time != 0))
-        *((UA_UInt64 *) CMSG_DATA(controlMsg)) = ethernettransportSettings->transmission_time;
+    /* Convert to 1 nano second precision as the stack only provides 100 nano second precision
+     * This CMsg expects with 1 nano second precision, so multiplying with 100 */ 
+    *((UA_UInt64 *) CMSG_DATA(controlMsg)) = (UA_UInt64)(publishingTime * 100);
 
     msgCount = sendmsg(channel->sockfd, &message, 0);
     if ((msgCount < 1) && (msgCount != (UA_Int32)lenBuf)) {
@@ -1048,32 +1092,49 @@ UA_PubSubChannelEthernet_send(UA_PubSubChannel *channel,
 
     /* copy payload of ethernet message */
     memcpy(ptrCur, buf->data, buf->length);
-
+    UA_PubSubTimedSend *pubsubTimedSend = (UA_PubSubTimedSend *)channel->pubsubTimedSend;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,19,0)
     if(channelDataEthernet->useSoTxTime) {
         /* Send the packets at the given Txtime */
-        UA_StatusCode rc = sendWithTxTime(channel, transportSettings, bufSend, lenBuf);
+        UA_StatusCode rc = sendWithTxTime(channel, pubsubTimedSend->publishingTime, bufSend, lenBuf);
         if(rc != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                          "PubSub connection send failed. Send message failed.");
             UA_free(bufSend);
             return UA_STATUSCODE_BADINTERNALERROR;
         }
+
+        UA_free(bufSend);
     }
     else
 #endif
     {
-        ssize_t rc;
-        rc = UA_send(channel->sockfd, bufSend, lenBuf, 0);
-        if(rc  < 0) {
-            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                         "PubSub connection send failed. Send message failed.");
+        UA_DateTime currentTime = UA_DateTime_nowMonotonic();
+        if((currentTime + UA_DATETIME_MSEC) > pubsubTimedSend->publishingTime) {
+            /* Send out the packets if the publish time is less than 1ms ahead of the current time - Internal timers will not support this */
+            ssize_t rc;
+            rc = UA_send(channel->sockfd, bufSend, lenBuf, 0);
+            if(rc  < 0) {
+                UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                             "PubSub connection send failed. Send message failed.");
+                UA_free(bufSend);
+                return UA_STATUSCODE_BADINTERNALERROR;
+            }
+
             UA_free(bufSend);
-            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+        else {
+            UA_UInt64 callbackId;
+            UA_PublishEntry *publishPacket = (UA_PublishEntry *) UA_calloc(1, sizeof(UA_PublishEntry));
+            publishPacket->buffer.data = (UA_Byte *)bufSend;
+            publishPacket->buffer.length = lenBuf;
+            LIST_INSERT_HEAD(&pubsubTimedSend->sendBuffers, publishPacket, listEntry);
+            UA_Timer_addTimedCallback(pubsubTimedSend->timer, (UA_ApplicationCallback)pubsubTimedSend->timedSend, channel,
+                                      publishPacket, pubsubTimedSend->publishingTime,
+                                      &callbackId);
         }
     }
 
-    UA_free(bufSend);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -1234,6 +1295,18 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_ByteString *messa
 static UA_StatusCode
 UA_PubSubChannelEthernet_close(UA_PubSubChannel *channel) {
     UA_PubSubChannelDataEthernet *channelDataEthernet = (UA_PubSubChannelDataEthernet *) channel->handle;
+    UA_PubSubTimedSend *pubsubTimedSend = (UA_PubSubTimedSend *) channel->pubsubTimedSend;
+    if(pubsubTimedSend) {
+        /* Clear if any holding packets */
+        UA_PublishEntry *timedPublishFrames, *tmpPublishFrames;
+        LIST_FOREACH_SAFE(timedPublishFrames, &pubsubTimedSend->sendBuffers, listEntry, tmpPublishFrames) {
+            UA_ByteString_clear(&timedPublishFrames->buffer);
+            LIST_REMOVE(timedPublishFrames, listEntry);
+            UA_free(timedPublishFrames);
+        }
+
+        UA_free(pubsubTimedSend);
+    }
 #if defined(LIBBPF_EBPF)
     if(channelDataEthernet->enableXdpSocket) {
         xsk_socket__delete(channelDataEthernet->xdpsocket->xskfd);

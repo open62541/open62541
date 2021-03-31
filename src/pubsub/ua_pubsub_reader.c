@@ -992,8 +992,8 @@ UA_ReaderGroup_addSubscribeCallback(UA_Server *server, UA_ReaderGroup *readerGro
                                                                               (UA_ServerCallback) UA_ReaderGroup_subscribeCallback,
                                                                               readerGroup,
                                                                               readerGroup->config.subscribingInterval,
-                                                                              NULL,                                         // TODO: Send base time from reader group config
-                                                                              UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,   // TODO: Send timer policy from reader group config
+                                                                              readerGroup->config.baseTime,
+                                                                              readerGroup->config.timerPolicy,
                                                                               &readerGroup->subscribeCallbackId);
     else {
         if (readerGroup->config.enableBlockingSocket == UA_TRUE) {
@@ -1006,8 +1006,8 @@ UA_ReaderGroup_addSubscribeCallback(UA_Server *server, UA_ReaderGroup *readerGro
                                                        (UA_ServerCallback) UA_ReaderGroup_subscribeCallback,
                                                        readerGroup,
                                                        readerGroup->config.subscribingInterval,
-                                                       NULL,                                        // TODO: Send base time from reader group config
-                                                       UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,  // TODO: Send timer policy from reader group config
+                                                       readerGroup->config.baseTime,
+                                                       readerGroup->config.timerPolicy,
                                                        &readerGroup->subscribeCallbackId);
     }
 

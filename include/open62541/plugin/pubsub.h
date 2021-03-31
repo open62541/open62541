@@ -56,6 +56,7 @@ struct UA_PubSubChannel {
     * UA_PubSubChannelData[ImplementationName] This structure can be used by the
     * network implementation to store network implementation specific data.*/
 
+    void *pubsubTimedSend;  /* timed send - internal handling */
     /* Sending out the content of the buf parameter */
     UA_StatusCode (*send)(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings,
                           const UA_ByteString *buf);

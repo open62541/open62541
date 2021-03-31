@@ -487,6 +487,8 @@ typedef struct {
     size_t groupPropertiesSize;
     UA_KeyValuePair *groupProperties;
     UA_PubSubEncodingType encodingMimeType;
+    UA_DateTime *baseTime;
+    UA_TimerPolicy timerPolicy;
     /* PubSub Manager Callback */
     UA_PubSub_CallbackLifecycle pubsubManagerCallback;
     /* non std. config parameter. maximum count of embedded DataSetMessage in
@@ -709,6 +711,8 @@ UA_Server_DataSetReader_getState(UA_Server *server, UA_NodeId dataSetReaderIdent
 typedef struct {
     UA_String name;
     UA_PubSubSecurityParameters securityParameters;
+    UA_DateTime *baseTime;
+    UA_TimerPolicy timerPolicy;
     /* PubSub Manager Callback */
     UA_PubSub_CallbackLifecycle pubsubManagerCallback;
     /* non std. field */
