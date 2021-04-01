@@ -1,9 +1,5 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
- *
- * Copyright (c) 2021 Stefan Joachim Hahn, Technische Hochschule Mittelhessen
- * Copyright (c) 2021 Florian Fischer, Technische Hochschule Mittelhessen
- */
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
 /*
  * In this tutorial, an custom event gets triggered cyclically. Once it's triggered, it
@@ -30,6 +26,8 @@
 #include <pubsub/ua_pubsub_ns0.h>
 #include <signal.h>
 #include <stdlib.h>
+
+#define CALLBACK_INTERVAL 5000
 
 UA_NodeId connectionIdent, publishedDataSetIdent, writerGroupIdent;
 static UA_NodeId eventType;
@@ -68,25 +66,18 @@ addPublishedDataSet(UA_Server *server) {
     publishedDataSetConfig.config.event.eventNotifier = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
     publishedDataSetConfig.config.event.selectedFieldsSize = selectedFieldSize;
 
+    UA_QualifiedName fieldBrowsePaths[selectedFieldSize];
+    fieldBrowsePaths[0] = UA_QUALIFIEDNAME(0, "Message");
+    fieldBrowsePaths[1] = UA_QUALIFIEDNAME(0, "Severity");
+
     UA_SimpleAttributeOperand selectedFields [selectedFieldSize];
     for(size_t i = 0; i < selectedFieldSize; ++i) {
         UA_SimpleAttributeOperand_init(&selectedFields[i]);
+        selectedFields[i].typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+        selectedFields[i].attributeId = UA_ATTRIBUTEID_VALUE;
+        selectedFields[i].browsePathSize = 1;
+        selectedFields[i].browsePath = &fieldBrowsePaths[i];
     }
-
-    selectedFields[0].typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
-    selectedFields[0].attributeId = UA_ATTRIBUTEID_VALUE;
-    selectedFields[0].browsePathSize = 1;
-    UA_QualifiedName browsePathMessage[1];
-    browsePathMessage[0] = UA_QUALIFIEDNAME(0, "Message");
-    selectedFields[0].browsePath = browsePathMessage;
-
-    selectedFields[1].typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
-    selectedFields[1].attributeId = UA_ATTRIBUTEID_VALUE;
-    selectedFields[1].browsePathSize = 1;
-    UA_QualifiedName browsePathSeverity[1];
-    browsePathSeverity[0] = UA_QUALIFIEDNAME(0, "Severity");
-    selectedFields[1].browsePath = browsePathSeverity;
-
     publishedDataSetConfig.config.event.selectedFields = selectedFields;
 
     /* Adds a ContentFilter to the PDS*/
@@ -118,8 +109,8 @@ addPublishedDataSet(UA_Server *server) {
     UA_Server_addPublishedDataSet(server, &publishedDataSetConfig, &publishedDataSetIdent);
 }
 
-
-static void addDataSetFields(UA_Server *server){
+static void
+addDataSetFields(UA_Server *server){
     /*Creates DataSetFields based on the PDS selectedFields*/
     UA_PublishedDataSet *publishedDataSet = UA_PublishedDataSet_findPDSbyId(server, publishedDataSetIdent);
     for(size_t i = 0; i < publishedDataSet->config.config.event.selectedFieldsSize; i++){
@@ -131,7 +122,6 @@ static void addDataSetFields(UA_Server *server){
         memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
         dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_EVENT;
         dataSetFieldConfig.field.events.fieldNameAlias = name;
-        dataSetFieldConfig.field.events.selectedField = sao;
 
         UA_Server_addDataSetField(server, publishedDataSetIdent,
                                   &dataSetFieldConfig, &dataSetFieldIdent);
@@ -168,15 +158,15 @@ addDataSetWriter(UA_Server *server) {
     UA_DataSetWriterConfig dataSetWriterConfig;
     memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
     dataSetWriterConfig.name = UA_STRING("Demo DSW PubSub Events");
+    dataSetWriterConfig.dataSetName = UA_STRING("Demo PDS PubSub Events"); //required to correctly save pubsub config files
     dataSetWriterConfig.dataSetWriterId = 62541;
     dataSetWriterConfig.keyFrameCount = 10;
+    dataSetWriterConfig.eventQueueMaxSize = 1024;
     UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent,
                                &dataSetWriterConfig, &dataSetWriterIdent);
 }
 
 /*********************** Event Methods ***********************/
-void callEvent(UA_Server *server, void *data);
-
 static UA_StatusCode
 setUpEvent(UA_Server *server, UA_NodeId *outId) {
     UA_StatusCode retval = UA_Server_createEvent(server, eventType, outId);
@@ -206,7 +196,7 @@ setUpEvent(UA_Server *server, UA_NodeId *outId) {
     return UA_STATUSCODE_GOOD;
 }
 
-void
+static void
 callEvent(UA_Server *server, void *data) {
     // Is called cyclically to fill the queue of the DataSetWriter
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Trigger event");
@@ -214,11 +204,9 @@ callEvent(UA_Server *server, void *data) {
     UA_NodeId eventNodeId;
     setUpEvent(server, &eventNodeId);
     UA_Server_triggerEvent(server, eventNodeId,
-                                    UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
-                                    NULL, UA_TRUE);
-
+                           UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
+                           NULL, UA_TRUE);
 }
-
 
 static UA_StatusCode
 addNewEventType(UA_Server *server) {
@@ -278,12 +266,11 @@ static int run(UA_String *transportProfile,
     addDataSetFields(server);
     addWriterGroup(server);
     addDataSetWriter(server);
-    const UA_Double interval = (UA_Double)5000;
     UA_String name;
     UA_String_init(&name);
     UA_UInt64 identifier;
     UA_UInt64_init(&identifier);
-    UA_Server_addRepeatedCallback(server, (UA_ServerCallback)callEvent, &name, interval, &identifier);
+    UA_Server_addRepeatedCallback(server, (UA_ServerCallback)callEvent, &name, CALLBACK_INTERVAL, &identifier);
 
     UA_StatusCode retval = UA_Server_run(server, &running);
 

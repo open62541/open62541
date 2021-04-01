@@ -17,6 +17,8 @@ _UA_BEGIN_DECLS
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
 #ifdef UA_ENABLE_PUBSUB_EVENTS
+/* Contains event-only DSW and their associated PDS.
+ * The PDS is included for performance reasons, making searching for it unnecessary */
 typedef struct PublishedDataSetEventEntry {
     UA_PublishedDataSet *pds;
     UA_DataSetWriter *dsw;
@@ -31,6 +33,8 @@ typedef struct UA_PubSubManager{
     size_t publishedDataSetsSize;
     TAILQ_HEAD(UA_ListOfPublishedDataSet, UA_PublishedDataSet) publishedDataSets;
 #ifdef UA_ENABLE_PUBSUB_EVENTS
+    /* Global list of event-only DSW and their associated PDS.
+     * Improves PDS search performance for triggered PubSub events */
     size_t publishedDataSetEventsSize;
     LIST_HEAD(PublishedDataSetEvent, PublishedDataSetEventEntry) publishedDataSetEvents;
 #endif /*UA_ENABLE_PUBSUB_EVENTS*/

@@ -562,6 +562,7 @@ UA_PublishedDataSetConfig_clear(UA_PublishedDataSetConfig *pdsConfig) {
                     UA_SimpleAttributeOperand_clear(&pdsConfig->config.event.selectedFields[i]);
                 }
                 UA_free(pdsConfig->config.event.selectedFields);
+                pdsConfig->config.event.selectedFieldsSize = 0;
             }
             UA_NodeId_clear(&pdsConfig->config.event.eventNotifier);
             UA_ContentFilter_clear(&pdsConfig->config.event.filter);
@@ -614,7 +615,7 @@ findSingleChildNode(UA_Server *server, UA_QualifiedName targetName,
 #endif /*UA_ENABLE_PUBSUB_EVENTS*/
 
 static UA_StatusCode
-generateFieldMetaData(UA_Server *server, UA_DataSetField *field, UA_FieldMetaData *fieldMetaData) {
+generateFieldMetaData(UA_Server *server, UA_DataSetField *field, UA_FieldMetaData *fieldMetaData, size_t selectedFieldIdx) {
     switch (field->config.dataSetFieldType){
         case UA_PUBSUB_DATASETFIELD_VARIABLE:
             if(UA_String_copy(&field->config.field.variable.fieldNameAlias, &fieldMetaData->name) != UA_STATUSCODE_GOOD)
@@ -715,10 +716,24 @@ generateFieldMetaData(UA_Server *server, UA_DataSetField *field, UA_FieldMetaDat
             fieldMetaData->properties = NULL;
             fieldMetaData->propertiesSize = 0;
             fieldMetaData->arrayDimensionsSize = 0;
+
+            UA_PublishedDataSet *parentPublishedDataSet = UA_PublishedDataSet_findPDSbyId(server, field->publishedDataSet);
+            if(!parentPublishedDataSet)
+                return UA_STATUSCODE_BADINTERNALERROR;
+
+            /* The PDS config was already deleted, because selectedFields and DSF are linked there is nothing else to do */
+            if(parentPublishedDataSet->config.config.event.selectedFieldsSize == 0)
+                return UA_STATUSCODE_GOOD;
+
+            if(parentPublishedDataSet->config.config.event.selectedFields[selectedFieldIdx].browsePath == NULL)
+                return UA_STATUSCODE_BADINTERNALERROR;
+
+            UA_QualifiedName browsePath = *parentPublishedDataSet->config.config.event.selectedFields[selectedFieldIdx].browsePath;
+            UA_NodeId typeDefinitionId = parentPublishedDataSet->config.config.event.selectedFields[selectedFieldIdx].typeDefinitionId;
             UA_NodeId childNodeId = findSingleChildNode(server,
-                                                        *field->config.field.events.selectedField.browsePath,
+                                                        browsePath,
                                                         UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                                                        field->config.field.events.selectedField.typeDefinitionId);
+                                                        typeDefinitionId);
             if(!UA_NodeId_isNull(&childNodeId)){
                 if(UA_Server_readDataType(server, childNodeId,
                                           &fieldMetaData->dataType) !=
@@ -830,7 +845,8 @@ UA_Server_addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
     currentDataSet->dataSetMetaData.fields = fieldMetaData;
 
     UA_FieldMetaData_init(&fieldMetaData[currentDataSet->fieldSize-1]);
-    if(generateFieldMetaData(server, newField, &fieldMetaData[currentDataSet->fieldSize-1]) != UA_STATUSCODE_GOOD){
+    if(generateFieldMetaData(server, newField, &fieldMetaData[currentDataSet->fieldSize-1],
+                             (size_t)currentDataSet->fieldSize-1) != UA_STATUSCODE_GOOD){
         UA_Server_removeDataSetField(server, newField->identifier);
         result.result =  UA_STATUSCODE_BADINTERNALERROR;
         return result;
@@ -908,7 +924,7 @@ UA_Server_removeDataSetField(UA_Server *server, const UA_NodeId dsf) {
         TAILQ_FOREACH(tmpDSF, &parentPublishedDataSet->fields, listEntry){
             UA_FieldMetaData tmpFieldMetaData;
             UA_FieldMetaData_init(&tmpFieldMetaData);
-            if(generateFieldMetaData(server, tmpDSF, &tmpFieldMetaData) != UA_STATUSCODE_GOOD){
+            if(generateFieldMetaData(server, tmpDSF, &tmpFieldMetaData, counter) != UA_STATUSCODE_GOOD){
                 UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                                "PubSub MetaData generation failed!");
                 //TODO how to ensure consistency if the metadata regeneration fails
@@ -1453,6 +1469,11 @@ UA_Server_addDataSetWriter(UA_Server *server,
 #ifdef UA_ENABLE_PUBSUB_EVENTS
     if(currentDataSetContext->config.publishedDataSetType == UA_PUBSUB_DATASET_PUBLISHEDEVENTS){
         SIMPLEQ_INIT(&newDataSetWriter->eventQueue); // only needs to be initalized if the linked publishedDataSet is for event
+        if(dataSetWriterConfig->eventQueueMaxSize > SIZE_MAX)
+            return UA_STATUSCODE_BADCONFIGURATIONERROR;
+        if(dataSetWriterConfig->eventQueueMaxSize == 0)
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "Event queue max size is 0.");
         if(server->pubSubManager.publishedDataSetEventsSize == 0){ // init list if nothing was added before
             LIST_INIT(&server->pubSubManager.publishedDataSetEvents);
         }
@@ -1493,7 +1514,6 @@ UA_Server_addDataSetWriter(UA_Server *server,
 
     //connect PublishedDataSet with DataSetWriter
     newDataSetWriter->connectedDataSet = currentDataSetContext->identifier;
-    UA_String_copy(&currentDataSetContext->config.name, &newDataSetWriter->config.dataSetName); //needed for loading in pubsub-config files
     newDataSetWriter->linkedWriterGroup = wg->identifier;
     UA_PubSubManager_generateUniqueNodeId(server, &newDataSetWriter->identifier);
     if(writerIdentifier != NULL)
@@ -1543,6 +1563,7 @@ UA_Server_removeDataSetWriter(UA_Server *server, const UA_NodeId dsw){
             EventQueueEntry *eventQueueEntry = SIMPLEQ_FIRST(&dataSetWriter->eventQueue);
             SIMPLEQ_REMOVE_HEAD(&dataSetWriter->eventQueue, listEntry);
             dataSetWriter->eventQueueEntries--;
+            UA_DataValue_clear(&eventQueueEntry->value);
             UA_free(eventQueueEntry);
         }
         /*Cleans up the Event-PDS list*/
@@ -1581,8 +1602,6 @@ UA_DataSetFieldConfig_copy(const UA_DataSetFieldConfig *src, UA_DataSetFieldConf
                                           &dst->field.variable.publishParameters);
     }else if(src->dataSetFieldType == UA_PUBSUB_DATASETFIELD_EVENT){
         UA_String_copy(&src->field.events.fieldNameAlias, &dst->field.events.fieldNameAlias);
-        UA_SimpleAttributeOperand_copy(&src->field.events.selectedField,
-                                       &dst->field.events.selectedField);
     }else{
         return UA_STATUSCODE_BADNOTSUPPORTED;
     }
@@ -1627,7 +1646,6 @@ UA_DataSetFieldConfig_clear(UA_DataSetFieldConfig *dataSetFieldConfig){
         UA_PublishedVariableDataType_clear(&dataSetFieldConfig->field.variable.publishParameters);
     }else if(dataSetFieldConfig->dataSetFieldType == UA_PUBSUB_DATASETFIELD_EVENT){
         UA_String_clear(&dataSetFieldConfig->field.events.fieldNameAlias);
-        UA_SimpleAttributeOperand_clear(&dataSetFieldConfig->field.events.selectedField);
     }
 }
 
@@ -1730,27 +1748,27 @@ UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_Server *server,
 
 #ifdef UA_ENABLE_PUBSUB_EVENTS
     if(currentDataSet->config.publishedDataSetType == UA_PUBSUB_DATASET_PUBLISHEDEVENTS){
-        size_t fieldCount = currentDataSet->fieldSize;
-        if(SIMPLEQ_EMPTY(&dataSetWriter->eventQueue))
-            fieldCount = 0;
-
+        size_t eventSize = dataSetWriter->eventQueueEntries;
         dataSetMessage->header.dataSetMessageValid = true;
         dataSetMessage->header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
-        dataSetMessage->data.keyFrameData.fieldCount = (UA_UInt16)fieldCount;
+        dataSetMessage->data.keyFrameData.fieldCount = (UA_UInt16)eventSize;
         dataSetMessage->data.keyFrameData.dataSetFields = (UA_DataValue *)
-            UA_Array_new(fieldCount, &UA_TYPES[UA_TYPES_DATAVALUE]);
+            UA_Array_new(eventSize, &UA_TYPES[UA_TYPES_DATAVALUE]);
         if(!dataSetMessage->data.keyFrameData.dataSetFields)
             return UA_STATUSCODE_BADOUTOFMEMORY;
 
         // Add every event to DataSetMessage
-        for(size_t i = 0; i < fieldCount; i++){
+        for(size_t i = 0; i < eventSize; i++){
             // Extract First Item and Remove it
             EventQueueEntry *eventQueueEntry = SIMPLEQ_FIRST(&dataSetWriter->eventQueue);
             SIMPLEQ_REMOVE_HEAD(&dataSetWriter->eventQueue, listEntry);
             dataSetWriter->eventQueueEntries--;
 
             // Create DataValue for Message
-            UA_DataValue dataValue = eventQueueEntry->value;
+            UA_DataValue dataValue;
+            UA_DataValue_init(&dataValue);
+            UA_DataValue_copy(&eventQueueEntry->value, &dataValue);
+            UA_DataValue_clear(&eventQueueEntry->value);
             UA_free(eventQueueEntry);
 
             if(((u64)dataSetWriter->config.dataSetFieldContentMask &

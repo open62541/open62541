@@ -1,15 +1,20 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
- *
- * Copyright (c) 2021 Stefan Joachim Hahn, Technische Hochschule Mittelhessen
- * Copyright (c) 2021 Florian Fischer, Technische Hochschule Mittelhessen
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
+
+/*
+ * This example should be used in addition to the tutorial_pubsub_publish_events example.
+ * In here we create a basic subscriber and make some small changes to receive events.
+ * With the variable requestMetaData it's possible to choose, whether the subscriber should
+ * request the metadata from the publisher (UA_TRUE) or load it from the fillTestDataSetMetaData
+ * method (UA_FALSE).
  */
+#define METADATA_SOURCE_SERVER "opc.tcp://localhost:4840"
+#define METADATA_DATASET_NAME "Demo PDS PubSub Events"
 
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pubsub_udp.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
-#include <open62541/types_generated.h>
 
 #include "ua_pubsub.h"
 
@@ -17,16 +22,25 @@
 #include <open62541/plugin/pubsub_ethernet.h>
 #endif
 
-#include <stdio.h>
+#include <open62541/client_config_default.h>
+#include <open62541/client_highlevel.h>
+
+#include <server/ua_server_internal.h>
+
 #include <signal.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 UA_NodeId connectionIdentifier;
 UA_NodeId readerGroupIdentifier;
 UA_NodeId readerIdentifier;
 
+/* With this flag, the user can select, whether the FieldMetaData should be requested or the hardcoded one should be used*/
+UA_Boolean requestMetaData = UA_TRUE;
+
 UA_DataSetReaderConfig readerConfig;
 
+static void collectDataSetMetaDataFromServer(UA_Server *server, UA_DataSetMetaDataType *pMetaData);
 static void fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData);
 
 /* Add new connection to the server */
@@ -95,7 +109,10 @@ addDataSetReader(UA_Server *server) {
     readerConfig.dataSetWriterId  = 62541;
 
     /* Setting up Meta data configuration in DataSetReader */
-    fillTestDataSetMetaData(&readerConfig.dataSetMetaData);
+    if(requestMetaData)
+        collectDataSetMetaDataFromServer(server, &readerConfig.dataSetMetaData);
+    else
+        fillTestDataSetMetaData(&readerConfig.dataSetMetaData);
 
     retval |= UA_Server_addDataSetReader(server, readerGroupIdentifier, &readerConfig,
                                          &readerIdentifier);
@@ -167,8 +184,112 @@ addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId) {
     return retval;
 }
 
+static void printDataSetMetaDataType(const UA_DataSetMetaDataType *pMetaData){
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,"MetaDataName: %s", pMetaData->name.data);
+    for(size_t i = 0; i < pMetaData->fieldsSize; ++i) {
+        UA_String *typeName = UA_String_new();
+        UA_NodeId_print(&pMetaData->fields[i].dataType, typeName);
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                    "FieldNumber: %i, Name: %s, DataTypeId: %s, InternalTypeid: %i", (int) i,
+                    pMetaData->fields[i].name.data, (char *) typeName->data, (int) pMetaData->fields[i].builtInType);
+    }
+}
+
+static UA_StatusCode
+UA_Server_DataSetReader_getMetaDataFromRemote(UA_Server *server, UA_String remoteServer,
+                                              UA_QualifiedName pdsName, UA_DataSetMetaDataType *dsMetaData){
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    char remoteServer_ar[512];
+    memcpy(remoteServer_ar, remoteServer.data, remoteServer.length);
+    remoteServer_ar[remoteServer.length] = '\0';
+    UA_StatusCode retval = UA_Client_connect(client, remoteServer_ar);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_Client_delete(client);
+        return UA_STATUSCODE_BADCONNECTIONREJECTED;
+    }
+
+    UA_NodeId resultMetaDataNodeId = UA_NODEID_NULL;
+    UA_BrowseRequest browseRequest;
+    UA_BrowseRequest_init(&browseRequest);
+    UA_BrowseDescription *browseDescription = UA_BrowseDescription_new();
+    browseDescription->browseDirection = UA_BROWSEDIRECTION_INVERSE;
+    browseDescription->resultMask = UA_BROWSERESULTMASK_ALL;
+    browseDescription->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHEDDATAITEMSTYPE);
+    browseDescription->referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION);
+    browseDescription->includeSubtypes = UA_TRUE;
+    browseRequest.nodesToBrowseSize = 1;
+    browseRequest.nodesToBrowse = browseDescription;
+    browseRequest.requestedMaxReferencesPerNode = 1000;
+
+    UA_BrowseResponse browseResponse = UA_Client_Service_browse(client, browseRequest);
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,"Result size: %i result: %s, ref size: %i ",
+                (int) browseResponse.resultsSize, UA_StatusCode_name(browseResponse.responseHeader.serviceResult), (int) browseResponse.results->referencesSize);
+    for(size_t i = 0; i < browseResponse.resultsSize; ++i) {
+        for(size_t j = 0; j < browseResponse.results[i].referencesSize; ++j) {
+            UA_ReferenceDescription *ref = &(browseResponse.results[i].references[j]);
+            if(UA_String_equal(&pdsName.name, &ref->browseName.name)) {
+                UA_NodeId_copy(&ref->nodeId.nodeId, &resultMetaDataNodeId);
+                break;
+            }
+        }
+    }
+    UA_BrowseResponse_clear(&browseResponse);
+    if(UA_NodeId_isNull(&resultMetaDataNodeId)){
+        UA_BrowseRequest_clear(&browseRequest);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+    //find metadata property
+    browseRequest.nodesToBrowse->nodeId = resultMetaDataNodeId;
+    browseRequest.nodesToBrowse->browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    browseRequest.nodesToBrowse->referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
+    browseResponse = UA_Client_Service_browse(client, browseRequest);
+    UA_String compareString = UA_STRING("DataSetMetaData");
+    for(size_t i = 0; i < browseResponse.resultsSize; ++i) {
+        for(size_t j = 0; j < browseResponse.results[i].referencesSize; ++j) {
+            UA_ReferenceDescription *ref = &(browseResponse.results[i].references[j]);
+            if(UA_String_equal(&compareString, &ref->browseName.name)) {
+                UA_NodeId_copy(&ref->nodeId.nodeId, &resultMetaDataNodeId);
+                break;
+            }
+        }
+    }
+    UA_BrowseResponse_clear(&browseResponse);
+    UA_BrowseRequest_clear(&browseRequest);
+
+    if(UA_NodeId_isNull(&resultMetaDataNodeId)){
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "Unable to request metadata from remote server!");
+    } else {
+        UA_Variant value;
+        retval = UA_Client_readValueAttribute(client, resultMetaDataNodeId, &value);
+        if(retval == UA_STATUSCODE_GOOD){
+            UA_DataSetMetaDataType_copy((UA_DataSetMetaDataType *) value.data, dsMetaData);
+        }
+        UA_Variant_clear(&value);
+        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Found requested Metadata node");
+    }
+    UA_Client_delete(client);
+    return retval;
+}
+
+static void
+collectDataSetMetaDataFromServer(UA_Server *server, UA_DataSetMetaDataType *pMetaData){
+    //init meta data structure
+    UA_DataSetMetaDataType_init(pMetaData);
+    UA_StatusCode getMetaDataResult = UA_Server_DataSetReader_getMetaDataFromRemote(server,
+                                                                                    UA_STRING(METADATA_SOURCE_SERVER),
+                                                                                    UA_QUALIFIEDNAME(0, METADATA_DATASET_NAME),
+                                                                                    pMetaData);
+    if(getMetaDataResult != UA_STATUSCODE_GOOD){
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "Unable to get metadata from remote server");
+        return;
+    }
+    printDataSetMetaDataType(pMetaData);
+}
+
 /* Define MetaData for TargetVariables */
-static void fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData) {
+static void
+fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData) {
     if(pMetaData == NULL) {
         return;
     }

@@ -314,6 +314,13 @@ if(UA_ENABLE_PUBSUB_MONITORING)
     endif()
 endif()
 
+
+if(UA_ENABLE_PUBSUB_EVENTS)
+    if(NOT UA_ENABLE_PUBSUB)
+        message(FATAL_ERROR "PubSub needs to be enabled")
+    endif()
+endif()
+
 if(UA_ENABLE_PUBSUB_BUFMALLOC)
     if(NOT UA_ENABLE_PUBSUB)
         message(FATAL_ERROR "PubSub buffer allocation cannot be used with PubSub function disabled")

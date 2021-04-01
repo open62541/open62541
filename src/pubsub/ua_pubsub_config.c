@@ -935,7 +935,6 @@ UA_PubSubManager_addDataSetFieldEvents(UA_Server *server, const UA_NodeId *publi
             publishedDataSetParameters->dataSetMetaData.fields[dsFieldIndex].fieldFlags & 0x0001;
         fieldConfig.field.events.fieldNameAlias =
             publishedDataSetParameters->dataSetMetaData.fields[dsFieldIndex].name;
-        fieldConfig.field.events.selectedField = publishedEvents->selectedFields[dsFieldIndex];
 
         UA_NodeId fieldIdent;
         statusCode = UA_Server_addDataSetField(server, *publishedDataSetIdent, &fieldConfig, &fieldIdent).result;
