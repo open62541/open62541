@@ -158,7 +158,8 @@ START_TEST(AddSingleConnectionWithMaximalConfiguration){
     connectionConf.name = UA_STRING("Ethernet Connection");
     connectionConf.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp");
     connectionConf.enabled = true;
-    connectionConf.publisherId.numeric = 223344;
+    UA_UInt32 PublisherId = 223344;
+    UA_Variant_setScalar(&connectionConf.publisherId, &PublisherId, &UA_TYPES[UA_TYPES_UINT32]);
     connectionConf.connectionPropertiesSize = 3;
     connectionConf.connectionProperties = connectionOptions;
     connectionConf.address = address;
@@ -189,7 +190,8 @@ START_TEST(GetMaximalConnectionConfigurationAndCompareValues){
     connectionConf.name = UA_STRING("Ethernet Connection");
     connectionConf.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp");
     connectionConf.enabled = true;
-    connectionConf.publisherId.numeric = 223344;
+    UA_UInt32 PublisherId = 223344;
+    UA_Variant_setScalar(&connectionConf.publisherId, &PublisherId, &UA_TYPES[UA_TYPES_UINT32]);
     connectionConf.connectionPropertiesSize = 3;
     connectionConf.connectionProperties = connectionOptions;
     connectionConf.address = address;

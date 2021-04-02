@@ -52,9 +52,7 @@ static void AddConnection(
     UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL, UA_STRING("opc.udp://224.0.0.22:4840/")};
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-
-    connectionConfig.publisherIdType = UA_PUBSUB_PUBLISHERID_NUMERIC;
-    connectionConfig.publisherId.numeric = PublisherId;
+    UA_Variant_setScalar(&connectionConfig.publisherId, &PublisherId, &UA_TYPES[UA_TYPES_UINT16]);
 
     ck_assert(UA_Server_addPubSubConnection(server, &connectionConfig, opConnectionId) == UA_STATUSCODE_GOOD);
     ck_assert(UA_PubSubConnection_regist(server, opConnectionId) == UA_STATUSCODE_GOOD);

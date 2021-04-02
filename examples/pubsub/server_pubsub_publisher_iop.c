@@ -75,7 +75,8 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     connectionConfig.enabled = UA_TRUE;
     UA_Variant_setScalar(&connectionConfig.address, networkAddressUrl,
         &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherId.numeric = Publisher_ID;
+    UA_UInt16 PublisherId = Publisher_ID;
+    UA_Variant_setScalar(&connectionConfig.publisherId, &PublisherId, &UA_TYPES[UA_TYPES_UINT16]);
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
 }
 

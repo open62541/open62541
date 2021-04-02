@@ -109,8 +109,9 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     connectionConfig.enabled = UA_TRUE;
     UA_Variant_setScalar(&connectionConfig.address, networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherId.numeric = UA_UInt32_random ();
-    retval |= UA_Server_addPubSubConnection (server, &connectionConfig, &connectionIdentifier);
+    UA_UInt16 PublisherId = (UA_UInt16) UA_UInt32_random();
+    UA_Variant_setScalar(&connectionConfig.publisherId, &PublisherId, &UA_TYPES[UA_TYPES_UINT16]);
+    retval |= UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdentifier);
     if (retval != UA_STATUSCODE_GOOD)
         return retval;
 

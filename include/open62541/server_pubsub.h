@@ -151,19 +151,10 @@ typedef enum  {
     UA_PUBSUB_COMPONENT_DATASETREADER
 } UA_PubSubComponentEnumType;
 
-typedef enum {
-    UA_PUBSUB_PUBLISHERID_NUMERIC,
-    UA_PUBSUB_PUBLISHERID_STRING
-} UA_PublisherIdType;
-
 struct UA_PubSubConnectionConfig {
     UA_String name;
     UA_Boolean enabled;
-    UA_PublisherIdType publisherIdType;
-    union { /* std: valid types UInt or String */
-        UA_UInt32 numeric;
-        UA_String string;
-    } publisherId;
+    UA_Variant publisherId; /* std: valid types UInt or String */
     UA_String transportProfileUri;
     UA_Variant address;
     size_t connectionPropertiesSize;

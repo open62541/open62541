@@ -111,12 +111,24 @@ onRead(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
             UA_PubSubConnection_findConnectionbyId(server, *myNodeId);
         switch(nodeContext->elementClassiefier) {
         case UA_NS0ID_PUBSUBCONNECTIONTYPE_PUBLISHERID:
-            if(pubSubConnection->config->publisherIdType == UA_PUBSUB_PUBLISHERID_STRING) {
-                UA_Variant_setScalar(&value, &pubSubConnection->config->publisherId.numeric,
+            if(pubSubConnection->config->publisherId.type->typeIndex == UA_TYPES_BYTE) {
+                UA_Variant_setScalar(&value, pubSubConnection->config->publisherId.data,
+                                     &UA_TYPES[UA_TYPES_BYTE]);
+            } else if(pubSubConnection->config->publisherId.type->typeIndex == UA_TYPES_UINT16) {
+                UA_Variant_setScalar(&value, pubSubConnection->config->publisherId.data,
+                                     &UA_TYPES[UA_TYPES_UINT16]);
+            } else if(pubSubConnection->config->publisherId.type->typeIndex == UA_TYPES_UINT32) {
+                UA_Variant_setScalar(&value, pubSubConnection->config->publisherId.data,
+                                     &UA_TYPES[UA_TYPES_UINT32]);
+            } else if(pubSubConnection->config->publisherId.type->typeIndex == UA_TYPES_UINT64) {
+                UA_Variant_setScalar(&value, pubSubConnection->config->publisherId.data,
+                                     &UA_TYPES[UA_TYPES_UINT64]);
+            } else if(pubSubConnection->config->publisherId.type->typeIndex == UA_TYPES_STRING) {
+                UA_Variant_setScalar(&value, pubSubConnection->config->publisherId.data,
                                      &UA_TYPES[UA_TYPES_STRING]);
             } else {
-                UA_Variant_setScalar(&value, &pubSubConnection->config->publisherId.numeric,
-                                     &UA_TYPES[UA_TYPES_UINT32]);
+                UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                               "Read error! Unknown PublisherId type.");
             }
             break;
         default:

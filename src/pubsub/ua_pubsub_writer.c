@@ -1972,12 +1972,23 @@ generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
          (u64)UA_UADPNETWORKMESSAGECONTENTMASK_PROMOTEDFIELDS) != 0;
     networkMessage->version = 1;
     networkMessage->networkMessageType = UA_NETWORKMESSAGE_DATASET;
-    if(connection->config->publisherIdType == UA_PUBSUB_PUBLISHERID_NUMERIC) {
+    if(connection->config->publisherId.type->typeIndex == UA_TYPES_BYTE) {
+        networkMessage->publisherIdType = UA_PUBLISHERDATATYPE_BYTE;
+        networkMessage->publisherId.publisherIdByte = *((UA_Byte*) connection->config->publisherId.data);
+    } else if(connection->config->publisherId.type->typeIndex == UA_TYPES_UINT16) {
         networkMessage->publisherIdType = UA_PUBLISHERDATATYPE_UINT16;
-        networkMessage->publisherId.publisherIdUInt32 = connection->config->publisherId.numeric;
-    } else if(connection->config->publisherIdType == UA_PUBSUB_PUBLISHERID_STRING){
+        networkMessage->publisherId.publisherIdUInt16 = *((UA_UInt16*) connection->config->publisherId.data);
+    } else if(connection->config->publisherId.type->typeIndex == UA_TYPES_UINT32) {
+        networkMessage->publisherIdType = UA_PUBLISHERDATATYPE_UINT32;
+        networkMessage->publisherId.publisherIdUInt32 = *((UA_UInt32*) connection->config->publisherId.data);
+    } else if(connection->config->publisherId.type->typeIndex == UA_TYPES_UINT64) {
+        networkMessage->publisherIdType = UA_PUBLISHERDATATYPE_UINT64;
+        networkMessage->publisherId.publisherIdUInt64 = *((UA_UInt64*) connection->config->publisherId.data);
+    } else if(connection->config->publisherId.type->typeIndex == UA_TYPES_STRING) {
         networkMessage->publisherIdType = UA_PUBLISHERDATATYPE_STRING;
-        networkMessage->publisherId.publisherIdString = connection->config->publisherId.string;
+        networkMessage->publisherId.publisherIdString = *((UA_String*) connection->config->publisherId.data);
+    } else {
+        return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
     if(networkMessage->groupHeader.sequenceNumberEnabled)
         networkMessage->groupHeader.sequenceNumber = wg->sequenceNumber;

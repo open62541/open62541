@@ -202,7 +202,8 @@ START_TEST(AddSingleConnectionWithMaximalConfiguration){
     connectionConf.name = UA_STRING("Ethernet ETF Connection");
     connectionConf.transportProfileUri = UA_STRING(TRANSPORT_PROFILE_URI);
     connectionConf.enabled = true;
-    connectionConf.publisherId.numeric = 223344;
+    UA_UInt32 PublisherId = 223344;
+    UA_Variant_setScalar(&connectionConf.publisherId, &PublisherId, &UA_TYPES[UA_TYPES_UINT32]);
     connectionConf.connectionPropertiesSize = 5;
     connectionConf.connectionProperties = connectionOptions;
     connectionConf.address = address;
@@ -240,7 +241,8 @@ START_TEST(GetMaximalConnectionConfigurationAndCompareValues){
     connectionConf.name = UA_STRING("Ethernet ETF Connection");
     connectionConf.transportProfileUri = UA_STRING(TRANSPORT_PROFILE_URI);
     connectionConf.enabled = true;
-    connectionConf.publisherId.numeric = 223344;
+    UA_UInt32 PublisherId = 223344;
+    UA_Variant_setScalar(&connectionConf.publisherId, &PublisherId, &UA_TYPES[UA_TYPES_UINT32]);
     connectionConf.connectionPropertiesSize = 5;
     connectionConf.connectionProperties = connectionOptions;
     connectionConf.address = address;
