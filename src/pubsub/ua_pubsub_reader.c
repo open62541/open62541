@@ -32,6 +32,9 @@
 #define UA_MAX_SIZENAME           64  /* Max size of Qualified Name of Subscribed Variable */
 #define MIN_PAYLOAD_SIZE_ETHERNET 46
 
+#define RECEIVE_MSG_BUFFER_SIZE   4096
+static UA_THREAD_LOCAL UA_Byte ReceiveMsgBuffer[RECEIVE_MSG_BUFFER_SIZE];
+
 /* Clear ReaderGroup */
 static void
 UA_Server_ReaderGroup_clear(UA_Server* server, UA_ReaderGroup *readerGroup);
@@ -905,12 +908,8 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
     }
 
     UA_ByteString buffer;
-    if(UA_ByteString_allocBuffer(&buffer, 4096) != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "SubscribeCallback(): Message buffer alloc failed!");
-        UA_ReaderGroup_setPubSubState(server, UA_PUBSUBSTATE_ERROR, readerGroup);
-        return;
-    }
-
+    buffer.length = RECEIVE_MSG_BUFFER_SIZE;
+    buffer.data = ReceiveMsgBuffer;
     UA_StatusCode res = connection->channel->receive(connection->channel, &buffer, NULL, readerGroup->config.timeout);
     if (UA_StatusCode_isBad(res)) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "SubscribeCallback(): Connection receive failed!");
@@ -942,7 +941,6 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
 #ifdef UA_ENABLE_PUBSUB_BUFMALLOC
                     useNormalAlloc();
 #endif /* UA_ENABLE_PUBSUB_BUFMALLOC */
-                    UA_ByteString_clear(&buffer);
                     return;
                 }
 
@@ -956,7 +954,6 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
 #ifdef UA_ENABLE_PUBSUB_BUFMALLOC
                     useNormalAlloc();
 #endif /* UA_ENABLE_PUBSUB_BUFMALLOC */
-                    UA_ByteString_clear(&buffer);
                     return;
                 }
 
@@ -981,7 +978,6 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
                 previousPosition = currentPosition;
             } while((buffer.length) > currentPosition);
 
-            UA_ByteString_clear(&buffer);
             return;
 
         } else {
@@ -1009,8 +1005,6 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
             } while((buffer.length) > currentPosition);
         }
     }
-
-    UA_ByteString_clear(&buffer);
 }
 
 /* Add new subscribeCallback. The first execution is triggered directly after
