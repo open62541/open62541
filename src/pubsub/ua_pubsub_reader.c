@@ -10,6 +10,7 @@
 
 #include <open62541/server_pubsub.h>
 #include <open62541/types_generated_encoding_binary.h>
+#include <time.h>
 
 #include "server/ua_server_internal.h"
 
@@ -185,10 +186,24 @@ UA_DataSetReader_generateDataSetMessage(UA_Server *server, UA_DataSetMessage *da
         dataSetMessage->header.timestamp = UA_DateTime_now();
     }
 
-    /* TODO: Picoseconds resolution not supported atm */
     if((u64)dataSetReaderMessageDataType->dataSetMessageContentMask &
        (u64)UA_UADPDATASETMESSAGECONTENTMASK_PICOSECONDS) {
         dataSetMessage->header.picoSecondsIncluded = false;
+#ifdef __USE_POSIX199309
+        dataSetMessage->header.picoSecondsIncluded = true;
+        struct timespec tp;
+        if(clock_gettime(CLOCK_MONOTONIC,&tp) == -1){
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "clock_gettime failed.");
+        } else {
+            /* tp.tv_nsec is the rest of the current second since 01. January 1970 in nanoseconds
+             * -> tp.tv_nsec % 100 is the amount of nanoseconds which are not displayed
+             * in the 100s of nanoseconds resolution of the UA_DateTime timestamp
+             * -> multiply the result by 100 to get 10s of picosends
+             */
+            dataSetMessage->header.picoSeconds = (UA_UInt16) ((tp.tv_nsec % 100) * 100);
+        }
+#endif
     }
     /* TODO: Statuscode not supported yet */
     if((u64)dataSetReaderMessageDataType->dataSetMessageContentMask &
