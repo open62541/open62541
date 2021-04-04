@@ -402,6 +402,47 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
                              newMon->parameters.samplingInterval,
                              (unsigned long)newMon->queueSize);
 
+     /* From this point on, after creating and activating the MonitoredItem,
+     * the server can access the EventFilter which is contained in the MonitoredItem.
+     * According to 7.17.3 in Part 4 : The Server shall validate the whereClause and the selectClauses when a Client creates or updates the EventFilter.
+     * The initial validation of the WhereClause and SelectClause are done here.
+     * EventFilterResult isn't currently being used to send Information to the Client.
+     * If the Validation is successful the Server prints a Notification and continues running,
+     * otherwise the connection with the Client will be terminated */
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    if(newMon->parameters.filter.content.decoded.type == &UA_TYPES[UA_TYPES_EVENTFILTER]) {
+        UA_EventFilter *eventFilter =
+            (UA_EventFilter *)newMon->parameters.filter.content.decoded.data;
+        if(eventFilter->whereClause.elementsSize != 0) {
+            UA_ContentFilterResult *contentFilterResult =
+                UA_Server_initialWhereClauseValidation(server, &eventFilter->whereClause);
+            if(contentFilterResult->elementResults[0].statusCode == UA_STATUSCODE_GOOD) {
+                UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, cmc->sub,
+                                         "initialWhereClauseValidation succeeded");
+            }else{
+                result->statusCode = contentFilterResult->elementResults[0].statusCode;
+                UA_ContentFilterResult_delete(contentFilterResult);
+                return;
+            }
+            UA_ContentFilterResult_delete(contentFilterResult);
+        }
+            UA_StatusCode * selectClausesResult = UA_Server_initialSelectClauseValidation(server,eventFilter);
+            if (selectClausesResult != NULL){
+                for(size_t i = 0; i < eventFilter->selectClausesSize; ++i){
+                    if(selectClausesResult[i] != UA_STATUSCODE_GOOD){
+                        result->statusCode = selectClausesResult[i];
+                        UA_StatusCode_delete(selectClausesResult);
+                        return;
+                    }
+                }
+                UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, cmc->sub,
+                                         "initialSelectClauseValidation succeeded ");
+        }
+            UA_StatusCode_delete(selectClausesResult);
+    }
+#endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
+
+
     /* Create the first sample */
     if(request->monitoringMode > UA_MONITORINGMODE_DISABLED &&
        newMon->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER)
