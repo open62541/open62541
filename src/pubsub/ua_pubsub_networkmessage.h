@@ -126,7 +126,6 @@ typedef struct {
     UA_Boolean securityFooterEnabled;
     UA_Boolean forceKeyReset;
     UA_UInt32 securityTokenId;      // spec: IntegerId
-    UA_Byte nonceLength;
     UA_ByteString messageNonce;
     UA_UInt16 securityFooterSize;
 } UA_NetworkMessageSecurityHeader;
@@ -177,7 +176,6 @@ typedef struct {
     } payload;
     
     UA_ByteString securityFooter;
-    UA_ByteString signature;
 } UA_NetworkMessage;
 
 /**********************************************/
