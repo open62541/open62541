@@ -295,7 +295,7 @@ UA_AsymEn_Aes128Sha256RsaOaep_getRemoteKeyLength(const void *channelContext) {
 }
 
 static UA_StatusCode
-UA_Sym_Aes128Sha256RsaOaep_generateNonce(const UA_SecurityPolicy *sp,
+UA_Sym_Aes128Sha256RsaOaep_generateNonce(void *policyContext,
                                          UA_ByteString *out) {
     UA_Int32 rc = RAND_bytes(out->data, (int)out->length);
     if(rc != 1) {
@@ -317,7 +317,7 @@ UA_SymSig_Aes128Sha256RsaOaep_getLocalKeyLength(const void *channelContext) {
 }
 
 static UA_StatusCode
-UA_Sym_Aes128Sha256RsaOaep_generateKey(const UA_SecurityPolicy *sp,
+UA_Sym_Aes128Sha256RsaOaep_generateKey(void *policyContext,
                                        const UA_ByteString *secret,
                                        const UA_ByteString *seed, UA_ByteString *out) {
     return UA_Openssl_Random_Key_PSHA256_Derive(secret, seed, out);
