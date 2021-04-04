@@ -826,7 +826,8 @@ createSessionAsync(UA_Client *client) {
                 return retval;
         }
         retval = client->channel.securityPolicy->symmetricModule.
-                 generateNonce(client->channel.securityPolicy, &client->localNonce);
+                 generateNonce(client->channel.securityPolicy->policyContext,
+                               &client->localNonce);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }

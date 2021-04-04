@@ -179,26 +179,22 @@ typedef struct {
      * For information on what parameters this function receives in what situation,
      * refer to the OPC UA specification 1.03 Part6 Table 33
      *
-     * @param securityPolicy the securityPolicy the function is invoked on.
+     * @param policyContext The context of the policy instance
      * @param secret
      * @param seed
      * @param out an output to write the data to. The length defines the maximum
      *            number of output bytes that are produced. */
-    UA_StatusCode (*generateKey)(const UA_SecurityPolicy *securityPolicy,
-                                 const UA_ByteString *secret,
+    UA_StatusCode (*generateKey)(void *policyContext, const UA_ByteString *secret,
                                  const UA_ByteString *seed, UA_ByteString *out)
     UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
     /* Random generator for generating nonces.
      *
-     * @param securityPolicy the securityPolicy this function is invoked on.
-     *                       Example: myPolicy->generateNonce(myPolicy,
-     *                       &outBuff);
+     * @param policyContext The context of the policy instance
      * @param out pointer to a buffer to store the nonce in. Needs to be
      *            allocated by the caller. The buffer is filled with random
      *            data. */
-    UA_StatusCode (*generateNonce)(const UA_SecurityPolicy *securityPolicy,
-                                   UA_ByteString *out)
+    UA_StatusCode (*generateNonce)(void *policyContext, UA_ByteString *out)
     UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
     /*

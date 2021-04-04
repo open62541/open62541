@@ -35,7 +35,7 @@ UA_SecureChannel_generateLocalNonce(UA_SecureChannel *channel) {
             return retval;
     }
 
-    return sp->symmetricModule.generateNonce(sp, &channel->localNonce);
+    return sp->symmetricModule.generateNonce(sp->policyContext, &channel->localNonce);
 }
 
 UA_StatusCode
@@ -66,7 +66,8 @@ UA_SecureChannel_generateLocalKeys(const UA_SecureChannel *channel) {
         return UA_STATUSCODE_GOOD;
 
     /* Generate key */
-    retval = sm->generateKey(sp, &channel->remoteNonce, &channel->localNonce, &buf);
+    retval = sm->generateKey(sp->policyContext, &channel->remoteNonce,
+                             &channel->localNonce, &buf);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ByteString_clear(&buf);
         return retval;
@@ -112,7 +113,8 @@ generateRemoteKeys(const UA_SecureChannel *channel) {
         return UA_STATUSCODE_GOOD;
 
     /* Generate key */
-    retval = sm->generateKey(sp, &channel->localNonce, &channel->remoteNonce, &buf);
+    retval = sm->generateKey(sp->policyContext, &channel->localNonce,
+                             &channel->remoteNonce, &buf);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
