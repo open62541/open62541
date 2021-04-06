@@ -29,6 +29,8 @@ jobs:
       run: source tools/ci.sh && unit_tests_encryption_openssl
     - name: Release Build
       run: source tools/ci.sh && build_release
+    - name: Amalgamation Build
+      run: source tools/ci.sh && build_amalgamation
     - name: Valgrind Build & Unit Tests (gcc)
       run: source tools/ci.sh && unit_tests_valgrind
     - name: Clang Static Analyzer
