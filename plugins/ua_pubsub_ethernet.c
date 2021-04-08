@@ -1188,7 +1188,9 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_ByteString *messa
             break;
         }
         /* Make sure we match our target */
-        if(memcmp(eth_hdr.ether_dhost, channelDataEthernet->targetAddress, ETH_ALEN) != 0) {
+        const UA_Byte *compareAddress = is_multicast_address(channelDataEthernet->targetAddress) ?
+            eth_hdr.ether_dhost : eth_hdr.ether_shost;
+        if(memcmp(compareAddress, channelDataEthernet->targetAddress, ETH_ALEN) != 0) {
             retval = UA_STATUSCODE_GOODNODATA;
             break;
         }
