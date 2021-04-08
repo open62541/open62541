@@ -69,6 +69,7 @@
 #define UA_recv recv
 #define UA_sendto sendto
 #define UA_recvfrom recvfrom
+#define UA_recvmsg recvmsg
 #define UA_htonl htonl
 #define UA_ntohl ntohl
 #define UA_close close
@@ -82,6 +83,7 @@
 #define UA_getaddrinfo getaddrinfo
 #define UA_getsockopt getsockopt
 #define UA_setsockopt setsockopt
+#define UA_ioctl ioctl
 #define UA_freeaddrinfo freeaddrinfo
 #define UA_gethostname gethostname
 #define UA_getsockname getsockname

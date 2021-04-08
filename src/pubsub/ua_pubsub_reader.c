@@ -1602,7 +1602,7 @@ UA_DataSetReader_process(UA_Server *server, UA_DataSetReader *dataSetReader,
                     UA_findDataTypeWithCustom(&dataSetReader->config.dataSetMetaData.fields[i].dataType,
                                               server->config.customDataTypes);
                 dataSetMsg->data.keyFrameData.rawFields.length += currentType->memSize;
-                void *decodedType = alloca(currentType->memSize);
+                UA_STACKARRAY(UA_Byte, decodedType, currentType->memSize);
                 UA_StatusCode retVal;
                 retVal = UA_decodeBinary(&dataSetMsg->data.keyFrameData.rawFields,
                                 &offset, decodedType,
