@@ -1,8 +1,11 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
+
 /**
- * In this C file we will create a ClientFilter example.
- * Client configured on the server
+ * The following example will be using the server_random_events.c file.
+ * We will be creating an event filter which sets a filtering criteria for events produced by the server.
+ * The server checks the filtering criteria when an event is generated and then sends a notification to the client.
+ * In this example we see how the client sets up the event filter.
  * */
 
 #include <open62541/client.h>
@@ -11,17 +14,6 @@
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/util.h>
 #include <signal.h>
-#ifdef _MSC_VER
-#pragma warning(disable:4996) // warning C4996: 'UA_Client_Subscriptions_addMonitoredEvent': was declared deprecated
-#endif
-
-#ifdef __clang__
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-#endif
-
-#ifdef __GNUC__
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#endif
 
 static UA_Boolean running = true;
 const size_t nSelectClauses = 2;
@@ -32,16 +24,11 @@ static void stopHandler(int sig) {
     running = false;
 }
 
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-
 static void
 handler_events(UA_Client *client, UA_UInt32 subId, void *subContext,
                UA_UInt32 monId, void *monContext,
                size_t nEventFields, UA_Variant *eventFields) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Notification");
-
-    /* The context should point to the monId on the stack */
-    UA_assert(*(UA_UInt32*)monContext == monId);
 
     for(size_t i = 0; i < nEventFields; ++i) {
         if(UA_Variant_hasScalarType(&eventFields[i], &UA_TYPES[UA_TYPES_UINT16])) {
@@ -70,11 +57,11 @@ handler_events(UA_Client *client, UA_UInt32 subId, void *subContext,
  * ^^^^^^^^^^^^^^^^^^^
  * The WhereClause defines the filtering criteria of an EventFilter.
  * It is represented in a ContentFilter Structure.
- * The ContentFilter structure defines a collection of elements,
+ * The ContentFilter structure defines a collection of ContentFilterElements,
  * each element in the collection describes an operator and an array of operands to be used by the operator.
  * The ContentFilter has a Tree-structure.
  * In this Example we are using a simple ContentFilter structure of three Elements,
- * representing a logical Expression : ( (OfType AUDITEVENTTYPE ) (or) (OfType VENTQUEUEOVERFLOWEVENTTYPE) )
+ * representing a logical Expression : ( (OfType AUDITEVENTTYPE ) (or) (OfType EVENTQUEUEOVERFLOWEVENTTYPE) )
  */
 static UA_ContentFilter *setupWhereClauses(UA_ContentFilter *contentFilter){
     contentFilter[0].elements[0].filterOperator = UA_FILTEROPERATOR_OR;
@@ -135,6 +122,14 @@ static UA_ContentFilter *setupWhereClauses(UA_ContentFilter *contentFilter){
     return contentFilter;
 }
 
+/**
+ * Setting up SelectClauses
+ * ^^^^^^^^^^^^^^^^^^^
+ * The SelectClauses specifies the EventFields of an Event.
+ * It is represented in a SimpleAttributeOperand Array.
+ * Each SimpleAttributeOperand represents one EventField that should be returned.
+ * In this Example we are selecting two SimpleAttributeOperands to be returned, one as a Message and one as Severity.
+ */
 static UA_SimpleAttributeOperand *
 setupSelectClauses(void) {
     UA_SimpleAttributeOperand *selectClauses = (UA_SimpleAttributeOperand*)
@@ -167,13 +162,12 @@ setupSelectClauses(void) {
 
     return selectClauses;
 }
-#endif
 
 int main(int argc, char *argv[]) {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
 
-    if(argc < 1) {
+    if(argc < 2) {
         printf("Usage: tutorial_client_events <opc.tcp://server-url>\n");
         return EXIT_FAILURE;
     }
@@ -183,13 +177,12 @@ int main(int argc, char *argv[]) {
 
     /* opc.tcp://uademo.prosysopc.com:53530/OPCUA/SimulationServer */
     /* opc.tcp://opcua.demo-this.com:51210/UA/SampleServer */
-    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://ammar:4840/");
+    UA_StatusCode retval = UA_Client_connect(client, argv[1]);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
         return EXIT_FAILURE;
     }
 
-#ifdef UA_ENABLE_SUBSCRIPTIONS
     /* Create a subscription */
     UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
     UA_CreateSubscriptionResponse response = UA_Client_Subscriptions_create(client, request,
@@ -259,7 +252,6 @@ int main(int argc, char *argv[]) {
     UA_Client_Subscriptions_deleteSingle(client, response.subscriptionId);
     UA_Array_delete(filter.selectClauses, nSelectClauses, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
     UA_Array_delete(contentFilter.elements,contentFilter.elementsSize, &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENT]);
-#endif
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);

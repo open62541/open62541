@@ -24,7 +24,9 @@
  *
  * The event we want to generate should not be simple, in order to allow the client to set
  * a meaningful filter. `EventTypes` are saved internally as `ObjectTypes`,
- * so add the a few types as you would new `ObjectTypes`. */
+ * so add the a few types as you would new `ObjectTypes`.
+ */
+
 static const size_t eventTypesCount = 5;
 static UA_NodeId* eventTypes;
 
@@ -34,10 +36,10 @@ addEventType(UA_Server *server, char* name, UA_NodeId parentNodeId, UA_NodeId* e
     attr.displayName = UA_LOCALIZEDTEXT("en-US", name);
     attr.description = UA_LOCALIZEDTEXT("en-US", "This is a sample event type we created");
     UA_StatusCode retval = UA_Server_addObjectTypeNode(server, UA_NODEID_NULL,
-                                       parentNodeId,
-                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
-                                       UA_QUALIFIEDNAME(0, name),
-                                       attr, NULL, eventType);
+                                                       parentNodeId,
+                                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                                       UA_QUALIFIEDNAME(0, name),
+                                                       attr, NULL, eventType);
     if (retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                        "add EventType failed. StatusCode %s", UA_StatusCode_name(retval));
@@ -48,22 +50,22 @@ addEventType(UA_Server *server, char* name, UA_NodeId parentNodeId, UA_NodeId* e
 static UA_StatusCode
 addSampleEventTypes(UA_Server *server) {
     eventTypes = (UA_NodeId*)
-         UA_Array_new(eventTypesCount, &UA_TYPES[UA_TYPES_NODEID]);
+        UA_Array_new(eventTypesCount, &UA_TYPES[UA_TYPES_NODEID]);
     UA_NodeId_init(eventTypes);
     UA_StatusCode retval = addEventType(server, "SampleBaseEventType",
-                          UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE),&eventTypes[0]);
+                                        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE),&eventTypes[0]);
     if (retval != UA_STATUSCODE_GOOD) return retval;
     retval = addEventType(server, "SampleDeviceFailureEventType",
                           UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE), &eventTypes[1]);
     if (retval != UA_STATUSCODE_GOOD) return retval;
     retval = addEventType(server, "SampleEventQueueOverflowEventType",
-                 UA_NODEID_NUMERIC(0, UA_NS0ID_EVENTQUEUEOVERFLOWEVENTTYPE),&eventTypes[2]);
+                          UA_NODEID_NUMERIC(0, UA_NS0ID_EVENTQUEUEOVERFLOWEVENTTYPE),&eventTypes[2]);
     if (retval != UA_STATUSCODE_GOOD) return retval;
     retval = addEventType(server, "SampleProgressEventType",
-                 UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE), &eventTypes[3]);
+                          UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE), &eventTypes[3]);
     if (retval != UA_STATUSCODE_GOOD) return retval;
     retval = addEventType(server, "SampleAuditSecurityEventType",
-                 UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE), &eventTypes[4]);
+                          UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE), &eventTypes[4]);
     if (retval != UA_STATUSCODE_GOOD) return retval;
     return UA_STATUSCODE_GOOD;
 }
@@ -78,6 +80,7 @@ addSampleEventTypes(UA_Server *server) {
  * automatically by the server. In this example, we will be setting the fields 'Message' and 'Severity' in addition
  * to `Time` which is needed to make the example UaExpert compliant.
  */
+
 static UA_StatusCode
 setUpEvent(UA_Server *server, UA_NodeId *outId, UA_NodeId eventType, UA_Boolean random,size_t index) {
     UA_StatusCode retval = UA_Server_createEvent(server, eventType, outId);
@@ -161,14 +164,16 @@ setUpEvent(UA_Server *server, UA_NodeId *outId, UA_NodeId eventType, UA_Boolean 
  * First a node representing an event is generated using ``setUpEvent``. Once our event is good to go, we specify
  * a node which emits the event - in this case the server node. We can use ``UA_Server_triggerEvent`` to trigger our
  * event onto said node. Passing ``NULL`` as the second-last argument means we will not receive the `EventId`.
- * The last boolean argument states whether the node should be deleted. */
+ * The last boolean argument states whether the node should be deleted.
+ */
+
 static UA_StatusCode
 generateEventsMethodCallback(UA_Server *server,
-                         const UA_NodeId *sessionId, void *sessionHandle,
-                         const UA_NodeId *methodId, void *methodContext,
-                         const UA_NodeId *objectId, void *objectContext,
-                         size_t inputSize, const UA_Variant *input,
-                         size_t outputSize, UA_Variant *output) {
+                             const UA_NodeId *sessionId, void *sessionHandle,
+                             const UA_NodeId *methodId, void *methodContext,
+                             const UA_NodeId *objectId, void *objectContext,
+                             size_t inputSize, const UA_Variant *input,
+                             size_t outputSize, UA_Variant *output) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Creating event");
     UA_StatusCode retval;
     UA_NodeId* eventNodeId;
@@ -185,8 +190,8 @@ generateEventsMethodCallback(UA_Server *server,
     }
     for(size_t i = 0 ; i < eventTypesCount; i++) {
         retval = UA_Server_triggerEvent(server, eventNodeId[i],
-                                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
-                                         NULL, UA_TRUE);
+                                        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
+                                        NULL, UA_TRUE);
         if(retval != UA_STATUSCODE_GOOD)
             UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                            "Triggering event failed. StatusCode %s", UA_StatusCode_name(retval));
@@ -196,11 +201,11 @@ generateEventsMethodCallback(UA_Server *server,
 
 static UA_StatusCode
 generateRandomEventMethodCallback(UA_Server *server,
-                             const UA_NodeId *sessionId, void *sessionHandle,
-                             const UA_NodeId *methodId, void *methodContext,
-                             const UA_NodeId *objectId, void *objectContext,
-                             size_t inputSize, const UA_Variant *input,
-                             size_t outputSize, UA_Variant *output) {
+                                  const UA_NodeId *sessionId, void *sessionHandle,
+                                  const UA_NodeId *methodId, void *methodContext,
+                                  const UA_NodeId *objectId, void *objectContext,
+                                  size_t inputSize, const UA_Variant *input,
+                                  size_t outputSize, UA_Variant *output) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Creating event");
     size_t random = (size_t) rand() % eventTypesCount;
     /* set up event */
@@ -224,9 +229,9 @@ generateRandomEventMethodCallback(UA_Server *server,
  * Now, all that is left to do is to create a method node which uses our callback. We do not
  * require any input and as output we will be using the `EventId` we receive from ``triggerEvent``. The `EventId` is
  * generated by the server internally and is a random unique ID which identifies that specific event.
- *
- * This method node will be added to a basic server setup.
+ * This method node will be added to the server.
  */
+
 static void
 addGenerateEventsMethod(UA_Server *server) {
     UA_MethodAttributes generateAttr = UA_MethodAttributes_default;
@@ -258,6 +263,7 @@ addGenerateRandomEventMethod(UA_Server *server) {
 }
 
 /** It follows the main server code, making use of the above definitions. */
+
 static volatile UA_Boolean running = true;
 static void stopHandler(int sig) {
     running = false;

@@ -311,19 +311,6 @@ UA_StatusCode UA_Subscription_removeRetransmissionMessage(UA_Subscription *sub,
 UA_Boolean UA_Session_reachedPublishReqLimit(UA_Server *server, UA_Session *session);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-UA_StatusCode
-implicitNumericCast(UA_Variant *variant, const UA_DataType *type, void* data);
-
-UA_StatusCode
-compareNumeric(UA_Variant firstOperand, UA_Variant secondOperand, UA_FilterOperator op);
-
-UA_StatusCode
-resolveBoolean(UA_Variant operand);
-
-UA_Variant
-resolveOperand(UA_Server *server, UA_Session *session, const UA_NodeId *origin, const UA_ContentFilter *contentFilter,
-                                       UA_ContentFilterResult *contentFilterResult, UA_Variant* valueResult, UA_UInt16 index, UA_UInt16 nr);
-
 /* Only for unit testing */
 UA_StatusCode
 UA_Server_evaluateWhereClauseContentFilter(
