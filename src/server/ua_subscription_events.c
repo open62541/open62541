@@ -980,8 +980,8 @@ UA_Server_evaluateWhereClause(UA_Server *server, UA_Session *session,
                 secondOperand.type == &UA_TYPES[UA_TYPES_UINT32] ||
                 secondOperand.type == &UA_TYPES[UA_TYPES_UINT16] ||
                 secondOperand.type == &UA_TYPES[UA_TYPES_BYTE])) {
-                UA_UInt64 o1;
-                UA_UInt64 o2;
+                UA_UInt64 o1 = 0;
+                UA_UInt64 o2 = 0;
                 implicitNumericCast(&firstOperand, &UA_TYPES[UA_TYPES_UINT64], &o1);
                 implicitNumericCast(&secondOperand, &UA_TYPES[UA_TYPES_UINT64], &o2);
                 UA_UInt64 uint64;
