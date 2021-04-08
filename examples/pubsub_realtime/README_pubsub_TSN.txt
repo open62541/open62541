@@ -1,4 +1,5 @@
 Tested Environment:
+Apollo Lake processor-1.60GHz with Intel i210 Ethernet Controller
 OS - Debian/Lubuntu
 Kernel - 4.19.37-rt19, 5.4.59-rt36
 [Note: The pubsub TSN applications have two functionalities - ETF and XDP.
@@ -6,6 +7,7 @@ Kernel - 4.19.37-rt19, 5.4.59-rt36
  If user wishes to run these pubsub TSN applications in the kernel below 4.19, there might be minimal changes required in the applications]
 
 PRE-REQUISITES:
+We recommend at least two Intel x86-based nodes with 4-cores and Intel i210 Ethernet Controllers connected in peer-peer fashion
 RT enabled kernel in nodes (say node1 and node2)
 Ensure the nodes are ptp synchronized
 PTP SYNCHRONIZATION:
@@ -66,6 +68,8 @@ NOTE: It is always recommended to run pubsub_TSN_loopback application first to a
 To know more usage
     ./bin/examples/pubsub_TSN_publisher -help
     ./bin/examples/pubsub_TSN_loopback -help
+
+NOTE: To know more about running the OPC UA PubSub application and to evaluate performance, refer the Quick Start Guide - https://www.kalycito.com/how-to-run-opc-ua-pubsub-tsn/
 ============================================================================================================
 You can also subscribe using XDP (Express Data Path) for faster processing the data, follow the below steps:
 
