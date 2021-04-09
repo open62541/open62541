@@ -325,7 +325,7 @@ sendSymmetricChunk(UA_MessageContext *messageContext) {
     /* Add padding if the message is encrypted */
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
         padChunk(channel, &channel->securityPolicy->symmetricModule.cryptoModule,
-                 &messageContext->messageBuffer.data[UA_SECURECHANNEL_SYMMETRIC_HEADER_TOTALLENGTH],
+                 &messageContext->messageBuffer.data[UA_SECURECHANNEL_SYMMETRIC_HEADER_UNENCRYPTEDLENGTH],
                  &messageContext->buf_pos);
 #endif
 
