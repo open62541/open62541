@@ -703,8 +703,8 @@ responseGetEndpoints(UA_Client *client, void *userdata, UA_UInt32 requestId,
 
             /* Log the selected endpoint */
             UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                        "Selected Endpoint %.*s with SecurityMode %s and SecurityPolicy %.*s",
-                        (int)endpoint->endpointUrl.length, endpoint->endpointUrl.data,
+                        "Selected endpoint %lu in URL %.*s with SecurityMode %s and SecurityPolicy %.*s",
+                        (long unsigned)i, (int)endpoint->endpointUrl.length, endpoint->endpointUrl.data,
                         securityModeNames[endpoint->securityMode - 1],
                         (int)endpoint->securityPolicyUri.length,
                         endpoint->securityPolicyUri.data);
