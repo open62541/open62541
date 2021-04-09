@@ -58,7 +58,7 @@ addPublishedDataSet(UA_Server *server) {
     /* The PublishedDataSetConfig contains all necessary public
     * informations for the creation of a new PublishedDataSet */
 
-    size_t selectedFieldSize = 2;
+    size_t selectedFieldSize = 4;
     UA_PublishedDataSetConfig publishedDataSetConfig;
     memset(&publishedDataSetConfig, 0, sizeof(UA_PublishedDataSetConfig));
     publishedDataSetConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDEVENTS;
@@ -67,8 +67,10 @@ addPublishedDataSet(UA_Server *server) {
     publishedDataSetConfig.config.event.selectedFieldsSize = selectedFieldSize;
 
     UA_QualifiedName fieldBrowsePaths[selectedFieldSize];
-    fieldBrowsePaths[0] = UA_QUALIFIEDNAME(0, "Message");
-    fieldBrowsePaths[1] = UA_QUALIFIEDNAME(0, "Severity");
+    fieldBrowsePaths[0] = UA_QUALIFIEDNAME(0, "Time");
+    fieldBrowsePaths[1] = UA_QUALIFIEDNAME(0, "Message");
+    fieldBrowsePaths[2] = UA_QUALIFIEDNAME(0, "Severity");
+    fieldBrowsePaths[3] = UA_QUALIFIEDNAME(0, "SourceName");
 
     UA_SimpleAttributeOperand selectedFields [selectedFieldSize];
     for(size_t i = 0; i < selectedFieldSize; ++i) {
@@ -247,17 +249,9 @@ static int run(UA_String *transportProfile,
 
     /* Details about the connection configuration and handling are located in
      * the pubsub connection tutorial */
-    config->pubsubTransportLayers =
-        (UA_PubSubTransportLayer *) UA_calloc(2, sizeof(UA_PubSubTransportLayer));
-    if(!config->pubsubTransportLayers) {
-        UA_Server_delete(server);
-        return EXIT_FAILURE;
-    }
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerUDPMP();
-    config->pubsubTransportLayersSize++;
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
 #ifdef UA_ENABLE_PUBSUB_ETH_UADP
-    config->pubsubTransportLayers[1] = UA_PubSubTransportLayerEthernet();
-    config->pubsubTransportLayersSize++;
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
 #endif
     addNewEventType(server);
 

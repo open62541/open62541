@@ -36,7 +36,7 @@ UA_NodeId readerGroupIdentifier;
 UA_NodeId readerIdentifier;
 
 /* With this flag, the user can select, whether the FieldMetaData should be requested or the hardcoded one should be used*/
-UA_Boolean requestMetaData = UA_TRUE;
+UA_Boolean requestMetaData = UA_FALSE;
 
 UA_DataSetReaderConfig readerConfig;
 
@@ -301,26 +301,41 @@ fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData) {
      * 1 target variable, because the publisher currently
      * only publishes the message and severity of an event
      */
-    pMetaData->fieldsSize = 2;
+    pMetaData->fieldsSize = 4;
     pMetaData->fields = (UA_FieldMetaData*)UA_Array_new (pMetaData->fieldsSize,
                                                          &UA_TYPES[UA_TYPES_FIELDMETADATA]);
 
-    /* Message */
+    /*Time*/
     UA_FieldMetaData_init (&pMetaData->fields[0]);
-    UA_NodeId_copy (&UA_TYPES[UA_TYPES_LOCALIZEDTEXT].typeId,
+    UA_NodeId_copy (&UA_TYPES[UA_TYPES_DATETIME].typeId,
                     &pMetaData->fields[0].dataType);
-    pMetaData->fields[0].builtInType = UA_TYPES_LOCALIZEDTEXT;
-    pMetaData->fields[0].name =  UA_STRING ("Message");
+    pMetaData->fields[0].builtInType = UA_TYPES_DATETIME;
+    pMetaData->fields[0].name =  UA_STRING ("Time");
     pMetaData->fields[0].valueRank = -1; /* scalar */
 
-    /*Severity*/
+    /* Message */
     UA_FieldMetaData_init (&pMetaData->fields[1]);
-    UA_NodeId_copy (&UA_TYPES[UA_TYPES_UINT16].typeId,
+    UA_NodeId_copy (&UA_TYPES[UA_TYPES_LOCALIZEDTEXT].typeId,
                     &pMetaData->fields[1].dataType);
-    pMetaData->fields[1].builtInType = UA_NS0ID_UINT16;
-    pMetaData->fields[1].name =  UA_STRING ("Severity");
+    pMetaData->fields[1].builtInType = UA_TYPES_LOCALIZEDTEXT;
+    pMetaData->fields[1].name =  UA_STRING ("Message");
     pMetaData->fields[1].valueRank = -1; /* scalar */
 
+    /*Severity*/
+    UA_FieldMetaData_init (&pMetaData->fields[2]);
+    UA_NodeId_copy (&UA_TYPES[UA_TYPES_UINT16].typeId,
+                    &pMetaData->fields[2].dataType);
+    pMetaData->fields[2].builtInType = UA_NS0ID_UINT16;
+    pMetaData->fields[2].name =  UA_STRING ("Severity");
+    pMetaData->fields[2].valueRank = -1; /* scalar */
+
+    /*SourceName*/
+    UA_FieldMetaData_init (&pMetaData->fields[3]);
+    UA_NodeId_copy (&UA_TYPES[UA_TYPES_STRING].typeId,
+                    &pMetaData->fields[3].dataType);
+    pMetaData->fields[3].builtInType = UA_TYPES_STRING;
+    pMetaData->fields[3].name =  UA_STRING ("SourceName");
+    pMetaData->fields[3].valueRank = -1; /* scalar */
 }
 
 /**
@@ -345,18 +360,9 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
      * The TransportLayer is acting as factory to create new connections
      * on runtime. Details about the PubSubTransportLayer can be found inside the
      * tutorial_pubsub_connection */
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer *)
-        UA_calloc(2, sizeof(UA_PubSubTransportLayer));
-    if(!config->pubsubTransportLayers) {
-        UA_Server_delete(server);
-        return EXIT_FAILURE;
-    }
-
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerUDPMP();
-    config->pubsubTransportLayersSize++;
-#if defined (UA_ENABLE_PUBSUB_ETH_UADP)
-    config->pubsubTransportLayers[1] = UA_PubSubTransportLayerEthernet();
-    config->pubsubTransportLayersSize++;
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
+#ifdef UA_ENABLE_PUBSUB_ETH_UADP
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
 #endif
 
     /* API calls */
