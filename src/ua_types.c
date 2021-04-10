@@ -385,18 +385,15 @@ UA_NodeId_order(const UA_NodeId *n1, const UA_NodeId *n2) {
         break;
     case UA_NODEIDTYPE_STRING:
     case UA_NODEIDTYPE_BYTESTRING: {
-        size_t minLength = UA_MIN(n1->identifier.string.length, n2->identifier.string.length);
+        if(n1->identifier.string.length != n2->identifier.string.length)
+            return n1->identifier.string.length < n2->identifier.string.length
+                ? UA_ORDER_LESS : UA_ORDER_MORE;
         int cmp = strncmp((const char*)n1->identifier.string.data,
                           (const char*)n2->identifier.string.data,
-                          minLength);
+                          n1->identifier.string.length);
         if(cmp < 0)
             return UA_ORDER_LESS;
         if(cmp > 0)
-            return UA_ORDER_MORE;
-
-        if(n1->identifier.string.length < n2->identifier.string.length)
-            return UA_ORDER_LESS;
-        if(n1->identifier.string.length > n2->identifier.string.length)
             return UA_ORDER_MORE;
         break;
     }
