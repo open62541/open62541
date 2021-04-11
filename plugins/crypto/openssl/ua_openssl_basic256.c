@@ -409,8 +409,8 @@ UA_AsymEn_Basic256_Encrypt (void *                    channelContext,
 }
 
 static UA_StatusCode
-UA_Sym_Basic256_generateNonce (const UA_SecurityPolicy * sp,
-                               UA_ByteString *           out) {
+UA_Sym_Basic256_generateNonce(void *policyContext,
+                              UA_ByteString *out) {
     UA_Int32 rc = RAND_bytes(out->data, (int) out->length);
     if (rc != 1) {
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
@@ -419,11 +419,9 @@ UA_Sym_Basic256_generateNonce (const UA_SecurityPolicy * sp,
 }
 
 static UA_StatusCode
-UA_Sym_Basic256_generateKey (const UA_SecurityPolicy * securityPolicy,
-                             const UA_ByteString *     secret,
-                             const UA_ByteString *     seed, 
-                             UA_ByteString *           out) {
-    return UA_Openssl_Random_Key_PSHA1_Derive (secret, seed, out);
+UA_Sym_Basic256_generateKey(void *policyContext, const UA_ByteString *secret,
+                            const UA_ByteString *seed, UA_ByteString *out) {
+    return UA_Openssl_Random_Key_PSHA1_Derive(secret, seed, out);
 }
 
 static size_t 

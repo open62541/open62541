@@ -8,13 +8,22 @@
 #include <open62541/plugin/pubsub_udp.h>
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
-#include <open62541/types_generated_encoding_binary.h>
+#include <open62541/plugin/securitypolicy_default.h>
 
+#include "open62541/types_generated_encoding_binary.h"
+
+#include "ua_pubsub.h"
 #include "ua_server_internal.h"
 
 #include <check.h>
-#include <stdio.h>
-#include <time.h>
+
+#define UA_AES128CTR_SIGNING_KEY_LENGTH 16
+#define UA_AES128CTR_KEY_LENGTH 16
+#define UA_AES128CTR_KEYNONCE_LENGTH 4
+
+UA_Byte signingKey[UA_AES128CTR_SIGNING_KEY_LENGTH] = {0};
+UA_Byte encryptingKey[UA_AES128CTR_KEY_LENGTH] = {0};
+UA_Byte keyNonce[UA_AES128CTR_KEYNONCE_LENGTH] = {0};
 
 UA_Server *server = NULL;
 UA_NodeId connection1, connection2, writerGroup1, writerGroup2, writerGroup3,
@@ -26,6 +35,14 @@ static void setup(void) {
     UA_ServerConfig_setDefault(config);
     UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
 
+    config->pubSubConfig.securityPolicies = (UA_PubSubSecurityPolicy*)
+        UA_malloc(sizeof(UA_PubSubSecurityPolicy));
+    config->pubSubConfig.securityPoliciesSize = 1;
+    UA_PubSubSecurityPolicy_Aes128Ctr(config->pubSubConfig.securityPolicies,
+                                      &config->logger);
+
+    UA_Server_run_startup(server);
+    //add 2 connections
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
     connectionConfig.name = UA_STRING("UADP Connection");
@@ -34,6 +51,16 @@ static void setup(void) {
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
     UA_Server_addPubSubConnection(server, &connectionConfig, &connection1);
+    UA_Server_addPubSubConnection(server, &connectionConfig, &connection2);
+}
+
+static void teardown(void) {
+    UA_Server_run_shutdown(server);
+    UA_Server_delete(server);
+}
+
+START_TEST(SinglePublishDataSetField) {
+    UA_ServerConfig *config = UA_Server_getConfig(server);
 
     UA_WriterGroupConfig writerGroupConfig;
     memset(&writerGroupConfig, 0, sizeof(writerGroupConfig));
@@ -42,27 +69,34 @@ static void setup(void) {
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
     UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroup1);
     UA_Server_setWriterGroupOperational(server, writerGroup1);
+    writerGroupConfig.name = UA_STRING("WriterGroup 2");
+    writerGroupConfig.publishingInterval = 50;
+    writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
+    UA_Server_addWriterGroup(server, connection2, &writerGroupConfig, &writerGroup2);
+    UA_Server_setWriterGroupOperational(server, writerGroup2);
+    writerGroupConfig.name = UA_STRING("WriterGroup 3");
+    writerGroupConfig.publishingInterval = 100;
+    writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
+
+    writerGroupConfig.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+    writerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[0];
+
+    UA_Server_addWriterGroup(server, connection2, &writerGroupConfig, &writerGroup3);
+    UA_Server_setWriterGroupOperational(server, writerGroup3);
 
     UA_PublishedDataSetConfig pdsConfig;
     memset(&pdsConfig, 0, sizeof(UA_PublishedDataSetConfig));
     pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
     pdsConfig.name = UA_STRING("PublishedDataSet 1");
     UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSet1);
+    UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSet2);
 
     UA_DataSetWriterConfig dataSetWriterConfig;
     memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
     dataSetWriterConfig.name = UA_STRING("DataSetWriter 1");
-    UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter1);
+    UA_Server_addDataSetWriter(server, writerGroup3, publishedDataSet1,
+                               &dataSetWriterConfig, &dataSetWriter1);
 
-    UA_Server_run_startup(server);
-}
-
-static void teardown(void) {
-    UA_Server_run_shutdown(server);
-    UA_Server_delete(server);
-}
-
-START_TEST(PublishSpeedTest) {
     UA_DataSetFieldConfig dataSetFieldConfig;
     memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
     dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
@@ -72,30 +106,24 @@ START_TEST(PublishSpeedTest) {
     dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
     UA_Server_addDataSetField(server, publishedDataSet1, &dataSetFieldConfig, NULL);
 
-    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup1);
 
-    printf("start sending 8000 publish messages via UDP\n");
+    UA_ByteString sk = {UA_AES128CTR_SIGNING_KEY_LENGTH, signingKey};
+    UA_ByteString ek = {UA_AES128CTR_KEY_LENGTH, encryptingKey};
+    UA_ByteString kn = {UA_AES128CTR_KEYNONCE_LENGTH, keyNonce};
 
-    clock_t begin, finish;
-    begin = clock();
+    UA_Server_setWriterGroupEncryptionKeys(server, writerGroup3, 1, sk, ek, kn);
 
-    for(int i = 0; i < 8000; i++) {
-        UA_WriterGroup_publishCallback(server, wg);
-    }
-
-    finish = clock();
-    double time_spent = (double)(finish - begin) / CLOCKS_PER_SEC;
-    printf("duration was %f s\n", time_spent);
-
+    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup3);
+    UA_WriterGroup_publishCallback(server, wg);
 } END_TEST
 
 int main(void) {
-    TCase *tc_publishspeed = tcase_create("Speed of the publisher");
-    tcase_add_checked_fixture(tc_publishspeed, setup, teardown);
-    tcase_add_test(tc_publishspeed, PublishSpeedTest);
+    TCase *tc_pubsub_publish = tcase_create("PubSub publish DataSetFields");
+    tcase_add_checked_fixture(tc_pubsub_publish, setup, teardown);
+    tcase_add_test(tc_pubsub_publish, SinglePublishDataSetField);
 
-    Suite *s = suite_create("PubSub Speed Test");
-    suite_add_tcase(s, tc_publishspeed);
+    Suite *s = suite_create("PubSub WriterGroups/Writer/Fields handling and publishing");
+    suite_add_tcase(s, tc_pubsub_publish);
 
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);

@@ -99,7 +99,6 @@ void
 UA_Client_AsyncService_removeAll(UA_Client *client, UA_StatusCode statusCode);
 
 typedef struct CustomCallback {
-    LIST_ENTRY(CustomCallback) pointers;
     UA_UInt32 callbackId;
 
     UA_ClientAsyncServiceCallback userCallback;
@@ -145,7 +144,6 @@ struct UA_Client {
 
     /* Async Service */
     LIST_HEAD(, AsyncServiceCall) asyncServiceCalls;
-    LIST_HEAD(, CustomCallback) customCallbacks;
 
     /* Subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS

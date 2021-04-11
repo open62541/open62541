@@ -21,8 +21,8 @@
 
 #include <check.h>
 
-#define             ETHERNET_INTERFACE                 "enp4s0"
-#define             MULTICAST_MAC_ADDRESS              "opc.eth://01-00-5E-00-00-01"
+/* Adjust your configuration globally for the ethernet tests here: */
+#include "ethernet_config.h"
 
 UA_Server *server = NULL;
 
@@ -30,11 +30,7 @@ static void setup(void) {
     server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
-
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer *)
-        UA_malloc(sizeof(UA_PubSubTransportLayer));
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerEthernet();
-    config->pubsubTransportLayersSize++;
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
     UA_Server_run_startup(server);
 }
 

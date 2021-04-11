@@ -681,11 +681,10 @@ typedef struct UA_DataType UA_DataType;
 #define UA_EMPTY_ARRAY_SENTINEL ((void*)0x01)
 
 typedef enum {
-    UA_VARIANT_DATA,          /* The data has the same lifecycle as the
-                                 variant */
-    UA_VARIANT_DATA_NODELETE /* The data is "borrowed" by the variant and
-                                 shall not be deleted at the end of the
-                                 variant's lifecycle. */
+    UA_VARIANT_DATA,         /* The data has the same lifecycle as the variant */
+    UA_VARIANT_DATA_NODELETE /* The data is "borrowed" by the variant and is
+                              * not deleted when the variant is cleared up.
+                              * The array dimensions also borrowed. */
 } UA_VariantStorageType;
 
 typedef struct {

@@ -443,7 +443,7 @@ sendResponse(UA_Server *server, UA_Session *session, UA_SecureChannel *channel,
         return retval;
 
     /* Assert's required for clang-analyzer */
-    UA_assert(mc.buf_pos == &mc.messageBuffer.data[UA_SECURE_MESSAGE_HEADER_LENGTH]);
+    UA_assert(mc.buf_pos == &mc.messageBuffer.data[UA_SECURECHANNEL_SYMMETRIC_HEADER_TOTALLENGTH]);
     UA_assert(mc.buf_end <= &mc.messageBuffer.data[mc.messageBuffer.length]);
 
     /* Encode the response type */

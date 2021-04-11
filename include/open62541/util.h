@@ -25,6 +25,8 @@ typedef struct UA_Server UA_Server;
 struct UA_ServerConfig;
 typedef struct UA_ServerConfig UA_ServerConfig;
 
+typedef void (*UA_ServerCallback)(UA_Server *server, void *data);
+
 struct UA_Client;
 typedef struct UA_Client UA_Client;
 
