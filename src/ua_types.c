@@ -1359,17 +1359,18 @@ UA_Array_copy(const void *src, size_t size,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* calloc, so we don't have to check retval in every iteration of copying */
-    *dst = UA_calloc(size, type->memSize);
-    if(!*dst)
+    void *tmp = UA_calloc(size, type->memSize);
+    if(!tmp)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     if(type->pointerFree) {
-        memcpy(*dst, src, type->memSize * size);
+        memcpy(tmp, src, type->memSize * size);
+        *dst = tmp;
         return UA_STATUSCODE_GOOD;
     }
 
     uintptr_t ptrs = (uintptr_t)src;
-    uintptr_t ptrd = (uintptr_t)*dst;
+    uintptr_t ptrd = (uintptr_t)tmp;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < size; ++i) {
         retval |= UA_copy((void*)ptrs, (void*)ptrd, type);
@@ -1377,10 +1378,11 @@ UA_Array_copy(const void *src, size_t size,
         ptrd += type->memSize;
     }
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_Array_delete(*dst, size, type);
-        *dst = NULL;
+        UA_Array_delete(tmp, size, type);
+        return retval;
     }
-    return retval;
+    *dst = tmp;
+    return UA_STATUSCODE_GOOD;
 }
 
 void
