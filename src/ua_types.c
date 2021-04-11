@@ -19,6 +19,7 @@
 #include <open62541/types_generated.h>
 #include <open62541/types_generated_handling.h>
 
+#include "ua_types_encoding_binary.h"
 #include "ua_util_internal.h"
 #include "libc_time.h"
 #include "pcg_basic.h"
@@ -1390,6 +1391,11 @@ UA_Array_copy(const void *src, size_t size,
 
 void
 UA_Array_delete(void *p, size_t size, const UA_DataType *type) {
+#ifdef UA_ENABLE_BORROW_DECODING
+    /* The array is borrowed from the message buffer */
+    if(type->overlayable && UA_borrowDecoding)
+        return;
+#endif
     if(!type->pointerFree) {
         uintptr_t ptr = (uintptr_t)p;
         for(size_t i = 0; i < size; ++i) {

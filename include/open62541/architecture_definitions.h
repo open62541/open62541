@@ -82,6 +82,15 @@
 # define UA_THREAD_LOCAL __declspec(thread)
 #else
 # define UA_THREAD_LOCAL
+# ifdef UA_ENABLE_BORROW_DECODING
+/* Borrow-decoding defines the thread-local variable UA_borrowDecoding that is
+ * used in ua_types.c and ua_types_encoding_binary.c. In principle,
+ * borrow-decoding works without thread-local variables (if there no parallel
+ * threads, e.g. for an embedded target). But the unit tests do start parallel
+ * threads and race-conditions will occur there. You can disable this error when
+ * the above is understood. */
+#  error Borrow-decoding requires thread-local variables
+# endif
 #endif
 
 /**

@@ -225,6 +225,9 @@ if(UA_ENABLE_DISCOVERY_MULTICAST AND NOT UA_ENABLE_DISCOVERY)
 endif()
 
 # Advanced options
+option(UA_ENABLE_BORROW_DECODING "The decoded structures point to memory from the network buffer where possible" ON)
+mark_as_advanced(UA_ENABLE_BORROW_DECODING)
+
 option(UA_ENABLE_COVERAGE "Enable gcov coverage" OFF)
 mark_as_advanced(UA_ENABLE_COVERAGE)
 
