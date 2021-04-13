@@ -50,19 +50,9 @@
 #define ETHERTYPE_UADP                       0xb62c
 #define MIN_ETHERNET_PACKET_SIZE_WITHOUT_FCS 60
 #define VLAN_HEADER_SIZE                     4
-
-#ifndef ETHERTYPE_UADP
-#define ETHERTYPE_UADP                       0xb62c
-#endif
-
-#define MIN_ETHERNET_PACKET_SIZE_WITHOUT_FCS 60
-#define VLAN_HEADER_SIZE                     4
-
 #define VLAN_SHIFT                           13
-#define XDP_FRAME_SHIFT                      11 //match the frame size 2048
-
-// Receive buffer batch size
-#define BATCH_SIZE                           16
+#define XDP_FRAME_SHIFT                      11 // Match the frame size 2048
+#define BATCH_SIZE                           16 // Receive buffer batch size
 
 #ifndef XDP_COPY
 #define XDP_COPY                             (1 << 1)
