@@ -781,19 +781,39 @@ UA_ClientConnectionTCP_poll(UA_Connection *connection, UA_UInt32 timeout,
 #else
     /* Wait in a select-call until the connection fully opens or the timeout
      * happens */
-    fd_set fdset;
-    FD_ZERO(&fdset);
-    UA_fd_set(connection->sockfd, &fdset);
-    struct timeval tmptv = { (long int) (timeout_usec / 1000000),
-                             (int) (timeout_usec % 1000000) };
-    int resultsize = UA_select((UA_Int32) (connection->sockfd + 1), NULL,
-                               &fdset, NULL, &tmptv);
+
+    /* On windows select both writing and error fdset */
+    fd_set writing_fdset;
+    FD_ZERO(&writing_fdset);
+    UA_fd_set(connection->sockfd, &writing_fdset);
+    fd_set error_fdset;
+    FD_ZERO(&error_fdset);
+#ifdef _WIN32
+    UA_fd_set(connection->sockfd, &error_fdset);
+#endif
+    struct timeval tmptv = {(long int)(timeout_usec / 1000000),
+                            (int)(timeout_usec % 1000000)};
+
+    int ret = UA_select((UA_Int32)(connection->sockfd + 1), NULL, &writing_fdset,
+                        &error_fdset, &tmptv);
+
+    // When select fails abort connection
+    if(ret == -1) {
+        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+                       "Connection to %.*s failed with error: %s",
+                       (int)tcpConnection->endpointUrl.length,
+                       tcpConnection->endpointUrl.data, strerror(UA_ERRNO));
+        ClientNetworkLayerTCP_close(connection);
+        return UA_STATUSCODE_BADDISCONNECT;
+    }
+
+    int resultsize = UA_fd_isset(connection->sockfd, &writing_fdset);
 #endif
 
     /* Any errors on the socket reported? */
     OPTVAL_TYPE so_error = 0;
     socklen_t len = sizeof(so_error);
-    int ret = UA_getsockopt(connection->sockfd, SOL_SOCKET, SO_ERROR, &so_error, &len);
+    ret = UA_getsockopt(connection->sockfd, SOL_SOCKET, SO_ERROR, &so_error, &len);
     if(ret != 0 || so_error != 0) {
         // UA_LOG_SOCKET_ERRNO_GAI_WRAP because of so_error
 #ifndef _WIN32
