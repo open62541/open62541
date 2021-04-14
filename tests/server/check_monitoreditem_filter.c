@@ -273,18 +273,19 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterSetLater) {
 
     UA_ModifyMonitoredItemsResponse_clear(&modifyResponse);
 
-    // This should trigger only once for the new filter
+    // This should not yet trigger as the previously sent value is 40
     notificationReceived = false;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeId, 39.0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(notificationReceived, true);
-    ck_assert_uint_eq(countNotificationReceived, 1);
+    ck_assert_uint_eq(notificationReceived, false);
+    ck_assert_uint_eq(countNotificationReceived, 0);
     ck_assert_uint_eq(setDouble(client, outNodeId, 41.0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(waitForNotification(2, 10), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(countNotificationReceived, 1);
+    ck_assert_uint_eq(notificationReceived, false);
+    ck_assert_uint_eq(countNotificationReceived, 0);
 
-    ck_assert(fuzzyLastValueIsEqualTo(39.0));
+    ck_assert(fuzzyLastValueIsEqualTo(40.0));
 
     // This should trigger once at 43.0.
     notificationReceived = false;
@@ -691,6 +692,71 @@ START_TEST(Server_MonitoredItemsNoFilter) {
 }
 END_TEST
 
+START_TEST(Server_MonitoredItemsSetEmpty) {
+    UA_DataValue_init(&lastValue);
+    /* define a monitored item with an absolute filter with deadbandvalue = 2.0 */
+    UA_MonitoredItemCreateRequest item = UA_MonitoredItemCreateRequest_default(outNodeId);
+    UA_UInt32 newMonitoredItemIds[1];
+    UA_Client_DataChangeNotificationCallback callbacks[1];
+    callbacks[0] = dataChangeHandler;
+    UA_Client_DeleteMonitoredItemCallback deleteCallbacks[1] = {NULL};
+    void *contexts[1];
+    contexts[0] = NULL;
+
+    UA_CreateMonitoredItemsRequest createRequest;
+    UA_CreateMonitoredItemsRequest_init(&createRequest);
+    createRequest.subscriptionId = subId;
+    createRequest.timestampsToReturn = UA_TIMESTAMPSTORETURN_BOTH;
+    createRequest.itemsToCreate = &item;
+    createRequest.itemsToCreateSize = 1;
+    UA_CreateMonitoredItemsResponse createResponse =
+       UA_Client_MonitoredItems_createDataChanges(client, createRequest, contexts,
+                                                   callbacks, deleteCallbacks);
+
+    ck_assert_uint_eq(createResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(createResponse.resultsSize, 1);
+    ck_assert_uint_eq(createResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
+    newMonitoredItemIds[0] = createResponse.results[0].monitoredItemId;
+    UA_CreateMonitoredItemsResponse_clear(&createResponse);
+
+    // Do we get initial value ?
+    notificationReceived = false;
+    countNotificationReceived = 0;
+    ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(countNotificationReceived, 1);
+
+    ck_assert(fuzzyLastValueIsEqualTo(40.0));
+
+    // Setting the variable empty shold trigger
+    notificationReceived = false;
+    countNotificationReceived = 0;
+    UA_Variant variant;
+    UA_Variant_init(&variant);
+    UA_StatusCode res = UA_Client_writeValueAttribute(client, outNodeId, &variant);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(countNotificationReceived,  1);
+
+    // remove monitored item
+    UA_DeleteMonitoredItemsRequest deleteRequest;
+    UA_DeleteMonitoredItemsRequest_init(&deleteRequest);
+    deleteRequest.subscriptionId = subId;
+    deleteRequest.monitoredItemIds = newMonitoredItemIds;
+    deleteRequest.monitoredItemIdsSize = 1;
+
+    UA_DeleteMonitoredItemsResponse deleteResponse =
+        UA_Client_MonitoredItems_delete(client, deleteRequest);
+
+    ck_assert_uint_eq(deleteResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(deleteResponse.resultsSize, 1);
+    ck_assert_uint_eq(deleteResponse.results[0], UA_STATUSCODE_GOOD);
+
+    UA_DeleteMonitoredItemsResponse_clear(&deleteResponse);
+}
+END_TEST
+
 /* Test if an absolute filter can be added for boolean variables */
 START_TEST(Server_MonitoredItemsAbsoluteFilterOnBool) {
     UA_DataValue_init(&lastValue);
@@ -883,6 +949,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_checked_fixture(tc_server, setup, teardown);
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     tcase_add_test(tc_server, Server_MonitoredItemsNoFilter);
+    tcase_add_test(tc_server, Server_MonitoredItemsSetEmpty);
     tcase_add_test(tc_server, Server_MonitoredItemsAbsoluteFilterSetOnCreate);
     tcase_add_test(tc_server, Server_MonitoredItemsAbsoluteFilterOnBool);
     tcase_add_test(tc_server, Server_MonitoredItemsAbsoluteFilterSetLater);

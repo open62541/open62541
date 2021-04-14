@@ -1,6 +1,9 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ * 
+ *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
+ */
 
 #include <open62541/client_config_default.h>
 #include <open62541/client_subscriptions.h>
@@ -362,7 +365,7 @@ START_TEST(generateEvents) {
     sleepUntilAnswer(publishingInterval + 100);
     retval = UA_Client_run_iterate(client, 0);
     sleepUntilAnswer(publishingInterval + 100);
-    retval = UA_Client_run_iterate(client, 0);
+    retval |= UA_Client_run_iterate(client, 0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(createResult.revisedQueueSize, 1);
@@ -703,6 +706,7 @@ START_TEST(evaluateWhereClause) {
     /* Everything is on the stack, so no memory cleaning required.*/
     UA_NodeId eventNodeId;
     UA_StatusCode retval = eventSetup(&eventNodeId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_ContentFilter contentFilter;
     UA_ContentFilter_init(&contentFilter);
     /* Empty Filter */

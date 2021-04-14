@@ -23,6 +23,7 @@
 #endif
 
 #define UA_MAX_SIZENAME 64  /* Max size of Qualified Name of Subscribed Variable */
+#define MIN_PAYLOAD_SIZE_ETHERNET 46
 
 /* Clear ReaderGroup */
 static void
@@ -597,21 +598,27 @@ UA_Server_freezeReaderGroupConfiguration(UA_Server *server, const UA_NodeId read
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                            "PubSub RT Offset calculation: DataSetMessage generation failed");
+            UA_DataSetMessage_clear(dsm);
+            UA_free(dsm);
             return UA_STATUSCODE_BADINTERNALERROR;
         }
 
         /* Generate data set messages - Considering 1 DSM as max */
-        UA_UInt16 *dsWriterIds = (UA_UInt16 *) UA_calloc(1, sizeof(UA_UInt16));
+        UA_UInt16 *dsWriterIds = (UA_UInt16 *)UA_calloc(1, sizeof(UA_UInt16));
         if(!dsWriterIds) {
             UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                          "PubSub RT Offset calculation: DataSetWriterId creation failed");
+            UA_DataSetMessage_clear(dsm);
+            UA_free(dsm);
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
         *dsWriterIds = dataSetReader->config.dataSetWriterId;
 
-        UA_NetworkMessage *networkMessage = (UA_NetworkMessage *) UA_calloc(1, sizeof(UA_NetworkMessage));
+        UA_NetworkMessage *networkMessage = (UA_NetworkMessage *)UA_calloc(1, sizeof(UA_NetworkMessage));
         if(!networkMessage) {
             UA_free(dsWriterIds);
+            UA_DataSetMessage_clear(dsm);
+            UA_free(dsm);
             UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                          "PubSub RT Offset calculation: Network message creation failed");
             return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -623,6 +630,7 @@ UA_Server_freezeReaderGroupConfiguration(UA_Server *server, const UA_NodeId read
             UA_free(networkMessage->payload.dataSetPayload.sizes);
             UA_free(networkMessage);
             UA_free(dsWriterIds);
+            UA_DataSetMessage_clear(dsm);
             UA_free(dsm);
             UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                            "PubSub RT Offset calculation: NetworkMessage generation failed");
@@ -851,14 +859,17 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
         UA_ByteString_clear(&buffer);
         return;
     }
-    size_t currentPosition = 0;
+
     if(buffer.length > 0) {
+        size_t currentPosition = 0;
+        size_t previousPosition = 0;
         if (readerGroup->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE) {
             do {
                 /* Considering max DSM as 1
                 * TODO:
                 * Process with the static value source
                 */
+                size_t paddingBytes = 0;
                 UA_DataSetReader *dataSetReader = LIST_FIRST(&readerGroup->readers);
                 /* Decode only the necessary offset and update the networkMessage */
                 if(UA_NetworkMessage_updateBufferedNwMessage(&dataSetReader->bufferedMessage, &buffer, &currentPosition) != UA_STATUSCODE_GOOD) {
@@ -893,6 +904,17 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
                         UA_DataValue_clear(&dsm->data.keyFrameData.dataSetFields[i]);
                     }
                 }
+
+                /* Minimum ethernet packet size is 64 bytes where the header size is 14 bytes and FCS size is 4 bytes
+                 * so remaining minimum payload size of ethernet packet is 46 bytes */
+                /* TODO: Need to handle padding bytes for UDP */
+                if (((currentPosition - previousPosition) < MIN_PAYLOAD_SIZE_ETHERNET) &&
+                    (strncmp((const char *)connection->config->transportProfileUri.data, "http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp", (size_t)(connection->config->transportProfileUri.length)) == 0)) {
+                    paddingBytes = (MIN_PAYLOAD_SIZE_ETHERNET - (currentPosition - previousPosition));
+                    currentPosition += paddingBytes; /* During multiple receive, move the position to handle padding bytes */
+                }
+
+                previousPosition = currentPosition;
             } while((buffer.length) > currentPosition);
             UA_ByteString_clear(&buffer);
             return;
@@ -900,14 +922,25 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
         else {
             UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_USERLAND, "Message received:");
             do {
+                size_t paddingBytes = 0;
                 UA_NetworkMessage currentNetworkMessage;
                 memset(&currentNetworkMessage, 0, sizeof(UA_NetworkMessage));
                 UA_NetworkMessage_decodeBinary(&buffer, &currentPosition, &currentNetworkMessage);
                 UA_Server_processNetworkMessage(server, &currentNetworkMessage, connection);
                 UA_NetworkMessage_clear(&currentNetworkMessage);
+                /* Minimum ethernet packet size is 64 bytes where the header size is 14 bytes and FCS size is 4 bytes
+                 * so remaining minimum payload size of ethernet packet is 46 bytes */
+                /* TODO: Need to handle padding bytes for UDP */
+                if (((currentPosition - previousPosition) < MIN_PAYLOAD_SIZE_ETHERNET) &&
+                    (strncmp((const char *)connection->config->transportProfileUri.data, "http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp", (size_t)(connection->config->transportProfileUri.length)) == 0)) {
+                    paddingBytes = (MIN_PAYLOAD_SIZE_ETHERNET - (currentPosition - previousPosition));
+                    currentPosition += paddingBytes; /* During multiple receive, move the position to handle padding bytes */
+                }
+
+                previousPosition = currentPosition;
             } while((buffer.length) > currentPosition);
         }
-    } 
+    }
     UA_ByteString_clear(&buffer);
 }
 
