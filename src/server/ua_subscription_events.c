@@ -4,6 +4,8 @@
  *
  *    Copyright 2018 (c) Ari Breitkreuz, fortiss GmbH
  *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
+ *    Copyright 2021 (c) Stefan Joachim Hahn, Technische Hochschule Mittelhessen
+ *    Copyright 2021 (c) Florian Fischer, Technische Hochschule Mittelhessen
  */
 
 #include "ua_server_internal.h"
@@ -519,6 +521,67 @@ static const UA_NodeId isInFolderReferences[2] =
     {{0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_ORGANIZES}},
      {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASCOMPONENT}}};
 
+#ifdef UA_ENABLE_PUBSUB_EVENTS
+static UA_StatusCode
+insertDataValueIntoDSWQueue(UA_Server *server, UA_DataSetWriter *dsw, UA_DataValue *value)  {
+    if(dsw->eventQueueEntries == dsw->config.eventQueueMaxSize){
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "EventQueueMaxSize reached %lu / %lu.",
+                       dsw->eventQueueEntries, dsw->config.eventQueueMaxSize);
+
+        /* remove oldest entry to make space for new one*/
+        EventQueueEntry *eventQueueEntry = SIMPLEQ_FIRST(&dsw->eventQueue);
+        SIMPLEQ_REMOVE_HEAD(&dsw->eventQueue, listEntry);
+        dsw->eventQueueEntries--;
+        UA_DataValue_clear(&eventQueueEntry->value);
+        UA_free(eventQueueEntry);
+    }
+
+    EventQueueEntry *entry = (EventQueueEntry *)malloc(sizeof(EventQueueEntry));
+    if(!entry)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    UA_DataValue_copy(value, &entry->value);
+    SIMPLEQ_INSERT_TAIL(&dsw->eventQueue, entry, listEntry);
+    dsw->eventQueueEntries++;
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Adds all DataSetFields of the given PublishedDataSet to the eventQueue of the given DataSetWriter*/
+static UA_StatusCode
+addEventToDataSetWriter(UA_Server *server, UA_NodeId eventNodeId,
+                        UA_DataSetWriter *dsw, UA_PublishedDataSet *publishedDataSet) {
+    if(!publishedDataSet || !dsw)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_SimpleAttributeOperand selectedField;
+    UA_DataValue dataValue;
+    UA_DataValue_init(&dataValue);
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    for(size_t i = 0; i < publishedDataSet->config.config.event.selectedFieldsSize; i++){
+        selectedField = publishedDataSet->config.config.event.selectedFields[i];
+        retval = resolveSimpleAttributeOperand(server, &server->adminSession, &eventNodeId,
+                                               &selectedField, &dataValue.value);
+        if(retval != UA_STATUSCODE_GOOD){
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "SimpleAttributeOperand wasn't able to be resolved as a Variant."
+                         " StatusCode %s", UA_StatusCode_name(retval));
+            return retval;
+        };
+        retval |= insertDataValueIntoDSWQueue(server, dsw, &dataValue);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "Inserting DataValue into DSW-queue failed. "
+                         "StatusCode %s", UA_StatusCode_name(retval));
+            return retval;
+        }
+        UA_DataValue_clear(&dataValue);
+    }
+    return retval;
+}
+
+#endif /*UA_ENABLE_PUBSUB_EVENTS*/
+
 UA_StatusCode
 UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
                        const UA_NodeId origin, UA_ByteString *outEventId,
@@ -661,6 +724,42 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
             setHistoricalEvent(server, &origin, &emitNodes[i].nodeId, &eventNodeId);
 #endif
     }
+
+#ifdef UA_ENABLE_PUBSUB_EVENTS
+    /*Bubble up*/
+    for(size_t i = 0; i < emitNodesSize; i++) {
+        /* Get the node */
+        const UA_ObjectNode *node = (const UA_ObjectNode*)
+            UA_NODESTORE_GET(server, &emitNodes[i].nodeId);
+        if(!node)
+            continue;
+
+        /* Only consider objects */
+        if(node->head.nodeClass != UA_NODECLASS_OBJECT) {
+            UA_NODESTORE_RELEASE(server, (const UA_Node*)node);
+            continue;
+        }
+
+        PublishedDataSetEventEntry *entry;
+        LIST_FOREACH(entry, &server->pubSubManager.publishedDataSetEvents, listEntry){
+            if(UA_NodeId_equal(&entry->pds->config.config.event.eventNotifier, &emitNodes[i].nodeId)){
+                retval = UA_Server_evaluateWhereClauseContentFilter(server, &eventNodeId, &entry->pds->config.config.event.filter);
+                if(retval != UA_STATUSCODE_GOOD)
+                    continue;
+
+                retval = addEventToDataSetWriter(server, eventNodeId, entry->dsw, entry->pds);
+                if(retval != UA_STATUSCODE_GOOD) {
+                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                                   "Events: Could not add the event to the DataSetWriter with StatusCode %s",
+                                   UA_StatusCode_name(retval));
+                    retval = UA_STATUSCODE_GOOD;
+                }
+            }
+        }
+
+        UA_NODESTORE_RELEASE(server, (const UA_Node*)node);
+    }
+#endif /*UA_ENABLE_PUBSUB_EVENTS*/
 
     /* Delete the node representation of the event */
     if(deleteEventNode) {

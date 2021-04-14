@@ -4,6 +4,8 @@
  *
  * Copyright (c) 2017-2018 Fraunhofer IOSB (Author: Andreas Ebner)
  * Copyright (c) 2019 Kalycito Infotech Private Limited
+ * Copyright (c) 2021 Stefan Joachim Hahn, Technische Hochschule Mittelhessen
+ * Copyright (c) 2021 Florian Fischer, Technische Hochschule Mittelhessen
  */
 
 #ifndef UA_SERVER_PUBSUB_H
@@ -122,6 +124,9 @@ _UA_BEGIN_DECLS
  * **UA_ENABLE_PUBSUB_ETH_UADP**
  *  Enable the OPC UA Ethernet PubSub support to transport UADP NetworkMessages as payload of Ethernet II frame without IP or UDP headers. This option will include Publish and Subscribe based on
  *  EtherType B62C. Disabled by default.
+ *  **UA_ENABLE_PUBSUB_EVENTS**
+ *  Enable the OPC UA PubSub support for events. With enabled event support DataSetWriters will create an event queue upon initialization.
+ *  All events that were queued up within one publish cycle will be sent out in a single DataSetMessage. Disabled by default.
  *
  * PubSub Information Model Representation
  * ---------------------------------------
@@ -285,13 +290,15 @@ typedef struct {
 } UA_PublishedDataItemsTemplateConfig;
 
 typedef struct {
-    UA_NodeId eventNotfier;
+    UA_NodeId eventNotifier;
     UA_ContentFilter filter;
+    size_t selectedFieldsSize;
+    UA_SimpleAttributeOperand *selectedFields;
 } UA_PublishedEventConfig;
 
 typedef struct {
     UA_DataSetMetaDataType metaData;
-    UA_NodeId eventNotfier;
+    UA_NodeId eventNotifier;
     size_t selectedFieldsSize;
     UA_SimpleAttributeOperand *selectedFields;
     UA_ContentFilter filter;
@@ -375,9 +382,14 @@ typedef enum {
 } UA_DataSetFieldType;
 
 typedef struct {
+    UA_String fieldNameAlias;
+    UA_Boolean promotedField;
+} UA_DataSetEventConfig;
+
+typedef struct {
     UA_DataSetFieldType dataSetFieldType;
     union {
-        /* events need other config later */
+        UA_DataSetEventConfig events;
         UA_DataSetVariableConfig variable;
     } field;
 } UA_DataSetFieldConfig;
@@ -579,6 +591,7 @@ typedef struct {
     UA_String dataSetName;
     size_t dataSetWriterPropertiesSize;
     UA_KeyValuePair *dataSetWriterProperties;
+    size_t eventQueueMaxSize;
 } UA_DataSetWriterConfig;
 
 void UA_EXPORT

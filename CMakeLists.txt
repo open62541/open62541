@@ -275,6 +275,8 @@ mark_as_advanced(UA_ENABLE_PUBSUB_MONITORING)
 option(UA_ENABLE_PUBSUB_BUFMALLOC "Enable allocation with static memory buffer for time critical PubSub parts" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_BUFMALLOC)
 
+option(UA_ENABLE_PUBSUB_EVENTS "Enable events in PubSub" OFF)
+mark_as_advanced(UA_ENABLE_PUBSUB_EVENTS)
 #RT and Transport PubSub settings
 option(UA_ENABLE_PUBSUB_ETH_UADP "Enable publish/subscribe UADP over Ethernet" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_ETH_UADP)
@@ -312,12 +314,25 @@ if(UA_ENABLE_PUBSUB_MONITORING)
     endif()
 endif()
 
+
+if(UA_ENABLE_PUBSUB_EVENTS)
+    if(NOT UA_ENABLE_PUBSUB)
+        message(FATAL_ERROR "PubSub needs to be enabled")
+    endif()
+endif()
+
 if(UA_ENABLE_PUBSUB_BUFMALLOC)
     if(NOT UA_ENABLE_PUBSUB)
         message(FATAL_ERROR "PubSub buffer allocation cannot be used with PubSub function disabled")
     endif()
     if(NOT UA_ENABLE_MALLOC_SINGLETON)
         message(FATAL_ERROR "PubSub buffer allocation cannot be used without 'UA_ENABLE_MALLOC_SINGLETON' enabled")
+    endif()
+endif()
+
+if(UA_ENABLE_PUBSUB_EVENTS)
+    if(NOT UA_ENABLE_PUBSUB)
+        message(FATAL_ERROR "PubSub needs to be enabled")
     endif()
 endif()
 

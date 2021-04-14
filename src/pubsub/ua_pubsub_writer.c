@@ -7,11 +7,14 @@
  * Copyright (c) 2019 Kalycito Infotech Private Limited
  * Copyright (c) 2020 Yannick Wallerer, Siemens AG
  * Copyright (c) 2020 Thomas Fischer, Siemens AG
+ * Copyright (c) 2021 Stefan Joachim Hahn, Technische Hochschule Mittelhessen
+ * Copyright (c) 2021 Florian Fischer, Technische Hochschule Mittelhessen
  */
 
 #include <open62541/server_pubsub.h>
 #include "server/ua_server_internal.h"
 #include <open62541/types_generated_encoding_binary.h>
+#include "server/ua_subscription.h"
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
@@ -461,7 +464,31 @@ UA_PublishedDataSetConfig_copy(const UA_PublishedDataSetConfig *src,
             res |= UA_DataSetMetaDataType_copy(&src->config.itemsTemplate.metaData,
                                                &dst->config.itemsTemplate.metaData);
             break;
+        case UA_PUBSUB_DATASET_PUBLISHEDEVENTS:
+            if(src->config.event.selectedFieldsSize > 0){
+                dst->config.event.selectedFields = (UA_SimpleAttributeOperand *)
+                    UA_calloc(src->config.event.selectedFieldsSize,
+                              sizeof(UA_SimpleAttributeOperand));
+                if(!dst->config.event.selectedFields) {
+                    res = UA_STATUSCODE_BADOUTOFMEMORY;
+                    break;
+                }
+                dst->config.event.selectedFieldsSize =
+                    src->config.event.selectedFieldsSize;
+            }
 
+            for(size_t i = 0; i < src->config.event.selectedFieldsSize; i++){
+                res |= UA_SimpleAttributeOperand_copy(&src->config.event.selectedFields[i],
+                                                         &dst->config.event.selectedFields[i]);
+            }
+
+            res |= UA_NodeId_copy(&src->config.event.eventNotifier,
+                                               &dst->config.event.eventNotifier);
+
+            res |= UA_ContentFilter_copy(&src->config.event.filter,
+                                  &dst->config.event.filter);
+
+            break;
         default:
             res = UA_STATUSCODE_BADINVALIDARGUMENT;
             break;
@@ -529,6 +556,17 @@ UA_PublishedDataSetConfig_clear(UA_PublishedDataSetConfig *pdsConfig) {
             }
             UA_DataSetMetaDataType_clear(&pdsConfig->config.itemsTemplate.metaData);
             break;
+        case UA_PUBSUB_DATASET_PUBLISHEDEVENTS:
+            if(pdsConfig->config.event.selectedFieldsSize > 0){
+                for(size_t i = 0; i < pdsConfig->config.event.selectedFieldsSize; i++){
+                    UA_SimpleAttributeOperand_clear(&pdsConfig->config.event.selectedFields[i]);
+                }
+                UA_free(pdsConfig->config.event.selectedFields);
+                pdsConfig->config.event.selectedFieldsSize = 0;
+            }
+            UA_NodeId_clear(&pdsConfig->config.event.eventNotifier);
+            UA_ContentFilter_clear(&pdsConfig->config.event.filter);
+            break;
         default:
             break;
     }
@@ -546,8 +584,38 @@ UA_PublishedDataSet_clear(UA_Server *server, UA_PublishedDataSet *publishedDataS
     UA_NodeId_clear(&publishedDataSet->identifier);
 }
 
+#ifdef UA_ENABLE_PUBSUB_EVENTS
+static UA_NodeId
+findSingleChildNode(UA_Server *server, UA_QualifiedName targetName,
+                    UA_NodeId referenceTypeId, UA_NodeId startingNode){
+    UA_NodeId resultNodeId;
+    UA_RelativePathElement rpe;
+    UA_RelativePathElement_init(&rpe);
+    rpe.referenceTypeId = referenceTypeId;
+    rpe.isInverse = false;
+    rpe.includeSubtypes = false;
+    rpe.targetName = targetName;
+    UA_BrowsePath bp;
+    UA_BrowsePath_init(&bp);
+    bp.startingNode = startingNode;
+    bp.relativePath.elementsSize = 1;
+    bp.relativePath.elements = &rpe;
+    UA_BrowsePathResult bpr =
+        UA_Server_translateBrowsePathToNodeIds(server, &bp);
+    if(bpr.statusCode != UA_STATUSCODE_GOOD ||
+       bpr.targetsSize < 1)
+        return UA_NODEID_NULL;
+    if(UA_NodeId_copy(&bpr.targets[0].targetId.nodeId, &resultNodeId) != UA_STATUSCODE_GOOD){
+        UA_BrowsePathResult_clear(&bpr);
+        return UA_NODEID_NULL;
+    }
+    UA_BrowsePathResult_clear(&bpr);
+    return resultNodeId;
+}
+#endif /*UA_ENABLE_PUBSUB_EVENTS*/
+
 static UA_StatusCode
-generateFieldMetaData(UA_Server *server, UA_DataSetField *field, UA_FieldMetaData *fieldMetaData) {
+generateFieldMetaData(UA_Server *server, UA_DataSetField *field, UA_FieldMetaData *fieldMetaData, size_t selectedFieldIdx) {
     switch (field->config.dataSetFieldType){
         case UA_PUBSUB_DATASETFIELD_VARIABLE:
             if(UA_String_copy(&field->config.field.variable.fieldNameAlias, &fieldMetaData->name) != UA_STATUSCODE_GOOD)
@@ -588,11 +656,13 @@ generateFieldMetaData(UA_Server *server, UA_DataSetField *field, UA_FieldMetaDat
                 UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                                "PubSub meta data generation. Reading ArrayDimension failed.");
             } else {
-                if (value.arrayDimensionsSize > 0) {
-                    fieldMetaData->arrayDimensions = (UA_UInt32 *) UA_calloc(value.arrayDimensionsSize, sizeof(UA_UInt32));
+                if(value.arrayDimensionsSize > 0) {
+                    fieldMetaData->arrayDimensions = (UA_UInt32 *)UA_calloc(
+                        value.arrayDimensionsSize, sizeof(UA_UInt32));
                     if(fieldMetaData->arrayDimensions == NULL)
                         return UA_STATUSCODE_BADOUTOFMEMORY;
-                    memcpy(fieldMetaData->arrayDimensions, value.arrayDimensions, sizeof(UA_UInt32)*value.arrayDimensionsSize);
+                    memcpy(fieldMetaData->arrayDimensions, value.arrayDimensions,
+                           sizeof(UA_UInt32) * value.arrayDimensionsSize);
                 }
                 fieldMetaData->arrayDimensionsSize = value.arrayDimensionsSize;
             }
@@ -637,6 +707,68 @@ generateFieldMetaData(UA_Server *server, UA_DataSetField *field, UA_FieldMetaDat
             //fieldMetaData.maxStringLength
             return UA_STATUSCODE_GOOD;
         case UA_PUBSUB_DATASETFIELD_EVENT:
+            // [WIP]: maybe needs some adjustments
+#ifdef UA_ENABLE_PUBSUB_EVENTS
+            if(UA_String_copy(&field->config.field.events.fieldNameAlias, &fieldMetaData->name) != UA_STATUSCODE_GOOD)
+                return UA_STATUSCODE_BADINTERNALERROR;
+            fieldMetaData->description = UA_LOCALIZEDTEXT_ALLOC("", "");
+            fieldMetaData->dataSetFieldId = UA_GUID_NULL;
+            fieldMetaData->properties = NULL;
+            fieldMetaData->propertiesSize = 0;
+            fieldMetaData->arrayDimensionsSize = 0;
+
+            UA_PublishedDataSet *parentPublishedDataSet = UA_PublishedDataSet_findPDSbyId(server, field->publishedDataSet);
+            if(!parentPublishedDataSet)
+                return UA_STATUSCODE_BADINTERNALERROR;
+
+            /* The PDS config was already deleted, because selectedFields and DSF are linked there is nothing else to do */
+            if(parentPublishedDataSet->config.config.event.selectedFieldsSize == 0)
+                return UA_STATUSCODE_GOOD;
+
+            if(parentPublishedDataSet->config.config.event.selectedFields[selectedFieldIdx].browsePath == NULL)
+                return UA_STATUSCODE_BADINTERNALERROR;
+
+            UA_QualifiedName browsePath = *parentPublishedDataSet->config.config.event.selectedFields[selectedFieldIdx].browsePath;
+            UA_NodeId typeDefinitionId = parentPublishedDataSet->config.config.event.selectedFields[selectedFieldIdx].typeDefinitionId;
+            UA_NodeId childNodeId = findSingleChildNode(server,
+                                                        browsePath,
+                                                        UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                                                        typeDefinitionId);
+            if(!UA_NodeId_isNull(&childNodeId)){
+                if(UA_Server_readDataType(server, childNodeId,
+                                          &fieldMetaData->dataType) !=
+                   UA_STATUSCODE_GOOD) {
+                    if(fieldMetaData->arrayDimensions) {
+                        UA_free(fieldMetaData->arrayDimensions);
+                        return UA_STATUSCODE_BADINTERNALERROR;
+                    }
+                }
+                if(!UA_NodeId_isNull(&fieldMetaData->dataType)) {
+                    const UA_DataType *currentDataType = UA_findDataTypeWithCustom(
+                        &fieldMetaData->dataType, server->config.customDataTypes);
+                    UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                                "MetaData creation. Found DataType %s.",
+                                currentDataType->typeName);
+                    // check if the datatype is a builtInType, if yes set the builtinType
+                    if(currentDataType->typeIndex <= 135)
+                        fieldMetaData->builtInType = (UA_Byte)currentDataType->typeIndex;
+                } else {
+                    UA_LOG_WARNING(
+                        &server->config.logger, UA_LOGCATEGORY_SERVER,
+                        "PubSub meta data generation. DataType Node is UA_NODEID_NULL.");
+                }
+            } else {
+                UA_LOG_WARNING(
+                    &server->config.logger, UA_LOGCATEGORY_SERVER,
+                    "The searched Field wasn't found");
+            }
+            if(field->config.field.events.promotedField){
+                fieldMetaData->fieldFlags = UA_DATASETFIELDFLAGS_PROMOTEDFIELD;
+            } else {
+                fieldMetaData->fieldFlags = UA_DATASETFIELDFLAGS_NONE;
+            }
+            return UA_STATUSCODE_GOOD;
+#endif /*UA_ENABLE_PUBSUB_EVENTS*/
             return UA_STATUSCODE_BADNOTSUPPORTED;
         default:
             return UA_STATUSCODE_BADNOTSUPPORTED;
@@ -665,11 +797,6 @@ UA_Server_addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
         return result;
     }
 
-    if(currentDataSet->config.publishedDataSetType != UA_PUBSUB_DATASET_PUBLISHEDITEMS){
-        result.result = UA_STATUSCODE_BADNOTIMPLEMENTED;
-        return result;
-    }
-
     UA_DataSetField *newField = (UA_DataSetField *) UA_calloc(1, sizeof(UA_DataSetField));
     if(!newField){
         result.result = UA_STATUSCODE_BADINTERNALERROR;
@@ -693,9 +820,18 @@ UA_Server_addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
     else
         TAILQ_INSERT_HEAD(&currentDataSet->fields, newField, listEntry);
 
-    if(newField->config.field.variable.promotedField)
-        currentDataSet->promotedFieldsCount++;
-    currentDataSet->fieldSize++;
+    if (newField->config.dataSetFieldType == UA_PUBSUB_DATASETFIELD_VARIABLE){
+        if(newField->config.field.variable.promotedField)
+            currentDataSet->promotedFieldsCount++;
+        currentDataSet->fieldSize++;
+    } else if(newField->config.dataSetFieldType == UA_PUBSUB_DATASETFIELD_EVENT){
+        if(newField->config.field.events.promotedField)
+            currentDataSet->promotedFieldsCount++;
+        currentDataSet->fieldSize++;
+    } else {
+        result.result = UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
+        return result;
+    }
 
     //generate fieldMetadata within the DataSetMetaData
     currentDataSet->dataSetMetaData.fieldsSize++;
@@ -709,7 +845,8 @@ UA_Server_addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
     currentDataSet->dataSetMetaData.fields = fieldMetaData;
 
     UA_FieldMetaData_init(&fieldMetaData[currentDataSet->fieldSize-1]);
-    if(generateFieldMetaData(server, newField, &fieldMetaData[currentDataSet->fieldSize-1]) != UA_STATUSCODE_GOOD){
+    if(generateFieldMetaData(server, newField, &fieldMetaData[currentDataSet->fieldSize-1],
+                             (size_t)currentDataSet->fieldSize-1) != UA_STATUSCODE_GOOD){
         UA_Server_removeDataSetField(server, newField->identifier);
         result.result =  UA_STATUSCODE_BADINTERNALERROR;
         return result;
@@ -787,7 +924,7 @@ UA_Server_removeDataSetField(UA_Server *server, const UA_NodeId dsf) {
         TAILQ_FOREACH(tmpDSF, &parentPublishedDataSet->fields, listEntry){
             UA_FieldMetaData tmpFieldMetaData;
             UA_FieldMetaData_init(&tmpFieldMetaData);
-            if(generateFieldMetaData(server, tmpDSF, &tmpFieldMetaData) != UA_STATUSCODE_GOOD){
+            if(generateFieldMetaData(server, tmpDSF, &tmpFieldMetaData, counter) != UA_STATUSCODE_GOOD){
                 UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                                "PubSub MetaData generation failed!");
                 //TODO how to ensure consistency if the metadata regeneration fails
@@ -1329,6 +1466,26 @@ UA_Server_addDataSetWriter(UA_Server *server,
             return retVal;
         }
     }
+#ifdef UA_ENABLE_PUBSUB_EVENTS
+    if(currentDataSetContext->config.publishedDataSetType == UA_PUBSUB_DATASET_PUBLISHEDEVENTS){
+        SIMPLEQ_INIT(&newDataSetWriter->eventQueue); // only needs to be initalized if the linked publishedDataSet is for event
+        if(dataSetWriterConfig->eventQueueMaxSize > SIZE_MAX)
+            return UA_STATUSCODE_BADCONFIGURATIONERROR;
+        if(dataSetWriterConfig->eventQueueMaxSize == 0)
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "Event queue max size is 0.");
+        if(server->pubSubManager.publishedDataSetEventsSize == 0){ // init list if nothing was added before
+            LIST_INIT(&server->pubSubManager.publishedDataSetEvents);
+        }
+        PublishedDataSetEventEntry *pdsEventEntry = (PublishedDataSetEventEntry *)UA_malloc(sizeof(PublishedDataSetEventEntry));
+        if(!pdsEventEntry)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        pdsEventEntry->pds = currentDataSetContext;
+        pdsEventEntry->dsw = newDataSetWriter;
+        LIST_INSERT_HEAD(&server->pubSubManager.publishedDataSetEvents, pdsEventEntry, listEntry);
+        server->pubSubManager.publishedDataSetEventsSize++;
+    }
+#endif /*UA_ENABLE_PUBSUB_EVENTS*/
 
     //copy the config into the new dataSetWriter
     UA_DataSetWriterConfig tmpDataSetWriterConfig;
@@ -1398,6 +1555,28 @@ UA_Server_removeDataSetWriter(UA_Server *server, const UA_NodeId dsw){
     if(!publishedDataSet)
         return UA_STATUSCODE_BADNOTFOUND;
 
+#ifdef UA_ENABLE_PUBSUB_EVENTS
+    if(publishedDataSet->config.publishedDataSetType == UA_PUBSUB_DATASET_PUBLISHEDEVENTS){
+        /*Cleans up the DSW EventQueue*/
+        size_t eventSize = dataSetWriter->eventQueueEntries;
+        for(size_t i = 0; i < eventSize; i++){
+            EventQueueEntry *eventQueueEntry = SIMPLEQ_FIRST(&dataSetWriter->eventQueue);
+            SIMPLEQ_REMOVE_HEAD(&dataSetWriter->eventQueue, listEntry);
+            dataSetWriter->eventQueueEntries--;
+            UA_DataValue_clear(&eventQueueEntry->value);
+            UA_free(eventQueueEntry);
+        }
+        /*Cleans up the Event-PDS list*/
+        PublishedDataSetEventEntry *entry, *entry_tmp;
+        LIST_FOREACH_SAFE(entry, &server->pubSubManager.publishedDataSetEvents, listEntry, entry_tmp){
+            if(UA_NodeId_equal(&entry->dsw->identifier, &dataSetWriter->identifier)){
+                LIST_REMOVE(entry, listEntry);
+                UA_free(entry);
+            }
+        }
+    }
+#endif /*UA_ENABLE_PUBSUB_EVENTS*/
+
     linkedWriterGroup->writersCount--;
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     removeDataSetWriterRepresentation(server, dataSetWriter);
@@ -1417,11 +1596,13 @@ UA_Server_removeDataSetWriter(UA_Server *server, const UA_NodeId dsw){
 UA_StatusCode
 UA_DataSetFieldConfig_copy(const UA_DataSetFieldConfig *src, UA_DataSetFieldConfig *dst){
     memcpy(dst, src, sizeof(UA_DataSetFieldConfig));
-    if(src->dataSetFieldType == UA_PUBSUB_DATASETFIELD_VARIABLE) {
+    if(src->dataSetFieldType == UA_PUBSUB_DATASETFIELD_VARIABLE){
         UA_String_copy(&src->field.variable.fieldNameAlias, &dst->field.variable.fieldNameAlias);
         UA_PublishedVariableDataType_copy(&src->field.variable.publishParameters,
                                           &dst->field.variable.publishParameters);
-    } else {
+    }else if(src->dataSetFieldType == UA_PUBSUB_DATASETFIELD_EVENT){
+        UA_String_copy(&src->field.events.fieldNameAlias, &dst->field.events.fieldNameAlias);
+    }else{
         return UA_STATUSCODE_BADNOTSUPPORTED;
     }
 
@@ -1463,6 +1644,8 @@ UA_DataSetFieldConfig_clear(UA_DataSetFieldConfig *dataSetFieldConfig){
     if(dataSetFieldConfig->dataSetFieldType == UA_PUBSUB_DATASETFIELD_VARIABLE){
         UA_String_clear(&dataSetFieldConfig->field.variable.fieldNameAlias);
         UA_PublishedVariableDataType_clear(&dataSetFieldConfig->field.variable.publishParameters);
+    }else if(dataSetFieldConfig->dataSetFieldType == UA_PUBSUB_DATASETFIELD_EVENT){
+        UA_String_clear(&dataSetFieldConfig->field.events.fieldNameAlias);
     }
 }
 
@@ -1562,6 +1745,54 @@ UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_Server *server,
         UA_PublishedDataSet_findPDSbyId(server, dataSetWriter->connectedDataSet);
     if(!currentDataSet)
         return UA_STATUSCODE_BADNOTFOUND;
+
+#ifdef UA_ENABLE_PUBSUB_EVENTS
+    if(currentDataSet->config.publishedDataSetType == UA_PUBSUB_DATASET_PUBLISHEDEVENTS){
+        size_t eventSize = dataSetWriter->eventQueueEntries;
+        dataSetMessage->header.dataSetMessageValid = true;
+        dataSetMessage->header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
+        dataSetMessage->data.keyFrameData.fieldCount = (UA_UInt16)eventSize;
+        dataSetMessage->data.keyFrameData.dataSetFields = (UA_DataValue *)
+            UA_Array_new(eventSize, &UA_TYPES[UA_TYPES_DATAVALUE]);
+        if(!dataSetMessage->data.keyFrameData.dataSetFields)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+
+        // Add every event to DataSetMessage
+        for(size_t i = 0; i < eventSize; i++){
+            // Extract First Item and Remove it
+            EventQueueEntry *eventQueueEntry = SIMPLEQ_FIRST(&dataSetWriter->eventQueue);
+            SIMPLEQ_REMOVE_HEAD(&dataSetWriter->eventQueue, listEntry);
+            dataSetWriter->eventQueueEntries--;
+
+            // Create DataValue for Message
+            UA_DataValue dataValue;
+            UA_DataValue_init(&dataValue);
+            UA_DataValue_copy(&eventQueueEntry->value, &dataValue);
+            UA_DataValue_clear(&eventQueueEntry->value);
+            UA_free(eventQueueEntry);
+
+            if(((u64)dataSetWriter->config.dataSetFieldContentMask &
+                (u64)UA_DATASETFIELDCONTENTMASK_STATUSCODE) == 0)
+                dataValue.hasStatus = false;
+
+            /* Deactivate timestamps */
+            if(((u64)dataSetWriter->config.dataSetFieldContentMask &
+                (u64)UA_DATASETFIELDCONTENTMASK_SOURCETIMESTAMP) == 0)
+                dataValue.hasSourceTimestamp = false;
+            if(((u64)dataSetWriter->config.dataSetFieldContentMask &
+                (u64)UA_DATASETFIELDCONTENTMASK_SOURCEPICOSECONDS) == 0)
+                dataValue.hasSourcePicoseconds = false;
+            if(((u64)dataSetWriter->config.dataSetFieldContentMask &
+                (u64)UA_DATASETFIELDCONTENTMASK_SERVERTIMESTAMP) == 0)
+                dataValue.hasServerTimestamp = false;
+            if(((u64)dataSetWriter->config.dataSetFieldContentMask &
+                (u64)UA_DATASETFIELDCONTENTMASK_SERVERPICOSECONDS) == 0)
+                dataValue.hasServerPicoseconds = false;
+            dataSetMessage->data.keyFrameData.dataSetFields[i] = dataValue;
+        }
+        return UA_STATUSCODE_GOOD;
+    }
+#endif /*UA_ENABLE_PUBSUB_EVENTS*/
 
     /* Prepare DataSetMessageContent */
     dataSetMessage->header.dataSetMessageValid = true;
