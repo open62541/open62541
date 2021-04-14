@@ -685,6 +685,7 @@ ClientNetworkLayerTCP_free(UA_Connection *connection) {
 UA_StatusCode
 UA_ClientConnectionTCP_poll(UA_Connection *connection, UA_UInt32 timeout,
                             const UA_Logger *logger) {
+    int error = 0;
     if(connection->state == UA_CONNECTIONSTATE_CLOSED)
         return UA_STATUSCODE_BADDISCONNECT;
     if(connection->state == UA_CONNECTIONSTATE_ESTABLISHED)
@@ -699,15 +700,22 @@ UA_ClientConnectionTCP_poll(UA_Connection *connection, UA_UInt32 timeout,
         return UA_STATUSCODE_BADDISCONNECT;
     }
 
-    /* Get a socket */
-    bool create_socket = connection->sockfd == UA_INVALID_SOCKET;
-    if(create_socket) {
+    /* Get a socket and connect (only once) if not already done in a previous
+     * call. On win32, calling connect multiple times is not recommended on
+     * non-blocking sockets
+     * (https://docs.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-connect).
+     * On posix it is also not necessary to call connect multiple times.
+     *
+     * Identification of successfull connection is done using select (writeable/errorfd)
+     * and getsockopt using SO_ERROR on win32 and posix.
+     */
+    if(connection->sockfd == UA_INVALID_SOCKET) {
         connection->sockfd = UA_socket(tcpConnection->server->ai_family,
                                        tcpConnection->server->ai_socktype,
                                        tcpConnection->server->ai_protocol);
         if(connection->sockfd == UA_INVALID_SOCKET) {
             UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
-                    "Could not create client socket: %s", strerror(UA_ERRNO));
+                           "Could not create client socket: %s", strerror(UA_ERRNO));
             ClientNetworkLayerTCP_close(connection);
             return UA_STATUSCODE_BADDISCONNECT;
         }
@@ -723,17 +731,11 @@ UA_ClientConnectionTCP_poll(UA_Connection *connection, UA_UInt32 timeout,
         /* Don't have the socket create interrupt signals */
 #ifdef SO_NOSIGPIPE
         int val = 1;
-        int sso_result = setsockopt(connection->sockfd, SOL_SOCKET,
-                                    SO_NOSIGPIPE, (void*)&val, sizeof(val));
+        int sso_result = setsockopt(connection->sockfd, SOL_SOCKET, SO_NOSIGPIPE,
+                                    (void *)&val, sizeof(val));
         if(sso_result < 0)
-            UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
-                           "Couldn't set SO_NOSIGPIPE");
+            UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK, "Couldn't set SO_NOSIGPIPE");
 #endif
-    }
-
-    /* Non-blocking connect */
-    int error = 0;
-    if(create_socket) {
         error = UA_connect(connection->sockfd, tcpConnection->server->ai_addr,
                            tcpConnection->server->ai_addrlen);
 
