@@ -184,6 +184,12 @@ struct UA_ServerConfig {
 
     /* Nodestore */
     UA_Nodestore nodestore;
+    UA_Boolean   initBaseNodes;
+
+    /* Ns0 */
+    UA_Boolean createNs0BaseNodes;
+    UA_Boolean createNs0Nodes;
+    UA_Boolean initNs0Nodes;
 
     /* Certificate Verification */
     UA_CertificateVerification certificateVerification;

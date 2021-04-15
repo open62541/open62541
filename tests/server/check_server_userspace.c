@@ -175,6 +175,20 @@ START_TEST(Server_set_customHostname) {
 }
 END_TEST
 
+START_TEST(Server_doNotInitBaseNodes) {
+    UA_Server *server = UA_Server_new();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+
+    UA_ServerConfig_setDefault(config);
+    config->createNs0BaseNodes = false;
+
+    UA_StatusCode retval = UA_Server_run_startup(server);
+    ck_assert_int_eq(retval, UA_STATUSCODE_BADINTERNALERROR);
+
+    UA_Server_delete(server);
+}
+END_TEST
+
 static Suite* testSuite_ServerUserspace(void) {
     Suite *s = suite_create("ServerUserspace");
     TCase *tc_core = tcase_create("Core");
@@ -182,6 +196,7 @@ static Suite* testSuite_ServerUserspace(void) {
     tcase_add_test(tc_core, Server_addNamespace_writeService);
     tcase_add_test(tc_core, Server_forEachChildNodeCall);
     tcase_add_test(tc_core, Server_set_customHostname);
+    tcase_add_test(tc_core, Server_doNotInitBaseNodes);
 
     suite_add_tcase(s,tc_core);
     return s;

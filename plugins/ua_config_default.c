@@ -134,6 +134,9 @@ setDefaultConfig(UA_ServerConfig *conf) {
         conf->logger = UA_Log_Stdout_;
 
     conf->shutdownDelay = 0.0;
+    conf->createNs0BaseNodes = true;
+    conf->createNs0Nodes = true;
+    conf->initNs0Nodes = true;
 
     /* Server Description */
     UA_BuildInfo_clear(&conf->buildInfo);
