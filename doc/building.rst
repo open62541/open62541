@@ -309,6 +309,43 @@ be visible in the cmake GUIs.
    Use the full NS0 instead of a minimal Namespace 0 nodeset
    ``UA_FILE_NS0`` is used to specify the file for NS0 generation from namespace0 folder. Default value is ``Opc.Ua.NodeSet2.xml``
 
+PubSub Build Options
+^^^^^^^^^^^^^^^^^^^^
+
+**UA_ENABLE_PUBSUB**
+   Enable the experimental OPC UA PubSub support. The option will include the
+   PubSub UDP multicast plugin. Disabled by default.
+
+**UA_ENABLE_PUBSUB_DELTAFRAMES**
+   The PubSub messages differentiate between keyframe (all published values
+   contained) and deltaframe (only changed values contained) messages.
+   Deltaframe messages creation consumes some additional ressources and can be
+   disabled with this flag. Disabled by default. Compile the human-readable
+   name of the StatusCodes into the binary. Disabled by default.
+
+**UA_ENABLE_PUBSUB_FILE_CONFIG**
+   Enable loading OPC UA PubSub configuration from File/ByteString. Enabling
+   PubSub informationmodel methods also will add a method to the
+   Publish/Subscribe object which allows configuring PubSub at runtime.
+
+**UA_ENABLE_PUBSUB_INFORMATIONMODEL**
+   Enable the information model representation of the PubSub configuration. For
+   more details take a look at the following section `PubSub Information Model
+   Representation`. Disabled by default.
+
+**UA_ENABLE_PUBSUB_MONITORING**
+   Enable the experimental PubSub monitoring. This feature provides a basic
+   framework to implement monitoring/timeout checks for PubSub components.
+   Initially the MessageReceiveTimeout check of a DataSetReader is provided. It
+   uses the internal server callback implementation. The monitoring backend can
+   be changed by the application to satisfy realtime requirements. Disabled by
+   default.
+
+**UA_ENABLE_PUBSUB_ETH_UADP**
+   Enable the OPC UA Ethernet PubSub support to transport UADP NetworkMessages
+   as payload of Ethernet II frame without IP or UDP headers. This option will
+   include Publish and Subscribe based on EtherType B62C. Disabled by default.
+
 Debug Build Options
 ^^^^^^^^^^^^^^^^^^^
 
