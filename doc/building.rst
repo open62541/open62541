@@ -272,8 +272,7 @@ Detailed SDK Features
    Nodes in the information model are not edited but copied and replaced. The
    replacement is done with atomic operations so that the information model is
    always consistent and can be accessed from an interrupt or parallel thread
-   (depends on the node storage plugin implementation). This feature is a
-   prerequisite for ``UA_MULTITHREADING``.
+   (depends on the node storage plugin implementation).
 
 **UA_ENABLE_COVERAGE**
    Measure the coverage of unit tests
