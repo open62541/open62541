@@ -50,7 +50,10 @@
 # define UA_access access
 #endif
 
-#define ssize_t int
+#ifndef _SSIZE_T_DEFINED
+# define ssize_t int
+#endif
+
 #define OPTVAL_TYPE int
 #ifdef UA_sleep_ms
 void UA_sleep_ms(unsigned long ms);
