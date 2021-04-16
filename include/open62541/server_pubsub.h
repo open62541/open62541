@@ -20,30 +20,35 @@ _UA_BEGIN_DECLS
 /**
  * .. _pubsub:
  *
- * Publish/Subscribe
- * =================
+ * PubSub
+ * ======
  *
- * Work in progress!
- * This part will be a new chapter later.
+ * In PubSub the participating OPC UA Applications take their roles as
+ * Publishers and Subscribers. Publishers are the sources of data, while
+ * Subscribers consume that data. Communication in PubSub is message-based.
+ * Publishers send messages to a Message Oriented Middleware, without knowledge
+ * of what, if any, Subscribers there may be. Similarly, Subscribers express
+ * interest in specific types of data, and process messages that contain this
+ * data, without knowledge of what Publishers there are.
  *
- * In PubSub the participating OPC UA Applications take their roles as Publishers and Subscribers. Publishers are the
- * sources of data, while Subscribers consume that data. Communication in PubSub is message-based.
- * Publishers send messages to a Message Oriented Middleware, without knowledge of what, if any, Subscribers there may be.
- * Similarly, Subscribers express interest in specific types of data, and process messages that contain this data,
- * without knowledge of what Publishers there are.
+ * Message Oriented Middleware is software or hardware infrastructure that
+ * supports sending and receiving messages between distributed systems. OPC UA
+ * PubSub supports two different Message Oriented Middleware variants, namely
+ * the broker-less form and broker-based form. A broker-less form is where the
+ * Message Oriented Middleware is the network infrastructure that is able to
+ * route datagram-based messages. Subscribers and Publishers use datagram
+ * protocols like UDP. In a broker-based form, the core component of the Message
+ * Oriented Middleware is a message Broker. Subscribers and Publishers use
+ * standard messaging protocols like AMQP or MQTT to communicate with the
+ * Broker.
  *
- * Message Oriented Middleware is software or hardware infrastructure that supports sending and receiving messages between distributed systems.
- * OPC UA PubSub supports two different Message Oriented Middleware variants, namely the broker-less form and broker-based form.
- * A broker-less form is where the Message Oriented Middleware is the network infrastructure that is able to route datagram-based messages.
- * Subscribers and Publishers use datagram protocols like UDP. In a broker-based form, the core component of the Message Oriented Middleware
- * is a message Broker. Subscribers and Publishers use standard messaging protocols like AMQP or MQTT to communicate with the Broker.
+ * This makes PubSub suitable for applications where location independence
+ * and/or scalability are required.
  *
- * This makes PubSub suitable for applications where location independence and/or scalability are required.
- *
- *
- * The Publish/Subscribe (PubSub) extension for OPC UA enables fast and efficient
- * 1:m communication. The PubSub extension is protocol agnostic and can be used
- * with broker based protocols like MQTT and AMQP or brokerless implementations like UDP-Multicasting.
+ * The Publish/Subscribe (PubSub) extension for OPC UA enables fast and
+ * efficient 1:m communication. The PubSub extension is protocol agnostic and
+ * can be used with broker based protocols like MQTT and AMQP or brokerless
+ * implementations like UDP-Multicasting.
  *
  * The PubSub API uses the following scheme:
  *
@@ -100,28 +105,6 @@ _UA_BEGIN_DECLS
  *                 |    +-----------------+
  *                 +----> UA_DataSetField |  UA_PublishedDataSet_addDataSetField
  *                      +-----------------+
- *
- * PubSub compile flags
- * --------------------
- *
- * **UA_ENABLE_PUBSUB**
- *  Enable the experimental OPC UA PubSub support. The option will include the PubSub UDP multicast plugin. Disabled by default.
- * **UA_ENABLE_PUBSUB_DELTAFRAMES**
- *  The PubSub messages differentiate between keyframe (all published values contained) and deltaframe (only changed values contained) messages.
- *  Deltaframe messages creation consumes some additional ressources and can be disabled with this flag. Disabled by default.
- *  Compile the human-readable name of the StatusCodes into the binary. Disabled by default.
- * **UA_ENABLE_PUBSUB_FILE_CONFIG**
- *  Enable loading OPC UA PubSub configuration from File/ByteString. Enabling PubSub informationmodel methods also will add a method to the Publish/Subscribe object which allows configuring PubSub at runtime.
- * **UA_ENABLE_PUBSUB_INFORMATIONMODEL**
- *  Enable the information model representation of the PubSub configuration. For more details take a look at the following section `PubSub Information Model Representation`. Disabled by default.
- * **UA_ENABLE_PUBSUB_MONITORING**
- *  Enable the experimental PubSub monitoring. This feature provides a basic framework to implement monitoring/timeout checks for PubSub components. 
- *  Initially the MessageReceiveTimeout check of a DataSetReader is provided. It uses the internal server callback implementation.
- *  The monitoring backend can be changed by the application to satisfy realtime requirements.
- *  Disabled by default.
- * **UA_ENABLE_PUBSUB_ETH_UADP**
- *  Enable the OPC UA Ethernet PubSub support to transport UADP NetworkMessages as payload of Ethernet II frame without IP or UDP headers. This option will include Publish and Subscribe based on
- *  EtherType B62C. Disabled by default.
  *
  * PubSub Information Model Representation
  * ---------------------------------------
@@ -612,14 +595,16 @@ UA_Server_removeDataSetWriter(UA_Server *server, const UA_NodeId dsw);
 /**
  * SubscribedDataSet
  * -----------------
- * SubscribedDataSet describes the processing of the received DataSet. SubscribedDataSet defines which field
- * in the DataSet is mapped to which Variable in the OPC UA Application. SubscribedDataSet has two sub-types
+ * SubscribedDataSet describes the processing of the received DataSet.
+ * SubscribedDataSet defines which field in the DataSet is mapped to which
+ * Variable in the OPC UA Application. SubscribedDataSet has two sub-types
  * called the TargetVariablesType and SubscribedDataSetMirrorType.
- * SubscribedDataSetMirrorType is currently not supported. SubscribedDataSet is set to TargetVariablesType
- * and then the list of target Variables are created in the Subscriber AddressSpace.
- * TargetVariables are a list of variables that are to be added in the Subscriber AddressSpace.
- * It defines a list of Variable mappings between received DataSet fields and added Variables
- * in the Subscriber AddressSpace. */
+ * SubscribedDataSetMirrorType is currently not supported. SubscribedDataSet is
+ * set to TargetVariablesType and then the list of target Variables are created
+ * in the Subscriber AddressSpace. TargetVariables are a list of variables that
+ * are to be added in the Subscriber AddressSpace. It defines a list of Variable
+ * mappings between received DataSet fields and added Variables in the
+ * Subscriber AddressSpace. */
 
 /* SubscribedDataSetDataType Definition */
 typedef enum {
@@ -718,16 +703,20 @@ UA_Server_DataSetReader_getState(UA_Server *server, UA_NodeId dataSetReaderIdent
 /**
  * ReaderGroup
  * -----------
+
  * ReaderGroup is used to group a list of DataSetReaders. All ReaderGroups are
  * created within a PubSubConnection and automatically deleted if the connection
- * is removed. All network message related filters are only available in the DataSetReader.
+ * is removed. All network message related filters are only available in the
+ * DataSetReader.
  *
- * The RT-levels go along with different requirements. The below listed levels can be configured
- * for a ReaderGroup.
- * UA_PUBSUB_RT_NONE --> No RT applied to this level
- * PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS --> Extends PubSub RT functionality and implements fast path
- * message decoding in the Subscriber. Uses a buffered network message and only decodes the necessary
- * offsets stored in an offset buffer. */
+ * The RT-levels go along with different requirements. The below listed levels
+ * can be configured for a ReaderGroup.
+ *
+ * - UA_PUBSUB_RT_NONE: RT applied to this level
+ * - PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS: Extends PubSub RT functionality and
+ *   implements fast path message decoding in the Subscriber. Uses a buffered
+ *   network message and only decodes the necessary offsets stored in an offset
+ *   buffer. */
 
 /* ReaderGroup configuration */
 typedef struct {
