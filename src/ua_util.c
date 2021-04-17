@@ -205,3 +205,79 @@ UA_ByteString_fromBase64(UA_ByteString *bs,
         return UA_STATUSCODE_BADINTERNALERROR;
     return UA_STATUSCODE_GOOD;
 }
+
+/* Config Parameters */
+
+UA_StatusCode
+UA_ConfigParameter_setParameter(UA_ConfigParameter **cp, const char *name,
+                                const UA_Variant *parameter) {
+    /* Parameter exists already */
+    const UA_Variant *param = UA_ConfigParameter_getParameter(*cp, name);
+    if(param) {
+        UA_Variant copyV;
+        UA_StatusCode res = UA_Variant_copy(parameter, &copyV);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        UA_Variant_clear(&(*cp)->param);
+        (*cp)->param = copyV;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* Create a new entry */
+    UA_ConfigParameter *cp2 = (UA_ConfigParameter*)
+        UA_malloc(sizeof(UA_ConfigParameter) + strlen(name) + 1);
+    if(!cp2)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    strcpy((char*)(uintptr_t)cp2->name, name);
+    UA_StatusCode res = UA_Variant_copy(parameter, &cp2->param);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_free(cp2);
+        return res;
+    }
+
+    /* Add to linked list */
+    cp2->next = *cp;
+    *cp = cp2;
+    return UA_STATUSCODE_GOOD;
+}
+
+const UA_Variant *
+UA_ConfigParameter_getParameter(UA_ConfigParameter *cp, const char *name) {
+    while(cp) {
+        if(strcmp(name, cp->name) == 0)
+            return &cp->param;
+        cp = cp->next;
+    }
+    return NULL;
+}
+
+/* Returns NULL if the parameter is not defined or not of the right datatype */
+const UA_Variant *
+UA_ConfigParameter_getScalarParameter(UA_ConfigParameter *cp, const char *name,
+                                      const UA_DataType *type) {
+    const UA_Variant *v = UA_ConfigParameter_getParameter(cp, name);
+    if(!v || !UA_Variant_hasScalarType(v, type))
+        return NULL;
+    return v;
+}
+
+const UA_Variant *
+UA_ConfigParameter_getArrayParameter(UA_ConfigParameter *cp, const char *name,
+                                     const UA_DataType *type) {
+    const UA_Variant *v = UA_ConfigParameter_getParameter(cp, name);
+    if(!v || !UA_Variant_hasArrayType(v, type))
+        return NULL;
+    return v;
+}
+
+void
+UA_ConfigParameter_delete(UA_ConfigParameter **cp) {
+    UA_ConfigParameter *cp2 = *cp;
+    while(cp2) {
+        UA_ConfigParameter *cp3 = cp2->next;;
+        UA_Variant_clear(&cp2->param);
+        UA_free(cp2);
+        cp2 = cp3;
+    }
+    *cp = NULL;
+}
