@@ -192,7 +192,7 @@ UA_ByteString_toBase64(const UA_ByteString *byteString,
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode
 UA_ByteString_fromBase64(UA_ByteString *bs,
                          const UA_String *input) {
     UA_ByteString_init(bs);
