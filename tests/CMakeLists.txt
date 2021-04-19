@@ -66,7 +66,10 @@ endif()
 
 
 # Use different plugins for testing
-set(test_plugin_sources ${PROJECT_SOURCE_DIR}/arch/network_tcp.c
+set(test_plugin_sources
+    ${PROJECT_SOURCE_DIR}/arch/network_tcp.c
+    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix.c
+    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_tcp.c
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_clock.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
@@ -258,6 +261,14 @@ add_test_valgrind(securechannel ${TESTS_BINARY_DIR}/check_securechannel)
 add_executable(check_timer check_timer.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_timer ${LIBS})
 add_test_valgrind(timer ${TESTS_BINARY_DIR}/check_timer)
+
+add_executable(check_eventloop check_eventloop.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+target_link_libraries(check_eventloop ${LIBS})
+add_test_valgrind(eventloop ${TESTS_BINARY_DIR}/check_eventloop)
+
+add_executable(check_eventloop_tcp check_eventloop_tcp.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+target_link_libraries(check_eventloop_tcp ${LIBS})
+add_test_valgrind(eventloop_tcp ${TESTS_BINARY_DIR}/check_eventloop_tcp)
 
 # Test Server
 
