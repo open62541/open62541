@@ -586,16 +586,20 @@ Variant_clear(UA_Variant *p, const UA_DataType *_) {
         return;
 
     /* Delete the value */
-    if(p->type && p->data > UA_EMPTY_ARRAY_SENTINEL) {
-        if(p->arrayLength == 0)
-            p->arrayLength = 1;
+    if(UA_Variant_isScalar(p))
+        UA_delete(p->data, p->type);
+    else if(p->data)
         UA_Array_delete(p->data, p->arrayLength, p->type);
-        p->data = NULL;
-    }
+    p->arrayLength = 0;
+    p->data = NULL;
 
     /* Delete the array dimensions */
-    if((void*)p->arrayDimensions > UA_EMPTY_ARRAY_SENTINEL)
-        UA_free(p->arrayDimensions);
+    if((void*)p->arrayDimensions > UA_EMPTY_ARRAY_SENTINEL) {
+        UA_Array_delete(p->arrayDimensions, p->arrayDimensionsSize,
+                        &UA_TYPES[UA_TYPES_UINT32]);
+        p->arrayDimensions = NULL;
+        p->arrayDimensionsSize = 0;
+    }
 }
 
 static UA_StatusCode
@@ -1241,8 +1245,10 @@ clearStructure(void *p, const UA_DataType *type) {
         } else { /* field is optional */
             if(!m->isArray) {
                 /* optional scalar field is contained */
-                if((*(void *const *)ptr != NULL))
-                    UA_Array_delete(*(void **)ptr, 1, mt);
+                if((*(void *const *)ptr != NULL)) {
+                    clearJumpTable[mt->typeKind](*(void **)ptr, mt);
+                    UA_free(*(void **)ptr);
+                }
                 ptr += sizeof(void *);
             } else {
                 /* optional array field is contained */
