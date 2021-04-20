@@ -24,11 +24,7 @@ static void setup(void) {
     server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
-
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer*)
-        UA_malloc(sizeof(UA_PubSubTransportLayer));
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerUDPMP();
-    config->pubsubTransportLayersSize++;
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
 
     UA_Server_run_startup(server);
     //add 2 connections
@@ -94,6 +90,7 @@ START_TEST(AddRemoveAddWriterGroupWithMinimalValidConfiguration){
         }
         ck_assert_int_eq(writerGroupCount, 1);
         retVal |= UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &localWriterGroup);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         UA_Server_setWriterGroupOperational(server, localWriterGroup);
         writerGroupCount = 0;
         LIST_FOREACH(writerGroup, &UA_PubSubConnection_findConnectionbyId(server, connection1)->writerGroups, listEntry){

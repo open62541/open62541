@@ -10,10 +10,10 @@
 
 /* Global malloc singletons */
 #ifdef UA_ENABLE_MALLOC_SINGLETON
-void * (*UA_mallocSingleton)(size_t size) = malloc;
-void (*UA_freeSingleton)(void *ptr) = free;
-void * (*UA_callocSingleton)(size_t nelem, size_t elsize) = calloc;
-void * (*UA_reallocSingleton)(void *ptr, size_t size) = realloc;
+UA_EXPORT UA_THREAD_LOCAL void * (*UA_mallocSingleton)(size_t size) = malloc;
+UA_EXPORT UA_THREAD_LOCAL void (*UA_freeSingleton)(void *ptr) = free;
+UA_EXPORT UA_THREAD_LOCAL void * (*UA_callocSingleton)(size_t nelem, size_t elsize) = calloc;
+UA_EXPORT UA_THREAD_LOCAL void * (*UA_reallocSingleton)(void *ptr, size_t size) = realloc;
 #endif
 
 unsigned int UA_socket_set_blocking(UA_SOCKET sockfd){

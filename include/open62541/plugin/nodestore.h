@@ -309,7 +309,7 @@ typedef struct {
  * attributes.
  *
  * Data Type
- * ^^^^^^^^^
+ * ~~~~~~~~~
  *
  * The (scalar) data type of the variable is constrained to be of a specific
  * type or one of its children in the type hierarchy. The data type is given as
@@ -326,7 +326,7 @@ typedef struct {
  * :ref:`VariableTypeNode` is ensured.
  *
  * Value Rank
- * ^^^^^^^^^^
+ * ~~~~~~~~~~
  *
  * This attribute indicates whether the value attribute of the variable is an
  * array and how many dimensions the array has. It may have the following
@@ -342,7 +342,7 @@ typedef struct {
  * :ref:`variabletypenode` is ensured.
  *
  * Array Dimensions
- * ^^^^^^^^^^^^^^^^
+ * ~~~~~~~~~~~~~~~~
  *
  * If the value rank permits the value to be a (multi-dimensional) array, the
  * exact length in each dimensions can be further constrained with this
@@ -468,7 +468,7 @@ typedef struct {
  * .. _value-callback:
  *
  * Value Callback
- * ^^^^^^^^^^^^^^
+ * ~~~~~~~~~~~~~~
  * Value Callbacks can be attached to variable and variable type nodes. If
  * not ``NULL``, they are called before reading and after writing respectively. */
 typedef struct {

@@ -99,7 +99,7 @@ typedef struct {
     UA_Server_serverOnNetworkCallback serverOnNetworkCallback;
     void* serverOnNetworkCallbackData;
 
-#if UA_MULTITHREADING >= 200
+#if UA_MULTITHREADING >= 100
     pthread_t mdnsThread;
     UA_Boolean mdnsRunning;
 #  endif

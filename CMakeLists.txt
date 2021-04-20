@@ -16,7 +16,6 @@ include(GNUInstallDirs)
 # Set when installed via make install
 set(open62541_TOOLS_DIR ${PROJECT_SOURCE_DIR}/tools)
 set(open62541_NODESET_DIR ${PROJECT_SOURCE_DIR}/deps/ua-nodeset)
-set(XDP_LIBRARY "/usr/local/src/bpf-next/tools/lib/bpf/libbpf.a")
 
 include(macros_internal)
 include(macros_public)
@@ -128,7 +127,7 @@ endforeach(arch_ ${architectures})
 # Options
 option(BUILD_SHARED_LIBS "Enable building of shared libraries (dll/so)" OFF)
 set(UA_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported")
-set(UA_MULTITHREADING 0 CACHE STRING "Level of multithreading (0-99: No Multithreading, 100-199: Thread-Safe API, >=200: Internal Threads")
+set(UA_MULTITHREADING 0 CACHE STRING "Level of multithreading (0-99: No Multithreading, >=100: Thread-Safe API")
 option(UA_ENABLE_HISTORIZING "Enable basic support for historical access (client and server)" OFF)
 option(UA_ENABLE_METHODCALLS "Enable the Method service set" ON)
 option(UA_ENABLE_NODEMANAGEMENT "Enable dynamic addition and removal of nodes at runtime" ON)
@@ -252,34 +251,32 @@ if(UA_FORCE_CPP)
 endif()
 
 #General PubSub setup
-option(UA_ENABLE_PUBSUB "Enable publish/subscribe" OFF)
-mark_as_advanced(UA_ENABLE_PUBSUB)
+option(UA_ENABLE_PUBSUB "Enable the PubSub protocol" OFF)
+
+option(UA_ENABLE_PUBSUB_ENCRYPTION "Enable encryption of the PubSub payload" OFF)
+mark_as_advanced(UA_ENABLE_PUBSUB_ENCRYPTION)
 
 option(UA_ENABLE_PUBSUB_INFORMATIONMODEL "Enable PubSub information model twin" OFF)
-mark_as_advanced(UA_ENABLE_PUBSUB_INFORMATIONMODEL)
+
 option(UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS "Enable PubSub informationmodel methods" OFF)
-mark_as_advanced(UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS)
+
 option(UA_ENABLE_PUBSUB_DELTAFRAMES "Enable sending of delta frames with only the changes" OFF)
-mark_as_advanced(UA_ENABLE_PUBSUB_DELTAFRAMES)
+
 option(UA_ENABLE_PUBSUB_FILE_CONFIG "Enable loading PubSub Config from file extension" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_FILE_CONFIG)
+
 option(UA_ENABLE_PUBSUB_MONITORING "Enable monitoring of PubSub components (e.g. MessageReceiveTimeout)" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_MONITORING)
+
+option(UA_ENABLE_PUBSUB_BUFMALLOC "Enable allocation with static memory buffer for time critical PubSub parts" OFF)
+mark_as_advanced(UA_ENABLE_PUBSUB_BUFMALLOC)
+
 #RT and Transport PubSub settings
 option(UA_ENABLE_PUBSUB_ETH_UADP "Enable publish/subscribe UADP over Ethernet" OFF)
-mark_as_advanced(UA_ENABLE_PUBSUB_ETH_UADP)
-option(UA_ENABLE_PUBSUB_ETH_UADP_XDP "Enable Subscribe UADP over Ethernet using XDP" OFF)
-mark_as_advanced(UA_ENABLE_PUBSUB_ETH_UADP_XDP)
 
 if(UA_ENABLE_PUBSUB_ETH_UADP)
     if(NOT CMAKE_SYSTEM MATCHES "Linux")
     message(FATAL_ERROR "UADP over Ethernet is only available on Linux.")
-	endif()
-endif()
-
-if(UA_ENABLE_PUBSUB_ETH_UADP_XDP)
-    if(NOT CMAKE_SYSTEM MATCHES "Linux")
-        message(FATAL_ERROR "XDP is only available on Linux.")
     endif()
 endif()
 
@@ -307,6 +304,15 @@ endif()
 if(UA_ENABLE_PUBSUB_MONITORING)
     if(NOT UA_ENABLE_PUBSUB)
         message(FATAL_ERROR "PubSub monitoring cannot be used with PubSub function disabled")
+    endif()
+endif()
+
+if(UA_ENABLE_PUBSUB_BUFMALLOC)
+    if(NOT UA_ENABLE_PUBSUB)
+        message(FATAL_ERROR "PubSub buffer allocation cannot be used with PubSub function disabled")
+    endif()
+    if(NOT UA_ENABLE_MALLOC_SINGLETON)
+        message(FATAL_ERROR "PubSub buffer allocation cannot be used without 'UA_ENABLE_MALLOC_SINGLETON' enabled")
     endif()
 endif()
 
@@ -589,7 +595,7 @@ if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" ST
             # Add default sanitizer settings when using clang and Debug build.
             # This allows e.g. CLion to find memory locations for SegFaults
             message(STATUS "Sanitizer enabled")
-            set(SANITIZER_FLAGS "-g -fno-omit-frame-pointer -gline-tables-only -fsanitize=address -fsanitize-address-use-after-scope -fsanitize-coverage=trace-cmp -fsanitize=leak -fsanitize=undefined")
+            set(SANITIZER_FLAGS "-g -fno-omit-frame-pointer -gline-tables-only -fsanitize=address -fsanitize-address-use-after-scope -fsanitize=leak -fsanitize=undefined")
             if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 10.0)
                 set(SANITIZER_FLAGS "${SANITIZER_FLAGS} -fsanitize-coverage=trace-pc-guard")
             endif()
@@ -726,8 +732,8 @@ set(exported_headers ${exported_headers}
                      ${PROJECT_SOURCE_DIR}/deps/aa_tree.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h
                      ${historizing_exported_headers}
-                     ${PROJECT_SOURCE_DIR}/include/open62541/server.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/server_pubsub.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/server.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/client.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/client_highlevel.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/client_subscriptions.h
@@ -856,6 +862,10 @@ list(INSERT default_plugin_sources 0
      ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic256sha256.c
      ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_aes128sha256rsaoaep.c
      ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_pki_mbedtls.c)
+   if(UA_ENABLE_PUBSUB_ENCRYPTION)
+     list(INSERT default_plugin_sources 1
+       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_pubsub_aes128ctr.c)
+  endif()
 endif()
 
 if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_AMALGAMATION)
@@ -896,13 +906,11 @@ if(UA_ENABLE_PUBSUB)
     if(UA_ENABLE_PUBSUB_ETH_UADP)
         list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/pubsub_ethernet.h)
         list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_ethernet.c)
-    endif()
-    if(UA_ENABLE_PUBSUB_ETH_UADP_XDP)
-        if(EXISTS "${XDP_LIBRARY}")
-            list(APPEND open62541_LIBRARIES ${XDP_LIBRARY})
-            list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_ethernet_xdp.c)
+        find_library(LIB_BPF bpf)
+        if(LIB_BPF)
+            list(APPEND open62541_LIBRARIES bpf)
         else()
-            MESSAGE(WARNING "samples in bpf-next directory were not built. Build the bpf-next to use XDP")
+            message("bpf library not found. XDP functionalities will not be available.")
         endif()
     endif()
     if(UA_ENABLE_PUBSUB_MQTT)
@@ -918,6 +926,10 @@ if(UA_ENABLE_PUBSUB)
             list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt_adapter.h)
             list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt_adapter.c)
         endif()
+    endif()
+    if(UA_ENABLE_MALLOC_SINGLETON AND UA_ENABLE_PUBSUB_BUFMALLOC)
+        list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_bufmalloc.c)
+        list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_bufmalloc.h)
     endif()
 endif()
 
@@ -997,7 +1009,6 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     if(NOT EXISTS "${UA_FILE_NS0}")
         message(FATAL_ERROR "File ${UA_FILE_NS0} not found. You probably need to initialize the git submodule for deps/ua-nodeset or set open62541_NODESET_DIR.")
     endif()
-
 
     set(UA_FILE_NODEIDS ${open62541_NODESET_DIR}/Schema/NodeIds.csv)
     set(UA_FILE_STATUSCODES ${open62541_NODESET_DIR}/Schema/StatusCode.csv)

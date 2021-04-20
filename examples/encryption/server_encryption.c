@@ -42,7 +42,7 @@ int main(int argc, char* argv[]) {
     size_t trustListSize = 0;
     if(argc > 3)
         trustListSize = (size_t)argc-3;
-    UA_STACKARRAY(UA_ByteString, trustList, trustListSize);
+    UA_STACKARRAY(UA_ByteString, trustList, trustListSize+1);
     for(size_t i = 0; i < trustListSize; i++)
         trustList[i] = loadFile(argv[i+3]);
 

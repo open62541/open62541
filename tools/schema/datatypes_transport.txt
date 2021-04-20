@@ -5,5 +5,4 @@ TcpHelloMessage
 TcpAcknowledgeMessage
 TcpErrorMessage
 AsymmetricAlgorithmSecurityHeader
-SymmetricAlgorithmSecurityHeader
 SequenceHeader

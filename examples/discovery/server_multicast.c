@@ -188,23 +188,14 @@ UA_Client *getRegisterClient(UA_EndpointDescription *endpointRegister, int argc,
     UA_ByteString privateKey = loadFile(argv[2]);
 
     /* Load the trustList */
-    UA_ByteString *trustList = NULL;
-    size_t trustListSize = 0;
     UA_ByteString *revocationList = NULL;
     size_t revocationListSize = 0;
-    if(argc > 3) {
+    size_t trustListSize = 0;
+    if(argc > 3)
         trustListSize = (size_t) argc - 3;
-        UA_StatusCode retval = UA_ByteString_allocBuffer(trustList, trustListSize);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_ByteString_clear(&certificate);
-            UA_ByteString_clear(&privateKey);
-            return NULL;
-        }
-
-        for(size_t trustListCount = 0; trustListCount < trustListSize; trustListCount++) {
-            trustList[trustListCount] = loadFile(argv[trustListCount + 3]);
-        }
-    }
+    UA_STACKARRAY(UA_ByteString, trustList, trustListSize+1);
+    for(size_t trustListCount = 0; trustListCount < trustListSize; trustListCount++)
+        trustList[trustListCount] = loadFile(argv[trustListCount + 3]);
 
     /* Secure client initialization */
     UA_Client *clientRegister = UA_Client_new();

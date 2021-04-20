@@ -416,13 +416,7 @@ int main(int argc, char **argv) {
     /* Details about the connection configuration and handling are located in
      * the pubsub connection tutorial */
     UA_ServerConfig_setDefault(config);
-     config->pubsubTransportLayers = (UA_PubSubTransportLayer *)
-         UA_malloc(1 * sizeof(UA_PubSubTransportLayer));
-    if(!config->pubsubTransportLayers) {
-        return -1;
-    }
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerMQTT();
-    config->pubsubTransportLayersSize++;
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerMQTT());
 
     addPubSubConnection(server, addressUrl);
     addPublishedDataSet(server);

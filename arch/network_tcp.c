@@ -409,6 +409,9 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, const UA_Logger *logger,
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;
+#ifdef AI_ADDRCONFIG
+    hints.ai_flags |= AI_ADDRCONFIG;
+#endif
     hints.ai_protocol = IPPROTO_TCP;
     int retcode = UA_getaddrinfo(customHostname->length ? hostname : NULL,
                                  portno, &hints, &res);

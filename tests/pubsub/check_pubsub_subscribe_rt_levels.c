@@ -53,11 +53,7 @@ static void setup(void) {
     server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
-
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer*)
-            UA_malloc(sizeof(UA_PubSubTransportLayer));
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerUDPMP();
-    config->pubsubTransportLayersSize++;
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
     UA_Server_run_startup(server);
 }
 
@@ -72,8 +68,12 @@ static void receiveSingleMessageRT(UA_PubSubConnection *connection, UA_DataSetRe
         ck_abort_msg("Message buffer allocation failed!");
     }
 
-    UA_StatusCode retval =
-            connection->channel->receive(connection->channel, &buffer, NULL, 1000000);
+    if(!connection->channel) {
+        ck_abort_msg("No connection established");
+        return;
+    }
+
+    UA_StatusCode retval = connection->channel->receive(connection->channel, &buffer, NULL, 1000000);
     if(retval != UA_STATUSCODE_GOOD || buffer.length == 0) {
         buffer.length = 512;
         UA_ByteString_clear(&buffer);

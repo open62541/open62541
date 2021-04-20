@@ -23,13 +23,7 @@ UA_ServerConfig *config = NULL;
 static void setup(void) {
     server = UA_Server_new();
     config = UA_Server_getConfig(server);
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer *)
-        UA_malloc(1 * sizeof(UA_PubSubTransportLayer));
-    if(!config->pubsubTransportLayers) {
-        UA_Server_delete(server);
-    }
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerMQTT();
-    config->pubsubTransportLayersSize++;
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerMQTT());
     UA_Server_run_startup(server);
 }
 

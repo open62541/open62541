@@ -40,13 +40,6 @@
 # pragma warning(disable: 4056)
 #endif
 
-#define UA_NODEIDTYPE_NUMERIC_TWOBYTE 0
-#define UA_NODEIDTYPE_NUMERIC_FOURBYTE 1
-#define UA_NODEIDTYPE_NUMERIC_COMPLETE 2
-
-#define UA_EXPANDEDNODEID_SERVERINDEX_FLAG 0x40
-#define UA_EXPANDEDNODEID_NAMESPACEURI_FLAG 0x80
-
 #define UA_JSON_DATETIME_LENGTH 30
 
 /* Max length of numbers for the allocation of temp buffers. Don't forget that
@@ -2315,63 +2308,41 @@ lookAheadForKey(const char* search, CtxJson *ctx,
 }
 
 /* Function used to jump over an object which cannot be parsed */
-static status
-jumpOverRec(CtxJson *ctx, ParseCtx *parseCtx,
-            size_t *resultIndex, UA_UInt16 depth) {
-    UA_StatusCode ret = UA_STATUSCODE_BADDECODINGERROR;
+static UA_StatusCode
+jumpOverRec(CtxJson *ctx, ParseCtx *parseCtx) {
+    if(ctx->depth >= UA_JSON_ENCODING_MAX_RECURSION - 1)
+        return UA_STATUSCODE_BADENCODINGERROR;
+
     CHECK_TOKEN_BOUNDS;
-    
-    if(parseCtx->tokenArray[parseCtx->index].type == JSMN_OBJECT) {
-        size_t objectCount = (size_t)(parseCtx->tokenArray[parseCtx->index].size);
+    size_t count = (size_t)(parseCtx->tokenArray[parseCtx->index].size);
+    if(parseCtx->tokenArray[parseCtx->index].type == JSMN_OBJECT)
+        count = count * 2; /* The size is for both keys and values */
         
-        parseCtx->index++; /*Object to first Key*/
+    ctx->depth++;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    for(size_t i = 0; i < count; i++) {
+        parseCtx->index++;
         CHECK_TOKEN_BOUNDS;
-        
-        size_t i;
-        for(i = 0; i < objectCount; i++) {
-            CHECK_TOKEN_BOUNDS;
-             
-            parseCtx->index++; /*value*/
-            CHECK_TOKEN_BOUNDS;
-            
-            if(parseCtx->tokenArray[parseCtx->index].type == JSMN_OBJECT) {
-               jumpOverRec(ctx, parseCtx, resultIndex, (UA_UInt16)(depth + 1));
-            } else if(parseCtx->tokenArray[parseCtx->index].type == JSMN_ARRAY) {
-               jumpOverRec(ctx, parseCtx, resultIndex, (UA_UInt16)(depth + 1));
-            } else {
-                /*Only Primitive or string*/
-                parseCtx->index++;
-            }
-        }
-    } else if(parseCtx->tokenArray[parseCtx->index].type == JSMN_ARRAY) {
-        size_t arraySize = (size_t)(parseCtx->tokenArray[parseCtx->index].size);
-        
-        parseCtx->index++; /*Object to first element*/
-        CHECK_TOKEN_BOUNDS;
-        
-        size_t i;
-        for(i = 0; i < arraySize; i++) {
-            if(parseCtx->tokenArray[parseCtx->index].type == JSMN_OBJECT) {
-               jumpOverRec(ctx, parseCtx, resultIndex, (UA_UInt16)(depth + 1));
-            } else if(parseCtx->tokenArray[parseCtx->index].type == JSMN_ARRAY) {
-               jumpOverRec(ctx, parseCtx, resultIndex, (UA_UInt16)(depth + 1));
-            } else {
-                /*Only Primitive or string*/
-                parseCtx->index++;
-            }
+        if(parseCtx->tokenArray[parseCtx->index].type == JSMN_OBJECT ||
+           parseCtx->tokenArray[parseCtx->index].type == JSMN_ARRAY) {
+            res |= jumpOverRec(ctx, parseCtx);
         }
     }
-    return ret;
+    ctx->depth--;
+
+    return res;
 }
 
-static status
+/* returns the index */
+static UA_StatusCode
 jumpOverObject(CtxJson *ctx, ParseCtx *parseCtx, size_t *resultIndex) {
     UA_UInt16 oldIndex = parseCtx->index; /* Save index for later restore */
-    UA_UInt16 depth = 0;
-    jumpOverRec(ctx, parseCtx, resultIndex, depth);
+    ctx->depth++;
+    UA_StatusCode res = jumpOverRec(ctx, parseCtx);
+    ctx->depth--;
     *resultIndex = parseCtx->index;
     parseCtx->index = oldIndex; /* Restore index */
-    return UA_STATUSCODE_GOOD;
+    return res;
 }
 
 static status
@@ -2818,10 +2789,8 @@ DECODE_JSON(ExtensionObject) {
             memcpy(dst->content.encoded.body.data, bodyJsonString, (size_t)sizeOfJsonString);
             
             size_t tokenAfteExtensionObject = 0;
-            jumpOverObject(ctx, parseCtx, &tokenAfteExtensionObject);
-            
-            if(tokenAfteExtensionObject == 0) {
-                /*next object token not found*/
+            ret = jumpOverObject(ctx, parseCtx, &tokenAfteExtensionObject);
+            if(ret != UA_STATUSCODE_GOOD) {
                 UA_NodeId_clear(&typeId);
                 UA_ByteString_clear(&dst->content.encoded.body);
                 return UA_STATUSCODE_BADDECODINGERROR;
