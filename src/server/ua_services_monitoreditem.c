@@ -259,7 +259,7 @@ struct createMonContext {
 
 static void
 Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
-                              struct createMonContext *cmc,
+                              const struct createMonContext *cmc,
                               const UA_MonitoredItemCreateRequest *request,
                               UA_MonitoredItemCreateResult *result) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
