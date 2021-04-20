@@ -321,17 +321,11 @@ UA_Server_init(UA_Server *server) {
     UA_Server_initPubSubNS0(server);
 #endif
 
-    server->config.pubsubConfiguration = (UA_PubSubConfiguration*) UA_calloc(1, sizeof(UA_PubSubConfiguration));
-    if (!server->config.pubsubConfiguration) {
-        goto cleanup;
-    }
-
 #ifdef UA_ENABLE_PUBSUB_MONITORING
     /* setup default PubSub monitoring callbacks */
-    if (UA_PubSubManager_setDefaultMonitoringCallbacks(&(server->config.pubsubConfiguration->monitoringInterface)) != 
-        UA_STATUSCODE_GOOD) {
+    res = UA_PubSubManager_setDefaultMonitoringCallbacks(&server->config.pubSubConfig.monitoringInterface);
+    if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
-    }
 #endif /* UA_ENABLE_PUBSUB_MONITORING */
 #endif /* UA_ENABLE_PUBSUB */
     return server;
@@ -398,7 +392,8 @@ addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
                               UA_UInt64 *callbackId) {
     return UA_Timer_addRepeatedCallback(&server->timer,
                                         (UA_ApplicationCallback)callback,
-                                         server, data, interval_ms, callbackId);
+                                         server, data, interval_ms, NULL,
+                                         UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME, callbackId);
 }
 
 UA_StatusCode
@@ -415,8 +410,8 @@ UA_Server_addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
 UA_StatusCode
 changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
                                UA_Double interval_ms) {
-    return UA_Timer_changeRepeatedCallbackInterval(&server->timer, callbackId,
-                                                   interval_ms);
+    return UA_Timer_changeRepeatedCallback(&server->timer, callbackId,
+                                           interval_ms, NULL, UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME);
 }
 
 UA_StatusCode
@@ -480,9 +475,8 @@ UA_Server_updateCertificate(UA_Server *server,
         if(UA_ByteString_equal(&ed->serverCertificate, oldCertificate)) {
             UA_String_clear(&ed->serverCertificate);
             UA_String_copy(newCertificate, &ed->serverCertificate);
-            UA_SecurityPolicy *sp =
-                UA_SecurityPolicy_getSecurityPolicyByUri(server,
-                   &server->config.endpoints[i].securityPolicyUri);
+            UA_SecurityPolicy *sp = getSecurityPolicyByUri(server,
+                            &server->config.endpoints[i].securityPolicyUri);
             if(!sp)
                 return UA_STATUSCODE_BADINTERNALERROR;
             sp->updateCertificateAndPrivateKey(sp, *newCertificate, *newPrivateKey);
@@ -498,8 +492,7 @@ UA_Server_updateCertificate(UA_Server *server,
 /***************************/
 
 UA_SecurityPolicy *
-UA_SecurityPolicy_getSecurityPolicyByUri(const UA_Server *server,
-                                         const UA_ByteString *securityPolicyUri) {
+getSecurityPolicyByUri(const UA_Server *server, const UA_ByteString *securityPolicyUri) {
     for(size_t i = 0; i < server->config.securityPoliciesSize; i++) {
         UA_SecurityPolicy *securityPolicyCandidate = &server->config.securityPolicies[i];
         if(UA_ByteString_equal(securityPolicyUri, &securityPolicyCandidate->policyUri))
@@ -651,7 +644,9 @@ static void
 serverExecuteRepeatedCallback(UA_Server *server, UA_ApplicationCallback cb,
                               void *callbackApplication, void *data) {
     /* Service mutex is not set inside the timer that triggers the callback */
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
+    /* The following check can't be used since another thread can take the
+     * serviceMutex during a server_iterate_call. */
+    //UA_LOCK_ASSERT(&server->serviceMutex, 0);
     cb(callbackApplication, data);
 }
 

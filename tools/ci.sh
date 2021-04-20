@@ -53,6 +53,25 @@ function build_release {
     make ${MAKEOPTS}
 }
 
+######################
+# Build Amalgamation #
+######################
+
+function build_amalgamation {
+    mkdir -p build; cd build; rm -rf *
+    cmake -DCMAKE_BUILD_TYPE=Debug \
+          -DUA_ENABLE_AMALGAMATION=ON \
+          -DUA_ENABLE_DISCOVERY=ON \
+          -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
+          -DUA_ENABLE_JSON_ENCODING=ON \
+          -DUA_ENABLE_PUBSUB=ON \
+          -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
+          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=OFF \
+          -DUA_ENABLE_PUBSUB_MONITORING=ON \
+          ..
+    make ${MAKEOPTS}
+}
+
 ############################
 # Build and Run Unit Tests #
 ############################
@@ -70,6 +89,20 @@ function unit_tests {
           -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=OFF \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
+          ..
+    make ${MAKEOPTS}
+    make test ARGS="-V"
+}
+
+function unit_tests_mt {
+    mkdir -p build; cd build; rm -rf *
+    cmake -DCMAKE_BUILD_TYPE=Debug \
+          -DUA_MULTITHREADING=200 \
+          -DUA_BUILD_EXAMPLES=ON \
+          -DUA_BUILD_UNIT_TESTS=ON \
+          -DUA_ENABLE_DISCOVERY=ON \
+          -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
+          -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           ..
     make ${MAKEOPTS}
     make test ARGS="-V"
@@ -138,7 +171,6 @@ function build_clang_analyzer {
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_DISCOVERY=ON \
-          -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
           -DUA_ENABLE_ENCRYPTION=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
@@ -147,5 +179,5 @@ function build_clang_analyzer {
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=OFF \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
           ..
-    scan-build-11 make ${MAKEOPTS}
+    scan-build-11 --status-bugs make ${MAKEOPTS}
 }

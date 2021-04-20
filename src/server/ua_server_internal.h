@@ -25,6 +25,7 @@
 #include "ua_server_async.h"
 #include "ua_timer.h"
 #include "ua_util_internal.h"
+#include "ziptree.h"
 
 _UA_BEGIN_DECLS
 
@@ -199,6 +200,13 @@ sendServiceFault(UA_SecureChannel *channel, UA_UInt32 requestId, UA_UInt32 reque
 void
 UA_Server_closeSecureChannel(UA_Server *server, UA_SecureChannel *channel,
                              UA_DiagnosticEvent event);
+
+/* Gets the a pointer to the context of a security policy supported by the
+ * server matched by the security policy uri. */
+UA_SecurityPolicy *
+getSecurityPolicyByUri(const UA_Server *server,
+                       const UA_ByteString *securityPolicyUri);
+
 
 /********************/
 /* Session Handling */
@@ -423,6 +431,58 @@ register_server_with_discovery_server(UA_Server *server,
                                       const UA_Boolean isUnregister,
                                       const char* semaphoreFilePath);
 #endif
+
+/***********/
+/* RefTree */
+/***********/
+
+/* A RefTree is a sorted set of NodeIds that ensures we consider each node just
+ * once. It holds a single array for both the ExpandedNodeIds and the entries of
+ * a tree-structure for fast lookup. A single realloc operation (with some
+ * pointer repairing) can be used to increase the capacity of the RefTree.
+ *
+ * When the RefTree is complete, the tree-part at the end of the targets array
+ * can be ignored / cut away to use it as a simple ExpandedNodeId array.
+ *
+ * The layout of the targets array is as follows:
+ *
+ * | Targets [ExpandedNodeId, n times] | Tree [RefEntry, n times] | */
+
+#define UA_REFTREE_INITIAL_SIZE 16
+
+typedef struct RefEntry {
+    ZIP_ENTRY(RefEntry) zipfields;
+    const UA_ExpandedNodeId *target;
+    UA_UInt32 targetHash; /* Hash of the target nodeid */
+} RefEntry;
+
+ZIP_HEAD(RefHead, RefEntry);
+typedef struct RefHead RefHead;
+
+typedef struct {
+    UA_ExpandedNodeId *targets;
+    RefHead head;
+    size_t capacity; /* available space */
+    size_t size;     /* used space */
+} RefTree;
+
+UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
+RefTree_init(RefTree *rt);
+
+void RefTree_clear(RefTree *rt);
+
+UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
+RefTree_add(RefTree *rt, const UA_ExpandedNodeId *target, UA_Boolean *duplicate);
+
+UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
+RefTree_addNodeId(RefTree *rt, const UA_NodeId *target, UA_Boolean *duplicate);
+
+UA_Boolean
+RefTree_contains(RefTree *rt, const UA_ExpandedNodeId *target);
+
+UA_Boolean
+RefTree_containsNodeId(RefTree *rt, const UA_NodeId *target);
+
 /***************************************/
 /* Check Information Model Consistency */
 /***************************************/

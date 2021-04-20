@@ -33,6 +33,7 @@
 
 #ifdef UA_ENABLE_PUBSUB
 #include <open62541/plugin/pubsub.h>
+#include <open62541/server_pubsub.h>
 #endif
 
 #ifdef UA_ENABLE_HISTORIZING
@@ -123,12 +124,10 @@ struct UA_ServerConfig {
     UA_ServerNetworkLayer *networkLayers;
     UA_String customHostname;
 
+    /* PubSub */
 #ifdef UA_ENABLE_PUBSUB
-    /*PubSub network layer */
-    size_t pubsubTransportLayersSize;
-    UA_PubSubTransportLayer *pubsubTransportLayers;
-    UA_PubSubConfiguration *pubsubConfiguration;
-#endif /* UA_ENABLE_PUBSUB */
+    UA_PubSubConfiguration pubSubConfig;
+#endif
 
     /* Available security policies */
     size_t securityPoliciesSize;
@@ -149,6 +148,16 @@ struct UA_ServerConfig {
 
     /* Node Lifecycle callbacks */
     UA_GlobalNodeLifecycle nodeLifecycle;
+
+    /** Copy the HasModellingRule reference in instances from the type
+     * definition in UA_Server_addObjectNode and UA_Server_addVariableNode.
+     * Part 3 - 6.4.4
+     * https://reference.opcfoundation.org/v104/Core/docs/Part3/6.4.4/#6.4.4.4
+     *   [...] it is not required that newly created or referenced instances
+     *   based on InstanceDeclarations have a ModellingRule, however, it is
+     *   allowed that they have any ModellingRule independent of the
+     *   ModellingRule of their InstanceDeclaration */
+    UA_Boolean modellingRulesOnInstances;
 
     /**
      * .. note:: See the section for :ref:`node lifecycle
@@ -356,7 +365,6 @@ UA_Server_run_shutdown(UA_Server *server);
 /**
  * Timed Callbacks
  * --------------- */
-typedef void (*UA_ServerCallback)(UA_Server *server, void *data);
 
 /* Add a callback for execution at a specified time. If the indicated time lies
  * in the past, then the callback is executed at the next iteration of the
@@ -1311,7 +1319,7 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
  *
  * The special UA_Server_addMethodNode_finish method needs to be used for method
  * nodes, since there you need to explicitly specifiy the input and output
- * arguments which are added in the finish step (if not yet already there) **/
+ * arguments which are added in the finish step (if not yet already there) */
 
 /* The ``attr`` argument must have a type according to the NodeClass.
  * ``VariableAttributes`` for variables, ``ObjectAttributes`` for objects, and

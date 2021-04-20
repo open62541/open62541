@@ -30,19 +30,16 @@ typedef struct {
 
     /* Verifies the signature of the message using the provided keys in the context.
      *
-     * @param securityPolicy the securityPolicy the function is invoked on.
      * @param channelContext the channelContext that contains the key to verify
      *                       the supplied message with.
      * @param message the message to which the signature is supposed to belong.
      * @param signature the signature of the message, that should be verified. */
-    UA_StatusCode (*verify)(const UA_SecurityPolicy *securityPolicy,
-                            void *channelContext, const UA_ByteString *message,
+    UA_StatusCode (*verify)(void *channelContext, const UA_ByteString *message,
                             const UA_ByteString *signature) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
     /* Signs the given message using this policys signing algorithm and the
      * provided keys in the context.
      *
-     * @param securityPolicy the securityPolicy the function is invoked on.
      * @param channelContext the channelContext that contains the key to sign
      *                       the supplied message with.
      * @param message the message to sign.
@@ -50,126 +47,94 @@ typedef struct {
      *                  buffer needs to be allocated by the caller. The
      *                  necessary size can be acquired with the signatureSize
      *                  attribute of this module. */
-    UA_StatusCode (*sign)(const UA_SecurityPolicy *securityPolicy,
-                          void *channelContext, const UA_ByteString *message,
+    UA_StatusCode (*sign)(void *channelContext, const UA_ByteString *message,
                           UA_ByteString *signature) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
     /* Gets the signature size that depends on the local (private) key.
      *
-     * @param securityPolicy the securityPolicy the function is invoked on.
      * @param channelContext the channelContext that contains the
      *                       certificate/key.
      * @return the size of the local signature. Returns 0 if no local
      *         certificate was set. */
-    size_t (*getLocalSignatureSize)(const UA_SecurityPolicy *securityPolicy,
-                                    const void *channelContext);
+    size_t (*getLocalSignatureSize)(const void *channelContext);
 
     /* Gets the signature size that depends on the remote (public) key.
      *
-     * @param securityPolicy the securityPolicy the function is invoked on.
      * @param channelContext the context to retrieve data from.
      * @return the size of the remote signature. Returns 0 if no
      *         remote certificate was set previousely. */
-    size_t (*getRemoteSignatureSize)(const UA_SecurityPolicy *securityPolicy,
-                                     const void *channelContext);
+    size_t (*getRemoteSignatureSize)(const void *channelContext);
 
     /* Gets the local signing key length.
      *
-     * @param securityPolicy the securityPolicy the function is invoked on.
      * @param channelContext the context to retrieve data from.
      * @return the length of the signing key in bytes. Returns 0 if no length can be found.
      */
-    size_t (*getLocalKeyLength)(const UA_SecurityPolicy *securityPolicy,
-                                const void *channelContext);
+    size_t (*getLocalKeyLength)(const void *channelContext);
 
     /* Gets the local signing key length.
      *
-     * @param securityPolicy the securityPolicy the function is invoked on.
      * @param channelContext the context to retrieve data from.
      * @return the length of the signing key in bytes. Returns 0 if no length can be found.
      */
-    size_t (*getRemoteKeyLength)(const UA_SecurityPolicy *securityPolicy,
-                                 const void *channelContext);
+    size_t (*getRemoteKeyLength)(const void *channelContext);
 } UA_SecurityPolicySignatureAlgorithm;
 
 typedef struct {
     UA_String uri;
 
-    /* Encrypt the given data in place using an asymmetric algorithm and keys.
+    /* Encrypt the given data in place. For asymmetric encryption, the block
+     * size for plaintext and cypher depend on the remote key (certificate).
      *
-     * @param securityPolicy the securityPolicy the function is invoked on.
      * @param channelContext the channelContext which contains information about
      *                       the keys to encrypt data.
      * @param data the data that is encrypted. The encrypted data will overwrite
      *             the data that was supplied. */
-    UA_StatusCode (*encrypt)(const UA_SecurityPolicy *securityPolicy,
-                             void *channelContext,
+    UA_StatusCode (*encrypt)(void *channelContext,
                              UA_ByteString *data) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
-    /* Decrypts the given ciphertext in place using an asymmetric algorithm and
-     * key.
+    /* Decrypts the given ciphertext in place. For asymmetric encryption, the
+     * block size for plaintext and cypher depend on the local private key.
      *
-     * @param securityPolicy the securityPolicy the function is invoked on.
      * @param channelContext the channelContext which contains information about
      *                       the keys needed to decrypt the message.
      * @param data the data to decrypt. The decryption is done in place. */
-    UA_StatusCode (*decrypt)(const UA_SecurityPolicy *securityPolicy,
-                             void *channelContext,
+    UA_StatusCode (*decrypt)(void *channelContext,
                              UA_ByteString *data) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
-    /* Returns the length of the key used locally to encrypt messages in bits
+    /* Returns the length of the key used to encrypt messages in bits. For
+     * asymmetric encryption the key length is for the local private key.
      *
-     * @param securityPolicy the securityPolicy the function is invoked on.
      * @param channelContext the context to retrieve data from.
      * @return the length of the local key. Returns 0 if no
      *         key length is known. */
-    size_t (*getLocalKeyLength)(const UA_SecurityPolicy *securityPolicy,
-                                const void *channelContext);
+    size_t (*getLocalKeyLength)(const void *channelContext);
 
-    /* Returns the length of the key used remotely to encrypt messages in bits
+    /* Returns the length of the key to encrypt messages in bits. Depends on the
+     * key (certificate) from the remote side.
      *
-     * @param securityPolicy the securityPolicy the function is invoked on.
      * @param channelContext the context to retrieve data from.
      * @return the length of the remote key. Returns 0 if no
      *         key length is known. */
-    size_t (*getRemoteKeyLength)(const UA_SecurityPolicy *securityPolicy,
-                                 const void *channelContext);
+    size_t (*getRemoteKeyLength)(const void *channelContext);
 
-    /* Returns the size of encrypted blocks used by the local encryption algorithm.
+    /* Returns the size of encrypted blocks for sending. For asymmetric
+     * encryption this depends on the remote key (certificate). For symmetric
+     * encryption the local and remote encrypted block size are identical.
      *
-     * @param securityPolicy the securityPolicy the function is invoked on.
      * @param channelContext the context to retrieve data from.
      * @return the size of encrypted blocks in bytes. Returns 0 if no key length is known.
      */
-    size_t (*getLocalBlockSize)(const UA_SecurityPolicy *securityPolicy,
-                                const void *channelContext);
+    size_t (*getRemoteBlockSize)(const void *channelContext);
 
-    /* Returns the size of encrypted blocks used by the remote encryption algorithm.
+    /* Returns the size of plaintext blocks for sending. For asymmetric
+     * encryption this depends on the remote key (certificate). For symmetric
+     * encryption the local and remote plaintext block size are identical.
      *
-     * @param securityPolicy the securityPolicy the function is invoked on.
-     * @param channelContext the context to retrieve data from.
-     * @return the size of encrypted blocks in bytes. Returns 0 if no key length is known.
-     */
-    size_t (*getRemoteBlockSize)(const UA_SecurityPolicy *securityPolicy,
-                                 const void *channelContext);
-
-    /* Returns the size of plaintext blocks used by the local encryption algorithm.
-     *
-     * @param securityPolicy the securityPolicy the function is invoked on.
      * @param channelContext the context to retrieve data from.
      * @return the size of plaintext blocks in bytes. Returns 0 if no key length is known.
      */
-    size_t (*getLocalPlainTextBlockSize)(const UA_SecurityPolicy *securityPolicy,
-                                         const void *channelContext);
-
-    /* Returns the size of plaintext blocks used by the remote encryption algorithm.
-     *
-     * @param securityPolicy the securityPolicy the function is invoked on.
-     * @param channelContext the context to retrieve data from.
-     * @return the size of plaintext blocks in bytes. Returns 0 if no key length is known.
-     */
-    size_t (*getRemotePlainTextBlockSize)(const UA_SecurityPolicy *securityPolicy,
-                                          const void *channelContext);
+    size_t (*getRemotePlainTextBlockSize)(const void *channelContext);
 } UA_SecurityPolicyEncryptionAlgorithm;
 
 typedef struct {
@@ -184,7 +149,6 @@ typedef struct {
 typedef struct {
     /* Generates a thumbprint for the specified certificate.
      *
-     * @param securityPolicy the securityPolicy the function is invoked on.
      * @param certificate the certificate to make a thumbprint of.
      * @param thumbprint an output buffer for the resulting thumbprint. Always
      *                   has the length specified in the thumbprintLength in the
@@ -215,26 +179,22 @@ typedef struct {
      * For information on what parameters this function receives in what situation,
      * refer to the OPC UA specification 1.03 Part6 Table 33
      *
-     * @param securityPolicy the securityPolicy the function is invoked on.
+     * @param policyContext The context of the policy instance
      * @param secret
      * @param seed
      * @param out an output to write the data to. The length defines the maximum
      *            number of output bytes that are produced. */
-    UA_StatusCode (*generateKey)(const UA_SecurityPolicy *securityPolicy,
-                                 const UA_ByteString *secret,
+    UA_StatusCode (*generateKey)(void *policyContext, const UA_ByteString *secret,
                                  const UA_ByteString *seed, UA_ByteString *out)
     UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
     /* Random generator for generating nonces.
      *
-     * @param securityPolicy the securityPolicy this function is invoked on.
-     *                       Example: myPolicy->generateNonce(myPolicy,
-     *                       &outBuff);
+     * @param policyContext The context of the policy instance
      * @param out pointer to a buffer to store the nonce in. Needs to be
      *            allocated by the caller. The buffer is filled with random
      *            data. */
-    UA_StatusCode (*generateNonce)(const UA_SecurityPolicy *securityPolicy,
-                                   UA_ByteString *out)
+    UA_StatusCode (*generateNonce)(void *policyContext, UA_ByteString *out)
     UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
     /*
@@ -360,29 +320,62 @@ struct UA_SecurityPolicy {
     void (*clear)(UA_SecurityPolicy *policy);
 };
 
-/* Gets the number of bytes that are needed by the encryption function in
- * addition to the length of the plaintext message. This is needed, since
- * most RSA encryption methods have their own padding mechanism included.
- * This makes the encrypted message larger than the plainText, so we need to
- * have enough room in the buffer for the overhead.
+/**
+ * PubSub SecurityPolicy
+ * ---------------------
  *
- * @param securityPolicy the algorithms to use.
- * @param channelContext the retrieve data from.
- * @param maxEncryptionLength the maximum number of bytes that the data to
- *                            encrypt can be. */
-size_t
-UA_SecurityPolicy_getRemoteAsymEncryptionBufferLengthOverhead(const UA_SecurityPolicy *securityPolicy,
-                                                              const void *channelContext,
-                                                              size_t maxEncryptionLength);
+ * For PubSub encryption, the message nonce is part of the (unencrypted)
+ * SecurityHeader. The nonce is required for the de- and encryption and has to
+ * be set in the channel context before de/encrypting. */
 
-/* Gets the a pointer to the context of a security policy supported by the
- * server matched by the security policy uri.
- *
- * @param server the server context.
- * @param securityPolicyUri the security policy to get the context of. */
-UA_SecurityPolicy *
-UA_SecurityPolicy_getSecurityPolicyByUri(const UA_Server *server,
-                                         const UA_ByteString *securityPolicyUri);
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+
+struct UA_PubSubSecurityPolicy;
+typedef struct UA_PubSubSecurityPolicy UA_PubSubSecurityPolicy;
+
+struct UA_PubSubSecurityPolicy {
+    UA_ByteString policyUri; /* The policy uri that identifies the implemented
+                              * algorithms */
+    UA_SecurityPolicySymmetricModule symmetricModule;
+
+    /* Create the context for the WriterGroup. The keys and nonce can be NULL
+     * here. Then they have to be set before the first encryption or signing
+     * operation. */
+    UA_StatusCode
+    (*newContext)(void *policyContext,
+                  const UA_ByteString *signingKey,
+                  const UA_ByteString *encryptingKey,
+                  const UA_ByteString *keyNonce,
+                  void **wgContext);
+
+    /* Delete the WriterGroup SecurityPolicy context */
+    void (*deleteContext)(void *wgContext);
+
+    /* Set the keys and nonce for the WriterGroup. This is returned from the
+     * GetSecurityKeys method of a Security Key Service (SKS). Otherwise, set
+     * manually via out-of-band transmission of the keys. */
+    UA_StatusCode
+    (*setSecurityKeys)(void *wgContext,
+                       const UA_ByteString *signingKey,
+                       const UA_ByteString *encryptingKey,
+                       const UA_ByteString *keyNonce)
+    UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+
+    /* The nonce is contained in the NetworkMessage SecurityHeader. Set before
+     * each en-/decryption step. */
+    UA_StatusCode
+    (*setMessageNonce)(void *wgContext,
+                       const UA_ByteString *nonce)
+    UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+
+    const UA_Logger *logger;
+
+    /* Deletes the dynamic content of the policy */
+    void (*clear)(UA_PubSubSecurityPolicy *policy);
+    void *policyContext;
+};
+
+#endif
 
 _UA_END_DECLS
 

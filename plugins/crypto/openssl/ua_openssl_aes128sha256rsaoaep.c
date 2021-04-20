@@ -182,11 +182,9 @@ UA_ChannelModule_Aes128Sha256RsaOaep_Delete_Context(void *channelContext) {
  */
 
 static UA_StatusCode
-UA_AsySig_Aes128Sha256RsaOaep_Verify(const UA_SecurityPolicy *securityPolicy,
-                                     void *channelContext, const UA_ByteString *message,
+UA_AsySig_Aes128Sha256RsaOaep_Verify(void *channelContext, const UA_ByteString *message,
                                      const UA_ByteString *signature) {
-    if(securityPolicy == NULL || message == NULL || signature == NULL ||
-       channelContext == NULL) {
+    if(message == NULL || signature == NULL || channelContext == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -225,26 +223,21 @@ UA_makeCertificateThumbprint_Aes128Sha256RsaOaep(const UA_SecurityPolicy *securi
 }
 
 static UA_StatusCode
-UA_Asym_Aes128Sha256RsaOaep_Decrypt(const UA_SecurityPolicy *securityPolicy,
-                                    void *channelContext, UA_ByteString *data) {
-    if(securityPolicy == NULL || channelContext == NULL || data == NULL)
+UA_Asym_Aes128Sha256RsaOaep_Decrypt(void *channelContext, UA_ByteString *data) {
+    if(channelContext == NULL || data == NULL)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    Channel_Context_Aes128Sha256RsaOaep *cc =
-        (Channel_Context_Aes128Sha256RsaOaep *)channelContext;
-    UA_StatusCode ret =
-        UA_Openssl_RSA_Oaep_Decrypt(data, cc->policyContext->localPrivateKey);
+    Channel_Context_Aes128Sha256RsaOaep *cc = (Channel_Context_Aes128Sha256RsaOaep *)channelContext;
+    UA_StatusCode ret = UA_Openssl_RSA_Oaep_Decrypt(data, cc->policyContext->localPrivateKey);
     return ret;
 }
 
 static size_t
-UA_Asym_Aes128Sha256RsaOaep_getRemoteSignatureSize(const UA_SecurityPolicy *securityPolicy,
-                                                   const void *channelContext) {
-    if(securityPolicy == NULL || channelContext == NULL)
+UA_Asym_Aes128Sha256RsaOaep_getRemoteSignatureSize(const void *channelContext) {
+    if(channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    const Channel_Context_Aes128Sha256RsaOaep *cc =
-        (const Channel_Context_Aes128Sha256RsaOaep *)channelContext;
+    const Channel_Context_Aes128Sha256RsaOaep *cc = (const Channel_Context_Aes128Sha256RsaOaep *)channelContext;
     UA_Int32 keyLen = 0;
     UA_Openssl_RSA_Public_GetKeyLength(cc->remoteCertificateX509, &keyLen);
     UA_assert(keyLen == 256); /* 256 bytes 2048 bit */
@@ -252,13 +245,12 @@ UA_Asym_Aes128Sha256RsaOaep_getRemoteSignatureSize(const UA_SecurityPolicy *secu
 }
 
 static size_t
-UA_AsySig_Aes128Sha256RsaOaep_getLocalSignatureSize(const UA_SecurityPolicy *securityPolicy,
-                                                    const void *channelContext) {
-    if(securityPolicy == NULL || channelContext == NULL)
+UA_AsySig_Aes128Sha256RsaOaep_getLocalSignatureSize(const void *channelContext) {
+    if(channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    Policy_Context_Aes128Sha256RsaOaep *pc =
-        (Policy_Context_Aes128Sha256RsaOaep *)securityPolicy->policyContext;
+    const Channel_Context_Aes128Sha256RsaOaep *cc = (const Channel_Context_Aes128Sha256RsaOaep *)channelContext;
+    Policy_Context_Aes128Sha256RsaOaep *pc = cc->policyContext;
     UA_Int32 keyLen = 0;
     UA_Openssl_RSA_Private_GetKeyLength(pc->localPrivateKey, &keyLen);
     UA_assert(keyLen == 256); /* 256 bytes 2048 bits */
@@ -267,9 +259,8 @@ UA_AsySig_Aes128Sha256RsaOaep_getLocalSignatureSize(const UA_SecurityPolicy *sec
 }
 
 static size_t
-UA_AsymEn_Aes128Sha256RsaOaep_getRemotePlainTextBlockSize(const UA_SecurityPolicy *securityPolicy,
-                                                          const void *channelContext) {
-    if(securityPolicy == NULL || channelContext == NULL)
+UA_AsymEn_Aes128Sha256RsaOaep_getRemotePlainTextBlockSize(const void *channelContext) {
+    if(channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     const Channel_Context_Aes128Sha256RsaOaep *cc =
@@ -280,9 +271,8 @@ UA_AsymEn_Aes128Sha256RsaOaep_getRemotePlainTextBlockSize(const UA_SecurityPolic
 }
 
 static size_t
-UA_AsymEn_Aes128Sha256RsaOaep_getRemoteBlockSize(const UA_SecurityPolicy *securityPolicy,
-                                                 const void *channelContext) {
-    if(securityPolicy == NULL || channelContext == NULL)
+UA_AsymEn_Aes128Sha256RsaOaep_getRemoteBlockSize(const void *channelContext) {
+    if(channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     const Channel_Context_Aes128Sha256RsaOaep *cc =
@@ -293,9 +283,8 @@ UA_AsymEn_Aes128Sha256RsaOaep_getRemoteBlockSize(const UA_SecurityPolicy *securi
 }
 
 static size_t
-UA_AsymEn_Aes128Sha256RsaOaep_getRemoteKeyLength(const UA_SecurityPolicy *securityPolicy,
-                                                 const void *channelContext) {
-    if(securityPolicy == NULL || channelContext == NULL)
+UA_AsymEn_Aes128Sha256RsaOaep_getRemoteKeyLength(const void *channelContext) {
+    if(channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     const Channel_Context_Aes128Sha256RsaOaep *cc =
@@ -306,7 +295,7 @@ UA_AsymEn_Aes128Sha256RsaOaep_getRemoteKeyLength(const UA_SecurityPolicy *securi
 }
 
 static UA_StatusCode
-UA_Sym_Aes128Sha256RsaOaep_generateNonce(const UA_SecurityPolicy *sp,
+UA_Sym_Aes128Sha256RsaOaep_generateNonce(void *policyContext,
                                          UA_ByteString *out) {
     UA_Int32 rc = RAND_bytes(out->data, (int)out->length);
     if(rc != 1) {
@@ -316,27 +305,19 @@ UA_Sym_Aes128Sha256RsaOaep_generateNonce(const UA_SecurityPolicy *sp,
 }
 
 static size_t
-UA_SymEn_Aes128Sha256RsaOaep_getLocalKeyLength(const UA_SecurityPolicy *securityPolicy,
-                                               const void *channelContext) {
+UA_SymEn_Aes128Sha256RsaOaep_getLocalKeyLength(const void *channelContext) {
     /* 32 bytes 256 bits */
     return UA_SECURITYPOLICY_AES128SHA256RSAOAEP_SYM_ENCRYPTION_KEY_LENGTH;
 }
 
 static size_t
-UA_SymEn_Aes128Sha256RsaOaep_getLocalBlockSize(const UA_SecurityPolicy *securityPolicy,
-                                               const void *channelContext) {
-    return UA_SECURITYPOLICY_AES128SHA256RSAOAEP_SYM_ENCRYPTION_BLOCK_SIZE;
-}
-
-static size_t
-UA_SymSig_Aes128Sha256RsaOaep_getLocalKeyLength(const UA_SecurityPolicy *securityPolicy,
-                                                const void *channelContext) {
+UA_SymSig_Aes128Sha256RsaOaep_getLocalKeyLength(const void *channelContext) {
     /* 32 bytes 256 bits */
     return UA_SECURITYPOLICY_AES128SHA256RSAOAEP_SYM_SIGNING_KEY_LENGTH;
 }
 
 static UA_StatusCode
-UA_Sym_Aes128Sha256RsaOaep_generateKey(const UA_SecurityPolicy *securityPolicy,
+UA_Sym_Aes128Sha256RsaOaep_generateKey(void *policyContext,
                                        const UA_ByteString *secret,
                                        const UA_ByteString *seed, UA_ByteString *out) {
     return UA_Openssl_Random_Key_PSHA256_Derive(secret, seed, out);
@@ -376,21 +357,18 @@ UA_ChannelM_Aes128Sha256RsaOaep_setLocalSymIv(void *channelContext,
 }
 
 static size_t
-UA_SymEn_Aes128Sha256RsaOaep_getRemoteKeyLength(const UA_SecurityPolicy *securityPolicy,
-                                                const void *channelContext) {
+UA_SymEn_Aes128Sha256RsaOaep_getRemoteKeyLength(const void *channelContext) {
     /* 32 bytes 256 bits */
     return UA_SECURITYPOLICY_AES128SHA256RSAOAEP_SYM_ENCRYPTION_KEY_LENGTH;
 }
 
 static size_t
-UA_SymEn_Aes128Sha256RsaOaep_getRemoteBlockSize(const UA_SecurityPolicy *securityPolicy,
-                                                const void *channelContext) {
+UA_SymEn_Aes128Sha256RsaOaep_getRemoteBlockSize(const void *channelContext) {
     return UA_SECURITYPOLICY_AES128SHA256RSAOAEP_SYM_ENCRYPTION_BLOCK_SIZE;
 }
 
 static size_t
-UA_SymSig_Aes128Sha256RsaOaep_getRemoteKeyLength(const UA_SecurityPolicy *securityPolicy,
-                                                 const void *channelContext) {
+UA_SymSig_Aes128Sha256RsaOaep_getRemoteKeyLength(const void *channelContext) {
     /* 32 bytes 256 bits */
     return UA_SECURITYPOLICY_AES128SHA256RSAOAEP_SYM_SIGNING_KEY_LENGTH;
 }
@@ -422,28 +400,25 @@ UA_ChannelM_Aes128Sha256RsaOaep_setRemoteSymIv(void *channelContext,
                                                const UA_ByteString *key) {
     if(key == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    Channel_Context_Aes128Sha256RsaOaep *cc =
-        (Channel_Context_Aes128Sha256RsaOaep *)channelContext;
+    Channel_Context_Aes128Sha256RsaOaep *cc = (Channel_Context_Aes128Sha256RsaOaep *)channelContext;
     UA_ByteString_clear(&cc->remoteSymIv);
     return UA_ByteString_copy(key, &cc->remoteSymIv);
 }
 
 static UA_StatusCode
-UA_AsySig_Aes128Sha256RsaOaep_sign(const UA_SecurityPolicy *securityPolicy,
-                                   void *channelContext, const UA_ByteString *message,
+UA_AsySig_Aes128Sha256RsaOaep_sign(void *channelContext, const UA_ByteString *message,
                                    UA_ByteString *signature) {
-    if(securityPolicy == NULL || channelContext == NULL || message == NULL ||
+    if(channelContext == NULL || message == NULL ||
        signature == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    Policy_Context_Aes128Sha256RsaOaep *pc =
-        (Policy_Context_Aes128Sha256RsaOaep *)securityPolicy->policyContext;
+    Channel_Context_Aes128Sha256RsaOaep *cc = (Channel_Context_Aes128Sha256RsaOaep *)channelContext;
+    Policy_Context_Aes128Sha256RsaOaep *pc = cc->policyContext;
     return UA_Openssl_RSA_PKCS1_V15_SHA256_Sign(message, pc->localPrivateKey, signature);
 }
 
 static UA_StatusCode
-UA_AsymEn_Aes128Sha256RsaOaep_encrypt(const UA_SecurityPolicy *securityPolicy,
-                                      void *channelContext, UA_ByteString *data) {
-    if(securityPolicy == NULL || channelContext == NULL || data == NULL)
+UA_AsymEn_Aes128Sha256RsaOaep_encrypt(void *channelContext, UA_ByteString *data) {
+    if(channelContext == NULL || data == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
     Channel_Context_Aes128Sha256RsaOaep *cc =
         (Channel_Context_Aes128Sha256RsaOaep *)channelContext;
@@ -453,16 +428,14 @@ UA_AsymEn_Aes128Sha256RsaOaep_encrypt(const UA_SecurityPolicy *securityPolicy,
 }
 
 static size_t
-UA_SymSig_Aes128Sha256RsaOaep_getRemoteSignatureSize(const UA_SecurityPolicy *securityPolicy,
-                                                     const void *channelContext) {
+UA_SymSig_Aes128Sha256RsaOaep_getRemoteSignatureSize(const void *channelContext) {
     return UA_SHA256_LENGTH;
 }
 
 static UA_StatusCode
-UA_SymSig_Aes128Sha256RsaOaep_verify(const UA_SecurityPolicy *securityPolicy,
-                                     void *channelContext, const UA_ByteString *message,
+UA_SymSig_Aes128Sha256RsaOaep_verify(void *channelContext, const UA_ByteString *message,
                                      const UA_ByteString *signature) {
-    if(securityPolicy == NULL || channelContext == NULL || message == NULL ||
+    if(channelContext == NULL || message == NULL ||
        signature == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -472,10 +445,9 @@ UA_SymSig_Aes128Sha256RsaOaep_verify(const UA_SecurityPolicy *securityPolicy,
 }
 
 static UA_StatusCode
-UA_SymSig_Aes128Sha256RsaOaep_sign(const UA_SecurityPolicy *securityPolicy,
-                                   void *channelContext, const UA_ByteString *message,
+UA_SymSig_Aes128Sha256RsaOaep_sign(void *channelContext, const UA_ByteString *message,
                                    UA_ByteString *signature) {
-    if(securityPolicy == NULL || channelContext == NULL || message == NULL ||
+    if(channelContext == NULL || message == NULL ||
        signature == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -485,15 +457,13 @@ UA_SymSig_Aes128Sha256RsaOaep_sign(const UA_SecurityPolicy *securityPolicy,
 }
 
 static size_t
-UA_SymSig_Aes128Sha256RsaOaep_getLocalSignatureSize(const UA_SecurityPolicy *securityPolicy,
-                                                    const void *channelContext) {
+UA_SymSig_Aes128Sha256RsaOaep_getLocalSignatureSize(const void *channelContext) {
     return UA_SHA256_LENGTH;
 }
 
 static UA_StatusCode
-UA_SymEn_Aes128Sha256RsaOaep_decrypt(const UA_SecurityPolicy *securityPolicy,
-                                     void *channelContext, UA_ByteString *data) {
-    if(securityPolicy == NULL || channelContext == NULL || data == NULL)
+UA_SymEn_Aes128Sha256RsaOaep_decrypt(void *channelContext, UA_ByteString *data) {
+    if(channelContext == NULL || data == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
     Channel_Context_Aes128Sha256RsaOaep *cc =
         (Channel_Context_Aes128Sha256RsaOaep *)channelContext;
@@ -502,9 +472,8 @@ UA_SymEn_Aes128Sha256RsaOaep_decrypt(const UA_SecurityPolicy *securityPolicy,
 }
 
 static UA_StatusCode
-UA_SymEn_Aes128Sha256RsaOaep_encrypt(const UA_SecurityPolicy *securityPolicy,
-                                     void *channelContext, UA_ByteString *data) {
-    if(securityPolicy == NULL || channelContext == NULL || data == NULL)
+UA_SymEn_Aes128Sha256RsaOaep_encrypt(void *channelContext, UA_ByteString *data) {
+    if(channelContext == NULL || data == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     Channel_Context_Aes128Sha256RsaOaep *cc =
@@ -519,25 +488,17 @@ UA_ChannelM_Aes128Sha256RsaOaep_compareCertificate(const void *channelContext,
     if(channelContext == NULL || certificate == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    const Channel_Context_Aes128Sha256RsaOaep *cc =
-        (const Channel_Context_Aes128Sha256RsaOaep *)channelContext;
+    const Channel_Context_Aes128Sha256RsaOaep *cc = (const Channel_Context_Aes128Sha256RsaOaep *)channelContext;
     return UA_OpenSSL_X509_compare(certificate, cc->remoteCertificateX509);
 }
 
 static size_t
-UA_SymEn_Aes128Sha256RsaOaep_getLocalPlainTextBlockSize(const UA_SecurityPolicy *securityPolicy,
-                                                        const void *channelContext) {
-    return UA_SECURITYPOLICY_AES128SHA256RSAOAEP_SYM_PLAIN_TEXT_BLOCK_SIZE;
-}
-
-static size_t
-UA_AsymEn_Aes128Sha256RsaOaep_getLocalKeyLength(const UA_SecurityPolicy *securityPolicy,
-                                                const void *channelContext) {
-    if(securityPolicy == NULL || channelContext == NULL)
+UA_AsymEn_Aes128Sha256RsaOaep_getLocalKeyLength(const void *channelContext) {
+    if(channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    Policy_Context_Aes128Sha256RsaOaep *pc =
-        (Policy_Context_Aes128Sha256RsaOaep *)securityPolicy->policyContext;
+    const Channel_Context_Aes128Sha256RsaOaep *cc = (const Channel_Context_Aes128Sha256RsaOaep *)channelContext;
+    Policy_Context_Aes128Sha256RsaOaep *pc = cc->policyContext;
     UA_Int32 keyLen = 0;
     UA_Openssl_RSA_Private_GetKeyLength(pc->localPrivateKey, &keyLen);
     UA_assert(keyLen == 256); /* 256 bytes 2048 bits */
@@ -617,8 +578,6 @@ UA_SecurityPolicy_Aes128Sha256RsaOaep(UA_SecurityPolicy *policy,
     asymEncryAlg->getRemoteKeyLength = UA_AsymEn_Aes128Sha256RsaOaep_getRemoteKeyLength;
     asymEncryAlg->encrypt = UA_AsymEn_Aes128Sha256RsaOaep_encrypt;
     asymEncryAlg->getLocalKeyLength = UA_AsymEn_Aes128Sha256RsaOaep_getLocalKeyLength;
-    asymEncryAlg->getLocalPlainTextBlockSize = NULL;
-    asymEncryAlg->getLocalBlockSize = NULL;
 
     /* asymmetricModule */
 
@@ -639,35 +598,23 @@ UA_SecurityPolicy_Aes128Sha256RsaOaep(UA_SecurityPolicy *policy,
         &symmetricModule->cryptoModule.encryptionAlgorithm;
     symEncryptionAlgorithm->uri =
         UA_STRING("http://www.w3.org/2001/04/xmlenc#aes128-cbc\0");
-    symEncryptionAlgorithm->getLocalKeyLength =
-        UA_SymEn_Aes128Sha256RsaOaep_getLocalKeyLength;
-    symEncryptionAlgorithm->getLocalBlockSize =
-        UA_SymEn_Aes128Sha256RsaOaep_getLocalBlockSize;
-    symEncryptionAlgorithm->getRemoteKeyLength =
-        UA_SymEn_Aes128Sha256RsaOaep_getRemoteKeyLength;
-    symEncryptionAlgorithm->getRemoteBlockSize =
-        UA_SymEn_Aes128Sha256RsaOaep_getRemoteBlockSize;
+    symEncryptionAlgorithm->getLocalKeyLength = UA_SymEn_Aes128Sha256RsaOaep_getLocalKeyLength;
+    symEncryptionAlgorithm->getRemoteKeyLength = UA_SymEn_Aes128Sha256RsaOaep_getRemoteKeyLength;
+    symEncryptionAlgorithm->getRemoteBlockSize = UA_SymEn_Aes128Sha256RsaOaep_getRemoteBlockSize;
     symEncryptionAlgorithm->decrypt = UA_SymEn_Aes128Sha256RsaOaep_decrypt;
     symEncryptionAlgorithm->encrypt = UA_SymEn_Aes128Sha256RsaOaep_encrypt;
-    symEncryptionAlgorithm->getLocalPlainTextBlockSize =
-        UA_SymEn_Aes128Sha256RsaOaep_getLocalPlainTextBlockSize;
 
     /* Symmetric signature Algorithm */
 
     UA_SecurityPolicySignatureAlgorithm *symSignatureAlgorithm =
         &symmetricModule->cryptoModule.signatureAlgorithm;
-    symSignatureAlgorithm->uri =
-        UA_STRING("http://www.w3.org/2000/09/xmldsig#hmac-sha2-256\0");
-    symSignatureAlgorithm->getLocalKeyLength =
-        UA_SymSig_Aes128Sha256RsaOaep_getLocalKeyLength;
-    symSignatureAlgorithm->getRemoteKeyLength =
-        UA_SymSig_Aes128Sha256RsaOaep_getRemoteKeyLength;
-    symSignatureAlgorithm->getRemoteSignatureSize =
-        UA_SymSig_Aes128Sha256RsaOaep_getRemoteSignatureSize;
+    symSignatureAlgorithm->uri = UA_STRING("http://www.w3.org/2000/09/xmldsig#hmac-sha2-256\0");
+    symSignatureAlgorithm->getLocalKeyLength = UA_SymSig_Aes128Sha256RsaOaep_getLocalKeyLength;
+    symSignatureAlgorithm->getRemoteKeyLength = UA_SymSig_Aes128Sha256RsaOaep_getRemoteKeyLength;
+    symSignatureAlgorithm->getRemoteSignatureSize = UA_SymSig_Aes128Sha256RsaOaep_getRemoteSignatureSize;
     symSignatureAlgorithm->verify = UA_SymSig_Aes128Sha256RsaOaep_verify;
     symSignatureAlgorithm->sign = UA_SymSig_Aes128Sha256RsaOaep_sign;
-    symSignatureAlgorithm->getLocalSignatureSize =
-        UA_SymSig_Aes128Sha256RsaOaep_getLocalSignatureSize;
+    symSignatureAlgorithm->getLocalSignatureSize = UA_SymSig_Aes128Sha256RsaOaep_getLocalSignatureSize;
 
     retval = UA_Policy_Aes128Sha256RsaOaep_New_Context(policy, localPrivateKey, logger);
     if(retval != UA_STATUSCODE_GOOD) {

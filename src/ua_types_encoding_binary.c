@@ -319,7 +319,7 @@ static long double
 unpack754(uint64_t i, unsigned bits, unsigned expbits) {
     unsigned significandbits = bits - expbits - 1;
     long double result = (long double)(i&(uint64_t)((1LL<<significandbits)-1));
-    result /= (1LL<<significandbits);
+    result /= (long double)(1LL<<significandbits);
     result += 1.0f;
     unsigned bias = (unsigned)(1<<(expbits-1)) - 1;
     long long shift = (long long)((i>>significandbits) & (uint64_t)((1LL<<expbits)-1)) - bias;
@@ -1459,24 +1459,27 @@ encodeBinaryUnion(const void *src, const UA_DataType *type, Ctx *ctx) {
         return UA_STATUSCODE_BADENCODINGERROR;
     ctx->depth++;
 
+    /* Encode the selection */
     const UA_UInt32 selection = *(const UA_UInt32*)src;
-    status ret = ENCODE_DIRECT(src, UInt32);
+    status ret = ENCODE_DIRECT(&selection, UInt32);
     if(ret != UA_STATUSCODE_GOOD || selection == 0) {
         ctx->depth--;
         return ret;
     }
 
+    /* Select the member */
     const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
     const UA_DataTypeMember *m = &type->members[selection-1];
     const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
-    uintptr_t ptr = ((uintptr_t)src) + m->padding;
 
-    if(m->isArray) {
+    /* Encode the member */
+    uintptr_t ptr = ((uintptr_t)src) + m->padding; /* includes the switchfield length */
+    if(!m->isArray) {
+        ret = encodeWithExchangeBuffer((const void*)ptr, mt, ctx);
+    } else {
         const size_t length = *((const size_t*)ptr);
         ptr += sizeof(size_t);
         ret = Array_encodeBinary(*(void *UA_RESTRICT const *)ptr, length, mt, ctx);
-    } else {
-        ret = encodeWithExchangeBuffer((const void*)ptr, mt, ctx);
     }
 
     UA_assert(ret != UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
@@ -1658,28 +1661,34 @@ decodeBinaryUnion(void *UA_RESTRICT dst, const UA_DataType *type, Ctx *ctx) {
     if(ctx->depth > UA_ENCODING_MAX_RECURSION)
         return UA_STATUSCODE_BADENCODINGERROR;
 
+    /* Decode the selection directly into the switchfield */
     status ret = DECODE_DIRECT(dst, UInt32);
     if(ret != UA_STATUSCODE_GOOD)
         return ret;
 
+    /* No content? */
     UA_UInt32 selection = *(UA_UInt32*)dst;
     if(selection == 0)
         return UA_STATUSCODE_GOOD;
+
+    /* Sanity check the selection */
     if(selection-1 >= type->membersSize)
         return UA_STATUSCODE_BADDECODINGERROR;
 
+    /* Select the member */
     const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
     const UA_DataTypeMember *m = &type->members[selection-1];
     const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
-    uintptr_t ptr = ((uintptr_t)dst) + m->padding;
 
+    /* Decode */
     ctx->depth++;
-    if (m->isArray) {
+    uintptr_t ptr = ((uintptr_t)dst) + m->padding; /* includes the switchfield */
+    if(!m->isArray) {
+        ret = decodeBinaryJumpTable[mt->typeKind]((void *UA_RESTRICT)ptr, mt, ctx);
+    } else {
         size_t *length = (size_t *)ptr;
         ptr += sizeof(size_t);
         ret = Array_decodeBinary((void *UA_RESTRICT *UA_RESTRICT)ptr, length, mt, ctx);
-    } else {
-        ret = decodeBinaryJumpTable[mt->typeKind]((void *UA_RESTRICT)ptr, mt, ctx);
     }
     ctx->depth--;
     return ret;
@@ -1987,23 +1996,22 @@ calcSizeBinaryStructureWithOptFields(const void *p, const UA_DataType *type) {
 
 static size_t
 calcSizeBinaryUnion(const void *p, const UA_DataType *type) {
-    size_t s = 0;
-    uintptr_t ptr = (uintptr_t)p;
-    UA_UInt32 selection = *(UA_UInt32 *) ptr;
+    size_t s = 4; /* UA_TYPES[UA_TYPES_UINT32].memSize; */
+    const UA_UInt32 selection = *(const UA_UInt32 *)p;
     if(selection == 0)
-        return UA_TYPES[UA_TYPES_UINT32].memSize;
+        return s;
+
     const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
     const UA_DataTypeMember *m = &type->members[selection-1];
     const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
-    s += UA_TYPES[UA_TYPES_UINT32].memSize;
-    ptr += m->padding;
-    if (m->isArray) {
+
+    uintptr_t ptr = ((uintptr_t)p) + m->padding; /* includes switchfield length */
+    if(!m->isArray) {
+        s += UA_calcSizeBinary((const void*)ptr, mt);
+    } else {
         const size_t length = *((const size_t*)ptr);
         ptr += sizeof(size_t);
         s += Array_calcSizeBinary(*(void *UA_RESTRICT const *)ptr, length, mt);
-        ptr += sizeof(void *);
-    } else {
-        s += UA_calcSizeBinary((const void *) ptr, mt);
     }
     return s;
 }

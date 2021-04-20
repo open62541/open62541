@@ -21,10 +21,10 @@
  *
  * Another additional feature called the Blocking Socket is employed in the Subscriber thread. This feature is optional and can be
  * enabled or disabled when running application by using command line argument "-enableBlockingSocket". When using Blocking Socket,
- * the Publisher and Subscriber threads are made to run in different cores, and the Subscriber thread remains in "blocking mode" until
- * a message is received, in other words the timeout is overwritten and the thread continuously waits for the message.
- * Once the message is received, the Subscriber thread updates the value in the Information Model and again waits for the next message.
- * This process is repeated until the application is terminated.
+ * the Subscriber thread remains in "blocking mode" until a message is received from every wake up time of the thread. In other words,
+ * the timeout is overwritten and the thread continuously waits for the message from every wake up time of the thread.
+ * Once the message is received, the Subscriber thread updates the value in the Information Model, sleeps up to wake up time and
+ * again waits for the next message. This process is repeated until the application is terminated.
  *
  * To ensure realtime capabilities, Publisher uses ETF(Earliest Tx-time First) to publish information at the calculated tranmission
  * time over Ethernet. Subscriber can be used with or without XDP(Xpress Data Processing) over Ethernet
@@ -33,7 +33,7 @@
  *
  * ./bin/examples/pubsub_TSN_loopback -interface <interface>
  *
- * For more options, run ./bin/examples/pubsub_TSN_loopback -h
+ * For more options, run ./bin/examples/pubsub_TSN_loopback -help
  */
 
 /**
@@ -79,10 +79,8 @@
 #include <open62541/types_generated.h>
 #include <open62541/plugin/pubsub_ethernet.h>
 
-#if defined (UA_ENABLE_PUBSUB_ETH_UADP_XDP)
 #include <linux/if_link.h>
-#include <open62541/plugin/pubsub_ethernet_xdp.h>
-#endif
+#include <linux/if_xdp.h>
 
 #include "ua_pubsub.h"
 
@@ -119,8 +117,8 @@ UA_DataSetReaderConfig readerConfig;
 #endif
 #define             REPEATED_NODECOUNTS                   2    // Default to publish 64 bytes
 #define             PORT_NUMBER                           62541
-#define             RECEIVE_QUEUE                         2
-#define             XDP_FLAG                              XDP_FLAGS_SKB_MODE
+#define             DEFAULT_XDP_QUEUE                     2
+#define             PUBSUB_CONFIG_RT_INFORMATION_MODEL
 
 /* Non-Configurable Parameters */
 /* Milli sec and sec conversion to nano sec */
@@ -170,11 +168,15 @@ static UA_Int32   pubCore              = DEFAULT_PUB_CORE;
 static UA_Int32   subCore              = DEFAULT_SUB_CORE;
 static UA_Int32   userAppCore          = DEFAULT_USER_APP_CORE;
 static UA_Int32   qbvOffset            = DEFAULT_QBV_OFFSET;
+static UA_UInt32  xdpQueue             = DEFAULT_XDP_QUEUE;
+static UA_UInt32  xdpFlag              = XDP_FLAGS_SKB_MODE;
+static UA_UInt32  xdpBindFlag          = XDP_COPY;
 static UA_Boolean disableSoTxtime      = UA_TRUE;
 static UA_Boolean enableCsvLog         = UA_FALSE;
 static UA_Boolean consolePrint         = UA_FALSE;
 static UA_Boolean enableBlockingSocket = UA_FALSE;
 static UA_Boolean signalTerm           = UA_FALSE;
+static UA_Boolean enableXdpSubscribe   = UA_FALSE;
 
 /* Variables corresponding to PubSub connection creation,
  * published data set and writer group */
@@ -247,6 +249,10 @@ struct timespec     dataReceiveTime;
 /* Thread for user application*/
 pthread_t           userApplicationThreadID;
 
+/* Base time handling for the threads */
+struct timespec     threadBaseTime;
+UA_Boolean          baseTimeCalculated = UA_FALSE;
+
 typedef struct {
 UA_Server*                   ServerRun;
 } serverConfigStruct;
@@ -308,7 +314,9 @@ static void nanoSecondFieldConversion(struct timespec *timeSpecValue) {
 static UA_StatusCode
 addPubSubApplicationCallback(UA_Server *server, UA_NodeId identifier,
                              UA_ServerCallback callback,
-                             void *data, UA_Double interval_ms, UA_UInt64 *callbackId) {
+                             void *data, UA_Double interval_ms,
+                             UA_DateTime *baseTime, UA_TimerPolicy timerPolicy,
+                             UA_UInt64 *callbackId) {
     /* Initialize arguments required for the thread to run */
     threadArg *threadArguments = (threadArg *) UA_malloc(sizeof(threadArg));
 
@@ -343,8 +351,9 @@ addPubSubApplicationCallback(UA_Server *server, UA_NodeId identifier,
 }
 
 static UA_StatusCode
-changePubSubApplicationCallbackInterval(UA_Server *server, UA_NodeId identifier,
-                                        UA_UInt64 callbackId, UA_Double interval_ms) {
+changePubSubApplicationCallback(UA_Server *server, UA_NodeId identifier,
+                                UA_UInt64 callbackId, UA_Double interval_ms,
+                                UA_DateTime *baseTime, UA_TimerPolicy timerPolicy) {
     /* Callback interval need not be modified as it is thread based implementation.
      * The thread uses nanosleep for calculating cycle time and modification in
      * nanosleep value changes cycle time */
@@ -399,17 +408,23 @@ addPubSubConnectionSubscriber(UA_Server *server, UA_NetworkAddressUrlDataType *n
     memset(&connectionConfig, 0, sizeof(connectionConfig));
     connectionConfig.name                                   = UA_STRING("Subscriber Connection");
     connectionConfig.enabled                                = UA_TRUE;
-#if defined (UA_ENABLE_PUBSUB_ETH_UADP_XDP)
-    UA_KeyValuePair connectionOptions[2];
-    connectionOptions[0].key                  = UA_QUALIFIEDNAME(0, "xdpflag");
-    UA_UInt32 flags                           = XDP_FLAG;
-    UA_Variant_setScalar(&connectionOptions[0].value, &flags, &UA_TYPES[UA_TYPES_UINT32]);
-    connectionOptions[1].key                  = UA_QUALIFIEDNAME(0, "hwreceivequeue");
-    UA_UInt32 rxqueue                         = RECEIVE_QUEUE;
-    UA_Variant_setScalar(&connectionOptions[1].value, &rxqueue, &UA_TYPES[UA_TYPES_UINT32]);
+
+    UA_KeyValuePair connectionOptions[4];
+    connectionOptions[0].key                  = UA_QUALIFIEDNAME(0, "enableXdpSocket");
+    UA_Boolean enableXdp                      = enableXdpSubscribe;
+    UA_Variant_setScalar(&connectionOptions[0].value, &enableXdp, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    connectionOptions[1].key                  = UA_QUALIFIEDNAME(0, "xdpflag");
+    UA_UInt32 flags                           = xdpFlag;
+    UA_Variant_setScalar(&connectionOptions[1].value, &flags, &UA_TYPES[UA_TYPES_UINT32]);
+    connectionOptions[2].key                  = UA_QUALIFIEDNAME(0, "hwreceivequeue");
+    UA_UInt32 rxqueue                         = xdpQueue;
+    UA_Variant_setScalar(&connectionOptions[2].value, &rxqueue, &UA_TYPES[UA_TYPES_UINT32]);
+    connectionOptions[3].key                  = UA_QUALIFIEDNAME(0, "xdpbindflag");
+    UA_UInt32 bindflags                       = xdpBindFlag;
+    UA_Variant_setScalar(&connectionOptions[3].value, &bindflags, &UA_TYPES[UA_TYPES_UINT16]);
     connectionConfig.connectionProperties     = connectionOptions;
-    connectionConfig.connectionPropertiesSize = 2;
-#endif
+    connectionConfig.connectionPropertiesSize = 4;
+
 
     UA_NetworkAddressUrlDataType networkAddressUrlsubscribe = *networkAddressUrlSubscriber;
     connectionConfig.transportProfileUri                    = UA_STRING(ETH_TRANSPORT_PROFILE);
@@ -440,7 +455,7 @@ addReaderGroup(UA_Server *server) {
     }
 
     readerGroupConfig.pubsubManagerCallback.addCustomCallback = addPubSubApplicationCallback;
-    readerGroupConfig.pubsubManagerCallback.changeCustomCallbackInterval = changePubSubApplicationCallbackInterval;
+    readerGroupConfig.pubsubManagerCallback.changeCustomCallback = changePubSubApplicationCallback;
     readerGroupConfig.pubsubManagerCallback.removeCustomCallback = removePubSubApplicationCallback;
 
     UA_Server_addReaderGroup(server, connectionIdentSubscriber, &readerGroupConfig,
@@ -647,13 +662,12 @@ addPubSubConnection(UA_Server *server, UA_NetworkAddressUrlDataType *networkAddr
     connectionConfig.publisherId.numeric                    = PUBLISHER_ID;
     /* Connection options are given as Key/Value Pairs - Sockprio and Txtime */
     UA_KeyValuePair connectionOptions[2];
-    connectionOptions[0].key = UA_QUALIFIEDNAME(0, "sockpriority");
+    connectionOptions[0].key                  = UA_QUALIFIEDNAME(0, "sockpriority");
     UA_Variant_setScalar(&connectionOptions[0].value, &socketPriority, &UA_TYPES[UA_TYPES_UINT32]);
-    connectionOptions[1].key = UA_QUALIFIEDNAME(0, "enablesotxtime");
+    connectionOptions[1].key                  = UA_QUALIFIEDNAME(0, "enablesotxtime");
     UA_Variant_setScalar(&connectionOptions[1].value, &disableSoTxtime, &UA_TYPES[UA_TYPES_BOOLEAN]);
     connectionConfig.connectionProperties     = connectionOptions;
     connectionConfig.connectionPropertiesSize = 2;
-
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
 }
 
@@ -792,7 +806,7 @@ addWriterGroup(UA_Server *server) {
     writerGroupConfig.writerGroupId                        = WRITER_GROUP_ID;
     writerGroupConfig.rtLevel                              = UA_PUBSUB_RT_FIXED_SIZE;
     writerGroupConfig.pubsubManagerCallback.addCustomCallback = addPubSubApplicationCallback;
-    writerGroupConfig.pubsubManagerCallback.changeCustomCallbackInterval = changePubSubApplicationCallbackInterval;
+    writerGroupConfig.pubsubManagerCallback.changeCustomCallback = changePubSubApplicationCallback;
     writerGroupConfig.pubsubManagerCallback.removeCustomCallback = removePubSubApplicationCallback;
 
     writerGroupConfig.messageSettings.encoding             = UA_EXTENSIONOBJECT_DECODED;
@@ -905,12 +919,19 @@ void *publisherETF(void *arg) {
     pubCallback                         = threadArgumentsPublisher->callback;
     currentWriterGroup                  = (UA_WriterGroup *)threadArgumentsPublisher->data;
     interval_ns                         = (UA_UInt64)(threadArgumentsPublisher->interval_ms * MILLI_SECONDS);
+    /* Verify whether baseTime has already been calculated */
+    if(!baseTimeCalculated) {
+        /* Get current time and compute the next nanosleeptime */
+        clock_gettime(CLOCKID, &threadBaseTime);
+        /* Variable to nano Sleep until SECONDS_SLEEP second boundary */
+        threadBaseTime.tv_sec  += SECONDS_SLEEP;
+        threadBaseTime.tv_nsec  = 0;
+        baseTimeCalculated = UA_TRUE;
+    }
 
-    /* Get current time and compute the next nanosleeptime */
-    clock_gettime(CLOCKID, &nextnanosleeptime);
-    /* Variable to nano Sleep until SECONDS_SLEEP second boundary */
-    nextnanosleeptime.tv_sec                      += SECONDS_SLEEP;
-    nextnanosleeptime.tv_nsec                      = (__syscall_slong_t)(cycleTimeInMsec * MILLI_SECONDS * pubWakeupPercentage);
+    nextnanosleeptime.tv_sec  = threadBaseTime.tv_sec;
+    /* Modify the nanosecond field to wake up at the pubWakeUp percentage */
+    nextnanosleeptime.tv_nsec = threadBaseTime.tv_nsec + (__syscall_slong_t)(cycleTimeInMsec * MILLI_SECONDS * pubWakeupPercentage);
     nanoSecondFieldConversion(&nextnanosleeptime);
 
     /* Define Ethernet ETF transport settings */
@@ -927,16 +948,22 @@ void *publisherETF(void *arg) {
     UA_UInt64 roundOffCycleTime                    = (UA_UInt64)((cycleTimeInMsec * MILLI_SECONDS) - (cycleTimeInMsec * MILLI_SECONDS * pubWakeupPercentage));
 
     while (*runningPub) {
+        /* The Publisher threads wakes up at the configured publisher wake up percentage (60%) of each cycle */
         clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptime, NULL);
+        /* Whenever Ctrl + C pressed, publish running boolean as false to stop the subscriber before terminating the application */
         if (signalTerm == UA_TRUE)
             *runningPub = UA_FALSE;
 
-        transmission_time                              = ((UA_UInt64)nextnanosleeptime.tv_sec * SECONDS + (UA_UInt64)nextnanosleeptime.tv_nsec) + roundOffCycleTime + (UA_UInt64)(qbvOffset * 1000);
+        /* Calculation of transmission time using the configured qbv offset by the user - Will be handled by publishingOffset in the future */
+        transmission_time = ((UA_UInt64)nextnanosleeptime.tv_sec * SECONDS + (UA_UInt64)nextnanosleeptime.tv_nsec) + roundOffCycleTime + (UA_UInt64)(qbvOffset * 1000);
         ethernettransportSettings.transmission_time = transmission_time;
+        /* Publish the data using the pubcallback - UA_WriterGroup_publishCallback()
+         * Start publishing when pubCounterData is greater than 1 */
         if(*pubCounterData > 0)
             pubCallback(server, currentWriterGroup);
 
-        nextnanosleeptime.tv_nsec                     += (__syscall_slong_t)interval_ns;
+        /* Calculation of the next wake up time by adding the interval with the previous wake up time */
+        nextnanosleeptime.tv_nsec += (__syscall_slong_t)interval_ns;
         nanoSecondFieldConversion(&nextnanosleeptime);
     }
 
@@ -968,27 +995,36 @@ void *subscriber(void *arg) {
     currentReaderGroup = threadArgumentsSubscriber->data;
     subInterval_ns     = (UA_UInt64)(threadArgumentsSubscriber->interval_ms * MILLI_SECONDS);
 
-    /* Get current time and compute the next nanosleeptime */
-    clock_gettime(CLOCKID, &nextnanosleeptimeSub);
-    /* Variable to nano Sleep until 1ms before a 1 second boundary */
-    nextnanosleeptimeSub.tv_sec         += SECONDS_SLEEP;
-    nextnanosleeptimeSub.tv_nsec         = (__syscall_slong_t)subWakeupPercentage;
+    /* Verify whether baseTime has already been calculated */
+    if(!baseTimeCalculated) {
+        /* Get current time and compute the next nanosleeptime */
+        clock_gettime(CLOCKID, &threadBaseTime);
+        /* Variable to nano Sleep until SECONDS_SLEEP second boundary */
+        threadBaseTime.tv_sec  += SECONDS_SLEEP;
+        threadBaseTime.tv_nsec  = 0;
+        baseTimeCalculated = UA_TRUE;
+    }
+
+    nextnanosleeptimeSub.tv_sec  = threadBaseTime.tv_sec;
+    /* Modify the nanosecond field to wake up at the subWakeUp percentage */
+    nextnanosleeptimeSub.tv_nsec = threadBaseTime.tv_nsec + (__syscall_slong_t)(cycleTimeInMsec * MILLI_SECONDS * subWakeupPercentage);
     nanoSecondFieldConversion(&nextnanosleeptimeSub);
     while (*runningSub) {
-        /* When blocking socket is disabled, the Subscriber threads wakes up at the start of each cycle */
-        if (enableBlockingSocket != UA_TRUE)
-            clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptimeSub, NULL);
-
-        /* Read subscribed data from the SubscriberCounter variable */
+        /* The Subscriber threads wakes up at the configured subscriber wake up percentage (0%) of each cycle */
+        clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptimeSub, NULL);
+        /* Receive and process the incoming data using the subcallback - UA_ReaderGroup_subscribeCallback() */
         subCallback(server, currentReaderGroup);
-        if (enableBlockingSocket != UA_TRUE) {
-            nextnanosleeptimeSub.tv_nsec += (__syscall_slong_t)subInterval_ns;
-            nanoSecondFieldConversion(&nextnanosleeptimeSub);
-        }
+        /* Calculation of the next wake up time by adding the interval with the previous wake up time */
+        nextnanosleeptimeSub.tv_nsec += (__syscall_slong_t)subInterval_ns;
+        nanoSecondFieldConversion(&nextnanosleeptimeSub);
 
+        /* Whenever Ctrl + C pressed, modify the runningSub boolean to false to end this while loop */
         if (signalTerm == UA_TRUE)
             *runningSub = UA_FALSE;
     }
+
+    /* While ctrl+c is provided in publisher side then loopback application
+     * need to be closed by after sending *running=0 for subscriber T8 */
     if (*runningSub == UA_FALSE)
         signalTerm = UA_TRUE;
 
@@ -1007,26 +1043,46 @@ void *subscriber(void *arg) {
  */
 void *userApplicationPubSub(void *arg) {
     struct timespec nextnanosleeptimeUserApplication;
-    /* Get current time and compute the next nanosleeptime */
-    clock_gettime(CLOCKID, &nextnanosleeptimeUserApplication);
-    /* Variable to nano Sleep until 1ms before a 1 second boundary */
-    nextnanosleeptimeUserApplication.tv_sec      += SECONDS_SLEEP;
-    nextnanosleeptimeUserApplication.tv_nsec      = (__syscall_slong_t)(cycleTimeInMsec * MILLI_SECONDS * userAppWakeupPercentage);
+    /* Verify whether baseTime has already been calculated */
+    if(!baseTimeCalculated) {
+        /* Get current time and compute the next nanosleeptime */
+        clock_gettime(CLOCKID, &threadBaseTime);
+        /* Variable to nano Sleep until SECONDS_SLEEP second boundary */
+        threadBaseTime.tv_sec  += SECONDS_SLEEP;
+        threadBaseTime.tv_nsec  = 0;
+        baseTimeCalculated = UA_TRUE;
+    }
+
+    nextnanosleeptimeUserApplication.tv_sec  = threadBaseTime.tv_sec;
+    /* Modify the nanosecond field to wake up at the userAppWakeUp percentage */
+    nextnanosleeptimeUserApplication.tv_nsec = threadBaseTime.tv_nsec + (__syscall_slong_t)(cycleTimeInMsec * MILLI_SECONDS * userAppWakeupPercentage);
     nanoSecondFieldConversion(&nextnanosleeptimeUserApplication);
 
     while (*runningSub || *runningPub) {
+        /* The User application threads wakes up at the configured userApp wake up percentage (30%) of each cycle */
         clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptimeUserApplication, NULL);
 #if defined(SUBSCRIBER)
+        /* Get the time - T4, time where subscribed varibles are read from the Information model.
+         * At this point, the packet will be already subscribed and written into the
+         * Information model. As this application uses FPM, we do not require explicit call of UA_Server_read() to
+         * read the subscribed value from the Information model. Hence, we take subscribed T4 time here */
         clock_gettime(CLOCKID, &dataReceiveTime);
 #endif
 
 #if defined(PUBLISHER)
+        /* Pass the received subscribed values to publish variables
+         * subCounterData value to pubCounter data
+         * repeatedSubCounter data values to repeatedPubCounter data */
         *pubCounterData = *subCounterData;
         for (UA_Int32 iterator = 0; iterator <  REPEATED_NODECOUNTS; iterator++)
             *repeatedCounterData[iterator] = *subRepeatedCounterData[iterator];
+
+        /* Get the time - T5, time where the values of the subsribed data were copied
+         * to the publisher counter variables */
         clock_gettime(CLOCKID, &dataModificationTime);
 #endif
 
+        /* Update the T4, T5 time with the counter data in the user defined publisher and subscriber arrays */
         if (enableCsvLog || consolePrint) {
 #if defined(SUBSCRIBER)
             if (*subCounterData > 0)
@@ -1039,6 +1095,7 @@ void *userApplicationPubSub(void *arg) {
 #endif
         }
 
+        /* Calculation of the next wake up time by adding the interval with the previous wake up time */
         nextnanosleeptimeUserApplication.tv_nsec += (__syscall_slong_t)(cycleTimeInMsec * MILLI_SECONDS);
         nanoSecondFieldConversion(&nextnanosleeptimeUserApplication);
     }
@@ -1247,11 +1304,15 @@ static void usage(char *appname)
         " -enableconsolePrint     Experimental: To print the data in console output. Support for higher cycle time\n"
         " -enableBlockingSocket   Run application with blocking socket option. While using blocking socket option need to\n"
         "                         run both the Publisher and Loopback application. Otherwise application will not terminate.\n"
+        " -enableXdpSubscribe     Enable XDP feature for subscriber. XDP_COPY and XDP_FLAGS_SKB_MODE is used by default. Not recommended to be enabled along with blocking socket.\n"
+        " -xdpQueue        [num]  XDP queue value (default %d)\n"
+        " -xdpFlagDrvMode         Use XDP in DRV mode\n"
+        " -xdpBindFlagZeroCopy    Use Zero-Copy mode in XDP\n"
         "\n",
         appname, DEFAULT_CYCLE_TIME, DEFAULT_SOCKET_PRIORITY, DEFAULT_PUB_SCHED_PRIORITY, \
         DEFAULT_SUB_SCHED_PRIORITY, DEFAULT_USERAPPLICATION_SCHED_PRIORITY, \
         DEFAULT_PUB_CORE, DEFAULT_SUB_CORE, DEFAULT_USER_APP_CORE, \
-        DEFAULT_PUBLISHING_MAC_ADDRESS, DEFAULT_SUBSCRIBING_MAC_ADDRESS, DEFAULT_QBV_OFFSET);
+        DEFAULT_PUBLISHING_MAC_ADDRESS, DEFAULT_SUBSCRIBING_MAC_ADDRESS, DEFAULT_QBV_OFFSET, DEFAULT_XDP_QUEUE);
 }
 
 /**
@@ -1295,7 +1356,11 @@ int main(int argc, char **argv) {
         {"enableCsvLog",         no_argument,       0, 'n'},
         {"enableconsolePrint",   no_argument,       0, 'o'},
         {"enableBlockingSocket", no_argument,       0, 'p'},
-        {"help",                 no_argument,       0, 'q'},
+        {"xdpQueue",             required_argument, 0, 'q'},
+        {"xdpFlagDrvMode",       no_argument,       0, 'r'},
+        {"xdpBindFlagZeroCopy",  no_argument,       0, 's'},
+        {"enableXdpSubscribe",   no_argument,       0, 't'},
+        {"help",                 no_argument,       0, 'u'},
         {0,                      0,                 0,  0 }
     };
 
@@ -1351,6 +1416,18 @@ int main(int argc, char **argv) {
                 enableBlockingSocket = UA_TRUE;
                 break;
             case 'q':
+                xdpQueue = (UA_UInt32)atoi(optarg);
+                break;
+            case 'r':
+                xdpFlag = XDP_FLAGS_DRV_MODE;
+                break;
+            case 's':
+                xdpBindFlag = XDP_ZEROCOPY;
+                break;
+            case 't':
+                enableXdpSubscribe = UA_TRUE;
+                break;
+            case 'u':
                 usage(progname);
                 return -1;
             case '?':
@@ -1372,8 +1449,16 @@ int main(int argc, char **argv) {
     }
 
     if (enableBlockingSocket == UA_TRUE) {
-        if (pubCore == subCore)
-            pubCore = 3;
+        if (enableXdpSubscribe == UA_TRUE) {
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Cannot enable blocking socket and xdp at the same time");
+            usage(progname);
+            return -1;
+        }
+    }
+
+    if (xdpFlag == XDP_FLAGS_DRV_MODE || xdpBindFlag == XDP_ZEROCOPY) {
+        if (enableXdpSubscribe == UA_FALSE)
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,"Flag enableXdpSubscribe is false, running application without XDP");
     }
 
     UA_ServerConfig_setMinimal(config, PORT_NUMBER, NULL);
@@ -1406,26 +1491,12 @@ if (enableCsvLog)
     fpSubscriber                  = fopen(fileSubscribedData, "w");
 #endif
 
-#if defined(PUBLISHER) && defined(SUBSCRIBER)
-/* Details about the connection configuration and handling are located in the pubsub connection tutorial */
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer *)
-                                     UA_malloc(2 * sizeof(UA_PubSubTransportLayer));
-#else
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer *)
-                                     UA_malloc(sizeof(UA_PubSubTransportLayer));
-#endif
-    if (!config->pubsubTransportLayers) {
-        UA_Server_delete(server);
-        return EXIT_FAILURE;
-    }
-
 /* It is possible to use multiple PubSubTransportLayers on runtime.
  * The correct factory is selected on runtime by the standard defined
  * PubSub TransportProfileUri's.
  */
 #if defined (PUBLISHER)
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerEthernet();
-    config->pubsubTransportLayersSize++;
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
 #endif
 
     /* Server is the new OPCUA model which has both publisher and subscriber configuration */
@@ -1442,23 +1513,11 @@ if (enableCsvLog)
 #endif
 
 #if defined (PUBLISHER) && defined(SUBSCRIBER)
-#if defined (UA_ENABLE_PUBSUB_ETH_UADP_XDP)
-    config->pubsubTransportLayers[1] = UA_PubSubTransportLayerEthernetXDP();
-    config->pubsubTransportLayersSize++;
-#else
-    config->pubsubTransportLayers[1] = UA_PubSubTransportLayerEthernet();
-    config->pubsubTransportLayersSize++;
-#endif
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
 #endif
 
 #if defined(SUBSCRIBER) && !defined(PUBLISHER)
-#if defined (UA_ENABLE_PUBSUB_ETH_UADP_XDP)
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerEthernetXDP();
-    config->pubsubTransportLayersSize++;
-#else
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerEthernet();
-    config->pubsubTransportLayersSize++;
-#endif
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
 #endif
 
 #if defined(SUBSCRIBER)

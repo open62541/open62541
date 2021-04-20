@@ -341,24 +341,19 @@ certificateVerification_verify(void *verificationContext,
             int dualParent = 0;
 
             /* Identify the topmost parent certificate for the remoteCertificate */
-            for( parentCert = &ci->certificateIssuerList; parentCert != NULL; parentCert = parentCert->next ) {
+            for(parentCert = &ci->certificateIssuerList; parentCert != NULL; parentCert = parentCert->next ) {
                 if(memcmp(remoteCertificate.issuer_raw.p, parentCert->subject_raw.p, parentCert->subject_raw.len) == 0) {
                     for(parentCert_2 = &ci->certificateTrustList; parentCert_2 != NULL; parentCert_2 = parentCert_2->next) {
                         if(memcmp(parentCert->issuer_raw.p, parentCert_2->subject_raw.p, parentCert_2->subject_raw.len) == 0) {
                             dualParent = DUALPARENT;
-                            parentFound = PARENTFOUND;
                             break;
                         }
-
                     }
-
                     parentFound = PARENTFOUND;
                 }
 
-                if(parentFound == PARENTFOUND) {
+                if(parentFound == PARENTFOUND)
                     break;
-                }
-
             }
 
             /* Check if there is an intermediate certificate between the topmost parent

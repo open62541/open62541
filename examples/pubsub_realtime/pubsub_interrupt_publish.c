@@ -21,7 +21,6 @@
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/server_pubsub.h>
 #include <open62541/plugin/pubsub_ethernet.h>
-#include "bufmalloc.h"
 
 #define ETH_PUBLISH_ADDRESS      "opc.eth://0a-00-27-00-00-08"
 #define ETH_INTERFACE            "enp0s8"
@@ -106,9 +105,7 @@ publishInterrupt(int sig, siginfo_t* si, void* uc) {
     /* Execute the publish callback in the interrupt */
     struct timespec begin, end;
     clock_gettime(CLOCKID, &begin);
-    useMembufAlloc();
     pubCallback(pubServer, pubData);
-    useNormalAlloc();
     clock_gettime(CLOCKID, &end);
 
     if(publisherMeasurementsCounter >= MAX_MEASUREMENTS)
@@ -163,6 +160,7 @@ static UA_StatusCode
 addPubSubApplicationCallback(UA_Server *server, UA_NodeId identifier,
                              UA_ServerCallback callback,
                              void *data, UA_Double interval_ms,
+                             UA_DateTime *baseTime, UA_TimerPolicy timerPolicy,
                              UA_UInt64 *callbackId) {
     if(pubCallback) {
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
@@ -226,9 +224,9 @@ addPubSubApplicationCallback(UA_Server *server, UA_NodeId identifier,
 }
 
 static UA_StatusCode
-changePubSubApplicationCallbackInterval(UA_Server *server, UA_NodeId identifier,
-                                        UA_UInt64 callbackId,
-                                        UA_Double interval_ms) {
+changePubSubApplicationCallback(UA_Server *server, UA_NodeId identifier,
+                                UA_UInt64 callbackId, UA_Double interval_ms,
+                                UA_DateTime *baseTime, UA_TimerPolicy timerPolicy) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                 "Switching the publisher cycle to %lf milliseconds", interval_ms);
 
@@ -314,7 +312,7 @@ addPubSubConfiguration(UA_Server* server) {
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
     writerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
     writerGroupConfig.pubsubManagerCallback.addCustomCallback = addPubSubApplicationCallback;
-    writerGroupConfig.pubsubManagerCallback.changeCustomCallbackInterval = changePubSubApplicationCallbackInterval;
+    writerGroupConfig.pubsubManagerCallback.changeCustomCallback = changePubSubApplicationCallback;
     writerGroupConfig.pubsubManagerCallback.removeCustomCallback = removePubSubApplicationCallback;
     UA_Server_addWriterGroup(server, connectionIdent,
                              &writerGroupConfig, &writerGroupIdent);

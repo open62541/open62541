@@ -175,7 +175,9 @@ static void nanoSecondFieldConversion(struct timespec *timeSpecValue) {
 static UA_StatusCode
 addPubSubApplicationCallback(UA_Server *server, UA_NodeId identifier,
                              UA_ServerCallback callback,
-                             void *data, UA_Double interval_ms, UA_UInt64 *callbackId) {
+                             void *data, UA_Double interval_ms,
+                             UA_DateTime *baseTime, UA_TimerPolicy timerPolicy,
+                             UA_UInt64 *callbackId) {
     /* Initialize arguments required for the thread to run */
     threadArg *threadArguments = (threadArg *) UA_malloc(sizeof(threadArg));
 
@@ -192,8 +194,9 @@ addPubSubApplicationCallback(UA_Server *server, UA_NodeId identifier,
 }
 
 static UA_StatusCode
-changePubSubApplicationCallbackInterval(UA_Server *server, UA_NodeId identifier,
-                                        UA_UInt64 callbackId, UA_Double interval_ms) {
+changePubSubApplicationCallback(UA_Server *server, UA_NodeId identifier,
+                                UA_UInt64 callbackId, UA_Double interval_ms,
+                                UA_DateTime *baseTime, UA_TimerPolicy timerPolicy) {
     /* Callback interval need not be modified as it is thread based implementation.
      * The thread uses nanosleep for calculating cycle time and modification in
      * nanosleep value changes cycle time */
@@ -352,7 +355,7 @@ addWriterGroup(UA_Server *server) {
     writerGroupConfig.writerGroupId      = WRITER_GROUP_ID;
     writerGroupConfig.rtLevel            = UA_PUBSUB_RT_FIXED_SIZE;
     writerGroupConfig.pubsubManagerCallback.addCustomCallback = addPubSubApplicationCallback;
-    writerGroupConfig.pubsubManagerCallback.changeCustomCallbackInterval = changePubSubApplicationCallbackInterval;
+    writerGroupConfig.pubsubManagerCallback.changeCustomCallback = changePubSubApplicationCallback;
     writerGroupConfig.pubsubManagerCallback.removeCustomCallback = removePubSubApplicationCallback;
 
     writerGroupConfig.messageSettings.encoding             = UA_EXTENSIONOBJECT_DECODED;
@@ -670,20 +673,10 @@ int main(int argc, char **argv) {
     networkAddressUrlPub.networkInterface = UA_STRING(interface);
     networkAddressUrlPub.url              = UA_STRING(PUBLISHING_MAC_ADDRESS);
 
-    /* Details about the connection configuration and handling are located in the pubsub connection tutorial */
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer *)
-                                    UA_malloc(sizeof(UA_PubSubTransportLayer));
-    if (!config->pubsubTransportLayers) {
-        UA_Server_delete(server);
-        return EXIT_FAILURE;
-    }
-
     /* It is possible to use multiple PubSubTransportLayers on runtime.
      * The correct factory is selected on runtime by the standard defined
-     * PubSub TransportProfileUri's.
-    */
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerEthernet();
-    config->pubsubTransportLayersSize++;
+     * PubSub TransportProfileUri's. */
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
 
     addPubSubConnection(server, &networkAddressUrlPub);
     addPublishedDataSet(server);
