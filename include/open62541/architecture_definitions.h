@@ -74,14 +74,13 @@
 /**
  * Thread-local variables
  * ---------------------- */
-#if UA_MULTITHREADING >= 100
-# if defined(__GNUC__) /* Also covers clang */
-#  define UA_THREAD_LOCAL __thread
-# elif defined(_MSC_VER)
-#  define UA_THREAD_LOCAL __declspec(thread)
-# endif
-#endif
-#ifndef UA_THREAD_LOCAL
+#if defined(__GNUC__) /* Also covers clang */
+# define UA_THREAD_LOCAL __thread
+#elif __STDC_VERSION__ >= 201112L
+# define UA_THREAD_LOCAL _Thread_local
+#elif defined(_MSC_VER)
+# define UA_THREAD_LOCAL __declspec(thread)
+#else
 # define UA_THREAD_LOCAL
 #endif
 
