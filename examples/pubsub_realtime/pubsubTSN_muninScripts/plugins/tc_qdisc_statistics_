@@ -45,31 +45,14 @@ if [ "$1" = "autoconf" ]; then
         exit 0
 fi
 
-#chkEtfConfigAvailable=`sudo tc qdisc show | grep "$INTERFACE" | grep "etf"`
-#if [ -z "chkEtfConfigAvailable" ]
-#then
-#    exit 0
-#fi
-
-#MQPRIO_NUM=`sudo tc qdisc show | grep "$INTERFACE" | grep "mqprio" | cut -d ':' -f1 | cut -d ' ' -f3`
-
-#if [ -z "$MQPRIO_NUM" ]
-#then
-#    exit 0
-#fi
-
 if [ "$1" = "config" ]; then
-        #Warnings and critical messages can be created using below commands. For now, it has been commented.
-        #DROPPED_PACKETS_WARN=${droppedPackets_warn:=10000}
-        #DROPPED_PACKETS_CRIT=${droppedPackets_crit:=100000}
-
         # The title of the graph
         echo "graph_title TX statistics of etf queue in $INTERFACE"
         # Arguments to "rrdtool graph". In this case, tell it that the
         # lower limit of the graph is '0', and that 1k=1000 (not 1024)
         #echo 'graph_args --base 0'
         # The Y-axis label
-        echo 'graph_vlabel Count'
+        echo 'graph_vlabel Packet throughput'
         # We want Cur/Min/Avg/Max unscaled (i.e. 0.42 microseconds instead of
         # 420 millimicroseconds)
         echo 'graph_scale no'
@@ -83,12 +66,18 @@ if [ "$1" = "config" ]; then
 
         echo 'sentPackets.label Sent packets'
         echo 'sentPackets.info Packets sent in the etf queue'
+        echo 'sentPackets.type DERIVE'
+        echo 'sentPackets.min 0'
 
         echo 'droppedPackets.label Dropped packets'
         echo 'droppedPackets.info Packets dropped in the etf queue'
+        echo 'droppedPackets.type DERIVE'
+        echo 'droppedPackets.min 0'
 
         echo 'overlimits.label Overlimits'
         echo 'overlimits.info Overlimits in the etf queue'
+        echo 'overlimits.type DERIVE'
+        echo 'overlimits.min 0'
         # Last, if run with the "config"-parameter, quit here (don't
         # display any data)
         exit 0

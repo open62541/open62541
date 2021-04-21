@@ -19,27 +19,26 @@
 ###############################################################################
 INTERFACE=${0##*/ethtool_rx_queue_statistics_compute_}
 
-file=/usr/local/src/ethtool_receive_statistics_"$INTERFACE".txt
-
-if test -s "$file" ; then
-    received_packet_queue_2_before=`cat $file | \
-                                    tr -s " " | \
-                                    cut -d" " -f1`
-    received_packet_queue_2_now=`sudo ethtool -S "$INTERFACE" | \
-                                 grep rx_queue_2_packets | \
-                                 cut -d ':' -f2`
-    received_packet_queue_2=\
-"$(($received_packet_queue_2_now-$received_packet_queue_2_before))"
-    dropped_packet_queue_2_before=`cat $file | \
-                                   tr -s " " | \
-                                   cut -d" " -f2`
-    dropped_packet_queue_2_now=`sudo ethtool -S "$INTERFACE" | \
-                                grep rx_queue_2_drops | \
-                                cut -d ':' -f2`
-    dropped_packet_queue_2=\
-"$(($dropped_packet_queue_2_now-$dropped_packet_queue_2_before))"
-    sudo bash -c "echo $received_packet_queue_2 $dropped_packet_queue_2 > \
-                  $file"
+if [ -s "$file" ]; then
+    received_packet_queue_1_before=`cat $file | tr -s " " | cut -d" " -f2`
+    received_packet_queue_1_now=`sudo ethtool -S $INTERFACE | grep rx_queue_1_packets | cut -d ':' -f2`
+    received_packet_queue_1_previouscycle=`cat $file | tr -s " " | cut -d" " -f1`
+    if test $received_packet_queue_1_previouscycle -eq $received_packet_queue_1_now
+    then
+        received_packet_queue_1="$(($received_packet_queue_1_now-$received_packet_queue_1_previouscycle))"
+    else
+        received_packet_queue_1="$(($received_packet_queue_1_now-$received_packet_queue_1_before))"
+    fi
+    dropped_packet_queue_1_before=`cat $file | tr -s " " | cut -d" " -f4`
+    dropped_packet_queue_1_now=`sudo ethtool -S $INTERFACE | grep rx_queue_1_drops | cut -d ':' -f2`
+    dropped_packet_queue_1_previouscycle=`cat $file | tr -s " " | cut -d" " -f3`
+    if test $dropped_packet_queue_1_previouscycle -eq $dropped_packet_queue_1_now
+    then
+        dropped_packet_queue_1="$(($dropped_packet_queue_1_now-$dropped_packet_queue_1_previouscycle))"
+    else
+        dropped_packet_queue_1="$(($dropped_packet_queue_1_now-$dropped_packet_queue_1_before))"
+    fi
+    sudo bash -c "echo $received_packet_queue_1_now $received_packet_queue_1 $dropped_packet_queue_1_now $dropped_packet_queue_1 > $file"
 fi
 
 

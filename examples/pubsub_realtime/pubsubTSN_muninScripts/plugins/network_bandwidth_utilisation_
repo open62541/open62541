@@ -61,11 +61,15 @@ if [ "$1" = "config" ]; then
         # one is for the graph itself, while the second one is for the
         # individual fields.
 
-        echo 'incoming_packet_bandwidth.label Incoming Network Bandwidth in KB/s'
-        echo 'incoming_packet_bandwidth.info Network bandwidth of the Incoming Packetes in KB/s'
+        echo 'incoming_packet_bandwidth.label Incoming Network Bandwidth in bytes/s'
+        echo 'incoming_packet_bandwidth.info Network bandwidth of the Incoming Packetes in bytes/s'
+        echo 'incoming_packet_bandwidth.type DERIVE'
+        echo 'incoming_packet_bandwidth.min 0'
 
-        echo 'outing_packet_bandwidth.label Outgoing Network Bandwidth in KB/s'
-        echo 'outing_packet_bandwidth.info Network bandwidth of the Outgoing Packets in KB/s'
+        echo 'outgoing_packet_bandwidth.label Outgoing Network Bandwidth in bytes/s'
+        echo 'outgoing_packet_bandwidth.info Network bandwidth of the Outgoing Packets in bytes/s'
+        echo 'outgoing_packet_bandwidth.type DERIVE'
+        echo 'outgoing_packet_bandwidth.min 0'
 
         # Last, if run with the "config"-parameter, quit here (don't
         # display any data)
@@ -73,10 +77,10 @@ if [ "$1" = "config" ]; then
 fi
 
 if [ -s /usr/local/src/network_bandwidth_utilisation_$INTERFACE.txt ]; then
-        statisticsFile=/usr/local/src/network_bandwidth_utilisation_$INTERFACE.txt
-        incoming_packet_bandwidth=`cat $statisticsFile | tr -s " " | cut -d" " -f1`
-        outgoing_packet_bandwidth=`cat $statisticsFile | tr -s " " | cut -d" " -f2`
-
+    statisticsFile=/usr/local/src/network_bandwidth_utilisation_$INTERFACE.txt
+    incoming_packet_bandwidth=`cat $statisticsFile | tr -s " " | cut -d" " -f4`
+    outgoing_packet_bandwidth=`cat $statisticsFile | tr -s " " | cut -d" " -f3`
+fi
         echo "incoming_packet_bandwidth.value $incoming_packet_bandwidth"
         echo "outgoing_packet_bandwidth.value $outgoing_packet_bandwidth"
 fi

@@ -19,7 +19,7 @@
 ################################################################################
 #Directory in which the latency csv files are generated
 # by the pubsub application
-GENLATENCYDIR=/home/svradmin/carsten_test/INTEL_OPCUA_SRC/build/
+GENLATENCYDIR=/home/svradmin/network_bandwidth/INTEL_OPCUA_SRC/build
 #Directory to store the csv files. It is currently not used as the csv files
 # are being deleted once it is calculated.
 # (In future a ext hard disk directory or mounted nfs directory can be used)

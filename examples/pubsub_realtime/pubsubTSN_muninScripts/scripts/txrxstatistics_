@@ -25,31 +25,30 @@ transmitstatisticsFile=/usr/local/src/tc_statistics_$INTERFACE.txt
 receivestatisticsFile=/usr/local/src/ethtool_receive_statistics_$INTERFACE.txt
 
 #Check received and dropped packets count
-received_packet_queue_2=`sudo ethtool -S $INTERFACE | \
-                         grep rx_queue_2_packets | \
-                         cut -d ':' -f2`
-dropped_packet_queue_2=`sudo ethtool -S $INTERFACE | \
-                         grep rx_queue_2_drops | \
-                         cut -d ':' -f2`
-sudo bash -c "echo $received_packet_queue_2 $dropped_packet_queue_2 > \
-              $receivestatisticsFile"
+received_packet_queue_1=`sudo ethtool -S $INTERFACE | grep rx_queue_1_packets | cut -d ':' -f2`
+dropped_packet_queue_1=`sudo ethtool -S $INTERFACE | grep rx_queue_1_drops | cut -d ':' -f2`
+sudo bash -c "echo 0 $received_packet_queue_1 0 $dropped_packet_queue_1 > $receivestatisticsFile"
 
 #Check the packets sent, dropped and overlimits
-sent_packet_now=`sudo tc -s qdisc show dev $INTERFACE | \
-                 grep -A1 "$MQPRIO_NUM:1" | \
-                 tail -1 | \
-                 cut -d ' ' -f5`
-dropped_packet_now=`sudo tc -s qdisc show dev $INTERFACE | \
-                    grep -A1 "$MQPRIO_NUM:1" | \
-                    tail -1 | \
-                    cut -d '(' -f2 | \
-                    cut -d ',' -f1 | \
-                    cut -d ' ' -f2`
-overlimits_now=`sudo tc -s qdisc show dev $INTERFACE | \
-                grep -A1 "$MQPRIO_NUM:1" | \
-                tail -1 | \
-                cut -d '(' -f2 | \
-                cut -d ',' -f2 | \
-                cut -d' ' -f3`
-sudo bash -c "echo Sent $sent_packet_now Dropped $dropped_packet_now \
-              OverLimits $overlimits_now > $transmitstatisticsFile"
+sent_packet_now=`sudo tc -s qdisc show dev $INTERFACE | grep -A1 "$MQPRIO_NUM:1" | tail -1 | cut -d ' ' -f5`
+dropped_packet_now=`sudo tc -s qdisc show dev $INTERFACE | grep -A1 "$MQPRIO_NUM:1" | tail -1 | cut -d '(' -f2 | cut -d ',' -f1 | cut -d ' ' -f2`
+overlimits_now=`sudo tc -s qdisc show dev $INTERFACE | grep -A1 "$MQPRIO_NUM:1" | tail -1 | cut -d '(' -f2 | cut -d ',' -f2 | cut -d' ' -f3`
+sudo bash -c "echo 0 $sent_packet_now 0 $dropped_packet_now 0 $overlimits_now > $transmitstatisticsFile"
+
+#Check the packet transfer in specified interface
+HISTDIR=/sys/class/net/$INTERFACE/statistics
+if test -e $HISTDIR
+then
+    tx_bytes=`cat $HISTDIR/tx_bytes`; rx_bytes=`cat $HISTDIR/rx_bytes`
+    echo $tx_bytes $rx_bytes 0 0 > /usr/local/src/network_bandwidth_utilisation_$INTERFACE.txt
+fi
+
+#Check the bytes transfer in each VLAN interface for transmission and reception
+for j in `seq 1 8`; do
+    HISTDIR=/sys/class/net/$INTERFACE.$j/statistics
+    if test -e $HISTDIR
+    then
+        tx_bytes=`cat $HISTDIR/tx_bytes`; rx_bytes=`cat $HISTDIR/rx_bytes`
+        echo $tx_bytes $rx_bytes 0 0 > /usr/local/src/network_bandwidth_utilisation_$INTERFACE.$j.txt
+    fi
+done

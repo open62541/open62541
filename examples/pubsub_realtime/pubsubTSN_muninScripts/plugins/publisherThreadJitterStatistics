@@ -44,7 +44,7 @@ fi
 
 if [ "$1" = "config" ]; then
         # The title of the graph
-        echo "graph_title Publisher thread start time jitter - Publisher side"
+        echo "graph_title Publisher thread start time jitter"
         # Arguments to "rrdtool graph". In this case, tell it that the
         # lower limit of the graph is '0', and that 1k=1000 (not 1024)
         #echo 'graph_args --base 0'
@@ -69,9 +69,13 @@ if [ "$1" = "config" ]; then
         exit 0
 fi
 
-if [ -s /usr/local/src/open62541_pubsub_maxlatency.txt ]; then
-        #Obtain the maximum publsher jitter from the open62541_pubsub_maxlatency.txt file and convert it using cdef function and plot the jitter of the maximum latencies
-        jitter=`cat /usr/local/src/open62541_pubsub_maxlatency.txt |  tr -s " " | cut -d" " -f7`
-
-        echo "publisher_jitter.value $jitter"
+if test -e /usr/local/src/open62541_pubsub_maxlatency.txt
+then
+    #Obtain the maximum publsher jitter from the text file and convert it using cdef function and plot the jitter of the maximum latencies
+    jitter=`cat  /usr/local/src/open62541_pubsub_maxlatency.txt |  tr -s " " | cut -d" " -f8`
+elif test -e /usr/local/src/open62541_pubsub_maxlatency_loopback.txt
+then
+    jitter=`cat  /usr/local/src/open62541_pubsub_maxlatency_loopback.txt |  tr -s " " | cut -d" " -f5`
 fi
+echo "publisher_jitter.value $jitter"
+

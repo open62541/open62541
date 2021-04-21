@@ -26,35 +26,26 @@ DIRECTORY_NAME=0
 Help()
 {
     #Display Help
-    echo 
-    echo This script installs the following munin plugins
-    echo 1. Plugin to monitor round trip time latency of \
-        open62541 PubSub application
-    echo 2. Plugin to monitor errors round trip error of \
-        open62541 PubSub application
-    echo 3. Plugin to monitor round trip time jitter of \
-        open62541 PubSub application
-    echo 4. Plugin to monitor ptp4l application
-    echo 5. Plugin to monitor phc2sys application
-    echo 6. Plugin to monitor  packets sent, packet drops, and \
-        overlimits of the etf queue in the network interface
-    echo 7. Plugin to monitor max latency caused for the PubSub application
-    echo 8. Plugins to monitor packets received and dropped packets in queue \
-        that receive PubSub application in the network interface
-    echo 9. Plugin to monitor CPU utilization in all cores
-    echo 10. Plugin to monitor CPU utilization in core 0
-    echo 11. Plugin to monitor CPU utilization in core 1
-    echo 12. Plugin to monitor CPU utilization in core 2
-    echo 13. Plugin to monitor CPU utilization in core 3
-    echo 14. Plugin to monitor cyclictest maximum latency
-    echo 15. Plugins to monitor network bandwidth utilisation in the \
-        network interface along with the VLAN interfaces
-    echo 16. Plugins to monitor latency of the Publisher and UserApplication \
-        threads of the pubsub_TSN applications
-    echo 17. Plugins to monitor jitter in the wakeup of the Publisher, \
-        Subscriber and UserApplication threads of the pubsub_TSN applications
-    echo 18. Plugins to monitor packets dropped by the Subscriber of the \
-        pubsub_TSN applications
+    echo ""
+    echo "This script installs the following munin plugins"
+    echo "1. Plugin to monitor round trip time latency of open62541 PubSub application"
+    echo "2. Plugin to monitor errors round trip error of open62541 PubSub application"
+    echo "3. Plugin to monitor round trip time jitter of open62541 PubSub application"
+    echo "4. Plugin to monitor ptp4l application"
+    echo "5. Plugin to monitor phc2sys application"
+    echo "6. Plugin to monitor packets sent, packet drops, and overlimits of the etf queue in the network interface"
+    echo "7. Plugin to monitor max latency caused for the PubSub application"
+    echo "8. Plugins to monitor packets received and dropped packets in queue that receive PubSub application in the network interface"
+    echo "9. Plugin to monitor CPU utilization in all cores"
+    echo "10. Plugin to monitor CPU utilization in core 0"
+    echo "11. Plugin to monitor CPU utilization in core 1"
+    echo "12. Plugin to monitor CPU utilization in core 2"
+    echo "13. Plugin to monitor CPU utilization in core 3"
+    echo "14. Plugin to monitor cyclictest maximum latency"
+    echo "15. Plugins to monitor network bandwidth utilisation in the network interface along with the VLAN interfaces"
+    echo "16. Plugins to monitor latency of the Publisher and UserApplication threads of the pubsub_TSN applications"
+    echo "17. Plugins to monitor jitter in the wakeup of the Publisher, Subscriber and UserApplication threads of the pubsub_TSN applications"
+    echo "18. Plugins to monitor packets dropped by the Subscriber of the pubsub_TSN applications"
     echo "Usage: $0 -i <interface_name> -d <directory_name>"
     echo Options:
     echo "-i     i210 interface name"
@@ -103,19 +94,16 @@ main()
     PLUGIN_DIR=/usr/share/munin/plugins
     SYMBOLIC_LINK_DIR=/etc/munin/plugins
     SCRIPT_FOR_CRON_DIR=/usr/local/bin
-    #Change the directory of latency generated files location in the
-    # open62541_latency_script, open62541_loopback_latency_script and
-    # open62541_countermiss_at_subscriber_compute files
-    #open62541_latency_script, open62541_loopback_latency_script -
-    # find the maximum latency, missed and repeated counters of the
-    # generated csv files for every 5 minutes
-    #It also finds the missed counters and repeated counters of the
-    # pubsub application along with the latency and jitter values for
-    # Publisher thread, User Application thread and Subscriber thread in the
-    # pubsub applications
-    #open62541_countermiss_at_subscriber_compute -
-    # find the number of packets missed at the user layer of
-    # subscriber threads in pubsub applications
+
+    #Dependency packages for monitoring CPU and network bandwidth
+    sudo apt-get install sysstat -y
+
+    #Change the directory of latency generated files location in the open62541_latency_script, open62541_loopback_latency_script and
+    #open62541_countermiss_at_subscriber_compute files
+    #open62541_latency_script, open62541_loopback_latency_script - find the maximum latency, missed and repeated counters of the generated csv files for every 5 minutes
+    #It also finds the missed counters and repeated counters of the pubsub application along with the latency and jitter values for
+    #Publisher thread, User Application thread and Subscriber thread in the pubsub applications
+    #open62541_countermiss_at_subscriber_compute - find the number of packets missed at the user layer of subscriber threads in pubsub applications
     #The values are stored and updated in txt files for every 5 minutes
     #From this txt file, Munin scripts will take values to plot in the graph
     sed -i "/GENLATENCYDIR=/c GENLATENCYDIR=$DIRECTORY_NAME" \
@@ -137,10 +125,6 @@ main()
     sudo rm -rf $SCRIPT_FOR_CRON_DIR/max_latency_victim_compute_pubsub
     sudo ln -s $SCRIPT_FOR_CRON_DIR/max_latency_victim_compute_ \
         $SCRIPT_FOR_CRON_DIR/max_latency_victim_compute_pubsub
-
-    sudo rm -rf $SCRIPT_FOR_CRON_DIR/ethtool_rx_queue_statistics_compute_$IFACE
-    sudo ln -s $SCRIPT_FOR_CRON_DIR/ethtool_rx_queue_statistics_compute_ \
-        $SCRIPT_FOR_CRON_DIR/ethtool_rx_queue_statistics_compute_$IFACE
 
     sudo rm -rf $SCRIPT_FOR_CRON_DIR/ethtool_rx_queue_statistics_compute_$IFACE
     sudo ln -s $SCRIPT_FOR_CRON_DIR/ethtool_rx_queue_statistics_compute_ \
@@ -170,6 +154,8 @@ main()
     sudo rm -rf $SYMBOLIC_LINK_DIR/subscriberThread*
     sudo rm -rf $SYMBOLIC_LINK_DIR/userThread*
     sudo rm -rf $SYMBOLIC_LINK_DIR/countermiss_at_subscriber
+    sudo rm -rf $SYMBOLIC_LINK_DIR/cstates
+    sudo rm -rf $SYMBOLIC_LINK_DIR/irqrtprio
 
     #Copy all the plugins into the /usr/share/munin/plugins directory
     sudo cp plugins/* $PLUGIN_DIR
@@ -184,64 +170,32 @@ main()
         $SYMBOLIC_LINK_DIR/open62541latencyErrorMuninScript
     sudo ln -s $PLUGIN_DIR/ptp4l $SYMBOLIC_LINK_DIR/ptp4l
     sudo ln -s $PLUGIN_DIR/phc2sys $SYMBOLIC_LINK_DIR/phc2sys
-    sudo ln -s $PLUGIN_DIR/tc_qdisc_statistics_ \
-        $SYMBOLIC_LINK_DIR/tc_qdisc_statistics_$IFACE
-    sudo ln -s $PLUGIN_DIR/max_latency_victim_ \
-        $SYMBOLIC_LINK_DIR/max_latency_victim_pubsub
-    sudo ln -s $PLUGIN_DIR/ethtool_rx_queue_2_statistics_ \
-        $SYMBOLIC_LINK_DIR/ethtool_rx_queue_2_statistics_$IFACE
-    sudo ln -s $PLUGIN_DIR/cpu_utilization_statistics \
-        $SYMBOLIC_LINK_DIR/cpu_utilization_statistics
-    sudo ln -s $PLUGIN_DIR/cpu_utilization_core0_statistics \
-        $SYMBOLIC_LINK_DIR/cpu_utilization_core0_statistics
-    sudo ln -s $PLUGIN_DIR/cpu_utilization_core1_statistics \
-        $SYMBOLIC_LINK_DIR/cpu_utilization_core1_statistics
-    sudo ln -s $PLUGIN_DIR/cpu_utilization_core2_statistics \
-        $SYMBOLIC_LINK_DIR/cpu_utilization_core2_statistics
-    sudo ln -s $PLUGIN_DIR/cpu_utilization_core3_statistics \
-        $SYMBOLIC_LINK_DIR/cpu_utilization_core3_statistics
-    sudo ln -s $PLUGIN_DIR/cyclictest_max_latency \
-        $SYMBOLIC_LINK_DIR/cyclictest_max_latency
-    sudo ln -s $PLUGIN_DIR/network_bandwidth_utilisation_ \
-        $SYMBOLIC_LINK_DIR/network_bandwidth_utilisation_$IFACE
-    sudo ln -s $PLUGIN_DIR/network_bandwidth_utilisation_ \
-        $SYMBOLIC_LINK_DIR/network_bandwidth_utilisation_$IFACE.1
-    sudo ln -s $PLUGIN_DIR/network_bandwidth_utilisation_ \
-        $SYMBOLIC_LINK_DIR/network_bandwidth_utilisation_$IFACE.2
-    sudo ln -s $PLUGIN_DIR/network_bandwidth_utilisation_ \
-        $SYMBOLIC_LINK_DIR/network_bandwidth_utilisation_$IFACE.3
-    sudo ln -s $PLUGIN_DIR/network_bandwidth_utilisation_ \
-        $SYMBOLIC_LINK_DIR/network_bandwidth_utilisation_$IFACE.4
-    sudo ln -s $PLUGIN_DIR/network_bandwidth_utilisation_ \
-        $SYMBOLIC_LINK_DIR/network_bandwidth_utilisation_$IFACE.5
-    sudo ln -s $PLUGIN_DIR/network_bandwidth_utilisation_ \
-        $SYMBOLIC_LINK_DIR/network_bandwidth_utilisation_$IFACE.6
-    sudo ln -s $PLUGIN_DIR/network_bandwidth_utilisation_ \
-        $SYMBOLIC_LINK_DIR/network_bandwidth_utilisation_$IFACE.7
-    sudo ln -s $PLUGIN_DIR/network_bandwidth_utilisation_ \
-        $SYMBOLIC_LINK_DIR/network_bandwidth_utilisation_$IFACE.8
-    sudo ln -s $PLUGIN_DIR/publisherThreadJitterStatistics \
-        $SYMBOLIC_LINK_DIR/publisherThreadJitterStatistics
-    sudo ln -s $PLUGIN_DIR/publisherThreadJitterStatisticsLoopback \
-        $SYMBOLIC_LINK_DIR/publisherThreadJitterStatisticsLoopback
-    sudo ln -s $PLUGIN_DIR/publisherThreadLatencyStatistics \
-        $SYMBOLIC_LINK_DIR/publisherThreadLatencyStatistics
-    sudo ln -s $PLUGIN_DIR/publisherThreadLatencyStatisticsLoopback \
-        $SYMBOLIC_LINK_DIR/publisherThreadLatencyStatisticsLoopback
-    sudo ln -s $PLUGIN_DIR/subscriberThreadJitterStatistics \
-        $SYMBOLIC_LINK_DIR/subscriberThreadJitterStatistics
-    sudo ln -s $PLUGIN_DIR/subscriberThreadJitterStatisticsLoopback \
-        $SYMBOLIC_LINK_DIR/subscriberThreadJitterStatisticsLoopback
-    sudo ln -s $PLUGIN_DIR/userThreadJitterStatistics \
-        $SYMBOLIC_LINK_DIR/userThreadJitterStatistics
-    sudo ln -s $PLUGIN_DIR/userThreadJitterStatisticsLoopback \
-        $SYMBOLIC_LINK_DIR/userThreadJitterStatisticsLoopback
-    sudo ln -s $PLUGIN_DIR/userThreadLatencyStatistics \
-        $SYMBOLIC_LINK_DIR/userThreadLatencyStatistics
-    sudo ln -s $PLUGIN_DIR/userThreadLatencyStatisticsLoopback \
-        $SYMBOLIC_LINK_DIR/userThreadLatencyStatisticsLoopback
-    sudo ln -s $PLUGIN_DIR/countermiss_at_subscriber \
-        $SYMBOLIC_LINK_DIR/countermiss_at_subscriber
+    sudo ln -s $PLUGIN_DIR/tc_qdisc_statistics_ $SYMBOLIC_LINK_DIR/tc_qdisc_statistics_$IFACE
+    sudo ln -s $PLUGIN_DIR/max_latency_victim_ $SYMBOLIC_LINK_DIR/max_latency_victim_pubsub
+    sudo ln -s $PLUGIN_DIR/ethtool_rx_queue_1_statistics_ $SYMBOLIC_LINK_DIR/ethtool_rx_queue_1_statistics_$IFACE
+    sudo ln -s $PLUGIN_DIR/cpu_utilization_statistics $SYMBOLIC_LINK_DIR/cpu_utilization_statistics
+    sudo ln -s $PLUGIN_DIR/cpu_utilization_core0_statistics $SYMBOLIC_LINK_DIR/cpu_utilization_core0_statistics
+    sudo ln -s $PLUGIN_DIR/cpu_utilization_core1_statistics $SYMBOLIC_LINK_DIR/cpu_utilization_core1_statistics
+    sudo ln -s $PLUGIN_DIR/cpu_utilization_core2_statistics $SYMBOLIC_LINK_DIR/cpu_utilization_core2_statistics
+    sudo ln -s $PLUGIN_DIR/cpu_utilization_core3_statistics $SYMBOLIC_LINK_DIR/cpu_utilization_core3_statistics
+    sudo ln -s $PLUGIN_DIR/cyclictest_max_latency $SYMBOLIC_LINK_DIR/cyclictest_max_latency
+    sudo ln -s $PLUGIN_DIR/network_bandwidth_utilisation_ $SYMBOLIC_LINK_DIR/network_bandwidth_utilisation_$IFACE
+    sudo ln -s $PLUGIN_DIR/network_bandwidth_utilisation_ $SYMBOLIC_LINK_DIR/network_bandwidth_utilisation_$IFACE.1
+    sudo ln -s $PLUGIN_DIR/network_bandwidth_utilisation_ $SYMBOLIC_LINK_DIR/network_bandwidth_utilisation_$IFACE.2
+    sudo ln -s $PLUGIN_DIR/network_bandwidth_utilisation_ $SYMBOLIC_LINK_DIR/network_bandwidth_utilisation_$IFACE.3
+    sudo ln -s $PLUGIN_DIR/network_bandwidth_utilisation_ $SYMBOLIC_LINK_DIR/network_bandwidth_utilisation_$IFACE.4
+    sudo ln -s $PLUGIN_DIR/network_bandwidth_utilisation_ $SYMBOLIC_LINK_DIR/network_bandwidth_utilisation_$IFACE.5
+    sudo ln -s $PLUGIN_DIR/network_bandwidth_utilisation_ $SYMBOLIC_LINK_DIR/network_bandwidth_utilisation_$IFACE.6
+    sudo ln -s $PLUGIN_DIR/network_bandwidth_utilisation_ $SYMBOLIC_LINK_DIR/network_bandwidth_utilisation_$IFACE.7
+    sudo ln -s $PLUGIN_DIR/network_bandwidth_utilisation_ $SYMBOLIC_LINK_DIR/network_bandwidth_utilisation_$IFACE.8
+    sudo ln -s $PLUGIN_DIR/publisherThreadJitterStatistics $SYMBOLIC_LINK_DIR/publisherThreadJitterStatistics
+    sudo ln -s $PLUGIN_DIR/publisherThreadLatencyStatistics $SYMBOLIC_LINK_DIR/publisherThreadLatencyStatistics
+    sudo ln -s $PLUGIN_DIR/subscriberThreadJitterStatistics $SYMBOLIC_LINK_DIR/subscriberThreadJitterStatistics
+    sudo ln -s $PLUGIN_DIR/userThreadJitterStatistics $SYMBOLIC_LINK_DIR/userThreadJitterStatistics
+    sudo ln -s $PLUGIN_DIR/userThreadLatencyStatistics $SYMBOLIC_LINK_DIR/userThreadLatencyStatistics
+    sudo ln -s $PLUGIN_DIR/countermiss_at_subscriber $SYMBOLIC_LINK_DIR/countermiss_at_subscriber
+    sudo ln -s $PLUGIN_DIR/cstates $SYMBOLIC_LINK_DIR/cstates
+    sudo ln -s $PLUGIN_DIR/irqrtprio $SYMBOLIC_LINK_DIR/irqrtprio
 
     #Restart the munin-node to activate the newly installed scripts
     sudo /etc/init.d/munin-node restart
@@ -267,7 +221,15 @@ main()
 
     crontab_install /usr/local/bin/open62541_countermiss_at_subscriber_compute
 
-    crontab_install /usr/local/bin/txrxstatistics_$IFACE
+    crontabInstalled=$(crontab -l | grep -c "@reboot /usr/local/bin/txrxstatistics_$IFACE")
+    if [[ "$crontabInstalled" -eq "1" ]]
+    then
+        echo "Crontab already installed for txrxstatistics_$IFACE"
+    else
+        line="@reboot /usr/local/bin/txrxstatistics_$IFACE"
+        (crontab -l; echo "$line" ) | crontab -
+    fi
+
 }
 
 ###############################################################################

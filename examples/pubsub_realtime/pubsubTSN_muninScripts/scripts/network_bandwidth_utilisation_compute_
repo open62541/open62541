@@ -20,44 +20,32 @@
 INTERFACE=${0##*/network_bandwidth_utilisation_compute_}
 STATISTIC_FILE=/usr/local/src/network_bandwidth_utilisation
 
-#Measure the network bandwidth of the various interfaces present in the Node
-ifstat -i $INTERFACE,${INTERFACE}.1,${INTERFACE}.2,${INTERFACE}.3,\
-    ${INTERFACE}.4,${INTERFACE}.5,${INTERFACE}.6,${INTERFACE}.7,\
-    ${INTERFACE}.8 1 1 > ${STATISTIC_FILE}_${INTERFACE}_and_VLAN.txt
-
-if test -e ${STATISTIC_FILE}_${INTERFACE}_and_VLAN.txt; then
-    sed -i '/enp2s0/d' ${STATISTIC_FILE}_${INTERFACE}_and_VLAN.txt
-    sed -i '/KB/d' ${STATISTIC_FILE}_${INTERFACE}_and_VLAN.txt
-    sed -i 's/^[[:space:]]*//g' ${STATISTIC_FILE}_${INTERFACE}_and_VLAN.txt
+HISTDIR=/sys/class/net/$INTERFACE/statistics
+if test -e $HISTDIR
+then
+    tx_bytes=`cat /usr/local/src/network_bandwidth_utilisation_$INTERFACE.txt | cut -d" " -f1`
+    rx_bytes=`cat /usr/local/src/network_bandwidth_utilisation_$INTERFACE.txt | cut -d" " -f2`
+    tx_bytes_now=`cat $HISTDIR/tx_bytes`; rx_bytes_now=`cat $HISTDIR/rx_bytes`
+    outgoing_bandwidth="$((($tx_bytes_now-$tx_bytes) / 300))"
+    incoming_bandwidth="$((($rx_bytes_now-$rx_bytes) / 300))"
+    sudo bash -c "echo $tx_bytes_now $rx_bytes_now $outgoing_bandwidth $incoming_bandwidth > /usr/local/src/network_bandwidth_utilisation_$INTERFACE.txt"
 fi
+
+for j in `seq 1 8`; do
+    HISTDIR=/sys/class/net/$INTERFACE.$j/statistics
+    if test -e $HISTDIR
+    then
+        tx_bytes=`cat /usr/local/src/network_bandwidth_utilisation_$INTERFACE.$j.txt | cut -d" " -f1`
+        rx_bytes=`cat /usr/local/src/network_bandwidth_utilisation_$INTERFACE.$j.txt | cut -d" " -f2`
+        tx_bytes_now=`cat $HISTDIR/tx_bytes`; rx_bytes_now=`cat $HISTDIR/rx_bytes`
+        outgoing_bandwidth="$((($tx_bytes_now-$tx_bytes) / 300))"
+        incoming_bandwidth="$((($rx_bytes_now-$rx_bytes) / 300))"
+        sudo bash -c "echo $tx_bytes_now $rx_bytes_now $outgoing_bandwidth $incoming_bandwidth > /usr/local/src/network_bandwidth_utilisation_$INTERFACE.$j.txt"
+    fi
+done
 
 awk '{print $1" "$2}' ${STATISTIC_FILE}_${INTERFACE}_and_VLAN.txt > \
     ${STATISTIC_FILE}_${INTERFACE}.txt
-
-awk '{print $3" "$4}' ${STATISTIC_FILE}_${INTERFACE}_and_VLAN.txt > \
-    ${STATISTIC_FILE}_${INTERFACE}.1.txt
-
-awk '{print $5" "$6}' ${STATISTIC_FILE}_${INTERFACE}_and_VLAN.txt > \
-    ${STATISTIC_FILE}_${INTERFACE}.2.txt
-
-awk '{print $7" "$8}' ${STATISTIC_FILE}_${INTERFACE}_and_VLAN.txt > \
-    ${STATISTIC_FILE}_${INTERFACE}.3.txt
-
-awk '{print $9" "$10}' ${STATISTIC_FILE}_${INTERFACE}_and_VLAN.txt > \
-    ${STATISTIC_FILE}_${INTERFACE}.4.txt
-
-awk '{print $11" "$12}' ${STATISTIC_FILE}_${INTERFACE}_and_VLAN.txt > \
-    ${STATISTIC_FILE}_${INTERFACE}.5.txt
-
-awk '{print $13" "$14}' ${STATISTIC_FILE}_${INTERFACE}_and_VLAN.txt > \
-    ${STATISTIC_FILE}_${INTERFACE}.6.txt
-
-awk '{print $15" "$16}' ${STATISTIC_FILE}_${INTERFACE}_and_VLAN.txt > \
-    ${STATISTIC_FILE}_${INTERFACE}.7.txt
-
-awk '{print $17" "$18}' ${STATISTIC_FILE}_${INTERFACE}_and_VLAN.txt > \
-    ${STATISTIC_FILE}_${INTERFACE}.8.txt
-
 
 
 
