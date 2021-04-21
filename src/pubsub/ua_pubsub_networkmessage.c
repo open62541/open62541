@@ -71,6 +71,11 @@ UA_NetworkMessage_updateBufferedMessage(UA_NetworkMessageOffsetBuffer *buffer){
             case UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT:
                 rv = UA_Variant_encodeBinary(&buffer->offsets[i].offsetData.value.value->value, &bufPos, bufEnd);
                 break;
+            case UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW:
+                rv = UA_encodeBinary(&buffer->offsets[i].offsetData.value.value->value.data,
+                                     buffer->offsets[i].offsetData.value.value->value.type,
+                                     &bufPos, &bufEnd, NULL, NULL);
+                break;
             default:
                 return UA_STATUSCODE_BADNOTSUPPORTED;
         }
@@ -131,6 +136,8 @@ UA_NetworkMessage_updateBufferedNwMessage(UA_NetworkMessageOffsetBuffer *buffer,
             UA_CHECK_STATUS(rv, return rv);
             dsm->data.keyFrameData.dataSetFields[payloadCounter].hasValue = true;
             payloadCounter++;
+            break;
+        case UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW:
             break;
         default:
             return UA_STATUSCODE_BADNOTSUPPORTED;
@@ -1605,7 +1612,6 @@ UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage* p, UA_NetworkMessageOffsetBu
                 size += UA_calcSizeBinary(&p->data.keyFrameData.dataSetFields[i].value, &UA_TYPES[UA_TYPES_VARIANT]);
             }
         } else if(p->header.fieldEncoding == UA_FIELDENCODING_RAWDATA) {
-            //TODO clarify RT and Rawdata behavior
             for (UA_UInt16 i = 0; i < p->data.keyFrameData.fieldCount; i++){
                 if (offsetBuffer) {
                     size_t pos = offsetBuffer->offsetsSize;
