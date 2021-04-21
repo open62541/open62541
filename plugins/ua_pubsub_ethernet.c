@@ -14,7 +14,11 @@
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pubsub_ethernet.h>
 
-#if defined(__vxworks) || defined(__VXWORKS__)
+#if !defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_VXWORKS)
+/* For anything else than Linux or VxWorks which are specifically handled below,
+ * depend only on headers included by the architecture layer.
+ */
+#elif defined(__vxworks) || defined(__VXWORKS__)
 #include <netpacket/packet.h>
 #include <netinet/if_ether.h>
 #include <ipcom_sock.h>
@@ -47,19 +51,12 @@
 #endif
 
 #include "time.h"
-
-#ifndef ETHERTYPE_UADP
 #define ETHERTYPE_UADP                       0xb62c
-#endif
-
 #define MIN_ETHERNET_PACKET_SIZE_WITHOUT_FCS 60
 #define VLAN_HEADER_SIZE                     4
-
 #define VLAN_SHIFT                           13
-#define XDP_FRAME_SHIFT                      11 //match the frame size 2048
-
-// Receive buffer batch size
-#define BATCH_SIZE                           16
+#define XDP_FRAME_SHIFT                      11 // Match the frame size 2048
+#define BATCH_SIZE                           16 // Receive buffer batch size
 
 #ifndef XDP_COPY
 #define XDP_COPY                             (1 << 1)
@@ -762,7 +759,7 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
     }
 #endif
 
-    if(ioctl(sockFd, SIOCGIFINDEX, &ifreq) < 0) {
+    if(UA_ioctl(sockFd, SIOCGIFINDEX, &ifreq) < 0) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
            "PubSub connection creation failed. Cannot get interface index.");
         UA_close(sockFd);
@@ -773,7 +770,7 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
     channelDataEthernet->ifindex = ifreq.ifr_ifindex;
 
     /* determine own MAC address (source address for send) */
-    if(ioctl(sockFd, SIOCGIFHWADDR, &ifreq) < 0) {
+    if(UA_ioctl(sockFd, SIOCGIFHWADDR, &ifreq) < 0) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
             "PubSub connection creation failed. Cannot determine own MAC address.");
         UA_close(sockFd);
@@ -804,7 +801,7 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
 
     /* Setting the socket priority to the socket */
     if(sockOptions.socketPriority) {
-        if (setsockopt(sockFd, SOL_SOCKET, SO_PRIORITY, sockOptions.socketPriority, sizeof(int))) {
+        if (UA_setsockopt(sockFd, SOL_SOCKET, SO_PRIORITY, sockOptions.socketPriority, sizeof(int))) {
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "setsockopt SO_PRIORITY failed");
             UA_close(sockFd);
             UA_free(sockOptions.socketPriority);
@@ -814,7 +811,8 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
         }
     }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,19,0)
+#if defined(KERNEL_VERSION)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,19,0))
     if(sockOptions.enableSocketTxTime == UA_TRUE) {
         /* Setting socket txtime with required flags to the socket */
         sock_txtime sk_txtime;
@@ -834,6 +832,7 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
 
         channelDataEthernet->useSoTxTime = UA_TRUE;
     }
+#endif
 #endif
 
     newChannel->handle = channelDataEthernet;
@@ -926,7 +925,8 @@ UA_PubSubChannelEthernet_unregist(UA_PubSubChannel *channel,
     return UA_STATUSCODE_GOOD;
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,19,0)
+#if defined(KERNEL_VERSION)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,19,0))
 static UA_StatusCode
 sendWithTxTime(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings, void *bufSend, size_t lenBuf) {
     /* Send the data packet with the tx time */
@@ -989,6 +989,7 @@ sendWithTxTime(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings,
     return UA_STATUSCODE_GOOD;
 }
 #endif
+#endif
 
 /**
  * Send messages to the connection defined address
@@ -1049,7 +1050,8 @@ UA_PubSubChannelEthernet_send(UA_PubSubChannel *channel,
     /* copy payload of ethernet message */
     memcpy(ptrCur, buf->data, buf->length);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,19,0)
+#if defined(KERNEL_VERSION)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,19,0))
     if(channelDataEthernet->useSoTxTime) {
         /* Send the packets at the given Txtime */
         UA_StatusCode rc = sendWithTxTime(channel, transportSettings, bufSend, lenBuf);
@@ -1061,6 +1063,7 @@ UA_PubSubChannelEthernet_send(UA_PubSubChannel *channel,
         }
     }
     else
+#endif
 #endif
     {
         ssize_t rc;
@@ -1125,7 +1128,7 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_ByteString *messa
     }
 #endif
 
-#ifdef UA_ARCHITECTURE_VXWORKS
+#if !defined(UA_ARCHITECTURE_POSIX)
     clock_gettime(CLOCK_REALTIME, &currentTime);
 #else
     clock_gettime(CLOCK_TAI, &currentTime);
@@ -1163,7 +1166,7 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_ByteString *messa
         msg.msg_iov     = iov;
         msg.msg_iovlen  = 2;
 
-        dataLen = recvmsg(channel->sockfd, &msg, receiveFlags);
+        dataLen = UA_recvmsg(channel->sockfd, &msg, receiveFlags);
         if(dataLen < 0) {
             if(rcvCount == 0) {
                 UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
@@ -1188,7 +1191,9 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_ByteString *messa
             break;
         }
         /* Make sure we match our target */
-        if(memcmp(eth_hdr.ether_dhost, channelDataEthernet->targetAddress, ETH_ALEN) != 0) {
+        const UA_Byte *compareAddress = is_multicast_address(channelDataEthernet->targetAddress) ?
+            eth_hdr.ether_dhost : eth_hdr.ether_shost;
+        if(memcmp(compareAddress, channelDataEthernet->targetAddress, ETH_ALEN) != 0) {
             retval = UA_STATUSCODE_GOODNODATA;
             break;
         }
@@ -1209,7 +1214,7 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_ByteString *messa
         messageLength = messageLength + ((size_t)dataLen - sizeof(struct ether_header));
         remainingMessageLength -= messageLength;
         rcvCount++;
-#ifdef UA_ARCHITECTURE_VXWORKS
+#if !defined(UA_ARCHITECTURE_POSIX)
         clock_gettime(CLOCK_REALTIME, &currentTime);
 #else
         clock_gettime(CLOCK_TAI, &currentTime);

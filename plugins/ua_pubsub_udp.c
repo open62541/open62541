@@ -17,7 +17,8 @@
 /* UDP multicast network layer specific internal data */
 typedef struct {
     int ai_family;                    /* Protocol family for socket. IPv4/IPv6 */
-    struct sockaddr_storage *ai_addr; /* https://msdn.microsoft.com/de-de/library/windows/desktop/ms740496(v=vs.85).aspx */
+    struct sockaddr_storage ai_addr; /* https://msdn.microsoft.com/de-de/library/windows/desktop/ms740496(v=vs.85).aspx */
+    struct sockaddr_storage intf_addr;
     UA_UInt32 messageTTL;
     UA_Boolean enableLoopback;
     UA_Boolean enableReuse;
@@ -55,7 +56,7 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
     }
 
     /* Set default values */
-    UA_PubSubChannelDataUDPMC defaultValues = {0, NULL, 255, UA_TRUE, UA_TRUE, UA_TRUE};
+    UA_PubSubChannelDataUDPMC defaultValues = {0, {0}, {0}, 255, UA_TRUE, UA_TRUE, UA_TRUE};
     memcpy(channelDataUDPMC, &defaultValues, sizeof(UA_PubSubChannelDataUDPMC));
     /* Iterate over the given KeyValuePair parameters */
     UA_String ttlParam = UA_STRING("ttl");
@@ -163,18 +164,7 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
     }
 
     channelDataUDPMC->ai_family = rp->ai_family;
-    channelDataUDPMC->ai_addr = (struct sockaddr_storage *)
-        UA_calloc(1, sizeof(struct sockaddr_storage));
-    if(!channelDataUDPMC->ai_addr){
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "PubSub Connection creation failed. Out of memory.");
-        UA_close(newChannel->sockfd);
-        UA_freeaddrinfo(requestResult);
-        UA_free(channelDataUDPMC);
-        UA_free(newChannel);
-        return NULL;
-    }
-    memcpy(channelDataUDPMC->ai_addr, rp->ai_addr, sizeof(*rp->ai_addr));
+    memcpy(&channelDataUDPMC->ai_addr, rp->ai_addr, sizeof(*rp->ai_addr));
     newChannel->handle = channelDataUDPMC; /* Link channel and internal channel data */
 
     /* Set loop back data to your host */
@@ -276,6 +266,7 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
                              "Interface configuration preparation failed.");
                 goto cleanup;
             }
+            memcpy(&channelDataUDPMC->intf_addr, &group.ipv4.imr_interface, sizeof(group.ipv4.imr_interface));
         }
 #if UA_IPV6
         else {
@@ -362,10 +353,11 @@ UA_PubSubChannelUDPMC_regist(UA_PubSubChannel *channel, UA_ExtensionObject *tran
 
     UA_PubSubChannelDataUDPMC * connectionConfig = (UA_PubSubChannelDataUDPMC *) channel->handle;
     struct ip_mreq groupV4;
-    groupV4.imr_interface.s_addr = UA_htonl(INADDR_ANY);
+    memset(&groupV4, 0, sizeof(struct ip_mreq));
     memcpy(&groupV4.imr_multiaddr,
-           &((const struct sockaddr_in *)connectionConfig->ai_addr)->sin_addr,
-           sizeof(struct ip_mreq));
+           &((const struct sockaddr_in *) &connectionConfig->ai_addr)->sin_addr,
+           sizeof(struct in_addr));
+    memcpy(&groupV4.imr_interface, &connectionConfig->intf_addr, sizeof(struct in_addr));
 
     if(connectionConfig->isMulticast){
 #if UA_IPV6
@@ -403,7 +395,7 @@ UA_PubSubChannelUDPMC_unregist(UA_PubSubChannel *channel, UA_ExtensionObject *tr
     if(connectionConfig->ai_family == PF_INET){//IPv4 handling
         struct ip_mreq groupV4;
         memcpy(&groupV4.imr_multiaddr,
-               &((const struct sockaddr_in *)connectionConfig->ai_addr)->sin_addr,
+               &((const struct sockaddr_in *) &connectionConfig->ai_addr)->sin_addr,
                sizeof(struct ip_mreq));
         groupV4.imr_interface.s_addr = UA_htonl(INADDR_ANY);
 
@@ -441,7 +433,7 @@ UA_PubSubChannelUDPMC_send(UA_PubSubChannel *channel, UA_ExtensionObject *transp
     long nWritten = 0;
     while (nWritten < (long)buf->length) {
         long n = (long)UA_sendto(channel->sockfd, buf->data, buf->length, 0,
-                                 (struct sockaddr *) channelConfigUDPMC->ai_addr,
+                                 (struct sockaddr *) &channelConfigUDPMC->ai_addr,
                                  sizeof(struct sockaddr_storage));
         if(n == -1L) {
             UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub Connection sending failed.");
@@ -553,7 +545,6 @@ UA_PubSubChannelUDPMC_close(UA_PubSubChannel *channel) {
     UA_deinitialize_architecture_network();
     //cleanup the internal NetworkLayer data
     UA_PubSubChannelDataUDPMC *networkLayerData = (UA_PubSubChannelDataUDPMC *) channel->handle;
-    UA_free(networkLayerData->ai_addr);
     UA_free(networkLayerData);
     UA_free(channel);
     return UA_STATUSCODE_GOOD;

@@ -43,24 +43,26 @@ START_TEST(AddPublisherUsingBinaryFile) {
     size_t connectionCount = 0;
     size_t writerGroupCount = 0;
     size_t dataSetWriterCount = 0;
+    UA_String tmp;
     TAILQ_FOREACH(connection, &server->pubSubManager.connections, listEntry) {
         connectionCount++;
-        char* expectedConnectionName = "UADP Connection 1";
-        ck_assert_str_eq(expectedConnectionName, (char*)connection->config->name.data);
+        tmp = UA_STRING("UADP Connection 1");
+        ck_assert(UA_String_equal(&tmp, &connection->config->name));
         LIST_FOREACH(writerGroup, &connection->writerGroups, listEntry){
             writerGroupCount++;
-            char* expectedWgName = "Demo WriterGroup";
-            ck_assert_str_eq(expectedWgName, (char*)writerGroup->config.name.data);
+            tmp = UA_STRING("Demo WriterGroup");
+            ck_assert(UA_String_equal(&tmp, &writerGroup->config.name));
             LIST_FOREACH(dataSetWriter, &writerGroup->writers, listEntry){
                 dataSetWriterCount++;
-                char* expectedWriterName = "Demo DataSetWriter";
-                ck_assert_str_eq(expectedWriterName, (char*)dataSetWriter->config.name.data);
+                tmp = UA_STRING("Demo DataSetWriter");
+                ck_assert(UA_String_equal(&tmp, &dataSetWriter->config.name));
             }
         }
     }
     ck_assert_int_eq(connectionCount, 1);
     ck_assert_int_eq(writerGroupCount, 1);
     ck_assert_int_eq(dataSetWriterCount, 1);
+    UA_ByteString_clear(&publisherConfiguration);
 } END_TEST
 
 START_TEST(AddSubscriberUsingBinaryFile) {
@@ -73,24 +75,26 @@ START_TEST(AddSubscriberUsingBinaryFile) {
     size_t connectionCount = 0;
     size_t readerGroupCount = 0;
     size_t dataSetReaderCount = 0;
+    UA_String tmp;
     TAILQ_FOREACH(connection, &server->pubSubManager.connections, listEntry) {
         connectionCount++;
-        char* expectedConnectionName = "UDPMC Connection 1";
-        ck_assert_str_eq(expectedConnectionName, (char*)connection->config->name.data);
+        tmp = UA_STRING("UDPMC Connection 1");
+        ck_assert(UA_String_equal(&tmp, &connection->config->name));
         LIST_FOREACH(readerGroup, &connection->readerGroups, listEntry){
             readerGroupCount++;
-            char* expectedRgName = "ReaderGroup1";
-            ck_assert_str_eq(expectedRgName, (char*)readerGroup->config.name.data);
+            tmp = UA_STRING("ReaderGroup1");
+            ck_assert(UA_String_equal(&tmp, &readerGroup->config.name));
             LIST_FOREACH(dataSetReader, &readerGroup->readers, listEntry){
                 dataSetReaderCount++;
-                char* expectedReaderName = "DataSet Reader 1";
-                ck_assert_str_eq(expectedReaderName, (char*)dataSetReader->config.name.data);
+                tmp = UA_STRING("DataSet Reader 1");
+                ck_assert(UA_String_equal(&tmp, &dataSetReader->config.name));
             }
         }
     }
     ck_assert_int_eq(connectionCount, 1);
     ck_assert_int_eq(readerGroupCount, 1);
     ck_assert_int_eq(dataSetReaderCount, 1);
+    UA_ByteString_clear(&subscriberConfiguration);
 } END_TEST
 
 int main(void) {

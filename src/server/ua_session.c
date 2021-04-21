@@ -89,7 +89,7 @@ UA_Session_generateNonce(UA_Session *session) {
     }
 
     return channel->securityPolicy->symmetricModule.
-        generateNonce(channel->securityPolicy, &session->serverNonce);
+        generateNonce(channel->securityPolicy->policyContext, &session->serverNonce);
 }
 
 void UA_Session_updateLifetime(UA_Session *session) {
