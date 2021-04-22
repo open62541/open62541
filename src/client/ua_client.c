@@ -404,7 +404,7 @@ finish:
  * timout finishes */
 static UA_StatusCode
 receiveResponse(UA_Client *client, void *response, const UA_DataType *responseType,
-                UA_UInt32 timeout, const UA_UInt32 *synchronousRequestId) {
+                UA_DateTime maxDate, const UA_UInt32 *synchronousRequestId) {
     /* Prepare the response and the structure we give into processServiceResponse */
     SyncResponseDescription rd = { client, false, 0, response, responseType };
 
@@ -413,13 +413,12 @@ receiveResponse(UA_Client *client, void *response, const UA_DataType *responseTy
     if(synchronousRequestId)
         rd.requestId = *synchronousRequestId;
 
-    UA_DateTime now = UA_DateTime_nowMonotonic();
-    UA_DateTime maxDate = now + ((UA_DateTime)timeout * UA_DATETIME_MSEC);
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_DateTime now = UA_DateTime_nowMonotonic();
     do {
-        if(maxDate < now)
-            return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
         UA_UInt32 timeout2 = (UA_UInt32)((maxDate - now) / UA_DATETIME_MSEC);
+        if(maxDate < now)
+            timeout2 = 0;
         retval = UA_SecureChannel_receive(&client->channel, &rd, processServiceResponse, timeout2);
         if(retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
             break;
@@ -433,6 +432,8 @@ receiveResponse(UA_Client *client, void *response, const UA_DataType *responseTy
             break;
         }
         now = UA_DateTime_nowMonotonic();
+        if(maxDate < now)
+            break;
     } while(!rd.received && responseType); /* Return if we don't wait for an async response */
 
     return retval;
@@ -440,7 +441,8 @@ receiveResponse(UA_Client *client, void *response, const UA_DataType *responseTy
 
 UA_StatusCode
 receiveResponseAsync(UA_Client *client, UA_UInt32 timeout) {
-    UA_StatusCode res = receiveResponse(client, NULL, NULL, timeout, NULL);
+    UA_DateTime maxDate = UA_DateTime_nowMonotonic() + ((UA_DateTime)timeout * UA_DATETIME_MSEC);
+    UA_StatusCode res = receiveResponse(client, NULL, NULL, maxDate, NULL);
     return (res != UA_STATUSCODE_GOODNONCRITICALTIMEOUT) ? res : UA_STATUSCODE_GOOD;
 }
 
@@ -466,7 +468,8 @@ __UA_Client_Service(UA_Client *client, const void *request,
     UA_ResponseHeader *respHeader = (UA_ResponseHeader*)response;
     if(retval == UA_STATUSCODE_GOOD) {
         /* Retrieve the response */
-        retval = receiveResponse(client, response, responseType, client->config.timeout, &requestId);
+        UA_DateTime maxDate = UA_DateTime_nowMonotonic() + ((UA_DateTime)client->config.timeout * UA_DATETIME_MSEC);
+        retval = receiveResponse(client, response, responseType, maxDate, &requestId);
     } else if(retval == UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED) {
         respHeader->serviceResult = UA_STATUSCODE_BADREQUESTTOOLARGE;
         return;
@@ -680,8 +683,11 @@ UA_StatusCode
 UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout) {
     /* Process timed (repeated) jobs */
     UA_DateTime now = UA_DateTime_nowMonotonic();
-    UA_Timer_process(&client->timer, now,
-                     (UA_TimerExecutionCallback)clientExecuteRepeatedCallback, client);
+    UA_DateTime maxDate =
+        UA_Timer_process(&client->timer, now, (UA_TimerExecutionCallback)
+                         clientExecuteRepeatedCallback, client);
+    if(maxDate > now + ((UA_DateTime)timeout * UA_DATETIME_MSEC))
+        maxDate = now + ((UA_DateTime)timeout * UA_DATETIME_MSEC);
 
     /* Make sure we have an open channel */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -706,7 +712,7 @@ UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout) {
     UA_Client_backgroundConnectivity(client);
 
     /* Listen on the network for the given timeout */
-    retval = receiveResponse(client, NULL, NULL, timeout, NULL);
+    retval = receiveResponse(client, NULL, NULL, maxDate, NULL);
     if(retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
         retval = UA_STATUSCODE_GOOD;
     if(retval != UA_STATUSCODE_GOOD) {
