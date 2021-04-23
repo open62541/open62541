@@ -105,7 +105,7 @@ connection_recv(UA_Connection *connection, UA_ByteString *response,
 
     if(resultsize == -1) {
         /* The call to select was interrupted. Act as if it timed out. */
-        if(UA_ERRNO == EINTR)
+        if(UA_ERRNO == UA_INTERRUPTED)
             return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
 
         /* The error cannot be recovered. Close the connection. */
