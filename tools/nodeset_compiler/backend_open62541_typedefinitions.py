@@ -265,7 +265,7 @@ class CGenerator(object):
             returnstr += CGenerator.print_enum_typedef(obj)
             returnstr += "\n\n"
         if len(struct.members) == 0:
-            return "typedef void * UA_%s;" % makeCIdentifier(struct.name)
+            return "typedef void * UA_%s;" % makeCIdentifier(struct.prefix + struct.name)
         if struct.is_recursive:
             returnstr += "typedef struct UA_%s UA_%s;\n" % (makeCIdentifier(struct.name), makeCIdentifier(struct.name))
             returnstr += "struct UA_%s {\n" % makeCIdentifier(struct.name)
