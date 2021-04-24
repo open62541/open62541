@@ -46,6 +46,17 @@ UA_SecurityPolicy_Aes128Sha256RsaOaep(UA_SecurityPolicy *policy,
 
 #endif
 
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+
+UA_EXPORT UA_StatusCode
+UA_PubSubSecurityPolicy_Aes128Ctr(UA_PubSubSecurityPolicy *policy,
+                                  const UA_Logger *logger);
+UA_EXPORT UA_StatusCode
+UA_PubSubSecurityPolicy_Aes256Ctr(UA_PubSubSecurityPolicy *policy,
+                                  const UA_Logger *logger);
+
+#endif
+
 _UA_END_DECLS
 
 #endif /* UA_SECURITYPOLICIES_H_ */

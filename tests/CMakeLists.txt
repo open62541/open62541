@@ -89,6 +89,10 @@ if(UA_ENABLE_ENCRYPTION_MBEDTLS)
        ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic256sha256.c
        ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_aes128sha256rsaoaep.c
        ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_pki_mbedtls.c)
+     if(UA_ENABLE_PUBSUB_ENCRYPTION)
+       list(INSERT test_plugin_sources 0
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_pubsub_aes128ctr.c)
+     endif()
 endif()
 
 if(UA_ENABLE_ENCRYPTION_OPENSSL)
@@ -105,6 +109,13 @@ endif()
 if(UA_ENABLE_PUBSUB)
   list(APPEND test_plugin_sources
               ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_udp.c)
+    if(UA_ENABLE_PUBSUB_ETH_UADP)
+        list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/pubsub_ethernet.h)
+        list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_ethernet.c)
+
+        # Add ethernet_config.h to ensure the tests are rebuild when it changes
+        list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/tests/pubsub/ethernet_config.h)
+    endif()
 endif()
 
 add_library(open62541-testplugins OBJECT ${test_plugin_sources} ${PROJECT_SOURCE_DIR}/arch/${UA_ARCHITECTURE}/ua_architecture_functions.c)
@@ -379,6 +390,14 @@ if(UA_ENABLE_PUBSUB)
     add_executable(check_pubsub_multiple_layer pubsub/check_pubsub_multiple_layer.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
     target_link_libraries(check_pubsub_multiple_layer ${LIBS})
     add_test_valgrind(pubsub_multiple_layer ${TESTS_BINARY_DIR}/check_pubsub_multiple_layer)
+
+    if(UA_ENABLE_PUBSUB_ENCRYPTION)
+        add_executable(check_pubsub_encryption pubsub/check_pubsub_encryption.c
+            $<TARGET_OBJECTS:open62541-object>
+            $<TARGET_OBJECTS:open62541-testplugins>)
+        target_link_libraries(check_pubsub_encryption ${LIBS})
+        add_test_valgrind(check_pubsub_encryption ${TESTS_BINARY_DIR}/check_pubsub_encryption)
+    endif()
 
     if (UA_ENABLE_PUBSUB_MONITORING)
         add_executable(check_pubsub_subscribe_msgrcvtimeout pubsub/check_pubsub_subscribe_msgrcvtimeout.c 

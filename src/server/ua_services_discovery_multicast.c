@@ -12,7 +12,7 @@
 
 #if defined(UA_ENABLE_DISCOVERY) && defined(UA_ENABLE_DISCOVERY_MULTICAST)
 
-#if UA_MULTITHREADING >= 200
+#if UA_MULTITHREADING >= 100
 
 static void *
 multicastWorkerLoop(UA_Server *server) {
@@ -111,7 +111,7 @@ void startMulticastDiscoveryServer(UA_Server *server) {
     /* find any other server on the net */
     UA_Discovery_multicastQuery(server);
 
-#if UA_MULTITHREADING >= 200
+#if UA_MULTITHREADING >= 100
     multicastListenStart(server);
 # endif
 }
@@ -138,7 +138,7 @@ stopMulticastDiscoveryServer(UA_Server *server) {
 
     }
 
-#if UA_MULTITHREADING >= 200
+#if UA_MULTITHREADING >= 100
     multicastListenStop(server);
 # else
     // send out last package with TTL = 0
