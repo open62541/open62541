@@ -816,9 +816,10 @@ UA_Server_initNS0(UA_Server *server) {
        }
     }
 
-    if(&server->config.createNs0BaseNodes == false) {
+    if(&server->config.initNs0Nodes == false) {
        return UA_STATUSCODE_GOOD;
     }
+
     /* NamespaceArray */
     UA_DataSource namespaceDataSource = {readNamespaces, writeNamespaces};
     retVal |= UA_Server_setVariableNode_dataSource(server,
