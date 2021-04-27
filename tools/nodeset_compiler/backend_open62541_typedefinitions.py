@@ -132,7 +132,7 @@ class CGenerator(object):
         typeid = "{%s, %s}" % (namespaceMap[datatype.namespaceUri], getNodeidTypeAndId(datatype.nodeId))
         binaryEncodingId = "{%s, %s}" % (namespaceMap[datatype.namespaceUri],
                                          getNodeidTypeAndId(datatype.binaryEncodingId))
-        idName = makeCIdentifier(datatype.name)
+        idName = makeCIdentifier(datatype.prefix + datatype.name)
         pointerfree = "true" if datatype.pointerfree else "false"
         return "{\n" + \
                "    " + typeid + ", /* .typeId */\n" + \
@@ -149,7 +149,7 @@ class CGenerator(object):
 
     @staticmethod
     def print_members(datatype, namespaceMap):
-        idName = makeCIdentifier(datatype.name)
+        idName = makeCIdentifier(datatype.prefix + datatype.name)
         if len(datatype.members) == 0:
             return "#define %s_members NULL" % (idName)
         isUnion = isinstance(datatype, StructType) and datatype.is_union
@@ -177,7 +177,7 @@ class CGenerator(object):
                 if before.is_array or before.is_optional:
                     m += " - sizeof(void *),"
                 else:
-                    m += " - sizeof(UA_%s)," % makeCIdentifier(before.member_type.name)
+                    m += " - sizeof(UA_%s)," % makeCIdentifier(before.member_type.prefix + before.member_type.name)
             m += " /* .padding */\n"
             m += "    %s, /* .namespaceZero */\n" % ("true" if (namespaceMap[member.member_type.namespaceUri] == 0) else "false")
             m += ("    true" if member.is_array else "    false") + ", /* .isArray */\n"
@@ -244,11 +244,11 @@ class CGenerator(object):
                 " " + kv[1], values))
         else:
             return "typedef enum {\n    " + ",\n    ".join(
-                map(lambda kv: makeCIdentifier("UA_" + enum.name.upper() + "_" + kv[0].upper()) +
+                map(lambda kv: makeCIdentifier("UA_" + enum.prefix + enum.name.upper() + "_" + kv[0].upper()) +
                                " = " + kv[1], values)) + \
-                   ",\n    __UA_{0}_FORCE32BIT = 0x7fffffff\n".format(makeCIdentifier(enum.name.upper())) + "} " + \
+                   ",\n    __UA_{0}_FORCE32BIT = 0x7fffffff\n".format(makeCIdentifier(enum.prefix + enum.name.upper())) + "} " + \
                    "UA_{0};\nUA_STATIC_ASSERT(sizeof(UA_{0}) == sizeof(UA_Int32), enum_must_be_32bit);".format(
-                       makeCIdentifier(enum.name))
+                       makeCIdentifier(enum.prefix + enum.name))
 
     @staticmethod
     def print_struct_typedef(struct):
@@ -265,7 +265,7 @@ class CGenerator(object):
             returnstr += CGenerator.print_enum_typedef(obj)
             returnstr += "\n\n"
         if len(struct.members) == 0:
-            return "typedef void * UA_%s;" % makeCIdentifier(struct.name)
+            return "typedef void * UA_%s;" % makeCIdentifier(struct.prefix + struct.name)
         if struct.is_recursive:
             returnstr += "typedef struct UA_%s UA_%s;\n" % (makeCIdentifier(struct.name), makeCIdentifier(struct.name))
             returnstr += "struct UA_%s {\n" % makeCIdentifier(struct.name)
@@ -282,24 +282,24 @@ class CGenerator(object):
                 if struct.is_union:
                     returnstr += "        "
                 returnstr += "    UA_%s *%s;\n" % (
-                    makeCIdentifier(member.member_type.name), makeCIdentifier(member.name))
+                    makeCIdentifier(member.member_type.prefix + member.member_type.name), makeCIdentifier(member.name))
                 if struct.is_union:
                     returnstr += "        } " + makeCIdentifier(member.name) + ";\n"
             elif struct.is_union:
                 returnstr += "        UA_%s %s;\n" % (
-                makeCIdentifier(member.member_type.name), makeCIdentifier(member.name))
+                makeCIdentifier(member.member_type.prefix + member.member_type.name), makeCIdentifier(member.name))
             elif member.is_optional:
                 returnstr += "    UA_%s *%s;\n" % (
-                    makeCIdentifier(member.member_type.name), makeCIdentifier(member.name))
+                    makeCIdentifier(member.member_type.prefix + member.member_type.name), makeCIdentifier(member.name))
             else:
                 returnstr += "    UA_%s %s;\n" % (
-                    makeCIdentifier(member.member_type.name), makeCIdentifier(member.name))
+                    makeCIdentifier(member.member_type.prefix + member.member_type.name), makeCIdentifier(member.name))
         if struct.is_union:
             returnstr += "    } fields;\n"
         if struct.is_recursive:
             return returnstr + "};"
         else:
-            return returnstr + "} UA_%s;" % makeCIdentifier(struct.name)
+            return returnstr + "} UA_%s;" % makeCIdentifier(struct.prefix + struct.name)
 
     @staticmethod
     def print_datatype_typedef(datatype):

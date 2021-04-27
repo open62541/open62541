@@ -44,7 +44,7 @@ int main(int argc, char **argv)
         UA_Variant out;
         UA_Variant_init(&out);
         UA_Server_readValue(server, UA_NODEID_NUMERIC(2, 10002), &out);
-        UA_Point *p = (UA_Point *)out.data;
+        UA_TESTNODESET_Point *p = (UA_TESTNODESET_Point *)out.data;
         printf("point 2d x: %f y: %f \n", p->x, p->y);
         retval = UA_Server_run(server, &running);
     }
