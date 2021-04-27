@@ -256,7 +256,7 @@ class CGenerator(object):
         returnstr = ""
         if struct.is_union:
             #test = type("MyEnumOptionSet", (EnumOptionSet, object), {"foo": lambda self: "foo"})
-            obj = type('MyEnumOptionSet', (object,), {'isOptionSet': False, 'elements': OrderedDict(), 'name': struct.name+"Switch"})
+            obj = type('MyEnumOptionSet', (object,), {'isOptionSet': False, 'elements': OrderedDict(), 'name': struct.name+"Switch", 'prefix': struct.prefix})
             obj.elements['None'] = str(0)
             count = 0
             for member in struct.members:
