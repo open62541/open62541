@@ -223,11 +223,9 @@ Main Build Options
    Level of multi-threading support. The supported levels are currently as follows:
 
   - 0-99: Multithreading support disabled.
-  - 100-199: API functions marked with the UA_THREADSAFE-macro are protected internally with mutexes.
+  - >=100: API functions marked with the UA_THREADSAFE-macro are protected internally with mutexes.
     Multiple threads are allowed to call these functions of the SDK at the same time without causing race conditions.
     Furthermore, this level support the handling of asynchronous method calls from external worker threads.
-  - >=200: Work is distributed to a number of internal worker threads. Currently only used for mDNS discovery.
-    (EXPERIMENTAL FEATURE! Expect bugs.)
 
 Select build artefacts
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -274,8 +272,7 @@ Detailed SDK Features
    Nodes in the information model are not edited but copied and replaced. The
    replacement is done with atomic operations so that the information model is
    always consistent and can be accessed from an interrupt or parallel thread
-   (depends on the node storage plugin implementation). This feature is a
-   prerequisite for ``UA_MULTITHREADING``.
+   (depends on the node storage plugin implementation).
 
 **UA_ENABLE_COVERAGE**
    Measure the coverage of unit tests
@@ -311,6 +308,43 @@ be visible in the cmake GUIs.
 **UA_ENABLE_FULL_NS0**
    Use the full NS0 instead of a minimal Namespace 0 nodeset
    ``UA_FILE_NS0`` is used to specify the file for NS0 generation from namespace0 folder. Default value is ``Opc.Ua.NodeSet2.xml``
+
+PubSub Build Options
+^^^^^^^^^^^^^^^^^^^^
+
+**UA_ENABLE_PUBSUB**
+   Enable the experimental OPC UA PubSub support. The option will include the
+   PubSub UDP multicast plugin. Disabled by default.
+
+**UA_ENABLE_PUBSUB_DELTAFRAMES**
+   The PubSub messages differentiate between keyframe (all published values
+   contained) and deltaframe (only changed values contained) messages.
+   Deltaframe messages creation consumes some additional ressources and can be
+   disabled with this flag. Disabled by default. Compile the human-readable
+   name of the StatusCodes into the binary. Disabled by default.
+
+**UA_ENABLE_PUBSUB_FILE_CONFIG**
+   Enable loading OPC UA PubSub configuration from File/ByteString. Enabling
+   PubSub informationmodel methods also will add a method to the
+   Publish/Subscribe object which allows configuring PubSub at runtime.
+
+**UA_ENABLE_PUBSUB_INFORMATIONMODEL**
+   Enable the information model representation of the PubSub configuration. For
+   more details take a look at the following section `PubSub Information Model
+   Representation`. Disabled by default.
+
+**UA_ENABLE_PUBSUB_MONITORING**
+   Enable the experimental PubSub monitoring. This feature provides a basic
+   framework to implement monitoring/timeout checks for PubSub components.
+   Initially the MessageReceiveTimeout check of a DataSetReader is provided. It
+   uses the internal server callback implementation. The monitoring backend can
+   be changed by the application to satisfy realtime requirements. Disabled by
+   default.
+
+**UA_ENABLE_PUBSUB_ETH_UADP**
+   Enable the OPC UA Ethernet PubSub support to transport UADP NetworkMessages
+   as payload of Ethernet II frame without IP or UDP headers. This option will
+   include Publish and Subscribe based on EtherType B62C. Disabled by default.
 
 Debug Build Options
 ^^^^^^^^^^^^^^^^^^^

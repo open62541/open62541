@@ -425,11 +425,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
         }
 
         LIST_INSERT_HEAD(&server->discoveryManager.registeredServers, registeredServer_entry, pointers);
-#if UA_MULTITHREADING >= 200
         UA_atomic_addSize(&server->discoveryManager.registeredServersSize, 1);
-#else
-        server->discoveryManager.registeredServersSize++;
-#endif
     } else {
         UA_RegisteredServer_clear(&registeredServer_entry->registeredServer);
     }

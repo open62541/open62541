@@ -82,7 +82,7 @@ detectValueChangeWithFilter(UA_Server *server, UA_Session *session, UA_Monitored
                             UA_DataValue *value, UA_ByteString *encoding,
                             UA_Boolean *changed) {
     if(!value->value.type) {
-        *changed = UA_ByteString_equal(encoding, &mon->lastSampledValue);
+        *changed = !(UA_ByteString_equal(encoding, &mon->lastSampledValue));
         return UA_STATUSCODE_GOOD;
     }
 

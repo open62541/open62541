@@ -43,7 +43,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS1ValueVariantKeyFrame) {
     UA_Byte *bufPos = buffer.data;
     memset(bufPos, 0, msgSize);
     const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd);
+    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
     
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -111,7 +111,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS1ValueDataValueKeyFrame) {
     UA_Byte *bufPos = buffer.data;
     memset(bufPos, 0, msgSize);
     const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd);
+    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -184,7 +184,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantKeyFrame) {
     UA_Byte *bufPos = buffer.data;
     memset(bufPos, 0, msgSize);
     const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd);
+    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -260,7 +260,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesDataValueKeyFrame) {
     UA_Byte *bufPos = buffer.data;
     memset(bufPos, 0, msgSize);
     const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd);
+    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -333,7 +333,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS1ValueVariantDeltaFrame) {
     UA_Byte *bufPos = buffer.data;
     memset(bufPos, 0, msgSize);
     const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd);
+    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -402,7 +402,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS1ValueDataValueDeltaFrame) {
     UA_Byte *bufPos = buffer.data;
     memset(bufPos, 0, msgSize);
     const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd);
+    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -471,7 +471,7 @@ START_TEST(UA_PubSub_Encode_WithBufferTooSmallShallReturnError) {
     UA_Byte *bufPos = buffer.data;
     memset(bufPos, 0, msgSize);
     const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd);
+    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
 
     ck_assert_int_ne(rv, UA_STATUSCODE_GOOD);
 
@@ -511,7 +511,7 @@ START_TEST(UA_PubSub_Decode_WithBufferTooSmallShallReturnError) {
     UA_Byte *bufPos = buffer.data;
     memset(bufPos, 0, msgSize);
     const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd);
+    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -583,7 +583,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantDeltaFrame) {
     UA_Byte *bufPos = buffer.data;
     memset(bufPos, 0, msgSize);
     const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd);
+    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -679,7 +679,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesDataValueDeltaFrame) {
     UA_Byte *bufPos = buffer.data;
     memset(bufPos, 0, msgSize);
     const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd);
+    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -774,7 +774,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantKeyFrameGroupHeader) {
     UA_Byte *bufPos = buffer.data;
     memset(bufPos, 0, msgSize);
     const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd);
+    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -873,7 +873,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantDeltaFramePublDSCID) {
     UA_Byte *bufPos = buffer.data;
     memset(bufPos, 0, msgSize);
     const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd);
+    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -968,7 +968,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesDataValueKeyFramePH) {
     UA_Byte *bufPos = buffer.data;
     memset(bufPos, 0, msgSize);
     const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd);
+    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -1057,7 +1057,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantKeyFrameTSProm) {
     UA_Byte *bufPos = buffer.data;
     memset(bufPos, 0, msgSize);
     const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd);
+    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -1162,7 +1162,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesDataValueDeltaFrameGHProm2) {
     UA_Byte *bufPos = buffer.data;
     memset(bufPos, 0, msgSize);
     const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd);
+    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
@@ -1284,7 +1284,7 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn2DSVariant) {
     UA_Byte *bufPos = buffer.data;
     memset(bufPos, 0, msgSize);
     const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd);
+    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 

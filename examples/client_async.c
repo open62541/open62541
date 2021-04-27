@@ -32,10 +32,11 @@ fileBrowsed(UA_Client *client, void *userdata, UA_UInt32 requestId,
 static
 void
 readValueAttributeCallback(UA_Client *client, void *userdata,
-                           UA_UInt32 requestId, UA_Variant *var) {
+                           UA_UInt32 requestId, UA_StatusCode status,
+                           UA_DataValue *var) {
     printf("%-50s%u\n", "Read value attribute for request", requestId);
-    if(UA_Variant_hasScalarType(var, &UA_TYPES[UA_TYPES_INT32])) {
-        UA_Int32 int_val = *(UA_Int32*) var->data;
+    if(UA_Variant_hasScalarType(&var->value, &UA_TYPES[UA_TYPES_INT32])) {
+        UA_Int32 int_val = *(UA_Int32*) var->value.data;
         printf("---%-40s%-8i\n",
                "Reading the value of node (1, \"the.answer\"):", int_val);
     }

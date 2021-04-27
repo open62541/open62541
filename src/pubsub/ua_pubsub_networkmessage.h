@@ -11,6 +11,7 @@
 
 #include <open62541/types.h>
 #include <open62541/types_generated.h>
+#include <open62541/plugin/securitypolicy.h>
 
 _UA_BEGIN_DECLS
 
@@ -126,7 +127,6 @@ typedef struct {
     UA_Boolean securityFooterEnabled;
     UA_Boolean forceKeyReset;
     UA_UInt32 securityTokenId;      // spec: IntegerId
-    UA_Byte nonceLength;
     UA_ByteString messageNonce;
     UA_UInt16 securityFooterSize;
 } UA_NetworkMessageSecurityHeader;
@@ -177,7 +177,6 @@ typedef struct {
     } payload;
     
     UA_ByteString securityFooter;
-    UA_ByteString signature;
 } UA_NetworkMessage;
 
 /**********************************************/
@@ -261,16 +260,28 @@ UA_StatusCode
 UA_NetworkMessage_updateBufferedNwMessage(UA_NetworkMessageOffsetBuffer *buffer,
                                           const UA_ByteString *src, size_t *bufferPosition);
 
+/* If dataToEncryptStart not-NULL, then it will be set to the start-position of
+ * the payload in the buffer. */
 UA_StatusCode
 UA_NetworkMessage_encodeBinary(const UA_NetworkMessage* src,
-                               UA_Byte **bufPos, const UA_Byte *bufEnd);
+                               UA_Byte **bufPos, const UA_Byte *bufEnd,
+                               UA_Byte **dataToEncryptStart);
 
 UA_StatusCode
 UA_NetworkMessage_decodeBinary(const UA_ByteString *src, size_t *offset,
                                UA_NetworkMessage* dst);
 
 size_t
-UA_NetworkMessage_calcSizeBinary(UA_NetworkMessage *p, UA_NetworkMessageOffsetBuffer *offsetBuffer);
+UA_NetworkMessage_calcSizeBinary(UA_NetworkMessage *p,
+                                 UA_NetworkMessageOffsetBuffer *offsetBuffer);
+
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+UA_StatusCode
+UA_NetworkMessage_signEncrypt(UA_NetworkMessage *nm, UA_MessageSecurityMode securityMode,
+                              UA_PubSubSecurityPolicy *policy, void *policyContext,
+                              UA_Byte *messageStart, UA_Byte *encryptStart,
+                              UA_Byte *sigStart);
+#endif
 
 void
 UA_NetworkMessage_clear(UA_NetworkMessage* p);

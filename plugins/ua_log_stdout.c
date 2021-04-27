@@ -10,7 +10,7 @@
 
 #include <stdio.h>
 
-#if UA_MULTITHREADING >= 200
+#if UA_MULTITHREADING >= 100
 #include <pthread.h>
 static pthread_mutex_t printf_mutex = PTHREAD_MUTEX_INITIALIZER;
 #endif
@@ -59,7 +59,7 @@ UA_Log_Stdout_log(void *context, UA_LogLevel level, UA_LogCategory category,
     UA_Int64 tOffset = UA_DateTime_localTimeUtcOffset();
     UA_DateTimeStruct dts = UA_DateTime_toStruct(UA_DateTime_now() + tOffset);
 
-#if UA_MULTITHREADING >= 200
+#if UA_MULTITHREADING >= 100
     pthread_mutex_lock(&printf_mutex);
 #endif
 
@@ -70,7 +70,7 @@ UA_Log_Stdout_log(void *context, UA_LogLevel level, UA_LogCategory category,
     printf("\n");
     fflush(stdout);
 
-#if UA_MULTITHREADING >= 200
+#if UA_MULTITHREADING >= 100
     pthread_mutex_unlock(&printf_mutex);
 #endif
 }
