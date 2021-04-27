@@ -342,7 +342,7 @@ UA_SymEn_Basic256Sha256_getRemoteKeyLength(const void * channelContext) {
 }
 
 static size_t
-UA_SymEn_Basic256Sha256_getRemoteBlockSize(const void *channelContext) {
+UA_SymEn_Basic256Sha256_getBlockSize(const void *channelContext) {
     return UA_SECURITYPOLICY_BASIC256SHA256_SYM_ENCRYPTION_BLOCK_SIZE;
 }
 
@@ -554,7 +554,8 @@ UA_SecurityPolicy_Basic256Sha256(UA_SecurityPolicy *policy,
     symEncryptionAlgorithm->decrypt = UA_SymEn_Basic256Sha256_decrypt;
     symEncryptionAlgorithm->getLocalKeyLength = UA_SymEn_Basic256Sha256_getLocalKeyLength;
     symEncryptionAlgorithm->getRemoteKeyLength = UA_SymEn_Basic256Sha256_getRemoteKeyLength;
-    symEncryptionAlgorithm->getRemoteBlockSize = UA_SymEn_Basic256Sha256_getRemoteBlockSize;
+    symEncryptionAlgorithm->getRemoteBlockSize = UA_SymEn_Basic256Sha256_getBlockSize;
+    symEncryptionAlgorithm->getRemotePlainTextBlockSize = UA_SymEn_Basic256Sha256_getBlockSize;
 
     /* Symmetric signature Algorithm */
     UA_SecurityPolicySignatureAlgorithm *symSignatureAlgorithm =
