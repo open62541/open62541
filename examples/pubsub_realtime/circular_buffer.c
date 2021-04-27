@@ -53,6 +53,7 @@ UA_Double user_execution_time_in_us;
 UA_Double sub_thread_jitter_in_us;
 UA_Double pub_thread_jitter_in_us;
 UA_Double user_thread_jitter_in_us;
+UA_Double subscriber_data_process_execution_time_in_us;
 
 pthread_mutex_t pub_lock_rw;
 pthread_mutex_t sub_lock_rw;
@@ -111,6 +112,8 @@ struct publishMeasurementlb{
     struct timespec     publisherThreadJitter[MAX_MEASUREMENTS];
     /* Array to store user  Thread Jitter */
     struct timespec     userThreadJitter[MAX_MEASUREMENTS];
+    /* Array to store subscriber data process timestamp */
+    struct timespec     subscribeDataProcessTimestamp[MAX_MEASUREMENTS];    
 } publb;
 
 size_t measurementsLRPublisher = 0;
@@ -122,6 +125,8 @@ struct subscribeMeasurement{
     UA_UInt64           subscribeCounterValue[MAX_MEASUREMENTS];
     /* Array to store timestamp */
     struct timespec     subscribeTimestamp[MAX_MEASUREMENTS];
+    /* Array to store subscriber data process timestamp */
+    struct timespec     subscribeDataProcessTimestamp[MAX_MEASUREMENTS];
 } sub;
 
 size_t measurementsLRSubscriber = 0;
@@ -259,7 +264,8 @@ updateLRMeasurementsPublisher(struct timespec start_time, UA_UInt64 countValue, 
 }
 
 void
-updateLRMeasurementsPublisherlb(struct timespec pub_execution_time, struct timespec user_execution_time, struct timespec subscriber_thread_jitter, struct timespec publisher_thread_jitter, struct timespec user_thread_jitter) {
+updateLRMeasurementsPublisherlb(struct timespec pub_execution_time, struct timespec user_execution_time, struct timespec subscriber_thread_jitter,
+                                struct timespec publisher_thread_jitter, struct timespec user_thread_jitter, struct timespec subscriber_data_process_time) {
     publisherUpdate = UA_TRUE;
     /* Check whether the publisher circular queue is full */
     if (isFull_publisher())
@@ -300,6 +306,7 @@ updateLRMeasurementsPublisherlb(struct timespec pub_execution_time, struct times
     publb.subscriberThreadJitter[measurementsLRPublisher] = subscriber_thread_jitter;
     publb.publisherThreadJitter[measurementsLRPublisher] = publisher_thread_jitter;
     publb.userThreadJitter[measurementsLRPublisher] = user_thread_jitter;
+    publb.subscribeDataProcessTimestamp[measurementsLRPublisher] = subscriber_data_process_time;
 
     measurementsLRPublisher++;
 
@@ -310,7 +317,7 @@ updateLRMeasurementsPublisherlb(struct timespec pub_execution_time, struct times
 }
 
 void
-updateLRMeasurementsSubscriber(struct timespec start_time, UA_UInt64 countValue) {
+updateLRMeasurementsSubscriber(struct timespec start_time, UA_UInt64 countValue, struct timespec subscriber_data_process_time) {
     /* Check whether the subscriber circular queue is full */
     if (isFull_subscriber()) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
@@ -346,6 +353,7 @@ updateLRMeasurementsSubscriber(struct timespec start_time, UA_UInt64 countValue)
      * Pass the counter value to countervalue in susbcriber structure */
     sub.subscribeTimestamp[measurementsLRSubscriber] = start_time;
     sub.subscribeCounterValue[measurementsLRSubscriber] = countValue;
+    sub.subscribeDataProcessTimestamp[measurementsLRSubscriber] = subscriber_data_process_time;
     measurementsLRSubscriber++;
 
     if (measurementsLRSubscriber == MAX_MEASUREMENTS) {
@@ -448,17 +456,19 @@ void* latency_computation(void *arg) {
         sub_thread_jitter_in_us = ((UA_Double)((pub.subscriberThreadJitter[index_execution_time].tv_sec * 1000000000L) + pub.subscriberThreadJitter[index_execution_time].tv_nsec))/1000;
         pub_thread_jitter_in_us = ((UA_Double)((pub.publisherThreadJitter[index_execution_time].tv_sec * 1000000000L) + pub.publisherThreadJitter[index_execution_time].tv_nsec))/1000;
         user_thread_jitter_in_us = ((UA_Double)((pub.userThreadJitter[index_execution_time].tv_sec * 1000000000L) + pub.userThreadJitter[index_execution_time].tv_nsec))/1000;
+        subscriber_data_process_execution_time_in_us = ((UA_Double)((sub.subscribeDataProcessTimestamp[index_execution_time].tv_sec * 1000000000L) + sub.subscribeDataProcessTimestamp[index_execution_time].tv_nsec))/1000;
         index_execution_time++;
 
         /* Write the current time, latency value, missed counters and repeated counters to the latency circular queue using sprintf function */
         if (((rear_latency - rear_latency_copy) + rear_latency) < MAX_MEASUREMENTS_FW) {
             rear_latency_copy = rear_latency;
             rear_latency += (UA_UInt64)sprintf(&latency_measurements[rear_latency],
-                                               "%ld.%09ld, %0.3f, %ld, %ld, %0.3f, %0.3f, %0.3f, %0.3f, %0.3f\n",
+                                               "%ld.%09ld, %0.3f, %ld, %ld, %0.3f, %0.3f, %0.3f, %0.3f, %0.3f, %0.3f\n",
                                                csv_timestamp.tv_sec, csv_timestamp.tv_nsec,
                                                finalTime, missed_counter, repeated_counter,
                                                pub_execution_time_in_us, user_execution_time_in_us,
-                                               sub_thread_jitter_in_us, pub_thread_jitter_in_us, user_thread_jitter_in_us);
+                                               sub_thread_jitter_in_us, pub_thread_jitter_in_us, user_thread_jitter_in_us,
+                                               subscriber_data_process_execution_time_in_us);
             computational_index++;
             rear_latency_diff = (rear_latency - rear_latency_copy);
         }
@@ -468,11 +478,12 @@ void* latency_computation(void *arg) {
              * will be stored into the local buffer at first. This buffer will be copied to the circular buffer up to the end of MAX_MEASUREMENTS.
              * Then the remaining buffer will be copied into the start of the the circular buffer from the index 0 */
             local_buffer_count += (UA_UInt64)sprintf(&local_buffer[local_buffer_count],
-                                                     "%ld.%09ld, %0.3f, %ld, %ld, %0.3f, %0.3f, %0.3f, %0.3f, %0.3f\n",
+                                                     "%ld.%09ld, %0.3f, %ld, %ld, %0.3f, %0.3f, %0.3f, %0.3f, %0.3f, %0.3f\n",
                                                      csv_timestamp.tv_sec, csv_timestamp.tv_nsec,
                                                      finalTime, missed_counter, repeated_counter,
                                                      pub_execution_time_in_us, user_execution_time_in_us,
-                                                     sub_thread_jitter_in_us, pub_thread_jitter_in_us, user_thread_jitter_in_us);
+                                                     sub_thread_jitter_in_us, pub_thread_jitter_in_us, user_thread_jitter_in_us,
+                                                     subscriber_data_process_execution_time_in_us);
             for (index = 0; index < local_buffer_count; index++) {
                 if (rear_latency < MAX_MEASUREMENTS_FW) {
                     latency_measurements[rear_latency] = local_buffer[index];
@@ -590,6 +601,7 @@ void* latency_computation_lb(void *arg) {
         sub_thread_jitter_in_us = ((UA_Double)((publb.subscriberThreadJitter[index_execution_time].tv_sec * 1000000000L) + publb.subscriberThreadJitter[index_execution_time].tv_nsec))/1000;
         pub_thread_jitter_in_us = ((UA_Double)((publb.publisherThreadJitter[index_execution_time].tv_sec * 1000000000L) + publb.publisherThreadJitter[index_execution_time].tv_nsec))/1000;
         user_thread_jitter_in_us = ((UA_Double)((publb.userThreadJitter[index_execution_time].tv_sec * 1000000000L) + publb.userThreadJitter[index_execution_time].tv_nsec))/1000;
+        subscriber_data_process_execution_time_in_us = ((UA_Double)((publb.subscribeDataProcessTimestamp[index_execution_time].tv_sec * 1000000000L) + publb.subscribeDataProcessTimestamp[index_execution_time].tv_nsec))/1000;
         index_execution_time++;
 
         /* Write the current time, latency value, missed counters and repeated counters to the latency circular queue using sprintf function */

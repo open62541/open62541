@@ -10,8 +10,8 @@
 /* Update publisher counter value and timestamp */
 void updateLRMeasurementsPublisher(struct timespec start_time, uint64_t countValue, struct timespec pub_time, struct timespec user_time, struct timespec subscriber_thread_jitter, struct timespec publisher_thread_jitter, struct timespec user_thread_jitter);
 /* Update subscriber counter value and timestamp */
-void updateLRMeasurementsSubscriber(struct timespec receive_time, uint64_t countValue);
-void updateLRMeasurementsPublisherlb(struct timespec pub_time, struct timespec user_time, struct timespec subscriber_thread_jitter, struct timespec publisher_thread_jitter, struct timespec user_thread_jitter);
+void updateLRMeasurementsSubscriber(struct timespec receive_time, uint64_t countValue, struct timespec subscriber_data_process_time);
+void updateLRMeasurementsPublisherlb(struct timespec pub_time, struct timespec user_time, struct timespec subscriber_thread_jitter, struct timespec publisher_thread_jitter, struct timespec user_thread_jitter, struct timespec subscriber_data_process_time);
 
 /* Write the computed RTT in multiple csvs publisher side */
 void* fileWriteLatency(void *arg);

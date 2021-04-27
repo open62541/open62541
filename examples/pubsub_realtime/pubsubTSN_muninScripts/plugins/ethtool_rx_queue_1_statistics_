@@ -81,8 +81,8 @@ if [ "$1" = "config" ]; then
 fi
 
 if [ -s /usr/local/src/ethtool_receive_statistics_$INTERFACE.txt ]; then
-    received_packet_queue=`cat /usr/local/src/ethtool_receive_statistics_$INTERFACE.txt | tr -s " " | cut -d" " -f2`
-    dropped_packet_queue=`cat /usr/local/src/ethtool_receive_statistics_$INTERFACE.txt | tr -s " " | cut -d" " -f4`
+    received_packet_queue=`cat /usr/local/src/ethtool_receive_statistics_$INTERFACE.txt | tr -s " " | cut -d" " -f1` ;
+    dropped_packet_queue=`cat /usr/local/src/ethtool_receive_statistics_$INTERFACE.txt | tr -s " " | cut -d" " -f2` ;
 fi
 echo "receivedPackets_queue.value $received_packet_queue"
 echo "droppedPackets_queue.value $dropped_packet_queue"

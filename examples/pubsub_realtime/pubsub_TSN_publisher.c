@@ -205,6 +205,7 @@ static UA_Boolean enableBlockingSocket = UA_FALSE;
 static UA_Boolean signalTerm           = UA_FALSE;
 static UA_Boolean enableXdpSubscribe   = UA_FALSE;
 static UA_Boolean enableLongRunMeas    = UA_FALSE;
+struct timespec subDataProcessResultime;
 
 /* Variables corresponding to PubSub connection creation,
  * published data set and writer group */
@@ -327,6 +328,10 @@ static void removeServerNodes(UA_Server *server);
 /* To create multi-threads */
 static pthread_t threadCreation(UA_Int16 threadPriority, size_t coreAffinity, void *(*thread) (void *),
                                 char *applicationName, void *serverConfig);
+/* To find missed and repeated counters */
+void missedRepeatedCounter_callback(UA_Server *server, const UA_NodeId *readerIdentifierCB,
+                                    const UA_NodeId *readerGroupIdentifierCB, const UA_NodeId *targetVariableIdentifier,
+                                    void *targetVariableContext, UA_DataValue **externalDataValue);
 
 /* Stop signal */
 static void stopHandler(int sign) {
@@ -343,8 +348,8 @@ static inline long long timespec_to_ns(const struct timespec *ts)
 }
 
 /* Missed and repeated counters verification - Call from the stack is used */
-void missedRepeatedCounter_callback(UA_Server *server, const UA_NodeId *readerIdentifier,
-                                    const UA_NodeId *readerGroupIdentifier, const UA_NodeId *targetVariableIdentifier,
+void missedRepeatedCounter_callback(UA_Server *server, const UA_NodeId *readerIdentifierCB,
+                                    const UA_NodeId *readerGroupIdentifierCB, const UA_NodeId *targetVariableIdentifier,
                                     void *targetVariableContext, UA_DataValue **externalDataValue) {
 
     UA_UInt64 currentValue = *(UA_UInt64 *)((**externalDataValue).value.data);
@@ -1266,7 +1271,7 @@ void *userApplicationPubSub(void *arg) {
 
 #if defined(SUBSCRIBER)
             if (*subCounterData > 0)
-                updateLRMeasurementsSubscriber(dataReceiveTime, *subCounterData);
+                updateLRMeasurementsSubscriber(dataReceiveTime, *subCounterData, subDataProcessResultime);
 #endif
         }
         else if (enableCsvLog || enableLatencyCsvLog || consolePrint) {

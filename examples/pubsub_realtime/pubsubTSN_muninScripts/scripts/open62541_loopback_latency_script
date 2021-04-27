@@ -19,7 +19,7 @@
 ################################################################################
 #Directory in which the latency csv files are generated
 # by the pubsub application
-GENLATENCYDIR=/home/svradmin/network_bandwidth/INTEL_OPCUA_SRC/build
+GENLATENCYDIR=/home/svradmin/muninpluginchanges/INTEL_OPCUA_SRC/build
 #Directory to store the csv files. It is currently not used as the csv files
 # are being deleted once it is calculated.
 # (In future a ext hard disk directory or mounted nfs directory can be used)
@@ -50,6 +50,7 @@ usrLatMax=0
 SubJitMax=0
 PubJitMax=0
 UsrJitMax=0
+SubProcessMax=0
 
 declare -a files
 files=($GENLATENCYDIR/LB_latency_*.csv)
@@ -72,6 +73,7 @@ do
                        head -1`
     tmpMaxUsrJitValue=`cat $FILE | cut -d, -f5 | tr -d '.' | sort -nrk1,1 | \
                        head -1`
+    tmpMaxSubProcessValue=`cat $FILE | cut -d, -f6 | tr -d '.' | sort -nrk1,1 | head -1`
 
     if test $tmpMaxPubLatValue -gt $pubLatMax
     then
@@ -93,6 +95,10 @@ do
     then
         UsrJitMax=$tmpMaxUsrJitValue
     fi
+    if test $tmpMaxSubProcessValue -gt $SubProcessMax
+    then
+        SubProcessMax=$tmpMaxSubProcessValue
+    fi
 
     #Check if FILE is the last latency file in the directory
     if [[ $FILE == $lastFile ]]
@@ -106,13 +112,5 @@ do
     fi
 done
 
-#Removing the last latency csv file
-rm $FILE
-
-#Write the Publisher thread maximum latency, User thread maximum latency,
-# Subscriber thread Jitter, Publisher thread jitter and
-# User thread jitter values to open62541_pubsub_maxlatency_loopback.txt text
-# file which will be used by Munin scripts
-echo PubMaxLatency_UsrMaxLatency $pubLatMax $usrLatMax $SubJitMax \
-     $PubJitMax $UsrJitMax > \
-     /usr/local/src/open62541_pubsub_maxlatency_loopback.txt
+#Write the Publisher thread maximum latency, User thread maximum latency, Subscriber thread Jitter, Publisher thread jitter, User thread jitter and Subscriber processing values to open62541_pubsub_maxlatency_loopback.txt text file which will be used by Munin scripts
+echo "PubMaxLatency_UsrMaxLatency $pubLatMax $usrLatMax $SubJitMax $PubJitMax $UsrJitMax $SubProcessMax" > /usr/local/src/open62541_pubsub_maxlatency_loopback.txt

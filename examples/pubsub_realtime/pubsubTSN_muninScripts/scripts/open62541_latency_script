@@ -19,7 +19,7 @@
 ################################################################################
 #Directory in which the latency csv files are generated
 # by the pubsub application
-GENLATENCYDIR=/home/svradmin/network_bandwidth/INTEL_OPCUA_SRC/build
+GENLATENCYDIR=/home/svradmin/muninpluginchanges/INTEL_OPCUA_SRC/build
 #Directory to store the csv files. It is currently not used as the csv files
 # are being deleted once it is calculated.
 # (In future a ext hard disk directory or mounted nfs directory can be used)
@@ -48,6 +48,7 @@ usrLatMax=0
 SubJitMax=0
 PubJitMax=0
 UsrJitMax=0
+SubProcessMax=0
 max=0
 
 declare -a files
@@ -76,6 +77,7 @@ do
                     head -1`
     tmpMaxUsrJitValue=`cat $FILE | cut -d, -f9 | tr -d '.' | sort -nrk1,1 | \
                     head -1`
+    tmpMaxSubProcessValue=`cat $FILE | cut -d, -f10 | tr -d '.' | sort -nrk1,1 | head -1`
 
     #Update the maximum latency value
     if test $tmpMaxLatValue -gt $max
@@ -107,15 +109,15 @@ do
     then
         UsrJitMax=$tmpMaxUsrJitValue
     fi
-    #Move the latecy files to the directory where it can be stored
-    #mv $FILE $CSVSTOREDIR
-    #Removing csv files after the computation
-    rm $FILE
+    if test $tmpMaxSubProcessValue -gt $SubProcessMax
+    then
+        SubProcessMax=$tmpMaxSubProcessValue
+    fi
+
+    # mv $FILE $CSVSTOREDIR # Move the latecy files to the directory where it can be stored
+    rm $FILE #Removing csv files after the computation
 done
 
-#Write the maximum latency, missed and repeated counters values to
-# open62541_pubsub_maxlatency.txt text file which will be used by Munin scripts
-echo Max_latency_withMCnRC $max $missedCounter $repeatedCounter $pubLatMax \
-    $usrLatMax $SubJitMax $PubJitMax $UsrJitMax > \
-    /usr/local/src/open62541_pubsub_maxlatency.txt
+#Write the maximum latency, missed and repeated counters values to open62541_pubsub_maxlatency.txt text file which will be used by Munin scripts
+echo "Max_latency_withMCnRC $max $missedCounter $repeatedCounter $pubLatMax $usrLatMax $SubJitMax $PubJitMax $UsrJitMax $SubProcessMax" > /usr/local/src/open62541_pubsub_maxlatency.txt
 

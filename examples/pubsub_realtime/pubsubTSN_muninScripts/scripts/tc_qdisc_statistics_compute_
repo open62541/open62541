@@ -18,69 +18,15 @@
 # Global Variable - constant                                                  #
 ###############################################################################
 INTERFACE=${0##*/tc_qdisc_statistics_compute_}
-MQPRIO_NUM=`sudo tc qdisc show | \
-            grep "$INTERFACE" | \
-            grep "mqprio" |\
-            cut -d ':' -f1 | \
-            cut -d ' ' -f3`
-
-statisticsFile=/usr/local/src/tc_statistics_$INTERFACE.txt
 
 if test -z "$MQPRIO_NUM"; then
     exit 0
 fi
 
-#The txrxstatistics_ script writes the tx, rx data immediately after reboot into the statisticsFile
-#This script reads the value from the file and computes the present sent, dropped and overlimits and writes the difference in the same file
-#in the order of current value followed by the observed difference. The current value written in the file is checked each time the script gets
-#executed, only when both the values are different, the difference is calculated and stored in the text file
-if test -s $statisticsFile
-then
-    sent_packet_before=`cat $statisticsFile| \
-                        head -1 | \
-                        tr -s " " | \
-                        cut -d" " -f2`
-    dropped_packet_before=`cat $statisticsFile | \
-                        head -1 | \
-                        tr -s " " | \
-                        cut -d" " -f4`
-    overlimits_before=`cat $statisticsFile | \
-                        head -1 | \
-                        tr -s " " | \
-                        cut -d" " -f6`
+#Check the packets sent, dropped and overlimits
+sent_packet_now=`sudo tc -s qdisc show dev $INTERFACE | grep -A1 "$MQPRIO_NUM:1" | tail -1 | cut -d ' ' -f5`
+dropped_packet_now=`sudo tc -s qdisc show dev $INTERFACE | grep -A1 "$MQPRIO_NUM:1" | tail -1 | cut -d '(' -f2 | cut -d ',' -f1 | cut -d ' ' -f2`
+overlimits_now=`sudo tc -s qdisc show dev $INTERFACE | grep -A1 "$MQPRIO_NUM:1" | tail -1 | cut -d '(' -f2 | cut -d ',' -f2 | cut -d' ' -f3`
 
-    #Check the packets sent, dropped and overlimits
-    sent_packet_now=`sudo tc -s qdisc show dev $INTERFACE | \
-                     grep -A1 "$MQPRIO_NUM:1" | \
-                     tail -1 | \
-                     cut -d ' ' -f5`
-    dropped_packet_now=`sudo tc -s qdisc show dev $INTERFACE | \
-                        grep -A1 "$MQPRIO_NUM:1" | \
-                        tail -1 | \
-                        cut -d '(' -f2 | \
-                        cut -d ',' -f1 | \
-                        cut -d ' ' -f2`
-    overlimits_now=`sudo tc -s qdisc show dev $INTERFACE | \
-                     grep -A1 "$MQPRIO_NUM:1" | \
-                     tail -1 | \
-                     cut -d '(' -f2 | \
-                     cut -d ',' -f2 | \
-                     cut -d' ' -f3`
+sudo bash -c "echo $sent_packet_now $dropped_packet_now $overlimits_now > /usr/local/src/tc_statistics_$INTERFACE.txt"
 
-    sent_packet_previous_cycle=`cat $statisticsFile| head -1 |  tr -s " " | cut -d" " -f1`
-    dropped_packet_previous_cycle=`cat $statisticsFile | head -1 |  tr -s " " | cut -d" " -f3`
-    overlimits_previous_cycle=`cat $statisticsFile | head -1 |  tr -s " " | cut -d" " -f5`
-
-    if test $sent_packet_previous_cycle -eq $sent_packet_now
-    then
-        sent_packet="$(($sent_packet_now-$sent_packet_previous_cycle))"
-        dropped_packet="$(($dropped_packet_now-$dropped_packet_previous_cycle))"
-        overlimits="$(($overlimits_now-$overlimits_previous_cycle))"
-    else
-        sent_packet="$(($sent_packet_now-$sent_packet_before))"
-        dropped_packet="$(($dropped_packet_now-$dropped_packet_before))"
-        overlimits="$(($overlimits_now-$overlimits_before))"
-    fi
-
-    sudo bash -c "echo $sent_packet_now $sent_packet $dropped_packet_now $dropped_packet $overlimits_now $overlimits > $statisticsFile"
-fi

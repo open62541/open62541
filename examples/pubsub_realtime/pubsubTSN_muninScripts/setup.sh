@@ -45,7 +45,7 @@ Help()
     echo "15. Plugins to monitor network bandwidth utilisation in the network interface along with the VLAN interfaces"
     echo "16. Plugins to monitor latency of the Publisher and UserApplication threads of the pubsub_TSN applications"
     echo "17. Plugins to monitor jitter in the wakeup of the Publisher, Subscriber and UserApplication threads of the pubsub_TSN applications"
-    echo "18. Plugins to monitor packets dropped by the Subscriber of the pubsub_TSN applications"
+    echo "18. Plugins to monitor packets dropped by the Subscriber and Subscriber processing time of the pubsub_TSN applications"
     echo "Usage: $0 -i <interface_name> -d <directory_name>"
     echo Options:
     echo "-i     i210 interface name"
@@ -130,15 +130,6 @@ main()
     sudo ln -s $SCRIPT_FOR_CRON_DIR/ethtool_rx_queue_statistics_compute_ \
         $SCRIPT_FOR_CRON_DIR/ethtool_rx_queue_statistics_compute_$IFACE
 
-    sudo rm -rf \
-        $SCRIPT_FOR_CRON_DIR/network_bandwidth_utilisation_compute_$IFACE
-    sudo ln -s $SCRIPT_FOR_CRON_DIR/network_bandwidth_utilisation_compute_ \
-        $SCRIPT_FOR_CRON_DIR/network_bandwidth_utilisation_compute_$IFACE
-
-    sudo rm -rf $SCRIPT_FOR_CRON_DIR/txrxstatistics_$IFACE
-    sudo ln -s $SCRIPT_FOR_CRON_DIR/txrxstatistics_ \
-        $SCRIPT_FOR_CRON_DIR/txrxstatistics_$IFACE
-
     #Remove all the previously existing symbolic links in
     # /etc/munin/plugins directory
     sudo rm -rf $SYMBOLIC_LINK_DIR/open62541*
@@ -149,13 +140,13 @@ main()
     sudo rm -rf $SYMBOLIC_LINK_DIR/ethtool_rx_queue_*
     sudo rm -rf $SYMBOLIC_LINK_DIR/cpu_utilization_*
     sudo rm -rf $SYMBOLIC_LINK_DIR/cyclictest_max_latency
-    sudo rm -rf $SYMBOLIC_LINK_DIR/network_bandwidth_utilisation_*
     sudo rm -rf $SYMBOLIC_LINK_DIR/publisherThread*
     sudo rm -rf $SYMBOLIC_LINK_DIR/subscriberThread*
     sudo rm -rf $SYMBOLIC_LINK_DIR/userThread*
     sudo rm -rf $SYMBOLIC_LINK_DIR/countermiss_at_subscriber
     sudo rm -rf $SYMBOLIC_LINK_DIR/cstates
     sudo rm -rf $SYMBOLIC_LINK_DIR/irqrtprio
+    sudo rm -rf $SYMBOLIC_LINK_DIR/if_$IFACE.*
 
     #Copy all the plugins into the /usr/share/munin/plugins directory
     sudo cp plugins/* $PLUGIN_DIR
@@ -179,18 +170,18 @@ main()
     sudo ln -s $PLUGIN_DIR/cpu_utilization_core2_statistics $SYMBOLIC_LINK_DIR/cpu_utilization_core2_statistics
     sudo ln -s $PLUGIN_DIR/cpu_utilization_core3_statistics $SYMBOLIC_LINK_DIR/cpu_utilization_core3_statistics
     sudo ln -s $PLUGIN_DIR/cyclictest_max_latency $SYMBOLIC_LINK_DIR/cyclictest_max_latency
-    sudo ln -s $PLUGIN_DIR/network_bandwidth_utilisation_ $SYMBOLIC_LINK_DIR/network_bandwidth_utilisation_$IFACE
-    sudo ln -s $PLUGIN_DIR/network_bandwidth_utilisation_ $SYMBOLIC_LINK_DIR/network_bandwidth_utilisation_$IFACE.1
-    sudo ln -s $PLUGIN_DIR/network_bandwidth_utilisation_ $SYMBOLIC_LINK_DIR/network_bandwidth_utilisation_$IFACE.2
-    sudo ln -s $PLUGIN_DIR/network_bandwidth_utilisation_ $SYMBOLIC_LINK_DIR/network_bandwidth_utilisation_$IFACE.3
-    sudo ln -s $PLUGIN_DIR/network_bandwidth_utilisation_ $SYMBOLIC_LINK_DIR/network_bandwidth_utilisation_$IFACE.4
-    sudo ln -s $PLUGIN_DIR/network_bandwidth_utilisation_ $SYMBOLIC_LINK_DIR/network_bandwidth_utilisation_$IFACE.5
-    sudo ln -s $PLUGIN_DIR/network_bandwidth_utilisation_ $SYMBOLIC_LINK_DIR/network_bandwidth_utilisation_$IFACE.6
-    sudo ln -s $PLUGIN_DIR/network_bandwidth_utilisation_ $SYMBOLIC_LINK_DIR/network_bandwidth_utilisation_$IFACE.7
-    sudo ln -s $PLUGIN_DIR/network_bandwidth_utilisation_ $SYMBOLIC_LINK_DIR/network_bandwidth_utilisation_$IFACE.8
+    sudo ln -s $PLUGIN_DIR/if_ $SYMBOLIC_LINK_DIR/if_$IFACE.1
+    sudo ln -s $PLUGIN_DIR/if_ $SYMBOLIC_LINK_DIR/if_$IFACE.2
+    sudo ln -s $PLUGIN_DIR/if_ $SYMBOLIC_LINK_DIR/if_$IFACE.3
+    sudo ln -s $PLUGIN_DIR/if_ $SYMBOLIC_LINK_DIR/if_$IFACE.4
+    sudo ln -s $PLUGIN_DIR/if_ $SYMBOLIC_LINK_DIR/if_$IFACE.5
+    sudo ln -s $PLUGIN_DIR/if_ $SYMBOLIC_LINK_DIR/if_$IFACE.6
+    sudo ln -s $PLUGIN_DIR/if_ $SYMBOLIC_LINK_DIR/if_$IFACE.7
+    sudo ln -s $PLUGIN_DIR/if_ $SYMBOLIC_LINK_DIR/if_$IFACE.8
     sudo ln -s $PLUGIN_DIR/publisherThreadJitterStatistics $SYMBOLIC_LINK_DIR/publisherThreadJitterStatistics
     sudo ln -s $PLUGIN_DIR/publisherThreadLatencyStatistics $SYMBOLIC_LINK_DIR/publisherThreadLatencyStatistics
     sudo ln -s $PLUGIN_DIR/subscriberThreadJitterStatistics $SYMBOLIC_LINK_DIR/subscriberThreadJitterStatistics
+    sudo ln -s $PLUGIN_DIR/subscriberThreadDataProcessingStatistics $SYMBOLIC_LINK_DIR/subscriberThreadDataProcessingStatistics
     sudo ln -s $PLUGIN_DIR/userThreadJitterStatistics $SYMBOLIC_LINK_DIR/userThreadJitterStatistics
     sudo ln -s $PLUGIN_DIR/userThreadLatencyStatistics $SYMBOLIC_LINK_DIR/userThreadLatencyStatistics
     sudo ln -s $PLUGIN_DIR/countermiss_at_subscriber $SYMBOLIC_LINK_DIR/countermiss_at_subscriber
@@ -217,18 +208,7 @@ main()
 
     crontab_install /usr/local/bin/cpu_utilization
 
-    crontab_install /usr/local/bin/network_bandwidth_utilisation_compute_$IFACE
-
     crontab_install /usr/local/bin/open62541_countermiss_at_subscriber_compute
-
-    crontabInstalled=$(crontab -l | grep -c "@reboot /usr/local/bin/txrxstatistics_$IFACE")
-    if [[ "$crontabInstalled" -eq "1" ]]
-    then
-        echo "Crontab already installed for txrxstatistics_$IFACE"
-    else
-        line="@reboot /usr/local/bin/txrxstatistics_$IFACE"
-        (crontab -l; echo "$line" ) | crontab -
-    fi
 
 }
 
