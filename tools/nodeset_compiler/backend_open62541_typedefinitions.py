@@ -195,7 +195,7 @@ class CGenerator(object):
             datatype.outname.upper() + "_" + datatype.name.upper()) + "]"
 
     def print_functions(self, datatype):
-        idName = makeCIdentifier(datatype.name)
+        idName = makeCIdentifier(datatype.prefix + datatype.name)
         funcs = "static UA_INLINE void\nUA_%s_init(UA_%s *p) {\n    memset(p, 0, sizeof(UA_%s));\n}\n\n" % (
             idName, idName, idName)
         funcs += "static UA_INLINE UA_%s *\nUA_%s_new(void) {\n    return (UA_%s*)UA_new(%s);\n}\n\n" % (
@@ -224,7 +224,7 @@ class CGenerator(object):
         return funcs
 
     def print_datatype_encoding(self, datatype):
-        idName = makeCIdentifier(datatype.name)
+        idName = makeCIdentifier(datatype.prefix + datatype.name)
         enc = "static UA_INLINE size_t\nUA_%s_calcSizeBinary(const UA_%s *src) {\n    return UA_calcSizeBinary(src, %s);\n}\n"
         enc += "static UA_INLINE UA_StatusCode\nUA_%s_encodeBinary(const UA_%s *src, UA_Byte **bufPos, const UA_Byte *bufEnd) {\n    return UA_encodeBinary(src, %s, bufPos, &bufEnd, NULL, NULL);\n}\n"
         enc += "static UA_INLINE UA_StatusCode\nUA_%s_decodeBinary(const UA_ByteString *src, size_t *offset, UA_%s *dst) {\n    return UA_decodeBinary(src, offset, dst, %s, NULL);\n}"
@@ -267,12 +267,12 @@ class CGenerator(object):
         if len(struct.members) == 0:
             return "typedef void * UA_%s;" % makeCIdentifier(struct.prefix + struct.name)
         if struct.is_recursive:
-            returnstr += "typedef struct UA_%s UA_%s;\n" % (makeCIdentifier(struct.name), makeCIdentifier(struct.name))
-            returnstr += "struct UA_%s {\n" % makeCIdentifier(struct.name)
+            returnstr += "typedef struct UA_%s UA_%s;\n" % (makeCIdentifier(struct.prefix + struct.name), makeCIdentifier(struct.prefix + struct.name))
+            returnstr += "struct UA_%s {\n" % makeCIdentifier(struct.prefix + struct.name)
         else:
             returnstr += "typedef struct {\n"
         if struct.is_union:
-            returnstr += "    UA_%sSwitch switchField;\n" % struct.name
+            returnstr += "    UA_%sSwitch switchField;\n" % makeCIdentifier(struct.prefix + struct.name)
             returnstr += "    union {\n"
         for member in struct.members:
             if member.is_array:

@@ -40,7 +40,7 @@ START_TEST(checkScalarValues) {
     // Point_scalar_Init
     UA_Server_readValue(server, UA_NODEID_NUMERIC(2, 10002), &out);
     ck_assert(UA_Variant_isScalar(&out));
-    UA_Point *p = (UA_Point *)out.data;
+    UA_TESTS_TESTNODESET_Point *p = (UA_TESTS_TESTNODESET_Point *)out.data;
     ck_assert(p->x == (UA_Double)1.0);
     ck_assert(p->y == (UA_Double)2.0);
     UA_Variant_clear(&out);
@@ -55,12 +55,12 @@ START_TEST(checkSelfContainingUnion) {
     UA_Variant in;
     UA_Variant_init(&in);
 
-    UA_SelfContainingUnion data;
-    UA_SelfContainingUnion_init(&data);
+    UA_TESTS_TESTNODESET_SelfContainingUnion data;
+    UA_TESTS_TESTNODESET_SelfContainingUnion_init(&data);
 
     data.fields._double = 23.0;
 
-    data.switchField = UA_SELFCONTAININGUNIONSWITCH_DOUBLE;
+    data.switchField = UA_TESTS_TESTNODESET_SELFCONTAININGUNIONSWITCH_DOUBLE;
 
     data.fields.array.arraySize = 0;
     data.fields.array.array = NULL;
@@ -83,7 +83,7 @@ START_TEST(check1dimValues) {
     UA_Variant_clear(&out);
     // Point_1dim_init
     UA_Server_readValue(server, UA_NODEID_NUMERIC(2, 10004), &out);
-    UA_Point *p = (UA_Point *)out.data;
+    UA_TESTS_TESTNODESET_Point *p = (UA_TESTS_TESTNODESET_Point *)out.data;
     ck_assert(!UA_Variant_isScalar(&out));
     ck_assert(out.arrayLength == 4);
     ck_assert(out.arrayDimensionsSize == 0);    // For 1 dimension arrays, initializing arrayDimensionsSize may confuse some OPC clients.
