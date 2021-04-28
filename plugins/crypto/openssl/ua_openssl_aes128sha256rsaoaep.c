@@ -295,7 +295,7 @@ UA_AsymEn_Aes128Sha256RsaOaep_getRemoteKeyLength(const void *channelContext) {
 }
 
 static UA_StatusCode
-UA_Sym_Aes128Sha256RsaOaep_generateNonce(const UA_SecurityPolicy *sp,
+UA_Sym_Aes128Sha256RsaOaep_generateNonce(void *policyContext,
                                          UA_ByteString *out) {
     UA_Int32 rc = RAND_bytes(out->data, (int)out->length);
     if(rc != 1) {
@@ -317,7 +317,7 @@ UA_SymSig_Aes128Sha256RsaOaep_getLocalKeyLength(const void *channelContext) {
 }
 
 static UA_StatusCode
-UA_Sym_Aes128Sha256RsaOaep_generateKey(const UA_SecurityPolicy *sp,
+UA_Sym_Aes128Sha256RsaOaep_generateKey(void *policyContext,
                                        const UA_ByteString *secret,
                                        const UA_ByteString *seed, UA_ByteString *out) {
     return UA_Openssl_Random_Key_PSHA256_Derive(secret, seed, out);
@@ -363,7 +363,7 @@ UA_SymEn_Aes128Sha256RsaOaep_getRemoteKeyLength(const void *channelContext) {
 }
 
 static size_t
-UA_SymEn_Aes128Sha256RsaOaep_getRemoteBlockSize(const void *channelContext) {
+UA_SymEn_Aes128Sha256RsaOaep_getBlockSize(const void *channelContext) {
     return UA_SECURITYPOLICY_AES128SHA256RSAOAEP_SYM_ENCRYPTION_BLOCK_SIZE;
 }
 
@@ -600,7 +600,8 @@ UA_SecurityPolicy_Aes128Sha256RsaOaep(UA_SecurityPolicy *policy,
         UA_STRING("http://www.w3.org/2001/04/xmlenc#aes128-cbc\0");
     symEncryptionAlgorithm->getLocalKeyLength = UA_SymEn_Aes128Sha256RsaOaep_getLocalKeyLength;
     symEncryptionAlgorithm->getRemoteKeyLength = UA_SymEn_Aes128Sha256RsaOaep_getRemoteKeyLength;
-    symEncryptionAlgorithm->getRemoteBlockSize = UA_SymEn_Aes128Sha256RsaOaep_getRemoteBlockSize;
+    symEncryptionAlgorithm->getRemoteBlockSize = UA_SymEn_Aes128Sha256RsaOaep_getBlockSize;
+    symEncryptionAlgorithm->getRemotePlainTextBlockSize = UA_SymEn_Aes128Sha256RsaOaep_getBlockSize;
     symEncryptionAlgorithm->decrypt = UA_SymEn_Aes128Sha256RsaOaep_decrypt;
     symEncryptionAlgorithm->encrypt = UA_SymEn_Aes128Sha256RsaOaep_encrypt;
 

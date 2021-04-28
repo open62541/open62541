@@ -664,6 +664,10 @@ copyChild(UA_Server *server, UA_Session *session,
          * typechecking is performed here. Assuming that the original is
          * consistent. */
         retval = copyAllChildren(server, session, &rd->nodeId.nodeId, &newNodeId);
+        
+        /* Clean up.  Because it can happen that a string is assigned as ID at 
+         * generateChildNodeId. */
+        UA_NodeId_clear(&newNodeId);
     }
 
     return retval;

@@ -11,6 +11,7 @@
 
 #include <open62541/server_pubsub.h>
 #include "server/ua_server_internal.h"
+#include <open62541/types_generated_encoding_binary.h>
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
@@ -164,13 +165,6 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
                         || writerGroupConfig->messageSettings.content.decoded.type->typeIndex != UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE) ) {
             return UA_STATUSCODE_BADTYPEMISMATCH;
         }
-    }
-
-    /* Regist (bind) the connection channel if it is not already registered */
-    if(!currentConnectionContext->isRegistered) {
-        retVal |= UA_PubSubConnection_regist(server, &currentConnectionContext->identifier);
-        if(retVal != UA_STATUSCODE_GOOD)
-            return retVal;
     }
 
     //allocate memory for new WriterGroup
@@ -338,9 +332,11 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId writ
         }
         UA_NetworkMessage networkMessage;
         memset(&networkMessage, 0, sizeof(networkMessage));
-        UA_StatusCode  res =
-            generateNetworkMessage(pubSubConnection, wg, dsmStore, dsWriterIds, (UA_Byte) dsmCount,
-                                   &wg->config.messageSettings, &wg->config.transportSettings,
+        UA_StatusCode res =
+            generateNetworkMessage(pubSubConnection, wg, dsmStore, dsWriterIds,
+                                   (UA_Byte) dsmCount,
+                                   &wg->config.messageSettings,
+                                   &wg->config.transportSettings,
                                    &networkMessage);
         if(res != UA_STATUSCODE_GOOD)
         {
@@ -361,7 +357,7 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId writ
         wg->bufferedMessage.buffer = buf;
         const UA_Byte *bufEnd = &wg->bufferedMessage.buffer.data[wg->bufferedMessage.buffer.length];
         UA_Byte *bufPos = wg->bufferedMessage.buffer.data;
-        UA_NetworkMessage_encodeBinary(&networkMessage, &bufPos, bufEnd);
+        UA_NetworkMessage_encodeBinary(&networkMessage, &bufPos, bufEnd, NULL);
         
         UA_free(networkMessage.payload.dataSetPayload.sizes);
         /* Clean up DSM */
@@ -1098,6 +1094,42 @@ UA_WriterGroup_findWGbyId(UA_Server *server, UA_NodeId identifier){
     return NULL;
 }
 
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+UA_StatusCode
+UA_Server_setWriterGroupEncryptionKeys(UA_Server *server, const UA_NodeId writerGroup,
+                                       UA_UInt32 securityTokenId,
+                                       const UA_ByteString signingKey,
+                                       const UA_ByteString encryptingKey,
+                                       const UA_ByteString keyNonce) {
+    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
+    if(!wg)
+        return UA_STATUSCODE_BADNOTFOUND;
+
+    if(!wg->config.securityPolicy) {
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "No SecurityPolicy configured for the WriterGroup");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    if(securityTokenId != wg->securityTokenId) {
+        wg->securityTokenId = securityTokenId;
+        wg->nonceSequenceNumber = 1;
+    }
+
+    /* Create a new context */
+    if(!wg->securityPolicyContext) {
+        return wg->config.securityPolicy->
+            newContext(wg->config.securityPolicy->policyContext,
+                       &signingKey, &encryptingKey, &keyNonce,
+                       &wg->securityPolicyContext);
+    }
+
+    /* Update the context */
+    return wg->config.securityPolicy->
+        setSecurityKeys(wg->securityPolicyContext, &signingKey, &encryptingKey, &keyNonce);
+}
+#endif
+
 void
 UA_WriterGroupConfig_clear(UA_WriterGroupConfig *writerGroupConfig){
     //delete writerGroup config
@@ -1129,6 +1161,13 @@ UA_WriterGroup_clear(UA_Server *server, UA_WriterGroup *writerGroup) {
         UA_free(writerGroup->bufferedMessage.offsets);
     }
     UA_NodeId_clear(&writerGroup->identifier);
+
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    if(writerGroup->config.securityPolicy && writerGroup->securityPolicyContext) {
+        writerGroup->config.securityPolicy->deleteContext(writerGroup->securityPolicyContext);
+        writerGroup->securityPolicyContext = NULL;
+    }
+#endif
 }
 
 UA_StatusCode
@@ -1970,22 +2009,53 @@ generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
     networkMessage->promotedFieldsEnabled =
         ((u64)wgm->networkMessageContentMask &
          (u64)UA_UADPNETWORKMESSAGECONTENTMASK_PROMOTEDFIELDS) != 0;
+
+    /* Set the SecurityHeader */
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    if(wg->config.securityMode > UA_MESSAGESECURITYMODE_NONE) {
+        networkMessage->securityEnabled = true;
+        networkMessage->securityHeader.networkMessageSigned = true;
+        if(wg->config.securityMode >= UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+            networkMessage->securityHeader.networkMessageEncrypted = true;
+        networkMessage->securityHeader.securityTokenId = wg->securityTokenId;
+
+        /* Generate the MessageNonce */
+        UA_ByteString_allocBuffer(&networkMessage->securityHeader.messageNonce, 8);
+        if(networkMessage->securityHeader.messageNonce.length == 0)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+
+        networkMessage->securityHeader.messageNonce.length = 4; /* Generate 4 random bytes */
+        UA_StatusCode rv = wg->config.securityPolicy->symmetricModule.
+            generateNonce(wg->config.securityPolicy->policyContext,
+                          &networkMessage->securityHeader.messageNonce);
+        if(rv != UA_STATUSCODE_GOOD)
+            return rv;
+        networkMessage->securityHeader.messageNonce.length = 8;
+        UA_Byte *pos = &networkMessage->securityHeader.messageNonce.data[4];
+        const UA_Byte *end = &networkMessage->securityHeader.messageNonce.data[8];
+        UA_UInt32_encodeBinary(&wg->nonceSequenceNumber, &pos, end);
+    }
+#endif
+
     networkMessage->version = 1;
     networkMessage->networkMessageType = UA_NETWORKMESSAGE_DATASET;
     if(connection->config->publisherIdType == UA_PUBSUB_PUBLISHERID_NUMERIC) {
         networkMessage->publisherIdType = UA_PUBLISHERDATATYPE_UINT16;
-        networkMessage->publisherId.publisherIdUInt32 = connection->config->publisherId.numeric;
-    } else if(connection->config->publisherIdType == UA_PUBSUB_PUBLISHERID_STRING){
+        networkMessage->publisherId.publisherIdUInt32 =
+            connection->config->publisherId.numeric;
+    } else if(connection->config->publisherIdType == UA_PUBSUB_PUBLISHERID_STRING) {
         networkMessage->publisherIdType = UA_PUBLISHERDATATYPE_STRING;
-        networkMessage->publisherId.publisherIdString = connection->config->publisherId.string;
+        networkMessage->publisherId.publisherIdString =
+            connection->config->publisherId.string;
     }
+
     if(networkMessage->groupHeader.sequenceNumberEnabled)
         networkMessage->groupHeader.sequenceNumber = wg->sequenceNumber;
+
     /* Compute the length of the dsm separately for the header */
     UA_UInt16 *dsmLengths = (UA_UInt16 *) UA_calloc(dsmCount, sizeof(UA_UInt16));
     if(!dsmLengths)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-
     for(UA_Byte i = 0; i < dsmCount; i++)
         dsmLengths[i] = (UA_UInt16) UA_DataSetMessage_calcSizeBinary(&dsm[i], NULL, 0);
 
@@ -2017,14 +2087,31 @@ sendNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
                    UA_ExtensionObject *transportSettings) {
     UA_NetworkMessage nm;
     memset(&nm, 0, sizeof(UA_NetworkMessage));
-    generateNetworkMessage(connection, wg, dsm, writerIds, dsmCount,
-                           messageSettings, transportSettings, &nm);
+    UA_StatusCode retval =
+        generateNetworkMessage(connection, wg, dsm, writerIds, dsmCount,
+                               messageSettings, transportSettings, &nm);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ByteString_clear(&nm.securityHeader.messageNonce);
+        UA_free(nm.payload.dataSetPayload.sizes);
+        return retval;
+    }
 
     /* Allocate the buffer. Allocate on the stack if the buffer is small. */
     UA_ByteString buf;
     size_t msgSize = UA_NetworkMessage_calcSizeBinary(&nm, NULL);
+
+    /* Add the overhead for the security signature. There is no padding and the
+     * encryption incurs no size overhead. */
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    if(wg->config.securityMode > UA_MESSAGESECURITYMODE_NONE) {
+        UA_PubSubSecurityPolicy *sp = wg->config.securityPolicy;
+        msgSize += sp->symmetricModule.cryptoModule.
+            signatureAlgorithm.getLocalSignatureSize(sp->policyContext);
+    }
+#endif
+
+    /* Allocate the memory */
     UA_Byte stackBuf[UA_MAX_STACKBUF];
-    UA_StatusCode retval;
     if(msgSize <= UA_MAX_STACKBUF) {
         buf.data = stackBuf;
         buf.length = msgSize;
@@ -2037,13 +2124,27 @@ sendNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
     /* Encode the message */
     UA_Byte *bufPos = buf.data;
     memset(bufPos, 0, msgSize);
-    const UA_Byte *bufEnd = &buf.data[buf.length];
-    retval = UA_NetworkMessage_encodeBinary(&nm, &bufPos, bufEnd);
+    UA_Byte *bufEnd = &buf.data[buf.length];
+    UA_Byte *encryptStart = NULL;
+    retval = UA_NetworkMessage_encodeBinary(&nm, &bufPos, bufEnd, &encryptStart);
     if(retval != UA_STATUSCODE_GOOD) {
         if(msgSize > UA_MAX_STACKBUF)
             UA_ByteString_clear(&buf);
         goto cleanup;
     }
+
+    /* Encrypt the message */
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    retval = UA_NetworkMessage_signEncrypt(&nm, wg->config.securityMode,
+                                           wg->config.securityPolicy,
+                                           wg->securityPolicyContext,
+                                           buf.data, encryptStart, bufPos);
+    if(retval != UA_STATUSCODE_GOOD) {
+        if(msgSize > UA_MAX_STACKBUF)
+            UA_ByteString_clear(&buf);
+        goto cleanup;
+    }
+#endif
 
     /* Send the prepared messages */
     retval = connection->channel->send(connection->channel, transportSettings, &buf);
@@ -2051,6 +2152,7 @@ sendNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
         UA_ByteString_clear(&buf);
 
 cleanup:
+    UA_ByteString_clear(&nm.securityHeader.messageNonce);
     UA_free(nm.payload.dataSetPayload.sizes);
     return retval;
 }

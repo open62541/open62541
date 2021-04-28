@@ -35,7 +35,7 @@ UA_SecureChannel_generateLocalNonce(UA_SecureChannel *channel) {
             return retval;
     }
 
-    return sp->symmetricModule.generateNonce(sp, &channel->localNonce);
+    return sp->symmetricModule.generateNonce(sp->policyContext, &channel->localNonce);
 }
 
 UA_StatusCode
@@ -66,7 +66,8 @@ UA_SecureChannel_generateLocalKeys(const UA_SecureChannel *channel) {
         return UA_STATUSCODE_GOOD;
 
     /* Generate key */
-    retval = sm->generateKey(sp, &channel->remoteNonce, &channel->localNonce, &buf);
+    retval = sm->generateKey(sp->policyContext, &channel->remoteNonce,
+                             &channel->localNonce, &buf);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ByteString_clear(&buf);
         return retval;
@@ -112,7 +113,8 @@ generateRemoteKeys(const UA_SecureChannel *channel) {
         return UA_STATUSCODE_GOOD;
 
     /* Generate key */
-    retval = sm->generateKey(sp, &channel->localNonce, &channel->remoteNonce, &buf);
+    retval = sm->generateKey(sp->policyContext, &channel->localNonce,
+                             &channel->remoteNonce, &buf);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -372,12 +374,9 @@ setBufPos(UA_MessageContext *mc) {
         getLocalSignatureSize(channel->channelContext);
 
     /* The size of the padding depends on the amount of data that shall be sent
-     * and is unknown at this point. Reserve space for the PaddingSize byte,
-     * the maximum amount of Padding which equals the block size of the
-     * symmetric encryption algorithm and last 1 byte for the ExtraPaddingSize
-     * field that is present if the encryption key is larger than 2048 bits.
-     * The actual padding size is later calculated by the function
-     * calculatePaddingSym(). */
+     * and is unknown at this point. Reserve enough space so we know that
+     * signature + padding can still be added. The actual padding size is later
+     * calculated by the function calculatePaddingSym(). */
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
         /* PaddingSize and ExtraPaddingSize fields */
         UA_Boolean extraPadding =
@@ -389,10 +388,16 @@ setBufPos(UA_MessageContext *mc) {
          * cypherTextBlockSize. For symmetric encryption the remote/local block
          * sizes are identical. */
         UA_assert(sp->symmetricModule.cryptoModule.encryptionAlgorithm.
-                  getRemotePlainTextBlockSize(channel->channelContext)
-                  ==
+                  getRemotePlainTextBlockSize(channel->channelContext) ==
                   sp->symmetricModule.cryptoModule.encryptionAlgorithm.
                   getRemoteBlockSize(channel->channelContext));
+
+        /* We need to be able to fill the last block with padding. */
+        size_t plainBlockSize = sp->symmetricModule.cryptoModule.
+            encryptionAlgorithm.getRemoteBlockSize(channel->channelContext);
+        UA_Byte *encryptStart = &mc->messageBuffer.data[UA_SECURECHANNEL_SYMMETRIC_HEADER_UNENCRYPTEDLENGTH];
+        size_t max_blocks = ((uintptr_t)(mc->buf_end - encryptStart)) / plainBlockSize;
+        mc->buf_end = encryptStart + (max_blocks * plainBlockSize);
     }
 #endif
 }

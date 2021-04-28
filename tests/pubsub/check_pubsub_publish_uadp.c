@@ -116,13 +116,17 @@ START_TEST(CheckNMandDSMcalculation){
                                    &dataSetWriterConfig, &dataSetWriterIdent);
     }
 
+    UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, connection1);
+    ck_assert(connection);
+    UA_StatusCode rv = connection->channel->regist(connection->channel, NULL, NULL);
+    ck_assert(rv == UA_STATUSCODE_GOOD);
+
     //change publish interval triggers implicit one publish callback run | alternatively run UA_Server_iterate
     writerGroupConfig.publishingInterval = 100000;
     UA_Server_updateWriterGroupConfig(server, writerGroupIdent, &writerGroupConfig);
 
     UA_ByteString buffer = UA_BYTESTRING("");
     UA_NetworkMessage networkMessage;
-    UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, connection1);
     receiveSingleMessage(buffer, connection, &networkMessage);
     //ck_assert_int_eq(networkMessage.publisherId.publisherIdUInt32 , 62541);
     ck_assert_int_eq(networkMessage.payloadHeader.dataSetPayloadHeader.count, 10);
@@ -278,7 +282,9 @@ START_TEST(CheckSingleDSMRawEncodedMessage){
     }
 
     UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, connection1);
-    ck_assert(connection != NULL);
+    ck_assert(connection);
+    UA_StatusCode rv = connection->channel->regist(connection->channel, NULL, NULL);
+    ck_assert(rv == UA_STATUSCODE_GOOD);
 
     //change publish interval triggers implicit one publish callback run | alternatively run UA_Server_iterate
     writerGroupConfig.publishingInterval = 100000;
