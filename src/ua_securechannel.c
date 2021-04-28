@@ -257,12 +257,8 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel,
 
 /* Will this chunk surpass the capacity of the SecureChannel for the message? */
 static UA_StatusCode
-checkLimitsSym(UA_MessageContext *const mc, size_t *const bodyLength) {
-    UA_Byte *buf_body_start = mc->messageBuffer.data +
-        UA_SECURECHANNEL_SYMMETRIC_HEADER_TOTALLENGTH;
-    const UA_Byte *buf_body_end = mc->buf_pos;
-    *bodyLength = (uintptr_t)buf_body_end - (uintptr_t)buf_body_start;
-    mc->messageSizeSoFar += *bodyLength;
+adjustCheckMessageLimitsSym(UA_MessageContext *mc, size_t bodyLength) {
+    mc->messageSizeSoFar += bodyLength;
     mc->chunksSoFar++;
 
     UA_SecureChannel *channel = mc->channel;
@@ -278,87 +274,95 @@ checkLimitsSym(UA_MessageContext *const mc, size_t *const bodyLength) {
 }
 
 static UA_StatusCode
-encodeHeadersSym(UA_MessageContext *const messageContext, size_t totalLength) {
-    UA_SecureChannel *channel = messageContext->channel;
-    UA_Byte *header_pos = messageContext->messageBuffer.data;
+encodeHeadersSym(UA_MessageContext *mc, size_t totalLength) {
+    UA_SecureChannel *channel = mc->channel;
+    UA_Byte *header_pos = mc->messageBuffer.data;
 
     UA_TcpMessageHeader header;
-    header.messageTypeAndChunkType = messageContext->messageType;
+    header.messageTypeAndChunkType = mc->messageType;
     header.messageSize = (UA_UInt32)totalLength;
-    if(messageContext->final)
+    if(mc->final)
         header.messageTypeAndChunkType += UA_CHUNKTYPE_FINAL;
     else
         header.messageTypeAndChunkType += UA_CHUNKTYPE_INTERMEDIATE;
 
     UA_SequenceHeader seqHeader;
-    seqHeader.requestId = messageContext->requestId;
+    seqHeader.requestId = mc->requestId;
     seqHeader.sequenceNumber = UA_atomic_addUInt32(&channel->sendSequenceNumber, 1);
 
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     res |= UA_encodeBinary(&header, &UA_TRANSPORT[UA_TRANSPORT_TCPMESSAGEHEADER],
-                           &header_pos, &messageContext->buf_end, NULL, NULL);
+                           &header_pos, &mc->buf_end, NULL, NULL);
     res |= UA_encodeBinary(&channel->securityToken.channelId, &UA_TYPES[UA_TYPES_UINT32],
-                           &header_pos, &messageContext->buf_end, NULL, NULL);
+                           &header_pos, &mc->buf_end, NULL, NULL);
     res |= UA_encodeBinary(&channel->securityToken.tokenId, &UA_TYPES[UA_TYPES_UINT32],
-                           &header_pos, &messageContext->buf_end, NULL, NULL);
+                           &header_pos, &mc->buf_end, NULL, NULL);
     res |= UA_encodeBinary(&seqHeader, &UA_TRANSPORT[UA_TRANSPORT_SEQUENCEHEADER],
-                           &header_pos, &messageContext->buf_end, NULL, NULL);
+                           &header_pos, &mc->buf_end, NULL, NULL);
     return res;
 }
 
 static UA_StatusCode
-sendSymmetricChunk(UA_MessageContext *messageContext) {
-    UA_SecureChannel *const channel = messageContext->channel;
-    const UA_SecurityPolicy *securityPolicy = channel->securityPolicy;
-    UA_Connection *const connection = channel->connection;
+sendSymmetricChunk(UA_MessageContext *mc) {
+    UA_SecureChannel *channel = mc->channel;
+    const UA_SecurityPolicy *sp = channel->securityPolicy;
+    UA_Connection *connection = channel->connection;
     if(!connection)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    size_t bodyLength = 0;
-    UA_StatusCode res = checkLimitsSym(messageContext, &bodyLength);
+    /* The size of the message payload */
+    size_t bodyLength = (uintptr_t)mc->buf_pos -
+        (uintptr_t)&mc->messageBuffer.data[UA_SECURECHANNEL_SYMMETRIC_HEADER_TOTALLENGTH];
+
+    /* Early-declare variables so we can use a goto in the error case */
     size_t total_length = 0;
     size_t pre_sig_length = 0;
+
+    /* Check if chunk exceeds the limits for the overall message */
+    UA_StatusCode res = adjustCheckMessageLimitsSym(mc, bodyLength);
     if(res != UA_STATUSCODE_GOOD)
         goto error;
 
 #ifdef UA_ENABLE_ENCRYPTION
     /* Add padding if the message is encrypted */
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
-        padChunk(channel, &channel->securityPolicy->symmetricModule.cryptoModule,
-                 &messageContext->messageBuffer.data[UA_SECURECHANNEL_SYMMETRIC_HEADER_UNENCRYPTEDLENGTH],
-                 &messageContext->buf_pos);
+        padChunk(channel, &sp->symmetricModule.cryptoModule,
+                 &mc->messageBuffer.data[UA_SECURECHANNEL_SYMMETRIC_HEADER_UNENCRYPTEDLENGTH],
+                 &mc->buf_pos);
 #endif
 
-    /* The total message length */
-    pre_sig_length = (uintptr_t)(messageContext->buf_pos) -
-        (uintptr_t)messageContext->messageBuffer.data;
+    /* Compute the total message length */
+    pre_sig_length = (uintptr_t)mc->buf_pos - (uintptr_t)mc->messageBuffer.data;
     total_length = pre_sig_length;
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
-        total_length += securityPolicy->symmetricModule.cryptoModule.signatureAlgorithm.
+        total_length += sp->symmetricModule.cryptoModule.signatureAlgorithm.
             getLocalSignatureSize(channel->channelContext);
+
     /* Space for the padding and the signature have been reserved in setBufPos() */
     UA_assert(total_length <= channel->config.sendBufferSize);
 
-    /* For giving the buffer to the network layer */
-    messageContext->messageBuffer.length = total_length;
+    /* Adjust the buffer size of the network layer */
+    mc->messageBuffer.length = total_length;
 
     /* Generate and encode the header for symmetric messages */
-    res = encodeHeadersSym(messageContext, total_length);
+    res = encodeHeadersSym(mc, total_length);
     if(res != UA_STATUSCODE_GOOD)
         goto error;
 
 #ifdef UA_ENABLE_ENCRYPTION
-    res = signAndEncryptSym(messageContext, pre_sig_length, total_length);
+    /* Sign and encrypt the messge */
+    res = signAndEncryptSym(mc, pre_sig_length, total_length);
     if(res != UA_STATUSCODE_GOOD)
         goto error;
 #endif
 
     /* Send the chunk, the buffer is freed in the network layer */
-    return connection->send(channel->connection, &messageContext->messageBuffer);
+    return connection->send(channel->connection, &mc->messageBuffer);
 
-error:
-    connection->releaseSendBuffer(channel->connection, &messageContext->messageBuffer);
+ error:
+    /* Free the unused message buffer */
+    connection->releaseSendBuffer(channel->connection, &mc->messageBuffer);
     return res;
 }
 
