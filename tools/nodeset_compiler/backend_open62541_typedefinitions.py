@@ -362,6 +362,15 @@ class CGenerator(object):
         return l
 
     def print_header(self):
+        additionalHeaders = ""
+        for arr in set(self.parser.existing_types_array):
+            if arr == "UA_TYPES":
+                continue
+            # remove ua_ prefix if exists
+            typeFile = arr.lower()
+            typeFile = typeFile[typeFile.startswith("ua_") and len("ua_"):]
+            additionalHeaders += """#include "%s_generated.h"\n""" % typeFile
+            
         self.printh('''/* Generated from ''' + self.inname + ''' with script ''' +
                     sys.argv[0] + ''' * on host ''' + platform.uname()[1] + ''' by user ''' +
                     getpass.getuser() + ''' at ''' + time.strftime("%Y-%m-%d %I:%M:%S") + ''' */
@@ -375,6 +384,8 @@ class CGenerator(object):
 #include <open62541/types.h>
 ''' + ('#include <open62541/types_generated.h>\n' if self.parser.outname != "types" else '') + '''
 #endif
+
+''' + (additionalHeaders) + '''
 
 _UA_BEGIN_DECLS
 
