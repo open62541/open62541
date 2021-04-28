@@ -690,6 +690,12 @@ void* fileWriteLatency(void *arg)
     UA_UInt64 csvCount = 0;
     UA_UInt64 write_count_latency = 0;
 
+    static char shell[256];
+    sprintf(shell, "sudo mkdir -p /mnt/ramdisk");
+    system(shell);
+    sprintf(shell, "sudo mount -t tmpfs -o size=1024M tmpfs /mnt/ramdisk");
+    system(shell);
+
     /* Wait for the other threads to start - Once the latency has been computed, write
      * the computed values to the files */
     sleep(8);
@@ -699,7 +705,7 @@ void* fileWriteLatency(void *arg)
         /* For every PACKETS_IN_A_CSV packets, filewrite_latency will be changed and new csv file will be created for writing into it */
         if (rear_latency_copy_fw != filewrite_latency) {
             char csvNameLatency[255];
-            snprintf(csvNameLatency, 255, "latency_%09ld.csv", csvCount);
+            snprintf(csvNameLatency, 255, "/mnt/ramdisk/latency_%09ld.csv", csvCount);
             char *fileRTTData = csvNameLatency;
             fp_capture = fopen(fileRTTData, "w");
             csvCount++;
@@ -772,6 +778,8 @@ void* fileWriteLatency(void *arg)
         usleep(1000);
     }
 
+    sprintf(shell, "sudo umount /mnt/ramdisk");
+    system(shell);
     return (void*)NULL;
 }
 
@@ -779,6 +787,12 @@ void* fileWriteLatencylb(void *arg)
 {
     UA_UInt64 csvCount = 0;
     UA_UInt64 write_count_latency = 0;
+
+    static char shell[256];
+    sprintf(shell, "sudo mkdir -p /mnt/ramdisk");
+    system(shell);
+    sprintf(shell, "sudo mount -t tmpfs -o size=1024M tmpfs /mnt/ramdisk");
+    system(shell);
 
     /* Wait for the other threads to start - Once the latency has been computed, write
      * the computed values to the files */
@@ -789,7 +803,7 @@ void* fileWriteLatencylb(void *arg)
         /* For every PACKETS_IN_A_CSV packets, filewrite_latency will be changed and new csv file will be created for writing into it */
         if (rear_latency_copy_fw != filewrite_latency) {
             char csvNameLatency[255];
-            snprintf(csvNameLatency, 255, "LB_latency_%09ld.csv", csvCount);
+            snprintf(csvNameLatency, 255, "/mnt/ramdisk/LB_latency_%09ld.csv", csvCount);
             char *fileRTTData = csvNameLatency;
             fp_capture = fopen(fileRTTData, "w");
             csvCount++;
@@ -861,6 +875,9 @@ void* fileWriteLatencylb(void *arg)
         /* Sleep for 1ms and and check for the latency computed values to write into the csv */
         usleep(1000);
     }
+
+    sprintf(shell, "sudo umount /mnt/ramdisk");
+    system(shell);
     return (void*)NULL;
 }
 
