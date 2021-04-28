@@ -343,7 +343,7 @@ sendSymmetricChunk(UA_MessageContext *messageContext) {
     /* For giving the buffer to the network layer */
     messageContext->messageBuffer.length = total_length;
 
-    UA_assert(res == UA_STATUSCODE_GOOD);
+    /* Generate and encode the header for symmetric messages */
     res = encodeHeadersSym(messageContext, total_length);
     if(res != UA_STATUSCODE_GOOD)
         goto error;
