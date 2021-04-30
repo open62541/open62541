@@ -225,10 +225,12 @@ hideBytesAsym(const UA_SecureChannel *channel, UA_Byte **buf_start,
     if(channel->securityMode == UA_MESSAGESECURITYMODE_NONE)
         return;
 
-    /* Block sizes depend on the remote key (certificate) */
+    /* Make space for the certificate */
     const UA_SecurityPolicy *sp = channel->securityPolicy;
-    size_t signatureSize = sp->asymmetricModule.cryptoModule.signatureAlgorithm.
+    *buf_end -= sp->asymmetricModule.cryptoModule.signatureAlgorithm.
         getLocalSignatureSize(channel->channelContext);
+
+    /* Block sizes depend on the remote key (certificate) */
     size_t plainTextBlockSize = sp->asymmetricModule.cryptoModule.
         encryptionAlgorithm.getRemotePlainTextBlockSize(channel->channelContext);
     size_t encryptedBlockSize = sp->asymmetricModule.cryptoModule.
@@ -236,14 +238,15 @@ hideBytesAsym(const UA_SecureChannel *channel, UA_Byte **buf_start,
     UA_Boolean extraPadding = (sp->asymmetricModule.cryptoModule.encryptionAlgorithm.
                                getRemoteKeyLength(channel->channelContext) > 2048);
 
-    /* Encrypted plaintext is sequence header + body + padding + signature.
-     * Set buf_end to the worst-case lower bound for the payload body end. */
-    size_t plainTextMaxLength = (size_t)(*buf_end - *buf_start) +
+    /* Compute the maximum number of encrypted blocks that can fit entirely
+     * before the signature. From that compute the maximum usable plaintext
+     * size. */
+    size_t maxEncrypted = (size_t)(*buf_end - *buf_start) +
         UA_SECURECHANNEL_SEQUENCEHEADER_LENGTH;
-    size_t max_blocks = plainTextMaxLength / plainTextBlockSize;
-    size_t max_overhead = max_blocks * (encryptedBlockSize - plainTextBlockSize);
+    size_t max_blocks = maxEncrypted / encryptedBlockSize;
     size_t paddingBytes = (UA_LIKELY(!extraPadding)) ? 1u : 2u;
-    *buf_end -= max_overhead + paddingBytes + signatureSize;
+    *buf_end = *buf_start + (max_blocks * plainTextBlockSize) -
+        UA_SECURECHANNEL_SEQUENCEHEADER_LENGTH - paddingBytes;
 #endif
 }
 
