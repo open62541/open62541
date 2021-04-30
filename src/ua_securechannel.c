@@ -323,6 +323,13 @@ sendSymmetricChunk(UA_MessageContext *mc) {
     if(res != UA_STATUSCODE_GOOD)
         goto error;
 
+    UA_LOG_TRACE_CHANNEL(sp->logger, channel,
+                         "Send from a symmetric message buffer of length %lu "
+                         "a message of header+payload length of %lu",
+                         (long unsigned int)mc->messageBuffer.length,
+                         (long unsigned int)
+                         ((uintptr_t)mc->buf_pos - (uintptr_t)mc->messageBuffer.data));
+
 #ifdef UA_ENABLE_ENCRYPTION
     /* Add padding if the message is encrypted */
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
@@ -338,6 +345,12 @@ sendSymmetricChunk(UA_MessageContext *mc) {
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
         total_length += sp->symmetricModule.cryptoModule.signatureAlgorithm.
             getLocalSignatureSize(channel->channelContext);
+
+    UA_LOG_TRACE_CHANNEL(sp->logger, channel,
+                         "Send from a symmetric message buffer of length %lu "
+                         "a message of length %lu",
+                         (long unsigned int)mc->messageBuffer.length,
+                         (long unsigned int)total_length);
 
     /* Space for the padding and the signature have been reserved in setBufPos() */
     UA_assert(total_length <= channel->config.sendBufferSize);
