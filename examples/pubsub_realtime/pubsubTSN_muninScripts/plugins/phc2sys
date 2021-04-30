@@ -81,10 +81,6 @@ fi
 max=-999999999
 min=999999999
 
-if [ -s /var/log/phc2sys.log ]; then
-        exit
-fi
-
 for i in `tail -300 /var/log/phc2sys.log | tr -s " " | cut -d" " -f5`
 do
   if test $i -lt $min 2>/dev/null

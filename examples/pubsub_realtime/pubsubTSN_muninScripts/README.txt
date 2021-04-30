@@ -6,7 +6,7 @@ This repository is for archiving the Munin scripts.
         su
     2. Run the below command to install the munin scripts
         chmod +x setup.sh
-        ./setup.sh -i <interface_name> -d <directory_name>
+        ./munin_setup.sh -i <interface_name> -d <directory_name>
         Options:
         -i     i210 interface name
         -d     directory where the latency csv files of PubSub application are generated (Provide absolute path)

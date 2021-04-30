@@ -18,6 +18,7 @@
 # Global Variable - constant                                                  #
 ###############################################################################
 INTERFACE=${0##*/tc_qdisc_statistics_compute_}
+MQPRIO_NUM=`sudo tc qdisc show | grep "$INTERFACE" | grep "mqprio" | cut -d ':' -f1 | cut -d ' ' -f3`
 
 if test -z "$MQPRIO_NUM"; then
     exit 0

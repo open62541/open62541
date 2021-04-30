@@ -88,12 +88,6 @@ sent_packet=`cat $statisticsFile | tr -s " " | cut -d" " -f1`
 dropped_packet=`cat $statisticsFile | tr -s " " | cut -d" " -f2`
 overlimits=`cat $statisticsFile | tr -s " " | cut -d" " -f3`
 
-if [ -s "$statisticsFile" ]; then
-        sent_packet=`cat $statisticsFile | tr -s " " | cut -d" " -f2`
-        dropped_packet=`cat $statisticsFile | tr -s " " | cut -d" " -f4`
-        overlimits=`cat $statisticsFile | tr -s " " | cut -d" " -f6`
-
-        echo "sentPackets.value $sent_packet"
-        echo "droppedPackets.value $dropped_packet"
-        echo "overlimits.value $overlimits"
-fi
+echo "sentPackets.value $sent_packet"
+echo "droppedPackets.value $dropped_packet"
+echo "overlimits.value $overlimits"

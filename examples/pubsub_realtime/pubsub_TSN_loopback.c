@@ -68,6 +68,7 @@
 #include <linux/types.h>
 #include <sys/io.h>
 #include <getopt.h>
+#include <execinfo.h>
 
 /* For thread operations */
 #include <pthread.h>
@@ -125,7 +126,7 @@ UA_DataSetReaderConfig readerConfig;
 /* Milli sec and sec conversion to nano sec */
 #define             MILLI_SECONDS                         1000 * 1000
 #define             SECONDS                               1000 * 1000 * 1000
-#define             SECONDS_SLEEP                         5
+#define             SECONDS_SLEEP                         47
 #if defined(PUBLISHER)
 /* Publisher will sleep for 60% of cycle time and then prepares the */
 /* transmission packet within 40% */
@@ -148,6 +149,7 @@ static UA_Double  userAppWakeupPercentage = 0.3;
 #define             DEFAULT_SUB_CORE                        2
 #define             DEFAULT_USER_APP_CORE                   3
 #define             SECONDS_INCREMENT                       1
+#define             MAXFRAMES                               20
 #ifndef CLOCK_TAI
 #define             CLOCK_TAI                               11
 #endif
@@ -177,7 +179,7 @@ UA_Byte keyNonceSub[UA_AES128CTR_KEYNONCE_LENGTH] = {0};
  */
 
 /* Set server running as true */
-UA_Boolean        runningServer           = UA_TRUE;
+UA_Boolean        runningServer        = UA_TRUE;
 
 char*             pubMacAddress        = DEFAULT_PUBLISHING_MAC_ADDRESS;
 char*             subMacAddress        = DEFAULT_SUBSCRIBING_MAC_ADDRESS;
@@ -200,7 +202,7 @@ static UA_Boolean enableBlockingSocket = UA_FALSE;
 static UA_Boolean signalTerm           = UA_FALSE;
 static UA_Boolean enableXdpSubscribe   = UA_FALSE;
 static UA_Boolean enableLongRunMeas    = UA_FALSE;
-struct timespec subDataProcessResultime;
+extern struct timespec subDataProcessResultime;
 
 /* Variables corresponding to PubSub connection creation,
  * published data set and writer group */
@@ -227,6 +229,17 @@ UA_Boolean          *runningSub = NULL;
 UA_DataValue        *runningSubDataValueRT =  NULL;
 UA_UInt64           *subRepeatedCounterData[REPEATED_NODECOUNTS] = {NULL};
 UA_DataValue        *subRepeatedDataValueRT[REPEATED_NODECOUNTS] = {NULL};
+
+// Parameters needed to change the cores
+char shell[256]              = {0};
+FILE* filePointer            = NULL;
+char var[255]                = {0};
+int pidOfApp                 = 0;
+int pidOfPubThread           = 0;
+int pidOfSubThread           = 0;
+int pidOfUserAppThread       = 0;
+int pidOfLatencyComputation  = 0;
+int pidOfLatencyFileWrite    = 0;
 
 struct timespec pubResultime;
 struct timespec userResultime;
@@ -331,6 +344,7 @@ void missedRepeatedCounter_callback(UA_Server *server, const UA_NodeId *readerId
 static void stopHandler(int sign) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
     signalTerm = UA_TRUE;
+
     if(enableLongRunMeas)
         printQueueDepth();
 }
@@ -1124,10 +1138,7 @@ void *subscriber(void *arg) {
     UA_ServerCallback subCallback;
     struct timespec   nextnanosleeptimeSub;
     struct timespec   actualsubthreadtime;
-    struct timespec   currenttime;
     UA_UInt64         subInterval_ns;
-    UA_UInt64         currenttime_in_ns;
-    UA_UInt64         nextnanosleeptimeSub_in_ns;
 
     threadArg *threadArgumentsSubscriber = (threadArg *)arg;
     server             = threadArgumentsSubscriber->server;
@@ -1151,24 +1162,17 @@ void *subscriber(void *arg) {
     nanoSecondFieldConversion(&nextnanosleeptimeSub);
     while (*runningSub) {
         /* The Subscriber threads wakes up at the configured subscriber wake up percentage (0%) of each cycle */
-        clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptimeSub, NULL);
-        /* Read subscribed data from the SubscriberCounter variable */
-        clock_gettime(CLOCKID, &actualsubthreadtime);
-        /* Compute jitter with difference between publisher thread start time and computed publisher thread start time */
-        timespec_diff(&nextnanosleeptimeSub, &actualsubthreadtime, &subThreadJitter);
+        if (enableBlockingSocket != UA_TRUE) {
+            clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptimeSub, NULL);
+            /* Read subscribed data from the SubscriberCounter variable */
+            clock_gettime(CLOCKID, &actualsubthreadtime);
+            /* Compute jitter with difference between publisher thread start time and computed publisher thread start time */
+            timespec_diff(&nextnanosleeptimeSub, &actualsubthreadtime, &subThreadJitter);
+        }
+
         subCallback(server, currentReaderGroup);
 
-        clock_gettime(CLOCKID, &currenttime);
-        currenttime_in_ns = (UA_UInt64)timespec_to_ns(&currenttime);
-        nextnanosleeptimeSub_in_ns = (UA_UInt64)timespec_to_ns(&nextnanosleeptimeSub);
-        if(currenttime_in_ns > (nextnanosleeptimeSub_in_ns + subInterval_ns))
-        {
-            UA_UInt64 nextsleeptime = (currenttime_in_ns + subInterval_ns) - ((currenttime_in_ns - nextnanosleeptimeSub_in_ns) % subInterval_ns);
-            nextnanosleeptimeSub.tv_sec = (__time_t)(nextsleeptime / 1000000000);
-            nextnanosleeptimeSub.tv_nsec = (__syscall_slong_t)(nextsleeptime % 1000000000);
-        }
-        else
-        {
+        if (enableBlockingSocket != UA_TRUE) {
             nextnanosleeptimeSub.tv_nsec += (__syscall_slong_t)subInterval_ns;
             nanoSecondFieldConversion(&nextnanosleeptimeSub);
         }
@@ -1302,7 +1306,7 @@ static pthread_t threadCreation(UA_Int16 threadPriority, size_t coreAffinity, vo
     pthread_t           threadID;
     struct sched_param  schedParam;
     UA_Int32         returnValue         = 0;
-    UA_Int32         errorSetAffinity    = 0;
+    //UA_Int32         errorSetAffinity    = 0;
     /* Return the ID for thread */
     threadID = pthread_self();
     schedParam.sched_priority = threadPriority;
@@ -1316,12 +1320,12 @@ static pthread_t threadCreation(UA_Int16 threadPriority, size_t coreAffinity, vo
                 "\npthread_setschedparam:%s Thread priority is %d \n", \
                 applicationName, schedParam.sched_priority);
     CPU_ZERO(&cpuset);
-    CPU_SET(coreAffinity, &cpuset);
+    /*CPU_SET(coreAffinity, &cpuset);
     errorSetAffinity = pthread_setaffinity_np(threadID, sizeof(cpu_set_t), &cpuset);
     if (errorSetAffinity) {
         fprintf(stderr, "pthread_setaffinity_np: %s\n", strerror(errorSetAffinity));
         exit(1);
-    }
+    }*/
 
     returnValue = pthread_create(&threadID, NULL, thread, serverConfig);
     if (returnValue != 0)
@@ -1508,6 +1512,8 @@ static void usage(char *appname)
 int main(int argc, char **argv) {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
+    signal(SIGSEGV, stopHandler);
+    signal(SIGFPE, stopHandler);
 
     UA_Int32         returnValue         = 0;
     UA_StatusCode    retval              = UA_STATUSCODE_GOOD;
@@ -1651,6 +1657,12 @@ int main(int argc, char **argv) {
             UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,"Flag enableXdpSubscribe is false, running application without XDP");
     }
 
+    int cpu_dma_latency = open("/dev/cpu_dma_latency", O_WRONLY);
+    if (write(cpu_dma_latency, "0", 1) != 1) {
+         perror("Could not disable sleep stages");
+         return -1;
+    }
+
     UA_ServerConfig_setMinimal(config, PORT_NUMBER, NULL);
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
@@ -1761,6 +1773,79 @@ if (enableCsvLog)
         latencyComputationID               = threadCreation(22, 3, latency_computation_lb, threadNameComputation, cycleTime);
     }
 
+    /* ToDo: Code needs to be optimised */
+    // Move the application to core 2
+    snprintf(shell, sizeof(shell), "ps -aux | grep \"[p]ubsub_TSN\" | awk '{print $2}'");
+    filePointer = popen(shell ,"r");
+    fgets(var, sizeof(var), filePointer);
+    pidOfApp = atoi(var);
+    fclose(filePointer);
+    if (pidOfApp > 0)
+    {
+        snprintf(shell, sizeof(shell), "/bin/echo %d > /cpuset/com/tasks", pidOfApp);
+        system(shell);
+    }
+
+    // Move the publisher to core 2
+    snprintf(shell, sizeof(shell), "top -H -bn 1 | grep pubsub | grep -w %d | awk '{print $1}'", (DEFAULT_PUB_SCHED_PRIORITY+1));
+    filePointer = popen(shell ,"r");
+    fgets(var, sizeof(var), filePointer);
+    pidOfPubThread = atoi(var);
+    fclose(filePointer);
+    if (pidOfPubThread > 0)
+    {
+        snprintf(shell, sizeof(shell), "/bin/echo %d > /cpuset/com/tasks", pidOfPubThread);
+        system(shell);
+    }
+
+    // Move the subscriber to core 2
+    snprintf(shell, sizeof(shell), "top -H -bn 1 | grep pubsub | grep -w %d | awk '{print $1}'", (DEFAULT_SUB_SCHED_PRIORITY+1));
+    filePointer = popen(shell ,"r");
+    fgets(var, sizeof(var), filePointer);
+    pidOfSubThread = atoi(var);
+    fclose(filePointer);
+    if (pidOfSubThread > 0)
+    {
+        snprintf(shell, sizeof(shell), "/bin/echo %d > /cpuset/com/tasks", pidOfSubThread);
+        system(shell);
+    }
+
+    // Move the user application to core 3
+    snprintf(shell, sizeof(shell), "top -H -bn 1 | grep pubsub | grep -w %d | awk '{print $1}'", (DEFAULT_USERAPPLICATION_SCHED_PRIORITY+1));
+    filePointer = popen(shell ,"r");
+    fgets(var, sizeof(var), filePointer);
+    pidOfUserAppThread = atoi(var);
+    fclose(filePointer);
+    if (pidOfUserAppThread > 0)
+    {
+        snprintf(shell, sizeof(shell), "/bin/echo %d > /cpuset/user/tasks", pidOfUserAppThread);
+        system(shell);
+    }
+
+    // Move the latency computation to core 3
+    snprintf(shell, sizeof(shell), "top -H -bn 1 | grep pubsub | grep -w 23 | grep -v %d | awk '{print $1}'", pidOfApp);
+    filePointer = popen(shell ,"r");
+    fgets(var, sizeof(var), filePointer);
+    pidOfLatencyComputation = atoi(var);
+    fclose(filePointer);
+    if (pidOfLatencyComputation > 0)
+    {
+        snprintf(shell, sizeof(shell), "/bin/echo %d > /cpuset/user/tasks", pidOfLatencyComputation);
+        system(shell);
+    }
+
+    // Move the latency file write to core 3
+    snprintf(shell, sizeof(shell), "top -H -bn 1 | grep pubsub | grep -w 21 | awk '{print $1}'");
+    filePointer = popen(shell ,"r");
+    fgets(var, sizeof(var), filePointer);
+    pidOfLatencyFileWrite = atoi(var);
+    fclose(filePointer);
+    if (pidOfLatencyFileWrite > 0)
+    {
+        snprintf(shell, sizeof(shell), "/bin/echo %d > /cpuset/user/tasks", pidOfLatencyFileWrite);
+        system(shell);
+    }
+
     retval |= UA_Server_run(server, &runningServer);
 #if defined(SUBSCRIBER)
     UA_Server_unfreezeReaderGroupConfiguration(server, readerGroupIdentifier);
@@ -1811,6 +1896,7 @@ if (enableCsvLog)
     removeServerNodes(server);
     UA_Server_delete(server);
     UA_free(serverConfig);
+    close(cpu_dma_latency);
 #endif
 
 #if defined(PUBLISHER)

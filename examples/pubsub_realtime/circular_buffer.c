@@ -113,7 +113,7 @@ struct publishMeasurementlb{
     /* Array to store user  Thread Jitter */
     struct timespec     userThreadJitter[MAX_MEASUREMENTS];
     /* Array to store subscriber data process timestamp */
-    struct timespec     subscribeDataProcessTimestamp[MAX_MEASUREMENTS];    
+    struct timespec     subscribeDataProcessTimestamp[MAX_MEASUREMENTS];
 } publb;
 
 size_t measurementsLRPublisher = 0;
@@ -395,7 +395,7 @@ void* latency_computation(void *arg) {
 
     /* Variable to nano Sleep - start computation after 7 seconds as publisher and subscriber
      * starts at 5 seconds. Provide time lapse for publisher and subscriber to transfer packets */
-    nextnanosleeptime_latency.tv_sec  += 7;
+    nextnanosleeptime_latency.tv_sec  += 49;
     nextnanosleeptime_latency.tv_nsec = (__syscall_slong_t)(((*(UA_Double *)interval_ns)) * 0.6);
     nsFieldConversion(&nextnanosleeptime_latency);
 
@@ -579,7 +579,7 @@ void* latency_computation_lb(void *arg) {
 
     /* Variable to nano Sleep - start computation after 7 seconds as publisher and subscriber
      * starts at 5 seconds. Provide time lapse for publisher and subscriber to transfer packets */
-    nextnanosleeptime_latency.tv_sec  += 7;
+    nextnanosleeptime_latency.tv_sec  += 49;
     nextnanosleeptime_latency.tv_nsec = (__syscall_slong_t)(((*(UA_Double *)interval_ns)) * 0.6);
     nsFieldConversion(&nextnanosleeptime_latency);
 
@@ -607,7 +607,10 @@ void* latency_computation_lb(void *arg) {
         /* Write the current time, latency value, missed counters and repeated counters to the latency circular queue using sprintf function */
         if (((rear_latency - rear_latency_copy) + rear_latency) < MAX_MEASUREMENTS_FW) {
             rear_latency_copy = rear_latency;
-            rear_latency += (UA_UInt64)sprintf(&latency_measurements[rear_latency], " %0.3f, %0.3f, %0.3f, %0.3f, %0.3f\n", pub_execution_time_in_us, user_execution_time_in_us, sub_thread_jitter_in_us, pub_thread_jitter_in_us, user_thread_jitter_in_us);
+            rear_latency += (UA_UInt64)sprintf(&latency_measurements[rear_latency], " %0.3f, %0.3f, %0.3f, %0.3f, %0.3f, %0.3f\n",
+                                               pub_execution_time_in_us, user_execution_time_in_us, sub_thread_jitter_in_us,
+                                               pub_thread_jitter_in_us, user_thread_jitter_in_us,
+                                               subscriber_data_process_execution_time_in_us);
             computational_index++;
             rear_latency_diff = (rear_latency - rear_latency_copy);
         }
@@ -617,7 +620,10 @@ void* latency_computation_lb(void *arg) {
              * memory which leads to seg fault. So there needs a separation in the copy of the buffer i.e., the buffer to be copied into the circular buffer
              * will be stored into the local buffer at first. This buffer will be copied to the circular buffer up to the end of MAX_MEASUREMENTS.
              * Then the remaining buffer will be copied into the start of the the circular buffer from the index 0 */
-            local_buffer_count += (UA_UInt64)sprintf(&local_buffer[local_buffer_count], "%0.3f, %0.3f, %0.3f, %0.3f, %0.3f\n", pub_execution_time_in_us, user_execution_time_in_us, sub_thread_jitter_in_us, pub_thread_jitter_in_us, user_thread_jitter_in_us);
+            local_buffer_count += (UA_UInt64)sprintf(&local_buffer[local_buffer_count], " %0.3f, %0.3f, %0.3f, %0.3f, %0.3f, %0.3f\n",
+                                                     pub_execution_time_in_us, user_execution_time_in_us, sub_thread_jitter_in_us,
+                                                     pub_thread_jitter_in_us, user_thread_jitter_in_us,
+                                                     subscriber_data_process_execution_time_in_us);
             for (index = 0; index < local_buffer_count; index++)
             {
                 if (rear_latency < MAX_MEASUREMENTS_FW)
@@ -693,12 +699,12 @@ void* fileWriteLatency(void *arg)
     static char shell[256];
     sprintf(shell, "sudo mkdir -p /mnt/ramdisk");
     system(shell);
-    sprintf(shell, "sudo mount -t tmpfs -o size=1024M tmpfs /mnt/ramdisk");
+    sprintf(shell, "sudo mount -t tmpfs -o size=200M tmpfs /mnt/ramdisk");
     system(shell);
 
     /* Wait for the other threads to start - Once the latency has been computed, write
      * the computed values to the files */
-    sleep(8);
+    sleep(50);
     while(runningFilethread)
     {
         FILE *fp_capture;
@@ -791,12 +797,12 @@ void* fileWriteLatencylb(void *arg)
     static char shell[256];
     sprintf(shell, "sudo mkdir -p /mnt/ramdisk");
     system(shell);
-    sprintf(shell, "sudo mount -t tmpfs -o size=1024M tmpfs /mnt/ramdisk");
+    sprintf(shell, "sudo mount -t tmpfs -o size=200M tmpfs /mnt/ramdisk");
     system(shell);
 
     /* Wait for the other threads to start - Once the latency has been computed, write
      * the computed values to the files */
-    sleep(8);
+    sleep(50);
     while(runningFilethread)
     {
         FILE *fp_capture;

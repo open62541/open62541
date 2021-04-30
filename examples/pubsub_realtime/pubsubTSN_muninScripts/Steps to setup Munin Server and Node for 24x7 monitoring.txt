@@ -6,7 +6,7 @@ Note: Perform all the steps mentioned in this document as a root user
    Setup a Munin Master Webserver in one of the systems in the office network which is accessible to both the nodes connected in a peer-to-peer manner.
 
 	1.1 Install Apache2 server and dependency packages:	    
- 	            sudo apt-get install -y apache2 libcgi-fast-perl libapache2-mod-fcgid
+	            sudo apt-get install -y apache2 libcgi-fast-perl libapache2-mod-fcgid
 
 	1.2 Check the fcgid module status
 	    After installing the dependency packages, the fcgid module shall be enabled. Double-check using the command

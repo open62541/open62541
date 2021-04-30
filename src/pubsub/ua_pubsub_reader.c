@@ -36,7 +36,7 @@
 #endif
 #define             CLOCKID                                 CLOCK_TAI
 
-extern struct timespec subDataProcessResultime;
+struct timespec subDataProcessResultime;
 struct timespec subscriberDataProcessStartTime;
 
 /* Static memory allocation for the message nonce */

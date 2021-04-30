@@ -92,10 +92,6 @@ done
 max=-999999999
 min=999999999
 
-if [ -s /var/log/ptp4l.log ]; then
-        exit
-fi
-
 for i in `tail -n +$linetostart /var/log/ptp4l.log | tr -s " " | cut -d" " -f4`
 do
   if test $i -lt $min
