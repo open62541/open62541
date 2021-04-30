@@ -399,6 +399,13 @@ setBufPos(UA_MessageContext *mc) {
         size_t max_blocks = ((uintptr_t)(mc->buf_end - encryptStart)) / plainBlockSize;
         mc->buf_end = encryptStart + (max_blocks * plainBlockSize);
     }
+
+    UA_LOG_TRACE_CHANNEL(sp->logger, channel,
+                         "Prepare a symmetric message buffer of length %lu "
+                         "with a usable maximum payload length of %lu",
+                         (long unsigned int)mc->messageBuffer.length,
+                         (long unsigned int)
+                         ((uintptr_t)mc->buf_end - (uintptr_t)mc->messageBuffer.data));
 #endif
 }
 
