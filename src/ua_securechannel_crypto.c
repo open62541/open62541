@@ -259,10 +259,16 @@ padChunk(UA_SecureChannel *channel, const UA_SecurityPolicyCryptoModule *cm,
     size_t plainTextBlockSize = cm->encryptionAlgorithm.
         getRemotePlainTextBlockSize(channel->channelContext);
     UA_Boolean extraPadding = (cm->encryptionAlgorithm.
-                               getRemoteKeyLength(channel->channelContext) > 2048);
+        getRemoteKeyLength(channel->channelContext) > 2048);
     size_t paddingBytes = (UA_LIKELY(!extraPadding)) ? 1u : 2u;
-    size_t paddingLength = plainTextBlockSize -
-        ((bytesToWrite + signatureSize + paddingBytes) % plainTextBlockSize);
+
+    size_t lastBlock = ((bytesToWrite + signatureSize + paddingBytes) % plainTextBlockSize);
+    size_t paddingLength = (lastBlock != 0) ? plainTextBlockSize - lastBlock : 0;
+
+    UA_LOG_TRACE_CHANNEL(channel->securityPolicy->logger, channel,
+                         "Add %lu bytes of padding plus %lu padding size bytes",
+                         (long unsigned int)paddingLength,
+                         (long unsigned int)paddingBytes);
 
     /* Write the padding. This is <= because the paddingSize byte also has to be
      * written */
@@ -365,39 +371,27 @@ setBufPos(UA_MessageContext *mc) {
 
     const UA_SecureChannel *channel = mc->channel;
     const UA_SecurityPolicy *sp = channel->securityPolicy;
-
-    /* Reserve space for the message footer at the end of the chunk if the chunk
-     * is signed and/or encrypted. The footer includes the fields PaddingSize,
-     * Padding, ExtraPadding and Signature. The padding fields are only present
-     * if the chunk is encrypted. */
-    mc->buf_end -= sp->symmetricModule.cryptoModule.signatureAlgorithm.
+    size_t sigsize = sp->symmetricModule.cryptoModule.signatureAlgorithm.
         getLocalSignatureSize(channel->channelContext);
+    size_t plainBlockSize = sp->symmetricModule.cryptoModule.
+        encryptionAlgorithm.getRemotePlainTextBlockSize(channel->channelContext);
 
-    /* The size of the padding depends on the amount of data that shall be sent
-     * and is unknown at this point. Reserve enough space so we know that
-     * signature + padding can still be added. The actual padding size is later
-     * calculated by the function calculatePaddingSym(). */
+    /* Assuming that for symmetric encryption the plainTextBlockSize ==
+     * cypherTextBlockSize. For symmetric encryption the remote/local block
+     * sizes are identical. */
+    UA_assert(sp->symmetricModule.cryptoModule.encryptionAlgorithm.
+              getRemoteBlockSize(channel->channelContext) == plainBlockSize);
+
+    /* Leave enough space for the signature and padding */
+    mc->buf_end -= sigsize;
+    mc->buf_end -= mc->messageBuffer.length % plainBlockSize;
+
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
-        /* PaddingSize and ExtraPaddingSize fields */
+        /* Reserve space for the padding bytes */
         UA_Boolean extraPadding =
             (sp->symmetricModule.cryptoModule.encryptionAlgorithm.
              getRemoteKeyLength(channel->channelContext) > 2048);
         mc->buf_end -= (UA_LIKELY(!extraPadding)) ? 1 : 2;
-
-        /* Assuming that for symmetric encryption the plainTextBlockSize ==
-         * cypherTextBlockSize. For symmetric encryption the remote/local block
-         * sizes are identical. */
-        UA_assert(sp->symmetricModule.cryptoModule.encryptionAlgorithm.
-                  getRemotePlainTextBlockSize(channel->channelContext) ==
-                  sp->symmetricModule.cryptoModule.encryptionAlgorithm.
-                  getRemoteBlockSize(channel->channelContext));
-
-        /* We need to be able to fill the last block with padding. */
-        size_t plainBlockSize = sp->symmetricModule.cryptoModule.
-            encryptionAlgorithm.getRemoteBlockSize(channel->channelContext);
-        UA_Byte *encryptStart = &mc->messageBuffer.data[UA_SECURECHANNEL_SYMMETRIC_HEADER_UNENCRYPTEDLENGTH];
-        size_t max_blocks = ((uintptr_t)(mc->buf_end - encryptStart)) / plainBlockSize;
-        mc->buf_end = encryptStart + (max_blocks * plainBlockSize);
     }
 
     UA_LOG_TRACE_CHANNEL(sp->logger, channel,
