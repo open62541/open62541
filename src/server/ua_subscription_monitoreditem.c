@@ -58,6 +58,7 @@ createEventOverflowNotification(UA_Server *server, UA_Subscription *sub,
     /* Set the notification fields */
     overflowNotification->isOverflowEvent = true;
     overflowNotification->mon = mon;
+    overflowNotification->data.event.clientHandle = mon->parameters.clientHandle;
     overflowNotification->data.event.eventFields = UA_Variant_new();
     if(!overflowNotification->data.event.eventFields) {
         UA_free(overflowNotification);
