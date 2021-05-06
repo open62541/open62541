@@ -23,14 +23,8 @@ excluded_types = [
     # NodeId Types
     "NodeIdType", "TwoByteNodeId", "FourByteNodeId", "NumericNodeId", "StringNodeId", "GuidNodeId", "ByteStringNodeId",
     # Node Types
-    "InstanceNode", "TypeNode", "Node", "ObjectNode", "ObjectTypeNode", "VariableNode", "VariableTypeNode", "ReferenceTypeNode",
-    "MethodNode", "ViewNode", "DataTypeNode",
-    # Misc
-    "NumericRangeDimensions",
-    # Diagnostics Types
-    "UA_ServerDiagnosticsSummaryDataType", "UA_SamplingIntervalDiagnosticsDataType",
-    "UA_SessionSecurityDiagnosticsDataType", "UA_SubscriptionDiagnosticsDataType",
-    "UA_SessionDiagnosticsDataType"]
+    "InstanceNode", "TypeNode", "Node", "ObjectNode", "ObjectTypeNode", "VariableNode",
+    "VariableTypeNode", "ReferenceTypeNode", "MethodNode", "ViewNode", "DataTypeNode"]
 
 rename_types = {"NumericRange": "OpaqueNumericRange"}
 
