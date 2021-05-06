@@ -363,7 +363,7 @@ class CGenerator(object):
 
     def print_header(self):
         additionalHeaders = ""
-        for arr in set(self.parser.existing_types_array):
+        for arr in self.parser.existing_types_array:
             if arr == "UA_TYPES":
                 continue
             # remove ua_ prefix if exists
