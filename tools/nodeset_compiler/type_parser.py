@@ -18,12 +18,18 @@ builtin_types = ["Boolean", "SByte", "Byte", "Int16", "UInt16", "Int32", "UInt32
                  "QualifiedName", "LocalizedText", "ExtensionObject", "DataValue",
                  "Variant", "DiagnosticInfo"]
 
-excluded_types = ["NodeIdType", "InstanceNode", "TypeNode", "Node", "ObjectNode",
-                  "ObjectTypeNode", "VariableNode", "VariableTypeNode", "ReferenceTypeNode",
-                  "MethodNode", "ViewNode", "DataTypeNode", "NumericRangeDimensions",
-                  "UA_ServerDiagnosticsSummaryDataType", "UA_SamplingIntervalDiagnosticsDataType",
-                  "UA_SessionSecurityDiagnosticsDataType", "UA_SubscriptionDiagnosticsDataType",
-                  "UA_SessionDiagnosticsDataType"]
+excluded_types = [
+    # NodeId Types
+    "NodeIdType", "TwoByteNodeId", "FourByteNodeId", "NumericNodeId", "StringNodeId", "GuidNodeId", "ByteStringNodeId",
+    # Node Types
+    "InstanceNode", "TypeNode", "Node", "ObjectNode", "ObjectTypeNode", "VariableNode", "VariableTypeNode", "ReferenceTypeNode",
+    "MethodNode", "ViewNode", "DataTypeNode",
+    # Misc
+    "NumericRangeDimensions",
+    # Diagnostics Types
+    "UA_ServerDiagnosticsSummaryDataType", "UA_SamplingIntervalDiagnosticsDataType",
+    "UA_SessionSecurityDiagnosticsDataType", "UA_SubscriptionDiagnosticsDataType",
+    "UA_SessionDiagnosticsDataType"]
 
 rename_types = {"NumericRange": "OpaqueNumericRange"}
 
@@ -265,8 +271,6 @@ class TypeParser():
         def skipType(name):
             "Ignore the type? According to the blacklist and regex rules"
             if name in excluded_types:
-                return True
-            if re.search("NodeId$", name) != None:
                 return True
             return False
 
