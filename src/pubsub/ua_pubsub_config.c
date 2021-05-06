@@ -256,8 +256,8 @@ UA_PubSubManager_createComponentsForConnection(UA_Server *server, const UA_PubSu
 static UA_Boolean
 UA_PubSubManager_transportLayerExists(UA_Server *server, UA_String transportProfileUri) {
     UA_Boolean tlExists= UA_FALSE;
-    for(UA_UInt32 tlIndex=0; tlIndex < server->config.pubsubTransportLayersSize; tlIndex++) {
-        if(UA_String_equal(&server->config.pubsubTransportLayers[tlIndex].transportProfileUri, &transportProfileUri)) {
+    for(UA_UInt32 tlIndex=0; tlIndex < server->config.pubSubConfig.transportLayersSize; tlIndex++) {
+        if(UA_String_equal(&server->config.pubSubConfig.transportLayers[tlIndex].transportProfileUri, &transportProfileUri)) {
             tlExists = UA_TRUE;
             break;
         }
@@ -301,19 +301,22 @@ UA_PubSubManager_createTransportLayer(UA_Server *server, const UA_String transpo
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     } while(0);
 
-    if(config->pubsubTransportLayersSize > 0) {
-        config->pubsubTransportLayers = (UA_PubSubTransportLayer *) UA_realloc(config->pubsubTransportLayers,
-                                                                    (config->pubsubTransportLayersSize + 1) * sizeof(UA_PubSubTransportLayer));
+    if(config->pubSubConfig.transportLayersSize > 0) {
+        config->pubSubConfig.transportLayers = (UA_PubSubTransportLayer *)
+            UA_realloc(config->pubSubConfig.transportLayers,
+                       (config->pubSubConfig.transportLayersSize + 1) *
+                       sizeof(UA_PubSubTransportLayer));
     } else {
-        config->pubsubTransportLayers = (UA_PubSubTransportLayer *) UA_calloc(1, sizeof(UA_PubSubTransportLayer));
+        config->pubSubConfig.transportLayers = (UA_PubSubTransportLayer *)
+            UA_calloc(1, sizeof(UA_PubSubTransportLayer));
     }
 
-    if(config->pubsubTransportLayers == NULL) {
+    if(config->pubSubConfig.transportLayers == NULL) {
         UA_Server_delete(server);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
-    config->pubsubTransportLayers[config->pubsubTransportLayersSize] = tl;
-    config->pubsubTransportLayersSize++;
+    config->pubSubConfig.transportLayers[config->pubSubConfig.transportLayersSize] = tl;
+    config->pubSubConfig.transportLayersSize++;
     return UA_STATUSCODE_GOOD;
 }
 

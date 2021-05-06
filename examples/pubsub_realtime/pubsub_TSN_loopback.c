@@ -1491,26 +1491,12 @@ if (enableCsvLog)
     fpSubscriber                  = fopen(fileSubscribedData, "w");
 #endif
 
-#if defined(PUBLISHER) && defined(SUBSCRIBER)
-/* Details about the connection configuration and handling are located in the pubsub connection tutorial */
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer *)
-                                     UA_malloc(2 * sizeof(UA_PubSubTransportLayer));
-#else
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer *)
-                                     UA_malloc(sizeof(UA_PubSubTransportLayer));
-#endif
-    if (!config->pubsubTransportLayers) {
-        UA_Server_delete(server);
-        return EXIT_FAILURE;
-    }
-
 /* It is possible to use multiple PubSubTransportLayers on runtime.
  * The correct factory is selected on runtime by the standard defined
  * PubSub TransportProfileUri's.
  */
 #if defined (PUBLISHER)
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerEthernet();
-    config->pubsubTransportLayersSize++;
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
 #endif
 
     /* Server is the new OPCUA model which has both publisher and subscriber configuration */
@@ -1527,13 +1513,11 @@ if (enableCsvLog)
 #endif
 
 #if defined (PUBLISHER) && defined(SUBSCRIBER)
-    config->pubsubTransportLayers[1] = UA_PubSubTransportLayerEthernet();
-    config->pubsubTransportLayersSize++;
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
 #endif
 
 #if defined(SUBSCRIBER) && !defined(PUBLISHER)
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerEthernet();
-    config->pubsubTransportLayersSize++;
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
 #endif
 
 #if defined(SUBSCRIBER)

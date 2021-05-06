@@ -53,6 +53,25 @@ function build_release {
     make ${MAKEOPTS}
 }
 
+######################
+# Build Amalgamation #
+######################
+
+function build_amalgamation {
+    mkdir -p build; cd build; rm -rf *
+    cmake -DCMAKE_BUILD_TYPE=Debug \
+          -DUA_ENABLE_AMALGAMATION=ON \
+          -DUA_ENABLE_DISCOVERY=ON \
+          -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
+          -DUA_ENABLE_JSON_ENCODING=ON \
+          -DUA_ENABLE_PUBSUB=ON \
+          -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
+          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=OFF \
+          -DUA_ENABLE_PUBSUB_MONITORING=ON \
+          ..
+    make ${MAKEOPTS}
+}
+
 ############################
 # Build and Run Unit Tests #
 ############################

@@ -22,8 +22,34 @@
 
 _UA_BEGIN_DECLS
 
-#define UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH 12
-#define UA_SECURE_MESSAGE_HEADER_LENGTH 24
+/* The message header of the OPC UA binary protocol is structured as follows:
+ *
+ * - MessageType (3 Byte)
+ * - IsFinal (1 Byte)
+ * - MessageSize (4 Byte)
+ * *** UA_SECURECHANNEL_MESSAGEHEADER_LENGTH ***
+ * - SecureChannelId (4 Byte)
+ * *** UA_SECURECHANNEL_CHANNELHEADER_LENGTH ***
+ * - SecurityHeader (4 Byte TokenId for symmetric, otherwise dynamic length)
+ * - SequenceHeader (8 Byte)
+ *   - SequenceNumber
+ *   - RequestId
+ */
+
+#define UA_SECURECHANNEL_MESSAGEHEADER_LENGTH 8
+#define UA_SECURECHANNEL_CHANNELHEADER_LENGTH 12
+#define UA_SECURECHANNEL_SYMMETRIC_SECURITYHEADER_LENGTH 4
+#define UA_SECURECHANNEL_SEQUENCEHEADER_LENGTH 8
+#define UA_SECURECHANNEL_SYMMETRIC_HEADER_UNENCRYPTEDLENGTH \
+    (UA_SECURECHANNEL_CHANNELHEADER_LENGTH +                \
+     UA_SECURECHANNEL_SYMMETRIC_SECURITYHEADER_LENGTH)
+#define UA_SECURECHANNEL_SYMMETRIC_HEADER_TOTALLENGTH   \
+    (UA_SECURECHANNEL_CHANNELHEADER_LENGTH +            \
+    UA_SECURECHANNEL_SYMMETRIC_SECURITYHEADER_LENGTH +  \
+     UA_SECURECHANNEL_SEQUENCEHEADER_LENGTH)
+
+/* Minimum length of a valid message (ERR message with an empty reason) */
+#define UA_SECURECHANNEL_MESSAGE_MIN_LENGTH 16
 
 /* Thread-local variables to force failure modes during testing */
 #ifdef UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
@@ -284,10 +310,7 @@ void
 setBufPos(UA_MessageContext *mc);
 
 UA_StatusCode
-checkSymHeader(UA_SecureChannel *channel, const UA_SymmetricAlgorithmSecurityHeader *symHeader);
-
-UA_StatusCode
-processSequenceNumberAsym(UA_SecureChannel *channel, UA_UInt32 sequenceNumber);
+checkSymHeader(UA_SecureChannel *channel, const UA_UInt32 tokenId);
 
 UA_StatusCode
 checkAsymHeader(UA_SecureChannel *channel,
@@ -303,10 +326,8 @@ signAndEncryptAsym(UA_SecureChannel *channel, size_t preSignLength,
                    size_t totalLength);
 
 UA_StatusCode
-signChunkSym(UA_MessageContext *const messageContext, size_t preSigLength);
-
-UA_StatusCode
-encryptChunkSym(UA_MessageContext *const messageContext, size_t totalLength);
+signAndEncryptSym(UA_MessageContext *messageContext,
+                  size_t preSigLength, size_t totalLength);
 
 /**
  * Log Helper
