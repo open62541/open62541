@@ -1448,7 +1448,7 @@ UA_Server_initPubSubNS0(UA_Server *server) {
     lifeCycle.destructor = readerGroupTypeDestructor;
     UA_Server_setNodeTypeLifecycle(server, UA_NODEID_NUMERIC(0, UA_NS0ID_READERGROUPTYPE), lifeCycle);
     lifeCycle.destructor = dataSetWriterTypeDestructor;
-    UA_Server_setNodeTypeLifecycle(server, UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETWRITERDATATYPE), lifeCycle);
+    UA_Server_setNodeTypeLifecycle(server, UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETWRITERTYPE), lifeCycle);
     lifeCycle.destructor = publishedDataItemsTypeDestructor;
     UA_Server_setNodeTypeLifecycle(server, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHEDDATAITEMSTYPE), lifeCycle);
     lifeCycle.destructor = dataSetReaderTypeDestructor;
