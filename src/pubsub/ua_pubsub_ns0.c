@@ -156,6 +156,22 @@ onRead(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
         }
         break;
     }
+    case UA_NS0ID_DATASETWRITERTYPE: {
+        UA_DataSetWriter *dataSetWriter = UA_DataSetWriter_findDSWbyId(server, *myNodeId);
+        if(!dataSetWriter)
+            return;
+
+        switch(nodeContext->elementClassiefier) {
+            case UA_NS0ID_DATASETWRITERTYPE_DATASETWRITERID:
+                UA_Variant_setScalar(&value, &dataSetWriter->config.dataSetWriterId,
+                                     &UA_TYPES[UA_TYPES_UINT16]);
+                break;
+            default:
+                UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                               "Read error! Unknown property.");
+        }
+        break;
+    }
     case UA_NS0ID_PUBLISHEDDATAITEMSTYPE: {
         UA_PublishedDataSet *publishedDataSet = UA_PublishedDataSet_findPDSbyId(server, *myNodeId);
         if(!publishedDataSet)
@@ -1043,6 +1059,37 @@ addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWrite
                                      UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETTOWRITER),
                                      UA_EXPANDEDNODEID_NUMERIC(0, dataSetWriter->identifier.identifier.numeric), true);
 
+    UA_NodeId dataSetWriterIdNode =
+        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetWriterId"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                            UA_NODEID_NUMERIC(0, dataSetWriter->identifier.identifier.numeric));
+    UA_NodeId keyFrameNode =
+        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "KeyFrameCount"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                            UA_NODEID_NUMERIC(0, dataSetWriter->identifier.identifier.numeric));
+    UA_NodeId dataSetFieldContentMaskNode =
+        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetFieldContentMask"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                            UA_NODEID_NUMERIC(0, dataSetWriter->identifier.identifier.numeric));
+
+    UA_NodePropertyContext *dataSetWriterIdContext = (UA_NodePropertyContext *) UA_malloc(sizeof(UA_NodePropertyContext));
+    dataSetWriterIdContext->parentNodeId = dataSetWriter->identifier;
+    dataSetWriterIdContext->parentClassifier = UA_NS0ID_DATASETWRITERTYPE;
+    dataSetWriterIdContext->elementClassiefier = UA_NS0ID_DATASETWRITERTYPE_DATASETWRITERID;
+    UA_ValueCallback valueCallback;
+    valueCallback.onRead = onRead;
+    valueCallback.onWrite = NULL;
+    retVal |= addVariableValueSource(server, valueCallback,
+                                     dataSetWriterIdNode, dataSetWriterIdContext);
+
+    UA_Variant value;
+    UA_Variant_init(&value);
+    UA_Variant_setScalar(&value, &dataSetWriter->config.dataSetWriterId, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_Server_writeValue(server, dataSetWriterIdNode, value);
+    UA_Variant_setScalar(&value, &dataSetWriter->config.keyFrameCount, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Server_writeValue(server, keyFrameNode, value);
+    UA_Variant_setScalar(&value, &dataSetWriter->config.dataSetFieldContentMask, &UA_TYPES[UA_TYPES_DATASETFIELDCONTENTMASK]);
+    UA_Server_writeValue(server, dataSetFieldContentMaskNode, value);
 
     retVal |= addPubSubObjectNode(server, "MessageSettings", 0,
                                   dataSetWriter->identifier.identifier.numeric,
@@ -1159,6 +1206,13 @@ dataSetWriterTypeDestructor(UA_Server *server,
                             const UA_NodeId *typeId, void *typeContext,
                             const UA_NodeId *nodeId, void **nodeContext) {
     UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_USERLAND, "DataSetWriter destructor called!");
+    UA_NodeId dataSetWriterIdNode;
+    dataSetWriterIdNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetWriterId"),
+                                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), *nodeId);
+    UA_NodePropertyContext *internalDSWContext;
+    UA_Server_getNodeContext(server, dataSetWriterIdNode, (void **) &internalDSWContext);
+    if(!UA_NodeId_equal(&UA_NODEID_NULL, &dataSetWriterIdNode))
+        UA_free(internalDSWContext);
 }
 
 static void
@@ -1394,7 +1448,7 @@ UA_Server_initPubSubNS0(UA_Server *server) {
     lifeCycle.destructor = readerGroupTypeDestructor;
     UA_Server_setNodeTypeLifecycle(server, UA_NODEID_NUMERIC(0, UA_NS0ID_READERGROUPTYPE), lifeCycle);
     lifeCycle.destructor = dataSetWriterTypeDestructor;
-    UA_Server_setNodeTypeLifecycle(server, UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETWRITERDATATYPE), lifeCycle);
+    UA_Server_setNodeTypeLifecycle(server, UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETWRITERTYPE), lifeCycle);
     lifeCycle.destructor = publishedDataItemsTypeDestructor;
     UA_Server_setNodeTypeLifecycle(server, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHEDDATAITEMSTYPE), lifeCycle);
     lifeCycle.destructor = dataSetReaderTypeDestructor;
