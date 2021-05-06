@@ -18,6 +18,7 @@ builtin_types = ["Boolean", "SByte", "Byte", "Int16", "UInt16", "Int32", "UInt32
                  "QualifiedName", "LocalizedText", "ExtensionObject", "DataValue",
                  "Variant", "DiagnosticInfo"]
 
+# DataTypes that are ignored/not generated
 excluded_types = [
     # NodeId Types
     "NodeIdType", "TwoByteNodeId", "FourByteNodeId", "NumericNodeId", "StringNodeId", "GuidNodeId", "ByteStringNodeId",
@@ -268,12 +269,6 @@ class TypeParser():
                         unknowns.append(child.get("TypeName"))
             return unknowns
 
-        def skipType(name):
-            "Ignore the type? According to the blacklist and regex rules"
-            if name in excluded_types:
-                return True
-            return False
-
         def structWithOptionalFields(element):
             "Is this a structure with optional fields?"
             opt_fields = []
@@ -341,7 +336,7 @@ class TypeParser():
                                    "Opc.Ua.Types.bsd'")
             detectLoop = len(snippets)
             for name, typeXml in list(snippets.items()):
-                if (targetNamespace in self.types and name in self.types[targetNamespace]) or skipType(name):
+                if (targetNamespace in self.types and name in self.types[targetNamespace]) or name in excluded_types:
                     del snippets[name]
                     continue
                 if not typeReady(typeXml, self.types, xmlNamespaces):
