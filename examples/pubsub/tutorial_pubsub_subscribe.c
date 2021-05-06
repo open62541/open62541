@@ -292,18 +292,9 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
      * The TransportLayer is acting as factory to create new connections
      * on runtime. Details about the PubSubTransportLayer can be found inside the
      * tutorial_pubsub_connection */
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer *)
-        UA_calloc(2, sizeof(UA_PubSubTransportLayer));
-    if(!config->pubsubTransportLayers) {
-        UA_Server_delete(server);
-        return EXIT_FAILURE;
-    }
-
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerUDPMP();
-    config->pubsubTransportLayersSize++;
-#if defined (UA_ENABLE_PUBSUB_ETH_UADP)
-    config->pubsubTransportLayers[1] = UA_PubSubTransportLayerEthernet();
-    config->pubsubTransportLayersSize++;
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
+#ifdef UA_ENABLE_PUBSUB_ETH_UADP
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
 #endif
 
     /* API calls */

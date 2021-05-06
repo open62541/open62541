@@ -36,14 +36,10 @@ static void setup(void) {
     server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
 
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer*)
-        UA_malloc(sizeof(UA_PubSubTransportLayer));
-    assert(config->pubsubTransportLayers != 0);
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerUDPMP();
-    config->pubsubTransportLayersSize++;
-
-    assert(UA_STATUSCODE_GOOD == UA_Server_run_startup(server));
+    UA_StatusCode res = UA_Server_run_startup(server);
+    assert(UA_STATUSCODE_GOOD == res);
 }
 
 /***************************************************************************************************/
@@ -355,7 +351,7 @@ START_TEST(Test_basic) {
 
     UA_ServerConfig *config = UA_Server_getConfig(server);
     /* set custom callback triggered for specific PubSub state changes */
-    config->pubsubConfiguration->pubsubStateChangeCallback = PubSubStateChangeCallback_basic;
+    config->pubSubConfig.stateChangeCallback = PubSubStateChangeCallback_basic;
 
     /* Connection 1: Writer 1  --> Connection 2: Reader 1 */
 
@@ -602,8 +598,8 @@ START_TEST(Test_different_timeouts) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "prepare configuration");
 
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    /* set custom callback triggered for specific PubSub state changes */
-    config->pubsubConfiguration->pubsubStateChangeCallback = PubSubStateChangeCallback_different_timeouts;
+   /* set custom callback triggered for specific PubSub state changes */
+    config->pubSubConfig.stateChangeCallback = PubSubStateChangeCallback_different_timeouts;
 
     /* setup Connection 1 */
     UA_NodeId ConnId_1;
@@ -779,7 +775,7 @@ START_TEST(Test_wrong_timeout) {
 
     UA_ServerConfig *config = UA_Server_getConfig(server);
     /* set custom callback triggered for specific PubSub state changes */
-    config->pubsubConfiguration->pubsubStateChangeCallback = PubSubStateChangeCallback_wrong_timeout;
+    config->pubSubConfig.stateChangeCallback = PubSubStateChangeCallback_wrong_timeout;
 
     /* setup Connection 1 */
     UA_NodeId ConnId_1;
@@ -911,7 +907,7 @@ START_TEST(Test_many_components) {
 
     UA_ServerConfig *config = UA_Server_getConfig(server);
     /* set custom callback triggered for specific PubSub state changes */
-    config->pubsubConfiguration->pubsubStateChangeCallback = PubSubStateChangeCallback_many_components;
+    config->pubSubConfig.stateChangeCallback = PubSubStateChangeCallback_many_components;
 
     /* setup Connection 1: writers */
     UA_NodeId ConnId_1;
@@ -1314,7 +1310,7 @@ START_TEST(Test_update_config) {
 
     UA_ServerConfig *config = UA_Server_getConfig(server);
     /* set custom callback triggered for specific PubSub state changes */
-    config->pubsubConfiguration->pubsubStateChangeCallback = PubSubStateChangeCallback_update_config;
+    config->pubSubConfig.stateChangeCallback = PubSubStateChangeCallback_update_config;
     CallbackCnt = 0;
 
     /* Connection 1: Writer 1  --> Reader 1 */

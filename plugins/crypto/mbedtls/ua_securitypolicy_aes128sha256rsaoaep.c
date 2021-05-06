@@ -347,26 +347,20 @@ sym_decrypt_sp_aes128sha256rsaoaep(const Aes128Sha256PsaOaep_ChannelContext *cc,
 }
 
 static UA_StatusCode
-sym_generateKey_sp_aes128sha256rsaoaep(const UA_SecurityPolicy *securityPolicy,
-                                       const UA_ByteString *secret, const UA_ByteString *seed,
-                                       UA_ByteString *out) {
-    if(securityPolicy == NULL || secret == NULL || seed == NULL || out == NULL)
+sym_generateKey_sp_aes128sha256rsaoaep(void *policyContext, const UA_ByteString *secret,
+                                       const UA_ByteString *seed, UA_ByteString *out) {
+    if(secret == NULL || seed == NULL || out == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-
-    Aes128Sha256PsaOaep_PolicyContext *pc =
-        (Aes128Sha256PsaOaep_PolicyContext *)securityPolicy->policyContext;
-
+    Aes128Sha256PsaOaep_PolicyContext *pc = (Aes128Sha256PsaOaep_PolicyContext *)policyContext;
     return mbedtls_generateKey(&pc->sha256MdContext, secret, seed, out);
 }
 
 static UA_StatusCode
-sym_generateNonce_sp_aes128sha256rsaoaep(const UA_SecurityPolicy *securityPolicy,
-                                         UA_ByteString *out) {
-    if(securityPolicy == NULL || securityPolicy->policyContext == NULL || out == NULL)
+sym_generateNonce_sp_aes128sha256rsaoaep(void *policyContext, UA_ByteString *out) {
+    if(out == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-
     Aes128Sha256PsaOaep_PolicyContext *pc =
-        (Aes128Sha256PsaOaep_PolicyContext *)securityPolicy->policyContext;
+        (Aes128Sha256PsaOaep_PolicyContext *)policyContext;
     int mbedErr = mbedtls_ctr_drbg_random(&pc->drbgContext, out->data, out->length);
     if(mbedErr)
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
