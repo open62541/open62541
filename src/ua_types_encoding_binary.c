@@ -38,6 +38,8 @@
 /* Part 6 §5.1.5: Decoders shall support at least 100 nesting levels */
 #define UA_ENCODING_MAX_RECURSION 100
 
+UA_THREAD_LOCAL UA_Boolean UA_borrowDecoding = false;
+
 typedef struct {
     /* Pointers to the current and last buffer position */
     u8 *pos;
@@ -480,12 +482,29 @@ Array_decodeBinary(void *UA_RESTRICT *UA_RESTRICT dst, size_t *out_length,
         return UA_STATUSCODE_GOOD;
     }
 
-    /* Filter out arrays that can obviously not be decoded, because the message
-     * is too small for the array length. This prevents the allocation of very
-     * long arrays for bogus messages.*/
+    /* Check the length */
     size_t length = (size_t)signed_length;
-    if(ctx->pos + ((type->memSize * length) / 32) > ctx->end)
+    if(type->overlayable) {
+        if(ctx->end < ctx->pos + (type->memSize * length)) {
+            *dst = NULL;
+            return UA_STATUSCODE_BADDECODINGERROR;
+        }
+
+#ifdef UA_ENABLE_BORROW_DECODING
+        /* Borrow the array instead of copying it */
+        if(UA_borrowDecoding) {
+            *dst = ctx->pos;
+            *out_length = length;
+            ctx->pos += type->memSize * length;
+            return UA_STATUSCODE_GOOD;
+        }
+#endif
+    } else if(ctx->pos + ((type->memSize * length) / 32) > ctx->end) {
+        /* Filter out arrays that can obviously not be decoded, because the message
+         * is too small for the array length. This prevents the allocation of very
+         * long arrays for bogus messages.*/
         return UA_STATUSCODE_BADDECODINGERROR;
+    }
 
     /* Allocate memory */
     *dst = UA_calloc(length, type->memSize);
@@ -494,11 +513,6 @@ Array_decodeBinary(void *UA_RESTRICT *UA_RESTRICT dst, size_t *out_length,
 
     if(type->overlayable) {
         /* memcpy overlayable array */
-        if(ctx->end < ctx->pos + (type->memSize * length)) {
-            UA_free(*dst);
-            *dst = NULL;
-            return UA_STATUSCODE_BADDECODINGERROR;
-        }
         memcpy(*dst, ctx->pos, type->memSize * length);
         ctx->pos += type->memSize * length;
     } else {
@@ -1078,6 +1092,19 @@ Variant_decodeBinaryUnwrapExtensionObject(UA_Variant *dst, Ctx *ctx) {
         UA_NodeId_clear(&typeId);
     }
 
+#ifdef UA_ENABLE_BORROW_DECODING
+    /* Borrow the memory from the message buffer. Set the variant to _noDelete.
+     * So no special handling is required for the cleanup. */
+    if(dst->type->overlayable && UA_borrowDecoding) {
+        if(ctx->pos + dst->type->memSize > ctx->end)
+            return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+        dst->data = ctx->pos;
+        dst->storageType = UA_VARIANT_DATA_NODELETE;
+        ctx->pos += dst->type->memSize;
+        return UA_STATUSCODE_GOOD;
+    }
+#endif
+
     /* Allocate memory */
     dst->data = UA_new(dst->type);
     if(!dst->data)
@@ -1123,15 +1150,32 @@ DECODE_BINARY(Variant) {
     /* Decode the content */
     dst->type = &UA_TYPES[typeKind];
     if(isArray) {
+        /* Decode an array */
         ret = Array_decodeBinary(&dst->data, &dst->arrayLength, dst->type, ctx);
     } else if(typeKind != UA_DATATYPEKIND_EXTENSIONOBJECT) {
-        dst->data = UA_new(dst->type);
-        if(!dst->data) {
-            ctx->depth--;
-            return UA_STATUSCODE_BADOUTOFMEMORY;
+        /* Decode a builtin type */
+#ifdef UA_ENABLE_BORROW_DECODING
+        if(dst->type->overlayable && UA_borrowDecoding) {
+            /* Borrow the memory from the message buffer. Set the variant to
+             * _noDelete. So no special handling is required for the cleanup. */
+            if(ctx->pos + dst->type->memSize > ctx->end)
+                return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+            dst->data = ctx->pos;
+            dst->storageType = UA_VARIANT_DATA_NODELETE;
+            ctx->pos += dst->type->memSize;
+        } else
+#endif
+        {
+            /* Allocate memory and decode */
+            dst->data = UA_new(dst->type);
+            if(!dst->data) {
+                ctx->depth--;
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+            }
+            ret = decodeBinaryJumpTable[typeKind](dst->data, dst->type, ctx);
         }
-        ret = decodeBinaryJumpTable[typeKind](dst->data, dst->type, ctx);
     } else {
+        /* Unwrap an ExtensionObject */
         ret = Variant_decodeBinaryUnwrapExtensionObject(dst, ctx);
     }
 

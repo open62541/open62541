@@ -552,7 +552,7 @@ START_TEST(idOrderGuid) {
 } END_TEST
 
 START_TEST(idOrderString) {
-    UA_NodeId id_str_a = UA_NODEID_STRING(1, "aaaaa");
+    UA_NodeId id_str_a = UA_NODEID_STRING(1, "aa");
     UA_NodeId id_str_b = UA_NODEID_STRING(1, "baa");
 
     ck_assert(UA_NodeId_order(&id_str_a, &id_str_a) == UA_ORDER_EQ);

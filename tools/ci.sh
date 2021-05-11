@@ -108,6 +108,27 @@ function unit_tests_mt {
     make test ARGS="-V"
 }
 
+# Don't use borrow-decoding
+# For example on compilers without thread-local storage (like tcc)
+function unit_tests_no_borrow {
+    mkdir -p build; cd build; rm -rf *
+    cmake -DCMAKE_BUILD_TYPE=Debug \
+          -DUA_BUILD_EXAMPLES=ON \
+          -DUA_BUILD_UNIT_TESTS=ON \
+          -DUA_ENABLE_DISCOVERY=ON \
+          -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
+          -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
+          -DUA_ENABLE_JSON_ENCODING=ON \
+          -DUA_ENABLE_PUBSUB=ON \
+          -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
+          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=OFF \
+          -DUA_ENABLE_PUBSUB_MONITORING=ON \
+          -DUA_ENABLE_BORROW_DECODING=OFF \
+          ..
+    make ${MAKEOPTS}
+    make test ARGS="-V"
+}
+
 function unit_tests_encryption_mbedtls {
     mkdir -p build; cd build; rm -rf *
     cmake -DCMAKE_BUILD_TYPE=Debug \

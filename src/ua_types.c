@@ -19,6 +19,7 @@
 #include <open62541/types_generated.h>
 #include <open62541/types_generated_handling.h>
 
+#include "ua_types_encoding_binary.h"
 #include "ua_util_internal.h"
 #include "libc_time.h"
 #include "pcg_basic.h"
@@ -385,18 +386,15 @@ UA_NodeId_order(const UA_NodeId *n1, const UA_NodeId *n2) {
         break;
     case UA_NODEIDTYPE_STRING:
     case UA_NODEIDTYPE_BYTESTRING: {
-        size_t minLength = UA_MIN(n1->identifier.string.length, n2->identifier.string.length);
+        if(n1->identifier.string.length != n2->identifier.string.length)
+            return n1->identifier.string.length < n2->identifier.string.length
+                ? UA_ORDER_LESS : UA_ORDER_MORE;
         int cmp = strncmp((const char*)n1->identifier.string.data,
                           (const char*)n2->identifier.string.data,
-                          minLength);
+                          n1->identifier.string.length);
         if(cmp < 0)
             return UA_ORDER_LESS;
         if(cmp > 0)
-            return UA_ORDER_MORE;
-
-        if(n1->identifier.string.length < n2->identifier.string.length)
-            return UA_ORDER_LESS;
-        if(n1->identifier.string.length > n2->identifier.string.length)
             return UA_ORDER_MORE;
         break;
     }
@@ -589,16 +587,20 @@ Variant_clear(UA_Variant *p, const UA_DataType *_) {
         return;
 
     /* Delete the value */
-    if(p->type && p->data > UA_EMPTY_ARRAY_SENTINEL) {
-        if(p->arrayLength == 0)
-            p->arrayLength = 1;
+    if(UA_Variant_isScalar(p))
+        UA_delete(p->data, p->type);
+    else if(p->data)
         UA_Array_delete(p->data, p->arrayLength, p->type);
-        p->data = NULL;
-    }
+    p->arrayLength = 0;
+    p->data = NULL;
 
     /* Delete the array dimensions */
-    if((void*)p->arrayDimensions > UA_EMPTY_ARRAY_SENTINEL)
-        UA_free(p->arrayDimensions);
+    if((void*)p->arrayDimensions > UA_EMPTY_ARRAY_SENTINEL) {
+        UA_Array_delete(p->arrayDimensions, p->arrayDimensionsSize,
+                        &UA_TYPES[UA_TYPES_UINT32]);
+        p->arrayDimensions = NULL;
+        p->arrayDimensionsSize = 0;
+    }
 }
 
 static UA_StatusCode
@@ -1244,8 +1246,10 @@ clearStructure(void *p, const UA_DataType *type) {
         } else { /* field is optional */
             if(!m->isArray) {
                 /* optional scalar field is contained */
-                if((*(void *const *)ptr != NULL))
-                    UA_Array_delete(*(void **)ptr, 1, mt);
+                if((*(void *const *)ptr != NULL)) {
+                    clearJumpTable[mt->typeKind](*(void **)ptr, mt);
+                    UA_free(*(void **)ptr);
+                }
                 ptr += sizeof(void *);
             } else {
                 /* optional array field is contained */
@@ -1359,17 +1363,18 @@ UA_Array_copy(const void *src, size_t size,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* calloc, so we don't have to check retval in every iteration of copying */
-    *dst = UA_calloc(size, type->memSize);
-    if(!*dst)
+    void *tmp = UA_calloc(size, type->memSize);
+    if(!tmp)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     if(type->pointerFree) {
-        memcpy(*dst, src, type->memSize * size);
+        memcpy(tmp, src, type->memSize * size);
+        *dst = tmp;
         return UA_STATUSCODE_GOOD;
     }
 
     uintptr_t ptrs = (uintptr_t)src;
-    uintptr_t ptrd = (uintptr_t)*dst;
+    uintptr_t ptrd = (uintptr_t)tmp;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < size; ++i) {
         retval |= UA_copy((void*)ptrs, (void*)ptrd, type);
@@ -1377,14 +1382,20 @@ UA_Array_copy(const void *src, size_t size,
         ptrd += type->memSize;
     }
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_Array_delete(*dst, size, type);
-        *dst = NULL;
+        UA_Array_delete(tmp, size, type);
+        return retval;
     }
-    return retval;
+    *dst = tmp;
+    return UA_STATUSCODE_GOOD;
 }
 
 void
 UA_Array_delete(void *p, size_t size, const UA_DataType *type) {
+#ifdef UA_ENABLE_BORROW_DECODING
+    /* The array is borrowed from the message buffer */
+    if(type->overlayable && UA_borrowDecoding)
+        return;
+#endif
     if(!type->pointerFree) {
         uintptr_t ptr = (uintptr_t)p;
         for(size_t i = 0; i < size; ++i) {

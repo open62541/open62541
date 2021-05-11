@@ -36,6 +36,19 @@ void UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const co
                                 UA_ByteString *messageBuffer);
 #endif
 
+/* Borrow overlayable arrays. They will point to the message buffer from the
+ * decoded message */
+#ifdef UA_ENABLE_BORROW_DECODING
+#define UA_WITH_BORROW_DECODING(code) do {                      \
+    UA_Boolean oldBorrowDecoding = UA_borrowDecoding;           \
+    UA_borrowDecoding = true;                                   \
+    code;                                                       \
+    UA_borrowDecoding = oldBorrowDecoding;                      \
+} while(false)
+#else
+#define UA_WITH_BORROW_DECODING(code) code
+#endif
+
 /********************/
 /* Helper Functions */
 /********************/
@@ -668,9 +681,11 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     }
     UA_assert(responseType);
 
-    /* Decode the request */
+    /* Decode the request with borrowing overlayable arrays from the message buffer */
     UA_Request request;
-    retval = UA_decodeBinary(msg, &offset, &request, requestType, server->config.customDataTypes);
+    UA_WITH_BORROW_DECODING(
+       retval = UA_decodeBinary(msg, &offset, &request, requestType,
+                                server->config.customDataTypes));
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG_CHANNEL(&server->config.logger, channel,
                              "Could not decode the request with StatusCode %s",
@@ -689,7 +704,8 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
             if(server->config.verifyRequestTimestamp <= UA_RULEHANDLING_ABORT) {
                 retval = sendServiceFault(channel, requestId, requestHeader->requestHandle,
                                           responseType, UA_STATUSCODE_BADINVALIDTIMESTAMP);
-                UA_clear(&request, requestType);
+                /* Clear up without deleting borrowed arrays */
+                UA_WITH_BORROW_DECODING(UA_clear(&request, requestType));
                 return retval;
             }
         }
@@ -713,8 +729,8 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
                                &response, responseType, sessionRequired);
 
     /* Clean up */
-    UA_clear(&request, requestType);
     UA_clear(&response, responseType);
+    UA_WITH_BORROW_DECODING(UA_clear(&request, requestType));
     return retval;
 }
 

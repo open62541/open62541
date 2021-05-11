@@ -65,6 +65,14 @@ UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *dst,
                 const UA_DataType *type, const UA_DataTypeArray *customTypes)
     UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
+/* Global (thread-local) flag to indicate whether overlayable types should point
+ * to the message buffer or be copied to heap-allocated memory. Note that (byte)
+ * strings are always overlayable and can be borrowed. Integers depend on the
+ * endianness. */
+#ifdef UA_ENABLE_BORROW_DECODING
+extern UA_THREAD_LOCAL UA_Boolean UA_borrowDecoding;
+#endif
+
 /* Returns the number of bytes the value p takes in binary encoding. Returns
  * zero if an error occurs. UA_calcSizeBinary is thread-safe and reentrant since
  * it does not access global (thread-local) variables. */

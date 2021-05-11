@@ -562,8 +562,8 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
 }
 
 static void
-Operation_Read(UA_Server *server, UA_Session *session, UA_ReadRequest *request,
-               UA_ReadValueId *rvi, UA_DataValue *result) {
+Operation_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *request,
+               const UA_ReadValueId *rvi, UA_DataValue *result) {
     /* Get the node */
     const UA_Node *node = UA_NODESTORE_GET(server, &rvi->nodeId);
 

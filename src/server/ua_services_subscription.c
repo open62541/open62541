@@ -33,7 +33,8 @@ setSubscriptionSettings(UA_Server *server, UA_Subscription *subscription,
 
     /* re-parameterize the subscription */
     UA_BOUNDEDVALUE_SETWBOUNDS(server->config.publishingIntervalLimits,
-                               requestedPublishingInterval, subscription->publishingInterval);
+                               requestedPublishingInterval,
+                               subscription->publishingInterval);
     /* check for nan*/
     if(requestedPublishingInterval != requestedPublishingInterval)
         subscription->publishingInterval = server->config.publishingIntervalLimits.min;
@@ -76,7 +77,8 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
 
     /* Set the subscription parameters */
     setSubscriptionSettings(server, sub, request->requestedPublishingInterval,
-                            request->requestedLifetimeCount, request->requestedMaxKeepAliveCount,
+                            request->requestedLifetimeCount,
+                            request->requestedMaxKeepAliveCount,
                             request->maxNotificationsPerPublish, request->priority);
     sub->publishingEnabled = request->publishingEnabled;
     sub->currentKeepAliveCount = sub->maxKeepAliveCount; /* set settings first */
@@ -110,15 +112,16 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
     response->revisedMaxKeepAliveCount = sub->maxKeepAliveCount;
 
     UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, sub,
-                             "Created the Subscription with a publishing interval of %.2f ms",
-                             sub->publishingInterval);
+                             "Created the Subscription with a publishing "
+                             "interval of %.2f ms", sub->publishingInterval);
 }
 
 void
 Service_ModifySubscription(UA_Server *server, UA_Session *session,
                            const UA_ModifySubscriptionRequest *request,
                            UA_ModifySubscriptionResponse *response) {
-    UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Processing ModifySubscriptionRequest");
+    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+                         "Processing ModifySubscriptionRequest");
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     UA_Subscription *sub = UA_Session_getSubscriptionById(session, request->subscriptionId);
@@ -132,7 +135,8 @@ Service_ModifySubscription(UA_Server *server, UA_Session *session,
 
     /* Change the Subscription settings */
     setSubscriptionSettings(server, sub, request->requestedPublishingInterval,
-                            request->requestedLifetimeCount, request->requestedMaxKeepAliveCount,
+                            request->requestedLifetimeCount,
+                            request->requestedMaxKeepAliveCount,
                             request->maxNotificationsPerPublish, request->priority);
 
     /* Reset the subscription lifetime */
@@ -142,7 +146,8 @@ Service_ModifySubscription(UA_Server *server, UA_Session *session,
      * CallbackId must exist. */
     if(sub->publishCallbackId > 0 &&
        sub->publishingInterval != oldPublishingInterval)
-        changeRepeatedCallbackInterval(server, sub->publishCallbackId, sub->publishingInterval);
+        changeRepeatedCallbackInterval(server, sub->publishCallbackId,
+                                       sub->publishingInterval);
 
     /* Set the response */
     response->revisedPublishingInterval = sub->publishingInterval;
@@ -152,7 +157,8 @@ Service_ModifySubscription(UA_Server *server, UA_Session *session,
 
 static void
 Operation_SetPublishingMode(UA_Server *server, UA_Session *session,
-                            const UA_Boolean *publishingEnabled, const UA_UInt32 *subscriptionId,
+                            const UA_Boolean *publishingEnabled,
+                            const UA_UInt32 *subscriptionId,
                             UA_StatusCode *result) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_Subscription *sub = UA_Session_getSubscriptionById(session, *subscriptionId);
@@ -169,15 +175,19 @@ void
 Service_SetPublishingMode(UA_Server *server, UA_Session *session,
                           const UA_SetPublishingModeRequest *request,
                           UA_SetPublishingModeResponse *response) {
-    UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Processing SetPublishingModeRequest");
+    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+                         "Processing SetPublishingModeRequest");
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     UA_Boolean publishingEnabled = request->publishingEnabled; /* request is const */
     response->responseHeader.serviceResult =
-        UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_SetPublishingMode,
+        UA_Server_processServiceOperations(server, session,
+                                           (UA_ServiceOperation)Operation_SetPublishingMode,
                                            &publishingEnabled,
-                                           &request->subscriptionIdsSize, &UA_TYPES[UA_TYPES_UINT32],
-                                           &response->resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
+                                           &request->subscriptionIdsSize,
+                                           &UA_TYPES[UA_TYPES_UINT32],
+                                           &response->resultsSize,
+                                           &UA_TYPES[UA_TYPES_STATUSCODE]);
 }
 
 void
@@ -188,8 +198,10 @@ Service_Publish(UA_Server *server, UA_Session *session,
 
     /* Return an error if the session has no subscription */
     if(TAILQ_EMPTY(&session->subscriptions)) {
-        sendServiceFault(session->header.channel, requestId, request->requestHeader.requestHandle,
-                         &UA_TYPES[UA_TYPES_PUBLISHRESPONSE], UA_STATUSCODE_BADNOSUBSCRIPTION);
+        sendServiceFault(session->header.channel, requestId,
+                         request->requestHeader.requestHandle,
+                         &UA_TYPES[UA_TYPES_PUBLISHRESPONSE],
+                         UA_STATUSCODE_BADNOSUBSCRIPTION);
         return;
     }
 
@@ -199,8 +211,10 @@ Service_Publish(UA_Server *server, UA_Session *session,
     if((server->config.maxPublishReqPerSession != 0) &&
        (session->numPublishReq >= server->config.maxPublishReqPerSession)) {
         if(!UA_Session_reachedPublishReqLimit(server, session)) {
-            sendServiceFault(session->header.channel, requestId, request->requestHeader.requestHandle,
-                             &UA_TYPES[UA_TYPES_PUBLISHRESPONSE], UA_STATUSCODE_BADINTERNALERROR);
+            sendServiceFault(session->header.channel, requestId,
+                             request->requestHeader.requestHandle,
+                             &UA_TYPES[UA_TYPES_PUBLISHRESPONSE],
+                             UA_STATUSCODE_BADINTERNALERROR);
             return;
         }
     }
@@ -209,8 +223,10 @@ Service_Publish(UA_Server *server, UA_Session *session,
     UA_PublishResponseEntry *entry = (UA_PublishResponseEntry *)
         UA_malloc(sizeof(UA_PublishResponseEntry));
     if(!entry) {
-        sendServiceFault(session->header.channel, requestId, request->requestHeader.requestHandle,
-                         &UA_TYPES[UA_TYPES_PUBLISHRESPONSE], UA_STATUSCODE_BADOUTOFMEMORY);
+        sendServiceFault(session->header.channel, requestId,
+                         request->requestHeader.requestHandle,
+                         &UA_TYPES[UA_TYPES_PUBLISHRESPONSE],
+                         UA_STATUSCODE_BADOUTOFMEMORY);
         return;
     }
 
@@ -227,8 +243,10 @@ Service_Publish(UA_Server *server, UA_Session *session,
                          &UA_TYPES[UA_TYPES_STATUSCODE]);
         if(!response->results) {
             UA_free(entry);
-            sendServiceFault(session->header.channel, requestId, request->requestHeader.requestHandle,
-                             &UA_TYPES[UA_TYPES_PUBLISHRESPONSE], UA_STATUSCODE_BADOUTOFMEMORY);
+            sendServiceFault(session->header.channel, requestId,
+                             request->requestHeader.requestHandle,
+                             &UA_TYPES[UA_TYPES_PUBLISHRESPONSE],
+                             UA_STATUSCODE_BADOUTOFMEMORY);
             return;
         }
         response->resultsSize = request->subscriptionAcknowledgementsSize;
@@ -246,7 +264,8 @@ Service_Publish(UA_Server *server, UA_Session *session,
             continue;
         }
         /* Remove the acked transmission from the retransmission queue */
-        response->results[i] = UA_Subscription_removeRetransmissionMessage(sub, ack->sequenceNumber);
+        response->results[i] =
+            UA_Subscription_removeRetransmissionMessage(sub, ack->sequenceNumber);
     }
 
     /* Queue the publish response. It will be dequeued in a repeated publish
@@ -284,16 +303,15 @@ Operation_DeleteSubscription(UA_Server *server, UA_Session *session, void *_,
     if(!sub) {
         *result = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
         UA_LOG_DEBUG_SESSION(&server->config.logger, session,
-                             "Deleting Subscription with Id %" PRIu32 " failed with error code %s",
-                             *subscriptionId, UA_StatusCode_name(*result));
+                             "Deleting Subscription with Id %" PRIu32 " failed with "
+                             "error code %s", *subscriptionId, UA_StatusCode_name(*result));
         return;
     }
 
     UA_Subscription_delete(server, sub);
     *result = UA_STATUSCODE_GOOD;
-    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
-                         "Subscription %" PRIu32 " | Subscription deleted",
-                         *subscriptionId);
+    UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Subscription %" PRIu32 " | "
+                         "Subscription deleted", *subscriptionId);
 }
 
 void
@@ -313,8 +331,7 @@ Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
 
 void
 Service_Republish(UA_Server *server, UA_Session *session,
-                  const UA_RepublishRequest *request,
-                  UA_RepublishResponse *response) {
+                  const UA_RepublishRequest *request, UA_RepublishResponse *response) {
     UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                          "Processing RepublishRequest");
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
