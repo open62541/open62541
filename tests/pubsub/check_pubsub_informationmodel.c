@@ -24,7 +24,7 @@ UA_Server *server = NULL;
 
 UA_NodeId connection1, connection2, writerGroup1, writerGroup2, writerGroup3,
         publishedDataSet1, publishedDataSet2, dataSetWriter1, dataSetWriter2, dataSetWriter3,
-        readerGroup1, dataSetReader1;
+        dataSetWriter4, readerGroup1, dataSetReader1;
 
 static void setup(void) {
     server = UA_Server_new();
@@ -131,6 +131,12 @@ static void setupBasicPubSubConfiguration(void){
     addDataSetWriter(writerGroup1, publishedDataSet1, UA_STRING("DataSetWriter 1"), &dataSetWriter1);
     addDataSetWriter(writerGroup1, publishedDataSet2, UA_STRING("DataSetWriter 2"), &dataSetWriter2);
     addDataSetWriter(writerGroup2, publishedDataSet2, UA_STRING("DataSetWriter 3"), &dataSetWriter3);
+    UA_DataSetWriterConfig dataSetWriterConfig;
+    memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
+    dataSetWriterConfig.name = UA_STRING("Demo DataSetWriter");
+    dataSetWriterConfig.dataSetWriterId = 62541;
+    UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet2,
+                               &dataSetWriterConfig, &dataSetWriter4);
     addReaderGroup(connection1, UA_STRING("ReaderGroup 1"), &readerGroup1);
     addDataSetReader(readerGroup1, UA_STRING("DataSetReader 1"), &dataSetReader1);
 }
@@ -400,6 +406,18 @@ START_TEST(ReadDataSetWriterIdAndCompareWithInternalValue){
     UA_Variant_clear(&value);
     } END_TEST
 
+START_TEST(ReadDataSetWriterIdWGAndCompareWithInternalValue){
+    setupBasicPubSubConfiguration();
+    UA_NodeId dataSetWriterIdNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetWriterId"),
+                                                        UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), dataSetWriter4);
+    UA_Variant value;
+    UA_Variant_init(&value);
+    ck_assert_int_eq(UA_Server_readValue(server, dataSetWriterIdNode, &value), UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_UINT16]));
+    ck_assert_int_eq(*((UA_UInt16 *) value.data), 62541);
+    UA_Variant_clear(&value);
+    } END_TEST
+
 int main(void) {
     TCase *tc_add_pubsub_informationmodel = tcase_create("PubSub add single elements and check information model representation");
     tcase_add_checked_fixture(tc_add_pubsub_informationmodel, setup, teardown);
@@ -430,11 +448,16 @@ int main(void) {
     tcase_add_test(tc_add_pubsub_dataSetReaderElements, ReadWriterGroupIdAndCompareWithInternalValue);
     tcase_add_test(tc_add_pubsub_dataSetReaderElements, ReadDataSetWriterIdAndCompareWithInternalValue);
 
+    TCase *tc_add_pubsub_dataSetWriterElements = tcase_create("PubSub DataSetWriter check properties");
+    tcase_add_checked_fixture(tc_add_pubsub_dataSetWriterElements, setup, teardown);
+    tcase_add_test(tc_add_pubsub_dataSetWriterElements, ReadDataSetWriterIdWGAndCompareWithInternalValue);
+
     Suite *s = suite_create("PubSub WriterGroups/DataSetReader/Fields handling and publishing");
     suite_add_tcase(s, tc_add_pubsub_informationmodel);
     suite_add_tcase(s, tc_add_pubsub_writergroupelements);
     suite_add_tcase(s, tc_add_pubsub_pubsubconnectionelements);
     suite_add_tcase(s, tc_add_pubsub_dataSetReaderElements);
+    suite_add_tcase(s, tc_add_pubsub_dataSetWriterElements);
 
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);

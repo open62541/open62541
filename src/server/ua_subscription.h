@@ -130,6 +130,8 @@ typedef struct UA_Notification {
 #endif
 } UA_Notification;
 
+UA_Notification * UA_Notification_new(void);
+
 /* Notifications are always added to the queue of the MonitoredItem. That queue
  * can overflow. If Notifications are reported, they are also added to the
  * global queue of the Subscription. There they are picked up by the publishing
@@ -139,18 +141,10 @@ typedef struct UA_Notification {
  * Subscription: They are added because the MonitoringMode of the MonitoredItem
  * is "reporting". Or the MonitoringMode is "sampling" and a link is trigered
  * that puts the last Notification into the global queue. */
-
-UA_Notification * UA_Notification_new(void);
-/* Dequeue and Delete the notification */
-void UA_Notification_delete(UA_Server *server, UA_Notification *n);
-/* If reporting, enqueue into the Subscription first and then into the
- * MonitoredItem. Otherwise the reinsertion in UA_MonitoredItem_ensureQueueSpace
- * might not work. */
-void UA_Notification_enqueueSub(UA_Notification *n);
-void UA_Notification_enqueueMon(UA_Server *server, UA_Notification *n);
 void UA_Notification_enqueueAndTrigger(UA_Server *server, UA_Notification *n);
-void UA_Notification_dequeueSub(UA_Notification *n);
-void UA_Notification_dequeueMon(UA_Server *server, UA_Notification *n);
+
+/* Dequeue and delete the notification */
+void UA_Notification_delete(UA_Server *server, UA_Notification *n);
 
 typedef TAILQ_HEAD(NotificationQueue, UA_Notification) NotificationQueue;
 
@@ -205,6 +199,10 @@ struct UA_MonitoredItem {
 void UA_MonitoredItem_init(UA_MonitoredItem *mon);
 UA_StatusCode UA_Server_registerMonitoredItem(UA_Server *server, UA_MonitoredItem *mon);
 void UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem);
+
+UA_StatusCode
+UA_MonitoredItem_setMonitoringMode(UA_Server *server, UA_MonitoredItem *mon,
+                                   UA_MonitoringMode monitoringMode);
 
 void UA_MonitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem);
 UA_StatusCode UA_MonitoredItem_registerSampleCallback(UA_Server *server, UA_MonitoredItem *mon);

@@ -52,6 +52,11 @@ START_TEST(checkScalarValues) {
 END_TEST
 
 START_TEST(checkSelfContainingUnion) {
+    // Check union switch enum
+    ck_assert(UA_SELFCONTAININGUNIONSWITCH_NONE == 0);
+    ck_assert(UA_SELFCONTAININGUNIONSWITCH_DOUBLE == 1);
+    ck_assert(UA_SELFCONTAININGUNIONSWITCH_ARRAY == 2);
+
     UA_Variant in;
     UA_Variant_init(&in);
 
