@@ -744,11 +744,9 @@ UA_Server_addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdentifier,
 UA_StatusCode UA_EXPORT
 UA_Server_removeDataSetReader(UA_Server *server, UA_NodeId readerIdentifier);
 
-/* To Do: Update Configuration of ReaderGroup
- * UA_StatusCode UA_EXPORT
- * UA_Server_ReaderGroup_updateConfig(UA_Server *server, UA_NodeId readerGroupIdentifier,
- *                                    const UA_ReaderGroupConfig *config);
- */
+UA_StatusCode UA_EXPORT
+UA_Server_ReaderGroup_updateConfig(UA_Server *server, UA_NodeId readerGroupIdentifier,
+        const UA_ReaderGroupConfig *config);
 
 /* Get configuraiton of ReaderGroup */
 UA_StatusCode UA_EXPORT
