@@ -942,8 +942,7 @@ typedef struct UA_DiagnosticInfo {
  * type operations as static inline functions. */
 
 typedef struct {
-    UA_UInt16 memberTypeIndex;    /* Index of the member in the array of data
-                                     types */
+    const UA_DataType *memberType;/* The member data type description */
     UA_Byte   padding;            /* How much padding is there before this
                                      member element? For arrays this is the
                                      padding before the size_t length member.
@@ -952,11 +951,6 @@ typedef struct {
                                      includes the size of the switchfield (the
                                      offset from the start of the union
                                      type). */
-    UA_Boolean namespaceZero : 1; /* The type of the member is defined in
-                                     namespace zero. In this implementation,
-                                     types from custom namespace may contain
-                                     members from the same namespace or
-                                     namespace zero only.*/
     UA_Boolean isArray       : 1; /* The member is an array */
     UA_Boolean isOptional    : 1; /* The member is an optional field */
 #ifdef UA_ENABLE_TYPEDESCRIPTION

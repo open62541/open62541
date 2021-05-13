@@ -21,31 +21,28 @@ typedef struct {
 static UA_DataTypeMember Point_members[3] = {
     /* x */
     {
-        UA_TYPES_FLOAT,  /* .memberTypeIndex, points into UA_TYPES since namespaceZero is true */
-        0,               /* .padding */
-        true,            /* .namespaceZero, see .memberTypeIndex */
-        false,           /* .isArray */
-        false            /* .isOptional */
-        UA_TYPENAME("x") /* .memberName */
+        &UA_TYPES[UA_TYPES_FLOAT], /* .memberType */
+        0,                         /* .padding */
+        false,                     /* .isArray */
+        false                      /* .isOptional */
+        UA_TYPENAME("x")           /* .memberName */
     },
 
     /* y */
     {
-        UA_TYPES_FLOAT,  /* .memberTypeIndex, points into UA_TYPES since namespaceZero is true */
-        Point_padding_y, /* .padding */
-        true,            /* .namespaceZero, see .memberTypeIndex */
-        false,           /* .isArray */
-        false            /* .isOptional */
-        UA_TYPENAME("y") /* .memberName */
+        &UA_TYPES[UA_TYPES_FLOAT], /* .memberType */
+        Point_padding_y,           /* .padding */
+        false,                     /* .isArray */
+        false                      /* .isOptional */
+        UA_TYPENAME("y")           /* .memberName */
     },
     /* z */
     {
-        UA_TYPES_FLOAT,  /* .memberTypeIndex, points into UA_TYPES since namespaceZero is true */
-        Point_padding_z, /* .padding */
-        true,            /* .namespaceZero, see .memberTypeIndex */
-        false,           /* .isArray */
-        false            /* .isOptional */
-        UA_TYPENAME("z") /* .memberName */
+        &UA_TYPES[UA_TYPES_FLOAT], /* .memberType */
+        Point_padding_z,           /* .padding */
+        false,                     /* .isArray */
+        false                      /* .isOptional */
+        UA_TYPENAME("z")           /* .memberName */
     }
 };
 
@@ -74,19 +71,15 @@ typedef struct {
 
 static UA_DataTypeMember Measurements_members[2] = {
     {
-        UA_TYPES_STRING,                       /* .memberTypeIndex, points into UA_TYPES
-                                                   since namespaceZero is true */
+        &UA_TYPES[UA_TYPES_STRING],            /* .memberType */
         0,                                     /* .padding */
-        true,                                  /* .namespaceZero, see .memberTypeIndex */
         false,                                 /* .isArray */
         false                                  /* .isOptional */
         UA_TYPENAME("Measurement description") /* .memberName */
     },
     {
-        UA_TYPES_FLOAT,                        /* .memberTypeIndex, points into UA_TYPES
-                                                   since namespaceZero is true */
+        &UA_TYPES[UA_TYPES_FLOAT],             /* .memberType */
         0,                                     /* .padding */
-        true,                                  /* .namespaceZero, see .memberTypeIndex */
         true,                                  /* .isArray */
         false                                  /* .isOptional */
         UA_TYPENAME("Measurements")            /* .memberName */
@@ -120,36 +113,24 @@ typedef struct {
 static UA_DataTypeMember Opt_members[3] = {
     /* a */
     {
-        UA_TYPES_INT16,                                       /* .memberTypeIndex, points
-                                                              into UA_TYPES since
-                                                              namespaceZero is true */
+        &UA_TYPES[UA_TYPES_INT16],                            /* .memberType */
         0,                                                    /* .padding */
-        true,                                                 /* .namespaceZero, see
-                                                              .memberTypeIndex */
         false,                                                /* .isArray */
         false                                                 /* .isOptional */
         UA_TYPENAME("a")                                      /* .memberName */
     },
     /* b */
     {
-        UA_TYPES_FLOAT,                                       /* .memberTypeIndex, points
-                                                              into UA_TYPES since
-                                                              namespaceZero is true */
+        &UA_TYPES[UA_TYPES_FLOAT],                            /* .memberType */
         offsetof(Opt,b) - offsetof(Opt,a) - sizeof(UA_Int16), /* .padding */
-        true,                                                 /* .namespaceZero, see
-                                                               .memberTypeIndex */
         false,                                                /* .isArray */
         true                                                  /* .isOptional */
         UA_TYPENAME("b")                                      /* .memberName */
     },
     /* c */
     {
-        UA_TYPES_FLOAT,                                       /* .memberTypeIndex, points
-                                                                  into UA_TYPES since
-                                                                  namespaceZero is true */
+        &UA_TYPES[UA_TYPES_FLOAT],                            /* .memberType */
         offsetof(Opt,c) - offsetof(Opt,b) - sizeof(void *),   /* .padding */
-        true,                                                 /* .namespaceZero, see
-                                                                  .memberTypeIndex */
         false,                                                /* .isArray */
         true                                                  /* .isOptional */
         UA_TYPENAME("c")                                      /* .memberName */
@@ -185,22 +166,18 @@ typedef struct {
 
 static UA_DataTypeMember Uni_members[2] = {
     {
-        UA_TYPES_DOUBLE,            /* .memberTypeIndex, points into UA_TYPES since
-                                    namespaceZero is true */
+        &UA_TYPES[UA_TYPES_DOUBLE],    /* .memberType */
         offsetof(Uni, fields.optionA), /* .padding */
-        true,                       /* .namespaceZero, see .memberTypeIndex */
-        false,                      /* .isArray */
-        false                       /* .isOptional */
-        UA_TYPENAME("optionA")      /* .memberName */
+        false,                         /* .isArray */
+        false                          /* .isOptional */
+        UA_TYPENAME("optionA")         /* .memberName */
     },
     {
-        UA_TYPES_STRING,            /* .memberTypeIndex, points into UA_TYPES since
-                                    namespaceZero is true */
+        &UA_TYPES[UA_TYPES_STRING],    /* .memberType */
         offsetof(Uni, fields.optionB), /* .padding */
-        true,                       /* .namespaceZero, see .memberTypeIndex */
-        false,                      /* .isArray */
-        false                       /* .isOptional */
-        UA_TYPENAME("optionB")      /* .memberName */
+        false,                         /* .isArray */
+        false                          /* .isOptional */
+        UA_TYPENAME("optionB")         /* .memberName */
     }
 };
 

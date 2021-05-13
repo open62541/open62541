@@ -700,13 +700,12 @@ static UA_StatusCode
 printStructure(UA_PrintContext *ctx, const void *p, const UA_DataType *type) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     uintptr_t ptrs = (uintptr_t)p;
-    const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
     retval |= UA_PrintContext_addString(ctx, "{");
     ctx->depth++;
     for(size_t i = 0; i < type->membersSize; ++i) {
         UA_PrintContext_addNewlineTabs(ctx, ctx->depth);
         const UA_DataTypeMember *m = &type->members[i];
-        const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
+        const UA_DataType *mt = m->memberType;
         ptrs += m->padding;
         retval |= UA_PrintContext_addName(ctx, m->memberName);
         if(!m->isArray) {

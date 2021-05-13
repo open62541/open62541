@@ -124,13 +124,11 @@ typedef struct {
 
 static UA_DataTypeMember members[1] = {
     {
-        UA_TYPES_FLOAT,  /* .memberTypeIndex, points into UA_TYPES since
-                            .namespaceZero is true */
-        0,               /* .padding */
-        true,            /* .namespaceZero, see .memberTypeIndex */
-        false,           /* .isArray */
-        false            /* .isOptional*/
-        UA_TYPENAME("p") /* .memberName */
+        &UA_TYPES[UA_TYPES_FLOAT], /* .memberType */
+        0,                         /* .padding */
+        false,                     /* .isArray */
+        false                      /* .isOptional*/
+        UA_TYPENAME("p")           /* .memberName */
     }
 };
 
