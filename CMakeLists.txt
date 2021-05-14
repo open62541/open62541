@@ -412,6 +412,13 @@ if(CMAKE_VERSION VERSION_GREATER 3.6)
     SET_PROPERTY(CACHE UA_ENABLE_STATIC_ANALYZER PROPERTY STRINGS "OFF" "MINIMAL" "REDUCED" "FULL")
 endif()
 
+option(UA_DEBUG_FILE_LINE_INFO "Enable file and line information as additional debugging output for error messages" OFF)
+mark_as_advanced(UA_DEBUG_FILE_LINE_INFO)
+
+if(CMAKE_BUILD_TYPE MATCHES DEBUG)
+    set(UA_DEBUG_FILE_LINE_INFO ON)
+endif()
+
 # Build Targets
 option(UA_BUILD_EXAMPLES "Build example servers and clients" OFF)
 option(UA_BUILD_TOOLS "Build OPC UA shell tools" OFF)
