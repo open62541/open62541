@@ -260,6 +260,11 @@ UA_StatusCode
 UA_NetworkMessage_updateBufferedNwMessage(UA_NetworkMessageOffsetBuffer *buffer,
                                           const UA_ByteString *src, size_t *bufferPosition);
 
+
+/**
+ * NetworkMessage Encoding
+ * ^^^^^^^^^^^^^^^^^^^^^^^ */
+
 /* If dataToEncryptStart not-NULL, then it will be set to the start-position of
  * the payload in the buffer. */
 UA_StatusCode
@@ -268,14 +273,44 @@ UA_NetworkMessage_encodeBinary(const UA_NetworkMessage* src,
                                UA_Byte **dataToEncryptStart);
 
 UA_StatusCode
+UA_NetworkMessage_encodeHeaders(const UA_NetworkMessage* src,
+                               UA_Byte **bufPos, const UA_Byte *bufEnd);
+
+UA_StatusCode
+UA_NetworkMessage_encodePayload(const UA_NetworkMessage* src,
+                               UA_Byte **bufPos, const UA_Byte *bufEnd);
+
+UA_StatusCode
+UA_NetworkMessage_encodeFooters(const UA_NetworkMessage* src,
+                               UA_Byte **bufPos, const UA_Byte *bufEnd);
+
+/**
+ * NetworkMessage Decoding
+ * ^^^^^^^^^^^^^^^^^^^^^^^ */
+
+UA_StatusCode
+UA_NetworkMessage_decodeHeaders(const UA_ByteString *src, size_t *offset, UA_NetworkMessage *dst);
+
+UA_StatusCode
+UA_NetworkMessage_decodePayload(const UA_ByteString *src, size_t *offset, UA_NetworkMessage *dst);
+
+UA_StatusCode
+UA_NetworkMessage_decodeFooters(const UA_ByteString *src, size_t *offset, UA_NetworkMessage *dst);
+
+UA_StatusCode
 UA_NetworkMessage_decodeBinary(const UA_ByteString *src, size_t *offset,
                                UA_NetworkMessage* dst);
+
+
+UA_StatusCode
+UA_NetworkMessageHeader_decodeBinary(const UA_ByteString *src, size_t *offset, UA_NetworkMessage *dst);
 
 size_t
 UA_NetworkMessage_calcSizeBinary(UA_NetworkMessage *p,
                                  UA_NetworkMessageOffsetBuffer *offsetBuffer);
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+
 UA_StatusCode
 UA_NetworkMessage_signEncrypt(UA_NetworkMessage *nm, UA_MessageSecurityMode securityMode,
                               UA_PubSubSecurityPolicy *policy, void *policyContext,
