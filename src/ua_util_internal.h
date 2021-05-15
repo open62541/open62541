@@ -107,7 +107,7 @@ isTrue(uint8_t expr) {
 }
 
 #define UA_CHECK(A, EVAL_ON_ERROR)                                                       \
-    if(!isTrue(A)) {                                                         \
+    if(UA_UNLIKELY(!isTrue(A))) {                                                        \
         EVAL_ON_ERROR;                                                                   \
     }
 
