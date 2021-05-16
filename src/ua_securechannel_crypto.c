@@ -53,25 +53,29 @@ UA_SecureChannel_generateLocalKeys(const UA_SecureChannel *channel) {
     size_t encrKL = crm->encryptionAlgorithm.getLocalKeyLength(cc);
     size_t encrBS = crm->encryptionAlgorithm.getRemoteBlockSize(cc);
     size_t signKL = crm->signatureAlgorithm.getLocalKeyLength(cc);
+    if(encrBS + signKL + encrKL == 0)
+        return UA_STATUSCODE_GOOD; /* No keys to generate */
+
     UA_StatusCode retval = UA_ByteString_allocBuffer(&buf, encrBS + signKL + encrKL);
     UA_CHECK_STATUS(retval, return retval);
-
-    /* No keys to generate */
-    if(buf.length == 0)
-        return UA_STATUSCODE_GOOD;
+    UA_ByteString localSigningKey = {signKL, buf.data};
+    UA_ByteString localEncryptingKey = {encrKL, &buf.data[signKL]};
+    UA_ByteString localIv = {encrBS, &buf.data[signKL + encrKL]};
 
     /* Generate key */
     retval = sm->generateKey(sp->policyContext, &channel->remoteNonce,
                              &channel->localNonce, &buf);
-    UA_CHECK_STATUS(retval, UA_ByteString_clear(&buf); return retval);
+    UA_CHECK_STATUS(retval, goto error);
 
     /* Set the channel context */
-    const UA_ByteString localSigningKey = {signKL, buf.data};
-    const UA_ByteString localEncryptingKey = {encrKL, &buf.data[signKL]};
-    const UA_ByteString localIv = {encrBS, &buf.data[signKL + encrKL]};
     retval |= cm->setLocalSymSigningKey(cc, &localSigningKey);
     retval |= cm->setLocalSymEncryptingKey(cc, &localEncryptingKey);
     retval |= cm->setLocalSymIv(cc, &localIv);
+
+ error:
+    UA_CHECK_STATUS(retval, UA_LOG_WARNING_CHANNEL(sp->logger, channel,
+                            "Could not generate local keys (statuscode: %s)",
+                            UA_StatusCode_name(retval)));
     UA_ByteString_clear(&buf);
     return retval;
 }
@@ -92,25 +96,29 @@ generateRemoteKeys(const UA_SecureChannel *channel) {
     size_t encrKL = crm->encryptionAlgorithm.getRemoteKeyLength(cc);
     size_t encrBS = crm->encryptionAlgorithm.getRemoteBlockSize(cc);
     size_t signKL = crm->signatureAlgorithm.getRemoteKeyLength(cc);
+    if(encrBS + signKL + encrKL == 0)
+        return UA_STATUSCODE_GOOD; /* No keys to generate */
+
     UA_StatusCode retval = UA_ByteString_allocBuffer(&buf, encrBS + signKL + encrKL);
     UA_CHECK_STATUS(retval, return retval);
-
-    /* No keys to generate */
-    if(buf.length == 0)
-        return UA_STATUSCODE_GOOD;
+    UA_ByteString remoteSigningKey = {signKL, buf.data};
+    UA_ByteString remoteEncryptingKey = {encrKL, &buf.data[signKL]};
+    UA_ByteString remoteIv = {encrBS, &buf.data[signKL + encrKL]};
 
     /* Generate key */
     retval = sm->generateKey(sp->policyContext, &channel->localNonce,
                              &channel->remoteNonce, &buf);
-    UA_CHECK_STATUS(retval, UA_ByteString_clear(&buf); return retval);
+    UA_CHECK_STATUS(retval, goto error);
 
     /* Set the channel context */
-    const UA_ByteString remoteSigningKey = {signKL, buf.data};
-    const UA_ByteString remoteEncryptingKey = {encrKL, &buf.data[signKL]};
-    const UA_ByteString remoteIv = {encrBS, &buf.data[signKL + encrKL]};
     retval |= cm->setRemoteSymSigningKey(cc, &remoteSigningKey);
     retval |= cm->setRemoteSymEncryptingKey(cc, &remoteEncryptingKey);
     retval |= cm->setRemoteSymIv(cc, &remoteIv);
+
+ error:
+    UA_CHECK_STATUS(retval, UA_LOG_WARNING_CHANNEL(sp->logger, channel,
+                            "Could not generate remote keys (statuscode: %s)",
+                            UA_StatusCode_name(retval)));
     UA_ByteString_clear(&buf);
     return retval;
 }
@@ -452,7 +460,9 @@ decryptAndVerifyChunk(const UA_SecureChannel *channel,
     size_t sigsize = cryptoModule->signatureAlgorithm.
         getRemoteSignatureSize(channel->channelContext);
     res = verifySignature(channel, cryptoModule, chunk, sigsize);
-    UA_CHECK_STATUS(res, return res);
+    UA_CHECK_STATUS(res,
+       UA_LOG_WARNING_CHANNEL(channel->securityPolicy->logger, channel,
+                              "Could not verify the signature"); return res);
 
     /* Compute the padding if the payload as encrypted */
     size_t padSize = 0;
@@ -468,8 +478,10 @@ decryptAndVerifyChunk(const UA_SecureChannel *channel,
     /* Verify the content length. The encrypted payload has to be at least 9
      * bytes long: 8 byte for the SequenceHeader and one byte for the actual
      * message */
-    if(offset + padSize + sigsize + 9 >= chunk->length)
-        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    UA_CHECK(offset + padSize + sigsize + 9 < chunk->length,
+             UA_LOG_WARNING_CHANNEL(channel->securityPolicy->logger, channel,
+                                    "Impossible padding value");
+             return UA_STATUSCODE_BADSECURITYCHECKSFAILED);
 
     /* Hide the signature and padding */
     chunk->length -= (sigsize + padSize);
@@ -509,18 +521,18 @@ checkSymHeader(UA_SecureChannel *channel, const UA_UInt32 tokenId) {
             break;
 
         /* Not the new token */
-        if(tokenId != channel->altSecurityToken.tokenId) {
-            UA_LOG_WARNING_CHANNEL(channel->securityPolicy->logger, channel,
-                                   "Unknown SecurityToken");
-            return UA_STATUSCODE_BADSECURECHANNELTOKENUNKNOWN;
-        }
+        UA_CHECK(tokenId == channel->altSecurityToken.tokenId,
+                 UA_LOG_WARNING_CHANNEL(channel->securityPolicy->logger, channel,
+                                        "Unknown SecurityToken");
+                 return UA_STATUSCODE_BADSECURECHANNELTOKENUNKNOWN);
 
         /* Roll over to the new token, generate new local and remote keys */
         channel->renewState = UA_SECURECHANNELRENEWSTATE_NORMAL;
         channel->securityToken = channel->altSecurityToken;
         UA_ChannelSecurityToken_init(&channel->altSecurityToken);
-        retval = UA_SecureChannel_generateLocalKeys(channel);
+        retval |= UA_SecureChannel_generateLocalKeys(channel);
         retval |= generateRemoteKeys(channel);
+        UA_CHECK_STATUS(retval, return retval);
         break;
 
     case UA_SECURECHANNELRENEWSTATE_NEWTOKEN_CLIENT:
@@ -531,11 +543,10 @@ checkSymHeader(UA_SecureChannel *channel, const UA_UInt32 tokenId) {
         }
 
         /* Not the new token */
-        if(tokenId != channel->securityToken.tokenId) {
-            UA_LOG_WARNING_CHANNEL(channel->securityPolicy->logger, channel,
-                                   "Unknown SecurityToken");
-            return UA_STATUSCODE_BADSECURECHANNELTOKENUNKNOWN;
-        }
+        UA_CHECK(tokenId == channel->securityToken.tokenId,
+                 UA_LOG_WARNING_CHANNEL(channel->securityPolicy->logger, channel,
+                                        "Unknown SecurityToken");
+                 return UA_STATUSCODE_BADSECURECHANNELTOKENUNKNOWN);
 
         /* The remote server uses the new token for the first time. Delete the
          * old token and roll the remote key over. The local key already uses
@@ -543,9 +554,8 @@ checkSymHeader(UA_SecureChannel *channel, const UA_UInt32 tokenId) {
         channel->renewState = UA_SECURECHANNELRENEWSTATE_NORMAL;
         UA_ChannelSecurityToken_init(&channel->altSecurityToken);
         retval = generateRemoteKeys(channel);
+        UA_CHECK_STATUS(retval, return retval);
     }
-
-    UA_CHECK_STATUS(retval, return retval);
 
     UA_DateTime timeout = token->createdAt + (token->revisedLifetime * UA_DATETIME_MSEC);
     if(channel->state == UA_SECURECHANNELSTATE_OPEN &&
