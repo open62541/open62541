@@ -675,7 +675,7 @@ UA_ExtendedNetworkMessageHeader_decodeBinary(const UA_ByteString *src, size_t *o
                 } else {
                     dst->promotedFields = (UA_Variant*)
                         UA_realloc(dst->promotedFields,
-                                   UA_TYPES[UA_TYPES_VARIANT].memSize * (counter + 1));
+                                   (size_t) UA_TYPES[UA_TYPES_VARIANT].memSize * (counter + 1));
                     UA_CHECK_MEM(dst->promotedFields,
                                  return UA_STATUSCODE_BADOUTOFMEMORY);
                     // set promotedFieldsSize to the number of objects
