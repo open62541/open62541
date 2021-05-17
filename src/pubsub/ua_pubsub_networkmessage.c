@@ -366,7 +366,7 @@ UA_SecurityHeader_encodeBinary(const UA_NetworkMessage* src, UA_Byte **bufPos,
     rv = UA_Byte_encodeBinary(&nonceLength, bufPos, bufEnd);
     UA_CHECK_STATUS(rv, return rv);
     // MessageNonce
-    for (UA_Byte i = 0; i < src->securityHeader.messageNonce.length; i++) {
+    for (size_t i = 0; i < src->securityHeader.messageNonce.length; i++) {
         rv = UA_Byte_encodeBinary(&src->securityHeader.messageNonce.data[i],
                                   bufPos, bufEnd);
         UA_CHECK_STATUS(rv, return rv);
@@ -459,7 +459,7 @@ UA_NetworkMessage_encodeFooters(const UA_NetworkMessage* src, UA_Byte **bufPos,
     if(src->securityEnabled) {
         // SecurityFooter
         if(src->securityHeader.securityFooterEnabled) {
-            for(UA_Byte i = 0; i < src->securityHeader.securityFooterSize; i++) {
+            for(size_t i = 0; i < src->securityHeader.securityFooterSize; i++) {
                 UA_StatusCode rv = UA_Byte_encodeBinary(&(src->securityFooter.data[i]), bufPos, bufEnd);
                 UA_CHECK_STATUS(rv, return rv);
             }
