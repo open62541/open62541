@@ -934,7 +934,6 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
     if (UA_StatusCode_isBad(res)) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "SubscribeCallback(): Connection receive failed!");
         UA_ReaderGroup_setPubSubState(server, UA_PUBSUBSTATE_ERROR, readerGroup);
-        UA_ByteString_clear(&buffer);
         return;
     }
 
