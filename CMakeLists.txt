@@ -976,7 +976,7 @@ if(UA_ENABLE_SUBSCRIPTIONS)
                             ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_monitoreditem.c
                             ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_datachange.c)
     if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
-        if(UA_NAMESPACE_ZERO STREQUAL "MINAML")
+        if(UA_NAMESPACE_ZERO STREQUAL "MINIMAL")
             message(FATAL_ERROR "Events require at least the reduced Namespace Zero")
         endif()
         list(APPEND lib_sources
