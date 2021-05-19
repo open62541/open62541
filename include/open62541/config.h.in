@@ -41,8 +41,6 @@
 #cmakedefine UA_ENABLE_SUBSCRIPTIONS_EVENTS
 #cmakedefine UA_ENABLE_JSON_ENCODING
 #cmakedefine UA_ENABLE_PUBSUB_MQTT
-#cmakedefine UA_ENABLE_MQTT_TLS
-#cmakedefine UA_ENABLE_MQTT_TLS_OPENSSL
 #cmakedefine UA_ENABLE_ENCRYPTION_MBEDTLS
 #cmakedefine UA_ENABLE_ENCRYPTION_OPENSSL
 #cmakedefine UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
@@ -75,7 +73,7 @@
 /* Options for Debugging */
 #cmakedefine UA_DEBUG
 #cmakedefine UA_DEBUG_DUMP_PKGS
-#cmakedefine UA_DEBUG_FILE_LINE_INFO
+
 /**
  * Function Export
  * ---------------

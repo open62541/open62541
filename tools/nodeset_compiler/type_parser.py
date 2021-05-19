@@ -18,13 +18,12 @@ builtin_types = ["Boolean", "SByte", "Byte", "Int16", "UInt16", "Int32", "UInt32
                  "QualifiedName", "LocalizedText", "ExtensionObject", "DataValue",
                  "Variant", "DiagnosticInfo"]
 
-# DataTypes that are ignored/not generated
-excluded_types = [
-    # NodeId Types
-    "NodeIdType", "TwoByteNodeId", "FourByteNodeId", "NumericNodeId", "StringNodeId", "GuidNodeId", "ByteStringNodeId",
-    # Node Types
-    "InstanceNode", "TypeNode", "Node", "ObjectNode", "ObjectTypeNode", "VariableNode",
-    "VariableTypeNode", "ReferenceTypeNode", "MethodNode", "ViewNode", "DataTypeNode"]
+excluded_types = ["NodeIdType", "InstanceNode", "TypeNode", "Node", "ObjectNode",
+                  "ObjectTypeNode", "VariableNode", "VariableTypeNode", "ReferenceTypeNode",
+                  "MethodNode", "ViewNode", "DataTypeNode", "NumericRangeDimensions",
+                  "UA_ServerDiagnosticsSummaryDataType", "UA_SamplingIntervalDiagnosticsDataType",
+                  "UA_SessionSecurityDiagnosticsDataType", "UA_SubscriptionDiagnosticsDataType",
+                  "UA_SessionDiagnosticsDataType"]
 
 rename_types = {"NumericRange": "OpaqueNumericRange"}
 
@@ -263,6 +262,14 @@ class TypeParser():
                         unknowns.append(child.get("TypeName"))
             return unknowns
 
+        def skipType(name):
+            "Ignore the type? According to the blacklist and regex rules"
+            if name in excluded_types:
+                return True
+            if re.search("NodeId$", name) != None:
+                return True
+            return False
+
         def structWithOptionalFields(element):
             "Is this a structure with optional fields?"
             opt_fields = []
@@ -330,7 +337,7 @@ class TypeParser():
                                    "Opc.Ua.Types.bsd'")
             detectLoop = len(snippets)
             for name, typeXml in list(snippets.items()):
-                if (targetNamespace in self.types and name in self.types[targetNamespace]) or name in excluded_types:
+                if (targetNamespace in self.types and name in self.types[targetNamespace]) or skipType(name):
                     del snippets[name]
                     continue
                 if not typeReady(typeXml, self.types, xmlNamespaces):

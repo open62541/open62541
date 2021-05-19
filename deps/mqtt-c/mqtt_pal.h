@@ -79,9 +79,6 @@
     struct my_custom_socket_handle {
         void* client;
         void* connection;
-#ifdef UA_ENABLE_MQTT_TLS
-        void* tls;
-#endif
         uint16_t timeout;
     };
     

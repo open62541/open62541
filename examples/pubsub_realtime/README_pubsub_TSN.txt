@@ -47,8 +47,8 @@ For ETF Transmit: (In both nodes)
     sudo tc qdisc add dev <I210 interface> parent $MQPRIO_NUM:2 etf offload clockid CLOCK_TAI delta 150000
 
 In both nodes:
-    for j in `seq 0 7`;do sudo ip link set <I210 interface>.8 type vlan egress $j:$j ; done
-    for j in `seq 0 7`;do sudo ip link set <I210 interface>.8 type vlan ingress $j:$j ; done
+    for j in `seq 0 7`;do sudo ip link set <I210 interface>.8 type vlan egress $j:$j ; done; done
+    for j in `seq 0 7`;do sudo ip link set <I210 interface>.8 type vlan ingress $j:$j ; done; done
 
 TO RUN ETF APPLICATIONS:
 To run ETF applications over Ethernet in two nodes connected in peer-to-peer network

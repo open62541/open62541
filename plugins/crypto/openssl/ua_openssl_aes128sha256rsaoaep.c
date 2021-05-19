@@ -240,6 +240,7 @@ UA_Asym_Aes128Sha256RsaOaep_getRemoteSignatureSize(const void *channelContext) {
     const Channel_Context_Aes128Sha256RsaOaep *cc = (const Channel_Context_Aes128Sha256RsaOaep *)channelContext;
     UA_Int32 keyLen = 0;
     UA_Openssl_RSA_Public_GetKeyLength(cc->remoteCertificateX509, &keyLen);
+    UA_assert(keyLen == 256); /* 256 bytes 2048 bit */
     return (size_t)keyLen;
 }
 
@@ -252,6 +253,8 @@ UA_AsySig_Aes128Sha256RsaOaep_getLocalSignatureSize(const void *channelContext) 
     Policy_Context_Aes128Sha256RsaOaep *pc = cc->policyContext;
     UA_Int32 keyLen = 0;
     UA_Openssl_RSA_Private_GetKeyLength(pc->localPrivateKey, &keyLen);
+    UA_assert(keyLen == 256); /* 256 bytes 2048 bits */
+
     return (size_t)keyLen;
 }
 
@@ -360,7 +363,7 @@ UA_SymEn_Aes128Sha256RsaOaep_getRemoteKeyLength(const void *channelContext) {
 }
 
 static size_t
-UA_SymEn_Aes128Sha256RsaOaep_getBlockSize(const void *channelContext) {
+UA_SymEn_Aes128Sha256RsaOaep_getRemoteBlockSize(const void *channelContext) {
     return UA_SECURITYPOLICY_AES128SHA256RSAOAEP_SYM_ENCRYPTION_BLOCK_SIZE;
 }
 
@@ -498,6 +501,8 @@ UA_AsymEn_Aes128Sha256RsaOaep_getLocalKeyLength(const void *channelContext) {
     Policy_Context_Aes128Sha256RsaOaep *pc = cc->policyContext;
     UA_Int32 keyLen = 0;
     UA_Openssl_RSA_Private_GetKeyLength(pc->localPrivateKey, &keyLen);
+    UA_assert(keyLen == 256); /* 256 bytes 2048 bits */
+
     return (size_t)keyLen * 8;
 }
 
@@ -595,8 +600,7 @@ UA_SecurityPolicy_Aes128Sha256RsaOaep(UA_SecurityPolicy *policy,
         UA_STRING("http://www.w3.org/2001/04/xmlenc#aes128-cbc\0");
     symEncryptionAlgorithm->getLocalKeyLength = UA_SymEn_Aes128Sha256RsaOaep_getLocalKeyLength;
     symEncryptionAlgorithm->getRemoteKeyLength = UA_SymEn_Aes128Sha256RsaOaep_getRemoteKeyLength;
-    symEncryptionAlgorithm->getRemoteBlockSize = UA_SymEn_Aes128Sha256RsaOaep_getBlockSize;
-    symEncryptionAlgorithm->getRemotePlainTextBlockSize = UA_SymEn_Aes128Sha256RsaOaep_getBlockSize;
+    symEncryptionAlgorithm->getRemoteBlockSize = UA_SymEn_Aes128Sha256RsaOaep_getRemoteBlockSize;
     symEncryptionAlgorithm->decrypt = UA_SymEn_Aes128Sha256RsaOaep_decrypt;
     symEncryptionAlgorithm->encrypt = UA_SymEn_Aes128Sha256RsaOaep_encrypt;
 

@@ -258,7 +258,7 @@ class CGenerator(object):
             #test = type("MyEnumOptionSet", (EnumOptionSet, object), {"foo": lambda self: "foo"})
             obj = type('MyEnumOptionSet', (object,), {'isOptionSet': False, 'elements': OrderedDict(), 'name': struct.name+"Switch"})
             obj.elements['None'] = str(0)
-            count = 1
+            count = 0
             for member in struct.members:
                 obj.elements[member.name] = str(count)
                 count += 1

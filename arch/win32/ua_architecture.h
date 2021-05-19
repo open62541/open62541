@@ -52,11 +52,8 @@
 # define UA_access access
 #endif
 
-#ifndef _SSIZE_T_DEFINED
-# define ssize_t int
-#endif
-
-#define OPTVAL_TYPE int
+#define ssize_t int
+#define OPTVAL_TYPE char
 #ifdef UA_sleep_ms
 void UA_sleep_ms(unsigned long ms);
 #else
@@ -106,7 +103,7 @@ void UA_sleep_ms(unsigned long ms);
 #define UA_accept accept
 #define UA_connect(sockfd, addr, addrlen) connect(sockfd, addr, (int)(addrlen))
 #define UA_getaddrinfo getaddrinfo
-#define UA_getsockopt(sockfd, level, optname, optval, optlen) getsockopt(sockfd, level, optname, (char*) (optval), optlen)
+#define UA_getsockopt getsockopt
 #define UA_setsockopt(sockfd, level, optname, optval, optlen) setsockopt(sockfd, level, optname, (const char*) (optval), optlen)
 #define UA_ioctl
 #define UA_freeaddrinfo freeaddrinfo

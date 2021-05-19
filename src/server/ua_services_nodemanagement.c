@@ -2334,20 +2334,6 @@ setExternalValueSource(UA_Server *server, UA_Session *session,
     return UA_STATUSCODE_GOOD;
 }
 
-/****************************/
-/* Set Data Source Callback */
-/****************************/
-static UA_StatusCode
-setDataSourceCallback(UA_Server *server, UA_Session *session,
-                 UA_VariableNode *node, const UA_DataSource *dataSource) {
-    if(node->head.nodeClass != UA_NODECLASS_VARIABLE)
-        return UA_STATUSCODE_BADNODECLASSINVALID;
-    node->valueBackend.backendType = UA_VALUEBACKENDTYPE_DATA_SOURCE_CALLBACK;
-    node->valueBackend.backend.dataSource.read = dataSource->read;
-    node->valueBackend.backend.dataSource.write = dataSource->write;
-    return UA_STATUSCODE_GOOD;
-}
-
 /**********************/
 /* Set Value Backend  */
 /**********************/
@@ -2362,8 +2348,9 @@ UA_Server_setVariableNode_valueBackend(UA_Server *server, const UA_NodeId nodeId
             return UA_STATUSCODE_BADCONFIGURATIONERROR;
         case UA_VALUEBACKENDTYPE_DATA_SOURCE_CALLBACK:
             retval = UA_Server_editNode(server, &server->adminSession, &nodeId,
-                                        (UA_EditNodeCallback) setDataSourceCallback,
-                                        (UA_DataSource *)(uintptr_t) &valueBackend.backend.dataSource);
+                                        (UA_EditNodeCallback) setValueCallback,
+                /* cast away const because callback uses const anyway */
+                                        (UA_ValueCallback *)(uintptr_t) &valueBackend.backend.dataSource);
             break;
         case UA_VALUEBACKENDTYPE_INTERNAL:
             break;
