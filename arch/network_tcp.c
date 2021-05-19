@@ -105,7 +105,7 @@ connection_recv(UA_Connection *connection, UA_ByteString *response,
 
     if(resultsize == -1) {
         /* The call to select was interrupted. Act as if it timed out. */
-        if(UA_ERRNO == EINTR)
+        if(UA_ERRNO == UA_INTERRUPTED)
             return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
 
         /* The error cannot be recovered. Close the connection. */
@@ -409,6 +409,9 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, const UA_Logger *logger,
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;
+#ifdef AI_ADDRCONFIG
+    hints.ai_flags |= AI_ADDRCONFIG;
+#endif
     hints.ai_protocol = IPPROTO_TCP;
     int retcode = UA_getaddrinfo(customHostname->length ? hostname : NULL,
                                  portno, &hints, &res);
@@ -687,6 +690,7 @@ ClientNetworkLayerTCP_free(UA_Connection *connection) {
 UA_StatusCode
 UA_ClientConnectionTCP_poll(UA_Connection *connection, UA_UInt32 timeout,
                             const UA_Logger *logger) {
+    int error = 0;
     if(connection->state == UA_CONNECTIONSTATE_CLOSED)
         return UA_STATUSCODE_BADDISCONNECT;
     if(connection->state == UA_CONNECTIONSTATE_ESTABLISHED)
@@ -701,14 +705,22 @@ UA_ClientConnectionTCP_poll(UA_Connection *connection, UA_UInt32 timeout,
         return UA_STATUSCODE_BADDISCONNECT;
     }
 
-    /* Get a socket */
+    /* Get a socket and connect (only once) if not already done in a previous
+     * call. On win32, calling connect multiple times is not recommended on
+     * non-blocking sockets
+     * (https://docs.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-connect).
+     * On posix it is also not necessary to call connect multiple times.
+     *
+     * Identification of successfull connection is done using select (writeable/errorfd)
+     * and getsockopt using SO_ERROR on win32 and posix.
+     */
     if(connection->sockfd == UA_INVALID_SOCKET) {
         connection->sockfd = UA_socket(tcpConnection->server->ai_family,
                                        tcpConnection->server->ai_socktype,
                                        tcpConnection->server->ai_protocol);
         if(connection->sockfd == UA_INVALID_SOCKET) {
             UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
-                    "Could not create client socket: %s", strerror(UA_ERRNO));
+                           "Could not create client socket: %s", strerror(UA_ERRNO));
             ClientNetworkLayerTCP_close(connection);
             return UA_STATUSCODE_BADDISCONNECT;
         }
@@ -724,32 +736,29 @@ UA_ClientConnectionTCP_poll(UA_Connection *connection, UA_UInt32 timeout,
         /* Don't have the socket create interrupt signals */
 #ifdef SO_NOSIGPIPE
         int val = 1;
-        int sso_result = setsockopt(connection->sockfd, SOL_SOCKET,
-                                    SO_NOSIGPIPE, (void*)&val, sizeof(val));
+        int sso_result = setsockopt(connection->sockfd, SOL_SOCKET, SO_NOSIGPIPE,
+                                    (void *)&val, sizeof(val));
         if(sso_result < 0)
-            UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
-                           "Couldn't set SO_NOSIGPIPE");
+            UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK, "Couldn't set SO_NOSIGPIPE");
 #endif
-    }
-
-    /* Non-blocking connect */
-    int error = UA_connect(connection->sockfd, tcpConnection->server->ai_addr,
+        error = UA_connect(connection->sockfd, tcpConnection->server->ai_addr,
                            tcpConnection->server->ai_addrlen);
 
-    /* Connection successful */
-    if(error == 0) {
-        connection->state = UA_CONNECTIONSTATE_ESTABLISHED;
-        return UA_STATUSCODE_GOOD;
-    }
+        /* Connection successful */
+        if(error == 0) {
+            connection->state = UA_CONNECTIONSTATE_ESTABLISHED;
+            return UA_STATUSCODE_GOOD;
+        }
 
-    /* The connection failed */
-    if(UA_ERRNO != UA_ERR_CONNECTION_PROGRESS) {
-        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
-                       "Connection to %.*s failed with error: %s",
-                       (int)tcpConnection->endpointUrl.length,
-                       tcpConnection->endpointUrl.data, strerror(UA_ERRNO));
-        ClientNetworkLayerTCP_close(connection);
-        return UA_STATUSCODE_BADDISCONNECT;
+        /* The connection failed */
+        if((UA_ERRNO != UA_ERR_CONNECTION_PROGRESS)) {
+            UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+                           "Connection to %.*s failed with error: %s",
+                           (int)tcpConnection->endpointUrl.length,
+                           tcpConnection->endpointUrl.data, strerror(UA_ERRNO));
+            ClientNetworkLayerTCP_close(connection);
+            return UA_STATUSCODE_BADDISCONNECT;
+        }
     }
 
     /* Use select to wait until connected. Return with a half-opened connection
@@ -779,30 +788,61 @@ UA_ClientConnectionTCP_poll(UA_Connection *connection, UA_UInt32 timeout,
 #else
     /* Wait in a select-call until the connection fully opens or the timeout
      * happens */
-    fd_set fdset;
-    FD_ZERO(&fdset);
-    UA_fd_set(connection->sockfd, &fdset);
-    struct timeval tmptv = { (long int) (timeout_usec / 1000000),
-                             (int) (timeout_usec % 1000000) };
-    int resultsize = UA_select((UA_Int32) (connection->sockfd + 1), NULL,
-                               &fdset, NULL, &tmptv);
-#endif
 
-#ifndef _WIN32
-    /* Any errors on the socket reported? */
-    OPTVAL_TYPE so_error = 0;
-    socklen_t len = sizeof(so_error);
-    int ret = UA_getsockopt(connection->sockfd, SOL_SOCKET, SO_ERROR, &so_error, &len);
-    if(ret != 0 || so_error != 0) {
+    /* On windows select both writing and error fdset */
+    fd_set writing_fdset;
+    FD_ZERO(&writing_fdset);
+    UA_fd_set(connection->sockfd, &writing_fdset);
+    fd_set error_fdset;
+    FD_ZERO(&error_fdset);
+#ifdef _WIN32
+    UA_fd_set(connection->sockfd, &error_fdset);
+#endif
+    struct timeval tmptv = {(long int)(timeout_usec / 1000000),
+                            (int)(timeout_usec % 1000000)};
+
+    int ret = UA_select((UA_Int32)(connection->sockfd + 1), NULL, &writing_fdset,
+                        &error_fdset, &tmptv);
+
+    // When select fails abort connection
+    if(ret == -1) {
         UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
                        "Connection to %.*s failed with error: %s",
                        (int)tcpConnection->endpointUrl.length,
-                       tcpConnection->endpointUrl.data,
-                       strerror(ret == 0 ? so_error : UA_ERRNO));
+                       tcpConnection->endpointUrl.data, strerror(UA_ERRNO));
         ClientNetworkLayerTCP_close(connection);
         return UA_STATUSCODE_BADDISCONNECT;
     }
+
+    int resultsize = UA_fd_isset(connection->sockfd, &writing_fdset);
 #endif
+
+    /* Any errors on the socket reported? */
+    OPTVAL_TYPE so_error = 0;
+    socklen_t len = sizeof(so_error);
+    ret = UA_getsockopt(connection->sockfd, SOL_SOCKET, SO_ERROR, &so_error, &len);
+    if(ret != 0 || so_error != 0) {
+        // UA_LOG_SOCKET_ERRNO_GAI_WRAP because of so_error
+#ifndef _WIN32
+        char *errno_str = strerror(ret == 0 ? so_error : UA_ERRNO);
+#else
+        char *errno_str = NULL;
+        FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM |
+                           FORMAT_MESSAGE_IGNORE_INSERTS,
+                       NULL, ret == 0 ? so_error : WSAGetLastError(),
+                       MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&errno_str, 0,
+                       NULL);
+#endif
+        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+                       "Connection to %.*s failed with error: %s",
+                       (int)tcpConnection->endpointUrl.length,
+                       tcpConnection->endpointUrl.data, errno_str);
+#ifdef _WIN32
+        LocalFree(errno_str);
+#endif
+        ClientNetworkLayerTCP_close(connection);
+        return UA_STATUSCODE_BADDISCONNECT;
+    }
 
     /* The connection is fully opened. Otherwise, select has timed out. But we
      * can retry. */
