@@ -2,6 +2,7 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  *
  *    Copyright 2020 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2021 (c) Fraunhofer IOSB (Author: Jan Hermes)
  */
 
 #include <open62541/plugin/log_syslog.h>
@@ -11,10 +12,13 @@
 
 #include <syslog.h>
 
-const char *syslogLevelNames[6] = {"trace", "debug", "info",
-                                   "warn", "error", "fatal"};
-const char *syslogCategoryNames[7] = {"network", "channel", "session", "server",
-                                      "client", "userland", "securitypolicy"};
+static const char *LogCategoryNamesSys[] = {
+    FOREACH_LOGCAT(GENERATE_STRING)
+};
+
+static const char *LogLevelNamesSys[] = {
+    FOREACH_LOGLVL(GENERATE_STRING)
+};
 
 #ifdef __clang__
 __attribute__((__format__(__printf__, 4 , 0)))
@@ -51,7 +55,7 @@ UA_Log_Syslog_log(void *context, UA_LogLevel level, UA_LogCategory category,
 #define LOGBUFSIZE 512
     char logbuf[LOGBUFSIZE];
     int pos = snprintf(logbuf, LOGBUFSIZE, "[%s/%s] ",
-                       syslogLevelNames[level], syslogCategoryNames[category]);
+                       LogLevelNamesSys[level], LogCategoryNamesSys[category]);
     if(pos < 0) {
         syslog(LOG_WARNING, "Log message too long for syslog");
         return;

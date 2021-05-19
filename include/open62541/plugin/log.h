@@ -28,23 +28,35 @@ _UA_BEGIN_DECLS
  * message content. The timestamp of the log-message is created within the
  * logger. */
 
+#define FOREACH_LOGLVL(LOGLVL) \
+        LOGLVL(TRACE, trace)   \
+        LOGLVL(DEBUG, debug)  \
+        LOGLVL(INFO, info)   \
+        LOGLVL(WARNING, warning)  \
+        LOGLVL(ERROR, error)  \
+        LOGLVL(FATAL, fatal)  \
+
+#define FOREACH_LOGCAT(LOGCAT) \
+        LOGCAT(NETWORK, network) \
+        LOGCAT(SECURECHANNEL, securechannel) \
+        LOGCAT(SESSION, session) \
+        LOGCAT(SERVER, server) \
+        LOGCAT(CLIENT, client) \
+        LOGCAT(USERLAND, userland) \
+        LOGCAT(SECURITYPOLICY, securitypolicy) \
+
+#define GENERATE_ENUM(ENUM) ENUM,
+#define GENERATE_STRING(uppercase, lowercase) #lowercase,
+
+#define GENERATE_LOGLVL_ENUM(uppercase, lowercase) GENERATE_ENUM(UA_LOGLEVEL_##uppercase)
+#define GENERATE_LOGCAT_ENUM(uppercase, lowercase) GENERATE_ENUM(UA_LOGCATEGORY_##uppercase)
+
 typedef enum {
-    UA_LOGLEVEL_TRACE = 0,
-    UA_LOGLEVEL_DEBUG,
-    UA_LOGLEVEL_INFO,
-    UA_LOGLEVEL_WARNING,
-    UA_LOGLEVEL_ERROR,
-    UA_LOGLEVEL_FATAL
+    FOREACH_LOGLVL(GENERATE_LOGLVL_ENUM)
 } UA_LogLevel;
 
 typedef enum {
-    UA_LOGCATEGORY_NETWORK = 0,
-    UA_LOGCATEGORY_SECURECHANNEL,
-    UA_LOGCATEGORY_SESSION,
-    UA_LOGCATEGORY_SERVER,
-    UA_LOGCATEGORY_CLIENT,
-    UA_LOGCATEGORY_USERLAND,
-    UA_LOGCATEGORY_SECURITYPOLICY
+    FOREACH_LOGCAT(GENERATE_LOGCAT_ENUM)
 } UA_LogCategory;
 
 typedef struct {

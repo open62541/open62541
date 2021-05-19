@@ -3,6 +3,7 @@
  *
  *    Copyright 2016-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Thomas Stalder, Blue Time Concept SA
+ *    Copyright 2021 (c) Fraunhofer IOSB (Author: Jan Hermes)
  */
 
 #include <open62541/plugin/log_stdout.h>
@@ -36,13 +37,19 @@ static pthread_mutex_t printf_mutex = PTHREAD_MUTEX_INITIALIZER;
 # define ANSI_COLOR_RESET   ""
 #endif
 
-const char *logLevelNames[6] = {"trace", "debug",
-                                ANSI_COLOR_GREEN "info",
-                                ANSI_COLOR_YELLOW "warn",
-                                ANSI_COLOR_RED "error",
-                                ANSI_COLOR_MAGENTA "fatal"};
-const char *logCategoryNames[7] = {"network", "channel", "session", "server",
-                                   "client", "userland", "securitypolicy"};
+const char *logLevelColors[6] = {"", "",
+                                 ANSI_COLOR_GREEN,
+                                 ANSI_COLOR_YELLOW,
+                                 ANSI_COLOR_RED,
+                                 ANSI_COLOR_MAGENTA};
+
+static const char *LogCategoryNamesStdout[] = {
+    FOREACH_LOGCAT(GENERATE_STRING)
+};
+
+static const char *LogLevelNamesStdout[] = {
+    FOREACH_LOGLVL(GENERATE_STRING)
+};
 
 #ifdef __clang__
 __attribute__((__format__(__printf__, 4 , 0)))
@@ -63,9 +70,10 @@ UA_Log_Stdout_log(void *context, UA_LogLevel level, UA_LogCategory category,
     pthread_mutex_lock(&printf_mutex);
 #endif
 
-    printf("[%04u-%02u-%02u %02u:%02u:%02u.%03u (UTC%+05d)] %s/%s" ANSI_COLOR_RESET "\t",
+    printf("[%04u-%02u-%02u %02u:%02u:%02u.%03u (UTC%+05d)] %s%s/%s" ANSI_COLOR_RESET "\t",
            dts.year, dts.month, dts.day, dts.hour, dts.min, dts.sec, dts.milliSec,
-           (int)(tOffset / UA_DATETIME_SEC / 36), logLevelNames[level], logCategoryNames[category]);
+           (int)(tOffset / UA_DATETIME_SEC / 36),
+           logLevelColors[level], LogLevelNamesStdout[level], LogCategoryNamesStdout[category]);
     vprintf(msg, args);
     printf("\n");
     fflush(stdout);
