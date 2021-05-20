@@ -377,6 +377,26 @@ struct UA_PubSubSecurityPolicy {
 
 #endif
 
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION_TPM
+
+struct UA_PubSubSecurityPolicyTPM;
+typedef struct UA_PubSubSecurityPolicyTPM UA_PubSubSecurityPolicyTPM;
+
+struct UA_PubSubSecurityPolicyTPM {
+    UA_ByteString policyUri; /* The policy uri that identifies the implemented
+                              * algorithms */
+    const UA_Logger *logger;
+    unsigned long session;
+    unsigned long key;
+    UA_StatusCode (*encryptTPM)(UA_PubSubSecurityPolicyTPM *policy, unsigned long session,
+                                unsigned long key, UA_ByteString *data);
+    UA_StatusCode (*decryptTPM)(UA_PubSubSecurityPolicyTPM *policy, unsigned long session, unsigned long hKey,
+                                UA_ByteString *data);
+    UA_StatusCode (*clear)(UA_PubSubSecurityPolicyTPM *policy, unsigned long session);
+};
+
+#endif
+
 _UA_END_DECLS
 
 #endif /* UA_PLUGIN_SECURITYPOLICY_H_ */

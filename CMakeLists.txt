@@ -17,6 +17,10 @@ set(PYTHON_EXECUTABLE ${Python3_EXECUTABLE})
 find_package(Git)
 include(AssignSourceGroup)
 include(GNUInstallDirs)
+if(UA_ENABLE_PUBSUB_ENCRYPTION_TPM)
+    find_library(TPM2_LIB tpm2_pkcs11)
+    message(${TPM2_LIB})
+endif()
 
 # Set when installed via make install
 set(open62541_TOOLS_DIR ${PROJECT_SOURCE_DIR}/tools)
@@ -554,6 +558,10 @@ if(UA_ENABLE_ENCRYPTION_MBEDTLS OR UA_ENABLE_PUBSUB_ENCRYPTION)
     list(APPEND open62541_LIBRARIES ${MBEDTLS_LIBRARIES})
 endif()
 
+if(UA_ENABLE_PUBSUB_ENCRYPTION_TPM)
+    list(APPEND open62541_LIBRARIES ${TPM2_LIB})
+endif()
+
 if(UA_ENABLE_WEBSOCKET_SERVER)
     # The recommended way is to install libwebsockets via the OS package manager. If
     # that is not possible, manually compile libwebsockets and set the cmake variables
@@ -963,6 +971,11 @@ list(INSERT default_plugin_sources 1
      ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic256sha256.c
      ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_aes128sha256rsaoaep.c
      ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_pki_mbedtls.c)
+endif()
+
+if(UA_ENABLE_PUBSUB_ENCRYPTION_TPM)
+list(INSERT default_plugin_sources 0
+     ${PROJECT_SOURCE_DIR}/plugins/crypto/tpm2_pkcs11/securitypolicy_pubsub_aes128ctr_tpm.c)
 endif()
 
 if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL OR UA_ENABLE_AMALGAMATION)
