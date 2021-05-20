@@ -410,6 +410,12 @@ if(UA_ENABLE_PUBSUB)
                 $<TARGET_OBJECTS:open62541-testplugins>)
         target_link_libraries(check_pubsub_decryption ${LIBS})
         add_test_valgrind(check_pubsub_decryption ${TESTS_BINARY_DIR}/check_pubsub_decryption)
+
+        add_executable(check_pubsub_subscribe_encrypted pubsub/check_pubsub_subscribe_encrypted.c
+                $<TARGET_OBJECTS:open62541-object>
+                $<TARGET_OBJECTS:open62541-testplugins>)
+        target_link_libraries(check_pubsub_subscribe_encrypted ${LIBS})
+        add_test_valgrind(check_pubsub_subscribe_encrypted ${TESTS_BINARY_DIR}/check_pubsub_subscribe_encrypted)
     endif()
 
     if (UA_ENABLE_PUBSUB_MONITORING)

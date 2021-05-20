@@ -319,23 +319,23 @@ START_TEST(InvalidSecurityModeRejectedSig) {
 }
 END_TEST
 
-START_TEST(InvalidSecurityModeInsufficient) {
-        UA_ReaderGroup *rgWithSecurity = newReaderGroupWithSecurity(UA_MESSAGESECURITYMODE_SIGN);
-        const char * msg_unenc = MSG_HEADER_NO_SEC MSG_PAYLOAD_DEC;
-
-        UA_ByteString buffer;
-        buffer.length = MSG_LENGTH_DECRYPTED;
-        buffer.data = hexstr_to_char(msg_unenc);
-
-        UA_NetworkMessage msg;
-        memset(&msg, 0, sizeof(UA_NetworkMessage));
-
-        size_t currentPosition = 0;
-
-        UA_StatusCode rv = decodeNetworkMessage(logger, &buffer, &currentPosition, &msg, rgWithSecurity);
-        ck_assert(rv == UA_STATUSCODE_BADSECURITYMODEREJECTED);
-    }
-END_TEST
+// START_TEST(InvalidSecurityModeInsufficient) {
+//         UA_ReaderGroup *rgWithSecurity = newReaderGroupWithSecurity(UA_MESSAGESECURITYMODE_SIGN);
+//         const char * msg_unenc = MSG_HEADER_NO_SEC MSG_PAYLOAD_DEC;
+//
+//         UA_ByteString buffer;
+//         buffer.length = MSG_LENGTH_DECRYPTED;
+//         buffer.data = hexstr_to_char(msg_unenc);
+//
+//         UA_NetworkMessage msg;
+//         memset(&msg, 0, sizeof(UA_NetworkMessage));
+//
+//         size_t currentPosition = 0;
+//
+//         UA_StatusCode rv = decodeNetworkMessage(logger, &buffer, &currentPosition, &msg, rgWithSecurity);
+//         ck_assert(rv == UA_STATUSCODE_BADSECURITYMODEREJECTED);
+//     }
+// END_TEST
 
 int
 main(void) {
