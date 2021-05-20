@@ -300,6 +300,9 @@ option(UA_ENABLE_PUBSUB "Enable the PubSub protocol" OFF)
 option(UA_ENABLE_PUBSUB_ENCRYPTION "Enable encryption of the PubSub payload" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_ENCRYPTION)
 
+option(UA_ENABLE_PUBSUB_ENCRYPTION_TPM "Enable encryption of the PubSub payload using TPM hardware" OFF)
+mark_as_advanced(UA_ENABLE_PUBSUB_ENCRYPTION_TPM)
+
 option(UA_ENABLE_PUBSUB_INFORMATIONMODEL "Enable PubSub information model twin" OFF)
 
 option(UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS "Enable PubSub informationmodel methods" OFF)
@@ -317,6 +320,12 @@ mark_as_advanced(UA_ENABLE_PUBSUB_BUFMALLOC)
 
 #RT and Transport PubSub settings
 option(UA_ENABLE_PUBSUB_ETH_UADP "Enable publish/subscribe UADP over Ethernet" OFF)
+
+if(UA_ENABLE_PUBSUB_ENCRYPTION)
+    if(UA_ENABLE_PUBSUB_ENCRYPTION_TPM)
+        message(FATAL_ERROR "PubSub cannot use hardware and software encryption at the same time.")
+    endif()
+endif()
 
 if(UA_ENABLE_PUBSUB_ETH_UADP)
     if(NOT CMAKE_SYSTEM MATCHES "Linux")
