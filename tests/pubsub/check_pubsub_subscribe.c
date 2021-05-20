@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  * Copyright (c) 2019 Kalycito Infotech Private Limited
+ * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
  */
 
 #include <open62541/plugin/pubsub_udp.h>
@@ -799,6 +800,7 @@ START_TEST(SinglePublishSubscribeInt32) {
         UA_free(pMetaData->fields);
         /* run server - publisher and subscriber */
         UA_Server_run_iterate(server,true);
+        UA_Server_run_iterate(server,true);
 
         /* Read data sent by the Publisher */
         UA_Variant *publishedNodeData = UA_Variant_new();
@@ -970,6 +972,7 @@ START_TEST(SinglePublishSubscribeInt64) {
         UA_FieldTargetDataType_clear(&targetVar.targetVariable);
         UA_free(pMetaData->fields);
         /* run server - publisher and subscriber */
+        UA_Server_run_iterate(server,true);
         UA_Server_run_iterate(server,true);
 
         /* Read data sent by the Publisher */
@@ -1315,6 +1318,7 @@ START_TEST(SinglePublishSubscribewithValidIdentifiers) {
         UA_FieldTargetDataType_clear(&targetVar.targetVariable);
         UA_free(pMetaData->fields);
         /* run server - publisher and subscriber */
+        UA_Server_run_iterate(server,true);
         UA_Server_run_iterate(server,true);
 
         /* Read data sent by the Publisher */
