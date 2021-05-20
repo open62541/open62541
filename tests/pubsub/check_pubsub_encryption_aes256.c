@@ -17,13 +17,13 @@
 
 #include <check.h>
 
-#define UA_AES128CTR_SIGNING_KEY_LENGTH 16
-#define UA_AES128CTR_KEY_LENGTH 16
-#define UA_AES128CTR_KEYNONCE_LENGTH 4
+#define UA_AES256CTR_SIGNING_KEY_LENGTH 32
+#define UA_AES256CTR_KEY_LENGTH 32
+#define UA_AES256CTR_KEYNONCE_LENGTH 4
 
-UA_Byte signingKey[UA_AES128CTR_SIGNING_KEY_LENGTH] = {0};
-UA_Byte encryptingKey[UA_AES128CTR_KEY_LENGTH] = {0};
-UA_Byte keyNonce[UA_AES128CTR_KEYNONCE_LENGTH] = {0};
+UA_Byte signingKey[UA_AES256CTR_SIGNING_KEY_LENGTH] = {0};
+UA_Byte encryptingKey[UA_AES256CTR_KEY_LENGTH] = {0};
+UA_Byte keyNonce[UA_AES256CTR_KEYNONCE_LENGTH] = {0};
 
 UA_Server *server = NULL;
 UA_NodeId connection1, connection2, writerGroup1, writerGroup2, writerGroup3,
@@ -38,7 +38,7 @@ static void setup(void) {
     config->pubSubConfig.securityPolicies = (UA_PubSubSecurityPolicy*)
         UA_malloc(sizeof(UA_PubSubSecurityPolicy));
     config->pubSubConfig.securityPoliciesSize = 1;
-    UA_PubSubSecurityPolicy_Aes128Ctr(config->pubSubConfig.securityPolicies,
+    UA_PubSubSecurityPolicy_Aes256Ctr(config->pubSubConfig.securityPolicies,
                                       &config->logger);
 
     UA_Server_run_startup(server);
@@ -107,9 +107,9 @@ START_TEST(SinglePublishDataSetField) {
     UA_Server_addDataSetField(server, publishedDataSet1, &dataSetFieldConfig, NULL);
 
 
-    UA_ByteString sk = {UA_AES128CTR_SIGNING_KEY_LENGTH, signingKey};
-    UA_ByteString ek = {UA_AES128CTR_KEY_LENGTH, encryptingKey};
-    UA_ByteString kn = {UA_AES128CTR_KEYNONCE_LENGTH, keyNonce};
+    UA_ByteString sk = {UA_AES256CTR_SIGNING_KEY_LENGTH, signingKey};
+    UA_ByteString ek = {UA_AES256CTR_KEY_LENGTH, encryptingKey};
+    UA_ByteString kn = {UA_AES256CTR_KEYNONCE_LENGTH, keyNonce};
 
     UA_Server_setWriterGroupEncryptionKeys(server, writerGroup3, 1, sk, ek, kn);
 
