@@ -495,6 +495,7 @@ addPubSubConnectionAction(UA_Server *server,
                                 &UA_TYPES[UA_TYPES_FIELDMETADATA]);
             for (size_t j = 0; j < pMetaData->fieldsSize; j++){
                 UA_FieldMetaData_init (&pMetaData->fields[j]);
+                
                 UA_NodeId_copy (&pubSubConnectionDataType.readerGroups[i].dataSetReaders[index].dataSetMetaData.fields[j].dataType,
                                 &pMetaData->fields[j].dataType);
                 pMetaData->fields[j].builtInType = pubSubConnectionDataType.readerGroups[i].dataSetReaders[index].dataSetMetaData.fields[j].builtInType;
@@ -818,8 +819,9 @@ removeDataSetReaderAction(UA_Server *server,
                           const UA_NodeId *objectId, void *objectContext,
                           size_t inputSize, const UA_Variant *input,
                           size_t outputSize, UA_Variant *output){
-    UA_StatusCode retVal = UA_STATUSCODE_BADNOTIMPLEMENTED;
-    //TODO implement reader part
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    UA_NodeId nodeToRemove = *((UA_NodeId *) input[0].data);
+    retVal |= UA_Server_removeDataSetReader(server, nodeToRemove);
     return retVal;
 }
 #endif
@@ -1272,8 +1274,8 @@ removeGroupAction(UA_Server *server,
     UA_NodeId nodeToRemove = *((UA_NodeId *) input[0].data);
     if(UA_WriterGroup_findWGbyId(server, nodeToRemove) != NULL)
         retVal |= UA_Server_removeWriterGroup(server, nodeToRemove);
-    //else
-        //retVal |= UA_Server_removeReaderGroup(server, nodeToRemve);
+    else
+        retVal |= UA_Server_removeReaderGroup(server, nodeToRemove);
     return retVal;
 }
 #endif
