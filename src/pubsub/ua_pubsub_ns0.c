@@ -449,6 +449,7 @@ addPubSubConnectionAction(UA_Server *server,
             dataSetWriterConfig.name = pubSubConnectionDataType.writerGroups[i].dataSetWriters[index].name;
             dataSetWriterConfig.dataSetWriterId = pubSubConnectionDataType.writerGroups[i].dataSetWriters[index].dataSetWriterId;
             dataSetWriterConfig.keyFrameCount = pubSubConnectionDataType.writerGroups[i].dataSetWriters[index].keyFrameCount;
+            dataSetWriterConfig.dataSetFieldContentMask =  pubSubConnectionDataType.writerGroups[i].dataSetWriters[index].dataSetFieldContentMask;
             retVal |= UA_Server_addDataSetWriter(server, writerGroupId, publishedDataSetId,
                                                  &dataSetWriterConfig, &dataSetWriterId);
             if(retVal != UA_STATUSCODE_GOOD){
@@ -495,7 +496,6 @@ addPubSubConnectionAction(UA_Server *server,
                                 &UA_TYPES[UA_TYPES_FIELDMETADATA]);
             for (size_t j = 0; j < pMetaData->fieldsSize; j++){
                 UA_FieldMetaData_init (&pMetaData->fields[j]);
-                
                 UA_NodeId_copy (&pubSubConnectionDataType.readerGroups[i].dataSetReaders[index].dataSetMetaData.fields[j].dataType,
                                 &pMetaData->fields[j].dataType);
                 pMetaData->fields[j].builtInType = pubSubConnectionDataType.readerGroups[i].dataSetReaders[index].dataSetMetaData.fields[j].builtInType;
@@ -1420,6 +1420,7 @@ addDataSetWriterAction(UA_Server *server,
     dataSetWriterConfig.dataSetName = dataSetWriterDataType->dataSetName;
     dataSetWriterConfig.keyFrameCount =  dataSetWriterDataType->keyFrameCount;
     dataSetWriterConfig.dataSetWriterId = dataSetWriterDataType->dataSetWriterId;
+    dataSetWriterConfig.dataSetFieldContentMask =  dataSetWriterDataType->dataSetFieldContentMask;
 
     UA_Server_addDataSetWriter(server, *objectId, targetPDS, &dataSetWriterConfig, &generatedId);
     UA_Variant_setScalarCopy(output, &generatedId, &UA_TYPES[UA_TYPES_NODEID]);
