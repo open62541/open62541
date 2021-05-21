@@ -91,12 +91,6 @@ START_TEST(SinglePublishDataSetField) {
     UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSet1);
     UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSet2);
 
-    UA_DataSetWriterConfig dataSetWriterConfig;
-    memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
-    dataSetWriterConfig.name = UA_STRING("DataSetWriter 1");
-    UA_Server_addDataSetWriter(server, writerGroup3, publishedDataSet1,
-                               &dataSetWriterConfig, &dataSetWriter1);
-
     UA_DataSetFieldConfig dataSetFieldConfig;
     memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
     dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
@@ -106,6 +100,11 @@ START_TEST(SinglePublishDataSetField) {
     dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
     UA_Server_addDataSetField(server, publishedDataSet1, &dataSetFieldConfig, NULL);
 
+    UA_DataSetWriterConfig dataSetWriterConfig;
+    memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
+    dataSetWriterConfig.name = UA_STRING("DataSetWriter 1");
+    UA_Server_addDataSetWriter(server, writerGroup3, publishedDataSet1,
+                                   &dataSetWriterConfig, &dataSetWriter1);
 
     UA_ByteString sk = {UA_AES128CTR_SIGNING_KEY_LENGTH, signingKey};
     UA_ByteString ek = {UA_AES128CTR_KEY_LENGTH, encryptingKey};
