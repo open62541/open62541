@@ -48,11 +48,11 @@ static UA_StatusCode addDataSetWriterAction(UA_Server *server,
 
 static UA_StatusCode
 addPubSubObjectNode(UA_Server *server, char* name, UA_UInt32 objectid,
-              UA_UInt32 parentid, UA_UInt32 referenceid, UA_UInt32 type_id) {
+                    UA_NodeId parentid, UA_UInt32 referenceid, UA_UInt32 type_id) {
     UA_ObjectAttributes object_attr = UA_ObjectAttributes_default;
     object_attr.displayName = UA_LOCALIZEDTEXT("", name);
-    return UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(0, objectid),
-                                   UA_NODEID_NUMERIC(0, parentid),
+    return UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, objectid),
+                                   parentid,
                                    UA_NODEID_NUMERIC(0, referenceid),
                                    UA_QUALIFIEDNAME(0, name),
                                    UA_NODEID_NUMERIC(0, type_id),
@@ -552,7 +552,7 @@ addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connec
     UA_ObjectAttributes attr = UA_ObjectAttributes_default;
     attr.displayName = UA_LOCALIZEDTEXT("de-DE", connectionName);
     retVal |= UA_Server_addNode_begin(server, UA_NODECLASS_OBJECT,
-                                      UA_NODEID_NUMERIC(0, connection->identifier.identifier.numeric),
+                                      UA_NODEID_NUMERIC(1, connection->identifier.identifier.numeric),
                                       UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE),
                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASPUBSUBCONNECTION),
                                       UA_QUALIFIEDNAME(0, connectionName),
@@ -560,28 +560,29 @@ addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connec
                                       (const UA_NodeAttributes*)&attr, &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES],
                                       NULL, &pubSubConnectionNodeId);
     addPubSubObjectNode(server, "Address", connection->identifier.identifier.numeric+1,
-                        pubSubConnectionNodeId.identifier.numeric,  UA_NS0ID_HASCOMPONENT,
+                        pubSubConnectionNodeId,  UA_NS0ID_HASCOMPONENT,
                         UA_NS0ID_NETWORKADDRESSURLTYPE);
+    //ToDo: Need to move the browse name from namespaceindex 0 to 1
     UA_Server_addNode_finish(server, pubSubConnectionNodeId);
     //End lock zone
 
     UA_NodeId addressNode, urlNode, interfaceNode, publisherIdNode, connectionPropertieNode, transportProfileUri;
     addressNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Address"),
                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                                      UA_NODEID_NUMERIC(0, connection->identifier.identifier.numeric));
+                                      UA_NODEID_NUMERIC(1, connection->identifier.identifier.numeric));
     urlNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Url"),
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), addressNode);
     interfaceNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "NetworkInterface"),
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), addressNode);
     publisherIdNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublisherId"),
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                                        UA_NODEID_NUMERIC(0, connection->identifier.identifier.numeric));
+                                        UA_NODEID_NUMERIC(1, connection->identifier.identifier.numeric));
     connectionPropertieNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "ConnectionProperties"),
                                                  UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                                                 UA_NODEID_NUMERIC(0, connection->identifier.identifier.numeric));
+                                                 UA_NODEID_NUMERIC(1, connection->identifier.identifier.numeric));
     transportProfileUri = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "TransportProfileUri"),
                                           UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                                          UA_NODEID_NUMERIC(0, connection->identifier.identifier.numeric));
+                                          UA_NODEID_NUMERIC(1, connection->identifier.identifier.numeric));
 
     if(UA_NodeId_equal(&addressNode, &UA_NODEID_NULL) ||
        UA_NodeId_equal(&urlNode, &UA_NODEID_NULL) ||
@@ -615,7 +616,6 @@ addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connec
     valueCallback.onRead = onRead;
     valueCallback.onWrite = NULL;
     retVal |= addVariableValueSource(server, valueCallback, publisherIdNode, connectionPublisherIdContext);
-
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
     retVal |= UA_Server_addReference(server, connection->identifier,
                                      UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
@@ -761,20 +761,21 @@ addDataSetReaderRepresentation(UA_Server *server, UA_DataSetReader *dataSetReade
     //This code block must use a lock
     UA_NODESTORE_REMOVE(server, &dataSetReader->identifier);
     retVal |= addPubSubObjectNode(server, dsrName, dataSetReader->identifier.identifier.numeric,
-                                  dataSetReader->linkedReaderGroup.identifier.numeric,
+                                  dataSetReader->linkedReaderGroup,
                                   UA_NS0ID_HASDATASETREADER, UA_NS0ID_DATASETREADERTYPE);
     //End lock zone
 
+    //ToDo: Need to move the browse name from namespaceindex 0 to 1
     /* Add childNodes such as PublisherId, WriterGroupId and DataSetWriterId in DataSetReader object */
     publisherIdNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublisherId"),
                                           UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                                          UA_NODEID_NUMERIC(0, dataSetReader->identifier.identifier.numeric));
+                                          UA_NODEID_NUMERIC(1, dataSetReader->identifier.identifier.numeric));
     writerGroupIdNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "WriterGroupId"),
                                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                                            UA_NODEID_NUMERIC(0, dataSetReader->identifier.identifier.numeric));
+                                            UA_NODEID_NUMERIC(1, dataSetReader->identifier.identifier.numeric));
     dataSetwriterIdNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetWriterId"),
                                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                                              UA_NODEID_NUMERIC(0, dataSetReader->identifier.identifier.numeric));
+                                              UA_NODEID_NUMERIC(1, dataSetReader->identifier.identifier.numeric));
 
     if(UA_NodeId_equal(&publisherIdNode, &UA_NODEID_NULL)
         || UA_NodeId_equal(&writerGroupIdNode, &UA_NODEID_NULL)
@@ -925,18 +926,18 @@ addPublishedDataItemsRepresentation(UA_Server *server, UA_PublishedDataSet *publ
     //This code block must use a lock
     UA_NODESTORE_REMOVE(server, &publishedDataSet->identifier);
     retVal |= addPubSubObjectNode(server, pdsName, publishedDataSet->identifier.identifier.numeric,
-                                  UA_NS0ID_PUBLISHSUBSCRIBE_PUBLISHEDDATASETS,
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_PUBLISHEDDATASETS),
                                   UA_NS0ID_HASPROPERTY, UA_NS0ID_PUBLISHEDDATAITEMSTYPE);
     //End lock zone
 
     UA_ValueCallback valueCallback;
     valueCallback.onRead = onRead;
     valueCallback.onWrite = NULL;
-
+    //ToDo: Need to move the browse name from namespaceindex 0 to 1
     UA_NodeId configurationVersionNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "ConfigurationVersion"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                            UA_NODEID_NUMERIC(0, publishedDataSet->identifier.identifier.numeric));
+                            UA_NODEID_NUMERIC(1, publishedDataSet->identifier.identifier.numeric));
     if(UA_NodeId_equal(&configurationVersionNode, &UA_NODEID_NULL))
         return UA_STATUSCODE_BADNOTFOUND;
 
@@ -952,7 +953,7 @@ addPublishedDataItemsRepresentation(UA_Server *server, UA_PublishedDataSet *publ
     UA_NodeId publishedDataNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublishedData"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                            UA_NODEID_NUMERIC(0, publishedDataSet->identifier.identifier.numeric));
+                            UA_NODEID_NUMERIC(1, publishedDataSet->identifier.identifier.numeric));
     if(UA_NodeId_equal(&publishedDataNode, &UA_NODEID_NULL))
         return UA_STATUSCODE_BADNOTFOUND;
 
@@ -967,7 +968,7 @@ addPublishedDataItemsRepresentation(UA_Server *server, UA_PublishedDataSet *publ
     UA_NodeId dataSetMetaDataNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetMetaData"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                            UA_NODEID_NUMERIC(0, publishedDataSet->identifier.identifier.numeric));
+                            UA_NODEID_NUMERIC(1, publishedDataSet->identifier.identifier.numeric));
     if(UA_NodeId_equal(&dataSetMetaDataNode, &UA_NODEID_NULL))
         return UA_STATUSCODE_BADNOTFOUND;
 
@@ -977,7 +978,6 @@ addPublishedDataItemsRepresentation(UA_Server *server, UA_PublishedDataSet *publ
     metaDataContext->parentClassifier = UA_NS0ID_PUBLISHEDDATAITEMSTYPE;
     metaDataContext->elementClassiefier = UA_NS0ID_PUBLISHEDDATAITEMSTYPE_DATASETMETADATA;
     retVal |= addVariableValueSource(server, valueCallback, dataSetMetaDataNode, metaDataContext);
-
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
     retVal |= UA_Server_addReference(server, publishedDataSet->identifier,
                                      UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
@@ -1162,17 +1162,18 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup){
     //This code block must use a lock
     UA_NODESTORE_REMOVE(server, &writerGroup->identifier);
     retVal |= addPubSubObjectNode(server, wgName, writerGroup->identifier.identifier.numeric,
-                                  writerGroup->linkedConnection->identifier.identifier.numeric,
+                                  writerGroup->linkedConnection->identifier,
                                   UA_NS0ID_HASCOMPONENT, UA_NS0ID_WRITERGROUPTYPE);
     //End lock zone
+    //ToDo: Need to move the browse name from namespaceindex 0 to 1
     UA_NodeId keepAliveNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "KeepAliveTime"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                            UA_NODEID_NUMERIC(0, writerGroup->identifier.identifier.numeric));
+                            UA_NODEID_NUMERIC(1, writerGroup->identifier.identifier.numeric));
     UA_NodeId publishingIntervalNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublishingInterval"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                            UA_NODEID_NUMERIC(0, writerGroup->identifier.identifier.numeric));
+                            UA_NODEID_NUMERIC(1, writerGroup->identifier.identifier.numeric));
     if(UA_NodeId_equal(&keepAliveNode, &UA_NODEID_NULL) ||
        UA_NodeId_equal(&publishingIntervalNode, &UA_NODEID_NULL))
         return UA_STATUSCODE_BADNOTFOUND;
@@ -1193,11 +1194,11 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup){
     UA_NodeId priorityNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Priority"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                            UA_NODEID_NUMERIC(0, writerGroup->identifier.identifier.numeric));
+                            UA_NODEID_NUMERIC(1, writerGroup->identifier.identifier.numeric));
     UA_NodeId writerGroupIdNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "WriterGroupId"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                            UA_NODEID_NUMERIC(0, writerGroup->identifier.identifier.numeric));
+                            UA_NODEID_NUMERIC(1, writerGroup->identifier.identifier.numeric));
     UA_Variant value;
     UA_Variant_init(&value);
     UA_Variant_setScalar(&value, &writerGroup->config.publishingInterval, &UA_TYPES[UA_TYPES_DURATION]);
@@ -1210,7 +1211,7 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup){
     UA_Server_writeValue(server, writerGroupIdNode, value);
 
     retVal |= addPubSubObjectNode(server, "MessageSettings", 0,
-                                  writerGroup->identifier.identifier.numeric,
+                                  writerGroup->identifier,
                                   UA_NS0ID_HASCOMPONENT, UA_NS0ID_UADPWRITERGROUPMESSAGETYPE);
 
     /* Find the variable with the content mask */
@@ -1218,7 +1219,7 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup){
     UA_NodeId messageSettingsId =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "MessageSettings"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                            UA_NODEID_NUMERIC(0, writerGroup->identifier.identifier.numeric));
+                            UA_NODEID_NUMERIC(1, writerGroup->identifier.identifier.numeric));
     UA_NodeId contentMaskId =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "NetworkMessageContentMask"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), messageSettingsId);
@@ -1340,7 +1341,7 @@ addReaderGroupRepresentation(UA_Server *server, UA_ReaderGroup *readerGroup){
 
     /* Add object ReaderGroup under PubSubConnectionType object */
     retVal |= addPubSubObjectNode(server, rgName, readerGroup->identifier.identifier.numeric,
-                                  readerGroup->linkedConnection.identifier.numeric,
+                                  readerGroup->linkedConnection,
                                   UA_NS0ID_HASCOMPONENT, UA_NS0ID_READERGROUPTYPE);
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
     retVal |= UA_Server_addReference(server, readerGroup->identifier,
@@ -1393,12 +1394,12 @@ addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWrite
     //This code block must use a lock
     UA_NODESTORE_REMOVE(server, &dataSetWriter->identifier);
     retVal |= addPubSubObjectNode(server, dswName, dataSetWriter->identifier.identifier.numeric,
-                                  dataSetWriter->linkedWriterGroup.identifier.numeric,
+                                  dataSetWriter->linkedWriterGroup,
                                   UA_NS0ID_HASDATASETWRITER, UA_NS0ID_DATASETWRITERTYPE);
     //End lock zone
     retVal |= UA_Server_addReference(server, dataSetWriter->connectedDataSet,
                                      UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETTOWRITER),
-                                     UA_EXPANDEDNODEID_NUMERIC(0, dataSetWriter->identifier.identifier.numeric), true);
+                                     UA_EXPANDEDNODEID_NUMERIC(1, dataSetWriter->identifier.identifier.numeric), true);
 
     UA_NodeId dataSetWriterIdNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetWriterId"),
@@ -1433,7 +1434,7 @@ addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWrite
     UA_Server_writeValue(server, dataSetFieldContentMaskNode, value);
 
     retVal |= addPubSubObjectNode(server, "MessageSettings", 0,
-                                  dataSetWriter->identifier.identifier.numeric,
+                                  dataSetWriter->identifier,
                                   UA_NS0ID_HASCOMPONENT, UA_NS0ID_UADPDATASETWRITERMESSAGETYPE);
     return retVal;
 }
