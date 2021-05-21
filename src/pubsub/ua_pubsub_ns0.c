@@ -1224,6 +1224,14 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup){
     /* Make writable */
     UA_Server_writeAccessLevel(server, contentMaskId,
                                UA_ACCESSLEVELMASK_WRITE | UA_ACCESSLEVELMASK_READ);
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
+    retVal |= UA_Server_addReference(server, writerGroup->identifier,
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                     UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_WRITERGROUPTYPE_ADDDATASETWRITER), true);
+    retVal |= UA_Server_addReference(server, writerGroup->identifier,
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                     UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_WRITERGROUPTYPE_REMOVEDATASETWRITER), true);
+#endif
 
     return retVal;
 }
@@ -1253,6 +1261,14 @@ addWriterGroupAction(UA_Server *server,
 UA_StatusCode
 removeGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup) {
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
+    retVal |= UA_Server_deleteReference(server, writerGroup->identifier, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), true,
+                                        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_WRITERGROUPTYPE_ADDDATASETWRITER),
+                                        false);
+    retVal |= UA_Server_deleteReference(server, writerGroup->identifier, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), true,
+                                        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_WRITERGROUPTYPE_REMOVEDATASETWRITER),
+                                        false);
+#endif
     retVal |= UA_Server_deleteNode(server, writerGroup->identifier, false);
     return retVal;
 }
@@ -1260,6 +1276,14 @@ removeGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup) {
 UA_StatusCode
 removeReaderGroupRepresentation(UA_Server *server, UA_ReaderGroup *readerGroup) {
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
+    retVal |= UA_Server_deleteReference(server, readerGroup->identifier, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), true,
+                                        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_READERGROUPTYPE_ADDDATASETREADER),
+                                        false);
+    retVal |= UA_Server_deleteReference(server, readerGroup->identifier, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), true,
+                                        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_READERGROUPTYPE_REMOVEDATASETREADER),
+                                        false);
+#endif
     retVal |= UA_Server_deleteNode(server, readerGroup->identifier, false);
     return retVal;
 }
@@ -1304,6 +1328,14 @@ addReaderGroupRepresentation(UA_Server *server, UA_ReaderGroup *readerGroup){
     retVal |= addPubSubObjectNode(server, rgName, readerGroup->identifier.identifier.numeric,
                                   readerGroup->linkedConnection.identifier.numeric,
                                   UA_NS0ID_HASCOMPONENT, UA_NS0ID_READERGROUPTYPE);
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
+    retVal |= UA_Server_addReference(server, readerGroup->identifier,
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                     UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_READERGROUPTYPE_ADDDATASETREADER), true);
+    retVal |= UA_Server_addReference(server, readerGroup->identifier,
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                     UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_READERGROUPTYPE_REMOVEDATASETREADER), true);
+#endif
     }
 
     //End lock zone
