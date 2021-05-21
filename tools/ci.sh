@@ -173,6 +173,7 @@ function unit_tests_valgrind {
           -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=OFF \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
+          -DUA_ENABLE_PUBSUB_ENCRYPTION=ON \
           -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON \
           ..
     make ${MAKEOPTS}
