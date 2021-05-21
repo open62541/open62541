@@ -401,9 +401,63 @@ addPubSubConnectionAction(UA_Server *server,
     if(retVal != UA_STATUSCODE_GOOD){
         return retVal;
     }
+
     for(size_t i = 0; i < pubSubConnectionDataType.writerGroupsSize; i++){
         //UA_PubSubConnection_addWriterGroup(server, UA_NODEID_NULL, NULL, NULL);
+        /* Now we create a new WriterGroupConfig and add the group to the existing
+        * PubSubConnection. */
+        UA_WriterGroupConfig writerGroupConfig;
+        memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
+        UA_NodeId writerGroupId;
+        writerGroupConfig.name = pubSubConnectionDataType.writerGroups[i].name;
+        writerGroupConfig.publishingInterval = pubSubConnectionDataType.writerGroups[i].publishingInterval;
+        writerGroupConfig.enabled = pubSubConnectionDataType.writerGroups[i].enabled;
+        writerGroupConfig.writerGroupId = pubSubConnectionDataType.writerGroups[i].writerGroupId;
+        writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
+        writerGroupConfig.priority = pubSubConnectionDataType.writerGroups[i].priority;
+        UA_UadpWriterGroupMessageDataType writerGroupMessage;
+        UA_ExtensionObject *eoWG = &pubSubConnectionDataType.writerGroups[i].messageSettings;
+        if(eoWG[i].encoding == UA_EXTENSIONOBJECT_DECODED){
+            writerGroupConfig.messageSettings.encoding  = UA_EXTENSIONOBJECT_DECODED;
+            if(eoWG[i].content.decoded.type == &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE]){
+                if(UA_UadpWriterGroupMessageDataType_copy((UA_UadpWriterGroupMessageDataType *) eoWG[i].content.decoded.data,
+                                                           &writerGroupMessage) != UA_STATUSCODE_GOOD){
+                    return UA_STATUSCODE_BADOUTOFMEMORY;
+                }
+                writerGroupConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
+                writerGroupConfig.messageSettings.content.decoded.data = &writerGroupMessage;
+            }
+        }
+        retVal |= UA_Server_addWriterGroup(server, connectionId, &writerGroupConfig, &writerGroupId);
+        if(retVal != UA_STATUSCODE_GOOD){
+            return retVal;
+        }
+
+        for (size_t index = 0; index < pubSubConnectionDataType.writerGroups[i].dataSetWritersSize; index++){
+            UA_NodeId dataSetWriterId;
+            UA_NodeId publishedDataSetId = UA_NODEID_NULL;
+            UA_PublishedDataSet *tmpPDS;
+            TAILQ_FOREACH(tmpPDS, &server->pubSubManager.publishedDataSets, listEntry){
+                if(UA_String_equal(&pubSubConnectionDataType.writerGroups[i].dataSetWriters[index].dataSetName, &tmpPDS->config.name)){
+                  publishedDataSetId = tmpPDS->identifier;
+               }
+            }
+            /* We need now a DataSetWriter within the WriterGroup. This means we must
+            * create a new DataSetWriterConfig and add call the addWriterGroup function. */
+            UA_DataSetWriterConfig dataSetWriterConfig;
+            memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
+            dataSetWriterConfig.name = pubSubConnectionDataType.writerGroups[i].dataSetWriters[index].name;
+            dataSetWriterConfig.dataSetWriterId = pubSubConnectionDataType.writerGroups[i].dataSetWriters[index].dataSetWriterId;
+            dataSetWriterConfig.keyFrameCount = pubSubConnectionDataType.writerGroups[i].dataSetWriters[index].keyFrameCount;
+            retVal |= UA_Server_addDataSetWriter(server, writerGroupId, publishedDataSetId,
+                                                 &dataSetWriterConfig, &dataSetWriterId);
+            if(retVal != UA_STATUSCODE_GOOD){
+                return retVal;
+            }
+        }
+        UA_Server_setWriterGroupOperational(server, writerGroupId);
     }
+
     for(size_t i = 0; i < pubSubConnectionDataType.readerGroupsSize; i++){
         //UA_Server_addReaderGroup(server, NULL, NULL, NULL);
     }
