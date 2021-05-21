@@ -260,8 +260,8 @@ addVariableValueSource(UA_Server *server, UA_ValueCallback valueCallback,
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
 static UA_StatusCode
-addPubSubConnectionConfig(UA_Server *server, UA_PubSubConnectionDataType *pubsubConnectionDataType, 
-                    UA_NodeId *connectionId){
+addPubSubConnectionConfig(UA_Server *server, UA_PubSubConnectionDataType *pubsubConnectionDataType,
+                          UA_NodeId *connectionId){
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_NetworkAddressUrlDataType networkAddressUrlDataType;
     memset(&networkAddressUrlDataType, 0, sizeof(networkAddressUrlDataType));
@@ -307,7 +307,7 @@ addPubSubConnectionConfig(UA_Server *server, UA_PubSubConnectionDataType *pubsub
  * configuration parameters for the message creation. */
 static UA_StatusCode
 addWriterGroupConfig(UA_Server *server, UA_NodeId connectionId,
-               UA_WriterGroupDataType *writerGroupDataType, UA_NodeId *writerGroupId){
+                     UA_WriterGroupDataType *writerGroupDataType, UA_NodeId *writerGroupId){
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     /* Now we create a new WriterGroupConfig and add the group to the existing
      * PubSubConnection. */
@@ -336,7 +336,7 @@ addWriterGroupConfig(UA_Server *server, UA_NodeId connectionId,
     }
 
     retVal |= UA_Server_addWriterGroup(server, connectionId, &writerGroupConfig, writerGroupId);
-    return retVal;  
+    return retVal;
 }
 
 /**
@@ -347,8 +347,20 @@ addWriterGroupConfig(UA_Server *server, UA_NodeId connectionId,
  * message generation. */
 static UA_StatusCode
 addDataSetWriterConfig(UA_Server *server, UA_NodeId writerGroupId,
-                 UA_DataSetWriterDataType *dataSetWriterDataType){
+                       UA_DataSetWriterDataType *dataSetWriterDataType){
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    UA_NodeId publishedDataSetId = UA_NODEID_NULL;
+    UA_PublishedDataSet *tmpPDS;
+
+    TAILQ_FOREACH(tmpPDS, &server->pubSubManager.publishedDataSets, listEntry){
+        if(UA_String_equal(&dataSetWriterDataType->dataSetName, &tmpPDS->config.name)){
+            publishedDataSetId = tmpPDS->identifier;
+        }
+    }
+
+    if(UA_NodeId_isNull(&publishedDataSetId))
+        return UA_STATUSCODE_BADPARENTNODEIDINVALID;
+
     /* We need now a DataSetWriter within the WriterGroup. This means we must
      * create a new DataSetWriterConfig and add call the addWriterGroup function. */
     UA_DataSetWriterConfig dataSetWriterConfig;
@@ -359,14 +371,6 @@ addDataSetWriterConfig(UA_Server *server, UA_NodeId writerGroupId,
     dataSetWriterConfig.dataSetFieldContentMask =  dataSetWriterDataType->dataSetFieldContentMask;
 
     UA_NodeId dataSetWriterId;
-    UA_NodeId publishedDataSetId = UA_NODEID_NULL;
-    UA_PublishedDataSet *tmpPDS;
-    TAILQ_FOREACH(tmpPDS, &server->pubSubManager.publishedDataSets, listEntry){
-        if(UA_String_equal(&dataSetWriterDataType->dataSetName, &tmpPDS->config.name)){
-            publishedDataSetId = tmpPDS->identifier;
-        }
-    }
-
     retVal |= UA_Server_addDataSetWriter(server, writerGroupId, publishedDataSetId,
                                          &dataSetWriterConfig, &dataSetWriterId);
     return retVal;
@@ -1277,33 +1281,14 @@ addWriterGroupAction(UA_Server *server,
                              size_t outputSize, UA_Variant *output){
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_WriterGroupDataType *writerGroupDataType = ((UA_WriterGroupDataType *) input[0].data);
-    UA_NodeId generatedId;
-    UA_WriterGroupConfig writerGroupConfig;
-    memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
-    writerGroupConfig.name = writerGroupDataType->name;
-    writerGroupConfig.publishingInterval = writerGroupDataType->publishingInterval;
-    writerGroupConfig.writerGroupId = writerGroupDataType->writerGroupId;
-    writerGroupConfig.enabled = writerGroupDataType->enabled;
-    writerGroupConfig.priority = writerGroupDataType->priority;
-    UA_UadpWriterGroupMessageDataType writerGroupMessage;
-    UA_ExtensionObject *eoWG = &writerGroupConfig.messageSettings;
-    if(eoWG->encoding == UA_EXTENSIONOBJECT_DECODED){
-        writerGroupConfig.messageSettings.encoding  = UA_EXTENSIONOBJECT_DECODED;
-        if(eoWG->content.decoded.type == &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE]){
-            if(UA_UadpWriterGroupMessageDataType_copy((UA_UadpWriterGroupMessageDataType *) eoWG->content.decoded.data,
-                                                       &writerGroupMessage) != UA_STATUSCODE_GOOD){
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-            }
-            writerGroupConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
-            writerGroupConfig.messageSettings.content.decoded.data = &writerGroupMessage;
-        }
+    UA_NodeId writerGroupId;
+    retVal |= addWriterGroupConfig(server, *objectId, writerGroupDataType, &writerGroupId);
+    if(retVal != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "addWriterGroup failed");
+        return retVal;
     }
 
-    //TODO remove hard coded UADP
-    writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
-    //ToDo transfer all arguments to internal WGConfiguration
-    retVal |= UA_Server_addWriterGroup(server, *objectId, &writerGroupConfig, &generatedId);
-    UA_Variant_setScalarCopy(output, &generatedId, &UA_TYPES[UA_TYPES_NODEID]);
+    UA_Variant_setScalarCopy(output, &writerGroupId, &UA_TYPES[UA_TYPES_NODEID]);
     return retVal;
 }
 #endif
@@ -1460,30 +1445,16 @@ addDataSetWriterAction(UA_Server *server,
                        const UA_NodeId *objectId, void *objectContext,
                        size_t inputSize, const UA_Variant *input,
                        size_t outputSize, UA_Variant *output){
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    UA_NodeId dataSetWriterId;
     UA_DataSetWriterDataType *dataSetWriterDataType = (UA_DataSetWriterDataType *) input[0].data;
-
-    UA_NodeId targetPDS = UA_NODEID_NULL;
-    UA_PublishedDataSet *tmpPDS;
-    TAILQ_FOREACH(tmpPDS, &server->pubSubManager.publishedDataSets, listEntry){
-        if(UA_String_equal(&dataSetWriterDataType->dataSetName, &tmpPDS->config.name)){
-            targetPDS = tmpPDS->identifier;
-        }
+    retVal |= addDataSetWriterConfig(server, *objectId, dataSetWriterDataType);
+    if(retVal != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "addDataSetWriter failed");
+        return retVal;
     }
 
-    if(UA_NodeId_isNull(&targetPDS))
-        return UA_STATUSCODE_BADPARENTNODEIDINVALID;
-
-    UA_NodeId generatedId;
-    UA_DataSetWriterConfig dataSetWriterConfig;
-    memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
-    dataSetWriterConfig.name = dataSetWriterDataType->name;
-    dataSetWriterConfig.dataSetName = dataSetWriterDataType->dataSetName;
-    dataSetWriterConfig.keyFrameCount =  dataSetWriterDataType->keyFrameCount;
-    dataSetWriterConfig.dataSetWriterId = dataSetWriterDataType->dataSetWriterId;
-    dataSetWriterConfig.dataSetFieldContentMask =  dataSetWriterDataType->dataSetFieldContentMask;
-
-    UA_Server_addDataSetWriter(server, *objectId, targetPDS, &dataSetWriterConfig, &generatedId);
-    UA_Variant_setScalarCopy(output, &generatedId, &UA_TYPES[UA_TYPES_NODEID]);
+    UA_Variant_setScalarCopy(output, &dataSetWriterId, &UA_TYPES[UA_TYPES_NODEID]);
     return UA_STATUSCODE_GOOD;
 }
 #endif
