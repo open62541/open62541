@@ -1968,9 +1968,8 @@ receiveBufferedNetworkMessage(UA_Server *server, UA_ReaderGroup *readerGroup,
     while(buffer.length > currentPosition) {
         rv = decodeAndProcessNetworkMessageFun(
             server, readerGroup, connection, previousPosition, &buffer, &currentPosition);
-        UA_CHECK_STATUS_WARN(rv, (void)0, &server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_CHECK_STATUS_WARN(rv, return rv, &server->config.logger, UA_LOGCATEGORY_SERVER,
                              "SubscribeCallback(): receive message failed");
-
         previousPosition = currentPosition;
     }
     return UA_STATUSCODE_GOOD;
