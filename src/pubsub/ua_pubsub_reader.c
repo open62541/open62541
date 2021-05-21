@@ -1952,38 +1952,26 @@ receiveBufferedNetworkMessage(UA_Server *server, UA_ReaderGroup *readerGroup,
     UA_CHECK_WARN(!UA_StatusCode_isBad(rv), return rv,
                   &server->config.logger, UA_LOGCATEGORY_SERVER,
                   "SubscribeCallback(): Connection receive failed!");
-    if(buffer.length > 0) {
-        size_t currentPosition = 0;
-        size_t previousPosition = 0;
-        if (readerGroup->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE) {
-            do {
-                rv = decodeAndProcessNetworkMessageRT(server, readerGroup, connection,
-                                                      previousPosition, &buffer,
-                                                      &currentPosition);
-                UA_CHECK_STATUS_WARN(
-                    rv, (void) 0, &server->config.logger, UA_LOGCATEGORY_SERVER,
-                    "SubscribeCallback(): receive message failed");
 
-                previousPosition = currentPosition;
+    UA_StatusCode (*decodeAndProcessNetworkMessageFun)(UA_Server *server, UA_ReaderGroup *readerGroup,
+                                     UA_PubSubConnection *connection, size_t previousPosition,
+                                     UA_ByteString *buffer, size_t *currentPosition) = NULL;
 
-            } while((buffer.length) > currentPosition);
-        } else {
-            UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_USERLAND,
-                         "Message received:");
-            do {
-                rv = decodeAndProcessNetworkMessage(server, readerGroup, connection,
-                                                    previousPosition, &buffer,
-                                                    &currentPosition);
+    if (readerGroup->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE) {
+        decodeAndProcessNetworkMessageFun = decodeAndProcessNetworkMessageRT;
+    } else {
+        decodeAndProcessNetworkMessageFun = decodeAndProcessNetworkMessage;
+    }
 
-                // TODO: check what actions are to be done on error.. nothing?
-                UA_CHECK_STATUS_WARN(
-                    rv, (void) 0, &server->config.logger, UA_LOGCATEGORY_SERVER,
-                    "SubscribeCallback(): receive message failed");
+    size_t currentPosition = 0;
+    size_t previousPosition = 0;
+    while(buffer.length > currentPosition) {
+        rv = decodeAndProcessNetworkMessageFun(
+            server, readerGroup, connection, previousPosition, &buffer, &currentPosition);
+        UA_CHECK_STATUS_WARN(rv, (void)0, &server->config.logger, UA_LOGCATEGORY_SERVER,
+                             "SubscribeCallback(): receive message failed");
 
-                previousPosition = currentPosition;
-
-            } while((buffer.length) > currentPosition);
-        }
+        previousPosition = currentPosition;
     }
     return UA_STATUSCODE_GOOD;
 }
