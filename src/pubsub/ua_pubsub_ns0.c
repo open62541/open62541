@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  * Copyright (c) 2017-2018 Fraunhofer IOSB (Author: Andreas Ebner)
- * Copyright (c) 2019 Kalycito Infotech Private Limited
+ * Copyright (c) 2019-2021 Kalycito Infotech Private Limited
  * Copyright (c) 2020 Yannick Wallerer, Siemens AG
  * Copyright (c) 2020 Thomas Fischer, Siemens AG
  */
@@ -258,6 +258,121 @@ addVariableValueSource(UA_Server *server, UA_ValueCallback valueCallback,
     return UA_Server_setVariableNode_valueCallback(server, node, valueCallback);
 }
 
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
+static UA_StatusCode
+addPubSubConnectionConfig(UA_Server *server, UA_PubSubConnectionDataType *pubsubConnectionDataType, 
+                    UA_NodeId *connectionId){
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    UA_NetworkAddressUrlDataType networkAddressUrlDataType;
+    memset(&networkAddressUrlDataType, 0, sizeof(networkAddressUrlDataType));
+    UA_ExtensionObject eo = pubsubConnectionDataType->address;
+    if(eo.encoding == UA_EXTENSIONOBJECT_DECODED){
+        if(eo.content.decoded.type == &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]){
+            if(UA_NetworkAddressUrlDataType_copy((UA_NetworkAddressUrlDataType *) eo.content.decoded.data,
+                                                 &networkAddressUrlDataType) != UA_STATUSCODE_GOOD){
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+            }
+        }
+    }
+
+    UA_PubSubConnectionConfig connectionConfig;
+    memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
+    connectionConfig.transportProfileUri = pubsubConnectionDataType->transportProfileUri;
+    connectionConfig.name = pubsubConnectionDataType->name;
+    //TODO set real connection state
+    connectionConfig.enabled = pubsubConnectionDataType->enabled;
+    //connectionConfig.enabled = pubSubConnectionDataType.enabled;
+    UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrlDataType,
+                         &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
+    if(pubsubConnectionDataType->publisherId.type == &UA_TYPES[UA_TYPES_UINT32]){
+        connectionConfig.publisherId.numeric = * ((UA_UInt32 *) pubsubConnectionDataType->publisherId.data);
+    } else if(pubsubConnectionDataType->publisherId.type == &UA_TYPES[UA_TYPES_STRING]){
+        connectionConfig.publisherIdType = UA_PUBSUB_PUBLISHERID_STRING;
+        UA_String_copy((UA_String *) pubsubConnectionDataType->publisherId.data, &connectionConfig.publisherId.string);
+    } else {
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER, "Unsupported PublisherId Type used.");
+        //TODO what's the best default behaviour here?
+        connectionConfig.publisherId.numeric = 0;
+    }
+
+    retVal |= UA_Server_addPubSubConnection(server, &connectionConfig, connectionId);
+    UA_NetworkAddressUrlDataType_clear(&networkAddressUrlDataType);
+    return retVal;
+}
+
+/**
+ * **WriterGroup handling**
+ *
+ * The WriterGroup (WG) is part of the connection and contains the primary
+ * configuration parameters for the message creation. */
+static UA_StatusCode
+addWriterGroupConfig(UA_Server *server, UA_NodeId connectionId,
+               UA_WriterGroupDataType *writerGroupDataType, UA_NodeId *writerGroupId){
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    /* Now we create a new WriterGroupConfig and add the group to the existing
+     * PubSubConnection. */
+    UA_WriterGroupConfig writerGroupConfig;
+    memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
+    writerGroupConfig.name = writerGroupDataType->name;
+    writerGroupConfig.publishingInterval = writerGroupDataType->publishingInterval;
+    writerGroupConfig.enabled = writerGroupDataType->enabled;
+    writerGroupConfig.writerGroupId = writerGroupDataType->writerGroupId;
+    //TODO remove hard coded UADP
+    writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
+    writerGroupConfig.priority = writerGroupDataType->priority;
+
+    UA_UadpWriterGroupMessageDataType writerGroupMessage;
+    UA_ExtensionObject *eoWG = &writerGroupDataType->messageSettings;
+    if(eoWG->encoding == UA_EXTENSIONOBJECT_DECODED){
+        writerGroupConfig.messageSettings.encoding  = UA_EXTENSIONOBJECT_DECODED;
+        if(eoWG->content.decoded.type == &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE]){
+            if(UA_UadpWriterGroupMessageDataType_copy((UA_UadpWriterGroupMessageDataType *) eoWG->content.decoded.data,
+                                                        &writerGroupMessage) != UA_STATUSCODE_GOOD){
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+            }
+            writerGroupConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
+            writerGroupConfig.messageSettings.content.decoded.data = &writerGroupMessage;
+        }
+    }
+
+    retVal |= UA_Server_addWriterGroup(server, connectionId, &writerGroupConfig, writerGroupId);
+    return retVal;  
+}
+
+/**
+ * **DataSetWriter handling**
+ *
+ * A DataSetWriter (DSW) is the glue between the WG and the PDS. The DSW is
+ * linked to exactly one PDS and contains additional informations for the
+ * message generation. */
+static UA_StatusCode
+addDataSetWriterConfig(UA_Server *server, UA_NodeId writerGroupId,
+                 UA_DataSetWriterDataType *dataSetWriterDataType){
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    /* We need now a DataSetWriter within the WriterGroup. This means we must
+     * create a new DataSetWriterConfig and add call the addWriterGroup function. */
+    UA_DataSetWriterConfig dataSetWriterConfig;
+    memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
+    dataSetWriterConfig.name = dataSetWriterDataType->name;
+    dataSetWriterConfig.dataSetWriterId = dataSetWriterDataType->dataSetWriterId;
+    dataSetWriterConfig.keyFrameCount = dataSetWriterDataType->keyFrameCount;
+    dataSetWriterConfig.dataSetFieldContentMask =  dataSetWriterDataType->dataSetFieldContentMask;
+
+    UA_NodeId dataSetWriterId;
+    UA_NodeId publishedDataSetId = UA_NODEID_NULL;
+    UA_PublishedDataSet *tmpPDS;
+    TAILQ_FOREACH(tmpPDS, &server->pubSubManager.publishedDataSets, listEntry){
+        if(UA_String_equal(&dataSetWriterDataType->dataSetName, &tmpPDS->config.name)){
+            publishedDataSetId = tmpPDS->identifier;
+        }
+    }
+
+    retVal |= UA_Server_addDataSetWriter(server, writerGroupId, publishedDataSetId,
+                                         &dataSetWriterConfig, &dataSetWriterId);
+    return retVal;
+}
+
+#endif
 /*************************************************/
 /*            PubSubConnection                   */
 /*************************************************/
@@ -363,97 +478,31 @@ addPubSubConnectionAction(UA_Server *server,
                           size_t outputSize, UA_Variant *output){
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_PubSubConnectionDataType pubSubConnectionDataType = *((UA_PubSubConnectionDataType *) input[0].data);
-    UA_NetworkAddressUrlDataType networkAddressUrlDataType;
-    memset(&networkAddressUrlDataType, 0, sizeof(networkAddressUrlDataType));
-    UA_ExtensionObject eo = pubSubConnectionDataType.address;
-    if(eo.encoding == UA_EXTENSIONOBJECT_DECODED){
-        if(eo.content.decoded.type == &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]){
-            if(UA_NetworkAddressUrlDataType_copy((UA_NetworkAddressUrlDataType *) eo.content.decoded.data,
-                                                 &networkAddressUrlDataType) != UA_STATUSCODE_GOOD){
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-            }
-        }
-    }
-    UA_PubSubConnectionConfig connectionConfig;
-    memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
-    connectionConfig.transportProfileUri = pubSubConnectionDataType.transportProfileUri;
-    connectionConfig.name = pubSubConnectionDataType.name;
-    //TODO set real connection state
-    connectionConfig.enabled = pubSubConnectionDataType.enabled;
-    //connectionConfig.enabled = pubSubConnectionDataType.enabled;
-    UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrlDataType,
-                         &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    if(pubSubConnectionDataType.publisherId.type == &UA_TYPES[UA_TYPES_UINT32]){
-        connectionConfig.publisherId.numeric = * ((UA_UInt32 *) pubSubConnectionDataType.publisherId.data);
-    } else if(pubSubConnectionDataType.publisherId.type == &UA_TYPES[UA_TYPES_STRING]){
-        connectionConfig.publisherIdType = UA_PUBSUB_PUBLISHERID_STRING;
-        UA_String_copy((UA_String *) pubSubConnectionDataType.publisherId.data, &connectionConfig.publisherId.string);
-    } else {
-        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER, "Unsupported PublisherId Type used.");
-        //TODO what's the best default behaviour here?
-        connectionConfig.publisherId.numeric = 0;
-    }
+
     //call API function and create the connection
     UA_NodeId connectionId;
-
-    retVal |= UA_Server_addPubSubConnection(server, &connectionConfig, &connectionId);
-
-    if(retVal != UA_STATUSCODE_GOOD)
+    retVal |= addPubSubConnectionConfig(server, &pubSubConnectionDataType, &connectionId);
+    if(retVal != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "addPubSubConnection failed");
         return retVal;
+    }
 
     for(size_t i = 0; i < pubSubConnectionDataType.writerGroupsSize; i++){
-        /* Now we create a new WriterGroupConfig and add the group to the existing
-        * PubSubConnection. */
-        UA_WriterGroupConfig writerGroupConfig;
-        memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
         UA_NodeId writerGroupId;
-        writerGroupConfig.name = pubSubConnectionDataType.writerGroups[i].name;
-        writerGroupConfig.publishingInterval = pubSubConnectionDataType.writerGroups[i].publishingInterval;
-        writerGroupConfig.enabled = pubSubConnectionDataType.writerGroups[i].enabled;
-        writerGroupConfig.writerGroupId = pubSubConnectionDataType.writerGroups[i].writerGroupId;
-        //TODO remove hard coded UADP
-        writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
-        writerGroupConfig.priority = pubSubConnectionDataType.writerGroups[i].priority;
-        UA_UadpWriterGroupMessageDataType writerGroupMessage;
-        UA_ExtensionObject *eoWG = &pubSubConnectionDataType.writerGroups[i].messageSettings;
-        if(eoWG[i].encoding == UA_EXTENSIONOBJECT_DECODED){
-            writerGroupConfig.messageSettings.encoding  = UA_EXTENSIONOBJECT_DECODED;
-            if(eoWG[i].content.decoded.type == &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE]){
-                if(UA_UadpWriterGroupMessageDataType_copy((UA_UadpWriterGroupMessageDataType *) eoWG[i].content.decoded.data,
-                                                           &writerGroupMessage) != UA_STATUSCODE_GOOD){
-                    return UA_STATUSCODE_BADOUTOFMEMORY;
-                }
-                writerGroupConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
-                writerGroupConfig.messageSettings.content.decoded.data = &writerGroupMessage;
-            }
+        UA_WriterGroupDataType *writerGroupDataType = &pubSubConnectionDataType.writerGroups[i];
+        retVal |= addWriterGroupConfig(server, connectionId, writerGroupDataType, &writerGroupId);
+        if(retVal != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "addWriterGroup failed");
+            return retVal;
         }
 
-        retVal |= UA_Server_addWriterGroup(server, connectionId, &writerGroupConfig, &writerGroupId);
-        if(retVal != UA_STATUSCODE_GOOD)
-            return retVal;
-
         for (size_t j = 0; j < pubSubConnectionDataType.writerGroups[i].dataSetWritersSize; j++){
-            UA_NodeId dataSetWriterId;
-            UA_NodeId publishedDataSetId = UA_NODEID_NULL;
-            UA_PublishedDataSet *tmpPDS;
-            TAILQ_FOREACH(tmpPDS, &server->pubSubManager.publishedDataSets, listEntry){
-                if(UA_String_equal(&pubSubConnectionDataType.writerGroups[i].dataSetWriters[j].dataSetName, &tmpPDS->config.name)){
-                  publishedDataSetId = tmpPDS->identifier;
-               }
-            }
-
-            /* We need now a DataSetWriter within the WriterGroup. This means we must
-            * create a new DataSetWriterConfig and add call the addWriterGroup function. */
-            UA_DataSetWriterConfig dataSetWriterConfig;
-            memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
-            dataSetWriterConfig.name = pubSubConnectionDataType.writerGroups[i].dataSetWriters[j].name;
-            dataSetWriterConfig.dataSetWriterId = pubSubConnectionDataType.writerGroups[i].dataSetWriters[j].dataSetWriterId;
-            dataSetWriterConfig.keyFrameCount = pubSubConnectionDataType.writerGroups[i].dataSetWriters[j].keyFrameCount;
-            dataSetWriterConfig.dataSetFieldContentMask =  pubSubConnectionDataType.writerGroups[i].dataSetWriters[j].dataSetFieldContentMask;
-            retVal |= UA_Server_addDataSetWriter(server, writerGroupId, publishedDataSetId,
-                                                 &dataSetWriterConfig, &dataSetWriterId);
-            if(retVal != UA_STATUSCODE_GOOD)
+            UA_DataSetWriterDataType *dataSetWriterDataType = &writerGroupDataType->dataSetWriters[j];
+            retVal |= addDataSetWriterConfig(server, writerGroupId, dataSetWriterDataType);
+            if(retVal != UA_STATUSCODE_GOOD) {
+                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "addDataSetWriter failed");
                 return retVal;
+            }
         }
         UA_Server_setWriterGroupOperational(server, writerGroupId);
     }
@@ -573,7 +622,6 @@ addPubSubConnectionAction(UA_Server *server,
             }
         }
     }
-    UA_NetworkAddressUrlDataType_clear(&networkAddressUrlDataType);
     //set ouput value
     UA_Variant_setScalarCopy(output, &connectionId, &UA_TYPES[UA_TYPES_NODEID]);
     return UA_STATUSCODE_GOOD;
