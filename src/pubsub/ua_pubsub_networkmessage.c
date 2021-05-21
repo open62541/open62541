@@ -847,9 +847,9 @@ UA_NetworkMessage_decodeFooters(const UA_ByteString *src, size_t *offset, UA_Net
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode
-UA_NetworkMessage_decodeBinaryInternal(const UA_ByteString *src, size_t *offset,
-                                           UA_NetworkMessage* dst) {
+UA_StatusCode
+UA_NetworkMessage_decodeBinary(const UA_ByteString *src, size_t *offset,
+                               UA_NetworkMessage* dst) {
 
     UA_StatusCode rv = UA_STATUSCODE_GOOD;
 
@@ -877,14 +877,6 @@ UA_NetworkMessage_decodeBinaryInternal(const UA_ByteString *src, size_t *offset,
     UA_CHECK_STATUS(rv, return rv);
 
     return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode
-UA_NetworkMessage_decodeBinary(const UA_ByteString *src, size_t *offset,
-                               UA_NetworkMessage* dst) {
-    UA_StatusCode rv = UA_NetworkMessage_decodeBinaryInternal(src, offset, dst);
-    UA_CHECK_STATUS(rv, UA_NetworkMessage_clear(dst); return rv);
-    return rv;
 }
 
 static UA_Boolean
