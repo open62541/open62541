@@ -458,8 +458,123 @@ addPubSubConnectionAction(UA_Server *server,
         UA_Server_setWriterGroupOperational(server, writerGroupId);
     }
 
+    if (pubSubConnectionDataType.readerGroupsSize != 0)
+        retVal |= UA_PubSubConnection_regist(server, &connectionId);
     for(size_t i = 0; i < pubSubConnectionDataType.readerGroupsSize; i++){
         //UA_Server_addReaderGroup(server, NULL, NULL, NULL);
+        UA_ReaderGroupConfig readerGroupConfig;
+        memset (&readerGroupConfig, 0, sizeof(UA_ReaderGroupConfig));
+        readerGroupConfig.name = pubSubConnectionDataType.readerGroups[i].name;
+        UA_NodeId readerGroupId;
+        retVal |= UA_Server_addReaderGroup(server, connectionId, &readerGroupConfig,
+                                           &readerGroupId);
+        if(retVal != UA_STATUSCODE_GOOD){
+           return retVal;
+        }
+        UA_Server_setReaderGroupOperational(server, readerGroupId);
+
+        for (size_t index = 0; index < pubSubConnectionDataType.readerGroups[i].dataSetReadersSize; index++){
+            UA_DataSetReaderConfig readerConfig;
+            memset (&readerConfig, 0, sizeof(UA_DataSetReaderConfig));
+            readerConfig.name = pubSubConnectionDataType.readerGroups[i].dataSetReaders[index].name;
+            /* Parameters to filter which DataSetMessage has to be processed
+             * by the DataSetReader */
+            UA_UInt16 publisherIdentifier = *(UA_UInt16*)pubSubConnectionDataType.readerGroups[i].dataSetReaders[index].publisherId.data;
+            readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
+            readerConfig.publisherId.data = &publisherIdentifier;
+            readerConfig.writerGroupId    = pubSubConnectionDataType.readerGroups[i].dataSetReaders[index].writerGroupId;
+            readerConfig.dataSetWriterId  = pubSubConnectionDataType.readerGroups[i].dataSetReaders[index].dataSetWriterId;
+
+            /* Setting up Meta data configuration in DataSetReader */
+            UA_DataSetMetaDataType *pMetaData;
+            pMetaData = &readerConfig.dataSetMetaData;
+            UA_DataSetMetaDataType_init (pMetaData);
+            pMetaData->name =  pubSubConnectionDataType.readerGroups[i].dataSetReaders[index].dataSetMetaData.name;
+            pMetaData->fieldsSize = pubSubConnectionDataType.readerGroups[i].dataSetReaders[index].dataSetMetaData.fieldsSize;
+            pMetaData->fields = (UA_FieldMetaData*)UA_Array_new (pMetaData->fieldsSize,
+                                &UA_TYPES[UA_TYPES_FIELDMETADATA]);
+            for (size_t j = 0; j < pMetaData->fieldsSize; j++){
+                UA_FieldMetaData_init (&pMetaData->fields[j]);
+                
+                UA_NodeId_copy (&pubSubConnectionDataType.readerGroups[i].dataSetReaders[index].dataSetMetaData.fields[j].dataType,
+                                &pMetaData->fields[j].dataType);
+                pMetaData->fields[j].builtInType = pubSubConnectionDataType.readerGroups[i].dataSetReaders[index].dataSetMetaData.fields[j].builtInType;
+                pMetaData->fields[j].name = pubSubConnectionDataType.readerGroups[i].dataSetReaders[index].dataSetMetaData.fields[j].name;
+                pMetaData->fields[j].valueRank = pubSubConnectionDataType.readerGroups[i].dataSetReaders[index].dataSetMetaData.fields[j].valueRank;
+            }
+            UA_NodeId dataSetReaderId;
+            retVal |= UA_Server_addDataSetReader(server, readerGroupId, &readerConfig,
+                                                 &dataSetReaderId);
+            if(retVal != UA_STATUSCODE_GOOD){
+                return retVal;
+            }
+            UA_TargetVariablesDataType targetVars;
+            UA_ExtensionObject *eoTargetVar = &pubSubConnectionDataType.readerGroups[i].dataSetReaders[index].subscribedDataSet;
+            if(eoTargetVar->encoding == UA_EXTENSIONOBJECT_DECODED){
+                if(eoTargetVar->content.decoded.type == &UA_TYPES[UA_TYPES_TARGETVARIABLESDATATYPE]){
+                    if(UA_TargetVariablesDataType_copy((UA_TargetVariablesDataType *) eoTargetVar->content.decoded.data,
+                                                        &targetVars) != UA_STATUSCODE_GOOD){
+                        return UA_STATUSCODE_BADOUTOFMEMORY;
+                    }
+                    UA_NodeId folderId;
+                    UA_String folderName = pMetaData->name;
+                    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+                    UA_QualifiedName folderBrowseName;
+                    if(folderName.length > 0) {
+                        oAttr.displayName.locale = UA_STRING ("en-US");
+                        oAttr.displayName.text = folderName;
+                        folderBrowseName.namespaceIndex = 1;
+                        folderBrowseName.name = folderName;
+                    }
+                    else {
+                        oAttr.displayName = UA_LOCALIZEDTEXT ("en-US", "Subscribed Variables");
+                        folderBrowseName = UA_QUALIFIEDNAME (1, "Subscribed Variables");
+                    }
+
+                    UA_Server_addObjectNode (server, UA_NODEID_NULL,
+                                            UA_NODEID_NUMERIC (0, UA_NS0ID_OBJECTSFOLDER),
+                                            UA_NODEID_NUMERIC (0, UA_NS0ID_ORGANIZES),
+                                            folderBrowseName, UA_NODEID_NUMERIC (0,
+                                            UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
+                    /**
+                    * **TargetVariables**
+                    *
+                    * The SubscribedDataSet option TargetVariables defines a list of Variable mappings between
+                    * received DataSet fields and target Variables in the Subscriber AddressSpace.
+                    * The values subscribed from the Publisher are updated in the value field of these variables */
+                    /* Create the TargetVariables with respect to DataSetMetaData fields */
+                    UA_FieldTargetVariable *targetVarsData = (UA_FieldTargetVariable *)
+                            UA_calloc(targetVars.targetVariablesSize, sizeof(UA_FieldTargetVariable));
+                    for(size_t j = 0; j < targetVars.targetVariablesSize; j++) {
+                        /* Variable to subscribe data */
+                        UA_VariableAttributes vAttr = UA_VariableAttributes_default;
+                        UA_LocalizedText_copy(&pMetaData->fields[j].description,
+                                            &vAttr.description);
+                        vAttr.displayName.locale = UA_STRING("en-US");
+                        vAttr.displayName.text = pMetaData->fields[j].name;
+                        vAttr.dataType = pMetaData->fields[j].dataType;
+
+                        UA_NodeId newNode;
+                        retVal |= UA_Server_addVariableNode(server, targetVars.targetVariables[j].targetNodeId,
+                                                            folderId,
+                                                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                                            UA_QUALIFIEDNAME(1, (char *)pMetaData->fields[j].name.data),
+                                                            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                                            vAttr, NULL, &newNode);
+                        /* For creating Targetvariables */
+                        UA_FieldTargetDataType_init(&targetVarsData[j].targetVariable);
+                        targetVarsData[j].targetVariable.attributeId  = targetVars.targetVariables[j].attributeId;
+                        targetVarsData[j].targetVariable.targetNodeId = newNode;
+                    }
+                    retVal = UA_Server_DataSetReader_createTargetVariables(server, dataSetReaderId,
+                                                                           targetVars.targetVariablesSize, targetVarsData);
+                    for(size_t z = 0; z < targetVars.targetVariablesSize; z++)
+                        UA_FieldTargetDataType_clear(&targetVarsData[z].targetVariable);
+                    UA_free(targetVarsData);
+                    UA_free(pMetaData->fields);
+                }
+            }
+        }
     }
     UA_NetworkAddressUrlDataType_clear(&networkAddressUrlDataType);
     //set ouput value
