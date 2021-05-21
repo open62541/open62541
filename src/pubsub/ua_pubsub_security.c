@@ -75,15 +75,11 @@ needsValidation(const UA_Logger *logger,
 }
 
 UA_StatusCode
-verifyAndDecrypt(const UA_Logger *logger,
-                     UA_MessageSecurityMode securityMode,
-                 UA_ByteString *buffer, const size_t *currentPosition,
-                 const UA_NetworkMessage *currentNetworkMessage,
-                 UA_Boolean doValidate,
-                 UA_Boolean doDecrypt,
-                 void *channelContext,
-                 UA_PubSubSecurityPolicy *securityPolicy
-) {
+verifyAndDecrypt(const UA_Logger *logger, UA_ByteString *buffer,
+                 const size_t *currentPosition,
+                 const UA_NetworkMessage *currentNetworkMessage, UA_Boolean doValidate,
+                 UA_Boolean doDecrypt, void *channelContext,
+                 UA_PubSubSecurityPolicy *securityPolicy) {
     UA_StatusCode rv = UA_STATUSCODE_GOOD;
 
     if(doValidate) {
@@ -157,7 +153,7 @@ verifyAndDecryptNetworkMessage(const UA_Logger *logger,
                            "is enabled to sign and/or encrypt");
 
         rv = verifyAndDecrypt(
-            logger, securityMode, buffer, currentPosition, currentNetworkMessage,
+            logger, buffer, currentPosition, currentNetworkMessage,
             doValidate, doDecrypt, channelContext, securityPolicy);
 
         UA_CHECK_STATUS_ERROR(rv, return rv, logger, UA_LOGCATEGORY_SERVER,

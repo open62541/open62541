@@ -306,13 +306,10 @@ UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerGroup)
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
 UA_StatusCode
-verifyAndDecrypt(const UA_Logger *logger,
-                 UA_MessageSecurityMode securityMode,
-                 UA_ByteString *buffer, const size_t *currentPosition,
-                 const UA_NetworkMessage *currentNetworkMessage,
-                 UA_Boolean doValidate,
-                 UA_Boolean doDecrypt,
-                 void *channelContext,
+verifyAndDecrypt(const UA_Logger *logger, UA_ByteString *buffer,
+                 const size_t *currentPosition,
+                 const UA_NetworkMessage *currentNetworkMessage, UA_Boolean doValidate,
+                 UA_Boolean doDecrypt, void *channelContext,
                  UA_PubSubSecurityPolicy *securityPolicy);
 
 UA_StatusCode
