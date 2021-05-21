@@ -411,6 +411,7 @@ addPubSubConnectionAction(UA_Server *server,
         writerGroupConfig.publishingInterval = pubSubConnectionDataType.writerGroups[i].publishingInterval;
         writerGroupConfig.enabled = pubSubConnectionDataType.writerGroups[i].enabled;
         writerGroupConfig.writerGroupId = pubSubConnectionDataType.writerGroups[i].writerGroupId;
+        //TODO remove hard coded UADP
         writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
         writerGroupConfig.priority = pubSubConnectionDataType.writerGroups[i].priority;
         UA_UadpWriterGroupMessageDataType writerGroupMessage;
@@ -491,7 +492,6 @@ addPubSubConnectionAction(UA_Server *server,
                                 &UA_TYPES[UA_TYPES_FIELDMETADATA]);
             for (size_t k = 0; k < pMetaData->fieldsSize; k++){
                 UA_FieldMetaData_init (&pMetaData->fields[k]);
-                
                 UA_NodeId_copy (&pubSubConnectionDataType.readerGroups[i].dataSetReaders[j].dataSetMetaData.fields[k].dataType,
                                 &pMetaData->fields[k].dataType);
                 pMetaData->fields[k].builtInType = pubSubConnectionDataType.readerGroups[i].dataSetReaders[j].dataSetMetaData.fields[k].builtInType;
@@ -1025,6 +1025,8 @@ addPublishedDataItemsAction(UA_Server *server,
 
         UA_PublishedVariableDataType_clear(&variablesToAddField);
     }
+
+    UA_Variant_setScalarCopy(output, &dataSetItemsNodeId, &UA_TYPES[UA_TYPES_NODEID]);
     return retVal;
 }
 #endif
@@ -1235,6 +1237,20 @@ addWriterGroupAction(UA_Server *server,
     writerGroupConfig.writerGroupId = writerGroupDataType->writerGroupId;
     writerGroupConfig.enabled = writerGroupDataType->enabled;
     writerGroupConfig.priority = writerGroupDataType->priority;
+    UA_UadpWriterGroupMessageDataType writerGroupMessage;
+    UA_ExtensionObject *eoWG = &writerGroupConfig.messageSettings;
+    if(eoWG->encoding == UA_EXTENSIONOBJECT_DECODED){
+        writerGroupConfig.messageSettings.encoding  = UA_EXTENSIONOBJECT_DECODED;
+        if(eoWG->content.decoded.type == &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE]){
+            if(UA_UadpWriterGroupMessageDataType_copy((UA_UadpWriterGroupMessageDataType *) eoWG->content.decoded.data,
+                                                       &writerGroupMessage) != UA_STATUSCODE_GOOD){
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+            }
+            writerGroupConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
+            writerGroupConfig.messageSettings.content.decoded.data = &writerGroupMessage;
+        }
+    }
+
     //TODO remove hard coded UADP
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
     //ToDo transfer all arguments to internal WGConfiguration
