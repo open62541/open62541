@@ -811,6 +811,12 @@ addDataSetReaderAction(UA_Server *server,
                        size_t inputSize, const UA_Variant *input,
                        size_t outputSize, UA_Variant *output){
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, *objectId);
+    if (rg->configurationFrozen == UA_TRUE){
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "addDataSetReader cannot be done because ReaderGroup config frozen");
+        return UA_STATUSCODE_BAD;
+    }
+
     UA_NodeId dataSetReaderId;
     UA_DataSetReaderDataType *dataSetReaderDataType = (UA_DataSetReaderDataType *) input[0].data;
     retVal |= addDataSetReaderConfig(server, *objectId, dataSetReaderDataType, &dataSetReaderId);
@@ -1313,10 +1319,20 @@ removeGroupAction(UA_Server *server,
                              size_t outputSize, UA_Variant *output){
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_NodeId nodeToRemove = *((UA_NodeId *) input[0].data);
-    if(UA_WriterGroup_findWGbyId(server, nodeToRemove) != NULL)
+    if(UA_WriterGroup_findWGbyId(server, nodeToRemove) != NULL) {
+        UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, nodeToRemove);
+        if (wg->configurationFrozen == UA_TRUE)
+            UA_Server_unfreezeWriterGroupConfiguration(server, nodeToRemove);
+
         retVal |= UA_Server_removeWriterGroup(server, nodeToRemove);
-    else
+    }
+    else {
+        UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, nodeToRemove);
+        if (rg->configurationFrozen == UA_TRUE)
+            UA_Server_unfreezeReaderGroupConfiguration(server, nodeToRemove);
+
         retVal |= UA_Server_removeReaderGroup(server, nodeToRemove);
+    }
     return retVal;
 }
 #endif
@@ -1448,6 +1464,12 @@ addDataSetWriterAction(UA_Server *server,
                        size_t inputSize, const UA_Variant *input,
                        size_t outputSize, UA_Variant *output){
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, *objectId);
+    if (wg->configurationFrozen == UA_TRUE){
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "addDataSetWriter cannot be done because writergroup config frozen");
+        return UA_STATUSCODE_BAD;
+    }
+
     UA_NodeId dataSetWriterId;
     UA_DataSetWriterDataType *dataSetWriterDataType = (UA_DataSetWriterDataType *) input[0].data;
     retVal |= addDataSetWriterConfig(server, *objectId, dataSetWriterDataType, &dataSetWriterId);
