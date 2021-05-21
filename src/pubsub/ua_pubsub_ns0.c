@@ -1420,15 +1420,15 @@ addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWrite
     UA_NodeId dataSetWriterIdNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetWriterId"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                            UA_NODEID_NUMERIC(0, dataSetWriter->identifier.identifier.numeric));
+                            UA_NODEID_NUMERIC(1, dataSetWriter->identifier.identifier.numeric));
     UA_NodeId keyFrameNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "KeyFrameCount"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                            UA_NODEID_NUMERIC(0, dataSetWriter->identifier.identifier.numeric));
+                            UA_NODEID_NUMERIC(1, dataSetWriter->identifier.identifier.numeric));
     UA_NodeId dataSetFieldContentMaskNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetFieldContentMask"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                            UA_NODEID_NUMERIC(0, dataSetWriter->identifier.identifier.numeric));
+                            UA_NODEID_NUMERIC(1, dataSetWriter->identifier.identifier.numeric));
 
     UA_NodePropertyContext *dataSetWriterIdContext = (UA_NodePropertyContext *) UA_malloc(sizeof(UA_NodePropertyContext));
     dataSetWriterIdContext->parentNodeId = dataSetWriter->identifier;
