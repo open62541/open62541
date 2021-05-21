@@ -666,7 +666,14 @@ addPubSubConnectionAction(UA_Server *server,
                 return retVal;
             }
         }
+
         //TODO: Need to handle the UA_Server_setWriterGroupOperational based on the status variable in information model
+        if (pubSubConnectionDataType.enabled == UA_TRUE) {
+            UA_Server_freezeWriterGroupConfiguration(server, writerGroupId);
+            UA_Server_setWriterGroupOperational(server, writerGroupId);
+        }
+        else
+            UA_Server_setWriterGroupDisabled(server, writerGroupId);
     }
 
     for(size_t i = 0; i < pubSubConnectionDataType.readerGroupsSize; i++){
@@ -688,6 +695,12 @@ addPubSubConnectionAction(UA_Server *server,
             }
         }
         //TODO: Need to handle the UA_Server_setReaderGroupOperational based on the status variable in information model
+        if (pubSubConnectionDataType.enabled == UA_TRUE) {
+            UA_Server_freezeReaderGroupConfiguration(server, readerGroupId);
+            UA_Server_setReaderGroupOperational(server, readerGroupId);
+        }
+        else
+            UA_Server_setReaderGroupDisabled(server, readerGroupId);
     }
     //set ouput value
     UA_Variant_setScalarCopy(output, &connectionId, &UA_TYPES[UA_TYPES_NODEID]);
@@ -1252,6 +1265,7 @@ addWriterGroupAction(UA_Server *server,
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "addWriterGroup failed");
         return retVal;
     }
+    //TODO: Need to handle the UA_Server_setWriterGroupOperational based on the status variable in information model
 
     UA_Variant_setScalarCopy(output, &writerGroupId, &UA_TYPES[UA_TYPES_NODEID]);
     return retVal;
@@ -1358,6 +1372,7 @@ addReaderGroupAction(UA_Server *server,
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "addReaderGroup failed");
         return retVal;
     }
+    //TODO: Need to handle the UA_Server_setReaderGroupOperational based on the status variable in information model
 
     UA_Variant_setScalarCopy(output, &readerGroupId, &UA_TYPES[UA_TYPES_NODEID]);
     return retVal;
