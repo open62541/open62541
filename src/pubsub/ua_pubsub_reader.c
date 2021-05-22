@@ -468,6 +468,13 @@ UA_Server_ReaderGroup_clear(UA_Server* server, UA_ReaderGroup *readerGroup) {
     UA_String_clear(&readerGroup->config.name);
     UA_NodeId_clear(&readerGroup->linkedConnection);
     UA_NodeId_clear(&readerGroup->identifier);
+
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    if(readerGroup->config.securityPolicy && readerGroup->securityPolicyContext) {
+        readerGroup->config.securityPolicy->deleteContext(readerGroup->securityPolicyContext);
+        readerGroup->securityPolicyContext = NULL;
+    }
+#endif
 }
 
 UA_StatusCode
