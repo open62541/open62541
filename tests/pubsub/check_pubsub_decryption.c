@@ -130,6 +130,32 @@ hexstr_to_char(const char *hexstr) {
 #define MSG_SIG "6e08a9ff14b83ea2247792eeffc757c85ac99c0ffa79e4fbe5629783dc77b403"
 #define MSG_SIG_INVALID "5e08a9ff14b83ea2247792eeffc757c85ac99c0ffa79e4fbe5629783dc77b403"
 
+static void
+UA_Server_ReaderGroup_clear(UA_Server *uaServer, UA_ReaderGroup *readerGroup) {
+    UA_ReaderGroupConfig_clear(&readerGroup->config);
+    UA_DataSetReader *dataSetReader;
+    UA_DataSetReader *tmpDataSetReader;
+    LIST_FOREACH_SAFE(dataSetReader, &readerGroup->readers, listEntry, tmpDataSetReader) {
+        UA_Server_removeDataSetReader(uaServer, dataSetReader->identifier);
+    }
+    UA_PubSubConnection* pConn =
+        UA_PubSubConnection_findConnectionbyId(uaServer, readerGroup->linkedConnection);
+    if(pConn != NULL)
+        pConn->readerGroupsSize--;
+
+    /* Delete ReaderGroup and its members */
+    UA_String_clear(&readerGroup->config.name);
+    UA_NodeId_clear(&readerGroup->linkedConnection);
+    UA_NodeId_clear(&readerGroup->identifier);
+
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    if(readerGroup->config.securityPolicy && readerGroup->securityPolicyContext) {
+        readerGroup->config.securityPolicy->deleteContext(readerGroup->securityPolicyContext);
+        readerGroup->securityPolicyContext = NULL;
+    }
+#endif
+}
+
 /*
 static UA_ReaderGroup*
 newReaderGroupWithoutSecurity(void) {
@@ -257,8 +283,12 @@ START_TEST(DecodeAndVerifyEncryptedNetworkMessage) {
 
     ck_assert(memcmp(buffer.data, expectedData, buffer.length) == 0);
 
+    UA_NetworkMessage_clear(&msg);
+
     free(expectedData);
     free(buffer.data);
+    UA_Server_ReaderGroup_clear(server, rgWithSecurity);
+    free(rgWithSecurity);
 }
 END_TEST
 
@@ -278,6 +308,12 @@ START_TEST(InvalidSignature) {
 
     UA_StatusCode rv = decodeNetworkMessage(logger, &buffer, &currentPosition, &msg, rgWithSecurity);
     ck_assert(rv == UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+
+    UA_NetworkMessage_clear(&msg);
+
+    free(buffer.data);
+    UA_Server_ReaderGroup_clear(server, rgWithSecurity);
+    free(rgWithSecurity);
 }
 END_TEST
 
@@ -297,6 +333,12 @@ START_TEST(InvalidSecurityModeInsufficientSig) {
 
         UA_StatusCode rv = decodeNetworkMessage(logger, &buffer, &currentPosition, &msg, rgWithoutSecurity);
         ck_assert(rv == UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT);
+
+        UA_NetworkMessage_clear(&msg);
+
+        free(buffer.data);
+        UA_Server_ReaderGroup_clear(server, rgWithoutSecurity);
+        free(rgWithoutSecurity);
     }
 END_TEST
 
@@ -316,6 +358,12 @@ START_TEST(InvalidSecurityModeRejectedSig) {
 
     UA_StatusCode rv = decodeNetworkMessage(logger, &buffer, &currentPosition, &msg, rgWithSecurity);
     ck_assert(rv == UA_STATUSCODE_BADSECURITYMODEREJECTED);
+
+    UA_NetworkMessage_clear(&msg);
+
+    free(buffer.data);
+    UA_Server_ReaderGroup_clear(server, rgWithSecurity);
+    free(rgWithSecurity);
 }
 END_TEST
 
