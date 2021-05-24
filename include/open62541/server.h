@@ -24,6 +24,7 @@
 #include <open62541/types_generated.h>
 #include <open62541/types_generated_handling.h>
 
+#include <open62541/plugin/eventloop.h>
 #include <open62541/plugin/securitypolicy.h>
 #include <open62541/plugin/accesscontrol.h>
 #include <open62541/plugin/nodestore.h>
@@ -118,6 +119,10 @@ struct UA_ServerConfig {
      * .. note:: See the section on :ref:`generic-types`. Examples for working
      *    with custom data types are provided in
      *    ``/examples/custom_datatype/``. */
+
+    /* EventLoop */
+    UA_EventLoop *eventLoop;
+    UA_Boolean externalEventLoop; /* The EventLoop is not deleted with the config */
 
     /* Networking */
     size_t networkLayersSize;
