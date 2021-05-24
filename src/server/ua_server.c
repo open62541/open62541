@@ -335,14 +335,20 @@ UA_Server *
 UA_Server_newWithConfig(UA_ServerConfig *config) {
     UA_CHECK_MEM(config, return NULL);
 
+    UA_CHECK_LOG(config->eventLoop != NULL, return NULL, ERROR,
+                 &config->logger, UA_LOGCATEGORY_SERVER, "No EventLoop configured");
+
     UA_Server *server = (UA_Server *)UA_calloc(1, sizeof(UA_Server));
     UA_CHECK_MEM(server, UA_ServerConfig_clean(config); return NULL);
 
     server->config = *config;
+
     /* The config might have been "moved" into the server struct. Ensure that
      * the logger pointer is correct. */
     for(size_t i = 0; i < server->config.securityPoliciesSize; i++)
         server->config.securityPolicies[i].logger = &server->config.logger;
+
+    UA_EventLoop_setLogger(server->config.eventLoop, &server->config.logger);
 
     /* Reset the old config */
     memset(config, 0, sizeof(UA_ServerConfig));
