@@ -334,6 +334,12 @@ if(UA_ENABLE_METHODCALLS)
   add_executable(check_services_call server/check_services_call.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
   target_link_libraries(check_services_call ${LIBS})
   add_test_valgrind(services_call ${TESTS_BINARY_DIR}/check_services_call)
+
+  if(UA_ENABLE_FILETYPE_OBJECT_SUPPORT)
+    add_executable(check_fileType_instance server/check_fileType_instance.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    target_link_libraries(check_fileType_instance ${LIBS})
+    add_test_valgrind(services_call ${TESTS_BINARY_DIR}/check_fileType_instance)
+  endif()
 endif()
 
 if(UA_ENABLE_SUBSCRIPTIONS)

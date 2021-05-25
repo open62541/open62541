@@ -75,7 +75,7 @@ typedef struct UA_FileInfo {
 
 typedef struct UA_FileType {
     LIST_ENTRY(UA_FileType) listEntry;
-    UA_NodeId fileTypeObjectNodeId;
+    UA_NodeId fileNodeId;
     UA_String filePath;
     UA_UInt16 openCount;
     UA_UInt64 fileSize;
@@ -596,10 +596,10 @@ AddNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId);
 #ifdef UA_ENABLE_FILETYPE_OBJECT_SUPPORT
 
 UA_StatusCode
-setFileTypeInfo(UA_Server *server, const UA_NodeId fileTypeObjectNodeId, UA_String filePath);
+setFileTypeInfo(UA_Server *server, const UA_NodeId fileNodeId, UA_String filePath);
 
 UA_StatusCode
-setFileMethodCallbacks(UA_Server *server, const UA_NodeId fileObjectNodeId);
+setFileMethodCallbacks(UA_Server *server, const UA_NodeId fileNodeId);
 
 #endif
 /**********************/

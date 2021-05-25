@@ -15,21 +15,19 @@ static void stopHandler(int sig) {
 }
 
 static UA_StatusCode
-addFileInstance(UA_Server *server)
-{
+addFileInstance(UA_Server *server) {
     UA_NodeId FileTypeNodeId = UA_NODEID_NUMERIC(1, 100); /* get the nodeid assigned by the server */
     UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
     oAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Sample File");
     UA_String filePath = UA_STRING("sample.txt"); //create in current directory
     
-    UA_StatusCode result = UA_Server_addFile(server, FileTypeNodeId,
+    UA_StatusCode result = UA_Server_addFileNode(server, FileTypeNodeId,
                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                            UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                            UA_QUALIFIEDNAME(1, "Sample File"), oAttr,
                            filePath, NULL, NULL);
     
-    if(result == UA_STATUSCODE_GOOD)
-    {
+    if(result == UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "File Object Node was created successfully");
         return UA_STATUSCODE_GOOD;
     }

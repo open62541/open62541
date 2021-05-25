@@ -171,17 +171,7 @@ void UA_Server_delete(UA_Server *server) {
     UA_FileType *fileObject, *fileObject_tmp;
     LIST_FOREACH_SAFE(fileObject, &server->fileObjects, listEntry, fileObject_tmp)
     {
-        UA_NodeId_clear(&fileObject->fileTypeObjectNodeId);
-        UA_String_clear(&fileObject->filePath);
-        UA_FileInfo *fileInfo, *fileInfo_tmp;
-        LIST_FOREACH_SAFE(fileInfo, &fileObject->fileInfo, listEntry, fileInfo_tmp)
-        {
-            UA_file_close(fileInfo->file);
-            LIST_REMOVE(fileInfo, listEntry);
-            UA_free(fileInfo);
-        }
-        LIST_REMOVE(fileObject, listEntry);
-        UA_free(fileObject);
+        UA_Server_deleteNode(server, fileObject->fileNodeId, true);
     }
 #endif
 
