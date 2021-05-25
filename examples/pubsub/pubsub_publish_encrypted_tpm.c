@@ -10,14 +10,6 @@
 
 #include <signal.h>
 
-#define UA_AES128CTR_SIGNING_KEY_LENGTH 16
-#define UA_AES128CTR_KEY_LENGTH 16
-#define UA_AES128CTR_KEYNONCE_LENGTH 4
-
-UA_Byte signingKey[UA_AES128CTR_SIGNING_KEY_LENGTH] = {0};
-UA_Byte encryptingKey[UA_AES128CTR_KEY_LENGTH] = {0};
-UA_Byte keyNonce[UA_AES128CTR_KEYNONCE_LENGTH] = {0};
-
 UA_NodeId connectionIdent, publishedDataSetIdent, writerGroupIdent;
 
 char *userpin = NULL;
@@ -49,17 +41,31 @@ addPublishedDataSet(UA_Server *server) {
 
 static void
 addDataSetField(UA_Server *server) {
+    /* Create variable to publish integer data */
+    UA_NodeId publisherNode;
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.description           = UA_LOCALIZEDTEXT("en-US","Published Int32");
+    attr.displayName           = UA_LOCALIZEDTEXT("en-US","Published Int32");
+    attr.dataType              = UA_TYPES[UA_TYPES_INT32].typeId;
+    UA_Int32 publisherData     = 24;
+    UA_Variant_setScalar(&attr.value, &publisherData, &UA_TYPES[UA_TYPES_INT32]);
+    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 1000),
+                                                        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                                        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                                        UA_QUALIFIEDNAME(1, "Published Int32"),
+                                                        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                                        attr, NULL, &publisherNode);
+
+    /* Data Set Field */
     UA_NodeId dataSetFieldIdent;
     UA_DataSetFieldConfig dataSetFieldConfig;
     memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
-    dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
-    dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Server localtime");
-    dataSetFieldConfig.field.variable.promotedField = UA_FALSE;
-    dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
-    UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
-    dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
-    UA_Server_addDataSetField(server, publishedDataSetIdent,
-                              &dataSetFieldConfig, &dataSetFieldIdent);
+    dataSetFieldConfig.dataSetFieldType              = UA_PUBSUB_DATASETFIELD_VARIABLE;
+    dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Published Int32");
+    dataSetFieldConfig.field.variable.promotedField  = UA_FALSE;
+    dataSetFieldConfig.field.variable.publishParameters.publishedVariable = publisherNode;
+    dataSetFieldConfig.field.variable.publishParameters.attributeId       = UA_ATTRIBUTEID_VALUE;
+    UA_Server_addDataSetField (server, publishedDataSetIdent, &dataSetFieldConfig, &dataSetFieldIdent);
 }
 
 static void
@@ -91,12 +97,6 @@ addWriterGroup(UA_Server *server) {
     UA_Server_addWriterGroup(server, connectionIdent, &writerGroupConfig, &writerGroupIdent);
     UA_Server_setWriterGroupOperational(server, writerGroupIdent);
     UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
-
-    /* Add the encryption key informaton */
-    // UA_ByteString sk = {UA_AES128CTR_SIGNING_KEY_LENGTH, signingKey};
-    // UA_ByteString ek = {UA_AES128CTR_KEY_LENGTH, encryptingKey};
-    // UA_ByteString kn = {UA_AES128CTR_KEYNONCE_LENGTH, keyNonce};
-    // UA_Server_setWriterGroupEncryptionKeys(server, writerGroupIdent, 1, sk, ek, kn);
 }
 
 static void
@@ -132,10 +132,11 @@ static int run(UA_String *transportProfile,
     config->pubSubConfig.securityPoliciesTPM = (UA_PubSubSecurityPolicyTPM*)
         UA_malloc(sizeof(UA_PubSubSecurityPolicyTPM));
     config->pubSubConfig.securityPoliciesSizeTPM = 1;
+
     UA_PubSubSecurityPolicy_Aes128CtrTPM(config->pubSubConfig.securityPoliciesTPM, userpin, slotId,
                                          label, &config->logger);
 
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
 
     addPubSubConnection(server, transportProfile, networkAddressUrl);
     addPublishedDataSet(server);
@@ -178,7 +179,7 @@ int main(int argc, char **argv) {
             return EXIT_FAILURE;
         }
         label = argv[5];
-        slotId = (unsigned long)(atoi(argv[4]));
+        slotId = (unsigned long)atoi(argv[4]);
         userpin = argv[3];
         networkAddressUrl.networkInterface = UA_STRING(argv[2]);
         networkAddressUrl.url = UA_STRING(argv[1]);

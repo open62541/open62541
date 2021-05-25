@@ -7,6 +7,7 @@
 
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/util.h>
+#include <open62541/types.h>
 #include "pkcs11.h"
 
 CK_AES_CTR_PARAMS params = {
@@ -17,96 +18,60 @@ CK_AES_CTR_PARAMS params = {
         9, 10, 11, 12, 13, 14, 15,
     }
 };
-
 CK_MECHANISM mech = {
     CKM_AES_CTR, &params, sizeof(params)
 };
 
 static UA_StatusCode
-encryptTPM(UA_PubSubSecurityPolicyTPM *policy, unsigned long session, unsigned long hKey,
+encryptTPM(UA_PubSubSecurityPolicyTPM *policy, unsigned long session, unsigned long key,
            UA_ByteString *data) {
 
-    UA_StatusCode rv = UA_STATUSCODE_GOOD;
-    unsigned long int ciphertext_length = 0;
+    int part_number = 0;
 
-    rv = (UA_StatusCode)C_EncryptInit(session, &mech, hKey);
+
+    CK_BYTE size;
+    CK_ULONG declen    = 16;
+    CK_BYTE final      = 0;
+    CK_ULONG final_len = 0;
+    UA_StatusCode rv   = UA_STATUSCODE_GOOD;
+
+    rv = (UA_StatusCode)C_EncryptInit(session, &mech, key);
     if (rv != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                      "Encrypt initialization failed 0x%.8lX", (long unsigned int)rv);
         return rv;
     }
 
-    // Determine how much memory will be required to hold the ciphertext
-    rv = (UA_StatusCode)C_Encrypt(session, data->data, data->length, NULL, &ciphertext_length);
-    if (rv != UA_STATUSCODE_GOOD) {
+    if ((data->length % 16) != 0)
+        size = (CK_BYTE)(data->length + (16 - (data->length % 16)));
+    else
+        size = (CK_BYTE)data->length;
+
+    CK_BYTE *ciphertext = (CK_BYTE*)UA_malloc(size * sizeof(CK_BYTE));
+    while(rv == UA_STATUSCODE_GOOD && part_number * 16 <= size - 16) {
+        rv = (UA_StatusCode)C_EncryptUpdate(session,
+                                            &data->data[part_number*16], 16,
+                                            &ciphertext[part_number*16], &declen);
+        if (UA_STATUSCODE_GOOD != rv) {
+            UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                         "Encrypt update failed 0x%.8lX", (long unsigned int)rv);
+            return rv;
+        }
+        part_number++;
+    }
+
+    rv = (UA_StatusCode)C_EncryptFinal(session, &final, &final_len);
+    if (UA_STATUSCODE_GOOD != rv) {
         UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                     "Encryption failed 0x%.8lX", (long unsigned int)rv);
+                     "Encrypt final failed 0x%.8lX", (long unsigned int)rv);
         return rv;
     }
 
-    // Allocate the required memory.
-    unsigned char *ciphertext = (unsigned char *)UA_malloc(ciphertext_length);
-    if (ciphertext ==  NULL) {
-        UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                     "Memory allocation failed");
-        rv = CKR_HOST_MEMORY;
-        return rv;
-    }
-    memset(ciphertext, 0, ciphertext_length);
+    for (int i=0; i< size; i++)
+        data->data[i] = ciphertext[i];
 
-    // Encrypt the data
-    rv = (UA_StatusCode)C_Encrypt(session, data->data, data->length, ciphertext, &ciphertext_length);
-    if (rv != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                     "Encryption failed %s", UA_StatusCode_name(rv));
-        return rv;
-    }
+    UA_free(ciphertext);
     return UA_STATUSCODE_GOOD;
-}
-
-static UA_StatusCode
-decryptTPM(UA_PubSubSecurityPolicyTPM *policy, unsigned long session, unsigned long hKey,
-           UA_ByteString *data) {
-
-    CK_BYTE_PTR decrypted_ciphertext = NULL;
-    UA_StatusCode rv = UA_STATUSCODE_GOOD;
-    rv = (UA_StatusCode)C_DecryptInit(session, &mech, hKey);
-    if (rv != UA_STATUSCODE_GOOD) {
-       UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                     "Decryption initialization failed 0x%.8lX", (long unsigned int)rv);
-       return rv;
-    }
-
-    unsigned long int decrypted_ciphertext_length = 0;
-    rv = (UA_StatusCode)C_Decrypt(session, data->data, data->length, NULL, &decrypted_ciphertext_length);
-    if (rv != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                     "Decryption failed 0x%.8lX", (long unsigned int)rv);
-       return rv;
-    }
-
-    // Allocate memory for decrypted ciphertext.
-    decrypted_ciphertext = (CK_BYTE_PTR)UA_malloc(decrypted_ciphertext_length + 1); //We want to null terminate the raw chars later
-    if (NULL == decrypted_ciphertext) {
-        UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                     "Could not allocate memory");
-        rv = CKR_HOST_MEMORY;
-        return rv;
-    }
-
-    // Decrypt the ciphertext.
-    rv = (UA_StatusCode)C_Decrypt(session, data->data, data->length, decrypted_ciphertext, &decrypted_ciphertext_length);
-    if (rv != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                     "Decryption failed 0x%.8lX", (long unsigned int)rv);
-        return rv;
-    }
-
-    decrypted_ciphertext[decrypted_ciphertext_length] = 0; // Turn the chars into a C-String via null termination
-
-    // printf("Decrypted ciphertext: %s\n", decrypted_ciphertext);
-    // printf("Decrypted ciphertext length: %lu\n", decrypted_ciphertext_length);
-    return rv;
 }
 
 static UA_StatusCode
@@ -124,7 +89,7 @@ CK_BBOOL pkcs11_find_object_by_label(UA_PubSubSecurityPolicyTPM *policy,CK_SESSI
     unsigned long int foundCount = 0;
     do
     {
-        CK_OBJECT_HANDLE hObject = 0;   // -> zero is an invalid object handle value
+        CK_OBJECT_HANDLE hObject = 0;
         rv = (UA_StatusCode)C_FindObjects( hSession, &hObject, 1, &foundCount );
         if (rv == UA_STATUSCODE_GOOD) {
             CK_ATTRIBUTE attrTemplate[] = {
@@ -136,7 +101,6 @@ CK_BBOOL pkcs11_find_object_by_label(UA_PubSubSecurityPolicyTPM *policy,CK_SESSI
             rv = (UA_StatusCode)C_GetAttributeValue(hSession, hObject, attrTemplate, 1);
             if (attrTemplate[0].ulValueLen > 0) {
                 char * val = (char *)UA_malloc(attrTemplate[0].ulValueLen + 1);
-	        	//strncpy_s(val, RSIZE_MAX_STR - 1, attrTemplate[0].pValue, attrTemplate[0].ulValueLen);
                 strncpy(val, (const char*)attrTemplate[0].pValue, attrTemplate[0].ulValueLen);
                 val[attrTemplate[0].ulValueLen] = '\0';
                 if (strncmp(val, label, attrTemplate[0].ulValueLen) == 0) {
@@ -160,13 +124,17 @@ UA_StatusCode
 UA_PubSubSecurityPolicy_Aes128CtrTPM (UA_PubSubSecurityPolicyTPM *policy, char *userpin, unsigned long slotId,
                                       char *label, const UA_Logger *logger) {
 
-    CK_OBJECT_HANDLE hKey = 0;
     UA_Boolean key_object_found = UA_FALSE;
+    unsigned long *pSlotList = NULL;
+    unsigned long slot_id;
+    unsigned long int slot_count=0;
 
+    CK_FLAGS flags;
+    CK_FUNCTION_LIST_PTR pFunctionList;
     CK_BBOOL ck_false = CK_FALSE;
     CK_OBJECT_CLASS key_class = CKO_SECRET_KEY;
     CK_KEY_TYPE key_type = CKK_AES;
-    CK_FUNCTION_LIST_PTR pFunctionList;
+
     CK_ATTRIBUTE attrTemplate[] = {
         {CKA_CLASS, &key_class, sizeof(key_class)},
         {CKA_KEY_TYPE, &key_type, sizeof(key_type)},
@@ -174,20 +142,17 @@ UA_PubSubSecurityPolicy_Aes128CtrTPM (UA_PubSubSecurityPolicyTPM *policy, char *
     };
 
     memset(policy, 0, sizeof(UA_PubSubSecurityPolicyTPM));
-    unsigned long session;
     policy->logger = logger;
-    policy->session = session;
-
     policy->policyUri =
         UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#PubSub-Aes128-CTR");
     policy->encryptTPM = encryptTPM;
-    policy->decryptTPM = decryptTPM;
     policy->clear = clear;
 
     UA_StatusCode rv;
     rv = (UA_StatusCode)C_GetFunctionList(&pFunctionList);
     if (rv != UA_STATUSCODE_GOOD) {
-        printf("Failed get function list\n");
+        UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                     "Failed to get function list");
         return EXIT_FAILURE;
     }
  
@@ -197,9 +162,13 @@ UA_PubSubSecurityPolicy_Aes128CtrTPM (UA_PubSubSecurityPolicyTPM *policy, char *
         return EXIT_FAILURE;
     }
 
-    unsigned long *pSlotList = NULL;
-    unsigned long slot_id;
-    unsigned long int slot_count=0;
+    rv = (UA_StatusCode)C_Initialize(NULL_PTR);
+    if (rv != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                     "Failed to initialize");
+        return EXIT_FAILURE;
+    }
+
     rv = (UA_StatusCode)C_GetSlotList(CK_TRUE, NULL, &slot_count);
     if ((rv == UA_STATUSCODE_GOOD) && (slot_count > 0)) {
         pSlotList = (unsigned long*)UA_malloc(slot_count * sizeof (unsigned long));
@@ -236,17 +205,15 @@ UA_PubSubSecurityPolicy_Aes128CtrTPM (UA_PubSubSecurityPolicyTPM *policy, char *
         }
     }
     
-    CK_FLAGS flags;
     flags = CKF_SERIAL_SESSION | CKF_RW_SESSION;
-    rv = (UA_StatusCode)C_OpenSession(slot_id, flags, (CK_VOID_PTR) NULL, NULL, &session);
+    rv = (UA_StatusCode)C_OpenSession(slot_id, flags, (CK_VOID_PTR) NULL, NULL, &policy->session);
     if (rv != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                      "Failed to open session");
         return EXIT_FAILURE;
     }
-    printf ("before login\n");
- 
-    rv = (UA_StatusCode)C_Login(session, CKU_USER, (unsigned char*) userpin, (unsigned long int) strlen(userpin));
+
+    rv = (UA_StatusCode)C_Login(policy->session, CKU_USER, (unsigned char *)userpin, (unsigned long int) strlen(userpin));
     if (rv != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                      "Failed to login session using userpin 0x%.8lX", (long unsigned int)rv);
@@ -254,13 +221,13 @@ UA_PubSubSecurityPolicy_Aes128CtrTPM (UA_PubSubSecurityPolicyTPM *policy, char *
     }
     printf ("after login\n");
 
-    rv = (UA_StatusCode)C_FindObjectsInit(session, attrTemplate, sizeof(attrTemplate)/sizeof (CK_ATTRIBUTE));
+    rv = (UA_StatusCode)C_FindObjectsInit(policy->session, attrTemplate, sizeof(attrTemplate)/sizeof (CK_ATTRIBUTE));
     if (rv == UA_STATUSCODE_GOOD) {
-        key_object_found = pkcs11_find_object_by_label(policy, session, label, &hKey);
+        key_object_found = pkcs11_find_object_by_label(policy, policy->session, label, &policy->key);
         if (key_object_found == UA_FALSE)
             UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                          "Finding object failed");
-        rv = (UA_StatusCode)C_FindObjectsFinal(session);
+        rv = (UA_StatusCode)C_FindObjectsFinal(policy->session);
         if (rv != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                          "Finding object failed 0x%.8lX", (long unsigned int)rv);
@@ -272,7 +239,5 @@ UA_PubSubSecurityPolicy_Aes128CtrTPM (UA_PubSubSecurityPolicyTPM *policy, char *
         return rv;
     }
 
-    clear(policy, session);
     return UA_STATUSCODE_GOOD;
 }
-

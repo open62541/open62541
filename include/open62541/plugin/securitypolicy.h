@@ -390,9 +390,10 @@ struct UA_PubSubSecurityPolicyTPM {
     unsigned long key;
     UA_StatusCode (*encryptTPM)(UA_PubSubSecurityPolicyTPM *policy, unsigned long session,
                                 unsigned long key, UA_ByteString *data);
-    UA_StatusCode (*decryptTPM)(UA_PubSubSecurityPolicyTPM *policy, unsigned long session, unsigned long hKey,
+    UA_StatusCode (*decryptTPM)(UA_PubSubSecurityPolicyTPM *policy, unsigned long session, unsigned long key,
                                 UA_ByteString *data);
     UA_StatusCode (*clear)(UA_PubSubSecurityPolicyTPM *policy, unsigned long session);
+    void *policyContext;
 };
 
 #endif
