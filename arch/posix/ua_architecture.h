@@ -3,6 +3,7 @@
  *
  *    Copyright 2016-2017 (c) Julius Pfrommer, Fraunhofer IOSB
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2021 (c) Kalycito Infotech Private Limited
  */
 
 #ifdef UA_ARCHITECTURE_POSIX
@@ -127,6 +128,22 @@ void UA_sleep_ms(unsigned long ms);
     LOG; \
     errno = 0; \
 }
+
+#ifdef UA_ENABLE_FILETYPE_OBJECT_SUPPORT
+#define UA_file_seek_end SEEK_END
+#define UA_file_seek_current SEEK_CUR
+#define UA_file_seek_set SEEK_SET
+#define UA_file FILE
+#define UA_file_open(filePtr, mode) fopen(filePtr, mode)
+#define UA_file_close(filePtr) fclose(filePtr)
+#define UA_file_seek(filePtr, offset, seekPosition) fseek(filePtr, offset, seekPosition)
+#define UA_file_tell(filePtr) ftell(filePtr)
+#define UA_file_no(fileptr) fileno(fileptr)
+#define UA_file_print fprintf
+#define UA_file_read(readbuffer, elementSize, count, filePtr) fread(readbuffer, elementSize, count, filePtr)
+#define UA_file_error(filePtr) ferror(filePtr)
+#define UA_file_eof(filePtr) feof(filePtr)
+#endif
 
 #if UA_MULTITHREADING >= 100
 

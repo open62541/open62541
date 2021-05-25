@@ -12,7 +12,8 @@
  *    Copyright 2018 (c) Fabian Arndt, Root-Core
  *    Copyright 2017-2020 (c) HMS Industrial Networks AB (Author: Jonas Green)
  *    Copyright 2020-2021 (c) Christian von Arnim, ISW University of Stuttgart  (for VDW and umati)
- */
+ *    Copyright 2021 (c) Kalycito Infotech Private Limited 
+*/
 
 #ifndef UA_SERVER_H_
 #define UA_SERVER_H_
@@ -1598,6 +1599,38 @@ UA_Server_updateCertificate(UA_Server *server,
                             const UA_ByteString *newPrivateKey,
                             UA_Boolean closeSessions,
                             UA_Boolean closeSecureChannels);
+
+#ifdef UA_ENABLE_FILETYPE_OBJECT_SUPPORT
+
+/* Add the FileType Object instance to the server information model
+ * and register method callbacks
+ *
+ * @param server The server object
+ * @param requestedNewNodeId The requested NodeId of the fileType Object instance
+ * @param filePath Path to the file
+ * @return UA_STATUSCODE_GOOD on success
+ */
+UA_StatusCode UA_EXPORT
+UA_Server_addFile(UA_Server *server, const UA_NodeId requestedNewNodeId,
+                  const UA_NodeId parentNodeId,
+                  const UA_NodeId referenceTypeId,
+                  const UA_QualifiedName browseName,
+                  const UA_ObjectAttributes attr,
+                  const UA_String filePath,
+                  void *nodeContext, UA_NodeId *outNewNodeId);
+
+/* Register fileType object instance with method callbacks
+ * 
+ * @param server The server object
+ * @param fileTypeNodeId The NodeId of the fileType Object instance 
+ * @param filePath Path to the file
+ * @return UA_STATUSCODE_GOOD on success
+ */
+UA_StatusCode UA_EXPORT
+UA_Server_registerFileNode(UA_Server *server, UA_NodeId fileTypeNodeId,
+                           const UA_String filePath);
+
+#endif
 
 /**
  * Utility Functions

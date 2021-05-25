@@ -79,6 +79,10 @@ add_example(tutorial_server_datasource tutorial_server_datasource.c)
 
 add_example(server_settimestamp server_settimestamp.c)
 
+if(UA_ENABLE_FILETYPE_OBJECT_SUPPORT)
+add_example(tutorial_server_file_object tutorial_server_file_object.c)
+endif()
+
 if(UA_ENABLE_SUBSCRIPTIONS)
     add_example(tutorial_server_monitoreditems tutorial_server_monitoreditems.c)
 endif()

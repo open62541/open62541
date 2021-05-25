@@ -316,6 +316,14 @@ if(UA_ENABLE_DISCOVERY_MULTICAST AND NOT UA_ENABLE_DISCOVERY)
 endif()
 
 # Advanced options
+option(UA_ENABLE_FILETYPE_OBJECT_SUPPORT "Enable support for FileType object instance" OFF)
+mark_as_advanced(UA_ENABLE_FILETYPE_OBJECT_SUPPORT)
+if(UA_ENABLE_FILETYPE_OBJECT_SUPPORT)
+    if(NOT UA_NAMESPACE_ZERO STREQUAL "FULL" OR NOT UA_ENABLE_METHODCALLS)
+        message(FATAL_ERROR "To support FileType object, server needs to set UA_NAMESPACE_ZERO to FULL and enable UA_ENABLE_METHODCALLS")
+    endif()
+endif()
+
 option(UA_ENABLE_COVERAGE "Enable gcov coverage" OFF)
 mark_as_advanced(UA_ENABLE_COVERAGE)
 
@@ -917,6 +925,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_utils.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_discovery.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_async.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_file.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_writer.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_writergroup.c
