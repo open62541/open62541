@@ -975,7 +975,7 @@ endif()
 
 if(UA_ENABLE_PUBSUB_ENCRYPTION_TPM)
 list(INSERT default_plugin_sources 0
-     ${PROJECT_SOURCE_DIR}/plugins/crypto/tpm2_pkcs11/securitypolicy_pubsub_aes128ctr_tpm.c)
+     ${PROJECT_SOURCE_DIR}/plugins/crypto/pkcs11/securitypolicy_pubsub_aes128ctr_tpm.c)
 endif()
 
 if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL OR UA_ENABLE_AMALGAMATION)
