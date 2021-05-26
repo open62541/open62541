@@ -376,7 +376,7 @@ static void stopHandler(int sign) {
 }
 
 static void usage(void) {
-    printf("Usage: tutorial_pubsub_mqtt [--url <opc.mqtt://hostname:port>] "
+    printf("Usage: tutorial_pubsub_mqtt_publish [--url <opc.mqtt://hostname:port>] "
            "[--topic <mqttTopic>] "
            "[--freq <frequency in ms> "
            "[--json]\n"
