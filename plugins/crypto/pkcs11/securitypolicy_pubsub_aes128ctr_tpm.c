@@ -8,7 +8,9 @@
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/util.h>
 #include <open62541/types.h>
-#include "pkcs11.h"
+#include <pkcs11.h>
+
+#define MAX_ENCRYPTION_SIZE 16
 
 CK_AES_CTR_PARAMS params = {
     .ulCounterBits = sizeof(params.cb) * 8,
@@ -26,15 +28,15 @@ static UA_StatusCode
 encryptTPM(UA_PubSubSecurityPolicyTPM *policy, unsigned long session, unsigned long key,
            UA_ByteString *data) {
 
-    int part_number = 0;
+    int partNumber = 0;
 
-
-    CK_BYTE size;
-    CK_ULONG declen    = 16;
+    CK_BYTE sizeToEncrypt;
+    CK_ULONG decLen    = 16;
     CK_BYTE final      = 0;
-    CK_ULONG final_len = 0;
+    CK_ULONG finalLen  = 0;
     UA_StatusCode rv   = UA_STATUSCODE_GOOD;
 
+    /* Initializes an encryption operation */
     rv = (UA_StatusCode)C_EncryptInit(session, &mech, key);
     if (rv != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
@@ -42,62 +44,75 @@ encryptTPM(UA_PubSubSecurityPolicyTPM *policy, unsigned long session, unsigned l
         return rv;
     }
 
-    if ((data->length % 16) != 0)
-        size = (CK_BYTE)(data->length + (16 - (data->length % 16)));
+    if ((data->length % MAX_ENCRYPTION_SIZE) != 0)
+        sizeToEncrypt = (CK_BYTE)(data->length + (MAX_ENCRYPTION_SIZE - (data->length % MAX_ENCRYPTION_SIZE)));
     else
-        size = (CK_BYTE)data->length;
+        sizeToEncrypt = (CK_BYTE)data->length;
 
-    CK_BYTE *ciphertext = (CK_BYTE*)UA_malloc(size * sizeof(CK_BYTE));
-    while(rv == UA_STATUSCODE_GOOD && part_number * 16 <= size - 16) {
+    CK_BYTE *cipherText = (CK_BYTE*)UA_malloc(sizeToEncrypt * sizeof(CK_BYTE));
+    while(rv == UA_STATUSCODE_GOOD && partNumber * MAX_ENCRYPTION_SIZE <= sizeToEncrypt - MAX_ENCRYPTION_SIZE) {
+        /* Continues a multiple-part encryption operation, processing another data part */
         rv = (UA_StatusCode)C_EncryptUpdate(session,
-                                            &data->data[part_number*16], 16,
-                                            &ciphertext[part_number*16], &declen);
+                                            &data->data[partNumber*MAX_ENCRYPTION_SIZE], MAX_ENCRYPTION_SIZE,
+                                            &cipherText[partNumber*MAX_ENCRYPTION_SIZE], &decLen);
         if (UA_STATUSCODE_GOOD != rv) {
             UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                          "Encrypt update failed 0x%.8lX", (long unsigned int)rv);
-            return rv;
+            goto cleanup;
         }
-        part_number++;
+
+        partNumber++;
     }
 
-    rv = (UA_StatusCode)C_EncryptFinal(session, &final, &final_len);
+    /* Finishes a multiple-part encryption operation */
+    rv = (UA_StatusCode)C_EncryptFinal(session, &final, &finalLen);
     if (UA_STATUSCODE_GOOD != rv) {
         UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                      "Encrypt final failed 0x%.8lX", (long unsigned int)rv);
-        return rv;
+        goto cleanup;
     }
 
-    for (int i=0; i< size; i++)
-        data->data[i] = ciphertext[i];
+    for (int i=0; i< sizeToEncrypt; i++)
+        data->data[i] = cipherText[i];
 
-    UA_free(ciphertext);
+cleanup:
+    UA_free(cipherText);
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
 clear(UA_PubSubSecurityPolicyTPM *policy, unsigned long session) {
+
+    /* Logs a user out from a token */
     C_Logout(session);
+    /* Closes a session between an application and a token */
     C_CloseSession(session);
+    /* Clean up miscellaneous Cryptoki-associated resources */
     C_Finalize(NULL);
     return UA_STATUSCODE_GOOD;
 }
 
 static
-CK_BBOOL pkcs11_find_object_by_label(UA_PubSubSecurityPolicyTPM *policy,CK_SESSION_HANDLE hSession, char *label, CK_OBJECT_HANDLE *object_handle) {
+CK_BBOOL pkcs11_find_object_by_label(UA_PubSubSecurityPolicyTPM *policy, CK_SESSION_HANDLE hSession, char *label,
+                                     CK_OBJECT_HANDLE *object_handle) {
+
     UA_StatusCode rv = UA_STATUSCODE_GOOD;
     UA_Boolean returnValue = UA_FALSE;
     unsigned long int foundCount = 0;
-    do
-    {
+    do {
         CK_OBJECT_HANDLE hObject = 0;
-        rv = (UA_StatusCode)C_FindObjects( hSession, &hObject, 1, &foundCount );
+        /* Continues a search for token and session objects that match a template, obtaining additional object handles */
+        rv = (UA_StatusCode)C_FindObjects(hSession, &hObject, 1, &foundCount);
         if (rv == UA_STATUSCODE_GOOD) {
             CK_ATTRIBUTE attrTemplate[] = {
                 {CKA_LABEL, NULL, 0}
             };
+            /* Obtains the value of one or more attributes of an object*/
             rv = (UA_StatusCode)C_GetAttributeValue(hSession, hObject, attrTemplate, 1);
             if (attrTemplate[0].ulValueLen > 0)
                 attrTemplate[0].pValue = (char *)UA_malloc(attrTemplate[0].ulValueLen);
+
+            /* Obtains the value of one or more attributes of an object*/
             rv = (UA_StatusCode)C_GetAttributeValue(hSession, hObject, attrTemplate, 1);
             if (attrTemplate[0].ulValueLen > 0) {
                 char * val = (char *)UA_malloc(attrTemplate[0].ulValueLen + 1);
@@ -106,17 +121,22 @@ CK_BBOOL pkcs11_find_object_by_label(UA_PubSubSecurityPolicyTPM *policy,CK_SESSI
                 if (strncmp(val, label, attrTemplate[0].ulValueLen) == 0) {
                     returnValue = UA_TRUE;
                 }
+
                 UA_free(val);
                 *object_handle = hObject;
             }
+
             if (attrTemplate[0].pValue)
                 UA_free(attrTemplate[0].pValue);
+
         } else {
             returnValue = UA_FALSE;
             UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                          "Find objects failed 0x%.8lX", (long unsigned int)returnValue);
         }
+
     } while(rv == UA_STATUSCODE_GOOD && foundCount > 0);
+
     return returnValue;
 }
 
@@ -124,21 +144,21 @@ UA_StatusCode
 UA_PubSubSecurityPolicy_Aes128CtrTPM (UA_PubSubSecurityPolicyTPM *policy, char *userpin, unsigned long slotId,
                                       char *label, const UA_Logger *logger) {
 
-    UA_Boolean key_object_found = UA_FALSE;
+    UA_StatusCode rv;
+    UA_Boolean keyObjectFound = UA_FALSE;
     unsigned long *pSlotList = NULL;
-    unsigned long slot_id;
-    unsigned long int slot_count=0;
+    unsigned long availableSlotId;
+    unsigned long int slotCount=0;
 
     CK_FLAGS flags;
-    CK_FUNCTION_LIST_PTR pFunctionList;
-    CK_BBOOL ck_false = CK_FALSE;
-    CK_OBJECT_CLASS key_class = CKO_SECRET_KEY;
-    CK_KEY_TYPE key_type = CKK_AES;
+    CK_BBOOL ckFalse = CK_FALSE;
+    CK_OBJECT_CLASS keyClass = CKO_SECRET_KEY;
+    CK_KEY_TYPE keyType = CKK_AES;
 
     CK_ATTRIBUTE attrTemplate[] = {
-        {CKA_CLASS, &key_class, sizeof(key_class)},
-        {CKA_KEY_TYPE, &key_type, sizeof(key_type)},
-        {CKA_ALWAYS_AUTHENTICATE, &ck_false, sizeof(ck_false)}
+        {CKA_CLASS, &keyClass, sizeof(keyClass)},
+        {CKA_KEY_TYPE, &keyType, sizeof(keyType)},
+        {CKA_ALWAYS_AUTHENTICATE, &ckFalse, sizeof(ckFalse)}
     };
 
     memset(policy, 0, sizeof(UA_PubSubSecurityPolicyTPM));
@@ -148,41 +168,29 @@ UA_PubSubSecurityPolicy_Aes128CtrTPM (UA_PubSubSecurityPolicyTPM *policy, char *
     policy->encryptTPM = encryptTPM;
     policy->clear = clear;
 
-    UA_StatusCode rv;
-    rv = (UA_StatusCode)C_GetFunctionList(&pFunctionList);
-    if (rv != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                     "Failed to get function list");
-        return EXIT_FAILURE;
-    }
- 
-    rv = (UA_StatusCode)C_Initialize(NULL_PTR);
-    if (rv != UA_STATUSCODE_GOOD) {
-        printf("Failed to initialize\n");
-        return EXIT_FAILURE;
-    }
-
+    /* Initializes the Cryptoki library */
     rv = (UA_StatusCode)C_Initialize(NULL_PTR);
     if (rv != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                     "Failed to initialize");
+                     "Failed to initialize 0x%.8lX", (long unsigned int)rv);
         return EXIT_FAILURE;
     }
 
-    rv = (UA_StatusCode)C_GetSlotList(CK_TRUE, NULL, &slot_count);
-    if ((rv == UA_STATUSCODE_GOOD) && (slot_count > 0)) {
-        pSlotList = (unsigned long*)UA_malloc(slot_count * sizeof (unsigned long));
-
+    /* To obtain the address of the list of slots in the system */
+    rv = (UA_StatusCode)C_GetSlotList(CK_TRUE, NULL, &slotCount);
+    if ((rv == UA_STATUSCODE_GOOD) && (slotCount > 0)) {
+        pSlotList = (unsigned long*)UA_malloc(slotCount * sizeof (unsigned long));
         if (pSlotList == NULL) {
             UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                          "Unable to allocate memory");
             return EXIT_FAILURE;
         }
 
-        rv = (UA_StatusCode)C_GetSlotList(CK_TRUE, pSlotList, &slot_count);
+        /* To obtain a list of slots in the system */
+        rv = (UA_StatusCode)C_GetSlotList(CK_TRUE, pSlotList, &slotCount);
         if (rv != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                         "Unable to get slot count");
+                         "Unable to get slot count 0x%.8lX", (long unsigned int)rv);
             return EXIT_FAILURE;
         }
 
@@ -192,47 +200,55 @@ UA_PubSubSecurityPolicy_Aes128CtrTPM (UA_PubSubSecurityPolicyTPM *policy, char *
         return EXIT_FAILURE;
     }
 
-    for (unsigned long int i = 0; i < slot_count; i++) {
-        slot_id = pSlotList[i];
-        if (slot_id == slotId) {
-            CK_TOKEN_INFO token_info;
-            rv = (UA_StatusCode)C_GetTokenInfo(slot_id, &token_info);
+    for (unsigned long int i = 0; i < slotCount; i++) {
+        availableSlotId = pSlotList[i];
+        if (availableSlotId == slotId) {
+            CK_TOKEN_INFO tokenInfo;
+            /* Obtains information about a particular token in the system */
+            rv = (UA_StatusCode)C_GetTokenInfo(availableSlotId, &tokenInfo);
             if (rv != UA_STATUSCODE_GOOD) {
                 UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                             "Failed to fetch token info");
+                             "Failed to fetch token info 0x%.8lX", (long unsigned int)rv);
             }
+
             break;
         }
+
     }
-    
+
     flags = CKF_SERIAL_SESSION | CKF_RW_SESSION;
-    rv = (UA_StatusCode)C_OpenSession(slot_id, flags, (CK_VOID_PTR) NULL, NULL, &policy->session);
+    /*Opens a session between an application and a token in a particular slot */
+    rv = (UA_StatusCode)C_OpenSession(availableSlotId, flags, (CK_VOID_PTR) NULL, NULL, &policy->session);
     if (rv != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                     "Failed to open session");
+                     "Failed to open session 0x%.8lX", (long unsigned int)rv);
         return EXIT_FAILURE;
     }
 
+    /* Logs a user into a token */
     rv = (UA_StatusCode)C_Login(policy->session, CKU_USER, (unsigned char *)userpin, (unsigned long int) strlen(userpin));
     if (rv != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                      "Failed to login session using userpin 0x%.8lX", (long unsigned int)rv);
         return EXIT_FAILURE;
     }
-    printf ("after login\n");
 
+    /* Initializes a search for token and session objects that match a template */
     rv = (UA_StatusCode)C_FindObjectsInit(policy->session, attrTemplate, sizeof(attrTemplate)/sizeof (CK_ATTRIBUTE));
     if (rv == UA_STATUSCODE_GOOD) {
-        key_object_found = pkcs11_find_object_by_label(policy, policy->session, label, &policy->key);
-        if (key_object_found == UA_FALSE)
+        keyObjectFound = pkcs11_find_object_by_label(policy, policy->session, label, &policy->key);
+        if (keyObjectFound == UA_FALSE)
             UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                          "Finding object failed");
+
+        /* Terminates a search for token and session objects */
         rv = (UA_StatusCode)C_FindObjectsFinal(policy->session);
         if (rv != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                          "Finding object failed 0x%.8lX", (long unsigned int)rv);
             return rv;
         }
+
     } else {
         UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                      "Find object initialization failed 0x%.8lX", (long unsigned int)rv);

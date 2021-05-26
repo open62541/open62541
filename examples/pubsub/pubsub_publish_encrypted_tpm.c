@@ -135,8 +135,11 @@ static int run(UA_String *transportProfile,
 
     UA_PubSubSecurityPolicy_Aes128CtrTPM(config->pubSubConfig.securityPoliciesTPM, userpin, slotId,
                                          label, &config->logger);
-
+#ifdef UA_ENABLE_PUBSUB_ETH_UADP
     UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
+#else
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
+#endif
 
     addPubSubConnection(server, transportProfile, networkAddressUrl);
     addPublishedDataSet(server);
@@ -152,7 +155,7 @@ static int run(UA_String *transportProfile,
 
 static void
 usage(char *progname) {
-    printf("usage: %s <uri> [device]\n", progname);
+    printf("usage: %s [uri] [device] [userpin of token] [slotId] [keylabel]\n", progname);
 }
 
 int main(int argc, char **argv) {
@@ -170,8 +173,8 @@ int main(int argc, char **argv) {
         } else if (strncmp(argv[1], "opc.eth://", 10) == 0) {
             transportProfile =
                 UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp");
-            if (argc < 6) {
-                printf("Error: Provide interface name, userpin, slotId and label\n");
+            if (argc != 6) {
+                printf("Error: Provide uri, interface name, userpin, slotId and label\n");
                 return EXIT_FAILURE;
             }
         } else {
@@ -184,7 +187,10 @@ int main(int argc, char **argv) {
         networkAddressUrl.networkInterface = UA_STRING(argv[2]);
         networkAddressUrl.url = UA_STRING(argv[1]);
     }
-    
-    printf ("%s %ld %s %s %s\n", userpin, slotId, label, argv[1], argv[2]);
+    else {
+        usage(argv[0]);
+        return EXIT_SUCCESS;
+    }
+
     return run(&transportProfile, &networkAddressUrl);
 }

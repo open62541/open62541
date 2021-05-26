@@ -242,6 +242,7 @@ if(UA_ENABLE_PUBSUB)
     if(UA_ENABLE_PUBSUB_ENCRYPTION_TPM)
         add_example(pubsub_publish_encrypted_tpm pubsub/pubsub_publish_encrypted_tpm.c)
     endif()
+
     if(UA_ENABLE_PUBSUB_MQTT)
         if(NOT WIN32)
             include_directories(${PROJECT_SOURCE_DIR}/../plugins)
