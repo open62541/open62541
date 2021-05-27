@@ -191,7 +191,6 @@ if(UA_ENABLE_DISCOVERY_MULTICAST)
 endif()
 
 add_subdirectory(nodeset)
-
 ####################
 #  Example PubSub  #
 ####################
@@ -216,6 +215,10 @@ if(UA_ENABLE_PUBSUB)
     else (NOT BUILD_SHARED_LIBS)
         add_example(pubsub_subscribe_standalone pubsub/pubsub_subscribe_standalone.c)
         if(CMAKE_SYSTEM MATCHES "Linux")
+            add_example(pubsub_TSN_publisher_multiple_thread pubsub_realtime/arm/pubsub_TSN_publisher_multiple_thread.c)
+            add_example(pubsub_TSN_loopback_single_thread pubsub_realtime/arm/pubsub_TSN_loopback_single_thread.c)
+            target_link_libraries(pubsub_TSN_publisher_multiple_thread rt pthread)
+            target_link_libraries(pubsub_TSN_loopback_single_thread rt pthread)
             if(UA_ENABLE_PUBSUB_ETH_UADP)
                 add_subdirectory(pubsub_realtime/nodeset)
                 add_example(pubsub_TSN_publisher pubsub_realtime/pubsub_TSN_publisher.c)
