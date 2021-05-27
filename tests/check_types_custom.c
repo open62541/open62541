@@ -248,7 +248,7 @@ struct UA_SelfContainingUnion {
 };
 
 static const UA_DataType selfContainingUnionType;
-static const UA_DataType * GetselfContainingUnionType() {
+static const UA_DataType * GetselfContainingUnionType(void) {
 	return &selfContainingUnionType;
 }
 

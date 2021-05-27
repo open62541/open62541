@@ -393,7 +393,7 @@ _UA_BEGIN_DECLS
 
             self.printh(
                 "extern UA_EXPORT const UA_DataType UA_" + self.parser.outname.upper() + "[UA_" + self.parser.outname.upper() + "_COUNT];")
-            self.printh("extern UA_EXPORT const UA_DataType * UA_get_%s();" % self.parser.outname.upper())
+            self.printh("extern UA_EXPORT const UA_DataType * UA_get_%s(void);" % self.parser.outname.upper())
 
             for ns in self.filtered_types:
                 for i, t_name in enumerate(self.filtered_types[ns]):
@@ -479,7 +479,7 @@ _UA_END_DECLS
             self.printc("};\n")
 
             self.printc('''const UA_DataType *
-UA_get_%s() {
+UA_get_%s(void) {
     return UA_%s;
 }''' % (self.parser.outname.upper(), self.parser.outname.upper()))
 
