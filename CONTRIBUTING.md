@@ -191,13 +191,13 @@ API change. The actual implementation can follow later on.
 ###  General
 1. Avoid the use of [Magic Numbers](https://en.wikipedia.org/wiki/Magic_number_(programming)#Unnamed_numerical_constants).
    For example use `UA_STATUSCODE_BADINTERNALERROR` instead of `0x80020000`
-1. Avoid using global variables. If you for some reason really need to use global variables, prefix them with `g_` so that it is immediately clear in the code, that we are dealing with a global variable.
-1. Almost all of the code is indented by four (4) spaces and regardless of which is better, spaces or tabs, you should indent with four spaces in order to be consistent.
-1. If you find yourself copy-pasting code, consider refactoring it into a function and calling that.
+2. Avoid using global variables. If you for some reason really need to use global variables, prefix them with `g_` so that it is immediately clear in the code, that we are dealing with a global variable.
+3. Almost all of the code is indented by four (4) spaces and regardless of which is better, spaces or tabs, you should indent with four spaces in order to be consistent.
+4. If you find yourself copy-pasting code, consider refactoring it into a function and calling that.
    Try keeping functions short (about 20-30 lines, that way they will in most cases fit onto the screen).
    In case of simple switch statements for example this can be exceeded, but there is not much complexity that needs to be understood.
    Most of the time, if functions are longer than 30 lines, they can be refactored into smaller functions that make their intent clear.
-1. Use of comments
+5. Use of comments
 
 Use C-style comments as follows:
 
@@ -252,8 +252,8 @@ See the following general rules for comments: [\[1\]](https://www.kernel.org/doc
 ### 2 Source file organization:
 1. every file starts with a prefix ua_ followed by the package name
    examples: `ua_encoder.c, ua_transport_binary.c, ua_basictypes.c`
-1. source files are located in the /src folder
-1. source files can be further aggreagated on the file-system level, i.e.
+2. source files are located in the /src folder
+3. source files can be further aggreagated on the file-system level, i.e.
 ```
 	/src/.
 		ua_encoder.c
@@ -266,30 +266,30 @@ See the following general rules for comments: [\[1\]](https://www.kernel.org/doc
 
 ### 3 Header files
 1. The header files for the public API are stored in the /include folder and have the same name as .c files
-1. The /include folder is a flattened /src folder e.g. it does not contain subdirectories
+2. The /include folder is a flattened /src folder e.g. it does not contain subdirectories
 
 ### 4 Methods and instances
 1. Methods and instances are prefixed with UA_packageName
-1. Methods and instances are camelCased starting with *lower* case
+2. Methods and instances are camelCased starting with *lower* case
    Examples: `UA_encoder_encode`, `UA_Int32_calculateSize`
-1. Use const on variables that will not be changed.
+3. Use const on variables that will not be changed.
    For example in functions, make all parameters const, that are not used as out arguments.
    When declaring local variables in a function make them const, if you know that they will not be modified.
    When using pointers, remember to declare both the pointer and the actual type as const, if they are never modified:
    `const int *const myInt`
-1. In- variables should be always *in front* of the out- variables in argument lists
+4. In- variables should be always *in front* of the out- variables in argument lists
 
 ### 5 Types
 1. Types are prefixed with `UA_packageName`.
-1. Types are CamelCased starting with *upper* case. Example: `UA_ResponseHeader`
+2. Types are CamelCased starting with *upper* case. Example: `UA_ResponseHeader`
 
-1. Builtin datatypes do not have a package name. Example: `UA_Int32, UA_Int64`
+3. Builtin datatypes do not have a package name. Example: `UA_Int32, UA_Int64`
 
 ### 6 Constants, enums, defines
 1. Constants and defines are in full capital letters, eg.: `MY_CONST`
-1. Constants should be defined in a matching package's .h file, if they are part of the interface.
+2. Constants should be defined in a matching package's .h file, if they are part of the interface.
    Otherwise they should be kept in the .c file in order to not pollute the interface.
-1. Enums are preferred when defining several related constants, for example the different states of a secure channel:
+3. Enums are preferred when defining several related constants, for example the different states of a secure channel:
 ```
 typedef enum {
     UA_SECURECHANNELSTATE_FRESH,
@@ -300,25 +300,25 @@ typedef enum {
 
 ### 7 Variable naming
 1. Variables should be descriptive and use camelCase starting with a lower case letter.
-1. Some commonly known abbreviations or variable name conventions can be used.
+2. Some commonly known abbreviations or variable name conventions can be used.
    This includes for example loop variables like `i` and temporary variables like `tmp`.
    Use common sense, and think about if you would still understand your own code if you looked at it two weeks in the future.
-1. Do not use Hungarian notation. The code base so far does not use it and neither should you, to be consistent.
+3. Do not use Hungarian notation. The code base so far does not use it and neither should you, to be consistent.
    For some reasons, why Hungarian notation might be bad, see [here](https://stackoverflow.com/questions/111933/why-shouldnt-i-use-hungarian-notation)
 
 ### 8 Formatting
 1. Braces: Opening braces start on the same line as a function, if statement, etc. and the closing brace is placed on a separate line.
    If the next keyword after a closing braces logically belongs to the previous keyword (i.e. if and else), the keyword is placed next to the closing brace on the same line with one space in between. Example:
-    ```
+    ```c
     if(a) {
         doSomething();
     } else if(b) {
         doSomething();
     } else doSomething();
     ```
-1. Switch statement: Do not indent the case keyword and place the content of each case in new lines that are indented.
+2. Switch statement: Do not indent the case keyword and place the content of each case in new lines that are indented.
    If using a code block to limit the scope of variables, follow the above convention. Example:
-    ```
+    ```c
     switch(a) {
     case 0:
         doA();
@@ -328,8 +328,8 @@ typedef enum {
     }
     }
     ```
-1. Align multiline expressions. Example:
-    ```
+3. Align multiline expressions. Example:
+    ```c
     int a = 1 +
             2 +
             3;
@@ -337,19 +337,20 @@ typedef enum {
     int b = ((1) + 2) -
             (4 * 5 / 6 % 7);
     ```
-1. Keep the number of blank lines to a minimum, but leave some if it makes the code more readable.
-1. Surround binary operators with spaces except for member access operators. Do not use spaces around unary operators.
-1. Do not place a space between a keyword and following parentheses.
-1. Do not place spaces within parentheses.
-1. Place a space before, but not after a pointer symbol (*). Example: `const int *const **const myPtr;`
+4. Keep the number of blank lines to a minimum, but leave some if it makes the code more readable.
+5. Surround binary operators with spaces except for member access operators. Do not use spaces around unary operators.
+6. Do not place a space between a keyword and following parentheses.
+7. Do not place spaces within parentheses.
+8. Place a space before, but not after a pointer symbol (\*). Example: `const int *const **const myPtr;`
 
 If you are using CLion you can configure your IDE by importing [this scheme](https://gist.github.com/Infinity95/c5c743180b447863aff9e5c76dfde0bb).
+
 ### 9 Tests
-1. tests are contained in /tests dir and start with check_ prefix followed by a package name (corresponding .c file)
+1. tests are contained in `/tests` dir and start with check_ prefix followed by a package name (corresponding .c file)
 
    `example: check_encoder.c, check_securityLayer.c`
 
-1. check_main.c file is used to aggregate test cases that are executed
+2. `check_main.c` file is used to aggregate test cases that are executed
 
 ### Still unsure?
 If any questions arise concerning code style, feel free to start an issue.
