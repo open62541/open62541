@@ -77,6 +77,11 @@ UA_findDataType(const UA_NodeId *typeId) {
     return UA_findDataTypeWithCustom(typeId, NULL);
 }
 
+const UA_DataType *
+UA_getDataType(const UA_DataTypeMember *member) {
+    return &(member->GetTypesArray()[member->memberTypeIndex]);
+}
+
 /***************************/
 /* Random Number Generator */
 /***************************/
@@ -1093,7 +1098,7 @@ copyStructure(const void *src, void *dst, const UA_DataType *type) {
     uintptr_t ptrd = (uintptr_t)dst;
     for(size_t i = 0; i < type->membersSize; ++i) {
         const UA_DataTypeMember *m = &type->members[i];
-        const UA_DataType *mt = m->memberType;
+        const UA_DataType *mt = UA_getDataType(m);
         ptrs += m->padding;
         ptrd += m->padding;
         if(!m->isOptional) {
@@ -1150,7 +1155,7 @@ copyUnion(const void *src, void *dst, const UA_DataType *type) {
     if(selection == 0)
         return UA_STATUSCODE_GOOD;
     const UA_DataTypeMember *m = &type->members[selection-1];
-    const UA_DataType *mt = m->memberType;
+    const UA_DataType *mt = UA_getDataType(m);
     ptrs += m->padding;
     ptrd += m->padding;
 
@@ -1226,7 +1231,7 @@ clearStructure(void *p, const UA_DataType *type) {
     uintptr_t ptr = (uintptr_t)p;
     for(size_t i = 0; i < type->membersSize; ++i) {
         const UA_DataTypeMember *m = &type->members[i];
-        const UA_DataType *mt = m->memberType;
+        const UA_DataType *mt = UA_getDataType(m);
         ptr += m->padding;
         if(!m->isOptional) {
             if(!m->isArray) {
@@ -1267,7 +1272,7 @@ clearUnion(void *p, const UA_DataType *type) {
     if(selection == 0)
         return;
     const UA_DataTypeMember *m = &type->members[selection-1];
-    const UA_DataType *mt = m->memberType;
+    const UA_DataType *mt = UA_getDataType(m);
     ptr += m->padding;
     if (m->isArray) {
         size_t length = *(size_t *)ptr;

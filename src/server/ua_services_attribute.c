@@ -325,7 +325,7 @@ getStructureDefinition(const UA_DataType *type, UA_StructureDefinition *def) {
         def->fields[cnt].name = UA_STRING((char *)(uintptr_t)m->memberName);
         def->fields[cnt].description.locale = UA_STRING_NULL;
         def->fields[cnt].description.text = UA_STRING_NULL;
-        def->fields[cnt].dataType = m->memberType->typeId;
+        def->fields[cnt].dataType = UA_getDataType(m)->typeId;
         def->fields[cnt].maxStringLength = 0;
         def->fields[cnt].isOptional = m->isOptional;
     }

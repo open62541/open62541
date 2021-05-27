@@ -705,7 +705,7 @@ printStructure(UA_PrintContext *ctx, const void *p, const UA_DataType *type) {
     for(size_t i = 0; i < type->membersSize; ++i) {
         UA_PrintContext_addNewlineTabs(ctx, ctx->depth);
         const UA_DataTypeMember *m = &type->members[i];
-        const UA_DataType *mt = m->memberType;
+        const UA_DataType *mt = UA_getDataType(m);
         ptrs += m->padding;
         retval |= UA_PrintContext_addName(ctx, m->memberName);
         if(!m->isArray) {

@@ -942,7 +942,9 @@ typedef struct UA_DiagnosticInfo {
  * type operations as static inline functions. */
 
 typedef struct {
-    const UA_DataType *memberType;/* The member data type description */
+    UA_UInt16 memberTypeIndex;    /* Index of the member in the array of data
+                                     types */
+    const UA_DataType * (*GetTypesArray)();
     UA_Byte   padding;            /* How much padding is there before this
                                      member element? For arrays this is the
                                      padding before the size_t length member.
@@ -1031,6 +1033,9 @@ UA_DataType_isNumeric(const UA_DataType *type);
  * matching data type was found. */
 const UA_DataType UA_EXPORT *
 UA_findDataType(const UA_NodeId *typeId);
+
+const UA_DataType UA_EXPORT *
+UA_getDataType(const UA_DataTypeMember *member);
 
 /** The following functions are used for generic handling of data types. */
 
