@@ -239,7 +239,7 @@ class CGenerator(object):
             values = enum.elements.items()
 
         if enum.isOptionSet == True:
-            return "typedef " + enum.strDataType + " " + makeCIdentifier("UA_" + enum.name) + ";\n\n" + "\n".join(
+            return "typedef " + enum.strDataType + " " + makeCIdentifier("UA_" + enum.prefix + enum.name) + ";\n\n" + "\n".join(
                 map(lambda kv: "#define " + makeCIdentifier("UA_" + enum.name.upper() + "_" + kv[0].upper()) +
                 " " + kv[1], values))
         else:
