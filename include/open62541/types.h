@@ -1034,9 +1034,6 @@ UA_DataType_isNumeric(const UA_DataType *type);
 const UA_DataType UA_EXPORT *
 UA_findDataType(const UA_NodeId *typeId);
 
-const UA_DataType UA_EXPORT *
-UA_getDataType(const UA_DataTypeMember *member);
-
 /** The following functions are used for generic handling of data types. */
 
 /* Allocates and initializes a variable of type dataType
