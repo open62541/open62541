@@ -247,10 +247,7 @@ struct UA_SelfContainingUnion {
     } fields;
 };
 
-static const UA_DataType selfContainingUnionType;
-static const UA_DataType * GetselfContainingUnionType(void) {
-	return &selfContainingUnionType;
-}
+static const UA_DataType * GetselfContainingUnionType(void);
 
 static UA_DataTypeMember SelfContainingUnion_members[2] = {
 {
@@ -282,6 +279,10 @@ static const UA_DataType selfContainingUnionType = {
     SelfContainingUnion_members  /* .members */
     UA_TYPENAME("SelfContainingStruct") /* .typeName */
 };
+
+static const UA_DataType * GetselfContainingUnionType(void) {
+    return &selfContainingUnionType;
+}
 
 const UA_DataTypeArray customDataTypesSelfContainingUnion = {NULL, 1, &selfContainingUnionType};
 

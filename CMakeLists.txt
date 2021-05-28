@@ -543,6 +543,9 @@ if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" ST
     check_add_cc_flag("-Wno-overlength-strings") # May happen in the nodeset compiler when complex values are directly encoded
     check_add_cc_flag("-Wno-unused-parameter") # some methods may require unused arguments to cast to a method pointer
 
+    # Use a strict subset of the C and C++ languages
+    check_add_cc_flag("-Wc++-compat")
+
     # Check that format strings (printf/scanf) are sane
     check_add_cc_flag("-Wformat")
     check_add_cc_flag("-Wformat-security")
