@@ -7,6 +7,7 @@
  * Copyright (c) 2019 Kalycito Infotech Private Limited
  * Copyright (c) 2020 Yannick Wallerer, Siemens AG
  * Copyright (c) 2020 Thomas Fischer, Siemens AG
+ * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
  */
 
 #include <open62541/server_pubsub.h>
@@ -358,7 +359,7 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId writ
         const UA_Byte *bufEnd = &wg->bufferedMessage.buffer.data[wg->bufferedMessage.buffer.length];
         UA_Byte *bufPos = wg->bufferedMessage.buffer.data;
         UA_NetworkMessage_encodeBinary(&networkMessage, &bufPos, bufEnd, NULL);
-        
+
         UA_free(networkMessage.payload.dataSetPayload.sizes);
         /* Clean up DSM */
         for(size_t i = 0; i < dsmCount; i++){
@@ -1248,7 +1249,7 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_PubSubState state, UA_Writer
                     UA_PubSubManager_removeRepeatedPubSubCallback(server, writerGroup->publishCallbackId);
                     LIST_FOREACH(dataSetWriter, &writerGroup->writers, listEntry){
                         UA_DataSetWriter_setPubSubState(server, UA_PUBSUBSTATE_ERROR, dataSetWriter);
-                    }      
+                    }
                     break;
                 case UA_PUBSUBSTATE_ERROR:
                     return UA_STATUSCODE_GOOD;
@@ -2080,6 +2081,77 @@ sendBufferedNetworkMessage(UA_Server *server, UA_PubSubConnection *connection,
                                      transportSettings, &buffer->buffer);
 }
 
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+static UA_StatusCode
+encryptAndSign(UA_WriterGroup *wg, const UA_NetworkMessage *nm,
+                 UA_Byte *signStart, UA_Byte *encryptStart,
+                 UA_Byte *msgEnd) {
+    UA_StatusCode rv;
+    void *channelContext = wg->securityPolicyContext;
+
+    if(nm->securityHeader.networkMessageEncrypted) {
+        /* Set the temporary MessageNonce in the SecurityPolicy */
+        rv = wg->config.securityPolicy->setMessageNonce(channelContext, &nm->securityHeader.messageNonce);
+        UA_CHECK_STATUS(rv, return rv);
+
+        /* The encryption is done in-place, no need to encode again */
+        UA_ByteString toBeEncrypted = {(uintptr_t)msgEnd - (uintptr_t)encryptStart,
+                                       encryptStart};
+        rv = wg->config.securityPolicy->symmetricModule.cryptoModule.encryptionAlgorithm
+            .encrypt(channelContext, &toBeEncrypted);
+        UA_CHECK_STATUS(rv, return rv);
+    }
+
+    if(nm->securityHeader.networkMessageSigned) {
+        UA_ByteString toBeSigned = {(uintptr_t)msgEnd - (uintptr_t)signStart,
+                                    signStart};
+
+        size_t sigSize = wg->config.securityPolicy->symmetricModule.cryptoModule.
+            signatureAlgorithm.getLocalSignatureSize(channelContext);
+        UA_ByteString signature = {sigSize, msgEnd};
+
+        rv = wg->config.securityPolicy->symmetricModule.cryptoModule.
+            signatureAlgorithm.sign(channelContext, &toBeSigned, &signature);
+        UA_CHECK_STATUS(rv, return rv);
+    }
+    return UA_STATUSCODE_GOOD;
+}
+#endif
+
+static UA_StatusCode
+writeNetworkMessage(UA_WriterGroup *wg, size_t msgSize,
+                    UA_NetworkMessage *nm, UA_ByteString *buf) { /* Encode the message */
+    UA_Byte *bufPos = buf->data;
+    memset(bufPos, 0, msgSize);
+    UA_Byte *bufEnd = &buf->data[buf->length];
+
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    UA_Byte *networkMessageStart = bufPos;
+#endif
+    UA_StatusCode rv = UA_NetworkMessage_encodeHeaders(nm, &bufPos, bufEnd);
+    UA_CHECK_STATUS(rv, return rv);
+
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    UA_Byte *payloadStart = bufPos;
+#endif
+    rv = UA_NetworkMessage_encodePayload(nm, &bufPos, bufEnd);
+    UA_CHECK_STATUS(rv, return rv);
+
+    rv = UA_NetworkMessage_encodeFooters(nm, &bufPos, bufEnd);
+    UA_CHECK_STATUS(rv, return rv);
+
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    UA_Byte *footerEnd = bufPos;
+#endif
+    /* Encrypt and Sign the message */
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+
+    rv = encryptAndSign(wg, nm, networkMessageStart, payloadStart, footerEnd);
+    UA_CHECK_STATUS(rv, return rv);
+
+#endif
+    return UA_STATUSCODE_GOOD;
+}
 static UA_StatusCode
 sendNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
                    UA_DataSetMessage *dsm, UA_UInt16 *writerIds, UA_Byte dsmCount,
@@ -2087,14 +2159,11 @@ sendNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
                    UA_ExtensionObject *transportSettings) {
     UA_NetworkMessage nm;
     memset(&nm, 0, sizeof(UA_NetworkMessage));
-    UA_StatusCode retval =
+
+    UA_StatusCode rv =
         generateNetworkMessage(connection, wg, dsm, writerIds, dsmCount,
                                messageSettings, transportSettings, &nm);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_ByteString_clear(&nm.securityHeader.messageNonce);
-        UA_free(nm.payload.dataSetPayload.sizes);
-        return retval;
-    }
+    UA_CHECK_STATUS(rv, goto cleanup);
 
     /* Allocate the buffer. Allocate on the stack if the buffer is small. */
     UA_ByteString buf;
@@ -2116,45 +2185,23 @@ sendNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
         buf.data = stackBuf;
         buf.length = msgSize;
     } else {
-        retval = UA_ByteString_allocBuffer(&buf, msgSize);
-        if(retval != UA_STATUSCODE_GOOD)
-            goto cleanup;
+        rv = UA_ByteString_allocBuffer(&buf, msgSize);
+        UA_CHECK_STATUS(rv, goto cleanup);
     }
-
-    /* Encode the message */
-    UA_Byte *bufPos = buf.data;
-    memset(bufPos, 0, msgSize);
-    UA_Byte *bufEnd = &buf.data[buf.length];
-    UA_Byte *encryptStart = NULL;
-    retval = UA_NetworkMessage_encodeBinary(&nm, &bufPos, bufEnd, &encryptStart);
-    if(retval != UA_STATUSCODE_GOOD) {
-        if(msgSize > UA_MAX_STACKBUF)
-            UA_ByteString_clear(&buf);
-        goto cleanup;
-    }
-
-    /* Encrypt the message */
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
-    retval = UA_NetworkMessage_signEncrypt(&nm, wg->config.securityMode,
-                                           wg->config.securityPolicy,
-                                           wg->securityPolicyContext,
-                                           buf.data, encryptStart, bufPos);
-    if(retval != UA_STATUSCODE_GOOD) {
-        if(msgSize > UA_MAX_STACKBUF)
-            UA_ByteString_clear(&buf);
-        goto cleanup;
-    }
-#endif
-
+    rv = writeNetworkMessage(wg, msgSize, &nm, &buf);
+    UA_CHECK_STATUS(rv, goto cleanup_with_msg_size);
     /* Send the prepared messages */
-    retval = connection->channel->send(connection->channel, transportSettings, &buf);
-    if(msgSize > UA_MAX_STACKBUF)
-        UA_ByteString_clear(&buf);
+    rv = connection->channel->send(connection->channel, transportSettings, &buf);
+    UA_CHECK_STATUS(rv, goto cleanup_with_msg_size);
 
+cleanup_with_msg_size:
+    if(msgSize > UA_MAX_STACKBUF) {
+        UA_ByteString_clear(&buf);
+    }
 cleanup:
     UA_ByteString_clear(&nm.securityHeader.messageNonce);
     UA_free(nm.payload.dataSetPayload.sizes);
-    return retval;
+    return rv;
 }
 
 /* This callback triggers the collection and publish of NetworkMessages and the
@@ -2163,9 +2210,13 @@ void
 UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER, "Publish Callback");
 
+    // TODO: review if its okay to force correct value from caller side instead
+    // UA_assert(writerGroup != NULL);
+    // UA_assert(server != NULL);
+
     if(!writerGroup) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "Publish failed. WriterGroup not found");
+                     "Publish failed. WriterGroup not found");
         return;
     }
 

@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.0...3.12)
-project(open62541 C)
+if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
+    project(open62541) # We need to have C++ support configured for fuzzing
+else()
+    project(open62541 C) # Do not look for a C++ compiler
+endif()
 # set(CMAKE_VERBOSE_MAKEFILE ON)
 if(${CMAKE_VERSION} VERSION_LESS 3.12)
     cmake_policy(VERSION ${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION})
@@ -331,6 +335,21 @@ if(UA_ENABLE_PUBSUB_MQTT)
     endif()
 endif()
 
+option(UA_ENABLE_MQTT_TLS "Enable TLS support for publish/subscribe with mqtt" OFF)
+mark_as_advanced(UA_ENABLE_MQTT_TLS)
+if(UA_ENABLE_MQTT_TLS)
+        if(NOT UA_ENABLE_PUBSUB_MQTT)
+            message(FATAL_ERROR "Mqtt with TLS cannot be used without UA_ENABLE_PUBSUB_MQTT.")
+        endif()
+        set(UA_ENABLE_MQTT_TLS_OPENSSL ON)
+endif()
+
+option(UA_ENABLE_MQTT_TLS_OPENSSL "Enable TLS support for publish/subscribe with mqtt (use OpenSSL)" OFF)
+mark_as_advanced(UA_ENABLE_MQTT_TLS_OPENSSL)
+if(UA_ENABLE_MQTT_TLS_OPENSSL)
+    set(UA_ENABLE_MQTT_TLS ON)
+endif()
+
 option(UA_ENABLE_STATUSCODE_DESCRIPTIONS "Enable conversion of StatusCode to human-readable error message" ON)
 mark_as_advanced(UA_ENABLE_STATUSCODE_DESCRIPTIONS)
 
@@ -397,6 +416,13 @@ if(CMAKE_VERSION VERSION_GREATER 3.6)
     SET_PROPERTY(CACHE UA_ENABLE_STATIC_ANALYZER PROPERTY STRINGS "OFF" "MINIMAL" "REDUCED" "FULL")
 endif()
 
+option(UA_DEBUG_FILE_LINE_INFO "Enable file and line information as additional debugging output for error messages" OFF)
+mark_as_advanced(UA_DEBUG_FILE_LINE_INFO)
+
+if(CMAKE_BUILD_TYPE MATCHES DEBUG)
+    set(UA_DEBUG_FILE_LINE_INFO ON)
+endif()
+
 # Build Targets
 option(UA_BUILD_EXAMPLES "Build example servers and clients" OFF)
 option(UA_BUILD_TOOLS "Build OPC UA shell tools" OFF)
@@ -459,19 +485,19 @@ include(linting_build)
 
 list(APPEND open62541_LIBRARIES "")
 
-if(UA_ENABLE_ENCRYPTION)
-    if(UA_ENABLE_ENCRYPTION_OPENSSL)
-        # use the OpenSSL encryption library
-        # https://cmake.org/cmake/help/v3.0/module/FindOpenSSL.html
-        find_package(OpenSSL REQUIRED)
-        list(APPEND open62541_LIBRARIES ${OPENSSL_LIBRARIES})
-    else()
-        # The recommended way is to install mbedtls via the OS package manager. If
-        # that is not possible, manually compile mbedTLS and set the cmake variables
-        # defined in /tools/cmake/FindMbedTLS.cmake.
-        find_package(MbedTLS REQUIRED)
-        list(APPEND open62541_LIBRARIES ${MBEDTLS_LIBRARIES})
-    endif()
+if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_MQTT_TLS_OPENSSL)
+    # use the OpenSSL encryption library
+    # https://cmake.org/cmake/help/v3.0/module/FindOpenSSL.html
+    find_package(OpenSSL REQUIRED)
+    list(APPEND open62541_LIBRARIES ${OPENSSL_LIBRARIES})
+endif ()
+
+if(UA_ENABLE_ENCRYPTION_MBEDTLS)
+    # The recommended way is to install mbedtls via the OS package manager. If
+    # that is not possible, manually compile mbedTLS and set the cmake variables
+    # defined in /tools/cmake/FindMbedTLS.cmake.
+    find_package(MbedTLS REQUIRED)
+    list(APPEND open62541_LIBRARIES ${MBEDTLS_LIBRARIES})
 endif()
 
 if(UA_ENABLE_WEBSOCKET_SERVER)
@@ -864,7 +890,8 @@ list(INSERT default_plugin_sources 0
      ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_pki_mbedtls.c)
    if(UA_ENABLE_PUBSUB_ENCRYPTION)
      list(INSERT default_plugin_sources 1
-       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_pubsub_aes128ctr.c)
+       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_pubsub_aes128ctr.c
+       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_pubsub_aes256ctr.c)
   endif()
 endif()
 
@@ -931,6 +958,9 @@ if(UA_ENABLE_PUBSUB)
         list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_bufmalloc.c)
         list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_bufmalloc.h)
     endif()
+    if(UA_ENABLE_PUBSUB_ENCRYPTION)
+        list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_security.c)
+    endif()
 endif()
 
 if(UA_ENABLE_JSON_ENCODING)
@@ -954,7 +984,7 @@ if(UA_ENABLE_SUBSCRIPTIONS)
                             ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_monitoreditem.c
                             ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_datachange.c)
     if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
-        if(UA_NAMESPACE_ZERO STREQUAL "MINAML")
+        if(UA_NAMESPACE_ZERO STREQUAL "MINIMAL")
             message(FATAL_ERROR "Events require at least the reduced Namespace Zero")
         endif()
         list(APPEND lib_sources
@@ -968,7 +998,6 @@ endif()
 
 if(UA_DEBUG_DUMP_PKGS)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/plugins/ua_debug_dump_pkgs.c)
-    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c)
 endif()
 
 if(UA_ENABLE_DISCOVERY_MULTICAST)
@@ -1175,7 +1204,7 @@ if(UA_ENABLE_AMALGAMATION)
     if(UA_ENABLE_ENCRYPTION_MBEDTLS)
         target_include_directories(open62541-object PRIVATE ${MBEDTLS_INCLUDE_DIRS})
     endif()
-    if(UA_ENABLE_ENCRYPTION_OPENSSL)
+    if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_MQTT_TLS_OPENSSL)
         target_include_directories(open62541-object PRIVATE ${OPENSSL_INCLUDE_DIR})
     endif()
 
@@ -1260,7 +1289,7 @@ else()
     if(UA_ENABLE_ENCRYPTION_MBEDTLS)
         include_directories_private(${MBEDTLS_INCLUDE_DIRS})
     endif()
-    if(UA_ENABLE_ENCRYPTION_OPENSSL)
+    if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_MQTT_TLS_OPENSSL)
         include_directories_private(${OPENSSL_INCLUDE_DIR})
     endif()
 

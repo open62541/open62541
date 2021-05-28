@@ -34,7 +34,7 @@ static UA_UInt32 monitoredItemId;
 static UA_NodeId eventType;
 static size_t nSelectClauses = 4;
 static UA_Boolean notificationReceived;
-static UA_Boolean overflowNotificationReceived;
+static UA_Boolean overflowNotificationReceived = false;
 static UA_SimpleAttributeOperand *selectClauses;
 
 UA_Double publishingInterval = 500.0;
@@ -558,7 +558,7 @@ START_TEST(eventOverflow) {
 
     // fetch the events, ensure both the overflow and the original event are received
     notificationReceived = false;
-    overflowNotificationReceived = true;
+    overflowNotificationReceived = false;
     sleepUntilAnswer(publishingInterval + 100);
     retval = UA_Client_run_iterate(client, 0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
