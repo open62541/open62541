@@ -19,7 +19,6 @@
 #define UA_SECURITYPOLICY_BASIC256SHA1_RSAPADDING_LEN                42
 #define UA_SECURITYPOLICY_BASIC256_SYM_ENCRYPTION_KEY_LENGTH         32
 #define UA_SECURITYPOLICY_BASIC256_SYM_ENCRYPTION_BLOCK_SIZE         16
-#define UA_SECURITYPOLICY_BASIC256_SYM_PLAIN_TEXT_BLOCK_SIZE         16
 #define UA_SECURITYPOLICY_BASIC256_SYM_SIGNING_KEY_LENGTH            24
 #define UA_SHA1_LENGTH                                               20
 
@@ -441,11 +440,6 @@ UA_SymEn_Basic256_getRemoteKeyLength (const void * channelContext) {
     return UA_SECURITYPOLICY_BASIC256_SYM_ENCRYPTION_KEY_LENGTH; 
 }
 
-static size_t 
-UA_SymEn_Basic256_getPlainTextBlockSize (const void *              channelContext) {
-    return UA_SECURITYPOLICY_BASIC256_SYM_PLAIN_TEXT_BLOCK_SIZE;                                                        
-}
-
 static UA_StatusCode
 UA_SymEn_Basic256_Encrypt (void *                    channelContext,
                            UA_ByteString *           data) {
@@ -581,7 +575,7 @@ UA_SecurityPolicy_Basic256 (UA_SecurityPolicy * policy,
     symEncryptionAlgorithm->getLocalKeyLength = UA_SymEn_Basic256_getLocalKeyLength;
     symEncryptionAlgorithm->getRemoteKeyLength = UA_SymEn_Basic256_getRemoteKeyLength;
     symEncryptionAlgorithm->getRemoteBlockSize = UA_SymEn_Basic256_getBlockSize;
-    symEncryptionAlgorithm->getRemotePlainTextBlockSize = UA_SymEn_Basic256_getPlainTextBlockSize;
+    symEncryptionAlgorithm->getRemotePlainTextBlockSize = UA_SymEn_Basic256_getBlockSize;
     symEncryptionAlgorithm->decrypt = UA_SymEn_Basic256_Decrypt;
     symEncryptionAlgorithm->encrypt = UA_SymEn_Basic256_Encrypt;
 

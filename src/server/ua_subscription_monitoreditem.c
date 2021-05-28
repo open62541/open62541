@@ -58,6 +58,7 @@ createEventOverflowNotification(UA_Server *server, UA_Subscription *sub,
     /* Set the notification fields */
     overflowNotification->isOverflowEvent = true;
     overflowNotification->mon = mon;
+    overflowNotification->data.event.clientHandle = mon->parameters.clientHandle;
     overflowNotification->data.event.eventFields = UA_Variant_new();
     if(!overflowNotification->data.event.eventFields) {
         UA_free(overflowNotification);
@@ -149,11 +150,14 @@ UA_Notification_new(void) {
     return n;
 }
 
+static void UA_Notification_dequeueMon(UA_Server *server, UA_Notification *n);
+static void UA_Notification_enqueueSub(UA_Notification *n);
+static void UA_Notification_dequeueSub(UA_Notification *n);
+
 void
 UA_Notification_delete(UA_Server *server, UA_Notification *n) {
     UA_assert(n != UA_SUBSCRIPTION_QUEUE_SENTINEL);
-    if(n->mon != NULL)
-    {
+    if(n->mon) {
         UA_Notification_dequeueMon(server, n);
         UA_Notification_dequeueSub(n);
         switch(n->mon->itemToMonitor.attributeId) {
@@ -170,7 +174,8 @@ UA_Notification_delete(UA_Server *server, UA_Notification *n) {
     UA_free(n);
 }
 
-void
+/* Add to the MonitoredItem queue, update all counters and then handle overflow */
+static void
 UA_Notification_enqueueMon(UA_Server *server, UA_Notification *n) {
     UA_MonitoredItem *mon = n->mon;
     UA_assert(mon);
@@ -222,14 +227,20 @@ UA_Notification_enqueueSub(UA_Notification *n) {
 
 void
 UA_Notification_enqueueAndTrigger(UA_Server *server, UA_Notification *n) {
+    /* If reporting, enqueue into the Subscription first and then into the
+     * MonitoredItem. Otherwise the reinsertion in
+     * UA_MonitoredItem_ensureQueueSpace might not work. */
     UA_MonitoredItem *mon = n->mon;
     if(mon->monitoringMode == UA_MONITORINGMODE_REPORTING)
         UA_Notification_enqueueSub(n);
+
+    /* Insert into the MonitoredItem. This checks the queue size and
+     * handles overflow. */
     UA_Notification_enqueueMon(server, n);
 
     UA_Subscription *sub = mon->subscription;
     for(size_t i = mon->triggeringLinksSize - 1; i < mon->triggeringLinksSize; i--) {
-        /* Get the triggered MonitoredItem. Remove if it doesn't exist. */
+        /* Get the triggered MonitoredItem. Remove the link if the MI doesn't exist. */
         UA_MonitoredItem *triggeredMon =
             UA_Subscription_getMonitoredItem(sub, mon->triggeringLinks[i]);
         if(!triggeredMon) {
@@ -261,7 +272,8 @@ UA_Notification_enqueueAndTrigger(UA_Server *server, UA_Notification *n) {
     }
 }
 
-void
+/* Remove from the MonitoredItem queue and adjust all counters */
+static void
 UA_Notification_dequeueMon(UA_Server *server, UA_Notification *n) {
     UA_MonitoredItem *mon = n->mon;
     UA_assert(mon);
@@ -451,6 +463,57 @@ UA_Server_unregisterMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
     server->monitoredItemsSize--;
 
     mon->registered = false;
+}
+
+UA_StatusCode
+UA_MonitoredItem_setMonitoringMode(UA_Server *server, UA_MonitoredItem *mon,
+                                   UA_MonitoringMode monitoringMode) {
+    /* Check if the MonitoringMode is valid or not */
+    if(monitoringMode > UA_MONITORINGMODE_REPORTING)
+        return UA_STATUSCODE_BADMONITORINGMODEINVALID;
+
+    /* Set the MonitoringMode */
+    mon->monitoringMode = monitoringMode;
+
+    UA_Notification *notification;
+    /* Reporting is disabled. This causes all Notifications to be dequeued and
+     * deleted. Also remove the last samples so that we immediately generate a
+     * Notification when re-activated. */
+    if(mon->monitoringMode == UA_MONITORINGMODE_DISABLED) {
+        UA_Notification *notification_tmp;
+        UA_MonitoredItem_unregisterSampleCallback(server, mon);
+        TAILQ_FOREACH_SAFE(notification, &mon->queue, listEntry, notification_tmp)
+            UA_Notification_delete(server, notification);
+        UA_ByteString_clear(&mon->lastSampledValue);
+        UA_DataValue_clear(&mon->lastValue);
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* When reporting is enabled, put all notifications that were already
+     * sampled into the global queue of the subscription. When sampling is
+     * enabled, remove all notifications from the global queue. !!! This needs
+     * to be the same operation as in UA_Notification_enqueue !!! */
+    if(mon->monitoringMode == UA_MONITORINGMODE_REPORTING) {
+        /* Make all notifications reporting. Re-enqueue to ensure they have the
+         * right order if some notifications are already reported by a trigger
+         * link. */
+        TAILQ_FOREACH(notification, &mon->queue, listEntry) {
+            UA_Notification_dequeueSub(notification);
+            UA_Notification_enqueueSub(notification);
+        }
+    } else /* mon->monitoringMode == UA_MONITORINGMODE_SAMPLING */ {
+        /* Make all notifications non-reporting */
+        TAILQ_FOREACH(notification, &mon->queue, listEntry)
+            UA_Notification_dequeueSub(notification);
+    }
+
+    /* Register the sampling callback with an interval. If registering the
+     * sampling callback failed, set to disabled. But don't delete the current
+     * notifications. */
+    UA_StatusCode res = UA_MonitoredItem_registerSampleCallback(server, mon);
+    if(res != UA_STATUSCODE_GOOD)
+        mon->monitoringMode = UA_MONITORINGMODE_DISABLED;
+    return res;
 }
 
 void
