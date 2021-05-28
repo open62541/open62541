@@ -75,7 +75,7 @@
 /* Options for Debugging */
 #cmakedefine UA_DEBUG
 #cmakedefine UA_DEBUG_DUMP_PKGS
-
+#cmakedefine UA_DEBUG_FILE_LINE_INFO
 /**
  * Function Export
  * ---------------

@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.0...3.12)
-project(open62541 C)
+if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
+    project(open62541) # We need to have C++ support configured for fuzzing
+else()
+    project(open62541 C) # Do not look for a C++ compiler
+endif()
 # set(CMAKE_VERBOSE_MAKEFILE ON)
 if(${CMAKE_VERSION} VERSION_LESS 3.12)
     cmake_policy(VERSION ${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION})
@@ -410,6 +414,13 @@ if(CMAKE_VERSION VERSION_GREATER 3.6)
     set(UA_ENABLE_STATIC_ANALYZER "OFF" CACHE STRING "Enable installed static analyzer during build process (off/minimal/reduced/full)")
     mark_as_advanced(UA_ENABLE_STATIC_ANALYZER)
     SET_PROPERTY(CACHE UA_ENABLE_STATIC_ANALYZER PROPERTY STRINGS "OFF" "MINIMAL" "REDUCED" "FULL")
+endif()
+
+option(UA_DEBUG_FILE_LINE_INFO "Enable file and line information as additional debugging output for error messages" OFF)
+mark_as_advanced(UA_DEBUG_FILE_LINE_INFO)
+
+if(CMAKE_BUILD_TYPE MATCHES DEBUG)
+    set(UA_DEBUG_FILE_LINE_INFO ON)
 endif()
 
 # Build Targets
@@ -879,7 +890,8 @@ list(INSERT default_plugin_sources 0
      ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_pki_mbedtls.c)
    if(UA_ENABLE_PUBSUB_ENCRYPTION)
      list(INSERT default_plugin_sources 1
-       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_pubsub_aes128ctr.c)
+       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_pubsub_aes128ctr.c
+       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_pubsub_aes256ctr.c)
   endif()
 endif()
 
@@ -946,6 +958,9 @@ if(UA_ENABLE_PUBSUB)
         list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_bufmalloc.c)
         list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_bufmalloc.h)
     endif()
+    if(UA_ENABLE_PUBSUB_ENCRYPTION)
+        list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_security.c)
+    endif()
 endif()
 
 if(UA_ENABLE_JSON_ENCODING)
@@ -969,7 +984,7 @@ if(UA_ENABLE_SUBSCRIPTIONS)
                             ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_monitoreditem.c
                             ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_datachange.c)
     if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
-        if(UA_NAMESPACE_ZERO STREQUAL "MINAML")
+        if(UA_NAMESPACE_ZERO STREQUAL "MINIMAL")
             message(FATAL_ERROR "Events require at least the reduced Namespace Zero")
         endif()
         list(APPEND lib_sources
@@ -983,7 +998,6 @@ endif()
 
 if(UA_DEBUG_DUMP_PKGS)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/plugins/ua_debug_dump_pkgs.c)
-    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c)
 endif()
 
 if(UA_ENABLE_DISCOVERY_MULTICAST)
