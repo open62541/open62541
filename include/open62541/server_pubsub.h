@@ -4,6 +4,7 @@
  *
  * Copyright (c) 2017-2018 Fraunhofer IOSB (Author: Andreas Ebner)
  * Copyright (c) 2019 Kalycito Infotech Private Limited
+ * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
  */
 
 #ifndef UA_SERVER_PUBSUB_H
@@ -485,7 +486,7 @@ typedef struct {
 
     /* Message are encrypted if a SecurityPolicy is configured and the
      * securityMode set accordingly. The symmetric key is a runtime information
-     * and has to be set set via UA_Server_setWriterGroupEncryptionKey. */
+     * and has to be set via UA_Server_setWriterGroupEncryptionKey. */
     UA_MessageSecurityMode securityMode; /* via the UA_WriterGroupDataType */
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     UA_PubSubSecurityPolicy *securityPolicy;
@@ -729,6 +730,14 @@ typedef struct {
     UA_Boolean enableBlockingSocket; // To enable or disable blocking socket option
     UA_UInt32 timeout; // Timeout for receive to wait for the packets
     UA_PubSubRTLevel rtLevel;
+
+    /* Messages are decrypted if a SecurityPolicy is configured and the
+     * securityMode set accordingly. The symmetric key is a runtime information
+     * and has to be set via UA_Server_setReaderGroupEncryptionKey. */
+    UA_MessageSecurityMode securityMode;
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    UA_PubSubSecurityPolicy *securityPolicy;
+#endif
 } UA_ReaderGroupConfig;
 
 void UA_EXPORT
@@ -781,6 +790,17 @@ UA_Server_setReaderGroupOperational(UA_Server *server, const UA_NodeId readerGro
 
 UA_StatusCode UA_EXPORT
 UA_Server_setReaderGroupDisabled(UA_Server *server, const UA_NodeId readerGroupId);
+
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+/* Set the group key for the message encryption */
+UA_StatusCode UA_EXPORT
+UA_Server_setReaderGroupEncryptionKeys(UA_Server *server, UA_NodeId readerGroup,
+                                       UA_UInt32 securityTokenId,
+                                       UA_ByteString signingKey,
+                                       UA_ByteString encryptingKey,
+                                       UA_ByteString keyNonce);
+#endif
+
 
 #endif /* UA_ENABLE_PUBSUB */
 

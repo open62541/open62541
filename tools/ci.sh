@@ -136,6 +136,25 @@ function unit_tests_encryption_openssl {
     make test ARGS="-V"
 }
 
+function unit_tests_encryption_mbedtls_pubsub {
+    mkdir -p build; cd build; rm -rf *
+    cmake -DCMAKE_BUILD_TYPE=Debug \
+          -DUA_BUILD_EXAMPLES=ON \
+          -DUA_BUILD_UNIT_TESTS=ON \
+          -DUA_ENABLE_DISCOVERY=ON \
+          -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
+          -DUA_ENABLE_ENCRYPTION=ON \
+          -DUA_ENABLE_ENCRYPTION_MBEDTLS=ON \
+          -DUA_ENABLE_PUBSUB=ON \
+          -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
+          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=OFF \
+          -DUA_ENABLE_PUBSUB_MONITORING=ON \
+          -DUA_ENABLE_PUBSUB_ENCRYPTION=ON \
+          ..
+    make ${MAKEOPTS}
+    make test ARGS="-V"
+}
+
 ##########################################
 # Build and Run Unit Tests with Valgrind #
 ##########################################
@@ -154,6 +173,7 @@ function unit_tests_valgrind {
           -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=OFF \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
+          -DUA_ENABLE_PUBSUB_ENCRYPTION=ON \
           -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON \
           ..
     make ${MAKEOPTS}
