@@ -24,22 +24,57 @@ CK_MECHANISM mech = {
     CKM_AES_CTR, &params, sizeof(params)
 };
 
-static UA_StatusCode
-encryptTPM(UA_PubSubSecurityPolicyTPM *policy, unsigned long session, unsigned long key,
-           UA_ByteString *data) {
+typedef struct {
+    const UA_PubSubSecurityPolicy *securityPolicy;
+} PUBSUB_AES128CTR_PolicyContext;
 
-    int partNumber = 0;
+typedef struct {
+    PUBSUB_AES128CTR_PolicyContext *policyContext;
+    unsigned long session;
+    unsigned long key;
+} PUBSUB_AES128CTR_ChannelContext;
+
+static void
+deleteContext_TPM(PUBSUB_AES128CTR_ChannelContext *cc) {
+    UA_free(cc);
+}
+
+static UA_StatusCode
+newContext_aes128ctr(void *policyContext, unsigned long session, unsigned long key, void **wgContext) {
+
+    /* Allocate the channel context */
+    PUBSUB_AES128CTR_ChannelContext *cc = (PUBSUB_AES128CTR_ChannelContext *)
+        UA_calloc(1, sizeof(PUBSUB_AES128CTR_ChannelContext));
+    if(cc == NULL)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    /* Initialize the channel context */
+    cc->policyContext = (PUBSUB_AES128CTR_PolicyContext *)policyContext;
+    if(session)
+        memcpy(&cc->session, &session, sizeof(session));
+    if(key)
+        memcpy(&cc->key, &key, sizeof(key));
+    *wgContext = cc;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+encryptTPM(const PUBSUB_AES128CTR_ChannelContext *cc, UA_ByteString *data) {
+
+    if(cc == NULL || data == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
 
     CK_BYTE sizeToEncrypt;
+    int partNumber     = 0;
     CK_ULONG decLen    = 16;
     CK_BYTE final      = 0;
     CK_ULONG finalLen  = 0;
     UA_StatusCode rv   = UA_STATUSCODE_GOOD;
 
     /* Initializes an encryption operation */
-    rv = (UA_StatusCode)C_EncryptInit(session, &mech, key);
+    rv = (UA_StatusCode)C_EncryptInit(cc->session, &mech, cc->key);
     if (rv != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+        UA_LOG_ERROR(cc->policyContext->securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                      "Encrypt initialization failed 0x%.8lX", (long unsigned int)rv);
         return rv;
     }
@@ -52,11 +87,11 @@ encryptTPM(UA_PubSubSecurityPolicyTPM *policy, unsigned long session, unsigned l
     CK_BYTE *cipherText = (CK_BYTE*)UA_malloc(sizeToEncrypt * sizeof(CK_BYTE));
     while(rv == UA_STATUSCODE_GOOD && partNumber * MAX_ENCRYPTION_SIZE <= sizeToEncrypt - MAX_ENCRYPTION_SIZE) {
         /* Continues a multiple-part encryption operation, processing another data part */
-        rv = (UA_StatusCode)C_EncryptUpdate(session,
+        rv = (UA_StatusCode)C_EncryptUpdate(cc->session,
                                             &data->data[partNumber*MAX_ENCRYPTION_SIZE], MAX_ENCRYPTION_SIZE,
                                             &cipherText[partNumber*MAX_ENCRYPTION_SIZE], &decLen);
         if (UA_STATUSCODE_GOOD != rv) {
-            UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+            UA_LOG_ERROR(cc->policyContext->securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                          "Encrypt update failed 0x%.8lX", (long unsigned int)rv);
             goto cleanup;
         }
@@ -65,9 +100,9 @@ encryptTPM(UA_PubSubSecurityPolicyTPM *policy, unsigned long session, unsigned l
     }
 
     /* Finishes a multiple-part encryption operation */
-    rv = (UA_StatusCode)C_EncryptFinal(session, &final, &finalLen);
+    rv = (UA_StatusCode)C_EncryptFinal(cc->session, &final, &finalLen);
     if (UA_STATUSCODE_GOOD != rv) {
-        UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+        UA_LOG_ERROR(cc->policyContext->securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                      "Encrypt final failed 0x%.8lX", (long unsigned int)rv);
         goto cleanup;
     }
@@ -80,20 +115,18 @@ cleanup:
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode
-clear(UA_PubSubSecurityPolicyTPM *policy, unsigned long session) {
-
+static void
+deleteSession(UA_PubSubSecurityPolicy *policy) {
     /* Logs a user out from a token */
-    C_Logout(session);
+    C_Logout(policy->session);
     /* Closes a session between an application and a token */
-    C_CloseSession(session);
+    C_CloseSession(policy->session);
     /* Clean up miscellaneous Cryptoki-associated resources */
     C_Finalize(NULL);
-    return UA_STATUSCODE_GOOD;
 }
 
 static
-CK_BBOOL pkcs11_find_object_by_label(UA_PubSubSecurityPolicyTPM *policy, CK_SESSION_HANDLE hSession, char *label,
+CK_BBOOL pkcs11_find_object_by_label(UA_PubSubSecurityPolicy *policy, CK_SESSION_HANDLE hSession, char *label,
                                      CK_OBJECT_HANDLE *object_handle) {
 
     UA_StatusCode rv = UA_STATUSCODE_GOOD;
@@ -141,7 +174,7 @@ CK_BBOOL pkcs11_find_object_by_label(UA_PubSubSecurityPolicyTPM *policy, CK_SESS
 }
 
 UA_StatusCode
-UA_PubSubSecurityPolicy_Aes128CtrTPM (UA_PubSubSecurityPolicyTPM *policy, char *userpin, unsigned long slotId,
+UA_PubSubSecurityPolicy_Aes128CtrTPM (UA_PubSubSecurityPolicy *policy, char *userpin, unsigned long slotId,
                                       char *label, const UA_Logger *logger) {
 
     UA_StatusCode rv;
@@ -161,12 +194,21 @@ UA_PubSubSecurityPolicy_Aes128CtrTPM (UA_PubSubSecurityPolicyTPM *policy, char *
         {CKA_ALWAYS_AUTHENTICATE, &ckFalse, sizeof(ckFalse)}
     };
 
-    memset(policy, 0, sizeof(UA_PubSubSecurityPolicyTPM));
+    memset(policy, 0, sizeof(UA_PubSubSecurityPolicy));
     policy->logger = logger;
     policy->policyUri =
         UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#PubSub-Aes128-CTR");
-    policy->encryptTPM = encryptTPM;
-    policy->clear = clear;
+    policy->newContextTPM = newContext_aes128ctr;
+    policy->deleteContext = (void (*)(void *))deleteContext_TPM;
+    policy->clear = deleteSession;
+
+    UA_SecurityPolicySymmetricModule *symmetricModule = &policy->symmetricModule;
+    UA_SecurityPolicyEncryptionAlgorithm *encryptionAlgorithm =
+        &symmetricModule->cryptoModule.encryptionAlgorithm;
+    encryptionAlgorithm->uri =
+        UA_STRING("https://tools.ietf.org/html/rfc3686"); /* Temp solution */
+    encryptionAlgorithm->encrypt =
+        (UA_StatusCode(*)(void *, UA_ByteString *))encryptTPM;
 
     /* Initializes the Cryptoki library */
     rv = (UA_StatusCode)C_Initialize(NULL_PTR);

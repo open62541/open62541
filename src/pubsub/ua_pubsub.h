@@ -170,7 +170,7 @@ struct UA_WriterGroup {
     UA_UInt16 sequenceNumber; /* Increased after every succressuly sent message */
     UA_Boolean configurationFrozen;
 
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+#if defined(UA_ENABLE_PUBSUB_ENCRYPTION) || defined(UA_ENABLE_PUBSUB_ENCRYPTION_TPM)
     UA_UInt32 securityTokenId;
     UA_UInt32 nonceSequenceNumber; /* To be part of the MessageNonce */
     void *securityPolicyContext;

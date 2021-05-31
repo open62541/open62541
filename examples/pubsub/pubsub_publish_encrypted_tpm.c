@@ -84,7 +84,7 @@ addWriterGroup(UA_Server *server) {
     /* Encryption settings */
     UA_ServerConfig *config = UA_Server_getConfig(server);
     writerGroupConfig.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
-    writerGroupConfig.securityPolicyTPM = &config->pubSubConfig.securityPoliciesTPM[0];
+    writerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[0];
 
     UA_UadpWriterGroupMessageDataType *writerGroupMessage  =
         UA_UadpWriterGroupMessageDataType_new();
@@ -97,6 +97,7 @@ addWriterGroup(UA_Server *server) {
     UA_Server_addWriterGroup(server, connectionIdent, &writerGroupConfig, &writerGroupIdent);
     UA_Server_setWriterGroupOperational(server, writerGroupIdent);
     UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
+    UA_Server_setWriterGroupEncryptionKeysTPM(server, writerGroupIdent);
 }
 
 static void
@@ -129,11 +130,11 @@ static int run(UA_String *transportProfile,
     UA_ServerConfig_setDefault(config);
 
     /* Instantiate the PubSub SecurityPolicy */
-    config->pubSubConfig.securityPoliciesTPM = (UA_PubSubSecurityPolicyTPM*)
-        UA_malloc(sizeof(UA_PubSubSecurityPolicyTPM));
-    config->pubSubConfig.securityPoliciesSizeTPM = 1;
+    config->pubSubConfig.securityPolicies = (UA_PubSubSecurityPolicy*)
+        UA_malloc(sizeof(UA_PubSubSecurityPolicy));
+    config->pubSubConfig.securityPoliciesSize = 1;
 
-    UA_PubSubSecurityPolicy_Aes128CtrTPM(config->pubSubConfig.securityPoliciesTPM, userpin, slotId,
+    UA_PubSubSecurityPolicy_Aes128CtrTPM(config->pubSubConfig.securityPolicies, userpin, slotId,
                                          label, &config->logger);
 #ifdef UA_ENABLE_PUBSUB_ETH_UADP
     UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());

@@ -80,7 +80,7 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
     config->logger.clear = NULL;
 
 #ifdef UA_ENABLE_PUBSUB
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+#if defined(UA_ENABLE_PUBSUB_ENCRYPTION) || defined(UA_ENABLE_PUBSUB_ENCRYPTION_TPM)
     if(config->pubSubConfig.securityPolicies != NULL) {
         for(size_t i = 0; i < config->pubSubConfig.securityPoliciesSize; i++) {
             config->pubSubConfig.securityPolicies[i].clear(&config->pubSubConfig.securityPolicies[i]);
@@ -88,17 +88,6 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
         UA_free(config->pubSubConfig.securityPolicies);
         config->pubSubConfig.securityPolicies = NULL;
         config->pubSubConfig.securityPoliciesSize = 0;
-    }
-#endif
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION_TPM
-    if(config->pubSubConfig.securityPoliciesTPM != NULL) {
-        for(size_t i = 0; i < config->pubSubConfig.securityPoliciesSizeTPM; i++) {
-            config->pubSubConfig.securityPoliciesTPM[i].clear(&config->pubSubConfig.securityPoliciesTPM[i],
-                                                              config->pubSubConfig.securityPoliciesTPM[i].session);
-        }
-        UA_free(config->pubSubConfig.securityPoliciesTPM);
-        config->pubSubConfig.securityPoliciesTPM = NULL;
-        config->pubSubConfig.securityPoliciesSizeTPM = 0;
     }
 #endif
 #endif /* UA_ENABLE_PUBSUB */

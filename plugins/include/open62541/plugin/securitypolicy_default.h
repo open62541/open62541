@@ -60,7 +60,7 @@ UA_PubSubSecurityPolicy_Aes256Ctr(UA_PubSubSecurityPolicy *policy,
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION_TPM
 
 UA_EXPORT UA_StatusCode
-UA_PubSubSecurityPolicy_Aes128CtrTPM(UA_PubSubSecurityPolicyTPM *policy, char *userpin, unsigned long slotId,
+UA_PubSubSecurityPolicy_Aes128CtrTPM(UA_PubSubSecurityPolicy *policy, char *userpin, unsigned long slotId,
                                      char *label, const UA_Logger *logger);
 
 #endif
