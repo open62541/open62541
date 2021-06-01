@@ -1521,7 +1521,9 @@ UA_DataSetReader_process(UA_Server *server,
                         }
                     }
                 }
-
+#ifdef UA_ENABLE_PUBSUB_MONITORING
+                UA_DataSetReader_checkMessageReceiveTimeout(server, dataSetReader);
+#endif /* UA_ENABLE_PUBSUB_MONITORING */
                 return;
             }
 
@@ -1554,6 +1556,17 @@ UA_DataSetReader_process(UA_Server *server,
     UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER, "DataSetReader '%.*s': received a network message",
         (int) dataSetReader->config.name.length, dataSetReader->config.name.data);
 #ifdef UA_ENABLE_PUBSUB_MONITORING
+    UA_DataSetReader_checkMessageReceiveTimeout(server, dataSetReader);
+#endif /* UA_ENABLE_PUBSUB_MONITORING */
+}
+
+#ifdef UA_ENABLE_PUBSUB_MONITORING
+
+void
+UA_DataSetReader_checkMessageReceiveTimeout(UA_Server *server, UA_DataSetReader *dataSetReader) {
+    assert(server != 0);
+    assert(dataSetReader != 0);
+
     /* if previous reader state was error (because we haven't received messages and ran into timeout) we should set the state back to operational */
     if(dataSetReader->state == UA_PUBSUBSTATE_ERROR) {
         UA_DataSetReader_setPubSubState(server, UA_PUBSUBSTATE_OPERATIONAL, dataSetReader);
@@ -1585,10 +1598,8 @@ UA_DataSetReader_process(UA_Server *server,
                         "Starting Message Receive Timeout timer failed.");
         UA_DataSetReader_setPubSubState(server, UA_PUBSUBSTATE_ERROR, dataSetReader);
     }
-#endif /* UA_ENABLE_PUBSUB_MONITORING */
 }
 
-#ifdef UA_ENABLE_PUBSUB_MONITORING
 /* Timeout callback for DataSetReader MessageReceiveTimeout handling */
 void
 UA_DataSetReader_handleMessageReceiveTimeout(UA_Server *server, void *dataSetReader) {
