@@ -1861,9 +1861,13 @@ decodeAndProcessNetworkMessage(UA_Server *server, UA_ReaderGroup *readerGroup,
 
     rv = UA_Server_processNetworkMessage(server, connection, &currentNetworkMessage);
     // TODO: check what action to perform on error (nothing?)
-    UA_CHECK_STATUS_WARN(rv, (void)0, &server->config.logger, UA_LOGCATEGORY_SERVER,
-                         "Subscribe failed. process network message failed.");
-
+    if (rv == UA_STATUSCODE_BADNOTFOUND) {
+        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                    "PubSub receive. Unknown message received. Will not be processed.");
+    } else {
+        UA_CHECK_STATUS_WARN(rv, (void)0, &server->config.logger, UA_LOGCATEGORY_SERVER,
+                            "Subscribe failed. process network message failed.");
+    }
     /* Minimum ethernet packet size is 64 bytes where the header size is 14
      * bytes and FCS size is 4 bytes so remaining minimum payload size of
      * ethernet packet is 46 bytes */
@@ -1986,8 +1990,10 @@ receiveBufferedNetworkMessage(UA_Server *server, UA_ReaderGroup *readerGroup,
     while(buffer.length > currentPosition) {
         rv = decodeAndProcessNetworkMessageFun(server, readerGroup, connection,
                                                previousPosition, &buffer, &currentPosition);
-        UA_CHECK_STATUS_WARN(rv, return rv, &server->config.logger, UA_LOGCATEGORY_SERVER,
-                             "SubscribeCallback(): receive message failed");
+        if (rv != UA_STATUSCODE_BADNOTFOUND) {
+            UA_CHECK_STATUS_WARN(rv, return rv, &server->config.logger, UA_LOGCATEGORY_SERVER,
+                                "SubscribeCallback(): receive message failed");
+        }
         previousPosition = currentPosition;
     }
     return UA_STATUSCODE_GOOD;
