@@ -21,28 +21,31 @@ typedef struct {
 static UA_DataTypeMember Point_members[3] = {
     /* x */
     {
-        &UA_TYPES[UA_TYPES_FLOAT], /* .memberType */
-        0,                         /* .padding */
-        false,                     /* .isArray */
-        false                      /* .isOptional */
-        UA_TYPENAME("x")           /* .memberName */
+        UA_TYPES_FLOAT,  /* .memberTypeIndex */
+        UA_get_TYPES,
+        0,               /* .padding */
+        false,           /* .isArray */
+        false            /* .isOptional */
+        UA_TYPENAME("x") /* .memberName */
     },
 
     /* y */
     {
-        &UA_TYPES[UA_TYPES_FLOAT], /* .memberType */
-        Point_padding_y,           /* .padding */
-        false,                     /* .isArray */
-        false                      /* .isOptional */
-        UA_TYPENAME("y")           /* .memberName */
+        UA_TYPES_FLOAT,  /* .memberTypeIndex */
+        UA_get_TYPES,
+        Point_padding_y, /* .padding */
+        false,           /* .isArray */
+        false            /* .isOptional */
+        UA_TYPENAME("y") /* .memberName */
     },
     /* z */
     {
-        &UA_TYPES[UA_TYPES_FLOAT], /* .memberType */
-        Point_padding_z,           /* .padding */
-        false,                     /* .isArray */
-        false                      /* .isOptional */
-        UA_TYPENAME("z")           /* .memberName */
+        UA_TYPES_FLOAT,  /* .memberTypeIndex */
+        UA_get_TYPES,
+        Point_padding_z, /* .padding */
+        false,           /* .isArray */
+        false            /* .isOptional */
+        UA_TYPENAME("z") /* .memberName */
     }
 };
 
@@ -71,14 +74,16 @@ typedef struct {
 
 static UA_DataTypeMember Measurements_members[2] = {
     {
-        &UA_TYPES[UA_TYPES_STRING],            /* .memberType */
+        UA_TYPES_STRING,                       /* .memberTypeIndex */
+        UA_get_TYPES,
         0,                                     /* .padding */
         false,                                 /* .isArray */
         false                                  /* .isOptional */
         UA_TYPENAME("Measurement description") /* .memberName */
     },
     {
-        &UA_TYPES[UA_TYPES_FLOAT],             /* .memberType */
+        UA_TYPES_FLOAT,                        /* .memberTypeIndex */
+        UA_get_TYPES,
         0,                                     /* .padding */
         true,                                  /* .isArray */
         false                                  /* .isOptional */
@@ -113,7 +118,8 @@ typedef struct {
 static UA_DataTypeMember Opt_members[3] = {
     /* a */
     {
-        &UA_TYPES[UA_TYPES_INT16],                            /* .memberType */
+        UA_TYPES_INT16,                                       /* .memberTypeIndex */
+        UA_get_TYPES,
         0,                                                    /* .padding */
         false,                                                /* .isArray */
         false                                                 /* .isOptional */
@@ -121,7 +127,8 @@ static UA_DataTypeMember Opt_members[3] = {
     },
     /* b */
     {
-        &UA_TYPES[UA_TYPES_FLOAT],                            /* .memberType */
+        UA_TYPES_FLOAT,                                       /* .memberTypeIndex */
+        UA_get_TYPES,
         offsetof(Opt,b) - offsetof(Opt,a) - sizeof(UA_Int16), /* .padding */
         false,                                                /* .isArray */
         true                                                  /* .isOptional */
@@ -129,7 +136,8 @@ static UA_DataTypeMember Opt_members[3] = {
     },
     /* c */
     {
-        &UA_TYPES[UA_TYPES_FLOAT],                            /* .memberType */
+        UA_TYPES_FLOAT,                                       /* .memberTypeIndex */
+        UA_get_TYPES,
         offsetof(Opt,c) - offsetof(Opt,b) - sizeof(void *),   /* .padding */
         false,                                                /* .isArray */
         true                                                  /* .isOptional */
@@ -166,18 +174,20 @@ typedef struct {
 
 static UA_DataTypeMember Uni_members[2] = {
     {
-        &UA_TYPES[UA_TYPES_DOUBLE],    /* .memberType */
+        UA_TYPES_DOUBLE,            /* .memberTypeIndex */
+        UA_get_TYPES,
         offsetof(Uni, fields.optionA), /* .padding */
-        false,                         /* .isArray */
-        false                          /* .isOptional */
-        UA_TYPENAME("optionA")         /* .memberName */
+        false,                      /* .isArray */
+        false                       /* .isOptional */
+        UA_TYPENAME("optionA")      /* .memberName */
     },
     {
-        &UA_TYPES[UA_TYPES_STRING],    /* .memberType */
+        UA_TYPES_STRING,            /* .memberTypeIndex */
+        UA_get_TYPES,
         offsetof(Uni, fields.optionB), /* .padding */
-        false,                         /* .isArray */
-        false                          /* .isOptional */
-        UA_TYPENAME("optionB")         /* .memberName */
+        false,                      /* .isArray */
+        false                       /* .isOptional */
+        UA_TYPENAME("optionB")      /* .memberName */
     }
 };
 
