@@ -7,7 +7,6 @@
 #include "ua_pubsub.h"
 
 #include <check.h>
-#include <assert.h>
 
 static UA_Server *server = NULL;
 
@@ -44,7 +43,7 @@ static void setup(void) {
     UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
 
     UA_StatusCode res = UA_Server_run_startup(server);
-    assert(UA_STATUSCODE_GOOD == res);
+    ck_assert(UA_STATUSCODE_GOOD == res);
 
     UseFastPath = UA_FALSE;
 }
@@ -54,7 +53,7 @@ static void teardown(void) {
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "\n\nteardown\n\n");
 
-    assert(UA_STATUSCODE_GOOD == UA_Server_run_shutdown(server));
+    ck_assert(UA_STATUSCODE_GOOD == UA_Server_run_shutdown(server));
     UA_Server_delete(server);
 
     UA_NodeId_clear(&ExpectedCallbackComponentNodeId);
@@ -78,8 +77,8 @@ static void AddConnection(
     UA_UInt32 PublisherId,
     UA_NodeId *opConnectionId) {
 
-    assert(pName != 0);
-    assert(opConnectionId != 0);
+    ck_assert(pName != 0);
+    ck_assert(opConnectionId != 0);
 
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
@@ -105,9 +104,9 @@ static void AddWriterGroup(
     UA_Duration PublishingInterval,
     UA_NodeId *opWriterGroupId) {
 
-    assert(pConnectionId != 0);
-    assert(pName != 0);
-    assert(opWriterGroupId != 0);
+    ck_assert(pConnectionId != 0);
+    ck_assert(pName != 0);
+    ck_assert(opWriterGroupId != 0);
 
     UA_WriterGroupConfig writerGroupConfig;
     memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
@@ -141,12 +140,12 @@ static void AddPublishedDataSet(
     UA_NodeId *opPublishedVarId,
     UA_NodeId *opDataSetWriterId) {
 
-    assert(pWriterGroupId != 0);
-    assert(pPublishedDataSetName != 0);
-    assert(pDataSetWriterName != 0);
-    assert(opPublishedDataSetId != 0);
-    assert(opPublishedVarId != 0);
-    assert(opDataSetWriterId != 0);
+    ck_assert(pWriterGroupId != 0);
+    ck_assert(pPublishedDataSetName != 0);
+    ck_assert(pDataSetWriterName != 0);
+    ck_assert(opPublishedDataSetId != 0);
+    ck_assert(opPublishedVarId != 0);
+    ck_assert(opDataSetWriterId != 0);
 
     UA_PublishedDataSetConfig pdsConfig;
     memset(&pdsConfig, 0, sizeof(UA_PublishedDataSetConfig));
@@ -210,9 +209,9 @@ static void AddReaderGroup(
     char *pName, 
     UA_NodeId *opReaderGroupId) {
 
-    assert(pConnectionId != 0);
-    assert(pName != 0);
-    assert(opReaderGroupId != 0);
+    ck_assert(pConnectionId != 0);
+    ck_assert(pName != 0);
+    ck_assert(opReaderGroupId != 0);
 
     UA_ReaderGroupConfig readerGroupConfig;
     memset (&readerGroupConfig, 0, sizeof(UA_ReaderGroupConfig));
@@ -235,10 +234,10 @@ static void AddDataSetReader(
     UA_NodeId *opSubscriberVarId,
     UA_NodeId *opDataSetReaderId) {
 
-    assert(pReaderGroupId != 0);
-    assert(pName != 0);
-    assert(opSubscriberVarId != 0);
-    assert(opDataSetReaderId != 0);
+    ck_assert(pReaderGroupId != 0);
+    ck_assert(pName != 0);
+    ck_assert(opSubscriberVarId != 0);
+    ck_assert(opDataSetReaderId != 0);
 
     UA_DataSetReaderConfig readerConfig;
     memset (&readerConfig, 0, sizeof(UA_DataSetReaderConfig));
@@ -303,7 +302,7 @@ static void AddDataSetReader(
 
     UA_FieldTargetVariable *pTargetVariables =  (UA_FieldTargetVariable *)
         UA_calloc(readerConfig.dataSetMetaData.fieldsSize, sizeof(UA_FieldTargetVariable));
-    assert(pTargetVariables != 0);
+    ck_assert(pTargetVariables != 0);
     
     UA_FieldTargetDataType_init(&pTargetVariables[0].targetVariable);
 
@@ -331,7 +330,7 @@ static void ServerDoProcess(
     const UA_UInt32 Sleep_ms,             /* use at least publishing interval */
     const UA_UInt32 NoOfRunIterateCycles) 
 {
-    assert(pMessage != 0);
+    ck_assert(pMessage != 0);
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "ServerDoProcess() sleep : %s", pMessage);
     for (UA_UInt32 i = 0; i < NoOfRunIterateCycles; i++) {
@@ -644,7 +643,7 @@ static void PubSubStateChangeCallback_different_timeouts (
         "Callback Cnt = %u", CallbackCnt);
 
     ck_assert(CallbackCnt < ExpectedCallbackCnt);
-    assert(pExpectedComponentCallbackIds != 0);
+    ck_assert(pExpectedComponentCallbackIds != 0);
     UA_String_init(&strId);
     UA_NodeId_print(&(pExpectedComponentCallbackIds[CallbackCnt]), &strId);
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "PubSubStateChangeCallback(): "
@@ -755,7 +754,7 @@ START_TEST(Test_different_timeouts) {
     /* prepare expected order of pubsub component timeouts: */
     ExpectedCallbackCnt = 2;
     pExpectedComponentCallbackIds = (UA_NodeId*) UA_calloc(ExpectedCallbackCnt, sizeof(UA_NodeId));
-    assert(pExpectedComponentCallbackIds != 0);
+    ck_assert(pExpectedComponentCallbackIds != 0);
     pExpectedComponentCallbackIds[0] = DSRId_Conn1_RG1_DSR1;
     pExpectedComponentCallbackIds[1] = DSRId_Conn2_RG1_DSR1;
     /* TODO: 2nd datasetreader */
@@ -947,7 +946,7 @@ static void PubSubStateChangeCallback_many_components (
         "Component Id = %.*s, state = %i, status = 0x%08x %s", (UA_Int32) strId.length, strId.data, state, status, UA_StatusCode_name(status));
     UA_String_clear(&strId);
 
-    assert(pExpectedComponentCallbackIds != 0);
+    ck_assert(pExpectedComponentCallbackIds != 0);
     ck_assert(CallbackCnt < ExpectedCallbackCnt);
 
     UA_String_init(&strId);
@@ -1172,7 +1171,7 @@ START_TEST(Test_many_components) {
     /* prepare expected pubsub components with message receive timeout */
     ExpectedCallbackCnt = 2;
     pExpectedComponentCallbackIds = (UA_NodeId*) UA_calloc(ExpectedCallbackCnt, sizeof(UA_NodeId));
-    assert(pExpectedComponentCallbackIds != 0);
+    ck_assert(pExpectedComponentCallbackIds != 0);
     pExpectedComponentCallbackIds[0] = DSRId_Conn2_RG1_DSR1;
     pExpectedComponentCallbackIds[1] = DSRId_Conn2_RG2_DSR1;
 
@@ -1292,7 +1291,7 @@ START_TEST(Test_many_components) {
 
     ExpectedCallbackCnt = 4;
     pExpectedComponentCallbackIds = (UA_NodeId*) UA_calloc(ExpectedCallbackCnt, sizeof(UA_NodeId));
-    assert(pExpectedComponentCallbackIds != 0);
+    ck_assert(pExpectedComponentCallbackIds != 0);
     pExpectedComponentCallbackIds[0] = DSRId_Conn3_RG1_DSR1;
     pExpectedComponentCallbackIds[1] = DSRId_Conn1_RG1_DSR1;
     pExpectedComponentCallbackIds[2] = DSRId_Conn2_RG1_DSR1;
