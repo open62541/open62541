@@ -172,8 +172,10 @@ if(UA_ENABLE_ENCRYPTION)
     target_include_directories(client_encryption PRIVATE "${PROJECT_SOURCE_DIR}/examples")
 endif()
 
-add_example(custom_datatype_client custom_datatype/client_types_custom.c)
-add_example(custom_datatype_server custom_datatype/server_types_custom.c)
+if (NOT (BUILD_SHARED_LIBS AND WIN32))
+    add_example(custom_datatype_client custom_datatype/client_types_custom.c)
+    add_example(custom_datatype_server custom_datatype/server_types_custom.c)
+endif()
 
 if(UA_ENABLE_NODEMANAGEMENT)
     add_example(access_control_server access_control/server_access_control.c)
