@@ -14,7 +14,8 @@ UA_NodeId connectionIdent, publishedDataSetIdent, writerGroupIdent;
 
 char *userpin = NULL;
 unsigned long slotId = 0;
-char *label = NULL;
+char *encryptionKeyLabel = NULL;
+char *signingKeyLabel = NULL;
 
 static void
 addPubSubConnection(UA_Server *server, UA_String *transportProfile,
@@ -135,7 +136,7 @@ static int run(UA_String *transportProfile,
     config->pubSubConfig.securityPoliciesSize = 1;
 
     UA_PubSubSecurityPolicy_Aes128CtrTPM(config->pubSubConfig.securityPolicies, userpin, slotId,
-                                         label, &config->logger);
+                                         encryptionKeyLabel, signingKeyLabel, &config->logger);
 
 #ifdef UA_ENABLE_PUBSUB_ETH_UADP
     UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
@@ -157,7 +158,7 @@ static int run(UA_String *transportProfile,
 
 static void
 usage(char *progname) {
-    printf("usage: %s [uri] [device] [userpin of token] [slotId] [keylabel]\n", progname);
+    printf("usage: %s [uri] [device] [userpin of token] [slotId] [encryptionKeyLabel] [signingKeyLabel]\n", progname);
 }
 
 int main(int argc, char **argv) {
@@ -175,15 +176,16 @@ int main(int argc, char **argv) {
         } else if (strncmp(argv[1], "opc.eth://", 10) == 0) {
             transportProfile =
                 UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp");
-            if (argc != 6) {
-                printf("Error: Provide uri, interface name, userpin, slotId and label\n");
+            if (argc != 7) {
+                printf("Error: Provide uri, interface name, userpin, slotId, encryptionKeyLabel and signingKeyLabel\n");
                 return EXIT_FAILURE;
             }
         } else {
             printf("Error: unknown URI\n");
             return EXIT_FAILURE;
         }
-        label = argv[5];
+        signingKeyLabel = argv[6];
+        encryptionKeyLabel = argv[5];
         slotId = (unsigned long)atoi(argv[4]);
         userpin = argv[3];
         networkAddressUrl.networkInterface = UA_STRING(argv[2]);

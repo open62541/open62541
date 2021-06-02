@@ -11,6 +11,8 @@
 #include <pkcs11.h>
 
 #define MAX_ENCRYPTION_SIZE 16
+/* Signing key rsa1024 is used */
+#define SIGNATURE_LENGTH    128
 
 CK_AES_CTR_PARAMS params = {
     .ulCounterBits = sizeof(params.cb) * 8,
@@ -32,6 +34,7 @@ typedef struct {
     PUBSUB_AES256CTR_PolicyContext *policyContext;
     unsigned long session;
     unsigned long key;
+    unsigned long signingKey;
 } PUBSUB_AES256CTR_ChannelContext;
 
 static void
@@ -40,7 +43,8 @@ channelContext_deleteContext_sp_pubsub_aes256ctr_tpm(PUBSUB_AES256CTR_ChannelCon
 }
 
 static UA_StatusCode
-channelContext_newContext_sp_pubsub_aes256ctr_tpm(void *policyContext, unsigned long session, unsigned long key, void **wgContext) {
+channelContext_newContext_sp_pubsub_aes256ctr_tpm(void *policyContext, unsigned long session, unsigned long key,
+                                                  unsigned long signingKey, void **wgContext) {
 
     /* Allocate the channel context */
     PUBSUB_AES256CTR_ChannelContext *cc = (PUBSUB_AES256CTR_ChannelContext *)
@@ -54,8 +58,37 @@ channelContext_newContext_sp_pubsub_aes256ctr_tpm(void *policyContext, unsigned 
         memcpy(&cc->session, &session, sizeof(session));
     if(key)
         memcpy(&cc->key, &key, sizeof(key));
+    if(signingKey)
+        memcpy(&cc->signingKey, &signingKey, sizeof(signingKey));
     *wgContext = cc;
     return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+sign_sp_pubsub_aes256ctr_tpm(PUBSUB_AES256CTR_ChannelContext *cc,
+                         const UA_ByteString *data, UA_ByteString *signature) {
+
+    UA_StatusCode rv = UA_STATUSCODE_GOOD;
+    CK_MECHANISM smech = {
+        CKM_RSA_PKCS, NULL_PTR, 0
+    };
+
+    /* Initializes a signature operation */
+    rv = (UA_StatusCode)C_SignInit(cc->session, &smech, cc->signingKey);
+    if (rv != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(cc->policyContext->securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                     "Signing initialization failed 0x%.8lX", (long unsigned int)rv);
+    }
+
+    /* Signs data in a single part, where the signature is an appendix to the data */
+    rv = (UA_StatusCode)C_Sign(cc->session, data->data, data->length,
+                              (CK_BYTE_PTR)signature->data, &signature->length);
+    if (rv != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(cc->policyContext->securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                     "Signing failed 0x%.8lX", (long unsigned int)rv);
+    }
+
+    return rv;
 }
 
 static UA_StatusCode
@@ -109,10 +142,21 @@ encrypt_sp_pubsub_aes256ctr_tpm(const PUBSUB_AES256CTR_ChannelContext *cc, UA_By
 
     for (int i=0; i< sizeToEncrypt; i++)
         data->data[i] = cipherText[i];
- 
+
 cleanup:
     UA_free(cipherText);
     return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+channelContext_setMessageNonce_sp_pubsub_aes256ctr_tpm(PUBSUB_AES256CTR_ChannelContext *cc,
+                                                       const UA_ByteString *nonce) {
+    return UA_STATUSCODE_GOOD;
+}
+
+static size_t
+getSignatureSize_sp_pubsub_aes256ctr_tpm(const void *channelContext) {
+    return SIGNATURE_LENGTH;
 }
 
 static void
@@ -175,7 +219,7 @@ CK_BBOOL pkcs11_find_object_by_label(UA_PubSubSecurityPolicy *policy, CK_SESSION
 
 UA_StatusCode
 UA_PubSubSecurityPolicy_Aes256CtrTPM (UA_PubSubSecurityPolicy *policy, char *userpin, unsigned long slotId,
-                                      char *label, const UA_Logger *logger) {
+                                      char *encryptionKeyLabel, char* signingKeyLabel, const UA_Logger *logger) {
 
     UA_StatusCode rv;
     UA_Boolean keyObjectFound = UA_FALSE;
@@ -184,14 +228,13 @@ UA_PubSubSecurityPolicy_Aes256CtrTPM (UA_PubSubSecurityPolicy *policy, char *use
     unsigned long int slotCount=0;
 
     CK_FLAGS flags;
-    CK_BBOOL ckFalse = CK_FALSE;
     CK_OBJECT_CLASS keyClass = CKO_SECRET_KEY;
     CK_KEY_TYPE keyType = CKK_AES;
 
     CK_ATTRIBUTE attrTemplate[] = {
         {CKA_CLASS, &keyClass, sizeof(keyClass)},
         {CKA_KEY_TYPE, &keyType, sizeof(keyType)},
-        {CKA_ALWAYS_AUTHENTICATE, &ckFalse, sizeof(ckFalse)}
+        {CKA_LABEL, (void *)encryptionKeyLabel, strlen(encryptionKeyLabel)}
     };
 
     memset(policy, 0, sizeof(UA_PubSubSecurityPolicy));
@@ -200,9 +243,18 @@ UA_PubSubSecurityPolicy_Aes256CtrTPM (UA_PubSubSecurityPolicy *policy, char *use
         UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#PubSub-Aes256-CTR");
     policy->newContextTPM = channelContext_newContext_sp_pubsub_aes256ctr_tpm;
     policy->deleteContext = (void (*)(void *))channelContext_deleteContext_sp_pubsub_aes256ctr_tpm;
+    policy->setMessageNonce = (UA_StatusCode(*)(void *, const UA_ByteString *))
+        channelContext_setMessageNonce_sp_pubsub_aes256ctr_tpm;
     policy->clear = deleteMembers_sp_pubsub_aes256ctr_tpm;
 
     UA_SecurityPolicySymmetricModule *symmetricModule = &policy->symmetricModule;
+    UA_SecurityPolicySignatureAlgorithm *signatureAlgorithm =
+        &symmetricModule->cryptoModule.signatureAlgorithm;
+    signatureAlgorithm->uri = UA_STRING("http://www.w3.org/2001/04/xmlenc#sha256");
+    signatureAlgorithm->sign =
+        (UA_StatusCode(*)(void *, const UA_ByteString *, UA_ByteString *))sign_sp_pubsub_aes256ctr_tpm;
+    signatureAlgorithm->getLocalSignatureSize = getSignatureSize_sp_pubsub_aes256ctr_tpm;
+
     UA_SecurityPolicyEncryptionAlgorithm *encryptionAlgorithm =
         &symmetricModule->cryptoModule.encryptionAlgorithm;
     encryptionAlgorithm->uri =
@@ -278,7 +330,7 @@ UA_PubSubSecurityPolicy_Aes256CtrTPM (UA_PubSubSecurityPolicy *policy, char *use
     /* Initializes a search for token and session objects that match a template */
     rv = (UA_StatusCode)C_FindObjectsInit(policy->session, attrTemplate, sizeof(attrTemplate)/sizeof (CK_ATTRIBUTE));
     if (rv == UA_STATUSCODE_GOOD) {
-        keyObjectFound = pkcs11_find_object_by_label(policy, policy->session, label, &policy->key);
+        keyObjectFound = pkcs11_find_object_by_label(policy, policy->session, encryptionKeyLabel, &policy->key);
         if (keyObjectFound == UA_FALSE)
             UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                          "Finding object failed");
@@ -294,6 +346,34 @@ UA_PubSubSecurityPolicy_Aes256CtrTPM (UA_PubSubSecurityPolicy *policy, char *use
     } else {
         UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                      "Find object initialization failed 0x%.8lX", (long unsigned int)rv);
+        return rv;
+    }
+
+    CK_BBOOL signingKeyObjectFound = false;
+    CK_OBJECT_CLASS signingKeyClass = CKO_PRIVATE_KEY;
+    CK_KEY_TYPE signingKeyType = CKK_RSA;
+    CK_ATTRIBUTE attrTemplateSigningKey[] = {
+        {CKA_CLASS, &signingKeyClass, sizeof(signingKeyClass)},
+        {CKA_KEY_TYPE, &signingKeyType, sizeof(signingKeyType)},
+        {CKA_LABEL, (void *)signingKeyLabel, strlen(signingKeyLabel)}
+    };
+
+    rv = (UA_StatusCode)C_FindObjectsInit(policy->session, attrTemplateSigningKey, sizeof(attrTemplateSigningKey)/sizeof (CK_ATTRIBUTE));
+    if (rv == UA_STATUSCODE_GOOD) {
+        signingKeyObjectFound = pkcs11_find_object_by_label(policy, policy->session, signingKeyLabel, &policy->signingKey);
+        if (signingKeyObjectFound == false){
+            printf("ERROR: key object not found\n");
+            return EXIT_FAILURE;
+        }
+
+        rv = (UA_StatusCode)C_FindObjectsFinal(policy->session);
+        if (rv != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                         "Finding object signing key failed 0x%.8lX", (long unsigned int)rv);
+        }
+    } else {
+        UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                         "Finding object signing key init failed 0x%.8lX", (long unsigned int)rv);
         return rv;
     }
 

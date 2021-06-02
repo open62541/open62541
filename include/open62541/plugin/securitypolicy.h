@@ -372,10 +372,12 @@ struct UA_PubSubSecurityPolicy {
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION_TPM
     unsigned long session;
     unsigned long key;
+    unsigned long signingKey;
     UA_StatusCode
     (*newContextTPM)(void *policyContext,
                      unsigned long session,
                      unsigned long key,
+                     unsigned long signingKey,
                      void **wgContext);
 #endif
     /* Deletes the dynamic content of the policy */
