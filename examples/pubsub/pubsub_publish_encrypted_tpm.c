@@ -136,6 +136,7 @@ static int run(UA_String *transportProfile,
 
     UA_PubSubSecurityPolicy_Aes128CtrTPM(config->pubSubConfig.securityPolicies, userpin, slotId,
                                          label, &config->logger);
+
 #ifdef UA_ENABLE_PUBSUB_ETH_UADP
     UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
 #else

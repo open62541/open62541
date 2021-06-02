@@ -26,30 +26,30 @@ CK_MECHANISM mech = {
 
 typedef struct {
     const UA_PubSubSecurityPolicy *securityPolicy;
-} PUBSUB_AES128CTR_PolicyContext;
+} PUBSUB_AES256CTR_PolicyContext;
 
 typedef struct {
-    PUBSUB_AES128CTR_PolicyContext *policyContext;
+    PUBSUB_AES256CTR_PolicyContext *policyContext;
     unsigned long session;
     unsigned long key;
-} PUBSUB_AES128CTR_ChannelContext;
+} PUBSUB_AES256CTR_ChannelContext;
 
 static void
-channelContext_deleteContext_sp_pubsub_aes128ctr_tpm(PUBSUB_AES128CTR_ChannelContext *cc) {
+channelContext_deleteContext_sp_pubsub_aes256ctr_tpm(PUBSUB_AES256CTR_ChannelContext *cc) {
     UA_free(cc);
 }
 
 static UA_StatusCode
-channelContext_newContext_sp_pubsub_aes128ctr_tpm(void *policyContext, unsigned long session, unsigned long key, void **wgContext) {
+channelContext_newContext_sp_pubsub_aes256ctr_tpm(void *policyContext, unsigned long session, unsigned long key, void **wgContext) {
 
     /* Allocate the channel context */
-    PUBSUB_AES128CTR_ChannelContext *cc = (PUBSUB_AES128CTR_ChannelContext *)
-        UA_calloc(1, sizeof(PUBSUB_AES128CTR_ChannelContext));
+    PUBSUB_AES256CTR_ChannelContext *cc = (PUBSUB_AES256CTR_ChannelContext *)
+        UA_calloc(1, sizeof(PUBSUB_AES256CTR_ChannelContext));
     if(cc == NULL)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     /* Initialize the channel context */
-    cc->policyContext = (PUBSUB_AES128CTR_PolicyContext *)policyContext;
+    cc->policyContext = (PUBSUB_AES256CTR_PolicyContext *)policyContext;
     if(session)
         memcpy(&cc->session, &session, sizeof(session));
     if(key)
@@ -59,7 +59,7 @@ channelContext_newContext_sp_pubsub_aes128ctr_tpm(void *policyContext, unsigned 
 }
 
 static UA_StatusCode
-encrypt_sp_pubsub_aes128ctr_tpm(const PUBSUB_AES128CTR_ChannelContext *cc, UA_ByteString *data) {
+encrypt_sp_pubsub_aes256ctr_tpm(const PUBSUB_AES256CTR_ChannelContext *cc, UA_ByteString *data) {
 
     if(cc == NULL || data == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -78,7 +78,7 @@ encrypt_sp_pubsub_aes128ctr_tpm(const PUBSUB_AES128CTR_ChannelContext *cc, UA_By
                      "Encrypt initialization failed 0x%.8lX", (long unsigned int)rv);
         return rv;
     }
-
+        
     if ((data->length % MAX_ENCRYPTION_SIZE) != 0)
         sizeToEncrypt = (CK_BYTE)(data->length + (MAX_ENCRYPTION_SIZE - (data->length % MAX_ENCRYPTION_SIZE)));
     else
@@ -109,14 +109,14 @@ encrypt_sp_pubsub_aes128ctr_tpm(const PUBSUB_AES128CTR_ChannelContext *cc, UA_By
 
     for (int i=0; i< sizeToEncrypt; i++)
         data->data[i] = cipherText[i];
-
+ 
 cleanup:
     UA_free(cipherText);
     return UA_STATUSCODE_GOOD;
 }
 
 static void
-deleteMembers_sp_pubsub_aes128ctr_tpm(UA_PubSubSecurityPolicy *policy) {
+deleteMembers_sp_pubsub_aes256ctr_tpm(UA_PubSubSecurityPolicy *policy) {
     /* Logs a user out from a token */
     C_Logout(policy->session);
     /* Closes a session between an application and a token */
@@ -174,7 +174,7 @@ CK_BBOOL pkcs11_find_object_by_label(UA_PubSubSecurityPolicy *policy, CK_SESSION
 }
 
 UA_StatusCode
-UA_PubSubSecurityPolicy_Aes128CtrTPM (UA_PubSubSecurityPolicy *policy, char *userpin, unsigned long slotId,
+UA_PubSubSecurityPolicy_Aes256CtrTPM (UA_PubSubSecurityPolicy *policy, char *userpin, unsigned long slotId,
                                       char *label, const UA_Logger *logger) {
 
     UA_StatusCode rv;
@@ -197,10 +197,10 @@ UA_PubSubSecurityPolicy_Aes128CtrTPM (UA_PubSubSecurityPolicy *policy, char *use
     memset(policy, 0, sizeof(UA_PubSubSecurityPolicy));
     policy->logger = logger;
     policy->policyUri =
-        UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#PubSub-Aes128-CTR");
-    policy->newContextTPM = channelContext_newContext_sp_pubsub_aes128ctr_tpm;
-    policy->deleteContext = (void (*)(void *))channelContext_deleteContext_sp_pubsub_aes128ctr_tpm;
-    policy->clear = deleteMembers_sp_pubsub_aes128ctr_tpm;
+        UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#PubSub-Aes256-CTR");
+    policy->newContextTPM = channelContext_newContext_sp_pubsub_aes256ctr_tpm;
+    policy->deleteContext = (void (*)(void *))channelContext_deleteContext_sp_pubsub_aes256ctr_tpm;
+    policy->clear = deleteMembers_sp_pubsub_aes256ctr_tpm;
 
     UA_SecurityPolicySymmetricModule *symmetricModule = &policy->symmetricModule;
     UA_SecurityPolicyEncryptionAlgorithm *encryptionAlgorithm =
@@ -208,7 +208,7 @@ UA_PubSubSecurityPolicy_Aes128CtrTPM (UA_PubSubSecurityPolicy *policy, char *use
     encryptionAlgorithm->uri =
         UA_STRING("https://tools.ietf.org/html/rfc3686"); /* Temp solution */
     encryptionAlgorithm->encrypt =
-        (UA_StatusCode(*)(void *, UA_ByteString *))encrypt_sp_pubsub_aes128ctr_tpm;
+        (UA_StatusCode(*)(void *, UA_ByteString *))encrypt_sp_pubsub_aes256ctr_tpm;
 
     /* Initializes the Cryptoki library */
     rv = (UA_StatusCode)C_Initialize(NULL_PTR);

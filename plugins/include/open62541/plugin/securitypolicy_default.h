@@ -62,6 +62,9 @@ UA_PubSubSecurityPolicy_Aes256Ctr(UA_PubSubSecurityPolicy *policy,
 UA_EXPORT UA_StatusCode
 UA_PubSubSecurityPolicy_Aes128CtrTPM(UA_PubSubSecurityPolicy *policy, char *userpin, unsigned long slotId,
                                      char *label, const UA_Logger *logger);
+                                     UA_EXPORT UA_StatusCode
+UA_PubSubSecurityPolicy_Aes256CtrTPM(UA_PubSubSecurityPolicy *policy, char *userpin, unsigned long slotId,
+                                     char *label, const UA_Logger *logger);
 
 #endif
 
