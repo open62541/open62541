@@ -365,7 +365,8 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId writ
         for(size_t i = 0; i < dsmCount; i++){
             UA_free(dsmStore[i].data.keyFrameData.dataSetFields);
 #ifdef UA_ENABLE_JSON_ENCODING
-            UA_free(dsmStore[i].data.keyFrameData.fieldNames);
+            UA_Array_delete(dsmStore[i].data.keyFrameData.fieldNames, 
+                dsmStore[i].data.keyFrameData.fieldCount, &UA_TYPES[UA_TYPES_STRING]);
 #endif
         }
     }
