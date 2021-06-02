@@ -1093,7 +1093,7 @@ copyStructure(const void *src, void *dst, const UA_DataType *type) {
     uintptr_t ptrd = (uintptr_t)dst;
     for(size_t i = 0; i < type->membersSize; ++i) {
         const UA_DataTypeMember *m = &type->members[i];
-        const UA_DataType *mt = &(m->GetTypesArray()[m->memberTypeIndex]);
+        const UA_DataType *mt = m->memberType;
         ptrs += m->padding;
         ptrd += m->padding;
         if(!m->isOptional) {
@@ -1150,7 +1150,7 @@ copyUnion(const void *src, void *dst, const UA_DataType *type) {
     if(selection == 0)
         return UA_STATUSCODE_GOOD;
     const UA_DataTypeMember *m = &type->members[selection-1];
-    const UA_DataType *mt = &(m->GetTypesArray()[m->memberTypeIndex]);
+    const UA_DataType *mt = m->memberType;
     ptrs += m->padding;
     ptrd += m->padding;
 
@@ -1226,7 +1226,7 @@ clearStructure(void *p, const UA_DataType *type) {
     uintptr_t ptr = (uintptr_t)p;
     for(size_t i = 0; i < type->membersSize; ++i) {
         const UA_DataTypeMember *m = &type->members[i];
-        const UA_DataType *mt = &(m->GetTypesArray()[m->memberTypeIndex]);
+        const UA_DataType *mt = m->memberType;
         ptr += m->padding;
         if(!m->isOptional) {
             if(!m->isArray) {
@@ -1267,7 +1267,7 @@ clearUnion(void *p, const UA_DataType *type) {
     if(selection == 0)
         return;
     const UA_DataTypeMember *m = &type->members[selection-1];
-    const UA_DataType *mt = &(m->GetTypesArray()[m->memberTypeIndex]);
+    const UA_DataType *mt = m->memberType;
     ptr += m->padding;
     if (m->isArray) {
         size_t length = *(size_t *)ptr;

@@ -158,9 +158,9 @@ class CGenerator(object):
             member_name_capital = member_name
             if len(member_name) > 0:
                 member_name_capital = member_name[0].upper() + member_name[1:]
-            m = "\n{\n    UA_%s_%s, /* .memberTypeIndex */\n" % (
-                member.member_type.outname.upper(), makeCIdentifier(member.member_type.name.upper()))
-            m += "    UA_get_%s, /* .GetTypesArray() */\n" % member.member_type.outname.upper()
+            m = "\n{\n    &UA_%s[UA_%s_%s], /* .memberType */\n" % (
+                member.member_type.outname.upper(), member.member_type.outname.upper(),
+                makeCIdentifier(member.member_type.name.upper()))
             m += "    "
             if not before and not isUnion:
                 m += "0,"
@@ -390,7 +390,6 @@ _UA_BEGIN_DECLS
 
             self.printh(
                 "extern UA_EXPORT const UA_DataType UA_" + self.parser.outname.upper() + "[UA_" + self.parser.outname.upper() + "_COUNT];")
-            self.printh("extern UA_EXPORT const UA_DataType * UA_get_%s(void);" % self.parser.outname.upper())
 
             for ns in self.filtered_types:
                 for i, t_name in enumerate(self.filtered_types[ns]):
@@ -474,11 +473,6 @@ _UA_END_DECLS
                     self.printc("/* " + t.name + " */")
                     self.printc(self.print_datatype(t, self.namespaceMap) + ",")
             self.printc("};\n")
-
-            self.printc('''const UA_DataType *
-UA_get_%s(void) {
-    return UA_%s;
-}''' % (self.parser.outname.upper(), self.parser.outname.upper()))
 
     def print_encoding(self):
         self.printe(u'''/**********************************

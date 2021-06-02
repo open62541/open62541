@@ -38,23 +38,22 @@ typedef struct {
 static UA_DataTypeMember members[3] = {
     /* x */
     {
-        UA_TYPES_FLOAT,  /* .memberTypeIndex */
-        UA_get_TYPES,
-        0,               /* .padding */
-        false,           /* .isArray */
-        false            /* .isOptional*/
-        UA_TYPENAME("x") /* .memberName */
+        &UA_TYPES[UA_TYPES_FLOAT], /* .memberType */
+        0,                         /* .padding */
+        false,                     /* .isArray */
+        false                      /* .isOptional*/
+        UA_TYPENAME("x")           /* .memberName */
     },
 
     /* y */
     {
-        UA_TYPES_FLOAT, UA_get_TYPES, padding_y, false, false
+        &UA_TYPES[UA_TYPES_FLOAT], padding_y, false, false
         UA_TYPENAME("y")
     },
 
     /* z */
     {
-        UA_TYPES_FLOAT, UA_get_TYPES, padding_z, false, false
+        &UA_TYPES[UA_TYPES_FLOAT], padding_z, false, false
         UA_TYPENAME("z")
     }
 };
@@ -86,17 +85,15 @@ typedef struct {
 static UA_DataTypeMember Opt_members[3] = {
         /* a */
         {
-                UA_TYPES_INT16,  /* .memberTypeIndex */
-                UA_get_TYPES,
-                0, /* .padding */
-                false,      /* .isArray */
-                false       /* .isOptional */
-                UA_TYPENAME("a") /* .memberName */
+                &UA_TYPES[UA_TYPES_INT16], /* .memberType */
+                0,                         /* .padding */
+                false,                     /* .isArray */
+                false                      /* .isOptional */
+                UA_TYPENAME("a")           /* .memberName */
         },
         /* b */
         {
-                UA_TYPES_FLOAT,
-                UA_get_TYPES,
+                &UA_TYPES[UA_TYPES_FLOAT], /* .memberType */
                 offsetof(Opt,b) - offsetof(Opt,a) - sizeof(UA_Int16),
                 false,
                 true        /* b is an optional field */
@@ -104,8 +101,7 @@ static UA_DataTypeMember Opt_members[3] = {
         },
         /* c */
         {
-                UA_TYPES_FLOAT,
-                UA_get_TYPES,
+                &UA_TYPES[UA_TYPES_FLOAT], /* .memberType */
                 offsetof(Opt,c) - offsetof(Opt,b) - sizeof(void *),
                 false,
                 true        /* b is an optional field */
@@ -141,28 +137,25 @@ typedef struct {
 
 static UA_DataTypeMember ArrayOptStruct_members[3] = {
     {
-        UA_TYPES_STRING,  /* .memberTypeIndex */
-        UA_get_TYPES,
-        0,               /* .padding */
-        false,            /* .isArray */
+        &UA_TYPES[UA_TYPES_STRING],            /* .memberType */
+        0,                                     /* .padding */
+        false,                                 /* .isArray */
         false
         UA_TYPENAME("Measurement description") /* .memberName */
     },
     {
-        UA_TYPES_FLOAT,  /* .memberTypeIndex */
-        UA_get_TYPES,
+        &UA_TYPES[UA_TYPES_FLOAT], /* .memberType */
         offsetof(OptArray, bSize) - offsetof(OptArray, description) - sizeof(UA_String),               /* .padding */
-        true,            /* .isArray */
+        true,                      /* .isArray */
         true
         UA_TYPENAME("TestArray1") /* .memberName */
     },
     {
-        UA_TYPES_FLOAT,  /* .memberTypeIndex */
-        UA_get_TYPES,
+        &UA_TYPES[UA_TYPES_FLOAT], /* .memberType */
         offsetof(OptArray, cSize) - offsetof(OptArray, b) - sizeof(void *),               /* .padding */
-        true,            /* .isArray */
+        true,                      /* .isArray */
         false
-        UA_TYPENAME("TestArray2") /* .memberName */
+        UA_TYPENAME("TestArray2")  /* .memberName */
     }
 };
 
@@ -196,16 +189,14 @@ typedef struct {
 
 static UA_DataTypeMember Uni_members[2] = {
         {
-                UA_TYPES_DOUBLE,
-                UA_get_TYPES,
+                &UA_TYPES[UA_TYPES_DOUBLE], /* .memberType */
                 offsetof(Uni, fields.optionA),
                 false,
                 false
                 UA_TYPENAME("optionA")
         },
         {
-                UA_TYPES_STRING,
-                UA_get_TYPES,
+                &UA_TYPES[UA_TYPES_STRING], /* .memberType */
                 offsetof(Uni, fields.optionB),
                 false,
                 false
@@ -247,24 +238,22 @@ struct UA_SelfContainingUnion {
     } fields;
 };
 
-static const UA_DataType * GetselfContainingUnionType(void);
+static const UA_DataType selfContainingUnionType;
 
 static UA_DataTypeMember SelfContainingUnion_members[2] = {
 {
-    UA_TYPES_DOUBLE, /* .memberTypeIndex */
-    UA_get_TYPES,
+    &UA_TYPES[UA_TYPES_DOUBLE],                       /* .memberType */
     offsetof(UA_SelfContainingUnion, fields._double), /* .padding */
-    false, /* .isArray */
-    false  /* .isOptional */
-    UA_TYPENAME("_double") /* .memberName */
+    false,                                            /* .isArray */
+    false                                             /* .isOptional */
+    UA_TYPENAME("_double")                            /* .memberName */
 },
 {
-    0, /* .memberTypeIndex */
-    GetselfContainingUnionType,
-    offsetof(UA_SelfContainingUnion, fields.array), /* .padding */
-    true, /* .isArray */
-    false  /* .isOptional */
-    UA_TYPENAME("Array") /* .memberName */
+    &selfContainingUnionType,                         /* .memberType */
+    offsetof(UA_SelfContainingUnion, fields.array),   /* .padding */
+    true,                                             /* .isArray */
+    false                                             /* .isOptional */
+    UA_TYPENAME("Array")                              /* .memberName */
 },};
 
 static const UA_DataType selfContainingUnionType = {
@@ -279,10 +268,6 @@ static const UA_DataType selfContainingUnionType = {
     SelfContainingUnion_members  /* .members */
     UA_TYPENAME("SelfContainingStruct") /* .typeName */
 };
-
-static const UA_DataType * GetselfContainingUnionType(void) {
-    return &selfContainingUnionType;
-}
 
 const UA_DataTypeArray customDataTypesSelfContainingUnion = {NULL, 1, &selfContainingUnionType};
 

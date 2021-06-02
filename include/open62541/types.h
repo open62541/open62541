@@ -942,9 +942,7 @@ typedef struct UA_DiagnosticInfo {
  * type operations as static inline functions. */
 
 typedef struct {
-    UA_UInt16 memberTypeIndex;    /* Index of the member in the array of data
-                                     types */
-    const UA_DataType * (*GetTypesArray)(void);
+    const UA_DataType *memberType;/* The member data type description */
     UA_Byte   padding;            /* How much padding is there before this
                                      member element? For arrays this is the
                                      padding before the size_t length member.

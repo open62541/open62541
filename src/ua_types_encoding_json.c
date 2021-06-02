@@ -1387,7 +1387,7 @@ encodeJsonStructure(const void *src, const UA_DataType *type, CtxJson *ctx) {
     u8 membersSize = type->membersSize;
     for(size_t i = 0; i < membersSize && ret == UA_STATUSCODE_GOOD; ++i) {
         const UA_DataTypeMember *m = &type->members[i];
-        const UA_DataType *mt = &(m->GetTypesArray()[m->memberTypeIndex]);
+        const UA_DataType *mt = m->memberType;
 
         if(m->memberName != NULL && *m->memberName != 0)
             ret |= writeJsonKey(ctx, m->memberName);
@@ -3131,7 +3131,7 @@ decodeJsonStructure(void *dst, const UA_DataType *type, CtxJson *ctx,
 
     for(size_t i = 0; i < membersSize && ret == UA_STATUSCODE_GOOD; ++i) {
         const UA_DataTypeMember *m = &type->members[i];
-        const UA_DataType *mt = &(m->GetTypesArray()[m->memberTypeIndex]);
+        const UA_DataType *mt = m->memberType;
 
         entries[i].type = mt;
         if(!m->isArray) {
