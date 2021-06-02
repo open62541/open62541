@@ -949,7 +949,10 @@ typedef struct {
                                      member element? For arrays this is the
                                      padding before the size_t length member.
                                      (No padding between size_t and the
-                                     following ptr.) */
+                                     following ptr.) For unions, the padding
+                                     includes the size of the switchfield (the
+                                     offset from the start of the union
+                                     type). */
     UA_Boolean namespaceZero : 1; /* The type of the member is defined in
                                      namespace zero. In this implementation,
                                      types from custom namespace may contain

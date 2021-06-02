@@ -34,7 +34,7 @@ static UA_UInt32 monitoredItemId;
 static UA_NodeId eventType;
 static size_t nSelectClauses = 4;
 static UA_Boolean notificationReceived;
-static UA_Boolean overflowNotificationReceived;
+static UA_Boolean overflowNotificationReceived = false;
 static UA_SimpleAttributeOperand *selectClauses;
 
 UA_Double publishingInterval = 500.0;
@@ -365,7 +365,7 @@ START_TEST(generateEvents) {
     sleepUntilAnswer(publishingInterval + 100);
     retval = UA_Client_run_iterate(client, 0);
     sleepUntilAnswer(publishingInterval + 100);
-    retval = UA_Client_run_iterate(client, 0);
+    retval |= UA_Client_run_iterate(client, 0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(createResult.revisedQueueSize, 1);
@@ -558,7 +558,7 @@ START_TEST(eventOverflow) {
 
     // fetch the events, ensure both the overflow and the original event are received
     notificationReceived = false;
-    overflowNotificationReceived = true;
+    overflowNotificationReceived = false;
     sleepUntilAnswer(publishingInterval + 100);
     retval = UA_Client_run_iterate(client, 0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -706,6 +706,7 @@ START_TEST(evaluateWhereClause) {
     /* Everything is on the stack, so no memory cleaning required.*/
     UA_NodeId eventNodeId;
     UA_StatusCode retval = eventSetup(&eventNodeId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_ContentFilter contentFilter;
     UA_ContentFilter_init(&contentFilter);
     /* Empty Filter */

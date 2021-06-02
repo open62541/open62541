@@ -409,7 +409,7 @@ UA_Server_removeDataSetField(UA_Server *server, const UA_NodeId dsf);
 
 /**
  * Custom Callback Implementation
- * ----------------------------
+ * ------------------------------
  * The user can use his own callback implementation for publishing
  * and subscribing. The user must take care of the callback to call for
  * every publishing or subscibing interval */

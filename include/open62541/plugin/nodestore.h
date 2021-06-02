@@ -258,36 +258,20 @@ UA_ReferenceTypeSet_contains(const UA_ReferenceTypeSet *set, UA_Byte index) {
  * correctness of casting from ``UA_Node`` to a specific node type. */
 
 /* Ordered tree structure for fast member check */
-typedef struct UA_ReferenceTarget {
-    /* Binary-Tree for fast lookup */
-    struct aa_entry idTreeEntry;
+typedef struct {
+    struct aa_entry idTreeEntry; /* Binary-Tree for fast lookup */
     struct aa_entry nameTreeEntry;
-    UA_UInt32 targetIdHash;   /* Hash of the target's NodeId */
-    UA_UInt32 targetNameHash; /* Hash of the target's BrowseName */
-
-    /* Emulate the queue.h structure so we don't have to include it in the
-     * public API */
-    struct {
-        struct UA_ReferenceTarget *tqe_next;
-        struct UA_ReferenceTarget **tqe_prev;
-    } queuePointers;
-
+    UA_UInt32 targetIdHash;      /* Hash of the target's NodeId */
+    UA_UInt32 targetNameHash;    /* Hash of the target's BrowseName */
     UA_ExpandedNodeId targetId;
 } UA_ReferenceTarget;
 
 /* List of reference targets with the same reference type and direction */
 typedef struct {
-    UA_Byte referenceTypeIndex;
-    UA_Boolean isInverse;
-
-    /* Emulate the queue.h structure so we don't have to include it in the
-     * public API */
-    struct {
-        struct UA_ReferenceTarget *tqh_first;
-        struct UA_ReferenceTarget **tqh_last;
-    } queueHead;
     struct aa_entry *idTreeRoot;   /* Fast lookup based on the target id */
     struct aa_entry *nameTreeRoot; /* Fast lookup based on the target browseName*/
+    UA_Byte referenceTypeIndex;
+    UA_Boolean isInverse;
 } UA_NodeReferenceKind;
 
 /* Every Node starts with these attributes */
@@ -325,7 +309,7 @@ typedef struct {
  * attributes.
  *
  * Data Type
- * ^^^^^^^^^
+ * ~~~~~~~~~
  *
  * The (scalar) data type of the variable is constrained to be of a specific
  * type or one of its children in the type hierarchy. The data type is given as
@@ -342,7 +326,7 @@ typedef struct {
  * :ref:`VariableTypeNode` is ensured.
  *
  * Value Rank
- * ^^^^^^^^^^
+ * ~~~~~~~~~~
  *
  * This attribute indicates whether the value attribute of the variable is an
  * array and how many dimensions the array has. It may have the following
@@ -358,7 +342,7 @@ typedef struct {
  * :ref:`variabletypenode` is ensured.
  *
  * Array Dimensions
- * ^^^^^^^^^^^^^^^^
+ * ~~~~~~~~~~~~~~~~
  *
  * If the value rank permits the value to be a (multi-dimensional) array, the
  * exact length in each dimensions can be further constrained with this
@@ -484,7 +468,7 @@ typedef struct {
  * .. _value-callback:
  *
  * Value Callback
- * ^^^^^^^^^^^^^^
+ * ~~~~~~~~~~~~~~
  * Value Callbacks can be attached to variable and variable type nodes. If
  * not ``NULL``, they are called before reading and after writing respectively. */
 typedef struct {

@@ -25,6 +25,9 @@
 #include <netinet/ether.h>
 #endif
 #include "time.h"
+#define ETHERTYPE_UADP                       0xb62c
+#define MIN_ETHERNET_PACKET_SIZE_WITHOUT_FCS 60
+#define VLAN_HEADER_SIZE                     4
 
 /* Ethernet network layer specific internal data */
 typedef struct {
@@ -34,14 +37,6 @@ typedef struct {
     UA_Byte ifAddress[ETH_ALEN];
     UA_Byte targetAddress[ETH_ALEN];
 } UA_PubSubChannelDataEthernet;
-
-/* Structure for Logical link control based on 802.2 */
-typedef struct  {
-    UA_Byte dsap;   /* Destination Service Access Point */
-    UA_Byte ssap;   /* Source Service Access point */
-    UA_Byte ctrl_1; /* Control Field */
-    UA_Byte ctrl_2; /* Control Field */
-} llc_pdu;
 
 /*
  * OPC-UA specification Part 14:
@@ -247,7 +242,7 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
     struct sockaddr_ll sll = { 0 };
     sll.sll_family = AF_PACKET;
     sll.sll_ifindex = channelDataEthernet->ifindex;
-    sll.sll_protocol = htons(ETH_P_802_2);
+    sll.sll_protocol = htons(ETHERTYPE_UADP);
 
     if(UA_bind(sockFd, (struct sockaddr*)&sll, sizeof(sll)) < 0) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
@@ -356,15 +351,13 @@ UA_PubSubChannelEthernet_send(UA_PubSubChannel *channel,
     char *bufSend, *ptrCur;
     size_t lenBuf;
     struct ether_header* ethHdr;
-    llc_pdu* llcData;
 
     /* Below added 4 bytes for the size of VLAN tag */
-    lenBuf = sizeof(*ethHdr) + 4 + sizeof(*llcData) + buf->length;
+    lenBuf = sizeof(*ethHdr) + VLAN_HEADER_SIZE + buf->length;
     bufSend = (char*) UA_malloc(lenBuf);
     if (bufSend == NULL)
-        {
         return UA_STATUSCODE_BADOUTOFMEMORY;
-        }
+
     ethHdr = (struct ether_header*) bufSend;
 
     /* Set (own) source MAC address */
@@ -377,7 +370,7 @@ UA_PubSubChannelEthernet_send(UA_PubSubChannel *channel,
     /* Either VLAN or Ethernet */
     ptrCur = bufSend + sizeof(*ethHdr);
     if(channelDataEthernet->vid == 0) {
-        ethHdr->ether_type = htons((UA_UInt16)(buf->length + sizeof(*llcData)));
+        ethHdr->ether_type =  htons(ETHERTYPE_UADP);
         lenBuf -= 4;  /* no VLAN tag */
     } else {
         ethHdr->ether_type = htons(ETHERTYPE_VLAN);
@@ -387,17 +380,9 @@ UA_PubSubChannelEthernet_send(UA_PubSubChannel *channel,
         *((UA_UInt16 *) ptrCur) = htons(vlanTag);
         ptrCur += sizeof(UA_UInt16);
         /* set Ethernet */
-        *((UA_UInt16 *) ptrCur) = htons((UA_UInt16)(buf->length + sizeof(*llcData)));
+        *((UA_UInt16 *) ptrCur) = htons(ETHERTYPE_UADP);
         ptrCur += sizeof(UA_UInt16);
     }
-
-    llcData = (llc_pdu*)ptrCur;
-    /* Set 802.3 with 802.2(Logical Link Control)*/
-    llcData->dsap = 0;
-    llcData->ssap = 0;
-    llcData->ctrl_1 = 0;
-    llcData->ctrl_2 = 0;
-    ptrCur += sizeof(*llcData);
 
     /* copy payload of ethernet message */
     memcpy(ptrCur, buf->data, buf->length);
@@ -480,23 +465,18 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_ByteString *messa
         }
 
         struct ether_header eth_hdr;
-        struct iovec        iov[3];
+        struct iovec        iov[2];
         struct msghdr       msg;
         ssize_t             dataLen;
-        llc_pdu             llcData;
-        UA_UInt16           payloadLength;
-        size_t              paddingBytes;
         memset(&dataLen, 0, sizeof(dataLen));
         memset(&msg, 0, sizeof(msg));
 
         iov[0].iov_base = &eth_hdr;
         iov[0].iov_len  = sizeof(eth_hdr);
-        iov[1].iov_base = &llcData;
-        iov[1].iov_len  = sizeof(llcData);
-        iov[2].iov_base = message->data + messageLength;
-        iov[2].iov_len  = remainingMessageLength;
+        iov[1].iov_base = message->data + messageLength;
+        iov[1].iov_len  = remainingMessageLength;
         msg.msg_iov     = iov;
-        msg.msg_iovlen  = 3;
+        msg.msg_iovlen  = 2;
 
         dataLen = recvmsg(channel->sockfd, &msg, receiveFlags);
         if(dataLen < 0) {
@@ -529,9 +509,20 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_ByteString *messa
             break;
         }
 
-        payloadLength = (UA_UInt16)((htons(eth_hdr.ether_type)) - sizeof(llcData));
-        paddingBytes  = (size_t)dataLen - sizeof(struct ether_header) - sizeof(llcData) - payloadLength;
-        messageLength = messageLength + ((size_t)dataLen - sizeof(struct ether_header) - sizeof(llcData) - paddingBytes);
+        /* Minimum size of ethernet packet is 64 bytes where 4 bytes is allocated for FCS
+         * so minimum ethernet packet size without FCS is 60 bytes */
+        if ((size_t)dataLen < MIN_ETHERNET_PACKET_SIZE_WITHOUT_FCS)
+             dataLen += VLAN_HEADER_SIZE; /* In ua_pubsub_reader file we have considered minimum payload
+                                           * size of ethernet packet as 46 bytes (i.e without vlan scenario) because
+                                           * we cannot find whether the packet is received with vlan or without vlan
+                                           * tagging in the src file ua_pubsub_reader.c, so we set the minimum payload
+                                           * size as 46 bytes.In the plugin file we moved the buffer position to 4 bytes
+                                           * for 2nd receive if the packet received with vlan so it does not affect
+                                           * while processing multiple receive packets in the src file. In this scenario
+                                           * VLAN header size is stripped before it is recieved
+                                           * so the packet length is less than 60bytes */
+
+        messageLength = messageLength + ((size_t)dataLen - sizeof(struct ether_header));
         remainingMessageLength -= messageLength;
         rcvCount++;
 #ifdef UA_ARCHITECTURE_VXWORKS

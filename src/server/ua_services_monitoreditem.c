@@ -217,15 +217,28 @@ checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
         params->samplingInterval = server->config.samplingIntervalLimits.min;
 
     /* Adjust the maximum queue size */
-    UA_BOUNDEDVALUE_SETWBOUNDS(server->config.queueSizeLimits,
-                               params->queueSize, params->queueSize);
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    if(mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) {
+        /* 0 => Set to the configured maximum. Otherwise adjust with configured limits */
+        if(params->queueSize == 0) {
+            params->queueSize = server->config.queueSizeLimits.max;
+        } else {
+            UA_BOUNDEDVALUE_SETWBOUNDS(server->config.queueSizeLimits,
+                                       params->queueSize, params->queueSize);
+        }
+    } else
+#endif
+    {
+        /* 0 or 1 => queue-size 1. Otherwise adjust with configured limits */
+        if(params->queueSize == 0)
+            params->queueSize = 1;
+        if(params->queueSize != 1)
+            UA_BOUNDEDVALUE_SETWBOUNDS(server->config.queueSizeLimits,
+                                       params->queueSize, params->queueSize);
+    }
 
     return UA_STATUSCODE_GOOD;
 }
-
-static UA_StatusCode
-setMonitoringMode(UA_Server *server, UA_MonitoredItem *mon,
-                  UA_MonitoringMode monitoringMode);
 
 static const UA_String
 binaryEncoding = {sizeof("Default Binary") - 1, (UA_Byte *)"Default Binary"};
@@ -371,15 +384,20 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
     }
 
     /* Activate the MonitoredItem */
-    result->statusCode |= setMonitoringMode(server, newMon, request->monitoringMode);
+    result->statusCode |=
+        UA_MonitoredItem_setMonitoringMode(server, newMon, request->monitoringMode);
     if(result->statusCode != UA_STATUSCODE_GOOD) {
         UA_MonitoredItem_delete(server, newMon);
         return;
     }
 
     UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, cmc->sub,
-                        "MonitoredItem %" PRIi32 " | "
-                        "Created the MonitoredItem", newMon->monitoredItemId);
+                             "MonitoredItem %" PRIi32 " | "
+                             "Created the MonitoredItem "
+                             "(Sampling Interval: %fms, Queue Size: %lu)",
+                             newMon->monitoredItemId,
+                             newMon->parameters.samplingInterval,
+                             (unsigned long)newMon->queueSize);
 
     /* Create the first sample */
     if(request->monitoringMode > UA_MONITORINGMODE_DISABLED &&
@@ -495,7 +513,8 @@ Operation_ModifyMonitoredItem(UA_Server *server, UA_Session *session, UA_Subscri
     /* Re-register the callback if necessary */
     if(oldSamplingInterval != mon->parameters.samplingInterval) {
         UA_MonitoredItem_unregisterSampleCallback(server, mon);
-        result->statusCode = setMonitoringMode(server, mon, mon->monitoringMode);
+        result->statusCode =
+            UA_MonitoredItem_setMonitoringMode(server, mon, mon->monitoringMode);
     }
 
     result->revisedSamplingInterval = mon->parameters.samplingInterval;
@@ -503,6 +522,14 @@ Operation_ModifyMonitoredItem(UA_Server *server, UA_Session *session, UA_Subscri
 
     /* Remove some notifications if the queue is now too small */
     UA_MonitoredItem_ensureQueueSpace(server, mon);
+
+    UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, sub,
+                             "MonitoredItem %" PRIi32 " | "
+                             "Modified the MonitoredItem "
+                             "(Sampling Interval: %fms, Queue Size: %lu)",
+                             mon->monitoredItemId,
+                             mon->parameters.samplingInterval,
+                             (unsigned long)mon->queueSize);
 }
 
 void
@@ -546,57 +573,6 @@ struct setMonitoringContext {
     UA_MonitoringMode monitoringMode;
 };
 
-static UA_StatusCode
-setMonitoringMode(UA_Server *server, UA_MonitoredItem *mon,
-                  UA_MonitoringMode monitoringMode) {
-    /* Check if the MonitoringMode is valid or not */
-    if(monitoringMode > UA_MONITORINGMODE_REPORTING)
-        return UA_STATUSCODE_BADMONITORINGMODEINVALID;
-
-    /* Set the MonitoringMode */
-    mon->monitoringMode = monitoringMode;
-
-    UA_Notification *notification;
-    /* Reporting is disabled. This causes all Notifications to be dequeued and
-     * deleted. Also remove the last samples so that we immediately generate a
-     * Notification when re-activated. */
-    if(mon->monitoringMode == UA_MONITORINGMODE_DISABLED) {
-        UA_Notification *notification_tmp;
-        UA_MonitoredItem_unregisterSampleCallback(server, mon);
-        TAILQ_FOREACH_SAFE(notification, &mon->queue, listEntry, notification_tmp)
-            UA_Notification_delete(server, notification);
-        UA_ByteString_clear(&mon->lastSampledValue);
-        UA_DataValue_clear(&mon->lastValue);
-        return UA_STATUSCODE_GOOD;
-    }
-
-    /* When reporting is enabled, put all notifications that were already
-     * sampled into the global queue of the subscription. When sampling is
-     * enabled, remove all notifications from the global queue. !!! This needs
-     * to be the same operation as in UA_Notification_enqueue !!! */
-    if(mon->monitoringMode == UA_MONITORINGMODE_REPORTING) {
-        /* Make all notifications reporting. Re-enqueue to ensure they have the
-         * right order if some notifications are already reported by a trigger
-         * link. */
-        TAILQ_FOREACH(notification, &mon->queue, listEntry) {
-            UA_Notification_dequeueSub(notification);
-            UA_Notification_enqueueSub(notification);
-        }
-    } else /* mon->monitoringMode == UA_MONITORINGMODE_SAMPLING */ {
-        /* Make all notifications non-reporting */
-        TAILQ_FOREACH(notification, &mon->queue, listEntry)
-            UA_Notification_dequeueSub(notification);
-    }
-
-    /* Register the sampling callback with an interval. If registering the
-     * sampling callback failed, set to disabled. But don't delete the current
-     * notifications. */
-    UA_StatusCode res = UA_MonitoredItem_registerSampleCallback(server, mon);
-    if(res != UA_STATUSCODE_GOOD)
-        mon->monitoringMode = UA_MONITORINGMODE_DISABLED;
-    return res;
-}
-
 static void
 Operation_SetMonitoringMode(UA_Server *server, UA_Session *session,
                             struct setMonitoringContext *smc,
@@ -606,7 +582,7 @@ Operation_SetMonitoringMode(UA_Server *server, UA_Session *session,
         *result = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
         return;
     }
-    *result = setMonitoringMode(server, mon, smc->monitoringMode);
+    *result = UA_MonitoredItem_setMonitoringMode(server, mon, smc->monitoringMode);
 }
 
 void
