@@ -1070,8 +1070,7 @@ UA_Server_removeDataSetReader(UA_Server *server, UA_NodeId readerIdentifier) {
 
 UA_StatusCode
 UA_Server_DataSetReader_updateConfig(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
-                                     UA_NodeId readerGroupIdentifier,
-                                     const UA_DataSetReaderConfig *config) {
+                                     UA_NodeId readerGroupIdentifier, const UA_DataSetReaderConfig *config) {
     if(config == NULL)
        return UA_STATUSCODE_BADINVALIDARGUMENT;
 
@@ -1100,40 +1099,35 @@ UA_Server_DataSetReader_updateConfig(UA_Server *server, UA_NodeId dataSetReaderI
     if(currentDataSetReader->config.dataSetWriterId != config->dataSetWriterId)
         currentDataSetReader->config.dataSetWriterId = config->dataSetWriterId;
 
-    if(currentDataSetReader->config.subscribedDataSetType == UA_PUBSUB_SDS_TARGET) {
-        if(currentDataSetReader->config.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize ==
-           config->subscribedDataSet.subscribedDataSetTarget.targetVariablesSize) {
-            for(size_t i = 0; i < config->subscribedDataSet.subscribedDataSetTarget.targetVariablesSize; i++) {
-                if(!UA_NodeId_equal(&currentDataSetReader->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariable.targetNodeId,
-                                    &config->subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariable.targetNodeId)) {
-                    UA_Server_DataSetReader_createTargetVariables(server,
-                                                                  currentDataSetReader->identifier,
-                                                                  config->subscribedDataSet.subscribedDataSetTarget.targetVariablesSize,
-                                                                  config->subscribedDataSet.subscribedDataSetTarget.targetVariables);
-                    break;
-                }
-            }
-        }
-        else {
-            UA_Server_DataSetReader_createTargetVariables(server,
-                                                          currentDataSetReader->identifier,
-                                                          config->subscribedDataSet.subscribedDataSetTarget.targetVariablesSize,
-                                                          config->subscribedDataSet.subscribedDataSetTarget.targetVariables);
-        }
-    }
-    else {
+    if(currentDataSetReader->config.subscribedDataSetType != UA_PUBSUB_SDS_TARGET) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Unsupported SubscribedDataSetType.");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
+
+    UA_TargetVariables *oldTV = &currentDataSetReader->config.subscribedDataSet.subscribedDataSetTarget;
+    const UA_TargetVariables *newTV = &config->subscribedDataSet.subscribedDataSetTarget;
+    if(oldTV->targetVariablesSize == newTV->targetVariablesSize) {
+        for(size_t i = 0; i < config->subscribedDataSet.subscribedDataSetTarget.targetVariablesSize; i++) {
+            if(!UA_NodeId_equal(&oldTV->targetVariables[i].targetVariable.targetNodeId,
+                                &newTV->targetVariables[i].targetVariable.targetNodeId)) {
+                UA_Server_DataSetReader_createTargetVariables(server, currentDataSetReader->identifier,
+                                                              newTV->targetVariablesSize, newTV->targetVariables);
+            }
+        }
+    } else {
+        UA_Server_DataSetReader_createTargetVariables(server, currentDataSetReader->identifier,
+                                                      newTV->targetVariablesSize, newTV->targetVariables);
+    }
+
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
 #ifdef UA_ENABLE_PUBSUB_MONITORING
-    if (currentDataSetReader->config.messageReceiveTimeout != config->messageReceiveTimeout) {
+    if(currentDataSetReader->config.messageReceiveTimeout != config->messageReceiveTimeout) {
         /* update message receive timeout timer interval */
         currentDataSetReader->config.messageReceiveTimeout = config->messageReceiveTimeout;
         retVal = server->config.pubSubConfig.monitoringInterface.updateMonitoringInterval(server, currentDataSetReader->identifier,
             UA_PUBSUB_COMPONENT_DATASETREADER, UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT, currentDataSetReader);
-        if (retVal != UA_STATUSCODE_GOOD) {
+        if(retVal != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                 "Update DataSetReader message receive timeout timer failed.");
         }
