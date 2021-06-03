@@ -8,7 +8,6 @@
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
  */
 
-
 #include <open62541/server_pubsub.h>
 #include <open62541/types_generated_encoding_binary.h>
 
@@ -44,18 +43,26 @@ UA_DataSetReader_clear(UA_Server *server, UA_DataSetReader *dataSetReader);
 
 static void
 UA_PubSubDSRDataSetField_sampleValue(UA_Server *server, UA_DataSetReader *dataSetReader,
-                                     UA_DataValue *value, size_t fieldNumber) {
+                                     UA_DataValue *value, UA_FieldTargetVariable *ftv) {
     /* TODO: Static value source without RT information model
      * This API supports only to external datasource in RT configutation
      * TODO: Extend to support other configuration if required */
-    /* Read the value */
-    const UA_VariableNode *rtNode = (const UA_VariableNode *) UA_NODESTORE_GET(server,
-                                     &dataSetReader->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[fieldNumber].targetVariable.targetNodeId);
-    if (rtNode->valueBackend.backendType == UA_VALUEBACKENDTYPE_EXTERNAL) {
-        dataSetReader->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[fieldNumber].externalDataValue = rtNode->valueBackend.backend.external.value;
-        *value = (**(dataSetReader->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[fieldNumber].externalDataValue));
+
+    /* Get the Node */
+    const UA_VariableNode *rtNode = (const UA_VariableNode *)
+        UA_NODESTORE_GET(server, &ftv->targetVariable.targetNodeId);
+    if(!rtNode)
+        return;
+
+    if(rtNode->valueBackend.backendType == UA_VALUEBACKENDTYPE_EXTERNAL) {
+        /* Set the external source in the dataset reader config */
+        ftv->externalDataValue = rtNode->valueBackend.backend.external.value;
+
+        /* Get the value to compute the offsets */
+        *value = **rtNode->valueBackend.backend.external.value;
         value->value.storageType = UA_VARIANT_DATA_NODELETE;
     }
+
     UA_NODESTORE_RELEASE(server, (const UA_Node *) rtNode);
 }
 
@@ -64,18 +71,20 @@ UA_PubSubDataSetReader_generateKeyFrameMessage(UA_Server *server,
                                                UA_DataSetMessage *dataSetMessage,
                                                UA_DataSetReader *dataSetReader) {
     /* Prepare DataSetMessageContent */
+    UA_TargetVariables *tv = &dataSetReader->config.subscribedDataSet.subscribedDataSetTarget;
     dataSetMessage->header.dataSetMessageValid = true;
     dataSetMessage->header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
-    dataSetMessage->data.keyFrameData.fieldCount = (UA_UInt16) dataSetReader->config.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize;
+    dataSetMessage->data.keyFrameData.fieldCount = (UA_UInt16) tv->targetVariablesSize;
     dataSetMessage->data.keyFrameData.dataSetFields = (UA_DataValue *)
-            UA_Array_new(dataSetReader->config.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize, &UA_TYPES[UA_TYPES_DATAVALUE]);
+            UA_Array_new(tv->targetVariablesSize, &UA_TYPES[UA_TYPES_DATAVALUE]);
     if(!dataSetMessage->data.keyFrameData.dataSetFields)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-     for(size_t counter = 0; counter < dataSetReader->config.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize; counter++) {
-        /* Sample the value */
+     for(size_t counter = 0; counter < tv->targetVariablesSize; counter++) {
+        /* Sample the value and set the source in the reader config */
         UA_DataValue *dfv = &dataSetMessage->data.keyFrameData.dataSetFields[counter];
-        UA_PubSubDSRDataSetField_sampleValue(server, dataSetReader, dfv, counter);
+        UA_FieldTargetVariable *ftv = &tv->targetVariables[counter];
+        UA_PubSubDSRDataSetField_sampleValue(server, dataSetReader, dfv, ftv);
 
         /* Deactivate statuscode? */
         if(((u64)dataSetReader->config.dataSetFieldContentMask &
