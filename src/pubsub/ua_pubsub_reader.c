@@ -308,7 +308,8 @@ UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
     if(!readerGroupConfig)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    if ((!readerGroupConfig->pubsubManagerCallback.addCustomCallback) && (readerGroupConfig->enableBlockingSocket == UA_TRUE)) {
+    if(!readerGroupConfig->pubsubManagerCallback.addCustomCallback &&
+       readerGroupConfig->enableBlockingSocket) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Adding ReaderGroup failed, blocking socket functionality only supported in customcallback");
         return UA_STATUSCODE_BADNOTSUPPORTED;
@@ -388,7 +389,8 @@ UA_Server_removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier) {
     /* Unregister subscribe callback */
     if(readerGroup->state == UA_PUBSUBSTATE_OPERATIONAL) {
         if(readerGroup->config.pubsubManagerCallback.removeCustomCallback)
-            readerGroup->config.pubsubManagerCallback.removeCustomCallback(server, readerGroup->identifier, readerGroup->subscribeCallbackId);
+            readerGroup->config.pubsubManagerCallback.
+                removeCustomCallback(server, readerGroup->identifier, readerGroup->subscribeCallbackId);
         else
             UA_PubSubManager_removeRepeatedPubSubCallback(server, readerGroup->subscribeCallbackId);
     }
@@ -433,12 +435,11 @@ UA_Server_ReaderGroup_getConfig(UA_Server *server, UA_NodeId readerGroupIdentifi
 
 UA_StatusCode
 UA_Server_ReaderGroup_getState(UA_Server *server, UA_NodeId readerGroupIdentifier,
-                               UA_PubSubState *state)
-{
+                               UA_PubSubState *state) {
     if((server == NULL) || (state == NULL))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_ReaderGroup *currentReaderGroup = UA_ReaderGroup_findRGbyId(server, readerGroupIdentifier);
-    if(currentReaderGroup == NULL)
+    if(!currentReaderGroup)
         return UA_STATUSCODE_BADNOTFOUND;
     *state = currentReaderGroup->state;
     return UA_STATUSCODE_GOOD;
@@ -487,7 +488,7 @@ UA_ReaderGroupConfig_copy(const UA_ReaderGroupConfig *src,
 }
 
 UA_StatusCode
-UA_ReaderGroup_setPubSubState(UA_Server *server, UA_PubSubState state, UA_ReaderGroup *readerGroup){
+UA_ReaderGroup_setPubSubState(UA_Server *server, UA_PubSubState state, UA_ReaderGroup *readerGroup) {
     UA_DataSetReader *dataSetReader;
     switch(state){
         case UA_PUBSUBSTATE_DISABLED:
@@ -626,7 +627,8 @@ UA_Server_freezeReaderGroupConfiguration(UA_Server *server, const UA_NodeId read
 
         size_t fieldsSize = dataSetReader->config.dataSetMetaData.fieldsSize;
         for(size_t i = 0; i < fieldsSize; i++) {
-            const UA_VariableNode *rtNode = (const UA_VariableNode *) UA_NODESTORE_GET(server, &dataSetReader->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariable.targetNodeId);
+            const UA_VariableNode *rtNode = (const UA_VariableNode *)
+                UA_NODESTORE_GET(server, &dataSetReader->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariable.targetNodeId);
             if(rtNode != NULL && rtNode->valueBackend.backendType != UA_VALUEBACKENDTYPE_EXTERNAL){
                 UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                                "PubSub-RT configuration fail: PDS contains field without external data source.");
@@ -869,7 +871,6 @@ UA_ReaderGroup_findRGbyId(UA_Server *server, UA_NodeId identifier) {
                 return readerGroup;
         }
     }
-
     return NULL;
 }
 
@@ -891,8 +892,8 @@ UA_DataSetReader *UA_ReaderGroup_findDSRbyId(UA_Server *server, UA_NodeId identi
 
 /* This  triggers the collection and reception of NetworkMessages and the
  * contained DataSetMessages. */
-void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerGroup) {
-
+void
+UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerGroup) {
     // TODO: feedback for debug-assert vs runtime-check
     UA_assert(server);
     UA_assert(readerGroup);
@@ -904,14 +905,11 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
     if (!connection) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "SubscribeCallback(): "
             "Find linked connection failed");
-        goto error;
+        UA_ReaderGroup_setPubSubState(server, UA_PUBSUBSTATE_ERROR, readerGroup);
+        return;
     }
 
     receiveBufferedNetworkMessage(server, readerGroup, connection);
-    return;
-
-error:
-    UA_ReaderGroup_setPubSubState(server, UA_PUBSUBSTATE_ERROR, readerGroup);
 }
 
 
