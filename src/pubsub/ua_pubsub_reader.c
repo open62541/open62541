@@ -218,75 +218,66 @@ UA_DataSetReader_generateDataSetMessage(UA_Server *server, UA_DataSetMessage *da
 }
 
 static UA_StatusCode
-UA_DataSetReader_generateNetworkMessage(UA_PubSubConnection *pubSubConnection, UA_DataSetReader *dataSetReader, UA_DataSetMessage *dsm,
-                                        UA_UInt16 *writerId, UA_Byte dsmCount, UA_NetworkMessage *networkMessage) {
+UA_DataSetReader_generateNetworkMessage(UA_PubSubConnection *pubSubConnection, UA_DataSetReader *dataSetReader,
+                                        UA_DataSetMessage *dsm, UA_UInt16 *writerId, UA_Byte dsmCount,
+                                        UA_NetworkMessage *nm) {
     if(dataSetReader->config.messageSettings.content.decoded.type != &UA_TYPES[UA_TYPES_UADPDATASETREADERMESSAGEDATATYPE])
         return UA_STATUSCODE_BADNOTSUPPORTED;
 
-    UA_UadpDataSetReaderMessageDataType *dsrm = (UA_UadpDataSetReaderMessageDataType *) dataSetReader->config.messageSettings.content.decoded.data;
-    networkMessage->publisherIdEnabled =
-        ((u64)dsrm->networkMessageContentMask &
-         (u64)UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID) != 0;
-    networkMessage->groupHeaderEnabled =
-        ((u64)dsrm->networkMessageContentMask &
-         (u64)UA_UADPNETWORKMESSAGECONTENTMASK_GROUPHEADER) != 0;
-    networkMessage->groupHeader.writerGroupIdEnabled =
-        ((u64)dsrm->networkMessageContentMask &
-         (u64)UA_UADPNETWORKMESSAGECONTENTMASK_WRITERGROUPID) != 0;
-    networkMessage->groupHeader.groupVersionEnabled =
-        ((u64)dsrm->networkMessageContentMask &
-         (u64)UA_UADPNETWORKMESSAGECONTENTMASK_GROUPVERSION) != 0;
-    networkMessage->groupHeader.networkMessageNumberEnabled =
-        ((u64)dsrm->networkMessageContentMask &
-         (u64)UA_UADPNETWORKMESSAGECONTENTMASK_NETWORKMESSAGENUMBER) != 0;
-    networkMessage->groupHeader.sequenceNumberEnabled =
-        ((u64)dsrm->networkMessageContentMask &
-         (u64)UA_UADPNETWORKMESSAGECONTENTMASK_SEQUENCENUMBER) != 0;
-    networkMessage->payloadHeaderEnabled =
-        ((u64)dsrm->networkMessageContentMask &
-         (u64)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER) != 0;
-    networkMessage->timestampEnabled =
-        ((u64)dsrm->networkMessageContentMask &
-         (u64)UA_UADPNETWORKMESSAGECONTENTMASK_TIMESTAMP) != 0;
-    networkMessage->picosecondsEnabled =
-        ((u64)dsrm->networkMessageContentMask &
-         (u64)UA_UADPNETWORKMESSAGECONTENTMASK_PICOSECONDS) != 0;
-    networkMessage->dataSetClassIdEnabled =
-        ((u64)dsrm->networkMessageContentMask &
-         (u64)UA_UADPNETWORKMESSAGECONTENTMASK_DATASETCLASSID) != 0;
-    networkMessage->promotedFieldsEnabled =
-        ((u64)dsrm->networkMessageContentMask &
-         (u64)UA_UADPNETWORKMESSAGECONTENTMASK_PROMOTEDFIELDS) != 0;
-    networkMessage->version = 1;
-    networkMessage->networkMessageType = UA_NETWORKMESSAGE_DATASET;
-    if(UA_DataType_isNumeric(dataSetReader->config.publisherId.type)) {
-        switch(dataSetReader->config.publisherId.type->typeIndex){
-            case UA_DATATYPEKIND_BYTE:
-                networkMessage->publisherIdType = UA_PUBLISHERDATATYPE_BYTE;
-                networkMessage->publisherId.publisherIdByte = *(UA_Byte *) dataSetReader->config.publisherId.data;
-                break;
+    UA_UadpDataSetReaderMessageDataType *dsrm = (UA_UadpDataSetReaderMessageDataType *)
+        dataSetReader->config.messageSettings.content.decoded.data;
+    nm->publisherIdEnabled = ((u64)dsrm->networkMessageContentMask &
+                              (u64)UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID) != 0;
+    nm->groupHeaderEnabled = ((u64)dsrm->networkMessageContentMask &
+                              (u64)UA_UADPNETWORKMESSAGECONTENTMASK_GROUPHEADER) != 0;
+    nm->groupHeader.writerGroupIdEnabled = ((u64)dsrm->networkMessageContentMask &
+                                            (u64)UA_UADPNETWORKMESSAGECONTENTMASK_WRITERGROUPID) != 0;
+    nm->groupHeader.groupVersionEnabled = ((u64)dsrm->networkMessageContentMask &
+                                           (u64)UA_UADPNETWORKMESSAGECONTENTMASK_GROUPVERSION) != 0;
+    nm->groupHeader.networkMessageNumberEnabled = ((u64)dsrm->networkMessageContentMask &
+                                                   (u64)UA_UADPNETWORKMESSAGECONTENTMASK_NETWORKMESSAGENUMBER) != 0;
+    nm->groupHeader.sequenceNumberEnabled = ((u64)dsrm->networkMessageContentMask &
+                                             (u64)UA_UADPNETWORKMESSAGECONTENTMASK_SEQUENCENUMBER) != 0;
+    nm->payloadHeaderEnabled = ((u64)dsrm->networkMessageContentMask &
+                                (u64)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER) != 0;
+    nm->timestampEnabled = ((u64)dsrm->networkMessageContentMask &
+                            (u64)UA_UADPNETWORKMESSAGECONTENTMASK_TIMESTAMP) != 0;
+    nm->picosecondsEnabled = ((u64)dsrm->networkMessageContentMask &
+                              (u64)UA_UADPNETWORKMESSAGECONTENTMASK_PICOSECONDS) != 0;
+    nm->dataSetClassIdEnabled = ((u64)dsrm->networkMessageContentMask &
+                                 (u64)UA_UADPNETWORKMESSAGECONTENTMASK_DATASETCLASSID) != 0;
+    nm->promotedFieldsEnabled = ((u64)dsrm->networkMessageContentMask &
+                                 (u64)UA_UADPNETWORKMESSAGECONTENTMASK_PROMOTEDFIELDS) != 0;
+    nm->version = 1;
+    nm->networkMessageType = UA_NETWORKMESSAGE_DATASET;
 
-            case UA_DATATYPEKIND_UINT16:
-                networkMessage->publisherIdType = UA_PUBLISHERDATATYPE_UINT16;
-                networkMessage->publisherId.publisherIdUInt16 = *(UA_UInt16 *) dataSetReader->config.publisherId.data;
-                break;
+    if(!UA_DataType_isNumeric(dataSetReader->config.publisherId.type))
+        return UA_STATUSCODE_BADNOTSUPPORTED;
 
-            case UA_DATATYPEKIND_UINT32:
-                networkMessage->publisherIdType = UA_PUBLISHERDATATYPE_UINT32;
-                networkMessage->publisherId.publisherIdUInt32 = *(UA_UInt32 *) dataSetReader->config.publisherId.data;
-                break;
-
-            case UA_DATATYPEKIND_UINT64:
-                networkMessage->publisherIdType = UA_PUBLISHERDATATYPE_UINT64;
-                networkMessage->publisherId.publisherIdUInt64 = *(UA_UInt64 *) dataSetReader->config.publisherId.data;
-                break;
-        }
-    } else {
+    switch(dataSetReader->config.publisherId.type->typeKind) {
+    case UA_DATATYPEKIND_BYTE:
+        nm->publisherIdType = UA_PUBLISHERDATATYPE_BYTE;
+        nm->publisherId.publisherIdByte = *(UA_Byte *) dataSetReader->config.publisherId.data;
+        break;
+    case UA_DATATYPEKIND_UINT16:
+        nm->publisherIdType = UA_PUBLISHERDATATYPE_UINT16;
+        nm->publisherId.publisherIdUInt16 = *(UA_UInt16 *) dataSetReader->config.publisherId.data;
+        break;
+    case UA_DATATYPEKIND_UINT32:
+        nm->publisherIdType = UA_PUBLISHERDATATYPE_UINT32;
+        nm->publisherId.publisherIdUInt32 = *(UA_UInt32 *) dataSetReader->config.publisherId.data;
+        break;
+    case UA_DATATYPEKIND_UINT64:
+        nm->publisherIdType = UA_PUBLISHERDATATYPE_UINT64;
+        nm->publisherId.publisherIdUInt64 = *(UA_UInt64 *) dataSetReader->config.publisherId.data;
+        break;
+    default:
         return UA_STATUSCODE_BADNOTSUPPORTED;
     }
 
-    if(networkMessage->groupHeader.sequenceNumberEnabled)
-        networkMessage->groupHeader.sequenceNumber = 1; // Will be modified when subscriber receives new nw msg.
+    if(nm->groupHeader.sequenceNumberEnabled)
+        nm->groupHeader.sequenceNumber = 1; /* Will be modified when subscriber receives new nw msg. */
+
     /* Compute the length of the dsm separately for the header */
     UA_UInt16 *dsmLengths = (UA_UInt16 *) UA_calloc(dsmCount, sizeof(UA_UInt16));
     if(!dsmLengths)
@@ -294,13 +285,12 @@ UA_DataSetReader_generateNetworkMessage(UA_PubSubConnection *pubSubConnection, U
     for(UA_Byte i = 0; i < dsmCount; i++)
         dsmLengths[i] = (UA_UInt16) UA_DataSetMessage_calcSizeBinary(&dsm[i], NULL, 0);
 
-    networkMessage->payloadHeader.dataSetPayloadHeader.count = dsmCount;
-    networkMessage->payloadHeader.dataSetPayloadHeader.dataSetWriterIds = writerId;
-    networkMessage->groupHeader.writerGroupId = dataSetReader->config.writerGroupId;
-    /* number of the NetworkMessage inside a PublishingInterval */
-    networkMessage->groupHeader.networkMessageNumber = 1;
-    networkMessage->payload.dataSetPayload.sizes = dsmLengths;
-    networkMessage->payload.dataSetPayload.dataSetMessages = dsm;
+    nm->payloadHeader.dataSetPayloadHeader.count = dsmCount;
+    nm->payloadHeader.dataSetPayloadHeader.dataSetWriterIds = writerId;
+    nm->groupHeader.writerGroupId = dataSetReader->config.writerGroupId;
+    nm->groupHeader.networkMessageNumber = 1; /* number of the NetworkMessage inside a PublishingInterval */
+    nm->payload.dataSetPayload.sizes = dsmLengths;
+    nm->payload.dataSetPayload.dataSetMessages = dsm;
     return UA_STATUSCODE_GOOD;
 }
 
