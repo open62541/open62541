@@ -902,7 +902,7 @@ UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerGroup)
 
     UA_PubSubConnection *connection =
         UA_PubSubConnection_findConnectionbyId(server, readerGroup->linkedConnection);
-    if (!connection) {
+    if(!connection) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "SubscribeCallback(): "
             "Find linked connection failed");
         UA_ReaderGroup_setPubSubState(server, UA_PUBSUBSTATE_ERROR, readerGroup);
@@ -927,7 +927,7 @@ UA_ReaderGroup_addSubscribeCallback(UA_Server *server, UA_ReaderGroup *readerGro
                                                                               UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,   // TODO: Send timer policy from reader group config
                                                                               &readerGroup->subscribeCallbackId);
     else {
-        if (readerGroup->config.enableBlockingSocket == UA_TRUE) {
+        if(readerGroup->config.enableBlockingSocket == UA_TRUE) {
             UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                            "addSubscribeCallback() failed, blocking socket functionality only supported in customcallback");
             return UA_STATUSCODE_BADNOTSUPPORTED;
@@ -982,9 +982,9 @@ UA_Server_addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdentifier,
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     newDataSetReader->componentType = UA_PUBSUB_COMPONENT_DATASETREADER;
-    if (readerGroup->state == UA_PUBSUBSTATE_OPERATIONAL) {
+    if(readerGroup->state == UA_PUBSUBSTATE_OPERATIONAL) {
         UA_StatusCode retVal = UA_DataSetReader_setPubSubState(server, UA_PUBSUBSTATE_OPERATIONAL, newDataSetReader);
-        if (retVal != UA_STATUSCODE_GOOD) {
+        if(retVal != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                             "Add DataSetReader failed. setPubSubState failed.");
             return retVal;
@@ -1004,7 +1004,7 @@ UA_Server_addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdentifier,
     UA_StatusCode retVal =
         server->config.pubSubConfig.monitoringInterface.createMonitoring(server, newDataSetReader->identifier,
         UA_PUBSUB_COMPONENT_DATASETREADER, UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT, newDataSetReader, UA_DataSetReader_handleMessageReceiveTimeout);
-    if (retVal != UA_STATUSCODE_GOOD) {
+    if(retVal != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
             "Add DataSetReader failed. Create message receive timeout timer failed.");
         UA_DataSetReaderConfig_clear(&newDataSetReader->config);
@@ -1049,7 +1049,7 @@ UA_Server_removeDataSetReader(UA_Server *server, UA_NodeId readerIdentifier) {
     if(dataSetReader->msgRcvTimeoutTimerRunning == UA_TRUE) {
         retVal = server->config.pubSubConfig.monitoringInterface.stopMonitoring(server, dataSetReader->identifier,
             UA_PUBSUB_COMPONENT_DATASETREADER, UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT, dataSetReader);
-        if (retVal != UA_STATUSCODE_GOOD) {
+        if(retVal != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                 "Remove DataSetReader failed. Stop message receive timeout timer of DataSetReader "
                     "'%.*s' failed.", (int) dataSetReader->config.name.length, dataSetReader->config.name.data);
@@ -1057,7 +1057,7 @@ UA_Server_removeDataSetReader(UA_Server *server, UA_NodeId readerIdentifier) {
     }
     retVal |= server->config.pubSubConfig.monitoringInterface.deleteMonitoring(server, dataSetReader->identifier,
         UA_PUBSUB_COMPONENT_DATASETREADER, UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT, dataSetReader);
-    if (retVal != UA_STATUSCODE_GOOD) {
+    if(retVal != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
             "Remove DataSetReader failed. Delete message receive timeout timer of DataSetReader "
                 "'%.*s' failed.", (int) dataSetReader->config.name.length, dataSetReader->config.name.data);
@@ -1182,17 +1182,14 @@ UA_DataSetReaderConfig_copy(const UA_DataSetReaderConfig *src,
         return retVal;
 
     retVal = UA_ExtensionObject_copy(&src->transportSettings, &dst->transportSettings);
-    if (retVal != UA_STATUSCODE_GOOD)
+    if(retVal != UA_STATUSCODE_GOOD)
         return retVal;
 
     if(src->subscribedDataSetType == UA_PUBSUB_SDS_TARGET) {
         retVal = UA_TargetVariables_copy(&src->subscribedDataSet.subscribedDataSetTarget,
                                          &dst->subscribedDataSet.subscribedDataSetTarget);
-        if(retVal != UA_STATUSCODE_GOOD)
-           return retVal;
     }
-
-    return UA_STATUSCODE_GOOD;
+    return retVal;
 }
 
 void
@@ -1202,7 +1199,7 @@ UA_DataSetReaderConfig_clear(UA_DataSetReaderConfig *cfg) {
     UA_DataSetMetaDataType_clear(&cfg->dataSetMetaData);
     UA_ExtensionObject_clear(&cfg->messageSettings);
     UA_ExtensionObject_clear(&cfg->transportSettings);
-    if (cfg->subscribedDataSetType == UA_PUBSUB_SDS_TARGET) {
+    if(cfg->subscribedDataSetType == UA_PUBSUB_SDS_TARGET) {
         UA_TargetVariables_clear(&cfg->subscribedDataSet.subscribedDataSetTarget);
     }
 }
@@ -1226,7 +1223,7 @@ UA_DataSetReader_setPubSubState(UA_Server *server, UA_PubSubState state, UA_Data
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     switch(state){
         case UA_PUBSUBSTATE_DISABLED:
-            switch (dataSetReader->state){
+            switch(dataSetReader->state){
                 case UA_PUBSUBSTATE_DISABLED:
                     return UA_STATUSCODE_GOOD;
                 case UA_PUBSUBSTATE_PAUSED:
@@ -1235,10 +1232,10 @@ UA_DataSetReader_setPubSubState(UA_Server *server, UA_PubSubState state, UA_Data
                 case UA_PUBSUBSTATE_OPERATIONAL:
 #ifdef UA_ENABLE_PUBSUB_MONITORING
                     /* stop MessageReceiveTimeout timer */
-                    if (dataSetReader->msgRcvTimeoutTimerRunning == UA_TRUE) {
+                    if(dataSetReader->msgRcvTimeoutTimerRunning == UA_TRUE) {
                         ret = server->config.pubSubConfig.monitoringInterface.stopMonitoring(server, dataSetReader->identifier,
                             UA_PUBSUB_COMPONENT_DATASETREADER, UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT, dataSetReader);
-                        if (ret == UA_STATUSCODE_GOOD) {
+                        if(ret == UA_STATUSCODE_GOOD) {
                             dataSetReader->msgRcvTimeoutTimerRunning = UA_FALSE;
                         } else {
                             UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -1247,9 +1244,8 @@ UA_DataSetReader_setPubSubState(UA_Server *server, UA_PubSubState state, UA_Data
                         }
                     }
 #endif /* UA_ENABLE_PUBSUB_MONITORING */
-                    if (ret == UA_STATUSCODE_GOOD) {
+                    if(ret == UA_STATUSCODE_GOOD)
                         dataSetReader->state = UA_PUBSUBSTATE_DISABLED;
-                    }
                     break;
                 case UA_PUBSUBSTATE_ERROR:
                     break;
@@ -1261,7 +1257,7 @@ UA_DataSetReader_setPubSubState(UA_Server *server, UA_PubSubState state, UA_Data
         case UA_PUBSUBSTATE_PAUSED:
             UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
                             "PubSub state paused is unsupported at the moment!");
-            switch (dataSetReader->state){
+            switch(dataSetReader->state){
                 case UA_PUBSUBSTATE_DISABLED:
                     break;
                 case UA_PUBSUBSTATE_PAUSED:
@@ -1276,7 +1272,7 @@ UA_DataSetReader_setPubSubState(UA_Server *server, UA_PubSubState state, UA_Data
             }
             break;
         case UA_PUBSUBSTATE_OPERATIONAL:
-            switch (dataSetReader->state){
+            switch(dataSetReader->state){
                 case UA_PUBSUBSTATE_DISABLED:
                 case UA_PUBSUBSTATE_PAUSED:
                 case UA_PUBSUBSTATE_OPERATIONAL:
@@ -1289,7 +1285,7 @@ UA_DataSetReader_setPubSubState(UA_Server *server, UA_PubSubState state, UA_Data
             }
             break;
         case UA_PUBSUBSTATE_ERROR:
-            switch (dataSetReader->state){
+            switch(dataSetReader->state){
                 case UA_PUBSUBSTATE_DISABLED:
                 case UA_PUBSUBSTATE_PAUSED:
                 case UA_PUBSUBSTATE_OPERATIONAL:
@@ -1589,7 +1585,7 @@ UA_DataSetReader_process(UA_Server *server, UA_DataSetReader *dataSetReader,
         (int) dataSetReader->config.name.length, dataSetReader->config.name.data);
 #ifdef UA_ENABLE_PUBSUB_MONITORING
     /* if previous reader state was error (because we haven't received messages and ran into timeout) we should set the state back to operational */
-    if (dataSetReader->state == UA_PUBSUBSTATE_ERROR) {
+    if(dataSetReader->state == UA_PUBSUBSTATE_ERROR) {
         UA_DataSetReader_setPubSubState(server, UA_PUBSUBSTATE_OPERATIONAL, dataSetReader);
         if(server->config.pubSubConfig.stateChangeCallback != 0) {
             server->config.pubSubConfig.stateChangeCallback(&dataSetReader->identifier,
@@ -1597,9 +1593,9 @@ UA_DataSetReader_process(UA_Server *server, UA_DataSetReader *dataSetReader,
                                                                    UA_STATUSCODE_GOOD);
         }
     }
-    if (dataSetReader->msgRcvTimeoutTimerRunning == UA_TRUE) {
+    if(dataSetReader->msgRcvTimeoutTimerRunning == UA_TRUE) {
         /* stop message receive timeout timer */
-        if (server->config.pubSubConfig.monitoringInterface.stopMonitoring(server, dataSetReader->identifier,
+        if(server->config.pubSubConfig.monitoringInterface.stopMonitoring(server, dataSetReader->identifier,
             UA_PUBSUB_COMPONENT_DATASETREADER, UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT, dataSetReader) == UA_STATUSCODE_GOOD) {
             dataSetReader->msgRcvTimeoutTimerRunning = UA_FALSE;
         } else {
@@ -1609,7 +1605,7 @@ UA_DataSetReader_process(UA_Server *server, UA_DataSetReader *dataSetReader,
         }
     }
     /* start message receive timeout timer */
-    if (server->config.pubSubConfig.monitoringInterface.startMonitoring(server, dataSetReader->identifier,
+    if(server->config.pubSubConfig.monitoringInterface.startMonitoring(server, dataSetReader->identifier,
             UA_PUBSUB_COMPONENT_DATASETREADER, UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT, dataSetReader) == UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER, "Info: DataSetReader '%.*s': start receive timeout timer",
             (int) dataSetReader->config.name.length, dataSetReader->config.name.data);
@@ -1626,13 +1622,13 @@ UA_DataSetReader_process(UA_Server *server, UA_DataSetReader *dataSetReader,
 /* Timeout callback for DataSetReader MessageReceiveTimeout handling */
 void
 UA_DataSetReader_handleMessageReceiveTimeout(UA_Server *server, void *dataSetReader) {
-    if ((!server) || (!dataSetReader)) {
+    if(!server || !dataSetReader) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
             "UA_DataSetReader_handleMessageReceiveTimeout(): null pointer param");
         return;
     }
     UA_DataSetReader *dsReader = (UA_DataSetReader*) dataSetReader;
-    if (dsReader->componentType != UA_PUBSUB_COMPONENT_DATASETREADER) {
+    if(dsReader->componentType != UA_PUBSUB_COMPONENT_DATASETREADER) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
             "UA_DataSetReader_handleMessageReceiveTimeout(): input param is not of type DataSetReader");
         return;
@@ -1648,7 +1644,7 @@ UA_DataSetReader_handleMessageReceiveTimeout(UA_Server *server, void *dataSetRea
                                                   UA_STATUSCODE_BADTIMEOUT);
     }
 
-    if (UA_DataSetReader_setPubSubState(server, UA_PUBSUBSTATE_ERROR, dsReader) != UA_STATUSCODE_GOOD) {
+    if(UA_DataSetReader_setPubSubState(server, UA_PUBSUBSTATE_ERROR, dsReader) != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
             "UA_DataSetReader_handleMessageReceiveTimeout(): setting pubsub state failed");
     }
@@ -1669,7 +1665,7 @@ UA_DataSetReader_clear(UA_Server *server, UA_DataSetReader *dataSetReader) {
 
     UA_NodeId_clear(&dataSetReader->identifier);
     UA_NodeId_clear(&dataSetReader->linkedReaderGroup);
-    if (dataSetReader->config.subscribedDataSetType == UA_PUBSUB_SDS_TARGET) {
+    if(dataSetReader->config.subscribedDataSetType == UA_PUBSUB_SDS_TARGET) {
         UA_TargetVariables_clear(&dataSetReader->config.subscribedDataSet.subscribedDataSetTarget);
     } else {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -1851,7 +1847,7 @@ decodeAndProcessNetworkMessage(UA_Server *server, UA_ReaderGroup *readerGroup,
      * bytes and FCS size is 4 bytes so remaining minimum payload size of
      * ethernet packet is 46 bytes */
     /* TODO: Need to handle padding bytes for UDP */
-    if ((((*currentPosition) - previousPosition) < MIN_PAYLOAD_SIZE_ETHERNET) &&
+    if((((*currentPosition) - previousPosition) < MIN_PAYLOAD_SIZE_ETHERNET) &&
         (strncmp((const char *)connection->config->transportProfileUri.data,
                  "http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp",
                  (size_t)(connection->config->transportProfileUri.length)) == 0)) {
@@ -1955,7 +1951,7 @@ receiveBufferedNetworkMessage(UA_Server *server, UA_ReaderGroup *readerGroup,
                                      UA_PubSubConnection *connection, size_t previousPosition,
                                      UA_ByteString *buffer, size_t *currentPosition) = NULL;
 
-    if (readerGroup->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE) {
+    if(readerGroup->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE) {
         decodeAndProcessNetworkMessageFun = decodeAndProcessNetworkMessageRT;
     } else {
         decodeAndProcessNetworkMessageFun = decodeAndProcessNetworkMessage;
