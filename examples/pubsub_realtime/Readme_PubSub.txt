@@ -1,13 +1,11 @@
 Tested Environment:
 TTTech IP (2.3.0) - Arm architecture
 Kernel - 5.4.40 (non-RT)
-
-ToDo: Now this Readme.txt is only for Testing using FPGA. This Readme.txt will be updated for IPC later.
 ============================================================================================================
 PRE-REQUISITES:
-1)We recommend at least two TTTech TSN IP nodes with 2-cores
+1) We recommend at least two TTTech TSN IP nodes with 2-cores
 
-2)Ensure the nodes are ptp synchronized
+2) Ensure the nodes are ptp synchronized
     deptp_tool --get-current-dataset
 
 3) Add and aditional clock domain /etc/deptp/ptp_config.xml, reboot the board after applying this change (this is a one time step)
@@ -20,7 +18,7 @@ PRE-REQUISITES:
        <time_source>internal oscillator</time_source>
      </Clock>
 
-4)Create VLAN with VLAN ID of 8 in peer to peer connected interface using the below command
+4) Create VLAN with VLAN ID of 8 in peer to peer connected interface using the below command
     ip link add link <interfaceName> name myvlan type vlan id 8 ingress-qos-map 0:7 1:7 2:7 3:7 4:7 5:7 6:7 7:7 egress-qos-map 0:7 1:7 2:7 3:7 4:7 5:7 6:7 7:7
     ip addr add <VlanIpAddress> dev myvlan
     ip link set dev myvlan up
@@ -31,7 +29,7 @@ PRE-REQUISITES:
 
     NOTE: <portName> refers to the external physical port that has ethernet cable connected to it in each node
 
-5)Create the Qbv configuration i.e setting up the gating configuration:
+5) Create the Qbv configuration i.e setting up the gating configuration:
     1)Create a config file on both the nodes using the below command
             touch qbv.cfg
     2)At node 1 copy the below gating configuration and paste it in the qbv.cfg
@@ -57,10 +55,9 @@ Cross Compiler options to compile:
 2) Traverse to the folder using the command
        cd build
 
-3) Use the below command to change the ccmake options
-       ccmake ..
+3) Install the arm cross compiler - arm-linux-gnueabihf
 
-4) Cross Compilers options to be changed:
+4) Cross compilation for ARM architecture
        CMAKE_C_COMPILER /usr/bin/arm-linux-gnueabihf-gcc
        CMAKE_C_COMPILER_AR        /usr/bin/arm-linux-gnueabihf-gcc-ar-7
        CMAKE_C_COMPILER_RANLIB /usr/bin/arm-linux-gnueabihf-gcc-ranlib-7
@@ -74,10 +71,29 @@ Cross Compiler options to compile:
        CMAKE_STRIP /usr/bin/arm-linux-gnueabihf-strip
 
        Note: The above mentioned options are changes for arm compiler.Ignore them if you
-       are compiling for x86. Right now the handling of x86 compiler is not done if you try to compile the code
-       it will throw error.
+       are compiling for x86. The options will be available in tools/cmake/Toolchain-ARM.cmake
+       for cross compilation
 
-5) CMake options for Publisher application(pubsub_TSN_publisher_multiple_thread):
+       CMake options for Publisher application(pubsub_TSN_publisher_multiple_thread):
+       For Ethernet:
+       cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-ARM.cmake -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_ETH_UADP=ON ..
+       make -j4 pubsub_TSN_publisher_multiple_thread
+
+       For UDP:
+       cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-ARM.cmake -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_ETH_UADP=OFF ..
+       make -j4 pubsub_TSN_publisher_multiple_thread
+
+       CMake options for loopback application(pubsub_TSN_loopback_single_thread):
+       For Ethernet:
+       cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-ARM.cmake -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_BUFMALLOC=ON -DUA_ENABLE_MALLOC_SINGLETON=ON -DUA_ENABLE_PUBSUB_ETH_UADP=ON ..
+       make -j4 pubsub_TSN_loopback_single_thread
+
+       For UDP:
+       cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-ARM.cmake -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_BUFMALLOC=ON -DUA_ENABLE_MALLOC_SINGLETON=ON -DUA_ENABLE_PUBSUB_ETH_UADP=OFF ..
+       make -j4 pubsub_TSN_loopback_single_thread
+    
+5) Compilation for x86 architecture
+       CMake options for Publisher application(pubsub_TSN_publisher_multiple_thread):
        For Ethernet:
        cmake -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_ETH_UADP=ON ..
        make -j4 pubsub_TSN_publisher_multiple_thread
@@ -86,7 +102,7 @@ Cross Compiler options to compile:
        cmake -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_ETH_UADP=OFF ..
        make -j4 pubsub_TSN_publisher_multiple_thread
 
-6) CMake options for loopback application(pubsub_TSN_loopback_single_thread):
+       CMake options for loopback application(pubsub_TSN_loopback_single_thread):
        For Ethernet:
        cmake -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_BUFMALLOC=ON -DUA_ENABLE_MALLOC_SINGLETON=ON -DUA_ENABLE_PUBSUB_ETH_UADP=ON ..
        make -j4 pubsub_TSN_loopback_single_thread
@@ -100,12 +116,12 @@ The generated binaries are generated in build/bin/ folder
 TWO WAY COMMUNICATION
 ============================================================================================================
     For Ethernet(Without logs) For long run:
-    ./pubsub_TSN_publisher_multiple_thread -interface <interfaceName> -disableSoTxtime -operBaseTime /sys/class/net/<portName>/ieee8021ST/OperBaseTime -monotonicOffset /run/ptp_wc_mon_offset -cycleTimeInMsec 0.5 -enableBlockingSocket -subAppPriority 99 -pubAppPriority - Run in node 1
+    ./pubsub_TSN_publisher_multiple_thread -interface <interfaceName> -disableSoTxtime -operBaseTime /sys/class/net/<portName>/ieee8021ST/OperBaseTime -monotonicOffset /run/ptp_wc_mon_offset -cycleTimeInMsec 0.5 -enableBlockingSocket -subAppPriority 99 -pubAppPriority 98 - Run in node 1
 
     ./pubsub_TSN_loopback_single_thread -interface <interfaceName> -disableSoTxtime -enableBlockingSocket -operBaseTime /sys/class/net/<portName>/ieee8021ST/OperBaseTime -monotonicOffset /run/ptp_wc_mon_offset -cycleTimeInMsec 0.5 -pubSubAppPriority 99  - Run in node 2
 
     For Ethernet:(With logs - Provide the counterdata and its time which helps to identify the roundtrip time): For Short run
-    ./pubsub_TSN_publisher_multiple_thread -interface <interfaceName> -disableSoTxtime -operBaseTime /sys/class/net/<portName>/ieee8021ST/OperBaseTime -monotonicOffset /run/ptp_wc_mon_offset -cycleTimeInMsec 0.5 -enableBlockingSocket -enableCsvLog -subAppPriority 99 -pubAppPriority - Run in node 1
+    ./pubsub_TSN_publisher_multiple_thread -interface <interfaceName> -disableSoTxtime -operBaseTime /sys/class/net/<portName>/ieee8021ST/OperBaseTime -monotonicOffset /run/ptp_wc_mon_offset -cycleTimeInMsec 0.5 -enableBlockingSocket -enableCsvLog -subAppPriority 99 -pubAppPriority 98 - Run in node 1
 
     ./pubsub_TSN_loopback_single_thread -interface <interfaceName> -disableSoTxtime -enableBlockingSocket -operBaseTime /sys/class/net/<portName>/ieee8021ST/OperBaseTime -monotonicOffset /run/ptp_wc_mon_offset -cycleTimeInMsec 0.5 -enableCsvLog -pubSubAppPriority 99  - Run in node 2
 
@@ -113,12 +129,12 @@ TWO WAY COMMUNICATION
 
     For UDP(Without logs) For long run:
     For UDP only one change need to be done before running that is need to provide the interface ip address as an input for -interface option
-    ./pubsub_TSN_publisher_multiple_thread -interface <VlanIpAddress> -disableSoTxtime -operBaseTime /sys/class/net/<portName>/ieee8021ST/OperBaseTime -monotonicOffset /run/ptp_wc_mon_offset -cycleTimeInMsec 0.5 -enableBlockingSocket -subAppPriority 99 -pubAppPriority - Run in node 1
+    ./pubsub_TSN_publisher_multiple_thread -interface <VlanIpAddress> -disableSoTxtime -operBaseTime /sys/class/net/<portName>/ieee8021ST/OperBaseTime -monotonicOffset /run/ptp_wc_mon_offset -cycleTimeInMsec 0.5 -enableBlockingSocket -subAppPriority 99 -pubAppPriority 98 - Run in node 1
 
     ./pubsub_TSN_loopback_single_thread -interface <VlanIpAddress>  -disableSoTxtime -enableBlockingSocket -operBaseTime /sys/class/net/<portName>/ieee8021ST/OperBaseTime -monotonicOffset /run/ptp_wc_mon_offset -cycleTimeInMsec 0.5 -pubSubAppPriority 99  - Run in node 2
 
     For UDP:(With logs - Provide the counterdata and its time which helps to identify the roundtrip time): For Short run
-    ./pubsub_TSN_publisher_multiple_thread -interface <VlanIpAddress> -disableSoTxtime -operBaseTime /sys/class/net/<portName>/ieee8021ST/OperBaseTime -monotonicOffset /run/ptp_wc_mon_offset -cycleTimeInMsec 0.5 -enableBlockingSocket -enableCsvLog -subAppPriority 99 -pubAppPriority - Run in node 1
+    ./pubsub_TSN_publisher_multiple_thread -interface <VlanIpAddress> -disableSoTxtime -operBaseTime /sys/class/net/<portName>/ieee8021ST/OperBaseTime -monotonicOffset /run/ptp_wc_mon_offset -cycleTimeInMsec 0.5 -enableBlockingSocket -enableCsvLog -subAppPriority 99 -pubAppPriority 98 - Run in node 1
 
     ./pubsub_TSN_loopback_single_thread -interface <VlanIpAddress>  -disableSoTxtime -enableBlockingSocket -operBaseTime /sys/class/net/<portName>/ieee8021ST/OperBaseTime -monotonicOffset /run/ptp_wc_mon_offset -cycleTimeInMsec 0.5 -enableCsvLog -pubSubAppPriority 99  - Run in node 2
 
