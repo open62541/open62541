@@ -695,7 +695,7 @@ endif()
 
 file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated")
 configure_file(include/open62541/config.h.in ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h)
-configure_file(open62541.pc.in ${PROJECT_BINARY_DIR}/src_generated/open62541.pc @ONLY)
+configure_file(tools/open62541.pc.in ${PROJECT_BINARY_DIR}/src_generated/open62541.pc @ONLY)
 
 if(UA_ENABLE_DISCOVERY_MULTICAST)
   include(GenerateExportHeader)
