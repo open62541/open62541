@@ -23,7 +23,6 @@
 #define WRITER_GROUP_ID          100     /* Writer group Id  */
 #define PUBLISHER_DATA           42      /* Published data */
 #define PUBLISHVARIABLE_NODEID   1000    /* Published data nodeId */
-#define SUBSCRIBEOBJECT_NODEID   1001    /* Object nodeId */
 #define SUBSCRIBEVARIABLE_NODEID 1002    /* Subscribed data nodeId */
 #define READERGROUP_COUNT        2       /* Value to add readergroup to connection */
 #define CHECK_READERGROUP_COUNT  3       /* Value to check readergroup count */
@@ -35,6 +34,56 @@ UA_NodeId connectionId;
 UA_NodeId readerGroupId;
 UA_NodeId publishedDataSetId;
 
+/* Nodes in the information model */
+UA_NodeId folderId;
+UA_NodeId nodeId32;
+UA_NodeId nodeId64;
+UA_NodeId nodeIdDateTime;
+
+static void addVariables(void) {
+    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+    UA_QualifiedName folderBrowseName;
+    oAttr.displayName = UA_LOCALIZEDTEXT ("en-US", "Subscribed Variables");
+    folderBrowseName = UA_QUALIFIEDNAME (1, "Subscribed Variables");
+    UA_StatusCode res = UA_Server_addObjectNode(server, UA_NODEID_NULL,
+                                                UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                                UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                                folderBrowseName,
+                                                UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+                                                oAttr, NULL, &folderId);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    /* Variable to subscribe data */
+    UA_VariableAttributes vAttr = UA_VariableAttributes_default;
+    vAttr.displayName.locale = UA_STRING("en-US");
+    vAttr.displayName.text = UA_STRING("UInt32 Variable");
+    vAttr.dataType = UA_TYPES[UA_TYPES_UINT32].typeId;
+    res = UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, (UA_UInt32)0 + 50000), folderId,
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                    UA_QUALIFIEDNAME(1, "UInt32 Variable"),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                    vAttr, NULL, &nodeId32);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    vAttr.displayName.locale = UA_STRING("en-US");
+    vAttr.displayName.text = UA_STRING("UInt64 Variable");
+    vAttr.dataType = UA_TYPES[UA_TYPES_UINT64].typeId;
+    res = UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, (UA_UInt32)1 + 50001), folderId,
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                    UA_QUALIFIEDNAME(1, "UInt64 Variable"),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                    vAttr, NULL, &nodeId64);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    vAttr.description = UA_LOCALIZEDTEXT ("en-US", "DateTime");
+    vAttr.displayName = UA_LOCALIZEDTEXT ("en-US", "DateTime");
+    vAttr.dataType    = UA_TYPES[UA_TYPES_DATETIME].typeId;
+    res = UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, (UA_UInt32)1 + 50002), folderId,
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),  UA_QUALIFIEDNAME(1, "DateTime"),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vAttr, NULL, &nodeIdDateTime);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+}
+
 /* setup() is to create an environment for test cases */
 static void setup(void) {
     /*Add setup by creating new server with valid configuration */
@@ -42,11 +91,11 @@ static void setup(void) {
     config = UA_Server_getConfig(server);
     UA_ServerConfig_setMinimal(config, UA_SUBSCRIBER_PORT, NULL);
     UA_Server_run_startup(server);
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer *) UA_malloc(sizeof(UA_PubSubTransportLayer));
-    if(!config->pubsubTransportLayers) {
-        UA_ServerConfig_clean(config);
-    }
 
+    addVariables();
+
+    config->pubsubTransportLayers = (UA_PubSubTransportLayer*)
+        UA_malloc(sizeof(UA_PubSubTransportLayer));
     config->pubsubTransportLayers[0] = UA_PubSubTransportLayerUDPMP();
     config->pubsubTransportLayersSize++;
 
@@ -68,6 +117,29 @@ static void teardown(void) {
     /*Call server delete functions */
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
+}
+
+static void checkReceived(void) {
+    /* Read data sent by the Publisher */
+    UA_Variant publishedNodeData;
+    UA_Variant_init(&publishedNodeData);
+    UA_StatusCode retVal =
+        UA_Server_readValue(server, UA_NODEID_NUMERIC(1, PUBLISHVARIABLE_NODEID),
+                            &publishedNodeData);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    /* Read data received by the Subscriber */
+    UA_Variant subscribedNodeData;
+    UA_Variant_init(&subscribedNodeData);
+    retVal = UA_Server_readValue(server, UA_NODEID_NUMERIC(1, SUBSCRIBEVARIABLE_NODEID),
+                                 &subscribedNodeData);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    /* Check if data sent from Publisher is being received by Subscriber */
+    ck_assert_int_eq(*(UA_UInt32 *)publishedNodeData.data,
+                     *(UA_UInt32 *)subscribedNodeData.data);
+    UA_Variant_clear(&subscribedNodeData);
+    UA_Variant_clear(&publishedNodeData);
 }
 
 START_TEST(AddReaderGroupWithValidConfiguration) {
@@ -436,37 +508,15 @@ START_TEST(UpdateDataSetReaderConfigWithValidConfiguration){
         dataSetreaderConfig.publisherId.data = &publisherIdentifier;
         dataSetreaderConfig.writerGroupId    = 100;
         dataSetreaderConfig.dataSetWriterId  = 62541;
-        UA_NodeId folderId;
-        UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
-        UA_QualifiedName folderBrowseName;
-        oAttr.displayName = UA_LOCALIZEDTEXT ("en-US", "Subscribed Variables");
-        folderBrowseName = UA_QUALIFIEDNAME (1, "Subscribed Variables");
-        UA_Server_addObjectNode (server, UA_NODEID_NULL,
-                                 UA_NODEID_NUMERIC (0, UA_NS0ID_OBJECTSFOLDER),
-                                 UA_NODEID_NUMERIC (0, UA_NS0ID_ORGANIZES),
-                                 folderBrowseName, UA_NODEID_NUMERIC (0,
-                                 UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
+
         dataSetreaderConfig.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize = 1;
         dataSetreaderConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables = (UA_FieldTargetVariable *)
             UA_calloc(dataSetreaderConfig.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize, sizeof(UA_FieldTargetVariable));
-        /* Variable to subscribe data */
-        UA_VariableAttributes vAttr = UA_VariableAttributes_default;
-        vAttr.displayName.locale = UA_STRING("en-US");
-        vAttr.displayName.text = UA_STRING("UInt32 Variable");
-        vAttr.dataType = UA_TYPES[UA_TYPES_UINT32].typeId;
-
-        UA_NodeId nodeId1;
-        retVal |= UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, (UA_UInt32)0 + 50000),
-                                            folderId,
-                                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                                            UA_QUALIFIEDNAME(1, "UInt32 Variable"),
-                                            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
-                                            vAttr, NULL, &nodeId1);
 
         /* For creating Targetvariables */
         UA_FieldTargetDataType_init(&dataSetreaderConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[0].targetVariable);
         dataSetreaderConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[0].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
-        dataSetreaderConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[0].targetVariable.targetNodeId = nodeId1;
+        dataSetreaderConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[0].targetVariable.targetNodeId = nodeId32;
         retVal |= UA_Server_addDataSetReader(server, localreaderGroup,
                                              &dataSetreaderConfig, &localDataSetReaderId);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -487,23 +537,12 @@ START_TEST(UpdateDataSetReaderConfigWithValidConfiguration){
         dataSetreaderConfig.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize = 2;
         dataSetreaderConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables = (UA_FieldTargetVariable *)
             UA_realloc(dataSetreaderConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables, 2*sizeof(UA_FieldTargetVariable));
-        vAttr.displayName.locale = UA_STRING("en-US");
-        vAttr.displayName.text = UA_STRING("UInt64 Variable");
-        vAttr.dataType = UA_TYPES[UA_TYPES_UINT64].typeId;
 
-        UA_NodeId nodeId2;
-        retVal |= UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, (UA_UInt32)1 + 50000),
-                                            folderId,
-                                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                                            UA_QUALIFIEDNAME(1, "UInt64 Variable"),
-                                            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
-                                            vAttr, NULL, &nodeId2);
         UA_FieldTargetDataType_init(&dataSetreaderConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[1].targetVariable);
         dataSetreaderConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[1].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
-        dataSetreaderConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[1].targetVariable.targetNodeId = nodeId2;
+        dataSetreaderConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[1].targetVariable.targetNodeId = nodeId64;
 
-        retVal |=  UA_Server_DataSetReader_updateConfig(server, localDataSetReaderId,
-                                                        localreaderGroup, &dataSetreaderConfig);
+        retVal |=  UA_Server_DataSetReader_updateConfig(server, localDataSetReaderId, localreaderGroup, &dataSetreaderConfig);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         ck_assert_int_eq(2, localDataSetReader->config.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize);
         UA_free(dataSetreaderConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables);
@@ -598,40 +637,6 @@ START_TEST(SinglePublishSubscribeDateTime) {
         pMetaData->fields[0].builtInType = UA_NS0ID_DATETIME;
         pMetaData->fields[0].valueRank = -1; /* scalar */
 
-        /* Add Subscribed Variables */
-        UA_NodeId folderId;
-        UA_NodeId newnodeId;
-        UA_String folderName = readerConfig.dataSetMetaData.name;
-        UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
-        UA_QualifiedName folderBrowseName;
-        if (folderName.length > 0) {
-            oAttr.displayName.locale = UA_STRING ("en-US");
-            oAttr.displayName.text = folderName;
-            folderBrowseName.namespaceIndex = 1;
-            folderBrowseName.name = folderName;
-          }
-        else {
-            oAttr.displayName = UA_LOCALIZEDTEXT ("en-US", "Subscribed Variables");
-            folderBrowseName = UA_QUALIFIEDNAME (1, "Subscribed Variables");
-        }
-
-        UA_Server_addObjectNode (server, UA_NODEID_NULL,
-                                 UA_NODEID_NUMERIC (0, UA_NS0ID_OBJECTSFOLDER),
-                                 UA_NODEID_NUMERIC (0, UA_NS0ID_ORGANIZES),
-                                 folderBrowseName, UA_NODEID_NUMERIC (0,
-                                 UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
-
-        /* Variable to subscribe data */
-        UA_VariableAttributes vAttr = UA_VariableAttributes_default;
-        vAttr.description = UA_LOCALIZEDTEXT ("en-US", "DateTime");
-        vAttr.displayName = UA_LOCALIZEDTEXT ("en-US", "DateTime");
-        vAttr.dataType    = UA_TYPES[UA_TYPES_DATETIME].typeId;
-        retVal = UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, SUBSCRIBEVARIABLE_NODEID),
-                                           folderId,
-                                           UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),  UA_QUALIFIEDNAME(1, "DateTime"),
-                                           UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vAttr, NULL, &newnodeId);
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-
         readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize = 1;
         readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables     = (UA_FieldTargetVariable *)
             UA_calloc(readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize, sizeof(UA_FieldTargetVariable));
@@ -639,11 +644,11 @@ START_TEST(SinglePublishSubscribeDateTime) {
         /* For creating Targetvariable */
         UA_FieldTargetDataType_init(&readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[0].targetVariable);
         readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[0].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
-        readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[0].targetVariable.targetNodeId = newnodeId;
-        retVal |= UA_Server_addDataSetReader(server, readerGroupId, &readerConfig,
-                                             &readerIdentifier);
+        readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[0].targetVariable.targetNodeId = nodeIdDateTime;
+        retVal |= UA_Server_addDataSetReader(server, readerGroupId, &readerConfig, &readerIdentifier);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         UA_free(readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables);
+
         /* run server - publisher and subscriber */
         UA_Server_run_iterate(server,true);
         UA_Server_run_iterate(server,true);
@@ -758,37 +763,15 @@ START_TEST(SinglePublishSubscribeInt32) {
         retVal |= UA_Server_addDataSetReader(server, readerGroupId, &readerConfig,
                                              &readerIdentifier);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
         /* Add Subscribed Variables */
-        UA_NodeId folderId;
-        UA_NodeId newnodeId;
-        UA_String folderName      = readerConfig.dataSetMetaData.name;
-        UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
-        UA_QualifiedName folderBrowseName;
-        if (folderName.length > 0) {
-            oAttr.displayName.locale        = UA_STRING ("en-US");
-            oAttr.displayName.text          = folderName;
-            folderBrowseName.namespaceIndex = 1;
-            folderBrowseName.name           = folderName;
-        }
-        else {
-            oAttr.displayName = UA_LOCALIZEDTEXT ("en-US", "Subscribed Variables");
-            folderBrowseName = UA_QUALIFIEDNAME (1, "Subscribed Variables");
-        }
-
-        retVal = UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, SUBSCRIBEOBJECT_NODEID),
-                                         UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                                         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                                         folderBrowseName, UA_NODEID_NUMERIC(0,
-                                         UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-
         /* Variable to subscribe data */
+        UA_NodeId newnodeId;
         UA_VariableAttributes vAttr = UA_VariableAttributes_default;
         vAttr.description = UA_LOCALIZEDTEXT ("en-US", "Subscribed Int32");
         vAttr.displayName = UA_LOCALIZEDTEXT ("en-US", "Subscribed Int32");
         vAttr.dataType    = UA_TYPES[UA_TYPES_INT32].typeId;
-        retVal = UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, SUBSCRIBEVARIABLE_NODEID),
-                                           UA_NODEID_NUMERIC(1, SUBSCRIBEOBJECT_NODEID),
+        retVal = UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, SUBSCRIBEVARIABLE_NODEID), folderId,
                                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),  UA_QUALIFIEDNAME(1, "Subscribed Int32"),
                                            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vAttr, NULL, &newnodeId);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -805,22 +788,10 @@ START_TEST(SinglePublishSubscribeInt32) {
         UA_free(pMetaData->fields);
         /* run server - publisher and subscriber */
         UA_Server_run_iterate(server,true);
+        UA_Server_run_iterate(server,true);
 
-        /* Read data sent by the Publisher */
-        UA_Variant *publishedNodeData = UA_Variant_new();
-        retVal                        = UA_Server_readValue(server, UA_NODEID_NUMERIC(1, PUBLISHVARIABLE_NODEID), publishedNodeData);
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-
-        /* Read data received by the Subscriber */
-        UA_Variant *subscribedNodeData = UA_Variant_new();
-        retVal                         = UA_Server_readValue(server, UA_NODEID_NUMERIC(1, SUBSCRIBEVARIABLE_NODEID), subscribedNodeData);
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-
-        /* Check if data sent from Publisher is being received by Subscriber */
-        ck_assert_int_eq(*(UA_Int32 *)publishedNodeData->data, *(UA_Int32 *)subscribedNodeData->data);
-        UA_Variant_delete(subscribedNodeData);
-        UA_Variant_delete(publishedNodeData);
-    } END_TEST
+        checkReceived();
+} END_TEST
 
 START_TEST(SinglePublishSubscribeInt64) {
         /* To check status after running both publisher and subscriber */
@@ -930,37 +901,15 @@ START_TEST(SinglePublishSubscribeInt64) {
         retVal |= UA_Server_addDataSetReader(server, readerGroupId, &readerConfig,
                                              &readerIdentifier);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
         /* Add Subscribed Variables */
-        UA_NodeId folderId;
-        UA_NodeId newnodeId;
-        UA_String folderName      = readerConfig.dataSetMetaData.name;
-        UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
-        UA_QualifiedName folderBrowseName;
-        if (folderName.length > 0) {
-            oAttr.displayName.locale        = UA_STRING ("en-US");
-            oAttr.displayName.text          = folderName;
-            folderBrowseName.namespaceIndex = 1;
-            folderBrowseName.name           = folderName;
-        }
-        else {
-            oAttr.displayName = UA_LOCALIZEDTEXT ("en-US", "Subscribed Variables");
-            folderBrowseName = UA_QUALIFIEDNAME (1, "Subscribed Variables");
-        }
-
-        retVal = UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, SUBSCRIBEOBJECT_NODEID),
-                                         UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                                         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                                         folderBrowseName, UA_NODEID_NUMERIC(0,
-                                         UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-
         /* Variable to subscribe data */
+        UA_NodeId newnodeId;
         UA_VariableAttributes vAttr = UA_VariableAttributes_default;
         vAttr.description = UA_LOCALIZEDTEXT ("en-US", "Subscribed Int64");
         vAttr.displayName = UA_LOCALIZEDTEXT ("en-US", "Subscribed Int64");
         vAttr.dataType    = UA_TYPES[UA_TYPES_INT64].typeId;
-        retVal = UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, SUBSCRIBEVARIABLE_NODEID),
-                                           UA_NODEID_NUMERIC(1, SUBSCRIBEOBJECT_NODEID),
+        retVal = UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, SUBSCRIBEVARIABLE_NODEID), folderId,
                                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),  UA_QUALIFIEDNAME(1, "Subscribed Int64"),
                                            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vAttr, NULL, &newnodeId);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -977,22 +926,10 @@ START_TEST(SinglePublishSubscribeInt64) {
         UA_free(pMetaData->fields);
         /* run server - publisher and subscriber */
         UA_Server_run_iterate(server,true);
+        UA_Server_run_iterate(server,true);
 
-        /* Read data sent by the Publisher */
-        UA_Variant *publishedNodeData = UA_Variant_new();
-        retVal                        = UA_Server_readValue(server, UA_NODEID_NUMERIC(1, PUBLISHVARIABLE_NODEID), publishedNodeData);
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-
-        /* Read data received by the Subscriber */
-        UA_Variant *subscribedNodeData = UA_Variant_new();
-        retVal                         = UA_Server_readValue(server, UA_NODEID_NUMERIC(1, SUBSCRIBEVARIABLE_NODEID), subscribedNodeData);
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-
-        /* Check if data sent from Publisher is being received by Subscriber */
-        ck_assert_int_eq(*(UA_Int64 *)publishedNodeData->data, *(UA_Int64 *)subscribedNodeData->data);
-        UA_Variant_delete(subscribedNodeData);
-        UA_Variant_delete(publishedNodeData);
-    } END_TEST
+        checkReceived();
+} END_TEST
 
 START_TEST(SinglePublishSubscribeBool) {
         /* To check status after running both publisher and subscriber */
@@ -1102,37 +1039,15 @@ START_TEST(SinglePublishSubscribeBool) {
         retVal |= UA_Server_addDataSetReader(server, readerGroupId, &readerConfig,
                                              &readerIdentifier);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
         /* Add Subscribed Variables */
-        UA_NodeId folderId;
-        UA_NodeId newnodeId;
-        UA_String folderName      = readerConfig.dataSetMetaData.name;
-        UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
-        UA_QualifiedName folderBrowseName;
-        if (folderName.length > 0) {
-            oAttr.displayName.locale        = UA_STRING ("en-US");
-            oAttr.displayName.text          = folderName;
-            folderBrowseName.namespaceIndex = 1;
-            folderBrowseName.name           = folderName;
-        }
-        else {
-            oAttr.displayName = UA_LOCALIZEDTEXT ("en-US", "Subscribed Variables");
-            folderBrowseName = UA_QUALIFIEDNAME (1, "Subscribed Variables");
-        }
-
-        retVal = UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, SUBSCRIBEOBJECT_NODEID),
-                                         UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                                         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                                         folderBrowseName, UA_NODEID_NUMERIC(0,
-                                         UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-
         /* Variable to subscribe data */
+        UA_NodeId newnodeId;
         UA_VariableAttributes vAttr = UA_VariableAttributes_default;
         vAttr.description = UA_LOCALIZEDTEXT ("en-US", "Subscribed Bool");
         vAttr.displayName = UA_LOCALIZEDTEXT ("en-US", "Subscribed Bool");
         vAttr.dataType    = UA_TYPES[UA_TYPES_BOOLEAN].typeId;
-        retVal = UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, SUBSCRIBEVARIABLE_NODEID),
-                                           UA_NODEID_NUMERIC(1, SUBSCRIBEOBJECT_NODEID),
+        retVal = UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, SUBSCRIBEVARIABLE_NODEID), folderId,
                                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),  UA_QUALIFIEDNAME(1, "Subscribed Bool"),
                                            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vAttr, NULL, &newnodeId);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -1149,22 +1064,10 @@ START_TEST(SinglePublishSubscribeBool) {
         UA_free(pMetaData->fields);
         /* run server - publisher and subscriber */
         UA_Server_run_iterate(server,true);
+        UA_Server_run_iterate(server,true);
 
-        /* Read data sent by the Publisher */
-        UA_Variant *publishedNodeData = UA_Variant_new();
-        retVal                        = UA_Server_readValue(server, UA_NODEID_NUMERIC(1, PUBLISHVARIABLE_NODEID), publishedNodeData);
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-
-        /* Read data received by the Subscriber */
-        UA_Variant *subscribedNodeData = UA_Variant_new();
-        retVal                         = UA_Server_readValue(server, UA_NODEID_NUMERIC(1, SUBSCRIBEVARIABLE_NODEID), subscribedNodeData);
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-
-        /* Check if data sent from Publisher is being received by Subscriber */
-        ck_assert_int_eq(*(UA_Boolean *)publishedNodeData->data, *(UA_Boolean *)subscribedNodeData->data);
-        UA_Variant_delete(subscribedNodeData);
-        UA_Variant_delete(publishedNodeData);
-    } END_TEST
+        checkReceived();
+} END_TEST
 
 START_TEST(SinglePublishSubscribewithValidIdentifiers) {
         /* To check status after running both publisher and subscriber */
@@ -1275,37 +1178,15 @@ START_TEST(SinglePublishSubscribewithValidIdentifiers) {
         retVal |= UA_Server_addDataSetReader(server, readerGroupId, &readerConfig,
                                              &readerIdentifier);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
         /* Add Subscribed Variables */
-        UA_NodeId folderId;
-        UA_NodeId newnodeId;
-        UA_String folderName      = readerConfig.dataSetMetaData.name;
-        UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
-        UA_QualifiedName folderBrowseName;
-        if (folderName.length > 0) {
-            oAttr.displayName.locale        = UA_STRING ("en-US");
-            oAttr.displayName.text          = folderName;
-            folderBrowseName.namespaceIndex = 1;
-            folderBrowseName.name           = folderName;
-        }
-        else {
-            oAttr.displayName = UA_LOCALIZEDTEXT ("en-US", "Subscribed Variables");
-            folderBrowseName = UA_QUALIFIEDNAME (1, "Subscribed Variables");
-        }
-
-        retVal = UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, SUBSCRIBEOBJECT_NODEID),
-                                         UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                                         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                                         folderBrowseName, UA_NODEID_NUMERIC(0,
-                                         UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-
         /* Variable to subscribe data */
+        UA_NodeId newnodeId;
         UA_VariableAttributes vAttr = UA_VariableAttributes_default;
         vAttr.displayName.locale    = UA_STRING ("en-US");
         vAttr.displayName.text      = UA_STRING ("Subscribed Integer");
         vAttr.valueRank             = -1;
-        retVal = UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, SUBSCRIBEVARIABLE_NODEID),
-                                           UA_NODEID_NUMERIC(1, SUBSCRIBEOBJECT_NODEID),
+        retVal = UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, SUBSCRIBEVARIABLE_NODEID), folderId,
                                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),  UA_QUALIFIEDNAME(1, "Subscribed Integer"),
                                            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vAttr, NULL, &newnodeId);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -1322,22 +1203,10 @@ START_TEST(SinglePublishSubscribewithValidIdentifiers) {
         UA_free(pMetaData->fields);
         /* run server - publisher and subscriber */
         UA_Server_run_iterate(server,true);
+        UA_Server_run_iterate(server,true);
 
-        /* Read data sent by the Publisher */
-        UA_Variant *publishedNodeData = UA_Variant_new();
-        retVal                        = UA_Server_readValue(server, UA_NODEID_NUMERIC(1, PUBLISHVARIABLE_NODEID), publishedNodeData);
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-
-        /* Read data received by the Subscriber */
-        UA_Variant *subscribedNodeData = UA_Variant_new();
-        retVal                         = UA_Server_readValue(server, UA_NODEID_NUMERIC(1, SUBSCRIBEVARIABLE_NODEID), subscribedNodeData);
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-
-        /* Check if data sent from Publisher is being received by Subscriber */
-        ck_assert_int_eq(*(UA_UInt32 *)publishedNodeData->data, *(UA_UInt32 *)subscribedNodeData->data);
-        UA_Variant_delete(subscribedNodeData);
-        UA_Variant_delete(publishedNodeData);
-    } END_TEST
+        checkReceived();
+} END_TEST
 
 int main(void) {
     TCase *tc_add_pubsub_readergroup = tcase_create("PubSub readerGroup items handling");
