@@ -543,7 +543,7 @@ addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connec
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     if(connection->config->name.length > 512)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    UA_STACKARRAY(char, connectionName, sizeof(char) * connection->config->name.length +1);
+    char connectionName[513];
     memcpy(connectionName, connection->config->name.data, connection->config->name.length);
     connectionName[connection->config->name.length] = '\0';
     //This code block must use a lock
