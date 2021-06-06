@@ -522,6 +522,11 @@ UA_EXPANDEDNODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex, const char *chars) {
     id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id;
 }
 
+static UA_INLINE UA_ExpandedNodeId
+UA_EXPANDEDNODEID_NODEID(UA_NodeId nodeId) {
+    UA_ExpandedNodeId id = {0}; id.nodeId = nodeId; return id;
+}
+
 /* Does the ExpandedNodeId point to a local node? That is, are namespaceUri and
  * serverIndex empty? */
 UA_Boolean UA_EXPORT
