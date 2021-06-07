@@ -19,6 +19,11 @@ from datatypes import NodeId, valueIsInternalType
 from nodes import *
 from opaque_type_mapping import opaque_type_mapping
 
+from type_parser import CSVBSDTypeParser
+import io
+import tempfile
+import base64
+
 __all__ = ['NodeSet', 'getSubTypesOf']
 
 logger = logging.getLogger(__name__)
@@ -397,3 +402,83 @@ class NodeSet(object):
             # Some nodes in the full nodeset do not have a parent. So accept this and do not show an error.
             #else:
             #    raise RuntimeError("Node {}: HierarchicalReference (or subtype of it) to parent node is missing.".format(str(node.id)))
+
+    def generateParser(self, existing, infiles , bsdFile):
+        self.all_files = []
+        import_bsd = []
+        type_bsd = []
+        for xmlfile in existing:
+            if xmlfile.name == "deps/ua-nodeset/DI/Opc.Ua.Di.NodeSet2.xml":
+                continue
+            nodeset_base = open(xmlfile.name, "rb")
+            #fileContent = xmlfile.read()
+            fileContent = nodeset_base.read()
+            # Remove BOM since the dom parser cannot handle it on python 3 windows
+            if fileContent.startswith( codecs.BOM_UTF8 ):
+                fileContent = fileContent.lstrip( codecs.BOM_UTF8 )
+            if (sys.version_info >= (3, 0)):
+                fileContent = fileContent.decode("utf-8")
+
+            # Remove the uax namespace from tags. UaModeler adds this namespace to some elements
+            fileContent = re.sub(r"<([/]?)uax:(.+?)([/]?)>", "<\g<1>\g<2>\g<3>>", fileContent)
+
+            nodesets = dom.parseString(fileContent).getElementsByTagName("UANodeSet")
+            if len(nodesets) == 0 or len(nodesets) > 1:
+                raise Exception("contains no or more then 1 nodeset")
+            nodeset = nodesets[0]
+            variableNodes = nodeset.getElementsByTagName("UAVariable")
+            for nd in variableNodes:
+                if (nd.hasAttribute("SymbolicName") and (re.match(r".*_BinarySchema", nd.attributes["SymbolicName"].nodeValue) or nd.attributes["SymbolicName"].nodeValue == "TypeDictionary_BinarySchema")) or (nd.hasAttribute("ParentNodeId") and not nd.hasAttribute("SymbolicName") and re.fullmatch(r"i=93", nd.attributes["ParentNodeId"].nodeValue)):
+                    type_content = nd.getElementsByTagName("Value")[0].getElementsByTagName("ByteString")[0]
+                    f = tempfile.NamedTemporaryFile(delete=False, suffix='.bsd')
+                    f.write(base64.b64decode(type_content.firstChild.nodeValue))
+                    f.flush()
+                    self.all_files.append(f.name)
+                    f.close()
+                    bsd = "UA_TYPES#" + f.name
+                    import_bsd.append(bsd)
+        for xmlfile in infiles:
+            nodeset_base = open(xmlfile.name, "rb")
+            #fileContent = xmlfile.read()
+            fileContent = nodeset_base.read()
+            # Remove BOM since the dom parser cannot handle it on python 3 windows
+            if fileContent.startswith( codecs.BOM_UTF8 ):
+                fileContent = fileContent.lstrip( codecs.BOM_UTF8 )
+            if (sys.version_info >= (3, 0)):
+                fileContent = fileContent.decode("utf-8")
+
+            # Remove the uax namespace from tags. UaModeler adds this namespace to some elements
+            fileContent = re.sub(r"<([/]?)uax:(.+?)([/]?)>", "<\g<1>\g<2>\g<3>>", fileContent)
+
+            nodesets = dom.parseString(fileContent).getElementsByTagName("UANodeSet")
+            if len(nodesets) == 0 or len(nodesets) > 1:
+                raise Exception("contains no or more then 1 nodeset")
+            nodeset = nodesets[0]
+            variableNodes = nodeset.getElementsByTagName("UAVariable")
+            for nd in variableNodes:
+                if (nd.hasAttribute("SymbolicName") and (re.match(r".*_BinarySchema", nd.attributes["SymbolicName"].nodeValue) or nd.attributes["SymbolicName"].nodeValue == "TypeDictionary_BinarySchema")) or (nd.hasAttribute("ParentNodeId") and not nd.hasAttribute("SymbolicName") and re.fullmatch(r"i=93", nd.attributes["ParentNodeId"].nodeValue)):
+                    type_content = nd.getElementsByTagName("Value")[0].getElementsByTagName("ByteString")[0]
+                    f = tempfile.NamedTemporaryFile(suffix='.bsd')
+                    f.write(base64.b64decode(type_content.firstChild.nodeValue))
+                    f.flush()
+                    f.seek(0)
+                    bf = io.BufferedReader(f)
+                    self.all_files.append(f.name)
+                    tmp = io.TextIOWrapper(bf, 'UTF-8', newline='\n')
+                    tmp.mode = 'r'
+                    type_bsd.append(tmp)
+
+        opaque_map = []
+        selected_types = []
+        type_csv = []
+        no_builtin = True
+        outname = "outname"
+
+        for bsd in bsdFile:
+            type_bsd.append(bsd)
+
+        self.parser = CSVBSDTypeParser(opaque_map, selected_types, no_builtin, outname, import_bsd,
+                                    type_bsd, type_csv, self.namespaces)
+        self.parser.create_types()
+
+        nodeset_base.close()
