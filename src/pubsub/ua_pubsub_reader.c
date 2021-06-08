@@ -775,8 +775,8 @@ UA_Server_setReaderGroupDisabled(UA_Server *server, const UA_NodeId readerGroupI
 
 static UA_StatusCode
 checkReaderIdentifier(UA_Server *server, UA_NetworkMessage *pMsg, UA_DataSetReader *reader) {
-    if(!pMsg->groupHeaderEnabled &&
-       !pMsg->groupHeader.writerGroupIdEnabled &&
+    if(!pMsg->groupHeaderEnabled ||
+       !pMsg->groupHeader.writerGroupIdEnabled ||
        !pMsg->payloadHeaderEnabled) {
         UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
                     "Cannot process DataSetReader without WriterGroup"
