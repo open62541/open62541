@@ -975,9 +975,9 @@ START_TEST(Test_many_components) {
     /*  Writers            : Interval  -> Readers            : Timeout
         ----------------------------------------------------------------------------------
         Conn 1 WG 1 - DSW1 : 30        -> Conn 2 RG 1 - DSR1 : 40
-        Conn 1 WG 1 - DSW2 : 30        -> Conn 2 RG 2 - DSR2 : 45
+        Conn 1 WG 1 - DSW2 : 30        -> Conn 2 RG 2 - DSR1 : 45
         Conn 2 WG 1 - DSW1 : 20        -> Conn 1 RG 1 - DSR1 : 25
-        Conn 2 WG 2 - DSW2 : 10        -> Conn 3 RG 1 - DSR1 : 25
+        Conn 2 WG 2 - DSW1 : 10        -> Conn 3 RG 1 - DSR1 : 25
     */
 
     UA_ServerConfig *config = UA_Server_getConfig(server);

@@ -793,6 +793,9 @@ checkReaderIdentifier(UA_Server *server, UA_NetworkMessage *pMsg, UA_DataSetRead
             break;
         return UA_STATUSCODE_BADNOTFOUND;
     case UA_PUBLISHERDATATYPE_UINT16:
+                UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                    "FEM: PublisherId = %u vs %u", (UA_UInt32) pMsg->publisherId.publisherIdUInt16, (UA_UInt32) *(UA_UInt16*)reader->config.publisherId.data);
+
         if(reader->config.publisherId.type == &UA_TYPES[UA_TYPES_UINT16] &&
            pMsg->publisherIdType == UA_PUBLISHERDATATYPE_UINT16 &&
            pMsg->publisherId.publisherIdUInt16 == *(UA_UInt16*)reader->config.publisherId.data)
@@ -821,12 +824,24 @@ checkReaderIdentifier(UA_Server *server, UA_NetworkMessage *pMsg, UA_DataSetRead
         return UA_STATUSCODE_BADNOTFOUND;
     }
 
+        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                    "FEM: WriterGroupId = %u vs %u", (UA_UInt32) pMsg->groupHeader.writerGroupId, (UA_UInt32) reader->config.writerGroupId);
+
+        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                    "FEM: DataSetWriterId = %u vs %u", (UA_UInt32) *pMsg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds, (UA_UInt32) reader->config.dataSetWriterId);
+        if (pMsg->payloadHeader.dataSetPayloadHeader.count == 2) {
+            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                    "FEM: DataSetWriterId = %u vs %u", (UA_UInt32) pMsg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds[1], (UA_UInt32) reader->config.dataSetWriterId);
+        }
     if((reader->config.writerGroupId == pMsg->groupHeader.writerGroupId) &&
        (reader->config.dataSetWriterId == *pMsg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds)) {
         UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "DataSetReader found. Process NetworkMessage");
         return UA_STATUSCODE_GOOD;
     }
+
+        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                    "FEM: return bad not found");
 
     return UA_STATUSCODE_BADNOTFOUND;
 }
@@ -1704,6 +1719,9 @@ UA_Server_processNetworkMessage(UA_Server *server, UA_PubSubConnection *connecti
             if(retval == UA_STATUSCODE_GOOD) {
                 processed = true;
                 processMessageWithReader(server, readerGroup, reader, msg);
+        } else {
+            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                    "checkReaderIdentifier() returned %u - but we still return good", retval);
             }
         }
     }
@@ -1849,6 +1867,9 @@ UA_StatusCode
 decodeAndProcessNetworkMessage(UA_Server *server, UA_ReaderGroup *readerGroup,
                                UA_PubSubConnection *connection, size_t previousPosition,
                                UA_ByteString *buffer, size_t *currentPosition) {
+    UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "connection = %.*s", (int) connection->config->name.length, 
+        (char*) connection->config->name.data);
+
     size_t paddingBytes = 0;
     UA_NetworkMessage currentNetworkMessage;
     memset(&currentNetworkMessage, 0, sizeof(UA_NetworkMessage));
