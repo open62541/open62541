@@ -416,12 +416,19 @@ UA_Server_removeCallback(UA_Server *server, UA_UInt64 callbackId);
 
 /**
  * Session Handling
- * ---------------- */
+ * ----------------
+ * A new session is announced via the AccessControl plugin. The session
+ * identifier is forwarded to the relevant callbacks back into userland. The
+ * following methods enable an interaction with a particular session. */
 
-/* Besides the user-definable session context pointer, so-called session
- * parameters are a way to attach key-value parameters to a session. This
- * enables "plugins" to attach data to a session without impacting the
- * user-definedable session context pointer. */
+/* Manually close a session */
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_closeSession(UA_Server *server, const UA_NodeId *sessionId);
+
+/* Session Parameters: Besides the user-definable session context pointer,
+ * so-called session parameters are a way to attach key-value parameters to a
+ * session. This enables "plugins" to attach data to a session without impacting
+ * the user-definedable session context pointer. */
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_setSessionParameter(UA_Server *server, const UA_NodeId *sessionId,
