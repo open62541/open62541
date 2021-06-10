@@ -789,7 +789,7 @@ UA_StatusCode UA_EXPORT
 UA_Variant_copyRange(const UA_Variant *src, UA_Variant * UA_RESTRICT dst,
                      const UA_NumericRange range);
 
-/* Insert a range of data into an existing variant. The data array can't be
+/* Insert a range of data into an existing variant. The data array cannot be
  * reused afterwards if it contains types without a fixed size (e.g. strings)
  * since the members are moved into the variant and take on its lifecycle.
  *
