@@ -29,6 +29,19 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
     /* Custom DataTypes */
     /* nothing to do */
 
+    /* Stop and delete the EventLoop */
+    if(config->eventLoop && !config->externalEventLoop) {
+        if(UA_EventLoop_getState(config->eventLoop) != UA_EVENTLOOPSTATE_FRESH &&
+           UA_EventLoop_getState(config->eventLoop) != UA_EVENTLOOPSTATE_STOPPED) {
+            UA_EventLoop_stop(config->eventLoop);
+            while(UA_EventLoop_getState(config->eventLoop) != UA_EVENTLOOPSTATE_STOPPED) {
+                UA_EventLoop_run(config->eventLoop, 100);
+            }
+        }
+        UA_EventLoop_delete(config->eventLoop);
+        config->eventLoop = NULL;
+    }
+
     /* Networking */
     for(size_t i = 0; i < config->networkLayersSize; ++i)
         config->networkLayers[i].clear(&config->networkLayers[i]);

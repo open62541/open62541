@@ -125,13 +125,21 @@ setDefaultConfig(UA_ServerConfig *conf) {
     if(!conf)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
+    /* NodeStore */
     if(conf->nodestore.context == NULL)
         UA_Nodestore_HashMap(&conf->nodestore);
 
-    /* --> Start setting the default static config <-- */
-    /* Allow user to set his own logger */
+    /* Logging */
     if(!conf->logger.log)
         conf->logger = UA_Log_Stdout_;
+
+    /* EventLoop */
+    if(conf->eventLoop == NULL) {
+        conf->eventLoop = UA_EventLoop_new(&conf->logger);
+        conf->externalEventLoop = false;
+    }
+
+    /* --> Start setting the default static config <-- */
 
     conf->shutdownDelay = 0.0;
 
