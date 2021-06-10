@@ -523,7 +523,7 @@ class DataTypeNode(Node):
         # An option set is at the same time also an enum, at least for the encoding below
         isOptionSet = parentType is not None and parentType.id.ns == 0 and parentType.id.i==12755
 
-        # We need to store the definition as ordered data, but can't use orderedDict
+        # We need to store the definition as ordered data, but cannot use orderedDict
         # for backward compatibility with Python 2.6 and 3.4
         enumDict = []
         typeDict = []

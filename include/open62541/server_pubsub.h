@@ -447,7 +447,7 @@ typedef enum {
  * UA_PUBSUB_RT_FIXED_LENGTH (Preview - not implemented)
  * ---> Description: All DataSetFields have a known, non-changing length. The server will pre-generate some
  * buffers and use only memcopy operations to generate requested PubSub packages.
- * ---> Requirements: DataSetFields with variable size can't be used within this mode.
+ * ---> Requirements: DataSetFields with variable size cannot be used within this mode.
  * ---> Restrictions: The configuration must be frozen and changes are not allowed while the WriterGroup is 'Operational'.
  * UA_PUBSUB_RT_DETERMINISTIC (Preview - not implemented)
  * ---> Description: -

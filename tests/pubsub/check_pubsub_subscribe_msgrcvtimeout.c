@@ -886,8 +886,8 @@ START_TEST(Test_wrong_timeout) {
 //     if (ExpectedCallbackStateChange == UA_PUBSUBSTATE_ERROR) {
 //         /*  On error we want to verify the order of DataSetReader timeouts */
 //         ck_assert(UA_NodeId_equal(pubsubComponentId, &pExpectedComponentCallbackIds[CallbackCnt]) == UA_TRUE);
-//     } /* when the state is set back to operational we can't verify the order of StateChanges, because we 
-//             can't know which DataSetReader will be operational first */
+//     } /* when the state is set back to operational we cannot verify the order of StateChanges, because we 
+//             cannot know which DataSetReader will be operational first */
 //     CallbackCnt++;
 // }
 // 

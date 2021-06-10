@@ -144,7 +144,7 @@ for ignoreFile in args.ignoreFiles:
         id = line.replace("\n", "")
         ns.hide_node(NodeId(id))
         #if not ns.hide_node(NodeId(id)):
-        #    logger.info("Can't ignore node, namespace does currently not contain a node with id " + str(id))
+        #    logger.info("Cannot ignore node, namespace does currently not contain a node with id " + str(id))
     ignoreFile.close()
 
 # Remove nodes that are not printable or contain parsing errors, such as
@@ -172,7 +172,7 @@ if args.blacklistFiles:
                 continue
             n = ns.getNodeByIDString(id)
             if n is None:
-                logger.debug("Can't blacklist node, namespace does currently not contain a node with id " + str(id))
+                logger.debug("Cannot blacklist node, namespace does currently not contain a node with id " + str(id))
             else:
                 ns.remove_node(n)
         blacklist.close()
