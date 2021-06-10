@@ -193,6 +193,22 @@ UA_Session_queuePublishReq(UA_Session *session, UA_PublishResponseEntry* entry, 
 /* Session Handling */
 
 UA_StatusCode
+UA_Server_closeSession(UA_Server *server, const UA_NodeId *sessionId) {
+    UA_LOCK(&server->serviceMutex);
+    session_list_entry *entry;
+    UA_StatusCode res = UA_STATUSCODE_BADSESSIONIDINVALID;
+    LIST_FOREACH(entry, &server->sessions, pointers) {
+        if(UA_NodeId_equal(&entry->session.sessionId, sessionId)) {
+            UA_Server_removeSession(server, entry, UA_DIAGNOSTICEVENT_CLOSE);
+            res = UA_STATUSCODE_GOOD;
+            break;
+        }
+    }
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_StatusCode
 UA_Server_setSessionParameter(UA_Server *server, const UA_NodeId *sessionId,
                               const char *name, const UA_Variant *parameter) {
     UA_LOCK(&server->serviceMutex);
