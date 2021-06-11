@@ -132,9 +132,9 @@ typedef double UA_Double;
  *
  * StatusCode
  * ^^^^^^^^^^
- * A numeric identifier for a error or condition that is associated with a value
- * or an operation. See the section :ref:`statuscodes` for the meaning of a
- * specific code. */
+ * A numeric identifier for an error or condition that is associated with a
+ * value or an operation. See the section :ref:`statuscodes` for the meaning of
+ * a specific code. */
 typedef uint32_t UA_StatusCode;
 
 /* Returns the human-readable name of the StatusCode. If no matching StatusCode

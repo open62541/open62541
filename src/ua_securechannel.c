@@ -732,7 +732,7 @@ processChunks(UA_SecureChannel *channel, void *application,
         /* Add to the decrypted queue */
         SIMPLEQ_INSERT_TAIL(&channel->decryptedChunks, chunk, pointers);
 
-        /* Check the ressource limits */
+        /* Check the resource limits */
         channel->decryptedChunksCount++;
         channel->decryptedChunksLength += chunk->bytes.length;
         if((channel->config.localMaxChunkCount != 0 &&

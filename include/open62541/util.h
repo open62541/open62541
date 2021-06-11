@@ -17,7 +17,7 @@ _UA_BEGIN_DECLS
 /**
  * Forward Declarations
  * --------------------
- * Opaque oointers used by the plugins. */
+ * Opaque pointers used by the plugins. */
 
 struct UA_Server;
 typedef struct UA_Server UA_Server;
