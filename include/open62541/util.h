@@ -37,6 +37,41 @@ typedef enum {
 } UA_TimerPolicy;
 
 /**
+ * Config Parameters
+ * -----------------
+ * A simple linked list for key-value configuration parameters. */
+
+typedef struct UA_ConfigParameter {
+    struct UA_ConfigParameter *next;
+    UA_Variant param;
+    char name[];
+} UA_ConfigParameter;
+
+/* cp must point to the start of the linked list. overrides any parameter of the
+ * same name. The variant is copied. */
+UA_EXPORT UA_StatusCode
+UA_ConfigParameter_setParameter(UA_ConfigParameter **cp, const char *name,
+                                const UA_Variant *parameter);
+
+UA_EXPORT const UA_Variant *
+UA_ConfigParameter_getParameter(UA_ConfigParameter *cp, const char *name);
+
+/* Returns NULL if the parameter is not defined or not of the right datatype */
+UA_EXPORT const UA_Variant *
+UA_ConfigParameter_getScalarParameter(UA_ConfigParameter *cp, const char *name,
+                                      const UA_DataType *type);
+UA_EXPORT const UA_Variant *
+UA_ConfigParameter_getArrayParameter(UA_ConfigParameter *cp, const char *name,
+                                     const UA_DataType *type);
+
+UA_EXPORT void
+UA_ConfigParameter_deleteParameter(UA_ConfigParameter **cp, const char *name);
+
+/* cp must point to the start of the linked list */
+UA_EXPORT void
+UA_ConfigParameter_delete(UA_ConfigParameter **cp);
+
+/**
  * Endpoint URL Parser
  * -------------------
  * The endpoint URL parser is generally useful for the implementation of network

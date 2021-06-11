@@ -49,6 +49,7 @@ typedef struct {
     UA_ByteString     serverNonce;
     UA_UInt16         availableContinuationPoints;
     ContinuationPoint *continuationPoints;
+    UA_ConfigParameter *params; /* settable parameters besides the user context */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     size_t subscriptionsSize;
     TAILQ_HEAD(, UA_Subscription) subscriptions; /* Late subscriptions that do eventually

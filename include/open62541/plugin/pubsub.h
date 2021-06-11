@@ -86,7 +86,7 @@ struct UA_PubSubChannel {
  * information and is used to identify the type of connections which can be
  * created by the TransportLayer. The server config contains a list of
  * UA_PubSubTransportLayer. Take a look in the tutorial_pubsub_connection to get
- * informations about the TransportLayer handling. */
+ * information about the TransportLayer handling. */
 
 typedef struct {
     UA_String transportProfileUri;

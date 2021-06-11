@@ -1480,7 +1480,7 @@ UA_DataSetMessage_decodeBinary(const UA_ByteString *src, size_t *offset, UA_Data
             dst->data.keyFrameData.rawFields.length = dsmSize;
             if(dsmSize == 0){
                 //TODO calculate the length of the DSM-Payload for a single DSM
-                //Problem: Size is not set and MetaData informations are needed.
+                //Problem: Size is not set and MetaData information are needed.
                 //Increase offset to avoid endless chunk loop. Needs to be fixed when
                 //pubsub security footer and signatur is enabled.
                 *offset += 1500;
