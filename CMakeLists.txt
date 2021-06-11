@@ -17,7 +17,7 @@ set(PYTHON_EXECUTABLE ${Python3_EXECUTABLE})
 find_package(Git)
 include(AssignSourceGroup)
 include(GNUInstallDirs)
-if(UA_ENABLE_PUBSUB_ENCRYPTION_TPM)
+if(UA_ENABLE_TPM2_PKCS11)
     find_library(TPM2_LIB tpm2_pkcs11)
     message(${TPM2_LIB})
 endif()
@@ -304,8 +304,8 @@ option(UA_ENABLE_PUBSUB "Enable the PubSub protocol" OFF)
 option(UA_ENABLE_PUBSUB_ENCRYPTION "Enable encryption of the PubSub payload" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_ENCRYPTION)
 
-option(UA_ENABLE_PUBSUB_ENCRYPTION_TPM "Enable encryption of the PubSub payload using TPM hardware" OFF)
-mark_as_advanced(UA_ENABLE_PUBSUB_ENCRYPTION_TPM)
+option(UA_ENABLE_TPM2_PKCS11 "Enable for encryption of the PubSub payload using TPM hardware" OFF)
+mark_as_advanced(UA_ENABLE_TPM2_PKCS11)
 
 option(UA_ENABLE_PUBSUB_INFORMATIONMODEL "Enable PubSub information model twin" OFF)
 
@@ -324,12 +324,6 @@ mark_as_advanced(UA_ENABLE_PUBSUB_BUFMALLOC)
 
 #RT and Transport PubSub settings
 option(UA_ENABLE_PUBSUB_ETH_UADP "Enable publish/subscribe UADP over Ethernet" OFF)
-
-if(UA_ENABLE_PUBSUB_ENCRYPTION)
-    if(UA_ENABLE_PUBSUB_ENCRYPTION_TPM)
-        message(FATAL_ERROR "PubSub cannot use hardware and software encryption at the same time.")
-    endif()
-endif()
 
 if(UA_ENABLE_PUBSUB_ETH_UADP)
     if(NOT CMAKE_SYSTEM MATCHES "Linux")
@@ -558,7 +552,7 @@ if(UA_ENABLE_ENCRYPTION_MBEDTLS OR UA_ENABLE_PUBSUB_ENCRYPTION)
     list(APPEND open62541_LIBRARIES ${MBEDTLS_LIBRARIES})
 endif()
 
-if(UA_ENABLE_PUBSUB_ENCRYPTION_TPM)
+if(UA_ENABLE_TPM2_PKCS11)
     list(APPEND open62541_LIBRARIES ${TPM2_LIB})
 endif()
 
@@ -973,9 +967,10 @@ list(INSERT default_plugin_sources 1
      ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_pki_mbedtls.c)
 endif()
 
-if(UA_ENABLE_PUBSUB_ENCRYPTION_TPM)
+if(UA_ENABLE_TPM2_PKCS11)
 list(INSERT default_plugin_sources 0
-     ${PROJECT_SOURCE_DIR}/plugins/crypto/pkcs11/securitypolicy_pubsub_aes128ctr_tpm.c)
+     ${PROJECT_SOURCE_DIR}/plugins/crypto/pkcs11/securitypolicy_pubsub_aes128ctr_tpm.c
+     ${PROJECT_SOURCE_DIR}/plugins/crypto/pkcs11/securitypolicy_pubsub_aes256ctr_tpm.c)
 endif()
 
 if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL OR UA_ENABLE_AMALGAMATION)

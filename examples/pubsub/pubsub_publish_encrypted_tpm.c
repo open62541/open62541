@@ -1,6 +1,9 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
+ /* Note: Have to enable UA_ENABLE_PUBSUB_ENCRYPTION and UA_ENABLE_TPM2_PKCS11
+          to run the application */
+
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pubsub_ethernet.h>
 #include <open62541/plugin/pubsub_udp.h>
@@ -16,6 +19,13 @@ char *userpin = NULL;
 unsigned long slotId = 0;
 char *encryptionKeyLabel = NULL;
 char *signingKeyLabel = NULL;
+
+/* The keys will retrieved from the pkcs11 database.
+   For passing it as argument to functions these
+   keys are declared here as NULL values. */
+UA_ByteString encryptingKey = {0, NULL};
+UA_ByteString signingKey = {0, NULL};
+UA_ByteString keyNonce = {0, NULL};
 
 static void
 addPubSubConnection(UA_Server *server, UA_String *transportProfile,
@@ -98,7 +108,7 @@ addWriterGroup(UA_Server *server) {
     UA_Server_addWriterGroup(server, connectionIdent, &writerGroupConfig, &writerGroupIdent);
     UA_Server_setWriterGroupOperational(server, writerGroupIdent);
     UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
-    UA_Server_setWriterGroupEncryptionKeysTPM(server, writerGroupIdent);
+    UA_Server_setWriterGroupEncryptionKeys(server, writerGroupIdent, 1, signingKey, encryptingKey, keyNonce);
 }
 
 static void

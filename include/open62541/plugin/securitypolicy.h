@@ -328,7 +328,7 @@ struct UA_SecurityPolicy {
  * SecurityHeader. The nonce is required for the de- and encryption and has to
  * be set in the channel context before de/encrypting. */
 
-#if defined (UA_ENABLE_PUBSUB_ENCRYPTION) || defined (UA_ENABLE_PUBSUB_ENCRYPTION_TPM)
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
 struct UA_PubSubSecurityPolicy;
 typedef struct UA_PubSubSecurityPolicy UA_PubSubSecurityPolicy;
 
@@ -369,17 +369,6 @@ struct UA_PubSubSecurityPolicy {
 
     const UA_Logger *logger;
 
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION_TPM
-    unsigned long session;
-    unsigned long key;
-    unsigned long signingKey;
-    UA_StatusCode
-    (*newContextTPM)(void *policyContext,
-                     unsigned long session,
-                     unsigned long key,
-                     unsigned long signingKey,
-                     void **wgContext);
-#endif
     /* Deletes the dynamic content of the policy */
     void (*clear)(UA_PubSubSecurityPolicy *policy);
     void *policyContext;

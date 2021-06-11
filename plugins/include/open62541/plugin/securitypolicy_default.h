@@ -57,12 +57,12 @@ UA_PubSubSecurityPolicy_Aes256Ctr(UA_PubSubSecurityPolicy *policy,
 
 #endif
 
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION_TPM
+#ifdef UA_ENABLE_TPM2_PKCS11
 
 UA_EXPORT UA_StatusCode
 UA_PubSubSecurityPolicy_Aes128CtrTPM(UA_PubSubSecurityPolicy *policy, char *userpin, unsigned long slotId,
                                      char *encryptionKeyLabel, char *signingKeyLabel, const UA_Logger *logger);
-                                     UA_EXPORT UA_StatusCode
+UA_EXPORT UA_StatusCode
 UA_PubSubSecurityPolicy_Aes256CtrTPM(UA_PubSubSecurityPolicy *policy, char *userpin, unsigned long slotId,
                                      char *encryptionKeyLabel, char *signingKeyLabel, const UA_Logger *logger);
 

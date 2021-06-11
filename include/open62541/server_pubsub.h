@@ -202,7 +202,7 @@ struct UA_PubSubConfiguration {
                                 UA_StatusCode status);
     /* TODO: maybe status code provides not enough information about the state change */
 
-#if defined(UA_ENABLE_PUBSUB_ENCRYPTION) || defined(UA_ENABLE_PUBSUB_ENCRYPTION_TPM)
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     /* PubSub security policies */
     size_t securityPoliciesSize;
     UA_PubSubSecurityPolicy *securityPolicies;
@@ -490,7 +490,7 @@ typedef struct {
      * securityMode set accordingly. The symmetric key is a runtime information
      * and has to be set via UA_Server_setWriterGroupEncryptionKey. */
     UA_MessageSecurityMode securityMode; /* via the UA_WriterGroupDataType */
-#if defined(UA_ENABLE_PUBSUB_ENCRYPTION) || defined(UA_ENABLE_PUBSUB_ENCRYPTION_TPM)
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     UA_PubSubSecurityPolicy *securityPolicy;
 #endif
 } UA_WriterGroupConfig;
@@ -541,11 +541,6 @@ UA_Server_setWriterGroupEncryptionKeys(UA_Server *server, const UA_NodeId writer
                                        const UA_ByteString signingKey,
                                        const UA_ByteString encryptingKey,
                                        const UA_ByteString keyNonce);
-#endif
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION_TPM
-/* Set the group key for the message encryption */
-UA_StatusCode UA_EXPORT
-UA_Server_setWriterGroupEncryptionKeysTPM(UA_Server *server, const UA_NodeId writerGroupIdent);
 #endif
 
 /**
