@@ -180,11 +180,16 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
 
     /* Set loop back data to your host */
 #if UA_IPV6
+    /* The Linux Kernel IPv6 socket code checks for optlen to be at least the
+     * size of an integer. However, channelDataUDPMC->enableLoopback is a
+     * boolean. In order for the code to work for IPv4 and IPv6 propagate it to
+     * an temporary integer here. */
+    UA_Int32 enable = channelDataUDPMC->enableLoopback;
     if(UA_setsockopt(newChannel->sockfd,
                      requestResult->ai_family == PF_INET6 ? IPPROTO_IPV6 : IPPROTO_IP,
                      requestResult->ai_family == PF_INET6 ? IPV6_MULTICAST_LOOP : IP_MULTICAST_LOOP,
-                     (const char *)&channelDataUDPMC->enableLoopback,
-                     sizeof (channelDataUDPMC->enableLoopback)) < 0)
+                     (const char *)&enable,
+                     sizeof (enable)) < 0)
 #else
     if(UA_setsockopt(newChannel->sockfd, IPPROTO_IP, IP_MULTICAST_LOOP,
                      (const char *)&channelDataUDPMC->enableLoopback,
