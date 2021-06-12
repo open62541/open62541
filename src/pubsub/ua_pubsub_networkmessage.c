@@ -893,7 +893,7 @@ increaseOffsetArray(UA_NetworkMessageOffsetBuffer *offsetBuffer) {
 size_t
 UA_NetworkMessage_calcSizeBinary(UA_NetworkMessage *p, UA_NetworkMessageOffsetBuffer *offsetBuffer) {
     size_t retval = 0;
-    UA_Byte byte;
+    UA_Byte byte = 0;
     size_t size = UA_Byte_calcSizeBinary(&byte); // UADPVersion + UADPFlags
     if(UA_NetworkMessage_ExtendedFlags1Enabled(p)) {
         size += UA_Byte_calcSizeBinary(&byte);
@@ -1357,7 +1357,7 @@ UA_DataSetMessageHeader_decodeBinary(const UA_ByteString *src, size_t *offset,
 
 size_t
 UA_DataSetMessageHeader_calcSizeBinary(const UA_DataSetMessageHeader* p) {
-    UA_Byte byte;
+    UA_Byte byte = 0;
     size_t size = UA_Byte_calcSizeBinary(&byte); // DataSetMessage Type + Flags
     if(UA_DataSetMessageHeader_DataSetFlags2Enabled(p))
         size += UA_Byte_calcSizeBinary(&byte);
@@ -1531,7 +1531,7 @@ UA_DataSetMessage_decodeBinary(const UA_ByteString *src, size_t *offset, UA_Data
 size_t
 UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage* p, UA_NetworkMessageOffsetBuffer *offsetBuffer, size_t currentOffset) {
     size_t size = currentOffset;
-    UA_Byte byte;
+    UA_Byte byte = 0;
     size += UA_Byte_calcSizeBinary(&byte); // DataSetMessage Type + Flags
     if(UA_DataSetMessageHeader_DataSetFlags2Enabled(&p->header))
         size += UA_Byte_calcSizeBinary(&byte);
