@@ -390,10 +390,15 @@ UA_PubSubChannelUDPMC_regist(UA_PubSubChannel *channel, UA_ExtensionObject *tran
 
     if(connectionConfig->isMulticast){
 #if UA_IPV6
-        struct ipv6_mreq groupV6;
+        struct ipv6_mreq groupV6 = { 0 };
+
+        memcpy(&groupV6.ipv6mr_multiaddr,
+               &((const struct sockaddr_in6 *) &connectionConfig->ai_addr)->sin6_addr,
+               sizeof(struct in6_addr));
+
         if(UA_setsockopt(channel->sockfd,
             connectionConfig->ai_family == PF_INET6 ? IPPROTO_IPV6 : IPPROTO_IP,
-            connectionConfig->ai_family == PF_INET6 ? IPV6_JOIN_GROUP : IP_ADD_MEMBERSHIP,
+            connectionConfig->ai_family == PF_INET6 ? IPV6_ADD_MEMBERSHIP : IP_ADD_MEMBERSHIP,
             connectionConfig->ai_family == PF_INET6 ? (const void *) &groupV6 : &groupV4,
             connectionConfig->ai_family == PF_INET6 ? sizeof(groupV6) : sizeof(groupV4)) < 0)
 #else
