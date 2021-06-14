@@ -494,7 +494,6 @@ UA_PubSubChannelUDPMC_receive(UA_PubSubChannel *channel, UA_ByteString *message,
                      "PubSub Connection receive failed. Invalid state.");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    UA_PubSubChannelDataUDPMC *channelConfigUDPMC = (UA_PubSubChannelDataUDPMC *) channel->handle;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_UInt16 rcvCount = 0;
     struct timeval tmptv;
@@ -530,19 +529,13 @@ UA_PubSubChannelUDPMC_receive(UA_PubSubChannel *channel, UA_ByteString *message,
         }
 
         UA_DateTime now = UA_DateTime_nowMonotonic();
-        if(channelConfigUDPMC->ai_family == PF_INET){
-            ssize_t messageLength = UA_recvfrom(channel->sockfd, (message->data + dataLength), remainingMessageLength, 0, NULL, NULL);
-            if(messageLength > 0){
-                dataLength += (size_t)messageLength;
-                remainingMessageLength -= (size_t)dataLength;
-            } else {
-                retval = UA_STATUSCODE_BADINTERNALERROR;
-                break;
-            }
-#if UA_IPV6
+        ssize_t messageLength = UA_recvfrom(channel->sockfd, (message->data + dataLength), remainingMessageLength, 0, NULL, NULL);
+        if(messageLength > 0){
+            dataLength += (size_t)messageLength;
+            remainingMessageLength -= (size_t)dataLength;
         } else {
-        //TODO implement recieve for IPv6
-#endif
+            retval = UA_STATUSCODE_BADINTERNALERROR;
+            break;
         }
 
         rcvCount++;
