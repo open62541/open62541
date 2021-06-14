@@ -18,6 +18,7 @@
 typedef struct {
     int ai_family;                    /* Protocol family for socket. IPv4/IPv6 */
     struct sockaddr_storage ai_addr; /* https://msdn.microsoft.com/de-de/library/windows/desktop/ms740496(v=vs.85).aspx */
+    socklen_t ai_addrlen;            /* Address length */
     struct sockaddr_storage intf_addr;
     UA_UInt32 messageTTL;
     UA_Boolean enableLoopback;
@@ -56,7 +57,7 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
     }
 
     /* Set default values */
-    UA_PubSubChannelDataUDPMC defaultValues = {0, {0}, {0}, 255, UA_TRUE, UA_TRUE, UA_TRUE};
+    UA_PubSubChannelDataUDPMC defaultValues = {0, {0}, 0, {0}, 255, UA_TRUE, UA_TRUE, UA_TRUE};
     memcpy(channelDataUDPMC, &defaultValues, sizeof(UA_PubSubChannelDataUDPMC));
     /* Iterate over the given KeyValuePair parameters */
     UA_String ttlParam = UA_STRING("ttl");
@@ -175,7 +176,8 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
     }
 
     channelDataUDPMC->ai_family = rp->ai_family;
-    memcpy(&channelDataUDPMC->ai_addr, rp->ai_addr, sizeof(*rp->ai_addr));
+    channelDataUDPMC->ai_addrlen = rp->ai_addrlen;
+    memcpy(&channelDataUDPMC->ai_addr, rp->ai_addr, rp->ai_addrlen);
     newChannel->handle = channelDataUDPMC; /* Link channel and internal channel data */
 
     /* Set loop back data to your host */
@@ -468,7 +470,7 @@ UA_PubSubChannelUDPMC_send(UA_PubSubChannel *channel, UA_ExtensionObject *transp
     while (nWritten < (long)buf->length) {
         long n = (long)UA_sendto(channel->sockfd, buf->data, buf->length, 0,
                                  (struct sockaddr *) &channelConfigUDPMC->ai_addr,
-                                 sizeof(struct sockaddr_storage));
+                                 channelConfigUDPMC->ai_addrlen);
         if(n == -1L) {
             UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub Connection sending failed.");
             return UA_STATUSCODE_BADINTERNALERROR;
