@@ -105,7 +105,7 @@ int main(void) {
  * sets the variable ``running`` to false and the server shuts down once it
  * takes back control.
  *
- * In order to integrated OPC UA in a single-threaded application with its own
+ * In order to integrate OPC UA in a single-threaded application with its own
  * mainloop (for example provided by a GUI toolkit), one can alternatively drive
  * the server manually. See the section of the server documentation on
  * :ref:`server-lifecycle` for details.

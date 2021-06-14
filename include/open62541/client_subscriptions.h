@@ -141,7 +141,7 @@ UA_MonitoredItemCreateRequest_default(UA_NodeId nodeId) {
 }
 
 /**
- * The clientHandle parameter can't be set by the user, any value will be replaced
+ * The clientHandle parameter cannot be set by the user, any value will be replaced
  * by the client before sending the request to the server. */
 
 /* Callback for the deletion of a MonitoredItem */
