@@ -46,7 +46,7 @@ int main(int argc, char* argv[]) {
     for(size_t i = 0; i < trustListSize; i++)
         trustList[i] = loadFile(argv[i+3]);
 
-    /* Loading of a issuer list, not used in this application */
+    /* Loading of an issuer list, not used in this application */
     size_t issuerListSize = 0;
     UA_ByteString *issuerList = NULL;
 

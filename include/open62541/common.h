@@ -175,7 +175,7 @@ typedef enum {
  * Statistic counters
  * ------------------
  *
- * The stack manage statistic counter for the following layers:
+ * The stack manages statistic counters for the following layers:
  *
  * - Network
  * - Secure channel
@@ -183,7 +183,7 @@ typedef enum {
  *
  * The session layer counters are matching the counters of the
  * ServerDiagnosticsSummaryDataType that are defined in the OPC UA Part 5
- * specification. Counter of the other layers are not specified by OPC UA but
+ * specification. Counters of the other layers are not specified by OPC UA but
  * are harmonized with the session layer counters if possible. */
 
 typedef struct {

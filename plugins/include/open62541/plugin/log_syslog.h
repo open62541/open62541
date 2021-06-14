@@ -13,7 +13,7 @@ _UA_BEGIN_DECLS
 
 /* Syslog-logging is available only for Linux/Unices.
  *
- * open62541 log-levels are translated to syslog-levels as follows:
+ * open62541 log levels are translated to syslog levels as follows:
  *
  * UA_LOGLEVEL_TRACE   => not available for syslog
  * UA_LOGLEVEL_DEBUG   => LOG_DEBUG
