@@ -354,7 +354,7 @@ class DataTypeNode(Node):
         1) A DataType can be a structure of fields, each field having a name and a type.
            The type must be either an encodable builtin node (ex. UInt32) or point to
            another DataType node that inherits its encoding from a builtin type using
-           a inverse "hasSubtype" (hasSuperType) reference.
+           an inverse "hasSubtype" (hasSuperType) reference.
         2) A DataType may be an enumeration, in which each field has a name and a numeric
            value.
         The definition is stored as an ordered list of tuples. Depending on which
@@ -523,7 +523,7 @@ class DataTypeNode(Node):
         # An option set is at the same time also an enum, at least for the encoding below
         isOptionSet = parentType is not None and parentType.id.ns == 0 and parentType.id.i==12755
 
-        # We need to store the definition as ordered data, but can't use orderedDict
+        # We need to store the definition as ordered data, but cannot use orderedDict
         # for backward compatibility with Python 2.6 and 3.4
         enumDict = []
         typeDict = []

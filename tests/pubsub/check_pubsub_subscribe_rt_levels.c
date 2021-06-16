@@ -92,7 +92,10 @@ static void receiveSingleMessageRT(UA_PubSubConnection *connection, UA_DataSetRe
         ck_abort_msg("PubSub receive. Unknown message received. Will not be processed.");
     }
 
-    UA_DataSetReader_process(server, dataSetReader,
+    UA_ReaderGroup *rg =
+        UA_ReaderGroup_findRGbyId(server, dataSetReader->linkedReaderGroup);
+
+    UA_DataSetReader_process(server, rg, dataSetReader,
                              dataSetReader->bufferedMessage.nm->payload.dataSetPayload.dataSetMessages);
 
     /* Delete the payload value of every dsf's decoded */

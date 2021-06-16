@@ -445,11 +445,11 @@ UA_PubSubChannelEthernetXDP_send(UA_PubSubChannelDataEthernet *channelDataEthern
 
     rc = UA_sendto(xsk_socket__fd(xdp_socket->xskfd), NULL, 0, MSG_DONTWAIT, NULL, 0);
     if (rc >= 0 || errno == ENOBUFS || errno == EAGAIN || errno == EBUSY) {
-        UA_UInt64 rcvd = xsk_ring_cons__peek(&xdp_socket->umem->cq, 1, &idx);
+        UA_UInt32 rcvd = xsk_ring_cons__peek(&xdp_socket->umem->cq, 1, &idx);
         if (rcvd > 0) {
             xsk_ring_cons__release(&xdp_socket->umem->cq, rcvd);
-            xdp_socket->outstanding_tx -= (UA_UInt32) rcvd;
-            xdp_socket->tx_npkts += (UA_UInt32) rcvd;
+            xdp_socket->outstanding_tx -= rcvd;
+            xdp_socket->tx_npkts += rcvd;
         }
 
         return UA_STATUSCODE_GOOD;
@@ -469,7 +469,7 @@ UA_PubSubChannelEthernetXDP_receive(UA_PubSubChannelDataEthernet *channelDataEth
     xdpsock *xdp_socket;
     UA_UInt64 addr;
     UA_UInt64 ret;
-    size_t rcvd;
+    UA_UInt32 rcvd;
     UA_Byte *pkt, *buf;
     ssize_t len;
 
@@ -485,7 +485,7 @@ UA_PubSubChannelEthernetXDP_receive(UA_PubSubChannelDataEthernet *channelDataEth
         return UA_STATUSCODE_BADINTERNALERROR; //Got data but failed to reserve, something's wrong
 
     buf = message->data;
-    for(size_t i = 0; i < rcvd; i++) {
+    for(UA_UInt32 i = 0; i < rcvd; i++) {
         addr = xsk_ring_cons__rx_desc(&xdp_socket->rx_ring, xdp_socket->idx_rx)->addr;
         len  = (UA_UInt32) xsk_ring_cons__rx_desc(&xdp_socket->rx_ring, xdp_socket->idx_rx++)->len;
         pkt  = (UA_Byte *) xsk_umem__get_data(xdp_socket->umem->buffer, addr);

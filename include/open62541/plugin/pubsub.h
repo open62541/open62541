@@ -80,13 +80,13 @@ struct UA_PubSubChannel {
 
 /**
  * The UA_PubSubTransportLayer is used for the creation of new connections.
- * Whenever on runtime a new connection is request, the internal PubSub
- * implementation call * the 'createPubSubChannel' function. The
+ * Whenever in runtime a new connection is requested, the internal PubSub
+ * implementation calls the 'createPubSubChannel' function. The
  * 'transportProfileUri' contains the standard defined transport profile
  * information and is used to identify the type of connections which can be
  * created by the TransportLayer. The server config contains a list of
  * UA_PubSubTransportLayer. Take a look in the tutorial_pubsub_connection to get
- * informations about the TransportLayer handling. */
+ * information about the TransportLayer handling. */
 
 typedef struct {
     UA_String transportProfileUri;

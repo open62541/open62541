@@ -391,6 +391,7 @@ class CSVBSDTypeParser(TypeParser):
                  existing_bsd, type_bsd, type_csv, namespaceIndexMap):
         TypeParser.__init__(self, opaque_map, selected_types, no_builtin, outname, namespaceIndexMap)
         self.existing_bsd = existing_bsd # bsd files with existing types that shall not be printed again
+        self.existing_types_array = set() # existing TYPE_ARRAY from existing_bsd
         self.type_bsd = type_bsd # bsd files with new types
         self.type_csv = type_csv # csv files with nodeids, etc.
         self.existing_types = [] # existing types that shall not be printed
@@ -399,6 +400,7 @@ class CSVBSDTypeParser(TypeParser):
         # parse existing types
         for i in self.existing_bsd:
             (outname_import, file_import) = i.split("#")
+            self.existing_types_array.add(outname_import)
             outname_import = outname_import.lower()
             if outname_import.startswith("ua_"):
                 outname_import = outname_import[3:]

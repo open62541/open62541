@@ -766,7 +766,7 @@ UA_ClientConnectionTCP_poll(UA_Connection *connection, UA_UInt32 timeout,
     UA_UInt32 timeout_usec = timeout * 1000;
 
 #ifdef _OS9000
-    /* OS-9 can't use select for checking write sockets. Therefore, we need to
+    /* OS-9 cannot use select for checking write sockets. Therefore, we need to
      * use connect until success or failed */
     int resultsize = 0;
     do {

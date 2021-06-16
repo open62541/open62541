@@ -58,7 +58,7 @@ else()
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY $ENV{OUT})
 endif()
 list(APPEND LIBS "${open62541_LIBRARIES}")
-link_libraries("-fsanitize=fuzzer,address")
+link_libraries("-fsanitize=fuzzer")
 
 # Use different plugins for testing
 set(fuzzing_plugin_sources ${PROJECT_SOURCE_DIR}/arch/network_tcp.c
