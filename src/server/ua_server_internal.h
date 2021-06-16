@@ -177,7 +177,7 @@ UA_NodeReferenceKind_findTarget(const UA_NodeReferenceKind *kind,
 /* SecureChannel Handling */
 /**************************/
 
-/* Remove a all securechannels */
+/* Remove all securechannels */
 void
 UA_Server_deleteSecureChannels(UA_Server *server);
 

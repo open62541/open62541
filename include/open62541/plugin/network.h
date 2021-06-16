@@ -129,7 +129,7 @@ struct UA_Connection {
  * The network layer is part of the server config. So users can provide a custom
  * implementation if the provided example does not fit their architecture. The
  * network layer is invoked only from the server's main loop. So the network
- * layer does not need to be thread-safe. If the networklayer receives a
+ * layer does not need to be thread-safe. If the network layer receives a
  * positive duration for blocking listening, the server's main loop will block
  * until a message is received or the duration times out. */
 
@@ -156,7 +156,7 @@ struct UA_ServerNetworkLayer {
 
     UA_ConnectionConfig localConnectionConfig;
 
-    /* Start listening on the networklayer.
+    /* Start listening on the network layer.
      *
      * @param nl The network layer
      * @return Returns UA_STATUSCODE_GOOD or an error code. */

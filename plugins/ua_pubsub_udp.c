@@ -62,6 +62,10 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
     UA_String ttlParam = UA_STRING("ttl");
     UA_String loopbackParam = UA_STRING("loopback");
     UA_String reuseParam = UA_STRING("reuse");
+#ifdef __linux__
+    UA_String socketPriorityParam = UA_STRING("sockpriority");
+    UA_UInt32  *socketPriority = NULL;
+#endif
     for(size_t i = 0; i < connectionConfig->connectionPropertiesSize; i++) {
         UA_KeyValuePair *prop = &connectionConfig->connectionProperties[i];
         if(UA_String_equal(&prop->key.name, &ttlParam)) {
@@ -76,6 +80,13 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
             if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_BOOLEAN])) {
                 channelDataUDPMC->enableReuse = *(UA_Boolean*)prop->value.data;
             }
+#ifdef __linux__
+        } else if(UA_String_equal(&prop->key.name, &socketPriorityParam)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_UINT32])){
+                socketPriority = (UA_UInt32 *) UA_malloc(sizeof(UA_UInt32));
+                UA_UInt32_copy((UA_UInt32 *) prop->value.data, socketPriority);
+            }
+#endif
         } else {
             UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                            "PubSub Connection creation. Unknown connection parameter.");
@@ -324,6 +335,19 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
         }
 #endif
     }
+
+#ifdef __linux__
+    /* Setting the socket priority to the socket */
+    if(socketPriority != NULL) {
+        if (UA_setsockopt(newChannel->sockfd, SOL_SOCKET, SO_PRIORITY, socketPriority, sizeof(int))) {
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "setsockopt SO_PRIORITY failed");
+            UA_free(socketPriority);
+            goto cleanup;
+        }
+        else
+            UA_free(socketPriority);
+    }
+#endif
 
     UA_freeaddrinfo(requestResult);
     newChannel->state = UA_PUBSUB_CHANNEL_PUB;

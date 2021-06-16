@@ -19,7 +19,7 @@ static void stopHandler(int sign) {
     running = false;
 }
 
-// Info: It is still possible to create a RT-PubSub configuration without a information model
+// Info: It is still possible to create a RT-PubSub configuration without an information model
 // node. Just set the DSF flags to 'rtInformationModelNode' -> UA_TRUE and
 // 'rtInformationModelNode' -> UA_FALSE and provide the PTR to your self managed value source.
 

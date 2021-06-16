@@ -132,9 +132,9 @@ typedef double UA_Double;
  *
  * StatusCode
  * ^^^^^^^^^^
- * A numeric identifier for a error or condition that is associated with a value
- * or an operation. See the section :ref:`statuscodes` for the meaning of a
- * specific code. */
+ * A numeric identifier for an error or condition that is associated with a
+ * value or an operation. See the section :ref:`statuscodes` for the meaning of
+ * a specific code. */
 typedef uint32_t UA_StatusCode;
 
 /* Returns the human-readable name of the StatusCode. If no matching StatusCode
@@ -789,7 +789,7 @@ UA_StatusCode UA_EXPORT
 UA_Variant_copyRange(const UA_Variant *src, UA_Variant * UA_RESTRICT dst,
                      const UA_NumericRange range);
 
-/* Insert a range of data into an existing variant. The data array can't be
+/* Insert a range of data into an existing variant. The data array cannot be
  * reused afterwards if it contains types without a fixed size (e.g. strings)
  * since the members are moved into the variant and take on its lifecycle.
  *

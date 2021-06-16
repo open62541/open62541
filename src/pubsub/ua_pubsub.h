@@ -92,8 +92,8 @@ UA_PubSubConnection_regist(UA_Server *server, UA_NodeId *connectionIdentifier);
 
 /* Process Network Message for a ReaderGroup. But we the ReaderGroup needs to be identified first. */
 UA_StatusCode
-UA_PubSubConnection_processNetworkMessage(UA_Server *server, UA_PubSubConnection *pConnection,
-                                          UA_NetworkMessage* pMsg);
+UA_ReaderGroup_processNetworkMessage(UA_Server *server, UA_ReaderGroup *readerGroup,
+                                     UA_NetworkMessage* msg);
 
 /**********************************************/
 /*              DataSetWriter                 */
@@ -217,7 +217,11 @@ typedef struct UA_DataSetReader {
 }UA_DataSetReader;
 
 /* Process Network Message using DataSetReader */
-void UA_DataSetReader_process(UA_Server *server, UA_DataSetReader *dataSetReader, UA_DataSetMessage* dataSetMsg);
+void
+UA_DataSetReader_process(UA_Server *server,
+                         UA_ReaderGroup *readerGroup,
+                         UA_DataSetReader *dataSetReader,
+                         UA_DataSetMessage *dataSetMsg);
 
 /* Copy the configuration of DataSetReader */
 UA_StatusCode UA_DataSetReaderConfig_copy(const UA_DataSetReaderConfig *src, UA_DataSetReaderConfig *dst);

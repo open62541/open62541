@@ -13,8 +13,8 @@
  *
  * Publishing Fields
  * ^^^^^^^^^^^^^^^^^
- * The PubSub MQTT publish example demonstrate the simplest way to publish
- * informations from the information model over MQTT using the UADP (or
+ * The PubSub MQTT publish example demonstrates the simplest way to publish
+ * information from the information model over MQTT using the UADP (or
  * JSON) encoding. To receive information the subscribe functionality of MQTT is
  * used. A periodical call to yield is necessary to update the mqtt stack.
  *
@@ -157,7 +157,7 @@ addPubSubConnection(UA_Server *server, char *addressUrl) {
 static void
 addPublishedDataSet(UA_Server *server) {
     /* The PublishedDataSetConfig contains all necessary public
-    * informations for the creation of a new PublishedDataSet */
+    * information for the creation of a new PublishedDataSet */
     UA_PublishedDataSetConfig publishedDataSetConfig;
     memset(&publishedDataSetConfig, 0, sizeof(UA_PublishedDataSetConfig));
     publishedDataSetConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
@@ -292,7 +292,7 @@ addWriterGroup(UA_Server *server, char *topic, int interval) {
 /**
  * **DataSetWriter handling**
  * A DataSetWriter (DSW) is the glue between the WG and the PDS. The DSW is
- * linked to exactly one PDS and contains additional informations for the
+ * linked to exactly one PDS and contains additional information for the
  * message generation.
  */
 static void
