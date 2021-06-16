@@ -53,7 +53,8 @@ if [ "$1" = "config" ]; then
         # This one is purely to add an explanation to the web page. The first
         # one is for the graph itself, while the second one is for the
         # individual fields.
-        echo 'graph_info open62541 Subscriber - Counter data miss at T4/T8 Delayed packet (in node 1 (Publisher node) this shows drop between T1 to T8, in node 2 (loopback node) it shows drop between T1 to T4)'
+        #echo 'graph_info open62541 Subscriber - Counter data miss at T4/T8 Delayed packet (in node 1 (Publisher node) this shows drop between T1 to T8, in node 2 (loopback node) it shows drop between T1 to T4)'
+        echo 'graph_info open62541 Subscriber - This graph shows the number of counters missed at the user layer of Subscriber. This graph will be updated only when there is any error in the user layer of Subscriber, until then no data will be logged in the graph.'
 
         echo "missedCounter.label Missed counters"
         echo "missedCounter.info Missed counters in open62541 Subscriber"

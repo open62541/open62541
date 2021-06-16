@@ -61,7 +61,7 @@ if [ "$1" = "config" ]; then
         # This one is purely to add an explanation to the web page. The first
         # one is for the graph itself, while the second one is for the
         # individual fields.
-        echo 'graph_info This graph shows jitter of User thread'
+        echo 'graph_info This graph shows the jitter of User application thread. User application thread is calculated to be executed at 30% of every 250us cycletime. The deviation in the start time of User application thread is computed as jitter'
 
         echo "user_jitter.label user thread start time jitter"
         echo "user_jitter.info user thread start time jitter"

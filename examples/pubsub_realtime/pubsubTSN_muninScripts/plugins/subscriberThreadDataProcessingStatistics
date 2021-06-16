@@ -57,7 +57,7 @@ if [ "$1" = "config" ]; then
         # This one is purely to add an explanation to the web page. The first
         # one is for the graph itself, while the second one is for the
         # individual fields.
-        echo 'graph_info This graph shows time taken by subscriber thread to process received data'
+        echo 'graph_info This graph shows time taken by subscriber thread to process received data and to store in the information model'
 
         echo "subscriber_processingtime.label Subscriber thread processing time" ;
         echo "subscriber_processingtime.info Subscriber thread processing time"
@@ -69,7 +69,7 @@ fi
 
 if test -e /usr/local/src/open62541_pubsub_maxlatency.txt
 then
-    #Obtain the maximum latency from the text file and convert it using cdef function and plot the time taken by the subscriber thread to process data
+    #Obtain the maximum latency from the text file and plot the time taken by the subscriber thread to process data
     procesingTime=`cat  /usr/local/src/open62541_pubsub_maxlatency.txt |  tr -s " " | cut -d" " -f10`
 elif test -e /usr/local/src/open62541_pubsub_maxlatency_loopback.txt
 then

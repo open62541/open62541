@@ -61,7 +61,7 @@ if [ "$1" = "config" ]; then
         # This one is purely to add an explanation to the web page. The first
         # one is for the graph itself, while the second one is for the
         # individual fields.
-        echo 'graph_info This graph shows the latency of Publisher thread'
+        echo 'graph_info This graph shows the total execution time of Publisher thread. The execution time is computed between the instant the control shifts to Publisher thread and the instant at which the control resumes to the user-space application'
 
         echo "publisher_latency.label Publisher thread execution time"
         echo "publisher_latency.info Publisher thread execution time"

@@ -41,7 +41,7 @@ if [ "$1" = "config" ]; then
         #OPEN62541_LATENCY_CRIT=${open62541_latency_crit:=100000}
 
         # The title of the graph
-        echo "graph_title open62541 PubSub Latency - Errors"
+        echo "graph_title open62541 PubSub Latency - End-to-end missed frames"
         # Arguments to "rrdtool graph". In this case, tell it that the
         # lower limit of the graph is '0', and that 1k=1000 (not 1024)
         echo 'graph_args --base 1000 -l 0'
@@ -56,7 +56,7 @@ if [ "$1" = "config" ]; then
         # This one is purely to add an explanation to the web page. The first
         # one is for the graph itself, while the second one is for the
         # individual fields.
-        echo 'graph_info Errors detected of open62541 pubsub application running at 250 us cycle time P2P between two systems.'
+        echo 'graph_info PubSub applications are designed to send an incremental counter data from node1 to node2 and the value received at node2 will be again published to node1. If any counter data is missed to be received back in node1, we count it as an error. This graphs shows errors detected when running open62541 PubSub application at 250 us cycle time P2P between two systems.'
 
         echo 'missedCounter.label Missed counters'
         echo 'missedCounter.info Missed counters in open62541 RTT latency for 5 mins'

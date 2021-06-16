@@ -349,12 +349,6 @@ static void stopHandler(int sign) {
         printQueueDepth();
 }
 
-/* Function which converts timespec value to nano seconds value */
-static inline long long timespec_to_ns(const struct timespec *ts)
-{
-    return ((long long) ts->tv_sec * NSEC_PER_SEC) + ts->tv_nsec;
-}
-
 /* Missed and repeated counters verification - Call from the stack is used */
 void missedRepeatedCounter_callback(UA_Server *server, const UA_NodeId *readerIdentifierCB,
                                     const UA_NodeId *readerGroupIdentifierCB, const UA_NodeId *targetVariableIdentifier,

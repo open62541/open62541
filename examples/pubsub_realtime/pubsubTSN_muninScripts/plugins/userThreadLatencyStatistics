@@ -60,7 +60,7 @@ if [ "$1" = "config" ]; then
         # This one is purely to add an explanation to the web page. The first
         # one is for the graph itself, while the second one is for the
         # individual fields.
-        echo 'graph_info This graph shows latency of User thread'
+        echo 'graph_info This graph shows the total execution time of User application thread(also referred as Control loop application thread). The execution time is computed between the instant the control shifts to User application thread and the instant at which the control resumes to the user-space application'
 
         echo "user_thread_latency.label User thread latency"
         echo "user_thread_latency.info User thread latency"

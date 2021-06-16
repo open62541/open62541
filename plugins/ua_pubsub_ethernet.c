@@ -76,7 +76,9 @@ static UA_THREAD_LOCAL UA_Byte ReceiveMsgBufferETH[RECEIVE_MSG_BUFFER_SIZE];
 #define XDP_FLAGS_SKB_MODE                   (1U << 1)
 #endif
 
+#ifndef UA_ENABLE_AMALGAMATION
 extern struct timespec subscriberDataProcessStartTime;
+#endif
 
 #if defined(LIBBPF_EBPF)
 /* Theses structures shall be removed in the future XDP versions
