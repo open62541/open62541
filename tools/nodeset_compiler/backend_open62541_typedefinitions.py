@@ -132,16 +132,15 @@ class CGenerator(object):
         idName = makeCIdentifier(datatype.name)
         pointerfree = "true" if datatype.pointerfree else "false"
         return "{\n" + \
+               "    UA_TYPENAME(\"%s\") /* .typeName */\n" % idName + \
                "    " + typeid + ", /* .typeId */\n" + \
                "    " + binaryEncodingId + ", /* .binaryEncodingId */\n" + \
                "    sizeof(UA_" + idName + "), /* .memSize */\n" + \
-               "    " + self.get_type_index(datatype) + ", /* .typeIndex */\n" + \
                "    " + self.get_type_kind(datatype) + ", /* .typeKind */\n" + \
                "    " + pointerfree + ", /* .pointerFree */\n" + \
                "    " + self.get_type_overlayable(datatype) + ", /* .overlayable */\n" + \
                "    " + str(len(datatype.members)) + ", /* .membersSize */\n" + \
                "    %s_members" % idName + "  /* .members */\n" + \
-               "    UA_TYPENAME(\"%s\") /* .typeName */\n" % idName + \
                "}"
 
     @staticmethod
@@ -158,8 +157,11 @@ class CGenerator(object):
             member_name_capital = member_name
             if len(member_name) > 0:
                 member_name_capital = member_name[0].upper() + member_name[1:]
-            m = "\n{\n    UA_%s_%s, /* .memberTypeIndex */\n" % (
-                member.member_type.outname.upper(), makeCIdentifier(member.member_type.name.upper()))
+            m = "\n{\n"
+            m += "    UA_TYPENAME(\"%s\") /* .memberName */\n" % member_name_capital
+            m += "    &UA_%s[UA_%s_%s], /* .memberType */\n" % (
+                member.member_type.outname.upper(), member.member_type.outname.upper(),
+                makeCIdentifier(member.member_type.name.upper()))
             m += "    "
             if not before and not isUnion:
                 m += "0,"
@@ -176,10 +178,8 @@ class CGenerator(object):
                 else:
                     m += " - sizeof(UA_%s)," % makeCIdentifier(before.member_type.name)
             m += " /* .padding */\n"
-            m += "    %s, /* .namespaceZero */\n" % ("true" if (namespaceMap[member.member_type.namespaceUri] == 0) else "false")
             m += ("    true" if member.is_array else "    false") + ", /* .isArray */\n"
-            m += ("    true" if member.is_optional else "    false") + "  /* .isOptional */\n"
-            m += "    UA_TYPENAME(\"%s\") /* .memberName */\n}" % member_name_capital
+            m += ("    true" if member.is_optional else "    false") + "  /* .isOptional */\n}"
             if i != size:
                 m += ","
             members += m

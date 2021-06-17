@@ -3508,7 +3508,7 @@ START_TEST(UA_Byte_Min_json_decode) {
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.type->typeIndex, UA_TYPES_BYTE);
+    ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_BYTE);
     ck_assert_uint_eq(*((UA_Byte*)out.data), 0);
     
     UA_Variant_clear(&out);
@@ -3524,7 +3524,7 @@ START_TEST(UA_Byte_Max_json_decode) {
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.type->typeIndex, UA_TYPES_BYTE);
+    ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_BYTE);
     ck_assert_uint_eq(*((UA_Byte*)out.data), 255);
     
     UA_Variant_clear(&out);
@@ -3542,7 +3542,7 @@ START_TEST(UA_UInt16_Min_json_decode) {
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.type->typeIndex, UA_TYPES_UINT16);
+    ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_UINT16);
     ck_assert_uint_eq(*((UA_UInt16*)out.data), 0);
     
     UA_Variant_clear(&out);
@@ -3558,7 +3558,7 @@ START_TEST(UA_UInt16_Max_json_decode) {
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.type->typeIndex, UA_TYPES_UINT16);
+    ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_UINT16);
     ck_assert_uint_eq(*((UA_UInt16*)out.data), 65535);
     
     UA_Variant_clear(&out);
@@ -3575,7 +3575,7 @@ START_TEST(UA_UInt32_Min_json_decode) {
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.type->typeIndex, UA_TYPES_UINT32);
+    ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_UINT32);
     ck_assert_uint_eq(*((UA_UInt32*)out.data), 0);
     
     UA_Variant_clear(&out);
@@ -3591,7 +3591,7 @@ START_TEST(UA_UInt32_Max_json_decode) {
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.type->typeIndex, UA_TYPES_UINT32);
+    ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_UINT32);
     ck_assert_uint_eq(*((UA_UInt32*)out.data), 4294967295);
     
     UA_Variant_clear(&out);
@@ -3608,7 +3608,7 @@ START_TEST(UA_UInt64_Min_json_decode) {
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.type->typeIndex, UA_TYPES_UINT64);    
+    ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_UINT64);    
     ck_assert_int_eq(((u8*)(out.data))[0], 0x00);
     ck_assert_int_eq(((u8*)(out.data))[1], 0x00);
     ck_assert_int_eq(((u8*)(out.data))[2], 0x00);
@@ -3631,7 +3631,7 @@ START_TEST(UA_UInt64_Max_json_decode) {
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.type->typeIndex, UA_TYPES_UINT64);
+    ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_UINT64);
     ck_assert_int_eq(((u8*)(out.data))[0], 0xFF);
     ck_assert_int_eq(((u8*)(out.data))[1], 0xFF);
     ck_assert_int_eq(((u8*)(out.data))[2], 0xFF);
@@ -3668,7 +3668,7 @@ START_TEST(UA_SByte_Min_json_decode) {
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.type->typeIndex, UA_TYPES_SBYTE);
+    ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_SBYTE);
     ck_assert_int_eq(*((UA_SByte*)out.data), -128);
     
     UA_Variant_clear(&out);
@@ -3684,7 +3684,7 @@ START_TEST(UA_SByte_Max_json_decode) {
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.type->typeIndex, UA_TYPES_SBYTE);
+    ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_SBYTE);
     ck_assert_int_eq(*((UA_SByte*)out.data), 127);
     
     UA_Variant_clear(&out);
@@ -3701,7 +3701,7 @@ START_TEST(UA_Int16_Min_json_decode) {
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.type->typeIndex, UA_TYPES_INT16);
+    ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_INT16);
     ck_assert_int_eq(*((UA_Int16*)out.data), -32768);
     
     UA_Variant_clear(&out);
@@ -3717,7 +3717,7 @@ START_TEST(UA_Int16_Max_json_decode) {
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.type->typeIndex, UA_TYPES_INT16);
+    ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_INT16);
     ck_assert_int_eq(*((UA_Int16*)out.data), 32767);
     
     UA_Variant_clear(&out);
@@ -3734,7 +3734,7 @@ START_TEST(UA_Int32_Min_json_decode) {
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.type->typeIndex, UA_TYPES_INT32);
+    ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_INT32);
     ck_assert(*(UA_Int32*)out.data == -2147483648);
     
     UA_Variant_clear(&out);
@@ -3750,7 +3750,7 @@ START_TEST(UA_Int32_Max_json_decode) {
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.type->typeIndex, UA_TYPES_INT32);
+    ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_INT32);
     ck_assert_int_eq(*((UA_Int32*)out.data), 2147483647);
     
     UA_Variant_clear(&out);
@@ -3767,7 +3767,7 @@ START_TEST(UA_Int64_Min_json_decode) {
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.type->typeIndex, UA_TYPES_INT64);    
+    ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_INT64);    
     ck_assert_int_eq(((u8*)(out.data))[0], 0x00);
     ck_assert_int_eq(((u8*)(out.data))[1], 0x00);
     ck_assert_int_eq(((u8*)(out.data))[2], 0x00);
@@ -3791,7 +3791,7 @@ START_TEST(UA_Int64_Max_json_decode) {
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.type->typeIndex, UA_TYPES_INT64);    
+    ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_INT64);    
     ck_assert_int_eq(((u8*)(out.data))[0], 0xFF);
     ck_assert_int_eq(((u8*)(out.data))[1], 0xFF);
     ck_assert_int_eq(((u8*)(out.data))[2], 0xFF);
@@ -4184,7 +4184,7 @@ START_TEST(UA_String_json_decode) {
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.type->typeIndex, UA_TYPES_STRING);
+    ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_STRING);
     ck_assert_int_eq(  ((UA_String*)out.data)->length, 6);
     ck_assert_int_eq( ((UA_String*)out.data)->data[0], 'a');
     ck_assert_int_eq(((UA_String*)out.data)->data[1], 'b');
@@ -4206,7 +4206,7 @@ START_TEST(UA_String_empty_json_decode) {
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.type->typeIndex, UA_TYPES_STRING);
+    ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_STRING);
     ck_assert_int_eq(  ((UA_String*)out.data)->length, 0);
     ck_assert_ptr_eq(  ((UA_String*)out.data)->data, UA_EMPTY_ARRAY_SENTINEL);
 
@@ -4223,7 +4223,7 @@ START_TEST(UA_String_unescapeBS_json_decode) {
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.type->typeIndex, UA_TYPES_STRING);
+    ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_STRING);
     ck_assert_int_eq(  ((UA_String*)out.data)->length, 7);
     ck_assert_int_eq( ((UA_String*)out.data)->data[0], 'a');
     ck_assert_int_eq(((UA_String*)out.data)->data[1], 'b');
@@ -4246,7 +4246,7 @@ START_TEST(UA_String_escape_unicode_json_decode) {
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.type->typeIndex, UA_TYPES_STRING);
+    ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_STRING);
     ck_assert_int_eq(  ((UA_String*)out.data)->length, 1);
     ck_assert_int_eq( ((UA_String*)out.data)->data[0], ',');
     
@@ -4264,7 +4264,7 @@ START_TEST(UA_String_escape2_json_decode) {
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.type->typeIndex, UA_TYPES_STRING);
+    ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_STRING);
     ck_assert_int_eq(  ((UA_String*)out.data)->length, 12);//  \b\th\"e\fl\nl\\o\r
     ck_assert_int_eq( ((UA_String*)out.data)->data[0], '\b');
     ck_assert_int_eq( ((UA_String*)out.data)->data[1], '\t');
@@ -4293,7 +4293,7 @@ START_TEST(UA_String_surrogatePair_json_decode) {
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.type->typeIndex, UA_TYPES_STRING);
+    ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_STRING);
     ck_assert_int_eq(  ((UA_String*)out.data)->length, 4);//U+10000  => 0xF0 0x90 0x80 0x80
     ck_assert_uint_eq( ((UA_String*)out.data)->data[0], 0xF0);
     ck_assert_uint_eq( ((UA_String*)out.data)->data[1], 0x90);
@@ -4314,7 +4314,7 @@ START_TEST(UA_ByteString_json_decode) {
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.type->typeIndex, UA_TYPES_BYTESTRING);
+    ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_BYTESTRING);
     ck_assert_int_eq(((UA_ByteString*)out.data)->length, 8);
     ck_assert_int_eq(((UA_ByteString*)out.data)->data[0], 'a');
     ck_assert_int_eq(((UA_ByteString*)out.data)->data[1], 's');
@@ -4350,7 +4350,7 @@ START_TEST(UA_ByteString_null_json_decode) {
     UA_ByteString buf = UA_STRING("{\"Type\":15,\"Body\":null}");
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.type->typeIndex, UA_TYPES_BYTESTRING);
+    ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_BYTESTRING);
     UA_ByteString *outData = (UA_ByteString*)out.data;
     ck_assert_ptr_ne(outData, NULL);
     ck_assert_ptr_eq(outData->data, NULL);
@@ -4369,7 +4369,7 @@ START_TEST(UA_Guid_json_decode) {
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.type->typeIndex, UA_TYPES_GUID);
+    ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_GUID);
     ck_assert_int_eq(((UA_Guid*)out.data)->data1, 1);
     ck_assert_int_eq(((UA_Guid*)out.data)->data2, 2);
     ck_assert_int_eq(((UA_Guid*)out.data)->data3, 3);
@@ -4395,7 +4395,7 @@ START_TEST(UA_Guid_lower_json_decode) {
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.type->typeIndex, UA_TYPES_GUID);
+    ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_GUID);
     ck_assert_int_eq(((UA_Guid*)out.data)->data1, 1);
     ck_assert_int_eq(((UA_Guid*)out.data)->data2, 2);
     ck_assert_int_eq(((UA_Guid*)out.data)->data3, 3);
@@ -4465,7 +4465,7 @@ START_TEST(UA_StatusCode_2_json_decode) {
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.type->typeIndex, UA_TYPES_STATUSCODE);
+    ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_STATUSCODE);
     ck_assert_uint_eq(*((UA_StatusCode*)out.data), 2);
     
     UA_Variant_clear(&out);
@@ -4496,7 +4496,7 @@ START_TEST(UA_StatusCode_0_json_decode) {
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.type->typeIndex, UA_TYPES_STATUSCODE);
+    ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_STATUSCODE);
     ck_assert_uint_eq(*((UA_StatusCode*)out.data), 0);
     UA_Variant_clear(&out);
 }
@@ -4581,7 +4581,7 @@ START_TEST(UA_QualifiedName_null_json_decode) {
     UA_ByteString buf = UA_STRING("{\"Type\":20,\"Body\":null}");
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.type->typeIndex, UA_TYPES_QUALIFIEDNAME);
+    ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_QUALIFIEDNAME);
     ck_assert_ptr_ne(out.data, NULL);
     UA_Variant_clear(&out);
 }
@@ -4632,7 +4632,7 @@ START_TEST(UA_LocalizedText_null_json_decode) {
     UA_ByteString buf = UA_STRING("{\"Type\":21,\"Body\":null}");
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.type->typeIndex, UA_TYPES_LOCALIZEDTEXT);
+    ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_LOCALIZEDTEXT);
     ck_assert_ptr_ne(out.data, NULL);
     UA_Variant_clear(&out);
 }
@@ -4977,7 +4977,7 @@ START_TEST(UA_DiagnosticInfo_null_json_decode) {
     UA_ByteString buf = UA_STRING("{\"Type\":25,\"Body\":null}");
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.type->typeIndex, UA_TYPES_DIAGNOSTICINFO);
+    ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_DIAGNOSTICINFO);
     ck_assert_uint_eq(((UA_DiagnosticInfo*)out.data)->hasAdditionalInfo, 0);
     ck_assert_uint_eq(((UA_DiagnosticInfo*)out.data)->hasInnerDiagnosticInfo, 0);
     ck_assert_uint_eq(((UA_DiagnosticInfo*)out.data)->hasInnerStatusCode, 0);
@@ -5012,7 +5012,7 @@ START_TEST(UA_DataValue_json_decode) {
     ck_assert_int_eq(out.hasSourceTimestamp, 1);
     ck_assert_int_eq(out.hasValue, 1);
     ck_assert_int_eq(out.status, 2153250816);
-    ck_assert_int_eq(out.value.type->typeIndex, 0);
+    ck_assert_int_eq(out.value.type->typeKind, UA_DATATYPEKIND_BOOLEAN);
     ck_assert_int_eq((*((UA_Boolean*)out.value.data)), 1);
     UA_DataValue_clear(&out);
 }
@@ -5069,7 +5069,7 @@ START_TEST(UA_ExtensionObject_json_decode) {
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(out.encoding, UA_EXTENSIONOBJECT_DECODED);
     ck_assert_int_eq(*((UA_Boolean*)out.content.decoded.data), UA_TRUE);
-    ck_assert_int_eq(out.content.decoded.type->typeIndex, UA_TYPES_BOOLEAN);
+    ck_assert_int_eq(out.content.decoded.type->typeKind, UA_DATATYPEKIND_BOOLEAN);
     UA_ExtensionObject_clear(&out);
 }
 END_TEST
@@ -5164,7 +5164,7 @@ START_TEST(UA_VariantBool_json_decode) {
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.type->typeIndex, 0);
+    ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_BOOLEAN);
     ck_assert_uint_eq(*((UA_Boolean*)out.data), 0);
     UA_Variant_clear(&out);
 }
@@ -5221,7 +5221,7 @@ START_TEST(UA_VariantStringArray_json_decode) {
     ck_assert_int_eq(out->arrayDimensions[0], 2);
     ck_assert_int_eq(out->arrayDimensions[1], 4);
     ck_assert_int_eq(out->arrayLength, 8);
-    ck_assert_int_eq(out->type->typeIndex, 11);
+    ck_assert_int_eq(out->type->typeKind, UA_DATATYPEKIND_STRING);
     UA_Variant_delete(out);
 }
 END_TEST
@@ -5254,7 +5254,7 @@ START_TEST(UA_VariantStringArrayNull_json_decode) {
     ck_assert_int_eq(out.arrayDimensions[0], 2);
     ck_assert_int_eq(out.arrayDimensions[1], 4);
     ck_assert_int_eq(out.arrayLength, 8);
-    ck_assert_int_eq(out.type->typeIndex, 11);
+    ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_STRING);
     UA_Variant_clear(&out);
 }
 END_TEST
@@ -5288,7 +5288,7 @@ START_TEST(UA_VariantLocalizedTextArrayNull_json_decode) {
     ck_assert_int_eq(out.arrayDimensions[0], 2);
     ck_assert_int_eq(out.arrayDimensions[1], 4);
     ck_assert_int_eq(out.arrayLength, 8);
-    ck_assert_int_eq(out.type->typeIndex, 20);
+    ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_LOCALIZEDTEXT);
     UA_Variant_clear(&out);
 }
 END_TEST
@@ -5315,7 +5315,7 @@ START_TEST(UA_VariantVariantArrayNull_json_decode) {
     ck_assert_int_eq(out.arrayDimensions[0], 2);
     ck_assert_int_eq(out.arrayDimensions[1], 4);
     ck_assert_int_eq(out.arrayLength, 8);
-    ck_assert_int_eq(out.type->typeIndex, 21);
+    ck_assert_int_eq(out.type->typeKind, 21);
     UA_Variant_clear(&out);
 }
 END_TEST
@@ -5364,7 +5364,7 @@ START_TEST(UA_VariantStringArray_WithoutDimension_json_decode) {
     ck_assert_int_eq((char)testArray[7].data[0], '8');
     ck_assert_int_eq(out.arrayDimensionsSize, 0);
     ck_assert_int_eq(out.arrayLength, 8);
-    ck_assert_int_eq(out.type->typeIndex, UA_TYPES_STRING);
+    ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_STRING);
     UA_Variant_clear(&out);
 }
 END_TEST
@@ -5389,7 +5389,7 @@ START_TEST(UA_Variant_BooleanArray_json_decode) {
     ck_assert_int_eq(testArray[2], 1);
     ck_assert_int_eq(out.arrayDimensionsSize, 0);
     ck_assert_int_eq(out.arrayLength, 3);
-    ck_assert_int_eq(out.type->typeIndex, UA_TYPES_BOOLEAN);
+    ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_BOOLEAN);
     UA_Variant_clear(&out);
 }
 END_TEST
@@ -5421,17 +5421,13 @@ START_TEST(UA_Variant_ExtensionObjectWrap_json_decode) {
     // then
     
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.type->typeIndex, UA_TYPES_VIEWDESCRIPTION);
+    ck_assert(out.type == &UA_TYPES[UA_TYPES_VIEWDESCRIPTION]);
     UA_ViewDescription *vd = (UA_ViewDescription*)out.data;
     ck_assert_int_eq(vd->viewId.identifier.numeric, 99999);
     ck_assert_int_eq(vd->viewVersion, 1236);
     UA_Variant_clear(&out);
 }
 END_TEST
-
-
-
-
 
 START_TEST(UA_duplicate_json_decode) {
     // given

@@ -157,13 +157,13 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
     if (writerGroupConfig->messageSettings.content.decoded.type) {
         if (writerGroupConfig->encodingMimeType == UA_PUBSUB_ENCODING_JSON &&
                 (writerGroupConfig->messageSettings.encoding != UA_EXTENSIONOBJECT_DECODED
-                || writerGroupConfig->messageSettings.content.decoded.type->typeIndex != UA_TYPES_JSONWRITERGROUPMESSAGEDATATYPE) ) {
+                || writerGroupConfig->messageSettings.content.decoded.type != &UA_TYPES[UA_TYPES_JSONWRITERGROUPMESSAGEDATATYPE]) ) {
             return UA_STATUSCODE_BADTYPEMISMATCH;
         }
 
         if (writerGroupConfig->encodingMimeType == UA_PUBSUB_ENCODING_UADP &&
                 (writerGroupConfig->messageSettings.encoding != UA_EXTENSIONOBJECT_DECODED
-                        || writerGroupConfig->messageSettings.content.decoded.type->typeIndex != UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE) ) {
+                        || writerGroupConfig->messageSettings.content.decoded.type != &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE]) ) {
             return UA_STATUSCODE_BADTYPEMISMATCH;
         }
     }
@@ -623,8 +623,8 @@ generateFieldMetaData(UA_Server *server, UA_DataSetField *field,
                 UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
                                "MetaData creation. Found DataType %s.", currentDataType->typeName);
                 //check if the datatype is a builtInType, if yes set the builtinType
-                if(currentDataType->typeIndex <= 135)
-                    fieldMetaData->builtInType = (UA_Byte)currentDataType->typeIndex;
+                if(currentDataType->typeKind <= UA_DATATYPEKIND_ENUM)
+                    fieldMetaData->builtInType = (UA_Byte)currentDataType->typeKind;
             } else {
                 UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                                "PubSub meta data generation. DataType Node is UA_NODEID_NULL.");

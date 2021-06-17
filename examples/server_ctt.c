@@ -613,51 +613,51 @@ setInformationModel(UA_Server *server) {
         attr.writeMask = UA_WRITEMASK_DISPLAYNAME | UA_WRITEMASK_DESCRIPTION;
         attr.userWriteMask = UA_WRITEMASK_DISPLAYNAME | UA_WRITEMASK_DESCRIPTION;
         attr.valueRank = UA_VALUERANK_SCALAR;
-        switch(UA_TYPES[type].typeIndex) {
-            case UA_TYPES_BOOLEAN: {
+        switch(UA_TYPES[type].typeKind) {
+            case UA_DATATYPEKIND_BOOLEAN: {
                 scaleTestDataSource.read = readRandomBoolData;
                 break;
             }
-            case UA_TYPES_INT16: {
+            case UA_DATATYPEKIND_INT16: {
                 scaleTestDataSource.read = readRandomInt16Data;
                 break;
             }
-            case UA_TYPES_UINT16: {
+            case UA_DATATYPEKIND_UINT16: {
                 scaleTestDataSource.read = readRandomUInt16Data;
                 break;
             }
-            case UA_TYPES_INT32: {
+            case UA_DATATYPEKIND_INT32: {
                 scaleTestDataSource.read = readRandomInt32Data;
                 break;
             }
-            case UA_TYPES_UINT32: {
+            case UA_DATATYPEKIND_UINT32: {
                 scaleTestDataSource.read = readRandomUInt32Data;
                 break;
             }
-            case UA_TYPES_INT64: {
+            case UA_DATATYPEKIND_INT64: {
                 scaleTestDataSource.read = readRandomInt64Data;
                 break;
             }
-            case UA_TYPES_UINT64: {
+            case UA_DATATYPEKIND_UINT64: {
                 scaleTestDataSource.read = readRandomUInt64Data;
                 break;
             }
-            case UA_TYPES_STRING: {
+            case UA_DATATYPEKIND_STRING: {
                 scaleTestDataSource.read = readRandomStringData;
                 break;
             }
-            case UA_TYPES_FLOAT: {
+            case UA_DATATYPEKIND_FLOAT: {
                 scaleTestDataSource.read = readRandomFloatData;
                 break;
             }
-            case UA_TYPES_DOUBLE: {
+            case UA_DATATYPEKIND_DOUBLE: {
                 scaleTestDataSource.read = readRandomDoubleData;
                 break;
             }
-            case UA_TYPES_DATETIME:
+            case UA_DATATYPEKIND_DATETIME:
                 scaleTestDataSource.read = readTimeData;
                 break;
-            case UA_TYPES_BYTESTRING:
+            case UA_DATATYPEKIND_BYTESTRING:
                 scaleTestDataSource.read = readByteString;
                 break;
             default:
