@@ -79,6 +79,7 @@
 #include <open62541/types_generated.h>
 #include <open62541/plugin/pubsub_ethernet.h>
 
+#include <open62541/plugin/securitypolicy_default.h>
 #include <linux/if_link.h>
 #include <linux/if_xdp.h>
 
@@ -103,12 +104,10 @@ UA_DataSetReaderConfig readerConfig;
 /* Qbv offset */
 #define             DEFAULT_QBV_OFFSET                    125
 #define             DEFAULT_SOCKET_PRIORITY               3
-#if defined(PUBLISHER)
 #define             PUBLISHER_ID                          2235
 #define             WRITER_GROUP_ID                       100
 #define             DATA_SET_WRITER_ID                    62541
 #define             DEFAULT_PUBLISHING_MAC_ADDRESS        "opc.eth://01-00-5E-00-00-01:8.3"
-#endif
 #if defined(SUBSCRIBER)
 #define             PUBLISHER_ID_SUB                     2234
 #define             WRITER_GROUP_ID_SUB                  101
@@ -149,6 +148,20 @@ static UA_Double  userAppWakeupPercentage = 0.3;
 #endif
 #define             CLOCKID                                 CLOCK_TAI
 #define             ETH_TRANSPORT_PROFILE                   "http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp"
+
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+#define             UA_AES128CTR_SIGNING_KEY_LENGTH          16
+#define             UA_AES128CTR_KEY_LENGTH                  16
+#define             UA_AES128CTR_KEYNONCE_LENGTH             4
+
+UA_Byte signingKeyPub[UA_AES128CTR_SIGNING_KEY_LENGTH] = {0};
+UA_Byte encryptingKeyPub[UA_AES128CTR_KEY_LENGTH] = {0};
+UA_Byte keyNoncePub[UA_AES128CTR_KEYNONCE_LENGTH] = {0};
+
+UA_Byte signingKeySub[UA_AES128CTR_SIGNING_KEY_LENGTH] = {0};
+UA_Byte encryptingKeySub[UA_AES128CTR_KEY_LENGTH] = {0};
+UA_Byte keyNonceSub[UA_AES128CTR_KEYNONCE_LENGTH] = {0};
+#endif
 
 /* If the Hardcoded publisher/subscriber MAC addresses need to be changed,
  * change PUBLISHING_MAC_ADDRESS and SUBSCRIBING_MAC_ADDRESS
@@ -454,12 +467,29 @@ addReaderGroup(UA_Server *server) {
         readerGroupConfig.timeout = 0;  //Blocking  socket
     }
 
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    /* Encryption settings */
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    readerGroupConfig.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+    readerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[1];
+#endif
+
     readerGroupConfig.pubsubManagerCallback.addCustomCallback = addPubSubApplicationCallback;
     readerGroupConfig.pubsubManagerCallback.changeCustomCallback = changePubSubApplicationCallback;
     readerGroupConfig.pubsubManagerCallback.removeCustomCallback = removePubSubApplicationCallback;
 
     UA_Server_addReaderGroup(server, connectionIdentSubscriber, &readerGroupConfig,
                              &readerGroupIdentifier);
+
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    /* Add the encryption key informaton */
+    UA_ByteString sk = {UA_AES128CTR_SIGNING_KEY_LENGTH, signingKeySub};
+    UA_ByteString ek = {UA_AES128CTR_KEY_LENGTH, encryptingKeySub};
+    UA_ByteString kn = {UA_AES128CTR_KEYNONCE_LENGTH, keyNonceSub};
+    // TODO security token not necessary for readergroup (extracted from security-header)
+    UA_Server_setReaderGroupEncryptionKeys(server, readerGroupIdentifier, 1, sk, ek, kn);
+#endif
+
 }
 
 /* Set SubscribedDataSet type to TargetVariables data type
@@ -811,6 +841,12 @@ addWriterGroup(UA_Server *server) {
 
     writerGroupConfig.messageSettings.encoding             = UA_EXTENSIONOBJECT_DECODED;
     writerGroupConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
+
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    writerGroupConfig.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+    writerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[0];
+#endif
     /* The configuration flags for the messages are encapsulated inside the
      * message- and transport settings extension objects. These extension
      * objects are defined by the standard. e.g.
@@ -827,6 +863,14 @@ addWriterGroup(UA_Server *server) {
     UA_Server_addWriterGroup(server, connectionIdent, &writerGroupConfig, &writerGroupIdent);
     UA_Server_setWriterGroupOperational(server, writerGroupIdent);
     UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
+
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    /* Add the encryption key informaton */
+    UA_ByteString sk = {UA_AES128CTR_SIGNING_KEY_LENGTH, signingKeyPub};
+    UA_ByteString ek = {UA_AES128CTR_KEY_LENGTH, encryptingKeyPub};
+    UA_ByteString kn = {UA_AES128CTR_KEYNONCE_LENGTH, keyNoncePub};
+    UA_Server_setWriterGroupEncryptionKeys(server, writerGroupIdent, 1, sk, ek, kn);
+#endif
 }
 
 /* DataSetWriter handling */
@@ -1259,7 +1303,6 @@ static void removeServerNodes(UA_Server *server) {
     }
     UA_Server_deleteNode(server, runningPubStatusNodeID, UA_TRUE);
     UA_NodeId_clear(&runningPubStatusNodeID);
-
     UA_Server_deleteNode(server, subNodeID, UA_TRUE);
     UA_NodeId_clear(&subNodeID);
     for (UA_Int32 iterator = 0; iterator < REPEATED_NODECOUNTS; iterator++)
@@ -1463,6 +1506,14 @@ int main(int argc, char **argv) {
 
     UA_ServerConfig_setMinimal(config, PORT_NUMBER, NULL);
 
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    /* Instantiate the PubSub SecurityPolicy */
+    config->pubSubConfig.securityPolicies = (UA_PubSubSecurityPolicy*)
+        UA_calloc(2, sizeof(UA_PubSubSecurityPolicy));
+    config->pubSubConfig.securityPoliciesSize = 2;
+    UA_PubSubSecurityPolicy_Aes128Ctr(&config->pubSubConfig.securityPolicies[0],
+                                      &config->logger);
+#endif
 #if defined(PUBLISHER)
     UA_NetworkAddressUrlDataType networkAddressUrlPub;
 #endif
@@ -1511,7 +1562,10 @@ if (enableCsvLog)
     addDataSetWriter(server);
     UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent);
 #endif
-
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    UA_PubSubSecurityPolicy_Aes128Ctr(&config->pubSubConfig.securityPolicies[1],
+                                      &config->logger);
+#endif
 #if defined (PUBLISHER) && defined(SUBSCRIBER)
     UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
 #endif
@@ -1537,7 +1591,9 @@ if (enableCsvLog)
 #endif
 
     retval |= UA_Server_run(server, &runningServer);
+#if defined(SUBSCRIBER)
     UA_Server_unfreezeReaderGroupConfiguration(server, readerGroupIdentifier);
+#endif
 #if defined(PUBLISHER) || defined(SUBSCRIBER)
     returnValue = pthread_join(userThreadID, NULL);
     if (returnValue != 0)
@@ -1574,6 +1630,7 @@ if (enableCsvLog)
     UA_Server_delete(server);
     UA_free(serverConfig);
 #endif
+
 #if defined(PUBLISHER)
     UA_free(runningPub);
     UA_free(pubCounterData);
