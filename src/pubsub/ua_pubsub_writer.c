@@ -29,6 +29,12 @@
 /* Forward declaration */
 static void
 UA_DataSetField_clear(UA_DataSetField *field);
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+static UA_StatusCode
+encryptAndSign(UA_WriterGroup *wg, const UA_NetworkMessage *nm,
+               UA_Byte *signStart, UA_Byte *encryptStart,
+               UA_Byte *msgEnd);
+#endif
 
 /**********************************************/
 /*               Connection                   */
