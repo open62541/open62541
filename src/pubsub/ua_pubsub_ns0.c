@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  * Copyright (c) 2017-2018 Fraunhofer IOSB (Author: Andreas Ebner)
- * Copyright (c) 2019 Kalycito Infotech Private Limited
+ * Copyright (c) 2019-2021 Kalycito Infotech Private Limited
  * Copyright (c) 2020 Yannick Wallerer, Siemens AG
  * Copyright (c) 2020 Thomas Fischer, Siemens AG
  */
@@ -48,11 +48,11 @@ static UA_StatusCode addDataSetWriterAction(UA_Server *server,
 
 static UA_StatusCode
 addPubSubObjectNode(UA_Server *server, char* name, UA_UInt32 objectid,
-              UA_UInt32 parentid, UA_UInt32 referenceid, UA_UInt32 type_id) {
+                    UA_NodeId parentid, UA_UInt32 referenceid, UA_UInt32 type_id) {
     UA_ObjectAttributes object_attr = UA_ObjectAttributes_default;
     object_attr.displayName = UA_LOCALIZEDTEXT("", name);
-    return UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(0, objectid),
-                                   UA_NODEID_NUMERIC(0, parentid),
+    return UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, objectid),
+                                   parentid,
                                    UA_NODEID_NUMERIC(0, referenceid),
                                    UA_QUALIFIEDNAME(0, name),
                                    UA_NODEID_NUMERIC(0, type_id),
@@ -258,6 +258,283 @@ addVariableValueSource(UA_Server *server, UA_ValueCallback valueCallback,
     return UA_Server_setVariableNode_valueCallback(server, node, valueCallback);
 }
 
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
+static UA_StatusCode
+addPubSubConnectionConfig(UA_Server *server, UA_PubSubConnectionDataType *pubsubConnectionDataType,
+                          UA_NodeId *connectionId){
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    UA_NetworkAddressUrlDataType networkAddressUrlDataType;
+    memset(&networkAddressUrlDataType, 0, sizeof(networkAddressUrlDataType));
+    UA_ExtensionObject eo = pubsubConnectionDataType->address;
+    if(eo.encoding == UA_EXTENSIONOBJECT_DECODED){
+        if(eo.content.decoded.type == &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]){
+            if(UA_NetworkAddressUrlDataType_copy((UA_NetworkAddressUrlDataType *) eo.content.decoded.data,
+                                                 &networkAddressUrlDataType) != UA_STATUSCODE_GOOD){
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+            }
+        }
+    }
+
+    UA_PubSubConnectionConfig connectionConfig;
+    memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
+    connectionConfig.transportProfileUri = pubsubConnectionDataType->transportProfileUri;
+    connectionConfig.name = pubsubConnectionDataType->name;
+    //TODO set real connection state
+    connectionConfig.enabled = pubsubConnectionDataType->enabled;
+    //connectionConfig.enabled = pubSubConnectionDataType.enabled;
+    UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrlDataType,
+                         &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
+    if(pubsubConnectionDataType->publisherId.type == &UA_TYPES[UA_TYPES_UINT32]){
+        connectionConfig.publisherId.numeric = * ((UA_UInt32 *) pubsubConnectionDataType->publisherId.data);
+    } else if(pubsubConnectionDataType->publisherId.type == &UA_TYPES[UA_TYPES_STRING]){
+        connectionConfig.publisherIdType = UA_PUBSUB_PUBLISHERID_STRING;
+        UA_String_copy((UA_String *) pubsubConnectionDataType->publisherId.data, &connectionConfig.publisherId.string);
+    } else {
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER, "Unsupported PublisherId Type used.");
+        //TODO what's the best default behaviour here?
+        connectionConfig.publisherId.numeric = 0;
+    }
+
+    retVal |= UA_Server_addPubSubConnection(server, &connectionConfig, connectionId);
+    UA_NetworkAddressUrlDataType_clear(&networkAddressUrlDataType);
+    return retVal;
+}
+
+/**
+ * **WriterGroup handling**
+ *
+ * The WriterGroup (WG) is part of the connection and contains the primary
+ * configuration parameters for the message creation. */
+static UA_StatusCode
+addWriterGroupConfig(UA_Server *server, UA_NodeId connectionId,
+                     UA_WriterGroupDataType *writerGroupDataType, UA_NodeId *writerGroupId){
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    /* Now we create a new WriterGroupConfig and add the group to the existing
+     * PubSubConnection. */
+    UA_WriterGroupConfig writerGroupConfig;
+    memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
+    writerGroupConfig.name = writerGroupDataType->name;
+    writerGroupConfig.publishingInterval = writerGroupDataType->publishingInterval;
+    writerGroupConfig.enabled = writerGroupDataType->enabled;
+    writerGroupConfig.writerGroupId = writerGroupDataType->writerGroupId;
+    //TODO remove hard coded UADP
+    writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
+    writerGroupConfig.priority = writerGroupDataType->priority;
+
+    UA_UadpWriterGroupMessageDataType writerGroupMessage;
+    UA_ExtensionObject *eoWG = &writerGroupDataType->messageSettings;
+    if(eoWG->encoding == UA_EXTENSIONOBJECT_DECODED){
+        writerGroupConfig.messageSettings.encoding  = UA_EXTENSIONOBJECT_DECODED;
+        if(eoWG->content.decoded.type == &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE]){
+            if(UA_UadpWriterGroupMessageDataType_copy((UA_UadpWriterGroupMessageDataType *) eoWG->content.decoded.data,
+                                                        &writerGroupMessage) != UA_STATUSCODE_GOOD){
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+            }
+            writerGroupConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
+            writerGroupConfig.messageSettings.content.decoded.data = &writerGroupMessage;
+        }
+    }
+
+    retVal |= UA_Server_addWriterGroup(server, connectionId, &writerGroupConfig, writerGroupId);
+    return retVal;
+}
+
+/**
+ * **DataSetWriter handling**
+ *
+ * A DataSetWriter (DSW) is the glue between the WG and the PDS. The DSW is
+ * linked to exactly one PDS and contains additional informations for the
+ * message generation. */
+static UA_StatusCode
+addDataSetWriterConfig(UA_Server *server, UA_NodeId writerGroupId,
+                       UA_DataSetWriterDataType *dataSetWriterDataType, UA_NodeId *dataSetWriterId){
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    UA_NodeId publishedDataSetId = UA_NODEID_NULL;
+    UA_PublishedDataSet *tmpPDS;
+
+    TAILQ_FOREACH(tmpPDS, &server->pubSubManager.publishedDataSets, listEntry){
+        if(UA_String_equal(&dataSetWriterDataType->dataSetName, &tmpPDS->config.name)){
+            publishedDataSetId = tmpPDS->identifier;
+        }
+    }
+
+    if(UA_NodeId_isNull(&publishedDataSetId))
+        return UA_STATUSCODE_BADPARENTNODEIDINVALID;
+
+    /* We need now a DataSetWriter within the WriterGroup. This means we must
+     * create a new DataSetWriterConfig and add call the addWriterGroup function. */
+    UA_DataSetWriterConfig dataSetWriterConfig;
+    memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
+    dataSetWriterConfig.name = dataSetWriterDataType->name;
+    dataSetWriterConfig.dataSetWriterId = dataSetWriterDataType->dataSetWriterId;
+    dataSetWriterConfig.keyFrameCount = dataSetWriterDataType->keyFrameCount;
+    dataSetWriterConfig.dataSetFieldContentMask =  dataSetWriterDataType->dataSetFieldContentMask;
+
+    retVal |= UA_Server_addDataSetWriter(server, writerGroupId, publishedDataSetId,
+                                         &dataSetWriterConfig, dataSetWriterId);
+    return retVal;
+}
+
+/**
+ * **ReaderGroup**
+ *
+ * ReaderGroup is used to group a list of DataSetReaders. All ReaderGroups are
+ * created within a PubSubConnection and automatically deleted if the connection
+ * is removed. All network message related filters are only available in the DataSetReader. */
+/* Add ReaderGroup to the created connection */
+static UA_StatusCode
+addReaderGroupConfig(UA_Server *server, UA_NodeId connectionId,
+                     UA_ReaderGroupDataType *readerGroupDataType, UA_NodeId *readerGroupId){
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    UA_ReaderGroupConfig readerGroupConfig;
+    memset (&readerGroupConfig, 0, sizeof(UA_ReaderGroupConfig));
+    readerGroupConfig.name = readerGroupDataType->name;
+
+    retVal |= UA_Server_addReaderGroup(server, connectionId, &readerGroupConfig,
+                                       readerGroupId);
+    return retVal;
+}
+
+/**
+ * **SubscribedDataSet**
+ *
+ * Set SubscribedDataSet type to TargetVariables data type.
+ * Add subscribedvariables to the DataSetReader */
+static UA_StatusCode
+addSubscribedVariables(UA_Server *server, UA_NodeId dataSetReaderId,
+                       UA_DataSetReaderDataType *dataSetReaderDataType, UA_DataSetMetaDataType *pMetaData){
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    UA_TargetVariablesDataType targetVars;
+    UA_ExtensionObject *eoTargetVar = &dataSetReaderDataType->subscribedDataSet;
+    if(eoTargetVar->encoding == UA_EXTENSIONOBJECT_DECODED){
+        if(eoTargetVar->content.decoded.type == &UA_TYPES[UA_TYPES_TARGETVARIABLESDATATYPE]){
+            if(UA_TargetVariablesDataType_copy((UA_TargetVariablesDataType *) eoTargetVar->content.decoded.data,
+                                                &targetVars) != UA_STATUSCODE_GOOD){
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+            }
+        }
+        UA_NodeId folderId;
+        UA_String folderName = pMetaData->name;
+        UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+        UA_QualifiedName folderBrowseName;
+        if(folderName.length > 0) {
+            oAttr.displayName.locale = UA_STRING ("en-US");
+            oAttr.displayName.text = folderName;
+            folderBrowseName.namespaceIndex = 1;
+            folderBrowseName.name = folderName;
+        }
+        else {
+            oAttr.displayName = UA_LOCALIZEDTEXT ("en-US", "Subscribed Variables");
+            folderBrowseName = UA_QUALIFIEDNAME (1, "Subscribed Variables");
+        }
+
+        UA_Server_addObjectNode(server, UA_NODEID_NULL,
+                                UA_NODEID_NUMERIC (0, UA_NS0ID_OBJECTSFOLDER),
+                                UA_NODEID_NUMERIC (0, UA_NS0ID_ORGANIZES),
+                                folderBrowseName, UA_NODEID_NUMERIC (0,
+                                UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
+        /**
+        * **TargetVariables**
+        *
+        * The SubscribedDataSet option TargetVariables defines a list of Variable mappings between
+        * received DataSet fields and target Variables in the Subscriber AddressSpace.
+        * The values subscribed from the Publisher are updated in the value field of these variables */
+        /* Create the TargetVariables with respect to DataSetMetaData fields */
+        UA_FieldTargetVariable *targetVarsData = (UA_FieldTargetVariable *)
+            UA_calloc(targetVars.targetVariablesSize, sizeof(UA_FieldTargetVariable));
+        for(size_t i = 0; i < targetVars.targetVariablesSize; i++) {
+            /* Variable to subscribe data */
+            UA_VariableAttributes vAttr = UA_VariableAttributes_default;
+            UA_LocalizedText_copy(&pMetaData->fields[i].description,
+                                &vAttr.description);
+            vAttr.displayName.locale = UA_STRING("en-US");
+            vAttr.displayName.text = pMetaData->fields[i].name;
+            vAttr.dataType = pMetaData->fields[i].dataType;
+
+            UA_NodeId newNode;
+            retVal |= UA_Server_addVariableNode(server, targetVars.targetVariables[i].targetNodeId,
+                                                folderId,
+                                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                                UA_QUALIFIEDNAME(1, (char *)pMetaData->fields[i].name.data),
+                                                UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                                vAttr, NULL, &newNode);
+
+            /* For creating Targetvariables */
+            UA_FieldTargetDataType_init(&targetVarsData[i].targetVariable);
+            targetVarsData[i].targetVariable.attributeId  = targetVars.targetVariables[i].attributeId;
+            targetVarsData[i].targetVariable.targetNodeId = newNode;
+        }
+        retVal = UA_Server_DataSetReader_createTargetVariables(server, dataSetReaderId,
+                                                                targetVars.targetVariablesSize, targetVarsData);
+        for(size_t j = 0; j < targetVars.targetVariablesSize; j++)
+            UA_FieldTargetDataType_clear(&targetVarsData[j].targetVariable);
+        UA_free(targetVarsData);
+    }
+
+    return retVal;
+}
+
+/**
+ * **DataSetReader**
+ *
+ * DataSetReader can receive NetworkMessages with the DataSetMessage
+ * of interest sent by the Publisher. DataSetReader provides
+ * the configuration necessary to receive and process DataSetMessages
+ * on the Subscriber side. DataSetReader must be linked with a
+ * SubscribedDataSet and be contained within a ReaderGroup. */
+/* Add DataSetReader to the ReaderGroup */
+static UA_StatusCode
+addDataSetReaderConfig(UA_Server *server, UA_NodeId readerGroupId,
+                       UA_DataSetReaderDataType *dataSetReaderDataType, UA_NodeId *dataSetReaderId){
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    UA_DataSetReaderConfig readerConfig;
+    memset (&readerConfig, 0, sizeof(UA_DataSetReaderConfig));
+    readerConfig.name = dataSetReaderDataType->name;
+    /* Parameters to filter which DataSetMessage has to be processed
+     * by the DataSetReader */
+    if(dataSetReaderDataType->publisherId.type == &UA_TYPES[UA_TYPES_STRING]){
+        UA_String publisherIdentifier;
+        readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_STRING];
+        UA_String_copy((UA_String *) dataSetReaderDataType->publisherId.data, &publisherIdentifier);
+        readerConfig.publisherId.data = &publisherIdentifier;
+    } else {
+        UA_UInt16 publisherIdentifier = *(UA_UInt16*)dataSetReaderDataType->publisherId.data;
+        readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
+        readerConfig.publisherId.data = &publisherIdentifier;
+    }
+
+    readerConfig.writerGroupId    = dataSetReaderDataType->writerGroupId;
+    readerConfig.dataSetWriterId  = dataSetReaderDataType->dataSetWriterId;
+
+    /* Setting up Meta data configuration in DataSetReader */
+    UA_DataSetMetaDataType *pMetaData;
+    pMetaData = &readerConfig.dataSetMetaData;
+    UA_DataSetMetaDataType_init (pMetaData);
+    pMetaData->name =  dataSetReaderDataType->dataSetMetaData.name;
+    pMetaData->fieldsSize = dataSetReaderDataType->dataSetMetaData.fieldsSize;
+    pMetaData->fields = (UA_FieldMetaData*)UA_Array_new (pMetaData->fieldsSize,
+                        &UA_TYPES[UA_TYPES_FIELDMETADATA]);
+    for (size_t i = 0; i < pMetaData->fieldsSize; i++){
+        UA_FieldMetaData_init (&pMetaData->fields[i]);
+        UA_NodeId_copy (&dataSetReaderDataType->dataSetMetaData.fields[i].dataType,
+                        &pMetaData->fields[i].dataType);
+        pMetaData->fields[i].builtInType = dataSetReaderDataType->dataSetMetaData.fields[i].builtInType;
+        pMetaData->fields[i].name = dataSetReaderDataType->dataSetMetaData.fields[i].name;
+        pMetaData->fields[i].valueRank = dataSetReaderDataType->dataSetMetaData.fields[i].valueRank;
+    }
+
+    retVal |= UA_Server_addDataSetReader(server, readerGroupId, &readerConfig,
+                                         dataSetReaderId);
+    if(retVal != UA_STATUSCODE_GOOD) {
+        UA_free(pMetaData->fields);
+        return retVal;
+    }
+
+    retVal |= addSubscribedVariables(server, *dataSetReaderId, dataSetReaderDataType, pMetaData);
+    UA_free(pMetaData->fields);
+    return retVal;
+}
+#endif
 /*************************************************/
 /*            PubSubConnection                   */
 /*************************************************/
@@ -275,7 +552,7 @@ addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connec
     UA_ObjectAttributes attr = UA_ObjectAttributes_default;
     attr.displayName = UA_LOCALIZEDTEXT("de-DE", connectionName);
     retVal |= UA_Server_addNode_begin(server, UA_NODECLASS_OBJECT,
-                                      UA_NODEID_NUMERIC(0, connection->identifier.identifier.numeric),
+                                      UA_NODEID_NUMERIC(1, connection->identifier.identifier.numeric),
                                       UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE),
                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASPUBSUBCONNECTION),
                                       UA_QUALIFIEDNAME(0, connectionName),
@@ -283,28 +560,29 @@ addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connec
                                       (const UA_NodeAttributes*)&attr, &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES],
                                       NULL, &pubSubConnectionNodeId);
     addPubSubObjectNode(server, "Address", connection->identifier.identifier.numeric+1,
-                        pubSubConnectionNodeId.identifier.numeric,  UA_NS0ID_HASCOMPONENT,
+                        pubSubConnectionNodeId,  UA_NS0ID_HASCOMPONENT,
                         UA_NS0ID_NETWORKADDRESSURLTYPE);
+    //ToDo: Need to move the browse name from namespaceindex 0 to 1
     UA_Server_addNode_finish(server, pubSubConnectionNodeId);
     //End lock zone
 
     UA_NodeId addressNode, urlNode, interfaceNode, publisherIdNode, connectionPropertieNode, transportProfileUri;
     addressNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Address"),
                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                                      UA_NODEID_NUMERIC(0, connection->identifier.identifier.numeric));
+                                      UA_NODEID_NUMERIC(1, connection->identifier.identifier.numeric));
     urlNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Url"),
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), addressNode);
     interfaceNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "NetworkInterface"),
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), addressNode);
     publisherIdNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublisherId"),
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                                        UA_NODEID_NUMERIC(0, connection->identifier.identifier.numeric));
+                                        UA_NODEID_NUMERIC(1, connection->identifier.identifier.numeric));
     connectionPropertieNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "ConnectionProperties"),
                                                  UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                                                 UA_NODEID_NUMERIC(0, connection->identifier.identifier.numeric));
+                                                 UA_NODEID_NUMERIC(1, connection->identifier.identifier.numeric));
     transportProfileUri = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "TransportProfileUri"),
                                           UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                                          UA_NODEID_NUMERIC(0, connection->identifier.identifier.numeric));
+                                          UA_NODEID_NUMERIC(1, connection->identifier.identifier.numeric));
 
     if(UA_NodeId_equal(&addressNode, &UA_NODEID_NULL) ||
        UA_NodeId_equal(&urlNode, &UA_NODEID_NULL) ||
@@ -338,7 +616,6 @@ addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connec
     valueCallback.onRead = onRead;
     valueCallback.onWrite = NULL;
     retVal |= addVariableValueSource(server, valueCallback, publisherIdNode, connectionPublisherIdContext);
-
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
     retVal |= UA_Server_addReference(server, connection->identifier,
                                      UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
@@ -363,51 +640,68 @@ addPubSubConnectionAction(UA_Server *server,
                           size_t outputSize, UA_Variant *output){
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_PubSubConnectionDataType pubSubConnectionDataType = *((UA_PubSubConnectionDataType *) input[0].data);
-    UA_NetworkAddressUrlDataType networkAddressUrlDataType;
-    memset(&networkAddressUrlDataType, 0, sizeof(networkAddressUrlDataType));
-    UA_ExtensionObject eo = pubSubConnectionDataType.address;
-    if(eo.encoding == UA_EXTENSIONOBJECT_DECODED){
-        if(eo.content.decoded.type == &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]){
-            if(UA_NetworkAddressUrlDataType_copy((UA_NetworkAddressUrlDataType *) eo.content.decoded.data,
-                                                 &networkAddressUrlDataType) != UA_STATUSCODE_GOOD){
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-            }
-        }
-    }
-    UA_PubSubConnectionConfig connectionConfig;
-    memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
-    connectionConfig.transportProfileUri = pubSubConnectionDataType.transportProfileUri;
-    connectionConfig.name = pubSubConnectionDataType.name;
-    //TODO set real connection state
-    connectionConfig.enabled = pubSubConnectionDataType.enabled;
-    //connectionConfig.enabled = pubSubConnectionDataType.enabled;
-    UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrlDataType,
-                         &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    if(pubSubConnectionDataType.publisherId.type == &UA_TYPES[UA_TYPES_UINT32]){
-        connectionConfig.publisherId.numeric = * ((UA_UInt32 *) pubSubConnectionDataType.publisherId.data);
-    } else if(pubSubConnectionDataType.publisherId.type == &UA_TYPES[UA_TYPES_STRING]){
-        connectionConfig.publisherIdType = UA_PUBSUB_PUBLISHERID_STRING;
-        UA_String_copy((UA_String *) pubSubConnectionDataType.publisherId.data, &connectionConfig.publisherId.string);
-    } else {
-        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER, "Unsupported PublisherId Type used.");
-        //TODO what's the best default behaviour here?
-        connectionConfig.publisherId.numeric = 0;
-    }
+
     //call API function and create the connection
     UA_NodeId connectionId;
-
-    retVal |= UA_Server_addPubSubConnection(server, &connectionConfig, &connectionId);
-
-    if(retVal != UA_STATUSCODE_GOOD){
+    retVal |= addPubSubConnectionConfig(server, &pubSubConnectionDataType, &connectionId);
+    if(retVal != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "addPubSubConnection failed");
         return retVal;
     }
+
     for(size_t i = 0; i < pubSubConnectionDataType.writerGroupsSize; i++){
-        //UA_PubSubConnection_addWriterGroup(server, UA_NODEID_NULL, NULL, NULL);
+        UA_NodeId writerGroupId;
+        UA_WriterGroupDataType *writerGroupDataType = &pubSubConnectionDataType.writerGroups[i];
+        retVal |= addWriterGroupConfig(server, connectionId, writerGroupDataType, &writerGroupId);
+        if(retVal != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "addWriterGroup failed");
+            return retVal;
+        }
+
+        for (size_t j = 0; j < pubSubConnectionDataType.writerGroups[i].dataSetWritersSize; j++){
+            UA_DataSetWriterDataType *dataSetWriterDataType = &writerGroupDataType->dataSetWriters[j];
+            retVal |= addDataSetWriterConfig(server, writerGroupId, dataSetWriterDataType, NULL);
+            if(retVal != UA_STATUSCODE_GOOD) {
+                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "addDataSetWriter failed");
+                return retVal;
+            }
+        }
+
+        //TODO: Need to handle the UA_Server_setWriterGroupOperational based on the status variable in information model
+        if (pubSubConnectionDataType.enabled == UA_TRUE) {
+            UA_Server_freezeWriterGroupConfiguration(server, writerGroupId);
+            UA_Server_setWriterGroupOperational(server, writerGroupId);
+        }
+        else
+            UA_Server_setWriterGroupDisabled(server, writerGroupId);
     }
+
     for(size_t i = 0; i < pubSubConnectionDataType.readerGroupsSize; i++){
-        //UA_Server_addReaderGroup(server, NULL, NULL, NULL);
+        UA_NodeId readerGroupId;
+        UA_ReaderGroupDataType *readerGroupDataType = &pubSubConnectionDataType.readerGroups[i];
+        retVal |= addReaderGroupConfig(server, connectionId, readerGroupDataType, &readerGroupId);
+        if(retVal != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "addReaderGroup failed");
+            return retVal;
+        }
+
+        for (size_t j = 0; j < pubSubConnectionDataType.readerGroups[i].dataSetReadersSize; j++){
+            UA_NodeId dataSetReaderId;
+            UA_DataSetReaderDataType *dataSetReaderDataType =  &readerGroupDataType->dataSetReaders[j];
+            retVal |= addDataSetReaderConfig(server, readerGroupId, dataSetReaderDataType, &dataSetReaderId);
+            if(retVal != UA_STATUSCODE_GOOD) {
+                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "addDataSetReader failed");
+                return retVal;
+            }
+        }
+        //TODO: Need to handle the UA_Server_setReaderGroupOperational based on the status variable in information model
+        if (pubSubConnectionDataType.enabled == UA_TRUE) {
+            UA_Server_freezeReaderGroupConfiguration(server, readerGroupId);
+            UA_Server_setReaderGroupOperational(server, readerGroupId);
+        }
+        else
+            UA_Server_setReaderGroupDisabled(server, readerGroupId);
     }
-    UA_NetworkAddressUrlDataType_clear(&networkAddressUrlDataType);
     //set ouput value
     UA_Variant_setScalarCopy(output, &connectionId, &UA_TYPES[UA_TYPES_NODEID]);
     return UA_STATUSCODE_GOOD;
@@ -467,20 +761,21 @@ addDataSetReaderRepresentation(UA_Server *server, UA_DataSetReader *dataSetReade
     //This code block must use a lock
     UA_NODESTORE_REMOVE(server, &dataSetReader->identifier);
     retVal |= addPubSubObjectNode(server, dsrName, dataSetReader->identifier.identifier.numeric,
-                                  dataSetReader->linkedReaderGroup.identifier.numeric,
+                                  dataSetReader->linkedReaderGroup,
                                   UA_NS0ID_HASDATASETREADER, UA_NS0ID_DATASETREADERTYPE);
     //End lock zone
 
+    //ToDo: Need to move the browse name from namespaceindex 0 to 1
     /* Add childNodes such as PublisherId, WriterGroupId and DataSetWriterId in DataSetReader object */
     publisherIdNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublisherId"),
                                           UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                                          UA_NODEID_NUMERIC(0, dataSetReader->identifier.identifier.numeric));
+                                          UA_NODEID_NUMERIC(1, dataSetReader->identifier.identifier.numeric));
     writerGroupIdNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "WriterGroupId"),
                                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                                            UA_NODEID_NUMERIC(0, dataSetReader->identifier.identifier.numeric));
+                                            UA_NODEID_NUMERIC(1, dataSetReader->identifier.identifier.numeric));
     dataSetwriterIdNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetWriterId"),
                                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                                              UA_NODEID_NUMERIC(0, dataSetReader->identifier.identifier.numeric));
+                                              UA_NODEID_NUMERIC(1, dataSetReader->identifier.identifier.numeric));
 
     if(UA_NodeId_equal(&publisherIdNode, &UA_NODEID_NULL)
         || UA_NodeId_equal(&writerGroupIdNode, &UA_NODEID_NULL)
@@ -515,8 +810,22 @@ addDataSetReaderAction(UA_Server *server,
                        const UA_NodeId *objectId, void *objectContext,
                        size_t inputSize, const UA_Variant *input,
                        size_t outputSize, UA_Variant *output){
-    UA_StatusCode retVal = UA_STATUSCODE_BADNOTIMPLEMENTED;
-    //TODO implement reader part
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, *objectId);
+    if (rg->configurationFrozen == UA_TRUE){
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "addDataSetReader cannot be done because ReaderGroup config frozen");
+        return UA_STATUSCODE_BAD;
+    }
+
+    UA_NodeId dataSetReaderId;
+    UA_DataSetReaderDataType *dataSetReaderDataType = (UA_DataSetReaderDataType *) input[0].data;
+    retVal |= addDataSetReaderConfig(server, *objectId, dataSetReaderDataType, &dataSetReaderId);
+    if(retVal != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "addDataSetReader failed");
+        return retVal;
+    }
+
+    UA_Variant_setScalarCopy(output, &dataSetReaderId, &UA_TYPES[UA_TYPES_NODEID]);
     return retVal;
 }
 #endif
@@ -536,8 +845,9 @@ removeDataSetReaderAction(UA_Server *server,
                           const UA_NodeId *objectId, void *objectContext,
                           size_t inputSize, const UA_Variant *input,
                           size_t outputSize, UA_Variant *output){
-    UA_StatusCode retVal = UA_STATUSCODE_BADNOTIMPLEMENTED;
-    //TODO implement reader part
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    UA_NodeId nodeToRemove = *((UA_NodeId *) input[0].data);
+    retVal |= UA_Server_removeDataSetReader(server, nodeToRemove);
     return retVal;
 }
 #endif
@@ -622,18 +932,18 @@ addPublishedDataItemsRepresentation(UA_Server *server, UA_PublishedDataSet *publ
     //This code block must use a lock
     UA_NODESTORE_REMOVE(server, &publishedDataSet->identifier);
     retVal |= addPubSubObjectNode(server, pdsName, publishedDataSet->identifier.identifier.numeric,
-                                  UA_NS0ID_PUBLISHSUBSCRIBE_PUBLISHEDDATASETS,
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_PUBLISHEDDATASETS),
                                   UA_NS0ID_HASPROPERTY, UA_NS0ID_PUBLISHEDDATAITEMSTYPE);
     //End lock zone
 
     UA_ValueCallback valueCallback;
     valueCallback.onRead = onRead;
     valueCallback.onWrite = NULL;
-
+    //ToDo: Need to move the browse name from namespaceindex 0 to 1
     UA_NodeId configurationVersionNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "ConfigurationVersion"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                            UA_NODEID_NUMERIC(0, publishedDataSet->identifier.identifier.numeric));
+                            UA_NODEID_NUMERIC(1, publishedDataSet->identifier.identifier.numeric));
     if(UA_NodeId_equal(&configurationVersionNode, &UA_NODEID_NULL))
         return UA_STATUSCODE_BADNOTFOUND;
 
@@ -649,7 +959,7 @@ addPublishedDataItemsRepresentation(UA_Server *server, UA_PublishedDataSet *publ
     UA_NodeId publishedDataNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublishedData"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                            UA_NODEID_NUMERIC(0, publishedDataSet->identifier.identifier.numeric));
+                            UA_NODEID_NUMERIC(1, publishedDataSet->identifier.identifier.numeric));
     if(UA_NodeId_equal(&publishedDataNode, &UA_NODEID_NULL))
         return UA_STATUSCODE_BADNOTFOUND;
 
@@ -664,7 +974,7 @@ addPublishedDataItemsRepresentation(UA_Server *server, UA_PublishedDataSet *publ
     UA_NodeId dataSetMetaDataNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetMetaData"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                            UA_NODEID_NUMERIC(0, publishedDataSet->identifier.identifier.numeric));
+                            UA_NODEID_NUMERIC(1, publishedDataSet->identifier.identifier.numeric));
     if(UA_NodeId_equal(&dataSetMetaDataNode, &UA_NODEID_NULL))
         return UA_STATUSCODE_BADNOTFOUND;
 
@@ -674,7 +984,6 @@ addPublishedDataItemsRepresentation(UA_Server *server, UA_PublishedDataSet *publ
     metaDataContext->parentClassifier = UA_NS0ID_PUBLISHEDDATAITEMSTYPE;
     metaDataContext->elementClassiefier = UA_NS0ID_PUBLISHEDDATAITEMSTYPE_DATASETMETADATA;
     retVal |= addVariableValueSource(server, valueCallback, dataSetMetaDataNode, metaDataContext);
-
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
     retVal |= UA_Server_addReference(server, publishedDataSet->identifier,
                                      UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
@@ -735,7 +1044,6 @@ addPublishedDataItemsAction(UA_Server *server,
                 }
             }
         }
-
         dataSetFieldConfig.field.variable.publishParameters = variablesToAddField;
         retVal |= UA_Server_addDataSetField(server, dataSetItemsNodeId, &dataSetFieldConfig, NULL).result;
         if (retVal != UA_STATUSCODE_GOOD){
@@ -745,6 +1053,8 @@ addPublishedDataItemsAction(UA_Server *server,
 
         UA_PublishedVariableDataType_clear(&variablesToAddField);
     }
+
+    UA_Variant_setScalarCopy(output, &dataSetItemsNodeId, &UA_TYPES[UA_TYPES_NODEID]);
     return retVal;
 }
 #endif
@@ -858,17 +1168,18 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup){
     //This code block must use a lock
     UA_NODESTORE_REMOVE(server, &writerGroup->identifier);
     retVal |= addPubSubObjectNode(server, wgName, writerGroup->identifier.identifier.numeric,
-                                  writerGroup->linkedConnection->identifier.identifier.numeric,
+                                  writerGroup->linkedConnection->identifier,
                                   UA_NS0ID_HASCOMPONENT, UA_NS0ID_WRITERGROUPTYPE);
     //End lock zone
+    //ToDo: Need to move the browse name from namespaceindex 0 to 1
     UA_NodeId keepAliveNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "KeepAliveTime"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                            UA_NODEID_NUMERIC(0, writerGroup->identifier.identifier.numeric));
+                            UA_NODEID_NUMERIC(1, writerGroup->identifier.identifier.numeric));
     UA_NodeId publishingIntervalNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublishingInterval"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                            UA_NODEID_NUMERIC(0, writerGroup->identifier.identifier.numeric));
+                            UA_NODEID_NUMERIC(1, writerGroup->identifier.identifier.numeric));
     if(UA_NodeId_equal(&keepAliveNode, &UA_NODEID_NULL) ||
        UA_NodeId_equal(&publishingIntervalNode, &UA_NODEID_NULL))
         return UA_STATUSCODE_BADNOTFOUND;
@@ -889,11 +1200,11 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup){
     UA_NodeId priorityNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Priority"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                            UA_NODEID_NUMERIC(0, writerGroup->identifier.identifier.numeric));
+                            UA_NODEID_NUMERIC(1, writerGroup->identifier.identifier.numeric));
     UA_NodeId writerGroupIdNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "WriterGroupId"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                            UA_NODEID_NUMERIC(0, writerGroup->identifier.identifier.numeric));
+                            UA_NODEID_NUMERIC(1, writerGroup->identifier.identifier.numeric));
     UA_Variant value;
     UA_Variant_init(&value);
     UA_Variant_setScalar(&value, &writerGroup->config.publishingInterval, &UA_TYPES[UA_TYPES_DURATION]);
@@ -906,7 +1217,7 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup){
     UA_Server_writeValue(server, writerGroupIdNode, value);
 
     retVal |= addPubSubObjectNode(server, "MessageSettings", 0,
-                                  writerGroup->identifier.identifier.numeric,
+                                  writerGroup->identifier,
                                   UA_NS0ID_HASCOMPONENT, UA_NS0ID_UADPWRITERGROUPMESSAGETYPE);
 
     /* Find the variable with the content mask */
@@ -914,7 +1225,7 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup){
     UA_NodeId messageSettingsId =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "MessageSettings"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                            UA_NODEID_NUMERIC(0, writerGroup->identifier.identifier.numeric));
+                            UA_NODEID_NUMERIC(1, writerGroup->identifier.identifier.numeric));
     UA_NodeId contentMaskId =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "NetworkMessageContentMask"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), messageSettingsId);
@@ -933,6 +1244,14 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup){
     /* Make writable */
     UA_Server_writeAccessLevel(server, contentMaskId,
                                UA_ACCESSLEVELMASK_WRITE | UA_ACCESSLEVELMASK_READ);
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
+    retVal |= UA_Server_addReference(server, writerGroup->identifier,
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                     UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_WRITERGROUPTYPE_ADDDATASETWRITER), true);
+    retVal |= UA_Server_addReference(server, writerGroup->identifier,
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                     UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_WRITERGROUPTYPE_REMOVEDATASETWRITER), true);
+#endif
 
     return retVal;
 }
@@ -947,19 +1266,15 @@ addWriterGroupAction(UA_Server *server,
                              size_t outputSize, UA_Variant *output){
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_WriterGroupDataType *writerGroupDataType = ((UA_WriterGroupDataType *) input[0].data);
-    UA_NodeId generatedId;
-    UA_WriterGroupConfig writerGroupConfig;
-    memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
-    writerGroupConfig.name = writerGroupDataType->name;
-    writerGroupConfig.publishingInterval = writerGroupDataType->publishingInterval;
-    writerGroupConfig.writerGroupId = writerGroupDataType->writerGroupId;
-    writerGroupConfig.enabled = writerGroupDataType->enabled;
-    writerGroupConfig.priority = writerGroupDataType->priority;
-    //TODO remove hard coded UADP
-    writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
-    //ToDo transfer all arguments to internal WGConfiguration
-    retVal |= UA_Server_addWriterGroup(server, *objectId, &writerGroupConfig, &generatedId);
-    UA_Variant_setScalarCopy(output, &generatedId, &UA_TYPES[UA_TYPES_NODEID]);
+    UA_NodeId writerGroupId;
+    retVal |= addWriterGroupConfig(server, *objectId, writerGroupDataType, &writerGroupId);
+    if(retVal != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "addWriterGroup failed");
+        return retVal;
+    }
+    //TODO: Need to handle the UA_Server_setWriterGroupOperational based on the status variable in information model
+
+    UA_Variant_setScalarCopy(output, &writerGroupId, &UA_TYPES[UA_TYPES_NODEID]);
     return retVal;
 }
 #endif
@@ -967,6 +1282,14 @@ addWriterGroupAction(UA_Server *server,
 UA_StatusCode
 removeGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup) {
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
+    retVal |= UA_Server_deleteReference(server, writerGroup->identifier, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), true,
+                                        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_WRITERGROUPTYPE_ADDDATASETWRITER),
+                                        false);
+    retVal |= UA_Server_deleteReference(server, writerGroup->identifier, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), true,
+                                        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_WRITERGROUPTYPE_REMOVEDATASETWRITER),
+                                        false);
+#endif
     retVal |= UA_Server_deleteNode(server, writerGroup->identifier, false);
     return retVal;
 }
@@ -974,6 +1297,14 @@ removeGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup) {
 UA_StatusCode
 removeReaderGroupRepresentation(UA_Server *server, UA_ReaderGroup *readerGroup) {
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
+    retVal |= UA_Server_deleteReference(server, readerGroup->identifier, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), true,
+                                        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_READERGROUPTYPE_ADDDATASETREADER),
+                                        false);
+    retVal |= UA_Server_deleteReference(server, readerGroup->identifier, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), true,
+                                        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_READERGROUPTYPE_REMOVEDATASETREADER),
+                                        false);
+#endif
     retVal |= UA_Server_deleteNode(server, readerGroup->identifier, false);
     return retVal;
 }
@@ -988,10 +1319,20 @@ removeGroupAction(UA_Server *server,
                              size_t outputSize, UA_Variant *output){
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_NodeId nodeToRemove = *((UA_NodeId *) input[0].data);
-    if(UA_WriterGroup_findWGbyId(server, nodeToRemove) != NULL)
+    if(UA_WriterGroup_findWGbyId(server, nodeToRemove) != NULL) {
+        UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, nodeToRemove);
+        if (wg->configurationFrozen == UA_TRUE)
+            UA_Server_unfreezeWriterGroupConfiguration(server, nodeToRemove);
+
         retVal |= UA_Server_removeWriterGroup(server, nodeToRemove);
-    //else
-        //retVal |= UA_Server_removeReaderGroup(server, nodeToRemve);
+    }
+    else {
+        UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, nodeToRemove);
+        if (rg->configurationFrozen == UA_TRUE)
+            UA_Server_unfreezeReaderGroupConfiguration(server, nodeToRemove);
+
+        retVal |= UA_Server_removeReaderGroup(server, nodeToRemove);
+    }
     return retVal;
 }
 #endif
@@ -1016,8 +1357,16 @@ addReaderGroupRepresentation(UA_Server *server, UA_ReaderGroup *readerGroup){
 
     /* Add object ReaderGroup under PubSubConnectionType object */
     retVal |= addPubSubObjectNode(server, rgName, readerGroup->identifier.identifier.numeric,
-                                  readerGroup->linkedConnection.identifier.numeric,
+                                  readerGroup->linkedConnection,
                                   UA_NS0ID_HASCOMPONENT, UA_NS0ID_READERGROUPTYPE);
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
+    retVal |= UA_Server_addReference(server, readerGroup->identifier,
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                     UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_READERGROUPTYPE_ADDDATASETREADER), true);
+    retVal |= UA_Server_addReference(server, readerGroup->identifier,
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                     UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_READERGROUPTYPE_REMOVEDATASETREADER), true);
+#endif
     }
 
     //End lock zone
@@ -1033,7 +1382,16 @@ addReaderGroupAction(UA_Server *server,
                      size_t inputSize, const UA_Variant *input,
                      size_t outputSize, UA_Variant *output){
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-    //TODO implement reader part
+    UA_ReaderGroupDataType *readerGroupDataType = ((UA_ReaderGroupDataType *) input[0].data);
+    UA_NodeId readerGroupId;
+    retVal |= addReaderGroupConfig(server, *objectId, readerGroupDataType, &readerGroupId);
+    if(retVal != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "addReaderGroup failed");
+        return retVal;
+    }
+    //TODO: Need to handle the UA_Server_setReaderGroupOperational based on the status variable in information model
+
+    UA_Variant_setScalarCopy(output, &readerGroupId, &UA_TYPES[UA_TYPES_NODEID]);
     return retVal;
 }
 #endif
@@ -1052,25 +1410,25 @@ addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWrite
     //This code block must use a lock
     UA_NODESTORE_REMOVE(server, &dataSetWriter->identifier);
     retVal |= addPubSubObjectNode(server, dswName, dataSetWriter->identifier.identifier.numeric,
-                                  dataSetWriter->linkedWriterGroup.identifier.numeric,
+                                  dataSetWriter->linkedWriterGroup,
                                   UA_NS0ID_HASDATASETWRITER, UA_NS0ID_DATASETWRITERTYPE);
     //End lock zone
     retVal |= UA_Server_addReference(server, dataSetWriter->connectedDataSet,
                                      UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETTOWRITER),
-                                     UA_EXPANDEDNODEID_NUMERIC(0, dataSetWriter->identifier.identifier.numeric), true);
+                                     UA_EXPANDEDNODEID_NUMERIC(1, dataSetWriter->identifier.identifier.numeric), true);
 
     UA_NodeId dataSetWriterIdNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetWriterId"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                            UA_NODEID_NUMERIC(0, dataSetWriter->identifier.identifier.numeric));
+                            UA_NODEID_NUMERIC(1, dataSetWriter->identifier.identifier.numeric));
     UA_NodeId keyFrameNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "KeyFrameCount"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                            UA_NODEID_NUMERIC(0, dataSetWriter->identifier.identifier.numeric));
+                            UA_NODEID_NUMERIC(1, dataSetWriter->identifier.identifier.numeric));
     UA_NodeId dataSetFieldContentMaskNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetFieldContentMask"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                            UA_NODEID_NUMERIC(0, dataSetWriter->identifier.identifier.numeric));
+                            UA_NODEID_NUMERIC(1, dataSetWriter->identifier.identifier.numeric));
 
     UA_NodePropertyContext *dataSetWriterIdContext = (UA_NodePropertyContext *) UA_malloc(sizeof(UA_NodePropertyContext));
     dataSetWriterIdContext->parentNodeId = dataSetWriter->identifier;
@@ -1092,7 +1450,7 @@ addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWrite
     UA_Server_writeValue(server, dataSetFieldContentMaskNode, value);
 
     retVal |= addPubSubObjectNode(server, "MessageSettings", 0,
-                                  dataSetWriter->identifier.identifier.numeric,
+                                  dataSetWriter->identifier,
                                   UA_NS0ID_HASCOMPONENT, UA_NS0ID_UADPDATASETWRITERMESSAGETYPE);
     return retVal;
 }
@@ -1105,29 +1463,22 @@ addDataSetWriterAction(UA_Server *server,
                        const UA_NodeId *objectId, void *objectContext,
                        size_t inputSize, const UA_Variant *input,
                        size_t outputSize, UA_Variant *output){
-    UA_DataSetWriterDataType *dataSetWriterDataType = (UA_DataSetWriterDataType *) input[0].data;
-
-    UA_NodeId targetPDS = UA_NODEID_NULL;
-    UA_PublishedDataSet *tmpPDS;
-    TAILQ_FOREACH(tmpPDS, &server->pubSubManager.publishedDataSets, listEntry){
-        if(UA_String_equal(&dataSetWriterDataType->dataSetName, &tmpPDS->config.name)){
-            targetPDS = tmpPDS->identifier;
-        }
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, *objectId);
+    if (wg->configurationFrozen == UA_TRUE){
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "addDataSetWriter cannot be done because writergroup config frozen");
+        return UA_STATUSCODE_BAD;
     }
 
-    if(UA_NodeId_isNull(&targetPDS))
-        return UA_STATUSCODE_BADPARENTNODEIDINVALID;
+    UA_NodeId dataSetWriterId;
+    UA_DataSetWriterDataType *dataSetWriterDataType = (UA_DataSetWriterDataType *) input[0].data;
+    retVal |= addDataSetWriterConfig(server, *objectId, dataSetWriterDataType, &dataSetWriterId);
+    if(retVal != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "addDataSetWriter failed");
+        return retVal;
+    }
 
-    UA_NodeId generatedId;
-    UA_DataSetWriterConfig dataSetWriterConfig;
-    memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
-    dataSetWriterConfig.name = dataSetWriterDataType->name;
-    dataSetWriterConfig.dataSetName = dataSetWriterDataType->dataSetName;
-    dataSetWriterConfig.keyFrameCount =  dataSetWriterDataType->keyFrameCount;
-    dataSetWriterConfig.dataSetWriterId = dataSetWriterDataType->dataSetWriterId;
-
-    UA_Server_addDataSetWriter(server, *objectId, targetPDS, &dataSetWriterConfig, &generatedId);
-    UA_Variant_setScalarCopy(output, &generatedId, &UA_TYPES[UA_TYPES_NODEID]);
+    UA_Variant_setScalarCopy(output, &dataSetWriterId, &UA_TYPES[UA_TYPES_NODEID]);
     return UA_STATUSCODE_GOOD;
 }
 #endif
