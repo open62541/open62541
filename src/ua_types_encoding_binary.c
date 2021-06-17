@@ -1289,10 +1289,9 @@ encodeBinaryStruct(const void *src, const UA_DataType *type, Ctx *ctx) {
     /* Loop over members */
     uintptr_t ptr = (uintptr_t)src;
     status ret = UA_STATUSCODE_GOOD;
-    const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
-    for(size_t i = 0; i < type->membersSize && UA_LIKELY(ret == UA_STATUSCODE_GOOD); ++i) {
+    for(size_t i = 0; i < type->membersSize && ret == UA_STATUSCODE_GOOD; ++i) {
         const UA_DataTypeMember *m = &type->members[i];
-        const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
+        const UA_DataType *mt = m->memberType;
         ptr += m->padding;
 
         /* Array. Buffer-exchange is done inside Array_encodeBinary if required. */
@@ -1322,15 +1321,13 @@ encodeBinaryStructWithOptFields(const void *src, const UA_DataType *type, Ctx *c
         return UA_STATUSCODE_BADENCODINGERROR;
     ctx->depth++;
 
-    const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
-
     /* Creating the encoding mask, marking the available optional fields */
     uintptr_t ptr = (uintptr_t)src;
     size_t optFieldCounter = 0;
     UA_UInt32 encodingMask = 0;
     for(size_t j = 0; j < type->membersSize; ++j) {
         const UA_DataTypeMember *m = &type->members[j];
-        const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
+        const UA_DataType *mt = m->memberType;
         ptr += m->padding;
         if(m->isOptional) {
             if(m->isArray)
@@ -1354,7 +1351,7 @@ encodeBinaryStructWithOptFields(const void *src, const UA_DataType *type, Ctx *c
     ptr = (uintptr_t)src;
     for(size_t i = 0, o = 0; i < type->membersSize && UA_LIKELY(ret == UA_STATUSCODE_GOOD); ++i) {
         const UA_DataTypeMember *m = &type->members[i];
-        const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
+        const UA_DataType *mt = m->memberType;
         ptr += m->padding;
 
         if(m->isOptional) {
@@ -1410,9 +1407,8 @@ encodeBinaryUnion(const void *src, const UA_DataType *type, Ctx *ctx) {
     }
 
     /* Select the member */
-    const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
     const UA_DataTypeMember *m = &type->members[selection-1];
-    const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
+    const UA_DataType *mt = m->memberType;
 
     /* Encode the member */
     uintptr_t ptr = ((uintptr_t)src) + m->padding; /* includes the switchfield length */
@@ -1511,12 +1507,11 @@ decodeBinaryStructure(void *dst, const UA_DataType *type, Ctx *ctx) {
     uintptr_t ptr = (uintptr_t)dst;
     status ret = UA_STATUSCODE_GOOD;
     u8 membersSize = type->membersSize;
-    const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
 
     /* Loop over members */
     for(size_t i = 0; i < membersSize && ret == UA_STATUSCODE_GOOD; ++i) {
         const UA_DataTypeMember *m = &type->members[i];
-        const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
+        const UA_DataType *mt = m->memberType;
         ptr += m->padding;
 
         /* Array */
@@ -1549,10 +1544,9 @@ decodeBinaryStructureWithOptFields(void *dst, const UA_DataType *type, Ctx *ctx)
     UA_CHECK_STATUS(ret, ctx->depth--; return ret);
 
     /* Loop over members */
-    const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
-    for(size_t i = 0, o = 0; i < type->membersSize && UA_LIKELY(ret == UA_STATUSCODE_GOOD); ++i) {
+    for(size_t i = 0, o = 0; i < type->membersSize && ret == UA_STATUSCODE_GOOD; ++i) {
         const UA_DataTypeMember *m = &type->members[i];
-        const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
+        const UA_DataType *mt = m->memberType;
         ptr += m->padding;
         if(m->isOptional) {
             if(!(encodingMask & (UA_UInt32) ( (UA_UInt32) 1<<(o++)))) {
@@ -1611,9 +1605,8 @@ decodeBinaryUnion(void *UA_RESTRICT dst, const UA_DataType *type, Ctx *ctx) {
              return UA_STATUSCODE_BADDECODINGERROR);
 
     /* Select the member */
-    const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
     const UA_DataTypeMember *m = &type->members[selection-1];
-    const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
+    const UA_DataType *mt = m->memberType;
 
     /* Decode */
     ctx->depth++;
@@ -1866,12 +1859,11 @@ calcSizeBinaryStructure(const void *p, const UA_DataType *type) {
     size_t s = 0;
     uintptr_t ptr = (uintptr_t)p;
     u8 membersSize = type->membersSize;
-    const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
 
     /* Loop over members */
     for(size_t i = 0; i < membersSize; ++i) {
         const UA_DataTypeMember *member = &type->members[i];
-        const UA_DataType *membertype = &typelists[!member->namespaceZero][member->memberTypeIndex];
+        const UA_DataType *membertype = member->memberType;
         ptr += member->padding;
 
         /* Array */
@@ -1898,10 +1890,9 @@ calcSizeBinaryStructureWithOptFields(const void *p, const UA_DataType *type) {
 
     /* Loop over members */
     uintptr_t ptr = (uintptr_t)p;
-    const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
     for(size_t i = 0; i < type->membersSize; ++i) {
         const UA_DataTypeMember *member = &type->members[i];
-        const UA_DataType *membertype = &typelists[!member->namespaceZero][member->memberTypeIndex];
+        const UA_DataType *membertype = member->memberType;
         ptr += member->padding;
         if(member->isOptional) {
             if((member->isArray && ((*(void* const*)(ptr+sizeof(size_t))) == NULL)) ||
@@ -1936,9 +1927,8 @@ calcSizeBinaryUnion(const void *p, const UA_DataType *type) {
     if(selection == 0)
         return s;
 
-    const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
     const UA_DataTypeMember *m = &type->members[selection-1];
-    const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
+    const UA_DataType *mt = m->memberType;
 
     uintptr_t ptr = ((uintptr_t)p) + m->padding; /* includes switchfield length */
     if(!m->isArray) {

@@ -16,16 +16,68 @@
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 
-#include "ua_pubsub_networkmessage.h"
-
 #include <signal.h>
-
-#include <custom_datatype/custom_datatype.h>
 
 const UA_NodeId pointVariableTypeId = {
     1, UA_NODEIDTYPE_NUMERIC, {4243}};
 
 UA_NodeId connectionIdent, publishedDataSetIdent, writerGroupIdent, pointVariableNode;
+
+/* The binary encoding id's for the datatypes */
+#define Point_binary_encoding_id        1
+
+typedef struct {
+    UA_Float x;
+    UA_Float y;
+    UA_Float z;
+} Point;
+
+/* The datatype description for the Point datatype */
+#define Point_padding_y offsetof(Point,y) - offsetof(Point,x) - sizeof(UA_Float)
+#define Point_padding_z offsetof(Point,z) - offsetof(Point,y) - sizeof(UA_Float)
+
+static UA_DataTypeMember Point_members[3] = {
+    /* x */
+    {
+        UA_TYPENAME("x")           /* .memberName */
+        &UA_TYPES[UA_TYPES_FLOAT], /* .memberType */
+        0,                         /* .padding */
+        false,                     /* .isArray */
+        false                      /* .isOptional */
+    },
+
+    /* y */
+    {
+        UA_TYPENAME("y")           /* .memberName */
+        &UA_TYPES[UA_TYPES_FLOAT], /* .memberType */
+        Point_padding_y,           /* .padding */
+        false,                     /* .isArray */
+        false                      /* .isOptional */
+    },
+    /* z */
+    {
+        UA_TYPENAME("z")           /* .memberName */
+        &UA_TYPES[UA_TYPES_FLOAT], /* .memberType */
+        Point_padding_z,           /* .padding */
+        false,                     /* .isArray */
+        false                      /* .isOptional */
+    }
+};
+
+static UA_DataType PointType = {
+    UA_TYPENAME("Point")                /* .typeName */
+    {1, UA_NODEIDTYPE_NUMERIC, {4242}}, /* .typeId */
+    {1, UA_NODEIDTYPE_NUMERIC, {Point_binary_encoding_id}}, /* .binaryEncodingId, the numeric
+                                            identifier used on the wire (the
+                                            namespaceindex is from .typeId) */
+    sizeof(Point),                      /* .memSize */
+    UA_DATATYPEKIND_STRUCTURE,          /* .typeKind */
+    true,                               /* .pointerFree */
+    false,                              /* .overlayable (depends on endianness and
+                                            the absence of padding) */
+    3,                                  /* .membersSize */
+    Point_members
+};
 
 /* non raw encoding specific */
 static void

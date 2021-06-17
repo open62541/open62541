@@ -1091,10 +1091,9 @@ copyStructure(const void *src, void *dst, const UA_DataType *type) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     uintptr_t ptrs = (uintptr_t)src;
     uintptr_t ptrd = (uintptr_t)dst;
-    const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
     for(size_t i = 0; i < type->membersSize; ++i) {
         const UA_DataTypeMember *m = &type->members[i];
-        const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
+        const UA_DataType *mt = m->memberType;
         ptrs += m->padding;
         ptrd += m->padding;
         if(!m->isOptional) {
@@ -1150,9 +1149,8 @@ copyUnion(const void *src, void *dst, const UA_DataType *type) {
     UA_copy((const UA_UInt32 *) ptrs, (UA_UInt32 *) ptrd, &UA_TYPES[UA_TYPES_UINT32]);
     if(selection == 0)
         return UA_STATUSCODE_GOOD;
-    const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
     const UA_DataTypeMember *m = &type->members[selection-1];
-    const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
+    const UA_DataType *mt = m->memberType;
     ptrs += m->padding;
     ptrd += m->padding;
 
@@ -1226,10 +1224,9 @@ UA_copy(const void *src, void *dst, const UA_DataType *type) {
 static void
 clearStructure(void *p, const UA_DataType *type) {
     uintptr_t ptr = (uintptr_t)p;
-    const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
     for(size_t i = 0; i < type->membersSize; ++i) {
         const UA_DataTypeMember *m = &type->members[i];
-        const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
+        const UA_DataType *mt = m->memberType;
         ptr += m->padding;
         if(!m->isOptional) {
             if(!m->isArray) {
@@ -1269,9 +1266,8 @@ clearUnion(void *p, const UA_DataType *type) {
     UA_UInt32 selection = *(UA_UInt32 *)ptr;
     if(selection == 0)
         return;
-    const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
     const UA_DataTypeMember *m = &type->members[selection-1];
-    const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
+    const UA_DataType *mt = m->memberType;
     ptr += m->padding;
     if (m->isArray) {
         size_t length = *(size_t *)ptr;

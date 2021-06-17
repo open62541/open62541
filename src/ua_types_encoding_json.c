@@ -1385,10 +1385,9 @@ encodeJsonStructure(const void *src, const UA_DataType *type, CtxJson *ctx) {
 
     uintptr_t ptr = (uintptr_t) src;
     u8 membersSize = type->membersSize;
-    const UA_DataType * typelists[2] = {UA_TYPES, &type[-type->typeIndex]};
     for(size_t i = 0; i < membersSize && ret == UA_STATUSCODE_GOOD; ++i) {
         const UA_DataTypeMember *m = &type->members[i];
-        const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
+        const UA_DataType *mt = m->memberType;
 
         if(m->memberName != NULL && *m->memberName != 0)
             ret |= writeJsonKey(ctx, m->memberName);
@@ -3127,13 +3126,12 @@ decodeJsonStructure(void *dst, const UA_DataType *type, CtxJson *ctx,
     uintptr_t ptr = (uintptr_t)dst;
     status ret = UA_STATUSCODE_GOOD;
     u8 membersSize = type->membersSize;
-    const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
     
     UA_STACKARRAY(DecodeEntry, entries, membersSize);
 
     for(size_t i = 0; i < membersSize && ret == UA_STATUSCODE_GOOD; ++i) {
         const UA_DataTypeMember *m = &type->members[i];
-        const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
+        const UA_DataType *mt = m->memberType;
 
         entries[i].type = mt;
         if(!m->isArray) {
