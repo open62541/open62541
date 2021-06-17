@@ -458,10 +458,11 @@ UA_PubSubChannelUDPMC_unregist(UA_PubSubChannel *channel, UA_ExtensionObject *tr
     }
     UA_PubSubChannelDataUDPMC * connectionConfig = (UA_PubSubChannelDataUDPMC *) channel->handle;
     if(connectionConfig->ai_family == PF_INET){//IPv4 handling
-        struct ip_mreq groupV4;
+        struct ip_mreq groupV4 = { 0 };
+
         memcpy(&groupV4.imr_multiaddr,
                &((const struct sockaddr_in *) &connectionConfig->ai_addr)->sin_addr,
-               sizeof(struct ip_mreq));
+               sizeof(struct in_addr));
         groupV4.imr_interface.s_addr = UA_htonl(INADDR_ANY);
 
         if(UA_setsockopt(channel->sockfd, IPPROTO_IP, IP_DROP_MEMBERSHIP,
