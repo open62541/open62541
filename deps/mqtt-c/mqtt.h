@@ -66,7 +66,7 @@ SOFTWARE.
  * Same program as \ref simple_subscriber.c, but using the automatic reconnect functionality. 
  * 
  * @example bio_publisher.c
- * Same program as \ref simple_publisher.c, but uses a unencrypted BIO socket.
+ * Same program as \ref simple_publisher.c, but uses an unencrypted BIO socket.
  *
  * @example openssl_publisher.c
  * Same program as \ref simple_publisher.c, but over an encrypted connection using OpenSSL.
@@ -680,7 +680,7 @@ enum MQTTConnectFlags {
  * @param[in] will_topic the topic under which the local client's will message will be published.
  *                       Set to \c NULL for no will message. If \p will_topic is not \c NULL a
  *                       \p will_message must also be provided.
- * @param[in] will_message the will message to be published upon a unsuccessful disconnection of
+ * @param[in] will_message the will message to be published upon an unsuccessful disconnection of
  *                         the local client. Set to \c NULL if \p will_topic is \c NULL. 
  *                         \p will_message must \em not be \c NULL if \p will_topic is not 
  *                         \c NULL.
@@ -1135,7 +1135,7 @@ struct mqtt_client {
      * @brief Approximately much time it has typically taken to receive responses from the 
      *        broker.
      * 
-     * @note This is tracked using a exponential-averaging.
+     * @note This is tracked using an exponential-averaging.
      */
     double typical_response_time;
 

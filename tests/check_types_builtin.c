@@ -1470,7 +1470,7 @@ START_TEST(UA_ExtensionObject_encodeDecodeShallWorkOnExtensionObject) {
     /* varAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_VALUE; */
     /* varAttr.specifiedAttributes |= UA_NODEATTRIBUTESMASK_USERWRITEMASK; */
 
-    /* /\* wrap it into a extension object attributes *\/ */
+    /* /\* wrap it into an extension object attributes *\/ */
     /* UA_ExtensionObject extensionObject; */
     /* UA_ExtensionObject_init(&extensionObject); */
     /* extensionObject.typeId = UA_TYPES[UA_TYPES_VARIABLEATTRIBUTES].typeId; */

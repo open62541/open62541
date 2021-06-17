@@ -15,7 +15,7 @@
  * Besides the usage of monitored items and events to observe the changes in the
  * server, it is also important to make use of the Alarms and Conditions Server
  * Model. Alarms are events which are triggered automatically by the server
- * dependent on internal server logic or user specific logic when the state of
+ * dependent on internal server logic or user specific logic when the states of
  * server components change. The state of a component is represented through a
  * condition. So the values of all the condition children (Fields) are the
  * actual state of the component.
