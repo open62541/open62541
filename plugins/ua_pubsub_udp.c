@@ -476,7 +476,21 @@ UA_PubSubChannelUDPMC_unregist(UA_PubSubChannel *channel, UA_ExtensionObject *tr
         }
 #if UA_IPV6
     } else if (connectionConfig->ai_family == PF_INET6) {//IPv6 handling
-        //TODO implement unregist for IPv6
+        struct ipv6_mreq groupV6 = { 0 };
+
+        memcpy(&groupV6.ipv6mr_multiaddr,
+               &((const struct sockaddr_in6 *) &connectionConfig->ai_addr)->sin6_addr,
+               sizeof(struct in6_addr));
+
+        if(UA_setsockopt(channel->sockfd, IPPROTO_IPV6, IPV6_DROP_MEMBERSHIP,
+                         (char *) &groupV6, sizeof(groupV6)) != 0){
+            UA_LOG_SOCKET_ERRNO_WRAP(
+                UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                             "PubSub Connection unregist failed. IP membership setup failed: "
+                             "Cannot set socket option IPV6_DROP_MEMBERSHIP. Error: %s",
+                             errno_str));
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
 #endif
     } else {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub Connection unregist failed.");
