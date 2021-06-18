@@ -240,6 +240,7 @@ if(UA_ENABLE_PUBSUB)
         add_example(pubsub_subscribe_encrypted pubsub/pubsub_subscribe_encrypted.c)
         if(UA_ENABLE_TPM2_PKCS11)
             add_example(pubsub_publish_encrypted_tpm pubsub/pubsub_publish_encrypted_tpm.c)
+            add_example(pubsub_subscribe_encrypted_tpm pubsub/pubsub_subscribe_encrypted_tpm.c)
         endif()
     endif()
 

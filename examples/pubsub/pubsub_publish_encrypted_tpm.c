@@ -25,7 +25,9 @@ char *signingKeyLabel = NULL;
    keys are declared here as NULL values. */
 UA_ByteString encryptingKey = {0, NULL};
 UA_ByteString signingKey = {0, NULL};
-UA_ByteString keyNonce = {0, NULL};
+
+#define UA_AES128CTR_TPM_KEYNONCE_LENGTH 4
+UA_Byte keyNonce[UA_AES128CTR_TPM_KEYNONCE_LENGTH] = {0};
 
 static void
 addPubSubConnection(UA_Server *server, UA_String *transportProfile,
@@ -108,7 +110,8 @@ addWriterGroup(UA_Server *server) {
     UA_Server_addWriterGroup(server, connectionIdent, &writerGroupConfig, &writerGroupIdent);
     UA_Server_setWriterGroupOperational(server, writerGroupIdent);
     UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
-    UA_Server_setWriterGroupEncryptionKeys(server, writerGroupIdent, 1, signingKey, encryptingKey, keyNonce);
+    UA_ByteString kn = {UA_AES128CTR_TPM_KEYNONCE_LENGTH, keyNonce};
+    UA_Server_setWriterGroupEncryptionKeys(server, writerGroupIdent, 1, signingKey, encryptingKey, kn);
 }
 
 static void
