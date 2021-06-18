@@ -297,8 +297,8 @@ getParentTypeAndInterfaceHierarchy(UA_Server *server, const UA_NodeId *typeNode,
 
 /* Returns the recursive interface hierarchy of the node */
 UA_StatusCode
-getInterfaceHierarchy(UA_Server *server, const UA_NodeId *objectNode,
-                                   UA_NodeId **typeHierarchy, size_t *typeHierarchySize);
+getAllInterfaceChildNodeIds(UA_Server *server, const UA_NodeId *objectNode, const UA_NodeId *objectTypeNode,
+                                   UA_NodeId **interfaceChildNodes, size_t *interfaceChildNodesSize);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
 
