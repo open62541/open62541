@@ -92,7 +92,7 @@ UA_PubSubConnection_regist(UA_Server *server, UA_NodeId *connectionIdentifier);
 
 /* Process Network Message for a ReaderGroup. But we the ReaderGroup needs to be identified first. */
 UA_StatusCode
-UA_ReaderGroup_processNetworkMessage(UA_Server *server, UA_ReaderGroup *readerGroup,
+UA_Server_processNetworkMessage(UA_Server *server, UA_PubSubConnection *connection,
                                      UA_NetworkMessage* msg);
 
 /**********************************************/
@@ -324,10 +324,11 @@ verifyAndDecryptNetworkMessage(const UA_Logger *logger,
 #endif
 
 UA_StatusCode
-decodeNetworkMessage(const UA_Logger *logger,
-                   UA_ByteString *buffer, size_t *currentPosition,
-                   UA_NetworkMessage *currentNetworkMessage,
-                   UA_ReaderGroup *readerGroup);
+decodeNetworkMessage(UA_Server *server,
+                     const UA_Logger *logger,
+                     UA_ByteString *buffer, size_t *currentPosition,
+                     UA_NetworkMessage *currentNetworkMessage,
+                     UA_PubSubConnection *connection);
 
 UA_StatusCode
 receiveBufferedNetworkMessage(UA_Server *server, UA_ReaderGroup *readerGroup,
