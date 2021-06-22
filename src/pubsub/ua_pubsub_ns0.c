@@ -23,29 +23,6 @@ typedef struct{
     UA_UInt32 elementClassiefier;
 } UA_NodePropertyContext;
 
-//Prototypes
-#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
-static UA_StatusCode addWriterGroupAction(UA_Server *server,
-                                          const UA_NodeId *sessionId, void *sessionHandle,
-                                          const UA_NodeId *methodId, void *methodContext,
-                                          const UA_NodeId *objectId, void *objectContext,
-                                          size_t inputSize, const UA_Variant *input,
-                                          size_t outputSize, UA_Variant *output);
-static UA_StatusCode removeGroupAction(UA_Server *server,
-                                          const UA_NodeId *sessionId, void *sessionHandle,
-                                          const UA_NodeId *methodId, void *methodContext,
-                                          const UA_NodeId *objectId, void *objectContext,
-                                          size_t inputSize, const UA_Variant *input,
-                                          size_t outputSize, UA_Variant *output);
-static UA_StatusCode addDataSetWriterAction(UA_Server *server,
-                                          const UA_NodeId *sessionId, void *sessionHandle,
-                                          const UA_NodeId *methodId, void *methodContext,
-                                          const UA_NodeId *objectId, void *objectContext,
-                                          size_t inputSize, const UA_Variant *input,
-                                          size_t outputSize, UA_Variant *output);
-
-#endif
-
 static UA_StatusCode
 writePubSubNs0VariableArray(UA_Server *server, UA_UInt32 id, void *v,
                       size_t length, const UA_DataType *type) {
