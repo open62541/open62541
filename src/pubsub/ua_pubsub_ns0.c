@@ -685,21 +685,9 @@ addPubSubConnectionAction(UA_Server *server,
 #endif
 
 UA_StatusCode
-removePubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connection) {
-    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
-    retVal |= UA_Server_deleteReference(server, connection->identifier, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), true,
-                                        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_PUBSUBCONNECTIONTYPE_ADDWRITERGROUP),
-                                        false);
-    retVal |= UA_Server_deleteReference(server, connection->identifier, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), true,
-                                        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_PUBSUBCONNECTIONTYPE_ADDREADERGROUP),
-                                        false);
-    retVal |= UA_Server_deleteReference(server, connection->identifier, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), true,
-                                        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_PUBSUBCONNECTIONTYPE_REMOVEGROUP),
-                                        false);
-#endif
-    retVal |= UA_Server_deleteNode(server, connection->identifier, true);
-    return retVal;
+removePubSubConnectionRepresentation(UA_Server *server,
+                                     UA_PubSubConnection *connection) {
+    return UA_Server_deleteNode(server, connection->identifier, true);
 }
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
@@ -814,8 +802,9 @@ addDataSetReaderAction(UA_Server *server,
 #endif
 
 UA_StatusCode
-removeDataSetReaderRepresentation(UA_Server *server, UA_DataSetReader* dataSetReader){
-    return UA_Server_deleteNode(server, dataSetReader->identifier, false);
+removeDataSetReaderRepresentation(UA_Server *server,
+                                  UA_DataSetReader* dataSetReader) {
+    return UA_Server_deleteNode(server, dataSetReader->identifier, true);
 }
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
@@ -880,25 +869,9 @@ removeDataSetFolderAction(UA_Server *server,
                           const UA_NodeId *methodId, void *methodContext,
                           const UA_NodeId *objectId, void *objectContext,
                           size_t inputSize, const UA_Variant *input,
-                          size_t outputSize, UA_Variant *output){
-    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+                          size_t outputSize, UA_Variant *output) {
     UA_NodeId nodeToRemove = *((UA_NodeId *) input[0].data);
-#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
-    retVal |= UA_Server_deleteReference(server, nodeToRemove, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), true,
-                                        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_DATASETFOLDERTYPE_ADDPUBLISHEDDATAITEMS),
-                                        false);
-    retVal |= UA_Server_deleteReference(server, nodeToRemove, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), true,
-                                        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_DATASETFOLDERTYPE_REMOVEPUBLISHEDDATASET),
-                                        false);
-    retVal |= UA_Server_deleteReference(server, nodeToRemove, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), true,
-                                        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_DATASETFOLDERTYPE_ADDDATASETFOLDER),
-                                        false);
-    retVal |= UA_Server_deleteReference(server, nodeToRemove, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), true,
-                                        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_DATASETFOLDERTYPE_REMOVEDATASETFOLDER),
-                                        false);
-#endif
-    retVal |= UA_Server_deleteNode(server, nodeToRemove, false);
-    return retVal;
+    return UA_Server_deleteNode(server, nodeToRemove, true);
 }
 #endif
 
@@ -1073,8 +1046,9 @@ removeVariablesAction(UA_Server *server,
 
 
 UA_StatusCode
-removePublishedDataSetRepresentation(UA_Server *server, UA_PublishedDataSet *publishedDataSet){
-    return UA_Server_deleteNode(server, publishedDataSet->identifier, false);
+removePublishedDataSetRepresentation(UA_Server *server,
+                                     UA_PublishedDataSet *publishedDataSet) {
+    return UA_Server_deleteNode(server, publishedDataSet->identifier, true);
 }
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
@@ -1270,36 +1244,12 @@ addWriterGroupAction(UA_Server *server,
 
 UA_StatusCode
 removeGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup) {
-    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
-    retVal |= UA_Server_deleteReference(server, writerGroup->identifier,
-                                        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), true,
-                                        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_WRITERGROUPTYPE_ADDDATASETWRITER),
-                                        false);
-    retVal |= UA_Server_deleteReference(server, writerGroup->identifier,
-                                        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), true,
-                                        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_WRITERGROUPTYPE_REMOVEDATASETWRITER),
-                                        false);
-#endif
-    retVal |= UA_Server_deleteNode(server, writerGroup->identifier, false);
-    return retVal;
+    return UA_Server_deleteNode(server, writerGroup->identifier, true);
 }
 
 UA_StatusCode
 removeReaderGroupRepresentation(UA_Server *server, UA_ReaderGroup *readerGroup) {
-    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
-    retVal |= UA_Server_deleteReference(server, readerGroup->identifier,
-                                        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), true,
-                                        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_READERGROUPTYPE_ADDDATASETREADER),
-                                        false);
-    retVal |= UA_Server_deleteReference(server, readerGroup->identifier,
-                                        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), true,
-                                        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_READERGROUPTYPE_REMOVEDATASETREADER),
-                                        false);
-#endif
-    retVal |= UA_Server_deleteNode(server, readerGroup->identifier, false);
-    return retVal;
+    return UA_Server_deleteNode(server, readerGroup->identifier, true);
 }
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
@@ -1489,8 +1439,9 @@ addDataSetWriterAction(UA_Server *server,
 
 
 UA_StatusCode
-removeDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWriter) {
-    return UA_Server_deleteNode(server, dataSetWriter->identifier, false);
+removeDataSetWriterRepresentation(UA_Server *server,
+                                  UA_DataSetWriter *dataSetWriter) {
+    return UA_Server_deleteNode(server, dataSetWriter->identifier, true);
 }
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
@@ -1779,13 +1730,17 @@ UA_Server_initPubSubNS0(UA_Server *server) {
 #endif
 
 #else
-    retVal |= UA_Server_deleteReference(server, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE), UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), true,
+    /* Remove methods */
+    retVal |= UA_Server_deleteReference(server, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE),
+                                        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), true,
                                         UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_ADDCONNECTION),
                                         false);
-    retVal |= UA_Server_deleteReference(server, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE), UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), true,
+    retVal |= UA_Server_deleteReference(server, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE),
+                                        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), true,
                                         UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_REMOVECONNECTION),
                                         false);
 #endif
+
     UA_NodeTypeLifecycle lifeCycle;
     lifeCycle.constructor = NULL;
     lifeCycle.destructor = connectionTypeDestructor;
