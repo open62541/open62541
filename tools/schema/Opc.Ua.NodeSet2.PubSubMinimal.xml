@@ -1267,13 +1267,12 @@
       <Reference ReferenceType="HasProperty">i=17740</Reference> <!--LocaleIds-->
       <Reference ReferenceType="i=15296">i=17743</Reference> <!--DataSetWriterName-->
       <Reference ReferenceType="HasComponent">i=17969</Reference> <!--AddDataSetWriter-->
-
+      <Reference ReferenceType="HasComponent">i=17992</Reference> <!--RemoveDataSetWriter-->
 
       <!--
             <Reference ReferenceType="HasComponent">i=17741</Reference> TransportSettings
             <Reference ReferenceType="HasComponent">i=17742</Reference> MessageSettings
-            <Reference ReferenceType="HasComponent">i=17812</Reference> Diagnostics
-            <Reference ReferenceType="HasComponent">i=17992</Reference> RemoveDataSetWriter-->
+            <Reference ReferenceType="HasComponent">i=17812</Reference> Diagnostics-->
       <Reference ReferenceType="HasSubtype" IsForward="false">i=14232</Reference>  <!--PubSubGroupType-->
     </References>
   </UAObjectType>
@@ -1336,6 +1335,41 @@
               <ValueRank>-1</ValueRank>
               <ArrayDimensions />
               <Description p5:nil="true" xmlns:p5="http://www.w3.org/2001/XMLSchema-instance" />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAMethod NodeId="i=17992" BrowseName="RemoveDataSetWriter" ParentNodeId="i=17725">
+    <DisplayName>RemoveDataSetWriter</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=17993</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=17725</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="i=17993" BrowseName="InputArguments" ParentNodeId="i=17992" DataType="i=296" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>InputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=17992</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>DataSetWriterNodeId</Name>
+              <DataType>
+                <Identifier>i=17</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
             </Argument>
           </Body>
         </ExtensionObject>
