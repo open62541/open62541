@@ -1009,9 +1009,9 @@ compatibleValue(UA_Server *server, UA_Session *session, const UA_NodeId *targetD
 /* Write Service */
 /*****************/
 
-static void
-adjustValue(UA_Server *server, UA_Variant *value,
-            const UA_NodeId *targetDataTypeId) {
+void
+adjustValueType(UA_Server *server, UA_Variant *value,
+                const UA_NodeId *targetDataTypeId) {
     const UA_DataType *targetDataType = UA_findDataType(targetDataTypeId);
     if(!targetDataType)
         return;
@@ -1276,7 +1276,7 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
 
     /* Type checking. May change the type of editableValue */
     if(value->hasValue && value->value.type) {
-        adjustValue(server, &adjustedValue.value, &node->dataType);
+        adjustValueType(server, &adjustedValue.value, &node->dataType);
 
         /* The value may be an extension object, especially the nodeset compiler
          * uses extension objects to write variable values. If value is an
