@@ -71,6 +71,15 @@ typeCheckArguments(UA_Server *server, UA_Session *session,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Argument *argReqs = (UA_Argument*)argRequirements->value.data.value.value.data;
     for(size_t i = 0; i < argReqsSize; ++i) {
+        if(compatibleValue(server, session, &argReqs[i].dataType, argReqs[i].valueRank,
+                            argReqs[i].arrayDimensionsSize, argReqs[i].arrayDimensions,
+                            &args[i], NULL))
+            continue;
+
+        /* Incompatible try to correct the type if possible */
+        adjustValueType(server, &args[i], &argReqs[i].dataType);
+
+        /* Recheck */
         if(!compatibleValue(server, session, &argReqs[i].dataType, argReqs[i].valueRank,
                             argReqs[i].arrayDimensionsSize, argReqs[i].arrayDimensions,
                             &args[i], NULL)) {
