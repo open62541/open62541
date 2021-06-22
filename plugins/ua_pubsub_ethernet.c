@@ -1265,7 +1265,7 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel,
         receiveFlags = MSG_DONTWAIT;
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
-        break; //ToDO: Multiple Receive handling for PubsubEncryption need to be done
+        break;//ToDO: Multiple Receive handling for PubsubEncryption need to be done
 #endif
     } while(true); /* 1518 bytes is the maximum size of ethernet packet
                                               * where 18 bytes used for header size, 4 bytes of LLC
