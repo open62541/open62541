@@ -66,7 +66,7 @@ function build_amalgamation {
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_PUBSUB=ON \
           -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
-          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=OFF \
+          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
           ..
     make ${MAKEOPTS}
@@ -87,7 +87,7 @@ function unit_tests {
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_PUBSUB=ON \
           -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
-          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=OFF \
+          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
           ..
     make ${MAKEOPTS}
@@ -147,7 +147,7 @@ function unit_tests_encryption_mbedtls_pubsub {
           -DUA_ENABLE_ENCRYPTION_MBEDTLS=ON \
           -DUA_ENABLE_PUBSUB=ON \
           -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
-          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=OFF \
+          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
           -DUA_ENABLE_PUBSUB_ENCRYPTION=ON \
           ..
@@ -171,7 +171,7 @@ function unit_tests_valgrind {
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_PUBSUB=ON \
           -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
-          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=OFF \
+          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
           -DUA_ENABLE_PUBSUB_ENCRYPTION=ON \
           -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON \
@@ -196,7 +196,7 @@ function build_clang_analyzer {
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_PUBSUB=ON \
           -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
-          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=OFF \
+          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
           ..
     scan-build-11 --status-bugs make ${MAKEOPTS}
