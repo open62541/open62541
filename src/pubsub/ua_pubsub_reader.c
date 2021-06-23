@@ -1806,10 +1806,12 @@ decodeNetworkMessage(UA_Server *server,
                 #ifdef UA_DEBUG_DUMP_PKGS
                 UA_dump_hex_pkg(buffer->data, buffer->length);
                 #endif
-                break;
+                /* break out of all loops when first verify & decrypt was successful */
+                goto loops_exit;
             }
         }
     }
+loops_exit:
 
     // TODO check if warning is correct here and error code carries correct info
     UA_CHECK_WARN(processed, return UA_STATUSCODE_BADNOTFOUND, logger, UA_LOGCATEGORY_SERVER,
