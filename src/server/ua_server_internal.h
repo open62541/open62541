@@ -517,6 +517,11 @@ UA_Boolean
 compatibleDataTypes(UA_Server *server, const UA_NodeId *dataType,
                     const UA_NodeId *constraintDataType);
 
+/* Set to the target type if compatible */
+void
+adjustValueType(UA_Server *server, UA_Variant *value,
+                const UA_NodeId *targetDataTypeId);
+
 /* Is the Value compatible with the DataType? Can perform additional checks
  * compared to compatibleDataTypes. */
 UA_Boolean

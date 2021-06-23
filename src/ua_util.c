@@ -44,6 +44,8 @@ UA_readNumber(const UA_Byte *buf, size_t buflen, UA_UInt32 *number) {
 UA_StatusCode
 UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
                     u16 *outPort, UA_String *outPath) {
+    UA_Boolean ipv6 = false;
+
     /* Url must begin with "opc.tcp://" or opc.udp:// (if pubsub enabled) */
     if(endpointUrl->length < 11) {
         return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
@@ -70,6 +72,7 @@ UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
         if(curr == endpointUrl->length)
             return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
         curr++;
+        ipv6 = true;
     } else {
         /* IPv4 or hostname: opc.tcp://something.something:1234/path */
         for(; curr < endpointUrl->length; ++curr) {
@@ -79,8 +82,14 @@ UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
     }
 
     /* Set the hostname */
-    outHostname->data = &endpointUrl->data[10];
-    outHostname->length = curr - 10;
+    if(ipv6) {
+        /* Skip the ipv6 '[]' container for getaddrinfo() later */
+        outHostname->data = &endpointUrl->data[11];
+        outHostname->length = curr - 12;
+    } else {
+        outHostname->data = &endpointUrl->data[10];
+        outHostname->length = curr - 10;
+    }
     if(curr == endpointUrl->length)
         return UA_STATUSCODE_GOOD;
 

@@ -168,34 +168,44 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
         }
     }
 
-    //allocate memory for new WriterGroup
-    UA_WriterGroup *newWriterGroup = (UA_WriterGroup *) UA_calloc(1, sizeof(UA_WriterGroup));
+    /* Allocate new WriterGroup */
+    UA_WriterGroup *newWriterGroup = (UA_WriterGroup*)UA_calloc(1, sizeof(UA_WriterGroup));
     if(!newWriterGroup)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     newWriterGroup->componentType = UA_PUBSUB_COMPONENT_WRITERGROUP;
     newWriterGroup->linkedConnection = currentConnectionContext;
-    UA_PubSubManager_generateUniqueNodeId(server, &newWriterGroup->identifier);
-    if(writerGroupIdentifier)
-        UA_NodeId_copy(&newWriterGroup->identifier, writerGroupIdentifier);
 
-    //deep copy of the config
-    UA_WriterGroupConfig tmpWriterGroupConfig;
-    retVal = UA_WriterGroupConfig_copy(writerGroupConfig, &tmpWriterGroupConfig);
-
-    if(!tmpWriterGroupConfig.messageSettings.content.decoded.type) {
-        UA_UadpWriterGroupMessageDataType *wgm = UA_UadpWriterGroupMessageDataType_new();
-        tmpWriterGroupConfig.messageSettings.content.decoded.data = wgm;
-        tmpWriterGroupConfig.messageSettings.content.decoded.type =
-            &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
-        tmpWriterGroupConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
+    /* Deep copy of the config */
+    UA_WriterGroupConfig *newConfig = &newWriterGroup->config;
+    retVal = UA_WriterGroupConfig_copy(writerGroupConfig, newConfig);
+    if(retVal != UA_STATUSCODE_GOOD) {
+        UA_free(newWriterGroup);
+        return retVal;
     }
-    newWriterGroup->config = tmpWriterGroupConfig;
+
+    /* Create the datatype value if not present */
+    if(!newConfig->messageSettings.content.decoded.type) {
+        UA_UadpWriterGroupMessageDataType *wgm = UA_UadpWriterGroupMessageDataType_new();
+        newConfig->messageSettings.content.decoded.data = wgm;
+        newConfig->messageSettings.content.decoded.type =
+            &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
+        newConfig->messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
+    }
+
+    /* Attach to the connection */
     LIST_INSERT_HEAD(&currentConnectionContext->writerGroups, newWriterGroup, listEntry);
     currentConnectionContext->writerGroupsSize++;
+
+    /* Add representation / create unique identifier */
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    addWriterGroupRepresentation(server, newWriterGroup);
+    retVal = addWriterGroupRepresentation(server, newWriterGroup);
+#else
+    UA_PubSubManager_generateUniqueNodeId(&server->pubSubManager,
+                                          &newWriterGroup->identifier);
 #endif
+    if(writerGroupIdentifier)
+        UA_NodeId_copy(&newWriterGroup->identifier, writerGroupIdentifier);
     return retVal;
 }
 
@@ -549,13 +559,14 @@ UA_PublishedDataSet_clear(UA_Server *server, UA_PublishedDataSet *publishedDataS
 }
 
 static UA_StatusCode
-generateFieldMetaData(UA_Server *server, UA_DataSetField *field, UA_FieldMetaData *fieldMetaData) {
+generateFieldMetaData(UA_Server *server, UA_DataSetField *field,
+                      UA_FieldMetaData *fieldMetaData) {
+    fieldMetaData->dataSetFieldId = UA_PubSubManager_generateUniqueGuid(server);
     switch (field->config.dataSetFieldType){
         case UA_PUBSUB_DATASETFIELD_VARIABLE:
             if(UA_String_copy(&field->config.field.variable.fieldNameAlias, &fieldMetaData->name) != UA_STATUSCODE_GOOD)
                 return UA_STATUSCODE_BADINTERNALERROR;
             fieldMetaData->description = UA_LOCALIZEDTEXT_ALLOC("", "");
-            fieldMetaData->dataSetFieldId = UA_GUID_NULL;
 
             //ToDo after freeze PR, the value source must be checked (other behavior for static value source)
             if(field->config.field.variable.rtValueSource.rtFieldSourceEnabled &&
@@ -649,81 +660,104 @@ UA_DataSetFieldResult
 UA_Server_addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
                           const UA_DataSetFieldConfig *fieldConfig,
                           UA_NodeId *fieldIdentifier) {
-    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_DataSetFieldResult result = {UA_STATUSCODE_BADINVALIDARGUMENT, {0, 0}};
     if(!fieldConfig)
         return result;
 
-    UA_PublishedDataSet *currentDataSet = UA_PublishedDataSet_findPDSbyId(server, publishedDataSet);
-    if(currentDataSet == NULL){
+    UA_PublishedDataSet *currentDataSet =
+        UA_PublishedDataSet_findPDSbyId(server, publishedDataSet);
+    if(!currentDataSet) {
         result.result = UA_STATUSCODE_BADNOTFOUND;
         return result;
     }
 
-    if(currentDataSet->configurationFrozen){
+    if(currentDataSet->configurationFrozen) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Adding DataSetField failed. PublishedDataSet is frozen.");
         result.result = UA_STATUSCODE_BADCONFIGURATIONERROR;
         return result;
     }
 
-    if(currentDataSet->config.publishedDataSetType != UA_PUBSUB_DATASET_PUBLISHEDITEMS){
+    if(currentDataSet->config.publishedDataSetType != UA_PUBSUB_DATASET_PUBLISHEDITEMS) {
         result.result = UA_STATUSCODE_BADNOTIMPLEMENTED;
         return result;
     }
 
-    UA_DataSetField *newField = (UA_DataSetField *) UA_calloc(1, sizeof(UA_DataSetField));
-    if(!newField){
+    UA_DataSetField *newField = (UA_DataSetField*)UA_calloc(1, sizeof(UA_DataSetField));
+    if(!newField) {
         result.result = UA_STATUSCODE_BADINTERNALERROR;
         return result;
     }
 
-    UA_DataSetFieldConfig tmpFieldConfig;
-    retVal |= UA_DataSetFieldConfig_copy(fieldConfig, &tmpFieldConfig);
-    newField->config = tmpFieldConfig;
-    UA_PubSubManager_generateUniqueNodeId(server, &newField->identifier);
-    if(fieldIdentifier != NULL){
-        UA_NodeId_copy(&newField->identifier, fieldIdentifier);
+    UA_StatusCode retVal = UA_DataSetFieldConfig_copy(fieldConfig, &newField->config);
+    if(retVal != UA_STATUSCODE_GOOD) {
+        UA_free(newField);
+        result.result = retVal;
+        return result;
     }
+
     newField->publishedDataSet = currentDataSet->identifier;
-    //update major version of parent published data set
-    currentDataSet->dataSetMetaData.configurationVersion.majorVersion = UA_PubSubConfigurationVersionTimeDifference();
-    /* The order of DataSetFields should be the same in both creating and publishing.
-     * So adding DataSetFields at the the end of the DataSets using TAILQ structure */
-    if (currentDataSet->fieldSize != 0)
-        TAILQ_INSERT_TAIL(&currentDataSet->fields, newField, listEntry);
-    else
-        TAILQ_INSERT_HEAD(&currentDataSet->fields, newField, listEntry);
 
-    if(newField->config.field.variable.promotedField)
-        currentDataSet->promotedFieldsCount++;
-    currentDataSet->fieldSize++;
-
-    //generate fieldMetadata within the DataSetMetaData
+    /* Generate fieldMetadata within the DataSetMetaData */
     currentDataSet->dataSetMetaData.fieldsSize++;
     UA_FieldMetaData *fieldMetaData = (UA_FieldMetaData *)
-        UA_realloc(currentDataSet->dataSetMetaData.fields, currentDataSet->dataSetMetaData.fieldsSize *
-            sizeof(UA_FieldMetaData));
-    if(!fieldMetaData){
+        UA_realloc(currentDataSet->dataSetMetaData.fields,
+                   currentDataSet->dataSetMetaData.fieldsSize * sizeof(UA_FieldMetaData));
+    if(!fieldMetaData) {
+        UA_DataSetFieldConfig_clear(&newField->config);
+        UA_free(newField);
         result.result =  UA_STATUSCODE_BADOUTOFMEMORY;
         return result;
     }
     currentDataSet->dataSetMetaData.fields = fieldMetaData;
 
-    UA_FieldMetaData_init(&fieldMetaData[currentDataSet->fieldSize-1]);
-    if(generateFieldMetaData(server, newField, &fieldMetaData[currentDataSet->fieldSize-1]) != UA_STATUSCODE_GOOD){
-        UA_Server_removeDataSetField(server, newField->identifier);
-        result.result =  UA_STATUSCODE_BADINTERNALERROR;
+    UA_FieldMetaData *currentMetaData =
+        &fieldMetaData[currentDataSet->dataSetMetaData.fieldsSize-1];
+
+    /* Initialize. Also gnerates a FieldId */
+    UA_FieldMetaData_init(currentMetaData);
+    result.result = generateFieldMetaData(server, newField, currentMetaData);
+    if(result.result != UA_STATUSCODE_GOOD) {
+        UA_DataSetFieldConfig_clear(&newField->config);
+        UA_free(newField);
         return result;
     }
+
+    /* Create the identifier */
+    newField->identifier = UA_NODEID_GUID(1, currentMetaData->dataSetFieldId);
+    if(fieldIdentifier)
+        UA_NodeId_copy(&newField->identifier, fieldIdentifier);
+
+    /* Update major version of parent published data set */
+    currentDataSet->dataSetMetaData.configurationVersion.majorVersion =
+        UA_PubSubConfigurationVersionTimeDifference();
+
+    /* Register. The order of DataSetFields should be the same in both creating
+     * and publishing. So adding DataSetFields at the the end of the DataSets
+     * using TAILQ structure */
+    if(currentDataSet->fieldSize != 0)
+        TAILQ_INSERT_TAIL(&currentDataSet->fields, newField, listEntry);
+    else
+        TAILQ_INSERT_HEAD(&currentDataSet->fields, newField, listEntry);
+    currentDataSet->fieldSize++;
+
+    if(newField->config.field.variable.promotedField)
+        currentDataSet->promotedFieldsCount++;
+
+    /* The values of the metadata are "borrowed" in a mirrored structure in the
+     * pds. Reset them. */
     UA_DataSetField *dsf;
     size_t counter = 0;
-    TAILQ_FOREACH(dsf, &currentDataSet->fields, listEntry){
+    TAILQ_FOREACH(dsf, &currentDataSet->fields, listEntry) {
         dsf->fieldMetaData = fieldMetaData[counter++];
     }
+
+    /* Return */
     result.result = retVal;
-    result.configurationVersion.majorVersion = currentDataSet->dataSetMetaData.configurationVersion.majorVersion;
-    result.configurationVersion.minorVersion = currentDataSet->dataSetMetaData.configurationVersion.minorVersion;
+    result.configurationVersion.majorVersion =
+        currentDataSet->dataSetMetaData.configurationVersion.majorVersion;
+    result.configurationVersion.minorVersion =
+        currentDataSet->dataSetMetaData.configurationVersion.minorVersion;
     return result;
 }
 
@@ -770,9 +804,10 @@ UA_Server_removeDataSetField(UA_Server *server, const UA_NodeId dsf) {
     UA_free(currentField);
 
     result.result = UA_STATUSCODE_GOOD;
-    //regenerate DataSetMetaData
+
+    /* regenerate DataSetMetaData */
     parentPublishedDataSet->dataSetMetaData.fieldsSize--;
-    if(parentPublishedDataSet->dataSetMetaData.fieldsSize > 0){
+    if(parentPublishedDataSet->dataSetMetaData.fieldsSize > 0) {
         for(size_t i = 0; i < parentPublishedDataSet->dataSetMetaData.fieldsSize+1; i++) {
             UA_FieldMetaData_clear(&parentPublishedDataSet->dataSetMetaData.fields[i]);
         }
@@ -787,15 +822,13 @@ UA_Server_removeDataSetField(UA_Server *server, const UA_NodeId dsf) {
         UA_DataSetField *tmpDSF;
         size_t counter = 0;
         TAILQ_FOREACH(tmpDSF, &parentPublishedDataSet->fields, listEntry){
-            UA_FieldMetaData tmpFieldMetaData;
-            UA_FieldMetaData_init(&tmpFieldMetaData);
-            if(generateFieldMetaData(server, tmpDSF, &tmpFieldMetaData) != UA_STATUSCODE_GOOD){
+            result.result = generateFieldMetaData(server, tmpDSF, &fieldMetaData[counter]);
+            if(result.result != UA_STATUSCODE_GOOD) {
                 UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                                "PubSub MetaData generation failed!");
-                //TODO how to ensure consistency if the metadata regeneration fails
-                result.result = UA_STATUSCODE_BADINTERNALERROR;
+                break;
             }
-            fieldMetaData[counter++] = tmpFieldMetaData;
+            counter++;
         }
         parentPublishedDataSet->dataSetMetaData.fields = fieldMetaData;
     } else {
@@ -803,8 +836,10 @@ UA_Server_removeDataSetField(UA_Server *server, const UA_NodeId dsf) {
         parentPublishedDataSet->dataSetMetaData.fields = NULL;
     }
 
-    result.configurationVersion.majorVersion = parentPublishedDataSet->dataSetMetaData.configurationVersion.majorVersion;
-    result.configurationVersion.minorVersion = parentPublishedDataSet->dataSetMetaData.configurationVersion.minorVersion;
+    result.configurationVersion.majorVersion =
+        parentPublishedDataSet->dataSetMetaData.configurationVersion.majorVersion;
+    result.configurationVersion.minorVersion =
+        parentPublishedDataSet->dataSetMetaData.configurationVersion.minorVersion;
     return result;
 }
 
@@ -1357,18 +1392,22 @@ UA_Server_addDataSetWriter(UA_Server *server,
     }
 #endif
 
-    //connect PublishedDataSet with DataSetWriter
+    /* Connect PublishedDataSet with DataSetWriter */
     newDataSetWriter->connectedDataSet = currentDataSetContext->identifier;
     newDataSetWriter->linkedWriterGroup = wg->identifier;
-    UA_PubSubManager_generateUniqueNodeId(server, &newDataSetWriter->identifier);
-    if(writerIdentifier != NULL)
-        UA_NodeId_copy(&newDataSetWriter->identifier, writerIdentifier);
-    //add the new writer to the group
+
+    /* Add the new writer to the group */
     LIST_INSERT_HEAD(&wg->writers, newDataSetWriter, listEntry);
     wg->writersCount++;
+
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    addDataSetWriterRepresentation(server, newDataSetWriter);
+    retVal |= addDataSetWriterRepresentation(server, newDataSetWriter);
+#else
+    UA_PubSubManager_generateUniqueNodeId(&server->pubSubManager,
+                                          &newDataSetWriter->identifier);
 #endif
+    if(writerIdentifier)
+        UA_NodeId_copy(&newDataSetWriter->identifier, writerIdentifier);
     return retVal;
 }
 

@@ -177,8 +177,8 @@ typedef struct UA_DataSetField{
     //internal fields
     TAILQ_ENTRY(UA_DataSetField) listEntry;
     UA_NodeId identifier;
-    UA_NodeId publishedDataSet;             //ref to parent pds
-    UA_FieldMetaData fieldMetaData;
+    UA_NodeId publishedDataSet;     /* parent pds */
+    UA_FieldMetaData fieldMetaData; /* contains the dataSetFieldId */
     UA_UInt64 sampleCallbackId;
     UA_Boolean sampleCallbackIsRegistered;
     /* This flag is 'read only' and is set internally based on the PubSub state. */

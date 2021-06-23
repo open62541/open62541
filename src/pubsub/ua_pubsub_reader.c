@@ -342,9 +342,6 @@ UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
     newGroup->componentType = UA_PUBSUB_COMPONENT_READERGROUP;
     /* Generate nodeid for the readergroup identifier */
     newGroup->linkedConnection = currentConnectionContext->identifier;
-    UA_PubSubManager_generateUniqueNodeId(server, &newGroup->identifier);
-    if(readerGroupIdentifier)
-        UA_NodeId_copy(&newGroup->identifier, readerGroupIdentifier);
 
     /* Deep copy of the config */
     retval |= UA_ReaderGroupConfig_copy(readerGroupConfig, &newGroup->config);
@@ -362,8 +359,12 @@ UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
     currentConnectionContext->readerGroupsSize++;
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    addReaderGroupRepresentation(server, newGroup);
+    retval |= addReaderGroupRepresentation(server, newGroup);
+#else
+    UA_PubSubManager_generateUniqueNodeId(&server->pubSubManager, &newGroup->identifier);
 #endif
+    if(readerGroupIdentifier)
+        UA_NodeId_copy(&newGroup->identifier, readerGroupIdentifier);
 
     return retval;
 }
@@ -963,16 +964,15 @@ UA_Server_addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdentifier,
     /* Copy the config into the new dataSetReader */
     UA_DataSetReaderConfig_copy(dataSetReaderConfig, &newDataSetReader->config);
     newDataSetReader->linkedReaderGroup = readerGroup->identifier;
-    UA_PubSubManager_generateUniqueNodeId(server, &newDataSetReader->identifier);
-    if(readerIdentifier != NULL) {
-        UA_NodeId_copy(&newDataSetReader->identifier, readerIdentifier);
-    }
 
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
 #ifdef UA_ENABLE_PUBSUB_MONITORING
     /* create message receive timeout timer */
-    UA_StatusCode retVal =
-        server->config.pubSubConfig.monitoringInterface.createMonitoring(server, newDataSetReader->identifier,
-        UA_PUBSUB_COMPONENT_DATASETREADER, UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT, newDataSetReader, UA_DataSetReader_handleMessageReceiveTimeout);
+    retVal = server->config.pubSubConfig.monitoringInterface.
+        createMonitoring(server, newDataSetReader->identifier,
+                         UA_PUBSUB_COMPONENT_DATASETREADER,
+                         UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT,
+                         newDataSetReader, UA_DataSetReader_handleMessageReceiveTimeout);
     if(retVal != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
             "Add DataSetReader failed. Create message receive timeout timer failed.");
@@ -988,10 +988,15 @@ UA_Server_addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdentifier,
     readerGroup->readersCount++;
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    addDataSetReaderRepresentation(server, newDataSetReader);
+    retVal = addDataSetReaderRepresentation(server, newDataSetReader);
+#else
+    UA_PubSubManager_generateUniqueNodeId(&server->pubSubManager,
+                                          &newDataSetReader->identifier);
 #endif
+    if(readerIdentifier)
+        UA_NodeId_copy(&newDataSetReader->identifier, readerIdentifier);
 
-    return UA_STATUSCODE_GOOD;
+    return retVal;
 }
 
 UA_StatusCode
