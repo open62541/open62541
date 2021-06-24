@@ -603,7 +603,7 @@ UA_Server_freezeReaderGroupConfiguration(UA_Server *server, const UA_NodeId read
     UA_DataSetReader *dataSetReader;
     UA_UInt16 dsrCount = 0;
     LIST_FOREACH(dataSetReader, &rg->readers, listEntry){
-    	dataSetReader->configurationFrozen = UA_TRUE;
+        dataSetReader->configurationFrozen = UA_TRUE;
         dsrCount++;
         /* TODO: Configuration frozen for subscribedDataSet once
          * UA_Server_DataSetReader_addTargetVariables API modified to support
@@ -1679,9 +1679,9 @@ processMessageWithReader(UA_Server *server, UA_ReaderGroup *readerGroup,
 }
 
 UA_StatusCode
-UA_ReaderGroup_processNetworkMessage(UA_Server *server, UA_ReaderGroup *readerGroup,
+UA_Server_processNetworkMessage(UA_Server *server, UA_PubSubConnection *connection,
                                      UA_NetworkMessage* msg) {
-    if(!msg || !readerGroup)
+    if(!msg || !connection)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     /* To Do The condition pMsg->dataSetClassIdEnabled
@@ -1694,13 +1694,17 @@ UA_ReaderGroup_processNetworkMessage(UA_Server *server, UA_ReaderGroup *readerGr
     }
 
     UA_Boolean processed = false;
+    UA_ReaderGroup *readerGroup;
     UA_DataSetReader *reader;
+
     /* There can be several readers listening for the same network message */
-    LIST_FOREACH(reader, &readerGroup->readers, listEntry) {
-        UA_StatusCode retval = checkReaderIdentifier(server, msg, reader);
-        if(retval == UA_STATUSCODE_GOOD) {
-            processed = true;
-            processMessageWithReader(server, readerGroup, reader, msg);
+    LIST_FOREACH(readerGroup, &connection->readerGroups, listEntry) {
+        LIST_FOREACH(reader, &readerGroup->readers, listEntry) {
+            UA_StatusCode retval = checkReaderIdentifier(server, msg, reader);
+            if(retval == UA_STATUSCODE_GOOD) {
+                processed = true;
+                processMessageWithReader(server, readerGroup, reader, msg);
+            }
         }
     }
 
@@ -1779,10 +1783,11 @@ static void UA_DataSetMessage_freeDecodedPayload(UA_DataSetMessage *dsm) {
 }
 
 UA_StatusCode
-decodeNetworkMessage(const UA_Logger *logger,
+decodeNetworkMessage(UA_Server *server,
+                     const UA_Logger *logger,
                      UA_ByteString *buffer, size_t *currentPosition,
                      UA_NetworkMessage *currentNetworkMessage,
-                     UA_ReaderGroup *readerGroup) {
+                     UA_PubSubConnection *connection) {
 
 #ifdef UA_DEBUG_DUMP_PKGS
     UA_dump_hex_pkg(buffer->data, buffer->length);
@@ -1793,20 +1798,42 @@ decodeNetworkMessage(const UA_Logger *logger,
     UA_CHECK_STATUS_ERROR(rv, return rv, logger, UA_LOGCATEGORY_SERVER,
                           "PubSub receive. decoding headers failed");
 
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
-    rv = verifyAndDecryptNetworkMessage(logger,
-                                        buffer,
-                                        currentPosition,
-                                        currentNetworkMessage,
-                                        readerGroup);
-    UA_CHECK_STATUS_WARN(rv, return rv, logger, UA_LOGCATEGORY_SERVER,
-                         "Subscribe failed. verify and decrypt network message failed.");
 
-    #ifdef UA_DEBUG_DUMP_PKGS
-    UA_dump_hex_pkg(buffer->data, buffer->length);
+    #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    UA_Boolean processed = false;
+    UA_ReaderGroup *readerGroup;
+    UA_DataSetReader *reader;
+
+    /* choose a correct readergroup for decrypt/verify this message
+     * (there could be multiple) */
+    LIST_FOREACH(readerGroup, &connection->readerGroups, listEntry) {
+        LIST_FOREACH(reader, &readerGroup->readers, listEntry) {
+            UA_StatusCode retval = checkReaderIdentifier(server, currentNetworkMessage, reader);
+            if(retval == UA_STATUSCODE_GOOD) {
+                processed = true;
+                rv = verifyAndDecryptNetworkMessage(logger,
+                                                    buffer,
+                                                    currentPosition,
+                                                    currentNetworkMessage,
+                                                    readerGroup);
+                UA_CHECK_STATUS_WARN(rv, return rv, logger, UA_LOGCATEGORY_SERVER,
+                                     "Subscribe failed. verify and decrypt network message failed.");
+
+                #ifdef UA_DEBUG_DUMP_PKGS
+                UA_dump_hex_pkg(buffer->data, buffer->length);
+                #endif
+                /* break out of all loops when first verify & decrypt was successful */
+                goto loops_exit;
+            }
+        }
+    }
+loops_exit:
+
+    // TODO check if warning is correct here and error code carries correct info
+    UA_CHECK_WARN(processed, return UA_STATUSCODE_BADNOTFOUND, logger, UA_LOGCATEGORY_SERVER,
+            "Subscribe failed. no readergroup found to decrypt/verify the network message")
+
     #endif
-
-#endif
 
     rv = UA_NetworkMessage_decodePayload(buffer, currentPosition, currentNetworkMessage);
     UA_CHECK_STATUS(rv, return rv);
@@ -1827,12 +1854,12 @@ decodeAndProcessNetworkMessage(UA_Server *server, UA_ReaderGroup *readerGroup,
     memset(&currentNetworkMessage, 0, sizeof(UA_NetworkMessage));
 
     UA_StatusCode rv = UA_STATUSCODE_GOOD;
-    rv = decodeNetworkMessage(&server->config.logger, buffer, currentPosition,
-                              &currentNetworkMessage, readerGroup);
+    rv = decodeNetworkMessage(server, &server->config.logger, buffer, currentPosition,
+                              &currentNetworkMessage, connection);
     UA_CHECK_STATUS_WARN(rv, goto cleanup, &server->config.logger, UA_LOGCATEGORY_SERVER,
                          "Subscribe failed. verify, decrypt and decode network message failed.");
 
-    rv = UA_ReaderGroup_processNetworkMessage(server, readerGroup, &currentNetworkMessage);
+    rv = UA_Server_processNetworkMessage(server, connection, &currentNetworkMessage);
     // TODO: check what action to perform on error (nothing?)
     UA_CHECK_STATUS_WARN(rv, (void)0, &server->config.logger, UA_LOGCATEGORY_SERVER,
                          "Subscribe failed. process network message failed.");
