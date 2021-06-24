@@ -76,7 +76,7 @@ START_TEST(SinglePublishDataSetField){
         dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
         dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Server localtime");
         dataSetFieldConfig.field.variable.promotedField = UA_FALSE;
-        dataSetFieldConfig.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_LOCALTIME);
+        dataSetFieldConfig.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
         dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
         UA_DataSetFieldResult dsFieldResult = UA_Server_addDataSetField(server, publishedDataSet1, &dataSetFieldConfig, NULL);
         ck_assert_int_eq(dsFieldResult.result, UA_STATUSCODE_GOOD);
