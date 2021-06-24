@@ -579,99 +579,123 @@ UA_PublishedDataSet_clear(UA_Server *server, UA_PublishedDataSet *publishedDataS
 static UA_StatusCode
 generateFieldMetaData(UA_Server *server, UA_DataSetField *field,
                       UA_FieldMetaData *fieldMetaData) {
-    fieldMetaData->dataSetFieldId = UA_PubSubManager_generateUniqueGuid(server);
-    switch (field->config.dataSetFieldType){
-        case UA_PUBSUB_DATASETFIELD_VARIABLE:
-            if(UA_String_copy(&field->config.field.variable.fieldNameAlias, &fieldMetaData->name) != UA_STATUSCODE_GOOD)
-                return UA_STATUSCODE_BADINTERNALERROR;
-            fieldMetaData->description = UA_LOCALIZEDTEXT_ALLOC("", "");
+    if(field->config.dataSetFieldType != UA_PUBSUB_DATASETFIELD_VARIABLE)
+        return UA_STATUSCODE_BADNOTSUPPORTED;
 
-            //ToDo after freeze PR, the value source must be checked (other behavior for static value source)
-            if(field->config.field.variable.rtValueSource.rtFieldSourceEnabled &&
-               !field->config.field.variable.rtValueSource.rtInformationModelNode) {
-                if((**(field->config.field.variable.rtValueSource.staticValueSource)).value.arrayDimensionsSize > 0) {
-                    fieldMetaData->arrayDimensions = (UA_UInt32 *) UA_calloc(
-                        (*(*(field->config.field.variable.rtValueSource.staticValueSource))).value.arrayDimensionsSize, sizeof(UA_UInt32));
-                    if(fieldMetaData->arrayDimensions == NULL)
-                        return UA_STATUSCODE_BADOUTOFMEMORY;
-                    memcpy(fieldMetaData->arrayDimensions,
-                           (*(field->config.field.variable.rtValueSource.staticValueSource))->value.arrayDimensions,
-                            sizeof(UA_UInt32) * ((*(*(field->config.field.variable.rtValueSource.staticValueSource))).value.arrayDimensionsSize));
-                }
-                fieldMetaData->arrayDimensionsSize = (**(field->config.field.variable.rtValueSource.staticValueSource)).value.arrayDimensionsSize;
-                if(UA_NodeId_copy(&(**field->config.field.variable.rtValueSource.staticValueSource).value.type->typeId,
-                        &fieldMetaData->dataType) != UA_STATUSCODE_GOOD){
-                    if(fieldMetaData->arrayDimensions){
-                        UA_free(fieldMetaData->arrayDimensions);
-                        return UA_STATUSCODE_BADINTERNALERROR;
-                    }
-                }
-                fieldMetaData->properties = NULL;
-                fieldMetaData->propertiesSize = 0;
-                //TODO collect value rank for the static field source
-                fieldMetaData->fieldFlags = UA_DATASETFIELDFLAGS_NONE;
-                return UA_STATUSCODE_GOOD;
+    /* Set the field identifier */
+    fieldMetaData->dataSetFieldId = UA_PubSubManager_generateUniqueGuid(server);
+
+    /* Set the description */
+    fieldMetaData->description = UA_LOCALIZEDTEXT_ALLOC("", "");
+
+    /* Set the name */
+    const UA_DataSetVariableConfig *var = &field->config.field.variable;
+    UA_StatusCode res = UA_String_copy(&var->fieldNameAlias, &fieldMetaData->name);
+    if(res != UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Static value source. ToDo after freeze PR, the value source must be
+     * checked (other behavior for static value source) */
+    if(var->rtValueSource.rtFieldSourceEnabled &&
+       !var->rtValueSource.rtInformationModelNode) {
+        const UA_DataValue *svs = *var->rtValueSource.staticValueSource;
+        if(svs->value.arrayDimensionsSize > 0) {
+            fieldMetaData->arrayDimensions = (UA_UInt32 *)
+                UA_calloc(svs->value.arrayDimensionsSize, sizeof(UA_UInt32));
+            if(fieldMetaData->arrayDimensions == NULL)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+            memcpy(fieldMetaData->arrayDimensions, svs->value.arrayDimensions,
+                   sizeof(UA_UInt32) * svs->value.arrayDimensionsSize);
+        }
+        fieldMetaData->arrayDimensionsSize = svs->value.arrayDimensionsSize;
+
+        res = UA_NodeId_copy(&svs->value.type->typeId, &fieldMetaData->dataType);
+        if(res != UA_STATUSCODE_GOOD) {
+            if(fieldMetaData->arrayDimensions) {
+                UA_free(fieldMetaData->arrayDimensions);
+                return UA_STATUSCODE_BADINTERNALERROR;
             }
-            UA_Variant value;
-            UA_Variant_init(&value);
-            if(UA_Server_readArrayDimensions(server, field->config.field.variable.publishParameters.publishedVariable,
-                                             &value) != UA_STATUSCODE_GOOD){
-                UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                               "PubSub meta data generation. Reading ArrayDimension failed.");
-            } else {
-                if (value.arrayDimensionsSize > 0) {
-                    fieldMetaData->arrayDimensions = (UA_UInt32 *) UA_calloc(value.arrayDimensionsSize, sizeof(UA_UInt32));
-                    if(fieldMetaData->arrayDimensions == NULL)
-                        return UA_STATUSCODE_BADOUTOFMEMORY;
-                    memcpy(fieldMetaData->arrayDimensions, value.arrayDimensions, sizeof(UA_UInt32)*value.arrayDimensionsSize);
-                }
-                fieldMetaData->arrayDimensionsSize = value.arrayDimensionsSize;
-            }
-            if(UA_Server_readDataType(server, field->config.field.variable.publishParameters.publishedVariable,
-                                      &fieldMetaData->dataType) != UA_STATUSCODE_GOOD){
-                if(fieldMetaData->arrayDimensions){
-                    UA_free(fieldMetaData->arrayDimensions);
-                    return UA_STATUSCODE_BADINTERNALERROR;
-                }
-            }
-            if(!UA_NodeId_isNull(&fieldMetaData->dataType)){
-                const UA_DataType * currentDataType =
-                    UA_findDataTypeWithCustom(&fieldMetaData->dataType,
-                                              server->config.customDataTypes);
-                UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                               "MetaData creation. Found DataType %s.", currentDataType->typeName);
-                //check if the datatype is a builtInType, if yes set the builtinType
-                if(currentDataType->typeKind <= UA_DATATYPEKIND_ENUM)
-                    fieldMetaData->builtInType = (UA_Byte)currentDataType->typeKind;
-            } else {
-                UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                               "PubSub meta data generation. DataType Node is UA_NODEID_NULL.");
-            }
-            fieldMetaData->properties = NULL;
-            fieldMetaData->propertiesSize = 0;
-            UA_Int32 valueRank;
-            if(UA_Server_readValueRank(server, field->config.field.variable.publishParameters.publishedVariable,
-                                       &valueRank) != UA_STATUSCODE_GOOD){
-                if(fieldMetaData->arrayDimensions){
-                    UA_free(fieldMetaData->arrayDimensions);
-                    return UA_STATUSCODE_BADINTERNALERROR;
-                }
-            }
-            fieldMetaData->valueRank = valueRank;
-            if(field->config.field.variable.promotedField){
-                fieldMetaData->fieldFlags = UA_DATASETFIELDFLAGS_PROMOTEDFIELD;
-            } else {
-                fieldMetaData->fieldFlags = UA_DATASETFIELDFLAGS_NONE;
-            }
-            //TODO collect the following fields*/
-            //fieldMetaData.builtInType
-            //fieldMetaData.maxStringLength
-            return UA_STATUSCODE_GOOD;
-        case UA_PUBSUB_DATASETFIELD_EVENT:
-            return UA_STATUSCODE_BADNOTSUPPORTED;
-        default:
-            return UA_STATUSCODE_BADNOTSUPPORTED;
+        }
+
+        fieldMetaData->properties = NULL;
+        fieldMetaData->propertiesSize = 0;
+        fieldMetaData->fieldFlags = UA_DATASETFIELDFLAGS_NONE;
+        //TODO collect value rank for the static field source
+        return UA_STATUSCODE_GOOD;
     }
+
+    /* Set the Array Dimensions */
+    const UA_PublishedVariableDataType *pp = &var->publishParameters;
+    UA_Variant value;
+    UA_Variant_init(&value);
+    res = UA_Server_readArrayDimensions(server, pp->publishedVariable, &value);
+    if(res != UA_STATUSCODE_GOOD){
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "PubSub meta data generation. Reading ArrayDimension failed.");
+        return res;
+    }
+
+    if(value.arrayDimensionsSize > 0) {
+        fieldMetaData->arrayDimensions = (UA_UInt32 *)
+            UA_calloc(value.arrayDimensionsSize, sizeof(UA_UInt32));
+        if(!fieldMetaData->arrayDimensions)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        memcpy(fieldMetaData->arrayDimensions, value.arrayDimensions,
+               sizeof(UA_UInt32)*value.arrayDimensionsSize);
+    }
+    fieldMetaData->arrayDimensionsSize = value.arrayDimensionsSize;
+
+    /* Set the DataType */
+    res = UA_Server_readDataType(server, pp->publishedVariable,
+                                 &fieldMetaData->dataType);
+    if(res != UA_STATUSCODE_GOOD){
+        if(fieldMetaData->arrayDimensions){
+            UA_free(fieldMetaData->arrayDimensions);
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+    }
+
+    if(!UA_NodeId_isNull(&fieldMetaData->dataType)) {
+        const UA_DataType *currentDataType =
+            UA_findDataTypeWithCustom(&fieldMetaData->dataType,
+                                      server->config.customDataTypes);
+        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                    "MetaData creation. Found DataType %s.", currentDataType->typeName);
+        /* Check if the datatype is a builtInType, if yes set the builtinType.
+         * TODO: Remove the magic number */
+        if(currentDataType->typeKind <= UA_DATATYPEKIND_ENUM)
+            fieldMetaData->builtInType = (UA_Byte)currentDataType->typeKind;
+    } else {
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "PubSub meta data generation. DataType Node is UA_NODEID_NULL.");
+    }
+
+    /* Set the ValueRank */
+    UA_Int32 valueRank;
+    res = UA_Server_readValueRank(server, pp->publishedVariable, &valueRank);
+    if(res != UA_STATUSCODE_GOOD){
+        if(fieldMetaData->arrayDimensions) {
+            UA_free(fieldMetaData->arrayDimensions);
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+    }
+    fieldMetaData->valueRank = valueRank;
+
+    /* PromotedField? */
+    if(var->promotedField)
+        fieldMetaData->fieldFlags = UA_DATASETFIELDFLAGS_PROMOTEDFIELD;
+    else
+        fieldMetaData->fieldFlags = UA_DATASETFIELDFLAGS_NONE;
+
+    /* Properties */
+    fieldMetaData->properties = NULL;
+    fieldMetaData->propertiesSize = 0;
+
+    //TODO collect the following fields*/
+    //fieldMetaData.builtInType
+    //fieldMetaData.maxStringLength
+
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_DataSetFieldResult
@@ -1791,53 +1815,27 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server, UA_DataSetMessage *da
     /* Reset the message */
     memset(dataSetMessage, 0, sizeof(UA_DataSetMessage));
 
-    /* store messageType to switch between json or uadp (default) */
-    UA_UInt16 messageType = UA_TYPES_UADPDATASETWRITERMESSAGEDATATYPE;
-    UA_JsonDataSetWriterMessageDataType *jsonDataSetWriterMessageDataType = NULL;
-
     /* The configuration Flags are included
      * inside the std. defined UA_UadpDataSetWriterMessageDataType */
     UA_UadpDataSetWriterMessageDataType defaultUadpConfiguration;
-    UA_UadpDataSetWriterMessageDataType *dataSetWriterMessageDataType = NULL;
-    if((dataSetWriter->config.messageSettings.encoding == UA_EXTENSIONOBJECT_DECODED ||
-        dataSetWriter->config.messageSettings.encoding == UA_EXTENSIONOBJECT_DECODED_NODELETE) &&
-       (dataSetWriter->config.messageSettings.content.decoded.type ==
-        &UA_TYPES[UA_TYPES_UADPDATASETWRITERMESSAGEDATATYPE])) {
-        dataSetWriterMessageDataType = (UA_UadpDataSetWriterMessageDataType *)
-            dataSetWriter->config.messageSettings.content.decoded.data;
-
-        /* type is UADP */
-        messageType = UA_TYPES_UADPDATASETWRITERMESSAGEDATATYPE;
-    } else if((dataSetWriter->config.messageSettings.encoding == UA_EXTENSIONOBJECT_DECODED ||
-               dataSetWriter->config.messageSettings.encoding == UA_EXTENSIONOBJECT_DECODED_NODELETE) &&
-              (dataSetWriter->config.messageSettings.content.decoded.type ==
-               &UA_TYPES[UA_TYPES_JSONDATASETWRITERMESSAGEDATATYPE])) {
-        jsonDataSetWriterMessageDataType = (UA_JsonDataSetWriterMessageDataType *)
-            dataSetWriter->config.messageSettings.content.decoded.data;
-
-        /* type is JSON */
-        messageType = UA_TYPES_JSONDATASETWRITERMESSAGEDATATYPE;
+    UA_UadpDataSetWriterMessageDataType *dsm = NULL;
+    UA_JsonDataSetWriterMessageDataType *jsonDsm = NULL;
+    const UA_ExtensionObject *ms = &dataSetWriter->config.messageSettings;
+    if((ms->encoding == UA_EXTENSIONOBJECT_DECODED || ms->encoding == UA_EXTENSIONOBJECT_DECODED_NODELETE) &&
+       ms->content.decoded.type == &UA_TYPES[UA_TYPES_UADPDATASETWRITERMESSAGEDATATYPE]) {
+        dsm = (UA_UadpDataSetWriterMessageDataType*)ms->content.decoded.data; /* type is UADP */
+    } else if((ms->encoding == UA_EXTENSIONOBJECT_DECODED || ms->encoding == UA_EXTENSIONOBJECT_DECODED_NODELETE) &&
+              ms->content.decoded.type == &UA_TYPES[UA_TYPES_JSONDATASETWRITERMESSAGEDATATYPE]) {
+        jsonDsm = (UA_JsonDataSetWriterMessageDataType*)ms->content.decoded.data; /* type is JSON */
     } else {
-        /* create default flag configuration if no
+        /* Create default flag configuration if no
          * UadpDataSetWriterMessageDataType was passed in */
         memset(&defaultUadpConfiguration, 0, sizeof(UA_UadpDataSetWriterMessageDataType));
         defaultUadpConfiguration.dataSetMessageContentMask = (UA_UadpDataSetMessageContentMask)
             ((u64)UA_UADPDATASETMESSAGECONTENTMASK_TIMESTAMP |
              (u64)UA_UADPDATASETMESSAGECONTENTMASK_MAJORVERSION |
              (u64)UA_UADPDATASETMESSAGECONTENTMASK_MINORVERSION);
-        dataSetWriterMessageDataType = &defaultUadpConfiguration;
-    }
-
-    /* Sanity-test the configuration */
-    if(dataSetWriterMessageDataType &&
-       (dataSetWriterMessageDataType->networkMessageNumber != 0 ||
-        dataSetWriterMessageDataType->dataSetOffset != 0 ||
-        dataSetWriterMessageDataType->configuredSize != 0)) {
-        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "Static DSM configuration not supported. Using defaults");
-        dataSetWriterMessageDataType->networkMessageNumber = 0;
-        dataSetWriterMessageDataType->dataSetOffset = 0;
-        dataSetWriterMessageDataType->configuredSize = 0;
+        dsm = &defaultUadpConfiguration; /* type is UADP */
     }
 
     /* The field encoding depends on the flags inside the writer config. */
@@ -1854,74 +1852,86 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server, UA_DataSetMessage *da
         dataSetMessage->header.fieldEncoding = UA_FIELDENCODING_VARIANT;
     }
 
-    if(messageType == UA_TYPES_UADPDATASETWRITERMESSAGEDATATYPE) {
+    if(dsm) {
+        /* Sanity-test the configuration */
+        if(dsm->networkMessageNumber != 0 ||
+           dsm->dataSetOffset != 0 ||
+           dsm->configuredSize != 0) {
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "Static DSM configuration not supported. Using defaults");
+            dsm->networkMessageNumber = 0;
+            dsm->dataSetOffset = 0;
+            dsm->configuredSize = 0;
+        }
+
         /* Std: 'The DataSetMessageContentMask defines the flags for the content
          * of the DataSetMessage header.' */
-        if((u64)dataSetWriterMessageDataType->dataSetMessageContentMask &
+        if((u64)dsm->dataSetMessageContentMask &
            (u64)UA_UADPDATASETMESSAGECONTENTMASK_MAJORVERSION) {
             dataSetMessage->header.configVersionMajorVersionEnabled = true;
             dataSetMessage->header.configVersionMajorVersion =
                 currentDataSet->dataSetMetaData.configurationVersion.majorVersion;
         }
-        if((u64)dataSetWriterMessageDataType->dataSetMessageContentMask &
+        if((u64)dsm->dataSetMessageContentMask &
            (u64)UA_UADPDATASETMESSAGECONTENTMASK_MINORVERSION) {
             dataSetMessage->header.configVersionMinorVersionEnabled = true;
             dataSetMessage->header.configVersionMinorVersion =
                 currentDataSet->dataSetMetaData.configurationVersion.minorVersion;
         }
 
-        if((u64)dataSetWriterMessageDataType->dataSetMessageContentMask &
+        if((u64)dsm->dataSetMessageContentMask &
            (u64)UA_UADPDATASETMESSAGECONTENTMASK_SEQUENCENUMBER) {
             dataSetMessage->header.dataSetMessageSequenceNrEnabled = true;
             dataSetMessage->header.dataSetMessageSequenceNr =
                 dataSetWriter->actualDataSetMessageSequenceCount;
         }
 
-        if((u64)dataSetWriterMessageDataType->dataSetMessageContentMask &
+        if((u64)dsm->dataSetMessageContentMask &
            (u64)UA_UADPDATASETMESSAGECONTENTMASK_TIMESTAMP) {
             dataSetMessage->header.timestampEnabled = true;
             dataSetMessage->header.timestamp = UA_DateTime_now();
         }
+
         /* TODO: Picoseconds resolution not supported atm */
-        if((u64)dataSetWriterMessageDataType->dataSetMessageContentMask &
+        if((u64)dsm->dataSetMessageContentMask &
            (u64)UA_UADPDATASETMESSAGECONTENTMASK_PICOSECONDS) {
             dataSetMessage->header.picoSecondsIncluded = false;
         }
 
         /* TODO: Statuscode not supported yet */
-        if((u64)dataSetWriterMessageDataType->dataSetMessageContentMask &
+        if((u64)dsm->dataSetMessageContentMask &
            (u64)UA_UADPDATASETMESSAGECONTENTMASK_STATUS) {
             dataSetMessage->header.statusEnabled = false;
         }
-    } else if(messageType == UA_TYPES_JSONDATASETWRITERMESSAGEDATATYPE) {
-        if((u64)jsonDataSetWriterMessageDataType->dataSetMessageContentMask &
+    } else if(jsonDsm) {
+        if((u64)jsonDsm->dataSetMessageContentMask &
            (u64)UA_JSONDATASETMESSAGECONTENTMASK_METADATAVERSION) {
             dataSetMessage->header.configVersionMajorVersionEnabled = true;
             dataSetMessage->header.configVersionMajorVersion =
                 currentDataSet->dataSetMetaData.configurationVersion.majorVersion;
         }
-        if((u64)jsonDataSetWriterMessageDataType->dataSetMessageContentMask &
+        if((u64)jsonDsm->dataSetMessageContentMask &
            (u64)UA_JSONDATASETMESSAGECONTENTMASK_METADATAVERSION) {
             dataSetMessage->header.configVersionMinorVersionEnabled = true;
             dataSetMessage->header.configVersionMinorVersion =
                 currentDataSet->dataSetMetaData.configurationVersion.minorVersion;
         }
 
-        if((u64)jsonDataSetWriterMessageDataType->dataSetMessageContentMask &
+        if((u64)jsonDsm->dataSetMessageContentMask &
            (u64)UA_JSONDATASETMESSAGECONTENTMASK_SEQUENCENUMBER) {
             dataSetMessage->header.dataSetMessageSequenceNrEnabled = true;
             dataSetMessage->header.dataSetMessageSequenceNr =
                 dataSetWriter->actualDataSetMessageSequenceCount;
         }
 
-        if((u64)jsonDataSetWriterMessageDataType->dataSetMessageContentMask &
+        if((u64)jsonDsm->dataSetMessageContentMask &
            (u64)UA_JSONDATASETMESSAGECONTENTMASK_TIMESTAMP) {
             dataSetMessage->header.timestampEnabled = true;
             dataSetMessage->header.timestamp = UA_DateTime_now();
         }
 
         /* TODO: Statuscode not supported yet */
-        if((u64)jsonDataSetWriterMessageDataType->dataSetMessageContentMask &
+        if((u64)jsonDsm->dataSetMessageContentMask &
            (u64)UA_JSONDATASETMESSAGECONTENTMASK_STATUS) {
             dataSetMessage->header.statusEnabled = false;
         }
@@ -1931,7 +1941,7 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server, UA_DataSetMessage *da
     dataSetWriter->actualDataSetMessageSequenceCount++;
 
     /* JSON does not differ between deltaframes and keyframes, only keyframes are currently used. */
-    if(messageType != UA_TYPES_JSONDATASETWRITERMESSAGEDATATYPE){
+    if(dsm) {
 #ifdef UA_ENABLE_PUBSUB_DELTAFRAMES
         /* Check if the PublishedDataSet version has changed -> if yes flush the
          * lastValue store and send a KeyFrame */
@@ -1943,7 +1953,7 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server, UA_DataSetMessage *da
         for(size_t i = 0; i < dataSetWriter->lastSamplesCount; i++)
             UA_DataValue_clear(&dataSetWriter->lastSamples[i].value);
 
-        /* Realloc pds dependent memory */
+        /* Realloc PDS dependent memory */
         dataSetWriter->lastSamplesCount = currentDataSet->fieldSize;
         UA_DataSetWriterSample *newSamplesArray = (UA_DataSetWriterSample * )
             UA_realloc(dataSetWriter->lastSamples,
