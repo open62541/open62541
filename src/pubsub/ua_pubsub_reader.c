@@ -469,6 +469,12 @@ UA_Server_ReaderGroup_clear(UA_Server* server, UA_ReaderGroup *readerGroup) {
     UA_String_clear(&readerGroup->config.name);
     UA_NodeId_clear(&readerGroup->linkedConnection);
     UA_NodeId_clear(&readerGroup->identifier);
+    if (readerGroup->config.groupPropertiesSize > 0) {
+        for (size_t i = 0; i < readerGroup->config.groupPropertiesSize; i++) {
+            UA_KeyValuePair_clear(&readerGroup->config.groupProperties[i]);
+        }
+        UA_free(readerGroup->config.groupProperties);
+    }
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     if(readerGroup->config.securityPolicy && readerGroup->securityPolicyContext) {
@@ -481,11 +487,22 @@ UA_Server_ReaderGroup_clear(UA_Server* server, UA_ReaderGroup *readerGroup) {
 UA_StatusCode
 UA_ReaderGroupConfig_copy(const UA_ReaderGroupConfig *src,
                           UA_ReaderGroupConfig *dst) {
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     /* Currently simple memcpy only */
     memcpy(dst, src, sizeof(UA_ReaderGroupConfig));
     memcpy(&dst->securityParameters, &src->securityParameters, sizeof(UA_PubSubSecurityParameters));
-    UA_String_copy(&src->name, &dst->name);
-    return UA_STATUSCODE_GOOD;
+    retVal |= UA_String_copy(&src->name, &dst->name);
+    if (src->groupPropertiesSize > 0) {
+        dst->groupPropertiesSize = src->groupPropertiesSize;
+        dst->groupProperties = (UA_KeyValuePair*)UA_calloc(src->groupPropertiesSize, sizeof(UA_KeyValuePair));
+        if (!dst->groupProperties)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        for (size_t i = 0; i < src->groupPropertiesSize; i++) {
+            retVal |= UA_KeyValuePair_copy(&src->groupProperties[i], &dst->groupProperties[i]);
+        }
+    }
+
+    return retVal;
 }
 
 UA_StatusCode

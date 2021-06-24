@@ -732,6 +732,8 @@ typedef struct {
     UA_Boolean enableBlockingSocket; // To enable or disable blocking socket option
     UA_UInt32 timeout; // Timeout for receive to wait for the packets
     UA_PubSubRTLevel rtLevel;
+    size_t groupPropertiesSize;
+    UA_KeyValuePair *groupProperties;
 
     /* Messages are decrypted if a SecurityPolicy is configured and the
      * securityMode set accordingly. The symmetric key is a runtime information
