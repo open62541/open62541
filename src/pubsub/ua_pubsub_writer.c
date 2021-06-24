@@ -137,11 +137,10 @@ UA_StatusCode
 UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
                          const UA_WriterGroupConfig *writerGroupConfig,
                          UA_NodeId *writerGroupIdentifier) {
-    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-
     if(!writerGroupConfig)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    //search the connection by the given connectionIdentifier
+
+    /* Search the connection by the given connectionIdentifier */
     UA_PubSubConnection *currentConnectionContext =
         UA_PubSubConnection_findConnectionbyId(server, connection);
     if(!currentConnectionContext)
@@ -154,16 +153,17 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
     }
 
     /* Validate messageSettings type */
-    if (writerGroupConfig->messageSettings.content.decoded.type) {
-        if (writerGroupConfig->encodingMimeType == UA_PUBSUB_ENCODING_JSON &&
-                (writerGroupConfig->messageSettings.encoding != UA_EXTENSIONOBJECT_DECODED
-                || writerGroupConfig->messageSettings.content.decoded.type != &UA_TYPES[UA_TYPES_JSONWRITERGROUPMESSAGEDATATYPE]) ) {
+    const UA_ExtensionObject *ms = &writerGroupConfig->messageSettings;
+    if(ms->content.decoded.type) {
+        if(writerGroupConfig->encodingMimeType == UA_PUBSUB_ENCODING_JSON &&
+           (ms->encoding != UA_EXTENSIONOBJECT_DECODED ||
+            ms->content.decoded.type != &UA_TYPES[UA_TYPES_JSONWRITERGROUPMESSAGEDATATYPE])) {
             return UA_STATUSCODE_BADTYPEMISMATCH;
         }
 
-        if (writerGroupConfig->encodingMimeType == UA_PUBSUB_ENCODING_UADP &&
-                (writerGroupConfig->messageSettings.encoding != UA_EXTENSIONOBJECT_DECODED
-                        || writerGroupConfig->messageSettings.content.decoded.type != &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE]) ) {
+        if(writerGroupConfig->encodingMimeType == UA_PUBSUB_ENCODING_UADP &&
+           (ms->encoding != UA_EXTENSIONOBJECT_DECODED ||
+            ms->content.decoded.type != &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE])) {
             return UA_STATUSCODE_BADTYPEMISMATCH;
         }
     }
@@ -178,10 +178,10 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
 
     /* Deep copy of the config */
     UA_WriterGroupConfig *newConfig = &newWriterGroup->config;
-    retVal = UA_WriterGroupConfig_copy(writerGroupConfig, newConfig);
-    if(retVal != UA_STATUSCODE_GOOD) {
+    UA_StatusCode res = UA_WriterGroupConfig_copy(writerGroupConfig, newConfig);
+    if(res != UA_STATUSCODE_GOOD) {
         UA_free(newWriterGroup);
-        return retVal;
+        return res;
     }
 
     /* Create the datatype value if not present */
@@ -199,14 +199,14 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
 
     /* Add representation / create unique identifier */
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    retVal = addWriterGroupRepresentation(server, newWriterGroup);
+    res = addWriterGroupRepresentation(server, newWriterGroup);
 #else
     UA_PubSubManager_generateUniqueNodeId(&server->pubSubManager,
                                           &newWriterGroup->identifier);
 #endif
     if(writerGroupIdentifier)
         UA_NodeId_copy(&newWriterGroup->identifier, writerGroupIdentifier);
-    return retVal;
+    return res;
 }
 
 UA_StatusCode
