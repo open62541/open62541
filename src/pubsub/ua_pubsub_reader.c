@@ -448,8 +448,12 @@ UA_Server_ReaderGroup_getState(UA_Server *server, UA_NodeId readerGroupIdentifie
 
 void
 UA_ReaderGroupConfig_clear(UA_ReaderGroupConfig *readerGroupConfig) {
-    //delete readerGroup config
     UA_String_clear(&readerGroupConfig->name);
+    UA_Array_delete(readerGroupConfig->groupProperties,
+                    readerGroupConfig->groupPropertiesSize,
+                    &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
+    readerGroupConfig->groupProperties = NULL;
+    readerGroupConfig->groupPropertiesSize = 0;
 }
 
 static void
@@ -466,7 +470,6 @@ UA_Server_ReaderGroup_clear(UA_Server* server, UA_ReaderGroup *readerGroup) {
         pConn->readerGroupsSize--;
 
     /* Delete ReaderGroup and its members */
-    UA_String_clear(&readerGroup->config.name);
     UA_NodeId_clear(&readerGroup->linkedConnection);
     UA_NodeId_clear(&readerGroup->identifier);
 
@@ -476,15 +479,27 @@ UA_Server_ReaderGroup_clear(UA_Server* server, UA_ReaderGroup *readerGroup) {
         readerGroup->securityPolicyContext = NULL;
     }
 #endif
+
+    UA_ReaderGroupConfig_clear(&readerGroup->config);
 }
 
 UA_StatusCode
 UA_ReaderGroupConfig_copy(const UA_ReaderGroupConfig *src,
                           UA_ReaderGroupConfig *dst) {
-    /* Currently simple memcpy only */
     memcpy(dst, src, sizeof(UA_ReaderGroupConfig));
-    memcpy(&dst->securityParameters, &src->securityParameters, sizeof(UA_PubSubSecurityParameters));
-    UA_String_copy(&src->name, &dst->name);
+
+    UA_StatusCode res = UA_String_copy(&src->name, &dst->name);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    res = UA_Array_copy(src->groupProperties, src->groupPropertiesSize,
+                        (void**)&dst->groupProperties,
+                        &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_String_clear(&dst->name);
+        return res;
+    }
+    dst->groupPropertiesSize = src->groupPropertiesSize;
     return UA_STATUSCODE_GOOD;
 }
 
