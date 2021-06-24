@@ -1713,17 +1713,18 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_Server *server,
         UA_PubSubDataSetField_sampleValue(server, dsf, &value);
 
         /* Check if the value has changed */
-        if(valueChangedVariant(&dataSetWriter->lastSamples[counter].value.value, &value.value)) {
+        UA_DataSetWriterSample *ls = &dataSetWriter->lastSamples[counter];
+        if(valueChangedVariant(&ls->value.value, &value.value)) {
             /* increase fieldCount for current delta message */
             dataSetMessage->data.deltaFrameData.fieldCount++;
-            dataSetWriter->lastSamples[counter].valueChanged = true;
+            ls->valueChanged = true;
 
             /* Update last stored sample */
-            UA_DataValue_clear(&dataSetWriter->lastSamples[counter].value);
-            dataSetWriter->lastSamples[counter].value = value;
+            UA_DataValue_clear(&ls->value);
+            ls->value = value;
         } else {
             UA_DataValue_clear(&value);
-            dataSetWriter->lastSamples[counter].valueChanged = false;
+            ls->valueChanged = false;
         }
 
         counter++;
