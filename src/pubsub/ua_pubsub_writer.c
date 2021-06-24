@@ -283,109 +283,127 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server,
         }
     }
 
-    if(wg->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE){
-        size_t dsmCount = 0;
-        if(wg->config.encodingMimeType != UA_PUBSUB_ENCODING_UADP) {
+    if(wg->config.rtLevel != UA_PUBSUB_RT_FIXED_SIZE)
+        return UA_STATUSCODE_GOOD;
+
+    /* Freeze the RT writer configuration */
+    size_t dsmCount = 0;
+    if(wg->config.encodingMimeType != UA_PUBSUB_ENCODING_UADP) {
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "PubSub-RT configuration fail: Non-RT capable encoding.");
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+    }
+
+    //TODO Clarify: should we only allow = maxEncapsulatedDataSetMessageCount == 1 with RT?
+    //TODO Clarify: Behaviour if the finale size is more than MTU
+
+    /* Generate data set messages  */
+    UA_STACKARRAY(UA_UInt16, dsWriterIds, wg->writersCount);
+    UA_STACKARRAY(UA_DataSetMessage, dsmStore, wg->writersCount);
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    UA_DataSetWriter *dsw;
+    LIST_FOREACH(dsw, &wg->writers, listEntry) {
+        /* Find the dataset */
+        UA_PublishedDataSet *pds =
+            UA_PublishedDataSet_findPDSbyId(server, dsw->connectedDataSet);
+        if(!pds) {
             UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                           "PubSub-RT configuration fail: Non-RT capable encoding.");
+                           "PubSub Publish: PublishedDataSet not found");
+            continue;
+        }
+        if(pds->promotedFieldsCount > 0) {
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "PubSub-RT configuration fail: PDS contains promoted fields.");
             return UA_STATUSCODE_BADNOTSUPPORTED;
         }
-        //TODO Clarify: should we only allow = maxEncapsulatedDataSetMessageCount == 1 with RT?
-        //TODO Clarify: Behaviour if the finale size is more than MTU
-        /* Generate data set messages  */
-        UA_STACKARRAY(UA_UInt16, dsWriterIds, wg->writersCount);
-        UA_STACKARRAY(UA_DataSetMessage, dsmStore, wg->writersCount);
-        UA_DataSetWriter *dsw;
-        LIST_FOREACH(dsw, &wg->writers, listEntry) {
-            /* Find the dataset */
-            UA_PublishedDataSet *pds =
-                    UA_PublishedDataSet_findPDSbyId(server, dsw->connectedDataSet);
-            if(!pds) {
+
+        /* Test the DataSetFields */
+        UA_DataSetField *dsf;
+        TAILQ_FOREACH(dsf, &pds->fields, listEntry) {
+            const UA_VariableNode *rtNode = (const UA_VariableNode *)
+                UA_NODESTORE_GET(server, &dsf->config.field.variable.publishParameters.publishedVariable);
+            if(rtNode != NULL && rtNode->valueBackend.backendType != UA_VALUEBACKENDTYPE_EXTERNAL) {
                 UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                               "PubSub Publish: PublishedDataSet not found");
-                continue;
-            }
-            if(pds->promotedFieldsCount > 0) {
-                UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                               "PubSub-RT configuration fail: PDS contains promoted fields.");
+                               "PubSub-RT configuration fail: PDS contains field without external data source.");
+                UA_NODESTORE_RELEASE(server, (const UA_Node *) rtNode);
                 return UA_STATUSCODE_BADNOTSUPPORTED;
             }
-            UA_DataSetField *dsf;
-            TAILQ_FOREACH(dsf, &pds->fields, listEntry){
-                const UA_VariableNode *rtNode = (const UA_VariableNode *) UA_NODESTORE_GET(server, &dsf->config.field.variable.publishParameters.publishedVariable);
-                if(rtNode != NULL && rtNode->valueBackend.backendType != UA_VALUEBACKENDTYPE_EXTERNAL){
-                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                                   "PubSub-RT configuration fail: PDS contains field without external data source.");
-                    UA_NODESTORE_RELEASE(server, (const UA_Node *) rtNode);
-                    return UA_STATUSCODE_BADNOTSUPPORTED;
-                }
-                UA_NODESTORE_RELEASE(server, (const UA_Node *) rtNode);
-                if((UA_NodeId_equal(&dsf->fieldMetaData.dataType, &UA_TYPES[UA_TYPES_STRING].typeId) ||
-                    UA_NodeId_equal(&dsf->fieldMetaData.dataType,
-                                    &UA_TYPES[UA_TYPES_BYTESTRING].typeId)) &&
-                   dsf->fieldMetaData.maxStringLength == 0) {
-                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                                   "PubSub-RT configuration fail: "
-                                   "PDS contains String/ByteString with dynamic length.");
-                    return UA_STATUSCODE_BADNOTSUPPORTED;
-                } else if(!UA_DataType_isNumeric(UA_findDataType(&dsf->fieldMetaData.dataType))){
-                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                                   "PubSub-RT configuration fail: "
-                                   "PDS contains variable with dynamic size.");
-                    return UA_STATUSCODE_BADNOTSUPPORTED;
-                }
-            }
-            /* Generate the DSM */
-            UA_StatusCode res =
-                    UA_DataSetWriter_generateDataSetMessage(server, &dsmStore[dsmCount], dsw);
-            if(res != UA_STATUSCODE_GOOD) {
+            UA_NODESTORE_RELEASE(server, (const UA_Node *) rtNode);
+            if((UA_NodeId_equal(&dsf->fieldMetaData.dataType, &UA_TYPES[UA_TYPES_STRING].typeId) ||
+                UA_NodeId_equal(&dsf->fieldMetaData.dataType,
+                                &UA_TYPES[UA_TYPES_BYTESTRING].typeId)) &&
+               dsf->fieldMetaData.maxStringLength == 0) {
                 UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                               "PubSub RT Offset calculation: DataSetMessage buffering failed");
-                continue;
+                               "PubSub-RT configuration fail: "
+                               "PDS contains String/ByteString with dynamic length.");
+                return UA_STATUSCODE_BADNOTSUPPORTED;
+            } else if(!UA_DataType_isNumeric(UA_findDataType(&dsf->fieldMetaData.dataType))){
+                UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                               "PubSub-RT configuration fail: "
+                               "PDS contains variable with dynamic size.");
+                return UA_STATUSCODE_BADNOTSUPPORTED;
             }
-            dsWriterIds[dsmCount] = dsw->config.dataSetWriterId;
-            dsmCount++;
-        }
-        UA_NetworkMessage networkMessage;
-        memset(&networkMessage, 0, sizeof(networkMessage));
-        UA_StatusCode res =
-            generateNetworkMessage(pubSubConnection, wg, dsmStore, dsWriterIds,
-                                   (UA_Byte) dsmCount,
-                                   &wg->config.messageSettings,
-                                   &wg->config.transportSettings,
-                                   &networkMessage);
-        if(res != UA_STATUSCODE_GOOD)
-        {
-            return UA_STATUSCODE_BADINTERNALERROR;
         }
 
-        memset(&wg->bufferedMessage, 0, sizeof(UA_NetworkMessageOffsetBuffer));
-        UA_NetworkMessage_calcSizeBinary(&networkMessage, &wg->bufferedMessage);
-        /* Allocate the buffer. Allocate on the stack if the buffer is small. */
-        UA_ByteString buf;
-        size_t msgSize = UA_NetworkMessage_calcSizeBinary(&networkMessage, NULL);
-        res = UA_ByteString_allocBuffer(&buf, msgSize);
-        if(res != UA_STATUSCODE_GOOD)
-        {
-            UA_free(networkMessage.payload.dataSetPayload.sizes);
-            return UA_STATUSCODE_BADOUTOFMEMORY;
+        /* Generate the DSM */
+        res = UA_DataSetWriter_generateDataSetMessage(server, &dsmStore[dsmCount], dsw);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "PubSub RT Offset calculation: DataSetMessage buffering failed");
+            continue;
         }
-        wg->bufferedMessage.buffer = buf;
-        const UA_Byte *bufEnd = &wg->bufferedMessage.buffer.data[wg->bufferedMessage.buffer.length];
-        UA_Byte *bufPos = wg->bufferedMessage.buffer.data;
-        UA_NetworkMessage_encodeBinary(&networkMessage, &bufPos, bufEnd, NULL);
 
-        UA_free(networkMessage.payload.dataSetPayload.sizes);
-        /* Clean up DSM */
-        for(size_t i = 0; i < dsmCount; i++){
-            UA_free(dsmStore[i].data.keyFrameData.dataSetFields);
-#ifdef UA_ENABLE_JSON_ENCODING
-            UA_Array_delete(dsmStore[i].data.keyFrameData.fieldNames, 
-                dsmStore[i].data.keyFrameData.fieldCount, &UA_TYPES[UA_TYPES_STRING]);
-#endif
-        }
+        dsWriterIds[dsmCount] = dsw->config.dataSetWriterId;
+        dsmCount++;
     }
-    return UA_STATUSCODE_GOOD;
+
+    /* Define variables here for goto */
+    size_t msgSize;
+    UA_ByteString buf;
+    UA_NetworkMessage networkMessage;
+    const UA_Byte *bufEnd;
+    UA_Byte *bufPos;
+
+    if(res != UA_STATUSCODE_GOOD)
+        goto cleanup_dsm;
+
+    memset(&networkMessage, 0, sizeof(networkMessage));
+    res = generateNetworkMessage(pubSubConnection, wg, dsmStore, dsWriterIds,
+                                 (UA_Byte) dsmCount, &wg->config.messageSettings,
+                                 &wg->config.transportSettings, &networkMessage);
+    if(res != UA_STATUSCODE_GOOD)
+        goto cleanup_dsm;
+
+    memset(&wg->bufferedMessage, 0, sizeof(UA_NetworkMessageOffsetBuffer));
+    UA_NetworkMessage_calcSizeBinary(&networkMessage, &wg->bufferedMessage);
+
+    /* Allocate the buffer. Allocate on the stack if the buffer is small. */
+    msgSize = UA_NetworkMessage_calcSizeBinary(&networkMessage, NULL);
+    res = UA_ByteString_allocBuffer(&buf, msgSize);
+    if(res != UA_STATUSCODE_GOOD)
+        goto cleanup;
+    wg->bufferedMessage.buffer = buf;
+
+    /* Encode the NetworkMessage */
+    bufEnd = &wg->bufferedMessage.buffer.data[wg->bufferedMessage.buffer.length];
+    bufPos = wg->bufferedMessage.buffer.data;
+    UA_NetworkMessage_encodeBinary(&networkMessage, &bufPos, bufEnd, NULL);
+
+ cleanup:
+    UA_free(networkMessage.payload.dataSetPayload.sizes);
+
+    /* Clean up DSM */
+ cleanup_dsm:
+    for(size_t i = 0; i < dsmCount; i++){
+        UA_free(dsmStore[i].data.keyFrameData.dataSetFields);
+#ifdef UA_ENABLE_JSON_ENCODING
+        UA_Array_delete(dsmStore[i].data.keyFrameData.fieldNames,
+                        dsmStore[i].data.keyFrameData.fieldCount,
+                        &UA_TYPES[UA_TYPES_STRING]);
+#endif
+    }
+
+    return res;
 }
 
 UA_StatusCode
