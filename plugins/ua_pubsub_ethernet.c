@@ -1243,7 +1243,7 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel,
                                            * VLAN header size is stripped before it is recieved
                                            * so the packet length is less than 60bytes */
 
-        messageLength = messageLength + ((size_t)dataLen - sizeof(struct ether_header));
+        messageLength = ((size_t)dataLen - sizeof(struct ether_header));
         buffer.length = messageLength;
 
         retval = receiveCallback(channel, receiveCallbackContext, &buffer);
@@ -1264,9 +1264,6 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel,
         /* The recvmsg API with MSG_DONTWAIT flag will not wait for the next packet */
         receiveFlags = MSG_DONTWAIT;
 
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
-        break;//ToDO: Multiple Receive handling for PubsubEncryption need to be done
-#endif
     } while(true); /* 1518 bytes is the maximum size of ethernet packet
                                               * where 18 bytes used for header size, 4 bytes of LLC
                                               * so remaining length is 1496 */
