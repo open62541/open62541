@@ -124,9 +124,11 @@ UA_DataSetReaderConfig readerConfig;
 #define             MILLI_SECONDS                         1000 * 1000
 #define             SECONDS                               1000 * 1000 * 1000
 #define             SECONDS_SLEEP                         5
+#if defined(PUBLISHER)
 /* Publisher will sleep for 60% of cycle time and then prepares the */
 /* transmission packet within 40% */
 static UA_Double  pubWakeupPercentage     = 0.6;
+#endif
 /* Subscriber will wakeup only during start of cycle and check whether */
 /* the packets are received */
 static UA_Double  subWakeupPercentage     = 0;
@@ -154,13 +156,17 @@ static UA_Double  userAppWakeupPercentage = 0.3;
 #define             UA_AES128CTR_KEY_LENGTH                  16
 #define             UA_AES128CTR_KEYNONCE_LENGTH             4
 
+#if defined(PUBLISHER)
 UA_Byte signingKeyPub[UA_AES128CTR_SIGNING_KEY_LENGTH] = {0};
 UA_Byte encryptingKeyPub[UA_AES128CTR_KEY_LENGTH] = {0};
 UA_Byte keyNoncePub[UA_AES128CTR_KEYNONCE_LENGTH] = {0};
+#endif
 
+#if defined(SUBSCRIBER)
 UA_Byte signingKeySub[UA_AES128CTR_SIGNING_KEY_LENGTH] = {0};
 UA_Byte encryptingKeySub[UA_AES128CTR_KEY_LENGTH] = {0};
 UA_Byte keyNonceSub[UA_AES128CTR_KEYNONCE_LENGTH] = {0};
+#endif
 #endif
 
 /* If the Hardcoded publisher/subscriber MAC addresses need to be changed,
@@ -471,7 +477,7 @@ addReaderGroup(UA_Server *server) {
     /* Encryption settings */
     UA_ServerConfig *config = UA_Server_getConfig(server);
     readerGroupConfig.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
-    readerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[1];
+    readerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[0];
 #endif
 
     readerGroupConfig.pubsubManagerCallback.addCustomCallback = addPubSubApplicationCallback;
@@ -845,7 +851,7 @@ addWriterGroup(UA_Server *server) {
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     UA_ServerConfig *config = UA_Server_getConfig(server);
     writerGroupConfig.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
-    writerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[0];
+    writerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[1];
 #endif
     /* The configuration flags for the messages are encapsulated inside the
      * message- and transport settings extension objects. These extension
@@ -938,6 +944,7 @@ updateMeasurementsSubscriber(struct timespec receive_time, UA_UInt64 counterValu
 }
 #endif
 
+#if defined(PUBLISHER)
 /**
  * **Publisher thread routine**
  *
@@ -1016,6 +1023,7 @@ void *publisherETF(void *arg) {
     runningServer = UA_FALSE;
     return (void*)NULL;
 }
+#endif
 
 #if defined(SUBSCRIBER)
 /**
@@ -1072,6 +1080,9 @@ void *subscriber(void *arg) {
     if (*runningSub == UA_FALSE)
         signalTerm = UA_TRUE;
 
+#if defined(SUBSCRIBER) && !defined(PUBLISHER)
+    runningServer = UA_FALSE;
+#endif
     UA_free(threadArgumentsSubscriber);
     return (void*)NULL;
 }
@@ -1102,7 +1113,11 @@ void *userApplicationPubSub(void *arg) {
     nextnanosleeptimeUserApplication.tv_nsec = threadBaseTime.tv_nsec + (__syscall_slong_t)(cycleTimeInMsec * MILLI_SECONDS * userAppWakeupPercentage);
     nanoSecondFieldConversion(&nextnanosleeptimeUserApplication);
 
+#if defined(PUBLISHER) && defined(SUBSCRIBER)
     while (*runningSub || *runningPub) {
+#else
+    while (*runningSub) {
+#endif
         /* The User application threads wakes up at the configured userApp wake up percentage (30%) of each cycle */
         clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptimeUserApplication, NULL);
 #if defined(SUBSCRIBER)
@@ -1507,13 +1522,23 @@ int main(int argc, char **argv) {
     UA_ServerConfig_setMinimal(config, PORT_NUMBER, NULL);
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+#if defined(PUBLISHER) && defined(SUBSCRIBER)
     /* Instantiate the PubSub SecurityPolicy */
     config->pubSubConfig.securityPolicies = (UA_PubSubSecurityPolicy*)
         UA_calloc(2, sizeof(UA_PubSubSecurityPolicy));
     config->pubSubConfig.securityPoliciesSize = 2;
-    UA_PubSubSecurityPolicy_Aes128Ctr(&config->pubSubConfig.securityPolicies[0],
+#else
+    config->pubSubConfig.securityPolicies = (UA_PubSubSecurityPolicy*)
+        UA_malloc(sizeof(UA_PubSubSecurityPolicy));
+    config->pubSubConfig.securityPoliciesSize = 1;
+#endif
+#endif
+
+#if defined(UA_ENABLE_PUBSUB_ENCRYPTION) && defined(PUBLISHER)
+    UA_PubSubSecurityPolicy_Aes128Ctr(&config->pubSubConfig.securityPolicies[1],
                                       &config->logger);
 #endif
+
 #if defined(PUBLISHER)
     UA_NetworkAddressUrlDataType networkAddressUrlPub;
 #endif
@@ -1562,8 +1587,9 @@ if (enableCsvLog)
     addDataSetWriter(server);
     UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent);
 #endif
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
-    UA_PubSubSecurityPolicy_Aes128Ctr(&config->pubSubConfig.securityPolicies[1],
+
+#if defined(UA_ENABLE_PUBSUB_ENCRYPTION) && defined(SUBSCRIBER)
+    UA_PubSubSecurityPolicy_Aes128Ctr(&config->pubSubConfig.securityPolicies[0],
                                       &config->logger);
 #endif
 #if defined (PUBLISHER) && defined(SUBSCRIBER)
@@ -1594,6 +1620,7 @@ if (enableCsvLog)
 #if defined(SUBSCRIBER)
     UA_Server_unfreezeReaderGroupConfiguration(server, readerGroupIdentifier);
 #endif
+
 #if defined(PUBLISHER) || defined(SUBSCRIBER)
     returnValue = pthread_join(userThreadID, NULL);
     if (returnValue != 0)

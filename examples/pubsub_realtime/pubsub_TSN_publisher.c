@@ -160,13 +160,17 @@ static UA_Double  userAppWakeupPercentage = 0.3;
 #define             UA_AES128CTR_KEY_LENGTH                  16
 #define             UA_AES128CTR_KEYNONCE_LENGTH             4
 
+#if defined(PUBLISHER)
 UA_Byte signingKeyPub[UA_AES128CTR_SIGNING_KEY_LENGTH] = {0};
 UA_Byte encryptingKeyPub[UA_AES128CTR_KEY_LENGTH] = {0};
 UA_Byte keyNoncePub[UA_AES128CTR_KEYNONCE_LENGTH] = {0};
+#endif
 
+#if defined(SUBSCRIBER)
 UA_Byte signingKeySub[UA_AES128CTR_SIGNING_KEY_LENGTH] = {0};
 UA_Byte encryptingKeySub[UA_AES128CTR_KEY_LENGTH] = {0};
 UA_Byte keyNonceSub[UA_AES128CTR_KEYNONCE_LENGTH] = {0};
+#endif
 #endif
 
 /* If the Hardcoded publisher/subscriber MAC addresses need to be changed,
@@ -1017,6 +1021,9 @@ void *publisherETF(void *arg) {
         nanoSecondFieldConversion(&nextnanosleeptime);
     }
 
+#if defined(PUBLISHER) && !defined(SUBSCRIBER)
+    runningServer = UA_FALSE;
+#endif
     UA_free(threadArgumentsPublisher);
     return (void*)NULL;
 }
@@ -1113,7 +1120,12 @@ void *userApplicationPubSub(void *arg) {
     {
         *repeatedCounterData[iterator] = repeatedCounterValue;
     }
+
+#if defined(PUBLISHER) && defined(SUBSCRIBER)
     while (*runningPub || *runningSub) {
+#else
+    while (*runningPub) {
+#endif
         /* The User application threads wakes up at the configured userApp wake up percentage (30%) of each cycle */
         clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptimeUserApplication, NULL);
 #if defined(PUBLISHER)
@@ -1604,10 +1616,19 @@ int main(int argc, char **argv) {
 
     UA_ServerConfig_setMinimal(config, PORT_NUMBER, NULL);
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+#if defined(PUBLISHER) && defined(SUBSCRIBER)
     /* Instantiate the PubSub SecurityPolicy */
     config->pubSubConfig.securityPolicies = (UA_PubSubSecurityPolicy*)
         UA_calloc(2, sizeof(UA_PubSubSecurityPolicy));
     config->pubSubConfig.securityPoliciesSize = 2;
+#else
+    config->pubSubConfig.securityPolicies = (UA_PubSubSecurityPolicy*)
+        UA_malloc(sizeof(UA_PubSubSecurityPolicy));
+    config->pubSubConfig.securityPoliciesSize = 1;
+#endif
+#endif
+
+#if defined(UA_ENABLE_PUBSUB_ENCRYPTION) && defined(PUBLISHER)
     UA_PubSubSecurityPolicy_Aes128Ctr(&config->pubSubConfig.securityPolicies[0],
                                       &config->logger);
 #endif
@@ -1659,10 +1680,12 @@ if (enableCsvLog) {
     addDataSetWriter(server);
     UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent);
 #endif
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+
+#if defined(UA_ENABLE_PUBSUB_ENCRYPTION) && defined(SUBSCRIBER)
     UA_PubSubSecurityPolicy_Aes128Ctr(&config->pubSubConfig.securityPolicies[1],
                                       &config->logger);
 #endif
+
 #if defined (PUBLISHER) && defined(SUBSCRIBER)
     UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
 #endif
@@ -1733,6 +1756,7 @@ if (enableCsvLog) {
     UA_Server_delete(server);
     UA_free(serverConfig);
 #endif
+
 #if defined(PUBLISHER)
     UA_free(runningPub);
     UA_free(pubCounterData);
