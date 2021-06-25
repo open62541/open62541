@@ -122,6 +122,12 @@ UA_Client_getState(UA_Client *client, UA_SecureChannelState *channelState,
         *connectStatus = client->connectStatus;
 }
 
+UA_SOCKET
+UA_Client_getSocket(UA_Client *client)
+{
+  return client->connection.sockfd;
+}
+
 UA_ClientConfig *
 UA_Client_getConfig(UA_Client *client) {
     if(!client)
