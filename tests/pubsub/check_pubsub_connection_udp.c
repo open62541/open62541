@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  * Copyright (c) 2017 - 2018 Fraunhofer IOSB (Author: Andreas Ebner)
+ * Copyright (c) 2021 Linutronix GmbH (Author: Kurt Kanzenbach)
  */
 
 #include <open62541/plugin/pubsub_udp.h>
@@ -48,6 +49,25 @@ START_TEST(AddConnectionsWithMinimalValidConfiguration){
     ck_assert_int_eq(server->pubSubManager.connectionsSize, 2);
 } END_TEST
 
+START_TEST(AddConnectionsWithMinimalValidIPv6Configuration){
+    UA_StatusCode retVal;
+    UA_PubSubConnectionConfig connectionConfig;
+    memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
+    connectionConfig.name = UA_STRING("UADP Connection");
+    UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL, UA_STRING("opc.udp://[ff02::1:5]:4840/")};
+    UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
+                         &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
+    connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
+    retVal = UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
+    ck_assert_int_eq(server->pubSubManager.connectionsSize, 1);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    ck_assert(! TAILQ_EMPTY(&server->pubSubManager.connections));
+    retVal = UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    ck_assert(&server->pubSubManager.connections.tqh_first->listEntry.tqe_next != NULL);
+    ck_assert_int_eq(server->pubSubManager.connectionsSize, 2);
+} END_TEST
+
 START_TEST(AddRemoveAddConnectionWithMinimalValidConfiguration){
         UA_StatusCode retVal;
         UA_PubSubConnectionConfig connectionConfig;
@@ -71,12 +91,52 @@ START_TEST(AddRemoveAddConnectionWithMinimalValidConfiguration){
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 } END_TEST
 
+START_TEST(AddRemoveAddConnectionWithMinimalValidIPv6Configuration){
+        UA_StatusCode retVal;
+        UA_PubSubConnectionConfig connectionConfig;
+        memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
+        connectionConfig.name = UA_STRING("UADP Connection");
+        UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL, UA_STRING("opc.udp://[ff02::1:5]:4840/")};
+        UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
+                             &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
+        connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
+        UA_NodeId connectionIdent;
+        retVal = UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
+        ck_assert_int_eq(server->pubSubManager.connectionsSize, 1);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        ck_assert(! TAILQ_EMPTY(&server->pubSubManager.connections));
+        retVal |= UA_Server_removePubSubConnection(server, connectionIdent);
+        ck_assert_int_eq(server->pubSubManager.connectionsSize, 0);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        retVal = UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
+        ck_assert_int_eq(server->pubSubManager.connectionsSize, 1);
+        ck_assert(&server->pubSubManager.connections.tqh_first->listEntry.tqe_next != NULL);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+} END_TEST
+
 START_TEST(AddConnectionWithInvalidAddress){
     UA_StatusCode retVal;
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
     connectionConfig.name = UA_STRING("UADP Connection");
     UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL, UA_STRING("opc.udp://256.0.0.22:4840/")};
+    UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
+                         &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
+    connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
+    retVal = UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
+    ck_assert_int_eq(server->pubSubManager.connectionsSize, 0);
+    ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
+    retVal = UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
+    ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(server->pubSubManager.connectionsSize, 0);
+} END_TEST
+
+START_TEST(AddConnectionWithInvalidIPv6Address){
+    UA_StatusCode retVal;
+    UA_PubSubConnectionConfig connectionConfig;
+    memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
+    connectionConfig.name = UA_STRING("UADP Connection");
+    UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL, UA_STRING("opc.udp://[wasd::1:5]:4840/")};
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
@@ -188,11 +248,14 @@ int main(void) {
     TCase *tc_add_pubsub_connections_minimal_config = tcase_create("Create PubSub UDP Connections with minimal valid config");
     tcase_add_checked_fixture(tc_add_pubsub_connections_minimal_config, setup, teardown);
     tcase_add_test(tc_add_pubsub_connections_minimal_config, AddConnectionsWithMinimalValidConfiguration);
+    tcase_add_test(tc_add_pubsub_connections_minimal_config, AddConnectionsWithMinimalValidIPv6Configuration);
     tcase_add_test(tc_add_pubsub_connections_minimal_config, AddRemoveAddConnectionWithMinimalValidConfiguration);
+    tcase_add_test(tc_add_pubsub_connections_minimal_config, AddRemoveAddConnectionWithMinimalValidIPv6Configuration);
 
     TCase *tc_add_pubsub_connections_invalid_config = tcase_create("Create PubSub UDP Connections with invalid configurations");
     tcase_add_checked_fixture(tc_add_pubsub_connections_invalid_config, setup, teardown);
     tcase_add_test(tc_add_pubsub_connections_invalid_config, AddConnectionWithInvalidAddress);
+    tcase_add_test(tc_add_pubsub_connections_invalid_config, AddConnectionWithInvalidIPv6Address);
     tcase_add_test(tc_add_pubsub_connections_invalid_config, AddConnectionWithUnknownTransportURL);
     tcase_add_test(tc_add_pubsub_connections_invalid_config, AddConnectionWithNullConfig);
 

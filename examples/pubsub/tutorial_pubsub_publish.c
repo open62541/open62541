@@ -13,8 +13,8 @@
  *
  * Publishing Fields
  * ^^^^^^^^^^^^^^^^^
- * The PubSub publish example demonstrate the simplest way to publish
- * informations from the information model over UDP multicast using the UADP
+ * The PubSub publish example demonstrates the simplest way to publish
+ * information from the information model over UDP multicast using the UADP
  * encoding.
  *
  * **Connection handling**
@@ -62,7 +62,7 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
 static void
 addPublishedDataSet(UA_Server *server) {
     /* The PublishedDataSetConfig contains all necessary public
-    * informations for the creation of a new PublishedDataSet */
+    * information for the creation of a new PublishedDataSet */
     UA_PublishedDataSetConfig publishedDataSetConfig;
     memset(&publishedDataSetConfig, 0, sizeof(UA_PublishedDataSetConfig));
     publishedDataSetConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
@@ -132,7 +132,7 @@ addWriterGroup(UA_Server *server) {
  * **DataSetWriter handling**
  *
  * A DataSetWriter (DSW) is the glue between the WG and the PDS. The DSW is
- * linked to exactly one PDS and contains additional informations for the
+ * linked to exactly one PDS and contains additional information for the
  * message generation. */
 static void
 addDataSetWriter(UA_Server *server) {
@@ -159,7 +159,7 @@ addDataSetWriter(UA_Server *server) {
  *     :alt: OPC UA PubSub communication in wireshark
  *
  * The open62541 subscriber API will be released later. If you want to process
- * the the datagrams, take a look on the ua_network_pubsub_networkmessage.c
+ * the the datagrams, take a look on the ``ua_network_pubsub_networkmessage.c``
  * which already contains the decoding code for UADP messages.
  *
  * It follows the main server code, making use of the above definitions. */

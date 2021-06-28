@@ -3,9 +3,9 @@
  *
 */
 
-/* During the RAW-Encoding decode process, the MetaData-Informations are needed.
- * The OPC UA specification defines several ways to collect these informations (see. Part 14 5.2.3).
- * Currently we use a OPC UA client to collect the MetaData form the publisher.
+/* During the RAW-Encoding decode process, the MetaData-Information are needed.
+ * The OPC UA specification defines several ways to collect these information (see. Part 14 5.2.3).
+ * Currently we use an OPC UA client to collect the MetaData form the publisher.
  * Attention: There can be more than one publisher servers later.
  * The following defines tell the server, where to collect the MetaData. (currently used for all DSR)"
  */

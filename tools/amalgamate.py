@@ -36,7 +36,7 @@ file.write(u"""/* THIS IS A SINGLE-FILE DISTRIBUTION CONCATENATED FROM THE OPEN6
  */
 
 /*
- * Copyright (C) 2014-2018 the contributors as stated in the AUTHORS file
+ * Copyright (C) 2014-2021 the contributors as stated in the AUTHORS file
  *
  * This file is part of open62541. open62541 is free software: you can
  * redistribute it and/or modify it under the terms of the Mozilla Public
@@ -54,7 +54,7 @@ if is_c:
 #endif
 
 /* Disable security warnings for BSD sockets on MSVC */
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(_CRT_SECURE_NO_WARNINGS)
 # define _CRT_SECURE_NO_WARNINGS
 #endif
 
@@ -65,10 +65,21 @@ else:
 #define %s
 ''' % (outname.upper() + u"_H_", outname.upper() + u"_H_"))
 
+# Remove the filesystem folder prefix
+initial = 999
+for fname in args.inputs:
+    pos = fname.find("include")
+    if pos < 0:
+        pos = fname.find("src")
+    if pos < 0:
+        continue
+    if pos - 1 < initial:
+        initial = pos - 1
+
 for fname in args.inputs:
     with io.open(fname, encoding='utf8', errors='replace') as infile:
-        file.write(u"\n/*********************************** amalgamated original file \"" + fname + u"\" ***********************************/\n\n")
-        print ("Integrating file '" + fname + "'...", end=""),
+        file.write(u"\n/**** amalgamated original file \"" + fname[initial:] + u"\" ****/\n\n")
+        print ("Integrating file '" + fname + "' ... ", end=""),
         for line in infile:
             inc_res = include_re.match(line)
             guard_res = guard_re.match(line)
