@@ -10,6 +10,7 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017-2018 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2018-2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
+ *    Copyright 2018-2021 (c) Hilscher Gesellschaft für Systemautomation mbH (Author: Martin Lang)
  */
 
 #include <open62541/transport_generated_encoding_binary.h>
@@ -140,35 +141,92 @@ UA_SecureChannel_close(UA_SecureChannel *channel) {
     UA_SecureChannel_deleteBuffered(channel);
 }
 
+/* The OPC UA Specification defines a client shall check whether it can handle with
+ * the retrieve channel configuration from the server */
 UA_StatusCode
-UA_SecureChannel_processHELACK(UA_SecureChannel *channel,
-                               const UA_TcpAcknowledgeMessage *remoteConfig) {
+UA_SecureChannel_clientProcessHELACK(UA_SecureChannel *channel,
+                                    const UA_TcpAcknowledgeMessage *remoteServerConfig) {
     /* The lowest common version is used by both sides */
-    if(channel->config.protocolVersion > remoteConfig->protocolVersion)
-        channel->config.protocolVersion = remoteConfig->protocolVersion;
-
-    /* Can we receive the max send size? */
-    if(channel->config.sendBufferSize > remoteConfig->receiveBufferSize)
-        channel->config.sendBufferSize = remoteConfig->receiveBufferSize;
-
-    /* Can we send the max receive size? */
-    if(channel->config.recvBufferSize > remoteConfig->sendBufferSize)
-        channel->config.recvBufferSize = remoteConfig->sendBufferSize;
-
-    channel->config.remoteMaxMessageSize = remoteConfig->maxMessageSize;
-    channel->config.remoteMaxChunkCount = remoteConfig->maxChunkCount;
+    if(remoteServerConfig->protocolVersion > channel->config.protocolVersion)
+        return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Chunks of at least 8192 bytes must be permissible.
      * See Part 6, Clause 6.7.1 */
-    if(channel->config.recvBufferSize < 8192 ||
-       channel->config.sendBufferSize < 8192 ||
-       (channel->config.remoteMaxMessageSize != 0 &&
-        channel->config.remoteMaxMessageSize < 8192))
+    if((remoteServerConfig->receiveBufferSize < 8192 && remoteServerConfig->receiveBufferSize != 0) ||
+       (remoteServerConfig->sendBufferSize < 8192 && remoteServerConfig->sendBufferSize != 0) ||
+       (remoteServerConfig->maxMessageSize < 8192 && remoteServerConfig->maxMessageSize != 0))
         return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Can we receive the max send size? */
+    if(channel->config.sendBufferSize != 0 &&
+       channel->config.sendBufferSize > remoteServerConfig->receiveBufferSize)
+        channel->config.sendBufferSize = remoteServerConfig->receiveBufferSize; /* TBD: Or error? */
+
+    /* Can we send the max receive size? */
+    if(channel->config.recvBufferSize != 0 &&
+       channel->config.recvBufferSize < remoteServerConfig->sendBufferSize)
+        return UA_STATUSCODE_BADINTERNALERROR; /* TDB: Error seems to be suitable here. */
+
+    if(channel->config.remoteMaxMessageSize != 0 &&
+       channel->config.remoteMaxMessageSize < remoteServerConfig->maxMessageSize)
+        return UA_STATUSCODE_BADINTERNALERROR; /* TDB: Error seems to be suitable here. */
+
+    /* Error handling required? */
+    channel->config.remoteMaxChunkCount = remoteServerConfig->maxChunkCount;
+    /*
+    if(remoteServerConfig->maxChunkCount > channel->config.remoteMaxChunkCount &&
+       channel->config.remoteMaxChunkCount != 0)
+        return UA_STATUSCODE_BADINTERNALERROR;*/
 
     channel->connection->state = UA_CONNECTIONSTATE_ESTABLISHED;
 
     return UA_STATUSCODE_GOOD;
+}
+
+void
+UA_SecureChannel_serverProcessHELACK(UA_SecureChannel *channel,
+                                    const UA_TcpAcknowledgeMessage *remoteClientConfig) {
+    /* The lowest common version is used by both sides */
+    if(remoteClientConfig->protocolVersion < channel->config.protocolVersion)
+        channel->config.protocolVersion = remoteClientConfig->protocolVersion;
+
+    /* Can we reduce the send buffer size? */
+    if(channel->config.sendBufferSize == 0 ||
+       (remoteClientConfig->receiveBufferSize != 0 &&
+        remoteClientConfig->receiveBufferSize < channel->config.sendBufferSize))
+        channel->config.sendBufferSize = remoteClientConfig->receiveBufferSize;
+
+    /* Can we reduce the receive buffer size? */
+    if(channel->config.recvBufferSize == 0 ||
+       (remoteClientConfig->sendBufferSize != 0 &&
+        remoteClientConfig->sendBufferSize < channel->config.recvBufferSize))
+        channel->config.recvBufferSize = remoteClientConfig->sendBufferSize;
+
+    /* Due to no minimum MaxMessageSize defined in the OPC UA Spec.,
+     * the developer/server configuration is responsible to define a meaningful MaxMessageSize.
+     * - Client requests unlimited (== 0), server responds with its configured maximum msg size
+     * - Client requests greater then servers max, server responds with its max msg size */
+    /* TBD check against < 8192 too? */
+    if(channel->config.remoteMaxMessageSize == 0 ||
+       (remoteClientConfig->maxMessageSize != 0 &&
+        remoteClientConfig->maxMessageSize < channel->config.remoteMaxMessageSize))
+        channel->config.remoteMaxMessageSize = remoteClientConfig->maxMessageSize;
+
+    /* Can we support requested MaxChunkCount */
+    if(channel->config.remoteMaxChunkCount == 0 ||
+       (remoteClientConfig->maxChunkCount < channel->config.remoteMaxChunkCount &&
+        remoteClientConfig->maxChunkCount != 0))
+        channel->config.remoteMaxChunkCount = remoteClientConfig->maxChunkCount;
+
+    /* Chunks of at least 8192 bytes must be permissible.
+     * See OPC UA Spec. 1.04, Part 6, Clause 6.7.1 */
+    if(channel->config.sendBufferSize < 8192 && channel->config.sendBufferSize != 0)
+        channel->config.sendBufferSize = 8192;
+
+    if(channel->config.recvBufferSize < 8192 && channel->config.recvBufferSize != 0)
+        channel->config.recvBufferSize = 8192;
+
+    channel->connection->state = UA_CONNECTIONSTATE_ESTABLISHED;
 }
 
 /* Sends an OPN message using asymmetric encryption if defined */
