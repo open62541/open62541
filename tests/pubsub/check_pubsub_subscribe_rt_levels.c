@@ -92,7 +92,10 @@ static void receiveSingleMessageRT(UA_PubSubConnection *connection, UA_DataSetRe
         ck_abort_msg("PubSub receive. Unknown message received. Will not be processed.");
     }
 
-    UA_DataSetReader_process(server, dataSetReader,
+    UA_ReaderGroup *rg =
+        UA_ReaderGroup_findRGbyId(server, dataSetReader->linkedReaderGroup);
+
+    UA_DataSetReader_process(server, rg, dataSetReader,
                              dataSetReader->bufferedMessage.nm->payload.dataSetPayload.dataSetMessages);
 
     /* Delete the payload value of every dsf's decoded */
@@ -163,6 +166,7 @@ START_TEST(SubscribeSingleFieldWithFixedOffsets) {
     *intValue = 1000;
     UA_DataValue *dataValue = UA_DataValue_new();
     UA_Variant_setScalar(&dataValue->value, intValue, &UA_TYPES[UA_TYPES_UINT32]);
+    dsfConfig.field.variable.fieldNameAlias = UA_STRING("Published Int32");
     dsfConfig.field.variable.rtValueSource.rtFieldSourceEnabled = UA_TRUE;
     dsfConfig.field.variable.rtValueSource.staticValueSource = &dataValue;
     dsfConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;

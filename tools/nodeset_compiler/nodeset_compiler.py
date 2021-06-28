@@ -16,6 +16,7 @@ import sys
 from datatypes import NodeId
 from nodeset import *
 
+# Parse the arguments
 parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter)
 parser.add_argument('-e', '--existing',
                     metavar="<existingNodeSetXML>",
@@ -88,25 +89,22 @@ logger.setLevel(logging.INFO)
 verbosity = 0
 if args.verbose:
     verbosity = int(args.verbose)
-if (verbosity == 1):
+if verbosity == 1:
     logging.basicConfig(level=logging.ERROR)
-elif (verbosity == 2):
+elif verbosity == 2:
     logging.basicConfig(level=logging.WARNING)
-elif (verbosity == 3):
+elif verbosity == 3:
     logging.basicConfig(level=logging.INFO)
-elif (verbosity >= 4):
+elif verbosity >= 4:
     logging.basicConfig(level=logging.DEBUG)
 else:
     logging.basicConfig(level=logging.CRITICAL)
 
-# Set up logging
-logger = logging.getLogger(__name__)
 # Create a new nodeset. The nodeset name is not significant.
 # Parse the XML files
 ns = NodeSet()
 nsCount = 0
 loadedFiles = list()
-
 
 def getTypesArray(nsIdx):
     if nsIdx < len(args.typesArray):
@@ -136,9 +134,9 @@ for xmlfile in args.infiles:
 # for key in namespaceArrayNames:
 #   ns.addNamespace(key, namespaceArrayNames[key])
 
-# Set the nodes from the ignore list to hidden. This removes them from dependency calculation
-# and from printing their generated code.
-# These nodes should be already pre-created on the server to avoid any errors during
+# Set the nodes from the ignore list to hidden. This removes them from
+# dependency calculation and from printing their generated code. These nodes
+# should be already pre-created on the server to avoid any errors during
 # creation.
 for ignoreFile in args.ignoreFiles:
     for line in ignoreFile.readlines():
@@ -146,7 +144,7 @@ for ignoreFile in args.ignoreFiles:
         id = line.replace("\n", "")
         ns.hide_node(NodeId(id))
         #if not ns.hide_node(NodeId(id)):
-        #    logger.info("Can't ignore node, namespace does currently not contain a node with id " + str(id))
+        #    logger.info("Cannot ignore node, namespace does currently not contain a node with id " + str(id))
     ignoreFile.close()
 
 # Remove nodes that are not printable or contain parsing errors, such as
@@ -157,11 +155,12 @@ ns.sanitize()
 # buidEncodingRules.
 ns.allocateVariables()
 
+# Create inverse references
 ns.addInverseReferences()
 
-
-# Remove blacklisted nodes from the nodeset.
-# We need to have the inverse references here to ensure the reference is deleted from the referencing node too
+# Remove blacklisted nodes from the nodeset. We need to have the inverse
+# references here to ensure the reference is deleted from the referencing node
+# too
 if args.blacklistFiles:
     for blacklist in args.blacklistFiles:
         for line in blacklist.readlines():
@@ -173,12 +172,13 @@ if args.blacklistFiles:
                 continue
             n = ns.getNodeByIDString(id)
             if n is None:
-                logger.debug("Can't blacklist node, namespace does currently not contain a node with id " + str(id))
+                logger.debug("Cannot blacklist node, namespace does currently not contain a node with id " + str(id))
             else:
                 ns.remove_node(n)
         blacklist.close()
     ns.sanitize()
 
+# Figure out from the references which is the parent for each node
 ns.setNodeParent()
 
 logger.info("Generating Code for Backend: {}".format(args.backend))
@@ -193,6 +193,5 @@ elif args.backend == "graphviz":
 else:
     logger.error("Unsupported backend: {}".format(args.backend))
     exit(1)
-
 
 logger.info("NodeSet generation code successfully printed")

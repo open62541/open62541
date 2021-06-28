@@ -623,7 +623,7 @@ START_TEST(ReadSingleAttributeDataTypeDefinitionWithoutTimestamp) {
 
 #ifdef UA_ENABLE_TYPEDESCRIPTION
     ck_assert_int_eq(UA_STATUSCODE_GOOD, resp.status);
-    ck_assert_uint_eq(resp.value.type->typeIndex, UA_TYPES_STRUCTUREDEFINITION);
+    ck_assert(resp.value.type == &UA_TYPES[UA_TYPES_STRUCTUREDEFINITION]);
     UA_StructureDefinition *def = (UA_StructureDefinition*)resp.value.data;
     ck_assert_uint_eq(def->fieldsSize, 5);
 #else

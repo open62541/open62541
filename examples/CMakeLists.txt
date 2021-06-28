@@ -172,8 +172,13 @@ if(UA_ENABLE_ENCRYPTION)
     target_include_directories(client_encryption PRIVATE "${PROJECT_SOURCE_DIR}/examples")
 endif()
 
-add_example(custom_datatype_client custom_datatype/client_types_custom.c)
-add_example(custom_datatype_server custom_datatype/server_types_custom.c)
+if (NOT (BUILD_SHARED_LIBS AND WIN32))
+    add_example(custom_datatype_client custom_datatype/client_types_custom.c)
+    add_example(custom_datatype_server custom_datatype/server_types_custom.c)
+else()
+    MESSAGE(WARNING "Can't build custom datatype examples on WIN32 when BUILD_SHARED_LIBS enabled. Skipping
+custom_datatype_client and custom_datatype_server!")
+endif()
 
 if(UA_ENABLE_NODEMANAGEMENT)
     add_example(access_control_server access_control/server_access_control.c)
@@ -191,7 +196,6 @@ if(UA_ENABLE_DISCOVERY_MULTICAST)
 endif()
 
 add_subdirectory(nodeset)
-
 ####################
 #  Example PubSub  #
 ####################
@@ -216,6 +220,10 @@ if(UA_ENABLE_PUBSUB)
     else (NOT BUILD_SHARED_LIBS)
         add_example(pubsub_subscribe_standalone pubsub/pubsub_subscribe_standalone.c)
         if(CMAKE_SYSTEM MATCHES "Linux")
+            add_example(pubsub_TSN_publisher_multiple_thread pubsub_realtime/pubsub_TSN_publisher_multiple_thread.c)
+            add_example(pubsub_TSN_loopback_single_thread pubsub_realtime/pubsub_TSN_loopback_single_thread.c)
+            target_link_libraries(pubsub_TSN_publisher_multiple_thread rt pthread)
+            target_link_libraries(pubsub_TSN_loopback_single_thread rt pthread)
             if(UA_ENABLE_PUBSUB_ETH_UADP)
                 add_subdirectory(pubsub_realtime/nodeset)
                 add_example(pubsub_TSN_publisher pubsub_realtime/pubsub_TSN_publisher.c)
@@ -227,6 +235,7 @@ if(UA_ENABLE_PUBSUB)
     endif()
     if(UA_ENABLE_PUBSUB_ENCRYPTION)
         add_example(pubsub_publish_encrypted pubsub/pubsub_publish_encrypted.c)
+        add_example(pubsub_subscribe_encrypted pubsub/pubsub_subscribe_encrypted.c)
     endif()
     if(UA_ENABLE_PUBSUB_MQTT)
         if(NOT WIN32)

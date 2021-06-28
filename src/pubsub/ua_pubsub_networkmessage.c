@@ -750,9 +750,9 @@ UA_SecurityHeader_decodeBinary(const UA_ByteString *src, size_t *offset,
 
 UA_StatusCode
 UA_NetworkMessage_decodeHeaders(const UA_ByteString *src, size_t *offset, UA_NetworkMessage *dst) {
-    UA_NetworkMessageHeader_decodeBinary(src, offset, dst);
 
-    UA_StatusCode rv = UA_STATUSCODE_GOOD;
+    UA_StatusCode rv = UA_NetworkMessageHeader_decodeBinary(src, offset, dst);
+    UA_CHECK_STATUS(rv, return rv);
 
     if (dst->groupHeaderEnabled) {
         rv = UA_GroupHeader_decodeBinary(src, offset, dst);
@@ -847,11 +847,27 @@ UA_NetworkMessage_decodeFooters(const UA_ByteString *src, size_t *offset, UA_Net
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode
-UA_NetworkMessage_decodeBinaryInternal(const UA_ByteString *src, size_t *offset,
-                                           UA_NetworkMessage* dst) {
+UA_StatusCode
+UA_NetworkMessage_decodeBinary(const UA_ByteString *src, size_t *offset,
+                               UA_NetworkMessage* dst) {
 
-    UA_StatusCode rv = UA_NetworkMessage_decodeHeaders(src, offset, dst);
+    UA_StatusCode rv = UA_STATUSCODE_GOOD;
+
+    /* headers only need to be decoded when not in encryption mode
+     * because headers are already decoded when encryption mode is enabled
+     * to check for security parameters and decrypt/verify
+     *
+     * TODO: check if there is a workaround to use this function
+     *       also when encryption is enabled
+     */
+    // #ifndef UA_ENABLE_PUBSUB_ENCRYPTION
+    // if (*offset == 0) {
+    //    rv = UA_NetworkMessage_decodeHeaders(src, offset, dst);
+    //    UA_CHECK_STATUS(rv, return rv);
+    // }
+    // #endif
+
+    rv = UA_NetworkMessage_decodeHeaders(src, offset, dst);
     UA_CHECK_STATUS(rv, return rv);
 
     rv = UA_NetworkMessage_decodePayload(src, offset, dst);
@@ -861,14 +877,6 @@ UA_NetworkMessage_decodeBinaryInternal(const UA_ByteString *src, size_t *offset,
     UA_CHECK_STATUS(rv, return rv);
 
     return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode
-UA_NetworkMessage_decodeBinary(const UA_ByteString *src, size_t *offset,
-                               UA_NetworkMessage* dst) {
-    UA_StatusCode rv = UA_NetworkMessage_decodeBinaryInternal(src, offset, dst);
-    UA_CHECK_STATUS(rv, UA_NetworkMessage_clear(dst); return rv);
-    return rv;
 }
 
 static UA_Boolean
@@ -885,7 +893,7 @@ increaseOffsetArray(UA_NetworkMessageOffsetBuffer *offsetBuffer) {
 size_t
 UA_NetworkMessage_calcSizeBinary(UA_NetworkMessage *p, UA_NetworkMessageOffsetBuffer *offsetBuffer) {
     size_t retval = 0;
-    UA_Byte byte;
+    UA_Byte byte = 0;
     size_t size = UA_Byte_calcSizeBinary(&byte); // UADPVersion + UADPFlags
     if(UA_NetworkMessage_ExtendedFlags1Enabled(p)) {
         size += UA_Byte_calcSizeBinary(&byte);
@@ -1349,7 +1357,7 @@ UA_DataSetMessageHeader_decodeBinary(const UA_ByteString *src, size_t *offset,
 
 size_t
 UA_DataSetMessageHeader_calcSizeBinary(const UA_DataSetMessageHeader* p) {
-    UA_Byte byte;
+    UA_Byte byte = 0;
     size_t size = UA_Byte_calcSizeBinary(&byte); // DataSetMessage Type + Flags
     if(UA_DataSetMessageHeader_DataSetFlags2Enabled(p))
         size += UA_Byte_calcSizeBinary(&byte);
@@ -1472,7 +1480,7 @@ UA_DataSetMessage_decodeBinary(const UA_ByteString *src, size_t *offset, UA_Data
             dst->data.keyFrameData.rawFields.length = dsmSize;
             if(dsmSize == 0){
                 //TODO calculate the length of the DSM-Payload for a single DSM
-                //Problem: Size is not set and MetaData informations are needed.
+                //Problem: Size is not set and MetaData information are needed.
                 //Increase offset to avoid endless chunk loop. Needs to be fixed when
                 //pubsub security footer and signatur is enabled.
                 *offset += 1500;
@@ -1523,7 +1531,7 @@ UA_DataSetMessage_decodeBinary(const UA_ByteString *src, size_t *offset, UA_Data
 size_t
 UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage* p, UA_NetworkMessageOffsetBuffer *offsetBuffer, size_t currentOffset) {
     size_t size = currentOffset;
-    UA_Byte byte;
+    UA_Byte byte = 0;
     size += UA_Byte_calcSizeBinary(&byte); // DataSetMessage Type + Flags
     if(UA_DataSetMessageHeader_DataSetFlags2Enabled(&p->header))
         size += UA_Byte_calcSizeBinary(&byte);

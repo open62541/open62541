@@ -317,7 +317,6 @@ getStructureDefinition(const UA_DataType *type, UA_StructureDefinition *def) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
-    const UA_DataType *typelists[2] = {UA_TYPES, &type[-type->typeIndex]};
     for(size_t cnt = 0; cnt < def->fieldsSize; cnt++) {
         const UA_DataTypeMember *m = &type->members[cnt];
         def->fields[cnt].valueRank = UA_TRUE == m->isArray ? 1 : -1;
@@ -326,7 +325,7 @@ getStructureDefinition(const UA_DataType *type, UA_StructureDefinition *def) {
         def->fields[cnt].name = UA_STRING((char *)(uintptr_t)m->memberName);
         def->fields[cnt].description.locale = UA_STRING_NULL;
         def->fields[cnt].description.text = UA_STRING_NULL;
-        def->fields[cnt].dataType = typelists[!m->namespaceZero][m->memberTypeIndex].typeId;
+        def->fields[cnt].dataType = m->memberType->typeId;
         def->fields[cnt].maxStringLength = 0;
         def->fields[cnt].isOptional = m->isOptional;
     }
@@ -1009,9 +1008,9 @@ compatibleValue(UA_Server *server, UA_Session *session, const UA_NodeId *targetD
 /* Write Service */
 /*****************/
 
-static void
-adjustValue(UA_Server *server, UA_Variant *value,
-            const UA_NodeId *targetDataTypeId) {
+void
+adjustValueType(UA_Server *server, UA_Variant *value,
+                const UA_NodeId *targetDataTypeId) {
     const UA_DataType *targetDataType = UA_findDataType(targetDataTypeId);
     if(!targetDataType)
         return;
@@ -1276,7 +1275,7 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
 
     /* Type checking. May change the type of editableValue */
     if(value->hasValue && value->value.type) {
-        adjustValue(server, &adjustedValue.value, &node->dataType);
+        adjustValueType(server, &adjustedValue.value, &node->dataType);
 
         /* The value may be an extension object, especially the nodeset compiler
          * uses extension objects to write variable values. If value is an
