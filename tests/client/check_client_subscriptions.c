@@ -8,6 +8,7 @@
 #include <open62541/server_config_default.h>
 
 #include "client/ua_client_internal.h"
+#include "server/ua_server_internal.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -868,41 +869,44 @@ START_TEST(Client_subscription_statusChange) {
 
     UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
     request.requestedLifetimeCount = 5;
-    UA_CreateSubscriptionResponse response = UA_Client_Subscriptions_create(client, request,
-                                                              NULL, statusChangeHandler, NULL);
+    UA_CreateSubscriptionResponse response =
+        UA_Client_Subscriptions_create(client, request,
+                                       NULL, statusChangeHandler, NULL);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
 
     /* monitor the server state */
+    UA_NodeId monTarget = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
     UA_MonitoredItemCreateRequest monRequest =
-        UA_MonitoredItemCreateRequest_default(UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME));
+        UA_MonitoredItemCreateRequest_default(monTarget);
 
     UA_MonitoredItemCreateResult monResponse =
         UA_Client_MonitoredItems_createDataChange(client, response.subscriptionId,
-                                                  UA_TIMESTAMPSTORETURN_BOTH,
-                                                  monRequest, NULL, dataChangeHandler, NULL);
+                                                  UA_TIMESTAMPSTORETURN_BOTH, monRequest,
+                                                  NULL, dataChangeHandler, NULL);
     ck_assert_uint_eq(monResponse.statusCode, UA_STATUSCODE_GOOD);
 
-    /* manually control the server thread */
+    /* Manually control the server thread */
     running = false;
     THREAD_JOIN(server_thread);
 
-    /* Let the subscription time out */
-    for(size_t i = 0; i < response.revisedLifetimeCount * 2; i++) {
-        UA_fakeSleep((UA_UInt32)response.revisedPublishingInterval);
-        UA_Server_run_iterate(server, false);
-    }
+    /* Manually set the StatusChange */
+    UA_Subscription *sub =
+        UA_Server_getSubscriptionById(server, response.subscriptionId);
+    sub->statusChange = 1234; /* some statuscode */
 
-    /* Send a publish request */
+    /* Send publish requests and receive them on the server side */
     UA_Client_run_iterate(client, 1);
+    UA_Server_run_iterate(server, true);
 
     /* Server sends a StatusChange notification */
+    UA_fakeSleep((UA_UInt32)response.revisedPublishingInterval + 1);
     UA_Server_run_iterate(server, true);
 
     /* Client receives the StatusChange */
     UA_Client_run_iterate(client, 1);
 
-    /* The status has been received */
-    ck_assert_uint_ne(statusChange, UA_STATUSCODE_GOOD);
+    /* The same status has been received */
+    ck_assert_uint_eq(statusChange, 1234);
 
     UA_Server_run_shutdown(server);
     UA_Client_disconnect(client);
@@ -1142,7 +1146,7 @@ START_TEST(Client_subscription_async_sub) {
     /* Activate background publish request */
     cc->outStandingPublishRequests = 10;
 
-    ck_assert_uint_eq(chanState, UA_SECURECHANNELSTATE_CLOSED);
+    ck_assert_uint_eq(chanState, UA_SECURECHANNELSTATE_FRESH);
 
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);

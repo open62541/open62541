@@ -131,49 +131,30 @@ UA_Server_getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
 UA_StatusCode
 UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
                                UA_NodeIteratorCallback callback, void *handle) {
-    UA_LOCK(server->serviceMutex);
-    const UA_Node *parent = UA_NODESTORE_GET(server, &parentNodeId);
-    if(!parent) {
-        UA_UNLOCK(server->serviceMutex);
-        return UA_STATUSCODE_BADNODEIDINVALID;
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = parentNodeId;
+    bd.browseDirection = UA_BROWSEDIRECTION_BOTH;
+    bd.resultMask = UA_BROWSERESULTMASK_REFERENCETYPEID | UA_BROWSERESULTMASK_ISFORWARD;
+
+    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
+    UA_StatusCode res = br.statusCode;
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_BrowseResult_clear(&br);
+        return res;
     }
 
-    /* TODO: We need to do an ugly copy of the references array since users may
-     * delete references from within the callback. In single-threaded mode this
-     * changes the same node we point at here. In multi-threaded mode, this
-     * creates a new copy as nodes are truly immutable.
-     * The callback could remove a node via the regular public API.
-     * This can remove a member of the nodes-array we iterate over...
-     * */
-    UA_Node *parentCopy = UA_Node_copy_alloc(parent);
-    if(!parentCopy) {
-        UA_NODESTORE_RELEASE(server, parent);
-        UA_UNLOCK(server->serviceMutex);
-        return UA_STATUSCODE_BADUNEXPECTEDERROR;
+    for(size_t i = 0; i < br.referencesSize; i++) {
+        if(!UA_ExpandedNodeId_isLocal(&br.references[i].nodeId))
+            continue;
+        res = callback(br.references[i].nodeId.nodeId, !br.references[i].isForward,
+                       br.references[i].referenceTypeId, handle);
+        if(res != UA_STATUSCODE_GOOD)
+            break;
     }
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    for(size_t i = parentCopy->head.referencesSize; i > 0; --i) {
-        UA_NodeReferenceKind *ref = &parentCopy->head.references[i - 1];
-        UA_NodeId refTypeId =
-            *UA_NODESTORE_GETREFERENCETYPEID(server, ref->referenceTypeIndex);
-        UA_ReferenceTarget *target;
-        TAILQ_FOREACH(target, &ref->queueHead, queuePointers) {
-            UA_UNLOCK(server->serviceMutex);
-            retval = callback(target->targetId.nodeId, ref->isInverse, refTypeId, handle);
-            UA_LOCK(server->serviceMutex);
-            if(retval != UA_STATUSCODE_GOOD)
-                goto cleanup;
-        }
-    }
-
-cleanup:
-    UA_Node_clear(parentCopy);
-    UA_free(parentCopy);
-
-    UA_NODESTORE_RELEASE(server, parent);
-    UA_UNLOCK(server->serviceMutex);
-    return retval;
+    UA_BrowseResult_clear(&br);
+    return res;
 }
 
 /********************/
@@ -205,12 +186,14 @@ void UA_Server_delete(UA_Server *server) {
     /* Remove subscriptions without a session */
     UA_Subscription *sub, *sub_tmp;
     LIST_FOREACH_SAFE(sub, &server->subscriptions, serverListEntry, sub_tmp) {
-        UA_Server_deleteSubscription(server, sub);
+        UA_Subscription_delete(server, sub);
     }
+    UA_assert(server->monitoredItemsSize == 0);
+    UA_assert(server->subscriptionsSize == 0);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
     UA_ConditionList_delete(server);
-#endif//UA_ENABLE_ALARMS_CONDITIONS
+#endif
 
 #endif
 
@@ -665,7 +648,9 @@ static void
 serverExecuteRepeatedCallback(UA_Server *server, UA_ApplicationCallback cb,
                               void *callbackApplication, void *data) {
     /* Service mutex is not set inside the timer that triggers the callback */
-    UA_LOCK_ASSERT(server->serviceMutex, 0);
+    /* The following check can't be used since another thread can take the
+     * serviceMutex during a server_iterate_call. */
+    //UA_LOCK_ASSERT(server->serviceMutex, 0);
     cb(callbackApplication, data);
 }
 

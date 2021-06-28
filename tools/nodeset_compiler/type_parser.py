@@ -18,12 +18,13 @@ builtin_types = ["Boolean", "SByte", "Byte", "Int16", "UInt16", "Int32", "UInt32
                  "QualifiedName", "LocalizedText", "ExtensionObject", "DataValue",
                  "Variant", "DiagnosticInfo"]
 
-excluded_types = ["NodeIdType", "InstanceNode", "TypeNode", "Node", "ObjectNode",
-                  "ObjectTypeNode", "VariableNode", "VariableTypeNode", "ReferenceTypeNode",
-                  "MethodNode", "ViewNode", "DataTypeNode", "NumericRangeDimensions",
-                  "UA_ServerDiagnosticsSummaryDataType", "UA_SamplingIntervalDiagnosticsDataType",
-                  "UA_SessionSecurityDiagnosticsDataType", "UA_SubscriptionDiagnosticsDataType",
-                  "UA_SessionDiagnosticsDataType"]
+# DataTypes that are ignored/not generated
+excluded_types = [
+    # NodeId Types
+    "NodeIdType", "TwoByteNodeId", "FourByteNodeId", "NumericNodeId", "StringNodeId", "GuidNodeId", "ByteStringNodeId",
+    # Node Types
+    "InstanceNode", "TypeNode", "Node", "ObjectNode", "ObjectTypeNode", "VariableNode",
+    "VariableTypeNode", "ReferenceTypeNode", "MethodNode", "ViewNode", "DataTypeNode"]
 
 rename_types = {"NumericRange": "OpaqueNumericRange"}
 
@@ -154,6 +155,10 @@ class StructType(Type):
         Type.__init__(self, outname, xml, namespace)
         length_fields = []
         optional_fields = []
+        switch_fields = []
+        self.is_recursive = False
+
+        typename = type_aliases.get(xml.get("Name"), xml.get("Name"))
 
         bt = xml.get("BaseType")
         self.is_union = True if bt and get_type_name(bt)[1] == "Union" else False
@@ -161,6 +166,10 @@ class StructType(Type):
             length_field = child.get("LengthField")
             if length_field:
                 length_fields.append(length_field)
+        for child in xml:
+            switch_field = child.get("SwitchField")
+            if switch_field:
+                switch_fields.append(switch_field)
         for child in xml:
             child_type = child.get("TypeName")
             if child_type and get_type_name(child_type)[1] == "Bit":
@@ -172,6 +181,8 @@ class StructType(Type):
                 continue
             if get_type_name(child.get("TypeName"))[1] == "Bit":
                 continue
+            if self.is_union and child.get("Name") in switch_fields:
+                continue
             switch_field = child.get("SwitchField")
             if switch_field and switch_field in optional_fields:
                 member_is_optional = True
@@ -179,8 +190,17 @@ class StructType(Type):
                 member_is_optional = False
             member_name = child.get("Name")
             member_name = member_name[:1].lower() + member_name[1:]
-            member_type = get_type_for_name(child.get("TypeName"), types, xmlNamespaces)
             is_array = True if child.get("LengthField") else False
+
+            member_type_name = get_type_name(child.get("TypeName"))[1]
+            if member_type_name == typename: # If a type contains itself, use self as member_type
+                if not is_array:
+                    raise RuntimeError("Type " + typename +  " contains itself as a non-array member")
+                member_type = self
+                self.is_recursive = True
+            else:
+                member_type = get_type_for_name(child.get("TypeName"), types, xmlNamespaces)
+
             self.members.append(StructMember(member_name, member_type, is_array, member_is_optional))
 
         self.pointerfree = True
@@ -219,9 +239,11 @@ class TypeParser():
     def parseTypeDefinitions(self, outname, xmlDescription):
         def typeReady(element, types, xmlNamespaces):
             "Are all member types defined?"
+            parentname = type_aliases.get(element.get("Name"), element.get("Name")) # If a type contains itself, declare that type as available
             for child in element:
                 if child.tag == "{http://opcfoundation.org/BinarySchema/}Field":
-                    if get_type_name(child.get("TypeName"))[1] != "Bit":
+                    childname = get_type_name(child.get("TypeName"))[1]
+                    if childname != "Bit" and childname != parentname:
                         try:
                             get_type_for_name(child.get("TypeName"), types, xmlNamespaces)
                         except TypeNotDefinedException:
@@ -240,14 +262,6 @@ class TypeParser():
                         # Type is using other types which are not yet loaded, try later
                         unknowns.append(child.get("TypeName"))
             return unknowns
-
-        def skipType(name):
-            "Ignore the type? According to the blacklist and regex rules"
-            if name in excluded_types:
-                return True
-            if re.search("NodeId$", name) != None:
-                return True
-            return False
 
         def structWithOptionalFields(element):
             "Is this a structure with optional fields?"
@@ -316,7 +330,7 @@ class TypeParser():
                                    "Opc.Ua.Types.bsd'")
             detectLoop = len(snippets)
             for name, typeXml in list(snippets.items()):
-                if (targetNamespace in self.types and name in self.types[targetNamespace]) or skipType(name):
+                if (targetNamespace in self.types and name in self.types[targetNamespace]) or name in excluded_types:
                     del snippets[name]
                     continue
                 if not typeReady(typeXml, self.types, xmlNamespaces):

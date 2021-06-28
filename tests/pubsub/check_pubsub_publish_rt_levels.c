@@ -61,10 +61,19 @@ static void teardown(void) {
     UA_Server_delete(server);
 }
 
-static void receiveSingleMessage(UA_ByteString buffer, UA_PubSubConnection *connection, UA_NetworkMessage *networkMessage) {
-    if (UA_ByteString_allocBuffer(&buffer, 512) != UA_STATUSCODE_GOOD) {
+static void
+receiveSingleMessage(UA_ByteString buffer, UA_PubSubConnection *connection,
+                     UA_NetworkMessage *networkMessage) {
+    if(UA_ByteString_allocBuffer(&buffer, 512) != UA_STATUSCODE_GOOD) {
         ck_abort_msg("Message buffer allocation failed!");
+        return;
     }
+
+    if(!connection->channel) {
+        ck_abort_msg("No connection established");
+        return;
+    }
+
     UA_StatusCode retval =
         connection->channel->receive(connection->channel, &buffer, NULL, 1000000);
     if(retval != UA_STATUSCODE_GOOD || buffer.length == 0) {
@@ -81,10 +90,9 @@ static void receiveSingleMessage(UA_ByteString buffer, UA_PubSubConnection *conn
 START_TEST(PublishSingleFieldWithStaticValueSource) {
         ck_assert(addMinimalPubSubConfiguration() == UA_STATUSCODE_GOOD);
         UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, connectionIdentifier);
-        if(connection != NULL) {
-            UA_StatusCode rv = connection->channel->regist(connection->channel, NULL, NULL);
-            ck_assert(rv == UA_STATUSCODE_GOOD);
-        }
+        ck_assert(connection);
+        UA_StatusCode rv = connection->channel->regist(connection->channel, NULL, NULL);
+        ck_assert(rv == UA_STATUSCODE_GOOD);
         UA_WriterGroupConfig writerGroupConfig;
         memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
         writerGroupConfig.name = UA_STRING("Demo WriterGroup");
@@ -131,10 +139,9 @@ START_TEST(PublishSingleFieldWithStaticValueSource) {
 START_TEST(PublishSingleFieldWithDifferentBinarySizes) {
         ck_assert(addMinimalPubSubConfiguration() == UA_STATUSCODE_GOOD);
         UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, connectionIdentifier);
-        if(connection != NULL) {
-            UA_StatusCode rv = connection->channel->regist(connection->channel, NULL, NULL);
-            ck_assert(rv == UA_STATUSCODE_GOOD);
-        }
+        ck_assert(connection);
+        UA_StatusCode rv = connection->channel->regist(connection->channel, NULL, NULL);
+        ck_assert(rv == UA_STATUSCODE_GOOD);
         UA_WriterGroupConfig writerGroupConfig;
         memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
         writerGroupConfig.name = UA_STRING("Test WriterGroup");
@@ -195,10 +202,9 @@ START_TEST(PublishSingleFieldWithDifferentBinarySizes) {
 START_TEST(SetupInvalidPubSubConfigWithStaticValueSource) {
         ck_assert(addMinimalPubSubConfiguration() == UA_STATUSCODE_GOOD);
         UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, connectionIdentifier);
-        if(connection != NULL) {
-            UA_StatusCode rv = connection->channel->regist(connection->channel, NULL, NULL);
-            ck_assert(rv == UA_STATUSCODE_GOOD);
-        }
+        ck_assert(connection);
+        UA_StatusCode rv = connection->channel->regist(connection->channel, NULL, NULL);
+        ck_assert(rv == UA_STATUSCODE_GOOD);
         UA_WriterGroupConfig writerGroupConfig;
         memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
         writerGroupConfig.name = UA_STRING("Test WriterGroup");
@@ -236,10 +242,9 @@ START_TEST(SetupInvalidPubSubConfigWithStaticValueSource) {
 START_TEST(PublishSingleFieldWithFixedOffsets) {
         ck_assert(addMinimalPubSubConfiguration() == UA_STATUSCODE_GOOD);
         UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, connectionIdentifier);
-        if(connection != NULL) {
-            UA_StatusCode rv = connection->channel->regist(connection->channel, NULL, NULL);
-            ck_assert(rv == UA_STATUSCODE_GOOD);
-        }
+        ck_assert(connection);
+        UA_StatusCode rv = connection->channel->regist(connection->channel, NULL, NULL);
+        ck_assert(rv == UA_STATUSCODE_GOOD);
         UA_WriterGroupConfig writerGroupConfig;
         memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
         writerGroupConfig.name = UA_STRING("Demo WriterGroup");
@@ -289,10 +294,9 @@ START_TEST(PublishSingleFieldWithFixedOffsets) {
 START_TEST(PublishPDSWithMultipleFieldsAndFixedOffset) {
         ck_assert(addMinimalPubSubConfiguration() == UA_STATUSCODE_GOOD);
         UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, connectionIdentifier);
-        if(connection != NULL) {
-            UA_StatusCode rv = connection->channel->regist(connection->channel, NULL, NULL);
-            ck_assert(rv == UA_STATUSCODE_GOOD);
-        }
+        ck_assert(connection);
+        UA_StatusCode rv = connection->channel->regist(connection->channel, NULL, NULL);
+        ck_assert(rv == UA_STATUSCODE_GOOD);
         UA_WriterGroupConfig writerGroupConfig;
         memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
         writerGroupConfig.name = UA_STRING("Demo WriterGroup");
@@ -390,10 +394,9 @@ removePubSubApplicationCallback(UA_Server *server_local, UA_NodeId identifier, U
 START_TEST(PublishSingleFieldInCustomCallback) {
         ck_assert(addMinimalPubSubConfiguration() == UA_STATUSCODE_GOOD);
         UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, connectionIdentifier);
-        if(connection != NULL) {
-            UA_StatusCode rv = connection->channel->regist(connection->channel, NULL, NULL);
-            ck_assert(rv == UA_STATUSCODE_GOOD);
-        }
+        ck_assert(connection);
+        UA_StatusCode rv = connection->channel->regist(connection->channel, NULL, NULL);
+        ck_assert(rv == UA_STATUSCODE_GOOD);
 
         UA_WriterGroupConfig writerGroupConfig;
         memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));

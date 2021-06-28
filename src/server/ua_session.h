@@ -50,14 +50,14 @@ typedef struct {
     UA_UInt16         availableContinuationPoints;
     ContinuationPoint *continuationPoints;
 #ifdef UA_ENABLE_SUBSCRIPTIONS
+    size_t subscriptionsSize;
     TAILQ_HEAD(, UA_Subscription) subscriptions; /* Late subscriptions that do eventually
                                                   * publish are moved to the tail. So that
                                                   * other late subscriptions are not
                                                   * starved. */
     SIMPLEQ_HEAD(, UA_PublishResponseEntry) responseQueue;
-    UA_UInt32         numSubscriptions;
-    UA_UInt32         numPublishReq;
-    size_t            totalRetransmissionQueueSize; /* Retransmissions of all subscriptions */
+    UA_UInt32 numPublishReq;
+    size_t totalRetransmissionQueueSize; /* Retransmissions of all subscriptions */
 #endif
 } UA_Session;
 

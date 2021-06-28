@@ -101,7 +101,7 @@ START_TEST(SecureChannel_initAndDelete) {
     retval = UA_SecureChannel_setSecurityPolicy(&channel, &dummyPolicy, &dummyCertificate);
 
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected StatusCode to be good");
-    ck_assert_msg(channel.state == UA_SECURECHANNELSTATE_CLOSED, "Expected state to be closed");
+    ck_assert_msg(channel.state == UA_SECURECHANNELSTATE_FRESH, "Expected state to be new/fresh");
     ck_assert_msg(fCalled.newContext, "Expected newContext to have been called");
     ck_assert_msg(fCalled.makeCertificateThumbprint,
                   "Expected makeCertificateThumbprint to have been called");
@@ -281,7 +281,7 @@ START_TEST(SecureChannel_sendAsymmetricOPNMessage_sentDataIsValid) {
     for(size_t i = 0; i <= paddingSize; ++i) {
         ck_assert_msg(sentData.data[offset + i] == paddingByte,
                       "Expected padding byte %i to be %i but got value %i",
-                      i, paddingByte, sentData.data[offset + i]);
+                      (int)i, paddingByte, sentData.data[offset + i]);
     }
 
     ck_assert_msg(sentData.data[offset + paddingSize + 1] == '*', "Expected first byte of signature");
@@ -356,9 +356,7 @@ START_TEST(Securechannel_sendAsymmetricOPNMessage_extraPaddingPresentWhenKeyLarg
     for(size_t i = 0; i <= paddingSize; ++i) {
         ck_assert_msg(sentData.data[offset + i] == paddingByte,
                       "Expected padding byte %i to be %i but got value %i",
-                      i,
-                      paddingByte,
-                      sentData.data[offset + i]);
+                      (int)i, paddingByte, sentData.data[offset + i]);
     }
 
     ck_assert_msg(sentData.data[offset + paddingSize + 1] == extraPaddingByte,

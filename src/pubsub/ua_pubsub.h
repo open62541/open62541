@@ -203,7 +203,11 @@ typedef struct UA_DataSetReader {
 }UA_DataSetReader;
 
 /* Process Network Message using DataSetReader */
-void UA_Server_DataSetReader_process(UA_Server *server, UA_DataSetReader *dataSetReader, UA_DataSetMessage* dataSetMsg);
+void
+UA_Server_DataSetReader_process(UA_Server *server,
+                                UA_ReaderGroup *readerGroup,
+                                UA_DataSetReader *dataSetReader,
+                                UA_DataSetMessage* dataSetMsg);
 
 /* Copy the configuration of DataSetReader */
 UA_StatusCode UA_DataSetReaderConfig_copy(const UA_DataSetReaderConfig *src, UA_DataSetReaderConfig *dst);
@@ -257,7 +261,8 @@ UA_ReaderGroupConfig_copy(const UA_ReaderGroupConfig *src, UA_ReaderGroupConfig 
 
 /* Process Network Message */
 UA_StatusCode
-UA_Server_processNetworkMessage(UA_Server *server, UA_NetworkMessage* pMsg, UA_PubSubConnection *pConnection);
+UA_Server_processNetworkMessage(UA_Server *server, UA_PubSubConnection *connection,
+                                UA_NetworkMessage *msg);
 
 /* Prototypes for internal util functions - some functions maybe removed later
  *(currently moved from public to internal)*/

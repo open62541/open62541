@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2017-2020 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2018 (c) Ari Breitkreuz, fortiss GmbH
  *    Copyright 2018 (c) Thomas Stalder, Blue Time Concept SA
@@ -79,16 +79,25 @@ updateNeededForFilteredValue(const UA_Variant *value, const UA_Variant *oldValue
  * encoded value. The default for changed is false. */
 static UA_StatusCode
 detectValueChangeWithFilter(UA_Server *server, UA_Session *session, UA_MonitoredItem *mon,
-                            UA_DataValue *value, UA_ByteString *encoding, UA_Boolean *changed) {
-    /* Check for absolute deadband */
+                            UA_DataValue *value, UA_ByteString *encoding,
+                            UA_Boolean *changed) {
+    if(!value->value.type) {
+        *changed = !(UA_ByteString_equal(encoding, &mon->lastSampledValue));
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* Test absolute deadband */
     if(UA_DataType_isNumeric(value->value.type) &&
-       mon->filter.dataChangeFilter.deadbandType == UA_DEADBANDTYPE_ABSOLUTE) {
-        UA_assert(value->value.type);
-        if(mon->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUSVALUE ||
-           mon->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP) {
-            if(!updateNeededForFilteredValue(&value->value, &mon->lastValue.value,
-                                             mon->filter.dataChangeFilter.deadbandValue))
-                return UA_STATUSCODE_GOOD;
+       mon->parameters.filter.content.decoded.type == &UA_TYPES[UA_TYPES_DATACHANGEFILTER]) {
+        UA_DataChangeFilter *filter = (UA_DataChangeFilter*)
+            mon->parameters.filter.content.decoded.data;
+        if(filter->deadbandType == UA_DEADBANDTYPE_ABSOLUTE &&
+           (filter->trigger == UA_DATACHANGETRIGGER_STATUSVALUE ||
+            filter->trigger == UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP)) {
+            *changed = updateNeededForFilteredValue(&value->value,
+                                                    &mon->lastValue.value,
+                                                    filter->deadbandValue);
+            return UA_STATUSCODE_GOOD;
         }
     }
 
@@ -167,13 +176,19 @@ detectValueChange(UA_Server *server, UA_Session *session, UA_MonitoredItem *mon,
                   UA_DataValue value, UA_ByteString *encoding, UA_Boolean *changed) {
     UA_LOCK_ASSERT(server->serviceMutex, 1);
 
+    /* Default trigger is statusvalue */
+    UA_DataChangeTrigger trigger = UA_DATACHANGETRIGGER_STATUSVALUE;
+    if(mon->parameters.filter.content.decoded.type == &UA_TYPES[UA_TYPES_DATACHANGEFILTER])
+        trigger = ((UA_DataChangeFilter*)
+                   mon->parameters.filter.content.decoded.data)->trigger;
+
     /* Apply Filter */
-    if(mon->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUS)
+    if(trigger == UA_DATACHANGETRIGGER_STATUS)
         value.hasValue = false;
 
     value.hasServerTimestamp = false;
     value.hasServerPicoseconds = false;
-    if(mon->filter.dataChangeFilter.trigger < UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP) {
+    if(trigger < UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP) {
         value.hasSourceTimestamp = false;
         value.hasSourcePicoseconds = false;
     }
@@ -184,7 +199,8 @@ detectValueChange(UA_Server *server, UA_Session *session, UA_MonitoredItem *mon,
 
 UA_StatusCode
 UA_MonitoredItem_createDataChangeNotification(UA_Server *server, UA_Subscription *sub,
-                                              UA_MonitoredItem *mon, const UA_DataValue *value) {
+                                              UA_MonitoredItem *mon,
+                                              const UA_DataValue *value) {
     /* Allocate a new notification */
     UA_Notification *newNotification = UA_Notification_new();
     if(!newNotification)
@@ -192,7 +208,7 @@ UA_MonitoredItem_createDataChangeNotification(UA_Server *server, UA_Subscription
 
     /* Prepare the notification */
     newNotification->mon = mon;
-    newNotification->data.dataChange.clientHandle = mon->clientHandle;
+    newNotification->data.dataChange.clientHandle = mon->parameters.clientHandle;
     UA_StatusCode retval = UA_DataValue_copy(value, &newNotification->data.dataChange.value);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_free(newNotification);
@@ -201,7 +217,8 @@ UA_MonitoredItem_createDataChangeNotification(UA_Server *server, UA_Subscription
 
     /* Enqueue the notification */
     UA_Notification_enqueueAndTrigger(server, newNotification);
-    UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub, "MonitoredItem %" PRIi32 " | "
+    UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
+                              "MonitoredItem %" PRIi32 " | "
                               "Enqueued a new notification", mon->monitoredItemId);
     return UA_STATUSCODE_GOOD;
 }
@@ -211,7 +228,7 @@ static UA_StatusCode
 sampleCallbackWithValue(UA_Server *server, UA_Session *session,
                         UA_Subscription *sub, UA_MonitoredItem *mon,
                         UA_DataValue *value) {
-    UA_assert(mon->attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER);
+    UA_assert(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER);
 
     /* Contains heap-allocated binary encoding of the value if a change was detected */
     UA_ByteString binValueEncoding = UA_BYTESTRING_NULL;
@@ -223,7 +240,8 @@ sampleCallbackWithValue(UA_Server *server, UA_Session *session,
     UA_StatusCode retval = detectValueChange(server, session, mon, *value,
                                              &binValueEncoding, &changed);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_SUBSCRIPTION(&server->config.logger, sub, "MonitoredItem %" PRIi32 " | "
+        UA_LOG_WARNING_SUBSCRIPTION(&server->config.logger, sub,
+                                    "MonitoredItem %" PRIi32 " | "
                                     "Value change detection failed with StatusCode %s",
                                     mon->monitoredItemId, UA_StatusCode_name(retval));
         UA_DataValue_clear(value);
@@ -232,7 +250,8 @@ sampleCallbackWithValue(UA_Server *server, UA_Session *session,
 
     /* No change detected */
     if(!changed) {
-        UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub, "MonitoredItem %" PRIi32 " | "
+        UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
+                                  "MonitoredItem %" PRIi32 " | "
                                   "The value has not changed", mon->monitoredItemId);
         UA_DataValue_clear(value);
         return UA_STATUSCODE_GOOD;
@@ -265,13 +284,12 @@ sampleCallbackWithValue(UA_Server *server, UA_Session *session,
     if(!sub) {
         UA_LocalMonitoredItem *localMon = (UA_LocalMonitoredItem*) mon;
         void *nodeContext = NULL;
-        getNodeContext(server, mon->monitoredNodeId, &nodeContext);
+        getNodeContext(server, mon->itemToMonitor.nodeId, &nodeContext);
         UA_UNLOCK(server->serviceMutex);
-        localMon->callback.dataChangeCallback(server, mon->monitoredItemId,
-                                              localMon->context,
-                                              &mon->monitoredNodeId,
-                                              nodeContext, mon->attributeId,
-                                              value);
+        localMon->callback.dataChangeCallback(server,
+                                              mon->monitoredItemId, localMon->context,
+                                              &mon->itemToMonitor.nodeId, nodeContext,
+                                              mon->itemToMonitor.attributeId, value);
         UA_LOCK(server->serviceMutex);
     }
 
@@ -294,35 +312,35 @@ monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem)
     if(sub)
         session = sub->session;
 
-    UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub, "MonitoredItem %" PRIi32 " | "
+    UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
+                              "MonitoredItem %" PRIi32 " | "
                               "Sample callback called", monitoredItem->monitoredItemId);
 
-    UA_assert(monitoredItem->attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER);
+    UA_assert(monitoredItem->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER);
 
     /* Get the node */
-    const UA_Node *node = UA_NODESTORE_GET(server, &monitoredItem->monitoredNodeId);
+    const UA_Node *node = UA_NODESTORE_GET(server, &monitoredItem->itemToMonitor.nodeId);
 
     /* Sample the value. The sample can still point into the node. */
     UA_DataValue value;
     UA_DataValue_init(&value);
     if(node) {
-        UA_ReadValueId rvid;
-        UA_ReadValueId_init(&rvid);
-        rvid.nodeId = monitoredItem->monitoredNodeId;
-        rvid.attributeId = monitoredItem->attributeId;
-        rvid.indexRange = monitoredItem->indexRange;
-        ReadWithNode(node, server, session, monitoredItem->timestampsToReturn, &rvid, &value);
+        ReadWithNode(node, server, session, monitoredItem->timestampsToReturn,
+                     &monitoredItem->itemToMonitor, &value);
     } else {
         value.hasStatus = true;
         value.status = UA_STATUSCODE_BADNODEIDUNKNOWN;
     }
 
     /* Operate on the sample. Don't touch value after this. */
-    UA_StatusCode retval = sampleCallbackWithValue(server, session, sub, monitoredItem, &value);
+    UA_StatusCode retval = sampleCallbackWithValue(server, session, sub,
+                                                   monitoredItem, &value);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_SUBSCRIPTION(&server->config.logger, sub, "MonitoredItem %" PRIi32 " | "
+        UA_LOG_WARNING_SUBSCRIPTION(&server->config.logger, sub,
+                                    "MonitoredItem %" PRIi32 " | "
                                     "Sampling returned the statuscode %s",
-                                    monitoredItem->monitoredItemId, UA_StatusCode_name(retval));
+                                    monitoredItem->monitoredItemId,
+                                    UA_StatusCode_name(retval));
     }
 
     if(node)
