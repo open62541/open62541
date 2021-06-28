@@ -74,6 +74,7 @@ class Node(object):
         self.modelUri = None
         self.parent = None
         self.parentReference = None
+        self.namespaceMapping = {}
 
     def __str__(self):
         return self.__class__.__name__ + "(" + str(self.id) + ")"
@@ -184,6 +185,7 @@ class Node(object):
             ref.referenceType.ns = nsMapping[ref.referenceType.ns]
             new_refs.add(ref)
         self.references = new_refs
+        self.namespaceMapping = nsMapping
 
 class ReferenceTypeNode(Node):
     def __init__(self, xmlelement=None):

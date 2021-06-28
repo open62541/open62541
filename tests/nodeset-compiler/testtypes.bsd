@@ -64,4 +64,10 @@
     <opc:Field LengthField="NoOfArray" SwitchField="SwitchField" TypeName="tns:SelfContainingUnion" SwitchValue="2" Name="Array"/>
   </opc:StructuredType>
 
+   <opc:StructuredType BaseType="ua:ExtensionObject" Name="TestDataType">
+        <opc:Documentation>Test argument data type</opc:Documentation>
+        <opc:Field TypeName="opc:CharArray" Name="Name"/>
+        <opc:Field TypeName="opc:CharArray" Name="Description"/>
+    </opc:StructuredType> 
+
 </opc:TypeDictionary>

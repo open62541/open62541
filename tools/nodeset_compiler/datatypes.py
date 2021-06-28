@@ -26,6 +26,8 @@ __all__ = ['valueIsInternalType', 'Value', 'Boolean', 'Number', 'Integer',
 
 logger = logging.getLogger(__name__)
 
+namespaceMapping = {}
+
 if sys.version_info[0] >= 3:
     # strings are already parsed to unicode
     def unicode(s):
@@ -133,6 +135,8 @@ class Value(object):
             return
 
     def parseXMLEncoding(self, xmlvalue, parentDataTypeNode, parent):
+        global namespaceMapping
+        
         self.checkXML(xmlvalue)
         if not "value" in xmlvalue.localName.lower():
             logger.error("Expected <Value> , but found " + xmlvalue.localName + \
@@ -148,6 +152,7 @@ class Value(object):
                 xmlvalue = n
                 break
 
+        namespaceMapping = parent.namespaceMapping
         if "ListOf" in xmlvalue.localName:
             self.value = []
             for el in xmlvalue.childNodes:
@@ -156,10 +161,12 @@ class Value(object):
                 val = self.__parseXMLSingleValue(el, parentDataTypeNode, parent)
                 if val is None:
                     self.value = []
+                    namespaceMapping = {}
                     return
                 self.value.append(val)
         else:
             self.value = [self.__parseXMLSingleValue(xmlvalue, parentDataTypeNode, parent)]
+        namespaceMapping = {}
 
     def __parseXMLSingleValue(self, xmlvalue, parentDataTypeNode, parent, alias=None, encodingPart=None, valueRank=None):
         # Parse an encoding list such as enc = [[Int32], ['Duration', ['DateTime']]],
@@ -556,6 +563,7 @@ class NodeId(Value):
         self.setFromIdString(idstring)
 
     def setFromIdString(self, idstring):
+        global namespaceMapping
 
         if not idstring:
             self.i = 0
@@ -569,6 +577,8 @@ class NodeId(Value):
         for p in idparts:
             if p[:2] == "ns":
                 self.ns = int(p[3:])
+                if(len(namespaceMapping.values()) > 0):
+                    self.ns = namespaceMapping[self.ns]
             elif p[:2] == "i=":
                 self.i = int(p[2:])
             elif p[:2] == "o=":
