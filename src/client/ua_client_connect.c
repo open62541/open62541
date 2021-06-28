@@ -1014,7 +1014,7 @@ client_configure_securechannel(void *application, UA_SecureChannel *channel,
 static UA_StatusCode
 initConnect(UA_Client *client) {
     if(client->connection.state > UA_CONNECTIONSTATE_CLOSED) {
-        UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                        "Client already connected");
         return UA_STATUSCODE_GOOD;
     }
