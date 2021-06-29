@@ -591,7 +591,14 @@ UA_PubSubChannelUDPMC_receive(UA_PubSubChannel *channel, UA_DecodeAndProcessClos
         ssize_t messageLength = UA_recvfrom(channel->sockfd, buffer.data, RECEIVE_MSG_BUFFER_SIZE, 0, NULL, NULL);
         if(messageLength > 0){
             buffer.length = (size_t) messageLength;
-            closure->call(closure, &buffer);
+            retval = closure->call(closure, &buffer);
+
+            if (retval != UA_STATUSCODE_GOOD) {
+                    UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                                   "PubSub Connection decode and process failed.");
+
+            }
+
         } else {
             UA_LOG_SOCKET_ERRNO_WRAP(
                 UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
