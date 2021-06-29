@@ -1831,7 +1831,7 @@ loops_exit:
 
     // TODO check if warning is correct here and error code carries correct info
     UA_CHECK_WARN(processed, return UA_STATUSCODE_BADNOTFOUND, logger, UA_LOGCATEGORY_SERVER,
-            "Subscribe failed. no readergroup found to decrypt/verify the network message")
+            "Subscribe failed. no readergroup found to decrypt/verify the network message");
 
     #endif
 
