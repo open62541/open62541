@@ -62,6 +62,23 @@ static void teardown(void) {
     UA_Server_delete(server);
 }
 
+typedef struct {
+    UA_ByteString *buffer;
+    size_t offset;
+} UA_ClosureContext;
+
+static
+UA_StatusCode closureTestFun(UA_DecodeAndProcessClosure *closure, UA_ByteString *buffer) {
+
+    UA_ClosureContext *ctx = (UA_ClosureContext*) closure->ctx;
+
+    memcpy(ctx->buffer->data + ctx->offset, buffer->data, buffer->length);
+    ctx->offset += buffer->length;
+    ctx->buffer->length = ctx->offset;
+
+    return UA_STATUSCODE_GOOD;
+}
+
 static void receiveSingleMessageRT(UA_PubSubConnection *connection, UA_DataSetReader *dataSetReader) {
     UA_ByteString buffer;
     if (UA_ByteString_allocBuffer(&buffer, 512) != UA_STATUSCODE_GOOD) {
@@ -73,7 +90,13 @@ static void receiveSingleMessageRT(UA_PubSubConnection *connection, UA_DataSetRe
         return;
     }
 
-    UA_StatusCode retval = connection->channel->receive(connection->channel, &buffer, NULL, 1000000);
+    UA_ClosureContext testCtx = {&buffer, 0};
+
+    UA_DecodeAndProcessClosure closure;
+    closure.ctx = &testCtx;
+    closure.call = closureTestFun;
+
+    UA_StatusCode retval = connection->channel->receive(connection->channel, &closure, NULL, 1000000);
     if(retval != UA_STATUSCODE_GOOD || buffer.length == 0) {
         buffer.length = 512;
         UA_ByteString_clear(&buffer);
