@@ -407,8 +407,8 @@ ua_MonitoredItems_create(UA_Client *client, MonitoredItems_CreateData *data,
             UA_malloc(sizeof(UA_Client_MonitoredItem));
         if(!newMon) {
             if(deleteCallbacks[i])
-                deleteCallbacks[i](client, sub->subscriptionId, sub->context,
-                                   0, data->contexts[i]);
+                deleteCallbacks[i](client, sub->subscriptionId, sub->context, 0,
+                                   data->contexts[i]);
             continue;
         }
 
@@ -417,14 +417,16 @@ ua_MonitoredItems_create(UA_Client *client, MonitoredItems_CreateData *data,
         newMon->context = data->contexts[i];
         newMon->deleteCallback = deleteCallbacks[i];
         newMon->handler.dataChangeCallback =
-            (UA_Client_DataChangeNotificationCallback)data->handlingCallbacks[i];
+            (UA_Client_DataChangeNotificationCallback)(uintptr_t)
+                data->handlingCallbacks[i];
         newMon->isEventMonitoredItem =
             (request->itemsToCreate[i].itemToMonitor.attributeId ==
              UA_ATTRIBUTEID_EVENTNOTIFIER);
         LIST_INSERT_HEAD(&sub->monitoredItems, newMon, listEntry);
 
         UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                    "Subscription %" PRIu32 " | Added a MonitoredItem with handle %" PRIu32,
+                     "Subscription %" PRIu32
+                     " | Added a MonitoredItem with handle %" PRIu32,
                      sub->subscriptionId, newMon->clientHandle);
     }
     return;
