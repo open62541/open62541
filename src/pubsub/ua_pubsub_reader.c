@@ -1849,7 +1849,7 @@ UA_StatusCode
 decodeAndProcessNetworkMessage(UA_Server *server, UA_ReaderGroup *readerGroup,
                                UA_PubSubConnection *connection,
                                UA_ByteString *buffer) {
-    size_t paddingBytes = 0;
+    // size_t paddingBytes = 0;
     UA_NetworkMessage currentNetworkMessage;
     memset(&currentNetworkMessage, 0, sizeof(UA_NetworkMessage));
     size_t currentPosition = 0;
@@ -1896,7 +1896,7 @@ decodeAndProcessNetworkMessageRT(UA_Server *server, UA_ReaderGroup *readerGroup,
 * Process with the static value source
 */
     size_t currentPosition = 0;
-    size_t paddingBytes = 0;
+    // size_t paddingBytes = 0;
     UA_DataSetReader *dataSetReader = LIST_FIRST(&readerGroup->readers);
     /* Decode only the necessary offset and update the networkMessage */
     if(UA_NetworkMessage_updateBufferedNwMessage(&dataSetReader->bufferedMessage, buffer,
