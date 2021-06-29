@@ -62,8 +62,6 @@ UA_NetworkMessage_updateBufferedMessage(UA_NetworkMessageOffsetBuffer *buffer){
         UA_Byte *bufPos = &buffer->buffer.data[buffer->offsets[i].offset];
         switch (buffer->offsets[i].contentType) {
             case UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE_SEQUENCENUMBER:
-                rv = UA_UInt16_encodeBinary((UA_UInt16 *) buffer->offsets[i].offsetData.value.value->value.data, &bufPos, bufEnd);
-                break;
             case UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_SEQUENCENUMBER:
                 rv = UA_UInt16_encodeBinary((UA_UInt16 *) buffer->offsets[i].offsetData.value.value->value.data, &bufPos, bufEnd);
                 break;
@@ -838,7 +836,7 @@ UA_NetworkMessage_decodeFooters(const UA_ByteString *src, size_t *offset, UA_Net
                                            dst->securityHeader.securityFooterSize);
             UA_CHECK_STATUS(rv, return rv);
 
-            for(UA_Byte i = 0; i < dst->securityHeader.securityFooterSize; i++) {
+            for(UA_UInt16 i = 0; i < dst->securityHeader.securityFooterSize; i++) {
                 rv = UA_Byte_decodeBinary(src, offset, &(dst->securityFooter.data[i]));
                 UA_CHECK_STATUS(rv, return rv);
             }
