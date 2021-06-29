@@ -107,9 +107,11 @@ isTrue(uint8_t expr) {
 }
 
 #define UA_CHECK(A, EVAL_ON_ERROR)                                                       \
-    if(UA_UNLIKELY(!isTrue(A))) {                                                        \
-        EVAL_ON_ERROR;                                                                   \
-    }
+    do {                                                                                 \
+        if(UA_UNLIKELY(!isTrue(A))) {                                                    \
+            EVAL_ON_ERROR;                                                               \
+        }                                                                                \
+    } while(0)
 
 #define UA_CHECK_STATUS(STATUSCODE, EVAL_ON_ERROR)                                       \
     UA_CHECK(isGood(STATUSCODE), EVAL_ON_ERROR)
