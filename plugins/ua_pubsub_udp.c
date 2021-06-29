@@ -554,15 +554,12 @@ UA_PubSubChannelUDPMC_receive(UA_PubSubChannel *channel, UA_DecodeAndProcessClos
     struct timeval tmptv;
     struct timeval receiveTime;
     fd_set fdset;
-    size_t remainingMessageLength = 0;
-    size_t dataLength = 0;
 
     memset(&tmptv, 0, sizeof(tmptv));
     memset(&receiveTime, 0, sizeof(receiveTime));
     FD_ZERO(&fdset);
     tmptv.tv_sec  = (long int)(timeout / 1000000);
     tmptv.tv_usec = (long int)(timeout % 1000000);
-    // remainingMessageLength = message->length;
     do {
         if(timeout > 0) {
             UA_fd_set(channel->sockfd, &fdset);
@@ -593,10 +590,7 @@ UA_PubSubChannelUDPMC_receive(UA_PubSubChannel *channel, UA_DecodeAndProcessClos
         UA_DateTime now = UA_DateTime_nowMonotonic();
         ssize_t messageLength = UA_recvfrom(channel->sockfd, buffer.data, RECEIVE_MSG_BUFFER_SIZE, 0, NULL, NULL);
         if(messageLength > 0){
-            dataLength += (size_t)messageLength;
-            remainingMessageLength -= (size_t)dataLength;
-            buffer.length = dataLength;
-
+            buffer.length = (size_t) messageLength;
             closure->call(closure, &buffer);
         } else {
             UA_LOG_SOCKET_ERRNO_WRAP(
