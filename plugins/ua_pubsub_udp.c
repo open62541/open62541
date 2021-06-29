@@ -535,6 +535,12 @@ UA_PubSubChannelUDPMC_send(UA_PubSubChannel *channel, UA_ExtensionObject *transp
     return UA_STATUSCODE_GOOD;
 }
 
+static
+UA_INLINE
+UA_DateTime timevalToDateTime(struct timeval val) {
+    return val.tv_sec * UA_DATETIME_SEC + val.tv_usec / 100;
+}
+
 /**
  * Receive messages. The regist function should be called before.
  *
@@ -551,22 +557,22 @@ UA_PubSubChannelUDPMC_receive(UA_PubSubChannel *channel, UA_DecodeAndProcessClos
     }
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_UInt16 rcvCount = 0;
-    struct timeval tmptv;
+    struct timeval timeoutValue;
     struct timeval receiveTime;
     fd_set fdset;
 
-    memset(&tmptv, 0, sizeof(tmptv));
+    memset(&timeoutValue, 0, sizeof(timeoutValue));
     memset(&receiveTime, 0, sizeof(receiveTime));
     FD_ZERO(&fdset);
-    tmptv.tv_sec  = (long int)(timeout / 1000000);
-    tmptv.tv_usec = (long int)(timeout % 1000000);
+    timeoutValue.tv_sec  = (long int)(timeout / 1000000);
+    timeoutValue.tv_usec = (long int)(timeout % 1000000);
     do {
         if(timeout > 0) {
             UA_fd_set(channel->sockfd, &fdset);
             /* Select API will return the remaining time in the struct
              * timeval */
             int resultsize = UA_select(channel->sockfd+1, &fdset, NULL,
-                                       NULL, &tmptv);
+                                       NULL, &timeoutValue);
             if(resultsize == 0) {
                 retval = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
                 if(rcvCount > 0)
@@ -587,7 +593,7 @@ UA_PubSubChannelUDPMC_receive(UA_PubSubChannel *channel, UA_DecodeAndProcessClos
         buffer.length = RECEIVE_MSG_BUFFER_SIZE;
         buffer.data = ReceiveMsgBuffer;
 
-        UA_DateTime now = UA_DateTime_nowMonotonic();
+        UA_DateTime beforeRecvTime = UA_DateTime_nowMonotonic();
         ssize_t messageLength = UA_recvfrom(channel->sockfd, buffer.data, RECEIVE_MSG_BUFFER_SIZE, 0, NULL, NULL);
         if(messageLength > 0){
             buffer.length = (size_t) messageLength;
@@ -609,20 +615,18 @@ UA_PubSubChannelUDPMC_receive(UA_PubSubChannel *channel, UA_DecodeAndProcessClos
         }
 
         rcvCount++;
-        UA_DateTime endtTime = UA_DateTime_nowMonotonic();
-        UA_DateTime dataReceiveTime = endtTime - now;
-        receiveTime.tv_sec = (long int)(dataReceiveTime / UA_DATETIME_SEC);
-        receiveTime.tv_usec = (long int)(dataReceiveTime % UA_DATETIME_SEC);
-        UA_DateTime receiveTimeoutValue = (receiveTime.tv_sec * 1000000) + receiveTime.tv_usec;
-        UA_DateTime remainingTimeoutValue = (tmptv.tv_sec * 1000000) + tmptv.tv_usec;
-        if(remainingTimeoutValue < receiveTimeoutValue) {
+        UA_DateTime endTime = UA_DateTime_nowMonotonic();
+        UA_DateTime receiveDuration = endTime - beforeRecvTime;
+
+        UA_DateTime remainingTimeoutValue = timevalToDateTime(timeoutValue);
+        if(remainingTimeoutValue < receiveDuration) {
             retval = UA_STATUSCODE_GOOD;
             break;
         }
 
-        UA_DateTime newTimeoutValue = remainingTimeoutValue - receiveTimeoutValue;
-        tmptv.tv_sec = (long int)(newTimeoutValue  / 1000000);
-        tmptv.tv_usec = (long int)(newTimeoutValue % 1000000);
+        UA_DateTime newTimeoutValue = remainingTimeoutValue - receiveDuration;
+        timeoutValue.tv_sec = (long int)(newTimeoutValue  / UA_DATETIME_SEC);
+        timeoutValue.tv_usec = (long int)((newTimeoutValue % UA_DATETIME_SEC) * 100);
     } while(true); /* TODO:Need to handle for jumbo frames*/
                                              /* 1518 bytes is the maximum size of ethernet packet
                                               * where 18 bytes used for header size, 28 bytes of header
