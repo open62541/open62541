@@ -113,7 +113,7 @@ verifyAndDecrypt(const UA_Logger *logger, UA_ByteString *buffer,
         rv = securityPolicy->symmetricModule.cryptoModule
                  .encryptionAlgorithm.decrypt(channelContext, &toBeDecrypted);
         UA_CHECK_STATUS_WARN(rv, return rv, logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                             "PubSub receive. Faulty Decryption")
+                             "PubSub receive. Faulty Decryption");
     }
     return UA_STATUSCODE_GOOD;
 }
