@@ -154,6 +154,8 @@ UA_StatusCode
 getAllInterfaceChildNodeIds(UA_Server *server, const UA_NodeId *objectNode,
                             const UA_NodeId *objectTypeNode,
                             UA_NodeId **interfaceChildNodes, size_t *interfaceChildNodesSize) {
+    if(interfaceChildNodesSize == NULL || interfaceChildNodes == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
     *interfaceChildNodesSize = 0;
     *interfaceChildNodes = NULL;
 
@@ -205,7 +207,7 @@ getAllInterfaceChildNodeIds(UA_Server *server, const UA_NodeId *objectNode,
         if(retval != UA_STATUSCODE_GOOD) {
             UA_Array_delete(hasInterfaceCandidates, hasInterfaceCandidatesSize,
                             &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
-            if (interfaceChildNodesSize) {
+            if (*interfaceChildNodesSize) {
                 UA_Array_delete(*interfaceChildNodes, *interfaceChildNodesSize,
                                 &UA_TYPES[UA_TYPES_NODEID]);
                 *interfaceChildNodesSize = 0;
