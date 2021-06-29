@@ -1240,7 +1240,12 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_DecodeAndProcessC
         messageLength = messageLength + ((size_t)dataLen - sizeof(struct ether_header));
         buffer.length = messageLength;
 
-        closure->call(closure, &buffer);
+        retval = closure->call(closure, &buffer);
+        if (retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                           "PubSub Connection decode and process failed.");
+
+        }
 
         rcvCount++;
 #if !defined(UA_ARCHITECTURE_POSIX)
