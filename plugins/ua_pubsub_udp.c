@@ -15,6 +15,10 @@
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pubsub_udp.h>
 
+#define RECEIVE_MSG_BUFFER_SIZE   4096
+static UA_THREAD_LOCAL UA_Byte ReceiveMsgBuffer[RECEIVE_MSG_BUFFER_SIZE];
+
+
 /* UDP multicast network layer specific internal data */
 typedef struct {
     int ai_family;                    /* Protocol family for socket. IPv4/IPv6 */
@@ -538,7 +542,7 @@ UA_PubSubChannelUDPMC_send(UA_PubSubChannel *channel, UA_ExtensionObject *transp
  * @return
  */
 static UA_StatusCode
-UA_PubSubChannelUDPMC_receive(UA_PubSubChannel *channel, UA_ByteString *message,
+UA_PubSubChannelUDPMC_receive(UA_PubSubChannel *channel, UA_DecodeAndProcessClosure *closure,
                               UA_ExtensionObject *transportSettings, UA_UInt32 timeout) {
     if(!(channel->state == UA_PUBSUB_CHANNEL_PUB || channel->state == UA_PUBSUB_CHANNEL_PUB_SUB)) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
@@ -558,7 +562,7 @@ UA_PubSubChannelUDPMC_receive(UA_PubSubChannel *channel, UA_ByteString *message,
     FD_ZERO(&fdset);
     tmptv.tv_sec  = (long int)(timeout / 1000000);
     tmptv.tv_usec = (long int)(timeout % 1000000);
-    remainingMessageLength = message->length;
+    // remainingMessageLength = message->length;
     do {
         if(timeout > 0) {
             UA_fd_set(channel->sockfd, &fdset);
@@ -582,12 +586,18 @@ UA_PubSubChannelUDPMC_receive(UA_PubSubChannel *channel, UA_ByteString *message,
                 break;
             }
         }
+        UA_ByteString buffer;
+        buffer.length = RECEIVE_MSG_BUFFER_SIZE;
+        buffer.data = ReceiveMsgBuffer;
 
         UA_DateTime now = UA_DateTime_nowMonotonic();
-        ssize_t messageLength = UA_recvfrom(channel->sockfd, (message->data + dataLength), remainingMessageLength, 0, NULL, NULL);
+        ssize_t messageLength = UA_recvfrom(channel->sockfd, buffer.data, RECEIVE_MSG_BUFFER_SIZE, 0, NULL, NULL);
         if(messageLength > 0){
             dataLength += (size_t)messageLength;
             remainingMessageLength -= (size_t)dataLength;
+            buffer.length = dataLength;
+
+            closure->call(closure, &buffer);
         } else {
             UA_LOG_SOCKET_ERRNO_WRAP(
                 UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
@@ -612,11 +622,11 @@ UA_PubSubChannelUDPMC_receive(UA_PubSubChannel *channel, UA_ByteString *message,
         UA_DateTime newTimeoutValue = remainingTimeoutValue - receiveTimeoutValue;
         tmptv.tv_sec = (long int)(newTimeoutValue  / 1000000);
         tmptv.tv_usec = (long int)(newTimeoutValue % 1000000);
-    } while(remainingMessageLength >= 1472); /* TODO:Need to handle for jumbo frames*/
+    } while(true); /* TODO:Need to handle for jumbo frames*/
                                              /* 1518 bytes is the maximum size of ethernet packet
                                               * where 18 bytes used for header size, 28 bytes of header
                                               * used for IP and UDP header so remaining length is 1472 */
-    message->length = dataLength;
+    // message->length = dataLength;
     return retval;
 }
 /**
