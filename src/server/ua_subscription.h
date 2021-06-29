@@ -309,13 +309,35 @@ UA_StatusCode UA_Subscription_removeRetransmissionMessage(UA_Subscription *sub,
 UA_Boolean UA_Session_reachedPublishReqLimit(UA_Server *server, UA_Session *session);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-
 /* Only for unit testing */
 UA_StatusCode
 UA_Server_evaluateWhereClauseContentFilter(
     UA_Server *server,
     const UA_NodeId *eventNode,
     const UA_ContentFilter *contentFilter);
+
+UA_ContentFilterResult*
+UA_Server_initialWhereClauseValidation(UA_Server *server,
+                                       const UA_ContentFilter *contentFilter);
+
+UA_StatusCode*
+UA_Server_initialSelectClauseValidation(UA_Server *server,
+                                        const UA_EventFilter *eventFilter);
+
+UA_StatusCode
+UA_Server_evaluateWhereClause(UA_Server *server,
+                              UA_Session *session,
+                              const UA_NodeId *eventNode,
+                              const UA_ContentFilter *contentFilter,
+                              UA_ContentFilterResult *contentFilterResult,
+                              UA_Variant* valueResult, UA_UInt16 index);
+UA_StatusCode
+UA_Server_startWhereClauseEvaluation(UA_Server *server,
+                                     UA_Session *session,
+                                     const UA_NodeId *eventNode,
+                                     const UA_ContentFilter *contentFilter,
+                                     UA_ContentFilterResult *contentFilterResult);
+
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
 /**
