@@ -68,7 +68,8 @@ UA_StatusCode closureTestFun(UA_DecodeAndProcessClosure *closure, UA_ByteString 
     UA_ClosureContext *ctx = (UA_ClosureContext*) closure->ctx;
 
     memcpy(ctx->buffer->data + ctx->offset, buffer->data, buffer->length);
-    ctx->offset = buffer->length;
+    ctx->offset += buffer->length;
+    ctx->buffer->length = ctx->offset;
 
     return UA_STATUSCODE_GOOD;
 }
