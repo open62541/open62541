@@ -124,7 +124,7 @@ typedef struct {
      * Currently only used for dataSetWriterIds */
     size_t numCustom;
     void * custom;
-    size_t* currentCustomIndex;
+    size_t currentCustomIndex;
 } ParseCtx;
 
 typedef UA_StatusCode
