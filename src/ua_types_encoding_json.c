@@ -1083,7 +1083,6 @@ static status
 Variant_encodeJsonWrapExtensionObject(const UA_Variant *src, const bool isArray, CtxJson *ctx) {
     size_t length = 1;
 
-    status ret = UA_STATUSCODE_GOOD;
     if(isArray) {
         if(src->arrayLength > UA_INT32_MAX)
             return UA_STATUSCODE_BADENCODINGERROR;
@@ -1100,7 +1099,7 @@ Variant_encodeJsonWrapExtensionObject(const UA_Variant *src, const bool isArray,
     uintptr_t ptr = (uintptr_t) src->data;
 
     if(isArray) {
-        ret = writeJsonArrStart(ctx);
+        status ret = writeJsonArrStart(ctx);
         if(ret != UA_STATUSCODE_GOOD)
             return ret;
         ctx->commaNeeded[ctx->depth] = false;
@@ -3069,7 +3068,6 @@ static status
 Array_decodeJson_internal(void **dst, const UA_DataType *type, 
         CtxJson *ctx, ParseCtx *parseCtx, UA_Boolean moveToken) {
     (void) moveToken;
-    status ret;
     
     if(parseCtx->tokenArray[parseCtx->index].type != JSMN_ARRAY)
         return UA_STATUSCODE_BADDECODINGERROR;
@@ -3096,6 +3094,7 @@ Array_decodeJson_internal(void **dst, const UA_DataType *type,
     /* Decode array members */
     uintptr_t ptr = (uintptr_t)*dst;
     for(size_t i = 0; i < length; ++i) {
+        status ret;
         ret = decodeJsonJumpTable[type->typeKind]((void*)ptr, type, ctx, parseCtx, true);
         if(ret != UA_STATUSCODE_GOOD) {
             UA_Array_delete(*dst, i+1, type);

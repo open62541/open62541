@@ -1235,7 +1235,7 @@ recursiveTypeCheckAddChildren(UA_Server *server, UA_Session *session,
         }
     }
 
-    return UA_STATUSCODE_GOOD;
+    return retval;
 }
 
 /* Construct children first */
