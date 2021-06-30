@@ -31,7 +31,7 @@ _UA_BEGIN_DECLS
     UA_NodeId_print(NODEID, &nodeIdStr);             \
     LOG;                                             \
     UA_String_clear(&nodeIdStr);                     \
-    } while(0);
+    } while(0)
 
 #if UA_LOGLEVEL <= 100
 # define UA_LOG_NODEID_TRACE(NODEID, LOG)       \
