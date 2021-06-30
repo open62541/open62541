@@ -1260,6 +1260,7 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
 
     /* Parse the range */
     UA_NumericRange range;
+    range.dimensions = NULL;
     UA_NumericRange *rangeptr = NULL;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(indexRange && indexRange->length > 0) {
@@ -1290,8 +1291,8 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
         if(!compatibleValue(server, session, nodeDataTypePtr, node->valueRank,
                             node->arrayDimensionsSize, node->arrayDimensions,
                             &adjustedValue.value, rangeptr)) {
-            if(rangeptr)
-                UA_free(range.dimensions);
+            if(rangeptr && rangeptr->dimensions != NULL)
+                UA_free(rangeptr->dimensions);
             return UA_STATUSCODE_BADTYPEMISMATCH;
         }
     }
@@ -1360,8 +1361,8 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
             break;
         case UA_VALUEBACKENDTYPE_EXTERNAL:
             if(node->valueBackend.backend.external.callback.userWrite == NULL){
-                if(rangeptr)
-                    UA_free(range.dimensions);
+                if(rangeptr && rangeptr->dimensions != NULL)
+                    UA_free(rangeptr->dimensions);
                 return UA_STATUSCODE_BADWRITENOTSUPPORTED;
             }
             node->valueBackend.backend.external.callback.
@@ -1372,8 +1373,8 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
     }
 
     /* Clean up */
-    if(rangeptr)
-        UA_free(range.dimensions);
+    if(rangeptr && rangeptr->dimensions != NULL)
+        UA_free(rangeptr->dimensions);
     return retval;
 }
 
