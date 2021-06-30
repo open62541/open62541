@@ -225,6 +225,7 @@ UA_StatusCode
 RefTree_add(RefTree *rt, const UA_ExpandedNodeId *target, UA_Boolean *duplicate) {
     /* Is the target already in the tree? */
     RefEntry dummy;
+    memset(&dummy, 0, sizeof(RefEntry));
     dummy.target = target;
     dummy.targetHash = UA_ExpandedNodeId_hash(target);
     if(ZIP_FIND(RefHead, &rt->head, &dummy)) {
