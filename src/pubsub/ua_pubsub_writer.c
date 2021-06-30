@@ -2261,7 +2261,7 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     }
 
     /* Nothing to do? */
-    if(writerGroup->writersCount <= 0)
+    if(writerGroup->writersCount == 0)
         return;
 
     /* Binary or Json encoding?  */
