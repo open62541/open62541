@@ -586,6 +586,11 @@ if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" ST
     check_add_cc_flag("-fno-strict-aliasing") # fewer compiler assumptions about pointer types
     check_add_cc_flag("-fexceptions") # recommended for multi-threaded C code, also in combination with C++ code
 
+    # Generate position-independent code for shared libraries (adds a performance penalty)
+    if(BUILD_SHARED_LIBS)
+        check_add_cc_flag("-fPIC")
+    endif()
+
     if(UA_FORCE_32BIT)
       string(FIND "${CMAKE_C_FLAGS}" "-m32" m32_already_set)
       if(m32_already_set EQUAL -1)
