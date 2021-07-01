@@ -36,12 +36,28 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # Version #
 ###########
 
-include(SetGitBasedVersion)
+# The current version information. On the master branch, we take the version
+# number from the latest release plus the "-undefined" label. Will be
+# overwritten with more detailed information if git is available.
+set(OPEN62541_VER_MAJOR 1)
+set(OPEN62541_VER_MINOR 2)
+set(OPEN62541_VER_PATCH 2)
+set(OPEN62541_VER_LABEL "-unknown") # like "-rc1" or "-g4538abcd" or "-g4538abcd-dirty"
+set(OPEN62541_VER_COMMIT "undefined")
 
-# The version string will be automatically set based on the git describe output.
-# This will automate the version strings. Just create a new tag, and the version will be set correctly.
+# Overwrite the version information based on git if available
+include(SetGitBasedVersion)
 set_open62541_version()
-MESSAGE(STATUS "open62541 Version: ${OPEN62541_VER_MAJOR}.${OPEN62541_VER_MINOR}.${OPEN62541_VER_PATCH}${OPEN62541_VER_LABEL}")
+
+# Examples for the version string are:
+# v1.2
+# v1.2.3
+# v1.2.3-rc1
+# v1.2.3-rc1-dirty
+# v1.2.3-5-g4538abcd
+# v1.2.3-5-g4538abcd-dirty
+set(OPEN62541_VERSION "v${OPEN62541_VER_MAJOR}.${OPEN62541_VER_MINOR}.${OPEN62541_VER_PATCH}${OPEN62541_VER_LABEL}")
+MESSAGE(STATUS "open62541 Version: ${OPEN62541_VERSION}")
 
 #################
 # Build Options #
