@@ -714,8 +714,13 @@ endif()
 # Generate Main Library #
 #########################
 
+# Directory for generated sources
 file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated")
+
+# Generate the config.h
 configure_file(include/open62541/config.h.in ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h)
+
+# Generate a .pc file for pkg-config
 configure_file(tools/open62541.pc.in ${PROJECT_BINARY_DIR}/src_generated/open62541.pc @ONLY)
 
 if(UA_ENABLE_DISCOVERY_MULTICAST)
