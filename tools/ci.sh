@@ -47,6 +47,7 @@ function build_release {
     cmake -DBUILD_SHARED_LIBS=ON \
           -DUA_ENABLE_ENCRYPTION=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
+          -DUA_ENABLE_HISTORIZING=ON \
           -DCMAKE_BUILD_TYPE=RelWithDebInfo \
           -DUA_BUILD_EXAMPLES=ON \
           ..
@@ -84,6 +85,7 @@ function unit_tests {
           -DUA_ENABLE_DISCOVERY=ON \
           -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
+          -DUA_ENABLE_HISTORIZING=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_PUBSUB=ON \
           -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
@@ -99,6 +101,7 @@ function unit_tests_mt {
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_MULTITHREADING=200 \
           -DUA_BUILD_EXAMPLES=ON \
+          -DUA_ENABLE_HISTORIZING=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_DISCOVERY=ON \
           -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
@@ -168,6 +171,7 @@ function unit_tests_valgrind {
           -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
           -DUA_ENABLE_ENCRYPTION=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
+          -DUA_ENABLE_HISTORIZING=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_PUBSUB=ON \
           -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
@@ -193,6 +197,7 @@ function build_clang_analyzer {
           -DUA_ENABLE_DISCOVERY=ON \
           -DUA_ENABLE_ENCRYPTION=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
+          -DUA_ENABLE_HISTORIZING=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_PUBSUB=ON \
           -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
