@@ -16,35 +16,45 @@ struct context_randomindextest {
 };
 
 static size_t
-indexByIndex_randomindextest(struct context_randomindextest *context, size_t index)
-{
-    for (size_t i = 0; i < context->tupelSize; ++i) {
-        if (context->tupels[i].index == index)
+indexByIndex_randomindextest(struct context_randomindextest *context, size_t index) {
+    for(size_t i = 0; i < context->tupelSize; ++i) {
+        if(context->tupels[i].index == index)
             return i;
     }
     return context->tupelSize;
 }
 
 // last value should be NULL, all values must be sorted
-static struct context_randomindextest*
+static struct context_randomindextest *
 generateTestContext_randomindextest(const UA_DateTime *data) {
     size_t count = 0;
     while(data[count++]);
     struct context_randomindextest* ret = (struct context_randomindextest*)UA_calloc(1, sizeof(struct context_randomindextest));
+    if(!ret)
+        return NULL;
+
     ret->tupels = (struct tupel*)UA_calloc(count, sizeof(struct tupel));
+    if(!ret->tupels) {
+        UA_free(ret);
+        return NULL;
+    }
     ret->tupelSize = count;
+
     UA_DateTime *sortData;
     UA_StatusCode retval = UA_Array_copy(data, count, (void**)&sortData, &UA_TYPES[UA_TYPES_DATETIME]);
-    if (retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_free(ret->tupels);
+        UA_free(ret);
         return NULL;
-    for (size_t i = 0; i < count; ++i) {
+    }
+
+    for(size_t i = 0; i < count; ++i) {
         size_t current = 0;
-        for (size_t j = 1; j < count-1; ++j){
+        for(size_t j = 1; j < count-1; ++j){
             UA_DateTime currentDate = sortData[current];
             UA_DateTime jDate = sortData[j];
-            if (currentDate > jDate) {
+            if(currentDate > jDate)
                 current = j;
-            }
         }
         UA_DateTime nextValue = i == count-1 ? 0 : sortData[current];
         sortData[current] = LLONG_MAX;
@@ -52,9 +62,9 @@ generateTestContext_randomindextest(const UA_DateTime *data) {
         do {
             unique = true;
             ret->tupels[i].index = UA_UInt32_random();
-            for (size_t j = 0; j < i; ++j)
-                if (i != j && ret->tupels[i].index == ret->tupels[j].index)
-                        unique = false;
+            for(size_t j = 0; j < i; ++j)
+                if(i != j && ret->tupels[i].index == ret->tupels[j].index)
+                    unique = false;
         } while (!unique);
         UA_DataValue_init(&ret->tupels[i].value);
         ret->tupels[i].value.hasValue = true;
@@ -71,10 +81,11 @@ generateTestContext_randomindextest(const UA_DateTime *data) {
 }
 
 static void
-deleteMembers_randomindextest(UA_HistoryDataBackend *backend)
-{
+deleteMembers_randomindextest(UA_HistoryDataBackend *backend) {
     struct context_randomindextest* context = (struct context_randomindextest*)backend->context;
-    for (size_t i = 0; i < context->tupelSize; ++i) {
+    if(!context)
+        return;
+    for(size_t i = 0; i < context->tupelSize; ++i) {
         UA_DataValue_clear(&context->tupels[i].value);
     }
     UA_free(context->tupels);

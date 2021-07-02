@@ -731,10 +731,10 @@ START_TEST(Server_HistorizingUpdateUpdate)
     testResult(testDataAfterDelete, NULL);
 
     // update all and insert some
-    UA_StatusCode *result;
+    UA_StatusCode *result = NULL;
     size_t resultSize = 0;
-    ck_assert_str_eq(UA_StatusCode_name(updateHistory(UA_PERFORMUPDATETYPE_UPDATE, testDataSorted, &result, &resultSize))
-                                        , UA_StatusCode_name(UA_STATUSCODE_GOOD));
+    ck_assert_uint_eq(updateHistory(UA_PERFORMUPDATETYPE_UPDATE, testDataSorted, &result, &resultSize),
+                      UA_STATUSCODE_GOOD);
 
     for (size_t i = 0; i < resultSize; ++i) {
         ck_assert_str_eq(UA_StatusCode_name(result[i]), UA_StatusCode_name(testDataUpdateResult[i]));
