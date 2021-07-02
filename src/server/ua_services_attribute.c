@@ -1726,36 +1726,32 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
 
     const UA_DataType *historyDataType = &UA_TYPES[UA_TYPES_HISTORYDATA];
     UA_HistoryDatabase_readFunc readHistory = NULL;
-    switch(request->historyReadDetails.content.decoded.type->typeIndex) {
-        case UA_TYPES_READRAWMODIFIEDDETAILS: {
-            UA_ReadRawModifiedDetails *details = (UA_ReadRawModifiedDetails*)
-                request->historyReadDetails.content.decoded.data;
-            if(!details->isReadModified) {
-                readHistory = (UA_HistoryDatabase_readFunc)
-                    server->config.historyDatabase.readRaw;
-            } else {
-                historyDataType = &UA_TYPES[UA_TYPES_HISTORYMODIFIEDDATA];
-                readHistory = (UA_HistoryDatabase_readFunc)
-                    server->config.historyDatabase.readModified;
-            }
-            break;
+    if(request->historyReadDetails.content.decoded.type ==
+       &UA_TYPES[UA_TYPES_READRAWMODIFIEDDETAILS]) {
+        UA_ReadRawModifiedDetails *details = (UA_ReadRawModifiedDetails*)
+            request->historyReadDetails.content.decoded.data;
+        if(!details->isReadModified) {
+            readHistory = (UA_HistoryDatabase_readFunc)
+                server->config.historyDatabase.readRaw;
+        } else {
+            historyDataType = &UA_TYPES[UA_TYPES_HISTORYMODIFIEDDATA];
+            readHistory = (UA_HistoryDatabase_readFunc)
+                server->config.historyDatabase.readModified;
         }
-        case UA_TYPES_READEVENTDETAILS:
-            historyDataType = &UA_TYPES[UA_TYPES_HISTORYEVENT];
-            readHistory = (UA_HistoryDatabase_readFunc)
-                server->config.historyDatabase.readEvent;
-            break;
-        case UA_TYPES_READPROCESSEDDETAILS:
-            readHistory = (UA_HistoryDatabase_readFunc)
-                server->config.historyDatabase.readProcessed;
-            break;
-        case UA_TYPES_READATTIMEDETAILS:
-            readHistory = (UA_HistoryDatabase_readFunc)
-                server->config.historyDatabase.readAtTime;
-            break;
-    }
-
-    if(!readHistory) {
+    } else if(request->historyReadDetails.content.decoded.type ==
+              &UA_TYPES[UA_TYPES_READEVENTDETAILS]) {
+        historyDataType = &UA_TYPES[UA_TYPES_HISTORYEVENT];
+        readHistory = (UA_HistoryDatabase_readFunc)
+            server->config.historyDatabase.readEvent;
+    } else if(request->historyReadDetails.content.decoded.type ==
+              &UA_TYPES[UA_TYPES_READPROCESSEDDETAILS]) {
+        readHistory = (UA_HistoryDatabase_readFunc)
+            server->config.historyDatabase.readProcessed;
+    } else if(request->historyReadDetails.content.decoded.type ==
+              &UA_TYPES[UA_TYPES_READATTIMEDETAILS]) {
+        readHistory = (UA_HistoryDatabase_readFunc)
+            server->config.historyDatabase.readAtTime;
+    } else {
         /* TODO handle more request->historyReadDetails.content.decoded.type types */
         response->responseHeader.serviceResult = UA_STATUSCODE_BADHISTORYOPERATIONUNSUPPORTED;
         return;
