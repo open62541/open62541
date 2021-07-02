@@ -1028,7 +1028,7 @@ adjustValueType(UA_Server *server, UA_Variant *value,
     }
 
     /* An enum was sent as an int32, or an opaque type as a bytestring. This
-     * is detected with the typeIndex indicating the "true" datatype. */
+     * is detected with the typeKind indicating the "true" datatype. */
     UA_DataTypeKind te1 = typeEquivalence(targetDataType);
     UA_DataTypeKind te2 = typeEquivalence(value->type);
     if(te1 == te2 && te1 <= UA_DATATYPEKIND_ENUM) {
