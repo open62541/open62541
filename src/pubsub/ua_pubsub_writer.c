@@ -576,6 +576,7 @@ UA_PublishedDataSet_clear(UA_Server *server, UA_PublishedDataSet *publishedDataS
     UA_NodeId_clear(&publishedDataSet->identifier);
 }
 
+/* The fieldMetaData variable has to be cleaned up external in case of an error */
 static UA_StatusCode
 generateFieldMetaData(UA_Server *server, UA_DataSetField *field,
                       UA_FieldMetaData *fieldMetaData) {
@@ -591,8 +592,7 @@ generateFieldMetaData(UA_Server *server, UA_DataSetField *field,
     /* Set the name */
     const UA_DataSetVariableConfig *var = &field->config.field.variable;
     UA_StatusCode res = UA_String_copy(&var->fieldNameAlias, &fieldMetaData->name);
-    if(res != UA_STATUSCODE_GOOD)
-        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_CHECK_STATUS(res, return res);
 
     /* Static value source. ToDo after freeze PR, the value source must be
      * checked (other behavior for static value source) */
@@ -610,17 +610,12 @@ generateFieldMetaData(UA_Server *server, UA_DataSetField *field,
         fieldMetaData->arrayDimensionsSize = svs->value.arrayDimensionsSize;
 
         res = UA_NodeId_copy(&svs->value.type->typeId, &fieldMetaData->dataType);
-        if(res != UA_STATUSCODE_GOOD) {
-            if(fieldMetaData->arrayDimensions) {
-                UA_free(fieldMetaData->arrayDimensions);
-                return UA_STATUSCODE_BADINTERNALERROR;
-            }
-        }
+        UA_CHECK_STATUS(res, return res);
 
+        //TODO collect value rank for the static field source
         fieldMetaData->properties = NULL;
         fieldMetaData->propertiesSize = 0;
         fieldMetaData->fieldFlags = UA_DATASETFIELDFLAGS_NONE;
-        //TODO collect value rank for the static field source
         return UA_STATUSCODE_GOOD;
     }
 
@@ -629,11 +624,9 @@ generateFieldMetaData(UA_Server *server, UA_DataSetField *field,
     UA_Variant value;
     UA_Variant_init(&value);
     res = UA_Server_readArrayDimensions(server, pp->publishedVariable, &value);
-    if(res != UA_STATUSCODE_GOOD){
-        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "PubSub meta data generation. Reading ArrayDimension failed.");
-        return res;
-    }
+    UA_CHECK_STATUS_LOG(res, return res,
+                        WARNING, &server->config.logger, UA_LOGCATEGORY_SERVER,
+                        "PubSub meta data generation. Reading the array dimensions failed.");
 
     if(value.arrayDimensionsSize > 0) {
         fieldMetaData->arrayDimensions = (UA_UInt32 *)
@@ -648,37 +641,31 @@ generateFieldMetaData(UA_Server *server, UA_DataSetField *field,
     /* Set the DataType */
     res = UA_Server_readDataType(server, pp->publishedVariable,
                                  &fieldMetaData->dataType);
-    if(res != UA_STATUSCODE_GOOD){
-        if(fieldMetaData->arrayDimensions){
-            UA_free(fieldMetaData->arrayDimensions);
-            return UA_STATUSCODE_BADINTERNALERROR;
-        }
-    }
+    UA_CHECK_STATUS_LOG(res, return res,
+                        WARNING, &server->config.logger, UA_LOGCATEGORY_SERVER,
+                        "PubSub meta data generation. Reading the datatype failed.");
 
     if(!UA_NodeId_isNull(&fieldMetaData->dataType)) {
         const UA_DataType *currentDataType =
             UA_findDataTypeWithCustom(&fieldMetaData->dataType,
                                       server->config.customDataTypes);
-        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                    "MetaData creation. Found DataType %s.", currentDataType->typeName);
+        UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "MetaData creation. Found DataType %s.", currentDataType->typeName);
         /* Check if the datatype is a builtInType, if yes set the builtinType.
          * TODO: Remove the magic number */
         if(currentDataType->typeKind <= UA_DATATYPEKIND_ENUM)
             fieldMetaData->builtInType = (UA_Byte)currentDataType->typeKind;
     } else {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "PubSub meta data generation. DataType Node is UA_NODEID_NULL.");
+                       "PubSub meta data generation. DataType is UA_NODEID_NULL.");
     }
 
     /* Set the ValueRank */
     UA_Int32 valueRank;
     res = UA_Server_readValueRank(server, pp->publishedVariable, &valueRank);
-    if(res != UA_STATUSCODE_GOOD){
-        if(fieldMetaData->arrayDimensions) {
-            UA_free(fieldMetaData->arrayDimensions);
-            return UA_STATUSCODE_BADINTERNALERROR;
-        }
-    }
+    UA_CHECK_STATUS_LOG(res, return res,
+                        WARNING, &server->config.logger, UA_LOGCATEGORY_SERVER,
+                        "PubSub meta data generation. Reading the value rank failed.");
     fieldMetaData->valueRank = valueRank;
 
     /* PromotedField? */
@@ -747,6 +734,7 @@ UA_Server_addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
     UA_FieldMetaData_init(&fmd);
     result.result = generateFieldMetaData(server, newField, &fmd);
     if(result.result != UA_STATUSCODE_GOOD) {
+        UA_FieldMetaData_clear(&fmd);
         UA_DataSetFieldConfig_clear(&newField->config);
         UA_free(newField);
         return result;
@@ -859,6 +847,7 @@ UA_Server_removeDataSetField(UA_Server *server, const UA_NodeId dsf) {
         TAILQ_FOREACH(tmpDSF, &parentPublishedDataSet->fields, listEntry){
             result.result = generateFieldMetaData(server, tmpDSF, &fieldMetaData[counter]);
             if(result.result != UA_STATUSCODE_GOOD) {
+                UA_FieldMetaData_clear(&fieldMetaData[counter]);
                 UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                                "PubSub MetaData generation failed!");
                 break;
