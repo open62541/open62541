@@ -1431,6 +1431,41 @@ UA_Array_resize(void **p, size_t *size, size_t newSize,
     return UA_STATUSCODE_GOOD;
 }
 
+UA_StatusCode
+UA_Array_append(void **p, size_t *size, void *newElem,
+                const UA_DataType *type) {
+    /* Resize the array */
+    size_t oldSize = *size;
+    UA_StatusCode res = UA_Array_resize(p, size, oldSize+1, type);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* Move the value */
+    memcpy((void*)((uintptr_t)*p + (oldSize * type->memSize)),
+           newElem, type->memSize);
+    UA_init(newElem, type);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode UA_EXPORT
+UA_Array_appendCopy(void **p, size_t *size, const void *newElem,
+                    const UA_DataType *type) {
+    char scratch[512];
+    if(type->memSize > 512)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Copy the value */
+    UA_StatusCode res = UA_copy(newElem, (void*)scratch, type);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* Append */
+    res = UA_Array_append(p, size, (void*)scratch, type);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_clear((void*)scratch, type);
+    return res;
+}
+
 void
 UA_Array_delete(void *p, size_t size, const UA_DataType *type) {
     if(!type->pointerFree) {

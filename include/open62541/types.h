@@ -1138,6 +1138,34 @@ UA_StatusCode UA_EXPORT
 UA_Array_resize(void **p, size_t *size, size_t newSize,
                 const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
+/* Append the given element at the end of the array. The content is moved
+ * (shallow copy) and the original memory is _init'ed if appending is
+ * successful.
+ *
+ * @param p Double pointer to the array memory. Can be overwritten by the result of a
+ *          realloc.
+ * @param size The current size of the array. Overwritten in case of success.
+ * @param newElem The element to be appended. The memory is reset upon success.
+ * @param type The datatype of the array members
+ * @return Returns UA_STATUSCODE_GOOD or UA_STATUSCODE_BADOUTOFMEMORY. The original array
+ *         is left untouched in the failure case. */
+UA_StatusCode UA_EXPORT
+UA_Array_append(void **p, size_t *size, void *newElem,
+                const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+
+/* Append a copy of the given element at the end of the array.
+ *
+ * @param p Double pointer to the array memory. Can be overwritten by the result of a
+ *          realloc.
+ * @param size The current size of the array. Overwritten in case of success.
+ * @param newElem The element to be appended.
+ * @param type The datatype of the array members
+ * @return Returns UA_STATUSCODE_GOOD or UA_STATUSCODE_BADOUTOFMEMORY. The original array
+ *         is left untouched in the failure case. */
+UA_StatusCode UA_EXPORT
+UA_Array_appendCopy(void **p, size_t *size, const void *newElem,
+                    const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+
 /* Deletes an array.
  *
  * @param p The memory location of the array
