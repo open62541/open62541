@@ -1379,6 +1379,58 @@ UA_Array_copy(const void *src, size_t size,
     return retval;
 }
 
+UA_StatusCode
+UA_Array_resize(void **p, size_t *size, size_t newSize,
+                const UA_DataType *type) {
+    if(*size == newSize)
+        return UA_STATUSCODE_GOOD;
+
+    /* Empty array? */
+    if(newSize == 0) {
+        UA_Array_delete(*p, *size, type);
+        *p = UA_EMPTY_ARRAY_SENTINEL;
+        *size = 0;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* Make a copy of the members that shall be removed. Realloc can fail during
+     * trimming. So we cannot clear the members already here. */
+    void *deleteMembers = NULL;
+    if(newSize < *size && !type->pointerFree) {
+        size_t deleteSize = *size - newSize;
+        deleteMembers = UA_malloc(deleteSize * type->memSize);
+        if(!deleteMembers)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        memcpy(deleteMembers, (void*)((uintptr_t)*p + (newSize * type->memSize)),
+               deleteSize * type->memSize); /* shallow copy */
+    }
+
+    void *oldP = *p;
+    if(oldP == UA_EMPTY_ARRAY_SENTINEL)
+        oldP = NULL;
+
+    /* Realloc */
+    void *newP = UA_realloc(oldP, newSize * type->memSize);
+    if(!newP) {
+        if(deleteMembers)
+            UA_free(deleteMembers);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    /* Clear removed members or initialize the new ones. Note that deleteMembers
+     * depends on type->pointerFree. */
+    if(newSize > *size)
+        memset((void*)((uintptr_t)newP + (*size * type->memSize)), 0,
+               (newSize - *size) * type->memSize);
+    else if(deleteMembers)
+        UA_Array_delete(deleteMembers, *size - newSize, type);
+
+    /* Set the new array */
+    *p = newP;
+    *size = newSize;
+    return UA_STATUSCODE_GOOD;
+}
+
 void
 UA_Array_delete(void *p, size_t size, const UA_DataType *type) {
     if(!type->pointerFree) {
