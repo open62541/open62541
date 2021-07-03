@@ -34,17 +34,17 @@
 
 /* Global definition of NULL type instances. These are always zeroed out, as
  * mandated by the C/C++ standard for global values with no initializer. */
-const UA_String UA_STRING_NULL = {0, NULL};
-const UA_ByteString UA_BYTESTRING_NULL = {0, NULL};
-const UA_Guid UA_GUID_NULL = {0, 0, 0, {0,0,0,0,0,0,0,0}};
-const UA_NodeId UA_NODEID_NULL = {0, UA_NODEIDTYPE_NUMERIC, {0}};
-const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL = {{0, UA_NODEIDTYPE_NUMERIC, {0}}, {0, NULL}, 0};
+const UA_String UA_STRING_NULL = {0};
+const UA_ByteString UA_BYTESTRING_NULL = {0};
+const UA_Guid UA_GUID_NULL = {0};
+const UA_NodeId UA_NODEID_NULL = {0};
+const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL = {0};
 
-typedef UA_StatusCode (*UA_copySignature)(const void *src, void *dst,
-                                          const UA_DataType *type);
-typedef void (*UA_clearSignature)(void *p, const UA_DataType *type);
-
+typedef UA_StatusCode
+(*UA_copySignature)(const void *src, void *dst, const UA_DataType *type);
 extern const UA_copySignature copyJumpTable[UA_DATATYPEKINDS];
+
+typedef void (*UA_clearSignature)(void *p, const UA_DataType *type);
 extern const UA_clearSignature clearJumpTable[UA_DATATYPEKINDS];
 
 const UA_DataType *
@@ -148,11 +148,12 @@ UA_String_equal_ignorecase(const UA_String *s1, const UA_String *s2) {
 
 static UA_StatusCode
 String_copy(UA_String const *src, UA_String *dst, const UA_DataType *_) {
-    UA_StatusCode retval = UA_Array_copy(src->data, src->length, (void**)&dst->data,
-                                         &UA_TYPES[UA_TYPES_BYTE]);
-    if(retval == UA_STATUSCODE_GOOD)
+    UA_StatusCode res =
+        UA_Array_copy(src->data, src->length, (void**)&dst->data,
+                      &UA_TYPES[UA_TYPES_BYTE]);
+    if(res == UA_STATUSCODE_GOOD)
         dst->length = src->length;
-    return retval;
+    return res;
 }
 
 static void
@@ -162,7 +163,8 @@ String_clear(UA_String *s, const UA_DataType *_) {
 
 /* QualifiedName */
 static UA_StatusCode
-QualifiedName_copy(const UA_QualifiedName *src, UA_QualifiedName *dst, const UA_DataType *_) {
+QualifiedName_copy(const UA_QualifiedName *src, UA_QualifiedName *dst,
+                   const UA_DataType *_) {
     dst->namespaceIndex = src->namespaceIndex;
     return String_copy(&src->name, &dst->name, NULL);
 }
@@ -376,7 +378,6 @@ UA_NodeId_order(const UA_NodeId *n1, const UA_NodeId *n2) {
             return UA_ORDER_MORE;
         } else {
             int cmp = memcmp(n1->identifier.guid.data4, n2->identifier.guid.data4, 8);
-
             if(cmp < 0) return UA_ORDER_LESS;
             if(cmp > 0) return UA_ORDER_MORE;
 
@@ -385,10 +386,10 @@ UA_NodeId_order(const UA_NodeId *n1, const UA_NodeId *n2) {
         break;
     case UA_NODEIDTYPE_STRING:
     case UA_NODEIDTYPE_BYTESTRING: {
-        size_t minLength = UA_MIN(n1->identifier.string.length, n2->identifier.string.length);
+        size_t minL = UA_MIN(n1->identifier.string.length, n2->identifier.string.length);
         int cmp = strncmp((const char*)n1->identifier.string.data,
                           (const char*)n2->identifier.string.data,
-                          minLength);
+                          minL);
         if(cmp < 0)
             return UA_ORDER_LESS;
         if(cmp > 0)
