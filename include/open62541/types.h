@@ -1123,12 +1123,28 @@ UA_StatusCode UA_EXPORT
 UA_Array_copy(const void *src, size_t size, void **dst,
               const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
+/* Resizes (and reallocates) an array. The last entries are initialized to zero
+ * if the array length is increased. If the array length is decreased, the last
+ * entries are removed if the size is decreased.
+ *
+ * @param p Double pointer to the array memory. Can be overwritten by the result of a
+ *          realloc.
+ * @param size The current size of the array. Overwritten in case of success.
+ * @param newSize The new size of the array
+ * @param type The datatype of the array members
+ * @return Returns UA_STATUSCODE_GOOD or UA_STATUSCODE_BADOUTOFMEMORY. The original array
+ *         is left untouched in the failure case. */
+UA_StatusCode UA_EXPORT
+UA_Array_resize(void **p, size_t *size, size_t newSize,
+                const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+
 /* Deletes an array.
  *
  * @param p The memory location of the array
  * @param size The size of the array
  * @param type The datatype of the array members */
-void UA_EXPORT UA_Array_delete(void *p, size_t size, const UA_DataType *type);
+void UA_EXPORT
+UA_Array_delete(void *p, size_t size, const UA_DataType *type);
 
 /**
  * Random Number Generator
