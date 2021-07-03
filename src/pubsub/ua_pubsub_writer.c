@@ -702,25 +702,27 @@ UA_DataSetFieldResult
 UA_Server_addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
                           const UA_DataSetFieldConfig *fieldConfig,
                           UA_NodeId *fieldIdentifier) {
-    UA_DataSetFieldResult result = {UA_STATUSCODE_BADINVALIDARGUMENT, {0, 0}};
-    if(!fieldConfig)
+    UA_DataSetFieldResult result = {0};
+    if(!fieldConfig) {
+        result.result = UA_STATUSCODE_BADINVALIDARGUMENT;
         return result;
+    }
 
-    UA_PublishedDataSet *currentDataSet =
+    UA_PublishedDataSet *currDS =
         UA_PublishedDataSet_findPDSbyId(server, publishedDataSet);
-    if(!currentDataSet) {
+    if(!currDS) {
         result.result = UA_STATUSCODE_BADNOTFOUND;
         return result;
     }
 
-    if(currentDataSet->configurationFrozen) {
+    if(currDS->configurationFrozen) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Adding DataSetField failed. PublishedDataSet is frozen.");
         result.result = UA_STATUSCODE_BADCONFIGURATIONERROR;
         return result;
     }
 
-    if(currentDataSet->config.publishedDataSetType != UA_PUBSUB_DATASET_PUBLISHEDITEMS) {
+    if(currDS->config.publishedDataSetType != UA_PUBSUB_DATASET_PUBLISHEDITEMS) {
         result.result = UA_STATUSCODE_BADNOTIMPLEMENTED;
         return result;
     }
@@ -738,68 +740,59 @@ UA_Server_addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
         return result;
     }
 
-    newField->publishedDataSet = currentDataSet->identifier;
+    newField->publishedDataSet = currDS->identifier;
 
-    /* Generate fieldMetadata within the DataSetMetaData */
-    currentDataSet->dataSetMetaData.fieldsSize++;
-    UA_FieldMetaData *fieldMetaData = (UA_FieldMetaData *)
-        UA_realloc(currentDataSet->dataSetMetaData.fields,
-                   currentDataSet->dataSetMetaData.fieldsSize * sizeof(UA_FieldMetaData));
-    if(!fieldMetaData) {
-        UA_DataSetFieldConfig_clear(&newField->config);
-        UA_free(newField);
-        result.result =  UA_STATUSCODE_BADOUTOFMEMORY;
-        return result;
-    }
-    currentDataSet->dataSetMetaData.fields = fieldMetaData;
-
-    UA_FieldMetaData *currentMetaData =
-        &fieldMetaData[currentDataSet->dataSetMetaData.fieldsSize-1];
-
-    /* Initialize. Also gnerates a FieldId */
-    UA_FieldMetaData_init(currentMetaData);
-    result.result = generateFieldMetaData(server, newField, currentMetaData);
+    /* Initialize the field metadata. Also generates a FieldId */
+    UA_FieldMetaData fmd;
+    UA_FieldMetaData_init(&fmd);
+    result.result = generateFieldMetaData(server, newField, &fmd);
     if(result.result != UA_STATUSCODE_GOOD) {
         UA_DataSetFieldConfig_clear(&newField->config);
         UA_free(newField);
         return result;
     }
 
-    /* Create the identifier */
-    newField->identifier = UA_NODEID_GUID(1, currentMetaData->dataSetFieldId);
+    /* Append to the metadata fields array. Point of last return. */
+    result.result = UA_Array_append((void**)&currDS->dataSetMetaData.fields,
+                                    &currDS->dataSetMetaData.fieldsSize,
+                                    &fmd, &UA_TYPES[UA_TYPES_FIELDMETADATA]);
+    if(result.result != UA_STATUSCODE_GOOD) {
+        UA_FieldMetaData_clear(&fmd);
+        UA_DataSetFieldConfig_clear(&newField->config);
+        UA_free(newField);
+        return result;
+    }
+
+    /* Copy the identifier from the metadata. Cannot fail with a guid NodeId. */
+    newField->identifier = UA_NODEID_GUID(1, fmd.dataSetFieldId);
     if(fieldIdentifier)
         UA_NodeId_copy(&newField->identifier, fieldIdentifier);
 
-    /* Update major version of parent published data set */
-    currentDataSet->dataSetMetaData.configurationVersion.majorVersion =
-        UA_PubSubConfigurationVersionTimeDifference();
-
-    /* Register. The order of DataSetFields should be the same in both creating
-     * and publishing. So adding DataSetFields at the the end of the DataSets
-     * using TAILQ structure */
-    if(currentDataSet->fieldSize != 0)
-        TAILQ_INSERT_TAIL(&currentDataSet->fields, newField, listEntry);
-    else
-        TAILQ_INSERT_HEAD(&currentDataSet->fields, newField, listEntry);
-    currentDataSet->fieldSize++;
+    /* Register the field. The order of DataSetFields should be the same in both
+     * creating and publishing. So adding DataSetFields at the the end of the
+     * DataSets using the TAILQ structure. */
+    TAILQ_INSERT_TAIL(&currDS->fields, newField, listEntry);
+    currDS->fieldSize++;
 
     if(newField->config.field.variable.promotedField)
-        currentDataSet->promotedFieldsCount++;
+        currDS->promotedFieldsCount++;
 
     /* The values of the metadata are "borrowed" in a mirrored structure in the
-     * pds. Reset them. */
-    UA_DataSetField *dsf;
+     * pds. Reset them after resizing the array. */
     size_t counter = 0;
-    TAILQ_FOREACH(dsf, &currentDataSet->fields, listEntry) {
-        dsf->fieldMetaData = fieldMetaData[counter++];
+    UA_DataSetField *dsf;
+    TAILQ_FOREACH(dsf, &currDS->fields, listEntry) {
+        dsf->fieldMetaData = currDS->dataSetMetaData.fields[counter++];
     }
 
-    /* Return */
-    result.result = retVal;
+    /* Update major version of parent published data set */
+    currDS->dataSetMetaData.configurationVersion.majorVersion =
+        UA_PubSubConfigurationVersionTimeDifference();
+
     result.configurationVersion.majorVersion =
-        currentDataSet->dataSetMetaData.configurationVersion.majorVersion;
+        currDS->dataSetMetaData.configurationVersion.majorVersion;
     result.configurationVersion.minorVersion =
-        currentDataSet->dataSetMetaData.configurationVersion.minorVersion;
+        currDS->dataSetMetaData.configurationVersion.minorVersion;
     return result;
 }
 
