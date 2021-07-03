@@ -215,95 +215,117 @@ UA_ByteString_fromBase64(UA_ByteString *bs,
     return UA_STATUSCODE_GOOD;
 }
 
-/* Config Parameters */
+/* Key Value Map */
 
 UA_StatusCode
-UA_ConfigParameter_setParameter(UA_ConfigParameter **cp, const char *name,
-                                const UA_Variant *parameter) {
+UA_KeyValueMap_setQualified(UA_KeyValuePair **map, size_t *mapSize,
+                            const UA_QualifiedName *key,
+                            const UA_Variant *value) {
     /* Parameter exists already */
-    const UA_Variant *param = UA_ConfigParameter_getParameter(*cp, name);
-    if(param) {
+    const UA_Variant *v = UA_KeyValueMap_getQualified(*map, *mapSize, key);
+    if(v) {
         UA_Variant copyV;
-        UA_StatusCode res = UA_Variant_copy(parameter, &copyV);
+        UA_StatusCode res = UA_Variant_copy(v, &copyV);
         if(res != UA_STATUSCODE_GOOD)
             return res;
-        UA_Variant_clear(&(*cp)->param);
-        (*cp)->param = copyV;
+        UA_Variant *target = (UA_Variant*)(uintptr_t)v;
+        UA_Variant_clear(target);
+        *target = copyV;
         return UA_STATUSCODE_GOOD;
     }
 
-    /* Create a new entry */
-    UA_ConfigParameter *cp2 = (UA_ConfigParameter*)
-        UA_malloc(sizeof(UA_ConfigParameter) + strlen(name) + 1);
-    if(!cp2)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    strcpy(cp2->name, name);
-    UA_StatusCode res = UA_Variant_copy(parameter, &cp2->param);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_free(cp2);
-        return res;
-    }
+    /* Append to the array */
+    UA_KeyValuePair pair;
+    pair.key = *key;
+    pair.value = *value;
+    return UA_Array_appendCopy((void**)map, mapSize, &pair,
+                               &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
+}
 
-    /* Add to linked list */
-    cp2->next = *cp;
-    *cp = cp2;
-    return UA_STATUSCODE_GOOD;
+UA_StatusCode
+UA_KeyValueMap_set(UA_KeyValuePair **map, size_t *mapSize,
+                   const char *key, const UA_Variant *value) {
+    UA_QualifiedName qnKey;
+    qnKey.namespaceIndex = 0;
+    qnKey.name = UA_STRING((char*)(uintptr_t)key);
+    return UA_KeyValueMap_setQualified(map, mapSize, &qnKey, value);
 }
 
 const UA_Variant *
-UA_ConfigParameter_getParameter(UA_ConfigParameter *cp, const char *name) {
-    while(cp) {
-        if(strcmp(name, cp->name) == 0)
-            return &cp->param;
-        cp = cp->next;
+UA_KeyValueMap_getQualified(UA_KeyValuePair *map, size_t mapSize,
+                            const UA_QualifiedName *key) {
+    for(size_t i = 0; i < mapSize; i++) {
+        if(map[i].key.namespaceIndex == key->namespaceIndex &&
+           UA_String_equal(&map[i].key.name, &key->name))
+            return &map[i].value;
+
     }
     return NULL;
 }
 
+const UA_Variant *
+UA_KeyValueMap_get(UA_KeyValuePair *map, size_t mapSize,
+                   const char *key) {
+    UA_QualifiedName qnKey;
+    qnKey.namespaceIndex = 0;
+    qnKey.name = UA_STRING((char*)(uintptr_t)key);
+    return UA_KeyValueMap_getQualified(map, mapSize, &qnKey);
+}
+
 /* Returns NULL if the parameter is not defined or not of the right datatype */
 const UA_Variant *
-UA_ConfigParameter_getScalarParameter(UA_ConfigParameter *cp, const char *name,
-                                      const UA_DataType *type) {
-    const UA_Variant *v = UA_ConfigParameter_getParameter(cp, name);
+UA_KeyValueMap_getScalar(UA_KeyValuePair *map, size_t mapSize,
+                         const char *key, const UA_DataType *type) {
+    const UA_Variant *v = UA_KeyValueMap_get(map, mapSize, key);
     if(!v || !UA_Variant_hasScalarType(v, type))
         return NULL;
     return v;
 }
 
 const UA_Variant *
-UA_ConfigParameter_getArrayParameter(UA_ConfigParameter *cp, const char *name,
-                                     const UA_DataType *type) {
-    const UA_Variant *v = UA_ConfigParameter_getParameter(cp, name);
+UA_KeyValueMap_getArray(UA_KeyValuePair *map, size_t mapSize,
+                        const char *key, const UA_DataType *type) {
+    const UA_Variant *v = UA_KeyValueMap_get(map, mapSize, key);
     if(!v || !UA_Variant_hasArrayType(v, type))
         return NULL;
     return v;
 }
 
 void
-UA_ConfigParameter_deleteParameter(UA_ConfigParameter **cp,
-                                   const char *name) {
-    UA_ConfigParameter **prevPtr = cp; /* the pointer to current from the previous */
-    UA_ConfigParameter *current = *cp;
-    while(current) {
-        if(strcmp(name, current->name) == 0) {
-            UA_Variant_clear(&current->param);
-            *prevPtr = current->next;
-            UA_free(current);
-            return;
+UA_KeyValueMap_deleteQualified(UA_KeyValuePair **map, size_t *mapSize,
+                               const UA_QualifiedName *key) {
+    UA_KeyValuePair *m = *map;
+    size_t s = *mapSize;
+    for(size_t i = 0; i < s; i++) {
+        if(m[i].key.namespaceIndex != key->namespaceIndex ||
+           !UA_String_equal(&m[i].key.name, &key->name))
+            continue;
+
+        /* Clean the pair */
+        UA_KeyValuePair_clear(&m[i]);
+
+        /* Move the last pair to fill the empty slot */
+        if(s > 1 && i < s - 1) {
+            m[i] = m[s-1];
+            UA_KeyValuePair_init(&m[s-1]);
         }
-        prevPtr = &current->next;
-        current = current->next;
+
+        UA_StatusCode res = UA_Array_resize((void**)map, mapSize, *mapSize-1,
+                                            &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
+        (void)res;
+        *mapSize = s - 1; /* In case resize fails, keep the longer original
+                           * array around. Resize never fails when reducing
+                           * the size to zero. Reduce the size integer in
+                           * any case. */
+        return;
     }
 }
 
 void
-UA_ConfigParameter_delete(UA_ConfigParameter **cp) {
-    UA_ConfigParameter *cp2 = *cp;
-    while(cp2) {
-        UA_ConfigParameter *cp3 = cp2->next;;
-        UA_Variant_clear(&cp2->param);
-        UA_free(cp2);
-        cp2 = cp3;
-    }
-    *cp = NULL;
+UA_KeyValueMap_delete(UA_KeyValuePair **map, size_t *mapSize,
+                      const char *key) {
+    UA_QualifiedName qnKey;
+    qnKey.namespaceIndex = 0;
+    qnKey.name = UA_STRING((char*)(uintptr_t)key);
+    UA_KeyValueMap_deleteQualified(map, mapSize, &qnKey);
 }
