@@ -282,9 +282,10 @@ UA_DataSetReader_generateNetworkMessage(UA_PubSubConnection *pubSubConnection, U
     UA_UInt16 *dsmLengths = (UA_UInt16 *) UA_calloc(dsmCount, sizeof(UA_UInt16));
     if(!dsmLengths)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    for(UA_Byte i = 0; i < dsmCount; i++)
+    for(UA_Byte i = 0; i < dsmCount; i++){
         dsmLengths[i] = (UA_UInt16) UA_DataSetMessage_calcSizeBinary(&dsm[i], NULL, 0);
-
+        dsm[i].header.fieldEncoding = UA_FIELDENCODING_UNKNOWN;
+    }
     nm->payloadHeader.dataSetPayloadHeader.count = dsmCount;
     nm->payloadHeader.dataSetPayloadHeader.dataSetWriterIds = writerId;
     nm->groupHeader.writerGroupId = dataSetReader->config.writerGroupId;
