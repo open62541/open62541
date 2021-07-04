@@ -1020,30 +1020,35 @@ generateWriterGroupDataType(const UA_WriterGroup *src,
 
 static UA_StatusCode
 generateDataSetReaderDataType(const UA_DataSetReader *src, UA_DataSetReaderDataType *dst) {
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
     memset(dst, 0, sizeof(UA_DataSetReaderDataType));
-    UA_StatusCode res = UA_String_copy(&src->config.name, &dst->name);
-    if(res != UA_STATUSCODE_GOOD)
-        return res;
-
-    UA_Variant_copy(&src->config.publisherId, &dst->publisherId);
     dst->writerGroupId = src->config.writerGroupId;
     dst->dataSetWriterId = src->config.dataSetWriterId;
-    UA_DataSetMetaDataType_copy(&src->config.dataSetMetaData, &dst->dataSetMetaData);
     dst->dataSetFieldContentMask = src->config.dataSetFieldContentMask;
     dst->messageReceiveTimeout = src->config.messageReceiveTimeout;
-    UA_ExtensionObject_copy(&src->config.messageSettings, &dst->messageSettings);
-    dst->subscribedDataSet.encoding = UA_EXTENSIONOBJECT_DECODED;
-    dst->subscribedDataSet.content.decoded.type = &UA_TYPES[UA_TYPES_TARGETVARIABLESDATATYPE];
-    dst->subscribedDataSet.content.decoded.data = (void*)UA_TargetVariablesDataType_new();
+    res |= UA_String_copy(&src->config.name, &dst->name);
+    res |= UA_Variant_copy(&src->config.publisherId, &dst->publisherId);
+    res |= UA_DataSetMetaDataType_copy(&src->config.dataSetMetaData, &dst->dataSetMetaData);
+    res |= UA_ExtensionObject_copy(&src->config.messageSettings, &dst->messageSettings);
+
     UA_TargetVariablesDataType *tmpTarget = UA_TargetVariablesDataType_new();
-    tmpTarget->targetVariablesSize = src->config.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize;
-    tmpTarget->targetVariables = (UA_FieldTargetDataType *)UA_calloc(tmpTarget->targetVariablesSize, sizeof(UA_FieldTargetDataType));
-    for(size_t index = 0; index < tmpTarget->targetVariablesSize; index++) {
-        UA_FieldTargetDataType_copy(&src->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[index].targetVariable, &tmpTarget->targetVariables[index]);
+    if(!tmpTarget)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    UA_ExtensionObject_setValue(&dst->subscribedDataSet, tmpTarget,
+                                &UA_TYPES[UA_TYPES_TARGETVARIABLESDATATYPE]);
+
+    const UA_TargetVariables *targets = &src->config.subscribedDataSet.subscribedDataSetTarget;
+    tmpTarget->targetVariables = (UA_FieldTargetDataType *)
+        UA_calloc(targets->targetVariablesSize, sizeof(UA_FieldTargetDataType));
+    if(!tmpTarget->targetVariables)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    tmpTarget->targetVariablesSize = targets->targetVariablesSize;
+
+    for(size_t i = 0; i < tmpTarget->targetVariablesSize; i++) {
+        res |= UA_FieldTargetDataType_copy(&targets->targetVariables[i].targetVariable,
+                                           &tmpTarget->targetVariables[i]);
     }
 
-    res = UA_copy(tmpTarget, dst->subscribedDataSet.content.decoded.data, 
-                  &UA_TYPES[UA_TYPES_TARGETVARIABLESDATATYPE]);
     return res;
 }
 
