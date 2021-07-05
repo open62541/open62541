@@ -667,6 +667,13 @@ typedef struct {
     UA_Int32 *keyServers;
 } UA_PubSubSecurityParameters;
 
+typedef enum {
+    UA_PUBSUB_RT_UNKNOWN = 0,
+    UA_PUBSUB_RT_VARIANT = 1,
+    UA_PUBSUB_RT_DATA_VALUE = 2,
+    UA_PUBSUB_RT_RAW = 4,
+} UA_PubSubRtEncoding;
+
 /* Parameters for PubSub DataSetReader Configuration */
 typedef struct {
     UA_String name;
@@ -685,6 +692,8 @@ typedef struct {
         UA_TargetVariables subscribedDataSetTarget;
         // UA_SubscribedDataSetMirrorDataType subscribedDataSetMirror;
     } subscribedDataSet;
+    /* non std. fields */
+    UA_PubSubRtEncoding expectedEncoding;
 } UA_DataSetReaderConfig;
 
 /* Update configuration to the dataSetReader */

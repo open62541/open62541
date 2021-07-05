@@ -284,7 +284,19 @@ UA_DataSetReader_generateNetworkMessage(UA_PubSubConnection *pubSubConnection, U
         return UA_STATUSCODE_BADOUTOFMEMORY;
     for(UA_Byte i = 0; i < dsmCount; i++){
         dsmLengths[i] = (UA_UInt16) UA_DataSetMessage_calcSizeBinary(&dsm[i], NULL, 0);
-        dsm[i].header.fieldEncoding = UA_FIELDENCODING_UNKNOWN;
+        switch(dataSetReader->config.expectedEncoding) {
+            case UA_PUBSUB_RT_UNKNOWN:
+                break;
+            case UA_PUBSUB_RT_VARIANT:
+                dsm[i].header.fieldEncoding = UA_FIELDENCODING_VARIANT;
+                break;
+            case UA_PUBSUB_RT_DATA_VALUE:
+                dsm[i].header.fieldEncoding = UA_FIELDENCODING_DATAVALUE;
+                break;
+            case UA_PUBSUB_RT_RAW:
+                dsm[i].header.fieldEncoding = UA_FIELDENCODING_RAWDATA;
+                break;
+        }
     }
     nm->payloadHeader.dataSetPayloadHeader.count = dsmCount;
     nm->payloadHeader.dataSetPayloadHeader.dataSetWriterIds = writerId;
@@ -1158,6 +1170,7 @@ UA_DataSetReaderConfig_copy(const UA_DataSetReaderConfig *src,
 
     dst->writerGroupId = src->writerGroupId;
     dst->dataSetWriterId = src->dataSetWriterId;
+    dst->expectedEncoding = src->expectedEncoding;
     retVal = UA_DataSetMetaDataType_copy(&src->dataSetMetaData, &dst->dataSetMetaData);
     if(retVal != UA_STATUSCODE_GOOD)
         return retVal;

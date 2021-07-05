@@ -34,6 +34,8 @@
 
 UA_NodeId publishedDataSetIdent, dataSetFieldIdent, writerGroupIdent, connectionIdentifier;
 UA_UInt32 *valueStore[PUBSUB_CONFIG_FIELD_COUNT];
+UA_DataValue *staticValueSource[PUBSUB_CONFIG_FIELD_COUNT];
+
 
 UA_Boolean running = true;
 static void stopHandler(int sign) {
@@ -145,17 +147,20 @@ int main(void) {
 
 #if defined PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS || defined PUBSUB_CONFIG_FASTPATH_STATIC_VALUES
     /* Add one DataSetField with static value source to PDS */
-    UA_DataValue *staticValueSource = UA_DataValue_new();
     UA_DataSetFieldConfig dsfConfig;
     for(size_t i = 0; i < PUBSUB_CONFIG_FIELD_COUNT; i++){
         memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));
+        staticValueSource[i] = UA_DataValue_new();
         /* Create Variant and configure as DataSetField source */
         UA_UInt32 *intValue = UA_UInt32_new();
         *intValue = (UA_UInt32) i * 1000;
         valueStore[i] = intValue;
-        UA_Variant_setScalar(&staticValueSource->value, intValue, &UA_TYPES[UA_TYPES_UINT32]);
+        UA_Variant_setScalar(&staticValueSource[i]->value, intValue, &UA_TYPES[UA_TYPES_UINT32]);
         dsfConfig.field.variable.rtValueSource.rtFieldSourceEnabled = UA_TRUE;
-        dsfConfig.field.variable.rtValueSource.staticValueSource = &staticValueSource;
+        dsfConfig.field.variable.rtValueSource.staticValueSource = &staticValueSource[i];
+        char str[12];
+        sprintf(str, "Field %zu", i);
+        dsfConfig.field.variable.fieldNameAlias = UA_STRING(str);
         UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent);
     }
 #endif
@@ -196,7 +201,9 @@ int main(void) {
     retval |= UA_Server_run(server, &running);
 
 #if defined PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS || defined PUBSUB_CONFIG_FASTPATH_STATIC_VALUES
-    UA_DataValue_delete(staticValueSource);
+    for(int i = 0; i < PUBSUB_CONFIG_FIELD_COUNT; ++i) {
+        UA_DataValue_clear(staticValueSource[i]);
+    }
 #endif
     UA_Server_delete(server);
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
