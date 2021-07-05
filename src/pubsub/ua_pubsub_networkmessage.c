@@ -72,9 +72,11 @@ UA_NetworkMessage_updateBufferedMessage(UA_NetworkMessageOffsetBuffer *buffer){
                 rv = UA_Variant_encodeBinary(&buffer->offsets[i].offsetData.value.value->value, &bufPos, bufEnd);
                 break;
             case UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW:
-                rv = UA_encodeBinary(&buffer->offsets[i].offsetData.value.value->value.data,
+                rv = UA_encodeBinary(buffer->offsets[i].offsetData.value.value->value.data,
                                      buffer->offsets[i].offsetData.value.value->value.type,
                                      &bufPos, &bufEnd, NULL, NULL);
+                break;
+            case UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_FIELDENCDODING:
                 break;
             default:
                 return UA_STATUSCODE_BADNOTSUPPORTED;
@@ -89,7 +91,7 @@ UA_NetworkMessage_updateBufferedNwMessage(UA_NetworkMessageOffsetBuffer *buffer,
     UA_StatusCode rv = UA_STATUSCODE_GOOD;
     size_t payloadCounter = 0;
     size_t offset = 0;
-    UA_DataSetMessage* dsm = buffer->nm->payload.dataSetPayload.dataSetMessages; // Considering one DSM in RT TODO: Clarify multiple DSM
+    UA_DataSetMessage* dsm = buffer->nm->payload.dataSetPayload.dataSetMessages; //Considering one DSM in RT TODO: Clarify multiple DSM
     UA_DataSetMessageHeader header;
     for (size_t i = 0; i < buffer->offsetsSize; ++i) {
         offset = buffer->offsets[i].offset + *bufferPosition;
@@ -144,13 +146,16 @@ UA_NetworkMessage_updateBufferedNwMessage(UA_NetworkMessageOffsetBuffer *buffer,
             payloadCounter++;
             break;
         case UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW:
-/*            rv = UA_Variant_decodeBinary(src, &offset,
-                                         &dsm->data.keyFrameData.dataSetFields[payloadCounter].value);
+            dsm->data.keyFrameData.rawFields.data = &src->data[offset];
+            //UA_calcSizeBinary(src->data, buffer->offsets[i].offsetData.value.value->value.type);
+            /*rv = UA_decodeBinary(src, &offset,
+                buffer->offsets[i].offsetData.value.value->value.data,
+                buffer->offsets[i].offsetData.value.value->value.type, NULL);
+
             if(rv != UA_STATUSCODE_GOOD)
-                return rv;
-            dsm->data.keyFrameData.dataSetFields[payloadCounter].hasValue = true;
-            payloadCounter++;*/
-            return UA_STATUSCODE_BADNOTSUPPORTED;
+                return rv;*/
+            payloadCounter++;
+            break;
         default:
             return UA_STATUSCODE_BADNOTSUPPORTED;
         }
@@ -1643,9 +1648,8 @@ UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage* p, UA_NetworkMessageOffsetBu
                         return 0;
                     offsetBuffer->offsets[pos].offset = size;
                     offsetBuffer->offsets[pos].contentType = UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW;
-                    //TODO check value source and alloc!
-                    //offsetBuffer->offsets[pos].offsetData.value.value = p->data.keyFrameData.dataSetFields;
                     offsetBuffer->offsets[pos].offsetData.value.value = UA_DataValue_new();
+                    //init offset buffer with the latest value
                     UA_Variant_setScalar(&offsetBuffer->offsets[pos].offsetData.value.value->value,
                                          p->data.keyFrameData.dataSetFields[i].value.data,
                                          p->data.keyFrameData.dataSetFields[i].value.type);
