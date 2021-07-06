@@ -25,6 +25,24 @@ typedef struct UA_SecurityPolicy UA_SecurityPolicy;
  * SecurityPolicy Interface Definition
  * ----------------------------------- */
 
+enum UA_PrivateKeyPasswordContextState {
+    UA_PRIVATEKEYPASSWORDCONTEXTSTATE_INITIAL = 0,
+    UA_PRIVATEKEYPASSWORDCONTEXTSTATE_ERROR = 1,
+    UA_PRIVATEKEYPASSWORDCONTEXTSTATE_SUCCESSFUL = 2
+};
+typedef enum UA_PrivateKeyPasswordContextState UA_PrivateKeyPasswordContextState;
+
+typedef UA_String (*UA_PrivateKeyPasswordCallback)(UA_PrivateKeyPasswordContextState state,
+                                                   UA_Boolean *doRetry,  void *context);
+
+struct UA_PrivateKeyPasswordContext {
+    UA_PrivateKeyPasswordCallback getPassword;
+    UA_String password;
+    enum UA_PrivateKeyPasswordContextState state;
+    void *context;
+};
+typedef struct UA_PrivateKeyPasswordContext UA_PrivateKeyPasswordContext;
+
 typedef struct {
     UA_String uri;
 
@@ -318,6 +336,9 @@ struct UA_SecurityPolicy {
 
     /* Deletes the dynamic content of the policy */
     void (*clear)(UA_SecurityPolicy *policy);
+
+    // The context for the password callback
+    UA_PrivateKeyPasswordContext *privateKeyPasswordContext;
 };
 
 /**

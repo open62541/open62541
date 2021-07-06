@@ -502,7 +502,7 @@ UA_ServerConfig_addSecurityPolicyBasic128Rsa15(UA_ServerConfig *config,
        localPrivateKey = *privateKey;
     UA_StatusCode retval =
         UA_SecurityPolicy_Basic128Rsa15(&config->securityPolicies[config->securityPoliciesSize],
-                                        localCertificate, localPrivateKey, &config->logger);
+                                        localCertificate, localPrivateKey, NULL, &config->logger);
     if(retval != UA_STATUSCODE_GOOD) {
         if(config->securityPoliciesSize == 0) {
             UA_free(config->securityPolicies);
@@ -536,7 +536,7 @@ UA_ServerConfig_addSecurityPolicyBasic256(UA_ServerConfig *config,
        localPrivateKey = *privateKey;
     UA_StatusCode retval =
         UA_SecurityPolicy_Basic256(&config->securityPolicies[config->securityPoliciesSize],
-                                   localCertificate, localPrivateKey, &config->logger);
+                                   localCertificate, localPrivateKey, NULL, &config->logger);
     if(retval != UA_STATUSCODE_GOOD) {
         if(config->securityPoliciesSize == 0) {
             UA_free(config->securityPolicies);
@@ -570,7 +570,7 @@ UA_ServerConfig_addSecurityPolicyBasic256Sha256(UA_ServerConfig *config,
        localPrivateKey = *privateKey;
     UA_StatusCode retval =
         UA_SecurityPolicy_Basic256Sha256(&config->securityPolicies[config->securityPoliciesSize],
-                                         localCertificate, localPrivateKey, &config->logger);
+                                         localCertificate, localPrivateKey, NULL, &config->logger);
     if(retval != UA_STATUSCODE_GOOD) {
         if(config->securityPoliciesSize == 0) {
             UA_free(config->securityPolicies);
@@ -604,7 +604,7 @@ UA_ServerConfig_addSecurityPolicyAes128Sha256RsaOaep(UA_ServerConfig *config,
        localPrivateKey = *privateKey;
     UA_StatusCode retval =
         UA_SecurityPolicy_Aes128Sha256RsaOaep(&config->securityPolicies[config->securityPoliciesSize],
-                                              localCertificate, localPrivateKey, &config->logger);
+                                              localCertificate, localPrivateKey, NULL, &config->logger);
     if(retval != UA_STATUSCODE_GOOD) {
         if(config->securityPoliciesSize == 0) {
             UA_free(config->securityPolicies);
@@ -810,10 +810,14 @@ UA_StatusCode
 UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
                                      UA_ByteString localCertificate, UA_ByteString privateKey,
                                      const UA_ByteString *trustList, size_t trustListSize,
-                                     const UA_ByteString *revocationList, size_t revocationListSize) {
+                                     const UA_ByteString *revocationList, size_t revocationListSize,
+                                     UA_PrivateKeyPasswordCallback passwordCallback, void *passwordCallbackContext) {
     UA_StatusCode retval = UA_ClientConfig_setDefault(config);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
+
+    config->privateKeyPasswordContext.getPassword = passwordCallback;
+    config->privateKeyPasswordContext.context = passwordCallbackContext;
 
     retval = UA_CertificateVerification_Trustlist(&config->certificateVerification,
                                                   trustList, trustListSize,
@@ -828,9 +832,10 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
     if(!sp)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     config->securityPolicies = sp;
-                  
+
     retval = UA_SecurityPolicy_Basic128Rsa15(&config->securityPolicies[config->securityPoliciesSize],
-                                             localCertificate, privateKey, &config->logger);
+                                             localCertificate, privateKey, &config->privateKeyPasswordContext,
+                                             &config->logger);
     if(retval == UA_STATUSCODE_GOOD) {
         ++config->securityPoliciesSize;
     } else {
@@ -840,7 +845,8 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
     }
 
     retval = UA_SecurityPolicy_Basic256(&config->securityPolicies[config->securityPoliciesSize],
-                                        localCertificate, privateKey, &config->logger);
+                                        localCertificate, privateKey, &config->privateKeyPasswordContext,
+                                        &config->logger);
     if(retval == UA_STATUSCODE_GOOD) {
         ++config->securityPoliciesSize;
     } else {
@@ -850,7 +856,8 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
     }
 
     retval = UA_SecurityPolicy_Basic256Sha256(&config->securityPolicies[config->securityPoliciesSize],
-                                              localCertificate, privateKey, &config->logger);
+                                              localCertificate, privateKey, &config->privateKeyPasswordContext,
+                                              &config->logger);
     if(retval == UA_STATUSCODE_GOOD) {
         ++config->securityPoliciesSize;
     } else {
@@ -860,7 +867,8 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
     }
 
     retval = UA_SecurityPolicy_Aes128Sha256RsaOaep(&config->securityPolicies[config->securityPoliciesSize],
-                                                   localCertificate, privateKey, &config->logger);
+                                                   localCertificate, privateKey, &config->privateKeyPasswordContext,
+                                                   &config->logger);
     if(retval == UA_STATUSCODE_GOOD) {
         ++config->securityPoliciesSize;
     } else {

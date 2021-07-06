@@ -202,7 +202,7 @@ UA_Client *getRegisterClient(UA_EndpointDescription *endpointRegister, int argc,
     UA_ClientConfig *cc = UA_Client_getConfig(clientRegister);
     UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
                                          trustList, trustListSize,
-                                         revocationList, revocationListSize);
+                                         revocationList, revocationListSize, NULL, NULL);
     cc->securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
 
     UA_ByteString_clear(&certificate);

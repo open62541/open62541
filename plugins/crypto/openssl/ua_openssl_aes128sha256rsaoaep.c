@@ -60,7 +60,7 @@ UA_Policy_Aes128Sha256RsaOaep_New_Context(UA_SecurityPolicy *securityPolicy,
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
-    context->localPrivateKey = UA_OpenSSL_LoadPrivateKey(&localPrivateKey);
+    context->localPrivateKey = UA_OpenSSL_LoadPrivateKey(&localPrivateKey, securityPolicy);
     if (!context->localPrivateKey) {
         UA_free(context);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -507,6 +507,7 @@ UA_StatusCode
 UA_SecurityPolicy_Aes128Sha256RsaOaep(UA_SecurityPolicy *policy,
                                       const UA_ByteString localCertificate,
                                       const UA_ByteString localPrivateKey,
+                                      UA_PrivateKeyPasswordContext *privateKeyPasswordContext,
                                       const UA_Logger *logger) {
 
     UA_SecurityPolicyAsymmetricModule *const asymmetricModule = &policy->asymmetricModule;
@@ -522,6 +523,8 @@ UA_SecurityPolicy_Aes128Sha256RsaOaep(UA_SecurityPolicy *policy,
     policy->logger = logger;
     policy->policyUri =
         UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Aes128_Sha256_RsaOaep\0");
+
+    policy->privateKeyPasswordContext = privateKeyPasswordContext;
 
     /* set ChannelModule context  */
 

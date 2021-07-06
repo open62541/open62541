@@ -23,7 +23,9 @@ UA_StatusCode UA_EXPORT
 UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
                                      UA_ByteString localCertificate, UA_ByteString privateKey,
                                      const UA_ByteString *trustList, size_t trustListSize,
-                                     const UA_ByteString *revocationList, size_t revocationListSize);
+                                     const UA_ByteString *revocationList, size_t revocationListSize,
+                                     UA_PrivateKeyPasswordCallback passwordCallback,
+                                     void *passwordCallbackContext);
 #endif
 
 _UA_END_DECLS

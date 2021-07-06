@@ -126,7 +126,7 @@ UA_OpenSSL_AES_128_CBC_Encrypt(const UA_ByteString *iv,
                                UA_ByteString *data  /* [in/out]*/);
 
 EVP_PKEY *
-UA_OpenSSL_LoadPrivateKey(const UA_ByteString *privateKey);
+UA_OpenSSL_LoadPrivateKey(const UA_ByteString *privateKey, UA_SecurityPolicy *policy);
 
 X509 *
 UA_OpenSSL_LoadCertificate(const UA_ByteString *certificate);

@@ -46,7 +46,7 @@ int main(int argc, char* argv[]) {
     cc->securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
     UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
                                          trustList, trustListSize,
-                                         revocationList, revocationListSize);
+                                         revocationList, revocationListSize, NULL, NULL);
 
     UA_ByteString_clear(&certificate);
     UA_ByteString_clear(&privateKey);

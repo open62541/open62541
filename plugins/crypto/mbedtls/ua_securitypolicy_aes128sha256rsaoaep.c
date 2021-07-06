@@ -658,7 +658,7 @@ policyContext_newContext_sp_aes128sha256rsaoaep(UA_SecurityPolicy *securityPolic
     }
 
     /* Set the private key */
-    mbedErr = UA_mbedTLS_LoadPrivateKey(&localPrivateKey, &pc->localPrivateKey);
+    mbedErr = UA_mbedTLS_LoadPrivateKey(&localPrivateKey, &pc->localPrivateKey, securityPolicy);
     if(mbedErr) {
         retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         goto error;
@@ -686,9 +686,12 @@ error:
 
 UA_StatusCode
 UA_SecurityPolicy_Aes128Sha256RsaOaep(UA_SecurityPolicy *policy, const UA_ByteString localCertificate,
-                                 const UA_ByteString localPrivateKey, const UA_Logger *logger) {
+                                 const UA_ByteString localPrivateKey,
+                                      UA_PrivateKeyPasswordContext *privateKeyPasswordContext, const UA_Logger *logger) {
     memset(policy, 0, sizeof(UA_SecurityPolicy));
     policy->logger = logger;
+
+    policy->privateKeyPasswordContext = privateKeyPasswordContext;
 
     policy->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Aes128_Sha256_RsaOaep");
 

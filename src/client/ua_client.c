@@ -82,6 +82,10 @@ UA_ClientConfig_clear(UA_ClientConfig *config) {
     }
     config->sessionLocaleIds = NULL;
     config->sessionLocaleIdsSize = 0;
+
+#ifdef UA_ENABLE_ENCRYPTION
+    UA_String_clear(&config->privateKeyPasswordContext.password);
+#endif
 }
 
 static void

@@ -241,10 +241,39 @@ mbedtls_decrypt_rsaOaep(mbedtls_pk_context *localPrivateKey,
     return UA_STATUSCODE_GOOD;
 }
 
-int UA_mbedTLS_LoadPrivateKey(const UA_ByteString *key, mbedtls_pk_context *target)
+int UA_mbedTLS_LoadPrivateKey(const UA_ByteString *key, mbedtls_pk_context *target, const UA_SecurityPolicy *policy)
 {
     UA_ByteString data = UA_mbedTLS_CopyDataFormatAware(key);
     int mbedErr = mbedtls_pk_parse_key(target, data.data, data.length, NULL, 0);
+
+    if (mbedErr == MBEDTLS_ERR_PK_PASSWORD_REQUIRED && policy->privateKeyPasswordContext &&
+            policy->privateKeyPasswordContext->getPassword) {
+        UA_Boolean retry = false;
+
+        if (policy->privateKeyPasswordContext->state == UA_PRIVATEKEYPASSWORDCONTEXTSTATE_SUCCESSFUL &&
+                policy->privateKeyPasswordContext->password.length) {
+            mbedErr = mbedtls_pk_parse_key(target, data.data,
+                                           data.length, policy->privateKeyPasswordContext->password.data,
+                                           policy->privateKeyPasswordContext->password.length);
+        }
+
+        if (mbedErr) {
+            do {
+                UA_String_clear(&policy->privateKeyPasswordContext->password);
+
+                policy->privateKeyPasswordContext->password =
+                        policy->privateKeyPasswordContext->getPassword(policy->privateKeyPasswordContext->state,
+                                                                       &retry,
+                                                                       policy->privateKeyPasswordContext->context);
+                mbedErr = mbedtls_pk_parse_key(target, data.data, data.length,
+                                               policy->privateKeyPasswordContext->password.data,
+                                               policy->privateKeyPasswordContext->password.length);
+                policy->privateKeyPasswordContext->state =
+                        mbedErr ? UA_PRIVATEKEYPASSWORDCONTEXTSTATE_ERROR : UA_PRIVATEKEYPASSWORDCONTEXTSTATE_SUCCESSFUL;
+            } while (retry && mbedErr == MBEDTLS_ERR_PK_PASSWORD_MISMATCH);
+        }
+    }
+
     UA_ByteString_clear(&data);
 
     return mbedErr;

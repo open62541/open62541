@@ -51,7 +51,7 @@ UA_Policy_Basic256_New_Context (UA_SecurityPolicy * securityPolicy,
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
     
-    context->localPrivateKey = UA_OpenSSL_LoadPrivateKey(&localPrivateKey);
+    context->localPrivateKey = UA_OpenSSL_LoadPrivateKey(&localPrivateKey, securityPolicy);
 
     if (!context->localPrivateKey) {
         UA_free (context);
@@ -497,10 +497,11 @@ UA_SymSig_Basic256_Sign (void *                    channelContext,
 /* the main entry of Basic256 */
 
 UA_StatusCode
-UA_SecurityPolicy_Basic256 (UA_SecurityPolicy * policy,
-                            const UA_ByteString localCertificate,
-                            const UA_ByteString localPrivateKey, 
-                            const UA_Logger *   logger) {
+UA_SecurityPolicy_Basic256(UA_SecurityPolicy * policy,
+                           const UA_ByteString localCertificate,
+                           const UA_ByteString localPrivateKey,
+                           UA_PrivateKeyPasswordContext *privateKeyPasswordContext,
+                           const UA_Logger *   logger) {
     UA_SecurityPolicyAsymmetricModule * const asymmetricModule = &policy->asymmetricModule;
     UA_SecurityPolicySymmetricModule * const  symmetricModule = &policy->symmetricModule; 
     UA_SecurityPolicyChannelModule * const    channelModule = &policy->channelModule;  
@@ -513,6 +514,8 @@ UA_SecurityPolicy_Basic256 (UA_SecurityPolicy * policy,
     memset(policy, 0, sizeof(UA_SecurityPolicy));
     policy->logger = logger;
     policy->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Basic256\0");
+
+    policy->privateKeyPasswordContext = privateKeyPasswordContext;
 
     /* set ChannelModule context  */
 

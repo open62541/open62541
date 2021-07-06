@@ -533,9 +533,7 @@ updateCertificateAndPrivateKey_sp_basic256(UA_SecurityPolicy *securityPolicy,
     /* Set the new private key */
     mbedtls_pk_free(&pc->localPrivateKey);
     mbedtls_pk_init(&pc->localPrivateKey);
-
-    int mbedErr = UA_mbedTLS_LoadPrivateKey(&newPrivateKey, &pc->localPrivateKey);
-
+    int mbedErr = UA_mbedTLS_LoadPrivateKey(&newPrivateKey, &pc->localPrivateKey, securityPolicy);
     if(mbedErr) {
         retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         goto error;
@@ -613,7 +611,7 @@ policyContext_newContext_sp_basic256(UA_SecurityPolicy *securityPolicy,
     }
 
     /* Set the private key */
-    mbedErr = UA_mbedTLS_LoadPrivateKey(&localPrivateKey, &pc->localPrivateKey);
+    mbedErr = UA_mbedTLS_LoadPrivateKey(&localPrivateKey, &pc->localPrivateKey, securityPolicy);
     if(mbedErr) {
         retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         goto error;
@@ -641,9 +639,12 @@ error:
 
 UA_StatusCode
 UA_SecurityPolicy_Basic256(UA_SecurityPolicy *policy, const UA_ByteString localCertificate,
-                           const UA_ByteString localPrivateKey, const UA_Logger *logger) {
+                           const UA_ByteString localPrivateKey,
+                           UA_PrivateKeyPasswordContext * privateKeyPasswordContext, const UA_Logger *logger) {
     memset(policy, 0, sizeof(UA_SecurityPolicy));
     policy->logger = logger;
+
+    policy->privateKeyPasswordContext = privateKeyPasswordContext;
 
     policy->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Basic256\0");
 

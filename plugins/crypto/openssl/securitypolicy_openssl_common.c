@@ -880,8 +880,42 @@ UA_OpenSSL_AES_128_CBC_Encrypt (const UA_ByteString * iv,
     return UA_OpenSSL_Encrypt (iv, key, EVP_aes_128_cbc (), data);
 }
 
+struct PrivateKeyPasswordCallbackUserData {
+    UA_PrivateKeyPasswordContext *context;
+    UA_Boolean retry;
+};
+
+static int PrivateKeyPasswordCallback(char *buf, int size, int rwflag, void *userdata) {
+    (void) rwflag;
+
+    struct PrivateKeyPasswordCallbackUserData *context = (struct PrivateKeyPasswordCallbackUserData *) userdata;
+
+    size_t passwordSize = 0;
+
+    if (context && context->context && context->context->getPassword) {
+        if (context->context->state == UA_PRIVATEKEYPASSWORDCONTEXTSTATE_SUCCESSFUL &&
+                context->context->password.length) {
+            passwordSize = (size_t) size < context->context->password.length ?
+                        (size_t) size : context->context->password.length;
+            memcpy(buf, context->context->password.data, passwordSize);
+            return (int) passwordSize;
+        }
+
+        UA_String_clear(&context->context->password);
+
+        context->context->password = context->context->getPassword(context->context->state, &context->retry,
+                                                                        context->context->context);
+        if (context->context->password.length) {
+            passwordSize = (size_t) size < context->context->password.length ? (size_t) size : context->context->password.length;
+            memcpy(buf, context->context->password.data, passwordSize);
+        }
+    }
+
+    return (int) passwordSize;
+}
+
 EVP_PKEY *
-UA_OpenSSL_LoadPrivateKey(const UA_ByteString *privateKey) {
+UA_OpenSSL_LoadPrivateKey(const UA_ByteString *privateKey, UA_SecurityPolicy *policy) {
     const unsigned char * pkData = privateKey->data;
     long len = (long) privateKey->length;
 
@@ -897,7 +931,28 @@ UA_OpenSSL_LoadPrivateKey(const UA_ByteString *privateKey) {
 #else
         bio = BIO_new_mem_buf((const void *) privateKey->data, (int) privateKey->length);
 #endif
-        result = PEM_read_bio_PrivateKey(bio, NULL, NULL, NULL);
+        struct PrivateKeyPasswordCallbackUserData userData;
+        userData.context = policy->privateKeyPasswordContext;
+        userData.retry = false;
+
+        if (policy->privateKeyPasswordContext &&
+                policy->privateKeyPasswordContext->state == UA_PRIVATEKEYPASSWORDCONTEXTSTATE_SUCCESSFUL &&
+                policy->privateKeyPasswordContext->password.length) {
+            result = PEM_read_bio_PrivateKey(bio, NULL, PrivateKeyPasswordCallback, &userData);
+            policy->privateKeyPasswordContext->state = result ?
+                        UA_PRIVATEKEYPASSWORDCONTEXTSTATE_SUCCESSFUL : UA_PRIVATEKEYPASSWORDCONTEXTSTATE_ERROR;
+        }
+
+        if (!result) {
+            do {
+                (void)BIO_reset(bio);
+                result = PEM_read_bio_PrivateKey(bio, NULL, PrivateKeyPasswordCallback, &userData);
+                if (policy->privateKeyPasswordContext)
+                    policy->privateKeyPasswordContext->state = result ?
+                                UA_PRIVATEKEYPASSWORDCONTEXTSTATE_SUCCESSFUL : UA_PRIVATEKEYPASSWORDCONTEXTSTATE_ERROR;
+            } while ((!result && userData.retry && ERR_GET_REASON(ERR_peek_last_error()) == PEM_R_BAD_DECRYPT));
+        }
+
         BIO_free(bio);
     }
 

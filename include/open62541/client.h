@@ -165,6 +165,10 @@ typedef struct {
 
     UA_LocaleId *sessionLocaleIds;
     size_t sessionLocaleIdsSize;
+
+#ifdef UA_ENABLE_ENCRYPTION
+    UA_PrivateKeyPasswordContext privateKeyPasswordContext;
+#endif
 } UA_ClientConfig;
 
  /**
