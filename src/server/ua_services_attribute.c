@@ -53,9 +53,28 @@ getUserWriteMask(UA_Server *server, const UA_Session *session,
 static UA_Byte
 getAccessLevel(UA_Server *server, const UA_Session *session,
                const UA_VariableNode *node) {
+    if(node->head.attributeCallbackMask & UA_ATTRIBUTEID_ACCESSLEVEL) {
+        UA_DataValue value;
+        UA_DataValue_init(&value);
+        UA_StatusCode retval = node->head.attributeCallback(
+            server, &session->sessionId, session->sessionHandle, &node->head.nodeId,
+            node->head.context, UA_ATTRIBUTEID_ACCESSLEVEL, &value);
+        if(UA_STATUSCODE_GOOD == retval) {
+            return *(UA_Byte*)value.value.data;
+        } else {
+            return 0x00;
+        }
+    } else {
+        return node->accessLevel;
+    }
+}
+
+static UA_Byte
+getAccessLevelConsiderAdmin(UA_Server *server, const UA_Session *session,
+               const UA_VariableNode *node) {
     if(session == &server->adminSession)
         return 0xFF; /* the local admin user has all rights */
-    return node->accessLevel;
+    return getAccessLevel(server, session, node);
 }
 
 static UA_Byte
@@ -63,7 +82,7 @@ getUserAccessLevel(UA_Server *server, const UA_Session *session,
                    const UA_VariableNode *node) {
     if(session == &server->adminSession)
         return 0xFF; /* the local admin user has all rights */
-    UA_Byte retval = node->accessLevel;
+    UA_Byte retval = getAccessLevel(server, session, node)
     UA_UNLOCK(&server->serviceMutex);
     retval &= server->config.accessControl.
         getUserAccessLevel(server, &server->config.accessControl,
@@ -333,6 +352,14 @@ getStructureDefinition(const UA_DataType *type, UA_StructureDefinition *def) {
 }
 #endif
 
+#define CHECK_AND_INVOKE_ATTRIBUTE_CALLBACK(ATTRIBUTE)                                                      \
+    if(node->head.attributeCallbackMask & (ATTRIBUTE))                                                      \
+    {                                                                                                       \
+        retval = node->head.attributeCallback(server, &session->sessionId, &node, &node->head.nodeId,       \
+                                 node->head.context, (ATTRIBUTE), v);                                       \
+                break;                                                                                      \
+    }
+
 /* Returns a datavalue that may point into the node via the
  * UA_VARIANT_DATA_NODELETE tag. Don't access the returned DataValue once the
  * node has been released! */
@@ -381,6 +408,7 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
                                           &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
         break;
     case UA_ATTRIBUTEID_DISPLAYNAME:
+        CHECK_AND_INVOKE_ATTRIBUTE_CALLBACK(UA_ATTRIBUTEID_DISPLAYNAME);
         retval = UA_Variant_setScalarCopy(&v->value, &node->head.displayName,
                                           &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
         break;
@@ -432,7 +460,7 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
         if(node->head.nodeClass == UA_NODECLASS_VARIABLE) {
             /* The access to a value variable is granted via the AccessLevel
              * and UserAccessLevel attributes */
-            UA_Byte accessLevel = getAccessLevel(server, session, &node->variableNode);
+            UA_Byte accessLevel = getAccessLevelConsiderAdmin(server, session, &node->variableNode);
             if(!(accessLevel & (UA_ACCESSLEVELMASK_READ))) {
                 retval = UA_STATUSCODE_BADNOTREADABLE;
                 break;
@@ -463,11 +491,12 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
                                          node->variableTypeNode.arrayDimensionsSize,
                                          &UA_TYPES[UA_TYPES_UINT32]);
         break;
-    case UA_ATTRIBUTEID_ACCESSLEVEL:
+    case UA_ATTRIBUTEID_ACCESSLEVEL: {
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE);
-        retval = UA_Variant_setScalarCopy(&v->value, &node->variableNode.accessLevel,
-                                          &UA_TYPES[UA_TYPES_BYTE]);
-        break;
+        UA_Byte accessLevel = getAccessLevel(server, session, &node->variableNode);
+        retval =
+            UA_Variant_setScalarCopy(&v->value, &accessLevel, &UA_TYPES[UA_TYPES_BYTE]);
+        break; }
     case UA_ATTRIBUTEID_USERACCESSLEVEL: {
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE);
         UA_Byte userAccessLevel = getUserAccessLevel(server, session, &node->variableNode);
@@ -1536,7 +1565,7 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
         if(node->head.nodeClass == UA_NODECLASS_VARIABLE) {
             /* The access to a value variable is granted via the AccessLevel
              * and UserAccessLevel attributes */
-            UA_Byte accessLevel = getAccessLevel(server, session, &node->variableNode);
+            UA_Byte accessLevel = getAccessLevelConsiderAdmin(server, session, &node->variableNode);
             if(!(accessLevel & (UA_ACCESSLEVELMASK_WRITE))) {
                 retval = UA_STATUSCODE_BADNOTWRITABLE;
                 break;

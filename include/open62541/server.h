@@ -1011,6 +1011,13 @@ UA_Server_setVariableNode_valueBackend(UA_Server *server,
                                        const UA_NodeId nodeId,
                                        const UA_ValueBackend valueBackend);
 
+/* Sets a callback for providing the access level on a variable node
+*/
+
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_setNode_attributeCallback(UA_Server *server, const UA_NodeId nodeId, UA_UInt32 attributeMask,
+                                     const UA_AttributeCallback attributeCallback);
+
 /**
  * .. _local-monitoreditems:
  *
