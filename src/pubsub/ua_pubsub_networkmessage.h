@@ -220,6 +220,7 @@ typedef struct {
     size_t offsetsSize;
     UA_Boolean RTsubscriberEnabled; /* Addtional offsets computation like publisherId, WGId if this bool enabled */
     UA_NetworkMessage *nm; /* The precomputed NetworkMessage for subscriber */
+    size_t rawMessageLength;
 } UA_NetworkMessageOffsetBuffer;
 
 /**

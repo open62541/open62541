@@ -93,6 +93,8 @@ UA_NetworkMessage_updateBufferedNwMessage(UA_NetworkMessageOffsetBuffer *buffer,
     size_t offset = 0;
     UA_DataSetMessage* dsm = buffer->nm->payload.dataSetPayload.dataSetMessages; //Considering one DSM in RT TODO: Clarify multiple DSM
     UA_DataSetMessageHeader header;
+    size_t smallestRawOffset = UA_UINT32_MAX;
+
     for (size_t i = 0; i < buffer->offsetsSize; ++i) {
         offset = buffer->offsets[i].offset + *bufferPosition;
         switch (buffer->offsets[i].contentType) {
@@ -146,22 +148,25 @@ UA_NetworkMessage_updateBufferedNwMessage(UA_NetworkMessageOffsetBuffer *buffer,
             payloadCounter++;
             break;
         case UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW:
-            dsm->data.keyFrameData.rawFields.data = &src->data[offset];
-            //UA_calcSizeBinary(src->data, buffer->offsets[i].offsetData.value.value->value.type);
-            /*rv = UA_decodeBinary(src, &offset,
-                buffer->offsets[i].offsetData.value.value->value.data,
-                buffer->offsets[i].offsetData.value.value->value.type, NULL);
-
-            if(rv != UA_STATUSCODE_GOOD)
-                return rv;*/
+            /* We need only the start address of the raw fields */
+            if (smallestRawOffset > offset){
+                smallestRawOffset = offset;
+                dsm->data.keyFrameData.rawFields.data = &src->data[offset];
+                dsm->data.keyFrameData.rawFields.length = buffer->rawMessageLength;
+            }
             payloadCounter++;
             break;
         default:
             return UA_STATUSCODE_BADNOTSUPPORTED;
         }
-        //Solution --> Buffer for more than one encoding type, rule selection based on the encoding fields
     }
-    *bufferPosition = offset;
+    //check if the frame is of type "raw" payload
+    if(smallestRawOffset != UA_UINT32_MAX){
+        *bufferPosition = smallestRawOffset + buffer->rawMessageLength;
+    } else {
+        *bufferPosition = offset;
+    }
+
     return rv;
 }
 
@@ -1654,6 +1659,8 @@ UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage* p, UA_NetworkMessageOffsetBu
                                          p->data.keyFrameData.dataSetFields[i].value.data,
                                          p->data.keyFrameData.dataSetFields[i].value.type);
                     offsetBuffer->offsets[pos].offsetData.value.value->value.storageType = UA_VARIANT_DATA_NODELETE;
+                    //count the memory size of the specific field
+                    offsetBuffer->rawMessageLength += p->data.keyFrameData.dataSetFields[i].value.type->memSize;
                 }
                 size += UA_calcSizeBinary(p->data.keyFrameData.dataSetFields[i].value.data,
                                           p->data.keyFrameData.dataSetFields[i].value.type);

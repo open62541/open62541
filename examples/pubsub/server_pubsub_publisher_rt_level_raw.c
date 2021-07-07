@@ -138,7 +138,6 @@ int main(void) {
     dataSetWriterConfig.name = UA_STRING("Demo DataSetWriter");
     dataSetWriterConfig.dataSetWriterId = 62541;
     dataSetWriterConfig.keyFrameCount = 10;
-    dataSetWriterConfig.dataSetFieldContentMask = UA_DATASETFIELDCONTENTMASK_RAWDATA;
 
     /* Encode fields as RAW-Encoded */
     dataSetWriterConfig.dataSetFieldContentMask = UA_DATASETFIELDCONTENTMASK_RAWDATA;

@@ -769,6 +769,9 @@ UA_Server_unfreezeReaderGroupConfiguration(UA_Server *server, const UA_NodeId re
             for (size_t i = 0; i < dataSetReader->bufferedMessage.offsetsSize; i++) {
                 if(dataSetReader->bufferedMessage.offsets[i].contentType == UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT){
                     UA_DataValue_delete(dataSetReader->bufferedMessage.offsets[i].offsetData.value.value);
+                } else if(dataSetReader->bufferedMessage.offsets[i].contentType == UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_FIELDENCDODING){
+                    dataSetReader->bufferedMessage.offsets[i].offsetData.value.value->value.data = NULL;
+                    UA_DataValue_delete(dataSetReader->bufferedMessage.offsets[i].offsetData.value.value);
                 }
             }
 
@@ -1495,28 +1498,68 @@ UA_DataSetReader_process(UA_Server *server,
                 (UA_UInt16) dataSetReader->config.dataSetMetaData.fieldsSize;
 
             size_t offset = 0;
-            for(size_t i = 0; i < dataSetReader->config.dataSetMetaData.fieldsSize; i++){
-                //TODO The datatype reference should be part of the internal pubsub configuration
-                //to avoid the time-expensive lookup
-                const UA_DataType *currentType =
-                    UA_findDataTypeWithCustom(&dataSetReader->config.dataSetMetaData.fields[i].dataType,
-                                              server->config.customDataTypes);
+            for(size_t i = 0; i < dataSetReader->config.dataSetMetaData.fieldsSize; i++) {
+                // TODO The datatype reference should be part of the internal pubsub configuration to avoid the time-expensive lookup
+                const UA_DataType *currentType = UA_findDataTypeWithCustom(
+                    &dataSetReader->config.dataSetMetaData.fields[i].dataType,
+                    server->config.customDataTypes);
                 dataSetMsg->data.keyFrameData.rawFields.length += currentType->memSize;
                 UA_STACKARRAY(UA_Byte, decodedType, currentType->memSize);
                 UA_StatusCode retVal;
                 retVal = UA_decodeBinary(&dataSetMsg->data.keyFrameData.rawFields,
-                                &offset, decodedType,
-                                currentType, NULL);
+                                         &offset, decodedType, currentType, NULL);
                 if(retVal != UA_STATUSCODE_GOOD) {
-                    UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Error during RAW-decode");
+                    UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                                "Error during RAW-decode");
                 }
-                UA_Variant value;
-                UA_Variant_setScalar(&value, decodedType, currentType);
-                retVal = UA_Server_writeValue(server,
-                                              dataSetReader->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariable.targetNodeId,
-                                              value);
-                if(retVal != UA_STATUSCODE_GOOD) {
-                    UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Error Write Value KF %s", UA_StatusCode_name(retVal));
+                if(readerGroup->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE) {
+                    if(dataSetReader->config.subscribedDataSet.subscribedDataSetTarget
+                           .targetVariables[i]
+                           .targetVariable.attributeId == UA_ATTRIBUTEID_VALUE) {
+                        memcpy((**(dataSetReader->config.subscribedDataSet
+                                       .subscribedDataSetTarget.targetVariables[i]
+                                       .externalDataValue))
+                                   .value.data,
+                               decodedType, currentType->memSize);
+                        if(dataSetReader->config.subscribedDataSet.subscribedDataSetTarget
+                               .targetVariables[i]
+                               .targetVariableContext)
+                            memcpy(dataSetReader->config.subscribedDataSet
+                                       .subscribedDataSetTarget.targetVariables[i]
+                                       .targetVariableContext,
+                                   decodedType, currentType->memSize);
+                        if(dataSetReader->config.subscribedDataSet.subscribedDataSetTarget
+                               .targetVariables[i]
+                               .afterWrite)
+                            dataSetReader->config.subscribedDataSet
+                                .subscribedDataSetTarget.targetVariables[i]
+                                .afterWrite(
+                                    server, &dataSetReader->identifier,
+                                    &dataSetReader->linkedReaderGroup,
+                                    &dataSetReader->config.subscribedDataSet
+                                         .subscribedDataSetTarget.targetVariables[i]
+                                         .targetVariable.targetNodeId,
+                                    dataSetReader->config.subscribedDataSet
+                                        .subscribedDataSetTarget.targetVariables[i]
+                                        .targetVariableContext,
+                                    dataSetReader->config.subscribedDataSet
+                                        .subscribedDataSetTarget.targetVariables[i]
+                                        .externalDataValue);
+                    }
+                } else {
+                    UA_Variant value;
+                    UA_Variant_setScalar(&value, decodedType, currentType);
+                    retVal = UA_Server_writeValue(
+                        server,
+                        dataSetReader->config.subscribedDataSet.subscribedDataSetTarget
+                            .targetVariables[i]
+                            .targetVariable.targetNodeId,
+                        value);
+                    if(retVal != UA_STATUSCODE_GOOD) {
+                        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                                    "Error Write Value KF %s",
+                                    UA_StatusCode_name(retVal));
+                    }
                 }
             }
         }

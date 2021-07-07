@@ -668,6 +668,95 @@ START_TEST(SinglePublishSubscribeDateTime) {
         UA_free(pMetaData->fields);
 }END_TEST
 
+START_TEST(SinglePublishSubscribeDateTimeRaw) {
+        /* To check status after running both publisher and subscriber */
+        UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+        UA_PublishedDataSetConfig pdsConfig;
+        UA_NodeId dataSetWriter;
+        UA_NodeId readerIdentifier;
+        UA_NodeId writerGroup;
+        UA_DataSetReaderConfig readerConfig;
+        memset(&pdsConfig, 0, sizeof(UA_PublishedDataSetConfig));
+        pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
+        pdsConfig.name = UA_STRING("PublishedDataSet Test");
+        UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSetId);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        /* Data Set Field */
+        UA_NodeId dataSetFieldId;
+        UA_DataSetFieldConfig dataSetFieldConfig;
+        memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
+        dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
+        dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Server localtime");
+        dataSetFieldConfig.field.variable.promotedField = UA_FALSE;
+        dataSetFieldConfig.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_LOCALTIME);
+        dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
+        UA_Server_addDataSetField(server, publishedDataSetId, &dataSetFieldConfig, &dataSetFieldId);
+        /* Writer group */
+        UA_WriterGroupConfig writerGroupConfig;
+        memset(&writerGroupConfig, 0, sizeof(writerGroupConfig));
+        writerGroupConfig.name = UA_STRING("WriterGroup Test");
+        writerGroupConfig.publishingInterval = PUBLISH_INTERVAL;
+        writerGroupConfig.enabled = UA_FALSE;
+        writerGroupConfig.writerGroupId = WRITER_GROUP_ID;
+        writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
+        retVal |= UA_Server_addWriterGroup(server, connectionId, &writerGroupConfig, &writerGroup);
+        UA_Server_setWriterGroupOperational(server, writerGroup);
+        /* DataSetWriter */
+        UA_DataSetWriterConfig dataSetWriterConfig;
+        memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
+        dataSetWriterConfig.name = UA_STRING("DataSetWriter Test");
+        dataSetWriterConfig.dataSetWriterId = DATASET_WRITER_ID;
+        dataSetWriterConfig.keyFrameCount = 10;
+        dataSetWriterConfig.dataSetFieldContentMask = UA_DATASETFIELDCONTENTMASK_RAWDATA;
+        retVal |= UA_Server_addDataSetWriter(server, writerGroup, publishedDataSetId,
+                                             &dataSetWriterConfig, &dataSetWriter);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        /* Reader Group */
+        UA_ReaderGroupConfig readerGroupConfig;
+        memset (&readerGroupConfig, 0, sizeof (UA_ReaderGroupConfig));
+        readerGroupConfig.name = UA_STRING ("ReaderGroup Test");
+        retVal |=  UA_Server_addReaderGroup (server, connectionId, &readerGroupConfig, &readerGroupId);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        UA_Server_setReaderGroupOperational(server, readerGroupId);
+        /* Data Set Reader */
+        memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
+        readerConfig.name = UA_STRING ("DataSetReader Test");
+        readerConfig.dataSetWriterId = DATASET_WRITER_ID;
+        /* Setting up Meta data configuration in DataSetReader for DateTime DataType */
+        UA_DataSetMetaDataType *pMetaData = &readerConfig.dataSetMetaData;
+        /* FilltestMetadata function in subscriber implementation */
+        UA_DataSetMetaDataType_init (pMetaData);
+        pMetaData->name = UA_STRING ("DataSet Test");
+        /* Static definition of number of fields size to 1 to create one
+        targetVariable */
+        pMetaData->fieldsSize = 1;
+        pMetaData->fields = (UA_FieldMetaData*)UA_Array_new (pMetaData->fieldsSize,
+                                                             &UA_TYPES[UA_TYPES_FIELDMETADATA]);
+        /* DateTime DataType */
+        UA_FieldMetaData_init (&pMetaData->fields[0]);
+        UA_NodeId_copy (&UA_TYPES[UA_TYPES_DATETIME].typeId,
+                        &pMetaData->fields[0].dataType);
+        pMetaData->fields[0].builtInType = UA_NS0ID_DATETIME;
+        pMetaData->fields[0].valueRank = -1; /* scalar */
+
+        readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize = 1;
+        readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables     = (UA_FieldTargetVariable *)
+            UA_calloc(readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize, sizeof(UA_FieldTargetVariable));
+
+        /* For creating Targetvariable */
+        UA_FieldTargetDataType_init(&readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[0].targetVariable);
+        readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[0].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
+        readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[0].targetVariable.targetNodeId = nodeIdDateTime;
+        retVal |= UA_Server_addDataSetReader(server, readerGroupId, &readerConfig, &readerIdentifier);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        UA_free(readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables);
+
+        /* run server - publisher and subscriber */
+        UA_Server_run_iterate(server,true);
+        UA_Server_run_iterate(server,true);
+        UA_free(pMetaData->fields);
+}END_TEST
+
 START_TEST(SinglePublishSubscribeInt32) {
         /* To check status after running both publisher and subscriber */
         UA_StatusCode retVal = UA_STATUSCODE_GOOD;
@@ -1458,6 +1547,7 @@ int main(void) {
     TCase *tc_pubsub_publish_subscribe = tcase_create("Publisher publishing and Subscriber subscribing");
     tcase_add_checked_fixture(tc_pubsub_publish_subscribe, setup, teardown);
     tcase_add_test(tc_pubsub_publish_subscribe, SinglePublishSubscribeDateTime);
+    tcase_add_test(tc_pubsub_publish_subscribe, SinglePublishSubscribeDateTimeRaw);
     tcase_add_test(tc_pubsub_publish_subscribe, SinglePublishSubscribeInt32);
     tcase_add_test(tc_pubsub_publish_subscribe, SinglePublishSubscribeInt64);
     tcase_add_test(tc_pubsub_publish_subscribe, SinglePublishSubscribeBool);

@@ -1212,6 +1212,9 @@ UA_WriterGroup_clear(UA_Server *server, UA_WriterGroup *writerGroup) {
         for (size_t i = 0; i < writerGroup->bufferedMessage.offsetsSize; i++) {
             if(writerGroup->bufferedMessage.offsets[i].contentType == UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT){
                 UA_DataValue_delete(writerGroup->bufferedMessage.offsets[i].offsetData.value.value);
+            } else if(writerGroup->bufferedMessage.offsets[i].contentType == UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_FIELDENCDODING){
+                writerGroup->bufferedMessage.offsets[i].offsetData.value.value->value.data = NULL;
+                UA_DataValue_delete(writerGroup->bufferedMessage.offsets[i].offsetData.value.value);
             }
         }
         UA_ByteString_clear(&writerGroup->bufferedMessage.buffer);
