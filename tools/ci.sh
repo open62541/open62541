@@ -45,7 +45,7 @@ function build_docs {
 function build_release {
     mkdir -p build; cd build; rm -rf *
     cmake -DBUILD_SHARED_LIBS=ON \
-          -DUA_ENABLE_ENCRYPTION=ON \
+          -DUA_ENABLE_ENCRYPTION=MBEDTLS \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_ENABLE_HISTORIZING=ON \
           -DCMAKE_BUILD_TYPE=RelWithDebInfo \
@@ -118,8 +118,7 @@ function unit_tests_encryption_mbedtls {
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_DISCOVERY=ON \
           -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
-          -DUA_ENABLE_ENCRYPTION=ON \
-          -DUA_ENABLE_ENCRYPTION_MBEDTLS=ON \
+          -DUA_ENABLE_ENCRYPTION=MBEDTLS \
           ..
     make ${MAKEOPTS}
     make test ARGS="-V"
@@ -132,8 +131,7 @@ function unit_tests_encryption_openssl {
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_DISCOVERY=ON \
           -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
-          -DUA_ENABLE_ENCRYPTION=ON \
-          -DUA_ENABLE_ENCRYPTION_OPENSSL=ON \
+          -DUA_ENABLE_ENCRYPTION=OPENSSL \
           ..
     make ${MAKEOPTS}
     make test ARGS="-V"
@@ -146,8 +144,7 @@ function unit_tests_encryption_mbedtls_pubsub {
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_DISCOVERY=ON \
           -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
-          -DUA_ENABLE_ENCRYPTION=ON \
-          -DUA_ENABLE_ENCRYPTION_MBEDTLS=ON \
+          -DUA_ENABLE_ENCRYPTION=MBEDTLS \
           -DUA_ENABLE_PUBSUB=ON \
           -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
@@ -169,7 +166,7 @@ function unit_tests_valgrind {
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_DISCOVERY=ON \
           -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
-          -DUA_ENABLE_ENCRYPTION=ON \
+          -DUA_ENABLE_ENCRYPTION=MBEDTLS \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_ENABLE_HISTORIZING=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
@@ -195,7 +192,7 @@ function build_clang_analyzer {
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_DISCOVERY=ON \
-          -DUA_ENABLE_ENCRYPTION=ON \
+          -DUA_ENABLE_ENCRYPTION=MBEDTLS \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_ENABLE_HISTORIZING=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \

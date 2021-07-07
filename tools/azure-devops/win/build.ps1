@@ -12,7 +12,7 @@ try {
         $build_encryption = "OFF"
         Write-Host -ForegroundColor Green "`n## Building without encryption on VS2008 or VS2013 #####`n"
     } else {
-        $build_encryption = "ON"
+        $build_encryption = "MBEDTLS"
     }
 
     if ($env:CC_SHORTNAME -eq "mingw" -or $env:CC_SHORTNAME -eq "clang-mingw") {
@@ -61,7 +61,7 @@ try {
                 -DUA_ENABLE_DA=ON `
                 -DUA_ENABLE_DISCOVERY=ON `
                 -DUA_ENABLE_DISCOVERY_MULTICAST=ON `
-                -DUA_ENABLE_ENCRYPTION:BOOL=$build_encryption `
+                -DUA_ENABLE_ENCRYPTION:STRING=$build_encryption `
                 -DUA_ENABLE_JSON_ENCODING:BOOL=ON `
                 -DUA_ENABLE_PUBSUB:BOOL=ON `
                 -DUA_ENABLE_PUBSUB_DELTAFRAMES:BOOL=ON `
@@ -91,7 +91,7 @@ try {
             -DUA_BUILD_EXAMPLES:BOOL=OFF  `
             -DUA_ENABLE_AMALGAMATION:BOOL=ON `
             -DUA_ENABLE_SUBSCRIPTIONS_EVENTS:BOOL=ON `
-            -DUA_ENABLE_ENCRYPTION:BOOL=$build_encryption ..
+            -DUA_ENABLE_ENCRYPTION:STRING=$build_encryption ..
     & cmake --build . --config RelWithDebInfo
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
         Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
