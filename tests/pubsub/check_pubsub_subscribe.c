@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  * Copyright (c) 2019 Kalycito Infotech Private Limited
+ * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
  */
 
 #include <open62541/plugin/pubsub_udp.h>
