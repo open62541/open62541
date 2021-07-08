@@ -947,6 +947,7 @@ endif()
 if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_AMALGAMATION)
 list(INSERT default_plugin_sources 0
      ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_openssl_common.h
+     ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_version_abstraction.h
      ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_openssl_common.c
      ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_basic128rsa15.c
      ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_basic256.c
