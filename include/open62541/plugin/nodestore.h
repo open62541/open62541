@@ -612,6 +612,8 @@ typedef struct {
     UA_MethodCallback method;
 #if UA_MULTITHREADING >= 100
     UA_Boolean async; /* Indicates an async method call */
+    UA_Boolean deferred; /* Indicates a method call with deferred completion, i.e.
+                            started by server thread but completed by some other thread */
 #endif
 } UA_MethodNode;
 
