@@ -1,0 +1,102 @@
+#!/bin/bash
+# -*- sh -*-
+
+: << =cut
+
+=head1 NAME
+
+cstates - Plugin to monitor the C states of the CPU cores
+
+=head1 CONFIGURATION
+
+No environment variables are used by this plugin.
+
+=head1 NOTES
+
+If run with the "autoconf"-parameter, give our opinion on wether we
+should be run on this system or not. This is optinal, and only used by
+munin-config. In the case of this plugin, we should most probably
+always be included.
+
+=head1 MAGIC MARKERS
+
+ #%# family=auto
+ #%# capabilities=autoconf
+
+=cut
+
+. $MUNIN_LIBDIR/plugins/plugin.sh
+
+if [ "$1" = "autoconf" ]; then
+        echo yes
+        exit 0
+fi
+
+# If run with the "config"-parameter, give out information on how the
+# graphs should look.
+
+SYS=/sys/devices/system/cpu
+driver=`cat $SYS/cpuidle/current_driver`
+if test $driver = "(none)"
+then
+  exit 1
+fi
+states=`ls -1 $SYS/cpu0/cpuidle/state*/time | wc -l`
+maxstate=`expr $states - 1`
+
+if [ "$1" = "config" ]; then
+
+        # The title of the graph
+        echo 'graph_title CPU C states'
+        # Arguments to "rrdtool graph". In this case, tell it that the
+        # lower limit of the graph is '0', and that 1k=1000 (not 1024)
+        echo 'graph_args --base 1000 -l 0'
+        # The Y-axis label
+        echo 'graph_vlabel %'
+        # We want Cur/Min/Avg/Max unscaled (i.e. 0.42 load instead of
+        # 420 milliload)
+        echo 'graph_scale no'
+        # Graph category. Defaults to 'other'
+        echo 'graph_category system'
+        echo 'graph_info One of the methods to save energy is to put the processor into a defined sleep state when idle - the higher the sleep state, the lower the energy consumption and the later back to work.'
+        # The fields. "label" is used in the legend. "label" is the only
+        # required subfield.
+        for i in `seq 0 $maxstate`
+        do
+          statename="`cat $SYS/cpu0/cpuidle/state$i/name`"
+          echo "cstate$i.label $statename"
+          echo "cstate$i.min 0"
+          echo "cstate$i.cdef cstate$i,10,/"
+          echo "cstate$i.type DERIVE"
+          if test $i = 0
+          then
+            echo "cstate$i.draw AREA"
+          else
+            echo "cstate$i.draw STACK"
+          fi
+          echo "cstate$i.info Time spent in C state $i ($statename)"
+        done
+
+        # Last, if run with the "config"-parameter, quit here (don't
+        # display any data)
+        exit 0
+fi
+
+# If not run with any parameters at all (or only unknown ones), do the
+# real work - i.e. display the data. Almost always this will be
+# "value" subfield for every data field.
+
+for i in `seq 0 $maxstate`
+do
+  cstate[$i]=0
+  n=0
+  for j in `ls -d $SYS/cpu[0-9]*`
+  do
+    thistime=`cat $j/cpuidle/state$i/time`
+    thistime=`expr $thistime / 1000`
+    cstate[$i]=`expr ${cstate[$i]} + $thistime`
+    n=`expr $n + 1`
+  done
+  cstate[$i]=`expr ${cstate[$i]} / $n`
+  echo cstate$i.value ${cstate[$i]}
+done

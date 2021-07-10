@@ -1,0 +1,55 @@
+#!/bin/bash
+#------------------------------------------------------------------------------
+# Copyright (C) 2021 Kalycito Infotech Private Limited
+# Author: Kalycito Infotech Private Limited
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# -----------------------------------------------------------------------------
+
+###############################################################################
+# Global Variable - constant                                                  #
+###############################################################################
+VICTIM_NAME=${0##*/max_latency_victim_compute_}
+
+if test -e /usr/local/src/max_latencies.txt; then
+    LATENCY_FILE_NAME=/usr/local/src/max_latencies.txt
+fi
+
+statisticsFile=/usr/local/src/max_latency_victim_$VICTIM_NAME.txt
+
+if test ! -e /usr/local/src/max_latencies.txt; then
+    sudo rm -rf $statisticsFile
+    exit 0
+fi
+
+# Check file status every 5 minutes
+checkForFileModification=`find /usr/local/src -cmin -5 -ls | \
+                          grep $LATENCY_FILE_NAME`
+if test -z "$checkForFileModification"; then
+    #echo "$LATENCY_FILE_NAME not modified in last 5 minutes"
+    sudo rm -rf $statisticsFile
+    exit 0
+fi
+
+victimCulpritLines=\
+`awk -F' ' -v VICTIM_NAME="$VICTIM_NAME" '$7 ~ VICTIM_NAME {print}' \
+$LATENCY_FILE_NAME`
+
+if test -z "$victimCulpritLines"; then
+    sudo rm -rf $statisticsFile
+    exit 0
+fi
+
+recentVictimCulprit=`echo "$victimCulpritLines" | tail -n1`
+
+maxLatency=`echo "$recentVictimCulprit" | cut -d ' ' -f5`
+
+sudo bash -c "echo $VICTIM_NAME $maxLatency > $statisticsFile"

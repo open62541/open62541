@@ -1,0 +1,49 @@
+#!/bin/bash
+#------------------------------------------------------------------------------
+# Copyright (C) 2021 Kalycito Infotech Private Limited
+# Author: Kalycito Infotech Private Limited
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# -----------------------------------------------------------------------------
+
+#Kill previously running system monitoring scripts
+pidOfMonitorScript=`ps -aux | \
+                    grep "bash -c" | \
+                    grep "/sys/kernel/debug/latency_hist/timerwakeupswitch" | \
+                    awk '{ print $2 }'`
+if test ! -z "$pidOfMonitorScript"; then
+    sudo kill -9 $pidOfMonitorScript
+fi
+
+###############################################################################
+#
+# Reset the monitoring of system
+###############################################################################
+HISTDIR=/sys/kernel/debug/latency_hist
+for i in wakeup missed_timer_offsets timerandwakeup switchtime \
+timerwakeupswitch migrationoff; do
+    sudo bash -c "if test -w $HISTDIR/$i/reset; then echo 1 \
+                  >$HISTDIR/$i/reset; fi;"
+done
+
+###############################################################################
+#
+# Enable the monitoring of system
+###############################################################################
+ENABLEDIR=/sys/kernel/debug/latency_hist/enable
+for i in wakeup missed_timer_offsets timerandwakeup switchtime \
+timerwakeupswitch migrationoff; do
+    sudo bash -c "if test -f $ENABLEDIR/$i; then echo 1 >$ENABLEDIR/$i; fi;"
+done
+
+if test -f /usr/local/src/max_latencies.txt; then
+    sudo rm -rf /usr/local/src/max_latencies.txt
+fi

@@ -1,0 +1,84 @@
+#!/bin/bash
+# -*- sh -*-
+
+: << =cut
+
+=head1 NAME
+
+max_latency_victim_ - Plugin to get the max latency caused by culrpit for the victim
+
+=head1 CONFIGURATION
+
+This is a wildcard plugin. To get the max latency that occurred due to a culprit for the victim, link
+max_latency_victim_<victim_name> to this file. E.g.
+
+  ln -s /usr/share/munin/plugins/max_latency_victim_ \
+        /etc/munin/plugins/max_latency_victim_PubSub
+
+...will get the max latency of the victim PubSub.
+
+=head1 NOTES
+
+If run with the "autoconf"-parameter, give our opinion on whether we
+should be run on this system or not. This is optional, and only used
+by munin-config. In the case of this plugin, we should most probably
+always be included.
+
+=head1 MAGIC MARKERS
+
+ #%# family=auto
+ #%# capabilities=autoconf
+
+=cut
+
+. $MUNIN_LIBDIR/plugins/plugin.sh
+
+VICTIM_NAME=${0##*/max_latency_victim_}
+
+# If run with the "autoconf"-parameter, give our opinion on wether we
+# should be run on this system or not. This is optinal, and only used by
+# munin-config. In the case of this plugin, we should most probably
+# always be included.
+if [ "$1" = "autoconf" ]; then
+        echo yes
+        exit 0
+fi
+
+
+if [ "$1" = "config" ]; then
+        #Warnings and critical messages can be created using below commands. For now, it has been commented.
+        #MAX_LATENCY_WARN=${maxLatency_warn:=10000}
+        #MAX_LATENCY_CRIT=${maxLatency_crit:=100000}
+
+        # The title of the graph
+        echo "graph_title Maximum latency - $VICTIM_NAME (victim) application"
+        # Arguments to "rrdtool graph". In this case, tell it that the
+        # lower limit of the graph is '0', and that 1k=1000 (not 1024)
+        #echo 'graph_args --base 0'
+        # The Y-axis label
+        echo 'graph_vlabel Latency (us)'
+        # We want Cur/Min/Avg/Max unscaled (i.e. 0.42 microseconds instead of
+        # 420 millimicroseconds)
+        echo 'graph_scale no'
+        # Graph category. Defaults to 'other'
+        echo 'graph_category network'
+        echo 'graph_printf %3.0lf'
+        # This one is purely to add an explanation to the web page. The first
+        # one is for the graph itself, while the second one is for the
+        # individual fields.
+        echo "graph_info The maximum latency in us represents the worst-case time caused for the victim - $VICTIM_NAME application by the culprits"
+
+        echo 'maxLatency.label Max latency'
+        echo 'maxLatency.info Maximum latency in us caused by the culprits'
+
+        # Last, if run with the "config"-parameter, quit here (don't
+        # display any data)
+        exit 0
+fi
+
+if [ -s /usr/local/src/max_latency_victim_$VICTIM_NAME.txt ]; then
+        statisticsFile=/usr/local/src/max_latency_victim_$VICTIM_NAME.txt
+        maxLatency=`cat $statisticsFile | tr -s " " | cut -d" " -f2`
+
+        echo "maxLatency.value $maxLatency"
+fi

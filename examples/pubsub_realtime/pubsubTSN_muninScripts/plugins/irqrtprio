@@ -1,0 +1,78 @@
+#!/bin/sh
+# -*- sh -*-
+
+: << =cut
+
+=head1 NAME
+
+irqrtprio - Plugin to monitor the RT priority of interrupt threads
+
+=head1 NOTES
+
+If run with the "autoconf"-parameter, give our opinion on whether we
+should be run on this system or not. This is optional, and only used
+by munin-config. In the case of this plugin, we should most probably
+always be included.
+
+=head1 MAGIC MARKERS
+
+ #%# family=auto
+ #%# capabilities=autoconf
+
+=cut
+
+. $MUNIN_LIBDIR/plugins/plugin.sh
+
+if [ "$1" = "autoconf" ]; then
+        echo yes
+        exit 0
+fi
+
+# If run with the "config"-parameter, give out information on how the
+# graphs should look.
+
+if [ "$1" = "config" ]; then
+
+        # The host name this plugin is for. (Can be overridden to have
+        # one machine answer for several)
+
+        # The title of the graph
+        echo 'graph_title RT priority of IRQ threads'
+        # Arguments to "rrdtool graph". In this case, tell it that the
+        # lower limit of the graph is '0', and that 1k=1000 (not 1024)
+        echo 'graph_args --base 1000 -l 0'
+        # The Y-axis label
+        echo 'graph_vlabel priority'
+        # We want Cur/Min/Avg/Max unscaled (i.e. 0.42 load instead of
+        # 420 milliload)
+        echo 'graph_scale no'
+        # Graph category. Defaults to 'other'
+        echo 'graph_category system'
+        # The fields. "label" is used in the legend. "label" is the only
+        # required subfield.
+        for i in `ps -eo rtprio,cmd | grep irq | sed 's/^ *//' | grep -v '^-' | tr -d '[\[\]]' | cut -d" " -f2 | sed 's/-*$//'`
+        do
+                echo $i.label $i
+                echo $i.info RT priority of IRQ thread $i
+        done
+        # This one is purely to add an explanation to the web page. The first
+        # one is for the graph itself, while the second one is for the field
+        # "load".
+        echo 'graph_info Display the RT priority of interrupt threads.'
+        # Last, if run with the "config"-parameter, quit here (don't
+        # display any data)
+        exit 0
+fi
+
+# If not run with any parameters at all (or only unknown ones), do the
+# real work - i.e. display the data. Almost always this will be
+# "value" subfield for every data field.
+
+IFS='
+'
+for i in `ps -eo rtprio,cmd | grep irq | sed 's/^ *//' | grep -v '^-' | tr -d '[\[\]]' | cut -d" " -f1-2`
+do
+        prio=`echo $i | cut -d" " -f1`
+        label=`echo $i | cut -d" " -f2 | sed 's/-*$//'`
+        echo $label.value $prio
+done
