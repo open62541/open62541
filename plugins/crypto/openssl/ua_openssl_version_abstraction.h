@@ -9,7 +9,7 @@
 #ifndef UA_OPENSSL_VERSION_ABSTRACTION_H_
 #define UA_OPENSSL_VERSION_ABSTRACTION_H_
 
-#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
 
 #include <openssl/x509.h>
 
@@ -17,23 +17,23 @@
 #error "OPENSSL_VERSION_NUMBER is not defined."
 #endif
 
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
+#if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
 #define X509_STORE_CTX_set0_trusted_stack(STORE_CTX, CTX_SKTRUSTED) X509_STORE_CTX_trusted_stack(STORE_CTX, CTX_SKTRUSTED)
 #endif
 
-#if OPENSSL_VERSION_NUMBER < 0x1010000fL
+#if OPENSSL_VERSION_NUMBER < 0x1010000fL || defined(LIBRESSL_VERSION_NUMBER)
 #define X509_STORE_CTX_get_check_issued(STORE_CTX) storeCtx->check_issued
 #endif
 
-#if OPENSSL_VERSION_NUMBER < 0x1010000fL
+#if OPENSSL_VERSION_NUMBER < 0x1010000fL || defined(LIBRESSL_VERSION_NUMBER)
 #define get_pkey_rsa(evp) ((evp)->pkey.rsa)
 #else
 #define get_pkey_rsa(evp) EVP_PKEY_get0_RSA(evp)
 #endif
 
-#if OPENSSL_VERSION_NUMBER < 0x1010000fL
+#if OPENSSL_VERSION_NUMBER < 0x1010000fL || defined(LIBRESSL_VERSION_NUMBER)
 #define X509_get0_subject_key_id(PX509_CERT) (const ASN1_OCTET_STRING *)X509_get_ext_d2i(PX509_CERT, NID_subject_key_identifier, NULL, NULL);
 #endif
 
-#endif /* UA_ENABLE_ENCRYPTION_OPENSSL */
+#endif /* defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL) */
 #endif /* UA_OPENSSL_VERSION_ABSTRACTION_H_ */
