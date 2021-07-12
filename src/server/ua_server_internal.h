@@ -583,6 +583,7 @@ AddNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId);
 /* Create Namespace 0 */
 /**********************/
 
+UA_StatusCode UA_Server_initNS0Nodes(UA_Server *server);
 UA_StatusCode UA_Server_initNS0(UA_Server *server);
 
 UA_StatusCode writeNs0VariableArray(UA_Server *server, UA_UInt32 id, void *v,

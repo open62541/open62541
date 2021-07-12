@@ -782,33 +782,9 @@ addModellingRules(UA_Server *server) {
 
 #endif
 
-/* Initialize the nodeset 0 by using the generated code of the nodeset compiler.
- * This also initialized the data sources for various variables, such as for
- * example server time. */
 UA_StatusCode
-UA_Server_initNS0(UA_Server *server) {
-    /* Initialize base nodes which are always required an cannot be created
-     * through the NS compiler */
-    server->bootstrapNS0 = true;
-    UA_StatusCode retVal = UA_Server_createNS0_base(server);
-
-#ifdef UA_GENERATED_NAMESPACE_ZERO
-    /* Load nodes and references generated from the XML ns0 definition */
-    retVal |= namespace0_generated(server);
-#else
-    /* Create a minimal server object */
-    retVal |= UA_Server_minimalServerObject(server);
-#endif
-
-    server->bootstrapNS0 = false;
-
-    if(retVal != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "Initialization of Namespace 0 failed with %s. "
-                     "See previous outputs for any error messages.",
-                     UA_StatusCode_name(retVal));
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
+UA_Server_initNS0Nodes(UA_Server *server) {
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
 
     /* NamespaceArray */
     UA_DataSource namespaceDataSource = {readNamespaces, writeNamespaces};
@@ -1109,6 +1085,44 @@ UA_Server_initNS0(UA_Server *server) {
                      "failed with %s. See previous outputs for any error messages.",
                      UA_StatusCode_name(retVal));
         return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Initialize the nodeset 0 by using the generated code of the nodeset compiler.
+ * This also initialized the data sources for various variables, such as for
+ * example server time. */
+UA_StatusCode
+UA_Server_initNS0(UA_Server *server) {
+    UA_StatusCode retVal;
+
+    if(server->config.bootstrapNs0BaseNodes) {
+        /* Initialize base nodes, cannot be created through the NS compiler */
+        server->bootstrapNS0 = true;
+        retVal = UA_Server_createNS0_base(server);
+        server->bootstrapNS0 = false;
+
+        if(server->config.bootstrapNs0Nodes) {
+#ifdef UA_GENERATED_NAMESPACE_ZERO
+            /* Load nodes and references generated from the XML ns0 definition */
+            retVal |= namespace0_generated(server);
+#else
+            /* Create a minimal server object */
+            retVal |= UA_Server_minimalServerObject(server);
+#endif
+        }
+
+        if(retVal != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "Initialization of Namespace 0 failed with %s. "
+                         "See previous outputs for any error messages.",
+                         UA_StatusCode_name(retVal));
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+    }
+
+    if(server->config.initializeNs0NodesInRunStartup == false) {
+        return(UA_Server_initNS0Nodes(server));
     }
     return UA_STATUSCODE_GOOD;
 }
