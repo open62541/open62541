@@ -3,6 +3,7 @@
  *
  *    Copyright 2016-2017 (c) Julius Pfrommer, Fraunhofer IOSB
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2021 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
  */
 
 #ifdef UA_ARCHITECTURE_WIN32
@@ -115,7 +116,20 @@ void UA_sleep_ms(unsigned long ms);
 #define UA_inet_pton InetPton
 
 #if UA_IPV6
+# if defined(__WINCRYPT_H__) && defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
+#  error "Wincrypt is not compatible with LibreSSL"
+# endif
+# ifdef UA_ENABLE_ENCRYPTION_LIBRESSL
+/* Hack: Prevent Wincrypt-Includes */
+#  define __WINCRYPT_H__
+# endif
+
 # include <iphlpapi.h>
+
+# ifdef UA_ENABLE_ENCRYPTION_LIBRESSL
+#  undef __WINCRYPT_H__
+# endif
+
 # define UA_if_nametoindex if_nametoindex
 #endif
 

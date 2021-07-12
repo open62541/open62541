@@ -288,6 +288,7 @@ Detailed SDK Features
       - ``OFF`` No encryption support. (default)
       - ``MBEDTLS`` Encryption support using mbed TLS
       - ``OPENSSL`` Encryption support using OpenSSL
+      - ``LIBRESSL`` EXPERIMENTAL: Encryption support using LibreSSL
 
 **UA_NAMESPACE_ZERO**
 

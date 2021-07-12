@@ -39,6 +39,11 @@ if(UA_ENABLE_ENCRYPTION_OPENSSL)
     include_directories(${OPENSSL_INCLUDE_DIR})
 endif()
 
+if(UA_ENABLE_ENCRYPTION_LIBRESSL)
+    # openssl includes
+    include_directories(${LIBRESSL_INCLUDE_DIR})
+endif()
+
 if(CMAKE_HOST_SYSTEM_NAME MATCHES "OpenBSD")
     include_directories(AFTER /usr/local/include)
     link_directories(AFTER /usr/local/lib)
@@ -101,7 +106,7 @@ if(UA_ENABLE_ENCRYPTION_MBEDTLS)
        ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_pki_mbedtls.c)
 endif()
 
-if(UA_ENABLE_ENCRYPTION_OPENSSL)
+if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL)
   list(INSERT test_plugin_sources 0
               ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_openssl_common.h
               ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_openssl_common.c
@@ -556,7 +561,7 @@ if(UA_ENABLE_ENCRYPTION_MBEDTLS)
     add_test_valgrind(encryption_aes128sha256rsaoaep ${TESTS_BINARY_DIR}/check_encryption_aes128sha256rsaoaep)
 endif()
 
-if(UA_ENABLE_ENCRYPTION_OPENSSL)
+if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL)
     add_executable(check_encryption_basic128rsa15 encryption/check_encryption_basic128rsa15.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     target_link_libraries(check_encryption_basic128rsa15 ${LIBS})
     add_test_valgrind(encryption_basic128rsa15 ${TESTS_BINARY_DIR}/check_encryption_basic128rsa15)

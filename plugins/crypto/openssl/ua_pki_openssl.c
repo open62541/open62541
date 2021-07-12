@@ -12,7 +12,7 @@
 
 #include "securitypolicy_openssl_common.h"
 
-#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
 #include <openssl/x509.h>
 #include <openssl/x509_vfy.h>
 #include <openssl/x509v3.h>
@@ -746,4 +746,4 @@ UA_CertificateVerification_CertFolders(UA_CertificateVerification * cv,
 }
 #endif
 
-#endif  /* end of UA_ENABLE_ENCRYPTION_OPENSSL */
+#endif  /* end of defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL) */

@@ -161,8 +161,8 @@ option(UA_ENABLE_DA "Enable OPC UA DataAccess (Part 8) definitions" ON)
 option(UA_ENABLE_WEBSOCKET_SERVER "Enable websocket support (uses libwebsockets)" OFF)
 
 # security provider
-set(UA_ENCRYPTION_PLUGINS "MBEDTLS" "OPENSSL")
-set(UA_ENABLE_ENCRYPTION "OFF" CACHE STRING "Encryption support")
+set(UA_ENCRYPTION_PLUGINS "MBEDTLS" "OPENSSL" "LIBRESSL")
+set(UA_ENABLE_ENCRYPTION "OFF" CACHE STRING "Encryption support (Libressl EXPERIMENTAL)")
 SET_PROPERTY(CACHE UA_ENABLE_ENCRYPTION PROPERTY STRINGS "OFF" ${UA_ENCRYPTION_PLUGINS})
 option(UA_ENABLE_ENCRYPTION_OPENSSL "Deprecated: Enable encryption support (uses openssl)" OFF)
 mark_as_advanced(UA_ENABLE_ENCRYPTION_OPENSSL)
@@ -173,10 +173,13 @@ list (FIND UA_ENCRYPTION_PLUGINS ${UA_ENABLE_ENCRYPTION} _tmp)
 if(UA_ENABLE_ENCRYPTION STREQUAL "OFF" OR ${_tmp} GREATER -1)
     set(UA_ENABLE_ENCRYPTION_OPENSSL OFF)
     set(UA_ENABLE_ENCRYPTION_MBEDTLS OFF)
+    set(UA_ENABLE_ENCRYPTION_LIBRESSL OFF)
     if(UA_ENABLE_ENCRYPTION STREQUAL "MBEDTLS")
         set(UA_ENABLE_ENCRYPTION_MBEDTLS ON)
     elseif(UA_ENABLE_ENCRYPTION STREQUAL "OPENSSL")
         set(UA_ENABLE_ENCRYPTION_OPENSSL ON)
+    elseif(UA_ENABLE_ENCRYPTION STREQUAL "LIBRESSL")
+        set(UA_ENABLE_ENCRYPTION_LIBRESSL ON)
     endif()
 # Only for backward compatability
 elseif(UA_ENABLE_ENCRYPTION)
@@ -524,7 +527,17 @@ if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_MQTT_TLS_OPENSSL)
     # https://cmake.org/cmake/help/v3.0/module/FindOpenSSL.html
     find_package(OpenSSL REQUIRED)
     list(APPEND open62541_LIBRARIES ${OPENSSL_LIBRARIES})
-endif ()
+    endif ()
+    
+if(UA_ENABLE_ENCRYPTION_LIBRESSL)
+    # See https://github.com/libressl-portable/portable/blob/master/FindLibreSSL.cmake
+    find_package(LibreSSL REQUIRED)
+    list(APPEND open62541_LIBRARIES ${LIBRESSL_LIBRARIES})
+    if(WIN32)
+        # Add bestcrypt for random generator
+        list(APPEND open62541_LIBRARIES bcrypt)
+    endif()
+endif()
 
 if(UA_ENABLE_ENCRYPTION_MBEDTLS OR UA_ENABLE_PUBSUB_ENCRYPTION)
     # The recommended way is to install mbedtls via the OS package manager. If
@@ -944,7 +957,7 @@ list(INSERT default_plugin_sources 1
      ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_pki_mbedtls.c)
 endif()
 
-if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_AMALGAMATION)
+if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL OR UA_ENABLE_AMALGAMATION)
 list(INSERT default_plugin_sources 0
      ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_openssl_common.h
      ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_version_abstraction.h
@@ -1257,6 +1270,9 @@ if(UA_ENABLE_AMALGAMATION)
     if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_MQTT_TLS_OPENSSL)
         target_include_directories(open62541-object PRIVATE ${OPENSSL_INCLUDE_DIR})
     endif()
+    if(UA_ENABLE_ENCRYPTION_LIBRESSL)
+        target_include_directories(open62541-object PRIVATE ${LIBRESSL_INCLUDE_DIR})
+    endif()
 
     # make sure the open62541_amalgamation target builds before so that amalgamation is finished and it is not executed again for open62541-object
     # and thus may overwrite the amalgamation result during multiprocessor compilation
@@ -1310,6 +1326,13 @@ else()
         set_source_files_properties(${default_plugin_sources} ${ua_architecture_sources} PROPERTIES LANGUAGE CXX)
     endif()
 
+    if(UA_ENABLE_ENCRYPTION_LIBRESSL)
+        # Prevent Wincrypt override warning.
+        target_compile_definitions(open62541-plugins PUBLIC NOCRYPT=1)
+        target_compile_definitions(open62541-object PUBLIC NOCRYPT=1)
+        target_compile_definitions(open62541 PUBLIC NOCRYPT=1)
+    endif()
+
     # Declare include directories
     function(include_directories_private)
         foreach(_include_dir IN ITEMS ${ARGN})
@@ -1341,6 +1364,9 @@ else()
     endif()
     if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_MQTT_TLS_OPENSSL)
         include_directories_private(${OPENSSL_INCLUDE_DIR})
+    endif()
+    if(UA_ENABLE_ENCRYPTION_LIBRESSL)
+        include_directories_private(${LIBRESSL_INCLUDE_DIR})
     endif()
 
     # Option-specific includes
@@ -1464,6 +1490,9 @@ if(UA_ENABLE_ENCRYPTION_MBEDTLS)
 endif()
 if(UA_ENABLE_ENCRYPTION_OPENSSL)
     list(APPEND open62541_enabled_components "EncryptionOpenSSL")
+endif()
+if(UA_ENABLE_ENCRYPTION_LIBRESSL)
+    list(APPEND open62541_enabled_components "EncryptionLibreSSL")
 endif()
 if(UA_ENABLE_AMALGAMATION)
     list(APPEND open62541_enabled_components "Amalgamation")
