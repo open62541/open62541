@@ -1844,10 +1844,17 @@ decodeNetworkMessage(UA_Server *server,
     }
 loops_exit:
 
-    // TODO check if warning is correct here and error code carries correct info
-    UA_CHECK_WARN(processed, return UA_STATUSCODE_BADNOTFOUND, logger, UA_LOGCATEGORY_SERVER,
-            "Subscribe failed. no readergroup found to decrypt/verify the network message");
-
+    if(!processed) {
+        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                    "Dataset reader not found. Check PublisherID, WriterGroupID and DatasetWriterID");
+        /*  Possible multicast scenario: 
+            there are multiple connections (with one or more ReaderGroups) within a multicast group
+            every connection receives all network messages, 
+            even if some of them are not meant for the connection currently processed
+            -> therefore it is ok if the connection does not have a DataSetReader for every received network message.
+            We must not return an error here, but continue with the buffer decoding and see if we have a 
+            matching DataSetReader for the next network message */
+    }
     #endif
 
     rv = UA_NetworkMessage_decodePayload(buffer, currentPosition, currentNetworkMessage);
@@ -2001,8 +2008,10 @@ receiveBufferedNetworkMessage(UA_Server *server, UA_ReaderGroup *readerGroup,
     while(buffer.length > currentPosition) {
         rv = decodeAndProcessNetworkMessageFun(server, readerGroup, connection,
                                                previousPosition, &buffer, &currentPosition);
-        UA_CHECK_STATUS_WARN(rv, return rv, &server->config.logger, UA_LOGCATEGORY_SERVER,
-                             "SubscribeCallback(): receive message failed");
+        if ((rv != UA_STATUSCODE_BADNOTFOUND) || (previousPosition == currentPosition)) {
+            UA_CHECK_STATUS_WARN(rv, return rv, &server->config.logger, UA_LOGCATEGORY_SERVER,
+                                "SubscribeCallback(): receive message failed");
+        }
         previousPosition = currentPosition;
     }
     return UA_STATUSCODE_GOOD;
