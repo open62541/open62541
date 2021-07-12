@@ -408,16 +408,14 @@ UA_NodeId_order(const UA_NodeId *n1, const UA_NodeId *n2) {
     return UA_ORDER_EQ;
 }
 
-/* FNV non-cryptographic hash function. See
- * https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function */
-#define FNV_PRIME_32 16777619
+/* sdbm-hash (http://www.cse.yorku.ca/~oz/hash.html) */
 u32
-UA_ByteString_hash(u32 fnv, const u8 *buf, size_t size) {
-    for(size_t i = 0; i < size; ++i) {
-        fnv = fnv ^ (buf[i]);
-        fnv = fnv * FNV_PRIME_32;
-    }
-    return fnv;
+UA_ByteString_hash(u32 initialHashValue,
+                   const u8 *data, size_t size) {
+    u32 h = initialHashValue;
+    for(size_t i = 0; i < size; i++)
+        h = data[i] + (h << 6) + (h << 16) - h;
+    return h;
 }
 
 u32
