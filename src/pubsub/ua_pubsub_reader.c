@@ -1845,11 +1845,10 @@ decodeNetworkMessage(UA_Server *server,
 loops_exit:
 
     // TODO check if warning is correct here and error code carries correct info
-    if (processed == false) {
-        UA_CHECK_WARN(true, return UA_STATUSCODE_BADNOTFOUND, logger, UA_LOGCATEGORY_SERVER,
-                "Subscribe failed. no readergroup found to decrypt/verify the network message");
-    }
-    #endif // UA_ENABLE_PUBSUB_ENCRYPTION
+    UA_CHECK_WARN(processed, return UA_STATUSCODE_BADNOTFOUND, logger, UA_LOGCATEGORY_SERVER,
+            "Subscribe failed. no readergroup found to decrypt/verify the network message");
+
+    #endif
 
     rv = UA_NetworkMessage_decodePayload(buffer, currentPosition, currentNetworkMessage);
     UA_CHECK_STATUS(rv, return rv);
