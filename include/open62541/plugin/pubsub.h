@@ -45,6 +45,13 @@ typedef enum {
     UA_PUBSUB_CHANNEL_CLOSED
 } UA_PubSubChannelState;
 
+typedef struct _decodeAndProcessClosure {
+    void *ctx;
+    UA_StatusCode (*call)(struct _decodeAndProcessClosure *closure,
+                          UA_ByteString *buffer);
+} UA_DecodeAndProcessClosure;
+
+
 /* Interface structure between network plugin and internal implementation */
 struct UA_PubSubChannel {
     UA_UInt32 publisherId; /* unique identifier */
@@ -61,14 +68,14 @@ struct UA_PubSubChannel {
                           const UA_ByteString *buf);
 
     /* Register to an specified message source, e.g. multicast group or topic. Callback is used for mqtt. */
-    UA_StatusCode (*regist)(UA_PubSubChannel * channel, UA_ExtensionObject *transportSettings,
+    UA_StatusCode (*regist)(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings,
         void (*callback)(UA_ByteString *encodedBuffer, UA_ByteString *topic));
 
     /* Remove subscription to an specified message source, e.g. multicast group or topic */
-    UA_StatusCode (*unregist)(UA_PubSubChannel * channel, UA_ExtensionObject *transportSettings);
+    UA_StatusCode (*unregist)(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings);
 
     /* Receive messages. A regist to the message source is needed before. */
-    UA_StatusCode (*receive)(UA_PubSubChannel * channel, UA_ByteString *,
+    UA_StatusCode (*receive)(UA_PubSubChannel *channel, UA_DecodeAndProcessClosure *closure,
                              UA_ExtensionObject *transportSettings, UA_UInt32 timeout);
 
     /* Closing the connection and implicit free of the channel structures. */
