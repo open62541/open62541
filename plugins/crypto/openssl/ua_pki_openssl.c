@@ -490,6 +490,7 @@ UA_CertificateVerification_Verify (void *                verificationContext,
         X509_STORE_CTX_set_flags (storeCtx, X509_V_FLAG_CRL_CHECK);
     }
 
+#if OPENSSL_VERSION_NUMBER >= 0x1010000fL
     /* This condition will check whether the certificate is a User certificate or a CA certificate.
      * If the KU_KEY_CERT_SIGN and KU_CRL_SIGN of key_usage are set, then the certificate shall be
      * condidered as CA Certificate and cannot be used to establish a connection. Refer the test case
@@ -498,6 +499,7 @@ UA_CertificateVerification_Verify (void *                verificationContext,
     if(X509_check_purpose(certificateX509, X509_PURPOSE_CRL_SIGN, 0) && X509_check_ca(certificateX509)) {
         return UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
     }
+#endif
 
     opensslRet = X509_verify_cert (storeCtx);
     if (opensslRet == 1) {
@@ -540,6 +542,7 @@ UA_CertificateVerification_Verify (void *                verificationContext,
     else {
         opensslRet = X509_STORE_CTX_get_error (storeCtx);
 
+#if OPENSSL_VERSION_NUMBER >= 0x1010000fL
         /* Check the issued certificate of a CA that is not trusted but available */
         if(opensslRet == X509_V_ERR_SELF_SIGNED_CERT_IN_CHAIN){
             int                     trusted_cert_len = sk_X509_num(ctx->skTrusted);
@@ -565,6 +568,7 @@ UA_CertificateVerification_Verify (void *                verificationContext,
                 }
             }
         }
+#endif
 
         /* Return expected OPCUA error code */
         ret = UA_X509_Store_CTX_Error_To_UAError (opensslRet);

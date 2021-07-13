@@ -18,6 +18,10 @@
 #include <openssl/x509.h>
 #include <openssl/evp.h>
 
+#ifndef OPENSSL_API_COMPAT
+#define OPENSSL_API_COMPAT 0
+#endif
+
 _UA_BEGIN_DECLS
 
 void saveDataToFile(const char *fileName, const UA_ByteString *str);
