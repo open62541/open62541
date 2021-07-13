@@ -14,7 +14,7 @@
  *    Copyright 2017 (c) frax2222
  *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2018 (c) Hilscher Gesellschaft für Systemautomation mbH (Author: Martin Lang)
- *    Copyright 2019 (c) Kalycito Infotech Private Limited
+ *    Copyright 2019-2021 (c) Kalycito Infotech Private Limited
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Jan Hermes)
  */
 
@@ -170,6 +170,24 @@ void UA_Server_delete(UA_Server *server) {
         UA_Server_removeSession(server, current, UA_DIAGNOSTICEVENT_CLOSE);
     }
     UA_Array_delete(server->namespaces, server->namespacesSize, &UA_TYPES[UA_TYPES_STRING]);
+
+#ifdef UA_ENABLE_FILETYPE_OBJECT_SUPPORT
+    UA_FileType *fileObject, *fileObject_tmp;
+    LIST_FOREACH_SAFE(fileObject, &server->fileObjects, listEntry, fileObject_tmp)
+    {
+        UA_NodeId_clear(&fileObject->fileTypeObjectNodeId);
+        UA_String_clear(&fileObject->filePath);
+        UA_FileInfo *fileInfo, *fileInfo_tmp;
+        LIST_FOREACH_SAFE(fileInfo, &fileObject->fileInfo, listEntry, fileInfo_tmp)
+        {
+            UA_file_close(fileInfo->file);
+            LIST_REMOVE(fileInfo, listEntry);
+            UA_free(fileInfo);
+        }
+        LIST_REMOVE(fileObject, listEntry);
+        UA_free(fileObject);
+    }
+#endif
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_MonitoredItem *mon, *mon_tmp;
