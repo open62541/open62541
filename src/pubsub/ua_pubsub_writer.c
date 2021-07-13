@@ -4,7 +4,7 @@
  *
  * Copyright (c) 2017-2019 Fraunhofer IOSB (Author: Andreas Ebner)
  * Copyright (c) 2019 Fraunhofer IOSB (Author: Julius Pfrommer)
- * Copyright (c) 2019 Kalycito Infotech Private Limited
+ * Copyright (c) 2019-2021 Kalycito Infotech Private Limited
  * Copyright (c) 2020 Yannick Wallerer, Siemens AG
  * Copyright (c) 2020 Thomas Fischer, Siemens AG
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
@@ -2073,7 +2073,6 @@ generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
         if(wg->config.securityMode >= UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
             networkMessage->securityHeader.networkMessageEncrypted = true;
         networkMessage->securityHeader.securityTokenId = wg->securityTokenId;
-
         /* Generate the MessageNonce */
         UA_ByteString_allocBuffer(&networkMessage->securityHeader.messageNonce, 8);
         if(networkMessage->securityHeader.messageNonce.length == 0)
@@ -2148,7 +2147,6 @@ encryptAndSign(UA_WriterGroup *wg, const UA_NetworkMessage *nm,
         rv = wg->config.securityPolicy->setMessageNonce(channelContext,
                                                         &nm->securityHeader.messageNonce);
         UA_CHECK_STATUS(rv, return rv);
-
         /* The encryption is done in-place, no need to encode again */
         UA_ByteString toBeEncrypted =
             {(uintptr_t)msgEnd - (uintptr_t)encryptStart, encryptStart};
@@ -2169,6 +2167,7 @@ encryptAndSign(UA_WriterGroup *wg, const UA_NetworkMessage *nm,
             signatureAlgorithm.sign(channelContext, &toBeSigned, &signature);
         UA_CHECK_STATUS(rv, return rv);
     }
+
     return UA_STATUSCODE_GOOD;
 }
 #endif
@@ -2197,14 +2196,12 @@ writeNetworkMessage(UA_WriterGroup *wg, size_t msgSize,
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     UA_Byte *footerEnd = bufPos;
-#endif
-    /* Encrypt and Sign the message */
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
 
+    /* Encrypt and Sign the message */
     rv = encryptAndSign(wg, nm, networkMessageStart, payloadStart, footerEnd);
     UA_CHECK_STATUS(rv, return rv);
-
 #endif
+
     return UA_STATUSCODE_GOOD;
 }
 static UA_StatusCode

@@ -543,7 +543,6 @@ UA_Server_setWriterGroupEncryptionKeys(UA_Server *server, const UA_NodeId writer
                                        const UA_ByteString keyNonce);
 #endif
 
-
 /**
  * .. _dsw:
  *

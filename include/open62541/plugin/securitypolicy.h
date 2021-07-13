@@ -329,7 +329,6 @@ struct UA_SecurityPolicy {
  * be set in the channel context before de/encrypting. */
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
-
 struct UA_PubSubSecurityPolicy;
 typedef struct UA_PubSubSecurityPolicy UA_PubSubSecurityPolicy;
 
