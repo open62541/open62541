@@ -612,6 +612,9 @@ UA_PubSubChannelUDPMC_receive(UA_PubSubChannel *channel, UA_ByteString *message,
         UA_DateTime newTimeoutValue = remainingTimeoutValue - receiveTimeoutValue;
         tmptv.tv_sec = (long int)(newTimeoutValue  / 1000000);
         tmptv.tv_usec = (long int)(newTimeoutValue % 1000000);
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+        break;//ToDO: Multiple Receive handling for PubsubEncryption need to be done
+#endif
     } while(remainingMessageLength >= 1472); /* TODO:Need to handle for jumbo frames*/
                                              /* 1518 bytes is the maximum size of ethernet packet
                                               * where 18 bytes used for header size, 28 bytes of header

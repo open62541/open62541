@@ -316,12 +316,10 @@ UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
     /* Stop and unfreeze all WriterGroups */
     UA_PubSubConnection *tmpConnection;
     TAILQ_FOREACH(tmpConnection, &server->pubSubManager.connections, listEntry){
-        for(size_t i = 0; i < pubSubManager->connectionsSize; i++) {
-            UA_WriterGroup *writerGroup;
-            LIST_FOREACH(writerGroup, &tmpConnection->writerGroups, listEntry) {
-                UA_WriterGroup_setPubSubState(server, UA_PUBSUBSTATE_DISABLED, writerGroup);
-                UA_Server_unfreezeWriterGroupConfiguration(server, writerGroup->identifier);
-            }
+        UA_WriterGroup *writerGroup;
+        LIST_FOREACH(writerGroup, &tmpConnection->writerGroups, listEntry) {
+            UA_WriterGroup_setPubSubState(server, UA_PUBSUBSTATE_DISABLED, writerGroup);
+            UA_Server_unfreezeWriterGroupConfiguration(server, writerGroup->identifier);
         }
     }
 

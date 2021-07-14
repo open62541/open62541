@@ -394,9 +394,11 @@ if(UA_ENABLE_PUBSUB)
     add_executable(check_pubsub_subscribe_rt_levels pubsub/check_pubsub_subscribe_rt_levels.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
     target_link_libraries(check_pubsub_subscribe_rt_levels ${LIBS})
     add_test_valgrind(check_pubsub_subscribe_rt_levels ${TESTS_BINARY_DIR}/check_pubsub_subscribe_rt_levels)
-    add_executable(check_pubsub_multiple_subscribe_rt_levels pubsub/check_pubsub_multiple_subscribe_rt_levels.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
-    target_link_libraries(check_pubsub_multiple_subscribe_rt_levels ${LIBS})
-    add_test_valgrind(check_pubsub_multiple_subscribe_rt_levels ${TESTS_BINARY_DIR}/check_pubsub_multiple_subscribe_rt_levels)
+    if(NOT UA_ENABLE_PUBSUB_ENCRYPTION) #ToDO: Multiple Receive handling for PubsubEncryption
+        add_executable(check_pubsub_multiple_subscribe_rt_levels pubsub/check_pubsub_multiple_subscribe_rt_levels.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
+        target_link_libraries(check_pubsub_multiple_subscribe_rt_levels ${LIBS})
+        add_test_valgrind(check_pubsub_multiple_subscribe_rt_levels ${TESTS_BINARY_DIR}/check_pubsub_multiple_subscribe_rt_levels)
+    endif()
 
     add_executable(check_pubsub_multiple_layer pubsub/check_pubsub_multiple_layer.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
     target_link_libraries(check_pubsub_multiple_layer ${LIBS})
@@ -426,14 +428,22 @@ if(UA_ENABLE_PUBSUB)
                 $<TARGET_OBJECTS:open62541-testplugins>)
         target_link_libraries(check_pubsub_subscribe_encrypted ${LIBS})
         add_test_valgrind(check_pubsub_subscribe_encrypted ${TESTS_BINARY_DIR}/check_pubsub_subscribe_encrypted)
+
+        add_executable(check_pubsub_encrypted_rt_levels pubsub/check_pubsub_encrypted_rt_levels.c
+                $<TARGET_OBJECTS:open62541-object>
+                $<TARGET_OBJECTS:open62541-plugins>)
+        target_link_libraries(check_pubsub_encrypted_rt_levels ${LIBS})
+        add_test_valgrind(check_pubsub_encrypted_rt_levels ${TESTS_BINARY_DIR}/check_pubsub_encrypted_rt_levels)
     endif()
 
     if (UA_ENABLE_PUBSUB_MONITORING)
-        add_executable(check_pubsub_subscribe_msgrcvtimeout pubsub/check_pubsub_subscribe_msgrcvtimeout.c 
-            $<TARGET_OBJECTS:open62541-object>
-            $<TARGET_OBJECTS:open62541-testplugins>)
-        target_link_libraries(check_pubsub_subscribe_msgrcvtimeout ${LIBS})
-        add_test_valgrind(check_pubsub_subscribe_msgrcvtimeout ${TESTS_BINARY_DIR}/check_pubsub_subscribe_msgrcvtimeout)
+        if(NOT UA_ENABLE_PUBSUB_ENCRYPTION) #ToDO: Multiple Receive handling for PubsubEncryption
+            add_executable(check_pubsub_subscribe_msgrcvtimeout pubsub/check_pubsub_subscribe_msgrcvtimeout.c 
+                    $<TARGET_OBJECTS:open62541-object>
+                    $<TARGET_OBJECTS:open62541-testplugins>)
+            target_link_libraries(check_pubsub_subscribe_msgrcvtimeout ${LIBS})
+            add_test_valgrind(check_pubsub_subscribe_msgrcvtimeout ${TESTS_BINARY_DIR}/check_pubsub_subscribe_msgrcvtimeout)
+        endif()
     endif()
 
     if(UA_ENABLE_PUBSUB_ETH_UADP)

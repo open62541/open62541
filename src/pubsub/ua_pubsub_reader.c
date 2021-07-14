@@ -218,9 +218,10 @@ UA_DataSetReader_generateDataSetMessage(UA_Server *server, UA_DataSetMessage *da
 }
 
 static UA_StatusCode
-UA_DataSetReader_generateNetworkMessage(UA_PubSubConnection *pubSubConnection, UA_DataSetReader *dataSetReader,
+UA_DataSetReader_generateNetworkMessage(UA_PubSubConnection *pubSubConnection, UA_ReaderGroup *readerGroup,
                                         UA_DataSetMessage *dsm, UA_UInt16 *writerId, UA_Byte dsmCount,
                                         UA_NetworkMessage *nm) {
+    UA_DataSetReader *dataSetReader = LIST_FIRST(&readerGroup->readers);
     if(dataSetReader->config.messageSettings.content.decoded.type != &UA_TYPES[UA_TYPES_UADPDATASETREADERMESSAGEDATATYPE])
         return UA_STATUSCODE_BADNOTSUPPORTED;
 
@@ -248,6 +249,29 @@ UA_DataSetReader_generateNetworkMessage(UA_PubSubConnection *pubSubConnection, U
                                  (u64)UA_UADPNETWORKMESSAGECONTENTMASK_DATASETCLASSID) != 0;
     nm->promotedFieldsEnabled = ((u64)dsrm->networkMessageContentMask &
                                  (u64)UA_UADPNETWORKMESSAGECONTENTMASK_PROMOTEDFIELDS) != 0;
+    /* Set the SecurityHeader */
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    if(readerGroup->config.securityMode > UA_MESSAGESECURITYMODE_NONE) {
+        nm->securityEnabled = true;
+        nm->securityHeader.networkMessageSigned = true;
+        if(readerGroup->config.securityMode >= UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+            nm->securityHeader.networkMessageEncrypted = true;
+        nm->securityHeader.securityTokenId = readerGroup->securityTokenId;
+
+        /* Generate the MessageNonce */
+        UA_ByteString_allocBuffer(&nm->securityHeader.messageNonce, 8);
+        if(nm->securityHeader.messageNonce.length == 0)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+
+        nm->securityHeader.messageNonce.length = 4; /* Generate 4 random bytes */
+        UA_StatusCode rv = readerGroup->config.securityPolicy->symmetricModule.
+            generateNonce(readerGroup->config.securityPolicy->policyContext,
+                          &nm->securityHeader.messageNonce);
+        if(rv != UA_STATUSCODE_GOOD)
+            return rv;
+        nm->securityHeader.messageNonce.length = 8;
+    }
+#endif
     nm->version = 1;
     nm->networkMessageType = UA_NETWORKMESSAGE_DATASET;
 
@@ -707,7 +731,7 @@ UA_Server_freezeReaderGroupConfiguration(UA_Server *server, const UA_NodeId read
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
 
-        res = UA_DataSetReader_generateNetworkMessage(pubSubConnection, dataSetReader, dsm,
+        res = UA_DataSetReader_generateNetworkMessage(pubSubConnection, rg, dsm,
                                                       dsWriterIds, 1, networkMessage);
         if(res != UA_STATUSCODE_GOOD) {
             UA_free(networkMessage->payload.dataSetPayload.sizes);
@@ -1919,6 +1943,27 @@ decodeAndProcessNetworkMessageRT(UA_Server *server, UA_ReaderGroup *readerGroup,
 */
     size_t paddingBytes = 0;
     UA_DataSetReader *dataSetReader = LIST_FIRST(&readerGroup->readers);
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    if(readerGroup->config.securityMode > UA_MESSAGESECURITYMODE_NONE) {
+        UA_NetworkMessage currentNetworkMessage;
+        memset(&currentNetworkMessage, 0, sizeof(UA_NetworkMessage));
+        UA_StatusCode rv;
+        size_t payLoadPosition = 0;
+        rv = UA_NetworkMessage_decodeHeaders(
+            buffer, &payLoadPosition, &currentNetworkMessage);
+
+        UA_CHECK_STATUS_ERROR(rv, return rv, &server->config.logger, UA_LOGCATEGORY_SERVER,
+                            "PubSub receive. decoding headers failed");
+        rv = verifyAndDecryptNetworkMessage(&server->config.logger,
+                                            buffer,
+                                            &payLoadPosition,
+                                            &currentNetworkMessage,
+                                            readerGroup);
+        UA_CHECK_STATUS_WARN(rv, return rv, &server->config.logger, UA_LOGCATEGORY_SERVER,
+                            "Subscribe failed. verify and decrypt network message failed.");
+        UA_NetworkMessage_clear(&currentNetworkMessage);
+    }
+#endif
     /* Decode only the necessary offset and update the networkMessage */
     if(UA_NetworkMessage_updateBufferedNwMessage(&dataSetReader->bufferedMessage, buffer,
                                                  currentPosition) != UA_STATUSCODE_GOOD) {
