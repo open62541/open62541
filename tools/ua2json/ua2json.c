@@ -179,7 +179,9 @@ usage(void) {
 
 int main(int argc, char **argv) {
     UA_Boolean encode_option = true;
+#ifdef UA_ENABLE_PUBSUB
     UA_Boolean pubsub = false;
+#endif
     const char *datatype_option = "Variant";
     const char *input_option = NULL;
     const char *output_option = NULL;
@@ -241,9 +243,12 @@ int main(int argc, char **argv) {
 
     /* Find the data type */
     const UA_DataType *type = NULL;
+#ifdef UA_ENABLE_PUBSUB
     if(strcmp(datatype_option, "PubSub") == 0) {
         pubsub = true;
-    } else {
+    } else
+#endif
+    {
         for(size_t i = 0; i < UA_TYPES_COUNT; ++i) {
             if(strcmp(datatype_option, UA_TYPES[i].typeName) == 0) {
                 type = &UA_TYPES[i];
