@@ -413,7 +413,7 @@ class Int32(Integer):
         # Values of enumerations can be encoded as strings: <symbol>_<value> (see OPC specification part 6)
         # UaModeler does this for enums that are fields of structs
         # Extract <value> from string if possible
-        if isinstance(self.value, unicode) and not self.__strIsInt(self.value):
+        if isinstance(self.value, string_types) and not self.__strIsInt(self.value):
             split = self.value.split('_')
             if len(split) == 2 and self.__strIsInt(split[1]):
                 self.value = split[1]
