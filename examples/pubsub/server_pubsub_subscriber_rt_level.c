@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include <signal.h>
 #include <stdlib.h>
+#include <assert.h>
 
 #define PUBSUB_CONFIG_FIELD_COUNT 10
 
@@ -46,6 +47,16 @@ UA_DataSetReaderConfig readerConfig;
 UA_UInt32    *repeatedFieldValues[PUBSUB_CONFIG_FIELD_COUNT];
 UA_DataValue *repeatedDataValueRT[PUBSUB_CONFIG_FIELD_COUNT];
 
+typedef enum {
+    NO_WRITE_CALLBACK,
+    AFTER_WRITE_CALLBACK,
+    WRITE_CALLBACK
+} SubscriberWriteCallbackSelect;
+
+static SubscriberWriteCallbackSelect sSelectSubscriberWriteCallback = AFTER_WRITE_CALLBACK;
+static UA_UInt32 sSubscribedDataSink[PUBSUB_CONFIG_FIELD_COUNT];    /* simulate a custom data sink (e.g. shared memory) */
+static UA_UInt32 sSubscribedTargetVarDataOffset[PUBSUB_CONFIG_FIELD_COUNT];
+
 /* If the external data source is written over the information model, the
  * externalDataWriteCallback will be triggered. The user has to take care and assure
  * that the write leads not to synchronization issues and race conditions. */
@@ -67,27 +78,66 @@ externalDataReadNotificationCallback(UA_Server *server, const UA_NodeId *session
     return UA_STATUSCODE_GOOD;
 }
 
+/* callback gets triggered after subscriber has received data
+    received data has already been copied to ippExternalValueSource */
 static void
 SubscribeAfterWriteCallback(
-   UA_Server *ipServer,
-   const UA_NodeId *ipDataSetReaderId,
-   const UA_NodeId *ipReaderGroupId,
-   const UA_NodeId *ipTargetVariableId,
-   void *ipTargetVariableContext,
-   UA_DataValue **ippExternalValueSource) { // received value has already been copied to ippExternalValueSource
+   UA_Server *server,
+   const UA_NodeId *dataSetReaderId,
+   const UA_NodeId *readerGroupId,
+   const UA_NodeId *targetVariableId,
+   void *targetVariableContext,
+   UA_DataValue **externalValueSource) {
 
-    (void) ipServer;
-    (void) ipDataSetReaderId;
-    (void) ipReaderGroupId;
-    (void) ipTargetVariableContext;
+    (void) server;
+    (void) dataSetReaderId;
+    (void) readerGroupId;
+    (void) targetVariableId;
 
     UA_String strId;
     UA_String_init(&strId);
-    UA_NodeId_print(ipTargetVariableId, &strId);
+    UA_NodeId_print(targetVariableId, &strId);
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "SubscribeAfterWriteCallback(): "
         "WriteUpdate() for node Id = '%.*s'. New Value = %u", (UA_Int32) strId.length, strId.data,
-        *((UA_UInt32*) (**ippExternalValueSource).value.data));
+        *((UA_UInt32*) (**externalValueSource).value.data));
     UA_String_clear(&strId);
+}
+
+/* callback gets triggered after subscriber has received data
+    received data hasn't been copied/handled yet */
+static void 
+SubscriberWriteCallback(
+    UA_Server *server,
+    const UA_NodeId *dataSetReaderId,
+    const UA_NodeId *readerGroupId,
+    const UA_NodeId *targetVariableId,
+    void *targetVariableContext,  /* custom target variable context (e.g. shared mem handle, offset) */
+    UA_DataValue *data) {         /* received value */
+
+    (void) server;
+    (void) dataSetReaderId;
+    (void) readerGroupId;
+    (void) targetVariableContext;
+    
+    assert(data->value.data != 0);
+    assert(data->value.type == &UA_TYPES[UA_TYPES_UINT32]);
+    assert(data->value.type->memSize == sizeof(UA_UInt32)); /* in this simple example all dataset fields are of type UInt32 */
+
+    UA_String strId;
+    UA_String_init(&strId);
+    UA_NodeId_print(targetVariableId, &strId);
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "SubscriberWriteCallback(): "
+        "WriteUpdate() for node Id = '%.*s'. DataSize = %u, Data = %u", (UA_Int32) strId.length, strId.data,
+        data->value.type->memSize, *((UA_UInt32*) data->value.data));
+    UA_String_clear(&strId);
+
+    /* instead of unnecessary copy to external value pointer we handle received data here
+        we copy received data to data sink, meta information is available at targetVariableContext
+        data sink could be a shared memory or any other custom implementation which represents variables of the engineering system */
+    UA_UInt32 offset = *((UA_UInt32*) targetVariableContext);
+    assert(offset < PUBSUB_CONFIG_FIELD_COUNT);
+    memcpy(sSubscribedDataSink + offset, data, data->value.type->memSize);
+    sSubscribedDataSink[offset] = *(UA_UInt32*) data;
 }
 
 /* Define MetaData for TargetVariables */
@@ -229,7 +279,19 @@ addSubscribedVariables (UA_Server *server) {
         UA_FieldTargetDataType_init(&readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariable);
         readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
         readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariable.targetNodeId = newnodeId;
-        readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].afterWrite = SubscribeAfterWriteCallback;
+        switch (sSelectSubscriberWriteCallback) {
+            case AFTER_WRITE_CALLBACK:
+                readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].afterWrite = SubscribeAfterWriteCallback;
+                break;
+            case WRITE_CALLBACK:
+                readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].write = SubscriberWriteCallback;
+                sSubscribedTargetVarDataOffset[i] = (UA_UInt32) i;
+                readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariableContext = &sSubscribedTargetVarDataOffset[i];
+                break;
+            default:
+                /* either NO_WRITE_CALLBACK or unsupported configuration - nothing to do */
+                break;
+        }
     }
 
     return retval;

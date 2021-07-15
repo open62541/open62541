@@ -1522,22 +1522,32 @@ UA_DataSetReader_process(UA_Server *server,
                 for(UA_UInt16 i = 0; i < anzFields; i++) {
                     if(dataSetMsg->data.keyFrameData.dataSetFields[i].hasValue) {
                         if(dataSetReader->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariable.attributeId == UA_ATTRIBUTEID_VALUE) {
-                            memcpy((**(dataSetReader->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].externalDataValue)).value.data,
-                                   dataSetMsg->data.keyFrameData.dataSetFields[i].value.data,
-                                   dataSetMsg->data.keyFrameData.dataSetFields[i].value.type->memSize);
-                            if(dataSetReader->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariableContext)
-                                memcpy(dataSetReader->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariableContext,
-                                       dataSetMsg->data.keyFrameData.dataSetFields[i].value.data,
-                                       dataSetMsg->data.keyFrameData.dataSetFields[i].value.type->memSize);
+                            if(dataSetReader->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].write != 0) {
+                                dataSetReader->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].write(
+                                    server,
+                                    &dataSetReader->identifier,
+                                    &dataSetReader->linkedReaderGroup,
+                                    &dataSetReader->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariable.targetNodeId,
+                                    dataSetReader->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariableContext,
+                                    &dataSetMsg->data.keyFrameData.dataSetFields[i]);
+                            } else {
+                                memcpy((**(dataSetReader->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].externalDataValue)).value.data,
+                                           dataSetMsg->data.keyFrameData.dataSetFields[i].value.data,
+                                           dataSetMsg->data.keyFrameData.dataSetFields[i].value.type->memSize);
 
-                            if(dataSetReader->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].afterWrite)
-                                dataSetReader->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].afterWrite(server,
+                                if(dataSetReader->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariableContext)
+                                    memcpy(dataSetReader->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariableContext,
+                                           dataSetMsg->data.keyFrameData.dataSetFields[i].value.data,
+                                           dataSetMsg->data.keyFrameData.dataSetFields[i].value.type->memSize);
+
+                                if(dataSetReader->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].afterWrite)
+                                    dataSetReader->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].afterWrite(server,
                                                                                                                        &dataSetReader->identifier,
                                                                                                                        &dataSetReader->linkedReaderGroup,
                                                                                                                        &dataSetReader->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariable.targetNodeId,
                                                                                                                        dataSetReader->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariableContext,
                                                                                                                        dataSetReader->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].externalDataValue);
-
+                            }
                         }
                     }
                 }

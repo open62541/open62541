@@ -622,7 +622,12 @@ typedef struct {
     /* If realtime-handling is required, set this pointer non-NULL and it will be used
      * to memcpy the value instead of using the Write service.
      * If the afterWrite method pointer is set, it will be called after a memcpy update
-     * to the value. */
+     * to the value. 
+     * If the write method pointer is set, it will be called instead of a memcpy update 
+     * to the value for custom processing of the received value. The pointer won't be
+     * updated, the afterWrite method won't be called. If both pointers are set only 
+     * the write method pointer will be used. afterWrite and write pointer are 
+     * mutually exclusive. */
     UA_DataValue **externalDataValue;
     void *targetVariableContext; /* user-defined pointer */
     void (*afterWrite)(UA_Server *server,
@@ -631,6 +636,12 @@ typedef struct {
                        const UA_NodeId *targetVariableIdentifier,
                        void *targetVariableContext,
                        UA_DataValue **externalDataValue);
+    void (*write)(UA_Server *server,
+                       const UA_NodeId *readerIdentifier,
+                       const UA_NodeId *readerGroupIdentifier,
+                       const UA_NodeId *targetVariableIdentifier,
+                       void *targetVariableContext,
+                       UA_DataValue *dataValue);
 } UA_FieldTargetVariable;
 
 typedef struct {
