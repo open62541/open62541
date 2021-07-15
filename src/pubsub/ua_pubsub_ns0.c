@@ -889,7 +889,7 @@ addPublishedDataItemsRepresentation(UA_Server *server,
     object_attr.displayName = UA_LOCALIZEDTEXT("", pdsName);
     retVal = UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, 0), /* Create a new id */
                        UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_PUBLISHEDDATASETS),
-                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                        UA_QUALIFIEDNAME(0, pdsName),
                        UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHEDDATAITEMSTYPE),
                        object_attr, NULL, &publishedDataSet->identifier);
