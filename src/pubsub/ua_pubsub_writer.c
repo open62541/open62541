@@ -649,8 +649,10 @@ generateFieldMetaData(UA_Server *server, UA_DataSetField *field,
         const UA_DataType *currentDataType =
             UA_findDataTypeWithCustom(&fieldMetaData->dataType,
                                       server->config.customDataTypes);
+#ifdef UA_ENABLE_TYPEDESCRIPTION
         UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "MetaData creation. Found DataType %s.", currentDataType->typeName);
+#endif
         /* Check if the datatype is a builtInType, if yes set the builtinType.
          * TODO: Remove the magic number */
         if(currentDataType->typeKind <= UA_DATATYPEKIND_ENUM)
