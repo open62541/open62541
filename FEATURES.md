@@ -8,7 +8,7 @@ OPC UA Stack
 | --------------------------------------- |:------------------:| -------------------- |
 | **Encoding**                            |                    |                      |
 | OPC UA Binary                           | :heavy_check_mark: |                      |
-| OPC UA JSON                             |     :full_moon:    |                      |
+| OPC UA JSON                             | :heavy_check_mark: |                      |
 | OPC UA XML                              |     :new_moon:     |                      |
 | **Transport**                           |                    |                      |
 | UA-TCP UA-SC UA Binary                  | :heavy_check_mark: |                      |
@@ -62,14 +62,14 @@ OPC UA Server
 |                             | DeleteMonitoredItems()          |  :heavy_check_mark:  |                      |
 |                             | ModifyMonitoredItems()          |  :heavy_check_mark:  |                      |
 |                             | SetMonitoringMode()             |  :heavy_check_mark:  |                      |
-|                             | SetTriggering()                 |  :heavy_check_mark:  |  master              |
+|                             | SetTriggering()                 |  :heavy_check_mark:  |                      |
 | Subscription Service Set    | CreateSubscription()            |  :heavy_check_mark:  |                      |
 |                             | ModifySubscription()            |  :heavy_check_mark:  |                      |
 |                             | SetPublishingMode()             |  :heavy_check_mark:  |                      |
 |                             | Publish()                       |  :heavy_check_mark:  |                      |
 |                             | Republish()                     |  :heavy_check_mark:  |                      |
 |                             | DeleteSubscriptions()           |  :heavy_check_mark:  |                      |
-|                             | TransferSubscriptions()         |  :heavy_check_mark:  |  master              |
+|                             | TransferSubscriptions()         |  :heavy_check_mark:  |                      |
 
 | **Subscriptions**                       |                    |                      |
 | --------------------------------------- |:------------------:| -------------------- |
