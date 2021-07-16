@@ -295,6 +295,7 @@ class NodeSet(object):
             node.replaceAliases(self.aliases)
             node.replaceNamespaces(namespaceMapping)
             node.typesArray = typesArray
+            node.prefix = "" if typesArray == "UA_TYPES" else typesArray[len("UA_TYPES_"):] + "_"
 
             # Add the node the the global dict
             if node.id in self.nodes:
