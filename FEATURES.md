@@ -105,6 +105,10 @@ OPC UA PubSub
 | AMQP                                              |      :new_moon:       |                        |
 | **Publisher Configuration**                       |                       |                        |
 | Configure (server-side) Publisher at runtime      |  :heavy_check_mark:   |                        |
-| Configuration representation in information model |  :heavy_check_mark:   | Runtime configuration changes by editing the information model representation are possible |
+| Configuration representation in information model |  :heavy_check_mark:   | Runtime configuration changes via the information model possible |
+| Message Encryption                                |  :heavy_check_mark:   | With manual key configuration |
 | Security Key Service Model                        |      :new_moon:       |                        |
 | **Subscriber Configuration**                      | :waning_gibbous_moon: | Manual Subscriber only |
+| Message Decryption                                |  :heavy_check_mark:   | With manual key configuration |
+| Configure (server-side) Subscriber at runtime     |  :heavy_check_mark:   |                        |
+| Configuration representation in information model |  :heavy_check_mark:   | Runtime configuration changes via the information model possible |
