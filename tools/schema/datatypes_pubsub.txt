@@ -46,6 +46,10 @@ UABinaryFileDataType
 PermissionType
 RolePermissionType
 SubscribedDataSetMirrorDataType
+SimpleAttributeOperand
+FilterOperator
+ContentFilterElement
+ContentFilter
 PublishedEventsDataType
 DatagramConnectionTransportDataType
 DatagramWriterGroupTransportDataType
