@@ -5,6 +5,7 @@
  *    Copyright 2017-2018 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2021 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
  */
 
 #ifndef UA_PLUGIN_SECURITYPOLICY_H_
@@ -319,6 +320,31 @@ struct UA_SecurityPolicy {
     /* Deletes the dynamic content of the policy */
     void (*clear)(UA_SecurityPolicy *policy);
 };
+
+#ifdef UA_ENABLE_ENCRYPTION
+enum UA_CertificateFormat {
+    UA_CERTIFICATE_FORMAT_DER,
+    UA_CERTIFICATE_FORMAT_PEM
+};
+
+/**
+ * (Experimental) Create a certificate
+ *
+ * It is recommended to store the generated certificate in a non volatile memory and
+ * reuse it, so the application can be recognized across several executions.
+ *
+ * \param subject Elements for the subject,
+ *                  e.g. ["C=DE", "O=SampleOrganization", "CN=Open62541Server@localhost"]
+ * \param subjectAltName Elements for SubjectAltName,
+ *                  e.g. ["DNS:localhost", "URI:urn:open62541.server.application"]
+ */
+UA_StatusCode UA_EXPORT
+UA_CreateCertificate(const UA_Logger *logger,
+                    UA_String subject[], UA_UInt32 lenSubject,
+                    UA_String subjectAltName[], UA_UInt32 lenSubjectAltName,
+                    UA_ByteString *outPKey, UA_ByteString *outDerCert,
+                    enum UA_CertificateFormat certFormat);
+#endif
 
 /**
  * PubSub SecurityPolicy
