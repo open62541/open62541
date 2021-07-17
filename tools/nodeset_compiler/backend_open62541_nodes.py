@@ -206,6 +206,32 @@ def generateCommonVariableCode(node, nodeset):
 
     code.append("attr.dataType = %s;" % generateNodeIdCode(node.dataType))
 
+    # Check the dataTypeNode if it is not encodable. If the reason is a BaseDataType that is not encodable,
+    # it will be removed from the list.
+    if not dataTypeNode.isEncodable() and len(dataTypeNode.__baseTypeEncoding__) > 0:
+        index = 0
+        remove_list = []
+        for x in dataTypeNode.__xmlDefinition__.childNodes:
+            if x.nodeType == x.ELEMENT_NODE:
+                fname  = ""
+                fdtype = ""
+                for at,av in x.attributes.items():
+                    if at == "DataType":
+                        fdtype = str(av)
+                        if fdtype in nodeset.aliases:
+                            fdtype = nodeset.aliases[fdtype]
+                    elif at == "Name":
+                        fname = str(av)
+                if len(fdtype) == 0 or fdtype == "BaseDataType":
+                    remove_list.append(index)
+                index += 1;
+        index = 0
+        for x in remove_list:
+            # Adjust the indicies in the remove list after each deletion!
+            del dataTypeNode.__baseTypeEncoding__[x-index]
+            index += 1
+        dataTypeNode.__encodable__ = True
+
     if dataTypeNode.isEncodable():
         if node.value is not None:
             [code1, codeCleanup1, codeGlobal1] = generateValueCode(node.value, nodeset.nodes[node.id], nodeset)

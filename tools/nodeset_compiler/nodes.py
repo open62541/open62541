@@ -505,7 +505,7 @@ class DataTypeNode(Node):
                 if not targetNode.isEncodable():
                     self.__encodable__ = False
                 else:
-                    self.__baseTypeEncoding__ = self.__baseTypeEncoding__ + [self.browseName.name, subenc, None]
+                    self.__baseTypeEncoding__ = self.__baseTypeEncoding__ + [self.browseName.name, subenc, None , 'false']
             if len(self.__baseTypeEncoding__) == 0:
                 logger.debug(prefix + "No viable definition for " + str(self.browseName) + " " + str(self.id) + " found.")
                 self.__encodable__ = False
@@ -536,6 +536,8 @@ class DataTypeNode(Node):
                 enumVal = ""
                 valueRank = None
                 #symbolicName = None
+                arrayDimensions = None
+                isOptional = ""
                 for at,av in x.attributes.items():
                     if at == "DataType":
                         fdtype = str(av)
@@ -552,6 +554,10 @@ class DataTypeNode(Node):
                         isEnum = True
                     elif at == "ValueRank":
                         valueRank = int(av)
+                    elif at == "IsOptional":
+                        isOptional = str(av)
+                    elif at == "ArrayDimensions":
+                        arrayDimensions = int(av)
                     else:
                         logger.warn("Unknown Field Attribute " + str(at))
                 # This can either be an enumeration OR a structure, not both.
@@ -580,7 +586,10 @@ class DataTypeNode(Node):
                     logger.debug( prefix + fname + " : " + fdtype + " -> " + str(dtnode.id))
                     subenc = dtnode.buildEncoding(nodeset=nodeset, indent=indent+1,
                                                   namespaceMapping=namespaceMapping)
-                    self.__baseTypeEncoding__ = self.__baseTypeEncoding__ + [[fname, subenc, valueRank]]
+                    if isOptional:
+                        self.__baseTypeEncoding__ = self.__baseTypeEncoding__ + [[fname, subenc, valueRank, 'true']]
+                    else:
+                        self.__baseTypeEncoding__ = self.__baseTypeEncoding__ + [[fname, subenc, valueRank, 'false']]
                     if not dtnode.isEncodable():
                         # If we inherit an encoding from an unencodable node, this node is
                         # also not encodable

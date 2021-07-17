@@ -218,7 +218,7 @@ class Value(object):
                 # Let the next elif handle this
                 return self.__parseXMLSingleValue(xmlvalue, parentDataTypeNode, parent,
                                                   alias=alias, encodingPart=enc[0], valueRank=enc[2] if len(enc)>2 else None)
-        elif len(enc) == 3 and isinstance(enc[0], string_types):
+        elif len(enc) == 4 and isinstance(enc[0], string_types) and (xmlvalue is None or (xmlvalue is not None and not xmlvalue.localName == "ExtensionObject")):
             # [ 'Alias', [...], 0 ]          aliased multipart
             if alias is None:
                 alias = enc[0]
@@ -301,10 +301,30 @@ class Value(object):
                     return extobj
 
                 extobj.value = []
-                for e in enc:
-                    extobj.value.append(extobj.__parseXMLSingleValue(ebodypart, parentDataTypeNode, parent,
-                                                                     alias=None, encodingPart=e))
+                if ebodypart.localName == "EncodingMask":
+                    remove_list = []
+                    index = 0
+                    if len(enc) == 4 and isinstance(enc[0], string_types):
+                        enc = [enc]
+                    if ebodypart.firstChild.data == '0':
+                        for i in range(0,len(enc)):
+                            if enc[i][len(enc[i])-1] == 'true':
+                                remove_list.append(i)
+                        for i in remove_list:
+                            # Adjust the indicies in the remove list after each deletion!
+                            del enc[i-index]
+                            index += 1
                     ebodypart = getNextElementNode(ebodypart)
+
+                #handling for extension objects which contain only one field
+                if len(enc) == 4 and isinstance(enc[0], string_types):
+                    extobj.value.append(extobj.__parseXMLSingleValue(ebodypart, parentDataTypeNode, parent,
+                                                                     alias=None))
+                else:
+                    for e in enc:
+                        extobj.value.append(extobj.__parseXMLSingleValue(ebodypart, parentDataTypeNode, parent,
+                                                                        alias=None, encodingPart=e))
+                        ebodypart = getNextElementNode(ebodypart)
             except Exception as ex:
                 logger.error(str(parent.id) + ": Could not parse <Body> for ExtensionObject. {}".format(ex))
 
