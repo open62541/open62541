@@ -622,12 +622,9 @@ if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" ST
         check_add_cc_flag("-fPIC")
     endif()
 
+    # Force 32bit build
     if(UA_FORCE_32BIT)
-      string(FIND "${CMAKE_C_FLAGS}" "-m32" m32_already_set)
-      if(m32_already_set EQUAL -1)
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32")
-      endif()
-      unset(flag_supported CACHE)
+	check_add_cc_flag("-m32")
     endif()
 
     if(NOT MINGW)
