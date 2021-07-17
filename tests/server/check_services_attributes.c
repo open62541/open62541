@@ -87,6 +87,29 @@ static void setup(void) {
                                                  vattr, temperatureDataSource,
                                                  NULL, NULL);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Structure VariableNode */
+    vattr = UA_VariableAttributes_default;
+    UA_Range r;
+    UA_Range_init(&r);
+
+    UA_ExtensionObject extensionObjectRange;
+    UA_ExtensionObject_init(&extensionObjectRange);
+    extensionObjectRange.encoding = UA_EXTENSIONOBJECT_DECODED;
+    extensionObjectRange.content.decoded.type = &UA_TYPES[UA_TYPES_RANGE];
+    extensionObjectRange.content.decoded.data = &r;
+
+    UA_Variant_setScalar(&vattr.value, &extensionObjectRange, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+    vattr.description = UA_LOCALIZEDTEXT("en-US","range");
+    vattr.displayName = UA_LOCALIZEDTEXT("en-US","range");
+    vattr.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_RANGE);
+    vattr.valueRank = UA_VALUERANK_ANY;
+    retval = UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "range.range"),
+                                       parentNodeId, parentReferenceNodeId,
+                                       UA_QUALIFIEDNAME(1, "range"),
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                       vattr, NULL, NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     /* VariableNode with array */
     vattr = UA_VariableAttributes_default;
@@ -848,6 +871,60 @@ START_TEST(WriteSingleAttributeValueEnum) {
     UA_DataValue_clear(&resp);
 } END_TEST
 
+START_TEST(WriteSingleAttributeValueStructure) {
+    UA_WriteValue wValue;
+    UA_WriteValue_init(&wValue);
+    UA_Range myRange = {1.0, 2.0};
+    UA_Variant_setScalar(&wValue.value.value, &myRange, &UA_TYPES[UA_TYPES_RANGE]);
+    wValue.value.hasValue = true;
+    wValue.nodeId = UA_NODEID_STRING(1, "range.range");
+    wValue.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_StatusCode retval = UA_Server_write(server, &wValue);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = UA_NODEID_STRING(1, "range.range");
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(resp.hasValue);
+    ck_assert_int_eq(1, (int)(*(UA_Range*)resp.value.data).low);
+    ck_assert_int_eq(2, (int)(*(UA_Range*)resp.value.data).high);
+    UA_DataValue_deleteMembers(&resp);
+
+    UA_ExtensionObject extensionObjectRange;
+    UA_ExtensionObject_init(&extensionObjectRange);
+    extensionObjectRange.encoding = UA_EXTENSIONOBJECT_DECODED;
+    extensionObjectRange.content.decoded.type = &UA_TYPES[UA_TYPES_RANGE];
+    extensionObjectRange.content.decoded.data = &myRange;
+    UA_WriteValue_init(&wValue);
+    UA_Variant_setScalar(&wValue.value.value, &extensionObjectRange, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+
+    wValue.value.hasValue = true;
+    wValue.nodeId = UA_NODEID_STRING(1, "range.range");
+    wValue.attributeId = UA_ATTRIBUTEID_VALUE;
+    retval = UA_Server_write(server, &wValue);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_EUInformation myEUInformation;
+    UA_EUInformation_init(&myEUInformation);
+    UA_ExtensionObject extensionObjectEUInformation;
+    UA_ExtensionObject_init(&extensionObjectEUInformation);
+    extensionObjectEUInformation.encoding = UA_EXTENSIONOBJECT_DECODED;
+    extensionObjectEUInformation.content.decoded.type = &UA_TYPES[UA_TYPES_EUINFORMATION];
+    extensionObjectEUInformation.content.decoded.data = &myEUInformation;
+    UA_WriteValue_init(&wValue);
+    UA_Variant_setScalar(&wValue.value.value, &extensionObjectEUInformation, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+
+    wValue.value.hasValue = true;
+    wValue.nodeId = UA_NODEID_STRING(1, "range.range");
+    wValue.attributeId = UA_ATTRIBUTEID_VALUE;
+    retval = UA_Server_write(server, &wValue);
+    ck_assert_int_eq(retval, UA_STATUSCODE_BADTYPEMISMATCH);
+} END_TEST
+
 START_TEST(WriteSingleAttributeValueRangeFromScalar) {
     UA_WriteValue wValue;
     UA_WriteValue_init(&wValue);
@@ -1026,6 +1103,7 @@ static Suite * testSuite_services_attributes(void) {
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValue);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValueWithServerTimestamp);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValueEnum);
+    tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValueStructure);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeDataType);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValueRangeFromScalar);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValueRangeFromArray);
