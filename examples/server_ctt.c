@@ -1238,6 +1238,9 @@ int main(int argc, char **argv) {
         UA_String_fromChars("urn:open62541.server.application");
 
     config.shutdownDelay = 5000.0; /* 5s */
+    config.bootstrapNs0BaseNodes = true;
+    config.bootstrapNs0Nodes = true;
+    config.initializeNs0NodesInRunStartup = true;
 
     server = UA_Server_newWithConfig(&config);
     if(!server) {

@@ -549,11 +549,19 @@ UA_Server_run_startup(UA_Server *server) {
     /* ensure that the uri for ns1 is set up from the app description */
     setupNs1Uri(server);
 
+    UA_StatusCode retVal;
+
+    if(server->config.initializeNs0NodesInRunStartup){
+        retVal = UA_Server_initNS0Nodes(server);
+
+        if(retVal != UA_STATUSCODE_GOOD)
+            return retVal;
+    }
+
     /* write ServerArray with same ApplicationURI value as NamespaceArray */
-    UA_StatusCode retVal =
-        writeNs0VariableArray(server, UA_NS0ID_SERVER_SERVERARRAY,
-                              &server->config.applicationDescription.applicationUri,
-                              1, &UA_TYPES[UA_TYPES_STRING]);
+    retVal = writeNs0VariableArray(server, UA_NS0ID_SERVER_SERVERARRAY,
+                                   &server->config.applicationDescription.applicationUri,
+                                   1, &UA_TYPES[UA_TYPES_STRING]);
     UA_CHECK_STATUS(retVal, return retVal);
 
     if(server->state > UA_SERVERLIFECYCLE_FRESH)
