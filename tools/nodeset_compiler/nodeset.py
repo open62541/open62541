@@ -388,6 +388,17 @@ class NodeSet(object):
                 # ModellingRule, Root node do not have a parent
                 continue
 
+            # Check if the Nodeset explicitly defines a parent node
+            if node.parentIdAttribute is not None:
+                for ref in node.references:
+                    if ref.target == node.parentIdAttribute:
+                        node.parent = self.nodes[node.parentIdAttribute]
+                        node.parentReference = self.nodes[ref.referenceType]
+                        break
+                if node.parent is not None:
+                    # if found, then stop here. Otherwise try to automatically determine parent based on refs
+                    continue
+
             parentref = node.getParentReference(parentreftypes)
             if parentref is not None:
                 node.parent = self.nodes[parentref.target]
