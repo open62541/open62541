@@ -31,7 +31,7 @@ _UA_BEGIN_DECLS
     UA_NodeId_print(NODEID, &nodeIdStr);             \
     LOG;                                             \
     UA_String_clear(&nodeIdStr);                     \
-    } while(0);
+    } while(0)
 
 #if UA_LOGLEVEL <= 100
 # define UA_LOG_NODEID_TRACE(NODEID, LOG)       \
@@ -107,9 +107,11 @@ isTrue(uint8_t expr) {
 }
 
 #define UA_CHECK(A, EVAL_ON_ERROR)                                                       \
-    if(UA_UNLIKELY(!isTrue(A))) {                                                        \
-        EVAL_ON_ERROR;                                                                   \
-    }
+    do {                                                                                 \
+        if(UA_UNLIKELY(!isTrue(A))) {                                                    \
+            EVAL_ON_ERROR;                                                               \
+        }                                                                                \
+    } while(0)
 
 #define UA_CHECK_STATUS(STATUSCODE, EVAL_ON_ERROR)                                       \
     UA_CHECK(isGood(STATUSCODE), EVAL_ON_ERROR)

@@ -690,7 +690,6 @@ ClientNetworkLayerTCP_free(UA_Connection *connection) {
 UA_StatusCode
 UA_ClientConnectionTCP_poll(UA_Connection *connection, UA_UInt32 timeout,
                             const UA_Logger *logger) {
-    int error = 0;
     if(connection->state == UA_CONNECTIONSTATE_CLOSED)
         return UA_STATUSCODE_BADDISCONNECT;
     if(connection->state == UA_CONNECTIONSTATE_ESTABLISHED)
@@ -741,8 +740,8 @@ UA_ClientConnectionTCP_poll(UA_Connection *connection, UA_UInt32 timeout,
         if(sso_result < 0)
             UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK, "Couldn't set SO_NOSIGPIPE");
 #endif
-        error = UA_connect(connection->sockfd, tcpConnection->server->ai_addr,
-                           tcpConnection->server->ai_addrlen);
+        int error = UA_connect(connection->sockfd, tcpConnection->server->ai_addr,
+                               tcpConnection->server->ai_addrlen);
 
         /* Connection successful */
         if(error == 0) {
@@ -766,7 +765,7 @@ UA_ClientConnectionTCP_poll(UA_Connection *connection, UA_UInt32 timeout,
     UA_UInt32 timeout_usec = timeout * 1000;
 
 #ifdef _OS9000
-    /* OS-9 can't use select for checking write sockets. Therefore, we need to
+    /* OS-9 cannot use select for checking write sockets. Therefore, we need to
      * use connect until success or failed */
     int resultsize = 0;
     do {

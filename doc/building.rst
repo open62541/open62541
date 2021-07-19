@@ -71,7 +71,7 @@ Building on OS X
 
   - Xcode: https://itunes.apple.com/us/app/xcode/id497799835?ls=1&mt=12
   - Homebrew: http://brew.sh/
-  - Pip (a package manager for python, may be preinstalled): ``sudo easy_install pip``
+  - Pip (a package manager for Python, may be preinstalled): ``sudo easy_install pip``
 
 - Run the following in a shell
 
@@ -282,6 +282,13 @@ Detailed SDK Features
    Enable Discovery Service with multicast support (LDS-ME)
 **UA_ENABLE_DISCOVERY_SEMAPHORE**
    Enable Discovery Semaphore support
+**UA_ENABLE_ENCRYPTION**
+   Enable encryption support and specify the used encryption backend. The possible
+   options are:
+      - ``OFF`` No encryption support. (default)
+      - ``MBEDTLS`` Encryption support using mbed TLS
+      - ``OPENSSL`` Encryption support using OpenSSL
+      - ``LIBRESSL`` EXPERIMENTAL: Encryption support using LibreSSL
 
 **UA_NAMESPACE_ZERO**
 
@@ -319,9 +326,8 @@ PubSub Build Options
 **UA_ENABLE_PUBSUB_DELTAFRAMES**
    The PubSub messages differentiate between keyframe (all published values
    contained) and deltaframe (only changed values contained) messages.
-   Deltaframe messages creation consumes some additional ressources and can be
-   disabled with this flag. Disabled by default. Compile the human-readable
-   name of the StatusCodes into the binary. Disabled by default.
+   Deltaframe messages creation consumes some additional resources and can be
+   disabled with this flag. Disabled by default.
 
 **UA_ENABLE_PUBSUB_FILE_CONFIG**
    Enable loading OPC UA PubSub configuration from File/ByteString. Enabling

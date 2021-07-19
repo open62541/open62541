@@ -115,18 +115,18 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
         break;
 #endif
     case UA_NS0ID_CREATESESSIONREQUEST_ENCODING_DEFAULTBINARY:
-        *service = (UA_Service)(uintptr_t)Service_CreateSession;
+        *service = (UA_Service)Service_CreateSession;
         *requestType = &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE];
         *requiresSession = false;
         break;
     case UA_NS0ID_ACTIVATESESSIONREQUEST_ENCODING_DEFAULTBINARY:
-        *service = (UA_Service)(uintptr_t)Service_ActivateSession;
+        *service = (UA_Service)Service_ActivateSession;
         *requestType = &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_ACTIVATESESSIONRESPONSE];
         break;
     case UA_NS0ID_CLOSESESSIONREQUEST_ENCODING_DEFAULTBINARY:
-        *service = (UA_Service)(uintptr_t)Service_CloseSession;
+        *service = (UA_Service)Service_CloseSession;
         *requestType = &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_CLOSESESSIONRESPONSE];
         break;
@@ -518,7 +518,7 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
        requestType == &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST] ||
        requestType == &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST]) {
         UA_LOCK(&server->serviceMutex);
-        ((UA_ChannelService)(uintptr_t)service)(server, channel, request, response);
+        ((UA_ChannelService)service)(server, channel, request, response);
         UA_UNLOCK(&server->serviceMutex);
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
         /* Store the authentication token so we can help fuzzing by setting
@@ -533,11 +533,10 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
 
     /* Get the Session bound to the SecureChannel (not necessarily activated) */
     UA_Session *session = NULL;
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(!UA_NodeId_isNull(&requestHeader->authenticationToken)) {
         UA_LOCK(&server->serviceMutex);
-        retval = getBoundSession(server, channel, &requestHeader->authenticationToken,
-                                 &session);
+        UA_StatusCode retval = getBoundSession(
+            server, channel, &requestHeader->authenticationToken, &session);
         UA_UNLOCK(&server->serviceMutex);
         if(retval != UA_STATUSCODE_GOOD)
             return sendServiceFault(channel, requestId, requestHeader->requestHandle,
@@ -653,9 +652,10 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     getServicePointers(requestTypeId.identifier.numeric, &requestType,
                        &responseType, &service, &sessionRequired);
     if(!requestType) {
-        if(requestTypeId.identifier.numeric == 787) {
+        if(requestTypeId.identifier.numeric ==
+           UA_NS0ID_CREATESUBSCRIPTIONREQUEST_ENCODING_DEFAULTBINARY) {
             UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
-                                "Client requested a subscription, " \
+                                "Client requested a subscription, "
                                 "but those are not enabled in the build");
         } else {
             UA_LOG_INFO_CHANNEL(&server->config.logger, channel,

@@ -47,8 +47,13 @@ typedef struct {
     UA_Double         timeout; /* in ms */
     UA_DateTime       validTill;
     UA_ByteString     serverNonce;
+
     UA_UInt16         availableContinuationPoints;
     ContinuationPoint *continuationPoints;
+
+    size_t paramsSize;
+    UA_KeyValuePair *params;
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     size_t subscriptionsSize;
     TAILQ_HEAD(, UA_Subscription) subscriptions; /* Late subscriptions that do eventually

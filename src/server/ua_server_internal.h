@@ -177,7 +177,7 @@ UA_NodeReferenceKind_findTarget(const UA_NodeReferenceKind *kind,
 /* SecureChannel Handling */
 /**************************/
 
-/* Remove a all securechannels */
+/* Remove all securechannels */
 void
 UA_Server_deleteSecureChannels(UA_Server *server);
 
@@ -297,8 +297,8 @@ getParentTypeAndInterfaceHierarchy(UA_Server *server, const UA_NodeId *typeNode,
 
 /* Returns the recursive interface hierarchy of the node */
 UA_StatusCode
-getInterfaceHierarchy(UA_Server *server, const UA_NodeId *objectNode,
-                                   UA_NodeId **typeHierarchy, size_t *typeHierarchySize);
+getAllInterfaceChildNodeIds(UA_Server *server, const UA_NodeId *objectNode, const UA_NodeId *objectTypeNode,
+                                   UA_NodeId **interfaceChildNodes, size_t *interfaceChildNodesSize);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
 
@@ -516,6 +516,11 @@ compatibleValue(UA_Server *server, UA_Session *session, const UA_NodeId *targetD
 UA_Boolean
 compatibleDataTypes(UA_Server *server, const UA_NodeId *dataType,
                     const UA_NodeId *constraintDataType);
+
+/* Set to the target type if compatible */
+void
+adjustValueType(UA_Server *server, UA_Variant *value,
+                const UA_NodeId *targetDataTypeId);
 
 /* Is the Value compatible with the DataType? Can perform additional checks
  * compared to compatibleDataTypes. */

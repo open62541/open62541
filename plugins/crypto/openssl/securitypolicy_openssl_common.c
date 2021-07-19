@@ -15,7 +15,7 @@ modification history
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/util.h>
 
-#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
 
 #include <openssl/rsa.h>
 #include <openssl/evp.h>
@@ -27,12 +27,7 @@ modification history
 #include <openssl/pem.h>
 
 #include "securitypolicy_openssl_common.h"
-
-#if OPENSSL_VERSION_NUMBER >= 0x1010000fL
-#define get_pkey_rsa(evp) EVP_PKEY_get0_RSA(evp)
-#else
-#define get_pkey_rsa(evp) ((evp)->pkey.rsa)
-#endif
+#include "ua_openssl_version_abstraction.h"
 
 #define SHA1_DIGEST_LENGTH 20          /* 160 bits */
 
@@ -892,11 +887,7 @@ UA_OpenSSL_LoadPrivateKey(const UA_ByteString *privateKey) {
                                           &pkData, len);
     } else {
         BIO *bio = NULL;
-#if OPENSSL_VERSION_NUMBER < 0x1000207fL
         bio = BIO_new_mem_buf((void *) privateKey->data, (int) privateKey->length);
-#else
-        bio = BIO_new_mem_buf((const void *) privateKey->data, (int) privateKey->length);
-#endif
         result = PEM_read_bio_PrivateKey(bio, NULL, NULL, NULL);
         BIO_free(bio);
     }
@@ -929,11 +920,7 @@ UA_OpenSSL_LoadPemCertificate(const UA_ByteString *certificate) {
     X509 * result = NULL;
 
     BIO* bio = NULL;
-#if OPENSSL_VERSION_NUMBER < 0x1000207fL
     bio = BIO_new_mem_buf((void *) certificate->data, (int) certificate->length);
-#else
-    bio = BIO_new_mem_buf((const void *) certificate->data, (int) certificate->length);
-#endif
     result = PEM_read_bio_X509(bio, NULL, NULL, NULL);
     BIO_free(bio);
 

@@ -31,13 +31,13 @@ getSecurityPolicy(UA_Client *client, UA_String policyUri) {
 
 static UA_Boolean
 endpointUnconfigured(UA_Client *client) {
-    UA_Byte test = 0;
-    UA_Byte *pos = (UA_Byte*)&client->config.endpoint;
+    char test = 0;
+    char *pos = (char *)&client->config.endpoint;
     for(size_t i = 0; i < sizeof(UA_EndpointDescription); i++)
-        test = test | pos[i];
-    pos = (UA_Byte*)&client->config.userTokenPolicy;
+        test = test | *(pos + i);
+    pos = (char *)&client->config.userTokenPolicy;
     for(size_t i = 0; i < sizeof(UA_UserTokenPolicy); i++)
-        test = test | pos[i];
+        test = test | *(pos + i);
     return (test == 0);
 }
 

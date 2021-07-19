@@ -4,6 +4,52 @@ on: [push, pull_request]
 
 jobs:
   standard:
+    strategy:
+      fail-fast: false
+      matrix:
+        include: 
+          - name: Debug Build & Unit Tests (gcc)
+            cmd_deps: ""
+            cmd_action: unit_tests
+          - name: Debug Build & Unit Tests with multithreading (gcc)
+            cmd_deps: ""
+            cmd_action: unit_tests_mt
+          - name: Debug Build & Unit Tests (clang)
+            cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11
+            cmd_action: CC=clang-11 CXX=clang++-11 unit_tests
+          - name: Debug Build & Unit Tests (tcc)
+            cmd_deps: sudo apt-get install -y -qq tcc
+            cmd_action: CC=tcc unit_tests
+          - name: Encryption (MbedTLS) Build & Unit Tests (gcc)
+            cmd_deps: sudo apt-get install -y -qq libmbedtls-dev
+            cmd_action: unit_tests_encryption MBEDTLS
+          - name: PubSub Encryption (MbedTLS) Build & Unit Tests (gcc)
+            cmd_deps: sudo apt-get install -y -qq libmbedtls-dev
+            cmd_action: unit_tests_encryption_mbedtls_pubsub
+          - name: Encryption (OpenSSL) Build & Unit Tests (gcc)
+            cmd_deps: sudo apt-get install -y -qq openssl
+            cmd_action: unit_tests_encryption OPENSSL
+          - name: Encryption (LibreSSL) Build & Unit Tests (gcc)
+            cmd_deps: |
+                sudo apt-get install -y -qq curl
+                curl https://ftp.openbsd.org/pub/OpenBSD/LibreSSL/libressl-3.3.3.tar.gz --output libressl.tar.gz
+                tar -xvz -f libressl.tar.gz
+                cd libressl-3.3.3
+                ./configure
+                sudo make install
+            cmd_action: unit_tests_encryption LIBRESSL
+          - name: Release Build
+            cmd_deps: sudo apt-get install -y -qq libmbedtls-dev
+            cmd_action: build_release
+          - name: Amalgamation Build
+            cmd_deps: ""
+            cmd_action: build_amalgamation
+          - name: Valgrind Build & Unit Tests (gcc)
+            cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev
+            cmd_action: unit_tests_valgrind
+          - name: Clang Static Analyzer
+            cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11 libmbedtls-dev
+            cmd_action: build_clang_analyzer
     runs-on: ubuntu-20.04
     steps:
     - uses: actions/checkout@v2
@@ -13,27 +59,7 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y -qq python3-sphinx graphviz check
-        sudo apt-get install -y -qq tcc clang-11 clang-tools-11 valgrind
-        sudo apt-get install -y -qq libmbedtls-dev openssl
-    - name: Debug Build & Unit Tests (gcc)
-      run: source tools/ci.sh && unit_tests
-    - name: Debug Build & Unit Tests with multithreading (gcc)
-      run: source tools/ci.sh && unit_tests_mt
-    - name: Debug Build & Unit Tests (clang)
-      run: source tools/ci.sh && CC=clang-11 CXX=clang++-11 unit_tests
-    - name: Debug Build & Unit Tests (tcc)
-      run: source tools/ci.sh && CC=tcc unit_tests
-    - name: Encryption (MbedTLS) Build & Unit Tests (gcc)
-      run: source tools/ci.sh && unit_tests_encryption_mbedtls
-    - name: PubSub Encryption (MbedTLS) Build & Unit Tests (gcc)
-      run: source tools/ci.sh && unit_tests_encryption_mbedtls_pubsub
-    - name: Encryption (OpenSSL) Build & Unit Tests (gcc)
-      run: source tools/ci.sh && unit_tests_encryption_openssl
-    - name: Release Build
-      run: source tools/ci.sh && build_release
-    - name: Amalgamation Build
-      run: source tools/ci.sh && build_amalgamation
-    - name: Valgrind Build & Unit Tests (gcc)
-      run: source tools/ci.sh && unit_tests_valgrind
-    - name: Clang Static Analyzer
-      run: source tools/ci.sh && build_clang_analyzer
+        ${{ matrix.cmd_deps }}
+    - name: ${{matrix.name}}
+      run: source tools/ci.sh && ${{matrix.cmd_action}}
+

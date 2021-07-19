@@ -29,7 +29,7 @@ include_directories("${CMAKE_CURRENT_SOURCE_DIR}/testing-plugins")
 include_directories("${PROJECT_BINARY_DIR}")
 include_directories("${PROJECT_BINARY_DIR}/../plugins")
 
-if(UA_ENABLE_ENCRYPTION_MBEDTLS)
+if(UA_ENABLE_ENCRYPTION_MBEDTLS OR UA_ENABLE_PUBSUB_ENCRYPTION)
     # mbedtls includes
     include_directories(${MBEDTLS_INCLUDE_DIRS})
 endif()
@@ -37,6 +37,11 @@ endif()
 if(UA_ENABLE_ENCRYPTION_OPENSSL)
     # openssl includes
     include_directories(${OPENSSL_INCLUDE_DIR})
+endif()
+
+if(UA_ENABLE_ENCRYPTION_LIBRESSL)
+    # openssl includes
+    include_directories(${LIBRESSL_INCLUDE_DIR})
 endif()
 
 if(CMAKE_HOST_SYSTEM_NAME MATCHES "OpenBSD")
@@ -80,23 +85,28 @@ if(UA_ENABLE_HISTORIZING)
         ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_history_database_default.c)
 endif()
 
-if(UA_ENABLE_ENCRYPTION_MBEDTLS)
+if(UA_ENABLE_ENCRYPTION_MBEDTLS OR UA_ENABLE_PUBSUB_ENCRYPTION)
   list(INSERT test_plugin_sources 0
        ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_mbedtls_common.h
-       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_mbedtls_common.c
+       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_mbedtls_common.c)
+endif()
+
+if(UA_ENABLE_PUBSUB_ENCRYPTION)
+  list(INSERT test_plugin_sources 1
+    ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_pubsub_aes128ctr.c
+    ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_pubsub_aes256ctr.c)
+endif()
+
+if(UA_ENABLE_ENCRYPTION_MBEDTLS)
+  list(INSERT test_plugin_sources 1
        ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic128rsa15.c
        ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic256.c
        ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic256sha256.c
        ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_aes128sha256rsaoaep.c
        ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_pki_mbedtls.c)
-     if(UA_ENABLE_PUBSUB_ENCRYPTION)
-       list(INSERT test_plugin_sources 0
-         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_pubsub_aes128ctr.c
-         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_pubsub_aes256ctr.c)
-     endif()
 endif()
 
-if(UA_ENABLE_ENCRYPTION_OPENSSL)
+if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL)
   list(INSERT test_plugin_sources 0
               ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_openssl_common.h
               ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_openssl_common.c
@@ -552,7 +562,7 @@ if(UA_ENABLE_ENCRYPTION_MBEDTLS)
     add_test_valgrind(encryption_aes128sha256rsaoaep ${TESTS_BINARY_DIR}/check_encryption_aes128sha256rsaoaep)
 endif()
 
-if(UA_ENABLE_ENCRYPTION_OPENSSL)
+if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL)
     add_executable(check_encryption_basic128rsa15 encryption/check_encryption_basic128rsa15.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     target_link_libraries(check_encryption_basic128rsa15 ${LIBS})
     add_test_valgrind(encryption_basic128rsa15 ${TESTS_BINARY_DIR}/check_encryption_basic128rsa15)

@@ -444,7 +444,7 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
      * the SecureChannel for the Session is closed. */
     if(!pre || !sub->session || !sub->session->header.channel) {
         UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
-                                  "Want to send a publish response but can't. "
+                                  "Want to send a publish response but cannot. "
                                   "The subscription is late.");
         sub->state = UA_SUBSCRIPTIONSTATE_LATE;
         if(pre)

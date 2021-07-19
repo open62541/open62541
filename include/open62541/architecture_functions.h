@@ -6,7 +6,7 @@
 
 /*
  * This header has all the functions that are architecture dependent. The
- * declaration is behind a ifndef since they can be previously defined in the
+ * declaration is behind an ifndef since they can be previously defined in the
  * ua_architecture.h which include this files at the end
  */
 

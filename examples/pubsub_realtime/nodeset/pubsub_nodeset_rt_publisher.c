@@ -382,7 +382,7 @@ addWriterGroup(UA_Server *server) {
  * **DataSetWriter handling**
  *
  * A DataSetWriter (DSW) is the glue between the WG and the PDS. The DSW is
- * linked to exactly one PDS and contains additional informations for the
+ * linked to exactly one PDS and contains additional information for the
  * message generation.
  */
 static void

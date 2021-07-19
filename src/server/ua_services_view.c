@@ -194,6 +194,9 @@ RefTree_double(RefTree *rt) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     /* Repair the pointers for the realloced array+tree  */
+    // What is this sorcery?
+    // FIXME: This needs some cleaning up or explanation.
+    // IMO uintptr could be completely avoided here.
     uintptr_t arraydiff = (uintptr_t)newTargets - (uintptr_t)rt->targets;
     RefEntry *reArray = (RefEntry*)
         ((uintptr_t)newTargets + (capacity * sizeof(UA_ExpandedNodeId)));
@@ -222,6 +225,7 @@ UA_StatusCode
 RefTree_add(RefTree *rt, const UA_ExpandedNodeId *target, UA_Boolean *duplicate) {
     /* Is the target already in the tree? */
     RefEntry dummy;
+    memset(&dummy, 0, sizeof(RefEntry));
     dummy.target = target;
     dummy.targetHash = UA_ExpandedNodeId_hash(target);
     if(ZIP_FIND(RefHead, &rt->head, &dummy)) {
@@ -830,7 +834,8 @@ Operation_BrowseNext(UA_Server *server, UA_Session *session,
                      const UA_Boolean *releaseContinuationPoints,
                      const UA_ByteString *continuationPoint, UA_BrowseResult *result) {
     /* Find the continuation point */
-    ContinuationPoint **prev = &session->continuationPoints, *cp;
+    ContinuationPoint **prev = &session->continuationPoints;
+    ContinuationPoint *cp;
     while((cp = *prev)) {
         if(UA_ByteString_equal(&cp->identifier, continuationPoint))
             break;
@@ -1022,7 +1027,7 @@ Operation_TranslateBrowsePathToNodeIds(UA_Server *server, UA_Session *session,
                                        UA_BrowsePathResult *result) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
-    if(path->relativePath.elementsSize <= 0) {
+    if(path->relativePath.elementsSize == 0) {
         result->statusCode = UA_STATUSCODE_BADNOTHINGTODO;
         return;
     }
@@ -1044,7 +1049,11 @@ Operation_TranslateBrowsePathToNodeIds(UA_Server *server, UA_Session *session,
     UA_NODESTORE_RELEASE(server, startingNode);
 
     /* Create two RefTrees that are alternated between path elements */
-    RefTree rt1, rt2, *current = &rt1, *next = &rt2, *tmp;
+    RefTree rt1;
+    RefTree rt2;
+    RefTree *current = &rt1;
+    RefTree *next = &rt2;
+    RefTree *tmp;
     result->statusCode |= RefTree_init(&rt1);
     result->statusCode |= RefTree_init(&rt2);
     UA_BrowsePathTarget *tmpResults = NULL;

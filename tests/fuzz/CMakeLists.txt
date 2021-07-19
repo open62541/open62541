@@ -30,7 +30,6 @@ remove_definitions(-std=c99 -Wmissing-prototypes -Wstrict-prototypes)
 set(CMAKE_CXX_STANDARD 11)
 
 if(NOT UA_BUILD_OSS_FUZZ)
-
     if(NOT "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
         MESSAGE(FATAL_ERROR "To build fuzzing, you need to use Clang as the compiler")
     endif()
@@ -52,13 +51,14 @@ if(NOT UA_BUILD_OSS_FUZZ)
     endif()
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 else()
-    if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 10.0)
-        set(LIBS $ENV{LIB_FUZZING_ENGINE})
-    endif()
+    set(LIBS $ENV{LIB_FUZZING_ENGINE})
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY $ENV{OUT})
 endif()
+
+#set(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} $ENV{CFLAGS}")
+#link_libraries("-fsanitize-coverage=trace-pc-guard")
 list(APPEND LIBS "${open62541_LIBRARIES}")
-link_libraries("-fsanitize=fuzzer,address")
+link_libraries("-fsanitize=fuzzer")
 
 # Use different plugins for testing
 set(fuzzing_plugin_sources ${PROJECT_SOURCE_DIR}/arch/network_tcp.c
@@ -73,7 +73,7 @@ set(fuzzing_plugin_sources ${PROJECT_SOURCE_DIR}/arch/network_tcp.c
     ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_securitypolicy_none.c
 )
 
-if(UA_ENABLE_ENCRYPTION)
+if(UA_ENABLE_ENCRYPTION OR UA_ENABLE_ENCRYPTION STREQUAL "MBEDTLS" OR UA_ENABLE_ENCRYPTION STREQUAL "OPENSSL")
   list(APPEND fuzzing_plugin_sources
        ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_mbedtls_common.c
        ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic128rsa15.c

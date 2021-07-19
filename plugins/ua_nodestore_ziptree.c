@@ -188,6 +188,7 @@ zipNsInsertNode(void *nsCtx, UA_Node *node, UA_NodeId *addedNodeId) {
 
     /* Ensure that the NodeId is unique */
     NodeEntry dummy;
+    memset(&dummy, 0, sizeof(NodeEntry));
     dummy.nodeId = node->head.nodeId;
     if(node->head.nodeId.identifierType == UA_NODEIDTYPE_NUMERIC &&
        node->head.nodeId.identifier.numeric == 0) {

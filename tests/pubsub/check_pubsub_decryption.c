@@ -28,6 +28,18 @@
 #include <mbedtls/version.h>
 #include <mbedtls/x509_crt.h>
 
+#define UA_SUBSCRIBER_PORT       4801    /* Port for Subscriber*/
+#define PUBLISH_INTERVAL         5       /* Publish interval*/
+#define PUBLISHER_ID             2234    /* Publisher Id*/
+#define DATASET_WRITER_ID        62541   /* DataSet Writer Id*/
+#define WRITER_GROUP_ID          100     /* Writer group Id  */
+#define PUBLISHER_DATA           42      /* Published data */
+#define PUBLISHVARIABLE_NODEID   1000    /* Published data nodeId */
+#define SUBSCRIBEOBJECT_NODEID   1001    /* Object nodeId */
+#define SUBSCRIBEVARIABLE_NODEID 1002    /* Subscribed data nodeId */
+#define READERGROUP_COUNT        2       /* Value to add readergroup to connection */
+#define CHECK_READERGROUP_COUNT  3       /* Value to check readergroup count */
+
 #define UA_AES128CTR_SIGNING_KEY_LENGTH 16
 #define UA_AES128CTR_KEY_LENGTH 16
 #define UA_AES128CTR_KEYNONCE_LENGTH 4
@@ -36,7 +48,7 @@ UA_Byte signingKey[UA_AES128CTR_SIGNING_KEY_LENGTH] = {0};
 UA_Byte encryptingKey[UA_AES128CTR_KEY_LENGTH] = {0};
 UA_Byte keyNonce[UA_AES128CTR_KEYNONCE_LENGTH] = {0};
 UA_Server *server = NULL;
-UA_NodeId readerGroupId, connectionId;
+UA_NodeId writerGroupId, readerGroupId, connectionId;
 
 UA_Logger *logger = NULL;
 
@@ -54,7 +66,7 @@ setup(void) {
                                       &config->logger);
 
     UA_Server_run_startup(server);
-    // add 2 connections
+    // add connection
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
     connectionConfig.name = UA_STRING("UADP Connection");
@@ -64,6 +76,7 @@ setup(void) {
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri =
         UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
+    connectionConfig.publisherId.numeric = 2234;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionId);
 
     logger = &server->config.logger;
@@ -130,31 +143,31 @@ hexstr_to_char(const char *hexstr) {
 #define MSG_SIG "6e08a9ff14b83ea2247792eeffc757c85ac99c0ffa79e4fbe5629783dc77b403"
 #define MSG_SIG_INVALID "5e08a9ff14b83ea2247792eeffc757c85ac99c0ffa79e4fbe5629783dc77b403"
 
-static void
-UA_Server_ReaderGroup_clear(UA_Server *uaServer, UA_ReaderGroup *readerGroup) {
-    UA_ReaderGroupConfig_clear(&readerGroup->config);
-    UA_DataSetReader *dataSetReader;
-    UA_DataSetReader *tmpDataSetReader;
-    LIST_FOREACH_SAFE(dataSetReader, &readerGroup->readers, listEntry, tmpDataSetReader) {
-        UA_Server_removeDataSetReader(uaServer, dataSetReader->identifier);
-    }
-    UA_PubSubConnection* pConn =
-        UA_PubSubConnection_findConnectionbyId(uaServer, readerGroup->linkedConnection);
-    if(pConn != NULL)
-        pConn->readerGroupsSize--;
-
-    /* Delete ReaderGroup and its members */
-    UA_String_clear(&readerGroup->config.name);
-    UA_NodeId_clear(&readerGroup->linkedConnection);
-    UA_NodeId_clear(&readerGroup->identifier);
-
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
-    if(readerGroup->config.securityPolicy && readerGroup->securityPolicyContext) {
-        readerGroup->config.securityPolicy->deleteContext(readerGroup->securityPolicyContext);
-        readerGroup->securityPolicyContext = NULL;
-    }
-#endif
-}
+// static void
+// UA_Server_ReaderGroup_clear(UA_Server *uaServer, UA_ReaderGroup *readerGroup) {
+//     UA_ReaderGroupConfig_clear(&readerGroup->config);
+//     UA_DataSetReader *dataSetReader;
+//     UA_DataSetReader *tmpDataSetReader;
+//     LIST_FOREACH_SAFE(dataSetReader, &readerGroup->readers, listEntry, tmpDataSetReader) {
+//         UA_Server_removeDataSetReader(uaServer, dataSetReader->identifier);
+//     }
+//     UA_PubSubConnection* pConn =
+//         UA_PubSubConnection_findConnectionbyId(uaServer, readerGroup->linkedConnection);
+//     if(pConn != NULL)
+//         pConn->readerGroupsSize--;
+//
+//     /* Delete ReaderGroup and its members */
+//     UA_String_clear(&readerGroup->config.name);
+//     UA_NodeId_clear(&readerGroup->linkedConnection);
+//     UA_NodeId_clear(&readerGroup->identifier);
+//
+// #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+//     if(readerGroup->config.securityPolicy && readerGroup->securityPolicyContext) {
+//         readerGroup->config.securityPolicy->deleteContext(readerGroup->securityPolicyContext);
+//         readerGroup->securityPolicyContext = NULL;
+//     }
+// #endif
+// }
 
 /*
 static UA_ReaderGroup*
@@ -173,30 +186,90 @@ newReaderGroupWithoutSecurity(void) {
     return rgWithoutSecurity;
 } */
 
-static UA_ReaderGroup*
+static UA_FieldMetaData*
 newReaderGroupWithSecurity(UA_MessageSecurityMode mode) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
 
-    UA_ReaderGroupConfig readerGroupConfig;
-    memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
-    readerGroupConfig.name = UA_STRING("ReaderGroup");
-
-    readerGroupConfig.securityMode = mode;
-    readerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[0];
-
+    /* Common encryption key informaton */
     UA_ByteString sk = {UA_AES128CTR_SIGNING_KEY_LENGTH, signingKey};
     UA_ByteString ek = {UA_AES128CTR_KEY_LENGTH, encryptingKey};
     UA_ByteString kn = {UA_AES128CTR_KEYNONCE_LENGTH, keyNonce};
 
-    UA_ReaderGroup *rgWithSecurity = (UA_ReaderGroup *)UA_calloc(1, sizeof(UA_ReaderGroup));
-    UA_ReaderGroupConfig_copy(&readerGroupConfig, &rgWithSecurity->config);
-    rgWithSecurity->config.securityPolicy->
-        newContext(rgWithSecurity->config.securityPolicy->policyContext,
-                   &sk, &ek, &kn,
-                   &rgWithSecurity->securityPolicyContext);
+    /* To check status after running both publisher and subscriber */
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    UA_NodeId readerIdentifier;
+    UA_DataSetReaderConfig readerConfig;
 
-    return rgWithSecurity;
+    /* Reader Group */
+    UA_ReaderGroupConfig readerGroupConfig;
+    memset (&readerGroupConfig, 0, sizeof (UA_ReaderGroupConfig));
+    readerGroupConfig.name = UA_STRING ("ReaderGroup Test");
+
+    /* Reader Group Encryption settings */
+    readerGroupConfig.securityMode = mode;
+    readerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[0];
+
+    retVal |=  UA_Server_addReaderGroup(server, connectionId, &readerGroupConfig, &readerGroupId);
+
+    /* Add the encryption key informaton for readergroup */
+    // TODO security token not necessary for readergroup (extracted from security-header)
+    UA_Server_setReaderGroupEncryptionKeys(server, readerGroupId, 1, sk, ek, kn);
+
+    /* Data Set Reader */
+    /* Parameters to filter received NetworkMessage */
+    memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
+    readerConfig.name             = UA_STRING ("DataSetReader Test");
+    UA_UInt16 publisherIdentifier = PUBLISHER_ID;
+    readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
+    readerConfig.publisherId.data = &publisherIdentifier;
+    readerConfig.writerGroupId    = WRITER_GROUP_ID;
+    readerConfig.dataSetWriterId  = DATASET_WRITER_ID;
+    /* Setting up Meta data configuration in DataSetReader */
+    UA_DataSetMetaDataType *pMetaData = &readerConfig.dataSetMetaData;
+    /* FilltestMetadata function in subscriber implementation */
+    UA_DataSetMetaDataType_init (pMetaData);
+    pMetaData->name       = UA_STRING ("DataSet Test");
+    /* Static definition of number of fields size to 1 to create one
+       targetVariable */
+    pMetaData->fieldsSize = 1;
+    pMetaData->fields     = (UA_FieldMetaData*)UA_Array_new (pMetaData->fieldsSize,
+                                                             &UA_TYPES[UA_TYPES_FIELDMETADATA]);
+    /* Unsigned Integer DataType */
+    UA_FieldMetaData_init (&pMetaData->fields[0]);
+    UA_NodeId_copy (&UA_TYPES[UA_TYPES_INT32].typeId,
+                    &pMetaData->fields[0].dataType);
+    pMetaData->fields[0].builtInType = UA_NS0ID_INT32;
+    pMetaData->fields[0].valueRank   = -1; /* scalar */
+    retVal |= UA_Server_addDataSetReader(server, readerGroupId, &readerConfig,
+                                         &readerIdentifier);
+
+    return pMetaData->fields;
 }
+
+// static UA_ReaderGroup*
+// newReaderGroupWithSecurity1(UA_MessageSecurityMode mode) {
+//     UA_ServerConfig *config = UA_Server_getConfig(server);
+//
+//     UA_ReaderGroupConfig readerGroupConfig;
+//     memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
+//     readerGroupConfig.name = UA_STRING("ReaderGroup");
+//
+//     readerGroupConfig.securityMode = mode;
+//     readerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[0];
+//
+//     UA_ByteString sk = {UA_AES128CTR_SIGNING_KEY_LENGTH, signingKey};
+//     UA_ByteString ek = {UA_AES128CTR_KEY_LENGTH, encryptingKey};
+//     UA_ByteString kn = {UA_AES128CTR_KEYNONCE_LENGTH, keyNonce};
+//
+//     UA_ReaderGroup *rgWithSecurity =
+//         (UA_ReaderGroup *)UA_calloc(1, sizeof(UA_ReaderGroup));
+//     UA_ReaderGroupConfig_copy(&readerGroupConfig, &rgWithSecurity->config);
+//     rgWithSecurity->config.securityPolicy->newContext(
+//         rgWithSecurity->config.securityPolicy->policyContext, &sk, &ek, &kn,
+//         &rgWithSecurity->securityPolicyContext);
+//
+//     return rgWithSecurity;
+// }
 
 // hexstr_to_char("f111ba08016400014df4030100000008b02d012e01000000da434ce02ee19922c"
 //                "6e916c8154123baa25f67288e3378d613f32039096e08a9ff14b83ea2247792ee"
@@ -259,9 +332,13 @@ START_TEST(EncodeDecodeNetworkMessage) {
 END_TEST
 */
 START_TEST(DecodeAndVerifyEncryptedNetworkMessage) {
-
-    UA_ReaderGroup *rgWithSecurity = newReaderGroupWithSecurity(
+    UA_FieldMetaData *fields = newReaderGroupWithSecurity(
         UA_MESSAGESECURITYMODE_SIGNANDENCRYPT);
+    UA_PubSubConnection *connection =
+        UA_PubSubConnection_findConnectionbyId(server, connectionId);
+    if(!connection) {
+        ck_assert(false);
+    }
 
     const char * msg_enc = MSG_HEADER MSG_PAYLOAD_ENC MSG_SIG;
 
@@ -274,8 +351,8 @@ START_TEST(DecodeAndVerifyEncryptedNetworkMessage) {
     memset(&msg, 0, sizeof(UA_NetworkMessage));
 
     size_t currentPosition = 0;
-    UA_StatusCode rv = decodeNetworkMessage(
-        logger, &buffer, &currentPosition, &msg, rgWithSecurity);
+    UA_StatusCode rv = decodeNetworkMessage(server,
+        logger, &buffer, &currentPosition, &msg, connection);
     ck_assert(rv == UA_STATUSCODE_GOOD);
 
     const char * msg_dec_exp = MSG_HEADER MSG_PAYLOAD_DEC;
@@ -285,16 +362,23 @@ START_TEST(DecodeAndVerifyEncryptedNetworkMessage) {
 
     UA_NetworkMessage_clear(&msg);
 
-    free(expectedData);
-    free(buffer.data);
-    UA_Server_ReaderGroup_clear(server, rgWithSecurity);
-    free(rgWithSecurity);
+    UA_free(fields);
+    UA_free(expectedData);
+    UA_free(buffer.data);
+    // UA_Server_ReaderGroup_clear(server, rgWithSecurity);
+    // free(rgWithSecurity);
 }
 END_TEST
 
 START_TEST(InvalidSignature) {
-    UA_ReaderGroup *rgWithSecurity = newReaderGroupWithSecurity(
+    UA_FieldMetaData *fields = newReaderGroupWithSecurity(
         UA_MESSAGESECURITYMODE_SIGNANDENCRYPT);
+    UA_PubSubConnection *connection =
+        UA_PubSubConnection_findConnectionbyId(server, connectionId);
+    if(!connection) {
+        ck_assert(false);
+    }
+
     const char * msg_enc = MSG_HEADER MSG_PAYLOAD_ENC MSG_SIG_INVALID;
 
     UA_ByteString buffer;
@@ -306,20 +390,27 @@ START_TEST(InvalidSignature) {
 
     size_t currentPosition = 0;
 
-    UA_StatusCode rv = decodeNetworkMessage(logger, &buffer, &currentPosition, &msg, rgWithSecurity);
+    UA_StatusCode rv = decodeNetworkMessage(server, logger, &buffer, &currentPosition, &msg, connection);
     ck_assert(rv == UA_STATUSCODE_BADSECURITYCHECKSFAILED);
 
     UA_NetworkMessage_clear(&msg);
 
+    UA_free(fields);
     free(buffer.data);
-    UA_Server_ReaderGroup_clear(server, rgWithSecurity);
-    free(rgWithSecurity);
+    // UA_Server_ReaderGroup_clear(server, rgWithSecurity);
+    // free(rgWithSecurity);
 }
 END_TEST
 
 START_TEST(InvalidSecurityModeInsufficientSig) {
-        UA_ReaderGroup *rgWithoutSecurity = newReaderGroupWithSecurity(
+        UA_FieldMetaData *fields = newReaderGroupWithSecurity(
             UA_MESSAGESECURITYMODE_NONE);
+        UA_PubSubConnection *connection =
+            UA_PubSubConnection_findConnectionbyId(server, connectionId);
+        if(!connection) {
+            ck_assert(false);
+        }
+
         const char * msg_enc = MSG_HEADER MSG_PAYLOAD_ENC MSG_SIG;
 
         UA_ByteString buffer;
@@ -331,20 +422,26 @@ START_TEST(InvalidSecurityModeInsufficientSig) {
 
         size_t currentPosition = 0;
 
-        UA_StatusCode rv = decodeNetworkMessage(logger, &buffer, &currentPosition, &msg, rgWithoutSecurity);
+        UA_StatusCode rv = decodeNetworkMessage(server, logger, &buffer, &currentPosition, &msg, connection);
         ck_assert(rv == UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT);
 
         UA_NetworkMessage_clear(&msg);
 
+        UA_free(fields);
         free(buffer.data);
-        UA_Server_ReaderGroup_clear(server, rgWithoutSecurity);
-        free(rgWithoutSecurity);
+        // UA_Server_ReaderGroup_clear(server, rgWithoutSecurity);
+        // free(rgWithoutSecurity);
     }
 END_TEST
 
 START_TEST(InvalidSecurityModeRejectedSig) {
-    UA_ReaderGroup *rgWithSecurity = newReaderGroupWithSecurity(
-        UA_MESSAGESECURITYMODE_SIGNANDENCRYPT);
+    UA_FieldMetaData *fields = newReaderGroupWithSecurity(
+            UA_MESSAGESECURITYMODE_SIGNANDENCRYPT);
+    UA_PubSubConnection *connection =
+    UA_PubSubConnection_findConnectionbyId(server, connectionId);
+    if(!connection) {
+        ck_assert(false);
+    }
     const char * msg_unenc = MSG_HEADER_NO_SEC MSG_PAYLOAD_DEC;
 
     UA_ByteString buffer;
@@ -356,14 +453,15 @@ START_TEST(InvalidSecurityModeRejectedSig) {
 
     size_t currentPosition = 0;
 
-    UA_StatusCode rv = decodeNetworkMessage(logger, &buffer, &currentPosition, &msg, rgWithSecurity);
+    UA_StatusCode rv = decodeNetworkMessage(server, logger, &buffer, &currentPosition, &msg, connection);
     ck_assert(rv == UA_STATUSCODE_BADSECURITYMODEREJECTED);
 
     UA_NetworkMessage_clear(&msg);
 
+    UA_free(fields);
     free(buffer.data);
-    UA_Server_ReaderGroup_clear(server, rgWithSecurity);
-    free(rgWithSecurity);
+    // UA_Server_ReaderGroup_clear(server, rgWithSecurity);
+    // free(rgWithSecurity);
 }
 END_TEST
 

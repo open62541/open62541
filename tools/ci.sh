@@ -45,8 +45,9 @@ function build_docs {
 function build_release {
     mkdir -p build; cd build; rm -rf *
     cmake -DBUILD_SHARED_LIBS=ON \
-          -DUA_ENABLE_ENCRYPTION=ON \
+          -DUA_ENABLE_ENCRYPTION=MBEDTLS \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
+          -DUA_ENABLE_HISTORIZING=ON \
           -DCMAKE_BUILD_TYPE=RelWithDebInfo \
           -DUA_BUILD_EXAMPLES=ON \
           ..
@@ -66,7 +67,7 @@ function build_amalgamation {
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_PUBSUB=ON \
           -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
-          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=OFF \
+          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
           ..
     make ${MAKEOPTS}
@@ -84,10 +85,11 @@ function unit_tests {
           -DUA_ENABLE_DISCOVERY=ON \
           -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
+          -DUA_ENABLE_HISTORIZING=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_PUBSUB=ON \
           -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
-          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=OFF \
+          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
           ..
     make ${MAKEOPTS}
@@ -99,6 +101,7 @@ function unit_tests_mt {
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_MULTITHREADING=200 \
           -DUA_BUILD_EXAMPLES=ON \
+          -DUA_ENABLE_HISTORIZING=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_DISCOVERY=ON \
           -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
@@ -108,29 +111,14 @@ function unit_tests_mt {
     make test ARGS="-V"
 }
 
-function unit_tests_encryption_mbedtls {
+function unit_tests_encryption {
     mkdir -p build; cd build; rm -rf *
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_DISCOVERY=ON \
           -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
-          -DUA_ENABLE_ENCRYPTION=ON \
-          -DUA_ENABLE_ENCRYPTION_MBEDTLS=ON \
-          ..
-    make ${MAKEOPTS}
-    make test ARGS="-V"
-}
-
-function unit_tests_encryption_openssl {
-    mkdir -p build; cd build; rm -rf *
-    cmake -DCMAKE_BUILD_TYPE=Debug \
-          -DUA_BUILD_EXAMPLES=ON \
-          -DUA_BUILD_UNIT_TESTS=ON \
-          -DUA_ENABLE_DISCOVERY=ON \
-          -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
-          -DUA_ENABLE_ENCRYPTION=ON \
-          -DUA_ENABLE_ENCRYPTION_OPENSSL=ON \
+          -DUA_ENABLE_ENCRYPTION=$1 \
           ..
     make ${MAKEOPTS}
     make test ARGS="-V"
@@ -143,11 +131,10 @@ function unit_tests_encryption_mbedtls_pubsub {
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_DISCOVERY=ON \
           -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
-          -DUA_ENABLE_ENCRYPTION=ON \
-          -DUA_ENABLE_ENCRYPTION_MBEDTLS=ON \
+          -DUA_ENABLE_ENCRYPTION=MBEDTLS \
           -DUA_ENABLE_PUBSUB=ON \
           -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
-          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=OFF \
+          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
           -DUA_ENABLE_PUBSUB_ENCRYPTION=ON \
           ..
@@ -166,12 +153,13 @@ function unit_tests_valgrind {
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_DISCOVERY=ON \
           -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
-          -DUA_ENABLE_ENCRYPTION=ON \
+          -DUA_ENABLE_ENCRYPTION=MBEDTLS \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
+          -DUA_ENABLE_HISTORIZING=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_PUBSUB=ON \
           -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
-          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=OFF \
+          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
           -DUA_ENABLE_PUBSUB_ENCRYPTION=ON \
           -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON \
@@ -191,12 +179,13 @@ function build_clang_analyzer {
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_DISCOVERY=ON \
-          -DUA_ENABLE_ENCRYPTION=ON \
+          -DUA_ENABLE_ENCRYPTION=MBEDTLS \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
+          -DUA_ENABLE_HISTORIZING=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_PUBSUB=ON \
           -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
-          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=OFF \
+          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
           ..
     scan-build-11 --status-bugs make ${MAKEOPTS}

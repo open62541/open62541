@@ -132,9 +132,9 @@ typedef double UA_Double;
  *
  * StatusCode
  * ^^^^^^^^^^
- * A numeric identifier for a error or condition that is associated with a value
- * or an operation. See the section :ref:`statuscodes` for the meaning of a
- * specific code. */
+ * A numeric identifier for an error or condition that is associated with a
+ * value or an operation. See the section :ref:`statuscodes` for the meaning of
+ * a specific code. */
 typedef uint32_t UA_StatusCode;
 
 /* Returns the human-readable name of the StatusCode. If no matching StatusCode
@@ -323,9 +323,7 @@ UA_ByteString_equal(const UA_ByteString *string1,
                            (const UA_String*)string2);
 }
 
-/* Returns a non-cryptographic hash for the String.
- * Uses FNV non-cryptographic hash function. See
- * https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function */
+/* Returns a non-cryptographic hash of a bytestring */
 UA_UInt32 UA_EXPORT
 UA_ByteString_hash(UA_UInt32 initialHashValue,
                    const UA_Byte *data, size_t size);
@@ -522,6 +520,11 @@ UA_EXPANDEDNODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex, const char *chars) {
     id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id;
 }
 
+static UA_INLINE UA_ExpandedNodeId
+UA_EXPANDEDNODEID_NODEID(UA_NodeId nodeId) {
+    UA_ExpandedNodeId id = {0}; id.nodeId = nodeId; return id;
+}
+
 /* Does the ExpandedNodeId point to a local node? That is, are namespaceUri and
  * serverIndex empty? */
 UA_Boolean UA_EXPORT
@@ -529,18 +532,21 @@ UA_ExpandedNodeId_isLocal(const UA_ExpandedNodeId *n);
 
 /* Total ordering of ExpandedNodeId */
 UA_Order UA_EXPORT
-UA_ExpandedNodeId_order(const UA_ExpandedNodeId *n1, const UA_ExpandedNodeId *n2);
+UA_ExpandedNodeId_order(const UA_ExpandedNodeId *n1,
+                        const UA_ExpandedNodeId *n2);
 
 /* Check for equality */
 static UA_INLINE UA_Boolean
-UA_ExpandedNodeId_equal(const UA_ExpandedNodeId *n1, const UA_ExpandedNodeId *n2) {
+UA_ExpandedNodeId_equal(const UA_ExpandedNodeId *n1,
+                        const UA_ExpandedNodeId *n2) {
     return (UA_ExpandedNodeId_order(n1, n2) == UA_ORDER_EQ);
 }
 
 /* Returns a non-cryptographic hash for ExpandedNodeId. The hash of an
  * ExpandedNodeId is identical to the hash of the embedded (simple) NodeId if
  * the ServerIndex is zero and no NamespaceUri is set. */
-UA_UInt32 UA_EXPORT UA_ExpandedNodeId_hash(const UA_ExpandedNodeId *n);
+UA_UInt32 UA_EXPORT
+UA_ExpandedNodeId_hash(const UA_ExpandedNodeId *n);
 
 /**
  * .. _qualifiedname:
@@ -789,7 +795,7 @@ UA_StatusCode UA_EXPORT
 UA_Variant_copyRange(const UA_Variant *src, UA_Variant * UA_RESTRICT dst,
                      const UA_NumericRange range);
 
-/* Insert a range of data into an existing variant. The data array can't be
+/* Insert a range of data into an existing variant. The data array cannot be
  * reused afterwards if it contains types without a fixed size (e.g. strings)
  * since the members are moved into the variant and take on its lifecycle.
  *
@@ -942,9 +948,11 @@ typedef struct UA_DiagnosticInfo {
  * type operations as static inline functions. */
 
 typedef struct {
-    UA_UInt16 memberTypeIndex;    /* Index of the member in the array of data
-                                     types */
-    UA_Byte   padding;            /* How much padding is there before this
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+    const char *memberName;       /* Human-readable member name */
+#endif
+    const UA_DataType *memberType;/* The member data type description */
+    UA_Byte padding    : 6;       /* How much padding is there before this
                                      member element? For arrays this is the
                                      padding before the size_t length member.
                                      (No padding between size_t and the
@@ -952,16 +960,8 @@ typedef struct {
                                      includes the size of the switchfield (the
                                      offset from the start of the union
                                      type). */
-    UA_Boolean namespaceZero : 1; /* The type of the member is defined in
-                                     namespace zero. In this implementation,
-                                     types from custom namespace may contain
-                                     members from the same namespace or
-                                     namespace zero only.*/
-    UA_Boolean isArray       : 1; /* The member is an array */
-    UA_Boolean isOptional    : 1; /* The member is an optional field */
-#ifdef UA_ENABLE_TYPEDESCRIPTION
-    const char *memberName;       /* Human-readable member name */
-#endif
+    UA_Byte isArray    : 1;       /* The member is an array */
+    UA_Byte isOptional : 1;       /* The member is an optional field */
 } UA_DataTypeMember;
 
 /* The DataType "kind" is an internal type classification. It is used to
@@ -1002,24 +1002,20 @@ typedef enum {
 } UA_DataTypeKind;
 
 struct UA_DataType {
-    UA_NodeId typeId;                /* The nodeid of the type */
-    UA_NodeId binaryEncodingId;      /* NodeId of datatype when encoded as binary */
-    //UA_NodeId xmlEncodingId;       /* NodeId of datatype when encoded as XML */
-    UA_UInt16 memSize;               /* Size of the struct in memory */
-    UA_UInt16 typeIndex;             /* Index of the type in the datatypetable */
-    UA_UInt32 typeKind         : 6;  /* Dispatch index for the handling routines */
-    UA_UInt32 pointerFree      : 1;  /* The type (and its members) contains no
-                                      * pointers that need to be freed */
-    UA_UInt32 overlayable      : 1;  /* The type has the identical memory layout
-                                      * in memory and on the binary stream. */
-    UA_UInt32 membersSize      : 8;  /* How many members does the type have? */
-    UA_DataTypeMember *members;
-
-    /* The typename is only for debugging. Move last so the members pointers
-     * stays within the cacheline. */
 #ifdef UA_ENABLE_TYPEDESCRIPTION
     const char *typeName;
 #endif
+    UA_NodeId typeId;           /* The nodeid of the type */
+    UA_NodeId binaryEncodingId; /* NodeId of datatype when encoded as binary */
+    //UA_NodeId xmlEncodingId;  /* NodeId of datatype when encoded as XML */
+    UA_UInt32 memSize     : 16; /* Size of the struct in memory */
+    UA_UInt32 typeKind    : 6;  /* Dispatch index for the handling routines */
+    UA_UInt32 pointerFree : 1;  /* The type (and its members) contains no
+                                 * pointers that need to be freed */
+    UA_UInt32 overlayable : 1;  /* The type has the identical memory layout
+                                 * in memory and on the binary stream. */
+    UA_UInt32 membersSize : 8;  /* How many members does the type have? */
+    UA_DataTypeMember *members;
 };
 
 /* Test if the data type is a numeric builtin data type. This includes Boolean,
@@ -1128,12 +1124,56 @@ UA_StatusCode UA_EXPORT
 UA_Array_copy(const void *src, size_t size, void **dst,
               const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
+/* Resizes (and reallocates) an array. The last entries are initialized to zero
+ * if the array length is increased. If the array length is decreased, the last
+ * entries are removed if the size is decreased.
+ *
+ * @param p Double pointer to the array memory. Can be overwritten by the result of a
+ *          realloc.
+ * @param size The current size of the array. Overwritten in case of success.
+ * @param newSize The new size of the array
+ * @param type The datatype of the array members
+ * @return Returns UA_STATUSCODE_GOOD or UA_STATUSCODE_BADOUTOFMEMORY. The original array
+ *         is left untouched in the failure case. */
+UA_StatusCode UA_EXPORT
+UA_Array_resize(void **p, size_t *size, size_t newSize,
+                const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+
+/* Append the given element at the end of the array. The content is moved
+ * (shallow copy) and the original memory is _init'ed if appending is
+ * successful.
+ *
+ * @param p Double pointer to the array memory. Can be overwritten by the result of a
+ *          realloc.
+ * @param size The current size of the array. Overwritten in case of success.
+ * @param newElem The element to be appended. The memory is reset upon success.
+ * @param type The datatype of the array members
+ * @return Returns UA_STATUSCODE_GOOD or UA_STATUSCODE_BADOUTOFMEMORY. The original array
+ *         is left untouched in the failure case. */
+UA_StatusCode UA_EXPORT
+UA_Array_append(void **p, size_t *size, void *newElem,
+                const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+
+/* Append a copy of the given element at the end of the array.
+ *
+ * @param p Double pointer to the array memory. Can be overwritten by the result of a
+ *          realloc.
+ * @param size The current size of the array. Overwritten in case of success.
+ * @param newElem The element to be appended.
+ * @param type The datatype of the array members
+ * @return Returns UA_STATUSCODE_GOOD or UA_STATUSCODE_BADOUTOFMEMORY. The original array
+ *         is left untouched in the failure case. */
+UA_StatusCode UA_EXPORT
+UA_Array_appendCopy(void **p, size_t *size, const void *newElem,
+                    const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+
 /* Deletes an array.
  *
  * @param p The memory location of the array
  * @param size The size of the array
  * @param type The datatype of the array members */
-void UA_EXPORT UA_Array_delete(void *p, size_t size, const UA_DataType *type);
+void UA_EXPORT
+UA_Array_delete(void *p, size_t size, const UA_DataType *type);
 
 /**
  * Random Number Generator
@@ -1157,16 +1197,13 @@ UA_Guid UA_EXPORT UA_Guid_random(void);     /* no cryptographic entropy */
 /* The following is used to exclude type names in the definition of UA_DataType
  * structures if the feature is disabled. */
 #ifdef UA_ENABLE_TYPEDESCRIPTION
-# define UA_TYPENAME(name) , name
+# define UA_TYPENAME(name) name,
 #else
 # define UA_TYPENAME(name)
 #endif
 
 /* Datatype arrays with custom type definitions can be added in a linked list to
- * the client or server configuration. Datatype members can point to types in
- * the same array via the ``memberTypeIndex``. If ``namespaceZero`` is set to
- * true, the member datatype is looked up in the array of builtin datatypes
- * instead. */
+ * the client or server configuration. */
 typedef struct UA_DataTypeArray {
     const struct UA_DataTypeArray *next;
     const size_t typesSize;

@@ -36,12 +36,28 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # Version #
 ###########
 
-include(SetGitBasedVersion)
+# The current version information. On the master branch, we take the version
+# number from the latest release plus the "-undefined" label. Will be
+# overwritten with more detailed information if git is available.
+set(OPEN62541_VER_MAJOR 1)
+set(OPEN62541_VER_MINOR 2)
+set(OPEN62541_VER_PATCH 2)
+set(OPEN62541_VER_LABEL "-unknown") # like "-rc1" or "-g4538abcd" or "-g4538abcd-dirty"
+set(OPEN62541_VER_COMMIT "undefined")
 
-# The version string will be automatically set based on the git describe output.
-# This will automate the version strings. Just create a new tag, and the version will be set correctly.
+# Overwrite the version information based on git if available
+include(SetGitBasedVersion)
 set_open62541_version()
-MESSAGE(STATUS "open62541 Version: ${OPEN62541_VER_MAJOR}.${OPEN62541_VER_MINOR}.${OPEN62541_VER_PATCH}${OPEN62541_VER_LABEL}")
+
+# Examples for the version string are:
+# v1.2
+# v1.2.3
+# v1.2.3-rc1
+# v1.2.3-rc1-dirty
+# v1.2.3-5-g4538abcd
+# v1.2.3-5-g4538abcd-dirty
+set(OPEN62541_VERSION "v${OPEN62541_VER_MAJOR}.${OPEN62541_VER_MINOR}.${OPEN62541_VER_PATCH}${OPEN62541_VER_LABEL}")
+MESSAGE(STATUS "open62541 Version: ${OPEN62541_VERSION}")
 
 #################
 # Build Options #
@@ -140,27 +156,48 @@ option(UA_ENABLE_SUBSCRIPTIONS_EVENTS "Enable the use of event subscriptions" OF
 option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" OFF)
 option(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS "Enable the use of A&C. (EXPERIMENTAL)" OFF)
 option(UA_ENABLE_DISCOVERY_MULTICAST "Enable Discovery Service with multicast support (LDS-ME)" OFF)
-option(UA_ENABLE_ENCRYPTION "Enable encryption support (uses mbedTLS by default)" OFF)
-option(UA_ENABLE_ENCRYPTION_OPENSSL "Enable encryption support (uses openssl)" OFF)
-option(UA_ENABLE_ENCRYPTION_MBEDTLS "Enable encryption support (uses mbedTLS)" OFF)
 option(UA_ENABLE_PARSING "Utility functions that require parsing (e.g. NodeId expressions)" ON)
 option(UA_ENABLE_DA "Enable OPC UA DataAccess (Part 8) definitions" ON)
 option(UA_ENABLE_WEBSOCKET_SERVER "Enable websocket support (uses libwebsockets)" OFF)
 
-# security provider 
-if(UA_ENABLE_ENCRYPTION)
-    if(NOT UA_ENABLE_ENCRYPTION_OPENSSL)
+# security provider
+set(UA_ENCRYPTION_PLUGINS "MBEDTLS" "OPENSSL" "LIBRESSL")
+set(UA_ENABLE_ENCRYPTION "OFF" CACHE STRING "Encryption support (Libressl EXPERIMENTAL)")
+SET_PROPERTY(CACHE UA_ENABLE_ENCRYPTION PROPERTY STRINGS "OFF" ${UA_ENCRYPTION_PLUGINS})
+option(UA_ENABLE_ENCRYPTION_OPENSSL "Deprecated: Enable encryption support (uses openssl)" OFF)
+mark_as_advanced(UA_ENABLE_ENCRYPTION_OPENSSL)
+option(UA_ENABLE_ENCRYPTION_MBEDTLS "Deprecated: Enable encryption support (uses mbedTLS)" OFF)
+mark_as_advanced(UA_ENABLE_ENCRYPTION_MBEDTLS)
+
+list (FIND UA_ENCRYPTION_PLUGINS ${UA_ENABLE_ENCRYPTION} _tmp)
+if(UA_ENABLE_ENCRYPTION STREQUAL "OFF" OR ${_tmp} GREATER -1)
+    set(UA_ENABLE_ENCRYPTION_OPENSSL OFF)
+    set(UA_ENABLE_ENCRYPTION_MBEDTLS OFF)
+    set(UA_ENABLE_ENCRYPTION_LIBRESSL OFF)
+    if(UA_ENABLE_ENCRYPTION STREQUAL "MBEDTLS")
         set(UA_ENABLE_ENCRYPTION_MBEDTLS ON)
+    elseif(UA_ENABLE_ENCRYPTION STREQUAL "OPENSSL")
+        set(UA_ENABLE_ENCRYPTION_OPENSSL ON)
+    elseif(UA_ENABLE_ENCRYPTION STREQUAL "LIBRESSL")
+        set(UA_ENABLE_ENCRYPTION_LIBRESSL ON)
+    endif()
+# Only for backward compatability
+elseif(UA_ENABLE_ENCRYPTION)
+    message(DEPRECATION "Set UA_ENABLE_ENCRYPTION to the desired encryption library." )
+    if(NOT UA_ENABLE_ENCRYPTION_OPENSSL)
+    set(UA_ENABLE_ENCRYPTION_MBEDTLS ON)
+    endif()
+else()
+    message(DEPRECATION "Set UA_ENABLE_ENCRYPTION to the desired encryption library." )
+    if(UA_ENABLE_ENCRYPTION_MBEDTLS)
+        set(UA_ENABLE_ENCRYPTION "MBEDTLS")
+        set(UA_ENABLE_ENCRYPTION_OPENSSL OFF)
+    endif()
+    if(UA_ENABLE_ENCRYPTION_OPENSSL)
+        set(UA_ENABLE_ENCRYPTION "OPENSSL")
+        set(UA_ENABLE_ENCRYPTION_MBEDTLS OFF)
     endif()
 endif()
-if(UA_ENABLE_ENCRYPTION_MBEDTLS)
-    set(UA_ENABLE_ENCRYPTION ON)
-    set(UA_ENABLE_ENCRYPTION_OPENSSL OFF)
-endif()
-if(UA_ENABLE_ENCRYPTION_OPENSSL)
-    set(UA_ENABLE_ENCRYPTION ON)
-    set(UA_ENABLE_ENCRYPTION_MBEDTLS OFF)
-endif()    
 
 # Namespace Zero
 set(UA_NAMESPACE_ZERO "REDUCED" CACHE STRING "Completeness of the generated namespace zero (minimal/reduced/full)")
@@ -187,7 +224,7 @@ if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
     # Force enable options not passed in the build script, to also fuzzy-test this code
     set(UA_ENABLE_DISCOVERY ON CACHE STRING "" FORCE)
     set(UA_ENABLE_DISCOVERY_MULTICAST ON CACHE STRING "" FORCE)
-    set(UA_ENABLE_ENCRYPTION ON CACHE STRING "" FORCE)
+    set(UA_ENABLE_ENCRYPTION ON CACHE STRING "OFF" FORCE)
     set(UA_ENABLE_ENCRYPTION_MBEDTLS ON CACHE STRING "" FORCE)    
     set(UA_ENABLE_HISTORIZING ON CACHE STRING "" FORCE)
     set(UA_ENABLE_JSON_ENCODING ON CACHE STRING "" FORCE)
@@ -490,9 +527,19 @@ if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_MQTT_TLS_OPENSSL)
     # https://cmake.org/cmake/help/v3.0/module/FindOpenSSL.html
     find_package(OpenSSL REQUIRED)
     list(APPEND open62541_LIBRARIES ${OPENSSL_LIBRARIES})
-endif ()
+    endif ()
+    
+if(UA_ENABLE_ENCRYPTION_LIBRESSL)
+    # See https://github.com/libressl-portable/portable/blob/master/FindLibreSSL.cmake
+    find_package(LibreSSL REQUIRED)
+    list(APPEND open62541_LIBRARIES ${LIBRESSL_LIBRARIES})
+    if(WIN32)
+        # Add bestcrypt for random generator
+        list(APPEND open62541_LIBRARIES bcrypt)
+    endif()
+endif()
 
-if(UA_ENABLE_ENCRYPTION_MBEDTLS)
+if(UA_ENABLE_ENCRYPTION_MBEDTLS OR UA_ENABLE_PUBSUB_ENCRYPTION)
     # The recommended way is to install mbedtls via the OS package manager. If
     # that is not possible, manually compile mbedTLS and set the cmake variables
     # defined in /tools/cmake/FindMbedTLS.cmake.
@@ -570,15 +617,17 @@ if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" ST
     check_add_cc_flag("-fno-strict-aliasing") # fewer compiler assumptions about pointer types
     check_add_cc_flag("-fexceptions") # recommended for multi-threaded C code, also in combination with C++ code
 
-    if(UA_FORCE_32BIT)
-      string(FIND "${CMAKE_C_FLAGS}" "-m32" m32_already_set)
-      if(m32_already_set EQUAL -1)
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32")
-      endif()
-      unset(flag_supported CACHE)
+    # Generate position-independent code for shared libraries (adds a performance penalty)
+    if(BUILD_SHARED_LIBS)
+        check_add_cc_flag("-fPIC")
     endif()
 
-    if(NOT MINGW)
+    # Force 32bit build
+    if(UA_FORCE_32BIT)
+	check_add_cc_flag("-m32")
+    endif()
+
+    if(NOT MINGW AND NOT UA_BUILD_OSS_FUZZ)
         if(UA_ENABLE_HARDENING)
             check_add_cc_flag("-fstack-protector-strong") # more performant stack protector, available since gcc 4.9
             check_add_cc_flag("-fstack-clash-protection") # increased reliability of stack overflow detection, available since gcc 8
@@ -616,26 +665,22 @@ if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" ST
     set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "") # cmake sets -rdynamic by default
 
     # Debug
-    if(BUILD_TYPE_LOWER_CASE STREQUAL "debug" AND UNIX)
-        if("x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang" AND NOT UA_ENABLE_UNIT_TESTS_MEMCHECK)
-            # Add default sanitizer settings when using clang and Debug build.
-            # This allows e.g. CLion to find memory locations for SegFaults
-            message(STATUS "Sanitizer enabled")
-            set(SANITIZER_FLAGS "-g -fno-omit-frame-pointer -gline-tables-only -fsanitize=address -fsanitize-address-use-after-scope -fsanitize=leak -fsanitize=undefined")
-            if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 10.0)
-                set(SANITIZER_FLAGS "${SANITIZER_FLAGS} -fsanitize-coverage=trace-pc-guard")
-            endif()
-            set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${SANITIZER_FLAGS}")
-            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SANITIZER_FLAGS}")
+    if(BUILD_TYPE_LOWER_CASE STREQUAL "debug" AND UNIX AND NOT UA_BUILD_OSS_FUZZ AND
+       "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang" AND NOT UA_ENABLE_UNIT_TESTS_MEMCHECK)
+        # Add default sanitizer settings when using clang and Debug build.
+        # This allows e.g. CLion to find memory locations for SegFaults
+        message(STATUS "Sanitizer enabled")
+        set(SANITIZER_FLAGS "-g -fno-omit-frame-pointer -gline-tables-only -fsanitize=address -fsanitize-address-use-after-scope -fsanitize=leak -fsanitize=undefined")
+        if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 10.0)
+            set(SANITIZER_FLAGS "${SANITIZER_FLAGS} -fsanitize-coverage=trace-pc-guard")
         endif()
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${SANITIZER_FLAGS}")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SANITIZER_FLAGS}")
     endif()
 
-    if (NOT MINGW)
-        if(UA_ENABLE_HARDENING AND ((CMAKE_BUILD_TYPE STREQUAL "Release") OR (CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")))
-            check_add_cc_flag("-D_FORTIFY_SOURCE=2") # run-time buffer overflow detection (needs at least -O1)
-        endif()
+    if(NOT MINGW AND UA_ENABLE_HARDENING AND ((CMAKE_BUILD_TYPE STREQUAL "Release") OR (CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")))
+        check_add_cc_flag("-D_FORTIFY_SOURCE=2") # run-time buffer overflow detection (needs at least -O1)
     endif()
-
 
     # Strip release builds
     if(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR CMAKE_BUILD_TYPE STREQUAL "Release")
@@ -644,7 +689,7 @@ if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" ST
         check_add_cc_flag("-fno-unwind-tables")
         check_add_cc_flag("-fno-asynchronous-unwind-tables")
         check_add_cc_flag("-fno-math-errno")
-        check_add_cc_flag("-fno-ident")
+#        check_add_cc_flag("-fno-ident")
 
         # remove stack-protector with MinSizeRel
         if(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel")
@@ -693,9 +738,14 @@ endif()
 # Generate Main Library #
 #########################
 
+# Directory for generated sources
 file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated")
+
+# Generate the config.h
 configure_file(include/open62541/config.h.in ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h)
-configure_file(open62541.pc.in ${PROJECT_BINARY_DIR}/src_generated/open62541.pc @ONLY)
+
+# Generate a .pc file for pkg-config
+configure_file(tools/open62541.pc.in ${PROJECT_BINARY_DIR}/src_generated/open62541.pc @ONLY)
 
 if(UA_ENABLE_DISCOVERY_MULTICAST)
   include(GenerateExportHeader)
@@ -879,25 +929,31 @@ endif()
 # Always include encryption plugins into the amalgamation
 # Use guards in the files to ensure that UA_ENABLE_ENCRYPTON_MBEDTLS and UA_ENABLE_ENCRYPTION_OPENSSL are honored.
 
+if(UA_ENABLE_ENCRYPTION_MBEDTLS OR UA_ENABLE_PUBSUB_ENCRYPTION OR UA_ENABLE_AMALGAMATION)
+  list(INSERT default_plugin_sources 0
+    ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_mbedtls_common.h
+    ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_mbedtls_common.c)
+endif()
+
+if(UA_ENABLE_PUBSUB_ENCRYPTION)
+  list(INSERT default_plugin_sources 1
+    ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_pubsub_aes128ctr.c
+    ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_pubsub_aes256ctr.c)
+endif()
+
 if(UA_ENABLE_ENCRYPTION_MBEDTLS OR UA_ENABLE_AMALGAMATION)
-list(INSERT default_plugin_sources 0
-     ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_mbedtls_common.h
-     ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_mbedtls_common.c
+list(INSERT default_plugin_sources 1
      ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic128rsa15.c
      ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic256.c
      ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic256sha256.c
      ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_aes128sha256rsaoaep.c
      ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_pki_mbedtls.c)
-   if(UA_ENABLE_PUBSUB_ENCRYPTION)
-     list(INSERT default_plugin_sources 1
-       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_pubsub_aes128ctr.c
-       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_pubsub_aes256ctr.c)
-  endif()
 endif()
 
-if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_AMALGAMATION)
+if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL OR UA_ENABLE_AMALGAMATION)
 list(INSERT default_plugin_sources 0
      ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_openssl_common.h
+     ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_version_abstraction.h
      ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_openssl_common.c
      ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_basic128rsa15.c
      ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_basic256.c
@@ -1207,6 +1263,9 @@ if(UA_ENABLE_AMALGAMATION)
     if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_MQTT_TLS_OPENSSL)
         target_include_directories(open62541-object PRIVATE ${OPENSSL_INCLUDE_DIR})
     endif()
+    if(UA_ENABLE_ENCRYPTION_LIBRESSL)
+        target_include_directories(open62541-object PRIVATE ${LIBRESSL_INCLUDE_DIR})
+    endif()
 
     # make sure the open62541_amalgamation target builds before so that amalgamation is finished and it is not executed again for open62541-object
     # and thus may overwrite the amalgamation result during multiprocessor compilation
@@ -1260,6 +1319,13 @@ else()
         set_source_files_properties(${default_plugin_sources} ${ua_architecture_sources} PROPERTIES LANGUAGE CXX)
     endif()
 
+    if(UA_ENABLE_ENCRYPTION_LIBRESSL)
+        # Prevent Wincrypt override warning.
+        target_compile_definitions(open62541-plugins PUBLIC NOCRYPT=1)
+        target_compile_definitions(open62541-object PUBLIC NOCRYPT=1)
+        target_compile_definitions(open62541 PUBLIC NOCRYPT=1)
+    endif()
+
     # Declare include directories
     function(include_directories_private)
         foreach(_include_dir IN ITEMS ${ARGN})
@@ -1291,6 +1357,9 @@ else()
     endif()
     if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_MQTT_TLS_OPENSSL)
         include_directories_private(${OPENSSL_INCLUDE_DIR})
+    endif()
+    if(UA_ENABLE_ENCRYPTION_LIBRESSL)
+        include_directories_private(${LIBRESSL_INCLUDE_DIR})
     endif()
 
     # Option-specific includes
@@ -1368,6 +1437,7 @@ if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
 endif()
 
 if(UA_BUILD_TOOLS)
+    add_subdirectory(tools/ua-tool)
     if(UA_ENABLE_JSON_ENCODING)
         add_subdirectory(tools/ua2json)
     endif()
@@ -1405,7 +1475,8 @@ endif()
 if(UA_ENABLE_PUBSUB)
     list(APPEND open62541_enabled_components "PubSub")
 endif()
-if(UA_ENABLE_ENCRYPTION)
+list (FIND UA_ENCRYPTION_PLUGINS ${UA_ENABLE_ENCRYPTION} _tmp)
+if(${_tmp} GREATER -1)
     list(APPEND open62541_enabled_components "Encryption")
 endif()
 if(UA_ENABLE_ENCRYPTION_MBEDTLS)
@@ -1413,6 +1484,9 @@ if(UA_ENABLE_ENCRYPTION_MBEDTLS)
 endif()
 if(UA_ENABLE_ENCRYPTION_OPENSSL)
     list(APPEND open62541_enabled_components "EncryptionOpenSSL")
+endif()
+if(UA_ENABLE_ENCRYPTION_LIBRESSL)
+    list(APPEND open62541_enabled_components "EncryptionLibreSSL")
 endif()
 if(UA_ENABLE_AMALGAMATION)
     list(APPEND open62541_enabled_components "Amalgamation")

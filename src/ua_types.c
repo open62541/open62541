@@ -34,17 +34,17 @@
 
 /* Global definition of NULL type instances. These are always zeroed out, as
  * mandated by the C/C++ standard for global values with no initializer. */
-const UA_String UA_STRING_NULL = {0, NULL};
-const UA_ByteString UA_BYTESTRING_NULL = {0, NULL};
-const UA_Guid UA_GUID_NULL = {0, 0, 0, {0,0,0,0,0,0,0,0}};
-const UA_NodeId UA_NODEID_NULL = {0, UA_NODEIDTYPE_NUMERIC, {0}};
-const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL = {{0, UA_NODEIDTYPE_NUMERIC, {0}}, {0, NULL}, 0};
+const UA_String UA_STRING_NULL = {0};
+const UA_ByteString UA_BYTESTRING_NULL = {0};
+const UA_Guid UA_GUID_NULL = {0};
+const UA_NodeId UA_NODEID_NULL = {0};
+const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL = {0};
 
-typedef UA_StatusCode (*UA_copySignature)(const void *src, void *dst,
-                                          const UA_DataType *type);
-typedef void (*UA_clearSignature)(void *p, const UA_DataType *type);
-
+typedef UA_StatusCode
+(*UA_copySignature)(const void *src, void *dst, const UA_DataType *type);
 extern const UA_copySignature copyJumpTable[UA_DATATYPEKINDS];
+
+typedef void (*UA_clearSignature)(void *p, const UA_DataType *type);
 extern const UA_clearSignature clearJumpTable[UA_DATATYPEKINDS];
 
 const UA_DataType *
@@ -148,11 +148,12 @@ UA_String_equal_ignorecase(const UA_String *s1, const UA_String *s2) {
 
 static UA_StatusCode
 String_copy(UA_String const *src, UA_String *dst, const UA_DataType *_) {
-    UA_StatusCode retval = UA_Array_copy(src->data, src->length, (void**)&dst->data,
-                                         &UA_TYPES[UA_TYPES_BYTE]);
-    if(retval == UA_STATUSCODE_GOOD)
+    UA_StatusCode res =
+        UA_Array_copy(src->data, src->length, (void**)&dst->data,
+                      &UA_TYPES[UA_TYPES_BYTE]);
+    if(res == UA_STATUSCODE_GOOD)
         dst->length = src->length;
-    return retval;
+    return res;
 }
 
 static void
@@ -162,7 +163,8 @@ String_clear(UA_String *s, const UA_DataType *_) {
 
 /* QualifiedName */
 static UA_StatusCode
-QualifiedName_copy(const UA_QualifiedName *src, UA_QualifiedName *dst, const UA_DataType *_) {
+QualifiedName_copy(const UA_QualifiedName *src, UA_QualifiedName *dst,
+                   const UA_DataType *_) {
     dst->namespaceIndex = src->namespaceIndex;
     return String_copy(&src->name, &dst->name, NULL);
 }
@@ -376,7 +378,6 @@ UA_NodeId_order(const UA_NodeId *n1, const UA_NodeId *n2) {
             return UA_ORDER_MORE;
         } else {
             int cmp = memcmp(n1->identifier.guid.data4, n2->identifier.guid.data4, 8);
-
             if(cmp < 0) return UA_ORDER_LESS;
             if(cmp > 0) return UA_ORDER_MORE;
 
@@ -385,10 +386,10 @@ UA_NodeId_order(const UA_NodeId *n1, const UA_NodeId *n2) {
         break;
     case UA_NODEIDTYPE_STRING:
     case UA_NODEIDTYPE_BYTESTRING: {
-        size_t minLength = UA_MIN(n1->identifier.string.length, n2->identifier.string.length);
+        size_t minL = UA_MIN(n1->identifier.string.length, n2->identifier.string.length);
         int cmp = strncmp((const char*)n1->identifier.string.data,
                           (const char*)n2->identifier.string.data,
-                          minLength);
+                          minL);
         if(cmp < 0)
             return UA_ORDER_LESS;
         if(cmp > 0)
@@ -407,16 +408,14 @@ UA_NodeId_order(const UA_NodeId *n1, const UA_NodeId *n2) {
     return UA_ORDER_EQ;
 }
 
-/* FNV non-cryptographic hash function. See
- * https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function */
-#define FNV_PRIME_32 16777619
+/* sdbm-hash (http://www.cse.yorku.ca/~oz/hash.html) */
 u32
-UA_ByteString_hash(u32 fnv, const u8 *buf, size_t size) {
-    for(size_t i = 0; i < size; ++i) {
-        fnv = fnv ^ (buf[i]);
-        fnv = fnv * FNV_PRIME_32;
-    }
-    return fnv;
+UA_ByteString_hash(u32 initialHashValue,
+                   const u8 *data, size_t size) {
+    u32 h = initialHashValue;
+    for(size_t i = 0; i < size; i++)
+        h = data[i] + (h << 6) + (h << 16) - h;
+    return h;
 }
 
 u32
@@ -1091,10 +1090,9 @@ copyStructure(const void *src, void *dst, const UA_DataType *type) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     uintptr_t ptrs = (uintptr_t)src;
     uintptr_t ptrd = (uintptr_t)dst;
-    const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
     for(size_t i = 0; i < type->membersSize; ++i) {
         const UA_DataTypeMember *m = &type->members[i];
-        const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
+        const UA_DataType *mt = m->memberType;
         ptrs += m->padding;
         ptrd += m->padding;
         if(!m->isOptional) {
@@ -1150,9 +1148,8 @@ copyUnion(const void *src, void *dst, const UA_DataType *type) {
     UA_copy((const UA_UInt32 *) ptrs, (UA_UInt32 *) ptrd, &UA_TYPES[UA_TYPES_UINT32]);
     if(selection == 0)
         return UA_STATUSCODE_GOOD;
-    const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
     const UA_DataTypeMember *m = &type->members[selection-1];
-    const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
+    const UA_DataType *mt = m->memberType;
     ptrs += m->padding;
     ptrd += m->padding;
 
@@ -1226,10 +1223,9 @@ UA_copy(const void *src, void *dst, const UA_DataType *type) {
 static void
 clearStructure(void *p, const UA_DataType *type) {
     uintptr_t ptr = (uintptr_t)p;
-    const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
     for(size_t i = 0; i < type->membersSize; ++i) {
         const UA_DataTypeMember *m = &type->members[i];
-        const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
+        const UA_DataType *mt = m->memberType;
         ptr += m->padding;
         if(!m->isOptional) {
             if(!m->isArray) {
@@ -1269,9 +1265,8 @@ clearUnion(void *p, const UA_DataType *type) {
     UA_UInt32 selection = *(UA_UInt32 *)ptr;
     if(selection == 0)
         return;
-    const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
     const UA_DataTypeMember *m = &type->members[selection-1];
-    const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
+    const UA_DataType *mt = m->memberType;
     ptr += m->padding;
     if (m->isArray) {
         size_t length = *(size_t *)ptr;
@@ -1381,6 +1376,93 @@ UA_Array_copy(const void *src, size_t size,
         *dst = NULL;
     }
     return retval;
+}
+
+UA_StatusCode
+UA_Array_resize(void **p, size_t *size, size_t newSize,
+                const UA_DataType *type) {
+    if(*size == newSize)
+        return UA_STATUSCODE_GOOD;
+
+    /* Empty array? */
+    if(newSize == 0) {
+        UA_Array_delete(*p, *size, type);
+        *p = UA_EMPTY_ARRAY_SENTINEL;
+        *size = 0;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* Make a copy of the members that shall be removed. Realloc can fail during
+     * trimming. So we cannot clear the members already here. */
+    void *deleteMembers = NULL;
+    if(newSize < *size && !type->pointerFree) {
+        size_t deleteSize = *size - newSize;
+        deleteMembers = UA_malloc(deleteSize * type->memSize);
+        if(!deleteMembers)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        memcpy(deleteMembers, (void*)((uintptr_t)*p + (newSize * type->memSize)),
+               deleteSize * type->memSize); /* shallow copy */
+    }
+
+    void *oldP = *p;
+    if(oldP == UA_EMPTY_ARRAY_SENTINEL)
+        oldP = NULL;
+
+    /* Realloc */
+    void *newP = UA_realloc(oldP, newSize * type->memSize);
+    if(!newP) {
+        if(deleteMembers)
+            UA_free(deleteMembers);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    /* Clear removed members or initialize the new ones. Note that deleteMembers
+     * depends on type->pointerFree. */
+    if(newSize > *size)
+        memset((void*)((uintptr_t)newP + (*size * type->memSize)), 0,
+               (newSize - *size) * type->memSize);
+    else if(deleteMembers)
+        UA_Array_delete(deleteMembers, *size - newSize, type);
+
+    /* Set the new array */
+    *p = newP;
+    *size = newSize;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Array_append(void **p, size_t *size, void *newElem,
+                const UA_DataType *type) {
+    /* Resize the array */
+    size_t oldSize = *size;
+    UA_StatusCode res = UA_Array_resize(p, size, oldSize+1, type);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* Move the value */
+    memcpy((void*)((uintptr_t)*p + (oldSize * type->memSize)),
+           newElem, type->memSize);
+    UA_init(newElem, type);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode UA_EXPORT
+UA_Array_appendCopy(void **p, size_t *size, const void *newElem,
+                    const UA_DataType *type) {
+    char scratch[512];
+    if(type->memSize > 512)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Copy the value */
+    UA_StatusCode res = UA_copy(newElem, (void*)scratch, type);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* Append */
+    res = UA_Array_append(p, size, (void*)scratch, type);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_clear((void*)scratch, type);
+    return res;
 }
 
 void

@@ -732,11 +732,11 @@ addTypeChildren(UA_Server *server, UA_Session *session,
 
 static UA_StatusCode
 addInterfaceChildren(UA_Server *server, UA_Session *session,
-                const UA_NodeHead *head) {
+                const UA_NodeHead *head, const UA_Node *type) {
     /* Get the hierarchy of the type and all its supertypes */
     UA_NodeId *hierarchy = NULL;
     size_t hierarchySize = 0;
-    UA_StatusCode retval = getInterfaceHierarchy(server, &head->nodeId,
+    UA_StatusCode retval = getAllInterfaceChildNodeIds(server, &head->nodeId, &type->head.nodeId,
                                                               &hierarchy, &hierarchySize);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
@@ -1221,9 +1221,9 @@ recursiveTypeCheckAddChildren(UA_Server *server, UA_Session *session,
         }
     }
 
-    /* Add (mandatory) child nodes from the direct HasInterface reference */
+    /* Add (mandatory) child nodes from the HasInterface references */
     if(node->head.nodeClass == UA_NODECLASS_OBJECT) {
-        retval = addInterfaceChildren(server, session, &node->head);
+        retval = addInterfaceChildren(server, session, &node->head, type);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_NODEID_INFO(&node->head.nodeId,
             UA_LOG_INFO_SESSION(&server->config.logger, session,
@@ -1235,7 +1235,7 @@ recursiveTypeCheckAddChildren(UA_Server *server, UA_Session *session,
         }
     }
 
-    return UA_STATUSCODE_GOOD;
+    return retval;
 }
 
 /* Construct children first */
