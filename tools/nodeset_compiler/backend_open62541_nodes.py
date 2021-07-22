@@ -288,7 +288,7 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, global_var_code, i
         typeBrowseNode = "String"
 
 
-    typeString = "UA_" + typeBrowseNode
+    typeString = "UA_" + parentDataType.prefix + typeBrowseNode
     if instanceName is None:
         instanceName = generateNodeValueInstanceName(node, parent, 0)
         code.append("UA_STACKARRAY(" + typeString + ", " + instanceName + ", 1);")
@@ -405,7 +405,7 @@ def generateValueCode(node, parentNode, nodeset, bootstrapping=True):
             logger.warn("Don't know how to print array of StatusCode in node " + str(parentNode.id))
         else:
             if isinstance(node.value[0], ExtensionObject):
-                code.append("UA_" + getTypeBrowseName(dataTypeNode) + " " + valueName + "[" + str(len(node.value)) + "];")
+                code.append("UA_" + dataTypeNode.prefix + getTypeBrowseName(dataTypeNode) + " " + valueName + "[" + str(len(node.value)) + "];")
                 for idx, v in enumerate(node.value):
                     logger.debug("Building extObj array index " + str(idx))
                     instanceName = valueName + "[" + str(idx) + "]"

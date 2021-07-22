@@ -68,6 +68,7 @@ class Type(object):
         self.name = None
         if xml is not None:
             self.name = xml.get("Name")
+            self.prefix = "" if outname in ["types", "transport"] else outname[len("types_"):].upper() + "_"
         self.outname = outname
         self.namespaceUri = namespaceUri
         self.pointerfree = False
@@ -86,6 +87,7 @@ class BuiltinType(Type):
     def __init__(self, name):
         Type.__init__(self, "types", None, "http://opcfoundation.org/UA/")
         self.name = name
+        self.prefix = ""
         if self.name in builtin_overlayable:
             self.pointerfree = True
 
