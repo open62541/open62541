@@ -1080,6 +1080,9 @@ UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_setMethodNode_callback(UA_Server *server,
                                  const UA_NodeId methodNodeId,
                                  UA_MethodCallback methodCallback);
+
+UA_CallMethodResult UA_EXPORT UA_THREADSAFE
+UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request);
 #endif
 
 /**
@@ -1123,11 +1126,6 @@ UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_readObjectProperty(UA_Server *server, const UA_NodeId objectId,
                              const UA_QualifiedName propertyName,
                              UA_Variant *value);
-
-#ifdef UA_ENABLE_METHODCALLS
-UA_CallMethodResult UA_EXPORT UA_THREADSAFE
-UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request);
-#endif
 
 /**
  * .. _addnodes:
