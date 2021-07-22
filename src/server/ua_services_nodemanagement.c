@@ -2598,6 +2598,29 @@ UA_Server_setMethodNode_callback(UA_Server *server,
     return retVal;
 }
 
+UA_StatusCode
+UA_Server_getMethodNodeCallback(UA_Server *server,
+                                const UA_NodeId methodNodeId,
+                                UA_MethodCallback *outMethodCallback) {
+    UA_LOCK(&server->serviceMutex);
+    const UA_Node *node = UA_NODESTORE_GET(server, &methodNodeId);
+    if(!node) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    }
+
+    if(node->head.nodeClass != UA_NODECLASS_METHOD) {
+        UA_NODESTORE_RELEASE(server, node);
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADNODECLASSINVALID;
+    }
+
+    *outMethodCallback = node->methodNode.method;
+    UA_NODESTORE_RELEASE(server, node);
+    UA_UNLOCK(&server->serviceMutex);
+    return UA_STATUSCODE_GOOD;
+}
+
 #endif
 
 /************************/
