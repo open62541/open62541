@@ -2144,14 +2144,14 @@ setConditionMethodCallbacks(UA_Server *server, const UA_NodeId* condition,
     };
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    retval |= UA_Server_setMethodNode_callback(server, methodId[0], disableMethodCallback);
-    retval |= UA_Server_setMethodNode_callback(server, methodId[1], enableMethodCallback);
-    retval |= UA_Server_setMethodNode_callback(server, methodId[2], addCommentMethodCallback);
-    retval |= UA_Server_setMethodNode_callback(server, methodId[3], refreshMethodCallback);
-    retval |= UA_Server_setMethodNode_callback(server, methodId[4], refresh2MethodCallback);
-    retval |= UA_Server_setMethodNode_callback(server, methodId[5], acknowledgeMethodCallback);
+    retval |= UA_Server_setMethodNodeCallback(server, methodId[0], disableMethodCallback);
+    retval |= UA_Server_setMethodNodeCallback(server, methodId[1], enableMethodCallback);
+    retval |= UA_Server_setMethodNodeCallback(server, methodId[2], addCommentMethodCallback);
+    retval |= UA_Server_setMethodNodeCallback(server, methodId[3], refreshMethodCallback);
+    retval |= UA_Server_setMethodNodeCallback(server, methodId[4], refresh2MethodCallback);
+    retval |= UA_Server_setMethodNodeCallback(server, methodId[5], acknowledgeMethodCallback);
 #ifdef CONDITIONOPTIONALFIELDS_SUPPORT
-    retval |= UA_Server_setMethodNode_callback(server, methodId[6], confirmMethodCallback);
+    retval |= UA_Server_setMethodNodeCallback(server, methodId[6], confirmMethodCallback);
 #endif
 
     return retval;

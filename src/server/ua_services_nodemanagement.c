@@ -2589,9 +2589,9 @@ setMethodNode_callback(UA_Server *server,
 }
 
 UA_StatusCode
-UA_Server_setMethodNode_callback(UA_Server *server,
-                                 const UA_NodeId methodNodeId,
-                                 UA_MethodCallback methodCallback) {
+UA_Server_setMethodNodeCallback(UA_Server *server,
+                                const UA_NodeId methodNodeId,
+                                UA_MethodCallback methodCallback) {
     UA_LOCK(&server->serviceMutex);
     UA_StatusCode retVal = setMethodNode_callback(server, methodNodeId, methodCallback);
     UA_UNLOCK(&server->serviceMutex);

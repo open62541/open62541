@@ -1077,9 +1077,13 @@ UA_Server_deleteMonitoredItem(UA_Server *server, UA_UInt32 monitoredItemId);
 
 #ifdef UA_ENABLE_METHODCALLS
 UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_setMethodNode_callback(UA_Server *server,
-                                 const UA_NodeId methodNodeId,
-                                 UA_MethodCallback methodCallback);
+UA_Server_setMethodNodeCallback(UA_Server *server,
+                                const UA_NodeId methodNodeId,
+                                UA_MethodCallback methodCallback);
+
+/* Backwards compatibility definition */
+#define UA_Server_setMethodNode_callback(server, methodNodeId, methodCallback) \
+    UA_Server_setMethodNodeCallback(server, methodNodeId, methodCallback)
 
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_getMethodNodeCallback(UA_Server *server,

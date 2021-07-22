@@ -1092,7 +1092,7 @@ UA_Server_initNS0(UA_Server *server) {
 #endif
 
 #if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
-    retVal |= UA_Server_setMethodNode_callback(server,
+    retVal |= UA_Server_setMethodNodeCallback(server,
                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS), readMonitoredItems);
 #endif
 
