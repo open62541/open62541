@@ -84,7 +84,7 @@ UA_EventLoop_start(UA_EventLoop *el);
 UA_EXPORT void
 UA_EventLoop_stop(UA_EventLoop *el);
 
-/* Process events for at most "timout" ms or until an unrecoverable error
+/* Process events for at most "timeout" ms or until an unrecoverable error
  * occurs. If timeout==0, then only already received events are processed. */
 UA_EXPORT UA_StatusCode
 UA_EventLoop_run(UA_EventLoop *el, UA_UInt32 timeout);
