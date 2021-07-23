@@ -232,47 +232,55 @@ UA_EventLoop_addDelayedCallback(UA_EventLoop *el, UA_DelayedCallback *dc) {
     UA_UNLOCK(&el->elMutex);
 }
 
+static void
+processTimerEntry(
+    UA_EventLoop *el, UA_DateTime nowMonotonic,
+    UA_TimerEntry *first) {
+
+    /* Reinsert / remove to their new position first. Because the
+    * callback can interact with the zip tree and expects the
+    * same entries in the root and idRoot trees. */
+    ZIP_REMOVE(UA_TimerZip, &el->timerRoot, first);
+
+    /* Set the time for the next execution. Prevent an infinite loop by
+    * forcing the execution time in the next iteration.
+    *
+    * If the timer policy is "CurrentTime", then there is at least the
+    * interval between executions. This is used for Monitoreditems, for
+    * which the spec says: The sampling interval indicates the fastest rate
+    * at which the Server should sample its underlying source for data
+    * changes. (Part 4, 5.12.1.2) */
+    first->nextTime += (UA_DateTime)first->interval;
+    if(first->nextTime < nowMonotonic) {
+        if(first->timerPolicy == UA_TIMER_HANDLE_CYCLEMISS_WITH_BASETIME)
+            first->nextTime = calculateNextTime(nowMonotonic, first->nextTime,
+                                                (UA_DateTime)first->interval);
+        else
+            first->nextTime = nowMonotonic + (UA_DateTime)first->interval;
+    }
+
+    ZIP_INSERT(UA_TimerZip, &el->timerRoot, first, ZIP_RANK(first, zipfields));
+
+    /* Unlock the mutex before dropping into the callback. So that the timer
+     * itself can be edited within the callback. When we return, only the
+     * pointer to el must still exist. */
+    UA_Callback cb = first->callback;
+    void *app = first->application;
+    void *data = first->data;
+    UA_UNLOCK(&el->elMutex);
+    cb(app, data);
+    UA_LOCK(&el->elMutex);
+}
+
 /* Returns the DateTime of the next cylic callback */
 static UA_DateTime
 processTimer(UA_EventLoop *el, UA_DateTime nowMonotonic) {
-    UA_TimerEntry *first;
-    while((first = ZIP_MIN(UA_TimerZip, &el->timerRoot)) &&
-          first->nextTime <= nowMonotonic) {
-        /* Reinsert / remove to their new position first. Because the callback
-         * can interact with the zip tree and expects the same entries in the
-         * root and idRoot trees. */
-        ZIP_REMOVE(UA_TimerZip, &el->timerRoot, first);
+    UA_TimerEntry *first = ZIP_MIN(UA_TimerZip, &el->timerRoot);
+    while(first && first->nextTime <= nowMonotonic) {
 
-        /* Set the time for the next execution. Prevent an infinite loop by
-         * forcing the execution time in the next iteration.
-         *
-         * If the timer policy is "CurrentTime", then there is at least the
-         * interval between executions. This is used for Monitoreditems, for
-         * which the spec says: The sampling interval indicates the fastest rate
-         * at which the Server should sample its underlying source for data
-         * changes. (Part 4, 5.12.1.2) */
-        first->nextTime += (UA_DateTime)first->interval;
-        if(first->nextTime < nowMonotonic) {
-            if(first->timerPolicy == UA_TIMER_HANDLE_CYCLEMISS_WITH_BASETIME)
-                first->nextTime = calculateNextTime(nowMonotonic, first->nextTime,
-                                                    (UA_DateTime)first->interval);
-            else
-                first->nextTime = nowMonotonic + (UA_DateTime)first->interval;
-        }
-
-        ZIP_INSERT(UA_TimerZip, &el->timerRoot, first, ZIP_RANK(first, zipfields));
-
-        /* Unlock the mutex before dropping into the callback. So that the timer
-         * itself can be edited within the callback. When we return, only the
-         * pointer to el must still exist. */
-        UA_Callback cb = first->callback;
-        void *app = first->application;
-        void *data = first->data;
-        UA_UNLOCK(&el->elMutex);
-        cb(app, data);
-        UA_LOCK(&el->elMutex);
+        processTimerEntry(el, nowMonotonic, first);
+        first = ZIP_MIN(UA_TimerZip, &el->timerRoot);
     }
-
     /* Return the timestamp of the earliest next callback */
     return (first) ? first->nextTime : UA_INT64_MAX;
 }
