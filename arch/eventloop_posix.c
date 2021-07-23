@@ -452,13 +452,21 @@ UA_EventLoop_run(UA_EventLoop *el, UA_UInt32 timeout) {
     }
 
     /* Process cyclic callbacks */
-    processTimer(el, UA_DateTime_nowMonotonic());
+    UA_DateTime now = UA_DateTime_nowMonotonic();
+    UA_DateTime timeToNextCallback = processTimer(el, now);
+
+    UA_DateTime callbackTimeout = timeToNextCallback - now;
+    UA_DateTime maxTimeout = timeout * UA_DATETIME_MSEC;
+
+    UA_DateTime usedTimeout = UA_MIN(callbackTimeout, maxTimeout);
 
     /* Listen on the active file-descriptors (sockets) from the
      * ConnectionManagers */
     fd_set readset, writeset, errset;
     UA_FD highestfd = setFDSets(el, &readset, &writeset, &errset);
-    struct timeval tmptv = {0, timeout * 1000};
+
+    struct timeval tmptv = {usedTimeout / UA_DATETIME_SEC,
+                            (usedTimeout % UA_DATETIME_SEC) / UA_DATETIME_USEC };
     if(select(highestfd+1, &readset, &writeset, &errset, &tmptv) < 0) {
         /* We will retry, only log the error */
         UA_LOG_SOCKET_ERRNO_WRAP(
