@@ -384,10 +384,10 @@ UA_StatusCode
 addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
                               void *data, UA_Double interval_ms,
                               UA_UInt64 *callbackId) {
-    return UA_Timer_addRepeatedCallback(&server->timer,
-                                        (UA_ApplicationCallback)callback,
-                                         server, data, interval_ms, NULL,
-                                         UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME, callbackId);
+
+    return UA_EventLoop_addCyclicCallback(server->config.eventLoop, (UA_ApplicationCallback)callback,
+                                   server, data, interval_ms, NULL, UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
+                                   callbackId);
 }
 
 UA_StatusCode
