@@ -639,6 +639,31 @@ UA_EventLoop_modifyFD(UA_EventLoop *el, UA_FD fd, short eventMask,
 }
 
 UA_StatusCode
+UA_EventLoop_getFDContext(UA_EventLoop *el, UA_FD fd, void **fdcontext) {
+
+    UA_LOCK(&el->elMutex);
+    /* Find the entry */
+    size_t i = 0;
+    for(; i < el->fdsSize; i++) {
+        if(el->fds[i].fd == fd)
+            break;
+    }
+
+    /* Not found? */
+    if(i == el->fdsSize) {
+        UA_UNLOCK(&el->elMutex);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    void **fdctx = &el->fds[i].fdcontext;
+
+    *fdcontext = fdctx;
+
+    UA_UNLOCK(&el->elMutex);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
 UA_EventLoop_deregisterFD(UA_EventLoop *el, UA_FD fd) {
     UA_LOCK(&el->elMutex);
 

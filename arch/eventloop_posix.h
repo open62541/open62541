@@ -82,7 +82,10 @@ UA_StatusCode
 UA_EventLoop_modifyFD(UA_EventLoop *el, UA_FD fd, short eventMask,
                       UA_FDCallback cb, void *fdcontext);
 
-/* During processing of an fd-event, the fd may deregister itself. But in the
+UA_StatusCode
+UA_EventLoop_getFDContext(UA_EventLoop *el, UA_FD fd, void **fdcontext);
+
+    /* During processing of an fd-event, the fd may deregister itself. But in the
  * fd-callback they must not deregister another fd. */
 UA_StatusCode
 UA_EventLoop_deregisterFD(UA_EventLoop *el, UA_FD fd);
