@@ -153,6 +153,8 @@ endif()
 
 add_example(server_mainloop server_mainloop.c)
 
+add_example(server_eventloop server_eventloop.c)
+
 add_example(server_instantiation server_instantiation.c)
 
 add_example(server_repeated_job server_repeated_job.c)
