@@ -341,8 +341,10 @@ UA_Server_newWithConfig(UA_ServerConfig *config) {
     server->config = *config;
     /* The config might have been "moved" into the server struct. Ensure that
      * the logger pointer is correct. */
-    for(size_t i = 0; i < server->config.securityPoliciesSize; i++)
+    for(size_t i = 0; i < server->config.securityPoliciesSize; i++) {
         server->config.securityPolicies[i].logger = &server->config.logger;
+    }
+    server->config.eventLoop = UA_EventLoop_new(&server->config.logger);
 
     /* Reset the old config */
     memset(config, 0, sizeof(UA_ServerConfig));
