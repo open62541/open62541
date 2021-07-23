@@ -79,6 +79,11 @@ TCP_close(UA_ConnectionManager *cm, UA_FD fd) {
 static void
 TCP_connectionSocketCallback(UA_ConnectionManager *cm, UA_FD fd,
                              void **fdcontext, short event) {
+
+    UA_LOG_DEBUG(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+                 UA_LOGCATEGORY_NETWORK,
+                 "connection socket callback, fd: %d", (UA_FD) fd);
+
     /* Write-Event, a new connection has opened.  */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(event & UA_POSIX_EVENT_WRITE) {
@@ -135,6 +140,10 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, UA_FD fd,
 static void
 TCP_listenSocketCallback(UA_ConnectionManager *cm, UA_FD fd,
                          void **fdcontext, short event) {
+    UA_LOG_DEBUG(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+                 UA_LOGCATEGORY_NETWORK,
+                 "attempting to listen on socketd, fd: %d", (UA_FD) fd);
+
     /* Try to accept a new connection */
     struct sockaddr_storage remote;
     socklen_t remote_size = sizeof(remote);
@@ -316,6 +325,10 @@ TCP_registerListenSocketDomainName(UA_ConnectionManager *cm, const char *hostnam
 
 static UA_StatusCode
 TCP_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
+
+    UA_LOG_DEBUG(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+                 UA_LOGCATEGORY_NETWORK,
+                 "attempting to shutdown with fd: %d", (UA_FD) connectionId);
     /* Shutdown, will be picked up by the next iteration of the event loop */
     if(shutdown((UA_FD)connectionId, SHUT_RDWR) != 0)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -333,11 +346,19 @@ TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
     do {
         ssize_t n = 0;
         do {
+
+            UA_LOG_DEBUG(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+                         UA_LOGCATEGORY_NETWORK,
+                         "attempting to send with fd: %d", (UA_FD) connectionId);
             size_t bytes_to_send = buf->length - nWritten;
             n = UA_send((UA_FD)connectionId,
-                        (const char*)buf->data + nWritten,
+                        (const char*)(buf->data + nWritten),
                         bytes_to_send, flags);
             if(n < 0 && UA_ERRNO != UA_INTERRUPTED && UA_ERRNO != UA_AGAIN) {
+                UA_LOG_SOCKET_ERRNO_GAI_WRAP(
+                    UA_LOG_ERROR(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+                                   UA_LOGCATEGORY_NETWORK,
+                                   "send failed with error %s", errno_str));
                 TCP_shutdownConnection(cm, connectionId);
                 UA_ByteString_clear(buf);
                 return UA_STATUSCODE_BADCONNECTIONCLOSED;
