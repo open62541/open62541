@@ -282,110 +282,8 @@ ServerNetworkLayerTCP_add(UA_ServerNetworkLayer *nl, ServerNetworkLayerTCP *laye
 }
 
 static UA_StatusCode
-addServerSocket(ServerNetworkLayerTCP *layer, struct addrinfo *ai) {
-    /* Create the server socket */
-    UA_SOCKET newsock = UA_socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
-    if(newsock == UA_INVALID_SOCKET)
-    {
-        UA_LOG_SOCKET_ERRNO_WRAP(
-            UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK,
-                           "Error opening the server socket: %s", errno_str));
-        return UA_STATUSCODE_BADCOMMUNICATIONERROR;
-    }
-
-    /* Some Linux distributions have net.ipv6.bindv6only not activated. So
-     * sockets can double-bind to IPv4 and IPv6. This leads to problems. Use
-     * AF_INET6 sockets only for IPv6. */
-
-    int optval = 1;
-#if UA_IPV6
-    if(ai->ai_family == AF_INET6 &&
-       UA_setsockopt(newsock, IPPROTO_IPV6, IPV6_V6ONLY,
-                  (const char*)&optval, sizeof(optval)) == -1) {
-        UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK,
-                       "Could not set an IPv6 socket to IPv6 only");
-        UA_close(newsock);
-        return UA_STATUSCODE_BADCOMMUNICATIONERROR;
-
-    }
-#endif
-    if(UA_setsockopt(newsock, SOL_SOCKET, SO_REUSEADDR,
-                  (const char *)&optval, sizeof(optval)) == -1) {
-        UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK,
-                       "Could not make the socket reusable");
-        UA_close(newsock);
-        return UA_STATUSCODE_BADCOMMUNICATIONERROR;
-    }
-
-
-    if(UA_socket_set_nonblocking(newsock) != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK,
-                       "Could not set the server socket to nonblocking");
-        UA_close(newsock);
-        return UA_STATUSCODE_BADCOMMUNICATIONERROR;
-    }
-
-    /* Bind socket to address */
-    int ret = UA_bind(newsock, ai->ai_addr, (socklen_t)ai->ai_addrlen);
-    if(ret < 0) {
-        /* If bind to specific address failed, try to bind *-socket */
-        if(ai->ai_family == AF_INET) {
-            struct sockaddr_in *sin = (struct sockaddr_in *)ai->ai_addr;
-            if(sin->sin_addr.s_addr != htonl(INADDR_ANY)) {
-                sin->sin_addr.s_addr = 0;
-                ret = 0;
-            }
-        }
-#if UA_IPV6
-        else if(ai->ai_family == AF_INET6) {
-            struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *)ai->ai_addr;
-            if(!IN6_IS_ADDR_UNSPECIFIED(&sin6->sin6_addr)) {
-                memset(&sin6->sin6_addr, 0, sizeof(sin6->sin6_addr));
-                sin6->sin6_scope_id = 0;
-                ret = 0;
-            }
-        }
-#endif // UA_IPV6
-        if(ret == 0) {
-            ret = UA_bind(newsock, ai->ai_addr, (socklen_t)ai->ai_addrlen);
-            if(ret == 0) {
-                /* The second bind fixed the issue, inform the user. */
-                UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK,
-                    "Server socket bound to unspecified address");
-            }
-        }
-    }
-    if(ret < 0) {
-        UA_LOG_SOCKET_ERRNO_WRAP(
-            UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK,
-                           "Error binding a server socket: %s", errno_str));
-        UA_close(newsock);
-        return UA_STATUSCODE_BADCOMMUNICATIONERROR;
-    }
-
-    /* Start listening */
-    if(UA_listen(newsock, MAXBACKLOG) < 0) {
-        UA_LOG_SOCKET_ERRNO_WRAP(
-                UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK,
-                       "Error listening on server socket: %s", errno_str));
-        UA_close(newsock);
-        return UA_STATUSCODE_BADCOMMUNICATIONERROR;
-    }
-
-    if(layer->port == 0) {
-        /* Port was automatically chosen. Read it from the OS */
-        struct sockaddr_in returned_addr;
-        memset(&returned_addr, 0, sizeof(returned_addr));
-        socklen_t len = sizeof(returned_addr);
-        UA_getsockname(newsock, (struct sockaddr *)&returned_addr, &len);
-        layer->port = ntohs(returned_addr.sin_port);
-    }
-
-    layer->serverSockets[layer->serverSocketsSize] = newsock;
-    layer->serverSocketsSize++;
-    return UA_STATUSCODE_GOOD;
-}
-
+getCustomHostname(UA_ServerNetworkLayer *nl, const UA_String *customHostname,
+                  const ServerNetworkLayerTCP *layer);
 static UA_StatusCode
 ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, const UA_Logger *logger,
                             const UA_String *customHostname) {
@@ -420,23 +318,12 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, const UA_Logger *logger,
                                                     "getaddrinfo lookup of %s failed with error %d - %s", hostname, retcode, errno_str));
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-
-    /* There might be serveral addrinfos (for different network cards,
-     * IPv4/IPv6). Add a server socket for all of them. */
-    struct addrinfo *ai = res;
-    for(layer->serverSocketsSize = 0;
-        layer->serverSocketsSize < FD_SETSIZE && ai != NULL;
-        ai = ai->ai_next) {
-        UA_StatusCode statusCode = addServerSocket(layer, ai);
-        if(statusCode != UA_STATUSCODE_GOOD)
-        {
-            UA_freeaddrinfo(res);
-            return statusCode;
-        }
-    }
-    UA_freeaddrinfo(res);
-
-    /* Get the discovery url from the hostname */
+    return getCustomHostname(nl, customHostname, layer);
+}
+static UA_StatusCode
+getCustomHostname(
+    UA_ServerNetworkLayer *nl, const UA_String *customHostname,
+    const ServerNetworkLayerTCP *layer) { /* Get the discovery url from the hostname */
     UA_String du = UA_STRING_NULL;
     char discoveryUrlBuffer[256];
     if(customHostname->length) {
