@@ -252,6 +252,17 @@ void
 UA_DataSetReader_handleMessageReceiveTimeout(UA_Server *server, void *dataSetReader);
 #endif /* UA_ENABLE_PUBSUB_MONITORING */
 
+UA_StatusCode
+UA_DataSetReader_generateNetworkMessage(UA_PubSubConnection *pubSubConnection,
+                                        UA_DataSetReader *dataSetReader,
+                                        UA_DataSetMessage *dsm, UA_UInt16 *writerId,
+                                        UA_Byte dsmCount, UA_NetworkMessage *nm);
+
+UA_StatusCode
+UA_DataSetReader_generateDataSetMessage(UA_Server *server,
+                                        UA_DataSetMessage *dataSetMessage,
+                                        UA_DataSetReader *dataSetReader);
+
 /**********************************************/
 /*                ReaderGroup                 */
 /**********************************************/
