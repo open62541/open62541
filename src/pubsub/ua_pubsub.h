@@ -267,7 +267,6 @@ struct UA_ReaderGroup {
     /* for simplified information access */
     UA_UInt32 readersCount;
     UA_UInt64 subscribeCallbackId;
-    UA_Boolean subscribeCallbackIsRegistered;
     UA_PubSubState state;
     /* This flag is 'read only' and is set internally based on the PubSub state. */
     UA_Boolean configurationFrozen;

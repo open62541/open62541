@@ -959,9 +959,6 @@ UA_ReaderGroup_addSubscribeCallback(UA_Server *server, UA_ReaderGroup *readerGro
                                                       &readerGroup->subscribeCallbackId);
     }
 
-    if(retval == UA_STATUSCODE_GOOD)
-        readerGroup->subscribeCallbackIsRegistered = true;
-
     /* Run once after creation */
     /* When using blocking socket functionality, the server mechanism might get blocked.
      * It is highly recommended to use custom callback when using blockingsocket. */
@@ -978,7 +975,6 @@ UA_ReaderGroup_removeSubscribeCallback(UA_Server *server, UA_ReaderGroup *reader
             removeCustomCallback(server, readerGroup->identifier, readerGroup->subscribeCallbackId);
     else
         UA_PubSubManager_removeRepeatedPubSubCallback(server, readerGroup->subscribeCallbackId);
-    readerGroup->subscribeCallbackIsRegistered = false;
 }
 
 /**********/
