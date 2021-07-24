@@ -741,12 +741,11 @@ writeNetworkMessage(UA_WriterGroup *wg, size_t msgSize,
     return UA_STATUSCODE_GOOD;
 }
 
+#ifdef UA_ENABLE_JSON_ENCODING
 static UA_StatusCode
 sendNetworkMessageJson(UA_PubSubConnection *connection, UA_DataSetMessage *dsm,
                        UA_UInt16 *writerIds, UA_Byte dsmCount,
                        UA_ExtensionObject *transportSettings) {
-   UA_StatusCode retval = UA_STATUSCODE_BADNOTSUPPORTED;
-#ifdef UA_ENABLE_JSON_ENCODING
     UA_NetworkMessage nm;
     memset(&nm, 0, sizeof(UA_NetworkMessage));
     nm.version = 1;
@@ -787,9 +786,9 @@ sendNetworkMessageJson(UA_PubSubConnection *connection, UA_DataSetMessage *dsm,
     retval = connection->channel->send(connection->channel, transportSettings, &buf);
     if(msgSize > UA_MAX_STACKBUF)
         UA_ByteString_clear(&buf);
-#endif
     return retval;
 }
+#endif
 
 static UA_StatusCode
 generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
@@ -1064,9 +1063,13 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
                                      &writerGroup->config.messageSettings,
                                      &writerGroup->config.transportSettings);
         } else { /* if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) */
+#ifdef UA_ENABLE_JSON_ENCODING
             res = sendNetworkMessageJson(connection, &dsmStore[dsmCount],
                                          &dsw->config.dataSetWriterId, 1,
                                          &writerGroup->config.transportSettings);
+#else
+            res = UA_STATUSCODE_BADNOTSUPPORTED;
+#endif
         }
 
         if(res != UA_STATUSCODE_GOOD) {
@@ -1099,9 +1102,13 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
                                      &writerGroup->config.messageSettings,
                                      &writerGroup->config.transportSettings);
         } else { /* if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) */
+#ifdef UA_ENABLE_JSON_ENCODING
             res = sendNetworkMessageJson(connection, &dsmStore[i],
                                          &dsWriterIds[i], nmDsmCount,
                                          &writerGroup->config.transportSettings);
+#else
+            res = UA_STATUSCODE_BADNOTSUPPORTED;
+#endif
         }
 
         if(res == UA_STATUSCODE_GOOD) {
