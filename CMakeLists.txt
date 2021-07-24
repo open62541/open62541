@@ -865,6 +865,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_writer.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_reader.c
+                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_readergroup.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_manager.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_ns0.c
                 # services
