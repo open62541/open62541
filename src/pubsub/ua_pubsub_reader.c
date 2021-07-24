@@ -1245,93 +1245,65 @@ UA_Server_DataSetReader_getState(UA_Server *server, UA_NodeId dataSetReaderIdent
     return UA_STATUSCODE_GOOD;
 }
 
-//state machine methods not part of the open62541 state machine API
-UA_StatusCode
-UA_DataSetReader_setPubSubState(UA_Server *server, UA_PubSubState state, UA_DataSetReader *dataSetReader) {
+static UA_StatusCode
+UA_DataSetReader_setState_disabled(UA_Server *server, UA_DataSetReader *dsr) {
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
-    switch(state){
-        case UA_PUBSUBSTATE_DISABLED:
-            switch(dataSetReader->state){
-                case UA_PUBSUBSTATE_DISABLED:
-                    return UA_STATUSCODE_GOOD;
-                case UA_PUBSUBSTATE_PAUSED:
-                    dataSetReader->state = UA_PUBSUBSTATE_DISABLED;
-                    break;
-                case UA_PUBSUBSTATE_OPERATIONAL:
+    switch(dsr->state) {
+    case UA_PUBSUBSTATE_DISABLED:
+        return UA_STATUSCODE_GOOD;
+    case UA_PUBSUBSTATE_PAUSED:
+        dsr->state = UA_PUBSUBSTATE_DISABLED;
+        return UA_STATUSCODE_GOOD;
+    case UA_PUBSUBSTATE_OPERATIONAL:
 #ifdef UA_ENABLE_PUBSUB_MONITORING
-                    /* stop MessageReceiveTimeout timer */
-                    if(dataSetReader->msgRcvTimeoutTimerRunning == UA_TRUE) {
-                        ret = server->config.pubSubConfig.monitoringInterface.stopMonitoring(server, dataSetReader->identifier,
-                            UA_PUBSUB_COMPONENT_DATASETREADER, UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT, dataSetReader);
-                        if(ret == UA_STATUSCODE_GOOD) {
-                            dataSetReader->msgRcvTimeoutTimerRunning = UA_FALSE;
-                        } else {
-                            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                            "Disable ReaderGroup failed. Stop message receive timeout timer of DataSetReader "
-                            "'%.*s' failed.", (int) dataSetReader->config.name.length, dataSetReader->config.name.data);
-                        }
-                    }
+        /* Stop MessageReceiveTimeout timer */
+        if(dsr->msgRcvTimeoutTimerRunning == UA_TRUE) {
+            ret = server->config.pubSubConfig.monitoringInterface.
+                stopMonitoring(server, dsr->identifier,
+                               UA_PUBSUB_COMPONENT_DATASETREADER,
+                               UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT, dsr);
+            if(ret == UA_STATUSCODE_GOOD) {
+                dsr->msgRcvTimeoutTimerRunning = UA_FALSE;
+            } else {
+                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                             "Disable ReaderGroup failed. Stop message receive timeout timer of DataSetReader "
+                             "'%.*s' failed.", (int) dsr->config.name.length, dsr->config.name.data);
+            }
+        }
 #endif /* UA_ENABLE_PUBSUB_MONITORING */
-                    if(ret == UA_STATUSCODE_GOOD)
-                        dataSetReader->state = UA_PUBSUBSTATE_DISABLED;
-                    break;
-                case UA_PUBSUBSTATE_ERROR:
-                    break;
-                default:
-                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                                   "Received unknown PubSub state!");
-            }
-            break;
+        if(ret == UA_STATUSCODE_GOOD)
+            dsr->state = UA_PUBSUBSTATE_DISABLED;
+        return ret;
+    case UA_PUBSUBSTATE_ERROR:
+        break;
+    default:
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "Received unknown PubSub state!");
+    }
+    return UA_STATUSCODE_BADINVALIDARGUMENT;
+}
+
+/* State machine methods not part of the open62541 state machine API */
+UA_StatusCode
+UA_DataSetReader_setPubSubState(UA_Server *server, UA_PubSubState state,
+                                UA_DataSetReader *dataSetReader) {
+    switch(state) {
+        case UA_PUBSUBSTATE_DISABLED:
+            return UA_DataSetReader_setState_disabled(server, dataSetReader);
         case UA_PUBSUBSTATE_PAUSED:
-            UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                            "PubSub state paused is unsupported at the moment!");
-            switch(dataSetReader->state){
-                case UA_PUBSUBSTATE_DISABLED:
-                    break;
-                case UA_PUBSUBSTATE_PAUSED:
-                    return UA_STATUSCODE_GOOD;
-                case UA_PUBSUBSTATE_OPERATIONAL:
-                    break;
-                case UA_PUBSUBSTATE_ERROR:
-                    break;
-                default:
-                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                                   "Received unknown PubSub state!");
-            }
-            break;
+            return UA_STATUSCODE_BADNOTSUPPORTED;
         case UA_PUBSUBSTATE_OPERATIONAL:
-            switch(dataSetReader->state){
-                case UA_PUBSUBSTATE_DISABLED:
-                case UA_PUBSUBSTATE_PAUSED:
-                case UA_PUBSUBSTATE_OPERATIONAL:
-                case UA_PUBSUBSTATE_ERROR:  /* intended fall through */
-                    dataSetReader->state = UA_PUBSUBSTATE_OPERATIONAL;
-                    break;
-                default:
-                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                                   "Received unknown PubSub state!");
-            }
+            dataSetReader->state = UA_PUBSUBSTATE_OPERATIONAL;
             break;
         case UA_PUBSUBSTATE_ERROR:
-            switch(dataSetReader->state){
-                case UA_PUBSUBSTATE_DISABLED:
-                case UA_PUBSUBSTATE_PAUSED:
-                case UA_PUBSUBSTATE_OPERATIONAL:
-                case UA_PUBSUBSTATE_ERROR: /* intended fall through */
-                    dataSetReader->state = state;
-                    break;
-                default:
-                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                                   "Received unknown PubSub state!");
-            }
             dataSetReader->state = UA_PUBSUBSTATE_ERROR;
             break;
         default:
             UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                                           "Received unknown PubSub state!");
-            ret = UA_STATUSCODE_BADINTERNALERROR;
+                           "Received unknown PubSub state!");
+            return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
-    return ret;
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
