@@ -710,10 +710,9 @@ encryptAndSign(UA_WriterGroup *wg, const UA_NetworkMessage *nm,
 #endif
 
 static UA_StatusCode
-writeNetworkMessage(UA_WriterGroup *wg, size_t msgSize,
-                    UA_NetworkMessage *nm, UA_ByteString *buf) { /* Encode the message */
+encodeNetworkMessage(UA_WriterGroup *wg, UA_NetworkMessage *nm,
+                     UA_ByteString *buf) {
     UA_Byte *bufPos = buf->data;
-    memset(bufPos, 0, msgSize);
     UA_Byte *bufEnd = &buf->data[buf->length];
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
@@ -756,34 +755,36 @@ sendNetworkMessageJson(UA_PubSubConnection *connection, UA_DataSetMessage *dsm,
     nm.payloadHeader.dataSetPayloadHeader.dataSetWriterIds = writerIds;
     nm.payload.dataSetPayload.dataSetMessages = dsm;
 
+    /* Compute the message length */
+    size_t msgSize = UA_NetworkMessage_calcSizeJson(&nm, NULL, 0, NULL, 0, true);
+
     /* Allocate the buffer. Allocate on the stack if the buffer is small. */
     UA_ByteString buf;
-    size_t msgSize = UA_NetworkMessage_calcSizeJson(&nm, NULL, 0, NULL, 0, true);
     UA_Byte stackBuf[UA_MAX_STACKBUF];
     buf.data = stackBuf;
     buf.length = msgSize;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(msgSize > UA_MAX_STACKBUF) {
-        retval = UA_ByteString_allocBuffer(&buf, msgSize);
-        if(retval != UA_STATUSCODE_GOOD)
-            return retval;
+        res = UA_ByteString_allocBuffer(&buf, msgSize);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
     }
 
     /* Encode the message */
     UA_Byte *bufPos = buf.data;
     memset(bufPos, 0, msgSize);
     const UA_Byte *bufEnd = &buf.data[buf.length];
-    retval = UA_NetworkMessage_encodeJson(&nm, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
-    if(retval != UA_STATUSCODE_GOOD) {
-        if(msgSize > UA_MAX_STACKBUF)
-            UA_ByteString_clear(&buf);
-        return retval;
-    }
+    res = UA_NetworkMessage_encodeJson(&nm, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
+    if(res != UA_STATUSCODE_GOOD)
+        goto cleanup;
 
     /* Send the prepared messages */
-    retval = connection->channel->send(connection->channel, transportSettings, &buf);
+    res = connection->channel->send(connection->channel, transportSettings, &buf);
+
+ cleanup:
     if(msgSize > UA_MAX_STACKBUF)
         UA_ByteString_clear(&buf);
-    return retval;
+    return res;
 }
 #endif
 
@@ -900,17 +901,15 @@ sendNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
     UA_NetworkMessage nm;
     memset(&nm, 0, sizeof(UA_NetworkMessage));
 
+    /* Fill the message structure */
     UA_StatusCode rv =
         generateNetworkMessage(connection, wg, dsm, writerIds, dsmCount,
                                messageSettings, transportSettings, &nm);
-    UA_CHECK_STATUS(rv, goto cleanup);
+    UA_CHECK_STATUS(rv, return rv);
 
-    /* Allocate the buffer. Allocate on the stack if the buffer is small. */
-    UA_ByteString buf;
+    /* Compute the message size. Add the overhead for the security signature.
+     * There is no padding and the encryption incurs no size overhead. */
     size_t msgSize = UA_NetworkMessage_calcSizeBinary(&nm, NULL);
-
-    /* Add the overhead for the security signature. There is no padding and the
-     * encryption incurs no size overhead. */
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     if(wg->config.securityMode > UA_MESSAGESECURITYMODE_NONE) {
         UA_PubSubSecurityPolicy *sp = wg->config.securityPolicy;
@@ -919,18 +918,21 @@ sendNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
     }
 #endif
 
-    /* Allocate the memory */
+    /* Allocate the buffer. Allocate on the stack if the buffer is small. */
+    UA_ByteString buf;
     UA_Byte stackBuf[UA_MAX_STACKBUF];
-    if(msgSize <= UA_MAX_STACKBUF) {
-        buf.data = stackBuf;
-        buf.length = msgSize;
-    } else {
+    buf.data = stackBuf;
+    buf.length = msgSize;
+    if(msgSize > UA_MAX_STACKBUF) {
         rv = UA_ByteString_allocBuffer(&buf, msgSize);
         UA_CHECK_STATUS(rv, goto cleanup);
     }
-    rv = writeNetworkMessage(wg, msgSize, &nm, &buf);
+
+    /* Encode and encrypt the message */
+    rv = encodeNetworkMessage(wg, &nm, &buf);
     UA_CHECK_STATUS(rv, goto cleanup_with_msg_size);
-    /* Send the prepared messages */
+
+    /* Send out the message */
     rv = connection->channel->send(connection->channel, transportSettings, &buf);
     UA_CHECK_STATUS(rv, goto cleanup_with_msg_size);
 
