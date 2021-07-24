@@ -961,13 +961,13 @@ UA_StatusCode
 UA_ReaderGroup_addSubscribeCallback(UA_Server *server, UA_ReaderGroup *readerGroup) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(readerGroup->config.pubsubManagerCallback.addCustomCallback)
-        retval |= readerGroup->config.pubsubManagerCallback.addCustomCallback(server, readerGroup->identifier,
-                                                                              (UA_ServerCallback) UA_ReaderGroup_subscribeCallback,
-                                                                              readerGroup,
-                                                                              readerGroup->config.subscribingInterval,
-                                                                              NULL,                                         // TODO: Send base time from reader group config
-                                                                              UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,   // TODO: Send timer policy from reader group config
-                                                                              &readerGroup->subscribeCallbackId);
+        retval = readerGroup->config.pubsubManagerCallback.
+            addCustomCallback(server, readerGroup->identifier,
+                              (UA_ServerCallback)UA_ReaderGroup_subscribeCallback,
+                              readerGroup, readerGroup->config.subscribingInterval,
+                              NULL,                                         // TODO: Send base time from reader group config
+                              UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,   // TODO: Send timer policy from reader group config
+                              &readerGroup->subscribeCallbackId);
     else {
         if(readerGroup->config.enableBlockingSocket == UA_TRUE) {
             UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -975,13 +975,12 @@ UA_ReaderGroup_addSubscribeCallback(UA_Server *server, UA_ReaderGroup *readerGro
             return UA_STATUSCODE_BADNOTSUPPORTED;
         }
 
-        retval |= UA_PubSubManager_addRepeatedCallback(server,
-                                                       (UA_ServerCallback) UA_ReaderGroup_subscribeCallback,
-                                                       readerGroup,
-                                                       readerGroup->config.subscribingInterval,
-                                                       NULL,                                        // TODO: Send base time from reader group config
-                                                       UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,  // TODO: Send timer policy from reader group config
-                                                       &readerGroup->subscribeCallbackId);
+        retval = UA_PubSubManager_addRepeatedCallback(server,
+                                                      (UA_ServerCallback)UA_ReaderGroup_subscribeCallback,
+                                                      readerGroup, readerGroup->config.subscribingInterval,
+                                                      NULL,                                        // TODO: Send base time from reader group config
+                                                      UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,  // TODO: Send timer policy from reader group config
+                                                      &readerGroup->subscribeCallbackId);
     }
 
     if(retval == UA_STATUSCODE_GOOD)
