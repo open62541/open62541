@@ -759,10 +759,7 @@ sendNetworkMessageJson(UA_PubSubConnection *connection, UA_DataSetMessage *dsm,
     /* Allocate the buffer. Allocate on the stack if the buffer is small. */
     UA_ByteString buf;
     size_t msgSize = UA_NetworkMessage_calcSizeJson(&nm, NULL, 0, NULL, 0, true);
-    size_t stackSize = 1;
-    if(msgSize <= UA_MAX_STACKBUF)
-        stackSize = msgSize;
-    UA_STACKARRAY(UA_Byte, stackBuf, stackSize);
+    UA_Byte stackBuf[UA_MAX_STACKBUF];
     buf.data = stackBuf;
     buf.length = msgSize;
     if(msgSize > UA_MAX_STACKBUF) {
