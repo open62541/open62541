@@ -401,13 +401,8 @@ UA_Server_removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier) {
         return UA_STATUSCODE_BADNOTFOUND;
 
     /* Unregister subscribe callback */
-    if(readerGroup->state == UA_PUBSUBSTATE_OPERATIONAL) {
-        if(readerGroup->config.pubsubManagerCallback.removeCustomCallback)
-            readerGroup->config.pubsubManagerCallback.
-                removeCustomCallback(server, readerGroup->identifier, readerGroup->subscribeCallbackId);
-        else
-            UA_PubSubManager_removeRepeatedPubSubCallback(server, readerGroup->subscribeCallbackId);
-    }
+    if(readerGroup->state == UA_PUBSUBSTATE_OPERATIONAL)
+        UA_ReaderGroup_removeSubscribeCallback(server, readerGroup);
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     removeReaderGroupRepresentation(server, readerGroup);
@@ -526,12 +521,7 @@ UA_ReaderGroup_setPubSubState_disable(UA_Server *server,
     case UA_PUBSUBSTATE_PAUSED:
         break;
     case UA_PUBSUBSTATE_OPERATIONAL:
-        if(rg->config.pubsubManagerCallback.removeCustomCallback)
-            rg->config.pubsubManagerCallback.
-                removeCustomCallback(server, rg->identifier, rg->subscribeCallbackId);
-        else
-            UA_PubSubManager_removeRepeatedPubSubCallback(server, rg->subscribeCallbackId);
-
+        UA_ReaderGroup_removeSubscribeCallback(server, rg);
         LIST_FOREACH(dataSetReader, &rg->readers, listEntry) {
             UA_DataSetReader_setPubSubState(server, UA_PUBSUBSTATE_DISABLED, dataSetReader);
         }
@@ -575,18 +565,11 @@ UA_ReaderGroup_setPubSubState_operational(UA_Server *server,
     UA_DataSetReader *dataSetReader;
     switch(rg->state) {
     case UA_PUBSUBSTATE_DISABLED:
-        rg->state = UA_PUBSUBSTATE_OPERATIONAL;
-        if(rg->config.pubsubManagerCallback.removeCustomCallback)
-            rg->config.pubsubManagerCallback.
-                removeCustomCallback(server, rg->identifier,
-                                     rg->subscribeCallbackId);
-        else
-            UA_PubSubManager_removeRepeatedPubSubCallback(server, rg->subscribeCallbackId);
-
         LIST_FOREACH(dataSetReader, &rg->readers, listEntry) {
             UA_DataSetReader_setPubSubState(server, UA_PUBSUBSTATE_OPERATIONAL, dataSetReader);
         }
         UA_ReaderGroup_addSubscribeCallback(server, rg);
+        rg->state = UA_PUBSUBSTATE_OPERATIONAL;
         break;
     case UA_PUBSUBSTATE_PAUSED:
         break;
@@ -612,13 +595,7 @@ UA_ReaderGroup_setPubSubState_error(UA_Server *server,
     case UA_PUBSUBSTATE_PAUSED:
         break;
     case UA_PUBSUBSTATE_OPERATIONAL:
-        if(rg->config.pubsubManagerCallback.removeCustomCallback)
-            rg->config.pubsubManagerCallback.
-                removeCustomCallback(server, rg->identifier,
-                                     rg->subscribeCallbackId);
-        else
-            UA_PubSubManager_removeRepeatedPubSubCallback(server, rg->subscribeCallbackId);
-
+        UA_ReaderGroup_removeSubscribeCallback(server, rg);
         LIST_FOREACH(dataSetReader, &rg->readers, listEntry){
             UA_DataSetReader_setPubSubState(server, UA_PUBSUBSTATE_ERROR, dataSetReader);
         }
@@ -954,7 +931,6 @@ UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerGroup)
     receiveBufferedNetworkMessage(server, readerGroup, connection);
 }
 
-
 /* Add new subscribeCallback. The first execution is triggered directly after
  * creation. */
 UA_StatusCode
@@ -993,6 +969,16 @@ UA_ReaderGroup_addSubscribeCallback(UA_Server *server, UA_ReaderGroup *readerGro
         UA_ReaderGroup_subscribeCallback(server, readerGroup);
 
     return retval;
+}
+
+void
+UA_ReaderGroup_removeSubscribeCallback(UA_Server *server, UA_ReaderGroup *readerGroup) {
+    if(readerGroup->config.pubsubManagerCallback.removeCustomCallback)
+        readerGroup->config.pubsubManagerCallback.
+            removeCustomCallback(server, readerGroup->identifier, readerGroup->subscribeCallbackId);
+    else
+        UA_PubSubManager_removeRepeatedPubSubCallback(server, readerGroup->subscribeCallbackId);
+    readerGroup->subscribeCallbackIsRegistered = false;
 }
 
 /**********/
