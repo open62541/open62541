@@ -578,15 +578,19 @@ addInterfaceChildren(UA_Server *server, UA_Session *session,
 }
 
 static UA_StatusCode
-copyChild(UA_Server *server, UA_Session *session,
-          const UA_NodeId *destinationNodeId,
+copyChild(UA_Server *server, UA_Session *session, const UA_NodeId *sourceNodeId, const UA_NodeId *destinationNodeId,
           const UA_ReferenceDescription *rd) {
     UA_assert(session);
 
     /* Is there an existing child with the browsename? */
     UA_NodeId existingChild = UA_NODEID_NULL;
+    UA_NodeId sourceChild = UA_NODEID_NULL;
     UA_StatusCode retval = findChildByBrowsename(server, session, destinationNodeId,
                                                  &rd->browseName, &existingChild);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    retval = findChildByBrowsename(server, session, sourceNodeId,
+                                   &rd->browseName, &sourceChild);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -595,6 +599,14 @@ copyChild(UA_Server *server, UA_Session *session,
         if(rd->nodeClass == UA_NODECLASS_VARIABLE ||
            rd->nodeClass == UA_NODECLASS_OBJECT)
             retval = copyAllChildren(server, session, &rd->nodeId.nodeId, &existingChild);
+        UA_MethodCallback callback;
+        UA_MethodCallback existingChildCallback;
+        if(UA_Server_getMethodNodeCallback(server, sourceChild, &callback) == UA_STATUSCODE_GOOD &&
+           UA_Server_getMethodNodeCallback(server, existingChild, &existingChildCallback) == UA_STATUSCODE_GOOD) {
+            if(existingChildCallback == NULL) {
+                UA_Server_setMethodNode_callback(server, existingChild, callback);
+            }
+        }
         UA_NodeId_clear(&existingChild);
         return retval;
     }
@@ -721,7 +733,7 @@ copyChild(UA_Server *server, UA_Session *session,
             deleteNode(server, newNodeId, true);
             return retval;
         }
-        
+
         /* Clean up.  Because it can happen that a string is assigned as ID at 
          * generateChildNodeId. */
         UA_NodeId_clear(&newNodeId);
@@ -755,7 +767,7 @@ copyAllChildren(UA_Server *server, UA_Session *session,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < br.referencesSize; ++i) {
         UA_ReferenceDescription *rd = &br.references[i];
-        retval = copyChild(server, session, destination, rd);
+        retval = copyChild(server, session, source, destination, rd);
         if(retval != UA_STATUSCODE_GOOD)
             break;
     }
@@ -1734,7 +1746,7 @@ deconstructNodeSet(UA_Server *server, UA_Session *session,
                   lifecycle = &type->objectTypeNode.lifecycle;
                else
                   lifecycle = &type->variableTypeNode.lifecycle;
-               
+
                /* Call the destructor */
                if(lifecycle->destructor) {
                   UA_UNLOCK(&server->serviceMutex);
