@@ -597,10 +597,10 @@ copyChild(UA_Server *server, UA_Session *session, const UA_NodeId *sourceNodeId,
             retval = copyAllChildren(server, session, &rd->nodeId.nodeId, &existingChild);
         UA_MethodCallback callback;
         UA_MethodCallback existingChildCallback;
-        if(UA_Server_getMethodNodeCallback(server, sourceChild, &callback) == UA_STATUSCODE_GOOD &&
-           UA_Server_getMethodNodeCallback(server, existingChild, &existingChildCallback) == UA_STATUSCODE_GOOD) {
+        if(UA_Server_getMethodNodeCallback_internal(server, sourceChild, &callback) == UA_STATUSCODE_GOOD &&
+           UA_Server_getMethodNodeCallback_internal(server, existingChild, &existingChildCallback) == UA_STATUSCODE_GOOD) {
             if(existingChildCallback == NULL) {
-                UA_Server_setMethodNode_callback(server, existingChild, callback);
+                UA_Server_setMethodNodeCallback_internal(server, existingChild, callback);
             }
         }
         UA_NodeId_clear(&existingChild);
@@ -2635,6 +2635,7 @@ UA_StatusCode
 UA_Server_setMethodNodeCallback_internal(UA_Server *server,
                        const UA_NodeId methodNodeId,
                        UA_MethodCallback methodCallback) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
     return UA_Server_editNode(server, &server->adminSession, &methodNodeId,
                               (UA_EditNodeCallback)editMethodCallback,
                               (void*)(uintptr_t)methodCallback);
@@ -2654,6 +2655,7 @@ UA_StatusCode
 UA_Server_getMethodNodeCallback_internal(UA_Server *server,
                                          const UA_NodeId methodNodeId,
                                          UA_MethodCallback *outMethodCallback) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
     const UA_Node *node = UA_NODESTORE_GET(server, &methodNodeId);
     if(!node) {
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
