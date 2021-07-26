@@ -248,6 +248,16 @@ UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session,
                                  UA_EditNodeCallback callback,
                                  void *data);
 
+UA_StatusCode
+UA_Server_setMethodNodeCallback_internal(UA_Server *server,
+                                         const UA_NodeId methodNodeId,
+                                         UA_MethodCallback methodCallback);
+
+UA_StatusCode
+UA_Server_getMethodNodeCallback_internal(UA_Server *server,
+                                         const UA_NodeId methodNodeId,
+                                         UA_MethodCallback *outMethodCallback);
+
 /*********************/
 /* Utility Functions */
 /*********************/
