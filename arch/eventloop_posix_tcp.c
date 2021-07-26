@@ -167,9 +167,7 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, UA_FD fd,
 
     /* The socket has opened. Signal it to the application. The callback can
      * switch out the context. So put it into a temp variable.  */
-    void *fdctx_address = NULL;
-    UA_EventLoop_getFDContext(cm->eventSource.eventLoop, fd, &fdctx_address);
-    cm->connectionCallback(cm, (uintptr_t)fd, (void **) fdctx_address, UA_STATUSCODE_GOOD,
+    cm->connectionCallback(cm, (uintptr_t)fd, fdcontext, UA_STATUSCODE_GOOD,
                            UA_BYTESTRING_NULL);
 
     void *ctx = cm->initialConnectionContext;
@@ -179,7 +177,7 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, UA_FD fd,
                                   (UA_FDCallback) TCP_connectionSocketCallback,
                                   &cm->eventSource, ctx);
     if(res != UA_STATUSCODE_GOOD) {
-        cm->connectionCallback(cm, (uintptr_t)fd, &ctx,
+        cm->connectionCallback(cm, (uintptr_t)fd, fdcontext,
                                UA_STATUSCODE_BADINTERNALERROR, UA_BYTESTRING_NULL);
         UA_close(newsockfd);
     }
