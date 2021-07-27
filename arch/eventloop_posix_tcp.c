@@ -266,7 +266,7 @@ TCP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai) {
         UA_EventLoop_registerFD(cm->eventSource.eventLoop, listenSocket,
                                 UA_POSIX_EVENT_READ,
                                 (UA_FDCallback) TCP_listenSocketCallback,
-                                &cm->eventSource, cm->initialConnectionContext);
+                                &cm->eventSource, NULL);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
                        UA_LOGCATEGORY_NETWORK,
