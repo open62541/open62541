@@ -339,6 +339,9 @@ option(UA_ENABLE_PUBSUB "Enable the PubSub protocol" OFF)
 option(UA_ENABLE_PUBSUB_ENCRYPTION "Enable encryption of the PubSub payload" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_ENCRYPTION)
 
+option(UA_ENABLE_PUBSUB_ENCRYPTION_TPM_KEYSTORE "Enable encryption of the PubSub payload, which uses TPM hardware for key encryption" OFF)
+mark_as_advanced(UA_ENABLE_PUBSUB_ENCRYPTION_TPM_KEYSTORE)
+
 option(UA_ENABLE_PUBSUB_INFORMATIONMODEL "Enable PubSub information model twin" OFF)
 
 option(UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS "Enable PubSub informationmodel methods" OFF)
@@ -360,6 +363,12 @@ option(UA_ENABLE_PUBSUB_ETH_UADP "Enable publish/subscribe UADP over Ethernet" O
 if(UA_ENABLE_PUBSUB_ETH_UADP)
     if(NOT CMAKE_SYSTEM MATCHES "Linux")
     message(FATAL_ERROR "UADP over Ethernet is only available on Linux.")
+    endif()
+endif()
+
+if(UA_ENABLE_PUBSUB_ENCRYPTION_TPM_KEYSTORE)
+    if(NOT UA_ENABLE_PUBSUB_ENCRYPTION)
+        message(FATAL_ERROR "PubSub encryption TPM keystore cannot be used with disabled PubSub Encryption.")
     endif()
 endif()
 
