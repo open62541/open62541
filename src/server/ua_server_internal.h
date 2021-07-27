@@ -620,6 +620,17 @@ UA_NODESTORE_GETFROMREF(UA_Server *server, const UA_ReferenceTarget *target);
 #define UA_NODESTORE_GETREFERENCETYPEID(server, index)                  \
     server->config.nodestore.getReferenceTypeId(server->config.nodestore.context, \
                                                 index)
+typedef struct {
+    UA_Boolean isInitial;
+    UA_ConnectionManager *cm;
+    UA_Server *server;
+} UA_BasicConnectionContext;
+
+typedef struct {
+    UA_BasicConnectionContext base;
+    uintptr_t connectionId;
+    UA_Connection connection;
+} UA_ConnectionContext;
 
 _UA_END_DECLS
 
