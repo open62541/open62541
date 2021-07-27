@@ -4,8 +4,8 @@
  * Copyright (c) 2021 Kalycito Infotech Private Limited
  */
 
- /* Note: Have to enable UA_ENABLE_PUBSUB_ENCRYPTION and UA_ENABLE_PUBSUB_ENCRYPTION_TPM_KEYSTORE
-          to run the application */
+/* Note: Have to enable UA_ENABLE_PUBSUB_ENCRYPTION and UA_ENABLE_ENCRYPTION_TPM2=KEYSTORE
+         to run the application */
 
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pubsub_ethernet.h>
@@ -21,7 +21,7 @@
 
 #include "common.h"
 
-#define UA_AES128CTR_SIGNING_KEY_LENGTH 16
+#define UA_AES128CTR_SIGNING_KEY_LENGTH 32
 #define UA_AES128CTR_KEY_LENGTH 16
 #define UA_AES128CTR_KEYNONCE_LENGTH 4
 
@@ -233,7 +233,8 @@ find_object_by_label(CK_SESSION_HANDLE hSession, char *label, unsigned long *obj
         } else {
             rtnval = UA_FALSE;
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SECURITYPOLICY,
-                         "C_FindObjects failed: Error = 0x%.8lx", (long unsigned int)rv);
+                         "Error from tpm2_pkcs11 - refer https://github.com/tpm2-software/tpm2-pkcs11/blob/master/src/pkcs11.h "
+                         "C_FindObjects failed = 0x%.8lx", (long unsigned int)rv);
         }
     } while( rv == UA_STATUSCODE_GOOD && foundCount > 0 && !rtnval);
     return rtnval;
@@ -271,7 +272,8 @@ decrypt_data(unsigned long slotNum, unsigned char *pin, char *label, UA_ByteStri
             rv = (UA_StatusCode)C_Initialize(NULL_PTR);
             if (rv != UA_STATUSCODE_GOOD) {
                 UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SECURITYPOLICY,
-                             "C_Initialize failed: Error = 0x%.8lX", (long unsigned int)rv);
+                             "Error from tpm2_pkcs11 - refer https://github.com/tpm2-software/tpm2-pkcs11/blob/master/src/pkcs11.h "
+                             "C_Initialize failed = 0x%.8lX", (long unsigned int)rv);
                 goto cleanup;
             }
     } else {
@@ -292,12 +294,14 @@ decrypt_data(unsigned long slotNum, unsigned char *pin, char *label, UA_ByteStri
         rv = (UA_StatusCode)C_GetSlotList(CK_TRUE, pSlotList, &ulSlotCount);
         if (rv != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SECURITYPOLICY,
-                         "GetSlotList failed: Error unable to get slot list = 0x%.8lX", (long unsigned int)rv);
+                         "Error from tpm2_pkcs11 - refer https://github.com/tpm2-software/tpm2-pkcs11/blob/master/src/pkcs11.h "
+                         "GetSlotList failed: Unable to get slot list = 0x%.8lX", (long unsigned int)rv);
             goto cleanup;
         }
     } else {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SECURITYPOLICY,
-                     "GetSlotList failed: Error unable to get slot count = 0x%.8lX", (long unsigned int)rv);
+                     "Error from tpm2_pkcs11 - refer https://github.com/tpm2-software/tpm2-pkcs11/blob/master/src/pkcs11.h "
+                     "GetSlotList failed: Unable to get slot count = 0x%.8lX", (long unsigned int)rv);
         goto cleanup;
     }
 
@@ -308,7 +312,8 @@ decrypt_data(unsigned long slotNum, unsigned char *pin, char *label, UA_ByteStri
             rv = (UA_StatusCode)C_GetTokenInfo(slotID, &token_info);
             if (rv != UA_STATUSCODE_GOOD) {
                 UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SECURITYPOLICY,
-                             "C_GetTokenInfo failed: Error = 0x%.8lX", (long unsigned int)rv);
+                             "Error from tpm2_pkcs11 - refer https://github.com/tpm2-software/tpm2-pkcs11/blob/master/src/pkcs11.h "
+                             "C_GetTokenInfo failed = 0x%.8lX", (long unsigned int)rv);
                 goto cleanup;
             }
             break;
@@ -318,14 +323,16 @@ decrypt_data(unsigned long slotNum, unsigned char *pin, char *label, UA_ByteStri
     rv = (UA_StatusCode)C_OpenSession(slotID, CKF_SERIAL_SESSION | CKF_RW_SESSION, (CK_VOID_PTR) NULL, NULL, &hSession);
     if (rv != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SECURITYPOLICY,
-                     "C_OpenSession failed: Error = 0x%.8lX", (long unsigned int)rv);
+                     "Error from tpm2_pkcs11 - refer https://github.com/tpm2-software/tpm2-pkcs11/blob/master/src/pkcs11.h "
+                     "C_OpenSession failed = 0x%.8lX", (long unsigned int)rv);
         goto cleanup;
     }
 
     rv = (UA_StatusCode)C_GetSessionInfo(hSession, &sessionInfo);
     if (rv != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SECURITYPOLICY,
-                     "C_GetSessionInfo failed: Error = 0x%.8lX", (long unsigned int)rv);
+                     "Error from tpm2_pkcs11 - refer https://github.com/tpm2-software/tpm2-pkcs11/blob/master/src/pkcs11.h "
+                     "C_GetSessionInfo failed = 0x%.8lX", (long unsigned int)rv);
         goto cleanup;
     }
 
@@ -350,12 +357,14 @@ decrypt_data(unsigned long slotNum, unsigned char *pin, char *label, UA_ByteStri
         rv = (UA_StatusCode)C_FindObjectsFinal(hSession);
         if (rv != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SECURITYPOLICY,
-                         "C_FindObjectsFinal failed: Error = 0x%.8lX", (long unsigned int)rv);
+                         "Error from tpm2_pkcs11 - refer https://github.com/tpm2-software/tpm2-pkcs11/blob/master/src/pkcs11.h "
+                         "C_FindObjectsFinal failed = 0x%.8lX", (long unsigned int)rv);
             goto cleanup;
         }
     } else {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SECURITYPOLICY,
-                     "C_FindObjectsInit failed: Error = 0x%.8lX", (long unsigned int)rv);
+                     "Error from tpm2_pkcs11 - refer https://github.com/tpm2-software/tpm2-pkcs11/blob/master/src/pkcs11.h "
+                     "C_FindObjectsInit failed = 0x%.8lX", (long unsigned int)rv);
         goto cleanup;
     }
 
@@ -373,7 +382,8 @@ decrypt_data(unsigned long slotNum, unsigned char *pin, char *label, UA_ByteStri
     rv = (UA_StatusCode)C_DecryptInit(hSession, &mechanism, hObject);
     if (rv != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SECURITYPOLICY,
-                     "C_DecryptInit failed: Error = 0x%.8lX", (long unsigned int)rv);
+                     "Error from tpm2_pkcs11 - refer https://github.com/tpm2-software/tpm2-pkcs11/blob/master/src/pkcs11.h "
+                     "C_DecryptInit failed = 0x%.8lX", (long unsigned int)rv);
         goto cleanup;
     }
 
@@ -385,7 +395,8 @@ decrypt_data(unsigned long slotNum, unsigned char *pin, char *label, UA_ByteStri
                                             16, &data_clear[part_number*16], &declen);
         if (rv != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SECURITYPOLICY,
-                         "C_Decryptupdate failed: Error = 0x%.8lX", (long unsigned int)rv);
+                         "Error from tpm2_pkcs11 - refer https://github.com/tpm2-software/tpm2-pkcs11/blob/master/src/pkcs11.h "
+                         "C_Decryptupdate failed = 0x%.8lX", (long unsigned int)rv);
             goto cleanup;
         }
         part_number++;
@@ -394,7 +405,8 @@ decrypt_data(unsigned long slotNum, unsigned char *pin, char *label, UA_ByteStri
     rv = (UA_StatusCode)C_DecryptFinal(hSession, &data_clear[part_number *16], &declen);
     if (rv != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SECURITYPOLICY,
-                     "C_DecryptFinal failed: Error = 0x%.8lX", (long unsigned int)rv);
+                     "Error from tpm2_pkcs11 - refer https://github.com/tpm2-software/tpm2-pkcs11/blob/master/src/pkcs11.h "
+                     "C_DecryptFinal failed = 0x%.8lX", (long unsigned int)rv);
         goto cleanup;
     }
 
@@ -454,8 +466,7 @@ decrypt(unsigned long slotNum, unsigned char *pin, char *label,
 
         rv = (UA_StatusCode)decrypt_data(slotNum, pin, label, enc_data, decrypted_data, iv_data, clear_data_length);
         if(rv != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SECURITYPOLICY,
-                         "decrypt_data failed: Error = = 0x%.8lX", (long unsigned int)rv);
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SECURITYPOLICY, "decrypt_data failed");
         }
         UA_ByteString_delete(iv_data);
         UA_ByteString_delete(enc_data);
@@ -544,14 +555,12 @@ int main(int argc, char **argv) {
 
     rv = decrypt(slotId, userpin, keyLabel, &encrypt_in_data, &encrypt_out_data);
     if (rv != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SECURITYPOLICY,
-                     "Decrypt failed for encryption key: Error = 0x%.8lX", (long unsigned int)rv);
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SECURITYPOLICY, "Decrypt failed for encryption key");
         return EXIT_FAILURE;
     }
     rv = decrypt(slotId, userpin, keyLabel, &sign_in_data, &sign_out_data);
     if (rv != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SECURITYPOLICY,
-                     "Decrypt failed for signing key: Error = 0x%.8lX", (long unsigned int)rv);
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SECURITYPOLICY, "Decrypt failed for signing key");
         return EXIT_FAILURE;
     }
 

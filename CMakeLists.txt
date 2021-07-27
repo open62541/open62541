@@ -17,10 +17,6 @@ set(PYTHON_EXECUTABLE ${Python3_EXECUTABLE})
 find_package(Git)
 include(AssignSourceGroup)
 include(GNUInstallDirs)
-if(UA_ENABLE_TPM2_SECURITY)
-    find_library(TPM2_LIB tpm2_pkcs11)
-    message(${TPM2_LIB})
-endif()
 
 # Set when installed via make install
 set(open62541_TOOLS_DIR ${PROJECT_SOURCE_DIR}/tools)
@@ -228,14 +224,25 @@ elseif(UA_ENABLE_ENCRYPTION_TPM2 STREQUAL "KEYSTORE")
 endif()
 
 if(UA_ENABLE_TPM2_SECURITY)
+    find_library(TPM2_LIB tpm2_pkcs11)
+    message(${TPM2_LIB})
+endif()
+
+if(UA_ENABLE_TPM2_SECURITY)
     if(NOT UA_ENABLE_PUBSUB_ENCRYPTION)
         message(FATAL_ERROR "TPM2 encryption cannot be used with disabled UA_ENABLE_PUBSUB_ENCRYPTION")
     endif()
 endif()
 
 if(UA_ENABLE_TPM2_KEYSTORE)
-    if(NOT UA_ENABLE_ENCRYPTION)
-        message(FATAL_ERROR "TPM2 Keystore cannot be used with disabled UA_ENABLE_ENCRYPTION")
+    if(UA_ENABLE_PUBSUB)
+        if(NOT UA_ENABLE_PUBSUB_ENCRYPTION)
+            message(FATAL_ERROR "TPM2 Keystore for PubSub cannot be used with disabled UA_ENABLE_PUBSUB_ENCRYPTION")
+        endif()
+    else()
+        if(NOT UA_ENABLE_ENCRYPTION)
+            message(FATAL_ERROR "TPM2 Keystore cannot be used with disabled UA_ENABLE_ENCRYPTION")
+        endif()
     endif()
 endif()
 
@@ -339,9 +346,6 @@ option(UA_ENABLE_PUBSUB "Enable the PubSub protocol" OFF)
 option(UA_ENABLE_PUBSUB_ENCRYPTION "Enable encryption of the PubSub payload" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_ENCRYPTION)
 
-option(UA_ENABLE_PUBSUB_ENCRYPTION_TPM_KEYSTORE "Enable encryption of the PubSub payload, which uses TPM hardware for key encryption" OFF)
-mark_as_advanced(UA_ENABLE_PUBSUB_ENCRYPTION_TPM_KEYSTORE)
-
 option(UA_ENABLE_PUBSUB_INFORMATIONMODEL "Enable PubSub information model twin" OFF)
 
 option(UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS "Enable PubSub informationmodel methods" OFF)
@@ -363,12 +367,6 @@ option(UA_ENABLE_PUBSUB_ETH_UADP "Enable publish/subscribe UADP over Ethernet" O
 if(UA_ENABLE_PUBSUB_ETH_UADP)
     if(NOT CMAKE_SYSTEM MATCHES "Linux")
     message(FATAL_ERROR "UADP over Ethernet is only available on Linux.")
-    endif()
-endif()
-
-if(UA_ENABLE_PUBSUB_ENCRYPTION_TPM_KEYSTORE)
-    if(NOT UA_ENABLE_PUBSUB_ENCRYPTION)
-        message(FATAL_ERROR "PubSub encryption TPM keystore cannot be used with disabled PubSub Encryption.")
     endif()
 endif()
 
