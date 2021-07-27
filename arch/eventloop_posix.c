@@ -318,7 +318,7 @@ UA_EventLoop_new(const UA_Logger *logger) {
     if(!el)
         return NULL;
     memset(el, 0, sizeof(UA_EventLoop));
-    UA_LOCK_INIT(&t->elMutex);
+    UA_LOCK_INIT(&el->elMutex);
     el->logger = logger;
     return el;
 }
