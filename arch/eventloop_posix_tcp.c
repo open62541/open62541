@@ -165,19 +165,19 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, UA_FD fd,
         return;
     }
 
+    void *ctx = cm->initialConnectionContext;
     /* The socket has opened. Signal it to the application. The callback can
      * switch out the context. So put it into a temp variable.  */
-    cm->connectionCallback(cm, (uintptr_t)fd, fdcontext, UA_STATUSCODE_GOOD,
+    cm->connectionCallback(cm, (uintptr_t)newsockfd, &ctx, UA_STATUSCODE_GOOD,
                            UA_BYTESTRING_NULL);
 
-    void *ctx = cm->initialConnectionContext;
     /* Register in the EventLoop. Signal to the user if registering failed. */
     res = UA_EventLoop_registerFD(cm->eventSource.eventLoop, newsockfd,
                                   UA_POSIX_EVENT_READ,
                                   (UA_FDCallback) TCP_connectionSocketCallback,
                                   &cm->eventSource, ctx);
     if(res != UA_STATUSCODE_GOOD) {
-        cm->connectionCallback(cm, (uintptr_t)fd, fdcontext,
+        cm->connectionCallback(cm, (uintptr_t)newsockfd, &ctx,
                                UA_STATUSCODE_BADINTERNALERROR, UA_BYTESTRING_NULL);
         UA_close(newsockfd);
     }
