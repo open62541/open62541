@@ -203,7 +203,7 @@ _UA_BEGIN_DECLS
 
 extern UA_StatusCode {outfilebase}_begin(UA_Server *server);
 extern UA_StatusCode {outfilebase}_finish(UA_Server *server);
-static inline UA_StatusCode {outfilebase}(UA_Server *server){{
+static UA_INLINE UA_StatusCode {outfilebase}(UA_Server *server){{
     UA_StatusCode retval = {outfilebase}_begin(server);
     if(retval != UA_STATUSCODE_GOOD) return retval;
     return {outfilebase}_finish(server);
