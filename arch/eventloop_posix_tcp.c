@@ -265,8 +265,8 @@ TCP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai) {
     UA_StatusCode res =
         UA_EventLoop_registerFD(cm->eventSource.eventLoop, listenSocket,
                                 UA_POSIX_EVENT_READ,
-                                (void (*)(struct UA_EventSource *, int, void *, short))
-                                TCP_listenSocketCallback, &cm->eventSource, cm->initialConnectionContext);
+                                (UA_FDCallback) TCP_listenSocketCallback,
+                                &cm->eventSource, cm->initialConnectionContext);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
                        UA_LOGCATEGORY_NETWORK,
@@ -453,8 +453,8 @@ TCP_openConnection(UA_ConnectionManager *cm, const UA_String connectString,
 
     /* Register the fd to trigger when output is possible (the connection is open) */
     res = UA_EventLoop_registerFD(cm->eventSource.eventLoop, newSock, UA_POSIX_EVENT_WRITE,
-                                  (void (*)(struct UA_EventSource *, int, void *, short))
-                                  TCP_connectionSocketCallback, &cm->eventSource, context);
+                                  (UA_FDCallback) TCP_connectionSocketCallback,
+                                  &cm->eventSource, context);
     if(res != UA_STATUSCODE_GOOD)
         UA_close(newSock);
 
