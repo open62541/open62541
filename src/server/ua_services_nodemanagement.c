@@ -2635,7 +2635,7 @@ UA_StatusCode
 UA_Server_setMethodNodeCallback_internal(UA_Server *server,
                        const UA_NodeId methodNodeId,
                        UA_MethodCallback methodCallback) {
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     return UA_Server_editNode(server, &server->adminSession, &methodNodeId,
                               (UA_EditNodeCallback)editMethodCallback,
                               (void*)(uintptr_t)methodCallback);
@@ -2655,7 +2655,7 @@ UA_StatusCode
 UA_Server_getMethodNodeCallback_internal(UA_Server *server,
                                          const UA_NodeId methodNodeId,
                                          UA_MethodCallback *outMethodCallback) {
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     const UA_Node *node = UA_NODESTORE_GET(server, &methodNodeId);
     if(!node) {
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
