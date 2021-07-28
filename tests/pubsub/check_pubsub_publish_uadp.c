@@ -381,7 +381,7 @@ START_TEST(CheckSingleDSMRawEncodedMessage){
     dateTime = 0;
     ck_assert(UA_DateTime_decodeBinary(&networkMessages[0].payload.dataSetPayload.dataSetMessages->data.keyFrameData.rawFields, &offset, &dateTime) ==
               UA_STATUSCODE_GOOD);
-        ck_assert_uint_le(UA_DateTime_now() - dateTime, 1000000);
+    ck_assert_uint_eq(UA_DateTime_now(), dateTime);
     offset  = 0;
     dateTime = 0;
     ck_assert(UA_DateTime_decodeBinary(&networkMessages[1].payload.dataSetPayload.dataSetMessages->data.keyFrameData.rawFields, &offset, &dateTime) ==
@@ -389,13 +389,13 @@ START_TEST(CheckSingleDSMRawEncodedMessage){
     //TODO check if the length can be set right using the metadata
     //ck_assert_uint_eq(UA_DateTime_calcSizeBinary(&dateTime),
     //                  networkMessages[1].payload.dataSetPayload.dataSetMessages->data.keyFrameData.rawFields.length);
-        ck_assert_uint_le(UA_DateTime_now() - dateTime, 1000000);
+    ck_assert_uint_eq(UA_DateTime_now(), dateTime);
     //Decode raw message of second DSM included in the NM
     offset  = 0;
     dateTime = 0;
     ck_assert(UA_DateTime_decodeBinary(&networkMessages[1].payload.dataSetPayload.dataSetMessages[1].data.keyFrameData.rawFields, &offset, &dateTime) ==
           UA_STATUSCODE_GOOD);
-    ck_assert_uint_le(UA_DateTime_now() - dateTime, 1000000);
+    ck_assert_uint_eq(UA_DateTime_now(), dateTime);
 
     /* add a second field to the dataset writer */
     for(int i = 0; i < networkMessages[0].payloadHeader.dataSetPayloadHeader.count; ++i) {
