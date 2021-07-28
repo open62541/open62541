@@ -2532,7 +2532,7 @@ ua_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId, UA_Met
     /* Try to fetch the method callback from the declaration. */
     if(method == NULL && !UA_NodeId_equal(&methodDeclarationId, &UA_NODEID_NULL)) {
         retval = UA_Server_getMethodNodeCallback_internal(server, methodDeclarationId, &method);
-        if(retval != UA_STATUSCODE_GOOD)
+        if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_BADNODEIDUNKNOWN)
             goto error;
     }
 
