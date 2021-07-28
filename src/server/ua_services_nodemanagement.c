@@ -2442,16 +2442,14 @@ static const UA_NodeId hasproperty = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASPRO
 static const UA_NodeId propertytype = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_PROPERTYTYPE}};
 
 static UA_StatusCode
-UA_Server_addMethodNodeEx_finish(UA_Server *server, const UA_NodeId nodeId,
-                                 UA_MethodCallback method,
-                                 const size_t inputArgumentsSize,
-                                 const UA_Argument *inputArguments,
-                                 const UA_NodeId inputArgumentsRequestedNewNodeId,
-                                 UA_NodeId *inputArgumentsOutNewNodeId,
-                                 const size_t outputArgumentsSize,
-                                 const UA_Argument *outputArguments,
-                                 const UA_NodeId outputArgumentsRequestedNewNodeId,
-                                 UA_NodeId *outputArgumentsOutNewNodeId) {
+ua_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId, UA_MethodCallback method,
+                               UA_NodeId methodDeclarationId,
+                               const size_t inputArgumentsSize, const UA_Argument *inputArguments,
+                               const UA_NodeId inputArgumentsRequestedNewNodeId,
+                               UA_NodeId *inputArgumentsOutNewNodeId,
+                               const size_t outputArgumentsSize, const UA_Argument *outputArguments,
+                               const UA_NodeId outputArgumentsRequestedNewNodeId,
+                               UA_NodeId *outputArgumentsOutNewNodeId) {
     /* Browse to see which argument nodes exist */
     UA_BrowseDescription bd;
     UA_BrowseDescription_init(&bd);
@@ -2524,16 +2522,31 @@ UA_Server_addMethodNodeEx_finish(UA_Server *server, const UA_NodeId nodeId,
                             outputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
         retval = addNode(server, UA_NODECLASS_VARIABLE, &outputArgumentsRequestedNewNodeId,
                          &nodeId, &hasproperty, UA_QUALIFIEDNAME(0, name),
-                         &propertytype, (const UA_NodeAttributes*)&attr,
+                         &propertytype, (const UA_NodeAttributes *) &attr,
                          &UA_TYPES[UA_TYPES_VARIABLEATTRIBUTES],
                          NULL, &outputArgsId);
         if(retval != UA_STATUSCODE_GOOD)
             goto error;
     }
 
-    retval = UA_Server_setMethodNodeCallback_internal(server, nodeId, method);
+    /* Try to fetch the method callback from the declaration. */
+    if(method == NULL && !UA_NodeId_equal(&methodDeclarationId, &UA_NODEID_NULL)) {
+        retval = UA_Server_getMethodNodeCallback_internal(server, methodDeclarationId, &method);
+        if(retval != UA_STATUSCODE_GOOD)
+            goto error;
+    }
+
+    UA_MethodCallback existingCallback;
+    retval = UA_Server_getMethodNodeCallback_internal(server, nodeId, &existingCallback);
     if(retval != UA_STATUSCODE_GOOD)
         goto error;
+
+    /* Callback was already set after addnode_begin and before calling finish */
+    if(existingCallback == NULL) {
+        retval = UA_Server_setMethodNodeCallback_internal(server, nodeId, method);
+        if(retval != UA_STATUSCODE_GOOD)
+            goto error;
+    }
 
     /* Call finish to add the parent reference */
     retval = AddNode_finish(server, &server->adminSession, &nodeId);
@@ -2560,17 +2573,25 @@ error:
 UA_StatusCode
 UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
                                UA_MethodCallback method,
-                               size_t inputArgumentsSize,
-                               const UA_Argument* inputArguments,
-                               size_t outputArgumentsSize,
-                               const UA_Argument* outputArguments) {
+                               size_t inputArgumentsSize, const UA_Argument *inputArguments,
+                               size_t outputArgumentsSize, const UA_Argument *outputArguments) {
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode retval =
-        UA_Server_addMethodNodeEx_finish(server, nodeId, method,
-                                         inputArgumentsSize, inputArguments,
-                                         UA_NODEID_NULL, NULL,
-                                         outputArgumentsSize, outputArguments,
-                                         UA_NODEID_NULL, NULL);
+    UA_StatusCode retval = ua_Server_addMethodNode_finish(server, nodeId, method, UA_NODEID_NULL,
+                                                          inputArgumentsSize, inputArguments, UA_NODEID_NULL, NULL,
+                                                          outputArgumentsSize, outputArguments, UA_NODEID_NULL, NULL);
+    UA_UNLOCK(&server->serviceMutex);
+    return retval;
+}
+
+UA_StatusCode
+UA_Server_addMethodNodeEx_finish(UA_Server *server, const UA_NodeId nodeId,
+                                 UA_MethodCallback method, UA_NodeId methodDeclarationId,
+                                 size_t inputArgumentsSize, const UA_Argument *inputArguments,
+                                 size_t outputArgumentsSize, const UA_Argument *outputArguments) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode retval = ua_Server_addMethodNode_finish(server, nodeId, method, methodDeclarationId,
+                                                          inputArgumentsSize, inputArguments, UA_NODEID_NULL, NULL,
+                                                          outputArgumentsSize, outputArguments, UA_NODEID_NULL, NULL);
     UA_UNLOCK(&server->serviceMutex);
     return retval;
 }
@@ -2609,13 +2630,14 @@ UA_Server_addMethodNodeEx(UA_Server *server, const UA_NodeId requestedNewNodeId,
         return retval;
     }
 
-    retval = UA_Server_addMethodNodeEx_finish(server, *outNewNodeId, method,
-                                              inputArgumentsSize, inputArguments,
-                                              inputArgumentsRequestedNewNodeId,
-                                              inputArgumentsOutNewNodeId,
-                                              outputArgumentsSize, outputArguments,
-                                              outputArgumentsRequestedNewNodeId,
-                                              outputArgumentsOutNewNodeId);
+    retval = ua_Server_addMethodNode_finish(server, *outNewNodeId, method,
+                                            UA_NODEID_NULL,
+                                            inputArgumentsSize, inputArguments,
+                                            inputArgumentsRequestedNewNodeId,
+                                            inputArgumentsOutNewNodeId,
+                                            outputArgumentsSize, outputArguments,
+                                            outputArgumentsRequestedNewNodeId,
+                                            outputArgumentsOutNewNodeId);
     UA_UNLOCK(&server->serviceMutex);
     if(outNewNodeId == &newId)
         UA_NodeId_clear(&newId);
