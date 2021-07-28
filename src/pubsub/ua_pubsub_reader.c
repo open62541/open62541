@@ -1137,11 +1137,10 @@ UA_Server_processNetworkMessage(UA_Server *server, UA_PubSubConnection *connecti
         return UA_STATUSCODE_BADNOTIMPLEMENTED; /* TODO: Handle DSR without PublisherId */
     }
 
+    /* There can be several readers listening for the same network message */
     UA_Boolean processed = false;
     UA_ReaderGroup *readerGroup;
     UA_DataSetReader *reader;
-
-    /* There can be several readers listening for the same network message */
     LIST_FOREACH(readerGroup, &connection->readerGroups, listEntry) {
         LIST_FOREACH(reader, &readerGroup->readers, listEntry) {
             UA_StatusCode retval = checkReaderIdentifier(server, msg, reader);
@@ -1194,69 +1193,64 @@ static void UA_DataSetMessage_freeDecodedPayload(UA_DataSetMessage *dsm) {
 }
 
 UA_StatusCode
-decodeNetworkMessage(UA_Server *server,
-                     const UA_Logger *logger,
-                     UA_ByteString *buffer, size_t *currentPosition,
-                     UA_NetworkMessage *currentNetworkMessage,
-                     UA_PubSubConnection *connection) {
-
+decodeNetworkMessage(UA_Server *server, UA_ByteString *buffer, size_t *pos,
+                     UA_NetworkMessage *nm, UA_PubSubConnection *connection) {
 #ifdef UA_DEBUG_DUMP_PKGS
     UA_dump_hex_pkg(buffer->data, buffer->length);
 #endif
 
-    UA_StatusCode rv = UA_NetworkMessage_decodeHeaders(
-        buffer, currentPosition, currentNetworkMessage);
-    UA_CHECK_STATUS_ERROR(rv, return rv, logger, UA_LOGCATEGORY_SERVER,
+    UA_StatusCode rv = UA_NetworkMessage_decodeHeaders(buffer, pos, nm);
+    UA_CHECK_STATUS_ERROR(rv, return rv,
+                          &server->config.logger, UA_LOGCATEGORY_SERVER,
                           "PubSub receive. decoding headers failed");
 
-
-    #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     UA_Boolean processed = false;
     UA_ReaderGroup *readerGroup;
     UA_DataSetReader *reader;
 
-    /* choose a correct readergroup for decrypt/verify this message
+    /* Choose a correct readergroup for decrypt/verify this message
      * (there could be multiple) */
     LIST_FOREACH(readerGroup, &connection->readerGroups, listEntry) {
         LIST_FOREACH(reader, &readerGroup->readers, listEntry) {
-            UA_StatusCode retval = checkReaderIdentifier(server, currentNetworkMessage, reader);
+            UA_StatusCode retval = checkReaderIdentifier(server, nm, reader);
             if(retval == UA_STATUSCODE_GOOD) {
                 processed = true;
-                rv = verifyAndDecryptNetworkMessage(logger,
-                                                    buffer,
-                                                    currentPosition,
-                                                    currentNetworkMessage,
-                                                    readerGroup);
-                UA_CHECK_STATUS_WARN(rv, return rv, logger, UA_LOGCATEGORY_SERVER,
+                rv = verifyAndDecryptNetworkMessage(&server->config.logger, buffer, pos,
+                                                    nm, readerGroup);
+                UA_CHECK_STATUS_WARN(rv, return rv,
+                                     &server->config.logger, UA_LOGCATEGORY_SERVER,
                                      "Subscribe failed. verify and decrypt network message failed.");
 
-                #ifdef UA_DEBUG_DUMP_PKGS
+#ifdef UA_DEBUG_DUMP_PKGS
                 UA_dump_hex_pkg(buffer->data, buffer->length);
-                #endif
+#endif
                 /* break out of all loops when first verify & decrypt was successful */
                 goto loops_exit;
             }
         }
     }
-loops_exit:
 
+loops_exit:
     if(!processed) {
         UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                    "Dataset reader not found. Check PublisherID, WriterGroupID and DatasetWriterID");
-        /*  Possible multicast scenario: 
-            there are multiple connections (with one or more ReaderGroups) within a multicast group
-            every connection receives all network messages, 
-            even if some of them are not meant for the connection currently processed
-            -> therefore it is ok if the connection does not have a DataSetReader for every received network message.
-            We must not return an error here, but continue with the buffer decoding and see if we have a 
-            matching DataSetReader for the next network message */
+                    "Dataset reader not found. Check PublisherId, "
+                    "WriterGroupId and DatasetWriterId");
+        /* Possible multicast scenario: there are multiple connections (with one
+         * or more ReaderGroups) within a multicast group every connection
+         * receives all network messages, even if some of them are not meant for
+         * the connection currently processed -> therefore it is ok if the
+         * connection does not have a DataSetReader for every received network
+         * message. We must not return an error here, but continue with the
+         * buffer decoding and see if we have a matching DataSetReader for the
+         * next network message. */
     }
-    #endif
+#endif
 
-    rv = UA_NetworkMessage_decodePayload(buffer, currentPosition, currentNetworkMessage);
+    rv = UA_NetworkMessage_decodePayload(buffer, pos, nm);
     UA_CHECK_STATUS(rv, return rv);
 
-    rv = UA_NetworkMessage_decodeFooters(buffer, currentPosition, currentNetworkMessage);
+    rv = UA_NetworkMessage_decodeFooters(buffer, pos, nm);
     UA_CHECK_STATUS(rv, return rv);
 
     return UA_STATUSCODE_GOOD;
@@ -1268,16 +1262,15 @@ decodeAndProcessNetworkMessage(UA_Server *server, UA_ReaderGroup *readerGroup,
                                UA_PubSubConnection *connection, size_t previousPosition,
                                UA_ByteString *buffer, size_t *currentPosition) {
     size_t paddingBytes = 0;
-    UA_NetworkMessage currentNetworkMessage;
-    memset(&currentNetworkMessage, 0, sizeof(UA_NetworkMessage));
+    UA_NetworkMessage nm;
+    memset(&nm, 0, sizeof(UA_NetworkMessage));
 
     UA_StatusCode rv = UA_STATUSCODE_GOOD;
-    rv = decodeNetworkMessage(server, &server->config.logger, buffer, currentPosition,
-                              &currentNetworkMessage, connection);
+    rv = decodeNetworkMessage(server, buffer, currentPosition, &nm, connection);
     UA_CHECK_STATUS_WARN(rv, goto cleanup, &server->config.logger, UA_LOGCATEGORY_SERVER,
                          "Subscribe failed. verify, decrypt and decode network message failed.");
 
-    rv = UA_Server_processNetworkMessage(server, connection, &currentNetworkMessage);
+    rv = UA_Server_processNetworkMessage(server, connection, &nm);
     // TODO: check what action to perform on error (nothing?)
     UA_CHECK_STATUS_WARN(rv, (void)0, &server->config.logger, UA_LOGCATEGORY_SERVER,
                          "Subscribe failed. process network message failed.");
@@ -1296,7 +1289,7 @@ decodeAndProcessNetworkMessage(UA_Server *server, UA_ReaderGroup *readerGroup,
     }
 
 cleanup:
-    UA_NetworkMessage_clear(&currentNetworkMessage);
+    UA_NetworkMessage_clear(&nm);
     return rv;
 }
 
@@ -1307,52 +1300,37 @@ decodeAndProcessNetworkMessageRT(UA_Server *server, UA_ReaderGroup *readerGroup,
                                  UA_ByteString *buffer, size_t *currentPosition) {
 #ifdef UA_ENABLE_PUBSUB_BUFMALLOC
     useMembufAlloc();
-#endif /* UA_ENABLE_PUBSUB_BUFMALLOC */
+#endif
 
     /* Considering max DSM as 1
-* TODO:
-* Process with the static value source
-*/
+     * TODO: Process with the static value source */
     size_t paddingBytes = 0;
     UA_DataSetReader *dataSetReader = LIST_FIRST(&readerGroup->readers);
+    UA_NetworkMessage *nm = dataSetReader->bufferedMessage.nm;
+
     /* Decode only the necessary offset and update the networkMessage */
-    if(UA_NetworkMessage_updateBufferedNwMessage(&dataSetReader->bufferedMessage, buffer,
-                                                 currentPosition) != UA_STATUSCODE_GOOD) {
+    UA_StatusCode res =
+        UA_NetworkMessage_updateBufferedNwMessage(&dataSetReader->bufferedMessage,
+                                                  buffer, currentPosition);
+    if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
                     "PubSub receive. Unknown field type.");
-        UA_DataSetMessage_freeDecodedPayload(
-            dataSetReader->bufferedMessage.nm->payload.dataSetPayload.dataSetMessages);
-#ifdef UA_ENABLE_PUBSUB_BUFMALLOC
-        useNormalAlloc();
-#endif /* UA_ENABLE_PUBSUB_BUFMALLOC */
-        return UA_STATUSCODE_UNCERTAIN;
+        res = UA_STATUSCODE_UNCERTAIN;
+        goto cleanup;
     }
 
     /* Check the decoded message is the expected one
      * TODO: PublisherID check after modification in NM to support all datatypes */
-    if((dataSetReader->bufferedMessage.nm->groupHeader.writerGroupId !=
-        dataSetReader->config.writerGroupId) ||
-       (*dataSetReader->bufferedMessage.nm->payloadHeader.dataSetPayloadHeader
-           .dataSetWriterIds != dataSetReader->config.dataSetWriterId)) {
+    if(nm->groupHeader.writerGroupId != dataSetReader->config.writerGroupId ||
+       *nm->payloadHeader.dataSetPayloadHeader.dataSetWriterIds != dataSetReader->config.dataSetWriterId) {
         UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
                     "PubSub receive. Unknown message received. Will not be processed.");
-        UA_DataSetMessage_freeDecodedPayload(
-            dataSetReader->bufferedMessage.nm->payload.dataSetPayload.dataSetMessages);
-#ifdef UA_ENABLE_PUBSUB_BUFMALLOC
-        useNormalAlloc();
-#endif /* UA_ENABLE_PUBSUB_BUFMALLOC */
-        return UA_STATUSCODE_UNCERTAIN;
+        res = UA_STATUSCODE_UNCERTAIN;
+        goto cleanup;
     }
 
     UA_DataSetReader_process(server, readerGroup, dataSetReader,
-                             dataSetReader->bufferedMessage.nm->payload.dataSetPayload.dataSetMessages);
-
-    UA_DataSetMessage_freeDecodedPayload(dataSetReader->bufferedMessage.
-                                         nm->payload.dataSetPayload.dataSetMessages);
-
-#ifdef UA_ENABLE_PUBSUB_BUFMALLOC
-    useNormalAlloc();
-#endif /* UA_ENABLE_PUBSUB_BUFMALLOC */
+                             nm->payload.dataSetPayload.dataSetMessages);
 
     /* Minimum ethernet packet size is 64 bytes where the header size is 14
      * bytes and FCS size is 4 bytes so remaining minimum payload size of
@@ -1367,7 +1345,13 @@ decodeAndProcessNetworkMessageRT(UA_Server *server, UA_ReaderGroup *readerGroup,
         (*currentPosition) += paddingBytes; /* During multiple receive, move the position
                                                to handle padding bytes */
     }
-    return UA_STATUSCODE_GOOD;
+
+ cleanup:
+    UA_DataSetMessage_freeDecodedPayload(nm->payload.dataSetPayload.dataSetMessages);
+#ifdef UA_ENABLE_PUBSUB_BUFMALLOC
+    useNormalAlloc();
+#endif
+    return res;
 }
 
 UA_StatusCode
@@ -1392,7 +1376,6 @@ receiveBufferedNetworkMessage(UA_Server *server, UA_ReaderGroup *readerGroup,
                                                        size_t previousPosition,
                                                        UA_ByteString *buffer,
                                                        size_t *currentPosition) = NULL;
-
     if(readerGroup->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE) {
         decodeAndProcessNetworkMessageFun = decodeAndProcessNetworkMessageRT;
     } else {
@@ -1403,10 +1386,12 @@ receiveBufferedNetworkMessage(UA_Server *server, UA_ReaderGroup *readerGroup,
     size_t previousPosition = 0;
     while(buffer.length > currentPosition) {
         rv = decodeAndProcessNetworkMessageFun(server, readerGroup, connection,
-                                               previousPosition, &buffer, &currentPosition);
-        if ((rv != UA_STATUSCODE_BADNOTFOUND) || (previousPosition == currentPosition)) {
-            UA_CHECK_STATUS_WARN(rv, return rv, &server->config.logger, UA_LOGCATEGORY_SERVER,
-                                "SubscribeCallback(): receive message failed");
+                                               previousPosition, &buffer,
+                                               &currentPosition);
+        if(rv != UA_STATUSCODE_BADNOTFOUND || previousPosition == currentPosition) {
+            UA_CHECK_STATUS_WARN(rv, return rv,
+                                 &server->config.logger, UA_LOGCATEGORY_SERVER,
+                                 "SubscribeCallback(): receive message failed");
         }
         previousPosition = currentPosition;
     }

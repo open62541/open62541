@@ -351,8 +351,8 @@ START_TEST(DecodeAndVerifyEncryptedNetworkMessage) {
     memset(&msg, 0, sizeof(UA_NetworkMessage));
 
     size_t currentPosition = 0;
-    UA_StatusCode rv = decodeNetworkMessage(server,
-        logger, &buffer, &currentPosition, &msg, connection);
+    UA_StatusCode rv = decodeNetworkMessage(server, &buffer, &currentPosition,
+                                            &msg, connection);
     ck_assert(rv == UA_STATUSCODE_GOOD);
 
     const char * msg_dec_exp = MSG_HEADER MSG_PAYLOAD_DEC;
@@ -390,7 +390,8 @@ START_TEST(InvalidSignature) {
 
     size_t currentPosition = 0;
 
-    UA_StatusCode rv = decodeNetworkMessage(server, logger, &buffer, &currentPosition, &msg, connection);
+    UA_StatusCode rv = decodeNetworkMessage(server, &buffer, &currentPosition,
+                                            &msg, connection);
     ck_assert(rv == UA_STATUSCODE_BADSECURITYCHECKSFAILED);
 
     UA_NetworkMessage_clear(&msg);
@@ -422,7 +423,8 @@ START_TEST(InvalidSecurityModeInsufficientSig) {
 
         size_t currentPosition = 0;
 
-        UA_StatusCode rv = decodeNetworkMessage(server, logger, &buffer, &currentPosition, &msg, connection);
+        UA_StatusCode rv = decodeNetworkMessage(server, &buffer, &currentPosition,
+                                                &msg, connection);
         ck_assert(rv == UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT);
 
         UA_NetworkMessage_clear(&msg);
@@ -453,7 +455,8 @@ START_TEST(InvalidSecurityModeRejectedSig) {
 
     size_t currentPosition = 0;
 
-    UA_StatusCode rv = decodeNetworkMessage(server, logger, &buffer, &currentPosition, &msg, connection);
+    UA_StatusCode rv = decodeNetworkMessage(server, &buffer, &currentPosition,
+                                            &msg, connection);
     ck_assert(rv == UA_STATUSCODE_BADSECURITYMODEREJECTED);
 
     UA_NetworkMessage_clear(&msg);
