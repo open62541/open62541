@@ -339,7 +339,9 @@ UA_EventLoop_delete(UA_EventLoop *el) {
     /* Deregister and delete all the EventSources */
     while(el->eventSources) {
         UA_EventSource *es = el->eventSources;
+        UA_UNLOCK(&el->elMutex);
         UA_EventLoop_deregisterEventSource(el, es);
+        UA_LOCK(&el->elMutex);
         es->free(es);
     }
 
@@ -375,7 +377,9 @@ UA_EventLoop_start(UA_EventLoop *el) {
     UA_EventSource *es = el->eventSources;
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     while(es) {
+        UA_UNLOCK(&el->elMutex);
         res |= es->start(es);
+        UA_LOCK(&el->elMutex);
         es = es->next;
     }
 
