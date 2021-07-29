@@ -448,6 +448,7 @@ UA_EventLoop_run(UA_EventLoop *el, UA_UInt32 timeout) {
        el->state == UA_EVENTLOOPSTATE_STOPPED) {
         UA_LOG_WARNING(el->logger, UA_LOGCATEGORY_EVENTLOOP,
                        "Cannot iterate a stopped EventLoop");
+        UA_UNLOCK(&el->elMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -473,6 +474,7 @@ UA_EventLoop_run(UA_EventLoop *el, UA_UInt32 timeout) {
            UA_LOG_WARNING(UA_EventLoop_getLogger(el),
                           UA_LOGCATEGORY_EVENTLOOP,
                           "Error during select: %s", errno_str));
+        UA_UNLOCK(&el->elMutex);
         return UA_STATUSCODE_GOOD;
     }
 
