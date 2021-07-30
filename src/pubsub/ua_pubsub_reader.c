@@ -868,7 +868,7 @@ DataSetReader_processRaw(UA_Server *server, UA_ReaderGroup *rg,
         dsr->config.dataSetMetaData.fieldsSize;
     
     size_t offset = 0;
-    for(UA_UInt16 i = 0; i < dsr->config.dataSetMetaData.fieldsSize; i++) {
+    for(size_t i = 0; i < dsr->config.dataSetMetaData.fieldsSize; i++) {
         /* TODO The datatype reference should be part of the internal
          * pubsub configuration to avoid the time-expensive lookup */
         const UA_DataType *type =
@@ -881,8 +881,8 @@ DataSetReader_processRaw(UA_Server *server, UA_ReaderGroup *rg,
                             &offset, value, type, NULL);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                        "Error during Raw-decode KeyFrame field %" PRIu16
-                        ": %s", i, UA_StatusCode_name(res));
+                        "Error during Raw-decode KeyFrame field %u: %s",
+                        (unsigned)i, UA_StatusCode_name(res));
             return;
         }
         
@@ -913,8 +913,8 @@ DataSetReader_processRaw(UA_Server *server, UA_ReaderGroup *rg,
         UA_clear(value, type);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                        "Error writing KeyFrame field %" PRIu16 ": %s", i,
-                        UA_StatusCode_name(res));
+                        "Error writing KeyFrame field %u: %s",
+                        (unsigned)i, UA_StatusCode_name(res));
         }
     }
 }
@@ -923,7 +923,7 @@ static void
 DataSetReader_processFixedSize(UA_Server *server, UA_ReaderGroup *rg,
                                UA_DataSetReader *dsr, UA_DataSetMessage *msg,
                                size_t fieldCount) {
-    for(UA_UInt16 i = 0; i < fieldCount; i++) {
+    for(size_t i = 0; i < fieldCount; i++) {
         if(!msg->data.keyFrameData.dataSetFields[i].hasValue)
             continue;
         
@@ -1009,7 +1009,7 @@ UA_DataSetReader_process(UA_Server *server, UA_ReaderGroup *rg,
     
     /* Write the message fields via the write service (non realtime) */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    for(UA_UInt16 i = 0; i < fieldCount; i++) {
+    for(size_t i = 0; i < fieldCount; i++) {
         if(!msg->data.keyFrameData.dataSetFields[i].hasValue)
             continue;
         
@@ -1025,8 +1025,8 @@ UA_DataSetReader_process(UA_Server *server, UA_ReaderGroup *rg,
         res = UA_Server_write(server, &writeVal);
         if(res != UA_STATUSCODE_GOOD)
             UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                        "Error writing KeyFrame field %" PRIu16 ": %s", i,
-                        UA_StatusCode_name(res));
+                        "Error writing KeyFrame field %u: %s",
+                        (unsigned)i, UA_StatusCode_name(res));
     }
 
 #ifdef UA_ENABLE_PUBSUB_MONITORING
@@ -1220,7 +1220,7 @@ static UA_THREAD_LOCAL UA_Byte ReceiveMsgBuffer[RECEIVE_MSG_BUFFER_SIZE];
 /* Delete the payload value of every decoded DataSet field */
 static void UA_DataSetMessage_freeDecodedPayload(UA_DataSetMessage *dsm) {
     if(dsm->header.fieldEncoding == UA_FIELDENCODING_VARIANT) {
-        for(UA_UInt16 i = 0; i < dsm->data.keyFrameData.fieldCount; i++) {
+        for(size_t i = 0; i < dsm->data.keyFrameData.fieldCount; i++) {
 #ifdef UA_ENABLE_PUBSUB_BUFMALLOC
             UA_Variant_init(&dsm->data.keyFrameData.dataSetFields[i].value);
 #else
@@ -1229,7 +1229,7 @@ static void UA_DataSetMessage_freeDecodedPayload(UA_DataSetMessage *dsm) {
         }
     }
     else if(dsm->header.fieldEncoding == UA_FIELDENCODING_DATAVALUE) {
-        for(UA_UInt16 i = 0; i < dsm->data.keyFrameData.fieldCount; i++) {
+        for(size_t i = 0; i < dsm->data.keyFrameData.fieldCount; i++) {
 #ifdef UA_ENABLE_PUBSUB_BUFMALLOC
             UA_DataValue_init(&dsm->data.keyFrameData.dataSetFields[i]);
 #else
