@@ -521,8 +521,8 @@ isMandatoryChild(UA_Server *server, UA_Session *session,
         if(rk->isInverse)
             continue;
 
-        for(UA_ReferenceTarget *t = UA_NodeReferenceKind_firstTarget(rk);
-            t; t = UA_NodeReferenceKind_nextTarget(rk, t)) {
+        const UA_ReferenceTarget *t = NULL;
+        while((t = UA_NodeReferenceKind_iterate(rk, t))) {
             if(UA_ExpandedNodeId_isLocal(&t->targetId) &&
                UA_NodeId_equal(&mandatoryId, &t->targetId.nodeId)) {
                 UA_NODESTORE_RELEASE(server, child);
@@ -1659,8 +1659,8 @@ removeIncomingReferences(UA_Server *server, UA_Session *session, const UA_NodeHe
         item.isForward = rk->isInverse;
         item.referenceTypeId =
             *UA_NODESTORE_GETREFERENCETYPEID(server, rk->referenceTypeIndex);
-        for(UA_ReferenceTarget *t = UA_NodeReferenceKind_firstTarget(rk);
-            t; t = UA_NodeReferenceKind_nextTarget(rk, t)) {
+        const UA_ReferenceTarget *t = NULL;
+        while((t = UA_NodeReferenceKind_iterate(rk, t))) {
             if(!UA_ExpandedNodeId_isLocal(&t->targetId))
                 continue;
             item.sourceNodeId = t->targetId.nodeId;
@@ -1679,8 +1679,8 @@ hasParentRef(const UA_NodeHead *head, const UA_ReferenceTypeSet *refSet,
             continue;
         if(!UA_ReferenceTypeSet_contains(refSet, rk->referenceTypeIndex))
             continue;
-        for(UA_ReferenceTarget *t = UA_NodeReferenceKind_firstTarget(rk);
-            t; t = UA_NodeReferenceKind_nextTarget(rk, t)) {
+        const UA_ReferenceTarget *t = NULL;
+        while((t = UA_NodeReferenceKind_iterate(rk, t))) {
             if(!UA_ExpandedNodeId_isLocal(&t->targetId))
                 continue;
             if(!RefTree_containsNodeId(refTree, &t->targetId.nodeId))
@@ -1765,14 +1765,10 @@ autoDeleteChildren(UA_Server *server, UA_Session *session, RefTree *refTree,
             continue;
 
         /* Loop over the references */
-        for(UA_ReferenceTarget *t = UA_NodeReferenceKind_firstTarget(refs);
-            t; t = UA_NodeReferenceKind_nextTarget(refs, t)) {
-            /* References an external server? */
-            if(!UA_ExpandedNodeId_isLocal(&t->targetId))
-               continue;
-
+        const UA_ReferenceTarget *t = NULL;
+        while((t = UA_NodeReferenceKind_iterate(refs, t))) {
             /* Get the child */
-            const UA_Node *child = UA_NODESTORE_GET(server, &t->targetId.nodeId);
+            const UA_Node *child = UA_NODESTORE_GETFROMREF(server, t);
             if(!child)
                 continue;
 

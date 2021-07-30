@@ -162,15 +162,8 @@ struct UA_Server {
 
 extern const struct aa_head refNameTree;
 
-UA_ReferenceTarget *
-UA_NodeReferenceKind_firstTarget(const UA_NodeReferenceKind *kind);
-
-UA_ReferenceTarget *
-UA_NodeReferenceKind_nextTarget(const UA_NodeReferenceKind *kind,
-                                const UA_ReferenceTarget *current);
-
-UA_ReferenceTarget *
-UA_NodeReferenceKind_findTarget(const UA_NodeReferenceKind *kind,
+const UA_ReferenceTarget *
+UA_NodeReferenceKind_findTarget(const UA_NodeReferenceKind *rk,
                                 const UA_ExpandedNodeId *targetId);
 
 /**************************/

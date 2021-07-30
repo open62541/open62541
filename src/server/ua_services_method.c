@@ -27,8 +27,8 @@ getArgumentsVariableNode(UA_Server *server, const UA_NodeHead *head,
             continue;
         if(rk->referenceTypeIndex != UA_REFERENCETYPEINDEX_HASPROPERTY)
             continue;
-        for(UA_ReferenceTarget *t = UA_NodeReferenceKind_firstTarget(rk);
-            t; t = UA_NodeReferenceKind_nextTarget(rk, t)) {
+        const UA_ReferenceTarget *t = NULL;
+        while((t = UA_NodeReferenceKind_iterate(rk, t))) {
             const UA_Node *refTarget = UA_NODESTORE_GETFROMREF(server, t);
             if(!refTarget)
                 continue;
@@ -161,8 +161,8 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
             continue;
         if(!UA_ReferenceTypeSet_contains(&hasComponentRefs, rk->referenceTypeIndex))
             continue;
-        for(UA_ReferenceTarget *t = UA_NodeReferenceKind_firstTarget(rk);
-            t; t = UA_NodeReferenceKind_nextTarget(rk, t)) {
+        const UA_ReferenceTarget *t = NULL;
+        while((t = UA_NodeReferenceKind_iterate(rk, t))) {
             if(UA_ExpandedNodeId_isLocal(&t->targetId) &&
                UA_NodeId_equal(&t->targetId.nodeId, &request->methodId)) {
                 found = true;
@@ -209,8 +209,8 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
             
             /* Verify that the HasTypeDefinition is equal to FunctionGroupType
              * (or sub-type) from the DI model */
-            for(UA_ReferenceTarget *t = UA_NodeReferenceKind_firstTarget(rk);
-                t && !found; t = UA_NodeReferenceKind_nextTarget(rk, t)) {
+            const UA_ReferenceTarget *t = NULL;
+            while((t = UA_NodeReferenceKind_iterate(rk, t))) {
                 if(!UA_ExpandedNodeId_isLocal(&t->targetId))
                     continue;
                 
@@ -231,8 +231,8 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
                                                UA_REFERENCETYPEINDEX_HASSUBTYPE))
                         continue;
                     
-                    for(UA_ReferenceTarget *t2 = UA_NodeReferenceKind_firstTarget(rkInner);
-                        t2; t2 = UA_NodeReferenceKind_nextTarget(rkInner, t2)) {
+                    const UA_ReferenceTarget *t2 = NULL;
+                    while((t2 = UA_NodeReferenceKind_iterate(rkInner, t2))) {
                         if(!UA_ExpandedNodeId_isLocal(&t2->targetId))
                             continue;
                         if(UA_NodeId_equal(&t2->targetId.nodeId, &request->methodId)) {
