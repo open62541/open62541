@@ -68,6 +68,65 @@ UA_NodeReferenceKind_iterate(const UA_NodeReferenceKind *rk,
     return prev + 1; /* Next element in the array */
 }
 
+/* Also deletes the elements of the tree */
+static void
+moveTreeToArray(UA_ReferenceTarget *array, size_t *pos,
+                struct aa_entry *entry) {
+    if(!entry)
+        return;
+    UA_ReferenceTargetTreeElem *elem = (UA_ReferenceTargetTreeElem*)
+        ((uintptr_t)entry - offsetof(UA_ReferenceTargetTreeElem, idTreeEntry));
+    moveTreeToArray(array, pos, elem->idTreeEntry.left);
+    moveTreeToArray(array, pos, elem->idTreeEntry.right);
+    array[*pos] = elem->target;
+    (*pos)++;
+    UA_free(elem);
+}
+
+UA_StatusCode
+UA_NodeReferenceKind_switch(UA_NodeReferenceKind *rk) {
+    if(rk->hasRefTree) {
+        /* From tree to array */
+        UA_ReferenceTarget *array = (UA_ReferenceTarget*)
+            UA_malloc(sizeof(UA_ReferenceTarget) * rk->targetsSize);
+        if(!array)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        size_t pos = 0;
+        moveTreeToArray(array, &pos, rk->targets.tree.idTreeRoot);
+        rk->targets.array = array;
+        rk->hasRefTree = false;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* From array to tree */
+    UA_NodeReferenceKind newRk = *rk;
+    newRk.hasRefTree = true;
+    newRk.targets.tree.idTreeRoot = NULL;
+    newRk.targets.tree.nameTreeRoot = NULL;
+    for(size_t i = 0; i < rk->targetsSize; i++) {
+        UA_StatusCode res =
+            addReferenceTarget(&newRk, &rk->targets.array[i].targetId, 
+                               rk->targets.array[i].targetNameHash);
+        if(res != UA_STATUSCODE_GOOD) {
+            struct aa_head _refIdTree = refIdTree;
+            _refIdTree.root = newRk.targets.tree.idTreeRoot;
+            while(_refIdTree.root) {
+                UA_ReferenceTargetTreeElem *elem = (UA_ReferenceTargetTreeElem*)
+                    ((uintptr_t)_refIdTree.root -
+                     offsetof(UA_ReferenceTargetTreeElem, idTreeEntry));
+                aa_remove(&_refIdTree, elem);
+                UA_ExpandedNodeId_delete(&elem->target.targetId);
+            }
+            return res;
+        }
+    }
+    for(size_t i = 0; i < rk->targetsSize; i++)
+        UA_ExpandedNodeId_clear(&rk->targets.array[i].targetId);
+    UA_free(rk->targets.array);
+    *rk = newRk;
+    return UA_STATUSCODE_GOOD;
+}
+
 const UA_ReferenceTarget *
 UA_NodeReferenceKind_findTarget(const UA_NodeReferenceKind *rk,
                                 const UA_ExpandedNodeId *targetId) {
@@ -702,7 +761,7 @@ UA_Node_deleteReference(UA_Node *node, UA_Byte refTypeIndex, UA_Boolean isForwar
             aa_remove(&_refNameTree, target);
             refs->targets.tree.nameTreeRoot = _refNameTree.root;
 
-            /* TaretId is the first member */
+            /* TargetId is the first member */
             UA_ExpandedNodeId_delete(&target->targetId);
             if(refs->targets.tree.idTreeRoot)
                 return UA_STATUSCODE_GOOD; /* At least one target remains */
@@ -749,10 +808,12 @@ UA_Node_deleteReferencesSubset(UA_Node *node, const UA_ReferenceTypeSet *keepSet
             UA_free(refs->targets.array);
         } else {
             _refIdTree.root = refs->targets.tree.idTreeRoot;
-            UA_ExpandedNodeId *target;
-            while((target = (UA_ExpandedNodeId*)_refIdTree.root)) {
-                aa_remove(&_refIdTree, target);
-                UA_ExpandedNodeId_delete(target);
+            while(_refIdTree.root) {
+                UA_ReferenceTargetTreeElem *elem = (UA_ReferenceTargetTreeElem*)
+                    ((uintptr_t)_refIdTree.root -
+                     offsetof(UA_ReferenceTargetTreeElem, idTreeEntry));
+                aa_remove(&_refIdTree, elem);
+                UA_ExpandedNodeId_delete(&elem->target.targetId);
             }
         }
 

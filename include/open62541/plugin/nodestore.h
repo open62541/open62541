@@ -304,6 +304,11 @@ UA_EXPORT const UA_ReferenceTarget *
 UA_NodeReferenceKind_iterate(const UA_NodeReferenceKind *rk,
                              const UA_ReferenceTarget *prev);
 
+/* Switch between array and tree representation. Does nothing upon error (e.g.
+ * out-of-memory). */
+UA_EXPORT UA_StatusCode
+UA_NodeReferenceKind_switch(UA_NodeReferenceKind *rk);
+
 /* Every Node starts with these attributes */
 typedef struct {
     UA_NodeId nodeId;
