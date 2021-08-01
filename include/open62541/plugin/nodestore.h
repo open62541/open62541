@@ -274,6 +274,24 @@ typedef struct {
     UA_Boolean isInverse;
 } UA_NodeReferenceKind;
 
+/* Called instead of reading the attribute from the node
+ *
+ * @param server The server executing the callback
+ * @sessionId The identifier of the session
+ * @sessionContext Additional data attached to the session
+ *                 in the access control layer
+ * @param nodeid The identifier of the node.
+ * @param nodeContext Additional data attached to the node by
+ *        the user.
+ * @param value Points to the value of the attribute, implementation should store the new value on it
+ */
+
+typedef UA_StatusCode (*UA_AttributeCallback)(UA_Server *server,
+                                                const UA_NodeId *sessionId,
+                                                void *sessionContext,
+                                                const UA_NodeId *nodeId,
+                                                void *nodeContext, UA_AttributeId attributeId, UA_DataValue *value);
+
 /* Every Node starts with these attributes */
 typedef struct {
     UA_NodeId nodeId;
@@ -288,7 +306,11 @@ typedef struct {
     /* Members specific to open62541 */
     void *context;
     UA_Boolean constructed; /* Constructors were called */
+    UA_UInt32 attributeCallbackMask; /* stores the for which attributes the attribute callback should be invoked */
+    UA_AttributeCallback attributeCallback; /* the function pointer through which attribute values may be provided */
 } UA_NodeHead;
+
+
 
 /**
  * VariableNode
