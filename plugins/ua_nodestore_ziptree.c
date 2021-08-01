@@ -106,8 +106,18 @@ deleteEntry(NodeEntry *entry) {
 
 static void
 cleanupEntry(NodeEntry *entry) {
-    if(entry->deleted && entry->refCount == 0)
+    if(entry->refCount > 0)
+        return;
+    if(entry->deleted) {
         deleteEntry(entry);
+        return;
+    }
+    UA_NodeHead *head = (UA_NodeHead*)&entry->nodeId;
+    for(size_t i = 0; i < head->referencesSize; i++) {
+        UA_NodeReferenceKind *rk = &head->references[i];
+        if(rk->targetsSize > 16 && !rk->hasRefTree)
+            UA_NodeReferenceKind_switch(rk);
+    }
 }
 
 /***********************/

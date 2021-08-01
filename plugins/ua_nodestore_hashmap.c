@@ -194,8 +194,17 @@ deleteNodeMapEntry(UA_NodeMapEntry *entry) {
 
 static void
 cleanupNodeMapEntry(UA_NodeMapEntry *entry) {
-    if(entry->deleted && entry->refCount == 0)
+    if(entry->refCount > 0)
+        return;
+    if(entry->deleted) {
         deleteNodeMapEntry(entry);
+        return;
+    }
+    for(size_t i = 0; i < entry->node.head.referencesSize; i++) {
+        UA_NodeReferenceKind *rk = &entry->node.head.references[i];
+        if(rk->targetsSize > 16 && !rk->hasRefTree)
+            UA_NodeReferenceKind_switch(rk);
+    }
 }
 
 static UA_NodeMapSlot *
