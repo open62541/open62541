@@ -262,7 +262,7 @@ class CGenerator(object):
             returnstr += CGenerator.print_enum_typedef(obj)
             returnstr += "\n\n"
         if len(struct.members) == 0:
-            return "typedef void * UA_%s;" % makeCIdentifier(struct.name)
+            raise Exception("Structs with no members are filtered out. Why not here?")
         if struct.is_recursive:
             returnstr += "typedef struct UA_%s UA_%s;\n" % (makeCIdentifier(struct.name), makeCIdentifier(struct.name))
             returnstr += "struct UA_%s {\n" % makeCIdentifier(struct.name)
@@ -339,23 +339,38 @@ class CGenerator(object):
         print(string, end='\n', file=self.fc)
 
     def iter_types(self, v):
+        # Make a copy. We cannot delete from the map that is iterated over at
+        # the same time.
         l = copy.deepcopy(v)
+
+        # Keep only selected types?
         if len(self.parser.selected_types) > 0:
             for ns in v:
                 for t in v[ns]:
                     if t not in self.parser.selected_types:
                         if ns in l and t in l[ns]:
                             del l[ns][t]
+
+        # Remove builtins?
         if self.parser.no_builtin:
             for ns in v:
                 for t in v[ns]:
                     if isinstance(v[ns][t], BuiltinType):
                         if ns in l and t in l[ns]:
                             del l[ns][t]
+
+        # Remove types that from other bsd files
         for ns in self.parser.existing_types:
             for t in self.parser.existing_types[ns]:
                 if ns in l and t in l[ns]:
                     del l[ns][t]
+
+        # Remove structs with no members
+        for ns in v:
+            for t in v[ns]:
+                if isinstance(v[ns][t], StructType) and len(v[ns][t].members) == 0:
+                    if ns in l and t in l[ns]:
+                        del l[ns][t]
         return l
 
     def print_header(self):
