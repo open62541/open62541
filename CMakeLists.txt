@@ -204,6 +204,31 @@ else()
     endif()
 endif()
 
+# TPM Security
+set(UA_ENABLE_ENCRYPTION_TPM2 "OFF" CACHE STRING "TPM encryption support")
+SET_PROPERTY(CACHE UA_ENABLE_ENCRYPTION_TPM2 PROPERTY STRINGS "PKCS11" "KEYSTORE" "OFF")
+
+if(UA_ENABLE_ENCRYPTION_TPM2 STREQUAL "OFF")
+    set(UA_ENABLE_TPM2_SECURITY OFF)
+    set(UA_ENABLE_TPM2_KEYSTORE OFF)
+elseif(UA_ENABLE_ENCRYPTION_TPM2 STREQUAL "PKCS11")
+    set(UA_ENABLE_TPM2_SECURITY ON)
+elseif(UA_ENABLE_ENCRYPTION_TPM2 STREQUAL "KEYSTORE")
+    set(UA_ENABLE_TPM2_KEYSTORE ON)
+endif()
+
+if(UA_ENABLE_TPM2_SECURITY)
+    if(NOT UA_ENABLE_PUBSUB_ENCRYPTION)
+        message(FATAL_ERROR "TPM2 encryption cannot be used with disabled UA_ENABLE_PUBSUB_ENCRYPTION")
+    endif()
+endif()
+
+if(UA_ENABLE_TPM2_KEYSTORE)
+    if(NOT UA_ENABLE_ENCRYPTION)
+        message(FATAL_ERROR "TPM2 Keystore cannot be used with disabled UA_ENABLE_ENCRYPTION")
+    endif()
+endif()
+
 # Namespace Zero
 set(UA_NAMESPACE_ZERO "REDUCED" CACHE STRING "Completeness of the generated namespace zero (minimal/reduced/full)")
 SET_PROPERTY(CACHE UA_NAMESPACE_ZERO PROPERTY STRINGS "MINIMAL" "REDUCED" "FULL")
@@ -297,9 +322,6 @@ if(UA_FORCE_CPP)
 endif()
 
 option(UA_FORCE_WERROR "Force compilation with -Werror" ON)
-
-option(UA_ENABLE_TPM2_SECURITY "Enable encryption using TPM hardware" OFF)
-mark_as_advanced(UA_ENABLE_TPM2_SECURITY)
 
 #General PubSub setup
 option(UA_ENABLE_PUBSUB "Enable the PubSub protocol" OFF)
@@ -1464,6 +1486,9 @@ if(UA_BUILD_TOOLS)
     add_subdirectory(tools/ua-tool)
     if(UA_ENABLE_JSON_ENCODING)
         add_subdirectory(tools/ua2json)
+    endif()
+    if(UA_ENABLE_TPM2_KEYSTORE)
+        add_subdirectory(tools/tpm_keystore)
     endif()
 endif()
 
