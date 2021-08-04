@@ -350,6 +350,7 @@ START_TEST(SetupInvalidPubSubConfig) {
     dataSetWriterConfig.dataSetWriterId = 62541;
     ck_assert(UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent, &dataSetWriterConfig, &dataSetWriterIdent) == UA_STATUSCODE_BADCONFIGURATIONERROR);
 
+    UA_free(intValue);
     // /* Reader Group */
     // UA_ReaderGroupConfig readerGroupConfig;
     // memset (&readerGroupConfig, 0, sizeof (UA_ReaderGroupConfig));
