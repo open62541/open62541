@@ -179,11 +179,8 @@ START_TEST(SubscribeMultipleMessagesRT) {
     writerGroupConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
     ck_assert(UA_Server_addWriterGroup(server, connectionIdentifier, &writerGroupConfig, &writerGroupIdent) == UA_STATUSCODE_GOOD);
     UA_UadpWriterGroupMessageDataType_delete(wgm);
-    UA_DataSetWriterConfig dataSetWriterConfig;
-    memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
-    dataSetWriterConfig.name = UA_STRING("Test DataSetWriter");
-    dataSetWriterConfig.dataSetWriterId = 62541;
-    ck_assert(UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent, &dataSetWriterConfig, &dataSetWriterIdent) == UA_STATUSCODE_GOOD);
+
+
     memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
     writerGroupConfig.name = UA_STRING("WriterGroup2");
     writerGroupConfig.publishingInterval = 10;
@@ -202,10 +199,7 @@ START_TEST(SubscribeMultipleMessagesRT) {
     writerGroupConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
     ck_assert(UA_Server_addWriterGroup(server, connectionIdentifier, &writerGroupConfig, &writerGroupIdent1) == UA_STATUSCODE_GOOD);
     UA_UadpWriterGroupMessageDataType_delete(wgm);
-    memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
-    dataSetWriterConfig.name = UA_STRING("DataSetWriter 2");
-    dataSetWriterConfig.dataSetWriterId = 62541;
-    ck_assert(UA_Server_addDataSetWriter(server, writerGroupIdent1, publishedDataSetIdent, &dataSetWriterConfig, &dataSetWriterIdent1) == UA_STATUSCODE_GOOD);
+
     UA_DataSetFieldConfig dsfConfig;
     memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));
     // Create Variant and configure as DataSetField source
@@ -218,6 +212,17 @@ START_TEST(SubscribeMultipleMessagesRT) {
     dsfConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
     ck_assert(UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent).result == UA_STATUSCODE_GOOD);
 
+    /* add data set writers */
+    UA_DataSetWriterConfig dataSetWriterConfig;
+    memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
+    dataSetWriterConfig.name = UA_STRING("Test DataSetWriter");
+    dataSetWriterConfig.dataSetWriterId = 62541;
+    ck_assert(UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent, &dataSetWriterConfig, &dataSetWriterIdent) == UA_STATUSCODE_GOOD);
+
+    memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
+    dataSetWriterConfig.name = UA_STRING("DataSetWriter 2");
+    dataSetWriterConfig.dataSetWriterId = 62541;
+    ck_assert(UA_Server_addDataSetWriter(server, writerGroupIdent1, publishedDataSetIdent, &dataSetWriterConfig, &dataSetWriterIdent1) == UA_STATUSCODE_GOOD);
     /* Reader Group */
     UA_ReaderGroupConfig readerGroupConfig;
     memset (&readerGroupConfig, 0, sizeof (UA_ReaderGroupConfig));
@@ -378,10 +383,7 @@ START_TEST(SubscribeMultipleMessagesWithoutRT) {
     ck_assert(UA_Server_addWriterGroup(server, connectionIdentifier, &writerGroupConfig, &writerGroupIdent) == UA_STATUSCODE_GOOD);
     UA_UadpWriterGroupMessageDataType_delete(wgm);
     UA_DataSetWriterConfig dataSetWriterConfig;
-    memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
-    dataSetWriterConfig.name = UA_STRING("Test DataSetWriter");
-    dataSetWriterConfig.dataSetWriterId = 62541;
-    ck_assert(UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent, &dataSetWriterConfig, &dataSetWriterIdent) == UA_STATUSCODE_GOOD);
+
     memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
     writerGroupConfig.name = UA_STRING("WriterGroup2");
     writerGroupConfig.publishingInterval = 10;
@@ -400,10 +402,7 @@ START_TEST(SubscribeMultipleMessagesWithoutRT) {
     writerGroupConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
     ck_assert(UA_Server_addWriterGroup(server, connectionIdentifier, &writerGroupConfig, &writerGroupIdent1) == UA_STATUSCODE_GOOD);
     UA_UadpWriterGroupMessageDataType_delete(wgm);
-    memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
-    dataSetWriterConfig.name = UA_STRING("DataSetWriter 2");
-    dataSetWriterConfig.dataSetWriterId = 62541;
-    ck_assert(UA_Server_addDataSetWriter(server, writerGroupIdent1, publishedDataSetIdent, &dataSetWriterConfig, &dataSetWriterIdent1) == UA_STATUSCODE_GOOD);
+
     UA_DataSetFieldConfig dsfConfig;
     memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));
     // Create Variant and configure as DataSetField source
@@ -415,6 +414,16 @@ START_TEST(SubscribeMultipleMessagesWithoutRT) {
     dsfConfig.field.variable.rtValueSource.staticValueSource = &dataValue;
     dsfConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
     ck_assert(UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent).result == UA_STATUSCODE_GOOD);
+
+    /* add data set writers */
+    memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
+    dataSetWriterConfig.name = UA_STRING("Test DataSetWriter");
+    dataSetWriterConfig.dataSetWriterId = 62541;
+    ck_assert(UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent, &dataSetWriterConfig, &dataSetWriterIdent) == UA_STATUSCODE_GOOD);
+    memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
+    dataSetWriterConfig.name = UA_STRING("DataSetWriter 2");
+    dataSetWriterConfig.dataSetWriterId = 62541;
+    ck_assert(UA_Server_addDataSetWriter(server, writerGroupIdent1, publishedDataSetIdent, &dataSetWriterConfig, &dataSetWriterIdent1) == UA_STATUSCODE_GOOD);
 
     /* Reader Group */
     UA_ReaderGroupConfig readerGroupConfig;
