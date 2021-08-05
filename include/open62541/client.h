@@ -119,6 +119,10 @@ typedef struct {
                                               * up together with the
                                               * configuration. So it is possible
                                               * to allocate them on ROM. */
+    /* EventLoop */
+    UA_EventLoop *eventLoop;
+    UA_Boolean externalEventLoop; /* The EventLoop is not deleted with the config */
+    UA_ConnectionManager *cm; /* The tcp connection manager */
 
     /* Available SecurityPolicies */
     size_t securityPoliciesSize;
@@ -612,6 +616,9 @@ UA_Client_modifyAsyncCallback(UA_Client *client, UA_UInt32 requestId,
  * management is done as well. */
 UA_StatusCode UA_EXPORT
 UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout);
+
+UA_StatusCode UA_EXPORT
+UA_Client_eventloop_run_iterate(UA_Client *client, UA_UInt32 timeout);
 
 /* Force the manual renewal of the SecureChannel. This is useful to renew the
  * SecureChannel during a downtime when no time-critical operations are

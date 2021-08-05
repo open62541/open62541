@@ -1089,6 +1089,7 @@ connectSync(UA_Client *client) {
     UA_DateTime maxDate = now + ((UA_DateTime)client->config.timeout * UA_DATETIME_MSEC);
 
     UA_StatusCode retval = initConnect(client);
+
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -1107,8 +1108,59 @@ connectSync(UA_Client *client) {
     return retval;
 }
 
+/*
+static UA_INLINE UA_String
+UA_CONST_STRING(const char *chars) {
+    UA_String s; s.length = 0; s.data = NULL;
+    if(!chars)
+        return s;
+    s.length = strlen(chars); s.data = (const UA_Byte*)chars; return s;
+}
+*/
+
+typedef struct {
+    UA_Boolean isInitial;
+    UA_ConnectionManager *cm;
+    UA_Client *client;
+} UA_BasicConnectionContext;
+
+typedef struct {
+    UA_BasicConnectionContext base;
+    uintptr_t connectionId;
+    UA_Connection connection;
+} UA_ConnectionContext;
+
+
+static UA_StatusCode
+UA_Client_make_connection(UA_Client *client) {
+    UA_BasicConnectionContext *ctx = (UA_BasicConnectionContext*) UA_malloc(sizeof(UA_ConnectionContext));
+    memset(ctx, 0, sizeof(UA_BasicConnectionContext));
+
+    ctx->isInitial = true;
+    ctx->cm = client->config.cm;
+    ctx->client = client;
+
+    if (client->connection.handle != NULL) {
+        return UA_STATUSCODE_GOOD;
+    }
+
+    UA_StatusCode rv = client->config.cm->openConnection(client->config.cm, client->endpointUrl, ctx);
+
+    client->connection.handle = ctx;
+
+    // UA_Connection connection;
+    // memset(&connection, 0, sizeof(UA_Connection));
+
+    // connection.handle = ctx;
+
+    // client->connection = connection;
+
+    return rv;
+}
+
 UA_StatusCode
 UA_Client_connect(UA_Client *client, const char *endpointUrl) {
+
     /* Set the endpoint URL the client connects to */
     UA_String_clear(&client->endpointUrl);
     client->endpointUrl = UA_STRING_ALLOC(endpointUrl);
@@ -1116,6 +1168,9 @@ UA_Client_connect(UA_Client *client, const char *endpointUrl) {
     /* Open a Session when possible */
     client->noSession = false;
 
+    UA_StatusCode rv = UA_Client_make_connection(client);
+
+    return rv;
     /* Connect Synchronous */
     return connectSync(client);
 }

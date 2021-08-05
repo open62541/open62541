@@ -71,6 +71,20 @@ UA_ClientConfig_clear(UA_ClientConfig *config) {
     UA_free(config->securityPolicies);
     config->securityPolicies = 0;
 
+    /* Stop and delete the EventLoop */
+    if(config->eventLoop && !config->externalEventLoop) {
+        if(UA_EventLoop_getState(config->eventLoop) != UA_EVENTLOOPSTATE_FRESH &&
+           UA_EventLoop_getState(config->eventLoop) != UA_EVENTLOOPSTATE_STOPPED) {
+            UA_EventLoop_stop(config->eventLoop);
+            while(UA_EventLoop_getState(config->eventLoop) != UA_EVENTLOOPSTATE_STOPPED) {
+                UA_EventLoop_run(config->eventLoop, 100);
+            }
+        }
+        UA_EventLoop_delete(config->eventLoop);
+        config->eventLoop = NULL;
+    }
+
+
     /* Logger */
     if(config->logger.clear)
         config->logger.clear(config->logger.context);
@@ -600,9 +614,14 @@ UA_Client_addTimedCallback(UA_Client *client, UA_ClientCallback callback,
 UA_StatusCode
 UA_Client_addRepeatedCallback(UA_Client *client, UA_ClientCallback callback,
                               void *data, UA_Double interval_ms, UA_UInt64 *callbackId) {
-    return UA_Timer_addRepeatedCallback(&client->timer, (UA_ApplicationCallback)callback,
-                                        client, data, interval_ms, NULL,
-                                        UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME, callbackId);
+
+    return UA_EventLoop_addCyclicCallback(
+        client->config.eventLoop, (UA_ApplicationCallback)callback, client, data,
+        interval_ms, NULL, UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME, callbackId);
+
+    // return UA_Timer_addRepeatedCallback(&client->timer, (UA_ApplicationCallback)callback,
+    //                                     client, data, interval_ms, NULL,
+    //                                     UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME, callbackId);
 }
 
 UA_StatusCode
@@ -677,6 +696,62 @@ static void
 clientExecuteRepeatedCallback(void *executionApplication, UA_ApplicationCallback cb,
                               void *callbackApplication, void *data) {
     cb(callbackApplication, data);
+}
+
+UA_StatusCode
+UA_Client_eventloop_run_iterate(UA_Client *client, UA_UInt32 timeout) {
+    /* Process timed (repeated) jobs */
+    UA_DateTime now = UA_DateTime_nowMonotonic();
+    UA_DateTime maxDate =
+            UA_Timer_process(&client->timer, now, (UA_TimerExecutionCallback)
+                    clientExecuteRepeatedCallback, client);
+    if(maxDate > now + ((UA_DateTime)timeout * UA_DATETIME_MSEC))
+        maxDate = now + ((UA_DateTime)timeout * UA_DATETIME_MSEC);
+
+    /* Make sure we have an open channel */
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if((client->noSession && client->channel.state != UA_SECURECHANNELSTATE_OPEN) ||
+       client->sessionState < UA_SESSIONSTATE_ACTIVATED) {
+        retval = connectIterate(client, timeout);
+        notifyClientState(client);
+        return retval;
+    }
+
+    /* Renew Secure Channel */
+    UA_Client_renewSecureChannel(client);
+    if(client->connectStatus != UA_STATUSCODE_GOOD)
+        return client->connectStatus;
+
+    /* Feed the server PublishRequests for the Subscriptions */
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    UA_Client_Subscriptions_backgroundPublish(client);
+#endif
+
+    /* Send read requests from time to time to test the connectivity */
+    UA_Client_backgroundConnectivity(client);
+
+    /* Listen on the network for the given timeout */
+    retval = receiveResponse(client, NULL, NULL, maxDate, NULL);
+    if(retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
+        retval = UA_STATUSCODE_GOOD;
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING_CHANNEL(&client->config.logger, &client->channel,
+                               "Could not receive with StatusCode %s",
+                               UA_StatusCode_name(retval));
+    }
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    /* The inactivity check must be done after receiveServiceResponse*/
+    UA_Client_Subscriptions_backgroundPublishInactivityCheck(client);
+#endif
+
+    /* Did async services time out? Process callbacks with an error code */
+    asyncServiceTimeoutCheck(client);
+
+    /* Log and notify user if the client state has changed */
+    notifyClientState(client);
+
+    return client->connectStatus;
 }
 
 UA_StatusCode
