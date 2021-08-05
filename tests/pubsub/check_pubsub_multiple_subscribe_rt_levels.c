@@ -64,17 +64,14 @@ static void teardown(void) {
 typedef struct {
     UA_ByteString *buffer;
     size_t offset;
-} UA_ClosureContext;
+} UA_ReceiveContext;
 
-static
-UA_StatusCode closureTestFun(UA_DecodeAndProcessClosure *closure, UA_ByteString *buffer) {
-
-    UA_ClosureContext *ctx = (UA_ClosureContext*) closure->ctx;
-
+static UA_StatusCode
+recvTestFun(UA_PubSubChannel *channel, void *context, const UA_ByteString *buffer) {
+    UA_ReceiveContext *ctx = (UA_ReceiveContext*)context;
     memcpy(ctx->buffer->data + ctx->offset, buffer->data, buffer->length);
     ctx->offset += buffer->length;
     ctx->buffer->length = ctx->offset;
-
     return UA_STATUSCODE_GOOD;
 }
 
@@ -84,13 +81,9 @@ receiveMultipleMessageRT(UA_PubSubConnection *connection, UA_DataSetReader *data
     if (UA_ByteString_allocBuffer(&buffer, 4096) != UA_STATUSCODE_GOOD) {
         ck_abort_msg("Message buffer allocation failed!");
     }
-    UA_ClosureContext testCtx = {&buffer, 0};
 
-    UA_DecodeAndProcessClosure closure;
-    closure.ctx = &testCtx;
-    closure.call = closureTestFun;
-
-    connection->channel->receive(connection->channel, &closure, NULL, 1000000);
+    UA_ReceiveContext testCtx = {&buffer, 0};
+    connection->channel->receive(connection->channel, NULL, recvTestFun, &testCtx, 1000000);
     if(buffer.length > 0) {
         size_t currentPosition = 0;
         UA_UInt16  rcvCount    = 0;
@@ -133,14 +126,10 @@ static void receiveSingleMessage(UA_PubSubConnection *connection) {
         ck_abort_msg("Message buffer allocation failed!");
     }
 
-    UA_ClosureContext testCtx = {&buffer, 0};
-
-    UA_DecodeAndProcessClosure closure;
-    closure.ctx = &testCtx;
-    closure.call = closureTestFun;
-
+    UA_ReceiveContext testCtx = {&buffer, 0};
     UA_StatusCode retval =
-        connection->channel->receive(connection->channel, &closure, NULL, 1000000);
+        connection->channel->receive(connection->channel, NULL, recvTestFun,
+                                     &testCtx, 1000000);
     if(retval != UA_STATUSCODE_GOOD || buffer.length == 0) {
         buffer.length = 4096;
         UA_ByteString_clear(&buffer);

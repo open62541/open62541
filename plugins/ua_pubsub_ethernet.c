@@ -1115,8 +1115,11 @@ UA_PubSubChannelEthernet_send(UA_PubSubChannel *channel,
  * @return
  */
 static UA_StatusCode
-UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_DecodeAndProcessClosure *closure,
-                                 UA_ExtensionObject *transportSettings, UA_UInt32 timeout) {
+UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel,
+                                 UA_ExtensionObject *transportSettings,
+                                 UA_PubSubReceiveCallback receiveCallback,
+                                 void *receiveCallbackContext,
+                                 UA_UInt32 timeout) {
     UA_PubSubChannelDataEthernet *channelDataEthernet =
         (UA_PubSubChannelDataEthernet *) channel->handle;
 
@@ -1200,8 +1203,7 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_DecodeAndProcessC
                 UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                              "PubSub connection receive failed. Receive message failed.");
                 retval = UA_STATUSCODE_BADINTERNALERROR;
-            }
-            else {
+            } else {
                 retval = UA_STATUSCODE_GOOD;
             }
             break;
@@ -1240,7 +1242,7 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_DecodeAndProcessC
         messageLength = messageLength + ((size_t)dataLen - sizeof(struct ether_header));
         buffer.length = messageLength;
 
-        retval = closure->call(closure, &buffer);
+        retval = receiveCallback(channel, receiveCallbackContext, &buffer);
         if (retval != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                            "PubSub Connection decode and process failed.");

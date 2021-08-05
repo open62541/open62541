@@ -45,12 +45,10 @@ typedef enum {
     UA_PUBSUB_CHANNEL_CLOSED
 } UA_PubSubChannelState;
 
-typedef struct _decodeAndProcessClosure {
-    void *ctx;
-    UA_StatusCode (*call)(struct _decodeAndProcessClosure *closure,
-                          UA_ByteString *buffer);
-} UA_DecodeAndProcessClosure;
-
+typedef UA_StatusCode
+(*UA_PubSubReceiveCallback)(UA_PubSubChannel *channel,
+                            void *callbackContext,
+                            const UA_ByteString *buffer);
 
 /* Interface structure between network plugin and internal implementation */
 struct UA_PubSubChannel {
@@ -75,8 +73,11 @@ struct UA_PubSubChannel {
     UA_StatusCode (*unregist)(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings);
 
     /* Receive messages. A regist to the message source is needed before. */
-    UA_StatusCode (*receive)(UA_PubSubChannel *channel, UA_DecodeAndProcessClosure *closure,
-                             UA_ExtensionObject *transportSettings, UA_UInt32 timeout);
+    UA_StatusCode (*receive)(UA_PubSubChannel *channel,
+                             UA_ExtensionObject *transportSettings,
+                             UA_PubSubReceiveCallback receiveCallback,
+                             void *receiveCallbackContext,
+                             UA_UInt32 timeout);
 
     /* Closing the connection and implicit free of the channel structures. */
     UA_StatusCode (*close)(UA_PubSubChannel *channel);

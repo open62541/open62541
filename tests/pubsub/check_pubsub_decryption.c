@@ -351,7 +351,7 @@ START_TEST(DecodeAndVerifyEncryptedNetworkMessage) {
     memset(&msg, 0, sizeof(UA_NetworkMessage));
 
     size_t currentPosition = 0;
-    UA_StatusCode rv = decodeNetworkMessage(server, &buffer, &currentPosition,
+    UA_StatusCode rv = decodeNetworkMessage(server, buffer, &currentPosition,
                                             &msg, connection);
     ck_assert(rv == UA_STATUSCODE_GOOD);
 
@@ -390,7 +390,7 @@ START_TEST(InvalidSignature) {
 
     size_t currentPosition = 0;
 
-    UA_StatusCode rv = decodeNetworkMessage(server, &buffer, &currentPosition,
+    UA_StatusCode rv = decodeNetworkMessage(server, buffer, &currentPosition,
                                             &msg, connection);
     ck_assert(rv == UA_STATUSCODE_BADSECURITYCHECKSFAILED);
 
@@ -423,7 +423,7 @@ START_TEST(InvalidSecurityModeInsufficientSig) {
 
         size_t currentPosition = 0;
 
-        UA_StatusCode rv = decodeNetworkMessage(server, &buffer, &currentPosition,
+        UA_StatusCode rv = decodeNetworkMessage(server, buffer, &currentPosition,
                                                 &msg, connection);
         ck_assert(rv == UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT);
 
@@ -455,7 +455,7 @@ START_TEST(InvalidSecurityModeRejectedSig) {
 
     size_t currentPosition = 0;
 
-    UA_StatusCode rv = decodeNetworkMessage(server, &buffer, &currentPosition,
+    UA_StatusCode rv = decodeNetworkMessage(server, buffer, &currentPosition,
                                             &msg, connection);
     ck_assert(rv == UA_STATUSCODE_BADSECURITYMODEREJECTED);
 

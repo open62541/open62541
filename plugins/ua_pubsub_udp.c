@@ -548,9 +548,13 @@ UA_DateTime timevalToDateTime(struct timeval val) {
  * @return
  */
 static UA_StatusCode
-UA_PubSubChannelUDPMC_receive(UA_PubSubChannel *channel, UA_DecodeAndProcessClosure *closure,
-                              UA_ExtensionObject *transportSettings, UA_UInt32 timeout) {
-    if(!(channel->state == UA_PUBSUB_CHANNEL_PUB || channel->state == UA_PUBSUB_CHANNEL_PUB_SUB)) {
+UA_PubSubChannelUDPMC_receive(UA_PubSubChannel *channel,
+                              UA_ExtensionObject *transportSettings,
+                              UA_PubSubReceiveCallback receiveCallback,
+                              void *receiveCallbackContext,
+                              UA_UInt32 timeout) {
+    if(!(channel->state == UA_PUBSUB_CHANNEL_PUB ||
+         channel->state == UA_PUBSUB_CHANNEL_PUB_SUB)) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "PubSub Connection receive failed. Invalid state.");
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -594,12 +598,12 @@ UA_PubSubChannelUDPMC_receive(UA_PubSubChannel *channel, UA_DecodeAndProcessClos
         buffer.data = ReceiveMsgBuffer;
 
         UA_DateTime beforeRecvTime = UA_DateTime_nowMonotonic();
-        ssize_t messageLength = UA_recvfrom(channel->sockfd, buffer.data, RECEIVE_MSG_BUFFER_SIZE, 0, NULL, NULL);
+        ssize_t messageLength = UA_recvfrom(channel->sockfd, buffer.data,
+                                            RECEIVE_MSG_BUFFER_SIZE, 0, NULL, NULL);
         if(messageLength > 0){
             buffer.length = (size_t) messageLength;
-            retval = closure->call(closure, &buffer);
-
-            if (retval != UA_STATUSCODE_GOOD) {
+            retval = receiveCallback(channel, receiveCallbackContext, &buffer);
+            if(retval != UA_STATUSCODE_GOOD) {
                     UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                                    "PubSub Connection decode and process failed.");
 
