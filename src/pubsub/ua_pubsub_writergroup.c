@@ -745,12 +745,12 @@ static UA_StatusCode
 sendNetworkMessageJson(UA_PubSubConnection *connection, UA_DataSetMessage *dsm,
                        UA_UInt16 *writerIds, UA_Byte dsmCount,
                        UA_ExtensionObject *transportSettings) {
+    /* Prepare the NetworkMessage */
     UA_NetworkMessage nm;
     memset(&nm, 0, sizeof(UA_NetworkMessage));
     nm.version = 1;
     nm.networkMessageType = UA_NETWORKMESSAGE_DATASET;
     nm.payloadHeaderEnabled = true;
-
     nm.payloadHeader.dataSetPayloadHeader.count = dsmCount;
     nm.payloadHeader.dataSetPayloadHeader.dataSetWriterIds = writerIds;
     nm.payload.dataSetPayload.dataSetMessages = dsm;
@@ -772,11 +772,11 @@ sendNetworkMessageJson(UA_PubSubConnection *connection, UA_DataSetMessage *dsm,
 
     /* Encode the message */
     UA_Byte *bufPos = buf.data;
-    memset(bufPos, 0, msgSize);
-    const UA_Byte *bufEnd = &buf.data[buf.length];
+    const UA_Byte *bufEnd = &buf.data[msgSize];
     res = UA_NetworkMessage_encodeJson(&nm, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
+    UA_assert(bufPos == bufEnd);
 
     /* Send the prepared messages */
     res = connection->channel->send(connection->channel, transportSettings, &buf);
