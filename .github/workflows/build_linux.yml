@@ -47,9 +47,12 @@ jobs:
           - name: Amalgamation Build
             cmd_deps: ""
             cmd_action: build_amalgamation
-          - name: Valgrind Build & Unit Tests (gcc)
+          - name: Valgrind Build & Unit Tests /w MbedTLS (gcc)
             cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev
-            cmd_action: unit_tests_valgrind
+            cmd_action: unit_tests_valgrind MBEDTLS
+          - name: Valgrind Build & Unit Tests /w OpenSSL (gcc)
+            cmd_deps: sudo apt-get install -y -qq valgrind openssl
+            cmd_action: unit_tests_valgrind OPENSSL
           - name: Clang Static Analyzer
             cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11 libmbedtls-dev
             cmd_action: build_clang_analyzer

@@ -176,7 +176,7 @@ function unit_tests_valgrind {
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_DISCOVERY=ON \
           -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
-          -DUA_ENABLE_ENCRYPTION=MBEDTLS \
+          -DUA_ENABLE_ENCRYPTION=$1 \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_ENABLE_HISTORIZING=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
@@ -184,13 +184,11 @@ function unit_tests_valgrind {
           -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
-          -DUA_ENABLE_PUBSUB_ENCRYPTION=ON \
           -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON \
           ..
     make ${MAKEOPTS}
     make test ARGS="-V"
 }
-
 
 ##############################
 # Clang Static Code Analysis #
