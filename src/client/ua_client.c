@@ -757,12 +757,15 @@ UA_Client_eventloop_run_iterate(UA_Client *client, UA_UInt32 timeout) {
 UA_StatusCode
 UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout) {
     /* Process timed (repeated) jobs */
-    UA_DateTime now = UA_DateTime_nowMonotonic();
-    UA_DateTime maxDate =
-        UA_Timer_process(&client->timer, now, (UA_TimerExecutionCallback)
-                         clientExecuteRepeatedCallback, client);
-    if(maxDate > now + ((UA_DateTime)timeout * UA_DATETIME_MSEC))
-        maxDate = now + ((UA_DateTime)timeout * UA_DATETIME_MSEC);
+    // UA_DateTime now = UA_DateTime_nowMonotonic();
+    // UA_DateTime maxDate =
+    //     UA_Timer_process(&client->timer, now, (UA_TimerExecutionCallback)
+    //                      clientExecuteRepeatedCallback, client);
+    // if(maxDate > now + ((UA_DateTime)timeout * UA_DATETIME_MSEC))
+    //     maxDate = now + ((UA_DateTime)timeout * UA_DATETIME_MSEC);
+
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    UA_EventLoop_run(cc->eventLoop, 1000);
 
     /* Make sure we have an open channel */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -787,14 +790,14 @@ UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout) {
     UA_Client_backgroundConnectivity(client);
 
     /* Listen on the network for the given timeout */
-    retval = receiveResponse(client, NULL, NULL, maxDate, NULL);
-    if(retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
-        retval = UA_STATUSCODE_GOOD;
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_CHANNEL(&client->config.logger, &client->channel,
-                               "Could not receive with StatusCode %s",
-                               UA_StatusCode_name(retval));
-    }
+    // retval = receiveResponse(client, NULL, NULL, maxDate, NULL);
+    // if(retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
+    //     retval = UA_STATUSCODE_GOOD;
+    // if(retval != UA_STATUSCODE_GOOD) {
+    //     UA_LOG_WARNING_CHANNEL(&client->config.logger, &client->channel,
+    //                            "Could not receive with StatusCode %s",
+    //                            UA_StatusCode_name(retval));
+    // }
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* The inactivity check must be done after receiveServiceResponse*/

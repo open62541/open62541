@@ -888,7 +888,7 @@ connectIterate(UA_Client *client, UA_UInt32 timeout) {
     }
 
     /* The connection is closed. Reset the SecureChannel and open a new TCP
-     * connection */
+     * connection TODO: do connection creation via cm */
     if(client->connection.state == UA_CONNECTIONSTATE_CLOSED)
         return initConnect(client);
 
@@ -1038,21 +1038,21 @@ initConnect(UA_Client *client) {
     client->channel.certificateVerification = &client->config.certificateVerification;
     client->channel.processOPNHeader = client_configure_securechannel;
 
-    if(client->connection.free)
-        client->connection.free(&client->connection);
+    // if(client->connection.free)
+    //     client->connection.free(&client->connection);
 
     /* Initialize the TCP connection */
-    client->connection =
-        client->config.initConnectionFunc(client->config.localConnectionConfig,
-                                          client->endpointUrl, client->config.timeout,
-                                          &client->config.logger);
-    if(client->connection.state != UA_CONNECTIONSTATE_OPENING) {
-        UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                       "Could not open a TCP connection to %.*s",
-                       (int)client->endpointUrl.length, client->endpointUrl.data);
-        client->connectStatus = UA_STATUSCODE_BADCONNECTIONCLOSED;
-        closeSecureChannel(client);
-    }
+    // client->connection =
+    //     client->config.initConnectionFunc(client->config.localConnectionConfig,
+    //                                       client->endpointUrl, client->config.timeout,
+    //                                       &client->config.logger);
+    // if(client->connection.state != UA_CONNECTIONSTATE_OPENING) {
+    //     UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+    //                    "Could not open a TCP connection to %.*s",
+    //                    (int)client->endpointUrl.length, client->endpointUrl.data);
+    //     client->connectStatus = UA_STATUSCODE_BADCONNECTIONCLOSED;
+    //     closeSecureChannel(client);
+    // }
 
     return client->connectStatus;
 }
@@ -1133,6 +1133,10 @@ typedef struct {
 
 static UA_StatusCode
 UA_Client_make_connection(UA_Client *client) {
+
+    UA_StatusCode rv = initConnect(client);
+    /* TODO: check rv */
+
     UA_BasicConnectionContext *ctx = (UA_BasicConnectionContext*) UA_malloc(sizeof(UA_ConnectionContext));
     memset(ctx, 0, sizeof(UA_BasicConnectionContext));
 
@@ -1144,7 +1148,8 @@ UA_Client_make_connection(UA_Client *client) {
         return UA_STATUSCODE_GOOD;
     }
 
-    UA_StatusCode rv = client->config.cm->openConnection(client->config.cm, client->endpointUrl, ctx);
+    rv = client->config.cm->openConnection(client->config.cm, client->endpointUrl, ctx);
+    /* TODO: check rv */
 
     client->connection.handle = ctx;
 
