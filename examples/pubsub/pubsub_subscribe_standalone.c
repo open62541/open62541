@@ -27,7 +27,7 @@
 
 UA_Boolean running = true;
 static UA_StatusCode
-customDecodeAndProcessCallback(UA_DecodeAndProcessClosure *closure, UA_ByteString *buffer);
+customDecodeAndProcessCallback(UA_PubSubChannel *psc, void* ctx, const UA_ByteString *buffer);
 static void stopHandler(int sign) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                 "received ctrl-c");
@@ -44,27 +44,14 @@ subscriberListen(UA_PubSubChannel *psc) {
         return retval;
     }
 
-    // UA_ClosureContext testCtx = {&buffer, 0};
-
-    UA_DecodeAndProcessClosure closure;
-    closure.ctx = NULL;
-    closure.call = customDecodeAndProcessCallback;
-
     /* Receive the message. Blocks for 100ms */
-    return psc->receive(psc, &closure, NULL, 100);
+    UA_StatusCode rv = psc->receive(psc, NULL, customDecodeAndProcessCallback, NULL, 100);
+
+    UA_ByteString_clear(&buffer);
+    return rv;
 }
 static UA_StatusCode
-customDecodeAndProcessCallback(UA_DecodeAndProcessClosure *closure, UA_ByteString *buffer) {
-    if((*buffer).length == 0) {
-        /* Workaround!! Reset buffer length. Receive can set the length to zero.
-         * Then the buffer is not deleted because no memory allocation is
-         * assumed.
-         * TODO: Return an error code in 'receive' instead of setting the buf
-         * length to zero. */
-        (*buffer).length = 512;
-        UA_ByteString_clear(buffer);
-        return UA_STATUSCODE_GOOD;
-    }
+customDecodeAndProcessCallback(UA_PubSubChannel *psc, void *ctx, const UA_ByteString *buffer) {
 
     /* Decode the message */
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
@@ -124,7 +111,6 @@ customDecodeAndProcessCallback(UA_DecodeAndProcessClosure *closure, UA_ByteStrin
             }
         }
     }
-    UA_ByteString_clear(buffer);
 
 cleanup:
     UA_NetworkMessage_clear(&networkMessage);
