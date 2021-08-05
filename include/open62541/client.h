@@ -28,6 +28,8 @@
 #include <open62541/plugin/network.h>
 #include <open62541/plugin/securitypolicy.h>
 
+#include <open62541/plugin/eventloop.h>
+
 _UA_BEGIN_DECLS
 
 /**
