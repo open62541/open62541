@@ -16,6 +16,8 @@
 
 #include <ua_util_internal.h>
 
+#include <open62541/plugin/eventloop.h>
+
 #include <signal.h>
 #include <stdlib.h>
 
@@ -249,9 +251,9 @@ main(void) {
             continue;
         }
 
-        UA_EventLoop_run(cc->eventLoop, 1000);
+        // UA_EventLoop_run(cc->eventLoop, 1000);
 
-        // UA_Client_run_iterate(client, 1000);
+        UA_Client_run_iterate(client, 1000);
     };
 
 cleanup:

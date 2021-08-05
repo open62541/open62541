@@ -41,7 +41,8 @@ int main(int argc, char** argv) {
          * if needed, the select with timeout on the multicast socket server->mdnsSocket (see example in mdnsd library)
          */
 
-        UA_UInt16 timeout = UA_Server_run_iterate(server, waitInternal);
+        UA_Server_run_iterate(server, waitInternal);
+        // UA_UInt16 timeout = UA_Server_run_iterate(server, waitInternal);
     }
     rv = UA_Server_run_shutdown(server);
 
