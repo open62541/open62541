@@ -281,6 +281,111 @@ ServerNetworkLayerTCP_add(UA_ServerNetworkLayer *nl, ServerNetworkLayerTCP *laye
     return UA_STATUSCODE_GOOD;
 }
 
+// static UA_StatusCode
+// addServerSocket(ServerNetworkLayerTCP *layer, struct addrinfo *ai) {
+//     /* Create the server socket */
+//     UA_SOCKET newsock = UA_socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+//     if(newsock == UA_INVALID_SOCKET)
+//     {
+//         UA_LOG_SOCKET_ERRNO_WRAP(
+//             UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK,
+//                            "Error opening the server socket: %s", errno_str));
+//         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
+//     }
+//
+//     /* Some Linux distributions have net.ipv6.bindv6only not activated. So
+//      * sockets can double-bind to IPv4 and IPv6. This leads to problems. Use
+//      * AF_INET6 sockets only for IPv6. */
+//
+//     int optval = 1;
+// #if UA_IPV6
+//     if(ai->ai_family == AF_INET6 &&
+//        UA_setsockopt(newsock, IPPROTO_IPV6, IPV6_V6ONLY,
+//                   (const char*)&optval, sizeof(optval)) == -1) {
+//         UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK,
+//                        "Could not set an IPv6 socket to IPv6 only");
+//         UA_close(newsock);
+//         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
+//
+//     }
+// #endif
+//     if(UA_setsockopt(newsock, SOL_SOCKET, SO_REUSEADDR,
+//                   (const char *)&optval, sizeof(optval)) == -1) {
+//         UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK,
+//                        "Could not make the socket reusable");
+//         UA_close(newsock);
+//         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
+//     }
+//
+//
+//     if(UA_socket_set_nonblocking(newsock) != UA_STATUSCODE_GOOD) {
+//         UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK,
+//                        "Could not set the server socket to nonblocking");
+//         UA_close(newsock);
+//         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
+//     }
+//
+//     /* Bind socket to address */
+//     int ret = UA_bind(newsock, ai->ai_addr, (socklen_t)ai->ai_addrlen);
+//     if(ret < 0) {
+//         /* If bind to specific address failed, try to bind *-socket */
+//         if(ai->ai_family == AF_INET) {
+//             struct sockaddr_in *sin = (struct sockaddr_in *)ai->ai_addr;
+//             if(sin->sin_addr.s_addr != htonl(INADDR_ANY)) {
+//                 sin->sin_addr.s_addr = 0;
+//                 ret = 0;
+//             }
+//         }
+// #if UA_IPV6
+//         else if(ai->ai_family == AF_INET6) {
+//             struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *)ai->ai_addr;
+//             if(!IN6_IS_ADDR_UNSPECIFIED(&sin6->sin6_addr)) {
+//                 memset(&sin6->sin6_addr, 0, sizeof(sin6->sin6_addr));
+//                 sin6->sin6_scope_id = 0;
+//                 ret = 0;
+//             }
+//         }
+// #endif // UA_IPV6
+//         if(ret == 0) {
+//             ret = UA_bind(newsock, ai->ai_addr, (socklen_t)ai->ai_addrlen);
+//             if(ret == 0) {
+//                 /* The second bind fixed the issue, inform the user. */
+//                 UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK,
+//                     "Server socket bound to unspecified address");
+//             }
+//         }
+//     }
+//     if(ret < 0) {
+//         UA_LOG_SOCKET_ERRNO_WRAP(
+//             UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK,
+//                            "Error binding a server socket: %s", errno_str));
+//         UA_close(newsock);
+//         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
+//     }
+//
+//     /* Start listening */
+//     if(UA_listen(newsock, MAXBACKLOG) < 0) {
+//         UA_LOG_SOCKET_ERRNO_WRAP(
+//                 UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK,
+//                        "Error listening on server socket: %s", errno_str));
+//         UA_close(newsock);
+//         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
+//     }
+//
+//     if(layer->port == 0) {
+//         /* Port was automatically chosen. Read it from the OS */
+//         struct sockaddr_in returned_addr;
+//         memset(&returned_addr, 0, sizeof(returned_addr));
+//         socklen_t len = sizeof(returned_addr);
+//         UA_getsockname(newsock, (struct sockaddr *)&returned_addr, &len);
+//         layer->port = ntohs(returned_addr.sin_port);
+//     }
+//
+//     layer->serverSockets[layer->serverSocketsSize] = newsock;
+//     layer->serverSocketsSize++;
+//     return UA_STATUSCODE_GOOD;
+// }
+
 static UA_StatusCode
 getCustomHostname(UA_ServerNetworkLayer *nl, const UA_String *customHostname,
                   const ServerNetworkLayerTCP *layer);
@@ -737,6 +842,100 @@ UA_ClientConnectionTCP_poll(UA_Connection *connection, UA_UInt32 timeout,
 
     return UA_STATUSCODE_GOOD;
 }
+
+// typedef struct {
+//     UA_Boolean isInitial;
+//     UA_ConnectionManager *cm;
+//     UA_Client *client;
+// } UA_BasicConnectionContext;
+//
+// typedef struct {
+//     UA_BasicConnectionContext base;
+//     uintptr_t connectionId;
+//     UA_Connection connection;
+// } UA_ConnectionContext;
+
+UA_StatusCode
+UA_ClientConnectionEventloopTCP_poll(UA_Connection *connection, UA_UInt32 timeout,
+                            const UA_Logger *logger) {
+    return UA_ClientConnectionTCP_poll(connection, timeout, logger);
+    // UA_ConnectionContext *ctx = (UA_ConnectionContext *) connection->handle;
+    // UA_ConnectionManager *cm = ctx->base.cm;
+    // cm->openConnection(cm, )
+}
+
+
+UA_Connection
+UA_ClientConnectionEventloopTCP_init(UA_ConnectionConfig config, const UA_String endpointUrl,
+                            UA_UInt32 timeout, const UA_Logger *logger) {
+    UA_initialize_architecture_network();
+
+    UA_Connection connection;
+    memset(&connection, 0, sizeof(UA_Connection));
+
+    connection.state = UA_CONNECTIONSTATE_OPENING;
+    connection.sockfd = UA_INVALID_SOCKET;
+    connection.send = connection_write;
+    connection.recv = connection_recv;
+    connection.close = ClientNetworkLayerTCP_close;
+    connection.free = ClientNetworkLayerTCP_free;
+    connection.getSendBuffer = connection_getsendbuffer;
+    connection.releaseSendBuffer = connection_releasesendbuffer;
+    connection.releaseRecvBuffer = connection_releaserecvbuffer;
+
+    TCPClientConnection *tcpClientConnection = (TCPClientConnection*)
+        UA_malloc(sizeof(TCPClientConnection));
+    if(!tcpClientConnection) {
+        connection.state = UA_CONNECTIONSTATE_CLOSED;
+        return connection;
+    }
+    memset(tcpClientConnection, 0, sizeof(TCPClientConnection));
+    connection.handle = (void*) tcpClientConnection;
+    tcpClientConnection->timeout = timeout;
+    UA_String hostnameString = UA_STRING_NULL;
+    UA_String pathString = UA_STRING_NULL;
+    UA_UInt16 port = 0;
+    char hostname[512];
+    tcpClientConnection->connStart = UA_DateTime_nowMonotonic();
+    UA_String_copy(&endpointUrl, &tcpClientConnection->endpointUrl);
+
+    UA_StatusCode parse_retval =
+        UA_parseEndpointUrl(&endpointUrl, &hostnameString, &port, &pathString);
+    if(parse_retval != UA_STATUSCODE_GOOD || hostnameString.length > 511) {
+        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+                       "Server url is invalid: %.*s",
+                       (int)endpointUrl.length, endpointUrl.data);
+        connection.state = UA_CONNECTIONSTATE_CLOSED;
+        return connection;
+    }
+    memcpy(hostname, hostnameString.data, hostnameString.length);
+    hostname[hostnameString.length] = 0;
+
+    if(port == 0) {
+        port = 4840;
+        UA_LOG_INFO(logger, UA_LOGCATEGORY_NETWORK,
+                    "No port defined, using default port %" PRIu16, port);
+    }
+
+    memset(&tcpClientConnection->hints, 0, sizeof(tcpClientConnection->hints));
+    tcpClientConnection->hints.ai_family = AF_UNSPEC;
+    tcpClientConnection->hints.ai_socktype = SOCK_STREAM;
+    char portStr[6];
+    UA_snprintf(portStr, 6, "%d", port);
+    int error = UA_getaddrinfo(hostname, portStr, &tcpClientConnection->hints,
+                               &tcpClientConnection->server);
+    if(error != 0 || !tcpClientConnection->server) {
+        UA_LOG_SOCKET_ERRNO_GAI_WRAP(UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+                                                    "DNS lookup of %s failed with error %d - %s",
+                                                    hostname, error, errno_str));
+        connection.state = UA_CONNECTIONSTATE_CLOSED;
+        return connection;
+    }
+
+    /* Return connection with state UA_CONNECTIONSTATE_OPENING */
+    return connection;
+}
+
 
 UA_Connection
 UA_ClientConnectionTCP_init(UA_ConnectionConfig config, const UA_String endpointUrl,

@@ -63,6 +63,125 @@ typedef struct {
     void (*clear)(void *context); /* Clean up the logger plugin */
 } UA_Logger;
 
+#define UA_MACRO_EXPAND(x) x
+
+#ifdef UA_DEBUG_FILE_LINE_INFO
+
+
+static UA_INLINE UA_FORMAT(3,4) void
+UA_LOG_TRACE_FUN(const UA_Logger *logger, UA_LogCategory category, const char *msg, ...) {
+#if UA_LOGLEVEL <= 100
+    if(!logger || !logger->log)
+        return;
+    va_list args; va_start(args, msg);
+    logger->log(logger->context, UA_LOGLEVEL_TRACE, category, msg, args);
+    va_end(args);
+#else
+    (void) logger;
+    (void) category;
+    (void) msg;
+#endif
+}
+
+static UA_INLINE UA_FORMAT(3,4) void
+UA_LOG_DEBUG_FUN(const UA_Logger *logger, UA_LogCategory category, const char *msg, ...) {
+#if UA_LOGLEVEL <= 200
+    if(!logger || !logger->log)
+        return;
+    va_list args; va_start(args, msg);
+    logger->log(logger->context, UA_LOGLEVEL_DEBUG, category, msg, args);
+    va_end(args);
+#else
+    (void) logger;
+    (void) category;
+    (void) msg;
+#endif
+}
+
+static UA_INLINE UA_FORMAT(3,4) void
+UA_LOG_INFO_FUN(const UA_Logger *logger, UA_LogCategory category, const char *msg, ...) {
+#if UA_LOGLEVEL <= 300
+    if(!logger || !logger->log)
+        return;
+    va_list args; va_start(args, msg);
+    logger->log(logger->context, UA_LOGLEVEL_INFO, category, msg, args);
+    va_end(args);
+#else
+    (void) logger;
+    (void) category;
+    (void) msg;
+#endif
+}
+
+static UA_INLINE UA_FORMAT(3,4) void
+UA_LOG_WARNING_FUN(const UA_Logger *logger, UA_LogCategory category, const char *msg, ...) {
+#if UA_LOGLEVEL <= 400
+    if(!logger || !logger->log)
+        return;
+    va_list args; va_start(args, msg);
+    logger->log(logger->context, UA_LOGLEVEL_WARNING, category, msg, args);
+    va_end(args);
+#else
+    (void) logger;
+    (void) category;
+    (void) msg;
+#endif
+}
+
+static UA_INLINE UA_FORMAT(3,4) void
+UA_LOG_ERROR_FUN(const UA_Logger *logger, UA_LogCategory category, const char *msg, ...) {
+#if UA_LOGLEVEL <= 500
+    if(!logger || !logger->log)
+        return;
+    va_list args; va_start(args, msg);
+    logger->log(logger->context, UA_LOGLEVEL_ERROR, category, msg, args);
+    va_end(args);
+#else
+    (void) logger;
+    (void) category;
+    (void) msg;
+#endif
+}
+
+static UA_INLINE UA_FORMAT(3,4) void
+UA_LOG_FATAL_FUN(const UA_Logger *logger, UA_LogCategory category, const char *msg, ...) {
+#if UA_LOGLEVEL <= 600
+    if(!logger || !logger->log)
+        return;
+    va_list args; va_start(args, msg);
+    logger->log(logger->context, UA_LOGLEVEL_FATAL, category, msg, args);
+    va_end(args);
+#else
+    (void) logger;
+    (void) category;
+    (void) msg;
+#endif
+}
+
+#define UA_LOG_INTERNAL(LOG_FUN, LOGGER, CAT, MSG, ...)           \
+    UA_MACRO_EXPAND(                                                                     \
+        LOG_FUN(LOGGER, CAT, "" MSG "%s (%s:%d)", __VA_ARGS__,   \
+                        __FILE__, __LINE__))
+
+#define UA_LOG(FLAVOUR, LOGGER, CAT, ...) \
+    UA_MACRO_EXPAND(UA_LOG_INTERNAL(UA_LOG_##FLAVOUR##_FUN,    \
+                                          LOGGER, CAT, __VA_ARGS__, ""))
+
+#define UA_LOG_TRACE(LOGGER, CAT, ...) \
+    UA_MACRO_EXPAND(UA_LOG(TRACE, LOGGER, CAT, __VA_ARGS__))
+#define UA_LOG_DEBUG(LOGGER, CAT, ...) \
+    UA_MACRO_EXPAND(UA_LOG(DEBUG, LOGGER, CAT, __VA_ARGS__))
+#define UA_LOG_INFO(LOGGER, CAT, ...) \
+    UA_MACRO_EXPAND(UA_LOG(INFO, LOGGER, CAT, __VA_ARGS__))
+#define UA_LOG_WARNING(LOGGER, CAT, ...) \
+    UA_MACRO_EXPAND(UA_LOG(WARNING, LOGGER, CAT, __VA_ARGS__))
+#define UA_LOG_ERROR(LOGGER, CAT, ...) \
+    UA_MACRO_EXPAND(UA_LOG(ERROR, LOGGER, CAT, __VA_ARGS__))
+#define UA_LOG_FATAL(LOGGER, CAT, ...) \
+    UA_MACRO_EXPAND(UA_LOG(FATAL, LOGGER, CAT, __VA_ARGS__))
+
+
+#else
 static UA_INLINE UA_FORMAT(3,4) void
 UA_LOG_TRACE(const UA_Logger *logger, UA_LogCategory category, const char *msg, ...) {
 #if UA_LOGLEVEL <= 100
@@ -152,7 +271,7 @@ UA_LOG_FATAL(const UA_Logger *logger, UA_LogCategory category, const char *msg, 
     (void) msg;
 #endif
 }
-
+#endif
 _UA_END_DECLS
 
 #endif /* UA_PLUGIN_LOG_H_ */
