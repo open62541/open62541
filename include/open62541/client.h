@@ -172,6 +172,17 @@ typedef struct {
     UA_LocaleId *sessionLocaleIds;
     size_t sessionLocaleIdsSize;
 } UA_ClientConfig;
+typedef struct {
+    UA_Boolean isInitial;
+    UA_ConnectionManager *cm;
+    UA_Client *client;
+} UA_BasicClientConnectionContext;
+
+typedef struct {
+    UA_BasicClientConnectionContext base;
+    uintptr_t connectionId;
+    UA_Connection connection;
+} UA_ClientConnectionContext;
 
  /**
  * Client Lifecycle
@@ -199,6 +210,10 @@ UA_Client_getState(UA_Client *client,
 /* Get the client configuration */
 UA_EXPORT UA_ClientConfig *
 UA_Client_getConfig(UA_Client *client);
+
+
+UA_EXPORT UA_StatusCode
+UA_Client_setupEventLoop(UA_Client *client);
 
 /* Get the client context */
 static UA_INLINE void *
