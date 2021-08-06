@@ -35,6 +35,8 @@
 #include <sys/resource.h>
 
 /* XSK kernel headers */
+#include <ua_util_internal.h>
+
 #include <linux/bpf.h>
 #include <linux/if_link.h>
 
@@ -696,8 +698,9 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
     /* Open a packet socket */
     int sockFd = UA_socket(PF_PACKET, SOCK_RAW, 0);
     if(sockFd < 0) {
+        UA_LOG_SOCKET_ERRNO_WRAP(
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-            "PubSub connection creation failed. Cannot create socket.");
+            "PubSub connection creation failed. Cannot create socket. (%s)", errno_str));
         UA_free(channelDataEthernet);
         UA_free(newChannel);
         return NULL;
