@@ -710,8 +710,9 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
     /* allow the socket to be reused */
     int opt = 1;
     if(UA_setsockopt(sockFd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+        UA_LOG_SOCKET_ERRNO_WRAP(
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-            "PubSub connection creation failed. Cannot set socket reuse.");
+            "PubSub connection creation failed. Cannot set socket reuse. (%s)", errno_str));
         UA_close(sockFd);
         UA_free(channelDataEthernet);
         UA_free(newChannel);
@@ -763,8 +764,9 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
 #endif
 
     if(UA_ioctl(sockFd, SIOCGIFINDEX, &ifreq) < 0) {
+        UA_LOG_SOCKET_ERRNO_WRAP(
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-           "PubSub connection creation failed. Cannot get interface index.");
+           "PubSub connection creation failed. Cannot get interface index. (%s)", errno_str));
         UA_close(sockFd);
         UA_free(channelDataEthernet);
         UA_free(newChannel);
@@ -774,8 +776,9 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
 
     /* determine own MAC address (source address for send) */
     if(UA_ioctl(sockFd, SIOCGIFHWADDR, &ifreq) < 0) {
+        UA_LOG_SOCKET_ERRNO_WRAP(
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-            "PubSub connection creation failed. Cannot determine own MAC address.");
+            "PubSub connection creation failed. Cannot determine own MAC address. (%s)", errno_str));
         UA_close(sockFd);
         UA_free(channelDataEthernet);
         UA_free(newChannel);
@@ -794,8 +797,9 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
     sll.sll_protocol = htons(ETHERTYPE_UADP);
 
     if(UA_bind(sockFd, (struct sockaddr*)&sll, sizeof(sll)) < 0) {
+        UA_LOG_SOCKET_ERRNO_WRAP(
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-            "PubSub connection creation failed. Cannot bind socket.");
+            "PubSub connection creation failed. Cannot bind socket. (%s)", errno_str));
         UA_close(sockFd);
         UA_free(channelDataEthernet);
         UA_free(newChannel);
@@ -805,7 +809,8 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
     /* Setting the socket priority to the socket */
     if(sockOptions.socketPriority) {
         if (UA_setsockopt(sockFd, SOL_SOCKET, SO_PRIORITY, sockOptions.socketPriority, sizeof(int))) {
-            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "setsockopt SO_PRIORITY failed");
+            UA_LOG_SOCKET_ERRNO_WRAP(
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "setsockopt SO_PRIORITY failed (%s)", errno_str));
             UA_close(sockFd);
             UA_free(sockOptions.socketPriority);
             UA_free(channelDataEthernet);
@@ -823,7 +828,8 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
         sk_txtime.clockId = CLOCK_TAI;
         sk_txtime.flags   = (UA_UInt16)(sockOptions.sotxtimeDeadlinemode | sockOptions.sotxtimeReceiveerrors);
         if (setsockopt(sockFd, SOL_SOCKET, SO_TXTIME, &sk_txtime, sizeof(&sk_txtime))) {
-            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "setsockopt SO_TXTIME failed");
+            UA_LOG_SOCKET_ERRNO_WRAP(
+                UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "setsockopt SO_TXTIME failed (%s)", errno_str));
             UA_close(sockFd);
             if(sockOptions.socketPriority)
                 UA_free(sockOptions.socketPriority);
