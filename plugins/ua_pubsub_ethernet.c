@@ -702,6 +702,8 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
             "PubSub connection creation failed. Cannot create socket. (%s)", errno_str));
         UA_free(channelDataEthernet);
         UA_free(newChannel);
+        if(sockOptions.socketPriority)
+            UA_free(sockOptions.socketPriority);
         return NULL;
     }
     newChannel->sockfd = sockFd;
@@ -715,6 +717,8 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
         UA_close(sockFd);
         UA_free(channelDataEthernet);
         UA_free(newChannel);
+        if(sockOptions.socketPriority)
+            UA_free(sockOptions.socketPriority);
         return NULL;
     }
 
@@ -747,6 +751,8 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
             UA_close(sockFd);
             UA_free(channelDataEthernet);
             UA_free(newChannel);
+            if(sockOptions.socketPriority)
+                UA_free(sockOptions.socketPriority);
             return NULL;
         }
     }
@@ -758,6 +764,8 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
         UA_close(sockFd);
         UA_free(channelDataEthernet);
         UA_free(newChannel);
+        if(sockOptions.socketPriority)
+            UA_free(sockOptions.socketPriority);
         return NULL;
     }
 #endif
@@ -769,6 +777,8 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
         UA_close(sockFd);
         UA_free(channelDataEthernet);
         UA_free(newChannel);
+        if(sockOptions.socketPriority)
+            UA_free(sockOptions.socketPriority);
         return NULL;
     }
     channelDataEthernet->ifindex = ifreq.ifr_ifindex;
@@ -781,6 +791,8 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
         UA_close(sockFd);
         UA_free(channelDataEthernet);
         UA_free(newChannel);
+        if(sockOptions.socketPriority)
+            UA_free(sockOptions.socketPriority);
         return NULL;
     }
 #if defined(__vxworks) || defined(__VXWORKS__)
@@ -802,6 +814,8 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
         UA_close(sockFd);
         UA_free(channelDataEthernet);
         UA_free(newChannel);
+        if(sockOptions.socketPriority)
+            UA_free(sockOptions.socketPriority);
         return NULL;
     }
 
@@ -811,6 +825,7 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
             UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "setsockopt SO_PRIORITY failed (%s)", errno_str));
             UA_close(sockFd);
+            
             UA_free(sockOptions.socketPriority);
             UA_free(channelDataEthernet);
             UA_free(newChannel);
