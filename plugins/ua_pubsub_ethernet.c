@@ -51,7 +51,7 @@
 #endif
 #endif
 
-#include "time.h"
+#include <time.h>
 #define ETHERTYPE_UADP                       0xb62c
 #define MIN_ETHERNET_PACKET_SIZE_WITHOUT_FCS 60
 #define VLAN_HEADER_SIZE                     4
