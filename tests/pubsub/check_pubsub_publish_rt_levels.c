@@ -57,6 +57,21 @@ static void teardown(void) {
     UA_Server_delete(server);
 }
 
+typedef struct {
+    UA_ByteString *buffer;
+    size_t offset;
+} UA_ReceiveContext;
+
+static UA_StatusCode
+recvTestFun(UA_PubSubChannel *channel, void *context,
+               const UA_ByteString *buffer) {
+    UA_ReceiveContext *ctx = (UA_ReceiveContext*)context;
+    memcpy(ctx->buffer->data + ctx->offset, buffer->data, buffer->length);
+    ctx->offset += buffer->length;
+    ctx->buffer->length = ctx->offset;
+    return UA_STATUSCODE_GOOD;
+}
+
 static void
 receiveSingleMessage(UA_ByteString buffer, UA_PubSubConnection *connection,
                      UA_NetworkMessage *networkMessage) {
@@ -70,8 +85,10 @@ receiveSingleMessage(UA_ByteString buffer, UA_PubSubConnection *connection,
         return;
     }
 
+    UA_ReceiveContext testCtx = {&buffer, 0};
     UA_StatusCode retval =
-        connection->channel->receive(connection->channel, &buffer, NULL, 1000000);
+        connection->channel->receive(connection->channel, NULL,
+                                     recvTestFun, &testCtx, 1000000);
     if(retval != UA_STATUSCODE_GOOD || buffer.length == 0) {
         buffer.length = 512;
         UA_ByteString_clear(&buffer);

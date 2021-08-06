@@ -866,7 +866,7 @@ DataSetReader_processRaw(UA_Server *server, UA_ReaderGroup *rg,
                  "Received RAW Frame");
     msg->data.keyFrameData.fieldCount = (UA_UInt16)
         dsr->config.dataSetMetaData.fieldsSize;
-    
+
     size_t offset = 0;
     for(size_t i = 0; i < dsr->config.dataSetMetaData.fieldsSize; i++) {
         /* TODO The datatype reference should be part of the internal
@@ -885,10 +885,10 @@ DataSetReader_processRaw(UA_Server *server, UA_ReaderGroup *rg,
                         (unsigned)i, UA_StatusCode_name(res));
             return;
         }
-        
+
         UA_FieldTargetVariable *tv =
             &dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i];
-        
+
         if(rg->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE) {
             memcpy((**tv->externalDataValue).value.data, value, type->memSize);
             if(tv->targetVariableContext)
@@ -926,12 +926,12 @@ DataSetReader_processFixedSize(UA_Server *server, UA_ReaderGroup *rg,
     for(size_t i = 0; i < fieldCount; i++) {
         if(!msg->data.keyFrameData.dataSetFields[i].hasValue)
             continue;
-        
+
         UA_FieldTargetVariable *tv =
             &dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i];
         if(tv->targetVariable.attributeId != UA_ATTRIBUTEID_VALUE)
             continue;
-        
+
         memcpy((**tv->externalDataValue).value.data,
                msg->data.keyFrameData.dataSetFields[i].value.data,
                msg->data.keyFrameData.dataSetFields[i].value.type->memSize);
@@ -940,7 +940,7 @@ DataSetReader_processFixedSize(UA_Server *server, UA_ReaderGroup *rg,
             memcpy(tv->targetVariableContext,
                    msg->data.keyFrameData.dataSetFields[i].value.data,
                    msg->data.keyFrameData.dataSetFields[i].value.type->memSize);
-        
+
         if(tv->afterWrite)
             tv->afterWrite(server, &dsr->identifier, &dsr->linkedReaderGroup,
                            &tv->targetVariable.targetNodeId,
@@ -994,10 +994,10 @@ UA_DataSetReader_process(UA_Server *server, UA_ReaderGroup *rg,
     size_t fieldCount = msg->data.keyFrameData.fieldCount;
     if(dsr->config.dataSetMetaData.fieldsSize < fieldCount)
         fieldCount = dsr->config.dataSetMetaData.fieldsSize;
-    
+
     if(dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize < fieldCount)
         fieldCount = dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize;
-    
+
     /* Process message with fixed size fields (realtime capable) */
     if(rg->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE) {
         DataSetReader_processFixedSize(server, rg, dsr, msg, fieldCount);
@@ -1006,16 +1006,16 @@ UA_DataSetReader_process(UA_Server *server, UA_ReaderGroup *rg,
 #endif
         return;
     }
-    
+
     /* Write the message fields via the write service (non realtime) */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < fieldCount; i++) {
         if(!msg->data.keyFrameData.dataSetFields[i].hasValue)
             continue;
-        
+
         UA_FieldTargetVariable *tv =
             &dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i];
-        
+
         UA_WriteValue writeVal;
         UA_WriteValue_init(&writeVal);
         writeVal.attributeId = tv->targetVariable.attributeId;
@@ -1214,9 +1214,6 @@ UA_Server_processNetworkMessage(UA_Server *server, UA_PubSubConnection *connecti
 
 #define MIN_PAYLOAD_SIZE_ETHERNET 46
 
-#define RECEIVE_MSG_BUFFER_SIZE   4096
-static UA_THREAD_LOCAL UA_Byte ReceiveMsgBuffer[RECEIVE_MSG_BUFFER_SIZE];
-
 /* Delete the payload value of every decoded DataSet field */
 static void UA_DataSetMessage_freeDecodedPayload(UA_DataSetMessage *dsm) {
     if(dsm->header.fieldEncoding == UA_FIELDENCODING_VARIANT) {
@@ -1306,14 +1303,14 @@ loops_exit:
 static
 UA_StatusCode
 decodeAndProcessNetworkMessage(UA_Server *server, UA_ReaderGroup *readerGroup,
-                               UA_PubSubConnection *connection, size_t previousPosition,
-                               UA_ByteString *buffer, size_t *currentPosition) {
-    size_t paddingBytes = 0;
+                               UA_PubSubConnection *connection,
+                               UA_ByteString *buffer) {
     UA_NetworkMessage nm;
     memset(&nm, 0, sizeof(UA_NetworkMessage));
+    size_t currentPosition = 0;
 
     UA_StatusCode rv = UA_STATUSCODE_GOOD;
-    rv = decodeNetworkMessage(server, buffer, currentPosition, &nm, connection);
+    rv = decodeNetworkMessage(server, buffer, &currentPosition, &nm, connection);
     UA_CHECK_STATUS_WARN(rv, goto cleanup, &server->config.logger, UA_LOGCATEGORY_SERVER,
                          "Subscribe failed. verify, decrypt and decode network message failed.");
 
@@ -1321,19 +1318,6 @@ decodeAndProcessNetworkMessage(UA_Server *server, UA_ReaderGroup *readerGroup,
     // TODO: check what action to perform on error (nothing?)
     UA_CHECK_STATUS_WARN(rv, (void)0, &server->config.logger, UA_LOGCATEGORY_SERVER,
                          "Subscribe failed. process network message failed.");
-
-    /* Minimum ethernet packet size is 64 bytes where the header size is 14
-     * bytes and FCS size is 4 bytes so remaining minimum payload size of
-     * ethernet packet is 46 bytes */
-    /* TODO: Need to handle padding bytes for UDP */
-    if((((*currentPosition) - previousPosition) < MIN_PAYLOAD_SIZE_ETHERNET) &&
-        (strncmp((const char *)connection->config->transportProfileUri.data,
-                 "http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp",
-                 (size_t)(connection->config->transportProfileUri.length)) == 0)) {
-        paddingBytes = (MIN_PAYLOAD_SIZE_ETHERNET - ((*currentPosition) - previousPosition));
-        (*currentPosition) += paddingBytes; /* During multiple receive, move the position to
-                             handle padding bytes */
-    }
 
 cleanup:
     UA_NetworkMessage_clear(&nm);
@@ -1343,22 +1327,22 @@ cleanup:
 static
 UA_StatusCode
 decodeAndProcessNetworkMessageRT(UA_Server *server, UA_ReaderGroup *readerGroup,
-                                 UA_PubSubConnection *connection, size_t previousPosition,
-                                 UA_ByteString *buffer, size_t *currentPosition) {
+                                 UA_PubSubConnection *connection,
+                                 UA_ByteString *buffer) {
 #ifdef UA_ENABLE_PUBSUB_BUFMALLOC
     useMembufAlloc();
 #endif
 
     /* Considering max DSM as 1
-     * TODO: Process with the static value source */
-    size_t paddingBytes = 0;
+    * TODO: Process with the static value source */
+    size_t currentPosition = 0;
     UA_DataSetReader *dataSetReader = LIST_FIRST(&readerGroup->readers);
     UA_NetworkMessage *nm = dataSetReader->bufferedMessage.nm;
 
     /* Decode only the necessary offset and update the networkMessage */
     UA_StatusCode res =
         UA_NetworkMessage_updateBufferedNwMessage(&dataSetReader->bufferedMessage,
-                                                  buffer, currentPosition);
+                                                  buffer, &currentPosition);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
                     "PubSub receive. Unknown field type.");
@@ -1379,20 +1363,6 @@ decodeAndProcessNetworkMessageRT(UA_Server *server, UA_ReaderGroup *readerGroup,
     UA_DataSetReader_process(server, readerGroup, dataSetReader,
                              nm->payload.dataSetPayload.dataSetMessages);
 
-    /* Minimum ethernet packet size is 64 bytes where the header size is 14
-     * bytes and FCS size is 4 bytes so remaining minimum payload size of
-     * ethernet packet is 46 bytes */
-    /* TODO: Need to handle padding bytes for UDP */
-    if(((*currentPosition - previousPosition) < MIN_PAYLOAD_SIZE_ETHERNET) &&
-       (strncmp((const char *)connection->config->transportProfileUri.data,
-                "http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp",
-                (size_t)(connection->config->transportProfileUri.length)) == 0)) {
-        paddingBytes =
-            (MIN_PAYLOAD_SIZE_ETHERNET - ((*currentPosition) - previousPosition));
-        (*currentPosition) += paddingBytes; /* During multiple receive, move the position
-                                               to handle padding bytes */
-    }
-
  cleanup:
     UA_DataSetMessage_freeDecodedPayload(nm->payload.dataSetPayload.dataSetMessages);
 #ifdef UA_ENABLE_PUBSUB_BUFMALLOC
@@ -1401,15 +1371,45 @@ decodeAndProcessNetworkMessageRT(UA_Server *server, UA_ReaderGroup *readerGroup,
     return res;
 }
 
+typedef struct {
+    UA_Server *server;
+    UA_PubSubConnection *connection;
+    UA_ReaderGroup *readerGroup;
+} UA_RGContext;
+
+static UA_StatusCode
+decodeAndProcessFun(UA_PubSubChannel *channel, void *cbContext,
+                    const UA_ByteString *buffer) {
+    UA_ByteString mutableBuffer = {buffer->length, buffer->data};
+    UA_RGContext *ctx = (UA_RGContext*) cbContext;
+    return decodeAndProcessNetworkMessage(ctx->server, ctx->readerGroup,
+                                          ctx->connection, &mutableBuffer);
+}
+
+static UA_StatusCode
+decodeAndProcessFunRT(UA_PubSubChannel *channel, void *cbContext,
+                      const UA_ByteString *buffer) {
+    UA_ByteString mutableBuffer = {buffer->length, buffer->data};
+    UA_RGContext *ctx = (UA_RGContext*) cbContext;
+    return decodeAndProcessNetworkMessageRT(ctx->server, ctx->readerGroup,
+                                            ctx->connection, &mutableBuffer);
+}
+
 UA_StatusCode
 receiveBufferedNetworkMessage(UA_Server *server, UA_ReaderGroup *readerGroup,
                               UA_PubSubConnection *connection) {
-    UA_ByteString buffer;
-    buffer.length = RECEIVE_MSG_BUFFER_SIZE;
-    buffer.data = ReceiveMsgBuffer;
+    UA_RGContext ctx = {server, connection, readerGroup};
+    UA_PubSubReceiveCallback receiveCB;
+    if(readerGroup->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE)
+        receiveCB = decodeAndProcessFunRT;
+    else
+        receiveCB = decodeAndProcessFun;
 
+    /* TODO: Move the TransportSettings to to the readerGroupConfig. So we can
+     * use it here instead of a NULL pointer. */
     UA_StatusCode rv =
-        connection->channel->receive(connection->channel, &buffer, NULL,
+        connection->channel->receive(connection->channel, NULL,
+                                     receiveCB, &ctx,
                                      readerGroup->config.timeout);
 
     // TODO attention: here rv is ok if UA_STATUSCODE_GOOD != rv
@@ -1417,31 +1417,6 @@ receiveBufferedNetworkMessage(UA_Server *server, UA_ReaderGroup *readerGroup,
                   &server->config.logger, UA_LOGCATEGORY_SERVER,
                   "SubscribeCallback(): Connection receive failed!");
 
-    UA_StatusCode (*decodeAndProcessNetworkMessageFun)(UA_Server *server,
-                                                       UA_ReaderGroup *readerGroup,
-                                                       UA_PubSubConnection *connection,
-                                                       size_t previousPosition,
-                                                       UA_ByteString *buffer,
-                                                       size_t *currentPosition) = NULL;
-    if(readerGroup->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE) {
-        decodeAndProcessNetworkMessageFun = decodeAndProcessNetworkMessageRT;
-    } else {
-        decodeAndProcessNetworkMessageFun = decodeAndProcessNetworkMessage;
-    }
-
-    size_t currentPosition = 0;
-    size_t previousPosition = 0;
-    while(buffer.length > currentPosition) {
-        rv = decodeAndProcessNetworkMessageFun(server, readerGroup, connection,
-                                               previousPosition, &buffer,
-                                               &currentPosition);
-        if(rv != UA_STATUSCODE_BADNOTFOUND || previousPosition == currentPosition) {
-            UA_CHECK_STATUS_WARN(rv, return rv,
-                                 &server->config.logger, UA_LOGCATEGORY_SERVER,
-                                 "SubscribeCallback(): receive message failed");
-        }
-        previousPosition = currentPosition;
-    }
     return UA_STATUSCODE_GOOD;
 }
 

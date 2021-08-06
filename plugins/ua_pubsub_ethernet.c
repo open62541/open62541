@@ -14,6 +14,9 @@
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pubsub_ethernet.h>
 
+#define RECEIVE_MSG_BUFFER_SIZE   4096
+static UA_THREAD_LOCAL UA_Byte ReceiveMsgBufferETH[RECEIVE_MSG_BUFFER_SIZE];
+
 #if !defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_VXWORKS)
 /* For anything else than Linux or VxWorks which are specifically handled below,
  * depend only on headers included by the architecture layer.
@@ -1112,8 +1115,11 @@ UA_PubSubChannelEthernet_send(UA_PubSubChannel *channel,
  * @return
  */
 static UA_StatusCode
-UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_ByteString *message,
-                                 UA_ExtensionObject *transportSettings, UA_UInt32 timeout) {
+UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel,
+                                 UA_ExtensionObject *transportSettings,
+                                 UA_PubSubReceiveCallback receiveCallback,
+                                 void *receiveCallbackContext,
+                                 UA_UInt32 timeout) {
     UA_PubSubChannelDataEthernet *channelDataEthernet =
         (UA_PubSubChannelDataEthernet *) channel->handle;
 
@@ -1137,11 +1143,9 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_ByteString *messa
         tmptv.tv_usec = (long int)(timeout % 1000000);
         int resultsize = UA_select(channel->sockfd+1, &fdset, NULL, NULL, &tmptv);
         if(resultsize == 0) {
-            message->length = 0;
             return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
         }
         if(resultsize == -1) {
-            message->length = 0;
             return UA_STATUSCODE_BADINTERNALERROR;
         }
     }
@@ -1168,14 +1172,16 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_ByteString *messa
      * first packet received */
     receiveFlags     = 0;
     size_t messageLength = 0;
-    size_t remainingMessageLength = 0;
-    remainingMessageLength = message->length;
 
     do {
         if(maxTimeValue < currentTimeValue) {
              retval = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
              break;
         }
+
+        UA_ByteString buffer;
+        buffer.length = RECEIVE_MSG_BUFFER_SIZE;
+        buffer.data = ReceiveMsgBufferETH;
 
         struct ether_header eth_hdr;
         struct iovec        iov[2];
@@ -1186,8 +1192,8 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_ByteString *messa
 
         iov[0].iov_base = &eth_hdr;
         iov[0].iov_len  = sizeof(eth_hdr);
-        iov[1].iov_base = message->data + messageLength;
-        iov[1].iov_len  = remainingMessageLength;
+        iov[1].iov_base = buffer.data;
+        iov[1].iov_len  = RECEIVE_MSG_BUFFER_SIZE;
         msg.msg_iov     = iov;
         msg.msg_iovlen  = 2;
 
@@ -1197,8 +1203,7 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_ByteString *messa
                 UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                              "PubSub connection receive failed. Receive message failed.");
                 retval = UA_STATUSCODE_BADINTERNALERROR;
-            }
-            else {
+            } else {
                 retval = UA_STATUSCODE_GOOD;
             }
             break;
@@ -1235,7 +1240,15 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_ByteString *messa
                                            * so the packet length is less than 60bytes */
 
         messageLength = messageLength + ((size_t)dataLen - sizeof(struct ether_header));
-        remainingMessageLength -= messageLength;
+        buffer.length = messageLength;
+
+        retval = receiveCallback(channel, receiveCallbackContext, &buffer);
+        if (retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                           "PubSub Connection decode and process failed.");
+
+        }
+
         rcvCount++;
 #if !defined(UA_ARCHITECTURE_POSIX)
         clock_gettime(CLOCK_REALTIME, &currentTime);
@@ -1247,10 +1260,9 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_ByteString *messa
         /* The recvmsg API with MSG_DONTWAIT flag will not wait for the next packet */
         receiveFlags = MSG_DONTWAIT;
 
-    } while(remainingMessageLength >= 1496); /* 1518 bytes is the maximum size of ethernet packet
+    } while(true); /* 1518 bytes is the maximum size of ethernet packet
                                               * where 18 bytes used for header size, 4 bytes of LLC
                                               * so remaining length is 1496 */
-    message->length = messageLength;
     return retval;
 }
 

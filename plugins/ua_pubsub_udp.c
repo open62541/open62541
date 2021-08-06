@@ -15,6 +15,10 @@
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pubsub_udp.h>
 
+#define RECEIVE_MSG_BUFFER_SIZE   4096
+static UA_THREAD_LOCAL UA_Byte ReceiveMsgBufferUDP[RECEIVE_MSG_BUFFER_SIZE];
+
+
 /* UDP multicast network layer specific internal data */
 typedef struct {
     int ai_family;                    /* Protocol family for socket. IPv4/IPv6 */
@@ -531,6 +535,12 @@ UA_PubSubChannelUDPMC_send(UA_PubSubChannel *channel, UA_ExtensionObject *transp
     return UA_STATUSCODE_GOOD;
 }
 
+static
+UA_INLINE
+UA_DateTime timevalToDateTime(struct timeval val) {
+    return val.tv_sec * UA_DATETIME_SEC + val.tv_usec / 100;
+}
+
 /**
  * Receive messages. The regist function should be called before.
  *
@@ -538,34 +548,35 @@ UA_PubSubChannelUDPMC_send(UA_PubSubChannel *channel, UA_ExtensionObject *transp
  * @return
  */
 static UA_StatusCode
-UA_PubSubChannelUDPMC_receive(UA_PubSubChannel *channel, UA_ByteString *message,
-                              UA_ExtensionObject *transportSettings, UA_UInt32 timeout) {
-    if(!(channel->state == UA_PUBSUB_CHANNEL_PUB || channel->state == UA_PUBSUB_CHANNEL_PUB_SUB)) {
+UA_PubSubChannelUDPMC_receive(UA_PubSubChannel *channel,
+                              UA_ExtensionObject *transportSettings,
+                              UA_PubSubReceiveCallback receiveCallback,
+                              void *receiveCallbackContext,
+                              UA_UInt32 timeout) {
+    if(!(channel->state == UA_PUBSUB_CHANNEL_PUB ||
+         channel->state == UA_PUBSUB_CHANNEL_PUB_SUB)) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "PubSub Connection receive failed. Invalid state.");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_UInt16 rcvCount = 0;
-    struct timeval tmptv;
+    struct timeval timeoutValue;
     struct timeval receiveTime;
     fd_set fdset;
-    size_t remainingMessageLength = 0;
-    size_t dataLength = 0;
 
-    memset(&tmptv, 0, sizeof(tmptv));
+    memset(&timeoutValue, 0, sizeof(timeoutValue));
     memset(&receiveTime, 0, sizeof(receiveTime));
     FD_ZERO(&fdset);
-    tmptv.tv_sec  = (long int)(timeout / 1000000);
-    tmptv.tv_usec = (long int)(timeout % 1000000);
-    remainingMessageLength = message->length;
+    timeoutValue.tv_sec  = (long int)(timeout / 1000000);
+    timeoutValue.tv_usec = (long int)(timeout % 1000000);
     do {
         if(timeout > 0) {
             UA_fd_set(channel->sockfd, &fdset);
             /* Select API will return the remaining time in the struct
              * timeval */
             int resultsize = UA_select(channel->sockfd+1, &fdset, NULL,
-                                       NULL, &tmptv);
+                                       NULL, &timeoutValue);
             if(resultsize == 0) {
                 retval = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
                 if(rcvCount > 0)
@@ -582,12 +593,22 @@ UA_PubSubChannelUDPMC_receive(UA_PubSubChannel *channel, UA_ByteString *message,
                 break;
             }
         }
+        UA_ByteString buffer;
+        buffer.length = RECEIVE_MSG_BUFFER_SIZE;
+        buffer.data = ReceiveMsgBufferUDP;
 
-        UA_DateTime now = UA_DateTime_nowMonotonic();
-        ssize_t messageLength = UA_recvfrom(channel->sockfd, (message->data + dataLength), remainingMessageLength, 0, NULL, NULL);
+        UA_DateTime beforeRecvTime = UA_DateTime_nowMonotonic();
+        ssize_t messageLength = UA_recvfrom(channel->sockfd, buffer.data,
+                                            RECEIVE_MSG_BUFFER_SIZE, 0, NULL, NULL);
         if(messageLength > 0){
-            dataLength += (size_t)messageLength;
-            remainingMessageLength -= (size_t)dataLength;
+            buffer.length = (size_t) messageLength;
+            retval = receiveCallback(channel, receiveCallbackContext, &buffer);
+            if(retval != UA_STATUSCODE_GOOD) {
+                    UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                                   "PubSub Connection decode and process failed.");
+
+            }
+
         } else {
             UA_LOG_SOCKET_ERRNO_WRAP(
                 UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
@@ -598,25 +619,23 @@ UA_PubSubChannelUDPMC_receive(UA_PubSubChannel *channel, UA_ByteString *message,
         }
 
         rcvCount++;
-        UA_DateTime endtTime = UA_DateTime_nowMonotonic();
-        UA_DateTime dataReceiveTime = endtTime - now;
-        receiveTime.tv_sec = (long int)(dataReceiveTime / UA_DATETIME_SEC);
-        receiveTime.tv_usec = (long int)(dataReceiveTime % UA_DATETIME_SEC);
-        UA_DateTime receiveTimeoutValue = (receiveTime.tv_sec * 1000000) + receiveTime.tv_usec;
-        UA_DateTime remainingTimeoutValue = (tmptv.tv_sec * 1000000) + tmptv.tv_usec;
-        if(remainingTimeoutValue < receiveTimeoutValue) {
+        UA_DateTime endTime = UA_DateTime_nowMonotonic();
+        UA_DateTime receiveDuration = endTime - beforeRecvTime;
+
+        UA_DateTime remainingTimeoutValue = timevalToDateTime(timeoutValue);
+        if(remainingTimeoutValue < receiveDuration) {
             retval = UA_STATUSCODE_GOOD;
             break;
         }
 
-        UA_DateTime newTimeoutValue = remainingTimeoutValue - receiveTimeoutValue;
-        tmptv.tv_sec = (long int)(newTimeoutValue  / 1000000);
-        tmptv.tv_usec = (long int)(newTimeoutValue % 1000000);
-    } while(remainingMessageLength >= 1472); /* TODO:Need to handle for jumbo frames*/
+        UA_DateTime newTimeoutValue = remainingTimeoutValue - receiveDuration;
+        timeoutValue.tv_sec = (long int)(newTimeoutValue  / UA_DATETIME_SEC);
+        timeoutValue.tv_usec = (long int)((newTimeoutValue % UA_DATETIME_SEC) * 100);
+    } while(true); /* TODO:Need to handle for jumbo frames*/
                                              /* 1518 bytes is the maximum size of ethernet packet
                                               * where 18 bytes used for header size, 28 bytes of header
                                               * used for IP and UDP header so remaining length is 1472 */
-    message->length = dataLength;
+    // message->length = dataLength;
     return retval;
 }
 /**
