@@ -48,10 +48,12 @@ START_TEST(AddConnectionsWithMinimalValidConfiguration){
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp");
+
     retVal = UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
-    ck_assert_int_eq(server->pubSubManager.connectionsSize, 1);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(server->pubSubManager.connectionsSize, 1);
     ck_assert(! TAILQ_EMPTY(&server->pubSubManager.connections));
+
     retVal = UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     ck_assert(&server->pubSubManager.connections.tqh_first->listEntry.tqe_next != NULL);
