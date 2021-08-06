@@ -78,6 +78,12 @@ function build_amalgamation {
 # Build and Run Unit Tests #
 ############################
 
+function set_capabilities {
+    for filename in bin/tests/*; do
+        sudo setcap cap_net_raw,cap_net_admin=eip $filename
+    done
+} 
+
 function unit_tests {
     mkdir -p build; cd build; rm -rf *
     cmake -DCMAKE_BUILD_TYPE=Debug \
@@ -95,6 +101,7 @@ function unit_tests {
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
           ..
     make ${MAKEOPTS}
+    set_capabilities
     make test ARGS="-V"
 }
 
