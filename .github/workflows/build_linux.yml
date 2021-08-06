@@ -65,4 +65,6 @@ jobs:
         ${{ matrix.cmd_deps }}
     - name: ${{matrix.name}}
       run: source tools/ci.sh && ${{matrix.cmd_action}}
+      env:
+        ETHERNET_INTERFACE: eth0
 

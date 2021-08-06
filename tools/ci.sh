@@ -66,6 +66,7 @@ function build_amalgamation {
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_PUBSUB=ON \
+          -DUA_ENABLE_PUBSUB_ETH_UADP=ON \
           -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
@@ -76,6 +77,12 @@ function build_amalgamation {
 ############################
 # Build and Run Unit Tests #
 ############################
+
+function set_capabilities {
+    for filename in bin/tests/*; do
+        sudo setcap cap_sys_ptrace,cap_net_raw,cap_net_admin=eip $filename
+    done
+} 
 
 function unit_tests {
     mkdir -p build; cd build; rm -rf *
@@ -88,11 +95,13 @@ function unit_tests {
           -DUA_ENABLE_HISTORIZING=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_PUBSUB=ON \
+          -DUA_ENABLE_PUBSUB_ETH_UADP=ON \
           -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
           ..
     make ${MAKEOPTS}
+    set_capabilities
     make test ARGS="-V"
 }
 
