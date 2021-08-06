@@ -32,6 +32,7 @@ static void setup(void) {
     UA_ServerConfig_setDefault(config);
     UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
     UA_Server_run_startup(server);
+
 }
 
 static void teardown(void) {
