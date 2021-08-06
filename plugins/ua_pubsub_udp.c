@@ -16,7 +16,7 @@
 #include <open62541/plugin/pubsub_udp.h>
 
 #define RECEIVE_MSG_BUFFER_SIZE   4096
-static UA_THREAD_LOCAL UA_Byte ReceiveMsgBuffer[RECEIVE_MSG_BUFFER_SIZE];
+static UA_THREAD_LOCAL UA_Byte ReceiveMsgBufferUDP[RECEIVE_MSG_BUFFER_SIZE];
 
 
 /* UDP multicast network layer specific internal data */
@@ -595,7 +595,7 @@ UA_PubSubChannelUDPMC_receive(UA_PubSubChannel *channel,
         }
         UA_ByteString buffer;
         buffer.length = RECEIVE_MSG_BUFFER_SIZE;
-        buffer.data = ReceiveMsgBuffer;
+        buffer.data = ReceiveMsgBufferUDP;
 
         UA_DateTime beforeRecvTime = UA_DateTime_nowMonotonic();
         ssize_t messageLength = UA_recvfrom(channel->sockfd, buffer.data,
