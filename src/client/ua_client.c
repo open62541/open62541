@@ -754,6 +754,112 @@ UA_Client_eventloop_run_iterate(UA_Client *client, UA_UInt32 timeout) {
     return client->connectStatus;
 }
 
+
+static UA_StatusCode UA_Connection_getSendBuffer(UA_Connection *connection, size_t length,
+                                                 UA_ByteString *buf) {
+    UA_ClientConnectionContext *ctx = (UA_ClientConnectionContext *) connection->handle;
+    UA_ConnectionManager *cm = ((UA_BasicClientConnectionContext *)ctx)->cm;
+    return cm->allocNetworkBuffer(cm, ctx->connectionId, buf, length);
+}
+
+static UA_StatusCode UA_Connection_send(UA_Connection *connection, UA_ByteString *buf) {
+    UA_ClientConnectionContext *ctx = (UA_ClientConnectionContext *) connection->handle;
+    UA_ConnectionManager *cm = ((UA_BasicClientConnectionContext *)ctx)->cm;
+    return cm->sendWithConnection(cm, ctx->connectionId, buf);
+}
+
+static
+void UA_Connection_releaseBuffer (UA_Connection *connection, UA_ByteString *buf) {
+    UA_ClientConnectionContext *ctx = (UA_ClientConnectionContext *) connection->handle;
+    UA_ConnectionManager *cm = ((UA_BasicClientConnectionContext *)ctx)->cm;
+    cm->freeNetworkBuffer(cm, ctx->connectionId, buf);
+}
+
+static void UA_Connection_close(UA_Connection *connection) {
+    UA_ClientConnectionContext *ctx = (UA_ClientConnectionContext *) connection->handle;
+    UA_ConnectionManager *cm = ((UA_BasicClientConnectionContext *)ctx)->cm;
+    cm->closeConnection(cm, ctx->connectionId);
+}
+
+
+static void
+connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
+                   void **connectionContext, UA_StatusCode stat,
+                   UA_ByteString msg) {
+
+    UA_LOG_DEBUG(UA_EventLoop_getLogger(cm->eventSource.eventLoop), UA_LOGCATEGORY_SERVER,
+                 "connection callback for id: %lu", connectionId);
+
+    UA_BasicClientConnectionContext *ctx = (UA_BasicClientConnectionContext *) *connectionContext;
+
+    if (stat != UA_STATUSCODE_GOOD) {
+        UA_LOG_INFO(UA_EventLoop_getLogger(cm->eventSource.eventLoop), UA_LOGCATEGORY_SERVER, "closing connection");
+
+        if (!ctx->isInitial) {
+            free(*connectionContext);
+        }
+        return;
+    }
+
+    if (ctx->isInitial) {
+        UA_ClientConnectionContext *newCtx = (UA_ClientConnectionContext*) calloc(1, sizeof(UA_ClientConnectionContext));
+        newCtx->base.isInitial = false;
+        newCtx->base.cm = ctx->cm;
+        newCtx->base.client = ctx->client;
+        newCtx->connectionId = connectionId;
+        newCtx->connection.close = UA_Connection_close;
+        newCtx->connection.free = ctx->client->connection.free;
+        newCtx->connection.getSendBuffer = UA_Connection_getSendBuffer;
+        newCtx->connection.recv = ctx->client->connection.recv;
+        newCtx->connection.releaseRecvBuffer = UA_Connection_releaseBuffer;
+        newCtx->connection.releaseSendBuffer = UA_Connection_releaseBuffer;
+        newCtx->connection.send = UA_Connection_send;
+        newCtx->connection.state = UA_CONNECTIONSTATE_ESTABLISHED;
+        newCtx->connection.sockfd = (int) connectionId;
+
+        newCtx->connection.handle = newCtx;
+
+        newCtx->base.client->connection = newCtx->connection;
+
+        *connectionContext = newCtx;
+
+    }
+
+    // UA_ClientConnectionContext *conCtx = (UA_ClientConnectionContext *) *connectionContext;
+
+    // if (msg.length > 0) {
+    //     // (ctx->server, &conCtx->connection, &msg);
+    // }
+}
+
+
+UA_StatusCode
+UA_Client_setupEventLoop(UA_Client *client) {
+
+    UA_BasicClientConnectionContext *ctx = (UA_BasicClientConnectionContext*) UA_malloc(sizeof(UA_BasicClientConnectionContext));
+    UA_CHECK_MEM(ctx, return UA_STATUSCODE_BADOUTOFMEMORY);
+    memset(ctx, 0, sizeof(UA_BasicClientConnectionContext));
+    client->connection.state = UA_CONNECTIONSTATE_CLOSED;
+    ctx->client = client;
+    ctx->isInitial = true;
+
+    UA_ConnectionManager *cm = UA_ConnectionManager_TCP_new(UA_STRING("tcpCM"));
+    UA_CHECK_MEM(cm, return UA_STATUSCODE_BADOUTOFMEMORY);
+
+    cm->connectionCallback = connectionCallback;
+    cm->initialConnectionContext = ctx;
+
+    ctx->cm = cm;
+    UA_StatusCode rv = UA_EventLoop_registerEventSource(
+        UA_Client_getConfig(client)->eventLoop, (UA_EventSource *) cm);
+    UA_CHECK_STATUS(rv, return rv);
+
+    UA_Client_getConfig(client)->cm = cm;
+
+    return UA_STATUSCODE_GOOD;
+}
+
+
 UA_StatusCode
 UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout) {
     /* Process timed (repeated) jobs */
@@ -765,8 +871,17 @@ UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout) {
     //     maxDate = now + ((UA_DateTime)timeout * UA_DATETIME_MSEC);
 
     UA_ClientConfig *cc = UA_Client_getConfig(client);
-    UA_EventLoop_run(cc->eventLoop, 1000);
 
+    if (cc->cm == NULL) {
+        UA_Client_setupEventLoop(client);
+    }
+
+    if (UA_EventLoop_getState(cc->eventLoop) == UA_EVENTLOOPSTATE_STOPPED ||
+        UA_EventLoop_getState(cc->eventLoop) == UA_EVENTLOOPSTATE_FRESH) {
+        UA_StatusCode rv = UA_EventLoop_start(cc->eventLoop);
+        UA_CHECK_STATUS(rv, return rv);
+    }
+    UA_EventLoop_run(cc->eventLoop, 1000);
     /* Make sure we have an open channel */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if((client->noSession && client->channel.state != UA_SECURECHANNELSTATE_OPEN) ||

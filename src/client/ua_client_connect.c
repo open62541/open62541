@@ -867,6 +867,8 @@ createSessionAsync(UA_Client *client) {
 
 static UA_StatusCode
 initConnect(UA_Client *client);
+static UA_StatusCode
+UA_Client_make_connection(UA_Client *client);
 
 UA_StatusCode
 connectIterate(UA_Client *client, UA_UInt32 timeout) {
@@ -890,7 +892,7 @@ connectIterate(UA_Client *client, UA_UInt32 timeout) {
     /* The connection is closed. Reset the SecureChannel and open a new TCP
      * connection TODO: do connection creation via cm */
     if(client->connection.state == UA_CONNECTIONSTATE_CLOSED)
-        return initConnect(client);
+        return UA_Client_make_connection(client);
 
     /* Poll the connection status */
     if(client->connection.state == UA_CONNECTIONSTATE_OPENING) {
@@ -1134,11 +1136,24 @@ typedef struct {
 static UA_StatusCode
 UA_Client_make_connection(UA_Client *client) {
 
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+
+    if (cc->cm == NULL) {
+        UA_StatusCode rv = UA_Client_setupEventLoop(client);
+        UA_CHECK_STATUS(rv, return rv);
+    }
+
+    // if (UA_EventLoop_getState(cc->eventLoop) == UA_EVENTLOOPSTATE_STOPPED) {
+    //     UA_StatusCode rv = UA_EventLoop_start(cc->eventLoop);
+    //     UA_CHECK_STATUS(rv, return rv);
+    // }
+
     UA_StatusCode rv = initConnect(client);
+    UA_CHECK_STATUS(rv, return rv);
     /* TODO: check rv */
 
-    UA_BasicConnectionContext *ctx = (UA_BasicConnectionContext*) UA_malloc(sizeof(UA_ConnectionContext));
-    memset(ctx, 0, sizeof(UA_BasicConnectionContext));
+    UA_BasicClientConnectionContext *ctx = (UA_BasicClientConnectionContext*) UA_malloc(sizeof(UA_ClientConnectionContext));
+    memset(ctx, 0, sizeof(UA_BasicClientConnectionContext));
 
     ctx->isInitial = true;
     ctx->cm = client->config.cm;
@@ -1149,16 +1164,11 @@ UA_Client_make_connection(UA_Client *client) {
     }
 
     rv = client->config.cm->openConnection(client->config.cm, client->endpointUrl, ctx);
-    /* TODO: check rv */
+    UA_CHECK_STATUS_ERROR(rv, return UA_STATUSCODE_BADCONNECTIONREJECTED,
+                          &client->config.logger, UA_LOGCATEGORY_CLIENT, "Error on opening connection");
 
     client->connection.handle = ctx;
-
-    // UA_Connection connection;
-    // memset(&connection, 0, sizeof(UA_Connection));
-
-    // connection.handle = ctx;
-
-    // client->connection = connection;
+    client->connection.state = UA_CONNECTIONSTATE_ESTABLISHED;
 
     return rv;
 }
@@ -1172,8 +1182,14 @@ UA_Client_connect(UA_Client *client, const char *endpointUrl) {
 
     /* Open a Session when possible */
     client->noSession = false;
-
+    if (client->connection.handle == NULL) {
+        client->connection = client->config.initConnectionFunc(
+            client->config.localConnectionConfig, client->endpointUrl,
+            client->config.timeout, &client->config.logger);
+    }
     UA_StatusCode rv = UA_Client_make_connection(client);
+
+    UA_Client_run_iterate(client, 1000000);
 
     return rv;
     /* Connect Synchronous */
