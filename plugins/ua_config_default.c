@@ -744,6 +744,7 @@ UA_Client * UA_Client_new() {
     return UA_Client_newWithConfig(&config);
 }
 
+
 UA_StatusCode
 UA_ClientConfig_setDefault(UA_ClientConfig *config) {
     config->timeout = 5000;
