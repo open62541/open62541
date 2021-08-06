@@ -35,7 +35,6 @@
 #include <sys/resource.h>
 
 /* XSK kernel headers */
-#include <ua_util_internal.h>
 
 #include <linux/bpf.h>
 #include <linux/if_link.h>
@@ -766,7 +765,7 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
     if(UA_ioctl(sockFd, SIOCGIFINDEX, &ifreq) < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-           "PubSub connection creation failed. Cannot get interface index. (%s)", errno_str));
+           "PubSub connection creation failed. Cannot get interface index for \'%s\'. (%s)", ifreq.ifr_name, errno_str));
         UA_close(sockFd);
         UA_free(channelDataEthernet);
         UA_free(newChannel);
