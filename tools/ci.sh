@@ -80,7 +80,7 @@ function build_amalgamation {
 
 function set_capabilities {
     for filename in bin/tests/*; do
-        sudo setcap cap_net_raw,cap_net_admin=eip $filename
+        sudo setcap cap_sys_ptrace,cap_net_raw,cap_net_admin=eip $filename
     done
 } 
 
