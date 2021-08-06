@@ -370,7 +370,7 @@ verifyAndDecryptNetworkMessage(const UA_Logger *logger, UA_ByteString *buffer,
 /* Takes a value (and not a pointer) to the buffer. The original buffer is
    const. Internally we may adjust the length during decryption. */
 UA_StatusCode
-decodeNetworkMessage(UA_Server *server, UA_ByteString buffer, size_t *pos,
+decodeNetworkMessage(UA_Server *server, UA_ByteString *buffer, size_t *pos,
                      UA_NetworkMessage *nm, UA_PubSubConnection *connection);
 
 UA_StatusCode
