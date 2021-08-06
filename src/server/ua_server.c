@@ -610,7 +610,8 @@ connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 static void
 UA_Server_setupEventLoop(UA_Server *server) {
 
-    UA_BasicConnectionContext *ctx = (UA_BasicConnectionContext*) UA_malloc(sizeof(UA_ConnectionContext));
+    /* TODO: check mem and error (and return statuscode errors */
+    UA_BasicConnectionContext *ctx = (UA_BasicConnectionContext*) UA_malloc(sizeof(UA_BasicConnectionContext));
     memset(ctx, 0, sizeof(UA_BasicConnectionContext));
 
     ctx->server = server;
@@ -757,10 +758,36 @@ serverExecuteRepeatedCallback(UA_Server *server, UA_ApplicationCallback cb,
 UA_UInt16
 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
 
-    UA_LOCK(&server->serviceMutex);
     UA_EventLoop_run(server->config.eventLoop, 1000000);
-    UA_UNLOCK(&server->serviceMutex);
 
+#if defined(UA_ENABLE_PUBSUB_MQTT)
+    /* Listen on the pubsublayer, but only if the yield function is set */
+    UA_PubSubConnection *connection;
+    TAILQ_FOREACH(connection, &server->pubSubManager.connections, listEntry){
+        UA_PubSubConnection *ps = connection;
+        if(ps && ps->channel->yield){
+            ps->channel->yield(ps->channel, timeout);
+        }
+    }
+#endif
+
+    UA_LOCK(&server->serviceMutex);
+#if defined(UA_ENABLE_DISCOVERY_MULTICAST) && (UA_MULTITHREADING < 200)
+    if(server->config.mdnsEnabled) {
+        /* TODO multicastNextRepeat does not consider new input data (requests)
+         * on the socket. It will be handled on the next call. if needed, we
+         * need to use select with timeout on the multicast socket
+         * server->mdnsSocket (see example in mdnsd library) on higher level. */
+        UA_DateTime multicastNextRepeat = 0;
+        UA_StatusCode hasNext =
+            iterateMulticastDiscoveryServer(server, &multicastNextRepeat, true);
+        UA_CHECK_STATUS(hasNext, (void)0);
+        // if(hasNext == UA_STATUSCODE_GOOD && multicastNextRepeat < nextRepeated)
+        //     nextRepeated = multicastNextRepeat;
+    }
+#endif
+
+    UA_UNLOCK(&server->serviceMutex);
     return 0;
 }
 
