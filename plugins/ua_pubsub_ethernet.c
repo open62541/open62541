@@ -39,15 +39,17 @@
 #include <linux/bpf.h>
 #include <linux/if_link.h>
 
-#if __has_include(<bpf/bpf.h>) && __has_include(<bpf/libbpf.h>) && __has_include(<bpf/xsk.h>)
-#define LIBBPF_EBPF
-/* Libbpf headers */
-#include <bpf/bpf.h>
-#include <bpf/libbpf.h>
-#ifndef asm
-#define asm __asm__
-#endif
-#include <bpf/xsk.h>
+#if defined __has_include
+#   if __has_include(<bpf/bpf.h>) && __has_include(<bpf/libbpf.h>) && __has_include(<bpf/xsk.h>)
+#       define LIBBPF_EBPF
+        /* Libbpf headers */
+#       include <bpf/bpf.h>
+#       include <bpf/libbpf.h>
+#       ifndef asm
+#           define asm __asm__
+#       endif
+#       include <bpf/xsk.h>
+#   endif
 #endif
 #endif
 
