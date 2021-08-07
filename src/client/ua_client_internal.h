@@ -163,9 +163,16 @@ void closeSecureChannel(UA_Client *client);
 UA_StatusCode
 connectIterate(UA_Client *client, UA_UInt32 timeout);
 
+void connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
+                        void **connectionContext, UA_StatusCode stat,
+                        UA_ByteString msg);
+
 UA_StatusCode
 receiveResponseAsync(UA_Client *client, UA_UInt32 timeout);
 
+UA_StatusCode
+processResponse(UA_Client *client, UA_ByteString* msg, void* response, const UA_DataType *responseType,
+                const UA_UInt32 *synchronousRequestId);
 _UA_END_DECLS
 
 #endif /* UA_CLIENT_INTERNAL_H_ */
