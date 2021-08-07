@@ -502,10 +502,15 @@ unpackPayloadOPN(UA_SecureChannel *channel, UA_Chunk *chunk, void *application) 
     UA_CHECK_STATUS(res, return res);
 
     if(asymHeader.senderCertificate.length > 0) {
-        if(channel->certificateVerification)
-            res = channel->certificateVerification->
-                verifyCertificate(channel->certificateVerification->context,
-                                  &asymHeader.senderCertificate);
+        if(channel->certificateVerification) {
+            res = channel->certificateVerification->verifyCertificate(
+                channel->certificateVerification->context, &asymHeader.senderCertificate);
+            if(res == UA_STATUSCODE_BADCERTIFICATEUNTRUSTED &&
+               channel->certificateVerification->untrustedCertificateRejectionCallback) {
+                channel->certificateVerification->untrustedCertificateRejectionCallback(
+                    &asymHeader.senderCertificate);
+            }
+        }
         else
             res = UA_STATUSCODE_BADINTERNALERROR;
         UA_CHECK_STATUS(res, goto error);

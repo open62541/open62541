@@ -44,6 +44,10 @@ struct UA_CertificateVerification {
                                           const UA_ByteString *certificate,
                                           const UA_String *applicationURI);
 
+    /* Callback for rejecting an untrusted certificate*/
+    void (*untrustedCertificateRejectionCallback)(
+        const UA_ByteString *rejectedCertificate);
+
     /* Delete the certificate verification context */
     void (*clear)(UA_CertificateVerification *cv);
 };
