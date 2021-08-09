@@ -77,7 +77,7 @@ START_TEST(connectTCP) {
 
     /* Open a client connection */
     clientId = 0;
-    UA_StatusCode retval = cm->openConnection(cm, UA_STRING("localhost:4840"), (void*)0x01);
+    UA_StatusCode retval = cm->openConnection(cm, UA_STRING("opc.tcp://localhost:4840"), (void*)0x01);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     for(size_t i = 0; i < 10; i++) {
         UA_DateTime next = UA_EventLoop_run(el, 1);
