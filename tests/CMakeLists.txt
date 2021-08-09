@@ -233,10 +233,6 @@ add_executable(check_securechannel check_securechannel.c $<TARGET_OBJECTS:open62
 target_link_libraries(check_securechannel ${LIBS})
 add_test_valgrind(securechannel ${TESTS_BINARY_DIR}/check_securechannel)
 
-add_executable(check_timer check_timer.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
-target_link_libraries(check_timer ${LIBS})
-add_test_valgrind(timer ${TESTS_BINARY_DIR}/check_timer)
-
 add_executable(check_eventloop check_eventloop.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_eventloop ${LIBS})
 add_test_valgrind(eventloop ${TESTS_BINARY_DIR}/check_eventloop)
