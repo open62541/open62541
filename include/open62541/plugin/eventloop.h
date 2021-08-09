@@ -105,6 +105,10 @@ UA_EventLoop_addCyclicCallback(UA_EventLoop *el, UA_Callback cb,
                                UA_UInt64 *callbackId);
 
 UA_EXPORT UA_StatusCode
+UA_EventLoop_addTimedCallback(UA_EventLoop *el, UA_Callback callback,
+                              void *application, void *data, UA_DateTime date,
+                              UA_UInt64 *callbackId);
+UA_EXPORT UA_StatusCode
 UA_EventLoop_modifyCyclicCallback(UA_EventLoop *el, UA_UInt64 callbackId,
                                   UA_Double interval_ms, UA_DateTime *baseTime,
                                   UA_TimerPolicy timerPolicy);

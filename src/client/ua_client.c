@@ -19,11 +19,13 @@
  */
 
 #include <open62541/types_generated_encoding_binary.h>
+
 #include "open62541/transport_generated.h"
 
 #include "ua_client_internal.h"
 #include "ua_connection_internal.h"
 #include "ua_types_encoding_binary.h"
+#include <ua_util_internal.h>
 
 /********************/
 /* Client Lifecycle */
@@ -33,7 +35,6 @@ static void
 UA_Client_init(UA_Client* client) {
     UA_SecureChannel_init(&client->channel, &client->config.localConnectionConfig);
     client->connectStatus = UA_STATUSCODE_GOOD;
-    UA_Timer_init(&client->timer);
     notifyClientState(client);
 }
 
@@ -114,8 +115,10 @@ UA_Client_clear(UA_Client *client) {
     UA_Client_Subscriptions_clean(client);
 #endif
 
-    /* Delete the timed work */
-    UA_Timer_clear(&client->timer);
+    /* Delete the eventloop */
+    if (!client->config.externalEventLoop) {
+       UA_EventLoop_delete(client->config.eventLoop);
+    }
 }
 
 void
@@ -629,7 +632,7 @@ UA_Client_sendAsyncRequest(UA_Client *client, const void *request,
 UA_StatusCode UA_EXPORT
 UA_Client_addTimedCallback(UA_Client *client, UA_ClientCallback callback,
                            void *data, UA_DateTime date, UA_UInt64 *callbackId) {
-    return UA_Timer_addTimedCallback(&client->timer, (UA_ApplicationCallback)callback,
+    return UA_EventLoop_addTimedCallback(client->config.eventLoop, (UA_Callback)callback,
                                      client, data, date, callbackId);
 }
 
@@ -638,26 +641,25 @@ UA_Client_addRepeatedCallback(UA_Client *client, UA_ClientCallback callback,
                               void *data, UA_Double interval_ms, UA_UInt64 *callbackId) {
 
     return UA_EventLoop_addCyclicCallback(
-        client->config.eventLoop, (UA_ApplicationCallback)callback, client, data,
+        client->config.eventLoop, (UA_Callback)callback, client, data,
         interval_ms, NULL, UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME, callbackId);
-
-    // return UA_Timer_addRepeatedCallback(&client->timer, (UA_ApplicationCallback)callback,
-    //                                     client, data, interval_ms, NULL,
-    //                                     UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME, callbackId);
 }
 
 UA_StatusCode
 UA_Client_changeRepeatedCallbackInterval(UA_Client *client, UA_UInt64 callbackId,
                                          UA_Double interval_ms) {
-    return UA_Timer_changeRepeatedCallback(&client->timer, callbackId, interval_ms, NULL, UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME);
+    return UA_EventLoop_modifyCyclicCallback(client->config.eventLoop, callbackId,
+                                             interval_ms, NULL, UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME);
 }
 
 void
 UA_Client_removeCallback(UA_Client *client, UA_UInt64 callbackId) {
-    UA_Timer_removeCallback(&client->timer, callbackId);
+    UA_StatusCode rv = UA_EventLoop_removeCyclicCallback(client->config.eventLoop, callbackId);
+    UA_CHECK_STATUS_WARN(rv, return, &client->config.logger, UA_LOGCATEGORY_CLIENT,
+                         "failed removing callback: %ld", callbackId);
 }
 
-static void
+void
 asyncServiceTimeoutCheck(UA_Client *client) {
     AsyncServiceCall *ac, *ac_tmp;
     UA_DateTime now = UA_DateTime_nowMonotonic();
@@ -683,7 +685,7 @@ backgroundConnectivityCallback(UA_Client *client, void *userdata,
     client->lastConnectivityCheck = UA_DateTime_nowMonotonic();
 }
 
-static void
+void
 UA_Client_backgroundConnectivity(UA_Client *client) {
     if(!client->config.connectivityCheckInterval)
         return;
@@ -713,69 +715,6 @@ UA_Client_backgroundConnectivity(UA_Client *client) {
     if(retval == UA_STATUSCODE_GOOD)
         client->pendingConnectivityCheck = true;
 }
-
-static void
-clientExecuteRepeatedCallback(void *executionApplication, UA_ApplicationCallback cb,
-                              void *callbackApplication, void *data) {
-    cb(callbackApplication, data);
-}
-
-UA_StatusCode
-UA_Client_eventloop_run_iterate(UA_Client *client, UA_UInt32 timeout) {
-    /* Process timed (repeated) jobs */
-    UA_DateTime now = UA_DateTime_nowMonotonic();
-    UA_DateTime maxDate =
-            UA_Timer_process(&client->timer, now, (UA_TimerExecutionCallback)
-                    clientExecuteRepeatedCallback, client);
-    if(maxDate > now + ((UA_DateTime)timeout * UA_DATETIME_MSEC))
-        maxDate = now + ((UA_DateTime)timeout * UA_DATETIME_MSEC);
-
-    /* Make sure we have an open channel */
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if((client->noSession && client->channel.state != UA_SECURECHANNELSTATE_OPEN) ||
-       client->sessionState < UA_SESSIONSTATE_ACTIVATED) {
-        retval = connectIterate(client, timeout);
-        notifyClientState(client);
-        return retval;
-    }
-
-    /* Renew Secure Channel */
-    UA_Client_renewSecureChannel(client);
-    if(client->connectStatus != UA_STATUSCODE_GOOD)
-        return client->connectStatus;
-
-    /* Feed the server PublishRequests for the Subscriptions */
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-    UA_Client_Subscriptions_backgroundPublish(client);
-#endif
-
-    /* Send read requests from time to time to test the connectivity */
-    UA_Client_backgroundConnectivity(client);
-
-    /* Listen on the network for the given timeout */
-    retval = receiveResponse(client, NULL, NULL, maxDate, NULL);
-    if(retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
-        retval = UA_STATUSCODE_GOOD;
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_CHANNEL(&client->config.logger, &client->channel,
-                               "Could not receive with StatusCode %s",
-                               UA_StatusCode_name(retval));
-    }
-
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-    /* The inactivity check must be done after receiveServiceResponse*/
-    UA_Client_Subscriptions_backgroundPublishInactivityCheck(client);
-#endif
-
-    /* Did async services time out? Process callbacks with an error code */
-    asyncServiceTimeoutCheck(client);
-
-    /* Log and notify user if the client state has changed */
-    notifyClientState(client);
-
-    return client->connectStatus;
-}
-
 
 UA_StatusCode
 UA_Client_setupEventLoop(UA_Client *client) {

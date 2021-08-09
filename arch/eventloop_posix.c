@@ -118,38 +118,17 @@ calculateNextTime(UA_DateTime currentTime, UA_DateTime baseTime,
     return currentTime + interval - cycleDelay;
 }
 
+static
 UA_StatusCode
-UA_EventLoop_addCyclicCallback(UA_EventLoop *el, UA_Callback cb,
-                               void *application, void *data, UA_Double interval_ms,
-                               UA_DateTime *baseTime, UA_TimerPolicy timerPolicy,
-                               UA_UInt64 *callbackId) {
-    /* A callback method needs to be present */
-    if(!cb)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    /* The interval needs to be positive */
-    if(interval_ms <= 0.0)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    UA_UInt64 interval = (UA_UInt64)(interval_ms * UA_DATETIME_MSEC);
-    if(interval == 0)
-        return UA_STATUSCODE_BADINTERNALERROR;
+addCallback(UA_EventLoop *el, UA_Callback cb, void *application, void *data,
+            UA_TimerPolicy timerPolicy, UA_UInt64 *callbackId, UA_UInt64 interval,
+            UA_DateTime nextTime) { /* Set the repeated callback */
 
     /* Allocate the repeated callback structure */
     UA_TimerEntry *te = (UA_TimerEntry*)UA_malloc(sizeof(UA_TimerEntry));
     if(!te)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    /* Compute the first time for execution */
-    UA_DateTime currentTime = UA_DateTime_nowMonotonic();
-    UA_DateTime nextTime;
-    if(baseTime == NULL) {
-        /* Use "now" as the basetime */
-        nextTime = currentTime + (UA_DateTime)interval;
-    } else {
-        nextTime = calculateNextTime(currentTime, *baseTime, (UA_DateTime)interval);
-    }
-
-    /* Set the repeated callback */
     te->interval = interval;
     te->callback = cb;
     te->application = application;
@@ -167,6 +146,45 @@ UA_EventLoop_addCyclicCallback(UA_EventLoop *el, UA_Callback cb,
     UA_UNLOCK(&el->elMutex);
 
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_EventLoop_addTimedCallback(UA_EventLoop *el, UA_Callback callback,
+                              void *application, void *data, UA_DateTime date,
+                              UA_UInt64 *callbackId) {
+    UA_StatusCode res = addCallback(el, callback, application, data,
+                                    UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME, callbackId, 0, date);
+    return res;
+}
+
+UA_StatusCode
+UA_EventLoop_addCyclicCallback(UA_EventLoop *el, UA_Callback cb,
+                               void *application, void *data, UA_Double interval_ms,
+                               UA_DateTime *baseTime, UA_TimerPolicy timerPolicy,
+                               UA_UInt64 *callbackId) {
+    /* A callback method needs to be present */
+    if(!cb)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* The interval needs to be positive */
+    if(interval_ms <= 0.0)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_UInt64 interval = (UA_UInt64)(interval_ms * UA_DATETIME_MSEC);
+    if(interval == 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+
+    /* Compute the first time for execution */
+    UA_DateTime currentTime = UA_DateTime_nowMonotonic();
+    UA_DateTime nextTime;
+    if(baseTime == NULL) {
+        /* Use "now" as the basetime */
+        nextTime = currentTime + (UA_DateTime)interval;
+    } else {
+        nextTime = calculateNextTime(currentTime, *baseTime, (UA_DateTime)interval);
+    }
+    return addCallback(el, cb, application, data, timerPolicy, callbackId, interval,
+                       nextTime);
 }
 
 UA_StatusCode

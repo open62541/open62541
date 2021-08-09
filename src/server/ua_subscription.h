@@ -21,7 +21,6 @@
 #include <open62541/plugin/nodestore.h>
 
 #include "ua_session.h"
-#include "ua_timer.h"
 #include "ua_util_internal.h"
 
 _UA_BEGIN_DECLS
@@ -149,7 +148,7 @@ void UA_Notification_delete(UA_Server *server, UA_Notification *n);
 typedef TAILQ_HEAD(NotificationQueue, UA_Notification) NotificationQueue;
 
 struct UA_MonitoredItem {
-    UA_TimerEntry delayedFreePointers;
+    UA_DelayedCallback delayedFreePointers;
     LIST_ENTRY(UA_MonitoredItem) listEntry;
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     UA_MonitoredItem *next; /* Linked list of MonitoredItems directly attached
@@ -249,7 +248,7 @@ typedef TAILQ_HEAD(ListOfNotificationMessages, UA_NotificationMessageEntry) List
  * may keep Subscriptions intact beyond the Session lifetime. They can then be
  * re-bound to a new Session with the TransferSubscription Service. */
 struct UA_Subscription {
-    UA_TimerEntry delayedFreePointers;
+    UA_DelayedCallback delayedFreePointers;
     LIST_ENTRY(UA_Subscription) serverListEntry;
     TAILQ_ENTRY(UA_Subscription) sessionListEntry; /* Only set if session != NULL */
     UA_Session *session; /* May be NULL if no session is attached. */

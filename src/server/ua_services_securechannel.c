@@ -68,12 +68,14 @@ removeSecureChannel(UA_Server *server, channel_entry *entry,
 
     /* Add a delayed callback to remove the channel when the currently
      * scheduled jobs have completed */
-    entry->cleanupCallback.callback = (UA_ApplicationCallback)removeSecureChannelCallback;
+    entry->cleanupCallback.callback = (UA_Callback)removeSecureChannelCallback;
     entry->cleanupCallback.application = NULL;
     entry->cleanupCallback.data = entry;
-    entry->cleanupCallback.nextTime = UA_DateTime_nowMonotonic() + 1;
-    entry->cleanupCallback.interval = 0; /* Remove the structure */
-    UA_Timer_addTimerEntry(&server->timer, &entry->cleanupCallback, NULL);
+
+    /* TODO: check if its okay to comment thos e out */
+    // entry->cleanupCallback.nextTime = UA_DateTime_nowMonotonic() + 1;
+    // entry->cleanupCallback.interval = 0; /* Remove the structure */
+    UA_EventLoop_addDelayedCallback(server->config.eventLoop, &entry->cleanupCallback);
 }
 
 void

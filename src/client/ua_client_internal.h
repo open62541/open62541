@@ -20,7 +20,6 @@
 
 #include "open62541_queue.h"
 #include "ua_securechannel.h"
-#include "ua_timer.h"
 
 _UA_BEGIN_DECLS
 
@@ -109,7 +108,6 @@ typedef struct CustomCallback {
 
 struct UA_Client {
     UA_ClientConfig config;
-    UA_Timer timer;
 
     /* Overall connection status */
     UA_StatusCode connectStatus;
@@ -163,6 +161,10 @@ void closeSecureChannel(UA_Client *client);
 UA_StatusCode
 connectIterate(UA_Client *client, UA_UInt32 timeout);
 
+void
+UA_Client_backgroundConnectivity(UA_Client *client);
+void
+asyncServiceTimeoutCheck(UA_Client *client);
 UA_StatusCode
 connectIterateEventloop(UA_Client *client);
 

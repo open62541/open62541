@@ -554,9 +554,11 @@ UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon) {
     mon->delayedFreePointers.callback = NULL;
     mon->delayedFreePointers.application = server;
     mon->delayedFreePointers.data = NULL;
-    mon->delayedFreePointers.nextTime = UA_DateTime_nowMonotonic() + 1;
-    mon->delayedFreePointers.interval = 0;
-    UA_Timer_addTimerEntry(&server->timer, &mon->delayedFreePointers, NULL);
+
+    /* TODO: okay to ocmment out? */
+    // mon->delayedFreePointers.nextTime = UA_DateTime_nowMonotonic() + 1;
+    // mon->delayedFreePointers.interval = 0;
+    UA_EventLoop_addDelayedCallback(server->config.eventLoop, &mon->delayedFreePointers);
 }
 
 void

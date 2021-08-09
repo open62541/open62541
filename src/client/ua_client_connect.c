@@ -11,6 +11,8 @@
 #include <open62541/transport_generated_handling.h>
 #include <open62541/types_generated_encoding_binary.h>
 
+#include "ua_util_internal.h"
+
 #include "ua_client_internal.h"
 
 #define UA_MINMESSAGESIZE 8192
@@ -1404,17 +1406,58 @@ connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
     UA_ClientConnectionContext *conCtx = (UA_ClientConnectionContext *) *connectionContext;
     UA_Client *client = conCtx->base.client;
-
-    if (msg.data != NULL) {
-        rv = connectionCallbackReceive(conCtx, msg);
-        UA_CHECK_STATUS_ERROR(rv, return, &client->config.logger,
-                              UA_LOGCATEGORY_CLIENT, "Receiving msg failed");
-    }// else {
+    if((client->noSession && client->channel.state != UA_SECURECHANNELSTATE_OPEN) ||
+        client->sessionState < UA_SESSIONSTATE_ACTIVATED) {
+        if(msg.data != NULL) {
+            rv = connectionCallbackReceive(conCtx, msg);
+            UA_CHECK_STATUS_ERROR(rv, return, &client->config.logger,
+                                  UA_LOGCATEGORY_CLIENT, "Receiving msg failed");
+        }  // else {
         rv = connectionCallbackSend(conCtx);
-        UA_CHECK_STATUS_ERROR(rv, return, &client->config.logger,
-                              UA_LOGCATEGORY_CLIENT, "sending msg failed");
-    // }
-    notifyClientState(client);
+        UA_CHECK_STATUS_ERROR(rv, return, &client->config.logger, UA_LOGCATEGORY_CLIENT,
+                              "sending msg failed");
+        // }
+        notifyClientState(client);
+    } else {
+
+        /* Renew Secure Channel */
+        UA_Client_renewSecureChannel(client);
+        UA_CHECK_STATUS_ERROR(client->connectStatus,
+                              return, &client->config.logger, UA_LOGCATEGORY_CLIENT,
+                              "renew channel failed");
+
+            /* Feed the server PublishRequests for the Subscriptions */
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+        UA_Client_Subscriptions_backgroundPublish(client);
+#endif
+
+        /* Send read requests from time to time to test the connectivity */
+        UA_Client_backgroundConnectivity(client);
+
+        /* Listen on the network for the given timeout */
+
+        rv = processResponse(client, &msg, NULL, NULL, NULL);
+        if(rv == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
+            rv = UA_STATUSCODE_GOOD;
+        if(rv != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING_CHANNEL(&client->config.logger, &client->channel,
+                                   "Could not receive with StatusCode %s",
+                                   UA_StatusCode_name(rv));
+        }
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+        /* The inactivity check must be done after receiveServiceResponse*/
+        UA_Client_Subscriptions_backgroundPublishInactivityCheck(client);
+#endif
+
+        /* Did async services time out? Process callbacks with an error code */
+        asyncServiceTimeoutCheck(client);
+
+        /* Log and notify user if the client state has changed */
+        notifyClientState(client);
+
+        return;
+    }
 }
 
 UA_StatusCode

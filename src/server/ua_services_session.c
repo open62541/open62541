@@ -89,12 +89,14 @@ UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
 
     /* Add a delayed callback to remove the session when the currently
      * scheduled jobs have completed */
-    sentry->cleanupCallback.callback = (UA_ApplicationCallback)removeSessionCallback;
+    sentry->cleanupCallback.callback = (UA_Callback)removeSessionCallback;
     sentry->cleanupCallback.application = server;
     sentry->cleanupCallback.data = sentry;
-    sentry->cleanupCallback.nextTime = UA_DateTime_nowMonotonic() + 1;
-    sentry->cleanupCallback.interval = 0; /* Remove the structure */
-    UA_Timer_addTimerEntry(&server->timer, &sentry->cleanupCallback, NULL);
+    /* TODO: check if this is okay to be commented out */
+    // sentry->cleanupCallback.nextTime = UA_DateTime_nowMonotonic() + 1;
+    // sentry->cleanupCallback.interval = 0; /* Remove the structure */
+
+    UA_EventLoop_addDelayedCallback(server->config.eventLoop, &sentry->cleanupCallback);
 }
 
 UA_StatusCode

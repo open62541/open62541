@@ -831,7 +831,6 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/transport_generated_encoding_binary.h
                      ${PROJECT_SOURCE_DIR}/src/ua_connection_internal.h
                      ${PROJECT_SOURCE_DIR}/src/ua_securechannel.h
-                     ${PROJECT_SOURCE_DIR}/src/ua_timer.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_session.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.h
                      ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage.h
@@ -852,7 +851,6 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_BINARY_DIR}/src_generated/open62541/transport_generated.c
                 ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.c
                 ${PROJECT_SOURCE_DIR}/src/ua_util.c
-                ${PROJECT_SOURCE_DIR}/src/ua_timer.c
                 ${PROJECT_SOURCE_DIR}/src/ua_connection.c
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel.c
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel_crypto.c
