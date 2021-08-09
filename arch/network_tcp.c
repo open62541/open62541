@@ -671,11 +671,14 @@ ClientNetworkLayerTCP_free(UA_Connection *connection) {
     if(!connection->handle)
         return;
 
-    TCPClientConnection *tcpConnection = (TCPClientConnection *)connection->handle;
-    if(tcpConnection->server)
-        UA_freeaddrinfo(tcpConnection->server);
-    UA_String_clear(&tcpConnection->endpointUrl);
-    UA_free(tcpConnection);
+    UA_free(connection->handle);
+
+    /* TODO: check to free more */
+    // TCPClientConnection *tcpConnection = (TCPClientConnection *)connection->handle;
+    // if(tcpConnection->server)
+    //     UA_freeaddrinfo(tcpConnection->server);
+    // UA_String_clear(&tcpConnection->endpointUrl);
+    // UA_free(tcpConnection);
     connection->handle = NULL;
 }
 
