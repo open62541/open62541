@@ -921,8 +921,8 @@ stopHandler(int sign) {
 
 static void
 usage(void) {
-    UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                   "Usage:\n"
+
+    const char * usageStr = ""
 #ifndef UA_ENABLE_ENCRYPTION
                    "server_ctt [<server-certificate.der>]\n"
 #else
@@ -943,7 +943,9 @@ usage(void) {
                    "\t[--disableBasic256Sha256]\n"
 #endif
                    "\t[--enableTimestampCheck]\n"
-                   "\t[--enableAnonymous]\n");
+                   "\t[--enableAnonymous]\n";
+    UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                   "Usage:\n%s", usageStr);
 }
 
 int main(int argc, char **argv) {
