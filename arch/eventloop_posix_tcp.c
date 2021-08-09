@@ -375,35 +375,35 @@ TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
 static UA_StatusCode
 TCP_openConnection(UA_ConnectionManager *cm, const UA_String connectString,
                    void *context) {
+
+    const UA_Logger *logger = UA_EventLoop_getLogger(cm->eventSource.eventLoop);
     UA_LOG_INFO(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
                 UA_LOGCATEGORY_NETWORK, "Open a TCP connection to %.*s",
                 (int)connectString.length, connectString.data);
 
-    /* Disect the connectString */
-    char hostname[256];
+    UA_String hostnameString = UA_STRING_NULL;
+    UA_String pathString = UA_STRING_NULL;
+    UA_UInt16 port = 0;
+    char hostname[512];
+
+    UA_StatusCode res =
+        UA_parseEndpointUrl(&connectString, &hostnameString, &port, &pathString);
+    if(res != UA_STATUSCODE_GOOD || hostnameString.length > 511) {
+        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+                       "Server url is invalid: %.*s",
+                       (int)connectString.length, connectString.data);
+        return UA_STATUSCODE_BADCONNECTIONREJECTED;
+    }
+    memcpy(hostname, hostnameString.data, hostnameString.length);
+    hostname[hostnameString.length] = 0;
+
+    if(port == 0) {
+        port = 4840;
+        UA_LOG_INFO(logger, UA_LOGCATEGORY_NETWORK,
+                    "No port defined, using default port %" PRIu16, port);
+    }
     char portStr[16];
-    const char *colon = (const char*)
-        memchr(connectString.data, ':', connectString.length);
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    if(colon) {
-        size_t hostnameLen = (uintptr_t)(colon - (const char*)connectString.data);
-        size_t portStrLen = connectString.length - hostnameLen - 1;
-        if(hostnameLen < 256 && portStrLen < 16) {
-            strncpy(hostname, (const char*)connectString.data, hostnameLen);
-            hostname[hostnameLen] = 0;
-            strncpy(portStr, colon+1, portStrLen);
-            portStr[portStrLen] = 0;
-        } else {
-            res = UA_STATUSCODE_BADINTERNALERROR;
-        }
-    } else {
-        res = UA_STATUSCODE_BADINTERNALERROR;
-    }
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
-                       UA_LOGCATEGORY_NETWORK, "Invalid connection string");
-        return res;
-    }
+    UA_snprintf(portStr, 16, "%d", port);
 
     /* Create the socket description from the connectString
      * TODO: Make this non-blocking */
