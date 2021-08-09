@@ -126,6 +126,7 @@ main(void) {
         /* if the connection is closed/errored, the connection will be reset and then reconnected */
         /* Alternatively you can also use UA_Client_getState to get the current state */
         UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+        // UA_StatusCode retval = UA_Client_connect(client, "localhost:4840");
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                          "Not connected. Retrying to connect in 1 second");
