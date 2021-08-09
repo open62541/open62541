@@ -948,6 +948,12 @@ if(UA_ENABLE_PUBSUB_ENCRYPTION)
     ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_pubsub_aes256ctr.c)
 endif()
 
+if(UA_ENABLE_ENCRYPTION_MBEDTLS OR UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL OR UA_ENABLE_AMALGAMATION)
+  list(APPEND default_plugin_headers
+      ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/create_certificate.h
+  )
+endif()
+
 if(UA_ENABLE_ENCRYPTION_MBEDTLS OR UA_ENABLE_AMALGAMATION)
 list(INSERT default_plugin_sources 1
      ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic128rsa15.c
@@ -966,6 +972,7 @@ list(INSERT default_plugin_sources 0
      ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_basic256.c
      ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_basic256sha256.c
      ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_aes128sha256rsaoaep.c
+     ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_create_certificate.c
      ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_pki_openssl.c)
 endif()
 
