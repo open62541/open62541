@@ -1396,8 +1396,6 @@ connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         return;
     }
 
-    UA_StatusCode rv = UA_STATUSCODE_GOOD;
-
     UA_Client *client = ctx->client;
     if (ctx->isInitial) {
         client->connectStatus = initConnection(connectionId, connectionContext, ctx);
@@ -1436,7 +1434,8 @@ connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
         /* Listen on the network for the given timeout */
 
-        client->connectStatus = processResponse(client, &msg, NULL, NULL, NULL);
+        client->connectStatus = processResponse(client, &msg, NULL,
+                                                NULL, NULL);
         if(client->connectStatus == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
             client->connectStatus = UA_STATUSCODE_GOOD;
         if(client->connectStatus != UA_STATUSCODE_GOOD) {
