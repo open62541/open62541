@@ -820,33 +820,39 @@ UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout) {
         UA_Client_setupEventLoop(client);
     }
 
-    if (UA_EventLoop_getState(cc->eventLoop) == UA_EVENTLOOPSTATE_STOPPED ||
-        UA_EventLoop_getState(cc->eventLoop) == UA_EVENTLOOPSTATE_FRESH) {
+    UA_CHECK_ERROR(UA_EventLoop_getState(cc->eventLoop) != UA_EVENTLOOPSTATE_STOPPED,
+                   return UA_STATUSCODE_BAD, &client->config.logger, UA_LOGCATEGORY_CLIENT,
+                   "Eventloop was explicitly stopped.");
+
+    if (UA_EventLoop_getState(cc->eventLoop) == UA_EVENTLOOPSTATE_FRESH) {
         UA_StatusCode rv = UA_EventLoop_start(cc->eventLoop);
         UA_CHECK_STATUS(rv, return rv);
     }
-    UA_EventLoop_run(cc->eventLoop, 1000);
+    UA_StatusCode rv = UA_EventLoop_run(cc->eventLoop, timeout);
+    return rv;
+
+
     /* Make sure we have an open channel */
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if((client->noSession && client->channel.state != UA_SECURECHANNELSTATE_OPEN) ||
-       client->sessionState < UA_SESSIONSTATE_ACTIVATED) {
-        retval = connectIterate(client, timeout);
-        notifyClientState(client);
-        return retval;
-    }
-
-    /* Renew Secure Channel */
-    UA_Client_renewSecureChannel(client);
-    if(client->connectStatus != UA_STATUSCODE_GOOD)
-        return client->connectStatus;
-
-    /* Feed the server PublishRequests for the Subscriptions */
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-    UA_Client_Subscriptions_backgroundPublish(client);
-#endif
-
-    /* Send read requests from time to time to test the connectivity */
-    UA_Client_backgroundConnectivity(client);
+//     UA_StatusCode retval = UA_STATUSCODE_GOOD;
+//     if((client->noSession && client->channel.state != UA_SECURECHANNELSTATE_OPEN) ||
+//        client->sessionState < UA_SESSIONSTATE_ACTIVATED) {
+//         retval = connectIterate(client, timeout);
+//         notifyClientState(client);
+//         return retval;
+//     }
+//
+//     /* Renew Secure Channel */
+//     UA_Client_renewSecureChannel(client);
+//     if(client->connectStatus != UA_STATUSCODE_GOOD)
+//         return client->connectStatus;
+//
+//     /* Feed the server PublishRequests for the Subscriptions */
+// #ifdef UA_ENABLE_SUBSCRIPTIONS
+//     UA_Client_Subscriptions_backgroundPublish(client);
+// #endif
+//
+//     /* Send read requests from time to time to test the connectivity */
+//     UA_Client_backgroundConnectivity(client);
 
     /* Listen on the network for the given timeout */
     // retval = receiveResponse(client, NULL, NULL, maxDate, NULL);
@@ -858,18 +864,18 @@ UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout) {
     //                            UA_StatusCode_name(retval));
     // }
 
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-    /* The inactivity check must be done after receiveServiceResponse*/
-    UA_Client_Subscriptions_backgroundPublishInactivityCheck(client);
-#endif
-
-    /* Did async services time out? Process callbacks with an error code */
-    asyncServiceTimeoutCheck(client);
-
-    /* Log and notify user if the client state has changed */
-    notifyClientState(client);
-
-    return client->connectStatus;
+// #ifdef UA_ENABLE_SUBSCRIPTIONS
+//     /* The inactivity check must be done after receiveServiceResponse*/
+//     UA_Client_Subscriptions_backgroundPublishInactivityCheck(client);
+// #endif
+//
+//     /* Did async services time out? Process callbacks with an error code */
+//     asyncServiceTimeoutCheck(client);
+//
+//     /* Log and notify user if the client state has changed */
+//     notifyClientState(client);
+//
+//     return client->connectStatus;
 }
 
 const UA_DataType *

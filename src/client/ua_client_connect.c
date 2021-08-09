@@ -871,6 +871,14 @@ static UA_StatusCode
 UA_Client_make_connection(UA_Client *client);
 
 UA_StatusCode
+initConnection(uintptr_t connectionId, void **connectionContext,
+                          UA_BasicClientConnectionContext *ctx);
+UA_StatusCode
+connectionCallbackSend(UA_ClientConnectionContext *ctx);
+UA_StatusCode
+connectionCallbackReceive(UA_ClientConnectionContext *ctx, UA_ByteString msg);
+
+UA_StatusCode
 connectIterate(UA_Client *client, UA_UInt32 timeout) {
     UA_LOG_TRACE(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                  "Client connect iterate");
@@ -945,10 +953,6 @@ connectIterate(UA_Client *client, UA_UInt32 timeout) {
     case UA_SECURECHANNELSTATE_ACK_RECEIVED:
         client->connectStatus = sendOPNAsync(client, false);
         return client->connectStatus;
-    // case UA_SECURECHANNELSTATE_HEL_SENT:
-    // case UA_SECURECHANNELSTATE_OPN_SENT:
-    //     client->connectStatus = receiveResponseAsync(client, timeout);
-    //     return client->connectStatus;
     default:
         break;
     }
@@ -1178,6 +1182,12 @@ UA_Client_make_connection(UA_Client *client) {
     return rv;
 }
 
+static UA_Boolean
+isConnected(UA_Client *client) {
+    return (client->sessionState == UA_SESSIONSTATE_ACTIVATED) ||
+    (client->noSession && client->channel.state == UA_SECURECHANNELSTATE_OPEN);
+}
+
 static UA_StatusCode
 connectSyncEventLoop(UA_Client *client) {
     UA_DateTime now = UA_DateTime_nowMonotonic();
@@ -1186,16 +1196,15 @@ connectSyncEventLoop(UA_Client *client) {
     UA_StatusCode rv = UA_Client_make_connection(client);
     UA_CHECK_STATUS(rv, return rv);
 
-    while(rv == UA_STATUSCODE_GOOD) {
-        if(client->sessionState == UA_SESSIONSTATE_ACTIVATED)
-            break;
-        if(client->noSession && client->channel.state == UA_SECURECHANNELSTATE_OPEN)
-            break;
+    while(!isConnected(client)) {
+
         now = UA_DateTime_nowMonotonic();
         if(maxDate < now)
             return UA_STATUSCODE_BADTIMEOUT;
         rv = UA_Client_run_iterate(client,
                                        (UA_UInt32)((maxDate - now) / UA_DATETIME_MSEC));
+        UA_CHECK_STATUS_ERROR(rv, return rv, &client->config.logger, UA_LOGCATEGORY_CLIENT,
+                              "connecting client failed");
     }
     return rv;
 }
@@ -1375,62 +1384,182 @@ connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     UA_LOG_DEBUG(UA_EventLoop_getLogger(cm->eventSource.eventLoop), UA_LOGCATEGORY_CLIENT,
                  "connection callback for id: %lu", connectionId);
 
-
     UA_BasicClientConnectionContext *ctx = (UA_BasicClientConnectionContext *) *connectionContext;
 
     if (stat != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(UA_EventLoop_getLogger(cm->eventSource.eventLoop), UA_LOGCATEGORY_CLIENT, "closing connection");
-
         if (!ctx->isInitial) {
             free(*connectionContext);
         }
         return;
     }
 
+    UA_StatusCode rv = UA_STATUSCODE_GOOD;
+
     if (ctx->isInitial) {
-        UA_ClientConnectionContext *newCtx = (UA_ClientConnectionContext*) calloc(1, sizeof(UA_ClientConnectionContext));
-        newCtx->base.isInitial = false;
-        newCtx->base.cm = ctx->cm;
-        newCtx->base.client = ctx->client;
-        newCtx->connectionId = connectionId;
-        newCtx->connection.close = UA_Connection_close;
-        newCtx->connection.free = ctx->client->connection.free;
-        newCtx->connection.getSendBuffer = UA_Connection_getSendBuffer;
-        newCtx->connection.recv = ctx->client->connection.recv;
-        newCtx->connection.releaseRecvBuffer = UA_Connection_releaseBuffer;
-        newCtx->connection.releaseSendBuffer = UA_Connection_releaseBuffer;
-        newCtx->connection.send = UA_Connection_send;
-        newCtx->connection.state = UA_CONNECTIONSTATE_ESTABLISHED;
-        newCtx->connection.sockfd = (int) connectionId;
-
-        newCtx->connection.handle = newCtx;
-
-        newCtx->base.client->connection = newCtx->connection;
-
-        *connectionContext = newCtx;
-
-    } else {
-        UA_ClientConnectionContext *clientCtx= (UA_ClientConnectionContext*) ctx;
-        if (msg.data != NULL) {
-            UA_LOG_DEBUG(UA_EventLoop_getLogger(cm->eventSource.eventLoop), UA_LOGCATEGORY_CLIENT, "received msg");
-            UA_Client *client = clientCtx->base.client;
-            switch(client->channel.state) {
-                case UA_SECURECHANNELSTATE_HEL_SENT:
-                case UA_SECURECHANNELSTATE_OPN_SENT:
-                    /* TODO: integrate timeout in context */
-                    client->connectStatus = processResponse(client, &msg, NULL, NULL, NULL);
-                    // return client->connectStatus;
-                default:
-                    break;
-            }
-
-        }
+        rv = initConnection(connectionId, connectionContext, ctx);
+        UA_CHECK_STATUS_ERROR(rv, return, UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+                              UA_LOGCATEGORY_CLIENT, "Initializing connection failed");
     }
 
-    // UA_ClientConnectionContext *conCtx = (UA_ClientConnectionContext *) *connectionContext;
+    UA_ClientConnectionContext *conCtx = (UA_ClientConnectionContext *) *connectionContext;
+    UA_Client *client = conCtx->base.client;
 
-    // if (msg.length > 0) {
-    //     // (ctx->server, &conCtx->connection, &msg);
+    if (msg.data != NULL) {
+        rv = connectionCallbackReceive(conCtx, msg);
+        UA_CHECK_STATUS_ERROR(rv, return, &client->config.logger,
+                              UA_LOGCATEGORY_CLIENT, "Receiving msg failed");
+    }// else {
+        rv = connectionCallbackSend(conCtx);
+        UA_CHECK_STATUS_ERROR(rv, return, &client->config.logger,
+                              UA_LOGCATEGORY_CLIENT, "sending msg failed");
     // }
+    notifyClientState(client);
 }
 
+UA_StatusCode
+connectionCallbackReceive(UA_ClientConnectionContext *ctx, UA_ByteString msg) {
+
+    UA_Client *client = ctx->base.client;
+    UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_CLIENT, "received msg");
+    switch(client->channel.state) {
+        case UA_SECURECHANNELSTATE_HEL_SENT:
+        case UA_SECURECHANNELSTATE_OPN_SENT:
+            /* TODO: integrate timeout in context */
+            client->connectStatus = processResponse(client, &msg, NULL, NULL, NULL);
+            return client->connectStatus;
+        default:
+            break;
+    }
+
+    /* Have a SecureChannel but no session */
+    if(client->noSession)
+        return client->connectStatus;
+
+    switch(client->sessionState) {
+        case UA_SESSIONSTATE_CLOSED:
+            processResponse(client, &msg, NULL, NULL, NULL);
+            return client->connectStatus;
+        case UA_SESSIONSTATE_CREATE_REQUESTED:
+        case UA_SESSIONSTATE_ACTIVATE_REQUESTED:
+            processResponse(client, &msg, NULL, NULL, NULL);
+            return client->connectStatus;
+        default:
+            break;
+    }
+
+
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+connectionCallbackSend(UA_ClientConnectionContext *ctx) {
+
+    UA_Client *client = ctx->base.client;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if((client->noSession && client->channel.state != UA_SECURECHANNELSTATE_OPEN) ||
+       client->sessionState < UA_SESSIONSTATE_ACTIVATED) {
+
+        /* Open the SecureChannel */
+        switch(client->channel.state) {
+            case UA_SECURECHANNELSTATE_FRESH:
+                client->connectStatus = sendHELMessage(client);
+                if(client->connectStatus == UA_STATUSCODE_GOOD) {
+                    client->channel.state = UA_SECURECHANNELSTATE_HEL_SENT;
+                } else {
+                    client->connection.close(&client->connection);
+                    client->connection.free(&client->connection);
+                }
+                return client->connectStatus;
+            case UA_SECURECHANNELSTATE_ACK_RECEIVED:
+                client->connectStatus = sendOPNAsync(client, false);
+                return client->connectStatus;
+            default:
+                break;
+        }
+
+        /* Have a SecureChannel but no session */
+        if(client->noSession)
+            return client->connectStatus;
+        /* Create and Activate the Session */
+        switch(client->sessionState) {
+            case UA_SESSIONSTATE_CLOSED:
+                if(!endpointUnconfigured(client)) {
+                    client->connectStatus = createSessionAsync(client);
+                    return client->connectStatus;
+                }
+                if(!client->endpointsHandshake) {
+                    client->connectStatus = requestGetEndpoints(client);
+                    return client->connectStatus;
+                }
+                return client->connectStatus;
+            case UA_SESSIONSTATE_CREATE_REQUESTED:
+            case UA_SESSIONSTATE_ACTIVATE_REQUESTED:
+                return client->connectStatus;
+            case UA_SESSIONSTATE_CREATED:
+                client->connectStatus = activateSessionAsync(client);
+                return client->connectStatus;
+            default:
+                break;
+        }
+
+        UA_CHECK_STATUS_ERROR(retval, return UA_STATUSCODE_BAD, &client->config.logger,
+                              UA_LOGCATEGORY_CLIENT, "Error connecting");
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+initConnection(uintptr_t connectionId, void **connectionContext,
+                          UA_BasicClientConnectionContext *ctx) {
+    UA_ClientConnectionContext *newCtx = (UA_ClientConnectionContext*) calloc(1, sizeof(UA_ClientConnectionContext));
+    UA_Client *client = ctx->client;
+    newCtx->base.isInitial = false;
+    newCtx->base.cm = ctx->cm;
+    newCtx->base.client = ctx->client;
+    newCtx->connectionId = connectionId;
+    newCtx->connection.close = UA_Connection_close;
+    newCtx->connection.free = ctx->client->connection.free;
+    newCtx->connection.getSendBuffer = UA_Connection_getSendBuffer;
+    newCtx->connection.recv = ctx->client->connection.recv;
+    newCtx->connection.releaseRecvBuffer = UA_Connection_releaseBuffer;
+    newCtx->connection.releaseSendBuffer = UA_Connection_releaseBuffer;
+    newCtx->connection.send = UA_Connection_send;
+    newCtx->connection.state = UA_CONNECTIONSTATE_ESTABLISHED;
+    newCtx->connection.sockfd = (int) connectionId;
+
+    newCtx->connection.handle = newCtx;
+
+    newCtx->base.client->connection = newCtx->connection;
+
+    *connectionContext = newCtx;
+
+    /* Attach the connection to the SecureChannel */
+    if(!client->channel.connection) {
+        UA_Connection_attachSecureChannel(&client->connection, &client->channel);
+    }
+    /* Set the SecurityPolicy */
+    if(!client->channel.securityPolicy) {
+        client->channel.securityMode = client->config.endpoint.securityMode;
+        if(client->channel.securityMode == UA_MESSAGESECURITYMODE_INVALID)
+            client->channel.securityMode = UA_MESSAGESECURITYMODE_NONE;
+
+        UA_SecurityPolicy *sp = NULL;
+        if(client->config.endpoint.securityPolicyUri.length == 0) {
+            sp = getSecurityPolicy(client,
+                                   UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None"));
+        } else {
+            sp = getSecurityPolicy(client, client->config.endpoint.securityPolicyUri);
+        }
+        UA_CHECK_MEM_ERROR(sp, return UA_STATUSCODE_BAD, &client->config.logger,
+                           UA_LOGCATEGORY_CLIENT, "Error getting security policy");
+
+        client->connectStatus =
+            UA_SecureChannel_setSecurityPolicy(&client->channel, sp,
+                                               &client->config.endpoint.serverCertificate);
+        UA_CHECK_STATUS_ERROR(client->connectStatus, return UA_STATUSCODE_BAD, &client->config.logger,
+                              UA_LOGCATEGORY_CLIENT, "Error setting security policy");
+    }
+    return UA_STATUSCODE_GOOD;
+}
