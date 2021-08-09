@@ -1398,23 +1398,23 @@ connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
     UA_StatusCode rv = UA_STATUSCODE_GOOD;
 
+    UA_Client *client = ctx->client;
     if (ctx->isInitial) {
-        rv = initConnection(connectionId, connectionContext, ctx);
-        UA_CHECK_STATUS_ERROR(rv, return, UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+        client->connectStatus = initConnection(connectionId, connectionContext, ctx);
+        UA_CHECK_STATUS_ERROR(client->connectStatus, return, UA_EventLoop_getLogger(cm->eventSource.eventLoop),
                               UA_LOGCATEGORY_CLIENT, "Initializing connection failed");
     }
 
     UA_ClientConnectionContext *conCtx = (UA_ClientConnectionContext *) *connectionContext;
-    UA_Client *client = conCtx->base.client;
     if((client->noSession && client->channel.state != UA_SECURECHANNELSTATE_OPEN) ||
         client->sessionState < UA_SESSIONSTATE_ACTIVATED) {
         if(msg.data != NULL) {
-            rv = connectionCallbackReceive(conCtx, msg);
-            UA_CHECK_STATUS_ERROR(rv, return, &client->config.logger,
+            client->connectStatus = connectionCallbackReceive(conCtx, msg);
+            UA_CHECK_STATUS_ERROR(client->connectStatus, return, &client->config.logger,
                                   UA_LOGCATEGORY_CLIENT, "Receiving msg failed");
         }  // else {
-        rv = connectionCallbackSend(conCtx);
-        UA_CHECK_STATUS_ERROR(rv, return, &client->config.logger, UA_LOGCATEGORY_CLIENT,
+        client->connectStatus = connectionCallbackSend(conCtx);
+        UA_CHECK_STATUS_ERROR(client->connectStatus, return, &client->config.logger, UA_LOGCATEGORY_CLIENT,
                               "sending msg failed");
         // }
         notifyClientState(client);
@@ -1436,13 +1436,13 @@ connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
         /* Listen on the network for the given timeout */
 
-        rv = processResponse(client, &msg, NULL, NULL, NULL);
-        if(rv == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
-            rv = UA_STATUSCODE_GOOD;
-        if(rv != UA_STATUSCODE_GOOD) {
+        client->connectStatus = processResponse(client, &msg, NULL, NULL, NULL);
+        if(client->connectStatus == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
+            client->connectStatus = UA_STATUSCODE_GOOD;
+        if(client->connectStatus != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING_CHANNEL(&client->config.logger, &client->channel,
                                    "Could not receive with StatusCode %s",
-                                   UA_StatusCode_name(rv));
+                                   UA_StatusCode_name(client->connectStatus));
         }
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS

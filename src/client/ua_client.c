@@ -768,7 +768,10 @@ UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout) {
         UA_CHECK_STATUS(rv, return rv);
     }
     UA_StatusCode rv = UA_EventLoop_run(cc->eventLoop, timeout);
-    return rv;
+    UA_CHECK_STATUS_ERROR(rv, return rv, &client->config.logger, UA_LOGCATEGORY_CLIENT,
+                          "error running the eventloop");
+
+    return client->connectStatus;
 
 
     /* Make sure we have an open channel */
