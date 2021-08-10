@@ -1075,8 +1075,8 @@ Variant_decodeBinaryUnwrapExtensionObject(UA_Variant *dst, Ctx *ctx) {
         /* Reset and decode as ExtensionObject */
         dst->type = &UA_TYPES[UA_TYPES_EXTENSIONOBJECT];
         ctx->pos = old_pos;
-        UA_NodeId_clear(&typeId);
     }
+    UA_NodeId_clear(&typeId);
 
     /* Allocate memory */
     dst->data = UA_new(dst->type);
