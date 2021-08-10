@@ -508,6 +508,7 @@ unpackPayloadOPN(UA_SecureChannel *channel, UA_Chunk *chunk, void *application) 
             if(res == UA_STATUSCODE_BADCERTIFICATEUNTRUSTED &&
                channel->certificateVerification->untrustedCertificateRejectionCallback) {
                 channel->certificateVerification->untrustedCertificateRejectionCallback(
+                    channel->certificateVerification->context,
                     &asymHeader.senderCertificate);
             }
         }
