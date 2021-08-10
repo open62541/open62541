@@ -24,9 +24,7 @@ static void setup(void) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
 
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer *) UA_malloc(sizeof(UA_PubSubTransportLayer));
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerUDPMP();
-    config->pubsubTransportLayersSize++;
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
 
     UA_Server_run_startup(server);
     UA_PubSubConnectionConfig connectionConfig;
@@ -68,20 +66,22 @@ START_TEST(SinglePublishDataSetField){
         pdsConfig.name = UA_STRING("PublishedDataSet 1");
         UA_AddPublishedDataSetResult result = UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSet1);
         ck_assert_int_eq(result.addResult, UA_STATUSCODE_GOOD);
-        UA_DataSetWriterConfig dataSetWriterConfig;
-        memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
-        dataSetWriterConfig.name = UA_STRING("DataSetWriter 1");
-        retVal = UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter1);
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
         UA_DataSetFieldConfig dataSetFieldConfig;
         memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
         dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
         dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Server localtime");
         dataSetFieldConfig.field.variable.promotedField = UA_FALSE;
-        dataSetFieldConfig.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_LOCALTIME);
+        dataSetFieldConfig.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
         dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
         UA_DataSetFieldResult dsFieldResult = UA_Server_addDataSetField(server, publishedDataSet1, &dataSetFieldConfig, NULL);
         ck_assert_int_eq(dsFieldResult.result, UA_STATUSCODE_GOOD);
+
+        UA_DataSetWriterConfig dataSetWriterConfig;
+        memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
+        dataSetWriterConfig.name = UA_STRING("DataSetWriter 1");
+        retVal = UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter1);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
         UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup1);
         ck_assert(wg != 0);

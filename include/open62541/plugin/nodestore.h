@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2017, 2021 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Julian Grothoff
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
@@ -257,22 +257,57 @@ UA_ReferenceTypeSet_contains(const UA_ReferenceTypeSet *set, UA_Byte index) {
  * not known or not important. The ``nodeClass`` attribute is used to ensure the
  * correctness of casting from ``UA_Node`` to a specific node type. */
 
-/* Ordered tree structure for fast member check */
 typedef struct {
-    struct aa_entry idTreeEntry; /* Binary-Tree for fast lookup */
-    struct aa_entry nameTreeEntry;
-    UA_UInt32 targetIdHash;      /* Hash of the target's NodeId */
-    UA_UInt32 targetNameHash;    /* Hash of the target's BrowseName */
-    UA_ExpandedNodeId targetId;
+    UA_ExpandedNodeId targetId;  /* Has to be the first entry */
+    UA_UInt32 targetNameHash;    /* Hash of the target's BrowseName. Set to zero
+                                  * if the target is remote. */
 } UA_ReferenceTarget;
 
-/* List of reference targets with the same reference type and direction */
 typedef struct {
-    struct aa_entry *idTreeRoot;   /* Fast lookup based on the target id */
-    struct aa_entry *nameTreeRoot; /* Fast lookup based on the target browseName*/
+    UA_ReferenceTarget target;   /* Has to be the first entry */
+    UA_UInt32 targetIdHash;      /* Hash of the targetId */
+    struct aa_entry idTreeEntry; /* Binary-Tree for fast lookup */
+    struct aa_entry nameTreeEntry;
+} UA_ReferenceTargetTreeElem;
+
+/* List of reference targets with the same reference type and direction. Uses
+ * either an array or a tree structure. The SDK will not change the type of
+ * reference target structure internally. The nodestore implementations may
+ * switch internally when a node is updated.
+ *
+ * The recommendation is to switch to a tree once the number of refs > 8. */
+typedef struct {
+    union {
+        /* Organize the references in an array. Uses less memory, but incurs
+         * lookups in linear time. Recommended if the number of references is
+         * known to be small. */
+        UA_ReferenceTarget *array;
+
+        /* Organize the references in a tree for fast lookup */
+        struct {
+            struct aa_entry *idTreeRoot;   /* Fast lookup based on the target id */
+            struct aa_entry *nameTreeRoot; /* Fast lookup based on the target browseName*/
+        } tree;
+    } targets;
+    size_t targetsSize;
+    UA_Boolean hasRefTree; /* RefTree or RefArray? */
     UA_Byte referenceTypeIndex;
     UA_Boolean isInverse;
 } UA_NodeReferenceKind;
+
+/* Iterate over the references. Assumes that "prev" points to a
+ * NodeReferenceKind. If prev == NULL, the first element is returned. At the end
+ * of the iteration, NULL is returned.
+ *
+ * Do not continue the iteration after the rk was modified. */
+UA_EXPORT const UA_ReferenceTarget *
+UA_NodeReferenceKind_iterate(const UA_NodeReferenceKind *rk,
+                             const UA_ReferenceTarget *prev);
+
+/* Switch between array and tree representation. Does nothing upon error (e.g.
+ * out-of-memory). */
+UA_EXPORT UA_StatusCode
+UA_NodeReferenceKind_switch(UA_NodeReferenceKind *rk);
 
 /* Every Node starts with these attributes */
 typedef struct {

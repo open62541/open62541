@@ -44,6 +44,8 @@ UA_readNumber(const UA_Byte *buf, size_t buflen, UA_UInt32 *number) {
 UA_StatusCode
 UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
                     u16 *outPort, UA_String *outPath) {
+    UA_Boolean ipv6 = false;
+
     /* Url must begin with "opc.tcp://" or opc.udp:// (if pubsub enabled) */
     if(endpointUrl->length < 11) {
         return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
@@ -70,6 +72,7 @@ UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
         if(curr == endpointUrl->length)
             return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
         curr++;
+        ipv6 = true;
     } else {
         /* IPv4 or hostname: opc.tcp://something.something:1234/path */
         for(; curr < endpointUrl->length; ++curr) {
@@ -79,8 +82,14 @@ UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
     }
 
     /* Set the hostname */
-    outHostname->data = &endpointUrl->data[10];
-    outHostname->length = curr - 10;
+    if(ipv6) {
+        /* Skip the ipv6 '[]' container for getaddrinfo() later */
+        outHostname->data = &endpointUrl->data[11];
+        outHostname->length = curr - 12;
+    } else {
+        outHostname->data = &endpointUrl->data[10];
+        outHostname->length = curr - 10;
+    }
     if(curr == endpointUrl->length)
         return UA_STATUSCODE_GOOD;
 
@@ -204,4 +213,119 @@ UA_ByteString_fromBase64(UA_ByteString *bs,
     if(!bs->data)
         return UA_STATUSCODE_BADINTERNALERROR;
     return UA_STATUSCODE_GOOD;
+}
+
+/* Key Value Map */
+
+UA_StatusCode
+UA_KeyValueMap_setQualified(UA_KeyValuePair **map, size_t *mapSize,
+                            const UA_QualifiedName *key,
+                            const UA_Variant *value) {
+    /* Parameter exists already */
+    const UA_Variant *v = UA_KeyValueMap_getQualified(*map, *mapSize, key);
+    if(v) {
+        UA_Variant copyV;
+        UA_StatusCode res = UA_Variant_copy(v, &copyV);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        UA_Variant *target = (UA_Variant*)(uintptr_t)v;
+        UA_Variant_clear(target);
+        *target = copyV;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* Append to the array */
+    UA_KeyValuePair pair;
+    pair.key = *key;
+    pair.value = *value;
+    return UA_Array_appendCopy((void**)map, mapSize, &pair,
+                               &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
+}
+
+UA_StatusCode
+UA_KeyValueMap_set(UA_KeyValuePair **map, size_t *mapSize,
+                   const char *key, const UA_Variant *value) {
+    UA_QualifiedName qnKey;
+    qnKey.namespaceIndex = 0;
+    qnKey.name = UA_STRING((char*)(uintptr_t)key);
+    return UA_KeyValueMap_setQualified(map, mapSize, &qnKey, value);
+}
+
+const UA_Variant *
+UA_KeyValueMap_getQualified(UA_KeyValuePair *map, size_t mapSize,
+                            const UA_QualifiedName *key) {
+    for(size_t i = 0; i < mapSize; i++) {
+        if(map[i].key.namespaceIndex == key->namespaceIndex &&
+           UA_String_equal(&map[i].key.name, &key->name))
+            return &map[i].value;
+
+    }
+    return NULL;
+}
+
+const UA_Variant *
+UA_KeyValueMap_get(UA_KeyValuePair *map, size_t mapSize,
+                   const char *key) {
+    UA_QualifiedName qnKey;
+    qnKey.namespaceIndex = 0;
+    qnKey.name = UA_STRING((char*)(uintptr_t)key);
+    return UA_KeyValueMap_getQualified(map, mapSize, &qnKey);
+}
+
+/* Returns NULL if the parameter is not defined or not of the right datatype */
+const UA_Variant *
+UA_KeyValueMap_getScalar(UA_KeyValuePair *map, size_t mapSize,
+                         const char *key, const UA_DataType *type) {
+    const UA_Variant *v = UA_KeyValueMap_get(map, mapSize, key);
+    if(!v || !UA_Variant_hasScalarType(v, type))
+        return NULL;
+    return v;
+}
+
+const UA_Variant *
+UA_KeyValueMap_getArray(UA_KeyValuePair *map, size_t mapSize,
+                        const char *key, const UA_DataType *type) {
+    const UA_Variant *v = UA_KeyValueMap_get(map, mapSize, key);
+    if(!v || !UA_Variant_hasArrayType(v, type))
+        return NULL;
+    return v;
+}
+
+void
+UA_KeyValueMap_deleteQualified(UA_KeyValuePair **map, size_t *mapSize,
+                               const UA_QualifiedName *key) {
+    UA_KeyValuePair *m = *map;
+    size_t s = *mapSize;
+    for(size_t i = 0; i < s; i++) {
+        if(m[i].key.namespaceIndex != key->namespaceIndex ||
+           !UA_String_equal(&m[i].key.name, &key->name))
+            continue;
+
+        /* Clean the pair */
+        UA_KeyValuePair_clear(&m[i]);
+
+        /* Move the last pair to fill the empty slot */
+        if(s > 1 && i < s - 1) {
+            m[i] = m[s-1];
+            UA_KeyValuePair_init(&m[s-1]);
+        }
+
+        UA_StatusCode res = UA_Array_resize((void**)map, mapSize, *mapSize-1,
+                                            &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
+        (void)res;
+        *mapSize = s - 1; /* In case resize fails, keep the longer original
+                           * array around. Resize never fails when reducing
+                           * the size to zero. Reduce the size integer in
+                           * any case. */
+        return;
+    }
+}
+
+void
+UA_KeyValueMap_delete(UA_KeyValuePair **map, size_t *mapSize,
+                      const char *key) {
+    UA_QualifiedName qnKey;
+    qnKey.namespaceIndex = 0;
+    qnKey.name = UA_STRING((char*)(uintptr_t)key);
+    UA_KeyValueMap_deleteQualified(map, mapSize, &qnKey);
 }

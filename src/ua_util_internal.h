@@ -9,6 +9,7 @@
  *    Copyright 2015 (c) Chris Iatrou
  *    Copyright 2015-2016 (c) Oleksiy Vasylyev
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2021 (c) Fraunhofer IOSB (Author: Jan Hermes)
  */
 
 #ifndef UA_UTIL_H_
@@ -30,7 +31,7 @@ _UA_BEGIN_DECLS
     UA_NodeId_print(NODEID, &nodeIdStr);             \
     LOG;                                             \
     UA_String_clear(&nodeIdStr);                     \
-    } while(0);
+    } while(0)
 
 #if UA_LOGLEVEL <= 100
 # define UA_LOG_NODEID_TRACE(NODEID, LOG)       \
@@ -85,6 +86,115 @@ typedef UA_Int32 i32;
 typedef UA_UInt64 u64;
 typedef UA_Int64 i64;
 typedef UA_StatusCode status;
+
+/**
+ * Error checking macros
+ */
+
+static UA_INLINE UA_Boolean
+isGood(UA_StatusCode code) {
+    return code == UA_STATUSCODE_GOOD;
+}
+
+static UA_INLINE UA_Boolean
+isNonNull(const void *ptr) {
+    return ptr != NULL;
+}
+
+static UA_INLINE UA_Boolean
+isTrue(uint8_t expr) {
+    return expr;
+}
+
+#define UA_CHECK(A, EVAL_ON_ERROR)                                                       \
+    do {                                                                                 \
+        if(UA_UNLIKELY(!isTrue(A))) {                                                    \
+            EVAL_ON_ERROR;                                                               \
+        }                                                                                \
+    } while(0)
+
+#define UA_CHECK_STATUS(STATUSCODE, EVAL_ON_ERROR)                                       \
+    UA_CHECK(isGood(STATUSCODE), EVAL_ON_ERROR)
+
+#define UA_CHECK_MEM(STATUSCODE, EVAL_ON_ERROR)                                       \
+    UA_CHECK(isNonNull(STATUSCODE), EVAL_ON_ERROR)
+
+#ifdef UA_DEBUG_FILE_LINE_INFO
+#define UA_CHECK_LOG_INTERNAL(A, STATUSCODE, EVAL, LOG, LOGGER, CAT, MSG, ...)           \
+    UA_MACRO_EXPAND(                                                                     \
+        UA_CHECK(A, LOG(LOGGER, CAT, "" MSG "%s (%s:%d: statuscode: %s)", __VA_ARGS__,   \
+                        __FILE__, __LINE__, UA_StatusCode_name(STATUSCODE));             \
+                 EVAL))
+#else
+#define UA_CHECK_LOG_INTERNAL(A, STATUSCODE, EVAL, LOG, LOGGER, CAT, MSG, ...)           \
+    UA_MACRO_EXPAND(                                                                     \
+        UA_CHECK(A, LOG(LOGGER, CAT, "" MSG "%s (statuscode: %s)", __VA_ARGS__,   \
+                        UA_StatusCode_name(STATUSCODE));             \
+                 EVAL))
+#endif
+
+#define UA_CHECK_LOG(A, EVAL, LEVEL, LOGGER, CAT, ...)                                   \
+    UA_MACRO_EXPAND(UA_CHECK_LOG_INTERNAL(A, UA_STATUSCODE_BAD, EVAL, UA_LOG_##LEVEL,    \
+                                          LOGGER, CAT, __VA_ARGS__, ""))
+
+#define UA_CHECK_STATUS_LOG(STATUSCODE, EVAL, LEVEL, LOGGER, CAT, ...)                   \
+    UA_MACRO_EXPAND(UA_CHECK_LOG_INTERNAL(isGood(STATUSCODE), STATUSCODE,  \
+                                          EVAL, UA_LOG_##LEVEL, LOGGER, CAT,             \
+                                          __VA_ARGS__, ""))
+
+#define UA_CHECK_MEM_LOG(PTR, EVAL, LEVEL, LOGGER, CAT, ...)                   \
+    UA_MACRO_EXPAND(UA_CHECK_LOG_INTERNAL(isNonNull(PTR), UA_STATUSCODE_BADOUTOFMEMORY,  \
+                                          EVAL, UA_LOG_##LEVEL, LOGGER, CAT,             \
+                                          __VA_ARGS__, ""))
+
+/**
+ * Check Macros
+ * Usage examples:
+ *
+ *    void *data = malloc(...);
+ *    UA_CHECK(data, return error);
+ *
+ *    UA_StatusCode rv = some_func(...);
+ *    UA_CHECK_STATUS(rv, return rv);
+ *
+ *    UA_Logger *logger = &server->config.logger;
+ *    rv = bar_func(...);
+ *    UA_CHECK_STATUS_WARN(rv, return rv, logger, UA_LOGCATEGORY_SERVER, "msg & args %s", "arg");
+ */
+#define UA_CHECK_FATAL(A, EVAL, LOGGER, CAT, ...)                                        \
+    UA_MACRO_EXPAND(UA_CHECK_LOG(A, EVAL, FATAL, LOGGER, CAT, __VA_ARGS__))
+#define UA_CHECK_ERROR(A, EVAL, LOGGER, CAT, ...)                                        \
+    UA_MACRO_EXPAND(UA_CHECK_LOG(A, EVAL, ERROR, LOGGER, CAT, __VA_ARGS__))
+#define UA_CHECK_WARN(A, EVAL, LOGGER, CAT, ...)                                         \
+    UA_MACRO_EXPAND(UA_CHECK_LOG(A, EVAL, WARNING, LOGGER, CAT, __VA_ARGS__))
+#define UA_CHECK_INFO(A, EVAL, LOGGER, CAT, ...)                                         \
+    UA_MACRO_EXPAND(UA_CHECK_LOG(A, EVAL, INFO, LOGGER, CAT, __VA_ARGS__))
+
+#define UA_CHECK_STATUS_FATAL(STATUSCODE, EVAL, LOGGER, CAT, ...)                        \
+    UA_MACRO_EXPAND(                                                                     \
+        UA_CHECK_STATUS_LOG(STATUSCODE, EVAL, FATAL, LOGGER, CAT, __VA_ARGS__))
+#define UA_CHECK_STATUS_ERROR(STATUSCODE, EVAL, LOGGER, CAT, ...)                        \
+    UA_MACRO_EXPAND(                                                                     \
+        UA_CHECK_STATUS_LOG(STATUSCODE, EVAL, ERROR, LOGGER, CAT, __VA_ARGS__))
+#define UA_CHECK_STATUS_WARN(STATUSCODE, EVAL, LOGGER, CAT, ...)                         \
+    UA_MACRO_EXPAND(                                                                     \
+        UA_CHECK_STATUS_LOG(STATUSCODE, EVAL, WARNING, LOGGER, CAT, __VA_ARGS__))
+#define UA_CHECK_STATUS_INFO(STATUSCODE, EVAL, LOGGER, CAT, ...)                         \
+    UA_MACRO_EXPAND(                                                                     \
+        UA_CHECK_STATUS_LOG(STATUSCODE, EVAL, INFO, LOGGER, CAT, __VA_ARGS__))
+
+#define UA_CHECK_MEM_FATAL(PTR, EVAL, LOGGER, CAT, ...)                        \
+    UA_MACRO_EXPAND(                                                                     \
+        UA_CHECK_MEM_LOG(PTR, EVAL, FATAL, LOGGER, CAT, __VA_ARGS__))
+#define UA_CHECK_MEM_ERROR(PTR, EVAL, LOGGER, CAT, ...)                        \
+    UA_MACRO_EXPAND(                                                                     \
+        UA_CHECK_MEM_LOG(PTR, EVAL, ERROR, LOGGER, CAT, __VA_ARGS__))
+#define UA_CHECK_MEM_WARN(PTR, EVAL, LOGGER, CAT, ...)                         \
+    UA_MACRO_EXPAND(                                                                     \
+        UA_CHECK_MEM_LOG(PTR, EVAL, WARNING, LOGGER, CAT, __VA_ARGS__))
+#define UA_CHECK_MEM_INFO(PTR, EVAL, LOGGER, CAT, ...)                         \
+    UA_MACRO_EXPAND(                                                                     \
+        UA_CHECK_MEM_LOG(PTR, EVAL, INFO, LOGGER, CAT, __VA_ARGS__))
 
 /**
  * Utility Functions

@@ -48,17 +48,28 @@ static void setup(void) {
     server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
-
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer*)
-        UA_malloc(sizeof(UA_PubSubTransportLayer));
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerUDPMP();
-    config->pubsubTransportLayersSize++;
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
     UA_Server_run_startup(server);
 }
 
 static void teardown(void) {
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
+}
+
+typedef struct {
+    UA_ByteString *buffer;
+    size_t offset;
+} UA_ReceiveContext;
+
+static UA_StatusCode
+recvTestFun(UA_PubSubChannel *channel, void *context,
+               const UA_ByteString *buffer) {
+    UA_ReceiveContext *ctx = (UA_ReceiveContext*)context;
+    memcpy(ctx->buffer->data + ctx->offset, buffer->data, buffer->length);
+    ctx->offset += buffer->length;
+    ctx->buffer->length = ctx->offset;
+    return UA_STATUSCODE_GOOD;
 }
 
 static void
@@ -74,8 +85,10 @@ receiveSingleMessage(UA_ByteString buffer, UA_PubSubConnection *connection,
         return;
     }
 
+    UA_ReceiveContext testCtx = {&buffer, 0};
     UA_StatusCode retval =
-        connection->channel->receive(connection->channel, &buffer, NULL, 1000000);
+        connection->channel->receive(connection->channel, NULL,
+                                     recvTestFun, &testCtx, 1000000);
     if(retval != UA_STATUSCODE_GOOD || buffer.length == 0) {
         buffer.length = 512;
         UA_ByteString_clear(&buffer);
@@ -90,7 +103,9 @@ receiveSingleMessage(UA_ByteString buffer, UA_PubSubConnection *connection,
 START_TEST(PublishSingleFieldWithStaticValueSource) {
         ck_assert(addMinimalPubSubConfiguration() == UA_STATUSCODE_GOOD);
         UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, connectionIdentifier);
-        ck_assert(connection != NULL);
+        ck_assert(connection);
+        UA_StatusCode rv = connection->channel->regist(connection->channel, NULL, NULL);
+        ck_assert(rv == UA_STATUSCODE_GOOD);
         UA_WriterGroupConfig writerGroupConfig;
         memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
         writerGroupConfig.name = UA_STRING("Demo WriterGroup");
@@ -111,9 +126,9 @@ START_TEST(PublishSingleFieldWithStaticValueSource) {
         memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
         dataSetWriterConfig.name = UA_STRING("Test DataSetWriter");
         dataSetWriterConfig.dataSetWriterId = 62541;
-        ck_assert(UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent, &dataSetWriterConfig, &dataSetWriterIdent) == UA_STATUSCODE_GOOD);
         UA_DataSetFieldConfig dsfConfig;
         memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));
+
         /* Create Variant and configure as DataSetField source */
         UA_UInt32 *intValue = UA_UInt32_new();
         *intValue = 1000;
@@ -121,8 +136,11 @@ START_TEST(PublishSingleFieldWithStaticValueSource) {
         UA_Variant_setScalar(&dataValue->value, intValue, &UA_TYPES[UA_TYPES_UINT32]);
         dsfConfig.field.variable.rtValueSource.rtFieldSourceEnabled = UA_TRUE;
         dsfConfig.field.variable.rtValueSource.staticValueSource = &dataValue;
-        dsfConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
         ck_assert(UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent).result == UA_STATUSCODE_GOOD);
+
+        /* DataSetWriter muste be added AFTER addDataSetField otherwize lastSamples will be uninitialized */
+        ck_assert(UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent, &dataSetWriterConfig, &dataSetWriterIdent) == UA_STATUSCODE_GOOD);
+
         ck_assert(UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
         ck_assert(UA_Server_setWriterGroupOperational(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
         UA_ByteString buffer;
@@ -137,7 +155,9 @@ START_TEST(PublishSingleFieldWithStaticValueSource) {
 START_TEST(PublishSingleFieldWithDifferentBinarySizes) {
         ck_assert(addMinimalPubSubConfiguration() == UA_STATUSCODE_GOOD);
         UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, connectionIdentifier);
-        ck_assert(connection != NULL);
+        ck_assert(connection);
+        UA_StatusCode rv = connection->channel->regist(connection->channel, NULL, NULL);
+        ck_assert(rv == UA_STATUSCODE_GOOD);
         UA_WriterGroupConfig writerGroupConfig;
         memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
         writerGroupConfig.name = UA_STRING("Test WriterGroup");
@@ -158,7 +178,6 @@ START_TEST(PublishSingleFieldWithDifferentBinarySizes) {
         memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
         dataSetWriterConfig.name = UA_STRING("Demo DataSetWriter");
         dataSetWriterConfig.dataSetWriterId = 62541;
-        ck_assert(UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent, &dataSetWriterConfig, &dataSetWriterIdent) == UA_STATUSCODE_GOOD);
         UA_DataSetFieldConfig dsfConfig;
         memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));
         /* Create Variant and configure as DataSetField source */
@@ -170,6 +189,7 @@ START_TEST(PublishSingleFieldWithDifferentBinarySizes) {
         dsfConfig.field.variable.rtValueSource.staticValueSource = &dataValue;
         dsfConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
         ck_assert(UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent).result == UA_STATUSCODE_GOOD);
+        ck_assert(UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent, &dataSetWriterConfig, &dataSetWriterIdent) == UA_STATUSCODE_GOOD);
         ck_assert(UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
         ck_assert(UA_Server_setWriterGroupOperational(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
         UA_ByteString buffer;
@@ -198,7 +218,9 @@ START_TEST(PublishSingleFieldWithDifferentBinarySizes) {
 START_TEST(SetupInvalidPubSubConfigWithStaticValueSource) {
         ck_assert(addMinimalPubSubConfiguration() == UA_STATUSCODE_GOOD);
         UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, connectionIdentifier);
-        ck_assert(connection != NULL);
+        ck_assert(connection);
+        UA_StatusCode rv = connection->channel->regist(connection->channel, NULL, NULL);
+        ck_assert(rv == UA_STATUSCODE_GOOD);
         UA_WriterGroupConfig writerGroupConfig;
         memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
         writerGroupConfig.name = UA_STRING("Test WriterGroup");
@@ -236,7 +258,9 @@ START_TEST(SetupInvalidPubSubConfigWithStaticValueSource) {
 START_TEST(PublishSingleFieldWithFixedOffsets) {
         ck_assert(addMinimalPubSubConfiguration() == UA_STATUSCODE_GOOD);
         UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, connectionIdentifier);
-        ck_assert(connection != NULL);
+        ck_assert(connection);
+        UA_StatusCode rv = connection->channel->regist(connection->channel, NULL, NULL);
+        ck_assert(rv == UA_STATUSCODE_GOOD);
         UA_WriterGroupConfig writerGroupConfig;
         memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
         writerGroupConfig.name = UA_STRING("Demo WriterGroup");
@@ -257,7 +281,6 @@ START_TEST(PublishSingleFieldWithFixedOffsets) {
         memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
         dataSetWriterConfig.name = UA_STRING("Test DataSetWriter");
         dataSetWriterConfig.dataSetWriterId = 62541;
-        ck_assert(UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent, &dataSetWriterConfig, &dataSetWriterIdent) == UA_STATUSCODE_GOOD);
         UA_DataSetFieldConfig dsfConfig;
         memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));
         // Create Variant and configure as DataSetField source
@@ -269,6 +292,9 @@ START_TEST(PublishSingleFieldWithFixedOffsets) {
         dsfConfig.field.variable.rtValueSource.staticValueSource = &dataValue;
         dsfConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
         ck_assert(UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent).result == UA_STATUSCODE_GOOD);
+
+        ck_assert(UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent, &dataSetWriterConfig, &dataSetWriterIdent) == UA_STATUSCODE_GOOD);
+
         ck_assert(UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
         ck_assert(UA_Server_setWriterGroupOperational(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
         UA_ByteString buffer;
@@ -286,7 +312,9 @@ START_TEST(PublishSingleFieldWithFixedOffsets) {
 START_TEST(PublishPDSWithMultipleFieldsAndFixedOffset) {
         ck_assert(addMinimalPubSubConfiguration() == UA_STATUSCODE_GOOD);
         UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, connectionIdentifier);
-        ck_assert(connection != NULL);
+        ck_assert(connection);
+        UA_StatusCode rv = connection->channel->regist(connection->channel, NULL, NULL);
+        ck_assert(rv == UA_STATUSCODE_GOOD);
         UA_WriterGroupConfig writerGroupConfig;
         memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
         writerGroupConfig.name = UA_STRING("Demo WriterGroup");
@@ -307,7 +335,6 @@ START_TEST(PublishPDSWithMultipleFieldsAndFixedOffset) {
         memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
         dataSetWriterConfig.name = UA_STRING("Test DataSetWriter");
         dataSetWriterConfig.dataSetWriterId = 62541;
-        ck_assert(UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent, &dataSetWriterConfig, &dataSetWriterIdent) == UA_STATUSCODE_GOOD);
         UA_DataSetFieldConfig dsfConfig;
         memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));
         // Create Variant and configure as DataSetField source
@@ -326,6 +353,9 @@ START_TEST(PublishPDSWithMultipleFieldsAndFixedOffset) {
         UA_Variant_setScalar(&dataValue2->value, intValue2, &UA_TYPES[UA_TYPES_UINT32]);
         dsfConfig.field.variable.rtValueSource.staticValueSource = &dataValue2;
         ck_assert(UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, NULL).result == UA_STATUSCODE_GOOD);
+
+        ck_assert(UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent, &dataSetWriterConfig, &dataSetWriterIdent) == UA_STATUSCODE_GOOD);
+
         ck_assert(UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
         ck_assert(UA_Server_setWriterGroupOperational(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
 
@@ -388,8 +418,9 @@ removePubSubApplicationCallback(UA_Server *server_local, UA_NodeId identifier, U
 START_TEST(PublishSingleFieldInCustomCallback) {
         ck_assert(addMinimalPubSubConfiguration() == UA_STATUSCODE_GOOD);
         UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, connectionIdentifier);
-        ck_assert(connection != NULL);
-
+        ck_assert(connection);
+        UA_StatusCode rv = connection->channel->regist(connection->channel, NULL, NULL);
+        ck_assert(rv == UA_STATUSCODE_GOOD);
         UA_WriterGroupConfig writerGroupConfig;
         memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
         writerGroupConfig.name = UA_STRING("Demo WriterGroup");
@@ -413,7 +444,6 @@ START_TEST(PublishSingleFieldInCustomCallback) {
         memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
         dataSetWriterConfig.name = UA_STRING("Test DataSetWriter");
         dataSetWriterConfig.dataSetWriterId = 62541;
-        ck_assert(UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent, &dataSetWriterConfig, &dataSetWriterIdent) == UA_STATUSCODE_GOOD);
         UA_DataSetFieldConfig dsfConfig;
         memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));
         // Create Variant and configure as DataSetField source
@@ -425,6 +455,9 @@ START_TEST(PublishSingleFieldInCustomCallback) {
         dsfConfig.field.variable.rtValueSource.staticValueSource = &dataValue;
         dsfConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
         ck_assert(UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent).result == UA_STATUSCODE_GOOD);
+
+        ck_assert(UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent, &dataSetWriterConfig, &dataSetWriterIdent) == UA_STATUSCODE_GOOD);
+
         ck_assert(UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
         ck_assert(UA_Server_setWriterGroupOperational(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
         UA_ByteString buffer;

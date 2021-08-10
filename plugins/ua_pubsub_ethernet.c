@@ -14,7 +14,14 @@
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pubsub_ethernet.h>
 
-#if defined(__vxworks) || defined(__VXWORKS__)
+#define RECEIVE_MSG_BUFFER_SIZE   4096
+static UA_THREAD_LOCAL UA_Byte ReceiveMsgBufferETH[RECEIVE_MSG_BUFFER_SIZE];
+
+#if !defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_VXWORKS)
+/* For anything else than Linux or VxWorks which are specifically handled below,
+ * depend only on headers included by the architecture layer.
+ */
+#elif defined(__vxworks) || defined(__VXWORKS__)
 #include <netpacket/packet.h>
 #include <netinet/if_ether.h>
 #include <ipcom_sock.h>
@@ -31,35 +38,31 @@
 #include <sys/resource.h>
 
 /* XSK kernel headers */
+
 #include <linux/bpf.h>
 #include <linux/if_link.h>
 
-#if __has_include(<bpf/bpf.h>) && __has_include(<bpf/libbpf.h>) && __has_include(<bpf/xsk.h>)
-#define LIBBPF_EBPF
-/* Libbpf headers */
-#include <bpf/bpf.h>
-#include <bpf/libbpf.h>
-#ifndef asm
-#define asm __asm__
-#endif
-#include <bpf/xsk.h>
+#if defined __has_include
+#   if __has_include(<bpf/bpf.h>) && __has_include(<bpf/libbpf.h>) && __has_include(<bpf/xsk.h>)
+#       define LIBBPF_EBPF
+        /* Libbpf headers */
+#       include <bpf/bpf.h>
+#       include <bpf/libbpf.h>
+#       ifndef asm
+#           define asm __asm__
+#       endif
+#       include <bpf/xsk.h>
+#   endif
 #endif
 #endif
 
-#include "time.h"
-
-#ifndef ETHERTYPE_UADP
+#include <time.h>
 #define ETHERTYPE_UADP                       0xb62c
-#endif
-
 #define MIN_ETHERNET_PACKET_SIZE_WITHOUT_FCS 60
 #define VLAN_HEADER_SIZE                     4
-
 #define VLAN_SHIFT                           13
-#define XDP_FRAME_SHIFT                      11 //match the frame size 2048
-
-// Receive buffer batch size
-#define BATCH_SIZE                           16
+#define XDP_FRAME_SHIFT                      11 // Match the frame size 2048
+#define BATCH_SIZE                           16 // Receive buffer batch size
 
 #ifndef XDP_COPY
 #define XDP_COPY                             (1 << 1)
@@ -448,11 +451,11 @@ UA_PubSubChannelEthernetXDP_send(UA_PubSubChannelDataEthernet *channelDataEthern
 
     rc = UA_sendto(xsk_socket__fd(xdp_socket->xskfd), NULL, 0, MSG_DONTWAIT, NULL, 0);
     if (rc >= 0 || errno == ENOBUFS || errno == EAGAIN || errno == EBUSY) {
-        UA_UInt64 rcvd = xsk_ring_cons__peek(&xdp_socket->umem->cq, 1, &idx);
+        UA_UInt32 rcvd = xsk_ring_cons__peek(&xdp_socket->umem->cq, 1, &idx);
         if (rcvd > 0) {
             xsk_ring_cons__release(&xdp_socket->umem->cq, rcvd);
-            xdp_socket->outstanding_tx -= (UA_UInt32) rcvd;
-            xdp_socket->tx_npkts += (UA_UInt32) rcvd;
+            xdp_socket->outstanding_tx -= rcvd;
+            xdp_socket->tx_npkts += rcvd;
         }
 
         return UA_STATUSCODE_GOOD;
@@ -472,7 +475,7 @@ UA_PubSubChannelEthernetXDP_receive(UA_PubSubChannelDataEthernet *channelDataEth
     xdpsock *xdp_socket;
     UA_UInt64 addr;
     UA_UInt64 ret;
-    size_t rcvd;
+    UA_UInt32 rcvd;
     UA_Byte *pkt, *buf;
     ssize_t len;
 
@@ -488,7 +491,7 @@ UA_PubSubChannelEthernetXDP_receive(UA_PubSubChannelDataEthernet *channelDataEth
         return UA_STATUSCODE_BADINTERNALERROR; //Got data but failed to reserve, something's wrong
 
     buf = message->data;
-    for(size_t i = 0; i < rcvd; i++) {
+    for(UA_UInt32 i = 0; i < rcvd; i++) {
         addr = xsk_ring_cons__rx_desc(&xdp_socket->rx_ring, xdp_socket->idx_rx)->addr;
         len  = (UA_UInt32) xsk_ring_cons__rx_desc(&xdp_socket->rx_ring, xdp_socket->idx_rx++)->len;
         pkt  = (UA_Byte *) xsk_umem__get_data(xdp_socket->umem->buffer, addr);
@@ -699,10 +702,13 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
     /* Open a packet socket */
     int sockFd = UA_socket(PF_PACKET, SOCK_RAW, 0);
     if(sockFd < 0) {
+        UA_LOG_SOCKET_ERRNO_WRAP(
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-            "PubSub connection creation failed. Cannot create socket.");
+            "PubSub connection creation failed. Cannot create socket. (%s)", errno_str));
         UA_free(channelDataEthernet);
         UA_free(newChannel);
+        if(sockOptions.socketPriority)
+            UA_free(sockOptions.socketPriority);
         return NULL;
     }
     newChannel->sockfd = sockFd;
@@ -710,11 +716,14 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
     /* allow the socket to be reused */
     int opt = 1;
     if(UA_setsockopt(sockFd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+        UA_LOG_SOCKET_ERRNO_WRAP(
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-            "PubSub connection creation failed. Cannot set socket reuse.");
+            "PubSub connection creation failed. Cannot set socket reuse. (%s)", errno_str));
         UA_close(sockFd);
         UA_free(channelDataEthernet);
         UA_free(newChannel);
+        if(sockOptions.socketPriority)
+            UA_free(sockOptions.socketPriority);
         return NULL;
     }
 
@@ -747,6 +756,8 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
             UA_close(sockFd);
             UA_free(channelDataEthernet);
             UA_free(newChannel);
+            if(sockOptions.socketPriority)
+                UA_free(sockOptions.socketPriority);
             return NULL;
         }
     }
@@ -758,27 +769,35 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
         UA_close(sockFd);
         UA_free(channelDataEthernet);
         UA_free(newChannel);
+        if(sockOptions.socketPriority)
+            UA_free(sockOptions.socketPriority);
         return NULL;
     }
 #endif
 
-    if(ioctl(sockFd, SIOCGIFINDEX, &ifreq) < 0) {
+    if(UA_ioctl(sockFd, SIOCGIFINDEX, &ifreq) < 0) {
+        UA_LOG_SOCKET_ERRNO_WRAP(
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-           "PubSub connection creation failed. Cannot get interface index.");
+           "PubSub connection creation failed. Cannot get interface index for \'%s\'. (%s)", ifreq.ifr_name, errno_str));
         UA_close(sockFd);
         UA_free(channelDataEthernet);
         UA_free(newChannel);
+        if(sockOptions.socketPriority)
+            UA_free(sockOptions.socketPriority);
         return NULL;
     }
     channelDataEthernet->ifindex = ifreq.ifr_ifindex;
 
     /* determine own MAC address (source address for send) */
-    if(ioctl(sockFd, SIOCGIFHWADDR, &ifreq) < 0) {
+    if(UA_ioctl(sockFd, SIOCGIFHWADDR, &ifreq) < 0) {
+        UA_LOG_SOCKET_ERRNO_WRAP(
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-            "PubSub connection creation failed. Cannot determine own MAC address.");
+            "PubSub connection creation failed. Cannot determine own MAC address. (%s)", errno_str));
         UA_close(sockFd);
         UA_free(channelDataEthernet);
         UA_free(newChannel);
+        if(sockOptions.socketPriority)
+            UA_free(sockOptions.socketPriority);
         return NULL;
     }
 #if defined(__vxworks) || defined(__VXWORKS__)
@@ -794,19 +813,24 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
     sll.sll_protocol = htons(ETHERTYPE_UADP);
 
     if(UA_bind(sockFd, (struct sockaddr*)&sll, sizeof(sll)) < 0) {
+        UA_LOG_SOCKET_ERRNO_WRAP(
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-            "PubSub connection creation failed. Cannot bind socket.");
+            "PubSub connection creation failed. Cannot bind socket. (%s)", errno_str));
         UA_close(sockFd);
         UA_free(channelDataEthernet);
         UA_free(newChannel);
+        if(sockOptions.socketPriority)
+            UA_free(sockOptions.socketPriority);
         return NULL;
     }
 
     /* Setting the socket priority to the socket */
     if(sockOptions.socketPriority) {
-        if (setsockopt(sockFd, SOL_SOCKET, SO_PRIORITY, sockOptions.socketPriority, sizeof(int))) {
-            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "setsockopt SO_PRIORITY failed");
+        if (UA_setsockopt(sockFd, SOL_SOCKET, SO_PRIORITY, sockOptions.socketPriority, sizeof(int))) {
+            UA_LOG_SOCKET_ERRNO_WRAP(
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "setsockopt SO_PRIORITY failed (%s)", errno_str));
             UA_close(sockFd);
+            
             UA_free(sockOptions.socketPriority);
             UA_free(channelDataEthernet);
             UA_free(newChannel);
@@ -814,7 +838,8 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
         }
     }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,19,0)
+#if defined(KERNEL_VERSION)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,19,0))
     if(sockOptions.enableSocketTxTime == UA_TRUE) {
         /* Setting socket txtime with required flags to the socket */
         sock_txtime sk_txtime;
@@ -822,7 +847,8 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
         sk_txtime.clockId = CLOCK_TAI;
         sk_txtime.flags   = (UA_UInt16)(sockOptions.sotxtimeDeadlinemode | sockOptions.sotxtimeReceiveerrors);
         if (setsockopt(sockFd, SOL_SOCKET, SO_TXTIME, &sk_txtime, sizeof(&sk_txtime))) {
-            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "setsockopt SO_TXTIME failed");
+            UA_LOG_SOCKET_ERRNO_WRAP(
+                UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "setsockopt SO_TXTIME failed (%s)", errno_str));
             UA_close(sockFd);
             if(sockOptions.socketPriority)
                 UA_free(sockOptions.socketPriority);
@@ -834,6 +860,7 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
 
         channelDataEthernet->useSoTxTime = UA_TRUE;
     }
+#endif
 #endif
 
     newChannel->handle = channelDataEthernet;
@@ -926,7 +953,8 @@ UA_PubSubChannelEthernet_unregist(UA_PubSubChannel *channel,
     return UA_STATUSCODE_GOOD;
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,19,0)
+#if defined(KERNEL_VERSION)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,19,0))
 static UA_StatusCode
 sendWithTxTime(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings, void *bufSend, size_t lenBuf) {
     /* Send the data packet with the tx time */
@@ -989,6 +1017,7 @@ sendWithTxTime(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings,
     return UA_STATUSCODE_GOOD;
 }
 #endif
+#endif
 
 /**
  * Send messages to the connection defined address
@@ -1049,7 +1078,8 @@ UA_PubSubChannelEthernet_send(UA_PubSubChannel *channel,
     /* copy payload of ethernet message */
     memcpy(ptrCur, buf->data, buf->length);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,19,0)
+#if defined(KERNEL_VERSION)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,19,0))
     if(channelDataEthernet->useSoTxTime) {
         /* Send the packets at the given Txtime */
         UA_StatusCode rc = sendWithTxTime(channel, transportSettings, bufSend, lenBuf);
@@ -1061,6 +1091,7 @@ UA_PubSubChannelEthernet_send(UA_PubSubChannel *channel,
         }
     }
     else
+#endif
 #endif
     {
         ssize_t rc;
@@ -1084,8 +1115,11 @@ UA_PubSubChannelEthernet_send(UA_PubSubChannel *channel,
  * @return
  */
 static UA_StatusCode
-UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_ByteString *message,
-                                 UA_ExtensionObject *transportSettings, UA_UInt32 timeout) {
+UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel,
+                                 UA_ExtensionObject *transportSettings,
+                                 UA_PubSubReceiveCallback receiveCallback,
+                                 void *receiveCallbackContext,
+                                 UA_UInt32 timeout) {
     UA_PubSubChannelDataEthernet *channelDataEthernet =
         (UA_PubSubChannelDataEthernet *) channel->handle;
 
@@ -1109,11 +1143,9 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_ByteString *messa
         tmptv.tv_usec = (long int)(timeout % 1000000);
         int resultsize = UA_select(channel->sockfd+1, &fdset, NULL, NULL, &tmptv);
         if(resultsize == 0) {
-            message->length = 0;
             return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
         }
         if(resultsize == -1) {
-            message->length = 0;
             return UA_STATUSCODE_BADINTERNALERROR;
         }
     }
@@ -1125,7 +1157,7 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_ByteString *messa
     }
 #endif
 
-#ifdef UA_ARCHITECTURE_VXWORKS
+#if !defined(UA_ARCHITECTURE_POSIX)
     clock_gettime(CLOCK_REALTIME, &currentTime);
 #else
     clock_gettime(CLOCK_TAI, &currentTime);
@@ -1140,14 +1172,16 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_ByteString *messa
      * first packet received */
     receiveFlags     = 0;
     size_t messageLength = 0;
-    size_t remainingMessageLength = 0;
-    remainingMessageLength = message->length;
 
     do {
         if(maxTimeValue < currentTimeValue) {
              retval = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
              break;
         }
+
+        UA_ByteString buffer;
+        buffer.length = RECEIVE_MSG_BUFFER_SIZE;
+        buffer.data = ReceiveMsgBufferETH;
 
         struct ether_header eth_hdr;
         struct iovec        iov[2];
@@ -1158,19 +1192,18 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_ByteString *messa
 
         iov[0].iov_base = &eth_hdr;
         iov[0].iov_len  = sizeof(eth_hdr);
-        iov[1].iov_base = message->data + messageLength;
-        iov[1].iov_len  = remainingMessageLength;
+        iov[1].iov_base = buffer.data;
+        iov[1].iov_len  = RECEIVE_MSG_BUFFER_SIZE;
         msg.msg_iov     = iov;
         msg.msg_iovlen  = 2;
 
-        dataLen = recvmsg(channel->sockfd, &msg, receiveFlags);
+        dataLen = UA_recvmsg(channel->sockfd, &msg, receiveFlags);
         if(dataLen < 0) {
             if(rcvCount == 0) {
                 UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                              "PubSub connection receive failed. Receive message failed.");
                 retval = UA_STATUSCODE_BADINTERNALERROR;
-            }
-            else {
+            } else {
                 retval = UA_STATUSCODE_GOOD;
             }
             break;
@@ -1207,9 +1240,17 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_ByteString *messa
                                            * so the packet length is less than 60bytes */
 
         messageLength = messageLength + ((size_t)dataLen - sizeof(struct ether_header));
-        remainingMessageLength -= messageLength;
+        buffer.length = messageLength;
+
+        retval = receiveCallback(channel, receiveCallbackContext, &buffer);
+        if (retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                           "PubSub Connection decode and process failed.");
+
+        }
+
         rcvCount++;
-#ifdef UA_ARCHITECTURE_VXWORKS
+#if !defined(UA_ARCHITECTURE_POSIX)
         clock_gettime(CLOCK_REALTIME, &currentTime);
 #else
         clock_gettime(CLOCK_TAI, &currentTime);
@@ -1219,10 +1260,9 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_ByteString *messa
         /* The recvmsg API with MSG_DONTWAIT flag will not wait for the next packet */
         receiveFlags = MSG_DONTWAIT;
 
-    } while(remainingMessageLength >= 1496); /* 1518 bytes is the maximum size of ethernet packet
+    } while(true); /* 1518 bytes is the maximum size of ethernet packet
                                               * where 18 bytes used for header size, 4 bytes of LLC
                                               * so remaining length is 1496 */
-    message->length = messageLength;
     return retval;
 }
 

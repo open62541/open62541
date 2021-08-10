@@ -382,7 +382,7 @@ addWriterGroup(UA_Server *server) {
  * **DataSetWriter handling**
  *
  * A DataSetWriter (DSW) is the glue between the WG and the PDS. The DSW is
- * linked to exactly one PDS and contains additional informations for the
+ * linked to exactly one PDS and contains additional information for the
  * message generation.
  */
 static void
@@ -673,20 +673,10 @@ int main(int argc, char **argv) {
     networkAddressUrlPub.networkInterface = UA_STRING(interface);
     networkAddressUrlPub.url              = UA_STRING(PUBLISHING_MAC_ADDRESS);
 
-    /* Details about the connection configuration and handling are located in the pubsub connection tutorial */
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer *)
-                                    UA_malloc(sizeof(UA_PubSubTransportLayer));
-    if (!config->pubsubTransportLayers) {
-        UA_Server_delete(server);
-        return EXIT_FAILURE;
-    }
-
     /* It is possible to use multiple PubSubTransportLayers on runtime.
      * The correct factory is selected on runtime by the standard defined
-     * PubSub TransportProfileUri's.
-    */
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerEthernet();
-    config->pubsubTransportLayersSize++;
+     * PubSub TransportProfileUri's. */
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
 
     addPubSubConnection(server, &networkAddressUrlPub);
     addPublishedDataSet(server);

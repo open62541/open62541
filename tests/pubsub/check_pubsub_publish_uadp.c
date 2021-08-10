@@ -21,13 +21,9 @@ static void setup(void) {
     server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
-
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer*)
-            UA_malloc(sizeof(UA_PubSubTransportLayer));
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerUDPMP();
-    config->pubsubTransportLayersSize++;
-
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
     UA_Server_run_startup(server);
+
     //add connection
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
@@ -62,26 +58,79 @@ static void teardown(void) {
     UA_Server_delete(server);
 }
 
-static void receiveSingleMessage(UA_ByteString buffer, UA_PubSubConnection *connection, UA_NetworkMessage *networkMessage) {
-    if (UA_ByteString_allocBuffer(&buffer, 512) != UA_STATUSCODE_GOOD) {
-        ck_abort_msg("Message buffer allocation failed!");
-    }
-    UA_StatusCode retval =
-            connection->channel->receive(connection->channel, &buffer, NULL, 10000);
-    if(retval != UA_STATUSCODE_GOOD || buffer.length == 0) {
-        buffer.length = 512;
-        UA_ByteString_clear(&buffer);
-        ck_abort_msg("Expected message not received!");
-    }
+typedef struct {
+    size_t counter;
+    UA_NetworkMessage *msgs;
+} UA_ReceiveContext;
+
+static UA_StatusCode
+recvTestFun(UA_PubSubChannel *channel, void *context, const UA_ByteString *buffer) {
+    UA_ReceiveContext *ctx = (UA_ReceiveContext*)context;
+
+    // memcpy(ctx->buffer->data + ctx->offset, buffer->data, buffer->length);
+    // ctx->buffer->length = buffer->length;
+    // ctx->offset += buffer->length;
+
+    UA_NetworkMessage *networkMessage = &ctx->msgs[ctx->counter];
+
     memset(networkMessage, 0, sizeof(UA_NetworkMessage));
     size_t currentPosition = 0;
-    UA_NetworkMessage_decodeBinary(&buffer, &currentPosition, networkMessage);
+    UA_NetworkMessage_decodeBinary(buffer, &currentPosition, networkMessage);
     for(int i = 0; i < networkMessage->payloadHeader.dataSetPayloadHeader.count; ++i) {
         UA_Byte * rawContent = (UA_Byte *) UA_malloc(networkMessage->payload.dataSetPayload.dataSetMessages[i].data.keyFrameData.rawFields.length);
         memcpy(rawContent,
                networkMessage->payload.dataSetPayload.dataSetMessages[i].data.keyFrameData.rawFields.data,
                networkMessage->payload.dataSetPayload.dataSetMessages[i].data.keyFrameData.rawFields.length);
         networkMessage->payload.dataSetPayload.dataSetMessages[i].data.keyFrameData.rawFields.data = rawContent;
+    }
+
+    ctx->counter++;
+
+    return UA_STATUSCODE_GOOD;
+}
+// static void receiveSingleMessage(UA_ByteString buffer, UA_PubSubConnection *connection, UA_NetworkMessage *networkMessage) {
+//     if (UA_ByteString_allocBuffer(&buffer, 512) != UA_STATUSCODE_GOOD) {
+//         ck_abort_msg("Message buffer allocation failed!");
+//     }
+//     UA_ClosureContext testCtx = {0, networkMessage};
+//
+//     UA_DecodeAndProcessClosure closure;
+//     closure.ctx = &testCtx;
+//     closure.call = closureTestFun;
+//
+//     UA_StatusCode retval =
+//         connection->channel->receive(connection->channel, &closure, NULL, 10000);
+//     if(retval != UA_STATUSCODE_GOOD || buffer.length == 0) {
+//         buffer.length = 512;
+//         UA_ByteString_clear(&buffer);
+//         ck_abort_msg("Expected message not received!");
+//     }
+//     memset(networkMessage, 0, sizeof(UA_NetworkMessage));
+//     size_t currentPosition = 0;
+//     UA_NetworkMessage_decodeBinary(&buffer, &currentPosition, networkMessage);
+//     for(int i = 0; i < networkMessage->payloadHeader.dataSetPayloadHeader.count; ++i) {
+//         UA_Byte * rawContent = (UA_Byte *) UA_malloc(networkMessage->payload.dataSetPayload.dataSetMessages[i].data.keyFrameData.rawFields.length);
+//         memcpy(rawContent,
+//                networkMessage->payload.dataSetPayload.dataSetMessages[i].data.keyFrameData.rawFields.data,
+//                networkMessage->payload.dataSetPayload.dataSetMessages[i].data.keyFrameData.rawFields.length);
+//         networkMessage->payload.dataSetPayload.dataSetMessages[i].data.keyFrameData.rawFields.data = rawContent;
+//     }
+//     UA_ByteString_clear(&buffer);
+// }
+
+static void receiveAvailableMessages(UA_ByteString buffer, UA_PubSubConnection *connection, UA_NetworkMessage *networkMessage) {
+    if (UA_ByteString_allocBuffer(&buffer, 512) != UA_STATUSCODE_GOOD) {
+        ck_abort_msg("Message buffer allocation failed!");
+    }
+
+    UA_ReceiveContext testCtx = {0, networkMessage};
+    UA_StatusCode retval =
+        connection->channel->receive(connection->channel, NULL, recvTestFun,
+                                     &testCtx, 80000);
+    if(retval != UA_STATUSCODE_GOOD || buffer.length == 0) {
+        buffer.length = 512;
+        UA_ByteString_clear(&buffer);
+        ck_abort_msg("Expected message not received!");
     }
     UA_ByteString_clear(&buffer);
 }
@@ -120,14 +169,18 @@ START_TEST(CheckNMandDSMcalculation){
                                    &dataSetWriterConfig, &dataSetWriterIdent);
     }
 
+    UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, connection1);
+    ck_assert(connection);
+    UA_StatusCode rv = connection->channel->regist(connection->channel, NULL, NULL);
+    ck_assert(rv == UA_STATUSCODE_GOOD);
+
     //change publish interval triggers implicit one publish callback run | alternatively run UA_Server_iterate
     writerGroupConfig.publishingInterval = 100000;
     UA_Server_updateWriterGroupConfig(server, writerGroupIdent, &writerGroupConfig);
 
     UA_ByteString buffer = UA_BYTESTRING("");
     UA_NetworkMessage networkMessage;
-    UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, connection1);
-    receiveSingleMessage(buffer, connection, &networkMessage);
+    receiveAvailableMessages(buffer, connection, &networkMessage);
     //ck_assert_int_eq(networkMessage.publisherId.publisherIdUInt32 , 62541);
     ck_assert_int_eq(networkMessage.payloadHeader.dataSetPayloadHeader.count, 10);
     for(size_t i = 10; i > 0; i--){
@@ -143,19 +196,19 @@ START_TEST(CheckNMandDSMcalculation){
     //maximum DSM in one NM = 5
     writerGroupConfig.maxEncapsulatedDataSetMessageCount = 5;
     UA_Server_updateWriterGroupConfig(server, writerGroupIdent, &writerGroupConfig);
-    UA_NetworkMessage networkMessage1, networkMessage2;
-    receiveSingleMessage(buffer, connection, &networkMessage1);
-    receiveSingleMessage(buffer, connection, &networkMessage2);
-    ck_assert_int_eq(networkMessage1.payloadHeader.dataSetPayloadHeader.count, 5);
-    ck_assert_int_eq(networkMessage1.payloadHeader.dataSetPayloadHeader.count, 5);
-    for(int i = 0; i < networkMessage1.payloadHeader.dataSetPayloadHeader.count; ++i) {
-        UA_Byte_delete(networkMessage1.payload.dataSetPayload.dataSetMessages[i].data.keyFrameData.rawFields.data);
+    // UA_NetworkMessage networkMessage1, networkMessage2;
+    UA_NetworkMessage networkMessages[2];
+    receiveAvailableMessages(buffer, connection, networkMessages);
+    ck_assert_int_eq(networkMessages[0].payloadHeader.dataSetPayloadHeader.count, 5);
+    ck_assert_int_eq(networkMessages[1].payloadHeader.dataSetPayloadHeader.count, 5);
+    for(int i = 0; i < networkMessages[0].payloadHeader.dataSetPayloadHeader.count; ++i) {
+        UA_Byte_delete(networkMessages[0].payload.dataSetPayload.dataSetMessages[i].data.keyFrameData.rawFields.data);
     }
-    UA_NetworkMessage_clear(&networkMessage1);
-    for(int i = 0; i < networkMessage2.payloadHeader.dataSetPayloadHeader.count; ++i) {
-        UA_Byte_delete(networkMessage2.payload.dataSetPayload.dataSetMessages[i].data.keyFrameData.rawFields.data);
+    UA_NetworkMessage_clear(&networkMessages[0]);
+    for(int i = 0; i < networkMessages[1].payloadHeader.dataSetPayloadHeader.count; ++i) {
+        UA_Byte_delete(networkMessages[1].payload.dataSetPayload.dataSetMessages[i].data.keyFrameData.rawFields.data);
     }
-    UA_NetworkMessage_clear(&networkMessage2);
+    UA_NetworkMessage_clear(&networkMessages[1]);
 
     //change publish interval triggers implicit one publish callback run | alternatively run UA_Server_iterate
     writerGroupConfig.publishingInterval = 300000;
@@ -163,7 +216,7 @@ START_TEST(CheckNMandDSMcalculation){
     writerGroupConfig.maxEncapsulatedDataSetMessageCount = 20;
     UA_Server_updateWriterGroupConfig(server, writerGroupIdent, &writerGroupConfig);
     UA_NetworkMessage networkMessage3;
-    receiveSingleMessage(buffer, connection, &networkMessage3);
+    receiveAvailableMessages(buffer, connection, &networkMessage3);
     ck_assert_int_eq(networkMessage3.payloadHeader.dataSetPayloadHeader.count, 10);
 
     for(int i = 0; i < networkMessage3.payloadHeader.dataSetPayloadHeader.count; ++i) {
@@ -177,8 +230,8 @@ START_TEST(CheckNMandDSMcalculation){
     writerGroupConfig.maxEncapsulatedDataSetMessageCount = 1;
     UA_Server_updateWriterGroupConfig(server, writerGroupIdent, &writerGroupConfig);
     UA_NetworkMessage messageArray[10];
+    receiveAvailableMessages(buffer, connection, messageArray);
     for (int j = 0; j < 10; ++j) {
-        receiveSingleMessage(buffer, connection, &(messageArray[j]));
         ck_assert_int_eq(messageArray[j].payloadHeader.dataSetPayloadHeader.count, 1);
         for(int i = 0; i < messageArray[j].payloadHeader.dataSetPayloadHeader.count; ++i) {
             UA_Byte_delete(messageArray[j].payload.dataSetPayload.dataSetMessages[i].data.keyFrameData.rawFields.data);
@@ -192,8 +245,9 @@ START_TEST(CheckNMandDSMcalculation){
     writerGroupConfig.maxEncapsulatedDataSetMessageCount = 0;
     UA_Server_updateWriterGroupConfig(server, writerGroupIdent, &writerGroupConfig);
     UA_Server_updateWriterGroupConfig(server, writerGroupIdent, &writerGroupConfig);
+
+    receiveAvailableMessages(buffer, connection, messageArray);
     for (int j = 0; j < 10; ++j) {
-        receiveSingleMessage(buffer, connection, &(messageArray[j]));
         ck_assert_int_eq(messageArray[j].payloadHeader.dataSetPayloadHeader.count, 1);
         for(int i = 0; i < messageArray[j].payloadHeader.dataSetPayloadHeader.count; ++i) {
             UA_Byte_delete(messageArray[j].payload.dataSetPayload.dataSetMessages[i].data.keyFrameData.rawFields.data);
@@ -282,7 +336,9 @@ START_TEST(CheckSingleDSMRawEncodedMessage){
     }
 
     UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, connection1);
-    ck_assert(connection != NULL);
+    ck_assert(connection);
+    UA_StatusCode rv = connection->channel->regist(connection->channel, NULL, NULL);
+    ck_assert(rv == UA_STATUSCODE_GOOD);
 
     //change publish interval triggers implicit one publish callback run | alternatively run UA_Server_iterate
     writerGroupConfig.publishingInterval = 100000;
@@ -290,7 +346,7 @@ START_TEST(CheckSingleDSMRawEncodedMessage){
 
     UA_ByteString buffer = UA_BYTESTRING("");
     UA_NetworkMessage networkMessage;
-    receiveSingleMessage(buffer, connection, &networkMessage);
+    receiveAvailableMessages(buffer, connection, &networkMessage);
     //ck_assert_int_eq(networkMessage.publisherId.publisherIdUInt32 , 62541);
     ck_assert_int_eq(networkMessage.payloadHeader.dataSetPayloadHeader.count, 10);
     for(size_t i = 10; i > 0; i--){
@@ -306,46 +362,45 @@ START_TEST(CheckSingleDSMRawEncodedMessage){
     //maximum DSM in one NM = 5
     writerGroupConfig.maxEncapsulatedDataSetMessageCount = 5;
     UA_Server_updateWriterGroupConfig(server, writerGroupIdent, &writerGroupConfig);
-    UA_NetworkMessage networkMessage1, networkMessage2;
-    receiveSingleMessage(buffer, connection, &networkMessage1);
-    receiveSingleMessage(buffer, connection, &networkMessage2);
-    ck_assert_int_eq(networkMessage1.payloadHeader.dataSetPayloadHeader.count, 5);
-    ck_assert_int_eq(networkMessage1.payloadHeader.dataSetPayloadHeader.count, 5);
-    ck_assert(networkMessage1.payload.dataSetPayload.dataSetMessages->header.fieldEncoding == UA_FIELDENCODING_RAWDATA);
-    ck_assert(networkMessage2.payload.dataSetPayload.dataSetMessages->header.fieldEncoding == UA_FIELDENCODING_RAWDATA);
-    ck_assert(networkMessage1.payload.dataSetPayload.dataSetMessages->data.keyFrameData.rawFields.data != NULL);
-    ck_assert(networkMessage2.payload.dataSetPayload.dataSetMessages->data.keyFrameData.rawFields.data != NULL);
+    UA_NetworkMessage networkMessages[2];
+    receiveAvailableMessages(buffer, connection, networkMessages);
+    ck_assert_int_eq(networkMessages[0].payloadHeader.dataSetPayloadHeader.count, 5);
+    ck_assert_int_eq(networkMessages[0].payloadHeader.dataSetPayloadHeader.count, 5);
+    ck_assert(networkMessages[0].payload.dataSetPayload.dataSetMessages->header.fieldEncoding == UA_FIELDENCODING_RAWDATA);
+    ck_assert(networkMessages[1].payload.dataSetPayload.dataSetMessages->header.fieldEncoding == UA_FIELDENCODING_RAWDATA);
+    ck_assert(networkMessages[0].payload.dataSetPayload.dataSetMessages->data.keyFrameData.rawFields.data != NULL);
+    ck_assert(networkMessages[1].payload.dataSetPayload.dataSetMessages->data.keyFrameData.rawFields.data != NULL);
 
     size_t offset  = 0;
     UA_DateTime dateTime;
     dateTime = 0;
-    ck_assert(UA_DateTime_decodeBinary(&networkMessage1.payload.dataSetPayload.dataSetMessages->data.keyFrameData.rawFields, &offset, &dateTime) ==
+    ck_assert(UA_DateTime_decodeBinary(&networkMessages[0].payload.dataSetPayload.dataSetMessages->data.keyFrameData.rawFields, &offset, &dateTime) ==
               UA_STATUSCODE_GOOD);
-        ck_assert_uint_le(UA_DateTime_now() - dateTime, 1000000);
+    ck_assert_uint_eq(UA_DateTime_now(), dateTime);
     offset  = 0;
     dateTime = 0;
-    ck_assert(UA_DateTime_decodeBinary(&networkMessage2.payload.dataSetPayload.dataSetMessages->data.keyFrameData.rawFields, &offset, &dateTime) ==
+    ck_assert(UA_DateTime_decodeBinary(&networkMessages[1].payload.dataSetPayload.dataSetMessages->data.keyFrameData.rawFields, &offset, &dateTime) ==
               UA_STATUSCODE_GOOD);
     //TODO check if the length can be set right using the metadata
     //ck_assert_uint_eq(UA_DateTime_calcSizeBinary(&dateTime),
-    //                  networkMessage2.payload.dataSetPayload.dataSetMessages->data.keyFrameData.rawFields.length);
-        ck_assert_uint_le(UA_DateTime_now() - dateTime, 1000000);
+    //                  networkMessages[1].payload.dataSetPayload.dataSetMessages->data.keyFrameData.rawFields.length);
+    ck_assert_uint_eq(UA_DateTime_now(), dateTime);
     //Decode raw message of second DSM included in the NM
     offset  = 0;
     dateTime = 0;
-    ck_assert(UA_DateTime_decodeBinary(&networkMessage2.payload.dataSetPayload.dataSetMessages[1].data.keyFrameData.rawFields, &offset, &dateTime) ==
+    ck_assert(UA_DateTime_decodeBinary(&networkMessages[1].payload.dataSetPayload.dataSetMessages[1].data.keyFrameData.rawFields, &offset, &dateTime) ==
           UA_STATUSCODE_GOOD);
-    ck_assert_uint_le(UA_DateTime_now() - dateTime, 1000000);
+    ck_assert_uint_eq(UA_DateTime_now(), dateTime);
 
     /* add a second field to the dataset writer */
-    for(int i = 0; i < networkMessage1.payloadHeader.dataSetPayloadHeader.count; ++i) {
-        UA_Byte_delete(networkMessage1.payload.dataSetPayload.dataSetMessages[i].data.keyFrameData.rawFields.data);
+    for(int i = 0; i < networkMessages[0].payloadHeader.dataSetPayloadHeader.count; ++i) {
+        UA_Byte_delete(networkMessages[0].payload.dataSetPayload.dataSetMessages[i].data.keyFrameData.rawFields.data);
     }
-    for(int i = 0; i < networkMessage2.payloadHeader.dataSetPayloadHeader.count; ++i) {
-        UA_Byte_delete(networkMessage2.payload.dataSetPayload.dataSetMessages[i].data.keyFrameData.rawFields.data);
+    for(int i = 0; i < networkMessages[1].payloadHeader.dataSetPayloadHeader.count; ++i) {
+        UA_Byte_delete(networkMessages[1].payload.dataSetPayload.dataSetMessages[i].data.keyFrameData.rawFields.data);
     }
-    UA_NetworkMessage_clear(&networkMessage1);
-    UA_NetworkMessage_clear(&networkMessage2);
+    UA_NetworkMessage_clear(&networkMessages[0]);
+    UA_NetworkMessage_clear(&networkMessages[1]);
 } END_TEST
 
 int main(void) {

@@ -18,12 +18,13 @@ builtin_types = ["Boolean", "SByte", "Byte", "Int16", "UInt16", "Int32", "UInt32
                  "QualifiedName", "LocalizedText", "ExtensionObject", "DataValue",
                  "Variant", "DiagnosticInfo"]
 
-excluded_types = ["NodeIdType", "InstanceNode", "TypeNode", "Node", "ObjectNode",
-                  "ObjectTypeNode", "VariableNode", "VariableTypeNode", "ReferenceTypeNode",
-                  "MethodNode", "ViewNode", "DataTypeNode", "NumericRangeDimensions",
-                  "UA_ServerDiagnosticsSummaryDataType", "UA_SamplingIntervalDiagnosticsDataType",
-                  "UA_SessionSecurityDiagnosticsDataType", "UA_SubscriptionDiagnosticsDataType",
-                  "UA_SessionDiagnosticsDataType"]
+# DataTypes that are ignored/not generated
+excluded_types = [
+    # NodeId Types
+    "NodeIdType", "TwoByteNodeId", "FourByteNodeId", "NumericNodeId", "StringNodeId", "GuidNodeId", "ByteStringNodeId",
+    # Node Types
+    "InstanceNode", "TypeNode", "Node", "ObjectNode", "ObjectTypeNode", "VariableNode",
+    "VariableTypeNode", "ReferenceTypeNode", "MethodNode", "ViewNode", "DataTypeNode"]
 
 rename_types = {"NumericRange": "OpaqueNumericRange"}
 
@@ -262,14 +263,6 @@ class TypeParser():
                         unknowns.append(child.get("TypeName"))
             return unknowns
 
-        def skipType(name):
-            "Ignore the type? According to the blacklist and regex rules"
-            if name in excluded_types:
-                return True
-            if re.search("NodeId$", name) != None:
-                return True
-            return False
-
         def structWithOptionalFields(element):
             "Is this a structure with optional fields?"
             opt_fields = []
@@ -337,7 +330,7 @@ class TypeParser():
                                    "Opc.Ua.Types.bsd'")
             detectLoop = len(snippets)
             for name, typeXml in list(snippets.items()):
-                if (targetNamespace in self.types and name in self.types[targetNamespace]) or skipType(name):
+                if (targetNamespace in self.types and name in self.types[targetNamespace]) or name in excluded_types:
                     del snippets[name]
                     continue
                 if not typeReady(typeXml, self.types, xmlNamespaces):
@@ -398,6 +391,7 @@ class CSVBSDTypeParser(TypeParser):
                  existing_bsd, type_bsd, type_csv, namespaceIndexMap):
         TypeParser.__init__(self, opaque_map, selected_types, no_builtin, outname, namespaceIndexMap)
         self.existing_bsd = existing_bsd # bsd files with existing types that shall not be printed again
+        self.existing_types_array = set() # existing TYPE_ARRAY from existing_bsd
         self.type_bsd = type_bsd # bsd files with new types
         self.type_csv = type_csv # csv files with nodeids, etc.
         self.existing_types = [] # existing types that shall not be printed
@@ -406,6 +400,7 @@ class CSVBSDTypeParser(TypeParser):
         # parse existing types
         for i in self.existing_bsd:
             (outname_import, file_import) = i.split("#")
+            self.existing_types_array.add(outname_import)
             outname_import = outname_import.lower()
             if outname_import.startswith("ua_"):
                 outname_import = outname_import[3:]

@@ -16,7 +16,7 @@ RUN cmake -DBUILD_SHARED_LIBS=ON \
 		-DUA_BUILD_EXAMPLES=ON \
 		# Hardening needs to be disabled, otherwise the docker build takes too long and travis fails
 		-DUA_ENABLE_HARDENING=OFF \
-        -DUA_ENABLE_ENCRYPTION=ON \
+        -DUA_ENABLE_ENCRYPTION=MBEDTLS \
         -DUA_ENABLE_SUBSCRIPTIONS=ON \
         -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
 		-DUA_NAMESPACE_ZERO=FULL \

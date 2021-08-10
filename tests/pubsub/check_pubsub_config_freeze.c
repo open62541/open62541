@@ -22,12 +22,7 @@ static void setup(void) {
     server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
-
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer*)
-            UA_malloc(sizeof(UA_PubSubTransportLayer));
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerUDPMP();
-    config->pubsubTransportLayersSize++;
-
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
     UA_Server_run_startup(server);
 }
 
@@ -66,6 +61,8 @@ START_TEST(CreateAndLockConfiguration) {
     memset(&fieldConfig, 0, sizeof(UA_DataSetFieldConfig));
     fieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
     fieldConfig.field.variable.fieldNameAlias = UA_STRING("field 1");
+    fieldConfig.field.variable.publishParameters.publishedVariable =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
     UA_Server_addDataSetField(server, publishedDataSet1, &fieldConfig, &dataSetField1);
 
     UA_DataSetField *dataSetField = UA_DataSetField_findDSFbyId(server, dataSetField1);
@@ -147,6 +144,8 @@ START_TEST(CreateAndLockConfigurationWithExternalAPI) {
         memset(&fieldConfig, 0, sizeof(UA_DataSetFieldConfig));
         fieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
         fieldConfig.field.variable.fieldNameAlias = UA_STRING("field 1");
+        fieldConfig.field.variable.publishParameters.publishedVariable =
+            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
         UA_Server_addDataSetField(server, publishedDataSet1, &fieldConfig, &dataSetField1);
 
         UA_DataSetField *dataSetField = UA_DataSetField_findDSFbyId(server, dataSetField1);
@@ -215,6 +214,8 @@ START_TEST(CreateAndReleaseMultiplePDSLocks) {
     memset(&fieldConfig, 0, sizeof(UA_DataSetFieldConfig));
     fieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
     fieldConfig.field.variable.fieldNameAlias = UA_STRING("field 1");
+    fieldConfig.field.variable.publishParameters.publishedVariable =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
     UA_Server_addDataSetField(server, publishedDataSet1, &fieldConfig, &dataSetField1);
 
     UA_DataSetField *dataSetField = UA_DataSetField_findDSFbyId(server, dataSetField1);
@@ -284,6 +285,8 @@ START_TEST(CreateLockAndEditConfiguration) {
     memset(&fieldConfig, 0, sizeof(UA_DataSetFieldConfig));
     fieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
     fieldConfig.field.variable.fieldNameAlias = UA_STRING("field 1");
+    fieldConfig.field.variable.publishParameters.publishedVariable =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
     UA_NodeId localDataSetField;
     UA_Server_addDataSetField(server, publishedDataSet1, &fieldConfig, &localDataSetField);
 

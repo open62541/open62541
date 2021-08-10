@@ -3,9 +3,9 @@
  *
 */
 
-/* During the RAW-Encoding decode process, the MetaData-Informations are needed.
- * The OPC UA specification defines several ways to collect these informations (see. Part 14 5.2.3).
- * Currently we use a OPC UA client to collect the MetaData form the publisher.
+/* During the RAW-Encoding decode process, the MetaData-Information are needed.
+ * The OPC UA specification defines several ways to collect these information (see. Part 14 5.2.3).
+ * Currently we use an OPC UA client to collect the MetaData form the publisher.
  * Attention: There can be more than one publisher servers later.
  * The following defines tell the server, where to collect the MetaData. (currently used for all DSR)"
  */
@@ -336,18 +336,9 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
      * The TransportLayer is acting as factory to create new connections
      * on runtime. Details about the PubSubTransportLayer can be found inside the
      * tutorial_pubsub_connection */
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer *)
-        UA_calloc(2, sizeof(UA_PubSubTransportLayer));
-    if(!config->pubsubTransportLayers) {
-        UA_Server_delete(server);
-        return EXIT_FAILURE;
-    }
-
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerUDPMP();
-    config->pubsubTransportLayersSize++;
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
 #ifdef UA_ENABLE_PUBSUB_ETH_UADP
-    config->pubsubTransportLayers[1] = UA_PubSubTransportLayerEthernet();
-    config->pubsubTransportLayersSize++;
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
 #endif
 
     /* API calls */

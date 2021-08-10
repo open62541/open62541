@@ -61,7 +61,7 @@ if [ -z ${DOCKER+x} ] && [ -z ${SONAR+x} ]; then
 
 	echo -en 'travis_fold:end:script.before_install.external\\r'
 
-	echo "=== Installing python packages ===" && echo -en 'travis_fold:start:before_install.python\\r'
+	echo "=== Installing Python packages ===" && echo -en 'travis_fold:start:before_install.python\\r'
 	pip install --user cpp-coveralls
 	# Pin docutils to version smaller 0.15. Otherwise we run into https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=839299
 	pip install --user 'docutils<=0.14'

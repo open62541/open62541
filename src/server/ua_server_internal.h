@@ -162,22 +162,15 @@ struct UA_Server {
 
 extern const struct aa_head refNameTree;
 
-UA_ReferenceTarget *
-UA_NodeReferenceKind_firstTarget(const UA_NodeReferenceKind *kind);
-
-UA_ReferenceTarget *
-UA_NodeReferenceKind_nextTarget(const UA_NodeReferenceKind *kind,
-                                const UA_ReferenceTarget *current);
-
-UA_ReferenceTarget *
-UA_NodeReferenceKind_findTarget(const UA_NodeReferenceKind *kind,
+const UA_ReferenceTarget *
+UA_NodeReferenceKind_findTarget(const UA_NodeReferenceKind *rk,
                                 const UA_ExpandedNodeId *targetId);
 
 /**************************/
 /* SecureChannel Handling */
 /**************************/
 
-/* Remove a all securechannels */
+/* Remove all securechannels */
 void
 UA_Server_deleteSecureChannels(UA_Server *server);
 
@@ -297,8 +290,8 @@ getParentTypeAndInterfaceHierarchy(UA_Server *server, const UA_NodeId *typeNode,
 
 /* Returns the recursive interface hierarchy of the node */
 UA_StatusCode
-getInterfaceHierarchy(UA_Server *server, const UA_NodeId *objectNode,
-                                   UA_NodeId **typeHierarchy, size_t *typeHierarchySize);
+getAllInterfaceChildNodeIds(UA_Server *server, const UA_NodeId *objectNode, const UA_NodeId *objectTypeNode,
+                                   UA_NodeId **interfaceChildNodes, size_t *interfaceChildNodesSize);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
 
@@ -360,11 +353,6 @@ addNode(UA_Server *server, const UA_NodeClass nodeClass, const UA_NodeId *reques
 UA_StatusCode
 setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
                            const UA_DataSource dataSource);
-
-UA_StatusCode
-setMethodNode_callback(UA_Server *server,
-                       const UA_NodeId methodNodeId,
-                       UA_MethodCallback methodCallback);
 
 UA_StatusCode
 writeAttribute(UA_Server *server, UA_Session *session,
@@ -516,6 +504,11 @@ compatibleValue(UA_Server *server, UA_Session *session, const UA_NodeId *targetD
 UA_Boolean
 compatibleDataTypes(UA_Server *server, const UA_NodeId *dataType,
                     const UA_NodeId *constraintDataType);
+
+/* Set to the target type if compatible */
+void
+adjustValueType(UA_Server *server, UA_Variant *value,
+                const UA_NodeId *targetDataTypeId);
 
 /* Is the Value compatible with the DataType? Can perform additional checks
  * compared to compatibleDataTypes. */

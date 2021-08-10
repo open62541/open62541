@@ -31,13 +31,13 @@ getSecurityPolicy(UA_Client *client, UA_String policyUri) {
 
 static UA_Boolean
 endpointUnconfigured(UA_Client *client) {
-    UA_Byte test = 0;
-    UA_Byte *pos = (UA_Byte*)&client->config.endpoint;
+    char test = 0;
+    char *pos = (char *)&client->config.endpoint;
     for(size_t i = 0; i < sizeof(UA_EndpointDescription); i++)
-        test = test | pos[i];
-    pos = (UA_Byte*)&client->config.userTokenPolicy;
+        test = test | *(pos + i);
+    pos = (char *)&client->config.userTokenPolicy;
     for(size_t i = 0; i < sizeof(UA_UserTokenPolicy); i++)
-        test = test | pos[i];
+        test = test | *(pos + i);
     return (test == 0);
 }
 
@@ -703,8 +703,8 @@ responseGetEndpoints(UA_Client *client, void *userdata, UA_UInt32 requestId,
 
             /* Log the selected endpoint */
             UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                        "Selected Endpoint %.*s with SecurityMode %s and SecurityPolicy %.*s",
-                        (int)endpoint->endpointUrl.length, endpoint->endpointUrl.data,
+                        "Selected endpoint %lu in URL %.*s with SecurityMode %s and SecurityPolicy %.*s",
+                        (long unsigned)i, (int)endpoint->endpointUrl.length, endpoint->endpointUrl.data,
                         securityModeNames[endpoint->securityMode - 1],
                         (int)endpoint->securityPolicyUri.length,
                         endpoint->securityPolicyUri.data);
@@ -826,7 +826,8 @@ createSessionAsync(UA_Client *client) {
                 return retval;
         }
         retval = client->channel.securityPolicy->symmetricModule.
-                 generateNonce(client->channel.securityPolicy, &client->localNonce);
+                 generateNonce(client->channel.securityPolicy->policyContext,
+                               &client->localNonce);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }

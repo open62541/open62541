@@ -12,11 +12,13 @@
 
 #include "securitypolicy_openssl_common.h"
 
-#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
 #include <openssl/x509.h>
 #include <openssl/x509_vfy.h>
 #include <openssl/x509v3.h>
 #include <openssl/pem.h>
+
+#include "ua_openssl_version_abstraction.h"
 
 /* Find binary substring. Taken and adjusted from
  * http://tungchingkai.blogspot.com/2011/07/binary-strstr.html */
@@ -175,14 +177,8 @@ UA_skCrls_Cert2X509 (const UA_ByteString *   certificateRevocationList,
             crl = d2i_X509_CRL (NULL, &pData, (long) certificateRevocationList[i].length);
         } else {
             BIO* bio = NULL;
-
-#if OPENSSL_VERSION_NUMBER < 0x1000207fL
             bio = BIO_new_mem_buf((void *) certificateRevocationList[i].data,
                                   (int) certificateRevocationList[i].length);
-#else
-            bio = BIO_new_mem_buf((const void *) certificateRevocationList[i].data,
-                                  (int) certificateRevocationList[i].length);
-#endif
             crl = PEM_read_bio_X509_CRL(bio, NULL, NULL, NULL);
             BIO_free(bio);
         }
@@ -478,11 +474,9 @@ UA_CertificateVerification_Verify (void *                verificationContext,
         ret = UA_STATUSCODE_BADINTERNALERROR;
         goto cleanup;
     }
-#if OPENSSL_API_COMPAT < 0x10100000L
-	(void) X509_STORE_CTX_trusted_stack (storeCtx, ctx->skTrusted);
-#else
-	(void) X509_STORE_CTX_set0_trusted_stack (storeCtx, ctx->skTrusted);
-#endif
+
+    (void) X509_STORE_CTX_set0_trusted_stack (storeCtx, ctx->skTrusted);
+
 
     /* Set crls to ctx */
     if (sk_X509_CRL_num (ctx->skCrls) > 0) {
@@ -492,23 +486,16 @@ UA_CertificateVerification_Verify (void *                verificationContext,
     /* Set flag to check if the certificate has an invalid signature */
     X509_STORE_CTX_set_flags (storeCtx, X509_V_FLAG_CHECK_SS_SIGNATURE);
 
-#if OPENSSL_VERSION_NUMBER >= 0x1010000fL
-    if (X509_STORE_CTX_get_check_issued (storeCtx) (storeCtx,certificateX509, certificateX509) != 1) {
+    if (X509_STORE_CTX_get_check_issued(storeCtx) (storeCtx,certificateX509, certificateX509) != 1) {
         X509_STORE_CTX_set_flags (storeCtx, X509_V_FLAG_CRL_CHECK);
     }
-#else
-    if (storeCtx->check_issued(storeCtx,certificateX509, certificateX509) != 1) {
-        X509_STORE_CTX_set_flags (storeCtx, X509_V_FLAG_CRL_CHECK);
-    }
-#endif
 
     /* This condition will check whether the certificate is a User certificate or a CA certificate.
      * If the KU_KEY_CERT_SIGN and KU_CRL_SIGN of key_usage are set, then the certificate shall be
      * condidered as CA Certificate and cannot be used to establish a connection. Refer the test case
      * CTT/Security/Security Certificate Validation/029.js for more details */
-    uint32_t val = X509_get_key_usage(certificateX509);
-    if((val & KU_KEY_CERT_SIGN) &&
-       (val & KU_CRL_SIGN)) {
+     /** \todo Can the ca-parameter of X509_check_purpose can be used? */
+    if(X509_check_purpose(certificateX509, X509_PURPOSE_CRL_SIGN, 0) && X509_check_ca(certificateX509)) {
         return UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
     }
 
@@ -519,11 +506,7 @@ UA_CertificateVerification_Verify (void *                verificationContext,
         /* Check if the not trusted certificate has a CRL file. If there is no CRL file available for the corresponding
          * parent certificate then return status code UA_STATUSCODE_BADCERTIFICATEISSUERREVOCATIONUNKNOWN. Refer the test
          * case CTT/Security/Security Certificate Validation/002.js */
-#if OPENSSL_VERSION_NUMBER >= 0x1010000fL
         if (X509_STORE_CTX_get_check_issued (storeCtx) (storeCtx,certificateX509, certificateX509) != 1) {
-#else
-        if (storeCtx->check_issued(storeCtx,certificateX509, certificateX509) != 1) {
-#endif
             /* Free X509_STORE_CTX and reuse it for certification verification */
             if (storeCtx != NULL) {
                X509_STORE_CTX_free(storeCtx);
@@ -763,4 +746,4 @@ UA_CertificateVerification_CertFolders(UA_CertificateVerification * cv,
 }
 #endif
 
-#endif  /* end of UA_ENABLE_ENCRYPTION_OPENSSL */
+#endif  /* end of defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL) */

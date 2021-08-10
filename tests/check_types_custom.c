@@ -38,42 +38,45 @@ typedef struct {
 static UA_DataTypeMember members[3] = {
     /* x */
     {
-        UA_TYPES_FLOAT,  /* .memberTypeIndex, points into UA_TYPES since
-                            .namespaceZero is true */
-        0,               /* .padding */
-        true,            /* .namespaceZero, see .memberTypeIndex */
-        false,           /* .isArray */
-        false            /* .isOptional*/
-        UA_TYPENAME("x") /* .memberName */
+        UA_TYPENAME("x")           /* .memberName */
+        &UA_TYPES[UA_TYPES_FLOAT], /* .memberType */
+        0,                         /* .padding */
+        false,                     /* .isArray */
+        false                      /* .isOptional*/
     },
 
     /* y */
     {
-        UA_TYPES_FLOAT, padding_y, true, false, false
         UA_TYPENAME("y")
+        &UA_TYPES[UA_TYPES_FLOAT],
+        padding_y,
+        false,
+        false
     },
 
     /* z */
     {
-        UA_TYPES_FLOAT, padding_z, true, false, false
         UA_TYPENAME("z")
+        &UA_TYPES[UA_TYPES_FLOAT],
+        padding_z,
+        false,
+        false
     }
 };
 
 static const UA_DataType PointType = {
+    UA_TYPENAME("Point")             /* .typeName */
     {1, UA_NODEIDTYPE_NUMERIC, {1}}, /* .typeId */
     {1, UA_NODEIDTYPE_NUMERIC, {17}}, /* .binaryEncodingId, the numeric
                                          identifier used on the wire (the
                                          namespaceindex is from .typeId) */
     sizeof(Point),                   /* .memSize */
-    0,                               /* .typeIndex, in the array of custom types */
     UA_DATATYPEKIND_STRUCTURE,       /* .typeKind */
     true,                            /* .pointerFree */
     false,                           /* .overlayable (depends on endianness and
                                          the absence of padding) */
     3,                               /* .membersSize */
     members
-    UA_TYPENAME("Point")             /* .typeName */
 };
 
 const UA_DataTypeArray customDataTypes = {NULL, 1, &PointType};
@@ -87,47 +90,43 @@ typedef struct {
 static UA_DataTypeMember Opt_members[3] = {
         /* a */
         {
-                UA_TYPES_INT16,  /* .memberTypeIndex, points into UA_TYPES since namespaceZero is true */
-                0, /* .padding */
-                true,       /* .namespaceZero, see .memberTypeIndex */
-                false,      /* .isArray */
-                false       /* .isOptional */
-                UA_TYPENAME("a") /* .memberName */
+                UA_TYPENAME("a")           /* .memberName */
+                &UA_TYPES[UA_TYPES_INT16], /* .memberType */
+                0,                         /* .padding */
+                false,                     /* .isArray */
+                false                      /* .isOptional */
         },
         /* b */
         {
-                UA_TYPES_FLOAT,
+                UA_TYPENAME("b")
+                &UA_TYPES[UA_TYPES_FLOAT], /* .memberType */
                 offsetof(Opt,b) - offsetof(Opt,a) - sizeof(UA_Int16),
-                true,
                 false,
                 true        /* b is an optional field */
-                UA_TYPENAME("b")
         },
         /* c */
         {
-                UA_TYPES_FLOAT,
+                UA_TYPENAME("c")
+                &UA_TYPES[UA_TYPES_FLOAT], /* .memberType */
                 offsetof(Opt,c) - offsetof(Opt,b) - sizeof(void *),
-                true,
                 false,
                 true        /* b is an optional field */
-                UA_TYPENAME("c")
         }
 };
 
 static const UA_DataType OptType = {
+        UA_TYPENAME("Opt")             /* .typeName */
         {1, UA_NODEIDTYPE_NUMERIC, {4242}}, /* .typeId */
         {1, UA_NODEIDTYPE_NUMERIC, {5}}, /* .binaryEncodingId, the numeric
                                          identifier used on the wire (the
                                          namespaceindex is from .typeId) */
-        sizeof(Opt),                   /* .memSize */
-        0,                               /* .typeIndex, in the array of custom types */
+        sizeof(Opt),                     /* .memSize */
         UA_DATATYPEKIND_OPTSTRUCT,       /* .typeKind */
         false,                            /* .pointerFree */
         false,                           /* .overlayable (depends on endianness and
                                          the absence of padding) */
         3,                               /* .membersSize */
         Opt_members
-        UA_TYPENAME("Opt")             /* .typeName */
 };
 
 const UA_DataTypeArray customDataTypesOptStruct = {&customDataTypes, 2, &OptType};
@@ -142,45 +141,41 @@ typedef struct {
 
 static UA_DataTypeMember ArrayOptStruct_members[3] = {
     {
-        UA_TYPES_STRING,  /* .memberTypeIndex, points into UA_TYPES since namespaceZero is true */
-        0,               /* .padding */
-        true,            /* .namespaceZero, see .memberTypeIndex */
-        false,            /* .isArray */
-        false
         UA_TYPENAME("Measurement description") /* .memberName */
-    },
-    {
-        UA_TYPES_FLOAT,  /* .memberTypeIndex, points into UA_TYPES since namespaceZero is true */
-        offsetof(OptArray, bSize) - offsetof(OptArray, description) - sizeof(UA_String),               /* .padding */
-        true,            /* .namespaceZero, see .memberTypeIndex */
-        true,            /* .isArray */
-        true
-        UA_TYPENAME("TestArray1") /* .memberName */
-    },
-    {
-        UA_TYPES_FLOAT,  /* .memberTypeIndex, points into UA_TYPES since namespaceZero is true */
-        offsetof(OptArray, cSize) - offsetof(OptArray, b) - sizeof(void *),               /* .padding */
-        true,            /* .namespaceZero, see .memberTypeIndex */
-        true,            /* .isArray */
+        &UA_TYPES[UA_TYPES_STRING],            /* .memberType */
+        0,                                     /* .padding */
+        false,                                 /* .isArray */
         false
-        UA_TYPENAME("TestArray2") /* .memberName */
+    },
+    {
+        UA_TYPENAME("TestArray1") /* .memberName */
+        &UA_TYPES[UA_TYPES_FLOAT], /* .memberType */
+        offsetof(OptArray, bSize) - offsetof(OptArray, description) - sizeof(UA_String),               /* .padding */
+        true,                      /* .isArray */
+        true
+    },
+    {
+        UA_TYPENAME("TestArray2")  /* .memberName */
+        &UA_TYPES[UA_TYPES_FLOAT], /* .memberType */
+        offsetof(OptArray, cSize) - offsetof(OptArray, b) - sizeof(void *),               /* .padding */
+        true,                      /* .isArray */
+        false
     }
 };
 
 static const UA_DataType ArrayOptType = {
+    UA_TYPENAME("OptArray")             /* .tyspeName */
     {1, UA_NODEIDTYPE_NUMERIC, {4243}},     /* .typeId */
     {1, UA_NODEIDTYPE_NUMERIC, {1337}}, /* .binaryEncodingId, the numeric
                                          identifier used on the wire (the
                                          namespaceindex is from .typeId) */
     sizeof(OptArray),                   /* .memSize */
-    0,                               /* .typeIndex, in the array of custom types */
     UA_DATATYPEKIND_OPTSTRUCT,       /* .typeKind */
     false,                            /* .pointerFree */
     false,                           /* .overlayable (depends on endianness and
                                          the absence of padding) */
     3,                               /* .membersSize */
     ArrayOptStruct_members
-    UA_TYPENAME("OptArray")             /* .tyspeName */
 };
 
 const UA_DataTypeArray customDataTypesOptArrayStruct = {&customDataTypesOptStruct, 3, &ArrayOptType};
@@ -197,34 +192,31 @@ typedef struct {
 
 static UA_DataTypeMember Uni_members[2] = {
         {
-                UA_TYPES_DOUBLE,
+                UA_TYPENAME("optionA")
+                &UA_TYPES[UA_TYPES_DOUBLE], /* .memberType */
                 offsetof(Uni, fields.optionA),
-                true,
                 false,
                 false
-                UA_TYPENAME("optionA")
         },
         {
-                UA_TYPES_STRING,
+                UA_TYPENAME("optionB")
+                &UA_TYPES[UA_TYPES_STRING], /* .memberType */
                 offsetof(Uni, fields.optionB),
-                true,
                 false,
                 false
-                UA_TYPENAME("optionB")
         }
 };
 
 static const UA_DataType UniType = {
+        UA_TYPENAME("Uni")
         {1, UA_NODEIDTYPE_NUMERIC, {4245}},
         {1, UA_NODEIDTYPE_NUMERIC, {13338}},
         sizeof(Uni),
-        1,
         UA_DATATYPEKIND_UNION,
         false,
         false,
         2,
         Uni_members
-        UA_TYPENAME("Uni")
 };
 
 const UA_DataTypeArray customDataTypesUnion = {&customDataTypesOptArrayStruct, 2, &UniType};
@@ -248,35 +240,34 @@ struct UA_SelfContainingUnion {
     } fields;
 };
 
+extern const UA_DataType selfContainingUnionType;
+
 static UA_DataTypeMember SelfContainingUnion_members[2] = {
 {
-    UA_TYPES_DOUBLE, /* .memberTypeIndex */
+    UA_TYPENAME("_double")                            /* .memberName */
+    &UA_TYPES[UA_TYPES_DOUBLE],                       /* .memberType */
     offsetof(UA_SelfContainingUnion, fields._double), /* .padding */
-    true, /* .namespaceZero */
-    false, /* .isArray */
-    false  /* .isOptional */
-    UA_TYPENAME("_double") /* .memberName */
+    false,                                            /* .isArray */
+    false                                             /* .isOptional */
 },
 {
-    0, /* .memberTypeIndex */
-    offsetof(UA_SelfContainingUnion, fields.array), /* .padding */
-    false, /* .namespaceZero */
-    true, /* .isArray */
-    false  /* .isOptional */
-    UA_TYPENAME("Array") /* .memberName */
+    UA_TYPENAME("Array")                              /* .memberName */
+    &selfContainingUnionType,                         /* .memberType */
+    offsetof(UA_SelfContainingUnion, fields.array),   /* .padding */
+    true,                                             /* .isArray */
+    false                                             /* .isOptional */
 },};
 
-static const UA_DataType selfContainingUnionType = {
+const UA_DataType selfContainingUnionType = {
+    UA_TYPENAME("SelfContainingStruct") /* .typeName */
     {2, UA_NODEIDTYPE_NUMERIC, {4002LU}}, /* .typeId */
     {2, UA_NODEIDTYPE_NUMERIC, {0}}, /* .binaryEncodingId */
     sizeof(UA_SelfContainingUnion), /* .memSize */
-    0, /* .typeIndex */
     UA_DATATYPEKIND_UNION, /* .typeKind */
     false, /* .pointerFree */
     false, /* .overlayable */
     2, /* .membersSize */
     SelfContainingUnion_members  /* .members */
-    UA_TYPENAME("SelfContainingStruct") /* .typeName */
 };
 
 const UA_DataTypeArray customDataTypesSelfContainingUnion = {NULL, 1, &selfContainingUnionType};

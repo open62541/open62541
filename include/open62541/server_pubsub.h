@@ -4,15 +4,15 @@
  *
  * Copyright (c) 2017-2018 Fraunhofer IOSB (Author: Andreas Ebner)
  * Copyright (c) 2019 Kalycito Infotech Private Limited
+ * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
  */
 
 #ifndef UA_SERVER_PUBSUB_H
 #define UA_SERVER_PUBSUB_H
 
 #include <open62541/util.h>
-#include <open62541/server.h>
-
 #include <open62541/plugin/pubsub.h>
+#include <open62541/plugin/securitypolicy.h>
 
 _UA_BEGIN_DECLS
 
@@ -21,30 +21,35 @@ _UA_BEGIN_DECLS
 /**
  * .. _pubsub:
  *
- * Publish/Subscribe
- * =================
+ * PubSub
+ * ======
  *
- * Work in progress!
- * This part will be a new chapter later.
+ * In PubSub the participating OPC UA Applications take their roles as
+ * Publishers and Subscribers. Publishers are the sources of data, while
+ * Subscribers consume that data. Communication in PubSub is message-based.
+ * Publishers send messages to a Message Oriented Middleware, without knowledge
+ * of what, if any, Subscribers there may be. Similarly, Subscribers express
+ * interest in specific types of data, and process messages that contain this
+ * data, without knowledge of what Publishers there are.
  *
- * In PubSub the participating OPC UA Applications take their roles as Publishers and Subscribers. Publishers are the
- * sources of data, while Subscribers consume that data. Communication in PubSub is message-based.
- * Publishers send messages to a Message Oriented Middleware, without knowledge of what, if any, Subscribers there may be.
- * Similarly, Subscribers express interest in specific types of data, and process messages that contain this data,
- * without knowledge of what Publishers there are.
+ * Message Oriented Middleware is software or hardware infrastructure that
+ * supports sending and receiving messages between distributed systems. OPC UA
+ * PubSub supports two different Message Oriented Middleware variants, namely
+ * the broker-less form and broker-based form. A broker-less form is where the
+ * Message Oriented Middleware is the network infrastructure that is able to
+ * route datagram-based messages. Subscribers and Publishers use datagram
+ * protocols like UDP. In a broker-based form, the core component of the Message
+ * Oriented Middleware is a message Broker. Subscribers and Publishers use
+ * standard messaging protocols like AMQP or MQTT to communicate with the
+ * Broker.
  *
- * Message Oriented Middleware is software or hardware infrastructure that supports sending and receiving messages between distributed systems.
- * OPC UA PubSub supports two different Message Oriented Middleware variants, namely the broker-less form and broker-based form.
- * A broker-less form is where the Message Oriented Middleware is the network infrastructure that is able to route datagram-based messages.
- * Subscribers and Publishers use datagram protocols like UDP. In a broker-based form, the core component of the Message Oriented Middleware
- * is a message Broker. Subscribers and Publishers use standard messaging protocols like AMQP or MQTT to communicate with the Broker.
+ * This makes PubSub suitable for applications where location independence
+ * and/or scalability are required.
  *
- * This makes PubSub suitable for applications where location independence and/or scalability are required.
- *
- *
- * The Publish/Subscribe (PubSub) extension for OPC UA enables fast and efficient
- * 1:m communication. The PubSub extension is protocol agnostic and can be used
- * with broker based protocols like MQTT and AMQP or brokerless implementations like UDP-Multicasting.
+ * The Publish/Subscribe (PubSub) extension for OPC UA enables fast and
+ * efficient 1:m communication. The PubSub extension is protocol agnostic and
+ * can be used with broker based protocols like MQTT and AMQP or brokerless
+ * implementations like UDP-Multicasting.
  *
  * The PubSub API uses the following scheme:
  *
@@ -54,7 +59,7 @@ _UA_BEGIN_DECLS
  *
  * 3. The add[element] function returns the unique nodeId of the internally created element.
  *
- * Take a look on the PubSub Tutorials for more details about the API usage.::
+ * Take a look on the PubSub Tutorials for more details about the API usage::
  *
  *  +-----------+
  *  | UA_Server |
@@ -102,38 +107,18 @@ _UA_BEGIN_DECLS
  *                 +----> UA_DataSetField |  UA_PublishedDataSet_addDataSetField
  *                      +-----------------+
  *
- * PubSub compile flags
- * --------------------
- *
- * **UA_ENABLE_PUBSUB**
- *  Enable the experimental OPC UA PubSub support. The option will include the PubSub UDP multicast plugin. Disabled by default.
- * **UA_ENABLE_PUBSUB_DELTAFRAMES**
- *  The PubSub messages differentiate between keyframe (all published values contained) and deltaframe (only changed values contained) messages.
- *  Deltaframe messages creation consumes some additional ressources and can be disabled with this flag. Disabled by default.
- *  Compile the human-readable name of the StatusCodes into the binary. Disabled by default.
- * **UA_ENABLE_PUBSUB_FILE_CONFIG**
- *  Enable loading OPC UA PubSub configuration from File/ByteString. Enabling PubSub informationmodel methods also will add a method to the Publish/Subscribe object which allows configuring PubSub at runtime.
- * **UA_ENABLE_PUBSUB_INFORMATIONMODEL**
- *  Enable the information model representation of the PubSub configuration. For more details take a look at the following section `PubSub Information Model Representation`. Disabled by default.
- * **UA_ENABLE_PUBSUB_MONITORING**
- *  Enable the experimental PubSub monitoring. This feature provides a basic framework to implement monitoring/timeout checks for PubSub components. 
- *  Initially the MessageReceiveTimeout check of a DataSetReader is provided. It uses the internal server callback implementation.
- *  The monitoring backend can be changed by the application to satisfy realtime requirements.
- *  Disabled by default.
- * **UA_ENABLE_PUBSUB_ETH_UADP**
- *  Enable the OPC UA Ethernet PubSub support to transport UADP NetworkMessages as payload of Ethernet II frame without IP or UDP headers. This option will include Publish and Subscribe based on
- *  EtherType B62C. Disabled by default.
- *
  * PubSub Information Model Representation
  * ---------------------------------------
  * .. _pubsub_informationmodel:
  *
  * The complete PubSub configuration is available inside the information model.
- * The entry point is the node 'PublishSubscribe, located under the Server node.
- * The standard defines for PubSub no new Service set. The configuration can optionally
- * done over methods inside the information model. The information model representation
- * of the current PubSub configuration is generated automatically. This feature
- * can enabled/disable by changing the UA_ENABLE_PUBSUB_INFORMATIONMODEL option.
+ * The entry point is the node 'PublishSubscribe', located under the Server
+ * node.
+ * The standard defines for PubSub no new Service set. The configuration can
+ * optionally be done over methods inside the information model.
+ * The information model representation of the current PubSub configuration is
+ * generated automatically. This feature can be enabled/disabled by changing the
+ * UA_ENABLE_PUBSUB_INFORMATIONMODEL option.
  *
  * Connections
  * -----------
@@ -181,15 +166,22 @@ typedef enum {
 
 /* PubSub monitoring interface */
 typedef struct {
-    UA_StatusCode (*createMonitoring)(UA_Server *server, UA_NodeId Id, UA_PubSubComponentEnumType eComponentType, 
-                                      UA_PubSubMonitoringType eMonitoringType, void *data, UA_ServerCallback callback);
-    UA_StatusCode (*startMonitoring)(UA_Server *server, UA_NodeId Id, UA_PubSubComponentEnumType eComponentType, 
+    UA_StatusCode (*createMonitoring)(UA_Server *server, UA_NodeId Id,
+                                      UA_PubSubComponentEnumType eComponentType,
+                                      UA_PubSubMonitoringType eMonitoringType,
+                                      void *data, UA_ServerCallback callback);
+    UA_StatusCode (*startMonitoring)(UA_Server *server, UA_NodeId Id,
+                                     UA_PubSubComponentEnumType eComponentType,
                                      UA_PubSubMonitoringType eMonitoringType, void *data);
-    UA_StatusCode (*stopMonitoring)(UA_Server *server, UA_NodeId Id, UA_PubSubComponentEnumType eComponentType, 
+    UA_StatusCode (*stopMonitoring)(UA_Server *server, UA_NodeId Id,
+                                    UA_PubSubComponentEnumType eComponentType,
                                     UA_PubSubMonitoringType eMonitoringType, void *data);
-    UA_StatusCode (*updateMonitoringInterval)(UA_Server *server, UA_NodeId Id, UA_PubSubComponentEnumType eComponentType, 
-                                              UA_PubSubMonitoringType eMonitoringType, void *data);
-    UA_StatusCode (*deleteMonitoring)(UA_Server *server, UA_NodeId Id, UA_PubSubComponentEnumType eComponentType, 
+    UA_StatusCode (*updateMonitoringInterval)(UA_Server *server, UA_NodeId Id,
+                                              UA_PubSubComponentEnumType eComponentType,
+                                              UA_PubSubMonitoringType eMonitoringType,
+                                              void *data);
+    UA_StatusCode (*deleteMonitoring)(UA_Server *server, UA_NodeId Id,
+                                      UA_PubSubComponentEnumType eComponentType,
                                       UA_PubSubMonitoringType eMonitoringType, void *data);
 } UA_PubSubMonitoringInterface;
 
@@ -197,17 +189,28 @@ typedef struct {
 
 /* General PubSub configuration */
 struct UA_PubSubConfiguration {
+    /* PubSub network layer */
+    size_t transportLayersSize;
+    UA_PubSubTransportLayer *transportLayers;
 
-    /* Callback for PubSub component state changes:
-    If provided this callback informs the application about PubSub component state changes. 
-    E.g. state change from operational to error in case of a DataSetReader MessageReceiveTimeout.
-    The status code provides additional information. */
-    void (*pubsubStateChangeCallback)(UA_NodeId *Id,
-                                      UA_PubSubState state,
-                                      UA_StatusCode status);// TODO: maybe status code provides not enough information about the state change
+    /* Callback for PubSub component state changes: If provided this callback
+     * informs the application about PubSub component state changes. E.g. state
+     * change from operational to error in case of a DataSetReader
+     * MessageReceiveTimeout. The status code provides additional
+     * information. */
+    void (*stateChangeCallback)(UA_NodeId *Id, UA_PubSubState state,
+                                UA_StatusCode status);
+    /* TODO: maybe status code provides not enough information about the state change */
+
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    /* PubSub security policies */
+    size_t securityPoliciesSize;
+    UA_PubSubSecurityPolicy *securityPolicies;
+#endif
+
 #ifdef UA_ENABLE_PUBSUB_MONITORING
     UA_PubSubMonitoringInterface monitoringInterface;
-#endif /* UA_ENABLE_PUBSUB_MONITORING */
+#endif
 };
 
 
@@ -223,7 +226,7 @@ struct UA_PubSubConfiguration {
 
 UA_StatusCode UA_EXPORT
 UA_ServerConfig_addPubSubTransportLayer(UA_ServerConfig *config,
-                                        UA_PubSubTransportLayer *pubsubTransportLayer);
+                                        UA_PubSubTransportLayer pubsubTransportLayer);
 
 UA_StatusCode UA_EXPORT
 UA_Server_addPubSubConnection(UA_Server *server,
@@ -245,10 +248,10 @@ UA_Server_removePubSubConnection(UA_Server *server, const UA_NodeId connection);
  * PublishedDataSets
  * -----------------
  * The PublishedDataSets (PDS) are containers for the published information. The
- * PDS contain the published variables and meta informations. The metadata is
+ * PDS contain the published variables and meta information. The metadata is
  * commonly autogenerated or given as constant argument as part of the template
  * functions. The template functions are standard defined and intended for
- * configuration tools. You should normally create a empty PDS and call the
+ * configuration tools. You should normally create an empty PDS and call the
  * functions to add new fields. */
 
 /* The UA_PUBSUB_DATASET_PUBLISHEDITEMS has currently no additional members and
@@ -446,7 +449,7 @@ typedef enum {
  * UA_PUBSUB_RT_FIXED_LENGTH (Preview - not implemented)
  * ---> Description: All DataSetFields have a known, non-changing length. The server will pre-generate some
  * buffers and use only memcopy operations to generate requested PubSub packages.
- * ---> Requirements: DataSetFields with variable size can't be used within this mode.
+ * ---> Requirements: DataSetFields with variable size cannot be used within this mode.
  * ---> Restrictions: The configuration must be frozen and changes are not allowed while the WriterGroup is 'Operational'.
  * UA_PUBSUB_RT_DETERMINISTIC (Preview - not implemented)
  * ---> Description: -
@@ -470,7 +473,6 @@ typedef struct {
     UA_Duration publishingInterval;
     UA_Double keepAliveTime;
     UA_Byte priority;
-    UA_MessageSecurityMode securityMode;
     UA_ExtensionObject transportSettings;
     UA_ExtensionObject messageSettings;
     size_t groupPropertiesSize;
@@ -483,6 +485,14 @@ typedef struct {
     UA_UInt16 maxEncapsulatedDataSetMessageCount;
     /* non std. field */
     UA_PubSubRTLevel rtLevel;
+
+    /* Message are encrypted if a SecurityPolicy is configured and the
+     * securityMode set accordingly. The symmetric key is a runtime information
+     * and has to be set via UA_Server_setWriterGroupEncryptionKey. */
+    UA_MessageSecurityMode securityMode; /* via the UA_WriterGroupDataType */
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    UA_PubSubSecurityPolicy *securityPolicy;
+#endif
 } UA_WriterGroupConfig;
 
 void UA_EXPORT
@@ -523,6 +533,17 @@ UA_Server_setWriterGroupOperational(UA_Server *server, const UA_NodeId writerGro
 UA_StatusCode UA_EXPORT
 UA_Server_setWriterGroupDisabled(UA_Server *server, const UA_NodeId writerGroup);
 
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+/* Set the group key for the message encryption */
+UA_StatusCode UA_EXPORT
+UA_Server_setWriterGroupEncryptionKeys(UA_Server *server, const UA_NodeId writerGroup,
+                                       UA_UInt32 securityTokenId,
+                                       const UA_ByteString signingKey,
+                                       const UA_ByteString encryptingKey,
+                                       const UA_ByteString keyNonce);
+#endif
+
+
 /**
  * .. _dsw:
  *
@@ -549,7 +570,7 @@ typedef struct {
 void UA_EXPORT
 UA_DataSetWriterConfig_clear(UA_DataSetWriterConfig *pdsConfig);
 
-/* Add a new DataSetWriter to a existing WriterGroup. The DataSetWriter must be
+/* Add a new DataSetWriter to an existing WriterGroup. The DataSetWriter must be
  * coupled with a PublishedDataSet on creation.
  *
  * Part 14, 7.1.5.2.1 defines: The link between the PublishedDataSet and
@@ -577,14 +598,16 @@ UA_Server_removeDataSetWriter(UA_Server *server, const UA_NodeId dsw);
 /**
  * SubscribedDataSet
  * -----------------
- * SubscribedDataSet describes the processing of the received DataSet. SubscribedDataSet defines which field
- * in the DataSet is mapped to which Variable in the OPC UA Application. SubscribedDataSet has two sub-types
+ * SubscribedDataSet describes the processing of the received DataSet.
+ * SubscribedDataSet defines which field in the DataSet is mapped to which
+ * Variable in the OPC UA Application. SubscribedDataSet has two sub-types
  * called the TargetVariablesType and SubscribedDataSetMirrorType.
- * SubscribedDataSetMirrorType is currently not supported. SubscribedDataSet is set to TargetVariablesType
- * and then the list of target Variables are created in the Subscriber AddressSpace.
- * TargetVariables are a list of variables that are to be added in the Subscriber AddressSpace.
- * It defines a list of Variable mappings between received DataSet fields and added Variables
- * in the Subscriber AddressSpace. */
+ * SubscribedDataSetMirrorType is currently not supported. SubscribedDataSet is
+ * set to TargetVariablesType and then the list of target Variables are created
+ * in the Subscriber AddressSpace. TargetVariables are a list of variables that
+ * are to be added in the Subscriber AddressSpace. It defines a list of Variable
+ * mappings between received DataSet fields and added Variables in the
+ * Subscriber AddressSpace. */
 
 /* SubscribedDataSetDataType Definition */
 typedef enum {
@@ -644,6 +667,13 @@ typedef struct {
     UA_Int32 *keyServers;
 } UA_PubSubSecurityParameters;
 
+typedef enum {
+    UA_PUBSUB_RT_UNKNOWN = 0,
+    UA_PUBSUB_RT_VARIANT = 1,
+    UA_PUBSUB_RT_DATA_VALUE = 2,
+    UA_PUBSUB_RT_RAW = 4,
+} UA_PubSubRtEncoding;
+
 /* Parameters for PubSub DataSetReader Configuration */
 typedef struct {
     UA_String name;
@@ -662,6 +692,8 @@ typedef struct {
         UA_TargetVariables subscribedDataSetTarget;
         // UA_SubscribedDataSetMirrorDataType subscribedDataSetMirror;
     } subscribedDataSet;
+    /* non std. fields */
+    UA_PubSubRtEncoding expectedEncoding;
 } UA_DataSetReaderConfig;
 
 /* Update configuration to the dataSetReader */
@@ -678,21 +710,25 @@ UA_Server_DataSetReader_getConfig(UA_Server *server, UA_NodeId dataSetReaderIden
 /* Get state of DataSetReader */
 UA_StatusCode UA_EXPORT
 UA_Server_DataSetReader_getState(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
-                               UA_PubSubState *state);
+                                 UA_PubSubState *state);
 
 /**
  * ReaderGroup
  * -----------
+
  * ReaderGroup is used to group a list of DataSetReaders. All ReaderGroups are
  * created within a PubSubConnection and automatically deleted if the connection
- * is removed. All network message related filters are only available in the DataSetReader.
+ * is removed. All network message related filters are only available in the
+ * DataSetReader.
  *
- * The RT-levels go along with different requirements. The below listed levels can be configured
- * for a ReaderGroup.
- * UA_PUBSUB_RT_NONE --> No RT applied to this level
- * PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS --> Extends PubSub RT functionality and implements fast path
- * message decoding in the Subscriber. Uses a buffered network message and only decodes the necessary
- * offsets stored in an offset buffer. */
+ * The RT-levels go along with different requirements. The below listed levels
+ * can be configured for a ReaderGroup.
+ *
+ * - UA_PUBSUB_RT_NONE: RT applied to this level
+ * - PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS: Extends PubSub RT functionality and
+ *   implements fast path message decoding in the Subscriber. Uses a buffered
+ *   network message and only decodes the necessary offsets stored in an offset
+ *   buffer. */
 
 /* ReaderGroup configuration */
 typedef struct {
@@ -705,6 +741,16 @@ typedef struct {
     UA_Boolean enableBlockingSocket; // To enable or disable blocking socket option
     UA_UInt32 timeout; // Timeout for receive to wait for the packets
     UA_PubSubRTLevel rtLevel;
+    size_t groupPropertiesSize;
+    UA_KeyValuePair *groupProperties;
+
+    /* Messages are decrypted if a SecurityPolicy is configured and the
+     * securityMode set accordingly. The symmetric key is a runtime information
+     * and has to be set via UA_Server_setReaderGroupEncryptionKey. */
+    UA_MessageSecurityMode securityMode;
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    UA_PubSubSecurityPolicy *securityPolicy;
+#endif
 } UA_ReaderGroupConfig;
 
 void UA_EXPORT
@@ -713,8 +759,8 @@ UA_ReaderGroupConfig_clear(UA_ReaderGroupConfig *readerGroupConfig);
 /* Add DataSetReader to the ReaderGroup */
 UA_StatusCode UA_EXPORT
 UA_Server_addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdentifier,
-                                      const UA_DataSetReaderConfig *dataSetReaderConfig,
-                                      UA_NodeId *readerIdentifier);
+                           const UA_DataSetReaderConfig *dataSetReaderConfig,
+                           UA_NodeId *readerIdentifier);
 
 /* Remove DataSetReader from ReaderGroup */
 UA_StatusCode UA_EXPORT
@@ -729,7 +775,7 @@ UA_Server_removeDataSetReader(UA_Server *server, UA_NodeId readerIdentifier);
 /* Get configuraiton of ReaderGroup */
 UA_StatusCode UA_EXPORT
 UA_Server_ReaderGroup_getConfig(UA_Server *server, UA_NodeId readerGroupIdentifier,
-                               UA_ReaderGroupConfig *config);
+                                UA_ReaderGroupConfig *config);
 
 /* Get state of ReaderGroup */
 UA_StatusCode UA_EXPORT
@@ -739,8 +785,8 @@ UA_Server_ReaderGroup_getState(UA_Server *server, UA_NodeId readerGroupIdentifie
 /* Add ReaderGroup to the created connection */
 UA_StatusCode UA_EXPORT
 UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
-                                   const UA_ReaderGroupConfig *readerGroupConfig,
-                                   UA_NodeId *readerGroupIdentifier);
+                         const UA_ReaderGroupConfig *readerGroupConfig,
+                         UA_NodeId *readerGroupIdentifier);
 
 /* Remove ReaderGroup from connection */
 UA_StatusCode UA_EXPORT
@@ -757,6 +803,17 @@ UA_Server_setReaderGroupOperational(UA_Server *server, const UA_NodeId readerGro
 
 UA_StatusCode UA_EXPORT
 UA_Server_setReaderGroupDisabled(UA_Server *server, const UA_NodeId readerGroupId);
+
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+/* Set the group key for the message encryption */
+UA_StatusCode UA_EXPORT
+UA_Server_setReaderGroupEncryptionKeys(UA_Server *server, UA_NodeId readerGroup,
+                                       UA_UInt32 securityTokenId,
+                                       UA_ByteString signingKey,
+                                       UA_ByteString encryptingKey,
+                                       UA_ByteString keyNonce);
+#endif
+
 
 #endif /* UA_ENABLE_PUBSUB */
 

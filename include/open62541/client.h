@@ -144,7 +144,7 @@ typedef struct {
                           UA_StatusCode connectStatus);
 
     /* When connectivityCheckInterval is greater than 0, every
-     * connectivityCheckInterval (in ms), a async read request is performed on
+     * connectivityCheckInterval (in ms), an async read request is performed on
      * the server. inactivityCallback is called when the client receive no
      * response for this read request The connection can be closed, this in an
      * attempt to recreate a healthy connection. */

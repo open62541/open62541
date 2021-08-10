@@ -22,7 +22,6 @@
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pubsub_ethernet.h>
-#include "../bufmalloc.h"
 
 #define ETH_PUBLISH_ADDRESS     "opc.eth://01-00-5E-00-00-01"
 #define MILLI_AS_NANO_SECONDS   (1000 * 1000)
@@ -142,7 +141,7 @@ addApplicationCallback(UA_Server *server, UA_NodeId identifier,
     uint32_t interval = (uint32_t)(interval_ms * NS_PER_MS);
     tsnClockId = initTsnTimer(interval);
     if(tsnClockId == 0) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Can't allocate a TSN timer");
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Cannot allocate a TSN timer");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     /* Set the callback -- used as a sentinel to detect an operational publisher */
@@ -151,7 +150,7 @@ addApplicationCallback(UA_Server *server, UA_NodeId identifier,
     pubData = data;
 
     if(tsnClockEnable (tsnClockId, NULL) == ERROR) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Can't enable a TSN timer");
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Cannot enable a TSN timer");
         (void)tsnTimerRelease(tsnClockId);
         tsnClockId = 0;
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -416,10 +415,9 @@ static void open62541EthTSNTask(void) {
             break;
         }
         t = ieee1588TimeGet();
-        useMembufAlloc();
 
         /*
-         * Because we can't get the task end time of one packet before it is
+         * Because we cannot get the task end time of one packet before it is
          * sent, we let one packet take its previous packet's cycleTriggerTime,
          * taskBeginTime and taskEndTime.
          */
@@ -429,7 +427,6 @@ static void open62541EthTSNTask(void) {
             lastTaskEndTime = 0;
         }
         pubCallback(pubServer, pubData);
-        useNormalAlloc();
 
         sequenceNumber++;
         lastCycleTriggerTime = cycleTriggerTime;
@@ -441,7 +438,7 @@ static void open62541EthTSNTask(void) {
 static void open62541ServerTask(void) {
     UA_Server *server = UA_Server_new();
     if(server == NULL) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Can't allocate a server object");
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Cannot allocate a server object");
         goto serverCleanup;
     }
 
@@ -449,7 +446,7 @@ static void open62541ServerTask(void) {
     UA_ServerConfig_setDefault(config);
     config->pubsubTransportLayers = (UA_PubSubTransportLayer *)UA_malloc(sizeof(UA_PubSubTransportLayer));
     if(config->pubsubTransportLayers == NULL) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Can't allocate a UA_PubSubTransportLayer");
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Cannot allocate a UA_PubSubTransportLayer");
         goto serverCleanup;
     }
     config->pubsubTransportLayers[0] = UA_PubSubTransportLayerEthernet();
@@ -471,11 +468,11 @@ serverCleanup:
 static bool initTSNStream(char *eName, size_t eNameSize, int unit) {
     streamCfg = tsnConfigFind (eName, eNameSize, unit);
     if(streamCfg == NULL) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Can't find TSN configuration for %s%d", eName, unit);
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Cannot find TSN configuration for %s%d", eName, unit);
         return false;
     }
     if(streamCfg->streamCount == 0) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Can't find stream defined for %s%d", eName, unit);
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Cannot find stream defined for %s%d", eName, unit);
         return false;
     }
     else {
@@ -495,7 +492,7 @@ static bool initTSNTask() {
     tsnTask = taskSpawn ((char *)"tTsnPub", TSN_TASK_PRIO, 0, TSN_TASK_STACKSZ, (FUNCPTR)open62541EthTSNTask,
                          0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     if(tsnTask == TASK_ID_ERROR) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Can't spawn a TSN task");
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Cannot spawn a TSN task");
         return false;
     }
 
@@ -508,7 +505,7 @@ static bool initTSNTask() {
         CPUSET_ZERO (cpus);
         CPUSET_SET (cpus, stackIndex);
         if(taskCpuAffinitySet (tsnTask, cpus) != OK) {
-            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Can't move TSN task to core %d", stackIndex);
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Cannot move TSN task to core %d", stackIndex);
             return false;
         }
     }
@@ -520,7 +517,7 @@ static bool initServerTask() {
     serverTask = taskSpawn((char *)"tPubServer", TSN_TASK_PRIO + 5, 0, TSN_TASK_STACKSZ*2, (FUNCPTR)open62541ServerTask,
                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     if(serverTask == TASK_ID_ERROR) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Can't spawn a server task");
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Cannot spawn a server task");
         return false;
     }
 
@@ -533,7 +530,7 @@ static bool initServerTask() {
         CPUSET_ZERO(cpus);
         CPUSET_SET(cpus, stackIndex);
         if(taskCpuAffinitySet(serverTask, cpus) != OK) {
-            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Can't move TSN task to core %d", stackIndex);
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Cannot move TSN task to core %d", stackIndex);
             return false;
         }
     }
@@ -618,7 +615,7 @@ STATUS open62541PubTSNStart(char *eName, size_t eNameSize, int unit, uint32_t st
     /* Create a binary semaphore which is used by the TSN timer to wake up the sender task */
     msgSendSem = semBCreate(SEM_Q_FIFO, SEM_EMPTY);
     if(msgSendSem == SEM_ID_NULL) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Can't create a semaphore");
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Cannot create a semaphore");
         goto startCleanup;
     }
     running = true;

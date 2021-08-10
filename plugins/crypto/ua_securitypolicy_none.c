@@ -11,7 +11,7 @@
 #include "mbedtls/securitypolicy_mbedtls_common.h"
 #endif
 
-#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
 #include "openssl/securitypolicy_openssl_common.h"
 #endif
 
@@ -57,17 +57,15 @@ compareThumbprint_none(const UA_SecurityPolicy *securityPolicy,
 }
 
 static UA_StatusCode
-generateKey_none(const UA_SecurityPolicy *securityPolicy,
-                 const UA_ByteString *secret,
-                 const UA_ByteString *seed,
-                 UA_ByteString *out) {
+generateKey_none(void *policyContext, const UA_ByteString *secret,
+                 const UA_ByteString *seed, UA_ByteString *out) {
     return UA_STATUSCODE_GOOD;
 }
 
 /* Use the non-cryptographic RNG to set the nonce */
 static UA_StatusCode
-generateNonce_none(const UA_SecurityPolicy *securityPolicy, UA_ByteString *out) {
-    if(securityPolicy == NULL || out == NULL)
+generateNonce_none(void *policyContext, UA_ByteString *out) {
+    if(out == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     if(out->length == 0)
@@ -135,7 +133,7 @@ UA_SecurityPolicy_None(UA_SecurityPolicy *policy, const UA_ByteString localCerti
 
 #ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
     UA_mbedTLS_LoadLocalCertificate(&localCertificate, &policy->localCertificate);
-#elif defined(UA_ENABLE_ENCRYPTION_OPENSSL)
+#elif defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
     UA_OpenSSL_LoadLocalCertificate(&localCertificate, &policy->localCertificate);
 #else
     UA_ByteString_copy(&localCertificate, &policy->localCertificate);

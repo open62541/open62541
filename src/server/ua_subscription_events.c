@@ -486,7 +486,7 @@ setHistoricalEvent(UA_Server *server, const UA_NodeId *origin,
     /* If found then check if HistoricalEventFilter property has a valid value */
     if(UA_Variant_isEmpty(&historicalEventFilterValue) ||
        !UA_Variant_isScalar(&historicalEventFilterValue) ||
-       historicalEventFilterValue.type->typeIndex != UA_TYPES_EVENTFILTER) {
+       historicalEventFilterValue.type != &UA_TYPES[UA_TYPES_EVENTFILTER]) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "HistoricalEventFilter property of a listening node "
                        "does not have a valid value");

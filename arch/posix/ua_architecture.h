@@ -90,6 +90,7 @@ void UA_sleep_ms(unsigned long ms);
 #define UA_recv recv
 #define UA_sendto sendto
 #define UA_recvfrom recvfrom
+#define UA_recvmsg recvmsg
 #define UA_htonl htonl
 #define UA_ntohl ntohl
 #define UA_close close
@@ -103,6 +104,7 @@ void UA_sleep_ms(unsigned long ms);
 #define UA_getaddrinfo getaddrinfo
 #define UA_getsockopt getsockopt
 #define UA_setsockopt setsockopt
+#define UA_ioctl ioctl
 #define UA_freeaddrinfo freeaddrinfo
 #define UA_gethostname gethostname
 #define UA_getsockname getsockname
@@ -125,13 +127,17 @@ void UA_sleep_ms(unsigned long ms);
 #define UA_snprintf snprintf
 #define UA_strncasecmp strncasecmp
 
+#define UA_clean_errno(STR_FUN) (errno == 0 ? "None" : (STR_FUN)(errno))
+
 #define UA_LOG_SOCKET_ERRNO_WRAP(LOG) { \
-    char *errno_str = strerror(errno); \
+    char *errno_str = UA_clean_errno(strerror); \
     LOG; \
+    errno = 0; \
 }
 #define UA_LOG_SOCKET_ERRNO_GAI_WRAP(LOG) { \
-    const char *errno_str = gai_strerror(errno); \
+    const char *errno_str = UA_clean_errno(gai_strerror); \
     LOG; \
+    errno = 0; \
 }
 
 #if UA_MULTITHREADING >= 100
@@ -175,17 +181,21 @@ UA_LOCK_ASSERT(UA_Lock *lock, int num) {
     UA_assert(lock->mutexCounter == num);
 }
 #else
-#define UA_LOCK_INIT(lock)
-#define UA_LOCK_DESTROY(lock)
-#define UA_LOCK(lock)
-#define UA_UNLOCK(lock)
-#define UA_LOCK_ASSERT(lock, num)
+#define UA_EMPTY_STATEMENT                                                               \
+    do {                                                                                 \
+    } while(0)
+#define UA_LOCK_INIT(lock) UA_EMPTY_STATEMENT
+#define UA_LOCK_DESTROY(lock) UA_EMPTY_STATEMENT
+#define UA_LOCK(lock) UA_EMPTY_STATEMENT
+#define UA_UNLOCK(lock) UA_EMPTY_STATEMENT
+#define UA_LOCK_ASSERT(lock, num) UA_EMPTY_STATEMENT
 #endif
 
 #include <open62541/architecture_functions.h>
 
-#if defined(__APPLE__)  && defined(_SYS_QUEUE_H_)
-//  in some compilers there's already a _SYS_QUEUE_H_ which is included first and doesn't have all functions
+#if defined(__APPLE__) && defined(_SYS_QUEUE_H_)
+//  in some compilers there's already a _SYS_QUEUE_H_ which is included first and doesn't
+//  have all functions
 
 #undef SLIST_HEAD
 #undef SLIST_HEAD_INITIALIZER

@@ -125,9 +125,9 @@ struct {								\
 /*
  * Singly-linked List functions.
  */
-#define	SLIST_INIT(head) {						\
+#define	SLIST_INIT(head) do {						\
     SLIST_FIRST(head) = SLIST_END(head);				\
-}
+} while(0)
 
 #define	SLIST_INSERT_AFTER(slistelm, elm, field) do {			\
     (elm)->field.sle_next = (slistelm)->field.sle_next;		\

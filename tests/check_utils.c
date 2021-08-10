@@ -60,7 +60,7 @@ START_TEST(EndpointUrl_split) {
     // IPv6
     endPointUrl = UA_STRING("opc.tcp://[2001:0db8:85a3::8a2e:0370:7334]:1234/path");
     ck_assert_uint_eq(UA_parseEndpointUrl(&endPointUrl, &hostname, &port, &path), UA_STATUSCODE_GOOD);
-    expected = UA_STRING("[2001:0db8:85a3::8a2e:0370:7334]");
+    expected = UA_STRING("2001:0db8:85a3::8a2e:0370:7334");
     UA_String expectedPath = UA_STRING("path");
     ck_assert(UA_String_equal(&hostname, &expected));
     ck_assert_uint_eq(port, 1234);

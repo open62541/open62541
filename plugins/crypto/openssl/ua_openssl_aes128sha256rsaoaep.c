@@ -8,7 +8,7 @@
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/util.h>
 
-#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
 
 #include "securitypolicy_openssl_common.h"
 
@@ -240,7 +240,6 @@ UA_Asym_Aes128Sha256RsaOaep_getRemoteSignatureSize(const void *channelContext) {
     const Channel_Context_Aes128Sha256RsaOaep *cc = (const Channel_Context_Aes128Sha256RsaOaep *)channelContext;
     UA_Int32 keyLen = 0;
     UA_Openssl_RSA_Public_GetKeyLength(cc->remoteCertificateX509, &keyLen);
-    UA_assert(keyLen == 256); /* 256 bytes 2048 bit */
     return (size_t)keyLen;
 }
 
@@ -253,8 +252,6 @@ UA_AsySig_Aes128Sha256RsaOaep_getLocalSignatureSize(const void *channelContext) 
     Policy_Context_Aes128Sha256RsaOaep *pc = cc->policyContext;
     UA_Int32 keyLen = 0;
     UA_Openssl_RSA_Private_GetKeyLength(pc->localPrivateKey, &keyLen);
-    UA_assert(keyLen == 256); /* 256 bytes 2048 bits */
-
     return (size_t)keyLen;
 }
 
@@ -295,7 +292,7 @@ UA_AsymEn_Aes128Sha256RsaOaep_getRemoteKeyLength(const void *channelContext) {
 }
 
 static UA_StatusCode
-UA_Sym_Aes128Sha256RsaOaep_generateNonce(const UA_SecurityPolicy *sp,
+UA_Sym_Aes128Sha256RsaOaep_generateNonce(void *policyContext,
                                          UA_ByteString *out) {
     UA_Int32 rc = RAND_bytes(out->data, (int)out->length);
     if(rc != 1) {
@@ -317,7 +314,7 @@ UA_SymSig_Aes128Sha256RsaOaep_getLocalKeyLength(const void *channelContext) {
 }
 
 static UA_StatusCode
-UA_Sym_Aes128Sha256RsaOaep_generateKey(const UA_SecurityPolicy *sp,
+UA_Sym_Aes128Sha256RsaOaep_generateKey(void *policyContext,
                                        const UA_ByteString *secret,
                                        const UA_ByteString *seed, UA_ByteString *out) {
     return UA_Openssl_Random_Key_PSHA256_Derive(secret, seed, out);
@@ -363,7 +360,7 @@ UA_SymEn_Aes128Sha256RsaOaep_getRemoteKeyLength(const void *channelContext) {
 }
 
 static size_t
-UA_SymEn_Aes128Sha256RsaOaep_getRemoteBlockSize(const void *channelContext) {
+UA_SymEn_Aes128Sha256RsaOaep_getBlockSize(const void *channelContext) {
     return UA_SECURITYPOLICY_AES128SHA256RSAOAEP_SYM_ENCRYPTION_BLOCK_SIZE;
 }
 
@@ -501,8 +498,6 @@ UA_AsymEn_Aes128Sha256RsaOaep_getLocalKeyLength(const void *channelContext) {
     Policy_Context_Aes128Sha256RsaOaep *pc = cc->policyContext;
     UA_Int32 keyLen = 0;
     UA_Openssl_RSA_Private_GetKeyLength(pc->localPrivateKey, &keyLen);
-    UA_assert(keyLen == 256); /* 256 bytes 2048 bits */
-
     return (size_t)keyLen * 8;
 }
 
@@ -600,7 +595,8 @@ UA_SecurityPolicy_Aes128Sha256RsaOaep(UA_SecurityPolicy *policy,
         UA_STRING("http://www.w3.org/2001/04/xmlenc#aes128-cbc\0");
     symEncryptionAlgorithm->getLocalKeyLength = UA_SymEn_Aes128Sha256RsaOaep_getLocalKeyLength;
     symEncryptionAlgorithm->getRemoteKeyLength = UA_SymEn_Aes128Sha256RsaOaep_getRemoteKeyLength;
-    symEncryptionAlgorithm->getRemoteBlockSize = UA_SymEn_Aes128Sha256RsaOaep_getRemoteBlockSize;
+    symEncryptionAlgorithm->getRemoteBlockSize = UA_SymEn_Aes128Sha256RsaOaep_getBlockSize;
+    symEncryptionAlgorithm->getRemotePlainTextBlockSize = UA_SymEn_Aes128Sha256RsaOaep_getBlockSize;
     symEncryptionAlgorithm->decrypt = UA_SymEn_Aes128Sha256RsaOaep_decrypt;
     symEncryptionAlgorithm->encrypt = UA_SymEn_Aes128Sha256RsaOaep_encrypt;
 

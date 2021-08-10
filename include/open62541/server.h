@@ -33,6 +33,7 @@
 
 #ifdef UA_ENABLE_PUBSUB
 #include <open62541/plugin/pubsub.h>
+#include <open62541/server_pubsub.h>
 #endif
 
 #ifdef UA_ENABLE_HISTORIZING
@@ -123,12 +124,10 @@ struct UA_ServerConfig {
     UA_ServerNetworkLayer *networkLayers;
     UA_String customHostname;
 
+    /* PubSub */
 #ifdef UA_ENABLE_PUBSUB
-    /*PubSub network layer */
-    size_t pubsubTransportLayersSize;
-    UA_PubSubTransportLayer *pubsubTransportLayers;
-    UA_PubSubConfiguration *pubsubConfiguration;
-#endif /* UA_ENABLE_PUBSUB */
+    UA_PubSubConfiguration pubSubConfig;
+#endif
 
     /* Available security policies */
     size_t securityPoliciesSize;
@@ -366,7 +365,6 @@ UA_Server_run_shutdown(UA_Server *server);
 /**
  * Timed Callbacks
  * --------------- */
-typedef void (*UA_ServerCallback)(UA_Server *server, void *data);
 
 /* Add a callback for execution at a specified time. If the indicated time lies
  * in the past, then the callback is executed at the next iteration of the
@@ -415,6 +413,47 @@ UA_Server_removeCallback(UA_Server *server, UA_UInt64 callbackId);
 
 #define UA_Server_removeRepeatedCallback(server, callbackId) \
     UA_Server_removeCallback(server, callbackId);
+
+/**
+ * Session Handling
+ * ----------------
+ * A new session is announced via the AccessControl plugin. The session
+ * identifier is forwarded to the relevant callbacks back into userland. The
+ * following methods enable an interaction with a particular session. */
+
+/* Manually close a session */
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_closeSession(UA_Server *server, const UA_NodeId *sessionId);
+
+/* Session Parameters: Besides the user-definable session context pointer,
+ * so-called session parameters are a way to attach key-value parameters to a
+ * session. This enables "plugins" to attach data to a session without impacting
+ * the user-definedable session context pointer. */
+
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_setSessionParameter(UA_Server *server, const UA_NodeId *sessionId,
+                              const char *name, const UA_Variant *parameter);
+
+UA_EXPORT void UA_THREADSAFE
+UA_Server_deleteSessionParameter(UA_Server *server, const UA_NodeId *sessionId,
+                                 const char *name);
+
+/* Returns NULL if the session or the parameter are not defined. Returns a deep
+ * copy otherwise */
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_getSessionParameter(UA_Server *server, const UA_NodeId *sessionId,
+                              const char *name, UA_Variant *outParameter);
+
+/* Returns NULL if the parameter is not defined or not of the right datatype */
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_getSessionScalarParameter(UA_Server *server, const UA_NodeId *sessionId,
+                                    const char *name, const UA_DataType *type,
+                                    UA_Variant *outParameter);
+
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_getSessionArrayParameter(UA_Server *server, const UA_NodeId *sessionId,
+                                   const char *name, const UA_DataType *type,
+                                   UA_Variant *outParameter);
 
 /**
  * Reading and Writing Node Attributes
@@ -1038,9 +1077,21 @@ UA_Server_deleteMonitoredItem(UA_Server *server, UA_UInt32 monitoredItemId);
 
 #ifdef UA_ENABLE_METHODCALLS
 UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_setMethodNode_callback(UA_Server *server,
-                                 const UA_NodeId methodNodeId,
-                                 UA_MethodCallback methodCallback);
+UA_Server_setMethodNodeCallback(UA_Server *server,
+                                const UA_NodeId methodNodeId,
+                                UA_MethodCallback methodCallback);
+
+/* Backwards compatibility definition */
+#define UA_Server_setMethodNode_callback(server, methodNodeId, methodCallback) \
+    UA_Server_setMethodNodeCallback(server, methodNodeId, methodCallback)
+
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_getMethodNodeCallback(UA_Server *server,
+                                const UA_NodeId methodNodeId,
+                                UA_MethodCallback *outMethodCallback);
+
+UA_CallMethodResult UA_EXPORT UA_THREADSAFE
+UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request);
 #endif
 
 /**
@@ -1084,11 +1135,6 @@ UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_readObjectProperty(UA_Server *server, const UA_NodeId objectId,
                              const UA_QualifiedName propertyName,
                              UA_Variant *value);
-
-#ifdef UA_ENABLE_METHODCALLS
-UA_CallMethodResult UA_EXPORT UA_THREADSAFE
-UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request);
-#endif
 
 /**
  * .. _addnodes:

@@ -9,7 +9,7 @@
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/util.h>
 
-#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
 
 #include "securitypolicy_openssl_common.h"
 
@@ -19,7 +19,6 @@
 #define UA_SECURITYPOLICY_BASIC256SHA1_RSAPADDING_LEN                42
 #define UA_SECURITYPOLICY_BASIC256_SYM_ENCRYPTION_KEY_LENGTH         32
 #define UA_SECURITYPOLICY_BASIC256_SYM_ENCRYPTION_BLOCK_SIZE         16
-#define UA_SECURITYPOLICY_BASIC256_SYM_PLAIN_TEXT_BLOCK_SIZE         16
 #define UA_SECURITYPOLICY_BASIC256_SYM_SIGNING_KEY_LENGTH            24
 #define UA_SHA1_LENGTH                                               20
 
@@ -409,8 +408,8 @@ UA_AsymEn_Basic256_Encrypt (void *                    channelContext,
 }
 
 static UA_StatusCode
-UA_Sym_Basic256_generateNonce (const UA_SecurityPolicy * sp,
-                               UA_ByteString *           out) {
+UA_Sym_Basic256_generateNonce(void *policyContext,
+                              UA_ByteString *out) {
     UA_Int32 rc = RAND_bytes(out->data, (int) out->length);
     if (rc != 1) {
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
@@ -419,11 +418,9 @@ UA_Sym_Basic256_generateNonce (const UA_SecurityPolicy * sp,
 }
 
 static UA_StatusCode
-UA_Sym_Basic256_generateKey (const UA_SecurityPolicy * securityPolicy,
-                             const UA_ByteString *     secret,
-                             const UA_ByteString *     seed, 
-                             UA_ByteString *           out) {
-    return UA_Openssl_Random_Key_PSHA1_Derive (secret, seed, out);
+UA_Sym_Basic256_generateKey(void *policyContext, const UA_ByteString *secret,
+                            const UA_ByteString *seed, UA_ByteString *out) {
+    return UA_Openssl_Random_Key_PSHA1_Derive(secret, seed, out);
 }
 
 static size_t 
@@ -441,11 +438,6 @@ static size_t
 UA_SymEn_Basic256_getRemoteKeyLength (const void * channelContext) {
     /* 32 bytes 256 bits */
     return UA_SECURITYPOLICY_BASIC256_SYM_ENCRYPTION_KEY_LENGTH; 
-}
-
-static size_t 
-UA_SymEn_Basic256_getPlainTextBlockSize (const void *              channelContext) {
-    return UA_SECURITYPOLICY_BASIC256_SYM_PLAIN_TEXT_BLOCK_SIZE;                                                        
 }
 
 static UA_StatusCode
@@ -583,7 +575,7 @@ UA_SecurityPolicy_Basic256 (UA_SecurityPolicy * policy,
     symEncryptionAlgorithm->getLocalKeyLength = UA_SymEn_Basic256_getLocalKeyLength;
     symEncryptionAlgorithm->getRemoteKeyLength = UA_SymEn_Basic256_getRemoteKeyLength;
     symEncryptionAlgorithm->getRemoteBlockSize = UA_SymEn_Basic256_getBlockSize;
-    symEncryptionAlgorithm->getRemotePlainTextBlockSize = UA_SymEn_Basic256_getPlainTextBlockSize;
+    symEncryptionAlgorithm->getRemotePlainTextBlockSize = UA_SymEn_Basic256_getBlockSize;
     symEncryptionAlgorithm->decrypt = UA_SymEn_Basic256_Decrypt;
     symEncryptionAlgorithm->encrypt = UA_SymEn_Basic256_Encrypt;
 
