@@ -1377,6 +1377,47 @@ static void UA_Connection_close(UA_Connection *connection) {
     cm->closeConnection(cm, ctx->connectionId);
 }
 
+static UA_StatusCode UA_Connection_recv(UA_Connection *connection, UA_ByteString *response,
+                               UA_UInt32 timeout) {
+    UA_ClientConnectionContext *ctx = (UA_ClientConnectionContext *) connection->handle;
+    // UA_ConnectionManager *cm = ((UA_BasicClientConnectionContext *)ctx)->cm;
+
+    ctx->currentMessage.data = NULL;
+    ctx->currentMessage.length = 0;
+
+    ctx->receiveSync = true;
+
+    UA_Client *client = ctx->base.client;
+    UA_EventLoop *el = client->config.eventLoop;
+
+    UA_StatusCode rv = UA_EventLoop_run(el, timeout);
+    UA_CHECK_STATUS(rv, return rv);
+
+    ctx->receiveSync = false;
+
+    response->length = ctx->currentMessage.length;
+    response->data = ctx->currentMessage.data;
+
+    return rv;
+}
+
+static
+UA_StatusCode
+sessionAndChannelIteration(UA_ByteString *msg, UA_Client *client,
+                           UA_ClientConnectionContext *conCtx) {
+
+    UA_StatusCode rv = UA_STATUSCODE_GOOD;
+    if((*msg).data != NULL) {
+        rv = connectionCallbackReceive(conCtx, (*msg));
+        UA_CHECK_STATUS_ERROR(rv, return rv, &client->config.logger,
+                              UA_LOGCATEGORY_CLIENT, "Receiving msg failed");
+    }  // else {
+    rv = connectionCallbackSend(conCtx);
+    UA_CHECK_STATUS_ERROR(rv, return rv, &client->config.logger,
+                          UA_LOGCATEGORY_CLIENT, "Sending msg failed");
+    // }
+    return rv;
+}
 void
 connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                    void **connectionContext, UA_StatusCode stat,
@@ -1406,17 +1447,17 @@ connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     UA_ClientConnectionContext *conCtx = (UA_ClientConnectionContext *) *connectionContext;
     if((client->noSession && client->channel.state != UA_SECURECHANNELSTATE_OPEN) ||
         client->sessionState < UA_SESSIONSTATE_ACTIVATED) {
-        if(msg.data != NULL) {
-            client->connectStatus = connectionCallbackReceive(conCtx, msg);
-            UA_CHECK_STATUS_ERROR(client->connectStatus, return, &client->config.logger,
-                                  UA_LOGCATEGORY_CLIENT, "Receiving msg failed");
-        }  // else {
-        client->connectStatus = connectionCallbackSend(conCtx);
-        UA_CHECK_STATUS_ERROR(client->connectStatus, return, &client->config.logger, UA_LOGCATEGORY_CLIENT,
-                              "sending msg failed");
-        // }
+        client->connectStatus = sessionAndChannelIteration(&msg, client, conCtx);
         notifyClientState(client);
     } else {
+        if (msg.data) {
+            if(conCtx->receiveSync) {
+                conCtx->currentMessage.length = msg.length;
+                conCtx->currentMessage.data = (UA_Byte *) UA_calloc(sizeof(UA_Byte), msg.length);
+                UA_ByteString_copy(&msg, &conCtx->currentMessage);
+                return;
+            }
+        }
 
         /* Renew Secure Channel */
         UA_Client_renewSecureChannel(client);
@@ -1434,8 +1475,9 @@ connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
         /* Listen on the network for the given timeout */
 
-        client->connectStatus = processResponse(client, &msg, NULL,
-                                                NULL, NULL);
+        if (msg.data) {
+            client->connectStatus = processResponse(client, &msg, NULL, NULL, NULL);
+        }
         if(client->connectStatus == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
             client->connectStatus = UA_STATUSCODE_GOOD;
         if(client->connectStatus != UA_STATUSCODE_GOOD) {
@@ -1461,6 +1503,12 @@ connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
 UA_StatusCode
 connectionCallbackReceive(UA_ClientConnectionContext *ctx, UA_ByteString msg) {
+
+    ctx->currentMessage = msg;
+
+    if (ctx->receiveSync) {
+
+    }
 
     UA_Client *client = ctx->base.client;
     UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_CLIENT, "received msg");
@@ -1552,6 +1600,8 @@ connectionCallbackSend(UA_ClientConnectionContext *ctx) {
     return UA_STATUSCODE_GOOD;
 }
 
+
+
 UA_StatusCode
 initConnection(uintptr_t connectionId, void **connectionContext,
                           UA_BasicClientConnectionContext *ctx) {
@@ -1564,7 +1614,7 @@ initConnection(uintptr_t connectionId, void **connectionContext,
     newCtx->connection.close = UA_Connection_close;
     newCtx->connection.free = ctx->client->connection.free;
     newCtx->connection.getSendBuffer = UA_Connection_getSendBuffer;
-    newCtx->connection.recv = ctx->client->connection.recv;
+    newCtx->connection.recv = UA_Connection_recv; // ctx->client->connection.recv;
     newCtx->connection.releaseRecvBuffer = UA_Connection_releaseBuffer;
     newCtx->connection.releaseSendBuffer = UA_Connection_releaseBuffer;
     newCtx->connection.send = UA_Connection_send;
@@ -1572,6 +1622,7 @@ initConnection(uintptr_t connectionId, void **connectionContext,
     newCtx->connection.sockfd = (int) connectionId;
 
     newCtx->connection.handle = newCtx;
+    newCtx->receiveSync = false;
 
     newCtx->base.client->connection = newCtx->connection;
 
