@@ -11,6 +11,8 @@
 #include <open62541/plugin/log.h>
 #include <open62541/types.h>
 
+_UA_BEGIN_DECLS
+
 #ifdef UA_ENABLE_ENCRYPTION
 typedef enum {
     UA_CERTIFICATEFORMAT_DER,
@@ -37,5 +39,7 @@ UA_CreateCertificate(const UA_Logger *logger,
                      size_t keySizeBits, UA_CertificateFormat certFormat,
                      UA_ByteString *outPrivateKey, UA_ByteString *outCertificate);
 #endif
+
+_UA_END_DECLS
 
 #endif /* CREATE_CERTIFICATE_H_ */
