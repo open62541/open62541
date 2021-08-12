@@ -147,7 +147,7 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
 
     /* Is there a method to execute? */
     if(!method->method) {
-        result->statusCode = UA_STATUSCODE_BADINTERNALERROR;
+        result->statusCode = UA_STATUSCODE_BADNOTIMPLEMENTED;
         return;
     }
 
