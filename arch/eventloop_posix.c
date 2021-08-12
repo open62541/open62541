@@ -490,7 +490,8 @@ UA_EventLoop_run(UA_EventLoop *el, UA_UInt32 timeout) {
 
     struct timeval tmptv = {usedTimeout / UA_DATETIME_SEC,
                             (usedTimeout % UA_DATETIME_SEC) / UA_DATETIME_USEC };
-    if(select(highestfd+1, &readset, &writeset, &errset, &tmptv) < 0) {
+    int selectStatus =  select(highestfd+1, &readset, &writeset, &errset, &tmptv);
+    if(selectStatus < 0) {
         /* We will retry, only log the error */
         UA_LOG_SOCKET_ERRNO_WRAP(
            UA_LOG_WARNING(UA_EventLoop_getLogger(el),
@@ -500,7 +501,7 @@ UA_EventLoop_run(UA_EventLoop *el, UA_UInt32 timeout) {
         return UA_STATUSCODE_GOOD;
     }
 
-    /* Loop over all registered FD to see if an event arrived. Yes, this is why
+   /* Loop over all registered FD to see if an event arrived. Yes, this is why
      * select is slow for many open sockets. */
     for(size_t i = 0; i < el->fdsSize; i++) {
         UA_RegisteredFD *rfd = &el->fds[i];
@@ -545,6 +546,9 @@ UA_EventLoop_run(UA_EventLoop *el, UA_UInt32 timeout) {
         checkClosed(el);
 
     UA_UNLOCK(&el->elMutex);
+    if (selectStatus == 0) {
+        return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+    }
     return UA_STATUSCODE_GOOD;
 }
 

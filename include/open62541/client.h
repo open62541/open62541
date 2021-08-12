@@ -182,6 +182,8 @@ typedef struct {
     UA_BasicClientConnectionContext base;
     uintptr_t connectionId;
     UA_Connection connection;
+    UA_ByteString currentMessage;
+    UA_Boolean receiveSync;
 } UA_ClientConnectionContext;
 
  /**

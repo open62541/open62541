@@ -119,6 +119,9 @@ UA_EventLoop_removeCyclicCallback(UA_EventLoop *el, UA_UInt64 callbackId);
 UA_EXPORT void
 UA_EventLoop_addDelayedCallback(UA_EventLoop *el, UA_DelayedCallback *dc);
 
+UA_EXPORT UA_StatusCode
+UA_EventLoop_removeConnection(UA_EventLoop *el, uintptr_t connectionId);
+
 /* Helper Functions */
 UA_EXPORT const UA_Logger *
 UA_EventLoop_getLogger(UA_EventLoop *el);

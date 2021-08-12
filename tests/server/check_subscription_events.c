@@ -205,7 +205,7 @@ setup(void) {
 
     server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
+    UA_ServerConfig_setMinimal(config, 4840, NULL);
 
     config->maxPublishReqPerSession = 5;
     UA_Server_run_startup(server);

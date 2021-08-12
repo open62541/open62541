@@ -50,10 +50,15 @@ static void pauseServer(void) {
     THREAD_JOIN(server_thread);
 }
 
+#define STR_HELPER(x) #x
+#define STR(x) STR_HELPER(x)
+#define PORT 4840
+#define PORT_STR STR(PORT)
+
 static void setup(void) {
     UA_DataValue_init(&lastValue);
     server = UA_Server_new();
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
+    UA_ServerConfig_setMinimal(UA_Server_getConfig(server), PORT, NULL);
     UA_Server_run_startup(server);
     runServer();
 
@@ -92,7 +97,7 @@ static void setup(void) {
 
     client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
-    retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    retval = UA_Client_connect(client, "opc.tcp://localhost:" PORT_STR);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Client_recv = client->connection.recv;

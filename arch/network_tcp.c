@@ -18,6 +18,7 @@
 
 #include "open62541_queue.h"
 #include "ua_securechannel.h"
+#include "ua_util_internal.h"
 
 #include <string.h>  // memset
 
@@ -671,7 +672,19 @@ ClientNetworkLayerTCP_free(UA_Connection *connection) {
     if(!connection->handle)
         return;
 
-    UA_free(connection->handle);
+    // UA_free(connection->handle);
+
+    UA_BasicClientConnectionContext *ctx = (UA_BasicClientConnectionContext *) connection->handle;
+    UA_Client *client = ctx->client;
+    UA_ConnectionManager *cm = ctx->cm;
+    UA_EventLoop *el = UA_Client_getConfig(client)->eventLoop;
+
+    UA_CHECK_ERROR(!ctx->isInitial, return, &UA_Client_getConfig(client)->logger, UA_LOGCATEGORY_NETWORK, "shoudl not "
+                                                                                            "e initial");
+    UA_ClientConnectionContext *cctx = (UA_ClientConnectionContext *) ctx;
+    UA_EventLoop_removeConnection(cctx->connectionId);
+
+    // UA_EventLoop_deregisterEventSource()
 
     /* TODO: check to free more */
     // TCPClientConnection *tcpConnection = (TCPClientConnection *)connection->handle;

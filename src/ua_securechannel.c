@@ -890,6 +890,6 @@ UA_SecureChannel_receive(UA_SecureChannel *channel, void *application,
 
     /* Try to process one complete chunk */
     retval = UA_SecureChannel_processBuffer(channel, application, callback, &buffer);
-    connection->releaseRecvBuffer(connection, &buffer);
+    // connection->releaseRecvBuffer(connection, &buffer);
     return retval;
 }

@@ -1427,12 +1427,18 @@ connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     UA_LOG_DEBUG(UA_EventLoop_getLogger(cm->eventSource.eventLoop), UA_LOGCATEGORY_CLIENT,
                  "connection callback for id: %lu", connectionId);
 
-    UA_BasicClientConnectionContext *ctx = (UA_BasicClientConnectionContext *) *connectionContext;
+    if (*connectionContext == NULL) {
+        UA_LOG_WARNING(UA_EventLoop_getLogger(cm->eventSource.eventLoop), UA_LOGCATEGORY_CLIENT,
+                     "running callback with NULL context");
+        return;
+    }
 
+    UA_BasicClientConnectionContext *ctx = (UA_BasicClientConnectionContext *) *connectionContext;
     if (stat != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(UA_EventLoop_getLogger(cm->eventSource.eventLoop), UA_LOGCATEGORY_CLIENT, "closing connection");
+        UA_LOG_INFO(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+                    UA_LOGCATEGORY_CLIENT, "closing connection");
         if (!ctx->isInitial) {
-            free(*connectionContext);
+            UA_free(ctx);
         }
         return;
     }
@@ -1453,51 +1459,13 @@ connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         if (msg.data) {
             if(conCtx->receiveSync) {
                 conCtx->currentMessage.length = msg.length;
-                conCtx->currentMessage.data = (UA_Byte *) UA_calloc(sizeof(UA_Byte), msg.length);
+                conCtx->currentMessage.data = (UA_Byte *) UA_realloc(conCtx->currentMessage.data, sizeof(UA_Byte) * msg.length);
                 UA_ByteString_copy(&msg, &conCtx->currentMessage);
                 return;
+            } else {
+                client->connectStatus = processResponse(client, &msg, NULL, NULL, NULL);
             }
         }
-
-        /* Renew Secure Channel */
-        UA_Client_renewSecureChannel(client);
-        UA_CHECK_STATUS_ERROR(client->connectStatus,
-                              return, &client->config.logger, UA_LOGCATEGORY_CLIENT,
-                              "renew channel failed");
-
-            /* Feed the server PublishRequests for the Subscriptions */
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-        UA_Client_Subscriptions_backgroundPublish(client);
-#endif
-
-        /* Send read requests from time to time to test the connectivity */
-        UA_Client_backgroundConnectivity(client);
-
-        /* Listen on the network for the given timeout */
-
-        if (msg.data) {
-            client->connectStatus = processResponse(client, &msg, NULL, NULL, NULL);
-        }
-        if(client->connectStatus == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
-            client->connectStatus = UA_STATUSCODE_GOOD;
-        if(client->connectStatus != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING_CHANNEL(&client->config.logger, &client->channel,
-                                   "Could not receive with StatusCode %s",
-                                   UA_StatusCode_name(client->connectStatus));
-        }
-
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-        /* The inactivity check must be done after receiveServiceResponse*/
-        UA_Client_Subscriptions_backgroundPublishInactivityCheck(client);
-#endif
-
-        /* Did async services time out? Process callbacks with an error code */
-        asyncServiceTimeoutCheck(client);
-
-        /* Log and notify user if the client state has changed */
-        notifyClientState(client);
-
-        return;
     }
 }
 
@@ -1605,7 +1573,8 @@ connectionCallbackSend(UA_ClientConnectionContext *ctx) {
 UA_StatusCode
 initConnection(uintptr_t connectionId, void **connectionContext,
                           UA_BasicClientConnectionContext *ctx) {
-    UA_ClientConnectionContext *newCtx = (UA_ClientConnectionContext*) calloc(1, sizeof(UA_ClientConnectionContext));
+    UA_ClientConnectionContext *newCtx = (UA_ClientConnectionContext*) UA_calloc(1, sizeof(UA_ClientConnectionContext));
+    UA_CHECK_MEM(newCtx, return UA_STATUSCODE_BADOUTOFMEMORY);
     UA_Client *client = ctx->client;
     newCtx->base.isInitial = false;
     newCtx->base.cm = ctx->cm;
