@@ -193,6 +193,10 @@ typedef void
                          void **connectionContext, UA_StatusCode status,
                          UA_ByteString msg);
 
+typedef void
+(*UA_ShutdownCallback)(UA_ConnectionManager *cm, uintptr_t connectionId,
+                           void *connectionContext);
+
 struct UA_ConnectionManager {
     /* Every ConnectionManager is treated like an EventSource from the
      * perspective of the EventLoop. */
@@ -209,6 +213,7 @@ struct UA_ConnectionManager {
      * The callback depends on the application and has to be manually
      * configured. */
     UA_ConnectionCallback connectionCallback;
+    UA_ShutdownCallback shutdownCallback;
     void *initialConnectionContext;
 
     /* Actively open connections

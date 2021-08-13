@@ -530,6 +530,7 @@ TCP_eventSourceStart(UA_ConnectionManager *cm) {
 static void
 TCP_shutdownCallback(UA_EventSource *es, UA_FD fd, void *fdcontext, short event) {
     UA_ConnectionManager *cm = (UA_ConnectionManager*)es;
+    cm->shutdownCallback(cm, (uintptr_t)fd, fdcontext);
     TCP_shutdownConnection(cm, (uintptr_t)fd);
 }
 
