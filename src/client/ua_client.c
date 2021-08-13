@@ -72,6 +72,11 @@ UA_ClientConfig_clear(UA_ClientConfig *config) {
     UA_free(config->securityPolicies);
     config->securityPolicies = 0;
 
+    // /* Remove the connection managers */
+    if(config->cm) {
+        UA_free(config->cm->initialConnectionContext);
+    }
+
     /* Stop and delete the EventLoop */
     if(config->eventLoop && !config->externalEventLoop) {
         if(UA_EventLoop_getState(config->eventLoop) != UA_EVENTLOOPSTATE_FRESH &&
@@ -83,6 +88,10 @@ UA_ClientConfig_clear(UA_ClientConfig *config) {
         }
         UA_EventLoop_delete(config->eventLoop);
         config->eventLoop = NULL;
+    } else {
+        UA_EventLoop_deregisterEventSource(config->eventLoop,
+                                           (UA_EventSource*) config->cm);
+        config->cm->eventSource.free((UA_EventSource *) config->cm);
     }
 
 
@@ -115,10 +124,14 @@ UA_Client_clear(UA_Client *client) {
     UA_Client_Subscriptions_clean(client);
 #endif
 
-    /* Delete the eventloop */
-    if (!client->config.externalEventLoop) {
-       UA_EventLoop_delete(client->config.eventLoop);
-    }
+    // /* Delete the eventloop */
+    // if (!client->config.externalEventLoop) {
+    //     UA_EventLoop_stop(client->config.eventLoop);
+    //     UA_EventLoop_delete(client->config.eventLoop);
+    // } else {
+    //     UA_EventLoop_deregisterEventSource(client->config.eventLoop,
+    //                                        (UA_EventSource*) client->config.cm);
+    // }
 }
 
 void
@@ -729,7 +742,8 @@ UA_Client_setupEventLoop(UA_Client *client) {
     UA_ConnectionManager *cm = UA_ConnectionManager_TCP_new(UA_STRING("tcpCM"));
     UA_CHECK_MEM(cm, return UA_STATUSCODE_BADOUTOFMEMORY);
 
-    cm->connectionCallback = connectionCallback;
+    cm->shutdownCallback = UA_Client_shutdownCallback;
+    cm->connectionCallback = UA_Client_connectionCallback;
     cm->initialConnectionContext = ctx;
 
     ctx->cm = cm;

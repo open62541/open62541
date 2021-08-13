@@ -168,9 +168,12 @@ asyncServiceTimeoutCheck(UA_Client *client);
 UA_StatusCode
 connectIterateEventloop(UA_Client *client);
 
-void connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
+void UA_Client_connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                         void **connectionContext, UA_StatusCode stat,
                         UA_ByteString msg);
+
+void UA_Client_shutdownCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
+                                  void *connectionContext);
 
 UA_StatusCode
 receiveResponseAsync(UA_Client *client, UA_UInt32 timeout);

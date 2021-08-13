@@ -563,6 +563,12 @@ static void UA_Connection_close(UA_Connection *connection) {
 // }
 
 static void
+shutdownCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
+                 void *connectionContext) {
+
+}
+
+static void
 connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                    void **connectionContext, UA_StatusCode stat,
                    UA_ByteString msg) {
@@ -624,6 +630,7 @@ UA_Server_setupEventLoop(UA_Server *server) {
     UA_ConnectionManager *cm = UA_ConnectionManager_TCP_new(UA_STRING("tcpCM"));
     ctx->cm = cm;
     cm->connectionCallback = connectionCallback;
+    cm->shutdownCallback = shutdownCallback;
     cm->initialConnectionContext = ctx;
     UA_ConfigParameter_setParameter(&cm->eventSource.parameters, "listen-port", &portVar);
 
@@ -794,7 +801,7 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
 
 UA_StatusCode
 UA_Server_run_shutdown(UA_Server *server) {
-    /* Stop the netowrk layer */
+    /* Stop the network layer */
     for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
         UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
         nl->stop(nl, server);

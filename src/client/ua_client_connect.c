@@ -1163,16 +1163,11 @@ UA_Client_make_connection(UA_Client *client) {
     UA_CHECK_STATUS(rv, return rv);
     /* TODO: check rv */
 
-    UA_BasicClientConnectionContext *ctx = (UA_BasicClientConnectionContext*) UA_malloc(sizeof(UA_ClientConnectionContext));
-    memset(ctx, 0, sizeof(UA_BasicClientConnectionContext));
-
-    ctx->isInitial = true;
-    ctx->cm = client->config.cm;
-    ctx->client = client;
-
     if (client->connection.handle != NULL) {
         return UA_STATUSCODE_GOOD;
     }
+
+    void *ctx = client->config.cm->initialConnectionContext;
 
     rv = client->config.cm->openConnection(client->config.cm, client->endpointUrl, ctx);
     UA_CHECK_STATUS_ERROR(rv, return UA_STATUSCODE_BADCONNECTIONREJECTED,
@@ -1259,8 +1254,10 @@ closeSecureChannel(UA_Client *client) {
     /* Clean up */
     client->channel.renewState = UA_SECURECHANNELRENEWSTATE_NORMAL;
     UA_SecureChannel_close(&client->channel);
-    if(client->connection.free)
-        client->connection.free(&client->connection);
+
+    /* TODO: why do I free the whole connection when just closing the secure channel ? */
+    // if(client->connection.free)
+    //     client->connection.free(&client->connection);
 
     /* Set the Session to "Created" if it was "Activated" */
     if(client->sessionState > UA_SESSIONSTATE_CREATED)
@@ -1418,23 +1415,38 @@ sessionAndChannelIteration(UA_ByteString *msg, UA_Client *client,
     // }
     return rv;
 }
+
 void
-connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
+UA_Client_shutdownCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
+                 void *connectionContext) {
+    UA_BasicClientConnectionContext *basic = (UA_BasicClientConnectionContext*) connectionContext;
+    if (basic->isInitial) {
+        return;
+    } else {
+        UA_ClientConnectionContext *ctx = (UA_ClientConnectionContext*) basic;
+        UA_ByteString_clear(&ctx->currentMessage);
+    }
+}
+
+void
+UA_Client_connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                    void **connectionContext, UA_StatusCode stat,
                    UA_ByteString msg) {
 
+    const UA_Logger *logger = UA_EventLoop_getLogger(cm->eventSource.eventLoop);
     /* TODO: is something needed here from poll? */
-    UA_LOG_DEBUG(UA_EventLoop_getLogger(cm->eventSource.eventLoop), UA_LOGCATEGORY_CLIENT,
+    UA_LOG_DEBUG(logger, UA_LOGCATEGORY_CLIENT,
                  "connection callback for id: %lu", connectionId);
 
     if (*connectionContext == NULL) {
-        UA_LOG_WARNING(UA_EventLoop_getLogger(cm->eventSource.eventLoop), UA_LOGCATEGORY_CLIENT,
+        UA_LOG_WARNING(logger, UA_LOGCATEGORY_CLIENT,
                      "running callback with NULL context");
         return;
     }
 
     UA_BasicClientConnectionContext *ctx = (UA_BasicClientConnectionContext *) *connectionContext;
     if (stat != UA_STATUSCODE_GOOD) {
+        UA_CHECK_STATUS_INFO(stat, (void)0, logger, UA_LOGCATEGORY_CLIENT, "disconnection");
         UA_LOG_INFO(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
                     UA_LOGCATEGORY_CLIENT, "closing connection");
         if (!ctx->isInitial) {
@@ -1459,8 +1471,9 @@ connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         if (msg.data) {
             if(conCtx->receiveSync) {
                 conCtx->currentMessage.length = msg.length;
-                conCtx->currentMessage.data = (UA_Byte *) UA_realloc(conCtx->currentMessage.data, sizeof(UA_Byte) * msg.length);
-                UA_ByteString_copy(&msg, &conCtx->currentMessage);
+                conCtx->currentMessage.data = (UA_Byte *) UA_realloc(
+                    conCtx->currentMessage.data, sizeof(UA_Byte) * msg.length);
+                memcpy(conCtx->currentMessage.data, msg.data, sizeof(UA_Byte) * msg.length);
                 return;
             } else {
                 client->connectStatus = processResponse(client, &msg, NULL, NULL, NULL);
