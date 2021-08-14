@@ -210,11 +210,14 @@ void UA_Server_delete(UA_Server *server) {
     UA_UNLOCK(&server->serviceMutex); /* The timer has its own mutex */
 
     /* TODO: Execute all remaining delayed events and clean up the timer */
+    UA_EventLoop_run(server->config.eventLoop, 1);
     UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                    "need to do the cleanup with eventloop");
-    // UA_Timer_process(&server->timer, UA_DateTime_nowMonotonic() + 1,
-    //          (UA_TimerExecutionCallback)serverExecuteRepeatedCallback, server);
-    // UA_Timer_clear(&server->timer);
+
+    /* Clean up EventLoop related server stuff */
+    if (server->tcpConnectionManager) {
+        UA_free(server->tcpConnectionManager->initialConnectionContext);
+    }
 
     /* Clean up the config */
     UA_ServerConfig_clean(&server->config);
@@ -628,6 +631,7 @@ UA_Server_setupEventLoop(UA_Server *server) {
     UA_Variant portVar;
     UA_Variant_setScalar(&portVar, &port, &UA_TYPES[UA_TYPES_UINT16]);
     UA_ConnectionManager *cm = UA_ConnectionManager_TCP_new(UA_STRING("tcpCM"));
+    server->tcpConnectionManager = cm;
     ctx->cm = cm;
     cm->connectionCallback = connectionCallback;
     cm->shutdownCallback = shutdownCallback;
@@ -766,7 +770,7 @@ UA_Server_run_startup(UA_Server *server) {
 UA_UInt16
 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
 
-    UA_EventLoop_run(server->config.eventLoop, 1000000);
+    UA_EventLoop_run(server->config.eventLoop, 1);
 
 #if defined(UA_ENABLE_PUBSUB_MQTT)
     /* Listen on the pubsublayer, but only if the yield function is set */
