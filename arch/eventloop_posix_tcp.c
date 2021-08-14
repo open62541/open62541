@@ -483,8 +483,11 @@ TCP_eventSourceStart(UA_ConnectionManager *cm) {
     const UA_Variant *portConfig =
         UA_ConfigParameter_getScalarParameter(cm->eventSource.parameters,
                            "listen-port", &UA_TYPES[UA_TYPES_UINT16]);
-    if(!portConfig)
+    if(!portConfig) {
+        /* Set the EventSource to the started state */
+        cm->eventSource.state = UA_EVENTSOURCESTATE_STARTED;
         return UA_STATUSCODE_GOOD;
+    }
 
     /* Prepare the port parameter as a string */
     UA_UInt16 port = *(UA_UInt16*)portConfig->data;
