@@ -1378,7 +1378,7 @@ static UA_StatusCode UA_Connection_recv(UA_Connection *connection, UA_ByteString
                                UA_UInt32 timeout) {
     UA_ClientConnectionContext *ctx = (UA_ClientConnectionContext *) connection->handle;
     // UA_ConnectionManager *cm = ((UA_BasicClientConnectionContext *)ctx)->cm;
-
+    UA_free(ctx->currentMessage.data);
     ctx->currentMessage.data = NULL;
     ctx->currentMessage.length = 0;
 
@@ -1424,7 +1424,8 @@ UA_Client_shutdownCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         return;
     } else {
         UA_ClientConnectionContext *ctx = (UA_ClientConnectionContext*) basic;
-        UA_ByteString_clear(&ctx->currentMessage);
+        UA_free(ctx->currentMessage.data);
+        UA_free(ctx);
     }
 }
 
@@ -1449,9 +1450,6 @@ UA_Client_connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         UA_CHECK_STATUS_INFO(stat, (void)0, logger, UA_LOGCATEGORY_CLIENT, "disconnection");
         UA_LOG_INFO(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
                     UA_LOGCATEGORY_CLIENT, "closing connection");
-        if (!ctx->isInitial) {
-            UA_free(ctx);
-        }
         return;
     }
 
@@ -1484,12 +1482,6 @@ UA_Client_connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
 UA_StatusCode
 connectionCallbackReceive(UA_ClientConnectionContext *ctx, UA_ByteString msg) {
-
-    ctx->currentMessage = msg;
-
-    if (ctx->receiveSync) {
-
-    }
 
     UA_Client *client = ctx->base.client;
     UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_CLIENT, "received msg");
