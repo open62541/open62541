@@ -67,11 +67,6 @@ UA_decodeBinaryInternal(const UA_ByteString *src, size_t *offset,
                         const UA_DataTypeArray *customTypes)
     UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
-/* Returns the number of bytes the value p takes in binary encoding. Returns
- * zero if an error occurs. */
-size_t
-UA_calcSizeBinary(const void *p, const UA_DataType *type);
-
 const UA_DataType *
 UA_findDataTypeByBinary(const UA_NodeId *typeId);
 

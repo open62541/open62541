@@ -19,15 +19,12 @@
 #endif
 
 #include <open62541/types.h>
-
 #include <stdio.h>
-
-/* Internal headers */
 #include <open62541/types_generated.h>
 #include <open62541/types_generated_handling.h>
 
+/* Internal headers */
 #include "ua_pubsub_networkmessage.h"
-#include "ua_types_encoding_binary.h"
 #include "ua_types_encoding_json.h"
 
 static UA_StatusCode
@@ -37,16 +34,10 @@ encode(const UA_ByteString *buf, UA_ByteString *out,
     if(!data)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    size_t offset = 0;
-    UA_StatusCode retval = UA_decodeBinary(buf, &offset, data, type, NULL);
+    UA_StatusCode retval = UA_decodeBinary(buf, data, type, NULL);
     if(retval != UA_STATUSCODE_GOOD) {
         free(data);
         return retval;
-    }
-    if(offset != buf->length) {
-        UA_delete(data, type);
-        fprintf(stderr, "Input buffer not completely read\n");
-        return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     size_t jsonLength = UA_calcSizeJson(data, type, NULL, 0, NULL, 0, true);
@@ -72,34 +63,24 @@ encode(const UA_ByteString *buf, UA_ByteString *out,
 static UA_StatusCode
 decode(const UA_ByteString *buf, UA_ByteString *out,
        const UA_DataType *type) {
+    /* Allocate memory for the type */
     void *data = malloc(type->memSize);
     if(!data)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
+    /* Decode JSON */
     UA_StatusCode retval = UA_decodeJson(buf, data, type);
     if(retval != UA_STATUSCODE_GOOD) {
         free(data);
         return retval;
     }
 
-    size_t binLength = UA_calcSizeBinary(data, type);
-    retval = UA_ByteString_allocBuffer(out, binLength);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_delete(data, type);
-        return retval;
-    }
+    /* Encode Binary. Internally allocates the buffer upon success */
+    retval = UA_encodeBinary(data, type, out);
 
-    uint8_t *bufPos = &out->data[0];
-    const uint8_t *bufEnd = &out->data[out->length];
-    retval = UA_encodeBinary(data, type, &bufPos, &bufEnd, NULL, NULL);
+    /* Clean up */
     UA_delete(data, type);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_ByteString_clear(out);
-        return retval;
-    }
-
-    out->length = (size_t)((uintptr_t)bufPos - (uintptr_t)out->data);
-    return UA_STATUSCODE_GOOD;
+    return retval;
 }
 
 #ifdef UA_ENABLE_PUBSUB

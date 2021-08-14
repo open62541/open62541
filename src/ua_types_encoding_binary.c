@@ -1492,6 +1492,34 @@ UA_encodeBinaryInternal(const void *src, const UA_DataType *type,
     return ret;
 }
 
+UA_StatusCode
+UA_encodeBinary(const void *p, const UA_DataType *type,
+                UA_ByteString *outBuf) {
+    /* Allocate buffer */
+    UA_Boolean allocated = false;
+    status res = UA_STATUSCODE_GOOD;
+    if(outBuf->length == 0) {
+        size_t len = UA_calcSizeBinary(p, type);
+        res = UA_ByteString_allocBuffer(outBuf, len);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        allocated = true;
+    }
+
+    /* Encode */
+    u8 *pos = outBuf->data;
+    const u8 *posEnd = &outBuf->data[outBuf->length];
+    res = UA_encodeBinaryInternal(p, type, &pos, &posEnd, NULL, NULL);
+
+    /* Clean up */
+    if(res == UA_STATUSCODE_GOOD) {
+        outBuf->length = (size_t)((uintptr_t)pos - (uintptr_t)outBuf->data);
+    } else if(allocated) {
+        UA_ByteString_clear(outBuf);
+    }
+    return res;
+}
+
 static status
 decodeBinaryNotImplemented(void *dst, const UA_DataType *type, Ctx *ctx) {
     (void)dst, (void)type, (void)ctx;
@@ -1681,6 +1709,15 @@ UA_decodeBinaryInternal(const UA_ByteString *src, size_t *offset,
         memset(dst, 0, type->memSize);
     }
     return ret;
+}
+
+UA_StatusCode
+UA_decodeBinary(const UA_ByteString *inBuf,
+                void *p, const UA_DataType *type,
+                const UA_DecodeBinaryOptions *options) {
+    size_t offset = 0;
+    const UA_DataTypeArray *customTypes = options ? options->customTypes : NULL;
+    return UA_decodeBinaryInternal(inBuf, &offset, p, type, customTypes);
 }
 
 /**
