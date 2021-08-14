@@ -153,6 +153,9 @@ struct UA_Server {
 
     /* Statistics */
     UA_ServerStatistics serverStats;
+
+    /* EventLoop and Networking */
+    UA_ConnectionManager *tcpConnectionManager;
 };
 
 /***********************/

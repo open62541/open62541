@@ -788,7 +788,6 @@ UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout) {
     UA_CHECK_STATUS_ERROR(rv, return rv, &client->config.logger, UA_LOGCATEGORY_CLIENT,
                           "error running the eventloop");
 
-
     /* Renew Secure Channel */
     UA_Client_renewSecureChannel(client);
     if(client->connectStatus != UA_STATUSCODE_GOOD)
