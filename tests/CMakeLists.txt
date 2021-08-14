@@ -128,6 +128,17 @@ if(UA_ENABLE_PUBSUB)
         # Add ethernet_config.h to ensure the tests are rebuild when it changes
         list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/tests/pubsub/ethernet_config.h)
     endif()
+
+    if(UA_ENABLE_PUBSUB_MQTT)
+      list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/deps/mqtt-c/mqtt_pal.h
+                                      ${PROJECT_SOURCE_DIR}/deps/mqtt-c/mqtt.h
+                                      ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_mqtt.h
+                                      ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt_adapter.h
+                                      ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt_pal.c
+                                      ${PROJECT_SOURCE_DIR}/deps/mqtt-c/mqtt.c
+                                      ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_mqtt.c
+                                      ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt_adapter.c)
+    endif()
 endif()
 
 add_library(open62541-testplugins OBJECT ${test_plugin_sources} ${PROJECT_SOURCE_DIR}/arch/${UA_ARCHITECTURE}/ua_architecture_functions.c)

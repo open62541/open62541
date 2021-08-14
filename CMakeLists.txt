@@ -1014,14 +1014,14 @@ if(UA_ENABLE_PUBSUB)
         if(WIN32)
             MESSAGE(WARNING "Multithreading is enabled in MQTT plugin. This feature is under development and marked as EXPERIMENTAL")
         else()
-            list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/deps/mqtt-c/mqtt_pal.h)
-            list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt_pal.c)
-            list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/deps/mqtt-c/mqtt.h)
-            list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/deps/mqtt-c/mqtt.c)
-            list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_mqtt.h)
-            list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_mqtt.c)
-            list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt_adapter.h)
-            list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt_adapter.c)
+            list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/deps/mqtt-c/mqtt_pal.h
+                                               ${PROJECT_SOURCE_DIR}/deps/mqtt-c/mqtt.h
+                                               ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_mqtt.h
+                                               ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt_adapter.h)
+            list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt_pal.c
+                                               ${PROJECT_SOURCE_DIR}/deps/mqtt-c/mqtt.c
+                                               ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_mqtt.c
+                                               ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt_adapter.c)
         endif()
     endif()
     if(UA_ENABLE_MALLOC_SINGLETON AND UA_ENABLE_PUBSUB_BUFMALLOC)
