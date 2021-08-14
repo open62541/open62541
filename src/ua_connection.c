@@ -11,8 +11,6 @@
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
  */
 
-#include <open62541/transport_generated_encoding_binary.h>
-#include <open62541/types_generated_encoding_binary.h>
 #include <open62541/types_generated_handling.h>
 
 #include "ua_connection_internal.h"
@@ -54,8 +52,13 @@ UA_Connection_sendError(UA_Connection *connection, UA_TcpErrorMessage *error) {
     /* Encode and send the response */
     UA_Byte *bufPos = msg.data;
     const UA_Byte *bufEnd = &msg.data[msg.length];
-    UA_TcpMessageHeader_encodeBinary(&header, &bufPos, bufEnd);
-    UA_TcpErrorMessage_encodeBinary(error, &bufPos, bufEnd);
+    retval |= UA_encodeBinaryInternal(&header,
+                                      &UA_TRANSPORT[UA_TRANSPORT_TCPMESSAGEHEADER],
+                                      &bufPos, &bufEnd, NULL, NULL);
+    retval |= UA_encodeBinaryInternal(error,
+                                      &UA_TRANSPORT[UA_TRANSPORT_TCPERRORMESSAGE],
+                                      &bufPos, &bufEnd, NULL, NULL);
+    (void)retval; /* Encoding of these cannot fail */
     msg.length = header.messageSize;
     connection->send(connection, &msg);
 }

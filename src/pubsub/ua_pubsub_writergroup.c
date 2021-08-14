@@ -12,7 +12,6 @@
 
 #include <open62541/server_pubsub.h>
 #include "server/ua_server_internal.h"
-#include <open62541/types_generated_encoding_binary.h>
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 

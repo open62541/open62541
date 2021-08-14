@@ -15,9 +15,10 @@
 #include <open62541/plugin/pubsub_udp.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
-#include <open62541/types_generated_encoding_binary.h>
 
+#include "ua_types_encoding_binary.h"
 #include "ua_pubsub_networkmessage.h"
+#include "ua_util_internal.h"
 
 #include <signal.h>
 

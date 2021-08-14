@@ -1467,9 +1467,10 @@ const encodeBinarySignature encodeBinaryJumpTable[UA_DATATYPEKINDS] = {
 };
 
 status
-UA_encodeBinary(const void *src, const UA_DataType *type,
-                u8 **bufPos, const u8 **bufEnd,
-                UA_exchangeEncodeBuffer exchangeCallback, void *exchangeHandle) {
+UA_encodeBinaryInternal(const void *src, const UA_DataType *type,
+                        u8 **bufPos, const u8 **bufEnd,
+                        UA_exchangeEncodeBuffer exchangeCallback,
+                        void *exchangeHandle) {
     /* Set up the context */
     Ctx ctx;
     ctx.pos = *bufPos;
@@ -1657,8 +1658,9 @@ const decodeBinarySignature decodeBinaryJumpTable[UA_DATATYPEKINDS] = {
 };
 
 status
-UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *dst,
-                const UA_DataType *type, const UA_DataTypeArray *customTypes) {
+UA_decodeBinaryInternal(const UA_ByteString *src, size_t *offset,
+                        void *dst, const UA_DataType *type,
+                        const UA_DataTypeArray *customTypes) {
     /* Set up the context */
     Ctx ctx;
     ctx.pos = &src->data[*offset];

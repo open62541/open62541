@@ -12,12 +12,11 @@
  *    Copyright 2018-2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
  */
 
-#include <open62541/transport_generated_encoding_binary.h>
-#include <open62541/transport_generated_handling.h>
-#include <open62541/types_generated_encoding_binary.h>
 #include <open62541/types_generated_handling.h>
+#include <open62541/transport_generated_handling.h>
 
 #include "ua_securechannel.h"
+#include "ua_types_encoding_binary.h"
 #include "ua_util_internal.h"
 
 #define UA_BITMASK_MESSAGETYPE 0x00ffffffu
@@ -185,9 +184,9 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel,
     hideBytesAsym(channel, &buf_pos, &buf_end);
 
     /* Encode the message type and content */
-    res |= UA_encodeBinary(&contentType->binaryEncodingId, &UA_TYPES[UA_TYPES_NODEID],
-                           &buf_pos, &buf_end, NULL, NULL);
-    res |= UA_encodeBinary(content, contentType, &buf_pos, &buf_end, NULL, NULL);
+    res |= UA_NodeId_encodeBinary(&contentType->binaryEncodingId, &buf_pos, buf_end);
+    res |= UA_encodeBinaryInternal(content, contentType,
+                                   &buf_pos, &buf_end, NULL, NULL);
     UA_CHECK_STATUS(res, conn->releaseSendBuffer(conn, &buf); return res);
 
     const size_t securityHeaderLength = calculateAsymAlgSecurityHeaderLength(channel);
@@ -268,14 +267,14 @@ encodeHeadersSym(UA_MessageContext *mc, size_t totalLength) {
     seqHeader.sequenceNumber = UA_atomic_addUInt32(&channel->sendSequenceNumber, 1);
 
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    res |= UA_encodeBinary(&header, &UA_TRANSPORT[UA_TRANSPORT_TCPMESSAGEHEADER],
-                           &header_pos, &mc->buf_end, NULL, NULL);
-    res |= UA_encodeBinary(&channel->securityToken.channelId, &UA_TYPES[UA_TYPES_UINT32],
-                           &header_pos, &mc->buf_end, NULL, NULL);
-    res |= UA_encodeBinary(&channel->securityToken.tokenId, &UA_TYPES[UA_TYPES_UINT32],
-                           &header_pos, &mc->buf_end, NULL, NULL);
-    res |= UA_encodeBinary(&seqHeader, &UA_TRANSPORT[UA_TRANSPORT_SEQUENCEHEADER],
-                           &header_pos, &mc->buf_end, NULL, NULL);
+    res |= UA_encodeBinaryInternal(&header, &UA_TRANSPORT[UA_TRANSPORT_TCPMESSAGEHEADER],
+                                   &header_pos, &mc->buf_end, NULL, NULL);
+    res |= UA_UInt32_encodeBinary(&channel->securityToken.channelId,
+                                  &header_pos, mc->buf_end);
+    res |= UA_UInt32_encodeBinary(&channel->securityToken.tokenId,
+                                  &header_pos, mc->buf_end);
+    res |= UA_encodeBinaryInternal(&seqHeader, &UA_TRANSPORT[UA_TRANSPORT_SEQUENCEHEADER],
+                                   &header_pos, &mc->buf_end, NULL, NULL);
     return res;
 }
 
@@ -411,11 +410,12 @@ UA_MessageContext_begin(UA_MessageContext *mc, UA_SecureChannel *channel,
 UA_StatusCode
 UA_MessageContext_encode(UA_MessageContext *mc, const void *content,
                          const UA_DataType *contentType) {
-    UA_StatusCode retval = UA_encodeBinary(content, contentType, &mc->buf_pos, &mc->buf_end,
-                                           sendSymmetricEncodingCallback, mc);
-    if(retval != UA_STATUSCODE_GOOD && mc->messageBuffer.length > 0)
+    UA_StatusCode res =
+        UA_encodeBinaryInternal(content, contentType, &mc->buf_pos, &mc->buf_end,
+                                sendSymmetricEncodingCallback, mc);
+    if(res != UA_STATUSCODE_GOOD && mc->messageBuffer.length > 0)
         UA_MessageContext_abort(mc);
-    return retval;
+    return res;
 }
 
 UA_StatusCode
@@ -493,12 +493,12 @@ unpackPayloadOPN(UA_SecureChannel *channel, UA_Chunk *chunk, void *application) 
     UA_assert(chunk->bytes.length >= UA_SECURECHANNEL_MESSAGE_MIN_LENGTH);
     size_t offset = UA_SECURECHANNEL_MESSAGEHEADER_LENGTH; /* Skip the message header */
     UA_UInt32 secureChannelId;
-    UA_UInt32_decodeBinary(&chunk->bytes, &offset, &secureChannelId);
+    UA_StatusCode res = UA_UInt32_decodeBinary(&chunk->bytes, &offset, &secureChannelId);
+    UA_assert(res == UA_STATUSCODE_GOOD);
 
     UA_AsymmetricAlgorithmSecurityHeader asymHeader;
-    UA_StatusCode res =
-        UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(&chunk->bytes, &offset,
-                                                          &asymHeader);
+    res = UA_decodeBinaryInternal(&chunk->bytes, &offset, &asymHeader,
+             &UA_TRANSPORT[UA_TRANSPORT_ASYMMETRICALGORITHMSECURITYHEADER], NULL);
     UA_CHECK_STATUS(res, return res);
 
     if(asymHeader.senderCertificate.length > 0) {
@@ -544,7 +544,8 @@ unpackPayloadOPN(UA_SecureChannel *channel, UA_Chunk *chunk, void *application) 
 
     /* Decode the SequenceHeader */
     UA_SequenceHeader sequenceHeader;
-    res = UA_SequenceHeader_decodeBinary(&chunk->bytes, &offset, &sequenceHeader);
+    res = UA_decodeBinaryInternal(&chunk->bytes, &offset, &sequenceHeader,
+                                  &UA_TRANSPORT[UA_TRANSPORT_SEQUENCEHEADER], NULL);
     UA_CHECK_STATUS(res, return res);
 
     /* Set the sequence number for the channel from which to count up */
@@ -569,9 +570,11 @@ unpackPayloadMSG(UA_SecureChannel *channel, UA_Chunk *chunk) {
     size_t offset = UA_SECURECHANNEL_MESSAGEHEADER_LENGTH; /* Skip the message header */
     UA_UInt32 secureChannelId;
     UA_UInt32 tokenId; /* SymmetricAlgorithmSecurityHeader */
-    UA_UInt32_decodeBinary(&chunk->bytes, &offset, &secureChannelId);
-    UA_UInt32_decodeBinary(&chunk->bytes, &offset, &tokenId);
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    res |= UA_UInt32_decodeBinary(&chunk->bytes, &offset, &secureChannelId);
+    res |= UA_UInt32_decodeBinary(&chunk->bytes, &offset, &tokenId);
     UA_assert(offset == UA_SECURECHANNEL_MESSAGE_MIN_LENGTH);
+    UA_assert(res == UA_STATUSCODE_GOOD);
 
 #if !defined(FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION)
     /* Check the ChannelId. Non-opened channels have the id zero. */
@@ -580,7 +583,7 @@ unpackPayloadMSG(UA_SecureChannel *channel, UA_Chunk *chunk) {
 #endif
 
     /* Check (and revolve) the SecurityToken */
-    UA_StatusCode res = checkSymHeader(channel, tokenId);
+    res = checkSymHeader(channel, tokenId);
     UA_CHECK_STATUS(res, return res);
 
     /* Decrypt the chunk payload */
@@ -591,7 +594,8 @@ unpackPayloadMSG(UA_SecureChannel *channel, UA_Chunk *chunk) {
     /* Check the sequence number. Skip sequence number checking for fuzzer to
      * improve coverage */
     UA_SequenceHeader sequenceHeader;
-    res = UA_SequenceHeader_decodeBinary(&chunk->bytes, &offset, &sequenceHeader);
+    res = UA_decodeBinaryInternal(&chunk->bytes, &offset, &sequenceHeader,
+                                  &UA_TRANSPORT[UA_TRANSPORT_SEQUENCEHEADER], NULL);
 #ifndef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
     res |= processSequenceNumberSym(channel, sequenceHeader.sequenceNumber);
 #endif
@@ -772,7 +776,11 @@ extractCompleteChunk(UA_SecureChannel *channel, const UA_ByteString *buffer,
 
     /* Decoding cannot fail */
     UA_TcpMessageHeader hdr;
-    UA_TcpMessageHeader_decodeBinary(buffer, &initial_offset, &hdr);
+    UA_StatusCode res =
+        UA_decodeBinaryInternal(buffer, &initial_offset, &hdr,
+                                &UA_TRANSPORT[UA_TRANSPORT_TCPMESSAGEHEADER], NULL);
+    UA_assert(res == UA_STATUSCODE_GOOD);
+    (void)res; /* pacify compilers if assert is ignored */
     UA_MessageType msgType = (UA_MessageType)
         (hdr.messageTypeAndChunkType & UA_BITMASK_MESSAGETYPE);
     UA_ChunkType chunkType = (UA_ChunkType)

@@ -18,8 +18,7 @@
  *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart
  */
 
-#include <open62541/types_generated_encoding_binary.h>
-#include "open62541/transport_generated.h"
+#include <open62541/transport_generated.h>
 
 #include "ua_client_internal.h"
 #include "ua_connection_internal.h"
@@ -277,8 +276,8 @@ processAsyncResponse(UA_Client *client, UA_UInt32 requestId, const UA_NodeId *re
     }
 
     /* Decode the response */
-    retval = UA_decodeBinary(responseMessage, offset, &response, responseType,
-                             client->config.customDataTypes);
+    retval = UA_decodeBinaryInternal(responseMessage, offset, &response, responseType,
+                                     client->config.customDataTypes);
 
  process:
     if(retval != UA_STATUSCODE_GOOD) {
@@ -353,9 +352,9 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
     if(!UA_NodeId_equal(&responseId, &rd->responseType->binaryEncodingId)) {
         if(UA_NodeId_equal(&responseId, &serviceFaultId)) {
             UA_init(rd->response, rd->responseType);
-            retval = UA_decodeBinary(message, &offset, rd->response,
-                                     &UA_TYPES[UA_TYPES_SERVICEFAULT],
-                                     rd->client->config.customDataTypes);
+            retval = UA_decodeBinaryInternal(message, &offset, rd->response,
+                                             &UA_TYPES[UA_TYPES_SERVICEFAULT],
+                                             rd->client->config.customDataTypes);
             if(retval != UA_STATUSCODE_GOOD)
                 ((UA_ResponseHeader*)rd->response)->serviceResult = retval;
             UA_LOG_INFO(&rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
@@ -379,8 +378,8 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
 #endif
 
     /* Decode the response */
-    retval = UA_decodeBinary(message, &offset, rd->response, rd->responseType,
-                             rd->client->config.customDataTypes);
+    retval = UA_decodeBinaryInternal(message, &offset, rd->response, rd->responseType,
+                                     rd->client->config.customDataTypes);
 
 finish:
     UA_NodeId_clear(&responseId);

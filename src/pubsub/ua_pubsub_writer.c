@@ -12,7 +12,6 @@
 
 #include <open62541/server_pubsub.h>
 #include "server/ua_server_internal.h"
-#include <open62541/types_generated_encoding_binary.h>
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
@@ -940,12 +939,14 @@ valueChangedVariant(UA_Variant *oldValue, UA_Variant *newValue) {
     const UA_Byte *bufEndOldValue = &oldValueEncoding->data[oldValueEncoding->length];
     UA_Byte *bufPosNewValue = newValueEncoding->data;
     const UA_Byte *bufEndNewValue = &newValueEncoding->data[newValueEncoding->length];
-    if(UA_encodeBinary(oldValue, &UA_TYPES[UA_TYPES_VARIANT],
-                       &bufPosOldValue, &bufEndOldValue, NULL, NULL) != UA_STATUSCODE_GOOD){
+    if(UA_encodeBinaryInternal(oldValue, &UA_TYPES[UA_TYPES_VARIANT],
+                               &bufPosOldValue, &bufEndOldValue, NULL, NULL) !=
+       UA_STATUSCODE_GOOD) {
         return false;
     }
-    if(UA_encodeBinary(newValue, &UA_TYPES[UA_TYPES_VARIANT],
-                       &bufPosNewValue, &bufEndNewValue, NULL, NULL) != UA_STATUSCODE_GOOD){
+    if(UA_encodeBinaryInternal(newValue, &UA_TYPES[UA_TYPES_VARIANT],
+                               &bufPosNewValue, &bufEndNewValue, NULL, NULL) !=
+       UA_STATUSCODE_GOOD){
         return false;
     }
     oldValueEncoding->length = (uintptr_t)bufPosOldValue - (uintptr_t)oldValueEncoding->data;
