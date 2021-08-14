@@ -16,13 +16,12 @@
  */
 
 #include <open62541/transport_generated.h>
-#include <open62541/transport_generated_encoding_binary.h>
 #include <open62541/transport_generated_handling.h>
-#include <open62541/types_generated_encoding_binary.h>
 #include <open62541/types_generated_handling.h>
 #include "open62541/plugin/network.h"
 
 #include "ua_server_internal.h"
+#include "ua_types_encoding_binary.h"
 #include "ua_services.h"
 
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
@@ -66,7 +65,9 @@ decodeHeaderSendServiceFault(UA_SecureChannel *channel, const UA_ByteString *msg
                              size_t offset, const UA_DataType *responseType,
                              UA_UInt32 requestId, UA_StatusCode error) {
     UA_RequestHeader requestHeader;
-    UA_StatusCode retval = UA_RequestHeader_decodeBinary(msg, &offset, &requestHeader);
+    UA_StatusCode retval =
+        UA_decodeBinaryInternal(msg, &offset, &requestHeader,
+                                &UA_TYPES[UA_TYPES_REQUESTHEADER], NULL);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     retval = sendServiceFault(channel,  requestId, requestHeader.requestHandle,
@@ -290,7 +291,9 @@ processHEL(UA_Server *server, UA_SecureChannel *channel, const UA_ByteString *ms
         return UA_STATUSCODE_BADINTERNALERROR;
     size_t offset = 0; /* Go to the beginning of the TcpHelloMessage */
     UA_TcpHelloMessage helloMessage;
-    UA_StatusCode retval = UA_TcpHelloMessage_decodeBinary(msg, &offset, &helloMessage);
+    UA_StatusCode retval =
+        UA_decodeBinaryInternal(msg, &offset, &helloMessage,
+                                &UA_TRANSPORT[UA_TRANSPORT_TCPHELLOMESSAGE], NULL);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -331,8 +334,12 @@ processHEL(UA_Server *server, UA_SecureChannel *channel, const UA_ByteString *ms
     /* Encode and send the response */
     UA_Byte *bufPos = ack_msg.data;
     const UA_Byte *bufEnd = &ack_msg.data[ack_msg.length];
-    retval |= UA_TcpMessageHeader_encodeBinary(&ackHeader, &bufPos, bufEnd);
-    retval |= UA_TcpAcknowledgeMessage_encodeBinary(&ackMessage, &bufPos, bufEnd);
+    retval |= UA_encodeBinaryInternal(&ackHeader,
+                                      &UA_TRANSPORT[UA_TRANSPORT_TCPMESSAGEHEADER],
+                                      &bufPos, &bufEnd, NULL, NULL);
+    retval |= UA_encodeBinaryInternal(&ackMessage,
+                                      &UA_TRANSPORT[UA_TRANSPORT_TCPACKNOWLEDGEMESSAGE],
+                                      &bufPos, &bufEnd, NULL, NULL);
     if(retval != UA_STATUSCODE_GOOD) {
         connection->releaseSendBuffer(connection, &ack_msg);
         return retval;
@@ -349,14 +356,14 @@ processHEL(UA_Server *server, UA_SecureChannel *channel, const UA_ByteString *ms
 static UA_StatusCode
 processOPN(UA_Server *server, UA_SecureChannel *channel,
            const UA_UInt32 requestId, const UA_ByteString *msg) {
-    if(channel->state != UA_SECURECHANNELSTATE_ACK_SENT && channel->state != UA_SECURECHANNELSTATE_OPEN)
+    if(channel->state != UA_SECURECHANNELSTATE_ACK_SENT &&
+       channel->state != UA_SECURECHANNELSTATE_OPEN)
         return UA_STATUSCODE_BADINTERNALERROR;
     /* Decode the request */
     UA_NodeId requestType;
     UA_OpenSecureChannelRequest openSecureChannelRequest;
     size_t offset = 0;
     UA_StatusCode retval = UA_NodeId_decodeBinary(msg, &offset, &requestType);
-
     if(retval != UA_STATUSCODE_GOOD) {
         UA_NodeId_clear(&requestType);
         UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
@@ -364,7 +371,8 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
         UA_Server_closeSecureChannel(server, channel, UA_DIAGNOSTICEVENT_REJECT);
         return retval;
     }
-    retval = UA_OpenSecureChannelRequest_decodeBinary(msg, &offset, &openSecureChannelRequest);
+    retval = UA_decodeBinaryInternal(msg, &offset, &openSecureChannelRequest,
+                                     &UA_TYPES[UA_TYPES_OPENSECURECHANNELREQUEST], NULL);
 
     /* Error occurred */
     if(retval != UA_STATUSCODE_GOOD ||
@@ -670,7 +678,8 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
 
     /* Decode the request */
     UA_Request request;
-    retval = UA_decodeBinary(msg, &offset, &request, requestType, server->config.customDataTypes);
+    retval = UA_decodeBinaryInternal(msg, &offset, &request,
+                                     requestType, server->config.customDataTypes);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG_CHANNEL(&server->config.logger, channel,
                              "Could not decode the request with StatusCode %s",

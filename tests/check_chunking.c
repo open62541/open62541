@@ -47,7 +47,7 @@ START_TEST(encodeArrayIntoFiveChunksShallWork) {
     UA_ByteString workingBuffer = buffers[0];
     UA_Byte *pos = workingBuffer.data;
     const UA_Byte *end = &workingBuffer.data[workingBuffer.length];
-    UA_StatusCode retval = UA_encodeBinary(&v,&UA_TYPES[UA_TYPES_VARIANT],
+    UA_StatusCode retval = UA_encodeBinaryInternal(&v,&UA_TYPES[UA_TYPES_VARIANT],
                                            &pos, &end, sendChunkMockUp, NULL);
 
     ck_assert_uint_eq(retval,UA_STATUSCODE_GOOD);
@@ -91,7 +91,7 @@ START_TEST(encodeStringIntoFiveChunksShallWork) {
 
     UA_Byte *pos = workingBuffer.data;
     const UA_Byte *end = &workingBuffer.data[workingBuffer.length];
-    UA_StatusCode retval = UA_encodeBinary(&v, &UA_TYPES[UA_TYPES_VARIANT],
+    UA_StatusCode retval = UA_encodeBinaryInternal(&v, &UA_TYPES[UA_TYPES_VARIANT],
                                            &pos, &end, sendChunkMockUp, NULL);
 
     ck_assert_uint_eq(retval,UA_STATUSCODE_GOOD);
@@ -132,14 +132,14 @@ START_TEST(encodeTwoStringsIntoTenChunksShallWork) {
 
     UA_Byte *pos = workingBuffer.data;
     const UA_Byte *end = &workingBuffer.data[workingBuffer.length];
-    UA_StatusCode retval = UA_encodeBinary(&string, &UA_TYPES[UA_TYPES_STRING],
+    UA_StatusCode retval = UA_encodeBinaryInternal(&string, &UA_TYPES[UA_TYPES_STRING],
                                            &pos, &end, sendChunkMockUp, NULL);
     ck_assert_uint_eq(retval,UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(counter,4); //5 chunks allocated - callback called 4 times
     size_t offset = (uintptr_t)(pos - buffers[bufIndex].data);
     ck_assert_uint_eq(UA_calcSizeBinary(&string,&UA_TYPES[UA_TYPES_STRING]), dataCount + offset);
 
-    retval = UA_encodeBinary(&string,&UA_TYPES[UA_TYPES_STRING],
+    retval = UA_encodeBinaryInternal(&string,&UA_TYPES[UA_TYPES_STRING],
                              &pos, &end, sendChunkMockUp, NULL);
     dataCount += (uintptr_t)(pos - buffers[bufIndex].data);
     ck_assert_uint_eq(retval,UA_STATUSCODE_GOOD);

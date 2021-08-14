@@ -6,14 +6,13 @@
  * Copyright (c) 2019 Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
-#include <open62541/types_generated_encoding_binary.h>
 #include <open62541/types_generated_handling.h>
 
 #include "ua_util_internal.h"
+#include "ua_types_encoding_binary.h"
+#include "ua_pubsub_networkmessage.h"
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
-
-#include "ua_pubsub_networkmessage.h"
 
 const UA_Byte NM_VERSION_MASK = 15;
 const UA_Byte NM_PUBLISHER_ID_ENABLED_MASK = 16;
@@ -57,24 +56,27 @@ static UA_Boolean UA_DataSetMessageHeader_DataSetFlags2Enabled(const UA_DataSetM
 UA_StatusCode
 UA_NetworkMessage_updateBufferedMessage(UA_NetworkMessageOffsetBuffer *buffer){
     UA_StatusCode rv = UA_STATUSCODE_GOOD;
-    for (size_t i = 0; i < buffer->offsetsSize; ++i) {
+    for(size_t i = 0; i < buffer->offsetsSize; ++i) {
+        UA_NetworkMessageOffset *nmo = &buffer->offsets[i];
         const UA_Byte *bufEnd = &buffer->buffer.data[buffer->buffer.length];
-        UA_Byte *bufPos = &buffer->buffer.data[buffer->offsets[i].offset];
-        switch (buffer->offsets[i].contentType) {
+        UA_Byte *bufPos = &buffer->buffer.data[nmo->offset];
+        switch(nmo->contentType) {
             case UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE_SEQUENCENUMBER:
             case UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_SEQUENCENUMBER:
-                rv = UA_UInt16_encodeBinary((UA_UInt16 *) buffer->offsets[i].offsetData.value.value->value.data, &bufPos, bufEnd);
+                rv = UA_UInt16_encodeBinary((UA_UInt16 *)nmo->offsetData.value.value->value.data, &bufPos, bufEnd);
                 break;
             case UA_PUBSUB_OFFSETTYPE_PAYLOAD_DATAVALUE:
-                rv = UA_DataValue_encodeBinary(buffer->offsets[i].offsetData.value.value, &bufPos, bufEnd);
+                rv = UA_DataValue_encodeBinary(nmo->offsetData.value.value,
+                                               &bufPos, bufEnd);
                 break;
             case UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT:
-                rv = UA_Variant_encodeBinary(&buffer->offsets[i].offsetData.value.value->value, &bufPos, bufEnd);
+                rv = UA_Variant_encodeBinary(&nmo->offsetData.value.value->value,
+                                             &bufPos, bufEnd);
                 break;
             case UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW:
-                rv = UA_encodeBinary(buffer->offsets[i].offsetData.value.value->value.data,
-                                     buffer->offsets[i].offsetData.value.value->value.type,
-                                     &bufPos, &bufEnd, NULL, NULL);
+                rv = UA_encodeBinaryInternal(nmo->offsetData.value.value->value.data,
+                                             nmo->offsetData.value.value->value.type,
+                                             &bufPos, &bufEnd, NULL, NULL);
                 break;
             case UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_FIELDENCDODING:
                 break;
@@ -1429,9 +1431,9 @@ UA_DataSetMessage_encodeBinary(const UA_DataSetMessage* src, UA_Byte **bufPos,
             }
         } else if(src->header.fieldEncoding == UA_FIELDENCODING_RAWDATA) {
             for (UA_UInt16 i = 0; i < src->data.keyFrameData.fieldCount; i++) {
-                rv = UA_encodeBinary(src->data.keyFrameData.dataSetFields[i].value.data,
-                                     src->data.keyFrameData.dataSetFields[i].value.type,
-                                     bufPos, &bufEnd, NULL, NULL);
+                rv = UA_encodeBinaryInternal(src->data.keyFrameData.dataSetFields[i].value.data,
+                                             src->data.keyFrameData.dataSetFields[i].value.type,
+                                             bufPos, &bufEnd, NULL, NULL);
                 UA_CHECK_STATUS(rv, return rv);
             }
         } else if(src->header.fieldEncoding == UA_FIELDENCODING_DATAVALUE) {

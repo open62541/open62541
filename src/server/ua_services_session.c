@@ -15,7 +15,6 @@
 
 #include "ua_server_internal.h"
 #include "ua_services.h"
-#include <open62541/types_generated_encoding_binary.h>
 
 /* Delayed callback to free the session memory */
 static void

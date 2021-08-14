@@ -19,6 +19,8 @@
 #include <open62541/types.h>
 #include <open62541/util.h>
 
+#include "ua_types_encoding_binary.h"
+
 _UA_BEGIN_DECLS
 
 /* Macro-Expand for MSVC workarounds */
@@ -313,6 +315,52 @@ typedef union {
  * ASCII strings, and not UTF8! */
 UA_Boolean UA_EXPORT
 UA_String_equal_ignorecase(const UA_String *s1, const UA_String *s2);
+
+/********************/
+/* Encoding Helpers */
+/********************/
+
+#define UA_ENCODING_HELPERS(TYPE, UPCASE_TYPE)                          \
+    static UA_INLINE size_t                                             \
+    UA_##TYPE##_calcSizeBinary(const UA_##TYPE *src) {                    \
+        return UA_calcSizeBinary(src, &UA_TYPES[UA_TYPES_##UPCASE_TYPE]); \
+    }                                                                   \
+    static UA_INLINE UA_StatusCode                                      \
+    UA_##TYPE##_encodeBinary(const UA_##TYPE *src, UA_Byte **bufPos, const UA_Byte *bufEnd) { \
+        return UA_encodeBinaryInternal(src, &UA_TYPES[UA_TYPES_##UPCASE_TYPE], \
+                                       bufPos, &bufEnd, NULL, NULL);    \
+    }                                                                   \
+    static UA_INLINE UA_StatusCode                                      \
+    UA_##TYPE##_decodeBinary(const UA_ByteString *src, size_t *offset, UA_##TYPE *dst) { \
+    return UA_decodeBinaryInternal(src, offset, dst, \
+                                   &UA_TYPES[UA_TYPES_##UPCASE_TYPE], NULL); \
+    }
+
+UA_ENCODING_HELPERS(Boolean, BOOLEAN)
+UA_ENCODING_HELPERS(SByte, SBYTE)
+UA_ENCODING_HELPERS(Byte, BYTE)
+UA_ENCODING_HELPERS(Int16, INT16)
+UA_ENCODING_HELPERS(UInt16, UINT16)
+UA_ENCODING_HELPERS(Int32, INT32)
+UA_ENCODING_HELPERS(UInt32, UINT32)
+UA_ENCODING_HELPERS(Int64, INT64)
+UA_ENCODING_HELPERS(UInt64, UINT64)
+UA_ENCODING_HELPERS(Float, FLOAT)
+UA_ENCODING_HELPERS(Double, DOUBLE)
+UA_ENCODING_HELPERS(String, STRING)
+UA_ENCODING_HELPERS(DateTime, DATETIME)
+UA_ENCODING_HELPERS(Guid, GUID)
+UA_ENCODING_HELPERS(ByteString, BYTESTRING)
+UA_ENCODING_HELPERS(XmlElement, XMLELEMENT)
+UA_ENCODING_HELPERS(NodeId, NODEID)
+UA_ENCODING_HELPERS(ExpandedNodeId, EXPANDEDNODEID)
+UA_ENCODING_HELPERS(StatusCode, STATUSCODE)
+UA_ENCODING_HELPERS(QualifiedName, QUALIFIEDNAME)
+UA_ENCODING_HELPERS(LocalizedText, LOCALIZEDTEXT)
+UA_ENCODING_HELPERS(ExtensionObject, EXTENSIONOBJECT)
+UA_ENCODING_HELPERS(DataValue, DATAVALUE)
+UA_ENCODING_HELPERS(Variant, VARIANT)
+UA_ENCODING_HELPERS(DiagnosticInfo, DIAGNOSTICINFO)
 
 _UA_END_DECLS
 
