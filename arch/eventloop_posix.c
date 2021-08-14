@@ -6,6 +6,9 @@
  */
 
 #include "eventloop_posix.h"
+
+#include "ua_util_internal.h"
+
 #include "ziptree.h"
 
 typedef struct UA_TimerEntry {
@@ -369,6 +372,9 @@ UA_EventLoop_delete(UA_EventLoop *el) {
     /* Process remaining delayed callbacks */
     processDelayed(el);
 
+    /* free the file descriptors */
+    UA_free(el->fds);
+
     /* Clean up */
     UA_UNLOCK(&el->elMutex);
     UA_LOCK_DESTROY(&el->elMutex);
@@ -689,8 +695,8 @@ UA_EventLoop_deregisterFD(UA_EventLoop *el, UA_FD fd) {
         el->fds[i] = el->fds[el->fdsSize];
         UA_RegisteredFD *fds_tmp = (UA_RegisteredFD*)
             UA_realloc(el->fds, sizeof(UA_RegisteredFD) * el->fdsSize);
-        if(fds_tmp)
-            el->fds = fds_tmp;
+        UA_CHECK_MEM(fds_tmp, return UA_STATUSCODE_BADOUTOFMEMORY);
+        el->fds = fds_tmp;
     } else {
         /* Remove the last entry */
         UA_free(el->fds);
