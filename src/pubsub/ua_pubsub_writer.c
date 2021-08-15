@@ -916,44 +916,53 @@ UA_DataSetFieldConfig_clear(UA_DataSetFieldConfig *dataSetFieldConfig) {
 #ifdef UA_ENABLE_PUBSUB_DELTAFRAMES
 static UA_Boolean
 valueChangedVariant(UA_Variant *oldValue, UA_Variant *newValue) {
-    if(! (oldValue && newValue))
+    if(!oldValue || !newValue)
         return false;
 
-    UA_ByteString *oldValueEncoding = UA_ByteString_new(), *newValueEncoding = UA_ByteString_new();
-    size_t oldValueEncodingSize, newValueEncodingSize;
-    oldValueEncodingSize = UA_calcSizeBinary(oldValue, &UA_TYPES[UA_TYPES_VARIANT]);
-    newValueEncodingSize = UA_calcSizeBinary(newValue, &UA_TYPES[UA_TYPES_VARIANT]);
-    if((oldValueEncodingSize == 0) || (newValueEncodingSize == 0))
+    size_t oldValueEncodingSize = UA_calcSizeBinary(oldValue, &UA_TYPES[UA_TYPES_VARIANT]);
+    size_t newValueEncodingSize = UA_calcSizeBinary(newValue, &UA_TYPES[UA_TYPES_VARIANT]);
+    if(oldValueEncodingSize == 0 || newValueEncodingSize == 0)
         return false;
 
     if(oldValueEncodingSize != newValueEncodingSize)
         return true;
 
-    if(UA_ByteString_allocBuffer(oldValueEncoding, oldValueEncodingSize) != UA_STATUSCODE_GOOD)
+    UA_ByteString oldValueEncoding = {0};
+    UA_StatusCode res = UA_ByteString_allocBuffer(&oldValueEncoding, oldValueEncodingSize);
+    if(res != UA_STATUSCODE_GOOD)
         return false;
 
-    if(UA_ByteString_allocBuffer(newValueEncoding, newValueEncodingSize) != UA_STATUSCODE_GOOD)
+    UA_ByteString newValueEncoding = {0};
+    res = UA_ByteString_allocBuffer(&newValueEncoding, newValueEncodingSize);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_ByteString_clear(&oldValueEncoding);
         return false;
+    }
 
-    UA_Byte *bufPosOldValue = oldValueEncoding->data;
-    const UA_Byte *bufEndOldValue = &oldValueEncoding->data[oldValueEncoding->length];
-    UA_Byte *bufPosNewValue = newValueEncoding->data;
-    const UA_Byte *bufEndNewValue = &newValueEncoding->data[newValueEncoding->length];
-    if(UA_encodeBinaryInternal(oldValue, &UA_TYPES[UA_TYPES_VARIANT],
-                               &bufPosOldValue, &bufEndOldValue, NULL, NULL) !=
-       UA_STATUSCODE_GOOD) {
-        return false;
-    }
-    if(UA_encodeBinaryInternal(newValue, &UA_TYPES[UA_TYPES_VARIANT],
-                               &bufPosNewValue, &bufEndNewValue, NULL, NULL) !=
-       UA_STATUSCODE_GOOD){
-        return false;
-    }
-    oldValueEncoding->length = (uintptr_t)bufPosOldValue - (uintptr_t)oldValueEncoding->data;
-    newValueEncoding->length = (uintptr_t)bufPosNewValue - (uintptr_t)newValueEncoding->data;
-    UA_Boolean compareResult = !UA_ByteString_equal(oldValueEncoding, newValueEncoding);
-    UA_ByteString_delete(oldValueEncoding);
-    UA_ByteString_delete(newValueEncoding);
+    UA_Byte *bufPosOldValue = oldValueEncoding.data;
+    const UA_Byte *bufEndOldValue = &oldValueEncoding.data[oldValueEncoding.length];
+    UA_Byte *bufPosNewValue = newValueEncoding.data;
+    const UA_Byte *bufEndNewValue = &newValueEncoding.data[newValueEncoding.length];
+
+    UA_Boolean compareResult = false; /* default */
+
+    res = UA_encodeBinaryInternal(oldValue, &UA_TYPES[UA_TYPES_VARIANT],
+                                  &bufPosOldValue, &bufEndOldValue, NULL, NULL);
+    if(res != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
+    res = UA_encodeBinaryInternal(newValue, &UA_TYPES[UA_TYPES_VARIANT],
+                                  &bufPosNewValue, &bufEndNewValue, NULL, NULL);
+    if(res != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
+    oldValueEncoding.length = (uintptr_t)bufPosOldValue - (uintptr_t)oldValueEncoding.data;
+    newValueEncoding.length = (uintptr_t)bufPosNewValue - (uintptr_t)newValueEncoding.data;
+    compareResult = !UA_ByteString_equal(&oldValueEncoding, &newValueEncoding);
+
+ cleanup:
+    UA_ByteString_clear(&oldValueEncoding);
+    UA_ByteString_clear(&newValueEncoding);
     return compareResult;
 }
 #endif
