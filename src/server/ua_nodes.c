@@ -15,6 +15,212 @@
 #include "ua_types_encoding_binary.h"
 #include "aa_tree.h"
 
+/*****************/
+/* Node Pointers */
+/*****************/
+
+#define UA_NODEPOINTER_MASK 0x03
+#define UA_NODEPOINTER_TAG_IMMEDIATE 0x00
+#define UA_NODEPOINTER_TAG_NODEID 0x01
+#define UA_NODEPOINTER_TAG_EXPANDEDNODEID 0x02
+#define UA_NODEPOINTER_TAG_NODE 0x03
+
+void
+UA_NodePointer_clear(UA_NodePointer *np) {
+    switch(np->immediate & UA_NODEPOINTER_MASK) {
+    case UA_NODEPOINTER_TAG_NODEID:
+        np->immediate &= ~(uintptr_t)UA_NODEPOINTER_MASK;
+        UA_NodeId_delete((UA_NodeId*)(uintptr_t)np->id);
+        break;
+    case UA_NODEPOINTER_TAG_EXPANDEDNODEID:
+        np->immediate &= ~(uintptr_t)UA_NODEPOINTER_MASK;
+        UA_ExpandedNodeId_delete((UA_ExpandedNodeId*)(uintptr_t)
+                                 np->expandedId);
+        break;
+    default:
+        break;
+    }
+    UA_NodePointer_init(np);
+}
+
+UA_StatusCode
+UA_NodePointer_copy(UA_NodePointer in, UA_NodePointer *out) {
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    UA_Byte tag = in.immediate & UA_NODEPOINTER_MASK;
+    in.immediate &= ~(uintptr_t)UA_NODEPOINTER_MASK;
+    switch(tag) {
+    case UA_NODEPOINTER_TAG_NODE:
+        in.id = &in.node->nodeId;
+        goto nodeid; /* fallthrough */
+    case UA_NODEPOINTER_TAG_NODEID:
+    nodeid:
+        out->id = UA_NodeId_new();
+        if(!out->id)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        res = UA_NodeId_copy(in.id, (UA_NodeId*)(uintptr_t)out->id);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_free((void*)out->immediate);
+            out->immediate = 0;
+            break;
+        }
+        out->immediate |= UA_NODEPOINTER_TAG_NODEID;
+        break;
+    case UA_NODEPOINTER_TAG_EXPANDEDNODEID:
+        out->expandedId = UA_ExpandedNodeId_new();
+        if(!out->expandedId)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        res = UA_ExpandedNodeId_copy(in.expandedId,
+                                     (UA_ExpandedNodeId*)(uintptr_t)
+                                     out->expandedId);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_free((void*)out->immediate);
+            out->immediate = 0;
+            break;
+        }
+        out->immediate |= UA_NODEPOINTER_TAG_EXPANDEDNODEID;
+        break;
+    default:
+    case UA_NODEPOINTER_TAG_IMMEDIATE:
+        *out = in;
+        break;
+    }
+    return res;
+}
+
+UA_Boolean
+UA_NodePointer_isLocal(UA_NodePointer np) {
+    UA_Byte tag = np.immediate & UA_NODEPOINTER_MASK;
+    return (tag != UA_NODEPOINTER_TAG_EXPANDEDNODEID);
+}
+
+UA_Order
+UA_NodePointer_order(UA_NodePointer p1, UA_NodePointer p2) {
+    if(p1.immediate == p2.immediate)
+        return UA_ORDER_EQ;
+
+    /* Extract the tag and resolve pointers to nodes */
+    UA_Byte tag1 = p1.immediate & UA_NODEPOINTER_MASK;
+    if(tag1 == UA_NODEPOINTER_TAG_NODE) {
+        p1 = UA_NodePointer_fromNodeId(&p1.node->nodeId);
+        tag1 = p1.immediate & UA_NODEPOINTER_MASK;
+    }
+    UA_Byte tag2 = p2.immediate & UA_NODEPOINTER_MASK;
+    if(tag2 == UA_NODEPOINTER_TAG_NODE) {
+        p2 = UA_NodePointer_fromNodeId(&p2.node->nodeId);
+        tag2 = p2.immediate & UA_NODEPOINTER_MASK;
+    }
+
+    /* Different tags, cannot be identical */
+    if(tag1 != tag2)
+        return (tag1 > tag2) ? UA_ORDER_MORE : UA_ORDER_LESS;
+
+    /* Immediate */
+    if(UA_LIKELY(tag1 == UA_NODEPOINTER_TAG_IMMEDIATE))
+        return (p1.immediate > p2.immediate) ?
+            UA_ORDER_MORE : UA_ORDER_LESS;
+
+    /* Compare from pointers */
+    p1.immediate &= ~(uintptr_t)UA_NODEPOINTER_MASK;
+    p2.immediate &= ~(uintptr_t)UA_NODEPOINTER_MASK;
+    if(tag1 == UA_NODEPOINTER_TAG_EXPANDEDNODEID)
+        return UA_ExpandedNodeId_order(p1.expandedId, p2.expandedId);
+    return UA_NodeId_order(p1.id, p2.id);
+}
+
+UA_NodePointer
+UA_NodePointer_fromNodeId(const UA_NodeId *id) {
+    UA_NodePointer np;
+    if(id->identifierType != UA_NODEIDTYPE_NUMERIC) {
+        np.id = id;
+        np.immediate |= UA_NODEPOINTER_TAG_NODEID;
+        return np;
+    }
+
+#if SIZE_MAX > UA_UINT32_MAX
+    /* 64bit: 4 Byte for the numeric identifier + 2 Byte for the namespaceIndex
+     *        + 1 Byte for the tagging bit (zero) */
+    np.immediate  = ((uintptr_t)id->identifier.numeric) << 32;
+    np.immediate |= ((uintptr_t)id->namespaceIndex) << 8;
+#else
+    /* 32bit: 3 Byte for the numeric identifier + 6 Bit for the namespaceIndex
+     *        + 2 Bit for the tagging bit (zero) */
+    if(id->namespaceIndex < (0x01 << 6) &&
+       id->identifier.numeric < (0x01 << 24)) {
+        np.immediate  = id->identifier.numeric << 8;
+        np.immediate |= ((UA_Byte)id->namespaceIndex) << 2;
+    } else {
+        np.id = id;
+        np.immediate |= UA_NODEPOINTER_TAG_NODEID;
+    }
+#endif
+    return np;
+}
+
+UA_NodeId
+UA_NodePointer_toNodeId(UA_NodePointer np) {
+    UA_Byte tag = np.immediate & UA_NODEPOINTER_MASK;
+    np.immediate &= ~(uintptr_t)UA_NODEPOINTER_MASK;
+    switch(tag) {
+    case UA_NODEPOINTER_TAG_NODE:
+        return np.node->nodeId;
+    case UA_NODEPOINTER_TAG_NODEID:
+        return *np.id;
+    case UA_NODEPOINTER_TAG_EXPANDEDNODEID:
+        return np.expandedId->nodeId;
+    default:
+    case UA_NODEPOINTER_TAG_IMMEDIATE:
+        break;
+    }
+
+    UA_NodeId id;
+    id.identifierType = UA_NODEIDTYPE_NUMERIC;
+#if SIZE_MAX > UA_UINT32_MAX /* 64bit */
+    id.namespaceIndex = (UA_UInt16)(np.immediate >> 8);
+    id.identifier.numeric = (UA_UInt32)(np.immediate >> 32);
+#else                        /* 32bit */
+    id.namespaceIndex = ((UA_Byte)np.immediate) >> 2;
+    id.identifier.numeric = np.immediate >> 8;
+#endif
+    return id;
+}
+
+UA_NodePointer
+UA_NodePointer_fromExpandedNodeId(const UA_ExpandedNodeId *id) {
+    if(!UA_ExpandedNodeId_isLocal(id)) {
+        UA_NodePointer np;
+        np.expandedId = id;
+        np.immediate |= UA_NODEPOINTER_TAG_EXPANDEDNODEID;
+        return np;
+    }
+    return UA_NodePointer_fromNodeId(&id->nodeId);
+}
+
+UA_ExpandedNodeId
+UA_NodePointer_toExpandedNodeId(UA_NodePointer np) {
+    /* Resolve node pointer to get the NodeId */
+    UA_Byte tag = np.immediate & UA_NODEPOINTER_MASK;
+    if(tag == UA_NODEPOINTER_TAG_NODE) {
+        np = UA_NodePointer_fromNodeId(&np.node->nodeId);
+        tag = np.immediate & UA_NODEPOINTER_MASK;
+    }
+
+    /* ExpandedNodeId, make a shallow copy */
+    if(tag == UA_NODEPOINTER_TAG_EXPANDEDNODEID) {
+        np.immediate &= ~(uintptr_t)UA_NODEPOINTER_MASK;
+        return *np.expandedId;
+    }
+
+    /* NodeId, either immediate or via a pointer */
+    UA_ExpandedNodeId en;
+    UA_ExpandedNodeId_init(&en);
+    en.nodeId = UA_NodePointer_toNodeId(np);
+    return en;
+}
+
+/**************/
+/* References */
+/**************/
+
 static UA_StatusCode
 addReferenceTarget(UA_NodeReferenceKind *refs, const UA_ExpandedNodeId *target,
                    UA_UInt32 targetNameHash);
