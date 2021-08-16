@@ -209,10 +209,10 @@ void UA_Server_delete(UA_Server *server) {
 
     UA_UNLOCK(&server->serviceMutex); /* The timer has its own mutex */
 
-    /* TODO: Execute all remaining delayed events and clean up the timer */
-    UA_EventLoop_run(server->config.eventLoop, 1);
-    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                   "need to do the cleanup with eventloop");
+    // /* TODO: Execute all remaining delayed events and clean up the timer */
+    // UA_EventLoop_run(server->config.eventLoop, 1);
+    // UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+    //                "need to do the cleanup with eventloop");
 
     /* Clean up EventLoop related server stuff */
     if (server->tcpConnectionManager) {
@@ -569,6 +569,12 @@ static void
 shutdownCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                  void *connectionContext) {
 
+    if (connectionContext != NULL) {
+        UA_BasicConnectionContext *ctx = (UA_BasicConnectionContext *)connectionContext;
+        if(!ctx->isInitial) {
+            UA_free(ctx);
+        }
+    }
 }
 
 static void
@@ -581,6 +587,11 @@ connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
     UA_BasicConnectionContext *ctx = (UA_BasicConnectionContext *) *connectionContext;
 
+    if (UA_EventLoop_getState(cm->eventSource.eventLoop) == UA_EVENTLOOPSTATE_STOPPING) {
+        UA_LOG_DEBUG(UA_EventLoop_getLogger(cm->eventSource.eventLoop), UA_LOGCATEGORY_SERVER, "stopping eventloop");
+        return;
+    }
+
     if (stat != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(UA_EventLoop_getLogger(cm->eventSource.eventLoop), UA_LOGCATEGORY_SERVER, "closing connection");
 
@@ -591,7 +602,7 @@ connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     }
 
     if (ctx->isInitial) {
-        UA_ConnectionContext *newCtx = (UA_ConnectionContext*) calloc(1, sizeof(UA_ConnectionContext));
+        UA_ConnectionContext *newCtx = (UA_ConnectionContext*) UA_calloc(1, sizeof(UA_ConnectionContext));
         newCtx->base.isInitial = false;
         newCtx->base.cm = ctx->cm;
         newCtx->base.server = ctx->server;
