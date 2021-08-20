@@ -7,7 +7,6 @@
  */
 
 #include <open62541/plugin/log_stdout.h>
-#include <open62541/types_generated_encoding_binary.h>
 
 #ifdef UA_ENABLE_PUBSUB
 #ifdef UA_ENABLE_PUBSUB_ETH_UADP

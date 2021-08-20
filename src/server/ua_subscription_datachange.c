@@ -118,8 +118,7 @@ detectValueChangeWithFilter(UA_Server *server, UA_Session *session, UA_Monitored
         /* Encode without using calcSizeBinary first. This will fail with
          * UA_STATUSCODE_BADENCODINGERROR once the end of the buffer is
          * reached. */
-        retval = UA_encodeBinary(value, &UA_TYPES[UA_TYPES_DATAVALUE],
-                                 &bufPos, &bufEnd, NULL, NULL);
+        retval = UA_DataValue_encodeBinary(value, &bufPos, bufEnd);
         if(retval == UA_STATUSCODE_BADENCODINGERROR)
             goto encodeOnHeap; /* The buffer was not large enough */
     } else {
@@ -136,8 +135,7 @@ detectValueChangeWithFilter(UA_Server *server, UA_Session *session, UA_Monitored
             goto cleanup;
         bufPos = valueEncoding.data;
         bufEnd = &valueEncoding.data[valueEncoding.length];
-        retval = UA_encodeBinary(value, &UA_TYPES[UA_TYPES_DATAVALUE],
-                                 &bufPos, &bufEnd, NULL, NULL);
+        retval = UA_DataValue_encodeBinary(value, &bufPos, bufEnd);
     }
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;

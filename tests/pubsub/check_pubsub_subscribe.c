@@ -11,7 +11,6 @@
 #include <check.h>
 #include <time.h>
 
-#include "open62541/types_generated_encoding_binary.h"
 #include "open62541/types_generated_handling.h"
 #include "ua_pubsub.h"
 #include "ua_server_internal.h"

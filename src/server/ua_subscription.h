@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- *    Copyright 2015-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2015-2018, 2021 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2015 (c) Chris Iatrou
  *    Copyright 2015-2016 (c) Sten Grüner
  *    Copyright 2015 (c) Oleksiy Vasylyev
@@ -28,18 +28,10 @@ _UA_BEGIN_DECLS
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 
-#define UA_BOUNDEDVALUE_SETWBOUNDS(BOUNDS, SRC, DST) { \
-        if(SRC > BOUNDS.max) DST = BOUNDS.max;         \
-        else if(SRC < BOUNDS.min) DST = BOUNDS.min;    \
-        else DST = SRC;                                \
-    }
+struct UA_MonitoredItem;
+typedef struct UA_MonitoredItem UA_MonitoredItem;
 
-/* Set to the TAILQ_NEXT pointer of a notification, the sentinel that the
- * notification was not added to the global queue */
-#define UA_SUBSCRIPTION_QUEUE_SENTINEL ((UA_Notification*)0x01)
-
-/**
- * MonitoredItems create Notifications. Subscriptions collect Notifications from
+/* MonitoredItems create Notifications. Subscriptions collect Notifications from
  * (several) MonitoredItems and publish them to the client.
  *
  * Notifications are put into two queues at the same time. One for the
@@ -47,77 +39,21 @@ _UA_BEGIN_DECLS
  * space reserved for the MonitoredItem runs full. The second queue is the
  * "global" queue for all Notifications generated in a Subscription. For
  * publication, the notifications are taken out of the "global" queue in the
- * order of their creation.
- */
+ * order of their creation. */
 
 /*****************/
-/* MonitoredItem */
+/* Notifications */
 /*****************/
 
-struct UA_MonitoredItem;
-typedef struct UA_MonitoredItem UA_MonitoredItem;
-
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
-
-typedef enum {
-  UA_INACTIVE,
-  UA_ACTIVE,
-  UA_ACTIVE_HIGHHIGH,
-  UA_ACTIVE_HIGH,
-  UA_ACTIVE_LOW,
-  UA_ACTIVE_LOWLOW
-} UA_ActiveState;
-
-typedef struct {
-    UA_TwoStateVariableChangeCallback enableStateCallback;
-    UA_TwoStateVariableChangeCallback ackStateCallback;
-    UA_Boolean ackedRemoveBranch;
-    UA_TwoStateVariableChangeCallback confirmStateCallback;
-    UA_Boolean confirmedRemoveBranch;
-    UA_TwoStateVariableChangeCallback activeStateCallback;
-} UA_ConditionCallbacks;
-
-/* In Alarms and Conditions first implementation, conditionBranchId is always
- * equal to NULL NodeId (UA_NODEID_NULL). That ConditionBranch represents the
- * current state Condition. The current state is determined by the last Event
- * triggered (lastEventId). See Part 9, 5.5.2, BranchId. */
-typedef struct UA_ConditionBranch {
-    LIST_ENTRY(UA_ConditionBranch) listEntry;
-    UA_NodeId conditionBranchId;
-    UA_ByteString lastEventId;
-    UA_Boolean isCallerAC;
-} UA_ConditionBranch;
-
-/* In Alarms and Conditions first implementation, A Condition
- * have only one ConditionBranch entry. */
-typedef struct UA_Condition {
-    LIST_ENTRY(UA_Condition) listEntry;
-    LIST_HEAD(, UA_ConditionBranch) conditionBranchHead;
-    UA_NodeId conditionId;
-    UA_UInt16 lastSeverity;
-    UA_DateTime lastSeveritySourceTimeStamp;
-    UA_ConditionCallbacks callbacks;
-    UA_ActiveState lastActiveState;
-    UA_ActiveState currentActiveState;
-    UA_Boolean isLimitAlarm;
-} UA_Condition;
-
-/* A ConditionSource can have multiple Conditions. */
-typedef struct UA_ConditionSource {
-    LIST_ENTRY(UA_ConditionSource) listEntry;
-    LIST_HEAD(, UA_Condition) conditionHead;
-    UA_NodeId conditionSourceId;
-} UA_ConditionSource;
-
-#endif /* UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */
-#endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
+/* Set to the TAILQ_NEXT pointer of a notification, the sentinel that the
+ * notification was not added to the global queue */
+#define UA_SUBSCRIPTION_QUEUE_SENTINEL ((UA_Notification*)0x01)
 
 typedef struct UA_Notification {
     TAILQ_ENTRY(UA_Notification) listEntry;   /* Notification list for the MonitoredItem */
     TAILQ_ENTRY(UA_Notification) globalEntry; /* Notification list for the Subscription */
-
     UA_MonitoredItem *mon; /* Always set */
+
     /* The event field is used if mon->attributeId is the EventNotifier */
     union {
         UA_MonitoredItemNotification dataChange;
@@ -125,11 +61,13 @@ typedef struct UA_Notification {
         UA_EventFieldList event;
 #endif
     } data;
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     UA_Boolean isOverflowEvent; /* Counted manually */
 #endif
 } UA_Notification;
 
+/* Initializes and sets the sentinel pointers */
 UA_Notification * UA_Notification_new(void);
 
 /* Notifications are always added to the queue of the MonitoredItem. That queue
@@ -141,21 +79,36 @@ UA_Notification * UA_Notification_new(void);
  * Subscription: They are added because the MonitoringMode of the MonitoredItem
  * is "reporting". Or the MonitoringMode is "sampling" and a link is trigered
  * that puts the last Notification into the global queue. */
-void UA_Notification_enqueueAndTrigger(UA_Server *server, UA_Notification *n);
+void UA_Notification_enqueueAndTrigger(UA_Server *server,
+                                       UA_Notification *n);
 
 /* Dequeue and delete the notification */
 void UA_Notification_delete(UA_Server *server, UA_Notification *n);
 
+/* A NotificationMessage contains an array of notifications.
+ * Sent NotificationMessages are stored for the republish service. */
+typedef struct UA_NotificationMessageEntry {
+    TAILQ_ENTRY(UA_NotificationMessageEntry) listEntry;
+    UA_NotificationMessage message;
+} UA_NotificationMessageEntry;
+
+/* Queue Definitions */
 typedef TAILQ_HEAD(NotificationQueue, UA_Notification) NotificationQueue;
+typedef TAILQ_HEAD(NotificationMessageQueue, UA_NotificationMessageEntry)
+    NotificationMessageQueue;
+
+/*****************/
+/* MonitoredItem */
+/*****************/
 
 struct UA_MonitoredItem {
     UA_TimerEntry delayedFreePointers;
-    LIST_ENTRY(UA_MonitoredItem) listEntry;
+    LIST_ENTRY(UA_MonitoredItem) listEntry; /* Linked list in the Subscription */
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     UA_MonitoredItem *next; /* Linked list of MonitoredItems directly attached
                              * to a Node */
 #endif
-    UA_Subscription *subscription; /* Local MonitoredItem if the subscription is NULL */
+    UA_Subscription *subscription; /* If NULL, then this is a Local MonitoredItem */
     UA_UInt32 monitoredItemId;
 
     /* Status and Settings */
@@ -197,40 +150,58 @@ struct UA_MonitoredItem {
 };
 
 void UA_MonitoredItem_init(UA_MonitoredItem *mon);
-UA_StatusCode UA_Server_registerMonitoredItem(UA_Server *server, UA_MonitoredItem *mon);
-void UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem);
+
+void
+UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem);
+
+UA_StatusCode
+UA_Server_registerMonitoredItem(UA_Server *server, UA_MonitoredItem *mon);
+
+void
+UA_MonitoredItem_unregisterSampleCallback(UA_Server *server,
+                                          UA_MonitoredItem *mon);
 
 UA_StatusCode
 UA_MonitoredItem_setMonitoringMode(UA_Server *server, UA_MonitoredItem *mon,
                                    UA_MonitoringMode monitoringMode);
 
-void UA_MonitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem);
-UA_StatusCode UA_MonitoredItem_registerSampleCallback(UA_Server *server, UA_MonitoredItem *mon);
-void UA_MonitoredItem_unregisterSampleCallback(UA_Server *server, UA_MonitoredItem *mon);
-
-UA_StatusCode UA_MonitoredItem_removeLink(UA_Subscription *sub, UA_MonitoredItem *mon,
-                                          UA_UInt32 linkId);
-UA_StatusCode UA_MonitoredItem_addLink(UA_Subscription *sub, UA_MonitoredItem *mon, UA_UInt32 linkId);
+void
+UA_MonitoredItem_sampleCallback(UA_Server *server,
+                                UA_MonitoredItem *monitoredItem);
 
 UA_StatusCode
-UA_MonitoredItem_createDataChangeNotification(UA_Server *server, UA_Subscription *sub,
-                                              UA_MonitoredItem *mon, const UA_DataValue *value);
+UA_MonitoredItem_registerSampleCallback(UA_Server *server,
+                                        UA_MonitoredItem *mon);
 
-UA_StatusCode UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event, UA_MonitoredItem *mon);
-UA_StatusCode UA_Event_generateEventId(UA_ByteString *generatedId);
+UA_StatusCode
+UA_MonitoredItem_removeLink(UA_Subscription *sub, UA_MonitoredItem *mon,
+                            UA_UInt32 linkId);
+
+UA_StatusCode
+UA_MonitoredItem_addLink(UA_Subscription *sub, UA_MonitoredItem *mon,
+                         UA_UInt32 linkId);
+
+UA_StatusCode
+UA_MonitoredItem_createDataChangeNotification(UA_Server *server,
+                                              UA_Subscription *sub,
+                                              UA_MonitoredItem *mon,
+                                              const UA_DataValue *value);
+
+UA_StatusCode
+UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event,
+                                 UA_MonitoredItem *mon);
+
+UA_StatusCode
+UA_Event_generateEventId(UA_ByteString *generatedId);
 
 /* Remove entries until mon->maxQueueSize is reached. Sets infobits for lost
  * data if required. */
-void UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon);
+void
+UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon);
 
 /****************/
 /* Subscription */
 /****************/
-
-typedef struct UA_NotificationMessageEntry {
-    TAILQ_ENTRY(UA_NotificationMessageEntry) listEntry;
-    UA_NotificationMessage message;
-} UA_NotificationMessageEntry;
 
 /* We use only a subset of the states defined in the standard */
 typedef enum {
@@ -240,8 +211,6 @@ typedef enum {
     UA_SUBSCRIPTIONSTATE_LATE,
     UA_SUBSCRIPTIONSTATE_KEEPALIVE
 } UA_SubscriptionState;
-
-typedef TAILQ_HEAD(ListOfNotificationMessages, UA_NotificationMessageEntry) ListOfNotificationMessages;
 
 /* Subscriptions are managed in a server-wide linked list. If they are attached
  * to a Session, then they are additionaly in the per-Session linked-list. A
@@ -281,7 +250,7 @@ struct UA_Subscription {
     UA_UInt32 monitoredItemsSize;
 
     /* Global list of notifications from the MonitoredItems */
-    NotificationQueue notificationQueue;
+    TAILQ_HEAD(, UA_Notification) notificationQueue;
     UA_UInt32 notificationQueueSize; /* Total queue size */
     UA_UInt32 dataChangeNotifications;
     UA_UInt32 eventNotifications;
@@ -293,36 +262,62 @@ struct UA_Subscription {
     UA_UInt32 readyNotifications;
 
     /* Retransmission Queue */
-    ListOfNotificationMessages retransmissionQueue;
+    NotificationMessageQueue retransmissionQueue;
     size_t retransmissionQueueSize;
 };
 
 UA_Subscription * UA_Subscription_new(void);
-void UA_Subscription_delete(UA_Server *server, UA_Subscription *sub);
-UA_StatusCode Subscription_registerPublishCallback(UA_Server *server, UA_Subscription *sub);
-void Subscription_unregisterPublishCallback(UA_Server *server, UA_Subscription *sub);
-UA_MonitoredItem * UA_Subscription_getMonitoredItem(UA_Subscription *sub, UA_UInt32 monitoredItemId);
 
-void UA_Subscription_publish(UA_Server *server, UA_Subscription *sub);
-UA_StatusCode UA_Subscription_removeRetransmissionMessage(UA_Subscription *sub,
-                                                          UA_UInt32 sequenceNumber);
-UA_Boolean UA_Session_reachedPublishReqLimit(UA_Server *server, UA_Session *session);
+void
+UA_Subscription_delete(UA_Server *server, UA_Subscription *sub);
 
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-
-/* Only for unit testing */
 UA_StatusCode
-UA_Server_evaluateWhereClauseContentFilter(
-    UA_Server *server,
-    const UA_NodeId *eventNode,
-    const UA_ContentFilter *contentFilter);
-#endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
+Subscription_registerPublishCallback(UA_Server *server,
+                                     UA_Subscription *sub);
 
-/**
- * Log Helper
- * ----------
+void
+Subscription_unregisterPublishCallback(UA_Server *server,
+                                       UA_Subscription *sub);
+
+UA_MonitoredItem *
+UA_Subscription_getMonitoredItem(UA_Subscription *sub,
+                                 UA_UInt32 monitoredItemId);
+
+void
+UA_Subscription_publish(UA_Server *server, UA_Subscription *sub);
+
+UA_StatusCode
+UA_Subscription_removeRetransmissionMessage(UA_Subscription *sub,
+                                            UA_UInt32 sequenceNumber);
+
+UA_Boolean
+UA_Session_reachedPublishReqLimit(UA_Server *server, UA_Session *session);
+
+/* Forward declaration for A&C used in ua_server_internal.h" */
+struct UA_ConditionSource;
+typedef struct UA_ConditionSource UA_ConditionSource;
+
+/***********/
+/* Helpers */
+/***********/
+
+/* Evaluate content filter, Only for unit testing */
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+UA_StatusCode
+UA_Server_evaluateWhereClauseContentFilter(UA_Server *server,
+                                           const UA_NodeId *eventNode,
+                                           const UA_ContentFilter *contentFilter);
+#endif
+ 
+/* Setting an integer value within bounds */
+#define UA_BOUNDEDVALUE_SETWBOUNDS(BOUNDS, SRC, DST) { \
+        if(SRC > BOUNDS.max) DST = BOUNDS.max;         \
+        else if(SRC < BOUNDS.min) DST = BOUNDS.min;    \
+        else DST = SRC;                                \
+    }
+
+/* Logging
  * See a description of the tricks used in ua_session.h */
-
 #define UA_LOG_SUBSCRIPTION_INTERNAL(LOGGER, LEVEL, SUB, MSG, ...) do { \
     UA_String idString = UA_STRING_NULL;                                \
     if((SUB) && (SUB)->session) {                                       \

@@ -9,7 +9,6 @@
  */
 
 #include <open62541/server_pubsub.h>
-#include <open62541/types_generated_encoding_binary.h>
 
 #include "server/ua_server_internal.h"
 
@@ -877,8 +876,8 @@ DataSetReader_processRaw(UA_Server *server, UA_ReaderGroup *rg,
         msg->data.keyFrameData.rawFields.length += type->memSize;
         UA_STACKARRAY(UA_Byte, value, type->memSize);
         UA_StatusCode res =
-            UA_decodeBinary(&msg->data.keyFrameData.rawFields,
-                            &offset, value, type, NULL);
+            UA_decodeBinaryInternal(&msg->data.keyFrameData.rawFields,
+                                    &offset, value, type, NULL);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
                         "Error during Raw-decode KeyFrame field %u: %s",

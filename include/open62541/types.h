@@ -1018,6 +1018,14 @@ struct UA_DataType {
     UA_DataTypeMember *members;
 };
 
+/* Datatype arrays with custom type definitions can be added in a linked list to
+ * the client or server configuration. */
+typedef struct UA_DataTypeArray {
+    const struct UA_DataTypeArray *next;
+    const size_t typesSize;
+    const UA_DataType *types;
+} UA_DataTypeArray;
+
 /* Test if the data type is a numeric builtin data type. This includes Boolean,
  * integers and floating point numbers. Not included are DateTime and
  * StatusCode. */
@@ -1090,6 +1098,41 @@ void UA_EXPORT UA_delete(void *p, const UA_DataType *type);
 UA_StatusCode UA_EXPORT
 UA_print(const void *p, const UA_DataType *type, UA_String *output);
 #endif
+
+/**
+ * Encodeing/Decoding
+ * ^^^^^^^^^^^^^^^^^^
+ * Encodeing and decoding routines for the available formats. For all formats
+ * the _calcSize, _encode and _decode methods are provided. */
+
+/* Returns the number of bytes the value p takes in binary encoding. Returns
+ * zero if an error occurs. */
+UA_EXPORT size_t
+UA_calcSizeBinary(const void *p, const UA_DataType *type);
+
+/* Encodes a data-structure in the binary format. If outBuf has a length of
+ * zero, a buffer of the required size is allocated. Otherwise, encoding into
+ * the existing outBuf is attempted (and may fail if the buffer is too
+ * small). */
+UA_EXPORT UA_StatusCode
+UA_encodeBinary(const void *p, const UA_DataType *type,
+                UA_ByteString *outBuf);
+
+/* The structure with the decoding options may be extended in the future.
+ * Zero-out the entire structure initially to ensure code-compatibility when
+ * more fields are added in a later release. */
+typedef struct {
+    const UA_DataTypeArray *customTypes; /* Begin of a linked list with custom
+                                          * datatype definitions */
+} UA_DecodeBinaryOptions;
+
+/* Decodes a data structure from the input buffer in the binary format. It is
+ * assumed that `p` points to valid memory (not necessarily zeroed out). The
+ * options can be NULL and will be disregarded in that case. */
+UA_EXPORT UA_StatusCode
+UA_decodeBinary(const UA_ByteString *inBuf,
+                void *p, const UA_DataType *type,
+                const UA_DecodeBinaryOptions *options);
 
 /**
  * .. _array-handling:
@@ -1201,14 +1244,6 @@ UA_Guid UA_EXPORT UA_Guid_random(void);     /* no cryptographic entropy */
 #else
 # define UA_TYPENAME(name)
 #endif
-
-/* Datatype arrays with custom type definitions can be added in a linked list to
- * the client or server configuration. */
-typedef struct UA_DataTypeArray {
-    const struct UA_DataTypeArray *next;
-    const size_t typesSize;
-    const UA_DataType *types;
-} UA_DataTypeArray;
 
 /**
  * .. include:: types_generated.rst */
