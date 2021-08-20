@@ -137,7 +137,7 @@ struct UA_Server {
     UA_UInt32 lastLocalMonitoredItemId;
 
 # ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
-    LIST_HEAD(, UA_ConditionSource) headConditionSource;
+    LIST_HEAD(, UA_ConditionSource) conditionSources;
 # endif
 
 #endif
