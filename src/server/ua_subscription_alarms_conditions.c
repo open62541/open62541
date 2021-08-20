@@ -148,7 +148,7 @@ UA_Server_setConditionTwoStateVariableCallback(UA_Server *server, const UA_NodeI
                                                UA_TwoStateVariableCallbackType callbackType) {
     /* Get ConditionSource Entry */
     UA_ConditionSource *cs;
-    LIST_FOREACH(cs, &server->headConditionSource, listEntry) {
+    LIST_FOREACH(cs, &server->conditionSources, listEntry) {
         if(!UA_NodeId_equal(&cs->conditionSourceId, &conditionSource))
             continue;
 
@@ -224,7 +224,7 @@ callConditionTwoStateVariableCallback(UA_Server *server, const UA_NodeId *condit
                                       const UA_NodeId *conditionSource, UA_Boolean *removeBranch,
                                       UA_TwoStateVariableCallbackType callbackType) {
     UA_ConditionSource *source;
-    LIST_FOREACH(source, &server->headConditionSource, listEntry) {
+    LIST_FOREACH(source, &server->conditionSources, listEntry) {
         if(!UA_NodeId_equal(&source->conditionSourceId, conditionSource))
             continue;
         UA_Condition *cond;
@@ -354,7 +354,7 @@ getConditionBranchNodeId(UA_Server *server, const UA_ByteString *eventId,
        NULL -> outConditionId = ConditionId */
     /* Get ConditionSource Entry */
     UA_ConditionSource *source;
-    LIST_FOREACH(source, &server->headConditionSource, listEntry) {
+    LIST_FOREACH(source, &server->conditionSources, listEntry) {
         /* Get Condition Entry */
         UA_Condition *cond;
         LIST_FOREACH(cond, &source->conditionHead, listEntry) {
@@ -379,7 +379,7 @@ getConditionLastSeverity(UA_Server *server, const UA_NodeId *conditionSource,
                          UA_DateTime *outLastSeveritySourceTimeStamp) {
     /* Get ConditionSource Entry */
     UA_ConditionSource *source;
-    LIST_FOREACH(source, &server->headConditionSource, listEntry) {
+    LIST_FOREACH(source, &server->conditionSources, listEntry) {
         if(!UA_NodeId_equal(&source->conditionSourceId, conditionSource))
             continue;
         /* Get Condition Entry */
@@ -403,7 +403,7 @@ updateConditionLastSeverity(UA_Server *server, const UA_NodeId *conditionSource,
                             UA_DateTime lastSeveritySourceTimeStamp) {
     /* Get ConditionSource Entry */
     UA_ConditionSource *source;
-    LIST_FOREACH(source, &server->headConditionSource, listEntry) {
+    LIST_FOREACH(source, &server->conditionSources, listEntry) {
         if(!UA_NodeId_equal(&source->conditionSourceId, conditionSource))
             continue;
         /* Get Condition Entry */
@@ -428,7 +428,7 @@ getConditionActiveState(UA_Server *server, const UA_NodeId *conditionSource,
                          UA_ActiveState *outCurrentActiveState, UA_Boolean *outIsLimitAlarm) {
     /* Get ConditionSource Entry */
     UA_ConditionSource *source;
-    LIST_FOREACH(source, &server->headConditionSource, listEntry) {
+    LIST_FOREACH(source, &server->conditionSources, listEntry) {
         if(!UA_NodeId_equal(&source->conditionSourceId, conditionSource))
             continue;
         /* Get Condition Entry */
@@ -453,7 +453,7 @@ updateConditionActiveState(UA_Server *server, const UA_NodeId *conditionSource,
                             const UA_ActiveState currentActiveState, UA_Boolean isLimitAlarm) {
     /* Get ConditionSource Entry */
     UA_ConditionSource *source;
-    LIST_FOREACH(source, &server->headConditionSource, listEntry) {
+    LIST_FOREACH(source, &server->conditionSources, listEntry) {
         if(!UA_NodeId_equal(&source->conditionSourceId, conditionSource))
             continue;
         /* Get Condition Entry */
@@ -477,7 +477,7 @@ updateConditionLastEventId(UA_Server *server, const UA_NodeId *triggeredEvent,
                            const UA_NodeId *ConditionSource, const UA_ByteString *lastEventId) {
     /* Get ConditionSource Entry */
     UA_ConditionSource *source;
-    LIST_FOREACH(source, &server->headConditionSource, listEntry) {
+    LIST_FOREACH(source, &server->conditionSources, listEntry) {
         if(!UA_NodeId_equal(&source->conditionSourceId, ConditionSource))
             continue;
         /* Get Condition Entry */
@@ -508,7 +508,7 @@ setIsCallerAC(UA_Server *server, const UA_NodeId *condition,
               const UA_NodeId *conditionSource, UA_Boolean isCallerAC) {
     /* Get conditionSource Entry */
     UA_ConditionSource *source;
-    LIST_FOREACH(source, &server->headConditionSource, listEntry) {
+    LIST_FOREACH(source, &server->conditionSources, listEntry) {
         if(!UA_NodeId_equal(&source->conditionSourceId, conditionSource))
             continue;
         /* Get Condition Entry */
@@ -537,7 +537,7 @@ isConditionOrBranch(UA_Server *server, const UA_NodeId *condition,
                     const UA_NodeId *conditionSource, UA_Boolean *isCallerAC) {
     /* Get conditionSource Entry */
     UA_ConditionSource *source;
-    LIST_FOREACH(source, &server->headConditionSource, listEntry) {
+    LIST_FOREACH(source, &server->conditionSources, listEntry) {
         if(!UA_NodeId_equal(&source->conditionSourceId, conditionSource))
             continue;
         /* Get Condition Entry */
@@ -634,7 +634,7 @@ enteringDisabledState(UA_Server *server, const UA_NodeId *conditionId,
                       const UA_NodeId *conditionSource) {
     /* Get ConditionSource Entry */
     UA_ConditionSource *source;
-    LIST_FOREACH(source, &server->headConditionSource, listEntry) {
+    LIST_FOREACH(source, &server->conditionSources, listEntry) {
         if(!UA_NodeId_equal(&source->conditionSourceId, conditionSource))
             continue;
 
@@ -706,7 +706,7 @@ enteringEnabledState(UA_Server *server,
 
     /* Get ConditionSource Entry */
     UA_ConditionSource *source;
-    LIST_FOREACH(source, &server->headConditionSource, listEntry) {
+    LIST_FOREACH(source, &server->conditionSources, listEntry) {
         if(!UA_NodeId_equal(&source->conditionSourceId, conditionSource))
             continue;
         /* Get Condition Entry */
@@ -1614,7 +1614,7 @@ refreshLogic(UA_Server *server, const UA_NodeId *refreshStartNodId,
     /* 2. Refresh (see 5.5.7) */
     /* Get ConditionSource Entry */
     UA_ConditionSource *source;
-    LIST_FOREACH(source, &server->headConditionSource, listEntry) {
+    LIST_FOREACH(source, &server->conditionSources, listEntry) {
         UA_NodeId conditionSource = source->conditionSourceId;
         UA_NodeId serverObjectNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
         /* Check if the conditionSource is being monitored. If the Server Object
@@ -1766,7 +1766,7 @@ appendConditionEntry(UA_Server *server, const UA_NodeId *conditionNodeId,
                      const UA_NodeId *conditionSourceNodeId) {
     /* Get ConditionSource Entry to see if the ConditionSource Entry already exists*/
     UA_ConditionSource *source;
-    LIST_FOREACH(source, &server->headConditionSource, listEntry) {
+    LIST_FOREACH(source, &server->conditionSources, listEntry) {
         if(UA_NodeId_equal(&source->conditionSourceId, conditionSourceNodeId))
             return setConditionInConditionList(server, conditionNodeId, source);
     }
@@ -1786,7 +1786,7 @@ appendConditionEntry(UA_Server *server, const UA_NodeId *conditionNodeId,
         return retval;
     }
 
-    LIST_INSERT_HEAD(&server->headConditionSource, conditionSourceListEntry, listEntry);
+    LIST_INSERT_HEAD(&server->conditionSources, conditionSourceListEntry, listEntry);
     return setConditionInConditionList(server, conditionNodeId, conditionSourceListEntry);
 }
 
@@ -1812,7 +1812,7 @@ static void deleteCondition(UA_Condition *cond)
 void
 UA_ConditionList_delete(UA_Server *server) {
     UA_ConditionSource *source, *tmp_source;
-    LIST_FOREACH_SAFE(source, &server->headConditionSource, listEntry, tmp_source) {
+    LIST_FOREACH_SAFE(source, &server->conditionSources, listEntry, tmp_source) {
         UA_Condition *cond, *tmp_cond;
         LIST_FOREACH_SAFE(cond, &source->conditionHead, listEntry, tmp_cond) {
             deleteCondition(cond);
@@ -1833,7 +1833,7 @@ UA_getConditionId(UA_Server *server, const UA_NodeId *conditionNodeId,
                   UA_NodeId *outConditionId) {
     /* Get ConditionSource Entry */
     UA_ConditionSource *source;
-    LIST_FOREACH(source, &server->headConditionSource, listEntry) {
+    LIST_FOREACH(source, &server->conditionSources, listEntry) {
         /* Get Condition Entry */
         UA_Condition *cond;
         LIST_FOREACH(cond, &source->conditionHead, listEntry) {
@@ -2167,7 +2167,7 @@ setStandardConditionCallbacks(UA_Server *server, const UA_NodeId* condition,
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Set ConditionVariable Callback failed",);
 
     /* Set callbacks for Method Components (needs to be set only once!) */
-    if(LIST_EMPTY(&server->headConditionSource)) {
+    if(LIST_EMPTY(&server->conditionSources)) {
         retval = setConditionMethodCallbacks(server, condition, conditionType);
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Set Method Callback failed",);
         
@@ -2545,7 +2545,7 @@ UA_StatusCode UA_Server_deleteCondition(UA_Server *server, const UA_NodeId condi
     UA_Boolean found = UA_FALSE;
     /* Get ConditionSource Entry */
     UA_ConditionSource *source, *tmp_source;
-    LIST_FOREACH_SAFE(source, &server->headConditionSource, listEntry, tmp_source) {
+    LIST_FOREACH_SAFE(source, &server->conditionSources, listEntry, tmp_source) {
         if(!UA_NodeId_equal(&source->conditionSourceId, &conditionSource))
             continue;
         /* Get Condition Entry */
