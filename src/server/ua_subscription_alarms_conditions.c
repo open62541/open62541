@@ -6,15 +6,60 @@
  *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
  */
 
-/*****************************************************************************/
-/* Include Files Required                                                    */
-/*****************************************************************************/
 #include "ua_server_internal.h"
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
 
-/*****************************************************************************/
-/* defines                                                                 */
-/*****************************************************************************/
+typedef enum {
+  UA_INACTIVE,
+  UA_ACTIVE,
+  UA_ACTIVE_HIGHHIGH,
+  UA_ACTIVE_HIGH,
+  UA_ACTIVE_LOW,
+  UA_ACTIVE_LOWLOW
+} UA_ActiveState;
+
+typedef struct {
+    UA_TwoStateVariableChangeCallback enableStateCallback;
+    UA_TwoStateVariableChangeCallback ackStateCallback;
+    UA_Boolean ackedRemoveBranch;
+    UA_TwoStateVariableChangeCallback confirmStateCallback;
+    UA_Boolean confirmedRemoveBranch;
+    UA_TwoStateVariableChangeCallback activeStateCallback;
+} UA_ConditionCallbacks;
+
+/* In Alarms and Conditions first implementation, conditionBranchId is always
+ * equal to NULL NodeId (UA_NODEID_NULL). That ConditionBranch represents the
+ * current state Condition. The current state is determined by the last Event
+ * triggered (lastEventId). See Part 9, 5.5.2, BranchId. */
+typedef struct UA_ConditionBranch {
+    LIST_ENTRY(UA_ConditionBranch) listEntry;
+    UA_NodeId conditionBranchId;
+    UA_ByteString lastEventId;
+    UA_Boolean isCallerAC;
+} UA_ConditionBranch;
+
+/* In Alarms and Conditions first implementation, A Condition
+ * have only one ConditionBranch entry. */
+typedef struct UA_Condition {
+    LIST_ENTRY(UA_Condition) listEntry;
+    LIST_HEAD(, UA_ConditionBranch) conditionBranchHead;
+    UA_NodeId conditionId;
+    UA_UInt16 lastSeverity;
+    UA_DateTime lastSeveritySourceTimeStamp;
+    UA_ConditionCallbacks callbacks;
+    UA_ActiveState lastActiveState;
+    UA_ActiveState currentActiveState;
+    UA_Boolean isLimitAlarm;
+} UA_Condition;
+
+/* A ConditionSource can have multiple Conditions. */
+struct UA_ConditionSource {
+    LIST_ENTRY(UA_ConditionSource) listEntry;
+    LIST_HEAD(, UA_Condition) conditionHead;
+    UA_NodeId conditionSourceId;
+};
+
 #define CONDITIONOPTIONALFIELDS_SUPPORT // change array size!
 #define CONDITION_SEVERITYCHANGECALLBACK_ENABLE
 

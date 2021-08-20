@@ -79,7 +79,8 @@ UA_Notification * UA_Notification_new(void);
  * Subscription: They are added because the MonitoringMode of the MonitoredItem
  * is "reporting". Or the MonitoringMode is "sampling" and a link is trigered
  * that puts the last Notification into the global queue. */
-void UA_Notification_enqueueAndTrigger(UA_Server *server, UA_Notification *n);
+void UA_Notification_enqueueAndTrigger(UA_Server *server,
+                                       UA_Notification *n);
 
 /* Dequeue and delete the notification */
 void UA_Notification_delete(UA_Server *server, UA_Notification *n);
@@ -157,27 +158,34 @@ UA_StatusCode
 UA_Server_registerMonitoredItem(UA_Server *server, UA_MonitoredItem *mon);
 
 void
-UA_MonitoredItem_unregisterSampleCallback(UA_Server *server, UA_MonitoredItem *mon);
+UA_MonitoredItem_unregisterSampleCallback(UA_Server *server,
+                                          UA_MonitoredItem *mon);
 
 UA_StatusCode
 UA_MonitoredItem_setMonitoringMode(UA_Server *server, UA_MonitoredItem *mon,
                                    UA_MonitoringMode monitoringMode);
 
 void
-UA_MonitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem);
+UA_MonitoredItem_sampleCallback(UA_Server *server,
+                                UA_MonitoredItem *monitoredItem);
 
 UA_StatusCode
-UA_MonitoredItem_registerSampleCallback(UA_Server *server, UA_MonitoredItem *mon);
+UA_MonitoredItem_registerSampleCallback(UA_Server *server,
+                                        UA_MonitoredItem *mon);
 
 UA_StatusCode
-UA_MonitoredItem_removeLink(UA_Subscription *sub, UA_MonitoredItem *mon, UA_UInt32 linkId);
+UA_MonitoredItem_removeLink(UA_Subscription *sub, UA_MonitoredItem *mon,
+                            UA_UInt32 linkId);
 
 UA_StatusCode
-UA_MonitoredItem_addLink(UA_Subscription *sub, UA_MonitoredItem *mon, UA_UInt32 linkId);
+UA_MonitoredItem_addLink(UA_Subscription *sub, UA_MonitoredItem *mon,
+                         UA_UInt32 linkId);
 
 UA_StatusCode
-UA_MonitoredItem_createDataChangeNotification(UA_Server *server, UA_Subscription *sub,
-                                              UA_MonitoredItem *mon, const UA_DataValue *value);
+UA_MonitoredItem_createDataChangeNotification(UA_Server *server,
+                                              UA_Subscription *sub,
+                                              UA_MonitoredItem *mon,
+                                              const UA_DataValue *value);
 
 UA_StatusCode
 UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event,
@@ -264,13 +272,16 @@ void
 UA_Subscription_delete(UA_Server *server, UA_Subscription *sub);
 
 UA_StatusCode
-Subscription_registerPublishCallback(UA_Server *server, UA_Subscription *sub);
+Subscription_registerPublishCallback(UA_Server *server,
+                                     UA_Subscription *sub);
 
 void
-Subscription_unregisterPublishCallback(UA_Server *server, UA_Subscription *sub);
+Subscription_unregisterPublishCallback(UA_Server *server,
+                                       UA_Subscription *sub);
 
 UA_MonitoredItem *
-UA_Subscription_getMonitoredItem(UA_Subscription *sub, UA_UInt32 monitoredItemId);
+UA_Subscription_getMonitoredItem(UA_Subscription *sub,
+                                 UA_UInt32 monitoredItemId);
 
 void
 UA_Subscription_publish(UA_Server *server, UA_Subscription *sub);
@@ -282,76 +293,21 @@ UA_Subscription_removeRetransmissionMessage(UA_Subscription *sub,
 UA_Boolean
 UA_Session_reachedPublishReqLimit(UA_Server *server, UA_Session *session);
 
-/***********************/
-/* Alarms & Conditions */
-/***********************/
-
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-
-/* Only for unit testing */
-UA_StatusCode
-UA_Server_evaluateWhereClauseContentFilter(UA_Server *server,
-                                           const UA_NodeId *eventNode,
-                                           const UA_ContentFilter *contentFilter);
-
-#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
-
-typedef enum {
-  UA_INACTIVE,
-  UA_ACTIVE,
-  UA_ACTIVE_HIGHHIGH,
-  UA_ACTIVE_HIGH,
-  UA_ACTIVE_LOW,
-  UA_ACTIVE_LOWLOW
-} UA_ActiveState;
-
-typedef struct {
-    UA_TwoStateVariableChangeCallback enableStateCallback;
-    UA_TwoStateVariableChangeCallback ackStateCallback;
-    UA_Boolean ackedRemoveBranch;
-    UA_TwoStateVariableChangeCallback confirmStateCallback;
-    UA_Boolean confirmedRemoveBranch;
-    UA_TwoStateVariableChangeCallback activeStateCallback;
-} UA_ConditionCallbacks;
-
-/* In Alarms and Conditions first implementation, conditionBranchId is always
- * equal to NULL NodeId (UA_NODEID_NULL). That ConditionBranch represents the
- * current state Condition. The current state is determined by the last Event
- * triggered (lastEventId). See Part 9, 5.5.2, BranchId. */
-typedef struct UA_ConditionBranch {
-    LIST_ENTRY(UA_ConditionBranch) listEntry;
-    UA_NodeId conditionBranchId;
-    UA_ByteString lastEventId;
-    UA_Boolean isCallerAC;
-} UA_ConditionBranch;
-
-/* In Alarms and Conditions first implementation, A Condition
- * have only one ConditionBranch entry. */
-typedef struct UA_Condition {
-    LIST_ENTRY(UA_Condition) listEntry;
-    LIST_HEAD(, UA_ConditionBranch) conditionBranchHead;
-    UA_NodeId conditionId;
-    UA_UInt16 lastSeverity;
-    UA_DateTime lastSeveritySourceTimeStamp;
-    UA_ConditionCallbacks callbacks;
-    UA_ActiveState lastActiveState;
-    UA_ActiveState currentActiveState;
-    UA_Boolean isLimitAlarm;
-} UA_Condition;
-
-/* A ConditionSource can have multiple Conditions. */
-typedef struct UA_ConditionSource {
-    LIST_ENTRY(UA_ConditionSource) listEntry;
-    LIST_HEAD(, UA_Condition) conditionHead;
-    UA_NodeId conditionSourceId;
-} UA_ConditionSource;
-
-#endif /* UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */
-#endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
+/* Forward declaration for A&C used in ua_server_internal.h" */
+struct UA_ConditionSource;
+typedef struct UA_ConditionSource UA_ConditionSource;
 
 /***********/
 /* Helpers */
 /***********/
+
+/* Evaluate content filter, Only for unit testing */
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+UA_StatusCode
+UA_Server_evaluateWhereClauseContentFilter(UA_Server *server,
+                                           const UA_NodeId *eventNode,
+                                           const UA_ContentFilter *contentFilter);
+#endif
  
 /* Setting an integer value within bounds */
 #define UA_BOUNDEDVALUE_SETWBOUNDS(BOUNDS, SRC, DST) { \
