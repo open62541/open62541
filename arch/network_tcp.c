@@ -682,7 +682,7 @@ ClientNetworkLayerTCP_free(UA_Connection *connection) {
     UA_CHECK_ERROR(!ctx->isInitial, return, &UA_Client_getConfig(client)->logger, UA_LOGCATEGORY_NETWORK, "shoudl not "
                                                                                             "e initial");
     UA_ClientConnectionContext *cctx = (UA_ClientConnectionContext *) ctx;
-    UA_EventLoop_removeConnection(cctx->connectionId);
+    // UA_EventLoop_removeConnection(cctx->connectionId);
 
     // UA_EventLoop_deregisterEventSource()
 

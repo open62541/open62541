@@ -434,7 +434,7 @@ finish:
  * timout finishes */
 static UA_StatusCode
 receiveResponse(UA_Client *client, void *response, const UA_DataType *responseType,
-                UA_DateTime maxDate, const UA_UInt32 *synchronousRequestId) {
+                UA_UInt32 timeout, const UA_UInt32 *synchronousRequestId) {
     /* Prepare the response and the structure we give into processServiceResponse */
     SyncResponseDescription rd = { client, false, 0, response, responseType };
 
@@ -445,11 +445,9 @@ receiveResponse(UA_Client *client, void *response, const UA_DataType *responseTy
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_DateTime now = UA_DateTime_nowMonotonic();
+    UA_DateTime maxDate = UA_DateTime_nowMonotonic() + ((UA_DateTime)timeout * UA_DATETIME_MSEC);
     do {
-        UA_UInt32 timeout2 = (UA_UInt32)((maxDate - now) / UA_DATETIME_MSEC);
-        if(maxDate < now)
-            timeout2 = 0;
-        retval = UA_SecureChannel_receive(&client->channel, &rd, processServiceResponse, timeout2);
+        retval = UA_SecureChannel_receive(&client->channel, &rd, processServiceResponse, timeout);
         if(retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
             break;
         if(retval != UA_STATUSCODE_GOOD ||
@@ -493,8 +491,7 @@ processResponse(UA_Client *client, UA_ByteString* msg, void* response, const UA_
 
 UA_StatusCode
 receiveResponseAsync(UA_Client *client, UA_UInt32 timeout) {
-    UA_DateTime maxDate = UA_DateTime_nowMonotonic() + ((UA_DateTime)timeout * UA_DATETIME_MSEC);
-    UA_StatusCode res = receiveResponse(client, NULL, NULL, maxDate, NULL);
+    UA_StatusCode res = receiveResponse(client, NULL, NULL, timeout, NULL);
     return (res != UA_STATUSCODE_GOODNONCRITICALTIMEOUT) ? res : UA_STATUSCODE_GOOD;
 }
 
@@ -520,8 +517,7 @@ __UA_Client_Service(UA_Client *client, const void *request,
     UA_ResponseHeader *respHeader = (UA_ResponseHeader*)response;
     if(retval == UA_STATUSCODE_GOOD) {
         /* Retrieve the response */
-        UA_DateTime maxDate = UA_DateTime_nowMonotonic() + ((UA_DateTime)client->config.timeout * UA_DATETIME_MSEC);
-        retval = receiveResponse(client, response, responseType, maxDate, &requestId);
+        retval = receiveResponse(client, response, responseType, client->config.timeout, &requestId);
     } else if(retval == UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED) {
         respHeader->serviceResult = UA_STATUSCODE_BADREQUESTTOOLARGE;
         return;
@@ -777,16 +773,24 @@ UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout) {
                    return UA_STATUSCODE_BAD, &client->config.logger, UA_LOGCATEGORY_CLIENT,
                    "Eventloop was explicitly stopped.");
 
+    UA_StatusCode rv = UA_STATUSCODE_GOOD;
     if (UA_EventLoop_getState(cc->eventLoop) == UA_EVENTLOOPSTATE_FRESH) {
-        UA_StatusCode rv = UA_EventLoop_start(cc->eventLoop);
+        rv = UA_EventLoop_start(cc->eventLoop);
         UA_CHECK_STATUS(rv, return rv);
     }
-    UA_StatusCode rv = UA_EventLoop_run(cc->eventLoop, timeout);
-    if(rv == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
-        rv = UA_STATUSCODE_GOOD;
+    // UA_StatusCode rv = UA_EventLoop_run(cc->eventLoop, timeout);
+    // if(rv == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
+    //     rv = UA_STATUSCODE_GOOD;
 
-    UA_CHECK_STATUS_ERROR(rv, return rv, &client->config.logger, UA_LOGCATEGORY_CLIENT,
-                          "error running the eventloop");
+    // UA_CHECK_STATUS_ERROR(rv, return rv, &client->config.logger, UA_LOGCATEGORY_CLIENT,
+    //                       "error running the eventloop");
+    /* Make sure we have an open channel */
+    if((client->noSession && client->channel.state != UA_SECURECHANNELSTATE_OPEN) ||
+    client->sessionState < UA_SESSIONSTATE_ACTIVATED) {
+        rv = connectIterate(client, timeout);
+        notifyClientState(client);
+        return rv;
+    }
 
     /* Renew Secure Channel */
     UA_Client_renewSecureChannel(client);
@@ -802,14 +806,14 @@ UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout) {
     UA_Client_backgroundConnectivity(client);
 
     /* Listen on the network for the given timeout */
-    // retval = receiveResponse(client, NULL, NULL, maxDate, NULL);
-    // if(retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
-    //     retval = UA_STATUSCODE_GOOD;
-    // if(retval != UA_STATUSCODE_GOOD) {
-    //     UA_LOG_WARNING_CHANNEL(&client->config.logger, &client->channel,
-    //                            "Could not receive with StatusCode %s",
-    //                            UA_StatusCode_name(retval));
-    // }
+    rv = receiveResponse(client, NULL, NULL, timeout, NULL);
+    if(rv == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
+        rv = UA_STATUSCODE_GOOD;
+    if(rv != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING_CHANNEL(&client->config.logger, &client->channel,
+                               "Could not receive with StatusCode %s",
+                               UA_StatusCode_name(rv));
+    }
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* The inactivity check must be done after receiveServiceResponse*/
@@ -823,51 +827,6 @@ UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout) {
     notifyClientState(client);
 
     return client->connectStatus;
-
-    /* Make sure we have an open channel */
-//     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-//     if((client->noSession && client->channel.state != UA_SECURECHANNELSTATE_OPEN) ||
-//        client->sessionState < UA_SESSIONSTATE_ACTIVATED) {
-//         retval = connectIterate(client, timeout);
-//         notifyClientState(client);
-//         return retval;
-//     }
-//
-//     /* Renew Secure Channel */
-//     UA_Client_renewSecureChannel(client);
-//     if(client->connectStatus != UA_STATUSCODE_GOOD)
-//         return client->connectStatus;
-//
-//     /* Feed the server PublishRequests for the Subscriptions */
-// #ifdef UA_ENABLE_SUBSCRIPTIONS
-//     UA_Client_Subscriptions_backgroundPublish(client);
-// #endif
-//
-//     /* Send read requests from time to time to test the connectivity */
-//     UA_Client_backgroundConnectivity(client);
-
-    /* Listen on the network for the given timeout */
-    // retval = receiveResponse(client, NULL, NULL, maxDate, NULL);
-    // if(retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
-    //     retval = UA_STATUSCODE_GOOD;
-    // if(retval != UA_STATUSCODE_GOOD) {
-    //     UA_LOG_WARNING_CHANNEL(&client->config.logger, &client->channel,
-    //                            "Could not receive with StatusCode %s",
-    //                            UA_StatusCode_name(retval));
-    // }
-
-// #ifdef UA_ENABLE_SUBSCRIPTIONS
-//     /* The inactivity check must be done after receiveServiceResponse*/
-//     UA_Client_Subscriptions_backgroundPublishInactivityCheck(client);
-// #endif
-//
-//     /* Did async services time out? Process callbacks with an error code */
-//     asyncServiceTimeoutCheck(client);
-//
-//     /* Log and notify user if the client state has changed */
-//     notifyClientState(client);
-//
-//     return client->connectStatus;
 }
 
 const UA_DataType *

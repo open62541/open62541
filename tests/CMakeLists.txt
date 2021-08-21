@@ -18,6 +18,11 @@ if(APPLE)
     add_definitions(-Wno-sign-conversion)
 endif()
 
+# IF(CMAKE_BUILD_TYPE MATCHES DEBUG)
+    add_definitions(-Wno-unused-function)
+    add_definitions(-Wno-unused-variable)
+# ENDIF(CMAKE_BUILD_TYPE MATCHES DEBUG)
+
 get_property(open62541_BUILD_INCLUDE_DIRS TARGET open62541 PROPERTY INTERFACE_INCLUDE_DIRECTORIES)
 include_directories(${open62541_BUILD_INCLUDE_DIRS})
 # ua_server_internal.h
