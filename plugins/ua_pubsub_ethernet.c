@@ -1150,13 +1150,6 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel,
         }
     }
 
-#if defined LIBBPF_EBPF
-    if(channelDataEthernet->enableXdpSocket) {
-        retval = UA_PubSubChannelEthernetXDP_receive(channelDataEthernet, message);
-        return retval;
-    }
-#endif
-
 #if !defined(UA_ARCHITECTURE_POSIX)
     clock_gettime(CLOCK_REALTIME, &currentTime);
 #else
@@ -1182,6 +1175,17 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel,
         UA_ByteString buffer;
         buffer.length = RECEIVE_MSG_BUFFER_SIZE;
         buffer.data = ReceiveMsgBufferETH;
+
+#if defined LIBBPF_EBPF
+        if(channelDataEthernet->enableXdpSocket) {
+            retval = UA_PubSubChannelEthernetXDP_receive(channelDataEthernet, &buffer);
+            if (retval != UA_STATUSCODE_GOOD) {
+                return retval;
+            }
+            retval = receiveCallback(channel, receiveCallbackContext, &buffer);
+            return retval;
+        }
+#endif
 
         struct ether_header eth_hdr;
         struct iovec        iov[2];
