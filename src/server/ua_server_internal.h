@@ -389,6 +389,11 @@ void monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitored
 UA_Subscription *
 UA_Server_getSubscriptionById(UA_Server *server, UA_UInt32 subscriptionId);
 
+UA_StatusCode
+triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
+             const UA_NodeId origin, UA_ByteString *outEventId,
+             const UA_Boolean deleteEventNode);
+
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
 
 UA_BrowsePathResult
