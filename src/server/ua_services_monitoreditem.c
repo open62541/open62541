@@ -14,6 +14,9 @@
  *    Copyright 2017-2018 (c) Thomas Stalder, Blue Time Concept SA
  *    Copyright 2018 (c) Fabian Arndt, Root-Core
  *    Copyright 2020 (c) Kalycito Infotech Private Limited
+ *    Copyright 2021 (c) Uranik, Berisha
+ *    Copyright 2021 (c) Ammar, Morshed
+ *    Copyright 2021 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
 #include "ua_server_internal.h"
@@ -240,6 +243,56 @@ checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
     return UA_STATUSCODE_GOOD;
 }
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+static UA_StatusCode
+checkEventFilterParam(UA_Server *server, UA_Session *session,
+                      const UA_MonitoredItem *mon,
+                      UA_MonitoringParameters *params){
+    if(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER)
+        return UA_STATUSCODE_GOOD;
+
+    UA_EventFilter *eventFilter =
+        (UA_EventFilter *) params->filter.content.decoded.data;
+
+    if(eventFilter == NULL)
+        return UA_STATUSCODE_BADEVENTFILTERINVALID;
+
+    //TODO make the maximum select clause size param an server-config parameter
+    if(eventFilter->selectClausesSize > 128)
+        return UA_STATUSCODE_BADCONFIGURATIONERROR;
+
+    //check the where clause for logical consistency
+    if(eventFilter->whereClause.elementsSize != 0) {
+        UA_ContentFilterResult contentFilterResult;
+        UA_Event_staticWhereClauseValidation(server, &eventFilter->whereClause,
+                                             &contentFilterResult);
+        for(size_t i = 0; i < contentFilterResult.elementResultsSize; ++i) {
+            if(contentFilterResult.elementResults[i].statusCode != UA_STATUSCODE_GOOD){
+                //ToDo currently we return the first non good status code, check if
+                //we can use the detailed contentFilterResult later
+                UA_StatusCode whereResult =
+                    contentFilterResult.elementResults[i].statusCode;
+                UA_ContentFilterResult_clear(&contentFilterResult);
+                return whereResult;
+            }
+        }
+    }
+    //check the select clause for logical consistency
+    UA_StatusCode selectClauseValidationResult[128];
+    UA_Event_staticSelectClauseValidation(server,eventFilter,
+                                          selectClauseValidationResult);
+    for(size_t i = 0; i < eventFilter->selectClausesSize; ++i){
+        //ToDo currently we return the first non good status code, check if
+        //we can use the detailed status code list later
+        if(selectClauseValidationResult[i] != UA_STATUSCODE_GOOD){
+            return selectClauseValidationResult[i];
+        }
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+#endif
+
 static const UA_String
 binaryEncoding = {sizeof("Default Binary") - 1, (UA_Byte *)"Default Binary"};
 
@@ -379,6 +432,10 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
                                                        &newMon->parameters);
     result->statusCode |= checkAdjustMonitoredItemParams(server, session, newMon,
                                                          valueType, &newMon->parameters);
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    result->statusCode |= checkEventFilterParam(server, session, newMon,
+                                                         &newMon->parameters);
+#endif
     if(result->statusCode != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, cmc->sub,
                                  "Could not create a MonitoredItem "

@@ -194,6 +194,16 @@ UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event,
 UA_StatusCode
 UA_Event_generateEventId(UA_ByteString *generatedId);
 
+void
+UA_Event_staticSelectClauseValidation(UA_Server *server,
+                                      const UA_EventFilter *eventFilter,
+                                      UA_StatusCode *result);
+
+UA_StatusCode
+UA_Event_staticWhereClauseValidation(UA_Server *server,
+                                     const UA_ContentFilter *filter,
+                                     UA_ContentFilterResult *);
+
 /* Remove entries until mon->maxQueueSize is reached. Sets infobits for lost
  * data if required. */
 void
