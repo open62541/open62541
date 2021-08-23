@@ -465,9 +465,6 @@ RefTree_init(RefTree *rt);
 void RefTree_clear(RefTree *rt);
 
 UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
-RefTree_add(RefTree *rt, const UA_ExpandedNodeId *target, UA_Boolean *duplicate);
-
-UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
 RefTree_addNodeId(RefTree *rt, const UA_NodeId *target, UA_Boolean *duplicate);
 
 UA_Boolean
@@ -596,7 +593,7 @@ UA_StatusCode writeNs0VariableArray(UA_Server *server, UA_UInt32 id, void *v,
 
 /* Returns NULL if the target is an external Reference (per the ExpandedNodeId) */
 const UA_Node *
-UA_NODESTORE_GETFROMREF(UA_Server *server, const UA_ReferenceTarget *target);
+UA_NODESTORE_GETFROMREF(UA_Server *server, UA_NodePointer target);
 
 #define UA_NODESTORE_RELEASE(server, node)                              \
     server->config.nodestore.releaseNode(server->config.nodestore.context, node)

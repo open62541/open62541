@@ -333,9 +333,9 @@ UA_NodePointer_toNodeId(UA_NodePointer np);
  * correctness of casting from ``UA_Node`` to a specific node type. */
 
 typedef struct {
-    UA_ExpandedNodeId targetId;  /* Has to be the first entry */
-    UA_UInt32 targetNameHash;    /* Hash of the target's BrowseName. Set to zero
-                                  * if the target is remote. */
+    UA_NodePointer targetId;  /* Has to be the first entry */
+    UA_UInt32 targetNameHash; /* Hash of the target's BrowseName. Set to zero
+                               * if the target is remote. */
 } UA_ReferenceTarget;
 
 typedef struct {
