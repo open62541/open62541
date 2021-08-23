@@ -164,6 +164,7 @@ UA_Notification_delete(UA_Server *server, UA_Notification *n) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
         case UA_ATTRIBUTEID_EVENTNOTIFIER:
             UA_EventFieldList_clear(&n->data.event);
+            UA_EventFilterResult_clear(&n->result);
             break;
 #endif
         default:
