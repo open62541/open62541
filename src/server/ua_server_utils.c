@@ -60,9 +60,7 @@ getNodeType(UA_Server *server, const UA_NodeHead *head) {
 
         const UA_ReferenceTarget *t = NULL;
         while((t = UA_NodeReferenceKind_iterate(rk, t))) {
-            if(!UA_ExpandedNodeId_isLocal(&t->targetId))
-                continue;
-            const UA_Node *type = UA_NODESTORE_GET(server, &t->targetId.nodeId);
+            const UA_Node *type = UA_NODESTORE_GETFROMREF(server, t->targetId);
             if(!type)
                 continue;
             if(type->head.nodeClass == typeNodeClass)

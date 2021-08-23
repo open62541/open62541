@@ -318,9 +318,10 @@ getFieldParentNodeId(UA_Server *server, const UA_NodeId *field, UA_NodeId *paren
         /* Take the first hierarchical inverse reference */
         const UA_ReferenceTarget *target = NULL;
         while((target = UA_NodeReferenceKind_iterate(rk, target))) {
-            if(!UA_ExpandedNodeId_isLocal(&target->targetId))
+            if(!UA_NodePointer_isLocal(target->targetId))
                 continue;
-            retval = UA_NodeId_copy(&target->targetId.nodeId, parent);
+            UA_NodeId tmpNodeId = UA_NodePointer_toNodeId(target->targetId);
+            retval = UA_NodeId_copy(&tmpNodeId, parent);
             goto finish;
         }
     }
