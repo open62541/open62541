@@ -972,9 +972,9 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session,
 
     /* Loop over all Nodes in the current depth level */
     for(size_t i = 0; i < current->size; i++) {
-        /* Remote Node. Immediately add to the results with the RemainingPathIndex set. */
-        if(current->targets[i].serverIndex > 0 ||
-           current->targets[i].namespaceUri.length > 0) {
+        /* Remote Node. Immediately add to the results with the
+         * RemainingPathIndex set. */
+        if(!UA_ExpandedNodeId_isLocal(&current->targets[i])) {
             /* Increase the size of the results array */
             UA_BrowsePathTarget *tmpResults = (UA_BrowsePathTarget*)
                 UA_realloc(result->targets, sizeof(UA_BrowsePathTarget) *
