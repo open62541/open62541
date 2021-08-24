@@ -504,11 +504,6 @@ if(BUILD_SHARED_LIBS)
   endif()
 endif()
 
-# Warn if experimental features are enabled
-if(UA_MULTITHREADING GREATER 199)
-    MESSAGE(WARNING "UA_MULTITHREADING >= 200. Internal threads of the server are an EXPERIMENTAL feature. Expect bugs")
-endif()
-
 if(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS)
     MESSAGE(WARNING "UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS is enabled. The feature is under development and marked as EXPERIMENTAL")
 endif()
