@@ -203,8 +203,16 @@ zipNsInsertNode(void *nsCtx, UA_Node *node, UA_NodeId *addedNodeId) {
     if(node->head.nodeId.identifierType == UA_NODEIDTYPE_NUMERIC &&
        node->head.nodeId.identifier.numeric == 0) {
         do { /* Create a random nodeid until we find an unoccupied id */
-            node->head.nodeId.identifier.numeric = UA_UInt32_random();
-            dummy.nodeId.identifier.numeric = node->head.nodeId.identifier.numeric;
+            UA_UInt32 numId = UA_UInt32_random();
+#if SIZE_MAX <= UA_UINT32_MAX
+            /* The compressed "immediate" representation of nodes does not
+             * support the full range on 32bit systems. Generate smaller
+             * identifiers as they can be stored more compactly. */
+            if(numId >= (0x01 << 24))
+                numId = numId % (0x01 << 24);
+#endif
+            node->head.nodeId.identifier.numeric = numId;
+            dummy.nodeId.identifier.numeric = numId;
             dummy.nodeIdHash = UA_NodeId_hash(&node->head.nodeId);
         } while(ZIP_FIND(NodeTree, &ns->root, &dummy));
     } else {
