@@ -355,6 +355,13 @@ UA_NodeMap_insertNode(void *context, UA_Node *node,
             identifier += increase;
             if(identifier >= size)
                 identifier -= size;
+#if SIZE_MAX <= UA_UINT32_MAX
+            /* The compressed "immediate" representation of nodes does not
+             * support the full range on 32bit systems. Generate smaller
+             * identifiers as they can be stored more compactly. */
+            if(identifier >= (0x01 << 24))
+                identifier = identifier % (0x01 << 24);
+#endif
         } while((UA_UInt32)identifier != startId);
     } else {
         slot = findFreeSlot(ns, &node->head.nodeId);
