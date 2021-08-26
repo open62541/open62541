@@ -87,15 +87,6 @@ detectValueChangeWithFilter(UA_Server *server, UA_Session *session, UA_Monitored
         return UA_STATUSCODE_GOOD;
     }
 
-    if(!value->value.type &&
-        /* Ensure there is a value. Otherwise:
-         * changed = UA_ByteString_equal(UA_BYTESTRING_NULL, &mon->lastSampledValue)
-         * returns continuously true. */
-        value->hasValue) {
-        *changed = UA_ByteString_equal(encoding, &mon->lastSampledValue);
-        return UA_STATUSCODE_GOOD;
-    }
-
     /* Test absolute deadband */
     if(UA_DataType_isNumeric(value->value.type) &&
        mon->parameters.filter.content.decoded.type == &UA_TYPES[UA_TYPES_DATACHANGEFILTER]) {
