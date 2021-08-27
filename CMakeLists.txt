@@ -17,6 +17,10 @@ set(PYTHON_EXECUTABLE ${Python3_EXECUTABLE})
 find_package(Git)
 include(AssignSourceGroup)
 include(GNUInstallDirs)
+if(UA_ENABLE_TPM2_PKCS11)
+    find_library(TPM2_LIB tpm2_pkcs11)
+    message(${TPM2_LIB})
+endif()
 
 # Set when installed via make install
 set(open62541_TOOLS_DIR ${PROJECT_SOURCE_DIR}/tools)
@@ -300,6 +304,9 @@ option(UA_ENABLE_PUBSUB "Enable the PubSub protocol" OFF)
 option(UA_ENABLE_PUBSUB_ENCRYPTION "Enable encryption of the PubSub payload" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_ENCRYPTION)
 
+option(UA_ENABLE_TPM2_PKCS11 "Enable for encryption of the PubSub payload using TPM hardware" OFF)
+mark_as_advanced(UA_ENABLE_TPM2_PKCS11)
+
 option(UA_ENABLE_PUBSUB_INFORMATIONMODEL "Enable PubSub information model twin" OFF)
 
 option(UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS "Enable PubSub informationmodel methods" OFF)
@@ -543,6 +550,10 @@ if(UA_ENABLE_ENCRYPTION_MBEDTLS OR UA_ENABLE_PUBSUB_ENCRYPTION)
     # defined in /tools/cmake/FindMbedTLS.cmake.
     find_package(MbedTLS REQUIRED)
     list(APPEND open62541_LIBRARIES ${MBEDTLS_LIBRARIES})
+endif()
+
+if(UA_ENABLE_TPM2_PKCS11)
+    list(APPEND open62541_LIBRARIES ${TPM2_LIB})
 endif()
 
 if(UA_ENABLE_WEBSOCKET_SERVER)
@@ -954,6 +965,12 @@ list(INSERT default_plugin_sources 1
      ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic256sha256.c
      ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_aes128sha256rsaoaep.c
      ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_pki_mbedtls.c)
+endif()
+
+if(UA_ENABLE_TPM2_PKCS11)
+list(INSERT default_plugin_sources 0
+     ${PROJECT_SOURCE_DIR}/plugins/crypto/pkcs11/securitypolicy_pubsub_aes128ctr_tpm.c
+     ${PROJECT_SOURCE_DIR}/plugins/crypto/pkcs11/securitypolicy_pubsub_aes256ctr_tpm.c)
 endif()
 
 if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL OR UA_ENABLE_AMALGAMATION)
