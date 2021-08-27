@@ -29,7 +29,7 @@
 #define READERGROUP_COUNT        2       /* Value to add readergroup to connection */
 #define CHECK_READERGROUP_COUNT  3       /* Value to check readergroup count */
 
-#define UA_AES128CTR_SIGNING_KEY_LENGTH 16
+#define UA_AES128CTR_SIGNING_KEY_LENGTH 32
 #define UA_AES128CTR_KEY_LENGTH 16
 #define UA_AES128CTR_KEYNONCE_LENGTH 4
 
