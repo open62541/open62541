@@ -1455,9 +1455,9 @@ encodeJsonInternal(const void *src, const UA_DataType *type, CtxJson *ctx) {
 }
 
 status UA_FUNC_ATTR_WARN_UNUSED_RESULT
-UA_encodeJson(const void *src, const UA_DataType *type,
-              u8 **bufPos, const u8 **bufEnd, UA_String *namespaces, 
-              size_t namespaceSize, UA_String *serverUris, 
+UA_encodeJsonInternal(const void *src, const UA_DataType *type,
+              u8 **bufPos, const u8 **bufEnd, const UA_String *namespaces, 
+              size_t namespaceSize, const UA_String *serverUris, 
               size_t serverUriSize, UA_Boolean useReversible) {
     if(!src || !type)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -1483,13 +1483,47 @@ UA_encodeJson(const void *src, const UA_DataType *type,
     return ret;
 }
 
+UA_StatusCode
+UA_encodeJson(const void *src, const UA_DataType *type, UA_ByteString *outBuf,
+              const UA_EncodeJsonOptions *options) {
+    /* Allocate buffer */
+    UA_Boolean allocated = false;
+    status res = UA_STATUSCODE_GOOD;
+    if(outBuf->length == 0) {
+        size_t len = UA_calcSizeJson(src, type, options);
+        res = UA_ByteString_allocBuffer(outBuf, len);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        allocated = true;
+    }
+
+    /* Encode */
+    u8 *pos = outBuf->data;
+    const u8 *posEnd = &outBuf->data[outBuf->length];
+    if(options) {
+        res = UA_encodeJsonInternal(src, type, &pos, &posEnd, options->namespaces,
+                                    options->namespacesSize, options->serverUris,
+                                    options->serverUrisSize, options->useReversible);
+    } else {
+        res = UA_encodeJsonInternal(src, type, &pos, &posEnd, NULL, 0u, NULL, 0u, true);
+    }
+
+    /* Clean up */
+    if(res == UA_STATUSCODE_GOOD) {
+        outBuf->length = (size_t)((uintptr_t)pos - (uintptr_t)outBuf->data);
+    } else if(allocated) {
+        UA_ByteString_clear(outBuf);
+    }
+    return res;
+}
+
 /************/
 /* CalcSize */
 /************/
 size_t
-UA_calcSizeJson(const void *src, const UA_DataType *type,
-                UA_String *namespaces, size_t namespaceSize,
-                UA_String *serverUris, size_t serverUriSize,
+UA_calcSizeJsonInternal(const void *src, const UA_DataType *type,
+                const UA_String *namespaces, size_t namespaceSize,
+                const UA_String *serverUris, size_t serverUriSize,
                 UA_Boolean useReversible) {
     if(!src || !type)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -1512,6 +1546,18 @@ UA_calcSizeJson(const void *src, const UA_DataType *type,
     if(ret != UA_STATUSCODE_GOOD)
         return 0;
     return (size_t)ctx.pos;
+}
+
+size_t
+UA_calcSizeJson(const void *src, const UA_DataType *type,
+                const UA_EncodeJsonOptions *options) {
+    if(options) {
+        return UA_calcSizeJsonInternal(src, type, options->namespaces,
+                                       options->namespacesSize, options->serverUris,
+                                       options->serverUrisSize, options->useReversible);
+    }
+    return UA_calcSizeJsonInternal(src, type, &UA_STRING_NULL, 0u, &UA_STRING_NULL, 0u,
+                                   true);
 }
 
 /**********/
@@ -3237,7 +3283,7 @@ decodeJsonInternal(void *dst, const UA_DataType *type,
 }
 
 status UA_FUNC_ATTR_WARN_UNUSED_RESULT
-UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type) {
+UA_decodeJsonInternal(const UA_ByteString *src, void *dst, const UA_DataType *type) {
     
 #ifndef UA_ENABLE_TYPEDESCRIPTION
     return UA_STATUSCODE_BADNOTSUPPORTED;
@@ -3289,4 +3335,10 @@ UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type) {
     if(ret != UA_STATUSCODE_GOOD)
         UA_clear(dst, type); /* Clean up */
     return ret;
+}
+
+UA_StatusCode
+UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type,
+              const UA_DecodeJsonOptions *options) {
+    return UA_decodeJsonInternal(src, dst, type);
 }

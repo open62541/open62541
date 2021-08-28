@@ -23,8 +23,6 @@
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
 
-#include "ua_types_encoding_json.h"
-
 static UA_Client *client = NULL;
 static UA_NodeId nodeidval = {0};
 static char *url = NULL;
@@ -59,11 +57,7 @@ printType(void *p, const UA_DataType *type) {
     if(!json) {
         UA_print(p, type, &out);
     } else {
-        size_t len = UA_calcSizeJson(p, type, NULL, 0, NULL, 0, false);
-        UA_ByteString_allocBuffer(&out, len);
-        UA_Byte *pos = out.data;
-        const UA_Byte *end = &out.data[out.length];
-        UA_StatusCode res = UA_encodeJson(p, type, &pos, &end, NULL, 0, NULL, 0, false);
+        UA_StatusCode res = UA_encodeJson(p, type, &out, NULL);
         (void)res;
     }
 #else
