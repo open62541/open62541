@@ -82,8 +82,8 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
     UA_ConnectionConfig conf;
     memset(&conf, 0, sizeof(UA_ConnectionConfig));
     conf.protocolVersion = 0;
-    conf.sendBufferSize = 1000;
-    conf.recvBufferSize = 2000;
+    conf.sendBufferSize = channelData->mqttSendBufferSize;
+    conf.recvBufferSize = channelData->mqttRecvBufferSize;
     conf.localMaxMessageSize = 1000;
     conf.remoteMaxMessageSize = 1000;
     conf.localMaxChunkCount = 1;
