@@ -71,6 +71,8 @@ mqtt_pal_recvall(mqtt_pal_socket_handle fd, void* buf, size_t bufsz, int flags) 
 
         do {
             int rv = SSL_read(ssl, buffer + read, (int) bufsz - read);
+            if (rv <= 0)  
+                return 0;    
             if (rv > 0) {
                 read += rv;
             } else {
