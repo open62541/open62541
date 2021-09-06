@@ -9,8 +9,6 @@
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
 
-#include "open62541/types_generated_encoding_binary.h"
-
 #include "ua_server_internal.h"
 
 #include <check.h>
@@ -21,12 +19,7 @@ static void setup(void) {
     server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
-
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer*)
-        UA_malloc(sizeof(UA_PubSubTransportLayer));
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerUDPMP();
-    config->pubsubTransportLayersSize++;
-
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
     UA_Server_run_startup(server);
 }
 

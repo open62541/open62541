@@ -58,7 +58,7 @@ static UA_Boolean tortureEncoding(const uint8_t *data, size_t size, size_t *newO
         if (ret == UA_STATUSCODE_GOOD) {
             // do nothing
         }
-        UA_ByteString_deleteMembers(&encoded);
+        UA_ByteString_clear(&encoded);
     }
     UA_delete(dst, &UA_TYPES[typeIndex]);
 

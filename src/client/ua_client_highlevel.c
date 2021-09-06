@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2015-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2015-2021 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2015 (c) Oleksiy Vasylyev
  *    Copyright 2017 (c) Florian Palm
  *    Copyright 2016 (c) Chris Iatrou
@@ -14,7 +14,8 @@
 #include <open62541/client_highlevel.h>
 #include <open62541/client_highlevel_async.h>
 
-#include "ua_client_internal.h"
+/* The highlevel client API is an "outer onion layer". This file does not
+ * include ua_client_internal.h on purpose. */
 
 UA_StatusCode
 UA_Client_NamespaceGetIndex(UA_Client *client, UA_String *namespaceUri,
@@ -749,105 +750,9 @@ cleanup:
 }
 #endif // UA_ENABLE_HISTORIZING
 
+/*******************/
 /* Async Functions */
-
-typedef struct {
-    UA_AttributeId attributeId;
-    const UA_DataType *outDataType;
-} AsyncReadData;
-
-static CustomCallback *
-UA_Client_findCustomCallback(UA_Client *client, UA_UInt32 requestId) {
-    CustomCallback *cc;
-    LIST_FOREACH(cc, &client->customCallbacks, pointers) {
-        if(cc->callbackId == requestId)
-            break;
-    }
-    return cc;
-}
-
-static
-void ValueAttributeRead(UA_Client *client, void *userdata,
-                        UA_UInt32 requestId, void *response) {
-    if(!response)
-        return;
-
-    /* Find the callback for the response */
-    CustomCallback *cc = UA_Client_findCustomCallback(client, requestId);
-    if(!cc)
-        return;
-
-    UA_ReadResponse *rr = (UA_ReadResponse *) response;
-    UA_DataValue *res = rr->results;
-    UA_Boolean done = false;
-    AsyncReadData *data = (AsyncReadData *)cc->clientData;
-    if(rr->resultsSize == 1 && res != NULL && res->hasValue) {
-        if(data->attributeId == UA_ATTRIBUTEID_VALUE) {
-            /* Call directly with the variant */
-            cc->userCallback(client, cc->userData, requestId, &res->value);
-            done = true;
-        } else if(UA_Variant_isScalar(&res->value) &&
-                  res->value.type == data->outDataType) {
-            /* Unpack the value */
-            UA_STACKARRAY(UA_Byte, value, data->outDataType->memSize);
-            memcpy(&value, res->value.data, data->outDataType->memSize);
-            cc->userCallback(client, cc->userData, requestId, &value);
-            done = true;
-        }
-    }
-
-    /* Could not process, delete the callback anyway */
-    if(!done)
-        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                    "Cannot process the response to the async read "
-                    "request %" PRIu32, requestId);
-
-    UA_free(cc->clientData);
-    LIST_REMOVE(cc, pointers);
-    UA_free(cc);
-}
-
-/*Read Attributes*/
-UA_StatusCode
-__UA_Client_readAttribute_async(UA_Client *client,
-        const UA_NodeId *nodeId, UA_AttributeId attributeId,
-        const UA_DataType *outDataType, UA_ClientAsyncServiceCallback callback,
-        void *userdata, UA_UInt32 *reqId) {
-    UA_ReadValueId item;
-    UA_ReadValueId_init(&item);
-    item.nodeId = *nodeId;
-    item.attributeId = attributeId;
-    UA_ReadRequest request;
-    UA_ReadRequest_init(&request);
-    request.nodesToRead = &item;
-    request.nodesToReadSize = 1;
-
-    CustomCallback *cc = (CustomCallback*) UA_malloc(sizeof(CustomCallback));
-    if (!cc)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    memset(cc, 0, sizeof(CustomCallback));
-    cc->userCallback = callback;
-    cc->userData = userdata;
-
-    cc->clientData = UA_malloc(sizeof(AsyncReadData));
-    if(!cc->clientData) {
-        UA_free(cc);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    AsyncReadData *rd = (AsyncReadData *)cc->clientData;
-    rd->attributeId = attributeId;
-    rd->outDataType = outDataType;
-
-    __UA_Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_READREQUEST],
-                             ValueAttributeRead, &UA_TYPES[UA_TYPES_READRESPONSE], NULL,
-                             &cc->callbackId);
-
-    LIST_INSERT_HEAD(&client->customCallbacks, cc, pointers);
-    if (reqId != NULL)
-        *reqId = cc->callbackId;
-
-    return UA_STATUSCODE_GOOD;
-}
+/*******************/
 
 /*Write Attributes*/
 UA_StatusCode __UA_Client_writeAttribute_async(UA_Client *client,
@@ -947,4 +852,335 @@ UA_Cient_translateBrowsePathsToNodeIds_async(UA_Client *client, char **paths,
                                              UA_ClientAsyncTranslateCallback callback,
                                              void *userdata, UA_UInt32 *reqId) {
     return UA_STATUSCODE_BADNOTIMPLEMENTED;
+}
+
+/*************************/
+/* Read Single Attribute */
+/*************************/
+
+typedef struct {
+    UA_ClientAsyncOperationCallback userCallback;
+    void *userContext;
+    const UA_DataType *resultType; /* DataValue -> Value attribute,
+                                    * Variant -> ArrayDimensions attribute */
+} UA_AttributeReadContext;
+
+static void
+AttributeReadCallback(UA_Client *client, void *userdata,
+                      UA_UInt32 requestId, UA_ReadResponse *rr) {
+    UA_AttributeReadContext *ctx = (UA_AttributeReadContext*)userdata;
+    UA_LOG_DEBUG(&UA_Client_getConfig(client)->logger, UA_LOGCATEGORY_CLIENT,
+                "Async read response for request %" PRIu32, requestId);
+
+    /* Check the ServiceResult */
+    UA_StatusCode res = rr->responseHeader.serviceResult;
+    if(res != UA_STATUSCODE_GOOD)
+        goto finish;
+
+    /* Check result array size */
+    if(rr->resultsSize != 1) {
+        res = UA_STATUSCODE_BADINTERNALERROR;
+        goto finish;
+    }
+
+    /* A Value attribute */
+    UA_DataValue *dv = &rr->results[0];
+    if(ctx->resultType == &UA_TYPES[UA_TYPES_DATAVALUE]) {
+        ctx->userCallback(client, ctx->userContext, requestId,
+                          UA_STATUSCODE_GOOD, dv);
+        goto finish;
+    }
+
+    /* An ArrayDimensions attribute. Has to be an array of UInt32. */
+    if(ctx->resultType == &UA_TYPES[UA_TYPES_VARIANT]) {
+        if(dv->hasValue &&
+           UA_Variant_hasArrayType(&dv->value, &UA_TYPES[UA_TYPES_UINT32])) {
+            ctx->userCallback(client, ctx->userContext, requestId,
+                              UA_STATUSCODE_GOOD, &dv->value);
+        } else {
+            res = UA_STATUSCODE_BADINTERNALERROR;
+        }
+        goto finish;
+    }
+
+    /* Check we have a scalar value of the right datatype */
+    if(!dv->hasValue ||
+       !UA_Variant_hasScalarType(&dv->value, ctx->resultType)) {
+        res = UA_STATUSCODE_BADINTERNALERROR;
+        goto finish;
+    }
+
+    /* Callback into userland */
+    ctx->userCallback(client, ctx->userContext, requestId,
+                      UA_STATUSCODE_GOOD, dv->value.data);
+
+ finish:
+    if(res != UA_STATUSCODE_GOOD)
+        ctx->userCallback(client, ctx->userContext, requestId, res, NULL);
+    UA_free(ctx);
+}
+
+static UA_StatusCode
+readAttribute_async(UA_Client *client, const UA_ReadValueId *rvi,
+                    UA_TimestampsToReturn timestampsToReturn,
+                    const UA_DataType *resultType, /* For the specialized reads */
+                    UA_ClientAsyncOperationCallback callback,
+                    void *userdata, UA_UInt32 *requestId) {
+    UA_AttributeReadContext *ctx = (UA_AttributeReadContext*)
+        UA_malloc(sizeof(UA_AttributeReadContext));
+    if(!ctx)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    ctx->userCallback = callback;
+    ctx->userContext = userdata;
+    ctx->resultType = resultType;
+
+    UA_ReadRequest request;
+    UA_ReadRequest_init(&request);
+    request.nodesToRead = (UA_ReadValueId*)(uintptr_t)rvi; /* hack, treated as const */
+    request.nodesToReadSize = 1;
+    request.timestampsToReturn = timestampsToReturn;
+
+    UA_StatusCode res =
+        __UA_Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_READREQUEST],
+                                 (UA_ClientAsyncServiceCallback)AttributeReadCallback,
+                                 &UA_TYPES[UA_TYPES_READRESPONSE], ctx, requestId);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_free(ctx);
+    return res;
+}
+
+UA_StatusCode
+UA_Client_readAttribute_async(UA_Client *client, const UA_ReadValueId *rvi,
+                              UA_TimestampsToReturn timestampsToReturn,
+                              UA_ClientAsyncReadAttributeCallback callback,
+                              void *userdata, UA_UInt32 *requestId) {
+    return readAttribute_async(client, rvi, timestampsToReturn,
+                               &UA_TYPES[UA_TYPES_DATAVALUE], /* special handling */
+                               (UA_ClientAsyncOperationCallback)callback,
+                               userdata, requestId);
+}
+
+/* Helper to keep the code short */
+static UA_StatusCode
+readAttribute_simpleAsync(UA_Client *client, const UA_NodeId *nodeId,
+                          UA_AttributeId attributeId, const UA_DataType *resultType,
+                          UA_ClientAsyncOperationCallback callback,
+                          void *userdata, UA_UInt32 *requestId) {
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = *nodeId;
+    rvi.attributeId = attributeId;
+    return readAttribute_async(client, &rvi, UA_TIMESTAMPSTORETURN_NEITHER,
+                               resultType, callback, userdata, requestId);
+}
+
+UA_StatusCode
+UA_Client_readValueAttribute_async(UA_Client *client, const UA_NodeId nodeId,
+                                   UA_ClientAsyncReadValueAttributeCallback callback,
+                                   void *userdata, UA_UInt32 *requestId) {
+    return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_VALUE,
+                                     &UA_TYPES[UA_TYPES_DATAVALUE], /* special hndling */
+                                     (UA_ClientAsyncOperationCallback)callback,
+                                     userdata, requestId);
+}
+
+UA_StatusCode
+UA_Client_readDataTypeAttribute_async(UA_Client *client, const UA_NodeId nodeId,
+                                      UA_ClientAsyncReadDataTypeAttributeCallback callback,
+                                      void *userdata, UA_UInt32 *requestId) {
+    return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_DATATYPE,
+                                     &UA_TYPES[UA_TYPES_NODEID],
+                                     (UA_ClientAsyncOperationCallback)callback,
+                                     userdata, requestId);
+}
+
+UA_StatusCode
+UA_Client_readArrayDimensionsAttribute_async(UA_Client *client, const UA_NodeId nodeId,
+                                             UA_ClientReadArrayDimensionsAttributeCallback callback,
+                                             void *userdata, UA_UInt32 *requestId) {
+    return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_ARRAYDIMENSIONS,
+                                     &UA_TYPES[UA_TYPES_VARIANT], /* special handling */
+                                     (UA_ClientAsyncOperationCallback)callback,
+                                     userdata, requestId);
+}
+
+UA_StatusCode
+UA_Client_readNodeClassAttribute_async(UA_Client *client, const UA_NodeId nodeId,
+                                       UA_ClientAsyncReadNodeClassAttributeCallback callback,
+                                       void *userdata, UA_UInt32 *requestId) {
+    return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_NODECLASS,
+                                     &UA_TYPES[UA_TYPES_NODECLASS],
+                                     (UA_ClientAsyncOperationCallback)callback,
+                                     userdata, requestId);
+}
+
+UA_StatusCode
+UA_Client_readBrowseNameAttribute_async(UA_Client *client, const UA_NodeId nodeId,
+                                        UA_ClientAsyncReadBrowseNameAttributeCallback callback,
+                                        void *userdata, UA_UInt32 *requestId) {
+    return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_BROWSENAME,
+                                     &UA_TYPES[UA_TYPES_QUALIFIEDNAME],
+                                     (UA_ClientAsyncOperationCallback)callback,
+                                     userdata, requestId);
+}
+
+UA_StatusCode
+UA_Client_readDisplayNameAttribute_async(UA_Client *client, const UA_NodeId nodeId,
+                                         UA_ClientAsyncReadDisplayNameAttributeCallback callback,
+                                         void *userdata, UA_UInt32 *requestId) {
+    return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_DISPLAYNAME,
+                                     &UA_TYPES[UA_TYPES_LOCALIZEDTEXT],
+                                     (UA_ClientAsyncOperationCallback)callback,
+                                     userdata, requestId);
+}
+
+UA_StatusCode
+UA_Client_readDescriptionAttribute_async(UA_Client *client, const UA_NodeId nodeId,
+                                         UA_ClientAsyncReadDescriptionAttributeCallback callback,
+                                         void *userdata, UA_UInt32 *requestId) {
+    return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_DESCRIPTION,
+                                     &UA_TYPES[UA_TYPES_LOCALIZEDTEXT],
+                                     (UA_ClientAsyncOperationCallback)callback,
+                                     userdata, requestId);
+}
+
+UA_StatusCode
+UA_Client_readWriteMaskAttribute_async(UA_Client *client, const UA_NodeId nodeId,
+                                       UA_ClientAsyncReadWriteMaskAttributeCallback callback,
+                                       void *userdata, UA_UInt32 *requestId) {
+    return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_WRITEMASK,
+                                     &UA_TYPES[UA_TYPES_UINT32],
+                                     (UA_ClientAsyncOperationCallback)callback,
+                                     userdata, requestId);
+}
+
+UA_StatusCode UA_EXPORT
+UA_Client_readUserWriteMaskAttribute_async(UA_Client *client, const UA_NodeId nodeId,
+                                           UA_ClientAsyncReadUserWriteMaskAttributeCallback callback,
+                                           void *userdata, UA_UInt32 *requestId) {
+    return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_USERWRITEMASK,
+                                     &UA_TYPES[UA_TYPES_UINT32],
+                                     (UA_ClientAsyncOperationCallback)callback,
+                                     userdata, requestId);
+}
+
+UA_StatusCode 
+UA_Client_readIsAbstractAttribute_async(UA_Client *client, const UA_NodeId nodeId,
+                                        UA_ClientAsyncReadIsAbstractAttributeCallback callback,
+                                        void *userdata, UA_UInt32 *requestId) {
+    return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_ISABSTRACT,
+                                     &UA_TYPES[UA_TYPES_BOOLEAN],
+                                     (UA_ClientAsyncOperationCallback)callback,
+                                     userdata, requestId);
+}
+
+UA_StatusCode
+UA_Client_readSymmetricAttribute_async(UA_Client *client, const UA_NodeId nodeId,
+                                       UA_ClientAsyncReadSymmetricAttributeCallback callback,
+                                       void *userdata, UA_UInt32 *requestId) {
+    return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_SYMMETRIC,
+                                     &UA_TYPES[UA_TYPES_BOOLEAN],
+                                     (UA_ClientAsyncOperationCallback)callback,
+                                     userdata, requestId);
+}
+
+UA_StatusCode
+UA_Client_readInverseNameAttribute_async(UA_Client *client, const UA_NodeId nodeId,
+                                         UA_ClientAsyncReadInverseNameAttributeCallback callback,
+                                         void *userdata, UA_UInt32 *requestId) {
+    return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_INVERSENAME,
+                                     &UA_TYPES[UA_TYPES_LOCALIZEDTEXT],
+                                     (UA_ClientAsyncOperationCallback)callback,
+                                     userdata, requestId);
+}
+
+UA_StatusCode
+UA_Client_readContainsNoLoopsAttribute_async(UA_Client *client, const UA_NodeId nodeId,
+                                             UA_ClientAsyncReadContainsNoLoopsAttributeCallback callback,
+                                             void *userdata, UA_UInt32 *requestId) {
+    return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_CONTAINSNOLOOPS,
+                                     &UA_TYPES[UA_TYPES_BOOLEAN],
+                                     (UA_ClientAsyncOperationCallback)callback,
+                                     userdata, requestId);
+}
+
+UA_StatusCode
+UA_Client_readEventNotifierAttribute_async(UA_Client *client, const UA_NodeId nodeId,
+                                           UA_ClientAsyncReadEventNotifierAttributeCallback callback,
+                                           void *userdata, UA_UInt32 *requestId) {
+    return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_EVENTNOTIFIER,
+                                     &UA_TYPES[UA_TYPES_BYTE],
+                                     (UA_ClientAsyncOperationCallback)callback,
+                                     userdata, requestId);
+}
+
+UA_StatusCode
+UA_Client_readValueRankAttribute_async(UA_Client *client, const UA_NodeId nodeId,
+                                       UA_ClientAsyncReadValueRankAttributeCallback callback,
+                                       void *userdata, UA_UInt32 *requestId) {
+    return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_VALUERANK,
+                                     &UA_TYPES[UA_TYPES_INT32],
+                                     (UA_ClientAsyncOperationCallback)callback,
+                                     userdata, requestId);
+}
+
+UA_StatusCode
+UA_Client_readAccessLevelAttribute_async(UA_Client *client, const UA_NodeId nodeId,
+                                         UA_ClientAsyncReadAccessLevelAttributeCallback callback,
+                                         void *userdata, UA_UInt32 *requestId) {
+    return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_ACCESSLEVEL,
+                                     &UA_TYPES[UA_TYPES_BYTE],
+                                     (UA_ClientAsyncOperationCallback)callback,
+                                     userdata, requestId);
+}
+
+UA_StatusCode
+UA_Client_readUserAccessLevelAttribute_async(UA_Client *client, const UA_NodeId nodeId,
+                                             UA_ClientAsyncReadUserAccessLevelAttributeCallback callback,
+                                             void *userdata, UA_UInt32 *requestId) {
+    return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_USERACCESSLEVEL,
+                                     &UA_TYPES[UA_TYPES_BYTE],
+                                     (UA_ClientAsyncOperationCallback)callback,
+                                     userdata, requestId);
+}
+
+UA_StatusCode
+UA_Client_readMinimumSamplingIntervalAttribute_async(UA_Client *client, const UA_NodeId nodeId,
+                                                     UA_ClientAsyncReadMinimumSamplingIntervalAttributeCallback callback,
+                                                     void *userdata, UA_UInt32 *requestId) {
+    return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL,
+                                     &UA_TYPES[UA_TYPES_DOUBLE],
+                                     (UA_ClientAsyncOperationCallback)callback,
+                                     userdata, requestId);
+}
+
+UA_StatusCode
+UA_Client_readHistorizingAttribute_async(UA_Client *client, const UA_NodeId nodeId,
+                                         UA_ClientAsyncReadHistorizingAttributeCallback callback,
+                                         void *userdata, UA_UInt32 *requestId) {
+    return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_HISTORIZING,
+                                     &UA_TYPES[UA_TYPES_BOOLEAN],
+                                     (UA_ClientAsyncOperationCallback)callback,
+                                     userdata, requestId);
+}
+
+UA_StatusCode
+UA_Client_readExecutableAttribute_async(UA_Client *client, const UA_NodeId nodeId,
+                                        UA_ClientAsyncReadExecutableAttributeCallback callback,
+                                        void *userdata, UA_UInt32 *requestId) {
+    return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_EXECUTABLE,
+                                     &UA_TYPES[UA_TYPES_BOOLEAN],
+                                     (UA_ClientAsyncOperationCallback)callback,
+                                     userdata, requestId);
+}
+
+UA_StatusCode
+UA_Client_readUserExecutableAttribute_async(UA_Client *client, const UA_NodeId nodeId,
+                                            UA_ClientAsyncReadUserExecutableAttributeCallback callback,
+                                            void *userdata, UA_UInt32 *requestId) {
+    return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_USEREXECUTABLE,
+                                     &UA_TYPES[UA_TYPES_BOOLEAN],
+                                     (UA_ClientAsyncOperationCallback)callback,
+                                     userdata, requestId);
 }

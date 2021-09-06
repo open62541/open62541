@@ -235,8 +235,8 @@ static void clear_default(UA_AccessControl *ac) {
 
     if (context) {
         for(size_t i = 0; i < context->usernamePasswordLoginSize; i++) {
-            UA_String_deleteMembers(&context->usernamePasswordLogin[i].username);
-            UA_String_deleteMembers(&context->usernamePasswordLogin[i].password);
+            UA_String_clear(&context->usernamePasswordLogin[i].username);
+            UA_String_clear(&context->usernamePasswordLogin[i].password);
         }
         if(context->usernamePasswordLoginSize > 0)
             UA_free(context->usernamePasswordLogin);
@@ -253,6 +253,10 @@ UA_AccessControl_default(UA_ServerConfig *config, UA_Boolean allowAnonymous,
     UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_SERVER,
                    "AccessControl: Unconfigured AccessControl. Users have all permissions.");
     UA_AccessControl *ac = &config->accessControl;
+
+    if (ac->clear)
+        clear_default(ac);
+    
     ac->clear = clear_default;
     ac->activateSession = activateSession_default;
     ac->closeSession = closeSession_default;
@@ -344,3 +348,4 @@ UA_AccessControl_default(UA_ServerConfig *config, UA_Boolean allowAnonymous,
     }
     return UA_STATUSCODE_GOOD;
 }
+

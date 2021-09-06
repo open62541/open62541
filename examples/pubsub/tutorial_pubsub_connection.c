@@ -32,16 +32,11 @@ int main(void) {
      * The PubSubTransportLayer is a factory to create new connections
      * on runtime. The UA_PubSubTransportLayer is used for all kinds of
      * concrete connections e.g. UDP, MQTT, AMQP...
-     */
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer *) UA_malloc(sizeof(UA_PubSubTransportLayer));
-    if(!config->pubsubTransportLayers) {
-        UA_Server_delete(server);
-        return -1;
-    }
-    /* It is possible to use multiple PubSubTransportLayers on runtime. The correct factory
-     * is selected on runtime by the standard defined PubSub TransportProfileUri's. */
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerUDPMP();
-    config->pubsubTransportLayersSize++;
+     *
+     * It is possible to use multiple PubSubTransportLayers on runtime. The
+     * correct factory is selected on runtime by the standard defined PubSub
+     * TransportProfileUri's. */
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
 
     /* Create a new ConnectionConfig. The addPubSubConnection function takes the
      * config and create a new connection. The Connection identifier is

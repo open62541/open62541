@@ -12,7 +12,6 @@ Here's a list of third party libraries:
 |-----------------|------------------|-----------------------------------------------|
 | jsmn            | MIT              | json parser                                   |
 | mdnsd           | BSD-3-Clause     | mDNS library                                  |
-| musl            | MIT              | libc extensions                               |
 | ua-nodeset      | MIT              | Official OPC UA Nodeset files by the OPCF     |
 | atoi            | MIT              | Char to int conversion, from musl             |
 | base64          | BSD              | Base64 encoding and decoding                  |

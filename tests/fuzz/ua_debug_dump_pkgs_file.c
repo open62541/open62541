@@ -5,20 +5,15 @@
  *    Copyright 2019 (c) fortiss (Author: Stefan Profanter)
  */
 
-
-/**
- * This code is used to generate a binary file for every request type
- * which can be sent from a client to the server.
- * These files form the basic corpus for fuzzing the server.
- */
+/* This code is used to generate a binary file for every request type which can
+ * be sent from a client to the server. These files form the basic corpus for
+ * fuzzing the server. */
 
 #ifndef UA_DEBUG_DUMP_PKGS_FILE
 #error UA_DEBUG_DUMP_PKGS_FILE must be defined
 #endif
 
-#include <open62541/transport_generated_encoding_binary.h>
 #include <open62541/types.h>
-#include <open62541/types_generated_encoding_binary.h>
 
 #include "server/ua_server_internal.h"
 #include "testing_networklayers.h"
@@ -155,7 +150,7 @@ UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const connect
     UA_ByteString messageBufferCopy;
     UA_ByteString_copy(messageBuffer, &messageBufferCopy);
     UA_SecureChannel_processBuffer(&dummy, &dump_filename, UA_debug_dump_setName, &messageBufferCopy);
-    UA_ByteString_deleteMembers(&messageBufferCopy);
+    UA_ByteString_clear(&messageBufferCopy);
 
     dummy.securityPolicy = NULL;
     UA_SecureChannel_deleteBuffered(&dummy);

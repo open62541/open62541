@@ -25,7 +25,7 @@
 #include "ua_server_async.h"
 #include "ua_timer.h"
 #include "ua_util_internal.h"
-#include "ua_workqueue.h"
+#include "ziptree.h"
 
 _UA_BEGIN_DECLS
 
@@ -66,13 +66,13 @@ typedef enum {
 } UA_DiagnosticEvent;
 
 typedef struct channel_entry {
-    UA_DelayedCallback cleanupCallback;
+    UA_TimerEntry cleanupCallback;
     TAILQ_ENTRY(channel_entry) pointers;
     UA_SecureChannel channel;
 } channel_entry;
 
 typedef struct session_list_entry {
-    UA_DelayedCallback cleanupCallback;
+    UA_TimerEntry cleanupCallback;
     LIST_ENTRY(session_list_entry) pointers;
     UA_Session session;
 } session_list_entry;
@@ -114,9 +114,6 @@ struct UA_Server {
     /* Callbacks with a repetition interval */
     UA_Timer timer;
 
-    /* WorkQueue and worker threads */
-    UA_WorkQueue workQueue;
-
     /* For bootstrapping, omit some consistency checks, creating a reference to
      * the parent and member instantiation */
     UA_Boolean bootstrapNS0;
@@ -128,20 +125,20 @@ struct UA_Server {
 
     /* Subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
+    size_t subscriptionsSize;  /* Number of active subscriptions */
+    size_t monitoredItemsSize; /* Number of active monitored items */
     LIST_HEAD(, UA_Subscription) subscriptions; /* All subscriptions in the
                                                  * server. They may be detached
                                                  * from a session. */
     UA_UInt32 lastSubscriptionId; /* To generate unique SubscriptionIds */
-    UA_UInt32 numSubscriptions;   /* Num active subscriptions */
-    UA_UInt32 numMonitoredItems;  /* Num active monitored items */
 
     /* To be cast to UA_LocalMonitoredItem to get the callback and context */
     LIST_HEAD(, UA_MonitoredItem) localMonitoredItems;
     UA_UInt32 lastLocalMonitoredItemId;
 
 # ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
-    LIST_HEAD(, UA_ConditionSource) headConditionSource;
-# endif /* UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */
+    LIST_HEAD(, UA_ConditionSource) conditionSources;
+# endif
 
 #endif
 
@@ -151,19 +148,29 @@ struct UA_Server {
 #endif
 
 #if UA_MULTITHREADING >= 100
-    UA_LOCK_TYPE(networkMutex)
-    UA_LOCK_TYPE(serviceMutex)
+    UA_Lock networkMutex;
+    UA_Lock serviceMutex;
 #endif
 
     /* Statistics */
     UA_ServerStatistics serverStats;
 };
 
+/***********************/
+/* References Handling */
+/***********************/
+
+extern const struct aa_head refNameTree;
+
+const UA_ReferenceTarget *
+UA_NodeReferenceKind_findTarget(const UA_NodeReferenceKind *rk,
+                                const UA_ExpandedNodeId *targetId);
+
 /**************************/
 /* SecureChannel Handling */
 /**************************/
 
-/* Remove a all securechannels */
+/* Remove all securechannels */
 void
 UA_Server_deleteSecureChannels(UA_Server *server);
 
@@ -186,6 +193,13 @@ sendServiceFault(UA_SecureChannel *channel, UA_UInt32 requestId, UA_UInt32 reque
 void
 UA_Server_closeSecureChannel(UA_Server *server, UA_SecureChannel *channel,
                              UA_DiagnosticEvent event);
+
+/* Gets the a pointer to the context of a security policy supported by the
+ * server matched by the security policy uri. */
+UA_SecurityPolicy *
+getSecurityPolicyByUri(const UA_Server *server,
+                       const UA_ByteString *securityPolicyUri);
+
 
 /********************/
 /* Session Handling */
@@ -256,14 +270,15 @@ isNodeInTree_singleRef(UA_Server *server, const UA_NodeId *leafNode,
 
 /* Returns an array with the hierarchy of nodes. The start nodes can be returned
  * as well. The returned array starts at the leaf and continues "upwards" or
- * "downwards". Duplicate entries are removed. The parameter `walkDownwards`
- * indicates the direction of search. */
+ * "downwards". Duplicate entries are removed. */
 UA_StatusCode
 browseRecursive(UA_Server *server, size_t startNodesSize, const UA_NodeId *startNodes,
-                const UA_ReferenceTypeSet *refTypes, UA_BrowseDirection browseDirection,
-                UA_Boolean includeStartNodes, size_t *resultsSize, UA_ExpandedNodeId **results);
+                UA_BrowseDirection browseDirection, const UA_ReferenceTypeSet *refTypes,
+                UA_UInt32 nodeClassMask, UA_Boolean includeStartNodes,
+                size_t *resultsSize, UA_ExpandedNodeId **results);
 
-/* Sets the indices. refType must point to a ReferenceTypeNode. */
+/* Get the bitfield indices of a ReferenceType and possibly its subtypes.
+ * refType must point to a ReferenceTypeNode. */
 UA_StatusCode
 referenceTypeIndices(UA_Server *server, const UA_NodeId *refType,
                      UA_ReferenceTypeSet *indices, UA_Boolean includeSubtypes);
@@ -275,15 +290,16 @@ getParentTypeAndInterfaceHierarchy(UA_Server *server, const UA_NodeId *typeNode,
 
 /* Returns the recursive interface hierarchy of the node */
 UA_StatusCode
-getInterfaceHierarchy(UA_Server *server, const UA_NodeId *objectNode,
-                                   UA_NodeId **typeHierarchy, size_t *typeHierarchySize);
+getAllInterfaceChildNodeIds(UA_Server *server, const UA_NodeId *objectNode, const UA_NodeId *objectTypeNode,
+                                   UA_NodeId **interfaceChildNodes, size_t *interfaceChildNodesSize);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
 
-UA_StatusCode UA_EXPORT
-UA_getConditionId(UA_Server *server, const UA_NodeId *conditionNodeId, UA_NodeId *outConditionId);
+UA_StatusCode
+UA_getConditionId(UA_Server *server, const UA_NodeId *conditionNodeId,
+                  UA_NodeId *outConditionId);
 
-void UA_EXPORT
+void
 UA_ConditionList_delete(UA_Server *server);
 
 UA_Boolean
@@ -292,16 +308,12 @@ isConditionOrBranch(UA_Server *server,
                     const UA_NodeId *conditionSource,
                     UA_Boolean *isCallerAC);
 
-#endif//UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+#endif /* UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */
+
 /* Returns the type node from the node on the stack top. The type node is pushed
  * on the stack and returned. */
 const UA_Node *
 getNodeType(UA_Server *server, const UA_NodeHead *nodeHead);
-
-/* Write a node attribute with a defined session */
-UA_StatusCode
-writeWithSession(UA_Server *server, UA_Session *session,
-                 const UA_WriteValue *value);
 
 UA_StatusCode
 sendResponse(UA_Server *server, UA_Session *session, UA_SecureChannel *channel,
@@ -343,18 +355,16 @@ setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
                            const UA_DataSource dataSource);
 
 UA_StatusCode
-setMethodNode_callback(UA_Server *server,
-                       const UA_NodeId methodNodeId,
-                       UA_MethodCallback methodCallback);
+writeAttribute(UA_Server *server, UA_Session *session,
+               const UA_NodeId *nodeId, const UA_AttributeId attributeId,
+               const void *attr, const UA_DataType *attr_type);
 
-UA_StatusCode
-writeAttribute(UA_Server *server, const UA_WriteValue *value);
-
-UA_StatusCode
-writeWithWriteValue(UA_Server *server, const UA_NodeId *nodeId,
-                    const UA_AttributeId attributeId,
-                    const UA_DataType *attr_type,
-                    const void *attr);
+static UA_INLINE UA_StatusCode
+writeValueAttribute(UA_Server *server, UA_Session *session,
+                    const UA_NodeId *nodeId, const UA_Variant *value) {
+    return writeAttribute(server, session, nodeId, UA_ATTRIBUTEID_VALUE,
+                          value, &UA_TYPES[UA_TYPES_VARIANT]);
+}
 
 UA_DataValue
 readAttribute(UA_Server *server, const UA_ReadValueId *item,
@@ -374,12 +384,15 @@ translateBrowsePathToNodeIds(UA_Server *server, const UA_BrowsePath *browsePath)
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 
-void UA_Server_addSubscription(UA_Server *server, UA_Subscription *sub);
-void UA_Server_deleteSubscription(UA_Server *server, UA_Subscription *sub);
 void monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem);
 
 UA_Subscription *
 UA_Server_getSubscriptionById(UA_Server *server, UA_UInt32 subscriptionId);
+
+UA_StatusCode
+triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
+             const UA_NodeId origin, UA_ByteString *outEventId,
+             const UA_Boolean deleteEventNode);
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
 
@@ -411,6 +424,55 @@ register_server_with_discovery_server(UA_Server *server,
                                       const UA_Boolean isUnregister,
                                       const char* semaphoreFilePath);
 #endif
+
+/***********/
+/* RefTree */
+/***********/
+
+/* A RefTree is a sorted set of NodeIds that ensures we consider each node just
+ * once. It holds a single array for both the ExpandedNodeIds and the entries of
+ * a tree-structure for fast lookup. A single realloc operation (with some
+ * pointer repairing) can be used to increase the capacity of the RefTree.
+ *
+ * When the RefTree is complete, the tree-part at the end of the targets array
+ * can be ignored / cut away to use it as a simple ExpandedNodeId array.
+ *
+ * The layout of the targets array is as follows:
+ *
+ * | Targets [ExpandedNodeId, n times] | Tree [RefEntry, n times] | */
+
+#define UA_REFTREE_INITIAL_SIZE 16
+
+typedef struct RefEntry {
+    ZIP_ENTRY(RefEntry) zipfields;
+    const UA_ExpandedNodeId *target;
+    UA_UInt32 targetHash; /* Hash of the target nodeid */
+} RefEntry;
+
+ZIP_HEAD(RefHead, RefEntry);
+typedef struct RefHead RefHead;
+
+typedef struct {
+    UA_ExpandedNodeId *targets;
+    RefHead head;
+    size_t capacity; /* available space */
+    size_t size;     /* used space */
+} RefTree;
+
+UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
+RefTree_init(RefTree *rt);
+
+void RefTree_clear(RefTree *rt);
+
+UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
+RefTree_addNodeId(RefTree *rt, const UA_NodeId *target, UA_Boolean *duplicate);
+
+UA_Boolean
+RefTree_contains(RefTree *rt, const UA_ExpandedNodeId *target);
+
+UA_Boolean
+RefTree_containsNodeId(RefTree *rt, const UA_NodeId *target);
+
 /***************************************/
 /* Check Information Model Consistency */
 /***************************************/
@@ -440,6 +502,23 @@ compatibleValue(UA_Server *server, UA_Session *session, const UA_NodeId *targetD
                 const UA_UInt32 *targetArrayDimensions, const UA_Variant *value,
                 const UA_NumericRange *range);
 
+/* Is the DataType compatible */
+UA_Boolean
+compatibleDataTypes(UA_Server *server, const UA_NodeId *dataType,
+                    const UA_NodeId *constraintDataType);
+
+/* Set to the target type if compatible */
+void
+adjustValueType(UA_Server *server, UA_Variant *value,
+                const UA_NodeId *targetDataTypeId);
+
+/* Is the Value compatible with the DataType? Can perform additional checks
+ * compared to compatibleDataTypes. */
+UA_Boolean
+compatibleValueDataType(UA_Server *server, const UA_DataType *dataType,
+                        const UA_NodeId *constraintDataType);
+
+
 UA_Boolean
 compatibleArrayDimensions(size_t constraintArrayDimensionsSize,
                           const UA_UInt32 *constraintArrayDimensions,
@@ -453,10 +532,6 @@ compatibleValueArrayDimensions(const UA_Variant *value, size_t targetArrayDimens
 UA_Boolean
 compatibleValueRankArrayDimensions(UA_Server *server, UA_Session *session,
                                    UA_Int32 valueRank, size_t arrayDimensionsSize);
-
-UA_Boolean
-compatibleDataType(UA_Server *server, const UA_NodeId *dataType,
-                   const UA_NodeId *constraintDataType, UA_Boolean isValue);
 
 UA_Boolean
 compatibleValueRanks(UA_Int32 valueRank, UA_Int32 constraintValueRank);
@@ -515,6 +590,10 @@ UA_StatusCode writeNs0VariableArray(UA_Server *server, UA_UInt32 id, void *v,
 
 #define UA_NODESTORE_GET(server, nodeid)                                \
     server->config.nodestore.getNode(server->config.nodestore.context, nodeid)
+
+/* Returns NULL if the target is an external Reference (per the ExpandedNodeId) */
+const UA_Node *
+UA_NODESTORE_GETFROMREF(UA_Server *server, UA_NodePointer target);
 
 #define UA_NODESTORE_RELEASE(server, node)                              \
     server->config.nodestore.releaseNode(server->config.nodestore.context, node)

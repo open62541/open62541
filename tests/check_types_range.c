@@ -54,7 +54,7 @@ START_TEST(copySimpleArrayRange) {
     ck_assert_uint_eq(3, v2.arrayLength);
     ck_assert_uint_eq(2, *(UA_UInt32*)v2.data);
 
-    UA_Variant_deleteMembers(&v2);
+    UA_Variant_clear(&v2);
     UA_free(r.dimensions);
 }
 END_TEST
@@ -83,7 +83,7 @@ START_TEST(copyIntoStringArrayRange) {
     ck_assert(UA_String_equal(&arr2[0], &s1));
     ck_assert(UA_String_equal(&arr2[1], &s2));
 
-    UA_Variant_deleteMembers(&v2);
+    UA_Variant_clear(&v2);
     UA_free(r.dimensions);
 }
 END_TEST

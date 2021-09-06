@@ -1,5 +1,5 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public 
- * License, v. 2.0. If a copy of the MPL was not distributed with this 
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <open62541/types.h>
@@ -38,42 +38,45 @@ typedef struct {
 static UA_DataTypeMember members[3] = {
     /* x */
     {
-        UA_TYPES_FLOAT,  /* .memberTypeIndex, points into UA_TYPES since
-                            .namespaceZero is true */
-        0,               /* .padding */
-        true,            /* .namespaceZero, see .memberTypeIndex */
-        false,           /* .isArray */
-        false            /* .isOptional*/
-        UA_TYPENAME("x") /* .memberName */
+        UA_TYPENAME("x")           /* .memberName */
+        &UA_TYPES[UA_TYPES_FLOAT], /* .memberType */
+        0,                         /* .padding */
+        false,                     /* .isArray */
+        false                      /* .isOptional*/
     },
 
     /* y */
     {
-        UA_TYPES_FLOAT, padding_y, true, false, false
         UA_TYPENAME("y")
+        &UA_TYPES[UA_TYPES_FLOAT],
+        padding_y,
+        false,
+        false
     },
 
     /* z */
     {
-        UA_TYPES_FLOAT, padding_z, true, false, false
         UA_TYPENAME("z")
+        &UA_TYPES[UA_TYPES_FLOAT],
+        padding_z,
+        false,
+        false
     }
 };
 
 static const UA_DataType PointType = {
+    UA_TYPENAME("Point")             /* .typeName */
     {1, UA_NODEIDTYPE_NUMERIC, {1}}, /* .typeId */
     {1, UA_NODEIDTYPE_NUMERIC, {17}}, /* .binaryEncodingId, the numeric
                                          identifier used on the wire (the
                                          namespaceindex is from .typeId) */
     sizeof(Point),                   /* .memSize */
-    0,                               /* .typeIndex, in the array of custom types */
     UA_DATATYPEKIND_STRUCTURE,       /* .typeKind */
     true,                            /* .pointerFree */
     false,                           /* .overlayable (depends on endianness and
                                          the absence of padding) */
     3,                               /* .membersSize */
     members
-    UA_TYPENAME("Point")             /* .typeName */
 };
 
 const UA_DataTypeArray customDataTypes = {NULL, 1, &PointType};
@@ -87,47 +90,43 @@ typedef struct {
 static UA_DataTypeMember Opt_members[3] = {
         /* a */
         {
-                UA_TYPES_INT16,  /* .memberTypeIndex, points into UA_TYPES since namespaceZero is true */
-                0, /* .padding */
-                true,       /* .namespaceZero, see .memberTypeIndex */
-                false,      /* .isArray */
-                false       /* .isOptional */
-                UA_TYPENAME("a") /* .memberName */
+                UA_TYPENAME("a")           /* .memberName */
+                &UA_TYPES[UA_TYPES_INT16], /* .memberType */
+                0,                         /* .padding */
+                false,                     /* .isArray */
+                false                      /* .isOptional */
         },
         /* b */
         {
-                UA_TYPES_FLOAT,
+                UA_TYPENAME("b")
+                &UA_TYPES[UA_TYPES_FLOAT], /* .memberType */
                 offsetof(Opt,b) - offsetof(Opt,a) - sizeof(UA_Int16),
-                true,
                 false,
                 true        /* b is an optional field */
-                UA_TYPENAME("b")
         },
         /* c */
         {
-                UA_TYPES_FLOAT,
+                UA_TYPENAME("c")
+                &UA_TYPES[UA_TYPES_FLOAT], /* .memberType */
                 offsetof(Opt,c) - offsetof(Opt,b) - sizeof(void *),
-                true,
                 false,
                 true        /* b is an optional field */
-                UA_TYPENAME("c")
         }
 };
 
 static const UA_DataType OptType = {
+        UA_TYPENAME("Opt")             /* .typeName */
         {1, UA_NODEIDTYPE_NUMERIC, {4242}}, /* .typeId */
         {1, UA_NODEIDTYPE_NUMERIC, {5}}, /* .binaryEncodingId, the numeric
                                          identifier used on the wire (the
                                          namespaceindex is from .typeId) */
-        sizeof(Opt),                   /* .memSize */
-        0,                               /* .typeIndex, in the array of custom types */
+        sizeof(Opt),                     /* .memSize */
         UA_DATATYPEKIND_OPTSTRUCT,       /* .typeKind */
         false,                            /* .pointerFree */
         false,                           /* .overlayable (depends on endianness and
                                          the absence of padding) */
         3,                               /* .membersSize */
         Opt_members
-        UA_TYPENAME("Opt")             /* .typeName */
 };
 
 const UA_DataTypeArray customDataTypesOptStruct = {&customDataTypes, 2, &OptType};
@@ -142,45 +141,41 @@ typedef struct {
 
 static UA_DataTypeMember ArrayOptStruct_members[3] = {
     {
-        UA_TYPES_STRING,  /* .memberTypeIndex, points into UA_TYPES since namespaceZero is true */
-        0,               /* .padding */
-        true,            /* .namespaceZero, see .memberTypeIndex */
-        false,            /* .isArray */
-        false
         UA_TYPENAME("Measurement description") /* .memberName */
-    },
-    {
-        UA_TYPES_FLOAT,  /* .memberTypeIndex, points into UA_TYPES since namespaceZero is true */
-        offsetof(OptArray, bSize) - offsetof(OptArray, description) - sizeof(UA_String),               /* .padding */
-        true,            /* .namespaceZero, see .memberTypeIndex */
-        true,            /* .isArray */
-        true
-        UA_TYPENAME("TestArray1") /* .memberName */
-    },
-    {
-        UA_TYPES_FLOAT,  /* .memberTypeIndex, points into UA_TYPES since namespaceZero is true */
-        offsetof(OptArray, cSize) - offsetof(OptArray, b) - sizeof(void *),               /* .padding */
-        true,            /* .namespaceZero, see .memberTypeIndex */
-        true,            /* .isArray */
+        &UA_TYPES[UA_TYPES_STRING],            /* .memberType */
+        0,                                     /* .padding */
+        false,                                 /* .isArray */
         false
-        UA_TYPENAME("TestArray2") /* .memberName */
+    },
+    {
+        UA_TYPENAME("TestArray1") /* .memberName */
+        &UA_TYPES[UA_TYPES_FLOAT], /* .memberType */
+        offsetof(OptArray, bSize) - offsetof(OptArray, description) - sizeof(UA_String),               /* .padding */
+        true,                      /* .isArray */
+        true
+    },
+    {
+        UA_TYPENAME("TestArray2")  /* .memberName */
+        &UA_TYPES[UA_TYPES_FLOAT], /* .memberType */
+        offsetof(OptArray, cSize) - offsetof(OptArray, b) - sizeof(void *),               /* .padding */
+        true,                      /* .isArray */
+        false
     }
 };
 
 static const UA_DataType ArrayOptType = {
+    UA_TYPENAME("OptArray")             /* .tyspeName */
     {1, UA_NODEIDTYPE_NUMERIC, {4243}},     /* .typeId */
     {1, UA_NODEIDTYPE_NUMERIC, {1337}}, /* .binaryEncodingId, the numeric
                                          identifier used on the wire (the
                                          namespaceindex is from .typeId) */
     sizeof(OptArray),                   /* .memSize */
-    0,                               /* .typeIndex, in the array of custom types */
     UA_DATATYPEKIND_OPTSTRUCT,       /* .typeKind */
     false,                            /* .pointerFree */
     false,                           /* .overlayable (depends on endianness and
                                          the absence of padding) */
     3,                               /* .membersSize */
     ArrayOptStruct_members
-    UA_TYPENAME("OptArray")             /* .tyspeName */
 };
 
 const UA_DataTypeArray customDataTypesOptArrayStruct = {&customDataTypesOptStruct, 3, &ArrayOptType};
@@ -197,44 +192,92 @@ typedef struct {
 
 static UA_DataTypeMember Uni_members[2] = {
         {
-                UA_TYPES_DOUBLE,
-                sizeof(UA_UInt32),
-                true,
+                UA_TYPENAME("optionA")
+                &UA_TYPES[UA_TYPES_DOUBLE], /* .memberType */
+                offsetof(Uni, fields.optionA),
                 false,
                 false
-                UA_TYPENAME("optionA")
         },
         {
-                UA_TYPES_STRING,
-                sizeof(UA_UInt32),
-                true,
+                UA_TYPENAME("optionB")
+                &UA_TYPES[UA_TYPES_STRING], /* .memberType */
+                offsetof(Uni, fields.optionB),
                 false,
                 false
-                UA_TYPENAME("optionB")
         }
 };
 
 static const UA_DataType UniType = {
+        UA_TYPENAME("Uni")
         {1, UA_NODEIDTYPE_NUMERIC, {4245}},
         {1, UA_NODEIDTYPE_NUMERIC, {13338}},
         sizeof(Uni),
-        1,
         UA_DATATYPEKIND_UNION,
         false,
         false,
         2,
         Uni_members
-        UA_TYPENAME("Uni")
 };
 
 const UA_DataTypeArray customDataTypesUnion = {&customDataTypesOptArrayStruct, 2, &UniType};
+
+typedef enum {
+    UA_SELFCONTAININGUNIONSWITCH_NONE = 0,
+    UA_SELFCONTAININGUNIONSWITCH_DOUBLE = 1,
+    UA_SELFCONTAININGUNIONSWITCH_ARRAY = 2,
+    __UA_SELFCONTAININGUNIONSWITCH_FORCE32BIT = 0x7fffffff
+} UA_SelfContainingUnionSwitch;
+
+typedef struct UA_SelfContainingUnion UA_SelfContainingUnion;
+struct UA_SelfContainingUnion {
+    UA_SelfContainingUnionSwitch switchField;
+    union {
+        UA_Double _double;
+        struct {
+            size_t arraySize;
+            UA_SelfContainingUnion *array;
+        } array;
+    } fields;
+};
+
+extern const UA_DataType selfContainingUnionType;
+
+static UA_DataTypeMember SelfContainingUnion_members[2] = {
+{
+    UA_TYPENAME("_double")                            /* .memberName */
+    &UA_TYPES[UA_TYPES_DOUBLE],                       /* .memberType */
+    offsetof(UA_SelfContainingUnion, fields._double), /* .padding */
+    false,                                            /* .isArray */
+    false                                             /* .isOptional */
+},
+{
+    UA_TYPENAME("Array")                              /* .memberName */
+    &selfContainingUnionType,                         /* .memberType */
+    offsetof(UA_SelfContainingUnion, fields.array),   /* .padding */
+    true,                                             /* .isArray */
+    false                                             /* .isOptional */
+},};
+
+const UA_DataType selfContainingUnionType = {
+    UA_TYPENAME("SelfContainingStruct") /* .typeName */
+    {2, UA_NODEIDTYPE_NUMERIC, {4002LU}}, /* .typeId */
+    {2, UA_NODEIDTYPE_NUMERIC, {0}}, /* .binaryEncodingId */
+    sizeof(UA_SelfContainingUnion), /* .memSize */
+    UA_DATATYPEKIND_UNION, /* .typeKind */
+    false, /* .pointerFree */
+    false, /* .overlayable */
+    2, /* .membersSize */
+    SelfContainingUnion_members  /* .members */
+};
+
+const UA_DataTypeArray customDataTypesSelfContainingUnion = {NULL, 1, &selfContainingUnionType};
 
 START_TEST(parseCustomScalar) {
     Point p;
     p.x = 1.0;
     p.y = 2.0;
     p.z = 3.0;
-    
+
     UA_Variant var;
     UA_Variant_init(&var);
     UA_Variant_setScalar(&var, &p, &PointType);
@@ -246,21 +289,21 @@ START_TEST(parseCustomScalar) {
 
     UA_Byte *pos = buf.data;
     const UA_Byte *end = &buf.data[buf.length];
-    retval = UA_encodeBinary(&var, &UA_TYPES[UA_TYPES_VARIANT],
-                             &pos, &end, NULL, NULL);
+    retval = UA_encodeBinaryInternal(&var, &UA_TYPES[UA_TYPES_VARIANT],
+                                     &pos, &end, NULL, NULL);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Variant var2;
     size_t offset = 0;
-    retval = UA_decodeBinary(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], &customDataTypes);
+    retval = UA_decodeBinaryInternal(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], &customDataTypes);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert(var2.type == &PointType);
 
     Point *p2 = (Point*)var2.data;
     ck_assert(p.x == p2->x);
-        
-    UA_Variant_deleteMembers(&var2);
-    UA_ByteString_deleteMembers(&buf);
+
+    UA_Variant_clear(&var2);
+    UA_ByteString_clear(&buf);
 } END_TEST
 
 START_TEST(parseCustomScalarExtensionObject) {
@@ -283,12 +326,12 @@ START_TEST(parseCustomScalarExtensionObject) {
 
     UA_Byte *bufPos = buf.data;
     const UA_Byte *bufEnd = &buf.data[buf.length];
-    retval = UA_encodeBinary(&eo, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], &bufPos, &bufEnd, NULL, NULL);
+    retval = UA_encodeBinaryInternal(&eo, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], &bufPos, &bufEnd, NULL, NULL);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_ExtensionObject eo2;
     size_t offset = 0;
-    retval = UA_decodeBinary(&buf, &offset, &eo2, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], &customDataTypes);
+    retval = UA_decodeBinaryInternal(&buf, &offset, &eo2, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], &customDataTypes);
     ck_assert_uint_eq(offset, (uintptr_t)(bufPos - buf.data));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -297,9 +340,9 @@ START_TEST(parseCustomScalarExtensionObject) {
 
     Point *p2 = (Point*)eo2.content.decoded.data;
     ck_assert(p.x == p2->x);
-        
-    UA_ExtensionObject_deleteMembers(&eo2);
-    UA_ByteString_deleteMembers(&buf);
+
+    UA_ExtensionObject_clear(&eo2);
+    UA_ByteString_clear(&buf);
 } END_TEST
 
 START_TEST(parseCustomArray) {
@@ -321,13 +364,13 @@ START_TEST(parseCustomArray) {
 
     UA_Byte *pos = buf.data;
     const UA_Byte *end = &buf.data[buf.length];
-    retval = UA_encodeBinary(&var, &UA_TYPES[UA_TYPES_VARIANT],
+    retval = UA_encodeBinaryInternal(&var, &UA_TYPES[UA_TYPES_VARIANT],
                              &pos, &end, NULL, NULL);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Variant var2;
     size_t offset = 0;
-    retval = UA_decodeBinary(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], &customDataTypes);
+    retval = UA_decodeBinaryInternal(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], &customDataTypes);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert(var2.type == &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
     ck_assert_uint_eq(var2.arrayLength, 10);
@@ -344,9 +387,9 @@ START_TEST(parseCustomArray) {
         ck_assert((int)p2->y == (int)ps[i].y);
         ck_assert((int)p2->z == (int)ps[i].z);
     }
-        
-    UA_Variant_deleteMembers(&var2);
-    UA_ByteString_deleteMembers(&buf);
+
+    UA_Variant_clear(&var2);
+    UA_ByteString_clear(&buf);
 } END_TEST
 
 START_TEST(parseCustomStructureWithOptionalFields) {
@@ -355,7 +398,7 @@ START_TEST(parseCustomStructureWithOptionalFields) {
         o.a = 3;
         o.b = NULL;
         o.c = UA_Float_new();
-        *o.c = (UA_Float) 10.10;;
+        *o.c = (UA_Float) 10.10;
 
         UA_Variant var;
         UA_Variant_init(&var);
@@ -368,22 +411,22 @@ START_TEST(parseCustomStructureWithOptionalFields) {
 
         UA_Byte *pos = buf.data;
         const UA_Byte *end = &buf.data[buf.length];
-        retval = UA_encodeBinary(&var, &UA_TYPES[UA_TYPES_VARIANT],
+        retval = UA_encodeBinaryInternal(&var, &UA_TYPES[UA_TYPES_VARIANT],
                                  &pos, &end, NULL, NULL);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
         UA_Variant var2;
         size_t offset = 0;
-        retval = UA_decodeBinary(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], &customDataTypesOptStruct);
+        retval = UA_decodeBinaryInternal(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], &customDataTypesOptStruct);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
         ck_assert(var2.type == &OptType);
         Opt *optStruct2 = (Opt *) var2.data;
         ck_assert(optStruct2->a == 3);
 
         UA_clear(&o, &OptType);
-        UA_Variant_deleteMembers(&var);
-        UA_Variant_deleteMembers(&var2);
-        UA_ByteString_deleteMembers(&buf);
+        UA_Variant_clear(&var);
+        UA_Variant_clear(&var2);
+        UA_ByteString_clear(&buf);
 } END_TEST
 
 START_TEST(parseCustomStructureWithOptionalFieldsWithArrayNotContained) {
@@ -409,12 +452,12 @@ START_TEST(parseCustomStructureWithOptionalFieldsWithArrayNotContained) {
         ck_assert_uint_eq(binSize, 32);
         UA_Byte *pos = buf.data;
         const UA_Byte *end = &buf.data[buf.length];
-        retval = UA_encodeBinary(&var, &UA_TYPES[UA_TYPES_VARIANT],
+        retval = UA_encodeBinaryInternal(&var, &UA_TYPES[UA_TYPES_VARIANT],
                                  &pos, &end, NULL, NULL);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
         UA_Variant var2;
         size_t offset = 0;
-        retval = UA_decodeBinary(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], &customDataTypesOptArrayStruct);
+        retval = UA_decodeBinaryInternal(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], &customDataTypesOptArrayStruct);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
         ck_assert(var2.type == &ArrayOptType);
 
@@ -429,9 +472,9 @@ START_TEST(parseCustomStructureWithOptionalFieldsWithArrayNotContained) {
         ck_assert((fabs(optStruct2->c[2] - 1.3)) < 0.005);
 
         UA_clear(&oa, &ArrayOptType);
-        UA_Variant_deleteMembers(&var);
-        UA_Variant_deleteMembers(&var2);
-        UA_ByteString_deleteMembers(&buf);
+        UA_Variant_clear(&var);
+        UA_Variant_clear(&var2);
+        UA_ByteString_clear(&buf);
 } END_TEST
 
 START_TEST(parseCustomStructureWithOptionalFieldsWithArrayContained) {
@@ -461,12 +504,12 @@ START_TEST(parseCustomStructureWithOptionalFieldsWithArrayContained) {
         ck_assert_uint_eq(binSize, 48);
         UA_Byte *pos = buf.data;
         const UA_Byte *end = &buf.data[buf.length];
-        retval = UA_encodeBinary(&var, &UA_TYPES[UA_TYPES_VARIANT],
+        retval = UA_encodeBinaryInternal(&var, &UA_TYPES[UA_TYPES_VARIANT],
                                  &pos, &end, NULL, NULL);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
         UA_Variant var2;
         size_t offset = 0;
-        retval = UA_decodeBinary(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], &customDataTypesOptArrayStruct);
+        retval = UA_decodeBinaryInternal(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], &customDataTypesOptArrayStruct);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
         ck_assert(var2.type == &ArrayOptType);
 
@@ -483,9 +526,9 @@ START_TEST(parseCustomStructureWithOptionalFieldsWithArrayContained) {
         ck_assert((fabs(optStruct2->c[2] - 2.3)) < 0.005);
 
         UA_clear(&oa, &ArrayOptType);
-        UA_Variant_deleteMembers(&var);
-        UA_Variant_deleteMembers(&var2);
-        UA_ByteString_deleteMembers(&buf);
+        UA_Variant_clear(&var);
+        UA_Variant_clear(&var2);
+        UA_ByteString_clear(&buf);
     } END_TEST
 
 START_TEST(parseCustomUnion) {
@@ -510,13 +553,13 @@ START_TEST(parseCustomUnion) {
 
         UA_Byte *pos = buf.data;
         const UA_Byte *end = &buf.data[buf.length];
-        retval = UA_encodeBinary(&var, &UA_TYPES[UA_TYPES_VARIANT],
+        retval = UA_encodeBinaryInternal(&var, &UA_TYPES[UA_TYPES_VARIANT],
                                  &pos, &end, NULL, NULL);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
         UA_Variant var2;
         size_t offset = 0;
-        retval = UA_decodeBinary(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], &customDataTypesUnion);
+        retval = UA_decodeBinaryInternal(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], &customDataTypesUnion);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
         ck_assert(var2.type == &UniType);
 
@@ -526,9 +569,102 @@ START_TEST(parseCustomUnion) {
         ck_assert(UA_String_equal(&u.fields.optionB, &compare));
         //ck_assert(uni2->fields.optionA = (fabs(uni2->fields.optionA - 2.5)) < 0.005);
 
-        UA_Variant_deleteMembers(&var);
-        UA_Variant_deleteMembers(&var2);
-        UA_ByteString_deleteMembers(&buf);
+        UA_Variant_clear(&var);
+        UA_Variant_clear(&var2);
+        UA_ByteString_clear(&buf);
+    } END_TEST
+
+START_TEST(parseSelfContainingUnionNormalMember) {
+        UA_StatusCode retval;
+        UA_SelfContainingUnion s;
+        s.switchField = UA_SELFCONTAININGUNIONSWITCH_DOUBLE;
+        s.fields._double = 42.0;
+
+        UA_Variant var;
+        UA_Variant_init(&var);
+        retval = UA_Variant_setScalarCopy(&var, &s, &selfContainingUnionType);
+        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+        size_t lengthOfUnion = UA_calcSizeBinary(&s, &selfContainingUnionType);
+        //check if 12 is the right size
+        ck_assert_uint_eq(lengthOfUnion, 12);
+
+        size_t buflen = UA_calcSizeBinary(&var, &UA_TYPES[UA_TYPES_VARIANT]);
+        UA_ByteString buf;
+        retval = UA_ByteString_allocBuffer(&buf, buflen);
+        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+        UA_Byte *pos = buf.data;
+        const UA_Byte *end = &buf.data[buf.length];
+        retval = UA_encodeBinaryInternal(&var, &UA_TYPES[UA_TYPES_VARIANT],
+                                 &pos, &end, NULL, NULL);
+        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+        UA_Variant var2;
+        size_t offset = 0;
+        retval = UA_decodeBinaryInternal(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], &customDataTypesSelfContainingUnion);
+        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+        ck_assert(var2.type == &selfContainingUnionType);
+
+        UA_SelfContainingUnion *s2 = (UA_SelfContainingUnion *) var2.data;
+        ck_assert(s2->switchField = UA_SELFCONTAININGUNIONSWITCH_DOUBLE);
+        ck_assert(fabs(s2->fields._double - 42.0) < 0.005);
+
+        UA_Variant_clear(&var);
+        UA_Variant_clear(&var2);
+        UA_ByteString_clear(&buf);
+    } END_TEST
+
+START_TEST(parseSelfContainingUnionSelfMember) {
+        UA_StatusCode retval;
+        UA_SelfContainingUnion s;
+        s.switchField = UA_SELFCONTAININGUNIONSWITCH_ARRAY;
+        s.fields.array.arraySize = 2;
+        s.fields.array.array = (UA_SelfContainingUnion *)UA_calloc(2, sizeof(UA_SelfContainingUnion));
+        s.fields.array.array[0].switchField = UA_SELFCONTAININGUNIONSWITCH_DOUBLE;
+        s.fields.array.array[0].fields._double = 23.0;
+        s.fields.array.array[1].switchField = UA_SELFCONTAININGUNIONSWITCH_DOUBLE;
+        s.fields.array.array[1].fields._double = 42.0;
+
+        UA_Variant var;
+        UA_Variant_init(&var);
+        retval = UA_Variant_setScalarCopy(&var, &s, &selfContainingUnionType);
+        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+        size_t lengthOfUnion = UA_calcSizeBinary(&s, &selfContainingUnionType);
+        //check if 32 is the right size
+        ck_assert_uint_eq(lengthOfUnion, 32);
+
+        UA_free(s.fields.array.array);
+
+        size_t buflen = UA_calcSizeBinary(&var, &UA_TYPES[UA_TYPES_VARIANT]);
+        UA_ByteString buf;
+        retval = UA_ByteString_allocBuffer(&buf, buflen);
+        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+        UA_Byte *pos = buf.data;
+        const UA_Byte *end = &buf.data[buf.length];
+        retval = UA_encodeBinaryInternal(&var, &UA_TYPES[UA_TYPES_VARIANT],
+                                 &pos, &end, NULL, NULL);
+        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+        UA_Variant var2;
+        size_t offset = 0;
+        retval = UA_decodeBinaryInternal(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], &customDataTypesSelfContainingUnion);
+        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+        ck_assert(var2.type == &selfContainingUnionType);
+
+        UA_SelfContainingUnion *s2 = (UA_SelfContainingUnion *) var2.data;
+        ck_assert(s2->switchField = UA_SELFCONTAININGUNIONSWITCH_ARRAY);
+        ck_assert(s2->fields.array.arraySize == 2);
+        ck_assert(s2->fields.array.array[0].switchField == UA_SELFCONTAININGUNIONSWITCH_DOUBLE);
+        ck_assert(fabs(s2->fields.array.array[0].fields._double - 23.0) < 0.005);
+        ck_assert(s2->fields.array.array[1].switchField == UA_SELFCONTAININGUNIONSWITCH_DOUBLE);
+        ck_assert(fabs(s2->fields.array.array[1].fields._double - 42.0) < 0.005);
+
+        UA_Variant_clear(&var);
+        UA_Variant_clear(&var2);
+        UA_ByteString_clear(&buf);
     } END_TEST
 
 int main(void) {
@@ -539,6 +675,8 @@ int main(void) {
     tcase_add_test(tc, parseCustomArray);
     tcase_add_test(tc, parseCustomStructureWithOptionalFields);
     tcase_add_test(tc, parseCustomUnion);
+    tcase_add_test(tc, parseSelfContainingUnionNormalMember);
+    tcase_add_test(tc, parseSelfContainingUnionSelfMember);
     tcase_add_test(tc, parseCustomStructureWithOptionalFieldsWithArrayNotContained);
     tcase_add_test(tc, parseCustomStructureWithOptionalFieldsWithArrayContained);
     suite_add_tcase(s, tc);

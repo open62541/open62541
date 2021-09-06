@@ -184,7 +184,11 @@ void Service_CloseSession(UA_Server *server, UA_SecureChannel *channel,
  *
  * AddNodes Service
  * ^^^^^^^^^^^^^^^^
- * Used to add one or more Nodes into the AddressSpace hierarchy. */
+ * Used to add one or more Nodes into the AddressSpace hierarchy.
+ * If the type or one of the supertypes has any HasInterface references
+ * (see OPC 10001-7 - Amendment 7, 4.9.2), the child nodes of the interfaces
+ * are added to the new object.
+*/
 void Service_AddNodes(UA_Server *server, UA_Session *session,
                       const UA_AddNodesRequest *request,
                       UA_AddNodesResponse *response);
@@ -192,7 +196,7 @@ void Service_AddNodes(UA_Server *server, UA_Session *session,
 /**
  * AddReferences Service
  * ^^^^^^^^^^^^^^^^^^^^^
- * Used to add one or more References to one or more Nodes. */
+ * Used to add one or more References to one or more Nodes.*/
 void Service_AddReferences(UA_Server *server, UA_Session *session,
                            const UA_AddReferencesRequest *request,
                            UA_AddReferencesResponse *response);

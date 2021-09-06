@@ -30,14 +30,14 @@ UA_Client_getEndpointsInternal(UA_Client *client, const UA_String endpointUrl,
         UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                      "GetEndpointRequest failed with error code %s",
                      UA_StatusCode_name(retval));
-        UA_GetEndpointsResponse_deleteMembers(&response);
+        UA_GetEndpointsResponse_clear(&response);
         return retval;
     }
     *endpointDescriptions = response.endpoints;
     *endpointDescriptionsSize = response.endpointsSize;
     response.endpoints = NULL;
     response.endpointsSize = 0;
-    UA_GetEndpointsResponse_deleteMembers(&response);
+    UA_GetEndpointsResponse_clear(&response);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -113,7 +113,7 @@ UA_Client_findServers(UA_Client *client, const char *serverUrl,
     }
 
     /* Clean up */
-    UA_FindServersResponse_deleteMembers(&response);
+    UA_FindServersResponse_clear(&response);
     if(!connected)
         UA_Client_disconnect(client);
     return retval;
@@ -166,7 +166,7 @@ UA_Client_findServersOnNetwork(UA_Client *client, const char *serverUrl,
     }
 
     /* Clean up */
-    UA_FindServersOnNetworkResponse_deleteMembers(&response);
+    UA_FindServersOnNetworkResponse_clear(&response);
     if(!connected)
         UA_Client_disconnect(client);
     return retval;

@@ -2,16 +2,23 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  *
  *    Copyright 2020 (c) Wind River Systems, Inc.
+ *    Copyright 2020 (c) basysKom GmbH
+
  */
 
 #include <open62541/util.h>
 #include <open62541/plugin/pki_default.h>
 #include <open62541/plugin/log_stdout.h>
 
-#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+#include "securitypolicy_openssl_common.h"
+
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
 #include <openssl/x509.h>
 #include <openssl/x509_vfy.h>
 #include <openssl/x509v3.h>
+#include <openssl/pem.h>
+
+#include "ua_openssl_version_abstraction.h"
 
 /* Find binary substring. Taken and adjusted from
  * http://tungchingkai.blogspot.com/2011/07/binary-strstr.html */
@@ -107,12 +114,14 @@ UA_CertificateVerification_clear (UA_CertificateVerification * cv) {
     if (context == NULL) {
         return;
     }
-    UA_ByteString_deleteMembers (&context->trustListFolder);
-    UA_ByteString_deleteMembers (&context->issuerListFolder);
-    UA_ByteString_deleteMembers (&context->revocationListFolder);
+    UA_ByteString_clear (&context->trustListFolder);
+    UA_ByteString_clear (&context->issuerListFolder);
+    UA_ByteString_clear (&context->revocationListFolder);
 
     UA_CertContext_sk_free (context);
     UA_free (context);
+
+    cv->context = NULL;
 
     return;
 }
@@ -122,12 +131,10 @@ UA_skTrusted_Cert2X509 (const UA_ByteString *   certificateTrustList,
                         size_t                  certificateTrustListSize,
                         CertContext *           ctx) {
     size_t                i;        
-    const unsigned char * pData;          
 
     for (i = 0; i < certificateTrustListSize; i++) {
-        pData = certificateTrustList[i].data;
-        X509 * x509 = d2i_X509 (NULL, &pData, 
-                       (long) certificateTrustList[i].length);
+        X509 * x509 = UA_OpenSSL_LoadCertificate(&certificateTrustList[i]);
+
         if (x509 == NULL) {
             return UA_STATUSCODE_BADINTERNALERROR;
         }
@@ -141,13 +148,11 @@ static UA_StatusCode
 UA_skIssuer_Cert2X509 (const UA_ByteString *   certificateIssuerList,
                        size_t                  certificateIssuerListSize,
                        CertContext *           ctx) {
-    size_t                i;        
-    const unsigned char * pData;          
+    size_t                i;
 
     for (i = 0; i < certificateIssuerListSize; i++) {
-        pData = certificateIssuerList[i].data;
-        X509 * x509 = d2i_X509 (NULL, &pData, 
-                       (long) certificateIssuerList[i].length);
+        X509 * x509 = UA_OpenSSL_LoadCertificate(&certificateIssuerList[i]);
+
         if (x509 == NULL) {
             return UA_STATUSCODE_BADINTERNALERROR;
         }
@@ -162,12 +167,22 @@ UA_skCrls_Cert2X509 (const UA_ByteString *   certificateRevocationList,
                      size_t                  certificateRevocationListSize,
                      CertContext *           ctx) {
     size_t                i;        
-    const unsigned char * pData;          
+    const unsigned char * pData;
 
     for (i = 0; i < certificateRevocationListSize; i++) {
         pData = certificateRevocationList[i].data;
-        X509_CRL * crl = d2i_X509_CRL (NULL, &pData, 
-                         (long) certificateRevocationList[i].length);
+        X509_CRL * crl = NULL;
+
+        if (certificateRevocationList[i].length > 1 && pData[0] == 0x30 && pData[1] == 0x82) { // Magic number for DER encoded files
+            crl = d2i_X509_CRL (NULL, &pData, (long) certificateRevocationList[i].length);
+        } else {
+            BIO* bio = NULL;
+            bio = BIO_new_mem_buf((void *) certificateRevocationList[i].data,
+                                  (int) certificateRevocationList[i].length);
+            crl = PEM_read_bio_X509_CRL(bio, NULL, NULL, NULL);
+            BIO_free(bio);
+        }
+
         if (crl == NULL) {
             return UA_STATUSCODE_BADINTERNALERROR;
         }
@@ -180,8 +195,7 @@ UA_skCrls_Cert2X509 (const UA_ByteString *   certificateRevocationList,
 #ifdef __linux__ 
 #include <dirent.h>
 
-static int UA_Certificate_Filter_der (const struct dirent * entry) {
-
+static int UA_Certificate_Filter_der_pem (const struct dirent * entry) {
     /* ignore hidden files */
     if (entry->d_name[0] == '.') return 0;
 
@@ -190,7 +204,7 @@ static int UA_Certificate_Filter_der (const struct dirent * entry) {
     if (pszFind == 0) 
         return 0;
     pszFind++;
-    if (strcmp (pszFind, "der") == 0)
+    if (strcmp (pszFind, "der") == 0 || strcmp (pszFind, "pem") == 0)
         return 1;
 
     return 0;
@@ -247,7 +261,7 @@ UA_loadCertFromFile (const char *     fileName,
     fseek(fp, 0, SEEK_SET);
     size_t readLen = fread (cert->data, 1, cert->length, fp);
     if (readLen != cert->length) {
-        UA_ByteString_deleteMembers (cert);
+        UA_ByteString_clear (cert);
         cert->length = 0;
         fclose (fp);
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -282,7 +296,7 @@ UA_ReloadCertFromFolder (CertContext * ctx) {
                        ctx->trustListFolder.length);
         folderPath[ctx->trustListFolder.length] = 0;
         numCertificates = scandir(folderPath, &dirlist, 
-                                  UA_Certificate_Filter_der, 
+                                  UA_Certificate_Filter_der_pem,
                                   alphasort);
         for (i = 0; i < numCertificates; i++) {
             if (UA_BuildFullPath (folderPath, dirlist[i]->d_name, 
@@ -317,7 +331,7 @@ UA_ReloadCertFromFolder (CertContext * ctx) {
         memcpy (folderPath, ctx->issuerListFolder.data, ctx->issuerListFolder.length);
         folderPath[ctx->issuerListFolder.length] = 0;
         numCertificates = scandir(folderPath, &dirlist, 
-                                  UA_Certificate_Filter_der, 
+                                  UA_Certificate_Filter_der_pem,
                                   alphasort);
         for (i = 0; i < numCertificates; i++) {
             if (UA_BuildFullPath (folderPath, dirlist[i]->d_name, 
@@ -405,7 +419,11 @@ UA_X509_Store_CTX_Error_To_UAError (int opensslErr) {
             ret = UA_STATUSCODE_BADCERTIFICATEUNTRUSTED;
             break;
         case X509_V_ERR_CERT_SIGNATURE_FAILURE:
-            ret = UA_STATUSCODE_BADSECURITYCHECKSFAILED ;
+        case X509_V_ERR_SELF_SIGNED_CERT_IN_CHAIN:
+            ret = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+            break;
+        case X509_V_ERR_UNABLE_TO_GET_CRL:
+            ret = UA_STATUSCODE_BADCERTIFICATEREVOCATIONUNKNOWN;
             break;
         default:
             ret = UA_STATUSCODE_BADCERTIFICATEINVALID;
@@ -422,7 +440,6 @@ UA_CertificateVerification_Verify (void *                verificationContext,
     CertContext *         ctx;
     UA_StatusCode         ret;
     int                   opensslRet;
-    const unsigned char * pData; 
     X509 *                certificateX509 = NULL;
 
     if (verificationContext == NULL) {
@@ -442,10 +459,9 @@ UA_CertificateVerification_Verify (void *                verificationContext,
     if (ret != UA_STATUSCODE_GOOD) {
         goto cleanup;
     }
-#endif    
+#endif
 
-    pData = certificate->data;
-    certificateX509 = d2i_X509 (NULL, &pData, (long) certificate->length);
+    certificateX509 = UA_OpenSSL_LoadCertificate(certificate);
     if (certificateX509 == NULL) {
         ret = UA_STATUSCODE_BADCERTIFICATEINVALID;
         goto cleanup;
@@ -458,30 +474,99 @@ UA_CertificateVerification_Verify (void *                verificationContext,
         ret = UA_STATUSCODE_BADINTERNALERROR;
         goto cleanup;
     }
-    (void) X509_STORE_CTX_trusted_stack (storeCtx, ctx->skTrusted);
+
+    (void) X509_STORE_CTX_set0_trusted_stack (storeCtx, ctx->skTrusted);
+
 
     /* Set crls to ctx */
     if (sk_X509_CRL_num (ctx->skCrls) > 0) {
         X509_STORE_CTX_set0_crls (storeCtx, ctx->skCrls);
     }
 
-#if OPENSSL_VERSION_NUMBER >= 0x1010000fL
-    if (X509_STORE_CTX_get_check_issued (storeCtx) (storeCtx,certificateX509, certificateX509) != 1) {
-        X509_STORE_CTX_set_flags (storeCtx, X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL);
+    /* Set flag to check if the certificate has an invalid signature */
+    X509_STORE_CTX_set_flags (storeCtx, X509_V_FLAG_CHECK_SS_SIGNATURE);
+
+    if (X509_STORE_CTX_get_check_issued(storeCtx) (storeCtx,certificateX509, certificateX509) != 1) {
+        X509_STORE_CTX_set_flags (storeCtx, X509_V_FLAG_CRL_CHECK);
     }
-#else
-    if (storeCtx->check_issued(storeCtx,certificateX509, certificateX509) != 1) {
-        X509_STORE_CTX_set_flags (storeCtx, X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL);
+
+    /* This condition will check whether the certificate is a User certificate or a CA certificate.
+     * If the KU_KEY_CERT_SIGN and KU_CRL_SIGN of key_usage are set, then the certificate shall be
+     * condidered as CA Certificate and cannot be used to establish a connection. Refer the test case
+     * CTT/Security/Security Certificate Validation/029.js for more details */
+     /** \todo Can the ca-parameter of X509_check_purpose can be used? */
+    if(X509_check_purpose(certificateX509, X509_PURPOSE_CRL_SIGN, 0) && X509_check_ca(certificateX509)) {
+        return UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
     }
-#endif    
 
     opensslRet = X509_verify_cert (storeCtx);
     if (opensslRet == 1) {
         ret = UA_STATUSCODE_GOOD;
+
+        /* Check if the not trusted certificate has a CRL file. If there is no CRL file available for the corresponding
+         * parent certificate then return status code UA_STATUSCODE_BADCERTIFICATEISSUERREVOCATIONUNKNOWN. Refer the test
+         * case CTT/Security/Security Certificate Validation/002.js */
+        if (X509_STORE_CTX_get_check_issued (storeCtx) (storeCtx,certificateX509, certificateX509) != 1) {
+            /* Free X509_STORE_CTX and reuse it for certification verification */
+            if (storeCtx != NULL) {
+               X509_STORE_CTX_free(storeCtx);
+            }
+
+            /* Initialised X509_STORE_CTX sructure*/
+            storeCtx = X509_STORE_CTX_new();
+
+            /* Sets up X509_STORE_CTX structure for a subsequent verification operation */
+            X509_STORE_set_flags(store, 0);
+            X509_STORE_CTX_init (storeCtx, store, certificateX509,ctx->skIssue);
+
+            /* Set trust list to ctx */
+            (void) X509_STORE_CTX_trusted_stack (storeCtx, ctx->skTrusted);
+
+            /* Set crls to ctx */
+            X509_STORE_CTX_set0_crls (storeCtx, ctx->skCrls);
+
+            /* Set flags for CRL check */
+            X509_STORE_CTX_set_flags (storeCtx, X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL);
+
+            opensslRet = X509_verify_cert (storeCtx);
+            if (opensslRet != 1) {
+                opensslRet = X509_STORE_CTX_get_error (storeCtx);
+                if (opensslRet == X509_V_ERR_UNABLE_TO_GET_CRL) {
+                    ret = UA_STATUSCODE_BADCERTIFICATEISSUERREVOCATIONUNKNOWN;
+                }
+            }
+        }
     }
     else {
-        /* Return opc founcation CTT tool expected error  */
         opensslRet = X509_STORE_CTX_get_error (storeCtx);
+
+        /* Check the issued certificate of a CA that is not trusted but available */
+        if(opensslRet == X509_V_ERR_SELF_SIGNED_CERT_IN_CHAIN){
+            int                     trusted_cert_len = sk_X509_num(ctx->skTrusted);
+            int                     cmpVal;
+            X509                    *trusted_cert;
+            const ASN1_OCTET_STRING *trusted_cert_keyid;
+            const ASN1_OCTET_STRING *remote_cert_keyid;
+
+            for (int i = 0; i < trusted_cert_len; i++) {
+                trusted_cert = sk_X509_value(ctx->skTrusted, i);
+
+                /* Fetch the Subject key identifier of the certificate in trust list */
+                trusted_cert_keyid = X509_get0_subject_key_id(trusted_cert);
+
+                /* Fetch the Subject key identifier of the remote certificate */
+                remote_cert_keyid = X509_get0_subject_key_id(certificateX509);
+
+                /* Check remote certificate is present in the trust list */
+                cmpVal = ASN1_OCTET_STRING_cmp(trusted_cert_keyid, remote_cert_keyid);
+                if (cmpVal == 0){
+                    ret = UA_STATUSCODE_GOOD;
+                    goto cleanup;
+                }
+            }
+        }
+
+        /* Return expected OPCUA error code */
         ret = UA_X509_Store_CTX_Error_To_UAError (opensslRet);
     }
 cleanup:
@@ -494,35 +579,39 @@ cleanup:
     if (certificateX509 != NULL) {
         X509_free (certificateX509);
     }
-    return ret;                                       
+    return ret;
 }
 
 static UA_StatusCode
 UA_VerifyCertificateAllowAll (void *                verificationContext,
                               const UA_ByteString * certificate) {
-    return UA_STATUSCODE_GOOD;  
+    (void) verificationContext;
+    (void) certificate;
+    return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode 
+static UA_StatusCode
 UA_CertificateVerification_VerifyApplicationURI (void *                verificationContext,
                                                  const UA_ByteString * certificate,
                                                  const UA_String *     applicationURI) {
-    const unsigned char * pData; 
+    (void) verificationContext;
+
+    const unsigned char * pData;
     X509 *                certificateX509;
     UA_String             subjectURI;
     GENERAL_NAMES *       pNames;
     int                   i;
     UA_StatusCode         ret;
-    
+
     pData = certificate->data;
     if (pData == NULL) {
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
     }
 
-    certificateX509 = d2i_X509 (NULL, &pData, (long) certificate->length);
+    certificateX509 = UA_OpenSSL_LoadCertificate(certificate);
     if (certificateX509 == NULL) {
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-    } 
+    }
 
     pNames = (GENERAL_NAMES *) X509_get_ext_d2i(certificateX509, NID_subject_alt_name, 
                                                 NULL, NULL);
@@ -543,18 +632,18 @@ UA_CertificateVerification_VerifyApplicationURI (void *                verificat
              (void) memcpy (subjectURI.data, value->d.ia5->data, subjectURI.length);
              break;
          }
-         
+
     }
 
-    ret = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-    if (UA_Bstrstr (subjectURI.data, subjectURI.length, 
-                    applicationURI->data, applicationURI->length) != NULL) {
-        ret = UA_STATUSCODE_GOOD;
+    ret = UA_STATUSCODE_GOOD;
+    if (UA_Bstrstr (subjectURI.data, subjectURI.length,
+                    applicationURI->data, applicationURI->length) == NULL) {
+        ret = UA_STATUSCODE_BADCERTIFICATEURIINVALID;
     }
 
     X509_free (certificateX509);
     sk_GENERAL_NAME_pop_free(pNames, GENERAL_NAME_free);
-    UA_String_clear (&subjectURI);    
+    UA_String_clear (&subjectURI);
     return ret;
 }
 
@@ -572,7 +661,7 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification * cv,
 
     if (cv == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
-    }   
+    }
 
     CertContext * context = (CertContext *) UA_malloc (sizeof (CertContext));
     if (context == NULL) {
@@ -657,4 +746,4 @@ UA_CertificateVerification_CertFolders(UA_CertificateVerification * cv,
 }
 #endif
 
-#endif  /* end of UA_ENABLE_ENCRYPTION_OPENSSL */
+#endif  /* end of defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL) */

@@ -122,7 +122,7 @@ static UA_UsernamePasswordLogin usernamePasswords[2] = {
 
 static UA_StatusCode
 setDefaultConfig(UA_ServerConfig *conf) {
-    if (!conf)
+    if(!conf)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     if(conf->nodestore.context == NULL)
@@ -130,7 +130,7 @@ setDefaultConfig(UA_ServerConfig *conf) {
 
     /* --> Start setting the default static config <-- */
     /* Allow user to set his own logger */
-    if (!conf->logger.log)
+    if(!conf->logger.log)
         conf->logger = UA_Log_Stdout_;
 
     conf->shutdownDelay = 0.0;
@@ -143,11 +143,11 @@ setDefaultConfig(UA_ServerConfig *conf) {
     conf->buildInfo.softwareVersion =
         UA_STRING_ALLOC(VERSION(UA_OPEN62541_VER_MAJOR, UA_OPEN62541_VER_MINOR,
                                 UA_OPEN62541_VER_PATCH, UA_OPEN62541_VER_LABEL));
-    #ifdef UA_PACK_DEBIAN
+#ifdef UA_PACK_DEBIAN
     conf->buildInfo.buildNumber = UA_STRING_ALLOC("deb");
-    #else
+#else
     conf->buildInfo.buildNumber = UA_STRING_ALLOC(__DATE__ " " __TIME__);
-    #endif
+#endif
     conf->buildInfo.buildDate = UA_DateTime_now();
 
     UA_ApplicationDescription_clear(&conf->applicationDescription);
@@ -191,9 +191,7 @@ setDefaultConfig(UA_ServerConfig *conf) {
     /* conf->nodeLifecycle.destructor = NULL; */
     /* conf->nodeLifecycle.createOptionalChild = NULL; */
     /* conf->nodeLifecycle.generateChildNodeId = NULL; */
-
-    /* Relax constraints for the InformationModel */
-    conf->relaxEmptyValueConstraint = true; /* Allow empty values */
+    conf->modellingRulesOnInstances = UA_TRUE;
 
     /* Limits for SecureChannels */
     conf->maxSecureChannels = 40;
@@ -251,10 +249,6 @@ setDefaultConfig(UA_ServerConfig *conf) {
     conf->asyncOperationTimeout = 120000; /* Async Operation Timeout in ms (2 minutes) */
 #endif
 
-#if UA_MULTITHREADING >= 200
-    conf->nThreads = 1;
-#endif
-
     /* --> Finish setting the default static config <-- */
 
     return UA_STATUSCODE_GOOD;
@@ -288,14 +282,14 @@ UA_ServerConfig_addNetworkLayerWS(UA_ServerConfig *conf, UA_UInt16 portNumber,
     conf->networkLayers = tmp;
 
     UA_ConnectionConfig config = UA_ConnectionConfig_default;
-    if (sendBufferSize > 0)
+    if(sendBufferSize > 0)
         config.sendBufferSize = sendBufferSize;
-    if (recvBufferSize > 0)
+    if(recvBufferSize > 0)
         config.recvBufferSize = recvBufferSize;
 
     conf->networkLayers[conf->networkLayersSize] =
-        UA_ServerNetworkLayerWS(config, portNumber, &conf->logger, certificate, privateKey);
-    if (!conf->networkLayers[conf->networkLayersSize].handle)
+        UA_ServerNetworkLayerWS(config, portNumber, certificate, privateKey);
+    if(!conf->networkLayers[conf->networkLayersSize].handle)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     conf->networkLayersSize++;
 
@@ -321,7 +315,7 @@ UA_ServerConfig_addNetworkLayerTCP(UA_ServerConfig *conf, UA_UInt16 portNumber,
         config.recvBufferSize = recvBufferSize;
 
     conf->networkLayers[conf->networkLayersSize] =
-        UA_ServerNetworkLayerTCP(config, portNumber, 0, &conf->logger);
+        UA_ServerNetworkLayerTCP(config, portNumber, 0);
     if (!conf->networkLayers[conf->networkLayersSize].handle)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     conf->networkLayersSize++;
@@ -752,6 +746,12 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
        config->logger.context = NULL;
        config->logger.clear = UA_Log_Stdout_clear;
     }
+
+    if (config->sessionLocaleIdsSize > 0 && config->sessionLocaleIds) {
+        UA_Array_delete(config->sessionLocaleIds, config->sessionLocaleIdsSize, &UA_TYPES[UA_TYPES_LOCALEID]);
+    }
+    config->sessionLocaleIds = NULL;
+    config->sessionLocaleIds = 0;
 
     config->localConnectionConfig = UA_ConnectionConfig_default;
 

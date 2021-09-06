@@ -190,7 +190,7 @@ THREAD_CALLBACK(ThreadWorker) {
             UA_CallMethodResult_clear(&response);
         } else {
             /* not a good style, but done for simplicity :-) */
-            Sleep(5000);
+            sleep(5);
         }
     }
     return 0;

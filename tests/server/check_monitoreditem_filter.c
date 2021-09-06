@@ -114,13 +114,13 @@ static void teardown(void) {
     /* cleanup */
     UA_Client_disconnect(client);
     UA_Client_delete(client);
-    UA_NodeId_deleteMembers(&parentNodeId);
-    UA_NodeId_deleteMembers(&parentReferenceNodeId);
-    UA_NodeId_deleteMembers(&outNodeId);
+    UA_NodeId_clear(&parentNodeId);
+    UA_NodeId_clear(&parentReferenceNodeId);
+    UA_NodeId_clear(&outNodeId);
     pauseServer();
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
-    UA_DataValue_deleteMembers(&lastValue);
+    UA_DataValue_clear(&lastValue);
 }
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
@@ -130,7 +130,7 @@ dataChangeHandler(UA_Client *thisClient, UA_UInt32 thisSubId, void *subContext,
                   UA_UInt32 monId, void *monContext, UA_DataValue *value) {
     notificationReceived = true;
     ++countNotificationReceived;
-    UA_DataValue_deleteMembers(&lastValue);
+    UA_DataValue_clear(&lastValue);
     UA_DataValue_copy(value, &lastValue);
 }
 
@@ -174,7 +174,7 @@ fuzzyLastValueIsEqualTo(UA_Double value) {
 START_TEST(Server_MonitoredItemsAbsoluteFilterSetLater) {
     UA_DataValue_init(&lastValue);
     /* define a monitored item with no filter */
-    UA_MonitoredItemCreateRequest item = UA_MonitoredItemCreateRequest_default(outNodeId);;
+    UA_MonitoredItemCreateRequest item = UA_MonitoredItemCreateRequest_default(outNodeId);
     UA_UInt32 newMonitoredItemIds[1];
     UA_Client_DataChangeNotificationCallback callbacks[1];
     callbacks[0] = dataChangeHandler;
@@ -196,7 +196,7 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterSetLater) {
     ck_assert_uint_eq(createResponse.resultsSize, 1);
     ck_assert_uint_eq(createResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
     newMonitoredItemIds[0] = createResponse.results[0].monitoredItemId;
-    UA_CreateMonitoredItemsResponse_deleteMembers(&createResponse);
+    UA_CreateMonitoredItemsResponse_clear(&createResponse);
 
     // Do we get initial value ?
     notificationReceived = false;
@@ -271,20 +271,21 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterSetLater) {
     ck_assert_uint_eq(modifyResponse.resultsSize, 1);
     ck_assert_uint_eq(modifyResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
 
-    UA_ModifyMonitoredItemsResponse_deleteMembers(&modifyResponse);
+    UA_ModifyMonitoredItemsResponse_clear(&modifyResponse);
 
-    // This should trigger only once for the new filter
+    // This should not yet trigger as the previously sent value is 40
     notificationReceived = false;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeId, 39.0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(notificationReceived, true);
-    ck_assert_uint_eq(countNotificationReceived, 1);
+    ck_assert_uint_eq(notificationReceived, false);
+    ck_assert_uint_eq(countNotificationReceived, 0);
     ck_assert_uint_eq(setDouble(client, outNodeId, 41.0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(waitForNotification(2, 10), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(countNotificationReceived, 1);
+    ck_assert_uint_eq(notificationReceived, false);
+    ck_assert_uint_eq(countNotificationReceived, 0);
 
-    ck_assert(fuzzyLastValueIsEqualTo(39.0));
+    ck_assert(fuzzyLastValueIsEqualTo(40.0));
 
     // This should trigger once at 43.0.
     notificationReceived = false;
@@ -312,7 +313,7 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterSetLater) {
     ck_assert_uint_eq(deleteResponse.resultsSize, 1);
     ck_assert_uint_eq(deleteResponse.results[0], UA_STATUSCODE_GOOD);
 
-    UA_DeleteMonitoredItemsResponse_deleteMembers(&deleteResponse);
+    UA_DeleteMonitoredItemsResponse_clear(&deleteResponse);
 
 }
 END_TEST
@@ -320,7 +321,7 @@ END_TEST
 START_TEST(Server_MonitoredItemsAbsoluteFilterSetOnCreateRemoveLater) {
     UA_DataValue_init(&lastValue);
     /* define a monitored item with absolute filter */
-    UA_MonitoredItemCreateRequest item = UA_MonitoredItemCreateRequest_default(outNodeId);;
+    UA_MonitoredItemCreateRequest item = UA_MonitoredItemCreateRequest_default(outNodeId);
     UA_DataChangeFilter filter;
     UA_DataChangeFilter_init(&filter);
     filter.trigger = UA_DATACHANGETRIGGER_STATUSVALUE;
@@ -350,7 +351,7 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterSetOnCreateRemoveLater) {
     ck_assert_uint_eq(createResponse.resultsSize, 1);
     ck_assert_uint_eq(createResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
     newMonitoredItemIds[0] = createResponse.results[0].monitoredItemId;
-    UA_CreateMonitoredItemsResponse_deleteMembers(&createResponse);
+    UA_CreateMonitoredItemsResponse_clear(&createResponse);
 
     // Do we get initial value ?
     notificationReceived = false;
@@ -426,7 +427,7 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterSetOnCreateRemoveLater) {
     ck_assert_uint_eq(modifyResponse.resultsSize, 1);
     ck_assert_uint_eq(modifyResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
 
-    UA_ModifyMonitoredItemsResponse_deleteMembers(&modifyResponse);
+    UA_ModifyMonitoredItemsResponse_clear(&modifyResponse);
 
     // This should trigger because now we do not filter
     notificationReceived = false;
@@ -465,7 +466,7 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterSetOnCreateRemoveLater) {
     ck_assert_uint_eq(deleteResponse.resultsSize, 1);
     ck_assert_uint_eq(deleteResponse.results[0], UA_STATUSCODE_GOOD);
 
-    UA_DeleteMonitoredItemsResponse_deleteMembers(&deleteResponse);
+    UA_DeleteMonitoredItemsResponse_clear(&deleteResponse);
 
 }
 END_TEST
@@ -473,7 +474,7 @@ END_TEST
 START_TEST(Server_MonitoredItemsPercentFilterSetLater) {
     UA_DataValue_init(&lastValue);
     /* define a monitored item with no filter */
-    UA_MonitoredItemCreateRequest item = UA_MonitoredItemCreateRequest_default(outNodeId);;
+    UA_MonitoredItemCreateRequest item = UA_MonitoredItemCreateRequest_default(outNodeId);
     UA_UInt32 newMonitoredItemIds[1];
     UA_Client_DataChangeNotificationCallback callbacks[1];
     callbacks[0] = dataChangeHandler;
@@ -495,7 +496,7 @@ START_TEST(Server_MonitoredItemsPercentFilterSetLater) {
     ck_assert_uint_eq(createResponse.resultsSize, 1);
     ck_assert_uint_eq(createResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
     newMonitoredItemIds[0] = createResponse.results[0].monitoredItemId;
-    UA_CreateMonitoredItemsResponse_deleteMembers(&createResponse);
+    UA_CreateMonitoredItemsResponse_clear(&createResponse);
 
     // Do we get initial value ?
     notificationReceived = false;
@@ -570,7 +571,7 @@ START_TEST(Server_MonitoredItemsPercentFilterSetLater) {
     ck_assert_uint_eq(modifyResponse.resultsSize, 1);
     ck_assert_uint_eq(modifyResponse.results[0].statusCode, UA_STATUSCODE_BADFILTERNOTALLOWED);
 
-    UA_ModifyMonitoredItemsResponse_deleteMembers(&modifyResponse);
+    UA_ModifyMonitoredItemsResponse_clear(&modifyResponse);
 
     // This should trigger because setting filter failed
     notificationReceived = false;
@@ -609,7 +610,7 @@ START_TEST(Server_MonitoredItemsPercentFilterSetLater) {
     ck_assert_uint_eq(deleteResponse.resultsSize, 1);
     ck_assert_uint_eq(deleteResponse.results[0], UA_STATUSCODE_GOOD);
 
-    UA_DeleteMonitoredItemsResponse_deleteMembers(&deleteResponse);
+    UA_DeleteMonitoredItemsResponse_clear(&deleteResponse);
 
 }
 END_TEST
@@ -617,7 +618,7 @@ END_TEST
 START_TEST(Server_MonitoredItemsNoFilter) {
     UA_DataValue_init(&lastValue);
     /* define a monitored item with an absolute filter with deadbandvalue = 2.0 */
-    UA_MonitoredItemCreateRequest item = UA_MonitoredItemCreateRequest_default(outNodeId);;
+    UA_MonitoredItemCreateRequest item = UA_MonitoredItemCreateRequest_default(outNodeId);
     UA_UInt32 newMonitoredItemIds[1];
     UA_Client_DataChangeNotificationCallback callbacks[1];
     callbacks[0] = dataChangeHandler;
@@ -639,7 +640,7 @@ START_TEST(Server_MonitoredItemsNoFilter) {
     ck_assert_uint_eq(createResponse.resultsSize, 1);
     ck_assert_uint_eq(createResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
     newMonitoredItemIds[0] = createResponse.results[0].monitoredItemId;
-    UA_CreateMonitoredItemsResponse_deleteMembers(&createResponse);
+    UA_CreateMonitoredItemsResponse_clear(&createResponse);
 
     // Do we get initial value ?
     notificationReceived = false;
@@ -687,7 +688,72 @@ START_TEST(Server_MonitoredItemsNoFilter) {
     ck_assert_uint_eq(deleteResponse.resultsSize, 1);
     ck_assert_uint_eq(deleteResponse.results[0], UA_STATUSCODE_GOOD);
 
-    UA_DeleteMonitoredItemsResponse_deleteMembers(&deleteResponse);
+    UA_DeleteMonitoredItemsResponse_clear(&deleteResponse);
+}
+END_TEST
+
+START_TEST(Server_MonitoredItemsSetEmpty) {
+    UA_DataValue_init(&lastValue);
+    /* define a monitored item with an absolute filter with deadbandvalue = 2.0 */
+    UA_MonitoredItemCreateRequest item = UA_MonitoredItemCreateRequest_default(outNodeId);
+    UA_UInt32 newMonitoredItemIds[1];
+    UA_Client_DataChangeNotificationCallback callbacks[1];
+    callbacks[0] = dataChangeHandler;
+    UA_Client_DeleteMonitoredItemCallback deleteCallbacks[1] = {NULL};
+    void *contexts[1];
+    contexts[0] = NULL;
+
+    UA_CreateMonitoredItemsRequest createRequest;
+    UA_CreateMonitoredItemsRequest_init(&createRequest);
+    createRequest.subscriptionId = subId;
+    createRequest.timestampsToReturn = UA_TIMESTAMPSTORETURN_BOTH;
+    createRequest.itemsToCreate = &item;
+    createRequest.itemsToCreateSize = 1;
+    UA_CreateMonitoredItemsResponse createResponse =
+       UA_Client_MonitoredItems_createDataChanges(client, createRequest, contexts,
+                                                   callbacks, deleteCallbacks);
+
+    ck_assert_uint_eq(createResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(createResponse.resultsSize, 1);
+    ck_assert_uint_eq(createResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
+    newMonitoredItemIds[0] = createResponse.results[0].monitoredItemId;
+    UA_CreateMonitoredItemsResponse_clear(&createResponse);
+
+    // Do we get initial value ?
+    notificationReceived = false;
+    countNotificationReceived = 0;
+    ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(countNotificationReceived, 1);
+
+    ck_assert(fuzzyLastValueIsEqualTo(40.0));
+
+    // Setting the variable empty shold trigger
+    notificationReceived = false;
+    countNotificationReceived = 0;
+    UA_Variant variant;
+    UA_Variant_init(&variant);
+    UA_StatusCode res = UA_Client_writeValueAttribute(client, outNodeId, &variant);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(countNotificationReceived,  1);
+
+    // remove monitored item
+    UA_DeleteMonitoredItemsRequest deleteRequest;
+    UA_DeleteMonitoredItemsRequest_init(&deleteRequest);
+    deleteRequest.subscriptionId = subId;
+    deleteRequest.monitoredItemIds = newMonitoredItemIds;
+    deleteRequest.monitoredItemIdsSize = 1;
+
+    UA_DeleteMonitoredItemsResponse deleteResponse =
+        UA_Client_MonitoredItems_delete(client, deleteRequest);
+
+    ck_assert_uint_eq(deleteResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(deleteResponse.resultsSize, 1);
+    ck_assert_uint_eq(deleteResponse.results[0], UA_STATUSCODE_GOOD);
+
+    UA_DeleteMonitoredItemsResponse_clear(&deleteResponse);
 }
 END_TEST
 
@@ -696,7 +762,7 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterOnBool) {
     UA_DataValue_init(&lastValue);
     /* define a monitored item with an absolute filter with deadbandvalue = 2.0 */
     UA_MonitoredItemCreateRequest item =
-        UA_MonitoredItemCreateRequest_default(UA_NODEID_STRING(1, "the.bool"));;
+        UA_MonitoredItemCreateRequest_default(UA_NODEID_STRING(1, "the.bool"));
     UA_DataChangeFilter filter;
     UA_DataChangeFilter_init(&filter);
     filter.trigger = UA_DATACHANGETRIGGER_STATUSVALUE;
@@ -724,14 +790,14 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterOnBool) {
     ck_assert_uint_eq(createResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(createResponse.resultsSize, 1);
     ck_assert_uint_eq(createResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
-    UA_CreateMonitoredItemsResponse_deleteMembers(&createResponse);
+    UA_CreateMonitoredItemsResponse_clear(&createResponse);
 }
 END_TEST
 
 START_TEST(Server_MonitoredItemsAbsoluteFilterSetOnCreate) {
     UA_DataValue_init(&lastValue);
     /* define a monitored item with an absolute filter with deadbandvalue = 2.0 */
-    UA_MonitoredItemCreateRequest item = UA_MonitoredItemCreateRequest_default(outNodeId);;
+    UA_MonitoredItemCreateRequest item = UA_MonitoredItemCreateRequest_default(outNodeId);
     UA_DataChangeFilter filter;
     UA_DataChangeFilter_init(&filter);
     filter.trigger = UA_DATACHANGETRIGGER_STATUSVALUE;
@@ -761,7 +827,7 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterSetOnCreate) {
     ck_assert_uint_eq(createResponse.resultsSize, 1);
     ck_assert_uint_eq(createResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
     newMonitoredItemIds[0] = createResponse.results[0].monitoredItemId;
-    UA_CreateMonitoredItemsResponse_deleteMembers(&createResponse);
+    UA_CreateMonitoredItemsResponse_clear(&createResponse);
 
     // Do we get initial value ?
     notificationReceived = false;
@@ -810,7 +876,7 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterSetOnCreate) {
     ck_assert_uint_eq(deleteResponse.resultsSize, 1);
     ck_assert_uint_eq(deleteResponse.results[0], UA_STATUSCODE_GOOD);
 
-    UA_DeleteMonitoredItemsResponse_deleteMembers(&deleteResponse);
+    UA_DeleteMonitoredItemsResponse_clear(&deleteResponse);
 
 }
 END_TEST
@@ -818,7 +884,7 @@ END_TEST
 START_TEST(Server_MonitoredItemsPercentFilterSetOnCreate) {
     UA_DataValue_init(&lastValue);
     /* define a monitored item with an percent filter with deadbandvalue = 2.0 */
-    UA_MonitoredItemCreateRequest item = UA_MonitoredItemCreateRequest_default(outNodeId);;
+    UA_MonitoredItemCreateRequest item = UA_MonitoredItemCreateRequest_default(outNodeId);
     UA_DataChangeFilter filter;
     UA_DataChangeFilter_init(&filter);
     filter.trigger = UA_DATACHANGETRIGGER_STATUSVALUE;
@@ -848,7 +914,7 @@ START_TEST(Server_MonitoredItemsPercentFilterSetOnCreate) {
     ck_assert_uint_eq(createResponse.resultsSize, 1);
     ck_assert_uint_eq(createResponse.results[0].statusCode, UA_STATUSCODE_BADFILTERNOTALLOWED);
     newMonitoredItemIds[0] = createResponse.results[0].monitoredItemId;
-    UA_CreateMonitoredItemsResponse_deleteMembers(&createResponse);
+    UA_CreateMonitoredItemsResponse_clear(&createResponse);
 
     // Do we get initial value ? (must fail)
     notificationReceived = false;
@@ -871,7 +937,7 @@ START_TEST(Server_MonitoredItemsPercentFilterSetOnCreate) {
     ck_assert_uint_eq(deleteResponse.resultsSize, 1);
     ck_assert_uint_eq(deleteResponse.results[0], UA_STATUSCODE_BADMONITOREDITEMIDINVALID);
 
-    UA_DeleteMonitoredItemsResponse_deleteMembers(&deleteResponse);
+    UA_DeleteMonitoredItemsResponse_clear(&deleteResponse);
 }
 END_TEST
 
@@ -883,6 +949,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_checked_fixture(tc_server, setup, teardown);
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     tcase_add_test(tc_server, Server_MonitoredItemsNoFilter);
+    tcase_add_test(tc_server, Server_MonitoredItemsSetEmpty);
     tcase_add_test(tc_server, Server_MonitoredItemsAbsoluteFilterSetOnCreate);
     tcase_add_test(tc_server, Server_MonitoredItemsAbsoluteFilterOnBool);
     tcase_add_test(tc_server, Server_MonitoredItemsAbsoluteFilterSetLater);

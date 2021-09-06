@@ -57,4 +57,11 @@
     <opc:Field Name="array1" TypeName="opc:Double" LengthField="array1Size" />
   </opc:StructuredType>
 
+  <opc:StructuredType BaseType="ua:Union" Name="SelfContainingUnion">
+    <opc:Field TypeName="opc:UInt32" Name="SwitchField"/>
+    <opc:Field SwitchField="SwitchField" TypeName="opc:Double" SwitchValue="1" Name="Double"/>
+    <opc:Field SwitchField="SwitchField" TypeName="opc:Int32" SwitchValue="2" Name="NoOfArray"/>
+    <opc:Field LengthField="NoOfArray" SwitchField="SwitchField" TypeName="tns:SelfContainingUnion" SwitchValue="2" Name="Array"/>
+  </opc:StructuredType>
+
 </opc:TypeDictionary>

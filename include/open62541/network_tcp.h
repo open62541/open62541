@@ -25,18 +25,21 @@ _UA_BEGIN_DECLS
  * @return Returns the network layer instance */
 UA_ServerNetworkLayer UA_EXPORT
 UA_ServerNetworkLayerTCP(UA_ConnectionConfig config, UA_UInt16 port,
-                         UA_UInt16 maxConnections, UA_Logger *logger);
+                         UA_UInt16 maxConnections);
 
-UA_Connection UA_EXPORT
-UA_ClientConnectionTCP(UA_ConnectionConfig config, const UA_String endpointUrl,
-                       UA_UInt32 timeout, UA_Logger *logger);
-
-UA_StatusCode UA_EXPORT
-UA_ClientConnectionTCP_poll(UA_Client *client, void *data, UA_UInt32 timeout);
-
+/* Open a non-blocking client TCP socket. The connection might not be fully
+ * opened yet. Drop into the _poll function withe a timeout to complete the
+ * connection. */
 UA_Connection UA_EXPORT
 UA_ClientConnectionTCP_init(UA_ConnectionConfig config, const UA_String endpointUrl,
-                            UA_UInt32 timeout, UA_Logger *logger);
+                            UA_UInt32 timeout, const UA_Logger *logger);
+
+/* Wait for a half-opened connection to fully open. Returns UA_STATUSCODE_GOOD
+ * even if the timeout was hit. Returns UA_STATUSCODE_BADDISCONNECT if the
+ * connection is lost. */
+UA_StatusCode UA_EXPORT
+UA_ClientConnectionTCP_poll(UA_Connection *connection, UA_UInt32 timeout,
+                            const UA_Logger *logger);
 
 _UA_END_DECLS
 

@@ -9,6 +9,7 @@
 #include "check.h"
 #include "testing_clock.h"
 #include "tests/namespace_tests_testnodeset_generated.h"
+#include "tests/types_tests_testnodeset_generated_handling.h"
 #include "unistd.h"
 
 UA_Server *server = NULL;
@@ -45,8 +46,35 @@ START_TEST(checkScalarValues) {
     UA_Variant_clear(&out);
     // Point_scalar_noInit
     UA_Server_readValue(server, UA_NODEID_NUMERIC(2, 10005), &out);
-    ck_assert(out.data == NULL);
+    ck_assert(out.data != NULL); /* a default value is generated */
     UA_Variant_clear(&out);
+}
+END_TEST
+
+START_TEST(checkSelfContainingUnion) {
+    // Check union switch enum
+    ck_assert(UA_SELFCONTAININGUNIONSWITCH_NONE == 0);
+    ck_assert(UA_SELFCONTAININGUNIONSWITCH_DOUBLE == 1);
+    ck_assert(UA_SELFCONTAININGUNIONSWITCH_ARRAY == 2);
+
+    UA_Variant in;
+    UA_Variant_init(&in);
+
+    UA_SelfContainingUnion data;
+    UA_SelfContainingUnion_init(&data);
+
+    data.fields._double = 23.0;
+
+    data.switchField = UA_SELFCONTAININGUNIONSWITCH_DOUBLE;
+
+    data.fields.array.arraySize = 0;
+    data.fields.array.array = NULL;
+
+    UA_Variant_setScalar(&in, &data, &UA_TYPES_TESTS_TESTNODESET[UA_TYPES_TESTS_TESTNODESET_SELFCONTAININGUNION]);
+
+    UA_StatusCode result = UA_Server_writeValue(server, UA_NODEID_NUMERIC(2, 5110), in);
+
+    ck_assert(result == UA_STATUSCODE_GOOD);
 }
 END_TEST
 
@@ -56,7 +84,7 @@ START_TEST(check1dimValues) {
     // Point_1dim_noInit
     UA_Server_readValue(server, UA_NODEID_NUMERIC(2, 10007), &out);
     ck_assert(!UA_Variant_isScalar(&out));
-    ck_assert(out.arrayDimensionsSize == 0);
+    ck_assert(out.arrayDimensionsSize == 1);
     UA_Variant_clear(&out);
     // Point_1dim_init
     UA_Server_readValue(server, UA_NODEID_NUMERIC(2, 10004), &out);
@@ -133,6 +161,7 @@ static Suite *testSuite_Client(void) {
     tcase_add_unchecked_fixture(tc_server, setup, teardown);
     tcase_add_test(tc_server, Server_addTestNodeset);
     tcase_add_test(tc_server, checkScalarValues);
+    tcase_add_test(tc_server, checkSelfContainingUnion);
     tcase_add_test(tc_server, check1dimValues);
     tcase_add_test(tc_server, readValueRank);
     tcase_add_test(tc_server, checkFrameValues);

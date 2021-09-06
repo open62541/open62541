@@ -17,6 +17,7 @@
         <Alias Alias="Argument">i=296</Alias>
         <Alias Alias="Point3D">ns=1;i=3002</Alias>
         <Alias Alias="Point">ns=1;i=10001</Alias>
+        <Alias Alias="SelfContainingUnion">ns=1;i=4002</Alias>
     </Aliases>
     <Extensions>
         <Extension>
@@ -345,7 +346,24 @@
                 </uax:ExtensionObject>
             </uax:ListOfExtensionObject>
         </Value>
-    </UAVariable>    
+    </UAVariable>
+    <UADataType NodeId="ns=1;i=4002" BrowseName="1:SelfContainingUnion">
+        <DisplayName>SelfContainingUnion</DisplayName>
+        <References>
+            <Reference ReferenceType="HasSubtype" IsForward="false">i=12756</Reference>
+        </References>
+        <Definition Name="1:SelfContainingUnion" IsUnion="true">
+            <Field DataType="Double" Name="Double"/>
+            <Field DataType="SelfContainingUnion" ValueRank="1" ArrayDimensions="0" Name="Array"/>
+        </Definition>
+    </UADataType>
+    <UAVariable DataType="SelfContainingUnion" ParentNodeId="ns=1;i=5001" NodeId="ns=1;i=5110" BrowseName="1:SelfContainingUnion_scalar_init" AccessLevel="3">
+        <DisplayName>SelfContainingUnion_scalar_init</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5001</Reference>
+        </References>
+    </UAVariable>
     <UAVariable DataType="Double" ParentNodeId="ns=1;i=5100" NodeId="ns=1;i=5101" BrowseName="1:Double_init" AccessLevel="3">
         <DisplayName>Double_init</DisplayName>
         <References>

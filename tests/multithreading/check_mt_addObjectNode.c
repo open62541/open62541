@@ -35,7 +35,7 @@ void checkServer(void) {
 
         ck_assert_int_eq(ret, UA_STATUSCODE_GOOD);
         ck_assert(UA_NodeId_equal(&reqNodeId, &resNodeId) == UA_TRUE);
-        UA_NodeId_deleteMembers(&resNodeId);
+        UA_NodeId_clear(&resNodeId);
     }
 
     for (size_t i = 0; i < NUMBER_OF_CLIENTS * ITERATIONS_PER_CLIENT; i++) {
@@ -47,7 +47,7 @@ void checkServer(void) {
 
         ck_assert_int_eq(ret, UA_STATUSCODE_GOOD);
         ck_assert(UA_NodeId_equal(&reqNodeId, &resNodeId) == UA_TRUE);
-        UA_NodeId_deleteMembers(&resNodeId);
+        UA_NodeId_clear(&resNodeId);
     }
 }
 

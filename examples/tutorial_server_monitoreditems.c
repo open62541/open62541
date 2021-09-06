@@ -6,15 +6,15 @@
  * ----------------------------------------------
  *
  * A client that is interested in the current value of a variable does not need
- * to regularly poll the variable. Instead, he can use the Subscription
+ * to regularly poll the variable. Instead, the client can use the Subscription
  * mechanism to be notified about changes.
  *
  * So-called MonitoredItems define which values (node attributes) and events the
  * client wants to monitor. Under the right conditions, a notification is
  * created and added to the Subscription. The notifications currently in the
- * queue are regularly send to the client.
+ * queue are regularly sent to the client.
  *
- * The local user can add MonitoredItems as well. Locally, the MonitoredItems to
+ * The local user can add MonitoredItems as well. Locally, the MonitoredItems do
  * not go via a Subscription and each have an individual callback method and a
  * context pointer.
  */

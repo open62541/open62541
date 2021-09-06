@@ -3,6 +3,7 @@
  *
  *    Copyright 2016-2017 (c) Julius Pfrommer, Fraunhofer IOSB
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2021 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
  */
 
 #ifdef UA_ARCHITECTURE_WIN32
@@ -34,6 +35,8 @@
 # include <malloc.h>
 #endif
 
+#include <open62541/architecture_definitions.h>
+
 #include <stdio.h>
 #include <errno.h>
 #include <winsock2.h>
@@ -50,8 +53,11 @@
 # define UA_access access
 #endif
 
-#define ssize_t int
-#define OPTVAL_TYPE char
+#ifndef _SSIZE_T_DEFINED
+# define ssize_t int
+#endif
+
+#define OPTVAL_TYPE int
 #ifdef UA_sleep_ms
 void UA_sleep_ms(unsigned long ms);
 #else
@@ -89,6 +95,7 @@ void UA_sleep_ms(unsigned long ms);
 #define UA_recv(sockfd, buf, len, flags) recv(sockfd, buf, (int)(len), flags)
 #define UA_sendto(sockfd, buf, len, flags, dest_addr, addrlen) sendto(sockfd, (const char*)(buf), (int)(len), flags, dest_addr, (int) (addrlen))
 #define UA_recvfrom(sockfd, buf, len, flags, src_addr, addrlen) recvfrom(sockfd, (char*)(buf), (int)(len), flags, src_addr, addrlen)
+#define UA_recvmsg
 #define UA_htonl htonl
 #define UA_ntohl ntohl
 #define UA_close closesocket
@@ -100,15 +107,29 @@ void UA_sleep_ms(unsigned long ms);
 #define UA_accept accept
 #define UA_connect(sockfd, addr, addrlen) connect(sockfd, addr, (int)(addrlen))
 #define UA_getaddrinfo getaddrinfo
-#define UA_getsockopt getsockopt
+#define UA_getsockopt(sockfd, level, optname, optval, optlen) getsockopt(sockfd, level, optname, (char*) (optval), optlen)
 #define UA_setsockopt(sockfd, level, optname, optval, optlen) setsockopt(sockfd, level, optname, (const char*) (optval), optlen)
+#define UA_ioctl
 #define UA_freeaddrinfo freeaddrinfo
 #define UA_gethostname gethostname
 #define UA_getsockname getsockname
 #define UA_inet_pton InetPton
 
 #if UA_IPV6
+# if defined(__WINCRYPT_H__) && defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
+#  error "Wincrypt is not compatible with LibreSSL"
+# endif
+# ifdef UA_ENABLE_ENCRYPTION_LIBRESSL
+/* Hack: Prevent Wincrypt-Includes */
+#  define __WINCRYPT_H__
+# endif
+
 # include <iphlpapi.h>
+
+# ifdef UA_ENABLE_ENCRYPTION_LIBRESSL
+#  undef __WINCRYPT_H__
+# endif
+
 # define UA_if_nametoindex if_nametoindex
 #endif
 
@@ -122,6 +143,10 @@ void UA_sleep_ms(unsigned long ms);
 # define UA_malloc malloc
 # define UA_calloc calloc
 # define UA_realloc realloc
+#endif
+
+#ifdef __CODEGEARC__
+#define _snprintf_s(a,b,c,...) snprintf(a,b,__VA_ARGS__)
 #endif
 
 /* 3rd Argument is the string */
@@ -140,24 +165,45 @@ void UA_sleep_ms(unsigned long ms);
 #define UA_LOG_SOCKET_ERRNO_GAI_WRAP UA_LOG_SOCKET_ERRNO_WRAP
 
 #if UA_MULTITHREADING >= 100
-#define UA_LOCK_TYPE(mutexName) CRITICAL_SECTION mutexName; \
-                                int mutexName##Counter;
-#define UA_LOCK_INIT(mutexName) InitializeCriticalSection(&mutexName); \
-                                mutexName##Counter = 0;;
-#define UA_LOCK_DESTROY(mutexName) DeleteCriticalSection(&mutexName);
-#define UA_LOCK(mutexName) EnterCriticalSection(&mutexName); \
-                           UA_assert(++(mutexName##Counter) == 1);
-#define UA_UNLOCK(mutexName) UA_assert(--(mutexName##Counter) == 0); \
-                             LeaveCriticalSection(&mutexName);
-#define UA_LOCK_ASSERT(mutexName, num) UA_assert(mutexName##Counter == num);
+
+typedef struct {
+    CRITICAL_SECTION mutex;
+    int mutexCounter;
+} UA_Lock;
+
+static UA_INLINE void
+UA_LOCK_INIT(UA_Lock *lock) {
+    InitializeCriticalSection(&lock->mutex);
+    lock->mutexCounter = 0;
+}
+
+static UA_INLINE void
+UA_LOCK_DESTROY(UA_Lock *lock) {
+    DeleteCriticalSection(&lock->mutex);
+}
+
+static UA_INLINE void
+UA_LOCK(UA_Lock *lock) {
+    EnterCriticalSection(&lock->mutex);
+    UA_assert(++(lock->mutexCounter) == 1);
+}
+
+static UA_INLINE void
+UA_UNLOCK(UA_Lock *lock) {
+    UA_assert(--(lock->mutexCounter) == 0);
+    LeaveCriticalSection(&lock->mutex);
+}
+
+static UA_INLINE void
+UA_LOCK_ASSERT(UA_Lock *lock, int num) {
+    UA_assert(lock->mutexCounter == num);
+}
 #else
-#define UA_LOCK_TYPE(mutexName)
-#define UA_LOCK_TYPE_POINTER(mutexName)
-#define UA_LOCK_INIT(mutexName)
-#define UA_LOCK_DESTROY(mutexName)
-#define UA_LOCK(mutexName)
-#define UA_UNLOCK(mutexName)
-#define UA_LOCK_ASSERT(mutexName, num)
+#define UA_LOCK_INIT(lock)
+#define UA_LOCK_DESTROY(lock)
+#define UA_LOCK(lock)
+#define UA_UNLOCK(lock)
+#define UA_LOCK_ASSERT(lock, num)
 #endif
 
 #include <open62541/architecture_functions.h>

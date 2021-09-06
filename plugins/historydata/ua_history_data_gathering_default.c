@@ -129,6 +129,7 @@ registerNodeId_gathering_default(UA_Server *server,
             ctx->storeSize = 0;
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
+        memset(&ctx->dataStore[ctx->storeSize], 0, (newStoreSize - ctx->storeSize) * sizeof(UA_NodeIdStoreContextItem_gathering_default));
         ctx->storeSize = newStoreSize;
     }
     UA_NodeId_copy(nodeId, &ctx->dataStore[ctx->storeEnd].nodeId);
@@ -158,7 +159,7 @@ deleteMembers_gathering_default(UA_HistoryDataGathering *gathering)
         return;
     UA_NodeIdStoreContext *ctx = (UA_NodeIdStoreContext*)gathering->context;
     for (size_t i = 0; i < ctx->storeEnd; ++i) {
-        UA_NodeId_deleteMembers(&ctx->dataStore[i].nodeId);
+        UA_NodeId_clear(&ctx->dataStore[i].nodeId);
         // There is still a monitored item present for this gathering
         // You need to remove it with UA_Server_deleteMonitoredItem
         UA_assert(ctx->dataStore[i].monitoredResult.monitoredItemId == 0);

@@ -60,7 +60,7 @@ START_TEST(EndpointUrl_split) {
     // IPv6
     endPointUrl = UA_STRING("opc.tcp://[2001:0db8:85a3::8a2e:0370:7334]:1234/path");
     ck_assert_uint_eq(UA_parseEndpointUrl(&endPointUrl, &hostname, &port, &path), UA_STATUSCODE_GOOD);
-    expected = UA_STRING("[2001:0db8:85a3::8a2e:0370:7334]");
+    expected = UA_STRING("2001:0db8:85a3::8a2e:0370:7334");
     UA_String expectedPath = UA_STRING("path");
     ck_assert(UA_String_equal(&hostname, &expected));
     ck_assert_uint_eq(port, 1234);
@@ -321,7 +321,7 @@ START_TEST(idToStringNumeric) {
     UA_NodeId_toString(&n, &str);
     assertNodeIdString(&str, "ns=65535;i=4294967295");
 
-    UA_String_deleteMembers(&str);
+    UA_String_clear(&str);
 } END_TEST
 
 START_TEST(idToStringString) {
@@ -340,7 +340,7 @@ START_TEST(idToStringString) {
     UA_NodeId_toString(&n, &str);
     assertNodeIdString(&str, "s=Some String");
 
-    UA_String_deleteMembers(&str);
+    UA_String_clear(&str);
 } END_TEST
 
 START_TEST(idToStringGuid) {
@@ -385,7 +385,7 @@ START_TEST(idToStringGuid) {
     UA_NodeId_toString(&n, &str);
     assertNodeIdString(&str, "ns=65535;g=ffffffff-ffff-ffff-ffff-ffffffffffff");
 
-    UA_String_deleteMembers(&str);
+    UA_String_clear(&str);
 } END_TEST
 
 START_TEST(idToStringByte) {
@@ -432,7 +432,7 @@ START_TEST(idToStringByte) {
     assertNodeIdString(&str, "ns=599;b=IYPgVHg=");
     UA_free(bs.data);
 
-    UA_String_deleteMembers(&str);
+    UA_String_clear(&str);
 } END_TEST
 
 

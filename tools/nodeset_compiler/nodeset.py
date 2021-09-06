@@ -240,7 +240,7 @@ class NodeSet(object):
         # Extract NodeSet DOM
 
         fileContent = xmlfile.read()
-        # Remove BOM since the dom parser cannot handle it on python 3 windows
+        # Remove BOM since the dom parser cannot handle it on Python 3 Windows
         if fileContent.startswith( codecs.BOM_UTF8 ):
             fileContent = fileContent.lstrip( codecs.BOM_UTF8 )
         if (sys.version_info >= (3, 0)):

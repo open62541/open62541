@@ -25,7 +25,7 @@ LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {
 
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
     if(retval == UA_STATUSCODE_GOOD)
-        UA_Variant_deleteMembers(&out);
+        UA_Variant_clear(&out);
 
     return 0;
 }

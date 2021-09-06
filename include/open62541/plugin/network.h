@@ -129,7 +129,7 @@ struct UA_Connection {
  * The network layer is part of the server config. So users can provide a custom
  * implementation if the provided example does not fit their architecture. The
  * network layer is invoked only from the server's main loop. So the network
- * layer does not need to be thread-safe. If the networklayer receives a
+ * layer does not need to be thread-safe. If the network layer receives a
  * positive duration for blocking listening, the server's main loop will block
  * until a message is received or the duration times out. */
 
@@ -156,11 +156,12 @@ struct UA_ServerNetworkLayer {
 
     UA_ConnectionConfig localConnectionConfig;
 
-    /* Start listening on the networklayer.
+    /* Start listening on the network layer.
      *
      * @param nl The network layer
      * @return Returns UA_STATUSCODE_GOOD or an error code. */
-    UA_StatusCode (*start)(UA_ServerNetworkLayer *nl, const UA_String *customHostname);
+    UA_StatusCode (*start)(UA_ServerNetworkLayer *nl, const UA_Logger *logger,
+                           const UA_String *customHostname);
 
     /* Listen for new and closed connections and arriving packets. Calls
      * UA_Server_processBinaryMessage for the arriving packets. Closed
@@ -201,7 +202,7 @@ struct UA_ServerNetworkLayer {
  * @param logger the logger to use */
 typedef UA_Connection
 (*UA_ConnectClientConnection)(UA_ConnectionConfig config, UA_String endpointUrl,
-                              UA_UInt32 timeout, UA_Logger *logger);
+                              UA_UInt32 timeout, const UA_Logger *logger);
 
 _UA_END_DECLS
 

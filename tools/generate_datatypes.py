@@ -22,11 +22,14 @@ parser.add_argument('-c', '--type-csv',
                     default=[],
                     help='csv file with type descriptions')
 
-parser.add_argument('--namespace',
-                    type=int,
-                    dest="namespace",
-                    default=0,
-                    help='namespace id of the generated type nodeids (defaults to 0)')
+parser.add_argument('--namespaceMap',
+                    metavar="<namespaceMap>",
+                    type=str,
+                    dest="namespace_map",
+                    action='append',
+                    default=["0:http://opcfoundation.org/UA/"],
+                    help='Mapping of namespace uri to the resulting namespace index in the server. Default only contains Namespace 0: "0:http://opcfoundation.org/UA/". '
+                         'Parameter can be used multiple times to define multiple mappings.')
 
 parser.add_argument('-s', '--selected-types',
                     metavar="<selectedTypes>",
@@ -78,9 +81,18 @@ args = parser.parse_args()
 outname = args.outfile.split("/")[-1]
 inname = ', '.join(list(map(lambda x: x.name.split("/")[-1], args.type_bsd)))
 
-parser = CSVBSDTypeParser(args.opaque_map, args.selected_types, args.no_builtin, outname, args.namespace, args.import_bsd,
-                          args.type_bsd, args.type_csv)
+namespaceMap = {
+    "http://opcfoundation.org/UA/": 0
+}
+
+for m in args.namespace_map:
+    [idx, ns] = m.split(':', 1)
+    namespaceMap[ns] = int(idx)
+
+
+parser = CSVBSDTypeParser(args.opaque_map, args.selected_types, args.no_builtin, outname, args.import_bsd,
+                          args.type_bsd, args.type_csv, namespaceMap)
 parser.create_types()
 
-generator = backend.CGenerator(parser, inname, args.outfile, args.internal)
+generator = backend.CGenerator(parser, inname, args.outfile, args.internal, namespaceMap)
 generator.write_definitions()

@@ -1,0 +1,52 @@
+name: "Code Scanning"
+
+on:
+  push: 
+    branches: [ master, 1\.1, 1\.2 ]
+  pull_request:
+    branches: [ master, 1\.1, 1\.2 ]
+    paths-ignore:
+      - '**/*.md'
+      - '**/*.txt'
+  schedule:
+    - cron: '30 1 * * 0'
+
+jobs:
+  CodeQL-Build:
+    name: Analyze
+    # CodeQL runs on ubuntu-latest, windows-latest, and macos-latest
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ 'cpp', 'python' ]
+        # CodeQL supports [ 'cpp', 'csharp', 'go', 'java', 'javascript', 'python' ]
+        # Learn more:
+        # https://docs.github.com/en/free-pro-team@latest/github/finding-security-vulnerabilities-and-errors-in-your-code/configuring-code-scanning#changing-the-languages-that-are-analyzed
+
+    steps:
+      - name: Checkout open62541
+        uses: actions/checkout@v2
+        with:
+          submodules: recursive
+      
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y -qq python3-sphinx graphviz check
+          sudo apt-get install -y -qq tcc clang-11 clang-tools-11 valgrind
+          sudo apt-get install -y -qq libmbedtls-dev openssl
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v1
+        with:
+          languages: ${{ matrix.language }}
+      
+      - name: Debug Build
+        run: source tools/ci.sh && unit_tests
+        env:
+          ETHERNET_INTERFACE: eth0
+      
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v1

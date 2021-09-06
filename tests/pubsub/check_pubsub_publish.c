@@ -9,8 +9,6 @@
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
 
-#include "open62541/types_generated_encoding_binary.h"
-
 #include "ua_pubsub.h"
 #include "ua_server_internal.h"
 
@@ -24,11 +22,7 @@ static void setup(void) {
     server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
-
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer*)
-        UA_malloc(sizeof(UA_PubSubTransportLayer));
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerUDPMP();
-    config->pubsubTransportLayersSize++;
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
 
     UA_Server_run_startup(server);
     //add 2 connections
@@ -94,6 +88,7 @@ START_TEST(AddRemoveAddWriterGroupWithMinimalValidConfiguration){
         }
         ck_assert_int_eq(writerGroupCount, 1);
         retVal |= UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &localWriterGroup);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         UA_Server_setWriterGroupOperational(server, localWriterGroup);
         writerGroupCount = 0;
         LIST_FOREACH(writerGroup, &UA_PubSubConnection_findConnectionbyId(server, connection1)->writerGroups, listEntry){
@@ -278,6 +273,8 @@ START_TEST(AddDataSetFieldWithValidConfiguration){
         memset(&fieldConfig, 0, sizeof(UA_DataSetFieldConfig));
         fieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
         fieldConfig.field.variable.fieldNameAlias = UA_STRING("field 1");
+        fieldConfig.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
+        fieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
         UA_NodeId localDataSetField;
         UA_PublishedDataSet *pds = UA_PublishedDataSet_findPDSbyId(server, publishedDataSet1);
         ck_assert_ptr_ne(pds, NULL);
@@ -294,6 +291,8 @@ START_TEST(AddRemoveAddDataSetFieldWithValidConfiguration){
         memset(&fieldConfig, 0, sizeof(UA_DataSetFieldConfig));
         fieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
         fieldConfig.field.variable.fieldNameAlias = UA_STRING("field 1");
+        fieldConfig.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
+        fieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
         UA_NodeId localDataSetField;
         UA_PublishedDataSet *pds1 = UA_PublishedDataSet_findPDSbyId(server, publishedDataSet1);
         ck_assert_ptr_ne(pds1, NULL);
@@ -334,6 +333,8 @@ START_TEST(AddDataSetFieldWithInvalidPDSId){
         memset(&fieldConfig, 0, sizeof(UA_DataSetFieldConfig));
         fieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
         fieldConfig.field.variable.fieldNameAlias = UA_STRING("field 1");
+        fieldConfig.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
+        fieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
         retVal = UA_Server_addDataSetField(server, UA_NODEID_NUMERIC(0, UA_UINT32_MAX), &fieldConfig, NULL).result;
         ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
         UA_PublishedDataSet *pds1 = UA_PublishedDataSet_findPDSbyId(server, publishedDataSet1);
@@ -348,6 +349,8 @@ START_TEST(GetDataSetFieldConfigurationAndCompareValues){
         memset(&fieldConfig, 0, sizeof(UA_DataSetFieldConfig));
         fieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
         fieldConfig.field.variable.fieldNameAlias = UA_STRING("field 1");
+        fieldConfig.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
+        fieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
         UA_NodeId dataSetFieldId;
         retVal = UA_Server_addDataSetField(server, publishedDataSet1, &fieldConfig, &dataSetFieldId).result;
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -410,7 +413,6 @@ START_TEST(PublishDataSetFieldAsDeltaFrame){
             dataSetFieldConfig.field.variable.promotedField = UA_FALSE;
             dataSetFieldConfig.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_LOCALTIME);
             dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
-            UA_Server_addDataSetField(server, publishedDataSet1, &dataSetFieldConfig, NULL);
             UA_Server_addDataSetField(server, publishedDataSet1, &dataSetFieldConfig, NULL);
 
             UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup1);

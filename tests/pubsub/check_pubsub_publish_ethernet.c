@@ -10,7 +10,6 @@
 #include <open62541/server_pubsub.h>
 #include <check.h>
 
-#include "open62541/types_generated_encoding_binary.h"
 #include "ua_pubsub.h"
 #include "ua_server_internal.h"
 #include "ua_pubsub_networkmessage.h"
@@ -36,15 +35,8 @@ static void setup(void) {
     server = UA_Server_new();
     config = UA_Server_getConfig(server);
     UA_ServerConfig_setMinimal(config, UA_SUBSCRIBER_PORT, NULL);
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
     UA_Server_run_startup(server);
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer *) UA_malloc(sizeof(UA_PubSubTransportLayer));
-    if(!config->pubsubTransportLayers) {
-        UA_ServerConfig_clean(config);
-    }
-
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerEthernet();
-    config->pubsubTransportLayersSize++;
-
 }
 
 /* teardown() is to delete the environment set for test cases */
@@ -71,7 +63,7 @@ START_TEST(EthernetSendWithoutVLANTag) {
     connection = UA_PubSubConnection_findConnectionbyId(server, connection_test);
     /* Remove the connection if invalid*/
     if(!connection) {
-        UA_Server_delete(server);
+        return;
     }
 
     /* Initialize a buffer to send data */
@@ -99,7 +91,7 @@ START_TEST(EthernetSendWithVLANTag) {
     connection = UA_PubSubConnection_findConnectionbyId(server, connection_test);
     /* Remove the connection if invalid*/
     if(!connection) {
-        UA_Server_delete(server);
+        return;
     }
 
     /* Initialize a buffer to send data */

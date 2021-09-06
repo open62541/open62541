@@ -11,6 +11,7 @@
  *    Copyright 2017 (c) Henrik Norrman
  *    Copyright 2018 (c) Fabian Arndt, Root-Core
  *    Copyright 2017-2020 (c) HMS Industrial Networks AB (Author: Jonas Green)
+ *    Copyright 2020-2021 (c) Christian von Arnim, ISW University of Stuttgart  (for VDW and umati)
  */
 
 #ifndef UA_SERVER_H_
@@ -32,6 +33,7 @@
 
 #ifdef UA_ENABLE_PUBSUB
 #include <open62541/plugin/pubsub.h>
+#include <open62541/server_pubsub.h>
 #endif
 
 #ifdef UA_ENABLE_HISTORIZING
@@ -67,6 +69,9 @@ _UA_BEGIN_DECLS
  *
  * The :ref:`tutorials` provide a good starting point for this. */
 
+struct UA_PubSubConfiguration;
+typedef struct UA_PubSubConfiguration UA_PubSubConfiguration;
+
 typedef struct {
     UA_UInt32 min;
     UA_UInt32 max;
@@ -97,6 +102,13 @@ struct UA_ServerConfig {
     /* Rule Handling */
     UA_RuleHandling verifyRequestTimestamp; /* Verify that the server sends a
                                              * timestamp in the request header */
+    UA_RuleHandling allowEmptyVariables; /* Variables (that don't have a
+                                          * DataType of BaseDataType) must not
+                                          * have an empty variant value. The
+                                          * default behaviour is to auto-create
+                                          * a matching zeroed-out value for
+                                          * empty VariableNodes when they are
+                                          * added. */
 
     /* Custom DataTypes. Attention! Custom datatypes are not cleaned up together
      * with the configuration. So it is possible to allocate them on ROM. */
@@ -112,10 +124,9 @@ struct UA_ServerConfig {
     UA_ServerNetworkLayer *networkLayers;
     UA_String customHostname;
 
+    /* PubSub */
 #ifdef UA_ENABLE_PUBSUB
-    /*PubSub network layer */
-    size_t pubsubTransportLayersSize;
-    UA_PubSubTransportLayer *pubsubTransportLayers;
+    UA_PubSubConfiguration pubSubConfig;
 #endif
 
     /* Available security policies */
@@ -138,6 +149,16 @@ struct UA_ServerConfig {
     /* Node Lifecycle callbacks */
     UA_GlobalNodeLifecycle nodeLifecycle;
 
+    /** Copy the HasModellingRule reference in instances from the type
+     * definition in UA_Server_addObjectNode and UA_Server_addVariableNode.
+     * Part 3 - 6.4.4
+     * https://reference.opcfoundation.org/v104/Core/docs/Part3/6.4.4/#6.4.4.4
+     *   [...] it is not required that newly created or referenced instances
+     *   based on InstanceDeclarations have a ModellingRule, however, it is
+     *   allowed that they have any ModellingRule independent of the
+     *   ModellingRule of their InstanceDeclaration */
+    UA_Boolean modellingRulesOnInstances;
+
     /**
      * .. note:: See the section for :ref:`node lifecycle
      *    handling<node-lifecycle>`. */
@@ -157,10 +178,6 @@ struct UA_ServerConfig {
     UA_Server_AsyncOperationNotifyCallback asyncOperationNotifyCallback;
 #endif
 
-#if UA_MULTITHREADING >= 200
-    UA_UInt16 nThreads; /* Experimental feature */
-#endif
-
     /**
      * .. note:: See the section for :ref:`async
      *    operations<async-operations>`. */
@@ -170,11 +187,6 @@ struct UA_ServerConfig {
 
     /* Certificate Verification */
     UA_CertificateVerification certificateVerification;
-
-    /* Relax constraints for the InformationModel */
-    UA_Boolean relaxEmptyValueConstraint; /* Nominally, only variables with data
-                                           * type BaseDataType can have an empty
-                                           * value. */
 
     /* Limits for SecureChannels */
     UA_UInt16 maxSecureChannels;
@@ -295,6 +307,7 @@ UA_ServerConfig_setCustomHostname(UA_ServerConfig *config,
     UA_String_clear(&config->customHostname);
     UA_String_copy(&customHostname, &config->customHostname);
 }
+
 /**
  * .. _server-lifecycle:
  *
@@ -352,7 +365,6 @@ UA_Server_run_shutdown(UA_Server *server);
 /**
  * Timed Callbacks
  * --------------- */
-typedef void (*UA_ServerCallback)(UA_Server *server, void *data);
 
 /* Add a callback for execution at a specified time. If the indicated time lies
  * in the past, then the callback is executed at the next iteration of the
@@ -401,6 +413,47 @@ UA_Server_removeCallback(UA_Server *server, UA_UInt64 callbackId);
 
 #define UA_Server_removeRepeatedCallback(server, callbackId) \
     UA_Server_removeCallback(server, callbackId);
+
+/**
+ * Session Handling
+ * ----------------
+ * A new session is announced via the AccessControl plugin. The session
+ * identifier is forwarded to the relevant callbacks back into userland. The
+ * following methods enable an interaction with a particular session. */
+
+/* Manually close a session */
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_closeSession(UA_Server *server, const UA_NodeId *sessionId);
+
+/* Session Parameters: Besides the user-definable session context pointer,
+ * so-called session parameters are a way to attach key-value parameters to a
+ * session. This enables "plugins" to attach data to a session without impacting
+ * the user-definedable session context pointer. */
+
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_setSessionParameter(UA_Server *server, const UA_NodeId *sessionId,
+                              const char *name, const UA_Variant *parameter);
+
+UA_EXPORT void UA_THREADSAFE
+UA_Server_deleteSessionParameter(UA_Server *server, const UA_NodeId *sessionId,
+                                 const char *name);
+
+/* Returns NULL if the session or the parameter are not defined. Returns a deep
+ * copy otherwise */
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_getSessionParameter(UA_Server *server, const UA_NodeId *sessionId,
+                              const char *name, UA_Variant *outParameter);
+
+/* Returns NULL if the parameter is not defined or not of the right datatype */
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_getSessionScalarParameter(UA_Server *server, const UA_NodeId *sessionId,
+                                    const char *name, const UA_DataType *type,
+                                    UA_Variant *outParameter);
+
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_getSessionArrayParameter(UA_Server *server, const UA_NodeId *sessionId,
+                                   const char *name, const UA_DataType *type,
+                                   UA_Variant *outParameter);
 
 /**
  * Reading and Writing Node Attributes
@@ -743,9 +796,16 @@ UA_BrowseResult UA_EXPORT UA_THREADSAFE
 UA_Server_browseNext(UA_Server *server, UA_Boolean releaseContinuationPoint,
                      const UA_ByteString *continuationPoint);
 
-/* Nonstandard version of the browse service that recurses into child nodes.
+/* Non-standard version of the Browse service that recurses into child nodes.
+ *
  * Possible loops (that can occur for non-hierarchical references) are handled
- * by adding every target node at most once to the results array. */
+ * internally. Every node is added at most once to the results array.
+ *
+ * Nodes are only added if they match the NodeClassMask in the
+ * BrowseDescription. However, child nodes are still recursed into if the
+ * NodeClass does not match. So it is possible, for example, to get all
+ * VariableNodes below a certain ObjectNode, with additional objects in the
+ * hierarchy below. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_browseRecursive(UA_Server *server, const UA_BrowseDescription *bd,
                           size_t *resultsSize, UA_ExpandedNodeId **results);
@@ -1017,9 +1077,21 @@ UA_Server_deleteMonitoredItem(UA_Server *server, UA_UInt32 monitoredItemId);
 
 #ifdef UA_ENABLE_METHODCALLS
 UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_setMethodNode_callback(UA_Server *server,
-                                 const UA_NodeId methodNodeId,
-                                 UA_MethodCallback methodCallback);
+UA_Server_setMethodNodeCallback(UA_Server *server,
+                                const UA_NodeId methodNodeId,
+                                UA_MethodCallback methodCallback);
+
+/* Backwards compatibility definition */
+#define UA_Server_setMethodNode_callback(server, methodNodeId, methodCallback) \
+    UA_Server_setMethodNodeCallback(server, methodNodeId, methodCallback)
+
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_getMethodNodeCallback(UA_Server *server,
+                                const UA_NodeId methodNodeId,
+                                UA_MethodCallback *outMethodCallback);
+
+UA_CallMethodResult UA_EXPORT UA_THREADSAFE
+UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request);
 #endif
 
 /**
@@ -1063,11 +1135,6 @@ UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_readObjectProperty(UA_Server *server, const UA_NodeId objectId,
                              const UA_QualifiedName propertyName,
                              UA_Variant *value);
-
-#ifdef UA_ENABLE_METHODCALLS
-UA_CallMethodResult UA_EXPORT UA_THREADSAFE
-UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request);
-#endif
 
 /**
  * .. _addnodes:
@@ -1300,7 +1367,7 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
  *
  * The special UA_Server_addMethodNode_finish method needs to be used for method
  * nodes, since there you need to explicitly specifiy the input and output
- * arguments which are added in the finish step (if not yet already there) **/
+ * arguments which are added in the finish step (if not yet already there) */
 
 /* The ``attr`` argument must have a type according to the NodeClass.
  * ``VariableAttributes`` for variables, ``ObjectAttributes`` for objects, and
@@ -1374,14 +1441,6 @@ UA_Server_deleteReference(UA_Server *server, const UA_NodeId sourceNodeId,
  * would cause the node to be deleted. */
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-
-/* The EventQueueOverflowEventType is defined as abstract, therefore we can not
- * create an instance of that type directly, but need to create a subtype. The
- * following is an arbitrary number which shall refer to our internal overflow
- * type. This is already posted on the OPC Foundation bug tracker under the
- * following link for clarification:
- * https://opcfoundation-onlineapplications.org/mantis/view.php?id=4206 */
-# define UA_NS0ID_SIMPLEOVERFLOWEVENTTYPE 4035
 
 /* Creates a node representation of an event
  *
@@ -1545,32 +1604,20 @@ UA_Server_updateCertificate(UA_Server *server,
 /**
  * Utility Functions
  * ----------------- */
+
+/* Lookup a datatype by its NodeId. Takes the custom types in the server
+ * configuration into account. Return NULL if none found. */
+UA_EXPORT const UA_DataType *
+UA_Server_findDataType(UA_Server *server, const UA_NodeId *typeId);
+
 /* Add a new namespace to the server. Returns the index of the new namespace */
-UA_UInt16 UA_EXPORT UA_THREADSAFE UA_Server_addNamespace(UA_Server *server, const char* name);
+UA_UInt16 UA_EXPORT UA_THREADSAFE
+UA_Server_addNamespace(UA_Server *server, const char* name);
 
 /* Get namespace by name from the server. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
                              size_t* foundIndex);
-
-#ifdef UA_ENABLE_HISTORIZING
-UA_Boolean UA_EXPORT UA_THREADSAFE
-UA_Server_AccessControl_allowHistoryUpdateUpdateData(UA_Server *server,
-                                                     const UA_NodeId *sessionId,
-                                                     void *sessionContext,
-                                                     const UA_NodeId *nodeId,
-                                                     UA_PerformUpdateType performInsertReplace,
-                                                     const UA_DataValue *value);
-
-UA_Boolean UA_EXPORT UA_THREADSAFE
-UA_Server_AccessControl_allowHistoryUpdateDeleteRawModified(UA_Server *server,
-                                                            const UA_NodeId *sessionId,
-                                                            void *sessionContext,
-                                                            const UA_NodeId *nodeId,
-                                                            UA_DateTime startTimestamp,
-                                                            UA_DateTime endTimestamp,
-                                                            bool isDeleteModified);
-#endif /* UA_ENABLE_HISTORIZING */
 
 /**
 * .. _async-operations:
@@ -1672,5 +1719,9 @@ UA_ServerStatistics UA_EXPORT
 UA_Server_getStatistics(UA_Server *server);
 
 _UA_END_DECLS
+
+#ifdef UA_ENABLE_PUBSUB
+#include <open62541/server_pubsub.h>
+#endif
 
 #endif /* UA_SERVER_H_ */
