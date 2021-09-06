@@ -146,8 +146,8 @@ UA_NodePointer_fromNodeId(const UA_NodeId *id) {
      *        + 2 Bit for the tagging bit (zero) */
     if(id->namespaceIndex < (0x01 << 6) &&
        id->identifier.numeric < (0x01 << 24)) {
-        np.immediate  = id->identifier.numeric << 8;
-        np.immediate |= ((UA_Byte)id->namespaceIndex) << 2;
+        np.immediate  = ((uintptr_t)id->identifier.numeric) << 8;
+        np.immediate |= ((uintptr_t)id->namespaceIndex) << 2;
     } else {
         np.id = id;
         np.immediate |= UA_NODEPOINTER_TAG_NODEID;
