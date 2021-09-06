@@ -76,6 +76,7 @@ mqtt_pal_recvall(mqtt_pal_socket_handle fd, void* buf, size_t bufsz, int flags) 
             } else {
                 const int error = SSL_get_error(ssl, rv);
                 switch (error) {
+                case SSL_ERROR_SSL: return MQTT_ERROR_SOCKET_ERROR; // handles SSL error (value = 1) defined in ssl.h specifically
                 case SSL_ERROR_WANT_READ:
                 case SSL_ERROR_WANT_WRITE:
                 case SSL_ERROR_WANT_ACCEPT:
