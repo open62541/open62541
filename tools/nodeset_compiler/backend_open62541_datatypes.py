@@ -74,6 +74,8 @@ def generateByteStringCode(value, valueName, global_var_code, isPointer):
                                                         accessor='->' if isPointer else '.')
 
 def generateLocalizedTextCode(value, alloc=False):
+    if value.text is None:
+        value.text = ""
     vt = makeCLiteral(value.text)
     return u"UA_LOCALIZEDTEXT{}(\"{}\", {})".format("_ALLOC" if alloc else "", '' if value.locale is None else value.locale,
                                                    splitStringLiterals(vt))
