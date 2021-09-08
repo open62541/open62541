@@ -377,6 +377,16 @@ UA_StatusCode
 receiveBufferedNetworkMessage(UA_Server *server, UA_ReaderGroup *readerGroup,
                               UA_PubSubConnection *connection);
 
+#ifdef UA_ENABLE_JSON_ENCODING
+UA_StatusCode
+decodeNetworkMessageJson(UA_Server *server, UA_ByteString *buffer,
+                         UA_NetworkMessage *nm, UA_PubSubConnection *connection);
+
+UA_StatusCode
+receiveBufferedNetworkMessageJson(UA_Server *server, UA_ReaderGroup *readerGroup,
+                                  UA_PubSubConnection *connection);
+#endif /* UA_ENABLE_JSON_ENCODING */
+
 #endif /* UA_ENABLE_PUBSUB */
 
 _UA_END_DECLS

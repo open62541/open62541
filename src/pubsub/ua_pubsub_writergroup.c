@@ -750,9 +750,21 @@ sendNetworkMessageJson(UA_PubSubConnection *connection, UA_DataSetMessage *dsm,
     nm.version = 1;
     nm.networkMessageType = UA_NETWORKMESSAGE_DATASET;
     nm.payloadHeaderEnabled = true;
+    nm.publisherIdEnabled = true;
     nm.payloadHeader.dataSetPayloadHeader.count = dsmCount;
     nm.payloadHeader.dataSetPayloadHeader.dataSetWriterIds = writerIds;
     nm.payload.dataSetPayload.dataSetMessages = dsm;
+
+    /* Assign the PublisherID to network message */
+    if(connection->config->publisherIdType == UA_PUBSUB_PUBLISHERID_NUMERIC) {
+        nm.publisherIdType = UA_PUBLISHERDATATYPE_UINT16;
+        nm.publisherId.publisherIdUInt32 =
+            connection->config->publisherId.numeric;
+    } else if(connection->config->publisherIdType == UA_PUBSUB_PUBLISHERID_STRING) {
+        nm.publisherIdType = UA_PUBLISHERDATATYPE_STRING;
+        nm.publisherId.publisherIdString =
+            connection->config->publisherId.string;
+    }
 
     /* Compute the message length */
     size_t msgSize = UA_NetworkMessage_calcSizeJson(&nm, NULL, 0, NULL, 0, true);

@@ -29,6 +29,11 @@
 #include "ua_pubsub_bufmalloc.h"
 #endif
 
+#ifdef UA_ENABLE_JSON_ENCODING
+#include "ua_pubsub_networkmessage_json.c"
+#include "ua_types_encoding_json.h"
+#endif
+
 /* This functionality of this API will be used in future to create mirror Variables - TODO */
 /* #define UA_MAX_SIZENAME           64 */ /* Max size of Qualified Name of Subscribed Variable */
 
@@ -117,9 +122,10 @@ UA_DataSetReader_generateDataSetMessage(UA_Server *server,
      * that RT configuration */
 
     UA_ExtensionObject *settings = &dataSetReader->config.messageSettings;
-    if(settings->content.decoded.type != &UA_TYPES[UA_TYPES_UADPDATASETREADERMESSAGEDATATYPE]) {
+    if(settings->content.decoded.type != &UA_TYPES[UA_TYPES_UADPDATASETREADERMESSAGEDATATYPE] &&
+       settings->content.decoded.type != &UA_TYPES[UA_TYPES_JSONDATASETREADERMESSAGEDATATYPE]) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "Only UADP encoding is supported.");
+                       "Only UADP and JSON encoding are supported.");
         return UA_STATUSCODE_BADNOTSUPPORTED;
     }
 
@@ -304,8 +310,12 @@ UA_DataSetReader_generateNetworkMessage(UA_PubSubConnection *pubSubConnection,
 static UA_StatusCode
 checkReaderIdentifier(UA_Server *server, UA_NetworkMessage *msg,
                       UA_DataSetReader *reader) {
+#ifdef UA_ENABLE_JSON_ENCODING
+    if(!msg->groupHeaderEnabled || !msg->payloadHeaderEnabled) {
+#else
     if(!msg->groupHeaderEnabled || !msg->groupHeader.writerGroupIdEnabled ||
        !msg->payloadHeaderEnabled) {
+#endif
         UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
                     "Cannot process DataSetReader without WriterGroup"
                     "and DataSetWriter identifiers");
@@ -347,9 +357,12 @@ checkReaderIdentifier(UA_Server *server, UA_NetworkMessage *msg,
     default:
         return UA_STATUSCODE_BADNOTFOUND;
     }
-
+#ifdef UA_ENABLE_JSON_ENCODING
+    if(reader->config.dataSetWriterId == *msg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds) {
+#else
     if(reader->config.writerGroupId == msg->groupHeader.writerGroupId &&
        reader->config.dataSetWriterId == *msg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds) {
+#endif
         UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "DataSetReader found. Process NetworkMessage");
         return UA_STATUSCODE_GOOD;
@@ -1299,6 +1312,21 @@ loops_exit:
     return UA_STATUSCODE_GOOD;
 }
 
+#ifdef UA_ENABLE_JSON_ENCODING
+UA_StatusCode
+decodeNetworkMessageJson(UA_Server *server, UA_ByteString *src,
+                         UA_NetworkMessage *dst, UA_PubSubConnection *connection) {
+#ifdef UA_DEBUG_DUMP_PKGS
+    UA_dump_hex_pkg(buffer->data, buffer->length);
+#endif
+    UA_StatusCode rv = UA_NetworkMessage_decodeJson(dst,src);
+    UA_CHECK_STATUS_ERROR(rv, return rv,
+                          &server->config.logger, UA_LOGCATEGORY_SERVER,
+                          "PubSub receive. decoding headers failed");
+    return UA_STATUSCODE_GOOD;
+}
+#endif
+
 static
 UA_StatusCode
 decodeAndProcessNetworkMessage(UA_Server *server, UA_ReaderGroup *readerGroup,
@@ -1322,6 +1350,31 @@ cleanup:
     UA_NetworkMessage_clear(&nm);
     return rv;
 }
+
+#ifdef UA_ENABLE_JSON_ENCODING
+static
+UA_StatusCode
+decodeAndProcessNetworkMessageJson(UA_Server *server, UA_ReaderGroup *readerGroup,
+                                   UA_PubSubConnection *connection,
+                                   UA_ByteString *buffer) {
+    UA_NetworkMessage nm;
+    memset(&nm, 0, sizeof(UA_NetworkMessage));
+
+    UA_StatusCode rv = UA_STATUSCODE_GOOD;
+    rv = decodeNetworkMessageJson(server, buffer, &nm, connection);
+    UA_CHECK_STATUS_WARN(rv, goto cleanup, &server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "Subscribe failed. verify, decrypt and decode network message failed.");
+
+    rv = UA_Server_processNetworkMessage(server, connection, &nm);
+    // TODO: check what action to perform on error (nothing?)
+    UA_CHECK_STATUS_WARN(rv, (void)0, &server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "Subscribe failed. process network message failed.");
+
+cleanup:
+    UA_NetworkMessage_clear(&nm);
+    return rv;
+}
+#endif
 
 static
 UA_StatusCode
@@ -1394,6 +1447,15 @@ decodeAndProcessFunRT(UA_PubSubChannel *channel, void *cbContext,
                                             ctx->connection, &mutableBuffer);
 }
 
+static UA_StatusCode
+decodeAndProcessFunJson(UA_PubSubChannel *channel, void *cbContext,
+                        const UA_ByteString *src) {
+    UA_ByteString mutableBuffer = {src->length, src->data};
+    UA_RGContext *ctx = (UA_RGContext*) cbContext;
+    return decodeAndProcessNetworkMessageJson(ctx->server, ctx->readerGroup,
+                                              ctx->connection, &mutableBuffer);
+}
+
 UA_StatusCode
 receiveBufferedNetworkMessage(UA_Server *server, UA_ReaderGroup *readerGroup,
                               UA_PubSubConnection *connection) {
@@ -1418,5 +1480,31 @@ receiveBufferedNetworkMessage(UA_Server *server, UA_ReaderGroup *readerGroup,
 
     return UA_STATUSCODE_GOOD;
 }
+
+#ifdef UA_ENABLE_JSON_ENCODING
+// receive in json format
+UA_StatusCode
+receiveBufferedNetworkMessageJson(UA_Server *server, UA_ReaderGroup *readerGroup,
+                              UA_PubSubConnection *connection) {
+    UA_RGContext ctx = {server, connection, readerGroup};
+    UA_PubSubReceiveCallback receiveCB;
+
+    receiveCB = decodeAndProcessFunJson;
+
+    /* TODO: Move the TransportSettings to to the readerGroupConfig. So we can
+     * use it here instead of a NULL pointer. */
+    UA_StatusCode rv =
+        connection->channel->receive(connection->channel, NULL,
+                                     receiveCB, &ctx,
+                                     readerGroup->config.timeout);
+
+    // TODO attention: here rv is ok if UA_STATUSCODE_GOOD != rv
+    UA_CHECK_WARN(!UA_StatusCode_isBad(rv), return rv,
+                  &server->config.logger, UA_LOGCATEGORY_SERVER,
+                  "SubscribeCallback(): Connection receive failed!");
+
+    return UA_STATUSCODE_GOOD;
+}
+#endif
 
 #endif /* UA_ENABLE_PUBSUB */

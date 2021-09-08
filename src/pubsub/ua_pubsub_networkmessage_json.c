@@ -423,10 +423,11 @@ static status NetworkMessage_decodeJsonInternal(UA_NetworkMessage *dst, CtxJson 
                                                 ParseCtx *parseCtx) {
     memset(dst, 0, sizeof(UA_NetworkMessage));
     dst->chunkMessage = UA_FALSE;
-    dst->groupHeaderEnabled = UA_FALSE;
+    dst->groupHeaderEnabled = UA_TRUE;
     dst->payloadHeaderEnabled = UA_FALSE;
     dst->picosecondsEnabled = UA_FALSE;
     dst->promotedFieldsEnabled = UA_FALSE;
+    void *publisherId = NULL;
 
     /* Look forward for publisheId, if present check if type if primitve (Number) or String. */
     u8 publishIdTypeIndex = UA_TYPES_STRING;
@@ -438,9 +439,11 @@ static status NetworkMessage_decodeJsonInternal(UA_NetworkMessage *dst, CtxJson 
         if(publishIdToken.type == JSMN_PRIMITIVE) {
             publishIdTypeIndex = UA_TYPES_UINT64;
             dst->publisherIdType = UA_PUBLISHERDATATYPE_UINT64; //store in biggest possible
+            publisherId = &dst->publisherId.publisherIdUInt64;
         } else if(publishIdToken.type == JSMN_STRING) {
             publishIdTypeIndex = UA_TYPES_STRING;
             dst->publisherIdType = UA_PUBLISHERDATATYPE_STRING;
+            publisherId = &dst->publisherId.publisherIdString;
         } else {
             return UA_STATUSCODE_BADDECODINGERROR;
         }
@@ -490,7 +493,7 @@ static status NetworkMessage_decodeJsonInternal(UA_NetworkMessage *dst, CtxJson 
     DecodeEntry entries[5] = {
         {UA_DECODEKEY_MESSAGEID, &dst->messageId, getDecodeSignature(UA_TYPES_STRING), false, NULL},
         {UA_DECODEKEY_MESSAGETYPE, &messageType, NULL, false, NULL},
-        {UA_DECODEKEY_PUBLISHERID, &dst->publisherId.publisherIdString, getDecodeSignature(publishIdTypeIndex), false, NULL},
+        {UA_DECODEKEY_PUBLISHERID, publisherId, getDecodeSignature(dst->publisherIdType), false, NULL},
         {UA_DECODEKEY_DATASETCLASSID, &dst->dataSetClassId, getDecodeSignature(UA_TYPES_GUID), false, NULL},
         {UA_DECODEKEY_MESSAGES, &dst->payload.dataSetPayload.dataSetMessages, &DatasetMessage_Array_decodeJsonInternal, false, NULL}
     };
@@ -505,8 +508,8 @@ static status NetworkMessage_decodeJsonInternal(UA_NetworkMessage *dst, CtxJson 
 
     dst->messageIdEnabled = entries[0].found;
     dst->publisherIdEnabled = entries[2].found;
-    if(dst->publisherIdEnabled)
-        dst->publisherIdType = UA_PUBLISHERDATATYPE_STRING;
+    // if(dst->publisherIdEnabled)
+    //     dst->publisherIdType = UA_PUBLISHERDATATYPE_STRING;
     dst->dataSetClassIdEnabled = entries[3].found;
     dst->payloadHeaderEnabled = UA_TRUE;
     dst->payloadHeader.dataSetPayloadHeader.count = (UA_Byte)messageCount;

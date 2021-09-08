@@ -2561,9 +2561,9 @@ DECODE_JSON(DateTime) {
     
     /* TODO: proper ISO 8601:2004 parsing, musl strptime!*/
     /* DateTime  ISO 8601:2004 without milli is 20 Characters, with millis 24 */
-    if(tokenSize != 20 && tokenSize != 24) {
-        return UA_STATUSCODE_BADDECODINGERROR;
-    }
+    // if(tokenSize != 20 && tokenSize != 24) {
+    //     return UA_STATUSCODE_BADDECODINGERROR;
+    // }
     
     /* sanity check */
     if(tokenData[4] != '-' || tokenData[7] != '-' || tokenData[10] != 'T' ||

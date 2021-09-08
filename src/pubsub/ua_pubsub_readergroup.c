@@ -656,8 +656,11 @@ UA_ReaderGroup_subscribeCallback(UA_Server *server,
         UA_ReaderGroup_setPubSubState(server, UA_PUBSUBSTATE_ERROR, readerGroup);
         return;
     }
-
+#ifdef UA_ENABLE_JSON_ENCODING
+    receiveBufferedNetworkMessageJson(server, readerGroup, connection);
+#else
     receiveBufferedNetworkMessage(server, readerGroup, connection);
+#endif
 }
 
 /* Add new subscribeCallback. The first execution is triggered directly after
