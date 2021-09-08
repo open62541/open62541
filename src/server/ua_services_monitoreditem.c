@@ -42,7 +42,7 @@ setAbsoluteFromPercentageDeadband(UA_Server *server, UA_Session *session,
         browseSimplifiedBrowsePath(server, mon->itemToMonitor.nodeId, 1, &qn);
     if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
         UA_BrowsePathResult_clear(&bpr);
-        return UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED;
+        return UA_STATUSCODE_BADFILTERNOTALLOWED;
     }
 
     /* Read the range */
@@ -56,7 +56,7 @@ setAbsoluteFromPercentageDeadband(UA_Server *server, UA_Session *session,
     if(!UA_Variant_isScalar(&rangeVal.value) ||
        rangeVal.value.type != &UA_TYPES[UA_TYPES_RANGE]) {
         UA_DataValue_clear(&rangeVal);
-        return UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED;
+        return UA_STATUSCODE_BADFILTERNOTALLOWED;
     }
 
     /* Compute the abs deadband */
@@ -67,7 +67,8 @@ setAbsoluteFromPercentageDeadband(UA_Server *server, UA_Session *session,
 
     /* EURange invalid or NaN? */
     if(absDeadband < 0.0 || absDeadband != absDeadband) {
-        return UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED;
+        UA_DataValue_clear(&rangeVal);
+        return UA_STATUSCODE_BADFILTERNOTALLOWED;
     }
 
     /* Adjust the original filter */
@@ -446,7 +447,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
                                                          valueType, &newMon->parameters);
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     result->statusCode |= checkEventFilterParam(server, session, newMon,
-                                                &newMon->parameters);
+                                                         &newMon->parameters);
 #endif
     if(result->statusCode != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, cmc->sub,
