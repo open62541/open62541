@@ -548,6 +548,61 @@ Operation_addReference(UA_Server *server, UA_Session *session, void *context,
                        const UA_AddReferencesItem *item, UA_StatusCode *retval);
 
 static UA_StatusCode
+addRef(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
+       const UA_NodeId *referenceTypeId, const UA_NodeId *parentNodeId,
+       UA_Boolean forward) {
+    UA_AddReferencesItem ref_item;
+    UA_AddReferencesItem_init(&ref_item);
+    ref_item.sourceNodeId = *nodeId;
+    ref_item.referenceTypeId = *referenceTypeId;
+    ref_item.isForward = forward;
+    ref_item.targetNodeId.nodeId = *parentNodeId;
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    Operation_addReference(server, session, NULL, &ref_item, &retval);
+    return retval;
+}
+
+static UA_StatusCode
+addInterfaceChildren(UA_Server *server, UA_Session *session,
+                const UA_NodeHead *head, const UA_Node *type) {
+    /* Get the hierarchy of the type and all its supertypes */
+    UA_NodeId *hierarchy = NULL;
+    size_t hierarchySize = 0;
+    UA_StatusCode retval = getAllInterfaceChildNodeIds(server, &head->nodeId, &type->head.nodeId,
+                                                              &hierarchy, &hierarchySize);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    UA_assert(hierarchySize < 1000);
+
+    /* Copy members of the type and supertypes (and instantiate them) */
+    for(size_t i = 0; i < hierarchySize; ++i) {
+        retval = copyAllChildren(server, session, &hierarchy[i], &head->nodeId);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_Array_delete(hierarchy, hierarchySize, &UA_TYPES[UA_TYPES_NODEID]);
+            return retval;
+        }
+    }
+
+    for (size_t i = 0; i < hierarchySize; ++i) {
+        UA_NodeId refId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASINTERFACE);
+        retval = addRef(server, &server->adminSession, &head->nodeId, &refId, &hierarchy[i], true);
+
+        /* Don't add the original HasInterface reference to ObjectType sub nodes */
+        if (retval == UA_STATUSCODE_BADDUPLICATEREFERENCENOTALLOWED) {
+            retval = UA_STATUSCODE_GOOD;
+            continue;
+        }
+
+        if (retval != UA_STATUSCODE_GOOD)
+            break;
+    }
+
+    UA_Array_delete(hierarchy, hierarchySize, &UA_TYPES[UA_TYPES_NODEID]);
+    return retval;
+}
+
+static UA_StatusCode
 copyChild(UA_Server *server, UA_Session *session,
           const UA_NodeId *destinationNodeId,
           const UA_ReferenceDescription *rd) {
@@ -665,6 +720,24 @@ copyChild(UA_Server *server, UA_Session *session,
             return retval;
         }
 
+        /* Add HasInterface references to the child */
+        if(rd->nodeClass == UA_NODECLASS_OBJECT && !UA_NodeId_isNull(&rd->typeDefinition.nodeId)) {
+            const UA_Node *typeNode = UA_NODESTORE_GET(server, &rd->typeDefinition.nodeId);
+
+            if (!typeNode) {
+                UA_NODESTORE_REMOVE(server, &newNodeId);
+                return retval;
+            }
+
+            retval = addInterfaceChildren(server, session, &node->head, typeNode);
+            UA_NODESTORE_RELEASE(server, typeNode);
+
+            if (retval != UA_STATUSCODE_GOOD) {
+                UA_NODESTORE_REMOVE(server, &newNodeId);
+                return retval;
+            }
+        }
+
         /* For the new child, recursively copy the members of the original. No
          * typechecking is performed here. Assuming that the original is
          * consistent. */
@@ -732,45 +805,6 @@ addTypeChildren(UA_Server *server, UA_Session *session,
     }
 
     UA_Array_delete(hierarchy, hierarchySize, &UA_TYPES[UA_TYPES_NODEID]);
-    return retval;
-}
-
-static UA_StatusCode
-addInterfaceChildren(UA_Server *server, UA_Session *session,
-                const UA_NodeHead *head, const UA_Node *type) {
-    /* Get the hierarchy of the type and all its supertypes */
-    UA_NodeId *hierarchy = NULL;
-    size_t hierarchySize = 0;
-    UA_StatusCode retval = getAllInterfaceChildNodeIds(server, &head->nodeId, &type->head.nodeId,
-                                                              &hierarchy, &hierarchySize);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-    UA_assert(hierarchySize < 1000);
-
-    /* Copy members of the type and supertypes (and instantiate them) */
-    for(size_t i = 0; i < hierarchySize; ++i) {
-        retval = copyAllChildren(server, session, &hierarchy[i], &head->nodeId);
-        if(retval != UA_STATUSCODE_GOOD)
-            break;
-    }
-
-    UA_Array_delete(hierarchy, hierarchySize, &UA_TYPES[UA_TYPES_NODEID]);
-    return retval;
-}
-
-static UA_StatusCode
-addRef(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
-       const UA_NodeId *referenceTypeId, const UA_NodeId *parentNodeId,
-       UA_Boolean forward) {
-    UA_AddReferencesItem ref_item;
-    UA_AddReferencesItem_init(&ref_item);
-    ref_item.sourceNodeId = *nodeId;
-    ref_item.referenceTypeId = *referenceTypeId;
-    ref_item.isForward = forward;
-    ref_item.targetNodeId.nodeId = *parentNodeId;
-
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    Operation_addReference(server, session, NULL, &ref_item, &retval);
     return retval;
 }
 
