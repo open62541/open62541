@@ -27,7 +27,7 @@ WORKDIR /opt/open62541
 
 # Generate certificates
 RUN apk add --no-cache python3-dev linux-headers openssl && rm -rf /var/cache/apk/*
-RUN pip3 install netifaces==0.10.9
+RUN pip3 install --no-cache-dir netifaces==0.10.9
 RUN mkdir -p /opt/open62541/pki/created
 RUN python3 /opt/open62541/tools/certs/create_self-signed.py /opt/open62541/pki/created
 
