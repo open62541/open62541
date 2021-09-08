@@ -152,7 +152,7 @@ static UA_StatusCode getSessionHandle(unsigned long *session,
                  UA_LOG_ERROR(policy->securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                               "Failed to fetch token info 0x%.8lX", (long unsigned int)rv);
             }
-
+            UA_free(pSlotList);
             break;
         }
 
