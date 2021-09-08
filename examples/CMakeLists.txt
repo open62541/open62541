@@ -100,6 +100,8 @@ add_example(tutorial_client_events tutorial_client_events.c)
 
 if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
   add_example(tutorial_server_events tutorial_server_events.c)
+  add_example(server_events_random events/server_random_events.c)
+  add_example(client_event_filter events/client_eventfilter.c)
   if(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS)
     add_example(tutorial_server_alarms_conditions tutorial_server_alarms_conditions.c)
   endif()
