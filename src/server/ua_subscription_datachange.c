@@ -82,7 +82,8 @@ detectValueChangeWithFilter(UA_Server *server, UA_Session *session, UA_Monitored
                             UA_DataValue *value, UA_ByteString *encoding,
                             UA_Boolean *changed) {
     /* Handle status change for instance Bad_NodeIdUnknown */
-    if(value->hasStatus && mon->lastValue.hasStatus && value->status != mon->lastValue.status) {
+    if(value->hasStatus != mon->lastValue.hasStatus ||
+       value->status != mon->lastValue.status) {
         *changed = true;
         return UA_STATUSCODE_GOOD;
     }
