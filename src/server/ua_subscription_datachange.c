@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2017-2020 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
@@ -81,13 +81,16 @@ static UA_StatusCode
 detectValueChangeWithFilter(UA_Server *server, UA_Session *session, UA_MonitoredItem *mon,
                             UA_DataValue *value, UA_ByteString *encoding,
                             UA_Boolean *changed) {
-    if(!value->value.type) {
-        *changed = !(UA_ByteString_equal(encoding, &mon->lastSampledValue));
+    /* Handle status change for instance Bad_NodeIdUnknown */
+    if(value->hasStatus != mon->lastValue.hasStatus ||
+       value->status != mon->lastValue.status) {
+        *changed = true;
         return UA_STATUSCODE_GOOD;
     }
 
     /* Test absolute deadband */
-    if(UA_DataType_isNumeric(value->value.type) &&
+    if(value->value.type != NULL &&
+       UA_DataType_isNumeric(value->value.type) &&
        mon->parameters.filter.content.decoded.type == &UA_TYPES[UA_TYPES_DATACHANGEFILTER]) {
         UA_DataChangeFilter *filter = (UA_DataChangeFilter*)
             mon->parameters.filter.content.decoded.data;
