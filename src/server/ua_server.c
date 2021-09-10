@@ -589,10 +589,9 @@ connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
     if (UA_EventLoop_getState(cm->eventSource.eventLoop) == UA_EVENTLOOPSTATE_STOPPING) {
         UA_LOG_DEBUG(UA_EventLoop_getLogger(cm->eventSource.eventLoop), UA_LOGCATEGORY_SERVER, "stopping eventloop");
-        return;
     }
 
-    if (stat != UA_STATUSCODE_GOOD) {
+    if (stat == UA_STATUSCODE_BADCONNECTIONCLOSED) {
         UA_LOG_INFO(UA_EventLoop_getLogger(cm->eventSource.eventLoop), UA_LOGCATEGORY_SERVER, "closing connection");
 
         shutdownCallback(cm, connectionId, *connectionContext);
