@@ -885,6 +885,25 @@ connectIterate(UA_Client *client, UA_UInt32 timeout) {
     UA_LOG_TRACE(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                  "Client connect iterate");
 
+    /* Already connected */
+    if(client->sessionState == UA_SESSIONSTATE_ACTIVATED)
+        return UA_STATUSCODE_GOOD;
+
+    /* Could not connect */
+    if(client->connectStatus != UA_STATUSCODE_GOOD)
+        return client->connectStatus;
+
+    /* The connection was already closed */
+    if(client->channel.state == UA_SECURECHANNELSTATE_CLOSING) {
+        client->connectStatus = UA_STATUSCODE_BADCONNECTIONCLOSED;
+        return UA_STATUSCODE_BADCONNECTIONCLOSED;
+    }
+
+    /* The connection is closed. Reset the SecureChannel and open a new TCP
+     * connection */
+    if(client->connection.state == UA_CONNECTIONSTATE_CLOSED)
+        return UA_Client_make_connection(client);
+
     UA_EventLoop_run(client->config.eventLoop, timeout);
     return client->connectStatus;
 }
@@ -1062,9 +1081,9 @@ UA_Client_make_connection(UA_Client *client) {
     UA_CHECK_STATUS(rv, return rv);
     /* TODO: check rv */
 
-    if (client->connection.handle != NULL) {
-        return UA_STATUSCODE_GOOD;
-    }
+    // if (client->connection.handle != NULL) {
+    //     return UA_STATUSCODE_GOOD;
+    // }
 
     void *ctx = client->config.cm->initialConnectionContext;
 
@@ -1296,7 +1315,10 @@ static UA_StatusCode UA_Connection_recv(UA_Connection *connection, UA_ByteString
     response->length = ctx->currentMessage.length;
     response->data = ctx->currentMessage.data;
 
-    return client->connectStatus;
+    UA_StatusCode temp = client->connectStatus;
+    client->connectStatus = UA_STATUSCODE_GOOD;
+
+    return temp;
 }
 
 static
