@@ -885,7 +885,8 @@ connectIterate(UA_Client *client, UA_UInt32 timeout) {
     UA_LOG_TRACE(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                  "Client connect iterate");
 
-    return UA_EventLoop_run(client->config.eventLoop, timeout);
+    UA_EventLoop_run(client->config.eventLoop, timeout);
+    return client->connectStatus;
 }
 
 /* The local ApplicationURI has to match the certificates of the
