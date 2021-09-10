@@ -1138,7 +1138,7 @@ UA_Client_connectSecureChannel(UA_Client *client, const char *endpointUrl) {
 void
 closeSecureChannel(UA_Client *client) {
     /* Send CLO if the SecureChannel is open */
-    if(client->channel.state == UA_SECURECHANNELSTATE_OPEN) {
+    if(client->channel.state == UA_SECURECHANNELSTATE_OPEN && client->connectStatus != UA_STATUSCODE_BADCONNECTIONCLOSED) {
         UA_CloseSecureChannelRequest request;
         UA_CloseSecureChannelRequest_init(&request);
         request.requestHeader.requestHandle = ++client->requestHandle;
@@ -1271,6 +1271,8 @@ static void UA_Connection_close(UA_Connection *connection) {
     UA_ClientConnectionContext *ctx = (UA_ClientConnectionContext *) connection->handle;
     UA_ConnectionManager *cm = ((UA_BasicClientConnectionContext *)ctx)->cm;
     cm->closeConnection(cm, ctx->connectionId);
+    connection->state = UA_CONNECTIONSTATE_CLOSED;
+    UA_Client_shutdownCallback(cm, ctx->connectionId, ctx);
 }
 
 static UA_StatusCode UA_Connection_recv(UA_Connection *connection, UA_ByteString *response,
@@ -1323,8 +1325,10 @@ UA_Client_shutdownCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         return;
     } else {
         UA_ClientConnectionContext *ctx = (UA_ClientConnectionContext*) basic;
-        UA_free(ctx->currentMessage.data);
-        UA_free(ctx);
+        if (basic->client->connection.handle != connectionContext) {
+            UA_free(ctx->currentMessage.data);
+            UA_free(ctx);
+        }
     }
 }
 

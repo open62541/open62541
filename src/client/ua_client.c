@@ -134,10 +134,18 @@ UA_Client_clear(UA_Client *client) {
     // }
 }
 
+static void
+UA_Client_connectionContext_free(void *connectionContext) {
+    UA_ClientConnectionContext *ctx = (UA_ClientConnectionContext*)connectionContext;
+    UA_free(ctx->currentMessage.data);
+    UA_free(ctx);
+}
+
 void
 UA_Client_delete(UA_Client* client) {
     UA_Client_clear(client);
     UA_ClientConfig_clear(&client->config);
+    UA_Client_connectionContext_free(client->connection.handle);
     UA_free(client);
 }
 
