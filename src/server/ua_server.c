@@ -595,9 +595,10 @@ connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     if (stat != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(UA_EventLoop_getLogger(cm->eventSource.eventLoop), UA_LOGCATEGORY_SERVER, "closing connection");
 
-        if (!ctx->isInitial) {
-            free(*connectionContext);
-        }
+        shutdownCallback(cm, connectionId, *connectionContext);
+        // if (!ctx->isInitial) {
+        //     free(*connectionContext);
+        // }
         return;
     }
 
@@ -645,7 +646,6 @@ UA_Server_setupEventLoop(UA_Server *server) {
     server->tcpConnectionManager = cm;
     ctx->cm = cm;
     cm->connectionCallback = connectionCallback;
-    cm->shutdownCallback = shutdownCallback;
     cm->initialConnectionContext = ctx;
     UA_ConfigParameter_setParameter(&cm->eventSource.parameters, "listen-port", &portVar);
 
