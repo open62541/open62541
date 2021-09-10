@@ -25,7 +25,7 @@
 #include "ua_client_internal.h"
 #include "ua_connection_internal.h"
 #include "ua_types_encoding_binary.h"
-#include <ua_util_internal.h>
+#include "ua_util_internal.h"
 
 /********************/
 /* Client Lifecycle */
@@ -736,16 +736,15 @@ UA_Client_setupEventLoop(UA_Client *client) {
     ctx->isInitial = true;
 
     UA_ConnectionManager *cm = UA_ConnectionManager_TCP_new(UA_STRING("tcpCM"));
-    UA_CHECK_MEM(cm, return UA_STATUSCODE_BADOUTOFMEMORY);
+    UA_CHECK_MEM(cm, UA_free(ctx); return UA_STATUSCODE_BADOUTOFMEMORY);
 
-    cm->shutdownCallback = UA_Client_shutdownCallback;
     cm->connectionCallback = UA_Client_connectionCallback;
     cm->initialConnectionContext = ctx;
 
     ctx->cm = cm;
     UA_StatusCode rv = UA_EventLoop_registerEventSource(
         UA_Client_getConfig(client)->eventLoop, (UA_EventSource *) cm);
-    UA_CHECK_STATUS(rv, return rv);
+    UA_CHECK_STATUS(rv, UA_free(ctx); UA_free(cm); return rv);
 
     UA_Client_getConfig(client)->cm = cm;
 
@@ -766,7 +765,10 @@ UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout) {
     UA_ClientConfig *cc = UA_Client_getConfig(client);
 
     if (cc->cm == NULL) {
-        UA_Client_setupEventLoop(client);
+        UA_StatusCode rv = UA_Client_setupEventLoop(client);
+        UA_CHECK_STATUS_ERROR(rv,
+                              return rv, &client->config.logger, UA_LOGCATEGORY_CLIENT,
+                              "setting up eventloop failed");
     }
 
     UA_CHECK_ERROR(UA_EventLoop_getState(cc->eventLoop) != UA_EVENTLOOPSTATE_STOPPED,
