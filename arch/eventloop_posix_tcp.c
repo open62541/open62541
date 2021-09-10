@@ -150,8 +150,16 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, UA_FD fd,
     UA_FD newsockfd = UA_accept(fd, (struct sockaddr*)&remote, &remote_size);
     if(newsockfd == UA_INVALID_FD) {
         /* Close the listen socket */
-        if(UA_ERRNO != UA_INTERRUPTED)
+        if(UA_ERRNO != UA_INTERRUPTED) {
+            cm->connectionCallback(cm, (uintptr_t)fd, fdcontext,
+                                   UA_STATUSCODE_BADCONNECTIONCLOSED,
+                                   UA_BYTESTRING_NULL);
             TCP_close(cm, fd);
+        } else {
+            UA_LOG_WARNING(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
+                         UA_LOGCATEGORY_NETWORK,
+                         "listen socket callback was interrupted by a signal");
+        }
         return;
     }
 
