@@ -1349,6 +1349,10 @@ UA_Client_connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         UA_CHECK_STATUS_INFO(stat, (void)0, logger, UA_LOGCATEGORY_CLIENT, "disconnection");
         UA_LOG_INFO(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
                     UA_LOGCATEGORY_CLIENT, "closing connection");
+        UA_Client *client = ctx->client;
+        client->connectStatus = UA_STATUSCODE_BADDISCONNECT;
+
+        UA_Client_shutdownCallback(cm, connectionId, *connectionContext);
         return;
     }
 
