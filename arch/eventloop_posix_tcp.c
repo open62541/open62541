@@ -533,7 +533,6 @@ TCP_eventSourceStart(UA_ConnectionManager *cm) {
 static void
 TCP_shutdownCallback(UA_EventSource *es, UA_FD fd, void *fdcontext, short event) {
     UA_ConnectionManager *cm = (UA_ConnectionManager*)es;
-    cm->shutdownCallback(cm, (uintptr_t)fd, fdcontext);
     TCP_shutdownConnection(cm, (uintptr_t)fd);
 }
 
@@ -547,6 +546,12 @@ TCP_eventSourceStop(UA_ConnectionManager *cm) {
     UA_EventLoop_iterateFD(cm->eventSource.eventLoop, &cm->eventSource,
                            TCP_shutdownCallback);
     cm->eventSource.state = UA_EVENTSOURCESTATE_STOPPING;
+
+    TCPConnectionManager *tcm = (TCPConnectionManager*)cm;
+
+    /* Closed? */
+    if(tcm->fdCount == 0 && cm->eventSource.state == UA_EVENTSOURCESTATE_STOPPING)
+        cm->eventSource.state = UA_EVENTSOURCESTATE_STOPPED;
 }
 
 static UA_StatusCode
