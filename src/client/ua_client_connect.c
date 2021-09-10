@@ -1294,7 +1294,7 @@ static UA_StatusCode UA_Connection_recv(UA_Connection *connection, UA_ByteString
     response->length = ctx->currentMessage.length;
     response->data = ctx->currentMessage.data;
 
-    return rv;
+    return client->connectStatus;
 }
 
 static
@@ -1345,12 +1345,12 @@ UA_Client_connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     }
 
     UA_BasicClientConnectionContext *ctx = (UA_BasicClientConnectionContext *) *connectionContext;
-    if (stat != UA_STATUSCODE_GOOD) {
+    if (stat == UA_STATUSCODE_BADCONNECTIONCLOSED) {
         UA_CHECK_STATUS_INFO(stat, (void)0, logger, UA_LOGCATEGORY_CLIENT, "disconnection");
         UA_LOG_INFO(UA_EventLoop_getLogger(cm->eventSource.eventLoop),
                     UA_LOGCATEGORY_CLIENT, "closing connection");
         UA_Client *client = ctx->client;
-        client->connectStatus = UA_STATUSCODE_BADDISCONNECT;
+        client->connectStatus = UA_STATUSCODE_BADCONNECTIONCLOSED;
 
         UA_Client_shutdownCallback(cm, connectionId, *connectionContext);
         return;
