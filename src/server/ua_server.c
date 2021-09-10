@@ -587,8 +587,10 @@ connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
     UA_BasicConnectionContext *ctx = (UA_BasicConnectionContext *) *connectionContext;
 
-    if (UA_EventLoop_getState(cm->eventSource.eventLoop) == UA_EVENTLOOPSTATE_STOPPING) {
-        UA_LOG_DEBUG(UA_EventLoop_getLogger(cm->eventSource.eventLoop), UA_LOGCATEGORY_SERVER, "stopping eventloop");
+    if (UA_EventLoop_getState(cm->eventSource.eventLoop) == UA_EVENTLOOPSTATE_STOPPING && stat != UA_STATUSCODE_BADCONNECTIONCLOSED) {
+        UA_LOG_DEBUG(UA_EventLoop_getLogger(cm->eventSource.eventLoop), UA_LOGCATEGORY_SERVER,
+                     "stopping eventloop so pending msgs will not be processed");
+        return;
     }
 
     if (stat == UA_STATUSCODE_BADCONNECTIONCLOSED) {
