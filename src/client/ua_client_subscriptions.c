@@ -9,12 +9,14 @@
  *    Copyright 2016-2017 (c) Florian Palm
  *    Copyright 2017 (c) Frank Meerkötter
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2021 (c) Fraunhofer IOSB (Author: Jan Hermes)
  */
 
 #include <open62541/client_highlevel.h>
 #include <open62541/client_highlevel_async.h>
 
 #include "ua_client_internal.h"
+#include "ua_util_internal.h"
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
 
@@ -1190,10 +1192,10 @@ UA_Client_Subscriptions_backgroundPublish(UA_Client *client) {
 
     while(client->currentlyOutStandingPublishRequests < client->config.outStandingPublishRequests) {
         UA_PublishRequest *request = UA_PublishRequest_new();
-        if(!request)
-            return;
+        UA_CHECK_MEM_WARN(request, return, &client->config.logger, UA_LOGCATEGORY_CLIENT, "out of memory");
 
-        request->requestHeader.timeoutHint=60000;
+        // TODO: magic number?
+        request->requestHeader.timeoutHint = 60000;
         UA_StatusCode retval = UA_Client_preparePublishRequest(client, request);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_PublishRequest_delete(request);
