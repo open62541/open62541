@@ -213,7 +213,6 @@ struct UA_ConnectionManager {
      * The callback depends on the application and has to be manually
      * configured. */
     UA_ConnectionCallback connectionCallback;
-    UA_ShutdownCallback shutdownCallback;
     void *initialConnectionContext;
 
     /* Actively open connections
