@@ -890,8 +890,6 @@ DataSetReader_processRaw(UA_Server *server, UA_ReaderGroup *rg,
 
         if(rg->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE) {
             memcpy((**tv->externalDataValue).value.data, value, type->memSize);
-            if(tv->targetVariableContext)
-                memcpy(tv->targetVariableContext, value, type->memSize);
             if(tv->afterWrite)
                 tv->afterWrite(server, &dsr->identifier,
                                &dsr->linkedReaderGroup,
@@ -935,10 +933,6 @@ DataSetReader_processFixedSize(UA_Server *server, UA_ReaderGroup *rg,
                msg->data.keyFrameData.dataSetFields[i].value.data,
                msg->data.keyFrameData.dataSetFields[i].value.type->memSize);
 
-        if(tv->targetVariableContext)
-            memcpy(tv->targetVariableContext,
-                   msg->data.keyFrameData.dataSetFields[i].value.data,
-                   msg->data.keyFrameData.dataSetFields[i].value.type->memSize);
 
         if(tv->afterWrite)
             tv->afterWrite(server, &dsr->identifier, &dsr->linkedReaderGroup,
