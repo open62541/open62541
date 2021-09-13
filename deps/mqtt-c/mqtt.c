@@ -701,7 +701,7 @@ ssize_t __mqtt_recv(struct mqtt_client *client)
                     client->error = MQTT_ERROR_ACK_OF_UNKNOWN;
                     mqtt_recv_ret = MQTT_ERROR_ACK_OF_UNKNOWN;
                     break;
-                }mqtt_unpack_connack_response
+                }
                 msg->state = MQTT_QUEUED_COMPLETE;
                 /* initialize typical response time */
                 client->typical_response_time = (double) (MQTT_PAL_TIME() - msg->time_sent);
