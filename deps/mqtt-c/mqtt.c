@@ -701,7 +701,7 @@ ssize_t __mqtt_recv(struct mqtt_client *client)
                     client->error = MQTT_ERROR_ACK_OF_UNKNOWN;
                     mqtt_recv_ret = MQTT_ERROR_ACK_OF_UNKNOWN;
                     break;
-                }
+                }mqtt_unpack_connack_response
                 msg->state = MQTT_QUEUED_COMPLETE;
                 /* initialize typical response time */
                 client->typical_response_time = (double) (MQTT_PAL_TIME() - msg->time_sent);
@@ -1229,6 +1229,18 @@ ssize_t mqtt_pack_connection_request(uint8_t* buf, size_t bufsz,
     }
     if (connect_flags & MQTT_CONNECT_PASSWORD) {
         buf += __mqtt_pack_str(buf, password);
+    }
+    if (connect_flags & MQTT_CONNECT_CAFILEPATH) {
+        buf += __mqtt_pack_str(buf, caFilePath);
+    }
+    if (connect_flags & MQTT_CONNECT_CAPATH) {
+        buf += __mqtt_pack_str(buf, caPath);
+    }
+    if (connect_flags & MQTT_CONNECT_CLIENTCERTPATH) {
+        buf += __mqtt_pack_str(buf, clientCertPath);
+    }
+    if (connect_flags & MQTT_CONNECT_CLIENTKEYPATH) {
+        buf += __mqtt_pack_str(buf, clientKeyPath);
     }
 
     /* return the number of bytes that were consumed */
