@@ -600,7 +600,7 @@ ssize_t __mqtt_send(struct mqtt_client *client)
     {
         mqtt_pal_time_t keep_alive_timeout = client->time_of_last_send + (mqtt_pal_time_t)((float)(client->keep_alive) * 0.75);
         if (MQTT_PAL_TIME() > keep_alive_timeout) {
-          ssize_t rv = __mqtt_ping(client);
+          ssize_t rv = mqtt_ping(client);
           if (rv != MQTT_OK) {
             client->error = (enum MQTTErrors)rv;
             MQTT_PAL_MUTEX_UNLOCK(&client->mutex);
