@@ -23,7 +23,7 @@ parser.add_argument('-x', '--xml',
                     action='append',
                     dest="infiles",
                     default=[],
-                    help='NodeSet XML files with nodes that shall be generated.')
+                    help='NodeSet XML files with nodes that dependencies shall be resolved for.')
 
 parser.add_argument('-r', '--ref',
                     metavar="<referenceNodeSetXML>",
