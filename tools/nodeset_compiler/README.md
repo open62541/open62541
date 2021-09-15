@@ -35,7 +35,7 @@ optional arguments:
 
 ## Showing missing dependencies
 Suppose you want to implement a OPC UA PA-DIM nodeset on an embedded platform.
-Due to memory constraints, you are using the default reduced OPC UA Namespace-Zero nodeset.
+Due to memory constraints, you are using the default reduced OPC UA Namespace-Zero nodeset. However you quickly find yourself in a position, where a lot of additional dependencies need to be satisfied.
 
 ````
 nodeset_resolver.py -e ../../tools/schema/Opc.Ua.NodeSet2.Reduced.xml \
@@ -43,7 +43,7 @@ nodeset_resolver.py -e ../../tools/schema/Opc.Ua.NodeSet2.Reduced.xml \
   -x .../deps/ua-nodeset/PADIM/Opc.Ua.PADIM.NodeSet2.xml
 ````
 
-The output shows a list of missing NodeIds, that can not be resolved from the supplied XML files. Ignoring ``ns=0``, the missing NodeIds can be solved by including the OPC UA DI model.
+The output shows a list of missing NodeIds, that can not be resolved from the supplied XML files. Ignoring ``ns=0``, the other missing nodeIds can be supplied by including the OPC UA DI model.
 ````
 nodeset_resolver.py -e ../../tools/schema/Opc.Ua.NodeSet2.Reduced.xml \
   -x .../deps/ua-nodeset/DI/Opc.Ua.Di.NodeSet2.xml \
@@ -51,7 +51,7 @@ nodeset_resolver.py -e ../../tools/schema/Opc.Ua.NodeSet2.Reduced.xml \
   -x .../deps/ua-nodeset/PADIM/Opc.Ua.PADIM.NodeSet2.xml
 ````
 
-This time, only NodeIds with ``ns=0`` are list as unresolvable, because they are missing from the default reduced namespace-zero nodeset.
+This time, only NodeIds with ``ns=0`` are listed as unresolvable, because they are missing from the default reduced namespace-zero nodeset.
 We can now include the full OPC UA namespace-zero nodeset as a reference file to resolve all missing dependencies.
 
 ````
@@ -63,10 +63,11 @@ nodeset_resolver.py -e ../../tools/schema/Opc.Ua.NodeSet2.Reduced.xml \
 ````
 
 The output now shows all resolved NodeIds, that are required for namespace zero.
+Now the next step includes generating a new namespace-zero that includes the missing nodes.
 
-## Generating Custom NodeSets
-You can now automatically generate an XML file with these resolved NodeIds by pulling in their definition from the reference XML file.
-Additionally, you can automatically merge the resolved node definitions with the existing XML nodeset given with the ``-e`` parameter.
+## Generating a Custom nodeset
+You can now automatically generate an XML file with the resolved nodes by specifying that their definition should be pulled-in from the reference XML file by specifying ``-p``.
+Additionally, you can automatically merge the resolved node definitions with the existing XML nodeset (given with the ``-e`` parameter) by specifying ``-m``.
 
 Using this feature, you can create a custom tailored namespace-zero XML file using the default reduced nodeset as a basis.
 
@@ -79,7 +80,17 @@ nodeset_resolver.py -e ../../tools/schema/Opc.Ua.NodeSet2.Reduced.xml \
   -p -m > Opc.Ua.NodeSet2.Custom.xml
 ````
 
-_Note_: In this scenario, the nodesets given with the ``-x`` parameter will later be used with the ``nodeset_compiler`` to produce the compiled code for implementing the OPC UA PA-DIM nodeset.
+## Using the custom nodeset
+The custom generatead ``Opc.Ua.NodeSet2.Custom.xml`` can now be included as the namespace-zero file during compilation. For example:
+
+````
+cmake -DUA_ARCHITECTURE=freertosLWIP \
+      -DUA_ENABLE_AMALGAMATION=ON \
+      -DUA_NAMESPACE_ZERO=FULL \
+      -DUA_FILE_NS0='path/to/generated/Opc.Ua.NodeSet2.Custom.xml' ../
+````
+
+_Note_: In this scenario, the nodesets given with the ``-x`` parameter will later be used with the ``nodeset_compiler`` to produce the compiled code for implementing the OPC UA PA-DIM nodeset. For example:
 
 ````
 nodeset_compiler.py -e path/to/generated/Opc.Ua.NodeSet2.Custom.xml \
