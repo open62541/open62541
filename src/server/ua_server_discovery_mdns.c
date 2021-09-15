@@ -184,6 +184,8 @@ UA_DiscoveryManager_removeEntryFromServersOnNetwork(UA_Server *server, const cha
         return UA_STATUSCODE_BADNOTFOUND;
 
     UA_String recordStr;
+    // Cast away const because otherwise the pointer cannot be assigned.
+    // Be careful what you do with recordStr!
     recordStr.data = (UA_Byte*)(uintptr_t)fqdnMdnsRecord;
     recordStr.length = strlen(fqdnMdnsRecord);
 
@@ -225,6 +227,7 @@ mdns_append_path_to_url(UA_String *url, const char *path) {
     char *newUrl = (char *)UA_malloc(url->length + pathLen);
     memcpy(newUrl, url->data, url->length);
     memcpy(newUrl + url->length, path, pathLen);
+    UA_String_clear(url);
     url->length = url->length + pathLen;
     url->data = (UA_Byte *) newUrl;
 }
@@ -338,7 +341,7 @@ mdns_record_received(const struct resource *r, void *data) {
         return;
 
     UA_String recordStr;
-    recordStr.data = (UA_Byte*)(uintptr_t)r->name;
+    recordStr.data = (UA_Byte*)r->name;
     recordStr.length = strlen(r->name);
     UA_Boolean isSelfAnnounce = UA_String_equal(&server->discoveryManager.selfFqdnMdnsRecord, &recordStr);
     if (isSelfAnnounce)
@@ -561,7 +564,8 @@ void mdns_set_address_record(UA_Server *server, const char *fullServiceDomain,
 void
 mdns_set_address_record(UA_Server *server, const char *fullServiceDomain,
                         const char *localDomain) {
-    struct ifaddrs *ifaddr, *ifa;
+    struct ifaddrs *ifaddr;
+    struct ifaddrs *ifa;
     if(getifaddrs(&ifaddr) == -1) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "getifaddrs returned an unexpected error. Not setting mDNS A records.");

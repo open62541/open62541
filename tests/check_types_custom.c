@@ -289,13 +289,13 @@ START_TEST(parseCustomScalar) {
 
     UA_Byte *pos = buf.data;
     const UA_Byte *end = &buf.data[buf.length];
-    retval = UA_encodeBinary(&var, &UA_TYPES[UA_TYPES_VARIANT],
-                             &pos, &end, NULL, NULL);
+    retval = UA_encodeBinaryInternal(&var, &UA_TYPES[UA_TYPES_VARIANT],
+                                     &pos, &end, NULL, NULL);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Variant var2;
     size_t offset = 0;
-    retval = UA_decodeBinary(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], &customDataTypes);
+    retval = UA_decodeBinaryInternal(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], &customDataTypes);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert(var2.type == &PointType);
 
@@ -326,12 +326,12 @@ START_TEST(parseCustomScalarExtensionObject) {
 
     UA_Byte *bufPos = buf.data;
     const UA_Byte *bufEnd = &buf.data[buf.length];
-    retval = UA_encodeBinary(&eo, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], &bufPos, &bufEnd, NULL, NULL);
+    retval = UA_encodeBinaryInternal(&eo, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], &bufPos, &bufEnd, NULL, NULL);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_ExtensionObject eo2;
     size_t offset = 0;
-    retval = UA_decodeBinary(&buf, &offset, &eo2, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], &customDataTypes);
+    retval = UA_decodeBinaryInternal(&buf, &offset, &eo2, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], &customDataTypes);
     ck_assert_uint_eq(offset, (uintptr_t)(bufPos - buf.data));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -364,13 +364,13 @@ START_TEST(parseCustomArray) {
 
     UA_Byte *pos = buf.data;
     const UA_Byte *end = &buf.data[buf.length];
-    retval = UA_encodeBinary(&var, &UA_TYPES[UA_TYPES_VARIANT],
+    retval = UA_encodeBinaryInternal(&var, &UA_TYPES[UA_TYPES_VARIANT],
                              &pos, &end, NULL, NULL);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Variant var2;
     size_t offset = 0;
-    retval = UA_decodeBinary(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], &customDataTypes);
+    retval = UA_decodeBinaryInternal(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], &customDataTypes);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert(var2.type == &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
     ck_assert_uint_eq(var2.arrayLength, 10);
@@ -411,13 +411,13 @@ START_TEST(parseCustomStructureWithOptionalFields) {
 
         UA_Byte *pos = buf.data;
         const UA_Byte *end = &buf.data[buf.length];
-        retval = UA_encodeBinary(&var, &UA_TYPES[UA_TYPES_VARIANT],
+        retval = UA_encodeBinaryInternal(&var, &UA_TYPES[UA_TYPES_VARIANT],
                                  &pos, &end, NULL, NULL);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
         UA_Variant var2;
         size_t offset = 0;
-        retval = UA_decodeBinary(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], &customDataTypesOptStruct);
+        retval = UA_decodeBinaryInternal(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], &customDataTypesOptStruct);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
         ck_assert(var2.type == &OptType);
         Opt *optStruct2 = (Opt *) var2.data;
@@ -452,12 +452,12 @@ START_TEST(parseCustomStructureWithOptionalFieldsWithArrayNotContained) {
         ck_assert_uint_eq(binSize, 32);
         UA_Byte *pos = buf.data;
         const UA_Byte *end = &buf.data[buf.length];
-        retval = UA_encodeBinary(&var, &UA_TYPES[UA_TYPES_VARIANT],
+        retval = UA_encodeBinaryInternal(&var, &UA_TYPES[UA_TYPES_VARIANT],
                                  &pos, &end, NULL, NULL);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
         UA_Variant var2;
         size_t offset = 0;
-        retval = UA_decodeBinary(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], &customDataTypesOptArrayStruct);
+        retval = UA_decodeBinaryInternal(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], &customDataTypesOptArrayStruct);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
         ck_assert(var2.type == &ArrayOptType);
 
@@ -504,12 +504,12 @@ START_TEST(parseCustomStructureWithOptionalFieldsWithArrayContained) {
         ck_assert_uint_eq(binSize, 48);
         UA_Byte *pos = buf.data;
         const UA_Byte *end = &buf.data[buf.length];
-        retval = UA_encodeBinary(&var, &UA_TYPES[UA_TYPES_VARIANT],
+        retval = UA_encodeBinaryInternal(&var, &UA_TYPES[UA_TYPES_VARIANT],
                                  &pos, &end, NULL, NULL);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
         UA_Variant var2;
         size_t offset = 0;
-        retval = UA_decodeBinary(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], &customDataTypesOptArrayStruct);
+        retval = UA_decodeBinaryInternal(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], &customDataTypesOptArrayStruct);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
         ck_assert(var2.type == &ArrayOptType);
 
@@ -553,13 +553,13 @@ START_TEST(parseCustomUnion) {
 
         UA_Byte *pos = buf.data;
         const UA_Byte *end = &buf.data[buf.length];
-        retval = UA_encodeBinary(&var, &UA_TYPES[UA_TYPES_VARIANT],
+        retval = UA_encodeBinaryInternal(&var, &UA_TYPES[UA_TYPES_VARIANT],
                                  &pos, &end, NULL, NULL);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
         UA_Variant var2;
         size_t offset = 0;
-        retval = UA_decodeBinary(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], &customDataTypesUnion);
+        retval = UA_decodeBinaryInternal(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], &customDataTypesUnion);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
         ck_assert(var2.type == &UniType);
 
@@ -596,13 +596,13 @@ START_TEST(parseSelfContainingUnionNormalMember) {
 
         UA_Byte *pos = buf.data;
         const UA_Byte *end = &buf.data[buf.length];
-        retval = UA_encodeBinary(&var, &UA_TYPES[UA_TYPES_VARIANT],
+        retval = UA_encodeBinaryInternal(&var, &UA_TYPES[UA_TYPES_VARIANT],
                                  &pos, &end, NULL, NULL);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
         UA_Variant var2;
         size_t offset = 0;
-        retval = UA_decodeBinary(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], &customDataTypesSelfContainingUnion);
+        retval = UA_decodeBinaryInternal(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], &customDataTypesSelfContainingUnion);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
         ck_assert(var2.type == &selfContainingUnionType);
 
@@ -644,13 +644,13 @@ START_TEST(parseSelfContainingUnionSelfMember) {
 
         UA_Byte *pos = buf.data;
         const UA_Byte *end = &buf.data[buf.length];
-        retval = UA_encodeBinary(&var, &UA_TYPES[UA_TYPES_VARIANT],
+        retval = UA_encodeBinaryInternal(&var, &UA_TYPES[UA_TYPES_VARIANT],
                                  &pos, &end, NULL, NULL);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
         UA_Variant var2;
         size_t offset = 0;
-        retval = UA_decodeBinary(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], &customDataTypesSelfContainingUnion);
+        retval = UA_decodeBinaryInternal(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], &customDataTypesSelfContainingUnion);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
         ck_assert(var2.type == &selfContainingUnionType);
 

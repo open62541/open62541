@@ -37,39 +37,54 @@ typedef enum {
 } UA_TimerPolicy;
 
 /**
- * Config Parameters
- * -----------------
- * A simple linked list for key-value configuration parameters. */
+ * Key Value Map
+ * -------------
+ * Helper functions to work with configuration parameters in an array of
+ * UA_KeyValuePair. Lookup is linear. So this is for small numbers of
+ * keys. */
 
-typedef struct UA_ConfigParameter {
-    struct UA_ConfigParameter *next;
-    UA_Variant param;
-    char name[];
-} UA_ConfigParameter;
-
-/* cp must point to the start of the linked list. overrides any parameter of the
- * same name. The variant is copied. */
+/* Makes a copy of the value. Can reallocate the underlying array. This
+ * invalidates pointers into the previous array. If the key exists already, the
+ * value is overwritten. */
 UA_EXPORT UA_StatusCode
-UA_ConfigParameter_setParameter(UA_ConfigParameter **cp, const char *name,
-                                const UA_Variant *parameter);
+UA_KeyValueMap_setQualified(UA_KeyValuePair **map, size_t *mapSize,
+                            const UA_QualifiedName *key,
+                            const UA_Variant *value);
+
+/* Simplified version that assumes the key is in namespace 0 */
+UA_EXPORT UA_StatusCode
+UA_KeyValueMap_set(UA_KeyValuePair **map, size_t *mapSize,
+                   const char *key, const UA_Variant *value);
+
+/* Returns a pointer into underlying array or NULL if the key is not found.*/
+UA_EXPORT const UA_Variant *
+UA_KeyValueMap_getQualified(UA_KeyValuePair *map, size_t mapSize,
+                            const UA_QualifiedName *key);
+
+/* Simplified version that assumes the key is in namespace 0 */
+UA_EXPORT const UA_Variant *
+UA_KeyValueMap_get(UA_KeyValuePair *map, size_t mapSize,
+                   const char *key);
+
+/* Returns NULL if the value for the key is not defined or not of the right
+ * datatype and scalar/array */
+UA_EXPORT const UA_Variant *
+UA_KeyValueMap_getScalar(UA_KeyValuePair *map, size_t mapSize,
+                         const char *key, const UA_DataType *type);
 
 UA_EXPORT const UA_Variant *
-UA_ConfigParameter_getParameter(UA_ConfigParameter *cp, const char *name);
+UA_KeyValueMap_getArray(UA_KeyValuePair *map, size_t mapSize,
+                        const char *key, const UA_DataType *type);
 
-/* Returns NULL if the parameter is not defined or not of the right datatype */
-UA_EXPORT const UA_Variant *
-UA_ConfigParameter_getScalarParameter(UA_ConfigParameter *cp, const char *name,
-                                      const UA_DataType *type);
-UA_EXPORT const UA_Variant *
-UA_ConfigParameter_getArrayParameter(UA_ConfigParameter *cp, const char *name,
-                                     const UA_DataType *type);
-
+/* Remove a single entry. To delete the entire map, use UA_Array_delete. */
 UA_EXPORT void
-UA_ConfigParameter_deleteParameter(UA_ConfigParameter **cp, const char *name);
+UA_KeyValueMap_deleteQualified(UA_KeyValuePair **map, size_t *mapSize,
+                               const UA_QualifiedName *key);
 
-/* cp must point to the start of the linked list */
+/* Simplified version that assumes the key is in namespace 0 */
 UA_EXPORT void
-UA_ConfigParameter_delete(UA_ConfigParameter **cp);
+UA_KeyValueMap_delete(UA_KeyValuePair **map, size_t *mapSize,
+                      const char *key);
 
 /**
  * Endpoint URL Parser

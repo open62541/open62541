@@ -10,14 +10,12 @@
 #include <open62541/server_pubsub.h>
 #include <open62541/plugin/securitypolicy_default.h>
 
-#include "open62541/types_generated_encoding_binary.h"
-
 #include "ua_pubsub.h"
 #include "ua_server_internal.h"
 
 #include <check.h>
 
-#define UA_AES128CTR_SIGNING_KEY_LENGTH 16
+#define UA_AES128CTR_SIGNING_KEY_LENGTH 32
 #define UA_AES128CTR_KEY_LENGTH 16
 #define UA_AES128CTR_KEYNONCE_LENGTH 4
 

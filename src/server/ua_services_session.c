@@ -15,7 +15,6 @@
 
 #include "ua_server_internal.h"
 #include "ua_services.h"
-#include <open62541/types_generated_encoding_binary.h>
 
 /* Delayed callback to free the session memory */
 static void
@@ -644,10 +643,12 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                 * #None SecureChannel. We should not need a ChannelContext at all
                 * for asymmetric decryption where the remote certificate is not
                 * used. */
+               UA_UNLOCK(&server->serviceMutex);
                response->responseHeader.serviceResult =
                    securityPolicy->channelModule.
                    newContext(securityPolicy, &securityPolicy->localCertificate,
                               &tempChannelContext);
+               UA_LOCK(&server->serviceMutex);
                if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
                    UA_LOG_WARNING_SESSION(&server->config.logger, session, "ActivateSession: "
                                           "Failed to create a context for the SecurityPolicy %.*s",
@@ -681,10 +682,11 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     }
 
     /* Callback into userland access control */
-    response->responseHeader.serviceResult =
-        server->config.accessControl.
+    UA_UNLOCK(&server->serviceMutex);
+    response->responseHeader.serviceResult = server->config.accessControl.
         activateSession(server, &server->config.accessControl, ed, &channel->remoteCertificate,
                         &session->sessionId, &request->userIdentityToken, &session->sessionHandle);
+    UA_LOCK(&server->serviceMutex);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_SESSION(&server->config.logger, session, "ActivateSession: The AccessControl "
                                "plugin denied the activation with the StatusCode %s",

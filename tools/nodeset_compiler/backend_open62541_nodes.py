@@ -70,7 +70,23 @@ def generateObjectNodeCode(node):
     code = []
     code.append("UA_ObjectAttributes attr = UA_ObjectAttributes_default;")
     if node.eventNotifier:
-        code.append("attr.eventNotifier = true;")
+        code_part = "attr.eventNotifier = "
+        is_first = True
+        if node.eventNotifier & 1:
+            code_part += "UA_EVENTNOTIFIER_SUBSCRIBE_TO_EVENT"
+            is_first = False
+        if node.eventNotifier & 4:
+            if not is_first:
+                code_part += " || "
+            code_part += "UA_EVENTNOTIFIER_HISTORY_READ"
+            is_first = False
+        if node.eventNotifier & 8:
+            if not is_first:
+                code_part += " || "
+            code_part += "UA_EVENTNOTIFIER_HISTORY_WRITE"
+            is_first = False
+        code_part += ";"
+        code.append(code_part)
     return code
 
 def setNodeDatatypeRecursive(node, nodeset):

@@ -1035,8 +1035,8 @@ Variant_decodeBinaryUnwrapExtensionObject(UA_Variant *dst, Ctx *ctx) {
         /* Reset and decode as ExtensionObject */
         dst->type = &UA_TYPES[UA_TYPES_EXTENSIONOBJECT];
         ctx->pos = old_pos;
-        UA_NodeId_clear(&typeId);
     }
+    UA_NodeId_clear(&typeId);
 
     /* Allocate memory */
     dst->data = UA_new(dst->type);
@@ -1467,9 +1467,10 @@ const encodeBinarySignature encodeBinaryJumpTable[UA_DATATYPEKINDS] = {
 };
 
 status
-UA_encodeBinary(const void *src, const UA_DataType *type,
-                u8 **bufPos, const u8 **bufEnd,
-                UA_exchangeEncodeBuffer exchangeCallback, void *exchangeHandle) {
+UA_encodeBinaryInternal(const void *src, const UA_DataType *type,
+                        u8 **bufPos, const u8 **bufEnd,
+                        UA_exchangeEncodeBuffer exchangeCallback,
+                        void *exchangeHandle) {
     /* Set up the context */
     Ctx ctx;
     ctx.pos = *bufPos;
@@ -1489,6 +1490,34 @@ UA_encodeBinary(const void *src, const UA_DataType *type,
     *bufPos = ctx.pos;
     *bufEnd = ctx.end;
     return ret;
+}
+
+UA_StatusCode
+UA_encodeBinary(const void *p, const UA_DataType *type,
+                UA_ByteString *outBuf) {
+    /* Allocate buffer */
+    UA_Boolean allocated = false;
+    status res = UA_STATUSCODE_GOOD;
+    if(outBuf->length == 0) {
+        size_t len = UA_calcSizeBinary(p, type);
+        res = UA_ByteString_allocBuffer(outBuf, len);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        allocated = true;
+    }
+
+    /* Encode */
+    u8 *pos = outBuf->data;
+    const u8 *posEnd = &outBuf->data[outBuf->length];
+    res = UA_encodeBinaryInternal(p, type, &pos, &posEnd, NULL, NULL);
+
+    /* Clean up */
+    if(res == UA_STATUSCODE_GOOD) {
+        outBuf->length = (size_t)((uintptr_t)pos - (uintptr_t)outBuf->data);
+    } else if(allocated) {
+        UA_ByteString_clear(outBuf);
+    }
+    return res;
 }
 
 static status
@@ -1657,8 +1686,9 @@ const decodeBinarySignature decodeBinaryJumpTable[UA_DATATYPEKINDS] = {
 };
 
 status
-UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *dst,
-                const UA_DataType *type, const UA_DataTypeArray *customTypes) {
+UA_decodeBinaryInternal(const UA_ByteString *src, size_t *offset,
+                        void *dst, const UA_DataType *type,
+                        const UA_DataTypeArray *customTypes) {
     /* Set up the context */
     Ctx ctx;
     ctx.pos = &src->data[*offset];
@@ -1679,6 +1709,15 @@ UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *dst,
         memset(dst, 0, type->memSize);
     }
     return ret;
+}
+
+UA_StatusCode
+UA_decodeBinary(const UA_ByteString *inBuf,
+                void *p, const UA_DataType *type,
+                const UA_DecodeBinaryOptions *options) {
+    size_t offset = 0;
+    const UA_DataTypeArray *customTypes = options ? options->customTypes : NULL;
+    return UA_decodeBinaryInternal(inBuf, &offset, p, type, customTypes);
 }
 
 /**

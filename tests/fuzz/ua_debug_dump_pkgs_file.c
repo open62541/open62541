@@ -5,20 +5,15 @@
  *    Copyright 2019 (c) fortiss (Author: Stefan Profanter)
  */
 
-
-/**
- * This code is used to generate a binary file for every request type
- * which can be sent from a client to the server.
- * These files form the basic corpus for fuzzing the server.
- */
+/* This code is used to generate a binary file for every request type which can
+ * be sent from a client to the server. These files form the basic corpus for
+ * fuzzing the server. */
 
 #ifndef UA_DEBUG_DUMP_PKGS_FILE
 #error UA_DEBUG_DUMP_PKGS_FILE must be defined
 #endif
 
-#include <open62541/transport_generated_encoding_binary.h>
 #include <open62541/types.h>
-#include <open62541/types_generated_encoding_binary.h>
 
 #include "server/ua_server_internal.h"
 #include "testing_networklayers.h"

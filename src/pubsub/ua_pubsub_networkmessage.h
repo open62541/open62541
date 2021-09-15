@@ -25,7 +25,8 @@ typedef struct {
 typedef enum {
     UA_FIELDENCODING_VARIANT = 0,
     UA_FIELDENCODING_RAWDATA = 1,
-    UA_FIELDENCODING_DATAVALUE = 2
+    UA_FIELDENCODING_DATAVALUE = 2,
+    UA_FIELDENCODING_UNKNOWN = 3
 } UA_FieldEncoding;
 
 /* DataSetMessage Type */
@@ -187,6 +188,7 @@ typedef struct {
 typedef enum {
     UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE_SEQUENCENUMBER,
     UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_SEQUENCENUMBER,
+    UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_FIELDENCDODING,
     UA_PUBSUB_OFFSETTYPE_TIMESTAMP_PICOSECONDS,
     UA_PUBSUB_OFFSETTYPE_TIMESTAMP,     /* source pointer */
     UA_PUBSUB_OFFSETTYPE_TIMESTAMP_NOW, /* no source */
@@ -218,6 +220,7 @@ typedef struct {
     size_t offsetsSize;
     UA_Boolean RTsubscriberEnabled; /* Addtional offsets computation like publisherId, WGId if this bool enabled */
     UA_NetworkMessage *nm; /* The precomputed NetworkMessage for subscriber */
+    size_t rawMessageLength;
 } UA_NetworkMessageOffsetBuffer;
 
 /**

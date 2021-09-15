@@ -216,18 +216,19 @@ UA_PubSubChannelMQTT_regist(UA_PubSubChannel *channel, UA_ExtensionObject *trans
     UA_PubSubChannelDataMQTT *channelDataMQTT = (UA_PubSubChannelDataMQTT *) channel->handle;
     channelDataMQTT->callback = callback;
     
-    if(transportSettings != NULL && transportSettings->encoding == UA_EXTENSIONOBJECT_DECODED
-            && transportSettings->content.decoded.type->typeIndex == UA_TYPES_BROKERDATASETREADERTRANSPORTDATATYPE){
-        	UA_BrokerDataSetReaderTransportDataType *brokerTransportSettings =
-                    (UA_BrokerDataSetReaderTransportDataType*)transportSettings->content.decoded.data;
-
-        UA_Byte qos = 0;
-        UA_uaQos_toMqttQos(brokerTransportSettings->requestedDeliveryGuarantee, &qos);
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: register");
-        return subscribeMqtt(channelDataMQTT, brokerTransportSettings->queueName, qos);
-    }else{
-         return UA_STATUSCODE_BADARGUMENTSMISSING;
+    if(transportSettings == NULL ||
+       transportSettings->encoding != UA_EXTENSIONOBJECT_DECODED ||
+       transportSettings->content.decoded.type != &UA_TYPES[UA_TYPES_BROKERDATASETREADERTRANSPORTDATATYPE]) {
+        return UA_STATUSCODE_BADARGUMENTSMISSING;
     }
+
+    UA_BrokerDataSetReaderTransportDataType *brokerTransportSettings =
+        (UA_BrokerDataSetReaderTransportDataType*)transportSettings->content.decoded.data;
+
+    UA_Byte qos = 0;
+    UA_uaQos_toMqttQos(brokerTransportSettings->requestedDeliveryGuarantee, &qos);
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: register");
+    return subscribeMqtt(channelDataMQTT, brokerTransportSettings->queueName, qos);
 }
 
 /**
@@ -244,16 +245,18 @@ UA_PubSubChannelMQTT_unregist(UA_PubSubChannel *channel, UA_ExtensionObject *tra
 
     UA_PubSubChannelDataMQTT * channelDataMQTT = (UA_PubSubChannelDataMQTT *) channel->handle;
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: unregister");
-    if(transportSettings != NULL && transportSettings->encoding == UA_EXTENSIONOBJECT_DECODED
-            && transportSettings->content.decoded.type->typeIndex == UA_TYPES_BROKERWRITERGROUPTRANSPORTDATATYPE){
-        UA_BrokerWriterGroupTransportDataType *brokerTransportSettings =
-                (UA_BrokerWriterGroupTransportDataType*)transportSettings->content.decoded.data;
 
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: unregister");
-        return unSubscribeMqtt(channelDataMQTT, brokerTransportSettings->queueName);
-    }else{
-         return UA_STATUSCODE_BADARGUMENTSMISSING;
+    if(transportSettings == NULL ||
+       transportSettings->encoding != UA_EXTENSIONOBJECT_DECODED ||
+       transportSettings->content.decoded.type != &UA_TYPES[UA_TYPES_BROKERWRITERGROUPTRANSPORTDATATYPE]) {
+        return UA_STATUSCODE_BADARGUMENTSMISSING;
     }
+
+    UA_BrokerWriterGroupTransportDataType *brokerTransportSettings =
+        (UA_BrokerWriterGroupTransportDataType*)transportSettings->content.decoded.data;
+
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: unregister");
+    return unSubscribeMqtt(channelDataMQTT, brokerTransportSettings->queueName);
 }
 
 /**
@@ -268,28 +271,27 @@ UA_PubSubChannelMQTT_send(UA_PubSubChannel *channel, UA_ExtensionObject *transpo
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
     }
 
-    UA_PubSubChannelDataMQTT *channelDataMQTT = (UA_PubSubChannelDataMQTT *) channel->handle;
-    UA_StatusCode ret = UA_STATUSCODE_GOOD;
-    UA_Byte qos = 0;
-    
-    if(transportSettings != NULL && transportSettings->encoding == UA_EXTENSIONOBJECT_DECODED 
-            && transportSettings->content.decoded.type->typeIndex == UA_TYPES_BROKERWRITERGROUPTRANSPORTDATATYPE){
-        UA_BrokerWriterGroupTransportDataType *brokerTransportSettings = (UA_BrokerWriterGroupTransportDataType*)transportSettings->content.decoded.data;
-        UA_uaQos_toMqttQos(brokerTransportSettings->requestedDeliveryGuarantee, &qos);
-        
-        UA_String topic;
-        topic = brokerTransportSettings->queueName;
-        ret = publishMqtt(channelDataMQTT, topic, buf, qos);
-
-        if(ret){
-            channel->state = UA_PUBSUB_CHANNEL_ERROR;
-            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Publish failed");
-        }else{
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Publish");
-        }
-    }else{
+    if(transportSettings == NULL ||
+       transportSettings->encoding != UA_EXTENSIONOBJECT_DECODED ||
+       transportSettings->content.decoded.type != &UA_TYPES[UA_TYPES_BROKERWRITERGROUPTRANSPORTDATATYPE]) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Transport settings not found.");
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
+
+    UA_Byte qos = 0;
+    UA_BrokerWriterGroupTransportDataType *brokerTransportSettings =
+        (UA_BrokerWriterGroupTransportDataType*)transportSettings->content.decoded.data;
+    UA_uaQos_toMqttQos(brokerTransportSettings->requestedDeliveryGuarantee, &qos);
+
+    UA_PubSubChannelDataMQTT *channelDataMQTT = (UA_PubSubChannelDataMQTT *) channel->handle;
+    UA_StatusCode ret = publishMqtt(channelDataMQTT, brokerTransportSettings->queueName, buf, qos);
+    if(ret != UA_STATUSCODE_GOOD) {
+        channel->state = UA_PUBSUB_CHANNEL_ERROR;
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Publish failed");
+        return ret;
+    }
+
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Publish");
     return ret;
 }
 

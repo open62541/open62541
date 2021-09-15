@@ -543,7 +543,6 @@ UA_Server_setWriterGroupEncryptionKeys(UA_Server *server, const UA_NodeId writer
                                        const UA_ByteString keyNonce);
 #endif
 
-
 /**
  * .. _dsw:
  *
@@ -667,6 +666,13 @@ typedef struct {
     UA_Int32 *keyServers;
 } UA_PubSubSecurityParameters;
 
+typedef enum {
+    UA_PUBSUB_RT_UNKNOWN = 0,
+    UA_PUBSUB_RT_VARIANT = 1,
+    UA_PUBSUB_RT_DATA_VALUE = 2,
+    UA_PUBSUB_RT_RAW = 4,
+} UA_PubSubRtEncoding;
+
 /* Parameters for PubSub DataSetReader Configuration */
 typedef struct {
     UA_String name;
@@ -685,6 +691,8 @@ typedef struct {
         UA_TargetVariables subscribedDataSetTarget;
         // UA_SubscribedDataSetMirrorDataType subscribedDataSetMirror;
     } subscribedDataSet;
+    /* non std. fields */
+    UA_PubSubRtEncoding expectedEncoding;
 } UA_DataSetReaderConfig;
 
 /* Update configuration to the dataSetReader */
@@ -732,6 +740,8 @@ typedef struct {
     UA_Boolean enableBlockingSocket; // To enable or disable blocking socket option
     UA_UInt32 timeout; // Timeout for receive to wait for the packets
     UA_PubSubRTLevel rtLevel;
+    size_t groupPropertiesSize;
+    UA_KeyValuePair *groupProperties;
 
     /* Messages are decrypted if a SecurityPolicy is configured and the
      * securityMode set accordingly. The symmetric key is a runtime information

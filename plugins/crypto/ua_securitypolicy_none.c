@@ -11,7 +11,7 @@
 #include "mbedtls/securitypolicy_mbedtls_common.h"
 #endif
 
-#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
 #include "openssl/securitypolicy_openssl_common.h"
 #endif
 
@@ -133,7 +133,7 @@ UA_SecurityPolicy_None(UA_SecurityPolicy *policy, const UA_ByteString localCerti
 
 #ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
     UA_mbedTLS_LoadLocalCertificate(&localCertificate, &policy->localCertificate);
-#elif defined(UA_ENABLE_ENCRYPTION_OPENSSL)
+#elif defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
     UA_OpenSSL_LoadLocalCertificate(&localCertificate, &policy->localCertificate);
 #else
     UA_ByteString_copy(&localCertificate, &policy->localCertificate);

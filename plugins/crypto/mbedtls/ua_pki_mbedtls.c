@@ -540,7 +540,7 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification *cv,
     cv->clear = certificateVerification_clear;
     cv->verifyApplicationURI = certificateVerification_verifyApplicationURI;
 
-    int err = 0;
+    int err;
     UA_ByteString data;
     UA_ByteString_init(&data);
 

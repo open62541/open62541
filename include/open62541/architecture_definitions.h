@@ -125,6 +125,7 @@ extern UA_THREAD_LOCAL void * (*UA_reallocSingleton)(void *ptr, size_t size);
 #  define UA_alloca(SIZE) alloca(SIZE)
 # endif
 #  define UA_STACKARRAY(TYPE, NAME, SIZE) \
+    /* cppcheck-suppress allocaCalled */  \
     TYPE *(NAME) = (TYPE*)UA_alloca(sizeof(TYPE) * (SIZE))
 # endif
 #endif

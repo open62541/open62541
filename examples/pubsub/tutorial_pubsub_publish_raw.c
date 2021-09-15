@@ -6,8 +6,6 @@
  * to receive the raw-encoded messages. Ensure to enable the PubSub NS0 integration
  * to expose the necessary MetaData for the Subscriber.
  *
- * Currently only publish RAW is implemented. This example will be extended with
- * the ongoing feature completion.
  */
 
 #include <open62541/plugin/log_stdout.h>

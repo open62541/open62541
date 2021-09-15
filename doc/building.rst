@@ -282,6 +282,13 @@ Detailed SDK Features
    Enable Discovery Service with multicast support (LDS-ME)
 **UA_ENABLE_DISCOVERY_SEMAPHORE**
    Enable Discovery Semaphore support
+**UA_ENABLE_ENCRYPTION**
+   Enable encryption support and specify the used encryption backend. The possible
+   options are:
+      - ``OFF`` No encryption support. (default)
+      - ``MBEDTLS`` Encryption support using mbed TLS
+      - ``OPENSSL`` Encryption support using OpenSSL
+      - ``LIBRESSL`` EXPERIMENTAL: Encryption support using LibreSSL
 
 **UA_NAMESPACE_ZERO**
 

@@ -72,7 +72,7 @@ def sortNodes(nodeset):
         L.append(u)
         del R[u.id]
 
-        for ref in u.references:
+        for ref in sorted(u.references, key=lambda r: str(r.target)):
             if not ref.referenceType in relevant_refs:
                 continue
             if nodeset.nodes[ref.target].hidden:
@@ -90,7 +90,7 @@ def sortNodes(nodeset):
         L.append(u)
         del R[u.id]
 
-        for ref in u.references:
+        for ref in sorted(u.references, key=lambda r: str(r.target)):
             if not ref.referenceType in relevant_refs:
                 continue
             if nodeset.nodes[ref.target].hidden:

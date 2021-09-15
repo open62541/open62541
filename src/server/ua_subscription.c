@@ -107,7 +107,7 @@ UA_Subscription_getMonitoredItem(UA_Subscription *sub, UA_UInt32 monitoredItemId
 static void
 removeOldestRetransmissionMessageFromSub(UA_Subscription *sub) {
     UA_NotificationMessageEntry *oldestEntry =
-        TAILQ_LAST(&sub->retransmissionQueue, ListOfNotificationMessages);
+        TAILQ_LAST(&sub->retransmissionQueue, NotificationMessageQueue);
     TAILQ_REMOVE(&sub->retransmissionQueue, oldestEntry, listEntry);
     UA_NotificationMessage_clear(&oldestEntry->message);
     UA_free(oldestEntry);
@@ -123,7 +123,7 @@ removeOldestRetransmissionMessageFromSession(UA_Session *session) {
     UA_Subscription *sub;
     TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
         UA_NotificationMessageEntry *first =
-            TAILQ_LAST(&sub->retransmissionQueue, ListOfNotificationMessages);
+            TAILQ_LAST(&sub->retransmissionQueue, NotificationMessageQueue);
         if(!first)
             continue;
         if(!oldestEntry || oldestEntry->message.publishTime > first->message.publishTime) {

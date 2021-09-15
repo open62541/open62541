@@ -52,21 +52,21 @@ getNodeType(UA_Server *server, const UA_NodeHead *head) {
 
     /* Return the first matching candidate */
     for(size_t i = 0; i < head->referencesSize; ++i) {
-        if(head->references[i].isInverse != inverse)
+        UA_NodeReferenceKind *rk = &head->references[i];
+        if(rk->isInverse != inverse)
             continue;
-        if(head->references[i].referenceTypeIndex != parentRefIndex)
+        if(rk->referenceTypeIndex != parentRefIndex)
             continue;
 
-        UA_assert(head->references[i].idTreeRoot);
-        const UA_ReferenceTarget *rt =
-            UA_NodeReferenceKind_firstTarget(&head->references[i]);
-        UA_assert(rt);
-        const UA_Node *type = UA_NODESTORE_GET(server, &rt->targetId.nodeId);
-        if(!type)
-            continue;
-        if(type->head.nodeClass == typeNodeClass)
-            return type; /* Don't release the node that is returned */
-        UA_NODESTORE_RELEASE(server, type);
+        const UA_ReferenceTarget *t = NULL;
+        while((t = UA_NodeReferenceKind_iterate(rk, t))) {
+            const UA_Node *type = UA_NODESTORE_GETFROMREF(server, t->targetId);
+            if(!type)
+                continue;
+            if(type->head.nodeClass == typeNodeClass)
+                return type; /* Don't release the node that is returned */
+            UA_NODESTORE_RELEASE(server, type);
+        }
     }
 
     return NULL;
@@ -154,6 +154,8 @@ UA_StatusCode
 getAllInterfaceChildNodeIds(UA_Server *server, const UA_NodeId *objectNode,
                             const UA_NodeId *objectTypeNode,
                             UA_NodeId **interfaceChildNodes, size_t *interfaceChildNodesSize) {
+    if(interfaceChildNodesSize == NULL || interfaceChildNodes == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
     *interfaceChildNodesSize = 0;
     *interfaceChildNodes = NULL;
 
@@ -205,7 +207,7 @@ getAllInterfaceChildNodeIds(UA_Server *server, const UA_NodeId *objectNode,
         if(retval != UA_STATUSCODE_GOOD) {
             UA_Array_delete(hasInterfaceCandidates, hasInterfaceCandidatesSize,
                             &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
-            if (interfaceChildNodesSize) {
+            if (*interfaceChildNodesSize) {
                 UA_Array_delete(*interfaceChildNodes, *interfaceChildNodesSize,
                                 &UA_TYPES[UA_TYPES_NODEID]);
                 *interfaceChildNodesSize = 0;
