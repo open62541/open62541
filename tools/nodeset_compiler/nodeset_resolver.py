@@ -104,6 +104,7 @@ def walkNodes(nodeSet, nodeIds, nodeList=[]):
         n = nodeSet.nodes[nodeId]
         candidateNodes = []
 
+        # Gather candidateNodes from various node attributes
         if type(n) == nodes.DataTypeNode and n.__isEnum__ == False and n.__isOptionSet__ == False:
             # DataType contains other DataType fields. __definition__ is list of (Name, DataTypeNode) tuples
             for definition in n.__definition__:
@@ -128,8 +129,8 @@ def walkNodes(nodeSet, nodeIds, nodeList=[]):
         # Add remaining candidateNodes to nodeList
         nodeList += candidateNodes
 
+        # Inquire candidateNodes recursively if there are candidates left
         if len(candidateNodes) > 0:
-            # Inquire candidateNodes recursively if available
             walkNodes(nodeSet, candidateNodes, nodeList)
 
     return nodeList
@@ -145,9 +146,9 @@ def printXML(nodeids):
             fileContent = fileContent.decode("utf-8")
 
         document = dom.parseString(fileContent)
-        nodeset = document.getElementsByTagName("UANodeSet")[0]
+        existingNodeset = document.getElementsByTagName("UANodeSet")[0]
 
-        for node in nodeset.childNodes:
+        for node in existingNodeset.childNodes:
             if node.nodeType == dom.Node.ELEMENT_NODE:
                 nodeId = "ns=0;" + node.getAttribute('NodeId')
 
@@ -169,7 +170,7 @@ def printXML(nodeids):
 
             exDocument = dom.parseString(fileContent)
             exNodeset = document.getElementsByTagName("UANodeSet")[0]
-            for node in nodeset.childNodes:
+            for node in existingNodeset.childNodes:
                 if node.nodeType == dom.Node.ELEMENT_NODE:
                     x = exDocument.importNode(node, False)
                     exNodeset.appendChild(x)
@@ -187,9 +188,9 @@ usedNodes = walkNodes(ns, ns.nodes)
 missingNodes = [node for node in usedNodes if node not in ns.nodes]
 logger.info("{} missing nodes out of {} used nodes found".format(len(missingNodes), len(usedNodes)))
 
-# Load reference nodesets if any
+# Load reference nodeset if given on command line
 if args.ref is not None:
-    refNs = NodeSet()
+    referenceNodeSet = NodeSet()
 
     for xmlfile in [args.ref]:
         if xmlfile.name in loadedFiles:
@@ -197,16 +198,16 @@ if args.ref is not None:
             continue
         loadedFiles.append(xmlfile.name)
         logger.info("Preprocessing (reference) " + str(xmlfile.name))
-        refNs.addNodeSet(xmlfile, True, typesArray="UA_TYPES")
+        referenceNodeSet.addNodeSet(xmlfile, True, typesArray="UA_TYPES")
 
     logger.info("Resolving all dependencies from {}...".format(xmlfile.name))
 
     # Walk entire tree to find all dependencies
-    dependentNodes = walkNodes(refNs, missingNodes)
+    dependentNodes = walkNodes(referenceNodeSet, missingNodes)
 
     # Remove dependencies already satisfied in existing NodeSet
     requiredNodes = [node for node in dependentNodes if node not in ns.nodes]
-    unresolvedNodes = [node for node in requiredNodes if node not in refNs.nodes]
+    unresolvedNodes = [node for node in requiredNodes if node not in referenceNodeSet.nodes]
 
     logger.info("{} required nodes out of {} dependent nodes found ({} unresolved)"
         .format(len(requiredNodes), len(dependentNodes), len(unresolvedNodes)))
