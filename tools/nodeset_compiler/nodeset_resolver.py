@@ -150,12 +150,9 @@ def printXML(nodeids):
 
         for node in existingNodeset.childNodes:
             if node.nodeType == dom.Node.ELEMENT_NODE:
-                nodeId = "ns=0;" + node.getAttribute('NodeId')
+                nodeId = NodeId(node.getAttribute('NodeId'))
 
                 if nodeId not in nodeids:
-                    # if node.nextSibling and node.nextSibling.nodeType == dom.Node.TEXT_NODE and node.nextSibling.data.isspace():
-                        # Remove trailing whitespace (minidom issue)
-                        # node.parentNode.removeChild(node.nextSibling)
                     node.parentNode.removeChild(node)
 
         if args.merge:
