@@ -182,6 +182,11 @@ setDefaultConfig(UA_ServerConfig *conf) {
     /* Endpoints */
     /* conf->endpoints = {0, NULL}; */
 
+    /* Namespace 0 bootstraping */
+    conf->bootstrapNs0BaseNodes = UA_TRUE;
+    conf->bootstrapNs0Nodes = UA_TRUE;
+    conf->initializeNs0NodesInRunStartup = UA_FALSE;
+
     /* Certificate Verification that accepts every certificate. Can be
      * overwritten when the policy is specialized. */
     UA_CertificateVerification_AcceptAll(&conf->certificateVerification);
