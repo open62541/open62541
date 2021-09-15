@@ -830,6 +830,8 @@ START_TEST(Client_subscription_connectionClose) {
     UA_SessionState ss;
     UA_Client_getState(client, NULL, &ss, NULL);
     ck_assert_uint_eq(ss, UA_SESSIONSTATE_CREATED);
+
+    UA_Client_recvTesting_result = UA_STATUSCODE_GOOD;
     while(ss != UA_SESSIONSTATE_ACTIVATED) {
         UA_Client_run_iterate(client, 1);
         UA_Client_getState(client, NULL, &ss, NULL);
