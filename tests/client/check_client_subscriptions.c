@@ -1551,31 +1551,38 @@ static Suite* testSuite_Client(void) {
 
     TCase *tc_client = tcase_create("Client Subscription Basic");
     tcase_add_checked_fixture(tc_client, setup, teardown);
-    // tcase_add_test(tc_client, Client_subscription);
-    // tcase_add_test(tc_client, Client_subscription_async);
-    // tcase_add_test(tc_client, Client_subscription_statusChange);
+    tcase_add_test(tc_client, Client_subscription);
+    tcase_add_test(tc_client, Client_minimal);
+    tcase_add_test(tc_client, Client_subscription_async);
+    tcase_add_test(tc_client, Client_subscription_statusChange);
+
+    // /* TODO: This test-case logs errors on the eventloop and Inactivity for Subscription */
     tcase_add_test(tc_client, Client_subscription_timeout);
-    // tcase_add_test(tc_client, Client_subscription_detach);
-    // tcase_add_test(tc_client, Client_subscription_connectionClose);
 
-    // tcase_add_test(tc_client, Client_subscription_createDataChanges);
-    // tcase_add_test(tc_client, Client_subscription_modifyMonitoredItem);
+    tcase_add_test(tc_client, Client_subscription_detach);
+    /* TODO: still some invalid reads on valigrind */
+    tcase_add_test(tc_client, Client_subscription_connectionClose);
 
-    // tcase_add_test(tc_client, Client_subscription_createDataChanges_async);
-    // tcase_add_test(tc_client, Client_subscription_keepAlive);
-    // tcase_add_test(tc_client, Client_subscription_without_notification);
-    // tcase_add_test(tc_client, Client_subscription_async_sub);
-    // tcase_add_test(tc_client, Client_subscription_reconnect);
-    // tcase_add_test(tc_client, Client_subscription_transfer);
-    // tcase_add_test(tc_client, Client_subscription_writeBurst);
+    tcase_add_test(tc_client, Client_subscription_createDataChanges);
+    tcase_add_test(tc_client, Client_subscription_modifyMonitoredItem);
+
+    tcase_add_test(tc_client, Client_subscription_createDataChanges_async);
+    tcase_add_test(tc_client, Client_subscription_keepAlive);
+    tcase_add_test(tc_client, Client_subscription_without_notification);
+
+    /* TODO: this test-case introduces illegal recursive recv calls */
+    tcase_add_test(tc_client, Client_subscription_async_sub);
+    tcase_add_test(tc_client, Client_subscription_reconnect);
+    tcase_add_test(tc_client, Client_subscription_transfer);
+    tcase_add_test(tc_client, Client_subscription_writeBurst);
     suite_add_tcase(s,tc_client);
 
-// #ifdef UA_ENABLE_METHODCALLS
-//     TCase *tc_client2 = tcase_create("Client Subscription + Method Call of GetMonitoredItmes");
-//     tcase_add_checked_fixture(tc_client2, setup, teardown);
-//     tcase_add_test(tc_client2, Client_methodcall);
-//     suite_add_tcase(s,tc_client2);
-// #endif
+#ifdef UA_ENABLE_METHODCALLS
+    TCase *tc_client2 = tcase_create("Client Subscription + Method Call of GetMonitoredItmes");
+    tcase_add_checked_fixture(tc_client2, setup, teardown);
+    tcase_add_test(tc_client2, Client_methodcall);
+    suite_add_tcase(s,tc_client2);
+#endif
 
     return s;
 }
