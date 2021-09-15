@@ -1228,6 +1228,14 @@ stateCallback(UA_Client *client, UA_SecureChannelState channelState,
         /* A new session was created. We need to create the subscription. */
         UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
         request.requestedMaxKeepAliveCount = 1;
+        /*
+         * TODO: creating synchronious subscription in stateCallback is illegal --
+         * The stateCallback is called when the eventloop is within the running and
+         * a change of the client state is notifier. The synchronous subscription call
+         * below needs to iterate the eventloop another time because it needs to get
+         * the response for the subscription request.
+         * This is illegal How to deal with this?
+         */
         UA_CreateSubscriptionResponse response = UA_Client_Subscriptions_create(client, request,
                                                                                 NULL, NULL, NULL);
         ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
