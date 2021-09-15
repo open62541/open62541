@@ -4,9 +4,9 @@ The nodeset compiler is a collection of Python scripts that can parse OPC UA XML
 
 The initial implementation has been contributed by a research project of the chair for Process Control Systems Engineering of the TU Dresden. It was not strictly speaking created as a C generator, but could be easily modified to fulfill this role for open62541. Later on it was extended and improved by the core developers of open62541.
 
-# open62541 nodeset resolver
+# open62541 nodeset Resolver
 
-The nodeset resolver can be used to identify dependencies between nodesets. The main purpose of this tool is to generate custom stripped-down namespace-zero nodesets.
+The nodeset resolver can be used to identify dependencies between nodesets. The main purpose of this tool is to generate custom tailored, stripped-down namespace-zero nodesets.
 
 ## Usage
 Use ``nodeset_resolver.py --help`` for a help output:
@@ -20,7 +20,8 @@ optional arguments:
                         NodeSet XML files with nodes that are already present
                         on the server.
   -x <nodeSetXML>, --xml <nodeSetXML>
-                        NodeSet XML files with nodes that shall be generated.
+                        NodeSet XML files with nodes that dependencies shall
+                        be resolved for.
   -r <referenceNodeSetXML>, --ref <referenceNodeSetXML>
                         NodeSet XML file where missing dependencies are
                         resolved from.
@@ -29,6 +30,7 @@ optional arguments:
                         (first) existing-NodeSet
   -v, --verbose         Make the script more verbose. Can be applied up to 4
                         times
+
 ````
 
 ## Showing missing dependencies
