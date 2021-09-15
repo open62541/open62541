@@ -356,9 +356,9 @@ DatasetMessage_Payload_decodeJsonInternal(UA_DataSetMessage* dsm, const UA_DataT
         if(parseCtx->custom != NULL){
             UA_UInt16* dataSetWriterIdsArray = (UA_UInt16*)parseCtx->custom;
 
-            if(*parseCtx->currentCustomIndex  < parseCtx->numCustom){
-                 dataSetWriterIdsArray[*parseCtx->currentCustomIndex] = dataSetWriterId;
-                 (*parseCtx->currentCustomIndex)++;
+            if(parseCtx->currentCustomIndex  < parseCtx->numCustom){
+                 dataSetWriterIdsArray[parseCtx->currentCustomIndex] = dataSetWriterId;
+                 parseCtx->currentCustomIndex++;
             }else{
                 return UA_STATUSCODE_BADDECODINGERROR;
             }
@@ -447,7 +447,6 @@ static status NetworkMessage_decodeJsonInternal(UA_NetworkMessage *dst, CtxJson 
     }
 
     /* Is Messages an Array? How big? */
-    size_t messageCount = 0;
     size_t searchResultMessages = 0;
     found = lookAheadForKey(UA_DECODEKEY_MESSAGES, ctx, parseCtx, &searchResultMessages);
     if(found != UA_STATUSCODE_GOOD)
@@ -455,12 +454,11 @@ static status NetworkMessage_decodeJsonInternal(UA_NetworkMessage *dst, CtxJson 
     jsmntok_t bodyToken = parseCtx->tokenArray[searchResultMessages];
     if(bodyToken.type != JSMN_ARRAY)
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
-    messageCount = (size_t)parseCtx->tokenArray[searchResultMessages].size;
+    size_t messageCount = (size_t)parseCtx->tokenArray[searchResultMessages].size;
 
     /* Set up custom context for the dataSetwriterId */
-    size_t currentCustomIndex = 0;
     parseCtx->custom = (void*)UA_calloc(messageCount, sizeof(UA_UInt16));
-    parseCtx->currentCustomIndex = &currentCustomIndex;
+    parseCtx->currentCustomIndex = 0;
     parseCtx->numCustom = messageCount;
 
     /* MessageType */

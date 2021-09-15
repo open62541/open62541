@@ -8,11 +8,11 @@
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 #include <ua_server_internal.h>
-#include <open62541/types_generated_encoding_binary.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/log.h>
 #include <open62541/types_generated.h>
 #include <open62541/plugin/pubsub_ethernet.h>
+
 #include "ua_pubsub.h"
 #include "ua_pubsub_manager.h"
 
@@ -32,6 +32,7 @@ static void setup(void) {
     UA_ServerConfig_setDefault(config);
     UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
     UA_Server_run_startup(server);
+
 }
 
 static void teardown(void) {
@@ -48,10 +49,12 @@ START_TEST(AddConnectionsWithMinimalValidConfiguration){
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp");
+
     retVal = UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
-    ck_assert_int_eq(server->pubSubManager.connectionsSize, 1);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(server->pubSubManager.connectionsSize, 1);
     ck_assert(! TAILQ_EMPTY(&server->pubSubManager.connections));
+
     retVal = UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     ck_assert(&server->pubSubManager.connections.tqh_first->listEntry.tqe_next != NULL);
@@ -204,7 +207,8 @@ START_TEST(GetMaximalConnectionConfigurationAndCompareValues){
     ck_assert(UA_String_equal(&connectionConfig.name, &connectionConf.name) == UA_TRUE);
     ck_assert(UA_String_equal(&connectionConfig.transportProfileUri, &connectionConf.transportProfileUri) == UA_TRUE);
     UA_NetworkAddressUrlDataType networkAddressUrlDataCopy = *((UA_NetworkAddressUrlDataType *)connectionConfig.address.data);
-    ck_assert(UA_NetworkAddressUrlDataType_calcSizeBinary(&networkAddressUrlDataCopy) == UA_NetworkAddressUrlDataType_calcSizeBinary(&networkAddressUrlData));
+    ck_assert(UA_calcSizeBinary(&networkAddressUrlDataCopy, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]) ==
+              UA_calcSizeBinary(&networkAddressUrlData, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]));
     for(size_t i = 0; i < connectionConfig.connectionPropertiesSize; i++){
         ck_assert(UA_String_equal(&connectionConfig.connectionProperties[i].key.name, &connectionConf.connectionProperties[i].key.name) == UA_TRUE);
         ck_assert(UA_Variant_calcSizeBinary(&connectionConfig.connectionProperties[i].value) == UA_Variant_calcSizeBinary(&connectionConf.connectionProperties[i].value));

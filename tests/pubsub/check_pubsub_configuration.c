@@ -10,8 +10,6 @@
 #include <open62541/server_pubsub.h>
 #include "../common.h"
 
-#include "open62541/types_generated_encoding_binary.h"
-
 #include "ua_pubsub.h"
 #include "pubsub/ua_pubsub_config.h"
 #include "ua_server_internal.h"

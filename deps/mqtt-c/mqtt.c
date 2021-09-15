@@ -216,6 +216,11 @@ enum MQTTErrors mqtt_connect(struct mqtt_client *client,
                      size_t will_message_size,
                      const char* user_name,
                      const char* password,
+                        const char* caFilePath,
+                        const char* caPath,
+                        const char* clientCertPath,
+                        const char* clientKeyPath,
+                        bool useTLS,
                      uint8_t connect_flags,
                      uint16_t keep_alive)
 {
@@ -235,7 +240,8 @@ enum MQTTErrors mqtt_connect(struct mqtt_client *client,
         mqtt_pack_connection_request(
             client->mq.curr, client->mq.curr_sz,
             client_id, will_topic, will_message, 
-            will_message_size,user_name, password, 
+            will_message_size,user_name, password,
+                caFilePath, caPath, clientCertPath, clientKeyPath
             connect_flags, keep_alive
         ), 
         1
@@ -600,7 +606,7 @@ ssize_t __mqtt_send(struct mqtt_client *client)
     {
         mqtt_pal_time_t keep_alive_timeout = client->time_of_last_send + (mqtt_pal_time_t)((float)(client->keep_alive) * 0.75);
         if (MQTT_PAL_TIME() > keep_alive_timeout) {
-          ssize_t rv = __mqtt_ping(client);
+          ssize_t rv = mqtt_ping(client);
           if (rv != MQTT_OK) {
             client->error = (enum MQTTErrors)rv;
             MQTT_PAL_MUTEX_UNLOCK(&client->mutex);
@@ -1079,6 +1085,10 @@ ssize_t mqtt_pack_connection_request(uint8_t* buf, size_t bufsz,
                                      size_t will_message_size,
                                      const char* user_name,
                                      const char* password,
+                                        const char* caFilePath,
+                                        const char* caPath,
+                                        const char* clientCertPath,
+                                        const char* clientKeyPath,
                                      uint8_t connect_flags,
                                      uint16_t keep_alive)
 { 
@@ -1146,6 +1156,38 @@ ssize_t mqtt_pack_connection_request(uint8_t* buf, size_t bufsz,
         connect_flags &= (uint8_t)~MQTT_CONNECT_PASSWORD;
     }
 
+        if (caFilePath != NULL) {
+        /* a caFilePath is present */
+        connect_flags |= MQTT_CONNECT_CAFILEPATH;
+        remaining_length += (uint32_t)__mqtt_packed_cstrlen(caFilePath);
+    } else {
+        connect_flags &= (uint8_t)~MQTT_CONNECT_CAFILEPATH;
+    }
+
+    if (caPath != NULL) {
+        /* a caPath is present */
+        connect_flags |= MQTT_CONNECT_CAPATH;
+        remaining_length += (uint32_t)__mqtt_packed_cstrlen(caPath);
+    } else {
+        connect_flags &= (uint8_t)~MQTT_CONNECT_CAPATH;
+    }
+
+    if (clientCertPath != NULL) {
+        /* a clientCertPath is present */
+        connect_flags |= MQTT_CONNECT_CLIENTCERTPATH;
+        remaining_length += (uint32_t)__mqtt_packed_cstrlen(clientCertPath);
+    } else {
+        connect_flags &= (uint8_t)~MQTT_CONNECT_CLIENTCERTPATH;
+    }
+
+    if (clientKeyPath != NULL) {
+        /* a clientKeyPath is present */
+        connect_flags |= MQTT_CONNECT_CLIENTKEYPATH;
+        remaining_length += (uint32_t)__mqtt_packed_cstrlen(clientKeyPath);
+    } else {
+        connect_flags &= (uint8_t)~MQTT_CONNECT_CLIENTKEYPATH;
+    }
+
     /* fixed header length is now calculated*/
     fixed_header.remaining_length = (uint32_t)remaining_length;
 
@@ -1187,6 +1229,18 @@ ssize_t mqtt_pack_connection_request(uint8_t* buf, size_t bufsz,
     }
     if (connect_flags & MQTT_CONNECT_PASSWORD) {
         buf += __mqtt_pack_str(buf, password);
+    }
+    if (connect_flags & MQTT_CONNECT_CAFILEPATH) {
+        buf += __mqtt_pack_str(buf, caFilePath);
+    }
+    if (connect_flags & MQTT_CONNECT_CAPATH) {
+        buf += __mqtt_pack_str(buf, caPath);
+    }
+    if (connect_flags & MQTT_CONNECT_CLIENTCERTPATH) {
+        buf += __mqtt_pack_str(buf, clientCertPath);
+    }
+    if (connect_flags & MQTT_CONNECT_CLIENTKEYPATH) {
+        buf += __mqtt_pack_str(buf, clientKeyPath);
     }
 
     /* return the number of bytes that were consumed */

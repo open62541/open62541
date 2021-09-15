@@ -27,9 +27,10 @@ getArgumentsVariableNode(UA_Server *server, const UA_NodeHead *head,
             continue;
         if(rk->referenceTypeIndex != UA_REFERENCETYPEINDEX_HASPROPERTY)
             continue;
-        for(UA_ReferenceTarget *t = UA_NodeReferenceKind_firstTarget(rk);
-            t; t = UA_NodeReferenceKind_nextTarget(rk, t)) {
-            const UA_Node *refTarget = UA_NODESTORE_GETFROMREF(server, t);
+        const UA_ReferenceTarget *t = NULL;
+        while((t = UA_NodeReferenceKind_iterate(rk, t))) {
+            const UA_Node *refTarget =
+                UA_NODESTORE_GETFROMREF(server, t->targetId);
             if(!refTarget)
                 continue;
             if(refTarget->head.nodeClass == UA_NODECLASS_VARIABLE &&
@@ -144,6 +145,8 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
         return;
     }
 
+    UA_NodePointer methodP = UA_NodePointer_fromNodeId(&request->methodId);
+
     /* Verify method/object relations. Object must have a hasComponent or a
      * subtype of hasComponent reference to the method node. Therefore, check
      * every reference between the parent object and the method node if there is
@@ -161,10 +164,9 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
             continue;
         if(!UA_ReferenceTypeSet_contains(&hasComponentRefs, rk->referenceTypeIndex))
             continue;
-        for(UA_ReferenceTarget *t = UA_NodeReferenceKind_firstTarget(rk);
-            t; t = UA_NodeReferenceKind_nextTarget(rk, t)) {
-            if(UA_ExpandedNodeId_isLocal(&t->targetId) &&
-               UA_NodeId_equal(&t->targetId.nodeId, &request->methodId)) {
+        const UA_ReferenceTarget *t = NULL;
+        while((t = UA_NodeReferenceKind_iterate(rk, t))) {
+            if(UA_NodePointer_equal(t->targetId, methodP)) {
                 found = true;
                 break;
             }
@@ -209,13 +211,13 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
             
             /* Verify that the HasTypeDefinition is equal to FunctionGroupType
              * (or sub-type) from the DI model */
-            for(UA_ReferenceTarget *t = UA_NodeReferenceKind_firstTarget(rk);
-                t && !found; t = UA_NodeReferenceKind_nextTarget(rk, t)) {
-                if(!UA_ExpandedNodeId_isLocal(&t->targetId))
+            const UA_ReferenceTarget *t = NULL;
+            while((t = UA_NodeReferenceKind_iterate(rk, t))) {
+                if(!UA_NodePointer_isLocal(t->targetId))
                     continue;
                 
-                if(!isNodeInTree_singleRef(server, &t->targetId.nodeId,
-                                           &functionGroupNodeId,
+                UA_NodeId tmpId = UA_NodePointer_toNodeId(t->targetId);
+                if(!isNodeInTree_singleRef(server, &tmpId, &functionGroupNodeId,
                                            UA_REFERENCETYPEINDEX_HASSUBTYPE))
                     continue;
 
@@ -231,11 +233,9 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
                                                UA_REFERENCETYPEINDEX_HASSUBTYPE))
                         continue;
                     
-                    for(UA_ReferenceTarget *t2 = UA_NodeReferenceKind_firstTarget(rkInner);
-                        t2; t2 = UA_NodeReferenceKind_nextTarget(rkInner, t2)) {
-                        if(!UA_ExpandedNodeId_isLocal(&t2->targetId))
-                            continue;
-                        if(UA_NodeId_equal(&t2->targetId.nodeId, &request->methodId)) {
+                    const UA_ReferenceTarget *t2 = NULL;
+                    while((t2 = UA_NodeReferenceKind_iterate(rkInner, t2))) {
+                        if(UA_NodePointer_equal(t2->targetId, methodP)) {
                             found = true;
                             break;
                         }

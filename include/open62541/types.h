@@ -323,9 +323,7 @@ UA_ByteString_equal(const UA_ByteString *string1,
                            (const UA_String*)string2);
 }
 
-/* Returns a non-cryptographic hash for the String.
- * Uses FNV non-cryptographic hash function. See
- * https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function */
+/* Returns a non-cryptographic hash of a bytestring */
 UA_UInt32 UA_EXPORT
 UA_ByteString_hash(UA_UInt32 initialHashValue,
                    const UA_Byte *data, size_t size);
@@ -534,18 +532,21 @@ UA_ExpandedNodeId_isLocal(const UA_ExpandedNodeId *n);
 
 /* Total ordering of ExpandedNodeId */
 UA_Order UA_EXPORT
-UA_ExpandedNodeId_order(const UA_ExpandedNodeId *n1, const UA_ExpandedNodeId *n2);
+UA_ExpandedNodeId_order(const UA_ExpandedNodeId *n1,
+                        const UA_ExpandedNodeId *n2);
 
 /* Check for equality */
 static UA_INLINE UA_Boolean
-UA_ExpandedNodeId_equal(const UA_ExpandedNodeId *n1, const UA_ExpandedNodeId *n2) {
+UA_ExpandedNodeId_equal(const UA_ExpandedNodeId *n1,
+                        const UA_ExpandedNodeId *n2) {
     return (UA_ExpandedNodeId_order(n1, n2) == UA_ORDER_EQ);
 }
 
 /* Returns a non-cryptographic hash for ExpandedNodeId. The hash of an
  * ExpandedNodeId is identical to the hash of the embedded (simple) NodeId if
  * the ServerIndex is zero and no NamespaceUri is set. */
-UA_UInt32 UA_EXPORT UA_ExpandedNodeId_hash(const UA_ExpandedNodeId *n);
+UA_UInt32 UA_EXPORT
+UA_ExpandedNodeId_hash(const UA_ExpandedNodeId *n);
 
 /**
  * .. _qualifiedname:
@@ -1017,6 +1018,14 @@ struct UA_DataType {
     UA_DataTypeMember *members;
 };
 
+/* Datatype arrays with custom type definitions can be added in a linked list to
+ * the client or server configuration. */
+typedef struct UA_DataTypeArray {
+    const struct UA_DataTypeArray *next;
+    const size_t typesSize;
+    const UA_DataType *types;
+} UA_DataTypeArray;
+
 /* Test if the data type is a numeric builtin data type. This includes Boolean,
  * integers and floating point numbers. Not included are DateTime and
  * StatusCode. */
@@ -1091,6 +1100,87 @@ UA_print(const void *p, const UA_DataType *type, UA_String *output);
 #endif
 
 /**
+ * Encodeing/Decoding
+ * ^^^^^^^^^^^^^^^^^^
+ * Encodeing and decoding routines for the available formats. For all formats
+ * the _calcSize, _encode and _decode methods are provided. */
+
+/* Returns the number of bytes the value p takes in binary encoding. Returns
+ * zero if an error occurs. */
+UA_EXPORT size_t
+UA_calcSizeBinary(const void *p, const UA_DataType *type);
+
+/* Encodes a data-structure in the binary format. If outBuf has a length of
+ * zero, a buffer of the required size is allocated. Otherwise, encoding into
+ * the existing outBuf is attempted (and may fail if the buffer is too
+ * small). */
+UA_EXPORT UA_StatusCode
+UA_encodeBinary(const void *p, const UA_DataType *type,
+                UA_ByteString *outBuf);
+
+/* The structure with the decoding options may be extended in the future.
+ * Zero-out the entire structure initially to ensure code-compatibility when
+ * more fields are added in a later release. */
+typedef struct {
+    const UA_DataTypeArray *customTypes; /* Begin of a linked list with custom
+                                          * datatype definitions */
+} UA_DecodeBinaryOptions;
+
+/* Decodes a data structure from the input buffer in the binary format. It is
+ * assumed that `p` points to valid memory (not necessarily zeroed out). The
+ * options can be NULL and will be disregarded in that case. */
+UA_EXPORT UA_StatusCode
+UA_decodeBinary(const UA_ByteString *inBuf,
+                void *p, const UA_DataType *type,
+                const UA_DecodeBinaryOptions *options);
+
+typedef struct {
+    const UA_String *namespaces;
+    size_t namespacesSize;
+    const UA_String *serverUris;
+    size_t serverUrisSize;
+    UA_Boolean useReversible;
+} UA_EncodeJsonOptions;
+
+/* Returns the number of bytes the value src takes in json encoding. Returns
+ * zero if an error occurs. */
+UA_EXPORT size_t
+UA_calcSizeJson(const void *src, const UA_DataType *type,
+                const UA_EncodeJsonOptions *options);
+
+/* Encodes the scalar value described by type to json encoding.
+ *
+ * @param src The value. Must not be NULL.
+ * @param type The value type. Must not be NULL.
+ * @param outBuf Pointer to ByteString containing the result if the encoding was
+ * successful
+ * @return Returns a statuscode whether encoding succeeded. */
+UA_StatusCode UA_EXPORT
+UA_encodeJson(const void *src, const UA_DataType *type, UA_ByteString *outBuf,
+              const UA_EncodeJsonOptions *options);
+
+/* The structure with the decoding options may be extended in the future.
+ * Zero-out the entire structure initially to ensure code-compatibility when
+ * more fields are added in a later release. */
+typedef struct {
+    const UA_DataTypeArray *customTypes; /* Begin of a linked list with custom
+                                          * datatype definitions */
+} UA_DecodeJsonOptions;
+
+/* Decodes a scalar value described by type from json encoding.
+ *
+ * @param src The buffer with the json encoded value. Must not be NULL.
+ * @param dst The target value. Must not be NULL. The target is assumed to have
+ *        size type->memSize. The value is reset to zero before decoding. If
+ *        decoding fails, members are deleted and the value is reset (zeroed)
+ *        again.
+ * @param type The value type. Must not be NULL.
+ * @param options The options struct for decoding, currently unused
+ * @return Returns a statuscode whether decoding succeeded. */
+UA_StatusCode UA_EXPORT
+UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type,
+              const UA_DecodeJsonOptions *options);
+/**
  * .. _array-handling:
  *
  * Array handling
@@ -1123,12 +1213,56 @@ UA_StatusCode UA_EXPORT
 UA_Array_copy(const void *src, size_t size, void **dst,
               const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
+/* Resizes (and reallocates) an array. The last entries are initialized to zero
+ * if the array length is increased. If the array length is decreased, the last
+ * entries are removed if the size is decreased.
+ *
+ * @param p Double pointer to the array memory. Can be overwritten by the result of a
+ *          realloc.
+ * @param size The current size of the array. Overwritten in case of success.
+ * @param newSize The new size of the array
+ * @param type The datatype of the array members
+ * @return Returns UA_STATUSCODE_GOOD or UA_STATUSCODE_BADOUTOFMEMORY. The original array
+ *         is left untouched in the failure case. */
+UA_StatusCode UA_EXPORT
+UA_Array_resize(void **p, size_t *size, size_t newSize,
+                const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+
+/* Append the given element at the end of the array. The content is moved
+ * (shallow copy) and the original memory is _init'ed if appending is
+ * successful.
+ *
+ * @param p Double pointer to the array memory. Can be overwritten by the result of a
+ *          realloc.
+ * @param size The current size of the array. Overwritten in case of success.
+ * @param newElem The element to be appended. The memory is reset upon success.
+ * @param type The datatype of the array members
+ * @return Returns UA_STATUSCODE_GOOD or UA_STATUSCODE_BADOUTOFMEMORY. The original array
+ *         is left untouched in the failure case. */
+UA_StatusCode UA_EXPORT
+UA_Array_append(void **p, size_t *size, void *newElem,
+                const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+
+/* Append a copy of the given element at the end of the array.
+ *
+ * @param p Double pointer to the array memory. Can be overwritten by the result of a
+ *          realloc.
+ * @param size The current size of the array. Overwritten in case of success.
+ * @param newElem The element to be appended.
+ * @param type The datatype of the array members
+ * @return Returns UA_STATUSCODE_GOOD or UA_STATUSCODE_BADOUTOFMEMORY. The original array
+ *         is left untouched in the failure case. */
+UA_StatusCode UA_EXPORT
+UA_Array_appendCopy(void **p, size_t *size, const void *newElem,
+                    const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+
 /* Deletes an array.
  *
  * @param p The memory location of the array
  * @param size The size of the array
  * @param type The datatype of the array members */
-void UA_EXPORT UA_Array_delete(void *p, size_t size, const UA_DataType *type);
+void UA_EXPORT
+UA_Array_delete(void *p, size_t size, const UA_DataType *type);
 
 /**
  * Random Number Generator
@@ -1156,14 +1290,6 @@ UA_Guid UA_EXPORT UA_Guid_random(void);     /* no cryptographic entropy */
 #else
 # define UA_TYPENAME(name)
 #endif
-
-/* Datatype arrays with custom type definitions can be added in a linked list to
- * the client or server configuration. */
-typedef struct UA_DataTypeArray {
-    const struct UA_DataTypeArray *next;
-    const size_t typesSize;
-    const UA_DataType *types;
-} UA_DataTypeArray;
 
 /**
  * .. include:: types_generated.rst */

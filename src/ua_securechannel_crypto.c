@@ -11,11 +11,10 @@
  *    Copyright 2017-2018 (c) Mark Giraud, Fraunhofer IOSB
  */
 
-#include <open62541/types_generated_encoding_binary.h>
-#include <open62541/transport_generated_encoding_binary.h>
 #include <open62541/transport_generated_handling.h>
 
 #include "ua_securechannel.h"
+#include "ua_types_encoding_binary.h"
 #include "ua_util_internal.h"
 
 UA_StatusCode
@@ -175,10 +174,10 @@ prependHeadersAsym(UA_SecureChannel *const channel, UA_Byte *header_pos,
     messageHeader.messageSize = (UA_UInt32)*encryptedLength;
     UA_UInt32 secureChannelId = channel->securityToken.channelId;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    retval |= UA_encodeBinary(&messageHeader, &UA_TRANSPORT[UA_TRANSPORT_TCPMESSAGEHEADER],
-                              &header_pos, &buf_end, NULL, NULL);
-    retval |= UA_encodeBinary(&secureChannelId, &UA_TYPES[UA_TYPES_UINT32],
-                              &header_pos, &buf_end, NULL, NULL);
+    retval |= UA_encodeBinaryInternal(&messageHeader,
+                                      &UA_TRANSPORT[UA_TRANSPORT_TCPMESSAGEHEADER],
+                                      &header_pos, &buf_end, NULL, NULL);
+    retval |= UA_UInt32_encodeBinary(&secureChannelId, &header_pos, buf_end);
     UA_CHECK_STATUS(retval, return retval);
 
     UA_AsymmetricAlgorithmSecurityHeader asymHeader;
@@ -190,16 +189,16 @@ prependHeadersAsym(UA_SecureChannel *const channel, UA_Byte *header_pos,
         asymHeader.receiverCertificateThumbprint.length = 20;
         asymHeader.receiverCertificateThumbprint.data = channel->remoteCertificateThumbprint;
     }
-    retval = UA_encodeBinary(&asymHeader,
-                             &UA_TRANSPORT[UA_TRANSPORT_ASYMMETRICALGORITHMSECURITYHEADER],
-                             &header_pos, &buf_end, NULL, NULL);
+    retval = UA_encodeBinaryInternal(&asymHeader,
+                &UA_TRANSPORT[UA_TRANSPORT_ASYMMETRICALGORITHMSECURITYHEADER],
+                &header_pos, &buf_end, NULL, NULL);
     UA_CHECK_STATUS(retval, return retval);
 
     UA_SequenceHeader seqHeader;
     seqHeader.requestId = requestId;
     seqHeader.sequenceNumber = UA_atomic_addUInt32(&channel->sendSequenceNumber, 1);
-    retval = UA_encodeBinary(&seqHeader, &UA_TRANSPORT[UA_TRANSPORT_SEQUENCEHEADER],
-                             &header_pos, &buf_end, NULL, NULL);
+    retval = UA_encodeBinaryInternal(&seqHeader, &UA_TRANSPORT[UA_TRANSPORT_SEQUENCEHEADER],
+                                     &header_pos, &buf_end, NULL, NULL);
     return retval;
 }
 

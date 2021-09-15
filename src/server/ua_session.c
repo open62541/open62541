@@ -50,7 +50,10 @@ void UA_Session_clear(UA_Session *session, UA_Server* server) {
     session->continuationPoints = NULL;
     session->availableContinuationPoints = UA_MAXCONTINUATIONPOINTS;
 
-    UA_ConfigParameter_delete(&session->params);
+    UA_Array_delete(session->params, session->paramsSize,
+                    &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
+    session->params = NULL;
+    session->paramsSize = 0;
 }
 
 void
@@ -215,7 +218,8 @@ UA_Server_setSessionParameter(UA_Server *server, const UA_NodeId *sessionId,
     UA_Session *session = UA_Server_getSessionById(server, sessionId);
     UA_StatusCode res = UA_STATUSCODE_BADSESSIONIDINVALID;
     if(session)
-        res = UA_ConfigParameter_setParameter(&session->params, name, parameter);
+        res = UA_KeyValueMap_set(&session->params, &session->paramsSize,
+                                 name, parameter);
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
@@ -226,7 +230,7 @@ UA_Server_deleteSessionParameter(UA_Server *server, const UA_NodeId *sessionId,
     UA_LOCK(&server->serviceMutex);
     UA_Session *session = UA_Server_getSessionById(server, sessionId);
     if(session)
-        UA_ConfigParameter_deleteParameter(&session->params, name);
+        UA_KeyValueMap_delete(&session->params, &session->paramsSize, name);
     UA_UNLOCK(&server->serviceMutex);
 }
 
@@ -245,7 +249,8 @@ UA_Server_getSessionParameter(UA_Server *server, const UA_NodeId *sessionId,
         return UA_STATUSCODE_BADSESSIONIDINVALID;
     }
 
-    const UA_Variant *param = UA_ConfigParameter_getParameter(session->params, name);
+    const UA_Variant *param =
+        UA_KeyValueMap_get(session->params, session->paramsSize, name);
     if(!param) {
         UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADNOTFOUND;
@@ -272,7 +277,8 @@ UA_Server_getSessionScalarParameter(UA_Server *server, const UA_NodeId *sessionI
         return UA_STATUSCODE_BADSESSIONIDINVALID;
     }
 
-    const UA_Variant *param = UA_ConfigParameter_getParameter(session->params, name);
+    const UA_Variant *param =
+        UA_KeyValueMap_get(session->params, session->paramsSize, name);
     if(!param || !UA_Variant_hasScalarType(param, type)) {
         UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADNOTFOUND;
@@ -299,7 +305,8 @@ UA_Server_getSessionArrayParameter(UA_Server *server, const UA_NodeId *sessionId
         return UA_STATUSCODE_BADSESSIONIDINVALID;
     }
 
-    const UA_Variant *param = UA_ConfigParameter_getParameter(session->params, name);
+    const UA_Variant *param =
+        UA_KeyValueMap_get(session->params, session->paramsSize, name);
     if(!param || !UA_Variant_hasArrayType(param, type)) {
         UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADNOTFOUND;

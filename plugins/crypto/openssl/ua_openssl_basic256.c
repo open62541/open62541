@@ -9,7 +9,7 @@
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/util.h>
 
-#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
 
 #include "securitypolicy_openssl_common.h"
 

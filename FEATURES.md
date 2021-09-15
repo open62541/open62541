@@ -8,7 +8,7 @@ OPC UA Stack
 | --------------------------------------- |:------------------:| -------------------- |
 | **Encoding**                            |                    |                      |
 | OPC UA Binary                           | :heavy_check_mark: |                      |
-| OPC UA JSON                             |     :full_moon:    |                      |
+| OPC UA JSON                             | :heavy_check_mark: |                      |
 | OPC UA XML                              |     :new_moon:     |                      |
 | **Transport**                           |                    |                      |
 | UA-TCP UA-SC UA Binary                  | :heavy_check_mark: |                      |
@@ -62,14 +62,14 @@ OPC UA Server
 |                             | DeleteMonitoredItems()          |  :heavy_check_mark:  |                      |
 |                             | ModifyMonitoredItems()          |  :heavy_check_mark:  |                      |
 |                             | SetMonitoringMode()             |  :heavy_check_mark:  |                      |
-|                             | SetTriggering()                 |  :heavy_check_mark:  |  master              |
+|                             | SetTriggering()                 |  :heavy_check_mark:  |                      |
 | Subscription Service Set    | CreateSubscription()            |  :heavy_check_mark:  |                      |
 |                             | ModifySubscription()            |  :heavy_check_mark:  |                      |
 |                             | SetPublishingMode()             |  :heavy_check_mark:  |                      |
 |                             | Publish()                       |  :heavy_check_mark:  |                      |
 |                             | Republish()                     |  :heavy_check_mark:  |                      |
 |                             | DeleteSubscriptions()           |  :heavy_check_mark:  |                      |
-|                             | TransferSubscriptions()         |  :heavy_check_mark:  |  master              |
+|                             | TransferSubscriptions()         |  :heavy_check_mark:  |                      |
 
 | **Subscriptions**                       |                    |                      |
 | --------------------------------------- |:------------------:| -------------------- |
@@ -105,6 +105,10 @@ OPC UA PubSub
 | AMQP                                              |      :new_moon:       |                        |
 | **Publisher Configuration**                       |                       |                        |
 | Configure (server-side) Publisher at runtime      |  :heavy_check_mark:   |                        |
-| Configuration representation in information model |  :heavy_check_mark:   | Runtime configuration changes by editing the information model representation are possible |
+| Configuration representation in information model |  :heavy_check_mark:   | Runtime configuration changes via the information model possible |
+| Message Encryption                                |  :heavy_check_mark:   | With manual key configuration |
 | Security Key Service Model                        |      :new_moon:       |                        |
 | **Subscriber Configuration**                      | :waning_gibbous_moon: | Manual Subscriber only |
+| Message Decryption                                |  :heavy_check_mark:   | With manual key configuration |
+| Configure (server-side) Subscriber at runtime     |  :heavy_check_mark:   |                        |
+| Configuration representation in information model |  :heavy_check_mark:   | Runtime configuration changes via the information model possible |

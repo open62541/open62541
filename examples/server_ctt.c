@@ -219,7 +219,7 @@ readRandomStringData (UA_Server *server,
         return UA_STATUSCODE_GOOD;
     }
     char randomName[12];
-    UA_snprintf(randomName, 12, "Random%d", UA_UInt32_random());
+    UA_snprintf(randomName, 12, "Random%u", UA_UInt32_random());
     UA_String toggle = UA_STRING(randomName);
     UA_Variant_setScalarCopy(&value->value, &toggle, &UA_TYPES[UA_TYPES_STRING]);
     value->hasValue = true;
@@ -283,7 +283,7 @@ readByteString (UA_Server *server,
         return UA_STATUSCODE_GOOD;
     }
     char randomName[8];
-    UA_snprintf(randomName, 8, "%d%d", UA_UInt32_random(), UA_UInt32_random());
+    UA_snprintf(randomName, 8, "%u%u", UA_UInt32_random(), UA_UInt32_random());
     UA_ByteString randomByte = UA_BYTESTRING(randomName);
     UA_Variant_setScalarCopy(&value->value, &randomByte, &UA_TYPES[UA_TYPES_BYTESTRING]);
     value->hasValue = true;
@@ -586,7 +586,7 @@ setInformationModel(UA_Server *server) {
     id = DEPTHID; // running id in namespace 0 - Start with Matrix NODE
     for(UA_UInt32 i = 1; i <= 20; i++) {
         char name[15];
-        UA_snprintf(name, 15, "depth%i", i);
+        UA_snprintf(name, 15, "depth%u", i);
         object_attr.description = UA_LOCALIZEDTEXT("en-US", name);
         object_attr.displayName = UA_LOCALIZEDTEXT("en-US", name);
         UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, id + i),

@@ -181,17 +181,21 @@ UA_LOCK_ASSERT(UA_Lock *lock, int num) {
     UA_assert(lock->mutexCounter == num);
 }
 #else
-#define UA_LOCK_INIT(lock)
-#define UA_LOCK_DESTROY(lock)
-#define UA_LOCK(lock)
-#define UA_UNLOCK(lock)
-#define UA_LOCK_ASSERT(lock, num)
+#define UA_EMPTY_STATEMENT                                                               \
+    do {                                                                                 \
+    } while(0)
+#define UA_LOCK_INIT(lock) UA_EMPTY_STATEMENT
+#define UA_LOCK_DESTROY(lock) UA_EMPTY_STATEMENT
+#define UA_LOCK(lock) UA_EMPTY_STATEMENT
+#define UA_UNLOCK(lock) UA_EMPTY_STATEMENT
+#define UA_LOCK_ASSERT(lock, num) UA_EMPTY_STATEMENT
 #endif
 
 #include <open62541/architecture_functions.h>
 
-#if defined(__APPLE__)  && defined(_SYS_QUEUE_H_)
-//  in some compilers there's already a _SYS_QUEUE_H_ which is included first and doesn't have all functions
+#if defined(__APPLE__) && defined(_SYS_QUEUE_H_)
+//  in some compilers there's already a _SYS_QUEUE_H_ which is included first and doesn't
+//  have all functions
 
 #undef SLIST_HEAD
 #undef SLIST_HEAD_INITIALIZER

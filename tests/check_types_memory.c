@@ -124,8 +124,7 @@ START_TEST(encodeShallYieldDecode) {
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     UA_Byte *pos = msg1.data;
     const UA_Byte *end = &msg1.data[msg1.length];
-    retval = UA_encodeBinary(obj1, &UA_TYPES[_i],
-                             &pos, &end, NULL, NULL);
+    retval = UA_encodeBinaryInternal(obj1, &UA_TYPES[_i], &pos, &end, NULL, NULL);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_delete(obj1, &UA_TYPES[_i]);
         UA_ByteString_clear(&msg1);
@@ -135,7 +134,7 @@ START_TEST(encodeShallYieldDecode) {
     // when
     void *obj2 = UA_new(&UA_TYPES[_i]);
     size_t offset = 0;
-    retval = UA_decodeBinary(&msg1, &offset, obj2, &UA_TYPES[_i], NULL);
+    retval = UA_decodeBinaryInternal(&msg1, &offset, obj2, &UA_TYPES[_i], NULL);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "could not decode idx=%d,nodeid=%i",
                   _i, UA_TYPES[_i].typeId.identifier.numeric);
     ck_assert(!memcmp(obj1, obj2, UA_TYPES[_i].memSize)); // bit identical decoding
@@ -143,7 +142,7 @@ START_TEST(encodeShallYieldDecode) {
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     pos = msg2.data;
     end = &msg2.data[msg2.length];
-    retval = UA_encodeBinary(obj2, &UA_TYPES[_i], &pos, &end, NULL, NULL);
+    retval = UA_encodeBinaryInternal(obj2, &UA_TYPES[_i], &pos, &end, NULL, NULL);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     // then
@@ -162,49 +161,15 @@ START_TEST(encodeShallYieldDecode) {
 END_TEST
 
 START_TEST(decodeShallFailWithTruncatedBufferButSurvive) {
-    //Skip test for void*
-    if (
-#ifdef UA_ENABLE_DISCOVERY
-        _i == UA_TYPES_DISCOVERYCONFIGURATION ||
-#endif
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-        _i == UA_TYPES_FILTEROPERAND ||
-        _i == UA_TYPES_UNION ||
-#endif
-#ifdef UA_TYPES_FRAME
-        _i == UA_TYPES_FRAME ||
-        _i == UA_TYPES_ORIENTATION ||
-        _i == UA_TYPES_VECTOR ||
-        _i == UA_TYPES_CARTESIANCOORDINATES ||
-#endif
-        _i == UA_TYPES_HISTORYREADDETAILS ||
-        _i == UA_TYPES_NOTIFICATIONDATA ||
-        _i == UA_TYPES_MONITORINGFILTER ||
-        _i == UA_TYPES_MONITORINGFILTERRESULT ||
-        _i == UA_TYPES_DATASETREADERMESSAGEDATATYPE ||
-        _i == UA_TYPES_WRITERGROUPTRANSPORTDATATYPE ||
-        _i == UA_TYPES_CONNECTIONTRANSPORTDATATYPE ||
-        _i == UA_TYPES_WRITERGROUPMESSAGEDATATYPE ||
-        _i == UA_TYPES_READERGROUPTRANSPORTDATATYPE ||
-        _i == UA_TYPES_PUBLISHEDDATASETSOURCEDATATYPE ||
-        _i == UA_TYPES_DATASETREADERTRANSPORTDATATYPE ||
-        _i == UA_TYPES_DATASETWRITERTRANSPORTDATATYPE ||
-        _i == UA_TYPES_SUBSCRIBEDDATASETDATATYPE ||
-        _i == UA_TYPES_READERGROUPMESSAGEDATATYPE ||
-        _i == UA_TYPES_DATASETWRITERMESSAGEDATATYPE)
-        return;
     // given
     UA_ByteString msg1;
     void *obj1 = UA_new(&UA_TYPES[_i]);
     UA_StatusCode retval = UA_ByteString_allocBuffer(&msg1, 65000); // fixed buf size
     UA_Byte *pos = msg1.data;
     const UA_Byte *end = &msg1.data[msg1.length];
-    retval |= UA_encodeBinary(obj1, &UA_TYPES[_i], &pos, &end, NULL, NULL);
+    retval |= UA_encodeBinaryInternal(obj1, &UA_TYPES[_i], &pos, &end, NULL, NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     UA_delete(obj1, &UA_TYPES[_i]);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_ByteString_clear(&msg1);
-        return; // e.g. variants cannot be encoded after an init without failing (no datatype set)
-    }
 
     size_t half = (uintptr_t)(pos - msg1.data) / 2;
     msg1.length = half;
@@ -212,9 +177,10 @@ START_TEST(decodeShallFailWithTruncatedBufferButSurvive) {
     // when
     void *obj2 = UA_new(&UA_TYPES[_i]);
     size_t offset = 0;
-    retval = UA_decodeBinary(&msg1, &offset, obj2, &UA_TYPES[_i], NULL);
+    retval = UA_decodeBinaryInternal(&msg1, &offset, obj2, &UA_TYPES[_i], NULL);
     ck_assert_int_ne(retval, UA_STATUSCODE_GOOD);
     UA_delete(obj2, &UA_TYPES[_i]);
+    msg1.length = 65000;
     UA_ByteString_clear(&msg1);
 }
 END_TEST
@@ -245,7 +211,7 @@ START_TEST(decodeScalarBasicTypeFromRandomBufferShallSucceed) {
         }
         size_t pos = 0;
         obj1 = UA_new(&UA_TYPES[_i]);
-        retval |= UA_decodeBinary(&msg1, &pos, obj1, &UA_TYPES[_i], NULL);
+        retval |= UA_decodeBinaryInternal(&msg1, &pos, obj1, &UA_TYPES[_i], NULL);
         //then
         ck_assert_msg(retval == UA_STATUSCODE_GOOD,
                       "Decoding %d from random buffer",
@@ -281,7 +247,7 @@ START_TEST(decodeComplexTypeFromRandomBufferShallSurvive) {
         }
         size_t pos = 0;
         void *obj1 = UA_new(&UA_TYPES[_i]);
-        retval |= UA_decodeBinary(&msg1, &pos, obj1, &UA_TYPES[_i], NULL);
+        retval |= UA_decodeBinaryInternal(&msg1, &pos, obj1, &UA_TYPES[_i], NULL);
         UA_delete(obj1, &UA_TYPES[_i]);
     }
 
@@ -291,40 +257,6 @@ START_TEST(decodeComplexTypeFromRandomBufferShallSurvive) {
 END_TEST
 
 START_TEST(calcSizeBinaryShallBeCorrect) {
-    /* Empty variants (with no type defined) cannot be encoded. This is
-     * intentional. Discovery configuration is just a base class and void * */
-    if(_i == UA_TYPES_VARIANT ||
-       _i == UA_TYPES_VARIABLEATTRIBUTES ||
-       _i == UA_TYPES_VARIABLETYPEATTRIBUTES ||
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-       _i == UA_TYPES_FILTEROPERAND ||
-#endif
-#ifdef UA_ENABLE_DISCOVERY
-       _i == UA_TYPES_DISCOVERYCONFIGURATION ||
-#endif
-       _i == UA_TYPES_UNION ||
-#ifdef UA_TYPES_FRAME
-       _i == UA_TYPES_FRAME ||
-       _i == UA_TYPES_ORIENTATION ||
-       _i == UA_TYPES_VECTOR ||
-       _i == UA_TYPES_CARTESIANCOORDINATES ||
-#endif
-       _i == UA_TYPES_HISTORYREADDETAILS ||
-       _i == UA_TYPES_NOTIFICATIONDATA ||
-       _i == UA_TYPES_MONITORINGFILTER ||
-        _i == UA_TYPES_MONITORINGFILTERRESULT ||
-        _i == UA_TYPES_DATASETREADERMESSAGEDATATYPE ||
-        _i == UA_TYPES_WRITERGROUPTRANSPORTDATATYPE ||
-        _i == UA_TYPES_CONNECTIONTRANSPORTDATATYPE ||
-        _i == UA_TYPES_WRITERGROUPMESSAGEDATATYPE ||
-        _i == UA_TYPES_READERGROUPTRANSPORTDATATYPE ||
-        _i == UA_TYPES_PUBLISHEDDATASETSOURCEDATATYPE ||
-        _i == UA_TYPES_DATASETREADERTRANSPORTDATATYPE ||
-        _i == UA_TYPES_DATASETWRITERTRANSPORTDATATYPE ||
-        _i == UA_TYPES_SUBSCRIBEDDATASETDATATYPE ||
-        _i == UA_TYPES_READERGROUPMESSAGEDATATYPE ||
-        _i == UA_TYPES_DATASETWRITERMESSAGEDATATYPE)
-        return;
     void *obj = UA_new(&UA_TYPES[_i]);
     size_t predicted_size = UA_calcSizeBinary(obj, &UA_TYPES[_i]);
     ck_assert_uint_ne(predicted_size, 0);
@@ -333,7 +265,7 @@ START_TEST(calcSizeBinaryShallBeCorrect) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_Byte *pos = msg.data;
     const UA_Byte *end = &msg.data[msg.length];
-    retval = UA_encodeBinary(obj, &UA_TYPES[_i], &pos, &end, NULL, NULL);
+    retval = UA_encodeBinaryInternal(obj, &UA_TYPES[_i], &pos, &end, NULL, NULL);
     if(retval)
         printf("%i\n",_i);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);

@@ -408,6 +408,24 @@ class Int32(Integer):
         if xmlelement:
             self.parseXML(xmlelement)
 
+    def parseXML(self, xmlvalue):
+        Integer.parseXML(self, xmlvalue)
+        # Values of enumerations can be encoded as strings: <symbol>_<value> (see OPC specification part 6)
+        # UaModeler does this for enums that are fields of structs
+        # Extract <value> from string if possible
+        if isinstance(self.value, string_types) and not self.__strIsInt(self.value):
+            split = self.value.split('_')
+            if len(split) == 2 and self.__strIsInt(split[1]):
+                self.value = split[1]
+
+    @staticmethod
+    def __strIsInt(strValue):
+        try:
+            int(strValue)
+            return True
+        except:
+            return False
+
 class UInt32(UInteger):
     def __init__(self, xmlelement=None):
         UInteger.__init__(self)
